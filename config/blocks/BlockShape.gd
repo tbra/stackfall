@@ -22,3 +22,28 @@ extends Resource
 ## Optional custom mesh; when null the factory generates one from `cells` and
 ## `sloped_cells`.
 @export var mesh: Mesh = null
+
+const BLOCKS_DIR: String = "res://config/blocks/"
+
+
+## Every BlockShape resource under res://config/blocks/, sorted by id so the
+## result is deterministic across platforms and directory-listing orders.
+## BlockFeedConfig falls back to this when its `shapes` list is empty; the
+## weighted bag (core/feed/BlockBag.gd) needs this order to be stable so the
+## same rng_seed always deals the same sequence (spec 2.4).
+static func load_all_shapes() -> Array[BlockShape]:
+	var shapes: Array[BlockShape] = []
+	var dir: DirAccess = DirAccess.open(BLOCKS_DIR)
+	if dir == null:
+		return shapes
+	dir.list_dir_begin()
+	var file_name: String = dir.get_next()
+	while file_name != "":
+		if file_name.ends_with(".tres"):
+			var shape: BlockShape = load(BLOCKS_DIR + file_name)
+			if shape != null:
+				shapes.append(shape)
+		file_name = dir.get_next()
+	dir.list_dir_end()
+	shapes.sort_custom(func(a: BlockShape, b: BlockShape) -> bool: return String(a.id) < String(b.id))
+	return shapes
