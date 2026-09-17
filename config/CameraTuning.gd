@@ -13,7 +13,7 @@ extends Resource
 
 ## -- Zoom -----------------------------------------------------------------
 @export var zoom_min: float = 8.0
-@export var zoom_max: float = 80.0
+@export var zoom_max: float = 100.0
 ## Distance change per discrete zoom step (wheel tick, key press, or trigger
 ## pull; spec 2.5 scopes wheel/trigger zoom to "while not holding a block").
 @export var zoom_step: float = 4.0

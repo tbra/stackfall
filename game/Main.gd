@@ -1,9 +1,7 @@
 extends Node3D
-## Placeholder entry scene for M0.
-##
-## It holds no gameplay yet; it exists so the project boots into something and so
-## the M0 acceptance criteria ("the project opens and runs an empty scene") can be
-## checked from the command line. M1 replaces this with the physics sandbox.
+## M1 physics sandbox: a static disk, an orbit camera, and a player
+## controller holding a ghost-preview block fed from the M1 placeholder
+## random feed. No territory rules yet (M2) — every placement is valid.
 
 
 func _ready() -> void:

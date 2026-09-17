@@ -21,7 +21,13 @@ var _target: Vector3 = Vector3.ZERO
 
 
 func _ready() -> void:
-	_distance = tuning.snap_distance
+	# DECISION (game/CameraRig.gd): the initial view scales with the map's
+	# field_radius (a close-in fixed default looked fine on a small map but
+	# was nose-to-the-glass on a medium/large one, since the disk fills most
+	# of the frame at any distance shorter than roughly its own radius).
+	# tuning.snap_distance is still used as-is for camera_snap_home/goal,
+	# which are deliberately closer-in views.
+	_distance = clampf(map_def.field_radius * 1.4, tuning.zoom_min, tuning.zoom_max)
 	_pitch = deg_to_rad(tuning.snap_pitch_deg)
 	_update_transform()
 
