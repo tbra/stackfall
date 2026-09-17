@@ -1,0 +1,17 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://game/HotSeat.gd" id="1_hotseat"]
+[ext_resource type="PackedScene" path="res://game/GhostPreview.tscn" id="2_ghost"]
+[ext_resource type="Script" path="res://game/PlayerController.gd" id="3_controller"]
+[ext_resource type="PackedScene" path="res://ui/HUD.tscn" id="4_hud"]
+
+[node name="HotSeat" type="Node"]
+script = ExtResource("1_hotseat")
+
+[node name="GhostPreview" parent="." instance=ExtResource("2_ghost")]
+
+[node name="PlayerController" type="Node" parent="."]
+script = ExtResource("3_controller")
+ghost_path = NodePath("../GhostPreview")
+
+[node name="HUDLayer" parent="." instance=ExtResource("4_hud")]

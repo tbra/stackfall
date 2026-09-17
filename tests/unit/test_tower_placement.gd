@@ -5,6 +5,14 @@ extends GutTest
 ## cubes, lets physics settle for 10 s, and checks the tower is still
 ## standing and asleep. The gamepad half is covered by
 ## test_playercontroller_gamepad.gd's synthetic-input test.
+##
+## Updated for M2 (docs/M2_PLAN.md P4): placement is intent-only now (spec
+## 3.4) — PlayerController calls Match.request_place() and never builds a
+## Block itself. P2's real Match hasn't landed on this branch yet, so this
+## uses FakeMatch (tests/unit/support/FakeMatch.gd) with spawn_on_ok = true,
+## which spawns the same way the real Match eventually will, keeping this
+## acceptance test's physics half (a stable, sleeping tower) exercised
+## end-to-end.
 
 const TOWER_HEIGHT: int = 30
 const SETTLE_SECONDS: float = 10.0
@@ -31,25 +39,28 @@ func test_thirty_cube_tower_stands_and_sleeps() -> void:
 	var controller: PlayerController = autofree(PlayerController.new())
 	add_child_autofree(controller)
 	controller._ghost = ghost
-	controller._spawn_parent = blocks_root
+	controller._active_slot = 0
+
+	var fake_match: FakeMatch = FakeMatch.new()
+	fake_match.spawn_parent = blocks_root
+	fake_match.spawn_on_ok = true
+	fake_match.held_shapes[0] = cube_shape
+	controller._match = fake_match
 
 	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres")
 	var edge: float = tuning.cube_size - tuning.cube_margin
 
 	# Each new cube targets the PREVIOUS cube's actual settled position (not
 	# a precomputed ideal grid coordinate), matching a real ghost raycasting
-	# onto wherever the stack currently is.
+	# onto wherever the stack currently is. Unlike M1, the ghost's shape
+	# never changes on its own now (Match owns the feed via
+	# Events.feed_block_issued/turn_changed), so every block in this tower
+	# stays a cube without needing to reset it after each placement.
 	var next_position: Vector3 = Vector3(0.0, edge * 0.5, 0.0)
 	for i: int in range(TOWER_HEIGHT):
 		ghost.reset_rotation()
 		ghost.global_position = next_position
 		controller._place_ghost_block()
-		# _place_ghost_block() advances the feed to a random shape for the
-		# NEXT ghost (spec 2.4's plain M1 pick) — force it back to cube so
-		# every block in this tower is uniform, which is the point of the
-		# test. The real feed's variety is exercised by
-		# test_simple_block_feed.gd instead.
-		ghost.set_shape(cube_shape)
 
 		for _settle_tick: int in range(TICKS_BETWEEN_PLACEMENTS):
 			await get_tree().physics_frame
