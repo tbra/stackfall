@@ -1,10 +1,18 @@
 # Start here
 
-## 1. Setup checklist (about 20 min, before opening Claude Code)
-- [ ] Install **Godot 4.6+ (standard build, not .NET)** from godotengine.org. Put the `godot` command on your PATH, or note the full path to it.
-- [ ] Install **Steam** and log in. You'll need it for M3b.
-- [ ] Have **a gamepad** connected, Xbox or PlayStation.
-- [ ] Create the repo:
+> **Status (2026-09-17):** Setup is done and M0 is complete. The build now runs in
+> **orchestrator mode**: a top-level Claude session briefs one agent per milestone step,
+> verifies the result, and moves on when the acceptance criteria pass. It only stops for
+> you at the pause points listed in `CLAUDE.md` ([ORIGINAL] rule changes, major
+> ambiguity, M7 art direction). The prompts in section 3 are the agents' briefs.
+> Hardware-only checks (gamepad, Steam on two PCs, GPU fps targets) are written up as
+> manual test steps for you; do them whenever you like.
+
+## 1. Setup checklist (done)
+- [x] Install **Godot 4.6+ (standard build, not .NET)** — 4.7.2 via winget; `godot` shim in `C:\Users\tonyf\bin` (on PATH).
+- [x] Install **Steam** and log in. You'll need it for M3b.
+- [ ] Have **a gamepad** connected, Xbox or PlayStation. (Not yet confirmed — needed for manual tests only.)
+- [x] Create the repo — done in place at `M:\Bontago`, spec at `docs/SPEC.md`. The original plan was:
   ```bash
   mkdir stackfall && cd stackfall && git init
   mkdir docs
@@ -12,7 +20,7 @@
   # copy CLAUDE.md -> ./CLAUDE.md
   git add . && git commit -m "Spec and project instructions"
   ```
-- [ ] Start Claude Code in the repo folder: `claude`
+- [x] Start Claude Code in the repo folder: `claude`
 - [ ] Optional: a private GitHub repo as a remote for backups.
 - [ ] Optional: for testing online play later, a second PC or a friend with Steam.
 
@@ -23,8 +31,8 @@
 - **Button prompt icons:** Kenney "Input Prompts" (CC0).
 - **Music:** Something calm and atmospheric, like the original. Use royalty-free tracks or commission them.
 
-## 3. Prompts to paste (one at a time)
-Wait until each milestone passes its acceptance criteria before sending the next prompt. If something is off, give feedback in the same session first.
+## 3. Milestone briefs (one agent per milestone, dispatched by the orchestrator)
+Each milestone must pass its acceptance criteria before the next starts. If something is off, tell the orchestrator and it re-briefs the agent.
 
 ### M0
 > Read CLAUDE.md and docs/SPEC.md in full. Then do milestone M0: create the Godot 4.6+ project using the §3.1 settings and the §3.2 folder layout. Set up the autoloads (empty stubs are fine) and the Input Map with every action from §2.5, including gamepad bindings. Set up a unit test framework with one passing sample test, plus .gitignore and .gitattributes. Stop and give me a summary when you're done.
