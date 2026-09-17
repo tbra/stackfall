@@ -99,7 +99,7 @@ static func footprint_cells(
 	# stub's own note says a rotated cube covers "up to four cells".
 	var half: float = maxf(cube_size * 0.5 - _BOUNDARY_EPSILON, 0.0)
 	var cell_size: float = grid.cell_size
-	var field_radius: float = grid.field_radius
+	var half_extent: float = grid.half_extent
 	var res: int = grid.res
 
 	for offset: Vector3i in cells:
@@ -112,10 +112,10 @@ static func footprint_cells(
 		# which is exactly floor for the low end and ceil - 1 for the high end.
 		# Doing it this way keeps a cube that lines up perfectly with the grid
 		# on one cell instead of bleeding into its neighbour.
-		var x0: int = maxi(0, floori((centre_x - half + field_radius) / cell_size))
-		var x1: int = mini(res - 1, ceili((centre_x + half + field_radius) / cell_size) - 1)
-		var y0: int = maxi(0, floori((centre_z - half + field_radius) / cell_size))
-		var y1: int = mini(res - 1, ceili((centre_z + half + field_radius) / cell_size) - 1)
+		var x0: int = maxi(0, floori((centre_x - half + half_extent) / cell_size))
+		var x1: int = mini(res - 1, ceili((centre_x + half + half_extent) / cell_size) - 1)
+		var y0: int = maxi(0, floori((centre_z - half + half_extent) / cell_size))
+		var y1: int = mini(res - 1, ceili((centre_z + half + half_extent) / cell_size) - 1)
 
 		for cy: int in range(y0, y1 + 1):
 			var row: int = cy * res

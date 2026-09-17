@@ -14,8 +14,29 @@ func _grid() -> CellGrid:
 
 func test_resolution_covers_the_bounding_square() -> void:
 	var grid: CellGrid = _grid()
-	assert_eq(grid.res, 90, "A 45 m radius disk needs 90 cells of 1 m per side.")
-	assert_eq(grid.cell_count(), 90 * 90)
+	# 90 cells of 1 m cover a 45 m radius disk, rounded up to 91 so the square
+	# has a middle cell and it is centred on the disk centre (the DECISION in
+	# CellGrid.gd: Field's per-cell collision needs that alignment).
+	assert_eq(grid.res, 91)
+	assert_eq(grid.cell_count(), 91 * 91)
+	assert_eq(grid.res % 2, 1, "res is always odd.")
+	assert_almost_eq(grid.half_extent, 45.5, 0.0001)
+
+
+func test_a_cell_is_centred_on_the_disk_centre() -> void:
+	var grid: CellGrid = _grid()
+	var middle: Vector2i = grid.world_to_cell(Vector2.ZERO)
+	assert_true(
+		grid.cell_center(middle.x, middle.y).is_equal_approx(Vector2.ZERO),
+		"The disk centre must be a cell centre, not a cell corner."
+	)
+
+
+func test_every_cell_centre_is_a_multiple_of_cell_size() -> void:
+	var grid: CellGrid = _grid()
+	for cx: int in [0, 1, 45, 90]:
+		var center: Vector2 = grid.cell_center(cx, cx)
+		assert_almost_eq(center.x - roundf(center.x / CELL) * CELL, 0.0, 0.0001)
 
 
 func test_resolution_rounds_up_for_non_dividing_cell_sizes() -> void:
@@ -40,8 +61,9 @@ func test_index_is_row_major() -> void:
 func test_cell_zero_is_the_negative_corner() -> void:
 	var grid: CellGrid = _grid()
 	var center: Vector2 = grid.cell_center(0, 0)
-	assert_almost_eq(center.x, -MAP_RADIUS + 0.5 * CELL, 0.0001)
-	assert_almost_eq(center.y, -MAP_RADIUS + 0.5 * CELL, 0.0001)
+	assert_almost_eq(center.x, -grid.half_extent + 0.5 * CELL, 0.0001)
+	assert_almost_eq(center.y, -grid.half_extent + 0.5 * CELL, 0.0001)
+	assert_lt(center.x, -MAP_RADIUS + CELL, "Cell 0 sits outside the disk rim.")
 
 
 func test_disk_center_falls_at_the_middle_cell() -> void:
@@ -52,8 +74,8 @@ func test_disk_center_falls_at_the_middle_cell() -> void:
 
 func test_world_to_cell_inverts_cell_center() -> void:
 	var grid: CellGrid = _grid()
-	for cy: int in [0, 7, 45, 89]:
-		for cx: int in [0, 13, 45, 89]:
+	for cy: int in [0, 7, 45, 90]:
+		for cx: int in [0, 13, 45, 90]:
 			assert_eq(grid.world_to_cell(grid.cell_center(cx, cy)), Vector2i(cx, cy))
 
 

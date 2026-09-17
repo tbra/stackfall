@@ -52,10 +52,23 @@ func _validate(origin: Vector2, team: int = 0) -> PlacementRules.Result:
 	return PlacementRules.validate(_footprint(origin), _raster, team)
 
 
+## Which literal coordinates are cell centres depends on how CellGrid lays its
+## square down (see the DECISION there — it centres a cell on the disk centre
+## so Field's per-cell collision does not jitter blocks). These two ask the
+## grid instead of hard-coding it, so the footprint tests below keep meaning
+## "centred on a cell" and "sitting on the corner where four cells meet".
+func _cell_centre(cx: int = 0, cy: int = 0) -> Vector2:
+	return _grid.cell_center(_grid.res / 2 + cx, _grid.res / 2 + cy)
+
+
+func _cell_corner(cx: int = 0, cy: int = 0) -> Vector2:
+	return _cell_centre(cx, cy) + Vector2(CELL, CELL) * 0.5
+
+
 ## -- footprint_cells ---------------------------------------------------------
 
 func test_a_cube_on_a_cell_centre_covers_exactly_that_cell() -> void:
-	var cells: PackedInt32Array = _footprint(Vector2(0.5, 0.5))
+	var cells: PackedInt32Array = _footprint(_cell_centre())
 	assert_eq(cells.size(), 1, "A 1 m cube aligned with a 1 m cell covers one cell.")
 	assert_eq(cells[0], _grid.cell_index(_grid.res / 2, _grid.res / 2))
 
@@ -64,17 +77,17 @@ func test_a_cube_straddling_a_cell_corner_covers_four_cells() -> void:
 	## docs/M2_PLAN.md: "a rotated cube covers up to four cells... every cube
 	## contributes the cells its footprint square overlaps, not just the one
 	## under its centre."
-	var cells: PackedInt32Array = _footprint(Vector2(0.0, 0.0))
+	var cells: PackedInt32Array = _footprint(_cell_corner())
 	assert_eq(cells.size(), 4, "Sitting on a cell corner, it overlaps all four.")
 
 
 func test_a_cube_straddling_one_edge_covers_two_cells() -> void:
-	assert_eq(_footprint(Vector2(0.0, 0.5)).size(), 2)
-	assert_eq(_footprint(Vector2(0.5, 0.0)).size(), 2)
+	assert_eq(_footprint(_cell_centre() + Vector2(CELL * 0.5, 0.0)).size(), 2)
+	assert_eq(_footprint(_cell_centre() + Vector2(0.0, CELL * 0.5)).size(), 2)
 
 
 func test_footprint_cells_are_ascending_and_unique() -> void:
-	var cells: PackedInt32Array = _footprint(Vector2(0.0, 0.0), _domino)
+	var cells: PackedInt32Array = _footprint(_cell_corner(), _domino)
 	var previous: int = -1
 	for index: int in cells:
 		assert_gt(index, previous, "Ascending with no repeats.")
@@ -82,7 +95,7 @@ func test_footprint_cells_are_ascending_and_unique() -> void:
 
 
 func test_a_domino_covers_both_of_its_cubes() -> void:
-	var cells: PackedInt32Array = _footprint(Vector2(0.5, 0.5), _domino)
+	var cells: PackedInt32Array = _footprint(_cell_centre(), _domino)
 	assert_eq(cells.size(), 2)
 	var first: Vector2i = _grid.cell_coords(cells[0])
 	var second: Vector2i = _grid.cell_coords(cells[1])
@@ -94,7 +107,7 @@ func test_rotating_a_domino_rotates_its_footprint() -> void:
 	## A yaw of 90 degrees has to swing the second cube onto the other axis;
 	## the footprint must follow the basis, not the untransformed cells.
 	var yawed: Basis = BlockOrientations.get_basis(BlockOrientations.step_yaw_ccw(0))
-	var cells: PackedInt32Array = _footprint(Vector2(0.5, 0.5), _domino, yawed)
+	var cells: PackedInt32Array = _footprint(_cell_centre(), _domino, yawed)
 	assert_eq(cells.size(), 2)
 	var first: Vector2i = _grid.cell_coords(cells[0])
 	var second: Vector2i = _grid.cell_coords(cells[1])
@@ -104,7 +117,7 @@ func test_rotating_a_domino_rotates_its_footprint() -> void:
 
 func test_a_free_rotation_still_produces_a_footprint() -> void:
 	var tilted: Basis = Basis(Vector3.UP, deg_to_rad(45.0))
-	var cells: PackedInt32Array = _footprint(Vector2(0.5, 0.5), _domino, tilted)
+	var cells: PackedInt32Array = _footprint(_cell_centre(), _domino, tilted)
 	assert_gt(cells.size(), 0, "A freely rotated block still covers cells.")
 
 
@@ -161,17 +174,19 @@ func test_crossing_the_rim_is_off_disk() -> void:
 	] as Array[InfluenceCircle])
 	assert_eq(_validate(Vector2(0.5, 0.5)), PlacementRules.Result.VALID, "Setup: mid-disk is fine.")
 
-	## (14, 14) is 19.8 m out, so the block's near cells are on the disk and its
-	## far corner cell is past the 20 m rim. Off the disk outranks the fact that
-	## nobody owns that cell either.
-	assert_eq(_validate(Vector2(14.0, 14.0)), PlacementRules.Result.OFF_DISK)
+	## On the corner where the cells around (14, 14) meet: the near one is
+	## 19.8 m out and on the disk, the far one is 20.5 m out and past the 20 m
+	## rim. Off the disk outranks the fact that nobody owns that cell either.
+	assert_eq(_validate(_cell_corner(14, 14)), PlacementRules.Result.OFF_DISK)
 
 
 func test_every_cell_of_the_footprint_must_pass_not_just_the_centre() -> void:
 	## The block sits on a cell corner, so it covers four cells. Three are
 	## mine; the fourth is deliberately not.
 	_my_territory()
-	var edge: Vector2 = Vector2(6.0, 0.0)
+	# The corner where the four cells around (6, 0) meet: the home circle's
+	# 6 m rim runs between them, so some are mine and some are not.
+	var edge: Vector2 = _cell_corner(6, 0)
 	var footprint: PackedInt32Array = _footprint(edge)
 	assert_eq(footprint.size(), 4, "Setup: straddling four cells.")
 

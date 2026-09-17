@@ -80,7 +80,7 @@ func _init(grid: CellGrid, tuning: TerritoryTuning) -> void:
 
 	_axis.resize(_grid.res)
 	for i: int in range(_grid.res):
-		_axis[i] = (float(i) + 0.5) * _grid.cell_size - _grid.field_radius
+		_axis[i] = (float(i) + 0.5) * _grid.cell_size - _grid.half_extent
 
 	reset()
 
@@ -238,12 +238,12 @@ func _stamp(circle: InfluenceCircle, group: int, team: int) -> void:
 
 	var res: int = _grid.res
 	var cell_size: float = _grid.cell_size
-	var field_radius: float = _grid.field_radius
+	var half_extent: float = _grid.half_extent
 	var radius_squared: float = radius * radius
 
-	var cy_min: int = maxi(0, ceili((circle.center.y - radius + field_radius) / cell_size - 0.5))
+	var cy_min: int = maxi(0, ceili((circle.center.y - radius + half_extent) / cell_size - 0.5))
 	var cy_max: int = mini(
-		res - 1, floori((circle.center.y + radius + field_radius) / cell_size - 0.5)
+		res - 1, floori((circle.center.y + radius + half_extent) / cell_size - 0.5)
 	)
 
 	for cy: int in range(cy_min, cy_max + 1):
@@ -253,10 +253,10 @@ func _stamp(circle: InfluenceCircle, group: int, team: int) -> void:
 			continue
 		var half_span: float = sqrt(remaining)
 		var cx_min: int = maxi(
-			0, ceili((circle.center.x - half_span + field_radius) / cell_size - 0.5)
+			0, ceili((circle.center.x - half_span + half_extent) / cell_size - 0.5)
 		)
 		var cx_max: int = mini(
-			res - 1, floori((circle.center.x + half_span + field_radius) / cell_size - 0.5)
+			res - 1, floori((circle.center.x + half_span + half_extent) / cell_size - 0.5)
 		)
 		var row: int = cy * res
 		for cx: int in range(cx_min, cx_max + 1):

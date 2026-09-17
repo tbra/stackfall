@@ -9,6 +9,22 @@ extends RefCounted
 ## meters covers the bounding square of the disk, so cell (0, 0) is the
 ## -x/-z corner and the disk's center falls at cell coordinate res/2.
 ##
+## DECISION (core/territory/CellGrid.gd): `res` is rounded **up to an odd
+## number** and the square is centred on the disk centre, so one cell is
+## centred exactly on the origin and every cell centre lands on a multiple of
+## cell_size. That is a physics requirement, not a tidiness one. Field turns
+## each cell into its own BoxShape3D; Jolt rounds every convex shape's edges
+## by collision_margin_fraction of its extent, so a block that straddles the
+## seam between cells rests on rounded, overlapping rims and creeps. Aligned,
+## a block placed where blocks naturally sit — on a cell centre, since blocks
+## and cells are both cube_size across — rests on one box's flat middle.
+## Measured on tests/bench/bench_tower.tscn (40 cubes, 60 s): unaligned gives
+## 0.78-0.83 m of lean and never sleeps whatever the overlap, aligned with
+## MapDef.cell_overlap at 0.2 gives 0.02 m and sleeps in half a second, which
+## is what the M1 single-cylinder disk did. The half cell this adds to each
+## side of the square carries no collision, since is_in_disk() still measures
+## against field_radius.
+##
 ## Cell index is row-major, `cy * res + cx`, which is also the pixel index of
 ## the authoritative territory raster and the shape-owner order Field uses for
 ## its BoxShape3D cells. One cell is one raster pixel is one collision box.
@@ -19,8 +35,13 @@ extends RefCounted
 
 var field_radius: float = 1.0
 var cell_size: float = 1.0
-## Cells along one edge of the square that covers the disk.
-var res: int = 2
+## Cells along one edge of the square that covers the disk. Always odd, so
+## there is a middle cell and it is centred on the disk centre.
+var res: int = 1
+## Half the width of that square, in meters: res * cell_size * 0.5. This, not
+## field_radius, is the grid's origin offset — every conversion between
+## disk-local meters and cell coordinates goes through it.
+var half_extent: float = 0.5
 
 ## Lazily built by in_disk_cells(); every consumer of the disk membership list
 ## shares this one copy, because it is the denominator of every territory
@@ -33,6 +54,9 @@ func _init(p_field_radius: float = 1.0, p_cell_size: float = 1.0) -> void:
 	field_radius = maxf(p_field_radius, 0.001)
 	cell_size = maxf(p_cell_size, 0.001)
 	res = int(ceil(2.0 * field_radius / cell_size))
+	if res % 2 == 0:
+		res += 1
+	half_extent = float(res) * cell_size * 0.5
 
 
 ## Total cells in the square grid, including the corner cells outside the disk.
@@ -59,16 +83,16 @@ func in_bounds(cx: int, cy: int) -> bool:
 ## beyond the bounding square.
 func world_to_cell(point: Vector2) -> Vector2i:
 	return Vector2i(
-		floori((point.x + field_radius) / cell_size),
-		floori((point.y + field_radius) / cell_size)
+		floori((point.x + half_extent) / cell_size),
+		floori((point.y + half_extent) / cell_size)
 	)
 
 
 ## Disk-local center of a cell.
 func cell_center(cx: int, cy: int) -> Vector2:
 	return Vector2(
-		(float(cx) + 0.5) * cell_size - field_radius,
-		(float(cy) + 0.5) * cell_size - field_radius
+		(float(cx) + 0.5) * cell_size - half_extent,
+		(float(cy) + 0.5) * cell_size - half_extent
 	)
 
 

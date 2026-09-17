@@ -13,4 +13,4 @@ home_flag_radius_fraction = 0.85
 goal_flag_radius_fraction = 0.4
 cell_wake_height = 80.0
 cell_wake_max_bodies = 32
-cell_overlap = 0.02
+cell_overlap = 0.2

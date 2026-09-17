@@ -61,6 +61,9 @@ const STATE_HOLE: int = TerritoryRaster.STATE_HOLE
 const TERRITORY_SHADER: Shader = preload("res://shaders/territory.gdshader")
 ## Slot colors the shader's uniform array holds; MatchConfig ships eight.
 const SLOT_COLOR_MAX: int = 8
+## The disk centre sits at the middle of the raster square, so disk-local
+## (0, 0) maps to the middle of the texture. See _apply_uv_uniforms().
+const UV_CENTER: float = 0.5
 
 var _map_def: MapDef = null
 var _visuals: TerritoryVisuals = null
@@ -255,13 +258,15 @@ func _store(target: ImageTexture, image: Image) -> ImageTexture:
 	return target
 
 
-## Disk-local (x, z) -> UV. CellGrid lays `side` cells of cell_size from
-## -field_radius, so the square the texture covers spans side * cell_size and
-## starts at -field_radius on both axes.
+## Disk-local (x, z) -> UV. CellGrid's square spans side * cell_size and is
+## centred on the disk centre (CellGrid.half_extent), so the origin always
+## lands in the middle of the texture — the offset is half a texture, never
+## field_radius, which is smaller than the half extent once the grid rounds up
+## to an odd number of cells.
 func _apply_uv_uniforms(side: int) -> void:
 	var span: float = maxf(float(side) * _map_def.cell_size, 0.001)
 	_material.set_shader_parameter(&"uv_scale", 1.0 / span)
-	_material.set_shader_parameter(&"uv_offset", _map_def.field_radius / span)
+	_material.set_shader_parameter(&"uv_offset", UV_CENTER)
 
 
 func _apply_visual_uniforms() -> void:

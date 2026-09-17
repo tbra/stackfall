@@ -6,11 +6,13 @@ extends GutTest
 ## that answers owner_bytes()/state_bytes() with hand-built cells, so they pin
 ## the upload path and not the solver.
 
-const CELLS_PER_SIDE: int = 12
+## CellGrid rounds its resolution up to an odd number (see the DECISION there),
+## so a test map's cells per side is odd too.
+const CELLS_PER_SIDE: int = 13
 ## An odd upscale factor (5) so that one dest pixel lands exactly on each cell
 ## center, which lets a test read a cell's bytes back unblended.
-const UPLOAD_RES: int = 60
 const UPSCALE: int = 5
+const UPLOAD_RES: int = CELLS_PER_SIDE * UPSCALE
 
 
 ## A TerritoryRaster whose bytes are whatever the test says they are.
@@ -194,10 +196,13 @@ func test_uv_uniforms_map_the_disk_onto_the_texture() -> void:
 
 	var uv_scale: float = float(overlay.material().get_shader_parameter(&"uv_scale"))
 	var uv_offset: float = float(overlay.material().get_shader_parameter(&"uv_offset"))
-	# CellGrid puts cell (0, 0)'s -x/-z corner at -field_radius, so that point
-	# maps to UV 0 and the far rim to UV 1.
-	assert_almost_eq(-map_def.field_radius * uv_scale + uv_offset, 0.0, 0.0001)
-	assert_almost_eq(map_def.field_radius * uv_scale + uv_offset, 1.0, 0.0001)
+	# CellGrid's square is centred on the disk centre and is half_extent wide
+	# either way, so -half_extent maps to UV 0, the centre to 0.5 and
+	# +half_extent to UV 1.
+	var half_extent: float = raster.grid().half_extent
+	assert_almost_eq(-half_extent * uv_scale + uv_offset, 0.0, 0.0001)
+	assert_almost_eq(uv_offset, 0.5, 0.0001)
+	assert_almost_eq(half_extent * uv_scale + uv_offset, 1.0, 0.0001)
 
 
 func test_field_hands_its_overlay_the_source() -> void:

@@ -52,12 +52,29 @@ const TERRITORY_RES_LARGE: int = 512
 ## so even a dense tower puts only a handful of blocks over it.
 @export var cell_wake_max_bodies: int = 32
 
-## Each collision cell is grown by this much in x and z so that neighbouring
-## boxes overlap slightly instead of meeting on an exact seam, which keeps a
-## block sliding across a cell boundary from catching on it. The same idea as
-## PhysicsTuning.cube_margin, in the other direction. A closed cell therefore
-## reaches this far into its neighbours; at 0.02 m that ledge is invisible.
-@export var cell_overlap: float = 0.02
+## Each collision cell's BoxShape3D is grown by this much in x and z, so a
+## closed cell reaches half of it into each neighbour instead of meeting them
+## on an exact seam.
+##
+## DECISION (config/MapDef.gd): this is 0.2 m, ten times P3's first guess,
+## because it is not cosmetic — it is what keeps towers standing. Jolt rounds
+## every convex shape's edges by
+## `physics/jolt_physics_3d/collisions/collision_margin_fraction` (0.08) of its
+## extent, so a plain 1 m cell box is flat only across its middle 0.84 m. A
+## 0.98 m block resting anywhere near a cell's rim then sits on that rounded
+## band, which pushes it sideways: bench_tower's 40-cube stack leaned 0.78 m
+## and never slept the day per-cell collision landed, where the M1 cylinder
+## gave 0.02 m and slept in half a second. Measured on that benchmark, 0.0 m
+## and 0.1 m of overlap both fail (0.1 m collapses the stack outright) and
+## 0.2 m restores the M1 numbers exactly, because 0.1 m of overrun per side
+## clears the 0.096 m margin of a 1.2 m box.
+##
+## The cost is that an open hole is not quite a full cell: its neighbours'
+## boxes still reach cell_overlap / 2 into it, leaving a 0.8 m gap in a 1 m
+## cell. Contested regions open as patches of cells rather than single ones,
+## so blocks still fall through (tests/bench/m2_acceptance.gd checks exactly
+## that); only a lone one-cell hole could catch a block on its rim.
+@export var cell_overlap: float = 0.2
 
 
 ## The MapDef for a MatchConfig.MapSize value. Round maps only for M2; the

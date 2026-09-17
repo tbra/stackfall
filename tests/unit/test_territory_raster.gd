@@ -244,9 +244,12 @@ func test_owner_bytes_encode_team_plus_one() -> void:
 	var bytes: PackedByteArray = _raster.owner_bytes()
 	assert_eq(bytes.size(), _grid.cell_count(), "One byte per cell.")
 
-	var mine: int = _grid.cell_index(_cell_of(Vector2(-8.5, 0.5)).x, _cell_of(Vector2(-8.5, 0.5)).y)
+	# Both sample points sit well inside their owner's 6 m home circle rather
+	# than near its rim, so which cell they land in does not depend on where
+	# CellGrid's cell centres fall.
+	var mine: int = _grid.cell_index(_cell_of(Vector2(-6.0, 0.0)).x, _cell_of(Vector2(-6.0, 0.0)).y)
 	assert_eq(bytes[mine], 1, "team 0 encodes as 1.")
-	var theirs: Vector2i = _cell_of(Vector2(8.5, 0.5))
+	var theirs: Vector2i = _cell_of(Vector2(6.0, 0.0))
 	assert_eq(bytes[_grid.cell_index(theirs.x, theirs.y)], 2, "team 1 encodes as 2.")
 	assert_eq(bytes[0], 0, "Unowned, off-disk corner encodes as 0.")
 

@@ -56,6 +56,9 @@ const OFF_DISK_FACTOR: float = 3.0
 ## An on-disk but un-owned release point for criterion (e), as a fraction of
 ## the field radius along +z — away from both homes, which sit on the x axis.
 const NEUTRAL_SPOT_FRACTION: float = 0.9
+## Cubes each player stacks on the head of its chain once the two fronts meet,
+## to widen the contested band into a patch of cells.
+const FRONT_STACK_HEIGHT: int = 4
 
 var _tuning: TerritoryTuning = preload("res://config/territory_tuning.tres")
 var _physics: PhysicsTuning = preload("res://config/physics_tuning.tres")
@@ -111,6 +114,11 @@ func _scenario_growth_holes_and_cutoff() -> void:
 		])
 
 	# (b) The two fronts overlap, so cells in between belong to both teams.
+	# Both players now build up at the front, which widens each front circle
+	# (r = influence_base + influence_k * h) and so widens the contested band
+	# between them into a patch of cells rather than a hairline.
+	await _raise_fronts(chain_0, chain_1)
+
 	# TerritoryRaster only opens a hole once contested_time passes hole_delay,
 	# so let the solve run over that threshold before looking.
 	var contested_before: int = _contested_cell_count()
@@ -426,6 +434,31 @@ func _stack_until_home_flag_falls(slot_id: int, chain: Array[Block], victim_slot
 	return not Match.slot(victim_slot).home_flag_alive
 
 
+## Both players stack on the head of their chain, alternating turns, so the
+## two front circles grow into each other. A hole one cell wide is barely
+## wider than the block itself; a real contested overlap is a patch, and that
+## is what criterion (b) needs to drop a block into.
+func _raise_fronts(chain_0: Array[Block], chain_1: Array[Block]) -> void:
+	var chains: Array = [chain_0, chain_1]
+	var heights: Array[float] = [_physics.cube_size, _physics.cube_size]
+	for _layer: int in range(FRONT_STACK_HEIGHT):
+		for slot_id: int in range(PLAYER_COUNT):
+			if Match.state() != Match.State.PLAYING:
+				return
+			var chain: Array[Block] = chains[slot_id]
+			if chain.is_empty():
+				continue
+			heights[slot_id] += _physics.cube_size
+			var head: Vector2 = _disk_local(chain[chain.size() - 1].global_position)
+			var spot: Vector3 = _world_point(head, heights[slot_id] + PLACE_HEIGHT)
+			_hold_cube(slot_id)
+			if Match.preview_placement(slot_id, spot, 0, Quaternion.IDENTITY) != PlacementRules.Result.VALID:
+				continue
+			if _release(slot_id, spot) != PlacementRules.REASON_OK:
+				continue
+			await _step(SETTLE_FRAMES)
+
+
 ## Spends a slot's turn without building: releasing off the disk burns the
 ## block (owner decision 2) and hands the turn on.
 func _pass_turn(slot_id: int) -> void:
@@ -484,7 +517,7 @@ func _drain_field_backlog() -> void:
 ## hole cell and reports whether it ended up below the disk surface.
 func _drop_through_hole(holes: PackedInt32Array) -> bool:
 	var grid: CellGrid = Match.raster().grid()
-	for index: int in holes:
+	for index: int in _interior_first(holes, grid):
 		if not _field.is_hole_cell(index):
 			continue
 		var center: Vector2 = grid.index_center(index)
@@ -527,6 +560,35 @@ func _cut_chain(chain: Array[Block]) -> int:
 		if _remove_block(chain[i]):
 			removed += 1
 	return removed
+
+
+## Hole cells whose four neighbours are holes too, then the rest. A lone open
+## cell is only cell_size wide and its neighbours' collision boxes overhang it
+## by MapDef.cell_overlap / 2 (see the DECISION there), so a block can bridge
+## it; a block over the inside of a patch has nothing to rest on.
+func _interior_first(holes: PackedInt32Array, grid: CellGrid) -> PackedInt32Array:
+	var is_hole: Dictionary = {}
+	for index: int in holes:
+		is_hole[index] = true
+	var interior: PackedInt32Array = PackedInt32Array()
+	var edge: PackedInt32Array = PackedInt32Array()
+	for index: int in holes:
+		var coords: Vector2i = grid.cell_coords(index)
+		var surrounded: bool = true
+		for step: Vector2i in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+			var neighbour: Vector2i = coords + step
+			if not grid.in_bounds(neighbour.x, neighbour.y):
+				surrounded = false
+				break
+			if not is_hole.has(grid.cell_index(neighbour.x, neighbour.y)):
+				surrounded = false
+				break
+		if surrounded:
+			interior.append(index)
+		else:
+			edge.append(index)
+	interior.append_array(edge)
+	return interior
 
 
 ## Frees a block the way the kill plane does, so the BlockRegistry stops
