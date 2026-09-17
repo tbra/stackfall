@@ -22,6 +22,12 @@ var cell_size: float = 1.0
 ## Cells along one edge of the square that covers the disk.
 var res: int = 2
 
+## Lazily built by in_disk_cells(); every consumer of the disk membership list
+## shares this one copy, because it is the denominator of every territory
+## percentage and the iteration order of the raster's timer pass.
+var _in_disk_cells: PackedInt32Array = PackedInt32Array()
+var _in_disk_built: bool = false
+
 
 func _init(p_field_radius: float = 1.0, p_cell_size: float = 1.0) -> void:
 	field_radius = maxf(p_field_radius, 0.001)
@@ -82,9 +88,27 @@ func is_in_disk(cx: int, cy: int) -> bool:
 ## territory percentages, so it is computed once and cached by the
 ## implementation.
 func in_disk_cell_count() -> int:
-	return 0
+	return in_disk_cells().size()
 
 
 ## Every in-disk cell index, in row-major order. Built once.
 func in_disk_cells() -> PackedInt32Array:
-	return PackedInt32Array()
+	if _in_disk_built:
+		return _in_disk_cells
+	_in_disk_built = true
+	_in_disk_cells = PackedInt32Array()
+	# DECISION (core/territory/CellGrid.gd): built by asking is_in_disk() about
+	# every cell rather than by solving |x| <= sqrt(r^2 - z^2) per row. The
+	# analytic form is O(res) instead of O(res^2), but it would evaluate the
+	# rim in double precision while is_in_disk() evaluates it through Vector2,
+	# whose components are 32-bit. The two can then disagree on a cell whose
+	# center sits exactly on the rim, and this list and is_in_disk() are
+	# precisely what Field, the raster and placement validation use to agree on
+	# where the disk ends. This runs once per match over at most 120x120 cells,
+	# so the shared definition is worth far more than the saved microseconds.
+	for cy: int in range(res):
+		var row_base: int = cy * res
+		for cx: int in range(res):
+			if is_in_disk(cx, cy):
+				_in_disk_cells.append(row_base + cx)
+	return _in_disk_cells
