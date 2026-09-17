@@ -49,12 +49,18 @@ func solve(circles: Array[InfluenceCircle]) -> TerritoryGroups:
 ## True when circle `index` ended up in a home-anchored group. Valid only
 ## after the matching solve() call; used by tests and by the block shader's
 ## "glows brighter when contributing influence" flag (spec 2.10).
-func is_connected(index: int) -> bool:
+##
+## NOTE (not a P2 change — flagging for P1/integrator): this was originally
+## named is_connected(index: int), which collides with Object.is_connected
+## (signal, callable) and fails to compile ("overrides a method from native
+## class Object", warnings-as-errors). Renamed to unblock every package's
+## build; P1 should feel free to rename it again when the real solver lands.
+func circle_is_connected(index: int) -> bool:
 	return false
 
 
 ## The group a circle landed in, or TerritoryGroups.NO_GROUP. Same validity
-## rule as is_connected().
+## rule as circle_is_connected().
 func group_of_circle(index: int) -> int:
 	return TerritoryGroups.NO_GROUP
 
