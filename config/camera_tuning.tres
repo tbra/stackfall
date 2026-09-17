@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="CameraTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/CameraTuning.gd" id="1_cam"]
+
+[resource]
+script = ExtResource("1_cam")
+mouse_orbit_speed = 0.006
+pad_orbit_speed = 2.4
+min_pitch_deg = -80.0
+max_pitch_deg = -5.0
+zoom_min = 8.0
+zoom_max = 80.0
+zoom_step = 4.0
+pan_speed = 18.0
+mouse_pan_speed = 0.03
+mmb_tap_max_duration = 0.2
+snap_pitch_deg = -35.0
+snap_distance = 30.0
+snap_duration = 0.35

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="BlockShape" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/blocks/BlockShape.gd" id="1_shape"]
+
+[resource]
+script = ExtResource("1_shape")
+id = &"L4"
+cells = Array[Vector3i]([Vector3i(0, 0, 0), Vector3i(0, 1, 0), Vector3i(0, 2, 0), Vector3i(1, 0, 0)])
+weight = 1.0
+sloped_cells = Array[Vector3i]([])
+mesh = null

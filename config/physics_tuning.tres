@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="PhysicsTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/PhysicsTuning.gd" id="1_tuning"]
+
+[resource]
+script = ExtResource("1_tuning")
+cube_size = 1.0
+cube_margin = 0.02
+cube_mass = 1.0
+block_friction = 0.8
+block_bounce = 0.05
+disk_friction = 0.9
+kill_plane_y = -40.0
+hover_height = 0.3
+sleep_linear_threshold = 0.15
+sleep_angular_threshold = 0.3
+sleep_settle_time = 0.5
+solver_velocity_iterations = 10
+solver_position_iterations = 4
+gravity_multiplier = 1.0
