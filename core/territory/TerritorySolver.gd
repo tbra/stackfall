@@ -118,7 +118,7 @@ func is_circle_connected(index: int) -> bool:
 
 
 ## The group a circle landed in, or TerritoryGroups.NO_GROUP. Same validity
-## rule as is_connected().
+## rule as is_circle_connected().
 func group_of_circle(index: int) -> int:
 	if index < 0 or index >= _group_of.size():
 		return TerritoryGroups.NO_GROUP

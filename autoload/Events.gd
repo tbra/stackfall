@@ -65,3 +65,10 @@ signal hole_cells_changed(opened: PackedInt32Array, closed: PackedInt32Array)
 ## runs 0..1 over TerritoryTuning.capture_hold and drives the flag's radial
 ## ring (spec 2.3). team_id is -1 with progress 0 when a capture breaks.
 signal goal_capture_progress(team_id: int, progress: float)
+
+## A slot's home flag was lost to a hole opening under it (spec 2.2 is silent
+## on this; docs/M2_PLAN.md's owner decision: this eliminates the slot —
+## PlayerSlot.home_flag_alive goes false, its circles unanchor, and it gets no
+## more feed). Match ends the match itself via match_won if only one
+## player/team is left.
+signal player_eliminated(slot_id: int, team_id: int)

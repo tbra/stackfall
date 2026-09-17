@@ -7,27 +7,40 @@ off the stub commit; **file ownership is disjoint**. Only the integrator touches
 **Acceptance (Part 4 M2):** two players take turns on one PC and can win; holes appear
 where territories overlap and blocks fall through them; a cut-off tower loses its influence.
 
-## Questions for the owner
-Do not block — every package is designed so either answer fits. Relay and continue.
+## Questions for the owner — ANSWERED (owner decisions, implemented by P2)
 
-1. **Hot-seat turn model.** §2.2/§2.4 is real-time: every player has their own running
-   block timer. One mouse cannot do that literally. **(a)** strict alternation — only the
-   active slot's timer runs, the turn passes on place or auto-drop (§2.7's turn-based mode
-   arriving early, minus its "wait for physics to settle" rule); **(b)** real-time — both
-   timers run and slot 2's block auto-drops from wherever its ghost sits while slot 1 is
-   still building. **Building (a)**; `MatchConfig.per_player_timer` + `hot_seat` make (b) a
-   flag flip in `Match`, not a rewrite.
-2. **[ORIGINAL] Releasing a block on an invalid spot.** §1.2 rule 4 says you may *only*
-   drop inside your own area; §2.2 says a block released in a contested area "is thrown off
-   the map". **Building:** while the ghost is red a deliberate click is *refused and costs
-   nothing* (block kept, timer keeps running); only an **auto-drop** that finds no valid
-   point within `auto_drop_search_max_radius` spawns the block and throws it off with the
-   reject animation. The stricter reading — every invalid release burns the block — is a
-   one-line change in `Match.request_place`. **[ORIGINAL] rule ⇒ a CLAUDE.md pause point.**
-3. **Cut-off home flag.** §2.2 says the home circle exists "while the flag is on the disk";
-   nothing covers a hole opening under one. **Building:** the flag falls,
-   `PlayerSlot.home_flag_alive` goes false, that player's circles unanchor and their territory
-   vanishes — effectively elimination. Confirm, or we anchor home circles forever.
+1. **Hot-seat turn model: (a), strict alternation.** Only the active slot's block
+   timer runs (`Match._tick_feed`); the turn passes on place or auto-drop
+   (`Match.advance_turn`, called from `request_place`). Hot-seat is a debug/test
+   scaffold, not a shipped mode (the original had no hot-seat) — it stays behind
+   `MatchConfig.hot_seat`, and the per-player-timer path (`MatchConfig.per_player_timer`,
+   the `else` branch of `Match._tick_feed`) is implemented and exercised so M3 can flip
+   the flag without a rewrite.
+2. **[ORIGINAL] Invalid release — "burn the block".** Overridden from the draft
+   answer above: **any** release on an invalid spot, deliberate click or auto-drop,
+   spawns the block and throws it off the map with the reject animation; the block is
+   consumed either way and the next one is fed. Auto-drop still tries
+   `PlacementRules.closest_valid_origin` (the closest valid point within
+   `auto_drop_search_max_radius`) first; only when that search comes back empty does it
+   burn. Implemented in `Match.request_place` / `Match._resolve_outcome` /
+   `Match._burn_block`.
+3. **Cut-off home flag: confirmed, elimination.** A hole opening under a slot's home
+   flag sets `PlayerSlot.home_flag_alive = false` (`Match._check_home_flags`); P1's
+   solver naturally drops that slot's circles next solve since they no longer connect to
+   a home circle. The slot gets no more feed and is skipped by turn order
+   (`Match._next_alive_slot`) and the win check; if that leaves one player/team
+   standing, `Match._check_last_team_standing` ends the match immediately
+   (`Events.match_won`). `Events.player_eliminated(slot_id, team_id)` was added (append
+   at the end of `autoload/Events.gd`) so P3/P4 can react (flag-fall animation, HUD).
+
+## Note for P1/integrator: a stub compile bug fixed in passing — RESOLVED
+
+`core/territory/TerritorySolver.gd`'s `is_connected(index: int) -> bool` collides with
+`Object.is_connected(signal, callable)` and fails to compile under this project's
+warnings-as-errors setting ("overrides a method from native class Object"). P1 and P2
+each renamed it independently and collided; the integrator kept **P1's**
+`is_circle_connected(index: int) -> bool`, since P1 owns the file. `circle_is_connected`
+does not exist anywhere.
 
 ## Work packages
 ### P1 — Pure territory & rules core — **opus** (16 owned files; the algorithmic heart, and everyone else codes against it)

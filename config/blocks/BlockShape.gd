@@ -27,10 +27,13 @@ extends Resource
 const SHAPES_DIR: String = "res://config/blocks/"
 
 
-## Loads every BlockShape resource in SHAPES_DIR. The single source of truth
-## for "what shapes exist" — used by the M1 plain-random feed
+## Loads every BlockShape resource in SHAPES_DIR, sorted by id so the result is
+## deterministic across platforms and directory-listing orders. The single
+## source of truth for "what shapes exist" — used by the M1 plain-random feed
 ## (game/PlayerController.gd), the rain benchmark (tests/bench/bench_rain.gd),
-## and M2's weighted bag once it lands.
+## and M2's weighted bag. BlockFeedConfig falls back to this when its `shapes`
+## list is empty, and core/feed/BlockBag.gd needs the order to be stable so the
+## same rng_seed always deals the same sequence (spec 2.4).
 static func load_all_shapes() -> Array[BlockShape]:
 	var shapes: Array[BlockShape] = []
 	var dir: DirAccess = DirAccess.open(SHAPES_DIR)
@@ -45,4 +48,5 @@ static func load_all_shapes() -> Array[BlockShape]:
 				shapes.append(shape)
 		file_name = dir.get_next()
 	dir.list_dir_end()
+	shapes.sort_custom(func(a: BlockShape, b: BlockShape) -> bool: return String(a.id) < String(b.id))
 	return shapes
