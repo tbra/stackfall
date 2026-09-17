@@ -14,6 +14,13 @@ Pause points — the only times the pipeline stops for the owner:
 
 Everything else is decided in place: for **minor ambiguity** (implementation detail with no gameplay impact) pick the simplest reasonable option, write a `# DECISION:` comment at that spot in the code, and list it in the summary.
 
+Each milestone runs as a pipeline of agents, as parallel as the work allows:
+1. **Plan** — one agent writes `docs/M<N>_PLAN.md`: work packages, the files each package *owns* (disjoint sets), the interfaces between them (typed stubs committed so every package compiles against the same contracts), and per-package acceptance checks.
+2. **Implement** — one agent per package, each in its own git worktree branch, touching only its owned files (plus new tests). Packages must not edit each other's files; if a contract needs to change, the agent reports it instead of editing across the boundary.
+3. **Integrate** — one agent rebases/merges the package branches onto `main` in the plan's order, resolves conflicts, runs the open-project check, tests and benchmarks, fixes small breakages, and pushes.
+4. **Review** — a read-only agent checks the milestone against this file and the spec; a fix agent handles findings.
+The orchestrator itself only briefs agents and reads their reports; it doesn't run tests, rebases, or edits except trivial doc changes.
+
 ## How to work (every agent)
 - Work in small steps that each leave the game runnable. **Commit after each working step** with a clear message.
 - **Read before writing:** `CLAUDE.md`, the spec sections for the milestone, `README.md`, and the existing code the step touches.
