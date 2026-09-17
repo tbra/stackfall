@@ -4,10 +4,10 @@
 
 [resource]
 script = ExtResource("1_map")
-id = &"round_medium"
-field_radius = 45.0
+id = &"round_small"
+field_radius = 30.0
 disk_height = 1.0
 cell_size = 1.0
-territory_res = 384
+territory_res = 256
 home_flag_radius_fraction = 0.85
 goal_flag_radius_fraction = 0.4

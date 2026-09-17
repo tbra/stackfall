@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="BlockFeedConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/BlockFeedConfig.gd" id="1_feed"]
+
+[resource]
+script = ExtResource("1_feed")
+shapes = Array[Resource]([])
+weight_overrides = PackedFloat32Array()
+stabilizer_ids = Array[StringName]([&"square4", &"slab6", &"cube"])
+min_stabilizers_per_bag = 2
+bag_multiplier = 2.0
+preview_count = 1
