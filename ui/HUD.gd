@@ -19,8 +19,6 @@ extends CanvasLayer
 ## real art, and CLAUDE.md's "no magic numbers" is about tunables that affect
 ## gameplay feel, not every pixel constant behind a first-pass debug HUD.
 
-const DEFAULT_PALETTE: MatchConfig = preload("res://config/match_defaults.tres")
-const BLOCKS_DIR: String = "res://config/blocks/"
 
 const SHARE_BAR_MAX_WIDTH: float = 120.0
 const SHARE_BAR_HEIGHT: float = 14.0
@@ -31,6 +29,13 @@ const PREVIEW_CELL_PX: float = 8.0
 const PREVIEW_CELL_MARGIN: float = 0.9
 
 @export var ghost_tuning: GhostTuning = preload("res://config/ghost_tuning.tres")
+## Fallback player colours for a slot Match cannot name — before a match
+## starts, or in a HUD-only test with no Match behind it. An @export var
+## rather than a const: a const's value has to resolve while the script is
+## still being parsed, and the editor parses HUD.gd (through Main -> HotSeat)
+## before it can load a .tres whose script is MatchConfig, which made the
+## constant null and the parse fail.
+@export var default_palette: MatchConfig = preload("res://config/match_defaults.tres")
 ## DECISION (ui/HUD.gd): a Variant test seam for the same reason
 ## PlayerController has one — GUT can't double a plain autoload, and P2's
 ## real Match hasn't landed on this branch yet. Defaults to the real
@@ -76,6 +81,7 @@ func _ready() -> void:
 	Events.territory_share_changed.connect(_on_territory_share_changed)
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 	Events.match_won.connect(_on_match_won)
+	Events.player_eliminated.connect(_on_player_eliminated)
 
 
 func _process(_delta: float) -> void:
@@ -177,6 +183,15 @@ func _on_match_won(team_id: int) -> void:
 	show_winner(team_id, _color_for_slot(team_id))
 
 
+## The turn banner already reads home_flag_alive, but it is only rebuilt on
+## turn_changed, so an elimination that lands mid-turn would sit invisible
+## until the turn passed. Repainting it here is the whole reaction.
+func _on_player_eliminated(slot_id: int, _team_id: int) -> void:
+	if slot_id != _active_slot:
+		return
+	set_active_slot(_active_slot, _active_color)
+
+
 # --- Helpers -----------------------------------------------------------------
 
 ## Spec M2 owner decision 3: no dedicated Events signal exists for "home flag
@@ -195,8 +210,8 @@ func _color_for_slot(slot_id: int) -> Color:
 		var slot: PlayerSlot = match_provider.slot(slot_id)
 		if slot != null:
 			return slot.color
-	if slot_id >= 0 and slot_id < DEFAULT_PALETTE.player_colors.size():
-		return DEFAULT_PALETTE.player_colors[slot_id]
+	if slot_id >= 0 and slot_id < default_palette.player_colors.size():
+		return default_palette.player_colors[slot_id]
 	return Color.WHITE
 
 
@@ -234,20 +249,12 @@ func _update_share_row(i: int, share: float) -> void:
 	label.text = "P%d: %.0f%%%s" % [i + 1, share * 100.0, "  (out)" if eliminated else ""]
 
 
+## Events.feed_block_issued names the next shape by id; the preview needs the
+## resource. BlockShape.load_all_shapes() is the project's one directory scan.
 func _load_shapes_by_id() -> Dictionary:
 	var shapes: Dictionary = {}
-	var dir: DirAccess = DirAccess.open(BLOCKS_DIR)
-	if dir == null:
-		return shapes
-	dir.list_dir_begin()
-	var file_name: String = dir.get_next()
-	while file_name != "":
-		if file_name.ends_with(".tres"):
-			var shape: BlockShape = load(BLOCKS_DIR + file_name)
-			if shape != null:
-				shapes[shape.id] = shape
-		file_name = dir.get_next()
-	dir.list_dir_end()
+	for shape: BlockShape in BlockShape.load_all_shapes():
+		shapes[shape.id] = shape
 	return shapes
 
 

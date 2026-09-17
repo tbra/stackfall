@@ -3,8 +3,8 @@
 [ext_resource type="Script" path="res://game/Main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://game/Field.tscn" id="2_field"]
 [ext_resource type="PackedScene" path="res://game/CameraRig.tscn" id="3_camera"]
-[ext_resource type="PackedScene" path="res://game/GhostPreview.tscn" id="4_ghost"]
-[ext_resource type="Script" path="res://game/PlayerController.gd" id="5_controller"]
+[ext_resource type="Script" path="res://game/BlockRegistry.gd" id="4_registry"]
+[ext_resource type="PackedScene" path="res://game/HotSeat.tscn" id="5_hotseat"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 
@@ -30,12 +30,9 @@ shadow_enabled = true
 
 [node name="BlocksContainer" type="Node3D" parent="."]
 
+[node name="BlockRegistry" type="Node" parent="."]
+script = ExtResource("4_registry")
+
 [node name="CameraRig" parent="." instance=ExtResource("3_camera")]
 
-[node name="GhostPreview" parent="." instance=ExtResource("4_ghost")]
-
-[node name="PlayerController" type="Node" parent="."]
-script = ExtResource("5_controller")
-camera_rig_path = NodePath("../CameraRig")
-ghost_path = NodePath("../GhostPreview")
-spawn_parent_path = NodePath("../BlocksContainer")
+[node name="HotSeat" parent="." instance=ExtResource("5_hotseat")]

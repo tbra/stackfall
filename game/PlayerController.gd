@@ -13,14 +13,6 @@ extends Node
 
 @export var camera_rig_path: NodePath
 @export var ghost_path: NodePath
-## DECISION (game/PlayerController.gd): M2 makes placement intent-only, so
-## this controller no longer spawns blocks itself and has no real use for a
-## spawn parent. The export stays so the still-M1-shaped game/Main.tscn (only
-## the integrator may touch Main.*, per docs/M2_PLAN.md) keeps loading without
-## an "unknown property" warning until step 3 of the plan's integration order
-## rewires it to Match.register_world().
-@export var spawn_parent_path: NodePath
-
 @export var tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
 @export var ghost_tuning: GhostTuning = preload("res://config/ghost_tuning.tres")
 @export var camera_tuning: CameraTuning = preload("res://config/camera_tuning.tres")
