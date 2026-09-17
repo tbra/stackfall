@@ -1,7 +1,11 @@
 class_name GhostTuning
 extends Resource
 ## Ghost preview / placement control-feel tunables (spec 2.5) that aren't
-## physics-body numbers, so they live apart from PhysicsTuning.
+## physics-body numbers, so they live apart from PhysicsTuning. M2 package P4
+## (docs/M2_PLAN.md) also parks its HUD tunables here rather than inventing a
+## second resource just for a couple of floats — CLAUDE.md's "no magic
+## numbers" rule cares that every tunable lives in *some* res://config/
+## resource, not that each owner gets its own file.
 
 ## -- Gamepad ghost cursor (spec 2.5: "speed scales with camera zoom, with
 ## acceleration and a small dead zone") ---------------------------------
@@ -24,3 +28,52 @@ extends Resource
 
 ## -- Placement raycast --------------------------------------------------
 @export var placement_ray_length: float = 200.0
+
+## -- Ghost visual base (spec 2.5: shadow + guide line) ----------------------
+## DECISION (config/GhostTuning.gd): a separate M1-cleanup branch is expected
+## to lift these six fields out of GhostPreview.gd's hardcoded literals with
+## these exact names (see M2 P4 task brief). They didn't exist yet on this
+## worktree's branch, so P4 adds them here now so that branch's merge is a
+## no-op on this resource.
+## Base alpha-blended tint before a per-state color is known (its alpha is
+## reused as every state's transparency).
+@export var tint_color: Color = Color(0.35, 0.9, 0.55, 0.55)
+@export var shadow_color: Color = Color(0.0, 0.0, 0.0, 0.4)
+@export var shadow_size: Vector2 = Vector2(1.0, 1.0)
+## How far above the hit surface the shadow quad floats, so it doesn't
+## z-fight with the disk/block it's projected onto.
+@export var shadow_offset: float = 0.01
+@export var guide_color: Color = Color(1.0, 1.0, 1.0, 0.6)
+## Width/depth of the vertical guide line box (its height is the live
+## distance from the hit point to the ghost, computed every frame).
+@export var guide_thickness: float = 0.03
+
+## -- Placement validity tint (spec 2.2, 2.5) ---------------------------------
+## Red: outside territory, contested, or off the disk.
+@export var invalid_tint_color: Color = Color(0.95, 0.15, 0.15, 0.6)
+## Hatched pattern tint over a hole.
+@export var hole_tint_color: Color = Color(0.95, 0.75, 0.15, 0.65)
+## UV tiling density of the procedural hatch pattern across the held shape.
+@export var hatch_scale: float = 6.0
+## Fraction of each hatch tile that's opaque stripe vs. see-through gap.
+@export var hatch_stripe_width: float = 0.5
+
+## -- Reject animation (spec 2.2: "thrown off the map with a visible reject
+## animation" — see docs/M2_PLAN.md owner decision 2) ------------------------
+@export var reject_flash_color: Color = Color(1.0, 1.0, 1.0, 0.9)
+@export var reject_flash_duration: float = 0.12
+## Sideways and upward distance the held shape's visual kicks during the
+## reject arc; the arc plays on the shape's local offset, not the ghost's
+## world position, since PlayerController re-homes that every frame.
+@export var reject_arc_sideways: float = 1.2
+@export var reject_arc_height: float = 1.5
+@export var reject_arc_duration: float = 0.4
+
+## -- Auto-drop visual (spec 2.5: "When the timer runs out, the held block
+## drops from its current ghost position") -----------------------------------
+@export var auto_drop_flash_color: Color = Color(0.8, 0.85, 1.0, 0.85)
+@export var auto_drop_flash_duration: float = 0.18
+
+## -- HUD (ui/HUD.gd) ---------------------------------------------------------
+@export var hud_reject_message_duration: float = 1.5
+@export var hud_reject_fade_duration: float = 0.5
