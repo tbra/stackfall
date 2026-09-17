@@ -1,0 +1,84 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://ui/HUD.gd" id="1_hud"]
+
+[node name="HUD" type="CanvasLayer"]
+script = ExtResource("1_hud")
+
+[node name="TurnLabel" type="Label" parent="."]
+unique_name_in_owner = true
+offset_left = 16.0
+offset_top = 16.0
+offset_right = 320.0
+offset_bottom = 40.0
+theme_override_font_sizes/font_size = 20
+text = "Player 1's turn"
+
+[node name="TimerRing" type="Control" parent="."]
+unique_name_in_owner = true
+offset_left = 16.0
+offset_top = 48.0
+offset_right = 88.0
+offset_bottom = 120.0
+
+[node name="ShapePreview" type="Control" parent="TimerRing"]
+unique_name_in_owner = true
+offset_left = 18.0
+offset_top = 18.0
+offset_right = 54.0
+offset_bottom = 54.0
+
+[node name="HeightLabel" type="Label" parent="."]
+unique_name_in_owner = true
+offset_left = 16.0
+offset_top = 128.0
+offset_right = 260.0
+offset_bottom = 150.0
+text = "Height: 0.00 m"
+
+[node name="SharesBox" type="VBoxContainer" parent="."]
+unique_name_in_owner = true
+offset_left = 16.0
+offset_top = 160.0
+offset_right = 220.0
+offset_bottom = 280.0
+
+[node name="CaptureRing" type="Control" parent="."]
+unique_name_in_owner = true
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -80.0
+offset_top = 16.0
+offset_right = -24.0
+offset_bottom = 72.0
+visible = false
+
+[node name="RejectLabel" type="Label" parent="."]
+unique_name_in_owner = true
+anchor_left = 0.5
+anchor_right = 0.5
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = -160.0
+offset_top = -90.0
+offset_right = 160.0
+offset_bottom = -60.0
+theme_override_font_sizes/font_size = 18
+horizontal_alignment = 1
+text = ""
+
+[node name="WinnerLabel" type="Label" parent="."]
+unique_name_in_owner = true
+anchor_left = 0.5
+anchor_right = 0.5
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = -220.0
+offset_top = -40.0
+offset_right = 220.0
+offset_bottom = 20.0
+theme_override_font_sizes/font_size = 40
+horizontal_alignment = 1
+vertical_alignment = 1
+visible = false
+text = ""
