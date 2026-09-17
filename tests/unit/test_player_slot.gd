@@ -56,3 +56,34 @@ func test_goal_positions_for_three_is_symmetric_at_goal_radius() -> void:
 		var a: Vector2 = positions[i]
 		var b: Vector2 = positions[(i + 1) % 3]
 		assert_almost_eq(absf(a.angle_to(b)), TAU / 3.0, EPS)
+
+
+# --- Rules and props agree on where the flags stand -------------------------
+# PlayerSlot is what the rules (Match, WinChecker) use; MapDef is what Field
+# uses to place the flag props. If the two ever drift, a goal flag would be
+# drawn somewhere the win check is not watching. They are the same function
+# now; this pins that.
+
+func test_home_positions_match_the_map_definition() -> void:
+	var map_def: MapDef = _map_def()
+	for slot_count: int in [2, 3, 4, 8]:
+		for slot_id: int in range(slot_count):
+			var from_rules: Vector2 = PlayerSlot.home_position_for(slot_id, slot_count, map_def)
+			var from_map: Vector2 = map_def.home_flag_position(slot_id, slot_count)
+			assert_true(
+				from_rules.is_equal_approx(from_map),
+				"slot %d of %d: rules %s vs map %s" % [slot_id, slot_count, from_rules, from_map]
+			)
+
+
+func test_goal_positions_match_the_map_definition() -> void:
+	var map_def: MapDef = _map_def()
+	for count: int in [1, 2, 3, 4, 5]:
+		var from_rules: PackedVector2Array = PlayerSlot.goal_positions_for(count, map_def)
+		var from_map: PackedVector2Array = map_def.goal_flag_positions(count)
+		assert_eq(from_rules.size(), from_map.size(), "goal count %d" % count)
+		for i: int in range(from_rules.size()):
+			assert_true(
+				from_rules[i].is_equal_approx(from_map[i]),
+				"goal %d of %d: rules %s vs map %s" % [i, count, from_rules[i], from_map[i]]
+			)

@@ -44,26 +44,22 @@ func _init(
 ## spaced evenly around the edge. Slot 0 sits at angle 0 (+x), and slots go
 ## counter-clockwise from there, so a 2-player match puts the two players
 ## opposite each other.
+## Delegates to MapDef so the rules and the flag props placed by Field read
+## from one source of truth (P3's integration request); the formula used to be
+## duplicated here.
 static func home_position_for(slot_id: int, slot_count: int, map_def: MapDef) -> Vector2:
 	if slot_count <= 0:
 		return Vector2.ZERO
-	var radius: float = map_def.home_flag_radius_fraction * map_def.field_radius
-	var angle: float = TAU * float(slot_id) / float(slot_count)
-	return Vector2(radius * cos(angle), radius * sin(angle))
+	return map_def.home_flag_position(slot_id, slot_count)
 
 
 ## Spec 2.2: one goal flag in the center by default; 2-5 are placed
 ## symmetrically at goal_flag_radius_fraction * field_radius. Returns
 ## disk-local positions, `count` long.
+## Delegates to MapDef for the same reason as home_position_for; the one
+## difference is that count <= 0 means "no goals" to the rules, while MapDef
+## always places at least one flag.
 static func goal_positions_for(count: int, map_def: MapDef) -> PackedVector2Array:
-	var positions: PackedVector2Array = PackedVector2Array()
 	if count <= 0:
-		return positions
-	if count == 1:
-		positions.append(Vector2.ZERO)
-		return positions
-	var radius: float = map_def.goal_flag_radius_fraction * map_def.field_radius
-	for i: int in range(count):
-		var angle: float = TAU * float(i) / float(count)
-		positions.append(Vector2(radius * cos(angle), radius * sin(angle)))
-	return positions
+		return PackedVector2Array()
+	return map_def.goal_flag_positions(count)
