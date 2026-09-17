@@ -11,6 +11,7 @@ extends Node3D
 ## drift (spec 1.7, 2.5).
 
 @export var tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
+@export var ghost_tuning: GhostTuning = preload("res://config/ghost_tuning.tres")
 
 var orientation_index: int = 0
 var free_quaternion: Quaternion = Quaternion.IDENTITY
@@ -73,7 +74,7 @@ func _apply_rotation() -> void:
 func update_placement(hit_point: Vector3, hit_normal: Vector3) -> void:
 	var hover: float = tuning.hover_height + manual_hover_offset
 	global_position = hit_point + hit_normal * hover
-	_shadow.global_position = hit_point + hit_normal * 0.01
+	_shadow.global_position = hit_point + hit_normal * ghost_tuning.shadow_offset
 	_update_guide(hit_point)
 
 
@@ -92,12 +93,12 @@ func _update_guide(hit_point: Vector3) -> void:
 	var z_axis: Vector3 = x_axis.cross(y_axis).normalized()
 	_guide.global_transform.basis = Basis(x_axis, y_axis, z_axis)
 	var mesh: BoxMesh = _guide.mesh as BoxMesh
-	mesh.size = Vector3(0.03, length, 0.03)
+	mesh.size = Vector3(ghost_tuning.guide_thickness, length, ghost_tuning.guide_thickness)
 
 
 func _apply_ghost_material(node: Node3D) -> void:
 	var material: StandardMaterial3D = StandardMaterial3D.new()
-	material.albedo_color = Color(0.35, 0.9, 0.55, 0.55)
+	material.albedo_color = ghost_tuning.tint_color
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
@@ -109,10 +110,10 @@ func _apply_ghost_material(node: Node3D) -> void:
 func _make_shadow_mesh() -> MeshInstance3D:
 	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
 	var quad: QuadMesh = QuadMesh.new()
-	quad.size = Vector2(1.0, 1.0)
+	quad.size = Vector2(ghost_tuning.shadow_size, ghost_tuning.shadow_size)
 	mesh_instance.mesh = quad
 	mesh_instance.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
-	mesh_instance.material_override = _unshaded_material(Color(0.0, 0.0, 0.0, 0.4))
+	mesh_instance.material_override = _unshaded_material(ghost_tuning.shadow_color)
 	# DECISION (game/GhostPreview.gd): the shadow is a fixed 1x1 quad rather
 	# than one shaped to the held block's exact footprint. M1 only needs a
 	# clear landing indicator, not a pixel-accurate silhouette.
@@ -123,9 +124,9 @@ func _make_shadow_mesh() -> MeshInstance3D:
 func _make_guide_mesh() -> MeshInstance3D:
 	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
 	var box: BoxMesh = BoxMesh.new()
-	box.size = Vector3(0.03, 1.0, 0.03)
+	box.size = Vector3(ghost_tuning.guide_thickness, 1.0, ghost_tuning.guide_thickness)
 	mesh_instance.mesh = box
-	mesh_instance.material_override = _unshaded_material(Color(1.0, 1.0, 1.0, 0.6))
+	mesh_instance.material_override = _unshaded_material(ghost_tuning.guide_color)
 	mesh_instance.top_level = true
 	return mesh_instance
 

@@ -6,8 +6,6 @@ extends Node
 ## the feed is a plain random pick (core/feed/SimpleBlockFeed.gd) — the
 ## weighted bag and placement validation arrive in M2.
 
-const BLOCKS_DIR: String = "res://config/blocks/"
-
 @export var camera_rig_path: NodePath
 @export var ghost_path: NodePath
 @export var spawn_parent_path: NodePath
@@ -31,7 +29,7 @@ func _ready() -> void:
 	_camera_rig = get_node_or_null(camera_rig_path) as CameraRig
 	_ghost = get_node_or_null(ghost_path) as GhostPreview
 	_spawn_parent = get_node_or_null(spawn_parent_path)
-	_feed = SimpleBlockFeed.new(_load_all_shapes())
+	_feed = SimpleBlockFeed.new(BlockShape.load_all_shapes())
 	if _ghost != null:
 		_ghost.set_shape(_feed.next())
 
@@ -56,18 +54,23 @@ func _unhandled_input(event: InputEvent) -> void:
 			)
 		return
 
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_MIDDLE:
+	if event.is_action_pressed(&"camera_orbit_hold"):
 		# Spec 2.5: MMB is both rotate_pitch_fwd (a tap) and camera_orbit_hold
 		# (a hold, handled continuously in CameraRig). Split by how long the
 		# button was down instead of firing rotate_pitch_fwd the instant it's
 		# pressed, which would make a deliberate orbit also rotate the block.
-		var mouse_button: InputEventMouseButton = event
-		if mouse_button.pressed:
-			_mmb_press_time = Time.get_ticks_msec() / 1000.0
-		else:
-			var held_duration: float = Time.get_ticks_msec() / 1000.0 - _mmb_press_time
-			if held_duration < camera_tuning.mmb_tap_max_duration:
-				_apply_step(BlockOrientations.step_pitch_fwd(_orientation_index()))
+		# camera_orbit_hold is bound only to MMB (tools/bootstrap_project.gd),
+		# so keying the tap/hold split off it — instead of a raw middle-mouse
+		# button check — can't collide with rotate_pitch_fwd's other
+		# bindings (shift+wheel-up, D-pad up), which fire immediately through
+		# the dispatch chain below.
+		_mmb_press_time = Time.get_ticks_msec() / 1000.0
+		return
+
+	if event.is_action_released(&"camera_orbit_hold"):
+		var held_duration: float = Time.get_ticks_msec() / 1000.0 - _mmb_press_time
+		if held_duration < camera_tuning.mmb_tap_max_duration:
+			_apply_step(BlockOrientations.step_pitch_fwd(_orientation_index()))
 		return
 
 	if event.is_action_pressed(&"rotate_yaw_ccw"):
@@ -209,11 +212,11 @@ func _update_ghost_transform() -> void:
 		# every physics body (e.g. aimed at the sky before Field is ready).
 		var plane: Plane = Plane(Vector3.UP, 0.0)
 		var point: Variant = plane.intersects_ray(origin, direction)
-		hit_point = point if point != null else Vector3.ZERO
+		hit_point = (point as Vector3) if point != null else Vector3.ZERO
 		hit_normal = Vector3.UP
 	else:
-		hit_point = hit["position"]
-		hit_normal = hit["normal"]
+		hit_point = hit["position"] as Vector3
+		hit_normal = hit["normal"] as Vector3
 
 	_ghost.update_placement(hit_point, hit_normal)
 
@@ -224,20 +227,3 @@ func _raycast(origin: Vector3, direction: Vector3) -> Dictionary:
 		origin, origin + direction.normalized() * ghost_tuning.placement_ray_length
 	)
 	return space_state.intersect_ray(params)
-
-
-func _load_all_shapes() -> Array[BlockShape]:
-	var shapes: Array[BlockShape] = []
-	var dir: DirAccess = DirAccess.open(BLOCKS_DIR)
-	if dir == null:
-		return shapes
-	dir.list_dir_begin()
-	var file_name: String = dir.get_next()
-	while file_name != "":
-		if file_name.ends_with(".tres"):
-			var shape: BlockShape = load(BLOCKS_DIR + file_name)
-			if shape != null:
-				shapes.append(shape)
-		file_name = dir.get_next()
-	dir.list_dir_end()
-	return shapes

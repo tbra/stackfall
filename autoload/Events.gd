@@ -10,6 +10,9 @@ extends Node
 signal block_placed(block: RigidBody3D, shape_id: StringName)
 
 ## M1: a block left the simulation (kill plane for now; despawn/body-cap
-## reasons arrive later). `reason` is a short machine-readable tag such as
-## "kill_plane".
+## reasons arrive later). `reason` is a short machine-readable tag; use the
+## REASON_* constants below rather than a string literal so it can't drift.
 signal block_removed(block: RigidBody3D, reason: String)
+
+## game/Field.gd: a block fell below tuning.kill_plane_y.
+const REASON_KILL_PLANE: StringName = &"kill_plane"

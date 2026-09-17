@@ -12,7 +12,6 @@ extends Node3D
 const BLOCK_COUNT: int = 300
 const RUN_SECONDS: float = 5.0
 const TARGET_STEP_MS: float = 1000.0 / 120.0
-const BLOCKS_DIR: String = "res://config/blocks/"
 const SPAWN_RADIUS: float = 20.0
 const SPAWN_HEIGHT_MIN: float = 15.0
 const SPAWN_HEIGHT_MAX: float = 40.0
@@ -31,7 +30,7 @@ func _ready() -> void:
 	var field: Field = Field.new()
 	add_child(field)
 
-	var shapes: Array[BlockShape] = _load_all_shapes()
+	var shapes: Array[BlockShape] = BlockShape.load_all_shapes()
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = RNG_SEED
 	for _i: int in range(BLOCK_COUNT):
@@ -70,20 +69,3 @@ func _physics_process(delta: float) -> void:
 		]
 	)
 	get_tree().quit(0 if passed else 1)
-
-
-func _load_all_shapes() -> Array[BlockShape]:
-	var shapes: Array[BlockShape] = []
-	var dir: DirAccess = DirAccess.open(BLOCKS_DIR)
-	if dir == null:
-		return shapes
-	dir.list_dir_begin()
-	var file_name: String = dir.get_next()
-	while file_name != "":
-		if file_name.ends_with(".tres"):
-			var shape: BlockShape = load(BLOCKS_DIR + file_name)
-			if shape != null:
-				shapes.append(shape)
-		file_name = dir.get_next()
-	dir.list_dir_end()
-	return shapes

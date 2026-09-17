@@ -22,3 +22,27 @@ extends Resource
 ## Optional custom mesh; when null the factory generates one from `cells` and
 ## `sloped_cells`.
 @export var mesh: Mesh = null
+
+## Directory scanned by load_all_shapes() for every BlockShape .tres resource.
+const SHAPES_DIR: String = "res://config/blocks/"
+
+
+## Loads every BlockShape resource in SHAPES_DIR. The single source of truth
+## for "what shapes exist" — used by the M1 plain-random feed
+## (game/PlayerController.gd), the rain benchmark (tests/bench/bench_rain.gd),
+## and M2's weighted bag once it lands.
+static func load_all_shapes() -> Array[BlockShape]:
+	var shapes: Array[BlockShape] = []
+	var dir: DirAccess = DirAccess.open(SHAPES_DIR)
+	if dir == null:
+		return shapes
+	dir.list_dir_begin()
+	var file_name: String = dir.get_next()
+	while file_name != "":
+		if file_name.ends_with(".tres"):
+			var shape: BlockShape = load(SHAPES_DIR + file_name)
+			if shape != null:
+				shapes.append(shape)
+		file_name = dir.get_next()
+	dir.list_dir_end()
+	return shapes
