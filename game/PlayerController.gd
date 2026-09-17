@@ -214,11 +214,11 @@ func _update_ghost_transform() -> void:
 		# every physics body (e.g. aimed at the sky before Field is ready).
 		var plane: Plane = Plane(Vector3.UP, 0.0)
 		var point: Variant = plane.intersects_ray(origin, direction)
-		hit_point = point if point != null else Vector3.ZERO
+		hit_point = (point as Vector3) if point != null else Vector3.ZERO
 		hit_normal = Vector3.UP
 	else:
-		hit_point = hit["position"]
-		hit_normal = hit["normal"]
+		hit_point = hit["position"] as Vector3
+		hit_normal = hit["normal"] as Vector3
 
 	_ghost.update_placement(hit_point, hit_normal)
 
