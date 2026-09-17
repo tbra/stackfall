@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="TerritoryTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/TerritoryTuning.gd" id="1_territory"]
+
+[resource]
+script = ExtResource("1_territory")
+influence_base = 1.5
+influence_k = 0.9
+influence_max_fraction = 0.6
+home_radius = 6.0
+max_circles = 400
+solve_hz = 10.0
+raster_upload_hz = 5.0
+hash_cell_size = 4.0
+hole_delay = 0.75
+hole_close_delay = 2.0
+max_cell_toggles_per_frame = 64
+capture_hold = 3.0
+auto_drop_search_step = 1.0
+auto_drop_search_max_radius = 12.0
+reject_impulse = 30.0
+reject_upward_fraction = 0.35
