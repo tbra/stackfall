@@ -42,16 +42,50 @@ func _apply_settings() -> void:
 		# Spec 3.5 - physics tuning.
 		"physics/common/physics_ticks_per_second": 60,
 		"physics/common/physics_interpolation": true,
-		# Jolt solver iterations. Spec 3.5 starting point was 10/4 (velocity
-		# defaults to 10, position defaults to 2); M1's 40-block tower
-		# benchmark needed more. At 10/4 a perfectly aligned tall column of
-		# unit cubes develops a slow bending oscillation that grows over
-		# several seconds until it topples. 20/10 plus explicit per-block
-		# damping (config/PhysicsTuning.gd block_linear_damp/angular_damp)
-		# settles a 40-block tower asleep in well under 10 s. See
-		# tests/unit/test_project_setup.gd and test_tower_placement.gd.
-		"physics/jolt_physics_3d/simulation/velocity_steps": 20,
-		"physics/jolt_physics_3d/simulation/position_steps": 10,
+		# Jolt solver iterations. Spec 3.5: "Start at 10 and 4, and tune using
+		# a benchmark scene with a 40-block tower." The position count is
+		# still the spec's 4; the velocity count had to go much higher, and
+		# the reason is worth writing down because the number looks absurd.
+		#
+		# Jolt's velocity solver is iterative (Gauss-Seidel): each iteration
+		# propagates a contact impulse across roughly one contact. A column
+		# of N cubes is a chain of N contacts, and the bottom one carries N
+		# times the load of the top one, so the support force needs several
+		# full sweeps of the chain before it is distributed correctly.
+		# Measured on tests/bench/bench_tower.tscn, the iteration count a
+		# single-file column needs is about 4-5x its height:
+		#
+		#   height 15 -> converges at ~48    height 40 -> converges at ~192
+		#
+		# Below that the solver leaves a residual velocity in every block.
+		# The stack then never gets under Jolt's sleep velocity threshold, it
+		# rings indefinitely, and above ~15 blocks the residual feeds a lean
+		# that grows at sqrt(3g/2L) - the free inverted-pendulum rate - until
+		# the tower topples. Raising the iteration count removes the residual
+		# at the source: at 192 a 40-cube tower sags 12 mm on spawn and is
+		# asleep at 0.52 s (the earliest Jolt's 0.5 s sleep timer allows),
+		# with zero per-block damping. Earlier M1 revisions hid this behind
+		# linear damping of 4.0, which only slowed the topple enough for the
+		# tower to fall asleep first - and made blocks drift down like
+		# feathers. See config/PhysicsTuning.gd and test_project_setup.gd.
+		#
+		# Cost, measured on bench_rain (300 blocks all colliding at once, the
+		# worst case this project has): ~2.8 ms per physics step at the old
+		# 20/10, ~5.0 ms at 192/4, against spec 3.5's 8.33 ms budget for
+		# 120 fps. So it still passes, with the headroom cut from ~3x to
+		# ~1.6x. That is the real price of this setting and it is worth
+		# re-checking whenever bench_rain is touched. Settled towers sleep and
+		# cost nothing, and spec 3.5's stable-block freeze (blocks asleep for
+		# 20 s become freeze_mode = STATIC) will take more out of the solver
+		# again once it lands.
+		#
+		# DECISION: position_steps stays at the spec's starting 4. Raising it
+		# to 80 changed this benchmark's output by literally nothing (the
+		# stack never penetrates past penetration_slop, so the position
+		# solver has no work to do), so there is no evidence for spending
+		# more there.
+		"physics/jolt_physics_3d/simulation/velocity_steps": 192,
+		"physics/jolt_physics_3d/simulation/position_steps": 4,
 		# Bodies sleep after 0.5 s below threshold (spec 3.5, "Sleep").
 		"physics/jolt_physics_3d/simulation/sleep_time_threshold": 0.5,
 

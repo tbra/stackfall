@@ -90,19 +90,38 @@ func test_renderer_is_forward_plus() -> void:
 
 func test_jolt_solver_iterations_match_spec() -> void:
 	# Spec 3.5: "Start at 10 and 4, and tune using a benchmark scene with a
-	# 40-block tower." M1's tower benchmark needed more: at 10/4 a perfectly
-	# aligned 30+ cube column develops a slow bending oscillation that grows
-	# until it topples (see PhysicsTuning.block_linear_damp's DECISION
-	# comment for the full story). 20/10 plus per-block damping settles it.
+	# 40-block tower." Position stayed at 4 (raising it to 80 changed the
+	# benchmark by nothing). Velocity had to go to 192, because Jolt's
+	# Gauss-Seidel velocity solver propagates a contact impulse across roughly
+	# one contact per iteration, so an N-cube column needs about 4-5N
+	# iterations before the support force is distributed through the whole
+	# chain. Under that, every block keeps a residual velocity, the stack
+	# never sleeps, and above ~15 blocks it leans until it topples. See the
+	# long comment in tools/bootstrap_project.gd for the measurements.
 	assert_eq(
 		int(ProjectSettings.get_setting("physics/jolt_physics_3d/simulation/velocity_steps", 0)),
-		20,
-		"M1's 40-block tower benchmark needed 20 velocity iterations (see tools/bootstrap_project.gd)."
+		192,
+		"A 40-cube column needs ~4-5x its height in velocity iterations (see tools/bootstrap_project.gd)."
 	)
 	assert_eq(
 		int(ProjectSettings.get_setting("physics/jolt_physics_3d/simulation/position_steps", 0)),
-		10,
-		"M1's 40-block tower benchmark needed 10 position iterations (see tools/bootstrap_project.gd)."
+		4,
+		"Spec 3.5's starting position iteration count; the tower benchmark gave no reason to raise it."
+	)
+
+
+func test_blocks_are_not_damped_into_stability() -> void:
+	# Guard rail for spec 1.6's "real sense of weight and balance": towers are
+	# held up by solver convergence, not by damping. Linear damping caps a
+	# falling block at g / damp, so anything much above 0.3 makes blocks float
+	# down. See config/PhysicsTuning.gd's DECISION comment.
+	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres")
+	assert_lt(
+		tuning.block_linear_damp, 0.31,
+		"Linear damping of %.2f caps terminal fall speed at %.1f m/s; blocks would float." % [
+			tuning.block_linear_damp,
+			ProjectSettings.get_setting("physics/3d/default_gravity", 9.8) / maxf(tuning.block_linear_damp, 0.001),
+		]
 	)
 
 

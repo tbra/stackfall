@@ -21,6 +21,13 @@ static func build(shape: BlockShape, tuning: PhysicsTuning) -> Block:
 	material.bounce = tuning.block_bounce
 	block.physics_material_override = material
 	block.mass = tuning.cube_mass * maxf(float(shape.cells.size()), 1.0)
+	# DECISION (game/BlockFactory.gd): RigidBody3D's damp modes default to
+	# COMBINE, which ADDS the body's value to physics/3d/default_linear_damp.
+	# REPLACE makes the PhysicsTuning number the actual damping, so the
+	# terminal fall velocity quoted in PhysicsTuning.gd (g / damp) is the real
+	# one and doesn't silently change if a project default is edited.
+	block.linear_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
+	block.angular_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
 	block.linear_damp = tuning.block_linear_damp
 	block.angular_damp = tuning.block_angular_damp
 

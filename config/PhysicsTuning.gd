@@ -16,24 +16,36 @@ extends Resource
 ## Block physics material.
 @export var block_friction: float = 0.8
 @export var block_bounce: float = 0.05
-## DECISION (config/PhysicsTuning.gd): spec 2.4 doesn't specify body damping.
-## A perfectly aligned single-file column of unit cubes (the M1 acceptance
-## criterion's 30-block tower, and the 40-block bench_tower) turned out to be
-## a very lightly damped system: with Godot/Jolt's project-default 0.1
-## linear/angular damping it develops a slow bending oscillation that grows
-## over several seconds until the tower topples, even with extra Jolt solver
-## iterations (see tools/bootstrap_project.gd's velocity_steps/position_steps
-## comment). Explicit per-block damping fixes it. Also worth knowing: Jolt
-## sleeps a whole connected stack together, not body by body, so one lightly
-## vibrating block near the top of a tall tower can keep every block below it
-## awake too — that drove the damping value up further than the drift alone
-## would have suggested. Found empirically against Jolt's actual sleep
-## threshold (physics/jolt_physics_3d/simulation/sleep_velocity_threshold,
-## 0.03 m/s by default) rather than the sleep_linear/angular_threshold fields
-## below, which describe the settled-block/influence rule from spec 2.2 and
-## aren't Jolt engine settings. See tests/unit/test_tower_placement.gd.
-@export var block_linear_damp: float = 4.0
-@export var block_angular_damp: float = 4.0
+## DECISION (config/PhysicsTuning.gd): spec 2.4 doesn't specify body damping,
+## so blocks use Godot's project-default 0.1 and nothing more. Damping is
+## deliberately NOT used to hold towers up.
+##
+## An earlier M1 revision set both of these to 4.0 because a 40-cube column
+## would otherwise lean over and collapse. That was treating the symptom. The
+## cause was Jolt's velocity solver running too few iterations to distribute
+## the support force through a 40-contact chain (see the long comment on
+## velocity_steps in tools/bootstrap_project.gd). The leftover per-block
+## velocity kept the stack above Jolt's sleep threshold, and above roughly 15
+## blocks it fed a lean that grew at the free inverted-pendulum rate until the
+## tower fell. Damping of 4.0 did not stabilise that - it just slowed the
+## topple by about 7x, which was enough for Jolt to put the tower to sleep
+## before it fell over.
+##
+## The price was game feel. Spec 1.6 says the original's appeal was "a real
+## sense of weight and balance", and linear damping of 4.0 caps a falling
+## block at g/damp = 2.5 m/s, so blocks floated down like feathers. With the
+## solver fixed, the 40-cube benchmark passes at zero damping (max top drift
+## 24 mm, asleep at 0.52 s), so 0.1 here is insurance, not structure: it caps
+## terminal velocity at 98 m/s, i.e. free fall for anything this game drops.
+##
+## Worth knowing either way: Jolt sleeps a whole connected island together,
+## not body by body, so one vibrating block near the top of a tower keeps
+## every block below it awake too. These are also NOT the same numbers as the
+## sleep_linear/angular_threshold fields below, which describe spec 2.2's
+## settled-block/influence rule and aren't engine settings.
+## See tests/unit/test_tower_placement.gd and tests/bench/bench_tower.gd.
+@export var block_linear_damp: float = 0.1
+@export var block_angular_damp: float = 0.1
 
 ## -- Field (spec 2.1, 3.5) ---------------------------------------------------
 @export var disk_friction: float = 0.9
