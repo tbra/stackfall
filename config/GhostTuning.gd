@@ -24,3 +24,17 @@ extends Resource
 
 ## -- Placement raycast --------------------------------------------------
 @export var placement_ray_length: float = 200.0
+
+## -- Visuals (game/GhostPreview.gd) --------------------------------------
+## Held-block tint: translucent green so it reads as "not yet placed".
+@export var tint_color: Color = Color(0.35, 0.9, 0.55, 0.55)
+## Ground-projected drop shadow under the held block.
+@export var shadow_color: Color = Color(0.0, 0.0, 0.0, 0.4)
+## The square drop-shadow quad's side length, in meters.
+@export var shadow_size: float = 1.0
+## How far above the placement surface the shadow sits, to avoid z-fighting.
+@export var shadow_offset: float = 0.01
+## Vertical guide line from the placement point up to the held block.
+@export var guide_color: Color = Color(1.0, 1.0, 1.0, 0.6)
+## Width/depth of the guide line's box mesh, in meters.
+@export var guide_thickness: float = 0.03
