@@ -62,5 +62,5 @@ func _on_kill_plane_body_entered(body: Node3D) -> void:
 	var rigid_body: RigidBody3D = body as RigidBody3D
 	if rigid_body == null:
 		return
-	Events.block_removed.emit(rigid_body, "kill_plane")
+	Events.block_removed.emit(rigid_body, String(Events.REASON_KILL_PLANE))
 	rigid_body.queue_free()

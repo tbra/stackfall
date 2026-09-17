@@ -6,8 +6,6 @@ extends Node
 ## the feed is a plain random pick (core/feed/SimpleBlockFeed.gd) — the
 ## weighted bag and placement validation arrive in M2.
 
-const BLOCKS_DIR: String = "res://config/blocks/"
-
 @export var camera_rig_path: NodePath
 @export var ghost_path: NodePath
 @export var spawn_parent_path: NodePath
@@ -31,7 +29,7 @@ func _ready() -> void:
 	_camera_rig = get_node_or_null(camera_rig_path) as CameraRig
 	_ghost = get_node_or_null(ghost_path) as GhostPreview
 	_spawn_parent = get_node_or_null(spawn_parent_path)
-	_feed = SimpleBlockFeed.new(_load_all_shapes())
+	_feed = SimpleBlockFeed.new(BlockShape.load_all_shapes())
 	if _ghost != null:
 		_ghost.set_shape(_feed.next())
 
@@ -229,20 +227,3 @@ func _raycast(origin: Vector3, direction: Vector3) -> Dictionary:
 		origin, origin + direction.normalized() * ghost_tuning.placement_ray_length
 	)
 	return space_state.intersect_ray(params)
-
-
-func _load_all_shapes() -> Array[BlockShape]:
-	var shapes: Array[BlockShape] = []
-	var dir: DirAccess = DirAccess.open(BLOCKS_DIR)
-	if dir == null:
-		return shapes
-	dir.list_dir_begin()
-	var file_name: String = dir.get_next()
-	while file_name != "":
-		if file_name.ends_with(".tres"):
-			var shape: BlockShape = load(BLOCKS_DIR + file_name)
-			if shape != null:
-				shapes.append(shape)
-		file_name = dir.get_next()
-	dir.list_dir_end()
-	return shapes
