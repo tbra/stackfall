@@ -24,7 +24,7 @@ extends Resource
 ## Half-width of the smoothstep applied to the bilinear owner edge, in owner
 ## units (the texture's R channel counts teams, so 1.0 is one whole team
 ## step). Larger is blurrier.
-@export var edge_softness: float = 0.25
+@export var edge_softness: float = 0.4
 ## How much of the owner color is mixed over the disk at full coverage.
 @export var tint_alpha: float = 0.55
 
@@ -46,7 +46,7 @@ extends Resource
 ## Spatial frequency of the shimmer's travelling bands, in cycles across the
 ## whole disk.
 @export var contested_shimmer_scale: float = 24.0
-@export var contested_shimmer_strength: float = 0.5
+@export var contested_shimmer_strength: float = 0.4
 
 ## -- Holes (spec 2.10: "Hole edges glow", 3.3: the shader discards holes) ---
 @export var hole_rim_color: Color = Color(1.0, 0.45, 0.12)

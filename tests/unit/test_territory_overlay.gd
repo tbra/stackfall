@@ -97,29 +97,59 @@ func test_owner_bytes_survive_the_upscale() -> void:
 	assert_eq(right.r8, 3, "Team 2's cells read back as R = team_id + 1.")
 
 
-func test_state_flags_get_their_own_channels() -> void:
+func test_state_bytes_go_up_verbatim() -> void:
 	var map_def: MapDef = _map()
 	var overlay: TerritoryOverlay = _make_overlay(map_def)
 	var raster: ScriptedRaster = _make_raster(map_def)
 	var grid: CellGrid = raster.grid()
 
-	var contested_cell: int = grid.cell_index(3, 3)
-	var hole_cell: int = grid.cell_index(8, 8)
-	raster.set_cell(contested_cell, 0, TerritoryRaster.STATE_CONTESTED)
-	raster.set_cell(hole_cell, 0, TerritoryRaster.STATE_HOLE)
+	raster.set_cell(grid.cell_index(3, 3), 0, TerritoryRaster.STATE_CONTESTED)
+	raster.set_cell(grid.cell_index(8, 8), 0, TerritoryRaster.STATE_HOLE)
+	raster.set_cell(
+		grid.cell_index(9, 9),
+		0,
+		TerritoryRaster.STATE_CONTESTED | TerritoryRaster.STATE_HOLE
+	)
 	overlay.set_source(raster, PackedColorArray())
 
-	var image: Image = overlay.last_image()
-	var contested: Color = _sample(image, 3, 3)
-	var hole: Color = _sample(image, 8, 8)
-	var plain: Color = _sample(image, 0, 0)
+	# The state grid goes up unblended at cell resolution: the shader's hole
+	# discard has to land on exactly the cell whose collision Field switched
+	# off, and an interpolated bit field cannot answer that.
+	var states: Image = overlay.state_cell_image()
+	assert_eq(states.get_width(), CELLS_PER_SIDE)
+	assert_eq(states.get_pixel(3, 3).r8, TerritoryRaster.STATE_CONTESTED)
+	assert_eq(states.get_pixel(8, 8).r8, TerritoryRaster.STATE_HOLE)
+	assert_eq(
+		states.get_pixel(9, 9).r8,
+		TerritoryRaster.STATE_CONTESTED | TerritoryRaster.STATE_HOLE
+	)
+	assert_eq(states.get_pixel(0, 0).r8, 0, "An untouched cell carries no state.")
 
-	assert_eq(contested.g8, TerritoryRaster.STATE_CONTESTED, "G keeps the raw state bits.")
-	assert_eq(hole.g8, TerritoryRaster.STATE_HOLE)
-	assert_gt(contested.a8, 200, "A is the contested mask the shimmer reads.")
-	assert_gt(hole.b8, 200, "B is the hole mask the shader discards on.")
-	assert_lt(plain.a8, 40, "An untouched cell is neither contested nor a hole.")
-	assert_lt(plain.b8, 40)
+
+func test_owner_ids_also_go_up_unblended_at_cell_resolution() -> void:
+	var map_def: MapDef = _map()
+	var overlay: TerritoryOverlay = _make_overlay(map_def)
+	var raster: ScriptedRaster = _make_raster(map_def)
+	var grid: CellGrid = raster.grid()
+	raster.set_cell(grid.cell_index(4, 4), 1, 0)
+	raster.set_cell(grid.cell_index(5, 4), 3, 0)
+	overlay.set_source(raster, PackedColorArray())
+
+	# The shader reads team ids off this second texture, because the bilinear
+	# upscale invents ids between two teams: halfway between 1 and 3 is 2,
+	# which would ring the border in a third player's color.
+	var cells: ImageTexture = overlay.cell_texture()
+	assert_not_null(cells, "The overlay uploads the raw cell grid as well.")
+	assert_eq(cells.get_width(), CELLS_PER_SIDE, "Unblended, at cell resolution.")
+	assert_eq(cells.get_height(), CELLS_PER_SIDE)
+	assert_not_null(overlay.state_texture(), "And the state grid beside it.")
+	assert_eq(overlay.owner_cell_image().get_pixel(4, 4).r8, 1)
+	assert_eq(overlay.owner_cell_image().get_pixel(5, 4).r8, 3)
+	assert_eq(
+		overlay.texture().get_width(),
+		UPLOAD_RES,
+		"The filtered texture is still the territory_res upload."
+	)
 
 
 func test_empty_raster_bytes_upload_as_unowned() -> void:

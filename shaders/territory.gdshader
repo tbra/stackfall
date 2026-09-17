@@ -3,29 +3,42 @@ render_mode cull_disabled, specular_schlick_ggx;
 
 // Territory on the disk (spec 2.10, 3.3).
 //
-// game/TerritoryOverlay.gd uploads one ImageTexture per raster tick, the cell
-// grid upscaled bilinearly to MapDef.territory_res. Channels:
+// game/TerritoryOverlay.gd uploads three single-channel textures per raster
+// tick, all carrying TerritoryRaster's own cell bytes:
 //
-//   R = team_id + 1, 0 = unowned. Bilinear interpolation makes this a ramp
-//       across a territory edge, which is exactly what the smoothstep below
-//       turns into spec 2.10's "soft tint".
-//   G = the raw TerritoryRaster state bits (STATE_CONTESTED | STATE_HOLE),
-//       kept as the M2 plan documents them so the texture can be read back
-//       and checked against the raster.
-//   B = 255 on a hole cell, A = 255 on a contested cell. Interpolating packed
-//       bit flags is ambiguous (1 and 2 average to "hole"), so each flag also
-//       gets a channel of its own where a 0.5 threshold lands exactly on the
-//       cell boundary. See TerritoryOverlay's DECISION note.
+//   territory_tex          the owner grid (R = team_id + 1, 0 = unowned)
+//                          upscaled bilinearly to MapDef.territory_res and
+//                          sampled with filter_linear. This ramp is what the
+//                          smoothstep below turns into spec 2.10's "soft
+//                          tint", and what the outline band rides on.
+//   territory_cells        the same owner grid at cell resolution, unblended.
+//                          *Which* team owns a pixel has to come from here:
+//                          the upscale invents ids between two teams --
+//                          halfway between team 0 (1) and team 2 (3) is team
+//                          1 -- which rings every border in a third player's
+//                          color.
+//   territory_state        STATE_CONTESTED (1) | STATE_HOLE (2) per cell, at
+//   territory_state_soft   cell resolution, bound twice. The unfiltered
+//                          sampler answers "is this a hole", so the gap you
+//                          see is exactly the cell whose collision
+//                          Field.set_hole_cells() switched off; the filtered
+//                          one gives the hole rim its falloff.
 //
 // Disk-local (x, z) maps to UV with uv_scale / uv_offset, which carry
 // CellGrid's convention: cell (0, 0) is the -x/-z corner of the square that
 // covers the disk.
 
 const int SLOT_COLOR_MAX = 8;
+// TerritoryRaster's per-cell state bits.
+const int STATE_CONTESTED = 1;
+const int STATE_HOLE = 2;
 
 uniform sampler2D territory_tex : filter_linear, repeat_disable;
+uniform sampler2D territory_cells : filter_nearest, repeat_disable;
+uniform sampler2D territory_state : filter_nearest, repeat_disable;
+uniform sampler2D territory_state_soft : filter_linear, repeat_disable;
 // Per-slot colors from MatchConfig.player_colors, already converted to linear
-// by TerritoryOverlay; indexed by R - 1.
+// by TerritoryOverlay; indexed by the owner byte - 1.
 uniform vec4 slot_colors[SLOT_COLOR_MAX];
 
 uniform vec4 base_color : source_color = vec4(0.68, 0.70, 0.74, 1.0);
@@ -60,46 +73,54 @@ void vertex() {
 
 void fragment() {
 	vec2 uv = v_local.xz * uv_scale + vec2(uv_offset);
-	vec4 cell = texture(territory_tex, uv);
+	float owner_near = round(texture(territory_cells, uv).r * 255.0);
+	float owner_soft = texture(territory_tex, uv).r * 255.0;
+	float state_near = round(texture(territory_state, uv).r * 255.0);
+	float state_soft = texture(territory_state_soft, uv).r * 255.0;
 
-	// Spec 3.3: "discards pixels where holes are".
-	float hole = cell.b;
-	if (hole > 0.5) {
+	// Spec 3.3: "discards pixels where holes are". STATE_HOLE is bit 2, so any
+	// state of 2 or more is a hole. Read unfiltered, so the gap is exactly the
+	// cell whose collision Field switched off.
+	if (state_near >= float(STATE_HOLE) - 0.5) {
 		discard;
 	}
 
-	float owner_f = cell.r * 255.0;
-	// Soft edge: the bilinear ramp from unowned (0) to owned (>= 1) crosses
-	// 0.5 exactly on the cell boundary.
-	float presence = clamp(owner_f, 0.0, 1.0);
+	int owner_id = int(owner_near) - 1;
+	bool owned = owner_id >= 0;
+
+	// Soft edge. The filtered ramp is normalized by this cell's own owner
+	// value so the fade is the same width whatever the team id is.
+	float presence = clamp(owner_soft / max(owner_near, 1.0), 0.0, 1.0);
 	float coverage = smoothstep(0.5 - edge_softness, 0.5 + edge_softness, presence);
+	float tint = owned ? coverage : 0.0;
 
-	int owner_id = int(round(owner_f)) - 1;
-	int color_index = clamp(owner_id, 0, SLOT_COLOR_MAX - 1);
-	vec3 team_color = slot_colors[color_index].rgb;
-	float owned = coverage * step(0.0, float(owner_id));
-
-	vec3 albedo = mix(base_color.rgb, team_color, owned * tint_alpha);
+	vec3 team_color = slot_colors[clamp(owner_id, 0, SLOT_COLOR_MAX - 1)].rgb;
+	vec3 albedo = mix(base_color.rgb, team_color, tint * tint_alpha);
 	vec3 emission = vec3(0.0);
 
-	// Animated outline along the territory's rim.
+	// Animated outline, drawn just inside the territory's rim.
 	float band = 1.0 - smoothstep(0.0, outline_width, abs(presence - 0.5));
 	float pulse = mix(
 		1.0 - outline_pulse_depth,
 		1.0,
 		0.5 + 0.5 * sin(TIME * outline_speed * TAU)
 	);
-	emission += team_color * band * outline_strength * pulse;
+	emission += team_color * band * outline_strength * pulse * (owned ? 1.0 : 0.0);
 
 	// Contested cells shimmer with travelling bands (spec 2.10).
-	float contested = cell.a;
+	// STATE_CONTESTED is bit 1.
+	float contested = mod(state_near, 2.0) >= 0.5 ? 1.0 : 0.0;
 	float shimmer = 0.5 + 0.5 * sin(
 		(uv.x + uv.y) * contested_shimmer_scale * TAU - TIME * contested_shimmer_rate * TAU
 	);
 	emission += contested_color.rgb * contested * shimmer * contested_shimmer_strength;
 
-	// Hole edges glow (spec 2.10); the hole itself is already discarded.
-	float rim = smoothstep(0.5 - hole_rim_width, 0.5, hole);
+	// Hole edges glow (spec 2.10); the hole itself is already discarded. The
+	// filtered state ramps toward STATE_HOLE as it nears one, so a smoothstep
+	// over the last hole_rim_width of that climb is the rim.
+	float rim = smoothstep(
+		float(STATE_HOLE) - hole_rim_width * 2.0, float(STATE_HOLE), state_soft
+	);
 	emission += hole_rim_color.rgb * rim * hole_rim_glow;
 
 	ALBEDO = albedo;

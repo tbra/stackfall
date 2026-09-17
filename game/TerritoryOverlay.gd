@@ -16,18 +16,43 @@ extends MeshInstance3D
 ## shader samples and smoothsteps. Rebuilt at TerritoryTuning.raster_upload_hz
 ## (5 Hz), never per frame.
 ##
-## **Texture layout.** R = team_id + 1 (0 = unowned), G = the raw
-## TerritoryRaster state bits, exactly as the M2 plan documents them.
+## **Texture layout.** Three single-channel R8 textures rather than one packed
+## RGBA one, which costs nothing to build: TerritoryRaster.owner_bytes() and
+## state_bytes() are already exactly the buffers Image.create_from_data() wants,
+## so the upload does no per-cell work in GDScript at all.
 ##
-## DECISION (game/TerritoryOverlay.gd): B and A carry the hole and contested
-## flags again, one per channel. The plan's packed G channel is correct as a
-## description of the raster, but bilinear interpolation of packed bits is
-## ambiguous — halfway between STATE_CONTESTED (1) and nothing (0) is 0.5, and
-## halfway between STATE_HOLE (2) and nothing is 1.0, so no single threshold on
-## G can answer "is this a hole" near an edge. Splitting the two flags into
-## their own 0/255 channels puts the 0.5 threshold exactly on the cell boundary
-## for both. G is still written, so a test or a debug view can compare the
-## upload against TerritoryRaster.state_bytes() byte for byte.
+##   territory_tex    territory_res, filter_linear  -- the owner ramp spec 3.3
+##                                                     asks for, bilinearly
+##                                                     upscaled; the soft edge
+##                                                     and the outline read it.
+##   territory_cells  cell res, filter_nearest      -- owner_bytes() unblended:
+##                                                     R = team_id + 1, 0 =
+##                                                     unowned. *Which* team
+##                                                     owns a pixel must come
+##                                                     from here, because the
+##                                                     upscale invents ids
+##                                                     between two teams --
+##                                                     halfway between team 0
+##                                                     (1) and team 2 (3) is
+##                                                     team 1, which rings
+##                                                     every border in a third
+##                                                     player's color.
+##   territory_state  cell res, both filters        -- state_bytes() verbatim,
+##                                                     STATE_CONTESTED |
+##                                                     STATE_HOLE. The crisp
+##                                                     sampler answers "is this
+##                                                     a hole", so the gap
+##                                                     matches the cell whose
+##                                                     collision Field switched
+##                                                     off; the filtered one
+##                                                     gives the rim its glow.
+##
+## DECISION (game/TerritoryOverlay.gd): the M2 plan describes one texture with
+## R = owner and G = the state bits. Splitting them into their own textures
+## keeps exactly those two channels and those two meanings, and was taken for
+## cost: interleaving 14400 cells into RGBA in GDScript and upscaling four
+## channels measured 11 ms per upload on map L, which is a dropped frame five
+## times a second. One R8 upscale is 2 ms and the interleave disappears.
 
 ## Mirrors TerritoryRaster's bits so the overlay never has to import a rule.
 const STATE_CONTESTED: int = TerritoryRaster.STATE_CONTESTED
@@ -42,11 +67,13 @@ var _visuals: TerritoryVisuals = null
 var _tuning: TerritoryTuning = null
 var _material: ShaderMaterial = null
 var _texture: ImageTexture = null
+var _cell_texture: ImageTexture = null
+var _state_texture: ImageTexture = null
 var _raster: TerritoryRaster = null
 var _cells_per_side: int = 0
-## Scratch, reused every upload so a 5 Hz rebuild allocates nothing.
-var _pixels: PackedByteArray = PackedByteArray()
 var _last_image: Image = null
+var _owner_cell_image: Image = null
+var _state_cell_image: Image = null
 var _upload_accumulator: float = 0.0
 
 
@@ -90,6 +117,26 @@ func material() -> ShaderMaterial:
 
 func texture() -> ImageTexture:
 	return _texture
+
+
+## The cell-resolution texture the shader reads team ids from, unblended.
+func cell_texture() -> ImageTexture:
+	return _cell_texture
+
+
+## The cell-resolution texture carrying TerritoryRaster.state_bytes() verbatim.
+func state_texture() -> ImageTexture:
+	return _state_texture
+
+
+## The exact cell images of the last upload, for the same reason last_image()
+## exists: a headless test has no rendering server to read a texture back from.
+func owner_cell_image() -> Image:
+	return _owner_cell_image
+
+
+func state_cell_image() -> Image:
+	return _state_cell_image
 
 
 ## The exact Image of the last upload, upscaled. Kept because
@@ -137,61 +184,75 @@ func upload_now() -> void:
 
 
 ## The low-level entry: one byte of owner and one of state per cell, row-major,
-## `cells_per_side` to a row. Field's raster path goes through upload_now();
-## tests and the M2 preview scene push bytes straight in.
+## `side` to a row -- the two arrays TerritoryRaster hands out. Field's raster
+## path goes through upload_now(); tests push bytes straight in.
 func push_cells(
 	owner_bytes: PackedByteArray, state_bytes: PackedByteArray, side: int
 ) -> void:
 	if _material == null or side <= 0:
 		return
 	var cell_total: int = side * side
-	var byte_total: int = cell_total * 4
-	if _pixels.size() != byte_total:
-		_pixels.resize(byte_total)
-	var owner_count: int = owner_bytes.size()
-	var state_count: int = state_bytes.size()
-	for i: int in range(cell_total):
-		var owner_byte: int = owner_bytes[i] if i < owner_count else 0
-		var state_byte: int = state_bytes[i] if i < state_count else 0
-		var base: int = i * 4
-		_pixels[base] = owner_byte
-		_pixels[base + 1] = state_byte
-		_pixels[base + 2] = 255 if (state_byte & STATE_HOLE) != 0 else 0
-		_pixels[base + 3] = 255 if (state_byte & STATE_CONTESTED) != 0 else 0
-
-	var image: Image = Image.create_from_data(
-		side, side, false, Image.FORMAT_RGBA8, _pixels
+	var owner_image: Image = Image.create_from_data(
+		side, side, false, Image.FORMAT_R8, _sized(owner_bytes, cell_total)
 	)
-	var upload_res: int = maxi(_map_def.territory_res, side)
-	if upload_res != side:
-		image.resize(upload_res, upload_res, Image.INTERPOLATE_BILINEAR)
-	_set_image(image)
+	var state_image: Image = Image.create_from_data(
+		side, side, false, Image.FORMAT_R8, _sized(state_bytes, cell_total)
+	)
+	_owner_cell_image = owner_image
+	_state_cell_image = state_image
+	_cell_texture = _store(_cell_texture, owner_image)
+	_state_texture = _store(_state_texture, state_image)
+	_material.set_shader_parameter(&"territory_cells", _cell_texture)
+	_material.set_shader_parameter(&"territory_state", _state_texture)
+	_material.set_shader_parameter(&"territory_state_soft", _state_texture)
+	_set_image(_upscaled(owner_image, side))
 	_apply_uv_uniforms(side)
+
+
+## A raster reports empty byte arrays before its first solve, and a stand-in
+## may report a short one; Image.create_from_data() wants exactly cell_total
+## bytes. The common case returns the caller's own array untouched.
+func _sized(bytes: PackedByteArray, cell_total: int) -> PackedByteArray:
+	if bytes.size() == cell_total:
+		return bytes
+	var padded: PackedByteArray = bytes.duplicate()
+	padded.resize(cell_total)
+	return padded
+
+
+## The owner cell image blown up to MapDef.territory_res. Image.resize mutates
+## in place, so it is duplicated first — the shader needs both sizes.
+func _upscaled(cell_image: Image, side: int) -> Image:
+	var upload_res: int = maxi(_map_def.territory_res, side)
+	if upload_res == side:
+		return cell_image
+	var image: Image = cell_image.duplicate() as Image
+	image.resize(upload_res, upload_res, Image.INTERPOLATE_BILINEAR)
+	return image
 
 
 func _set_blank_texture() -> void:
 	var side: int = maxi(_cells_per_side, 1)
-	var image: Image = Image.create_empty(side, side, false, Image.FORMAT_RGBA8)
-	image.fill(Color(0.0, 0.0, 0.0, 0.0))
-	var upload_res: int = maxi(_map_def.territory_res, side)
-	if upload_res != side:
-		image.resize(upload_res, upload_res, Image.INTERPOLATE_BILINEAR)
-	_set_image(image)
-	_apply_uv_uniforms(side)
+	push_cells(PackedByteArray(), PackedByteArray(), side)
 
 
 func _set_image(image: Image) -> void:
 	_last_image = image
-	if _texture == null:
-		_texture = ImageTexture.create_from_image(image)
-	elif (
-		_texture.get_width() == image.get_width()
-		and _texture.get_height() == image.get_height()
-	):
-		_texture.update(image)
-	else:
-		_texture.set_image(image)
+	_texture = _store(_texture, image)
 	_material.set_shader_parameter(&"territory_tex", _texture)
+
+
+func _store(target: ImageTexture, image: Image) -> ImageTexture:
+	if target == null:
+		return ImageTexture.create_from_image(image)
+	if (
+		target.get_width() == image.get_width()
+		and target.get_height() == image.get_height()
+	):
+		target.update(image)
+	else:
+		target.set_image(image)
+	return target
 
 
 ## Disk-local (x, z) -> UV. CellGrid lays `side` cells of cell_size from
