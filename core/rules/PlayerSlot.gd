@@ -40,18 +40,30 @@ func _init(
 	home_position = p_home_position
 
 
-@warning_ignore_start("unused_parameter")
 ## Spec 2.2: home flags sit at home_flag_radius_fraction * field_radius,
 ## spaced evenly around the edge. Slot 0 sits at angle 0 (+x), and slots go
 ## counter-clockwise from there, so a 2-player match puts the two players
 ## opposite each other.
 static func home_position_for(slot_id: int, slot_count: int, map_def: MapDef) -> Vector2:
-	return Vector2.ZERO
+	if slot_count <= 0:
+		return Vector2.ZERO
+	var radius: float = map_def.home_flag_radius_fraction * map_def.field_radius
+	var angle: float = TAU * float(slot_id) / float(slot_count)
+	return Vector2(radius * cos(angle), radius * sin(angle))
 
 
 ## Spec 2.2: one goal flag in the center by default; 2-5 are placed
 ## symmetrically at goal_flag_radius_fraction * field_radius. Returns
 ## disk-local positions, `count` long.
 static func goal_positions_for(count: int, map_def: MapDef) -> PackedVector2Array:
-	return PackedVector2Array()
-@warning_ignore_restore("unused_parameter")
+	var positions: PackedVector2Array = PackedVector2Array()
+	if count <= 0:
+		return positions
+	if count == 1:
+		positions.append(Vector2.ZERO)
+		return positions
+	var radius: float = map_def.goal_flag_radius_fraction * map_def.field_radius
+	for i: int in range(count):
+		var angle: float = TAU * float(i) / float(count)
+		positions.append(Vector2(radius * cos(angle), radius * sin(angle)))
+	return positions
