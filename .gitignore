@@ -30,3 +30,6 @@ desktop.ini
 
 # Hand-off archive shipped with the docs
 files.zip
+
+# Agent worktrees
+/.claude/worktrees/
