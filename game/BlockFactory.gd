@@ -11,10 +11,14 @@ extends RefCounted
 const BLOCK_SCENE: PackedScene = preload("res://game/Block.tscn")
 
 
-static func build(shape: BlockShape, tuning: PhysicsTuning) -> Block:
+## `owner_slot` defaults to -1 so M1's call sites (no player slots yet) keep
+## compiling unchanged; M2's Match.request_place is the first caller to pass
+## a real slot id (spec 2.2 "height credit").
+static func build(shape: BlockShape, tuning: PhysicsTuning, owner_slot: int = -1) -> Block:
 	var block: Block = BLOCK_SCENE.instantiate()
 	block.shape_id = shape.id
 	block.cube_count = shape.cells.size()
+	block.owner_slot = owner_slot
 
 	var material: PhysicsMaterial = PhysicsMaterial.new()
 	material.friction = tuning.block_friction
