@@ -56,18 +56,23 @@ func _unhandled_input(event: InputEvent) -> void:
 			)
 		return
 
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_MIDDLE:
+	if event.is_action_pressed(&"camera_orbit_hold"):
 		# Spec 2.5: MMB is both rotate_pitch_fwd (a tap) and camera_orbit_hold
 		# (a hold, handled continuously in CameraRig). Split by how long the
 		# button was down instead of firing rotate_pitch_fwd the instant it's
 		# pressed, which would make a deliberate orbit also rotate the block.
-		var mouse_button: InputEventMouseButton = event
-		if mouse_button.pressed:
-			_mmb_press_time = Time.get_ticks_msec() / 1000.0
-		else:
-			var held_duration: float = Time.get_ticks_msec() / 1000.0 - _mmb_press_time
-			if held_duration < camera_tuning.mmb_tap_max_duration:
-				_apply_step(BlockOrientations.step_pitch_fwd(_orientation_index()))
+		# camera_orbit_hold is bound only to MMB (tools/bootstrap_project.gd),
+		# so keying the tap/hold split off it — instead of a raw middle-mouse
+		# button check — can't collide with rotate_pitch_fwd's other
+		# bindings (shift+wheel-up, D-pad up), which fire immediately through
+		# the dispatch chain below.
+		_mmb_press_time = Time.get_ticks_msec() / 1000.0
+		return
+
+	if event.is_action_released(&"camera_orbit_hold"):
+		var held_duration: float = Time.get_ticks_msec() / 1000.0 - _mmb_press_time
+		if held_duration < camera_tuning.mmb_tap_max_duration:
+			_apply_step(BlockOrientations.step_pitch_fwd(_orientation_index()))
 		return
 
 	if event.is_action_pressed(&"rotate_yaw_ccw"):
