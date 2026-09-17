@@ -16,6 +16,9 @@ extends Resource
 @export var disk_base_color: Color = Color(0.68, 0.70, 0.74)
 @export var disk_metallic: float = 0.1
 @export var disk_roughness: float = 0.45
+## Radial segments of the disk mesh. High enough that the rim reads as a
+## circle rather than a polygon at the camera distances spec 2.5 allows.
+@export var disk_mesh_segments: int = 96
 
 ## -- Territory tint (spec 2.10: "a soft tint in their color") ---------------
 ## Half-width of the smoothstep applied to the bilinear owner edge, in owner

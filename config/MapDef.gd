@@ -48,6 +48,16 @@ const TERRITORY_RES_LARGE: int = 512
 ## physics-query extent rather than a rule number, so it lives with the map's
 ## other geometry instead of in TerritoryTuning.
 @export var cell_wake_height: float = 60.0
+## Upper bound on bodies one cell's wake query reports. A cell is 1 m square,
+## so even a dense tower puts only a handful of blocks over it.
+@export var cell_wake_max_bodies: int = 32
+
+## Each collision cell is grown by this much in x and z so that neighbouring
+## boxes overlap slightly instead of meeting on an exact seam, which keeps a
+## block sliding across a cell boundary from catching on it. The same idea as
+## PhysicsTuning.cube_margin, in the other direction. A closed cell therefore
+## reaches this far into its neighbours; at 0.02 m that ledge is invisible.
+@export var cell_overlap: float = 0.02
 
 
 ## The MapDef for a MatchConfig.MapSize value. Round maps only for M2; the

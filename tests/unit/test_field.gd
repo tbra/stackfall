@@ -1,23 +1,35 @@
 extends GutTest
 ## Field builds its disk from MapDef/PhysicsTuning and frees anything that
 ## reaches the kill plane (spec 2.1).
+##
+## M2 replaced the single cylinder collision with the cell grid spec 3.3 asks
+## for; the grid itself is covered by test_field_cells.gd, so what is left here
+## is the disk's size, its material and the kill plane.
 
 
-func test_disk_radius_matches_map_def() -> void:
+func test_disk_mesh_radius_matches_map_def() -> void:
 	var field: Field = autofree(Field.new())
 	field.map_def = load("res://config/maps/round_medium.tres")
 	field.tuning = load("res://config/physics_tuning.tres")
 	add_child_autofree(field)
 
-	var collision: CollisionShape3D = null
-	for child: Node in field.get_children():
-		if child is CollisionShape3D:
-			collision = child
-			break
-	assert_not_null(collision, "Field should build a disk CollisionShape3D.")
-	var cylinder: CylinderShape3D = collision.shape as CylinderShape3D
-	assert_not_null(cylinder, "The disk collides as a cylinder.")
-	assert_almost_eq(cylinder.radius, field.map_def.field_radius, 0.001)
+	var overlay: TerritoryOverlay = field.overlay()
+	assert_not_null(overlay, "Field should build the disk's visible surface.")
+	var cylinder: CylinderMesh = overlay.mesh as CylinderMesh
+	assert_not_null(cylinder, "The disk is drawn as a cylinder.")
+	assert_almost_eq(cylinder.top_radius, field.map_def.field_radius, 0.001)
+	assert_almost_eq(cylinder.height, field.map_def.disk_height, 0.001)
+
+
+func test_disk_collision_covers_the_disk() -> void:
+	var field: Field = autofree(Field.new())
+	field.map_def = load("res://config/maps/round_small.tres")
+	add_child_autofree(field)
+
+	# One BoxShape3D per in-disk cell, so the count is the disk's area in
+	# cells; a 30 m disk at cell_size 1 is a few thousand of them.
+	assert_gt(field.cell_count(), 0, "The disk collides as a grid of cells.")
+	assert_eq(field.get_shape_owners().size(), field.cell_count())
 
 
 func test_disk_friction_matches_tuning() -> void:
