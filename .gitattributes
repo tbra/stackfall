@@ -1,0 +1,31 @@
+# Normalize line endings for text files
+* text=auto eol=lf
+
+# Godot text resources
+*.gd            text eol=lf diff=gdscript
+*.gdshader      text eol=lf
+*.tres          text eol=lf
+*.tscn          text eol=lf
+*.godot         text eol=lf
+*.cfg           text eol=lf
+*.import        text eol=lf
+*.md            text eol=lf
+
+# Windows helper scripts keep CRLF
+*.bat           text eol=crlf
+*.cmd           text eol=crlf
+
+# Binary assets
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.exr           binary
+*.hdr           binary
+*.ogg           binary
+*.wav           binary
+*.mp3           binary
+*.ttf           binary
+*.otf           binary
+*.glb           binary
+*.blend         binary
+*.zip           binary

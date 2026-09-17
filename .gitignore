@@ -1,0 +1,32 @@
+# Godot 4+ engine-generated folders and files
+.godot/
+/android/
+*.translation
+
+# Godot exports
+/export/
+/build/
+export_presets.cfg
+
+# Steam
+steam_appid.txt
+
+# Mono/.NET (unused, standard build)
+.mono/
+data_*/
+mono_crash.*.json
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+.vscode/
+.idea/
+
+# Local scratch
+/tmp/
+*.log
+
+# Hand-off archive shipped with the docs
+files.zip
