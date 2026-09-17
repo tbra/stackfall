@@ -1,21 +1,27 @@
 extends GutTest
 ## CLAUDE.md / Hard Rules: verify gamepad input paths with synthetic
 ## InputEventJoypadButton/Motion events, since there's no physical pad here.
+##
+## Updated for M2 (docs/M2_PLAN.md P4): ghost_place is now intent-only (spec
+## 3.4), so a press should send exactly one Match.request_place() call
+## rather than spawn a block directly — see tests/unit/support/FakeMatch.gd.
 
 
 func test_gamepad_button_places_a_block() -> void:
-	var blocks_root: Node3D = autofree(Node3D.new())
-	add_child_autofree(blocks_root)
-
 	var ghost: GhostPreview = autofree(GhostPreview.new())
 	add_child_autofree(ghost)
-	ghost.set_shape(load("res://config/blocks/cube.tres"))
+	var cube_shape: BlockShape = load("res://config/blocks/cube.tres")
+	ghost.set_shape(cube_shape)
 	ghost.global_position = Vector3(0.0, 5.0, 0.0)
 
 	var controller: PlayerController = autofree(PlayerController.new())
 	add_child_autofree(controller)
 	controller._ghost = ghost
-	controller._spawn_parent = blocks_root
+	controller._active_slot = 0
+
+	var fake_match: FakeMatch = FakeMatch.new()
+	fake_match.held_shapes[0] = cube_shape
+	controller._match = fake_match
 
 	var button_event: InputEventJoypadButton = InputEventJoypadButton.new()
 	button_event.device = -1
@@ -28,7 +34,12 @@ func test_gamepad_button_places_a_block() -> void:
 
 	controller._unhandled_input(button_event)
 
-	assert_eq(blocks_root.get_child_count(), 1, "A synthetic gamepad ghost_place press should place a block.")
+	assert_eq(
+		fake_match.request_place_calls.size(), 1,
+		"A synthetic gamepad ghost_place press should send exactly one placement intent."
+	)
+	assert_eq(fake_match.request_place_calls[0]["slot_id"], 0)
+	assert_eq(fake_match.request_place_calls[0]["auto_drop"], false)
 
 
 func test_gamepad_stick_moves_the_ghost_cursor() -> void:

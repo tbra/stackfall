@@ -1,15 +1,26 @@
 class_name PlayerController
 extends Node
-## Local input -> ghost placement intents (spec 2.5, 3.2). Every action goes
-## through the Input Map (bootstrap_project.gd); nothing here reads a raw
-## keycode. M1 has no territory rules yet, so every placement is valid and
-## the feed is a plain random pick (core/feed/SimpleBlockFeed.gd) — the
-## weighted bag and placement validation arrive in M2.
+## Local input -> placement intents (spec 2.5, 3.2; docs/M2_PLAN.md P4).
+## Every action goes through the Input Map (bootstrap_project.gd); nothing
+## here reads a raw keycode.
+##
+## M2 makes placement intent-only (spec 3.4, "clients send intents; the host
+## checks every intent before acting on it"): this script never builds a
+## Block itself. It raycasts the ghost, tracks whose turn it is in hot-seat
+## (docs/M2_PLAN.md owner decision 1: strict alternation), and calls
+## Match.request_place(); Match alone decides what happens next and answers
+## on the Events bus.
 
 const BLOCKS_DIR: String = "res://config/blocks/"
 
 @export var camera_rig_path: NodePath
 @export var ghost_path: NodePath
+## DECISION (game/PlayerController.gd): M2 makes placement intent-only, so
+## this controller no longer spawns blocks itself and has no real use for a
+## spawn parent. The export stays so the still-M1-shaped game/Main.tscn (only
+## the integrator may touch Main.*, per docs/M2_PLAN.md) keeps loading without
+## an "unknown property" warning until step 3 of the plan's integration order
+## rewires it to Match.register_world().
 @export var spawn_parent_path: NodePath
 
 @export var tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
@@ -18,8 +29,24 @@ const BLOCKS_DIR: String = "res://config/blocks/"
 
 var _camera_rig: CameraRig
 var _ghost: GhostPreview
-var _spawn_parent: Node
-var _feed: SimpleBlockFeed
+
+## DECISION (game/PlayerController.gd): Match is a global autoload (like
+## Events), so gameplay code normally calls `Match.foo()` directly with full
+## static type-checking. This one field breaks that pattern on purpose: GUT
+## cannot double a plain autoload the way it doubles engine singletons (see
+## addons/gut/test.gd's double_singleton — it only recognizes Godot's own
+## engine singletons), so tests need a seam to inject a fake Match ahead of
+## P2 landing the real one. `Variant` keeps the declaration explicit (not
+## "untyped" under CLAUDE.md's error-on-warning rule) while allowing dynamic
+## dispatch to whatever object is assigned.
+var _match: Variant = null
+
+var _shapes_by_id: Dictionary = {}
+
+## Hot-seat: which slot this controller currently acts for (spec M2 owner
+## decision 1: strict alternation, only the active slot's timer/controls do
+## anything). -1 until the first Events.turn_changed.
+var _active_slot: int = -1
 
 var _using_gamepad_cursor: bool = false
 var _gamepad_cursor: Vector3 = Vector3.ZERO
@@ -30,15 +57,25 @@ var _mmb_press_time: float = 0.0
 func _ready() -> void:
 	_camera_rig = get_node_or_null(camera_rig_path) as CameraRig
 	_ghost = get_node_or_null(ghost_path) as GhostPreview
-	_spawn_parent = get_node_or_null(spawn_parent_path)
-	_feed = SimpleBlockFeed.new(_load_all_shapes())
-	if _ghost != null:
-		_ghost.set_shape(_feed.next())
+	_match = Match
+	_shapes_by_id = _load_shapes_by_id()
+	Events.turn_changed.connect(_on_turn_changed)
+	Events.feed_block_issued.connect(_on_feed_block_issued)
+	Events.feed_timer_expired.connect(_on_feed_timer_expired)
+	Events.placement_rejected.connect(_on_placement_rejected)
+
+
+## HotSeat.gd calls this after Main builds the shared CameraRig: HotSeat.tscn
+## is self-contained (docs/M2_PLAN.md), but the camera rig lives in Main's
+## tree, so it can't be wired by NodePath at scene-author time.
+func set_camera_rig(rig: CameraRig) -> void:
+	_camera_rig = rig
 
 
 func _process(delta: float) -> void:
 	_update_gamepad_cursor(delta)
 	_update_ghost_transform()
+	_update_ghost_tint()
 	_handle_hover_adjust(delta)
 	_handle_gamepad_free_rotate(delta)
 	if _camera_rig != null and _ghost != null:
@@ -98,18 +135,90 @@ func _apply_step(new_index: int) -> void:
 		_ghost.set_orientation_index(new_index)
 
 
+# --- Placement intent (spec 3.4) --------------------------------------------
+
+## ghost_place: send exactly one intent to Match and let it decide. Never
+## builds a Block itself (spec 3.4; docs/M2_PLAN.md P4 "intent-only
+## placement").
 func _place_ghost_block() -> void:
+	if _ghost == null or _match == null or _active_slot < 0:
+		return
+	if _ghost.get_shape() == null:
+		return
+	if _is_active_slot_eliminated():
+		return
+	_request_place(false)
+
+
+func _request_place(auto_drop: bool) -> StringName:
+	var reason: StringName = _match.request_place(
+		_active_slot, _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion, auto_drop
+	)
+	return reason
+
+
+## Spec M2 owner decision 3: a slot whose home flag is gone is effectively
+## eliminated. Match.slot(id).home_flag_alive is the one already-documented
+## source of truth for this — no dedicated Events signal exists for it, so
+## rather than inventing one on a stub I don't own, both the controller and
+## the HUD just read PlayerSlot.home_flag_alive off Match.slot() (see
+## ui/HUD.gd's matching DECISION).
+func _is_active_slot_eliminated() -> bool:
+	if _match == null or _active_slot < 0:
+		return false
+	var slot: PlayerSlot = _match.slot(_active_slot)
+	return slot != null and not slot.home_flag_alive
+
+
+# --- Events reactions (spec 3.7, M2 owner decision 1) -----------------------
+
+func _on_turn_changed(slot_id: int) -> void:
+	_active_slot = slot_id
+	if _match == null:
+		return
+	var slot: PlayerSlot = _match.slot(slot_id)
 	if _ghost == null:
 		return
-	var shape: BlockShape = _ghost.get_shape()
-	if shape == null:
+	if slot != null:
+		_ghost.set_player_color(slot.color)
+	var shape: BlockShape = _match.held_shape(slot_id)
+	if shape != null:
+		_ghost.set_shape(shape)
+
+
+func _on_feed_block_issued(slot_id: int, shape_id: StringName, _next_shape_id: StringName) -> void:
+	if slot_id != _active_slot or _ghost == null:
 		return
-	var block: Block = BlockFactory.build(shape, tuning)
-	var parent: Node = _spawn_parent if _spawn_parent != null else get_tree().current_scene
-	parent.add_child(block)
-	block.global_transform = _ghost.global_transform
-	Events.block_placed.emit(block, shape.id)
-	_ghost.set_shape(_feed.next())
+	var shape: BlockShape = _shapes_by_id.get(shape_id) as BlockShape
+	if shape != null:
+		_ghost.set_shape(shape)
+
+
+func _on_feed_timer_expired(slot_id: int) -> void:
+	if slot_id != _active_slot or _ghost == null or _is_active_slot_eliminated():
+		return
+	_ghost.play_auto_drop_flash()
+	_request_place(true)
+
+
+func _on_placement_rejected(slot_id: int, _reason: StringName) -> void:
+	if slot_id != _active_slot or _ghost == null:
+		return
+	_ghost.play_reject_animation()
+
+
+## Every frame: the read-only, advisory preview (spec 2.5) that tints the
+## ghost before the click. request_place() re-validates from scratch and
+## never trusts this (spec 3.4).
+func _update_ghost_tint() -> void:
+	if _ghost == null or _match == null or _active_slot < 0:
+		return
+	if _ghost.get_shape() == null:
+		return
+	var result: PlacementRules.Result = _match.preview_placement(
+		_active_slot, _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion
+	)
+	_ghost.apply_validity(result)
 
 
 func _handle_hover_adjust(delta: float) -> void:
@@ -226,8 +335,8 @@ func _raycast(origin: Vector3, direction: Vector3) -> Dictionary:
 	return space_state.intersect_ray(params)
 
 
-func _load_all_shapes() -> Array[BlockShape]:
-	var shapes: Array[BlockShape] = []
+func _load_shapes_by_id() -> Dictionary:
+	var shapes: Dictionary = {}
 	var dir: DirAccess = DirAccess.open(BLOCKS_DIR)
 	if dir == null:
 		return shapes
@@ -237,7 +346,7 @@ func _load_all_shapes() -> Array[BlockShape]:
 		if file_name.ends_with(".tres"):
 			var shape: BlockShape = load(BLOCKS_DIR + file_name)
 			if shape != null:
-				shapes.append(shape)
+				shapes[shape.id] = shape
 		file_name = dir.get_next()
 	dir.list_dir_end()
 	return shapes
