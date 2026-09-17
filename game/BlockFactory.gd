@@ -21,6 +21,8 @@ static func build(shape: BlockShape, tuning: PhysicsTuning) -> Block:
 	material.bounce = tuning.block_bounce
 	block.physics_material_override = material
 	block.mass = tuning.cube_mass * maxf(float(shape.cells.size()), 1.0)
+	block.linear_damp = tuning.block_linear_damp
+	block.angular_damp = tuning.block_angular_damp
 
 	var half_size: float = (tuning.cube_size - tuning.cube_margin) * 0.5
 	for cell: Vector3i in shape.cells:
@@ -39,6 +41,23 @@ static func build(shape: BlockShape, tuning: PhysicsTuning) -> Block:
 		block.add_child(mesh_instance)
 
 	return block
+
+
+## Builds just the visuals for a shape (no RigidBody3D, no collision) as a
+## plain Node3D with one MeshInstance3D per cell. Used by GhostPreview so the
+## held block's look matches the real one without simulating physics for it.
+static func build_visual_only(shape: BlockShape, tuning: PhysicsTuning) -> Node3D:
+	var root: Node3D = Node3D.new()
+	root.name = "ShapeVisual"
+	var half_size: float = (tuning.cube_size - tuning.cube_margin) * 0.5
+	for cell: Vector3i in shape.cells:
+		var mesh_instance: MeshInstance3D = MeshInstance3D.new()
+		var is_sloped: bool = shape.sloped_cells.has(cell)
+		var mesh: Mesh = shape.mesh if shape.mesh != null else _make_visual_mesh(half_size, is_sloped)
+		mesh_instance.mesh = mesh
+		mesh_instance.position = Vector3(cell) * tuning.cube_size
+		root.add_child(mesh_instance)
+	return root
 
 
 static func _make_collision_shape(half_size: float, sloped: bool) -> Shape3D:

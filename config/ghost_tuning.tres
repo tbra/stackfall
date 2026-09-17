@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="GhostTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/GhostTuning.gd" id="1_ghost"]
+
+[resource]
+script = ExtResource("1_ghost")
+gamepad_cursor_base_speed = 10.0
+gamepad_cursor_zoom_reference_distance = 30.0
+gamepad_cursor_acceleration = 40.0
+free_rotate_mouse_speed = 0.01
+free_rotate_pad_speed = 2.5
+hover_manual_adjust_speed = 1.0
+hover_manual_max = 3.0
+placement_ray_length = 200.0

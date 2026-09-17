@@ -89,15 +89,20 @@ func test_renderer_is_forward_plus() -> void:
 
 
 func test_jolt_solver_iterations_match_spec() -> void:
+	# Spec 3.5: "Start at 10 and 4, and tune using a benchmark scene with a
+	# 40-block tower." M1's tower benchmark needed more: at 10/4 a perfectly
+	# aligned 30+ cube column develops a slow bending oscillation that grows
+	# until it topples (see PhysicsTuning.block_linear_damp's DECISION
+	# comment for the full story). 20/10 plus per-block damping settles it.
 	assert_eq(
 		int(ProjectSettings.get_setting("physics/jolt_physics_3d/simulation/velocity_steps", 0)),
-		10,
-		"Spec 3.5 starts Jolt at 10 velocity iterations."
+		20,
+		"M1's 40-block tower benchmark needed 20 velocity iterations (see tools/bootstrap_project.gd)."
 	)
 	assert_eq(
 		int(ProjectSettings.get_setting("physics/jolt_physics_3d/simulation/position_steps", 0)),
-		4,
-		"Spec 3.5 starts Jolt at 4 position iterations."
+		10,
+		"M1's 40-block tower benchmark needed 10 position iterations (see tools/bootstrap_project.gd)."
 	)
 
 

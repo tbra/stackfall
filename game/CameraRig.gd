@@ -58,12 +58,18 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
-	var look_x: float = Input.get_action_strength(&"camera_look_right") - Input.get_action_strength(&"camera_look_left")
-	var look_y: float = Input.get_action_strength(&"camera_look_down") - Input.get_action_strength(&"camera_look_up")
-	if look_x != 0.0 or look_y != 0.0:
-		_yaw -= look_x * tuning.pad_orbit_speed * delta
-		_pitch -= look_y * tuning.pad_orbit_speed * delta
-		_clamp_pitch()
+	# DECISION (game/CameraRig.gd): the right stick drives both camera orbit
+	# (camera_look_*) and, while rotate_free_hold (right trigger) is held,
+	# GhostPreview's free rotation (spec 2.5). Gating orbit off during free
+	# rotation is the one case in this rig where the shared-axis conflict can
+	# be resolved cleanly, unlike the ghost-move/pan sharing below.
+	if not Input.is_action_pressed(&"rotate_free_hold"):
+		var look_x: float = Input.get_action_strength(&"camera_look_right") - Input.get_action_strength(&"camera_look_left")
+		var look_y: float = Input.get_action_strength(&"camera_look_down") - Input.get_action_strength(&"camera_look_up")
+		if look_x != 0.0 or look_y != 0.0:
+			_yaw -= look_x * tuning.pad_orbit_speed * delta
+			_pitch -= look_y * tuning.pad_orbit_speed * delta
+			_clamp_pitch()
 
 	# DECISION (game/CameraRig.gd): camera_pan_* shares its gamepad axis with
 	# ghost_move_* (both read the left stick). PlayerController suppresses
@@ -77,6 +83,22 @@ func _process(delta: float) -> void:
 		_target += _pan_offset(Vector2(pan_x, pan_z)) * tuning.pan_speed * delta
 
 	_update_transform()
+
+
+## Used by PlayerController to scale gamepad ghost-cursor speed with zoom
+## (spec 2.5: "speed scales with camera zoom").
+func get_distance() -> float:
+	return _distance
+
+
+## Used by PlayerController to move the gamepad ghost cursor and mouse-ray
+## origin relative to the camera's current facing.
+func get_yaw() -> float:
+	return _yaw
+
+
+func get_camera() -> Camera3D:
+	return _camera
 
 
 func _clamp_pitch() -> void:

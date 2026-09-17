@@ -42,11 +42,16 @@ func _apply_settings() -> void:
 		# Spec 3.5 - physics tuning.
 		"physics/common/physics_ticks_per_second": 60,
 		"physics/common/physics_interpolation": true,
-		# Jolt solver iterations. Velocity already defaults to 10; position
-		# defaults to 2 and the spec asks for 4. Tuned for real against the
-		# 40-block tower benchmark in M1.
-		"physics/jolt_physics_3d/simulation/velocity_steps": 10,
-		"physics/jolt_physics_3d/simulation/position_steps": 4,
+		# Jolt solver iterations. Spec 3.5 starting point was 10/4 (velocity
+		# defaults to 10, position defaults to 2); M1's 40-block tower
+		# benchmark needed more. At 10/4 a perfectly aligned tall column of
+		# unit cubes develops a slow bending oscillation that grows over
+		# several seconds until it topples. 20/10 plus explicit per-block
+		# damping (config/PhysicsTuning.gd block_linear_damp/angular_damp)
+		# settles a 40-block tower asleep in well under 10 s. See
+		# tests/unit/test_project_setup.gd and test_tower_placement.gd.
+		"physics/jolt_physics_3d/simulation/velocity_steps": 20,
+		"physics/jolt_physics_3d/simulation/position_steps": 10,
 		# Bodies sleep after 0.5 s below threshold (spec 3.5, "Sleep").
 		"physics/jolt_physics_3d/simulation/sleep_time_threshold": 0.5,
 
