@@ -62,8 +62,26 @@ enum HoleMode { TEMPORARY, PERMANENT }
 	Color(0.30, 0.85, 0.85),
 	Color(0.95, 0.45, 0.75),
 ])
+
 ## Deterministic seed for the block bag and gift spawner; -1 randomizes.
 @export var rng_seed: int = -1
+
+## Shared source for player_colors' default so sanitize() can pad a config
+## that arrived over the wire with too few entries, without duplicating the
+## literal (CLAUDE.md: no magic numbers). A static func rather than a const,
+## because GDScript constants can't be initialized from Color() constructor
+## calls.
+static func default_player_colors() -> PackedColorArray:
+	return PackedColorArray([
+		Color(0.90, 0.25, 0.25),
+		Color(0.25, 0.55, 0.95),
+		Color(0.35, 0.80, 0.40),
+		Color(0.95, 0.80, 0.25),
+		Color(0.70, 0.40, 0.90),
+		Color(0.95, 0.55, 0.20),
+		Color(0.30, 0.85, 0.85),
+		Color(0.95, 0.45, 0.75),
+	])
 
 ## Spec 2.8 ranges, so the lobby and the host's validation share one source.
 const PLAYER_COUNT_MIN: int = 2
@@ -101,16 +119,79 @@ func team_of_slot(slot_id: int) -> int:
 ## Clamps every field into its spec 2.8 range. The host calls this on any
 ## config that arrived over the wire before using it.
 func sanitize() -> void:
-	pass
+	map_variant = clampi(map_variant, MapVariant.ROUND, MapVariant.CROSS)
+	map_size = clampi(map_size, MapDef.MapSize.SMALL, MapDef.MapSize.LARGE) as MapDef.MapSize
+	player_count = clampi(player_count, PLAYER_COUNT_MIN, PLAYER_COUNT_MAX)
+	ai_count = clampi(ai_count, 0, player_count)
+	ai_difficulty = clampi(ai_difficulty, AiDifficulty.EASY, AiDifficulty.HARD)
+	team_mode = clampi(team_mode, TeamMode.OFF, TeamMode.TEAMS_4)
+	block_timer = clampf(block_timer, BLOCK_TIMER_MIN, BLOCK_TIMER_MAX)
+	gravity_multiplier = clampf(gravity_multiplier, GRAVITY_MIN, GRAVITY_MAX)
+	goal_flag_count = clampi(goal_flag_count, GOAL_FLAG_MIN, GOAL_FLAG_MAX)
+	special_frequency = clampi(special_frequency, SPECIAL_FREQUENCY_MIN, SPECIAL_FREQUENCY_MAX)
+	tilt_mode = clampi(tilt_mode, TiltMode.SPECIALS_ONLY, TiltMode.PHYSICAL_BALANCE)
+	hole_mode = clampi(hole_mode, HoleMode.TEMPORARY, HoleMode.PERMANENT)
+	match_timer_minutes = maxi(match_timer_minutes, 0)
+	if player_colors.size() < PLAYER_COUNT_MAX:
+		var defaults: PackedColorArray = default_player_colors()
+		var padded: PackedColorArray = player_colors.duplicate()
+		for i: int in range(padded.size(), PLAYER_COUNT_MAX):
+			padded.append(defaults[i])
+		player_colors = padded
 
 
 ## Serializes to a plain Dictionary for RPCs and Steam lobby data.
 func to_dict() -> Dictionary:
-	return {}
+	return {
+		"map_variant": map_variant,
+		"map_size": map_size,
+		"player_count": player_count,
+		"ai_count": ai_count,
+		"ai_difficulty": ai_difficulty,
+		"team_mode": team_mode,
+		"block_timer": block_timer,
+		"gravity_multiplier": gravity_multiplier,
+		"goal_flag_count": goal_flag_count,
+		"gifts_enabled": gifts_enabled,
+		"special_frequency": special_frequency,
+		"enabled_specials": enabled_specials.duplicate(),
+		"tilt_mode": tilt_mode,
+		"hole_mode": hole_mode,
+		"match_timer_minutes": match_timer_minutes,
+		"sudden_death": sudden_death,
+		"per_player_timer": per_player_timer,
+		"hot_seat": hot_seat,
+		"player_colors": player_colors.duplicate(),
+		"rng_seed": rng_seed,
+	}
 
 
 ## Rebuilds a config from to_dict() output. Unknown keys keep their defaults.
-@warning_ignore_start("unused_parameter")
 static func from_dict(data: Dictionary) -> MatchConfig:
-	return MatchConfig.new()
-@warning_ignore_restore("unused_parameter")
+	var config: MatchConfig = MatchConfig.new()
+	config.map_variant = int(data.get("map_variant", config.map_variant))
+	config.map_size = int(data.get("map_size", config.map_size)) as MapDef.MapSize
+	config.player_count = int(data.get("player_count", config.player_count))
+	config.ai_count = int(data.get("ai_count", config.ai_count))
+	config.ai_difficulty = int(data.get("ai_difficulty", config.ai_difficulty))
+	config.team_mode = int(data.get("team_mode", config.team_mode))
+	config.block_timer = float(data.get("block_timer", config.block_timer))
+	config.gravity_multiplier = float(data.get("gravity_multiplier", config.gravity_multiplier))
+	config.goal_flag_count = int(data.get("goal_flag_count", config.goal_flag_count))
+	config.gifts_enabled = bool(data.get("gifts_enabled", config.gifts_enabled))
+	config.special_frequency = int(data.get("special_frequency", config.special_frequency))
+	if data.has("enabled_specials"):
+		var specials: Array[StringName] = []
+		for value: Variant in (data["enabled_specials"] as Array):
+			specials.append(StringName(value))
+		config.enabled_specials = specials
+	config.tilt_mode = int(data.get("tilt_mode", config.tilt_mode))
+	config.hole_mode = int(data.get("hole_mode", config.hole_mode))
+	config.match_timer_minutes = int(data.get("match_timer_minutes", config.match_timer_minutes))
+	config.sudden_death = bool(data.get("sudden_death", config.sudden_death))
+	config.per_player_timer = bool(data.get("per_player_timer", config.per_player_timer))
+	config.hot_seat = bool(data.get("hot_seat", config.hot_seat))
+	if data.has("player_colors"):
+		config.player_colors = PackedColorArray(data["player_colors"])
+	config.rng_seed = int(data.get("rng_seed", config.rng_seed))
+	return config
