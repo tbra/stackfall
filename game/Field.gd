@@ -141,10 +141,14 @@ func _build_cells() -> void:
 	physics_material_override = material
 
 
-## Every in-disk cell index in row-major order. CellGrid.in_disk_cells() is the
-## shared answer once P1's core lands; until then (and for any grid whose cache
-## is empty) the same rim rule — a cell is in the disk when its center is — is
-## applied here, so the two can only ever agree.
+## Every in-disk cell index in row-major order.
+##
+## DECISION (game/Field.gd): CellGrid.in_disk_cells() is the shared answer, but
+## it is still a stub returning an empty array on this branch. Rather than
+## build no collision at all, an empty answer falls back to applying CellGrid's
+## own rim rule — a cell is in the disk when its center is — cell by cell, in
+## the same row-major order. The two can only ever agree, and the fallback
+## stops costing anything the moment P1's core lands.
 func _collect_in_disk_cells(cell_grid: CellGrid) -> PackedInt32Array:
 	var cached: PackedInt32Array = cell_grid.in_disk_cells()
 	if not cached.is_empty():
@@ -194,10 +198,14 @@ func _enqueue_toggle(cell: int, disabled: bool) -> void:
 	_toggle_disabled.append(wanted)
 
 
-## True when this cell's collision is currently switched off. This is the
-## applied state, not the requested one — a cell the raster opened this frame
-## still reads false while it waits in the backlog, which is exactly the
-## question physics cares about. The rules' own answer is TerritoryRaster's.
+## True when this cell's collision is currently switched off.
+##
+## DECISION (game/Field.gd): the M2 plan does not say whether this reports the
+## requested or the applied state. It reports the *applied* one — a cell the
+## raster opened this frame still reads false while it waits in the backlog —
+## because that is the only question this node can answer that TerritoryRaster
+## cannot, and pending_toggle_count() exists precisely to expose the gap. No
+## rule reads it; rule code asks TerritoryRaster.is_hole_index().
 func is_hole_cell(index: int) -> bool:
 	if index < 0 or index >= _hole_applied.size():
 		return false
