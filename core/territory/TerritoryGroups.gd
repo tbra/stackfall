@@ -41,10 +41,12 @@ func circles_of(group: int) -> PackedInt32Array:
 
 ## Every group belonging to a team. A team can hold several disconnected
 ## groups; only one of them has to contain the goal flags to win.
-@warning_ignore_start("unused_parameter")
 func groups_of_team(team_id: int) -> PackedInt32Array:
-	return PackedInt32Array()
-@warning_ignore_restore("unused_parameter")
+	var result: PackedInt32Array = PackedInt32Array()
+	for group: int in range(team_ids.size()):
+		if team_ids[group] == team_id:
+			result.append(group)
+	return result
 
 
 ## Adds a group. Only TerritorySolver calls this.

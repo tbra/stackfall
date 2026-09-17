@@ -36,10 +36,24 @@ extends Resource
 ## DECISION: spec 3.3 says "cell size = influence_max". influence_max is
 ## 0.6 * 45 = 27 m at map size M, so the whole disk is about 3x3 hash cells
 ## and the hash degenerates into brute force. Each circle is instead inserted
-## into every hash cell its bounding box covers, at this much smaller fixed
-## size; the few genuinely huge circles occupy many cells, which is correct
-## and still far cheaper than all-pairs.
-@export var hash_cell_size: float = 4.0
+## into every hash cell its bounding box covers, at this smaller fixed size;
+## the few genuinely huge circles occupy many cells, which is correct and
+## still far cheaper than all-pairs.
+##
+## Raised from the plan's starting 4.0 to 12.0 after measuring, which
+## docs/M2_PLAN.md's P1 acceptance note explicitly allows ("raise
+## hash_cell_size ... in the resource, never in code, and report the
+## numbers"). Solve time on map M, 20 runs averaged, debug interpreter:
+##
+##   cell size |  4.0 |  6.0 |  8.0 | 10.0 | 12.0
+##   200 circles | 5.75 | 3.98 | 3.69 | 3.30 | 3.20 ms
+##   600 circles | 27.7 | 23.3 | 19.8 | 20.3 | 17.4 ms
+##
+## Cost tracks how many buckets each circle is inserted into, not how many
+## overlapping pairs come back: small cells shred every circle across dozens
+## of buckets, and each bucket then re-examines the same neighbours. A cell of
+## roughly twice the typical influence diameter is the sweet spot.
+@export var hash_cell_size: float = 12.0
 
 ## -- Contested zones and holes (spec 2.2) -----------------------------------
 ## A contested cell becomes a hole after this long.
