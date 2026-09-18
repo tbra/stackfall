@@ -39,6 +39,7 @@ const REQUIRED_ACTIONS: PackedStringArray = [
 	"camera_snap_home",
 	"camera_snap_goal",
 	"pause_menu",
+	"net_debug_toggle",
 ]
 
 ## Actions whose mouse or gamepad half is deliberately absent, with the reason.

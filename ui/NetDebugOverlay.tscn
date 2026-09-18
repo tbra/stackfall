@@ -1,0 +1,106 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://ui/NetDebugOverlay.gd" id="1_overlay"]
+
+[node name="NetDebugOverlay" type="CanvasLayer"]
+script = ExtResource("1_overlay")
+
+[node name="Panel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+offset_left = 16.0
+offset_top = 300.0
+offset_right = 300.0
+offset_bottom = 520.0
+
+[node name="Layout" type="VBoxContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Title" type="Label" parent="Panel/Layout"]
+layout_mode = 2
+text = "Net debug (F3 / Back+Y)"
+
+[node name="ModeLabel" type="Label" parent="Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Mode: Offline (0 peers)"
+
+[node name="PingLabel" type="Label" parent="Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Ping: 0 ms"
+
+[node name="SnapshotLabel" type="Label" parent="Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Snapshot: 0 B/s (last 0 B)"
+
+[node name="InterpLabel" type="Label" parent="Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Interp delay: 0 ms"
+
+[node name="LossLabel" type="Label" parent="Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Loss: 0.0%"
+
+[node name="HSeparator" type="HSeparator" parent="Panel/Layout"]
+layout_mode = 2
+
+[node name="LagRow" type="HBoxContainer" parent="Panel/Layout"]
+layout_mode = 2
+
+[node name="LagLabel" type="Label" parent="Panel/Layout/LagRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(60, 0)
+text = "Sim lag"
+
+[node name="LagSlider" type="HSlider" parent="Panel/Layout/LagRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 300.0
+step = 5.0
+
+[node name="LagValueLabel" type="Label" parent="Panel/Layout/LagRow"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(50, 0)
+text = "0 ms"
+
+[node name="LossRow" type="HBoxContainer" parent="Panel/Layout"]
+layout_mode = 2
+
+[node name="LossSliderLabel" type="Label" parent="Panel/Layout/LossRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(60, 0)
+text = "Sim loss"
+
+[node name="LossSlider" type="HSlider" parent="Panel/Layout/LossRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 1.0
+step = 0.01
+
+[node name="LossValueLabel" type="Label" parent="Panel/Layout/LossRow"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(50, 0)
+text = "0.0%"
+
+[node name="ButtonRow" type="HBoxContainer" parent="Panel/Layout"]
+layout_mode = 2
+
+[node name="PresetButton" type="Button" parent="Panel/Layout/ButtonRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "100ms/2% preset"
+
+[node name="OffButton" type="Button" parent="Panel/Layout/ButtonRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Off"

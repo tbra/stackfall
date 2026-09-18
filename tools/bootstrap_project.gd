@@ -207,6 +207,20 @@ func _actions() -> Dictionary:
 	# --- Shell --------------------------------------------------------------
 	a["pause_menu"] = [_key(KEY_ESCAPE), _pad(JOY_BUTTON_START)]
 
+	# DECISION (tools/bootstrap_project.gd): docs/M3a_PLAN.md specifies
+	# net_debug_toggle as "F3 + gamepad Back+Y". Every face/shoulder/stick
+	# button on the pad is already claimed by placement and camera controls
+	# (spec 2.5), so there is no free single button left for a debug-only
+	# feature. The Input Map action itself can only bind single events, not a
+	# two-button chord, so its gamepad half is bound to Y (already
+	# rotate_reset's button — two actions sharing one physical event is normal
+	# in Godot) and ui/NetDebugOverlay.gd requires camera_snap_home (Back) to
+	# be held at the same time before it treats the press as the toggle. That
+	# keeps CLAUDE.md's "never check raw keycodes" rule intact: the chord is
+	# built entirely from two Input Map actions, not a JOY_BUTTON_* literal
+	# outside this file.
+	a["net_debug_toggle"] = [_key(KEY_F3), _pad(JOY_BUTTON_Y)]
+
 	return a
 
 
