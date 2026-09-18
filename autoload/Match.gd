@@ -141,6 +141,14 @@ func set_replicator(replicator: Variant) -> void:
 	_replicator = replicator
 
 
+## net/MatchNet.gd, or null in a build with no networking. This is how a
+## scene node reaches the membrane without naming an autoload the integrator
+## registers after this one — and without a get_node("/root/...") path
+## (CLAUDE.md).
+func replicator() -> Variant:
+	return _replicator
+
+
 ## True on the host **and offline** (Net.is_host()'s contract), so every gate
 ## written against it leaves M2's single-PC behaviour exactly as it was.
 func _is_host() -> bool:
@@ -879,13 +887,23 @@ func apply_replicated_countdown(seconds_left: int) -> void:
 
 
 ## The host issued `slot_id` a block. Sets the held shape the ghost and the
-## HUD read and resets the slot's display timer, which is what keeps the
-## client's timer ring honest without a feed tick of its own.
-func apply_replicated_feed(slot_id: int, shape_id: StringName, _next_shape_id: StringName) -> void:
+## HUD read, resets the slot's display timer — which is what keeps the
+## client's timer ring honest without a feed tick of its own — and takes the
+## host's feed sequence verbatim.
+##
+## `host_feed_seq` is copied rather than counted up to, because the two ends
+## do not start level: the host's first block comes from _begin_playing(),
+## which issues without consuming, while a client never runs that at all. A
+## client that counted its own would quote a sequence one ahead for the rest
+## of the match and have every intent refused.
+func apply_replicated_feed(
+	slot_id: int, shape_id: StringName, _next_shape_id: StringName, host_feed_seq: int
+) -> void:
 	if slot_id < 0 or slot_id >= _held_shapes.size():
 		return
 	_held_shapes[slot_id] = _shape_by_id(shape_id)
-	_feed_seq[slot_id] += 1
+	if host_feed_seq >= 0:
+		_feed_seq[slot_id] = host_feed_seq
 	if config != null:
 		_feed_time_left[slot_id] = config.block_timer
 	_feed_expired[slot_id] = false

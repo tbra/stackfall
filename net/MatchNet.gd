@@ -567,9 +567,17 @@ func _on_turn_changed(slot_id: int) -> void:
 		replicate_match_event(EVENT_TURN_CHANGED, [slot_id])
 
 
+## The host's feed sequence rides along with the block it belongs to, so a
+## client always quotes the number the host will actually check against
+## (Match.apply_replicated_feed explains why it cannot count its own).
+## Events.feed_block_issued's own signature is untouched; this is the RPC
+## payload, not the signal.
 func _on_feed_block_issued(slot_id: int, shape_id: StringName, next_shape_id: StringName) -> void:
 	if _is_host():
-		replicate_match_event(EVENT_FEED_ISSUED, [slot_id, shape_id, next_shape_id])
+		replicate_match_event(
+			EVENT_FEED_ISSUED,
+			[slot_id, shape_id, next_shape_id, int(_authority().feed_seq(slot_id))]
+		)
 
 
 ## Spec 2.5's auto-drop is [ORIGINAL] and must keep dropping "from its current
@@ -797,7 +805,12 @@ func net_match_event(event: StringName, args: Array) -> void:
 			_authority().apply_replicated_turn(int(args[0]))
 			Events.turn_changed.emit(int(args[0]))
 		EVENT_FEED_ISSUED:
-			_authority().apply_replicated_feed(int(args[0]), StringName(args[1]), StringName(args[2]))
+			_authority().apply_replicated_feed(
+				int(args[0]),
+				StringName(args[1]),
+				StringName(args[2]),
+				int(args[3]) if args.size() > 3 else -1
+			)
 			Events.feed_block_issued.emit(int(args[0]), StringName(args[1]), StringName(args[2]))
 		EVENT_FEED_EXPIRED:
 			Events.feed_timer_expired.emit(int(args[0]))

@@ -638,10 +638,13 @@ func test_a_replicated_feed_event_sets_the_held_shape_and_resets_the_timer() -> 
 		Match._process(1.0 / 60.0)
 	assert_lt(Match.feed_time_left(1), 6.0)
 
-	net.net_match_event(MatchNetScript.EVENT_FEED_ISSUED, [1, &"cube", &"domino"])
+	net.net_match_event(MatchNetScript.EVENT_FEED_ISSUED, [1, &"cube", &"domino", 9])
 
 	assert_eq(Match.held_shape(1).id, &"cube")
 	assert_almost_eq(Match.feed_time_left(1), 6.0, 0.001, "The host's feed is the client's clock.")
+	assert_eq(
+		Match.feed_seq(1), 9, "The client takes the host's sequence verbatim; it cannot count its own."
+	)
 
 
 func test_a_replicated_elimination_is_applied_to_the_slot() -> void:

@@ -28,6 +28,16 @@ func set_camera_rig(rig: CameraRig) -> void:
 	_controller.set_camera_rig(rig)
 
 
+## M3a: online there is no turn to take — every slot plays at once and this
+## instance drives exactly one of them (docs/M3a_PLAN.md question 3, and the
+## integrator's step 4). PlayerController already resolves its own slot from
+## Net when a session is running, so this only exists for the case where the
+## integrator wants to pin it explicitly. Offline it is never called and
+## Events.turn_changed still decides, so hot-seat is byte-identical to M2.
+func bind_local_slot(slot_id: int) -> void:
+	_controller.set_acting_slot(slot_id)
+
+
 func controller() -> PlayerController:
 	return _controller
 

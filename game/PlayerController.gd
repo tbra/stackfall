@@ -7,15 +7,22 @@ extends Node
 ## M2 makes placement intent-only (spec 3.4, "clients send intents; the host
 ## checks every intent before acting on it"): this script never builds a
 ## Block itself. It raycasts the ghost, tracks whose turn it is in hot-seat
-## (docs/M2_PLAN.md owner decision 1: strict alternation), and calls
-## Match.request_place(); Match alone decides what happens next and answers
-## on the Events bus.
+## (docs/M2_PLAN.md owner decision 1: strict alternation), and sends an
+## intent; the host alone decides what happens next and answers on the Events
+## bus.
+##
+## M3a changes only where the intent goes and which slot it is for. Offline it
+## is still Match.request_place() and still Events.turn_changed's slot, so
+## hot-seat behaves exactly as it did. Networked, it goes through
+## net/MatchNet.gd -- inline to Match on the host, a reliable RPC on a client
+## -- and always for Net.local_slot(), because one instance drives one player.
 
 @export var camera_rig_path: NodePath
 @export var ghost_path: NodePath
 @export var tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
 @export var ghost_tuning: GhostTuning = preload("res://config/ghost_tuning.tres")
 @export var camera_tuning: CameraTuning = preload("res://config/camera_tuning.tres")
+@export var net_config: NetConfig = preload("res://config/net_config.tres")
 
 var _camera_rig: CameraRig
 var _ghost: GhostPreview
@@ -31,7 +38,19 @@ var _ghost: GhostPreview
 ## dispatch to whatever object is assigned.
 var _match: Variant = null
 
+## DECISION (game/PlayerController.gd): Net is an autoload for the same
+## reason Match is, and needs the same seam for the same reason; null means
+## the real one. Offline Net.is_offline() is true and every branch below
+## collapses to exactly M2's behaviour.
+var _session_provider: Variant = null
+
 var _shapes_by_id: Dictionary = {}
+
+## Seconds this controller's ghost stays locked after sending an intent, so a
+## second click inside one round trip cannot spend a second block
+## (docs/M3a_PLAN.md, "Never duplicated, never lost", defence 2). Only a
+## client ever sets it: the host's intent resolves inline, in the same frame.
+var _intent_lock_left: float = 0.0
 
 ## Hot-seat: which slot this controller currently acts for (spec M2 owner
 ## decision 1: strict alternation, only the active slot's timer/controls do
@@ -63,13 +82,53 @@ func set_camera_rig(rig: CameraRig) -> void:
 
 
 func _process(delta: float) -> void:
+	_intent_lock_left = maxf(_intent_lock_left - delta, 0.0)
 	_update_gamepad_cursor(delta)
 	_update_ghost_transform()
 	_update_ghost_tint()
 	_handle_hover_adjust(delta)
 	_handle_gamepad_free_rotate(delta)
+	_publish_cursor()
 	if _camera_rig != null and _ghost != null:
 		_camera_rig.block_held = _ghost.get_shape() != null
+
+
+func _session() -> Variant:
+	return _session_provider if _session_provider != null else Net
+
+
+## Test seam for the Net autoload; null restores the real one.
+func set_session_provider(provider: Variant) -> void:
+	_session_provider = provider
+
+
+## Which slot this controller acts for. Offline that is whoever
+## Events.turn_changed last named -- M2's strict alternation, unchanged.
+## Networked, one instance drives exactly one player: the slot Net gave it.
+func _acting_slot() -> int:
+	if bool(_session().is_offline()):
+		return _active_slot
+	return int(_session().local_slot())
+
+
+## Lets the integrator bind this controller to a slot directly. Hot-seat
+## under --hot-seat keeps using Events.turn_changed instead.
+func set_acting_slot(slot_id: int) -> void:
+	_active_slot = slot_id
+
+
+## Spec 3.4's update_cursor, every frame. MatchNet keeps the local record and
+## throttles the send to NetConfig.cursor_hz, so calling it per frame is both
+## correct and cheap; offline there is nobody to tell.
+func _publish_cursor() -> void:
+	if _ghost == null or bool(_session().is_offline()):
+		return
+	var membrane: Variant = _intent_target()
+	if membrane == null:
+		return
+	membrane.submit_cursor(
+		_acting_slot(), _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion
+	)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -136,20 +195,51 @@ func _apply_step(new_index: int) -> void:
 ## builds a Block itself (spec 3.4; docs/M2_PLAN.md P4 "intent-only
 ## placement").
 func _place_ghost_block() -> void:
-	if _ghost == null or _match == null or _active_slot < 0:
+	if _ghost == null or _match == null or _acting_slot() < 0:
 		return
 	if _ghost.get_shape() == null:
 		return
 	if _is_active_slot_eliminated():
 		return
+	if _intent_lock_left > 0.0:
+		# An intent for this block is already with the host. Clicking again
+		# before it answers must not spend the next block; Match's feed_seq
+		# would refuse it anyway, but not sending is cheaper and keeps the
+		# ghost from pretending the second click did something.
+		return
 	_request_place(false)
 
 
+## The one door every intent goes through: net/MatchNet.gd, which calls
+## Match.request_place() inline on the host and sends the reliable intent RPC
+## on a client (docs/M3a_PLAN.md P3). It exists only once the MatchNet
+## autoload has installed itself on Match, and only for the real Match -- a
+## test that injects a FakeMatch into _match is asking for that object's
+## calls and gets them directly, which is exactly what MatchNet's host path
+## would have done with it.
+func _intent_target() -> Variant:
+	if _match != Match:
+		return null
+	return Match.replicator()
+
+
 func _request_place(auto_drop: bool) -> StringName:
-	var reason: StringName = _match.request_place(
-		_active_slot, _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion, auto_drop
+	var slot_id: int = _acting_slot()
+	var membrane: Variant = _intent_target()
+	if membrane == null:
+		return _match.request_place(
+			slot_id, _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion, auto_drop
+		)
+	if bool(_session().is_client()):
+		_intent_lock_left = net_config.intent_ack_timeout
+	return membrane.submit_place(
+		slot_id,
+		_ghost.global_position,
+		_ghost.orientation_index,
+		_ghost.free_quaternion,
+		auto_drop,
+		int(_match.feed_seq(slot_id))
 	)
-	return reason
 
 
 ## Spec M2 owner decision 3: a slot whose home flag is gone is effectively
@@ -159,9 +249,9 @@ func _request_place(auto_drop: bool) -> StringName:
 ## the HUD just read PlayerSlot.home_flag_alive off Match.slot() (see
 ## ui/HUD.gd's matching DECISION).
 func _is_active_slot_eliminated() -> bool:
-	if _match == null or _active_slot < 0:
+	if _match == null or _acting_slot() < 0:
 		return false
-	var slot: PlayerSlot = _match.slot(_active_slot)
+	var slot: PlayerSlot = _match.slot(_acting_slot())
 	return slot != null and not slot.home_flag_alive
 
 
@@ -182,23 +272,40 @@ func _on_turn_changed(slot_id: int) -> void:
 
 
 func _on_feed_block_issued(slot_id: int, shape_id: StringName, _next_shape_id: StringName) -> void:
-	if slot_id != _active_slot or _ghost == null:
+	if slot_id != _acting_slot() or _ghost == null:
 		return
+	# The host answered, so whatever intent was in flight has resolved.
+	_intent_lock_left = 0.0
+	# Networked there is no Events.turn_changed to colour the ghost from, so
+	# the first feed this slot receives does it instead.
+	if _match != null:
+		var slot: PlayerSlot = _match.slot(slot_id)
+		if slot != null:
+			_ghost.set_player_color(slot.color)
 	var shape: BlockShape = _shapes_by_id.get(shape_id) as BlockShape
 	if shape != null:
 		_ghost.set_shape(shape)
 
 
+## Spec 2.5's auto-drop is [ORIGINAL]: the held block drops from its current
+## ghost position. On the host -- and offline, which is all of M2 -- that is
+## this ghost, exactly, and it costs nothing. On a client the host has
+## already dropped it from the last cursor it received (see MatchNet), so
+## sending anything from here would risk the duplicate the whole design
+## exists to prevent. The flash still plays, because that is feedback.
 func _on_feed_timer_expired(slot_id: int) -> void:
-	if slot_id != _active_slot or _ghost == null or _is_active_slot_eliminated():
+	if slot_id != _acting_slot() or _ghost == null or _is_active_slot_eliminated():
 		return
 	_ghost.play_auto_drop_flash()
+	if not bool(_session().is_host()):
+		return
 	_request_place(true)
 
 
 func _on_placement_rejected(slot_id: int, _reason: StringName) -> void:
-	if slot_id != _active_slot or _ghost == null:
+	if slot_id != _acting_slot() or _ghost == null:
 		return
+	_intent_lock_left = 0.0
 	_ghost.play_reject_animation()
 
 
@@ -206,12 +313,12 @@ func _on_placement_rejected(slot_id: int, _reason: StringName) -> void:
 ## ghost before the click. request_place() re-validates from scratch and
 ## never trusts this (spec 3.4).
 func _update_ghost_tint() -> void:
-	if _ghost == null or _match == null or _active_slot < 0:
+	if _ghost == null or _match == null or _acting_slot() < 0:
 		return
 	if _ghost.get_shape() == null:
 		return
 	var result: PlacementRules.Result = _match.preview_placement(
-		_active_slot, _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion
+		_acting_slot(), _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion
 	)
 	_ghost.apply_validity(result)
 
