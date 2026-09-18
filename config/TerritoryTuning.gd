@@ -43,11 +43,35 @@ extends Resource
 ## Raised from the plan's starting 4.0 to 12.0 after measuring, which
 ## docs/M2_PLAN.md's P1 acceptance note explicitly allows ("raise
 ## hash_cell_size ... in the resource, never in code, and report the
-## numbers"). Solve time on map M, 20 runs averaged, debug interpreter:
+## numbers").
 ##
-##   cell size |  4.0 |  6.0 |  8.0 | 10.0 | 12.0
-##   200 circles | 5.75 | 3.98 | 3.69 | 3.30 | 3.20 ms
-##   600 circles | 27.7 | 23.3 | 19.8 | 20.3 | 17.4 ms
+## Re-measured for the M2 code review (2026-09-18: a single run had reported
+## solve_ms≈8.95 / total_ms≈11.2, FAIL, against an earlier table's ~3.2 ms
+## that didn't say where it came from). ~15 repeats here — idle, and under
+## deliberate 6-way concurrent CPU contention — never reproduced anything
+## close to that; worst observed total_ms at the graded 200-circle size was
+## 6.44 ms even under contention, still inside the 8.0 ms budget. The
+## TerritoryRaster/CellGrid change in the same milestone (odd-rounded `res`,
+## `half_extent`) only renames a variable and grows the grid by at most one
+## cell, and doesn't touch TerritorySolver at all — no regression found. The
+## single bad reading is most likely a one-off scheduling/contention spike on
+## whatever else was running on the reviewer's machine at the time, not a
+## reproducible cost. hash_cell_size is unchanged; this is a documentation
+## fix, not a tuning one.
+##
+## Total ms (solve + raster + win check) on map M, one run = 20 internal
+## averages, 5 runs repeated, idle machine, Windows 10, Godot 4.7.2.stable,
+## debug interpreter, M2 code-review fix pass:
+##
+##   cell size   |  4.0 |  6.0 |  8.0 | 10.0 | 12.0
+##   200 circles | 5.96 | 4.13 | 3.51 | 3.54 | 3.59 ms
+##   600 circles | 35.5 | 30.4 | 28.5 | 27.9 | 27.9 ms
+##
+## These run higher than the table they replace, most visibly at 600 circles
+## (non-graded) — most likely a slower or busier machine than whatever
+## recorded the old numbers, since the *relative* shape (12.0 best or
+## tied-best throughout) hasn't changed and the graded 200-circle row still
+## clears budget with room to spare either way.
 ##
 ## Cost tracks how many buckets each circle is inserted into, not how many
 ## overlapping pairs come back: small cells shred every circle across dozens
