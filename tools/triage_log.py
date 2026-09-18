@@ -82,12 +82,23 @@ SEVERITY_CHOICES = {
     "known-limitation": "Matches a limitation the project has already documented and accepted (see known_limitations in the state) -- do not re-report it as a new bug.",
 }
 
+# A line may carry a leading tag before the actual Godot output: a
+# timestamp a log wrapper added, or an instance label like "[host]" /
+# "[client 2]" from a multi-instance harness that interleaves several
+# processes' output into one file. Strip any number of these before
+# looking for the marker.
+_LEADING_TAG_RE = re.compile(r"^(?:\[[^\]\n]{1,40}\]\s*)+")
+
 # Godot's own error/warning line markers. push_error()/push_warning() and
 # unhandled GDScript exceptions all funnel through one of these three.
 _RECORD_START_RE = re.compile(r"^(ERROR|WARNING|SCRIPT ERROR):\s?(.*)$")
 # Backtrace continuation lines look like "   at: func_name (res://foo.gd:123)"
 # (sometimes with a leading "[0]" stack index for nested calls).
 _BACKTRACE_RE = re.compile(r"^\s*(\[\d+\]\s*)?at:\s")
+
+
+def _strip_leading_tags(line: str) -> str:
+    return _LEADING_TAG_RE.sub("", line, count=1) if line.startswith("[") else line
 
 # --- Normalisation patterns, applied in order --------------------------------
 _NORMALIZERS: List[Tuple[re.Pattern, str]] = [
@@ -163,7 +174,7 @@ def extract_records(text: str) -> List[ErrorRecord]:
     i = 0
     n = len(lines)
     while i < n:
-        m = _RECORD_START_RE.match(lines[i])
+        m = _RECORD_START_RE.match(_strip_leading_tags(lines[i]))
         if not m:
             i += 1
             continue
@@ -171,8 +182,8 @@ def extract_records(text: str) -> List[ErrorRecord]:
         line_no = i + 1
         i += 1
         backtrace: List[str] = []
-        while i < n and _BACKTRACE_RE.match(lines[i]):
-            backtrace.append(lines[i].strip())
+        while i < n and _BACKTRACE_RE.match(_strip_leading_tags(lines[i])):
+            backtrace.append(_strip_leading_tags(lines[i]).strip())
             i += 1
         records.append(
             ErrorRecord(marker=marker, message=message, backtrace=backtrace, line_no=line_no)
