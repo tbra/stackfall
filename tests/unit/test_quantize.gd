@@ -158,6 +158,98 @@ func test_position_outside_the_aabb_clamps_to_the_nearest_face() -> void:
 	assert_almost_eq(back.z, high.z, 1e-3, "z clamps to the far face")
 
 
+func test_the_inlined_packer_agrees_with_quantize_axis() -> void:
+	# pack_position() does the three axes with Vector3 arithmetic because the
+	# per-axis calls were a measurable share of a 300-body snapshot
+	# (tests/bench/bench_snapshot.gd). quantize_axis() remains the readable
+	# statement of the mapping, so the two must never drift apart.
+	#
+	# Not bit-identical, and cannot be: Vector3 is float32 while a GDScript
+	# float is float64, so a value within an ulp of a code boundary can round
+	# either way. One code is 2.06 mm and the round-trip bound is unaffected
+	# (the per-axis error stays inside half a step). Any *real* drift — a
+	# changed span, bias or scale — moves this by thousands of codes, not one.
+	var data: PackedByteArray = _buffer(Quantize.POSITION_BYTES)
+	var low: Vector3 = _bounds.position
+	var high: Vector3 = _bounds.position + _bounds.size
+	var worst: int = 0
+	var boundary_cases: int = 0
+	for i: int in range(PROPERTY_SAMPLES):
+		var point: Vector3 = _random_point()
+		Quantize.pack_position(data, 0, point, _bounds)
+		var deltas: Array[int] = [
+			absi(data.decode_u16(0) - Quantize.quantize_axis(point.x, low.x, high.x)),
+			absi(data.decode_u16(2) - Quantize.quantize_axis(point.y, low.y, high.y)),
+			absi(data.decode_u16(4) - Quantize.quantize_axis(point.z, low.z, high.z)),
+		]
+		for delta: int in deltas:
+			worst = maxi(worst, delta)
+			if delta > 0:
+				boundary_cases += 1
+	assert_lte(worst, 1, "the inlined axis mapping is quantize_axis to within one code")
+	assert_lt(
+		float(boundary_cases) / float(PROPERTY_SAMPLES * 3),
+		0.02,
+		"and disagrees only on the rare float32 boundary case"
+	)
+
+
+func test_the_inlined_unpacker_agrees_with_dequantize_axis() -> void:
+	var data: PackedByteArray = _buffer(Quantize.POSITION_BYTES)
+	var low: Vector3 = _bounds.position
+	var high: Vector3 = _bounds.position + _bounds.size
+	var worst: float = 0.0
+	for i: int in range(2000):
+		for axis: int in range(3):
+			data.encode_u16(axis * 2, _rng.randi_range(0, Quantize.AXIS_MAX))
+		var got: Vector3 = Quantize.unpack_position(data, 0, _bounds)
+		worst = maxf(worst, absf(
+			got.x - Quantize.dequantize_axis(data.decode_u16(0), low.x, high.x)
+		))
+		worst = maxf(worst, absf(
+			got.y - Quantize.dequantize_axis(data.decode_u16(2), low.y, high.y)
+		))
+		worst = maxf(worst, absf(
+			got.z - Quantize.dequantize_axis(data.decode_u16(4), low.z, high.z)
+		))
+	assert_lt(worst, 1e-4, "the inlined inverse is dequantize_axis to within float32")
+
+
+func test_the_inlined_quaternion_packer_agrees_with_quantize_component() -> void:
+	# Same trade as the position packer: pack_quat() is unrolled and inlined,
+	# and quantize_component()/dequantize_component() stay as the named mapping.
+	# Within one code for the same float32-versus-float64 reason as the
+	# position packer above.
+	var data: PackedByteArray = _buffer(Quantize.ROTATION_BYTES)
+	var worst: int = 0
+	var worst_inverse: float = 0.0
+	for i: int in range(PROPERTY_SAMPLES):
+		var q: Quaternion = _random_quat()
+		Quantize.pack_quat(data, 0, q, false)
+		var word: int = data.decode_u32(0) | (data.decode_u16(4) << 32)
+		var dropped: int = (word >> Quantize.DROPPED_INDEX_SHIFT) & Quantize.DROPPED_INDEX_MASK
+		var components: PackedFloat64Array = PackedFloat64Array([q.x, q.y, q.z, q.w])
+		if components[dropped] < 0.0:
+			for axis: int in range(4):
+				components[axis] = -components[axis]
+		var slot: int = 0
+		for axis: int in range(4):
+			if axis == dropped:
+				continue
+			var raw: int = (word >> (Quantize.COMPONENT_BITS * slot)) & Quantize.COMPONENT_MASK
+			worst = maxi(worst, absi(raw - Quantize.quantize_component(components[axis])))
+			worst_inverse = maxf(
+				worst_inverse, absf(Quantize.dequantize_component(raw) - components[axis])
+			)
+			slot += 1
+	assert_lte(worst, 1, "the inlined component mapping is quantize_component within one code")
+	assert_lt(
+		worst_inverse,
+		Quantize.SQRT_HALF * 2.0 / float(Quantize.COMPONENT_MAX),
+		"and dequantize_component inverts it inside one step"
+	)
+
+
 func test_position_writes_at_an_offset_without_touching_its_neighbours() -> void:
 	var data: PackedByteArray = _buffer(Quantize.POSITION_BYTES + 4)
 	data[0] = 0xAB

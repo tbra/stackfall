@@ -336,3 +336,187 @@ func test_the_keyframe_slice_refreshes_every_sleeper_once_per_interval() -> void
 		)
 		assert_lte(slice * ticks, sleepers + ticks, "the slice never over-sends by a whole pass")
 	assert_eq(int(_sync.call("keyframe_slice_for", 300, _config)), 5, "300 sleepers cost 5 a tick")
+
+
+# --- The live client path ---------------------------------------------------
+#
+# autoload/Net.gd is a stub until P1 lands, so it answers is_host() = true and
+# is_offline() = true: host_tick() and client_tick() both no-op and cannot be
+# driven here. What *can* be driven is everything either side of that gate —
+# the match lifecycle, the Events subscription, decoding an inbound packet into
+# the interpolator, and the frozen-body rule — which is where the bugs that
+# would survive the wire tests live.
+
+var _registry: BlockRegistry = null
+
+
+func _start_match() -> void:
+	_registry = BlockRegistry.new()
+	add_child_autofree(_registry)
+	_sync.call("begin_match", _registry, _map)
+
+
+## A Block registered the way Match registers one, so BlockRegistry allocates
+## it a net_id and both it and SnapshotSync start tracking it.
+func _spawn_block() -> Block:
+	var block: Block = Block.new()
+	block.owner_slot = 0
+	add_child_autofree(block)
+	Events.block_placed.emit(block, &"unit")
+	return block
+
+
+func test_begin_match_starts_and_end_match_stops() -> void:
+	assert_false(bool(_sync.call("is_running")), "a fresh instance is idle")
+	_start_match()
+	assert_true(bool(_sync.call("is_running")), "begin_match starts it")
+	assert_not_null(_sync.call("interpolator"), "and builds an interpolator")
+	assert_true(
+		Events.block_placed.is_connected(Callable(_sync, "_on_block_placed")),
+		"and subscribes to the bus rather than walking the tree"
+	)
+
+	_sync.call("end_match")
+	assert_false(bool(_sync.call("is_running")), "end_match stops it")
+	assert_null(_sync.call("interpolator"), "and drops the interpolator")
+	assert_false(
+		Events.block_placed.is_connected(Callable(_sync, "_on_block_placed")),
+		"and unsubscribes, so a second match does not double up"
+	)
+
+
+func test_end_match_is_idempotent_and_safe_before_a_match() -> void:
+	_sync.call("end_match")
+	_start_match()
+	_sync.call("end_match")
+	_sync.call("end_match")
+	assert_false(bool(_sync.call("is_running")), "still stopped, no error")
+
+
+func test_an_inbound_packet_reaches_the_interpolator() -> void:
+	_start_match()
+	var block: Block = _spawn_block()
+	assert_gt(block.net_id, 0, "BlockRegistry allocated a net_id")
+
+	var packet: PackedByteArray = _encode(1, 0, 1, 5000, _flag_disk(), [{
+		"net_id": block.net_id,
+		"position": Vector3(1.0, 2.0, 3.0),
+		"rotation": Quaternion.IDENTITY,
+		"sleeping": false,
+	}])
+	_sync.call("receive_packet", packet)
+
+	var interp: Interpolator = _sync.call("interpolator") as Interpolator
+	assert_eq(interp.buffered_count(block.net_id), 1, "the sample was buffered")
+	assert_eq(interp.dropped_unknown_count(), 0, "and nothing was dropped")
+
+
+func test_a_sample_for_an_unspawned_body_is_dropped_and_counted() -> void:
+	# docs/M3a_PLAN.md: the reliable spawn RPC and the unreliable snapshot ride
+	# different channels, so a snapshot can name a body whose spawn has not
+	# landed. It must be dropped and counted, never buffered and never an error.
+	_start_match()
+	var packet: PackedByteArray = _encode(1, 0, 1, 5000, 0, [{
+		"net_id": 4242,
+		"position": Vector3.ZERO,
+		"rotation": Quaternion.IDENTITY,
+		"sleeping": false,
+	}])
+	_sync.call("receive_packet", packet)
+
+	var interp: Interpolator = _sync.call("interpolator") as Interpolator
+	assert_eq(interp.dropped_unknown_count(), 1, "the unknown body was counted")
+	assert_eq(interp.buffered_count(4242), 0, "and buffered nothing")
+
+
+func test_a_garbage_packet_is_ignored_without_disturbing_the_stream() -> void:
+	_start_match()
+	var block: Block = _spawn_block()
+	var good: PackedByteArray = _encode(1, 0, 1, 5000, 0, [{
+		"net_id": block.net_id, "position": Vector3.ONE,
+		"rotation": Quaternion.IDENTITY, "sleeping": false,
+	}])
+	_sync.call("receive_packet", good)
+	_sync.call("receive_packet", good.slice(0, 7))
+	_sync.call("receive_packet", PackedByteArray([1, 2, 3]))
+
+	var interp: Interpolator = _sync.call("interpolator") as Interpolator
+	assert_eq(interp.buffered_count(block.net_id), 1, "only the good packet landed")
+
+
+func test_every_fragment_of_one_snapshot_is_noted_once() -> void:
+	# Interpolator.note_snapshot is "once per snapshot, not once per fragment";
+	# noting each fragment would make a four-fragment snapshot look like four
+	# arrivals and wreck both the jitter estimate and the loss measurement.
+	_start_match()
+	var block: Block = _spawn_block()
+	var bodies: Array = []
+	for index: int in range(SPEC_BODY_COUNT):
+		bodies.append({
+			"net_id": block.net_id if index == 0 else 9000 + index,
+			"position": Vector3.ZERO, "rotation": Quaternion.IDENTITY, "sleeping": false,
+		})
+	for entry: Variant in _build(1, 5000, _flag_disk(), bodies):
+		_sync.call("receive_packet", entry as PackedByteArray)
+
+	var interp: Interpolator = _sync.call("interpolator") as Interpolator
+	assert_eq(interp.loss_fraction(), 0.0, "four fragments are one snapshot, not four")
+	assert_eq(interp.buffered_count(block.net_id), 1, "and the known body got one sample")
+
+
+func test_the_disk_state_is_read_off_the_snapshot() -> void:
+	_start_match()
+	var disk: Transform3D = Transform3D(
+		Basis(Quaternion(Vector3.RIGHT, 0.09)), Vector3(0.0, 0.3, 0.0)
+	)
+	_sync.call("receive_packet", _encode(1, 0, 1, 5000, _flag_disk(), [], disk))
+	assert_lt(
+		((_sync.call("disk_position") as Vector3) - disk.origin).length(),
+		0.0021,
+		"the disk offset arrives every snapshot (spec 3.4 'Disk state')"
+	)
+	assert_lt(
+		(_sync.call("disk_rotation") as Quaternion).angle_to(
+			disk.basis.get_rotation_quaternion()
+		),
+		deg_to_rad(0.01),
+		"and so does its tilt"
+	)
+
+
+func test_a_synced_body_is_frozen_kinematically() -> void:
+	# Spec 3.4: "Clients set every synced RigidBody3D to freeze = true
+	# (kinematic) and move them by interpolating snapshots."
+	var block: Block = Block.new()
+	add_child_autofree(block)
+	assert_false(block.freeze, "a host-side body simulates normally")
+
+	_sync.call("freeze_body", block)
+	assert_true(block.freeze, "a client freezes it")
+	assert_eq(
+		block.freeze_mode,
+		RigidBody3D.FREEZE_MODE_KINEMATIC,
+		"kinematically, so writing global_transform still moves it"
+	)
+	assert_eq(block.linear_velocity, Vector3.ZERO, "with no leftover velocity")
+	assert_eq(block.angular_velocity, Vector3.ZERO, "and no leftover spin")
+
+	# Idempotent: client_tick calls this for every tracked body every frame.
+	_sync.call("freeze_body", block)
+	assert_true(block.freeze, "calling it again changes nothing")
+
+
+func test_a_removed_block_is_forgotten_by_both_sides() -> void:
+	_start_match()
+	var block: Block = _spawn_block()
+	var net_id: int = block.net_id
+	_sync.call("receive_packet", _encode(1, 0, 1, 5000, 0, [{
+		"net_id": net_id, "position": Vector3.ONE,
+		"rotation": Quaternion.IDENTITY, "sleeping": false,
+	}]))
+	var interp: Interpolator = _sync.call("interpolator") as Interpolator
+	assert_eq(interp.buffered_count(net_id), 1, "the body is being tracked")
+
+	Events.block_removed.emit(block, Events.REASON_KILL_PLANE)
+	assert_eq(interp.buffered_count(net_id), 0, "a despawned body's samples are dropped")
+	assert_eq(Array(interp.tracked_ids()), [], "and it is no longer tracked")

@@ -122,89 +122,135 @@ static func dequantize_axis(raw: int, min_value: float, max_value: float) -> flo
 
 ## Writes POSITION_BYTES at `offset` in `out`, which the caller has already
 ## sized. Returns the offset just past what it wrote.
+## The three axes are normalized with Vector3 arithmetic rather than three
+## quantize_axis() calls: at 300 bodies and 30 Hz those calls are a measurable
+## share of the whole snapshot (tests/bench/bench_snapshot.gd grades it), and
+## the component-wise divide and clamp run in the engine. quantize_axis()
+## stays the readable statement of the mapping and
+## test_quantize.gd asserts the two agree. The one behavioural difference is
+## that a non-finite or degenerate *axis* zeroes the whole vector instead of
+## just itself — a body with a NaN coordinate is already past the kill plane.
 static func pack_position(out: PackedByteArray, offset: int, world: Vector3, bounds: AABB) -> int:
-	var low: Vector3 = bounds.position
-	var high: Vector3 = bounds.position + bounds.size
-	out.encode_u16(offset, quantize_axis(world.x, low.x, high.x))
-	out.encode_u16(offset + 2, quantize_axis(world.y, low.y, high.y))
-	out.encode_u16(offset + 4, quantize_axis(world.z, low.z, high.z))
+	var normalized: Vector3 = (world - bounds.position) / bounds.size
+	if not normalized.is_finite():
+		normalized = Vector3.ZERO
+	normalized = normalized.clamp(Vector3.ZERO, Vector3.ONE) * float(AXIS_MAX)
+	out.encode_u16(offset, int(roundf(normalized.x)))
+	out.encode_u16(offset + 2, int(roundf(normalized.y)))
+	out.encode_u16(offset + 4, int(roundf(normalized.z)))
 	return offset + POSITION_BYTES
 
 
 ## Reads a position written by pack_position(). `bounds` must be the same AABB
 ## the packer used, or the body lands somewhere else entirely.
 static func unpack_position(data: PackedByteArray, offset: int, bounds: AABB) -> Vector3:
-	var low: Vector3 = bounds.position
-	var high: Vector3 = bounds.position + bounds.size
-	return Vector3(
-		dequantize_axis(data.decode_u16(offset), low.x, high.x),
-		dequantize_axis(data.decode_u16(offset + 2), low.y, high.y),
-		dequantize_axis(data.decode_u16(offset + 4), low.z, high.z)
+	var raw: Vector3 = Vector3(
+		float(data.decode_u16(offset)),
+		float(data.decode_u16(offset + 2)),
+		float(data.decode_u16(offset + 4))
 	)
+	return bounds.position + raw / float(AXIS_MAX) * bounds.size
 
 
 ## Writes ROTATION_BYTES at `offset`: the smallest-three encoding of `rotation`
 ## (normalized first; the sign is canonicalized so q and -q pack identically)
 ## with `sleeping` in the spare bit. Returns the offset just past what it wrote.
 static func pack_quat(out: PackedByteArray, offset: int, rotation: Quaternion, sleeping: bool) -> int:
-	var components: PackedFloat64Array = _canonical_components(rotation)
+	var q: Quaternion = rotation
+	if not (is_finite(q.x) and is_finite(q.y) and is_finite(q.z) and is_finite(q.w)):
+		q = Quaternion.IDENTITY
+	elif q.length_squared() < 1e-12:
+		# A zero quaternion is not a rotation and Basis() would refuse it.
+		q = Quaternion.IDENTITY
+	else:
+		q = q.normalized()
 
+	# Unrolled on purpose: this runs 300 times per snapshot at 30 Hz, and in
+	# GDScript every `for i in range(4)` allocates an Array and every helper
+	# call costs more than the arithmetic inside it. See tests/bench/
+	# bench_snapshot.gd, which is what grades this.
 	var dropped: int = 0
-	var largest: float = -1.0
-	for index: int in range(4):
-		var magnitude: float = absf(components[index])
-		if magnitude > largest:
-			largest = magnitude
-			dropped = index
+	var largest: float = absf(q.x)
+	if absf(q.y) > largest:
+		largest = absf(q.y)
+		dropped = 1
+	if absf(q.z) > largest:
+		largest = absf(q.z)
+		dropped = 2
+	if absf(q.w) > largest:
+		largest = absf(q.w)
+		dropped = 3
+
+	# The three kept components in ascending order with the dropped one gone.
+	var a: float = q.y
+	var b: float = q.z
+	var c: float = q.w
+	var keep_sign: bool = q.x >= 0.0
+	match dropped:
+		1:
+			a = q.x
+			b = q.z
+			c = q.w
+			keep_sign = q.y >= 0.0
+		2:
+			a = q.x
+			b = q.y
+			c = q.w
+			keep_sign = q.z >= 0.0
+		3:
+			a = q.x
+			b = q.y
+			c = q.z
+			keep_sign = q.w >= 0.0
 
 	# q and -q are the same rotation, so force the dropped (largest) component
 	# positive: the decoder always reconstructs it as a positive square root,
 	# and both signs then pack to identical bytes.
-	if components[dropped] < 0.0:
-		for index: int in range(4):
-			components[index] = -components[index]
+	if not keep_sign:
+		a = -a
+		b = -b
+		c = -c
 
-	var word: int = 0
-	var bit: int = 0
-	for index: int in range(4):
-		if index == dropped:
-			continue
-		word |= quantize_component(components[index]) << bit
-		bit += COMPONENT_BITS
-	word |= dropped << DROPPED_INDEX_SHIFT
+	var scale: float = float(COMPONENT_MAX) / (SQRT_HALF * 2.0)
+	var bias: float = SQRT_HALF
+	var word: int = (
+		int(roundf(clampf((a + bias) * scale, 0.0, float(COMPONENT_MAX))))
+		| (int(roundf(clampf((b + bias) * scale, 0.0, float(COMPONENT_MAX)))) << COMPONENT_BITS)
+		| (int(roundf(clampf((c + bias) * scale, 0.0, float(COMPONENT_MAX)))) << (COMPONENT_BITS * 2))
+		| (dropped << DROPPED_INDEX_SHIFT)
+	)
 	if sleeping:
 		word |= 1 << SLEEPING_SHIFT
-
-	for byte_index: int in range(ROTATION_BYTES):
-		out[offset + byte_index] = (word >> (8 * byte_index)) & 0xFF
+	out.encode_u32(offset, word & 0xFFFFFFFF)
+	out.encode_u16(offset + 4, (word >> 32) & 0xFFFF)
 	return offset + ROTATION_BYTES
 
 
 ## Reads a rotation written by pack_quat(). Always returns a normalized
 ## quaternion.
 static func unpack_quat(data: PackedByteArray, offset: int) -> Quaternion:
-	var word: int = _read_rotation_word(data, offset)
-	var dropped: int = (word >> DROPPED_INDEX_SHIFT) & DROPPED_INDEX_MASK
+	var word: int = data.decode_u32(offset) | (data.decode_u16(offset + 4) << 32)
+	var scale: float = (SQRT_HALF * 2.0) / float(COMPONENT_MAX)
+	var a: float = float(word & COMPONENT_MASK) * scale - SQRT_HALF
+	var b: float = float((word >> COMPONENT_BITS) & COMPONENT_MASK) * scale - SQRT_HALF
+	var c: float = float((word >> (COMPONENT_BITS * 2)) & COMPONENT_MASK) * scale - SQRT_HALF
+	var sum_of_squares: float = a * a + b * b + c * c
+	# Unit by construction whenever the three kept components still fit inside
+	# the sphere, which rounding only breaks by an ulp, so the normalize below
+	# is a guard rather than a step.
+	var d: float = sqrt(maxf(0.0, 1.0 - sum_of_squares))
 
-	var components: PackedFloat64Array = PackedFloat64Array([0.0, 0.0, 0.0, 0.0])
-	var bit: int = 0
-	var sum_of_squares: float = 0.0
-	for index: int in range(4):
-		if index == dropped:
-			continue
-		var value: float = dequantize_component((word >> bit) & COMPONENT_MASK)
-		components[index] = value
-		sum_of_squares += value * value
-		bit += COMPONENT_BITS
-	components[dropped] = sqrt(maxf(0.0, 1.0 - sum_of_squares))
-
-	var result: Quaternion = Quaternion(
-		components[0], components[1], components[2], components[3]
-	)
-	# The reconstruction is unit-length by construction unless rounding pushed
-	# the three kept components past 1.0 together, so this only ever corrects
-	# the last ulp — but it keeps the documented "always normalized" promise.
-	return result.normalized()
+	var result: Quaternion = Quaternion(a, b, c, d)
+	match (word >> DROPPED_INDEX_SHIFT) & DROPPED_INDEX_MASK:
+		0:
+			result = Quaternion(d, a, b, c)
+		1:
+			result = Quaternion(a, d, b, c)
+		2:
+			result = Quaternion(a, b, d, c)
+	if sum_of_squares > 1.0:
+		return result.normalized()
+	return result
 
 
 ## The sleeping flag from the same six bytes unpack_quat() reads.
@@ -258,24 +304,3 @@ static func unpack_body(data: PackedByteArray, offset: int, bounds: AABB) -> Dic
 	}
 
 
-## `rotation` as four finite doubles of unit length. A zero or non-finite
-## quaternion (which Basis(Quaternion()) would refuse anyway) becomes the
-## identity rather than poisoning the packet.
-static func _canonical_components(rotation: Quaternion) -> PackedFloat64Array:
-	var q: Quaternion = rotation
-	var finite: bool = (
-		is_finite(q.x) and is_finite(q.y) and is_finite(q.z) and is_finite(q.w)
-	)
-	if not finite or q.length_squared() < 1e-12:
-		q = Quaternion.IDENTITY
-	else:
-		q = q.normalized()
-	return PackedFloat64Array([q.x, q.y, q.z, q.w])
-
-
-## The six little-endian bytes at `offset` as one 48-bit integer.
-static func _read_rotation_word(data: PackedByteArray, offset: int) -> int:
-	var word: int = 0
-	for byte_index: int in range(ROTATION_BYTES):
-		word |= int(data[offset + byte_index]) << (8 * byte_index)
-	return word
