@@ -188,7 +188,7 @@ No magic numbers anywhere (CLAUDE.md). Nothing below may appear as a literal in 
 
 | Resource | Owner | Holds |
 |---|---|---|
-| `territory_tuning.tres` | P1 | `influence_base` 1.5, `influence_k` 0.9, `influence_max_fraction` 0.6, `home_radius` 6.0, `max_circles` 400, `solve_hz` 10, `raster_upload_hz` 5, `hash_cell_size` 4.0, `hole_delay` 0.75, `hole_close_delay` 2.0, `max_cell_toggles_per_frame` 64, `capture_hold` 3.0, `auto_drop_search_step` 1.0, `auto_drop_search_max_radius` 12.0, `reject_impulse` 30.0, `reject_upward_fraction` 0.35 |
+| `territory_tuning.tres` | P1 | `influence_base` 1.5, `influence_k` 0.9, `influence_max_fraction` 0.6, `home_radius` 6.0, `max_circles` 400, `solve_hz` 10, `raster_upload_hz` 5, `hash_cell_size` 12.0, `hole_delay` 0.75, `hole_close_delay` 2.0, `max_cell_toggles_per_frame` 64, `capture_hold` 3.0, `auto_drop_search_step` 1.0, `auto_drop_search_max_radius` 12.0, `reject_impulse` 30.0, `reject_upward_fraction` 0.35 |
 | `match_defaults.tres` | P2 | every §2.8 lobby setting, `per_player_timer`, `hot_seat`, `player_colors` (8), `rng_seed`, and the `*_MIN`/`*_MAX` range constants |
 | `block_feed.tres` | P2 | `shapes`, `weight_overrides`, `stabilizer_ids`, `min_stabilizers_per_bag` 2, `bag_multiplier` 2.0, `preview_count` 1 |
 | `maps/round_{s,m,l}.tres` | P3 | `field_radius` 30/45/60, `disk_height` 1.0, `cell_size` 1.0, `territory_res` 256/384/512, `home_flag_radius_fraction` 0.85, `goal_flag_radius_fraction` 0.4 |
