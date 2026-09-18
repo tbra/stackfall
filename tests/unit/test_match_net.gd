@@ -118,9 +118,13 @@ func test_submit_place_on_a_client_sends_without_touching_match() -> void:
 	)
 
 	assert_eq(_block_count(), before, "A client must never spawn a block itself (spec 3.4).")
-	assert_eq(net.intents_sent(1), 1, "It still counts what it sent, so the host's count can be compared.")
 	assert_eq(net.intents_accepted(1), 0, "Only the host accepts.")
 	assert_eq(reason, PlacementRules.REASON_NO_BLOCK, "With no peer there is nowhere to send it.")
+	assert_eq(
+		net.intents_sent(1),
+		0,
+		"and nothing that never reached the wire is counted as sent, or the harness's client-to-host comparison would be meaningless"
+	)
 
 
 # --- Never duplicated, never lost -------------------------------------------
@@ -645,6 +649,40 @@ func test_a_replicated_feed_event_sets_the_held_shape_and_resets_the_timer() -> 
 	assert_eq(
 		Match.feed_seq(1), 9, "The client takes the host's sequence verbatim; it cannot count its own."
 	)
+
+
+func test_a_replicated_turn_points_a_client_at_its_own_slot() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	var net: MatchNetScript = _make_net({}, [1], true)
+	watch_signals(Events)
+
+	# The host emits turn_changed(0) for its own player when play begins.
+	net.net_match_event(MatchNetScript.EVENT_TURN_CHANGED, [0])
+
+	# Outside hot-seat the signal points at the controls that are live on this
+	# instance, not at whoever the host named.
+	assert_signal_emitted_with_parameters(Events, "turn_changed", [1])
+	assert_eq(Match.active_slot(), 1)
+
+
+func test_a_replicated_turn_is_mirrored_verbatim_in_hot_seat() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	Match.start_match(_hot_seat_config())
+	for _i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * 60.0)) + 2):
+		Match._process(1.0 / 60.0)
+	var net: MatchNetScript = _make_net({}, [1], true)
+	watch_signals(Events)
+
+	net.net_match_event(MatchNetScript.EVENT_TURN_CHANGED, [0])
+
+	assert_signal_emitted_with_parameters(Events, "turn_changed", [0])
+
+
+func _hot_seat_config() -> MatchConfig:
+	var config: MatchConfig = _config()
+	config.hot_seat = true
+	return config
 
 
 func test_a_replicated_elimination_is_applied_to_the_slot() -> void:

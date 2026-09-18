@@ -212,9 +212,12 @@ func submit_place(
 	# last cursor it received (see _on_feed_timer_expired).
 	if auto_drop:
 		return PlacementRules.REASON_NO_BLOCK
-	_bump(_intents_sent, slot_id)
 	if not _can_send():
+		# Nothing went on the wire, so nothing is counted: the harness proves
+		# "never lost" by comparing this client's intents_sent with the host's
+		# count for the same slot, and a phantom here would break that.
 		return PlacementRules.REASON_NO_BLOCK
+	_bump(_intents_sent, slot_id)
 	rpc_id(
 		Net.HOST_PEER_ID,
 		&"net_request_place",
@@ -802,8 +805,25 @@ func net_match_event(event: StringName, args: Array) -> void:
 			_authority().apply_replicated_countdown(int(args[0]))
 			Events.countdown_tick.emit(int(args[0]))
 		EVENT_TURN_CHANGED:
-			_authority().apply_replicated_turn(int(args[0]))
-			Events.turn_changed.emit(int(args[0]))
+			# DECISION (net/MatchNet.gd): offline and in hot-seat,
+			# Events.turn_changed means "it is this slot's turn". In real-time
+			# networked play there are no turns — every slot plays at once
+			# (owner decision, docs/M3a_PLAN.md question 1) — and what the
+			# signal actually does on a receiving instance is point the HUD
+			# and the ghost at the controls that are live here, which is
+			# always your own slot. Mirroring the host's value verbatim would
+			# aim this client's whole UI at another player, so outside
+			# hot-seat a client substitutes its own slot. ui/HUD.gd and
+			# game/PlayerController.gd therefore need no networking of their
+			# own.
+			var turn_slot: int = int(args[0])
+			var running: MatchConfig = _authority().config
+			if running != null and not running.hot_seat:
+				turn_slot = int(_session().local_slot())
+			if turn_slot < 0:
+				return
+			_authority().apply_replicated_turn(turn_slot)
+			Events.turn_changed.emit(turn_slot)
 		EVENT_FEED_ISSUED:
 			_authority().apply_replicated_feed(
 				int(args[0]),
