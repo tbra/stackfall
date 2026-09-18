@@ -24,6 +24,7 @@ var held_shapes: Dictionary = {}
 var next_shapes: Dictionary = {}
 var feed_progress_by_slot: Dictionary = {}
 var max_height_by_slot: Dictionary = {}
+var feed_seq_by_slot: Dictionary = {}
 
 ## What request_place() / preview_placement() return next; tests set these to
 ## drive VALID / OUTSIDE_TERRITORY / CONTESTED / HOLE / etc. scenarios.
@@ -60,8 +61,25 @@ func max_height_for_slot(slot_id: int) -> float:
 	return float(max_height_by_slot.get(slot_id, 0.0))
 
 
+## M3a: the sequence an intent must quote. The fake hands out a fixed value
+## per slot; nothing that uses this double cares what it is, only that the
+## call exists.
+func feed_seq(slot_id: int) -> int:
+	return int(feed_seq_by_slot.get(slot_id, 0))
+
+
+## M3a adds the trailing feed_seq the real Match takes (docs/M3a_PLAN.md,
+## "Never duplicated, never lost"). It is defaulted here exactly as it is
+## there, so every M2 call site and every M2 test still compiles unchanged;
+## the fake records it but never enforces it, since idempotence is the real
+## Match's job and tests/unit/test_match_net.gd is where it is proved.
 func request_place(
-	slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion, auto_drop: bool
+	slot_id: int,
+	origin: Vector3,
+	orientation_index: int,
+	free_quat: Quaternion,
+	auto_drop: bool,
+	feed_seq: int = -1
 ) -> StringName:
 	request_place_calls.append({
 		"slot_id": slot_id,
@@ -69,6 +87,7 @@ func request_place(
 		"orientation_index": orientation_index,
 		"free_quat": free_quat,
 		"auto_drop": auto_drop,
+		"feed_seq": feed_seq,
 	})
 	if next_request_result == PlacementRules.REASON_OK:
 		if spawn_on_ok:

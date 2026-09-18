@@ -34,6 +34,21 @@ var config: MatchConfig = null
 var _physics_tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
 var _territory_tuning: TerritoryTuning = preload("res://config/territory_tuning.tres")
 var _block_feed_config: BlockFeedConfig = preload("res://config/block_feed.tres")
+var _net_config: NetConfig = preload("res://config/net_config.tres")
+
+## DECISION (autoload/Match.gd): Net is a plain autoload, and GUT cannot
+## double one (see game/PlayerController.gd's matching DECISION), so every
+## host gate below reads through this seam instead of naming `Net` directly.
+## null means "the real Net", which is what every shipped build uses; a test
+## injects a double with set_net_provider(). Net.is_host() is true offline
+## too, so `if not _is_host(): return` changes nothing about M2's hot-seat.
+var _net_provider: Variant = null
+
+## Set by net/MatchNet.gd in its own _ready(). Match never calls rpc() and
+## never names MatchNet as a global (the integrator registers that autoload
+## after this one), so replication is a hook the membrane installs on itself:
+## null means "not networked", which is exactly the M2 and single-player case.
+var _replicator: Variant = null
 
 var _field: Field = null
 var _registry: BlockRegistry = null
@@ -49,6 +64,28 @@ var _held_shapes: Array[BlockShape] = []
 var _feed_time_left: Array[float] = []
 var _feed_expired: Array[bool] = []
 var _active_slot: int = -1
+
+## Spec 3.4 / docs/M3a_PLAN.md, "Never duplicated, never lost": one counter
+## per slot, advanced every time the slot's held block is consumed. An intent
+## carries the value its sender last saw; the host refuses one that is no
+## longer current, so a replayed, doubled or raced intent is a no-op instead
+## of silently spending the next block.
+var _feed_seq: Array[int] = []
+
+## Slots whose peer has vanished and whose NetConfig.disconnect_grace is still
+## running: the feed is stopped and the timer is not ticking, but the slot is
+## still alive and its towers still hold territory. Parallel to _slots;
+## negative means "connected".
+var _disconnect_grace_left: Array[float] = []
+
+## Blocks _spawn_block() has built since the match started. The acceptance
+## harness asserts blocks_spawned() == sum(intents_accepted) + auto_drops
+## across the session (docs/M3a_PLAN.md, "Proving placements are never
+## duplicated or lost").
+var _blocks_spawned: int = 0
+
+## Lazily built id -> BlockShape index, used only by the client read model.
+var _shapes_by_id: Dictionary = {}
 
 var _cell_grid: CellGrid = null
 var _raster: TerritoryRaster = null
@@ -69,6 +106,55 @@ func register_world(field: Field, registry: Node, blocks_parent: Node3D) -> void
 	_field = field
 	_registry = registry as BlockRegistry
 	_blocks_parent = blocks_parent
+	if _registry != null:
+		# Spec 3.4: only the host simulates. A client's registry must not hand
+		# out net_ids of its own — the host's are the only ones that mean
+		# anything — and must not run the settled rule over frozen bodies.
+		_registry.set_host_authority(_is_host())
+
+
+## The BlockRegistry and the node new blocks are added under, for
+## net/MatchNet.gd's replicated spawns. Nothing else should reach for these:
+## rules go through request_place().
+func registry() -> BlockRegistry:
+	return _registry
+
+
+func blocks_parent() -> Node3D:
+	return _blocks_parent
+
+
+func field() -> Field:
+	return _field
+
+
+## Test seam for the Net autoload (see _net_provider). Passing null restores
+## the real Net.
+func set_net_provider(provider: Variant) -> void:
+	_net_provider = provider
+
+
+## Installed by net/MatchNet.gd. `replicator` must answer replicate_spawn(),
+## replicate_match_event() and replicate_match_start(); null turns replication
+## off, which is the single-player and unit-test case.
+func set_replicator(replicator: Variant) -> void:
+	_replicator = replicator
+
+
+## net/MatchNet.gd, or null in a build with no networking. This is how a
+## scene node reaches the membrane without naming an autoload the integrator
+## registers after this one — and without a get_node("/root/...") path
+## (CLAUDE.md).
+func replicator() -> Variant:
+	return _replicator
+
+
+## True on the host **and offline** (Net.is_host()'s contract), so every gate
+## written against it leaves M2's single-PC behaviour exactly as it was.
+func _is_host() -> bool:
+	if _net_provider != null:
+		return bool(_net_provider.is_host())
+	return Net.is_host()
 
 
 ## Lobby -> Loading -> Countdown -> Playing. Builds the player slots, the
@@ -83,7 +169,9 @@ func start_match(match_config: MatchConfig) -> void:
 	_build_slots()
 	_build_bags()
 	_build_territory()
+	_blocks_spawned = 0
 	if _registry != null:
+		_registry.set_host_authority(_is_host())
 		_registry.configure(_field, config.map_def())
 		_registry.reset()
 
@@ -102,6 +190,9 @@ func abort_match() -> void:
 	_held_shapes.clear()
 	_feed_time_left.clear()
 	_feed_expired.clear()
+	_feed_seq.clear()
+	_disconnect_grace_left.clear()
+	_blocks_spawned = 0
 	_active_slot = -1
 	_cell_grid = null
 	_raster = null
@@ -122,15 +213,43 @@ func countdown_remaining() -> float:
 	return _countdown_remaining if _state == State.COUNTDOWN else 0.0
 
 
+## Spec 3.4: "The host is authoritative ... only the host runs physics." Every
+## clock that decides something — the countdown, the feed timers and their
+## auto-drops, the 10 Hz territory solve, the win check and the disconnect
+## grace — runs here and only on the host. A client's copy of Match is a
+## read model: it holds the slots, the config and a mirror raster so its HUD
+## and its ghost's territory tint are right, and it is driven entirely by
+## net/MatchNet.gd's replicated events.
 func _process(delta: float) -> void:
+	if not _is_host():
+		_tick_client_display(delta)
+		return
 	match _state:
 		State.COUNTDOWN:
 			_tick_countdown(delta)
 		State.PLAYING:
+			_tick_disconnect_grace(delta)
 			_tick_feed(delta)
 			_tick_territory(delta)
 		_:
 			pass
+
+
+## DECISION (autoload/Match.gd): docs/M3a_PLAN.md says a client runs "no feed
+## tick", meaning it decides nothing — but with no local decrement at all the
+## HUD's timer ring would sit frozen between the host's 1-per-block feed
+## events, which reads as a bug. So a client counts the same timers down for
+## display only: it never emits feed_timer_expired, never issues a block and
+## never touches the bag, and every replicated feed event resets the timer to
+## the host's value, so it cannot drift. Nothing here can duplicate or lose a
+## placement, which is what the gate above exists to guarantee.
+func _tick_client_display(delta: float) -> void:
+	if _state != State.PLAYING or config == null:
+		return
+	for i: int in range(_feed_time_left.size()):
+		if not _slots[i].home_flag_alive:
+			continue
+		_feed_time_left[i] = maxf(_feed_time_left[i] - delta, 0.0)
 
 
 func _tick_countdown(delta: float) -> void:
@@ -250,6 +369,8 @@ func _issue_next_block(slot_id: int) -> void:
 
 
 func _tick_feed(delta: float) -> void:
+	if not _is_host():
+		return
 	if config.hot_seat:
 		if _active_slot == -1:
 			return
@@ -261,8 +382,18 @@ func _tick_feed(delta: float) -> void:
 			_feed_expired[_active_slot] = true
 			Events.feed_timer_expired.emit(_active_slot)
 	else:
+		# Owner decision (docs/M3a_PLAN.md question 1): per-player concurrent
+		# timers, spec 3.7's default ("Each player has a feed timer"). Every
+		# slot's timer runs at once and several blocks may land in the same
+		# second; nothing here serialises them.
 		for i: int in range(_slots.size()):
 			if not _slots[i].home_flag_alive:
+				continue
+			if _disconnect_grace_left[i] >= 0.0:
+				# The peer vanished: its feed stops the moment it does
+				# (docs/M3a_PLAN.md, "Disconnects and the in-flight held
+				# block") so a player who reconnects inside the grace period
+				# has not been auto-dropped a tower's worth of blocks.
 				continue
 			_feed_time_left[i] = maxf(_feed_time_left[i] - delta, 0.0)
 			if _feed_time_left[i] <= 0.0 and not _feed_expired[i]:
@@ -285,19 +416,31 @@ func _tick_feed(delta: float) -> void:
 ## the map (spec 2.2); a refused auto-drop that finds no valid point does the
 ## same.
 ##
-## M3a adds `@rpc("any_peer", "call_remote", "reliable")` to a thin wrapper
-## that forwards to this, checks the caller's peer id against the slot, and
-## changes nothing else.
+## M3a wraps this in net/MatchNet.gd's `@rpc("any_peer", "call_remote",
+## "reliable")` intent, which checks the caller's peer id against `slot_id`
+## and changes nothing else. `feed_seq` is the value of feed_seq(slot_id) the
+## caller last saw; -1 means "don't check", which is what every M2 call site
+## passes by omitting it. A value that is not current means the intent is a
+## replay, a double click inside one round trip, or a race with an auto-drop,
+## and is refused with REASON_NO_BLOCK — the whole of docs/M3a_PLAN.md's
+## "Never duplicated, never lost" defence (1).
 func request_place(
 	slot_id: int,
 	origin: Vector3,
 	orientation_index: int,
 	free_quat: Quaternion,
-	auto_drop: bool
+	auto_drop: bool,
+	feed_seq: int = -1
 ) -> StringName:
+	# Spec 3.4: the host decides every placement. A client that somehow got
+	# here locally must not spawn anything; it waits for the host's spawn.
+	if not _is_host():
+		return PlacementRules.REASON_NO_BLOCK
 	if _state != State.PLAYING or _field == null or _blocks_parent == null:
 		return PlacementRules.REASON_NO_BLOCK
 	if slot_id < 0 or slot_id >= _slots.size():
+		return PlacementRules.REASON_NO_BLOCK
+	if feed_seq >= 0 and feed_seq != _feed_seq[slot_id]:
 		return PlacementRules.REASON_NO_BLOCK
 	var acting_slot: PlayerSlot = _slots[slot_id]
 	if not acting_slot.home_flag_alive:
@@ -398,8 +541,21 @@ func _spawn_block(shape: BlockShape, world_origin: Vector3, basis: Basis, slot_i
 	var block: Block = BlockFactory.build(shape, _physics_tuning, slot_id)
 	_blocks_parent.add_child(block)
 	block.global_transform = Transform3D(basis, world_origin)
+	# block_placed is what makes BlockRegistry allocate the net_id, so the
+	# replication below has to come after it: the reliable spawn RPC must
+	# carry the same id the (unreliable) snapshots will address the body by.
 	Events.block_placed.emit(block, shape.id)
+	_blocks_spawned += 1
+	if _replicator != null:
+		_replicator.replicate_spawn(block, block.net_id)
 	return block
+
+
+## Blocks this instance has spawned since the match started. The M3a
+## acceptance harness asserts this equals the sum of accepted intents plus
+## auto-drops (docs/M3a_PLAN.md).
+func blocks_spawned() -> int:
+	return _blocks_spawned
 
 
 ## Spec 2.2: a rejected block "is thrown off the map with a visible reject
@@ -419,9 +575,103 @@ func _burn_block(block: Block, disk_origin: Vector2) -> void:
 
 
 func _consume_and_refeed(slot_id: int) -> void:
+	# The sequence advances before the new block is issued, so the
+	# feed_block_issued that tells the owner "you have a block" already
+	# carries the sequence its next intent must quote.
+	_feed_seq[slot_id] += 1
 	_issue_next_block(slot_id)
 	_feed_time_left[slot_id] = config.block_timer
 	_feed_expired[slot_id] = false
+
+
+## The value an intent for `slot_id` must quote to be accepted right now. It
+## advances on every consumed block, so exactly one intent can spend any one
+## held block (docs/M3a_PLAN.md, "Never duplicated, never lost").
+func feed_seq(slot_id: int) -> int:
+	if slot_id < 0 or slot_id >= _feed_seq.size():
+		return -1
+	return _feed_seq[slot_id]
+
+
+## Where a slot's block goes when its timer expires and the host has never
+## heard a cursor from it — a peer that has not moved its ghost once. Spec
+## 2.5's auto-drop [ORIGINAL] drops "from its current ghost position", and
+## with no ghost known the slot's own home flag is the honest stand-in;
+## PlacementRules.closest_valid_origin() relocates from there as usual.
+func default_ghost_origin(slot_id: int) -> Vector3:
+	var target: PlayerSlot = slot(slot_id)
+	if target == null or _field == null:
+		return Vector3.ZERO
+	return _field.to_global(Vector3(target.home_position.x, 0.0, target.home_position.y))
+
+
+# --- Disconnects (docs/M3a_PLAN.md question 2) ------------------------------
+
+## Host only. The peer holding `slot_id` vanished: stop its feed at once and
+## start NetConfig.disconnect_grace. If it has not come back by then the slot
+## is eliminated exactly as a lost home flag does it — home_flag_alive goes
+## false, Events.player_eliminated fires, its towers unanchor and lose their
+## influence on the next solve, and the match ends if one player or team is
+## left standing.
+##
+## Its held block needs no cleanup: a held block is a ghost, drawn only on its
+## owner's screen and held here as a BlockShape, so there is nothing in the
+## physics world to tidy. An intent already in flight is refused by
+## net/MatchNet.gd's peer check, its sender no longer holding a slot.
+func on_peer_left(slot_id: int) -> void:
+	if not _is_host():
+		return
+	if slot_id < 0 or slot_id >= _slots.size():
+		return
+	if not _slots[slot_id].home_flag_alive:
+		return
+	_disconnect_grace_left[slot_id] = maxf(_net_config.disconnect_grace, 0.0)
+
+
+## Host only. The peer came back inside the grace period: resume its feed with
+## a full block timer, so it is not auto-dropped the instant it reconnects.
+func on_peer_rejoined(slot_id: int) -> void:
+	if not _is_host():
+		return
+	if slot_id < 0 or slot_id >= _disconnect_grace_left.size():
+		return
+	if _disconnect_grace_left[slot_id] < 0.0:
+		return
+	_disconnect_grace_left[slot_id] = -1.0
+	if config != null:
+		_feed_time_left[slot_id] = config.block_timer
+		_feed_expired[slot_id] = false
+
+
+## Seconds left before `slot_id` is eliminated for being gone, or -1 when its
+## peer is connected. The lobby and the HUD read this; nothing else.
+func disconnect_grace_left(slot_id: int) -> float:
+	if slot_id < 0 or slot_id >= _disconnect_grace_left.size():
+		return -1.0
+	return _disconnect_grace_left[slot_id]
+
+
+func _tick_disconnect_grace(delta: float) -> void:
+	for i: int in range(_disconnect_grace_left.size()):
+		if _disconnect_grace_left[i] < 0.0:
+			continue
+		_disconnect_grace_left[i] -= delta
+		if _disconnect_grace_left[i] > 0.0:
+			continue
+		_disconnect_grace_left[i] = -1.0
+		_eliminate_slot(i)
+
+
+## The one elimination path, shared by a home flag lost to a hole (spec 2.2)
+## and by a peer that never came back (docs/M3a_PLAN.md question 2), so the
+## two cannot drift apart.
+func _eliminate_slot(slot_id: int) -> void:
+	var target: PlayerSlot = _slots[slot_id]
+	if not target.home_flag_alive:
+		return
+	target.home_flag_alive = false
+	Events.player_eliminated.emit(target.slot_id, target.team_id)
+	_check_last_team_standing()
 
 
 # --- Territory and the win check (spec 2.2, 2.3, 3.3) -----------------------
@@ -467,10 +717,14 @@ func _build_slots() -> void:
 	_held_shapes.resize(_slots.size())
 	_feed_time_left.resize(_slots.size())
 	_feed_expired.resize(_slots.size())
+	_feed_seq.resize(_slots.size())
+	_disconnect_grace_left.resize(_slots.size())
 	for i: int in range(_slots.size()):
 		_held_shapes[i] = null
 		_feed_time_left[i] = config.block_timer
 		_feed_expired[i] = false
+		_feed_seq[i] = 0
+		_disconnect_grace_left[i] = -1.0
 
 
 func _build_bags() -> void:
@@ -507,6 +761,13 @@ func _clear_blocks() -> void:
 
 
 func _tick_territory(delta: float) -> void:
+	# Spec 3.4 / docs/M3a_PLAN.md, "Clients never solve territory": on a
+	# client every body is frozen, so the settled rule would call the whole
+	# field settled instantly and the solve would invent a territory that
+	# disagrees with the host's. The mirror raster arrives over the wire
+	# instead (see apply_replicated_territory).
+	if not _is_host():
+		return
 	if _raster == null or _solver == null:
 		return
 	_solve_accum += delta
@@ -563,6 +824,8 @@ func _collect_circles() -> Array[InfluenceCircle]:
 ## the win check ignores it. If that leaves one player/team standing, the
 ## match ends right here.
 func _check_home_flags(opened: PackedInt32Array) -> void:
+	if not _is_host():
+		return
 	var opened_set: Dictionary = {}
 	for cell: int in opened:
 		opened_set[cell] = true
@@ -574,8 +837,7 @@ func _check_home_flags(opened: PackedInt32Array) -> void:
 		if not _cell_grid.in_bounds(coords.x, coords.y):
 			continue
 		if opened_set.has(_cell_grid.cell_index(coords.x, coords.y)):
-			slot_item.home_flag_alive = false
-			Events.player_eliminated.emit(slot_item.slot_id, slot_item.team_id)
+			_eliminate_slot(slot_item.slot_id)
 
 	_check_last_team_standing()
 
@@ -600,3 +862,85 @@ func _set_state(new_state: State) -> void:
 	var old_state: State = _state
 	_state = new_state
 	Events.match_state_changed.emit(old_state, new_state)
+
+
+# --- The client's read model (spec 3.4) -------------------------------------
+#
+# Everything below is called only by net/MatchNet.gd, only on a client, and
+# decides nothing: it writes the host's answers into this instance's copy of
+# the match so the HUD, the ghost tint and the block feed preview are right.
+# Each one is idempotent, because a reliable channel can still deliver a state
+# the client already reached on its own.
+
+## Mirrors the host's state machine. Re-emits match_state_changed only on a
+## real change, so a client that already moved itself (the countdown it ran
+## locally, say) does not emit twice.
+func apply_replicated_state_change(new_state: int) -> void:
+	if _state == new_state:
+		return
+	_set_state(new_state as State)
+
+
+func apply_replicated_countdown(seconds_left: int) -> void:
+	_countdown_remaining = float(seconds_left)
+	_countdown_last_whole = seconds_left
+
+
+## The host issued `slot_id` a block. Sets the held shape the ghost and the
+## HUD read, resets the slot's display timer — which is what keeps the
+## client's timer ring honest without a feed tick of its own — and takes the
+## host's feed sequence verbatim.
+##
+## `host_feed_seq` is copied rather than counted up to, because the two ends
+## do not start level: the host's first block comes from _begin_playing(),
+## which issues without consuming, while a client never runs that at all. A
+## client that counted its own would quote a sequence one ahead for the rest
+## of the match and have every intent refused.
+func apply_replicated_feed(
+	slot_id: int, shape_id: StringName, _next_shape_id: StringName, host_feed_seq: int
+) -> void:
+	if slot_id < 0 or slot_id >= _held_shapes.size():
+		return
+	_held_shapes[slot_id] = _shape_by_id(shape_id)
+	if host_feed_seq >= 0:
+		_feed_seq[slot_id] = host_feed_seq
+	if config != null:
+		_feed_time_left[slot_id] = config.block_timer
+	_feed_expired[slot_id] = false
+
+
+func apply_replicated_turn(slot_id: int) -> void:
+	_active_slot = slot_id
+
+
+func apply_replicated_elimination(slot_id: int) -> void:
+	var target: PlayerSlot = slot(slot_id)
+	if target != null:
+		target.home_flag_alive = false
+
+
+## Writes one territory payload into the mirror raster (see
+## TerritoryRaster.apply_replicated_state). Returns the cells whose hole bit
+## flipped so MatchNet can re-emit Events.hole_cells_changed and Field opens
+## exactly the same holes the host did.
+func apply_replicated_territory(
+	cells: PackedInt32Array, owners: PackedByteArray, states: PackedByteArray, full: bool
+) -> void:
+	if _raster == null:
+		return
+	if full:
+		_raster.apply_replicated_state(owners, states)
+	else:
+		_raster.apply_replicated_diff(cells, owners, states)
+
+
+## BlockShape.load_all_shapes() scans a directory, so the index is built once
+## and only on the instance that needs it: a client, resolving the shape ids
+## the host's feed events name.
+func _shape_by_id(shape_id: StringName) -> BlockShape:
+	if shape_id == &"":
+		return null
+	if _shapes_by_id.is_empty():
+		for shape: BlockShape in BlockShape.load_all_shapes():
+			_shapes_by_id[shape.id] = shape
+	return _shapes_by_id.get(shape_id) as BlockShape
