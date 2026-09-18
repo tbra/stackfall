@@ -302,7 +302,11 @@ def find_pending_test_names(tests_dir: str) -> List[str]:
                 continue
             current_name: Optional[str] = None
             current_body: List[str] = []
-            for line in file_lines + ["func __sentinel__():"]:
+            # Sentinel must itself match func_re (its name starts with
+            # "test_") so the loop flushes the *last* real test function in
+            # the file -- otherwise the final test's body is silently never
+            # checked, which is exactly the pending() test this exists to find.
+            for line in file_lines + ["func test___end_of_file_sentinel__():"]:
                 m = func_re.match(line)
                 if m:
                     if current_name and any("pending(" in bl for bl in current_body):
