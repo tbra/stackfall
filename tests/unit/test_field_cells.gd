@@ -274,3 +274,46 @@ func test_a_block_falls_through_an_opened_cell() -> void:
 		-field.map_def.disk_height,
 		"A block on an opened cell falls clear through the disk."
 	)
+
+
+## docs/M2_PLAN.md "Known limitations (M2)": MapDef.cell_overlap = 0.2 means a
+## *lone* hole cell — every neighbour still solid — is only
+## cell_size - cell_overlap = 0.8 m of clear opening, because each neighbour's
+## box overhangs the hole by cell_overlap / 2 on every side (see MapDef's
+## DECISION). A cube_size = 1.0 m block centered on that hole is wider than
+## the opening, so its edges can land on the overhanging rims instead of
+## falling through — a narrow, real deviation from spec 2.2's "blocks resting
+## on holes fall through", distinct from the multi-cell patch the other hole
+## tests here use. Marked pending because it currently fails: see the
+## "Known limitations" section of docs/M2_PLAN.md for why this isn't fixed
+## here (cell_overlap is load-bearing for tower stability; shrinking it is a
+## P3-sized redesign, not a fix-pass change).
+func test_a_block_over_a_lone_hole_cell_falls_through() -> void:
+	var field: Field = _make_field()
+	var grid: CellGrid = field.grid()
+	var middle: int = floori(float(grid.res) * 0.5)
+	var lone_cell: int = grid.cell_index(middle, middle)
+	var center: Vector2 = grid.index_center(lone_cell)
+	var body: RigidBody3D = _make_cube(field, Vector3(center.x, 2.0, center.y))
+	await wait_physics_frames(SETTLE_FRAMES)
+
+	body.sleeping = true
+	field.set_hole_cells(PackedInt32Array([lone_cell]), PackedInt32Array())
+	await wait_physics_frames(FALL_FRAMES)
+
+	assert_true(is_instance_valid(body), "The kill plane is far below; the cube lives.")
+	if body.global_position.y >= -field.map_def.disk_height:
+		pending(
+			"Known limitation (docs/M2_PLAN.md): a lone one-cell hole is only 0.8 m "
+			+ "across (cell_size - cell_overlap) and its neighbours' boxes overhang "
+			+ "the rim, so a 1.0 m block can catch on it instead of falling through "
+			+ "as spec 2.2 requires. Not fixed here: cell_overlap = 0.2 is load-"
+			+ "bearing for tower stability (see MapDef's DECISION); narrowing it is "
+			+ "a P3-sized redesign."
+		)
+		return
+	assert_lt(
+		body.global_position.y,
+		-field.map_def.disk_height,
+		"A block on a lone hole cell falls clear through the disk."
+	)

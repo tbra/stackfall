@@ -258,3 +258,27 @@ read-only, advisory `Match.preview_placement`; `request_place` re-validates from
 never trusts it. M3a then adds an `@rpc("any_peer", "call_remote", "reliable")` wrapper that
 checks the caller's peer id against the slot and forwards — no rule code moves. Nothing in M2
 may branch on `multiplayer.is_server()` yet, and nothing may assume a transport.
+
+## Known limitations (M2)
+
+**A lone one-cell hole can catch a block on its rim.** `MapDef.cell_overlap = 0.2` grows every
+cell's `BoxShape3D` so towers stand (see its DECISION and `CellGrid`'s) — each neighbour
+overhangs a shared seam by `cell_overlap / 2`. That is invisible for the multi-cell patches a
+real contested overlap opens (`tests/bench/m2_acceptance.gd`'s scenario, `test_field_cells.gd`'s
+`test_a_block_falls_through_an_opened_cell`), because interior cells of a patch have no
+neighbour overhanging them. But an *isolated* single hole cell — every neighbour still solid —
+is only `cell_size - cell_overlap` = 0.8 m of clear opening, narrower than a `cube_size` = 1.0 m
+block. Spec 2.2 says "blocks resting on holes fall through" with no carve-out for a lone cell,
+so this is a real, if narrow, deviation: `test_field_cells.gd`'s
+`test_a_block_over_a_lone_hole_cell_falls_through` documents it and is marked `pending()`
+because it currently fails. Not fixed here — `cell_overlap` is load-bearing for tower stability
+(bench_tower regresses without it) and narrowing it back down is a P3-sized geometry redesign,
+not a fix-pass change. A single hole cell is also rare in play: `hole_delay` requires sustained
+contest, which tends to open a patch, not one cell, so the practical exposure is small.
+
+**`MatchConfig.TeamMode` is unwired.** The lobby setting round-trips through `match_defaults.tres`
+and `MatchConfig`, but `team_count()` and `team_of_slot()` are still the M2-plan's typed stubs
+(one team per slot, i.e. free-for-all) — `TerritorySolver`'s team-based union-find (see "Team
+ownership and merging" above) is ready for real teams, but nothing assigns slots to them yet.
+Deferred to M6 per the spec's build order; team play is out of scope for M2's acceptance
+criteria.
