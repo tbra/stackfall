@@ -2,14 +2,17 @@ class_name FakeMatch
 extends RefCounted
 ## Test double for the Match autoload (docs/M2_PLAN.md P4).
 ##
-## P2 owns autoload/Match.gd and hasn't landed its real implementation on
-## this branch yet — it's still the M2-plan's typed stub, which always
-## returns REASON_NO_BLOCK / Result.EMPTY and spawns nothing. PlayerController
-## and HUD both read a `Variant` field (see their matching DECISION comments)
-## instead of the global `Match` singleton so tests can swap in one of these
-## and drive the documented contract (request_place, preview_placement, slot,
-## held_shape, feed_progress, max_height_for_slot) exactly as P2's finished
-## Match will answer it, without waiting on that package to land.
+## autoload/Match.gd has since landed for real, but this fake still exists to
+## isolate the P4 controller/HUD unit tests from it: the real Match drives
+## territory solving and feed timing on its own clock, which would make those
+## tests slow and order-dependent for no benefit, since all they need is a
+## scripted answer to a handful of calls. PlayerController and HUD both read
+## a `Variant` field (see their matching DECISION comments) instead of the
+## global `Match` singleton so tests can swap in one of these and drive the
+## documented contract (request_place, preview_placement, slot, held_shape,
+## feed_progress, max_height_for_slot) directly, one call at a time.
+## tests/bench/m2_acceptance.gd provides the integration coverage against the
+## real Match that this fake deliberately doesn't attempt.
 
 var tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
 ## Where request_place() adds a Block when spawn_on_ok is true, mirroring
