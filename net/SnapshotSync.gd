@@ -127,6 +127,16 @@ var _clock_base_usec: int = 0
 ## so a unit test can script arrival times instead of waiting for them.
 var _clock_source: Callable = Callable()
 
+## This instance's own delay/drop queue for inbound snapshots.
+##
+## core/net/NetSim.gd: "the simulation lives one level up, in the two places
+## that own their own traffic: net/SnapshotSync.gd runs every inbound snapshot
+## packet through a NetSim ...; autoload/Net.gd runs outbound intents and
+## cursors through one". Two places, two queues — draining Net's would take
+## its outbound intents off it and hand them here as if they were packets.
+## Settings are shared, the queue is not; see set_simulation().
+var _sim: NetSim = null
+
 
 # --- Lifecycle --------------------------------------------------------------
 
@@ -149,6 +159,7 @@ func begin_match(registry: BlockRegistry, map_def: MapDef) -> void:
 
 	_interpolator = Interpolator.new(config)
 	_interpolator.set_known_id_filter(_is_spawned)
+	_sim = NetSim.new(config.sim_lag_ms, config.sim_jitter_ms, config.sim_loss)
 
 	if not Events.block_placed.is_connected(_on_block_placed):
 		Events.block_placed.connect(_on_block_placed)
@@ -174,6 +185,9 @@ func end_match() -> void:
 	if _interpolator != null:
 		_interpolator.clear()
 	_interpolator = null
+	if _sim != null:
+		_sim.reset()
+	_sim = null
 
 
 func is_running() -> bool:
@@ -272,9 +286,8 @@ func client_tick(delta: float) -> void:
 	if not _running or not Net.is_client() or _interpolator == null:
 		return
 
-	var sim: NetSim = Net.simulation()
-	if sim != null and not sim.is_idle():
-		for payload: Variant in sim.drain(now()):
+	if _sim != null and not _sim.is_idle():
+		for payload: Variant in _sim.drain(now()):
 			_apply_packet(payload as PackedByteArray)
 
 	_interpolator.advance(delta)
@@ -420,11 +433,11 @@ static func decode_fragment(packet: PackedByteArray, bounds: AABB) -> Dictionary
 	var offset: int = HEADER_BYTES
 	var disk_transform: Transform3D = Transform3D.IDENTITY
 	if has_disk:
-		var disk_origin: Vector3 = Quantize.unpack_position(packet, offset, bounds)
+		var origin: Vector3 = Quantize.unpack_position(packet, offset, bounds)
 		offset += Quantize.POSITION_BYTES
-		var disk_rotation: Quaternion = Quantize.unpack_quat(packet, offset)
+		var tilt: Quaternion = Quantize.unpack_quat(packet, offset)
 		offset += Quantize.ROTATION_BYTES
-		disk_transform = Transform3D(Basis(disk_rotation), disk_origin)
+		disk_transform = Transform3D(Basis(tilt), origin)
 
 	var bodies: Array = []
 	bodies.resize(body_count)
@@ -491,9 +504,11 @@ func net_snapshot(packet: PackedByteArray) -> void:
 func receive_packet(packet: PackedByteArray) -> void:
 	if not _running or _interpolator == null:
 		return
-	var sim: NetSim = Net.simulation()
-	if sim != null and not sim.is_idle():
-		sim.submit(packet, now(), true)
+	# Droppable, because a snapshot is unreliable traffic: dropping it is the
+	# whole point of --sim-loss, and doing it here rather than under ENet is
+	# what keeps reliable RPCs reliable (core/net/NetSim.gd).
+	if _sim != null and not _sim.is_idle():
+		_sim.submit(packet, now(), true)
 		return
 	_apply_packet(packet)
 
@@ -509,6 +524,21 @@ func now() -> float:
 ## Injects the arrival clock. Pass an invalid Callable to go back to real time.
 func set_clock_source(source: Callable) -> void:
 	_clock_source = source
+
+
+## Re-tunes the inbound-snapshot simulator, in the same units as
+## Net.set_simulation(): `lag_ms` is one-way and `loss` is a fraction. Net
+## should forward to this whenever its own simulator is retuned, so the debug
+## overlay's sliders and --sim-lag / --sim-loss reach both directions.
+func set_simulation(lag_ms: float, jitter_ms: float, loss: float) -> void:
+	if _sim != null:
+		_sim.configure(lag_ms, jitter_ms, loss)
+
+
+## The inbound simulator, or null outside a match. The debug overlay reads its
+## counters; nothing else should touch it.
+func simulation() -> NetSim:
+	return _sim
 
 
 # --- Internals --------------------------------------------------------------
