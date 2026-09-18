@@ -1,0 +1,164 @@
+extends GutTest
+## docs/M3a_PLAN.md P4 "Tests first": every spec 2.8 setting round-trips
+## through MatchConfig.to_dict() -> Net.set_lobby_data -> Events.
+## net_lobby_data_changed -> from_dict -> sanitize(); a client's controls are
+## disabled while the host's are not; an out-of-range value arriving over the
+## wire is clamped; Start is gated on Net.all_peers_ready().
+
+
+func _make_lobby(is_host: bool) -> Lobby:
+	var scene: PackedScene = load("res://ui/Lobby.tscn")
+	var lobby: Lobby = autofree(scene.instantiate())
+	add_child_autofree(lobby)
+	var fake: FakeNet = FakeNet.new()
+	fake.is_host_value = is_host
+	fake.is_offline_value = is_host
+	lobby.net_provider = fake
+	lobby._update_host_only_state()
+	return lobby
+
+
+func _fake_of(lobby: Lobby) -> FakeNet:
+	return lobby.net_provider as FakeNet
+
+
+# --- Round trip ----------------------------------------------------------------
+
+func test_host_changing_a_setting_publishes_lobby_data() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	(lobby.get_node("%PlayerCountSpin") as SpinBox).value = 6
+	var calls: Array[Dictionary] = _fake_of(lobby).set_lobby_data_calls
+	assert_eq(calls.size(), 1)
+	assert_eq(int(calls[0].get("player_count")), 6)
+
+
+func test_every_2_8_setting_round_trips_through_to_dict_and_from_dict() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var config: MatchConfig = MatchConfig.new()
+	config.map_variant = MatchConfig.MapVariant.RING
+	config.map_size = MapDef.MapSize.LARGE
+	config.player_count = 7
+	config.ai_count = 3
+	config.ai_difficulty = MatchConfig.AiDifficulty.HARD
+	config.team_mode = MatchConfig.TeamMode.TEAMS_2
+	config.block_timer = 9.5
+	config.gravity_multiplier = 1.75
+	config.goal_flag_count = 3
+	config.gifts_enabled = false
+	config.special_frequency = 80
+	config.tilt_mode = MatchConfig.TiltMode.PHYSICAL_BALANCE
+	config.hole_mode = MatchConfig.HoleMode.PERMANENT
+	config.match_timer_minutes = 20
+	config.sudden_death = true
+
+	Events.net_lobby_data_changed.emit(config.to_dict())
+
+	assert_eq((lobby.get_node("%MapVariantOption") as OptionButton).selected, MatchConfig.MapVariant.RING)
+	assert_eq((lobby.get_node("%MapSizeOption") as OptionButton).selected, int(MapDef.MapSize.LARGE))
+	assert_eq(int((lobby.get_node("%PlayerCountSpin") as SpinBox).value), 7)
+	assert_eq(int((lobby.get_node("%AiCountSpin") as SpinBox).value), 3)
+	assert_eq((lobby.get_node("%AiDifficultyOption") as OptionButton).selected, MatchConfig.AiDifficulty.HARD)
+	assert_eq((lobby.get_node("%TeamModeOption") as OptionButton).selected, MatchConfig.TeamMode.TEAMS_2)
+	assert_almost_eq((lobby.get_node("%BlockTimerSlider") as HSlider).value, 9.5, 0.01)
+	assert_almost_eq((lobby.get_node("%GravitySlider") as HSlider).value, 1.75, 0.01)
+	assert_eq(int((lobby.get_node("%GoalFlagSpin") as SpinBox).value), 3)
+	assert_false((lobby.get_node("%GiftsCheck") as CheckButton).button_pressed)
+	assert_eq(int((lobby.get_node("%SpecialFreqSlider") as HSlider).value), 80)
+	assert_eq((lobby.get_node("%TiltModeOption") as OptionButton).selected, MatchConfig.TiltMode.PHYSICAL_BALANCE)
+	assert_eq((lobby.get_node("%HoleModeOption") as OptionButton).selected, MatchConfig.HoleMode.PERMANENT)
+	assert_eq(int((lobby.get_node("%MatchTimerSpin") as SpinBox).value), 20)
+	assert_true((lobby.get_node("%SuddenDeathCheck") as CheckButton).button_pressed)
+
+
+func test_out_of_range_value_arriving_over_the_wire_is_clamped() -> void:
+	var lobby: Lobby = _make_lobby(false)
+	var bad_data: Dictionary = {
+		"player_count": 999,
+		"block_timer": -5.0,
+		"special_frequency": 500,
+		"goal_flag_count": 0,
+	}
+	Events.net_lobby_data_changed.emit(bad_data)
+	assert_eq(int((lobby.get_node("%PlayerCountSpin") as SpinBox).value), MatchConfig.PLAYER_COUNT_MAX)
+	assert_almost_eq((lobby.get_node("%BlockTimerSlider") as HSlider).value, MatchConfig.BLOCK_TIMER_MIN, 0.01)
+	assert_eq(int((lobby.get_node("%SpecialFreqSlider") as HSlider).value), MatchConfig.SPECIAL_FREQUENCY_MAX)
+	assert_eq(int((lobby.get_node("%GoalFlagSpin") as SpinBox).value), MatchConfig.GOAL_FLAG_MIN)
+
+
+func test_applying_remote_data_does_not_republish() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var fake: FakeNet = _fake_of(lobby)
+	fake.set_lobby_data_calls.clear()
+	Events.net_lobby_data_changed.emit(MatchConfig.new().to_dict())
+	assert_eq(fake.set_lobby_data_calls.size(), 0, "an inbound update must not bounce straight back out")
+
+
+# --- Host vs client gating ----------------------------------------------------
+
+func test_client_controls_are_disabled_while_hosts_are_not() -> void:
+	var host_lobby: Lobby = _make_lobby(true)
+	var client_lobby: Lobby = _make_lobby(false)
+	assert_true((host_lobby.get_node("%PlayerCountSpin") as SpinBox).editable)
+	assert_false((client_lobby.get_node("%PlayerCountSpin") as SpinBox).editable)
+	assert_true((client_lobby.get_node("%GiftsCheck") as CheckButton).disabled)
+	assert_false((host_lobby.get_node("%GiftsCheck") as CheckButton).disabled)
+
+
+func test_client_setting_change_does_not_publish() -> void:
+	var lobby: Lobby = _make_lobby(false)
+	# Even if something bypasses the disabled control (e.g. a test calling the
+	# signal handler directly), a non-host must never publish lobby data.
+	lobby._on_setting_changed()
+	assert_eq(_fake_of(lobby).set_lobby_data_calls.size(), 0)
+
+
+# --- Start gating --------------------------------------------------------------
+
+func test_start_button_disabled_until_all_peers_ready() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var fake: FakeNet = _fake_of(lobby)
+	fake.all_peers_ready_value = false
+	lobby._update_host_only_state()
+	assert_true((lobby.get_node("%StartButton") as Button).disabled)
+	fake.all_peers_ready_value = true
+	lobby._update_host_only_state()
+	assert_false((lobby.get_node("%StartButton") as Button).disabled)
+
+
+func test_start_button_hidden_for_a_client() -> void:
+	var lobby: Lobby = _make_lobby(false)
+	assert_false((lobby.get_node("%StartButton") as Button).visible)
+
+
+func test_start_pressed_emits_start_requested_only_when_ready() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var fake: FakeNet = _fake_of(lobby)
+	fake.all_peers_ready_value = false
+	watch_signals(lobby)
+	lobby._on_start_pressed()
+	assert_signal_not_emitted(lobby, "start_requested")
+	fake.all_peers_ready_value = true
+	lobby._on_start_pressed()
+	assert_signal_emitted(lobby, "start_requested")
+
+
+func test_ready_toggle_calls_set_local_ready() -> void:
+	var lobby: Lobby = _make_lobby(false)
+	# Setting button_pressed itself fires `toggled` (BaseButton.set_pressed()),
+	# so this alone is one press, not two.
+	(lobby.get_node("%ReadyCheck") as CheckButton).button_pressed = true
+	assert_eq(_fake_of(lobby).set_local_ready_calls, [true])
+
+
+# --- Roster --------------------------------------------------------------------
+
+func test_roster_in_lobby_data_builds_player_rows() -> void:
+	var lobby: Lobby = _make_lobby(false)
+	var data: Dictionary = MatchConfig.new().to_dict()
+	data["roster"] = [
+		{"peer_id": 1, "slot_id": 0, "name": "Host", "ready": true},
+		{"peer_id": 2, "slot_id": 1, "name": "Guest", "ready": false},
+	]
+	Events.net_lobby_data_changed.emit(data)
+	var list: VBoxContainer = lobby.get_node("%PlayerList")
+	assert_eq(list.get_child_count(), 2)

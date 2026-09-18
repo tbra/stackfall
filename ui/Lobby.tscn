@@ -1,0 +1,286 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://ui/Lobby.gd" id="1_lobby"]
+
+[node name="Lobby" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_lobby")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.09, 0.1, 0.13, 1)
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 24
+
+[node name="Columns" type="HBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Settings" type="VBoxContainer" parent="Margin/Columns"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="Title" type="Label" parent="Margin/Columns/Settings"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Match settings"
+
+[node name="MapRow" type="HBoxContainer" parent="Margin/Columns/Settings"]
+layout_mode = 2
+
+[node name="MapLabel" type="Label" parent="Margin/Columns/Settings/MapRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(160, 0)
+text = "Map"
+
+[node name="MapVariantOption" type="OptionButton" parent="Margin/Columns/Settings/MapRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="MapSizeOption" type="OptionButton" parent="Margin/Columns/Settings/MapRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="PlayersRow" type="HBoxContainer" parent="Margin/Columns/Settings"]
+layout_mode = 2
+
+[node name="PlayersLabel" type="Label" parent="Margin/Columns/Settings/PlayersRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(160, 0)
+text = "Players / AI"
+
+[node name="PlayerCountSpin" type="SpinBox" parent="Margin/Columns/Settings/PlayersRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 2
+max_value = 8
+value = 4
+
+[node name="AiCountSpin" type="SpinBox" parent="Margin/Columns/Settings/PlayersRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 8
+
+[node name="AiDifficultyOption" type="OptionButton" parent="Margin/Columns/Settings/PlayersRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="TeamsRow" type="HBoxContainer" parent="Margin/Columns/Settings"]
+layout_mode = 2
+
+[node name="TeamsLabel" type="Label" parent="Margin/Columns/Settings/TeamsRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(160, 0)
+text = "Teams"
+
+[node name="TeamModeOption" type="OptionButton" parent="Margin/Columns/Settings/TeamsRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="BlockTimerRow" type="HBoxContainer" parent="Margin/Columns/Settings"]
+layout_mode = 2
+
+[node name="BlockTimerLabelCaption" type="Label" parent="Margin/Columns/Settings/BlockTimerRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(160, 0)
+text = "Block timer"
+
+[node name="BlockTimerSlider" type="HSlider" parent="Margin/Columns/Settings/BlockTimerRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 3.0
+max_value = 12.0
+step = 0.5
+value = 6.0
+
+[node name="BlockTimerLabel" type="Label" parent="Margin/Columns/Settings/BlockTimerRow"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(56, 0)
+text = "6.0 s"
+
+[node name="GravityRow" type="HBoxContainer" parent="Margin/Columns/Settings"]
+layout_mode = 2
+
+[node name="GravityLabelCaption" type="Label" parent="Margin/Columns/Settings/GravityRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(160, 0)
+text = "Gravity"
+
+[node name="GravitySlider" type="HSlider" parent="Margin/Columns/Settings/GravityRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 0.5
+max_value = 2.0
+step = 0.05
+value = 1.0
+
+[node name="GravityLabel" type="Label" parent="Margin/Columns/Settings/GravityRow"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(56, 0)
+text = "1.00x"
+
+[node name="GoalFlagRow" type="HBoxContainer" parent="Margin/Columns/Settings"]
+layout_mode = 2
+
+[node name="GoalFlagLabel" type="Label" parent="Margin/Columns/Settings/GoalFlagRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(160, 0)
+text = "Goal flags"
+
+[node name="GoalFlagSpin" type="SpinBox" parent="Margin/Columns/Settings/GoalFlagRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 1
+max_value = 5
+value = 1
+
+[node name="GiftsRow" type="HBoxContainer" parent="Margin/Columns/Settings"]
+layout_mode = 2
+
+[node name="GiftsLabel" type="Label" parent="Margin/Columns/Settings/GiftsRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(160, 0)
+text = "Gifts"
+
+[node name="GiftsCheck" type="CheckButton" parent="Margin/Columns/Settings/GiftsRow"]
+unique_name_in_owner = true
+layout_mode = 2
+button_pressed = true
+
+[node name="SpecialFreqRow" type="HBoxContainer" parent="Margin/Columns/Settings"]
+layout_mode = 2
+
+[node name="SpecialFreqLabelCaption" type="Label" parent="Margin/Columns/Settings/SpecialFreqRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(160, 0)
+text = "Special frequency"
+
+[node name="SpecialFreqSlider" type="HSlider" parent="Margin/Columns/Settings/SpecialFreqRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 100
+value = 35
+
+[node name="SpecialFreqLabel" type="Label" parent="Margin/Columns/Settings/SpecialFreqRow"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(56, 0)
+text = "35"
+
+[node name="SpecialsNote" type="Label" parent="Margin/Columns/Settings"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 2
+modulate = Color(1, 1, 1, 0.6)
+text = "All specials enabled (none defined until M4)"
+
+[node name="TiltRow" type="HBoxContainer" parent="Margin/Columns/Settings"]
+layout_mode = 2
+
+[node name="TiltLabel" type="Label" parent="Margin/Columns/Settings/TiltRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(160, 0)
+text = "Tilt mode"
+
+[node name="TiltModeOption" type="OptionButton" parent="Margin/Columns/Settings/TiltRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="HoleRow" type="HBoxContainer" parent="Margin/Columns/Settings"]
+layout_mode = 2
+
+[node name="HoleLabel" type="Label" parent="Margin/Columns/Settings/HoleRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(160, 0)
+text = "Hole mode"
+
+[node name="HoleModeOption" type="OptionButton" parent="Margin/Columns/Settings/HoleRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="MatchTimerRow" type="HBoxContainer" parent="Margin/Columns/Settings"]
+layout_mode = 2
+
+[node name="MatchTimerLabel" type="Label" parent="Margin/Columns/Settings/MatchTimerRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(160, 0)
+text = "Match timer (0 = off)"
+
+[node name="MatchTimerSpin" type="SpinBox" parent="Margin/Columns/Settings/MatchTimerRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 40
+
+[node name="SuddenDeathRow" type="HBoxContainer" parent="Margin/Columns/Settings"]
+layout_mode = 2
+
+[node name="SuddenDeathLabel" type="Label" parent="Margin/Columns/Settings/SuddenDeathRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(160, 0)
+text = "Sudden death"
+
+[node name="SuddenDeathCheck" type="CheckButton" parent="Margin/Columns/Settings/SuddenDeathRow"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="Players" type="VBoxContainer" parent="Margin/Columns"]
+layout_mode = 2
+custom_minimum_size = Vector2(260, 0)
+theme_override_constants/separation = 6
+
+[node name="Title" type="Label" parent="Margin/Columns/Players"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Players"
+
+[node name="PlayerList" type="VBoxContainer" parent="Margin/Columns/Players"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ReadyCheck" type="CheckButton" parent="Margin/Columns/Players"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Ready"
+
+[node name="StartButton" type="Button" parent="Margin/Columns/Players"]
+unique_name_in_owner = true
+layout_mode = 2
+disabled = true
+text = "Start"
