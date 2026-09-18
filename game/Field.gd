@@ -385,6 +385,16 @@ func _build_kill_plane() -> void:
 
 
 func _on_kill_plane_body_entered(body: Node3D) -> void:
+	# DECISION (M3a integration): a client's synced blocks are frozen-kinematic
+	# mirrors (docs/M3a_PLAN.md "Frozen bodies") whose transforms SnapshotSync
+	# writes directly, so the kill-plane Area3D still overlaps and fires this
+	# callback there too even though only the host runs physics (CLAUDE.md).
+	# Only the host may decide a block is dead; a client learns about it from
+	# MatchNet.net_block_despawned instead (net/MatchNet.gd), so it must not
+	# free the body itself here — doing so races the replicated despawn and
+	# can double-free or desync the registry.
+	if not Net.is_host():
+		return
 	var rigid_body: RigidBody3D = body as RigidBody3D
 	if rigid_body == null:
 		return

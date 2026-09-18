@@ -166,6 +166,14 @@ func _publish_lobby_data(config: MatchConfig) -> void:
 
 func _config_from_controls() -> MatchConfig:
 	var config: MatchConfig = MatchConfig.new()
+	# DECISION (ui/Lobby.gd, M3a integration): MatchConfig.hot_seat defaults to
+	# true (config/match_defaults.tres and MatchConfig.new() alike), which
+	# forces Match's strict-alternation single-timer branch (autoload/Match.gd
+	# _tick_feed and friends). The lobby is reachable only for networked play —
+	# hot-seat stays a separate, unlisted `--hot-seat` path straight to
+	# game/HotSeat.tscn (docs/M3a_PLAN.md question 3) — so every config this
+	# screen builds must run the real-time per-player-timer branch instead.
+	config.hot_seat = false
 	config.map_variant = _map_variant_option.selected
 	config.map_size = _map_size_option.selected as MapDef.MapSize
 	config.player_count = int(_player_count_spin.value)

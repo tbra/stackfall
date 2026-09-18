@@ -26,6 +26,8 @@ Events="*res://autoload/Events.gd"
 Settings="*res://autoload/Settings.gd"
 Net="*res://autoload/Net.gd"
 Match="*res://autoload/Match.gd"
+SnapshotSync="*res://net/SnapshotSync.gd"
+MatchNet="*res://net/MatchNet.gd"
 
 [debug]
 

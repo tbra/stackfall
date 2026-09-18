@@ -383,10 +383,15 @@ func discovered_games() -> Array[Dictionary]:
 # --- Lag / loss simulation --------------------------------------------------
 
 ## Turns the simulator on or off for this instance (see core/net/NetSim.gd).
-## `lag_ms` is one-way. Affects outbound intents and cursors here; SnapshotSync
-## applies the same settings to inbound snapshots.
+## `lag_ms` is one-way. Configures this instance's own queue for outbound
+## intents and cursors, and forwards to SnapshotSync so inbound snapshots get
+## the same settings on its own queue — the two sides must not share one
+## NetSim, or they would steal each other's payloads (docs/M3a_PLAN.md,
+## integrator wiring). # DECISION: SnapshotSync is an autoload, so it is
+## always safe to reach directly here rather than through a signal.
 func set_simulation(lag_ms: float, jitter_ms: float, loss: float) -> void:
 	_sim.configure(lag_ms, jitter_ms, loss)
+	SnapshotSync.set_simulation(lag_ms, jitter_ms, loss)
 
 
 ## The live simulator, so SnapshotSync and the debug overlay share one set of

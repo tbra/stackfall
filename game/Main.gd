@@ -1,66 +1,240 @@
 extends Node3D
-## The playable M2 build: a hot-seat match on one PC (spec Part 4 M2).
+## The game's entry point: a router, not a match (spec Part 4 M3a;
+## docs/M3a_PLAN.md integration order step 4).
 ##
-## This is the one file nobody but the integrator owns (docs/M2_PLAN.md), and
-## it is deliberately thin. It builds no rules and runs no ticks of its own:
-## every M2 system self-wires through the Events bus, so all Main does is hand
-## the pieces to each other once, in the right order.
+## This is the one file nobody but the integrator owns (as in M2), and it
+## stays deliberately thin: every system self-wires through the Events bus or
+## a `Variant` provider seam, so Main only ever hands pieces to each other
+## once, in the right order, and reacts to the handful of signals that mark a
+## state change.
 ##
-## **Wiring order matters.** Match.register_world() must happen before
-## start_match(), because start_match() configures the BlockRegistry and clears
-## the blocks container. Field.place_flags() and Field.set_overlay_source() must
-## happen after start_match(), because only then do Match.config (sanitized) and
-## Match.raster() exist.
+## **Two paths.**
+##   - `--hot-seat` reaches exactly what M2 built: register_world() ->
+##     start_match() -> place_flags() -> set_overlay_source(), with one
+##     HotSeat.tscn whose PlayerController follows Events.turn_changed. No
+##     menu, no lobby, no networking autoload is touched — test_hot_seat.gd
+##     and every M2 match-flow test still pin this path byte-identical.
+##   - Everything else shows ui/MainMenu.tscn, then ui/Lobby.tscn once Net
+##     enters HOST or CLIENT (Events.net_mode_changed — apply_command_line()'s
+##     --host/--join/--headless-host fire it exactly the same as the menu's
+##     own buttons do), then builds the match world when Match's state machine
+##     crosses LOBBY -> LOADING: on the host that follows a direct
+##     Match.start_match() call from the Lobby's start_requested signal; on a
+##     client it follows net/MatchNet.gd's net_match_start RPC calling that
+##     same Match.start_match() locally. Reacting to the state change instead
+##     of branching on host/client here is what lets one code path build the
+##     world identically on every instance.
 ##
-## **Ticks** (docs/M2_PLAN.md integration order, step 3) are all accumulators,
-## never Timer nodes, and none of them live here:
-##   - 10 Hz (TerritoryTuning.solve_hz): Match._tick_territory runs the solver,
-##     the raster and the win check, then emits territory_updated,
-##     hole_cells_changed, goal_capture_progress, territory_share_changed and
-##     match_won.
-##   - 5 Hz (TerritoryTuning.raster_upload_hz): TerritoryOverlay rebuilds its
-##     ImageTexture from the raster Field handed it here.
-##   - every physics frame: Field drains its hole backlog at
-##     TerritoryTuning.max_cell_toggles_per_frame and wakes the blocks above
-##     the cells that changed; BlockRegistry re-evaluates the settled rule.
+## **Wiring order matters**, same reason as M2: Match.register_world() must
+## happen before start_match() (it configures BlockRegistry's host authority
+## from Net's *current* mode, so it cannot run before Net has actually joined
+## or hosted); Field.place_flags() and Field.set_overlay_source() must happen
+## after start_match(), because only then do Match.config (sanitized) and
+## Match.raster() exist. SnapshotSync.begin_match() needs the same registry
+## and the config's MapDef, so it rides along with those two.
 ##
-## M3 replaces this scene's start-a-match-immediately behaviour with a lobby;
-## nothing here assumes a transport, and nothing branches on is_server().
+## **Ticks** SnapshotSync.host_tick()/client_tick() run every physics frame,
+## unconditionally: both no-op unless the role and running state match
+## (net/SnapshotSync.gd), so Main never has to branch on is_host()/is_client()
+## itself. client_tick() writes global_transform and must run from
+## _physics_process, never _process (docs/M3a_PLAN.md "Frozen bodies").
+##
+## M2's other ticks (10 Hz solve, 5 Hz overlay upload, the hole backlog and
+## the settled rule) are unchanged and still live inside Match, TerritoryOverlay
+## and Field/BlockRegistry themselves — see the M2 doc this file used to carry.
 
 ## Default lobby settings for the hot-seat build. start_match() duplicates and
 ## sanitizes it, so the resource on disk is never mutated.
 @export var match_config: MatchConfig = preload("res://config/match_defaults.tres")
-## Spec Part 4 M2 accepts on "two players take turns on one PC", so the M2
-## build starts a two-player hot-seat match. Both live in MatchConfig rather
-## than as literals here (CLAUDE.md: no magic numbers).
+## Spec Part 4 M2 accepts on "two players take turns on one PC", so
+## `--hot-seat` starts a two-player hot-seat match. Both live in MatchConfig
+## rather than as literals here (CLAUDE.md: no magic numbers).
 @export var player_count: int = 2
+
+const MAIN_MENU_SCENE: PackedScene = preload("res://ui/MainMenu.tscn")
+const LOBBY_SCENE: PackedScene = preload("res://ui/Lobby.tscn")
+const HOT_SEAT_SCENE: PackedScene = preload("res://game/HotSeat.tscn")
+const REMOTE_CURSORS_SCENE: PackedScene = preload("res://game/RemoteCursors.tscn")
+const NET_DEBUG_OVERLAY_SCENE: PackedScene = preload("res://ui/NetDebugOverlay.tscn")
 
 @onready var _field: Field = $Field
 @onready var _blocks_container: Node3D = $BlocksContainer
 @onready var _registry: BlockRegistry = $BlockRegistry
 @onready var _camera_rig: CameraRig = $CameraRig
-@onready var _hot_seat: HotSeat = $HotSeat
+
+var _main_menu: MainMenu = null
+var _lobby: Lobby = null
+var _hot_seat: HotSeat = null
+var _remote_cursors: RemoteCursors = null
+var _debug_overlay: NetDebugOverlay = null
+
+## True once _build_match_world() has run for the match currently in
+## progress, so a repeated match_state_changed(LOBBY, LOADING) firing twice
+## (should not happen, but a state machine is exactly the place to be
+## defensive about it) cannot double-instance HotSeat/RemoteCursors.
+var _world_built: bool = false
 
 
 func _ready() -> void:
 	print(_boot_line())
+
+	if _has_cmdline_flag("hot-seat"):
+		_start_hot_seat_match()
+		return
+
+	Events.match_state_changed.connect(_on_match_state_changed)
+	Events.net_mode_changed.connect(_on_net_mode_changed)
+
+	_show_main_menu()
+
+	# apply_command_line() calls host_game()/join_game() synchronously when
+	# --host, --headless-host or --join is present, which emits
+	# Events.net_mode_changed before this call returns -- _on_net_mode_changed
+	# has already swapped the menu for the lobby by the time we get here.
+	Net.apply_command_line()
+
+
+func _physics_process(delta: float) -> void:
+	SnapshotSync.host_tick(delta)
+	SnapshotSync.client_tick(delta)
+
+
+# --- Hot-seat: byte-identical to M2 ------------------------------------------
+
+func _start_hot_seat_match() -> void:
+	_hot_seat = HOT_SEAT_SCENE.instantiate() as HotSeat
+	add_child(_hot_seat)
 	_hot_seat.set_camera_rig(_camera_rig)
 	Match.register_world(_field, _registry, _blocks_container)
-	Match.start_match(_build_config())
+	Match.start_match(_build_hot_seat_config())
 
 	var config: MatchConfig = Match.config
 	_field.place_flags(config.player_count, config.player_colors, config.goal_flag_count)
 	_field.set_overlay_source(Match.raster(), config.player_colors)
 
 
-## The lobby settings M3 will collect from a real lobby screen. Hot-seat and
-## the player count are the only overrides; everything else is whatever
-## config/match_defaults.tres says.
-func _build_config() -> MatchConfig:
+## The lobby settings a real lobby screen collects, for the one path that
+## skips it. Hot-seat and the player count are the only overrides; everything
+## else is whatever config/match_defaults.tres says.
+func _build_hot_seat_config() -> MatchConfig:
 	var config: MatchConfig = match_config.duplicate(true) as MatchConfig
 	config.player_count = player_count
 	config.hot_seat = true
 	return config
+
+
+# --- Menu / lobby routing -----------------------------------------------------
+
+func _show_main_menu() -> void:
+	_clear_menu_and_lobby()
+	_main_menu = MAIN_MENU_SCENE.instantiate() as MainMenu
+	add_child(_main_menu)
+
+
+func _show_lobby() -> void:
+	_clear_menu_and_lobby()
+	_lobby = LOBBY_SCENE.instantiate() as Lobby
+	add_child(_lobby)
+	_lobby.start_requested.connect(_on_lobby_start_requested)
+	# Must happen only once Net.is_host()/is_client() reflects the real mode
+	# (register_world() reads it immediately, to set BlockRegistry's host
+	# authority), which is exactly what firing here, after net_mode_changed,
+	# guarantees -- and must happen before start_match(), on every instance:
+	# the host calls that directly from the lobby, but a client's copy runs
+	# the moment net/MatchNet.gd's net_match_start RPC arrives, with no chance
+	# for Main to get in ahead of it any other way.
+	Match.register_world(_field, _registry, _blocks_container)
+
+
+func _clear_menu_and_lobby() -> void:
+	if _main_menu != null and is_instance_valid(_main_menu):
+		_main_menu.queue_free()
+	_main_menu = null
+	if _lobby != null and is_instance_valid(_lobby):
+		_lobby.queue_free()
+	_lobby = null
+
+
+func _on_net_mode_changed(mode: int) -> void:
+	if mode == Net.Mode.OFFLINE:
+		# Covers both a deliberate leave and the host disconnecting a client
+		# (autoload/Net.gd's _on_server_disconnected() calls leave(), which
+		# emits this): never a half-dead match (docs/M3a_PLAN.md
+		# "Disconnects").
+		_end_match_world()
+		_show_main_menu()
+	else:
+		_show_lobby()
+
+
+func _on_lobby_start_requested(config: MatchConfig) -> void:
+	if not Net.is_host():
+		return
+	Match.start_match(config)
+
+
+# --- Building the match world (host and client alike) ------------------------
+
+func _on_match_state_changed(from_state: int, to_state: int) -> void:
+	if from_state == Match.State.LOBBY and to_state == Match.State.LOADING:
+		_build_match_world()
+
+
+func _build_match_world() -> void:
+	if _world_built:
+		return
+	_world_built = true
+	_clear_menu_and_lobby()
+
+	var config: MatchConfig = Match.config
+	_field.place_flags(config.player_count, config.player_colors, config.goal_flag_count)
+	_field.set_overlay_source(Match.raster(), config.player_colors)
+
+	SnapshotSync.set_disk(_field)
+	SnapshotSync.begin_match(Match.registry(), config.map_def())
+
+	_remote_cursors = REMOTE_CURSORS_SCENE.instantiate() as RemoteCursors
+	add_child(_remote_cursors)
+
+	_hot_seat = HOT_SEAT_SCENE.instantiate() as HotSeat
+	add_child(_hot_seat)
+	_hot_seat.set_camera_rig(_camera_rig)
+	_hot_seat.bind_local_slot(Net.local_slot())
+
+	_debug_overlay = NET_DEBUG_OVERLAY_SCENE.instantiate() as NetDebugOverlay
+	add_child(_debug_overlay)
+
+
+func _end_match_world() -> void:
+	if not _world_built:
+		return
+	_world_built = false
+	SnapshotSync.end_match()
+	if _remote_cursors != null and is_instance_valid(_remote_cursors):
+		_remote_cursors.queue_free()
+	_remote_cursors = null
+	if _hot_seat != null and is_instance_valid(_hot_seat):
+		_hot_seat.queue_free()
+	_hot_seat = null
+	if _debug_overlay != null and is_instance_valid(_debug_overlay):
+		_debug_overlay.queue_free()
+	_debug_overlay = null
+
+
+# --- Helpers -----------------------------------------------------------------
+
+## Same "-" stripping Net._apply_command_line_args() uses, so "--hot-seat" and
+## "-hot-seat" are both recognised the same way the rest of the command line
+## is. Net itself never sees this flag (autoload/Net.gd's docstring lists
+## exactly the flags it parses, and hot-seat is not networking's concern).
+func _has_cmdline_flag(flag: String) -> bool:
+	for raw: String in OS.get_cmdline_user_args():
+		var text: String = raw
+		while text.begins_with("-"):
+			text = text.substr(1)
+		if text == flag:
+			return true
+	return false
 
 
 ## One-line report of the settings M0 is required to get right (spec 3.1, 3.5).
