@@ -35,6 +35,14 @@ var _next_net_id: int = 1
 var _field: Node3D = null
 var _grid: CellGrid = null
 
+## M3a. True on the host **and offline** (Net.is_host()'s contract), so M2's
+## single-PC behaviour is the default and nothing had to change for it.
+## A client allocates no net_ids — the host's are the only ones a snapshot can
+## name — and runs no settled rule, because every one of its bodies is frozen
+## and would read as settled the instant it spawned (docs/M3a_PLAN.md, "two
+## kinds of asleep").
+var _host_authority: bool = true
+
 
 func _ready() -> void:
 	Events.block_placed.connect(_on_block_placed)
@@ -57,6 +65,27 @@ func reset() -> void:
 	_next_net_id = 1
 
 
+## Whether this instance is the authority (see _host_authority). Set by
+## Match.register_world() and Match.start_match() from Net.is_host().
+func set_host_authority(is_authority: bool) -> void:
+	_host_authority = is_authority
+
+
+func is_host_authority() -> bool:
+	return _host_authority
+
+
+## Binds a host-allocated net_id to a block a client just built from
+## net_block_spawned. The counterpart of the host's allocation below; a client
+## never invents one, so the two ends can never disagree about which body a
+## snapshot moves.
+func bind_net_id(block: Block, net_id: int) -> void:
+	if block == null or net_id < 0:
+		return
+	block.net_id = net_id
+	_net_id_to_block[net_id] = block
+
+
 func _on_block_placed(block: RigidBody3D, _shape_id: StringName) -> void:
 	var typed: Block = block as Block
 	if typed == null:
@@ -66,6 +95,13 @@ func _on_block_placed(block: RigidBody3D, _shape_id: StringName) -> void:
 	entry.owner_slot = typed.owner_slot
 	_entries[typed.get_instance_id()] = entry
 
+	if not _host_authority:
+		# The spawner calls bind_net_id() with the host's id instead.
+		return
+
+	# Monotonic and never reused within a match: reusing an id would let a
+	# snapshot still in flight move the wrong body (docs/M3a_PLAN.md,
+	# "net_id allocation and the spawn/snapshot race").
 	var net_id: int = _next_net_id
 	_next_net_id += 1
 	typed.net_id = net_id
@@ -81,6 +117,13 @@ func _on_block_removed(block: RigidBody3D, _reason: String) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if not _host_authority:
+		# Every body here is frozen and moved by net/SnapshotSync.gd, so its
+		# velocities are zero and the settled rule would report the whole
+		# field settled on the frame it spawned. influence_circles() returns
+		# nothing on a client for the same reason; territory arrives as a
+		# replicated raster instead.
+		return
 	for id: Variant in _entries.keys():
 		var entry: _Entry = _entries[id]
 		if not is_instance_valid(entry.block):
@@ -102,6 +145,10 @@ func _physics_process(delta: float) -> void:
 func influence_circles(
 	slots: Array[PlayerSlot], territory_tuning: TerritoryTuning, map_def: MapDef
 ) -> Array[InfluenceCircle]:
+	var circles_empty: Array[InfluenceCircle] = []
+	if not _host_authority:
+		return circles_empty
+
 	var team_of_slot: Dictionary = {}
 	for slot: PlayerSlot in slots:
 		team_of_slot[slot.slot_id] = slot.team_id
