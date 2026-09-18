@@ -53,7 +53,15 @@ function Start-Instance {
 }
 
 $instances = @()
-$instances += Start-Instance -Name "host" -GameArgs @("--headless-host", "--port=$Port")
+# DECISION (tools/run_m3a_local.ps1): m3a_acceptance.gd's own --expect-peers
+# defaults to 1 (its "harness has no equivalent of --headless-host" flag,
+# read directly off the command line rather than through
+# Net.apply_command_line()). Without it here the host proceeded with a
+# 2-player MatchConfig (MatchConfig.PLAYER_COUNT_MIN) while $Peers real
+# peers had actually joined, so slot_of_peer() collisions in the host's
+# per-slot counters masqueraded as duplicate/lost placements. The host must
+# be told how many peers this run is actually bringing.
+$instances += Start-Instance -Name "host" -GameArgs @("--headless-host", "--port=$Port", "--expect-peers=$Peers")
 
 # The host needs a moment to bind and start advertising before a client
 # dials in directly (tests/support/... has no equivalent for a live socket,

@@ -261,10 +261,39 @@ func _wait_for_peer_count(expected: int) -> bool:
 	return Net.peer_ids().size() >= expected
 
 
+## A client's own Match.start_match() only runs once net/MatchNet.gd's
+## net_match_start RPC arrives from the host, so this is also this
+## instance's confirmation that reset_counters() has already fired (see
+## _run_client()'s comment).
+func _wait_for_match_playing() -> bool:
+	var deadline_ms: int = Time.get_ticks_msec() + int(CONNECT_TIMEOUT_SECONDS * 1000.0) + int(RESULT_WAIT_SECONDS * 1000.0)
+	while Time.get_ticks_msec() < deadline_ms:
+		if Match.state() == Match.State.PLAYING:
+			return true
+		await get_tree().create_timer(0.1).timeout
+	return Match.state() == Match.State.PLAYING
+
+
 # --- Client ------------------------------------------------------------------
 
 func _run_client() -> void:
 	var slot_id: int = Net.local_slot()
+	# A client's Godot process typically finishes booting and connecting well
+	# before the host reaches PLAYING (which waits on every peer joining,
+	# then the countdown) -- with nothing gating it, this loop used to start
+	# firing the moment two peers were merely visible. net/MatchNet.gd's
+	# net_match_start() handler calls reset_counters() the instant it applies
+	# the host's config, so any scripted intent sent before that arrives (or
+	# before its RTT lands the accept/refuse back) got wiped mid-count,
+	# producing a "sent" total that no longer matched INTENTS_PER_CLIENT even
+	# though nothing was actually duplicated or lost. Waiting for PLAYING
+	# (the same state the host's own script waits for before its loop) means
+	# this script's counting phase starts only after that one reset has
+	# already happened.
+	if not await _wait_for_match_playing():
+		print("M3A_ACCEPT harness_blocked layer=Match reason=match_never_reached_playing")
+		get_tree().quit(2)
+		return
 	for i: int in range(INTENTS_PER_CLIENT):
 		var spot: Vector2 = _offset_for_index(i)
 		var origin: Vector3 = Vector3(spot.x, PLACE_HEIGHT, spot.y)

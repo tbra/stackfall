@@ -46,7 +46,13 @@ start_instance() {
 	NAMES+=("$name")
 }
 
-start_instance "host" --headless-host --port="$PORT"
+# DECISION (tools/run_m3a_local.sh): m3a_acceptance.gd's own --expect-peers
+# defaults to 1, so without it here the host proceeded with a 2-player
+# MatchConfig (MatchConfig.PLAYER_COUNT_MIN) while PEERS real peers had
+# actually joined -- slot_of_peer() collisions in the host's per-slot
+# counters then masqueraded as duplicate/lost placements. The host must be
+# told how many peers this run is actually bringing.
+start_instance "host" --headless-host --port="$PORT" --expect-peers="$PEERS"
 
 # The host needs a moment to bind and start advertising before a client
 # dials in directly.
