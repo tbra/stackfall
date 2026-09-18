@@ -28,6 +28,17 @@ extends RefCounted
 const STATE_CONTESTED: int = 1
 const STATE_HOLE: int = 2
 
+## Group id written into every owned cell of a *replicated* raster (M3a).
+##
+## A client's raster is a mirror, not a solve (docs/M3a_PLAN.md, "The client's
+## raster is a mirror"): the host ships one owner byte and one state byte per
+## cell, which is exactly the set PlacementRules.validate() reads, but real
+## group indices cannot be reconstructed from them and are not needed — the
+## win check is host-only. So on a mirror only three group values ever occur:
+## NO_GROUP (unowned), CONTESTED, and this placeholder for "owned by
+## team_at(), group unknown". Never compare a mirror's group_at() to a host's.
+const REPLICATED_GROUP: int = 0
+
 var _grid: CellGrid = null
 var _tuning: TerritoryTuning = null
 
@@ -218,6 +229,97 @@ func reset() -> void:
 	_opened.resize(0)
 	_closed.resize(0)
 	_team_counts.clear()
+
+
+## -- Replication (M3a, clients only) -----------------------------------------
+
+## Overwrites the whole raster from a host keyframe: `owners` is owner_bytes()
+## (0 = unowned, otherwise team_id + 1) and `states` is state_bytes()
+## (STATE_CONTESTED | STATE_HOLE), both cell_count() long and row-major.
+##
+## After this call team_at(), is_contested(), is_hole_index() and therefore
+## PlacementRules.validate() answer exactly what the host's raster answered
+## when the keyframe was built, and team_share() is rebuilt from the same
+## bytes. holes_opened() / holes_closed() report the cells whose hole bit
+## flipped, so the caller can re-emit Events.hole_cells_changed and Field
+## opens the same holes without a second RPC. Nothing else here touches the
+## Events bus: this stays pure logic (CLAUDE.md).
+##
+## A payload of the wrong length is ignored rather than half-applied — an
+## inconsistent mirror would let a client's ghost tint disagree with the host
+## about a hole, which is the one thing the mirror exists to prevent.
+func apply_replicated_state(owners: PackedByteArray, states: PackedByteArray) -> void:
+	var count: int = _team_ids.size()
+	if owners.size() != count or states.size() != count:
+		return
+	_opened.resize(0)
+	_closed.resize(0)
+	_team_counts.clear()
+	for index: int in range(count):
+		_write_replicated_cell(index, owners[index], states[index])
+	_rebuild_team_counts()
+
+
+## Applies a host diff: `cells` are row-major indices and `owners` / `states`
+## are the new bytes for each, all three the same length. Cells the diff does
+## not name keep what they had, so a mirror that has drifted converges again
+## on the next keyframe (which is why the host sends one when too much
+## changed). holes_opened() / holes_closed() cover only the named cells.
+func apply_replicated_diff(
+	cells: PackedInt32Array, owners: PackedByteArray, states: PackedByteArray
+) -> void:
+	var count: int = cells.size()
+	if owners.size() != count or states.size() != count:
+		return
+	_opened.resize(0)
+	_closed.resize(0)
+	for i: int in range(count):
+		var index: int = cells[i]
+		if index < 0 or index >= _team_ids.size():
+			continue
+		_write_replicated_cell(index, owners[i], states[i])
+	_rebuild_team_counts()
+
+
+## One cell of a keyframe or a diff; both take the same path, so a keyframe
+## and the diff stream that follows it can never disagree about a cell.
+func _write_replicated_cell(index: int, owner_byte: int, state_byte: int) -> void:
+	var was_hole: bool = _hole[index] == 1
+	var contested: bool = (state_byte & STATE_CONTESTED) != 0
+	var is_hole_now: bool = (state_byte & STATE_HOLE) != 0
+
+	if contested:
+		_group_ids[index] = TerritoryGroups.CONTESTED
+		_team_ids[index] = -1
+	elif owner_byte > 0:
+		_group_ids[index] = REPLICATED_GROUP
+		_team_ids[index] = owner_byte - 1
+	else:
+		_group_ids[index] = TerritoryGroups.NO_GROUP
+		_team_ids[index] = -1
+
+	_hole[index] = 1 if is_hole_now else 0
+	if is_hole_now and not was_hole:
+		_opened.append(index)
+	elif was_hole and not is_hole_now:
+		_closed.append(index)
+
+
+## team_share() reads _team_counts, which the solve maintains incrementally
+## while it stamps. A mirror has no stamps, so the counts are recounted from
+## the owner bytes after each keyframe or diff. The disk is a few thousand
+## cells and this runs at NetConfig.raster_diff_hz (5 Hz), so a full recount
+## is cheaper than the bookkeeping needed to keep it incremental — and it
+## cannot drift, which a diff-maintained counter eventually would.
+func _rebuild_team_counts() -> void:
+	_team_counts.clear()
+	for index: int in range(_team_ids.size()):
+		if _in_disk[index] == 0:
+			continue
+		var team: int = _team_ids[index]
+		if team < 0:
+			continue
+		_team_counts[team] = _team_counts.get(team, 0) + 1
 
 
 ## -- Fill --------------------------------------------------------------------
