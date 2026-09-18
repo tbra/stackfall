@@ -28,6 +28,10 @@ desktop.ini
 /tmp/
 *.log
 
+# Python (tools/*.py, e.g. triage_log.py)
+__pycache__/
+*.pyc
+
 # Hand-off archive shipped with the docs
 files.zip
 
