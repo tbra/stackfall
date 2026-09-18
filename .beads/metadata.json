@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "Bontago",
+  "project_id": "9e13142b-74d1-4ce0-b093-8df63c3c4fa3"
+}
