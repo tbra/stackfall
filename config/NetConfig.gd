@@ -25,9 +25,13 @@ extends Resource
 ## Seconds the host waits for a joining peer's version handshake before
 ## disconnecting it. Guards against a peer that connects and then says nothing.
 @export var handshake_timeout: float = 5.0
-## ENetPacketPeer.set_timeout() triple, in milliseconds: a peer that stops
-## acknowledging is dropped after peer_timeout_ms, bounded by min/max.
-@export var peer_timeout_ms: int = 5000
+## ENetPacketPeer.set_timeout(limit, minimum, maximum) triple: a peer whose
+## RTT variance blows past `limit` (a small escalation factor, not a
+## duration — ENet's own default is 32) is dropped once the deadline it has
+## been backing off towards would exceed `peer_timeout_max_ms`, and never
+## before `peer_timeout_min_ms` regardless of variance. ENet requires
+## `peer_timeout_limit <= peer_timeout_min_ms <= peer_timeout_max_ms`.
+@export var peer_timeout_limit: int = 32
 @export var peer_timeout_min_ms: int = 2500
 @export var peer_timeout_max_ms: int = 10000
 ## How often each peer round-trips a ping RPC with the host, in Hz. Our own
@@ -172,6 +176,9 @@ func sanitize() -> void:
 	raster_diff_hz = clampf(raster_diff_hz, 1.0, 30.0)
 	cursor_hz = clampf(cursor_hz, 1.0, 60.0)
 	max_packet_bytes = clampi(max_packet_bytes, 256, 1400)
+	peer_timeout_limit = maxi(peer_timeout_limit, 1)
+	peer_timeout_min_ms = maxi(peer_timeout_min_ms, peer_timeout_limit)
+	peer_timeout_max_ms = maxi(peer_timeout_max_ms, peer_timeout_min_ms)
 	pos_xz_margin = maxf(pos_xz_margin, 1.0)
 	base_interp_delay_ms = clampf(base_interp_delay_ms, min_interp_delay_ms, max_interp_delay_ms)
 	interp_delay_smoothing = clampf(interp_delay_smoothing, 0.001, 1.0)
