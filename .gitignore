@@ -40,3 +40,11 @@ files.zip
 .beads-credential-key
 .beads/proxieddb/
 *.gate.lock*
+
+# Secrets — this repo is public. Keys live in environment variables, never in the tree.
+.env
+.env.*
+*.key
+*_secret*
+typesafe_key*
+.typesafe/

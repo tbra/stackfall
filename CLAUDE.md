@@ -41,6 +41,15 @@ The orchestrator itself only briefs agents and reads their reports; it doesn't r
   - Gameplay code uses only `MultiplayerAPI` and must never assume a transport. Use ENet for LAN, direct IP, and tests, and Steam (GodotSteam, app ID 480 during development) for online play.
 - Don't add third-party addons without asking. GodotSteam and GUT are already approved.
 
+## Delegating to OpenAI Codex
+A second coding agent is available: **OpenAI Codex** (`gpt-5.6-sol`), on PATH as `codex`, authenticated, run non-interactively as
+`codex exec --sandbox workspace-write --skip-git-repo-check -C "<dir>" "<prompt>"` (`--sandbox read-only` for analysis, `--approve-for-me` for unattended edits, `--worktree` for an isolated checkout). The orchestrator reaches it through the `codex` subagent type (`.claude/agents/codex.md`).
+
+Use it for a genuinely independent second opinion — reviewing a package another agent wrote, attacking a bug Claude has already failed at once, or an isolated well-specified task that can run in parallel. Its brief must carry this file's rules, because it does not inherit them.
+
+## Log triage
+`tools/triage_log.py` turns a long headless run into a ranked summary: it strips Godot boilerplate, normalises ids out of error lines, groups duplicates, then asks TypeSafe/Jev to classify only the distinct signatures by subsystem and severity. It needs `TYPESAFE_API_KEY` (user environment variable) and degrades to the deterministic grouping without one. Exits non-zero on a confident likely-bug, so it can gate CI. Use it on the M5 bot matches and the M8 soak.
+
 ## Environment
 - Godot 4.7.2 standard build. `godot` is on PATH via a shim in `C:\Users\tonyf\bin` (works in Git Bash and cmd/PowerShell). Full binary: `%LOCALAPPDATA%\Microsoft\WinGet\Packages\GodotEngine.GodotEngine_Microsoft.Winget.Source_8wekyb3d8bbwe\Godot_v4.7.2-stable_win64_console.exe`.
 - The repo root is this folder (`M:\Bontago`); `res://` is the repo root.
@@ -121,4 +130,13 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
 - Explicit user or orchestrator instructions override this Beads block.
 - Do not commit or push without clear authority from the active profile or the current user request.
 - If a required sync or push is blocked, stop and report the exact command and error.
+
+### Project convention: bd vs. the milestone plans
+
+Milestone and task tracking for Stackfall lives in `bd` (epics M0–M8, specials, known
+limitations, owner questions), not in markdown TODOs. `docs/M<N>_PLAN.md` files are **not**
+replaced by bd — they remain the design contract for each milestone's work packages (file
+ownership, interfaces, integration order) and stay the reference for *how* to build a step.
+Every agent should run `bd ready` at the start of a milestone step and close its issues at
+the end, alongside the existing plan-doc workflow.
 <!-- END BEADS INTEGRATION -->
