@@ -9,16 +9,73 @@ Built in Godot 4.7 (Forward+, Jolt physics). The full design and technical spec 
 
 ## Status
 
-**M2 — rules & territory (hot-seat, 2 players).** `godot --path .` starts a two-player
-hot-seat match on one PC: block feed with a timer and auto-drop, placement validation
-against your own territory, the territory raster and shader, contested zones, holes you
-can fall through, home and goal flags, the win check, and a basic HUD. Multiplayer is
-M3.
+**M3a — multiplayer over ENet.** `godot --path .` opens a main menu: **Host** a game (LAN
+advertising plus direct IP), **Join** one from the LAN list or a typed address, or **Quit**.
+The lobby that follows exposes every §2.8 match setting, a ready-up roster and a host-only
+Start button; once the match starts, every peer plays in real time — no more turn order,
+each player has their own feed timer. A block you place goes through the host before it
+spawns anywhere, so a placement is never duplicated or lost, even doubled clicks or a lossy
+link. `F3` (or gamepad Back+Y) opens a debug overlay with ping, snapshot size, interpolation
+delay and measured loss, plus sliders to simulate lag and packet loss yourself. M2's hot-seat
+build is still there, unlisted: `godot --path . -- --hot-seat` starts the old two-player,
+one-PC, turn-by-turn match unchanged. Steam is M3b.
+
+## Playing the networked build by hand
+
+Start it with `godot --path .`. The steps below are for one machine hosting and one or more
+others (or other instances on the same machine — see "Local multiplayer without a second
+PC" below) joining it; hot-seat's controls are unchanged from M2 and are described further
+down.
+
+1. On the host's machine, click **Host**. The lobby opens with every §2.8 setting
+   (map, player/AI count, block timer, gravity, goals, gifts, specials, tilt, holes, match
+   timer, sudden death) live-editable; a client sees the same settings greyed out and
+   updating as the host changes them.
+2. On each other machine (or instance), click **Join**: pick the host from the LAN list
+   (same subnet, UDP broadcast) or type its address as `1.2.3.4` or `1.2.3.4:47999` under
+   direct IP.
+3. Every joined player ticks **Ready**. The host's **Start** button lights up once everyone
+   has; press it to begin the 3-second countdown.
+4. Placement, rotation, hover and camera controls are exactly M2's (see the gamepad/mouse
+   list further down) — the only difference online is that every player's timer runs at
+   once, not in turn.
+5. `F3` (gamepad: hold **Back** and press **Y**) toggles the debug overlay: ping, snapshot
+   bytes/sec, interpolation delay and measured packet loss, with sliders to dial in your own
+   simulated lag/loss (or the one-button preset for the spec's acceptance condition, 100 ms /
+   2%) to see how your own connection would feel.
+6. A fast double-click sends only one intent — the second is refused as a duplicate, not
+   spent as your next block (test this: only one block should ever land per double-click,
+   on every screen). If a client's connection drops mid-match, that slot's timer stops
+   immediately; after a 10-second grace period it is eliminated and its towers unanchor,
+   exactly as a lost home flag would (verify: the remaining players keep playing without the
+   host or match hanging). If the *host* leaves or crashes, every client drops back to the
+   main menu rather than sitting in a dead match.
+
+### Local multiplayer without a second PC
+
+`tools/run_m3a_local.ps1` (PowerShell) and `tools/run_m3a_local.sh` (bash) launch one
+headless host and N−1 headless clients from a single command, all on `127.0.0.1`, run a
+scripted match end to end, and exit non-zero if anything failed:
+
+```powershell
+tools/run_m3a_local.ps1 -Peers 4                       # 1 host + 3 clients
+tools/run_m3a_local.ps1 -Peers 4 -SimLag 100 -SimLoss 0.02   # client 1 gets the acceptance condition
+```
+
+```bash
+tools/run_m3a_local.sh --peers 4
+```
+
+For a windowed feel-test instead of a scripted one, use the editor's **Debug → Customize
+Run Instances** with 2–4 instances (`--hot-seat` is a per-instance argument there too, if
+you want one of them running the old build). Only one process per machine can listen on the
+LAN discovery port, so local multi-instance testing always joins by direct IP
+(`127.0.0.1:<port>`), never the LAN list.
 
 ## Playing the hot-seat build by hand
 
-Start it with `godot --path .`. After a 3-second countdown, player 1 is up; the turn
-passes on every release, valid or not.
+Start it with `godot --path . -- --hot-seat`. After a 3-second countdown, player 1 is up;
+the turn passes on every release, valid or not.
 
 **Mouse and keyboard**
 
@@ -52,8 +109,8 @@ passes on every release, valid or not.
    triggers zoom while no block is held; **Back** snaps to your home flag, **B** to the
    goal.
 
-There is no pause menu or lobby yet — `pause_menu` is bound but does nothing until M6.
-Close the window to quit.
+There is no pause menu yet — `pause_menu` is bound but does nothing until M6. Close the
+window to quit.
 
 Everything above is bound through the Input Map (`tools/bootstrap_project.gd`), so
 rebinding is a change there rather than in gameplay code.
@@ -61,7 +118,8 @@ rebinding is a change there rather than in gameplay code.
 ## Requirements
 
 - Godot **4.6+**, standard build (not .NET). Developed against 4.7.2.
-- Steam, for the online transport from M3b onward.
+- Steam, for the online transport from M3b onward. M3a plays over ENet — LAN, direct IP,
+  or 127.0.0.1 for local multi-instance testing — with no Steam dependency.
 - A gamepad. Gamepad support has equal priority with mouse and keyboard.
 
 ## Commands
@@ -72,7 +130,7 @@ Run the editor:
 godot --editor --path .
 ```
 
-Run the game:
+Run the game (main menu; see "Command-line flags" below for the other entry points):
 
 ```bash
 godot --path .
@@ -98,13 +156,37 @@ non-zero on failure):
 godot --headless --path . res://tests/bench/m2_acceptance.tscn
 ```
 
-Run the physics and territory benchmarks:
+Run the M3a end-to-end acceptance scenario (1 headless host + N-1 headless clients play a
+scripted match over ENet; see "Local multiplayer without a second PC" above):
+
+```bash
+tools/run_m3a_local.ps1 -Peers 4 -SimLag 100 -SimLoss 0.02
+```
+
+Run the physics, territory and networking benchmarks:
 
 ```bash
 godot --headless --path . res://tests/bench/bench_tower.tscn
 godot --headless --path . res://tests/bench/bench_rain.tscn
 godot --headless --path . res://tests/bench/bench_territory.tscn
+godot --headless --path . res://tests/bench/bench_snapshot.tscn
 ```
+
+### Command-line flags
+
+`game/Main.gd` reads these after `--` (`godot --path . -- --host`, etc.), the same
+convention `OS.get_cmdline_user_args()` uses:
+
+| Flag | Effect |
+|---|---|
+| `--hot-seat` | Skips the menu and lobby entirely; starts M2's two-player, one-PC build. |
+| `--host` | Hosts on `net_config.tres`'s `game_port` (or `--port=`) and opens the lobby. |
+| `--headless-host` | Same as `--host`, for a dedicated/scripted host with no window. |
+| `--join=<ip[:port]>` | Joins that address and opens the lobby. |
+| `--port=<n>` | Overrides the port for `--host`/`--headless-host`/`--join`. |
+| `--sim-lag=<ms>` / `--sim-loss=<0..1>` | Simulated one-way lag / packet loss from launch, the same sliders the F3 overlay controls. |
+
+With no flag, `Main` shows the main menu and these are chosen through Host/Join instead.
 
 Save a screenshot of the M2 build to `user://m2_main.png`, with a few blocks placed by
 script:
@@ -122,11 +204,11 @@ Follows spec §3.2.
 
 | Path | What lives there |
 |---|---|
-| `autoload/` | `Events` signal bus, `Settings`, `Net`, `Match` singletons |
+| `autoload/` | `Events` signal bus, `Settings`, `Net`, `Match`, `SnapshotSync`, `MatchNet` singletons |
 | `config/` | Tunable values as `Resource` files — no magic numbers in code |
-| `core/` | Pure rule logic (territory, feed, win check), no scene tree, unit-tested |
-| `game/` | Scenes and scripts for the field, blocks, specials, controllers |
-| `net/` | Snapshot sync, interpolation, LAN discovery |
-| `ui/`, `vfx/`, `sfx/`, `shaders/` | Presentation |
+| `core/` | Pure rule logic (territory, feed, win check, net wire packing), no scene tree, unit-tested |
+| `game/` | Scenes and scripts for the field, blocks, specials, controllers, `Main` (the router) |
+| `net/` | `SnapshotSync`, `Interpolator`, `MatchNet` (RPCs), `LanDiscovery` |
+| `ui/`, `vfx/`, `sfx/`, `shaders/` | Presentation — `MainMenu`, `Lobby`, `NetDebugOverlay` live in `ui/` |
 | `tests/unit/`, `tests/bench/` | Unit tests and physics benchmark scenes |
 | `tools/` | Build-time scripts that are not part of the running game |
