@@ -22,25 +22,47 @@ extends RefCounted
 ## that client see the world 100 ms later and its intents arrive 100 ms late,
 ## which is what the acceptance criterion describes.
 
-@warning_ignore_start("unused_parameter")
+## One queued payload: `deliver_at` is the simulated monotonic time (seconds)
+## at which drain() may release it.
+class _Entry:
+	var payload: Variant
+	var deliver_at: float
+
+
+var _lag_ms: float = 0.0
+var _jitter_ms: float = 0.0
+var _loss: float = 0.0
+var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+
+var _queue: Array[_Entry] = []
+var _submitted_count: int = 0
+var _dropped_count: int = 0
 
 
 ## `lag_ms` one-way delay, `jitter_ms` random +- spread on top of it, `loss`
 ## the fraction of droppable packets discarded (0..1). `rng_seed` >= 0 makes a
 ## run reproducible; -1 randomizes.
 func _init(lag_ms: float = 0.0, jitter_ms: float = 0.0, loss: float = 0.0, rng_seed: int = -1) -> void:
-	pass
+	_lag_ms = maxf(lag_ms, 0.0)
+	_jitter_ms = maxf(jitter_ms, 0.0)
+	_loss = clampf(loss, 0.0, 1.0)
+	if rng_seed >= 0:
+		_rng.seed = rng_seed
+	else:
+		_rng.randomize()
 
 
 ## Re-tunes a live simulator without dropping what is already queued.
 func configure(lag_ms: float, jitter_ms: float, loss: float) -> void:
-	pass
+	_lag_ms = maxf(lag_ms, 0.0)
+	_jitter_ms = maxf(jitter_ms, 0.0)
+	_loss = clampf(loss, 0.0, 1.0)
 
 
 ## True when nothing is being delayed or dropped, so callers can skip the
 ## queue entirely on the common path.
 func is_idle() -> bool:
-	return true
+	return _lag_ms <= 0.0 and _jitter_ms <= 0.0 and _loss <= 0.0
 
 
 ## Offers a payload to the link at time `now` (seconds, monotonic). Returns
@@ -48,6 +70,18 @@ func is_idle() -> bool:
 ## `droppable` is true, which callers set for unreliable traffic and clear for
 ## reliable traffic. A kept packet becomes deliverable at now + lag + jitter.
 func submit(payload: Variant, now: float, droppable: bool) -> bool:
+	_submitted_count += 1
+	if droppable and _loss > 0.0 and _rng.randf() < _loss:
+		_dropped_count += 1
+		return false
+	var jitter: float = 0.0
+	if _jitter_ms > 0.0:
+		jitter = _rng.randf_range(-_jitter_ms, _jitter_ms)
+	var delay_ms: float = maxf(_lag_ms + jitter, 0.0)
+	var entry: _Entry = _Entry.new()
+	entry.payload = payload
+	entry.deliver_at = now + delay_ms / 1000.0
+	_queue.append(entry)
 	return true
 
 
@@ -57,27 +91,30 @@ func submit(payload: Variant, now: float, droppable: bool) -> bool:
 ## mode from jitter and simulating it would make "never duplicated or lost"
 ## untestable.
 func drain(now: float) -> Array:
-	return []
+	var result: Array = []
+	while not _queue.is_empty() and _queue[0].deliver_at <= now:
+		var entry: _Entry = _queue.pop_front()
+		result.append(entry.payload)
+	return result
 
 
 ## Payloads still waiting.
 func pending_count() -> int:
-	return 0
+	return _queue.size()
 
 
 ## Packets submitted since the last reset, for the debug overlay.
 func submitted_count() -> int:
-	return 0
+	return _submitted_count
 
 
 ## Packets dropped since the last reset, for the debug overlay.
 func dropped_count() -> int:
-	return 0
+	return _dropped_count
 
 
 ## Empties the queue and the counters.
 func reset() -> void:
-	pass
-
-
-@warning_ignore_restore("unused_parameter")
+	_queue.clear()
+	_submitted_count = 0
+	_dropped_count = 0
