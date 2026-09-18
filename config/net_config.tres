@@ -1,0 +1,47 @@
+[gd_resource type="Resource" script_class="NetConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/NetConfig.gd" id="1_net"]
+
+[resource]
+script = ExtResource("1_net")
+discovery_port = 47777
+game_port = 47778
+max_peers = 8
+discovery_broadcast_hz = 1.0
+discovery_entry_ttl = 3.0
+connect_timeout = 8.0
+handshake_timeout = 5.0
+peer_timeout_ms = 5000
+peer_timeout_min_ms = 2500
+peer_timeout_max_ms = 10000
+ping_hz = 1.0
+ping_history = 8
+disconnect_grace = 10.0
+snapshot_hz = 30.0
+raster_diff_hz = 5.0
+cursor_hz = 15.0
+max_packet_bytes = 1200
+pos_xz_margin = 1.5
+pos_min_y = -48.0
+pos_max_y = 72.0
+keyframe_interval = 2.0
+resend_position_epsilon = 0.005
+resend_angle_epsilon = 0.5
+base_interp_delay_ms = 100.0
+min_interp_delay_ms = 50.0
+max_interp_delay_ms = 300.0
+jitter_multiplier = 2.0
+interp_delay_smoothing = 0.1
+max_extrapolation_ms = 100.0
+interp_buffer_samples = 16
+clock_correction_rate = 0.15
+intent_ack_timeout = 1.0
+raster_full_threshold_fraction = 0.35
+raster_compress = true
+sim_lag_ms = 0.0
+sim_jitter_ms = 0.0
+sim_loss = 0.0
+sim_preset_lag_ms = 100.0
+sim_preset_loss = 0.02
+stats_hz = 2.0
+stats_window = 2.0

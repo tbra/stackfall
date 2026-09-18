@@ -72,3 +72,55 @@ signal goal_capture_progress(team_id: int, progress: float)
 ## more feed). Match ends the match itself via match_won if only one
 ## player/team is left.
 signal player_eliminated(slot_id: int, team_id: int)
+
+# --- M3a: session and transport (spec 3.4) ----------------------------------
+
+## Net changed between OFFLINE, HOST and CLIENT. `mode` is a Net.Mode value.
+signal net_mode_changed(mode: int)
+
+## A peer finished the build-version handshake and holds a slot. `slot_id` is
+## -1 while it is only sitting in the lobby without a seat.
+signal net_peer_joined(peer_id: int, slot_id: int, player_name: String)
+
+## A peer disconnected. `reason` is a Net.LeaveReason value. The host decides
+## what happens to its slot (docs/M3a_PLAN.md); this is the notification, not
+## the decision.
+signal net_peer_left(peer_id: int, slot_id: int, reason: int)
+
+## A join attempt failed. `error` is a Net.JoinError value; `detail` is a
+## human-readable line for the lobby, never parsed.
+signal net_join_failed(error: int, detail: String)
+
+## The host published new lobby settings (spec 3.4: Steam lobbies store match
+## settings as lobby data; over ENet the host broadcasts the same Dictionary).
+## The payload is MatchConfig.to_dict() plus the roster.
+signal net_lobby_data_changed(data: Dictionary)
+
+## The LAN browser's list changed (spec 3.4 "LAN discovery"). Each entry is
+## {name, address, port, version, players, max, map}.
+signal net_games_discovered(games: Array[Dictionary])
+
+## Ping, snapshot size, interpolation delay and measured loss, refreshed at
+## NetConfig.stats_hz. ui/NetDebugOverlay.gd is the only consumer; the shape
+## is Net.stats().
+signal net_stats_updated(stats: Dictionary)
+
+# --- M3a: replication (spec 3.4) --------------------------------------------
+
+## A client built its frozen copy of a block the host spawned. The local
+## equivalent of block_placed for bodies this instance does not simulate:
+## emitted only on clients, and always before the first snapshot moves it.
+signal block_replicated(block: RigidBody3D, net_id: int)
+
+## A client applied a territory update from the host. Clients never solve
+## territory themselves (spec 3.4: only the host runs physics and the rules),
+## so this replaces territory_updated on a client. The raster is the client's
+## mirror; read it, never mutate it.
+signal territory_replicated(raster: TerritoryRaster)
+
+## Another player's ghost moved (spec 3.4: "update_cursor(pos) ... only used to
+## show other players' ghosts"). Emitted on every instance for every non-local
+## slot, at NetConfig.cursor_hz.
+signal remote_cursor_updated(
+	slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion
+)
