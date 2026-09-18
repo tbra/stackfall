@@ -77,10 +77,33 @@ SUBSYSTEMS = {
 }
 
 SEVERITY_CHOICES = {
-    "likely-bug": "A genuine, previously-unlabeled defect in project code that should be looked at.",
-    "benign-noise": "Expected engine/test chatter with no bearing on correctness (e.g. editor import messages, harmless deprecation notices).",
-    "known-limitation": "Matches a limitation the project has already documented and accepted (see known_limitations in the state) -- do not re-report it as a new bug.",
+    "likely-bug": (
+        "A concrete, previously-unlabeled defect that traces into project-owned code "
+        "(res://core, res://autoload, res://net, res://config, res://ui, or a project "
+        "test script) -- something a developer should actually go fix. The ERROR/WARNING/"
+        "SCRIPT ERROR prefix alone is not evidence of this: Godot uses those same prefixes "
+        "for its own internal sanity checks."
+    ),
+    "benign-noise": (
+        "Expected chatter with no bearing on correctness: Godot engine-internal assertions "
+        "or preconditions (e.g. a '!is_inside_tree()'-style condition), editor import "
+        "messages, harmless deprecation notices, or anything whose backtrace stays inside "
+        "engine/addon internals rather than this project's own scripts. Most ERROR/WARNING "
+        "lines in a headless Godot run fall here -- default to this unless something "
+        "specific points to a real project-code defect."
+    ),
+    "known-limitation": (
+        "Matches a limitation the project has already documented and accepted (see "
+        "known_limitations in the state) -- do not re-report it as a new bug."
+    ),
 }
+# Per docs.typesafe.ai/confidence: "the 0.5 confidence floor catches anything
+# the model reports as genuinely uncertain." Severity drives the CI exit
+# code (a likely-bug classification fails the build), so getting a
+# low-confidence "likely-bug" wrong is the expensive direction -- worse than
+# under-reporting one. Below this floor a "likely-bug" answer is still shown
+# to a human (never hidden), but is not trusted to gate anything on its own.
+SEVERITY_GATE_CONFIDENCE_FLOOR = 0.5
 
 # A line may carry a leading tag before the actual Godot output: a
 # timestamp a log wrapper added, or an instance label like "[host]" /
@@ -92,15 +115,71 @@ _LEADING_TAG_RE = re.compile(r"^(?:\[[^\]\n]{1,40}\]\s*)+")
 # Godot's own error/warning line markers. push_error()/push_warning() and
 # unhandled GDScript exceptions all funnel through one of these three.
 _RECORD_START_RE = re.compile(r"^(ERROR|WARNING|SCRIPT ERROR):\s?(.*)$")
-# Backtrace continuation lines look like "   at: func_name (res://foo.gd:123)"
-# (sometimes with a leading "[0]" stack index for nested calls).
-_BACKTRACE_RE = re.compile(r"^\s*(\[\d+\]\s*)?at:\s")
+# Backtrace continuation lines look like "   at: func_name (res://foo.gd:123)".
+# Nested call frames can appear as their own line tagged "[N]" *without* a
+# repeated "at:" (verified against a real report where the only backtrace
+# line for a warning was "       [0] apply_state (res://net/Interpolator.gd:88)"
+# -- no "at:" at all), so either prefix on its own must continue the record.
+_BACKTRACE_RE = re.compile(r"^\s*(\[\d+\]\s+|at:\s)")
 
 
 def _strip_leading_tags(line: str) -> str:
     return _LEADING_TAG_RE.sub("", line, count=1) if line.startswith("[") else line
 
-# --- Normalisation patterns, applied in order --------------------------------
+# --- Normalisation, applied in order -----------------------------------
+#
+# Godot embeds an unpredictable id in almost every recognisable shape: a
+# quoted node name ('Block_7741'), its own auto-name format for anonymous
+# nodes (@RigidBody3D@4711), a keyword-tagged field (net_id 7741, peer 45),
+# a hex pointer, an ObjectID<...>/RID(...) wrapper, or just a bare integer.
+# Rather than one regex per shape we've happened to see in a log (which a
+# 2-hour soak will always find a new variant of), normalisation is a small
+# pipeline:
+#
+#   1. Protect `res://foo.gd:123`-style script references first -- the line
+#      number there is exactly what *distinguishes* one bug from another,
+#      so it must survive everything below untouched.
+#   2. Apply a handful of unconditional, unambiguous id patterns (hex
+#      addresses, ObjectID/RID wrappers, Godot's @Class@N auto-name, and
+#      keyword-tagged ids like net_id/peer/slot/instance -- unambiguous
+#      because of the keyword, regardless of the number's size).
+#   3. Collapse floats and coordinate tuples (positions, deltas, timings).
+#   4. Blanket rule: any remaining run of 4+ digits, wherever it sits --
+#      inside a quoted node name, glued to an identifier with an
+#      underscore, or standing alone -- becomes <ID>. Four digits is
+#      enough to keep small, meaningful numbers (a player slot 0-7, a
+#      retry count, GUT's "266 tests") intact while catching the ids Godot
+#      actually assigns (net ids, peer ids, node instance suffixes),
+#      which are effectively always larger than that.
+#   5. Restore the protected script references.
+
+_REF_RE = re.compile(r"\b[\w\-./\\]+\.(?:gd|cpp|h|hpp|cc|cxx|cs):\d+\b")
+# A placeholder with no digits in it at all (not even an embedded index),
+# so the later 4+-digit blanket rule can never accidentally eat part of it.
+# Restoration below relies on placeholders being replaced back in the same
+# left-to-right order they were stashed, which re.sub guarantees.
+_REF_PLACEHOLDER = "\x00REF\x00"
+_REF_PLACEHOLDER_RE = re.compile(re.escape(_REF_PLACEHOLDER))
+
+
+def _protect_refs(text: str) -> Tuple[str, List[str]]:
+    """Stash `res://foo.gd:123` / `modules/.../file.cpp:46`-style references
+    behind a placeholder, so nothing later in the pipeline can touch the
+    line number inside them."""
+    saved: List[str] = []
+
+    def _stash(m: "re.Match[str]") -> str:
+        saved.append(m.group(0))
+        return _REF_PLACEHOLDER
+
+    return _REF_RE.sub(_stash, text), saved
+
+
+def _restore_refs(text: str, saved: Sequence[str]) -> str:
+    remaining = iter(saved)
+    return _REF_PLACEHOLDER_RE.sub(lambda _m: next(remaining), text)
+
+
 _NORMALIZERS: List[Tuple[re.Pattern, str]] = [
     # ISO-ish timestamps: 2026-09-18 12:34:56(.789)
     (re.compile(r"\b\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?\b"), "<TS>"),
@@ -110,11 +189,16 @@ _NORMALIZERS: List[Tuple[re.Pattern, str]] = [
     (re.compile(r"0x[0-9A-Fa-f]{4,}"), "<ADDR>"),
     # Godot ObjectID<...> / RID(...) wrappers
     (re.compile(r"\b(ObjectID|RID)<[^>]*>"), r"\1<<ID>>"),
-    # net_id / peer_id / instance_id / client_id-style key=value pairs
+    # Godot's auto-name for anonymous nodes: @ClassName@1234. Unambiguous
+    # regardless of how many digits the counter has reached.
+    (re.compile(r"@([A-Za-z_][A-Za-z0-9_]*)@\d+"), r"@\1@<ID>"),
+    # net_id / peer_id / peer / slot / instance_id / client_id / rid /
+    # object_id-style tags, with or without a ':'/'=' separator (Godot's
+    # own messages just use a space: "net_id 7741", "peer 45").
     (
         re.compile(
-            r"\b(net_id|peer_id|peer|instance_id|instance|client_id|rid|object_id)"
-            r"\s*[:=]\s*-?\d+\b",
+            r"\b(net_id|peer_id|peer|slot|instance_id|instance|client_id|rid|object_id)"
+            r"\b\s*[:=]?\s*-?\d+\b",
             re.IGNORECASE,
         ),
         r"\1=<ID>",
@@ -126,6 +210,11 @@ _NORMALIZERS: List[Tuple[re.Pattern, str]] = [
     ),
     # Any remaining standalone float (positions, deltas, timings, ...)
     (re.compile(r"-?\d+\.\d+"), "<NUM>"),
+    # Blanket catch-all: any run of 4+ digits left after the above, no
+    # matter what it's embedded in ('Block_7741', 'Node123', a bare
+    # standalone id, ...). This is what makes normalisation robust to
+    # id shapes we haven't special-cased above.
+    (re.compile(r"\d{4,}"), "<ID>"),
 ]
 
 
@@ -194,12 +283,16 @@ def extract_records(text: str) -> List[ErrorRecord]:
 def normalize(record: ErrorRecord) -> str:
     """Collapse timestamps/addresses/ids/coordinates so that repeats of "the
     same" error (different peer, different tick, different position) share a
-    signature."""
+    signature. Script line references (res://foo.gd:123) are protected
+    first and restored last, since the line is what distinguishes one bug
+    from another rather than noise to collapse away."""
     text = record.marker + ": " + record.message
     if record.backtrace:
         text += "\n" + "\n".join(record.backtrace)
+    text, saved_refs = _protect_refs(text)
     for pattern, replacement in _NORMALIZERS:
         text = pattern.sub(replacement, text)
+    text = _restore_refs(text, saved_refs)
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -492,9 +585,17 @@ def classify_groups(
             questions[f"{key}_severity"] = {
                 "type": "choice",
                 "instructions": (
-                    f"How severe is `groups.{key}`? Check it against `known_limitations` "
-                    "first -- if it matches one of those, it is known-limitation, not "
-                    "likely-bug, even if it looks bad."
+                    f"How severe is `groups.{key}`? Most ERROR/WARNING/SCRIPT ERROR lines "
+                    "in a headless Godot run are routine engine or test-harness noise, not "
+                    "project bugs -- the marker alone does not mean something is wrong with "
+                    f"this project's code. First check `groups.{key}`'s backtrace against "
+                    "`known_limitations`: if it matches one, answer known-limitation "
+                    "regardless of how alarming the message reads. Otherwise, only answer "
+                    "likely-bug if the backtrace traces into this project's own code "
+                    "(paths like res://core, res://autoload, res://net, res://config, "
+                    "res://ui, or a project test script) and describes a concrete defect "
+                    "there, not an engine-internal assertion. When unsure, prefer "
+                    "benign-noise."
                 ),
                 "criteria": SEVERITY_CHOICES,
             }
@@ -585,6 +686,24 @@ def confidence_note(confidence: Optional[float]) -> str:
     return ""
 
 
+def severity_gates_ci(group: Group) -> bool:
+    """Whether this group's severity should count toward the likely-bug CI
+    exit code. Per docs.typesafe.ai/confidence, "the 0.5 confidence floor
+    catches anything the model reports as genuinely uncertain," and
+    different actions should be gated at different confidence levels
+    depending on the cost of being wrong. A false likely-bug fails the
+    build -- the expensive direction here -- so an uncertain likely-bug is
+    still shown to a human (it keeps its [LIKELY-BUG] tag and a "verify
+    manually" note) but does not, on its own, gate anything. A missing
+    confidence value is treated the same as low confidence: there is
+    nothing here to trust."""
+    if group.severity != "likely-bug":
+        return False
+    if group.severity_confidence is None:
+        return False
+    return group.severity_confidence >= SEVERITY_GATE_CONFIDENCE_FLOOR
+
+
 def render_text(groups: Sequence[Group], stats: ClassifyStats, total_records: int, source_desc: str) -> str:
     out: List[str] = []
     out.append("=== Stackfall log triage ===")
@@ -618,6 +737,11 @@ def render_text(groups: Sequence[Group], stats: ClassifyStats, total_records: in
         )
         if severity_conf:
             out.append(f"    severity confidence note:{severity_conf}")
+        if g.severity == "likely-bug" and not severity_gates_ci(g):
+            out.append(
+                "    not counted toward the likely-bug exit code: severity confidence "
+                f"is below the {SEVERITY_GATE_CONFIDENCE_FLOOR:g} gate threshold"
+            )
         if g.matched_limitation:
             out.append(f"    matches known limitation: {g.matched_limitation[:160]}...")
         out.append(f"    {g.marker}: {g.representative.message}")
@@ -655,6 +779,7 @@ def to_jsonable(groups: Sequence[Group], stats: ClassifyStats, total_records: in
                 "subsystem_confidence": g.subsystem_confidence,
                 "severity": g.severity,
                 "severity_confidence": g.severity_confidence,
+                "gates_ci": severity_gates_ci(g),
                 "novel_probability": g.novel,
                 "classification_source": g.classification_source,
                 "matched_known_limitation": g.matched_limitation,
@@ -751,7 +876,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     else:
         print(render_text(groups, stats, len(records), source_desc))
 
-    any_likely_bug = any(g.severity == "likely-bug" for g in groups)
+    any_likely_bug = any(severity_gates_ci(g) for g in groups)
     return 1 if any_likely_bug else 0
 
 
