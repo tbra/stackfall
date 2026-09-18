@@ -45,6 +45,21 @@ class Sample:
 	var rotation: Quaternion = Quaternion.IDENTITY
 	var sleeping: bool = false
 
+
+## Everything kept per body: its sample buffer and the convergence state that
+## unwinds a capped extrapolation without a snap.
+class Track:
+	var samples: Array[Sample] = []
+	## Offset added to the raw pose and decayed toward zero, so the drawn pose
+	## is continuous across the moment extrapolation stops holding.
+	var error_position: Vector3 = Vector3.ZERO
+	var error_rotation: Quaternion = Quaternion.IDENTITY
+	var last_position: Vector3 = Vector3.ZERO
+	var last_rotation: Quaternion = Quaternion.IDENTITY
+	var has_last: bool = false
+	## Whether the last pose drawn was the held end of a capped extrapolation.
+	var was_clamped: bool = false
+
 ## Sequence numbers are u16 on the wire, so "newer than" is a distance test
 ## inside this modulus rather than a plain comparison.
 const SEQUENCE_MODULUS: int = 65536
@@ -54,7 +69,7 @@ const SEQUENCE_HALF_RANGE: int = 32768
 
 var _config: NetConfig = null
 
-## net_id (int) -> Array[Sample], oldest first.
+## net_id (int) -> Track. Each Track's samples are oldest first.
 var _buffers: Dictionary = {}
 
 ## Host time of the newest sample from any body, and how long ago (in ms of
@@ -100,9 +115,12 @@ func push_sample(
 		_dropped_unknown += 1
 		return false
 
-	var buffer: Array = _buffers.get(net_id, []) as Array
-	if not buffer.is_empty():
-		var newest: Sample = buffer[buffer.size() - 1] as Sample
+	var track: Track = _buffers.get(net_id) as Track
+	if track == null:
+		track = Track.new()
+		_buffers[net_id] = track
+	if not track.samples.is_empty():
+		var newest: Sample = track.samples[track.samples.size() - 1]
 		# Equal timestamps are the same body appearing twice in one snapshot's
 		# fragments; older ones are a reordered packet. Neither may disturb the
 		# buffer, which sample_at_render_time() assumes is sorted.
@@ -114,10 +132,9 @@ func push_sample(
 	sample.position = position
 	sample.rotation = rotation
 	sample.sleeping = sleeping
-	buffer.append(sample)
-	while buffer.size() > maxi(_config.interp_buffer_samples, 2):
-		buffer.remove_at(0)
-	_buffers[net_id] = buffer
+	track.samples.append(sample)
+	while track.samples.size() > maxi(_config.interp_buffer_samples, 2):
+		track.samples.remove_at(0)
 
 	if not _has_stream or host_time_ms > _newest_host_time_ms:
 		_newest_host_time_ms = host_time_ms
@@ -167,12 +184,14 @@ func note_snapshot(sequence: int, host_time_ms: int, now: float) -> void:
 		_render_time_ms = float(host_time_ms) - _delay_ms
 
 
-## Advances the render clock by `delta` seconds and settles the adaptive delay.
+## Advances the render clock by `delta` seconds, settles the adaptive delay and
+## decays every body's convergence offset.
 func advance(delta: float) -> void:
 	var delta_ms: float = delta * 1000.0
 	_delay_ms = clampf(
 		_delay_ms, _config.min_interp_delay_ms, _config.max_interp_delay_ms
 	)
+	_decay_errors(delta_ms)
 	if not _has_stream:
 		return
 	_ms_since_newest += delta_ms
@@ -189,33 +208,59 @@ func advance(delta: float) -> void:
 ## most NetConfig.max_extrapolation_ms past the newest, then held. `ok` is
 ## false when the body has no usable samples, and the caller must then leave
 ## the body where it is rather than snapping it to the origin.
+##
+## The hold is where the one unavoidable discontinuity lives: while the pose
+## is frozen at the cap the host keeps simulating, so the first sample that
+## ends the stall names a pose the body never travelled to. Rather than
+## teleporting there, the gap is captured as a convergence offset and decayed
+## out over max_extrapolation_ms — the same window that opened it (spec 3.4's
+## "extrapolate for at most 100 ms" says nothing about the way back, and a
+## teleport is exactly the artefact the acceptance criterion tests for).
 func sample_at_render_time(net_id: int) -> Dictionary:
-	var miss: Dictionary = {
-		"ok": false, "position": Vector3.ZERO, "rotation": Quaternion.IDENTITY
-	}
-	var buffer: Array = _buffers.get(net_id, []) as Array
-	if buffer.is_empty():
-		return miss
+	var track: Track = _buffers.get(net_id) as Track
+	if track == null or track.samples.is_empty():
+		return {"ok": false, "position": Vector3.ZERO, "rotation": Quaternion.IDENTITY}
 
-	var newest: Sample = buffer[buffer.size() - 1] as Sample
-	var oldest: Sample = buffer[0] as Sample
+	var newest: Sample = track.samples[track.samples.size() - 1]
+	var oldest: Sample = track.samples[0]
+	var raw_position: Vector3 = newest.position
+	var raw_rotation: Quaternion = newest.rotation
+	var clamped: bool = false
 
 	if _render_time_ms <= float(oldest.host_time_ms):
-		return _pose(oldest.position, oldest.rotation)
+		raw_position = oldest.position
+		raw_rotation = oldest.rotation
+	elif _render_time_ms >= float(newest.host_time_ms):
+		var ahead_ms: float = _render_time_ms - float(newest.host_time_ms)
+		clamped = ahead_ms > _config.max_extrapolation_ms
+		var extrapolated: Dictionary = _extrapolate(track.samples, newest)
+		raw_position = extrapolated["position"] as Vector3
+		raw_rotation = extrapolated["rotation"] as Quaternion
+	else:
+		for index: int in range(track.samples.size() - 1):
+			var a: Sample = track.samples[index]
+			var b: Sample = track.samples[index + 1]
+			if _render_time_ms < float(b.host_time_ms):
+				var span_ms: float = float(b.host_time_ms - a.host_time_ms)
+				var t: float = 1.0
+				if span_ms > 0.0:
+					t = clampf((_render_time_ms - float(a.host_time_ms)) / span_ms, 0.0, 1.0)
+				raw_position = a.position.lerp(b.position, t)
+				raw_rotation = a.rotation.slerp(b.rotation, t)
+				break
 
-	if _render_time_ms >= float(newest.host_time_ms):
-		return _extrapolate(buffer, newest)
+	# Leaving the hold is the one place a jump can appear, so that is the one
+	# place an offset is seeded. Everywhere else the raw pose is continuous in
+	# render time and the offset is only decaying.
+	if track.was_clamped and not clamped and track.has_last:
+		track.error_position = track.last_position - raw_position
+		track.error_rotation = (track.last_rotation * raw_rotation.inverse()).normalized()
+	track.was_clamped = clamped
 
-	for index: int in range(buffer.size() - 1):
-		var a: Sample = buffer[index] as Sample
-		var b: Sample = buffer[index + 1] as Sample
-		if _render_time_ms < float(b.host_time_ms):
-			var span_ms: float = float(b.host_time_ms - a.host_time_ms)
-			if span_ms <= 0.0:
-				return _pose(b.position, b.rotation)
-			var t: float = clampf((_render_time_ms - float(a.host_time_ms)) / span_ms, 0.0, 1.0)
-			return _pose(a.position.lerp(b.position, t), a.rotation.slerp(b.rotation, t))
-	return _pose(newest.position, newest.rotation)
+	track.last_position = raw_position + track.error_position
+	track.last_rotation = (track.error_rotation * raw_rotation).normalized()
+	track.has_last = true
+	return _pose(track.last_position, track.last_rotation)
 
 
 ## net_ids with at least one buffered sample.
@@ -270,7 +315,8 @@ func loss_fraction() -> float:
 
 ## Samples currently held for `net_id`, for tests and the debug overlay.
 func buffered_count(net_id: int) -> int:
-	return (_buffers.get(net_id, []) as Array).size()
+	var track: Track = _buffers.get(net_id) as Track
+	return track.samples.size() if track != null else 0
 
 
 ## Snapshot samples that named a net_id the client has not seen spawn, since
@@ -325,18 +371,35 @@ func _pose(position: Vector3, rotation: Quaternion) -> Dictionary:
 	return {"ok": true, "position": position, "rotation": rotation}
 
 
+## Relaxes every body's convergence offset toward zero with a time constant of
+## NetConfig.max_extrapolation_ms, so the pose catches up over roughly the same
+## window the hold froze it for. Exponential, so it is frame-rate independent
+## and never overshoots.
+func _decay_errors(delta_ms: float) -> void:
+	var tau_ms: float = maxf(_config.max_extrapolation_ms, 1.0)
+	var keep: float = exp(-delta_ms / tau_ms)
+	for key: Variant in _buffers.keys():
+		var track: Track = _buffers[key] as Track
+		if track.error_position == Vector3.ZERO and track.error_rotation == Quaternion.IDENTITY:
+			continue
+		track.error_position *= keep
+		track.error_rotation = Quaternion.IDENTITY.slerp(track.error_rotation, keep).normalized()
+		if track.error_position.length_squared() < 1e-12:
+			track.error_position = Vector3.ZERO
+
+
 ## Past the newest sample: continue the last segment's velocity for at most
 ## NetConfig.max_extrapolation_ms, then hold. Clamping the elapsed time rather
 ## than the result is what makes the hold exact — the pose simply stops
 ## advancing instead of drifting, and there is no snap when it stops.
-func _extrapolate(buffer: Array, newest: Sample) -> Dictionary:
+func _extrapolate(buffer: Array[Sample], newest: Sample) -> Dictionary:
 	var ahead_ms: float = clampf(
 		_render_time_ms - float(newest.host_time_ms), 0.0, _config.max_extrapolation_ms
 	)
 	if buffer.size() < 2 or newest.sleeping or ahead_ms <= 0.0:
 		return _pose(newest.position, newest.rotation)
 
-	var previous: Sample = buffer[buffer.size() - 2] as Sample
+	var previous: Sample = buffer[buffer.size() - 2]
 	var span_ms: float = float(newest.host_time_ms - previous.host_time_ms)
 	if span_ms <= 0.0:
 		return _pose(newest.position, newest.rotation)
