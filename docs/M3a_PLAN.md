@@ -245,7 +245,9 @@ launches `godot --headless --path . res://tests/bench/m3a_acceptance.tscn -- --h
 --port=47778` plus N−1 clients with `--join=127.0.0.1:47778`, waits, and returns non-zero if
 any exit code is. The scene reads its role from the command line, so one file drives both
 ends. For feel rather than assertions, the editor's **Debug → Customize Run Instances**
-with 2–4 instances and per-instance arguments does the same windowed.
+with 2–4 instances and per-instance arguments does the same windowed. It must be a `.tscn`,
+as `m2_acceptance` is: autoload identifiers (`Net`, `Match`) do not resolve in a `-s`
+SceneTree script, so a harness written that way will not even compile.
 
 **100 ms lag and 2% loss.** `ENetConnection` has no netem, and a `MultiplayerPeerExtension`
 wrapper would drop packets *below* ENet's reliability layer — destroying reliable RPCs
