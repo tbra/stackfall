@@ -442,6 +442,12 @@ def classify_groups(
 
     remaining = [g for g in groups if g.classification_source == "none"]
 
+    # Always give every still-unclassified group a free heuristic subsystem
+    # guess as a baseline, whether or not TypeSafe ends up running. This is
+    # overwritten below with TypeSafe's answer when a call succeeds.
+    for group in remaining:
+        group.subsystem = heuristic_subsystem(group)
+
     if not api_key:
         stats.skipped_reason = "TYPESAFE_API_KEY is not set"
         return stats
