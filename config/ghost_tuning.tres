@@ -12,6 +12,7 @@ free_rotate_pad_speed = 2.5
 hover_manual_adjust_speed = 1.0
 hover_manual_max = 3.0
 placement_ray_length = 200.0
+gamepad_cursor_ray_height = 200.0
 tint_color = Color(0.35, 0.9, 0.55, 0.55)
 shadow_color = Color(0.0, 0.0, 0.0, 0.4)
 shadow_size = Vector2(1.0, 1.0)

@@ -28,6 +28,10 @@ extends Resource
 
 ## -- Placement raycast --------------------------------------------------
 @export var placement_ray_length: float = 200.0
+## Height above the gamepad cursor's disk-plane position that the placement
+## raycast starts from, so it looks straight down through anything the
+## cursor sits under (spec 2.5: gamepad cursor casts straight down).
+@export var gamepad_cursor_ray_height: float = 200.0
 
 ## -- Ghost visual base (spec 2.5: shadow + guide line) ----------------------
 ## Base alpha-blended tint before a per-state color is known (its alpha is

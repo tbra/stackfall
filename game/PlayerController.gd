@@ -293,7 +293,7 @@ func _update_ghost_transform() -> void:
 	var origin: Vector3
 	var direction: Vector3
 	if _using_gamepad_cursor:
-		origin = _gamepad_cursor + Vector3.UP * 200.0
+		origin = _gamepad_cursor + Vector3.UP * ghost_tuning.gamepad_cursor_ray_height
 		direction = Vector3.DOWN
 	else:
 		if _camera_rig == null:
