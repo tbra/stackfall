@@ -518,6 +518,54 @@ func test_an_intent_from_a_departed_peer_is_refused() -> void:
 	assert_eq(_block_count(), 0, "An intent already in flight when its sender vanished is dropped.")
 
 
+# --- Allocator exhaustion never reaches the wire (Bontago-mv0.1.7) ----------
+#
+# game/BlockRegistry.gd refuses to allocate past Quantize.NET_ID_MAX and
+# leaves the block with net_id == -1; the body still lives and simulates on
+# the host, but nothing about it may go out over replicate_spawn(), or a
+# client would build a phantom copy no despawn could ever address (spec 3.4:
+# the body "stays host-only"). A unit test has no live peer, so _can_send()
+# is already false and cannot by itself prove replicate_spawn() never handed
+# the rpc a bad id; invalid_spawn_refusal_count() is the seam that does.
+
+
+func test_a_spawn_refused_by_the_allocator_never_reaches_the_wire() -> void:
+	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
+	_start_playing()
+	_registry.debug_set_next_net_id(Quantize.NET_ID_MAX)
+	var where: Vector3 = _home_world_position(0)
+
+	var first: StringName = net.submit_place(0, where, 0, Quaternion.IDENTITY, false, Match.feed_seq(0))
+	var second: StringName = net.submit_place(0, where, 1, Quaternion.IDENTITY, false, Match.feed_seq(0))
+
+	assert_eq(first, PlacementRules.REASON_OK, "the last representable id still places")
+	assert_eq(second, PlacementRules.REASON_OK, "a rejected allocation is not a rule violation; the block still spawns")
+	assert_push_error("net_id space exhausted")
+	assert_eq(_block_count(), 2)
+	assert_eq((_blocks_root.get_child(0) as Block).net_id, Quantize.NET_ID_MAX)
+	assert_eq((_blocks_root.get_child(1) as Block).net_id, -1, "the second body keeps living, host-only, with no id")
+	assert_eq(
+		net.invalid_spawn_refusal_count(), 1,
+		"replicate_spawn() must refuse the id-less body instead of hitting the wire"
+	)
+	assert_eq(net.replicated_block_count(), 1, "only the valid spawn is ever counted as replicated")
+
+
+func test_a_client_ignores_a_spawn_whose_net_id_the_wire_cannot_carry() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	var net: MatchNetScript = _make_net({}, [1], true)
+
+	for bad_id: int in [-1, 0, Quantize.NET_ID_MAX + 1]:
+		net.net_block_spawned(bad_id, &"cube", 1, Vector3(2.0, 3.0, 4.0), Quaternion.IDENTITY)
+
+	assert_eq(
+		_block_count(), 0,
+		"A hostile or buggy host naming an id the wire cannot carry must build no phantom body."
+	)
+	assert_eq(net.replicated_block_count(), 0)
+
+
 # --- The territory payload --------------------------------------------------
 
 

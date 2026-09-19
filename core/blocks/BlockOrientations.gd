@@ -30,6 +30,17 @@ static func get_basis(index: int) -> Basis:
 	return _orientations[index]
 
 
+## True when `index` names one of the table's entries. get_basis() indexes the
+## table directly and does not check: a GDScript array accepts a negative
+## index (so -1 would quietly alias entry 23) and raises a script error for
+## anything past either end. Every caller fed by an untrusted source — the
+## remote intent and cursor boundary in net/MatchNet.gd, and
+## Match.request_place() as the authority's own guard — asks this first.
+static func is_valid_index(index: int) -> bool:
+	_ensure_built()
+	return index >= 0 and index < _orientations.size()
+
+
 static func index_of(basis: Basis) -> int:
 	_ensure_built()
 	for i: int in range(_orientations.size()):

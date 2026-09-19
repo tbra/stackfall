@@ -167,6 +167,95 @@ func test_server_full_refuses_the_next_peer() -> void:
 	third.leave()
 
 
+# --- Lobby-only joining (Bontago-mv0.1.8) ---------------------------------------
+#
+# Spec 3.4: joining is lobby-only in M3a. Net does not know Match's state
+# machine (docs/M3a_PLAN.md P1: Net must not name a gameplay concept), so the
+# match flow flips set_accepting_joins(); these tests flip it directly. The
+# "not accepting" window stands in for COUNTDOWN, PLAYING, SUDDEN_DEATH and
+# END alike — Net treats every non-lobby state the same way.
+
+func test_a_fresh_host_accepts_joins_until_told_otherwise() -> void:
+	assert_true(_host.accepting_joins(), "offline, the flag is at its default")
+	var port: int = _take_port()
+	assert_eq(_host.host_game(port, "Hostie"), OK)
+	assert_true(_host.accepting_joins(), "a new lobby accepts joins")
+	_host.set_accepting_joins(false)
+	assert_false(_host.accepting_joins())
+	_host.leave()
+	assert_true(_host.accepting_joins(), "leave() resets it so the next session starts clean")
+	assert_eq(_host.host_game(_take_port(), "Hostie"), OK)
+	assert_true(_host.accepting_joins(), "and so does hosting again")
+
+
+func test_a_join_after_the_match_starts_is_refused_and_disturbs_nobody() -> void:
+	var port: int = _take_port()
+	_connect_host_and_client(port)
+	var joined: bool = await _wait_until(func() -> bool:
+		return _host.peer_ids().size() == 2 and _client.local_slot() == 1
+	)
+	assert_true(joined, "the lobby fills normally first")
+	var roster_before: PackedInt32Array = _host.peer_ids()
+	var client_id: int = _client.local_peer_id()
+
+	# The match starts: the flow flips the flag (see the DECISION in Net.gd).
+	_host.set_accepting_joins(false)
+
+	var late: Variant = _make_side("LateNet")
+	watch_signals(Events)
+	assert_eq(late.join_game("127.0.0.1", port, "Latey"), OK)
+	var refused: bool = await _wait_until(func() -> bool:
+		return get_signal_emit_count(Events, "net_join_failed") > 0
+	)
+	assert_true(refused, "a join while the match is running must be refused")
+	assert_eq(
+		get_signal_parameters(Events, "net_join_failed")[0],
+		Net.JoinError.MATCH_IN_PROGRESS,
+		"with the reason the lobby can explain"
+	)
+	assert_eq(late.mode(), Net.Mode.OFFLINE, "the late joiner returns to OFFLINE")
+	assert_eq(late.local_slot(), 0, "and never held a slot")
+
+	assert_eq(_host.peer_ids(), roster_before, "the host's roster is exactly what it was")
+	assert_eq(_host.slot_of_peer(client_id), 1, "the seated client keeps its slot")
+	assert_eq(_host.peer_of_slot(2), -1, "no new slot was allocated")
+	assert_eq(get_signal_emit_count(Events, "net_peer_joined"), 0, "nobody was announced as joining")
+	assert_eq(get_signal_emit_count(Events, "net_peer_left"), 0, "and nobody was announced as leaving")
+	assert_eq(_client.mode(), Net.Mode.CLIENT, "the seated client is still connected")
+	assert_eq(_client.local_slot(), 1, "in its own slot")
+	late.leave()
+
+
+func test_joins_resume_once_the_match_returns_to_the_lobby() -> void:
+	var port: int = _take_port()
+	assert_eq(_host.host_game(port, "Hostie"), OK)
+	_host.set_accepting_joins(false)
+
+	watch_signals(Events)
+	assert_eq(_client.join_game("127.0.0.1", port, "Clienty"), OK)
+	var refused: bool = await _wait_until(func() -> bool:
+		return get_signal_emit_count(Events, "net_join_failed") > 0
+	)
+	assert_true(refused, "refused while the match runs")
+	assert_eq(get_signal_parameters(Events, "net_join_failed")[0], Net.JoinError.MATCH_IN_PROGRESS)
+	assert_eq(_host.peer_ids().size(), 1, "the host is still alone")
+	assert_eq(_client.mode(), Net.Mode.OFFLINE)
+
+	# The match ends and the flow returns to the lobby. The host stays up
+	# across the refusal here (unlike the tests above, where after_each tears
+	# it down inside _reject_peer's two-frame grace), so this also covers the
+	# host's deferred disconnect_peer() finding the refused id already gone:
+	# it must not log an engine error.
+	_host.set_accepting_joins(true)
+	assert_eq(_client.join_game("127.0.0.1", port, "Clienty"), OK)
+	var joined: bool = await _wait_until(func() -> bool:
+		return _host.peer_ids().size() == 2 and _client.mode() == Net.Mode.CLIENT and _client.local_slot() == 1
+	)
+	assert_true(joined, "the same player joins normally once the lobby is back")
+	assert_eq(_host.slot_of_peer(_client.local_peer_id()), 1, "and takes the first free slot")
+	assert_eq(get_signal_emit_count(Events, "net_join_failed"), 1, "no second refusal")
+
+
 # --- Disconnect ---------------------------------------------------------
 
 func test_peer_disconnect_fires_net_peer_left_with_the_right_slot() -> void:

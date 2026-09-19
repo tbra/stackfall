@@ -160,10 +160,38 @@ func _is_host() -> bool:
 ## Lobby -> Loading -> Countdown -> Playing. Builds the player slots, the
 ## per-slot block bags, the solver, the raster and the win checker from
 ## `match_config`, then starts the countdown.
+##
+## Legal from **any** state, on the host and on a client alike (a client's
+## copy is called by net/MatchNet.gd's net_match_start with whatever state
+## its mirror was left in). A start from anything but LOBBY first goes back
+## through the lobby -- abort_match(), which emits (old -> LOBBY) so every
+## consumer tears the previous match down -- so the transition consumers see
+## for a genuine start is always exactly LOBBY -> LOADING (spec 3.7's
+## `End -> Lobby -> Loading`), never PLAYING -> LOADING. A start from LOBBY
+## still resets every per-match scalar silently: a client mirror sits in
+## LOBBY with the previous match's slots and feed state after the host's
+## replicated LOBBY change, and nothing of that may leak into the new match.
+##
+## **LOADING is emitted only once the world model is complete.** Main builds
+## the match world synchronously inside that emit -- Field.set_overlay_source
+## (Match.raster()), Field.place_flags(config), SnapshotSync.begin_match
+## (Match.registry(), config.map_def()) -- so the raster, the slots and the
+## configured registry must all exist before the signal goes out; emitting
+## first and building afterwards handed those consumers a null raster (Beads
+## Bontago-mv0.1.9). Nothing in the build reads _state, so building while
+## still LOBBY costs nothing.
 func start_match(match_config: MatchConfig) -> void:
+	# DECISION (autoload/Match.gd): a repeated or stale start is handled here
+	# rather than by every caller (the Lobby, net_match_start, the tests, a
+	# future rematch button): Match owns its state machine, so it is Match
+	# that guarantees the sequence consumers can rely on.
+	if _state != State.LOBBY:
+		abort_match()
+	else:
+		_reset_match_state()
+
 	config = match_config.duplicate(true) as MatchConfig
 	config.sanitize()
-	_set_state(State.LOADING)
 
 	_clear_blocks()
 	_build_slots()
@@ -175,15 +203,31 @@ func start_match(match_config: MatchConfig) -> void:
 		_registry.configure(_field, config.map_def())
 		_registry.reset()
 
+	_set_state(State.LOADING)
+
 	_set_state(State.COUNTDOWN)
 	_countdown_remaining = COUNTDOWN_SECONDS
 	_countdown_last_whole = int(ceil(_countdown_remaining))
 	Events.countdown_tick.emit(_countdown_last_whole)
 
 
-## Back to Lobby from anywhere, clearing the field.
+## Back to Lobby from anywhere, clearing the field. Emits (old -> LOBBY) even
+## from LOBBY itself: callers that want silence check state() first
+## (game/Main.gd does), and the emit is what tells every consumer -- Main's
+## world, RemoteCursors, MatchNet's start flag -- that the match is over.
 func abort_match() -> void:
 	var old_state: State = _state
+	_reset_match_state()
+	_state = State.LOBBY
+	Events.match_state_changed.emit(old_state, State.LOBBY)
+
+
+## Everything one match owns, back to the empty state: blocks, slots, bags,
+## feed and grace timers, the territory objects and the config. Shared by
+## abort_match() and start_match() so neither can forget a field the other
+## resets. Leaves _state alone -- the two callers differ only in what they
+## emit about it.
+func _reset_match_state() -> void:
 	_clear_blocks()
 	_slots.clear()
 	_bags.clear()
@@ -194,14 +238,15 @@ func abort_match() -> void:
 	_disconnect_grace_left.clear()
 	_blocks_spawned = 0
 	_active_slot = -1
+	_countdown_remaining = 0.0
+	_countdown_last_whole = 0
 	_cell_grid = null
 	_raster = null
 	_solver = null
 	_win_checker = null
 	_last_groups = null
+	_solve_accum = 0.0
 	config = null
-	_state = State.LOBBY
-	Events.match_state_changed.emit(old_state, State.LOBBY)
 
 
 func state() -> State:
@@ -424,6 +469,20 @@ func _tick_feed(delta: float) -> void:
 ## replay, a double click inside one round trip, or a race with an auto-drop,
 ## and is refused with REASON_NO_BLOCK — the whole of docs/M3a_PLAN.md's
 ## "Never duplicated, never lost" defence (1).
+##
+## The -1 sentinel is a courtesy for **trusted local callers only**: the M2
+## controllers, the host's own timer and the tests. It never arrives here from
+## the wire — net/MatchNet.gd refuses any negative remote feed_seq before
+## calling in — because a client that could quote -1 would opt out of defence
+## (1) altogether.
+##
+## A pose that cannot be evaluated at all (a non-finite origin, a free
+## quaternion that is not a finite unit rotation, or an orientation index
+## outside BlockOrientations' table) is refused with REASON_NO_BLOCK before
+## anything is touched. That is not a rule — the ghost can never produce such
+## a pose — but the authority's own guard against corrupt or hostile input
+## (spec 3.4: "The host checks every intent before acting on it"); MatchNet
+## refuses the same poses at the wire so they are normally never seen here.
 func request_place(
 	slot_id: int,
 	origin: Vector3,
@@ -449,6 +508,8 @@ func request_place(
 		return PlacementRules.REASON_NOT_YOUR_TURN
 	var shape: BlockShape = _held_shapes[slot_id]
 	if shape == null:
+		return PlacementRules.REASON_NO_BLOCK
+	if not is_pose_well_formed(origin, orientation_index, free_quat):
 		return PlacementRules.REASON_NO_BLOCK
 
 	var basis: Basis = Basis(free_quat) * BlockOrientations.get_basis(orientation_index)
@@ -490,6 +551,23 @@ func request_place(
 	return reason
 
 
+## Whether a pose can be evaluated at all: a finite origin, a free quaternion
+## that is a finite unit rotation (Basis(q) of anything else is a scaled or
+## NaN matrix, and the footprint built from it is garbage), and an orientation
+## index inside BlockOrientations' 24-entry table (get_basis() does not check;
+## see BlockOrientations.is_valid_index). Pure and cheap, so request_place()
+## and preview_placement() both call it on every pose. Height is deliberately
+## not judged here: the allowed band is a wire concern (what a snapshot can
+## carry) and lives at net/MatchNet.gd's boundary, so that the host's own
+## ghost — exact by construction — is never second-guessed.
+func is_pose_well_formed(origin: Vector3, orientation_index: int, free_quat: Quaternion) -> bool:
+	if not origin.is_finite():
+		return false
+	if not free_quat.is_finite() or not free_quat.is_normalized():
+		return false
+	return BlockOrientations.is_valid_index(orientation_index)
+
+
 ## Pure decision step factored out of request_place() so it can be unit-tested
 ## against manufactured PlacementRules.Result / relocation values without a
 ## working P1 territory solve (docs/M2_PLAN.md's P2 brief: "use fakes/stubs
@@ -526,6 +604,8 @@ func preview_placement(
 		return PlacementRules.Result.EMPTY
 	var shape: BlockShape = _held_shapes[slot_id]
 	if shape == null:
+		return PlacementRules.Result.EMPTY
+	if not is_pose_well_formed(origin, orientation_index, free_quat):
 		return PlacementRules.Result.EMPTY
 
 	var basis: Basis = Basis(free_quat) * BlockOrientations.get_basis(orientation_index)

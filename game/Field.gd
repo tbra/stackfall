@@ -273,6 +273,40 @@ func _on_hole_cells_changed(opened: PackedInt32Array, closed: PackedInt32Array) 
 	set_hole_cells(opened, closed)
 
 
+## Called by game/Main.gd's _end_match_world() when a match's world comes down
+## (Beads Bontago-mv0.1.9): drops every trace of the match that just ended --
+## its flags, the overlay's reference to its raster, and every hole it opened
+## -- so the field sitting behind the main menu (or a fresh rehosted match)
+## starts from nothing left over. Field is a persistent node (unlike HotSeat,
+## RemoteCursors and NetDebugOverlay, which Main frees and rebuilds), so
+## nobody else resets this state: Match's own teardown (_reset_match_state())
+## clears its blocks and slots, never Field's.
+##
+## DECISION (game/Field.gd): the hole backlog normally drains at
+## TerritoryTuning.max_cell_toggles_per_frame per physics frame
+## (_drain_toggles(), spec 3.3) so opening many holes at once cannot spike one
+## frame's physics cost during play. At teardown there is no future frame
+## whose budget is worth protecting -- the field sits idle behind a menu until
+## the next match -- and a hole left open, or a toggle left queued, until the
+## backlog happens to catch up is exactly the leak this method exists to
+## close. So every applied hole is closed synchronously here instead of
+## through the backlog, and the backlog itself is discarded rather than
+## drained.
+func clear_match_state() -> void:
+	_clear_flags()
+	set_overlay_source(null, PackedColorArray())
+	for cell: int in _in_disk_cells:
+		if _hole_applied[cell] == 1:
+			var owner_id: int = _cell_owner_ids[cell]
+			if owner_id >= 0:
+				shape_owner_set_disabled(owner_id, false)
+			_hole_applied[cell] = 0
+		_hole_wanted[cell] = 0
+	_toggle_cells = PackedInt32Array()
+	_toggle_disabled = PackedByteArray()
+	_toggle_head = 0
+
+
 # --- Territory overlay (spec 2.10, 3.3) -------------------------------------
 
 func _build_overlay() -> void:

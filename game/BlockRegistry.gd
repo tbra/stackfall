@@ -75,12 +75,26 @@ func is_host_authority() -> bool:
 	return _host_authority
 
 
+## Test-only seam (tests/unit/test_block_registry.gd, test_snapshot_wire.gd):
+## moves the allocator to `value` so a test can reach the wire's id boundaries
+## without placing tens of thousands of blocks. Game code never calls it;
+## reset() puts the counter back to 1 as usual. Values below 1 are clamped,
+## because 0 is the wire's reserved "no body" id (core/net/Quantize.gd).
+func debug_set_next_net_id(value: int) -> void:
+	_next_net_id = maxi(value, 1)
+
+
+## Test-only: the id the next host-side placement will receive.
+func debug_next_net_id() -> int:
+	return _next_net_id
+
+
 ## Binds a host-allocated net_id to a block a client just built from
 ## net_block_spawned. The counterpart of the host's allocation below; a client
 ## never invents one, so the two ends can never disagree about which body a
 ## snapshot moves.
 func bind_net_id(block: Block, net_id: int) -> void:
-	if block == null or net_id < 0:
+	if block == null or not Quantize.is_wire_id(net_id):
 		return
 	block.net_id = net_id
 	_net_id_to_block[net_id] = block
@@ -103,6 +117,19 @@ func _on_block_placed(block: RigidBody3D, _shape_id: StringName) -> void:
 	# snapshot still in flight move the wrong body (docs/M3a_PLAN.md,
 	# "net_id allocation and the spawn/snapshot race").
 	var net_id: int = _next_net_id
+	if not Quantize.is_wire_id(net_id):
+		# The wire carries a u24 id (core/net/Quantize.gd's DECISION: 72 days
+		# of the fastest possible feed to get here). Past that ceiling the only
+		# alternatives are wrapping — the aliasing bug the ceiling exists to
+		# prevent — or handing out an id the wire would truncate onto another
+		# body. So the block keeps net_id -1: it lives and simulates on the
+		# host, SnapshotSync skips it (net_id <= 0), bind_net_id() refuses it
+		# on a client, and the error below is the record that it happened.
+		push_error(
+			"BlockRegistry: net_id space exhausted (next id %d > %d); block not replicated"
+			% [net_id, Quantize.NET_ID_MAX]
+		)
+		return
 	_next_net_id += 1
 	typed.net_id = net_id
 	_net_id_to_block[net_id] = typed

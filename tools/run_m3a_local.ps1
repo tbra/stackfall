@@ -49,6 +49,12 @@ function Start-Instance {
 	$allArgs = @("--headless", "--path", $repoRoot, $scenePath, "--") + $GameArgs
 	$process = Start-Process -FilePath $Godot -ArgumentList $allArgs -PassThru -NoNewWindow `
 		-RedirectStandardOutput $outLog -RedirectStandardError $errLog
+	# Touch the handle: without this, PowerShell's Process object never caches
+	# it and $process.ExitCode reads back $null after the child exits, so
+	# every instance reported "(exit )" and the run was declared FAILED even
+	# when all four peers printed M3A_ACCEPT result=PASS (found while
+	# validating Bontago-mv0.1.4-.6).
+	$null = $process.Handle
 	return [pscustomobject]@{ Name = $Name; Process = $process; OutLog = $outLog; ErrLog = $errLog }
 }
 

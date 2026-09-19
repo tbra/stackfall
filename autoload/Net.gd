@@ -54,6 +54,9 @@ var _ping_samples: Dictionary = {}
 ## have sent its handshake, or it is dropped.
 var _pending_handshake: Dictionary = {}
 var _next_slot_id: int = 1
+## Host only: whether _rpc_handshake may still seat a new peer. True in the
+## lobby, false once the match flow leaves it (see set_accepting_joins()).
+var _accepting_joins: bool = true
 
 ## Snapshot of build_version() taken when hosting started, so the version a
 ## host advertises for a session can never drift even if something else
@@ -142,6 +145,7 @@ func host_game(port: int = 0, player_name: String = "") -> Error:
 		"build": _host_build_version,
 	}
 	_next_slot_id = 1
+	_accepting_joins = true
 	Events.net_mode_changed.emit(_mode)
 	_start_lan_advertising(player_name)
 	return OK
@@ -193,6 +197,7 @@ func leave() -> void:
 	_joined_accepted = false
 	_own_ping_ms = 0.0
 	_lobby_data = {}
+	_accepting_joins = true
 	Events.net_mode_changed.emit(_mode)
 
 
@@ -575,6 +580,11 @@ func _rpc_handshake(build: String, player_name: String) -> void:
 	if build != _host_build_version:
 		_reject_peer(sender, JoinError.VERSION_MISMATCH)
 		return
+	# Spec 3.4: joining is lobby-only in M3a. Checked before capacity so a
+	# late joiner learns the real reason — a full lobby is a different message.
+	if not _accepting_joins:
+		_reject_peer(sender, JoinError.MATCH_IN_PROGRESS)
+		return
 	if _peers.size() >= config.max_peers:
 		_reject_peer(sender, JoinError.SERVER_FULL)
 		return
@@ -612,7 +622,12 @@ func _reject_peer(peer_id: int, error: int) -> void:
 	# engine error.
 	await get_tree().process_frame
 	await get_tree().process_frame
-	if multiplayer.multiplayer_peer:
+	# The refused peer usually hangs up first: its _fail_join() calls leave()
+	# the moment the refusal lands, and on loopback the host has processed that
+	# disconnect before these two frames are up. disconnect_peer() on an id the
+	# transport no longer holds logs an engine error, so only close what is
+	# still open (the same check _apply_peer_timeout() makes).
+	if multiplayer.multiplayer_peer and multiplayer.get_peers().has(peer_id):
 		multiplayer.multiplayer_peer.disconnect_peer(peer_id)
 
 
@@ -660,6 +675,40 @@ func _rpc_join_refused(error: int) -> void:
 func _fail_join(error: int, detail: String = "") -> void:
 	leave()
 	Events.net_join_failed.emit(error, detail)
+
+
+# --- Lobby-only joining ------------------------------------------------------
+
+## Host only. Whether _rpc_handshake may still seat a new peer. Spec 3.4 makes
+## joining lobby-only in M3a ("Mid-match joins can be enabled in settings" is a
+## future setting; docs/M3a_PLAN.md "Known limitations": "the host refuses new
+## connections once the match starts"). A peer that handshakes while this is
+## false is refused with JoinError.MATCH_IN_PROGRESS and disconnected, gets no
+## slot, and the existing roster is not touched or re-broadcast.
+##
+## host_game() and leave() reset it to true, so a fresh session always accepts.
+##
+## DECISION (autoload/Net.gd, Bontago-mv0.1.8): a flag the match flow flips,
+## not a subscription to Events.match_state_changed. That signal carries
+## Match.State ints, and deciding which value is "lobby" would make this file
+## name a gameplay concept (docs/M3a_PLAN.md P1: "Must NOT name a gameplay
+## concept — no Match"). Match already depends on Net (Net.is_host()), so the
+## dependency keeps its existing direction. Wire it where the state machine
+## moves: `Net.set_accepting_joins(to_state == Match.State.LOBBY)` in
+## game/Main.gd's _on_match_state_changed() (or Match._set_state()).
+##
+## The transport stays open on purpose. docs/M3a_PLAN.md suggests
+## set_refuse_new_connections(true) once the match starts, but that fails the
+## late joiner's connection at the ENet layer, which surfaces as
+## JoinError.TRANSPORT or TIMEOUT — not a message the lobby can explain.
+## Accepting the connection and refusing in the handshake costs one reliable
+## RPC and the same two-frame disconnect every other refusal already pays.
+func set_accepting_joins(accepting: bool) -> void:
+	_accepting_joins = accepting
+
+
+func accepting_joins() -> bool:
+	return _accepting_joins
 
 
 # --- Ready state --------------------------------------------------------

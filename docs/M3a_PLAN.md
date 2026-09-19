@@ -60,7 +60,8 @@ the project, now or in M3b. Do not add `class_name` to `Net.gd`.
 **Tests first:** `quantize_axis`/`dequantize_axis` round-trip inside one step, and clamp
 past both ends; a position anywhere in the map-M AABB round-trips within **2.1 mm** and a
 random quaternion within **0.005°**, with `q` and `-q` packing identically; the sleeping
-flag survives; `pack_body` writes exactly `BODY_RECORD_BYTES = 14`.
+flag survives; `pack_body` writes exactly `BODY_RECORD_BYTES = 15` (14 until the review fix
+Bontago-mv0.1.7 widened the id — see "The wire, byte for byte").
 `encode_fragment`/`decode_fragment` round-trip header, disk state and bodies; a truncated,
 wrong-version or random payload decodes to `{}` and logs nothing; a fragment never exceeds
 `NetConfig.max_packet_bytes`; 300 bodies split into exactly the count
@@ -163,9 +164,18 @@ client — it asks the host. The overlay reads and never writes game state.
 **The wire, byte for byte.** Both layouts live in the stubs' doc comments and are the
 contract: `net/SnapshotSync.gd` has the 12-byte fragment header (version, u16 sequence,
 fragment index/count, u32 `host_time_ms`, flags, u16 body count, optional 12-byte disk
-state); `core/net/Quantize.gd` has the 14-byte body record (u16 `net_id`, 3×u16 position over
-the AABB, 48-bit smallest-three quaternion with the sleeping flag in the spare bit).
-Little-endian throughout. **Both ends must derive the AABB from the same `MapDef`**, which
+state); `core/net/Quantize.gd` has the 15-byte body record (**u24** `net_id`, 3×u16 position
+over the AABB, 48-bit smallest-three quaternion with the sleeping flag in the spare bit).
+Little-endian throughout. `SnapshotSync.PACKET_VERSION` is 2 for this layout. **The id is
+u24, not §3.4's u16 — a deliberate deviation (Bontago-mv0.1.7, `# DECISION` at
+`Quantize.pack_net_id`).** `net_id` is never reused within a match (next paragraph), so a
+u16 field would alias the 65537th block onto the first and drop the 65536th as "no body";
+eight players on a 3 s timer with the match timer off get there in under seven hours. u24
+gives 16.7 M ids (72 days at that rate) and costs one byte per body — 300 bodies are 4560 B
+in four 78-body fragments, inside the 1200 B and 4.5 KB budgets — where u32 would need five
+fragments and 4860 B. `Quantize.NET_ID_MAX` is the single statement of the ceiling; the
+host's allocator refuses (logs an error, leaves `net_id = -1`, body stays host-only) rather
+than wrapping if it is ever reached. **Both ends must derive the AABB from the same `MapDef`**, which
 arrives in `net_match_start` before any snapshot; get it wrong and every body lands somewhere
 plausible but wrong — far harder to spot than a crash.
 
@@ -281,6 +291,7 @@ rule deterministically, without the timing the end-to-end run depends on.
   state"), but the disk is static until M4. Sending it now means M4 changes no wire format.
 - **Specials and gifts are not replicated** — there are none until M4. §3.4's reliable
   channel lists "special trigger events"; `MatchNet.replicate_match_event` is the seam.
-- **A 14-byte body record, not 13.** §3.4 estimates "~13 bytes"; an honest u16 id plus 6+6
-  is 14 once the sleeping flag folds into the quaternion's spare bit. 300 awake bodies cost
-  4.2 KB — still §3.4's "≈4 KB".
+- **A 15-byte body record, not 13.** §3.4 estimates "~13 bytes"; a u24 id (not §3.4's u16 —
+  see "The wire, byte for byte") plus 6+6 is 15 once the sleeping flag folds into the
+  quaternion's spare bit. 300 awake bodies cost 4.56 KB — still §3.4's "≈4 KB", still four
+  fragments, and inside P2's 4.5 KB (4608 B) benchmark budget.

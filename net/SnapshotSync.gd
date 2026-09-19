@@ -13,7 +13,7 @@ extends Node
 ## transport). Steam's peer in M3b carries it unchanged.
 ##
 ## **Wire layout** — one fragment, little-endian throughout. Bodies are packed
-## by core/net/Quantize.gd, 14 bytes each.
+## by core/net/Quantize.gd, 15 bytes each (u24 net_id; see its DECISION).
 ##
 ## | offset | size | field |
 ## |---|---|---|
@@ -25,11 +25,11 @@ extends Node
 ## | 9 | 1 | flags: bit0 FLAG_DISK_STATE, bit1 FLAG_KEYFRAME |
 ## | 10 | 2 | `body_count`, u16 |
 ## | 12 | 12 | disk state, only when FLAG_DISK_STATE: 6 B quantized offset + 6 B tilt quaternion (spec 3.4 "Disk state: tilt quaternion and position offset, sent every snapshot") |
-## | .. | 14 x body_count | body records |
+## | .. | 15 x body_count | body records |
 ##
 ## The header is HEADER_BYTES (12) or HEADER_BYTES + DISK_STATE_BYTES (24);
 ## NetConfig.bodies_per_fragment() turns that into the per-fragment body cap,
-## which at 1200 bytes is 84 bodies, so spec 3.4's 300 awake bodies take four
+## which at 1200 bytes is 78 bodies, so spec 3.4's 300 awake bodies take four
 ## fragments.
 ##
 ## Every fragment is independently decodable — it carries the whole header and
@@ -49,7 +49,8 @@ extends Node
 ## Bumped whenever the layout above changes. A mismatched version is dropped
 ## rather than misread; the build-version handshake in Net should already have
 ## refused the peer, so this is a belt-and-braces check.
-const PACKET_VERSION: int = 1
+## 2: the body record's net_id grew from u16 to u24 (Bontago-mv0.1.7).
+const PACKET_VERSION: int = 2
 
 const HEADER_BYTES: int = 12
 const DISK_STATE_BYTES: int = 12

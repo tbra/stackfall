@@ -106,6 +106,126 @@ func test_abort_match_returns_to_lobby() -> void:
 	assert_eq(Match.slot_count(), 0)
 
 
+# --- Restart and teardown ordering (spec 3.7; Beads Bontago-mv0.1.9) --------
+# game/Main.gd builds the match world synchronously inside the LOADING emit
+# and reads Match.raster()/slot()/registry() right there, so the world model
+# must be complete by then; and a start from a stale PLAYING/END (rehost
+# after the host quit, a future rematch) must go back through LOBBY so every
+# consumer tears the previous match down before the new one is built.
+
+## Every transition Match emits, in order, as [from, to] pairs.
+func _record_transitions(into: Array[Array]) -> Callable:
+	var recorder: Callable = func(from_state: int, to_state: int) -> void:
+		into.append([from_state, to_state])
+	Events.match_state_changed.connect(recorder)
+	return recorder
+
+
+func test_loading_is_emitted_only_once_the_world_model_is_built() -> void:
+	var seen_at_loading: Dictionary = {}
+	var probe: Callable = func(_from_state: int, to_state: int) -> void:
+		if to_state == Match.State.LOADING:
+			seen_at_loading["raster"] = Match.raster()
+			seen_at_loading["slots"] = Match.slot_count()
+			seen_at_loading["config"] = Match.config
+			seen_at_loading["cell_grid"] = Match.cell_grid()
+	Events.match_state_changed.connect(probe)
+
+	Match.start_match(_hotseat_config(3))
+	Events.match_state_changed.disconnect(probe)
+
+	assert_true(seen_at_loading.has("raster"), "LOADING must be emitted")
+	assert_not_null(seen_at_loading.get("raster"), "The raster must exist when LOADING fires (Main binds the overlay to it).")
+	assert_eq(seen_at_loading.get("raster"), Match.raster(), "and be the one the match then plays on")
+	assert_not_null(seen_at_loading.get("cell_grid"))
+	assert_eq(seen_at_loading.get("slots"), 3, "The slots must exist when LOADING fires (Main places the flags from them).")
+	assert_not_null(seen_at_loading.get("config"), "The sanitized config must exist when LOADING fires.")
+
+
+func test_start_match_from_playing_returns_through_lobby_with_a_fresh_world() -> void:
+	Match.start_match(_hotseat_config(2))
+	_run_countdown()
+	assert_eq(Match.state(), Match.State.PLAYING)
+	var old_raster: TerritoryRaster = Match.raster()
+	var old_slot: PlayerSlot = Match.slot(0)
+	# Spend some of slot 0's timer so a stale value would be visible.
+	for _i: int in range(60):
+		Match._process(1.0 / 60.0)
+	assert_eq(Match.active_slot(), 0)
+
+	var transitions: Array[Array] = []
+	var recorder: Callable = _record_transitions(transitions)
+	Match.start_match(_hotseat_config(3))
+	Events.match_state_changed.disconnect(recorder)
+
+	assert_eq(
+		transitions,
+		[
+			[Match.State.PLAYING, Match.State.LOBBY],
+			[Match.State.LOBBY, Match.State.LOADING],
+			[Match.State.LOADING, Match.State.COUNTDOWN],
+		] as Array[Array],
+		"A restart goes back through LOBBY so consumers see exactly one LOBBY -> LOADING per match."
+	)
+	assert_eq(Match.state(), Match.State.COUNTDOWN)
+	assert_eq(Match.slot_count(), 3, "The new config, not the old one")
+	assert_ne(Match.raster(), old_raster, "A fresh raster")
+	assert_ne(Match.slot(0), old_slot, "Fresh slots")
+	assert_eq(Match.active_slot(), -1, "No turn is active before play begins")
+	assert_null(Match.held_shape(0), "No held block carries over")
+	assert_eq(Match.blocks_spawned(), 0)
+
+
+func test_start_match_from_end_returns_through_lobby() -> void:
+	Match.start_match(_hotseat_config(2))
+	_run_countdown()
+	Match._finish_match(0)
+	assert_eq(Match.state(), Match.State.END)
+
+	var transitions: Array[Array] = []
+	var recorder: Callable = _record_transitions(transitions)
+	Match.start_match(_hotseat_config(2))
+	Events.match_state_changed.disconnect(recorder)
+
+	assert_eq(transitions[0], [Match.State.END, Match.State.LOBBY] as Array)
+	assert_eq(transitions[1], [Match.State.LOBBY, Match.State.LOADING] as Array)
+	assert_eq(Match.state(), Match.State.COUNTDOWN)
+	assert_eq(Match.winner_team(), -1, "The previous winner does not carry over")
+
+
+func test_start_match_from_lobby_emits_no_lobby_transition() -> void:
+	var transitions: Array[Array] = []
+	var recorder: Callable = _record_transitions(transitions)
+	Match.start_match(_hotseat_config(2))
+	Events.match_state_changed.disconnect(recorder)
+
+	assert_eq(
+		transitions,
+		[
+			[Match.State.LOBBY, Match.State.LOADING],
+			[Match.State.LOADING, Match.State.COUNTDOWN],
+		] as Array[Array],
+		"M2's first-start sequence is unchanged."
+	)
+
+
+func test_abort_match_stops_the_host_ticking() -> void:
+	watch_signals(Events)
+	Match.start_match(_hotseat_config(2, MatchConfig.BLOCK_TIMER_MIN))
+	_run_countdown()
+
+	Match.abort_match()
+	for _i: int in range(int(MatchConfig.BLOCK_TIMER_MIN * 60.0) * 2):
+		Match._process(1.0 / 60.0)
+
+	assert_eq(Match.state(), Match.State.LOBBY)
+	assert_signal_not_emitted(Events, "feed_timer_expired", "An aborted match must not keep running its feed.")
+	assert_signal_not_emitted(Events, "match_won")
+	assert_null(Match.config)
+	assert_null(Match.raster())
+	assert_eq(Match.countdown_remaining(), 0.0)
+
+
 # --- Hot-seat turn order and feed timer (spec 2.2, 2.4, 2.7) ----------------
 
 func test_only_the_active_slot_timer_runs_in_hot_seat() -> void:
@@ -197,6 +317,61 @@ func test_request_place_consumes_the_block_and_feeds_the_next_one() -> void:
 	assert_eq(_blocks_root.get_child_count(), 1)
 	var spawned: Node = _blocks_root.get_child(0)
 	assert_signal_emitted_with_parameters(Events, "block_placed", [spawned, held_before.id])
+
+
+# --- The authority's own guard against a pose it cannot evaluate -----------
+# net/MatchNet.gd refuses these at the wire (tests/unit/
+# test_remote_intent_validation.gd); Match refuses them too, from any caller,
+# so a bad index can never reach BlockOrientations.get_basis() and a NaN
+# origin can never reach the raster (Beads Bontago-mv0.1.5, .6).
+
+func test_request_place_refuses_a_malformed_pose_without_spending_the_block() -> void:
+	Match.start_match(_hotseat_config(2))
+	_run_countdown()
+	var seq: int = Match.feed_seq(0)
+	var home: Vector3 = _home_world_position(0)
+
+	var bad_poses: Array[Array] = [
+		[home, -1, Quaternion.IDENTITY],
+		[home, BlockOrientations.ORIENTATION_COUNT, Quaternion.IDENTITY],
+		[home, 1 << 40, Quaternion.IDENTITY],
+		[Vector3(NAN, home.y, home.z), 0, Quaternion.IDENTITY],
+		[Vector3(home.x, INF, home.z), 0, Quaternion.IDENTITY],
+		[home, 0, Quaternion(0.0, 0.0, 0.0, 0.0)],
+		[home, 0, Quaternion(0.0, 0.0, 0.0, 2.0)],
+		[home, 0, Quaternion(NAN, 0.0, 0.0, 1.0)],
+	]
+	for pose: Array in bad_poses:
+		var reason: StringName = Match.request_place(0, pose[0], int(pose[1]), pose[2], false)
+		assert_eq(reason, PlacementRules.REASON_NO_BLOCK, "Pose %s must be refused." % [pose])
+
+	assert_eq(_blocks_root.get_child_count(), 0, "A malformed pose spawns nothing, not even a burned block.")
+	assert_eq(Match.feed_seq(0), seq, "and consumes nothing")
+	assert_eq(Match.active_slot(), 0, "and the hot-seat turn does not pass")
+
+
+func test_preview_placement_reports_empty_for_a_malformed_pose() -> void:
+	Match.start_match(_hotseat_config(2))
+	_run_countdown()
+	var home: Vector3 = _home_world_position(0)
+
+	assert_eq(Match.preview_placement(0, home, BlockOrientations.ORIENTATION_COUNT, Quaternion.IDENTITY), PlacementRules.Result.EMPTY)
+	assert_eq(Match.preview_placement(0, Vector3(NAN, 0.0, 0.0), 0, Quaternion.IDENTITY), PlacementRules.Result.EMPTY)
+	assert_eq(Match.preview_placement(0, home, 0, Quaternion(0.0, 0.0, 0.0, 0.0)), PlacementRules.Result.EMPTY)
+	assert_ne(
+		Match.preview_placement(0, home, 0, Quaternion.IDENTITY),
+		PlacementRules.Result.EMPTY,
+		"A well-formed pose is still previewed for real."
+	)
+
+
+func test_is_pose_well_formed_accepts_every_table_index_and_any_unit_rotation() -> void:
+	for index: int in range(BlockOrientations.ORIENTATION_COUNT):
+		assert_true(Match.is_pose_well_formed(Vector3.ZERO, index, Quaternion.IDENTITY))
+	assert_true(Match.is_pose_well_formed(Vector3(1.0e6, -1.0e6, 3.0), 5, Quaternion(Vector3(1.0, 1.0, 0.0).normalized(), 2.0)))
+	assert_false(Match.is_pose_well_formed(Vector3.ZERO, -1, Quaternion.IDENTITY))
+	assert_false(Match.is_pose_well_formed(Vector3(0.0, 0.0, -INF), 0, Quaternion.IDENTITY))
+	assert_false(Match.is_pose_well_formed(Vector3.ZERO, 0, Quaternion(1.0, 1.0, 1.0, 1.0)))
 
 
 # --- request_place's accept/reject/burn decision (spec 2.2, 2.5) -----------

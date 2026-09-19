@@ -134,7 +134,8 @@ func test_header_fields_round_trip() -> void:
 
 func test_the_packet_is_little_endian_where_the_layout_says_it_is() -> void:
 	var packet: PackedByteArray = _encode(0x0201, 0, 1, 0x0A0B0C0D, 0, [])
-	assert_eq(packet[0], 1, "byte 0 is the packet version")
+	assert_eq(packet[0], _const("PACKET_VERSION"), "byte 0 is the packet version")
+	assert_eq(_const("PACKET_VERSION"), 2, "version 2: the u24 net_id record (Bontago-mv0.1.7)")
 	assert_eq(packet[1], 0x01, "sequence low byte first")
 	assert_eq(packet[2], 0x02, "sequence high byte second")
 	assert_eq(packet[5], 0x0D, "host_time_ms low byte first")
@@ -190,7 +191,7 @@ func test_bodies_round_trip_through_a_fragment() -> void:
 
 func test_a_fragment_grows_by_exactly_one_record_per_body() -> void:
 	var base: int = _encode(1, 0, 1, 0, 0, []).size()
-	for count: int in [1, 2, 10, 84]:
+	for count: int in [1, 2, 10, 78]:
 		assert_eq(
 			_encode(1, 0, 1, 0, 0, _bodies(count)).size(),
 			base + count * Quantize.BODY_RECORD_BYTES,
@@ -248,7 +249,7 @@ func test_the_fragment_cap_is_what_net_config_predicts() -> void:
 	var per_fragment: int = _config.bodies_per_fragment(
 		_header_bytes() + _disk_bytes(), Quantize.BODY_RECORD_BYTES
 	)
-	assert_eq(per_fragment, 84, "1200 bytes minus a 24-byte header holds 84 records")
+	assert_eq(per_fragment, 78, "1200 bytes minus a 24-byte header holds 78 15-byte records")
 
 
 func test_three_hundred_bodies_split_into_the_predicted_fragment_count() -> void:
@@ -262,7 +263,7 @@ func test_three_hundred_bodies_split_into_the_predicted_fragment_count() -> void
 
 
 func test_every_fragment_stays_under_max_packet_bytes() -> void:
-	for count: int in [0, 1, 84, 85, 300, 600]:
+	for count: int in [0, 1, 78, 79, 300, 600]:
 		for entry: Variant in _build(1, 0, _flag_disk(), _bodies(count)):
 			var packet: PackedByteArray = entry as PackedByteArray
 			assert_lte(
@@ -316,9 +317,11 @@ func test_three_hundred_bodies_cost_about_four_kilobytes() -> void:
 	gut.p("SNAPSHOT_WIRE bodies=%d fragments=%d bytes=%d bytes_per_body=%.2f" % [
 		SPEC_BODY_COUNT, packets.size(), total, float(total) / float(SPEC_BODY_COUNT)
 	])
-	# 300 x 14 = 4200 plus four headers. docs/M3a_PLAN.md: "300 awake bodies
-	# cost 4.2 KB - still spec 3.4's '≈4 KB'".
-	assert_between(total, 4200, 4500, "a 300-body snapshot is about 4 KB")
+	# 300 x 15 = 4500 plus four headers (24 + 3 x 12 = 60). docs/M3a_PLAN.md:
+	# "300 awake bodies cost 4.56 KB - still spec 3.4's '≈4 KB'" and inside
+	# the P2 acceptance budget of 4.5 KB = 4608 B that bench_snapshot.gd grades.
+	assert_between(total, 4500, 4608, "a 300-body snapshot is about 4 KB")
+	assert_eq(total, 4560, "exactly 300 records plus one disk header and three plain ones")
 
 
 # --- Keyframe rotation ------------------------------------------------------
@@ -427,6 +430,45 @@ func test_a_sample_for_an_unspawned_body_is_dropped_and_counted() -> void:
 	var interp: Interpolator = _sync.call("interpolator") as Interpolator
 	assert_eq(interp.dropped_unknown_count(), 1, "the unknown body was counted")
 	assert_eq(interp.buffered_count(4242), 0, "and buffered nothing")
+
+
+func test_a_body_past_the_u16_boundary_is_never_aliased_onto_an_older_one() -> void:
+	# Bontago-mv0.1.7. BlockRegistry's counter is monotonic and never reused
+	# within a match (docs/M3a_PLAN.md, "net_id allocation and the
+	# spawn/snapshot race"), so a long match walks past 65535. With a 16-bit
+	# wire id the 65536th body packs as 0 and is dropped as unknown, and the
+	# 65537th packs as 1 and moves the first block of the match instead. This
+	# drives the whole client path — pack, fragment, receive, filter, buffer —
+	# with the allocator moved to the boundary.
+	_start_match()
+	var first: Block = _spawn_block()
+	assert_eq(first.net_id, 1, "the first block of the match is net_id 1")
+
+	_registry.debug_set_next_net_id(65535)
+	var last_u16: Block = _spawn_block()
+	var past_u16: Block = _spawn_block()
+	var would_alias_first: Block = _spawn_block()
+	assert_eq(
+		[last_u16.net_id, past_u16.net_id, would_alias_first.net_id],
+		[65535, 65536, 65537],
+		"the registry hands out 65535, 65536, 65537 without reuse"
+	)
+
+	var bodies: Array = []
+	for block: Block in [last_u16, past_u16, would_alias_first]:
+		bodies.append({
+			"net_id": block.net_id, "position": Vector3.ONE,
+			"rotation": Quaternion.IDENTITY, "sleeping": false,
+		})
+	for entry: Variant in _build(1, 5000, _flag_disk(), bodies):
+		_sync.call("receive_packet", entry as PackedByteArray)
+
+	var interp: Interpolator = _sync.call("interpolator") as Interpolator
+	assert_eq(interp.dropped_unknown_count(), 0, "no body was lost as unknown")
+	assert_eq(interp.buffered_count(first.net_id), 0, "the match's first block was not moved")
+	assert_eq(interp.buffered_count(last_u16.net_id), 1, "65535 received its own sample")
+	assert_eq(interp.buffered_count(past_u16.net_id), 1, "65536 received its own sample")
+	assert_eq(interp.buffered_count(would_alias_first.net_id), 1, "65537 received its own sample")
 
 
 func test_a_garbage_packet_is_ignored_without_disturbing_the_stream() -> void:

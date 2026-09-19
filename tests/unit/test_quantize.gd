@@ -4,7 +4,8 @@ extends GutTest
 ##
 ## "Contents per body: net_id: u16, position quantized to int16 per axis over
 ## map bounds (≈1-2 mm precision), rotation as a 48-bit 'smallest three'
-## quaternion, and a sleeping flag."
+## quaternion, and a sleeping flag." The id is u24 here, not u16 — see the
+## DECISION at Quantize.pack_net_id() and the boundary tests below.
 ##
 ## Every precision assertion here is a measurement, not a restatement of the
 ## doc comment: the round trip is run over hundreds of thousands of random
@@ -383,13 +384,16 @@ func test_an_unnormalized_quaternion_is_normalized_before_packing() -> void:
 
 # --- Whole record -----------------------------------------------------------
 
-func test_pack_body_writes_exactly_fourteen_bytes() -> void:
-	assert_eq(Quantize.BODY_RECORD_BYTES, 14, "the record is 14 bytes (docs/M3a_PLAN.md)")
+func test_pack_body_writes_exactly_fifteen_bytes() -> void:
+	assert_eq(Quantize.BODY_RECORD_BYTES, 15, "the record is 15 bytes (docs/M3a_PLAN.md)")
+	assert_eq(Quantize.NET_ID_BYTES, 3, "the id is u24")
 	assert_eq(
-		Quantize.POSITION_BYTES + Quantize.ROTATION_BYTES + 2,
+		Quantize.NET_ID_BYTES + Quantize.POSITION_BYTES + Quantize.ROTATION_BYTES,
 		Quantize.BODY_RECORD_BYTES,
-		"u16 id + 6 B position + 6 B rotation accounts for every byte"
+		"u24 id + 6 B position + 6 B rotation accounts for every byte"
 	)
+	assert_eq(Quantize.POSITION_OFFSET, Quantize.NET_ID_OFFSET + Quantize.NET_ID_BYTES, "position follows the id")
+	assert_eq(Quantize.ROTATION_OFFSET, Quantize.POSITION_OFFSET + Quantize.POSITION_BYTES, "rotation follows it")
 	var data: PackedByteArray = _buffer(Quantize.BODY_RECORD_BYTES * 2)
 	var after: int = Quantize.pack_body(
 		data, 0, 1234, Vector3(1.0, 2.0, 3.0), Quaternion.IDENTITY, false, _bounds
@@ -440,15 +444,53 @@ func test_body_records_round_trip_back_to_back() -> void:
 		offset += Quantize.BODY_RECORD_BYTES
 
 
-func test_net_id_uses_the_full_u16_range() -> void:
+func test_net_id_uses_the_full_u24_range() -> void:
 	var data: PackedByteArray = _buffer(Quantize.BODY_RECORD_BYTES)
-	for net_id: int in [1, 255, 256, 30000, 65535]:
+	for net_id: int in [1, 255, 256, 30000, 65535, 65536, 65537, 0x123456, Quantize.NET_ID_MAX]:
 		Quantize.pack_body(
 			data, 0, net_id, Vector3.ZERO, Quaternion.IDENTITY, false, _bounds
 		)
 		assert_eq(
 			int(Quantize.unpack_body(data, 0, _bounds)["net_id"]), net_id, "net_id %d" % net_id
 		)
+	assert_eq(Quantize.NET_ID_MAX, 0xFFFFFF, "the ceiling is the u24 maximum")
+
+
+func test_the_net_id_is_little_endian_over_its_three_bytes() -> void:
+	var data: PackedByteArray = _buffer(Quantize.NET_ID_BYTES)
+	assert_eq(Quantize.pack_net_id(data, 0, 0x030201), Quantize.NET_ID_BYTES, "returns the offset past it")
+	assert_eq(Array(data), [0x01, 0x02, 0x03], "low byte first")
+	assert_eq(Quantize.unpack_net_id(data, 0), 0x030201, "and reads back")
+
+
+func test_an_unrepresentable_net_id_packs_as_no_body_rather_than_truncating() -> void:
+	# The registry never allocates these (it refuses at NET_ID_MAX), so this is
+	# the packer's own guarantee: whatever reaches it, no bytes on the wire ever
+	# name a body other than the one meant.
+	var data: PackedByteArray = _buffer(Quantize.NET_ID_BYTES)
+	for net_id: int in [-1, 0, Quantize.NET_ID_MAX + 1, Quantize.NET_ID_MAX + 2, 1 << 32]:
+		assert_false(Quantize.is_wire_id(net_id), "%d is not a wire id" % net_id)
+		Quantize.pack_net_id(data, 0, net_id)
+		assert_eq(Quantize.unpack_net_id(data, 0), Quantize.NET_ID_NONE, "%d packs as 'no body'" % net_id)
+	assert_true(Quantize.is_wire_id(1), "1 is the first real id")
+	assert_true(Quantize.is_wire_id(Quantize.NET_ID_MAX), "and NET_ID_MAX the last")
+
+
+func test_net_ids_past_the_u16_boundary_do_not_alias_older_bodies() -> void:
+	# Bontago-mv0.1.7. game/BlockRegistry.gd allocates net_ids from a monotonic
+	# counter and never reuses one within a match, so a long match walks past
+	# 65535. A record that carried only 16 bits would pack the 65536th body as
+	# 0 — the reserved "no body" — and the 65537th as 1, the very first block of
+	# the match, so a snapshot would drop one body and silently move another.
+	var data: PackedByteArray = _buffer(Quantize.BODY_RECORD_BYTES)
+	var decoded: Dictionary = {}
+	for net_id: int in [65535, 65536, 65537]:
+		Quantize.pack_body(data, 0, net_id, Vector3.ZERO, Quaternion.IDENTITY, false, _bounds)
+		decoded[net_id] = int(Quantize.unpack_body(data, 0, _bounds)["net_id"])
+	assert_eq(int(decoded[65535]), 65535, "65535 is the last id a u16 could carry")
+	assert_eq(int(decoded[65536]), 65536, "65536 must not collapse to 0, the 'no body' id")
+	assert_eq(int(decoded[65537]), 65537, "65537 must not alias an older body")
+	assert_ne(int(decoded[65537]), 1, "specifically not net_id 1, the match's first block")
 
 
 func test_unpack_body_refuses_to_read_past_the_end() -> void:

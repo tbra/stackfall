@@ -83,12 +83,24 @@ var _intents_sent: Dictionary = {}
 var _intents_accepted: Dictionary = {}
 var _intents_refused: Dictionary = {}
 var _auto_drops: Dictionary = {}
+## Cursor updates from a client that the host dropped as malformed (see
+## _handle_cursor_update). Not an intent, so not part of the sent/accepted/
+## refused identity; counted so the debug overlay can show a misbehaving peer.
+var _cursors_refused: Dictionary = {}
 
 ## net_id -> true for every spawn this instance has seen. A net_id arriving
 ## twice is a hard failure of the "never duplicated" criterion, so it is
 ## counted rather than quietly overwritten.
 var _spawned_net_ids: Dictionary = {}
 var _duplicate_net_ids: int = 0
+
+## Test-only (Bontago-mv0.1.7): counts every replicate_spawn() call this host
+## refused to put on the wire because BlockRegistry's allocator left the block
+## with an id the wire cannot carry (net_id == -1 past Quantize.NET_ID_MAX).
+## _can_send() is already false in a unit test with no live peer, so that gate
+## alone cannot prove a refused spawn was never even handed to the rpc(); this
+## counter is the seam that does. Game code never reads it.
+var _invalid_spawn_refusals: int = 0
 
 var _cursor_send_accum: float = 0.0
 var _raster_send_accum: float = 0.0
@@ -274,8 +286,19 @@ func cursor_for_slot(slot_id: int) -> Dictionary:
 
 ## Host only. Announces a block the host just spawned, reliably, before any
 ## snapshot can reference it. Clients build a frozen copy and bind `net_id`.
+##
+## `net_id` may be -1 (Bontago-mv0.1.7: BlockRegistry.debug_set_next_net_id /
+## the allocator refusing past Quantize.NET_ID_MAX) when the body's own
+## net_id allocation failed; that body lives and simulates on the host only,
+## exactly as the allocator's own error says, so nothing goes out for it here
+## either -- sending it anyway would build a permanent phantom client copy no
+## despawn could ever address (bind_net_id() below also refuses it, but the
+## body would already be parented under blocks_parent by then).
 func replicate_spawn(block: Block, net_id: int) -> void:
 	if not _is_host() or block == null:
+		return
+	if not Quantize.is_wire_id(net_id):
+		_invalid_spawn_refusals += 1
 		return
 	_note_spawn(net_id)
 	if not _can_send():
@@ -389,6 +412,11 @@ func auto_drops(slot_id: int) -> int:
 	return int(_auto_drops.get(slot_id, 0))
 
 
+## Cursor updates from `slot_id`'s peer the host dropped as malformed.
+func cursors_refused(slot_id: int) -> int:
+	return int(_cursors_refused.get(slot_id, 0))
+
+
 ## net_ids this instance has seen spawned. A duplicate id is a hard failure.
 func replicated_block_count() -> int:
 	return _spawned_net_ids.size()
@@ -399,14 +427,21 @@ func duplicate_net_id_count() -> int:
 	return _duplicate_net_ids
 
 
+## Test-only; see _invalid_spawn_refusals.
+func invalid_spawn_refusal_count() -> int:
+	return _invalid_spawn_refusals
+
+
 ## Drops every counter and cursor. Called when a match starts or ends.
 func reset_counters() -> void:
 	_intents_sent.clear()
 	_intents_accepted.clear()
 	_intents_refused.clear()
 	_auto_drops.clear()
+	_cursors_refused.clear()
 	_spawned_net_ids.clear()
 	_duplicate_net_ids = 0
+	_invalid_spawn_refusals = 0
 	_cursors.clear()
 	_last_owner_bytes = PackedByteArray()
 	_last_state_bytes = PackedByteArray()
@@ -473,8 +508,21 @@ func _handle_place_intent(
 	if sender_slot != slot_id:
 		# Spec 3.4: the host checks "that the slot matches". A peer may only
 		# ever act for its own slot; the claimed slot_id is never trusted.
-		_bump(_intents_refused, sender_slot)
-		_reject_to_peer(sender_peer_id, sender_slot, PlacementRules.REASON_NOT_YOUR_TURN)
+		_refuse_intent(sender_peer_id, sender_slot, PlacementRules.REASON_NOT_YOUR_TURN)
+		return
+	if feed_seq < 0:
+		# Match.request_place() reads a negative feed_seq as "don't check" —
+		# the sentinel M2's local call sites and the host's own timer rely on.
+		# From the wire it would switch off docs/M3a_PLAN.md's "never
+		# duplicated" defence (1) for whoever sends it, so a remote intent has
+		# to quote the sequence it was actually issued.
+		_refuse_intent(sender_peer_id, sender_slot, PlacementRules.REASON_NO_BLOCK)
+		return
+	if not _pose_is_acceptable(origin, orientation_index, free_quat):
+		# Not a rule violation — a real ghost cannot produce such a pose — so
+		# the block is neither burned (spec 2.2 is for releases on a spot) nor
+		# consumed; the sender is told so its ghost unlocks and it may retry.
+		_refuse_intent(sender_peer_id, sender_slot, PlacementRules.REASON_NO_BLOCK)
 		return
 	# auto_drop is never taken from the wire: it grants the relocation
 	# privilege of spec 2.5, so only the host's own timer may set it.
@@ -484,6 +532,62 @@ func _handle_place_intent(
 		# own; tell the sender anyway so its ghost unlocks now instead of
 		# waiting out NetConfig.intent_ack_timeout.
 		_reject_to_peer(sender_peer_id, slot_id, reason)
+
+
+## Host side of net_update_cursor, split out (like _handle_place_intent) so a
+## test can drive it with a manufactured sender id and no peer at all. What is
+## stored here is what spec 2.5's auto-drop fires from when the slot's timer
+## expires (_on_feed_timer_expired), so it is an input boundary too.
+func _handle_cursor_update(
+	sender_peer_id: int, slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion
+) -> void:
+	if not _is_host():
+		return
+	var sender_slot: int = int(_session().slot_of_peer(sender_peer_id))
+	if sender_slot < 0 or sender_slot != slot_id:
+		return
+	if not _pose_is_acceptable(origin, orientation_index, free_quat):
+		# DECISION (net/MatchNet.gd): a malformed cursor is dropped, not
+		# clamped. Clamping would invent a pose the player never had and then
+		# auto-drop from it; dropping keeps the last well-formed cursor (or,
+		# if there never was one, Match.default_ghost_origin's home flag), and
+		# the next honest update at NetConfig.cursor_hz replaces it anyway.
+		# Nothing is rebroadcast, so other clients' RemoteCursors never see it.
+		_bump(_cursors_refused, sender_slot)
+		return
+	_store_cursor(slot_id, origin, orientation_index, free_quat)
+	Events.remote_cursor_updated.emit(slot_id, origin, orientation_index, free_quat)
+	if _can_send():
+		rpc(&"net_cursor", slot_id, origin, orientation_index, free_quat)
+
+
+## Every check the wire gets that Match does not: the pose must be one the
+## authority can evaluate (Match.is_pose_well_formed: finite origin, finite
+## unit free quaternion, orientation index inside BlockOrientations' table) and
+## its height must lie inside the volume snapshots quantize positions into.
+##
+## DECISION (net/MatchNet.gd): the height band is NetConfig.pos_min_y ..
+## pos_max_y, the same numbers core/net/Quantize.gd packs `global_position.y`
+## with, judged on the world-space origin exactly as SnapshotSync does. A
+## block spawned outside it could not be replicated to anyone, so refusing it
+## changes nothing a legitimate client can do: the ghost sits at most
+## PhysicsTuning.hover_height + GhostTuning.hover_manual_max (3.3 m) above the
+## disk or a tower, and pos_max_y is documented as bracketing the tallest
+## reachable tower. No new tunable; X/Z are left to territory validation,
+## which already burns an off-disk release (spec 2.2).
+func _pose_is_acceptable(origin: Vector3, orientation_index: int, free_quat: Quaternion) -> bool:
+	if not bool(_authority().is_pose_well_formed(origin, orientation_index, free_quat)):
+		return false
+	return origin.y >= config.pos_min_y and origin.y <= config.pos_max_y
+
+
+## A remote intent the host will not act on: counted against the sender's own
+## slot so the harness identity accepted + refused == sent still holds, and
+## echoed back so the sender's ghost unlocks now instead of waiting out
+## NetConfig.intent_ack_timeout.
+func _refuse_intent(sender_peer_id: int, sender_slot: int, reason: StringName) -> void:
+	_bump(_intents_refused, sender_slot)
+	_reject_to_peer(sender_peer_id, sender_slot, reason)
 
 
 func _reject_to_peer(peer_id: int, slot_id: int, reason: StringName) -> void:
@@ -759,15 +863,7 @@ func net_request_place(
 
 @rpc("any_peer", "call_remote", "unreliable", CURSOR_CHANNEL)
 func net_update_cursor(slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion) -> void:
-	if not _is_host():
-		return
-	var sender_slot: int = int(_session().slot_of_peer(multiplayer.get_remote_sender_id()))
-	if sender_slot < 0 or sender_slot != slot_id:
-		return
-	_store_cursor(slot_id, origin, orientation_index, free_quat)
-	Events.remote_cursor_updated.emit(slot_id, origin, orientation_index, free_quat)
-	if _can_send():
-		rpc(&"net_cursor", slot_id, origin, orientation_index, free_quat)
+	_handle_cursor_update(multiplayer.get_remote_sender_id(), slot_id, origin, orientation_index, free_quat)
 
 
 # Host -> clients.
@@ -849,6 +945,13 @@ func net_match_event(event: StringName, args: Array) -> void:
 func net_block_spawned(
 	net_id: int, shape_id: StringName, owner_slot: int, origin: Vector3, rotation: Quaternion
 ) -> void:
+	if not Quantize.is_wire_id(net_id):
+		# Defensive: a well-behaved host never sends this (replicate_spawn()'s
+		# own guard above), but this is the client's own boundary and must not
+		# trust the wire either -- a body built for an id the wire cannot
+		# carry would sit under blocks_parent forever with nothing able to
+		# address it for a despawn (Bontago-mv0.1.7).
+		return
 	_note_spawn(net_id)
 	var registry: BlockRegistry = _authority().registry()
 	var parent: Node3D = _authority().blocks_parent()

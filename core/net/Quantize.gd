@@ -5,18 +5,19 @@ extends RefCounted
 ## the whole wire format is unit-testable without a peer (CLAUDE.md: core/
 ## holds pure logic with no scene-tree dependence).
 ##
-## **One body record is exactly BODY_RECORD_BYTES = 14 bytes:**
+## **One body record is exactly BODY_RECORD_BYTES = 15 bytes:**
 ##
 ## | offset | size | field |
 ## |---|---|---|
-## | 0 | 2 | `net_id`, u16 little-endian. 0 is reserved as "no body". |
-## | 2 | 6 | position, three u16 axes over the match's position AABB |
-## | 8 | 6 | rotation, 48-bit smallest-three quaternion + sleeping flag |
+## | 0 | 3 | `net_id`, u24 little-endian, 1..NET_ID_MAX. 0 is reserved as "no body". |
+## | 3 | 6 | position, three u16 axes over the match's position AABB |
+## | 9 | 6 | rotation, 48-bit smallest-three quaternion + sleeping flag |
 ##
-## Spec 3.4 quotes "~13 bytes"; 14 is what an honest u16 id plus 6+6 costs
-## once the sleeping flag is folded into the rotation's spare bit. At 300
-## awake bodies that is 4200 B, still spec 3.4's "≈4 KB per packet" before
-## fragmentation.
+## Spec 3.4 quotes "~13 bytes" and a u16 id; 15 is what a u24 id plus 6+6
+## costs once the sleeping flag is folded into the rotation's spare bit (see
+## the DECISION at pack_net_id() for why the id is 24 bits, not 16). At 300
+## awake bodies that is 4500 B, still spec 3.4's "≈4 KB per packet" before
+## fragmentation, and still four fragments of at most 1200 bytes.
 ##
 ## **Position precision.** Each axis maps its NetConfig.position_bounds()
 ## span linearly onto 0..65535. On map M (field_radius 45) with
@@ -65,7 +66,16 @@ extends RefCounted
 ## put them back.
 
 ## Bytes in one packed body record.
-const BODY_RECORD_BYTES: int = 14
+const BODY_RECORD_BYTES: int = 15
+## Bytes in the packed net_id (u24 little-endian).
+const NET_ID_BYTES: int = 3
+## The reserved "no body" id. BlockRegistry never allocates it, and a record
+## carrying it names nothing, so the client drops it as unknown.
+const NET_ID_NONE: int = 0
+## Largest net_id the record can carry. BlockRegistry stops allocating here
+## rather than wrapping (game/BlockRegistry.gd), so no body ever exists with an
+## id the wire cannot name.
+const NET_ID_MAX: int = 0xFFFFFF
 ## Bytes in the packed position (three u16 axes).
 const POSITION_BYTES: int = 6
 ## Bytes in the packed rotation + sleeping flag.
@@ -83,9 +93,9 @@ const SQRT_HALF: float = 0.70710678118654752
 ## Offset of the net_id inside a body record.
 const NET_ID_OFFSET: int = 0
 ## Offset of the packed position inside a body record.
-const POSITION_OFFSET: int = 2
+const POSITION_OFFSET: int = 3
 ## Offset of the packed rotation inside a body record.
-const ROTATION_OFFSET: int = 8
+const ROTATION_OFFSET: int = 9
 
 ## Bit position of the 2-bit dropped-component index in the rotation word.
 const DROPPED_INDEX_SHIFT: int = 45
@@ -274,6 +284,45 @@ static func dequantize_component(raw: int) -> float:
 	)
 
 
+## True when `net_id` is one the record can carry: 1..NET_ID_MAX. The single
+## statement of the wire's id range, which BlockRegistry's allocator and the
+## packer below both defer to.
+static func is_wire_id(net_id: int) -> bool:
+	return net_id > NET_ID_NONE and net_id <= NET_ID_MAX
+
+
+## Writes NET_ID_BYTES at `offset`. Returns the offset just past what it wrote.
+## An id outside 1..NET_ID_MAX is written as NET_ID_NONE rather than truncated:
+## a truncated id would silently name a *different* body, while "no body" is
+## dropped and counted on the client (Interpolator.dropped_unknown_count).
+static func pack_net_id(out: PackedByteArray, offset: int, net_id: int) -> int:
+	# DECISION (core/net/Quantize.gd, Bontago-mv0.1.7): the wire net_id is u24,
+	# not spec 3.4's u16. game/BlockRegistry.gd allocates ids monotonically and
+	# never reuses one within a match (docs/M3a_PLAN.md, "net_id allocation and
+	# the spawn/snapshot race"), so a u16 field would pack the 65536th block of
+	# a match as 0 ("no body", dropped) and the 65537th as 1 — the first block
+	# of the match — and a snapshot would silently move the wrong body. 65535
+	# ids is reachable: eight players on MatchConfig's 3 s block timer with the
+	# match timer off burn one every 0.375 s, so under seven hours, before M4's
+	# specials add spawns of their own and M8's soak runs bots for longer. At
+	# that rate 2^24 - 1 ids last 72 days, so NET_ID_MAX is unreachable and the
+	# allocator refuses past it instead of aliasing. u32 was rejected: a 16-byte
+	# record puts 300 bodies at 4860 B in five fragments, over the plan's
+	# 4.5 KB budget, and would not fit the PackedInt32Array that
+	# Interpolator.tracked_ids() returns. u24 keeps four fragments (78 bodies
+	# each) and 4560 B, a 7% cost. Spec 3.4 is a technical section, not an
+	# [ORIGINAL] rule; the deviation is recorded in docs/M3a_PLAN.md.
+	var wire: int = net_id if is_wire_id(net_id) else NET_ID_NONE
+	out.encode_u16(offset, wire & 0xFFFF)
+	out[offset + 2] = (wire >> 16) & 0xFF
+	return offset + NET_ID_BYTES
+
+
+## Reads a net_id written by pack_net_id().
+static func unpack_net_id(data: PackedByteArray, offset: int) -> int:
+	return data.decode_u16(offset) | (data[offset + 2] << 16)
+
+
 ## Writes one whole BODY_RECORD_BYTES record. Returns the offset just past it.
 static func pack_body(
 	out: PackedByteArray,
@@ -284,7 +333,7 @@ static func pack_body(
 	sleeping: bool,
 	bounds: AABB
 ) -> int:
-	out.encode_u16(offset + NET_ID_OFFSET, net_id & 0xFFFF)
+	pack_net_id(out, offset + NET_ID_OFFSET, net_id)
 	pack_position(out, offset + POSITION_OFFSET, world, bounds)
 	pack_quat(out, offset + ROTATION_OFFSET, rotation, sleeping)
 	return offset + BODY_RECORD_BYTES
@@ -297,7 +346,7 @@ static func unpack_body(data: PackedByteArray, offset: int, bounds: AABB) -> Dic
 	if offset < 0 or offset + BODY_RECORD_BYTES > data.size():
 		return {}
 	return {
-		"net_id": data.decode_u16(offset + NET_ID_OFFSET),
+		"net_id": unpack_net_id(data, offset + NET_ID_OFFSET),
 		"position": unpack_position(data, offset + POSITION_OFFSET, bounds),
 		"rotation": unpack_quat(data, offset + ROTATION_OFFSET),
 		"sleeping": unpack_sleeping(data, offset + ROTATION_OFFSET),

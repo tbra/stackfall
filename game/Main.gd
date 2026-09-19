@@ -23,7 +23,12 @@ extends Node3D
 ##     client it follows net/MatchNet.gd's net_match_start RPC calling that
 ##     same Match.start_match() locally. Reacting to the state change instead
 ##     of branching on host/client here is what lets one code path build the
-##     world identically on every instance.
+##     world identically on every instance. The world comes down again
+##     whenever Match returns to LOBBY -- Match.abort_match(), which
+##     start_match() itself runs first when a match is restarted from any
+##     later state -- and when Net drops to OFFLINE, which also aborts the
+##     stale Match so it stops ticking and the next host/join starts from a
+##     clean LOBBY (Beads Bontago-mv0.1.9).
 ##
 ## **Wiring order matters**, same reason as M2: Match.register_world() must
 ## happen before start_match() (it configures BlockRegistry's host authority
@@ -71,7 +76,8 @@ var _debug_overlay: NetDebugOverlay = null
 ## True once _build_match_world() has run for the match currently in
 ## progress, so a repeated match_state_changed(LOBBY, LOADING) firing twice
 ## (should not happen, but a state machine is exactly the place to be
-## defensive about it) cannot double-instance HotSeat/RemoteCursors.
+## defensive about it) cannot double-instance HotSeat/RemoteCursors, and
+## _end_match_world() is a no-op when there is nothing to tear down.
 var _world_built: bool = false
 
 
@@ -162,6 +168,19 @@ func _on_net_mode_changed(mode: int) -> void:
 		# emits this): never a half-dead match (docs/M3a_PLAN.md
 		# "Disconnects").
 		_end_match_world()
+		# DECISION (game/Main.gd): Net.leave() does not know about Match, so
+		# the match is aborted here, where the session's end is routed.
+		# Without it Match stayed PLAYING/END on the main menu -- still
+		# ticking feed timers and the territory solve against a world that
+		# no longer exists -- and the next host/join's start_match() came
+		# from that stale state (Beads Bontago-mv0.1.9). abort_match() emits
+		# (old -> LOBBY), which _on_match_state_changed() below answers with
+		# the same _end_match_world() (idempotent, so the order of these two
+		# lines does not matter); it is skipped when Match is already in the
+		# lobby so a client whose host quit before starting sees no
+		# LOBBY -> LOBBY emit.
+		if Match.state() != Match.State.LOBBY:
+			Match.abort_match()
 		_show_main_menu()
 	else:
 		_show_lobby()
@@ -175,8 +194,25 @@ func _on_lobby_start_requested(config: MatchConfig) -> void:
 
 # --- Building the match world (host and client alike) ------------------------
 
+## The world exists exactly while Match is past the lobby. Match guarantees
+## that a genuine start always arrives as LOBBY -> LOADING (start_match()
+## goes back through abort_match() first from any later state), with the
+## raster, slots and registry already built when the signal fires, so this
+## binds them synchronously. The from_state guard is deliberate, not
+## belt-and-braces: a client's mirror re-emits the host's replicated LOADING
+## as (COUNTDOWN -> LOADING) after net_match_start already ran its own start
+## (Match.apply_replicated_state_change), and that must not rebuild anything.
 func _on_match_state_changed(from_state: int, to_state: int) -> void:
-	if from_state == Match.State.LOBBY and to_state == Match.State.LOADING:
+	# Spec 3.4: joining is lobby-only in M3a. Net must not name Match, so the
+	# match flow flips Net's gate here, where every state change is routed: a
+	# handshake arriving while the match is past LOBBY is refused with
+	# JoinError.MATCH_IN_PROGRESS, and abort_match()'s (old -> LOBBY) emit
+	# reopens it (Net.leave() also resets it itself). On a client this is a
+	# harmless flag write; _rpc_handshake is host-gated (Beads Bontago-mv0.1.8).
+	Net.set_accepting_joins(to_state == Match.State.LOBBY)
+	if to_state == Match.State.LOBBY:
+		_end_match_world()
+	elif from_state == Match.State.LOBBY and to_state == Match.State.LOADING:
 		_build_match_world()
 
 
@@ -210,6 +246,11 @@ func _end_match_world() -> void:
 		return
 	_world_built = false
 	SnapshotSync.end_match()
+	# Field is persistent (unlike everything else torn down below) and Match's
+	# own teardown never touches it, so its flags, overlay raster reference
+	# and open holes would otherwise still belong to the match that just ended
+	# (Beads Bontago-mv0.1.9).
+	_field.clear_match_state()
 	if _remote_cursors != null and is_instance_valid(_remote_cursors):
 		_remote_cursors.queue_free()
 	_remote_cursors = null

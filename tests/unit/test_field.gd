@@ -53,3 +53,54 @@ func test_kill_plane_frees_the_body_and_emits_event() -> void:
 
 	assert_signal_emitted(Events, "block_removed")
 	assert_true(body.is_queued_for_deletion(), "The body should be freed once it hits the kill plane.")
+
+
+# --- clear_match_state() (Beads Bontago-mv0.1.9) -----------------------------
+#
+# Field is a persistent node -- Main never frees or rebuilds it between
+# matches -- so nothing else resets its flags, its overlay's raster reference
+# or its open holes when a match ends. These pin clear_match_state() in
+# isolation; game/Main.gd calling it from _end_match_world() is covered by
+# tests/unit/test_match_lifecycle.gd's real-Main fixture.
+
+func test_clear_match_state_frees_flags_clears_the_overlay_source_and_closes_holes() -> void:
+	var field: Field = autofree(Field.new())
+	field.map_def = load("res://config/maps/round_small.tres")
+	add_child_autofree(field)
+
+	field.place_flags(2, PackedColorArray([Color.RED, Color.BLUE]), 1)
+	var raster: TerritoryRaster = TerritoryRaster.new(field.grid(), load("res://config/territory_tuning.tres"))
+	raster.reset()
+	field.set_overlay_source(raster, PackedColorArray([Color.RED, Color.BLUE]))
+	var opened: PackedInt32Array = PackedInt32Array([field.grid().in_disk_cells()[0]])
+	field.set_hole_cells(opened, PackedInt32Array())
+	field._drain_toggles()
+	assert_true(field.is_hole_cell(opened[0]), "fixture: the hole is actually applied before clearing")
+	assert_not_null(field.overlay()._raster, "fixture: the overlay actually holds the raster before clearing")
+
+	field.clear_match_state()
+
+	assert_true(field.home_flags().is_empty(), "home flags are freed")
+	assert_true(field.goal_flags().is_empty(), "goal flags are freed")
+	assert_null(field.overlay()._raster, "the overlay keeps no reference to the old raster")
+	assert_false(field.is_hole_cell(opened[0]), "the hole this match opened is closed")
+	assert_eq(field.pending_toggle_count(), 0, "no queued toggle survives clearing")
+
+
+func test_clear_match_state_discards_a_toggle_still_in_the_backlog() -> void:
+	# A hole enqueued but not yet drained (the backlog is rate-limited per
+	# physics frame, spec 3.3) must not survive either -- draining it after
+	# the field's match state was otherwise cleared would reopen a hole
+	# nothing owns any more.
+	var field: Field = autofree(Field.new())
+	field.map_def = load("res://config/maps/round_small.tres")
+	add_child_autofree(field)
+	var cell: int = field.grid().in_disk_cells()[0]
+	field.set_hole_cells(PackedInt32Array([cell]), PackedInt32Array())
+	assert_eq(field.pending_toggle_count(), 1, "fixture: the toggle is queued, not yet drained")
+
+	field.clear_match_state()
+
+	assert_eq(field.pending_toggle_count(), 0)
+	field._drain_toggles()
+	assert_false(field.is_hole_cell(cell), "the discarded toggle never applies later")
