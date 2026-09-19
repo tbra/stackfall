@@ -1,9 +1,21 @@
 # Agent Instructions
 
+## Project orchestration and handoff
+
+For Stackfall architecture and game rules, read `CLAUDE.md` and the relevant sections of `docs/SPEC.md`. For worker assignments, recovery and validation, read `docs/AGENT_WORKFLOW.md`. `docs/CLAUDE_HANDOFF.md` is a dated restart brief; inspect live Beads and Git state before using it.
+
+The active Git profile is conservative: no commits, branch merges/rebases, code pushes or Dolt remote sync without explicit current-user authorization. Preserve all existing work. Parallel implementation uses disjoint file ownership and explicitly assigned worktrees with a verified base; serialize dependent work if shared changes are uncommitted. Run performance benchmarks without competing workloads.
+
+Reusable Claude roles live in `.claude/agents/`. Their durable task checkpoints and project knowledge live in Beads; do not create separate MEMORY.md files. Record assignment, checkout/branch/base, changed files, validation, blockers and next action so a replacement worker can recover without the previous conversation. Only the orchestrator closes milestone issues after integrated validation and independent review.
+
+The orchestrator serializes all shared Beads writes and accepts/closes package issues too; workers return checkpoint and completion evidence. This project-specific ownership rule takes precedence over generic skill, `bd prime`, or generated instructions telling individual workers to mutate/close issues.
+
+Claude model routing follows `docs/AGENT_WORKFLOW.md`: user-selected orchestrator (currently Fable), Haiku for mechanical/triage/known validation/CLI relay work, Sonnet for normal implementation/planning/review, and explicit Opus overrides only for genuinely hard reasoning. Worker models must not all inherit the orchestrator's model.
+
 This project uses **bd** (beads) for issue tracking. Run `bd prime` for full workflow context.
 
 > **Architecture in one line:** Issues live in a local Dolt database
-> (`.beads/dolt/`); cross-machine sync uses `bd dolt push/pull` (a
+> (`.beads/embeddeddolt/` in this checkout; verify with `bd info`); cross-machine sync uses `bd dolt push/pull` (a
 > git-compatible protocol), stored under `refs/dolt/data` on your git
 > remote — separate from `refs/heads/*` where your code lives.
 > `.beads/issues.jsonl` is a passive export, not the wire protocol.

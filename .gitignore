@@ -10,6 +10,16 @@ export_presets.cfg
 
 # Steam
 steam_appid.txt
+# Valve / GodotSteam redistributables never enter the public repo (docs/M3b_RESEARCH.md):
+# install them locally; a fresh clone must handle their absence deliberately.
+*.dll
+*.so
+*.dylib
+*.lib
+*.pdb
+addons/godotsteam/**/*.dll
+addons/godotsteam/**/*.so
+addons/godotsteam/**/*.dylib
 
 # Mono/.NET (unused, standard build)
 .mono/

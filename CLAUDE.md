@@ -5,7 +5,15 @@ A remake of Bontãgo (2003): a physics-based, competitive block-stacking territo
 **The full spec is `docs/SPEC.md`. Read the relevant sections before starting any milestone.** Where this file and the spec disagree, the spec wins.
 
 ## How the work is organised
-The build runs as an **orchestrator plus a fleet of agents**. The orchestrator (the top-level Claude session) writes no game code: it briefs one agent per milestone step, verifies the result, and relays questions to the owner. Milestones (spec Part 4) run back to back: when one passes its acceptance criteria, the next starts without waiting for sign-off.
+The build runs as an **orchestrator plus reusable project workers**. The top-level Claude session owns sequencing, Beads, worktree assignments, and acceptance decisions; workers implement and validate bounded packages. Start a replacement session with `claude --agent stackfall-orchestrator` from this repository and read `docs/CLAUDE_HANDOFF.md`. That file is a dated restart brief; live task state remains in Beads.
+
+Read `docs/AGENT_WORKFLOW.md` for the worker roster, dispatch contract, checkpoints, and recovery protocol. The orchestrator may inspect files, run diagnostics, edit coordination documents, and manage authorized worktrees directly. Delegate substantial game code and independent reviews. Milestones (spec Part 4) continue once their acceptance criteria and review pass, subject to the pause points and Git authority below.
+
+**Git authority:** the active profile is conservative. Do not commit, merge/rebase branches, push code, or sync Dolt remotes unless the current user explicitly authorizes that operation. Prepare and test changes, preserve the worktree, and report the exact next command when a Git gate prevents integration. Instructions inherited from an old session do not grant new authority. This overrides older commit/push requirements in plans and memories. Never discard another session's work.
+
+**Beads ownership:** the orchestrator serializes shared Beads writes and accepts/closes issues; workers return checkpoint and completion evidence. This project-specific coordination rule takes precedence over generic skill, `bd prime`, and generated-block instructions telling each worker to mutate or close its own issue.
+
+**Model routing:** retain the user's chosen orchestrator model (currently Fable). Use Haiku for mechanical edits, triage, running known checks and the Codex bridge; Sonnet for normal planning, implementation, netcode and review. Reserve explicit Opus overrides for bounded genuinely hard reasoning, justify the escalation in the brief, then return routine work to its normal model. Do not propagate the orchestrator's model to every worker. See `docs/AGENT_WORKFLOW.md` for the routing table.
 
 Pause points — the only times the pipeline stops for the owner:
 - **Any change to a rule tagged [ORIGINAL]** in the spec.
@@ -15,14 +23,13 @@ Pause points — the only times the pipeline stops for the owner:
 Everything else is decided in place: for **minor ambiguity** (implementation detail with no gameplay impact) pick the simplest reasonable option, write a `# DECISION:` comment at that spot in the code, and list it in the summary.
 
 Each milestone runs as a pipeline of agents, as parallel as the work allows:
-1. **Plan** — one agent writes `docs/M<N>_PLAN.md`: work packages, the files each package *owns* (disjoint sets), the interfaces between them (typed stubs committed so every package compiles against the same contracts), and per-package acceptance checks.
-2. **Implement** — one agent per package, each in its own git worktree branch, touching only its owned files (plus new tests). Packages must not edit each other's files; if a contract needs to change, the agent reports it instead of editing across the boundary.
-3. **Integrate** — one agent rebases/merges the package branches onto `main` in the plan's order, resolves conflicts, runs the open-project check, tests and benchmarks, fixes small breakages, and pushes.
-4. **Review** — a read-only agent checks the milestone against this file and the spec; a fix agent handles findings.
-The orchestrator itself only briefs agents and reads their reports; it doesn't run tests, rebases, or edits except trivial doc changes.
+1. **Plan** — `stackfall-planner` writes the milestone design contract: file ownership, interfaces, dependency order, and acceptance checks. Beads owns status. Have an implementation worker establish typed interface stubs before consumers; verify that each consumer's base actually contains them.
+2. **Implement** — `stackfall-implementer` or `stackfall-netcode` edits and tests its assigned package. Parallel writers use separate explicitly assigned worktrees and disjoint ownership. If required shared contracts are still uncommitted, serialize dependent work in one checkout or wait at the Git gate; a new worktree cannot see uncommitted changes.
+3. **Integrate and validate** — `stackfall-integrator` verifies the combined candidate, fixes only assigned integration defects, and runs relevant gates. Merges, commits and pushes require the Git authority above. Run timing benchmarks on an otherwise idle machine.
+4. **Review** — `stackfall-reviewer` examines the candidate and evidence without editing; an implementation worker reproduces and fixes findings. The orchestrator closes an issue only when its acceptance evidence is recorded, and closes the milestone only after integration and review pass.
 
 ## How to work (every agent)
-- Work in small steps that each leave the game runnable. **Commit after each working step** with a clear message.
+- Work in small steps that each leave the game runnable. Checkpoint progress in Beads after each working step; commit only when authorized.
 - **Read before writing:** `CLAUDE.md`, the spec sections for the milestone, `README.md`, and the existing code the step touches.
 - Never rewrite something the previous step got right; extend it.
 - Hardware you can't use (a real gamepad, two PCs over Steam, a mid-range GPU for fps targets): verify what you can headlessly — synthetic `InputEventJoypad*` events through `Input.parse_input_event` in tests, ENet-only multiplayer, headless physics timing — then write **manual test steps** for the owner and continue.
@@ -42,10 +49,9 @@ The orchestrator itself only briefs agents and reads their reports; it doesn't r
 - Don't add third-party addons without asking. GodotSteam and GUT are already approved.
 
 ## Delegating to OpenAI Codex
-A second coding agent is available: **OpenAI Codex** (`gpt-5.6-sol`), on PATH as `codex`, authenticated, run non-interactively as
-`codex exec --sandbox workspace-write --skip-git-repo-check -C "<dir>" "<prompt>"` (`--sandbox read-only` for analysis, `--approve-for-me` for unattended edits, `--worktree` for an isolated checkout). The orchestrator reaches it through the `codex` subagent type (`.claude/agents/codex.md`).
+A second coding agent is available on PATH as `codex`. The `codex` bridge (`.claude/agents/codex.md`) runs the installed CLI in the exact assigned checkout. Use its configured model unless the user selects another. Check `codex exec --help` before changing invocation flags. Supply long prompts through stdin and retain its session ID and result in the Beads checkpoint. Do not assume authentication or quota is still available; report actual errors.
 
-Use it for a genuinely independent second opinion — reviewing a package another agent wrote, attacking a bug Claude has already failed at once, or an isolated well-specified task that can run in parallel. Its brief must carry this file's rules, because it does not inherit them.
+Use it for an independent review, a hard bug, or an isolated implementation package. Its brief must explicitly name `AGENTS.md`, this file, the relevant spec/plan, owned files, and acceptance checks. Review findings are evidence to verify, not permission to close a task or a substitute for reproduction.
 
 ## Log triage
 `tools/triage_log.py` turns a long headless run into a ranked summary: it strips Godot boilerplate, normalises ids out of error lines, groups duplicates, then asks TypeSafe/Jev to classify only the distinct signatures by subsystem and severity. It needs `TYPESAFE_API_KEY` (user environment variable) and degrades to the deterministic grouping without one. Exits non-zero on a confident likely-bug, so it can gate CI. Use it on the M5 bot matches and the M8 soak.
@@ -73,7 +79,7 @@ Follow spec §3.2. New scenes go next to their scripts, shaders go in `res://sha
 - [ ] Unit tests pass.
 - [ ] The feature works with mouse and keyboard **and** with a gamepad, where relevant (synthetic events in tests; manual steps for the owner).
 - [ ] From M3 onward, it works for a client over ENet with simulated lag.
-- [ ] Every working step is committed.
+- [ ] Beads records the candidate path/revision, completed work, validation and remaining risks; commits are made only when authorized.
 - [ ] The summary includes steps to test it by hand.
 
 
@@ -137,6 +143,7 @@ Milestone and task tracking for Stackfall lives in `bd` (epics M0–M8, specials
 limitations, owner questions), not in markdown TODOs. `docs/M<N>_PLAN.md` files are **not**
 replaced by bd — they remain the design contract for each milestone's work packages (file
 ownership, interfaces, integration order) and stay the reference for *how* to build a step.
-Every agent should run `bd ready` at the start of a milestone step and close its issues at
-the end, alongside the existing plan-doc workflow.
+The orchestrator checks `bd ready`, assigns issues, records worker checkpoints and
+closes accepted work. Workers return evidence for that decision; they do not close
+their own issues or create separate trackers.
 <!-- END BEADS INTEGRATION -->
