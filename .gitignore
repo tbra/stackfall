@@ -6,7 +6,7 @@
 # Godot exports
 /export/
 /build/
-export_presets.cfg
+# export_presets.cfg is committed on purpose: tools/export_windows.ps1 relies on the 'Windows Desktop' preset.
 
 # Steam
 steam_appid.txt
