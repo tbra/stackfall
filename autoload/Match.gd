@@ -542,18 +542,37 @@ func request_place(
 	var local_origin: Vector3 = _field.to_local(origin)
 	var disk_origin: Vector2 = Vector2(local_origin.x, local_origin.z)
 	var cube_size: float = _physics_tuning.cube_size
-
-	var footprint: PackedInt32Array = PlacementRules.footprint_cells(
-		shape.cells, basis, disk_origin, cube_size, _cell_grid
-	)
 	var team_id: int = acting_slot.team_id
-	var result: PlacementRules.Result = PlacementRules.validate(footprint, _raster, team_id)
 
+	# docs/TERRITORY_V2_PLAN.md, "Placement validity": v2 (the default,
+	# hole_mode == OFF) replaces the multi-cell footprint check with one
+	# raycast straight down from `origin` plus one point test; legacy mode is
+	# exactly today's footprint_cells()/validate()/closest_valid_origin()
+	# chain, untouched.
+	var result: PlacementRules.Result
 	var relocated: Vector2 = PlacementRules.NO_ORIGIN
-	if result != PlacementRules.Result.VALID and auto_drop:
-		relocated = PlacementRules.closest_valid_origin(
-			disk_origin, shape.cells, basis, cube_size, _cell_grid, _raster, team_id, _territory_tuning
+	if config.hole_mode == MatchConfig.HoleMode.OFF:
+		var hit: Variant = _field.raycast_down_disk_local(origin)
+		if hit == null:
+			# Only possible off the rim with nothing beneath (Field.gd's own
+			# contract for raycast_down_disk_local); disk_origin keeps the flat
+			# projection computed above, which is what the burn clamp below
+			# throws from.
+			result = PlacementRules.Result.OFF_DISK
+		else:
+			disk_origin = hit as Vector2
+			result = PlacementRules.validate_point(disk_origin, _raster, team_id)
+		if result != PlacementRules.Result.VALID and auto_drop:
+			relocated = PlacementRules.closest_valid_point(disk_origin, _raster, team_id, _territory_tuning)
+	else:
+		var footprint: PackedInt32Array = PlacementRules.footprint_cells(
+			shape.cells, basis, disk_origin, cube_size, _cell_grid
 		)
+		result = PlacementRules.validate(footprint, _raster, team_id)
+		if result != PlacementRules.Result.VALID and auto_drop:
+			relocated = PlacementRules.closest_valid_origin(
+				disk_origin, shape.cells, basis, cube_size, _cell_grid, _raster, team_id, _territory_tuning
+			)
 	var outcome: Dictionary = _resolve_outcome(result, auto_drop, relocated)
 	var reason: StringName = outcome["reason"]
 	var final_disk_origin: Vector2 = relocated if outcome["use_relocation"] else disk_origin
@@ -632,8 +651,9 @@ func _resolve_outcome(
 
 
 ## Dry run of request_place()'s territory check, for the ghost's valid/red/
-## hatched tint (spec 2.5). Costs one footprint build plus one validate, so it
-## is safe to call every frame.
+## hatched tint (spec 2.5). v2 costs one raycast plus one point test; legacy
+## costs one footprint build plus one validate. Either way it is safe to call
+## every frame.
 func preview_placement(
 	slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion
 ) -> PlacementRules.Result:
@@ -647,13 +667,24 @@ func preview_placement(
 	if not is_pose_well_formed(origin, orientation_index, free_quat):
 		return PlacementRules.Result.EMPTY
 
+	var team_id: int = _slots[slot_id].team_id
+	if config != null and config.hole_mode == MatchConfig.HoleMode.OFF:
+		# Runs the exact same raycast + point test request_place() will use, on
+		# whichever machine calls it (host or a client's own frozen-body world;
+		# see Field.raycast_down_disk_local's DECISION), so the ghost's tint
+		# always matches what the host would decide (docs/TERRITORY_V2_PLAN.md).
+		var hit: Variant = _field.raycast_down_disk_local(origin)
+		if hit == null:
+			return PlacementRules.Result.OFF_DISK
+		return PlacementRules.validate_point(hit as Vector2, _raster, team_id)
+
 	var basis: Basis = Basis(free_quat) * BlockOrientations.get_basis(orientation_index)
 	var local_origin: Vector3 = _field.to_local(origin)
 	var disk_origin: Vector2 = Vector2(local_origin.x, local_origin.z)
 	var footprint: PackedInt32Array = PlacementRules.footprint_cells(
 		shape.cells, basis, disk_origin, _physics_tuning.cube_size, _cell_grid
 	)
-	return PlacementRules.validate(footprint, _raster, _slots[slot_id].team_id)
+	return PlacementRules.validate(footprint, _raster, team_id)
 
 
 func _spawn_block(shape: BlockShape, world_origin: Vector3, basis: Basis, slot_id: int) -> Block:
@@ -891,6 +922,14 @@ func _build_territory() -> void:
 	_raster.reset()
 	_solver = TerritorySolver.new(_territory_tuning)
 	var goal_positions: PackedVector2Array = PlayerSlot.goal_positions_for(config.goal_flag_count, map_def)
+	# docs/TERRITORY_V2_PLAN.md: the goal-flag no-build zones are the default
+	# ruleset's replacement for holes, so they only ever exist when holes are
+	# off; legacy hole_mode must stay byte-identical to the pre-v2 game, which
+	# never had a zone concept. Zones are static for the match (goal flags
+	# never move) so this stamps once, right after reset(), rather than every
+	# solve.
+	if config.hole_mode == MatchConfig.HoleMode.OFF:
+		_raster.set_goal_zones(goal_positions, _territory_tuning.goal_zone_radius)
 	_win_checker = WinChecker.new(goal_positions, _territory_tuning.capture_hold)
 	_last_groups = null
 	_solve_accum = 0.0
@@ -924,17 +963,25 @@ func _run_territory_step(delta: float) -> void:
 	var circles: Array[InfluenceCircle] = _collect_circles()
 	var groups: TerritoryGroups = _solver.solve(circles)
 	_last_groups = groups
-	_raster.update(circles, groups, delta, config.hole_mode == MatchConfig.HoleMode.PERMANENT)
+	var holes_enabled: bool = config.hole_mode != MatchConfig.HoleMode.OFF
+	var permanent_holes: bool = config.hole_mode == MatchConfig.HoleMode.PERMANENT
+	_raster.update(circles, groups, delta, holes_enabled, permanent_holes)
 	_win_checker.update(_raster, delta)
 
 	Events.territory_updated.emit(_raster, groups)
 
-	var opened: PackedInt32Array = _raster.holes_opened()
-	var closed: PackedInt32Array = _raster.holes_closed()
-	if opened.size() > 0 or closed.size() > 0:
-		Events.hole_cells_changed.emit(opened, closed)
-		if opened.size() > 0:
-			_check_home_flags(opened)
+	if holes_enabled:
+		var opened: PackedInt32Array = _raster.holes_opened()
+		var closed: PackedInt32Array = _raster.holes_closed()
+		if opened.size() > 0 or closed.size() > 0:
+			Events.hole_cells_changed.emit(opened, closed)
+			if opened.size() > 0:
+				_check_home_flags(opened)
+	else:
+		# docs/TERRITORY_V2_PLAN.md, "Home-flag elimination": v2 has no
+		# hole-opened event to drive off, so every step re-reads whether an
+		# enemy area has swallowed each living home flag directly.
+		_check_home_flags_v2()
 
 	var shares: PackedFloat32Array = PackedFloat32Array()
 	for t: int in range(config.team_count()):
@@ -980,6 +1027,32 @@ func _check_home_flags(opened: PackedInt32Array) -> void:
 		if not _cell_grid.in_bounds(coords.x, coords.y):
 			continue
 		if opened_set.has(_cell_grid.cell_index(coords.x, coords.y)):
+			_eliminate_slot(slot_item.slot_id)
+
+	_check_last_team_standing()
+
+
+## docs/TERRITORY_V2_PLAN.md, "Home-flag elimination (kept behavior, new
+## trigger)": the v2 counterpart of _check_home_flags(opened) above, run every
+## v2 territory step rather than off a hole-opened event, since the default
+## ruleset never opens one. The home circle is always one of the anchored
+## circles feeding the field, so under normal play it always wins the argmax
+## at its own center (kernel value home_radius, distance 0) -- unless an
+## enemy circle is both close enough and tall enough to outscore it there. If
+## raster.team_at() at a living slot's home cell answers anyone else, that
+## enemy area has swallowed the flag: eliminate it exactly as the legacy
+## trigger does, through the one shared _eliminate_slot().
+func _check_home_flags_v2() -> void:
+	if not _is_host():
+		return
+	for slot_item: PlayerSlot in _slots:
+		if not slot_item.home_flag_alive:
+			continue
+		var coords: Vector2i = _cell_grid.world_to_cell(slot_item.home_position)
+		if not _cell_grid.in_bounds(coords.x, coords.y):
+			continue
+		var owner_team: int = _raster.team_at(coords.x, coords.y)
+		if owner_team != slot_item.team_id:
 			_eliminate_slot(slot_item.slot_id)
 
 	_check_last_team_standing()

@@ -505,3 +505,203 @@ func test_match_ends_when_only_one_team_remains() -> void:
 
 	assert_eq(Match.state(), Match.State.END)
 	assert_signal_emitted_with_parameters(Events, "match_won", [1])
+
+
+# --- Territory v2: point placement, goal zones, continuous elimination -----
+# (docs/TERRITORY_V2_PLAN.md package B). config/match_defaults.tres now
+# defaults hole_mode to MatchConfig.HoleMode.OFF (package A), so
+# _hotseat_config() already exercises the v2 path everywhere above unless a
+# test overrides hole_mode; these tests pin that path's behaviour by name.
+
+func test_request_place_v2_accepts_a_point_inside_the_callers_own_territory() -> void:
+	Match.start_match(_hotseat_config(2))
+	_run_countdown()
+	assert_eq(Match.config.hole_mode, MatchConfig.HoleMode.OFF, "v2 is the default ruleset.")
+
+	var reason: StringName = Match.request_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false)
+
+	assert_eq(reason, PlacementRules.REASON_OK)
+	assert_eq(_blocks_root.get_child_count(), 1)
+
+
+func test_request_place_v2_burns_a_point_inside_another_teams_territory() -> void:
+	Match.start_match(_hotseat_config(2))
+	_run_countdown()
+
+	var reason: StringName = Match.request_place(0, _home_world_position(1), 0, Quaternion.IDENTITY, false)
+
+	assert_eq(reason, PlacementRules.REASON_OUTSIDE_TERRITORY)
+	assert_eq(_blocks_root.get_child_count(), 1, "Still consumed and spawned, then burned (spec 2.2).")
+
+
+func test_request_place_v2_burns_a_point_inside_a_goal_flags_no_build_zone() -> void:
+	Match.start_match(_hotseat_config(2))
+	_run_countdown()
+	var center_world: Vector3 = _field.to_global(Vector3(0.0, 5.0, 0.0))
+
+	var reason: StringName = Match.request_place(0, center_world, 0, Quaternion.IDENTITY, false)
+
+	assert_eq(reason, PlacementRules.REASON_GOAL_ZONE)
+	assert_eq(_blocks_root.get_child_count(), 1, "Still consumed and spawned, then burned (spec 2.2).")
+
+
+## docs/TERRITORY_V2_PLAN.md: "preview_placement runs the same raycast on
+## whichever machine calls it ... so the ghost tint works identically online
+## and offline, exactly as it does today." This pins that request_place() and
+## preview_placement() agree on the same three cases above without spending a
+## block.
+func test_preview_placement_v2_matches_request_places_own_point_test() -> void:
+	Match.start_match(_hotseat_config(2))
+	_run_countdown()
+
+	assert_eq(
+		Match.preview_placement(0, _home_world_position(0), 0, Quaternion.IDENTITY),
+		PlacementRules.Result.VALID
+	)
+	assert_eq(
+		Match.preview_placement(0, _home_world_position(1), 0, Quaternion.IDENTITY),
+		PlacementRules.Result.OUTSIDE_TERRITORY
+	)
+	var center_world: Vector3 = _field.to_global(Vector3(0.0, 5.0, 0.0))
+	assert_eq(
+		Match.preview_placement(0, center_world, 0, Quaternion.IDENTITY),
+		PlacementRules.Result.GOAL_ZONE
+	)
+
+
+## _build_territory()'s one new call site (docs/TERRITORY_V2_PLAN.md package
+## B): set_goal_zones() only under the default ruleset, never under legacy
+## hole modes, so legacy stays byte-identical to the pre-v2 game.
+func test_goal_zones_are_stamped_under_v2_but_never_under_legacy_hole_modes() -> void:
+	var config_v2: MatchConfig = _hotseat_config(2)
+	config_v2.hole_mode = MatchConfig.HoleMode.OFF
+	Match.start_match(config_v2)
+	_run_countdown()
+	var goal_cell: Vector2i = Match.cell_grid().world_to_cell(Vector2.ZERO)
+	assert_true(
+		Match.raster().is_goal_zone(goal_cell.x, goal_cell.y),
+		"v2 must stamp the default map's one center goal flag's zone at match start."
+	)
+
+	var config_legacy: MatchConfig = _hotseat_config(2)
+	config_legacy.hole_mode = MatchConfig.HoleMode.TEMPORARY
+	Match.start_match(config_legacy)
+	_run_countdown()
+	assert_false(
+		Match.raster().is_goal_zone(goal_cell.x, goal_cell.y),
+		"Legacy mode must stay byte-identical to before v2: no goal zones."
+	)
+
+
+func test_check_home_flags_v2_leaves_an_unchallenged_home_alone() -> void:
+	Match.start_match(_hotseat_config(2))
+	_run_countdown()
+	watch_signals(Events)
+
+	Match._check_home_flags_v2()
+
+	assert_true(Match.slot(0).home_flag_alive)
+	assert_true(Match.slot(1).home_flag_alive)
+	assert_signal_not_emitted(Events, "player_eliminated")
+
+
+## Hand-crafted circles/raster state rather than a physically bridged tower:
+## docs/TERRITORY_V2_PLAN.md's connectivity rule means a home-anchored circle
+## reaching from slot 1's home across a real match's 50+ m gap to slot 0's
+## home is exactly what the headless Lobby-to-win acceptance drive exercises
+## with real physics and real placements; this test isolates
+## _check_home_flags_v2()'s own trigger against a raster it did not build
+## itself, the same way test_player_eliminated_when_holes_open_under_their_
+## home_flag above isolates _check_home_flags()'s. Slot 1's home is nudged
+## next to slot 0's home purely so TerritorySolver still anchors the injected
+## enemy circle to a home (it only keeps home-anchored groups); the enemy
+## circle's own radius, not the nudge, is what outscores slot 0's home.
+func test_check_home_flags_v2_eliminates_a_slot_once_an_enemy_circle_outscores_its_home() -> void:
+	Match.start_match(_hotseat_config(2))
+	_run_countdown()
+	watch_signals(Events)
+
+	var home0: Vector2 = Match.slot(0).home_position
+	Match.slot(1).home_position = home0 + Vector2(2.0, 0.0)
+	var enemy_circle: InfluenceCircle = InfluenceCircle.new(
+		home0, Match._territory_tuning.home_radius + 4.0, Match.team_of(1), 1, false, 999
+	)
+	var circles: Array[InfluenceCircle] = Match._collect_circles()
+	circles.append(enemy_circle)
+	var groups: TerritoryGroups = Match._solver.solve(circles)
+	Match._raster.update(circles, groups, 1.0 / Match._territory_tuning.solve_hz, false, false)
+
+	Match._check_home_flags_v2()
+
+	assert_false(Match.slot(0).home_flag_alive)
+	assert_signal_emitted_with_parameters(Events, "player_eliminated", [0, 0])
+	assert_eq(
+		Match.state(), Match.State.END,
+		"Last team standing still ends the match, unchanged from today's rule."
+	)
+	assert_signal_emitted_with_parameters(Events, "match_won", [1])
+
+
+## Wiring proof for _run_territory_step() itself, rather than
+## _check_home_flags_v2() in isolation: driven through the real per-tick call
+## site with only the genuine home circles _collect_circles() builds (no
+## hand-crafted enemy circle -- see the test above for why bridging a real
+## 50+ m enemy tower there is the acceptance drive's job, not a unit test's),
+## an unchallenged v2 match must never take the legacy hole branch.
+func test_run_territory_step_takes_the_v2_branch_and_never_the_legacy_hole_path() -> void:
+	Match.start_match(_hotseat_config(2))
+	_run_countdown()
+	watch_signals(Events)
+
+	var step: float = 1.0 / Match._territory_tuning.solve_hz
+	for _i: int in range(5):
+		Match._run_territory_step(step)
+
+	assert_true(Match.slot(0).home_flag_alive)
+	assert_true(Match.slot(1).home_flag_alive)
+	assert_signal_not_emitted(Events, "hole_cells_changed", "v2 must never open a legacy hole.")
+	assert_signal_not_emitted(Events, "player_eliminated")
+
+
+## Legacy-mode regression (docs/TERRITORY_V2_PLAN.md package B): the pre-v2
+## contest -> hole_delay -> hole -> Events.hole_cells_changed ->
+## _check_home_flags() chain, run through the real _run_territory_step() call
+## site rather than the direct _check_home_flags() call
+## test_player_eliminated_when_holes_open_under_their_home_flag uses above,
+## now that a match must set hole_mode explicitly to reach it at all.
+func test_legacy_hole_mode_still_opens_holes_and_eliminates_through_run_territory_step() -> void:
+	var config: MatchConfig = _hotseat_config(2)
+	config.hole_mode = MatchConfig.HoleMode.TEMPORARY
+	Match.start_match(config)
+	_run_countdown()
+	watch_signals(Events)
+
+	var home0: Vector2 = Match.slot(0).home_position
+	# Two different-team home circles overlapping slot 0's own home cell is
+	# spec 2.2's original contest trigger; the legacy fill still stamps it
+	# CONTESTED, unchanged. Nudging the homes this close together is
+	# symmetric -- home 0 falls inside home 1's own circle exactly as home 1
+	# falls inside home 0's, both radius home_radius -- so both cells end up
+	# contested and *both* flags are expected to fall; that symmetry is fine
+	# here, since this test's job is only to prove the legacy
+	# contest -> hole_delay -> hole -> Events.hole_cells_changed ->
+	# _check_home_flags() chain still fires through the real
+	# _run_territory_step() call site, not to isolate a single elimination
+	# (test_player_eliminated_when_holes_open_under_their_home_flag above
+	# already does that against a hand-picked opened-cell list).
+	Match.slot(1).home_position = home0 + Vector2(2.0, 0.0)
+
+	var step: float = 1.0 / Match._territory_tuning.solve_hz
+	var elapsed: float = 0.0
+	while elapsed < Match._territory_tuning.hole_delay + step:
+		Match._run_territory_step(step)
+		elapsed += step
+
+	assert_false(Match.slot(0).home_flag_alive, "The legacy hole-opened path must still eliminate a home flag.")
+	assert_false(Match.slot(1).home_flag_alive, "Both homes contest each other symmetrically here.")
+	var eliminated_slots: Array = []
+	for i: int in range(get_signal_emit_count(Events, "player_eliminated")):
+		eliminated_slots.append(get_signal_parameters(Events, "player_eliminated", i)[0])
+	assert_has(eliminated_slots, 0)
+	assert_has(eliminated_slots, 1)
+	assert_signal_emitted(Events, "hole_cells_changed")
