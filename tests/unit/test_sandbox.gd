@@ -1,0 +1,239 @@
+extends GutTest
+## Bontago-mv0.8: the unlisted `godot --path . -- --sandbox [--players=N]`
+## debug entry point. Flag routing and offline world build (game/Main.gd),
+## active-slot cycling (game/PlayerController.gd's set_sandbox_slot() seam),
+## the disabled/toggleable feed timer (autoload/Match.gd's
+## _feed_timer_enabled), sandbox_reset_field and sandbox_spawn_tower — both
+## through Match's normal, rules-checked entry points, never a rule of their
+## own (game/Sandbox.gd) — and the F8 overlay toggle.
+##
+## Drives the real Main scene and the real Net/Match autoloads, the same
+## fixture shape as tests/unit/test_match_lifecycle.gd, because the point is
+## the sandbox route hooked into Main correctly (register_world() before
+## start_match(), place_flags()/set_overlay_source() after) — a single-system
+## test could not see that ordering.
+
+const MAIN_SCENE: PackedScene = preload("res://game/Main.tscn")
+
+## game/Main.gd has no class_name (a scene root, not a type other code
+## names -- see tests/unit/test_match_lifecycle.gd's matching comment), so
+## the instance is held through a Variant-typed reference.
+var _main: Variant = null
+
+
+func before_each() -> void:
+	# Match ticks on real frames; these tests drive _process() by hand where a
+	# state must advance, so automatic processing is off for the duration
+	# (same fixture as test_match_flow.gd/test_match_lifecycle.gd).
+	Match.set_process(false)
+	Match.abort_match()
+	assert_true(Net.is_offline(), "fixture: the real Net must start offline")
+	_main = MAIN_SCENE.instantiate()
+	add_child_autofree(_main)
+	assert_not_null(_main._main_menu, "fixture: Main boots to the main menu with no command-line flags")
+
+
+func after_each() -> void:
+	Match.abort_match()
+	Match.set_process(true)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
+func _run_countdown() -> void:
+	for _i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * Engine.physics_ticks_per_second)) + 2):
+		Match._process(1.0 / Engine.physics_ticks_per_second)
+
+
+## Bypasses OS.get_cmdline_user_args() (there is no setter to fake it with —
+## see game/Main.gd's own DECISION on _start_sandbox_match_with_args()) with
+## a manufactured argument list, the same seam autoload/Net.gd's
+## _apply_command_line_args() uses for the same reason.
+func _start_sandbox(player_count: int) -> void:
+	_main._start_sandbox_match_with_args(PackedStringArray(["sandbox", "players=%d" % player_count]))
+
+
+func _key_press(keycode: Key) -> InputEventKey:
+	var event: InputEventKey = InputEventKey.new()
+	event.device = -1
+	event.physical_keycode = keycode
+	event.pressed = true
+	return event
+
+
+func _pad_press(button: JoyButton) -> InputEventJoypadButton:
+	var event: InputEventJoypadButton = InputEventJoypadButton.new()
+	event.device = -1
+	event.button_index = button
+	event.pressed = true
+	return event
+
+
+# --- Flag routing / world build ----------------------------------------------
+
+func test_sandbox_flag_builds_an_offline_world_with_n_slots() -> void:
+	_start_sandbox(3)
+
+	assert_true(Net.is_offline(), "sandbox never touches Net")
+	assert_eq(Match.slot_count(), 3)
+	assert_true(Match.config.sandbox, "the sandbox config flag is set")
+	assert_false(Match.config.hot_seat, "sandbox is real-time, not turn-based")
+	assert_eq(Match.config.ai_count, 0)
+	assert_not_null(_main._sandbox, "Main built a Sandbox instance")
+	assert_true(_main._sandbox is Sandbox)
+	assert_not_null(_main._debug_overlay, "F3's net debug overlay is available offline too")
+	assert_eq(_main._field._home_flags.size(), 3, "one home flag per sandbox slot")
+
+
+func test_sandbox_defaults_to_the_configured_player_count_with_no_players_arg() -> void:
+	_main._start_sandbox_match_with_args(PackedStringArray(["sandbox"]))
+	assert_eq(Match.slot_count(), _main.sandbox_config.default_player_count)
+
+
+func test_sandbox_allows_a_single_player() -> void:
+	# Spec 2.8's normal floor is 2 (MatchConfig.PLAYER_COUNT_MIN); sandbox is
+	# the one path that goes below it (config/MatchConfig.gd's `sandbox` flag).
+	_start_sandbox(1)
+	assert_eq(Match.slot_count(), 1)
+
+
+func test_sandbox_never_reaches_the_lobby() -> void:
+	_start_sandbox(2)
+	assert_null(_main._lobby, "sandbox never opens a lobby (game/Main.gd's early return, like --hot-seat)")
+	assert_true(Net.is_offline(), "sandbox never calls Net.host_game()/join_game()")
+
+
+# --- sandbox_next_slot: the acting-slot seam ---------------------------------
+
+func test_sandbox_next_slot_cycles_the_acting_slot_and_wraps() -> void:
+	_start_sandbox(3)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+	assert_eq(sandbox.active_slot(), 0, "Match._begin_playing() seeds slot 0 first")
+	assert_eq(sandbox.controller()._active_slot, 0)
+
+	var event: InputEventKey = _key_press(KEY_TAB)
+	assert_true(event.is_action_pressed(&"sandbox_next_slot"), "Tab should map to sandbox_next_slot")
+
+	sandbox._unhandled_input(event)
+	assert_eq(sandbox.active_slot(), 1)
+	assert_eq(sandbox.controller()._active_slot, 1, "PlayerController.set_sandbox_slot() actually moved the acting slot")
+
+	sandbox._unhandled_input(event)
+	sandbox._unhandled_input(event)
+	assert_eq(sandbox.active_slot(), 0, "cycling 3 players wraps back to slot 0")
+
+
+func test_sandbox_next_slot_gamepad_binding_also_cycles() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+
+	var event: InputEventJoypadButton = _pad_press(JOY_BUTTON_BACK)
+	assert_true(event.is_action_pressed(&"sandbox_next_slot"), "gamepad Back should map to sandbox_next_slot")
+
+	sandbox._unhandled_input(event)
+
+	assert_eq(sandbox.active_slot(), 1)
+
+
+# --- sandbox_toggle_timer: no auto-drop until re-enabled ---------------------
+
+func test_sandbox_timer_is_disabled_by_default_so_feed_time_left_never_moves() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	assert_false(Match.feed_timer_enabled(), "sandbox starts with the feed timer paused")
+	var before: float = Match.feed_time_left(0)
+
+	watch_signals(Events)
+	for _i: int in range(int(MatchConfig.BLOCK_TIMER_MAX * Engine.physics_ticks_per_second) + 10):
+		Match._process(1.0 / Engine.physics_ticks_per_second)
+
+	assert_eq(Match.feed_time_left(0), before, "a paused timer must not decrement")
+	assert_signal_not_emitted(Events, "feed_timer_expired")
+
+
+func test_sandbox_toggle_timer_hotkey_reenables_auto_drop() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+
+	var event: InputEventKey = _key_press(KEY_F6)
+	assert_true(event.is_action_pressed(&"sandbox_toggle_timer"), "F6 should map to sandbox_toggle_timer")
+	sandbox._unhandled_input(event)
+	assert_true(Match.feed_timer_enabled(), "F6 flips the paused timer back on")
+
+	watch_signals(Events)
+	for _i: int in range(int(MatchConfig.BLOCK_TIMER_MAX * Engine.physics_ticks_per_second) + 10):
+		Match._process(1.0 / Engine.physics_ticks_per_second)
+	assert_signal_emitted(Events, "feed_timer_expired", "re-enabled, the timer now expires and auto-drops as usual")
+
+	# A second press pauses it again -- the hotkey is a toggle, not a one-shot.
+	sandbox._unhandled_input(event)
+	assert_false(Match.feed_timer_enabled())
+
+
+# --- sandbox_reset_field: F5 --------------------------------------------------
+
+func test_sandbox_reset_field_clears_blocks_and_rebuilds_for_the_same_config() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+
+	var reason: StringName = Match.request_place(0, Match.default_ghost_origin(0), 0, Quaternion.IDENTITY, false)
+	assert_eq(reason, PlacementRules.REASON_OK, "fixture: a block actually lands before the reset")
+	assert_gt(Match.blocks_spawned(), 0)
+	sandbox._cycle_active_slot()
+	assert_eq(sandbox.active_slot(), 1, "fixture: move off slot 0 so the reset's re-seed is visible")
+
+	var event: InputEventKey = _key_press(KEY_F5)
+	assert_true(event.is_action_pressed(&"sandbox_reset_field"), "F5 should map to sandbox_reset_field")
+	sandbox._unhandled_input(event)
+
+	assert_eq(Match.blocks_spawned(), 0, "a freshly reset match has spawned nothing yet")
+	assert_eq(Match.slot_count(), 2, "the same config's player count survives the reset")
+	assert_eq(sandbox.active_slot(), 0, "reset re-seeds the active slot")
+	assert_eq(_main._field._home_flags.size(), 2, "flags are rebuilt for the same config")
+	assert_not_null(Match.raster(), "territory is rebuilt")
+
+
+# --- sandbox_spawn_tower: F7 --------------------------------------------------
+
+func test_sandbox_spawn_tower_places_the_configured_block_count_via_request_place() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+	sandbox.ghost().update_placement(Match.default_ghost_origin(0), Vector3.UP)
+
+	var placed: Array = []
+	var collect: Callable = func(block: Block, _shape_id: StringName) -> void: placed.append(block)
+	Events.block_placed.connect(collect)
+
+	var event: InputEventKey = _key_press(KEY_F7)
+	assert_true(event.is_action_pressed(&"sandbox_spawn_tower"), "F7 should map to sandbox_spawn_tower")
+	sandbox._unhandled_input(event)
+
+	Events.block_placed.disconnect(collect)
+	assert_eq(
+		placed.size(), sandbox.sandbox_config.tower_block_count,
+		"F7 must place exactly tower_block_count blocks, each through Match.request_place()"
+	)
+	assert_eq(Match.blocks_spawned(), sandbox.sandbox_config.tower_block_count)
+
+
+# --- sandbox_toggle_overlay: F8 -----------------------------------------------
+
+func test_sandbox_toggle_overlay_flips_the_fields_territory_overlay() -> void:
+	_start_sandbox(2)
+	var sandbox: Sandbox = _main._sandbox
+	var overlay: TerritoryOverlay = _main._field.overlay()
+	var initial: bool = overlay.visible
+
+	var event: InputEventKey = _key_press(KEY_F8)
+	assert_true(event.is_action_pressed(&"sandbox_toggle_overlay"), "F8 should map to sandbox_toggle_overlay")
+	sandbox._unhandled_input(event)
+
+	assert_eq(overlay.visible, not initial)
+
+	sandbox._unhandled_input(event)
+	assert_eq(overlay.visible, initial, "the hotkey toggles both ways")

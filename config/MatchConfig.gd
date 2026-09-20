@@ -66,6 +66,24 @@ enum HoleMode { TEMPORARY, PERMANENT }
 ## Deterministic seed for the block bag and gift spawner; -1 randomizes.
 @export var rng_seed: int = -1
 
+## True only for the unlisted `godot --path . -- --sandbox` debug entry point
+## (Bontago-mv0.8; game/Main.gd's _build_sandbox_config()). Never set by the
+## lobby, a wire message or Steam lobby data — Main sets it only on the
+## sandbox config it builds itself, offline.
+##
+## DECISION (config/MatchConfig.gd): a MatchConfig field rather than a
+## dedicated PLAYER_COUNT_MIN-like constant, because sanitize() needs to know
+## *this config's* intent, not add a second global floor every other caller
+## would have to remember not to use. It does exactly one thing here: lets
+## sanitize() allow a 1-player match, so a sandbox tester can place blocks
+## for one slot alone without needing a second seat. It carries no other
+## meaning — the feed-timer-disabled default Match starts a sandbox match
+## with is a runtime flag on Match itself (autoload/Match.gd's
+## _feed_timer_enabled), read once from this at start_match() and then
+## flippable by ui/SandboxPanel.gd's sandbox_toggle_timer hotkey without
+## touching this Resource again.
+@export var sandbox: bool = false
+
 ## Shared source for player_colors' default so sanitize() can pad a config
 ## that arrived over the wire with too few entries, without duplicating the
 ## literal (CLAUDE.md: no magic numbers). A static func rather than a const,
@@ -137,7 +155,10 @@ func clamp_to_connected_peers(peer_count: int) -> void:
 func sanitize() -> void:
 	map_variant = clampi(map_variant, MapVariant.ROUND, MapVariant.CROSS)
 	map_size = clampi(map_size, MapDef.MapSize.SMALL, MapDef.MapSize.LARGE) as MapDef.MapSize
-	player_count = clampi(player_count, PLAYER_COUNT_MIN, PLAYER_COUNT_MAX)
+	# Spec 2.8's floor is 2 players; sandbox is the one path allowed below it
+	# (down to 1), for solo rules/physics testing (Bontago-mv0.8).
+	var min_player_count: int = 1 if sandbox else PLAYER_COUNT_MIN
+	player_count = clampi(player_count, min_player_count, PLAYER_COUNT_MAX)
 	ai_count = clampi(ai_count, 0, player_count)
 	ai_difficulty = clampi(ai_difficulty, AiDifficulty.EASY, AiDifficulty.HARD)
 	team_mode = clampi(team_mode, TeamMode.OFF, TeamMode.TEAMS_4)

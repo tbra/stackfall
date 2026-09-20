@@ -55,10 +55,14 @@ extends Node3D
 ## `--hot-seat` starts a two-player hot-seat match. Both live in MatchConfig
 ## rather than as literals here (CLAUDE.md: no magic numbers).
 @export var player_count: int = 2
+## Bontago-mv0.8: tunables for the unlisted `--sandbox` debug entry point
+## below (CLAUDE.md: no magic numbers — see config/SandboxConfig.gd).
+@export var sandbox_config: SandboxConfig = preload("res://config/sandbox.tres")
 
 const MAIN_MENU_SCENE: PackedScene = preload("res://ui/MainMenu.tscn")
 const LOBBY_SCENE: PackedScene = preload("res://ui/Lobby.tscn")
 const HOT_SEAT_SCENE: PackedScene = preload("res://game/HotSeat.tscn")
+const SANDBOX_SCENE: PackedScene = preload("res://game/Sandbox.tscn")
 const REMOTE_CURSORS_SCENE: PackedScene = preload("res://game/RemoteCursors.tscn")
 const NET_DEBUG_OVERLAY_SCENE: PackedScene = preload("res://ui/NetDebugOverlay.tscn")
 
@@ -70,6 +74,7 @@ const NET_DEBUG_OVERLAY_SCENE: PackedScene = preload("res://ui/NetDebugOverlay.t
 var _main_menu: MainMenu = null
 var _lobby: Lobby = null
 var _hot_seat: HotSeat = null
+var _sandbox: Sandbox = null
 var _remote_cursors: RemoteCursors = null
 var _debug_overlay: NetDebugOverlay = null
 
@@ -86,6 +91,10 @@ func _ready() -> void:
 
 	if _has_cmdline_flag("hot-seat"):
 		_start_hot_seat_match()
+		return
+
+	if _has_cmdline_flag("sandbox"):
+		_start_sandbox_match()
 		return
 
 	Events.match_state_changed.connect(_on_match_state_changed)
@@ -130,6 +139,74 @@ func _build_hot_seat_config() -> MatchConfig:
 	config.player_count = player_count
 	config.hot_seat = true
 	return config
+
+
+# --- Sandbox: unlisted debug entry point (Bontago-mv0.8) ---------------------
+#
+# `godot --path . -- --sandbox [--players=N]` starts an *offline* match, same
+# shape as _start_hot_seat_match() above (register_world() -> start_match()
+# -> place_flags()/set_overlay_source()), but with every slot locally
+# controllable, no feed timer, and unlimited blocks (config/MatchConfig.gd's
+# `sandbox` flag; autoload/Match.gd's `_feed_timer_enabled`). Never reached by
+# the menu/lobby, so it changes nothing about --hot-seat or the networked
+# path above.
+
+func _start_sandbox_match() -> void:
+	_start_sandbox_match_with_args(OS.get_cmdline_user_args())
+
+
+## Split from _start_sandbox_match() so a test can drive both the --players=
+## parsing and the resulting world build with a manufactured argument list —
+## the same seam autoload/Net.gd's _apply_command_line_args() uses, since
+## there is no OS.set_cmdline_user_args() to fake the real one with.
+func _start_sandbox_match_with_args(args: PackedStringArray) -> void:
+	_sandbox = SANDBOX_SCENE.instantiate() as Sandbox
+	add_child(_sandbox)
+	_sandbox.set_camera_rig(_camera_rig)
+	_sandbox.set_field(_field)
+	Match.register_world(_field, _registry, _blocks_container)
+	Match.start_match(_build_sandbox_config(_sandbox_player_count(args)))
+
+	var config: MatchConfig = Match.config
+	_field.place_flags(config.player_count, config.player_colors, config.goal_flag_count)
+	_field.set_overlay_source(Match.raster(), config.player_colors)
+
+	# F3's overlay works offline too (Net.stats() reports Offline/0 peers,
+	# which is still useful context while sandbox-testing); it costs nothing
+	# unopened, exactly as in the networked path below.
+	_debug_overlay = NET_DEBUG_OVERLAY_SCENE.instantiate() as NetDebugOverlay
+	add_child(_debug_overlay)
+
+
+## Same lobby-settings-minus-a-few-overrides shape as _build_hot_seat_config().
+## config.sandbox is what lets MatchConfig.sanitize() allow `player_count`
+## below spec 2.8's normal floor of 2, and tells Match to start with its feed
+## timer paused (autoload/Match.gd's start_match()).
+func _build_sandbox_config(requested_player_count: int) -> MatchConfig:
+	var config: MatchConfig = match_config.duplicate(true) as MatchConfig
+	config.player_count = requested_player_count
+	config.hot_seat = false
+	config.ai_count = 0
+	config.sandbox = true
+	return config
+
+
+## `--players=<n>`, parsed with the same "-"-stripping loop
+## _has_cmdline_flag() and autoload/Net.gd's _apply_command_line_args() both
+## use. Takes the argument list explicitly rather than reading
+## OS.get_cmdline_user_args() itself (see _start_sandbox_match_with_args()),
+## so a test can drive it with a manufactured list. Out-of-range values are
+## not clamped here — MatchConfig.sanitize() (Match.start_match()) already
+## does that against this config's own `sandbox` flag.
+func _sandbox_player_count(args: PackedStringArray) -> int:
+	const PREFIX: String = "players="
+	for raw: String in args:
+		var text: String = raw
+		while text.begins_with("-"):
+			text = text.substr(1)
+		if text.begins_with(PREFIX):
+			return int(text.substr(PREFIX.length()))
+	return sandbox_config.default_player_count
 
 
 # --- Menu / lobby routing -----------------------------------------------------

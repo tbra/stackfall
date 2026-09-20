@@ -1,0 +1,62 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://ui/SandboxPanel.gd" id="1_panel"]
+
+[node name="SandboxPanel" type="CanvasLayer"]
+script = ExtResource("1_panel")
+
+[node name="Panel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+offset_left = 700.0
+offset_top = 16.0
+offset_right = 1020.0
+offset_bottom = 260.0
+
+[node name="Layout" type="VBoxContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Title" type="Label" parent="Panel/Layout"]
+layout_mode = 2
+text = "Sandbox debug (F5 reset, F6 timer, F7 tower, F8 overlay, Tab slot)"
+autowrap_mode = 2
+
+[node name="ActiveSlotLabel" type="Label" parent="Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Active: -"
+
+[node name="HeldBlockLabel" type="Label" parent="Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Held: -   Next: -"
+
+[node name="TimerLabel" type="Label" parent="Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Timer: paused (0.0s)"
+
+[node name="ValidityLabel" type="Label" parent="Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Ghost: -"
+
+[node name="SharesLabel" type="Label" parent="Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Territory: -"
+
+[node name="SpawnedLabel" type="Label" parent="Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Blocks spawned: 0"
+
+[node name="PhysicsMsLabel" type="Label" parent="Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Physics step: 0.00 ms"
+
+[node name="RulesLabel" type="Label" parent="Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Rules: -"

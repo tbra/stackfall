@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="SandboxConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/SandboxConfig.gd" id="1_sandbox"]
+
+[resource]
+script = ExtResource("1_sandbox")
+default_player_count = 2
+tower_block_count = 6
+tower_spacing = 1.05
+panel_refresh_hz = 10.0

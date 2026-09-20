@@ -40,6 +40,11 @@ const REQUIRED_ACTIONS: PackedStringArray = [
 	"camera_snap_goal",
 	"pause_menu",
 	"net_debug_toggle",
+	"sandbox_next_slot",
+	"sandbox_reset_field",
+	"sandbox_toggle_timer",
+	"sandbox_spawn_tower",
+	"sandbox_toggle_overlay",
 ]
 
 ## Actions whose mouse or gamepad half is deliberately absent, with the reason.

@@ -115,6 +115,34 @@ window to quit.
 Everything above is bound through the Input Map (`tools/bootstrap_project.gd`), so
 rebinding is a change there rather than in gameplay code.
 
+## Sandbox mode
+
+`godot --path . -- --sandbox [--players=N]` is a second unlisted debug build, like
+`--hot-seat`: an offline match with every slot locally controllable, no feed timer (so
+nothing auto-drops), and a fresh block issued the instant the last one lands. `N` defaults
+to 2 (`config/sandbox.tres`); sandbox is the one place a 1-player match is allowed, for
+solo rules testing. Placement, rotation, hover and camera controls are the hot-seat build's
+(above); one extra set of hotkeys switches who you're playing and pokes at the match
+directly:
+
+| Action | Keyboard | Gamepad |
+|---|---|---|
+| Switch active slot | `Tab` | Back |
+| Reset the field (same config) | `F5` | Paddle 1 |
+| Toggle the feed timer (off by default) | `F6` | Paddle 3 |
+| Spawn a tower of blocks at the cursor | `F7` | Paddle 2 |
+| Toggle the territory overlay | `F8` | Paddle 4 |
+
+A debug panel in the top-right shows the active slot and its colour, the block held and up
+next, whether the timer is running or paused, why the ghost is (in)valid right where it's
+aimed (the same `PlacementRules` reason the HUD's reject message uses), territory share per
+slot, blocks spawned so far and the physics step time. `F3`'s net debug overlay works here
+too (it just reports Offline/0 peers).
+
+Every hotkey still goes through `Match.request_place()`/`Match.start_match()` like a real
+click would — sandbox decides no rules of its own, so a territory rewrite only ever changes
+what the panel's validity label prints, never this file.
+
 ## Requirements
 
 - Godot **4.6+**, standard build (not .NET). Developed against 4.7.2.

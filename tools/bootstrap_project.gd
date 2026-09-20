@@ -221,6 +221,26 @@ func _actions() -> Dictionary:
 	# outside this file.
 	a["net_debug_toggle"] = [_key(KEY_F3), _pad(JOY_BUTTON_Y)]
 
+	# --- Sandbox debug hotkeys (Bontago-mv0.8) -------------------------------
+	# Unlisted like net_debug_toggle above: only reachable through
+	# `godot --path . -- --sandbox` (game/Main.gd), never seen in the shipped
+	# hot-seat or networked flows. Every face/shoulder/stick/D-pad button is
+	# already claimed by placement and camera controls (spec 2.5) or by
+	# net_debug_toggle's own Back+Y chord, so these reach for the buttons
+	# nothing else uses: BACK for the one binding the brief asked for by name
+	# (accepting that it doubles up with camera_snap_home — a debug-only
+	# overlap, not a shipped one, the same tolerance net_debug_toggle already
+	# established for sharing Y with rotate_reset) and the PADDLE1-4 buttons
+	# (JOY_BUTTON_PADDLE1..4, only present on Xbox Elite/DualSense-class pads)
+	# for the rest, rather than "Y+Back" for sandbox_toggle_timer as first
+	# suggested — that chord is literally net_debug_toggle's own trigger
+	# condition and would fire both actions from one press.
+	a["sandbox_next_slot"] = [_key(KEY_TAB), _pad(JOY_BUTTON_BACK)]
+	a["sandbox_reset_field"] = [_key(KEY_F5), _pad(JOY_BUTTON_PADDLE1)]
+	a["sandbox_toggle_timer"] = [_key(KEY_F6), _pad(JOY_BUTTON_PADDLE3)]
+	a["sandbox_spawn_tower"] = [_key(KEY_F7), _pad(JOY_BUTTON_PADDLE2)]
+	a["sandbox_toggle_overlay"] = [_key(KEY_F8), _pad(JOY_BUTTON_PADDLE4)]
+
 	return a
 
 

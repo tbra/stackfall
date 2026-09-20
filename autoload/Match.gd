@@ -120,6 +120,26 @@ var _win_checker: WinChecker = null
 var _last_groups: TerritoryGroups = null
 var _solve_accum: float = 0.0
 
+## Whether _tick_feed() decrements anything this frame (Bontago-mv0.8).
+## True for every real match; a sandbox match (config.sandbox) starts it
+## false, so feed_time_left never counts down and no slot ever auto-drops —
+## game/Sandbox.gd's sandbox_toggle_timer hotkey flips it back on to
+## deliberately exercise auto-drop. A placement still refeeds immediately
+## either way (_consume_and_refeed() runs from request_place() regardless of
+## this flag), so "unlimited blocks" falls out of the existing per-placement
+## refeed, not a separate code path.
+##
+## DECISION (autoload/Match.gd): a runtime flag read at the top of
+## _tick_feed(), not a second MatchConfig field, because it has to change
+## while a match is running (the toggle hotkey) — config is duplicated once
+## at start_match() and normally never touched again, and reaching back into
+## it from a hotkey would blur "match settings" with "what this instance is
+## doing right now". Not implemented by setting block_timer to a huge number
+## either: that would still tick, drift, and eventually expire, and would
+## show a misleading countdown on ui/SandboxPanel.gd's timer readout instead
+## of an honest "paused".
+var _feed_timer_enabled: bool = true
+
 
 # --- Lifecycle --------------------------------------------------------------
 
@@ -218,6 +238,7 @@ func start_match(match_config: MatchConfig) -> void:
 
 	config = match_config.duplicate(true) as MatchConfig
 	config.sanitize()
+	_feed_timer_enabled = not config.sandbox
 
 	_clear_blocks()
 	_build_slots()
@@ -272,6 +293,7 @@ func _reset_match_state() -> void:
 	_win_checker = null
 	_last_groups = null
 	_solve_accum = 0.0
+	_feed_timer_enabled = true
 	config = null
 
 
@@ -430,6 +452,22 @@ func feed_progress(slot_id: int) -> float:
 	return clampf(feed_time_left(slot_id) / config.block_timer, 0.0, 1.0)
 
 
+## Whether _tick_feed() is currently decrementing timers (Bontago-mv0.8:
+## true for every real match). ui/SandboxPanel.gd shows this as the timer's
+## "running"/"paused" state.
+func feed_timer_enabled() -> bool:
+	return _feed_timer_enabled
+
+
+## game/Sandbox.gd's sandbox_toggle_timer hotkey. A no-op call outside
+## sandbox is harmless (every real match starts true and nothing else in the
+## shipped game ever calls this), but nothing stops a caller from flipping it
+## — this file does not gate it on config.sandbox, the same way
+## set_process(false) in the test harness is trusted rather than re-checked.
+func set_feed_timer_enabled(enabled: bool) -> void:
+	_feed_timer_enabled = enabled
+
+
 func _issue_next_block(slot_id: int) -> void:
 	var bag: BlockBag = _bags[slot_id]
 	var shape: BlockShape = bag.next()
@@ -441,6 +479,12 @@ func _issue_next_block(slot_id: int) -> void:
 
 func _tick_feed(delta: float) -> void:
 	if not _is_host():
+		return
+	if not _feed_timer_enabled:
+		# Bontago-mv0.8: sandbox's default state (and sandbox_toggle_timer's
+		# "off" position) — feed_time_left is left exactly where it is, so
+		# ui/SandboxPanel.gd reads a paused timer, not a frozen countdown
+		# drifting toward zero.
 		return
 	if config.hot_seat:
 		if _active_slot == -1:
