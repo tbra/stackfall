@@ -89,11 +89,12 @@ Implementation workers must implement their assigned changes, not return only ad
 ```powershell
 godot --headless --editor --path . --quit
 godot --headless --path . -s addons/gut/gut_cmdln.gd -gdir=res://tests -gexit
+powershell -NoProfile -File tools/run_gut.ps1 <test_script>[,<test_script>] [-Unit <substring>]   # targeted, seconds; use while iterating
 ./tools/run_m3a_local.ps1 -Peers 4 -SimLag 100 -SimLoss 0.02
 godot --headless --path . res://tests/bench/bench_snapshot.tscn
 ```
 
-Run the multiplayer checks for network changes and the relevant physics/territory benchmarks when those systems change. Existing pending tests are limitations, not passes. For real hardware, record explicit owner steps and what remains unverified. Do not label frame-rate acceptance verified by a headless run alone. Review the exact candidate that was tested; changes after review need proportionate revalidation.
+Iterate with the targeted runner and run the full suite once per package, in the foreground, not in parallel with another Godot test process. Run the multiplayer checks for network changes and the relevant physics/territory benchmarks when those systems change. Existing pending tests are limitations, not passes. For real hardware, record explicit owner steps and what remains unverified. Do not label frame-rate acceptance verified by a headless run alone. Review the exact candidate that was tested; changes after review need proportionate revalidation.
 
 The orchestrator closes package issues only after their acceptance evidence is recorded; milestone issues need integrated validation and independent review. Follow the active Git policy in `AGENTS.md` and `CLAUDE.md`. A permission failure is a blocked operation to report, not authority to bypass the sandbox. Do not stop or delete unrelated processes/worktrees; re-check process identity before any authorized cleanup.
 
