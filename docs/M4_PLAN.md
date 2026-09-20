@@ -1,5 +1,7 @@
 # M4 — Gifts & specials: parallel build plan
 
+> **Primary-evidence amendment, 2026-09-20:** the owner's installed Bontago executable contains tutorial/menu text identifying seven specials and their effects. Read `ORIGINAL_INSTALL_EVIDENCE.md` and current `SPEC.md` §2.6 before dispatching this older plan. Rocket launches upward and explodes at fuel exhaustion (not verified homing); DaBomb is an impact-activated explosion (not a verified proximity mine); Earthquake also levels tilt; Propeller rises and tilts (not horizontal Fan wind); Jumping Bean was omitted and creates holes between hops. Gift spawning is described as probability per turn, not the old seconds interval. Universal auto-fuse, exact weights and timings are not recovered facts. Preserve existing work, but reconcile contracts/tests before calling this plan original-faithful.
+
 Spec: §1.3 [ORIGINAL] (gifts/specials, chains, throwing), §1.5, §1.7, §2.2, §2.4, §2.5
 (throwing, arc preview), §2.6 (gifts & specials table), §2.7 (SPECIALS_ONLY tilt),
 §3.2, §3.3, §3.4 (reliable channel: "special trigger events", `request_throw`), §3.5

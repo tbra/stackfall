@@ -1,13 +1,18 @@
 # Bontãgo Remake — Design & Technical Spec (Godot 4)
 
-> Hand-off document for Claude Code. Part 1 is research on the original game, taken from archived sources. Part 2 is the design for the remake. Part 3 is the technical architecture. Part 4 is the build plan with acceptance criteria.
+> Hand-off document for Claude Code. Part 1 records historical evidence, not an implementation contract. Part 2 defines the remake's rules. Part 3 describes implementation proposals. Part 4 gives acceptance criteria. Rules/evidence audit: **2026-09-20**.
 >
 > Each rule is tagged by where it comes from:
-> - **[ORIGINAL]** is confirmed by one or more sources on the 2003 game.
-> - **[RECONSTRUCTED]** is my best reading of vague or incomplete source descriptions.
+> - **[ORIGINAL]** is supported by an identified historical source; it does not imply exact internals or consistency across all releases.
+> - **[OWNER]** is the owner's explicit requirement for this remake, even where historical evidence differs.
+> - **[REPORTED]** is a player/reviewer account, not developer confirmation.
+> - **[RECONSTRUCTED]** is a provisional interpretation of incomplete evidence, not a verified original rule.
 > - **[NEW]** is a design decision for the remake.
+> - **[OPEN]** requires a decision or verification; existing code is not proof of the intended rule.
 >
-> **Instructions for Claude Code:** Work milestone by milestone (Part 4). Every milestone must be runnable and playable before you start the next one. Put tunable numbers in config resources and never hard-code them. Ask before changing a rule tagged [ORIGINAL].
+> **Precedence (owner, 2026-09-20): prioritize original rules where concrete evidence exists.** Such evidence supersedes earlier recollections/reconstructions. Explicit retained remake exceptions (including the owner's confirmed 3-second capture hold) remain exceptions. Otherwise use owner clarifications, then provisional Part 2 designs. Part 3, older plans and completed tests cannot override this rule. Record the source and the displaced assumption whenever applying it.
+>
+> **Instructions for Claude Code:** Work milestone by milestone (Part 4). Every milestone must be runnable and playable before you start the next one. Put tunable numbers in config resources and never hard-code them. Ask before changing approved gameplay, including [ORIGINAL] rules adopted by the remake. This audit changes documentation, not game code; it does not assert that the working build already conforms.
 
 ---
 
@@ -15,80 +20,61 @@
 
 ### 1.1 Facts
 - **Title:** Bontãgo (also written "Bontago")
-- **Release:** May 2003, free for Windows. Version 1.1 came later. There was a "Lite" build of about 4 MB with no backgrounds or music, and a full build of about 23 MB.
-- **Developer:** Circular Logic, a team of four DigiPen Institute of Technology juniors. Eric Anderson did the graphics engine, Jason Bolton was programmer and tech director, Tristan Hall was producer and programmer, and Justin Kinchen was designer, artist, and programmer.
-- **Awards:** At IGF 2004 it won "Innovation in Game Design" and was a finalist in the Open category. It was the first student game to win a professional-level IGF award.
-- **Development:** About 7 months alongside school, plus about 2 months of cleanup. The budget was $79, spent on Terragen (skybox and landscape rendering). They wrote a design document and a technical design document. The technical design document went out of date quickly.
-- **Physics:** They used the Tokamak physics library, which was optimized for stacking. They tried ODE first and found it too slow for large systems. Before that they tried to write their own physics engine and gave up. They had to work around several Tokamak bugs, and tuning the physics was the hardest part.
-- **Networking:** Network play made the physics integration difficult. The first network game crashed. The programmer threw out all the networking code and rewrote it from scratch.
-- **Scrapped feature:** The board was originally meant to balance continuously on its center based on where block weight sat. The physics couldn't handle more than 5 or 6 blocks doing this, and it wasn't fun. They replaced it with special blocks that tilt the board manually.
-- **Plans for 2.0 that never shipped:** Odd-shaped tables, levels, new special blocks, a turn-based mode, better AI, and "flawless multiplayer". The designer said huge towers wouldn't be as easy to build in future versions.
+- **Release:** DigiPen's [game gallery](https://games.digipen.edu/games/bontago) records May 1, 2003. Later releases must not be assumed mechanically identical.
+- **Developer:** Circular Logic: Eric Anderson, Jason Bolton, Tristan Hall and Justin Kinchen. The [2004 interview](https://www.gamedev.net/tutorials/industry/interviews/circular-logic-r2060/) identifies Jason as technical director and Eric as graphics programmer; DigiPen's current page labels Eric technical director. Preserve the attribution difference rather than silently choosing one.
+- **Awards:** DigiPen confirms the 2004 IGF Innovation in Game Design win and Open Category finalist status. [DigiPen showcase](https://www.digipen.edu/showcase/student-games/bontago).
+- **Development:** The team reported seven months plus cleanup, Tokamak physics after trying ODE, and a networking rewrite. [Developer interview](https://www.gamedev.net/tutorials/industry/interviews/circular-logic-r2060/).
+- **Tilt:** Ordinary block weight was originally intended to balance the board continuously, but that feature was abandoned; specials tilted the shipped board instead. This supports specials-driven tilt, **not** a particular spring equation, tilt angle or return time. The interview discusses possible future maps, specials and a turn-based mode; these are not evidence that those features shipped. [Developer interview](https://www.gamedev.net/tutorials/industry/interviews/circular-logic-r2060/).
 
-### 1.2 Core rules [ORIGINAL]
-From the official developer description and player accounts:
+### 1.2 Core rules — evidence and limits
 
-1. **Field:** A large disk, called "the field", floats in the sky and is balanced on a fulcrum at its center. It looks translucent or glassy and reflective, with 360° sky backgrounds. Water or landscape is visible far below.
-2. **Start:** Each player has a colored flag. The flags are spaced evenly around the edge of the disk. Each flag has a circle around it that marks that player's controlled area.
-3. **Block feed:** Every few seconds a block appears on each player's cursor. You can place it at any time before the timer runs out. If you're still holding it when time is up, it drops on its own wherever it is and the next block replaces it. The default timer is about 5 seconds and can be changed at game start. Players mention 6 seconds as a comfortable setting. The next block is shown in a Tetris-style preview.
-4. **Placement restriction:** You can only drop blocks inside your own controlled area.
-5. **Territory growth:** The radius of your controlled area depends on how tall your structures are, measured perpendicular to the disk. Taller means a bigger area, so you have to build both up and out.
-6. **Height credit:** Players report "stealing credit" for someone else's tall tower by placing a single block on top of it. This means influence comes from the height of each player's own blocks, not from who built the tower underneath.
-7. **Collisions between territories:** Where two opposing players' controlled areas overlap, a hole forms in the disk in the overlapping region. Blocks dropped into an overlapping area are thrown off the map.
-8. **Win condition:** You win by being the first player whose single continuous controlled area contains the world flag or flags. In the default setup this is one white goal flag in the center. The number of goal flags can be changed.
-9. **Blocks:** Blocks are handed out at random in semi-random shapes. The base unit is a cube, and the other shapes are combinations of cubes. The team added more shapes late in development.
-10. **Losing blocks:** Towers fall over, and blocks slide off the edge of the disk and are gone.
+**[ORIGINAL, preserved description]** Home flags supply initial circles around a disk. Players place randomly supplied cube-based shapes within their controlled area. Structure height perpendicular to the disk expands influence; victory requires one continuous area containing all world flags. The preserved text explicitly describes holes at opposing territory overlaps. It does not specify their collision geometry, lifetime or exact ownership formula. [Description mirror](https://fileplanet.download.it/p-18772/Bontago).
 
-### 1.3 Gifts / specials [ORIGINAL]
-- **Gift boxes** (crates) drop onto the map at random during play.
-- If your controlled area expands to enclose a gift box, the next block you receive is a **special block**.
-- **Activation:** You activate a special by smashing it, meaning it hits something hard enough.
-- **Gamepad parity** [NEW, equal priority with mouse and keyboard]:
-- Every action and every menu must be fully usable with a gamepad. Test with both Xbox and PlayStation layouts.
-- Define all bindings in the Input Map and never check keys directly in code. Key rebinding covers both devices.
-- **Ghost movement:** The stick moves the ghost cursor across the field in world space, relative to the camera. Speed scales with camera zoom, with acceleration and a small dead zone.
-- **Snapping aid:** Holding a modifier makes the ghost snap to the tops and edges of nearby blocks, so building precisely is as easy as with a mouse.
-- **Throw aiming:** Aim with the right stick. The arc preview is shown, and holding the trigger sets strength.
-- **Button prompts:** The UI shows the correct button icons and switches automatically based on the last device used.
-- **Local play:** Multiple gamepads on one PC are out of scope for v1, but nothing should prevent adding split-screen later.
+**[ORIGINAL, developer explanation]** On March 15, 2004, developer Vulcan/Eric described fixed placement intervals: an early drop gives the next piece for preparation, but it cannot be released until the next interval. Expiry forces release. This is simultaneous real-time play, not players taking alternate turns. The post does not establish network clock synchronization. [Release thread](https://gamedev.net/forums/topic/177069-bontago/).
 
-**Throwing:** Specials can be thrown outward, even beyond your own territory, to hit other players. You throw by flicking the mouse in a direction and letting go before the cursor leaves your territory. In normal games only specials can be thrown. In sandbox mode ordinary blocks can be thrown too.
-- **Chain reactions:** A special's effect can knock blocks into other crates or specials and set them off, producing chaotic cascades.
-- **Gifts can be turned off.** They're on by default. A "special frequency" setting exists, apparently on a 0–100 scale, and players warn that volcano chain reactions get out of hand above about 60.
+**Fidelity decision:** the owner's later instruction to prioritize concrete original evidence adopts the documented timer in §2.4 and restores overlap holes as the default target in §2.2. Earlier immediate-timer/no-overlap proposals remain documented alternatives, not the original rules. The 3-second capture hold is an explicitly retained remake exception.
 
-The following specials are named in sources. The list is incomplete, since the developer description ends with "and other blocks".
+**[ORIGINAL, installed tutorial]** The owner-installed executable advertises version 1.1. Its embedded tutorial confirms timer locking, overlap sinking, height-based influence, allied placement and the all-white-flags objective. Its menu documents a configurable requirement to connect influence to the home flag for dropping. See [installed-file evidence, offsets and hash](ORIGINAL_INSTALL_EVIDENCE.md). This is direct textual inspection, not a gameplay test.
 
-| Special | What sources say |
-|---|---|
-| Volcano | Shoots fiery orbs that can hit other specials and set them off |
-| Earthquake | Shakes the whole field |
-| Rocket / Missile | Attacks opponents' stacks directly |
-| Bomb | Works like a mine and explodes when triggered |
-| Anvil | Very heavy; tilts the whole arena, knocking down everyone's towers including your own |
-| Fan | Tilts the board ("tilted by 2 fans") |
+**[REPORTED]** Tower-top ownership tricks, exact default timers and invalid-drop rejection behavior in the earlier draft still lack sufficiently specific evidence. Do not derive an exact height-credit algorithm or auto-drop relocation rule from them.
 
-### 1.4 Modes & options [ORIGINAL]
+### 1.3 Gifts / specials — evidence and limits
+
+**[ORIGINAL, preserved description]** Enclosing a randomly dropped gift box awards a special as the next piece; impact activates it. Volcano, earthquake and rocket are named. Exact thresholds, queues, targeting and fuse behavior are not supplied. [Description mirror](https://fileplanet.download.it/p-18772/Bontago).
+
+**[REPORTED]** Contemporary players describe throwing specials beyond territory, normal-block throwing in sandbox, and chain reactions. The review names rockets, volcanoes, earthquakes and a tilting anvil. These accounts do not establish the precise behaviors or numbers in §2.6. [JayIsGames review/comments](https://jayisgames.com/review/bontago.php).
+
+**[ORIGINAL, installed tutorial/menu]** Seven documented types are **DaBomb/Bomb, Volcano, Earthquake, Propeller, Anvil, Rocket and Jumping Bean**. Rocket launches upward and explodes after its fuel is spent; Earthquake helps level the field; Propeller rises and tilts it; Jumping Bean creates a hole between random hops. The earlier homing Rocket, proximity-mine Bomb and horizontal-blowing Fan were unsupported reconstructions. §2.6 now follows the installed descriptions. [Artifact evidence](ORIGINAL_INSTALL_EVIDENCE.md).
+
+The options describe **gift spawning probability per turn**, plus separate probabilities for the seven types. A seconds-based spawn interval and a specific 0–100 mapping were not recovered from this binary's text.
+
+### 1.4 Modes & options [REPORTED unless stated otherwise]
+The following inventory is retained from the earlier research; it is not a verified list of original defaults/ranges. Sandbox is also named in the preserved description. [JayIsGames review/comments](https://jayisgames.com/review/bontago.php); [MobyGames](https://www.mobygames.com/game/13746/bontago/).
 - **Modes:** Solo against AI, multiplayer, sandbox (free building with no rules), and tutorials (including a "misc" section).
 - **Players:** Up to 8 total, so you plus 7 opponents. Free-for-all or teams. Any mix of humans and AI.
-- **Multiplayer:** LAN, or internet by typing in an IP address. There was no lobby or server browser. People found games through IRC.
+- **Multiplayer:** LAN and direct-IP join are confirmed by installed menu text. Ready/team controls and pre-game chat also exist, so the earlier blanket "no lobby" claim was wrong. A public matchmaking service is not established. [Artifact evidence](ORIGINAL_INSTALL_EVIDENCE.md).
 - **Game setup options:** Number of opponents, gravity strength, number of goal flags, special frequency, gifts on or off, block timer, and map size (a "largest map" is mentioned).
-- **Music:** You could point the game at your own MP3 folder. Ctrl+R toggled shuffle and L looped the current track.
+- **Music:** Installed tutorial confirms custom music paths and Control-modified shortcuts: Ctrl+R for shuffle and Ctrl+L for looping. [Artifact evidence](ORIGINAL_INSTALL_EVIDENCE.md).
 - **HUD:** Shows tower height as a number. Players quote heights like 87 and 102.93.
 
-### 1.5 Original controls [ORIGINAL]
+### 1.5 Original controls [REPORTED; verify against the relevant build's tutorial]
+Do not treat this historical key list as the remake's binding contract; §2.5 owns that. Player comments corroborate the middle-button/Home reset and throwing, not every mapping below. [JayIsGames](https://jayisgames.com/review/bontago.php).
 - The mouse moves the held block over the field.
 - A and S rotate the block. Tapping the middle mouse button rotates it by 90°. There was also a free-rotate mode.
 - Q levels the block, and holding the middle mouse button and pressing Home resets the block to its original orientation.
 - Mouse flick throws a special.
 - The camera used all three mouse buttons.
 
-### 1.6 What players loved
+### 1.6 Reported appeal (qualitative notes, not rule evidence)
 - Stacking felt satisfying and physical, with a real sense of weight and balance.
 - The core tension was whether to build one tall tower (fast, fragile) or a network of shorter, sturdier towers (slow, safe). The best strategy was a mix.
 - Chaos: tilting boards, volcano chains, and towers collapsing. It was a huge amount of fun in multiplayer and with teams.
 - Sandbox building: dominoes, silly structures, and height records.
 - Visuals: reflective floor, smooth slightly glowing blocks, shadows, and large skyboxes.
 
-### 1.7 What was broken (fix these in the remake)
+### 1.7 Reported problems and proposed remake responses
+Retained qualitative notes from the earlier draft, not a verified defect list for every original version. Proposed responses are design ideas, not guarantees of fixes.
+
 | Problem | Remake fix |
 |---|---|
 | Rotation drifted until blocks sat lopsided, and was hard to recover | Snap to 90° by default, free rotation behind a modifier key, one-key reset (§2.5) |
@@ -98,17 +84,21 @@ The following specials are named in sources. The list is incomplete, since the d
 | Games lasted 4 hours with no winner | Optional match timer and escalating sudden death (§2.8) |
 | Gifts felt too random, and the anvil hurt everyone | Tunable weights per special, more targeted specials, better throw aiming (§2.6) |
 | Throwing was hard to discover and hard to judge | Arc preview while aiming, clear territory edge at the cursor (§2.5) |
-| No lobby; online play needed a typed IP | LAN auto-discovery plus direct IP (§3.4) |
+| No verified public matchmaking service; original has pre-game setup/chat | Modern Steam lobbies plus LAN discovery and direct IP (§3.4) |
 | Only one real strategy once learned | Map variety (odd-shaped tables were planned for 2.0), team modes, special variety |
 
 ### 1.8 Sources
-- DigiPen showcase: https://www.digipen.edu/showcase/student-games/bontago
-- GameDev.net interview, 2004: https://gamedev.net/tutorials/industry/interviews/circular-logic-r2060
-- Official description (FilePlanet archive): https://fileplanet.download.it/p-18772/Bontago
+- [Installed Bontago 1.1 textual evidence](ORIGINAL_INSTALL_EVIDENCE.md): executable SHA-256, byte offsets and paraphrased tutorial/menu findings, inspected read-only on 2026-09-20. Stronger evidence than secondary accounts where they conflict, but not a runtime behavioral test.
+- [DigiPen showcase](https://www.digipen.edu/showcase/student-games/bontago) and [game gallery](https://games.digipen.edu/games/bontago): primary institutional sources for credits, date, awards and broad premise; not detailed rulebooks.
+- [GameDev.net developer interview, March 9, 2004](https://www.gamedev.net/tutorials/industry/interviews/circular-logic-r2060/): primary developer testimony, especially shipped versus abandoned tilt behavior.
+- [GameDev.net release thread, 2003–2004](https://gamedev.net/forums/topic/177069-bontago/): developer Vulcan/Eric's March 15 timing explanation; August 28 player bug report and developer response concerning overlaps/falling blocks. Bug reports are not idealized rules.
+- [Preserved developer-description mirror](https://fileplanet.download.it/p-18772/Bontago): useful historical wording, but third-party hosting and an unspecified build, not an inspected original manual.
 - MobyGames: https://www.mobygames.com/game/13746/bontago/
 - JayIsGames review and comments, 2007: https://jayisgames.com/review/bontago.php
 - GameFAQs review, 2009: https://gamefaqs.gamespot.com/pc/919886-bontago/reviews/137421
 - Unknown Worlds forum thread, 2004 (includes a developer post): https://forums.unknownworlds.com/discussion/69613/bontago
+
+Audit date: 2026-09-20. DigiPen, the interview, release thread, description mirror and JayIsGames were inspected. MobyGames returned an access error; GameFAQs and remaining legacy citations are retained leads, not newly verified evidence. Secondary reviews and comments establish reported observations only. The older draft's exact numerical defaults, controls and special-effect details remain provisional where no specific evidence is attached. Owner requirements are separately sourced to [the owner's feedback](bloody_mess.md) and the decision record at the end of this document.
 
 ---
 
@@ -116,46 +106,56 @@ The following specials are named in sources. The list is incomplete, since the d
 
 **Working title:** Use a placeholder such as "Stackfall" rather than "Bontãgo" if the game will ever be shared publicly. The name and assets belong to DigiPen and Circular Logic.
 
-**Scale:** 1 unit = 1 cube edge = 1 m. All numbers below are starting values and should be tuned.
+**Scale:** 1 unit = 1 cube edge = 1 m. All numerical tunings, randomizer details and physical-effect equations below are **[NEW]** unless individually evidenced. They must not be presented as recovered original constants. Part 2 is the target contract, not a claim about the currently integrated build.
 
 ### 2.1 Field
 - **Shape:** A disk with radius `field_radius`: 30 on small maps, 45 on medium, 60 on large. [ORIGINAL sizes existed; values are NEW]
-- **Structure:** The disk is one rigid body pivoting on a central fulcrum. It has two tilt modes, chosen in game setup:
-  - `tilt_mode = SPECIALS_ONLY` (default): **[ORIGINAL]** behavior. The disk is animated rather than simulated. Specials apply tilt impulses to a spring-damper model, and the disk eases back to level. Maximum tilt is 12°, and the return time constant is about 4 s.
-  - `tilt_mode = PHYSICAL_BALANCE`: **[NEW]**, the scrapped original idea, now practical on modern hardware. The disk is a RigidBody3D attached to the fulcrum with a joint that allows rotation on two axes. Torque from block weight tilts it, and a restoring spring plus angular damping keeps it controllable. It's a fun, chaotic option and not the default.
+- **Structure:** The disk pivots around its center. Body type depends on the selected mode:
+  - `tilt_mode = SPECIALS_ONLY` (default): **[ORIGINAL]** specials-driven tilt (§1.1). The animated body, spring-damper, 12° maximum and approximately 4 s return are **[NEW]** implementation choices, not original measurements.
+  - `tilt_mode = PHYSICAL_BALANCE`: **[NEW]**, inspired by the scrapped idea, feasibility still to be benchmarked. The disk is a RigidBody3D attached to the fulcrum with a joint that allows rotation on two axes. Torque from block weight tilts it, and a restoring spring plus angular damping keeps it controllable. Optional, not an original-fidelity requirement.
 - **Holes:** The disk surface is divided into cells so that holes can appear (§3.3).
 - **Out of bounds:** Any body that drops below `kill_plane_y = -40` is removed.
 - **Map variants** [NEW, based on the planned 2.0 feature]: Round (default), Oval, Ring (with a hole in the middle and the goal flag on a bridge), Twin disks joined by a bridge, and Cross.
 
 ### 2.2 Players, flags, territory
-- **Start positions:** 2–8 players. Each player's home flag sits at `0.85 * field_radius`, spaced evenly around the edge. [ORIGINAL]
-- **Goal flags:** 1 goal flag in the center by default. Setup allows 1–5. Extra flags are placed symmetrically at `0.4 * field_radius`. [ORIGINAL setting; placement NEW]
-- **Home circle:** Radius `home_radius = 6`. It always exists while the flag is on the disk. [ORIGINAL]
+- **Start positions:** 2–8 players; each home flag sits at `0.85 * field_radius`. Evenly distributed home flags are evidenced in §1.2; the exact radius and supported remake player range are design choices.
+- **Goal flags:** 1 central flag by default; setup allows 1–5 with extras arranged at `0.4 * field_radius`. Multiple goals are historically described; these limits/layout values are **[NEW]**, not a recovered original maximum.
+- **Home circle:** `home_radius = 6` while the home flag is alive. Initial home influence is evidenced; its exact size and lifetime model are **[NEW]**.
+- **Goal no-build zones [OWNER, original unverified]:** keep the earlier requirement for a no-placement disc around each goal; the installed tutorial does not settle these zones. Nothing found proves they cannot coexist with original overlap sinking. `goal_zone_radius = 4 m` is the v2 plan's provisional tuning, not an original value. Zones block placement, **not influence or capture**. Do not confuse them with missing floor or assume that claiming the zone's edge is enough to capture the flag base.
 - **Influence per block** [RECONSTRUCTED]:
   - Each of your blocks that is settled (see below) produces an influence circle.
   - The circle is centered on the block's center of mass, projected onto the disk plane.
-  - Its radius is `r = influence_base + influence_k * h`, where `h` is the height of the block's highest point above the disk surface, measured along the disk's normal. That way tilting the disk changes influence, as in the original.
+  - Provisional radius: `r = min(influence_base + influence_k * h, influence_max)`, where `h` is that block's highest point above the disk surface, measured along the disk normal. This is a **[RECONSTRUCTED]** per-block-elevation model, not proof that every member of a physical stack shares its top block's height. The exact original height sample, radius curve and cap are unknown.
+  - Moving the disk and a resting tower rigidly together must not change their relative height. Tilt affects influence when blocks move relative to the disk; measuring along the normal does not itself imply that tilt changes a rigid tower's influence.
   - Starting values: `influence_base = 1.5`, `influence_k = 0.9`, and `r` is capped at `influence_max = 0.6 * field_radius`.
-  - A block counts as **settled** when its linear speed is below 0.15 m/s and its angular speed below 0.3 rad/s for 0.5 s. This prevents falling blocks from briefly flashing influence.
-- **Connected territory** [RECONSTRUCTED]:
+  - Current **[NEW]** settled filter: linear speed below 0.15 m/s and angular speed below 0.3 rad/s for 0.5 s. Losing influence while moving versus smoothly shrinking with current height is a fidelity question, not a verified original threshold.
+  - **Continuous updates [OWNER]:** movement, collapse and removal must update influence without waiting for another placement. `solve_hz = 20` is the v2 plan's candidate rate, subject to benchmarks, not an original rule. A moving block cannot retain stale pre-collapse influence.
+- **Connected territory [OWNER requirement, reconstructed algorithm]:**
+  - Installed original menu text makes flag-connected **placement** configurable. Keep it required for the remake's current target; original default and disconnected-play win rules remain unknown. This does not establish that disconnected circles disappear visually.
   - Build a graph where each influence circle is a node, and two circles are connected if they overlap.
-  - Your **territory** is the union of all circles connected, directly or through other circles, to your home circle.
-  - Circles that aren't connected to your home give no territory. If a tower is cut off, its influence is gone.
-- **Height credit:** Blocks belong to whoever placed them, permanently. Putting your block on top of an enemy tower gives you influence at that height. [ORIGINAL]
-- **Contested zones:** Areas where two or more territories from different teams overlap are contested. [ORIGINAL]
-  - Contested cells become **holes** after `hole_delay = 0.75 s`. [NEW]
-  - Blocks resting on holes fall through.
-  - `hole_mode` lobby setting [NEW] (the original's rule is unknown):
-    - `TEMPORARY` (default): a cell stays a hole while contested and closes 2 s after the overlap ends.
-    - `PERMANENT`: holes never close, so the board erodes over the match.
-  - Players can't place blocks in contested areas. If a block is released there anyway, it is thrown off the map with a visible "reject" animation. [ORIGINAL]
-- **Teams:** Territories of teammates never create holes between them. They merge for the win check.
+  - Home-connected circles form candidate influence. Final usable territory also excludes contested/removed regions according to the active mode.
+  - Circles disconnected from home provide no usable territory. For capture, a route must survive in the **final owned area**, not merely in a pre-contest circle graph. Enemy territory or a hole cutting the only route must break capture. The propagation/cut-off algorithm needs review (§3.3).
+- **Height credit [RECONSTRUCTED]:** permanent placer ownership and influence from a block on an opponent's tower are provisional remake choices. Do not infer support-chain ownership, a whole-stack transfer, or original permission to place there regardless of territory.
+- **Overlap holes [ORIGINAL target; mechanics RECONSTRUCTED]:** use the historical evidence in §1.2 rather than the earlier assertion that holes meant only goal zones. Opposing candidate influence creates a contested region that neither player may use for placement. The old cell-collision implementation is one approximation, not verified original geometry.
+  - Retained prototype tuning: `hole_delay = 0.75 s`; opened cells remove floor support. A wide body can bridge a small opening; do not promise that any overlap with a hole destroys the entire body. Exact original activation/collision behavior is **[OPEN]**.
+  - `hole_mode` values:
+    - `TEMPORARY` — **provisional default** toward original overlap-hole behavior; closes 2 s after contest ends. These delays and closure semantics are **[NEW]**, not historical facts.
+    - `PERMANENT` — **[NEW]** erosion variant.
+    - `OFF` — earlier owner/v2 **alternative**: intact floor and locally height-weighted, mutually exclusive borders. No longer the fidelity default after the latest owner instruction. The border formula remains unverified (§3.3).
+  - A visible rejection impulse is a remake choice, not established original behavior. Invalid clicks and expiry must follow distinct rules (§2.5).
+- **Teams:** allied placement is **[ORIGINAL]**, explicitly documented in the installed tutorial. Teammates do not contest each other in the remake; goals still need one continuous allied component, not disconnected patches merely sharing a team ID. Exact original team-win/home-anchor semantics remain unverified.
 
 ### 2.3 Win condition
-- A player or team wins when one connected territory contains **every goal flag** continuously for `capture_hold = 3 s`. [ORIGINAL win; hold time NEW]
-- **Capture display:** A radial progress ring appears on each goal flag while someone is capturing it.
+- Every goal flag's **base** must be in the same final controlled component with an unbroken path to a living allied home. All goals must satisfy this **simultaneously** for `capture_hold = 3 s`. The owner explicitly retained this hold on 2026-09-20; it is not claimed as original timing.
+- There is one shared hold condition, not independent permanent flag captures. Losing any goal or the connecting path resets the hold. Internal solver group renumbering alone must not reset a continuously valid capture. The exact base footprint (point versus finite base) remains **[OPEN]**; current code samples the flag position.
+- **Home elimination [OWNER intent, original unverified; default interaction OPEN]:** retain the intent that an engulfed home eliminates its player and the last surviving team wins. However, in the default overlap-hole model an always-active home circle makes invasion contested rather than enemy-owned. The v2 "enemy owns the home point" trigger therefore cannot simply be reused. Decide whether home loss depends on invading influence, loss of physical support or another explicit condition; none is established here as original behavior. Unowned ground alone is not proof of enemy capture. Until resolved, do not claim default-mode elimination complies merely because v2 elimination tests pass; also specify simultaneous elimination/goal-capture precedence.
+- **Capture display [NEW]:** radial rings communicate the shared hold. A goal no-build zone remains no-build even while influence/capture passes across it.
 
 ### 2.4 Blocks
+**Placement cadence [ORIGINAL target, §1.2]:** players act concurrently, each handling their own supplied piece; never rotate through players as in hot-seat. Each fixed interval permits one release. Releasing early does not restart the interval: the next piece can be positioned but remains release-locked until the interval boundary. At expiry, force release only if that interval's piece is still unspent. Crossing a boundary must not release a prepared next piece automatically merely because the previous piece was placed early. Equal shapes can occur by chance; "own piece" does not require distinct shapes across players.
+
+The original global-versus-per-player phase alignment is **[OPEN]**; it must not be confused with player turn-taking or immediate-reset timers. The earlier owner-requested immediate-reset behavior is superseded by the later original-evidence priority. A future cadence option may preserve it, but adding such a setting is not required by this documentation audit.
+
 - **Rigid bodies:** Every block is one RigidBody3D with a compound shape made of cube BoxShape3Ds. The cube size is 1 m, minus a 0.02 m margin so neighboring blocks don't jam against each other.
 - **Mass:** Each cube has a mass of 1.
 - **Physics material:** Friction 0.8, bounce 0.05.
@@ -177,7 +177,7 @@ The following specials are named in sources. The list is incomplete, since the d
 | wedge | cube with a 45° slope, drawn as a cube with a sloped collision shape | [NEW] ramps |
 
 - **Weighted random feed:** Weights are set per shape in `BlockFeedConfig`. Use a "bag" randomizer so no player goes long without getting a stabilizing shape. [NEW]
-- **Next-block preview:** The HUD shows the next block. [ORIGINAL] You can optionally show the next 3. [NEW]
+- **Next-block preview [ORIGINAL]:** installed tutorial confirms the preview's next piece and timer plus a top-down territory minimap. Distinguish queued preview from the actual held-but-locked preparation piece. Three-piece preview is a remake option.
 
 ### 2.5 Controls & placement feel [ORIGINAL base with NEW fixes]
 
@@ -186,6 +186,9 @@ The following specials are named in sources. The list is incomplete, since the d
 - It follows the cursor raycast on the surface under it (disk or existing blocks), hovering `hover_height = 0.3 m` above the first thing it would touch.
 - A projected drop shadow and a vertical guide line show exactly where it will land.
 - The ghost is tinted in the player's color when the spot is valid, red when it's outside territory or contested, and has a hatched pattern when over a hole.
+- A distinct **timer-locked** state must remain visible even at a legal location. A location-valid ghost does not imply that the current interval permits release. Goal zones also need a no-build tint, distinct from physical missing floor.
+
+**Placement legality [OWNER, retained where not contradicted by evidence]:** cast one ray straight down from the ghost's middle and classify its hit point in disk-local territory. It must be owned by the player's team, outside goal no-build zones, and not a contested/hole point. Do not require the whole footprint to fit. Missing support/off-disk hits are invalid. Ghost overlap/collision avoidance and anti-cheat bounds are separate checks, not permission to reintroduce footprint territory tests. Exact ray origin and world-down versus disk-normal behavior during tilt remain an implementation/feel question (§3.3).
 
 | Action | Mouse/Keyboard | Gamepad [NEW] |
 |---|---|---|
@@ -211,31 +214,34 @@ The following specials are named in sources. The list is incomplete, since the d
 - Throw strength scales with drag distance, capped at `throw_max_speed = 25 m/s`.
 - The release point has to be inside your own territory, so show the territory edge clearly near the cursor.
 
-**Auto-drop:** When the timer runs out, the held block drops from its current ghost position. If that spot isn't valid, it drops at the closest valid point. [ORIGINAL]
+**Expiry and invalid actions:** forced release at interval expiry is evidenced (§1.2). Moving an invalid ghost to a closest valid point is only the earlier **[NEW]** fallback, not an original rule. Current rejection/burn/search behavior must be documented before changing it. **[OPEN]:** when no valid point exists, whether the piece is lost, retained or relocated; whether an invalid manual click consumes a piece; how expiry handles a held special. Do not silently make failed clicks advance the cadence.
+
+**Gamepad parity [NEW, OWNER priority]:** every action/menu must be usable with mouse/keyboard and gamepad via Input Map. Camera-relative stick movement, zoom-scaled speed/dead zone, optional top/edge snap aid, throw arc/strength and device-specific prompts remain remake requirements. Multiple local gamepads/split-screen are outside v1. Blank bindings in the table and A/S versus WASD conflicts are unresolved mappings, not permission to ship inaccessible controls.
 
 ### 2.6 Gifts & specials
-- **Gift crates:** A crate spawns at a random uncontested point every `gift_interval` seconds, with ±40% randomness. The interval is based on the `special_frequency` setting (0–100), for example 20 → 45 s and 100 → 6 s.
-- **Crate life:** Crates are physics bodies. They disappear after 60 s if nobody claims them.
+Use the [installed tutorial/menu](ORIGINAL_INSTALL_EVIDENCE.md) as the primary effect contract. It documents behavior but not numerical tuning. All radii, force values, durations and projectile counts below remain **[NEW]** starting values, not decoded original constants.
+- **Gift spawning [ORIGINAL target]:** probability per placement turn/window, not the earlier seconds-based interval with ±40% jitter. Original trial scope (one per match or per player), distribution and probability scale are **[OPEN]**. Type-specific probability controls exist. Do not implement the removed 20 → 45 s / 100 → 6 s mapping as original behavior.
+- **Crate life [RECONSTRUCTED]:** a physical pickup and a 60 s expiry were prototype choices. Installed text says specials fall to the field, but does not establish lifetime or physics parameters; reconcile the stationary-pickup M4 plan before implementing.
 - **Claiming:** When a crate is inside your territory, it pops. It shows which player it belongs to, and your next fed block becomes a special. [ORIGINAL]
-- **Arming and triggering:** A special triggers on an impact above `arm_impulse`, or when an explosion hits it.
-  - Specials become armed 0.4 s after they're released, so dropping one gently doesn't set it off.
-  - Specials with no hit within 8 s trigger automatically. [NEW]
-- **Chain reactions:** Allowed. [ORIGINAL] Cap them at `max_chain_depth = 4` to keep frame rate stable. [NEW]
+- **Activation [ORIGINAL]:** substantial impact activates a special. Numeric impulse threshold and the earlier 0.4 s arm delay are **[NEW]** tunings. Whether explosion proximity alone activates an untouched special needs verification.
+  - Remove the universal eight-second auto-trigger from the fidelity target: it has no recovered basis. Type-specific lifecycle is separate, notably Rocket's fuel-exhaustion explosion after activation.
+- **Chain reactions:** Retained from player reports. Cap them at `max_chain_depth = 4` as a remake performance choice. Multiple simultaneous claims, pending-special queues and replacement of an already prepared piece remain **[OPEN]**.
 
 | Special | Behavior | Tunables | Source |
 |---|---|---|---|
-| **Rocket** | After it's released, it locks onto the nearest enemy block within 25 m, flies with continuous collision detection, and explodes on impact | speed 18, radius 3, impulse 14 | ORIGINAL (name) |
-| **Bomb** | Lands, sticks, and becomes a mine that explodes when an enemy block comes within 1.5 m or something hits it | radius 3.5, impulse 18 | ORIGINAL |
-| **Volcano** | Erupts for 3 s, firing 8–14 burning orbs upward in a cone. Each orb explodes on impact and can set off other specials | orb impulse 6, cone 35° | ORIGINAL |
-| **Earthquake** | Shakes the disk for 4 s with random small oscillations in tilt and vertical position. Blocks near the impact point get extra shaking | amplitude 0.25 m / 2.5° | ORIGINAL |
-| **Anvil** | Very heavy block (mass 60) that tilts the disk toward where it lands | tilt impulse ∝ distance from center | ORIGINAL |
-| **Fan** | Stands where it lands and blows for 5 s. It pushes nearby blocks sideways and tilts the disk away from itself | force 10, range 12 | ORIGINAL (name); behavior RECONSTRUCTED |
+| **Rocket** | On activation launches upward, then explodes when fuel is exhausted. No homing target or mandatory impact detonation is documented | fuel duration/trajectory OPEN; speed 18, radius 3, impulse 14 are provisional | ORIGINAL tutorial effect |
+| **DaBomb / Bomb** | Large explosion on activation; do not assume adhesive or proximity-mine behavior | radius 3.5, impulse 18 provisional | ORIGINAL tutorial effect |
+| **Volcano** | Erupts for 3 s, firing 8–14 burning orbs upward in a cone. Each orb explodes on impact and can set off other specials | orb impulse 6, cone 35° | ORIGINAL name; NEW parameters |
+| **Earthquake** | Shakes the field and helps level existing tilt; extra local shaking is not documented | 4 s, amplitude 0.25 m / 2.5° provisional; leveling strength OPEN | ORIGINAL tutorial effect |
+| **Anvil** | Applies weight to tilt the field; exact coupling/direction needs observation | mass 60 and tilt impulse by distance are provisional | ORIGINAL tutorial effect |
+| **Propeller** | Gradually lifts upward and tilts the field; replaces the speculative Fan/wind-emitter design | lift, duration and coupling OPEN | ORIGINAL tutorial effect |
+| **Jumping Bean** | Hops randomly around the board; creates a local hole between hops | hop interval/strength and hole radius/lifetime OPEN | ORIGINAL tutorial effect; previously missing |
 | **Magnet** | Pulls enemy blocks within 8 m toward itself for 3 s | | NEW |
 | **Freeze** | Makes your own blocks within 6 m static for 20 s | | NEW (defensive, cuts down on luck) |
 | **Glue** | Joins touching blocks of yours within 4 m with breakable joints | break force 40 | NEW |
 | **Gravity well** | Flips gravity to 30% within 10 m for 5 s | | NEW |
 
-Every special is its own `SpecialDef` resource plus a script, so it's easy to add, remove, or reweight specials. Players can turn individual specials on or off in game setup. [NEW]
+Every special is its own `SpecialDef` resource plus a script. The seven evidenced effects are the original-fidelity roster; Magnet, Freeze, Glue and Gravity well are optional remake extras, not original discoveries. Type probabilities are original menu features; per-type enable checkboxes are the remake interface. Jumping Bean's local hole is independent of opponent overlap; its treatment in optional `HoleMode.OFF` is **[OPEN]**, not silently disabled.
 
 ### 2.7 Modes
 - **Free-for-all:** 2–8 players, humans and AI.
@@ -255,15 +261,15 @@ Every special is its own `SpecialDef` resource plus a script, so it's easy to ad
 | Gravity | 0.5×–2× | 1× |
 | Goal flags | 1–5 | 1 |
 | Gifts | On/Off | On |
-| Special frequency | 0–100 | 35 |
-| Enabled specials | checklist | all ORIGINAL ones |
+| Gift probability per window | 0–100% as remake UI; original numeric scale/trial scope unverified | tuning OPEN; earlier 35 seconds-interval mapping superseded |
+| Enabled specials | checklist + type weights | seven documented types in §2.6; NEW extras opt-in |
 | Tilt mode | Specials only / Physical balance | Specials only |
-| Hole mode | Temporary / Permanent | Temporary |
+| Hole mode | Temporary / Permanent / Off (v2 alternative) | Temporary, provisional approximation of original overlap holes |
 | Match timer | Off / 10–40 min | Off |
 | Sudden death | Off/On | On if match timer is set |
 
 **Sudden death** [NEW]: Starts when the match timer runs out.
-- Special frequency climbs to 100.
+- Gift probability climbs toward the maximum of the finalized spawn model (§2.6).
 - The disk's edge crumbles inward by 1 m every 10 s.
 - The first player or team to reach the win condition wins. If nobody has won when the disk has shrunk to a radius of 8, the player or team with the most territory wins.
 
@@ -276,7 +282,7 @@ The AI runs only on the host, and for multiple bots it spreads its thinking acro
 - **Stability:** The area of contact under the block, and whether its center of mass sits over that contact area. Estimate this with raycasts from the block's footprint cells.
 - **Risk:** Distance from enemy territory and from active specials.
 
-**Specials:** A bot throws rockets and bombs at the enemy tower that contributes the most influence. It throws anvils or fans so the tilt pushes blocks toward enemies. If throwing would hurt it more than it gains, it throws the special off the map.
+**Specials:** replan bot targeting around §2.6's verified effect types. Do not aim a Rocket as if it homes or a Propeller as if it blows sideways. Offensive/defensive placement heuristics must account for launch-upward, leveling, tilt and Jumping Bean holes; exact scoring is **[NEW]**.
 
 **Difficulty:** Affects how many spots are sampled, a random aiming error, reaction delay, and whether the bot uses defensive specials.
 
@@ -295,7 +301,7 @@ The AI runs only on the host, and for multiple bots it spreads its thinking acro
   - Stacking a block gives a rising "tick" that climbs in pitch with height.
   - Specials have distinct warning sounds.
   - Music is adaptive, getting more intense as someone gets close to capturing.
-  - A custom music folder is supported. [ORIGINAL]
+  - A custom music folder is supported. [REPORTED original feature, retained remake requirement]
 
 ---
 
@@ -350,22 +356,30 @@ res://
 ```
 
 ### 3.3 Territory & holes implementation
+**Implementation status:** this is a target/design contract. The legacy M2 raster and the in-progress `TERRITORY_V2_PLAN.md` implement different interpretations; neither is proof of original rules. The latest fidelity instruction restores overlap holes as the default target (§2.2), while preserving owner requirements not contradicted by evidence. Do not integrate the v2 `OFF` default as if it were still the approved default.
+
 - **Data:** `TerritorySolver` takes a list of `(owner_team, center2D, radius)` circles plus the home circles. It returns connected groups for each team.
-  - Connectivity is found with union-find over pairs of overlapping circles.
+  - Union-find over overlapping circles finds **candidate** connections. It does not prove a continuous path after an opponent/contested region removes the connecting neck. Final owned-area connectivity must be checked for capture; do not treat the pre-contest group ID as sufficient evidence.
   - Use a spatial hash grid (cell size = `influence_max`) so it doesn't check every pair against every other pair.
-- **Rate:** Recompute territory at 10 Hz on the host, not every physics tick.
+- **Rate [NEW]:** continuously sample moving structures, independent of placement events. The v2 plan proposes 20 Hz host solves (legacy 10 Hz); benchmark before accepting the rate. Replication/render cadence is separate, so smooth visuals must not hide stale authoritative rules.
 - **Raster map:** A `territory_res × territory_res` grid (256 for S, 384 for M, 512 for L) in disk-local polar-free Cartesian space.
   - Each pixel stores which team owns it, or a contested flag, or a hole flag.
   - Fill each connected group's circles onto the grid. Pixels with more than one team are contested.
   - Keep a separate float array so each pixel's contested time can build up toward `hole_delay`.
-- **Rendering:** Upload the grid as an `ImageTexture` (R = owner id, G = contested/hole alpha) to `territory.gdshader` on the disk. The shader draws soft edges with an SDF-like blur or bilinear sampling plus smoothstep, and discards pixels where holes are.
+- **Rendering:** smooth circle-derived outlines are an owner requirement. Merely enlarging a coarse nearest-sampled ownership raster cannot recover a curved boundary. Interpolation, analytic circles or a field shader are implementation options, not historical facts. Keep visual ownership, legal placement and capture sufficiently aligned at borders; GPU-only apparent ownership is not permission to build. Discard floor pixels only for actual physical holes, never merely for goal no-build zones.
 - **Physics holes:**
   - The disk's collision is built from `cells` (a square grid of `cell_size = 1.0` BoxShape3Ds clipped to the disk shape) inside one body.
   - When a cell's hole state changes, toggle `shape_owner_set_disabled` on that cell's shape.
   - Batch the toggles so there are at most 64 per frame.
   - Wake up any sleeping blocks above cells that change state.
-- **Placement validation:** On the host, the cell under the ghost's footprint must be owned by the placing player's team and not contested or a hole.
-- **Win check:** For each team, check whether one of its connected groups contains every goal flag position. Use the raster grid for this.
+- **Placement validation:** one downward ray and the hit-point test in §2.5, for the normal target rules. A grid may cache ownership; it must not turn the rule back into a full footprint check. Host validation also checks placement-interval eligibility and rejects duplicate releases for the same interval/piece.
+- **Win check:** final owned connectivity plus simultaneous all-goal coverage and the shared hold (§2.3). A cached group label from before contest resolution is not a substitute.
+
+**V2 alternative: known mathematical limitations (analysis, not recovered original code).**
+
+The plan's `radius - distance` score is an *additively weighted distance* field, not the squared-distance power/Laguerre diagram it calls itself. It gives local moving borders, but cannot guarantee the claim that a taller tower never takes the entire smaller circle: if radii are 10 and 2 and centers are 3 apart, the triangle inequality makes the larger circle's score exceed the smaller's everywhere. Likewise, taking the maximum of circle scores is a circle union, not a summed metaball field. Those approaches can look and play differently.
+
+Do not invent a replacement formula in the name of accuracy. These are review findings for the optional v2 mode: decide whether complete engulfment is allowed (also relevant to home elimination), how ties behave, and how cut-off influence is resolved. The original formula has not been recovered. The default overlap-hole mode must not silently inherit v2's exclusive-owner argmax behavior.
 
 ### 3.4 Networking
 **Online from the start.** Gameplay code only talks to Godot's high-level `MultiplayerAPI` and never to a specific transport. `Net.gd` picks the transport:
@@ -460,16 +474,20 @@ class_name MatchConfig extends Resource
 # all §2.8 settings, serializable to Dictionary for RPC
 
 class_name PhysicsTuning extends Resource
-# all §3.5 numbers + influence_base/k/max, hole_delay, etc.
+# §3.5 physical tuning
+
+class_name TerritoryTuning extends Resource
+# influence, hole/goal-zone, solve-rate and capture-hold tuning;
+# actual project resources take precedence over this illustrative class sketch
 ```
 
 ### 3.7 Match state machine (host)
 `Lobby → Loading → Countdown(3s) → Playing → (SuddenDeath) → End → Lobby`
 
 **Playing loop on the host:**
-- **Block feed:** Each player has a feed timer. When it runs out, the held block auto-drops and the next block from the bag is issued. Players with a claimed gift get a special instead.
-- **Territory:** Recomputed at 10 Hz. Territory diffs are sent to clients at 5 Hz.
-- **Gifts:** A gift spawner runs on its own timer.
+- **Block feed:** concurrent players with fixed placement windows (§2.4). Track the interval's release eligibility separately from the next prepared piece. Early release does not reset the window. Only an unspent current piece auto-drops at expiry. Special substitution must respect the resolved queue policy, not accidentally grant an extra release.
+- **Territory:** continuously recomputed at the configured solve rate (§3.3); territory diffs currently target 5 Hz. Do not wait for a new block placement to update collapse effects.
+- **Gifts:** use the per-placement-window probability contract in §2.6 once trial scope is resolved; the old independent-seconds spawner is not established original behavior.
 - **Win check:** Runs every territory update.
 
 ---
@@ -492,13 +510,11 @@ Each milestone ends with a playable build and passes its acceptance criteria.
   - Rotation never drifts.
   - The benchmarks hit their targets.
 
-### M2 — Rules & territory (hot-seat, 2 players)
+### M2 — Rules & territory (historical prototype; revised acceptance below)
 - `TerritorySolver` with unit tests covering overlap, connectivity, being cut off, and teams.
 - Territory raster and shader, contested zones, holes (visuals and collision), placement validation, block feed and timer with auto-drop, next-block preview, goal flag, win check, basic HUD.
-- **Accept:**
-  - Two players take turns on one PC and can win.
-  - Holes appear where territories overlap, and blocks fall through them.
-  - A tower that gets cut off loses its influence.
+- The original hot-seat build was a test harness, not evidence of original player turn-taking. Its closed milestone does not certify the corrected rules.
+- **Current rule acceptance:** use concurrent players (local multi-instance or bots), validate §2.4 cadence, overlap holes under the provisional default, no-build goal zones and point-based placement, continuous collapse updates, and home-connected capture. See the scenarios below. A separate hot-seat/turn-based test mode must not become normal play.
 
 ### M3 — Multiplayer (ENet, then Steam)
 - **M3a:** Transport abstraction in `Net.gd`, ENet host and join, LAN discovery, direct IP, lobby with MatchConfig, host-authoritative physics, snapshot sync with interpolation, intent RPCs, other players' ghost cursors, disconnect handling.
@@ -511,7 +527,7 @@ Each milestone ends with a playable build and passes its acceptance criteria.
 
 ### M4 — Gifts & specials
 - Gift crates, claiming them, special feed, throwing with arc preview, arming and triggering, chain cap.
-- Rocket, bomb, volcano, earthquake, anvil, fan. Tilt controller (SPECIALS_ONLY).
+- Rocket, DaBomb/Bomb, Volcano, Earthquake, Anvil, Propeller and Jumping Bean per §2.6. Tilt controller (SPECIALS_ONLY). The older M4 plan requires reconciliation before reuse.
 - **Accept:**
   - Every special works in both single-player and LAN.
   - A 5-volcano chain stays ≥60 fps on the host.
@@ -536,21 +552,46 @@ Each milestone ends with a playable build and passes its acceptance criteria.
 
 ---
 
-## Decisions made
-- **Holes:** Unknown in the original, so hole behavior is a lobby setting. Temporary is the default.
-- **Online:** Online from the start, over Steam through GodotSteam. ENet is kept for LAN, direct IP, and testing.
-- **Controls:** Gamepad has equal priority with mouse and keyboard.
+## Decisions made — current target
 
-## Still open
-1. **Timer:** Was the block timer a shared global timer or separate for each player? Default for now: separate for each player.
-2. **Other specials:** Do you remember any beyond volcano, earthquake, rocket, bomb, anvil, and fan?
-3. **Territory shape:** Did the original draw influence as circles around each block, or as one circle whose radius came from your tallest point? Default for now: a circle around each block.
+- **Fidelity policy [OWNER, latest]:** prioritize original rules when concrete evidence exists. This supersedes conflicting earlier recollections, but not explicitly retained remake exceptions.
+- **Cadence:** adopt the developer-described fixed-window placement lock, not immediate reset and not alternating players (§2.4).
+- **Holes:** restore overlap holes as the fidelity target. Temporary cell holes remain a provisional approximation; exact original timing/physics are unverified. The no-overlap v2 mode is optional, not the default.
+- **Capture hold [OWNER, explicitly confirmed during this audit]:** keep **3 seconds**. Original all-goal objective and this remake hold must not be conflated.
+- **Other retained owner requirements:** point-ray placement, continuous influence updates, smooth presentation, goal no-build zones and home elimination remain where not contradicted by concrete evidence. Their exact original status is not asserted.
+- **Online/controls [NEW]:** Steam plus ENet, and equal gamepad priority remain remake requirements.
 
-## Owner clarifications — 2026-09-20 (supersede §2.2/§3.3 where they conflict)
+## Fidelity gaps / unresolved rule contract
 
-Recorded verbatim from `docs/bloody_mess.md` after the owner played the M3b build.
-These are owner decisions, not agent DECISIONs; the tagged [ORIGINAL] rules above
-are amended accordingly and the territory implementation must follow this text.
+These are design uncertainties, not an alternate task backlog; assignments and status belong in Beads.
+
+| Gap | Known / provisional behavior | Evidence or decision needed |
+|---|---|---|
+| Original build | Installed file advertises 1.1; hash and tutorial offsets recorded | Runtime behavior and release provenance still not independently verified |
+| Feed clock | Fixed release windows established; independent pieces | Whether windows align globally; expiry/invalid-location handling |
+| Influence | Height-based growth; current formula uses each block's top elevation | Original radius law, height reference, settled/support criteria, caps and mixed-owner stacks |
+| Holes | Opponent-overlap holes evidenced | Delay, closure, exact collision/removal rules; interaction with goal zones |
+| Goal geometry | Owner says base of every flag, connected to home | Center point versus whole base footprint; no-build radius and whether physical intrusions after release are allowed |
+| Connectivity | Capture needs one surviving controlled route | Ownership clipping can sever precomputed circle groups; cut-off/reconnection propagation and allied home anchoring |
+| Elimination | Owner retains home engulfment and last-team-standing intent | In overlap mode the persistent home circle prevents enemy ownership at its center; resolve the trigger before implementation, then eliminated blocks and simultaneous outcomes |
+| Gifts/specials | Seven tutorial-described types; collection through connected influence; gift probability per turn | Queue/tie policy, already-prepared piece, trial scope, numerical thresholds and actual runtime trajectories |
+| Controls | Remake wants full device parity | Resolve conflicting/bare bindings; verify original tutorial separately |
+
+### Rule acceptance scenarios (target, not a claim of passed tests)
+
+1. **Early release:** player A releases during a window and can orient the next piece but cannot release it until the next window. Player B keeps playing independently; no active-player rotation. Expiry forces exactly one unspent piece, never a prepared future piece.
+2. **Collapse without input:** move/topple a tower, then issue no placement. Its influence updates promptly; disconnected capture progress resets.
+3. **Local versus global height:** raising a distant tower must not arbitrarily enlarge every short tower's local influence. Measure radius from the chosen local model, not a per-player maximum.
+4. **Goal exclusion versus capture:** a point inside a goal's no-build zone refuses placement even if owned. Influence can still cover its flag base. No physical floor is removed solely because it is a goal zone.
+5. **Point legality:** a wide piece centered at a legal ray hit is not rejected only because a corner crosses a territory border. This is distinct from spawning interpenetrating bodies or invalid network poses.
+6. **Severed route:** raw circles still form a graph, but enemy/contested area cuts its only corridor. Goal coverage beyond the cut must not complete capture.
+7. **Shared hold:** all goal bases are covered for less than 3 s, then one is lost: reset. Continuous coverage for 3 s wins. Solver index changes without a geometric break do not reset progress.
+8. **Overlap mode:** opposing influence opens a hole according to explicit provisional tuning. Temporary restoration and permanent erosion are tested separately. No test should mistake v2's winner-takes-point border for an overlap hole.
+9. **Mode/network agreement:** normal play, host validation, client preview and bots use the same cadence and legality contract. The existing code/test suite must be reconciled; changing this document alone does not establish compliance.
+
+## Owner clarifications — 2026-09-20 (historical decision record)
+
+The following is a **summary**, not a verbatim transcript, of [the owner's feedback](bloody_mess.md) after playing the M3b build. Keep that source unchanged. Later original-evidence priority supersedes the immediate-reset timer and no-overlap/default-no-holes portions below; retained requirements are integrated in Part 2. This record must not override the current decisions above.
 
 - Everyone plays at the same time. Each player gets their own block (not shared) and
   must place it before their timer runs out; on placement they immediately get a new
@@ -580,3 +621,5 @@ are amended accordingly and the territory implementation must follow this text.
 Owner answers (same day): floor holes are removed from the default rules but kept
 behind a lobby "holes" mode for later; home-flag elimination stays (an enemy area
 swallowing your start flag eliminates you; last team standing wins).
+
+**Later in the same day's spec audit:** owner confirmed the 3-second capture hold, then instructed: prioritize original rules when concrete evidence exists. Accordingly the historical hole-mode/default and immediate-timer statements above are superseded; home elimination remains an owner requirement pending contrary evidence.

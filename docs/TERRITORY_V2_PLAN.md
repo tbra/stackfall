@@ -1,8 +1,12 @@
 # Territory v2 — design contract (owner clarifications, 2026-09-20)
 
-Spec: `docs/SPEC.md`'s **"Owner clarifications — 2026-09-20"** section (authoritative,
-supersedes §2.2/§3.3 where they conflict) and `docs/bloody_mess.md` (the owner's own
-words). Also read: §2.2, §2.3, §2.5, §3.3, §3.6, §3.7, `docs/M2_PLAN.md` (how territory
+> **Fidelity audit amendment, later 2026-09-20:** the owner subsequently requested priority for concrete original-game evidence. Read `SPEC.md` §§1.2, 2.2–2.5 and 3.3 plus its current decision record before implementing this older plan. Original fixed placement windows and overlap holes now take priority over immediate-reset timers and the `OFF` default proposed below. The owner explicitly retained the 3-second capture hold. This plan remains the historical design for the optional v2/no-overlap alternative; its completed packages do not establish default-rule compliance.
+>
+> **Review findings, not code changes:** `radius - distance` is additively weighted distance, not a power/Laguerre kernel. With radii 10 and 2, centers 3 apart, the large circle wins everywhere: the "never the rival's whole area" claim below is false in general. A pre-clipping circle graph also cannot prove an unbroken route in final owned territory. Per-block top elevation, settled filtering and the lower-team-ID tie-break are design choices, not verified original rules or automatically gameplay-neutral. The raster-smoothing claim below was already disproved by package C (see Beads `Bontago-cmc.5`). Reconcile these findings before treating the existing reasoning as acceptance evidence.
+
+Historical basis: the earlier **"Owner clarifications — 2026-09-20"** record and
+`docs/bloody_mess.md` (the owner's own words). The current `docs/SPEC.md` decision record
+and Part 2 now take precedence over this plan. Also read: §2.2, §2.3, §2.5, §3.3, §3.6, §3.7, `docs/M2_PLAN.md` (how territory
 was built), `docs/M3a_PLAN.md`'s "Design notes" (raster replication). This plan is a
 **rules rewrite**, not a new milestone's worth of new systems: it replaces how area of
 influence is computed and rendered, and how placement is validated, while reusing almost
