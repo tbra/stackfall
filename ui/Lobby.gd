@@ -86,6 +86,7 @@ func _ready() -> void:
 	Events.net_lobby_data_changed.connect(_on_lobby_data_changed)
 	Events.net_peer_joined.connect(_on_peer_joined)
 	Events.net_peer_left.connect(_on_peer_left)
+	Events.net_roster_changed.connect(_on_roster_changed)
 
 	_apply_data(default_config.to_dict())
 	_update_host_only_state()
@@ -93,11 +94,14 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	# DECISION (ui/Lobby.gd): no Events signal exists for "a peer's ready flag
-	# changed" (Net only exposes set_peer_ready()/all_peers_ready(), see
-	# autoload/Net.gd), so the Start button's gate is refreshed every frame
-	# instead of invented a new cross-package signal contract. Cheap: two
-	# method calls and a bool compare on a screen with a handful of controls.
+	# DECISION (ui/Lobby.gd, Bontago-mv0.6): Events.net_roster_changed (added
+	# below) tells this screen a peer's ready flag flipped, but Net's
+	# aggregate all_peers_ready() is still just a plain method, and deriving
+	# the same bool from the roster payload here would duplicate Net's own
+	# rule. Refreshing the Start button's gate every frame stays simpler than
+	# inventing a second cross-package signal just for that one aggregate.
+	# Cheap: two method calls and a bool compare on a screen with a handful
+	# of controls.
 	_update_host_only_state()
 
 
@@ -273,6 +277,18 @@ func _apply_roster(roster_data: Variant) -> void:
 		row.add_child(label)
 		_player_list.add_child(row)
 		_player_rows.append(row)
+
+
+## DECISION (ui/Lobby.gd, Bontago-mv0.6): Events.net_roster_changed's payload
+## is the roster Net just built (autoload/Net.gd's _broadcast_roster() /
+## _rpc_roster_update()), so this applies it straight to the rows rather than
+## re-deriving one from net_provider.peer_ids()/peer_info() the way
+## _build_roster() does for the host's own outbound publish — one less round
+## trip, and it is the single source of truth for "what does the list show
+## right now" (net_lobby_data_changed's own embedded roster only matters for
+## the late-joiner snapshot _apply_data() already handles).
+func _on_roster_changed(roster: Array[Dictionary]) -> void:
+	_apply_roster(roster)
 
 
 func _on_peer_joined(_peer_id: int, _slot_id: int, _player_name: String) -> void:

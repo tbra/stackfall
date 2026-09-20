@@ -196,6 +196,37 @@ func test_invite_friends_button_calls_invite_friends() -> void:
 	assert_eq(fake.invite_friends_calls, 1)
 
 
+func test_roster_changed_signal_updates_ready_label_without_a_lobby_data_round_trip() -> void:
+	# Bontago-mv0.6: toggling Ready must not need Net to republish the whole
+	# lobby Dictionary (test_roster_in_lobby_data_builds_player_rows above
+	# covers that path already) — Events.net_roster_changed alone must move
+	# the label.
+	var lobby: Lobby = _make_lobby(false)
+	var roster: Array[Dictionary] = [
+		{"peer_id": 1, "slot_id": 0, "name": "Host", "ready": false},
+		{"peer_id": 2, "slot_id": 1, "name": "Guest", "ready": false},
+	]
+	Events.net_roster_changed.emit(roster)
+	var list: VBoxContainer = lobby.get_node("%PlayerList")
+	assert_eq(list.get_child_count(), 2)
+	# lobby._player_rows rather than list.get_child(): _apply_roster()
+	# queue_free()s the old rows, which stay in the tree (just pending
+	# deletion) until the next idle frame, so querying the container
+	# directly a second time in the same frame would still see them.
+	var guest_row: HBoxContainer = lobby._player_rows[1] as HBoxContainer
+	var guest_label: Label = guest_row.get_child(1) as Label
+	assert_true(guest_label.text.ends_with("(not ready)"))
+
+	roster = [
+		{"peer_id": 1, "slot_id": 0, "name": "Host", "ready": false},
+		{"peer_id": 2, "slot_id": 1, "name": "Guest", "ready": true},
+	]
+	Events.net_roster_changed.emit(roster)
+	guest_row = lobby._player_rows[1] as HBoxContainer
+	guest_label = guest_row.get_child(1) as Label
+	assert_true(guest_label.text.ends_with("(ready)"), "the ready flag flip must reach the row's label")
+
+
 func test_roster_entry_with_a_steam_persona_name_renders_unchanged() -> void:
 	# docs/M3b_PLAN.md P3: once host_online()/join_lobby() default an empty
 	# player_name to the Steam persona name, _apply_roster() needs zero

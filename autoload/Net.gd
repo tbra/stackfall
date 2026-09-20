@@ -1166,6 +1166,10 @@ func _broadcast_roster() -> void:
 	var roster: Array[Dictionary] = []
 	for peer_id: int in _peers.keys():
 		roster.append((_peers[peer_id] as Dictionary).duplicate())
+	# Bontago-mv0.6: the host's own copy of the roster (ready flags, joins,
+	# leaves, kicks — every caller of _broadcast_roster()) changed right here;
+	# tell ui/Lobby.gd directly rather than waiting on a lobby-data republish.
+	Events.net_roster_changed.emit(roster)
 	_rpc_roster_update.rpc(roster)
 	if _lan.is_advertising():
 		_lan.update_advert({"players": _peers.size()})
@@ -1176,13 +1180,19 @@ func _rpc_roster_update(roster: Array) -> void:
 	if is_host():
 		return
 	var updated: Dictionary = {}
+	var typed_roster: Array[Dictionary] = []
 	for entry: Variant in roster:
 		var data: Dictionary = entry as Dictionary
 		updated[int(data.get("peer_id", -1))] = data
+		typed_roster.append(data)
 	_peers = updated
 	var mine: int = local_peer_id()
 	if _peers.has(mine):
 		_local_slot = int(_peers[mine].get("slot_id", -1))
+	# Bontago-mv0.6: the client-side mirror of the emit above, so a client's
+	# own ui/Lobby.gd updates the moment this RPC lands instead of on the
+	# next unrelated net_lobby_data_changed republish.
+	Events.net_roster_changed.emit(typed_roster)
 
 
 @rpc("authority", "call_remote", "reliable")

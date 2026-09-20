@@ -101,6 +101,53 @@ func test_host_and_client_appear_in_each_others_roster() -> void:
 	assert_true(_client.is_client())
 
 
+## Bontago-mv0.6: Events.net_roster_changed must fire on both sides of a
+## ready-flag flip, not just update the internal _peers table, or
+## ui/Lobby.gd's rows never move (docs of that bug: the label only ever
+## rebuilds from Events.net_lobby_data_changed / net_roster_changed, and
+## nothing used to publish the latter).
+func test_ready_flag_change_emits_roster_changed_on_host_and_client() -> void:
+	var port: int = _take_port()
+	_connect_host_and_client(port)
+	var joined: bool = await _wait_until(func() -> bool:
+		return _host.peer_ids().size() == 2 and _client.peer_ids().size() == 2
+	)
+	assert_true(joined, "host and client must both settle on a 2-peer roster first")
+
+	watch_signals(Events)
+	_host.set_local_ready(true)
+
+	assert_eq(
+		get_signal_emit_count(Events, "net_roster_changed"), 1,
+		"the host must emit as soon as it marks its own peer ready"
+	)
+	var host_roster: Array = get_signal_parameters(Events, "net_roster_changed", 0)[0]
+	assert_true(_ready_in_roster(host_roster, Net.HOST_PEER_ID), "the host's own entry must read ready")
+
+	var client_id: int = _client.local_peer_id()
+	# The host's own peer starts "ready" by default (host_game()), so waiting
+	# on peer_info().ready alone could pass on stale, pre-flip data; wait on
+	# the emit count itself instead, and confirm the roster's content after.
+	var landed: bool = await _wait_until(func() -> bool:
+		return get_signal_emit_count(Events, "net_roster_changed") >= 2
+	)
+	assert_true(landed, "the roster RPC must reach the client and it must emit in turn")
+	assert_true(bool(_client.peer_info(Net.HOST_PEER_ID).get("ready", false)), "the client's own state must agree")
+	var client_roster: Array = get_signal_parameters(Events, "net_roster_changed", 1)[0]
+	assert_true(_ready_in_roster(client_roster, Net.HOST_PEER_ID), "the client's copy must show the host as ready")
+	# Untouched by this flip: sanity-checks the payload is the whole roster,
+	# not just the entry that changed.
+	assert_false(_ready_in_roster(client_roster, client_id), "the client's own entry was never marked ready")
+
+
+func _ready_in_roster(roster: Array, peer_id: int) -> bool:
+	for entry_variant: Variant in roster:
+		var entry: Dictionary = entry_variant as Dictionary
+		if int(entry.get("peer_id", -1)) == peer_id:
+			return bool(entry.get("ready", false))
+	return false
+
+
 func test_ping_exchange_reports_low_round_trip() -> void:
 	var port: int = _take_port()
 	_connect_host_and_client(port)

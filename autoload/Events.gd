@@ -105,6 +105,15 @@ signal net_games_discovered(games: Array[Dictionary])
 ## is Net.stats().
 signal net_stats_updated(stats: Dictionary)
 
+## Bontago-mv0.6: the lobby roster changed (a peer's ready flag flipped, or
+## one joined/left). Emitted on the host from autoload/Net.gd's
+## _broadcast_roster() with the roster it just sent, and on a client from the
+## end of its _rpc_roster_update() with the roster it just applied, so both
+## sides update without a wait for net_lobby_data_changed to be republished.
+## Each entry is {peer_id, slot_id, name, ready}; ui/Lobby.gd is the only
+## consumer today.
+signal net_roster_changed(roster: Array[Dictionary])
+
 # --- M3a: replication (spec 3.4) --------------------------------------------
 
 ## A client built its frozen copy of a block the host spawned. The local
