@@ -85,6 +85,29 @@ func test_out_of_range_value_arriving_over_the_wire_is_clamped() -> void:
 	assert_eq(int((lobby.get_node("%GoalFlagSpin") as SpinBox).value), MatchConfig.GOAL_FLAG_MIN)
 
 
+## Territory v2 (docs/TERRITORY_V2_PLAN.md): MatchConfig.HoleMode.OFF (= 2) is
+## now the default. HoleModeOption must carry a third item ("Off") so
+## OptionButton.selected round-trips it; on a 2-item list, `.selected = 2` is
+## silently ignored and the control stays on index 0 (Temporary).
+func test_hole_mode_option_has_an_off_item_matching_the_new_default() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var option: OptionButton = lobby.get_node("%HoleModeOption") as OptionButton
+	assert_eq(option.item_count, 3, "Temporary/Permanent/Off")
+	assert_eq(option.get_item_text(MatchConfig.HoleMode.OFF), "Off")
+	assert_eq(option.selected, MatchConfig.HoleMode.OFF, "the default MatchConfig.hole_mode is OFF")
+
+
+## Bontago-cmc.4 (found by package A): publishing after touching an unrelated
+## control must not silently downgrade hole_mode from the default OFF to
+## TEMPORARY because the option list was too short for the enum's new value.
+func test_publishing_an_unrelated_change_keeps_hole_mode_off() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	(lobby.get_node("%PlayerCountSpin") as SpinBox).value = 6
+	var calls: Array[Dictionary] = _fake_of(lobby).set_lobby_data_calls
+	assert_eq(calls.size(), 1)
+	assert_eq(int(calls[0].get("hole_mode")), MatchConfig.HoleMode.OFF)
+
+
 func test_applying_remote_data_does_not_republish() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var fake: FakeNet = _fake_of(lobby)
