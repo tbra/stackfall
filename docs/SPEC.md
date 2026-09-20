@@ -545,3 +545,38 @@ Each milestone ends with a playable build and passes its acceptance criteria.
 1. **Timer:** Was the block timer a shared global timer or separate for each player? Default for now: separate for each player.
 2. **Other specials:** Do you remember any beyond volcano, earthquake, rocket, bomb, anvil, and fan?
 3. **Territory shape:** Did the original draw influence as circles around each block, or as one circle whose radius came from your tallest point? Default for now: a circle around each block.
+
+## Owner clarifications — 2026-09-20 (supersede §2.2/§3.3 where they conflict)
+
+Recorded verbatim from `docs/bloody_mess.md` after the owner played the M3b build.
+These are owner decisions, not agent DECISIONs; the tagged [ORIGINAL] rules above
+are amended accordingly and the territory implementation must follow this text.
+
+- Everyone plays at the same time. Each player gets their own block (not shared) and
+  must place it before their timer runs out; on placement they immediately get a new
+  block and a new timer. No waiting for other players. (Already the M3a behaviour.)
+- A player may only place inside their own **area of influence**. At the start that is
+  a small circle around their start flag plus some extra space. Every placed block adds a
+  new circle; a lone block's circle is very small and grows with the **height of the stack
+  it belongs to**. A tall tower or several smaller ones are both valid strategies.
+- The area must update **continuously** — if a stack falls (physics, powerups, anything)
+  the circles shrink/vanish immediately, not only when a new block is placed.
+- **Goal flags** have their own area of influence in which no player may place a block.
+  That is what the "hole" mechanic is: a no-build zone around each goal flag, not floor
+  that opens under contested territory.
+- To win, a player's area of influence must **encapsulate the base of every goal flag**
+  with an undisrupted path back to their start flag (built from one or more connecting
+  towers).
+- Placement check: **one raycast from the middle of the ghost block straight down**; the
+  hit point must be inside your own area and outside every goal flag's area. No cell
+  footprint tests.
+- The area should look **smooth** (a metaball-style union of circles), not a jagged cell
+  grid.
+- Areas of different players **never overlap**. Where they meet, the border is pushed by
+  the heights of the stacks producing the contested area: the taller local stack gets
+  more of the shared region, but not all of it, and it is the individual contesting
+  stacks that count, never a global per-player value.
+
+Owner answers (same day): floor holes are removed from the default rules but kept
+behind a lobby "holes" mode for later; home-flag elimination stays (an enemy area
+swallowing your start flag eliminates you; last team standing wins).
