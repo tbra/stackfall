@@ -44,6 +44,36 @@ extends Resource
 ## eliminates it. See docs/M3a_PLAN.md "Questions for the owner" 3.
 @export var disconnect_grace: float = 10.0
 
+# --- Steam lobby (spec 3.4, docs/M3b_PLAN.md P1) ----------------------------
+
+## Steam.LOBBY_TYPE_* ordinal passed to SteamClient.create_lobby(). Default
+## FriendsOnly (owner decision, docs/M3b_PLAN.md "Questions for the owner":
+## answered 2026-09-19). Verified against the installed GodotSteam 4.22.1
+## addon on this machine (netcode-F-probe_lobby_const.log):
+## Steam.LOBBY_TYPE_PRIVATE=0, LOBBY_TYPE_FRIENDS_ONLY=1, LOBBY_TYPE_PUBLIC=2,
+## LOBBY_TYPE_INVISIBLE=3, LOBBY_TYPE_PRIVATE_UNIQUE=4 — this is Valve's own
+## ELobbyType enum ordinal, unrelated to Godot and stable across SDK
+## versions. A plain int (not the enum) because the value only ever crosses
+## into the Steam singleton via a duck-typed .call(), which cannot accept a
+## GDScript enum type either way.
+@export var steam_lobby_type: int = 1
+## Largest UTF-8 byte length SteamClient.encode_match_config()'s output may
+## be before decode_match_config() refuses it. Steamworks' own
+## ISteamMatchmaking::SetLobbyData documents a 255-char key / 8192-byte value
+## limit; not independently re-verified against isteammatchmaking.h in this
+## checkout (the downloaded GDExtension zip bundles no Steamworks SDK headers
+## — see docs/M3b_RESEARCH.md "Spike results", scratchpad listing). Treat as
+## the spec's documented estimate, not a confirmed hard limit.
+@export var steam_lobby_data_max_bytes: int = 8192
+## Seconds between polls of Steam's pull-based request_lobby_list() while the
+## menu's Steam lobby list is open. Unlike the LAN advert (server pushes once
+## a second), Steam's list is asked for; ui/MainMenu.gd (P3) is expected to
+## call Net.refresh_lobby_list() on a Timer at this interval rather than
+## polling every frame. DECISION: 5 s — frequent enough that a friend's new
+## lobby appears promptly, infrequent enough not to hammer Steam's matchmaking
+## servers from every client's menu screen.
+@export var steam_lobby_list_refresh_s: float = 5.0
+
 # --- Channels (spec 3.4 "Channels") -----------------------------------------
 #
 # Reliable gameplay RPCs (lobby, spawn/despawn, raster diffs, win) ride the
@@ -187,3 +217,6 @@ func sanitize() -> void:
 	sim_jitter_ms = maxf(sim_jitter_ms, 0.0)
 	sim_loss = clampf(sim_loss, 0.0, 1.0)
 	raster_full_threshold_fraction = clampf(raster_full_threshold_fraction, 0.0, 1.0)
+	steam_lobby_type = clampi(steam_lobby_type, 0, 4)
+	steam_lobby_data_max_bytes = clampi(steam_lobby_data_max_bytes, 256, 8192)
+	steam_lobby_list_refresh_s = maxf(steam_lobby_list_refresh_s, 1.0)

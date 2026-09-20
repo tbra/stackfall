@@ -122,6 +122,40 @@ rebinding is a change there rather than in gameplay code.
   or 127.0.0.1 for local multi-instance testing — with no Steam dependency.
 - A gamepad. Gamepad support has equal priority with mouse and keyboard.
 
+## Steam setup (development)
+
+M3b's Steam transport (`SteamMultiplayerPeer`, via the GodotSteam GDExtension) is not part
+of a fresh clone. `res://addons/godotsteam/` is **entirely untracked, by design** — see the
+spike results in `docs/M3b_RESEARCH.md` (Bontago-mv0.2.1). Godot only tries to load a
+`.gdextension` file if one actually exists on disk, so skipping this step gives a perfectly
+clean `godot --headless --editor --path . --quit` and full LAN/ENet/`--hot-seat` play; a
+**half**-installed addon (the `.gdextension` present without its platform library or Valve's
+`steam_api64.dll`) is the one state that prints `ERROR` lines from Godot's
+`GDExtensionManager` on every project open, so always install everything below in one pass,
+never partially.
+
+None of this is required to build, run, or test Stackfall over LAN, direct IP, or hot-seat.
+
+To develop or test the Steam transport locally (Windows):
+
+1. Download the current GodotSteam **GDExtension** release (not the precompiled editor
+   build, which replaces the Godot binary and conflicts with this project's pinned 4.7.2
+   shim) from https://codeberg.org/godotsteam/godotsteam/releases — the `*-gde` tag, asset
+   named `godotsteam-<version>-gdextension-plugin-4.4.zip`. As of this writing that's
+   v4.22.1-gde (Steamworks SDK 1.65).
+2. Unzip it and copy into `res://addons/godotsteam/` in this repo:
+   - `godotsteam.gdextension` and `license.md`
+   - `win64/libgodotsteam.windows.template_debug.x86_64.dll`
+   - `win64/libgodotsteam.windows.template_release.x86_64.dll`
+   - `win64/steam_api64.dll` — this **is** Valve's redistributable; GodotSteam's zip ships
+     it alongside its own binaries, so no separate partner.steamgames.com download is
+     needed for Windows development.
+3. Run `tools/check_steam_setup.ps1` to confirm the install is complete, or
+   `godot --headless --path . -s res://tools/steam_probe.gd` to confirm
+   `Steam.steamInitEx()` actually initializes — status `0` if the Steam client is running
+   and logged in, `2` if it isn't; both are fine for local testing.
+4. `godot --headless --editor --path . --quit` should still print nothing.
+
 ## Commands
 
 Run the editor:

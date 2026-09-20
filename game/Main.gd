@@ -91,6 +91,9 @@ func _ready() -> void:
 	Events.match_state_changed.connect(_on_match_state_changed)
 	Events.net_mode_changed.connect(_on_net_mode_changed)
 
+	# docs/M3b_PLAN.md integration order step 4: Steam init is synchronous by
+	# this point, so MainMenu._ready() can immediately read steam_available().
+	Net.init_steam()
 	_show_main_menu()
 
 	# apply_command_line() calls host_game()/join_game() synchronously when

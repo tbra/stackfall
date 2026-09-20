@@ -56,6 +56,7 @@ var net_provider: Variant = null
 @onready var _player_list: VBoxContainer = %PlayerList
 @onready var _ready_check: CheckButton = %ReadyCheck
 @onready var _start_button: Button = %StartButton
+@onready var _invite_friends_button: Button = %InviteFriendsButton
 
 ## Every control the round trip governs, so enabling/disabling them for a
 ## non-host is one loop instead of fourteen repeated lines.
@@ -81,6 +82,7 @@ func _ready() -> void:
 	_connect_control_signals()
 	_start_button.pressed.connect(_on_start_pressed)
 	_ready_check.toggled.connect(_on_ready_toggled)
+	_invite_friends_button.pressed.connect(_on_invite_friends_pressed)
 	Events.net_lobby_data_changed.connect(_on_lobby_data_changed)
 	Events.net_peer_joined.connect(_on_peer_joined)
 	Events.net_peer_left.connect(_on_peer_left)
@@ -297,6 +299,14 @@ func _on_start_pressed() -> void:
 	start_requested.emit(_last_config if _last_config != null else _config_from_controls())
 
 
+## M3b (docs/M3b_PLAN.md P3): opens the Steam overlay's invite dialog. Only
+## `net_provider.invite_friends()` is called here — never a raw Steam call —
+## the same discipline every other button handler in this file keeps.
+func _on_invite_friends_pressed() -> void:
+	if net_provider != null:
+		net_provider.invite_friends()
+
+
 # --- Host/client control gating ----------------------------------------------
 
 func _update_host_only_state() -> void:
@@ -308,3 +318,4 @@ func _update_host_only_state() -> void:
 			(control as BaseButton).disabled = not is_host
 	_start_button.visible = is_host
 	_start_button.disabled = not is_host or not (net_provider != null and bool(net_provider.all_peers_ready()))
+	_invite_friends_button.visible = is_host and net_provider != null and bool(net_provider.is_steam_session())

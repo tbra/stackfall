@@ -37,6 +37,12 @@ const HOST_PEER_ID: int = 1
 ## Key the LAN advert carries so a stray UDP broadcast on 47777 is ignored.
 const DISCOVERY_MAGIC: StringName = &"stackfall"
 
+## Steam's public test app ("Spacewar"), passed directly into
+## Steam.steamInitEx() (docs/M3b_RESEARCH.md's spike: no steam_appid.txt is
+## needed once the app id is passed as an argument). Named here, not in
+## net/SteamClient.gd, per docs/M3b_PLAN.md's tunables table.
+const STEAM_APP_ID_EXPECTED: int = 480
+
 @export var config: NetConfig = preload("res://config/net_config.tres")
 
 var _mode: Mode = Mode.OFFLINE
@@ -80,6 +86,52 @@ var _own_ping_ms: float = 0.0
 var _lobby_data: Dictionary = {}
 var _lan: LanDiscovery
 
+## docs/M3b_PLAN.md P1: the Steam-facing seam, exactly the net_provider/
+## match_provider pattern ui/MainMenu.gd, ui/Lobby.gd and
+## ui/NetDebugOverlay.gd already use. Set to a real SteamClient in _ready();
+## tests overwrite it with a FakeSteam.
+var steam_provider: Variant = null
+## True only once host_online()/join_lobby() has an active peer (see
+## is_steam_session()); reset in leave().
+var _steam_session: bool = false
+## The Steam lobby id this session created or joined, or 0. Needed by
+## set_lobby_data()'s Steam tee, invite_friends() and leave()'s teardown.
+var _steam_lobby_id: int = 0
+## host_online()/join_lobby()'s player_name argument, read back once the
+## async lobby_created/lobby_joined callback actually seats this instance
+## (Steam's own calls are not synchronous the way ENet's create_server/
+## create_client are).
+var _steam_pending_name: String = ""
+## Cache backing discovered_lobbies(); refreshed by _on_steam_lobby_match_list.
+var _discovered_lobbies: Array[Dictionary] = []
+## Which steam_provider instance _wire_steam_signals() has already connected
+## to, so swapping in a FakeSteam after _ready() (every P1 test does this)
+## gets its own signals wired the next time host_online()/join_lobby()/
+## refresh_lobby_list()/init_steam() runs, without double-connecting the same
+## provider repeatedly.
+var _steam_signals_wired: Variant = null
+## init_steam() is idempotent (game/Main.gd may call it once at boot); this
+## is the guard.
+var _steam_initialized: bool = false
+## True only once steam_provider's init_result reports status 0 (steamInitEx
+## actually succeeded). Both steam_available() and the two _make_steam_*_peer()
+## factories require this — see the crash this guards against, documented at
+## _make_steam_host_peer().
+var _steam_ready: bool = false
+## True from the moment host_online()/join_lobby() actually issues an async
+## create_lobby()/join_lobby() call to steam_provider until its answer lands
+## (_on_steam_lobby_created()/_on_steam_lobby_joined(), success or failure) or
+## leave() cancels it. Bontago-mv0.2.6 (independent-review finding B): _mode
+## stays OFFLINE for the whole time that answer is pending, so a second
+## host_online()/join_lobby() call in the meantime used to sail past the
+## "if _mode != Mode.OFFLINE: leave()" guard, issue a second Steam request,
+## and leave the first request's own eventual answer to be silently dropped
+## by _on_steam_lobby_created()/_on_steam_lobby_joined()'s own
+## "if _mode != Mode.OFFLINE: return" guard once the second request won the
+## race — orphaning whichever Steam lobby lost. Both entry points now refuse
+## a second call outright while this is true (see below).
+var _steam_request_pending: bool = false
+
 var _sim: NetSim = NetSim.new()
 ## Cross-package stats reported via report_stats(), folded into stats().
 var _report: Dictionary = {}
@@ -100,9 +152,20 @@ func _ready() -> void:
 	add_child(_lan)
 	_lan.game_seen.connect(_on_lan_advert_changed)
 	_lan.game_expired.connect(_on_lan_advert_expired)
+	steam_provider = SteamClient.new()
 
 
 func _process(delta: float) -> void:
+	# Steamworks is a manual-dispatch API: every async Steam signal (lobby
+	# creation, the lobby list, joins, invite-accepts) is queued internally
+	# and never fires without this (see net/SteamClient.gd's run_callbacks()
+	# doc comment for how this was found). Gated on _steam_ready, not
+	# steam_available()/is_steam_session(), because a caller can legitimately
+	# call refresh_lobby_list() or join_lobby() from the main menu before any
+	# session exists — those need callbacks pumped too.
+	if _steam_ready and steam_provider != null:
+		steam_provider.run_callbacks()
+
 	var now: float = _now()
 	if _mode == Mode.HOST:
 		_tick_handshake_timeouts(now)
@@ -176,12 +239,26 @@ func join_game(address: String, port: int = 0, player_name: String = "") -> Erro
 ## when already offline. The host disconnects everyone with
 ## LeaveReason.HOST_SHUTDOWN first.
 func leave() -> void:
+	# DECISION (Bontago-mv0.2.6 finding B): cleared unconditionally, before the
+	# OFFLINE early-return below, because a pending host_online()/join_lobby()
+	# attempt never moves _mode off OFFLINE until its Steam answer actually
+	# lands — so a caller cancelling mid-attempt (e.g. leaving the menu while
+	# a lobby is still being created) would otherwise never reach this
+	# function's own body at all. Once this is false, a late
+	# lobby_created/lobby_joined answer for the cancelled attempt is treated
+	# as stale by _on_steam_lobby_created()/_on_steam_lobby_joined() and
+	# abandons whatever Steam lobby it produced instead of reviving a session
+	# nothing is waiting for.
+	_steam_request_pending = false
 	if _mode == Mode.OFFLINE:
 		return
 	if _mode == Mode.HOST:
 		for peer_id: int in _peers.keys():
 			if peer_id != HOST_PEER_ID:
 				Events.net_peer_left.emit(peer_id, int(_peers[peer_id].get("slot_id", -1)), LeaveReason.HOST_SHUTDOWN)
+
+	if _steam_session and steam_provider != null and _steam_lobby_id != 0:
+		steam_provider.leave_lobby(_steam_lobby_id)
 
 	_lan.stop_advertising()
 	_lan.stop_listening()
@@ -198,6 +275,9 @@ func leave() -> void:
 	_own_ping_ms = 0.0
 	_lobby_data = {}
 	_accepting_joins = true
+	_steam_session = false
+	_steam_lobby_id = 0
+	_steam_pending_name = ""
 	Events.net_mode_changed.emit(_mode)
 
 
@@ -359,12 +439,359 @@ func set_lobby_data(data: Dictionary) -> void:
 	_rpc_lobby_data.rpc(_lobby_data)
 	if _lan.is_advertising():
 		_lan.update_advert({"map": str(_lobby_data.get("map_variant", 0))})
+	# docs/M3b_PLAN.md "Design notes": tee the same Dictionary into Steam
+	# lobby data, under one JSON key, every time this is called — the exact
+	# call site ui/Lobby.gd already has, so it needs no change of its own.
+	if _steam_session and steam_provider != null and _steam_lobby_id != 0:
+		steam_provider.set_lobby_data(
+			_steam_lobby_id, String(SteamClient.KEY_MATCH_CONFIG), SteamClient.encode_match_config(_lobby_data)
+		)
 
 
 ## The last lobby data received, or what this host published. Clients read it
 ## to build their read-only view of the settings.
 func lobby_data() -> Dictionary:
 	return _lobby_data
+
+
+# --- Steam session (spec 3.4, docs/M3b_PLAN.md P1) --------------------------
+#
+# M3b is a peer swap, not a new architecture: host_online()/join_lobby() are
+# the Steam-shaped host_game()/join_game(), but Steam's own matchmaking calls
+# are asynchronous (create_lobby/join_lobby fire a signal later), unlike
+# ENet's synchronous create_server()/create_client(). These two therefore
+# only kick the process off and return OK/a transport error immediately; the
+# actual _mode transition and multiplayer.multiplayer_peer assignment happen
+# in _on_steam_lobby_created()/_on_steam_lobby_joined() once Steam answers.
+# From that point on _rpc_handshake, the roster RPCs and _on_connected_to_
+# server() all run completely unmodified (docs/M3b_PLAN.md "the version check
+# needs no new code") because they only ever touch MultiplayerAPI, never a
+# concrete peer type.
+
+## False whenever the addon was never installed in this checkout (most
+## worktrees; see docs/M3b_RESEARCH.md "Spike results") OR Steam.steamInitEx()
+## has not yet succeeded (status != 0 — client not running, out of date, or
+## init_steam() simply hasn't been called yet). docs/M3b_PLAN.md "Design
+## notes": "addon not installed" and "status != 0" are logged with different
+## messages but collapse to this one false for every UI purpose — the whole
+## point being a caller never needs to ask which case it is.
+func steam_available() -> bool:
+	return steam_provider != null and bool(steam_provider.is_available()) and _steam_ready
+
+
+## Calls Steam.steamInitEx() through steam_provider and emits
+## Events.net_steam_status_changed once it answers. Idempotent — safe for
+## game/Main.gd to call unconditionally at boot even if something else
+## already did. A no-op (not an error) when steam_provider is null, which
+## only happens if this is called before _ready() has run.
+func init_steam() -> void:
+	if _steam_initialized:
+		return
+	_steam_initialized = true
+	_wire_steam_signals()
+	if steam_provider == null:
+		return
+	steam_provider.init()
+
+
+## True only once host_online()/join_lobby() has produced a live
+## SteamMultiplayerPeer — false offline, false mid-ENet-session, and false
+## while a Steam lobby_created/lobby_joined callback is still pending.
+func is_steam_session() -> bool:
+	return _steam_session
+
+
+## Same contract as host_game(): starts a session and returns OK, or a
+## transport error without creating anything. Unlike host_game(), OK here
+## only means "the attempt started" — Steam's create_lobby() answers later
+## through _on_steam_lobby_created(), which is what actually flips _mode to
+## HOST. A caller that needs to know when hosting is actually live should
+## watch Events.net_mode_changed, exactly as every other caller of is_host()
+## already must for the async multi-frame join handshake too.
+func host_online(player_name: String = "") -> Error:
+	_wire_steam_signals()
+	if not steam_available():
+		return ERR_UNAVAILABLE
+	# Bontago-mv0.2.6 finding B: refuse a second concurrent attempt rather than
+	# issue a second Steam create_lobby() request while the first is still
+	# awaiting its own lobby_created answer — see _steam_request_pending's doc
+	# comment for the orphaned-lobby race this prevents.
+	if _steam_request_pending:
+		return ERR_BUSY
+	if _mode != Mode.OFFLINE:
+		leave()
+	_steam_request_pending = true
+	_steam_pending_name = player_name
+	steam_provider.create_lobby(config.steam_lobby_type, config.max_peers)
+	return OK
+
+
+## Same contract as join_game(), and the same asynchronous caveat as
+## host_online(): Steam's own join_lobby() answers later through
+## _on_steam_lobby_joined().
+func join_lobby(lobby_id: int, player_name: String = "") -> Error:
+	_wire_steam_signals()
+	if not steam_available():
+		return ERR_UNAVAILABLE
+	# Same guard as host_online() above, and for the same reason (Bontago-
+	# mv0.2.6 finding B).
+	if _steam_request_pending:
+		return ERR_BUSY
+	if _mode != Mode.OFFLINE:
+		leave()
+	_steam_request_pending = true
+	_steam_pending_name = player_name
+	steam_provider.join_lobby(lobby_id)
+	return OK
+
+
+## Lobbies tagged with this build's {game, version} from the last
+## refresh_lobby_list() answer. Each is
+## {"lobby_id", "name", "players", "max", "map"} — the Steam-side equivalent
+## of discovered_games().
+func discovered_lobbies() -> Array[Dictionary]:
+	return _discovered_lobbies.duplicate(true)
+
+
+## Asks Steam for the current lobby list, filtered to this game and this
+## exact build version (spec 3.4: "Compare the version when joining a
+## lobby..."; a stale build should not even appear in the list). Pull-based,
+## unlike LAN's push advert — ui/MainMenu.gd (P3) is expected to call this on
+## a config.steam_lobby_list_refresh_s timer. Results arrive later as
+## Events.net_steam_lobbies_discovered.
+func refresh_lobby_list() -> void:
+	_wire_steam_signals()
+	if not steam_available():
+		return
+	var filters: Array[Dictionary] = [
+		{"key": String(SteamClient.KEY_GAME), "value": String(DISCOVERY_MAGIC)},
+		{"key": String(SteamClient.KEY_VERSION), "value": build_version()},
+	]
+	steam_provider.request_lobby_list(filters)
+
+
+## Opens the Steam overlay's invite dialog for this session's lobby. A no-op
+## off Steam, offline, or before the lobby actually exists.
+func invite_friends() -> void:
+	if not steam_available() or not _steam_session or _steam_lobby_id == 0:
+		return
+	steam_provider.activate_invite_overlay(_steam_lobby_id)
+
+
+## Connects to steam_provider's signals exactly once per provider instance.
+## Called at the top of every entry point that can kick off Steam work
+## (host_online, join_lobby, refresh_lobby_list, init_steam) rather than only
+## in _ready(), because every P1/P3 test overwrites `steam_provider` with a
+## FakeSteam *after* the node's own _ready() already ran — connecting only
+## once in _ready() would leave that replacement's signals unwired.
+func _wire_steam_signals() -> void:
+	if steam_provider == null or steam_provider == _steam_signals_wired:
+		return
+	steam_provider.init_result.connect(_on_steam_init_result)
+	steam_provider.lobby_created.connect(_on_steam_lobby_created)
+	steam_provider.lobby_match_list.connect(_on_steam_lobby_match_list)
+	steam_provider.lobby_joined.connect(_on_steam_lobby_joined)
+	steam_provider.lobby_join_requested.connect(_on_steam_lobby_join_requested)
+	_steam_signals_wired = steam_provider
+
+
+func _on_steam_init_result(status: int, verbal: String) -> void:
+	_steam_ready = status == 0
+	Events.net_steam_status_changed.emit(_steam_ready, verbal)
+
+
+func _on_steam_lobby_created(result: int, lobby_id: int) -> void:
+	# Bontago-mv0.2.6 finding B: consume the pending token first. If it was
+	# already false, this answer belongs to an attempt host_online() no
+	# longer considers live (a caller that called leave() while this was
+	# still in flight — see leave()'s own comment) — abandon whatever lobby
+	# Steam actually created rather than let the guard below silently drop it
+	# and orphan it.
+	var was_pending: bool = _steam_request_pending
+	_steam_request_pending = false
+	if not was_pending:
+		if result == 1:
+			steam_provider.leave_lobby(lobby_id)
+		return
+	if _mode != Mode.OFFLINE:
+		return
+	# Steamworks EResult k_EResultOK == 1. DECISION: a well-known, stable
+	# Steamworks constant (unchanged since the SDK's introduction; also the
+	# value GodotSteam's own docs describe for this exact signal), not
+	# re-verified against isteamclient.h/steamtypes.h in this checkout — no
+	# Steamworks SDK headers are bundled in the downloaded GDExtension zip
+	# (see docs/M3b_RESEARCH.md "Spike results").
+	if result != 1:
+		Events.net_join_failed.emit(JoinError.TRANSPORT, "Steam lobby creation failed (result %d)" % result)
+		return
+
+	var host_name: String = _steam_pending_name if _steam_pending_name != "" else steam_provider.local_persona_name()
+	# Tag the lobby *before* attempting to instantiate the transport peer.
+	# ClassDB.instantiate(&"SteamMultiplayerPeer") succeeding is explicitly
+	# unverifiable by GUT (docs/M3b_PLAN.md "Testing without Steam" /"Known
+	# limitations") on any checkout that hasn't installed the addon, but the
+	# lobby-data write itself only needs steam_provider, so ordering it first
+	# keeps this half of host_online()'s contract testable with FakeSteam
+	# alone regardless of whether the addon is present.
+	steam_provider.set_lobby_data(lobby_id, String(SteamClient.KEY_GAME), String(DISCOVERY_MAGIC))
+	steam_provider.set_lobby_data(lobby_id, String(SteamClient.KEY_VERSION), build_version())
+	steam_provider.set_lobby_data(lobby_id, String(SteamClient.KEY_MAP), "")
+	steam_provider.set_lobby_data(lobby_id, String(SteamClient.KEY_HOST_NAME), host_name)
+	steam_provider.set_lobby_data(
+		lobby_id, String(SteamClient.KEY_MATCH_CONFIG), SteamClient.encode_match_config(_lobby_data)
+	)
+
+	var peer: MultiplayerPeer = _make_steam_host_peer()
+	if peer == null:
+		Events.net_join_failed.emit(JoinError.TRANSPORT, "SteamMultiplayerPeer unavailable")
+		steam_provider.leave_lobby(lobby_id)
+		return
+
+	multiplayer.multiplayer_peer = peer
+	_peer = peer
+	_mode = Mode.HOST
+	_steam_session = true
+	_steam_lobby_id = lobby_id
+	_host_build_version = build_version()
+	_peers.clear()
+	_peers[HOST_PEER_ID] = {
+		"peer_id": HOST_PEER_ID,
+		"slot_id": 0,
+		"name": host_name,
+		"ready": true,
+		"ping_ms": 0.0,
+		"build": _host_build_version,
+	}
+	_next_slot_id = 1
+	_accepting_joins = true
+	Events.net_mode_changed.emit(_mode)
+
+
+func _on_steam_lobby_joined(lobby_id: int, response: int) -> void:
+	# Same stale-answer handling as _on_steam_lobby_created() above, and for
+	# the same reason (Bontago-mv0.2.6 finding B).
+	var was_pending: bool = _steam_request_pending
+	_steam_request_pending = false
+	if not was_pending:
+		if response == 1:
+			steam_provider.leave_lobby(lobby_id)
+		return
+	if _mode != Mode.OFFLINE:
+		return
+	# Steamworks EChatRoomEnterResponse k_EChatRoomEnterResponseSuccess == 1.
+	# Same DECISION/caveat as _on_steam_lobby_created()'s EResult check above.
+	if response != 1:
+		_fail_join(JoinError.REFUSED, "could not join Steam lobby (response %d)" % response)
+		return
+	var owner_id: int = steam_provider.lobby_owner(lobby_id)
+	var peer: MultiplayerPeer = _make_steam_client_peer(owner_id)
+	if peer == null:
+		# Bontago-mv0.2.6 (independent-review finding A): Steam's own
+		# lobby_joined already made this instance a lobby member (response ==
+		# 1) by the time the transport peer fails to construct, but neither
+		# _steam_session nor _steam_lobby_id is set yet at this point (those
+		# only flip once the peer actually succeeds, below) — leave()'s own
+		# teardown reads both, and its very first line returns immediately
+		# while _mode is still OFFLINE (it only transitions to CLIENT further
+		# down), so routing this failure through leave() would need the mode
+		# transition to happen *before* peer construction is known to have
+		# succeeded, which is a bigger reshuffle than this fix warrants.
+		# DECISION: call steam_provider.leave_lobby() directly here instead,
+		# mirroring _on_steam_lobby_created()'s matching peer==null branch
+		# above (which already does exactly this for the host side) rather
+		# than restructure leave()'s guard — same fix shape, same file, no new
+		# teardown path.
+		steam_provider.leave_lobby(lobby_id)
+		_fail_join(JoinError.TRANSPORT, "SteamMultiplayerPeer unavailable")
+		return
+	multiplayer.multiplayer_peer = peer
+	_peer = peer
+	_mode = Mode.CLIENT
+	_steam_session = true
+	_steam_lobby_id = lobby_id
+	_peers.clear()
+	_pending_join_name = _steam_pending_name if _steam_pending_name != "" else steam_provider.local_persona_name()
+	_joined_accepted = false
+	_join_deadline = _now() + config.connect_timeout + config.handshake_timeout
+	Events.net_mode_changed.emit(_mode)
+	# From here _on_connected_to_server() (already wired in _ready()) fires
+	# once the SteamMultiplayerPeer's own connection completes, and runs the
+	# unmodified _rpc_handshake round trip — no Steam-specific code needed.
+
+
+func _on_steam_lobby_match_list(lobby_ids: Array) -> void:
+	var result: Array[Dictionary] = []
+	for raw_id: Variant in lobby_ids:
+		var lobby_id: int = int(raw_id)
+		var game: String = steam_provider.get_lobby_data(lobby_id, String(SteamClient.KEY_GAME))
+		var version: String = steam_provider.get_lobby_data(lobby_id, String(SteamClient.KEY_VERSION))
+		if game != String(DISCOVERY_MAGIC) or version != build_version():
+			continue
+		result.append({
+			"lobby_id": lobby_id,
+			"name": steam_provider.get_lobby_data(lobby_id, String(SteamClient.KEY_HOST_NAME)),
+			"players": steam_provider.lobby_member_count(lobby_id),
+			"max": config.max_peers,
+			"map": steam_provider.get_lobby_data(lobby_id, String(SteamClient.KEY_MAP)),
+		})
+	_discovered_lobbies = result
+	Events.net_steam_lobbies_discovered.emit(result)
+
+
+## The overlay's "Join Game" / invite-accept path when this game is already
+## running (spec 3.4/research: "Invites arrive two ways and both must be
+## handled"). The other way, `+connect_lobby` on a freshly launched process's
+## command line, is handled by _apply_connect_lobby_args() below.
+func _on_steam_lobby_join_requested(lobby_id: int, _friend_id: int) -> void:
+	join_lobby(lobby_id, "")
+
+
+## Seconds --host-online's smoke test waits for Steam's async lobby_created
+## before reporting the lobby id, and then for one requestLobbyList() round
+## trip before reporting discovered_lobbies(). Diagnostic-only timing (not a
+## live gameplay knob — see tools/screenshot_main.gd's own local consts for
+## the same reasoning), so it stays a file const here rather than a NetConfig
+## field.
+const _SMOKE_LOBBY_WAIT_S: float = 5.0
+const _SMOKE_LIST_WAIT_S: float = 6.0
+
+## docs/M3b_PLAN.md P1's "windowed single-PC Steam smoke test", reached only
+## through --host-online (see _apply_command_line_args()'s DECISION above).
+## Never run by any automated test or by normal play; prints exactly what
+## that acceptance step needs onto stdout so the check can be read off a
+## captured log. Fire-and-forget: apply_command_line() does not await this.
+##
+## NOTE for whoever reruns this: with config.steam_lobby_type at its
+## FriendsOnly default (owner decision), discovered_lobbies() below is
+## expected to print [] on a single Steam account — verified empirically
+## (netcode-F2-smoke-public.log vs netcode-F2-smoke-fixed3.log in this
+## worker's scratch directory): the exact same lobby is found immediately
+## when steam_lobby_type is temporarily set to Public (2), and
+## lobby_member_count()/lobby_owner() below always confirm the lobby is real
+## either way. Steamworks' own RequestLobbyList() does not return a
+## FriendsOnly lobby to a search from the owner's own account (it is scoped
+## to the owner's *friends*, a genuinely different Steam identity) — this is
+## the one part of this acceptance step that a single-PC/single-account
+## smoke test cannot exercise, and needs the owner's two-PC run instead.
+func _run_steam_smoke_host_online(player_name: String) -> void:
+	var mgr: Object = Engine.get_singleton(&"GDExtensionManager")
+	print("NET_SMOKE loaded_extensions=%s" % [mgr.call("get_loaded_extensions")])
+	init_steam()
+	print("NET_SMOKE steam_available=%s" % steam_available())
+	var err: Error = host_online(player_name)
+	print("NET_SMOKE host_online_result=%d" % err)
+	Events.net_join_failed.connect(func(join_error: int, detail: String) -> void:
+		print("NET_SMOKE net_join_failed error=%d detail=%s" % [join_error, detail])
+	)
+	await get_tree().create_timer(_SMOKE_LOBBY_WAIT_S).timeout
+	print("NET_SMOKE mode=%d is_steam_session=%s lobby_id=%d" % [_mode, _steam_session, _steam_lobby_id])
+	if _steam_lobby_id != 0:
+		print("NET_SMOKE lobby_member_count=%d lobby_owner=%d" % [
+			steam_provider.lobby_member_count(_steam_lobby_id), steam_provider.lobby_owner(_steam_lobby_id)
+		])
+	refresh_lobby_list()
+	await get_tree().create_timer(_SMOKE_LIST_WAIT_S).timeout
+	print("NET_SMOKE discovered_lobbies=%s" % [discovered_lobbies()])
 
 
 # --- LAN discovery (spec 3.4) -----------------------------------------------
@@ -443,12 +870,18 @@ func report_stats(source: StringName, values: Dictionary) -> void:
 # --- Command line (spec 3.4 "Testing") --------------------------------------
 
 ## Parses --host, --join=<ip[:port]>, --port=<n>, --headless-host,
-## --player-name=<s>, --sim-lag=<ms>, --sim-loss=<fraction> from OS
-## command-line arguments after "--" and acts on them. Called once by
+## --host-online, --player-name=<s>, --sim-lag=<ms>, --sim-loss=<fraction>
+## from OS command-line arguments after "--" and acts on them, then separately scans
+## the full command line for Steam's own "+connect_lobby <id>" launch
+## convention (docs/M3b_PLAN.md "Design notes": Valve's own argv convention,
+## not this project's --flag=value one, so OS.get_cmdline_user_args() — the
+## tokens after Godot's own "--" — would never see it). Called once by
 ## game/Main.gd so a headless instance needs no UI. Returns true when an
 ## argument put this instance into a session.
 func apply_command_line() -> bool:
-	return _apply_command_line_args(OS.get_cmdline_user_args())
+	if _apply_command_line_args(OS.get_cmdline_user_args()):
+		return true
+	return _apply_connect_lobby_args(OS.get_cmdline_args())
 
 
 ## The parsing/dispatch logic behind apply_command_line(), taking the argument
@@ -479,6 +912,20 @@ func _apply_command_line_args(args: PackedStringArray) -> bool:
 		host_game(port, player_name if player_name != "" else "Host")
 		return true
 
+	# DECISION: --host-online is this package's own windowed single-PC Steam
+	# smoke test aid (docs/M3b_PLAN.md P1 acceptance), not a shipped player
+	# entry point — no menu button reaches it. It exists only so the smoke
+	# test can be launched and observed from stdout with `godot --path .
+	# -- --host-online` on a machine that already has the addon installed and
+	# Steam running, without needing game/Main.gd's own
+	# Net.init_steam() call (the integrator's not-yet-landed line, step 4 of
+	# docs/M3b_PLAN.md's integration order) to already be wired in. Uses the
+	# same existing bare-flag convention --host/--headless-host already do,
+	# not a new parser shape.
+	if flags.has("host-online"):
+		_run_steam_smoke_host_online(player_name if player_name != "" else "SmokeHost")
+		return true
+
 	if options.has("join"):
 		var address_spec: String = String(options["join"])
 		var address: String = address_spec
@@ -493,7 +940,28 @@ func _apply_command_line_args(args: PackedStringArray) -> bool:
 	return false
 
 
-# --- Transport (the only place ENetMultiplayerPeer may be named) -----------
+## The +connect_lobby scan, split out as its own sibling (rather than bolted
+## onto _apply_command_line_args()'s "-"-stripping loop, which assumes every
+## token has a "--"/"-" prefix and this one never does) so a unit test can
+## drive it with a synthetic full argument list, the same way
+## _apply_command_line_args() takes its own list explicitly — there is no
+## OS.set_cmdline_args() to fake either call site with.
+func _apply_connect_lobby_args(args: PackedStringArray) -> bool:
+	for i: int in range(args.size() - 1):
+		if args[i] != "+connect_lobby":
+			continue
+		var text: String = args[i + 1]
+		if not text.is_valid_int():
+			return false
+		var lobby_id: int = int(text)
+		if lobby_id <= 0:
+			return false
+		join_lobby(lobby_id, "Player")
+		return true
+	return false
+
+
+# --- Transport (the only place ENetMultiplayerPeer/SteamMultiplayerPeer may be named) --
 
 func _make_host_peer(port: int) -> MultiplayerPeer:
 	var enet_peer: ENetMultiplayerPeer = ENetMultiplayerPeer.new()
@@ -518,6 +986,67 @@ func _make_client_peer(address: String, port: int) -> MultiplayerPeer:
 		push_warning("Net: create_client to %s:%d failed with error %d" % [address, port, err])
 		return null
 	return enet_peer
+
+
+## Sibling to _make_host_peer()/_make_client_peer() rather than a literal
+## extension of them: Steam peer construction takes no port/address (the
+## lobby, not an IP:port, is the rendezvous), so the parameter shapes cannot
+## match. Still the only two functions in the file (besides the ENet pair
+## above) that may name a concrete peer class — here reached purely through
+## ClassDB, never a static `SteamMultiplayerPeer` type, so this file still
+## parses in a checkout without the addon installed (docs/M3b_PLAN.md
+## "Design notes"; ClassDB.class_exists(&"SteamMultiplayerPeer") verified
+## true with the addon installed on this machine, false without it).
+##
+## SAFETY (found while writing this package's own regression tests, not in
+## the plan): calling SteamMultiplayerPeer.create_host()/create_client() when
+## the process's Steam context was never initialized (steamInitEx never
+## called, or it failed) segfaults the engine — reproduced empirically on
+## this machine (netcode-F-probe_peer_no_init.log: SIGSEGV inside
+## steam_api64.dll). `not _steam_ready` guards the real, no-init case;
+## `not (steam_provider is SteamClient)` guards the FakeSteam-driven case a
+## GUT test always uses, so ClassDB.instantiate(&"SteamMultiplayerPeer") is
+## architecturally unreachable from any automated test regardless of what a
+## FakeSteam's signals claim — the exact thing docs/M3b_PLAN.md's "Testing
+## without Steam" says GUT cannot verify either way.
+func _make_steam_host_peer() -> MultiplayerPeer:
+	if not _steam_ready or not (steam_provider is SteamClient):
+		return null
+	if not ClassDB.class_exists(&"SteamMultiplayerPeer"):
+		return null
+	var obj: Object = ClassDB.instantiate(&"SteamMultiplayerPeer")
+	var peer: MultiplayerPeer = obj as MultiplayerPeer
+	if peer == null:
+		return null
+	# server_relay = true: client traffic routes through the host (spec 3.4
+	# "Model: Host-authoritative listen server"), matching ENet's implicit
+	# star topology.
+	peer.set("server_relay", true)
+	# Virtual port 0: this project has exactly one Steam session per lobby,
+	# so it never needs more than SteamMultiplayerPeer's one default channel
+	# of virtual ports.
+	var err: Variant = peer.call("create_host", 0)
+	if int(err) != OK:
+		push_warning("Net: SteamMultiplayerPeer create_host failed with error %d" % int(err))
+		return null
+	return peer
+
+
+func _make_steam_client_peer(owner_steam_id: int) -> MultiplayerPeer:
+	if not _steam_ready or not (steam_provider is SteamClient):
+		return null
+	if not ClassDB.class_exists(&"SteamMultiplayerPeer"):
+		return null
+	var obj: Object = ClassDB.instantiate(&"SteamMultiplayerPeer")
+	var peer: MultiplayerPeer = obj as MultiplayerPeer
+	if peer == null:
+		return null
+	peer.set("server_relay", true)
+	var err: Variant = peer.call("create_client", owner_steam_id, 0)
+	if int(err) != OK:
+		push_warning("Net: SteamMultiplayerPeer create_client failed with error %d" % int(err))
+		return null
+	return peer
 
 
 # --- MultiplayerAPI signal handlers -----------------------------------------

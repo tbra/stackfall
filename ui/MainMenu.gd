@@ -29,7 +29,25 @@ var net_provider: Variant = null
 @onready var _direct_join_button: Button = %DirectJoinButton
 @onready var _status_label: Label = %StatusLabel
 
+## M3b (docs/M3b_PLAN.md P3): the Steam section vs. the "not available" notice
+## (spec 3.4: "Hide the online menu entries and show a notice").
+@onready var _steam_section: VBoxContainer = %SteamSection
+@onready var _host_online_button: Button = %HostOnlineButton
+@onready var _steam_lobby_list: ItemList = %SteamLobbyList
+@onready var _refresh_steam_button: Button = %RefreshSteamButton
+@onready var _steam_unavailable_label: Label = %SteamUnavailableLabel
+
 var _games: Array[Dictionary] = []
+var _steam_lobbies: Array[Dictionary] = []
+
+## Seconds until the next automatic refresh_lobby_list() poll while the Steam
+## section is visible (docs/M3b_PLAN.md: "Steam's request_lobby_list() is
+## pull-based ... call it on a config.steam_lobby_list_refresh_s timer"). A
+## plain accumulator rather than a Timer node, since it only needs to run
+## while _steam_section is visible and reads its interval from
+## net_provider.config, which a Timer node's `wait_time` can't do without its
+## own extra wiring code anyway.
+var _steam_refresh_countdown_s: float = 0.0
 
 
 func _ready() -> void:
@@ -39,10 +57,23 @@ func _ready() -> void:
 	_refresh_button.pressed.connect(_on_refresh_pressed)
 	_direct_join_button.pressed.connect(_on_direct_join_pressed)
 	_game_list.item_activated.connect(_on_game_activated)
+	_host_online_button.pressed.connect(_on_host_online_pressed)
+	_refresh_steam_button.pressed.connect(_on_refresh_steam_pressed)
+	_steam_lobby_list.item_activated.connect(_on_steam_lobby_activated)
 	Events.net_games_discovered.connect(_on_games_discovered)
 	Events.net_join_failed.connect(_on_join_failed)
+	Events.net_steam_lobbies_discovered.connect(_on_steam_lobbies_discovered)
 	net_provider.start_discovery()
+	_apply_steam_availability()
 	_host_button.grab_focus()
+
+
+func _process(delta: float) -> void:
+	if not _steam_section.visible:
+		return
+	_steam_refresh_countdown_s -= delta
+	if _steam_refresh_countdown_s <= 0.0:
+		_on_refresh_steam_pressed()
 
 
 func _exit_tree() -> void:
@@ -82,6 +113,26 @@ func _on_quit_pressed() -> void:
 	get_tree().quit()
 
 
+func _on_host_online_pressed() -> void:
+	var err: Error = net_provider.host_online(_player_name())
+	if err != OK:
+		_show_status("Could not host online: %s" % error_string(err))
+
+
+func _on_refresh_steam_pressed() -> void:
+	net_provider.refresh_lobby_list()
+	_steam_refresh_countdown_s = float(net_provider.config.steam_lobby_list_refresh_s)
+
+
+func _on_steam_lobby_activated(index: int) -> void:
+	if index < 0 or index >= _steam_lobbies.size():
+		return
+	var lobby: Dictionary = _steam_lobbies[index]
+	var err: Error = net_provider.join_lobby(int(lobby.get("lobby_id", 0)), _player_name())
+	if err != OK:
+		_show_status("Could not join: %s" % error_string(err))
+
+
 # --- Events reactions --------------------------------------------------------
 
 func _on_join_failed(_error: int, detail: String) -> void:
@@ -91,6 +142,11 @@ func _on_join_failed(_error: int, detail: String) -> void:
 func _on_games_discovered(games: Array[Dictionary]) -> void:
 	_games = games
 	_rebuild_game_list()
+
+
+func _on_steam_lobbies_discovered(lobbies: Array[Dictionary]) -> void:
+	_steam_lobbies = lobbies
+	_rebuild_steam_lobby_list()
 
 
 # --- Helpers -----------------------------------------------------------------
@@ -112,6 +168,43 @@ func _rebuild_game_list() -> void:
 			int(game.get("port", 0)),
 		]
 		_game_list.add_item(label)
+
+
+func _rebuild_steam_lobby_list() -> void:
+	_steam_lobby_list.clear()
+	for lobby: Dictionary in _steam_lobbies:
+		var label: String = "%s  (%d/%d)  %s" % [
+			str(lobby.get("name", "?")),
+			int(lobby.get("players", 0)),
+			int(lobby.get("max", 0)),
+			str(lobby.get("map", "")),
+		]
+		_steam_lobby_list.add_item(label)
+
+
+## Toggles the Steam section vs. the "not available" notice (spec 3.4: "Hide
+## the online menu entries and show a notice"). Reads net_provider directly
+## rather than taking a bool parameter, so a test can mutate a FakeNet's
+## `steam_available_value` and re-call this the same way test_lobby.gd
+## re-calls `_update_host_only_state()` after mutating its fake.
+func _apply_steam_availability() -> void:
+	var available: bool = net_provider != null and bool(net_provider.steam_available())
+	_steam_section.visible = available
+	_steam_unavailable_label.visible = not available
+	if available:
+		net_provider.refresh_lobby_list()
+		_steam_refresh_countdown_s = float(net_provider.config.steam_lobby_list_refresh_s)
+	# DECISION (ui/MainMenu.gd): the .tscn wires HostButton -> SteamSection ->
+	# GameList as the happy-path (Steam available) up/down focus chain
+	# declaratively. When Steam is unavailable the section is hidden, so
+	# bridge the ui_up/ui_down (incl. gamepad D-pad) chain straight from
+	# HostButton to GameList instead of leaving it pointed at hidden controls.
+	if available:
+		_host_button.focus_neighbor_bottom = _host_button.get_path_to(_host_online_button)
+		_game_list.focus_neighbor_top = _game_list.get_path_to(_refresh_steam_button)
+	else:
+		_host_button.focus_neighbor_bottom = _host_button.get_path_to(_game_list)
+		_game_list.focus_neighbor_top = _game_list.get_path_to(_host_button)
 
 
 func _player_name() -> String:

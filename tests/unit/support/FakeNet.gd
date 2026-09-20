@@ -62,6 +62,26 @@ var stop_discovery_calls: int = 0
 var next_host_result: Error = OK
 var next_join_result: Error = OK
 
+# --- M3b: Steam session mirror (docs/M3b_PLAN.md P1) -------------------
+#
+# Field names match what docs/M3b_PLAN.md's P3 test bullets read directly
+# (`net_provider.steam_available_value = false`, `is_steam_session_value`,
+# `host_online_calls`, `join_lobby_calls`, `invite_friends_calls`) so
+# ui/MainMenu.gd and ui/Lobby.gd's tests can drive this fake the same way
+# test_main_menu.gd/test_lobby.gd already drive the ENet-shaped fields above.
+
+var steam_available_value: bool = false
+var is_steam_session_value: bool = false
+var discovered_lobbies_value: Array[Dictionary] = []
+var next_host_online_result: Error = OK
+var next_join_lobby_result: Error = OK
+
+var host_online_calls: Array[Dictionary] = []
+var join_lobby_calls: Array[Dictionary] = []
+var refresh_lobby_list_calls: int = 0
+var invite_friends_calls: int = 0
+var init_steam_calls: int = 0
+
 
 static func host(peer_slots: Dictionary = {}, local: Array[int] = []) -> FakeNet:
 	var fake: FakeNet = FakeNet.new()
@@ -233,3 +253,39 @@ func report_stats(_source: StringName, _values: Dictionary) -> void:
 
 func apply_command_line() -> bool:
 	return false
+
+
+# --- M3b: Steam session mirror ------------------------------------------
+
+func steam_available() -> bool:
+	return steam_available_value
+
+
+func init_steam() -> void:
+	init_steam_calls += 1
+
+
+func is_steam_session() -> bool:
+	return is_steam_session_value
+
+
+func host_online(player_name: String = "") -> Error:
+	host_online_calls.append({"player_name": player_name})
+	return next_host_online_result
+
+
+func join_lobby(lobby_id: int, player_name: String = "") -> Error:
+	join_lobby_calls.append({"lobby_id": lobby_id, "player_name": player_name})
+	return next_join_lobby_result
+
+
+func discovered_lobbies() -> Array[Dictionary]:
+	return discovered_lobbies_value
+
+
+func refresh_lobby_list() -> void:
+	refresh_lobby_list_calls += 1
+
+
+func invite_friends() -> void:
+	invite_friends_calls += 1

@@ -279,6 +279,12 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "Ready"
 
+[node name="InviteFriendsButton" type="Button" parent="Margin/Columns/Players"]
+unique_name_in_owner = true
+layout_mode = 2
+visible = false
+text = "Invite Friends"
+
 [node name="StartButton" type="Button" parent="Margin/Columns/Players"]
 unique_name_in_owner = true
 layout_mode = 2

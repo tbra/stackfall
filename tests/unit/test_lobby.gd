@@ -162,3 +162,52 @@ func test_roster_in_lobby_data_builds_player_rows() -> void:
 	Events.net_lobby_data_changed.emit(data)
 	var list: VBoxContainer = lobby.get_node("%PlayerList")
 	assert_eq(list.get_child_count(), 2)
+
+
+# --- Invite Friends (docs/M3b_PLAN.md P3) -------------------------------------
+
+func test_invite_friends_button_hidden_when_not_a_steam_session() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	_fake_of(lobby).is_steam_session_value = false
+	lobby._update_host_only_state()
+	assert_false((lobby.get_node("%InviteFriendsButton") as Button).visible)
+
+
+func test_invite_friends_button_visible_when_host_is_a_steam_session() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	_fake_of(lobby).is_steam_session_value = true
+	lobby._update_host_only_state()
+	assert_true((lobby.get_node("%InviteFriendsButton") as Button).visible)
+
+
+func test_invite_friends_button_hidden_for_a_client_even_in_a_steam_session() -> void:
+	var lobby: Lobby = _make_lobby(false)
+	_fake_of(lobby).is_steam_session_value = true
+	lobby._update_host_only_state()
+	assert_false((lobby.get_node("%InviteFriendsButton") as Button).visible)
+
+
+func test_invite_friends_button_calls_invite_friends() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var fake: FakeNet = _fake_of(lobby)
+	fake.is_steam_session_value = true
+	lobby._update_host_only_state()
+	lobby._on_invite_friends_pressed()
+	assert_eq(fake.invite_friends_calls, 1)
+
+
+func test_roster_entry_with_a_steam_persona_name_renders_unchanged() -> void:
+	# docs/M3b_PLAN.md P3: once host_online()/join_lobby() default an empty
+	# player_name to the Steam persona name, _apply_roster() needs zero
+	# special-casing to display it — pin that down rather than just assert it.
+	var lobby: Lobby = _make_lobby(false)
+	var data: Dictionary = MatchConfig.new().to_dict()
+	data["roster"] = [
+		{"peer_id": 1, "slot_id": 0, "name": "SteamFriend#1234", "ready": true},
+	]
+	Events.net_lobby_data_changed.emit(data)
+	var list: VBoxContainer = lobby.get_node("%PlayerList")
+	assert_eq(list.get_child_count(), 1)
+	var row: HBoxContainer = list.get_child(0) as HBoxContainer
+	var label: Label = row.get_child(1) as Label
+	assert_true(label.text.begins_with("SteamFriend#1234"), "a Steam persona name should render unchanged")

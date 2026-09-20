@@ -20,6 +20,10 @@ steam_appid.txt
 addons/godotsteam/**/*.dll
 addons/godotsteam/**/*.so
 addons/godotsteam/**/*.dylib
+# Bontago-mv0.2.1 spike: a partial addon (gdextension without every DLL) breaks the
+# open-project gate on a fresh clone, so the whole addon stays untracked and is
+# installed per developer (README "Steam setup"); tools/check_steam_setup.ps1 verifies it.
+/addons/godotsteam/
 
 # Mono/.NET (unused, standard build)
 .mono/
@@ -62,3 +66,6 @@ files.zip
 *_secret*
 typesafe_key*
 .typesafe/
+
+# Throwaway configs written by tools/run_gut.ps1
+tests/.gut_targeted/

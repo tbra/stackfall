@@ -27,6 +27,32 @@ enum State { LOBBY, LOADING, COUNTDOWN, PLAYING, SUDDEN_DEATH, END }
 ## architecture (CLAUDE.md's "no magic numbers" targets tunables).
 const COUNTDOWN_SECONDS: float = 3.0
 
+## Bontago-mv0.1.11, revised Bontago-mv0.2.6 (independent-review finding C):
+## how far inside Field's kill-plane box a burned block's spawn point is kept,
+## as a fraction of the box's half-extent. _burn_block() then adds an outward
+## impulse (TerritoryTuning.reject_impulse / reject_upward_fraction) before
+## the body falls through kill_plane_y, so the clamp must leave enough slack
+## for that impulse's own horizontal travel, not just spawn the body inside
+## the box.
+##
+## DECISION (autoload/Match.gd, Bontago-mv0.2.6): 0.9 left only
+## `field_radius` (30-60 m across the shipped maps) of slack to the box edge.
+## reject_impulse=30 on a mass-1 block with reject_upward_fraction=0.35 gives
+## a horizontal launch speed of impulse * (1 - up_fraction) / sqrt((1 -
+## up_fraction)^2 + up_fraction^2) ~= 26 m/s and enough hang time falling to
+## kill_plane_y (-40) to travel roughly field_radius*2 outward -- more than
+## the old margin's slack, so a maximally clamped hostile burn could exit the
+## box footprint before it ever reached kill_plane_y and free-fall forever
+## (see this file's own request_place() comment on the leaked-RigidBody3D
+## failure this clamp exists to prevent). Halving the margin to 0.5 (clamp
+## radius = half the box half-extent) makes the reserved slack equal to the
+## clamp radius itself (>= 150 m on the smallest map), comfortably above the
+## worst-case impulse travel above, without touching _burn_block()'s impulse
+## for a legitimate near-disk burn (docs/M2_PLAN.md owner decision 2) --
+## proven by tests/unit/test_match_flow.gd's
+## test_repro_burn_clamp_margin_lets_a_maximally_clamped_burn_escape_the_kill_plane.
+const _BURN_CLAMP_MARGIN: float = 0.5
+
 ## The config the running match was started with. A duplicate of whatever was
 ## handed to start_match(), never the shared config/match_defaults.tres.
 var config: MatchConfig = null
@@ -531,6 +557,19 @@ func request_place(
 	var outcome: Dictionary = _resolve_outcome(result, auto_drop, relocated)
 	var reason: StringName = outcome["reason"]
 	var final_disk_origin: Vector2 = relocated if outcome["use_relocation"] else disk_origin
+	if reason != PlacementRules.REASON_OK:
+		# Bontago-mv0.1.11: this is the burn path (docs/M2_PLAN.md owner
+		# decision 2 below) and disk_origin is whatever the caller asked
+		# for -- for a remote intent, a finite-but-arbitrary point (spec 3.4:
+		# "The host checks every intent before acting on it"; is_pose_well_
+		# formed() above only refuses non-finite poses, not far-off-disk
+		# ones, since the ghost itself can produce those close to the edge).
+		# Left unclamped, a block spawns and is thrown from that raw point,
+		# lands outside Field's kill plane, and free-falls forever: a leaked
+		# RigidBody3D plus permanent snapshot traffic for it (Field.gd's
+		# _build_kill_plane, not owned here, sizes the box at
+		# map_def.field_radius * Field.KILL_PLANE_RADIUS_FACTOR).
+		final_disk_origin = _clamp_disk_origin_for_burn(final_disk_origin)
 
 	var final_world_origin: Vector3 = _field.to_global(
 		Vector3(final_disk_origin.x, local_origin.y, final_disk_origin.y)
@@ -636,6 +675,30 @@ func _spawn_block(shape: BlockShape, world_origin: Vector3, basis: Basis, slot_i
 ## auto-drops (docs/M3a_PLAN.md).
 func blocks_spawned() -> int:
 	return _blocks_spawned
+
+
+## Keeps a burn's disk-local spawn point (x/z only, in Field's local space)
+## inside Field's kill plane, so a body that gets thrown off never free-falls
+## past it (Bontago-mv0.1.11). Preserves direction and only shortens the
+## vector, so an on-disk or near-disk burn (the overwhelming common case) is
+## returned unchanged -- this only ever fires for the far-off-disk case a
+## hostile or buggy client can still produce.
+##
+## DECISION (autoload/Match.gd): the safe radius is derived from Field's own
+## KILL_PLANE_RADIUS_FACTOR constant (the one _build_kill_plane() already
+## uses to size the box) times this match's own map_def.field_radius, rather
+## than a new literal or MapDef tunable here, so Match's clamp and Field's
+## box can never drift apart. Field.gd is not owned by this package; if that
+## constant ever needs to become a per-map tunable, MapDef is the right home
+## for it and both Field._build_kill_plane() and this function should read
+## it from there instead (follow-up, not done here).
+func _clamp_disk_origin_for_burn(disk_origin: Vector2) -> Vector2:
+	if _field == null or _field.map_def == null:
+		return disk_origin
+	var half_extent: float = (
+		_field.map_def.field_radius * Field.KILL_PLANE_RADIUS_FACTOR * 0.5 * _BURN_CLAMP_MARGIN
+	)
+	return disk_origin.limit_length(half_extent)
 
 
 ## Spec 2.2: a rejected block "is thrown off the map with a visible reject

@@ -418,6 +418,67 @@ func test_resolve_outcome_auto_drop_burns_when_no_relocation_exists() -> void:
 	assert_false(outcome["use_relocation"])
 
 
+# --- REPRO (Bontago-mv0.1.11): far-off-disk burns must not spawn past the ---
+# --- kill plane's area, or the burned body falls forever and leaks. --------
+
+func test_repro_far_off_disk_burn_spawns_within_the_kill_plane_area() -> void:
+	Match.start_match(_hotseat_config(2))
+	_run_countdown()
+	var hover: float = load("res://config/physics_tuning.tres").hover_height as float
+	var far_origin: Vector3 = _field.to_global(Vector3(1.0e6, hover, 0.0))
+
+	var reason: StringName = Match.request_place(0, far_origin, 0, Quaternion.IDENTITY, false)
+
+	assert_ne(reason, PlacementRules.REASON_OK, "This pose must fail territory validation and burn.")
+	assert_eq(_blocks_root.get_child_count(), 1, "The block is still consumed and spawned, then burned.")
+	var spawned: Node3D = _blocks_root.get_child(0) as Node3D
+	var local: Vector3 = _field.to_local(spawned.global_position)
+	var disk_radius: Vector2 = Vector2(local.x, local.z)
+	var half_extent: float = _field.map_def.field_radius * Field.KILL_PLANE_RADIUS_FACTOR * 0.5
+	assert_lt(
+		disk_radius.length(), half_extent,
+		"A burned block must spawn inside the kill plane's box, not at the raw (unbounded) requested origin."
+	)
+
+
+## REPRO (Bontago-mv0.2.6 finding C): the clamp above only bounds the *spawn*
+## point, not where _burn_block()'s outward impulse carries the body before it
+## falls through kill_plane_y. With too small a margin, a maximally clamped
+## hostile burn is thrown radially outward far enough that it exits the kill
+## plane box's XZ footprint before it ever reaches kill_plane_y, so
+## Field._on_kill_plane_body_entered() never fires and the body free-falls
+## forever (a leaked RigidBody3D plus permanent snapshot traffic for it —
+## exactly the failure _clamp_disk_origin_for_burn()'s own doc comment
+## describes). This steps real physics (PhysicsServer3D ticks the scene tree
+## regardless of Match.set_process(false), which only stops Match's own feed/
+## timer processing) for up to 8 simulated seconds and asserts the kill plane
+## actually catches the body.
+func test_repro_burn_clamp_margin_lets_a_maximally_clamped_burn_escape_the_kill_plane() -> void:
+	Match.start_match(_hotseat_config(2))
+	_run_countdown()
+	var hover: float = load("res://config/physics_tuning.tres").hover_height as float
+	var far_origin: Vector3 = _field.to_global(Vector3(1.0e6, hover, 0.0))
+
+	watch_signals(Events)
+	var reason: StringName = Match.request_place(0, far_origin, 0, Quaternion.IDENTITY, false)
+	assert_ne(reason, PlacementRules.REASON_OK, "This pose must fail territory validation and burn.")
+
+	var caught: bool = false
+	var max_frames: int = int(round(8.0 * Engine.physics_ticks_per_second))
+	for _i: int in range(max_frames):
+		await wait_physics_frames(1)
+		if get_signal_emit_count(Events, "block_removed") > 0:
+			caught = true
+			break
+
+	assert_true(
+		caught,
+		"A maximally clamped hostile burn must still land inside the kill plane's box and despawn within 8s; " +
+		"if this fails, _BURN_CLAMP_MARGIN leaves too little slack between the clamp radius and the box edge " +
+		"for _burn_block()'s outward impulse."
+	)
+
+
 # --- Owner decision: home flag lost to a hole eliminates the slot ----------
 
 func test_player_eliminated_when_holes_open_under_their_home_flag() -> void:

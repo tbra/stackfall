@@ -106,3 +106,56 @@ func test_activating_a_list_entry_joins_that_game() -> void:
 	var calls: Array[Dictionary] = _fake_of(menu).join_game_calls
 	assert_eq(calls.size(), 1)
 	assert_eq(calls[0].get("address"), "192.168.1.20")
+
+
+# --- Steam section (docs/M3b_PLAN.md P3) --------------------------------------
+
+func test_steam_section_hidden_and_notice_shown_when_steam_unavailable() -> void:
+	var menu: MainMenu = _make_menu()
+	_fake_of(menu).steam_available_value = false
+	menu._apply_steam_availability()
+	assert_false((menu.get_node("%SteamSection") as VBoxContainer).visible)
+	assert_true((menu.get_node("%SteamUnavailableLabel") as Label).visible)
+
+
+func test_steam_section_shown_and_notice_hidden_when_steam_available() -> void:
+	var menu: MainMenu = _make_menu()
+	_fake_of(menu).steam_available_value = true
+	menu._apply_steam_availability()
+	assert_true((menu.get_node("%SteamSection") as VBoxContainer).visible)
+	assert_false((menu.get_node("%SteamUnavailableLabel") as Label).visible)
+
+
+func test_host_online_button_calls_host_online() -> void:
+	var menu: MainMenu = _make_menu()
+	menu._on_host_online_pressed()
+	assert_eq(_fake_of(menu).host_online_calls.size(), 1)
+
+
+func test_steam_lobbies_discovered_populates_the_list() -> void:
+	var menu: MainMenu = _make_menu()
+	var lobbies: Array[Dictionary] = [
+		{"lobby_id": 555, "name": "Alice's lobby", "players": 2, "max": 8, "map": "Round"},
+	]
+	Events.net_steam_lobbies_discovered.emit(lobbies)
+	var list: ItemList = menu.get_node("%SteamLobbyList")
+	assert_eq(list.item_count, 1)
+	assert_true(list.get_item_text(0).contains("Alice's lobby"))
+
+
+func test_activating_a_steam_list_entry_joins_that_lobby() -> void:
+	var menu: MainMenu = _make_menu()
+	var lobbies: Array[Dictionary] = [
+		{"lobby_id": 777, "name": "Bob's lobby", "players": 1, "max": 8, "map": "Oval"},
+	]
+	Events.net_steam_lobbies_discovered.emit(lobbies)
+	menu._on_steam_lobby_activated(0)
+	var calls: Array[Dictionary] = _fake_of(menu).join_lobby_calls
+	assert_eq(calls.size(), 1)
+	assert_eq(calls[0].get("lobby_id"), 777)
+
+
+func test_refresh_steam_button_calls_refresh_lobby_list() -> void:
+	var menu: MainMenu = _make_menu()
+	menu._on_refresh_steam_pressed()
+	assert_eq(_fake_of(menu).refresh_lobby_list_calls, 1)

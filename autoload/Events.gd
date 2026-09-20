@@ -124,3 +124,15 @@ signal territory_replicated(raster: TerritoryRaster)
 signal remote_cursor_updated(
 	slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion
 )
+
+# --- M3b: Steam transport (spec 3.4, docs/M3b_PLAN.md P1) -------------------
+
+## Net.init_steam() finished (or the extension isn't installed). `available`
+## mirrors Net.steam_available(); `detail` is a human-readable line for the
+## menu's notice label, never parsed.
+signal net_steam_status_changed(available: bool, detail: String)
+
+## The Steam lobby list changed after Net.refresh_lobby_list(). Each entry is
+## {lobby_id, name, players, max, map}, the Steam-side equivalent of
+## net_games_discovered.
+signal net_steam_lobbies_discovered(lobbies: Array[Dictionary])

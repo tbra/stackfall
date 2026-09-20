@@ -59,8 +59,49 @@ text = "Player"
 [node name="HostButton" type="Button" parent="Center/Panel/Layout"]
 unique_name_in_owner = true
 layout_mode = 2
-focus_neighbor_bottom = NodePath("../GameList")
+focus_neighbor_bottom = NodePath("../SteamSection/HostOnlineButton")
 text = "Host"
+
+[node name="SteamSection" type="VBoxContainer" parent="Center/Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="HostOnlineButton" type="Button" parent="Center/Panel/Layout/SteamSection"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_neighbor_top = NodePath("../../HostButton")
+focus_neighbor_bottom = NodePath("../SteamListRow/SteamLobbyList")
+text = "Host online (Steam)"
+
+[node name="SteamLabel" type="Label" parent="Center/Panel/Layout/SteamSection"]
+layout_mode = 2
+text = "Steam lobbies"
+
+[node name="SteamListRow" type="HBoxContainer" parent="Center/Panel/Layout/SteamSection"]
+layout_mode = 2
+
+[node name="SteamLobbyList" type="ItemList" parent="Center/Panel/Layout/SteamSection/SteamListRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 90)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_neighbor_top = NodePath("../../HostOnlineButton")
+focus_neighbor_bottom = NodePath("../RefreshSteamButton")
+
+[node name="RefreshSteamButton" type="Button" parent="Center/Panel/Layout/SteamSection/SteamListRow"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_neighbor_top = NodePath("../SteamLobbyList")
+focus_neighbor_bottom = NodePath("../../../ListRow/GameList")
+text = "Refresh"
+
+[node name="SteamUnavailableLabel" type="Label" parent="Center/Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 2
+modulate = Color(1, 1, 1, 0.6)
+text = "Steam not available - hidden. Host/join over LAN or direct IP below."
 
 [node name="HSeparator" type="HSeparator" parent="Center/Panel/Layout"]
 layout_mode = 2
@@ -77,7 +118,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 120)
 layout_mode = 2
 size_flags_horizontal = 3
-focus_neighbor_top = NodePath("../../HostButton")
+focus_neighbor_top = NodePath("../../SteamSection/SteamListRow/RefreshSteamButton")
 focus_neighbor_bottom = NodePath("../RefreshButton")
 
 [node name="RefreshButton" type="Button" parent="Center/Panel/Layout/ListRow"]

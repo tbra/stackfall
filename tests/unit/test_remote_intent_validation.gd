@@ -355,6 +355,41 @@ func test_remote_heights_inside_the_band_still_place_at_the_requested_height() -
 		)
 
 
+## Bontago-mv0.1.11: a finite remote origin far off the disk in X/Z is not
+## caught by is_pose_well_formed() (only non-finite poses and out-of-band Y
+## are refused there and at MatchNet's wire boundary) or by territory
+## validation (which only ever refuses, never bounds, the requested point).
+## Spec 2.2 still says any invalid release burns, so the block is consumed
+## and thrown -- but from an origin clamped inside Field's kill plane
+## (Field.KILL_PLANE_RADIUS_FACTOR * map_def.field_radius), not the raw
+## million-meter point, or the burned body free-falls past the kill plane
+## forever (a leaked RigidBody3D plus permanent snapshot traffic for it).
+func test_a_far_off_disk_remote_intent_burns_within_the_kill_plane_area() -> void:
+	var net: MatchNetScript = _make_host_net()
+	_start_playing()
+	var physics: PhysicsTuning = load("res://config/physics_tuning.tres")
+	var half_extent: float = _field.map_def.field_radius * Field.KILL_PLANE_RADIUS_FACTOR * 0.5
+	var far_origins: Array[Vector3] = [
+		_field.to_global(Vector3(1.0e6, physics.hover_height, 0.0)),
+		_field.to_global(Vector3(0.0, physics.hover_height, -1.0e6)),
+	]
+
+	for i: int in range(far_origins.size()):
+		var seq: int = Match.feed_seq(REMOTE_SLOT)
+		_remote_place(net, far_origins[i], 0, Quaternion.IDENTITY, seq)
+
+		assert_eq(net.intents_accepted(REMOTE_SLOT), i + 1, "The block is still consumed and burned (spec 2.2).")
+		assert_eq(_block_count(), i + 1)
+		var block: Block = _blocks_root.get_child(i) as Block
+		var local: Vector3 = _field.to_local(block.global_position)
+		assert_lt(
+			Vector2(local.x, local.z).length(), half_extent,
+			"Burned block %d must spawn inside the kill plane's area, not at the raw far-off-disk origin." % i
+		)
+
+	assert_eq(net.intents_refused(REMOTE_SLOT), 0, "A far-off-disk pose is well-formed; it burns, it is not refused.")
+
+
 func test_malformed_cursor_poses_are_dropped_and_the_last_good_cursor_survives() -> void:
 	var net: MatchNetScript = _make_host_net()
 	_start_playing()
