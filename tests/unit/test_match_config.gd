@@ -105,6 +105,27 @@ func test_sanitize_pads_short_player_colors() -> void:
 	assert_eq(config.player_colors[1], Color.GREEN)
 
 
+func test_clamp_to_connected_peers_matches_player_count_to_peers_and_zeroes_ai() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	config.player_count = 8
+	config.ai_count = 3
+
+	config.clamp_to_connected_peers(2)
+
+	assert_eq(config.player_count, 2, "no slot may be left without a connected peer (Bontago-mv0.7)")
+	assert_eq(config.ai_count, 0, "bots don't exist until M5")
+
+
+func test_clamp_to_connected_peers_respects_the_spec_28_range() -> void:
+	var config: MatchConfig = MatchConfig.new()
+
+	config.clamp_to_connected_peers(0)
+	assert_eq(config.player_count, MatchConfig.PLAYER_COUNT_MIN)
+
+	config.clamp_to_connected_peers(99)
+	assert_eq(config.player_count, MatchConfig.PLAYER_COUNT_MAX)
+
+
 func test_team_of_slot_is_free_for_all_by_default() -> void:
 	var config: MatchConfig = MatchConfig.new()
 	config.player_count = 4

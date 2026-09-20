@@ -205,6 +205,28 @@ func _config_from_controls() -> MatchConfig:
 func _apply_data(data: Dictionary) -> void:
 	var config: MatchConfig = MatchConfig.from_dict(data)
 	config.sanitize()
+	# DECISION (ui/Lobby.gd, Bontago-mv0.7 root cause): this screen is
+	# reachable only for networked play (see _config_from_controls()'s own
+	# matching DECISION), but that hot_seat=false override only ever ran
+	# through _config_from_controls() -- reached the *first* time only when a
+	# host actually touched a setting control. _ready()'s own first call
+	# below feeds this function config/match_defaults.tres's dict verbatim,
+	# whose hot_seat is true (M2's own default resource), so a host who never
+	# touched a slider before pressing Start sent hot_seat=true into
+	# Match.start_match(): Match then ran strict single-active-slot turn
+	# alternation across every slot, including the ones player_count left
+	# unowned. Windowed repro (host + client, default settings, Start with no
+	# edits): the HUD's turn banner cycled "Player 2's turn" -> "Player 3's
+	# turn" on *both* instances (Match's own _active_slot advancing on every
+	# auto-drop, not a per-slot real-time timer), and the host's own clicks
+	# were refused REASON_NOT_YOUR_TURN because PlayerController's networked
+	# _acting_slot() (Net.local_slot(), always 0 for the host) rarely lined
+	# up with Match's one shared _active_slot -- read by the owner as "player
+	# 2, 3, 4 place; player 1 is skipped". Forcing it false on every apply,
+	# not just the controls' own publish, closes the gap for the implicit
+	# initial default and for any (malformed or stale) config a client might
+	# ever receive over the wire.
+	config.hot_seat = false
 	_last_config = config
 
 	_applying_remote_data = true
@@ -289,6 +311,7 @@ func _apply_roster(roster_data: Variant) -> void:
 ## the late-joiner snapshot _apply_data() already handles).
 func _on_roster_changed(roster: Array[Dictionary]) -> void:
 	_apply_roster(roster)
+	_mirror_player_count_to_peers(roster.size())
 
 
 func _on_peer_joined(_peer_id: int, _slot_id: int, _player_name: String) -> void:
@@ -304,6 +327,22 @@ func _republish_roster_if_host() -> void:
 		_publish_lobby_data(_last_config if _last_config != null else _config_from_controls())
 
 
+## Bontago-mv0.7: player_count above the number of connected peers leaves a
+## slot nobody holds (see MatchConfig.clamp_to_connected_peers()'s matching
+## DECISION); _on_start_pressed() below is the authoritative clamp (it runs
+## even if a roster event was somehow missed), so this is display-only —
+## keeping the spin from ever *showing* a count the match is about to
+## override the moment Start is pressed. Bots don't exist until M5, so until
+## then the spin simply tracks the peer count exactly rather than letting a
+## host pre-configure a headroom no bot can fill yet.
+func _mirror_player_count_to_peers(peer_count: int) -> void:
+	if net_provider == null or not bool(net_provider.is_host()):
+		return
+	var target: int = clampi(peer_count, MatchConfig.PLAYER_COUNT_MIN, MatchConfig.PLAYER_COUNT_MAX)
+	if int(_player_count_spin.value) != target:
+		_player_count_spin.value = target
+
+
 func _on_ready_toggled(pressed: bool) -> void:
 	if net_provider != null:
 		net_provider.set_local_ready(pressed)
@@ -312,7 +351,24 @@ func _on_ready_toggled(pressed: bool) -> void:
 func _on_start_pressed() -> void:
 	if net_provider == null or not bool(net_provider.is_host()) or not bool(net_provider.all_peers_ready()):
 		return
-	start_requested.emit(_last_config if _last_config != null else _config_from_controls())
+	var config: MatchConfig = (
+		_last_config if _last_config != null else _config_from_controls()
+	).duplicate(true) as MatchConfig
+	# DECISION (ui/Lobby.gd, Bontago-mv0.7): the authoritative peer-count
+	# clamp lives here rather than in autoload/Match.gd's start_match() (the
+	# spec/plan's stated preference) because Match.start_match() is also the
+	# exact call tests/unit/test_match_lifecycle.gd drives through
+	# game/Main.gd's real (peerless) hosted Net session with player_count
+	# values chosen to differ from the connected peer count on purpose, to
+	# prove the *world-rebuild* dance across repeated starts -- a concern
+	# orthogonal to "no phantom slots" that a Match-level clamp would have
+	# broken. ui/Lobby.gd's own Start button is the one call site that both
+	# is exclusively the real product path (game/Main.gd never calls
+	# start_match() for networked play except from here) and already knows
+	# how many peers are actually connected, so the clamp runs here and
+	# Match.start_match() is left exactly as it was.
+	config.clamp_to_connected_peers(net_provider.peer_ids().size())
+	start_requested.emit(config)
 
 
 ## M3b (docs/M3b_PLAN.md P3): opens the Steam overlay's invite dialog. Only

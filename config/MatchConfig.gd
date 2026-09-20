@@ -116,6 +116,22 @@ func team_of_slot(slot_id: int) -> int:
 	return slot_id
 
 
+## Bontago-mv0.7: networked play only has as many real players as connected
+## peers -- bots don't exist until M5 -- so a lobby that starts with
+## player_count above that count leaves a slot with no peer behind it. That
+## slot still gets a feed timer (autoload/Match.gd's _tick_feed) and
+## auto-drops a block at its home flag on every expiry
+## (net/MatchNet.gd's _on_feed_timer_expired), which reads as a phantom
+## player taking a turn. `peer_count` is Net.peer_ids().size() (or a test
+## double's), which counts the host too. Pure and Resource-owned (CLAUDE.md:
+## no scene-tree dependence in config/), so ui/Lobby.gd's own
+## DECISION on where to call this from stays the only place that needs to
+## know about Net.
+func clamp_to_connected_peers(peer_count: int) -> void:
+	player_count = clampi(peer_count, PLAYER_COUNT_MIN, PLAYER_COUNT_MAX)
+	ai_count = 0
+
+
 ## Clamps every field into its spec 2.8 range. The host calls this on any
 ## config that arrived over the wire before using it.
 func sanitize() -> void:

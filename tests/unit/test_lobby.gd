@@ -85,6 +85,31 @@ func test_out_of_range_value_arriving_over_the_wire_is_clamped() -> void:
 	assert_eq(int((lobby.get_node("%GoalFlagSpin") as SpinBox).value), MatchConfig.GOAL_FLAG_MIN)
 
 
+## Bontago-mv0.7 (root cause): config/match_defaults.tres ships hot_seat =
+## true (M2's own hot-seat default), and _ready()'s first _apply_data() call
+## feeds it that Dictionary verbatim -- before a host ever touches a setting
+## control and reaches _config_from_controls()'s own hot_seat = false
+## override. A host who presses Start without editing anything used to send
+## hot_seat = true into Match.start_match(), which then ran strict
+## single-active-slot turn alternation across a real-time networked match
+## (windowed repro: the HUD's turn banner cycled through every slot on both
+## the host and the client, and the host's own clicks were refused
+## REASON_NOT_YOUR_TURN -- read by the owner as "player 1 doesn't work").
+func test_default_lobby_data_is_never_hot_seat() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	assert_false(lobby._last_config.hot_seat, "the lobby is reachable only for networked play")
+
+
+func test_a_config_that_arrives_with_hot_seat_true_is_forced_false() -> void:
+	var lobby: Lobby = _make_lobby(false)
+	var data: Dictionary = MatchConfig.new().to_dict()
+	data["hot_seat"] = true
+
+	Events.net_lobby_data_changed.emit(data)
+
+	assert_false(lobby._last_config.hot_seat, "no config this screen shows may ever be hot-seat")
+
+
 func test_applying_remote_data_does_not_republish() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var fake: FakeNet = _fake_of(lobby)
@@ -140,6 +165,57 @@ func test_start_pressed_emits_start_requested_only_when_ready() -> void:
 	fake.all_peers_ready_value = true
 	lobby._on_start_pressed()
 	assert_signal_emitted(lobby, "start_requested")
+
+
+## Bontago-mv0.7: config/match_defaults.tres ships player_count = 4, but a
+## slot with no connected peer still runs a feed timer (autoload/Match.gd's
+## _tick_feed) and auto-drops a block at its home flag forever -- read by a
+## player as a phantom opponent taking turns. Windowed repro: host + one
+## client, default settings, Start pressed with no edits -- the host's own
+## territory HUD showed P1..P4 bars although only two slots had a human
+## behind them.
+func test_start_clamps_player_count_to_connected_peers() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var fake: FakeNet = _fake_of(lobby)
+	fake.all_peers_ready_value = true
+	fake.slots_by_peer = {1: 0, 2: 1}  # host + exactly one connected client
+	watch_signals(lobby)
+
+	lobby._on_start_pressed()
+
+	assert_signal_emitted(lobby, "start_requested")
+	var config: MatchConfig = get_signal_parameters(lobby, "start_requested")[0]
+	assert_eq(config.player_count, 2, "no slot may be left without a connected peer")
+	assert_eq(config.ai_count, 0, "bots don't exist until M5")
+
+
+func test_start_does_not_shrink_player_count_below_connected_peers() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var fake: FakeNet = _fake_of(lobby)
+	fake.all_peers_ready_value = true
+	fake.slots_by_peer = {1: 0, 2: 1, 3: 2, 4: 3, 5: 4}  # 5 connected peers
+	watch_signals(lobby)
+
+	lobby._on_start_pressed()
+
+	var config: MatchConfig = get_signal_parameters(lobby, "start_requested")[0]
+	assert_eq(config.player_count, 5, "every connected peer must get a slot, not just match_defaults' 4")
+
+
+## Fix 1's UI mirror (docs/AGENT_WORKFLOW.md dispatch: "lobby spin clamps to
+## peers"). The authoritative clamp is test_start_clamps_player_count_to_
+## connected_peers() above; this is display-only, so the spin never *shows* a
+## count the match is about to override the instant Start is pressed.
+func test_roster_change_mirrors_the_player_count_spin_to_the_peer_count() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var roster: Array[Dictionary] = [
+		{"peer_id": 1, "slot_id": 0, "name": "Host", "ready": true},
+		{"peer_id": 2, "slot_id": 1, "name": "Guest", "ready": false},
+	]
+
+	Events.net_roster_changed.emit(roster)
+
+	assert_eq(int((lobby.get_node("%PlayerCountSpin") as SpinBox).value), 2)
 
 
 func test_ready_toggle_calls_set_local_ready() -> void:
