@@ -60,6 +60,17 @@ func test_hole_is_hatched() -> void:
 	assert_eq(ghost.current_tint_color(), ghost.ghost_tuning.hole_tint_color)
 
 
+## Territory v2 (docs/TERRITORY_V2_PLAN.md package C): a goal flag's no-build
+## zone reads the same as a legacy hole — hatched, hole_tint_color — since the
+## spec's "hatched pattern when over a hole" visual language already means
+## "can't build here" for either reason.
+func test_goal_zone_is_hatched() -> void:
+	var ghost: GhostPreview = _make_ghost()
+	ghost.apply_validity(PlacementRules.Result.GOAL_ZONE)
+	assert_eq(ghost.current_state(), GhostPreview.STATE_HOLE)
+	assert_eq(ghost.current_tint_color(), ghost.ghost_tuning.hole_tint_color)
+
+
 func test_switching_back_to_valid_restores_player_color() -> void:
 	var ghost: GhostPreview = _make_ghost()
 	ghost.apply_validity(PlacementRules.Result.CONTESTED)

@@ -15,8 +15,25 @@ enum AiDifficulty { EASY, NORMAL, HARD }
 ## Spec 2.1.
 enum TiltMode { SPECIALS_ONLY, PHYSICAL_BALANCE }
 ## Spec 2.2. TEMPORARY closes a hole hole_close_delay after the overlap ends;
-## PERMANENT never closes it, so the board erodes over the match.
-enum HoleMode { TEMPORARY, PERMANENT }
+## PERMANENT never closes it, so the board erodes over the match. OFF is the
+## no-overlap v2 mode (docs/TERRITORY_V2_PLAN.md): no floor holes at all,
+## ownership decided by TerritoryRaster's argmax fill.
+##
+## DECISION (config/MatchConfig.gd, Bontago-cmc.7): reverted to TEMPORARY as
+## the default. SPEC.md's 2026-09-20 evidence audit ("Decisions made — current
+## target": "restore overlap holes as the fidelity target... The no-overlap v2
+## mode is optional, not the default") supersedes the earlier owner answer
+## this comment used to cite -- the installed original's own tutorial text
+## confirms overlap sinking (docs/ORIGINAL_INSTALL_EVIDENCE.md), which the v2
+## OFF default contradicted. Point-ray placement, continuous solving and goal
+## no-build zones are retained owner requirements and now apply under every
+## mode (autoload/Match.gd, core/rules/PlacementRules.gd), not just OFF.
+##
+## DECISION (config/MatchConfig.gd): OFF is **appended** rather than inserted,
+## so the existing two values keep their ints and every already-serialized raw
+## 0 or 1 -- a .tres on disk, a saved lobby preset, a peer still running the
+## previous build -- keeps meaning exactly what it meant.
+enum HoleMode { TEMPORARY, PERMANENT, OFF }
 
 ## -- Spec 2.8 table, in order -----------------------------------------------
 @export var map_variant: MapVariant = MapVariant.ROUND
@@ -167,7 +184,7 @@ func sanitize() -> void:
 	goal_flag_count = clampi(goal_flag_count, GOAL_FLAG_MIN, GOAL_FLAG_MAX)
 	special_frequency = clampi(special_frequency, SPECIAL_FREQUENCY_MIN, SPECIAL_FREQUENCY_MAX)
 	tilt_mode = clampi(tilt_mode, TiltMode.SPECIALS_ONLY, TiltMode.PHYSICAL_BALANCE)
-	hole_mode = clampi(hole_mode, HoleMode.TEMPORARY, HoleMode.PERMANENT)
+	hole_mode = clampi(hole_mode, HoleMode.TEMPORARY, HoleMode.OFF) as HoleMode
 	match_timer_minutes = maxi(match_timer_minutes, 0)
 	if player_colors.size() < PLAYER_COUNT_MAX:
 		var defaults: PackedColorArray = default_player_colors()

@@ -34,7 +34,7 @@ func _home(x: float, z: float, team: int, slot: int = -1) -> InfluenceCircle:
 
 
 func _rasterize(circles: Array[InfluenceCircle], delta: float = 0.1) -> void:
-	_raster.update(circles, _solver.solve(circles), delta, false)
+	_raster.update(circles, _solver.solve(circles), delta, true, false)
 
 
 ## A team-0 home circle at the disk centre, so cells within home_radius are mine.
@@ -283,3 +283,170 @@ func test_is_no_origin_recognises_the_sentinel_only() -> void:
 	assert_true(PlacementRules.is_no_origin(PlacementRules.NO_ORIGIN))
 	assert_false(PlacementRules.is_no_origin(Vector2.ZERO))
 	assert_false(PlacementRules.is_no_origin(Vector2(1000.0, -1000.0)))
+
+
+## -- v2: one point, no footprint (docs/TERRITORY_V2_PLAN.md) ------------------
+##
+## Owner clarifications 2026-09-20: "Placement check: one raycast from the
+## middle of the ghost block straight down; the hit point must be inside your
+## own area and outside every goal flag's area. No cell footprint tests."
+## Package B does the raycast; everything from the hit point on is here.
+
+const ZONE_RADIUS: float = 3.0
+
+
+## Solves and rasterizes through the v2 (holes_enabled = false) path.
+func _rasterize_v2(circles: Array[InfluenceCircle]) -> void:
+	_raster.update(circles, _solver.solve(circles), 0.1, false, false)
+
+
+## A team-0 home circle at the disk centre under v2 rules.
+func _my_v2_territory() -> void:
+	_rasterize_v2([_home(0.0, 0.0, 0)] as Array[InfluenceCircle])
+
+
+func _validate_point(point: Vector2, team: int = 0) -> PlacementRules.Result:
+	return PlacementRules.validate_point(point, _raster, team)
+
+
+func _closest_point(desired: Vector2, team: int = 0) -> Vector2:
+	return PlacementRules.closest_valid_point(desired, _raster, team, _tuning)
+
+
+func test_a_point_inside_my_own_area_is_valid() -> void:
+	_my_v2_territory()
+	assert_eq(_validate_point(Vector2(0.5, 0.5)), PlacementRules.Result.VALID)
+	assert_eq(_validate_point(Vector2(-4.2, 1.3)), PlacementRules.Result.VALID,
+		"Anywhere inside home_radius = 6 counts, cell boundaries included.")
+
+
+func test_a_point_nobody_owns_is_outside_my_territory() -> void:
+	_my_v2_territory()
+	assert_eq(_validate_point(Vector2(12.5, 0.5)), PlacementRules.Result.OUTSIDE_TERRITORY)
+
+
+func test_another_teams_area_is_outside_mine_point_wise() -> void:
+	_rasterize_v2([_home(-8.0, 0.0, 0), _home(12.0, 0.0, 1)] as Array[InfluenceCircle])
+	assert_eq(_validate_point(Vector2(12.0, 0.0), 0), PlacementRules.Result.OUTSIDE_TERRITORY)
+	assert_eq(_validate_point(Vector2(12.0, 0.0), 1), PlacementRules.Result.VALID)
+
+
+func test_a_point_past_the_rim_is_off_disk() -> void:
+	_rasterize_v2([
+		_home(0.0, 0.0, 0),
+		InfluenceCircle.new(Vector2.ZERO, MAP_RADIUS * 2.0, 0, 0, true, -1),
+	] as Array[InfluenceCircle])
+	assert_eq(_validate_point(Vector2(0.5, 0.5)), PlacementRules.Result.VALID, "Setup: mid-disk is fine.")
+	assert_eq(_validate_point(Vector2(19.9, 19.9)), PlacementRules.Result.OFF_DISK,
+		"Inside the bounding square but outside the disk.")
+	assert_eq(_validate_point(Vector2(500.0, 0.0)), PlacementRules.Result.OFF_DISK,
+		"And well off the grid entirely.")
+
+
+func test_a_goal_zone_refuses_the_placement_even_on_my_own_ground() -> void:
+	_raster.set_goal_zones(PackedVector2Array([Vector2(0.0, 0.0)]), ZONE_RADIUS)
+	_my_v2_territory()
+	assert_eq(_raster.team_at(_grid.world_to_cell(Vector2(0.0, 0.0)).x,
+		_grid.world_to_cell(Vector2(0.0, 0.0)).y), 0, "Setup: the zone sits on my own area.")
+	assert_eq(_validate_point(Vector2(0.0, 0.0)), PlacementRules.Result.GOAL_ZONE,
+		"The no-build zone wins over ownership: no player may build there.")
+	assert_eq(_validate_point(Vector2(5.0, 0.0)), PlacementRules.Result.VALID,
+		"Just outside the zone, my own area is buildable again.")
+
+
+func test_a_goal_zone_outside_my_area_still_reports_the_zone() -> void:
+	_raster.set_goal_zones(PackedVector2Array([Vector2(12.0, 0.0)]), ZONE_RADIUS)
+	_my_v2_territory()
+	assert_eq(_validate_point(Vector2(12.0, 0.0)), PlacementRules.Result.GOAL_ZONE,
+		"The zone is checked before ownership, so the player is told the real reason.")
+
+
+func test_the_goal_zone_result_maps_to_its_reason() -> void:
+	assert_eq(PlacementRules.reason_for(PlacementRules.Result.GOAL_ZONE),
+		PlacementRules.REASON_GOAL_ZONE)
+
+
+func test_an_already_valid_point_is_returned_untouched() -> void:
+	_my_v2_territory()
+	var desired: Vector2 = Vector2(1.25, -0.75)
+	assert_eq(_closest_point(desired), desired,
+		"The common case must not drift the block off the player's aim.")
+
+
+func test_an_invalid_point_snaps_to_the_nearest_valid_one() -> void:
+	_my_v2_territory()
+	var desired: Vector2 = Vector2(8.5, 0.0)
+	assert_eq(_validate_point(desired), PlacementRules.Result.OUTSIDE_TERRITORY, "Setup.")
+
+	var found: Vector2 = _closest_point(desired)
+	assert_false(PlacementRules.is_no_origin(found), "A valid point exists nearby.")
+	assert_eq(_validate_point(found), PlacementRules.Result.VALID)
+	assert_lt(found.distance_to(desired), 5.0,
+		"home_radius is 6, so the nearest owned ground is about 2.5 m away; the "
+		+ "ring search must not overshoot it.")
+
+
+func test_the_search_walks_out_of_a_goal_zone() -> void:
+	_raster.set_goal_zones(PackedVector2Array([Vector2(0.0, 0.0)]), ZONE_RADIUS)
+	_my_v2_territory()
+	var found: Vector2 = _closest_point(Vector2(0.0, 0.0))
+	assert_false(PlacementRules.is_no_origin(found))
+	assert_eq(_validate_point(found), PlacementRules.Result.VALID)
+	var cell: Vector2i = _grid.world_to_cell(found)
+	assert_false(_raster.is_goal_zone(cell.x, cell.y),
+		"The relocated drop has to land outside the no-build zone.")
+
+
+func test_no_valid_point_within_the_search_radius() -> void:
+	_rasterize_v2([_home(-15.0, 0.0, 0)] as Array[InfluenceCircle])
+	assert_true(PlacementRules.is_no_origin(_closest_point(Vector2(15.0, 0.0))),
+		"With nowhere valid in reach the block has to be rejected, not teleported.")
+
+
+func test_no_valid_point_when_the_team_owns_nothing() -> void:
+	_my_v2_territory()
+	assert_true(PlacementRules.is_no_origin(_closest_point(Vector2(0.5, 0.5), 5)),
+		"Team 5 has no area anywhere.")
+
+
+func test_the_legacy_footprint_path_is_untouched_by_the_point_api() -> void:
+	## Both APIs answer the same raster and now agree on a contested/holed
+	## cell too (Bontago-cmc.7); footprint_cells()/validate() still read whole
+	## footprints, not just a point, which is the only thing the point API
+	## does not reproduce.
+	_rasterize([_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)] as Array[InfluenceCircle])
+	assert_eq(_validate(Vector2(0.5, 0.5)), PlacementRules.Result.CONTESTED)
+
+
+## DECISION (Bontago-cmc.7): validate_point() now also rejects a
+## contested/holed point, so every MatchConfig.HoleMode can validate placement
+## through one raycast + validate_point() (autoload/Match.gd request_place()),
+## without falling back to footprint_cells()/validate() for TEMPORARY/
+## PERMANENT. SPEC.md's 2026-09-20 audit, 3.3 "Placement validation": "one
+## downward ray and the hit-point test... for the normal target rules."
+func test_the_point_api_also_rejects_a_contested_point_under_the_legacy_fill() -> void:
+	_rasterize([_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)] as Array[InfluenceCircle])
+	assert_eq(PlacementRules.validate_point(Vector2(0.5, 0.5), _raster, 0),
+		PlacementRules.Result.CONTESTED,
+		"A contested point is refused with its own reason, not the generic outside-territory one.")
+
+
+func test_the_point_api_also_rejects_a_holed_point_and_it_outranks_contested() -> void:
+	var circles: Array[InfluenceCircle] = [_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)]
+	for i: int in range(10):
+		_rasterize(circles)
+	var cell: Vector2i = _grid.world_to_cell(Vector2(0.5, 0.5))
+	assert_true(_raster.is_hole(cell.x, cell.y), "Setup: the cell has holed through.")
+	assert_eq(PlacementRules.validate_point(Vector2(0.5, 0.5), _raster, 0),
+		PlacementRules.Result.HOLE)
+
+
+func test_the_point_api_still_ignores_hole_and_contested_state_under_the_v2_fill() -> void:
+	## The v2 argmax fill never sets is_hole()/is_contested(), so validate_point
+	## under HoleMode.OFF is unaffected by this change: this pins that a v2
+	## raster answers exactly what it did before.
+	_my_v2_territory()
+	var cell: Vector2i = _grid.world_to_cell(Vector2(0.5, 0.5))
+	assert_false(_raster.is_hole(cell.x, cell.y))
+	assert_false(_raster.is_contested(cell.x, cell.y))
+	assert_eq(_validate_point(Vector2(0.5, 0.5)), PlacementRules.Result.VALID)

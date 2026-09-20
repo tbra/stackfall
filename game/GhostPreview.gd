@@ -16,6 +16,11 @@ extends Node3D
 ## HOLE. It also owns the visual side of a rejected placement (spec 2.2's
 ## "thrown off the map with a visible reject animation") and the auto-drop
 ## flash — both purely cosmetic; PlayerController decides *when* to play them.
+##
+## Territory v2 (docs/TERRITORY_V2_PLAN.md package C): a goal flag's no-build
+## zone (Result.GOAL_ZONE) reads the same as HOLE — hatched, hole_tint_color —
+## reusing the existing "can't build here" visual language rather than adding
+## a fourth tint state or a new GhostTuning field.
 
 const STATE_VALID: StringName = &"valid"
 const STATE_INVALID: StringName = &"invalid"
@@ -167,7 +172,7 @@ func current_state() -> StringName:
 	match _last_result:
 		PlacementRules.Result.VALID:
 			return STATE_VALID
-		PlacementRules.Result.HOLE:
+		PlacementRules.Result.HOLE, PlacementRules.Result.GOAL_ZONE:
 			return STATE_HOLE
 		_:
 			return STATE_INVALID
@@ -189,7 +194,7 @@ func _apply_validity_material() -> void:
 		PlacementRules.Result.VALID:
 			_material.albedo_texture = null
 			_material.albedo_color = Color(_player_color.r, _player_color.g, _player_color.b, ghost_tuning.tint_color.a)
-		PlacementRules.Result.HOLE:
+		PlacementRules.Result.HOLE, PlacementRules.Result.GOAL_ZONE:
 			_material.albedo_texture = _hatch_texture
 			_material.uv1_scale = Vector3(ghost_tuning.hatch_scale, ghost_tuning.hatch_scale, 1.0)
 			_material.albedo_color = ghost_tuning.hole_tint_color

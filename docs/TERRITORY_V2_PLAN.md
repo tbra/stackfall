@@ -3,6 +3,16 @@
 > **Fidelity audit amendment, later 2026-09-20:** the owner subsequently requested priority for concrete original-game evidence. Read `SPEC.md` §§1.2, 2.2–2.5 and 3.3 plus its current decision record before implementing this older plan. Original fixed placement windows and overlap holes now take priority over immediate-reset timers and the `OFF` default proposed below. The owner explicitly retained the 3-second capture hold. This plan remains the historical design for the optional v2/no-overlap alternative; its completed packages do not establish default-rule compliance.
 >
 > **Review findings, not code changes:** `radius - distance` is additively weighted distance, not a power/Laguerre kernel. With radii 10 and 2, centers 3 apart, the large circle wins everywhere: the "never the rival's whole area" claim below is false in general. A pre-clipping circle graph also cannot prove an unbroken route in final owned territory. Per-block top elevation, settled filtering and the lower-team-ID tie-break are design choices, not verified original rules or automatically gameplay-neutral. The raster-smoothing claim below was already disproved by package C (see Beads `Bontago-cmc.5`). Reconcile these findings before treating the existing reasoning as acceptance evidence.
+>
+> **Amendment (2026-09-20, Bontago-cmc.7):** SPEC.md's evidence audit ("Decisions made —
+> current target") restored overlap holes as the fidelity default and made
+> `MatchConfig.hole_mode = TEMPORARY` the default again; `HoleMode.OFF`, the argmax
+> no-overlap ruleset this whole plan describes, is now the **optional** mode, not the
+> default. Read this document as the design of `HoleMode.OFF` specifically, not of the
+> game's default rules. Point-ray placement, continuous solving and goal no-build zones
+> are the parts of this plan the audit *kept* as owner-retained requirements — those now
+> apply under every `hole_mode`, not only `OFF` — see "Reconciled 2026-09-20" at the end
+> of this file for exactly what changed and stayed the same.
 
 Historical basis: the earlier **"Owner clarifications — 2026-09-20"** record and
 `docs/bloody_mess.md` (the owner's own words). The current `docs/SPEC.md` decision record
@@ -528,3 +538,60 @@ Shader correctness itself is not GUT-testable headlessly (no renderer) — same 
 - **Whether `solve_hz = 20` actually clears `bench_territory.gd`'s budget** on the
   reviewer's/owner's actual machine — I can read the last recorded numbers but can't run
   the benchmark from here; package A's acceptance step must re-measure.
+
+## Reconciled 2026-09-20 (Bontago-cmc.7)
+
+SPEC.md's evidence audit reads the installed original's own tutorial text as confirming
+overlap sinking (`docs/ORIGINAL_INSTALL_EVIDENCE.md`), which the "two decisions the
+owner/orchestrator have already settled" note above (no floor holes by default) directly
+contradicted. The audit's "Decisions made — current target" resolves that conflict in
+the original's favor: `MatchConfig.hole_mode` defaults to `TEMPORARY` again; `OFF` (this
+whole plan's argmax ruleset) is the optional no-overlap mode. What that changes, and what
+it does not:
+
+- **Now mode-independent (every `hole_mode`, not just `OFF`):**
+  - **Placement legality.** `autoload/Match.gd`'s `request_place()`/`preview_placement()`
+    no longer branch on `hole_mode` at all: both always cast the one downward raycast and
+    call `PlacementRules.validate_point()`. `footprint_cells()`/`validate()`/
+    `closest_valid_origin()` stay compiled, but only `tests/bench/bench_territory.gd`'s
+    legacy row and their own direct unit tests (`tests/unit/test_placement_rules.gd`) call
+    them now — no live code path reaches them under any mode.
+  - **`validate_point()` itself.** Extended to check `raster.is_hole()`/`is_contested()`
+    before falling back to `team_at()`, so a contested or holed point now returns
+    `Result.HOLE`/`Result.CONTESTED` instead of the generic `OUTSIDE_TERRITORY` it used to
+    report for every non-`OFF` mode. Under `OFF` this is a no-op: `_fill_v2()` never sets
+    either flag, so the check always falls through exactly as before.
+  - **Goal-flag no-build zones.** `_build_territory()` calls `TerritoryRaster.
+    set_goal_zones()` unconditionally now, not only when `hole_mode == OFF`. Zones still
+    only ever block placement (`validate_point()`'s `GOAL_ZONE` case); they never touch
+    `TerritoryRaster`'s hole state or ownership, in either fill.
+  - **The continuous solve rate.** `_tick_territory()`/`_run_territory_step()` were never
+    mode-conditional — `TerritoryTuning.solve_hz` (20 Hz) already drove
+    `TerritoryRaster._fill_legacy()` at the same cadence as `_fill_v2()`, so contest/hole
+    timers under the now-default overlap modes update every solve, not only on placement.
+    No code changed here; only the doc comments (`config/TerritoryTuning.gd`) were brought
+    up to date, since this rate now matters for the default mode, not only the optional one.
+  - **Auto-drop relocation.** `PlacementRules.closest_valid_point()` is the one relocation
+    search `request_place()` calls now, under every mode. It was already point-based and
+    needed no change; only its doc comment was updated to say so and to flag SPEC.md's
+    [OPEN] note that relocate-vs-lose-vs-retain is not evidenced for the original.
+- **Still mode-specific, unchanged by this reconciliation:**
+  - **The raster fill.** `TerritoryRaster.update()`'s `holes_enabled` argument still
+    selects `_fill_legacy()` (`TEMPORARY`/`PERMANENT`) vs. `_fill_v2()` (`OFF`); this plan's
+    argmax formula, tie-break and border math are exactly as designed above, just no
+    longer the default caller's fill.
+  - **Home-flag elimination.** `TEMPORARY`/`PERMANENT` still trigger through
+    `_check_home_flags()` (a hole opening under the flag, spec 2.2's original M2 rule);
+    `OFF` still triggers through `_check_home_flags_v2()` (an enemy circle outscoring the
+    home circle at its own point). SPEC.md's audit flags the overlap-mode trigger as
+    explicitly `[OPEN]` — "the persistent home circle prevents enemy ownership at its
+    center; resolve the trigger before implementation" — and this reconciliation
+    deliberately does **not** invent a new one: keeping the pre-existing, already-tested M2
+    trigger is the least-invented option available, not a claim that it matches the
+    original. See the `# DECISION` at its call site in `autoload/Match.gd`.
+- **Known consequence, not fixed here:** `tests/bench/m2_acceptance.gd`'s scenario (d)
+  (a capture at the goal flag's exact center point) can now fail under `TEMPORARY`,
+  because the goal zone this reconciliation stamps for every mode blocks the scripted
+  march's last step into the flag's own no-build radius. Rewriting that scenario to march
+  to the zone's rim instead of the flag's center point is `Bontago-cmc.6`'s job, not this
+  ticket's.

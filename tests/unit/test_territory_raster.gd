@@ -38,7 +38,7 @@ func _block(x: float, z: float, radius: float, team: int) -> InfluenceCircle:
 ## Solves and rasterizes one frame.
 func _step(circles: Array[InfluenceCircle], delta: float, permanent: bool = TEMPORARY) -> void:
 	var groups: TerritoryGroups = _solver.solve(circles)
-	_raster.update(circles, groups, delta, permanent)
+	_raster.update(circles, groups, delta, true, permanent)
 
 
 func _cell_of(point: Vector2) -> Vector2i:
@@ -104,7 +104,7 @@ func test_teammates_overlap_without_contesting_or_holing() -> void:
 
 	## Run well past hole_delay: a hole must never appear between teammates.
 	for i: int in range(40):
-		_raster.update(circles, groups, 0.1, TEMPORARY)
+		_raster.update(circles, groups, 0.1, true, TEMPORARY)
 		assert_eq(_raster.holes_opened().size(), 0)
 
 	var overlap: Vector2 = Vector2(0.5, 0.5)
@@ -310,3 +310,337 @@ func test_an_empty_solve_leaves_the_disk_unowned() -> void:
 	_step(circles, 0.1)
 	assert_eq(_raster.team_share(0), 0.0)
 	assert_eq(_raster.group_at_point(Vector2.ZERO), TerritoryGroups.NO_GROUP)
+
+
+## -- v2 fill: the argmax field (docs/TERRITORY_V2_PLAN.md, "The formula") -----
+##
+## Owner clarifications 2026-09-20: "Areas of different players never overlap.
+## Where they meet, the border is pushed by the heights of the stacks producing
+## the contested area: the taller local stack gets more of the shared region,
+## but not all of it, and it is the individual contesting stacks that count,
+## never a global per-player value."
+##
+## kernel_value(c, p) = c.radius - distance(p, c.center); the owner of a point
+## is the team of the anchored circle with the largest kernel value there.
+
+## An anchoring (home) circle of an arbitrary radius, so a test can stand in
+## for "a tower this tall" without going through BlockRegistry.
+func _anchor(x: float, z: float, radius: float, team: int, slot: int = -1) -> InfluenceCircle:
+	return InfluenceCircle.new(
+		Vector2(x, z), radius, team, slot if slot >= 0 else team, true, -1
+	)
+
+
+## Solves and rasterizes one frame through the v2 (holes_enabled = false) path.
+func _step_v2(circles: Array[InfluenceCircle], delta: float = 0.1) -> void:
+	var groups: TerritoryGroups = _solver.solve(circles)
+	_raster.update(circles, groups, delta, false, false)
+
+
+func test_v2_two_teams_never_share_a_cell() -> void:
+	var circles: Array[InfluenceCircle] = [_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)]
+	_step_v2(circles)
+
+	var contested: int = 0
+	var owned: int = 0
+	for index: int in _grid.in_disk_cells():
+		var coords: Vector2i = _grid.cell_coords(index)
+		if _raster.group_at(coords.x, coords.y) == TerritoryGroups.CONTESTED:
+			contested += 1
+		if _raster.team_at(coords.x, coords.y) >= 0:
+			owned += 1
+	assert_eq(contested, 0, "The argmax is a function: no cell is ever contested under v2.")
+	assert_gt(owned, 0, "Setup: both circles do claim ground.")
+
+	var overlap: Vector2i = _cell_of(Vector2(0.0, 0.0))
+	var team: int = _raster.team_at(overlap.x, overlap.y)
+	assert_true(team == 0 or team == 1, "Exactly one of the two owns the shared midpoint.")
+	assert_ne(_raster.group_at(overlap.x, overlap.y), TerritoryGroups.NO_GROUP,
+		"An owned cell always carries the winning circle's group.")
+
+
+func test_v2_ties_go_to_the_lower_team_id() -> void:
+	## Perfectly symmetric: both kernels score exactly the same at x = 0.
+	_step_v2([_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)] as Array[InfluenceCircle])
+	assert_eq(_team_at_point(Vector2(0.0, 0.0)), 0,
+		"A dead heat is broken by the lower team id, never left contested.")
+
+
+func test_v2_a_symmetric_border_goes_to_one_team_all_the_way_down() -> void:
+	## Two identical homes either side of x = 0: every cell of the x = 0 column
+	## is an exact tie, so the whole seam must fall to team 0. If the best
+	## score is kept at lower precision than it is computed at, half of these
+	## cells round the other way and the seam comes out speckled.
+	_step_v2([_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)] as Array[InfluenceCircle])
+	var column: int = _cell_of(Vector2(0.0, 0.0)).x
+	var seam: int = 0
+	for cy: int in range(_grid.res):
+		if _raster.team_at(column, cy) < 0:
+			continue
+		seam += 1
+		assert_eq(_raster.team_at(column, cy), 0,
+			"Cell (%d, %d) on the tie column" % [column, cy])
+	assert_gt(seam, 4, "Setup: the seam is several cells long.")
+
+
+func test_v2_the_border_is_pushed_by_height_not_split_down_the_middle() -> void:
+	## r1 = 8 at x = -5 against r2 = 4 at x = +5, so d = 10 and the kernels
+	## cross at (d + r1 - r2) / 2 = 7 from circle 1, i.e. x = +2 -- pushed two
+	## metres past the midpoint of the centres, but nowhere near circle 2's own
+	## centre.
+	var big: float = 8.0
+	var small: float = 4.0
+	var expected_border: float = -5.0 + (10.0 + big - small) * 0.5
+	_step_v2([
+		_anchor(-5.0, 0.0, big, 0), _anchor(5.0, 0.0, small, 1)
+	] as Array[InfluenceCircle])
+
+	assert_eq(_team_at_point(Vector2(0.0, 0.0)), 0,
+		"The midpoint of the two centres belongs to the taller stack, not to nobody.")
+	assert_eq(_team_at_point(Vector2(5.0, 0.0)), 1,
+		"The shorter stack still owns the ground under itself: not all of the "
+		+ "shared region goes to the taller one.")
+
+	## Walk the row of cells through both centres and find where ownership flips.
+	var border: float = INF
+	var row: int = _cell_of(Vector2(0.0, 0.0)).y
+	for cx: int in range(_grid.res):
+		var centre: Vector2 = _grid.cell_center(cx, row)
+		if centre.x < -5.0 or centre.x > 9.0:
+			continue
+		if _raster.team_at(cx, row) == 1:
+			border = centre.x
+			break
+	assert_lt(absf(border - expected_border), CELL + 0.001,
+		"The border sits where radius - distance ties, within one cell.")
+
+
+func test_v2_individual_stacks_count_never_a_team_sum() -> void:
+	## One big team-0 circle against a cluster of five small team-1 ones whose
+	## radii sum to more than the big one's. The cluster must not win ground
+	## none of its circles individually reaches.
+	var circles: Array[InfluenceCircle] = [
+		_anchor(0.0, 0.0, 10.0, 0),
+		_anchor(10.0, 0.0, 2.0, 1),
+		_block(8.0, 0.0, 2.0, 1),
+		_block(6.0, 0.0, 2.0, 1),
+		_block(6.0, 3.0, 2.0, 1),
+		_block(6.0, -3.0, 2.0, 1),
+	]
+	var groups: TerritoryGroups = _solver.solve(circles)
+	assert_eq(groups.groups_of_team(1).size(), 1, "Setup: the cluster is one connected group.")
+	assert_eq(groups.circles_of(groups.groups_of_team(1)[0]).size(), 5,
+		"Setup: all five team-1 circles are anchored.")
+
+	_step_v2(circles)
+	assert_eq(_team_at_point(Vector2(3.0, 0.0)), 0,
+		"No team-1 circle reaches x = 3; five of them together still do not.")
+	assert_eq(_team_at_point(Vector2(7.0, 0.0)), 0,
+		"Even where two small circles overlap, each is compared on its own "
+		+ "kernel value, so the big stack still wins.")
+
+
+func test_v2_a_cut_off_tower_loses_its_area_not_just_the_win_check() -> void:
+	## Mirrors tests/unit/test_territory_solver.gd's cut-off case, asserting on
+	## the raster's owner instead of group membership: home(-10, r6) --
+	## A(-2, r3) -- B(4, r7), with B the tall one, plus a rival whose circle
+	## reaches B's outskirts. B does not reach home on its own (14 > 6 + 7),
+	## so removing A really does cut it off.
+	var home: InfluenceCircle = _home(-10.0, 0.0, 0)
+	var a: InfluenceCircle = _block(-2.0, 0.0, 3.0, 0)
+	var b: InfluenceCircle = _block(4.0, 0.0, 7.0, 0)
+	var rival: InfluenceCircle = _home(14.0, 0.0, 1)
+
+	_step_v2([home, a, b, rival] as Array[InfluenceCircle])
+	assert_eq(_team_at_point(Vector2(4.0, 0.0)), 0,
+		"Setup: connected through A, B owns its own ground.")
+	assert_eq(_team_at_point(Vector2(9.0, 0.0)), 0,
+		"Setup: B out-scores the rival at x = 9 (7 - 5 beats 6 - 5).")
+
+	_step_v2([home, b, rival] as Array[InfluenceCircle])
+	assert_eq(_team_at_point(Vector2(4.0, 0.0)), -1,
+		"Spec 2.2: a cut-off tower's influence is gone from the field, not just "
+		+ "from the win check.")
+	assert_eq(_team_at_point(Vector2(9.0, 0.0)), 1,
+		"And the ground it held falls to whoever else reaches it.")
+
+
+func test_v2_never_opens_a_hole_or_runs_a_contest_timer() -> void:
+	var circles: Array[InfluenceCircle] = [_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)]
+	var cell: Vector2i = _cell_of(Vector2(0.0, 0.0))
+	## Far past hole_delay and hole_close_delay.
+	for i: int in range(60):
+		_step_v2(circles)
+		assert_eq(_raster.holes_opened().size(), 0, "No hole ever opens under v2.")
+		assert_eq(_raster.holes_closed().size(), 0)
+	assert_false(_raster.is_hole(cell.x, cell.y))
+	assert_false(_raster.is_contested(cell.x, cell.y))
+	assert_almost_eq(_raster.contested_time(cell.x, cell.y), 0.0, 0.0001,
+		"The contest timer never starts, so the legacy hole machinery stays asleep.")
+	var states: PackedByteArray = _raster.state_bytes()
+	var index: int = _grid.cell_index(cell.x, cell.y)
+	assert_eq(states[index] & TerritoryRaster.STATE_CONTESTED, 0)
+	assert_eq(states[index] & TerritoryRaster.STATE_HOLE, 0)
+
+
+func test_v2_team_share_splits_the_shared_region_instead_of_voiding_it() -> void:
+	_step_v2([_home(0.0, 0.0, 0)] as Array[InfluenceCircle])
+	var solo: float = _raster.team_share(0)
+	assert_gt(solo, 0.0)
+	assert_lt(solo, 1.0)
+
+	_step_v2([_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)] as Array[InfluenceCircle])
+	assert_lt(_raster.team_share(0), solo,
+		"The rival takes its half of the shared region, so my share shrinks...")
+	assert_gt(_raster.team_share(1), 0.0, "...and turns up on their side of the border.")
+
+
+func test_v2_leaves_cells_off_the_disk_unowned() -> void:
+	_step_v2([_home(0.0, 0.0, 0), _block(0.0, 0.0, 100.0, 0)] as Array[InfluenceCircle])
+	assert_eq(_raster.team_at(0, 0), -1, "The corner of the bounding square is off the disk.")
+	assert_almost_eq(_raster.team_share(0), 1.0, 0.0001,
+		"A circle covering the whole disk owns all of it, corners excluded.")
+
+
+func test_v2_an_empty_solve_leaves_the_disk_unowned() -> void:
+	_step_v2([] as Array[InfluenceCircle])
+	assert_eq(_raster.team_share(0), 0.0)
+	assert_eq(_raster.group_at_point(Vector2.ZERO), TerritoryGroups.NO_GROUP)
+
+
+func test_switching_back_to_the_legacy_path_still_contests() -> void:
+	## The two fills share the scratch arrays, so a v2 frame must not leave
+	## anything behind that stops the legacy frame after it from contesting.
+	var circles: Array[InfluenceCircle] = [_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)]
+	_step_v2(circles)
+	for i: int in range(10):
+		_step(circles, 0.1, TEMPORARY)
+	var cell: Vector2i = _cell_of(Vector2(0.0, 0.0))
+	assert_true(_raster.is_contested(cell.x, cell.y))
+	assert_true(_raster.is_hole(cell.x, cell.y))
+
+
+func test_the_legacy_path_is_what_update_does_by_default() -> void:
+	## holes_enabled defaults to true, so a caller written before v2 keeps
+	## exactly the behaviour it had.
+	var circles: Array[InfluenceCircle] = [_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)]
+	var groups: TerritoryGroups = _solver.solve(circles)
+	for i: int in range(10):
+		_raster.update(circles, groups, 0.1)
+	var cell: Vector2i = _cell_of(Vector2(0.0, 0.0))
+	assert_true(_raster.is_contested(cell.x, cell.y))
+	assert_true(_raster.is_hole(cell.x, cell.y))
+
+
+## -- Goal-flag no-build zones ------------------------------------------------
+##
+## Owner clarifications 2026-09-20: "Goal flags have their own area of
+## influence in which no player may place a block." Orchestrator decision
+## 2026-09-20: the zone blocks placement only, never ownership.
+
+const ZONE_RADIUS: float = 3.0
+
+
+func test_set_goal_zones_marks_exactly_the_cells_within_the_radius() -> void:
+	_raster.set_goal_zones(PackedVector2Array([Vector2(0.0, 0.0)]), ZONE_RADIUS)
+
+	var marked: int = 0
+	for index: int in _grid.in_disk_cells():
+		var coords: Vector2i = _grid.cell_coords(index)
+		var distance: float = _grid.cell_center(coords.x, coords.y).length()
+		var inside: bool = distance <= ZONE_RADIUS
+		assert_eq(_raster.is_goal_zone(coords.x, coords.y), inside,
+			"Cell %d sits %.2f m from the flag" % [index, distance])
+		if inside:
+			marked += 1
+	assert_gt(marked, 0, "Setup: the zone covers some cells.")
+
+
+func test_goal_zones_are_static_and_survive_a_solve() -> void:
+	_raster.set_goal_zones(PackedVector2Array([Vector2(0.0, 0.0)]), ZONE_RADIUS)
+	for i: int in range(5):
+		_step_v2([_home(0.0, 0.0, 0)] as Array[InfluenceCircle])
+	var cell: Vector2i = _cell_of(Vector2(0.0, 0.0))
+	assert_true(_raster.is_goal_zone(cell.x, cell.y),
+		"Zones are rasterized once per match, not per tick.")
+
+
+func test_a_goal_zone_does_not_change_who_owns_the_ground() -> void:
+	_raster.set_goal_zones(PackedVector2Array([Vector2(0.0, 0.0)]), ZONE_RADIUS)
+	_step_v2([_home(0.0, 0.0, 0)] as Array[InfluenceCircle])
+	var cell: Vector2i = _cell_of(Vector2(0.0, 0.0))
+	assert_true(_raster.is_goal_zone(cell.x, cell.y), "Setup.")
+	assert_eq(_raster.team_at(cell.x, cell.y), 0,
+		"A player's area must be able to reach through a goal's zone: winning "
+		+ "needs the flag base inside it.")
+
+
+func test_state_bytes_carry_the_goal_zone_bit_and_only_there() -> void:
+	_raster.set_goal_zones(PackedVector2Array([Vector2(-8.0, 0.0)]), ZONE_RADIUS)
+	_step_v2([_home(0.0, 0.0, 0)] as Array[InfluenceCircle])
+
+	var states: PackedByteArray = _raster.state_bytes()
+	assert_eq(states.size(), _grid.cell_count())
+	var inside: Vector2i = _cell_of(Vector2(-8.0, 0.0))
+	var outside: Vector2i = _cell_of(Vector2(8.0, 0.0))
+	assert_eq(
+		states[_grid.cell_index(inside.x, inside.y)] & TerritoryRaster.STATE_GOAL_ZONE,
+		TerritoryRaster.STATE_GOAL_ZONE
+	)
+	assert_eq(states[_grid.cell_index(outside.x, outside.y)] & TerritoryRaster.STATE_GOAL_ZONE, 0)
+	assert_eq(states[0], 0, "An off-disk cell carries no state bits at all.")
+
+
+func test_the_goal_zone_bit_coexists_with_the_legacy_contested_and_hole_bits() -> void:
+	## STATE_GOAL_ZONE is bit 2, so both rulesets' bits fit in one byte.
+	_raster.set_goal_zones(PackedVector2Array([Vector2(0.0, 0.0)]), ZONE_RADIUS)
+	var circles: Array[InfluenceCircle] = [_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)]
+	for i: int in range(10):
+		_step(circles, 0.1, TEMPORARY)
+	var cell: Vector2i = _cell_of(Vector2(0.0, 0.0))
+	var byte: int = _raster.state_bytes()[_grid.cell_index(cell.x, cell.y)]
+	assert_eq(byte & TerritoryRaster.STATE_CONTESTED, TerritoryRaster.STATE_CONTESTED)
+	assert_eq(byte & TerritoryRaster.STATE_HOLE, TerritoryRaster.STATE_HOLE)
+	assert_eq(byte & TerritoryRaster.STATE_GOAL_ZONE, TerritoryRaster.STATE_GOAL_ZONE)
+
+
+func test_a_replicated_mirror_learns_the_goal_zones_from_the_state_bytes() -> void:
+	var host: TerritoryRaster = _raster
+	host.set_goal_zones(PackedVector2Array([Vector2(0.0, 0.0)]), ZONE_RADIUS)
+	_step_v2([_home(0.0, 0.0, 0)] as Array[InfluenceCircle])
+
+	var mirror: TerritoryRaster = TerritoryRaster.new(_grid, _tuning)
+	mirror.apply_replicated_state(host.owner_bytes(), host.state_bytes())
+
+	var inside: Vector2i = _cell_of(Vector2(0.0, 0.0))
+	var outside: Vector2i = _cell_of(Vector2(12.0, 0.0))
+	assert_true(mirror.is_goal_zone(inside.x, inside.y),
+		"A client's ghost tint has to refuse a goal zone too (M3a: the mirror "
+		+ "answers what the host answers).")
+	assert_false(mirror.is_goal_zone(outside.x, outside.y))
+	assert_eq(mirror.team_at(inside.x, inside.y), 0, "And ownership still mirrors.")
+
+
+func test_out_of_bounds_cells_are_never_goal_zones() -> void:
+	_raster.set_goal_zones(PackedVector2Array([Vector2(0.0, 0.0)]), ZONE_RADIUS)
+	assert_false(_raster.is_goal_zone(-1, 0))
+	assert_false(_raster.is_goal_zone(9999, 0))
+	assert_false(_raster.is_goal_zone_index(-1))
+	assert_false(_raster.is_goal_zone_index(_grid.cell_count()))
+
+
+func test_setting_the_zones_again_replaces_them() -> void:
+	_raster.set_goal_zones(PackedVector2Array([Vector2(-8.0, 0.0)]), ZONE_RADIUS)
+	_raster.set_goal_zones(PackedVector2Array([Vector2(8.0, 0.0)]), ZONE_RADIUS)
+	var old_cell: Vector2i = _cell_of(Vector2(-8.0, 0.0))
+	var new_cell: Vector2i = _cell_of(Vector2(8.0, 0.0))
+	assert_false(_raster.is_goal_zone(old_cell.x, old_cell.y), "The old layout is gone.")
+	assert_true(_raster.is_goal_zone(new_cell.x, new_cell.y))
+
+
+func test_reset_clears_the_goal_zones() -> void:
+	_raster.set_goal_zones(PackedVector2Array([Vector2(0.0, 0.0)]), ZONE_RADIUS)
+	_raster.reset()
+	var cell: Vector2i = _cell_of(Vector2(0.0, 0.0))
+	assert_false(_raster.is_goal_zone(cell.x, cell.y),
+		"A new match re-stamps its own goal layout.")

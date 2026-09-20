@@ -273,6 +273,55 @@ func _on_hole_cells_changed(opened: PackedInt32Array, closed: PackedInt32Array) 
 	set_hole_cells(opened, closed)
 
 
+# --- Placement validity raycast (docs/TERRITORY_V2_PLAN.md) -----------------
+
+## The v2 ruleset's one physics query (owner clarifications 2026-09-20): "just
+## do a raycast from the middle of the ghost block and straight down". Casts
+## from `map_def.cell_wake_height` above the disk down to `tuning.kill_plane_y`
+## against the live physics world (the disk's own cell collision and every
+## resting block), and returns the hit point converted to disk-local (x, z),
+## or null when nothing was hit (only possible off the rim with nothing
+## beneath).
+##
+## Deliberately independent of however `world_origin` itself was aimed —
+## PlayerController's own ghost-follow ray can graze the side of a tower at an
+## angle; this always asks "what is directly beneath the ghost's current
+## position", straight down along the disk's own vertical axis.
+##
+## DECISION (game/Field.gd): the start/end heights are read off through
+## world_from_disk_local() (disk-local (x, z) plus a height) rather than by
+## building world-space points directly from `world_origin.y`, `cell_
+## wake_height` and `kill_plane_y` as bare world Y values. That matches how
+## Field's own wake_blocks_above_cells() and _build_kill_plane() already treat
+## those two numbers — as heights along the disk's own axis, converted through
+## the disk's transform — so this raycast keeps working unchanged once M4 lets
+## Field tilt (disk_local_from_world()/world_from_disk_local() are documented
+## as "the only two functions that change" then). `world_origin.y` itself is
+## never read: only its (x, z) projection onto the disk matters here.
+func raycast_down_disk_local(world_origin: Vector3) -> Variant:
+	if not is_inside_tree():
+		return null
+	var world: World3D = get_world_3d()
+	if world == null:
+		return null
+	var space: PhysicsDirectSpaceState3D = world.direct_space_state
+	if space == null:
+		return null
+
+	var local_xz: Vector2 = disk_local_from_world(world_origin)
+	var start: Vector3 = world_from_disk_local(local_xz, map_def.cell_wake_height)
+	var end: Vector3 = world_from_disk_local(local_xz, tuning.kill_plane_y)
+	var params: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(start, end)
+	params.collide_with_bodies = true
+	params.collide_with_areas = false
+	params.exclude = []
+
+	var hit: Dictionary = space.intersect_ray(params)
+	if hit.is_empty():
+		return null
+	return disk_local_from_world(hit["position"] as Vector3)
+
+
 ## Called by game/Main.gd's _end_match_world() when a match's world comes down
 ## (Beads Bontago-mv0.1.9): drops every trace of the match that just ended --
 ## its flags, the overlay's reference to its raster, and every hole it opened

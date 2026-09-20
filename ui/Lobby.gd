@@ -113,7 +113,17 @@ func _populate_options() -> void:
 	_fill_option(_ai_difficulty_option, ["Easy", "Normal", "Hard"])
 	_fill_option(_team_mode_option, ["Off", "2 teams", "3 teams", "4 teams"])
 	_fill_option(_tilt_mode_option, ["Specials only", "Physical balance"])
-	_fill_option(_hole_mode_option, ["Temporary", "Permanent"])
+	# Territory v2 (docs/TERRITORY_V2_PLAN.md) added HoleMode.OFF (= 2,
+	# appended after TEMPORARY/PERMANENT) as the optional no-overlap mode.
+	# "Off" must still be the option list's third item, at the same index as
+	# the enum value, or OptionButton.selected = 2 on a 2-item list is
+	# silently ignored and a config asking for OFF is stuck on legacy holes
+	# (found by package A, Bontago-cmc.4). MatchConfig.hole_mode's own default
+	# reverted to TEMPORARY (Bontago-cmc.7, SPEC.md's 2026-09-20 evidence
+	# audit); the lobby shows whatever config/match_defaults.tres stores
+	# (_ready()'s _apply_data(default_config.to_dict())), so no lobby-side
+	# default needs to move separately.
+	_fill_option(_hole_mode_option, ["Temporary", "Permanent", "Off"])
 
 
 func _fill_option(option: OptionButton, labels: Array) -> void:

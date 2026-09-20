@@ -29,7 +29,24 @@ extends Resource
 @export var max_circles: int = 400
 
 ## -- Rates (spec 3.3 "Recompute territory at 10 Hz", 3.4 "diffs at 5 Hz") ---
-@export var solve_hz: float = 10.0
+## DECISION (config/TerritoryTuning.gd): raised from spec 3.3's 10.0 to 20.0
+## for the v2 rules. Owner clarifications 2026-09-20: "The area must update
+## continuously -- if a stack falls the circles shrink/vanish immediately, not
+## only when a new block is placed." BlockRegistry's settled flag already
+## flips every physics frame, so the only lag left is how often the field is
+## re-solved, and 50 ms is short enough that a toppling tower reads as
+## instant. A full physics-tick rate would roughly triple the cost for a
+## difference no player can see. Re-measured on tests/bench/bench_territory.tscn
+## at this rate; see hash_cell_size below for the standing protocol when the
+## budget is missed.
+## DECISION (config/TerritoryTuning.gd, Bontago-cmc.7): this rate drives
+## autoload/Match.gd's _tick_territory()/_run_territory_step() the same way
+## under every MatchConfig.HoleMode -- TerritoryRaster._fill_legacy() (the
+## default TEMPORARY/PERMANENT modes since the 2026-09-20 evidence audit) runs
+## on the identical solve_accum loop as _fill_v2(), so a moving/collapsing
+## tower's contest and hole state update at this rate too, not just its
+## ownership.
+@export var solve_hz: float = 20.0
 @export var raster_upload_hz: float = 5.0
 
 ## -- Solver spatial hash (spec 3.3) -----------------------------------------
@@ -87,6 +104,21 @@ extends Resource
 @export var hole_close_delay: float = 2.0
 ## Spec 3.3: "Batch the toggles so there are at most 64 per frame."
 @export var max_cell_toggles_per_frame: int = 64
+
+## -- Goal-flag no-build zones (owner clarifications 2026-09-20) -------------
+## "Goal flags have their own area of influence in which no player may place a
+## block." A static disc of this radius around every goal flag, in meters,
+## inside which PlacementRules.validate_point() refuses every placement.
+## Ownership is deliberately unaffected: a player's area has to be able to
+## reach through the zone, because winning means holding the flag's base
+## inside that area (docs/TERRITORY_V2_PLAN.md, "Owner questions").
+##
+## DECISION (config/TerritoryTuning.gd): 4.0 m to start with -- a couple of
+## cube widths of clearance around the pole, big enough that a player cannot
+## wall the flag in with one block and small enough to leave the flag
+## reachable on a 45 m map. A flat rule number like home_radius, not a
+## per-map fraction, so it lives here and not on MapDef. Tune freely by eye.
+@export var goal_zone_radius: float = 4.0
 
 ## -- Win check (spec 2.3) ---------------------------------------------------
 ## One connected territory must contain every goal flag for this long.
