@@ -31,7 +31,7 @@ func _home(x: float, z: float, team: int, slot: int = -1) -> InfluenceCircle:
 
 
 func _rasterize(circles: Array[InfluenceCircle]) -> void:
-	_raster.update(circles, _solver.solve(circles), 0.1, false)
+	_raster.update(circles, _solver.solve(circles), 0.1, true, false)
 
 
 ## Rasterizes `circles`, then advances the win check `ticks` times by `delta`.
@@ -223,3 +223,57 @@ func test_no_goals_at_all_never_captures() -> void:
 	_run(checker, [_home(0.0, 0.0, 0)] as Array[InfluenceCircle], 60)
 	assert_eq(checker.winner(), WinChecker.NO_TEAM,
 		"A match with no goal flags cannot be won by standing still.")
+
+
+## -- The win check against the v2 argmax field -------------------------------
+##
+## docs/TERRITORY_V2_PLAN.md: WinChecker is unchanged; it keeps working once
+## the raster's fill produces v2's ownership groups instead of cell-stamped
+## ones. These pin that, so a later change to the fill cannot quietly break
+## the capture rule.
+
+func _rasterize_v2(circles: Array[InfluenceCircle]) -> void:
+	_raster.update(circles, _solver.solve(circles), 0.1, false, false)
+
+
+func _run_v2(
+	checker: WinChecker, circles: Array[InfluenceCircle], ticks: int, delta: float = 0.1
+) -> void:
+	_rasterize_v2(circles)
+	for i: int in range(ticks):
+		checker.update(_raster, delta)
+
+
+func test_v2_a_goal_inside_my_area_captures_after_capture_hold() -> void:
+	var checker: WinChecker = _checker(PackedVector2Array([CENTRE_GOAL]))
+	_run_v2(checker, [_home(0.0, 0.0, 0)] as Array[InfluenceCircle], 60)
+	assert_eq(checker.winner(), 0, "Spec 2.3 still decides the match off the raster.")
+
+
+func test_v2_a_goal_where_two_areas_meet_belongs_to_the_argmax_winner() -> void:
+	## Under v2 no cell is contested, so a goal between two equal stacks is not
+	## neutral ground any more: whichever circle scores higher there holds it,
+	## and a dead heat goes to the lower team id.
+	var checker: WinChecker = _checker(PackedVector2Array([CENTRE_GOAL]))
+	_run_v2(checker, [_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)] as Array[InfluenceCircle], 60)
+	assert_eq(checker.capturing_team(), 0)
+	assert_eq(checker.winner(), 0)
+
+
+func test_v2_a_cut_off_tower_cannot_hold_a_goal() -> void:
+	## home(-10, r6) -- A(-2, r3) -- B(4, r7); the goal sits inside B only, and
+	## B does not reach home on its own (14 > 6 + 7), so removing A really cuts.
+	var goal: PackedVector2Array = PackedVector2Array([Vector2(6.0, 0.0)])
+	var home: InfluenceCircle = _home(-10.0, 0.0, 0)
+	var a: InfluenceCircle = InfluenceCircle.new(Vector2(-2.0, 0.0), 3.0, 0, 0, false, 0)
+	var b: InfluenceCircle = InfluenceCircle.new(Vector2(4.0, 0.0), 7.0, 0, 0, false, 1)
+
+	var connected: WinChecker = _checker(goal)
+	_run_v2(connected, [home, a, b] as Array[InfluenceCircle], 60)
+	assert_eq(connected.winner(), 0, "Setup: connected through A, B holds the goal.")
+
+	var severed: WinChecker = _checker(goal)
+	_run_v2(severed, [home, b] as Array[InfluenceCircle], 60)
+	assert_eq(severed.capturing_team(), WinChecker.NO_TEAM,
+		"Cut off from home, B's circle is not in the field at all.")
+	assert_eq(severed.winner(), WinChecker.NO_TEAM)

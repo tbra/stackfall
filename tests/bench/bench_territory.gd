@@ -3,15 +3,22 @@ extends Node3D
 ## time for 200 circles on map M, budget <= 8 ms per solve at 10 Hz". Run
 ## headless:
 ##   godot --headless --path . res://tests/bench/bench_territory.tscn
-## Prints one machine-readable result line per circle count, then quits.
+## Prints one machine-readable result line per fill mode and circle count,
+## then quits.
+##
+## docs/TERRITORY_V2_PLAN.md, package A acceptance: the same 8 ms budget now
+## covers the **v2** argmax fill at the new solve_hz (20 Hz, so 50 ms
+## available per solve), and the legacy stamp-and-contest fill keeps its own
+## row as a regression guard -- it is still what the lobby's holes mode runs.
 ##
 ## Pure logic, so there is no physics to step: everything happens in _ready.
-## The 200-circle row is the graded one; the larger rows are there to show how
-## the cost grows towards a full eight-player match.
+## The 200-circle rows are the graded ones; the larger rows are there to show
+## how the cost grows towards a full eight-player match.
 
 ## The graded configuration.
 const GRADED_CIRCLES: int = 200
-## Spec 3.3 / docs/M2_PLAN.md: 8 ms of the 100 ms available at solve_hz = 10.
+## Spec 3.3 / docs/M2_PLAN.md: 8 ms per solve, of the 50 ms available at
+## solve_hz = 20.
 const BUDGET_MS: float = 8.0
 ## Extra rows for context only, not graded.
 const EXTRA_CIRCLES: Array[int] = [400, 600]
@@ -36,17 +43,22 @@ func _ready() -> void:
 		]
 	)
 
-	var passed: bool = _measure(grid, GRADED_CIRCLES, true)
+	# The v2 fill is the one the default ruleset runs, so it is graded; the
+	# legacy fill is graded too, because a mode the lobby can still pick has to
+	# stay inside the same budget it did before v2.
+	var passed: bool = _measure(grid, GRADED_CIRCLES, true, false)
+	passed = _measure(grid, GRADED_CIRCLES, true, true) and passed
 	for count: int in EXTRA_CIRCLES:
-		_measure(grid, count, false)
+		_measure(grid, count, false, false)
+		_measure(grid, count, false, true)
 
 	print("BENCH_TERRITORY result=%s" % ["PASS" if passed else "FAIL"])
 	get_tree().quit(0 if passed else 1)
 
 
-## Times RUNS solve+raster+win-check cycles and prints one row. Returns whether
-## the average landed inside the budget.
-func _measure(grid: CellGrid, count: int, graded: bool) -> bool:
+## Times RUNS solve+raster+win-check cycles through one fill mode and prints
+## one row. Returns whether the average landed inside the budget.
+func _measure(grid: CellGrid, count: int, graded: bool, holes_enabled: bool) -> bool:
 	var solver: TerritorySolver = TerritorySolver.new(_tuning)
 	var raster: TerritoryRaster = TerritoryRaster.new(grid, _tuning)
 	var checker: WinChecker = WinChecker.new(
@@ -58,7 +70,7 @@ func _measure(grid: CellGrid, count: int, graded: bool) -> bool:
 	# One untimed cycle so the first run does not pay for the lazily built
 	# in-disk cell list and the scratch buffers growing to size.
 	var warm: TerritoryGroups = solver.solve(circles)
-	raster.update(circles, warm, delta, false)
+	raster.update(circles, warm, delta, holes_enabled, false)
 	checker.update(raster, delta)
 
 	var solve_us: int = 0
@@ -69,7 +81,7 @@ func _measure(grid: CellGrid, count: int, graded: bool) -> bool:
 		var t0: int = Time.get_ticks_usec()
 		groups = solver.solve(circles)
 		var t1: int = Time.get_ticks_usec()
-		raster.update(circles, groups, delta, false)
+		raster.update(circles, groups, delta, holes_enabled, false)
 		var t2: int = Time.get_ticks_usec()
 		checker.update(raster, delta)
 		var t3: int = Time.get_ticks_usec()
@@ -84,9 +96,10 @@ func _measure(grid: CellGrid, count: int, graded: bool) -> bool:
 	var within: bool = total_ms <= BUDGET_MS
 
 	print(
-		("BENCH_TERRITORY blocks=%d circles=%d graded=%s total_ms=%.3f solve_ms=%.3f "
+		("BENCH_TERRITORY mode=%s blocks=%d circles=%d graded=%s total_ms=%.3f solve_ms=%.3f "
 		+ "raster_ms=%.3f win_ms=%.3f budget_ms=%.1f within_budget=%s groups=%d pairs=%d "
 		+ "note=debug_interpreter_timing_is_a_ceiling") % [
+			"legacy" if holes_enabled else "v2",
 			count, circles.size(), graded, total_ms, solve_ms, raster_ms, win_ms, BUDGET_MS,
 			within, groups.group_count(), solver.last_pair_count(),
 		]

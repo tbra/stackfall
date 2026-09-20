@@ -15,8 +15,18 @@ enum AiDifficulty { EASY, NORMAL, HARD }
 ## Spec 2.1.
 enum TiltMode { SPECIALS_ONLY, PHYSICAL_BALANCE }
 ## Spec 2.2. TEMPORARY closes a hole hole_close_delay after the overlap ends;
-## PERMANENT never closes it, so the board erodes over the match.
-enum HoleMode { TEMPORARY, PERMANENT }
+## PERMANENT never closes it, so the board erodes over the match. OFF is the
+## default ruleset since the owner's 2026-09-20 answers: no floor holes at
+## all, ownership decided by TerritoryRaster's v2 argmax fill, and goal flags
+## carrying a no-build zone instead (docs/TERRITORY_V2_PLAN.md). The other two
+## keep the whole legacy hole machinery alive as a lobby mode.
+##
+## DECISION (config/MatchConfig.gd): OFF is **appended** rather than inserted,
+## so the existing two values keep their ints and every already-serialized raw
+## 0 or 1 -- a .tres on disk, a saved lobby preset, a peer still running the
+## previous build -- keeps meaning exactly what it meant. Only the default
+## moves, from TEMPORARY to OFF.
+enum HoleMode { TEMPORARY, PERMANENT, OFF }
 
 ## -- Spec 2.8 table, in order -----------------------------------------------
 @export var map_variant: MapVariant = MapVariant.ROUND
@@ -40,7 +50,7 @@ enum HoleMode { TEMPORARY, PERMANENT }
 ## Empty means "every special enabled by default" (M4 populates it).
 @export var enabled_specials: Array[StringName] = []
 @export var tilt_mode: TiltMode = TiltMode.SPECIALS_ONLY
-@export var hole_mode: HoleMode = HoleMode.TEMPORARY
+@export var hole_mode: HoleMode = HoleMode.OFF
 ## Match timer in minutes; 0 is off, otherwise 10-40 (spec 2.8).
 @export var match_timer_minutes: int = 0
 @export var sudden_death: bool = false
@@ -130,7 +140,7 @@ func sanitize() -> void:
 	goal_flag_count = clampi(goal_flag_count, GOAL_FLAG_MIN, GOAL_FLAG_MAX)
 	special_frequency = clampi(special_frequency, SPECIAL_FREQUENCY_MIN, SPECIAL_FREQUENCY_MAX)
 	tilt_mode = clampi(tilt_mode, TiltMode.SPECIALS_ONLY, TiltMode.PHYSICAL_BALANCE)
-	hole_mode = clampi(hole_mode, HoleMode.TEMPORARY, HoleMode.PERMANENT)
+	hole_mode = clampi(hole_mode, HoleMode.TEMPORARY, HoleMode.OFF) as HoleMode
 	match_timer_minutes = maxi(match_timer_minutes, 0)
 	if player_colors.size() < PLAYER_COUNT_MAX:
 		var defaults: PackedColorArray = default_player_colors()

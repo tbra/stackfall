@@ -3,6 +3,16 @@ extends RefCounted
 ## Whether a block may be dropped where the player wants it, and where it goes
 ## instead when it may not (spec 2.2, 2.5, 3.3).
 ##
+## **Two checks, one per ruleset** (docs/TERRITORY_V2_PLAN.md).
+## validate_point()/closest_valid_point() are the default game: owner
+## clarifications 2026-09-20, "one raycast from the middle of the ghost block
+## straight down; the hit point must be inside your own area and outside every
+## goal flag's area. No cell footprint tests." Package B does the raycast;
+## everything from the hit point on is here.
+## footprint_cells()/validate()/closest_valid_origin() are spec 3.3's original
+## multi-cell check, unchanged, and still what the lobby's holes mode uses --
+## they are the only path that can ever report CONTESTED or HOLE.
+##
 ## Spec 3.3: "On the host, the cell under the ghost's footprint must be owned
 ## by the placing player's team and not contested or a hole." Every cell of
 ## the footprint has to pass, not just the center one.
@@ -33,6 +43,11 @@ enum Result {
 	OFF_DISK,
 	## The footprint has no cells at all, which means a malformed intent.
 	EMPTY,
+	## The point falls inside a goal flag's no-build zone. Produced only by
+	## validate_point(); appended rather than inserted so the ordinals the
+	## legacy cases already have do not move, and deliberately outside
+	## validate()'s "worst finding wins" severity order, which never sees it.
+	GOAL_ZONE,
 }
 
 ## Machine-readable reasons, carried by Events.placement_rejected and returned
@@ -44,6 +59,7 @@ const REASON_CONTESTED: StringName = &"contested"
 const REASON_HOLE: StringName = &"hole"
 const REASON_OFF_DISK: StringName = &"off_disk"
 const REASON_EMPTY: StringName = &"empty_footprint"
+const REASON_GOAL_ZONE: StringName = &"goal_zone"
 ## Raised by Match, not by validate(): the slot is not the hot-seat player
 ## whose turn it is, or it is holding nothing.
 const REASON_NOT_YOUR_TURN: StringName = &"not_your_turn"
@@ -174,6 +190,8 @@ static func reason_for(result: Result) -> StringName:
 			return REASON_OFF_DISK
 		Result.EMPTY:
 			return REASON_EMPTY
+		Result.GOAL_ZONE:
+			return REASON_GOAL_ZONE
 		_:
 			return REASON_OK
 
@@ -216,3 +234,60 @@ static func closest_valid_origin(
 
 static func is_no_origin(origin: Vector2) -> bool:
 	return is_inf(origin.x) or is_inf(origin.y)
+
+
+## -- The v2 point check ------------------------------------------------------
+
+## Spec 3.3's check reduced to the single point the owner's raycast hit
+## (owner clarifications 2026-09-20). `point` is disk-local (x, z), already
+## converted by the caller; this never touches physics.
+##
+## Order matters: off the disk first, because a point past the rim has no cell
+## to ask anything about; then the goal flags' no-build zones, so a player
+## standing in their own territory around a flag is told the real reason they
+## cannot build there; then ownership. Holes are not consulted -- the only
+## ruleset that opens one is the legacy footprint path, which has its own
+## check.
+static func validate_point(
+	point: Vector2, raster: TerritoryRaster, team_id: int
+) -> Result:
+	var grid: CellGrid = raster.grid()
+	var coords: Vector2i = grid.world_to_cell(point)
+	if not grid.in_bounds(coords.x, coords.y) or not grid.is_in_disk(coords.x, coords.y):
+		return Result.OFF_DISK
+	if raster.is_goal_zone(coords.x, coords.y):
+		return Result.GOAL_ZONE
+	if raster.team_at(coords.x, coords.y) != team_id:
+		return Result.OUTSIDE_TERRITORY
+	return Result.VALID
+
+
+## Spec 2.5's auto-drop relocation for the v2 rules: the nearest disk-local
+## point at or around `desired` that validate_point() accepts, or NO_ORIGIN
+## when nothing within auto_drop_search_max_radius does.
+##
+## Same widening-ring geometry as closest_valid_origin(), and the same two
+## tunables, but one point per candidate instead of a rotated footprint --
+## ownership at a candidate is pure math once the raster is filled, so no
+## second raycast is needed either. Returns `desired` untouched when it is
+## already valid, so the common case costs one cell lookup.
+static func closest_valid_point(
+	desired: Vector2, raster: TerritoryRaster, team_id: int, tuning: TerritoryTuning
+) -> Vector2:
+	if validate_point(desired, raster, team_id) == Result.VALID:
+		return desired
+
+	var step: float = maxf(tuning.auto_drop_search_step, 0.001)
+	var limit: float = tuning.auto_drop_search_max_radius
+	var radius: float = step
+	while radius <= limit:
+		# Enough samples that neighbouring candidates on the ring sit about one
+		# step apart, so the scan cannot thread past a valid pocket of cells.
+		var samples: int = maxi(1, ceili(TAU * radius / step))
+		for i: int in range(samples):
+			var angle: float = TAU * float(i) / float(samples)
+			var candidate: Vector2 = desired + Vector2(cos(angle), sin(angle)) * radius
+			if validate_point(candidate, raster, team_id) == Result.VALID:
+				return candidate
+		radius += step
+	return NO_ORIGIN
