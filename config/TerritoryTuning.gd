@@ -39,6 +39,13 @@ extends Resource
 ## difference no player can see. Re-measured on tests/bench/bench_territory.tscn
 ## at this rate; see hash_cell_size below for the standing protocol when the
 ## budget is missed.
+## DECISION (config/TerritoryTuning.gd, Bontago-cmc.7): this rate drives
+## autoload/Match.gd's _tick_territory()/_run_territory_step() the same way
+## under every MatchConfig.HoleMode -- TerritoryRaster._fill_legacy() (the
+## default TEMPORARY/PERMANENT modes since the 2026-09-20 evidence audit) runs
+## on the identical solve_accum loop as _fill_v2(), so a moving/collapsing
+## tower's contest and hole state update at this rate too, not just its
+## ownership.
 @export var solve_hz: float = 20.0
 @export var raster_upload_hz: float = 5.0
 

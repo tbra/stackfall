@@ -16,16 +16,23 @@ enum AiDifficulty { EASY, NORMAL, HARD }
 enum TiltMode { SPECIALS_ONLY, PHYSICAL_BALANCE }
 ## Spec 2.2. TEMPORARY closes a hole hole_close_delay after the overlap ends;
 ## PERMANENT never closes it, so the board erodes over the match. OFF is the
-## default ruleset since the owner's 2026-09-20 answers: no floor holes at
-## all, ownership decided by TerritoryRaster's v2 argmax fill, and goal flags
-## carrying a no-build zone instead (docs/TERRITORY_V2_PLAN.md). The other two
-## keep the whole legacy hole machinery alive as a lobby mode.
+## no-overlap v2 mode (docs/TERRITORY_V2_PLAN.md): no floor holes at all,
+## ownership decided by TerritoryRaster's argmax fill.
+##
+## DECISION (config/MatchConfig.gd, Bontago-cmc.7): reverted to TEMPORARY as
+## the default. SPEC.md's 2026-09-20 evidence audit ("Decisions made — current
+## target": "restore overlap holes as the fidelity target... The no-overlap v2
+## mode is optional, not the default") supersedes the earlier owner answer
+## this comment used to cite -- the installed original's own tutorial text
+## confirms overlap sinking (docs/ORIGINAL_INSTALL_EVIDENCE.md), which the v2
+## OFF default contradicted. Point-ray placement, continuous solving and goal
+## no-build zones are retained owner requirements and now apply under every
+## mode (autoload/Match.gd, core/rules/PlacementRules.gd), not just OFF.
 ##
 ## DECISION (config/MatchConfig.gd): OFF is **appended** rather than inserted,
 ## so the existing two values keep their ints and every already-serialized raw
 ## 0 or 1 -- a .tres on disk, a saved lobby preset, a peer still running the
-## previous build -- keeps meaning exactly what it meant. Only the default
-## moves, from TEMPORARY to OFF.
+## previous build -- keeps meaning exactly what it meant.
 enum HoleMode { TEMPORARY, PERMANENT, OFF }
 
 ## -- Spec 2.8 table, in order -----------------------------------------------
@@ -50,7 +57,7 @@ enum HoleMode { TEMPORARY, PERMANENT, OFF }
 ## Empty means "every special enabled by default" (M4 populates it).
 @export var enabled_specials: Array[StringName] = []
 @export var tilt_mode: TiltMode = TiltMode.SPECIALS_ONLY
-@export var hole_mode: HoleMode = HoleMode.OFF
+@export var hole_mode: HoleMode = HoleMode.TEMPORARY
 ## Match timer in minutes; 0 is off, otherwise 10-40 (spec 2.8).
 @export var match_timer_minutes: int = 0
 @export var sudden_death: bool = false

@@ -410,10 +410,43 @@ func test_no_valid_point_when_the_team_owns_nothing() -> void:
 
 
 func test_the_legacy_footprint_path_is_untouched_by_the_point_api() -> void:
-	## Both APIs answer the same raster; the legacy one still reads whole
-	## footprints, including the contested and hole cases v2 never produces.
+	## Both APIs answer the same raster and now agree on a contested/holed
+	## cell too (Bontago-cmc.7); footprint_cells()/validate() still read whole
+	## footprints, not just a point, which is the only thing the point API
+	## does not reproduce.
 	_rasterize([_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)] as Array[InfluenceCircle])
 	assert_eq(_validate(Vector2(0.5, 0.5)), PlacementRules.Result.CONTESTED)
+
+
+## DECISION (Bontago-cmc.7): validate_point() now also rejects a
+## contested/holed point, so every MatchConfig.HoleMode can validate placement
+## through one raycast + validate_point() (autoload/Match.gd request_place()),
+## without falling back to footprint_cells()/validate() for TEMPORARY/
+## PERMANENT. SPEC.md's 2026-09-20 audit, 3.3 "Placement validation": "one
+## downward ray and the hit-point test... for the normal target rules."
+func test_the_point_api_also_rejects_a_contested_point_under_the_legacy_fill() -> void:
+	_rasterize([_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)] as Array[InfluenceCircle])
 	assert_eq(PlacementRules.validate_point(Vector2(0.5, 0.5), _raster, 0),
-		PlacementRules.Result.OUTSIDE_TERRITORY,
-		"A contested cell has no owner, so the point check reads it as not mine.")
+		PlacementRules.Result.CONTESTED,
+		"A contested point is refused with its own reason, not the generic outside-territory one.")
+
+
+func test_the_point_api_also_rejects_a_holed_point_and_it_outranks_contested() -> void:
+	var circles: Array[InfluenceCircle] = [_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)]
+	for i: int in range(10):
+		_rasterize(circles)
+	var cell: Vector2i = _grid.world_to_cell(Vector2(0.5, 0.5))
+	assert_true(_raster.is_hole(cell.x, cell.y), "Setup: the cell has holed through.")
+	assert_eq(PlacementRules.validate_point(Vector2(0.5, 0.5), _raster, 0),
+		PlacementRules.Result.HOLE)
+
+
+func test_the_point_api_still_ignores_hole_and_contested_state_under_the_v2_fill() -> void:
+	## The v2 argmax fill never sets is_hole()/is_contested(), so validate_point
+	## under HoleMode.OFF is unaffected by this change: this pins that a v2
+	## raster answers exactly what it did before.
+	_my_v2_territory()
+	var cell: Vector2i = _grid.world_to_cell(Vector2(0.5, 0.5))
+	assert_false(_raster.is_hole(cell.x, cell.y))
+	assert_false(_raster.is_contested(cell.x, cell.y))
+	assert_eq(_validate_point(Vector2(0.5, 0.5)), PlacementRules.Result.VALID)

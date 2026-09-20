@@ -9,7 +9,10 @@ extends Node3D
 ## docs/TERRITORY_V2_PLAN.md, package A acceptance: the same 8 ms budget now
 ## covers the **v2** argmax fill at the new solve_hz (20 Hz, so 50 ms
 ## available per solve), and the legacy stamp-and-contest fill keeps its own
-## row as a regression guard -- it is still what the lobby's holes mode runs.
+## row as a regression guard. Bontago-cmc.7 (SPEC.md's 2026-09-20 evidence
+## audit) reverted MatchConfig.hole_mode's default from OFF back to
+## TEMPORARY, so the legacy row is now what a match runs by default; OFF (the
+## v2 row) is the optional no-overlap mode.
 ##
 ## Pure logic, so there is no physics to step: everything happens in _ready.
 ## The 200-circle rows are the graded ones; the larger rows are there to show

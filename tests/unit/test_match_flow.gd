@@ -507,16 +507,21 @@ func test_match_ends_when_only_one_team_remains() -> void:
 	assert_signal_emitted_with_parameters(Events, "match_won", [1])
 
 
-# --- Territory v2: point placement, goal zones, continuous elimination -----
-# (docs/TERRITORY_V2_PLAN.md package B). config/match_defaults.tres now
-# defaults hole_mode to MatchConfig.HoleMode.OFF (package A), so
-# _hotseat_config() already exercises the v2 path everywhere above unless a
-# test overrides hole_mode; these tests pin that path's behaviour by name.
+# --- Point placement, goal zones, continuous elimination -------------------
+# (docs/TERRITORY_V2_PLAN.md package B, reconciled with SPEC.md's 2026-09-20
+# evidence audit by Bontago-cmc.7). The raycast + PlacementRules.validate_point
+# path these tests are named "_v2_" for was package B's v2-only behaviour when
+# they were written; Bontago-cmc.7 made it every MatchConfig.HoleMode's
+# placement contract (autoload/Match.gd request_place()/preview_placement()),
+# so config/match_defaults.tres's hole_mode no longer has to be OFF for these
+# to hold -- they now hold at whatever the default is
+# (test_match_config.gd pins the default itself; TEMPORARY as of this ticket).
+# The names stay for git blame continuity; the assertions below no longer
+# check which mode is active because none of them depend on it any more.
 
-func test_request_place_v2_accepts_a_point_inside_the_callers_own_territory() -> void:
+func test_request_place_accepts_a_point_inside_the_callers_own_territory() -> void:
 	Match.start_match(_hotseat_config(2))
 	_run_countdown()
-	assert_eq(Match.config.hole_mode, MatchConfig.HoleMode.OFF, "v2 is the default ruleset.")
 
 	var reason: StringName = Match.request_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false)
 
@@ -569,28 +574,34 @@ func test_preview_placement_v2_matches_request_places_own_point_test() -> void:
 	)
 
 
-## _build_territory()'s one new call site (docs/TERRITORY_V2_PLAN.md package
-## B): set_goal_zones() only under the default ruleset, never under legacy
-## hole modes, so legacy stays byte-identical to the pre-v2 game.
-func test_goal_zones_are_stamped_under_v2_but_never_under_legacy_hole_modes() -> void:
-	var config_v2: MatchConfig = _hotseat_config(2)
-	config_v2.hole_mode = MatchConfig.HoleMode.OFF
-	Match.start_match(config_v2)
+## _build_territory()'s one call site (docs/TERRITORY_V2_PLAN.md package B).
+##
+## DECISION (Bontago-cmc.7): previously set_goal_zones() ran only under the
+## OFF default, and this test's own name asserted the opposite of what it now
+## checks -- "never under legacy hole modes" -- to keep legacy byte-identical
+## to the pre-v2 game. SPEC.md's 2026-09-20 audit, 2.2 "Goal no-build zones
+## [OWNER, original unverified]", keeps that requirement as an owner-retained
+## rule the audit did not withdraw, so it now stamps under every hole_mode.
+func test_goal_zones_are_stamped_under_every_hole_mode() -> void:
+	var config_off: MatchConfig = _hotseat_config(2)
+	config_off.hole_mode = MatchConfig.HoleMode.OFF
+	Match.start_match(config_off)
 	_run_countdown()
-	var goal_cell: Vector2i = Match.cell_grid().world_to_cell(Vector2.ZERO)
+	var cell: Vector2i = Match.cell_grid().world_to_cell(Vector2.ZERO)
 	assert_true(
-		Match.raster().is_goal_zone(goal_cell.x, goal_cell.y),
-		"v2 must stamp the default map's one center goal flag's zone at match start."
+		Match.raster().is_goal_zone(cell.x, cell.y),
+		"OFF must stamp the default map's one center goal flag's zone at match start."
 	)
 
-	var config_legacy: MatchConfig = _hotseat_config(2)
-	config_legacy.hole_mode = MatchConfig.HoleMode.TEMPORARY
-	Match.start_match(config_legacy)
-	_run_countdown()
-	assert_false(
-		Match.raster().is_goal_zone(goal_cell.x, goal_cell.y),
-		"Legacy mode must stay byte-identical to before v2: no goal zones."
-	)
+	for mode: MatchConfig.HoleMode in [MatchConfig.HoleMode.TEMPORARY, MatchConfig.HoleMode.PERMANENT]:
+		var config: MatchConfig = _hotseat_config(2)
+		config.hole_mode = mode
+		Match.start_match(config)
+		_run_countdown()
+		assert_true(
+			Match.raster().is_goal_zone(cell.x, cell.y),
+			"Overlap mode %d must stamp the same goal zone: zones block placement in every mode." % mode
+		)
 
 
 func test_check_home_flags_v2_leaves_an_unchallenged_home_alone() -> void:
@@ -647,9 +658,16 @@ func test_check_home_flags_v2_eliminates_a_slot_once_an_enemy_circle_outscores_i
 ## site with only the genuine home circles _collect_circles() builds (no
 ## hand-crafted enemy circle -- see the test above for why bridging a real
 ## 50+ m enemy tower there is the acceptance drive's job, not a unit test's),
-## an unchallenged v2 match must never take the legacy hole branch.
+## an unchallenged OFF match must never take the legacy hole branch.
+##
+## DECISION (Bontago-cmc.7): hole_mode = OFF is now set explicitly rather than
+## relying on _hotseat_config()'s default, since that default reverted to
+## TEMPORARY -- this test's whole point is pinning the v2-only branch, which
+## only OFF still takes.
 func test_run_territory_step_takes_the_v2_branch_and_never_the_legacy_hole_path() -> void:
-	Match.start_match(_hotseat_config(2))
+	var config: MatchConfig = _hotseat_config(2)
+	config.hole_mode = MatchConfig.HoleMode.OFF
+	Match.start_match(config)
 	_run_countdown()
 	watch_signals(Events)
 

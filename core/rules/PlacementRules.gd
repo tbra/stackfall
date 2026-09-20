@@ -3,15 +3,22 @@ extends RefCounted
 ## Whether a block may be dropped where the player wants it, and where it goes
 ## instead when it may not (spec 2.2, 2.5, 3.3).
 ##
-## **Two checks, one per ruleset** (docs/TERRITORY_V2_PLAN.md).
-## validate_point()/closest_valid_point() are the default game: owner
-## clarifications 2026-09-20, "one raycast from the middle of the ghost block
-## straight down; the hit point must be inside your own area and outside every
-## goal flag's area. No cell footprint tests." Package B does the raycast;
-## everything from the hit point on is here.
+## **Two checks; only one runs in live play** (docs/TERRITORY_V2_PLAN.md;
+## reconciled with the 2026-09-20 evidence audit by Bontago-cmc.7).
+## validate_point()/closest_valid_point() are the placement contract for
+## **every** MatchConfig.HoleMode -- owner clarifications 2026-09-20, "one
+## raycast from the middle of the ghost block straight down; the hit point
+## must be inside your own area and outside every goal flag's area. No cell
+## footprint tests", which the audit's SPEC.md 2.5 "Placement legality" keeps
+## verbatim and extends to reject a contested/holed point too (see
+## validate_point()'s own comment). Package B does the raycast in
+## autoload/Match.gd; everything from the hit point on is here.
 ## footprint_cells()/validate()/closest_valid_origin() are spec 3.3's original
-## multi-cell check, unchanged, and still what the lobby's holes mode uses --
-## they are the only path that can ever report CONTESTED or HOLE.
+## multi-cell check. autoload/Match.gd no longer calls them under any
+## hole_mode; they stay compiled only for tests/bench/bench_territory.gd's
+## legacy regression row and this file's own direct unit tests
+## (tests/unit/test_placement_rules.gd), per the audit's instruction not to
+## reintroduce a footprint test in normal play.
 ##
 ## Spec 3.3: "On the host, the cell under the ghost's footprint must be owned
 ## by the placing player's team and not contested or a hole." Every cell of
@@ -239,15 +246,25 @@ static func is_no_origin(origin: Vector2) -> bool:
 ## -- The v2 point check ------------------------------------------------------
 
 ## Spec 3.3's check reduced to the single point the owner's raycast hit
-## (owner clarifications 2026-09-20). `point` is disk-local (x, z), already
+## (owner clarifications 2026-09-20; reaffirmed as the placement contract for
+## every hole_mode by the 2026-09-20 evidence audit, SPEC.md 2.5 "Placement
+## legality" and Bontago-cmc.7). `point` is disk-local (x, z), already
 ## converted by the caller; this never touches physics.
 ##
 ## Order matters: off the disk first, because a point past the rim has no cell
 ## to ask anything about; then the goal flags' no-build zones, so a player
 ## standing in their own territory around a flag is told the real reason they
-## cannot build there; then ownership. Holes are not consulted -- the only
-## ruleset that opens one is the legacy footprint path, which has its own
-## check.
+## cannot build there; then the legacy hole/contested state (SPEC.md 2.2
+## "Overlap holes": "Opposing candidate influence creates a contested region
+## that neither player may use for placement"), so a specific reason beats the
+## generic OUTSIDE_TERRITORY a contested/holed cell's unowned (-1) team would
+## otherwise report; then ownership.
+##
+## is_hole()/is_contested() only ever answer true under the legacy stamp fill
+## (MatchConfig.HoleMode.TEMPORARY/PERMANENT, TerritoryRaster._fill_legacy());
+## the v2 argmax fill (HoleMode.OFF) never sets either, so this same check is
+## exactly the old OFF-only behaviour there -- one function now serves every
+## mode without branching on which fill produced the raster.
 static func validate_point(
 	point: Vector2, raster: TerritoryRaster, team_id: int
 ) -> Result:
@@ -257,14 +274,23 @@ static func validate_point(
 		return Result.OFF_DISK
 	if raster.is_goal_zone(coords.x, coords.y):
 		return Result.GOAL_ZONE
+	if raster.is_hole(coords.x, coords.y):
+		return Result.HOLE
+	if raster.is_contested(coords.x, coords.y):
+		return Result.CONTESTED
 	if raster.team_at(coords.x, coords.y) != team_id:
 		return Result.OUTSIDE_TERRITORY
 	return Result.VALID
 
 
-## Spec 2.5's auto-drop relocation for the v2 rules: the nearest disk-local
-## point at or around `desired` that validate_point() accepts, or NO_ORIGIN
-## when nothing within auto_drop_search_max_radius does.
+## Spec 2.5's auto-drop relocation, now shared by every hole_mode
+## (Bontago-cmc.7): the nearest disk-local point at or around `desired` that
+## validate_point() accepts, or NO_ORIGIN when nothing within
+## auto_drop_search_max_radius does. SPEC.md's 2026-09-20 audit, 2.5 "Expiry
+## and invalid actions", flags relocate-vs-lose-vs-retain as [OPEN] for the
+## original and calls the closest-valid-point search only the remake's own
+## [NEW] fallback -- kept unchanged here because nothing in the audit
+## contradicts it, only notes that it is not evidenced.
 ##
 ## Same widening-ring geometry as closest_valid_origin(), and the same two
 ## tunables, but one point per candidate instead of a rotated footprint --

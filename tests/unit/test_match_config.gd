@@ -121,16 +121,22 @@ func test_map_def_resolves_from_map_size() -> void:
 	assert_almost_eq(config.field_radius(), MapDef.RADIUS_LARGE, 0.001)
 
 
-# --- HoleMode.OFF, the v2 default (docs/TERRITORY_V2_PLAN.md) -----------------
+# --- HoleMode.TEMPORARY, the default again (Bontago-cmc.7) --------------------
+# docs/TERRITORY_V2_PLAN.md's HoleMode.OFF (the v2 no-overlap mode) was the
+# default for a while; SPEC.md's 2026-09-20 evidence audit ("Decisions made —
+# current target": "restore overlap holes as the fidelity target... The
+# no-overlap v2 mode is optional, not the default") reverted it back to
+# TEMPORARY, matching the installed original's own tutorial text
+# (docs/ORIGINAL_INSTALL_EVIDENCE.md: overlap sinking).
 
-func test_holes_are_off_by_default() -> void:
-	assert_eq(MatchConfig.new().hole_mode, MatchConfig.HoleMode.OFF,
-		"Owner answers 2026-09-20: floor holes are out of the default ruleset.")
+func test_holes_are_temporary_by_default() -> void:
+	assert_eq(MatchConfig.new().hole_mode, MatchConfig.HoleMode.TEMPORARY,
+		"SPEC.md 2026-09-20 audit: overlap holes are the fidelity target again.")
 
 
-func test_the_shipped_defaults_resource_also_says_off() -> void:
+func test_the_shipped_defaults_resource_also_says_temporary() -> void:
 	var defaults: MatchConfig = load("res://config/match_defaults.tres") as MatchConfig
-	assert_eq(defaults.hole_mode, MatchConfig.HoleMode.OFF,
+	assert_eq(defaults.hole_mode, MatchConfig.HoleMode.TEMPORARY,
 		"config/match_defaults.tres stores the raw int, so it has to be "
 		+ "re-saved when the enum's default moves.")
 

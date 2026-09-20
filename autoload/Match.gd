@@ -541,38 +541,35 @@ func request_place(
 	var basis: Basis = Basis(free_quat) * BlockOrientations.get_basis(orientation_index)
 	var local_origin: Vector3 = _field.to_local(origin)
 	var disk_origin: Vector2 = Vector2(local_origin.x, local_origin.z)
-	var cube_size: float = _physics_tuning.cube_size
 	var team_id: int = acting_slot.team_id
 
-	# docs/TERRITORY_V2_PLAN.md, "Placement validity": v2 (the default,
-	# hole_mode == OFF) replaces the multi-cell footprint check with one
-	# raycast straight down from `origin` plus one point test; legacy mode is
-	# exactly today's footprint_cells()/validate()/closest_valid_origin()
-	# chain, untouched.
+	# DECISION (autoload/Match.gd, Bontago-cmc.7): every MatchConfig.HoleMode
+	# now uses one raycast straight down from `origin` plus
+	# PlacementRules.validate_point(), not just the old v2-only OFF default.
+	# SPEC.md's 2026-09-20 evidence audit, 2.5 "Placement legality": "cast one
+	# ray straight down from the ghost's middle... Do not require the whole
+	# footprint to fit... not permission to reintroduce footprint territory
+	# tests." validate_point() itself now also rejects a contested/holed point
+	# under the legacy fill (TerritoryRaster._fill_legacy(), which
+	# TEMPORARY/PERMANENT still run every solve), so the point path alone
+	# already reports every case the footprint chain used to.
+	# footprint_cells()/validate()/closest_valid_origin() stay compiled for
+	# tests/bench/bench_territory.gd's legacy regression row and their own
+	# direct unit tests only; this call site never reaches them.
 	var result: PlacementRules.Result
 	var relocated: Vector2 = PlacementRules.NO_ORIGIN
-	if config.hole_mode == MatchConfig.HoleMode.OFF:
-		var hit: Variant = _field.raycast_down_disk_local(origin)
-		if hit == null:
-			# Only possible off the rim with nothing beneath (Field.gd's own
-			# contract for raycast_down_disk_local); disk_origin keeps the flat
-			# projection computed above, which is what the burn clamp below
-			# throws from.
-			result = PlacementRules.Result.OFF_DISK
-		else:
-			disk_origin = hit as Vector2
-			result = PlacementRules.validate_point(disk_origin, _raster, team_id)
-		if result != PlacementRules.Result.VALID and auto_drop:
-			relocated = PlacementRules.closest_valid_point(disk_origin, _raster, team_id, _territory_tuning)
+	var hit: Variant = _field.raycast_down_disk_local(origin)
+	if hit == null:
+		# Only possible off the rim with nothing beneath (Field.gd's own
+		# contract for raycast_down_disk_local); disk_origin keeps the flat
+		# projection computed above, which is what the burn clamp below
+		# throws from.
+		result = PlacementRules.Result.OFF_DISK
 	else:
-		var footprint: PackedInt32Array = PlacementRules.footprint_cells(
-			shape.cells, basis, disk_origin, cube_size, _cell_grid
-		)
-		result = PlacementRules.validate(footprint, _raster, team_id)
-		if result != PlacementRules.Result.VALID and auto_drop:
-			relocated = PlacementRules.closest_valid_origin(
-				disk_origin, shape.cells, basis, cube_size, _cell_grid, _raster, team_id, _territory_tuning
-			)
+		disk_origin = hit as Vector2
+		result = PlacementRules.validate_point(disk_origin, _raster, team_id)
+	if result != PlacementRules.Result.VALID and auto_drop:
+		relocated = PlacementRules.closest_valid_point(disk_origin, _raster, team_id, _territory_tuning)
 	var outcome: Dictionary = _resolve_outcome(result, auto_drop, relocated)
 	var reason: StringName = outcome["reason"]
 	var final_disk_origin: Vector2 = relocated if outcome["use_relocation"] else disk_origin
@@ -651,9 +648,9 @@ func _resolve_outcome(
 
 
 ## Dry run of request_place()'s territory check, for the ghost's valid/red/
-## hatched tint (spec 2.5). v2 costs one raycast plus one point test; legacy
-## costs one footprint build plus one validate. Either way it is safe to call
-## every frame.
+## hatched tint (spec 2.5). One raycast plus one point test, matching
+## request_place() under every MatchConfig.HoleMode (Bontago-cmc.7); safe to
+## call every frame.
 func preview_placement(
 	slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion
 ) -> PlacementRules.Result:
@@ -661,30 +658,20 @@ func preview_placement(
 		return PlacementRules.Result.EMPTY
 	if slot_id < 0 or slot_id >= _slots.size():
 		return PlacementRules.Result.EMPTY
-	var shape: BlockShape = _held_shapes[slot_id]
-	if shape == null:
+	if _held_shapes[slot_id] == null:
 		return PlacementRules.Result.EMPTY
 	if not is_pose_well_formed(origin, orientation_index, free_quat):
 		return PlacementRules.Result.EMPTY
 
 	var team_id: int = _slots[slot_id].team_id
-	if config != null and config.hole_mode == MatchConfig.HoleMode.OFF:
-		# Runs the exact same raycast + point test request_place() will use, on
-		# whichever machine calls it (host or a client's own frozen-body world;
-		# see Field.raycast_down_disk_local's DECISION), so the ghost's tint
-		# always matches what the host would decide (docs/TERRITORY_V2_PLAN.md).
-		var hit: Variant = _field.raycast_down_disk_local(origin)
-		if hit == null:
-			return PlacementRules.Result.OFF_DISK
-		return PlacementRules.validate_point(hit as Vector2, _raster, team_id)
-
-	var basis: Basis = Basis(free_quat) * BlockOrientations.get_basis(orientation_index)
-	var local_origin: Vector3 = _field.to_local(origin)
-	var disk_origin: Vector2 = Vector2(local_origin.x, local_origin.z)
-	var footprint: PackedInt32Array = PlacementRules.footprint_cells(
-		shape.cells, basis, disk_origin, _physics_tuning.cube_size, _cell_grid
-	)
-	return PlacementRules.validate(footprint, _raster, team_id)
+	# Runs the exact same raycast + point test request_place() will use, on
+	# whichever machine calls it (host or a client's own frozen-body world;
+	# see Field.raycast_down_disk_local's DECISION), so the ghost's tint
+	# always matches what the host would decide (docs/TERRITORY_V2_PLAN.md).
+	var hit: Variant = _field.raycast_down_disk_local(origin)
+	if hit == null:
+		return PlacementRules.Result.OFF_DISK
+	return PlacementRules.validate_point(hit as Vector2, _raster, team_id)
 
 
 func _spawn_block(shape: BlockShape, world_origin: Vector3, basis: Basis, slot_id: int) -> Block:
@@ -922,14 +909,19 @@ func _build_territory() -> void:
 	_raster.reset()
 	_solver = TerritorySolver.new(_territory_tuning)
 	var goal_positions: PackedVector2Array = PlayerSlot.goal_positions_for(config.goal_flag_count, map_def)
-	# docs/TERRITORY_V2_PLAN.md: the goal-flag no-build zones are the default
-	# ruleset's replacement for holes, so they only ever exist when holes are
-	# off; legacy hole_mode must stay byte-identical to the pre-v2 game, which
-	# never had a zone concept. Zones are static for the match (goal flags
-	# never move) so this stamps once, right after reset(), rather than every
-	# solve.
-	if config.hole_mode == MatchConfig.HoleMode.OFF:
-		_raster.set_goal_zones(goal_positions, _territory_tuning.goal_zone_radius)
+	# DECISION (autoload/Match.gd, Bontago-cmc.7): goal-flag no-build zones now
+	# stamp under every hole_mode, not just OFF. SPEC.md's 2026-09-20 audit,
+	# 2.2 "Goal no-build zones [OWNER, original unverified]": "keep the earlier
+	# requirement for a no-placement disc around each goal... Zones block
+	# placement, not influence or capture" -- an owner-retained requirement the
+	# audit did not withdraw, unlike v2's OFF default. Zones are static for the
+	# match (goal flags never move) so this stamps once, right after reset(),
+	# rather than every solve. This makes m2_acceptance's scenario (d) (a
+	# capture at the exact flag position) fail under TEMPORARY, since the
+	# march now runs into the flag's own zone before it can capture --
+	# Bontago-cmc.6, not this ticket, owns rewriting that scenario to march to
+	# the zone's rim instead of the flag's centre point.
+	_raster.set_goal_zones(goal_positions, _territory_tuning.goal_zone_radius)
 	_win_checker = WinChecker.new(goal_positions, _territory_tuning.capture_hold)
 	_last_groups = null
 	_solve_accum = 0.0
@@ -970,6 +962,20 @@ func _run_territory_step(delta: float) -> void:
 
 	Events.territory_updated.emit(_raster, groups)
 
+	# DECISION (autoload/Match.gd, Bontago-cmc.7): overlap modes (TEMPORARY/
+	# PERMANENT) keep the existing hole-under-home-flag trigger below
+	# unchanged; OFF keeps _check_home_flags_v2()'s argmax-ownership trigger.
+	# SPEC.md's 2026-09-20 audit leaves the overlap-mode trigger explicitly
+	# [OPEN] (2.3 "Home elimination": "the persistent home circle prevents
+	# enemy ownership at its center; resolve the trigger before implementation
+	# ... Until resolved, do not claim default-mode elimination complies
+	# merely because v2 elimination tests pass"). This keeps the pre-existing,
+	# already-tested M2 trigger rather than inventing a new one: a hole
+	# opening under a home flag is a physical event (the floor the flag stands
+	# on is gone), which is at least as defensible as any other untested
+	# guess, and it is what shipped before this ticket. It is NOT claimed to
+	# be the original's actual rule -- that stays unverified -- only the
+	# least-invented option available until real evidence settles it.
 	if holes_enabled:
 		var opened: PackedInt32Array = _raster.holes_opened()
 		var closed: PackedInt32Array = _raster.holes_closed()
