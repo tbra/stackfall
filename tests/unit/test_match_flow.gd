@@ -47,6 +47,19 @@ func _hotseat_config(player_count: int = 2, block_timer: float = 6.0) -> MatchCo
 	return config
 
 
+## Bontago-mv0.10's per-player-timer path (spec 2.4's "[ORIGINAL target]"
+## concurrent cadence, the normal non-hot-seat mode the interval lock
+## targets): every slot's feed runs concurrently, so a lone slot can
+## otherwise place blocks back to back with nothing to stop it.
+func _free_for_all_config(player_count: int = 2, block_timer: float = 6.0) -> MatchConfig:
+	var config: MatchConfig = load("res://config/match_defaults.tres").duplicate(true) as MatchConfig
+	config.player_count = player_count
+	config.hot_seat = false
+	config.block_timer = block_timer
+	config.rng_seed = 98765
+	return config
+
+
 func _run_countdown() -> void:
 	for _i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * Engine.physics_ticks_per_second)) + 2):
 		Match._process(1.0 / Engine.physics_ticks_per_second)
@@ -317,6 +330,166 @@ func test_request_place_consumes_the_block_and_feeds_the_next_one() -> void:
 	assert_eq(_blocks_root.get_child_count(), 1)
 	var spawned: Node = _blocks_root.get_child(0)
 	assert_signal_emitted_with_parameters(Events, "block_placed", [spawned, held_before.id])
+
+
+# --- Bontago-mv0.10 (spec 2.4 "[ORIGINAL target]"): the fixed-interval ------
+# --- placement cadence, outside hot-seat -------------------------------------
+# Every fixed config.block_timer interval permits exactly one release. An
+# early release hands the slot its next piece to aim, but locked until the
+# interval boundary; an untouched piece force-releases (auto-drops) at that
+# boundary instead.
+
+func test_an_early_release_issues_the_next_piece_locked_without_restarting_the_interval() -> void:
+	var block_timer: float = 6.0
+	Match.start_match(_free_for_all_config(2, block_timer))
+	_run_countdown()
+	for _i: int in range(60):  # burn one second of the interval first
+		Match._process(1.0 / 60.0)
+	var left_before: float = Match.feed_time_left(0)
+
+	var reason: StringName = Match.request_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false)
+
+	assert_eq(reason, PlacementRules.REASON_OK)
+	assert_not_null(Match.held_shape(0), "The next piece is issued immediately, for preparation.")
+	assert_true(Match.is_release_locked(0), "but it may not be released again this interval.")
+	assert_almost_eq(
+		Match.feed_time_left(0), left_before, 0.05,
+		"Releasing early must not restart the interval (spec 2.4)."
+	)
+
+
+func test_a_second_release_is_refused_while_locked_then_accepted_once_the_interval_ends() -> void:
+	var block_timer: float = MatchConfig.BLOCK_TIMER_MIN
+	Match.start_match(_free_for_all_config(2, block_timer))
+	_run_countdown()
+
+	Match.request_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false)
+	assert_true(Match.is_release_locked(0), "fixture: the slot is locked after releasing early")
+
+	var second: StringName = Match.request_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false)
+	assert_eq(second, PlacementRules.REASON_NO_BLOCK, "A release while locked must be refused.")
+	assert_eq(_blocks_root.get_child_count(), 1, "and must not spawn a second block")
+
+	for _i: int in range(int(ceil(block_timer * 60.0)) + 2):
+		Match._process(1.0 / 60.0)
+	assert_false(Match.is_release_locked(0), "The interval boundary unlocks the prepared piece.")
+
+	var third: StringName = Match.request_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false)
+	assert_eq(third, PlacementRules.REASON_OK, "and it may now be released.")
+	assert_eq(_blocks_root.get_child_count(), 2)
+
+
+func test_an_untouched_piece_auto_drops_at_the_interval_boundary() -> void:
+	var block_timer: float = MatchConfig.BLOCK_TIMER_MIN
+	# Both slots are untouched and share the same interval start, so both
+	# force at the same tick -- collected by hand (like this file's own
+	# countdown-tick test above) rather than
+	# assert_signal_emitted_with_parameters, which only ever checks the LAST
+	# emission and would see slot 1's, not slot 0's.
+	var expired: Array[int] = []
+	var collect: Callable = func(slot_id: int) -> void: expired.append(slot_id)
+	Events.feed_timer_expired.connect(collect)
+	Match.start_match(_free_for_all_config(2, block_timer))
+	_run_countdown()
+
+	for _i: int in range(int(ceil(block_timer * 60.0)) + 2):
+		Match._process(1.0 / 60.0)
+
+	Events.feed_timer_expired.disconnect(collect)
+	assert_true(expired.has(0), "an unspent piece forces at the boundary")
+
+
+func test_the_interval_lock_does_not_apply_across_a_forced_release() -> void:
+	# An auto-dropped piece starts a fresh, unlocked interval (never called
+	# with auto_drop from anywhere but Match's own timer expiry).
+	Match.start_match(_free_for_all_config(2))
+	_run_countdown()
+
+	var reason: StringName = Match.request_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, true)
+
+	assert_eq(reason, PlacementRules.REASON_OK, "fixture: this auto-drop lands on the slot's own home flag")
+	assert_false(Match.is_release_locked(0), "A forced release starts a fresh, unlocked interval.")
+	assert_almost_eq(Match.feed_time_left(0), Match.config.block_timer, 0.001)
+
+
+func test_hot_seat_never_locks() -> void:
+	# DECISION (autoload/Match.gd's _consume_and_refeed): hot-seat's strict
+	# alternation already stops one player from placing twice in a row, so
+	# there is nothing for a release lock to prevent -- spec Part 4 M2 calls
+	# the hot-seat build a historical test harness, not the target cadence.
+	# Locking it too would break test_turn_advances_on_placement_and_wraps_
+	# around's back-to-back placements below.
+	Match.start_match(_hotseat_config(2))
+	_run_countdown()
+
+	Match.request_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false)
+
+	assert_not_null(Match.held_shape(1), "Hot-seat hands the next slot a block immediately.")
+	assert_false(Match.is_release_locked(1))
+	assert_almost_eq(Match.feed_time_left(1), Match.config.block_timer, 0.001)
+
+
+# --- Bontago-mv0.12 (owner-reported playability): the pivot is the shape's --
+# --- geometric centre, not cell (0, 0, 0) ------------------------------------
+
+## bar3's cells run 0..2 (BlockShape.center() == (1, 0, 0)), so before this fix
+## its cell (0, 0, 0) -- not its middle cube -- sat under the cursor and the
+## whole bar hung off to one side. request_place()'s `origin` is the ghost's
+## own pivot, so the spawned body's centre (BlockFactory now builds every
+## shape's cells around it) must land exactly there, not offset by the
+## shape's own extent.
+func test_an_off_center_shape_spawns_with_its_true_centre_at_the_requested_point() -> void:
+	Match.start_match(_free_for_all_config(2))
+	_run_countdown()
+	Match._held_shapes[0] = load("res://config/blocks/bar3.tres")
+	var target: Vector3 = _home_world_position(0)
+
+	Match.request_place(0, target, 0, Quaternion.IDENTITY, false)
+
+	var spawned: Node3D = _blocks_root.get_child(0) as Node3D
+	assert_almost_eq(spawned.global_position.x, target.x, 0.01)
+	assert_almost_eq(spawned.global_position.z, target.z, 0.01)
+
+
+## Same shape, rotated 90 degrees: BlockOrientations' basis must still pivot
+## about the shape's centre after the fix, not about whatever cell (0, 0, 0)
+## rotated to.
+func test_an_off_center_shape_still_centers_on_the_requested_point_when_rotated() -> void:
+	Match.start_match(_free_for_all_config(2))
+	_run_countdown()
+	Match._held_shapes[0] = load("res://config/blocks/bar3.tres")
+	var target: Vector3 = _home_world_position(0)
+	var rotated_index: int = BlockOrientations.step_yaw_ccw(0)
+
+	Match.request_place(0, target, rotated_index, Quaternion.IDENTITY, false)
+
+	var spawned: Node3D = _blocks_root.get_child(0) as Node3D
+	assert_almost_eq(spawned.global_position.x, target.x, 0.01)
+	assert_almost_eq(spawned.global_position.z, target.z, 0.01)
+
+
+# --- Bontago-mv0.11 (owner-reported playability): placed blocks carry -------
+# --- their slot's colour ------------------------------------------------------
+
+func test_a_placed_block_carries_its_slots_colour() -> void:
+	Match.start_match(_free_for_all_config(2))
+	_run_countdown()
+
+	Match.request_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false)
+
+	var spawned: Block = _blocks_root.get_child(0) as Block
+	var mesh_instance: MeshInstance3D = null
+	for child: Node in spawned.get_children():
+		if child is MeshInstance3D:
+			mesh_instance = child
+			break
+	assert_not_null(mesh_instance)
+	var material: StandardMaterial3D = mesh_instance.material_override as StandardMaterial3D
+	assert_not_null(material)
+	assert_true(
+		material.albedo_color.is_equal_approx(Match.slot(0).color),
+		"the spawned block should be tinted with slot 0's own colour."
+	)
 
 
 # --- The authority's own guard against a pose it cannot evaluate -----------

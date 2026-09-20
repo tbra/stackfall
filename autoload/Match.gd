@@ -98,6 +98,16 @@ var _active_slot: int = -1
 ## of silently spending the next block.
 var _feed_seq: Array[int] = []
 
+## Bontago-mv0.10 (spec 2.4 "[ORIGINAL target]" placement cadence, restored
+## after the M2 hot-seat prototype): whether the slot's currently held piece
+## may be released right now. Every fixed `config.block_timer` interval
+## permits exactly one release; placing early does not restart the interval
+## -- it hands the slot its next piece to aim/prepare immediately, but that
+## piece stays locked until the interval boundary. Only meaningful outside
+## hot-seat -- see _consume_and_refeed()'s DECISION for why hot-seat never
+## sets this. Parallel to _slots, like every other per-slot feed array.
+var _release_locked: Array[bool] = []
+
 ## Slots whose peer has vanished and whose NetConfig.disconnect_grace is still
 ## running: the feed is stopped and the timer is not ticking, but the slot is
 ## still alive and its towers still hold territory. Parallel to _slots;
@@ -282,6 +292,7 @@ func _reset_match_state() -> void:
 	_feed_time_left.clear()
 	_feed_expired.clear()
 	_feed_seq.clear()
+	_release_locked.clear()
 	_disconnect_grace_left.clear()
 	_blocks_spawned = 0
 	_active_slot = -1
@@ -359,9 +370,14 @@ func _begin_playing() -> void:
 	_set_state(State.PLAYING)
 	_active_slot = _next_alive_slot(-1)
 	for i: int in range(_slots.size()):
-		_issue_next_block(i)
+		# Bontago-mv0.10 follow-up: set the interval before issuing, not
+		# after -- _issue_next_block() emits Events.feed_block_issued
+		# synchronously, and net/MatchNet.gd's handler reads feed_time_left()
+		# at that exact moment to replicate it, so a client's mirror is only
+		# ever as accurate as what this slot's timer already says.
 		_feed_time_left[i] = config.block_timer
 		_feed_expired[i] = false
+		_issue_next_block(i)
 	if _active_slot != -1:
 		Events.turn_changed.emit(_active_slot)
 	# The home circles exist from the first frame of play (spec 2.2), so the
@@ -484,7 +500,11 @@ func _tick_feed(delta: float) -> void:
 		# Bontago-mv0.8: sandbox's default state (and sandbox_toggle_timer's
 		# "off" position) — feed_time_left is left exactly where it is, so
 		# ui/SandboxPanel.gd reads a paused timer, not a frozen countdown
-		# drifting toward zero.
+		# drifting toward zero. Bontago-mv0.10: this also means the
+		# placement-interval lock below never engages while the timer is
+		# paused -- sandbox's own "unlimited blocks" with the timer disabled
+		# gets no lock either, by the same reasoning _consume_and_refeed()'s
+		# matching DECISION explains.
 		return
 	if config.hot_seat:
 		if _active_slot == -1:
@@ -497,10 +517,10 @@ func _tick_feed(delta: float) -> void:
 			_feed_expired[_active_slot] = true
 			Events.feed_timer_expired.emit(_active_slot)
 	else:
-		# Owner decision (docs/M3a_PLAN.md question 1): per-player concurrent
-		# timers, spec 3.7's default ("Each player has a feed timer"). Every
-		# slot's timer runs at once and several blocks may land in the same
-		# second; nothing here serialises them.
+		# Spec 2.4 "[ORIGINAL target]": "players act concurrently, each
+		# handling their own supplied piece". Every slot's fixed-interval
+		# timer runs at once and several blocks may land in the same second;
+		# nothing here serialises them.
 		for i: int in range(_slots.size()):
 			if not _slots[i].home_flag_alive:
 				continue
@@ -511,7 +531,22 @@ func _tick_feed(delta: float) -> void:
 				# has not been auto-dropped a tower's worth of blocks.
 				continue
 			_feed_time_left[i] = maxf(_feed_time_left[i] - delta, 0.0)
-			if _feed_time_left[i] <= 0.0 and not _feed_expired[i]:
+			if _feed_time_left[i] > 0.0 or _feed_expired[i]:
+				continue
+			if _release_locked[i]:
+				# Bontago-mv0.10 (spec 2.4): this interval's one release
+				# already happened early -- the slot has been aiming its next
+				# piece, locked, since then. The boundary just unlocks it and
+				# starts a fresh interval for it; nothing needs forcing, so no
+				# feed_timer_expired fires and _feed_expired never needs to
+				# latch true for this crossing.
+				_release_locked[i] = false
+				_feed_time_left[i] = config.block_timer
+			else:
+				# This interval's piece is still unspent: force it, exactly
+				# as spec 2.5's [ORIGINAL] auto-drop always has. _feed_expired
+				# latches until _consume_and_refeed(auto_drop = true) resolves
+				# the forced placement and starts the next interval.
 				_feed_expired[i] = true
 				Events.feed_timer_expired.emit(i)
 
@@ -579,13 +614,42 @@ func request_place(
 	var shape: BlockShape = _held_shapes[slot_id]
 	if shape == null:
 		return PlacementRules.REASON_NO_BLOCK
+	if not auto_drop and _release_locked[slot_id]:
+		# Bontago-mv0.10 (spec 2.4 "[ORIGINAL target]" cadence): this slot
+		# already spent this interval's one release early and is only
+		# preparing/aiming the next piece; it may not be released again
+		# before the interval boundary unlocks it.
+		#
+		# DECISION (autoload/Match.gd): reuses REASON_NO_BLOCK rather than a
+		# new PlacementRules.REASON_* constant -- PlacementRules.gd lives in
+		# core/, which this package does not own, and REASON_NO_BLOCK already
+		# means exactly "nothing was spent" to every caller: MatchNet's
+		# _consumed_a_block() already classifies it as a no-op, and the ghost
+		# already reacts to any non-OK, non-territory reason without a burn.
+		# auto_drop is exempt because it is never a player's own click -- it
+		# is the host's own forced release at the interval boundary, which is
+		# exactly what ends the lock (see _consume_and_refeed()).
+		return PlacementRules.REASON_NO_BLOCK
 	if not is_pose_well_formed(origin, orientation_index, free_quat):
 		return PlacementRules.REASON_NO_BLOCK
 
 	var basis: Basis = Basis(free_quat) * BlockOrientations.get_basis(orientation_index)
 	var local_origin: Vector3 = _field.to_local(origin)
-	var disk_origin: Vector2 = Vector2(local_origin.x, local_origin.z)
 	var cube_size: float = _physics_tuning.cube_size
+	# Bontago-mv0.12: `origin` is the shape's geometric centre (the ghost's own
+	# pivot -- see GhostPreview/BlockFactory's matching centring), but
+	# PlacementRules.footprint_cells()/closest_valid_origin() still take
+	# shape.cells' raw offsets from cell (0, 0, 0), which is core/-owned and
+	# not changed here. `center_offset` is the rotated, world-scaled vector
+	# from cell (0, 0, 0) to the centre, so subtracting it converts the
+	# player's centre-pivoted click back into the cell-(0, 0, 0)-pivoted frame
+	# those functions expect; final_world_origin below adds it back so the
+	# spawned body's own origin -- which BlockFactory now also builds around
+	# the shape's centre -- lands exactly on the centre the ghost showed.
+	var center_offset: Vector3 = basis * (shape.center() * cube_size)
+	var disk_origin: Vector2 = Vector2(
+		local_origin.x - center_offset.x, local_origin.z - center_offset.z
+	)
 
 	var footprint: PackedInt32Array = PlacementRules.footprint_cells(
 		shape.cells, basis, disk_origin, cube_size, _cell_grid
@@ -615,9 +679,12 @@ func request_place(
 		# map_def.field_radius * Field.KILL_PLANE_RADIUS_FACTOR).
 		final_disk_origin = _clamp_disk_origin_for_burn(final_disk_origin)
 
-	var final_world_origin: Vector3 = _field.to_global(
-		Vector3(final_disk_origin.x, local_origin.y, final_disk_origin.y)
-	)
+	# final_disk_origin is still in the cell-(0, 0, 0) frame (validate()'s and
+	# closest_valid_origin()'s own coordinate system); adding center_offset
+	# back converts it to the centre frame the spawned body's origin needs.
+	var final_world_origin: Vector3 = _field.to_global(Vector3(
+		final_disk_origin.x + center_offset.x, local_origin.y, final_disk_origin.y + center_offset.z
+	))
 	var spawned: Block = _spawn_block(shape, final_world_origin, basis, slot_id)
 	if reason != PlacementRules.REASON_OK:
 		# Owner decision (docs/M2_PLAN.md, "Invalid release — burn the block"):
@@ -627,7 +694,7 @@ func request_place(
 		_burn_block(spawned, final_disk_origin)
 		Events.placement_rejected.emit(slot_id, reason)
 
-	_consume_and_refeed(slot_id)
+	_consume_and_refeed(slot_id, auto_drop)
 	if config.hot_seat:
 		advance_turn()
 
@@ -693,15 +760,35 @@ func preview_placement(
 
 	var basis: Basis = Basis(free_quat) * BlockOrientations.get_basis(orientation_index)
 	var local_origin: Vector3 = _field.to_local(origin)
-	var disk_origin: Vector2 = Vector2(local_origin.x, local_origin.z)
+	var cube_size: float = _physics_tuning.cube_size
+	# Bontago-mv0.12: same cell-(0, 0, 0)-frame conversion as request_place()'s
+	# matching comment, so the dry-run tint this drives agrees with what an
+	# actual release at the same pose would decide.
+	var center_offset: Vector3 = basis * (shape.center() * cube_size)
+	var disk_origin: Vector2 = Vector2(
+		local_origin.x - center_offset.x, local_origin.z - center_offset.z
+	)
 	var footprint: PackedInt32Array = PlacementRules.footprint_cells(
-		shape.cells, basis, disk_origin, _physics_tuning.cube_size, _cell_grid
+		shape.cells, basis, disk_origin, cube_size, _cell_grid
 	)
 	return PlacementRules.validate(footprint, _raster, _slots[slot_id].team_id)
 
 
+## Bontago-mv0.11: `slot_id`'s own colour tints every mesh of the block it
+## places.
+##
+## DECISION (autoload/Match.gd): the slot's own PlayerSlot.color, not a
+## separate per-team colour. MatchConfig.team_of_slot() is the identity
+## function today (TeamMode beyond OFF is not implemented yet -- every slot is
+## still its own team; see MatchConfig.team_count()'s own comment), so
+## PlayerSlot.color, set from config.player_colors[slot_id] in _build_slots(),
+## already *is* that slot's team colour. If team colours are ever
+## disambiguated from per-slot colours, this is the one line that needs to
+## change to a team-colour lookup instead.
 func _spawn_block(shape: BlockShape, world_origin: Vector3, basis: Basis, slot_id: int) -> Block:
-	var block: Block = BlockFactory.build(shape, _physics_tuning, slot_id)
+	var acting_slot: PlayerSlot = slot(slot_id)
+	var color: Color = acting_slot.color if acting_slot != null else Color.WHITE
+	var block: Block = BlockFactory.build(shape, _physics_tuning, slot_id, color)
 	_blocks_parent.add_child(block)
 	block.global_transform = Transform3D(basis, world_origin)
 	# block_placed is what makes BlockRegistry allocate the net_id, so the
@@ -761,14 +848,62 @@ func _burn_block(block: Block, disk_origin: Vector2) -> void:
 	block.apply_central_impulse(impulse_dir * _territory_tuning.reject_impulse)
 
 
-func _consume_and_refeed(slot_id: int) -> void:
+## Bontago-mv0.10 (spec 2.4 "[ORIGINAL target]" placement cadence): "Each
+## fixed interval permits one release. Releasing early does not restart the
+## interval: the next piece can be positioned but remains release-locked
+## until the interval boundary. At expiry, force release only if that
+## interval's piece is still unspent." `auto_drop` tells the two cases apart:
+## it is true only for the host's own forced release at the interval boundary
+## (request_place()'s own doc comment; never taken from the wire), so every
+## other call here is the "released early" case.
+##
+## DECISION (autoload/Match.gd): hot-seat is exempt -- its turn already passes
+## to a *different* player's controls the instant a block lands
+## (docs/M2_PLAN.md owner decision 1: strict alternation), so the same slot
+## can never place twice in a row and there is nothing for a release lock to
+## prevent. Spec Part 4 M2 itself calls the hot-seat build a historical test
+## harness, not the target cadence ("A separate hot-seat/turn-based test mode
+## must not become normal play"), so this keeps hot-seat exactly as M2 shipped
+## it rather than growing it a lock it was never meant to need.
+func _consume_and_refeed(slot_id: int, auto_drop: bool) -> void:
 	# The sequence advances before the new block is issued, so the
 	# feed_block_issued that tells the owner "you have a block" already
 	# carries the sequence its next intent must quote.
 	_feed_seq[slot_id] += 1
+	if config.hot_seat:
+		_feed_time_left[slot_id] = config.block_timer
+		_feed_expired[slot_id] = false
+		_issue_next_block(slot_id)
+		return
+
+	if auto_drop:
+		# The interval's own piece was just forced out at the boundary: the
+		# new one starts fresh, unlocked, for a brand new interval.
+		_release_locked[slot_id] = false
+		_feed_time_left[slot_id] = config.block_timer
+		_feed_expired[slot_id] = false
+	elif _feed_timer_enabled:
+		# Released early, with the real cadence running: the new piece may be
+		# aimed but not released until this same interval's boundary -- do
+		# NOT touch _feed_time_left, which keeps counting down from when the
+		# interval actually started (spec 2.4: "does not restart the
+		# interval").
+		_release_locked[slot_id] = true
+	# else: _feed_timer_enabled is false (sandbox's default, "unlimited
+	# blocks", or between _feed_timer_enabled being switched off and any
+	# match with it disabled) -- _tick_feed() never runs the interval-
+	# boundary logic in that state, so a lock here could never be lifted by
+	# anything but this same function. Leaving _release_locked false is what
+	# "sandbox with the timer disabled has no lock" means: every placement
+	# reissues immediately, exactly like M2's original feed did.
+	#
+	# Bontago-mv0.10 follow-up: every branch above updates _release_locked/
+	# _feed_time_left *before* this call, not after -- _issue_next_block()
+	# emits Events.feed_block_issued synchronously, and net/MatchNet.gd's
+	# handler reads is_release_locked()/feed_time_left() at that exact
+	# instant to replicate them, so a client's mirror must see this slot's
+	# post-placement state, not its pre-placement one.
 	_issue_next_block(slot_id)
-	_feed_time_left[slot_id] = config.block_timer
-	_feed_expired[slot_id] = false
 
 
 ## The value an intent for `slot_id` must quote to be accepted right now. It
@@ -778,6 +913,40 @@ func feed_seq(slot_id: int) -> int:
 	if slot_id < 0 or slot_id >= _feed_seq.size():
 		return -1
 	return _feed_seq[slot_id]
+
+
+## Bontago-mv0.10 (spec 2.4 "[ORIGINAL target]" cadence): whether `slot_id`'s
+## currently held piece may be released right now. game/PlayerController.gd
+## reads this every frame to tint the ghost distinctly from the normal
+## valid/invalid/hole states -- "a location-valid ghost does not imply that
+## the current interval permits release" (spec 2.5). Always false in
+## hot-seat and whenever the feed timer is disabled (sandbox's default), for
+## the same reasons _consume_and_refeed() never sets it in those cases. On a
+## client this is a mirror, kept accurate by apply_replicated_feed()'s
+## `host_is_locked`, not decided locally -- a client never runs
+## _consume_and_refeed() itself (request_place() is host-only).
+func is_release_locked(slot_id: int) -> bool:
+	if slot_id < 0 or slot_id >= _release_locked.size():
+		return false
+	return _release_locked[slot_id]
+
+
+## Test-only seam (tests/unit/test_match_net.gd, test_remote_intent_
+## validation.gd): unlocks `slot_id`'s post-placement interval immediately
+## and starts a fresh one for it, exactly what _tick_feed()'s own boundary-
+## crossing branch does once `config.block_timer` really elapses. Lets a
+## unit test place a slot's held shape more than once in the same frame --
+## Bontago-mv0.10's fixed-interval cadence otherwise refuses every deliberate
+## release after the first with REASON_NO_BLOCK until that many real
+## _process() ticks run. Game code never calls this; it exists so tests don't
+## have to reach into _release_locked/_feed_time_left/_feed_expired directly.
+func debug_unlock_slot(slot_id: int) -> void:
+	if slot_id < 0 or slot_id >= _release_locked.size():
+		return
+	_release_locked[slot_id] = false
+	if config != null:
+		_feed_time_left[slot_id] = config.block_timer
+	_feed_expired[slot_id] = false
 
 
 ## Where a slot's block goes when its timer expires and the host has never
@@ -905,12 +1074,14 @@ func _build_slots() -> void:
 	_feed_time_left.resize(_slots.size())
 	_feed_expired.resize(_slots.size())
 	_feed_seq.resize(_slots.size())
+	_release_locked.resize(_slots.size())
 	_disconnect_grace_left.resize(_slots.size())
 	for i: int in range(_slots.size()):
 		_held_shapes[i] = null
 		_feed_time_left[i] = config.block_timer
 		_feed_expired[i] = false
 		_feed_seq[i] = 0
+		_release_locked[i] = false
 		_disconnect_grace_left[i] = -1.0
 
 
@@ -1083,16 +1254,40 @@ func apply_replicated_countdown(seconds_left: int) -> void:
 ## which issues without consuming, while a client never runs that at all. A
 ## client that counted its own would quote a sequence one ahead for the rest
 ## of the match and have every intent refused.
+## Bontago-mv0.10 follow-up: `host_feed_time_left` and `host_is_locked` mirror
+## Match.feed_time_left()/is_release_locked() for this slot at the instant
+## the host issued this event (net/MatchNet.gd's _on_feed_block_issued reads
+## them synchronously off the same emit that carries shape_id/feed_seq -- see
+## _consume_and_refeed()'s and _begin_playing()'s own comments on why every
+## state update there happens before _issue_next_block()). Without this a
+## client's mirror always reset the ring to a full config.block_timer on
+## every feed event, which is wrong exactly on an early release: the host's
+## real interval did not restart, only the held shape did (spec 2.4 "does not
+## restart the interval").
+##
+## `host_feed_time_left < 0.0` is the sentinel for "not sent" -- kept so an
+## older or manufactured event (this file's own tests included) still falls
+## back to the pre-existing "assume a fresh interval" behavior instead of
+## silently mis-reading a negative duration.
 func apply_replicated_feed(
-	slot_id: int, shape_id: StringName, _next_shape_id: StringName, host_feed_seq: int
+	slot_id: int,
+	shape_id: StringName,
+	_next_shape_id: StringName,
+	host_feed_seq: int,
+	host_feed_time_left: float = -1.0,
+	host_is_locked: bool = false
 ) -> void:
 	if slot_id < 0 or slot_id >= _held_shapes.size():
 		return
 	_held_shapes[slot_id] = _shape_by_id(shape_id)
 	if host_feed_seq >= 0:
 		_feed_seq[slot_id] = host_feed_seq
-	if config != null:
+	if host_feed_time_left >= 0.0:
+		_feed_time_left[slot_id] = host_feed_time_left
+	elif config != null:
 		_feed_time_left[slot_id] = config.block_timer
+	if slot_id < _release_locked.size():
+		_release_locked[slot_id] = host_is_locked
 	_feed_expired[slot_id] = false
 
 

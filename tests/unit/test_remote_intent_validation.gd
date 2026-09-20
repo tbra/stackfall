@@ -228,6 +228,13 @@ func test_every_valid_orientation_index_is_still_accepted_from_the_wire() -> voi
 
 	for index: int in range(BlockOrientations.ORIENTATION_COUNT):
 		_remote_place(net, _home_world_position(REMOTE_SLOT), index, Quaternion.IDENTITY, Match.feed_seq(REMOTE_SLOT))
+		# Bontago-mv0.10 (spec 2.4 "[ORIGINAL target]" cadence): a deliberate
+		# release now locks the slot until its fixed interval's boundary, so
+		# without this every index past the first would be refused with
+		# REASON_NO_BLOCK rather than exercising BlockOrientations' table.
+		# Match.debug_unlock_slot() is the test-only seam for skipping that
+		# wait; it is not what this test is about.
+		Match.debug_unlock_slot(REMOTE_SLOT)
 
 	assert_eq(net.intents_accepted(REMOTE_SLOT), BlockOrientations.ORIENTATION_COUNT, "All 24 rotations place.")
 	assert_eq(net.intents_refused(REMOTE_SLOT), 0)
@@ -344,6 +351,10 @@ func test_remote_heights_inside_the_band_still_place_at_the_requested_height() -
 
 	for height: float in heights:
 		_remote_place(net, _home_world_position(REMOTE_SLOT, height), 0, Quaternion.IDENTITY, Match.feed_seq(REMOTE_SLOT))
+		# Bontago-mv0.10: see test_every_valid_orientation_index_is_still_
+		# accepted_from_the_wire's matching comment -- this loop is about the
+		# replicable height band, not the interval lock.
+		Match.debug_unlock_slot(REMOTE_SLOT)
 
 	assert_eq(net.intents_accepted(REMOTE_SLOT), heights.size(), "The normal hover and both band edges place.")
 	assert_eq(net.intents_refused(REMOTE_SLOT), 0)
@@ -386,6 +397,12 @@ func test_a_far_off_disk_remote_intent_burns_within_the_kill_plane_area() -> voi
 			Vector2(local.x, local.z).length(), half_extent,
 			"Burned block %d must spawn inside the kill plane's area, not at the raw far-off-disk origin." % i
 		)
+		# Bontago-mv0.10: a burn still consumes the held piece and locks the
+		# next one exactly like any other release (Match.request_place()
+		# calls _consume_and_refeed() unconditionally); without this the
+		# second far-off-disk intent in this loop would be refused as locked
+		# instead of exercising the burn-clamp path a second time.
+		Match.debug_unlock_slot(REMOTE_SLOT)
 
 	assert_eq(net.intents_refused(REMOTE_SLOT), 0, "A far-off-disk pose is well-formed; it burns, it is not refused.")
 

@@ -54,17 +54,39 @@ extends Node
 ## MatchNet.submit_place(), exactly as PlayerController will once P3 lands.
 ## The host then checks, per docs/M3a_PLAN.md "Proving placements are never
 ## duplicated or lost": per slot, intents_accepted + intents_refused ==
-## intents_sent; and, with block_timer held at BLOCK_TIMER_MAX so auto-drop
-## never fires, that the number of Events.block_placed spawns equals the sum
-## of every slot's intents_accepted. Every client checks that no
+## intents_sent; and that the number of Events.block_placed spawns equals the
+## sum of every slot's intents_accepted (auto_drops is always 0 here — see
+## INTENT_SPACING_SECONDS' own comment). Every client checks that no
 ## Events.block_replicated net_id repeats and that it replicated at least one
 ## block, plus P2's Interpolator.dropped_unknown_count() opportunistically
 ## (only if that autoload exists yet — it isn't P4's package to gate on).
+##
+## Bontago-mv0.10 follow-up (spec 2.4 "[ORIGINAL target]" fixed-interval
+## cadence): a deliberate release now locks the slot until its interval's
+## boundary, so all INTENTS_PER_CLIENT scripted releases have to be spaced a
+## full interval apart to land as genuine, individually-accepted releases
+## instead of mostly refused as locked. The host config's block_timer is held
+## at MatchConfig.BLOCK_TIMER_MIN (not BLOCK_TIMER_MAX, the old choice made
+## when placements reissued instantly) specifically so that spacing is short
+## enough to keep every slot's INTENTS_PER_CLIENT round trip well inside
+## tools/run_m3a_local.ps1's wrapper timeout.
 
 const CONNECT_TIMEOUT_SECONDS: float = 8.0
 const MATCHNET_PROBE_TIMEOUT_SECONDS: float = 2.0
 const INTENTS_PER_CLIENT: int = 6
-const SETTLE_SECONDS_PER_INTENT: float = 0.15
+## Bontago-mv0.10: how long a released piece stays locked before the next one
+## may go out -- one full fixed interval (MatchConfig.BLOCK_TIMER_MIN, the
+## host's own config below) plus a fixed margin for the send/settle/RTT time
+## a real placement and (for a client) its SimLag/SimLoss round trip cost, so
+## a scripted release always lands after its slot's interval boundary already
+## unlocked it, never while still locked. Held at BLOCK_TIMER_MIN, not
+## BLOCK_TIMER_MAX (this script's own pre-cadence choice): auto_drops stays 0
+## either way -- every scripted release spends its interval's one piece well
+## before the boundary, so nothing is ever left unspent for _tick_feed() to
+## force -- but MIN is what keeps INTENTS_PER_CLIENT releases per slot inside
+## the wrapper's timeout.
+const INTERVAL_MARGIN_SECONDS: float = 0.5
+const INTENT_SPACING_SECONDS: float = MatchConfig.BLOCK_TIMER_MIN + INTERVAL_MARGIN_SECONDS
 const RESULT_WAIT_SECONDS: float = 5.0
 const PLACE_HEIGHT: float = 0.6
 ## Spacing between a slot's scripted placements, in cube_size multiples, kept
@@ -149,6 +171,22 @@ func _intents_refused(slot_id: int) -> int:
 	return int(_match_net.call(&"intents_refused", slot_id))
 
 
+## Bontago-mv0.10 follow-up: docs/M3a_PLAN.md's real invariant is
+## "blocks_spawned == sum(intents_accepted) + auto_drops", not
+## "== sum(intents_accepted)" -- the simpler form only held while block_timer
+## was pinned at BLOCK_TIMER_MAX and nothing sent fast enough to ever reach a
+## boundary. This cadence's own scripted spacing means an interval never
+## goes deliberately unspent, but the pre-existing dual-submission design for
+## a remote slot (the host's own local copy AND that slot's real client both
+## fire a release every round) can still lose an occasional round to
+## SimLag/SimLoss jitter on the client side, and the one interval that lands
+## on is force-released by the host's own timer -- a genuine, spec-2.5
+## auto-drop, not a bug, and it must count here or the invariant it is
+## proving would be checked with a term missing.
+func _auto_drops(slot_id: int) -> int:
+	return int(_match_net.call(&"auto_drops", slot_id))
+
+
 func _replicated_block_count() -> int:
 	return int(_match_net.call(&"replicated_block_count"))
 
@@ -201,10 +239,15 @@ func _run_host() -> void:
 	config.map_size = MapDef.MapSize.SMALL
 	config.player_count = expected_peers
 	config.hot_seat = false
-	# Held at the max so the feed timer can never auto-drop mid-script: every
-	# spawned block in this scenario must be traceable to a scripted intent
+	# Bontago-mv0.10: the shortest legal interval, not the longest (this
+	# script's own pre-cadence choice) -- see INTENT_SPACING_SECONDS' comment
+	# on why a short interval, not a long one, is what keeps this harness's
+	# scripted releases inside the wrapper timeout now that a deliberate
+	# release locks the slot until its interval boundary. auto_drops still
+	# never fires: every scripted release spends its interval's one piece
+	# long before the boundary, so nothing is ever left unspent to force
 	# (docs/M3a_PLAN.md "Proving placements are never duplicated or lost").
-	config.block_timer = MatchConfig.BLOCK_TIMER_MAX
+	config.block_timer = MatchConfig.BLOCK_TIMER_MIN
 	config.rng_seed = 20260918
 
 	var field: Field = (load("res://game/Field.tscn") as PackedScene).instantiate() as Field
@@ -223,32 +266,45 @@ func _run_host() -> void:
 
 	await get_tree().create_timer(Match.COUNTDOWN_SECONDS + 0.5).timeout
 
-	for slot_id: int in range(Match.config.player_count):
-		var home: Vector2 = Match.slot(slot_id).home_position
-		for i: int in range(INTENTS_PER_CLIENT):
+	# Bontago-mv0.10: one release per slot per round, not every one of a
+	# slot's INTENTS_PER_CLIENT releases back to back before moving to the
+	# next slot. Spec 2.4 "[ORIGINAL target]": "players act concurrently" --
+	# every slot's interval started at the same instant (Match._begin_
+	# playing() seeds them all together), so round-robining keeps that true
+	# here too, and keeps this loop's total wait at INTENTS_PER_CLIENT *
+	# INTENT_SPACING_SECONDS regardless of player_count, not that times
+	# player_count, which is what kept this harness inside
+	# tools/run_m3a_local.ps1's wrapper timeout at 4 peers.
+	for i: int in range(INTENTS_PER_CLIENT):
+		for slot_id: int in range(Match.config.player_count):
+			var home: Vector2 = Match.slot(slot_id).home_position
 			var spot: Vector2 = home + _offset_for_index(i)
 			var origin: Vector3 = field.world_from_disk_local(spot, PLACE_HEIGHT)
 			_submit_place(slot_id, origin, 0, Quaternion.IDENTITY, false)
-			await get_tree().create_timer(SETTLE_SECONDS_PER_INTENT).timeout
+		await get_tree().create_timer(INTENT_SPACING_SECONDS).timeout
 
 	await get_tree().create_timer(RESULT_WAIT_SECONDS).timeout
 
 	var accepted_total: int = 0
+	var auto_drop_total: int = 0
 	for slot_id: int in range(Match.config.player_count):
 		var sent: int = _intents_sent(slot_id)
 		var accepted: int = _intents_accepted(slot_id)
 		var refused: int = _intents_refused(slot_id)
+		var auto_dropped: int = _auto_drops(slot_id)
 		accepted_total += accepted
+		auto_drop_total += auto_dropped
 		_check(
 			"per_slot_accept_refuse_%d" % slot_id, accepted + refused == sent,
-			"slot=%d accepted=%d refused=%d sent=%d" % [slot_id, accepted, refused, sent]
+			"slot=%d accepted=%d refused=%d sent=%d auto_drops=%d" % [slot_id, accepted, refused, sent, auto_dropped]
 		)
-	# auto_drops is always 0 here (block_timer held at BLOCK_TIMER_MAX), so
-	# docs/M3a_PLAN.md's "blocks_spawned == sum(intents_accepted) + auto_drops"
-	# reduces to blocks_spawned == accepted_total.
+	# docs/M3a_PLAN.md's full invariant, not the "auto_drops is always 0"
+	# simplification this script used while block_timer sat at BLOCK_TIMER_MAX
+	# (see INTENT_SPACING_SECONDS' and _auto_drops()'s own comments on why
+	# that assumption no longer holds under the fixed-interval cadence).
 	_check(
-		"blocks_spawned_matches_accepted", _blocks_spawned == accepted_total,
-		"blocks_spawned=%d accepted_total=%d" % [_blocks_spawned, accepted_total]
+		"blocks_spawned_matches_accepted", _blocks_spawned == accepted_total + auto_drop_total,
+		"blocks_spawned=%d accepted_total=%d auto_drop_total=%d" % [_blocks_spawned, accepted_total, auto_drop_total]
 	)
 
 
@@ -294,11 +350,15 @@ func _run_client() -> void:
 		print("M3A_ACCEPT harness_blocked layer=Match reason=match_never_reached_playing")
 		get_tree().quit(2)
 		return
+	# Bontago-mv0.10: spaced the same one-interval-plus-margin apart as the
+	# host's own script (INTENT_SPACING_SECONDS' comment), so this client's
+	# own releases land after its slot's interval boundary unlocks each one
+	# instead of being refused as locked.
 	for i: int in range(INTENTS_PER_CLIENT):
 		var spot: Vector2 = _offset_for_index(i)
 		var origin: Vector3 = Vector3(spot.x, PLACE_HEIGHT, spot.y)
 		_submit_place(slot_id, origin, 0, Quaternion.IDENTITY, false)
-		await get_tree().create_timer(SETTLE_SECONDS_PER_INTENT).timeout
+		await get_tree().create_timer(INTENT_SPACING_SECONDS).timeout
 
 	await get_tree().create_timer(RESULT_WAIT_SECONDS).timeout
 

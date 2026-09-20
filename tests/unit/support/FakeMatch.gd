@@ -68,6 +68,19 @@ func feed_seq(slot_id: int) -> int:
 	return int(feed_seq_by_slot.get(slot_id, 0))
 
 
+## Bontago-mv0.10 (spec 2.4 "[ORIGINAL target]" cadence): game/PlayerController.
+## gd's _update_ghost_tint() calls this every frame regardless of which Match
+## it is bound to (see its own DECISION on the Variant seam), so this fake
+## needs the method to exist even though none of the P4 controller/HUD tests
+## that use it are about the interval lock. Always false: nothing sets it,
+## so a ghost driven by this fake is never shown locked.
+var release_locked_by_slot: Dictionary = {}
+
+
+func is_release_locked(slot_id: int) -> bool:
+	return bool(release_locked_by_slot.get(slot_id, false))
+
+
 ## M3a adds the trailing feed_seq the real Match takes (docs/M3a_PLAN.md,
 ## "Never duplicated, never lost"). It is defaulted here exactly as it is
 ## there, so every M2 call site and every M2 test still compiles unchanged;

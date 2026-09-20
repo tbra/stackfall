@@ -679,11 +679,25 @@ func _on_turn_changed(slot_id: int) -> void:
 ## (Match.apply_replicated_feed explains why it cannot count its own).
 ## Events.feed_block_issued's own signature is untouched; this is the RPC
 ## payload, not the signal.
+##
+## Bontago-mv0.10 follow-up: also rides feed_time_left()/is_release_locked()
+## for this slot, read at this exact moment -- Match's own _consume_and_
+## refeed()/_begin_playing() update both before calling _issue_next_block(),
+## which is what emits Events.feed_block_issued and triggers this handler
+## synchronously, so "this exact moment" already reflects the placement that
+## just happened. Without them a client's mirror always assumed a fresh
+## config.block_timer-length interval, which is wrong on an early release
+## (spec 2.4 "does not restart the interval") and never showed the ghost
+## locked on a client's own screen either.
 func _on_feed_block_issued(slot_id: int, shape_id: StringName, next_shape_id: StringName) -> void:
 	if _is_host():
+		var authority: Variant = _authority()
 		replicate_match_event(
 			EVENT_FEED_ISSUED,
-			[slot_id, shape_id, next_shape_id, int(_authority().feed_seq(slot_id))]
+			[
+				slot_id, shape_id, next_shape_id, int(authority.feed_seq(slot_id)),
+				float(authority.feed_time_left(slot_id)), bool(authority.is_release_locked(slot_id)),
+			]
 		)
 
 
@@ -925,7 +939,9 @@ func net_match_event(event: StringName, args: Array) -> void:
 				int(args[0]),
 				StringName(args[1]),
 				StringName(args[2]),
-				int(args[3]) if args.size() > 3 else -1
+				int(args[3]) if args.size() > 3 else -1,
+				float(args[4]) if args.size() > 4 else -1.0,
+				bool(args[5]) if args.size() > 5 else false
 			)
 			Events.feed_block_issued.emit(int(args[0]), StringName(args[1]), StringName(args[2]))
 		EVENT_FEED_EXPIRED:
@@ -963,7 +979,15 @@ func net_block_spawned(
 	if shape == null:
 		return
 
-	var block: Block = BlockFactory.build(shape, _physics_tuning, owner_slot)
+	# Bontago-mv0.11: the same slot-colour tint as the host's own block (see
+	# autoload/Match.gd's _spawn_block DECISION on using the slot's own colour
+	# rather than a separate team lookup). `origin` below is already the
+	# host's exact spawned transform -- Bontago-mv0.12's centred pivot needs
+	# no extra conversion here, since BlockFactory.build() offsets this
+	# shape's cells by the same shape.center() on every instance.
+	var owner_slot_ref: PlayerSlot = _authority().slot(owner_slot)
+	var color: Color = owner_slot_ref.color if owner_slot_ref != null else Color.WHITE
+	var block: Block = BlockFactory.build(shape, _physics_tuning, owner_slot, color)
 	# Spec 3.4: "Clients set every synced RigidBody3D to freeze = true
 	# (kinematic) and move them by interpolating snapshots." Freezing before
 	# the body enters the tree means it never simulates a single step here.

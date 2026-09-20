@@ -52,6 +52,14 @@ extends Resource
 @export var invalid_tint_color: Color = Color(0.95, 0.15, 0.15, 0.6)
 ## Hatched pattern tint over a hole.
 @export var hole_tint_color: Color = Color(0.95, 0.75, 0.15, 0.65)
+## Bontago-mv0.10 (spec 2.4/2.5 "[ORIGINAL target]" placement cadence): grey,
+## the interval-locked state -- this slot released a piece early this
+## interval and is only aiming/preparing the next one, which cannot be
+## released until the interval boundary. Distinct from invalid_tint_color's
+## red on purpose: spec 2.5, "A location-valid ghost does not imply that the
+## current interval permits release," so a locked-but-otherwise-valid spot
+## must not read as "you're standing somewhere wrong."
+@export var locked_tint_color: Color = Color(0.6, 0.6, 0.6, 0.55)
 ## UV tiling density of the procedural hatch pattern across the held shape.
 @export var hatch_scale: float = 6.0
 ## Fraction of each hatch tile that's opaque stripe vs. see-through gap.

@@ -20,6 +20,7 @@ extends Node3D
 const STATE_VALID: StringName = &"valid"
 const STATE_INVALID: StringName = &"invalid"
 const STATE_HOLE: StringName = &"hole"
+const STATE_LOCKED: StringName = &"locked"
 
 const HATCH_TEXTURE_SIZE: int = 32
 
@@ -40,6 +41,12 @@ var _material: StandardMaterial3D
 var _hatch_texture: ImageTexture
 var _player_color: Color = Color.WHITE
 var _last_result: PlacementRules.Result = PlacementRules.Result.VALID
+## Bontago-mv0.10 (spec 2.4/2.5): whether this slot's held piece was released
+## early this interval and is now only being aimed/prepared -- see
+## Match.is_release_locked(). Overrides the validity tint below whenever true,
+## since the lock is about *when* the piece may drop, not *where* the ghost
+## sits.
+var _locked: bool = false
 
 var _flash_tween: Tween
 var _reject_tween: Tween
@@ -144,8 +151,19 @@ func apply_validity(result: PlacementRules.Result) -> void:
 	_apply_validity_material()
 
 
-## For tests: which of the three tint states the ghost is currently showing.
+## Bontago-mv0.10 (spec 2.4/2.5's "distinct timer-locked state"): whether this
+## slot's held piece may be released right now. Called every frame alongside
+## apply_validity() by game/PlayerController.gd; the locked tint wins over
+## whatever validity state was just applied.
+func set_locked(locked: bool) -> void:
+	_locked = locked
+	_apply_validity_material()
+
+
+## For tests: which tint state the ghost is currently showing.
 func current_state() -> StringName:
+	if _locked:
+		return STATE_LOCKED
 	match _last_result:
 		PlacementRules.Result.VALID:
 			return STATE_VALID
@@ -162,6 +180,10 @@ func current_tint_color() -> Color:
 
 func _apply_validity_material() -> void:
 	if _material == null:
+		return
+	if _locked:
+		_material.albedo_texture = null
+		_material.albedo_color = ghost_tuning.locked_tint_color
 		return
 	match _last_result:
 		PlacementRules.Result.VALID:

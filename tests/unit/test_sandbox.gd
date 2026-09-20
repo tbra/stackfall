@@ -153,6 +153,63 @@ func test_sandbox_timer_is_disabled_by_default_so_feed_time_left_never_moves() -
 	assert_signal_not_emitted(Events, "feed_timer_expired")
 
 
+## Bontago-mv0.10 (spec 2.4 "[ORIGINAL target]" cadence): with the feed timer
+## paused -- sandbox's default, "unlimited blocks" -- placements must never
+## lock, or a tester could place one block and then be stuck aiming a piece
+## it can never release (nothing would ever count the interval down to
+## unlock it, since _tick_feed() returns immediately while the timer is
+## disabled). Several placements in a row, with no frames between them, must
+## all succeed exactly as M2's original feed always allowed.
+func test_placements_never_lock_while_the_feed_timer_is_paused() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	assert_false(Match.feed_timer_enabled(), "fixture: sandbox starts paused")
+
+	for _i: int in range(3):
+		var reason: StringName = Match.request_place(0, Match.default_ghost_origin(0), 0, Quaternion.IDENTITY, false)
+		assert_eq(reason, PlacementRules.REASON_OK)
+		assert_false(Match.is_release_locked(0), "no lock while the timer is paused")
+		assert_not_null(Match.held_shape(0), "the next piece is issued immediately every time")
+
+	assert_eq(Match.blocks_spawned(), 3)
+
+
+## Re-enabling the timer (F6) also re-enables the real placement cadence, so
+## a tester can deliberately exercise the interval lock in sandbox too.
+func test_placements_lock_once_the_feed_timer_is_re_enabled() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	Match.set_feed_timer_enabled(true)
+
+	var reason: StringName = Match.request_place(0, Match.default_ghost_origin(0), 0, Quaternion.IDENTITY, false)
+
+	assert_eq(reason, PlacementRules.REASON_OK)
+	assert_true(Match.is_release_locked(0), "F6 turns the real cadence -- and its lock -- back on")
+
+
+## Bontago-mv0.10 follow-up: the debug panel's timer line names the lock
+## state explicitly (spec 2.5's "distinct timer-locked state" -- the ghost's
+## own grey tint is the in-world version of the same fact).
+func test_sandbox_panel_shows_the_lock_state() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+	sandbox.panel()._refresh()
+	assert_true(
+		sandbox.panel()._timer_label.text.findn("[unlocked]") >= 0,
+		"unlocked before any release: %s" % sandbox.panel()._timer_label.text
+	)
+
+	Match.set_feed_timer_enabled(true)
+	Match.request_place(0, Match.default_ghost_origin(0), 0, Quaternion.IDENTITY, false)
+	sandbox.panel()._refresh()
+
+	assert_true(
+		sandbox.panel()._timer_label.text.findn("[locked]") >= 0,
+		"locked after an early release: %s" % sandbox.panel()._timer_label.text
+	)
+
+
 func test_sandbox_toggle_timer_hotkey_reenables_auto_drop() -> void:
 	_start_sandbox(2)
 	_run_countdown()

@@ -87,6 +87,22 @@ func _block_count() -> int:
 	return _blocks_root.get_child_count()
 
 
+## Bontago-mv0.10 (spec 2.4 "[ORIGINAL target]" cadence): several tests below
+## place more than once for the same slot with no frame between calls, the
+## way this whole file's fixture (a unit test with no real peer, so every
+## rpc() is a no-op) always has. Since a deliberate release now locks the
+## slot until its fixed interval's boundary (Match._consume_and_refeed()), a
+## second call in the same frame would be refused with REASON_NO_BLOCK before
+## that boundary arrives. Match.debug_unlock_slot() is the test-only seam
+## that resolves exactly `slot_id`'s lock immediately, the same thing
+## Match._tick_feed()'s own boundary-crossing branch would do -- rather than
+## ticking Match._process() for a block_timer's worth of frames, which would
+## also run every OTHER slot's independent interval down by that much and
+## risk an unrelated auto-drop in a test that isn't about auto-drop at all.
+func _unlock_slot(slot_id: int) -> void:
+	Match.debug_unlock_slot(slot_id)
+
+
 # --- The host's local player never round-trips ------------------------------
 
 
@@ -130,6 +146,28 @@ func test_submit_place_on_a_client_sends_without_touching_match() -> void:
 # --- Never duplicated, never lost -------------------------------------------
 
 
+## Bontago-mv0.10 (spec 2.4 "[ORIGINAL target]" cadence): a release attempted
+## while release-locked, over the wire, counts exactly like any other refused
+## intent -- MatchNet._consumed_a_block() already treats REASON_NO_BLOCK as
+## "nothing spent" (autoload/Match.gd's DECISION on reusing that reason), so
+## it is refused, not silently dropped, and the invariant the acceptance
+## harness checks (accepted + refused == sent) still holds.
+func test_a_locked_release_over_the_wire_is_refused_not_dropped() -> void:
+	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
+	_start_playing()
+	var where: Vector3 = _home_world_position(0)
+	net.submit_place(0, where, 0, Quaternion.IDENTITY, false, Match.feed_seq(0))
+	assert_true(Match.is_release_locked(0), "fixture: slot 0 is now locked")
+
+	var reason: StringName = net.submit_place(0, where, 0, Quaternion.IDENTITY, false, Match.feed_seq(0))
+
+	assert_eq(reason, PlacementRules.REASON_NO_BLOCK)
+	assert_eq(net.intents_accepted(0), 1)
+	assert_eq(net.intents_refused(0), 1)
+	assert_eq(net.intents_sent(0), 2)
+	assert_eq(_block_count(), 1)
+
+
 func test_the_same_intent_delivered_twice_spawns_one_block() -> void:
 	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
 	_start_playing()
@@ -169,6 +207,7 @@ func test_feed_seq_advances_on_every_consumed_block() -> void:
 
 	for _i: int in range(3):
 		net.submit_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false, Match.feed_seq(0))
+		_unlock_slot(0)
 
 	assert_eq(Match.feed_seq(0), start + 3)
 	assert_eq(_block_count(), 3)
@@ -280,6 +319,7 @@ func test_no_net_id_is_ever_spawned_twice() -> void:
 	var ids: Dictionary = {}
 	for _i: int in range(5):
 		net.submit_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false, Match.feed_seq(0))
+		_unlock_slot(0)
 	for child: Node in _blocks_root.get_children():
 		var block: Block = child as Block
 		assert_false(ids.has(block.net_id), "net_id %d was handed out twice" % block.net_id)
@@ -536,6 +576,7 @@ func test_a_spawn_refused_by_the_allocator_never_reaches_the_wire() -> void:
 	var where: Vector3 = _home_world_position(0)
 
 	var first: StringName = net.submit_place(0, where, 0, Quaternion.IDENTITY, false, Match.feed_seq(0))
+	_unlock_slot(0)
 	var second: StringName = net.submit_place(0, where, 1, Quaternion.IDENTITY, false, Match.feed_seq(0))
 
 	assert_eq(first, PlacementRules.REASON_OK, "the last representable id still places")
@@ -697,6 +738,48 @@ func test_a_replicated_feed_event_sets_the_held_shape_and_resets_the_timer() -> 
 	assert_eq(
 		Match.feed_seq(1), 9, "The client takes the host's sequence verbatim; it cannot count its own."
 	)
+
+
+## Bontago-mv0.10 follow-up: an early release does not restart the interval
+## (spec 2.4), so the event that replicates it must carry the host's real
+## remaining time and lock state rather than let apply_replicated_feed()
+## assume a fresh config.block_timer -- otherwise a client's HUD ring jumps
+## back to full for a piece it cannot yet release, and the client's own
+## ghost never shows the locked tint net/PlayerController.gd's
+## _update_ghost_tint() is capable of drawing.
+func test_a_replicated_feed_event_with_interval_and_lock_sets_them_instead_of_resetting() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing(2, 6.0)
+	for _i: int in range(60):
+		Match._process(1.0 / 60.0)
+	var net: MatchNetScript = _make_net({}, [1], true)
+
+	net.net_match_event(MatchNetScript.EVENT_FEED_ISSUED, [1, &"cube", &"domino", 9, 4.25, true])
+
+	assert_almost_eq(
+		Match.feed_time_left(1), 4.25, 0.001,
+		"the real remaining interval, not a reset to config.block_timer."
+	)
+	assert_true(Match.is_release_locked(1), "and the lock state.")
+
+
+## An older sender (or this file's own test above) that only ever quotes the
+## first four EVENT_FEED_ISSUED fields must keep working exactly as before --
+## apply_replicated_feed()'s host_feed_time_left/host_is_locked default to
+## "not sent" (-1.0 / false) so a short args array falls back to the
+## pre-existing full-reset, unlocked behavior instead of misreading garbage.
+func test_a_replicated_feed_event_without_the_new_fields_still_resets_the_timer() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing(2, 6.0)
+	var net: MatchNetScript = _make_net({}, [1], true)
+
+	net.net_match_event(MatchNetScript.EVENT_FEED_ISSUED, [1, &"cube", &"domino", 9])
+
+	assert_almost_eq(
+		Match.feed_time_left(1), 6.0, 0.001,
+		"a short args array keeps the full-reset fallback."
+	)
+	assert_false(Match.is_release_locked(1))
 
 
 func test_a_replicated_turn_points_a_client_at_its_own_slot() -> void:

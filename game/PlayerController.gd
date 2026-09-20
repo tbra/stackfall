@@ -333,6 +333,11 @@ func _update_ghost_tint() -> void:
 		_acting_slot(), _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion
 	)
 	_ghost.apply_validity(result)
+	# Bontago-mv0.10 (spec 2.5): "A distinct timer-locked state must remain
+	# visible even at a legal location" -- release-locked overrides whatever
+	# apply_validity() just set, since the interval lock is about *when* this
+	# piece may drop, not *where*.
+	_ghost.set_locked(bool(_match.is_release_locked(_acting_slot())))
 
 
 func _handle_hover_adjust(delta: float) -> void:

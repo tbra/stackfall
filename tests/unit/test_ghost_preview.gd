@@ -50,6 +50,25 @@ func test_reset_clears_free_rotation_and_index() -> void:
 	assert_eq(ghost.basis, Basis.IDENTITY)
 
 
+## Bontago-mv0.10 (spec 2.4/2.5 "[ORIGINAL target]" cadence): "A distinct
+## timer-locked state must remain visible even at a legal location."
+func test_set_locked_overrides_the_validity_tint() -> void:
+	var ghost: GhostPreview = _make_ghost()
+	ghost.apply_validity(PlacementRules.Result.VALID)
+	assert_eq(ghost.current_state(), GhostPreview.STATE_VALID)
+
+	ghost.set_locked(true)
+
+	assert_eq(ghost.current_state(), GhostPreview.STATE_LOCKED)
+	assert_true(
+		ghost.current_tint_color().is_equal_approx(ghost.ghost_tuning.locked_tint_color),
+		"the locked tint must win over the (still legal) validity tint."
+	)
+
+	ghost.set_locked(false)
+	assert_eq(ghost.current_state(), GhostPreview.STATE_VALID, "unlocking restores whatever validity last said.")
+
+
 func test_many_random_steps_then_reset_never_drifts() -> void:
 	var ghost: GhostPreview = _make_ghost()
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()

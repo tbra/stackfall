@@ -26,6 +26,50 @@ extends Resource
 ## Directory scanned by load_all_shapes() for every BlockShape .tres resource.
 const SHAPES_DIR: String = "res://config/blocks/"
 
+## Bontago-mv0.12 (owner-reported playability): `cells`' bounding-box centre,
+## in cell units, computed once and cached. Every shape whose cells don't
+## straddle the origin symmetrically (bar3's cells run 0..2, so its centre is
+## (1, 0, 0); domino's run 0..1, so its centre is (0.5, 0, 0)) used to hang off
+## the cursor and rotate about the wrong point, because game/BlockFactory.gd
+## and autoload/Match.gd both treated cell (0, 0, 0) as the pivot. Callers that
+## need the pivot at the shape's true geometric centre subtract this (scaled
+## by PhysicsTuning.cube_size) from every cell offset instead.
+##
+## DECISION (config/blocks/BlockShape.gd): cached on the instance rather than
+## recomputed every call. BlockShape.load_all_shapes() hands back the same
+## loaded Resource to every caller for a given id (Godot's resource cache), so
+## one shape's center() is computed once per process and reused by every
+## block of that shape for the rest of the run; `cells` never changes after
+## load, so there is nothing to invalidate the cache for.
+var _cached_center: Vector3 = Vector3.ZERO
+var _center_computed: bool = false
+
+
+func center() -> Vector3:
+	if not _center_computed:
+		_cached_center = _compute_center()
+		_center_computed = true
+	return _cached_center
+
+
+func _compute_center() -> Vector3:
+	if cells.is_empty():
+		return Vector3.ZERO
+	var min_x: float = INF
+	var max_x: float = -INF
+	var min_y: float = INF
+	var max_y: float = -INF
+	var min_z: float = INF
+	var max_z: float = -INF
+	for cell: Vector3i in cells:
+		min_x = minf(min_x, float(cell.x))
+		max_x = maxf(max_x, float(cell.x))
+		min_y = minf(min_y, float(cell.y))
+		max_y = maxf(max_y, float(cell.y))
+		min_z = minf(min_z, float(cell.z))
+		max_z = maxf(max_z, float(cell.z))
+	return Vector3((min_x + max_x) * 0.5, (min_y + max_y) * 0.5, (min_z + max_z) * 0.5)
+
 
 ## Loads every BlockShape resource in SHAPES_DIR, sorted by id so the result is
 ## deterministic across platforms and directory-listing orders. The single

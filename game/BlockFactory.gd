@@ -10,11 +10,22 @@ extends RefCounted
 
 const BLOCK_SCENE: PackedScene = preload("res://game/Block.tscn")
 
+## Bontago-mv0.11 (owner-reported playability): one StandardMaterial3D per
+## owner colour, shared by every mesh of every block that colour ever builds,
+## instead of a new material per block. Keyed by the Color itself (Godot's
+## Dictionary supports Color keys directly); never cleared, since the whole
+## project palette is MatchConfig.player_colors' fixed 8 entries plus
+## Color.WHITE for the M1/no-owner call sites -- at most 9 materials for the
+## life of the process.
+static var _materials_by_color: Dictionary = {}
+
 
 ## `owner_slot` defaults to -1 so M1's call sites (no player slots yet) keep
 ## compiling unchanged; M2's Match.request_place is the first caller to pass
-## a real slot id (spec 2.2 "height credit").
-static func build(shape: BlockShape, tuning: PhysicsTuning, owner_slot: int = -1) -> Block:
+## a real slot id (spec 2.2 "height credit"). `color` defaults to white for
+## the same reason -- a block built with no colour looks exactly as it did
+## before Bontago-mv0.11.
+static func build(shape: BlockShape, tuning: PhysicsTuning, owner_slot: int = -1, color: Color = Color.WHITE) -> Block:
 	var block: Block = BLOCK_SCENE.instantiate()
 	block.shape_id = shape.id
 	block.cube_count = shape.cells.size()
@@ -35,9 +46,16 @@ static func build(shape: BlockShape, tuning: PhysicsTuning, owner_slot: int = -1
 	block.linear_damp = tuning.block_linear_damp
 	block.angular_damp = tuning.block_angular_damp
 
+	var visual_material: StandardMaterial3D = _material_for_color(color)
 	var half_size: float = (tuning.cube_size - tuning.cube_margin) * 0.5
+	# Bontago-mv0.12: cells are built around the shape's geometric centre, not
+	# raw cell (0, 0, 0) -- see BlockShape.center()'s own doc comment. This is
+	# what makes the body's own local origin (0, 0, 0) coincide with the
+	# shape's centre, matching the ghost's visual (build_visual_only() below)
+	# and the pivot autoload/Match.gd's request_place() now spawns at.
+	var center: Vector3 = shape.center()
 	for cell: Vector3i in shape.cells:
-		var local_pos: Vector3 = Vector3(cell) * tuning.cube_size
+		var local_pos: Vector3 = (Vector3(cell) - center) * tuning.cube_size
 		var is_sloped: bool = shape.sloped_cells.has(cell)
 
 		var collision: CollisionShape3D = CollisionShape3D.new()
@@ -48,6 +66,7 @@ static func build(shape: BlockShape, tuning: PhysicsTuning, owner_slot: int = -1
 		var mesh_instance: MeshInstance3D = MeshInstance3D.new()
 		var mesh: Mesh = shape.mesh if shape.mesh != null else _make_visual_mesh(half_size, is_sloped)
 		mesh_instance.mesh = mesh
+		mesh_instance.material_override = visual_material
 		mesh_instance.position = local_pos
 		block.add_child(mesh_instance)
 
@@ -57,18 +76,33 @@ static func build(shape: BlockShape, tuning: PhysicsTuning, owner_slot: int = -1
 ## Builds just the visuals for a shape (no RigidBody3D, no collision) as a
 ## plain Node3D with one MeshInstance3D per cell. Used by GhostPreview so the
 ## held block's look matches the real one without simulating physics for it.
+## Offset by the shape's centre exactly like build() above, so the ghost's
+## visual and the spawned body agree on where the shape's geometric centre
+## sits relative to this node's own origin (Bontago-mv0.12); GhostPreview's
+## own tint material is applied by the caller (_apply_material_to_visual()),
+## never here, per this package's "keep the ghost's own tint logic untouched".
 static func build_visual_only(shape: BlockShape, tuning: PhysicsTuning) -> Node3D:
 	var root: Node3D = Node3D.new()
 	root.name = "ShapeVisual"
 	var half_size: float = (tuning.cube_size - tuning.cube_margin) * 0.5
+	var center: Vector3 = shape.center()
 	for cell: Vector3i in shape.cells:
 		var mesh_instance: MeshInstance3D = MeshInstance3D.new()
 		var is_sloped: bool = shape.sloped_cells.has(cell)
 		var mesh: Mesh = shape.mesh if shape.mesh != null else _make_visual_mesh(half_size, is_sloped)
 		mesh_instance.mesh = mesh
-		mesh_instance.position = Vector3(cell) * tuning.cube_size
+		mesh_instance.position = (Vector3(cell) - center) * tuning.cube_size
 		root.add_child(mesh_instance)
 	return root
+
+
+static func _material_for_color(color: Color) -> StandardMaterial3D:
+	if _materials_by_color.has(color):
+		return _materials_by_color[color]
+	var material: StandardMaterial3D = StandardMaterial3D.new()
+	material.albedo_color = color
+	_materials_by_color[color] = material
+	return material
 
 
 static func _make_collision_shape(half_size: float, sloped: bool) -> Shape3D:

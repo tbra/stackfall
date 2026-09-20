@@ -111,10 +111,17 @@ func _refresh_held_block(slot_id: int) -> void:
 	]
 
 
+## Bontago-mv0.10 (spec 2.4/2.5 "[ORIGINAL target]" fixed-interval cadence):
+## "locked"/"unlocked" alongside the timer, the same distinction
+## game/GhostPreview.gd's grey tint draws for the held ghost -- Match.
+## is_release_locked() is the one source of truth both read.
 func _refresh_timer(slot_id: int) -> void:
 	var enabled: bool = bool(match_provider.feed_timer_enabled())
 	var left: float = float(match_provider.feed_time_left(slot_id)) if slot_id >= 0 else 0.0
-	_timer_label.text = "Timer: %s (%.1fs)" % ["running" if enabled else "paused", left]
+	var locked: bool = bool(match_provider.is_release_locked(slot_id)) if slot_id >= 0 else false
+	_timer_label.text = "Timer: %s (%.1fs) [%s]" % [
+		"running" if enabled else "paused", left, "locked" if locked else "unlocked"
+	]
 
 
 func _refresh_validity(slot_id: int) -> void:
