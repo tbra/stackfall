@@ -26,6 +26,15 @@ extends Resource
 ## live, keep the largest-radius ones per team and drop the rest. A dropped
 ## circle is always fully inside a kept one of the same team in practice,
 ## because the big ones are the tall towers.
+##
+## DECISION (config/TerritoryTuning.gd, Bontago-cmc.5): the same capped list
+## TerritorySolver keeps is what autoload/Match.gd now hands to
+## game/TerritoryOverlay.gd's analytic circle shader and to
+## net/MatchNet.gd's replicated circle list (core/net/CircleWire.gd), so this
+## number is also the wire's hard cap (≤400 * 7 bytes ≈ 2.8 KB). A second,
+## GPU-side budget, TerritoryVisuals.max_shader_circles, defaults to this
+## value and can be lowered independently for a weaker GPU without touching
+## the rules; it never raises the solver's own cap.
 @export var max_circles: int = 400
 
 ## -- Rates (spec 3.3 "Recompute territory at 10 Hz", 3.4 "diffs at 5 Hz") ---

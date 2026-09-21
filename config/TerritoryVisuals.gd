@@ -76,3 +76,44 @@ extends Resource
 ## Segments in the full circle; the drawn arc uses a proportional share.
 @export var capture_ring_segments: int = 64
 @export var capture_ring_emission: float = 1.8
+
+## -- Analytic circle rendering (Bontago-cmc.5, owner requirement: "should
+## look smooth... some kind of metaballs system") ----------------------------
+## game/TerritoryOverlay.gd now feeds the shader the home-anchored circle
+## list itself (disk-local x/z/radius/team, one texel per circle) alongside
+## the cell raster, so the territory border is the analytic union of real
+## circles instead of a smoothstepped, bilinearly-upscaled 1 m cell grid —
+## the grid can only ever look like a blurred grid, never a curve
+## (game/TerritoryOverlay.gd's class doc explains why). These fields are
+## deliberately separate from edge_softness/outline_* above: those still
+## drive the *raster fallback* path (shaders/territory.gdshader's
+## `circles_valid == false` branch, taken when the circle list overflows
+## max_shader_circles), which has no continuous distance field to feather —
+## only the bilinear owner ramp — so it cannot share this path's meaning of
+## "meters from the analytic boundary".
+##
+## Half-width, in meters, of the smoothstep applied to a team's analytic
+## coverage value (radius - distance to the nearest/union-blended circle of
+## that team). Larger reads blurrier.
+@export var rim_soft_width: float = 0.25
+## Half-width, in meters, of the bright rim band drawn just inside a
+## territory's analytic edge (docs/ORIGINAL_BONTAGO_NOTES.md: "a bright
+## border around the rim of the shaded area").
+@export var rim_width: float = 0.35
+## Emission strength of the rim at the peak of its pulse.
+@export var rim_strength: float = 1.4
+## How much of the rim's pulse is animated; the rest is a constant glow.
+@export var rim_pulse_depth: float = 0.45
+## Pulses per second along the rim.
+@export var rim_speed: float = 1.6
+## Smooth-min/-max blend radius, in meters, used when two overlapping
+## same-team circles are combined into one team coverage value — the
+## "metaballs" look the owner asked for. 0 disables blending (a plain union,
+## still smooth-edged, just with a visible seam angle where two circles of
+## different radii meet).
+@export var metaball_blend: float = 0.3
+## Circles the shader actually loops per pixel before falling back to the
+## raster path for that frame (docs, "Bounded cost"). Defaults to
+## TerritoryTuning.max_circles; lower this on weaker GPUs without touching
+## the solver's own cap.
+@export var max_shader_circles: int = 400

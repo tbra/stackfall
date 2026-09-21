@@ -130,6 +130,27 @@ var _win_checker: WinChecker = null
 var _last_groups: TerritoryGroups = null
 var _solve_accum: float = 0.0
 
+## Bontago-cmc.5: goal no-build discs, cached at _build_territory() (goal
+## flags never move) so _run_territory_step() does not rebuild them every
+## solve, and so net/MatchNet.gd's replicate_territory() can ship the exact
+## same list a client's overlay draws. Parallel arrays: goal_radii is
+## currently uniform (TerritoryTuning.goal_zone_radius) but kept per-goal
+## because core/net/CircleWire.gd's wire format is already per-goal.
+var _goal_positions: PackedVector2Array = PackedVector2Array()
+var _goal_radii: PackedFloat32Array = PackedFloat32Array()
+
+## The analytic circle list the last _run_territory_step() built for
+## game/TerritoryOverlay.gd (see _update_circle_render()), cached so
+## net/MatchNet.gd's replicate_territory() can ship the identical list to
+## clients without re-deriving it from raw circles a client never has (every
+## body is frozen there). Host only; a client's copy lives only in the
+## overlay it was handed via apply_replicated_territory().
+var _circle_xs: PackedFloat32Array = PackedFloat32Array()
+var _circle_zs: PackedFloat32Array = PackedFloat32Array()
+var _circle_radii: PackedFloat32Array = PackedFloat32Array()
+var _circle_teams: PackedInt32Array = PackedInt32Array()
+var _circle_argmax_mode: bool = false
+
 ## Whether _tick_feed() decrements anything this frame (Bontago-mv0.8).
 ## True for every real match; a sandbox match (config.sandbox) starts it
 ## false, so feed_time_left never counts down and no slot ever auto-drops —
@@ -1122,6 +1143,14 @@ func _build_territory() -> void:
 	_last_groups = null
 	_solve_accum = 0.0
 
+	# Bontago-cmc.5: the same goal list, cached for the analytic shader and
+	# the replicated circle wire (see the class-level DECISION on
+	# _goal_positions above).
+	_goal_positions = goal_positions
+	_goal_radii = PackedFloat32Array()
+	_goal_radii.resize(goal_positions.size())
+	_goal_radii.fill(_territory_tuning.goal_zone_radius)
+
 
 func _clear_blocks() -> void:
 	if _blocks_parent == null:
@@ -1155,6 +1184,7 @@ func _run_territory_step(delta: float) -> void:
 	var permanent_holes: bool = config.hole_mode == MatchConfig.HoleMode.PERMANENT
 	_raster.update(circles, groups, delta, holes_enabled, permanent_holes)
 	_win_checker.update(_raster, delta)
+	_update_circle_render(circles, groups)
 
 	Events.territory_updated.emit(_raster, groups)
 
@@ -1207,6 +1237,90 @@ func _collect_circles() -> Array[InfluenceCircle]:
 	if _registry != null:
 		circles.append_array(_registry.influence_circles(_slots, _territory_tuning, config.map_def()))
 	return circles
+
+
+## Bontago-cmc.5 (owner requirement: "should look smooth"). Builds the
+## analytic circle list game/TerritoryOverlay.gd's shader draws instead of
+## the smoothstepped, bilinearly-upscaled 1 m cell raster: only the
+## *home-anchored* circles TerritorySolver kept in a group (never a raw,
+## possibly cut-off circle — the raster and the shader must agree on which
+## circles are live territory) survive, already capped at
+## TerritoryTuning.max_circles by TerritorySolver's own budget (see the
+## DECISION there), so this never needs its own overflow check.
+##
+## Sorted by team, largest radius first within a team: shaders/
+## territory.gdshader's cheap early-out (stop folding a team's circles into
+## its coverage value once that team has visibly saturated a pixel) sees
+## each team's biggest, most-covering circles first, so it skips the most
+## circles for the least visual risk.
+func _update_circle_render(circles: Array[InfluenceCircle], groups: TerritoryGroups) -> void:
+	var entries: Array = []
+	for group: int in range(groups.group_count()):
+		var team: int = groups.team_of(group)
+		for circle_index: int in groups.circles_of(group):
+			var circle: InfluenceCircle = circles[circle_index]
+			entries.append([team, circle.radius, circle.center.x, circle.center.y])
+	entries.sort_custom(
+		func(a: Array, b: Array) -> bool:
+			if a[0] != b[0]:
+				return a[0] < b[0]
+			return a[1] > b[1]
+	)
+
+	var count: int = entries.size()
+	var xs: PackedFloat32Array = PackedFloat32Array()
+	var zs: PackedFloat32Array = PackedFloat32Array()
+	var radii: PackedFloat32Array = PackedFloat32Array()
+	var teams: PackedInt32Array = PackedInt32Array()
+	xs.resize(count)
+	zs.resize(count)
+	radii.resize(count)
+	teams.resize(count)
+	for i: int in range(count):
+		var entry: Array = entries[i]
+		teams[i] = entry[0]
+		radii[i] = entry[1]
+		xs[i] = entry[2]
+		zs[i] = entry[3]
+
+	var argmax_mode: bool = config.hole_mode == MatchConfig.HoleMode.OFF
+	_circle_xs = xs
+	_circle_zs = zs
+	_circle_radii = radii
+	_circle_teams = teams
+	_circle_argmax_mode = argmax_mode
+
+	if _field != null:
+		_field.set_overlay_circles(xs, zs, radii, teams, _goal_positions, _goal_radii, argmax_mode)
+
+
+## The analytic circle list the last _run_territory_step() built (host
+## only), cached so net/MatchNet.gd's replicate_territory() can ship the
+## identical list to clients rather than re-deriving it from raw circles a
+## client never has (every body there is frozen). See _update_circle_render().
+func circle_render_arrays() -> Dictionary:
+	return {
+		"xs": _circle_xs,
+		"zs": _circle_zs,
+		"radii": _circle_radii,
+		"teams": _circle_teams,
+		"goal_positions": _goal_positions,
+		"goal_radii": _goal_radii,
+		"argmax_mode": _circle_argmax_mode,
+	}
+
+
+## core/net/CircleWire.gd's quantization bounds for this match's map. Host
+## (encoding, net/MatchNet.gd's replicate_territory()) and client (decoding,
+## the same file's net_territory()) must use the identical numbers, so this
+## is the one place both read them from — the same MatchConfig/NetConfig/
+## TerritoryTuning resources a version-matched build already shares.
+func circle_wire_xz_bound() -> float:
+	return _net_config.position_bounds(config.map_def()).size.x * 0.5
+
+
+func circle_wire_radius_max() -> float:
+	return _territory_tuning.influence_max_fraction * config.map_def().field_radius
 
 
 ## Owner decision (docs/M2_PLAN.md, "Home flag lost to a hole"): a hole
@@ -1365,8 +1479,28 @@ func apply_replicated_elimination(slot_id: int) -> void:
 ## TerritoryRaster.apply_replicated_state). Returns the cells whose hole bit
 ## flipped so MatchNet can re-emit Events.hole_cells_changed and Field opens
 ## exactly the same holes the host did.
+##
+## Bontago-cmc.5: the circle_* / goal_* / argmax_mode arguments are
+## core/net/CircleWire.gd's decoded analytic circle list, defaulted empty so
+## every pre-existing call site (this file's own tests, a stale client build
+## that only ever sent the raster payload) still compiles and still mirrors
+## the raster exactly as before -- an empty circle list just means the
+## overlay falls back to the raster path for that frame
+## (game/TerritoryOverlay.gd's set_circles(), "circles_valid"), never a
+## crash. net/MatchNet.gd's net_territory() is the only real caller that
+## passes a non-empty list.
 func apply_replicated_territory(
-	cells: PackedInt32Array, owners: PackedByteArray, states: PackedByteArray, full: bool
+	cells: PackedInt32Array,
+	owners: PackedByteArray,
+	states: PackedByteArray,
+	full: bool,
+	circle_xs: PackedFloat32Array = PackedFloat32Array(),
+	circle_zs: PackedFloat32Array = PackedFloat32Array(),
+	circle_radii: PackedFloat32Array = PackedFloat32Array(),
+	circle_teams: PackedInt32Array = PackedInt32Array(),
+	goal_positions: PackedVector2Array = PackedVector2Array(),
+	goal_radii: PackedFloat32Array = PackedFloat32Array(),
+	argmax_mode: bool = false
 ) -> void:
 	if _raster == null:
 		return
@@ -1374,6 +1508,19 @@ func apply_replicated_territory(
 		_raster.apply_replicated_state(owners, states)
 	else:
 		_raster.apply_replicated_diff(cells, owners, states)
+	# DECISION (autoload/Match.gd): an empty circle_xs is treated as "no
+	# circle update in this packet" rather than "clear the overlay's
+	# circles" -- a legitimately empty circle list should not occur during
+	# play (every living team keeps a home circle), so an empty array here
+	# almost always means a caller that never decoded one (an old test, a
+	# malformed circle_payload net_territory() dropped). Matching net/
+	# MatchNet.gd's raster payload contract ("ignored, not half-applied"): a
+	# circle update that didn't arrive intact must not blank a client's
+	# overlay that was previously drawing correctly.
+	if _field != null and circle_xs.size() > 0:
+		_field.set_overlay_circles(
+			circle_xs, circle_zs, circle_radii, circle_teams, goal_positions, goal_radii, argmax_mode
+		)
 
 
 ## BlockShape.load_all_shapes() scans a directory, so the index is built once

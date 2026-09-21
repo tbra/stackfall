@@ -65,6 +65,11 @@ const SLOT_COLOR_MAX: int = 8
 ## (0, 0) maps to the middle of the texture. See _apply_uv_uniforms().
 const UV_CENTER: float = 0.5
 
+## Goal records the shader loops per pixel; a wire safety cap mirroring
+## core/net/CircleWire.gd's GOAL_COUNT_MAX, and far above spec 2.2's 1-5
+## goal flags.
+const GOAL_TEXELS_MAX: int = 8
+
 var _map_def: MapDef = null
 var _visuals: TerritoryVisuals = null
 var _tuning: TerritoryTuning = null
@@ -78,6 +83,16 @@ var _last_image: Image = null
 var _owner_cell_image: Image = null
 var _state_cell_image: Image = null
 var _upload_accumulator: float = 0.0
+
+## Bontago-cmc.5: the analytic circle list (see set_circles()'s doc). Kept
+## the same way _owner_cell_image is — a headless test has no rendering
+## server to read a texture back from.
+var _circle_texture: ImageTexture = null
+var _goal_texture: ImageTexture = null
+var _circle_image: Image = null
+var _goal_image: Image = null
+var _circle_count: int = 0
+var _goal_count: int = 0
 
 
 func _process(delta: float) -> void:
@@ -111,6 +126,7 @@ func configure(map_def: MapDef, visuals: TerritoryVisuals, tuning: TerritoryTuni
 	_material.shader = TERRITORY_SHADER
 	_apply_visual_uniforms()
 	_set_blank_texture()
+	clear_circles()
 	material_override = _material
 
 
@@ -156,6 +172,12 @@ func cells_per_side() -> int:
 
 ## Hands the overlay the live raster to draw and the per-slot colors to draw it
 ## in. The raster is read, never mutated.
+##
+## A null raster (Field.clear_match_state(), spec 3.7's End -> Lobby) also
+## drops whatever circle list the last match left uploaded — otherwise the
+## disk sitting idle behind the main menu would keep showing the previous
+## match's last analytic frame, the one part of the overlay upload_now() by
+## itself never touches (Bontago-cmc.5).
 func set_source(raster: TerritoryRaster, slot_colors: PackedColorArray) -> void:
 	_raster = raster
 	var raster_grid: CellGrid = raster.grid() if raster != null else null
@@ -163,6 +185,8 @@ func set_source(raster: TerritoryRaster, slot_colors: PackedColorArray) -> void:
 		_cells_per_side = raster_grid.res
 	set_slot_colors(slot_colors)
 	upload_now()
+	if raster == null:
+		clear_circles()
 
 
 ## MatchConfig.player_colors, indexed by team/slot id. Converted to linear
@@ -210,6 +234,151 @@ func push_cells(
 	_material.set_shader_parameter(&"territory_state_soft", _state_texture)
 	_set_image(_upscaled(owner_image, side))
 	_apply_uv_uniforms(side)
+
+
+## Bontago-cmc.5: the analytic circle list a solve step just produced —
+## autoload/Match.gd's home-anchored circles (the same ones TerritoryGroups
+## kept, already capped at TerritoryTuning.max_circles) plus the goal
+## no-build discs, so shaders/territory.gdshader can draw the territory
+## border as the union of real circles instead of smoothstepping the
+## upscaled cell grid above. `xs`/`zs`/`radii`/`teams` are disk-local and the
+## same length (a caller that built them any other way gets a texture sized
+## to the shortest of the four, matching push_cells()'s own
+## "never half-crash" style); `argmax_mode` is MatchConfig.HoleMode.OFF,
+## which the shader must colour with a single-owner argmax instead of a
+## union + contested test (spec 3.3's v2 alternative).
+##
+## Circles are packed one per texel of an RGBAF image — R/G = disk-local
+## x/z, B = radius, A = team id — rather than a shader array uniform: a
+## uniform array needs a compile-time size and a second cap to keep in sync
+## with TerritoryTuning.max_circles, where a sampler2D's width is just
+## however many texels this call uploads (docs/TERRITORY_V2_PLAN.md's
+## rendering section rejected this shape for the *raster* renderer on cost
+## grounds that do not apply here: 400 texels is a few KB, not a resize()).
+## texelFetch(), not a filtered sample, reads them back exactly.
+func set_circles(
+	xs: PackedFloat32Array,
+	zs: PackedFloat32Array,
+	radii: PackedFloat32Array,
+	teams: PackedInt32Array,
+	goal_positions: PackedVector2Array,
+	goal_radii: PackedFloat32Array,
+	argmax_mode: bool
+) -> void:
+	if _material == null:
+		return
+	var count: int = mini(mini(xs.size(), zs.size()), mini(radii.size(), teams.size()))
+	_circle_count = count
+	_circle_image = _pack_circle_image(xs, zs, radii, teams, count)
+	_circle_texture = _store(_circle_texture, _circle_image)
+
+	var goal_count: int = mini(goal_positions.size(), goal_radii.size())
+	goal_count = mini(goal_count, GOAL_TEXELS_MAX)
+	_goal_count = goal_count
+	_goal_image = _pack_goal_image(goal_positions, goal_radii, goal_count)
+	_goal_texture = _store(_goal_texture, _goal_image)
+
+	# A list longer than the shader's own budget (TerritoryVisuals.
+	# max_shader_circles, independently tunable below TerritoryTuning.
+	# max_circles for a weaker GPU) falls back to the cell-raster path for
+	# that frame rather than silently truncating the circle list and
+	# drawing a wrong boundary (spec 3.3, "Bounded cost").
+	var valid: bool = count > 0 and count <= _visuals.max_shader_circles
+	_material.set_shader_parameter(&"circle_tex", _circle_texture)
+	_material.set_shader_parameter(&"circle_count", count)
+	_material.set_shader_parameter(&"max_shader_circles", _visuals.max_shader_circles)
+	_material.set_shader_parameter(&"circles_valid", valid)
+	_material.set_shader_parameter(&"argmax_mode", argmax_mode)
+	_material.set_shader_parameter(&"goal_tex", _goal_texture)
+	_material.set_shader_parameter(&"goal_count", goal_count)
+	_material.set_shader_parameter(&"metaball_blend", _visuals.metaball_blend)
+	_material.set_shader_parameter(&"rim_soft_width", _visuals.rim_soft_width)
+	_material.set_shader_parameter(&"rim_width", _visuals.rim_width)
+	_material.set_shader_parameter(&"rim_strength", _visuals.rim_strength)
+	_material.set_shader_parameter(&"rim_pulse_depth", _visuals.rim_pulse_depth)
+	_material.set_shader_parameter(&"rim_speed", _visuals.rim_speed)
+
+
+## Drops the circle list: circle_count/goal_count go to 0, so the shader's
+## `circles_valid` test fails and it falls back to the raster path, exactly
+## as an overflowing list would. configure() calls this once for the blank
+## disk before any match starts; set_source(null, ...) calls it again when a
+## match ends.
+func clear_circles() -> void:
+	set_circles(
+		PackedFloat32Array(), PackedFloat32Array(), PackedFloat32Array(), PackedInt32Array(),
+		PackedVector2Array(), PackedFloat32Array(), false
+	)
+
+
+## Circles currently uploaded (the shader's circle_count uniform).
+func circle_count() -> int:
+	return _circle_count
+
+
+## Goal discs currently uploaded (the shader's goal_count uniform).
+func goal_count() -> int:
+	return _goal_count
+
+
+func circle_texture() -> ImageTexture:
+	return _circle_texture
+
+
+func goal_texture() -> ImageTexture:
+	return _goal_texture
+
+
+## The exact circle/goal Images of the last upload, for the same headless-
+## test reason owner_cell_image() exists.
+func circle_image() -> Image:
+	return _circle_image
+
+
+func goal_image() -> Image:
+	return _goal_image
+
+
+## RGBAF, one texel per circle: (x, z, radius, team). Width is always at
+## least 1 (an empty image is invalid), so an unused caller texel carries
+## team -1.0 — circle_count staying 0 is what actually keeps the shader from
+## reading it, the same "the count decides, not the texture" contract
+## push_cells()'s _sized() padding relies on for the raster path.
+func _pack_circle_image(
+	xs: PackedFloat32Array,
+	zs: PackedFloat32Array,
+	radii: PackedFloat32Array,
+	teams: PackedInt32Array,
+	count: int
+) -> Image:
+	var width: int = maxi(count, 1)
+	var floats: PackedFloat32Array = PackedFloat32Array()
+	floats.resize(width * 4)
+	if count == 0:
+		floats[3] = -1.0
+	for i: int in range(count):
+		var base: int = i * 4
+		floats[base] = xs[i]
+		floats[base + 1] = zs[i]
+		floats[base + 2] = radii[i]
+		floats[base + 3] = float(teams[i])
+	return Image.create_from_data(width, 1, false, Image.FORMAT_RGBAF, floats.to_byte_array())
+
+
+## RGBAF, one texel per goal disc: (x, z, radius, unused).
+func _pack_goal_image(
+	goal_positions: PackedVector2Array, goal_radii: PackedFloat32Array, count: int
+) -> Image:
+	var width: int = maxi(count, 1)
+	var floats: PackedFloat32Array = PackedFloat32Array()
+	floats.resize(width * 4)
+	for i: int in range(count):
+		var base: int = i * 4
+		floats[base] = goal_positions[i].x
+		floats[base + 1] = goal_positions[i].y
+		floats[base + 2] = goal_radii[i]
+		floats[base + 3] = 0.0
+	return Image.create_from_data(width, 1, false, Image.FORMAT_RGBAF, floats.to_byte_array())
 
 
 ## A raster reports empty byte arrays before its first solve, and a stand-in

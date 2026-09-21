@@ -235,3 +235,74 @@ func test_an_out_of_range_diff_cell_is_skipped_not_fatal() -> void:
 
 	var coords: Vector2i = mirror.grid().cell_coords(0)
 	assert_eq(mirror.team_at(coords.x, coords.y), 1, "the in-range cell still applies")
+
+
+# --- Bontago-cmc.5: the circle list rides alongside the raster mirror ------
+##
+## The mirror above never reconstructs group indices (this file's own class
+## doc), so a client's *analytic* picture cannot come from the raster at all
+## — it has to be the same home-anchored circle list the host solved, shipped
+## by core/net/CircleWire.gd (net/MatchNet.gd owns the replication wiring;
+## these tests only pin that a real solved fixture's circles survive the
+## wire, using this file's own circle/group fixture rather than a synthetic
+## one).
+
+
+func _fixture_circles_and_groups() -> Array:
+	var circles: Array[InfluenceCircle] = [
+		InfluenceCircle.for_home(Vector2(-2.0, 0.0), 0, 0, _tuning),
+		InfluenceCircle.for_home(Vector2(2.0, 0.0), 1, 1, _tuning),
+	]
+	var groups: TerritoryGroups = TerritoryGroups.new()
+	groups.add_group(0, PackedInt32Array([0]))
+	groups.add_group(1, PackedInt32Array([1]))
+	return [circles, groups]
+
+
+func test_a_solved_fixtures_circles_survive_the_wire() -> void:
+	var fixture: Array = _fixture_circles_and_groups()
+	var circles: Array[InfluenceCircle] = fixture[0]
+	var groups: TerritoryGroups = fixture[1]
+
+	var xs: PackedFloat32Array = PackedFloat32Array()
+	var zs: PackedFloat32Array = PackedFloat32Array()
+	var radii: PackedFloat32Array = PackedFloat32Array()
+	var teams: PackedInt32Array = PackedInt32Array()
+	for group: int in range(groups.group_count()):
+		var team: int = groups.team_of(group)
+		for circle_index: int in groups.circles_of(group):
+			var circle: InfluenceCircle = circles[circle_index]
+			xs.append(circle.center.x)
+			zs.append(circle.center.y)
+			radii.append(circle.radius)
+			teams.append(team)
+
+	var xz_bound: float = 45.0 * 1.5
+	var radius_max: float = _tuning.influence_max_fraction * 45.0
+	var payload: PackedByteArray = CircleWire.encode(
+		xs, zs, radii, teams, PackedVector2Array(), PackedFloat32Array(), false, xz_bound, radius_max
+	)
+	var decoded: Dictionary = CircleWire.decode(payload, xz_bound, radius_max)
+
+	assert_eq(decoded["xs"].size(), 2, "Both home circles made the wire.")
+	var step: float = (xz_bound * 2.0) / 65535.0
+	for i: int in range(xs.size()):
+		assert_almost_eq(float(decoded["xs"][i]), xs[i], step)
+		assert_almost_eq(float(decoded["zs"][i]), zs[i], step)
+		assert_eq(int(decoded["teams"][i]), teams[i])
+
+	# And the same decoded arrays are exactly what game/TerritoryOverlay.gd
+	# would be handed (net/MatchNet.gd's net_territory() -> autoload/Match.gd's
+	# apply_replicated_territory() -> Field.set_overlay_circles()).
+	var overlay: TerritoryOverlay = TerritoryOverlay.new()
+	overlay.configure(
+		load("res://config/maps/round_medium.tres"),
+		load("res://config/territory_visuals.tres"),
+		_tuning
+	)
+	add_child_autofree(overlay)
+	overlay.set_circles(
+		decoded["xs"], decoded["zs"], decoded["radii"], decoded["teams"],
+		decoded["goal_positions"], decoded["goal_radii"], bool(decoded["argmax_mode"])
+	)
+	assert_eq(overlay.circle_count(), 2)
