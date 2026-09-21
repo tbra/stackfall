@@ -3,6 +3,50 @@
 Prepared 2026-09-18 from Git, Beads, project files and the interrupted local Claude
 session. This is a restart snapshot. Refresh live state; keep task progress in Beads.
 
+## Update 2026-09-21 (end of day) — resume here
+
+**Git:** `main` is clean and pushed (`6badb77` + this handoff commit). No worktrees other
+than `M:/Bontago-worktrees/play` (the owner's playable copy; detached, safe to delete and
+recreate with `git worktree add --detach M:/Bontago-worktrees/play <sha>` then copy
+`addons/godotsteam` into it). Commit authority: the owner granted "commit when it's done,
+you don't need my approval" on 2026-09-20 (Beads memory `stackfall-git-authority`); pushes
+were also authorized. `bd dolt push` is broken on this machine (`Bontago-2mi`); the local
+Beads DB is authoritative and `.beads/issues.jsonl` is exported with the repo.
+
+**What shipped since the 09-19 update (all on main):** M3b Steam transport + menu/lobby UI
+(`5f948a6`), Windows export for a Steam-addable build (`tools/export_windows.ps1`), lobby
+ready/phantom-slot/hot-seat fixes, sandbox mode (`--sandbox`), the evidence-backed spec
+audit (`docs/SPEC.md` "Decisions made — current target"; `docs/ORIGINAL_INSTALL_EVIDENCE.md`,
+`docs/ORIGINAL_BONTAGO_NOTES.md`), territory rules per that audit (overlap holes default,
+goal no-build zones, one-raycast placement, continuous solve, optional argmax mode),
+original fixed-window cadence, owner-coloured blocks, bottom-centre pivot, original-style
+block-locked camera and controls (README has the tables), wheel-only height, footprint
+projection, smooth circle-derived territory rendering with a rim, and a rewritten
+`tests/bench/m2_acceptance.gd` (9 criteria, ~117 s).
+
+**Gate policy (owner, 09-21):** workers run targeted tests only (`tools/run_gut.ps1`);
+the full suite runs once per merged batch in the background. Last full run on `a1538a3`:
+678/677/1 known pending; later merges were validated with targeted sets, the ENet harness
+and `m2_acceptance`. A background full run on `6badb77` is the first thing to start.
+
+**Next exact actions (in order):**
+1. `Bontago-mv0.18` in-game tuning panel (F4; sliders by reflection over the tuning
+   resources; live physics apply; save to `user://`). The brief is in the issue; a worker was
+   dispatched and stopped before writing anything — start fresh on `main`.
+2. `Bontago-mv0.3` shorten the slow test scripts (ranking in the issue comments:
+   `test_match_flow`, `test_match_lifecycle`, `test_block_registry`, `test_tower_placement`
+   dominate); `Bontago-mv0.13` make `tools/run_gut.ps1` exit non-zero on failures.
+3. `Bontago-mv0.9` HUD "Player N's turn" banner → per-player status.
+4. Owner manual steps outstanding: two-PC Steam match (M3b acceptance, `Bontago-mv0.2`),
+   real gamepad feel, `--sandbox` hotkeys by hand.
+5. Then M4 per `docs/M4_PLAN.md` (read its amendment header and SPEC §2.6 first; the
+   original's specials roster is DaBomb, Volcano, Earthquake, Propeller, Anvil, Rocket,
+   Jumping Bean).
+
+**Open [OPEN] rule items decided in place (revisit only if the owner objects):** overlap-mode
+home elimination = hole under the flag; timer phase per player; goal zones block placement
+only; auto-drop relocation kept.
+
 ## Update 2026-09-19 — M3a repair candidate accepted, awaiting the Git gate
 
 The six review findings `Bontago-mv0.1.4`–`.9` are fixed, integrated, reviewed
