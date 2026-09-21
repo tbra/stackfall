@@ -190,20 +190,32 @@ The original global-versus-per-player phase alignment is **[OPEN]**; it must not
 
 **Placement legality [OWNER, retained where not contradicted by evidence]:** cast one ray straight down from the ghost's middle and classify its hit point in disk-local territory. It must be owned by the player's team, outside goal no-build zones, and not a contested/hole point. Do not require the whole footprint to fit. Missing support/off-disk hits are invalid. Ghost overlap/collision avoidance and anti-cheat bounds are separate checks, not permission to reintroduce footprint territory tests. Exact ray origin and world-down versus disk-normal behavior during tilt remain an implementation/feel question (§3.3).
 
+**Control model [ORIGINAL, implemented 2026-09-21 — Bontago-mv0.14]:** the camera is attached to
+the held block and follows it (`CameraTuning.follow_block`, smoothed by `follow_lag_seconds`);
+mouse motion moves the block in the disk plane relative to the camera (mouse captured during
+play); the wheel raises/lowers the block; holding Rotation Mode turns motion into 90° snaps;
+holding Camera Mode orbits instead of moving the block. Key choices below are [NEW] where the
+original's tutorial only names the action, not the key.
+
 | Action | Mouse/Keyboard | Gamepad [NEW] |
 |---|---|---|
-| Move ghost | Mouse | Left stick |
+| Move block | Mouse motion | Left stick |
 | Place (drop) | Left click | A / Cross |
-| Rotate yaw ±90° | Mouse wheel, or A/S | LB/RB |
-| Rotate pitch/roll 90° | Middle click / Shift+wheel | D-pad |
-| Free rotate | Hold R + move mouse | Right stick while holding RT |
+| Raise / lower block | Mouse wheel; PageUp / PageDown held | RS click / X held |
+| Rotation Mode (hold) | R | RT |
+| Rotate yaw ±90° (tap) | A / S | LB / RB |
+| Rotate pitch ±90° (tap) | W / D | D-pad up / down |
+| Rotate roll ±90° (tap) | [ / ] | D-pad left / right |
+| Snap-rotate (90° yaw) | Middle click | (RB) |
 | Reset rotation | Home or F | Y |
-| Raise/lower hover | Ctrl + wheel | |
-| Throw (specials only in normal play) | Hold right mouse button, drag back to aim, release | Hold LT, aim, release |
-| Camera orbit | Hold middle mouse button + move mouse | Right stick |
-| Camera zoom | Wheel while not holding a block, or Z/X | Triggers |
-| Camera pan | WASD / hold Space and drag | |
-| Snap camera to home / goal | 1 / 2 | |
+| Lock to vertical (hold) | Ctrl | (stick and height are already separate) |
+| Camera Mode (hold, orbit) | C + mouse | Right stick (always) |
+| Camera zoom | Z / X | Triggers while no block is held |
+| Throw (specials only) | Hold right mouse button, drag, release | Hold LT, aim, release |
+| Pause / release mouse | Esc | Start |
+
+Legacy free camera (pan with arrows / Space-drag, snap 1 / 2) remains behind
+`CameraTuning.follow_block = false`.
 
 **Rotation:**
 - Store rotation as an integer orientation index. There are 24 axis-aligned orientations of a cube.
