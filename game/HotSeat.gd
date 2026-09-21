@@ -19,6 +19,17 @@ extends Node
 ## integrator's help; see set_camera_rig() below.
 
 
+## Bontago-mv0.14 (spec 1.5): the original's mouse only ever positions the
+## held block, so a real play session hides/captures the OS cursor
+## (PlayerController.enable_mouse_capture()) instead of leaving a free system
+## cursor with nothing to point at. Safe to call unconditionally: it is a
+## silent no-op headless (no window to capture; see godot's own DisplayServer
+## behaviour), which is why every unit test that builds a HotSeat this way
+## keeps working without a display.
+func _ready() -> void:
+	_controller.enable_mouse_capture()
+
+
 ## Called once by the integrator after Main builds the shared CameraRig
 ## (docs/M2_PLAN.md: "the integrator wires Main.gd/tscn ... instance Field,
 ## HotSeat.tscn, BlocksContainer, BlockRegistry"). HotSeat can't wire this by

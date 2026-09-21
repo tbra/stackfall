@@ -25,10 +25,19 @@ extends Resource
 ## with Space + drag.
 @export var mouse_pan_speed: float = 0.03
 
-## -- Middle-mouse tap vs. hold (spec 2.5: MMB is both rotate_pitch_fwd and
-## camera_orbit_hold; PlayerController and CameraRig split them by how long
-## the button was held before release). --------------------------------------
-@export var mmb_tap_max_duration: float = 0.2
+## -- Follow-block mode (Bontago-mv0.14: original's camera is attached to the
+## held block, spec 1.5, docs/ORIGINAL_BONTAGO_NOTES.md "Controls") ----------
+## true (default): the rig's pivot tracks the held ghost's position every
+## frame (smoothed by follow_lag_seconds below); camera_mode orbits, pan and
+## camera_snap_home/goal are no-ops (there is nothing to pan away from).
+## false: the pre-mv0.14 free-orbit camera (manual pan, snap-to-home/goal,
+## a fixed target) -- kept so a test can pin the old behaviour deliberately
+## by constructing a CameraTuning with this set to false.
+@export var follow_block: bool = true
+## Seconds for the follow target to mostly catch up to the ghost's position
+## (an exponential approach, not a hard snap); 0 tracks it exactly every
+## frame.
+@export var follow_lag_seconds: float = 0.15
 
 ## -- Snap (spec 2.5 "Snap camera to home / goal") ----------------------------
 @export var snap_pitch_deg: float = -35.0

@@ -7,31 +7,49 @@ extends Resource
 ## numbers" rule cares that every tunable lives in *some* res://config/
 ## resource, not that each owner gets its own file.
 
-## -- Gamepad ghost cursor (spec 2.5: "speed scales with camera zoom, with
-## acceleration and a small dead zone") ---------------------------------
+## -- Ghost cursor movement (Bontago-mv0.14: original-style block-locked
+## controls — "the mouse positions the block", spec 1.5/2.5). Both mouse and
+## gamepad drive the same world-space cursor (PlayerController._cursor); the
+## camera follows it (CameraRig.follow_block), it no longer follows a
+## screen-space raycast. ------------------------------------------------
+## Meters the cursor moves per pixel of camera-relative mouse motion.
+@export var block_move_sensitivity: float = 0.05
 @export var gamepad_cursor_base_speed: float = 10.0
 ## The zoom (camera orbit distance) at which base_speed applies; farther out
 ## moves the cursor faster, closer in moves it slower.
 @export var gamepad_cursor_zoom_reference_distance: float = 30.0
 @export var gamepad_cursor_acceleration: float = 40.0
 
-## -- Free rotation (spec 2.5: "rotate_free_hold + mouse motion / right
-## stick") -----------------------------------------------------------------
-## Radians of free rotation per pixel of mouse motion.
-@export var free_rotate_mouse_speed: float = 0.01
-## Radians per second of free rotation at full gamepad stick deflection.
-@export var free_rotate_pad_speed: float = 2.5
+## -- Rotation mode (Bontago-mv0.14: original's "hold Rotation Mode ->
+## movement inputs change the orientation of the block", spec 1.5/2.5).
+## Replaces the old free/quaternion-drift rotation (spec 1.7: drift was a
+## reported original problem) with the same 90 degree snap table
+## rotate_yaw/pitch/roll already use, driven continuously instead of one tap
+## per press. See PlayerController._accumulate_rotation_drag(). ---------------
+## "Drag units" of camera-relative mouse motion per pixel; a full unit (after
+## sensitivity scaling) snaps one 90 degree step. 1/120 means ~120px per step.
+@export var block_rotation_sensitivity: float = 1.0 / 120.0
+## Drag units per second of left-stick deflection while rotation_mode is
+## held at full stick (~1 step every 0.4 s).
+@export var pad_rotation_speed: float = 2.5
 
-## -- Hover height (spec 2.5 "Raise/lower hover") -----------------------------
+## -- Hover height (spec 1.5/2.5: "the mouse wheel raises and lowers the
+## block") --------------------------------------------------------------------
+## Continuous per-second rate for held inputs (PageUp/PageDown keys, gamepad
+## RS click/X) -- these are genuinely holdable buttons, unlike the wheel.
 @export var hover_manual_adjust_speed: float = 1.0
+## Meters applied per discrete wheel notch (InputEventMouseButton wheel
+## events are momentary -- one press+release per notch -- so they get one
+## fixed step instead of hover_manual_adjust_speed's per-frame rate).
+@export var hover_wheel_step: float = 0.4
 @export var hover_manual_max: float = 3.0
 
 ## -- Placement raycast --------------------------------------------------
 @export var placement_ray_length: float = 200.0
-## Height above the gamepad cursor's disk-plane position that the placement
-## raycast starts from, so it looks straight down through anything the
-## cursor sits under (spec 2.5: gamepad cursor casts straight down).
-@export var gamepad_cursor_ray_height: float = 200.0
+## Height above the cursor's disk-plane position that the placement raycast
+## starts from, so it looks straight down through anything the cursor sits
+## under (spec 2.5: placement is a straight-down ray from the ghost).
+@export var cursor_ray_height: float = 200.0
 
 ## -- Ghost visual base (spec 2.5: shadow + guide line) ----------------------
 ## Base alpha-blended tint before a per-state color is known (its alpha is

@@ -19,12 +19,14 @@ const REQUIRED_ACTIONS: PackedStringArray = [
 	"rotate_pitch_back",
 	"rotate_roll_left",
 	"rotate_roll_right",
-	"rotate_free_hold",
+	"rotation_mode",
 	"rotate_reset",
+	"rotate_snap",
 	"hover_raise",
 	"hover_lower",
+	"lock_vertical",
 	"throw_aim",
-	"camera_orbit_hold",
+	"camera_mode",
 	"camera_look_left",
 	"camera_look_right",
 	"camera_look_up",
@@ -60,8 +62,15 @@ const DEVICE_EXCEPTIONS: Dictionary = {
 	"camera_look_right": "mouse",
 	"camera_look_up": "mouse",
 	"camera_look_down": "mouse",
-	# The gamepad's right stick orbits directly, so it needs no hold modifier.
-	"camera_orbit_hold": "pad",
+	# The gamepad's right stick orbits directly, so it needs no hold modifier
+	# (Bontago-mv0.14: renamed from camera_orbit_hold).
+	"camera_mode": "pad",
+	# rotate_yaw_cw (RB) already does the same 90 degree yaw tap on gamepad
+	# (tools/bootstrap_project.gd's DECISION on rotate_snap).
+	"rotate_snap": "pad",
+	# The gamepad already keeps ghost movement (left stick) and height (RS
+	# click/X) on separate physical inputs, so there is nothing to lock.
+	"lock_vertical": "pad",
 }
 
 const AUTOLOADS: PackedStringArray = ["Events", "Settings", "Net", "Match"]

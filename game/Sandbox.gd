@@ -28,6 +28,9 @@ var _active_slot: int = 0
 func _ready() -> void:
 	Events.turn_changed.connect(_on_turn_changed)
 	_panel.configure(self, _ghost)
+	# Bontago-mv0.14 (spec 1.5): see HotSeat.gd's matching _ready() comment --
+	# safe headless (a silent no-op with no window to capture).
+	_controller.enable_mouse_capture()
 
 
 ## Called once by game/Main.gd, the same way HotSeat.set_camera_rig() is —

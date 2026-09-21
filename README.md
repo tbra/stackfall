@@ -36,9 +36,9 @@ down.
    direct IP.
 3. Every joined player ticks **Ready**. The host's **Start** button lights up once everyone
    has; press it to begin the 3-second countdown.
-4. Placement, rotation, hover and camera controls are exactly M2's (see the gamepad/mouse
-   list further down) — the only difference online is that every player's timer runs at
-   once, not in turn.
+4. Placement, rotation, hover and camera controls are exactly the hot-seat build's (see the
+   gamepad/mouse list further down) — the only difference online is that every player's
+   timer runs at once, not in turn.
 5. `F3` (gamepad: hold **Back** and press **Y**) toggles the debug overlay: ping, snapshot
    bytes/sec, interpolation delay and measured packet loss, with sliders to dial in your own
    simulated lag/loss (or the one-button preset for the spec's acceptance condition, 100 ms /
@@ -77,40 +77,55 @@ LAN discovery port, so local multi-instance testing always joins by direct IP
 Start it with `godot --path . -- --hot-seat`. After a 3-second countdown, player 1 is up;
 the turn passes on every release, valid or not.
 
+**Bontago-mv0.14: original-style block-locked controls.** The camera is attached to the
+held block and follows it, the way the original's tutorial describes ("the mouse positions
+the block" and the camera moves with it) — the mouse no longer projects a screen cursor
+onto the field. The game captures the OS mouse cursor while playing (there is no pause menu
+yet to release it into; see below).
+
 **Mouse and keyboard**
 
-1. Move the mouse to aim the ghost block. It is tinted your colour where you may drop it,
-   red outside your territory, over a contested cell or off the disk, and hatched over a
-   hole.
-2. `A` / `S` or the mouse wheel yaw the block; `Shift`+wheel or a middle-click **tap**
-   pitch it; `[` / `]` roll it; hold `R` to free-rotate with the mouse; `Home` or `F`
-   resets the rotation. `Ctrl`+wheel, `PageUp` / `PageDown` raise and lower the hover.
-3. **Left click** to release. Inside your territory the block lands and the turn passes.
+1. Move the mouse to move the ghost block in the field plane, relative to the camera, which
+   follows a step behind it. It is tinted your colour where you may drop it, red outside
+   your territory, over a contested cell or off the disk, and hatched over a hole.
+2. The **mouse wheel** raises and lowers the block's hover height.
+3. Hold **`R`** (Rotation Mode) and move the mouse to snap the block's yaw/pitch by 90°
+   per drag threshold, the same table `A`/`S`/`W`/`D`/`[`/`]` step one tap at a time.
+   Middle-click (**rotate_snap**) yaws 90° in one tap; `Home` or `F` resets the rotation.
+4. Hold **`Ctrl`** (`lock_vertical`) to ignore the mouse's left/right and forward/back
+   motion — only the wheel changes height while it's held.
+5. **Left click** to release. Inside your territory the block lands and the turn passes.
    Outside it, the block is thrown off the map and you lose it anyway — the HUD names the
    reason.
-4. Hold the **middle mouse button** and drag to orbit; arrow keys (or `Space`-drag) pan;
-   `Z` / `X` zoom while no block is held; `1` snaps to your home flag, `2` to the goal.
-5. Let the timer ring in the top-left run out to watch the auto-drop relocate the block to
+6. Hold **`C`** (Camera Mode) and move the mouse to orbit the camera around the held block
+   instead of moving it; `Z` / `X` zoom while no block is held.
+7. Let the timer ring in the top-left run out to watch the auto-drop relocate the block to
    the nearest valid spot, or burn it if there isn't one.
-6. Build toward the other player. Where your territories overlap, the cells shimmer, then
+8. Build toward the other player. Where your territories overlap, the cells shimmer, then
    open into holes after about a second; drop a block on one and it falls through the disk.
-7. Cut a tower off from your home flag — knock out the blocks between — and watch its
+9. Cut a tower off from your home flag — knock out the blocks between — and watch its
    patch of territory disappear from the overlay and from the share bars.
-8. Surround the goal flag in the middle with one connected territory. Its ring fills over
-   three seconds and you win.
+10. Surround the goal flag in the middle with one connected territory. Its ring fills over
+    three seconds and you win.
 
 **Gamepad** (same order, Xbox layout)
 
 1. Left stick moves the ghost; **A** releases it.
-2. **LB** / **RB** yaw, the **D-pad** pitches and rolls, **Y** resets the rotation, hold
-   **RT** to free-rotate with the right stick, **RS click** / **X** raise and lower the
-   hover.
-3. Right stick orbits the camera; hold **LS click** and use the left stick to pan; the
-   triggers zoom while no block is held; **Back** snaps to your home flag, **B** to the
-   goal.
+2. **RS click** / **X** raise and lower the hover.
+3. Hold **RT** (Rotation Mode) and use the left stick to snap yaw/pitch the same way the
+   mouse does; **LB** / **RB** yaw, the **D-pad** pitches and rolls one tap at a time, **Y**
+   resets the rotation.
+4. Right stick always orbits the camera around the held block (no hold needed — the stick
+   has no other job).
+5. The triggers zoom while no block is held (they double as rotation_mode/throw while one
+   is); **Back** snaps to your home flag, **B** to the goal (both only apply to the legacy
+   free-orbit camera, off by default — see `CameraTuning.follow_block`).
 
-There is no pause menu yet — `pause_menu` is bound but does nothing until M6. Close the
-window to quit.
+There is no dedicated `lock_vertical` gamepad binding: the stick (movement) and the hover
+buttons (height) are already on separate physical inputs, so there's nothing to lock.
+
+There is no pause menu yet — `pause_menu` is bound and toggles the mouse capture on/off
+(Esc, or gamepad Start) but opens no menu until M6. Close the window to quit.
 
 Everything above is bound through the Input Map (`tools/bootstrap_project.gd`), so
 rebinding is a change there rather than in gameplay code.

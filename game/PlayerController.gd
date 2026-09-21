@@ -6,7 +6,7 @@ extends Node
 ##
 ## M2 makes placement intent-only (spec 3.4, "clients send intents; the host
 ## checks every intent before acting on it"): this script never builds a
-## Block itself. It raycasts the ghost, tracks whose turn it is in hot-seat
+## Block itself. It positions the ghost, tracks whose turn it is in hot-seat
 ## (docs/M2_PLAN.md owner decision 1: strict alternation), and sends an
 ## intent; the host alone decides what happens next and answers on the Events
 ## bus.
@@ -16,6 +16,21 @@ extends Node
 ## hot-seat behaves exactly as it did. Networked, it goes through
 ## net/MatchNet.gd -- inline to Match on the host, a reliable RPC on a client
 ## -- and always for Net.local_slot(), because one instance drives one player.
+##
+## Bontago-mv0.14 (original-style block-locked controls, spec 1.5,
+## docs/ORIGINAL_BONTAGO_NOTES.md "Controls"): the original's mouse "positions
+## the block" directly and the camera is attached to it, rather than the
+## on-screen cursor raycasting onto the field. This script now keeps a single
+## world-space cursor (_cursor) that both mouse motion and the gamepad stick
+## move directly (camera-relative), reports it to CameraRig every frame
+## (CameraRig.set_follow_position()) so the camera can follow, and casts the
+## placement ray straight down from above it -- the screen-space mouse ray is
+## gone. The mouse wheel is now block height (hover_raise/hover_lower); rotation
+## is either a discrete 90 degree tap (rotate_yaw/pitch/roll_*, rotate_snap) or
+## a continuous snap-by-90-degrees drag while rotation_mode is held
+## (_accumulate_rotation_drag) -- the old free/quaternion-drift rotation is
+## gone (spec 1.7 flagged that drift as a reported original problem; "do not
+## keep two rotation systems").
 
 @export var camera_rig_path: NodePath
 @export var ghost_path: NodePath
@@ -57,10 +72,26 @@ var _intent_lock_left: float = 0.0
 ## anything). -1 until the first Events.turn_changed.
 var _active_slot: int = -1
 
+## Bontago-mv0.14: bookkeeping only now -- both mouse and gamepad move the
+## same _cursor, and _update_ghost_transform() always raycasts straight down
+## from above it (the screen-space mouse ray is gone). Tests and any future
+## "which device last moved you" UI still read this.
 var _using_gamepad_cursor: bool = false
-var _gamepad_cursor: Vector3 = Vector3.ZERO
-var _gamepad_cursor_velocity: Vector3 = Vector3.ZERO
-var _mmb_press_time: float = 0.0
+## World-space cursor the ghost's placement ray casts down from. Both mouse
+## motion (_move_cursor_from_mouse) and the gamepad's left stick
+## (_update_gamepad_cursor) move it directly -- "the mouse positions the
+## block" (spec 1.5).
+var _cursor: Vector3 = Vector3.ZERO
+## Gamepad-only: the stick drives an accelerating velocity rather than a
+## direct offset (spec 2.5 "acceleration and a small dead zone"); the mouse
+## has no equivalent since its deltas are already analog-instant.
+var _cursor_velocity: Vector3 = Vector3.ZERO
+## Accumulated camera-relative drag (x = yaw, y = pitch) while rotation_mode
+## is held, in GhostTuning's "drag units" (see _accumulate_rotation_drag()).
+var _rotation_drag: Vector2 = Vector2.ZERO
+## Set by HotSeat.gd/Sandbox.gd via enable_mouse_capture(); left false for
+## bare unit-test instances so GUT never captures a test runner's real mouse.
+var _mouse_capture_enabled: bool = false
 
 
 func _ready() -> void:
@@ -81,16 +112,26 @@ func set_camera_rig(rig: CameraRig) -> void:
 	_camera_rig = rig
 
 
+## Bontago-mv0.14: called once by HotSeat.gd/Sandbox.gd (never by a bare unit
+## test) so a real play session hides/captures the OS cursor -- the original's
+## mouse only ever positions the held block, there is nothing on screen for a
+## free system cursor to point at. pause_menu (Esc/Start) toggles it back to
+## visible so a future menu can use the mouse normally; see _unhandled_input().
+func enable_mouse_capture() -> void:
+	_mouse_capture_enabled = true
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
 func _process(delta: float) -> void:
 	_intent_lock_left = maxf(_intent_lock_left - delta, 0.0)
 	_update_gamepad_cursor(delta)
 	_update_ghost_transform()
 	_update_ghost_tint()
 	_handle_hover_adjust(delta)
-	_handle_gamepad_free_rotate(delta)
 	_publish_cursor()
 	if _camera_rig != null and _ghost != null:
 		_camera_rig.block_held = _ghost.get_shape() != null
+		_camera_rig.set_follow_position(_ghost.global_position)
 
 
 func _session() -> Variant:
@@ -147,33 +188,43 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		var motion: InputEventMouseMotion = event
 		_using_gamepad_cursor = false
-		if _ghost != null and Input.is_action_pressed(&"rotate_free_hold"):
-			_ghost.apply_free_rotation_delta(
-				-motion.relative.x * ghost_tuning.free_rotate_mouse_speed,
-				-motion.relative.y * ghost_tuning.free_rotate_mouse_speed
-			)
+		if Input.is_action_pressed(&"rotation_mode"):
+			# Original tutorial (docs/ORIGINAL_BONTAGO_NOTES.md): "while holding
+			# the rotation-mode key, the movement keys change the orientation
+			# of the block" -- mouse motion is this device's "movement keys".
+			_accumulate_rotation_drag(motion.relative, ghost_tuning.block_rotation_sensitivity)
+		elif Input.is_action_pressed(&"camera_mode"):
+			pass  # CameraRig._unhandled_input consumes this motion to orbit.
+		elif Input.is_action_pressed(&"lock_vertical"):
+			pass  # "Locks block to vertical movement only": ignore XZ motion; the wheel still changes height.
+		else:
+			_move_cursor_from_mouse(motion.relative)
 		return
 
-	if event.is_action_pressed(&"camera_orbit_hold"):
-		# Spec 2.5: MMB is both rotate_pitch_fwd (a tap) and camera_orbit_hold
-		# (a hold, handled continuously in CameraRig). Split by how long the
-		# button was down instead of firing rotate_pitch_fwd the instant it's
-		# pressed, which would make a deliberate orbit also rotate the block.
-		# camera_orbit_hold is bound only to MMB (tools/bootstrap_project.gd),
-		# so keying the tap/hold split off it — instead of a raw middle-mouse
-		# button check — can't collide with rotate_pitch_fwd's other
-		# bindings (shift+wheel-up, D-pad up), which fire immediately through
-		# the dispatch chain below.
-		_mmb_press_time = Time.get_ticks_msec() / 1000.0
-		return
+	if event is InputEventMouseButton and event.pressed:
+		# Bontago-mv0.14: the wheel is block height now, not zoom or yaw
+		# (tools/bootstrap_project.gd). Wheel notches are momentary --
+		# InputEventMouseButton fires a press then an immediate release for
+		# each one -- so they get one fixed step here rather than
+		# _handle_hover_adjust()'s per-frame rate, which is for the genuinely
+		# holdable PageUp/PageDown keys and gamepad buttons on the same
+		# actions.
+		if event.is_action_pressed(&"hover_raise"):
+			_step_hover(1.0)
+			return
+		elif event.is_action_pressed(&"hover_lower"):
+			_step_hover(-1.0)
+			return
 
-	if event.is_action_released(&"camera_orbit_hold"):
-		var held_duration: float = Time.get_ticks_msec() / 1000.0 - _mmb_press_time
-		if held_duration < camera_tuning.mmb_tap_max_duration:
-			_apply_step(BlockOrientations.step_pitch_fwd(_orientation_index()))
-		return
-
-	if event.is_action_pressed(&"rotate_yaw_ccw"):
+	if event.is_action_pressed(&"rotate_snap"):
+		# Original tutorial: "a key snap-rotates the block" -- a plain 90
+		# degree yaw tap, distinct from rotate_reset ("returns it to its
+		# default rotation"). Bound to MMB (tools/bootstrap_project.gd); no
+		# separate gamepad button since rotate_yaw_cw (RB) already does the
+		# same 90 degree yaw there (see test_project_setup.gd's
+		# DEVICE_EXCEPTIONS).
+		_apply_step(BlockOrientations.step_yaw_cw(_orientation_index()))
+	elif event.is_action_pressed(&"rotate_yaw_ccw"):
 		_apply_step(BlockOrientations.step_yaw_ccw(_orientation_index()))
 	elif event.is_action_pressed(&"rotate_yaw_cw"):
 		_apply_step(BlockOrientations.step_yaw_cw(_orientation_index()))
@@ -188,8 +239,20 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed(&"rotate_reset"):
 		if _ghost != null:
 			_ghost.reset_rotation()
+		_rotation_drag = Vector2.ZERO
 	elif event.is_action_pressed(&"ghost_place"):
 		_place_ghost_block()
+	elif event.is_action_pressed(&"pause_menu"):
+		# Bontago-mv0.14 DECISION (game/PlayerController.gd): there is no
+		# pause-menu UI yet (out of scope for this task), but the mouse
+		# capture this same key is meant to release ("release in menus/Esc")
+		# has to go somewhere -- toggle it here so Esc/Start already does the
+		# right thing once a real pause menu lands and calls into this.
+		if _mouse_capture_enabled:
+			Input.mouse_mode = (
+				Input.MOUSE_MODE_VISIBLE if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+				else Input.MOUSE_MODE_CAPTURED
+			)
 
 
 func _orientation_index() -> int:
@@ -199,6 +262,42 @@ func _orientation_index() -> int:
 func _apply_step(new_index: int) -> void:
 	if _ghost != null:
 		_ghost.set_orientation_index(new_index)
+
+
+func _step_hover(direction: float) -> void:
+	if _ghost == null:
+		return
+	_ghost.manual_hover_offset = clampf(
+		_ghost.manual_hover_offset + direction * ghost_tuning.hover_wheel_step,
+		0.0,
+		ghost_tuning.hover_manual_max
+	)
+
+
+## Bontago-mv0.14 (spec 1.5/1.7): rotation_mode turns "movement" (mouse motion
+## or the gamepad's left stick) into 90 degree orientation snaps instead of
+## the old continuous free/quaternion rotation, so there is exactly one
+## rotation system and it can never drift. `relative` is in GhostTuning's
+## un-scaled input units (mouse pixels or gamepad stick-seconds);
+## `sensitivity` converts it into "drag units" where a magnitude of 1.0 is
+## exactly one 90 degree step -- see block_rotation_sensitivity/
+## pad_rotation_speed's doc comments in config/GhostTuning.gd.
+func _accumulate_rotation_drag(relative: Vector2, sensitivity: float) -> void:
+	if _ghost == null:
+		return
+	_rotation_drag += relative * sensitivity
+	while _rotation_drag.x >= 1.0:
+		_apply_step(BlockOrientations.step_yaw_cw(_orientation_index()))
+		_rotation_drag.x -= 1.0
+	while _rotation_drag.x <= -1.0:
+		_apply_step(BlockOrientations.step_yaw_ccw(_orientation_index()))
+		_rotation_drag.x += 1.0
+	while _rotation_drag.y >= 1.0:
+		_apply_step(BlockOrientations.step_pitch_back(_orientation_index()))
+		_rotation_drag.y -= 1.0
+	while _rotation_drag.y <= -1.0:
+		_apply_step(BlockOrientations.step_pitch_fwd(_orientation_index()))
+		_rotation_drag.y += 1.0
 
 
 # --- Placement intent (spec 3.4) --------------------------------------------
@@ -340,6 +439,11 @@ func _update_ghost_tint() -> void:
 	_ghost.set_locked(bool(_match.is_release_locked(_acting_slot())))
 
 
+## Continuous, per-frame height adjustment for genuinely holdable inputs
+## (PageUp/PageDown keys, gamepad RS click/X). The wheel's own notch is a
+## separate, momentary, one-step adjustment -- see _step_hover(), called from
+## _unhandled_input() instead, since Input.is_action_pressed() on a wheel
+## binding is only ever true for the single frame Godot processes that notch.
 func _handle_hover_adjust(delta: float) -> void:
 	if _ghost == null:
 		return
@@ -357,21 +461,18 @@ func _handle_hover_adjust(delta: float) -> void:
 	)
 
 
-func _handle_gamepad_free_rotate(delta: float) -> void:
-	if _ghost == null or not Input.is_action_pressed(&"rotate_free_hold"):
-		return
-	var look_x: float = Input.get_action_strength(&"camera_look_right") - Input.get_action_strength(&"camera_look_left")
-	var look_y: float = Input.get_action_strength(&"camera_look_down") - Input.get_action_strength(&"camera_look_up")
-	if look_x == 0.0 and look_y == 0.0:
-		return
-	_ghost.apply_free_rotation_delta(
-		-look_x * ghost_tuning.free_rotate_pad_speed * delta,
-		-look_y * ghost_tuning.free_rotate_pad_speed * delta
-	)
+## Bontago-mv0.14 (spec 1.5): the mouse "positions the block" directly,
+## camera-relative, instead of the old screen-space raycast. `relative` is the
+## InputEventMouseMotion's raw pixel delta.
+func _move_cursor_from_mouse(relative: Vector2) -> void:
+	_cursor += _camera_relative_dir(relative) * ghost_tuning.block_move_sensitivity
 
 
 ## Moves the gamepad's world-space cursor (spec 2.5), relative to the camera,
-## with acceleration and speed scaling with zoom.
+## with acceleration and speed scaling with zoom -- unless rotation_mode is
+## held, in which case the same left stick drives _accumulate_rotation_drag()
+## instead (spec 1.5: "the movement keys change the orientation of the
+## block"), and the cursor doesn't move.
 func _update_gamepad_cursor(delta: float) -> void:
 	var stick: Vector2 = Vector2(
 		Input.get_action_strength(&"ghost_move_right") - Input.get_action_strength(&"ghost_move_left"),
@@ -385,6 +486,13 @@ func _update_gamepad_cursor(delta: float) -> void:
 		stick = Vector2.ZERO
 	if stick.length() > 1.0:
 		stick = stick.normalized()
+
+	if Input.is_action_pressed(&"rotation_mode"):
+		if stick.length() > 0.0:
+			_using_gamepad_cursor = true
+			_accumulate_rotation_drag(stick, ghost_tuning.pad_rotation_speed * delta)
+		return
+
 	if stick.length() > 0.0:
 		_using_gamepad_cursor = true
 
@@ -393,12 +501,12 @@ func _update_gamepad_cursor(delta: float) -> void:
 		max_speed *= _camera_rig.get_distance() / ghost_tuning.gamepad_cursor_zoom_reference_distance
 
 	var desired_velocity: Vector3 = _camera_relative_dir(stick) * max_speed
-	var velocity_delta: Vector3 = desired_velocity - _gamepad_cursor_velocity
+	var velocity_delta: Vector3 = desired_velocity - _cursor_velocity
 	var max_change: float = ghost_tuning.gamepad_cursor_acceleration * delta
 	if velocity_delta.length() > max_change and max_change > 0.0:
 		velocity_delta = velocity_delta.normalized() * max_change
-	_gamepad_cursor_velocity += velocity_delta
-	_gamepad_cursor += _gamepad_cursor_velocity * delta
+	_cursor_velocity += velocity_delta
+	_cursor += _cursor_velocity * delta
 
 
 func _camera_relative_dir(input_2d: Vector2) -> Vector3:
@@ -408,26 +516,17 @@ func _camera_relative_dir(input_2d: Vector2) -> Vector3:
 	return right * input_2d.x + forward * input_2d.y
 
 
-## Casts the placement ray (mouse projection, or straight down over the
-## gamepad cursor) and updates the ghost. Public so tests can exercise it
-## without going through real input devices.
+## Casts the placement ray straight down from above _cursor and updates the
+## ghost. Bontago-mv0.14: this used to branch between a screen-space mouse
+## ray and a straight-down gamepad-cursor ray; now both devices move the same
+## world-space _cursor (spec 1.5, "the mouse positions the block"), so there
+## is only one path. Public so tests can exercise it without going through
+## real input devices.
 func _update_ghost_transform() -> void:
 	if _ghost == null:
 		return
-	var origin: Vector3
-	var direction: Vector3
-	if _using_gamepad_cursor:
-		origin = _gamepad_cursor + Vector3.UP * ghost_tuning.gamepad_cursor_ray_height
-		direction = Vector3.DOWN
-	else:
-		if _camera_rig == null:
-			return
-		var camera: Camera3D = _camera_rig.get_camera()
-		if camera == null:
-			return
-		var mouse_pos: Vector2 = get_viewport().get_mouse_position()
-		origin = camera.project_ray_origin(mouse_pos)
-		direction = camera.project_ray_normal(mouse_pos)
+	var origin: Vector3 = _cursor + Vector3.UP * ghost_tuning.cursor_ray_height
+	var direction: Vector3 = Vector3.DOWN
 
 	var hit: Dictionary = _raycast(origin, direction)
 	var hit_point: Vector3

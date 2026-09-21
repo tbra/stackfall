@@ -117,8 +117,11 @@ func _apply_input_map() -> void:
 		})
 
 
-## Every action in spec 2.5, each with a mouse/keyboard binding and a gamepad
-## binding (CLAUDE.md, "All input goes through the Input Map").
+## Every action in spec 2.5/1.5 (Bontago-mv0.14 rewrites the mouse/keyboard
+## half toward the original's block-locked scheme -- see
+## docs/ORIGINAL_BONTAGO_NOTES.md "Controls"), each with a mouse/keyboard
+## binding and a gamepad binding (CLAUDE.md, "All input goes through the
+## Input Map").
 func _actions() -> Dictionary:
 	var a: Dictionary = {}
 
@@ -134,50 +137,75 @@ func _actions() -> Dictionary:
 
 	a["ghost_place"] = [_mouse(MOUSE_BUTTON_LEFT), _pad(JOY_BUTTON_A)]
 
-	# Yaw keeps the original game's A/S (spec 1.5, ORIGINAL).
-	a["rotate_yaw_ccw"] = [_key(KEY_A), _mouse(MOUSE_BUTTON_WHEEL_UP), _pad(JOY_BUTTON_LEFT_SHOULDER)]
-	a["rotate_yaw_cw"] = [_key(KEY_S), _mouse(MOUSE_BUTTON_WHEEL_DOWN), _pad(JOY_BUTTON_RIGHT_SHOULDER)]
+	# Yaw keeps the original game's A/S (spec 1.5, ORIGINAL). Bontago-mv0.14:
+	# the wheel used to double as yaw too; it is now block height only (see
+	# hover_raise/hover_lower below), so it comes off every other action.
+	a["rotate_yaw_ccw"] = [_key(KEY_A), _pad(JOY_BUTTON_LEFT_SHOULDER)]
+	a["rotate_yaw_cw"] = [_key(KEY_S), _pad(JOY_BUTTON_RIGHT_SHOULDER)]
 
-	# Pitch and roll: middle click / Shift+wheel on mouse, D-pad on gamepad.
-	# A middle-click tap rotates; holding it orbits the camera (spec 1.5, 2.5),
-	# which PlayerController separates by hold duration.
-	a["rotate_pitch_fwd"] = [
-		_mouse(MOUSE_BUTTON_MIDDLE),
-		_mouse(MOUSE_BUTTON_WHEEL_UP, KEY_MASK_SHIFT),
-		_pad(JOY_BUTTON_DPAD_UP),
-	]
-	a["rotate_pitch_back"] = [
-		_mouse(MOUSE_BUTTON_WHEEL_DOWN, KEY_MASK_SHIFT),
-		_pad(JOY_BUTTON_DPAD_DOWN),
-	]
+	# Pitch: W/D on keyboard, D-pad on gamepad. Bontago-mv0.14 DECISION: this
+	# used to be middle click / Shift+wheel; the wheel is height now and the
+	# middle button is rotate_snap (below), so pitch needs its own plain keys.
+	# W/D sit next to yaw's A/S without colliding with rotation_mode (R),
+	# lock_vertical (Ctrl) or camera_mode (C).
+	a["rotate_pitch_fwd"] = [_key(KEY_W), _pad(JOY_BUTTON_DPAD_UP)]
+	a["rotate_pitch_back"] = [_key(KEY_D), _pad(JOY_BUTTON_DPAD_DOWN)]
 	# DECISION: the spec gives no keyboard key for roll, so roll uses the
 	# bracket keys, which sit next to the wheel hand and are otherwise unbound.
 	a["rotate_roll_left"] = [_key(KEY_BRACKETLEFT), _pad(JOY_BUTTON_DPAD_LEFT)]
 	a["rotate_roll_right"] = [_key(KEY_BRACKETRIGHT), _pad(JOY_BUTTON_DPAD_RIGHT)]
 
-	a["rotate_free_hold"] = [_key(KEY_R), _axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)]
+	# Bontago-mv0.14 (original tutorial: "while holding the rotation-mode key,
+	# the movement keys change the orientation of the block"): replaces the
+	# old rotate_free_hold's continuous quaternion drift with a 90 degree snap
+	# grid (PlayerController._accumulate_rotation_drag) driven by the same
+	# mouse motion / left stick that normally moves the ghost. Same physical
+	# bindings the old rotate_free_hold used.
+	a["rotation_mode"] = [_key(KEY_R), _axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)]
 	a["rotate_reset"] = [_key(KEY_HOME), _key(KEY_F), _pad(JOY_BUTTON_Y)]
+	# Original tutorial: "a key snap-rotates the block" -- a plain 90 degree
+	# yaw tap, distinct from rotate_reset. DECISION: no separate gamepad
+	# binding (test_project_setup.gd's DEVICE_EXCEPTIONS) -- rotate_yaw_cw
+	# (RB) already does the same 90 degree yaw on gamepad, and MMB is free
+	# now that camera_mode (below) has moved off it.
+	a["rotate_snap"] = [_mouse(MOUSE_BUTTON_MIDDLE)]
 
-	# DECISION: the spec leaves the gamepad hover bindings blank. The stick
-	# clicks and the face button left over after place/reset are the only free
-	# inputs while a block is held, so hover uses RS click and X.
+	# Bontago-mv0.14 (original tutorial: "the mouse wheel raises and lowers
+	# the block"): PageUp/PageDown and the gamepad buttons are held
+	# continuously (PlayerController._handle_hover_adjust); the wheel notches
+	# are momentary and step once per notch (PlayerController._step_hover).
+	# DECISION: the spec left the gamepad hover bindings blank; RS click and X
+	# are the button budget left over after placement/camera/rotation claim
+	# everything else on a standard pad.
 	a["hover_raise"] = [
-		_mouse(MOUSE_BUTTON_WHEEL_UP, KEY_MASK_CTRL),
+		_mouse(MOUSE_BUTTON_WHEEL_UP),
 		_key(KEY_PAGEUP),
 		_pad(JOY_BUTTON_RIGHT_STICK),
 	]
 	a["hover_lower"] = [
-		_mouse(MOUSE_BUTTON_WHEEL_DOWN, KEY_MASK_CTRL),
+		_mouse(MOUSE_BUTTON_WHEEL_DOWN),
 		_key(KEY_PAGEDOWN),
 		_pad(JOY_BUTTON_X),
 	]
 
+	# Original tutorial: "Locks block to vertical movement only" -- while
+	# held, mouse XZ motion is ignored so only the wheel changes height
+	# (PlayerController._unhandled_input). DECISION: no gamepad binding
+	# (DEVICE_EXCEPTIONS) -- the gamepad already keeps ghost movement (left
+	# stick) and height (RS click/X) on separate physical inputs, so there is
+	# nothing to lock there.
+	a["lock_vertical"] = [_key(KEY_CTRL)]
+
 	a["throw_aim"] = [_mouse(MOUSE_BUTTON_RIGHT), _axis(JOY_AXIS_TRIGGER_LEFT, 1.0)]
 
 	# --- Camera -------------------------------------------------------------
-	# Held to orbit with the mouse. The gamepad orbits with the right stick
-	# directly, so it needs no hold modifier.
-	a["camera_orbit_hold"] = [_mouse(MOUSE_BUTTON_MIDDLE)]
+	# Bontago-mv0.14 (original tutorial: "while holding the camera-mode key,
+	# movement keys change where the camera is facing"): renamed from
+	# camera_orbit_hold and moved off MMB (now rotate_snap) onto its own key.
+	# The gamepad orbits with the right stick directly regardless of this
+	# hold (test_project_setup.gd's DEVICE_EXCEPTIONS), so it needs no
+	# gamepad binding.
+	a["camera_mode"] = [_key(KEY_C)]
 	a["camera_look_left"] = [_axis(JOY_AXIS_RIGHT_X, -1.0)]
 	a["camera_look_right"] = [_axis(JOY_AXIS_RIGHT_X, 1.0)]
 	a["camera_look_up"] = [_axis(JOY_AXIS_RIGHT_Y, -1.0)]
@@ -187,7 +215,10 @@ func _actions() -> Dictionary:
 	# A and S to block rotation. Rather than change an ORIGINAL binding, pan
 	# moves to the arrow keys; Space-and-drag from the spec still works.
 	# On gamepad, pan is the left stick while camera_modifier is held, so the
-	# pan actions share the left stick axes with ghost_move_*.
+	# pan actions share the left stick axes with ghost_move_*. Bontago-mv0.14:
+	# pan and snap-home/goal below are only live while
+	# CameraTuning.follow_block is false (see game/CameraRig.gd) -- the
+	# default block-locked camera has nothing to pan away from.
 	a["camera_pan_left"] = [_key(KEY_LEFT), _axis(JOY_AXIS_LEFT_X, -1.0)]
 	a["camera_pan_right"] = [_key(KEY_RIGHT), _axis(JOY_AXIS_LEFT_X, 1.0)]
 	a["camera_pan_forward"] = [_key(KEY_UP), _axis(JOY_AXIS_LEFT_Y, -1.0)]
@@ -195,11 +226,13 @@ func _actions() -> Dictionary:
 	a["camera_modifier"] = [_key(KEY_SPACE), _pad(JOY_BUTTON_LEFT_STICK)]
 
 	# DECISION: the triggers double as zoom, as spec 2.5 asks ("Triggers"),
-	# while also being throw_aim and rotate_free_hold. The spec already scopes
-	# zoom to "while not holding a block", so CameraRig ignores zoom whenever a
-	# block is held and the trigger means throw or free-rotate instead.
-	a["camera_zoom_in"] = [_key(KEY_Z), _mouse(MOUSE_BUTTON_WHEEL_UP), _axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)]
-	a["camera_zoom_out"] = [_key(KEY_X), _mouse(MOUSE_BUTTON_WHEEL_DOWN), _axis(JOY_AXIS_TRIGGER_LEFT, 1.0)]
+	# while also being throw_aim and rotation_mode. The spec already scopes
+	# trigger zoom to "while not holding a block", so CameraRig ignores zoom
+	# whenever a block is held and the trigger means throw or rotate instead.
+	# Bontago-mv0.14: the wheel used to double as zoom too; it is block height
+	# only now (hover_raise/hover_lower above).
+	a["camera_zoom_in"] = [_key(KEY_Z), _axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)]
+	a["camera_zoom_out"] = [_key(KEY_X), _axis(JOY_AXIS_TRIGGER_LEFT, 1.0)]
 
 	a["camera_snap_home"] = [_key(KEY_1), _pad(JOY_BUTTON_BACK)]
 	a["camera_snap_goal"] = [_key(KEY_2), _pad(JOY_BUTTON_B)]

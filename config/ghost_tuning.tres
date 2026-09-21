@@ -4,15 +4,17 @@
 
 [resource]
 script = ExtResource("1_ghost")
+block_move_sensitivity = 0.05
 gamepad_cursor_base_speed = 10.0
 gamepad_cursor_zoom_reference_distance = 30.0
 gamepad_cursor_acceleration = 40.0
-free_rotate_mouse_speed = 0.01
-free_rotate_pad_speed = 2.5
+block_rotation_sensitivity = 0.008333333333333333
+pad_rotation_speed = 2.5
 hover_manual_adjust_speed = 1.0
+hover_wheel_step = 0.4
 hover_manual_max = 3.0
 placement_ray_length = 200.0
-gamepad_cursor_ray_height = 200.0
+cursor_ray_height = 200.0
 tint_color = Color(0.35, 0.9, 0.55, 0.55)
 shadow_color = Color(0.0, 0.0, 0.0, 0.4)
 shadow_size = Vector2(1.0, 1.0)
