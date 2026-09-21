@@ -1,12 +1,22 @@
 class_name BlockFactory
 extends RefCounted
 ## Builds a Block (RigidBody3D) from a BlockShape resource (spec 3.6, 2.4):
-## a compound of BoxShape3D per cube (ConvexPolygonShape3D for the wedge's
-## sloped cells), mass = cube count * cube_mass, and a generated mesh.
+## a compound of BoxShape3D per cube (ConvexPolygonShape3D for any
+## `sloped_cells`), mass = cube count * cube_mass, and a generated mesh.
 ##
 ## Lives in game/, not core/, because it creates scene-tree nodes
 ## (RigidBody3D, CollisionShape3D, MeshInstance3D); CLAUDE.md keeps core/free
 ## of scene-tree dependence.
+##
+## DECISION (game/BlockFactory.gd, Bontago-mv0.17 item 2 -- owner feel report
+## "remove the wedge block"): config/blocks/wedge.tres is deleted (it was the
+## only shape ever setting `sloped_cells`), but the sloped-cell branch below
+## (`_make_collision_shape`/`_make_visual_mesh`) stays. It is dead code today,
+## not load-bearing for anything shipped, but it is generic per-cell geometry
+## with no wedge-specific assumptions baked in, so keeping it costs nothing
+## and preserves the ramp capability for a future shape/special without
+## redoing this convex-hull math. Deleting it was not required to remove the
+## wedge shape itself.
 
 const BLOCK_SCENE: PackedScene = preload("res://game/Block.tscn")
 
@@ -48,14 +58,15 @@ static func build(shape: BlockShape, tuning: PhysicsTuning, owner_slot: int = -1
 
 	var visual_material: StandardMaterial3D = _material_for_color(color)
 	var half_size: float = (tuning.cube_size - tuning.cube_margin) * 0.5
-	# Bontago-mv0.12: cells are built around the shape's geometric centre, not
-	# raw cell (0, 0, 0) -- see BlockShape.center()'s own doc comment. This is
-	# what makes the body's own local origin (0, 0, 0) coincide with the
-	# shape's centre, matching the ghost's visual (build_visual_only() below)
-	# and the pivot autoload/Match.gd's request_place() now spawns at.
-	var center: Vector3 = shape.center()
+	# Bontago-mv0.17 item 3 (was Bontago-mv0.12's geometric centre): cells are
+	# built around the shape's bottom-centre, not raw cell (0, 0, 0) -- see
+	# BlockShape.bottom_center()'s own doc comment. This is what makes the
+	# body's own local origin (0, 0, 0) coincide with the shape's own bottom
+	# face, matching the ghost's visual (build_visual_only() below) and the
+	# pivot autoload/Match.gd's request_place() now spawns at.
+	var pivot: Vector3 = shape.bottom_center()
 	for cell: Vector3i in shape.cells:
-		var local_pos: Vector3 = (Vector3(cell) - center) * tuning.cube_size
+		var local_pos: Vector3 = (Vector3(cell) - pivot) * tuning.cube_size
 		var is_sloped: bool = shape.sloped_cells.has(cell)
 
 		var collision: CollisionShape3D = CollisionShape3D.new()
@@ -76,22 +87,23 @@ static func build(shape: BlockShape, tuning: PhysicsTuning, owner_slot: int = -1
 ## Builds just the visuals for a shape (no RigidBody3D, no collision) as a
 ## plain Node3D with one MeshInstance3D per cell. Used by GhostPreview so the
 ## held block's look matches the real one without simulating physics for it.
-## Offset by the shape's centre exactly like build() above, so the ghost's
-## visual and the spawned body agree on where the shape's geometric centre
-## sits relative to this node's own origin (Bontago-mv0.12); GhostPreview's
-## own tint material is applied by the caller (_apply_material_to_visual()),
-## never here, per this package's "keep the ghost's own tint logic untouched".
+## Offset by the shape's bottom-centre exactly like build() above, so the
+## ghost's visual and the spawned body agree on where the shape's bottom face
+## sits relative to this node's own origin (Bontago-mv0.17 item 3, was
+## Bontago-mv0.12's geometric centre); GhostPreview's own tint material is
+## applied by the caller (_apply_material_to_visual()), never here, per this
+## package's "keep the ghost's own tint logic untouched".
 static func build_visual_only(shape: BlockShape, tuning: PhysicsTuning) -> Node3D:
 	var root: Node3D = Node3D.new()
 	root.name = "ShapeVisual"
 	var half_size: float = (tuning.cube_size - tuning.cube_margin) * 0.5
-	var center: Vector3 = shape.center()
+	var pivot: Vector3 = shape.bottom_center()
 	for cell: Vector3i in shape.cells:
 		var mesh_instance: MeshInstance3D = MeshInstance3D.new()
 		var is_sloped: bool = shape.sloped_cells.has(cell)
 		var mesh: Mesh = shape.mesh if shape.mesh != null else _make_visual_mesh(half_size, is_sloped)
 		mesh_instance.mesh = mesh
-		mesh_instance.position = (Vector3(cell) - center) * tuning.cube_size
+		mesh_instance.position = (Vector3(cell) - pivot) * tuning.cube_size
 		root.add_child(mesh_instance)
 	return root
 

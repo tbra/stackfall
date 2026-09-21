@@ -42,7 +42,11 @@ extends Resource
 ## events are momentary -- one press+release per notch -- so they get one
 ## fixed step instead of hover_manual_adjust_speed's per-frame rate).
 @export var hover_wheel_step: float = 0.4
-@export var hover_manual_max: float = 3.0
+## Bontago-mv0.17 item 5 (owner feel report: "the block's height changes ONLY
+## via the wheel" -- original behaviour): raised from 3 m to clear a tall
+## tower, now that the ghost's own height is the disk surface plus this
+## manual offset rather than whatever is directly underneath it.
+@export var hover_manual_max: float = 30.0
 
 ## -- Placement raycast --------------------------------------------------
 @export var placement_ray_length: float = 200.0
@@ -50,8 +54,16 @@ extends Resource
 ## starts from, so it looks straight down through anything the cursor sits
 ## under (spec 2.5: placement is a straight-down ray from the ghost).
 @export var cursor_ray_height: float = 200.0
+## Bontago-mv0.17 item 5: PlayerController's disk-surface probe (the raycast
+## that decides the ghost's own height) walks straight down and skips over
+## any RigidBody3D (placed block) it hits, so the ghost's height reflects the
+## disk itself, never a tower underneath the cursor. This caps how many
+## stacked blocks it will skip before giving up and falling back to the flat
+## y = 0 plane, so a runaway/adversarial stack can't spin the probe forever.
+@export var surface_probe_max_blocks: int = 32
 
-## -- Ghost visual base (spec 2.5: shadow + guide line) ----------------------
+## -- Ghost visual base (spec 2.5: shadow; Bontago-mv0.17 item 6 replaces the
+## old vertical guide line with the footprint projection below) -------------
 ## Base alpha-blended tint before a per-state color is known (its alpha is
 ## reused as every state's transparency).
 @export var tint_color: Color = Color(0.35, 0.9, 0.55, 0.55)
@@ -60,10 +72,22 @@ extends Resource
 ## How far above the hit surface the shadow quad floats, so it doesn't
 ## z-fight with the disk/block it's projected onto.
 @export var shadow_offset: float = 0.01
-@export var guide_color: Color = Color(1.0, 1.0, 1.0, 0.6)
-## Width/depth of the vertical guide line box (its height is the live
-## distance from the hit point to the ghost, computed every frame).
-@export var guide_thickness: float = 0.03
+
+## -- Footprint projection (Bontago-mv0.17 item 6 -- owner feel report:
+## replaces the single vertical guide line with the whole footprint, one quad
+## per bottom cell of the rotated held shape, projected straight down onto
+## whatever is directly beneath it) -----------------------------------------
+## Alpha of each footprint quad's validity tint (valid/invalid/hole/locked
+## share the same colours as the held shape's own tint -- see
+## GhostPreview._footprint_color_for_state() -- just at this alpha instead of
+## each state colour's own baked-in one, since a whole-footprint decal reads
+## better a bit more transparent than the held shape itself).
+@export var footprint_alpha: float = 0.55
+## How far above the landing surface each footprint quad floats, so it
+## doesn't z-fight with the disk/block it's projected onto (same idea as
+## shadow_offset, just its own tunable since the footprint is the primary cue
+## now and may want a different offset than the legacy single shadow).
+@export var footprint_offset: float = 0.01
 
 ## -- Placement validity tint (spec 2.2, 2.5) ---------------------------------
 ## Red: outside territory, contested, or off the disk.

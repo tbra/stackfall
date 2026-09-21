@@ -47,6 +47,13 @@ func set_camera_rig(rig: CameraRig) -> void:
 ## Events.turn_changed still decides, so hot-seat is byte-identical to M2.
 func bind_local_slot(slot_id: int) -> void:
 	_controller.set_acting_slot(slot_id)
+	# Bontago-mv0.17 item 4: this is "the controller binds the local slot" the
+	# item calls for -- Match.default_ghost_origin() is the existing read-only
+	# API that already converts PlayerSlot.home_position (disk-local) to a
+	# world point (autoload/Match.gd; named for its other caller, a peer whose
+	# timer expired with no cursor ever reported, but it is exactly "this
+	# slot's home flag in world space" with no fallback logic of its own).
+	_controller.set_home_position(Match.default_ghost_origin(slot_id))
 
 
 func controller() -> PlayerController:

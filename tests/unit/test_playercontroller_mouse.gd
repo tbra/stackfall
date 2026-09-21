@@ -105,6 +105,72 @@ func test_wheel_down_lowers_the_ghost_and_clamps_at_zero() -> void:
 	assert_almost_eq(controller._ghost.manual_hover_offset, 0.0, 0.001, "hover cannot go below zero.")
 
 
+# --- Bontago-mv0.17 item 5 (owner feel report: "the block's height changes
+# ONLY via the wheel"): moving the cursor over a placed block must not raise
+# the ghost; only the wheel does. --------------------------------------------
+
+func _small_map() -> MapDef:
+	var map_def: MapDef = MapDef.new()
+	map_def.id = &"test_pc_disk"
+	map_def.field_radius = 10.0
+	map_def.cell_size = 1.0
+	map_def.disk_height = 1.0
+	map_def.territory_res = 16
+	return map_def
+
+
+func _make_field_for_controller() -> Field:
+	var field: Field = Field.new()
+	field.map_def = _small_map()
+	add_child_autofree(field)
+	return field
+
+
+func _make_stacked_block(field: Field, at: Vector3) -> RigidBody3D:
+	var body: RigidBody3D = RigidBody3D.new()
+	var collision: CollisionShape3D = CollisionShape3D.new()
+	var box: BoxShape3D = BoxShape3D.new()
+	box.size = Vector3.ONE
+	collision.shape = box
+	body.add_child(collision)
+	field.get_parent().add_child(body)
+	autofree(body)
+	body.global_position = at
+	return body
+
+
+func test_moving_the_cursor_over_a_block_does_not_change_the_ghost_height() -> void:
+	var field: Field = _make_field_for_controller()
+	var controller: PlayerController = _make_controller()
+	_make_stacked_block(field, Vector3(0.0, 5.0, 0.0))
+
+	controller._update_ghost_transform()
+	var height_over_the_block: float = controller._ghost.global_position.y
+
+	controller._cursor = Vector3(5.0, 0.0, 0.0)  # bare disk, well away from the block
+	controller._update_ghost_transform()
+	var height_over_bare_disk: float = controller._ghost.global_position.y
+
+	assert_almost_eq(
+		height_over_the_block, height_over_bare_disk, 0.05,
+		"the ghost's height must come from the disk surface, never from whatever is stacked underneath the cursor."
+	)
+
+
+func test_the_wheel_still_raises_the_ghost_over_bare_disk() -> void:
+	_make_field_for_controller()
+	var controller: PlayerController = _make_controller()
+
+	controller._update_ghost_transform()
+	var height_before: float = controller._ghost.global_position.y
+
+	controller._unhandled_input(_wheel(MOUSE_BUTTON_WHEEL_UP))
+	controller._update_ghost_transform()
+	var height_after: float = controller._ghost.global_position.y
+
+	assert_gt(height_after, height_before, "the wheel must still raise the ghost.")
+
+
 # --- Rotation mode (original tutorial: "while holding the rotation-mode key,
 # the movement keys change the orientation of the block") ---------------------
 

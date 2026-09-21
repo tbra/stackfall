@@ -468,6 +468,39 @@ func test_an_off_center_shape_still_centers_on_the_requested_point_when_rotated(
 	assert_almost_eq(spawned.global_position.z, target.z, 0.01)
 
 
+# --- Bontago-mv0.17 item 3 (owner feel report: "the ghost/body pivot is the --
+# --- block's middle"): the pivot is the shape's bottom-centre now ------------
+
+## request_place() itself needs no change for this (BlockFactory/GhostPreview
+## own the pivot entirely; see autoload/Match.gd's own DECISION comment on
+## _spawn_block) -- this pins that a spawned block's own AABB bottom lands at
+## the requested origin's height, for pillar, whose old geometric-centre
+## pivot (Bontago-mv0.12) would have put its vertical *midpoint* there
+## instead and left its bottom third sunk into the disk.
+func test_a_spawned_blocks_aabb_bottom_matches_the_requested_origins_height() -> void:
+	Match.start_match(_free_for_all_config(2))
+	_run_countdown()
+	Match._held_shapes[0] = load("res://config/blocks/pillar.tres")
+	var target: Vector3 = _home_world_position(0)
+
+	Match.request_place(0, target, 0, Quaternion.IDENTITY, false)
+
+	var spawned: Block = _blocks_root.get_child(0) as Block
+	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres")
+	var min_local_y: float = INF
+	for child: Node in spawned.get_children():
+		var mesh_instance: MeshInstance3D = child as MeshInstance3D
+		if mesh_instance == null or mesh_instance.mesh == null:
+			continue
+		var aabb: AABB = mesh_instance.mesh.get_aabb()
+		min_local_y = minf(min_local_y, mesh_instance.position.y + aabb.position.y)
+	var world_bottom: float = spawned.global_position.y + min_local_y
+	assert_almost_eq(
+		world_bottom, target.y, tuning.cube_margin * 0.5 + 0.001,
+		"pillar's spawned AABB bottom should sit at the requested origin's height, not its old vertical midpoint."
+	)
+
+
 # --- Bontago-mv0.11 (owner-reported playability): placed blocks carry -------
 # --- their slot's colour ------------------------------------------------------
 

@@ -81,14 +81,20 @@ the turn passes on every release, valid or not.
 held block and follows it, the way the original's tutorial describes ("the mouse positions
 the block" and the camera moves with it) — the mouse no longer projects a screen cursor
 onto the field. The game captures the OS mouse cursor while playing (there is no pause menu
-yet to release it into; see below).
+yet to release it into; see below). At match start the cursor and camera both start at your
+own home flag, with the camera already looking from there toward the disk's centre.
 
 **Mouse and keyboard**
 
 1. Move the mouse to move the ghost block in the field plane, relative to the camera, which
    follows a step behind it. It is tinted your colour where you may drop it, red outside
-   your territory, over a contested cell or off the disk, and hatched over a hole.
-2. The **mouse wheel** raises and lowers the block's hover height.
+   your territory, over a contested cell or off the disk, and hatched over a hole. A
+   footprint — one tinted quad per cell of the block's own footprint, rotation included —
+   projects straight down onto whatever is directly beneath it (the disk, or the top of a
+   tower), so you can see exactly what it will land on before you release.
+2. The **mouse wheel** raises and lowers the block's height. This is the only thing that
+   changes it — moving the cursor over a tower does not lift the block to clear it; raise it
+   yourself with the wheel first.
 3. Hold **`R`** (Rotation Mode) and move the mouse to snap the block's yaw/pitch by 90°
    per drag threshold, the same table `A`/`S`/`W`/`D`/`[`/`]` step one tap at a time.
    Middle-click (**rotate_snap**) yaws 90° in one tap; `Home` or `F` resets the rotation.

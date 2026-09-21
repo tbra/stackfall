@@ -82,9 +82,25 @@ const RNG_SEED: int = 20260917
 ## settled. PhysicsTuning.sleep_settle_time is 0.5 s; the spare frames cover
 ## the drop from PLACE_HEIGHT and the solve that follows.
 const SETTLE_FRAMES: int = 42
-## How far above the disk surface a scripted placement is released, in meters.
-## Small enough that the block is at rest almost immediately.
-const PLACE_HEIGHT: float = 0.55
+## How far above the target resting spot a scripted placement's spawn point
+## sits, in meters. Small enough that the block is at rest almost immediately
+## (SETTLE_FRAMES covers the drop).
+##
+## Bontago-mv0.17 item 3 (owner feel report: "the ghost/body pivot is the
+## block's middle" -- see config/blocks/BlockShape.gd's bottom_center()):
+## request_place()'s `origin`/`spot.y` used to be the shape's geometric
+## *centre*, so 0.55 m meant "the block's bottom sits ~0.06 m above the
+## target" (0.55 minus half a cube, ~0.49 m with PhysicsTuning's default
+## cube_size 1.0 / cube_margin 0.02). Now `origin` is the shape's own
+## bottom-centre, so this constant *is* that release gap directly -- 0.06 m
+## reproduces the exact same physical drop this harness always used,
+## unchanged by the pivot move. Left at the old 0.55 this became a ~0.55 m
+## fall instead of ~0.06 m, energetic enough to perturb the multi-layer
+## stacking criteria (d)/(f) (extra bounce before a tall stack's next layer
+## settles) without making any single-block criterion wrong outright -- a
+## harness height assumption to fix, not a rule bug (see the two failures
+## this replaced in the M2 acceptance log).
+const PLACE_HEIGHT: float = 0.06
 ## Give up rather than loop forever if a march stops making progress.
 const MAX_MARCH_STEPS: int = 60
 ## How far off the disk a passed turn releases its block, as a multiple of the

@@ -140,6 +140,25 @@ func set_follow_position(pos: Vector3) -> void:
 	_follow_position = pos
 
 
+## Bontago-mv0.17 item 4 (owner feel report: match start should look from the
+## player's home flag toward the disk centre, not the generic yaw = 0
+## default): called once by PlayerController.set_home_position() when a
+## controller binds to a real slot. Points this rig's yaw so its offset (see
+## _update_transform()) sits on the `home_position` side of `look_at_position`
+## -- i.e. the camera looks *toward* the centre from behind the block, the
+## same framing docs/original_in-game.png shows -- and seeds both _target and
+## _follow_position at the home flag so there is no one-frame jump back to
+## wherever the target used to sit before PlayerController's own
+## set_follow_position() call this same frame takes over.
+func set_home_view(home_position: Vector3, look_at_position: Vector3 = Vector3.ZERO) -> void:
+	var away: Vector2 = Vector2(home_position.x - look_at_position.x, home_position.z - look_at_position.z)
+	if away.length() > 0.0001:
+		_yaw = atan2(away.x, away.y)
+	_target = home_position
+	_follow_position = home_position
+	_update_transform()
+
+
 ## Used by PlayerController to scale gamepad ghost-cursor speed with zoom
 ## (spec 2.5: "speed scales with camera zoom").
 func get_distance() -> float:

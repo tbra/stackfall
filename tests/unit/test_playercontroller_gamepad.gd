@@ -152,3 +152,45 @@ func test_gamepad_rotation_mode_left_stick_snaps_orientation_instead_of_moving_t
 	stick_release.axis_value = 0.0
 	Input.parse_input_event(stick_release)
 	Input.flush_buffered_events()
+
+
+## Bontago-mv0.17 item 5 (owner feel report: "the block's height changes ONLY
+## via the wheel"): the gamepad's hover_raise/hover_lower bindings (RS click /
+## X, tools/bootstrap_project.gd) are the "wheel" for a gamepad player and
+## must keep working exactly as before -- held continuously, unlike the
+## mouse wheel's one-notch-per-press.
+func test_gamepad_hover_raise_held_continuously_raises_the_ghost() -> void:
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+	ghost.set_shape(load("res://config/blocks/cube.tres"))
+
+	var controller: PlayerController = autofree(PlayerController.new())
+	add_child_autofree(controller)
+	controller._ghost = ghost
+
+	var button_event: InputEventJoypadButton = InputEventJoypadButton.new()
+	button_event.device = -1
+	button_event.button_index = JOY_BUTTON_RIGHT_STICK
+	button_event.pressed = true
+	assert_true(
+		button_event.is_action_pressed(&"hover_raise"),
+		"Right-stick click should map to hover_raise (tools/bootstrap_project.gd)."
+	)
+	Input.parse_input_event(button_event)
+	Input.flush_buffered_events()
+
+	var before: float = ghost.manual_hover_offset
+	controller._handle_hover_adjust(1.0)
+
+	assert_almost_eq(
+		ghost.manual_hover_offset, before + controller.ghost_tuning.hover_manual_adjust_speed, 0.001,
+		"holding the gamepad's hover_raise button should raise the ghost continuously, at hover_manual_adjust_speed per second."
+	)
+
+	# Release so it doesn't bleed into later tests.
+	var release: InputEventJoypadButton = InputEventJoypadButton.new()
+	release.device = -1
+	release.button_index = JOY_BUTTON_RIGHT_STICK
+	release.pressed = false
+	Input.parse_input_event(release)
+	Input.flush_buffered_events()

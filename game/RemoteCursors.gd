@@ -81,15 +81,19 @@ func _on_remote_cursor_updated(
 	# both, so setting the index last is what makes one pose out of the two.
 	ghost.free_quaternion = free_quat
 	ghost.set_orientation_index(orientation_index)
-	# DECISION (game/RemoteCursors.gd): spec 3.4's update_cursor carries a
-	# position, not the surface it was raycast against, so a remote ghost's
-	# drop shadow and guide line are drawn straight down from it rather than
-	# onto whatever it is really hovering over. Going through
-	# update_placement() (rather than writing global_position) is what keeps
-	# those two children with the ghost at all; subtracting the hover first
-	# lands the ghost on exactly the position the sender reported.
-	var hover: float = ghost.tuning.hover_height + ghost.manual_hover_offset
-	ghost.update_placement(origin - Vector3.UP * hover, Vector3.UP)
+	# DECISION (game/RemoteCursors.gd, Bontago-mv0.17 items 3/5): spec 3.4's
+	# update_cursor carries the sending peer's own already-fully-resolved
+	# GhostPreview.global_position (hover and the rotated-bottom-pivot
+	# correction both already applied on their end) -- not a surface to
+	# re-derive one from. This used to reconstruct an approximate "surface
+	# point" by subtracting hover and let update_placement() re-add the exact
+	# same hover, landing back on `origin`; that trick breaks now that
+	# update_placement() also applies GhostPreview's rotated-bottom-pivot
+	# correction (it would double-apply that part), so this goes through
+	# GhostPreview.sync_remote_position() instead, which sets the position
+	# directly and refreshes the shadow/footprint without redoing either
+	# peer's own math.
+	ghost.sync_remote_position(origin)
 
 
 func _on_feed_block_issued(slot_id: int, shape_id: StringName, _next_shape_id: StringName) -> void:

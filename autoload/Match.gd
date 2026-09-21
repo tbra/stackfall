@@ -682,10 +682,12 @@ func request_place(
 		# map_def.field_radius * Field.KILL_PLANE_RADIUS_FACTOR).
 		final_disk_origin = _clamp_disk_origin_for_burn(final_disk_origin)
 
-	# Bontago-mv0.12 + Bontago-cmc.7: `origin` is the shape's geometric centre
-	# (GhostPreview/BlockFactory both pivot there) and the point test above
-	# works on that same centre, so final_disk_origin already is the frame
-	# the spawned body's origin needs -- no cell-(0, 0, 0) offset to add back.
+	# Bontago-mv0.12 + Bontago-cmc.7, updated Bontago-mv0.17 item 3: `origin`
+	# is the shape's bottom-centre pivot (GhostPreview/BlockFactory both pivot
+	# there now, rotated-shape corrected -- see GhostPreview's own DECISION)
+	# and the point test above works on that same x/z, so final_disk_origin
+	# already is the frame the spawned body's origin needs -- no cell-
+	# (0, 0, 0) offset and no height correction to add back here.
 	var final_world_origin: Vector3 = _field.to_global(Vector3(
 		final_disk_origin.x, local_origin.y, final_disk_origin.y
 	))

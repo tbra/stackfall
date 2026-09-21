@@ -47,18 +47,6 @@ func test_boxes_are_shrunk_by_the_margin() -> void:
 	assert_almost_eq(box.size.z, expected_edge, 0.0001)
 
 
-func test_wedge_uses_a_convex_collision_shape() -> void:
-	var shape: BlockShape = load("res://config/blocks/wedge.tres")
-	var block: Block = autofree(BlockFactory.build(shape, _tuning))
-	var collision: CollisionShape3D = null
-	for child: Node in block.get_children():
-		if child is CollisionShape3D:
-			collision = child
-			break
-	assert_not_null(collision)
-	assert_true(collision.shape is ConvexPolygonShape3D, "wedge needs a sloped (convex) collision shape.")
-
-
 func test_physics_material_matches_tuning() -> void:
 	var shape: BlockShape = load("res://config/blocks/cube.tres")
 	var block: Block = autofree(BlockFactory.build(shape, _tuning))
@@ -150,24 +138,40 @@ func _combined_local_aabb(root: Node3D) -> AABB:
 ## domino, L3, L4, T4, S4, pillar...) used to hang off the cursor and rotate
 ## about the wrong point (Bontago-mv0.12), because build_visual_only() placed
 ## cell (0, 0, 0) at this node's own origin instead of the shape's centre.
-## GhostPreview positions this node's origin at the raycast hit point
-## (update_placement()), so the node's origin has to be the shape's
-## geometric centre for the cursor to sit there visually.
-func test_ghost_visual_is_centered_on_this_nodes_own_origin_for_every_shape() -> void:
+##
+## Bontago-mv0.17 item 3: the pivot moved from the shape's geometric centre to
+## its bottom-centre (owner feel report: half the block used to sink below
+## the cursor point), so this node's own origin (0, 0, 0) must now be the
+## visual AABB's x/z centre AND its bottom face -- not its full 3D centre.
+## GhostPreview.update_placement() positions this node's origin at the
+## (rotation-compensated) cursor height; see BlockShape.bottom_center()'s own
+## doc comment for why.
+func test_ghost_visual_bottom_sits_at_this_nodes_own_origin_for_every_shape() -> void:
 	for shape: BlockShape in BlockShape.load_all_shapes():
 		var visual: Node3D = autofree(BlockFactory.build_visual_only(shape, _tuning))
 		var aabb: AABB = _combined_local_aabb(visual)
-		var centre: Vector3 = aabb.position + aabb.size * 0.5
+		var bottom_center_xz: Vector2 = Vector2(
+			aabb.position.x + aabb.size.x * 0.5, aabb.position.z + aabb.size.z * 0.5
+		)
 		assert_true(
-			centre.is_equal_approx(Vector3.ZERO),
-			"%s's visual AABB should be centred on this node's own origin, got %s" % [shape.id, centre]
+			bottom_center_xz.is_equal_approx(Vector2.ZERO),
+			"%s's visual AABB should be x/z-centred on this node's own origin, got %s" % [shape.id, bottom_center_xz]
+		)
+		# Bontago-mv0.17: the collision/visual box is shrunk by cube_margin
+		# (spec 2.4's "so neighboring blocks don't jam"), so the bottom face
+		# sits half that margin above y = 0, not exactly on it -- see
+		# BlockFactory.build()'s half_size math. The tolerance is exactly
+		# that half-margin, not a loose fudge factor.
+		assert_almost_eq(
+			aabb.position.y, 0.0, _tuning.cube_margin * 0.5 + 0.0001,
+			"%s's visual AABB bottom should sit at this node's own origin y = 0, got %s" % [shape.id, aabb.position.y]
 		)
 
 
 ## The spawned body must land exactly where the ghost showed: BlockFactory.
-## build() offsets every cell by the same shape.center() as build_visual_only()
-## above, so a real block's per-cell local offsets match its ghost's, cell for
-## cell, for every shape in the project.
+## build() offsets every cell by the same shape.bottom_center() as
+## build_visual_only() above, so a real block's per-cell local offsets match
+## its ghost's, cell for cell, for every shape in the project.
 func test_built_blocks_use_the_same_cell_offsets_as_their_ghost_visual() -> void:
 	for shape: BlockShape in BlockShape.load_all_shapes():
 		var block: Block = autofree(BlockFactory.build(shape, _tuning))
@@ -187,3 +191,24 @@ func test_built_blocks_use_the_same_cell_offsets_as_their_ghost_visual() -> void
 				block_positions.any(func(p: Vector3) -> bool: return p.is_equal_approx(pos)),
 				"%s: the built block is missing the ghost's cell offset %s" % [shape.id, pos]
 			)
+
+
+## Bontago-mv0.17 item 3: autoload/Match.gd's request_place() spawns every
+## block with `block.global_transform = Transform3D(basis, world_origin)`,
+## where world_origin is the ghost's own (bottom-pivoted) position -- so a
+## real spawned body's AABB bottom must land at exactly that requested
+## height, for every shape, the same way the ghost visual's does above.
+func test_body_aabb_bottom_matches_the_requested_spawn_height() -> void:
+	var spawn_origin: Vector3 = Vector3(3.0, 7.0, -2.0)
+	for shape: BlockShape in BlockShape.load_all_shapes():
+		var block: Block = autofree(BlockFactory.build(shape, _tuning))
+		block.global_transform = Transform3D(Basis.IDENTITY, spawn_origin)
+		var aabb: AABB = _combined_local_aabb(block)
+		var world_bottom_y: float = spawn_origin.y + aabb.position.y
+		assert_almost_eq(
+			world_bottom_y, spawn_origin.y, _tuning.cube_margin * 0.5 + 0.0001,
+			(
+				"%s: spawning at y = %s should put its AABB bottom at (within margin of) that same height, got %s"
+				% [shape.id, spawn_origin.y, world_bottom_y]
+			)
+		)

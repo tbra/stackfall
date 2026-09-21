@@ -37,7 +37,11 @@ extends Resource
 ## Seconds for the follow target to mostly catch up to the ghost's position
 ## (an exponential approach, not a hard snap); 0 tracks it exactly every
 ## frame.
-@export var follow_lag_seconds: float = 0.15
+## Bontago-mv0.17 (owner feel report 1): 0.15 s read as noticeably laggy
+## behind the held block; 0.05 s keeps the smoothing (still not a hard snap)
+## while tracking much closer to instantly. Still a tunable -- the owner may
+## retune further.
+@export var follow_lag_seconds: float = 0.05
 ## Camera distance and pitch while following the held block. The original
 ## (docs/original_in-game.png) frames the block from a few metres away at a
 ## shallow angle so the block fills the lower half of the view and the disk

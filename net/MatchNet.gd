@@ -982,9 +982,10 @@ func net_block_spawned(
 	# Bontago-mv0.11: the same slot-colour tint as the host's own block (see
 	# autoload/Match.gd's _spawn_block DECISION on using the slot's own colour
 	# rather than a separate team lookup). `origin` below is already the
-	# host's exact spawned transform -- Bontago-mv0.12's centred pivot needs
-	# no extra conversion here, since BlockFactory.build() offsets this
-	# shape's cells by the same shape.center() on every instance.
+	# host's exact spawned transform -- the bottom-centre pivot (Bontago-
+	# mv0.17 item 3, was Bontago-mv0.12's geometric centre) needs no extra
+	# conversion here either, since BlockFactory.build() offsets this shape's
+	# cells by the same shape.bottom_center() on every instance.
 	var owner_slot_ref: PlayerSlot = _authority().slot(owner_slot)
 	var color: Color = owner_slot_ref.color if owner_slot_ref != null else Color.WHITE
 	var block: Block = BlockFactory.build(shape, _physics_tuning, owner_slot, color)

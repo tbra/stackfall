@@ -167,3 +167,12 @@ func _on_turn_changed(slot_id: int) -> void:
 	# that (config.hot_seat is false), so this only sets the initial active
 	# slot. sandbox_next_slot/_reset_field() own every change after this.
 	_active_slot = slot_id
+	# Bontago-mv0.17 item 4: this is sandbox's equivalent of HotSeat.
+	# bind_local_slot() -- the one-time "a controller is now bound to a real
+	# slot" moment -- so the very first frame looks from that slot's home
+	# flag toward the disk centre instead of the generic yaw = 0 default.
+	# DECISION (game/Sandbox.gd): deliberately not repeated from
+	# sandbox_next_slot's _cycle_active_slot()/_set_active_slot() -- re-homing
+	# the camera on every debug Tab cycle would be a surprising jump for a
+	# tester mid-session; this only fires once, at match start.
+	_controller.set_home_position(Match.default_ghost_origin(slot_id))

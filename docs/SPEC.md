@@ -174,7 +174,6 @@ The original global-versus-per-player phase alignment is **[OPEN]**; it must not
 | square4 | 2×2 flat | stable base |
 | slab6 | 2×3 flat | rare, strong base |
 | pillar | 1×1×3 upright variant of bar3 | |
-| wedge | cube with a 45° slope, drawn as a cube with a sloped collision shape | [NEW] ramps |
 
 - **Weighted random feed:** Weights are set per shape in `BlockFeedConfig`. Use a "bag" randomizer so no player goes long without getting a stabilizing shape. [NEW]
 - **Next-block preview [ORIGINAL]:** installed tutorial confirms the preview's next piece and timer plus a top-down territory minimap. Distinguish queued preview from the actual held-but-locked preparation piece. Three-piece preview is a remake option.

@@ -112,6 +112,21 @@ func set_camera_rig(rig: CameraRig) -> void:
 	_camera_rig = rig
 
 
+## Bontago-mv0.17 item 4 (owner feel report: "the camera starts looking from
+## the player's home flag toward the disk centre, and the initial cursor
+## should start at the home flag"): called once by HotSeat.bind_local_slot()/
+## Sandbox's own turn-changed handler with that slot's home-flag world
+## position (Match.default_ghost_origin(slot_id) -- see those callers' own
+## DECISION comments for why that read-only API, not a new one, supplies it).
+## Seeds _cursor there (so the first frame's ghost/footprint sit at the home
+## flag, not the world origin) and points the camera rig the same way, if one
+## is already wired.
+func set_home_position(home_position: Vector3) -> void:
+	_cursor = home_position
+	if _camera_rig != null:
+		_camera_rig.set_home_view(home_position)
+
+
 ## Bontago-mv0.14: called once by HotSeat.gd/Sandbox.gd (never by a bare unit
 ## test) so a real play session hides/captures the OS cursor -- the original's
 ## mouse only ever positions the held block, there is nothing on screen for a
@@ -522,20 +537,31 @@ func _camera_relative_dir(input_2d: Vector2) -> Vector3:
 ## world-space _cursor (spec 1.5, "the mouse positions the block"), so there
 ## is only one path. Public so tests can exercise it without going through
 ## real input devices.
+##
+## Bontago-mv0.17 item 5 (owner feel report: "the block's height changes ONLY
+## via the wheel", not whatever is directly underneath it): the probe below
+## skips over any RigidBody3D (a placed block) so it always reports the disk
+## surface itself, never a tower. The ghost's own height then comes only from
+## that disk surface plus hover_height plus the wheel (GhostPreview.
+## update_placement()) -- the ghost's XZ still comes straight from the
+## cursor, only its Y stops tracking whatever is below it. Match.
+## preview_placement()/request_place() do their own independent straight-down
+## raycast against the real, unfiltered world (autoload/Match.gd,
+## Field.raycast_down_disk_local()), so placement validity is unaffected.
 func _update_ghost_transform() -> void:
 	if _ghost == null:
 		return
 	var origin: Vector3 = _cursor + Vector3.UP * ghost_tuning.cursor_ray_height
-	var direction: Vector3 = Vector3.DOWN
 
-	var hit: Dictionary = _raycast(origin, direction)
+	var hit: Dictionary = _raycast_disk_surface(origin)
 	var hit_point: Vector3
 	var hit_normal: Vector3
 	if hit.is_empty():
 		# Fallback so the ghost has somewhere to go even if the ray misses
-		# every physics body (e.g. aimed at the sky before Field is ready).
+		# every physics body (e.g. aimed at the sky before Field is ready) or
+		# runs out of blocks to skip past.
 		var plane: Plane = Plane(Vector3.UP, 0.0)
-		var point: Variant = plane.intersects_ray(origin, direction)
+		var point: Variant = plane.intersects_ray(origin, Vector3.DOWN)
 		hit_point = (point as Vector3) if point != null else Vector3.ZERO
 		hit_normal = Vector3.UP
 	else:
@@ -545,12 +571,30 @@ func _update_ghost_transform() -> void:
 	_ghost.update_placement(hit_point, hit_normal)
 
 
-func _raycast(origin: Vector3, direction: Vector3) -> Dictionary:
+## Straight down from `origin`, skipping any RigidBody3D (a placed block) so
+## the first hit reported is the disk's own collision (a StaticBody3D, or an
+## AnimatableBody3D once M4 tilt lands) -- never a tower underneath the
+## cursor. Bounded by ghost_tuning.surface_probe_max_blocks so a very tall (or
+## adversarially deep) stack can't spin this loop forever; past that many
+## skips it just reports a miss, same as an empty query.
+func _raycast_disk_surface(origin: Vector3) -> Dictionary:
 	var space_state: PhysicsDirectSpaceState3D = get_viewport().world_3d.direct_space_state
-	var params: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
-		origin, origin + direction.normalized() * ghost_tuning.placement_ray_length
-	)
-	return space_state.intersect_ray(params)
+	var exclude: Array[RID] = []
+	var attempts: int = 0
+	while attempts <= ghost_tuning.surface_probe_max_blocks:
+		var params: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
+			origin, origin + Vector3.DOWN * ghost_tuning.placement_ray_length
+		)
+		params.exclude = exclude
+		var hit: Dictionary = space_state.intersect_ray(params)
+		if hit.is_empty():
+			return {}
+		if hit["collider"] is RigidBody3D:
+			exclude.append(hit["rid"] as RID)
+			attempts += 1
+			continue
+		return hit
+	return {}
 
 
 ## Match names the shape it issues by id (Events.feed_block_issued); the ghost

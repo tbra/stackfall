@@ -15,8 +15,9 @@ extends Resource
 @export var weight: float = 1.0
 
 ## Cells (must also appear in `cells`) whose collision and mesh should be a
-## 45-degree wedge instead of a full cube. Spec 2.4: "the wedge needs a sloped
-## collision shape". Empty for every shape except the wedge.
+## 45-degree wedge instead of a full cube (spec 2.4's now-removed wedge shape
+## used this; game/BlockFactory.gd's DECISION comment on the sloped branch
+## explains why the machinery stays). Empty for every shipped shape today.
 @export var sloped_cells: Array[Vector3i] = []
 
 ## Optional custom mesh; when null the factory generates one from `cells` and
@@ -31,28 +32,46 @@ const SHAPES_DIR: String = "res://config/blocks/"
 ## straddle the origin symmetrically (bar3's cells run 0..2, so its centre is
 ## (1, 0, 0); domino's run 0..1, so its centre is (0.5, 0, 0)) used to hang off
 ## the cursor and rotate about the wrong point, because game/BlockFactory.gd
-## and autoload/Match.gd both treated cell (0, 0, 0) as the pivot. Callers that
-## need the pivot at the shape's true geometric centre subtract this (scaled
-## by PhysicsTuning.cube_size) from every cell offset instead.
+## and autoload/Match.gd both treated cell (0, 0, 0) as the pivot.
+##
+## Bontago-mv0.17 item 3 (owner feel report: "the ghost/body pivot is the
+## block's middle, so half the block sinks below the cursor point and clips
+## into the disk"): the geometric centre from mv0.12 fixed the *rotation*
+## drift but was still a mid-height pivot for placement purposes. This is now
+## `bottom_center()` instead of `center()` — the x/z centre of the cell
+## bounds unchanged, but y is the bottom face of the lowest cell
+## (min_y - 0.5 cell, i.e. half a cube below the lowest cell's own centre)
+## rather than the vertical midpoint. game/BlockFactory.gd builds every cell
+## offset relative to this point now, so a body's/ghost's own local origin
+## (0, 0, 0) sits at the bottom of the *unrotated* shape.
+##
+## DECISION (config/blocks/BlockShape.gd): renamed rather than kept alongside
+## the old geometric-centre method — nothing in the project still wants a
+## mid-height pivot, so carrying two pivot conventions would just be a second
+## place for BlockFactory/GhostPreview/Match to disagree about which one to
+## use. See game/GhostPreview.gd's own DECISION for how rotation (which still
+## happens about this same local origin) is compensated so the *rotated*
+## shape's lowest point — not always this unrotated bottom-centre point after
+## a 90-degree pitch/roll — is what actually lands at the cursor height.
 ##
 ## DECISION (config/blocks/BlockShape.gd): cached on the instance rather than
 ## recomputed every call. BlockShape.load_all_shapes() hands back the same
 ## loaded Resource to every caller for a given id (Godot's resource cache), so
-## one shape's center() is computed once per process and reused by every
-## block of that shape for the rest of the run; `cells` never changes after
-## load, so there is nothing to invalidate the cache for.
-var _cached_center: Vector3 = Vector3.ZERO
-var _center_computed: bool = false
+## one shape's bottom_center() is computed once per process and reused by
+## every block of that shape for the rest of the run; `cells` never changes
+## after load, so there is nothing to invalidate the cache for.
+var _cached_bottom_center: Vector3 = Vector3.ZERO
+var _bottom_center_computed: bool = false
 
 
-func center() -> Vector3:
-	if not _center_computed:
-		_cached_center = _compute_center()
-		_center_computed = true
-	return _cached_center
+func bottom_center() -> Vector3:
+	if not _bottom_center_computed:
+		_cached_bottom_center = _compute_bottom_center()
+		_bottom_center_computed = true
+	return _cached_bottom_center
 
 
-func _compute_center() -> Vector3:
+func _compute_bottom_center() -> Vector3:
 	if cells.is_empty():
 		return Vector3.ZERO
 	var min_x: float = INF
@@ -68,7 +87,7 @@ func _compute_center() -> Vector3:
 		max_y = maxf(max_y, float(cell.y))
 		min_z = minf(min_z, float(cell.z))
 		max_z = maxf(max_z, float(cell.z))
-	return Vector3((min_x + max_x) * 0.5, (min_y + max_y) * 0.5, (min_z + max_z) * 0.5)
+	return Vector3((min_x + max_x) * 0.5, min_y - 0.5, (min_z + max_z) * 0.5)
 
 
 ## Loads every BlockShape resource in SHAPES_DIR, sorted by id so the result is

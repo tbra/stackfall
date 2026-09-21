@@ -84,3 +84,137 @@ func test_many_random_steps_then_reset_never_drifts() -> void:
 		ghost.apply_free_rotation_delta(rng.randf_range(-0.5, 0.5), rng.randf_range(-0.5, 0.5))
 	ghost.reset_rotation()
 	assert_eq(ghost.basis, Basis.IDENTITY, "However far rotation drifted, reset must land exactly on identity.")
+
+
+# --- Bontago-mv0.17 item 3: rotated-bottom pivot -----------------------------
+
+## The lowest world-space Y any corner of the ghost's own shape visual
+## reaches -- the thing an owner actually sees clip into the disk or float
+## above the cursor if the pivot math is wrong. Each mesh's local box corners
+## have to go through `ghost.basis` (not just a Y-translation) to land in
+## world space correctly once the ghost itself is rotated -- a MeshInstance3D
+## child's own `.position` is local to the (unrotated) ShapeVisual/ghost
+## frame, and its rotation comes entirely from the ghost node's own basis.
+func _visual_world_bottom_y(ghost: GhostPreview) -> float:
+	var visual: Node3D = null
+	for child: Node in ghost.get_children():
+		if child.name == "ShapeVisual":
+			visual = child as Node3D
+			break
+	assert_not_null(visual, "fixture: the ghost should have a shape visual once a shape is set.")
+	var min_world_y: float = INF
+	for mesh_child: Node in visual.get_children():
+		var mesh_instance: MeshInstance3D = mesh_child as MeshInstance3D
+		if mesh_instance == null or mesh_instance.mesh == null:
+			continue
+		var local_aabb: AABB = mesh_instance.mesh.get_aabb()
+		for corner_index: int in range(8):
+			var corner_local: Vector3 = local_aabb.position + Vector3(
+				local_aabb.size.x * float(corner_index & 1),
+				local_aabb.size.y * float((corner_index >> 1) & 1),
+				local_aabb.size.z * float((corner_index >> 2) & 1)
+			)
+			var world_corner: Vector3 = ghost.global_position + ghost.basis * (mesh_instance.position + corner_local)
+			min_world_y = minf(min_world_y, world_corner.y)
+	return min_world_y
+
+
+func test_update_placement_puts_an_unrotated_shapes_visual_bottom_at_the_reported_height() -> void:
+	var ghost: GhostPreview = _make_ghost()
+
+	ghost.update_placement(Vector3(2.0, 5.0, -3.0), Vector3.UP)
+
+	assert_almost_eq(ghost.global_position.x, 2.0, 0.001)
+	assert_almost_eq(ghost.global_position.z, -3.0, 0.001)
+	var expected_bottom: float = 5.0 + ghost.tuning.hover_height
+	assert_almost_eq(
+		_visual_world_bottom_y(ghost), expected_bottom, ghost.tuning.cube_margin * 0.5 + 0.001,
+		"the ghost's own bottom face should sit at the reported disk height plus hover_height."
+	)
+
+
+## The regression this item exists to fix: pillar is 3 cells tall unrotated,
+## so tipping it 90 degrees onto its side used to leave its old bottom-centre
+## pivot -- now off to one side of the tipped shape, not underneath it --
+## sitting at the cursor height while the actual lowest point hung well
+## below it (or floated above, depending on direction).
+func test_update_placement_keeps_a_rotated_talls_shapes_visual_bottom_at_the_reported_height() -> void:
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+	ghost.set_shape(load("res://config/blocks/pillar.tres"))
+	ghost.set_orientation_index(BlockOrientations.step_pitch_fwd(0))
+
+	ghost.update_placement(Vector3(0.0, 4.0, 0.0), Vector3.UP)
+
+	var expected_bottom: float = 4.0 + ghost.tuning.hover_height
+	assert_almost_eq(
+		_visual_world_bottom_y(ghost), expected_bottom, ghost.tuning.cube_margin * 0.5 + 0.001,
+		"after a 90-degree pitch, the pillar's own rotated lowest point must sit at the reported height."
+	)
+
+
+# --- Bontago-mv0.17 item 6: footprint projection -----------------------------
+
+func test_no_footprint_quads_when_no_shape_is_held() -> void:
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	assert_eq(ghost.footprint_quad_count(), 0)
+
+
+func test_footprint_has_one_quad_per_cell_for_a_flat_shape() -> void:
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+	ghost.set_shape(load("res://config/blocks/square4.tres"))
+
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	assert_eq(ghost.footprint_quad_count(), 4, "square4's 4 cells sit in 4 distinct (x, z) columns.")
+
+
+func test_footprint_has_one_quad_for_a_shape_stacked_straight_up() -> void:
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+	ghost.set_shape(load("res://config/blocks/pillar.tres"))
+
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	assert_eq(ghost.footprint_quad_count(), 1, "pillar standing upright touches the ground in exactly one column.")
+
+
+func test_footprint_quad_count_matches_the_rotated_shapes_own_columns() -> void:
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+	ghost.set_shape(load("res://config/blocks/pillar.tres"))
+	ghost.set_orientation_index(BlockOrientations.step_pitch_fwd(0))
+
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	assert_eq(ghost.footprint_quad_count(), 3, "tipped onto its side, pillar's 3 cells occupy 3 distinct footprint columns.")
+
+
+func test_footprint_tint_follows_validity_like_the_held_shapes_own_body() -> void:
+	var ghost: GhostPreview = _make_ghost()
+
+	ghost.apply_validity(PlacementRules.Result.VALID)
+	assert_almost_eq(ghost.current_footprint_tint_color().a, ghost.ghost_tuning.footprint_alpha, 0.001)
+
+	ghost.apply_validity(PlacementRules.Result.OUTSIDE_TERRITORY)
+	var expected_invalid: Color = ghost.ghost_tuning.invalid_tint_color
+	assert_true(
+		ghost.current_footprint_tint_color().is_equal_approx(
+			Color(expected_invalid.r, expected_invalid.g, expected_invalid.b, ghost.ghost_tuning.footprint_alpha)
+		),
+		"the footprint should turn invalid-red (at footprint_alpha) exactly like the body does."
+	)
+
+	ghost.set_locked(true)
+	var expected_locked: Color = ghost.ghost_tuning.locked_tint_color
+	assert_true(
+		ghost.current_footprint_tint_color().is_equal_approx(
+			Color(expected_locked.r, expected_locked.g, expected_locked.b, ghost.ghost_tuning.footprint_alpha)
+		),
+		"the locked tint should win over validity for the footprint too, exactly like the body does."
+	)

@@ -1,8 +1,11 @@
 class_name GhostPreview
 extends Node3D
-## The non-physics held block (spec 2.5): follows wherever PlayerController's
-## raycast says to go, hovering `hover_height` above the first thing it would
-## touch, with a projected drop shadow and a vertical guide line.
+## The non-physics held block (spec 2.5): floats at a height PlayerController
+## reports (the disk surface plus hover_height plus the wheel's manual
+## offset, Bontago-mv0.17 item 5 — never whatever is directly underneath the
+## cursor), with a small drop-shadow quad at the cursor's own disk-plane spot
+## plus a projected footprint (one quad per bottom cell of the rotated held
+## shape, item 6) showing exactly what each part of it would land on.
 ##
 ## Rotation is stored as an integer index over the 24 axis-aligned cube
 ## orientations (core/blocks/BlockOrientations.gd) plus a separate free-
@@ -21,6 +24,17 @@ extends Node3D
 ## zone (Result.GOAL_ZONE) reads the same as HOLE — hatched, hole_tint_color —
 ## reusing the existing "can't build here" visual language rather than adding
 ## a fourth tint state or a new GhostTuning field.
+##
+## DECISION (game/GhostPreview.gd, Bontago-mv0.17 item 3 -- owner feel report
+## "the ghost/body pivot is the block's middle"): this node's own origin
+## (0, 0, 0) is BlockShape.bottom_center() of the *unrotated* shape (matching
+## game/BlockFactory.gd's cell offsets), but rotation still happens about
+## that same fixed local origin — after a 90-degree pitch/roll, that point is
+## no longer the rotated shape's lowest point. update_placement() corrects
+## for this every frame (_rotated_bottom_offset()) so the shape actually
+## resting on the cursor's reported height is always the *rotated* one's
+## lowest point, per the spec audit's "simplest correct behaviour" note,
+## never the original's own "keep the block where it is and let it fall".
 
 const STATE_VALID: StringName = &"valid"
 const STATE_INVALID: StringName = &"invalid"
@@ -28,6 +42,13 @@ const STATE_HOLE: StringName = &"hole"
 const STATE_LOCKED: StringName = &"locked"
 
 const HATCH_TEXTURE_SIZE: int = 32
+
+## The 8 corner signs of a unit box centred on its own local position, used by
+## _rotated_bottom_offset() to find a rotated shape's true lowest point.
+const _CORNER_SIGNS: Array[Vector3] = [
+	Vector3(-1.0, -1.0, -1.0), Vector3(1.0, -1.0, -1.0), Vector3(-1.0, 1.0, -1.0), Vector3(1.0, 1.0, -1.0),
+	Vector3(-1.0, -1.0, 1.0), Vector3(1.0, -1.0, 1.0), Vector3(-1.0, 1.0, 1.0), Vector3(1.0, 1.0, 1.0),
+]
 
 @export var tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
 @export var ghost_tuning: GhostTuning = preload("res://config/ghost_tuning.tres")
@@ -40,7 +61,14 @@ var manual_hover_offset: float = 0.0
 var _shape: BlockShape = null
 var _shape_visual: Node3D = null
 var _shadow: MeshInstance3D
-var _guide: MeshInstance3D
+## Bontago-mv0.17 item 6: one quad per bottom cell of the *rotated* held
+## shape, resized to match every time the shape/rotation/position changes
+## (_update_footprint()). Replaces the old single vertical guide line.
+var _footprint_quads: Array[MeshInstance3D] = []
+## Shared by every footprint quad (like _material is shared by every mesh of
+## the held shape's own visual) so updating validity/lock state once repaints
+## all of them.
+var _footprint_material: StandardMaterial3D
 
 var _material: StandardMaterial3D
 var _hatch_texture: ImageTexture
@@ -63,13 +91,17 @@ func _ready() -> void:
 	_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_material.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
 	_material.uv1_triplanar = true
+
+	_footprint_material = StandardMaterial3D.new()
+	_footprint_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_footprint_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_footprint_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+
 	_hatch_texture = _build_hatch_texture()
-	_apply_validity_material()
+	_refresh_materials()
 
 	_shadow = _make_shadow_mesh()
 	add_child(_shadow)
-	_guide = _make_guide_mesh()
-	add_child(_guide)
 
 
 func set_shape(shape: BlockShape) -> void:
@@ -110,31 +142,144 @@ func _apply_rotation() -> void:
 	basis = Basis(free_quaternion) * base_basis
 
 
-## Called every frame by PlayerController with where the placement raycast
-## hit. Positions the ghost above that point and updates the shadow/guide.
-func update_placement(hit_point: Vector3, hit_normal: Vector3) -> void:
+## Called every frame by PlayerController with the disk surface point/normal
+## straight under the cursor (Bontago-mv0.17 item 5: a raycast that skips
+## over any placed block, so this is always the bare disk, tilt-ready via
+## `hit_normal` for M4). Positions the ghost at hover height above that
+## surface, corrected so the *rotated* held shape's lowest point — not
+## necessarily this node's own origin once rotated — is what actually sits at
+## that height (item 3's rotated-bounds pivot), then refreshes the shadow and
+## the footprint projection (item 6).
+func update_placement(surface_point: Vector3, surface_normal: Vector3) -> void:
 	var hover: float = tuning.hover_height + manual_hover_offset
-	global_position = hit_point + hit_normal * hover
-	_shadow.global_position = hit_point + hit_normal * ghost_tuning.shadow_offset
-	_update_guide(hit_point)
+	var anchor: Vector3 = surface_point + surface_normal * hover
+	var bottom_offset: float = _rotated_bottom_offset()
+	global_position = Vector3(anchor.x, anchor.y - bottom_offset, anchor.z)
+	_shadow.global_position = surface_point + surface_normal * ghost_tuning.shadow_offset
+	_update_footprint()
 
 
-func _update_guide(hit_point: Vector3) -> void:
-	var to_ghost: Vector3 = global_position - hit_point
-	var length: float = to_ghost.length()
-	_guide.visible = length > 0.001
-	if not _guide.visible:
-		return
-	_guide.global_position = hit_point + to_ghost * 0.5
-	var y_axis: Vector3 = to_ghost.normalized()
-	var x_axis: Vector3 = y_axis.cross(Vector3.FORWARD)
-	if x_axis.length() < 0.001:
-		x_axis = y_axis.cross(Vector3.RIGHT)
-	x_axis = x_axis.normalized()
-	var z_axis: Vector3 = x_axis.cross(y_axis).normalized()
-	_guide.global_transform.basis = Basis(x_axis, y_axis, z_axis)
-	var mesh: BoxMesh = _guide.mesh as BoxMesh
-	mesh.size = Vector3(ghost_tuning.guide_thickness, length, ghost_tuning.guide_thickness)
+## Positions this ghost at an already-fully-resolved world point, with no
+## further hover/rotation-pivot math applied on top -- used by
+## game/RemoteCursors.gd for a synced remote peer's ghost, whose `origin` is
+## that peer's own already-adjusted GhostPreview.global_position (spec 3.4's
+## update_cursor carries a resolved pose, not a surface to re-derive one
+## from). Re-running it through update_placement()'s hover/rotated-bottom
+## math a second time would double-apply the correction for any slot whose
+## held shape isn't null (Bontago-mv0.17 items 3/5); this is the one-line fix
+## that keeps game/RemoteCursors.gd correct against the changed
+## update_placement() contract above.
+func sync_remote_position(origin: Vector3) -> void:
+	global_position = origin
+	var hover: float = tuning.hover_height + manual_hover_offset
+	_shadow.global_position = origin - Vector3.UP * hover + Vector3.UP * ghost_tuning.shadow_offset
+	_update_footprint()
+
+
+# --- Rotated-bottom pivot correction (spec 2.5, Bontago-mv0.17 item 3) ------
+
+## How far below this node's own local origin (BlockShape.bottom_center() of
+## the *unrotated* shape) the current, rotated shape's lowest point sits.
+## Zero for an unrotated shape (the origin already is its lowest point); a
+## 90-degree pitch/roll can put the true lowest point below (or, for a
+## symmetric shape, level with) the origin, never above it, since the origin
+## itself is always a point on the shape's own surface. Always <= 0.
+func _rotated_bottom_offset() -> float:
+	if _shape == null or _shape.cells.is_empty():
+		return 0.0
+	var half_size: float = (tuning.cube_size - tuning.cube_margin) * 0.5
+	var pivot: Vector3 = _shape.bottom_center()
+	var min_y: float = INF
+	for cell: Vector3i in _shape.cells:
+		var local: Vector3 = (Vector3(cell) - pivot) * tuning.cube_size
+		for corner_sign: Vector3 in _CORNER_SIGNS:
+			var corner: Vector3 = local + corner_sign * half_size
+			var rotated_y: float = (basis * corner).y
+			min_y = minf(min_y, rotated_y)
+	return 0.0 if min_y == INF else min_y
+
+
+# --- Footprint projection (spec 2.5, Bontago-mv0.17 item 6) -----------------
+
+## This node's own origin plus every distinct (x, z) column the *rotated*
+## held shape occupies, in world space -- one entry per bottom cell of the
+## rotated shape, deduplicated so a shape stacked in the (now-rotated)
+## vertical axis gets exactly one footprint quad per column, not one per
+## cell.
+func _rotated_footprint_columns() -> Array[Vector2]:
+	var columns: Array[Vector2] = []
+	if _shape == null or _shape.cells.is_empty():
+		return columns
+	var pivot: Vector3 = _shape.bottom_center()
+	var seen: Dictionary = {}
+	for cell: Vector3i in _shape.cells:
+		var local: Vector3 = (Vector3(cell) - pivot) * tuning.cube_size
+		var rotated: Vector3 = basis * local
+		var key: Vector2i = Vector2i(roundi(rotated.x / tuning.cube_size), roundi(rotated.z / tuning.cube_size))
+		if seen.has(key):
+			continue
+		seen[key] = true
+		columns.append(Vector2(rotated.x, rotated.z))
+	return columns
+
+
+## Rebuilds the footprint quad pool to match the current shape/rotation and
+## raycasts straight down through each column (blocks included -- unlike
+## PlayerController's disk-only probe, this is meant to land on a tower) to
+## show exactly what each part of the held shape would rest on.
+func _update_footprint() -> void:
+	var columns: Array[Vector2] = _rotated_footprint_columns()
+	_set_footprint_quad_count(columns.size())
+	for i: int in range(columns.size()):
+		var world_x: float = global_position.x + columns[i].x
+		var world_z: float = global_position.z + columns[i].y
+		var probe_origin: Vector3 = Vector3(world_x, ghost_tuning.cursor_ray_height, world_z)
+		var hit: Dictionary = _raycast_down(probe_origin)
+		var landing_point: Vector3
+		var landing_normal: Vector3
+		if hit.is_empty():
+			landing_point = Vector3(world_x, 0.0, world_z)
+			landing_normal = Vector3.UP
+		else:
+			landing_point = hit["position"] as Vector3
+			landing_normal = hit["normal"] as Vector3
+		_footprint_quads[i].global_position = landing_point + landing_normal * ghost_tuning.footprint_offset
+
+
+func _raycast_down(origin: Vector3) -> Dictionary:
+	if not is_inside_tree():
+		return {}
+	var world: World3D = get_world_3d()
+	if world == null:
+		return {}
+	var space_state: PhysicsDirectSpaceState3D = world.direct_space_state
+	if space_state == null:
+		return {}
+	var params: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
+		origin, origin + Vector3.DOWN * ghost_tuning.placement_ray_length
+	)
+	return space_state.intersect_ray(params)
+
+
+func _set_footprint_quad_count(count: int) -> void:
+	while _footprint_quads.size() < count:
+		var quad: MeshInstance3D = _make_footprint_quad()
+		add_child(quad)
+		_footprint_quads.append(quad)
+	while _footprint_quads.size() > count:
+		var extra: MeshInstance3D = _footprint_quads.pop_back()
+		extra.queue_free()
+
+
+## For tests: how many footprint quads are currently shown (spec: one per
+## bottom cell of the rotated held shape).
+func footprint_quad_count() -> int:
+	return _footprint_quads.size()
+
+
+## For tests: where footprint quad `index` currently sits.
+func footprint_quad_position(index: int) -> Vector3:
+	return _footprint_quads[index].global_position
 
 
 # --- Placement validity tint (spec 2.2, 2.5) --------------------------------
@@ -146,14 +291,14 @@ func _update_guide(hit_point: Vector3) -> void:
 func set_player_color(color: Color) -> void:
 	_player_color = color
 	if _last_result == PlacementRules.Result.VALID:
-		_apply_validity_material()
+		_refresh_materials()
 
 
 ## Maps Match.preview_placement()'s advisory result onto the three tint
 ## states spec 2.5 calls for. Safe to call every frame.
 func apply_validity(result: PlacementRules.Result) -> void:
 	_last_result = result
-	_apply_validity_material()
+	_refresh_materials()
 
 
 ## Bontago-mv0.10 (spec 2.4/2.5's "distinct timer-locked state"): whether this
@@ -162,7 +307,12 @@ func apply_validity(result: PlacementRules.Result) -> void:
 ## whatever validity state was just applied.
 func set_locked(locked: bool) -> void:
 	_locked = locked
+	_refresh_materials()
+
+
+func _refresh_materials() -> void:
 	_apply_validity_material()
+	_apply_footprint_material()
 
 
 ## For tests: which tint state the ghost is currently showing.
@@ -201,6 +351,47 @@ func _apply_validity_material() -> void:
 		_:
 			_material.albedo_texture = null
 			_material.albedo_color = ghost_tuning.invalid_tint_color
+
+
+## Bontago-mv0.17 item 6: the footprint quads get the same validity/lock
+## colours as the held shape's own body (_apply_validity_material() above),
+## just at ghost_tuning.footprint_alpha instead of each state's own baked-in
+## alpha -- a whole-footprint decal reads better a bit more transparent than
+## the held shape itself, and every footprint quad shares this one material.
+func _apply_footprint_material() -> void:
+	if _footprint_material == null:
+		return
+	_footprint_material.albedo_color = _footprint_color_for_state()
+	var hatched: bool = not _locked and (
+		_last_result == PlacementRules.Result.HOLE or _last_result == PlacementRules.Result.GOAL_ZONE
+	)
+	if hatched:
+		_footprint_material.albedo_texture = _hatch_texture
+		_footprint_material.uv1_scale = Vector3(ghost_tuning.hatch_scale, ghost_tuning.hatch_scale, 1.0)
+	else:
+		_footprint_material.albedo_texture = null
+
+
+## For tests: the footprint's own current tint colour (see current_tint_color()
+## for the held shape's own body colour).
+func current_footprint_tint_color() -> Color:
+	return _footprint_material.albedo_color if _footprint_material != null else Color.WHITE
+
+
+func _footprint_color_for_state() -> Color:
+	if _locked:
+		return _with_alpha(ghost_tuning.locked_tint_color, ghost_tuning.footprint_alpha)
+	match _last_result:
+		PlacementRules.Result.VALID:
+			return _with_alpha(_player_color, ghost_tuning.footprint_alpha)
+		PlacementRules.Result.HOLE, PlacementRules.Result.GOAL_ZONE:
+			return _with_alpha(ghost_tuning.hole_tint_color, ghost_tuning.footprint_alpha)
+		_:
+			return _with_alpha(ghost_tuning.invalid_tint_color, ghost_tuning.footprint_alpha)
+
+
+func _with_alpha(color: Color, alpha: float) -> Color:
+	return Color(color.r, color.g, color.b, alpha)
 
 
 func _apply_material_to_visual() -> void:
@@ -270,12 +461,17 @@ func _make_shadow_mesh() -> MeshInstance3D:
 	return mesh_instance
 
 
-func _make_guide_mesh() -> MeshInstance3D:
+## Bontago-mv0.17 item 6: one flat quad per bottom cell of the rotated held
+## shape (replaces _make_guide_mesh()'s old vertical line), sized like one
+## cell's own footprint and tinted by the shared _footprint_material so every
+## quad repaints together when validity/lock state changes.
+func _make_footprint_quad() -> MeshInstance3D:
 	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
-	var box: BoxMesh = BoxMesh.new()
-	box.size = Vector3(ghost_tuning.guide_thickness, 1.0, ghost_tuning.guide_thickness)
-	mesh_instance.mesh = box
-	mesh_instance.material_override = _unshaded_material(ghost_tuning.guide_color)
+	var quad: QuadMesh = QuadMesh.new()
+	quad.size = ghost_tuning.shadow_size
+	mesh_instance.mesh = quad
+	mesh_instance.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+	mesh_instance.material_override = _footprint_material
 	mesh_instance.top_level = true
 	return mesh_instance
 
