@@ -665,6 +665,76 @@ func test_a_diff_payload_with_a_ragged_body_decodes_to_nothing() -> void:
 	assert_true(MatchNetScript.decode_raster_payload(ragged, false).is_empty())
 
 
+# --- Bontago-cmc.5: the replicated circle list ------------------------------
+
+
+func test_encode_circles_matches_the_hosts_render_arrays() -> void:
+	Match.set_net_provider(FakeNet.host({1: 0}, [0]))
+	_start_playing()
+	var net: MatchNetScript = _make_net({1: 0}, [0])
+
+	var payload: PackedByteArray = net._encode_circles()
+	var decoded: Dictionary = CircleWire.decode(
+		payload, Match.circle_wire_xz_bound(), Match.circle_wire_radius_max()
+	)
+
+	assert_false(decoded.is_empty())
+	var expected_xs: PackedFloat32Array = Match.circle_render_arrays()["xs"]
+	assert_gt(expected_xs.size(), 0, "The players' home circles should already be live.")
+	assert_eq(decoded["xs"].size(), expected_xs.size())
+	assert_eq(decoded["teams"].size(), expected_xs.size())
+
+
+func test_a_replicated_territory_packet_carries_the_circle_list_to_the_client() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	var host_net: MatchNetScript = _make_net({}, [0])
+	var circle_payload: PackedByteArray = host_net._encode_circles()
+	var raster: TerritoryRaster = Match.raster()
+	var raster_payload: PackedByteArray = host_net._encode_raster_full(
+		raster.owner_bytes(), raster.state_bytes()
+	)
+	var expected_count: int = (Match.circle_render_arrays()["xs"] as PackedFloat32Array).size()
+	assert_gt(expected_count, 0, "fixture should have live circles to carry over")
+
+	var client_net: MatchNetScript = _make_net({}, [1], true)
+	client_net.net_territory(
+		raster_payload, true, PackedFloat32Array([0.5, 0.5]), -1, 0.0, circle_payload
+	)
+
+	assert_eq(
+		Match.field().overlay().circle_count(),
+		expected_count,
+		"net_territory()'s circle_payload must reach the client's overlay."
+	)
+
+
+func test_a_missing_circle_payload_leaves_the_overlay_alone() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	var host_net: MatchNetScript = _make_net({}, [0])
+	var raster: TerritoryRaster = Match.raster()
+	var raster_payload: PackedByteArray = host_net._encode_raster_full(
+		raster.owner_bytes(), raster.state_bytes()
+	)
+	# Prime the overlay with a known circle count first, exactly as a
+	# previous packet would have.
+	Match.field().overlay().set_circles(
+		PackedFloat32Array([1.0]), PackedFloat32Array([1.0]), PackedFloat32Array([1.0]),
+		PackedInt32Array([0]), PackedVector2Array(), PackedFloat32Array(), false
+	)
+
+	var client_net: MatchNetScript = _make_net({}, [1], true)
+	# The 5-arg call an older build (or this file's own pre-cmc.5 tests) would
+	# make: no circle_payload at all.
+	client_net.net_territory(raster_payload, true, PackedFloat32Array([0.5, 0.5]), -1, 0.0)
+
+	assert_eq(
+		Match.field().overlay().circle_count(), 1,
+		"An empty circle_payload must not clear a previously-applied circle list."
+	)
+
+
 # --- Replicated spawns and despawns on a client -----------------------------
 
 

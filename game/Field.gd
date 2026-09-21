@@ -379,6 +379,23 @@ func set_overlay_source(raster: TerritoryRaster, slot_colors: PackedColorArray) 
 		_overlay.set_source(raster, slot_colors)
 
 
+## Routes the post-solve analytic circle list to the overlay (Bontago-cmc.5).
+## Field decides nothing here, same contract as set_overlay_source() above:
+## autoload/Match.gd builds the list (host) or net/MatchNet.gd decodes it
+## (client), and this is only the hand-off.
+func set_overlay_circles(
+	xs: PackedFloat32Array,
+	zs: PackedFloat32Array,
+	radii: PackedFloat32Array,
+	teams: PackedInt32Array,
+	goal_positions: PackedVector2Array,
+	goal_radii: PackedFloat32Array,
+	argmax_mode: bool
+) -> void:
+	if _overlay != null:
+		_overlay.set_circles(xs, zs, radii, teams, goal_positions, goal_radii, argmax_mode)
+
+
 # --- Flags (spec 2.2, 2.3) --------------------------------------------------
 
 ## Disk-local position of a slot's home flag. Delegates to MapDef so that

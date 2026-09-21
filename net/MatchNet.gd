@@ -328,6 +328,12 @@ func replicate_despawn(net_id: int, reason: String) -> void:
 ## more than NetConfig.raster_full_threshold_fraction of them changed or a
 ## client has just joined. Territory shares and capture progress ride along so
 ## the HUD costs no extra packet.
+##
+## Bontago-cmc.5: the analytic circle list rides along too, one
+## core/net/CircleWire.gd payload per packet — always the *current* full
+## list, never diffed like the raster, because it is already small (≤ 400
+## circles, ~2.8 KB) and a circle that vanished (a tower toppled) has no
+## "unchanged" cell to skip the way a raster byte does.
 func replicate_territory() -> void:
 	if not _is_host() or not _can_send():
 		return
@@ -357,7 +363,33 @@ func replicate_territory() -> void:
 	_last_state_bytes = states
 	_force_full_raster = false
 
-	rpc(&"net_territory", payload, full, _team_shares(), _capture_team, _capture_progress)
+	rpc(
+		&"net_territory",
+		payload,
+		full,
+		_team_shares(),
+		_capture_team,
+		_capture_progress,
+		_encode_circles()
+	)
+
+
+## The host's last-built circle list (autoload/Match.gd's
+## _update_circle_render()), packed with the map's own quantization bounds so
+## a client's decode uses the identical numbers the host encoded with.
+func _encode_circles() -> PackedByteArray:
+	var arrays: Dictionary = _authority().circle_render_arrays()
+	return CircleWire.encode(
+		arrays["xs"],
+		arrays["zs"],
+		arrays["radii"],
+		arrays["teams"],
+		arrays["goal_positions"],
+		arrays["goal_radii"],
+		bool(arrays["argmax_mode"]),
+		_authority().circle_wire_xz_bound(),
+		_authority().circle_wire_radius_max()
+	)
 
 
 ## Host only. Mirrors a match-flow event to every client: state changes, the
@@ -1022,19 +1054,39 @@ func net_block_despawned(net_id: int, reason: String) -> void:
 ## NetConfig.raster_compress is on; `full` says which. Clients apply it to
 ## their mirror raster and re-emit Events.hole_cells_changed for the cells
 ## whose hole bit flipped, so Field opens the same holes without a second RPC.
+##
+## `circle_payload` is core/net/CircleWire.gd's encoding of the same host
+## tick's analytic circle list (Bontago-cmc.5); a default empty value keeps a
+## direct local call from an older test/caller compiling (CircleWire.decode()
+## on an empty array returns {} for a truncated payload, which the branch
+## below already treats as "no circle update this packet", not an error).
 @rpc("authority", "call_remote", "reliable")
 func net_territory(
 	payload: PackedByteArray,
 	full: bool,
 	shares: PackedFloat32Array,
 	capture_team: int,
-	capture_progress: float
+	capture_progress: float,
+	circle_payload: PackedByteArray = PackedByteArray()
 ) -> void:
 	var decoded: Dictionary = decode_raster_payload(payload, full)
 	if decoded.is_empty():
 		return
+	var circles: Dictionary = CircleWire.decode(
+		circle_payload, _authority().circle_wire_xz_bound(), _authority().circle_wire_radius_max()
+	)
 	_authority().apply_replicated_territory(
-		decoded["cells"], decoded["owners"], decoded["states"], full
+		decoded["cells"],
+		decoded["owners"],
+		decoded["states"],
+		full,
+		circles.get("xs", PackedFloat32Array()),
+		circles.get("zs", PackedFloat32Array()),
+		circles.get("radii", PackedFloat32Array()),
+		circles.get("teams", PackedInt32Array()),
+		circles.get("goal_positions", PackedVector2Array()),
+		circles.get("goal_radii", PackedFloat32Array()),
+		bool(circles.get("argmax_mode", false))
 	)
 	var raster: TerritoryRaster = _authority().raster()
 	if raster == null:

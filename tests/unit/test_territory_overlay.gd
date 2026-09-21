@@ -205,6 +205,98 @@ func test_uv_uniforms_map_the_disk_onto_the_texture() -> void:
 	assert_almost_eq(half_extent * uv_scale + uv_offset, 1.0, 0.0001)
 
 
+# --- Bontago-cmc.5: the analytic circle list -------------------------------
+
+
+func _make_overlay_with_visuals(map_def: MapDef, visuals: TerritoryVisuals) -> TerritoryOverlay:
+	var overlay: TerritoryOverlay = TerritoryOverlay.new()
+	overlay.configure(map_def, visuals, load("res://config/territory_tuning.tres"))
+	add_child_autofree(overlay)
+	return overlay
+
+
+func test_set_circles_uploads_one_texel_per_circle() -> void:
+	var overlay: TerritoryOverlay = _make_overlay(_map())
+	var xs: PackedFloat32Array = PackedFloat32Array([1.0, -2.0, 3.0])
+	var zs: PackedFloat32Array = PackedFloat32Array([0.5, 1.5, -1.5])
+	var radii: PackedFloat32Array = PackedFloat32Array([2.0, 3.0, 4.0])
+	var teams: PackedInt32Array = PackedInt32Array([0, 1, 0])
+
+	overlay.set_circles(
+		xs, zs, radii, teams, PackedVector2Array(), PackedFloat32Array(), false
+	)
+
+	assert_eq(overlay.circle_count(), 3, "The shader's circle_count uniform.")
+	assert_eq(overlay.circle_texture().get_width(), 3, "One texel per circle, RGBAF.")
+	var texel: Color = overlay.circle_image().get_pixel(1, 0)
+	assert_almost_eq(texel.r, xs[1], 0.001, "R = disk-local x")
+	assert_almost_eq(texel.g, zs[1], 0.001, "G = disk-local z")
+	assert_almost_eq(texel.b, radii[1], 0.001, "B = radius")
+	assert_almost_eq(texel.a, float(teams[1]), 0.001, "A = team id")
+	assert_true(
+		bool(overlay.material().get_shader_parameter(&"circles_valid")),
+		"Within max_shader_circles, the analytic path is used."
+	)
+
+
+func test_set_circles_uploads_goal_discs_independently() -> void:
+	var overlay: TerritoryOverlay = _make_overlay(_map())
+	var goal_positions: PackedVector2Array = PackedVector2Array([Vector2(4.0, -4.0)])
+	var goal_radii: PackedFloat32Array = PackedFloat32Array([4.0])
+
+	overlay.set_circles(
+		PackedFloat32Array(), PackedFloat32Array(), PackedFloat32Array(), PackedInt32Array(),
+		goal_positions, goal_radii, false
+	)
+
+	assert_eq(overlay.goal_count(), 1)
+	assert_eq(overlay.goal_texture().get_width(), 1)
+	var texel: Color = overlay.goal_image().get_pixel(0, 0)
+	assert_almost_eq(texel.r, 4.0, 0.001)
+	assert_almost_eq(texel.g, -4.0, 0.001)
+	assert_almost_eq(texel.b, 4.0, 0.001)
+
+
+func test_a_circle_list_over_the_shader_budget_falls_back_to_the_raster_path() -> void:
+	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres").duplicate() as TerritoryVisuals
+	visuals.max_shader_circles = 2
+	var overlay: TerritoryOverlay = _make_overlay_with_visuals(_map(), visuals)
+
+	var xs: PackedFloat32Array = PackedFloat32Array([0.0, 1.0, 2.0])
+	var zs: PackedFloat32Array = PackedFloat32Array([0.0, 0.0, 0.0])
+	var radii: PackedFloat32Array = PackedFloat32Array([1.0, 1.0, 1.0])
+	var teams: PackedInt32Array = PackedInt32Array([0, 0, 0])
+	overlay.set_circles(xs, zs, radii, teams, PackedVector2Array(), PackedFloat32Array(), false)
+
+	assert_eq(overlay.circle_count(), 3, "The full list still uploads, for readback.")
+	assert_false(
+		bool(overlay.material().get_shader_parameter(&"circles_valid")),
+		"Over max_shader_circles: the shader must fall back to the raster path, spec 3.3 'Bounded cost'."
+	)
+
+
+func test_set_source_null_clears_the_circle_list() -> void:
+	var map_def: MapDef = _map()
+	var overlay: TerritoryOverlay = _make_overlay(map_def)
+	overlay.set_circles(
+		PackedFloat32Array([1.0]), PackedFloat32Array([1.0]), PackedFloat32Array([1.0]),
+		PackedInt32Array([0]), PackedVector2Array(), PackedFloat32Array(), false
+	)
+	assert_eq(overlay.circle_count(), 1)
+
+	overlay.set_source(null, PackedColorArray())
+
+	assert_eq(overlay.circle_count(), 0, "set_source(null) must not leave a stale match's circles up.")
+	assert_eq(overlay.goal_count(), 0)
+	assert_false(bool(overlay.material().get_shader_parameter(&"circles_valid")))
+
+
+func test_configure_starts_with_no_circles() -> void:
+	var overlay: TerritoryOverlay = _make_overlay(_map())
+	assert_eq(overlay.circle_count(), 0, "Before any solve, the blank disk has no circles either.")
+	assert_false(bool(overlay.material().get_shader_parameter(&"circles_valid")))
+
+
 func test_field_hands_its_overlay_the_source() -> void:
 	var field: Field = Field.new()
 	field.map_def = _map()
@@ -218,3 +310,18 @@ func test_field_hands_its_overlay_the_source() -> void:
 	var image: Image = field.overlay().last_image()
 	assert_not_null(image, "Field.set_overlay_source uploads through the overlay.")
 	assert_eq(_sample(image, 6, 6).r8, 2)
+
+
+func test_field_hands_its_overlay_the_circle_list() -> void:
+	var field: Field = Field.new()
+	field.map_def = _map()
+	add_child_autofree(field)
+
+	field.set_overlay_circles(
+		PackedFloat32Array([2.0]), PackedFloat32Array([3.0]), PackedFloat32Array([1.5]),
+		PackedInt32Array([1]), PackedVector2Array(), PackedFloat32Array(), false
+	)
+
+	assert_eq(field.overlay().circle_count(), 1, "Field.set_overlay_circles routes to the overlay.")
+	var texel: Color = field.overlay().circle_image().get_pixel(0, 0)
+	assert_almost_eq(texel.a, 1.0, 0.001, "Team id survives the hand-off.")
