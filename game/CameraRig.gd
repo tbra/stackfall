@@ -43,8 +43,15 @@ func _ready() -> void:
 	# of the frame at any distance shorter than roughly its own radius).
 	# tuning.snap_distance is still used as-is for camera_snap_home/goal,
 	# which are deliberately closer-in views.
-	_distance = clampf(map_def.field_radius * 1.4, tuning.zoom_min, tuning.zoom_max)
-	_pitch = deg_to_rad(tuning.snap_pitch_deg)
+	if tuning.follow_block:
+		# Following the held block: a close, shallow view like the original's
+		# (config/CameraTuning.follow_distance / follow_pitch_deg), not the
+		# whole-disk overview the free camera starts from.
+		_distance = clampf(tuning.follow_distance, tuning.zoom_min, tuning.zoom_max)
+		_pitch = deg_to_rad(tuning.follow_pitch_deg)
+	else:
+		_distance = clampf(map_def.field_radius * 1.4, tuning.zoom_min, tuning.zoom_max)
+		_pitch = deg_to_rad(tuning.snap_pitch_deg)
 	_update_transform()
 
 

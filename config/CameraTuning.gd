@@ -12,7 +12,7 @@ extends Resource
 @export var max_pitch_deg: float = -5.0
 
 ## -- Zoom -----------------------------------------------------------------
-@export var zoom_min: float = 8.0
+@export var zoom_min: float = 4.0
 @export var zoom_max: float = 100.0
 ## Distance change per discrete zoom step (wheel tick, key press, or trigger
 ## pull; spec 2.5 scopes wheel/trigger zoom to "while not holding a block").
@@ -38,6 +38,13 @@ extends Resource
 ## (an exponential approach, not a hard snap); 0 tracks it exactly every
 ## frame.
 @export var follow_lag_seconds: float = 0.15
+## Camera distance and pitch while following the held block. The original
+## (docs/original_in-game.png) frames the block from a few metres away at a
+## shallow angle so the block fills the lower half of the view and the disk
+## edge stays visible; a field-radius-scaled distance (the free-camera default)
+## puts the block "a billion miles away" (owner, 2026-09-21).
+@export var follow_distance: float = 9.0
+@export var follow_pitch_deg: float = -28.0
 
 ## -- Snap (spec 2.5 "Snap camera to home / goal") ----------------------------
 @export var snap_pitch_deg: float = -35.0
