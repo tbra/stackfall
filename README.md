@@ -226,8 +226,10 @@ Rewrite project settings and the Input Map from source, after editing
 godot --headless --path . -s tools/bootstrap_project.gd
 ```
 
-Run the M2 end-to-end acceptance scenario (a scripted hot-seat match; ~100 s, exits
-non-zero on failure):
+Run the M2 end-to-end acceptance scenario (~120 s, exits non-zero on failure). Most
+criteria run a scripted hot-seat match -- a single-process scripting convenience, not a
+turn-taking rule claim -- except the placement-cadence criterion, which needs
+`hot_seat = false` to exercise the real fixed-interval release lock:
 
 ```bash
 godot --headless --path . res://tests/bench/m2_acceptance.tscn
