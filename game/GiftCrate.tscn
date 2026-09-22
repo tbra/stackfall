@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/GiftCrate.gd" id="1_gift_crate"]
+
+[node name="GiftCrate" type="Area3D"]
+script = ExtResource("1_gift_crate")

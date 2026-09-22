@@ -11,6 +11,12 @@ extends Resource
 ## (0..100) linearly scales that roll's chance up to frequency_to_chance_max.
 ##
 ## Loaded once as config/gift_config.tres.
+##
+## M4 P1b review fix (Bontago-4fa): "once per placement window for the whole
+## match" is enforced by the caller, not by should_spawn() itself --
+## autoload/match/MatchGifts.gd rolls only for the lowest-indexed slot still
+## alive on any given feed-issue event, so an N-player concurrent match still
+## gets exactly one roll per window rather than N.
 
 
 ## MatchConfig.special_frequency (0..100) maps linearly to a spawn chance of

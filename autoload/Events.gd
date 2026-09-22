@@ -73,6 +73,19 @@ signal goal_capture_progress(team_id: int, progress: float)
 ## player/team is left.
 signal player_eliminated(slot_id: int, team_id: int)
 
+# --- M4 P1: gift crates (spec 2.6) ------------------------------------------
+
+## A gift crate appeared at `position` (disk-local x, z). Host-authored; a
+## client only ever builds the visual from this and the two events below.
+signal gift_spawned(gift_id: int, position: Vector2)
+
+## `slot_id`'s territory swallowed a live crate: it pops, and `slot_id`'s next
+## fed block becomes a special (Match.held_special()).
+signal gift_claimed(gift_id: int, slot_id: int)
+
+## A crate lived past GiftConfig.life_s without being claimed.
+signal gift_expired(gift_id: int)
+
 # --- M3a: session and transport (spec 3.4) ----------------------------------
 
 ## Net changed between OFFLINE, HOST and CLIENT. `mode` is a Net.Mode value.

@@ -138,6 +138,7 @@ func _reset_match_state() -> void:
 	_match._territory._last_groups = null
 	_match._territory._solve_accum = 0.0
 	_match._feed._feed_timer_enabled = true
+	_match._gifts.reset()
 	_match.config = null
 
 

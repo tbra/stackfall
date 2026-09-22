@@ -54,6 +54,9 @@ const EVENT_FEED_EXPIRED: StringName = &"feed_expired"
 const EVENT_PLACEMENT_REJECTED: StringName = &"placement_rejected"
 const EVENT_PLAYER_ELIMINATED: StringName = &"player_eliminated"
 const EVENT_MATCH_WON: StringName = &"match_won"
+const EVENT_GIFT_SPAWNED: StringName = &"gift_spawned"
+const EVENT_GIFT_CLAIMED: StringName = &"gift_claimed"
+const EVENT_GIFT_EXPIRED: StringName = &"gift_expired"
 
 @export var config: NetConfig = preload("res://config/net_config.tres")
 
@@ -133,6 +136,9 @@ func _ready() -> void:
 	Events.placement_rejected.connect(_on_placement_rejected)
 	Events.player_eliminated.connect(_on_player_eliminated)
 	Events.match_won.connect(_on_match_won)
+	Events.gift_spawned.connect(_on_gift_spawned)
+	Events.gift_claimed.connect(_on_gift_claimed)
+	Events.gift_expired.connect(_on_gift_expired)
 	Events.block_removed.connect(_on_block_removed)
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 	Events.net_peer_left.connect(_on_net_peer_left)
@@ -613,6 +619,22 @@ func _pose_is_acceptable(origin: Vector3, orientation_index: int, free_quat: Qua
 	return origin.y >= config.pos_min_y and origin.y <= config.pos_max_y
 
 
+## M4 P1b wire safety for EVENT_GIFT_SPAWNED, following _pose_is_acceptable's
+## own pattern: a malformed or out-of-disk position from a bad or ancient build
+## is dropped rather than trusted, since a client only ever uses this position
+## to place a visual and to compute the cell it later frees for.
+func _gift_wire_ok(gift_id: int, position: Vector2) -> bool:
+	if gift_id < 0:
+		return false
+	if not (is_finite(position.x) and is_finite(position.y)):
+		return false
+	var running: MatchConfig = _authority().config
+	if running == null:
+		return false
+	var radius: float = running.map_def().field_radius
+	return position.length() <= radius + 0.01
+
+
 ## A remote intent the host will not act on: counted against the sender's own
 ## slot so the harness identity accepted + refused == sent still holds, and
 ## echoed back so the sender's ghost unlocks now instead of waiting out
@@ -769,6 +791,21 @@ func _on_player_eliminated(slot_id: int, team_id: int) -> void:
 func _on_match_won(team_id: int) -> void:
 	if _is_host():
 		replicate_match_event(EVENT_MATCH_WON, [team_id])
+
+
+func _on_gift_spawned(gift_id: int, position: Vector2) -> void:
+	if _is_host():
+		replicate_match_event(EVENT_GIFT_SPAWNED, [gift_id, position])
+
+
+func _on_gift_claimed(gift_id: int, slot_id: int) -> void:
+	if _is_host():
+		replicate_match_event(EVENT_GIFT_CLAIMED, [gift_id, slot_id])
+
+
+func _on_gift_expired(gift_id: int) -> void:
+	if _is_host():
+		replicate_match_event(EVENT_GIFT_EXPIRED, [gift_id])
 
 
 func _on_goal_capture_progress(team_id: int, progress: float) -> void:
@@ -985,6 +1022,32 @@ func net_match_event(event: StringName, args: Array) -> void:
 			Events.player_eliminated.emit(int(args[0]), int(args[1]))
 		EVENT_MATCH_WON:
 			Events.match_won.emit(int(args[0]))
+		EVENT_GIFT_SPAWNED:
+			var gift_id: int = int(args[0])
+			var position: Vector2 = args[1] as Vector2
+			if not _gift_wire_ok(gift_id, position):
+				return
+			_authority().apply_replicated_gift_spawned(gift_id, position)
+			Events.gift_spawned.emit(gift_id, position)
+		EVENT_GIFT_CLAIMED:
+			var claimed_gift_id: int = int(args[0])
+			if claimed_gift_id < 0:
+				return
+			var slot_id: int = int(args[1])
+			# Review fix (Must #1): bounds-check slot_id here too, next to the
+			# id<0 check above, so a garbage value never even reaches
+			# MatchGifts.apply_replicated_claim() (which now also refuses it,
+			# defense in depth) or the Events bus other listeners read.
+			if slot_id < 0 or slot_id >= _authority().slot_count():
+				return
+			_authority().apply_replicated_gift_claimed(claimed_gift_id, slot_id)
+			Events.gift_claimed.emit(claimed_gift_id, slot_id)
+		EVENT_GIFT_EXPIRED:
+			var expired_gift_id: int = int(args[0])
+			if expired_gift_id < 0:
+				return
+			_authority().apply_replicated_gift_expired(expired_gift_id)
+			Events.gift_expired.emit(expired_gift_id)
 		_:
 			pass
 

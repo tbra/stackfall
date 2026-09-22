@@ -87,16 +87,23 @@ var _placement: MatchPlacement = null
 var _territory: MatchTerritory = null
 var _lifecycle: MatchLifecycle = null
 
+## M4 P1b: gift-crate spawn/claim/expire and the per-slot pending-special
+## array. See autoload/match/MatchGifts.gd's own header for the split.
+var _gifts: MatchGifts = null
+
 
 func _ready() -> void:
 	_feed = MatchFeed.new()
 	_placement = MatchPlacement.new()
 	_territory = MatchTerritory.new()
 	_lifecycle = MatchLifecycle.new()
+	_gifts = MatchGifts.new()
 	_feed.setup(self)
 	_placement.setup(self)
 	_territory.setup(self)
 	_lifecycle.setup(self)
+	_gifts.setup(self)
+	Events.feed_block_issued.connect(_on_feed_block_issued)
 
 
 # --- Test/debug seams (Bontago-split.1) --------------------------------------
@@ -143,8 +150,14 @@ func _collect_circles() -> Array[InfluenceCircle]:
 	return _territory._collect_circles()
 
 
+## M4 P1b: MatchGifts.claim_or_expire_gifts() runs right after the raster
+## updates (the plan's own "hooked into the existing _run_territory_step(),
+## right after the raster updates"), by appending it to this forward rather
+## than editing autoload/match/MatchTerritory.gd, which this package does not
+## own.
 func _run_territory_step(delta: float) -> void:
 	_territory._run_territory_step(delta)
+	_gifts.claim_or_expire_gifts(delta)
 
 
 func debug_unlock_slot(slot_id: int) -> void:
@@ -288,6 +301,23 @@ func held_shape(slot_id: int) -> BlockShape:
 ## What the HUD's next-block preview shows for `slot_id`.
 func next_shape(slot_id: int) -> BlockShape:
 	return _feed.next_shape(slot_id)
+
+
+## M4 P1b: the pending special `slot_id` is holding from a claimed gift crate,
+## or &"" for none (spec 2.6: "your next fed block becomes a special"). P2
+## reads this from its own _spawn_block() extension and swaps the held shape
+## where MatchGifts._clear_held_special() already runs. See
+## autoload/match/MatchGifts.gd for the placeholder id P1 hands out.
+func held_special(slot_id: int) -> StringName:
+	return _gifts.held_special(slot_id)
+
+
+## M4 P1b DECISION: "the feed issues a new window" is Events.feed_block_issued
+## -- see MatchGifts.on_feed_block_issued()'s own DECISION for the full
+## reasoning. Connected once in _ready(); this is the one call site both the
+## gift-spawn roll and the held-special clear share.
+func _on_feed_block_issued(slot_id: int, _shape_id: StringName, _next_shape_id: StringName) -> void:
+	_gifts.on_feed_block_issued(slot_id)
 
 
 ## Seconds left on the slot's block timer (spec 2.8: 3-12 s, default 6).
@@ -478,6 +508,23 @@ func apply_replicated_turn(slot_id: int) -> void:
 
 func apply_replicated_elimination(slot_id: int) -> void:
 	_lifecycle.apply_replicated_elimination(slot_id)
+
+
+## M4 P1b: net/MatchNet.gd's net_match_event() mirrors for the three gift
+## events. A client only ever builds/frees the crate visual and (for a claim)
+## keeps held_special() accurate -- it never spawns, claims or expires
+## anything itself. See autoload/match/MatchGifts.gd's own client-read-model
+## section.
+func apply_replicated_gift_spawned(gift_id: int, position: Vector2) -> void:
+	_gifts.apply_replicated_spawn(gift_id, position)
+
+
+func apply_replicated_gift_claimed(gift_id: int, slot_id: int) -> void:
+	_gifts.apply_replicated_claim(gift_id, slot_id)
+
+
+func apply_replicated_gift_expired(gift_id: int) -> void:
+	_gifts.apply_replicated_expire(gift_id)
 
 
 ## Writes one territory payload into the mirror raster. See
