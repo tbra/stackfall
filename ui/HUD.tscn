@@ -28,20 +28,38 @@ offset_top = 18.0
 offset_right = 54.0
 offset_bottom = 54.0
 
+[node name="NextShapePreview" type="Control" parent="."]
+unique_name_in_owner = true
+offset_left = 100.0
+offset_top = 66.0
+offset_right = 136.0
+offset_bottom = 102.0
+
+[node name="LockedLabel" type="Label" parent="."]
+unique_name_in_owner = true
+offset_left = 16.0
+offset_top = 122.0
+offset_right = 88.0
+offset_bottom = 140.0
+theme_override_font_sizes/font_size = 12
+horizontal_alignment = 1
+text = "LOCKED"
+visible = false
+
 [node name="HeightLabel" type="Label" parent="."]
 unique_name_in_owner = true
 offset_left = 16.0
-offset_top = 128.0
+offset_top = 144.0
 offset_right = 260.0
-offset_bottom = 150.0
+offset_bottom = 166.0
 text = "Height: 0.00 m"
 
 [node name="SharesBox" type="VBoxContainer" parent="."]
 unique_name_in_owner = true
 offset_left = 16.0
-offset_top = 160.0
+offset_top = 176.0
 offset_right = 220.0
-offset_bottom = 280.0
+offset_bottom = 296.0
 
 [node name="CaptureRing" type="Control" parent="."]
 unique_name_in_owner = true

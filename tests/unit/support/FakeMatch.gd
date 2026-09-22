@@ -19,6 +19,13 @@ var tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
 ## what the real Match will eventually do via Match.register_world().
 var spawn_parent: Node = null
 
+## Bontago-mv0.9: mirrors the real Match's public `config` field (null until
+## a match starts). ui/HUD.gd reads `match_provider.config.hot_seat` to gate
+## its "Player N's turn" wording; tests that care set this to a MatchConfig
+## with hot_seat true/false, everything else leaves it null (real-time
+## behaviour, matching the real autoload before start_match()).
+var config: MatchConfig = null
+
 var slots_by_id: Dictionary = {}
 var held_shapes: Dictionary = {}
 var next_shapes: Dictionary = {}

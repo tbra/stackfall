@@ -103,6 +103,12 @@ func _cycle_active_slot() -> void:
 func _set_active_slot(slot_id: int) -> void:
 	_active_slot = slot_id
 	_controller.set_sandbox_slot(slot_id)
+	# Bontago-mv0.9: the HUD only re-reads Events.turn_changed's slot, which
+	# in sandbox (config.hot_seat == false) fires exactly once at match start
+	# (autoload/Match.gd's advance_turn() no-ops outside hot-seat) -- without
+	# this, cycling which slot this instance drives would leave the HUD
+	# pointed at whichever slot happened to go first.
+	_hud.set_local_slot(slot_id)
 
 
 ## sandbox_reset_field (F5): "clear blocks, rebuild territory/flags for the

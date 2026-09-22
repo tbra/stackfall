@@ -13,9 +13,12 @@ Built in Godot 4.7 (Forward+, Jolt physics). The full design and technical spec 
 advertising plus direct IP), **Join** one from the LAN list or a typed address, or **Quit**.
 The lobby that follows exposes every §2.8 match setting, a ready-up roster and a host-only
 Start button; once the match starts, every peer plays in real time — no more turn order,
-each player has their own feed timer. A block you place goes through the host before it
-spawns anywhere, so a placement is never duplicated or lost, even doubled clicks or a lossy
-link. `F3` (or gamepad Back+Y) opens a debug overlay with ping, snapshot size, interpolation
+each player has their own feed timer. Each screen's own HUD shows only that player's status:
+their colour and name, their held- and next-block previews, their timer ring (greyed out and
+labelled LOCKED while the fixed-interval release lock holds), and their territory share — the
+old hot-seat "Player N's turn" banner is hot-seat-only now. A block you place goes through
+the host before it spawns anywhere, so a placement is never duplicated or lost, even doubled
+clicks or a lossy link. `F3` (or gamepad Back+Y) opens a debug overlay with ping, snapshot size, interpolation
 delay and measured loss, plus sliders to simulate lag and packet loss yourself. M2's hot-seat
 build is still there, unlisted: `godot --path . -- --hot-seat` starts the old two-player,
 one-PC, turn-by-turn match unchanged. Steam is M3b.
