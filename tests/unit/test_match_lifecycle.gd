@@ -32,6 +32,15 @@ static var _next_port: int = 47900
 ## its members resolved at runtime, as test_net_session.gd does for Net.
 var _main: Variant = null
 
+## DECISION (Bontago-mv0.3): see test_match_flow.gd's own `_tiny_map` comment
+## for the full story. Here Main.tscn's own persistent `$Field` child (not a
+## Field this file builds itself) is the one paying round_medium.tres's
+## ~6300-cell collision build on every _host()+_start() in every test's
+## before_each; overridden the same way, before Main ever enters the tree (so
+## before Field's _ready() runs), and handed to every MatchConfig through the
+## same TinyMapMatchConfig seam so Match's own geometry still agrees with it.
+var _tiny_map: MapDef
+
 
 func before_each() -> void:
 	# Match ticks on real frames; these tests drive _process() by hand where
@@ -41,6 +50,9 @@ func before_each() -> void:
 	SnapshotSync.end_match()
 	assert_true(Net.is_offline(), "fixture: the real Net must start offline")
 	_main = MAIN_SCENE.instantiate()
+	_tiny_map = (load("res://config/maps/round_medium.tres") as MapDef).duplicate(true)
+	_tiny_map.field_radius = 20.0
+	(_main.get_node("Field") as Field).map_def = _tiny_map
 	add_child_autofree(_main)
 	assert_not_null(_main._main_menu, "fixture: Main boots to the main menu with no command-line flags")
 
@@ -69,6 +81,12 @@ func _host() -> void:
 
 func _config(player_count: int) -> MatchConfig:
 	var config: MatchConfig = load("res://config/match_defaults.tres").duplicate(true) as MatchConfig
+	# Script swap first: Object.set_script() resets script-level state to the
+	# new script's declared defaults, so it must happen before any field is
+	# set on `config` (test_match_flow.gd's own _tiny_map_config() reproduced
+	# this the hard way -- see its doc comment).
+	config.set_script(load("res://tests/unit/support/TinyMapMatchConfig.gd"))
+	(config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
 	config.player_count = player_count
 	config.hot_seat = false
 	config.rng_seed = 777

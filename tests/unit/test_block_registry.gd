@@ -4,11 +4,27 @@ extends GutTest
 
 var _tuning: PhysicsTuning = load("res://config/physics_tuning.tres")
 var _territory_tuning: TerritoryTuning = load("res://config/territory_tuning.tres")
-var _map_def: MapDef = load("res://config/maps/round_medium.tres")
+
+## DECISION (Bontago-mv0.3): a duplicate of round_medium.tres shrunk to a 20 m
+## disk (~1250 cells, vs. round_medium's own ~6300), not the shared resource
+## itself -- Field.new() defaults its own map_def export to that exact shared,
+## cached round_medium.tres, and every test below built one, so the fixture
+## alone cost ~11 s per test (measured; nothing here asserts on absolute map
+## scale). _make_field() below points every Field it builds at this same
+## instance, and it stands in for the real map_def in every direct call below
+## too (registry.configure(), influence_circles(), CellGrid.new()), so the
+## registry, the grid and the physical field all agree with each other.
+var _map_def: MapDef
+
+
+func before_each() -> void:
+	_map_def = (load("res://config/maps/round_medium.tres") as MapDef).duplicate(true)
+	_map_def.field_radius = 20.0
 
 
 func _make_field() -> Field:
 	var field: Field = autofree(Field.new())
+	field.map_def = _map_def
 	add_child_autofree(field)
 	return field
 

@@ -15,6 +15,25 @@ var _blocks_root: Node3D
 var _field: Field
 var _registry: BlockRegistry
 
+## DECISION (Bontago-mv0.3): a single tiny MapDef, shared for the duration of
+## one test, between the Field this test builds and every MatchConfig it
+## hands to Match. Field.gd's own default map_def is round_medium.tres (spec
+## 2.8's real "Medium" 45 m disk, ~6300 in-disk 1 m cells); building that
+## collision fresh in every one of this script's ~40 tests' before_each cost
+## ~11 s each (measured; none of these tests assert on absolute map scale) —
+## the whole script ran in ~545 s for that reason alone. MatchConfig.map_def()
+## only ever resolves to one of the three real SMALL/MEDIUM/LARGE presets
+## (MapDef.for_size()), so there is no config-level knob for a smaller map;
+## TinyMapMatchConfig (tests/unit/support/) is the test-only seam that
+## overrides map_def() on a duplicated config instead. 20 m (~1250 in-disk
+## cells, still ~5x fewer than medium's 45 m) rather than test_field_cells.gd's
+## own much tinier 6 m map: several tests here need real headroom -- fixed 2 m
+## home-position nudges to force a contest, plus the real
+## TerritoryTuning.home_radius (6 m) influence circles -- that a 6 m field
+## cannot hold without those circles blanketing the whole disk or falling off
+## its edge (reproduced: the legacy-hole-mode contest test broke at 6 m).
+var _tiny_map: MapDef
+
 
 func before_each() -> void:
 	# Match is a live autoload the engine ticks every real frame. These tests
@@ -24,7 +43,10 @@ func before_each() -> void:
 	# double-count delta against the manual calls below.
 	Match.set_process(false)
 	Match.abort_match()
+	_tiny_map = (load("res://config/maps/round_medium.tres") as MapDef).duplicate(true)
+	_tiny_map.field_radius = 20.0
 	_field = autofree(Field.new())
+	_field.map_def = _tiny_map
 	add_child_autofree(_field)
 	_blocks_root = autofree(Node3D.new())
 	add_child_autofree(_blocks_root)
@@ -38,8 +60,26 @@ func after_each() -> void:
 	Match.set_process(true)
 
 
-func _hotseat_config(player_count: int = 2, block_timer: float = 6.0) -> MatchConfig:
+## Every MatchConfig this file hands to Match.start_match() goes through this
+## (or _free_for_all_config()) so it always carries this test's own
+## `_tiny_map` (see the field's own doc comment above) via the
+## TinyMapMatchConfig seam.
+##
+## Swaps the script *before* the caller sets any fields: Object.set_script()
+## re-initializes script-level state to its new script's declared defaults,
+## so field values set on `config` before this call (player_count, hot_seat,
+## etc. -- all plain MatchConfig @export vars, unrelated to the map) would
+## otherwise be silently discarded (reproduced: player_count came back as the
+## class default 4, not the 2 a caller had just set).
+func _tiny_map_config() -> MatchConfig:
 	var config: MatchConfig = load("res://config/match_defaults.tres").duplicate(true) as MatchConfig
+	config.set_script(load("res://tests/unit/support/TinyMapMatchConfig.gd"))
+	(config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
+	return config
+
+
+func _hotseat_config(player_count: int = 2, block_timer: float = 6.0) -> MatchConfig:
+	var config: MatchConfig = _tiny_map_config()
 	config.player_count = player_count
 	config.hot_seat = true
 	config.block_timer = block_timer
@@ -52,7 +92,7 @@ func _hotseat_config(player_count: int = 2, block_timer: float = 6.0) -> MatchCo
 ## targets): every slot's feed runs concurrently, so a lone slot can
 ## otherwise place blocks back to back with nothing to stop it.
 func _free_for_all_config(player_count: int = 2, block_timer: float = 6.0) -> MatchConfig:
-	var config: MatchConfig = load("res://config/match_defaults.tres").duplicate(true) as MatchConfig
+	var config: MatchConfig = _tiny_map_config()
 	config.player_count = player_count
 	config.hot_seat = false
 	config.block_timer = block_timer
