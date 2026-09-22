@@ -2,5 +2,5 @@
 
 [ext_resource type="Script" path="res://game/Field.gd" id="1_field"]
 
-[node name="Field" type="StaticBody3D"]
+[node name="Field" type="AnimatableBody3D"]
 script = ExtResource("1_field")
