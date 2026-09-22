@@ -3,7 +3,40 @@
 Prepared 2026-09-18 from Git, Beads, project files and the interrupted local Claude
 session. This is a restart snapshot. Refresh live state; keep task progress in Beads.
 
-## Update 2026-09-22 (late) — resume here
+## Update 2026-09-22 (end of day) — resume here
+
+**Git:** `main` clean and pushed at the commit carrying this note. Only worktree:
+`M:/Bontago-worktrees/play` (owner's copy at `f2e1927`; rebuild from main, copy
+`addons/godotsteam`, run `tools/install_original_assets.ps1 -Path M:/Bontago-worktrees/play`).
+No workers running; nothing uncommitted anywhere.
+
+**Owner's third test of the original (2026-09-22 evening) — fixed:** reject kick 75% smaller
+(`reject_arc_sideways` 0.3, `reject_arc_height` 0.375, commit `a058af4`).
+
+**Owner's third test — open, start here (P1, unassigned, briefs in the Beads descriptions):**
+1. `Bontago-xtq.5` — placed blocks render with missing faces (`docs/solid-blocks-issue.png`):
+   `core/blocks/BlockMeshBuilder.gd` winds some faces clockwise so back-face culling hides
+   them; the translucent ghost masked it. Fix the tangent/index table; add a test that every
+   triangle's geometric normal matches its vertex normal and points away from the cell (must
+   fail on current code first); screenshot L4/T4/bar4/slab6 from a low side angle.
+   Jev: sonnet 0.56, review=yes.
+2. `Bontago-mv0.28` — "when rotating the block the camera adjusts; lock the camera to the
+   centre of the box without messing up the bottom-centre fixes": camera follow anchor = the
+   rotated shape's geometric centre; MMB rotation pivots about that centre so the block spins
+   in place; cursor/raycast/footprint/spawn origin keep the bottom-centre of the rotated
+   bounds (`GhostPreview._rotated_bottom_offset`, `MatchPlacement._spawn_block` parity test).
+   Jev: sonnet 0.56.
+   Both were dispatched then stopped before any edit; re-dispatch from the descriptions.
+
+**Owner retest still requested:** cursor stopping at the screen edge could not be reproduced
+(capture is on in every mode; Esc and F4 release it by design).
+
+**Open owner questions (`bd human list`):** `Bontago-z4h`, `Bontago-4fa`, `Bontago-59u`,
+`Bontago-mvl` (throw binding; blocks M4 P2's throw half).
+
+**Then:** M4 P2 without throw, P3–P5 (see the late brief below), backlog unchanged.
+
+## Update 2026-09-22 (late)
 
 **Git:** `main` clean and pushed at the commit carrying this note. Only worktree:
 `M:/Bontago-worktrees/play` (owner's copy; rebuild from main, copy `addons/godotsteam`, run
