@@ -27,6 +27,35 @@ extends Node3D
 ## without needing its own set_camera_rig() wiring to have run first.
 const TUNING_GROUP: StringName = &"tuning_camera"
 
+## Bontago-mv0.26 (owner test 2026-09-22: "the ghost block is a bit jittery
+## when I'm moving around and especially when scrolling and it moves up and
+## down"). ROOT CAUSE: this rig is a static child of game/Main.tscn (created
+## before HotSeat/Sandbox, whose PlayerController is add_child()'d afterward
+## at runtime), and Godot calls _process() in ascending process_priority order
+## with tree position only as the tie-break for equal priority (both default
+## to 0 here) -- so this rig's _process() ran BEFORE PlayerController's every
+## single frame, in every mode (hot-seat, sandbox, networked host and client;
+## same HotSeat.tscn/Main.gd structure in each). set_follow_position() below
+## is only ever called from PlayerController._process(), after it has already
+## moved the ghost for this frame -- so this rig's own _process() was reading
+## last frame's ghost position, one whole render frame stale, then never
+## catching up until the *next* frame reads the value PlayerController is
+## about to write this one. Under constant mouse motion at a variable
+## renderer frame rate that stale gap itself varies frame to frame, which
+## reads as jitter rather than a fixed lag; it is worst on the wheel
+## (_step_hover's one-shot manual_hover_offset jump lands on the ghost
+## immediately but the camera doesn't see it for a full frame), matching
+## "especially when scrolling and it moves up and down" exactly.
+## DECISION (game/CameraRig.gd): not a gameplay tunable (CLAUDE.md's
+## Resource/no-magic-numbers rule is about tunables a designer retunes; this
+## is a fixed processing-order fact, the same category as e.g. GhostPreview's
+## _CORNER_SIGNS table), so it stays a local const rather than moving into
+## CameraTuning. Any positive value works -- it only needs to be greater than
+## every other default-priority (0) node's, chiefly PlayerController's -- so
+## this rig's _target always reflects the *same* frame's ghost position,
+## regardless of where either node sits in the tree.
+const _PROCESS_PRIORITY_AFTER_GHOST: int = 1
+
 ## Set by PlayerController each frame: true while the player holds a ghost
 ## block. Spec 2.5 scopes trigger zoom to "while not holding a block"; the
 ## dedicated Z/X keys always zoom regardless (see _unhandled_input).
@@ -45,6 +74,7 @@ var _follow_position: Vector3 = Vector3.ZERO
 
 func _ready() -> void:
 	add_to_group(TUNING_GROUP)
+	process_priority = _PROCESS_PRIORITY_AFTER_GHOST
 	_camera.fov = tuning.fov_deg
 	# DECISION (game/CameraRig.gd): the initial view scales with the map's
 	# field_radius (a close-in fixed default looked fine on a small map but

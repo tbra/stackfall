@@ -139,6 +139,81 @@ func test_apply_follow_tuning_pushes_fov_deg_even_when_not_following_the_block()
 	assert_almost_eq(rig.get_camera().fov, 55.0, 0.001, "fov isn't a follow-only concept; it must update even in free-orbit mode.")
 
 
+# --- Bontago-mv0.26 (owner test 2026-09-22: "the ghost block is a bit
+# jittery when I'm moving around and especially when scrolling") -- process-
+# order regression: CameraRig used to _process() before PlayerController every
+# frame (it is a static game/Main.tscn child, added before HotSeat, whose
+# PlayerController is add_child()'d at runtime -- see this rig's own
+# _PROCESS_PRIORITY_AFTER_GHOST doc comment for the full root-cause writeup),
+# so _target always reflected last frame's ghost position. Mirrors that same
+# tree shape (rig added first, controller/ghost added after) and lets the real
+# SceneTree dispatch _process() itself -- process_priority, not call order in
+# this test, is what must keep them in sync. -------------------------------
+
+func _make_ghost_with_shape() -> GhostPreview:
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+	ghost.set_shape(load("res://config/blocks/cube.tres"))
+	return ghost
+
+
+func test_camera_target_matches_the_ghost_position_the_same_frame_it_moves() -> void:
+	# Same order as game/Main.tscn/game/HotSeat.tscn: the rig exists first,
+	# the controller (and its ghost) are added afterward.
+	var rig: CameraRig = _make_rig()
+	var ghost: GhostPreview = _make_ghost_with_shape()
+	var controller: PlayerController = autofree(PlayerController.new())
+	add_child_autofree(controller)
+	controller._ghost = ghost
+	controller.set_camera_rig(rig)
+	# DECISION (tests/unit/test_camera_rig.gd): a rig-local tuning duplicate
+	# with ghost_collision disabled -- this test is isolating the CameraRig/
+	# PlayerController process-order question only. Bontago-mv0.23's swept
+	# collision test (_clamp_cursor_collision()) queries the live
+	# PhysicsDirectSpaceState3D every _process(), which only reflects whatever
+	# the physics server has actually stepped so far; with no Field/physics
+	# ticks driving this bare test tree, that lags render frames unevenly and
+	# introduces its own frame-to-frame variance unrelated to the camera bug
+	# under test here (see test_ghost_collision.gd for that feature's own
+	# coverage).
+	controller.ghost_tuning = controller.ghost_tuning.duplicate() as GhostTuning
+	controller.ghost_tuning.ghost_collision_enabled = false
+
+	# A newly add_child()'d node's first _process() call can land one
+	# process_frame signal later than the frame it was actually added on
+	# (Godot's own scheduling, nothing to do with this bug) -- let that
+	# one-time startup transient pass before the constant-motion loop below,
+	# so it measures steady-state behaviour, not this test fixture's own
+	# warm-up frame.
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var previous_ghost_x: float = ghost.global_position.x
+	var previous_displacement: float = 0.0
+	for i: int in range(60):
+		# A fixed per-iteration cursor step, independent of the real engine's
+		# (possibly uneven, headless) frame delta -- isolates "does the camera
+		# see the same frame's ghost position" from unrelated frame-timing
+		# noise, and gives a displacement that can only be non-constant if
+		# something in the ghost/camera pipeline itself introduces variance.
+		controller._cursor += Vector3(0.1, 0.0, 0.0)
+		await get_tree().process_frame
+
+		var displacement: float = ghost.global_position.x - previous_ghost_x
+		if i > 0:
+			assert_almost_eq(
+				displacement, previous_displacement, 0.0001,
+				"frame %d: the ghost's per-frame displacement must stay constant under constant input." % i
+			)
+		previous_ghost_x = ghost.global_position.x
+		previous_displacement = displacement
+
+		assert_almost_eq(
+			rig.get_target().x, ghost.global_position.x, 0.0001,
+			"frame %d: the camera target must equal the ghost position from this same frame, not one frame stale." % i
+		)
+
+
 func test_apply_follow_tuning_is_a_noop_when_not_following_the_block() -> void:
 	var rig: CameraRig = _make_rig()
 	rig.tuning = rig.tuning.duplicate() as CameraTuning

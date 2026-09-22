@@ -328,6 +328,18 @@ func _build_match_world() -> void:
 	_hot_seat.set_camera_rig(_camera_rig)
 	_hot_seat.set_field(_field)
 	_hot_seat.bind_local_slot(Net.local_slot())
+	# Bontago-mv0.26 (owner test 2026-09-22, "the original lets me keep moving
+	# once I hit the edge of the screen"): HotSeat.gd's own _ready() already
+	# calls this unconditionally (this scene is the exact same HOT_SEAT_SCENE
+	# --hot-seat uses), so it should already be captured by the time
+	# add_child() above returns. Called again here, explicitly, the same way
+	# HotSeat.gd/Sandbox.gd each call it for their own subtree: this world
+	# build is the one place that wires a controller into a match Main itself
+	# owns, so it gets its own direct call rather than depending solely on a
+	# child scene's _ready() timing -- idempotent (enable_mouse_capture() just
+	# re-sets Input.mouse_mode) and a no-op headless, so it changes nothing
+	# for --headless-host or the test suite.
+	_hot_seat.controller().enable_mouse_capture()
 
 	_debug_overlay = NET_DEBUG_OVERLAY_SCENE.instantiate() as NetDebugOverlay
 	add_child(_debug_overlay)
