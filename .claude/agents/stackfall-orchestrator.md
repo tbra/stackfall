@@ -40,3 +40,6 @@ game-code work. Limit competing workers, and serialize performance measurements.
 If usage is exhausted, save the next exact action and recoverable checkout/session
 identity instead of repeatedly starting new workers. Your final handoff names
 changed files, Beads IDs, actual validation, outstanding gates and next action.
+
+## Model routing (2026-09-22)
+Before dispatching a worker, pipe the brief to `python tools/route_model.py --title ... --files ... --kind ...` and use its verdict for the Agent `model`, review need and split decision; log the verdict in the Beads dispatch comment. Override only with a written reason.

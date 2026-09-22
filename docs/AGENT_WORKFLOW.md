@@ -68,6 +68,7 @@ Parallelism is bounded by independent packages and machine capacity. Start with 
 - **Tests:** targeted runner only (`tools/run_gut.ps1`, own + affected scripts). The full suite runs once per merged batch, in the background, by the orchestrator. ENet harness only for `net/`, `autoload/`, rules or lobby changes. Benchmarks only for physics, territory or wire changes, alone on the machine.
 - **Integrator:** validates only the changed area (targeted set + the harness/bench that area needs) and the merge itself; no full-suite runs.
 - **Reviewer:** required for `core/`, `net/`, `autoload/`, physics and rules changes; runs concurrently with integration. UI, tooling and docs packages skip independent review.
+- **Model routing via Jev (owner, 2026-09-22):** before every dispatch the orchestrator runs `python tools/route_model.py --title "<title>" --files <owned,files> --kind <feature|bugfix|refactor|review|gate|triage|mechanical|plan> < brief.txt` and uses its `model=` verdict (Haiku / Sonnet / Opus), `review=` (independent review needed) and `split=` (package too large). Override only with a stated reason in the Beads dispatch comment; record the verdict there either way. Falls back to deterministic rules without `TYPESAFE_API_KEY`.
 - **File ownership over function ownership:** when two packages need the same file, split the file first (see `autoload/Match.gd` → feed / placement / territory / lifecycle controllers).
 
 ## Persistence and recovery

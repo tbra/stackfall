@@ -13,7 +13,7 @@ Read `docs/AGENT_WORKFLOW.md` for the worker roster, dispatch contract, checkpoi
 
 **Beads ownership:** the orchestrator serializes shared Beads writes and accepts/closes issues; workers return checkpoint and completion evidence. This project-specific coordination rule takes precedence over generic skill, `bd prime`, and generated-block instructions telling each worker to mutate or close its own issue.
 
-**Model routing:** retain the user's chosen orchestrator model (currently Fable). Use Haiku for mechanical edits, triage, running known checks and the Codex bridge; Sonnet for normal planning, implementation, netcode and review. Reserve explicit Opus overrides for bounded genuinely hard reasoning, justify the escalation in the brief, then return routine work to its normal model. Do not propagate the orchestrator's model to every worker. See `docs/AGENT_WORKFLOW.md` for the routing table.
+**Model routing:** retain the user's chosen orchestrator model (currently Fable). Use Haiku for mechanical edits, triage, running known checks and the Codex bridge; Sonnet for normal planning, implementation, netcode and review. Reserve explicit Opus overrides for bounded genuinely hard reasoning, justify the escalation in the brief, then return routine work to its normal model. Do not propagate the orchestrator's model to every worker. Consult Jev first: `python tools/route_model.py` (see `docs/AGENT_WORKFLOW.md`) returns the tier, whether a review is needed and whether to split; override only with a stated reason.
 
 Pause points — the only times the pipeline stops for the owner:
 - **Any change to a rule tagged [ORIGINAL]** in the spec.
