@@ -17,7 +17,7 @@ Read `docs/AGENT_WORKFLOW.md` for the worker roster, dispatch contract, checkpoi
 
 Pause points — the only times the pipeline stops for the owner:
 - **Any change to a rule tagged [ORIGINAL]** in the spec.
-- **Major ambiguity:** anything that changes rules, game feel, scope, or player-facing behaviour in a way the spec doesn't settle. Stop, describe the options, and ask. Do not guess.
+- **Major ambiguity:** anything that changes rules, game feel, scope, or player-facing behaviour in a way the spec doesn't settle. Describe the options and ask **through Beads**: a `decision` issue with `--label human --assignee Tony` (the owner answers with `bd human respond <id>`), and `bd gate create --type human --blocks <work-id>` or a dependency when the work must wait. Do not guess; do not use interactive prompts.
 - **M7 art direction:** propose it and wait for approval before writing code.
 
 Everything else is decided in place: for **minor ambiguity** (implementation detail with no gameplay impact) pick the simplest reasonable option, write a `# DECISION:` comment at that spot in the code, and list it in the summary.
