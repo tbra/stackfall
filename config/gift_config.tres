@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="GiftConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/GiftConfig.gd" id="1_gift"]
+
+[resource]
+script = ExtResource("1_gift")
+frequency_to_chance_max = 0.5
+max_live_crates = 1
+life_s = 60.0
+spawn_max_attempts = 32
+spawn_edge_margin_m = 2.0
