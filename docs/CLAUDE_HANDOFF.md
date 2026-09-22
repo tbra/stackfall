@@ -3,7 +3,50 @@
 Prepared 2026-09-18 from Git, Beads, project files and the interrupted local Claude
 session. This is a restart snapshot. Refresh live state; keep task progress in Beads.
 
-## Update 2026-09-22 (evening) — resume here
+## Update 2026-09-22 (night) — resume here
+
+**Git:** `main` clean and pushed at the commit carrying this note. Only worktree:
+`M:/Bontago-worktrees/play` (owner's copy; recreate from main, copy `addons/godotsteam` in,
+run `tools/install_original_assets.ps1 -Path M:/Bontago-worktrees/play`).
+
+**Shipped tonight (all reviewed/merged, full suite green):** M4 P0b tilt controller
+(`Field.apply_tilt_impulse`, off until `set_tilt_enabled(true)`; P5 wires it from
+`MatchConfig.tilt_mode`), M4 P1a+P1b gift crates (`autoload/match/MatchGifts.gd`,
+`game/GiftCrate.tscn`, one spawn roll per placement window, claim on territory tick,
+`Match.held_special(slot)` for P2), feel round 3 from the owner's test of the original:
+MMB-drag rotates the ghost (continuous yaw), RMB-drag orbits + wheel zooms while held,
+ghost collides with placed blocks without pushing them, out-of-zone drops are refused
+(piece stays held), expiry relocation jumps cursor+camera; tuning panel rows show
+"(default X)" + description (every new tunable needs an entry in
+`config/tuning_panel_hints.tres`, `test_tuning_panel` enforces it); owner defaults
+follow_lag 0 / pitch -35 / sensitivity 0.015. Placeholder assets from the original
+install: `tools/install_original_assets.ps1` → gitignored `assets/original/` (+ `.gdignore`),
+`autoload/Sfx.gd` (music, thuds via velocity-drop detector, UI clicks, refusal),
+`game/Skybox.gd` (per-map sets, seam table derived by `tools/skybox_seam_probe.gd`).
+Third-party files never enter the repo.
+
+**Process rules (owner, tonight):** `bd` writes use `--actor stackfall-orchestrator`;
+dispatched issues get `--assignee "<profile> (<model>)"`, unstarted issues stay
+unassigned; owner questions are `decision` issues with `--label human --assignee Tony`
+(answer with `bd human respond`), never interactive prompts; never `taskkill //IM`.
+
+**Open owner questions (`bd human list`):** Bontago-z4h Jumping Bean under hole-mode Off;
+Bontago-4fa gift spawn rule (defaults shipped); Bontago-59u pending-special replacement
+(default shipped); Bontago-mvl throw binding (RMB now orbits) — blocks M4 P2's throw.
+
+**Next exact actions:**
+1. Owner manual checks in `--sandbox --players=2`: controls (MMB/RMB), ghost collision,
+   refused drop, expiry relocation, F4 labels, audio, skybox; two-PC Steam test (M3b).
+2. M4 P2 (special framework, arming/trigger, chain cap) can start without the throw
+   half; throw + arc preview waits for Bontago-mvl. Then P3–P5 per `docs/M4_PLAN.md`
+   (P5 wires tilt; Propeller replaces Fan; Jumping Bean is `Bontago-1en.8`).
+3. Backlog: `Bontago-ogd` (trimesh rebuild-cost bench), a dedicated physics layer for
+   placed blocks (ghost sweep filters by `is RigidBody3D` today), `mv0.1.10`, `mv0.1.13`,
+   `mv0.4`, `mv0.1.12`, `Bontago-2mi`, `Bontago-mjk`, `Bontago-pjj`.
+
+**Untouched files not from this session:** `tools/start_scotty.ps1` (modified), `Scotty.cmd` (new).
+
+## Update 2026-09-22 (evening) 
 
 **Git:** `main` clean and pushed at the commit carrying this note. Only worktree:
 `M:/Bontago-worktrees/play` (owner's copy, stale at `a03be82`; recreate from main and copy
