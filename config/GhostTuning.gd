@@ -13,7 +13,11 @@ extends Resource
 ## camera follows it (CameraRig.follow_block), it no longer follows a
 ## screen-space raycast. ------------------------------------------------
 ## Meters the cursor moves per pixel of camera-relative mouse motion.
-@export var block_move_sensitivity: float = 0.05
+## Bontago-mv0.21 (owner, 2026-09-22, after re-testing against the original
+## Bontago): lowered from 0.05 to 0.015 -- the original moves the held block
+## much more slowly per pixel of mouse motion than this project's earlier
+## default.
+@export var block_move_sensitivity: float = 0.015
 @export var gamepad_cursor_base_speed: float = 10.0
 ## The zoom (camera orbit distance) at which base_speed applies; farther out
 ## moves the cursor faster, closer in moves it slower.

@@ -39,16 +39,21 @@ extends Resource
 ## frame.
 ## Bontago-mv0.17 (owner feel report 1): 0.15 s read as noticeably laggy
 ## behind the held block; 0.05 s keeps the smoothing (still not a hard snap)
-## while tracking much closer to instantly. Still a tunable -- the owner may
-## retune further.
-@export var follow_lag_seconds: float = 0.05
+## while tracking much closer to instantly.
+## Bontago-mv0.21 (owner, 2026-09-22, after re-testing against the original
+## Bontago): a hard snap (0.0) matches the original's feel best -- any
+## remaining smoothing still read as lag once compared side by side.
+@export var follow_lag_seconds: float = 0.0
 ## Camera distance and pitch while following the held block. The original
 ## (docs/original_in-game.png) frames the block from a few metres away at a
 ## shallow angle so the block fills the lower half of the view and the disk
 ## edge stays visible; a field-radius-scaled distance (the free-camera default)
 ## puts the block "a billion miles away" (owner, 2026-09-21).
 @export var follow_distance: float = 9.0
-@export var follow_pitch_deg: float = -28.0
+## Bontago-mv0.21 (owner, 2026-09-22, after re-testing against the original
+## Bontago): steepened from -28 to -35 to match the original's shallower
+## downward view.
+@export var follow_pitch_deg: float = -35.0
 
 ## -- Snap (spec 2.5 "Snap camera to home / goal") ----------------------------
 @export var snap_pitch_deg: float = -35.0

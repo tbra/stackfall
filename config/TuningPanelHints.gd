@@ -23,6 +23,17 @@ extends Resource
 ## that ever share a field name -- none do today -- can't collide.
 @export var ranges: Dictionary = {}
 
+## "<script class name>.<property name>" -> one-sentence, plain-language
+## description of what the field controls (Bontago-mv0.21, owner request:
+## every row show "what it controls... visible without hovering"). Same
+## keying scheme as `ranges` above. Populated for every numeric/bool/Color
+## field ui/TuningPanel.gd currently builds a row for, across all six tuning
+## resources -- see tests/unit/test_tuning_panel.gd's "every shown field has
+## a non-empty description" test, which walks the same reflection list this
+## panel builds rows from and fails loudly if a field is ever added here
+## without a matching entry.
+@export var descriptions: Dictionary = {}
+
 
 ## Vector2(NAN, NAN) (an invalid sentinel TuningPanel._range_for() checks for)
 ## when `class_name_ + "." + property_name` has no entry here.
@@ -31,3 +42,11 @@ func range_for(class_name_: String, property_name: String) -> Vector2:
 	if ranges.has(key):
 		return ranges[key] as Vector2
 	return Vector2(NAN, NAN)
+
+
+## "" when `class_name_ + "." + property_name` has no entry here.
+func description_for(class_name_: String, property_name: String) -> String:
+	var key: String = "%s.%s" % [class_name_, property_name]
+	if descriptions.has(key):
+		return String(descriptions[key])
+	return ""

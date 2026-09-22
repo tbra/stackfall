@@ -359,3 +359,63 @@ func test_gamepad_start_plus_x_toggles() -> void:
 	_panel._unhandled_input(event)
 
 	assert_true(_panel.visible, "Start held + X pressed should toggle the panel.")
+
+
+# --- Bontago-mv0.21: owner-tuned defaults --------------------------------------
+
+func test_camera_tuning_default_values() -> void:
+	var fresh: CameraTuning = CameraTuning.new()
+	assert_almost_eq(fresh.follow_lag_seconds, 0.0, 0.0001)
+	assert_almost_eq(fresh.follow_pitch_deg, -35.0, 0.0001)
+
+
+func test_ghost_tuning_default_value() -> void:
+	var fresh: GhostTuning = GhostTuning.new()
+	assert_almost_eq(fresh.block_move_sensitivity, 0.015, 0.0001)
+
+
+# --- Bontago-mv0.21: self-describing rows (default + description) -------------
+
+func test_every_row_label_shows_its_default_value() -> void:
+	var resources: Array[Resource] = [
+		_panel.camera_tuning, _panel.ghost_tuning, _panel.physics_tuning,
+		_panel.territory_tuning, _panel.territory_visuals, _panel.block_feed_config,
+	]
+	var checked_any: bool = false
+	for resource: Resource in resources:
+		for prop_name: String in _panel.shown_fields_for(resource):
+			checked_any = true
+			var text: String = _panel.label_text_for(resource, prop_name)
+			assert_true(text.contains("(default"), "%s.%s label %s must show its default" % [resource, prop_name, text])
+	assert_true(checked_any, "fixture: at least one row must exist to check.")
+
+
+func test_every_shown_field_has_a_non_empty_description() -> void:
+	var resources: Array[Resource] = [
+		_panel.camera_tuning, _panel.ghost_tuning, _panel.physics_tuning,
+		_panel.territory_tuning, _panel.territory_visuals, _panel.block_feed_config,
+	]
+	var checked_any: bool = false
+	for resource: Resource in resources:
+		var class_label: String = String((resource.get_script() as Script).get_global_name())
+		for prop_name: String in _panel.shown_fields_for(resource):
+			checked_any = true
+			var description: String = _panel.hints.description_for(class_label, prop_name)
+			assert_false(description.is_empty(), "%s.%s has no description in TuningPanelHints" % [class_label, prop_name])
+	assert_true(checked_any, "fixture: at least one row must exist to check.")
+
+
+# --- Bontago-mv0.21: modified marker -------------------------------------------
+
+func test_modified_marker_toggles_on_change_and_clears_on_reset() -> void:
+	assert_false(_panel.is_modified(_panel.physics_tuning, "gravity_multiplier"), "fixture: starts at its default.")
+
+	var slider: HSlider = _panel.control_for(_panel.physics_tuning, "gravity_multiplier") as HSlider
+	slider.emit_signal("value_changed", _saved_gravity + 0.5)
+
+	assert_true(_panel.is_modified(_panel.physics_tuning, "gravity_multiplier"), "changing the value must mark the row modified.")
+	assert_true(_panel.label_text_for(_panel.physics_tuning, "gravity_multiplier").begins_with("•"), "the label must carry the modified marker.")
+
+	_panel.reset_all()
+
+	assert_false(_panel.is_modified(_panel.physics_tuning, "gravity_multiplier"), "reset_all() must clear the modified marker.")

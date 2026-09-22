@@ -4,7 +4,7 @@
 
 [resource]
 script = ExtResource("1_ghost")
-block_move_sensitivity = 0.05
+block_move_sensitivity = 0.015
 gamepad_cursor_base_speed = 10.0
 gamepad_cursor_zoom_reference_distance = 30.0
 gamepad_cursor_acceleration = 40.0

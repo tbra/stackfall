@@ -67,8 +67,29 @@ extends CanvasLayer
 ## moved by net/SnapshotSync.gd), not just hidden for tidiness.
 
 const SAVE_PATH: String = "user://tuning_overrides.cfg"
-const LABEL_WIDTH: float = 260.0
 const VALUE_WIDTH: float = 74.0
+
+## DECISION (ui/TuningPanel.gd, Bontago-mv0.21): row name/description column
+## widened from the bare label's old 260px width so a whole one-sentence
+## description can sit under the field name without wrapping to more than a
+## couple of lines at 1080p.
+const NAME_COLUMN_WIDTH: float = 320.0
+## DECISION: muted relative to the panel's default text color so the sentence
+## reads as a sub-label, not a second heading -- same idea as _class_label_for
+## rows' own lighter blue tint just below in this file.
+const DESCRIPTION_COLOR: Color = Color(0.72, 0.72, 0.78, 0.85)
+## DECISION: smaller than the panel's default font so the name stays the
+## visually primary line of each row.
+const DESCRIPTION_FONT_SIZE: int = 12
+## DECISION: a warm highlight -- distinct from DESCRIPTION_COLOR and from the
+## class-header blue -- so an owner-adjusted field is unmistakable at a
+## glance ("outcome 3": visible when live differs from default).
+const MODIFIED_COLOR: Color = Color(1.0, 0.82, 0.3)
+const MODIFIED_MARKER: String = "• "
+## DECISION: matches _build_float_row's own "%.4f" precision for the live
+## value label; the default annotation trims trailing zeros afterward (see
+## _format_default()) so "-35.0000" reads as "-35" and "0.0150" as "0.015".
+const DEFAULT_FLOAT_PRECISION: int = 4
 
 ## get_property_list() usage flags an @export'd script variable carries (see
 ## this file's own probe in the implementation notes): STORAGE so it's
@@ -285,6 +306,7 @@ func _build_resource_rows(resource: Resource) -> VBoxContainer:
 	var list: VBoxContainer = VBoxContainer.new()
 	list.add_theme_constant_override("separation", 2)
 	var class_label: String = _class_label_for(resource)
+	var fresh: Resource = _fresh_instance_for(resource)
 
 	var header: Label = Label.new()
 	header.text = class_label
@@ -296,10 +318,27 @@ func _build_resource_rows(resource: Resource) -> VBoxContainer:
 			continue
 		var prop_name: String = str(prop.get("name", ""))
 		var type: int = int(prop.get("type", TYPE_NIL))
-		var row: Control = _build_row_control(resource, prop_name, type, class_label)
+		var row: Control = _build_row_control(resource, prop_name, type, class_label, fresh)
 		if row != null:
 			list.add_child(row)
 	return list
+
+
+## A fresh, un-tuned instance of `resource`'s own script (outcome 2: "the
+## default comes from a fresh instance of the resource's script
+## (resource.get_script().new()) ... never from the live instance"). Built
+## once per resource per rebuild() rather than once per field, since every
+## field on one resource shares the same script. Every tuning Resource this
+## panel reflects over is a plain Resource subclass with only @export fields
+## and no _init() side effects, so Script.new() is safe here and yields the
+## same defaults the .gd file declares -- verified by this package's
+## test_tuning_panel.gd "defaults" tests, which check CameraTuning.new()/
+## GhostTuning.new() directly against the same numbers.
+func _fresh_instance_for(resource: Resource) -> Resource:
+	if resource == null or resource.get_script() == null:
+		return null
+	var script: Script = resource.get_script() as Script
+	return script.new() as Resource
 
 
 func _is_exported_field(prop: Dictionary) -> bool:
@@ -313,30 +352,53 @@ func _class_label_for(resource: Resource) -> String:
 	return String((resource.get_script() as Script).get_global_name())
 
 
-func _build_row_control(resource: Resource, prop_name: String, type: int, class_label: String) -> Control:
+func _build_row_control(resource: Resource, prop_name: String, type: int, class_label: String, fresh: Resource) -> Control:
+	var default_value: Variant = fresh.get(prop_name) if fresh != null else resource.get(prop_name)
 	match type:
 		TYPE_BOOL:
-			return _build_bool_row(resource, prop_name)
+			return _build_bool_row(resource, prop_name, class_label, default_value)
 		TYPE_INT:
-			return _build_int_row(resource, prop_name, class_label)
+			return _build_int_row(resource, prop_name, class_label, default_value)
 		TYPE_FLOAT:
-			return _build_float_row(resource, prop_name, class_label)
+			return _build_float_row(resource, prop_name, class_label, default_value)
 		TYPE_COLOR:
-			return _build_color_row(resource, prop_name)
+			return _build_color_row(resource, prop_name, class_label, default_value)
 		_:
 			return null
 
 
-func _row_label(prop_name: String) -> Label:
-	var label: Label = Label.new()
-	label.text = prop_name
-	label.custom_minimum_size = Vector2(LABEL_WIDTH, 0.0)
-	return label
+## Outcome 2: every row's name is followed by "(default <value>)", and a
+## smaller muted sentence describing what the field controls sits beneath it
+## (a tooltip on the name label repeats the same sentence -- "a tooltip in
+## addition is fine"). Returns the built Label so the caller can register it
+## in _rows for _refresh_row_marker() to find later (outcome 3).
+func _row_name_block(prop_name: String, class_label: String, default_value: Variant, type: int) -> Dictionary:
+	var block: VBoxContainer = VBoxContainer.new()
+	block.custom_minimum_size = Vector2(NAME_COLUMN_WIDTH, 0.0)
+	block.add_theme_constant_override("separation", 0)
+
+	var description: String = hints.description_for(class_label, prop_name) if hints != null else ""
+
+	var name_label: Label = Label.new()
+	name_label.text = "%s (default %s)" % [prop_name, _format_default(default_value, type)]
+	if not description.is_empty():
+		name_label.tooltip_text = description
+	block.add_child(name_label)
+
+	var desc_label: Label = Label.new()
+	desc_label.text = description
+	desc_label.add_theme_color_override("font_color", DESCRIPTION_COLOR)
+	desc_label.add_theme_font_size_override("font_size", DESCRIPTION_FONT_SIZE)
+	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	block.add_child(desc_label)
+
+	return {"container": block, "name_label": name_label}
 
 
-func _build_bool_row(resource: Resource, prop_name: String) -> Control:
+func _build_bool_row(resource: Resource, prop_name: String, class_label: String, default_value: Variant) -> Control:
 	var row: HBoxContainer = HBoxContainer.new()
-	row.add_child(_row_label(prop_name))
+	var name_block: Dictionary = _row_name_block(prop_name, class_label, default_value, TYPE_BOOL)
+	row.add_child(name_block["container"] as Control)
 
 	var check: CheckButton = CheckButton.new()
 	check.button_pressed = bool(resource.get(prop_name))
@@ -346,13 +408,18 @@ func _build_bool_row(resource: Resource, prop_name: String) -> Control:
 	)
 	row.add_child(check)
 
-	_rows.append({"resource": resource, "property": prop_name, "control": check})
+	_rows.append({
+		"resource": resource, "property": prop_name, "control": check,
+		"name_label": name_block["name_label"], "default": default_value, "type": TYPE_BOOL,
+	})
+	_refresh_row_marker(_rows[-1])
 	return row
 
 
-func _build_int_row(resource: Resource, prop_name: String, class_label: String) -> Control:
+func _build_int_row(resource: Resource, prop_name: String, class_label: String, default_value: Variant) -> Control:
 	var row: HBoxContainer = HBoxContainer.new()
-	row.add_child(_row_label(prop_name))
+	var name_block: Dictionary = _row_name_block(prop_name, class_label, default_value, TYPE_INT)
+	row.add_child(name_block["container"] as Control)
 
 	var current: float = float(int(resource.get(prop_name)))
 	var value_range: Vector2 = _range_for(class_label, prop_name, current)
@@ -369,13 +436,18 @@ func _build_int_row(resource: Resource, prop_name: String, class_label: String) 
 	)
 	row.add_child(spin)
 
-	_rows.append({"resource": resource, "property": prop_name, "control": spin})
+	_rows.append({
+		"resource": resource, "property": prop_name, "control": spin,
+		"name_label": name_block["name_label"], "default": default_value, "type": TYPE_INT,
+	})
+	_refresh_row_marker(_rows[-1])
 	return row
 
 
-func _build_float_row(resource: Resource, prop_name: String, class_label: String) -> Control:
+func _build_float_row(resource: Resource, prop_name: String, class_label: String, default_value: Variant) -> Control:
 	var row: HBoxContainer = HBoxContainer.new()
-	row.add_child(_row_label(prop_name))
+	var name_block: Dictionary = _row_name_block(prop_name, class_label, default_value, TYPE_FLOAT)
+	row.add_child(name_block["container"] as Control)
 
 	var current: float = float(resource.get(prop_name))
 	var value_range: Vector2 = _range_for(class_label, prop_name, current)
@@ -406,13 +478,18 @@ func _build_float_row(resource: Resource, prop_name: String, class_label: String
 		_on_field_changed(resource, prop_name)
 	)
 
-	_rows.append({"resource": resource, "property": prop_name, "control": slider})
+	_rows.append({
+		"resource": resource, "property": prop_name, "control": slider,
+		"name_label": name_block["name_label"], "default": default_value, "type": TYPE_FLOAT,
+	})
+	_refresh_row_marker(_rows[-1])
 	return row
 
 
-func _build_color_row(resource: Resource, prop_name: String) -> Control:
+func _build_color_row(resource: Resource, prop_name: String, class_label: String, default_value: Variant) -> Control:
 	var row: HBoxContainer = HBoxContainer.new()
-	row.add_child(_row_label(prop_name))
+	var name_block: Dictionary = _row_name_block(prop_name, class_label, default_value, TYPE_COLOR)
+	row.add_child(name_block["container"] as Control)
 
 	var picker: ColorPickerButton = ColorPickerButton.new()
 	picker.color = resource.get(prop_name)
@@ -423,8 +500,91 @@ func _build_color_row(resource: Resource, prop_name: String) -> Control:
 	)
 	row.add_child(picker)
 
-	_rows.append({"resource": resource, "property": prop_name, "control": picker})
+	_rows.append({
+		"resource": resource, "property": prop_name, "control": picker,
+		"name_label": name_block["name_label"], "default": default_value, "type": TYPE_COLOR,
+	})
+	_refresh_row_marker(_rows[-1])
 	return row
+
+
+## Outcome 2's default annotation, formatted per type: "true"/"false" for a
+## bool, a plain integer for an int, a trimmed-decimal number for a float
+## (String.num()'s fixed precision with trailing zeros/dot stripped, so
+## -35.0 reads as "-35" and 0.015 as "0.015" rather than "-35.0000"), and a
+## "#rrggbbaa" hex code for a Color (the same shorthand a .tres file itself
+## would accept back).
+func _format_default(value: Variant, type: int) -> String:
+	match type:
+		TYPE_BOOL:
+			return "true" if bool(value) else "false"
+		TYPE_INT:
+			return str(int(value))
+		TYPE_FLOAT:
+			return _format_float_compact(float(value))
+		TYPE_COLOR:
+			var c: Color = value
+			return "#%s" % c.to_html(true)
+		_:
+			return str(value)
+
+
+func _format_float_compact(value: float) -> String:
+	var text: String = String.num(value, DEFAULT_FLOAT_PRECISION)
+	if text.contains("."):
+		text = text.rstrip("0")
+		if text.ends_with("."):
+			text = text.left(text.length() - 1)
+	return text
+
+
+## Outcome 3: whether a row's live value has drifted from its default -- used
+## both to decide the "•" marker's color/text and as this panel's own test
+## seam (tests/unit/test_tuning_panel.gd checks this directly rather than
+## parsing a Label's text).
+func is_modified(resource: Resource, prop_name: String) -> bool:
+	for row: Dictionary in _rows:
+		if row.get("resource") == resource and row.get("property") == prop_name:
+			return not _values_equal(resource.get(prop_name), row.get("default"), int(row.get("type", TYPE_NIL)))
+	return false
+
+
+func _values_equal(current: Variant, default_value: Variant, type: int) -> bool:
+	match type:
+		TYPE_FLOAT:
+			return is_equal_approx(float(current), float(default_value))
+		TYPE_INT:
+			return int(current) == int(default_value)
+		TYPE_BOOL:
+			return bool(current) == bool(default_value)
+		TYPE_COLOR:
+			return (current as Color).is_equal_approx(default_value as Color)
+		_:
+			return current == default_value
+
+
+## Re-derives one row's "(default ...)" text and modified-marker/color from
+## its resource's *current* value -- called right after a row is first built
+## (nothing is modified yet, but this keeps one code path for both cases) and
+## again from _on_field_changed() every time a control writes its resource,
+## so the marker updates live without a full rebuild().
+func _refresh_row_marker(row: Dictionary) -> void:
+	var name_label: Label = row.get("name_label") as Label
+	if name_label == null:
+		return
+	var resource: Resource = row.get("resource") as Resource
+	var prop_name: String = String(row.get("property"))
+	var default_value: Variant = row.get("default")
+	var type: int = int(row.get("type", TYPE_NIL))
+	var current: Variant = resource.get(prop_name)
+	var modified: bool = not _values_equal(current, default_value, type)
+
+	var base_text: String = "%s (default %s)" % [prop_name, _format_default(default_value, type)]
+	name_label.text = (MODIFIED_MARKER + base_text) if modified else base_text
+	if modified:
+		name_label.add_theme_color_override("font_color", MODIFIED_COLOR)
+	else:
+		name_label.remove_theme_color_override("font_color")
 
 
 ## `hints`'s per-field entry, or a fallback derived from the field's current
@@ -470,9 +630,35 @@ func row_count_for(resource: Resource) -> int:
 	return count
 
 
+## Test/inspection seam: every field name this panel built a row for on
+## `resource` (outcome 2's "walk them" -- a test uses this to check every
+## shown field has a description, without duplicating this file's own
+## reflection loop).
+func shown_fields_for(resource: Resource) -> Array[String]:
+	var names: Array[String] = []
+	for row: Dictionary in _rows:
+		if row.get("resource") == resource:
+			names.append(String(row.get("property")))
+	return names
+
+
+## Test/inspection seam: the built name Label's current text (the field name,
+## "(default ...)" annotation, and modified marker) for one field, without
+## reaching into a Control tree.
+func label_text_for(resource: Resource, prop_name: String) -> String:
+	for row: Dictionary in _rows:
+		if row.get("resource") == resource and row.get("property") == prop_name:
+			return (row.get("name_label") as Label).text
+	return ""
+
+
 # --- Live-apply hooks (see class doc) ----------------------------------------
 
 func _on_field_changed(resource: Resource, _prop_name: String) -> void:
+	for row: Dictionary in _rows:
+		if row.get("resource") == resource and row.get("property") == _prop_name:
+			_refresh_row_marker(row)
+			break
 	if resource == physics_tuning:
 		apply_physics_live()
 	elif resource == territory_visuals:
