@@ -160,8 +160,8 @@ extends Resource
 ## PlayerController re-homing the ghost's position every frame for the same
 ## reason the old local-offset trick existed, but no longer depends on the
 ## block's rotation.
-@export var reject_arc_sideways: float = 1.2
-@export var reject_arc_height: float = 1.5
+@export var reject_arc_sideways: float = 0.3
+@export var reject_arc_height: float = 0.375
 @export var reject_arc_duration: float = 0.4
 
 ## -- Auto-drop visual (spec 2.5: "When the timer runs out, the held block
