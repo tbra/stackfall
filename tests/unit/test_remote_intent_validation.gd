@@ -379,45 +379,37 @@ func test_remote_heights_inside_the_band_still_place_at_the_requested_height() -
 		)
 
 
-## Bontago-mv0.1.11: a finite remote origin far off the disk in X/Z is not
-## caught by is_pose_well_formed() (only non-finite poses and out-of-band Y
-## are refused there and at MatchNet's wire boundary) or by territory
-## validation (which only ever refuses, never bounds, the requested point).
-## Spec 2.2 still says any invalid release burns, so the block is consumed
-## and thrown -- but from an origin clamped inside Field's kill plane
-## (Field.KILL_PLANE_RADIUS_FACTOR * map_def.field_radius), not the raw
-## million-meter point, or the burned body free-falls past the kill plane
-## forever (a leaked RigidBody3D plus permanent snapshot traffic for it).
-func test_a_far_off_disk_remote_intent_burns_within_the_kill_plane_area() -> void:
+## A well-formed but far-off-disk manual release used to burn the block from an
+## origin clamped inside the kill plane (Bontago-mv0.1.11). Since Bontago-mv0.24
+## (owner test of the original, 2026-09-22) a manual release outside the
+## player's territory is refused instead: nothing spawns, the piece stays
+## held, feed_seq does not move, and the client can retry. The burn clamp is
+## still exercised for auto-drops in tests/unit/test_match_flow.gd.
+func test_a_far_off_disk_remote_intent_is_refused_and_keeps_the_piece() -> void:
 	var net: MatchNetScript = _make_host_net()
 	_start_playing()
 	var physics: PhysicsTuning = load("res://config/physics_tuning.tres")
-	var half_extent: float = _field.map_def.field_radius * Field.KILL_PLANE_RADIUS_FACTOR * 0.5
 	var far_origins: Array[Vector3] = [
 		_field.to_global(Vector3(1.0e6, physics.hover_height, 0.0)),
 		_field.to_global(Vector3(0.0, physics.hover_height, -1.0e6)),
 	]
+	var rejections: Array[int] = []
+	var on_rejected: Callable = func(slot_id: int, _reason: StringName) -> void:
+		rejections.append(slot_id)
+	Events.placement_rejected.connect(on_rejected)
 
+	var seq_before: int = Match.feed_seq(REMOTE_SLOT)
+	var held_before: BlockShape = Match.held_shape(REMOTE_SLOT)
 	for i: int in range(far_origins.size()):
-		var seq: int = Match.feed_seq(REMOTE_SLOT)
-		_remote_place(net, far_origins[i], 0, Quaternion.IDENTITY, seq)
+		_remote_place(net, far_origins[i], 0, Quaternion.IDENTITY, Match.feed_seq(REMOTE_SLOT))
+		assert_eq(net.intents_accepted(REMOTE_SLOT), 0, "A far-off-disk release is refused, not consumed (Bontago-mv0.24).")
+		assert_eq(_block_count(), 0, "Nothing spawns for a refused release.")
+		assert_eq(Match.feed_seq(REMOTE_SLOT), seq_before, "A refusal never advances the cadence.")
+		assert_eq(Match.held_shape(REMOTE_SLOT), held_before, "The refused piece stays in hand.")
 
-		assert_eq(net.intents_accepted(REMOTE_SLOT), i + 1, "The block is still consumed and burned (spec 2.2).")
-		assert_eq(_block_count(), i + 1)
-		var block: Block = _blocks_root.get_child(i) as Block
-		var local: Vector3 = _field.to_local(block.global_position)
-		assert_lt(
-			Vector2(local.x, local.z).length(), half_extent,
-			"Burned block %d must spawn inside the kill plane's area, not at the raw far-off-disk origin." % i
-		)
-		# Bontago-mv0.10: a burn still consumes the held piece and locks the
-		# next one exactly like any other release (Match.request_place()
-		# calls _consume_and_refeed() unconditionally); without this the
-		# second far-off-disk intent in this loop would be refused as locked
-		# instead of exercising the burn-clamp path a second time.
-		Match.debug_unlock_slot(REMOTE_SLOT)
-
-	assert_eq(net.intents_refused(REMOTE_SLOT), 0, "A far-off-disk pose is well-formed; it burns, it is not refused.")
+	Events.placement_rejected.disconnect(on_rejected)
+	assert_eq(rejections.size(), far_origins.size(), "Each refused release reports placement_rejected once.")
+	assert_eq(rejections.count(REMOTE_SLOT), far_origins.size(), "The rejection names the releasing slot.")
 
 
 func test_malformed_cursor_poses_are_dropped_and_the_last_good_cursor_survives() -> void:
