@@ -3,6 +3,35 @@
 Prepared 2026-09-18 from Git, Beads, project files and the interrupted local Claude
 session. This is a restart snapshot. Refresh live state; keep task progress in Beads.
 
+## Update 2026-09-22 — resume here
+
+**Git:** `main` clean and pushed at the commit that carries this note (see `git log -1`).
+Only worktree: `M:/Bontago-worktrees/play` (owner's playable copy, detached; recreate
+freely). Commit + push authority granted by the owner (Beads memory `stackfall-git-authority`).
+
+**Shipped today:** in-game tuning panel (F4 / Start+X; `ui/TuningPanel.gd`), per-player
+HUD (held/next preview, interval ring, LOCKED), `autoload/Match.gd` split into
+`autoload/match/{MatchFeed,MatchPlacement,MatchTerritory,MatchLifecycle}.gd` (pure
+refactor), test fixtures on a tiny map so the **full suite runs in ~2 min** (754 tests,
+753 pass, 1 known pending), `tools/run_gut.ps1` now fails properly, worker profiles carry
+the week's operating notes, and **model routing via Jev**: run
+`python tools/route_model.py --title ... --files ... --kind ... < brief` before every
+dispatch and log its verdict (model / review / split) in the Beads dispatch comment.
+
+**Policy (owner):** one outcome per package (≤ ~10 files, ~30 min), short report template,
+targeted tests only for workers, full suite once per merged batch, reviewer only for
+`core/`/`net/`/`autoload/`/physics/rules. See `docs/AGENT_WORKFLOW.md`.
+
+**Next exact actions:**
+1. Owner manual checks on the current build (`godot --path M:/Bontago-worktrees/play -- --sandbox --players=2`):
+   controls feel (tune via F4), HUD, footprint, camera start; two-PC Steam test (M3b, `Bontago-mv0.2`).
+2. `Bontago-mv0.20` wire the lobby gravity setting into physics; make camera follow
+   distance/pitch and disk mesh segments live for the tuning panel.
+3. M4 (`docs/M4_PLAN.md`, read its amendment header and `docs/SPEC.md` §2.6 first). Route
+   each package through `tools/route_model.py`; specials roster per the original.
+4. Backlog: `Bontago-ruw` (lone hole, needs the trimesh floor — Jev says Opus), `mv0.1.10`,
+   `mv0.1.13`, `mv0.4`, `mv0.1.12`, `Bontago-2mi` (Dolt push).
+
 ## Update 2026-09-21 (end of day) — resume here
 
 **Git:** `main` is clean and pushed (`6badb77` + this handoff commit). No worktrees other
