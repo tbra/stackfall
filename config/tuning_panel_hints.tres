@@ -1,0 +1,47 @@
+[gd_resource type="Resource" script_class="TuningPanelHints" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/TuningPanelHints.gd" id="1_hints"]
+
+[resource]
+script = ExtResource("1_hints")
+ranges = {
+"CameraTuning.mouse_orbit_speed": Vector2(0.0, 0.02),
+"CameraTuning.pad_orbit_speed": Vector2(0.0, 6.0),
+"CameraTuning.min_pitch_deg": Vector2(-89.0, 0.0),
+"CameraTuning.max_pitch_deg": Vector2(-89.0, 0.0),
+"CameraTuning.zoom_min": Vector2(1.0, 20.0),
+"CameraTuning.zoom_max": Vector2(20.0, 200.0),
+"CameraTuning.zoom_step": Vector2(0.5, 10.0),
+"CameraTuning.pan_speed": Vector2(0.0, 40.0),
+"CameraTuning.mouse_pan_speed": Vector2(0.0, 0.1),
+"CameraTuning.follow_lag_seconds": Vector2(0.0, 1.0),
+"CameraTuning.follow_distance": Vector2(2.0, 40.0),
+"CameraTuning.follow_pitch_deg": Vector2(-89.0, 0.0),
+"CameraTuning.snap_pitch_deg": Vector2(-89.0, 0.0),
+"CameraTuning.snap_distance": Vector2(5.0, 80.0),
+"CameraTuning.snap_duration": Vector2(0.0, 2.0),
+"GhostTuning.block_move_sensitivity": Vector2(0.0, 0.3),
+"GhostTuning.hover_manual_adjust_speed": Vector2(0.0, 5.0),
+"GhostTuning.hover_wheel_step": Vector2(0.0, 2.0),
+"GhostTuning.hover_manual_max": Vector2(0.0, 60.0),
+"PhysicsTuning.cube_size": Vector2(0.2, 3.0),
+"PhysicsTuning.cube_margin": Vector2(0.0, 0.2),
+"PhysicsTuning.cube_mass": Vector2(0.1, 10.0),
+"PhysicsTuning.block_friction": Vector2(0.0, 2.0),
+"PhysicsTuning.block_bounce": Vector2(0.0, 1.0),
+"PhysicsTuning.block_linear_damp": Vector2(0.0, 4.0),
+"PhysicsTuning.block_angular_damp": Vector2(0.0, 4.0),
+"PhysicsTuning.disk_friction": Vector2(0.0, 2.0),
+"PhysicsTuning.kill_plane_y": Vector2(-200.0, -5.0),
+"PhysicsTuning.hover_height": Vector2(0.0, 2.0),
+"PhysicsTuning.sleep_linear_threshold": Vector2(0.0, 1.0),
+"PhysicsTuning.sleep_angular_threshold": Vector2(0.0, 2.0),
+"PhysicsTuning.sleep_settle_time": Vector2(0.0, 3.0),
+"PhysicsTuning.gravity_multiplier": Vector2(0.1, 3.0),
+"TerritoryTuning.hole_delay": Vector2(0.0, 5.0),
+"TerritoryTuning.hole_close_delay": Vector2(0.0, 10.0),
+"TerritoryTuning.capture_hold": Vector2(0.0, 10.0),
+"BlockFeedConfig.bag_multiplier": Vector2(0.5, 6.0),
+"BlockFeedConfig.min_stabilizers_per_bag": Vector2(0.0, 10.0),
+"BlockFeedConfig.preview_count": Vector2(1.0, 5.0),
+}

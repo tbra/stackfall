@@ -20,6 +20,11 @@ extends Node
 @onready var _ghost: GhostPreview = $GhostPreview
 @onready var _hud: HUD = $HUDLayer
 @onready var _panel: SandboxPanel = $SandboxPanel
+## Bontago-mv0.18: the in-game tuning panel (F4), self-contained here the
+## same way SandboxPanel is above -- see game/HotSeat.gd's matching field for
+## why this lives inside the subtree rather than being instanced separately
+## by game/Main.gd.
+@onready var _tuning_panel: TuningPanel = $TuningPanel
 
 var _field: Field = null
 var _active_slot: int = 0
@@ -28,6 +33,7 @@ var _active_slot: int = 0
 func _ready() -> void:
 	Events.turn_changed.connect(_on_turn_changed)
 	_panel.configure(self, _ghost)
+	_tuning_panel.set_controller(_controller)
 	# Bontago-mv0.14 (spec 1.5): see HotSeat.gd's matching _ready() comment --
 	# safe headless (a silent no-op with no window to capture).
 	_controller.enable_mouse_capture()
@@ -37,14 +43,16 @@ func _ready() -> void:
 ## CameraRig lives outside this subtree.
 func set_camera_rig(rig: CameraRig) -> void:
 	_controller.set_camera_rig(rig)
+	_tuning_panel.set_camera_rig(rig)
 
 
 ## Called once by game/Main.gd. Only sandbox_reset_field/sandbox_spawn_tower
 ## need it (Field.place_flags()/set_overlay_source() after a reset; the
 ## ghost already gets its own placement ray from PlayerController without
-## this).
+## this) -- and, from Bontago-mv0.18, the tuning panel's Territory tab.
 func set_field(field: Field) -> void:
 	_field = field
+	_tuning_panel.set_field(field)
 
 
 func controller() -> PlayerController:

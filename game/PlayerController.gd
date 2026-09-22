@@ -93,6 +93,13 @@ var _rotation_drag: Vector2 = Vector2.ZERO
 ## bare unit-test instances so GUT never captures a test runner's real mouse.
 var _mouse_capture_enabled: bool = false
 
+## Bontago-mv0.18 (in-game tuning panel): ui/TuningPanel.gd sets this false
+## while it is open, so dragging a slider or clicking Reset/Save/Copy can't
+## also move the ghost, rotate it, or spend a placement underneath the panel.
+## Defaults true so every existing bare-controller test (no panel involved)
+## keeps behaving exactly as before.
+var input_enabled: bool = true
+
 
 func _ready() -> void:
 	_camera_rig = get_node_or_null(camera_rig_path) as CameraRig
@@ -138,6 +145,8 @@ func enable_mouse_capture() -> void:
 
 
 func _process(delta: float) -> void:
+	if not input_enabled:
+		return
 	_intent_lock_left = maxf(_intent_lock_left - delta, 0.0)
 	_update_gamepad_cursor(delta)
 	_update_ghost_transform()
@@ -200,6 +209,8 @@ func _publish_cursor() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if not input_enabled:
+		return
 	if event is InputEventMouseMotion:
 		var motion: InputEventMouseMotion = event
 		_using_gamepad_cursor = false

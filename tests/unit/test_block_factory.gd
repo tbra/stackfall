@@ -54,6 +54,25 @@ func test_physics_material_matches_tuning() -> void:
 	assert_almost_eq(block.physics_material_override.bounce, _tuning.block_bounce, 0.0001)
 
 
+# --- Bontago-mv0.18 (in-game tuning panel, spec 2.8 "Gravity 0.5x-2x") -------
+
+func test_gravity_scale_matches_the_shared_tunings_multiplier() -> void:
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block: Block = autofree(BlockFactory.build(shape, _tuning))
+	assert_almost_eq(block.gravity_scale, _tuning.gravity_multiplier, 0.0001)
+
+
+## A dedicated PhysicsTuning instance, not the shared preloaded resource (see
+## test_playercontroller_mouse.gd's matching CameraTuning comment on why),
+## since this test's whole point is a *non-default* multiplier.
+func test_gravity_scale_follows_a_custom_multiplier() -> void:
+	var custom_tuning: PhysicsTuning = PhysicsTuning.new()
+	custom_tuning.gravity_multiplier = 1.6
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block: Block = autofree(BlockFactory.build(shape, custom_tuning))
+	assert_almost_eq(block.gravity_scale, 1.6, 0.0001)
+
+
 func _count_children_of_type(node: Node, type_name: String) -> int:
 	var count: int = 0
 	for child: Node in node.get_children():

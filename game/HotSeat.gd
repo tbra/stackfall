@@ -12,11 +12,17 @@ extends Node
 @onready var _controller: PlayerController = $PlayerController
 @onready var _ghost: GhostPreview = $GhostPreview
 @onready var _hud: HUD = $HUDLayer
+## Bontago-mv0.18: the in-game tuning panel (F4). Self-contained here (like
+## _hud above) rather than instanced separately by game/Main.gd, so it exists
+## on every path that builds a HotSeat -- the local --hot-seat entry point
+## AND the real networked match (game/Main.gd's _build_match_world() uses
+## this same scene) -- with one wiring point, instead of two.
+@onready var _tuning_panel: TuningPanel = $TuningPanel
 ## HUD.gd self-wires to Events in its own _ready() ("connects to Events only
 ## — no node paths out of ui/", docs/M2_PLAN.md), and PlayerController's
 ## ghost_path is set inside this scene since both are HotSeat's own children.
-## Only the camera rig — owned by Main, outside this subtree — needs the
-## integrator's help; see set_camera_rig() below.
+## Only the camera rig and Field — owned by Main, outside this subtree — need
+## the integrator's help; see set_camera_rig()/set_field() below.
 
 
 ## Bontago-mv0.14 (spec 1.5): the original's mouse only ever positions the
@@ -28,6 +34,7 @@ extends Node
 ## keeps working without a display.
 func _ready() -> void:
 	_controller.enable_mouse_capture()
+	_tuning_panel.set_controller(_controller)
 
 
 ## Called once by the integrator after Main builds the shared CameraRig
@@ -37,6 +44,15 @@ func _ready() -> void:
 ## subtree.
 func set_camera_rig(rig: CameraRig) -> void:
 	_controller.set_camera_rig(rig)
+	_tuning_panel.set_camera_rig(rig)
+
+
+## Bontago-mv0.18: called once by game/Main.gd, the same hand-off as
+## set_camera_rig() above, for the tuning panel's Territory tab and its
+## refresh_territory_visuals_live() push (Field lives outside this subtree,
+## same reason CameraRig does).
+func set_field(field: Field) -> void:
+	_tuning_panel.set_field(field)
 
 
 ## M3a: online there is no turn to take — every slot plays at once and this

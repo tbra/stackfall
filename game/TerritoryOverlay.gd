@@ -438,6 +438,21 @@ func _apply_uv_uniforms(side: int) -> void:
 	_material.set_shader_parameter(&"uv_offset", UV_CENTER)
 
 
+## Bontago-mv0.18 (in-game tuning panel): the public door ui/TuningPanel.gd
+## uses to push a live TerritoryVisuals edit onto the shader immediately,
+## instead of waiting for the next set_circles() upload (which only ever
+## rewrites the analytic-circle-path uniforms, not these -- see that
+## function's own comment on why the two are split). Everything
+## _apply_visual_uniforms() touches is a pure presentation number
+## (TerritoryVisuals' own class doc: "nothing here may change a rule"), so
+## calling it again mid-match is always safe. A no-op before configure() has
+## built _material (there is nothing yet to refresh).
+func refresh_visual_uniforms() -> void:
+	if _material == null:
+		return
+	_apply_visual_uniforms()
+
+
 func _apply_visual_uniforms() -> void:
 	_material.set_shader_parameter(&"base_color", _visuals.disk_base_color)
 	_material.set_shader_parameter(&"base_metallic", _visuals.disk_metallic)

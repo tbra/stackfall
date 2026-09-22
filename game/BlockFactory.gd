@@ -55,6 +55,15 @@ static func build(shape: BlockShape, tuning: PhysicsTuning, owner_slot: int = -1
 	block.angular_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
 	block.linear_damp = tuning.block_linear_damp
 	block.angular_damp = tuning.block_angular_damp
+	# Bontago-mv0.18 (in-game tuning panel, spec 2.8 "Gravity 0.5x-2x"): a
+	# per-body multiplier rather than PhysicsServer3D.area_set_param() on the
+	# world's default gravity area -- gravity_scale is a plain RigidBody3D
+	# property this factory already owns end to end, needs no World3D/space
+	# lookup, and covers every future spawn automatically since every block
+	# reads the same shared `tuning` instance ui/TuningPanel.gd edits live (see
+	# Block.apply_physics_tuning() for the matching live-apply path on blocks
+	# that already exist).
+	block.gravity_scale = tuning.gravity_multiplier
 
 	var visual_material: StandardMaterial3D = _material_for_color(color)
 	var half_size: float = (tuning.cube_size - tuning.cube_margin) * 0.5

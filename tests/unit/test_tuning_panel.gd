@@ -1,0 +1,337 @@
+extends GutTest
+## Bontago-mv0.18: ui/TuningPanel.gd's reflection-built tabs (one control per
+## exported numeric/bool/Color field of the live tuning resources), the F4 /
+## gamepad Start+X toggle (tools/bootstrap_project.gd's chord DECISION), the
+## physics/territory-visuals live-apply hooks, and the Reset/Save/Copy
+## buttons' underlying logic.
+##
+## camera_tuning/physics_tuning/territory_tuning/ghost_tuning are the same
+## process-wide singletons every other script's `@export var tuning: ... =
+## preload(...)` field resolves to (test_playercontroller_mouse.gd's own
+## CameraTuning comment documents why: mutating one of these leaks into every
+## other test that reads it), so every test that edits one restores it in
+## after_each() -- and any test that writes user://tuning_overrides.cfg
+## removes it too, so a leftover file can't silently change
+## config/*.tres-backed defaults for a later test file's Main.tscn boot
+## (game/Main.gd now calls TuningPanel.apply_saved_overrides() first thing).
+
+var _panel: TuningPanel = null
+
+var _saved_gravity: float
+var _saved_friction: float
+var _saved_bounce: float
+var _saved_linear_damp: float
+var _saved_angular_damp: float
+var _saved_follow_block: bool
+var _saved_follow_distance: float
+var _saved_max_cell_toggles: int
+var _saved_tint_color: Color
+var _saved_disk_metallic: float
+
+
+func before_each() -> void:
+	_panel = autofree(load("res://ui/TuningPanel.tscn").instantiate())
+	add_child_autofree(_panel)
+
+	_saved_gravity = _panel.physics_tuning.gravity_multiplier
+	_saved_friction = _panel.physics_tuning.block_friction
+	_saved_bounce = _panel.physics_tuning.block_bounce
+	_saved_linear_damp = _panel.physics_tuning.block_linear_damp
+	_saved_angular_damp = _panel.physics_tuning.block_angular_damp
+	_saved_follow_block = _panel.camera_tuning.follow_block
+	_saved_follow_distance = _panel.camera_tuning.follow_distance
+	_saved_max_cell_toggles = _panel.territory_tuning.max_cell_toggles_per_frame
+	_saved_tint_color = _panel.ghost_tuning.tint_color
+	_saved_disk_metallic = _panel.territory_visuals.disk_metallic
+
+
+func after_each() -> void:
+	_panel.physics_tuning.gravity_multiplier = _saved_gravity
+	_panel.physics_tuning.block_friction = _saved_friction
+	_panel.physics_tuning.block_bounce = _saved_bounce
+	_panel.physics_tuning.block_linear_damp = _saved_linear_damp
+	_panel.physics_tuning.block_angular_damp = _saved_angular_damp
+	_panel.camera_tuning.follow_block = _saved_follow_block
+	_panel.camera_tuning.follow_distance = _saved_follow_distance
+	_panel.territory_tuning.max_cell_toggles_per_frame = _saved_max_cell_toggles
+	_panel.ghost_tuning.tint_color = _saved_tint_color
+	_panel.territory_visuals.disk_metallic = _saved_disk_metallic
+
+	Input.action_release(&"pause_menu")
+
+	var dir: DirAccess = DirAccess.open("user://")
+	if dir != null and dir.file_exists("tuning_overrides.cfg"):
+		dir.remove("tuning_overrides.cfg")
+
+
+# --- Reflection: one control per exported field ------------------------------
+
+## PhysicsTuning is 14 plain floats and nothing else (config/PhysicsTuning.gd)
+## -- no Color/Array/bool fields to complicate the count -- so it is the
+## clean "one control per numeric field" fixture the design brief asks for.
+func test_physics_tab_builds_one_control_per_exported_float_field() -> void:
+	assert_eq(_panel.row_count_for(_panel.physics_tuning), 14)
+
+
+func test_float_field_gets_an_hslider() -> void:
+	var control: Control = _panel.control_for(_panel.physics_tuning, "gravity_multiplier")
+	assert_true(control is HSlider)
+	assert_almost_eq((control as HSlider).value, _saved_gravity, 0.0001)
+
+
+func test_int_field_gets_a_spinbox() -> void:
+	var control: Control = _panel.control_for(_panel.territory_tuning, "max_cell_toggles_per_frame")
+	assert_true(control is SpinBox)
+	assert_almost_eq((control as SpinBox).value, float(_saved_max_cell_toggles), 0.0001)
+
+
+func test_bool_field_gets_a_checkbutton() -> void:
+	var control: Control = _panel.control_for(_panel.camera_tuning, "follow_block")
+	assert_true(control is CheckButton)
+	assert_eq((control as CheckButton).button_pressed, _saved_follow_block)
+
+
+func test_color_field_gets_a_colorpickerbutton() -> void:
+	var control: Control = _panel.control_for(_panel.ghost_tuning, "tint_color")
+	assert_true(control is ColorPickerButton)
+	assert_true((control as ColorPickerButton).color.is_equal_approx(_saved_tint_color))
+
+
+func test_array_and_packed_array_fields_get_no_control() -> void:
+	assert_null(_panel.control_for(_panel.block_feed_config, "shapes"))
+	assert_null(_panel.control_for(_panel.block_feed_config, "weight_overrides"))
+	assert_null(_panel.control_for(_panel.block_feed_config, "stabilizer_ids"))
+
+
+# --- Controls write the live resource -----------------------------------------
+#
+# Range/SpinBox's own C++ setter does not emit value_changed synchronously
+# from a plain property assignment (verified against this engine build: only
+# a real mouse drag or an explicit emit_signal() does) -- emit_signal() is
+# exactly how Godot itself would eventually deliver that signal to this
+# panel's connected Callable, so driving it directly here is the deterministic
+# equivalent of a user dragging the control, the same idea as this project's
+# other GUT UI tests (e.g. tests/unit/test_net_debug_overlay.gd emits
+# Events.net_stats_updated directly rather than waiting on a real network
+# tick).
+
+func test_slider_change_writes_the_resource() -> void:
+	var slider: HSlider = _panel.control_for(_panel.physics_tuning, "gravity_multiplier") as HSlider
+	slider.emit_signal("value_changed", 2.4)
+	assert_almost_eq(_panel.physics_tuning.gravity_multiplier, 2.4, 0.0001)
+
+
+func test_spinbox_change_writes_the_resource() -> void:
+	var spin: SpinBox = _panel.control_for(_panel.territory_tuning, "max_cell_toggles_per_frame") as SpinBox
+	spin.emit_signal("value_changed", 10.0)
+	assert_eq(_panel.territory_tuning.max_cell_toggles_per_frame, 10)
+
+
+func test_checkbutton_change_writes_the_resource() -> void:
+	var check: CheckButton = _panel.control_for(_panel.camera_tuning, "follow_block") as CheckButton
+	check.emit_signal("toggled", not _saved_follow_block)
+	assert_eq(_panel.camera_tuning.follow_block, not _saved_follow_block)
+
+
+func test_colorpicker_change_writes_the_resource() -> void:
+	var picker: ColorPickerButton = _panel.control_for(_panel.ghost_tuning, "tint_color") as ColorPickerButton
+	var new_color: Color = Color(0.1, 0.2, 0.3, 0.4)
+	picker.emit_signal("color_changed", new_color)
+	assert_true(_panel.ghost_tuning.tint_color.is_equal_approx(new_color))
+
+
+# --- Physics live-apply: an existing Block, not just new spawns --------------
+
+func test_apply_physics_live_updates_an_existing_blocks_damping_material_and_gravity() -> void:
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block: Block = BlockFactory.build(shape, _panel.physics_tuning)
+	add_child_autofree(block)  # _ready() joins Block.TUNING_GROUP for real.
+
+	_panel.physics_tuning.block_linear_damp = 0.77
+	_panel.physics_tuning.block_angular_damp = 0.66
+	_panel.physics_tuning.block_friction = 0.11
+	_panel.physics_tuning.block_bounce = 0.22
+	_panel.physics_tuning.gravity_multiplier = 1.9
+
+	_panel.apply_physics_live()
+
+	assert_almost_eq(block.linear_damp, 0.77, 0.0001)
+	assert_almost_eq(block.angular_damp, 0.66, 0.0001)
+	assert_almost_eq(block.physics_material_override.friction, 0.11, 0.0001)
+	assert_almost_eq(block.physics_material_override.bounce, 0.22, 0.0001)
+	assert_almost_eq(block.gravity_scale, 1.9, 0.0001)
+
+
+func test_a_slider_drag_reaches_an_already_placed_block_end_to_end() -> void:
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block: Block = BlockFactory.build(shape, _panel.physics_tuning)
+	add_child_autofree(block)
+
+	var slider: HSlider = _panel.control_for(_panel.physics_tuning, "block_linear_damp") as HSlider
+	slider.emit_signal("value_changed", 0.9)
+
+	assert_almost_eq(block.linear_damp, 0.9, 0.0001, "changing the field must push the live-apply hook too, not just write the Resource.")
+
+
+# --- Territory visuals live-apply --------------------------------------------
+
+func test_territory_visuals_change_refreshes_a_wired_overlays_shader_uniform() -> void:
+	var field: Field = autofree(Field.new())
+	add_child_autofree(field)  # Field._ready() builds a real, configured overlay.
+	_panel.set_field(field)
+
+	var saved_metallic: float = _panel.territory_visuals.disk_metallic
+	_panel.territory_visuals.disk_metallic = saved_metallic + 0.3
+
+	_panel.refresh_territory_visuals_live()
+
+	var material: ShaderMaterial = field.overlay().material()
+	assert_almost_eq(float(material.get_shader_parameter(&"base_metallic")), saved_metallic + 0.3, 0.0001)
+
+
+func test_refresh_territory_visuals_live_is_a_no_op_with_no_field_wired() -> void:
+	# _panel here never had set_field() called -- must not error.
+	_panel.refresh_territory_visuals_live()
+	assert_true(true, "no field wired must not error.")
+
+
+# --- Reset / Save / Copy ------------------------------------------------------
+
+func test_reset_reloads_physics_tuning_from_disk() -> void:
+	var original: float = _panel.physics_tuning.gravity_multiplier
+	_panel.physics_tuning.gravity_multiplier = original + 1.5
+
+	_panel.reset_all()
+
+	assert_almost_eq(_panel.physics_tuning.gravity_multiplier, original, 0.0001)
+
+
+func test_save_and_apply_saved_overrides_round_trip_via_user_dir() -> void:
+	var original_gravity: float = _panel.physics_tuning.gravity_multiplier
+	var original_follow_distance: float = _panel.camera_tuning.follow_distance
+	_panel.physics_tuning.gravity_multiplier = original_gravity + 0.6
+	_panel.camera_tuning.follow_distance = original_follow_distance + 3.0
+
+	var err: Error = _panel.save_overrides()
+	assert_eq(err, OK)
+
+	# Simulate a fresh boot: put the shared singletons back to their file
+	# defaults, then let the saved override reapply the edited values --
+	# exactly what game/Main.gd's boot hook does before anything else runs.
+	_panel.physics_tuning.gravity_multiplier = original_gravity
+	_panel.camera_tuning.follow_distance = original_follow_distance
+
+	TuningPanel.apply_saved_overrides()
+
+	assert_almost_eq(_panel.physics_tuning.gravity_multiplier, original_gravity + 0.6, 0.0001)
+	assert_almost_eq(_panel.camera_tuning.follow_distance, original_follow_distance + 3.0, 0.0001)
+
+
+func test_apply_saved_overrides_ignores_a_stale_unknown_key() -> void:
+	var config: ConfigFile = ConfigFile.new()
+	config.set_value("PhysicsTuning", "no_longer_a_real_field", 999.0)
+	assert_eq(config.save("user://tuning_overrides.cfg"), OK)
+
+	# Must not error (Object.set() on an unknown property is otherwise silently
+	# ignored by Godot itself, but the explicit valid-key filter is what this
+	# test pins).
+	TuningPanel.apply_saved_overrides()
+	assert_true(true, "a stale key must not raise an error.")
+
+
+func test_copy_text_includes_every_resource_section_and_current_values() -> void:
+	_panel.physics_tuning.gravity_multiplier = 1.75
+
+	var text: String = _panel.build_copy_text()
+
+	assert_true(text.contains("# CameraTuning"))
+	assert_true(text.contains("# GhostTuning"))
+	assert_true(text.contains("# PhysicsTuning"))
+	assert_true(text.contains("# TerritoryTuning"))
+	assert_true(text.contains("# TerritoryVisuals"))
+	assert_true(text.contains("# BlockFeedConfig"))
+	assert_true(text.contains("gravity_multiplier = 1.75"))
+
+
+# --- Availability: host/offline vs. client -----------------------------------
+
+func test_offline_shows_every_tab() -> void:
+	_panel.net_provider = FakeNet.offline()
+	_panel.rebuild()
+	for index: int in range(_panel._tab_container.get_tab_count()):
+		assert_false(_panel._tab_container.is_tab_hidden(index))
+
+
+func test_host_shows_every_tab() -> void:
+	_panel.net_provider = FakeNet.host()
+	_panel.rebuild()
+	for index: int in range(_panel._tab_container.get_tab_count()):
+		assert_false(_panel._tab_container.is_tab_hidden(index))
+
+
+func test_client_hides_physics_territory_and_feed_but_not_camera_or_controls() -> void:
+	_panel.net_provider = FakeNet.client(0)
+	_panel.rebuild()
+	assert_false(_panel._tab_container.is_tab_hidden(0), "Camera")
+	assert_false(_panel._tab_container.is_tab_hidden(1), "Controls")
+	for index: int in range(2, _panel._tab_container.get_tab_count()):
+		assert_true(_panel._tab_container.is_tab_hidden(index), "tab %d (Physics/Territory/Feed)" % index)
+
+
+# --- Toggle: F4 / gamepad Start+X --------------------------------------------
+
+func _key_press(keycode: Key) -> InputEventKey:
+	var event: InputEventKey = InputEventKey.new()
+	event.device = -1
+	event.physical_keycode = keycode
+	event.pressed = true
+	return event
+
+
+func _pad_press(button: JoyButton) -> InputEventJoypadButton:
+	var event: InputEventJoypadButton = InputEventJoypadButton.new()
+	event.device = -1
+	event.button_index = button
+	event.pressed = true
+	return event
+
+
+func test_f4_toggles_visibility_both_ways() -> void:
+	var event: InputEventKey = _key_press(KEY_F4)
+	assert_true(event.is_action_pressed(&"tuning_panel_toggle"), "F4 should map to tuning_panel_toggle")
+
+	assert_false(_panel.visible)
+	_panel._unhandled_input(event)
+	assert_true(_panel.visible)
+	_panel._unhandled_input(event)
+	assert_false(_panel.visible)
+
+
+func test_toggle_suppresses_and_restores_controller_input() -> void:
+	var controller: PlayerController = autofree(PlayerController.new())
+	add_child_autofree(controller)
+	_panel.set_controller(controller)
+	assert_true(controller.input_enabled, "fixture: input starts enabled")
+
+	_panel._unhandled_input(_key_press(KEY_F4))
+	assert_false(controller.input_enabled, "opening the panel must suppress gameplay input")
+
+	_panel._unhandled_input(_key_press(KEY_F4))
+	assert_true(controller.input_enabled, "closing the panel must restore it")
+
+
+func test_gamepad_x_alone_does_not_toggle() -> void:
+	var event: InputEventJoypadButton = _pad_press(JOY_BUTTON_X)
+	assert_true(event.is_action_pressed(&"tuning_panel_toggle"))
+
+	_panel._unhandled_input(event)
+	assert_false(_panel.visible, "X alone is hover_lower, not the tuning-panel chord.")
+
+
+func test_gamepad_start_plus_x_toggles() -> void:
+	Input.action_press(&"pause_menu")
+	var event: InputEventJoypadButton = _pad_press(JOY_BUTTON_X)
+
+	_panel._unhandled_input(event)
+
+	assert_true(_panel.visible, "Start held + X pressed should toggle the panel.")

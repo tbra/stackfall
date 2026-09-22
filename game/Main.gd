@@ -89,6 +89,12 @@ var _world_built: bool = false
 func _ready() -> void:
 	print(_boot_line())
 
+	# Bontago-mv0.18: load any saved tuning-panel overrides onto the shared
+	# tuning singletons before anything else in the tree reads them (nothing
+	# does yet at this point -- see ui/TuningPanel.gd's own doc comment on why
+	# that ordering doesn't matter either way).
+	TuningPanel.apply_saved_overrides()
+
 	if _has_cmdline_flag("hot-seat"):
 		_start_hot_seat_match()
 		return
@@ -123,6 +129,7 @@ func _start_hot_seat_match() -> void:
 	_hot_seat = HOT_SEAT_SCENE.instantiate() as HotSeat
 	add_child(_hot_seat)
 	_hot_seat.set_camera_rig(_camera_rig)
+	_hot_seat.set_field(_field)
 	Match.register_world(_field, _registry, _blocks_container)
 	Match.start_match(_build_hot_seat_config())
 
@@ -315,6 +322,7 @@ func _build_match_world() -> void:
 	_hot_seat = HOT_SEAT_SCENE.instantiate() as HotSeat
 	add_child(_hot_seat)
 	_hot_seat.set_camera_rig(_camera_rig)
+	_hot_seat.set_field(_field)
 	_hot_seat.bind_local_slot(Net.local_slot())
 
 	_debug_overlay = NET_DEBUG_OVERLAY_SCENE.instantiate() as NetDebugOverlay

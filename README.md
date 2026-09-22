@@ -164,6 +164,45 @@ Every hotkey still goes through `Match.request_place()`/`Match.start_match()` li
 click would — sandbox decides no rules of its own, so a territory rewrite only ever changes
 what the panel's validity label prints, never this file.
 
+## Tuning panel (F4)
+
+Press **F4** (gamepad: hold **Start** and press **X**) at any time — sandbox, hot-seat, or a
+real networked match — to open an in-game panel of sliders/spinboxes/checkboxes/color
+pickers for every tunable in `config/CameraTuning.gd`, `GhostTuning.gd`, `PhysicsTuning.gd`,
+`TerritoryTuning.gd`/`TerritoryVisuals.gd` and `BlockFeedConfig.gd`, one control per exported
+field, built automatically by reflection: add a new `@export` to any of those resources and
+it gets a control here for free, no panel code change required. The mouse is released and
+gameplay input (moving/rotating/dropping the ghost) is suppressed while it's open; closing it
+re-hides the mouse and hands control back.
+
+Five tabs: **Camera**, **Controls** (ghost/placement feel), **Physics** (gravity, damping,
+friction, bounce, the kill plane...), **Territory** (rule numbers plus the overlay's look),
+**Feed** (the block bag). A client in a networked match only sees **Camera**/**Controls** —
+editing physics or territory locally on a client would be inert anyway, since only the host
+runs physics (`net/SnapshotSync.gd` freezes and moves a client's bodies for it).
+
+Every control writes straight onto the same live resource instance the rest of the game
+already reads, so most fields take effect on their very next read (next frame, for almost
+everything). A few are pushed explicitly the moment you change them: a **Physics** edit
+(damping, friction, bounce, gravity) re-applies to every block already standing, not just the
+next one spawned; a **Territory** visuals edit (colors, outline, shimmer, rim) refreshes the
+disk's shader uniforms immediately. Two fields are **not** live: `CameraTuning.follow_distance`
+/ `follow_pitch_deg` are only read once, when the camera rig is built, so a change shows up
+next match/scene reload; `TerritoryVisuals.disk_mesh_segments` is baked into the disk mesh the
+same way.
+
+Buttons at the bottom:
+
+- **Reset** — reloads every resource's fields from its `.tres` on disk (discards unsaved
+  edits, does not touch a saved override file).
+- **Save override** — writes every field to `user://tuning_overrides.cfg`. `game/Main.gd`
+  applies this file to the shared tuning resources first thing at boot, before anything else
+  in the game reads them, so a saved tweak survives a restart without editing a `.tres`.
+- **Copy** — copies every field's current value to the clipboard as `name = value` lines
+  (`Color(r, g, b, a)` for colours), grouped under a `# ClassName` header per resource, ready
+  to paste straight into the matching `config/*.tres` file to make a tweak permanent in the
+  repo.
+
 ## Requirements
 
 - Godot **4.6+**, standard build (not .NET). Developed against 4.7.2.

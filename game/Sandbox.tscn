@@ -1,10 +1,11 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://game/Sandbox.gd" id="1_sandbox"]
 [ext_resource type="PackedScene" path="res://game/GhostPreview.tscn" id="2_ghost"]
 [ext_resource type="Script" path="res://game/PlayerController.gd" id="3_controller"]
 [ext_resource type="PackedScene" path="res://ui/HUD.tscn" id="4_hud"]
 [ext_resource type="PackedScene" path="res://ui/SandboxPanel.tscn" id="5_panel"]
+[ext_resource type="PackedScene" path="res://ui/TuningPanel.tscn" id="6_tuning"]
 
 [node name="Sandbox" type="Node"]
 script = ExtResource("1_sandbox")
@@ -18,3 +19,5 @@ ghost_path = NodePath("../GhostPreview")
 [node name="HUDLayer" parent="." instance=ExtResource("4_hud")]
 
 [node name="SandboxPanel" parent="." instance=ExtResource("5_panel")]
+
+[node name="TuningPanel" parent="." instance=ExtResource("6_tuning")]

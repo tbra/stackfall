@@ -254,6 +254,21 @@ func _actions() -> Dictionary:
 	# outside this file.
 	a["net_debug_toggle"] = [_key(KEY_F3), _pad(JOY_BUTTON_Y)]
 
+	# DECISION (tools/bootstrap_project.gd, Bontago-mv0.18 -- owner request:
+	# "add a settings menu with sliders so I can play around and adjust the
+	# camera in-game"): unlike net_debug_toggle/the sandbox hotkeys above,
+	# this one has to work in the real, shipped game (offline and online), not
+	# only a debug entry point, so it can't reach for the Xbox
+	# Elite/DualSense-only paddle buttons sandbox_reset_field etc. use. Same
+	# technique as net_debug_toggle's own Back+Y chord though: every
+	# face/shoulder/stick/D-pad button is already claimed, so the gamepad half
+	# binds to X (already hover_lower) and ui/TuningPanel.gd requires
+	# pause_menu (Start) to be held at the same time before it treats the
+	# press as the toggle -- a Start+X chord, distinct from net_debug_toggle's
+	# own Back+Y one, built entirely from existing Input Map actions rather
+	# than a raw JOY_BUTTON_* literal outside this file.
+	a["tuning_panel_toggle"] = [_key(KEY_F4), _pad(JOY_BUTTON_X)]
+
 	# --- Sandbox debug hotkeys (Bontago-mv0.8) -------------------------------
 	# Unlisted like net_debug_toggle above: only reachable through
 	# `godot --path . -- --sandbox` (game/Main.gd), never seen in the shipped
