@@ -56,6 +56,19 @@ foreach ($dll in @("libgodotsteam.windows.template_release.x86_64.dll", "libgodo
 # build that was not started by the Steam client itself.
 Set-Content -Path (Join-Path $outDir "steam_appid.txt") -Value "480" -Encoding ascii -NoNewline
 
+# assets-audio package: autoload/Sfx.gd resolves its asset root as
+# <exe dir>/assets/original/audio in an export (OS.has_feature("editor") is
+# false there), never through the import pipeline -- assets/original/ is
+# gitignored (per-developer install, tools/install_original_assets.ps1), so
+# mirror it beside the exe the same way the GodotSteam DLLs above are, or the
+# exported build ships silent.
+$originalAssets = Join-Path $Path "assets/original"
+if (Test-Path $originalAssets) {
+	Copy-Item -Recurse -Force $originalAssets (Join-Path $outDir "assets/original")
+} else {
+	Write-Warning "assets/original/ not installed in $Path; the export will run with no original-asset sound (see tools/install_original_assets.ps1)."
+}
+
 Get-ChildItem $outDir | ForEach-Object { "{0,12:N0}  {1}" -f $_.Length, $_.Name }
 Write-Host ""
 Write-Host "Add to Steam: Steam > Games > Add a Non-Steam Game to My Library > Browse > $exe"

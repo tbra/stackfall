@@ -158,3 +158,14 @@ signal net_steam_status_changed(available: bool, detail: String)
 ## {lobby_id, name, players, max, map}, the Steam-side equivalent of
 ## net_games_discovered.
 signal net_steam_lobbies_discovered(lobbies: Array[Dictionary])
+
+# --- Audio (assets-audio package) --------------------------------------------
+
+## game/Block.gd detected a sudden drop in its own speed frame to frame (a
+## landing or collision -- no contact_monitor, which cost too much physics
+## step time; see Block._physics_process()). `speed` is that deceleration
+## magnitude in m/s; autoload/Sfx.gd is the only listener and scales its
+## thud's volume from it (config/AudioConfig.gd's impact_speed_min/_loud).
+## Throttled per block (Block.IMPACT_EMIT_INTERVAL_MS) so a long slide or
+## tumble doesn't spam one impact into a machine-gun of thuds.
+signal block_impacted(speed: float)

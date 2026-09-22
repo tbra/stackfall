@@ -28,6 +28,7 @@ Net="*res://autoload/Net.gd"
 Match="*res://autoload/Match.gd"
 SnapshotSync="*res://net/SnapshotSync.gd"
 MatchNet="*res://net/MatchNet.gd"
+Sfx="*res://autoload/Sfx.gd"
 
 [debug]
 

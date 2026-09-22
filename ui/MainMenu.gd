@@ -60,6 +60,7 @@ func _ready() -> void:
 	_host_online_button.pressed.connect(_on_host_online_pressed)
 	_refresh_steam_button.pressed.connect(_on_refresh_steam_pressed)
 	_steam_lobby_list.item_activated.connect(_on_steam_lobby_activated)
+	_connect_click_and_hover_sounds()
 	Events.net_games_discovered.connect(_on_games_discovered)
 	Events.net_join_failed.connect(_on_join_failed)
 	Events.net_steam_lobbies_discovered.connect(_on_steam_lobbies_discovered)
@@ -82,6 +83,27 @@ func _exit_tree() -> void:
 
 
 # --- Button handlers ---------------------------------------------------------
+
+## assets-audio package: UI button press/hover has no Events signal of its
+## own (it isn't gameplay), so this calls Sfx directly -- the one named
+## exception to "Sfx listens, nothing calls it" (autoload/Sfx.gd's header).
+func _connect_click_and_hover_sounds() -> void:
+	var buttons: Array[BaseButton] = [
+		_host_button, _quit_button, _refresh_button, _direct_join_button,
+		_host_online_button, _refresh_steam_button,
+	]
+	for button: BaseButton in buttons:
+		button.pressed.connect(_on_sound_button_pressed)
+		button.mouse_entered.connect(_on_sound_button_hovered)
+
+
+func _on_sound_button_pressed() -> void:
+	Sfx.play(AudioConfig.EVENT_CLICK)
+
+
+func _on_sound_button_hovered() -> void:
+	Sfx.play(AudioConfig.EVENT_HOVER)
+
 
 func _on_host_pressed() -> void:
 	var err: Error = net_provider.host_game(0, _player_name())

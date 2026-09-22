@@ -247,6 +247,25 @@ To develop or test the Steam transport locally (Windows):
    and logged in, `2` if it isn't; both are fine for local testing.
 4. `godot --headless --editor --path . --quit` should still print nothing.
 
+## Original assets (optional)
+
+`autoload/Sfx.gd` plays placeholder sound effects and music lifted from the original 2003
+Bontago install. Those files are **third-party copyrighted assets and never enter this
+public repo** — `res://assets/original/` is entirely untracked, the same pattern
+`res://addons/godotsteam/` uses above. Without it, the game runs and plays silently; one
+info line prints at startup and every `Sfx.play()` call is a no-op.
+
+To install them locally, if you have an original Bontago install (Windows):
+
+```powershell
+tools/install_original_assets.ps1 [-Source "C:\Program Files (x86)\Bontago"]
+```
+
+This copies `Audio\SoundFX\*.wav` and `Audio\Music\bontago1.mp3` (lowercasing every
+filename) into `assets/original/audio/`. Re-run it any time; it's idempotent.
+`tools/export_windows.ps1` mirrors `assets/original/` beside an exported `.exe` the same
+way it mirrors the GodotSteam DLLs, so an exported build keeps its sound.
+
 ## Commands
 
 Run the editor:

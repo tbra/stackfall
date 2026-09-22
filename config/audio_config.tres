@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="AudioConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/AudioConfig.gd" id="1_audio"]
+
+[resource]
+script = ExtResource("1_audio")
+thud_files = Array[String](["thud1.wav", "thud2.wav", "thud3.wav", "thud4.wav", "thud5.wav"])
+rejected_file = "no.wav"
+click_file = "click.wav"
+hover_file = "mouseover.wav"
+drop_file = "whoosh.wav"
+bounce_file = "boing.wav"
+music_file = "bontago1.mp3"
+bomb_file = "bomb.wav"
+rocket_file = "rocket.wav"
+volcano_file = "volcano.wav"
+quake_file = "quake2.wav"
+propeller_file = "propeller.wav"
+breakage_file = "breakage.wav"
+creak_file = "creak.wav"
+impact_speed_min = 1.0
+impact_speed_loud = 8.0
+impact_quiet_db_offset = -18.0
+impact_loud_db_offset = 0.0
+sfx_volume_db = 0.0
+music_volume_db = -10.0
+max_simultaneous = 8
+impacts_enabled = true

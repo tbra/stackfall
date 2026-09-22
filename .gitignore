@@ -25,6 +25,13 @@ addons/godotsteam/**/*.dylib
 # installed per developer (README "Steam setup"); tools/check_steam_setup.ps1 verifies it.
 /addons/godotsteam/
 
+# assets-audio package: the original Bontago's SFX/music/textures are
+# third-party copyrighted files and this repo is public -- they must NEVER be
+# committed. Installed per developer by tools/install_original_assets.ps1 (see
+# README "Original assets (optional)"); autoload/Sfx.gd runs silently without
+# this folder.
+/assets/original/
+
 # Mono/.NET (unused, standard build)
 .mono/
 data_*/

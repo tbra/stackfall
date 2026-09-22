@@ -83,6 +83,7 @@ func _ready() -> void:
 	_start_button.pressed.connect(_on_start_pressed)
 	_ready_check.toggled.connect(_on_ready_toggled)
 	_invite_friends_button.pressed.connect(_on_invite_friends_pressed)
+	_connect_click_and_hover_sounds()
 	Events.net_lobby_data_changed.connect(_on_lobby_data_changed)
 	Events.net_peer_joined.connect(_on_peer_joined)
 	Events.net_peer_left.connect(_on_peer_left)
@@ -148,6 +149,26 @@ func _connect_control_signals() -> void:
 	_match_timer_spin.value_changed.connect(_on_value_changed)
 	_gifts_check.toggled.connect(_on_toggled)
 	_sudden_death_check.toggled.connect(_on_toggled)
+
+
+## assets-audio package: UI button press/hover has no Events signal of its
+## own (it isn't gameplay), so this calls Sfx directly -- the one named
+## exception to "Sfx listens, nothing calls it" (autoload/Sfx.gd's header).
+## Scoped to actual buttons, not every settings control, so dragging a
+## slider doesn't spam hover sounds.
+func _connect_click_and_hover_sounds() -> void:
+	var buttons: Array[BaseButton] = [_start_button, _invite_friends_button, _ready_check]
+	for button: BaseButton in buttons:
+		button.pressed.connect(_on_sound_button_pressed)
+		button.mouse_entered.connect(_on_sound_button_hovered)
+
+
+func _on_sound_button_pressed() -> void:
+	Sfx.play(AudioConfig.EVENT_CLICK)
+
+
+func _on_sound_button_hovered() -> void:
+	Sfx.play(AudioConfig.EVENT_HOVER)
 
 
 func _on_option_changed(_index: int) -> void:
