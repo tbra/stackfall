@@ -1,9 +1,10 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://game/Main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://game/Field.tscn" id="2_field"]
 [ext_resource type="PackedScene" path="res://game/CameraRig.tscn" id="3_camera"]
 [ext_resource type="Script" path="res://game/BlockRegistry.gd" id="4_registry"]
+[ext_resource type="PackedScene" path="res://game/Skybox.tscn" id="5_skybox"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 
@@ -20,6 +21,8 @@ script = ExtResource("1_main")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_1")
+
+[node name="Skybox" parent="." instance=ExtResource("5_skybox")]
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 rotation_degrees = Vector3(-45, -30, 0)

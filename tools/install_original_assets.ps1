@@ -109,3 +109,6 @@ if ($installedCount -eq 0) {
 }
 
 Write-Host "Done: $installedCount file(s) installed under '$destRoot'." -ForegroundColor Green
+
+$gdignore = Join-Path $destRoot '.gdignore'
+if (-not (Test-Path $gdignore)) { New-Item -ItemType File -Path $gdignore | Out-Null; Write-Host "  wrote .gdignore" }

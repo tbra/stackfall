@@ -6,6 +6,7 @@
 script = ExtResource("1_map")
 id = &"round_large"
 field_radius = 60.0
+skybox_set = "mountain"
 disk_height = 1.0
 cell_size = 1.0
 territory_res = 512

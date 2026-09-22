@@ -70,6 +70,7 @@ const NET_DEBUG_OVERLAY_SCENE: PackedScene = preload("res://ui/NetDebugOverlay.t
 @onready var _blocks_container: Node3D = $BlocksContainer
 @onready var _registry: BlockRegistry = $BlockRegistry
 @onready var _camera_rig: CameraRig = $CameraRig
+@onready var _skybox: Skybox = $Skybox
 
 var _main_menu: MainMenu = null
 var _lobby: Lobby = null
@@ -136,6 +137,7 @@ func _start_hot_seat_match() -> void:
 	var config: MatchConfig = Match.config
 	_field.place_flags(config.player_count, config.player_colors, config.goal_flag_count)
 	_field.set_overlay_source(Match.raster(), config.player_colors)
+	_skybox.load_set(config.map_def().skybox_set)
 
 
 ## The lobby settings a real lobby screen collects, for the one path that
@@ -177,6 +179,7 @@ func _start_sandbox_match_with_args(args: PackedStringArray) -> void:
 	var config: MatchConfig = Match.config
 	_field.place_flags(config.player_count, config.player_colors, config.goal_flag_count)
 	_field.set_overlay_source(Match.raster(), config.player_colors)
+	_skybox.load_set(config.map_def().skybox_set)
 
 	# F3's overlay works offline too (Net.stats() reports Offline/0 peers,
 	# which is still useful context while sandbox-testing); it costs nothing
@@ -312,6 +315,7 @@ func _build_match_world() -> void:
 	var config: MatchConfig = Match.config
 	_field.place_flags(config.player_count, config.player_colors, config.goal_flag_count)
 	_field.set_overlay_source(Match.raster(), config.player_colors)
+	_skybox.load_set(config.map_def().skybox_set)
 
 	SnapshotSync.set_disk(_field)
 	SnapshotSync.begin_match(Match.registry(), config.map_def())

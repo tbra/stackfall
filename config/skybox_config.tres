@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="SkyboxConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/SkyboxConfig.gd" id="1_skybox"]
+
+[resource]
+script = ExtResource("1_skybox")
+default_set = "beach"
+face_names = PackedStringArray("back", "bottom", "front", "left", "right", "top")
+box_half_extent = 400.0
+face_rotations = PackedInt32Array(0, 3, 0, 0, 0, 1)
+face_flip_u = PackedByteArray(1, 1, 1, 1, 1, 1)
+face_flip_v = PackedByteArray(0, 0, 0, 0, 0, 0)
+enabled = true
