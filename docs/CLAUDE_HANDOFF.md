@@ -3,7 +3,33 @@
 Prepared 2026-09-18 from Git, Beads, project files and the interrupted local Claude
 session. This is a restart snapshot. Refresh live state; keep task progress in Beads.
 
-## Update 2026-09-22 (night) — resume here
+## Update 2026-09-22 (late) — resume here
+
+**Git:** `main` clean and pushed at the commit carrying this note. Only worktree:
+`M:/Bontago-worktrees/play` (owner's copy; rebuild from main, copy `addons/godotsteam`, run
+`tools/install_original_assets.ps1 -Path M:/Bontago-worktrees/play`).
+
+**Shipped since the night brief (owner's second test of the original):** MMB drag is full
+3-DOF (yaw about world up, pitch about the camera's right axis); the footprint is the XZ hull
+of the rotated cells; the ghost casts no shadow and has no shadow blob; the reject kick is a
+world-space offset; the ghost is grey whenever it cannot be dropped; `CameraTuning.fov_deg`
+slider; blocks render as one solid mesh per shape (`core/blocks/BlockMeshBuilder.gd`, collision
+unchanged); the disc is glass (`glass_alpha`, `tint_opacity_boost`); camera jitter root-caused
+to process order (CameraRig now `process_priority` 1, regression test in `test_camera_rig`).
+Full suite 850+ green.
+
+**Owner retest asked for:** the "cursor stops at the screen edge" report could not be
+reproduced from code (capture is enabled in every mode); retest in a standalone window and
+remember Esc and F4 release capture by design.
+
+**Open owner questions (`bd human list`):** `Bontago-z4h`, `Bontago-4fa`, `Bontago-59u`,
+`Bontago-mvl` (throw binding; blocks M4 P2's throw half).
+
+**Next exact actions:** M4 P2 without throw (special framework, arming/trigger on impact,
+chain cap, `Match.held_special` consumption in `_spawn_block()`), then P3–P5. Backlog
+unchanged (see the night brief below), plus: a dedicated physics layer for placed blocks.
+
+## Update 2026-09-22 (night)
 
 **Git:** `main` clean and pushed at the commit carrying this note. Only worktree:
 `M:/Bontago-worktrees/play` (owner's copy; recreate from main, copy `addons/godotsteam` in,
