@@ -39,6 +39,13 @@ func test_set_next_shape_stores_the_shape_for_the_preview() -> void:
 	assert_eq(hud._next_shape, bar4)
 
 
+func test_set_held_shape_stores_the_shape_for_the_held_preview() -> void:
+	var hud: HUD = _make_hud()
+	var cube: BlockShape = load("res://config/blocks/cube.tres")
+	hud.set_held_shape(cube)
+	assert_eq(hud._held_shape, cube)
+
+
 func test_set_feed_progress_clamps_into_0_1() -> void:
 	var hud: HUD = _make_hud()
 	hud.set_feed_progress(0.42)
@@ -164,3 +171,91 @@ func test_placement_rejected_event_shows_reject_only_for_the_active_slot() -> vo
 	assert_eq(hud._reject_label.text, "", "A rejection for a different slot shouldn't show on this hot-seat HUD.")
 	Events.placement_rejected.emit(0, &"contested")
 	assert_true(hud._reject_label.text.findn("contested") >= 0)
+
+
+# --- Bontago-mv0.9: real-time status replaces the hot-seat "turn" banner ----
+
+
+func test_set_local_slot_never_shows_turn_wording() -> void:
+	var hud: HUD = _make_hud()
+	hud.set_local_slot(0)
+	assert_true(hud._turn_label.text.findn("turn") < 0)
+	assert_true(hud._turn_label.text.findn("Player 1") >= 0)
+
+
+func test_set_local_slot_switches_which_slot_the_widgets_read() -> void:
+	var hud: HUD = _make_hud()
+	var fake_match: FakeMatch = FakeMatch.new()
+	var slot0: PlayerSlot = PlayerSlot.new(0, 0, "P1", Color.RED)
+	var slot1: PlayerSlot = PlayerSlot.new(1, 1, "P2", Color.BLUE)
+	fake_match.slots_by_id[0] = slot0
+	fake_match.slots_by_id[1] = slot1
+	hud.match_provider = fake_match
+
+	hud.set_local_slot(0)
+	assert_eq(hud._active_slot, 0)
+	assert_almost_eq(hud._active_color.r, slot0.color.r, 0.01)
+
+	hud.set_local_slot(1)
+	assert_eq(hud._active_slot, 1)
+	assert_almost_eq(hud._active_color.r, slot1.color.r, 0.01)
+
+
+func test_turn_changed_event_shows_no_turn_wording_outside_hot_seat() -> void:
+	var hud: HUD = _make_hud()
+	var fake_match: FakeMatch = FakeMatch.new()
+	fake_match.config = MatchConfig.new()
+	fake_match.config.hot_seat = false
+	hud.match_provider = fake_match
+
+	Events.turn_changed.emit(0)
+
+	assert_true(hud._turn_label.text.findn("turn") < 0)
+	assert_eq(hud._active_slot, 0)
+
+
+func test_turn_changed_event_still_shows_turn_wording_in_hot_seat() -> void:
+	var hud: HUD = _make_hud()
+	var fake_match: FakeMatch = FakeMatch.new()
+	fake_match.config = MatchConfig.new()
+	fake_match.config.hot_seat = true
+	hud.match_provider = fake_match
+
+	Events.turn_changed.emit(0)
+
+	assert_true(hud._turn_label.text.findn("turn") >= 0)
+
+
+func test_process_updates_ring_progress_from_the_local_slots_feed_progress() -> void:
+	var hud: HUD = _make_hud()
+	var fake_match: FakeMatch = FakeMatch.new()
+	fake_match.feed_progress_by_slot[0] = 0.75
+	fake_match.feed_progress_by_slot[1] = 0.25
+	hud.match_provider = fake_match
+
+	hud.set_local_slot(0)
+	hud._process(0.0)
+	assert_almost_eq(hud._feed_progress, 0.75, 0.001)
+
+	hud.set_local_slot(1)
+	hud._process(0.0)
+	assert_almost_eq(hud._feed_progress, 0.25, 0.001)
+
+
+func test_process_shows_locked_when_the_local_slots_release_is_locked() -> void:
+	var hud: HUD = _make_hud()
+	var fake_match: FakeMatch = FakeMatch.new()
+	fake_match.release_locked_by_slot[0] = true
+	hud.match_provider = fake_match
+
+	hud.set_local_slot(0)
+	hud._process(0.0)
+
+	assert_true(hud._locked)
+	assert_true(hud._locked_label.visible)
+
+	hud.set_local_slot(1)
+	hud._process(0.0)
+
+	assert_false(hud._locked)
+	assert_false(hud._locked_label.visible)
