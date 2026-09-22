@@ -51,7 +51,7 @@ project's binding context:
 Include the issue ID, exact checkout/base, owned files, tests and Git authority.
 For a review, explicitly prohibit edits and use read-only sandbox mode; the
 commands above are project context, not a requirement to run tests during a
-read-only review. Shared Beads writes belong to the orchestrator.
+read-only review. Shared Beads writes belong to the orchestrator; if Codex is ever told to write, it uses `--actor codex`.
 
 ## Reporting
 

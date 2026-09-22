@@ -30,7 +30,8 @@ stackfall-reviewer for an independent read-only review. Give the reviewer the
 candidate diff and logs. Route fixes back to a writer and verify the result.
 
 Coordinate Beads mutations yourself and persist worker checkpoints after each
-meaningful result. Workers supply evidence; you decide acceptance. Never mark
+meaningful result. Pass `--actor claude-orchestrator` on every `bd` write so the
+owner can tell your entries from theirs (bd otherwise stamps the git user). Workers supply evidence; you decide acceptance. Never mark
 an interrupted worker or an unverified review finding complete. Follow the
 conservative Git policy and the project's spec pause points. Continue independent
 authorized work when another package is blocked, but do not skip acceptance gates.
