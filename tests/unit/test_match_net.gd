@@ -305,8 +305,10 @@ func test_counters_balance_across_a_mixed_run() -> void:
 	net.submit_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false, seq0)
 	net.submit_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false, seq0)
 	net.submit_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false, Match.feed_seq(0))
-	# Slot 1 (a remote peer): one good placement, one spoofed slot, one placed
-	# far off the disk, which still burns the block (spec 2.2).
+	# Slot 1 (a remote peer): one good placement, one spoofed slot, one
+	# attempted far off the disk, which Bontago-mv0.24 now simply refuses
+	# (owner test 2026-09-22) instead of burning it (spec 2.2's older line for
+	# a manual release) -- it counts as refused, not accepted, below.
 	net._handle_place_intent(2, 1, _home_world_position(1), 0, Quaternion.IDENTITY, Match.feed_seq(1))
 	net._handle_place_intent(2, 0, _home_world_position(0), 0, Quaternion.IDENTITY, Match.feed_seq(0))
 	net._handle_place_intent(2, 1, Vector3(0.0, 0.0, 0.0), 0, Quaternion.IDENTITY, Match.feed_seq(1))
@@ -403,13 +405,17 @@ func test_a_client_cannot_claim_an_auto_drop() -> void:
 	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
 	_start_playing()
 
-	# Off-disk, which a deliberate placement burns but an auto-drop would have
-	# relocated to a valid point. The wire's auto_drop flag must not be read.
+	# Off-disk, which a deliberate placement now simply refuses (Bontago-mv0.24,
+	# owner test 2026-09-22, supersedes spec 2.2's older burn for this case) --
+	# an auto-drop would have relocated to a valid point instead. Either way
+	# the wire's auto_drop flag must not be read.
 	var far_away: Vector3 = _field.to_global(Vector3(500.0, 0.0, 500.0))
 	net._handle_place_intent(2, 1, far_away, 0, Quaternion.IDENTITY, Match.feed_seq(1))
 
 	assert_eq(net.auto_drops(1), 0, "Only the host's own timer may grant the relocation privilege.")
-	assert_eq(net.intents_accepted(1), 1, "The block is still consumed and burned (spec 2.2).")
+	assert_eq(net.intents_accepted(1), 0, "A refused manual drop is not accepted.")
+	assert_eq(net.intents_refused(1), 1)
+	assert_eq(_block_count(), 0, "Nothing spawns for a refused manual drop.")
 
 
 func test_cursor_for_slot_reports_the_pose_and_its_age() -> void:
@@ -902,6 +908,21 @@ func _hot_seat_config() -> MatchConfig:
 	var config: MatchConfig = _config()
 	config.hot_seat = true
 	return config
+
+
+## Bontago-mv0.24 (owner test 2026-09-22): a relocated auto-drop's landing
+## point mirrors to a client exactly like a rejection does -- decode side
+## first (this test), matching test_a_replicated_elimination_is_applied_to_
+## the_slot's own shape for EVENT_PLAYER_ELIMINATED below.
+func test_a_replicated_relocation_re_emits_on_the_client() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	var net: MatchNetScript = _make_net({}, [1], true)
+	watch_signals(Events)
+
+	net.net_match_event(MatchNetScript.EVENT_PLACEMENT_RELOCATED, [1, Vector2(3.0, -2.0)])
+
+	assert_signal_emitted_with_parameters(Events, "placement_relocated", [1, Vector2(3.0, -2.0)])
 
 
 func test_a_replicated_elimination_is_applied_to_the_slot() -> void:

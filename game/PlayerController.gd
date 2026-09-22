@@ -128,6 +128,7 @@ func _ready() -> void:
 	Events.feed_block_issued.connect(_on_feed_block_issued)
 	Events.feed_timer_expired.connect(_on_feed_timer_expired)
 	Events.placement_rejected.connect(_on_placement_rejected)
+	Events.placement_relocated.connect(_on_placement_relocated)
 
 
 ## HotSeat.gd calls this after Main builds the shared CameraRig: HotSeat.tscn
@@ -504,6 +505,34 @@ func _on_placement_rejected(slot_id: int, _reason: StringName) -> void:
 		return
 	_intent_lock_left = 0.0
 	_ghost.play_reject_animation()
+
+
+## Bontago-mv0.24 (spec 2.5's auto-drop [ORIGINAL]): the host relocated this
+## slot's auto-dropped block to `point` (disk-local x, z) because its own
+## ghost position wasn't valid. Only ever acted on for this controller's own
+## slot -- another slot's relocation is none of this instance's business, the
+## same filter every other per-slot Events reaction here uses.
+##
+## DECISION (game/PlayerController.gd): guarded by `_match != Match` like
+## _intent_target() -- this only ever runs against the real Match autoload
+## (which alone has field()); a test driving a FakeMatch never reaches this
+## far since nothing there emits placement_relocated.
+func _on_placement_relocated(slot_id: int, point: Vector2) -> void:
+	if slot_id != _acting_slot() or _ghost == null or _match != Match:
+		return
+	var field: Field = Match.field()
+	if field == null:
+		return
+	_cursor = field.to_global(Vector3(point.x, 0.0, point.y))
+	# The relocation is a teleport the host already validated, so it must not
+	# be swept against placed blocks (Bontago-mv0.23): re-seed the collision
+	# sweep's last safe point here, or a tower between the old cursor and the
+	# zone would clamp the jump on the next frame.
+	_last_safe_cursor = _cursor
+	_collision_cursor_seeded = true
+	_update_ghost_transform()
+	if _camera_rig != null:
+		_camera_rig.set_follow_position(_ghost.global_position)
 
 
 ## Every frame: the read-only, advisory preview (spec 2.5) that tints the

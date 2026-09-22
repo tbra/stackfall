@@ -666,6 +666,14 @@ func test_resolve_outcome_auto_drop_burns_when_no_relocation_exists() -> void:
 
 # --- REPRO (Bontago-mv0.1.11): far-off-disk burns must not spawn past the ---
 # --- kill plane's area, or the burned body falls forever and leaks. --------
+# Bontago-mv0.24 (owner test 2026-09-22): a manual (auto_drop == false)
+# release this far off-disk is refused outright now, spawning nothing -- see
+# test_a_manual_drop_outside_territory_is_refused_and_the_block_stays_held()
+# in tests/unit/test_placement_refusal.gd. The clamp this file's own repro
+# tests are about only still matters for a forced auto-drop that finds no
+# valid relocation point (MatchNet's own auto-drop-from-last-cursor path can
+# still be handed an arbitrarily far cursor by a hostile/buggy client), so
+# both tests below now drive request_place() with auto_drop == true.
 
 func test_repro_far_off_disk_burn_spawns_within_the_kill_plane_area() -> void:
 	Match.start_match(_hotseat_config(2))
@@ -673,9 +681,9 @@ func test_repro_far_off_disk_burn_spawns_within_the_kill_plane_area() -> void:
 	var hover: float = load("res://config/physics_tuning.tres").hover_height as float
 	var far_origin: Vector3 = _field.to_global(Vector3(1.0e6, hover, 0.0))
 
-	var reason: StringName = Match.request_place(0, far_origin, 0, Quaternion.IDENTITY, false)
+	var reason: StringName = Match.request_place(0, far_origin, 0, Quaternion.IDENTITY, true)
 
-	assert_ne(reason, PlacementRules.REASON_OK, "This pose must fail territory validation and burn.")
+	assert_ne(reason, PlacementRules.REASON_OK, "This pose must fail territory validation, find no relocation, and burn.")
 	assert_eq(_blocks_root.get_child_count(), 1, "The block is still consumed and spawned, then burned.")
 	var spawned: Node3D = _blocks_root.get_child(0) as Node3D
 	var local: Vector3 = _field.to_local(spawned.global_position)
@@ -706,8 +714,8 @@ func test_repro_burn_clamp_margin_lets_a_maximally_clamped_burn_escape_the_kill_
 	var far_origin: Vector3 = _field.to_global(Vector3(1.0e6, hover, 0.0))
 
 	watch_signals(Events)
-	var reason: StringName = Match.request_place(0, far_origin, 0, Quaternion.IDENTITY, false)
-	assert_ne(reason, PlacementRules.REASON_OK, "This pose must fail territory validation and burn.")
+	var reason: StringName = Match.request_place(0, far_origin, 0, Quaternion.IDENTITY, true)
+	assert_ne(reason, PlacementRules.REASON_OK, "This pose must fail territory validation, find no relocation, and burn.")
 
 	var caught: bool = false
 	var max_frames: int = int(round(8.0 * Engine.physics_ticks_per_second))
@@ -775,17 +783,25 @@ func test_request_place_accepts_a_point_inside_the_callers_own_territory() -> vo
 	assert_eq(_blocks_root.get_child_count(), 1)
 
 
-func test_request_place_v2_burns_a_point_inside_another_teams_territory() -> void:
+## Bontago-mv0.24 (owner test 2026-09-22): renamed from
+## test_request_place_v2_burns_a_point_inside_another_teams_territory -- a
+## manual release here is now refused, not burned (see
+## tests/unit/test_placement_refusal.gd for the focused regression case; this
+## one stays to keep the v2 point-check names together).
+func test_request_place_v2_refuses_a_point_inside_another_teams_territory() -> void:
 	Match.start_match(_hotseat_config(2))
 	_run_countdown()
 
 	var reason: StringName = Match.request_place(0, _home_world_position(1), 0, Quaternion.IDENTITY, false)
 
 	assert_eq(reason, PlacementRules.REASON_OUTSIDE_TERRITORY)
-	assert_eq(_blocks_root.get_child_count(), 1, "Still consumed and spawned, then burned (spec 2.2).")
+	assert_eq(_blocks_root.get_child_count(), 0, "A refused manual release must not spawn anything (owner test 2026-09-22).")
 
 
-func test_request_place_v2_burns_a_point_inside_a_goal_flags_no_build_zone() -> void:
+## Bontago-mv0.24: renamed from
+## test_request_place_v2_burns_a_point_inside_a_goal_flags_no_build_zone, same
+## reason as the territory test above.
+func test_request_place_v2_refuses_a_point_inside_a_goal_flags_no_build_zone() -> void:
 	Match.start_match(_hotseat_config(2))
 	_run_countdown()
 	var center_world: Vector3 = _field.to_global(Vector3(0.0, 5.0, 0.0))
@@ -793,7 +809,7 @@ func test_request_place_v2_burns_a_point_inside_a_goal_flags_no_build_zone() -> 
 	var reason: StringName = Match.request_place(0, center_world, 0, Quaternion.IDENTITY, false)
 
 	assert_eq(reason, PlacementRules.REASON_GOAL_ZONE)
-	assert_eq(_blocks_root.get_child_count(), 1, "Still consumed and spawned, then burned (spec 2.2).")
+	assert_eq(_blocks_root.get_child_count(), 0, "A refused manual release must not spawn anything (owner test 2026-09-22).")
 
 
 ## docs/TERRITORY_V2_PLAN.md: "preview_placement runs the same raycast on

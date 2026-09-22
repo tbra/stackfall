@@ -58,9 +58,15 @@ func setup(match_ref: MatchAutoload) -> void:
 ##
 ## Returns PlacementRules.REASON_OK on success, otherwise the REASON_* that
 ## explains the refusal, which is also emitted as Events.placement_rejected.
-## A refused *deliberate* placement still spawns the block and throws it off
-## the map (spec 2.2); a refused auto-drop that finds no valid point does the
-## same.
+##
+## Bontago-mv0.24 (owner test 2026-09-22, supersedes spec 2.2's older "thrown
+## off the map with a visible reject animation" line for this case): a
+## refused *deliberate* (auto_drop == false) placement spawns nothing and
+## consumes nothing — the piece stays held, feed_seq does not advance, and
+## the caller may try again. A refused auto-drop that finds no valid point to
+## relocate to still spawns the block and throws it off the map, since spec
+## 2.5's forced release has nowhere else to put it; one that does find a
+## valid point relocates there instead and emits Events.placement_relocated.
 ##
 ## M3a wraps this in net/MatchNet.gd's `@rpc("any_peer", "call_remote",
 ## "reliable")` intent, which checks the caller's peer id against `slot_id`
@@ -163,19 +169,34 @@ func request_place(
 		relocated = PlacementRules.closest_valid_point(disk_origin, _match.raster(), team_id, _match._territory_tuning)
 	var outcome: Dictionary = _resolve_outcome(result, auto_drop, relocated)
 	var reason: StringName = outcome["reason"]
+
+	if reason != PlacementRules.REASON_OK and not auto_drop:
+		# DECISION (autoload/match/MatchPlacement.gd, Bontago-mv0.24, owner test
+		# 2026-09-22): a manual out-of-zone release is refused outright, not
+		# burned -- the previous "thrown off the map with a visible reject
+		# animation" spawn (spec 2.2) is unreachable from here now; nothing is
+		# spawned or consumed, feed_seq does not move, and _match._feed's
+		# release lock (if any) is never touched, so the caller may simply try
+		# again. This makes the far-off-disk burn/clamp path below (and
+		# net/MatchNet.gd's matching _consumed_a_block()) reachable only for
+		# auto_drop == true, where spec 2.5's forced release still has to land
+		# somewhere. See Events.placement_rejected's own doc comment.
+		Events.placement_rejected.emit(slot_id, reason)
+		return reason
+
 	var final_disk_origin: Vector2 = relocated if outcome["use_relocation"] else disk_origin
 	if reason != PlacementRules.REASON_OK:
 		# Bontago-mv0.1.11: this is the burn path (docs/M2_PLAN.md owner
-		# decision 2 below) and disk_origin is whatever the caller asked
-		# for -- for a remote intent, a finite-but-arbitrary point (spec 3.4:
-		# "The host checks every intent before acting on it"; is_pose_well_
-		# formed() above only refuses non-finite poses, not far-off-disk
-		# ones, since the ghost itself can produce those close to the edge).
-		# Left unclamped, a block spawns and is thrown from that raw point,
-		# lands outside Field's kill plane, and free-falls forever: a leaked
-		# RigidBody3D plus permanent snapshot traffic for it (Field.gd's
-		# _build_kill_plane, not owned here, sizes the box at
-		# map_def.field_radius * Field.KILL_PLANE_RADIUS_FACTOR).
+		# decision 2 below), now reachable only for auto_drop == true (see the
+		# early return above) -- the last cursor MatchNet stored for a remote
+		# slot is finite-but-arbitrary (spec 3.4: "The host checks every intent
+		# before acting on it"; is_pose_well_formed() above only refuses
+		# non-finite poses, not far-off-disk ones). Left unclamped, a block
+		# spawns and is thrown from that raw point, lands outside Field's kill
+		# plane, and free-falls forever: a leaked RigidBody3D plus permanent
+		# snapshot traffic for it (Field.gd's _build_kill_plane, not owned
+		# here, sizes the box at map_def.field_radius *
+		# Field.KILL_PLANE_RADIUS_FACTOR).
 		final_disk_origin = _clamp_disk_origin_for_burn(final_disk_origin)
 
 	# Bontago-mv0.12 + Bontago-cmc.7, updated Bontago-mv0.17 item 3: `origin`
@@ -189,12 +210,18 @@ func request_place(
 	))
 	var spawned: Block = _spawn_block(shape, final_world_origin, basis, slot_id)
 	if reason != PlacementRules.REASON_OK:
-		# Owner decision (docs/M2_PLAN.md, "Invalid release — burn the block"):
-		# any release on an invalid spot, deliberate or auto-drop, spawns the
-		# block and throws it off the map; the block is still consumed either
-		# way (spec 2.2).
+		# Owner decision (docs/M2_PLAN.md, "Invalid release — burn the block"),
+		# narrowed by Bontago-mv0.24 to auto-drop only (see above): a forced
+		# release that finds no valid point to relocate to still spawns the
+		# block and throws it off the map; it is still consumed either way.
 		_burn_block(spawned, final_disk_origin)
 		Events.placement_rejected.emit(slot_id, reason)
+	elif outcome["use_relocation"]:
+		# Bontago-mv0.24: this auto-drop *did* find a valid point and landed
+		# there instead of at the caller's raw ghost position -- tell the
+		# owning client where, so its cursor and camera can jump to match
+		# (game/PlayerController.gd's _on_placement_relocated).
+		Events.placement_relocated.emit(slot_id, final_disk_origin)
 
 	_match._feed._consume_and_refeed(slot_id, auto_drop)
 	if _match.config.hot_seat:
@@ -330,7 +357,10 @@ func _clamp_disk_origin_for_burn(disk_origin: Vector2) -> Vector2:
 
 
 ## Spec 2.2: a rejected block "is thrown off the map with a visible reject
-## animation". Impulse points radially outward from the disk center, blended
+## animation". Bontago-mv0.24 (owner test 2026-09-22): request_place() now
+## only reaches this for auto_drop == true (a forced release with no valid
+## relocation point) -- a manual release is refused before a block is ever
+## spawned. Impulse points radially outward from the disk center, blended
 ## with an upward component (TerritoryTuning.reject_impulse /
 ## reject_upward_fraction) so it visibly launches rather than just sliding.
 func _burn_block(block: Block, disk_origin: Vector2) -> void:

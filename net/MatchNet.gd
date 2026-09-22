@@ -52,6 +52,7 @@ const EVENT_TURN_CHANGED: StringName = &"turn_changed"
 const EVENT_FEED_ISSUED: StringName = &"feed_issued"
 const EVENT_FEED_EXPIRED: StringName = &"feed_expired"
 const EVENT_PLACEMENT_REJECTED: StringName = &"placement_rejected"
+const EVENT_PLACEMENT_RELOCATED: StringName = &"placement_relocated"
 const EVENT_PLAYER_ELIMINATED: StringName = &"player_eliminated"
 const EVENT_MATCH_WON: StringName = &"match_won"
 const EVENT_GIFT_SPAWNED: StringName = &"gift_spawned"
@@ -134,6 +135,7 @@ func _ready() -> void:
 	Events.feed_block_issued.connect(_on_feed_block_issued)
 	Events.feed_timer_expired.connect(_on_feed_timer_expired)
 	Events.placement_rejected.connect(_on_placement_rejected)
+	Events.placement_relocated.connect(_on_placement_relocated)
 	Events.player_eliminated.connect(_on_player_eliminated)
 	Events.match_won.connect(_on_match_won)
 	Events.gift_spawned.connect(_on_gift_spawned)
@@ -503,7 +505,7 @@ func _apply_intent(
 	var reason: StringName = _authority().request_place(
 		slot_id, origin, orientation_index, free_quat, auto_drop, feed_seq
 	)
-	var consumed: bool = _consumed_a_block(reason)
+	var consumed: bool = _consumed_a_block(reason, auto_drop)
 	if auto_drop:
 		if consumed:
 			_bump(_auto_drops, slot_id)
@@ -514,14 +516,23 @@ func _apply_intent(
 	return reason
 
 
-## Whether an outcome spent the slot's held block. Only two reasons mean the
+## Whether an outcome spent the slot's held block. Two reasons always mean the
 ## intent never reached the field: the slot had nothing to place (an empty
 ## feed, an eliminated slot, a stale feed_seq — all REASON_NO_BLOCK) and it
-## was not its turn in hot-seat. Every other outcome spawned the block, even
-## when the spot was invalid, because spec 2.2 throws a rejected block off the
-## map rather than handing it back.
-static func _consumed_a_block(reason: StringName) -> bool:
-	return reason != PlacementRules.REASON_NO_BLOCK and reason != PlacementRules.REASON_NOT_YOUR_TURN
+## was not its turn in hot-seat.
+##
+## Bontago-mv0.24 (owner test 2026-09-22): every other reason used to mean the
+## block was consumed regardless, because spec 2.2 threw a rejected block off
+## the map rather than handing it back. That is still true for an auto-drop
+## (a forced release always lands somewhere, relocated or burned), but a
+## manual (auto_drop == false) refusal now spends nothing at all
+## (MatchPlacement.request_place()'s own DECISION) — only REASON_OK consumes
+## for a manual release, so `auto_drop` has to be part of this decision now,
+## not just the reason.
+static func _consumed_a_block(reason: StringName, auto_drop: bool) -> bool:
+	if reason == PlacementRules.REASON_NO_BLOCK or reason == PlacementRules.REASON_NOT_YOUR_TURN:
+		return false
+	return auto_drop or reason == PlacementRules.REASON_OK
 
 
 ## Host side of net_request_place, split out so a test can drive it with a
@@ -565,7 +576,7 @@ func _handle_place_intent(
 	# auto_drop is never taken from the wire: it grants the relocation
 	# privilege of spec 2.5, so only the host's own timer may set it.
 	var reason: StringName = _apply_intent(slot_id, origin, orientation_index, free_quat, false, feed_seq)
-	if not _consumed_a_block(reason):
+	if not _consumed_a_block(reason, false):
 		# Nothing was burned, so Match emitted no placement_rejected of its
 		# own; tell the sender anyway so its ghost unlocks now instead of
 		# waiting out NetConfig.intent_ack_timeout.
@@ -781,6 +792,16 @@ func _on_feed_timer_expired(slot_id: int) -> void:
 func _on_placement_rejected(slot_id: int, reason: StringName) -> void:
 	if _is_host():
 		replicate_match_event(EVENT_PLACEMENT_REJECTED, [slot_id, reason])
+
+
+## Bontago-mv0.24: mirrors an auto-drop's relocation the same way
+## _on_placement_rejected mirrors a refusal -- every instance gets it over the
+## reliable match-event channel, and PlayerController._on_placement_relocated
+## already ignores any slot that isn't its own, so nothing further needs to be
+## targeted at just the owning peer here.
+func _on_placement_relocated(slot_id: int, point: Vector2) -> void:
+	if _is_host():
+		replicate_match_event(EVENT_PLACEMENT_RELOCATED, [slot_id, point])
 
 
 func _on_player_eliminated(slot_id: int, team_id: int) -> void:
@@ -1017,6 +1038,8 @@ func net_match_event(event: StringName, args: Array) -> void:
 			Events.feed_timer_expired.emit(int(args[0]))
 		EVENT_PLACEMENT_REJECTED:
 			Events.placement_rejected.emit(int(args[0]), StringName(args[1]))
+		EVENT_PLACEMENT_RELOCATED:
+			Events.placement_relocated.emit(int(args[0]), args[1] as Vector2)
 		EVENT_PLAYER_ELIMINATED:
 			_authority().apply_replicated_elimination(int(args[0]))
 			Events.player_eliminated.emit(int(args[0]), int(args[1]))

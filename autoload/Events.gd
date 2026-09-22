@@ -43,9 +43,25 @@ signal feed_block_issued(slot_id: int, shape_id: StringName, next_shape_id: Stri
 signal feed_timer_expired(slot_id: int)
 
 ## The host refused a placement intent. `reason` is one of the
-## PlacementRules.REASON_* constants. The block is thrown off the map
-## (spec 2.2) and the client shows a reject effect (spec 3.4).
+## PlacementRules.REASON_* constants.
+##
+## Bontago-mv0.24 (owner test 2026-09-22): supersedes spec 2.2's older "the
+## block is thrown off the map with a visible reject animation" line for a
+## *manual* release — the owner's test of the original found a refused drop
+## is simply not a drop: nothing is spawned or consumed, the player keeps
+## holding the same piece, and the client shows a reject effect (spec 3.4)
+## instead of a throw. An auto-drop that finds no valid point to relocate to
+## (PlacementRules.closest_valid_point() returns NO_ORIGIN) still burns —
+## see placement_relocated below for the relocated case.
 signal placement_rejected(slot_id: int, reason: StringName)
+
+## Bontago-mv0.24 (spec 2.5's auto-drop [ORIGINAL]): the host relocated an
+## auto-drop that landed outside `slot_id`'s territory to the nearest valid
+## point, `point` (disk-local x, z, Field's local space — the same frame the
+## spawned block's origin sits in). Fired only for `slot_id`'s own client so
+## its cursor and camera can jump to where the block actually landed; every
+## other instance ignores an event for a slot that isn't its own.
+signal placement_relocated(slot_id: int, point: Vector2)
 
 # --- M2: territory (spec 2.2, 3.3) ------------------------------------------
 
