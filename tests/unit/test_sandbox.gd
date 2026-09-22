@@ -20,6 +20,14 @@ const MAIN_SCENE: PackedScene = preload("res://game/Main.tscn")
 ## the instance is held through a Variant-typed reference.
 var _main: Variant = null
 
+## DECISION (Bontago-mv0.3): see test_match_flow.gd's own `_tiny_map` comment.
+## Main.gd's `_build_sandbox_config()` (game/Main.gd) duplicates its own
+## `match_config` export -- normally the shared round_medium.tres-backed
+## match_defaults.tres -- so it, not this file's own code, is what has to
+## carry the tiny map: `_main.match_config` is overridden below, the same way
+## `$Field.map_def` is, both before Main ever enters the tree.
+var _tiny_map: MapDef
+
 
 func before_each() -> void:
 	# Match ticks on real frames; these tests drive _process() by hand where a
@@ -29,6 +37,13 @@ func before_each() -> void:
 	Match.abort_match()
 	assert_true(Net.is_offline(), "fixture: the real Net must start offline")
 	_main = MAIN_SCENE.instantiate()
+	_tiny_map = (load("res://config/maps/round_medium.tres") as MapDef).duplicate(true)
+	_tiny_map.field_radius = 20.0
+	(_main.get_node("Field") as Field).map_def = _tiny_map
+	var tiny_match_config: MatchConfig = (load("res://config/match_defaults.tres") as MatchConfig).duplicate(true)
+	tiny_match_config.set_script(load("res://tests/unit/support/TinyMapMatchConfig.gd"))
+	(tiny_match_config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
+	_main.match_config = tiny_match_config
 	add_child_autofree(_main)
 	assert_not_null(_main._main_menu, "fixture: Main boots to the main menu with no command-line flags")
 

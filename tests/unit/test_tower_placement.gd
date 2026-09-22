@@ -23,9 +23,28 @@ const MAX_TOP_DRIFT: float = 2.0
 ## next one lands on it.
 const TICKS_BETWEEN_PLACEMENTS: int = 30
 
+## DECISION (Bontago-mv0.3): this test genuinely needs ~1500 real physics
+## ticks (900 while placing, 600 to settle) -- it is exactly the "inherently
+## slow, keep it" case CLAUDE.md's own workflow calls out, since a 30-cube
+## tower's stability is the thing under test. Tried Engine.time_scale = 8 to
+## pack more physics ticks into less real time: it broke the test outright
+## (an out-of-bounds child index reading blocks_root mid-placement, and
+## FakeMatch/PlayerController's own add_child() landing later than the test's
+## next physics_frame await expected) rather than just changing timing, so it
+## is not used here. The map-size fix below is the safe win for this file.
 
 func test_thirty_cube_tower_stands_and_sleeps() -> void:
 	var field: Field = autofree(Field.new())
+	# DECISION (Bontago-mv0.3): Field.new()'s default map_def is
+	# round_medium.tres (45 m, ~6300 in-disk 1 m cells); building that
+	# collision once cost ~11 s by itself here (measured), on top of this
+	# test's genuinely-real ~1500 physics_frame settle waits it otherwise
+	# does not need -- a 30-cube tower at the origin never comes near a 45 m
+	# edge. 6 m (test_field_cells.gd's own tiny-map convention) still leaves
+	# a wide margin around the tower's footprint (cube_size-scale, well under
+	# 1 m per block).
+	field.map_def = (load("res://config/maps/round_medium.tres") as MapDef).duplicate(true)
+	field.map_def.field_radius = 6.0
 	add_child_autofree(field)
 
 	var blocks_root: Node3D = autofree(Node3D.new())

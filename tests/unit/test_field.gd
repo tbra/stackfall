@@ -6,10 +6,25 @@ extends GutTest
 ## for; the grid itself is covered by test_field_cells.gd, so what is left here
 ## is the disk's size, its material and the kill plane.
 
+## DECISION (Bontago-mv0.3): none of this file's assertions depend on the
+## map's actual scale (mesh radius tracks whatever map_def says; cell_count()
+## just has to be positive and match the shape owner count; friction and the
+## kill plane are size-independent) -- only a couple of tests already used
+## round_small.tres (30 m, ~2800 cells); the ones that instead built a plain
+## Field.new() (round_medium.tres, ~6300 cells) or explicitly loaded
+## round_medium.tres paid its ~11 s collision build (measured) for nothing.
+## A shared tiny duplicate replaces all of them.
+var _tiny_map: MapDef
+
+
+func before_each() -> void:
+	_tiny_map = (load("res://config/maps/round_medium.tres") as MapDef).duplicate(true)
+	_tiny_map.field_radius = 6.0
+
 
 func test_disk_mesh_radius_matches_map_def() -> void:
 	var field: Field = autofree(Field.new())
-	field.map_def = load("res://config/maps/round_medium.tres")
+	field.map_def = _tiny_map
 	field.tuning = load("res://config/physics_tuning.tres")
 	add_child_autofree(field)
 
@@ -23,17 +38,18 @@ func test_disk_mesh_radius_matches_map_def() -> void:
 
 func test_disk_collision_covers_the_disk() -> void:
 	var field: Field = autofree(Field.new())
-	field.map_def = load("res://config/maps/round_small.tres")
+	field.map_def = _tiny_map
 	add_child_autofree(field)
 
 	# One BoxShape3D per in-disk cell, so the count is the disk's area in
-	# cells; a 30 m disk at cell_size 1 is a few thousand of them.
+	# cells; this small a disk at cell_size 1 is still a bit over a hundred.
 	assert_gt(field.cell_count(), 0, "The disk collides as a grid of cells.")
 	assert_eq(field.get_shape_owners().size(), field.cell_count())
 
 
 func test_disk_friction_matches_tuning() -> void:
 	var field: Field = autofree(Field.new())
+	field.map_def = _tiny_map
 	add_child_autofree(field)
 	assert_almost_eq(
 		field.physics_material_override.friction,
@@ -44,6 +60,7 @@ func test_disk_friction_matches_tuning() -> void:
 
 func test_kill_plane_frees_the_body_and_emits_event() -> void:
 	var field: Field = autofree(Field.new())
+	field.map_def = _tiny_map
 	add_child_autofree(field)
 	watch_signals(Events)
 
@@ -65,7 +82,7 @@ func test_kill_plane_frees_the_body_and_emits_event() -> void:
 
 func test_clear_match_state_frees_flags_clears_the_overlay_source_and_closes_holes() -> void:
 	var field: Field = autofree(Field.new())
-	field.map_def = load("res://config/maps/round_small.tres")
+	field.map_def = _tiny_map
 	add_child_autofree(field)
 
 	field.place_flags(2, PackedColorArray([Color.RED, Color.BLUE]), 1)
@@ -93,7 +110,7 @@ func test_clear_match_state_discards_a_toggle_still_in_the_backlog() -> void:
 	# the field's match state was otherwise cleared would reopen a hole
 	# nothing owns any more.
 	var field: Field = autofree(Field.new())
-	field.map_def = load("res://config/maps/round_small.tres")
+	field.map_def = _tiny_map
 	add_child_autofree(field)
 	var cell: int = field.grid().in_disk_cells()[0]
 	field.set_hole_cells(PackedInt32Array([cell]), PackedInt32Array())

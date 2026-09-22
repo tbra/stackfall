@@ -22,11 +22,23 @@ var _registry: BlockRegistry
 var _net: MatchNetScript
 var _fake_net: FakeNet
 
+## DECISION (Bontago-mv0.3): see test_match_flow.gd's own `_tiny_map` comment
+## for the full story -- this file builds a real Field/Match world in every
+## test's before_each exactly the same way, so it paid the same ~11 s
+## round_medium.tres (45 m, ~6300 cells) collision build per test. 20 m, the
+## same figure test_match_flow.gd settled on, via the same TinyMapMatchConfig
+## seam (tests/unit/support/) so Match's own geometry agrees with this file's
+## Field.
+var _tiny_map: MapDef
+
 
 func before_each() -> void:
 	Match.set_process(false)
 	Match.abort_match()
+	_tiny_map = (load("res://config/maps/round_medium.tres") as MapDef).duplicate(true)
+	_tiny_map.field_radius = 20.0
 	_field = autofree(Field.new())
+	_field.map_def = _tiny_map
 	add_child_autofree(_field)
 	_blocks_root = autofree(Node3D.new())
 	add_child_autofree(_blocks_root)
@@ -62,6 +74,12 @@ func _make_net(peer_slots: Dictionary, local: Array[int], client_mode: bool = fa
 
 func _config(player_count: int = 2, block_timer: float = 6.0) -> MatchConfig:
 	var config: MatchConfig = load("res://config/match_defaults.tres").duplicate(true) as MatchConfig
+	# Script swap first: Object.set_script() resets script-level state to the
+	# new script's declared defaults, so it must happen before any field is
+	# set on `config` (test_match_flow.gd's own _tiny_map_config() doc comment
+	# has the full story).
+	config.set_script(load("res://tests/unit/support/TinyMapMatchConfig.gd"))
+	(config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
 	config.player_count = player_count
 	config.hot_seat = false
 	config.block_timer = block_timer
