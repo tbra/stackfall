@@ -214,13 +214,30 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		var motion: InputEventMouseMotion = event
 		_using_gamepad_cursor = false
-		if Input.is_action_pressed(&"rotation_mode"):
+		if Input.is_action_pressed(&"rotate_drag"):
+			# Bontago-mv0.22 (spec 2.5 "Rotate block (hold + drag)" [ORIGINAL,
+			# owner test 2026-09-22]): a genuine continuous yaw, unlike
+			# rotation_mode's 90 degree snap grid below -- GhostPreview.
+			# free_quaternion already travels the wire untouched
+			# (net/MatchNet.gd submit_cursor/submit_place) and
+			# MatchPlacement.request_place() composes the spawned block's
+			# basis from Basis(free_quat) * orientation basis
+			# (autoload/match/MatchPlacement.gd), with is_pose_well_formed()
+			# accepting any finite unit quaternion, not only the 24-entry
+			# table -- so this needs no wire-format change, just a fresh
+			# continuous input for a field that already carries one safely.
+			# DECISION: yaw only (spec: "horizontal mouse motion"); the sign
+			# is an easily-flipped feel choice, not a rule -- see this
+			# package's manual owner test step.
+			if _ghost != null:
+				_ghost.apply_free_rotation_delta(-motion.relative.x * ghost_tuning.rotate_drag_sensitivity, 0.0)
+		elif Input.is_action_pressed(&"rotation_mode"):
 			# Original tutorial (docs/ORIGINAL_BONTAGO_NOTES.md): "while holding
 			# the rotation-mode key, the movement keys change the orientation
 			# of the block" -- mouse motion is this device's "movement keys".
 			_accumulate_rotation_drag(motion.relative, ghost_tuning.block_rotation_sensitivity)
-		elif Input.is_action_pressed(&"camera_mode"):
-			pass  # CameraRig._unhandled_input consumes this motion to orbit.
+		elif Input.is_action_pressed(&"camera_mode") or Input.is_action_pressed(&"camera_orbit"):
+			pass  # CameraRig._unhandled_input consumes this motion to orbit (mv0.22: either hold works).
 		elif Input.is_action_pressed(&"lock_vertical"):
 			pass  # "Locks block to vertical movement only": ignore XZ motion; the wheel still changes height.
 		else:
@@ -236,10 +253,19 @@ func _unhandled_input(event: InputEvent) -> void:
 		# holdable PageUp/PageDown keys and gamepad buttons on the same
 		# actions.
 		if event.is_action_pressed(&"hover_raise"):
-			_step_hover(1.0)
+			if _camera_orbit_held():
+				# Bontago-mv0.22 (spec 2.5 "Camera orbit ... mouse wheel zooms
+				# while held"): route the wheel to CameraRig's own zoom step
+				# instead of block height while orbiting.
+				_zoom_camera(-1.0)
+			else:
+				_step_hover(1.0)
 			return
 		elif event.is_action_pressed(&"hover_lower"):
-			_step_hover(-1.0)
+			if _camera_orbit_held():
+				_zoom_camera(1.0)
+			else:
+				_step_hover(-1.0)
 			return
 
 	if event.is_action_pressed(&"rotate_snap"):
@@ -288,6 +314,18 @@ func _orientation_index() -> int:
 func _apply_step(new_index: int) -> void:
 	if _ghost != null:
 		_ghost.set_orientation_index(new_index)
+
+
+## Bontago-mv0.22 (spec 2.5 "Camera orbit (hold + drag) ... mouse wheel zooms
+## while held"): true while either orbit hold is down, so the wheel handler
+## above routes to _zoom_camera() instead of _step_hover().
+func _camera_orbit_held() -> bool:
+	return Input.is_action_pressed(&"camera_mode") or Input.is_action_pressed(&"camera_orbit")
+
+
+func _zoom_camera(direction: float) -> void:
+	if _camera_rig != null:
+		_camera_rig.zoom_by_orbit_step(direction)
 
 
 func _step_hover(direction: float) -> void:

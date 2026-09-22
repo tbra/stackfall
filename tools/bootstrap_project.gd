@@ -180,11 +180,30 @@ func _actions() -> Dictionary:
 	a["rotation_mode"] = [_key(KEY_R), _axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)]
 	a["rotate_reset"] = [_key(KEY_HOME), _key(KEY_F), _pad(JOY_BUTTON_Y)]
 	# Original tutorial: "a key snap-rotates the block" -- a plain 90 degree
-	# yaw tap, distinct from rotate_reset. DECISION: no separate gamepad
-	# binding (test_project_setup.gd's DEVICE_EXCEPTIONS) -- rotate_yaw_cw
-	# (RB) already does the same 90 degree yaw on gamepad, and MMB is free
-	# now that camera_mode (below) has moved off it.
-	a["rotate_snap"] = [_mouse(MOUSE_BUTTON_MIDDLE)]
+	# yaw tap, distinct from rotate_reset. Bontago-mv0.22 fix (coordinator,
+	# 2026-09-22): this used to double up on MMB with rotate_drag below, so
+	# every drag started with an unwanted extra 90 degree step on the initial
+	# press. MMB now belongs to rotate_drag alone. DECISION: rotate_snap keeps
+	# only its gamepad RB binding -- the identical single-tap 90 degree yaw
+	# rotate_yaw_cw (KEY_S / RB) already gives on both devices makes a
+	# dedicated desktop key for this action pure duplication, not a missing
+	# feature, so it is a documented "mouse" DEVICE_EXCEPTION
+	# (tests/unit/test_project_setup.gd) rather than hunting for a spare key.
+	a["rotate_snap"] = [_pad(JOY_BUTTON_RIGHT_SHOULDER)]
+
+	# Bontago-mv0.22 (spec 2.5 "Rotate block (hold + drag)" [ORIGINAL, owner
+	# test 2026-09-22]): holding MMB and dragging continuously spins the held
+	# block's yaw (PlayerController._unhandled_input, GhostPreview.
+	# free_quaternion) -- the original's real behaviour. MMB is this action's
+	# alone now (see rotate_snap's fix above): a bare press with no drag does
+	# nothing here (free_quaternion only changes with actual mouse motion),
+	# so it no longer also fires rotate_snap's old single tap.
+	# DECISION: no gamepad binding. rotate_yaw_cw (RB) already gives a 90
+	# degree yaw tap on gamepad, and the right stick is already the gamepad's
+	# own always-on orbit (see camera_orbit below), so there is no spare
+	# gamepad gesture to spend on a drag-rotate -- a documented "pad"
+	# DEVICE_EXCEPTION (tests/unit/test_project_setup.gd).
+	a["rotate_drag"] = [_mouse(MOUSE_BUTTON_MIDDLE)]
 
 	# Bontago-mv0.14 (original tutorial: "the mouse wheel raises and lowers
 	# the block"): PageUp/PageDown and the gamepad buttons are held
@@ -222,6 +241,23 @@ func _actions() -> Dictionary:
 	# hold (test_project_setup.gd's DEVICE_EXCEPTIONS), so it needs no
 	# gamepad binding.
 	a["camera_mode"] = [_key(KEY_C)]
+
+	# Bontago-mv0.22 (spec 2.5 "Camera orbit (hold + drag)" [ORIGINAL, owner
+	# test 2026-09-22]): RMB held + drag is now the primary orbit gesture;
+	# camera_mode (C) above stays wired as the keyboard alias for the exact
+	# same gesture (CameraRig._unhandled_input checks both actions). The wheel
+	# also zooms instead of changing block height while either is held
+	# (PlayerController._camera_orbit_held()/_zoom_camera(),
+	# CameraRig.zoom_by_orbit_step()). DECISION: shares MOUSE_BUTTON_RIGHT with
+	# throw_aim above -- spec 2.5 flags that overlap as [OPEN], to be settled
+	# by a Beads owner question before M4 P2 throwing lands; nothing reads
+	# throw_aim yet, so there is no runtime conflict today. No gamepad binding
+	# either, for the same reason camera_mode has none: the right stick
+	# already orbits unconditionally, with no hold required -- a documented
+	# "pad" DEVICE_EXCEPTION (tests/unit/test_project_setup.gd), same as
+	# camera_mode's own entry there.
+	a["camera_orbit"] = [_mouse(MOUSE_BUTTON_RIGHT)]
+
 	a["camera_look_left"] = [_axis(JOY_AXIS_RIGHT_X, -1.0)]
 	a["camera_look_right"] = [_axis(JOY_AXIS_RIGHT_X, 1.0)]
 	a["camera_look_up"] = [_axis(JOY_AXIS_RIGHT_Y, -1.0)]

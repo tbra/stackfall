@@ -22,11 +22,13 @@ const REQUIRED_ACTIONS: PackedStringArray = [
 	"rotation_mode",
 	"rotate_reset",
 	"rotate_snap",
+	"rotate_drag",
 	"hover_raise",
 	"hover_lower",
 	"lock_vertical",
 	"throw_aim",
 	"camera_mode",
+	"camera_orbit",
 	"camera_look_left",
 	"camera_look_right",
 	"camera_look_up",
@@ -66,9 +68,23 @@ const DEVICE_EXCEPTIONS: Dictionary = {
 	# The gamepad's right stick orbits directly, so it needs no hold modifier
 	# (Bontago-mv0.14: renamed from camera_orbit_hold).
 	"camera_mode": "pad",
-	# rotate_yaw_cw (RB) already does the same 90 degree yaw tap on gamepad
-	# (tools/bootstrap_project.gd's DECISION on rotate_snap).
-	"rotate_snap": "pad",
+	# Bontago-mv0.22: RMB is the primary orbit hold now (camera_mode/C stays a
+	# keyboard alias); the right stick orbits unconditionally on gamepad for
+	# the same reason camera_mode needs no hold there.
+	"camera_orbit": "pad",
+	# Bontago-mv0.22 fix (coordinator, 2026-09-22): MMB moved to rotate_drag's
+	# continuous spin alone, so a single MMB press no longer also fires this
+	# action's old tap (that was firing both from one press -- every drag
+	# started with an unwanted 90 degree step). rotate_yaw_cw (KEY_S / RB)
+	# already gives an identical single-tap 90 degree yaw on both devices, so
+	# this action keeps only its gamepad RB binding rather than hunting for a
+	# spare desktop key (tools/bootstrap_project.gd).
+	"rotate_snap": "mouse",
+	# DECISION: no gamepad equivalent -- rotate_yaw_cw (RB) already gives a 90
+	# degree yaw tap, and the right stick is the gamepad's own always-on
+	# orbit, so there is no spare gamepad gesture for a drag-rotate
+	# (tools/bootstrap_project.gd).
+	"rotate_drag": "pad",
 	# The gamepad already keeps ghost movement (left stick) and height (RS
 	# click/X) on separate physical inputs, so there is nothing to lock.
 	"lock_vertical": "pad",

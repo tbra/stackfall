@@ -65,7 +65,11 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		var motion: InputEventMouseMotion = event
-		if Input.is_action_pressed(&"camera_mode"):
+		if Input.is_action_pressed(&"camera_mode") or Input.is_action_pressed(&"camera_orbit"):
+			# Bontago-mv0.22 (spec 2.5 "Camera orbit (hold + drag)" [ORIGINAL,
+			# owner test 2026-09-22]): camera_orbit (RMB) is now the primary
+			# hold; camera_mode (C) stays wired as the keyboard alias for the
+			# exact same gesture.
 			_yaw -= motion.relative.x * tuning.mouse_orbit_speed
 			_pitch -= motion.relative.y * tuning.mouse_orbit_speed
 			_clamp_pitch()
@@ -216,6 +220,16 @@ func _clamp_pitch() -> void:
 
 func _zoom(direction: float) -> void:
 	_distance = clampf(_distance + direction * tuning.zoom_step, tuning.zoom_min, tuning.zoom_max)
+
+
+## Bontago-mv0.22 (spec 2.5 "mouse wheel zooms while held" [ORIGINAL, owner
+## test 2026-09-22]): called by PlayerController when the wheel fires while
+## camera_mode/camera_orbit is held, using its own tunable (orbit_zoom_step)
+## instead of zoom_step, which the dedicated Z/X zoom keys and gamepad
+## triggers already use via _zoom() -- letting the held-orbit wheel feel be
+## tuned independently.
+func zoom_by_orbit_step(direction: float) -> void:
+	_distance = clampf(_distance + direction * tuning.orbit_zoom_step, tuning.zoom_min, tuning.zoom_max)
 
 
 func _pan_offset(input_2d: Vector2) -> Vector3:

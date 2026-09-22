@@ -131,6 +131,11 @@ func reset_rotation() -> void:
 	_apply_rotation()
 
 
+## Bontago-mv0.22 (spec 2.5 "Rotate block (hold + drag)" [ORIGINAL, owner test
+## 2026-09-22]): PlayerController calls this with (yaw, 0.0) while rotate_drag
+## (MMB) is held, driving free_quaternion continuously -- already the exact
+## field submit_cursor/submit_place send unmodified over the wire, so no new
+## replication path was needed.
 func apply_free_rotation_delta(yaw: float, pitch: float) -> void:
 	var delta: Quaternion = Quaternion(Vector3.UP, yaw) * Quaternion(Vector3.RIGHT, pitch)
 	free_quaternion = (delta * free_quaternion).normalized()

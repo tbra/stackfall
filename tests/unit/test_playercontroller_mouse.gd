@@ -14,6 +14,13 @@ extends GutTest
 ## key (C), so those two tests -- and camera_tuning.mmb_tap_max_duration,
 ## which they were the only reader of -- are gone.
 ##
+## Bontago-mv0.22 (spec 2.5, [ORIGINAL] rows re-tested by the owner
+## 2026-09-22): MMB gained a second, continuous job on top of rotate_snap's
+## tap -- holding it and dragging spins the ghost's free rotation
+## (rotate_drag) -- and RMB became camera_orbit, a second hold that does the
+## same thing camera_mode (C) already does, plus lets the wheel zoom the rig
+## instead of raising the ghost while either is held.
+##
 ## Also carries a Bontago-mv0.7 regression pin (Part B, "the host cannot
 ## place"): the real root cause turned out to be ui/Lobby.gd sending
 ## hot_seat = true (see tests/unit/test_lobby.gd's
@@ -216,6 +223,142 @@ func test_lock_vertical_hold_ignores_planar_mouse_motion() -> void:
 # --- Camera mode (original tutorial: "while holding the camera-mode key,
 # movement keys change where the camera is facing") ---------------------------
 
+# --- Bontago-mv0.22: rotate_drag (MMB hold + drag), spec 2.5 "Rotate block
+# (hold + drag)" [ORIGINAL, owner test 2026-09-22] ---------------------------
+
+func test_rotate_drag_hold_plus_motion_spins_the_ghosts_free_quaternion() -> void:
+	var controller: PlayerController = _make_controller()
+	assert_eq(controller._ghost.free_quaternion, Quaternion.IDENTITY, "fixture: no free rotation yet.")
+
+	Input.action_press(&"rotate_drag")
+	controller._unhandled_input(_motion(Vector2(100.0, 0.0)))
+	Input.action_release(&"rotate_drag")
+
+	assert_ne(
+		controller._ghost.free_quaternion, Quaternion.IDENTITY,
+		"holding rotate_drag and moving the mouse should spin the ghost's free rotation continuously."
+	)
+	assert_eq(controller._cursor, Vector3.ZERO, "rotate_drag must not also move the cursor.")
+	assert_eq(
+		controller._ghost.orientation_index, 0,
+		"rotate_drag drives the continuous free_quaternion, not the 90 degree orientation index."
+	)
+
+
+## Regression pin (coordinator fix, 2026-09-22): rotate_drag and rotate_snap
+## used to share MMB, so a single press fired rotate_snap's tap AND started
+## rotate_drag's spin -- every drag began with an unwanted extra 90 degree
+## step. rotate_snap is gamepad-only now (RB); a bare MMB press plus drag
+## must produce continuous free rotation with no discrete orientation_index
+## step at all.
+func test_mmb_press_plus_motion_does_not_also_fire_the_old_90_degree_snap() -> void:
+	var controller: PlayerController = _make_controller()
+	var start_index: int = controller._orientation_index()
+
+	# The actual button-down event first (exercises the same code path a real
+	# MMB press dispatches through, including the old rotate_snap tap branch,
+	# which must no longer be reachable from this button).
+	var press: InputEventMouseButton = InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_MIDDLE
+	press.pressed = true
+	controller._unhandled_input(press)
+
+	# Input.action_press mirrors what the real Input singleton would report as
+	# "held" for the rest of that same physical press, same as this file's
+	# other hold+motion tests (e.g. rotate_drag/camera_mode above).
+	Input.action_press(&"rotate_drag")
+	controller._unhandled_input(_motion(Vector2(20.0, 0.0)))
+	Input.action_release(&"rotate_drag")
+
+	assert_eq(
+		controller._ghost.orientation_index, start_index,
+		"MMB press + drag must never step the discrete orientation index (that was rotate_snap's old job)."
+	)
+	assert_ne(
+		controller._ghost.free_quaternion, Quaternion.IDENTITY,
+		"the drag should still spin the continuous free rotation."
+	)
+
+
+func test_rotate_drag_ignores_vertical_motion() -> void:
+	var controller: PlayerController = _make_controller()
+
+	Input.action_press(&"rotate_drag")
+	controller._unhandled_input(_motion(Vector2(0.0, 100.0)))
+	Input.action_release(&"rotate_drag")
+
+	assert_eq(
+		controller._ghost.free_quaternion, Quaternion.IDENTITY,
+		"spec 2.5 scopes rotate_drag to horizontal motion (yaw only); vertical motion alone must not rotate the block."
+	)
+
+
+func test_motion_without_rotate_drag_held_moves_the_cursor_instead() -> void:
+	var controller: PlayerController = _make_controller()
+
+	controller._unhandled_input(_motion(Vector2(100.0, 0.0)))
+
+	assert_eq(
+		controller._ghost.free_quaternion, Quaternion.IDENTITY,
+		"without rotate_drag held, motion should move the cursor, not spin the free rotation."
+	)
+	assert_gt(controller._cursor.x, 0.0)
+
+
+# --- Bontago-mv0.22: camera_orbit (RMB hold + drag), spec 2.5 "Camera orbit
+# (hold + drag)" [ORIGINAL, owner test 2026-09-22] ---------------------------
+
+func test_camera_orbit_hold_plus_motion_orbits_instead_of_moving_the_block() -> void:
+	var controller: PlayerController = _make_controller()
+	var rig: CameraRig = autofree(load("res://game/CameraRig.tscn").instantiate())
+	add_child_autofree(rig)
+	controller.set_camera_rig(rig)
+	var yaw_before: float = rig.get_yaw()
+
+	Input.action_press(&"camera_orbit")
+	var motion: InputEventMouseMotion = _motion(Vector2(100.0, 0.0))
+	rig._unhandled_input(motion)
+	controller._unhandled_input(motion)
+	Input.action_release(&"camera_orbit")
+
+	assert_ne(rig.get_yaw(), yaw_before, "camera_orbit + motion should orbit CameraRig, same as camera_mode.")
+	assert_eq(controller._cursor, Vector3.ZERO, "camera_orbit must not also move the ghost's cursor.")
+
+
+func test_wheel_while_camera_orbit_held_zooms_the_rig_not_the_ghost_height() -> void:
+	var controller: PlayerController = _make_controller()
+	var rig: CameraRig = autofree(load("res://game/CameraRig.tscn").instantiate())
+	add_child_autofree(rig)
+	controller.set_camera_rig(rig)
+	var distance_before: float = rig.get_distance()
+
+	Input.action_press(&"camera_orbit")
+	controller._unhandled_input(_wheel(MOUSE_BUTTON_WHEEL_UP))
+	Input.action_release(&"camera_orbit")
+
+	assert_ne(rig.get_distance(), distance_before, "the wheel should zoom the rig while camera_orbit is held.")
+	assert_eq(
+		controller._ghost.manual_hover_offset, 0.0,
+		"the wheel must not also raise the ghost while camera_orbit is held."
+	)
+
+
+func test_wheel_without_camera_orbit_held_still_raises_the_ghost() -> void:
+	var controller: PlayerController = _make_controller()
+	var rig: CameraRig = autofree(load("res://game/CameraRig.tscn").instantiate())
+	add_child_autofree(rig)
+	controller.set_camera_rig(rig)
+	var distance_before: float = rig.get_distance()
+
+	controller._unhandled_input(_wheel(MOUSE_BUTTON_WHEEL_UP))
+
+	assert_almost_eq(rig.get_distance(), distance_before, 0.0001, "the wheel must not zoom the rig without a held orbit.")
+	assert_almost_eq(
+		controller._ghost.manual_hover_offset, controller.ghost_tuning.hover_wheel_step, 0.001,
+		"the wheel must still raise the ghost as before (regression check)."
+	)
+
+
 func test_camera_mode_hold_plus_motion_orbits_instead_of_moving_the_block() -> void:
 	var controller: PlayerController = _make_controller()
 	var rig: CameraRig = autofree(load("res://game/CameraRig.tscn").instantiate())
@@ -240,6 +383,12 @@ func test_camera_rig_follows_the_ghost_smoothly_within_its_lag() -> void:
 	var rig: CameraRig = autofree(load("res://game/CameraRig.tscn").instantiate())
 	add_child_autofree(rig)
 	assert_true(rig.tuning.follow_block, "fixture: follow_block defaults to true.")
+	# The shipped follow_lag_seconds is 0 (owner-tuned, Bontago-mv0.21: the
+	# camera snaps to the block like the original). This test is about the
+	# smoothing path, so it sets a lag of its own on the shared tuning and
+	# restores it afterwards.
+	var saved_lag: float = rig.tuning.follow_lag_seconds
+	rig.tuning.follow_lag_seconds = 0.2
 
 	rig.set_follow_position(Vector3(10.0, 0.0, 0.0))
 	rig._process(1.0 / 60.0)
@@ -251,6 +400,7 @@ func test_camera_rig_follows_the_ghost_smoothly_within_its_lag() -> void:
 	for _i: int in range(240):
 		rig._process(1.0 / 60.0)
 	assert_almost_eq(rig.get_target().x, 10.0, 0.05, "given enough time, the rig should have essentially caught up.")
+	rig.tuning.follow_lag_seconds = saved_lag
 
 
 func test_follow_block_false_pins_the_legacy_free_orbit_camera() -> void:

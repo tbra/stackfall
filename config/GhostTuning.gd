@@ -37,6 +37,21 @@ extends Resource
 ## held at full stick (~1 step every 0.4 s).
 @export var pad_rotation_speed: float = 2.5
 
+## -- Rotate drag (Bontago-mv0.22, spec 2.5 "Rotate block (hold+drag)"
+## [ORIGINAL, owner test 2026-09-22]): distinct from Rotation Mode above --
+## that one snaps to the 90 degree grid on purpose (spec 1.7's reported
+## drift problem); this one runs GhostPreview.free_quaternion continuously,
+## exactly like the original, while rotate_drag (MMB) is held
+## (PlayerController._unhandled_input). Safe end-to-end with no wire-format
+## change: free_quaternion already travels submit_cursor/submit_place
+## unmodified (net/MatchNet.gd) and the host accepts any finite unit
+## quaternion, not only the 24-entry table (autoload/match/MatchPlacement.gd
+## is_pose_well_formed(), request_place()'s Basis(free_quat) * orientation
+## basis composition). ------------------------------------------------------
+## Radians of yaw per pixel of horizontal mouse motion while rotate_drag is
+## held.
+@export var rotate_drag_sensitivity: float = 0.008
+
 ## -- Hover height (spec 1.5/2.5: "the mouse wheel raises and lowers the
 ## block") --------------------------------------------------------------------
 ## Continuous per-second rate for held inputs (PageUp/PageDown keys, gamepad

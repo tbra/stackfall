@@ -17,6 +17,12 @@ extends Resource
 ## Distance change per discrete zoom step (wheel tick, key press, or trigger
 ## pull; spec 2.5 scopes wheel/trigger zoom to "while not holding a block").
 @export var zoom_step: float = 4.0
+## Bontago-mv0.22 (spec 2.5 "Camera orbit (hold+drag)... mouse wheel zooms
+## while held" [ORIGINAL, owner test 2026-09-22]): distance change per wheel
+## notch while camera_mode/camera_orbit is held (CameraRig.zoom_by_orbit_step()),
+## tuned separately from zoom_step above so the held-orbit wheel can feel
+## different from the dedicated Z/X zoom keys.
+@export var orbit_zoom_step: float = 2.0
 
 ## -- Pan --------------------------------------------------------------------
 ## Meters per second the orbit target moves at full input.

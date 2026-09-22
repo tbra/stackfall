@@ -88,6 +88,28 @@ func test_apply_follow_tuning_reapplies_distance_and_pitch_clamped() -> void:
 	assert_almost_eq(rig.get_pitch(), deg_to_rad(-50.0), 0.001)
 
 
+# --- Bontago-mv0.22: zoom_by_orbit_step (spec 2.5 "Camera orbit (hold + drag)
+# ... mouse wheel zooms while held" [ORIGINAL, owner test 2026-09-22]) -------
+
+
+func test_zoom_by_orbit_step_changes_distance_by_the_tuned_step_clamped() -> void:
+	var rig: CameraRig = _make_rig()
+	rig.tuning = rig.tuning.duplicate() as CameraTuning
+	var start_distance: float = rig.get_distance()
+
+	rig.zoom_by_orbit_step(-1.0)
+
+	assert_almost_eq(
+		rig.get_distance(), start_distance - rig.tuning.orbit_zoom_step, 0.001,
+		"negative direction should zoom in by exactly orbit_zoom_step."
+	)
+
+	rig.tuning.orbit_zoom_step = rig.tuning.zoom_max * 2.0
+	rig.zoom_by_orbit_step(1.0)
+
+	assert_almost_eq(rig.get_distance(), rig.tuning.zoom_max, 0.001, "zoom_by_orbit_step must clamp to zoom_max.")
+
+
 func test_apply_follow_tuning_is_a_noop_when_not_following_the_block() -> void:
 	var rig: CameraRig = _make_rig()
 	rig.tuning = rig.tuning.duplicate() as CameraTuning
