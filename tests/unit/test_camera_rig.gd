@@ -110,6 +110,35 @@ func test_zoom_by_orbit_step_changes_distance_by_the_tuned_step_clamped() -> voi
 	assert_almost_eq(rig.get_distance(), rig.tuning.zoom_max, 0.001, "zoom_by_orbit_step must clamp to zoom_max.")
 
 
+# --- Bontago-mv0.27 (owner: "is there a fish-eye effect? add a slider") -----
+
+
+func test_fov_deg_defaults_to_the_cameras_previous_fixed_fov() -> void:
+	var tuning: CameraTuning = CameraTuning.new()
+	assert_almost_eq(tuning.fov_deg, 75.0, 0.001, "matches Camera3D's own default, unset before this tunable existed.")
+
+
+func test_apply_follow_tuning_pushes_fov_deg_to_the_camera_live() -> void:
+	var rig: CameraRig = _make_rig()
+	rig.tuning = rig.tuning.duplicate() as CameraTuning
+
+	rig.tuning.fov_deg = 95.0
+	rig.apply_follow_tuning()
+
+	assert_almost_eq(rig.get_camera().fov, 95.0, 0.001)
+
+
+func test_apply_follow_tuning_pushes_fov_deg_even_when_not_following_the_block() -> void:
+	var rig: CameraRig = _make_rig()
+	rig.tuning = rig.tuning.duplicate() as CameraTuning
+	rig.tuning.follow_block = false
+
+	rig.tuning.fov_deg = 55.0
+	rig.apply_follow_tuning()
+
+	assert_almost_eq(rig.get_camera().fov, 55.0, 0.001, "fov isn't a follow-only concept; it must update even in free-orbit mode.")
+
+
 func test_apply_follow_tuning_is_a_noop_when_not_following_the_block() -> void:
 	var rig: CameraRig = _make_rig()
 	rig.tuning = rig.tuning.duplicate() as CameraTuning

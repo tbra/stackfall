@@ -65,3 +65,12 @@ extends Resource
 @export var snap_pitch_deg: float = -35.0
 @export var snap_distance: float = 30.0
 @export var snap_duration: float = 0.35
+
+## -- Lens (Bontago-mv0.27, owner: "is there a fish-eye effect? add a
+## slider") ------------------------------------------------------------------
+## DECISION (config/CameraTuning.gd): default matches Camera3D's own engine
+## default (75 deg), which is what game/CameraRig.tscn's Camera3D used before
+## this tunable existed (no fov override was set there). Applied in both
+## CameraRig._ready() and apply_follow_tuning() so the F4 panel's slider
+## (config/tuning_panel_hints.tres, range 40..100) takes effect live.
+@export var fov_deg: float = 75.0

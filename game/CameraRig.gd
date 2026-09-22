@@ -45,6 +45,7 @@ var _follow_position: Vector3 = Vector3.ZERO
 
 func _ready() -> void:
 	add_to_group(TUNING_GROUP)
+	_camera.fov = tuning.fov_deg
 	# DECISION (game/CameraRig.gd): the initial view scales with the map's
 	# field_radius (a close-in fixed default looked fine on a small map but
 	# was nose-to-the-glass on a medium/large one, since the disk fills most
@@ -180,6 +181,11 @@ func set_home_view(home_position: Vector3, look_at_position: Vector3 = Vector3.Z
 ## tuning.follow_block is false: the free-orbit camera has its own fixed
 ## target/distance and these two fields mean nothing to it.
 func apply_follow_tuning() -> void:
+	# DECISION (game/CameraRig.gd): fov_deg applies here unconditionally (unlike
+	# distance/pitch below) because it isn't a follow-only concept -- the panel
+	# calls this hook for any camera_tuning edit, and the free-orbit camera
+	# should get a live fov change too.
+	_camera.fov = tuning.fov_deg
 	if not tuning.follow_block:
 		return
 	_distance = clampf(tuning.follow_distance, tuning.zoom_min, tuning.zoom_max)
