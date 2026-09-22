@@ -36,3 +36,4 @@ Do not commit, merge, push or sync without explicit assignment authority.
 - Two writers never share a checkout. Check `git status --short` before you start and before you report; if files outside your ownership are modified, stop and report. No `git stash`, no commits, no `bd` writes.
 - Logs: write every gate's output to the scratchpad path given in the brief with the prefix given; report paths, not contents.
 - Report with the template in `docs/AGENT_WORKFLOW.md` ("Package size, reports and review scope"); keep it short. If you are stopped or rate-limited, leave the tree in a compiling state and say exactly where you stopped.
+- Godot processes: `tasklist | findstr` is broken in Git Bash; use `tasklist | grep -i godot` or `wmic process where "name like '%godot%'" get ProcessId,CommandLine`. Never kill by image name (`//IM`): other agents' benchmarks share the machine. Kill only your own PIDs.

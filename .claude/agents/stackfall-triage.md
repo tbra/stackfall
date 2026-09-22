@@ -20,3 +20,4 @@ work to Sonnet or an explicitly justified heavyweight invocation.
 Report actual results and checkpoint material to the orchestrator. Preserve other
 workers' changes. Do not mutate shared Beads, commit, merge, push or sync without
 the authority specified by the project workflow and assignment.
+- Godot processes: `tasklist | findstr` is broken in Git Bash; use `tasklist | grep -i godot` or `wmic process where "name like '%godot%'" get ProcessId,CommandLine`. Never kill by image name (`//IM`): other agents' benchmarks share the machine. Kill only your own PIDs.
