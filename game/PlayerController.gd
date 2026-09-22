@@ -238,7 +238,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_using_gamepad_cursor = false
 		if Input.is_action_pressed(&"rotate_drag"):
 			# Bontago-mv0.22 (spec 2.5 "Rotate block (hold + drag)" [ORIGINAL,
-			# owner test 2026-09-22]): a genuine continuous yaw, unlike
+			# owner test 2026-09-22]): a genuine continuous rotation, unlike
 			# rotation_mode's 90 degree snap grid below -- GhostPreview.
 			# free_quaternion already travels the wire untouched
 			# (net/MatchNet.gd submit_cursor/submit_place) and
@@ -248,11 +248,18 @@ func _unhandled_input(event: InputEvent) -> void:
 			# accepting any finite unit quaternion, not only the 24-entry
 			# table -- so this needs no wire-format change, just a fresh
 			# continuous input for a field that already carries one safely.
-			# DECISION: yaw only (spec: "horizontal mouse motion"); the sign
-			# is an easily-flipped feel choice, not a rule -- see this
-			# package's manual owner test step.
+			#
+			# Bontago-mv0.25 (docs/rotation-issue.png, owner test 2026-09-22,
+			# "like the RMB orbit but for the block"): full 3-DOF now, not
+			# yaw-only -- horizontal motion yaws about world up, vertical
+			# motion pitches about the camera's current right axis
+			# (_camera_right_axis()), the same axis CameraRig's own orbit
+			# turns about. DECISION: signs are an easily-flipped feel choice,
+			# not a rule -- see this package's manual owner test step.
 			if _ghost != null:
-				_ghost.apply_free_rotation_delta(-motion.relative.x * ghost_tuning.rotate_drag_sensitivity, 0.0)
+				var yaw_delta: float = -motion.relative.x * ghost_tuning.rotate_drag_sensitivity
+				var pitch_delta: float = -motion.relative.y * ghost_tuning.rotate_drag_sensitivity
+				_ghost.apply_free_rotation_delta(yaw_delta, pitch_delta, _camera_right_axis())
 		elif Input.is_action_pressed(&"rotation_mode"):
 			# Original tutorial (docs/ORIGINAL_BONTAGO_NOTES.md): "while holding
 			# the rotation-mode key, the movement keys change the orientation
@@ -630,6 +637,18 @@ func _camera_relative_dir(input_2d: Vector2) -> Vector3:
 	var forward: Vector3 = Vector3(sin(yaw), 0.0, cos(yaw))
 	var right: Vector3 = Vector3(forward.z, 0.0, -forward.x)
 	return right * input_2d.x + forward * input_2d.y
+
+
+## Bontago-mv0.25 (spec 2.5 rotate_drag's vertical axis, docs/rotation-issue.png):
+## the world-space "right" axis of whatever way the camera currently faces --
+## the same forward/right construction _camera_relative_dir() above already
+## uses for cursor movement, factored out so rotate_drag's pitch axis tracks
+## the camera exactly the same way. No rig wired (bare unit tests) falls back
+## to yaw 0, i.e. world +X, same fallback _camera_relative_dir() uses.
+func _camera_right_axis() -> Vector3:
+	var yaw: float = _camera_rig.get_yaw() if _camera_rig != null else 0.0
+	var forward: Vector3 = Vector3(sin(yaw), 0.0, cos(yaw))
+	return Vector3(forward.z, 0.0, -forward.x)
 
 
 ## Casts the placement ray straight down from above _cursor and updates the

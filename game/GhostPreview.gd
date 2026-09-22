@@ -3,9 +3,19 @@ extends Node3D
 ## The non-physics held block (spec 2.5): floats at a height PlayerController
 ## reports (the disk surface plus hover_height plus the wheel's manual
 ## offset, Bontago-mv0.17 item 5 — never whatever is directly underneath the
-## cursor), with a small drop-shadow quad at the cursor's own disk-plane spot
-## plus a projected footprint (one quad per bottom cell of the rotated held
-## shape, item 6) showing exactly what each part of it would land on.
+## cursor), with a projected footprint (one convex polygon per bottom cell of
+## the rotated held shape, item 6, Bontago-mv0.25) showing exactly what each
+## part of it would land on.
+##
+## Bontago-mv0.25 (docs/rotation-issue.png, owner test 2026-09-22): the old
+## drop-shadow quad under the ghost is gone -- the footprint is now the only
+## ground marker (see config/GhostTuning.gd's DECISION). The footprint quads
+## themselves used to always be axis-aligned unit squares whose *position*
+## tracked the rotated shape but whose *shape* never did, so a rotated block's
+## footprint markers stayed square/overlapping instead of showing the block's
+## true rotated silhouette; each quad is now a real convex polygon built from
+## that cell's own 8 rotated corners projected to the XZ plane
+## (Geometry2D.convex_hull), rebuilt every frame alongside its position.
 ##
 ## Rotation is stored as an integer index over the 24 axis-aligned cube
 ## orientations (core/blocks/BlockOrientations.gd) plus a separate free-
@@ -60,11 +70,16 @@ var manual_hover_offset: float = 0.0
 
 var _shape: BlockShape = null
 var _shape_visual: Node3D = null
-var _shadow: MeshInstance3D
 ## Bontago-mv0.17 item 6: one quad per bottom cell of the *rotated* held
-## shape, resized to match every time the shape/rotation/position changes
-## (_update_footprint()). Replaces the old single vertical guide line.
+## shape, rebuilt (mesh and position) every time the shape/rotation/position
+## changes (_update_footprint()). Replaces the old single vertical guide line;
+## Bontago-mv0.25 replaced each quad's fixed unit-square mesh with a convex
+## polygon matching that cell's own rotated silhouette.
 var _footprint_quads: Array[MeshInstance3D] = []
+## World-space XZ polygon currently shown by the footprint quad at the same
+## index -- kept alongside _footprint_quads so tests can check the actual
+## projected shape, not just where its center landed.
+var _footprint_polygons: Array[PackedVector2Array] = []
 ## Shared by every footprint quad (like _material is shared by every mesh of
 ## the held shape's own visual) so updating validity/lock state once repaints
 ## all of them.
@@ -83,6 +98,12 @@ var _locked: bool = false
 
 var _flash_tween: Tween
 var _reject_tween: Tween
+## Bontago-mv0.25 (docs/rotation-issue.png): a world-space offset added on top
+## of update_placement()/sync_remote_position()'s own computed position every
+## frame, animated by play_reject_animation()'s kick tween. World-space (not
+## a rotated local offset like the old _shape_visual.position kick) so the
+## kick direction never depends on the held block's current rotation.
+var _reject_offset: Vector3 = Vector3.ZERO
 
 
 func _ready() -> void:
@@ -99,9 +120,6 @@ func _ready() -> void:
 
 	_hatch_texture = _build_hatch_texture()
 	_refresh_materials()
-
-	_shadow = _make_shadow_mesh()
-	add_child(_shadow)
 
 
 func set_shape(shape: BlockShape) -> void:
@@ -132,13 +150,26 @@ func reset_rotation() -> void:
 
 
 ## Bontago-mv0.22 (spec 2.5 "Rotate block (hold + drag)" [ORIGINAL, owner test
-## 2026-09-22]): PlayerController calls this with (yaw, 0.0) while rotate_drag
-## (MMB) is held, driving free_quaternion continuously -- already the exact
-## field submit_cursor/submit_place send unmodified over the wire, so no new
+## 2026-09-22]): PlayerController calls this while rotate_drag (MMB) is held,
+## driving free_quaternion continuously -- already the exact field
+## submit_cursor/submit_place send unmodified over the wire, so no new
 ## replication path was needed.
-func apply_free_rotation_delta(yaw: float, pitch: float) -> void:
-	var delta: Quaternion = Quaternion(Vector3.UP, yaw) * Quaternion(Vector3.RIGHT, pitch)
-	free_quaternion = (delta * free_quaternion).normalized()
+##
+## Bontago-mv0.25 (docs/rotation-issue.png, owner test 2026-09-22, "like the
+## RMB orbit but for the block"): full 3-DOF now, not yaw-only -- `yaw` spins
+## about world up (matching CameraRig's own orbit yaw), `pitch` spins about
+## `pitch_axis` (PlayerController passes the camera's current world-space
+## right axis, so pitching the block always matches "push the mouse forward
+## and it tips away from you" regardless of which way the camera currently
+## faces). Each axis is composed onto free_quaternion independently
+## (`Quaternion(axis, angle) * free_quaternion`, normalised) rather than
+## pre-combined into one delta quaternion, so a frame with only one axis of
+## motion (the common case) never even nudges the other.
+func apply_free_rotation_delta(yaw: float, pitch: float, pitch_axis: Vector3 = Vector3.RIGHT) -> void:
+	if yaw != 0.0:
+		free_quaternion = (Quaternion(Vector3.UP, yaw) * free_quaternion).normalized()
+	if pitch != 0.0:
+		free_quaternion = (Quaternion(pitch_axis, pitch) * free_quaternion).normalized()
 	_apply_rotation()
 
 
@@ -153,14 +184,13 @@ func _apply_rotation() -> void:
 ## `hit_normal` for M4). Positions the ghost at hover height above that
 ## surface, corrected so the *rotated* held shape's lowest point — not
 ## necessarily this node's own origin once rotated — is what actually sits at
-## that height (item 3's rotated-bounds pivot), then refreshes the shadow and
-## the footprint projection (item 6).
+## that height (item 3's rotated-bounds pivot), then refreshes the footprint
+## projection (item 6).
 func update_placement(surface_point: Vector3, surface_normal: Vector3) -> void:
 	var hover: float = tuning.hover_height + manual_hover_offset
 	var anchor: Vector3 = surface_point + surface_normal * hover
 	var bottom_offset: float = _rotated_bottom_offset()
-	global_position = Vector3(anchor.x, anchor.y - bottom_offset, anchor.z)
-	_shadow.global_position = surface_point + surface_normal * ghost_tuning.shadow_offset
+	global_position = Vector3(anchor.x, anchor.y - bottom_offset, anchor.z) + _reject_offset
 	_update_footprint()
 
 
@@ -175,9 +205,7 @@ func update_placement(surface_point: Vector3, surface_normal: Vector3) -> void:
 ## that keeps game/RemoteCursors.gd correct against the changed
 ## update_placement() contract above.
 func sync_remote_position(origin: Vector3) -> void:
-	global_position = origin
-	var hover: float = tuning.hover_height + manual_hover_offset
-	_shadow.global_position = origin - Vector3.UP * hover + Vector3.UP * ghost_tuning.shadow_offset
+	global_position = origin + _reject_offset
 	_update_footprint()
 
 
@@ -206,38 +234,74 @@ func _rotated_bottom_offset() -> float:
 
 # --- Footprint projection (spec 2.5, Bontago-mv0.17 item 6) -----------------
 
-## This node's own origin plus every distinct (x, z) column the *rotated*
-## held shape occupies, in world space -- one entry per bottom cell of the
-## rotated shape, deduplicated so a shape stacked in the (now-rotated)
-## vertical axis gets exactly one footprint quad per column, not one per
-## cell.
-func _rotated_footprint_columns() -> Array[Vector2]:
-	var columns: Array[Vector2] = []
+## One entry per distinct footprint the *rotated* held shape's cells project
+## onto the XZ plane, ghost-local (not yet world-translated): each cell's own
+## 8 corners (BlockFactory's own cube_size/cube_margin box, same pivot) go
+## through the full rotation basis, get projected to (x, z), and their convex
+## hull becomes that cell's footprint polygon -- at most a hexagon, per this
+## package's brief, since a cube's silhouette under any rotation is convex
+## with at most 6 sides. Cells that project to the same polygon (most
+## commonly two cells stacked along whatever axis rotation currently maps to
+## world up, e.g. an unrotated pillar) collapse to one entry via a
+## rounded-vertex string key, so a stack still gets exactly one footprint
+## quad -- not one per cell, and not a stale per-axis-aligned-column
+## assumption that a continuous rotation would break.
+##
+## Bontago-mv0.25 (docs/rotation-issue.png): replaces the old
+## _rotated_footprint_columns(), whose quads tracked each column's rotated
+## *position* but were always drawn as a fixed axis-aligned unit square --
+## exactly the bug the owner's screenshot shows (a rotated block, unrotated
+## overlapping footprint squares).
+func _rotated_footprint_cells() -> Array[Dictionary]:
+	var cells_out: Array[Dictionary] = []
 	if _shape == null or _shape.cells.is_empty():
-		return columns
+		return cells_out
+	var half_size: float = (tuning.cube_size - tuning.cube_margin) * 0.5
 	var pivot: Vector3 = _shape.bottom_center()
 	var seen: Dictionary = {}
 	for cell: Vector3i in _shape.cells:
-		var local: Vector3 = (Vector3(cell) - pivot) * tuning.cube_size
-		var rotated: Vector3 = basis * local
-		var key: Vector2i = Vector2i(roundi(rotated.x / tuning.cube_size), roundi(rotated.z / tuning.cube_size))
+		var local_center: Vector3 = (Vector3(cell) - pivot) * tuning.cube_size
+		var rotated_center: Vector3 = basis * local_center
+		var points: PackedVector2Array = PackedVector2Array()
+		for corner_sign: Vector3 in _CORNER_SIGNS:
+			var rotated_corner: Vector3 = basis * (local_center + corner_sign * half_size)
+			points.append(Vector2(rotated_corner.x, rotated_corner.z))
+		var hull: PackedVector2Array = Geometry2D.convex_hull(points)
+		if hull.size() < 3:
+			continue
+		var key: String = _hull_key(hull)
 		if seen.has(key):
 			continue
 		seen[key] = true
-		columns.append(Vector2(rotated.x, rotated.z))
-	return columns
+		cells_out.append({"center": Vector2(rotated_center.x, rotated_center.z), "hull": hull})
+	return cells_out
+
+
+## Rounds and stringifies a hull's vertices as a dedup key for
+## _rotated_footprint_cells() -- two cells whose rotated corners land on the
+## same (rounded) set of 2D points are the same footprint.
+func _hull_key(hull: PackedVector2Array) -> String:
+	var parts: PackedStringArray = PackedStringArray()
+	for point: Vector2 in hull:
+		parts.append("%.3f,%.3f" % [point.x, point.y])
+	return ",".join(parts)
 
 
 ## Rebuilds the footprint quad pool to match the current shape/rotation and
-## raycasts straight down through each column (blocks included -- unlike
-## PlayerController's disk-only probe, this is meant to land on a tower) to
-## show exactly what each part of the held shape would rest on.
+## raycasts straight down through each cell's own rotated center (blocks
+## included -- unlike PlayerController's disk-only probe, this is meant to
+## land on a tower) to show exactly what each part of the held shape would
+## rest on, with each quad's mesh reshaped to that cell's own rotated convex
+## hull (see _build_polygon_mesh()) rather than a fixed unit square.
 func _update_footprint() -> void:
-	var columns: Array[Vector2] = _rotated_footprint_columns()
-	_set_footprint_quad_count(columns.size())
-	for i: int in range(columns.size()):
-		var world_x: float = global_position.x + columns[i].x
-		var world_z: float = global_position.z + columns[i].y
+	var cells: Array[Dictionary] = _rotated_footprint_cells()
+	_set_footprint_quad_count(cells.size())
+	_footprint_polygons.resize(cells.size())
+	for i: int in range(cells.size()):
+		var center: Vector2 = cells[i]["center"] as Vector2
+		var hull: PackedVector2Array = cells[i]["hull"] as PackedVector2Array
+		var world_x: float = global_position.x + center.x
+		var world_z: float = global_position.z + center.y
 		var probe_origin: Vector3 = Vector3(world_x, ghost_tuning.cursor_ray_height, world_z)
 		var hit: Dictionary = _raycast_down(probe_origin)
 		var landing_point: Vector3
@@ -249,6 +313,43 @@ func _update_footprint() -> void:
 			landing_point = hit["position"] as Vector3
 			landing_normal = hit["normal"] as Vector3
 		_footprint_quads[i].global_position = landing_point + landing_normal * ghost_tuning.footprint_offset
+		_footprint_quads[i].mesh = _build_polygon_mesh(hull, center)
+		var world_hull: PackedVector2Array = PackedVector2Array()
+		for point: Vector2 in hull:
+			world_hull.append(Vector2(global_position.x + point.x, global_position.z + point.y))
+		_footprint_polygons[i] = world_hull
+
+
+## Builds a flat (Y = 0 in its own local space), upward-facing triangle-fan
+## mesh from `hull` (a convex polygon, in ghost-local XZ) recentered on
+## `center` -- the point the caller positions the MeshInstance3D itself at --
+## so the mesh's own vertices are the polygon's true rotated shape, not a
+## fixed unit square. UVs tile at roughly one cube_size per unit so the hole
+## hatch texture (uv1_scale in ghost_tuning.hatch_scale) still reads sensibly.
+func _build_polygon_mesh(hull: PackedVector2Array, center: Vector2) -> ArrayMesh:
+	var vertex_count: int = hull.size()
+	var verts: PackedVector3Array = PackedVector3Array()
+	var normals: PackedVector3Array = PackedVector3Array()
+	var uvs: PackedVector2Array = PackedVector2Array()
+	for point: Vector2 in hull:
+		var local: Vector2 = point - center
+		verts.append(Vector3(local.x, 0.0, local.y))
+		normals.append(Vector3.UP)
+		uvs.append(Vector2(local.x / tuning.cube_size + 0.5, local.y / tuning.cube_size + 0.5))
+	var indices: PackedInt32Array = PackedInt32Array()
+	for i: int in range(1, vertex_count - 1):
+		indices.append(0)
+		indices.append(i)
+		indices.append(i + 1)
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var built: ArrayMesh = ArrayMesh.new()
+	built.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return built
 
 
 func _raycast_down(origin: Vector3) -> Dictionary:
@@ -285,6 +386,13 @@ func footprint_quad_count() -> int:
 ## For tests: where footprint quad `index` currently sits.
 func footprint_quad_position(index: int) -> Vector3:
 	return _footprint_quads[index].global_position
+
+
+## For tests: the world-space (X, Z) convex polygon footprint quad `index` is
+## currently showing -- the exact rotated silhouette of that cell, not just
+## its center point (see footprint_quad_position()).
+func footprint_polygon_world(index: int) -> PackedVector2Array:
+	return _footprint_polygons[index]
 
 
 # --- Ghost-vs-placed-block collision (Bontago-mv0.23, spec 2.5) -------------
@@ -436,7 +544,12 @@ func _apply_material_to_visual() -> void:
 		return
 	for child: Node in _shape_visual.get_children():
 		if child is MeshInstance3D:
-			(child as MeshInstance3D).material_override = _material
+			var mesh_instance: MeshInstance3D = child as MeshInstance3D
+			mesh_instance.material_override = _material
+			# DECISION (owner 2026-09-22, "the ghost has both the indicator and
+			# a shadow"): the held block is a preview, so it casts no light
+			# shadow; the projected footprint is its only ground marker.
+			mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
 # --- Reject / auto-drop animation (spec 2.2, 2.5) ---------------------------
@@ -444,24 +557,38 @@ func _apply_material_to_visual() -> void:
 ## Spec 2.2: "released [in a contested area] ... is thrown off the map with a
 ## visible reject animation" (docs/M2_PLAN.md owner decision 2: every invalid
 ## release burns the block, decided by Match.request_place — this is just the
-## ghost-side cue: a bright flash plus a small arc kick on the held shape's
-## own local offset, since PlayerController re-homes the ghost's world
-## position every frame and a position tween on it would be overwritten
-## immediately).
+## ghost-side cue: a bright flash plus a small arc kick on _reject_offset, a
+## world-space position offset applied on top of update_placement()'s/
+## sync_remote_position()'s own computed position every frame.
+##
+## Bontago-mv0.25 (docs/rotation-issue.png, owner test 2026-09-22): used to
+## kick _shape_visual's own *local* position instead -- that offset rides
+## along with the ghost's rotation basis (_shape_visual is a plain, non-
+## top_level child), so a pitched or rolled held block's reject kick visibly
+## went the wrong way (an "upward" kick could come out sideways or backwards
+## depending on orientation). _reject_offset is a plain world-space vector
+## added after rotation is applied, so the kick direction (world +X sideways,
+## +Y up) never depends on the block's current rotation, while still
+## surviving PlayerController re-homing the ghost's position every frame --
+## the same reason the old local-offset trick existed in the first place.
 func play_reject_animation() -> void:
 	_flash_material(ghost_tuning.reject_flash_color, ghost_tuning.reject_flash_duration)
-	if _shape_visual == null:
-		return
 	if _reject_tween != null and _reject_tween.is_valid():
 		_reject_tween.kill()
-	_shape_visual.position = Vector3.ZERO
+	_reject_offset = Vector3.ZERO
 	var kick: Vector3 = Vector3(ghost_tuning.reject_arc_sideways, ghost_tuning.reject_arc_height, 0.0)
 	var half_duration: float = ghost_tuning.reject_arc_duration * 0.5
 	_reject_tween = create_tween()
-	_reject_tween.tween_property(_shape_visual, ^"position", kick, half_duration) \
+	_reject_tween.tween_property(self, ^"_reject_offset", kick, half_duration) \
 		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	_reject_tween.tween_property(_shape_visual, ^"position", Vector3.ZERO, half_duration) \
+	_reject_tween.tween_property(self, ^"_reject_offset", Vector3.ZERO, half_duration) \
 		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+
+
+## For tests: the reject arc's current world-space position offset (zero
+## outside a reject animation).
+func reject_offset() -> Vector3:
+	return _reject_offset
 
 
 ## Spec 2.5: "When the timer runs out, the held block drops from its current
@@ -484,41 +611,17 @@ func _flash_material(color: Color, duration: float) -> void:
 
 # --- Mesh / texture builders -------------------------------------------------
 
-func _make_shadow_mesh() -> MeshInstance3D:
-	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
-	var quad: QuadMesh = QuadMesh.new()
-	quad.size = ghost_tuning.shadow_size
-	mesh_instance.mesh = quad
-	mesh_instance.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
-	mesh_instance.material_override = _unshaded_material(ghost_tuning.shadow_color)
-	# DECISION (game/GhostPreview.gd): the shadow is a fixed 1x1 quad rather
-	# than one shaped to the held block's exact footprint. M1 only needs a
-	# clear landing indicator, not a pixel-accurate silhouette.
-	mesh_instance.top_level = true
-	return mesh_instance
-
-
-## Bontago-mv0.17 item 6: one flat quad per bottom cell of the rotated held
-## shape (replaces _make_guide_mesh()'s old vertical line), sized like one
-## cell's own footprint and tinted by the shared _footprint_material so every
-## quad repaints together when validity/lock state changes.
+## Bontago-mv0.17 item 6: one flat polygon per bottom cell of the rotated
+## held shape (replaces _make_guide_mesh()'s old vertical line), tinted by the
+## shared _footprint_material so every quad repaints together when validity/
+## lock state changes. Starts meshless -- _update_footprint() assigns each
+## instance's real convex-hull mesh (_build_polygon_mesh()) every frame, since
+## its shape depends on the held shape's current rotation.
 func _make_footprint_quad() -> MeshInstance3D:
 	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
-	var quad: QuadMesh = QuadMesh.new()
-	quad.size = ghost_tuning.shadow_size
-	mesh_instance.mesh = quad
-	mesh_instance.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
 	mesh_instance.material_override = _footprint_material
 	mesh_instance.top_level = true
 	return mesh_instance
-
-
-func _unshaded_material(color: Color) -> StandardMaterial3D:
-	var material: StandardMaterial3D = StandardMaterial3D.new()
-	material.albedo_color = color
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	return material
 
 
 ## A small diagonal-stripe pattern (spec 2.5: "hatched pattern when over a

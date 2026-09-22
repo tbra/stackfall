@@ -218,3 +218,148 @@ func test_footprint_tint_follows_validity_like_the_held_shapes_own_body() -> voi
 		),
 		"the locked tint should win over validity for the footprint too, exactly like the body does."
 	)
+
+
+# --- Bontago-mv0.25 (docs/rotation-issue.png, owner test 2026-09-22): the
+# out-of-territory tint reads grey, not red -----------------------------------
+
+func test_invalid_state_uses_the_same_grey_as_locked() -> void:
+	var ghost: GhostPreview = _make_ghost()
+
+	ghost.apply_validity(PlacementRules.Result.OUTSIDE_TERRITORY)
+	var invalid_color: Color = ghost.current_tint_color()
+	assert_eq(ghost.current_state(), GhostPreview.STATE_INVALID)
+
+	ghost.set_locked(true)
+	var locked_color: Color = ghost.current_tint_color()
+
+	assert_true(
+		invalid_color.is_equal_approx(locked_color),
+		"aiming outside your own territory should read the same calm grey as the interval-locked state, not an alarming red."
+	)
+
+
+# --- Bontago-mv0.25 (docs/rotation-issue.png): the shadow blob is gone -------
+
+func test_no_shadow_node_remains_once_a_shape_is_held() -> void:
+	var ghost: GhostPreview = _make_ghost()
+
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	# The footprint is the only ground marker now: exactly the shape visual
+	# plus one footprint quad per bottom cell, no separate shadow quad.
+	assert_eq(
+		ghost.get_child_count(), 1 + ghost.footprint_quad_count(),
+		"a leftover shadow child would show up here as an extra, unaccounted-for node."
+	)
+
+
+# --- Bontago-mv0.25 (docs/rotation-issue.png): reject kick is world-space ----
+
+func test_reject_animation_moves_the_root_offset_not_the_rotated_shape_visual() -> void:
+	var ghost: GhostPreview = _make_ghost()
+	ghost.set_orientation_index(BlockOrientations.step_pitch_fwd(0))
+	assert_eq(ghost.reject_offset(), Vector3.ZERO, "fixture: no reject kick yet.")
+
+	ghost.play_reject_animation()
+	await wait_seconds(ghost.ghost_tuning.reject_arc_duration * 0.25)
+
+	var shape_visual: Node3D = null
+	for child: Node in ghost.get_children():
+		if child.name == "ShapeVisual":
+			shape_visual = child as Node3D
+			break
+	assert_not_null(shape_visual, "fixture: the ghost should have a shape visual once a shape is set.")
+	assert_eq(
+		shape_visual.position, Vector3.ZERO,
+		"the shape visual's own local position must never move (it would ride along with the ghost's own rotation)."
+	)
+	assert_ne(
+		ghost.reject_offset(), Vector3.ZERO,
+		"the kick should be visible on the world-space root offset partway through the animation."
+	)
+
+
+# --- Bontago-mv0.25 (docs/rotation-issue.png): rotated footprint polygons ----
+
+func _flat_l_shape() -> BlockShape:
+	var shape: BlockShape = BlockShape.new()
+	shape.id = &"test_flat_l"
+	shape.cells = [Vector3i(0, 0, 0), Vector3i(1, 0, 0), Vector3i(0, 0, 1)]
+	return shape
+
+
+func _bbox_of(points: PackedVector2Array) -> Rect2:
+	var min_pt: Vector2 = points[0]
+	var max_pt: Vector2 = points[0]
+	for point: Vector2 in points:
+		min_pt = Vector2(minf(min_pt.x, point.x), minf(min_pt.y, point.y))
+		max_pt = Vector2(maxf(max_pt.x, point.x), maxf(max_pt.y, point.y))
+	return Rect2(min_pt, max_pt - min_pt)
+
+
+func _polygon_area(points: PackedVector2Array) -> float:
+	var area: float = 0.0
+	var n: int = points.size()
+	for i: int in range(n):
+		var a: Vector2 = points[i]
+		var b: Vector2 = points[(i + 1) % n]
+		area += a.x * b.y - b.x * a.y
+	return absf(area) * 0.5
+
+
+## The regression this pins: before Bontago-mv0.25, every footprint quad was a
+## fixed axis-aligned unit square whose *position* (not shape) tracked the
+## rotated shape (docs/rotation-issue.png: a rotated block with unrotated,
+## overlapping footprint squares). At a 90-degree yaw a square's own bounding
+## box happens to look the same either way, so this checks 45 degrees too,
+## where a truly rotated cell's footprint becomes a diamond -- a bug that
+## left the bounding box at the original axis-aligned size would be caught by
+## the 45-degree case's larger, non-axis-aligned bounding box.
+func test_footprint_polygon_matches_the_rotated_cells_projected_corners() -> void:
+	var shape: BlockShape = _flat_l_shape()
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+	ghost.set_shape(shape)
+
+	var half_size: float = (ghost.tuning.cube_size - ghost.tuning.cube_margin) * 0.5
+	var pivot: Vector3 = shape.bottom_center()
+	var corner_signs: Array[Vector3] = [
+		Vector3(-1.0, -1.0, -1.0), Vector3(1.0, -1.0, -1.0), Vector3(-1.0, 1.0, -1.0), Vector3(1.0, 1.0, -1.0),
+		Vector3(-1.0, -1.0, 1.0), Vector3(1.0, -1.0, 1.0), Vector3(-1.0, 1.0, 1.0), Vector3(1.0, 1.0, 1.0),
+	]
+
+	for angle: float in [PI * 0.5, PI * 0.25]:
+		ghost.free_quaternion = Quaternion(Vector3.UP, angle)
+		ghost.set_orientation_index(0)
+		ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+		for cell_index: int in range(shape.cells.size()):
+			var cell: Vector3i = shape.cells[cell_index]
+			var local_center: Vector3 = (Vector3(cell) - pivot) * ghost.tuning.cube_size
+			var expected_points: PackedVector2Array = PackedVector2Array()
+			for corner_sign: Vector3 in corner_signs:
+				var corner: Vector3 = local_center + corner_sign * half_size
+				# Basis(Vector3.UP, angle) * corner, hand-expanded (matches
+				# CameraRig/PlayerController's own forward = (sin, 0, cos)
+				# convention: yaw increasing rotates +Z toward +X).
+				var x: float = corner.x * cos(angle) + corner.z * sin(angle)
+				var z: float = -corner.x * sin(angle) + corner.z * cos(angle)
+				expected_points.append(Vector2(x, z))
+			var expected_bbox: Rect2 = _bbox_of(expected_points)
+			var expected_area: float = (2.0 * half_size) * (2.0 * half_size)
+
+			var actual_polygon: PackedVector2Array = ghost.footprint_polygon_world(cell_index)
+			var actual_bbox: Rect2 = _bbox_of(actual_polygon)
+			assert_true(
+				actual_bbox.position.is_equal_approx(expected_bbox.position),
+				"cell %d bbox origin wrong at angle %.3f: got %s expected %s" % [cell_index, angle, actual_bbox.position, expected_bbox.position]
+			)
+			assert_true(
+				actual_bbox.size.is_equal_approx(expected_bbox.size),
+				"cell %d bbox size wrong at angle %.3f: got %s expected %s" % [cell_index, angle, actual_bbox.size, expected_bbox.size]
+			)
+			assert_almost_eq(
+				_polygon_area(actual_polygon), expected_area, 0.001,
+				"a rigid rotation must preserve each cell's own footprint area exactly, at any angle."
+			)

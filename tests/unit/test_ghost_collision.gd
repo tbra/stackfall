@@ -204,6 +204,51 @@ func test_lowering_onto_a_block_stops_on_top_of_it() -> void:
 	assert_true(block.sleeping, "the placed block must never wake from the ghost's shape queries.")
 
 
+# --- Bontago-mv0.25 (docs/rotation-issue.png): 3-DOF rotate_drag must not
+# break the box sweep --------------------------------------------------------
+
+## collision_box_local_centers()/collision_half_size() and the sweep in
+## game/PlayerController.gd all read `_ghost.basis` directly, so they were
+## already generic to any rotation -- this pins that a non-axis-aligned
+## (pitched) held shape still gets swept correctly, not just the 24-entry
+## orientation table's axis-aligned poses.
+func test_moving_horizontally_into_a_placed_block_stops_short_of_it_at_a_pitched_rotation() -> void:
+	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres")
+	var ghost_tuning: GhostTuning = GhostTuning.new()
+	var field: Field = _make_field()
+	var block: Block = _spawn_block(field, tuning, 4.0, 0.0)
+	await wait_physics_frames(SETTLE_FRAMES)
+	block.sleeping = true
+
+	var controller: PlayerController = _make_controller(ghost_tuning)
+	controller._ghost.set_shape(load("res://config/blocks/bar3.tres"))
+	controller._ghost.apply_free_rotation_delta(0.0, deg_to_rad(30.0), Vector3.RIGHT)
+	controller._cursor = Vector3(-2.0, 0.0, 0.0)
+	_advance(controller)
+
+	for _i: int in range(160):
+		controller._unhandled_input(_motion(Vector2(50.0, 0.0)))
+		_advance(controller)
+
+	var boxes: Array[Vector3] = controller._ghost.collision_box_local_centers()
+	assert_false(boxes.is_empty(), "fixture: bar3 has collision boxes to sweep.")
+	var half_size: float = controller._ghost.collision_half_size()
+	var min_gap: float = INF
+	for local_center: Vector3 in boxes:
+		var world_center: Vector3 = controller._ghost.global_position + controller._ghost.basis * local_center
+		var gap: float = (block.global_position.x - half_size) - (world_center.x + half_size)
+		min_gap = minf(min_gap, gap)
+
+	assert_gt(
+		min_gap, 0.0,
+		"the pitched ghost's own collision boxes must still stop clear of the placed block."
+	)
+	assert_lt(
+		min_gap, ghost_tuning.ghost_collision_skin + tuning.cube_size * 2.0,
+		"the pitched ghost should stop right at the collision skin's gap, not far short of the block."
+	)
+
+
 # --- Master switch (F4 tuning panel) ----------------------------------------
 
 func test_ghost_collision_disabled_passes_through_a_placed_block() -> void:

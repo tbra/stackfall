@@ -48,8 +48,16 @@ extends Resource
 ## quaternion, not only the 24-entry table (autoload/match/MatchPlacement.gd
 ## is_pose_well_formed(), request_place()'s Basis(free_quat) * orientation
 ## basis composition). ------------------------------------------------------
-## Radians of yaw per pixel of horizontal mouse motion while rotate_drag is
-## held.
+## Radians of rotation per pixel of mouse motion while rotate_drag is held --
+## horizontal motion yaws about world up, vertical motion pitches about the
+## camera's current right axis (game/PlayerController.gd's
+## _camera_right_axis()). Bontago-mv0.25 (spec 2.5, owner test 2026-09-22:
+## "like the RMB orbit but for the block"): both axes now spin continuously
+## while the button is held, not yaw alone.
+## DECISION (config/GhostTuning.gd): one shared sensitivity for both axes,
+## not a second field -- it's one continuous two-axis drag gesture from a
+## single input device, and giving the axes different pixel-to-radian scales
+## would feel inconsistent for no clear benefit.
 @export var rotate_drag_sensitivity: float = 0.008
 
 ## -- Hover height (spec 1.5/2.5: "the mouse wheel raises and lowers the
@@ -81,21 +89,26 @@ extends Resource
 ## y = 0 plane, so a runaway/adversarial stack can't spin the probe forever.
 @export var surface_probe_max_blocks: int = 32
 
-## -- Ghost visual base (spec 2.5: shadow; Bontago-mv0.17 item 6 replaces the
-## old vertical guide line with the footprint projection below) -------------
+## -- Ghost visual base (spec 2.5; Bontago-mv0.17 item 6 replaced the old
+## vertical guide line with the footprint projection below, and Bontago-mv0.25
+## removed the drop-shadow blob entirely -- see the footprint section's
+## DECISION) -----------------------------------------------------------------
 ## Base alpha-blended tint before a per-state color is known (its alpha is
 ## reused as every state's transparency).
 @export var tint_color: Color = Color(0.35, 0.9, 0.55, 0.55)
-@export var shadow_color: Color = Color(0.0, 0.0, 0.0, 0.4)
-@export var shadow_size: Vector2 = Vector2(1.0, 1.0)
-## How far above the hit surface the shadow quad floats, so it doesn't
-## z-fight with the disk/block it's projected onto.
-@export var shadow_offset: float = 0.01
 
 ## -- Footprint projection (Bontago-mv0.17 item 6 -- owner feel report:
-## replaces the single vertical guide line with the whole footprint, one quad
-## per bottom cell of the rotated held shape, projected straight down onto
-## whatever is directly beneath it) -----------------------------------------
+## replaces the single vertical guide line with the whole footprint, one
+## rotated convex polygon per bottom cell of the held shape, projected
+## straight down onto whatever is directly beneath it) -----------------------
+## DECISION (config/GhostTuning.gd, Bontago-mv0.25, docs/rotation-issue.png):
+## the separate drop-shadow quad (shadow_color/shadow_size/shadow_offset) is
+## removed rather than kept unused -- the footprint is now the only ground
+## marker (owner test 2026-09-22: a rotated block's footprint must show its
+## true rotated silhouette, and a second, always-axis-aligned grey square
+## underneath it was redundant and visually wrong once the footprint itself
+## rotates correctly). Their old field names are gone; nothing else in the
+## project reads them (see this package's own grep audit).
 ## Alpha of each footprint quad's validity tint (valid/invalid/hole/locked
 ## share the same colours as the held shape's own tint -- see
 ## GhostPreview._footprint_color_for_state() -- just at this alpha instead of
@@ -103,14 +116,21 @@ extends Resource
 ## better a bit more transparent than the held shape itself).
 @export var footprint_alpha: float = 0.55
 ## How far above the landing surface each footprint quad floats, so it
-## doesn't z-fight with the disk/block it's projected onto (same idea as
-## shadow_offset, just its own tunable since the footprint is the primary cue
-## now and may want a different offset than the legacy single shadow).
+## doesn't z-fight with the disk/block it's projected onto.
 @export var footprint_offset: float = 0.01
 
 ## -- Placement validity tint (spec 2.2, 2.5) ---------------------------------
-## Red: outside territory, contested, or off the disk.
-@export var invalid_tint_color: Color = Color(0.95, 0.15, 0.15, 0.6)
+## Shown for every "can't drop here" reason that isn't a hole/goal-zone:
+## outside your own territory, contested, or off the disk.
+## DECISION (config/GhostTuning.gd, Bontago-mv0.25, owner test 2026-09-22):
+## changed from red to the same grey as locked_tint_color -- red read as an
+## alarming "you did something wrong" cue, but simply aiming outside your own
+## territory while looking for a legal spot is the normal, expected case, not
+## an error; grey reads as calmer, plain "can't drop here" feedback, matching
+## how the interval-locked state already reads. Left as its own field (not a
+## direct reuse of locked_tint_color) so the tuning panel can still split them
+## apart later without a second migration.
+@export var invalid_tint_color: Color = Color(0.6, 0.6, 0.6, 0.55)
 ## Hatched pattern tint over a hole.
 @export var hole_tint_color: Color = Color(0.95, 0.75, 0.15, 0.65)
 ## Bontago-mv0.10 (spec 2.4/2.5 "[ORIGINAL target]" placement cadence): grey,
@@ -130,9 +150,16 @@ extends Resource
 ## animation" — see docs/M2_PLAN.md owner decision 2) ------------------------
 @export var reject_flash_color: Color = Color(1.0, 1.0, 1.0, 0.9)
 @export var reject_flash_duration: float = 0.12
-## Sideways and upward distance the held shape's visual kicks during the
-## reject arc; the arc plays on the shape's local offset, not the ghost's
-## world position, since PlayerController re-homes that every frame.
+## Sideways (+world X) and upward (+world Y) distance the ghost kicks during
+## the reject arc. Bontago-mv0.25 (docs/rotation-issue.png): the kick now
+## animates a world-space offset added on top of the ghost's own computed
+## position every frame (GhostPreview._reject_offset), not the shape visual's
+## local offset -- the old local-offset kick rode along with whatever
+## rotation the held block currently had, so a pitched/rolled block's "up"
+## kick visibly went sideways or backwards. A world-space offset survives
+## PlayerController re-homing the ghost's position every frame for the same
+## reason the old local-offset trick existed, but no longer depends on the
+## block's rotation.
 @export var reject_arc_sideways: float = 1.2
 @export var reject_arc_height: float = 1.5
 @export var reject_arc_duration: float = 0.4

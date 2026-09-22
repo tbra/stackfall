@@ -21,6 +21,11 @@ extends GutTest
 ## same thing camera_mode (C) already does, plus lets the wheel zoom the rig
 ## instead of raising the ghost while either is held.
 ##
+## Bontago-mv0.25 (docs/rotation-issue.png, owner test 2026-09-22): rotate_drag
+## became full 3-DOF -- horizontal motion still yaws about world up, but
+## vertical motion now pitches about the camera's current right axis instead
+## of doing nothing.
+##
 ## Also carries a Bontago-mv0.7 regression pin (Part B, "the host cannot
 ## place"): the real root cause turned out to be ui/Lobby.gd sending
 ## hot_seat = true (see tests/unit/test_lobby.gd's
@@ -280,16 +285,78 @@ func test_mmb_press_plus_motion_does_not_also_fire_the_old_90_degree_snap() -> v
 	)
 
 
-func test_rotate_drag_ignores_vertical_motion() -> void:
+## Bontago-mv0.25 (spec 2.5, docs/rotation-issue.png, owner test 2026-09-22,
+## "like the RMB orbit but for the block"): replaces the old
+## test_rotate_drag_ignores_vertical_motion pin -- rotate_drag is full 3-DOF
+## now, so vertical motion alone must pitch the block, not leave it untouched.
+func test_rotate_drag_vertical_motion_pitches_about_the_cameras_right_axis() -> void:
 	var controller: PlayerController = _make_controller()
 
 	Input.action_press(&"rotate_drag")
 	controller._unhandled_input(_motion(Vector2(0.0, 100.0)))
 	Input.action_release(&"rotate_drag")
 
-	assert_eq(
+	assert_ne(
 		controller._ghost.free_quaternion, Quaternion.IDENTITY,
-		"spec 2.5 scopes rotate_drag to horizontal motion (yaw only); vertical motion alone must not rotate the block."
+		"vertical motion should now pitch the held block continuously."
+	)
+	assert_almost_eq(
+		controller._ghost.free_quaternion.length(), 1.0, 0.0001,
+		"the composed free rotation must stay unit-length."
+	)
+	var axis: Vector3 = controller._ghost.free_quaternion.get_axis()
+	# No CameraRig wired -> _camera_right_axis() falls back to yaw 0 -> world
+	# +X (same fallback _camera_relative_dir() uses). A quaternion's axis-angle
+	# form always normalizes to a positive angle, flipping the axis sign if
+	# needed, so either +X or -X is a correct match here.
+	assert_true(
+		axis.is_equal_approx(Vector3.RIGHT) or axis.is_equal_approx(-Vector3.RIGHT),
+		"pure vertical drag should pitch about the camera's right axis (world +X with no rig wired), got %s" % axis
+	)
+
+
+func test_rotate_drag_horizontal_motion_yaws_about_world_up_only() -> void:
+	var controller: PlayerController = _make_controller()
+
+	Input.action_press(&"rotate_drag")
+	controller._unhandled_input(_motion(Vector2(100.0, 0.0)))
+	Input.action_release(&"rotate_drag")
+
+	var axis: Vector3 = controller._ghost.free_quaternion.get_axis()
+	assert_true(
+		axis.is_equal_approx(Vector3.UP) or axis.is_equal_approx(-Vector3.UP),
+		"pure horizontal drag should yaw about world up only, got %s" % axis
+	)
+	assert_almost_eq(
+		controller._ghost.free_quaternion.length(), 1.0, 0.0001,
+		"the composed free rotation must stay unit-length."
+	)
+
+
+## Proves the pitch axis genuinely tracks the camera's current facing, not a
+## hard-coded world axis -- yaw the rig 90 degrees first, so its right axis is
+## no longer world +X, then check a vertical drag pitches about the rig's
+## (rotated) right axis instead.
+func test_rotate_drag_pitch_axis_follows_a_wired_cameras_current_yaw() -> void:
+	var controller: PlayerController = _make_controller()
+	var rig: CameraRig = autofree(load("res://game/CameraRig.tscn").instantiate())
+	add_child_autofree(rig)
+	controller.set_camera_rig(rig)
+
+	Input.action_press(&"camera_mode")
+	rig._unhandled_input(_motion(Vector2(-PI * 0.5 / rig.tuning.mouse_orbit_speed, 0.0)))
+	Input.action_release(&"camera_mode")
+	assert_almost_eq(rig.get_yaw(), PI * 0.5, 0.01, "fixture: the rig should now be yawed 90 degrees.")
+
+	Input.action_press(&"rotate_drag")
+	controller._unhandled_input(_motion(Vector2(0.0, 100.0)))
+	Input.action_release(&"rotate_drag")
+
+	var expected_right: Vector3 = Vector3(0.0, 0.0, -1.0)  # world +X yawed 90 degrees (forward = (1,0,0) -> right = (0,0,-1))
+	var axis: Vector3 = controller._ghost.free_quaternion.get_axis()
+	assert_true(
+		axis.is_equal_approx(expected_right) or axis.is_equal_approx(-expected_right),
+		"vertical drag should pitch about the camera's current right axis, not a fixed world axis, got %s" % axis
 	)
 
 
