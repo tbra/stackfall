@@ -93,6 +93,24 @@ var _rotation_drag: Vector2 = Vector2.ZERO
 ## bare unit-test instances so GUT never captures a test runner's real mouse.
 var _mouse_capture_enabled: bool = false
 
+## Bontago-mv0.23 (spec 2.5 "Held-block behaviour" [ORIGINAL], owner test
+## 2026-09-22): the last cursor position the collision sweep accepted --
+## _clamp_cursor_collision() sweeps from here to the frame's new _cursor
+## every frame and only advances this once the (possibly clamped) result is
+## known, so a block held against a wall keeps being tested from where it
+## actually stopped, not from wherever the raw input tried to drag it.
+var _last_safe_cursor: Vector3 = Vector3.ZERO
+## True once _last_safe_cursor has been seeded from a real _cursor value
+## (set_home_position() or the first collision check) -- avoids a spurious
+## sweep across the whole map from the pre-spawn Vector3.ZERO default.
+var _collision_cursor_seeded: bool = false
+## The disk-surface hit this frame's _update_ghost_transform() last saw,
+## cached so _clamp_hover_offset() (called from the wheel/held-key handlers,
+## not from _update_ghost_transform() itself) knows which world direction
+## "up" is for the vertical collision sweep without re-raycasting.
+var _last_hit_point: Vector3 = Vector3.ZERO
+var _last_hit_normal: Vector3 = Vector3.UP
+
 ## Bontago-mv0.18 (in-game tuning panel): ui/TuningPanel.gd sets this false
 ## while it is open, so dragging a slider or clicking Reset/Save/Copy can't
 ## also move the ghost, rotate it, or spend a placement underneath the panel.
@@ -130,6 +148,8 @@ func set_camera_rig(rig: CameraRig) -> void:
 ## is already wired.
 func set_home_position(home_position: Vector3) -> void:
 	_cursor = home_position
+	_last_safe_cursor = home_position
+	_collision_cursor_seeded = true
 	if _camera_rig != null:
 		_camera_rig.set_home_view(home_position)
 
@@ -149,6 +169,7 @@ func _process(delta: float) -> void:
 		return
 	_intent_lock_left = maxf(_intent_lock_left - delta, 0.0)
 	_update_gamepad_cursor(delta)
+	_clamp_cursor_collision()
 	_update_ghost_transform()
 	_update_ghost_tint()
 	_handle_hover_adjust(delta)
@@ -331,11 +352,12 @@ func _zoom_camera(direction: float) -> void:
 func _step_hover(direction: float) -> void:
 	if _ghost == null:
 		return
-	_ghost.manual_hover_offset = clampf(
+	var desired: float = clampf(
 		_ghost.manual_hover_offset + direction * ghost_tuning.hover_wheel_step,
 		0.0,
 		ghost_tuning.hover_manual_max
 	)
+	_ghost.manual_hover_offset = _clamp_hover_offset(desired)
 
 
 ## Bontago-mv0.14 (spec 1.5/1.7): rotation_mode turns "movement" (mouse motion
@@ -518,11 +540,12 @@ func _handle_hover_adjust(delta: float) -> void:
 		change -= 1.0
 	if change == 0.0:
 		return
-	_ghost.manual_hover_offset = clampf(
+	var desired: float = clampf(
 		_ghost.manual_hover_offset + change * ghost_tuning.hover_manual_adjust_speed * delta,
 		0.0,
 		ghost_tuning.hover_manual_max
 	)
+	_ghost.manual_hover_offset = _clamp_hover_offset(desired)
 
 
 ## Bontago-mv0.14 (spec 1.5): the mouse "positions the block" directly,
@@ -617,6 +640,8 @@ func _update_ghost_transform() -> void:
 		hit_point = hit["position"] as Vector3
 		hit_normal = hit["normal"] as Vector3
 
+	_last_hit_point = hit_point
+	_last_hit_normal = hit_normal
 	_ghost.update_placement(hit_point, hit_normal)
 
 
@@ -644,6 +669,187 @@ func _raycast_disk_surface(origin: Vector3) -> Dictionary:
 			continue
 		return hit
 	return {}
+
+
+# --- Ghost-vs-placed-block collision (Bontago-mv0.23, spec 2.5 "Held-block
+# behaviour" [ORIGINAL], owner test 2026-09-22) ------------------------------
+#
+# The held ghost collides with an already placed block -- it cannot pass
+# through a tower -- but never pushes or knocks one. This runs a shape cast
+# each frame against the real physics world instead of giving the ghost its
+# own physics body, so a placed RigidBody3D is only ever read from
+# (cast_motion/intersect_shape), never written to.
+#
+# DECISION (game/PlayerController.gd): the brief for this package expected a
+# collision_mask naming "placed blocks' own layer", but nothing in this
+# project sets a distinguishing physics layer -- BlockFactory/Block.gd never
+# call collision_layer/collision_mask, so every body (block, disk, future
+# goal zone) still defaults to Godot's layer 1 (confirmed by grep across
+# game/, config/, core/; project.godot has no [layer_names] section at all).
+# Adding one would mean editing project.godot's physics layers, which this
+# package does not own (tools/bootstrap_project.gd owns project settings) and
+# would ripple into BlockFactory/Field, also out of scope. This filters by
+# node type instead (`is RigidBody3D`), exactly the technique
+# _raycast_disk_surface() above already uses to skip a block when it wants
+# the disk -- here it is inverted: skip anything that ISN'T a RigidBody3D
+# (the disk, a future goal-zone Area3D) and only stop for one that is. Filed
+# under this package's Unresolved for a follow-up dedicated layer.
+
+
+## Ensures _last_safe_cursor tracks a real, already-seeded value before the
+## first sweep -- otherwise the very first frame would sweep from the
+## pre-spawn Vector3.ZERO default across the whole map.
+func _seed_collision_cursor_if_needed() -> void:
+	if not _collision_cursor_seeded:
+		_last_safe_cursor = _cursor
+		_collision_cursor_seeded = true
+
+
+## Clamps _cursor's horizontal motion this frame so the held shape's own
+## collision boxes cannot sweep into an already placed block (pushing the
+## cursor into a tower stops it at the surface; sliding along one is fine --
+## DECISION: tries the full motion, then its X-only and Z-only components, so
+## a block dragged along a wall keeps sliding instead of sticking the instant
+## any one axis is blocked). Height is assumed constant across the sweep (the
+## disk is flat through M3; a tilted disk is this package's Unresolved). A
+## no-op -- and keeps _last_safe_cursor in sync so re-enabling collision
+## later never sweeps across a stale gap -- when collision is disabled,
+## nothing is held, or the cursor didn't move this frame.
+func _clamp_cursor_collision() -> void:
+	_seed_collision_cursor_if_needed()
+	if not ghost_tuning.ghost_collision_enabled or _ghost == null or _ghost.get_shape() == null:
+		_last_safe_cursor = _cursor
+		return
+	var motion: Vector3 = _cursor - _last_safe_cursor
+	if motion.length() <= 0.0:
+		return
+	var height: float = _ghost.global_position.y
+	var from_position: Vector3 = Vector3(_last_safe_cursor.x, height, _last_safe_cursor.z)
+	var to_position: Vector3 = Vector3(_cursor.x, height, _cursor.z)
+	var clamped: Vector3 = _sweep_ghost_position(from_position, to_position)
+	_cursor = Vector3(clamped.x, _cursor.y, clamped.z)
+	_last_safe_cursor = _cursor
+
+
+## Clamps a manual_hover_offset change (from the wheel notch or a held
+## raise/lower key) so raising/lowering the held shape can't sweep it through
+## a placed block above or below it -- same box-sweep technique as the
+## horizontal clamp, just along the disk's own surface normal
+## (_last_hit_normal, cached by _update_ghost_transform()) instead of the XZ
+## plane. `desired` is the value the caller would otherwise commit after its
+## own hover_manual_max clamp.
+func _clamp_hover_offset(desired: float) -> float:
+	if not ghost_tuning.ghost_collision_enabled or _ghost == null or _ghost.get_shape() == null:
+		return desired
+	var current: float = _ghost.manual_hover_offset
+	var delta: float = desired - current
+	if is_equal_approx(delta, 0.0):
+		return desired
+	var from_position: Vector3 = _ghost.global_position
+	var to_position: Vector3 = from_position + _last_hit_normal * delta
+	var clamped_position: Vector3 = _sweep_ghost_position(from_position, to_position)
+	var achieved_delta: float = (clamped_position - from_position).dot(_last_hit_normal)
+	return current + achieved_delta
+
+
+## The shared box-sweep behind both clamps above: moves the held shape's own
+## collision boxes (GhostPreview.collision_box_local_centers()/
+## collision_half_size(), built the same way BlockFactory.build() would, so
+## the ghost matches the block that will actually spawn) from `from_position`
+## to `to_position` at the ghost's current rotation, and returns the furthest
+## point along that straight line that keeps every box clear of every placed
+## block. DECISION: tries the full motion first, then the X-only and Z-only
+## components of whatever remains, so horizontal motion blocked on one axis
+## still slides along the other; a purely vertical motion (the hover clamp)
+## has zero X/Z remainder, so the slide attempts are a no-op there and it
+## correctly just stops.
+func _sweep_ghost_position(from_position: Vector3, to_position: Vector3) -> Vector3:
+	var result: Vector3 = from_position + _sweep_motion(from_position, to_position - from_position)
+	var remainder: Vector3 = to_position - result
+	if remainder.length() > 0.0:
+		result += _sweep_motion(result, Vector3(remainder.x, 0.0, 0.0))
+		remainder = to_position - result
+		result += _sweep_motion(result, Vector3(0.0, 0.0, remainder.z))
+	return result
+
+
+## One shape cast per collision box of the held shape, in one direction,
+## returning the safe portion of `motion` (Vector3.ZERO if none of it is
+## clear, unchanged `motion` if all of it is). The swept box is inflated by
+## ghost_tuning.ghost_collision_skin on every side so the returned motion
+## always leaves that much of a gap, rather than letting the ghost visually
+## touch a placed block exactly.
+func _sweep_motion(position: Vector3, motion: Vector3) -> Vector3:
+	if motion.length() <= 0.0 or _ghost == null:
+		return Vector3.ZERO
+	var boxes: Array[Vector3] = _ghost.collision_box_local_centers()
+	if boxes.is_empty():
+		return motion
+	var world: World3D = get_viewport().world_3d
+	if world == null:
+		return motion
+	var space_state: PhysicsDirectSpaceState3D = world.direct_space_state
+	var inflated_half: float = _ghost.collision_half_size() + ghost_tuning.ghost_collision_skin
+	var box_shape: BoxShape3D = BoxShape3D.new()
+	box_shape.size = Vector3.ONE * (inflated_half * 2.0)
+	var min_safe_fraction: float = 1.0
+	for local_center: Vector3 in boxes:
+		var world_center: Vector3 = position + _ghost.basis * local_center
+		min_safe_fraction = minf(
+			min_safe_fraction, _cast_one_box(space_state, box_shape, world_center, motion)
+		)
+	return motion * clampf(min_safe_fraction, 0.0, 1.0)
+
+
+## Casts `box_shape` (already inflated by the caller) from `world_center`
+## along `motion`, skipping any collider that isn't a placed block -- see this
+## section's top-of-file DECISION for why type, not collision_mask, is the
+## filter here. Bounded by ghost_tuning.collision_probe_max_bodies, the same
+## bounded-skip idea _raycast_disk_surface() uses, so a pathological pile of
+## non-block colliders in the way can't spin this loop forever. Returns the
+## safe fraction of `motion` (1.0 = fully clear).
+func _cast_one_box(
+	space_state: PhysicsDirectSpaceState3D, box_shape: BoxShape3D, world_center: Vector3, motion: Vector3
+) -> float:
+	var params: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
+	params.shape = box_shape
+	params.transform = Transform3D(_ghost.basis, world_center)
+	params.motion = motion
+	params.collide_with_bodies = true
+	params.collide_with_areas = false
+	var exclude: Array[RID] = []
+	var attempts: int = 0
+	while attempts <= ghost_tuning.collision_probe_max_bodies:
+		params.exclude = exclude
+		var cast_result: PackedFloat32Array = space_state.cast_motion(params)
+		var safe_fraction: float = cast_result[0] if cast_result.size() > 0 else 1.0
+		if safe_fraction >= 1.0:
+			return 1.0
+		# DECISION (game/PlayerController.gd): probe at cast_motion's *unsafe*
+		# fraction, not its safe one -- `safe_fraction` is deliberately the
+		# point just *before* any contact (zero penetration, often not even
+		# touching yet), so intersect_shape() there can come back empty even
+		# when something genuinely blocked the cast. `unsafe_fraction` is
+		# where the shapes actually first overlap, which is what identifying
+		# the blocker needs.
+		var unsafe_fraction: float = cast_result[1] if cast_result.size() > 1 else safe_fraction
+		var probe: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
+		probe.shape = box_shape
+		probe.transform = Transform3D(_ghost.basis, world_center + motion * unsafe_fraction)
+		probe.collide_with_bodies = true
+		probe.collide_with_areas = false
+		probe.exclude = exclude
+		var overlaps: Array[Dictionary] = space_state.intersect_shape(probe, 8)
+		var non_block_rids: Array[RID] = []
+		for overlap: Dictionary in overlaps:
+			if overlap.get("collider") is RigidBody3D:
+				return safe_fraction
+			non_block_rids.append(overlap["rid"] as RID)
+		if non_block_rids.is_empty():
+			return 1.0
+		exclude.append_array(non_block_rids)
+		attempts += 1
+	return 0.0
 
 
 ## Match names the shape it issues by id (Events.feed_block_issued); the ghost

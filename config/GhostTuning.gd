@@ -145,3 +145,26 @@ extends Resource
 ## -- HUD (ui/HUD.gd) ---------------------------------------------------------
 @export var hud_reject_message_duration: float = 1.5
 @export var hud_reject_fade_duration: float = 0.5
+
+## -- Ghost-vs-placed-block collision (Bontago-mv0.23, spec 2.5 "Held-block
+## behaviour" [ORIGINAL], owner test 2026-09-22): the held ghost collides with
+## already placed blocks -- it cannot pass through a tower -- but it never
+## pushes or knocks them; placed blocks are unaffected by the ghost.
+## game/PlayerController.gd runs a swept box test every frame against the
+## real physics world instead of giving the ghost its own physics body, so a
+## placed RigidBody3D is only ever read from, never touched. -----------------
+## Master switch (F4 tuning panel): false restores the pre-mv0.23 behaviour
+## (the ghost passes through placed blocks) for an owner feel comparison.
+@export var ghost_collision_enabled: bool = true
+## Meters of gap the swept test keeps between the ghost and a placed block.
+## Implemented by inflating the swept box by this much on every side
+## (game/PlayerController.gd._sweep_motion()) rather than subtracting it from
+## the result, so the gap is exact regardless of sweep direction.
+@export var ghost_collision_skin: float = 0.03
+## How many non-block colliders (the disk, a future goal-zone body) one
+## cell's shape cast will skip past before giving up and calling that cast
+## clear -- the shape-cast analogue of surface_probe_max_blocks above, needed
+## because this project sets no distinguishing physics layer for a placed
+## block (every body defaults to Godot's layer 1; see PlayerController's
+## DECISION comment on _cast_one_box()).
+@export var collision_probe_max_bodies: int = 8

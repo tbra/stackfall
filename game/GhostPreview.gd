@@ -287,6 +287,38 @@ func footprint_quad_position(index: int) -> Vector3:
 	return _footprint_quads[index].global_position
 
 
+# --- Ghost-vs-placed-block collision (Bontago-mv0.23, spec 2.5) -------------
+
+## Local (unrotated), cell-local centers of the held shape's own collision
+## boxes -- matching game/BlockFactory.gd's build() exactly (same cube_size/
+## cube_margin and BlockShape.bottom_center() pivot) so game/PlayerController.
+## gd's swept collision test lines up with the box the real spawned Block
+## would occupy there. DECISION (game/GhostPreview.gd): duplicated rather
+## than calling into BlockFactory's own private, static
+## _make_collision_shape() -- BlockFactory is outside this package's file
+## ownership, and this is the same few lines _rotated_bottom_offset()/
+## _rotated_footprint_columns() above already compute for the same shape.
+## Empty (not null) when nothing is held.
+func collision_box_local_centers() -> Array[Vector3]:
+	var centers: Array[Vector3] = []
+	if _shape == null:
+		return centers
+	var pivot: Vector3 = _shape.bottom_center()
+	for cell: Vector3i in _shape.cells:
+		centers.append((Vector3(cell) - pivot) * tuning.cube_size)
+	return centers
+
+
+## Half-extent of one collision box, matching game/BlockFactory.gd's own
+## `half_size` (see collision_box_local_centers()'s DECISION above). A sloped
+## cell (ConvexPolygonShape3D in BlockFactory) is approximated as a full box
+## here -- no shipped shape sets sloped_cells today (Bontago-mv0.17 removed
+## the only one, config/blocks/wedge.tres), so this never runs against a
+## shape it would misrepresent.
+func collision_half_size() -> float:
+	return (tuning.cube_size - tuning.cube_margin) * 0.5
+
+
 # --- Placement validity tint (spec 2.2, 2.5) --------------------------------
 
 ## The active slot's colour, used for the VALID tint. Setting it re-applies
