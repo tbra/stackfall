@@ -17,6 +17,15 @@ extends RefCounted
 ## and preserves the ramp capability for a future shape/special without
 ## redoing this convex-hull math. Deleting it was not required to remove the
 ## wedge shape itself.
+##
+## Bontago-xtq.3 (owner feel report "our blocks are made up of many smaller
+## blocks, is that necessary? the original just has solid shapes"): the
+## visual side of build()/build_visual_only() below now adds exactly one
+## MeshInstance3D per block/ghost, built by core/blocks/BlockMeshBuilder.gd
+## from the shape's own cells with interior faces removed, instead of one
+## MeshInstance3D (and visible seam) per cell. Collision is unchanged -- still
+## one CollisionShape3D per cell, a compound of boxes -- since the physics
+## shape was never the thing the owner was seeing.
 
 const BLOCK_SCENE: PackedScene = preload("res://game/Block.tscn")
 
@@ -83,28 +92,47 @@ static func build(shape: BlockShape, tuning: PhysicsTuning, owner_slot: int = -1
 		collision.position = local_pos
 		block.add_child(collision)
 
-		var mesh_instance: MeshInstance3D = MeshInstance3D.new()
-		var mesh: Mesh = shape.mesh if shape.mesh != null else _make_visual_mesh(half_size, is_sloped)
-		mesh_instance.mesh = mesh
-		mesh_instance.material_override = visual_material
-		mesh_instance.position = local_pos
-		block.add_child(mesh_instance)
+	_add_shape_visual(block, shape, tuning, visual_material)
 
 	return block
 
 
 ## Builds just the visuals for a shape (no RigidBody3D, no collision) as a
-## plain Node3D with one MeshInstance3D per cell. Used by GhostPreview so the
-## held block's look matches the real one without simulating physics for it.
-## Offset by the shape's bottom-centre exactly like build() above, so the
-## ghost's visual and the spawned body agree on where the shape's bottom face
-## sits relative to this node's own origin (Bontago-mv0.17 item 3, was
-## Bontago-mv0.12's geometric centre); GhostPreview's own tint material is
-## applied by the caller (_apply_material_to_visual()), never here, per this
-## package's "keep the ghost's own tint logic untouched".
+## plain Node3D with one MeshInstance3D for the whole shape (Bontago-xtq.3).
+## Used by GhostPreview so the held block's look matches the real one without
+## simulating physics for it. Offset by the shape's bottom-centre exactly
+## like build() above, so the ghost's visual and the spawned body agree on
+## where the shape's bottom face sits relative to this node's own origin
+## (Bontago-mv0.17 item 3, was Bontago-mv0.12's geometric centre);
+## GhostPreview's own tint material is applied by the caller
+## (_apply_material_to_visual()), never here, per this package's "keep the
+## ghost's own tint logic untouched" -- it still works unchanged because it
+## walks every MeshInstance3D child, and there is now just one.
 static func build_visual_only(shape: BlockShape, tuning: PhysicsTuning) -> Node3D:
 	var root: Node3D = Node3D.new()
 	root.name = "ShapeVisual"
+	_add_shape_visual(root, shape, tuning, null)
+	return root
+
+
+## Adds the visual MeshInstance3D(s) for `shape` to `parent`. The common path
+## (Bontago-xtq.3): one MeshInstance3D holding a BlockMeshBuilder-generated
+## mesh for the whole shape, with interior faces already removed. Falls back
+## to the pre-existing one-mesh-per-cell path (`material` per cell, no face
+## culling) only for a shape BlockMeshBuilder.build_mesh() refuses -- see its
+## own doc comment for exactly when that is (sloped_cells or a custom
+## shape.mesh, neither used by any shipped shape today).
+static func _add_shape_visual(
+	parent: Node3D, shape: BlockShape, tuning: PhysicsTuning, material: StandardMaterial3D
+) -> void:
+	var combined_mesh: ArrayMesh = BlockMeshBuilder.build_mesh(shape, tuning.cube_size, tuning.cube_margin)
+	if combined_mesh != null:
+		var mesh_instance: MeshInstance3D = MeshInstance3D.new()
+		mesh_instance.mesh = combined_mesh
+		mesh_instance.material_override = material
+		parent.add_child(mesh_instance)
+		return
+
 	var half_size: float = (tuning.cube_size - tuning.cube_margin) * 0.5
 	var pivot: Vector3 = shape.bottom_center()
 	for cell: Vector3i in shape.cells:
@@ -112,9 +140,9 @@ static func build_visual_only(shape: BlockShape, tuning: PhysicsTuning) -> Node3
 		var is_sloped: bool = shape.sloped_cells.has(cell)
 		var mesh: Mesh = shape.mesh if shape.mesh != null else _make_visual_mesh(half_size, is_sloped)
 		mesh_instance.mesh = mesh
+		mesh_instance.material_override = material
 		mesh_instance.position = (Vector3(cell) - pivot) * tuning.cube_size
-		root.add_child(mesh_instance)
-	return root
+		parent.add_child(mesh_instance)
 
 
 static func _material_for_color(color: Color) -> StandardMaterial3D:

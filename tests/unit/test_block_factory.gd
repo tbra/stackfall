@@ -20,7 +20,25 @@ func test_bar4_mass_and_shape_count() -> void:
 	assert_eq(block.cube_count, 4)
 	assert_almost_eq(block.mass, _tuning.cube_mass * 4.0, 0.0001)
 	assert_eq(_count_children_of_type(block, "CollisionShape3D"), 4)
-	assert_eq(_count_children_of_type(block, "MeshInstance3D"), 4)
+	# Bontago-xtq.3: one solid mesh for the whole shape, not one per cell --
+	# see game/BlockFactory.gd's DECISION and core/blocks/BlockMeshBuilder.gd.
+	assert_eq(_count_children_of_type(block, "MeshInstance3D"), 1)
+
+
+## Bontago-xtq.3 (owner feel report "our blocks are made up of many smaller
+## blocks, is that necessary? the original just has solid shapes"): every
+## multi-cube shape now renders as exactly one MeshInstance3D, whatever its
+## cube_count, both for a spawned Block and for the ghost-only visual.
+func test_every_shape_builds_exactly_one_mesh_instance_regardless_of_cube_count() -> void:
+	for shape: BlockShape in BlockShape.load_all_shapes():
+		var block: Block = autofree(BlockFactory.build(shape, _tuning))
+		assert_eq(
+			_count_children_of_type(block, "MeshInstance3D"), 1,
+			"%s (cube_count=%d) should build exactly one MeshInstance3D." % [shape.id, shape.cells.size()]
+		)
+		assert_eq(_count_children_of_type(block, "CollisionShape3D"), shape.cells.size())
+		var visual: Node3D = autofree(BlockFactory.build_visual_only(shape, _tuning))
+		assert_eq(_count_children_of_type(visual, "MeshInstance3D"), 1, "%s ghost visual" % shape.id)
 
 
 func test_slab6_mass_and_shape_count() -> void:
