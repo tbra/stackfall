@@ -6,6 +6,7 @@
 script = ExtResource("1_hints")
 ranges = {
 "CameraTuning.mouse_orbit_speed": Vector2(0.0, 0.02),
+"CameraTuning.orbit_zoom_step": Vector2(0.5, 8.0),
 "CameraTuning.pad_orbit_speed": Vector2(0.0, 6.0),
 "CameraTuning.min_pitch_deg": Vector2(-89.0, 0.0),
 "CameraTuning.max_pitch_deg": Vector2(-89.0, 0.0),
@@ -21,6 +22,7 @@ ranges = {
 "CameraTuning.snap_distance": Vector2(5.0, 80.0),
 "CameraTuning.snap_duration": Vector2(0.0, 2.0),
 "GhostTuning.block_move_sensitivity": Vector2(0.0, 0.3),
+"GhostTuning.rotate_drag_sensitivity": Vector2(0.0, 0.03),
 "GhostTuning.hover_manual_adjust_speed": Vector2(0.0, 5.0),
 "GhostTuning.hover_wheel_step": Vector2(0.0, 2.0),
 "GhostTuning.hover_manual_max": Vector2(0.0, 60.0),
@@ -47,6 +49,7 @@ ranges = {
 }
 descriptions = {
 "CameraTuning.mouse_orbit_speed": "How fast the camera orbits (yaw/pitch) per pixel of mouse motion while holding orbit.",
+"CameraTuning.orbit_zoom_step": "Metres the camera moves closer or further per wheel notch while the right mouse button (or C) is held.",
 "CameraTuning.pad_orbit_speed": "How fast the camera orbits per second at full gamepad stick deflection.",
 "CameraTuning.min_pitch_deg": "The lowest (most level) camera pitch angle allowed.",
 "CameraTuning.max_pitch_deg": "The highest (steepest downward) camera pitch angle allowed.",
@@ -63,6 +66,7 @@ descriptions = {
 "CameraTuning.snap_distance": "Camera distance used when snapping to home or goal.",
 "CameraTuning.snap_duration": "How long the camera snap animation to home/goal takes, in seconds.",
 "GhostTuning.block_move_sensitivity": "Meters the held block's cursor moves per pixel of camera-relative mouse motion.",
+"GhostTuning.rotate_drag_sensitivity": "Radians the held block spins per pixel of horizontal mouse motion while the middle mouse button is held.",
 "GhostTuning.gamepad_cursor_base_speed": "Cursor speed at the gamepad's reference zoom distance.",
 "GhostTuning.gamepad_cursor_zoom_reference_distance": "Camera zoom distance at which the gamepad cursor's base speed applies; farther zoom moves the cursor faster.",
 "GhostTuning.gamepad_cursor_acceleration": "How quickly the gamepad cursor accelerates toward its target speed.",
