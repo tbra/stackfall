@@ -31,7 +31,7 @@ candidate diff and logs. Route fixes back to a writer and verify the result.
 
 Coordinate Beads mutations yourself and persist worker checkpoints after each
 meaningful result. Pass `--actor stackfall-orchestrator` on every `bd` write so the
-owner can tell your entries from theirs (bd otherwise stamps the git user). Workers supply evidence; you decide acceptance. Never mark
+owner can tell your entries from theirs (bd otherwise stamps the git user). Set `--assignee "<worker profile> (<model>)"` when you dispatch; never close an unassigned issue. Workers supply evidence; you decide acceptance. Never mark
 an interrupted worker or an unverified review finding complete. Follow the
 conservative Git policy and the project's spec pause points. Continue independent
 authorized work when another package is blocked, but do not skip acceptance gates.
