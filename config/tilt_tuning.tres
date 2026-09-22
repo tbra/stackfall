@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="TiltTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/TiltTuning.gd" id="1_tilt"]
+
+[resource]
+script = ExtResource("1_tilt")
+max_tilt_deg = 12.0
+return_time_constant_s = 4.0

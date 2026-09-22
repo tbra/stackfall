@@ -1,8 +1,13 @@
 class_name Field
-extends StaticBody3D
-## The match field: a disk (spec 2.1). Static for M1/M2 — no tilt yet, so it's
-## a plain StaticBody3D. It becomes an AnimatableBody3D (SPECIALS_ONLY tilt) or
-## RigidBody3D (PHYSICAL_BALANCE tilt) from M4/M6 onward.
+extends AnimatableBody3D
+## The match field: a disk (spec 2.1). Plain StaticBody3D through M1/M2 (no
+## tilt). From M4 (Bontago M4 P0b) it is an AnimatableBody3D so the
+## SPECIALS_ONLY tilt (spec 2.1, 2.7, 3.5) can carry resting blocks along with
+## it; AnimatableBody3D is a kinematic special case of StaticBody3D (Jolt and
+## Godot both treat it as static collision the physics step sees moved, not
+## simulated), so every existing shape-owner/collision API below keeps
+## working unchanged. `PHYSICAL_BALANCE` tilt (a RigidBody3D on a joint) is
+## M6 scope, out of this package.
 ##
 ## **Cells (spec 3.3).** The disk's collision is one ConcavePolygonShape3D on
 ## one shape owner (Bontago-ruw, docs/M4_PLAN.md P0a): a trimesh with one
@@ -53,6 +58,7 @@ const TRACE_ARG_PREFIX: String = "--trace-disk="
 
 @export var map_def: MapDef = preload("res://config/maps/round_medium.tres")
 @export var tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
+@export var tilt_tuning: TiltTuning = preload("res://config/tilt_tuning.tres")
 @export var territory_tuning: TerritoryTuning = preload("res://config/territory_tuning.tres")
 @export var visuals: TerritoryVisuals = preload("res://config/territory_visuals.tres")
 @export var home_flag_scene: PackedScene = preload("res://game/HomeFlag.tscn")
@@ -102,6 +108,19 @@ var _trace_every: int = 0
 var _rebuild_count: int = 0
 var _max_rebuild_usec: int = 0
 
+## SPECIALS_ONLY tilt (spec 2.1, 2.7, 3.5). Off by default so a Field nobody
+## has called set_tilt_enabled(true) on -- every scene and test that predates
+## this package -- behaves exactly as before: sync_to_physics carries no
+## rotation because _physics_process() never writes one.
+var _tilt_enabled: bool = false
+## The 2-axis tilt vector the critically damped spring integrates: x is the
+## rotation (radians) about the disk's local X axis, y about its local Z
+## axis. Chosen to read the same way disk-local (x, z) already does
+## everywhere else in this file, not because it is a literal disk-local
+## point.
+var _tilt: Vector2 = Vector2.ZERO
+var _tilt_velocity: Vector2 = Vector2.ZERO
+
 var _overlay: TerritoryOverlay = null
 var _home_flags: Array[HomeFlag] = []
 var _goal_flags: Array[GoalFlag] = []
@@ -112,6 +131,17 @@ func _ready() -> void:
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with(TRACE_ARG_PREFIX):
 			_trace_every = maxi(arg.substr(TRACE_ARG_PREFIX.length()).to_int(), 0)
+	# DECISION (game/Field.gd, Bontago M4 P0b): AnimatableBody3D defaults
+	# sync_to_physics to true (verified against this exact build, not assumed
+	# from the docs), which -- as test_field_cells.gd's
+	# test_coordinates_follow_the_field_transform demonstrated -- makes Godot
+	# stop honouring a direct transform/global_position write made outside a
+	# physics tick, silently holding the node at its last physics-synced
+	# transform instead. Explicitly forcing it false here, and only flipping
+	# it true from set_tilt_enabled(true), keeps every caller that places the
+	# field itself (this scene, Main, that test) working exactly as it did as
+	# a StaticBody3D, right up until a match actually turns tilt on.
+	sync_to_physics = false
 	_build_cells()
 	_build_kill_plane()
 	_build_overlay()
@@ -119,8 +149,10 @@ func _ready() -> void:
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	_drain_toggles()
+	if _tilt_enabled:
+		_update_tilt(delta)
 
 
 # --- Geometry ---------------------------------------------------------------
@@ -155,6 +187,136 @@ func disk_local_from_world(world: Vector3) -> Vector2:
 ## Disk-local (x, z) plus a height above the disk surface -> world point.
 func world_from_disk_local(local: Vector2, height: float) -> Vector3:
 	return to_global(Vector3(local.x, height, local.y))
+
+
+# --- Tilt (SPECIALS_ONLY, spec 2.1, 2.7, 3.5) --------------------------------
+#
+# Only PlayerSlot/Match-side wiring decides *when* this runs: Field itself
+# just carries the flag. Defaults to false so nothing about this package
+# changes behaviour for a caller that never touches it.
+
+## The smallest typed setter Match needs to turn tilt on for a
+## `tilt_mode == SPECIALS_ONLY` match (autoload/Match.gd already has the one
+## configure()/clear_match_state() path that reaches Field; wiring an actual
+## call from there is left to whichever package next reads MatchConfig into
+## Field, per this package's scope). Disabling mid-match also snaps the tilt
+## itself back to level rather than leaving it wherever the spring stopped,
+## since a mode switch that is not a fresh match should not leave stale
+## rotation behind.
+##
+## DECISION (game/Field.gd, Bontago M4 P0b): `sync_to_physics` (spec 3.5: "the
+## disk is an AnimatableBody3D with sync_to_physics = true") is flipped on
+## here, not unconditionally in _ready(). Once it is true, Godot's kinematic
+## body only accepts transform writes made through the physics step and
+## otherwise holds the node at its last physics-synced transform -- so
+## test_field_cells.gd's test_coordinates_follow_the_field_transform (setting
+## field.global_position once, outside any physics tick, to place the whole
+## disk) silently stopped taking effect the moment sync_to_physics was ever
+## true, tilt or no tilt. Gating it on the same flag that turns tilt on keeps
+## every existing direct-transform caller (placing the field itself in the
+## world) working exactly as before right up until a match actually turns
+## tilt on, which is the only time anything needs the physics-synced path.
+func set_tilt_enabled(enabled: bool) -> void:
+	if _tilt_enabled == enabled:
+		return
+	_tilt_enabled = enabled
+	sync_to_physics = enabled
+	if not enabled:
+		_tilt = Vector2.ZERO
+		_tilt_velocity = Vector2.ZERO
+		_apply_tilt_transform()
+
+
+func tilt_enabled() -> bool:
+	return _tilt_enabled
+
+
+## Current tilt vector (radians, disk-local X/Z rotation angles as documented
+## on _tilt above). Read-only; tests use it to check the spring's motion and
+## its clamp without waiting out real seconds of physics frames.
+func tilt_vector() -> Vector2:
+	return _tilt
+
+
+## The one public entry point a special (Anvil, Fan, Earthquake -- P5) uses to
+## push the disk. `direction` is a disk-local XZ unit vector; `magnitude` is
+## an impulse into the spring model (added to the tilt vector's velocity, unit
+## "mass"), not a direct angle -- the critically damped spring then eases the
+## disk back toward level over roughly tilt_tuning.return_time_constant_s.
+## A no-op while tilt is disabled, so a special fired under `PHYSICAL_BALANCE`
+## (or before any match wires tilt on at all) cannot leave Field with a
+## velocity that only shows up the moment something else enables it later.
+##
+## DECISION (game/Field.gd, Bontago M4 P0b): direction (dx, dz) is turned into
+## a velocity kick on (rotation about local X, rotation about local Z) via
+## Vector2(dz, -dx) * magnitude. That is the unique small-angle decomposition
+## whose combined rotation moves the disk surface point at unit offset
+## `direction` downward by exactly `magnitude` radians (a first-order
+## expansion of rotating around the horizontal axis perpendicular to
+## `direction`, i.e. treating the two single-axis rotations Field already
+## keeps as state as independent contributions rather than composing them as
+## one single-axis tilt) -- so "hit the disk over there" reads as "that side
+## dips", the same intuition apply_tilt_impulse's own doc promises callers.
+func apply_tilt_impulse(direction: Vector2, magnitude: float) -> void:
+	if not _tilt_enabled:
+		return
+	var dir: Vector2 = direction.normalized()
+	if dir == Vector2.ZERO or magnitude == 0.0:
+		return
+	_tilt_velocity += Vector2(dir.y, -dir.x) * magnitude
+
+
+## One physics tick of the critically damped spring (x'' + 2*omega*x'
+## + omega^2*x = 0 pulling _tilt back toward Vector2.ZERO), then the
+## max_tilt_deg clamp, then the transform write sync_to_physics carries to
+## Jolt. Split out from _physics_process so tests can step the dynamics
+## directly without waiting on real engine frames.
+func _update_tilt(delta: float) -> void:
+	var stiffness: float = tilt_tuning.spring_stiffness()
+	var damping: float = tilt_tuning.spring_damping()
+	var accel: Vector2 = (-stiffness * _tilt) - (damping * _tilt_velocity)
+	_tilt_velocity += accel * delta
+	_tilt += _tilt_velocity * delta
+	_clamp_tilt()
+	_apply_tilt_transform()
+
+
+## Clamps _tilt's magnitude to tilt_tuning.max_tilt_deg regardless of how many
+## apply_tilt_impulse() calls landed this frame or how large any one of them
+## was -- the clamp runs once per integrated step, after every impulse queued
+## for that step has already been folded into _tilt_velocity. Also drops the
+## outward-pointing part of the velocity at the clamp so a saturated hit does
+## not keep re-clamping every subsequent frame while it decays.
+func _clamp_tilt() -> void:
+	var max_rad: float = tilt_tuning.max_tilt_rad()
+	var magnitude: float = _tilt.length()
+	if magnitude <= max_rad or magnitude <= 0.0:
+		return
+	var outward: Vector2 = _tilt / magnitude
+	var radial_speed: float = _tilt_velocity.dot(outward)
+	if radial_speed > 0.0:
+		_tilt_velocity -= outward * radial_speed
+	_tilt = outward * max_rad
+
+
+## Builds the disk's rotation from the tilt vector as two independent
+## small-angle rotations (see apply_tilt_impulse's DECISION above): first
+## about the local Z axis (tilt.y), then about the local X axis (tilt.x).
+## Composing in a fixed order makes the transform this writes and the
+## impulse math above exact inverses of each other regardless of which order
+## was picked, which is all a NEW system with no original geometry to match
+## needs.
+func _tilt_basis(tilt: Vector2) -> Basis:
+	return Basis(Vector3.RIGHT, tilt.x) * Basis(Vector3.BACK, tilt.y)
+
+
+## Writes the tilt into this Node3D's own local transform (never the parent's)
+## so disk_local_from_world()/world_from_disk_local() -- already plain
+## to_local()/to_global() -- pick it up through the live global_transform with
+## no code change of their own, and so the rotation pivots on Field's own
+## origin (spec 2.1 "the disk pivots around its center").
+func _apply_tilt_transform() -> void:
+	transform = Transform3D(_tilt_basis(_tilt), transform.origin)
 
 
 func _build_cells() -> void:
@@ -597,6 +759,13 @@ func clear_match_state() -> void:
 	_toggle_head = 0
 	if had_holes:
 		_rebuild_disk_mesh()
+	# Bontago-1en.9 review: the Field outlives a match, so a tilt (and its
+	# velocity) left over from the previous match must not carry into the next
+	# one. Reset the spring state whether or not tilt is currently enabled;
+	# set_tilt_enabled() alone would no-op on an enabled -> enabled transition.
+	_tilt = Vector2.ZERO
+	_tilt_velocity = Vector2.ZERO
+	_apply_tilt_transform()
 
 
 # --- Territory overlay (spec 2.10, 3.3) -------------------------------------
