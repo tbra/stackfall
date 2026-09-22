@@ -3,7 +3,44 @@
 Prepared 2026-09-18 from Git, Beads, project files and the interrupted local Claude
 session. This is a restart snapshot. Refresh live state; keep task progress in Beads.
 
-## Update 2026-09-22 — resume here
+## Update 2026-09-22 (evening) — resume here
+
+**Git:** `main` clean and pushed at the commit carrying this note. Only worktree:
+`M:/Bontago-worktrees/play` (owner's copy, stale at `a03be82`; recreate from main and copy
+`addons/godotsteam` in before the owner plays). Commit + push authority per Beads memory
+`stackfall-git-authority`.
+
+**Shipped this evening:** Bontago-mv0.20 (lobby gravity reaches physics; camera follow
+distance/pitch and disk mesh segments are live in the F4 panel). **Bontago-ruw closed:** the
+disk is now one rebuildable `ConcavePolygonShape3D` trimesh in `game/Field.gd`; a lone hole
+swallows a block. **Bontago-ddz closed (root cause of every "marginal tower"):** Jolt's
+body-pair contact cache reused stale contacts inside a creeping 40-block column, so
+tower results depended on body creation order; `body_pair_contact_cache_distance_threshold`
+is now 0.0001 (`tools/bootstrap_project.gd`). `bench_tower` was also broken since the
+bottom-centre pivot (Bontago-r2v) and now takes `--offset=x,z`; it PASSES at 0/0,
+0.25/0.25, 0.5/0 with 0.016 m drift, asleep at 0.52 s. Full suite 764/764 (~70 s).
+
+**Process rules added today (owner):** every `bd` write passes `--actor stackfall-orchestrator`;
+every dispatched issue gets `--assignee "<worker profile> (<model>)"`; never close an
+unassigned issue. Workers check Godot processes with `tasklist | grep -i godot` (findstr is
+broken in Git Bash) and never `taskkill //IM` (a worker killed another agent's benchmark).
+
+**Next exact actions:**
+1. Owner manual checks: `--sandbox --players=2` — controls/F4 sliders (camera follow
+   distance/pitch now live), drop a cube over a single isolated hole (falls through), stack
+   10+ blocks on a cell centre (no rocking). Two-PC Steam test (M3b, `Bontago-mv0.2`).
+2. **Owner decision before M4 P1 starts:** `docs/M4_PLAN.md` builds gift crates as stationary
+   `Area3D` pickups; `docs/SPEC.md` §2.6 says reconcile that before implementing. Ask.
+3. M4 per `docs/M4_PLAN.md` (P0b tilt controller is next: owns `game/Field.gd`; P0a is
+   done). Route every package via `tools/route_model.py`. Epic children fixed today:
+   `Bontago-1en.6` is Propeller (was Fan), `Bontago-1en.8` Jumping Bean added.
+4. Backlog: `Bontago-ogd` (trimesh rebuild-cost benchmark, Sonnet), `mv0.1.10`, `mv0.1.13`,
+   `mv0.4`, `mv0.1.12`, `Bontago-2mi`, `Bontago-mjk`, `Bontago-pjj`.
+
+**Untouched working-tree files not from this session:** `tools/start_scotty.ps1` (modified)
+and `Scotty.cmd` (new) appeared at 20:56 on 2026-09-22; left for their author.
+
+## Update 2026-09-22 (midday)
 
 **Git:** `main` clean and pushed at the commit that carries this note (see `git log -1`).
 Only worktree: `M:/Bontago-worktrees/play` (owner's playable copy, detached; recreate
