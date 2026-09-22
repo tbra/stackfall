@@ -60,6 +60,16 @@ Use role names as subagent types when dispatching. Workers first read the suppli
 
 Parallelism is bounded by independent packages and machine capacity. Start with at most two implementation workers. Do not benchmark alongside game instances, test suites or other benchmarks. Never launch multiple writers in the same checkout. Automatic worktree isolation is intentionally not set in the profiles: the orchestrator assigns and verifies an explicit checkout and base so a worker cannot silently start from an older default branch. If the base lacks uncommitted contracts/configuration, serialize the work or wait for the relevant Git operation to be authorized. Preserve patches and worktrees until their contents are integrated and verified.
 
+## Package size, reports and review scope (owner decisions 2026-09-22)
+
+- **One outcome per package**, at most ~10 owned files and ~30 minutes of worker time. Split anything larger before dispatch; a stopped or rate-limited worker then loses little, and small packages merge without waiting on each other.
+- **Report template** (workers return exactly this, nothing longer; evidence lives in log files under the scratchpad):
+  `Files:` list · `Tests:` per script `before/after` pass counts, names of tests that failed before the fix · `Gates:` one line each (command → exit, key totals, log path) · `DECISIONS:` file:line one-liners · `Unresolved:` bullets · `Owner manual steps:` bullets.
+- **Tests:** targeted runner only (`tools/run_gut.ps1`, own + affected scripts). The full suite runs once per merged batch, in the background, by the orchestrator. ENet harness only for `net/`, `autoload/`, rules or lobby changes. Benchmarks only for physics, territory or wire changes, alone on the machine.
+- **Integrator:** validates only the changed area (targeted set + the harness/bench that area needs) and the merge itself; no full-suite runs.
+- **Reviewer:** required for `core/`, `net/`, `autoload/`, physics and rules changes; runs concurrently with integration. UI, tooling and docs packages skip independent review.
+- **File ownership over function ownership:** when two packages need the same file, split the file first (see `autoload/Match.gd` → feed / placement / territory / lifecycle controllers).
+
 ## Persistence and recovery
 
 The agent definitions survive chat changes. A worker process or its conversational context is not guaranteed to survive a rate limit, crash or new chat. Task state lives in the shared Beads database, and reusable project knowledge uses `bd remember`. Native Claude `memory:` is deliberately omitted: it would create a second MEMORY.md store contrary to this project's Beads convention.
