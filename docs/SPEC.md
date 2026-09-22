@@ -205,7 +205,7 @@ original's tutorial only names the action, not the key.
 | Rotate yaw ±90° (tap) | A / S | LB / RB |
 | Rotate pitch ±90° (tap) | W / D | D-pad up / down |
 | Rotate roll ±90° (tap) | [ / ] | D-pad left / right |
-| Rotate block (hold + drag) [ORIGINAL, owner test 2026-09-22] | Middle mouse held + mouse motion | (RB snaps 90° yaw) |
+| Rotate block (hold + drag) [ORIGINAL, owner test 2026-09-22] | Middle mouse held + mouse motion, full 3-DOF: X = yaw about world up, Y = pitch about the camera's right axis (like the orbit, for the block) | (RB snaps 90° yaw) |
 | Reset rotation | Home or F | Y |
 | Lock to vertical (hold) | Ctrl | (stick and height are already separate) |
 | Camera orbit (hold + drag) [ORIGINAL, owner test 2026-09-22] | Right mouse held + mouse motion; mouse wheel zooms while held (C + mouse remains as a keyboard alias) | Right stick (always) |
@@ -213,7 +213,7 @@ original's tutorial only names the action, not the key.
 | Throw (specials only) | **[OPEN]** right mouse now orbits the camera; binding to be decided before M4 P2 (Beads owner question) | Hold LT, aim, release |
 | Pause / release mouse | Esc | Start |
 
-**Held-block behaviour [ORIGINAL, owner test 2026-09-22]:** the held (ghost) block collides with already placed blocks — it cannot pass through a tower — but it never pushes or knocks them; placed blocks are unaffected by the ghost. A drop outside the player's own territory is **refused** (the block stays in hand; no drop, feedback only). When the placement window expires while the held block is outside the zone, the block and the camera jump to the nearest valid point inside the player's territory and the block drops there. Owner-tuned feel: `follow_lag_seconds` 0, `follow_pitch_deg` −35, `block_move_sensitivity` 0.015.
+**Held-block behaviour [ORIGINAL, owner test 2026-09-22]:** the held (ghost) block collides with already placed blocks — it cannot pass through a tower — but it never pushes or knocks them; placed blocks are unaffected by the ghost. A drop outside the player's own territory is **refused** (the block stays in hand; no drop, feedback only). When the placement window expires while the held block is outside the zone, the block and the camera jump to the nearest valid point inside the player's territory and the block drops there. Owner-tuned feel: `follow_lag_seconds` 0, `follow_pitch_deg` −35, `block_move_sensitivity` 0.015. The held block is tinted grey whenever it cannot be dropped (outside the player's zone, or waiting for the next window); its only ground marker is the projected footprint of the rotated shape (no separate shadow). Mouse capture keeps the cursor moving past the screen edge in every match mode.
 
 Legacy free camera (pan with arrows / Space-drag, snap 1 / 2) remains behind
 `CameraTuning.follow_block = false`.
@@ -300,6 +300,8 @@ The AI runs only on the host, and for multiple bots it spreads its thinking acro
 **Difficulty:** Affects how many spots are sampled, a random aiming error, reaction delay, and whether the bot uses defensive specials.
 
 ### 2.10 Presentation [NEW, modernizing the original look]
+
+**Owner direction 2026-09-22:** blocks render as solid single shapes (no visible per-cell cubes, as in the original); the map disc reads as glass — slightly transparent and reflective — with territory colours still legible on it; camera FOV is a tunable.
 - **Disk:** Frosted glass or polished stone look, with screen-space reflections and a reflection probe for nearby blocks.
   - Territory is drawn by a shader. Each player's area is a soft tint in their color with an animated outline.
   - Contested areas shimmer. Hole edges glow and crackle.
