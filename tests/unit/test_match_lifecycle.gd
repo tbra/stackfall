@@ -41,6 +41,13 @@ var _main: Variant = null
 ## same TinyMapMatchConfig seam so Match's own geometry still agrees with it.
 var _tiny_map: MapDef
 
+## Bontago-mv0.20a: start_match() writes the lobby's gravity_multiplier
+## straight into the shared config/physics_tuning.tres *instance* (see
+## MatchLifecycle.gd's matching DECISION) -- the same process-wide singleton
+## test_tuning_panel.gd's own before_each/after_each comment documents, so
+## this file restores it exactly the same way.
+var _saved_gravity_multiplier: float
+
 
 func before_each() -> void:
 	# Match ticks on real frames; these tests drive _process() by hand where
@@ -55,6 +62,7 @@ func before_each() -> void:
 	(_main.get_node("Field") as Field).map_def = _tiny_map
 	add_child_autofree(_main)
 	assert_not_null(_main._main_menu, "fixture: Main boots to the main menu with no command-line flags")
+	_saved_gravity_multiplier = (load("res://config/physics_tuning.tres") as PhysicsTuning).gravity_multiplier
 
 
 func after_each() -> void:
@@ -62,6 +70,7 @@ func after_each() -> void:
 	Match.abort_match()
 	SnapshotSync.end_match()
 	Match.set_process(true)
+	(load("res://config/physics_tuning.tres") as PhysicsTuning).gravity_multiplier = _saved_gravity_multiplier
 	# Let queue_free()d world nodes actually go before autofree takes Main.
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -391,3 +400,30 @@ func test_leaving_mid_match_clears_the_fields_flags_overlay_and_holes() -> void:
 	_start(3)
 	await _settle()
 	assert_eq(_home_flag_count(), 3, "a rehosted match still places the right number of flags")
+
+
+# --- (g) Lobby gravity reaches physics at match start (Bontago-mv0.20a) ------
+
+func test_start_match_writes_the_lobbys_gravity_into_the_shared_physics_tuning() -> void:
+	_host()
+	var config: MatchConfig = _config(2)
+	config.gravity_multiplier = 1.6
+
+	_main._on_lobby_start_requested(config)
+
+	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres")
+	assert_almost_eq(tuning.gravity_multiplier, 1.6, 0.0001)
+
+
+func test_start_match_re_applies_gravity_to_a_block_already_standing() -> void:
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres")
+	var block: Block = BlockFactory.build(shape, tuning)
+	add_child_autofree(block)  # _ready() joins Block.TUNING_GROUP for real.
+
+	_host()
+	var config: MatchConfig = _config(2)
+	config.gravity_multiplier = 1.6
+	_main._on_lobby_start_requested(config)
+
+	assert_almost_eq(block.gravity_scale, 1.6, 0.0001)

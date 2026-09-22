@@ -63,6 +63,24 @@ func start_match(match_config: MatchConfig) -> void:
 
 	_match.config = match_config.duplicate(true) as MatchConfig
 	_match.config.sanitize()
+
+	# DECISION (autoload/match/MatchLifecycle.gd, Bontago-mv0.20a): the lobby's
+	# gravity_multiplier (spec 2.8 "Gravity 0.5x-2x") is written straight into
+	# the shared config/physics_tuning.tres *instance* Match already holds
+	# (_physics_tuning), not a config-local copy -- BlockFactory.build() and
+	# every already-standing Block.apply_physics_tuning() (ui/TuningPanel.gd's
+	# same live-apply path) both read that one shared object, so this is the
+	# only write needed for every future spawn this match to pick it up. The
+	# lobby value therefore overwrites the shared PhysicsTuning resource for
+	# the rest of the process session; the F4 tuning panel's Reset re-reads
+	# the .tres from disk, which still restores the shipped default, so this
+	# is acceptable.
+	_match._physics_tuning.gravity_multiplier = _match.config.gravity_multiplier
+	for node: Node in _match.get_tree().get_nodes_in_group(Block.TUNING_GROUP):
+		var block: Block = node as Block
+		if block != null:
+			block.apply_physics_tuning(_match._physics_tuning)
+
 	_match._feed._feed_timer_enabled = not _match.config.sandbox
 
 	_match._placement._clear_blocks()
