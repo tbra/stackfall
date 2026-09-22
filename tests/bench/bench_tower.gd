@@ -53,9 +53,17 @@ func _ready() -> void:
 	# not assumed to be 0.0) plus edge * i; that is what makes the whole
 	# tower start resting exactly on the disk and on each other instead of
 	# floating edge * 0.5 m up and dropping.
+	#
+	# The origin is the bottom of the *nominal* cube_size cell, but the
+	# collision box is cube_size - cube_margin across and centred in that cell,
+	# so its bottom face sits cube_margin / 2 above the origin. Rest the
+	# collision box, not the origin, on the disk: with the origin on the disk
+	# the whole tower fell 1 cm on tick one, and that landing impulse (not the
+	# disk surface) is what made the result flip between PASS and collapse
+	# across otherwise identical runs (Bontago-ddz).
 	var cube_shape: BlockShape = load("res://config/blocks/cube.tres")
 	var edge: float = _tuning.cube_size - _tuning.cube_margin
-	var start_y: float = field.surface_y()
+	var start_y: float = field.surface_y() - _tuning.cube_margin * 0.5
 	for i: int in range(TOWER_HEIGHT):
 		var block: RigidBody3D = BlockFactory.build(cube_shape, _tuning)
 		add_child(block)

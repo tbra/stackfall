@@ -8,7 +8,7 @@ extends GutTest
 
 ## DECISION (Bontago-mv0.3): none of this file's assertions depend on the
 ## map's actual scale (mesh radius tracks whatever map_def says; cell_count()
-## just has to be positive and match the shape owner count; friction and the
+## just has to be positive, under one trimesh owner; friction and the
 ## kill plane are size-independent) -- only a couple of tests already used
 ## round_small.tres (30 m, ~2800 cells); the ones that instead built a plain
 ## Field.new() (round_medium.tres, ~6300 cells) or explicitly loaded
@@ -41,10 +41,21 @@ func test_disk_collision_covers_the_disk() -> void:
 	field.map_def = _tiny_map
 	add_child_autofree(field)
 
-	# One BoxShape3D per in-disk cell, so the count is the disk's area in
-	# cells; this small a disk at cell_size 1 is still a bit over a hundred.
+	# Bontago-ruw: one trimesh on one shape owner, a quad per in-disk cell;
+	# this small a disk at cell_size 1 is still a bit over a hundred cells.
 	assert_gt(field.cell_count(), 0, "The disk collides as a grid of cells.")
-	assert_eq(field.get_shape_owners().size(), field.cell_count())
+	assert_eq(field.get_shape_owners().size(), 1, "The disk is one shape owner.")
+	var owner_id: int = field.get_shape_owners()[0]
+	assert_eq(field.shape_owner_get_shape_count(owner_id), 1)
+	var mesh: ConcavePolygonShape3D = (
+		field.shape_owner_get_shape(owner_id, 0) as ConcavePolygonShape3D
+	)
+	assert_not_null(mesh, "The disk collides as one trimesh.")
+	assert_gte(
+		mesh.get_faces().size(),
+		field.cell_count() * Field.VERTS_PER_QUAD,
+		"At least two triangles per in-disk cell."
+	)
 
 
 func test_disk_friction_matches_tuning() -> void:

@@ -86,6 +86,22 @@ func _apply_settings() -> void:
 		# more there.
 		"physics/jolt_physics_3d/simulation/velocity_steps": 192,
 		"physics/jolt_physics_3d/simulation/position_steps": 4,
+		# DECISION (Bontago-ddz, 2026-09-22): Jolt's body-pair contact cache
+		# reuses the previous frame's contacts while a touching pair has moved
+		# less than this distance (default 0.001 m) and turned less than ~2
+		# degrees. Every joint in a tall block column creeps far less than
+		# 1 mm per step, so the column keeps solving against stale contacts
+		# and never settles; whether it eventually leans over or sleeps then
+		# depends on body creation order (adding unrelated far-away static
+		# bodies flipped the 40-block tower between drift 0.02 m / asleep at
+		# 0.52 s and a collapse at ~23 s). At 0.0001 m the tower is 8/8 clean
+		# on the trimesh disk, the old per-cell boxes and a plain cylinder, at
+		# offsets 0/0, 0.25/0.25 and 0.5/0 -- and bench_rain's step cost is
+		# unchanged within noise (~5 ms). Turning the cache off entirely gives
+		# the same result; the tighter threshold keeps the cache for resting
+		# piles. velocity_steps below 100 collapses even with this fix, so 192
+		# stays.
+		"physics/jolt_physics_3d/simulation/body_pair_contact_cache_distance_threshold": 0.0001,
 		# Bodies sleep after 0.5 s below threshold (spec 3.5, "Sleep").
 		"physics/jolt_physics_3d/simulation/sleep_time_threshold": 0.5,
 

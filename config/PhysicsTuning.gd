@@ -38,6 +38,11 @@ extends Resource
 ## 24 mm, asleep at 0.52 s), so 0.1 here is insurance, not structure: it caps
 ## terminal velocity at 98 m/s, i.e. free fall for anything this game drops.
 ##
+## 2026-09-22 (Bontago-ddz): that 24 mm / 0.52 s result was reproducible only
+## by luck of body creation order until Jolt's body-pair contact cache
+## distance threshold was tightened (tools/bootstrap_project.gd); with it the
+## tower is 8/8 clean at every tested offset. Damping was never the variable.
+##
 ## Worth knowing either way: Jolt sleeps a whole connected island together,
 ## not body by body, so one vibrating block near the top of a tower keeps
 ## every block below it awake too. These are also NOT the same numbers as the

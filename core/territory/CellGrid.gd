@@ -12,22 +12,18 @@ extends RefCounted
 ## DECISION (core/territory/CellGrid.gd): `res` is rounded **up to an odd
 ## number** and the square is centred on the disk centre, so one cell is
 ## centred exactly on the origin and every cell centre lands on a multiple of
-## cell_size. That is a physics requirement, not a tidiness one. Field turns
-## each cell into its own BoxShape3D; Jolt rounds every convex shape's edges
-## by collision_margin_fraction of its extent, so a block that straddles the
-## seam between cells rests on rounded, overlapping rims and creeps. Aligned,
-## a block placed where blocks naturally sit — on a cell centre, since blocks
-## and cells are both cube_size across — rests on one box's flat middle.
-## Measured on tests/bench/bench_tower.tscn (40 cubes, 60 s): unaligned gives
-## 0.78-0.83 m of lean and never sleeps whatever the overlap, aligned with
-## MapDef.cell_overlap at 0.2 gives 0.02 m and sleeps in half a second, which
-## is what the M1 single-cylinder disk did. The half cell this adds to each
+## cell_size. That keeps a cell exactly one raster pixel and one quad of
+## Field's collision trimesh (two triangles per solid cell, none per hole), so
+## a placed block, a raster pixel and a collision quad all line up. (Earlier
+## this comment tied alignment to per-cell BoxShape3D rims and
+## MapDef.cell_overlap; the trimesh removed both -- see game/Field.gd and
+## MapDef.cell_overlap's HISTORICAL note.) The half cell this adds to each
 ## side of the square carries no collision, since is_in_disk() still measures
 ## against field_radius.
 ##
 ## Cell index is row-major, `cy * res + cx`, which is also the pixel index of
-## the authoritative territory raster and the shape-owner order Field uses for
-## its BoxShape3D cells. One cell is one raster pixel is one collision box.
+## the authoritative territory raster and the quad order Field uses when it
+## builds its collision trimesh. One cell is one raster pixel is one quad.
 ## See docs/M2_PLAN.md, "Raster resolution", for why the rules run at cell
 ## resolution and MapDef.territory_res is the upload size instead.
 ##
