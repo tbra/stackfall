@@ -5,9 +5,11 @@
 [resource]
 script = ExtResource("1_visuals")
 disk_base_color = Color(0.68, 0.7, 0.74, 1)
-disk_metallic = 0.1
-disk_roughness = 0.45
+disk_metallic = 0.6
+disk_roughness = 0.1
 disk_mesh_segments = 96
+glass_alpha = 0.75
+tint_opacity_boost = 0.25
 edge_softness = 0.4
 tint_alpha = 0.55
 outline_width = 0.16

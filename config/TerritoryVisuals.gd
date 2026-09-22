@@ -14,11 +14,27 @@ extends Resource
 ## -- Disk surface -----------------------------------------------------------
 ## The disk's own color where no team owns the ground.
 @export var disk_base_color: Color = Color(0.68, 0.70, 0.74)
-@export var disk_metallic: float = 0.1
-@export var disk_roughness: float = 0.45
+## Bontago-xtq.4 (owner, 2026-09-22: "a bit transparent and reflective"):
+## retuned from 0.1 toward a glass-like metallic response; drives the
+## shader's SPECULAR-visible reflection of ProceduralSky.
+@export var disk_metallic: float = 0.6
+## Retuned from 0.45 toward glass-smooth; low roughness is what makes the
+## sky's reflection actually visible rather than a diffuse blur.
+@export var disk_roughness: float = 0.1
 ## Radial segments of the disk mesh. High enough that the rim reads as a
 ## circle rather than a polygon at the camera distances spec 2.5 allows.
 @export var disk_mesh_segments: int = 96
+
+## -- Glass translucency (Bontago-xtq.4) --------------------------------------
+## Base opacity of the disk everywhere; 1.0 is fully opaque, 0.0 fully clear.
+## Rises toward 1 via tint_opacity_boost wherever a territory tint, the
+## animated rim/outline, a contested/goal shimmer, or a hole's rim glow is
+## drawn, so ownership stays readable through the glass.
+@export var glass_alpha: float = 0.75
+## How much extra opacity a drawn tint/rim/shimmer/goal indicator adds on top
+## of glass_alpha (added then clamped to 1, so a full-strength indicator
+## always reads fully opaque regardless of how translucent the bare glass is).
+@export var tint_opacity_boost: float = 0.25
 
 ## -- Territory tint (spec 2.10: "a soft tint in their color") ---------------
 ## Half-width of the smoothstep applied to the bilinear owner edge, in owner

@@ -484,6 +484,8 @@ func _apply_visual_uniforms() -> void:
 	_material.set_shader_parameter(&"base_color", _visuals.disk_base_color)
 	_material.set_shader_parameter(&"base_metallic", _visuals.disk_metallic)
 	_material.set_shader_parameter(&"base_roughness", _visuals.disk_roughness)
+	_material.set_shader_parameter(&"glass_alpha", _visuals.glass_alpha)
+	_material.set_shader_parameter(&"tint_opacity_boost", _visuals.tint_opacity_boost)
 	_material.set_shader_parameter(&"edge_softness", _visuals.edge_softness)
 	_material.set_shader_parameter(&"tint_alpha", _visuals.tint_alpha)
 	_material.set_shader_parameter(&"outline_width", _visuals.outline_width)

@@ -49,6 +49,8 @@ ranges = {
 "BlockFeedConfig.bag_multiplier": Vector2(0.5, 6.0),
 "BlockFeedConfig.min_stabilizers_per_bag": Vector2(0.0, 10.0),
 "BlockFeedConfig.preview_count": Vector2(1.0, 5.0),
+"TerritoryVisuals.glass_alpha": Vector2(0.0, 1.0),
+"TerritoryVisuals.tint_opacity_boost": Vector2(0.0, 1.0),
 }
 descriptions = {
 "CameraTuning.mouse_orbit_speed": "How fast the camera orbits (yaw/pitch) per pixel of mouse motion while holding orbit.",
@@ -136,8 +138,8 @@ descriptions = {
 "TerritoryTuning.reject_impulse": "Strength of the impulse applied to a block that's thrown off the map for an invalid placement.",
 "TerritoryTuning.reject_upward_fraction": "Fraction of the reject impulse aimed straight up; the rest points radially outward from the disk center.",
 "TerritoryVisuals.disk_base_color": "Color of the disk surface where no team owns the ground.",
-"TerritoryVisuals.disk_metallic": "Metallic value of the disk surface material.",
-"TerritoryVisuals.disk_roughness": "Roughness value of the disk surface material.",
+"TerritoryVisuals.disk_metallic": "Metallic value of the disk's glass-like surface; higher makes ProceduralSky reflections stronger.",
+"TerritoryVisuals.disk_roughness": "Roughness value of the disk's glass-like surface; lower makes reflections sharper.",
 "TerritoryVisuals.disk_mesh_segments": "Radial segments in the disk mesh; higher makes the rim read as a circle rather than a polygon.",
 "TerritoryVisuals.edge_softness": "How blurry the territory tint's edge is where ownership changes.",
 "TerritoryVisuals.tint_alpha": "How strongly a team's color tints the disk at full territory coverage.",
@@ -170,6 +172,8 @@ descriptions = {
 "TerritoryVisuals.rim_speed": "Pulses per second along the territory rim.",
 "TerritoryVisuals.metaball_blend": "Smooth-blend radius, in meters, used when overlapping same-team circles merge into one shape; 0 disables the blend.",
 "TerritoryVisuals.max_shader_circles": "Maximum circles the territory shader draws per pixel before falling back to the raster path; lower this on weaker GPUs.",
+"TerritoryVisuals.glass_alpha": "Base opacity of the disk's glass surface everywhere; 1.0 is fully opaque, 0.0 fully clear.",
+"TerritoryVisuals.tint_opacity_boost": "Extra opacity added on top of glass_alpha wherever a territory tint, rim, shimmer, or goal zone is drawn, so ownership stays readable through the glass.",
 "BlockFeedConfig.min_stabilizers_per_bag": "Minimum stabilizing shapes guaranteed in every bag of blocks.",
 "BlockFeedConfig.bag_multiplier": "How many copies of each shape's weight go into a bag; bigger means a longer, looser bag.",
 "BlockFeedConfig.preview_count": "How many upcoming blocks the HUD shows in the feed preview.",

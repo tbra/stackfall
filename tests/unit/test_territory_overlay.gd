@@ -344,6 +344,55 @@ func test_refresh_visual_uniforms_rebuilds_the_disk_mesh_when_segments_change() 
 	assert_eq(rebuilt.top_radius, original_cylinder.top_radius, "radius must be preserved across a rebuild.")
 
 
+# --- Bontago-xtq.4: glass look uniforms --------------------------------------
+
+
+func test_configure_pushes_the_default_glass_uniforms() -> void:
+	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres")
+	var overlay: TerritoryOverlay = _make_overlay(_map())
+
+	assert_almost_eq(
+		float(overlay.material().get_shader_parameter(&"glass_alpha")),
+		visuals.glass_alpha, 0.0001,
+	)
+	assert_almost_eq(
+		float(overlay.material().get_shader_parameter(&"tint_opacity_boost")),
+		visuals.tint_opacity_boost, 0.0001,
+	)
+	assert_almost_eq(
+		float(overlay.material().get_shader_parameter(&"base_metallic")),
+		visuals.disk_metallic, 0.0001,
+	)
+	assert_almost_eq(
+		float(overlay.material().get_shader_parameter(&"base_roughness")),
+		visuals.disk_roughness, 0.0001,
+	)
+
+
+func test_refresh_visual_uniforms_pushes_an_edited_glass_alpha() -> void:
+	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres").duplicate() as TerritoryVisuals
+	var overlay: TerritoryOverlay = _make_overlay_with_visuals(_map(), visuals)
+
+	visuals.glass_alpha = 0.2
+	visuals.tint_opacity_boost = 0.9
+	overlay.refresh_visual_uniforms()
+
+	assert_almost_eq(
+		float(overlay.material().get_shader_parameter(&"glass_alpha")), 0.2, 0.0001,
+	)
+	assert_almost_eq(
+		float(overlay.material().get_shader_parameter(&"tint_opacity_boost")), 0.9, 0.0001,
+	)
+
+
+func test_default_glass_alpha_and_boost_clamp_within_0_and_1() -> void:
+	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres")
+	assert_between(visuals.glass_alpha, 0.0, 1.0, "glass_alpha must stay a valid alpha value.")
+	assert_between(
+		visuals.tint_opacity_boost, 0.0, 1.0, "tint_opacity_boost must stay a valid alpha value."
+	)
+
+
 func test_refresh_visual_uniforms_does_not_reallocate_the_mesh_when_segments_are_unchanged() -> void:
 	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres").duplicate() as TerritoryVisuals
 	var overlay: TerritoryOverlay = _make_overlay_with_visuals(_map(), visuals)

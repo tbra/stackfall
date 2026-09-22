@@ -1,5 +1,16 @@
 shader_type spatial;
-render_mode cull_disabled, specular_schlick_ggx;
+// Bontago-xtq.4 (owner, 2026-09-22: "the map disc looks like glass: a bit
+// transparent and reflective"): blend_mix turns the disk translucent and lets
+// ProceduralSky reflections (Main.tscn's WorldEnvironment) show on it via
+// SPECULAR/METALLIC below. depth_draw_opaque keeps the disk writing depth
+// despite blending -- DECISION: blocks sit directly on/through the disk and
+// the ghost footprint quad floats just above it (GhostPreview.gd), both also
+// alpha-blended; without an opaque depth write the disk (drawn in the
+// transparent queue) could fail to depth-test against geometry that should
+// sit behind it from a low camera angle. depth_prepass_alpha was rejected: it
+// is meant for alpha-cutout foliage, not a smoothly-blended surface, and would
+// double the fragment cost for no benefit here.
+render_mode cull_disabled, specular_schlick_ggx, blend_mix, depth_draw_opaque;
 
 // Territory on the disk (spec 2.10, 3.3, Bontago-cmc.5).
 //
@@ -76,6 +87,17 @@ uniform vec4 base_color : source_color = vec4(0.68, 0.70, 0.74, 1.0);
 uniform float base_metallic : hint_range(0.0, 1.0) = 0.1;
 uniform float base_roughness : hint_range(0.0, 1.0) = 0.45;
 
+// -- Glass look (Bontago-xtq.4) -----------------------------------------------
+// Base translucency of the disk everywhere, rising toward opaque wherever a
+// territory tint / contested shimmer / hole rim / goal zone is drawn (both
+// paths below), so ownership never gets harder to read through the glass.
+uniform float glass_alpha : hint_range(0.0, 1.0) = 0.75;
+// How much extra opacity a drawn tint/shimmer/rim/goal indicator adds on top
+// of glass_alpha; the two are added and clamped to 1, never multiplied, so a
+// full-strength indicator (boost 1.0) reads as fully opaque regardless of how
+// translucent the bare glass is.
+uniform float tint_opacity_boost : hint_range(0.0, 1.0) = 0.25;
+
 uniform float uv_scale = 0.011111;
 uniform float uv_offset = 0.5;
 
@@ -151,7 +173,7 @@ float smax(float a, float b, float k) {
 // 3.3's "Bounded cost" asks for a real fallback when the circle list
 // overflows, not a best-effort partial draw with some circles silently
 // missing.
-void raster_path(vec2 uv, out vec3 albedo, out vec3 emission) {
+void raster_path(vec2 uv, out vec3 albedo, out vec3 emission, out float alpha_boost) {
 	float owner_near = round(texture(territory_cells, uv).r * 255.0);
 	float owner_soft = texture(territory_tex, uv).r * 255.0;
 	float state_near = round(texture(territory_state, uv).r * 255.0);
@@ -187,6 +209,11 @@ void raster_path(vec2 uv, out vec3 albedo, out vec3 emission) {
 		float(STATE_HOLE) - hole_rim_width * 2.0, float(STATE_HOLE), state_soft
 	);
 	emission += hole_rim_color.rgb * rim * hole_rim_glow;
+
+	// Readability over glass (Bontago-xtq.4): whichever indicator is drawing
+	// here -- tint, the animated border band, the contested/goal shimmer, or
+	// a hole's rim glow -- pushes this pixel toward opaque.
+	alpha_boost = max(max(tint, band), max(shimmer_active * shimmer, rim));
 }
 
 // The analytic path (Bontago-cmc.5). `point` is disk-local (x, z).
@@ -202,7 +229,7 @@ void raster_path(vec2 uv, out vec3 albedo, out vec3 emission) {
 // index per team, not just a sort) for no measured win at 400 texels, so it
 // was not built. Revisit with real profiling numbers if max_shader_circles
 // is ever raised well past 400.
-void circle_path(vec2 point, out vec3 albedo, out vec3 emission) {
+void circle_path(vec2 point, out vec3 albedo, out vec3 emission, out float alpha_boost) {
 	float team_best[SLOT_COLOR_MAX];
 	bool team_seen[SLOT_COLOR_MAX];
 	bool team_done[SLOT_COLOR_MAX];
@@ -257,6 +284,7 @@ void circle_path(vec2 point, out vec3 albedo, out vec3 emission) {
 
 	albedo = base_color.rgb;
 	emission = vec3(0.0);
+	alpha_boost = 0.0;
 
 	if (owner_team >= 0 && !contested && best_overall >= -rim_soft_width) {
 		float coverage = smoothstep(-rim_soft_width, rim_soft_width, best_overall);
@@ -268,6 +296,9 @@ void circle_path(vec2 point, out vec3 albedo, out vec3 emission) {
 			1.0 - rim_pulse_depth, 1.0, 0.5 + 0.5 * sin(TIME * rim_speed * TAU)
 		);
 		emission += team_color * band * rim_strength * pulse;
+		// Readability over glass (Bontago-xtq.4): the tint and its rim band
+		// both push this pixel toward opaque.
+		alpha_boost = max(alpha_boost, max(coverage, band));
 	}
 
 	if (contested) {
@@ -276,6 +307,8 @@ void circle_path(vec2 point, out vec3 albedo, out vec3 emission) {
 			- TIME * contested_shimmer_rate * TAU
 		);
 		emission += contested_color.rgb * shimmer * contested_shimmer_strength;
+		// Contested ground stays readable regardless of the shimmer's phase.
+		alpha_boost = 1.0;
 	}
 
 	// Goal no-build discs, drawn analytically regardless of team ownership —
@@ -297,6 +330,8 @@ void circle_path(vec2 point, out vec3 albedo, out vec3 emission) {
 			- TIME * contested_shimmer_rate * TAU
 		);
 		emission += contested_color.rgb * shimmer * contested_shimmer_strength;
+		// A goal's no-build disc stays readable regardless of shimmer phase.
+		alpha_boost = 1.0;
 	}
 }
 
@@ -314,14 +349,28 @@ void fragment() {
 
 	vec3 albedo;
 	vec3 emission;
+	float alpha_boost;
 	if (circles_valid) {
-		circle_path(v_local.xz, albedo, emission);
+		circle_path(v_local.xz, albedo, emission, alpha_boost);
 	} else {
-		raster_path(uv, albedo, emission);
+		raster_path(uv, albedo, emission, alpha_boost);
 	}
 
 	ALBEDO = albedo;
 	EMISSION = emission;
+	// Glass look (Bontago-xtq.4): translucent everywhere, rising toward
+	// opaque wherever an ownership indicator (tint/rim/shimmer/goal) is
+	// drawn, so territory state stays readable through the glass.
+	// DECISION (shaders/territory.gdshader): the disk's side wall (the
+	// CylinderMesh's vertical rim) shares this same glass material rather
+	// than staying opaque -- there is one ShaderMaterial for the whole
+	// TerritoryOverlay mesh, and telling the side wall apart from the top
+	// would need a NORMAL check purely for a cosmetic distinction the owner
+	// never asked for. The side wall never carries a hole discard or a
+	// tint/rim indicator (those are all derived from v_local.xz, which reads
+	// as "outside every circle" off the rim), so it always renders at plain
+	// glass_alpha with no readability tradeoff.
+	ALPHA = clamp(glass_alpha + alpha_boost * tint_opacity_boost, 0.0, 1.0);
 	METALLIC = base_metallic;
 	ROUGHNESS = base_roughness;
 }
