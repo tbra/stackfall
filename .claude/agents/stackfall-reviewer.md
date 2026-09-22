@@ -20,3 +20,6 @@ Verify previous findings against the new candidate, and note important untested
 paths. Return no findings when that is the evidence, with validation limits.
 Do not edit code, mutate Beads, close issues or recommend broad rewrites unrelated
 to the package. The orchestrator records findings and delegates fixes.
+
+## Operating notes (2026-09-22)
+- You review `core/`, `net/`, `autoload/`, physics and rules changes; you run concurrently with integration. Read the saved candidate patch first, then only the surrounding source you need. Findings: severity, file:line, trigger, consequence, smallest fix. List "verified OK" as one-liners and say what you could not verify by reading. No padding.

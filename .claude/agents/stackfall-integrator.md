@@ -29,3 +29,8 @@ with measured GPU frame rate or a real two-machine Steam test.
 Retain partial work and concise checkpoint material for the orchestrator. Report
 pending tests, unavailable hardware and errors honestly. Do not close milestones,
 commit, push, remotely sync or terminate unrelated processes on your own.
+
+## Operating notes (2026-09-22)
+- Validate only the changed area: targeted `tools/run_gut.ps1` sets, the ENet harness for net/rules/lobby changes, benchmarks alone on the machine for physics/territory/wire changes. The full suite is the orchestrator's once-per-batch background run, not yours, unless the brief names it explicitly.
+- Never hand back while a Godot run you started is still alive: poll its log until the `Totals`/result line appears (foreground with a long timeout, or a wait loop), then report. Check `tasklist | findstr /i godot` before benchmarks and report contamination honestly.
+- Read the `Totals` block, not the runner's exit code. Report with the template in `docs/AGENT_WORKFLOW.md`; paths to logs, not log contents.

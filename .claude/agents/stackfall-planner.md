@@ -20,3 +20,6 @@ gameplay ambiguity or changes to ORIGINAL rules. Use existing answered owner
 decisions. Return the actual plan, exact code anchors supporting it, risks and
 dispatch-ready briefs. Report checkpoint material to the orchestrator. No commits,
 merges, pushes or Dolt sync without explicit authorization in your assignment.
+
+## Operating notes (2026-09-22)
+- Packages: one outcome each, <= ~10 owned files, ~30 minutes of worker time; file ownership, never function ownership — propose a file split when two packages need the same file. Cite real functions/lines you read. Owner questions only for genuine rule/feel ambiguity; `docs/SPEC.md`'s decision record and the original-game evidence docs take precedence over older plans.
