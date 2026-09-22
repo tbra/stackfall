@@ -20,6 +20,13 @@ extends Node3D
 @export var tuning: CameraTuning = preload("res://config/camera_tuning.tres")
 @export var map_def: MapDef = preload("res://config/maps/round_medium.tres")
 
+## Bontago-mv0.20b (F4 tuning panel live-apply): every CameraRig adds itself
+## to this group in _ready(), the same idea as game/Block.gd's TUNING_GROUP,
+## so ui/TuningPanel.gd can push a live camera_tuning edit onto whichever rig
+## is actually in the tree (get_tree().get_nodes_in_group(TUNING_GROUP))
+## without needing its own set_camera_rig() wiring to have run first.
+const TUNING_GROUP: StringName = &"tuning_camera"
+
 ## Set by PlayerController each frame: true while the player holds a ghost
 ## block. Spec 2.5 scopes trigger zoom to "while not holding a block"; the
 ## dedicated Z/X keys always zoom regardless (see _unhandled_input).
@@ -37,6 +44,7 @@ var _follow_position: Vector3 = Vector3.ZERO
 
 
 func _ready() -> void:
+	add_to_group(TUNING_GROUP)
 	# DECISION (game/CameraRig.gd): the initial view scales with the map's
 	# field_radius (a close-in fixed default looked fine on a small map but
 	# was nose-to-the-glass on a medium/large one, since the disk fills most
@@ -47,12 +55,11 @@ func _ready() -> void:
 		# Following the held block: a close, shallow view like the original's
 		# (config/CameraTuning.follow_distance / follow_pitch_deg), not the
 		# whole-disk overview the free camera starts from.
-		_distance = clampf(tuning.follow_distance, tuning.zoom_min, tuning.zoom_max)
-		_pitch = deg_to_rad(tuning.follow_pitch_deg)
+		apply_follow_tuning()
 	else:
 		_distance = clampf(map_def.field_radius * 1.4, tuning.zoom_min, tuning.zoom_max)
 		_pitch = deg_to_rad(tuning.snap_pitch_deg)
-	_update_transform()
+		_update_transform()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -159,6 +166,23 @@ func set_home_view(home_position: Vector3, look_at_position: Vector3 = Vector3.Z
 	_update_transform()
 
 
+## Bontago-mv0.20b (F4 tuning panel live-apply): re-snapshots _distance/_pitch
+## from tuning.follow_distance/follow_pitch_deg, clamped exactly as _ready()
+## does. Called once by _ready() and again by ui/TuningPanel.gd's
+## apply_camera_tuning_live() whenever camera_tuning changes on the F4 panel
+## -- never every frame, so a manual orbit/zoom the player already did (see
+## _unhandled_input()/_process() above) is only overwritten by an explicit
+## tuning push, not silently fought every tick. A no-op while
+## tuning.follow_block is false: the free-orbit camera has its own fixed
+## target/distance and these two fields mean nothing to it.
+func apply_follow_tuning() -> void:
+	if not tuning.follow_block:
+		return
+	_distance = clampf(tuning.follow_distance, tuning.zoom_min, tuning.zoom_max)
+	_pitch = deg_to_rad(tuning.follow_pitch_deg)
+	_update_transform()
+
+
 ## Used by PlayerController to scale gamepad ghost-cursor speed with zoom
 ## (spec 2.5: "speed scales with camera zoom").
 func get_distance() -> float:
@@ -169,6 +193,12 @@ func get_distance() -> float:
 ## camera's current facing (both mouse and gamepad -- Bontago-mv0.14).
 func get_yaw() -> float:
 	return _yaw
+
+
+## Test/inspection seam (Bontago-mv0.20b): the rig's current pitch, in
+## radians, the same units get_yaw() already uses.
+func get_pitch() -> float:
+	return _pitch
 
 
 func get_camera() -> Camera3D:

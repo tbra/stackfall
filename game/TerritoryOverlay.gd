@@ -83,6 +83,12 @@ var _last_image: Image = null
 var _owner_cell_image: Image = null
 var _state_cell_image: Image = null
 var _upload_accumulator: float = 0.0
+## The disk_mesh_segments value baked into the current CylinderMesh, so
+## refresh_visual_uniforms() only calls rebuild_disk_mesh() when it actually
+## changed (Bontago-mv0.20b) -- an unrelated visuals field (color, tint,
+## outline...) must not reallocate a mesh at raster_upload_hz. -1 before
+## configure() ever runs.
+var _baked_mesh_segments: int = -1
 
 ## Bontago-cmc.5: the analytic circle list (see set_circles()'s doc). Kept
 ## the same way _owner_cell_image is — a headless test has no rendering
@@ -115,12 +121,7 @@ func configure(map_def: MapDef, visuals: TerritoryVisuals, tuning: TerritoryTuni
 	_tuning = tuning
 	_cells_per_side = map_def.cells_per_side()
 
-	var cylinder: CylinderMesh = CylinderMesh.new()
-	cylinder.top_radius = map_def.field_radius
-	cylinder.bottom_radius = map_def.field_radius
-	cylinder.height = map_def.disk_height
-	cylinder.radial_segments = visuals.disk_mesh_segments
-	mesh = cylinder
+	rebuild_disk_mesh()
 
 	_material = ShaderMaterial.new()
 	_material.shader = TERRITORY_SHADER
@@ -128,6 +129,24 @@ func configure(map_def: MapDef, visuals: TerritoryVisuals, tuning: TerritoryTuni
 	_set_blank_texture()
 	clear_circles()
 	material_override = _material
+
+
+## Recreates the disk's CylinderMesh with the current
+## _visuals.disk_mesh_segments, keeping the same radius/height configure()
+## built it with (Bontago-mv0.20b, F4 tuning panel live-apply). Public so
+## configure() and refresh_visual_uniforms() share one place that knows the
+## disk's actual dimensions; a no-op-safe call before configure() simply does
+## nothing (there is no _map_def/_visuals yet to build from).
+func rebuild_disk_mesh() -> void:
+	if _map_def == null or _visuals == null:
+		return
+	var cylinder: CylinderMesh = CylinderMesh.new()
+	cylinder.top_radius = _map_def.field_radius
+	cylinder.bottom_radius = _map_def.field_radius
+	cylinder.height = _map_def.disk_height
+	cylinder.radial_segments = _visuals.disk_mesh_segments
+	mesh = cylinder
+	_baked_mesh_segments = _visuals.disk_mesh_segments
 
 
 func material() -> ShaderMaterial:
@@ -447,9 +466,17 @@ func _apply_uv_uniforms(side: int) -> void:
 ## (TerritoryVisuals' own class doc: "nothing here may change a rule"), so
 ## calling it again mid-match is always safe. A no-op before configure() has
 ## built _material (there is nothing yet to refresh).
+##
+## Bontago-mv0.20b: disk_mesh_segments is baked into the CylinderMesh, not a
+## shader uniform, so it needs its own rebuild -- but only when the segment
+## count actually changed from what's currently baked (_baked_mesh_segments),
+## so an unrelated visuals edit (color, tint, outline...) does not reallocate
+## a mesh at raster_upload_hz.
 func refresh_visual_uniforms() -> void:
 	if _material == null:
 		return
+	if _visuals.disk_mesh_segments != _baked_mesh_segments:
+		rebuild_disk_mesh()
 	_apply_visual_uniforms()
 
 

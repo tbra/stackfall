@@ -67,3 +67,40 @@ func test_set_home_view_with_a_home_position_already_at_the_center_keeps_the_pre
 	rig.set_home_view(Vector3.ZERO)
 
 	assert_almost_eq(rig.get_yaw(), yaw_before, 0.001)
+
+
+# --- Bontago-mv0.20b: apply_follow_tuning() (F4 tuning panel live-apply) -----
+
+
+func test_apply_follow_tuning_reapplies_distance_and_pitch_clamped() -> void:
+	var rig: CameraRig = _make_rig()
+	# A rig-local duplicate keeps this test from mutating the shared
+	# config/camera_tuning.tres singleton every other test/scene reads.
+	rig.tuning = rig.tuning.duplicate() as CameraTuning
+	assert_true(rig.tuning.follow_block, "fixture: follow_block defaults to true.")
+
+	rig.tuning.follow_distance = rig.tuning.zoom_max + 50.0  # out of range, must clamp.
+	rig.tuning.follow_pitch_deg = -50.0
+
+	rig.apply_follow_tuning()
+
+	assert_almost_eq(rig.get_distance(), rig.tuning.zoom_max, 0.001, "clamped to zoom_max, same as _ready().")
+	assert_almost_eq(rig.get_pitch(), deg_to_rad(-50.0), 0.001)
+
+
+func test_apply_follow_tuning_is_a_noop_when_not_following_the_block() -> void:
+	var rig: CameraRig = _make_rig()
+	rig.tuning = rig.tuning.duplicate() as CameraTuning
+	rig.tuning.follow_block = false
+	var distance_before: float = rig.get_distance()
+	var pitch_before: float = rig.get_pitch()
+
+	rig.tuning.follow_distance = 5.0
+	rig.tuning.follow_pitch_deg = -10.0
+	rig.apply_follow_tuning()
+
+	assert_almost_eq(
+		rig.get_distance(), distance_before, 0.0001,
+		"the free-orbit camera must not be reset by a follow-only tuning push."
+	)
+	assert_almost_eq(rig.get_pitch(), pitch_before, 0.0001)

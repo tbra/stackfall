@@ -325,3 +325,34 @@ func test_field_hands_its_overlay_the_circle_list() -> void:
 	assert_eq(field.overlay().circle_count(), 1, "Field.set_overlay_circles routes to the overlay.")
 	var texel: Color = field.overlay().circle_image().get_pixel(0, 0)
 	assert_almost_eq(texel.a, 1.0, 0.001, "Team id survives the hand-off.")
+
+
+# --- Bontago-mv0.20b: disk_mesh_segments live-apply --------------------------
+
+
+func test_refresh_visual_uniforms_rebuilds_the_disk_mesh_when_segments_change() -> void:
+	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres").duplicate() as TerritoryVisuals
+	var overlay: TerritoryOverlay = _make_overlay_with_visuals(_map(), visuals)
+	var original_cylinder: CylinderMesh = overlay.mesh as CylinderMesh
+	assert_eq(original_cylinder.radial_segments, visuals.disk_mesh_segments, "fixture: configure() bakes the starting segment count.")
+
+	visuals.disk_mesh_segments = original_cylinder.radial_segments + 8
+	overlay.refresh_visual_uniforms()
+
+	var rebuilt: CylinderMesh = overlay.mesh as CylinderMesh
+	assert_eq(rebuilt.radial_segments, visuals.disk_mesh_segments, "the mesh must be rebuilt with the new segment count.")
+	assert_eq(rebuilt.top_radius, original_cylinder.top_radius, "radius must be preserved across a rebuild.")
+
+
+func test_refresh_visual_uniforms_does_not_reallocate_the_mesh_when_segments_are_unchanged() -> void:
+	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres").duplicate() as TerritoryVisuals
+	var overlay: TerritoryOverlay = _make_overlay_with_visuals(_map(), visuals)
+	var before: Mesh = overlay.mesh
+
+	# An unrelated field change, and a call with no change at all: neither
+	# should allocate a new CylinderMesh instance.
+	visuals.disk_metallic = visuals.disk_metallic + 0.1
+	overlay.refresh_visual_uniforms()
+	overlay.refresh_visual_uniforms()
+
+	assert_eq(overlay.mesh, before, "the disk mesh instance must be reused when disk_mesh_segments has not changed.")

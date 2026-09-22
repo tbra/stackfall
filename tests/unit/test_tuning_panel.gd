@@ -195,6 +195,30 @@ func test_refresh_territory_visuals_live_is_a_no_op_with_no_field_wired() -> voi
 	assert_true(true, "no field wired must not error.")
 
 
+# --- Camera live-apply (Bontago-mv0.20b) -------------------------------------
+
+
+func test_camera_tuning_slider_change_reaches_a_camera_rig_in_the_tree() -> void:
+	var rig: CameraRig = autofree(load("res://game/CameraRig.tscn").instantiate())
+	add_child_autofree(rig)  # rig._ready() joins CameraRig.TUNING_GROUP for real.
+	rig.tuning = _panel.camera_tuning  # the same live singleton this panel edits.
+	assert_true(rig.tuning.follow_block, "fixture: follow_block defaults to true.")
+
+	var slider: HSlider = _panel.control_for(_panel.camera_tuning, "follow_distance") as HSlider
+	slider.emit_signal("value_changed", rig.tuning.zoom_max + 999.0)
+
+	assert_almost_eq(
+		rig.get_distance(), rig.tuning.zoom_max, 0.0001,
+		"changing the field must push apply_follow_tuning() too, not just write the Resource."
+	)
+
+
+func test_apply_camera_tuning_live_is_a_noop_with_no_rig_in_the_tree() -> void:
+	# No CameraRig ever joined CameraRig.TUNING_GROUP here -- must not error.
+	_panel.apply_camera_tuning_live()
+	assert_true(true, "no rig in the tree must not error.")
+
+
 # --- Reset / Save / Copy ------------------------------------------------------
 
 func test_reset_reloads_physics_tuning_from_disk() -> void:

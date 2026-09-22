@@ -43,13 +43,13 @@ extends CanvasLayer
 ##     only configure() used to set (disk color, edge softness, outline,
 ##     contested shimmer, hole rim) updates immediately instead of waiting on
 ##     nothing (nothing else ever re-sends those particular uniforms).
-##
-## Not live (documented rather than fixed -- both live in files this package
-## does not own): game/CameraRig.gd snapshots follow_distance/follow_pitch_deg
-## into its own _distance/_pitch once in _ready(), so those two only take
-## effect from the next camera rebuild (next match/scene reload); Territory-
-## Visuals.disk_mesh_segments is baked into the disk CylinderMesh once at
-## Field/TerritoryOverlay.configure() time.
+##     refresh_visual_uniforms() also rebuilds the disk's CylinderMesh
+##     (game/TerritoryOverlay.gd's own rebuild_disk_mesh()) whenever
+##     disk_mesh_segments itself changed, so that field is live too now.
+##   - CameraTuning: apply_camera_tuning_live() calls
+##     CameraRig.apply_follow_tuning() on every rig in CameraRig.TUNING_GROUP,
+##     re-snapshotting follow_distance/follow_pitch_deg (clamped, as _ready()
+##     does) without disturbing a manual orbit/zoom the player already did.
 ##
 ## Toggled by the tuning_panel_toggle Input Map action (F4; gamepad
 ## pause_menu[Start] + X -- see tools/bootstrap_project.gd's DECISION on that
@@ -477,9 +477,11 @@ func _on_field_changed(resource: Resource, _prop_name: String) -> void:
 		apply_physics_live()
 	elif resource == territory_visuals:
 		refresh_territory_visuals_live()
-	# camera_tuning / ghost_tuning / territory_tuning / block_feed_config are
-	# already read live by whatever consumes them each frame/tick -- see this
-	# file's class doc for the (documented, not fixed) exceptions.
+	elif resource == camera_tuning:
+		apply_camera_tuning_live()
+	# ghost_tuning / territory_tuning / block_feed_config are already read
+	# live by whatever consumes them each frame/tick -- see this file's class
+	# doc for the live-apply hooks the other resources need.
 
 
 ## Pushes physics_tuning onto every Block already standing (BlockFactory.
@@ -490,6 +492,20 @@ func apply_physics_live() -> void:
 		var block: Block = node as Block
 		if block != null:
 			block.apply_physics_tuning(physics_tuning)
+
+
+## Pushes camera_tuning's follow_distance/follow_pitch_deg onto every live
+## CameraRig immediately (Bontago-mv0.20b). Iterates CameraRig.TUNING_GROUP --
+## the same "every live instance already in the tree" idiom apply_physics_
+## live() uses for Block.TUNING_GROUP -- rather than this panel's own
+## _camera_rig reference, so the push still reaches a rig in a bare-panel
+## test that never called set_camera_rig(). Public so a test can drive it
+## directly instead of dragging a real slider.
+func apply_camera_tuning_live() -> void:
+	for node: Node in get_tree().get_nodes_in_group(CameraRig.TUNING_GROUP):
+		var rig: CameraRig = node as CameraRig
+		if rig != null:
+			rig.apply_follow_tuning()
 
 
 ## Pushes territory_visuals onto the wired Field's TerritoryOverlay shader
