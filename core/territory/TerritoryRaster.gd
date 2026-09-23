@@ -207,11 +207,26 @@ func group_at_point(point: Vector2) -> int:
 	return group_at(cell.x, cell.y)
 
 
-## Team owning a cell, or -1 when unowned or contested.
+## Team owning a cell, or -1 when unowned, contested, or a hole.
+##
+## DECISION (core/territory/TerritoryRaster.gd, Bontago-1en.20 review): a
+## natural hole only ever opens on a CONTESTED cell (_team_ids == -1
+## already), but force_hole_cell() can open a cell a single team's own
+## circle still covers -- punch_special_hole()'s whole point (spec 2.6). Its
+## own class doc says "do not touch update()/_fill_legacy()/_argmax()", so
+## _stamp()/_argmax() keep re-stamping that cell to the team every solve
+## exactly as before (that write-side bookkeeping is what lets
+## _advance_timers() keep telling a still-contested cell apart from an idle
+## one -- see its own class doc). Reading it back through this bit instead
+## keeps a hole cell reading as unowned everywhere a caller asks -- here,
+## owner_bytes() and team_share() below -- without disturbing that timer.
 func team_at(cx: int, cy: int) -> int:
 	if not _grid.in_bounds(cx, cy):
 		return -1
-	return _team_ids[_grid.cell_index(cx, cy)]
+	var index: int = _grid.cell_index(cx, cy)
+	if _hole[index] == 1:
+		return -1
+	return _team_ids[index]
 
 
 func is_contested(cx: int, cy: int) -> bool:
@@ -265,21 +280,40 @@ func holes_closed() -> PackedInt32Array:
 
 ## Fraction of the disk's in-disk cells a team owns, 0..1. Feeds the HUD's
 ## "territory percentage per player" (spec 2.10).
+##
+## DECISION (core/territory/TerritoryRaster.gd, Bontago-1en.20 review): see
+## team_at()'s own DECISION -- force_hole_cell() can leave a cell inside a
+## single team's own uncontested circle, which _stamp()/_argmax() (unmodified)
+## keep counting into _team_counts every solve. `_active` already lists every
+## cell with a currently-open hole (force_hole_cell() and a naturally-opened
+## hole both append to it, and _advance_timers() only ever drops a cell from
+## it once neither contested nor a hole nor draining -- see that function's
+## own class doc), so it is the cheap, already-existing place to find and
+## subtract them without a second full-disk scan every call.
 func team_share(team_id: int) -> float:
 	var total: int = _grid.in_disk_cell_count()
 	if total <= 0 or not _team_counts.has(team_id):
 		return 0.0
-	return float(_team_counts[team_id]) / float(total)
+	var owned: int = _team_counts[team_id]
+	for index: int in _active:
+		if _hole[index] == 1 and _team_ids[index] == team_id:
+			owned -= 1
+	return float(owned) / float(total)
 
 
 ## One byte per cell for the shader's R channel: 0 = unowned, otherwise
 ## team_id + 1. Row-major, cell_count() long.
+##
+## DECISION (core/territory/TerritoryRaster.gd, Bontago-1en.20 review): reads
+## `_hole` the same way team_at() now does, so a punched cell inside a single
+## team's own circle draws unowned (no floor) instead of that team's tint --
+## see team_at()'s own DECISION for why the write side is left alone.
 func owner_bytes() -> PackedByteArray:
 	var count: int = _team_ids.size()
 	_owner_bytes.resize(count)
 	for index: int in range(count):
 		var team: int = _team_ids[index]
-		_owner_bytes[index] = 0 if team < 0 else team + 1
+		_owner_bytes[index] = 0 if (team < 0 or _hole[index] == 1) else team + 1
 	return _owner_bytes
 
 
@@ -642,3 +676,72 @@ func _advance_timers(delta: float, permanent_holes: bool) -> void:
 ## on the tick it was due would be a real bug.
 static func _reached(value: float, threshold: float) -> bool:
 	return value >= threshold or is_equal_approx(value, threshold)
+
+
+## -- Forced holes (M4 P5-HOLE) ------------------------------------------------
+
+## Forces (cx, cy) into a hole right now, independent of any contest overlap
+## (spec 2.6: a special effect's own hole, not spec 2.2's two-territories
+## rule). MatchTerritory.punch_special_hole() is the one caller; it has
+## already resolved the disk-local point to cell coordinates and the lobby's
+## hole_mode to `permanent_holes` before calling in, so this never touches
+## MatchConfig (core/ stays free of it, per the class comment).
+##
+## Reuses exactly the bookkeeping a natural hole already has -- `_hole`,
+## `_contested_time`, `_idle_time`, `_active`/`_is_active`, `_opened` -- so the
+## unmodified `_advance_timers()` (called from the next `update()`, same as
+## always) is what actually closes this hole later; nothing here starts a
+## second timer mechanism.
+##
+## DECISION (core/territory/TerritoryRaster.gd, Bontago-1en.20): once a cell is
+## not CONTESTED, `_advance_timers()`'s `else` branch is the one that ever
+## closes a hole -- it grows `_idle_time` by `delta` each call and closes once
+## `_idle_time` reaches `hole_close_delay` (unless `permanent_holes`). A
+## punched cell was never stamped CONTESTED by `_fill_legacy()`, so it always
+## takes that branch on every future `_advance_timers()` pass (unless a real
+## overlap happens to land on it later, in which case it behaves exactly like
+## any other contested cell from then on -- also correct). To make that
+## existing countdown land on `hole_open_s` instead of `hole_close_delay`, seed
+## `_idle_time` at `hole_close_delay - hole_open_s`: the next `_advance_timers()`
+## call adds `delta` on top exactly as it would for a naturally-idle hole, so
+## it still needs precisely `hole_open_s` more seconds of `delta` to reach
+## `hole_close_delay` and close -- to within one solve tick, the same tolerance
+## every other timer in this file accepts (`_reached()`). No clamping: a
+## `hole_open_s` longer than `hole_close_delay` seeds a negative `_idle_time`,
+## which is a perfectly ordinary float for that accumulator (nothing else here
+## requires it to be >= 0) and still reaches the threshold after exactly
+## `hole_open_s` more seconds. `permanent_holes = true` skips the seeding
+## question entirely: `_advance_timers()`'s own `not permanent_holes` guard
+## already refuses to close such a hole no matter what `_idle_time` reaches, so
+## `_idle_time` is simply zeroed, same as a hole that just opened.
+##
+## `_contested_time` is reset to 0.0: the punch is a fresh "hole opens now"
+## event, not the tail end of some accumulated overlap, so a real contest that
+## starts on this cell afterwards begins accumulating from zero, exactly as it
+## would on any other previously-unheld cell.
+##
+## Out-of-bounds and off-disk cells are silently ignored, the same guard
+## is_hole()/team_at() already use, so a caller need not re-check bounds
+## itself (punch_special_hole() already filters to in-disk cells, but
+## force_hole_cell() does not trust that alone).
+func force_hole_cell(cx: int, cy: int, hole_open_s: float, permanent_holes: bool) -> void:
+	if not _grid.in_bounds(cx, cy):
+		return
+	var index: int = _grid.cell_index(cx, cy)
+	if _in_disk[index] == 0:
+		return
+
+	var was_hole: bool = _hole[index] == 1
+	_contested_time[index] = 0.0
+	if permanent_holes:
+		_idle_time[index] = 0.0
+	else:
+		_idle_time[index] = _tuning.hole_close_delay - hole_open_s
+	_hole[index] = 1
+
+	if _is_active[index] == 0:
+		_is_active[index] = 1
+		_active.append(index)
+
+	if not was_hole:
+		_opened.append(index)

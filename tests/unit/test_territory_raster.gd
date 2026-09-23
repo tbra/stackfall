@@ -644,3 +644,137 @@ func test_reset_clears_the_goal_zones() -> void:
 	var cell: Vector2i = _cell_of(Vector2(0.0, 0.0))
 	assert_false(_raster.is_goal_zone(cell.x, cell.y),
 		"A new match re-stamps its own goal layout.")
+
+
+## -- Forced holes (M4 P5-HOLE, Bontago-1en.20) -------------------------------
+##
+## force_hole_cell() opens a cell independent of contest overlap, seeding the
+## same _hole/_contested_time/_idle_time bookkeeping a natural hole uses, so
+## the unmodified _advance_timers() (run from update(), same as every other
+## test in this file) is what actually closes it hole_open_s later.
+
+const HOLE_OPEN_S: float = 2.0
+
+
+func test_force_hole_cell_opens_immediately() -> void:
+	var cell: Vector2i = _cell_of(Vector2(0.5, 0.5))
+	assert_false(_raster.is_hole(cell.x, cell.y), "Setup: not a hole yet.")
+
+	_raster.force_hole_cell(cell.x, cell.y, HOLE_OPEN_S, TEMPORARY)
+
+	assert_true(_raster.is_hole(cell.x, cell.y))
+	assert_has(Array(_raster.holes_opened()), _grid.cell_index(cell.x, cell.y))
+
+
+func test_force_hole_cell_stays_open_before_hole_open_s() -> void:
+	var cell: Vector2i = _cell_of(Vector2(0.5, 0.5))
+	_raster.force_hole_cell(cell.x, cell.y, HOLE_OPEN_S, TEMPORARY)
+	var empty: Array[InfluenceCircle] = []
+
+	## 19 x 0.1 = 1.9 s, just under hole_open_s = 2.0; no circles at all, so
+	## the cell is never CONTESTED and _advance_timers() takes its idle branch.
+	for i: int in range(19):
+		_step(empty, 0.1, TEMPORARY)
+	assert_true(_raster.is_hole(cell.x, cell.y), "Still open at 1.9 s.")
+
+
+func test_force_hole_cell_closes_via_advance_timers_after_hole_open_s() -> void:
+	var cell: Vector2i = _cell_of(Vector2(0.5, 0.5))
+	var index: int = _grid.cell_index(cell.x, cell.y)
+	_raster.force_hole_cell(cell.x, cell.y, HOLE_OPEN_S, TEMPORARY)
+	var empty: Array[InfluenceCircle] = []
+
+	## 21 x 0.1 = 2.1 s, just past hole_open_s = 2.0.
+	var announcements: int = 0
+	for i: int in range(21):
+		_step(empty, 0.1, TEMPORARY)
+		announcements += Array(_raster.holes_closed()).count(index)
+
+	assert_false(_raster.is_hole(cell.x, cell.y), "Closed past hole_open_s = 2.0 s.")
+	assert_eq(announcements, 1, "Announced in holes_closed() exactly once.")
+
+
+func test_force_hole_cell_never_closes_under_permanent_holes() -> void:
+	var cell: Vector2i = _cell_of(Vector2(0.5, 0.5))
+	_raster.force_hole_cell(cell.x, cell.y, HOLE_OPEN_S, PERMANENT)
+	var empty: Array[InfluenceCircle] = []
+
+	for i: int in range(100):
+		_step(empty, 0.1, PERMANENT)
+		assert_eq(_raster.holes_closed().size(), 0, "Under PERMANENT the board only ever erodes.")
+	assert_true(_raster.is_hole(cell.x, cell.y))
+
+
+func test_force_hole_cell_appears_in_the_opened_change_set_exactly_once() -> void:
+	var cell: Vector2i = _cell_of(Vector2(0.5, 0.5))
+	var index: int = _grid.cell_index(cell.x, cell.y)
+
+	_raster.force_hole_cell(cell.x, cell.y, HOLE_OPEN_S, TEMPORARY)
+	assert_eq(Array(_raster.holes_opened()).count(index), 1)
+
+	## Re-forcing an already-open cell (holes_opened() is only cleared by the
+	## next update(), not by force_hole_cell() itself) must not append it a
+	## second time -- the same "announced once" contract a natural hole keeps.
+	_raster.force_hole_cell(cell.x, cell.y, HOLE_OPEN_S, TEMPORARY)
+	assert_eq(Array(_raster.holes_opened()).count(index), 1,
+		"Re-forcing an already-open cell must not re-announce it.")
+
+
+## -- A punched hole inside a single team's own circle (SHOULD-FIX, review
+## 2026-09-23) --------------------------------------------------------------
+##
+## Unlike the tests above, force_hole_cell() here lands on a cell a single
+## uncontested team already owns (a natural hole never does: it only opens on
+## a CONTESTED cell, _team_ids == -1). _stamp() keeps re-stamping that team
+## onto the cell every solve (unmodified, per this package's own "do not
+## touch update()/_fill_legacy()/_argmax()" contract) so _advance_timers()
+## can still tell a still-contested cell apart from an idle one; team_at() /
+## team_share() mask it back to unowned at the read side instead.
+
+func test_a_punched_hole_inside_a_single_teams_circle_reads_as_unowned() -> void:
+	var circles: Array[InfluenceCircle] = [_home(0.0, 0.0, 0)]
+	_step(circles, 0.1)
+	var cell: Vector2i = _cell_of(Vector2(0.5, 0.5))
+	assert_eq(_raster.team_at(cell.x, cell.y), 0,
+		"Setup: uncontested, owned by team 0 before the punch.")
+
+	var total: int = _grid.in_disk_cell_count()
+	var share_before: float = _raster.team_share(0)
+	_raster.force_hole_cell(cell.x, cell.y, HOLE_OPEN_S, TEMPORARY)
+
+	assert_eq(_raster.team_at(cell.x, cell.y), -1,
+		"A punched hole reads as unowned even though team 0's circle still covers it.")
+	assert_almost_eq(share_before - _raster.team_share(0), 1.0 / float(total), 0.0001,
+		"team_share(0) drops by exactly the one punched cell, not the whole circle.")
+
+	## The circle keeps covering the cell every solve afterwards too --
+	## _stamp() has no idea the cell is a hole (see the class DECISION) -- so
+	## this is not a one-tick fluke.
+	for i: int in range(5):
+		_step(circles, 0.1, TEMPORARY)
+		assert_eq(_raster.team_at(cell.x, cell.y), -1,
+			"Still unowned after re-solving with the same circle in place.")
+
+	var owners: PackedByteArray = _raster.owner_bytes()
+	assert_eq(owners[_grid.cell_index(cell.x, cell.y)], 0,
+		"owner_bytes() draws it unowned too -- no team tint over a hole.")
+
+
+func test_a_punched_hole_inside_a_single_teams_circle_still_closes_after_hole_open_s() -> void:
+	var circles: Array[InfluenceCircle] = [_home(0.0, 0.0, 0)]
+	_step(circles, 0.1)
+	var cell: Vector2i = _cell_of(Vector2(0.5, 0.5))
+	var index: int = _grid.cell_index(cell.x, cell.y)
+	_raster.force_hole_cell(cell.x, cell.y, HOLE_OPEN_S, TEMPORARY)
+
+	## 21 x 0.1 = 2.1 s, just past hole_open_s = 2.0, the circle never leaving.
+	var announcements: int = 0
+	for i: int in range(21):
+		_step(circles, 0.1, TEMPORARY)
+		announcements += Array(_raster.holes_closed()).count(index)
+
+	assert_false(_raster.is_hole(cell.x, cell.y),
+		"The natural hole_open_s close-timer is unaffected by the read-side fix.")
+	assert_eq(announcements, 1, "Announced in holes_closed() exactly once.")
+	assert_eq(_raster.team_at(cell.x, cell.y), 0,
+		"Once closed, the cell reads as team 0's again -- the circle never left.")
