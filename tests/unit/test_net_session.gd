@@ -835,6 +835,129 @@ func test_leave_between_two_host_online_attempts_clears_the_pending_state() -> v
 	assert_eq(fake.create_lobby_calls.size(), 2)
 
 
+## REPRO (Bontago-mv0.4): the case the test above does not cover -- a SECOND
+## host_online() is issued (after leave() cancels the first) *before* the
+## first attempt's own Steam answer has landed, so two requests are
+## genuinely outstanding at once. A single shared pending bool cannot tell
+## the two eventual answers apart: the first (stale) answer arriving would
+## get consumed as if it were the second (current) attempt's own, and the
+## second attempt's real, later answer would then be dropped as stale in its
+## place -- silently hosting the wrong (cancelled) lobby and abandoning the
+## live one. The generation queue fix (_steam_request_generation /
+## _steam_pending_generations) must resolve the two answers the other way
+## around: whichever answer arrives *first* resolves the oldest still-
+## outstanding (here, the cancelled) request, and whichever arrives *after*
+## resolves the live one.
+func test_leave_then_host_online_before_either_answers_the_first_delivered_answer_is_abandoned() -> void:
+	var fake: FakeSteam = FakeSteam.new()
+	_ready_steam(_host, fake)
+
+	assert_eq(_host.host_online("Hostie"), OK) # attempt 1: create_lobby #1 in flight
+	_host.leave() # cancels attempt 1 before Steam has answered it
+	assert_eq(_host.host_online("Hostie2"), OK) # attempt 2: create_lobby #2 in flight too
+	assert_eq(fake.create_lobby_calls.size(), 2, "leave() must not have refused the second attempt")
+
+	# Attempt 1's own late answer arrives first (the reported race).
+	fake.lobby_created.emit(FakeSteam.RESULT_OK, 111)
+	assert_eq(fake.leave_lobby_calls, [111], "the first-delivered answer must be abandoned, not hosted")
+	assert_true(
+		fake.set_lobby_data_calls.is_empty(),
+		"an abandoned answer must never be tagged as if it were the live attempt's own lobby"
+	)
+	assert_eq(_host.mode(), Net.Mode.OFFLINE, "attempt 2 must still be unresolved")
+	assert_false(_host.is_steam_session())
+
+	# Attempt 2's real answer, delivered afterward, must still be accepted --
+	# not dropped as stale in its place (the exact bug this fix targets).
+	fake.lobby_created.emit(FakeSteam.RESULT_OK, 222)
+	assert_eq(
+		fake.get_lobby_data(222, String(SteamClient.KEY_HOST_NAME)), "Hostie2",
+		"the attempt delivered second must be accepted as the live one, tagged with its own player name"
+	)
+	# 222 is still handed to leave_lobby() here too, but for an unrelated,
+	# pre-existing reason every other P1 test already hits: _make_steam_host_
+	# peer() refuses to build a real SteamMultiplayerPeer for a FakeSteam-
+	# driven provider (crash safety), so even the *accepted* lobby's peer
+	# construction fails and the lobby is released. That is not this fix's
+	# stale-answer path (which never reaches set_lobby_data() at all, proven
+	# above for 111) -- get_lobby_data() above already proves 222 was tagged
+	# as the live attempt first.
+	assert_eq(fake.leave_lobby_calls, [111, 222])
+
+
+## Same race, ids delivered in the opposite order. DECISION: GodotSteam's
+## lobby_created signal carries no call-correlation id (see
+## _steam_request_generation's doc comment in autoload/Net.gd), so this fix
+## resolves answers by *delivery* order, not by which physical lobby_id a
+## test happens to use -- whichever answer arrives first always resolves the
+## oldest still-outstanding (cancelled) request, and whichever arrives after
+## resolves the live one. This proves that guarantee holds with the ids
+## swapped: exactly one attempt is ever accepted as live, and no lobby is
+## ever left permanently orphaned, regardless of which id arrives first.
+func test_leave_then_host_online_before_either_answers_also_resolves_with_the_ids_swapped() -> void:
+	var fake: FakeSteam = FakeSteam.new()
+	_ready_steam(_host, fake)
+
+	assert_eq(_host.host_online("Hostie"), OK)
+	_host.leave()
+	assert_eq(_host.host_online("Hostie2"), OK)
+
+	# This time id 222 (which a reader might expect to be "attempt 2's own")
+	# is delivered *first* -- it must still be the one abandoned, because it
+	# is the first answer this instance sees since the second call was made.
+	fake.lobby_created.emit(FakeSteam.RESULT_OK, 222)
+	assert_eq(fake.leave_lobby_calls, [222], "whichever answer is delivered first must be abandoned")
+	assert_true(fake.set_lobby_data_calls.is_empty(), "the first-delivered answer must never be tagged")
+	assert_eq(_host.mode(), Net.Mode.OFFLINE)
+
+	fake.lobby_created.emit(FakeSteam.RESULT_OK, 111)
+	assert_eq(
+		fake.get_lobby_data(111, String(SteamClient.KEY_HOST_NAME)), "Hostie2",
+		"whichever answer arrives after must be accepted as the live attempt"
+	)
+	assert_eq(fake.leave_lobby_calls, [222, 111], "111 is released only by the peer-construction crash-safety path")
+
+
+## Same fix, exercised through join_lobby()/_on_steam_lobby_joined() instead
+## of host_online()/_on_steam_lobby_created() -- both callbacks share
+## _consume_steam_answer_is_stale(), but only a regression on each call site
+## proves the wiring (both push a generation, both pop it) actually matches.
+func test_leave_then_join_lobby_before_either_answers_resolves_the_second_attempt() -> void:
+	var fake: FakeSteam = FakeSteam.new()
+	fake.lobby_owners[9001] = 555
+	fake.lobby_owners[9002] = 555
+	_ready_steam(_client, fake)
+	watch_signals(Events)
+
+	assert_eq(_client.join_lobby(9001, "Clienty"), OK)
+	_client.leave()
+	assert_eq(_client.join_lobby(9002, "Clienty2"), OK)
+	assert_eq(fake.join_lobby_calls, [9001, 9002], "leave() must not have refused the second attempt")
+
+	# The cancelled attempt's own late answer arrives first. A stale answer
+	# returns before ever reaching _fail_join()/lobby_owner(), so no
+	# net_join_failed is emitted for it either.
+	fake.lobby_joined.emit(9001, FakeSteam.CHAT_ROOM_ENTER_SUCCESS)
+	assert_eq(fake.leave_lobby_calls, [9001], "the first-delivered (cancelled) attempt's lobby must be abandoned")
+	assert_eq(_client.mode(), Net.Mode.OFFLINE, "the second attempt must still be unresolved")
+	assert_eq(get_signal_emit_count(Events, "net_join_failed"), 0, "a stale answer must not report a join failure")
+
+	# The live attempt's real answer, delivered afterward, must be accepted
+	# as the current generation (proceeds into the real success path) instead
+	# of being dropped as stale in its place. _make_steam_client_peer() then
+	# still refuses to build a real SteamMultiplayerPeer for a FakeSteam
+	# provider (the same crash-safety rail test_lobby_joined_success_never_
+	# constructs_a_real_peer_for_a_fake_provider() covers), so this ends in
+	# _fail_join() -- but only *because* it was accepted as live, unlike 9001
+	# above which never got that far at all.
+	fake.lobby_joined.emit(9002, FakeSteam.CHAT_ROOM_ENTER_SUCCESS)
+	assert_eq(fake.leave_lobby_calls, [9001, 9002], "9002 is released by the peer-construction crash-safety path")
+	assert_eq(
+		get_signal_emit_count(Events, "net_join_failed"), 1,
+		"the live attempt's answer must reach _fail_join(), proving it was not treated as stale"
+	)
+
+
 func test_init_steam_forwards_steamclient_status_onto_events_and_is_idempotent() -> void:
 	var fake: FakeSteam = FakeSteam.new()
 	fake.init_status_value = 0
