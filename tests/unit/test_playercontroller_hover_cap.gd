@@ -18,6 +18,27 @@ extends GutTest
 ##    band (-48..72 m) already brackets a 60 m manual cap plus
 ##    PhysicsTuning.hover_height (60.3 m total), so Quantize/NetConfig needed
 ##    no change; this test is the regression pin proving that.
+##
+## Bontago-mv0.35 (owner regression report, 2026-09-23, "REGRESSION/UNFIXED --
+## there is still a maximum height the block cannot be raised or placed
+## above", reproduced hovering a domino above a placed tower): mv0.34's fix
+## above raised the configured *ceiling* (GhostTuning.hover_manual_max), but
+## never exercised the hover-raise path against an actual placed block. The
+## real remaining bug was in game/PlayerController.gd's ghost-vs-placed-block
+## collision sweep (Bontago-mv0.23) -- _cast_one_box(): the ghost's own
+## baseline hover height (_update_ghost_transform(), mv0.17 item 5)
+## deliberately ignores whatever tower sits under the cursor, so a ghost
+## routinely starts a frame already embedded in a placed block; raising past
+## it is the only way out, by design. cast_motion() called from an
+## already-overlapping shape reported that motion as unsafe even when it was
+## carrying the box further along its own way out, so raising above a tower
+## taller than one wheel notch got stuck partway up forever, nowhere near
+## hover_manual_max. Fixed by exempting a box that already overlaps a placed
+## block at its own current position from that one query's block entirely
+## (see _cast_one_box()'s own DECISION). test_towers_below_the_ghost_do_not_
+## trap_the_hover_raise() below is this bug's regression pin: before the fix
+## it failed by freezing partway up a 4-cube tower; after the fix it clears
+## the tower and reaches hover_manual_max.
 
 var _blocks_root: Node3D
 var _field: Field
@@ -172,3 +193,71 @@ func test_40m_pose_round_trips_over_the_wire_within_tolerance() -> void:
 		round_tripped.y, TARGET_HEIGHT_M, POSITION_TOLERANCE_M,
 		"a 40 m pose must still round-trip within the same tolerance every other position on the wire gets."
 	)
+
+
+# --- 4. A tower under the ghost must never trap the hover-raise -------------
+
+## Reproduces the owner's exact report: a real, physics-settled 4-cube tower
+## (~3.4 m tall -- taller than one GhostTuning.hover_wheel_step notch, 0.4 m)
+## directly under the cursor, then a domino wheeled straight up from its own
+## baseline (which starts embedded in the tower's bottom cube -- mv0.17 item
+## 5's own baseline ignores the tower). Before this package's fix this froze
+## partway up (observed: manual_hover_offset stuck at ~0.6 m, never reaching
+## even the tower's own ~3.4 m top); after the fix it clears the tower
+## entirely and reaches GhostTuning.hover_manual_max.
+func test_towers_below_the_ghost_do_not_trap_the_hover_raise() -> void:
+	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres")
+	var ghost_tuning: GhostTuning = GhostTuning.new()
+
+	var blocks: Array[Block] = []
+	for i: int in range(4):
+		var block: Block = BlockFactory.build(load("res://config/blocks/cube.tres"), tuning)
+		_field.get_parent().add_child(block)
+		autofree(block)
+		block.global_position = Vector3(0.0, 0.3 + float(i) * (tuning.cube_size + 0.05) + 5.0, 0.0)
+		blocks.append(block)
+		await wait_physics_frames(90)
+	var tower_top: float = 0.0
+	for block: Block in blocks:
+		block.sleeping = true
+		tower_top = maxf(tower_top, block.global_position.y + tuning.cube_size * 0.5)
+	assert_gt(
+		tower_top, ghost_tuning.hover_wheel_step,
+		"fixture: the settled tower must be taller than a single wheel notch, or this test can't tell the bug apart from a normal short block."
+	)
+
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+	ghost.set_shape(load("res://config/blocks/domino.tres"))
+	var controller: PlayerController = autofree(PlayerController.new())
+	add_child_autofree(controller)
+	controller._ghost = ghost
+	controller.ghost_tuning = ghost_tuning
+	controller._cursor = Vector3.ZERO
+	controller._clamp_cursor_collision()
+	controller._update_ghost_transform()
+	assert_lt(
+		controller._ghost.global_position.y, tower_top,
+		"fixture: the ghost's own baseline height must start below the tower's top (ignoring the tower under it, mv0.17 item 5) for this to reproduce the bug."
+	)
+
+	var notches: int = int(ceil(ghost_tuning.hover_manual_max / ghost_tuning.hover_wheel_step)) + 5
+	for _i: int in range(notches):
+		var wheel: InputEventMouseButton = InputEventMouseButton.new()
+		wheel.button_index = MOUSE_BUTTON_WHEEL_UP
+		wheel.pressed = true
+		controller._unhandled_input(wheel)
+		controller._clamp_cursor_collision()
+		controller._update_ghost_transform()
+
+	assert_almost_eq(
+		controller._ghost.manual_hover_offset, ghost_tuning.hover_manual_max, 0.01,
+		"wheeling up enough notches must reach the real ceiling, not freeze partway up the tower underneath."
+	)
+	assert_gt(
+		controller._ghost.global_position.y, tower_top,
+		"the ghost must actually clear the tower's own top, not stay embedded somewhere inside it."
+	)
+
+	for block: Block in blocks:
+		assert_true(block.sleeping, "a placed block must never wake just because the ghost swept through the space it used to ignore.")

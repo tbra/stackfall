@@ -1389,9 +1389,51 @@ func _sweep_motion(position: Vector3, motion: Vector3) -> Vector3:
 ## bounded-skip idea _raycast_disk_surface() uses, so a pathological pile of
 ## non-block colliders in the way can't spin this loop forever. Returns the
 ## safe fraction of `motion` (1.0 = fully clear).
+##
+## Bontago-mv0.35 (owner regression report, 2026-09-23, "there is still a
+## maximum height the block cannot be raised or placed above"): if `box_shape`
+## already overlaps a placed block right at `world_center` -- zero motion --
+## this returns 1.0 (the full requested motion) without ever calling
+## cast_motion(). The ghost's own baseline hover height
+## (_update_ghost_transform(), mv0.17 item 5) deliberately ignores whatever
+## tower sits under the cursor, so a freshly spawned or freshly rotated ghost
+## routinely starts a frame already embedded in a placed block -- raising past
+## it is the only way out, by design (mv0.30/mv0.33's own spawn-clearance
+## logic already relies on manual_hover_offset being able to lift the ghost
+## clear of exactly this state). cast_motion() itself, called from a shape
+## that already overlaps a body, reports collisions to a shallow query depth
+## and can come back permanently "unsafe" (0.0) even when `motion` is carrying
+## the box further along its own way out -- reproduced by this package's own
+## tests/unit/test_playercontroller_hover_cap.gd fixture (a 4-cube tower with
+## a domino held above it froze at manual_hover_offset ~0.6 m forever, nowhere
+## near the tower's own ~3.4 m top or GhostTuning.hover_manual_max's 60 m
+## ceiling, even though every notch kept requesting more upward motion).
+## DECISION (game/PlayerController.gd, Bontago-mv0.35): exempting an
+## already-overlapping box from this frame's block entirely, rather than
+## trying to compute a partial "depenetration" distance, keeps the fix to the
+## one case that regressed (a box that starts this query already embedded)
+## without touching the geometry every already-passing
+## test_ghost_collision.gd case depends on: each of those starts its query
+## from a position that is *not* already overlapping (the ghost approaches a
+## placed block from clear space and this same function's normal cast_motion
+## path below still stops it right at the collision skin's gap), so none of
+## them take this new branch. An embedded box instead now advances by exactly
+## the caller's requested `motion` once per query (one wheel notch, or one
+## frame's worth of a held raise/lower key) -- the same rate free space would
+## have given it -- until it re-checks from its new position next call and
+## finds itself finally clear, at which point ordinary blocking resumes.
 func _cast_one_box(
 	space_state: PhysicsDirectSpaceState3D, box_shape: BoxShape3D, world_center: Vector3, motion: Vector3
 ) -> float:
+	var start_probe: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
+	start_probe.shape = box_shape
+	start_probe.transform = Transform3D(_ghost.basis, world_center)
+	start_probe.collide_with_bodies = true
+	start_probe.collide_with_areas = false
+	for start_overlap: Dictionary in space_state.intersect_shape(start_probe, 8):
+		if start_overlap.get("collider") is RigidBody3D:
+			return 1.0
+
 	var params: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
 	params.shape = box_shape
 	params.transform = Transform3D(_ghost.basis, world_center)
