@@ -401,6 +401,22 @@ func request_throw(
 	return _placement.request_throw(slot_id, origin, orientation_index, free_quat, velocity, feed_seq)
 
 
+## M4 P4-SPAWN: a special effect's own runtime projectile spawn (e.g.
+## Volcano's lava orbs), not a player intent. See
+## MatchPlacement.spawn_special_projectile() for the full contract
+## (host-only, no feed/rules check, continuous_cd threshold).
+func spawn_special_projectile(
+	shape: BlockShape,
+	world_origin: Vector3,
+	basis: Basis,
+	owner_slot: int,
+	initial_velocity: Vector3,
+	orb_def: SpecialDef,
+	orb_tuning: SpecialTuning
+) -> Block:
+	return _placement.spawn_special_projectile(shape, world_origin, basis, owner_slot, initial_velocity, orb_def, orb_tuning)
+
+
 ## Whether a pose can be evaluated at all. See MatchPlacement.is_pose_well_formed().
 func is_pose_well_formed(origin: Vector3, orientation_index: int, free_quat: Quaternion) -> bool:
 	return _placement.is_pose_well_formed(origin, orientation_index, free_quat)

@@ -40,3 +40,13 @@ extends Resource
 ## explode()), so one body caught by a very high per-def impulse can never
 ## launch faster than this.
 @export var max_explosion_impulse: float = 30.0
+
+## M4 P4-SPAWN: spec 3.5's continuous-collision threshold ("Rockets, lava
+## orbs, thrown specials, and any body moving faster than 15 m/s use
+## continuous_cd"). Match.spawn_special_projectile() arms continuous_cd
+## whenever its own launch speed clears this. request_throw() already arms
+## continuous_cd unconditionally for every thrown special (see its own
+## comment) rather than reading this field, since spec 3.5 lists "thrown
+## specials" as a case of its own alongside the numeric threshold, not
+## conditioned on it.
+@export var ccd_speed_threshold_mps: float = 15.0

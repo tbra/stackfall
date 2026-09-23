@@ -372,6 +372,64 @@ func request_throw(
 	return PlacementRules.REASON_OK
 
 
+## M4 P4-SPAWN (docs/M4_SPECIALS_PACKAGES.md "P4-SPAWN", prerequisite for
+## Volcano): the entry point a special's own SpecialEffect uses to spawn a
+## brand-new projectile at runtime -- e.g. Volcano's lava orbs -- rather than
+## through a player's own placement/throw gesture. Host-only, using
+## request_place()'s own authority guard: returns null and spawns nothing
+## off-host. Not a player intent, so unlike request_place()/request_throw()
+## this consumes no feed slot and runs no PlacementRules/ThrowRules point
+## check -- the caller (an effect's physics_tick(), which SpecialBehavior
+## only ever runs host-side, see game/specials/SpecialBehavior.gd) already
+## decided the exact world pose and velocity to spawn at.
+##
+## Follows _spawn_block()'s exact pipeline (BlockFactory.build ->
+## _blocks_parent.add_child -> Events.block_placed [allocates net_id] ->
+## replicate_spawn), then binds and arms a SpecialBehavior from
+## `orb_def`/`orb_tuning` via the same _arm_special_behavior() helper
+## _attach_pending_special() uses (see that function's own doc comment for
+## why this is a separate helper rather than a duplicate of those four
+## lines), then sets the launch velocity. Spec 3.5 names "lava orbs" as
+## their own continuous_cd case alongside "any body moving faster than
+## 15 m/s" -- `orb_tuning.ccd_speed_threshold_mps` is that same 15 m/s
+## number, so continuous_cd is armed whenever this spawn's own speed clears
+## it, independent of which special is spawning.
+##
+## DECISION (autoload/match/MatchPlacement.gd, M4 P4-SPAWN): also guards on
+## the same state()/_field/_blocks_parent null checks request_place() opens
+## with, even though the brief names only the authority guard -- without them
+## a call arriving mid-teardown (e.g. an effect's physics_tick() still queued
+## the instant a match aborts) would crash inside _spawn_block() instead of
+## returning null the way every other guard here does.
+func spawn_special_projectile(
+	shape: BlockShape,
+	world_origin: Vector3,
+	basis: Basis,
+	owner_slot: int,
+	initial_velocity: Vector3,
+	orb_def: SpecialDef,
+	orb_tuning: SpecialTuning
+) -> Block:
+	if not _match._is_host():
+		return null
+	if _match.state() != MatchAutoload.State.PLAYING or _match._field == null or _match._blocks_parent == null:
+		return null
+	if shape == null:
+		return null
+
+	var spawned: Block = _spawn_block(shape, world_origin, basis, owner_slot)
+	# DECISION (autoload/match/MatchPlacement.gd, Bontago-1en.19 review): a null
+	# orb_tuning falls back to the match's preloaded _special_tuning, the same
+	# resource _attach_pending_special() uses, instead of crashing the host on
+	# the ccd read below when a .tres leaves its tuning export unset.
+	var effective_tuning: SpecialTuning = orb_tuning if orb_tuning != null else _special_tuning
+	if orb_def != null:
+		_arm_special_behavior(spawned, orb_def, effective_tuning)
+	spawned.linear_velocity = initial_velocity
+	spawned.continuous_cd = initial_velocity.length() > effective_tuning.ccd_speed_threshold_mps
+	return spawned
+
+
 ## Whether a pose can be evaluated at all: a finite origin, a free quaternion
 ## that is a finite unit rotation (Basis(q) of anything else is a scaled or
 ## NaN matrix, and the footprint built from it is garbage), and an orientation
@@ -515,10 +573,20 @@ func _attach_pending_special(block: Block, slot_id: int) -> void:
 	if not enabled.is_empty() and not enabled.has(def.id):
 		_warn_unresolved_special_once(special_id, "not in this match's enabled_specials")
 		return
+	_arm_special_behavior(block, def, _special_tuning)
+
+
+## M4 P4-SPAWN: the actual bind+arm mechanics _attach_pending_special() above
+## uses for a gift-drawn special, factored out so spawn_special_projectile()
+## below can bind a runtime-built SpecialDef/SpecialTuning pair (e.g. a
+## Volcano lava orb) the same way without duplicating these four lines or
+## changing _attach_pending_special()'s own behaviour.
+func _arm_special_behavior(block: Block, def: SpecialDef, tuning: SpecialTuning) -> SpecialBehavior:
 	var behavior: SpecialBehavior = SpecialBehavior.new()
 	block.add_child(behavior)
-	behavior.bind(block, def, _special_tuning)
+	behavior.bind(block, def, tuning)
 	behavior.triggered.connect(_on_special_behavior_triggered.bind(block.net_id))
+	return behavior
 
 
 ## Forwards SpecialBehavior's own `triggered` signal (game/specials/
