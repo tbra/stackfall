@@ -982,6 +982,10 @@ func test_a_replicated_gift_claim_carries_all_three_args_to_the_client() -> void
 	Match.set_net_provider(FakeNet.host({}, [0, 1]))
 	_start_playing()
 	var net: MatchNetScript = _make_net({}, [1], true)
+	# M4 P2c-ii tightens the wire check to roster membership; this checkout's
+	# res://config/specials/ is empty (P3-P5 not landed), so the test fakes a
+	# roster entry rather than writing a real .tres this package does not own.
+	net.set_special_roster_for_test([&"jumping_bean"])
 	watch_signals(Events)
 
 	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [3, 1, &"jumping_bean"])
@@ -1020,6 +1024,9 @@ func test_a_clients_queue_after_replication_matches_the_hosts_claim_order() -> v
 	Match.set_net_provider(FakeNet.host({}, [0, 1]))
 	_start_playing()
 	var net: MatchNetScript = _make_net({}, [1], true)
+	# See test_a_replicated_gift_claim_carries_all_three_args_to_the_client's
+	# own comment on why this fakes a roster.
+	net.set_special_roster_for_test([&"special_a", &"special_b"])
 
 	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [10, 1, &"special_a"])
 	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [11, 1, &"special_b"])
@@ -1027,3 +1034,225 @@ func test_a_clients_queue_after_replication_matches_the_hosts_claim_order() -> v
 	assert_eq(Match.pending_special_count(1), 2)
 	assert_eq(Match.pop_pending_special(1), &"special_a")
 	assert_eq(Match.pop_pending_special(1), &"special_b")
+
+
+## M4 P2c-ii: gift_claimed's roster-membership tightening (orchestrator
+## amendment 1's "P2c tightens it to roster membership"). res://config/
+## specials/ is empty in this checkout (P3-P5 not landed), so only
+## MatchGifts.PENDING_SPECIAL_ID -- the default drawer's placeholder -- may
+## ever pass without a faked roster.
+func test_an_unknown_special_id_is_dropped_but_the_placeholder_passes() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	var net: MatchNetScript = _make_net({}, [1], true)
+	watch_signals(Events)
+
+	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [7, 1, &"totally_unknown"])
+	assert_signal_not_emitted(
+		Events, "gift_claimed", "an id that is neither the placeholder nor in the roster must be dropped"
+	)
+	assert_eq(Match.held_special(1), &"")
+
+	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [8, 1, MatchGifts.PENDING_SPECIAL_ID])
+	assert_signal_emitted_with_parameters(
+		Events, "gift_claimed", [8, 1, MatchGifts.PENDING_SPECIAL_ID]
+	)
+	assert_eq(Match.held_special(1), MatchGifts.PENDING_SPECIAL_ID)
+
+
+## A real (faked) roster member must pass even though it is not the
+## placeholder -- proves _known_special_ids() is actually consulted, not just
+## the placeholder special-case.
+func test_a_faked_roster_member_special_id_passes_the_tightened_check() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	var net: MatchNetScript = _make_net({}, [1], true)
+	net.set_special_roster_for_test([&"volcano"])
+	watch_signals(Events)
+
+	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [9, 1, &"volcano"])
+
+	assert_signal_emitted_with_parameters(Events, "gift_claimed", [9, 1, &"volcano"])
+	assert_eq(Match.held_special(1), &"volcano")
+
+
+# --- M4 P2c-ii: request_throw over the wire ---------------------------------
+
+
+func test_submit_throw_on_the_host_spawns_and_launches_the_block_inline() -> void:
+	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
+	_start_playing()
+	Match._gifts.apply_replicated_claim(1, 0, MatchGifts.PENDING_SPECIAL_ID)
+	var velocity: Vector3 = Vector3(3.0, 0.0, 4.0)
+
+	var before: int = _block_count()
+	var reason: StringName = net.submit_throw(
+		0, _home_world_position(0), 0, Quaternion.IDENTITY, velocity, Match.feed_seq(0)
+	)
+
+	assert_eq(reason, PlacementRules.REASON_OK)
+	assert_eq(_block_count(), before + 1, "The host's own throw must spawn inline, with no round trip.")
+	assert_eq(net.intents_accepted(0), 1)
+	assert_eq(net.intents_sent(0), 1)
+	var block: Block = _blocks_root.get_child(_block_count() - 1) as Block
+	assert_eq(
+		block.linear_velocity, velocity,
+		"under throw_max_speed the host's clamp is a no-op, so the velocity passes through untouched"
+	)
+
+
+func test_a_throw_intent_for_someone_elses_slot_is_refused() -> void:
+	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
+	_start_playing()
+	Match._gifts.apply_replicated_claim(1, 0, MatchGifts.PENDING_SPECIAL_ID)
+
+	# Peer 2 holds slot 1 but claims slot 0, exactly like the matching
+	# placement test above.
+	net._handle_throw_intent(
+		2, 0, _home_world_position(0), 0, Quaternion.IDENTITY, Vector3(1.0, 0.0, 0.0), Match.feed_seq(0)
+	)
+
+	assert_eq(_block_count(), 0, "Nothing may be thrown for a slot the sender does not hold.")
+	assert_eq(net.intents_accepted(0), 0)
+	assert_eq(net.intents_refused(1), 1, "The refusal is counted against the sender's own slot.")
+	assert_eq(net.intents_sent(1), 1)
+
+
+func test_a_throw_intent_with_a_non_finite_velocity_is_dropped() -> void:
+	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
+	_start_playing()
+	Match._gifts.apply_replicated_claim(1, 0, MatchGifts.PENDING_SPECIAL_ID)
+
+	net._handle_throw_intent(
+		1, 0, _home_world_position(0), 0, Quaternion.IDENTITY, Vector3(NAN, 0.0, 0.0), Match.feed_seq(0)
+	)
+
+	assert_eq(_block_count(), 0, "A non-finite velocity must never reach Match.request_throw().")
+	assert_eq(net.intents_refused(0), 1)
+	assert_eq(
+		Match.held_special(0), MatchGifts.PENDING_SPECIAL_ID,
+		"the pending special is still held, not spent, by a refused throw"
+	)
+
+
+func test_a_remote_peers_own_throw_intent_is_accepted_with_velocity_untouched() -> void:
+	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
+	_start_playing()
+	Match._gifts.apply_replicated_claim(1, 1, MatchGifts.PENDING_SPECIAL_ID)
+	var velocity: Vector3 = Vector3(2.0, 0.0, -1.0)
+
+	net._handle_throw_intent(
+		2, 1, _home_world_position(1), 0, Quaternion.IDENTITY, velocity, Match.feed_seq(1)
+	)
+
+	assert_eq(_block_count(), 1)
+	assert_eq(net.intents_accepted(1), 1)
+	assert_eq(net.intents_refused(1), 0)
+	var block: Block = _blocks_root.get_child(0) as Block
+	assert_eq(
+		block.linear_velocity, velocity,
+		"under throw_max_speed, MatchPlacement.request_throw() must not alter it"
+	)
+
+
+## Review NIT: a remote throw intent quoting the -1 "don't check" sentinel
+## must be refused at the wire boundary -- _handle_throw_intent()'s own
+## `feed_seq < 0` branch, exactly the one _handle_place_intent() takes (see
+## that function's own matching comment on why -1 is a trusted-local-caller-
+## only courtesy that must never arrive from the wire).
+func test_a_negative_feed_seq_on_a_throw_intent_is_refused_at_the_wire_like_place() -> void:
+	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
+	_start_playing()
+	Match._gifts.apply_replicated_claim(1, 1, MatchGifts.PENDING_SPECIAL_ID)
+
+	net._handle_throw_intent(
+		2, 1, _home_world_position(1), 0, Quaternion.IDENTITY, Vector3(1.0, 0.0, 0.0), -1
+	)
+
+	assert_eq(_block_count(), 0, "A negative feed_seq from the wire must be refused, not treated as 'don't check'.")
+	assert_eq(net.intents_refused(1), 1)
+	assert_eq(Match.held_special(1), MatchGifts.PENDING_SPECIAL_ID, "nothing was consumed by the refusal")
+
+
+## Review NIT: once a real (non-negative) feed_seq is stale -- the host has
+## moved the slot on since the sender last saw it -- request_throw() refuses
+## it itself (MatchPlacement.request_throw()'s own feed_seq check, which runs
+## before its held_special() check), the same branch request_place() takes
+## for a stale place. Mirrors test_a_stale_feed_seq_is_refused() above.
+func test_a_stale_feed_seq_on_a_throw_intent_is_refused() -> void:
+	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
+	_start_playing()
+	var stale: int = Match.feed_seq(0)
+	Match._gifts.apply_replicated_claim(1, 0, MatchGifts.PENDING_SPECIAL_ID)
+
+	net.submit_throw(0, _home_world_position(0), 0, Quaternion.IDENTITY, Vector3(1.0, 0.0, 0.0), stale)
+	# The feed has moved on (the throw above consumed it); the sender still
+	# quotes the sequence it saw before that first throw.
+	var reason: StringName = net.submit_throw(
+		0, _home_world_position(0), 0, Quaternion.IDENTITY, Vector3(1.0, 0.0, 0.0), stale
+	)
+
+	assert_eq(reason, PlacementRules.REASON_NO_BLOCK)
+	assert_eq(_block_count(), 1)
+
+
+# --- M4 P2c-ii: EVENT_SPECIAL_TRIGGERED replication -------------------------
+
+
+func test_a_replicated_special_trigger_reemits_with_all_four_args() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	var net: MatchNetScript = _make_net({}, [1], true)
+	watch_signals(Events)
+
+	net.net_match_event(
+		MatchNetScript.EVENT_SPECIAL_TRIGGERED, [31, &"volcano", Vector3(1.0, 2.0, 3.0), 2]
+	)
+
+	assert_signal_emitted_with_parameters(
+		Events, "special_triggered", [31, &"volcano", Vector3(1.0, 2.0, 3.0), 2]
+	)
+
+
+func test_a_malformed_special_trigger_is_dropped_not_applied() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	var net: MatchNetScript = _make_net({}, [1], true)
+	watch_signals(Events)
+
+	net.net_match_event(MatchNetScript.EVENT_SPECIAL_TRIGGERED, [-1, &"volcano", Vector3.ZERO, 0])
+	assert_signal_not_emitted(Events, "special_triggered", "a negative net_id must be dropped")
+
+	net.net_match_event(MatchNetScript.EVENT_SPECIAL_TRIGGERED, [31, &"has space", Vector3.ZERO, 0])
+	assert_signal_not_emitted(Events, "special_triggered", "a malformed def_id must be dropped")
+
+	net.net_match_event(
+		MatchNetScript.EVENT_SPECIAL_TRIGGERED, [31, &"volcano", Vector3(NAN, 0.0, 0.0), 0]
+	)
+	assert_signal_not_emitted(Events, "special_triggered", "a non-finite position must be dropped")
+
+	var over_cap: int = int((load("res://config/special_tuning.tres") as SpecialTuning).max_chain_depth) + 1
+	net.net_match_event(
+		MatchNetScript.EVENT_SPECIAL_TRIGGERED, [31, &"volcano", Vector3.ZERO, over_cap]
+	)
+	assert_signal_not_emitted(Events, "special_triggered", "chain_depth over the cap must be dropped")
+
+	net.net_match_event(MatchNetScript.EVENT_SPECIAL_TRIGGERED, [31, &"volcano", Vector3.ZERO, -1])
+	assert_signal_not_emitted(Events, "special_triggered", "a negative chain_depth must be dropped")
+
+
+## Review fix (Should #1): a short args array (an older or malformed sender,
+## missing position/chain_depth) must be dropped before net_match_event ever
+## reads past args[1] -- mirrors EVENT_GIFT_CLAIMED's own args.size() guard
+## and, without this check, would have read args[2]/args[3] out of bounds.
+func test_a_short_special_trigger_args_array_is_dropped_not_applied() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	var net: MatchNetScript = _make_net({}, [1], true)
+	watch_signals(Events)
+
+	net.net_match_event(MatchNetScript.EVENT_SPECIAL_TRIGGERED, [31, &"volcano"])
+
+	assert_signal_not_emitted(
+		Events, "special_triggered", "a short args array must be dropped, not read past its end"
+	)

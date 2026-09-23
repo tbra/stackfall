@@ -58,6 +58,10 @@ const EVENT_MATCH_WON: StringName = &"match_won"
 const EVENT_GIFT_SPAWNED: StringName = &"gift_spawned"
 const EVENT_GIFT_CLAIMED: StringName = &"gift_claimed"
 const EVENT_GIFT_EXPIRED: StringName = &"gift_expired"
+## M4 P2c-ii: mirrors game/specials/SpecialBehavior.gd's own trigger, via
+## autoload/match/MatchPlacement._on_special_behavior_triggered() ->
+## Events.special_triggered (host only). See _on_special_triggered() below.
+const EVENT_SPECIAL_TRIGGERED: StringName = &"special_triggered"
 
 @export var config: NetConfig = preload("res://config/net_config.tres")
 
@@ -68,6 +72,30 @@ var _physics_tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
 ## Lazily built id -> BlockShape index; BlockShape.load_all_shapes() scans a
 ## directory, so it happens once and only where a spawn needs it.
 var _shapes_by_id: Dictionary = {}
+
+## M4 P2c-ii: EVENT_SPECIAL_TRIGGERED's chain_depth wire bound
+## (SpecialTuning.max_chain_depth). A separate preload rather than reading
+## through _authority() -- the config is architecture-fixed for the build,
+## the same reason _physics_tuning above is preloaded rather than read from
+## Match's own running MatchConfig.
+var _special_tuning: SpecialTuning = preload("res://config/special_tuning.tres")
+
+## _known_special_ids()'s cache: String(SpecialDef.id) -> true, built once
+## from SpecialDef.load_all_specials() (a directory scan). This node is
+## recreated per match/session (a fresh autoload on every process start; a
+## fresh instance per test via MatchNetScript.new()), so "once per instance"
+## already means "once per match" in the shipped build and "once per test"
+## in a unit test -- no reset hook of its own is needed.
+var _special_ids_by_id: Dictionary = {}
+var _special_ids_cached: bool = false
+## Test seam (mirrors set_providers()): overrides the roster
+## _known_special_ids() reads. res://config/specials/ is deliberately empty
+## until P3-P5 land a concrete special, so a test proving real
+## roster-membership gating (as opposed to "empty roster, only the
+## placeholder passes") needs a way to fake "some ids exist" without writing
+## a .tres resource under a directory this package does not own. null
+## (default) reads the real SpecialDef.load_all_specials().
+var _special_ids_override: Variant = null
 
 ## DECISION (net/MatchNet.gd): Net and Match are plain autoloads and GUT
 ## cannot double one (see game/PlayerController.gd's DECISION for the whole
@@ -141,6 +169,7 @@ func _ready() -> void:
 	Events.gift_spawned.connect(_on_gift_spawned)
 	Events.gift_claimed.connect(_on_gift_claimed)
 	Events.gift_expired.connect(_on_gift_expired)
+	Events.special_triggered.connect(_on_special_triggered)
 	Events.block_removed.connect(_on_block_removed)
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 	Events.net_peer_left.connect(_on_net_peer_left)
@@ -160,6 +189,15 @@ func set_providers(net_provider: Variant, match_provider: Variant) -> void:
 	_match_provider = match_provider
 	if _match_provider != null:
 		_match_provider.set_replicator(self)
+
+
+## Test seam; see _special_ids_override. `ids` is an Array of String/
+## StringName, or null to go back to the real SpecialDef.load_all_specials()
+## loader.
+func set_special_roster_for_test(ids: Variant) -> void:
+	_special_ids_override = ids
+	_special_ids_cached = false
+	_special_ids_by_id = {}
 
 
 func _session() -> Variant:
@@ -246,6 +284,42 @@ func submit_place(
 		orientation_index,
 		free_quat,
 		false,
+		feed_seq
+	)
+	return PlacementRules.REASON_OK
+
+
+## The single call site for a throw, host or client, local or remote --
+## submit_place()'s own twin (spec 3.4: "request_throw(slot_id, pos, orient,
+## velocity): the host clamps velocity to throw_max_speed"). A throw has no
+## auto_drop equivalent at all (MatchPlacement.request_throw()'s own doc
+## comment), so unlike submit_place() there is no bool to gate the host-side
+## _bump() on -- every call here is a deliberate release.
+func submit_throw(
+	slot_id: int,
+	origin: Vector3,
+	orientation_index: int,
+	free_quat: Quaternion,
+	velocity: Vector3,
+	feed_seq: int
+) -> StringName:
+	if _is_host():
+		_bump(_intents_sent, slot_id)
+		return _apply_throw_intent(slot_id, origin, orientation_index, free_quat, velocity, feed_seq)
+
+	if not _can_send():
+		# See submit_place()'s matching comment: nothing went on the wire, so
+		# nothing is counted.
+		return PlacementRules.REASON_NO_BLOCK
+	_bump(_intents_sent, slot_id)
+	rpc_id(
+		Net.HOST_PEER_ID,
+		&"net_request_throw",
+		slot_id,
+		origin,
+		orientation_index,
+		free_quat,
+		velocity,
 		feed_seq
 	)
 	return PlacementRules.REASON_OK
@@ -516,6 +590,29 @@ func _apply_intent(
 	return reason
 
 
+## _apply_intent()'s own twin for a throw, whether it arrived inline from the
+## host's own player or over the wire. Host only. A throw is never an
+## auto-drop (see submit_throw()'s own comment), so _consumed_a_block() is
+## always called with auto_drop == false -- only REASON_OK ever spends the
+## block (MatchPlacement.request_throw() never burns a refused throw).
+func _apply_throw_intent(
+	slot_id: int,
+	origin: Vector3,
+	orientation_index: int,
+	free_quat: Quaternion,
+	velocity: Vector3,
+	feed_seq: int
+) -> StringName:
+	var reason: StringName = _authority().request_throw(
+		slot_id, origin, orientation_index, free_quat, velocity, feed_seq
+	)
+	if _consumed_a_block(reason, false):
+		_bump(_intents_accepted, slot_id)
+	else:
+		_bump(_intents_refused, slot_id)
+	return reason
+
+
 ## Whether an outcome spent the slot's held block. Two reasons always mean the
 ## intent never reached the field: the slot had nothing to place (an empty
 ## feed, an eliminated slot, a stale feed_seq — all REASON_NO_BLOCK) and it
@@ -583,6 +680,57 @@ func _handle_place_intent(
 		_reject_to_peer(sender_peer_id, slot_id, reason)
 
 
+## Host side of net_request_throw, split out (like _handle_place_intent) so a
+## test can drive it with a manufactured sender id and no peer at all. Mirrors
+## _handle_place_intent() check-for-check (sender-owns-slot, feed_seq, pose)
+## with one addition: `velocity.is_finite()`. The host does not also bound
+## its length here -- MatchPlacement.request_throw() always clamps to
+## SpecialTuning.throw_max_speed rather than ever refusing on speed (spec 3.4:
+## "the host clamps velocity to throw_max_speed"), so a second length check at
+## this boundary would only reject a pose the authority is happy to clamp and
+## use anyway.
+func _handle_throw_intent(
+	sender_peer_id: int,
+	slot_id: int,
+	origin: Vector3,
+	orientation_index: int,
+	free_quat: Quaternion,
+	velocity: Vector3,
+	feed_seq: int
+) -> void:
+	if not _is_host():
+		return
+	var sender_slot: int = int(_session().slot_of_peer(sender_peer_id))
+	if sender_slot < 0:
+		return
+	_bump(_intents_sent, sender_slot)
+	if sender_slot != slot_id:
+		_refuse_intent(sender_peer_id, sender_slot, PlacementRules.REASON_NOT_YOUR_TURN)
+		return
+	if feed_seq < 0:
+		_refuse_intent(sender_peer_id, sender_slot, PlacementRules.REASON_NO_BLOCK)
+		return
+	if not _pose_is_acceptable(origin, orientation_index, free_quat) or not velocity.is_finite():
+		# A non-finite velocity is this function's own wire-boundary check, on
+		# top of _pose_is_acceptable()'s existing origin/orientation/free_quat
+		# gate -- neither is a rule violation, so nothing is burned or
+		# consumed; the sender is told so its ghost unlocks and it may retry,
+		# exactly like a malformed placement pose.
+		_refuse_intent(sender_peer_id, sender_slot, PlacementRules.REASON_NO_BLOCK)
+		return
+	var reason: StringName = _apply_throw_intent(
+		slot_id, origin, orientation_index, free_quat, velocity, feed_seq
+	)
+	if not _consumed_a_block(reason, false):
+		# MatchPlacement.request_throw() already emits Events.placement_rejected
+		# for an outside-territory/not-a-special refusal, which
+		# _on_placement_rejected below already mirrors to every client -- but
+		# this targeted reply is still needed so the *sender's own* ghost
+		# unlocks now instead of waiting out NetConfig.intent_ack_timeout,
+		# exactly like _handle_place_intent's own tail.
+		_reject_to_peer(sender_peer_id, slot_id, reason)
+
+
 ## Host side of net_update_cursor, split out (like _handle_place_intent) so a
 ## test can drive it with a manufactured sender id and no peer at all. What is
 ## stored here is what spec 2.5's auto-drop fires from when the slot's timer
@@ -646,16 +794,18 @@ func _gift_wire_ok(gift_id: int, position: Vector2) -> bool:
 	return position.length() <= radius + 0.01
 
 
-## M4 P2b wire safety for EVENT_GIFT_CLAIMED's third argument (Orchestrator
-## amendment 1): the drawn special id is trusted only if it is shaped like
-## one of ours -- non-empty, at most 32 characters, [A-Za-z0-9_] only --
-## following _gift_wire_ok's own "a malformed or ancient payload is dropped,
-## not trusted" pattern. This is a syntactic check only (P2c tightens it to
-## real roster membership once SpecialDef.load_all_specials() exists); a
-## client only ever uses this id to show in its own HUD/ghost and, later, to
-## hand to SpecialBehavior.bind(), and an unchecked string could otherwise
-## reach either unfiltered. No RegEx dependency (none exists elsewhere in
-## this codebase) -- a plain character scan is enough for an id this short.
+## M4 P2b wire safety, reused by EVENT_SPECIAL_TRIGGERED's def_id (M4 P2c-ii)
+## as well as EVENT_GIFT_CLAIMED's third argument: the id is trusted only if
+## it is shaped like one of ours -- non-empty, at most 32 characters,
+## [A-Za-z0-9_] only -- following _gift_wire_ok's own "a malformed or ancient
+## payload is dropped, not trusted" pattern. This is a syntactic check only;
+## _gift_special_id_wire_ok() below layers real roster membership on top of it
+## for EVENT_GIFT_CLAIMED specifically (a client only ever queues this id and,
+## later, hands it to SpecialBehavior.bind(), so an unchecked string could
+## otherwise reach either unfiltered) -- EVENT_SPECIAL_TRIGGERED does not need
+## the same layer (see _known_special_ids()'s own doc comment for why). No
+## RegEx dependency (none exists elsewhere in this codebase) -- a plain
+## character scan is enough for an id this short.
 func _special_id_wire_ok(special_id: String) -> bool:
 	if special_id.is_empty() or special_id.length() > 32:
 		return false
@@ -668,6 +818,44 @@ func _special_id_wire_ok(special_id: String) -> bool:
 		if not (is_upper or is_lower or is_digit or is_underscore):
 			return false
 	return true
+
+
+## String(SpecialDef.id) -> true for every SpecialDef in SpecialDef.
+## load_all_specials(), built once per instance and cached (see
+## _special_ids_by_id's own field comment). Read by _gift_special_id_wire_ok()
+## below; not by EVENT_SPECIAL_TRIGGERED's dispatch, which only re-checks
+## _special_id_wire_ok()'s syntactic shape (docs/M4_P2_PACKAGES.md P2c-ii
+## brief) -- a special already bound and triggered on the host is by
+## construction a real roster id, so nothing here needs to reject one a
+## client's own (possibly stale) roster cache does not recognise.
+func _known_special_ids() -> Dictionary:
+	if not _special_ids_cached:
+		_special_ids_by_id = {}
+		if _special_ids_override != null:
+			for raw_id: Variant in (_special_ids_override as Array):
+				_special_ids_by_id[String(raw_id)] = true
+		else:
+			for def: SpecialDef in SpecialDef.load_all_specials():
+				_special_ids_by_id[String(def.id)] = true
+		_special_ids_cached = true
+	return _special_ids_by_id
+
+
+## M4 P2c-ii tightening of _special_id_wire_ok() for EVENT_GIFT_CLAIMED only
+## (orchestrator amendment 1's "P2c tightens it to roster membership"): a
+## claimed special id is trusted only if it is shaped like one of ours AND is
+## either MatchGifts.PENDING_SPECIAL_ID (the default drawer's placeholder,
+## always valid regardless of roster -- see MatchPlacement._attach_pending_
+## special()'s own "safe default" handling of it) or actually a member of the
+## running roster. An empty res://config/specials/ (P3-P5 not landed yet)
+## therefore lets only the placeholder through, exactly as it should: there is
+## no real special for any other id to name yet.
+func _gift_special_id_wire_ok(special_id: String) -> bool:
+	if not _special_id_wire_ok(special_id):
+		return false
+	if special_id == String(MatchGifts.PENDING_SPECIAL_ID):
+		return true
+	return _known_special_ids().has(special_id)
 
 
 ## A remote intent the host will not act on: counted against the sender's own
@@ -853,6 +1041,16 @@ func _on_gift_expired(gift_id: int) -> void:
 		replicate_match_event(EVENT_GIFT_EXPIRED, [gift_id])
 
 
+## M4 P2c-ii: autoload/match/MatchPlacement._on_special_behavior_triggered()
+## emits Events.special_triggered only on the host (game/specials/
+## SpecialBehavior.gd only ever attaches there -- see that file's own header
+## and orchestrator amendment 2), so this mirrors it to every client exactly
+## like _on_gift_spawned above.
+func _on_special_triggered(net_id: int, def_id: StringName, position: Vector3, chain_depth: int) -> void:
+	if _is_host():
+		replicate_match_event(EVENT_SPECIAL_TRIGGERED, [net_id, def_id, position, chain_depth])
+
+
 func _on_goal_capture_progress(team_id: int, progress: float) -> void:
 	_capture_team = team_id
 	_capture_progress = progress
@@ -989,6 +1187,28 @@ func net_request_place(
 	)
 
 
+## Spec 3.4: "request_throw(slot_id, pos, orient, velocity): the host clamps
+## velocity to throw_max_speed." Mirrors net_request_place above exactly.
+@rpc("any_peer", "call_remote", "reliable")
+func net_request_throw(
+	slot_id: int,
+	origin: Vector3,
+	orientation_index: int,
+	free_quat: Quaternion,
+	velocity: Vector3,
+	feed_seq: int
+) -> void:
+	_handle_throw_intent(
+		multiplayer.get_remote_sender_id(),
+		slot_id,
+		origin,
+		orientation_index,
+		free_quat,
+		velocity,
+		feed_seq
+	)
+
+
 @rpc("any_peer", "call_remote", "unreliable", CURSOR_CHANNEL)
 func net_update_cursor(slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion) -> void:
 	_handle_cursor_update(multiplayer.get_remote_sender_id(), slot_id, origin, orientation_index, free_quat)
@@ -1096,7 +1316,7 @@ func net_match_event(event: StringName, args: Array) -> void:
 			if args.size() < 3:
 				return
 			var special_id: StringName = StringName(args[2])
-			if not _special_id_wire_ok(String(special_id)):
+			if not _gift_special_id_wire_ok(String(special_id)):
 				return
 			_authority().apply_replicated_gift_claimed(claimed_gift_id, slot_id, special_id)
 			Events.gift_claimed.emit(claimed_gift_id, slot_id, special_id)
@@ -1106,6 +1326,37 @@ func net_match_event(event: StringName, args: Array) -> void:
 				return
 			_authority().apply_replicated_gift_expired(expired_gift_id)
 			Events.gift_expired.emit(expired_gift_id)
+		EVENT_SPECIAL_TRIGGERED:
+			# M4 P2c-ii: mirrors game/specials/SpecialBehavior.gd's own trigger
+			# to every client -- a client runs no SpecialBehavior of its own
+			# (Events.special_triggered is only ever emitted host-side, see
+			# _on_special_triggered() above), so this dispatch is the only
+			# place a client ever learns a special fired; it is a purely
+			# read-model/effects signal (Known limitations: no remote arm/
+			# trigger visuals yet), never fed back into Match.
+			#
+			# Review fix (Should #1): a short args array (an older or
+			# malformed sender) is dropped before any args[1..3] read, exactly
+			# EVENT_GIFT_CLAIMED's own args.size() guard above -- args[0]
+			# alone is safe to read unconditionally (net_match_event's own
+			# dispatch never calls with an empty array), but nothing past it
+			# is, and no partial state (a queued net_id with no matching
+			# emit) may result from a truncated payload.
+			if args.size() < 4:
+				return
+			var triggered_net_id: int = int(args[0])
+			if triggered_net_id < 0:
+				return
+			var triggered_def_id: StringName = StringName(args[1])
+			if not _special_id_wire_ok(String(triggered_def_id)):
+				return
+			var triggered_position: Vector3 = args[2] as Vector3
+			if not triggered_position.is_finite():
+				return
+			var chain_depth: int = int(args[3])
+			if chain_depth < 0 or chain_depth > _special_tuning.max_chain_depth:
+				return
+			Events.special_triggered.emit(triggered_net_id, triggered_def_id, triggered_position, chain_depth)
 		_:
 			pass
 
