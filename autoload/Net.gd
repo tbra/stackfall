@@ -118,19 +118,55 @@ var _steam_initialized: bool = false
 ## factories require this — see the crash this guards against, documented at
 ## _make_steam_host_peer().
 var _steam_ready: bool = false
-## True from the moment host_online()/join_lobby() actually issues an async
-## create_lobby()/join_lobby() call to steam_provider until its answer lands
-## (_on_steam_lobby_created()/_on_steam_lobby_joined(), success or failure) or
-## leave() cancels it. Bontago-mv0.2.6 (independent-review finding B): _mode
-## stays OFFLINE for the whole time that answer is pending, so a second
-## host_online()/join_lobby() call in the meantime used to sail past the
-## "if _mode != Mode.OFFLINE: leave()" guard, issue a second Steam request,
-## and leave the first request's own eventual answer to be silently dropped
-## by _on_steam_lobby_created()/_on_steam_lobby_joined()'s own
-## "if _mode != Mode.OFFLINE: return" guard once the second request won the
-## race — orphaning whichever Steam lobby lost. Both entry points now refuse
-## a second call outright while this is true (see below).
-var _steam_request_pending: bool = false
+## Bontago-mv0.2.6 (independent-review finding B): _mode stays OFFLINE for the
+## whole time a host_online()/join_lobby() Steam answer is pending, so a
+## second call in the meantime used to sail past the "if _mode != Mode.OFFLINE:
+## leave()" guard and issue a second Steam request. Both entry points refuse a
+## second call outright while a request of the *current* generation (see
+## below) is still outstanding — _steam_request_pending() at the bottom of
+## this block is the single predicate both use.
+##
+## Bontago-mv0.4: a single pending bool fixed the case above but broke
+## leave() -> host_online()/join_lobby() done twice before the first
+## attempt's own answer lands: the second call set the (single, shared) flag
+## true again, so the FIRST attempt's late answer was consumed by
+## _on_steam_lobby_created()/_on_steam_lobby_joined() as if it were the
+## SECOND attempt's own answer — and the second attempt's real, later answer
+## was then dropped as stale in its place (see `bd show Bontago-mv0.4`).
+## GodotSteam's lobby_created/lobby_joined signals carry no per-call id to
+## tell two outstanding requests' eventual answers apart, so a bool alone
+## cannot distinguish them once a second request is in flight.
+##
+## Fixed with a monotonically increasing generation, bumped by leave(), plus
+## a FIFO queue of the generation each still-unanswered host_online()/
+## join_lobby() call was issued under. Every lobby_created/lobby_joined
+## answer pops the oldest still-outstanding entry and compares it against the
+## *current* generation:
+## - equal: this is the live attempt's own answer.
+## - not equal: this answer belongs to an attempt leave() already cancelled.
+##   A stale success (result/response == OK) is never left orphaned — its
+##   lobby is handed straight to steam_provider.leave_lobby() — and the live
+##   attempt (if any) stays pending, unaffected.
+## DECISION: GodotSteam's signals carry no call-correlation id, so "which
+## queued generation an answer resolves" is necessarily FIFO-by-issue-order,
+## not true per-call identity — matching Steamworks' own practical ordering
+## for same-typed calls from one local client (docs/M3b_RESEARCH.md). This
+## still guarantees the two invariants that matter: no lobby is ever
+## orphaned, and exactly one attempt can ever become the live session.
+var _steam_request_generation: int = 0
+## FIFO queue (oldest first) of the generation each still-unanswered
+## host_online()/join_lobby() call was issued under. See
+## _steam_request_generation's doc comment above.
+var _steam_pending_generations: Array[int] = []
+
+
+## True while a request of the *current* generation is still outstanding —
+## the single predicate host_online()/join_lobby() share for the ERR_BUSY
+## guard above. False once leave() bumps the generation, even if an older
+## generation's request is still genuinely in flight with Steam (those
+## resolve as stale — see _steam_request_generation's doc comment).
+func _steam_request_pending() -> bool:
+	return _steam_pending_generations.has(_steam_request_generation)
 
 var _sim: NetSim = NetSim.new()
 ## Cross-package stats reported via report_stats(), folded into stats().
@@ -239,17 +275,19 @@ func join_game(address: String, port: int = 0, player_name: String = "") -> Erro
 ## when already offline. The host disconnects everyone with
 ## LeaveReason.HOST_SHUTDOWN first.
 func leave() -> void:
-	# DECISION (Bontago-mv0.2.6 finding B): cleared unconditionally, before the
-	# OFFLINE early-return below, because a pending host_online()/join_lobby()
-	# attempt never moves _mode off OFFLINE until its Steam answer actually
-	# lands — so a caller cancelling mid-attempt (e.g. leaving the menu while
-	# a lobby is still being created) would otherwise never reach this
-	# function's own body at all. Once this is false, a late
-	# lobby_created/lobby_joined answer for the cancelled attempt is treated
-	# as stale by _on_steam_lobby_created()/_on_steam_lobby_joined() and
+	# DECISION (Bontago-mv0.2.6 finding B, generation added for Bontago-mv0.4):
+	# bumped unconditionally, before the OFFLINE early-return below, because a
+	# pending host_online()/join_lobby() attempt never moves _mode off OFFLINE
+	# until its Steam answer actually lands — so a caller cancelling mid-
+	# attempt (e.g. leaving the menu while a lobby is still being created)
+	# would otherwise never reach this function's own body at all. Once the
+	# generation no longer matches what a still-outstanding request was
+	# issued under, its late lobby_created/lobby_joined answer is treated as
+	# stale by _on_steam_lobby_created()/_on_steam_lobby_joined() and
 	# abandons whatever Steam lobby it produced instead of reviving a session
-	# nothing is waiting for.
-	_steam_request_pending = false
+	# nothing is waiting for — even if a fresh host_online()/join_lobby() call
+	# started a new (current-generation) request in the meantime.
+	_steam_request_generation += 1
 	if _mode == Mode.OFFLINE:
 		return
 	if _mode == Mode.HOST:
@@ -516,13 +554,14 @@ func host_online(player_name: String = "") -> Error:
 		return ERR_UNAVAILABLE
 	# Bontago-mv0.2.6 finding B: refuse a second concurrent attempt rather than
 	# issue a second Steam create_lobby() request while the first is still
-	# awaiting its own lobby_created answer — see _steam_request_pending's doc
-	# comment for the orphaned-lobby race this prevents.
-	if _steam_request_pending:
+	# awaiting its own lobby_created answer — see _steam_request_generation's
+	# doc comment for the orphaned-lobby / misattributed-answer races this
+	# prevents.
+	if _steam_request_pending():
 		return ERR_BUSY
 	if _mode != Mode.OFFLINE:
 		leave()
-	_steam_request_pending = true
+	_steam_pending_generations.append(_steam_request_generation)
 	_steam_pending_name = player_name
 	steam_provider.create_lobby(config.steam_lobby_type, config.max_peers)
 	return OK
@@ -537,11 +576,11 @@ func join_lobby(lobby_id: int, player_name: String = "") -> Error:
 		return ERR_UNAVAILABLE
 	# Same guard as host_online() above, and for the same reason (Bontago-
 	# mv0.2.6 finding B).
-	if _steam_request_pending:
+	if _steam_request_pending():
 		return ERR_BUSY
 	if _mode != Mode.OFFLINE:
 		leave()
-	_steam_request_pending = true
+	_steam_pending_generations.append(_steam_request_generation)
 	_steam_pending_name = player_name
 	steam_provider.join_lobby(lobby_id)
 	return OK
@@ -602,18 +641,34 @@ func _on_steam_init_result(status: int, verbal: String) -> void:
 	Events.net_steam_status_changed.emit(_steam_ready, verbal)
 
 
-func _on_steam_lobby_created(result: int, lobby_id: int) -> void:
-	# Bontago-mv0.2.6 finding B: consume the pending token first. If it was
-	# already false, this answer belongs to an attempt host_online() no
-	# longer considers live (a caller that called leave() while this was
-	# still in flight — see leave()'s own comment) — abandon whatever lobby
-	# Steam actually created rather than let the guard below silently drop it
-	# and orphan it.
-	var was_pending: bool = _steam_request_pending
-	_steam_request_pending = false
-	if not was_pending:
-		if result == 1:
+## Pops the oldest still-outstanding host_online()/join_lobby() request's
+## generation and reports whether this answer is stale (leave() already
+## bumped past it — see _steam_request_generation's doc comment). A stale
+## success (`ok`) is handed straight to steam_provider.leave_lobby() so it is
+## never orphaned; a stale failure is simply dropped. Shared by
+## _on_steam_lobby_created() and _on_steam_lobby_joined() below.
+func _consume_steam_answer_is_stale(ok: bool, lobby_id: int) -> bool:
+	if _steam_pending_generations.is_empty():
+		# Defensive: host_online()/join_lobby() always push a generation
+		# before issuing the Steam call, so this should not happen in
+		# practice — treat a stray answer the same as stale so a success is
+		# never orphaned.
+		if ok:
 			steam_provider.leave_lobby(lobby_id)
+		return true
+	var answer_generation: int = _steam_pending_generations.pop_front()
+	if answer_generation != _steam_request_generation:
+		if ok:
+			steam_provider.leave_lobby(lobby_id)
+		return true
+	return false
+
+
+func _on_steam_lobby_created(result: int, lobby_id: int) -> void:
+	# Bontago-mv0.2.6 finding B / Bontago-mv0.4: consume this request's
+	# generation first; a stale answer abandons whatever lobby Steam actually
+	# created rather than let the guard below silently drop it and orphan it.
+	if _consume_steam_answer_is_stale(result == 1, lobby_id):
 		return
 	if _mode != Mode.OFFLINE:
 		return
@@ -671,12 +726,8 @@ func _on_steam_lobby_created(result: int, lobby_id: int) -> void:
 
 func _on_steam_lobby_joined(lobby_id: int, response: int) -> void:
 	# Same stale-answer handling as _on_steam_lobby_created() above, and for
-	# the same reason (Bontago-mv0.2.6 finding B).
-	var was_pending: bool = _steam_request_pending
-	_steam_request_pending = false
-	if not was_pending:
-		if response == 1:
-			steam_provider.leave_lobby(lobby_id)
+	# the same reason (Bontago-mv0.2.6 finding B / Bontago-mv0.4).
+	if _consume_steam_answer_is_stale(response == 1, lobby_id):
 		return
 	if _mode != Mode.OFFLINE:
 		return
