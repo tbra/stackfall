@@ -52,3 +52,4 @@ special_throw_speed_mps = 16.0
 special_throw_loft_ratio = 0.6
 stability_off_centre_factor = 0.5
 stability_stack_bonus = 1.0
+stability_contact_tolerance_m = 0.15

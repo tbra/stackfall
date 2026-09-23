@@ -80,6 +80,16 @@ extends Resource
 ## (BotCandidate.on_top_of_own_stack).
 @export var stability_stack_bonus: float = 1.0
 
+## Bontago-d5c.8 (M5 P3b-ii, append-only per docs/M5_PLAN.md's "if you need a
+## new numeric... add it as an @export on BotTuning, append-only"): how close
+## (meters) a game/BotController.gd._fire_stability_raycasts() corner ray's
+## own hit height must land to that candidate's own `support_height` to count
+## as "in contact" for BotCandidate.corner_support_hits -- a small slack
+## rather than an exact float match, since a footprint corner one cube over
+## from the origin's own support raycast can legitimately sit on the same
+## flat surface without both raycasts reporting bit-identical heights.
+@export var stability_contact_tolerance_m: float = 0.15
+
 ## Returns the profile for `difficulty`; NORMAL (and any out-of-range value)
 ## falls back to `normal` rather than failing, so a stale/corrupt wire value
 ## never leaves a bot with a null profile.
