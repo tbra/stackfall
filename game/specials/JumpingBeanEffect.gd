@@ -207,5 +207,12 @@ func _hop(block: Block) -> void:
 
 	var angle: float = _rng.randf_range(0.0, TAU)
 	var horizontal: Vector3 = Vector3(cos(angle), 0.0, sin(angle)) * hop_horizontal_speed
-	block.linear_velocity = Vector3.UP * hop_impulse + horizontal
+	# Review fix (Bontago-xtq.17 SHOULD-FIX 1): kick(), not a bare
+	# `linear_velocity =` write -- a hop kicked while the bean is still
+	# settling from its previous landing (a small residual downward
+	# velocity) would otherwise read to Block._integrate_forces() as exactly
+	# the falling-to-rising transition a real bounce produces, and get
+	# scaled by PhysicsTuning.rebound_damping as if it were one. See
+	# Block.kick()'s own doc comment.
+	block.kick(Vector3.UP * hop_impulse + horizontal)
 	block.sleeping = false

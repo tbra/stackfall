@@ -49,6 +49,13 @@ static func build(shape: BlockShape, tuning: PhysicsTuning, owner_slot: int = -1
 	block.shape_id = shape.id
 	block.cube_count = shape.cells.size()
 	block.owner_slot = owner_slot
+	# Review fix (Bontago-xtq.17 SHOULD-FIX 3): wires `tuning` onto the Block
+	# itself so Block._integrate_forces() reads THIS build's own instance
+	# (a non-singleton tuning a test hands in, e.g.) instead of always
+	# falling back to the shared preloaded config/physics_tuning.tres --
+	# Block._ready()'s own null-check fallback stays, for a Block built
+	# without going through this factory at all.
+	block.tuning = tuning
 
 	var material: PhysicsMaterial = PhysicsMaterial.new()
 	material.friction = tuning.block_friction

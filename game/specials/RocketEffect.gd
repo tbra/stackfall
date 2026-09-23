@@ -73,7 +73,13 @@ func physics_tick(block: Block, behavior: SpecialBehavior, _delta: float) -> voi
 	if not block.has_meta(_START_AGE_META):
 		block.set_meta(_START_AGE_META, behavior.age())
 	block.continuous_cd = true
-	block.linear_velocity = Vector3.UP * launch_speed
+	# Review fix (Bontago-xtq.17 SHOULD-FIX 1): kick(), not a bare
+	# `linear_velocity =` write -- the first armed tick's thrust overwrites
+	# whatever downward velocity the block still had from its own placement
+	# fall, which would otherwise read to Block._integrate_forces() as a
+	# falling-to-rising bounce and get scaled by PhysicsTuning.rebound_damping.
+	# See Block.kick()'s own doc comment.
+	block.kick(Vector3.UP * launch_speed)
 
 
 ## True once elapsed-since-armed reaches fuel_duration_s. An impact strong

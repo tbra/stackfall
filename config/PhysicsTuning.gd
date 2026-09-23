@@ -70,3 +70,27 @@ extends Resource
 
 ## -- Gravity (spec 2.8 "Gravity 0.5x-2x") ------------------------------------
 @export var gravity_multiplier: float = 1.0
+
+## -- Rebound damping (Bontago-xtq.17, owner playtest 2026-09-23: "heavier and
+## more bouncy, but a dropped block shouldn't just bounce straight up
+## again") --------------------------------------------------------------------
+## DECISION (config/PhysicsTuning.gd): block_bounce (the PhysicsMaterial
+## restitution above) is Jolt's only source of "bounciness", and Jolt applies
+## restitution along the whole contact-normal impulse -- a block landing flat
+## gets that restitution straight back as vertical velocity ("bounces
+## straight up again"), while a corner/edge hit already scatters some of it
+## sideways into tumble. Raising block_bounce for a livelier corner/edge hit
+## therefore also raises the flat-drop's straight-up rebound; there is no
+## separate Jolt knob for "restitution, but not on the vertical axis". So
+## this field damps only the vertical (world Y) component of a block's own
+## post-solve velocity, only on the one physics step a bounce actually
+## happens (game/Block._integrate_forces(), host-only since a client's
+## synced blocks are frozen and never integrate) -- horizontal and angular
+## velocity, and every step that isn't a fresh bounce, are untouched, so
+## block_bounce still gives lateral/tumbling liveliness. 1.0 is a pass-
+## through multiplier (state.linear_velocity.y * 1.0 is exact under
+## IEEE754), so this field defaults to 1.0 and every existing preset/test's
+## behavior is byte-identical until a preset sets it below 1. See
+## config/physics_presets/*.tres for the shipped presets and
+## game/Block._damp_rebound() for the pure scaling rule this field feeds.
+@export var rebound_damping: float = 1.0

@@ -104,6 +104,26 @@ const EXPORT_USAGE_MASK: int = PROPERTY_USAGE_STORAGE | PROPERTY_USAGE_EDITOR | 
 ## Indices match the order _rebuild_tabs() adds tabs in.
 const CLIENT_HIDDEN_TAB_FIRST: int = 2
 
+## Bontago-xtq.17 (owner playtest 2026-09-23: "heavier and more bouncy, but a
+## dropped block shouldn't just bounce straight up again" -- research +
+## A/B presets): the Physics tab's preset dropdown copies one of these
+## PhysicsTuning resources' every exported field onto the live physics_tuning
+## instance (apply_physics_preset() below). "current" is byte-identical to
+## config/physics_tuning.tres's own defaults, so picking it is a no-op;
+## "heavy_bouncy"/"heavy_damped" both raise cube_mass and gravity_multiplier
+## for a heavier fall and set rebound_damping below 1 so a flat drop doesn't
+## bounce straight back up, while still giving lateral/tumbling liveliness
+## from block_bounce (see config/PhysicsTuning.gd's rebound_damping DECISION
+## and game/Block._damp_rebound()) -- "_bouncy" leans on a higher block_bounce
+## for that liveliness, "_damped" leans on higher linear/angular damping so
+## the same heavier fall settles quieter. See config/physics_presets/*.tres
+## for the exact numbers.
+const PHYSICS_PRESETS: Array[Dictionary] = [
+	{"id": "current", "label": "Current", "path": "res://config/physics_presets/current.tres"},
+	{"id": "heavy_bouncy", "label": "Heavy & Bouncy", "path": "res://config/physics_presets/heavy_bouncy.tres"},
+	{"id": "heavy_damped", "label": "Heavy & Damped", "path": "res://config/physics_presets/heavy_damped.tres"},
+]
+
 @export var hints: TuningPanelHints = preload("res://config/tuning_panel_hints.tres")
 
 var camera_tuning: CameraTuning = preload("res://config/camera_tuning.tres")
@@ -280,6 +300,9 @@ func _add_tab(tab_name: String, resources: Array) -> void:
 	var list: VBoxContainer = VBoxContainer.new()
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	list.add_theme_constant_override("separation", 2)
+
+	if tab_name == "Physics":
+		list.add_child(_build_physics_preset_row())
 
 	for entry: Variant in resources:
 		var resource: Resource = entry as Resource
@@ -668,6 +691,68 @@ func _on_field_changed(resource: Resource, _prop_name: String) -> void:
 	# ghost_tuning / territory_tuning / block_feed_config are already read
 	# live by whatever consumes them each frame/tick -- see this file's class
 	# doc for the live-apply hooks the other resources need.
+
+
+## Bontago-xtq.17: the Physics tab's own preset row, built the same way every
+## other row here is (a plain Control returned to _add_tab's caller) but not
+## reflection-built and not registered in _rows -- it doesn't belong to one
+## resource field, it writes every field of physics_tuning at once.
+func _build_physics_preset_row() -> Control:
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+
+	var label: Label = Label.new()
+	label.text = "Physics preset"
+	label.custom_minimum_size = Vector2(NAME_COLUMN_WIDTH, 0.0)
+	row.add_child(label)
+
+	var option: OptionButton = OptionButton.new()
+	# Review fix (Bontago-xtq.17): cube_mass only feeds BlockFactory.build()'s
+	# `mass = tuning.cube_mass * cube_count` at spawn time (game/BlockFactory.gd)
+	# -- Block.apply_physics_tuning(), the live-apply path a preset pick also
+	# runs (apply_physics_preset() below), never touches an existing body's
+	# `.mass`. So switching presets mid-match changes how heavy the NEXT block
+	# placed is, not any block already standing.
+	option.tooltip_text = (
+		"Presets change mass only for blocks placed after the switch " +
+		"(mass is not live-applied to standing blocks)."
+	)
+	for preset: Dictionary in PHYSICS_PRESETS:
+		option.add_item(String(preset["label"]))
+	option.item_selected.connect(func(index: int) -> void:
+		apply_physics_preset(String(PHYSICS_PRESETS[index]["id"]))
+	)
+	row.add_child(option)
+
+	return row
+
+
+## Loads `preset_id`'s config/physics_presets/*.tres and copies its every
+## exported field onto the live physics_tuning instance, then pushes it out
+## through the same live-apply path a slider drag already uses
+## (apply_physics_live()) and rebuild()s so every Physics slider shows the
+## new values (the same pattern reset_all() already uses below). A silent
+## no-op for an id PHYSICS_PRESETS doesn't have (defensive; the dropdown
+## itself can only emit an in-range index). Public so a test can pick a
+## preset without a real OptionButton.
+func apply_physics_preset(preset_id: String) -> void:
+	var preset: PhysicsTuning = _physics_preset_resource(preset_id)
+	if preset == null:
+		return
+	for prop: Dictionary in preset.get_property_list():
+		if not _is_exported_field(prop):
+			continue
+		var prop_name: String = str(prop.get("name", ""))
+		physics_tuning.set(prop_name, preset.get(prop_name))
+	apply_physics_live()
+	rebuild()
+
+
+func _physics_preset_resource(preset_id: String) -> PhysicsTuning:
+	for preset: Dictionary in PHYSICS_PRESETS:
+		if String(preset["id"]) == preset_id:
+			return load(String(preset["path"])) as PhysicsTuning
+	return null
 
 
 ## Pushes physics_tuning onto every Block already standing (BlockFactory.

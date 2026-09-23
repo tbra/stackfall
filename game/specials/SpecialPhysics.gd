@@ -111,6 +111,17 @@ static func explode(
 
 		body.sleeping = false
 		body.apply_impulse(direction * magnitude)
+		# Review fix (Bontago-xtq.17 SHOULD-FIX 1): an airborne block's
+		# explosion knockback can flip its vertical velocity from falling to
+		# rising exactly like a real bounce would -- mark it as a script kick
+		# so Block._integrate_forces() doesn't scale it by
+		# PhysicsTuning.rebound_damping on top of this function's own falloff/
+		# clamp. `body` is only known as a plain RigidBody3D here (this
+		# function is Block-agnostic, see its own class doc), so cast rather
+		# than call kick()/mark_script_kick() unconditionally.
+		var kicked_block: Block = body as Block
+		if kicked_block != null:
+			kicked_block.mark_script_kick()
 		hit_bodies.append(body)
 
 	return hit_bodies
