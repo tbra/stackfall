@@ -31,6 +31,14 @@ extends Node
 ## (_accumulate_rotation_drag) -- the old free/quaternion-drift rotation is
 ## gone (spec 1.7 flagged that drift as a reported original problem; "do not
 ## keep two rotation systems").
+##
+## Bontago-mv0.30 (owner test 2026-09-23, "when you place a block and the
+## next block loads it gets displaced so it doesn't spawn directly within the
+## placed block"): _on_feed_block_issued() now seeds the newly issued ghost's
+## hover height above whatever this controller's own last accepted placement
+## actually spawned (_apply_spawn_clearance(), config/GhostTuning.gd's
+## spawn_clearance) instead of leaving the new piece exactly where the old one
+## just landed.
 
 @export var camera_rig_path: NodePath
 @export var ghost_path: NodePath
@@ -110,6 +118,30 @@ var _collision_cursor_seeded: bool = false
 ## "up" is for the vertical collision sweep without re-raycasting.
 var _last_hit_point: Vector3 = Vector3.ZERO
 var _last_hit_normal: Vector3 = Vector3.UP
+
+## Bontago-mv0.30 (owner test 2026-09-23, "when you place a block and the
+## next block loads it gets displaced so it doesn't spawn directly within the
+## placed block"): true from the moment this controller's own _request_place()
+## call is sent (a deliberate click, or a host-only auto-drop) until the
+## outcome is known -- lets _on_feed_block_issued() tell "this feed follows a
+## placement I actually just asked for" apart from the match's very first
+## feed (never preceded by any _request_place() call here) or any other
+## unrelated one. Cleared by _on_placement_rejected() (a manual refusal
+## spawns nothing at all; an auto-drop burn spawns something, but far off the
+## map, not near the cursor -- neither needs the next ghost displaced), and
+## consumed (cleared again) the moment _apply_spawn_clearance() actually uses
+## it, so it can never fire twice for one placement or leak into the next.
+var _pending_spawn_active: bool = false
+## The world-space Y of the *top* of the shape this controller's pending
+## placement is about to occupy -- captured from the held ghost's own
+## GhostPreview.projection_span_y() (already exactly "the shape's own current
+## highest point in world space", Bontago-xtq.9) at the moment the intent is
+## sent, so _apply_spawn_clearance() can seed the next ghost's hover height
+## just above it once the feed confirms the placement actually happened.
+## Re-captured by _on_placement_relocated() at the relocated spot for an
+## auto-drop the host moved, so this always reflects where the block actually
+## ended up, not just wherever this controller last aimed.
+var _pending_spawn_top_y: float = 0.0
 
 ## Bontago-mv0.18 (in-game tuning panel): ui/TuningPanel.gd sets this false
 ## while it is open, so dragging a slider or clicking Reset/Save/Copy can't
@@ -437,6 +469,13 @@ func _intent_target() -> Variant:
 func _request_place(auto_drop: bool) -> StringName:
 	var slot_id: int = _acting_slot()
 	var membrane: Variant = _intent_target()
+	# Bontago-mv0.30: record what this request is about to occupy *before*
+	# sending it -- on the host this resolves synchronously inside the call
+	# below (Events.placement_rejected/placement_relocated/feed_block_issued
+	# all fire before _match.request_place() returns), so this has to be set
+	# first or _on_feed_block_issued() below would see a stale flag.
+	_pending_spawn_active = true
+	_pending_spawn_top_y = _ghost.projection_span_y().x
 	if membrane == null:
 		return _match.request_place(
 			slot_id, _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion, auto_drop
@@ -496,6 +535,44 @@ func _on_feed_block_issued(slot_id: int, shape_id: StringName, _next_shape_id: S
 	var shape: BlockShape = _shapes_by_id.get(shape_id) as BlockShape
 	if shape != null:
 		_ghost.set_shape(shape)
+	_apply_spawn_clearance()
+
+
+## Bontago-mv0.30 (owner test 2026-09-23, "when you place a block and the next
+## block loads it gets displaced so it doesn't spawn directly within the
+## placed block"): seeds the newly issued ghost's manual_hover_offset just
+## high enough that its own lowest point clears the top of the shape this
+## controller's own last accepted placement actually spawned (spawn_clearance
+## on top of it), so the next held block floats above it instead of rendering
+## inside it -- the existing hover wheel and ghost-vs-placed-block collision
+## sweep (_clamp_hover_offset()) take over normally from there. A no-op on the
+## match's very first feed and after a placement that did not actually spawn
+## anything near the cursor (see _pending_spawn_active's own field comment,
+## both cleared there before this ever runs).
+##
+## DECISION (game/PlayerController.gd, Bontago-mv0.30): raises hover height
+## rather than nudging the cursor sideways (this package's other offered
+## option) -- the disk-surface probe already reports the bare disk under any
+## tower (Bontago-mv0.17 item 5), so the only thing wrong with today's spawn
+## point is its Y, and reusing that same, already-tested hover path keeps this
+## a one-field change with no new footprint/geometry math.
+##
+## DECISION (game/PlayerController.gd, Bontago-mv0.30): overwrites
+## manual_hover_offset outright rather than only ever raising it -- each call
+## seeds a fresh ghost for a brand new piece, so the right height is always
+## "just clear of what I most recently placed," never a running total across
+## placements; an unobstructed next spot (bare disk under the new cursor)
+## resets the offset back toward zero instead of leaving it stuck at whatever
+## the previous placement needed.
+func _apply_spawn_clearance() -> void:
+	if not _pending_spawn_active:
+		return
+	_pending_spawn_active = false
+	if _ghost == null or _ghost.get_shape() == null:
+		return
+	var required_bottom_y: float = _pending_spawn_top_y + ghost_tuning.spawn_clearance
+	var desired_offset: float = required_bottom_y - _last_hit_point.y - tuning.hover_height
+	_ghost.manual_hover_offset = clampf(desired_offset, 0.0, ghost_tuning.hover_manual_max)
 
 
 ## Spec 2.5's auto-drop is [ORIGINAL]: the held block drops from its current
@@ -517,6 +594,11 @@ func _on_placement_rejected(slot_id: int, _reason: StringName) -> void:
 	if slot_id != _acting_slot() or _ghost == null:
 		return
 	_intent_lock_left = 0.0
+	# Bontago-mv0.30: neither refusal branch spawned anything near the cursor
+	# (a manual refusal spawns nothing at all; an auto-drop burn spawns
+	# something, but throws it off the map) -- see _pending_spawn_active's own
+	# field comment.
+	_pending_spawn_active = false
 	_ghost.play_reject_animation()
 
 
@@ -544,6 +626,14 @@ func _on_placement_relocated(slot_id: int, point: Vector2) -> void:
 	_last_safe_cursor = _cursor
 	_collision_cursor_seeded = true
 	_update_ghost_transform()
+	if _pending_spawn_active:
+		# Bontago-mv0.30: the block actually landed here, not at whatever spot
+		# _request_place() captured before the host relocated it -- re-capture
+		# the top height at the now-updated ghost position (still the shape
+		# that was just placed; _on_feed_block_issued() hasn't swapped it yet)
+		# so _apply_spawn_clearance() displaces the next ghost from where the
+		# block truly is.
+		_pending_spawn_top_y = _ghost.projection_span_y().x
 	if _camera_rig != null:
 		_camera_rig.set_follow_position(_ghost.rotated_center_world())
 

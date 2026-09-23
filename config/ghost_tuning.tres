@@ -39,3 +39,4 @@ hud_reject_fade_duration = 0.5
 ghost_collision_enabled = true
 ghost_collision_skin = 0.03
 collision_probe_max_bodies = 8
+spawn_clearance = 0.15

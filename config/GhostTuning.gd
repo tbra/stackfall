@@ -251,3 +251,18 @@ extends Resource
 ## block (every body defaults to Godot's layer 1; see PlayerController's
 ## DECISION comment on _cast_one_box()).
 @export var collision_probe_max_bodies: int = 8
+
+## -- Post-placement spawn clearance (Bontago-mv0.30, owner test 2026-09-23,
+## "when you place a block and the next block loads it gets displaced so it
+## doesn't spawn directly within the placed block") ---------------------------
+## Extra height (on top of the just-placed shape's own top) game/
+## PlayerController.gd's _apply_spawn_clearance() seeds the next ghost's
+## manual_hover_offset to, right after Events.feed_block_issued follows this
+## controller's own accepted placement -- so the new held shape floats clear
+## of the one just spawned instead of rendering inside it. The existing hover
+## wheel and ghost-vs-placed-block collision sweep take over normally from
+## there. Never applied on the match's very first piece, or after a
+## placement that didn't actually spawn anything near the cursor (a refused
+## manual release, or an auto-drop burn thrown off the map) -- see that
+## function's own DECISION comments.
+@export var spawn_clearance: float = 0.15
