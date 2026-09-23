@@ -111,6 +111,17 @@ var _cursor_velocity: Vector3 = Vector3.ZERO
 ## Accumulated camera-relative drag (x = yaw, y = pitch) while rotation_mode
 ## is held, in GhostTuning's "drag units" (see _accumulate_rotation_drag()).
 var _rotation_drag: Vector2 = Vector2.ZERO
+## Bontago-iry (owner feedback/controller-update.md, "clicking mmb rotates
+## the ghost block ... Q or Home resets"): total unscaled mouse-pixel motion
+## accumulated since the current rotate_drag (MMB) press, reset on every
+## press. Below ghost_tuning.rotate_tap_max_motion_px this whole hold is a
+## tap -- no continuous free rotation is applied at all, and release fires a
+## single BlockOrientations.step_yaw_cw() snap (the same fixed pattern
+## rotate_snap/rotate_yaw_cw use). Once it crosses the threshold this hold is
+## a drag -- rotate_drag's InputEventMouseMotion branch below starts applying
+## apply_free_rotation_delta() every frame (mv0.22/mv0.25's continuous
+## behaviour, unchanged), and release no longer snaps.
+var _rotate_drag_motion_px: float = 0.0
 ## Set by HotSeat.gd/Sandbox.gd via enable_mouse_capture(); left false for
 ## bare unit-test instances so GUT never captures a test runner's real mouse.
 var _mouse_capture_enabled: bool = false
@@ -355,7 +366,17 @@ func _unhandled_input(event: InputEvent) -> void:
 			# (_camera_right_axis()), the same axis CameraRig's own orbit
 			# turns about. DECISION: signs are an easily-flipped feel choice,
 			# not a rule -- see this package's manual owner test step.
-			if _ghost != null:
+			#
+			# Bontago-iry (owner feedback/controller-update.md, "clicking mmb
+			# rotates the ghost block ... follows a set pattern"): accumulate
+			# this event's motion toward the tap/drag threshold
+			# (_rotate_drag_motion_px) before applying anything -- while the
+			# whole hold is still under ghost_tuning.rotate_tap_max_motion_px,
+			# no free rotation is applied at all, so a plain MMB tap reads as
+			# no rotation while held and exactly one 90 degree snap on release
+			# (below), never a barely-visible micro-drag.
+			_rotate_drag_motion_px += motion.relative.length()
+			if _ghost != null and _rotate_drag_motion_px >= ghost_tuning.rotate_tap_max_motion_px:
 				var yaw_delta: float = -motion.relative.x * ghost_tuning.rotate_drag_sensitivity
 				var pitch_delta: float = -motion.relative.y * ghost_tuning.rotate_drag_sensitivity
 				_ghost.apply_free_rotation_delta(yaw_delta, pitch_delta, _camera_right_axis())
@@ -396,13 +417,33 @@ func _unhandled_input(event: InputEvent) -> void:
 				_step_hover(-1.0)
 			return
 
-	if event.is_action_pressed(&"rotate_snap"):
+	if event.is_action_pressed(&"rotate_drag"):
+		# Bontago-iry (owner feedback/controller-update.md, "clicking mmb
+		# rotates the ghost block, seems to follow a set pattern"): every MMB
+		# press starts a fresh tap/drag measurement -- see
+		# _rotate_drag_motion_px's own doc comment and the
+		# InputEventMouseMotion branch above that accumulates into it.
+		_rotate_drag_motion_px = 0.0
+	elif event.is_action_released(&"rotate_drag"):
+		# DECISION (game/PlayerController.gd, Bontago-iry): reusing
+		# rotate_drag's own press/release here, rather than rebinding
+		# rotate_snap back onto MMB (tools/bootstrap_project.gd's mv0.22 fix
+		# removed that exact binding because a bare press fired both actions
+		# from one physical button) -- this way MMB stays one action end to
+		# end and there is only one place that decides tap vs. drag.
+		if _rotate_drag_motion_px < ghost_tuning.rotate_tap_max_motion_px:
+			# Below the threshold means the motion branch above never applied
+			# any continuous rotation this hold (it gates on the same
+			# accumulator) -- a bare tap, so apply the one 90 degree snap now.
+			_apply_step(BlockOrientations.step_yaw_cw(_orientation_index()))
+		_rotate_drag_motion_px = 0.0
+	elif event.is_action_pressed(&"rotate_snap"):
 		# Original tutorial: "a key snap-rotates the block" -- a plain 90
 		# degree yaw tap, distinct from rotate_reset ("returns it to its
-		# default rotation"). Bound to MMB (tools/bootstrap_project.gd); no
-		# separate gamepad button since rotate_yaw_cw (RB) already does the
-		# same 90 degree yaw there (see test_project_setup.gd's
-		# DEVICE_EXCEPTIONS).
+		# default rotation"). Gamepad-only now (RB) -- MMB's own tap does the
+		# same 90 degree yaw via rotate_drag's release branch above
+		# (Bontago-iry); see test_project_setup.gd's DEVICE_EXCEPTIONS for why
+		# rotate_snap itself carries no desktop binding.
 		_apply_step(BlockOrientations.step_yaw_cw(_orientation_index()))
 	elif event.is_action_pressed(&"rotate_yaw_ccw"):
 		_apply_step(BlockOrientations.step_yaw_ccw(_orientation_index()))
