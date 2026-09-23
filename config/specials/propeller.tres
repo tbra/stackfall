@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="SpecialDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://config/specials/SpecialDef.gd" id="1_def"]
+[ext_resource type="Script" path="res://game/specials/PropellerEffect.gd" id="2_effect"]
+
+[sub_resource type="Resource" id="Resource_propeller_effect"]
+script = ExtResource("2_effect")
+lift_speed = 4.0
+lift_duration_s = 3.0
+tilt_strength = 0.3
+
+[resource]
+script = ExtResource("1_def")
+id = &"propeller"
+scene = null
+weight = 1.0
+enabled_by_default = true
+arm_delay = 0.4
+arm_impulse = 5.0
+fuse_timeout_s = 6.0
+effect = SubResource("Resource_propeller_effect")
