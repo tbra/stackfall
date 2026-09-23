@@ -247,6 +247,16 @@ func _process(delta: float) -> void:
 	_update_throw_aim(delta)
 	_clamp_cursor_collision()
 	_update_ghost_transform()
+	# Bontago-mv0.33: must run after _update_ghost_transform() above (so the
+	# overlap test below sees the *new* piece's shape at the *current* cursor,
+	# not a stale pose) and, just as importantly, not any earlier than this --
+	# see _apply_spawn_clearance()'s own header DECISION for why doing this
+	# synchronously inside the placement's own Events.feed_block_issued
+	# handler (this package's first attempt) does not work: the block that
+	# was just spawned has not been through a physics step yet at that point,
+	# so a physics query cannot see it. Self-guards on _pending_spawn_active,
+	# so this is a no-op on every ordinary frame.
+	_apply_spawn_clearance()
 	_update_ghost_tint()
 	_handle_hover_adjust(delta)
 	_publish_cursor()
@@ -852,7 +862,14 @@ func _on_feed_block_issued(slot_id: int, shape_id: StringName, _next_shape_id: S
 	var shape: BlockShape = _shapes_by_id.get(shape_id) as BlockShape
 	if shape != null:
 		_ghost.set_shape(shape)
-	_apply_spawn_clearance()
+	# Bontago-mv0.33: does NOT call _apply_spawn_clearance() here anymore --
+	# see that function's own header DECISION. This handler runs synchronously
+	# inside the placement request that spawned the block (Events dispatch is
+	# not deferred), before this frame's physics step has run, so a physics
+	# query here could never see the block that was just placed.
+	# _pending_spawn_active (already true from _request_place(), still true
+	# here) is left alone; _process() resolves it next, once the physics
+	# world has actually caught up.
 
 
 ## Bontago-mv0.30 (owner test 2026-09-23, "when you place a block and the next
@@ -867,29 +884,104 @@ func _on_feed_block_issued(slot_id: int, shape_id: StringName, _next_shape_id: S
 ## anything near the cursor (see _pending_spawn_active's own field comment,
 ## both cleared there before this ever runs).
 ##
-## DECISION (game/PlayerController.gd, Bontago-mv0.30): raises hover height
-## rather than nudging the cursor sideways (this package's other offered
-## option) -- the disk-surface probe already reports the bare disk under any
-## tower (Bontago-mv0.17 item 5), so the only thing wrong with today's spawn
-## point is its Y, and reusing that same, already-tested hover path keeps this
-## a one-field change with no new footprint/geometry math.
+## Bontago-mv0.33 (owner playtest 2026-09-23, "the displace-outward thing
+## should only happen when the block would spawn inside another block, not
+## all the time"): mv0.30's own version above raised (or reset) the offset on
+## *every* feed unconditionally, even when the new piece's cursor had moved
+## somewhere the old block was nowhere near. This now only touches
+## manual_hover_offset when _would_overlap_a_placed_block_at_baseline_hover()
+## says the new shape, at its normal (unraised) hover height, would actually
+## intersect a placed block -- otherwise it is a complete no-op, leaving
+## whatever manual_hover_offset the ghost already had (0, or wherever the
+## player had last wheeled it) exactly alone.
 ##
-## DECISION (game/PlayerController.gd, Bontago-mv0.30): overwrites
-## manual_hover_offset outright rather than only ever raising it -- each call
-## seeds a fresh ghost for a brand new piece, so the right height is always
-## "just clear of what I most recently placed," never a running total across
-## placements; an unobstructed next spot (bare disk under the new cursor)
-## resets the offset back toward zero instead of leaving it stuck at whatever
-## the previous placement needed.
+## DECISION (game/PlayerController.gd, Bontago-mv0.30, still true after
+## mv0.33's gating): raises hover height rather than nudging the cursor
+## sideways (this package's other offered option) -- the disk-surface probe
+## already reports the bare disk under any tower (Bontago-mv0.17 item 5), so
+## the only thing wrong with today's spawn point is its Y, and reusing that
+## same, already-tested hover path keeps this a one-field change with no new
+## footprint/geometry math.
 func _apply_spawn_clearance() -> void:
 	if not _pending_spawn_active:
 		return
 	_pending_spawn_active = false
 	if _ghost == null or _ghost.get_shape() == null:
 		return
+	if not _would_overlap_a_placed_block_at_baseline_hover():
+		return
 	var required_bottom_y: float = _pending_spawn_top_y + ghost_tuning.spawn_clearance
 	var desired_offset: float = required_bottom_y - _last_hit_point.y - tuning.hover_height
 	_ghost.manual_hover_offset = clampf(desired_offset, 0.0, ghost_tuning.hover_manual_max)
+	# Bontago-mv0.33: re-applies immediately rather than waiting for next
+	# frame's own _update_ghost_transform() call -- _would_overlap_a_placed_
+	# block_at_baseline_hover() above already left global_position restored to
+	# the *old* offset (its own "restore" step), so without this the ghost
+	# would render one visible frame overlapping the block it was just raised
+	# to clear.
+	_ghost.update_placement(_last_hit_point, _last_hit_normal)
+
+
+## Bontago-mv0.33: whether the ghost's new shape, positioned at its normal
+## ("baseline") hover height -- manual_hover_offset temporarily 0, i.e.
+## exactly PhysicsTuning.hover_height above the last surface point/normal
+## _update_ghost_transform() saw (_last_hit_point/_last_hit_normal) -- would
+## intersect any already-placed block right now. _apply_spawn_clearance()
+## above only raises the offset when this is true.
+##
+## DECISION (game/PlayerController.gd, Bontago-mv0.33): reuses
+## GhostPreview.update_placement() (the same call _update_ghost_transform()
+## makes every frame) to compute that baseline pose, rather than re-deriving
+## GhostPreview's private rotated-bottom-pivot math here -- it is called
+## twice (baseline, then restore) with no frame boundary between either call
+## and the read of collision_box_local_centers()/collision_half_size() below,
+## so nothing ever renders the intermediate baseline pose; the ghost ends this
+## function exactly where it was, with only manual_hover_offset possibly
+## changed by the caller above. Tests the *baseline* height specifically --
+## not whatever manual_hover_offset the ghost already carries -- because the
+## question this answers is "would an ordinary, un-raised spawn land inside a
+## block", independent of any earlier manual raise still sitting on the ghost
+## from a previous piece.
+func _would_overlap_a_placed_block_at_baseline_hover() -> bool:
+	var saved_offset: float = _ghost.manual_hover_offset
+	_ghost.manual_hover_offset = 0.0
+	_ghost.update_placement(_last_hit_point, _last_hit_normal)
+	var overlaps: bool = _ghost_overlaps_a_placed_block()
+	_ghost.manual_hover_offset = saved_offset
+	_ghost.update_placement(_last_hit_point, _last_hit_normal)
+	return overlaps
+
+
+## Bontago-mv0.33: a stationary (zero-motion) overlap query at the ghost's
+## *current* global_position/basis, using the same collision boxes
+## _sweep_motion() below builds for the swept collision test (Bontago-mv0.23)
+## -- collision_box_local_centers()/collision_half_size(), matching what
+## game/BlockFactory.gd would actually give the spawned Block. No
+## ghost_collision_skin inflation here (unlike _sweep_motion()'s clearance
+## gap): this asks "does it overlap right now", not "how much gap should be
+## kept while sliding", so the boxes are used at their true size.
+func _ghost_overlaps_a_placed_block() -> bool:
+	var boxes: Array[Vector3] = _ghost.collision_box_local_centers()
+	if boxes.is_empty():
+		return false
+	var world: World3D = get_viewport().world_3d
+	if world == null:
+		return false
+	var space_state: PhysicsDirectSpaceState3D = world.direct_space_state
+	var box_shape: BoxShape3D = BoxShape3D.new()
+	box_shape.size = Vector3.ONE * (_ghost.collision_half_size() * 2.0)
+	for local_center: Vector3 in boxes:
+		var world_center: Vector3 = _ghost.global_position + _ghost.basis * local_center
+		var params: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
+		params.shape = box_shape
+		params.transform = Transform3D(_ghost.basis, world_center)
+		params.collide_with_bodies = true
+		params.collide_with_areas = false
+		var overlaps: Array[Dictionary] = space_state.intersect_shape(params, ghost_tuning.collision_probe_max_bodies)
+		for overlap: Dictionary in overlaps:
+			if overlap.get("collider") is RigidBody3D:
+				return true
+	return false
 
 
 ## Spec 2.5's auto-drop is [ORIGINAL]: the held block drops from its current

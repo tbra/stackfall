@@ -92,6 +92,23 @@ func _make_controller() -> PlayerController:
 	return controller
 
 
+## Bontago-mv0.33: game/PlayerController.gd's own _process() -- not
+## _on_feed_block_issued() anymore -- is what actually calls
+## _apply_spawn_clearance() (see that function's own header DECISION): a
+## physics query run in the same call that spawned a body cannot see that
+## body yet, so the check has to wait for at least one physics step. Every
+## test below that exercises the overlap path drives that same sequence by
+## hand: wait a physics frame (so the space's broadphase has actually
+## registered whatever was just placed), refresh the ghost's transform for
+## its current cursor/shape (_process()'s own next step), then call
+## _apply_spawn_clearance() directly -- exactly what _process() does, minus
+## the unrelated gamepad/tint/publish steps this package doesn't touch.
+func _resolve_pending_spawn_clearance(controller: PlayerController) -> void:
+	await wait_physics_frames(1)
+	controller._update_ghost_transform()
+	controller._apply_spawn_clearance()
+
+
 ## The world-space AABB `shape` occupies at `transform`, built exactly the way
 ## game/BlockFactory.gd/game/GhostPreview.gd both do (same cube_size/
 ## cube_margin, same BlockShape.bottom_center() pivot) so this matches what
@@ -135,7 +152,7 @@ func test_next_ghost_does_not_overlap_the_block_just_placed() -> void:
 	var placed_block: Node3D = _blocks_root.get_child(0) as Node3D
 	var placed_aabb: AABB = _shape_world_aabb(placed_shape, placed_block.global_transform)
 
-	controller._update_ghost_transform()
+	await _resolve_pending_spawn_clearance(controller)
 	var ghost_shape: BlockShape = controller._ghost.get_shape()
 	assert_ne(ghost_shape, null, "fixture: the next piece must have been issued.")
 	var ghost_transform: Transform3D = Transform3D(controller._ghost.basis, controller._ghost.global_position)
@@ -147,7 +164,7 @@ func test_next_ghost_does_not_overlap_the_block_just_placed() -> void:
 	)
 	assert_gt(
 		controller._ghost.manual_hover_offset, 0.0,
-		"the fix should have raised the new ghost's hover height above the placed block."
+		"the fix should have raised the new ghost's hover height above the placed block it actually overlaps."
 	)
 
 
@@ -186,7 +203,7 @@ func test_displacement_does_not_reapply_or_accumulate_on_an_unrelated_later_feed
 	controller._update_ghost_transform()
 
 	controller._place_ghost_block()
-	controller._update_ghost_transform()
+	await _resolve_pending_spawn_clearance(controller)
 
 	var offset_after_placement: float = controller._ghost.manual_hover_offset
 	assert_gt(offset_after_placement, 0.0, "fixture: the placement should have displaced the next ghost.")
@@ -206,7 +223,16 @@ func test_displacement_does_not_reapply_or_accumulate_on_an_unrelated_later_feed
 	)
 
 
-func test_displacement_resets_toward_zero_at_a_fresh_unobstructed_spot() -> void:
+# --- Bontago-mv0.33: unobstructed must mean untouched, not "reset toward
+# zero" -- the pre-mv0.33 fix (mv0.30) recomputed manual_hover_offset from
+# the just-placed block's own top on *every* feed, unconditionally, even when
+# the new ghost's cursor was nowhere near that block. The owner's playtest
+# report ("should only happen when the block would spawn inside another
+# block, not all the time") is exactly this: an unobstructed next spot must
+# leave whatever manual_hover_offset the ghost already carried completely
+# alone, not quietly recompute it toward some other value. -----------------
+
+func test_offset_is_left_untouched_when_the_new_ghost_does_not_overlap_anything() -> void:
 	Match.start_match(_config())
 	_run_countdown()
 	var slot_id: int = 0
@@ -216,35 +242,45 @@ func test_displacement_resets_toward_zero_at_a_fresh_unobstructed_spot() -> void
 	controller._cursor = _home_world_position(slot_id)
 	controller._update_ghost_transform()
 
+	# One real placement, so a real placed block exists on the disk and
+	# _pending_spawn_top_y below reflects a real, freshly-captured value --
+	# not a hand-picked number this test invented.
 	controller._place_ghost_block()
-	controller._update_ghost_transform()
-	assert_gt(controller._ghost.manual_hover_offset, 0.0, "fixture: the first placement should have displaced the next ghost.")
+	await _resolve_pending_spawn_clearance(controller)
+	assert_gt(
+		controller._ghost.manual_hover_offset, 0.0,
+		"fixture: the piece fed right where the first block landed should have been displaced (this is the overlap case, covered by its own test above)."
+	)
 
-	# A leftover value far larger than any real placement here would ever
-	# need -- if _apply_spawn_clearance() only ever raised the offset instead
-	# of seeding it fresh each time, this would still read >= 50.0 afterwards.
-	controller._ghost.manual_hover_offset = 50.0
+	# An arbitrary value distinct from both 0.0 and whatever the overlap case
+	# above just computed, so this test can tell "untouched" apart from either
+	# "reset to 0" (the old, wrong behaviour the owner reported) or
+	# "recomputed to the same thing the overlap case gets" by coincidence.
+	const ARBITRARY_OFFSET: float = 7.25
+	controller._ghost.manual_hover_offset = ARBITRARY_OFFSET
 
-	# Still well inside slot 0's own home circle (home_radius = 6.0m,
-	# config/territory_tuning.tres) so the second click stays valid, and far
-	# enough from the first block's own footprint (well under 1m across) not
-	# to land on top of it.
-	var away: Vector2 = Match.slot(slot_id).home_position + Vector2(2.0, 0.0)
+	# Move to a spot with nothing anywhere near it -- still inside slot 0's own
+	# home circle (home_radius = 6.0m, config/territory_tuning.tres) so a real
+	# placement there would stay valid, and far enough from the one existing
+	# block (well under 1m across) that a cube-sized ghost cannot reach it.
+	var away: Vector2 = Match.slot(slot_id).home_position + Vector2(4.0, 0.0)
 	controller._cursor = _field.to_global(Vector3(away.x, 5.0, away.y))
 	controller._update_ghost_transform()
 
-	# Spec 2.4's cadence (autoload/match/MatchFeed.gd): the first placement
-	# released this interval's piece early, so a second manual release before
-	# the interval boundary would be correctly refused (REASON_NO_BLOCK) --
-	# not the thing this test is about. Cross the boundary first.
-	_advance_past_one_release_interval()
-	controller._update_ghost_transform()
+	# Simulate the bookkeeping a second real _request_place() call would have
+	# set for the *next* piece, without actually performing one: a genuine
+	# second click at `away` would itself place a new block exactly there,
+	# which would immediately re-create the overlap case for the *third*
+	# piece (this project's own ghost always spawns centered on whatever
+	# cursor placed the previous piece) -- that would test the overlap path a
+	# second time, not the no-overlap path this test is about. Driving
+	# _apply_spawn_clearance()'s own preconditions directly isolates its
+	# overlap decision from that mechanics.
+	controller._pending_spawn_active = true
+	controller._pending_spawn_top_y = controller._ghost.projection_span_y().x
+	await _resolve_pending_spawn_clearance(controller)
 
-	controller._place_ghost_block()
-	controller._update_ghost_transform()
-
-	assert_eq(_blocks_root.get_child_count(), 2, "fixture: the second click must have spawned a second block.")
-	assert_lt(
-		controller._ghost.manual_hover_offset, 50.0,
-		"an unrelated placement at a fresh, unobstructed spot must reset the seeded hover height, not leave it at an old, unrelated value."
+	assert_almost_eq(
+		controller._ghost.manual_hover_offset, ARBITRARY_OFFSET, 0.0001,
+		"a ghost that would not overlap anything at its baseline hover height must be left exactly where it was -- not reset, not recomputed."
 	)
