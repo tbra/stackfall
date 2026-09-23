@@ -135,7 +135,12 @@ func _process(_delta: float) -> void:
 	if match_provider == null or _active_slot < 0:
 		return
 	set_feed_progress(match_provider.feed_progress(_active_slot))
-	set_height(match_provider.max_height_for_slot(_active_slot))
+	var tower_m: float = match_provider.max_height_for_slot(_active_slot)
+	var held: GhostPreview = get_tree().get_first_node_in_group(GhostPreview.LOCAL_HELD_GROUP) as GhostPreview
+	if held != null and held.get_shape() != null:
+		set_tower_and_block_height(tower_m, held.height_above_surface())
+	else:
+		set_height(tower_m)
 	set_locked(bool(match_provider.is_release_locked(_active_slot)))
 	_refresh_special_indicator()
 
@@ -208,6 +213,16 @@ func set_feed_progress(fraction: float) -> void:
 
 func set_height(meters: float) -> void:
 	_height_label.text = "Height: %.2f m" % meters
+
+
+## Bontago-mv0.35 (owner: "there is still a maximum height the block cannot
+## be raised"): the old single "Height" readout is the slot's tallest
+## *placed* structure (Match.max_height_for_slot()), which does not move
+## while the held block is wheeled up -- and the follow camera keeps the
+## ghost fixed at screen centre -- so raising looked capped. While a local
+## block is held the label names both numbers explicitly.
+func set_tower_and_block_height(tower_meters: float, block_meters: float) -> void:
+	_height_label.text = "Tower: %.2f m   Block: %.1f m" % [tower_meters, block_meters]
 
 
 func set_territory_shares(shares: PackedFloat32Array) -> void:

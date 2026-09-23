@@ -241,7 +241,7 @@ func test_towers_below_the_ghost_do_not_trap_the_hover_raise() -> void:
 		"fixture: the ghost's own baseline height must start below the tower's top (ignoring the tower under it, mv0.17 item 5) for this to reproduce the bug."
 	)
 
-	var notches: int = int(ceil(ghost_tuning.hover_manual_max / ghost_tuning.hover_wheel_step)) + 5
+	var notches: int = int(ceil(controller.net_config.pos_max_y / ghost_tuning.hover_wheel_step)) + 5
 	for _i: int in range(notches):
 		var wheel: InputEventMouseButton = InputEventMouseButton.new()
 		wheel.button_index = MOUSE_BUTTON_WHEEL_UP
@@ -250,9 +250,16 @@ func test_towers_below_the_ghost_do_not_trap_the_hover_raise() -> void:
 		controller._clamp_cursor_collision()
 		controller._update_ghost_transform()
 
+	# Bontago-mv0.35 second pass: the real ceiling is now the wire band
+	# (_hover_offset_ceiling(): NetConfig.pos_max_y - hover_ceiling_margin),
+	# below hover_manual_max's own 100 m default.
 	assert_almost_eq(
-		controller._ghost.manual_hover_offset, ghost_tuning.hover_manual_max, 0.01,
+		controller._ghost.manual_hover_offset, controller._hover_offset_ceiling(), 0.01,
 		"wheeling up enough notches must reach the real ceiling, not freeze partway up the tower underneath."
+	)
+	assert_gt(
+		controller._ghost.manual_hover_offset, 60.0,
+		"and that ceiling is above the old 60 m manual cap."
 	)
 	assert_gt(
 		controller._ghost.global_position.y, tower_top,

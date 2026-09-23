@@ -80,6 +80,16 @@ extends Resource
 ## Continuous per-second rate for held inputs (PageUp/PageDown keys, gamepad
 ## RS click/X) -- these are genuinely holdable buttons, unlike the wheel.
 @export var hover_manual_adjust_speed: float = 1.0
+## Bontago-mv0.35 (owner: "there is still a maximum height the block cannot be
+## raised"): at a flat hover_manual_adjust_speed (1 m/s) a held raise input
+## could only lift one block ~MatchConfig.block_timer (6 s) = 6 m before the
+## feed timer auto-dropped it -- a de-facto cap on the PageUp/gamepad path.
+## A held raise/lower now starts at hover_manual_adjust_speed and accelerates
+## by this many m/s every second it stays held...
+@export var hover_hold_acceleration: float = 3.0
+## ...up to this top speed (m/s). Releasing the input resets the ramp, so a
+## short tap still moves at hover_manual_adjust_speed for fine control.
+@export var hover_hold_max_speed: float = 10.0
 ## Meters applied per discrete wheel notch (InputEventMouseButton wheel
 ## events are momentary -- one press+release per notch -- so they get one
 ## fixed step instead of hover_manual_adjust_speed's per-frame rate).
@@ -109,7 +119,19 @@ extends Resource
 ## check (see this package's own report for the full audit). See
 ## config/tuning_panel_hints.tres's own DECISION for why the F4 slider itself
 ## is capped below the wire ceiling too, not just this default.
-@export var hover_manual_max: float = 60.0
+## Bontago-mv0.35 (second pass, real hosted match traced end to end): the
+## effective ceiling is now the wire band, not this number --
+## game/PlayerController.gd's _hover_offset_ceiling() stops the ghost's
+## origin hover_ceiling_margin below NetConfig.pos_max_y (the band
+## core/net/Quantize.gd can replicate and net/MatchNet.gd accepts), which
+## on a flat disk is ~69.7 m of manual offset. This stays as an optional
+## extra designer cap on top; its default is set above anything the band
+## allows so it never fires on its own.
+@export var hover_manual_max: float = 100.0
+## Meters kept between the held ghost's origin and NetConfig.pos_max_y, so a
+## pose at the very top of the raise still quantizes inside the wire band
+## (a released block also gains a little height from physics settling).
+@export var hover_ceiling_margin: float = 2.0
 
 ## -- Placement raycast --------------------------------------------------
 @export var placement_ray_length: float = 200.0

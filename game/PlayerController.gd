@@ -202,11 +202,22 @@ var _throw_drag: Vector3 = Vector3.ZERO
 ## its own comment) rather than a divide-by-zero.
 var _throw_aim_elapsed: float = 0.0
 
+## Bontago-mv0.35: seconds the current held raise/lower input has been down,
+## for _handle_hover_adjust()'s acceleration ramp (GhostTuning.
+## hover_hold_acceleration/hover_hold_max_speed). Reset to 0 whenever no
+## held raise/lower is active.
+var _hover_hold_seconds: float = 0.0
+
 
 func _ready() -> void:
 	_camera_rig = get_node_or_null(camera_rig_path) as CameraRig
 	_ghost = get_node_or_null(ghost_path) as GhostPreview
 	_arc_preview = get_node_or_null(arc_preview_path) as ThrowArcPreview
+	# Bontago-mv0.35: lets ui/HUD.gd read the local held block's own height
+	# (GhostPreview.height_above_surface()) without a node path -- see
+	# GhostPreview.LOCAL_HELD_GROUP.
+	if _ghost != null:
+		_ghost.add_to_group(GhostPreview.LOCAL_HELD_GROUP)
 	_match = Match
 	_shapes_by_id = _load_shapes_by_id()
 	Events.turn_changed.connect(_on_turn_changed)
@@ -518,9 +529,50 @@ func _step_hover(direction: float) -> void:
 	var desired: float = clampf(
 		_ghost.manual_hover_offset + direction * ghost_tuning.hover_wheel_step,
 		0.0,
-		ghost_tuning.hover_manual_max
+		_hover_offset_ceiling()
 	)
 	_ghost.manual_hover_offset = _clamp_hover_offset(desired)
+	_refresh_ghost_pose()
+
+
+## Bontago-mv0.35: re-poses the ghost right after a hover change instead of
+## waiting for next frame's _update_ghost_transform(), so a fast wheel spin
+## (several notches delivered in one frame) has each notch's collision sweep
+## and _hover_offset_ceiling() start from where the previous notch actually
+## left the ghost, not from a stale pose -- otherwise several notches in one
+## frame could overshoot the wire-band ceiling or the sweep's start point.
+func _refresh_ghost_pose() -> void:
+	if _ghost != null:
+		_ghost.update_placement(_last_hit_point, _last_hit_normal)
+
+
+## Bontago-mv0.35 (second pass, owner: "there is still a maximum height the
+## block cannot be raised or placed above"): the highest manual_hover_offset
+## the held ghost may reach right now. The binding limit is the wire band --
+## the ghost's own origin may rise to NetConfig.pos_max_y minus
+## GhostTuning.hover_ceiling_margin, the band core/net/Quantize.gd can
+## replicate and net/MatchNet.gd's _pose_is_acceptable() accepts from a
+## client -- with GhostTuning.hover_manual_max only an optional extra cap on
+## top (its default sits above anything the band allows). Previously the
+## ceiling was hover_manual_max alone (60 m above the disk surface),
+## independent of where that surface is, so it neither reached the band nor
+## guaranteed staying inside it.
+## DECISION (game/PlayerController.gd): derived from the ghost's *current*
+## origin height and offset (origin Y moves 1:1 with the offset along the
+## surface normal's Y), rather than re-deriving GhostPreview's private
+## rotated-bottom pivot math here -- both values are the same frame's pose.
+func _hover_offset_ceiling() -> float:
+	var ceiling: float = ghost_tuning.hover_manual_max
+	if _ghost == null:
+		return ceiling
+	var rise_per_meter: float = maxf(_last_hit_normal.y, 0.0)
+	if rise_per_meter <= 0.0:
+		return ceiling
+	var origin_limit: float = net_config.pos_max_y - ghost_tuning.hover_ceiling_margin
+	var band_ceiling: float = (
+		_ghost.manual_hover_offset + (origin_limit - _ghost.global_position.y) / rise_per_meter
+	)
+	return maxf(minf(ceiling, band_ceiling), 0.0)
 
 
 ## Bontago-mv0.14 (spec 1.5/1.7): rotation_mode turns "movement" (mouse motion
@@ -959,7 +1011,7 @@ func _apply_spawn_clearance() -> void:
 		return
 	var required_bottom_y: float = _pending_spawn_top_y + ghost_tuning.spawn_clearance
 	var desired_offset: float = required_bottom_y - _last_hit_point.y - tuning.hover_height
-	_ghost.manual_hover_offset = clampf(desired_offset, 0.0, ghost_tuning.hover_manual_max)
+	_ghost.manual_hover_offset = clampf(desired_offset, 0.0, _hover_offset_ceiling())
 	# Bontago-mv0.33: re-applies immediately rather than waiting for next
 	# frame's own _update_ghost_transform() call -- _would_overlap_a_placed_
 	# block_at_baseline_hover() above already left global_position restored to
@@ -1134,13 +1186,24 @@ func _handle_hover_adjust(delta: float) -> void:
 	if Input.is_action_pressed(&"hover_lower"):
 		change -= 1.0
 	if change == 0.0:
+		_hover_hold_seconds = 0.0
 		return
+	# Bontago-mv0.35: a held input accelerates (see GhostTuning.
+	# hover_hold_acceleration's own doc comment) -- speed is evaluated from
+	# the time held *before* this frame, so the first frame of any hold still
+	# moves at exactly hover_manual_adjust_speed.
+	var speed: float = minf(
+		ghost_tuning.hover_manual_adjust_speed + ghost_tuning.hover_hold_acceleration * _hover_hold_seconds,
+		maxf(ghost_tuning.hover_hold_max_speed, ghost_tuning.hover_manual_adjust_speed)
+	)
+	_hover_hold_seconds += delta
 	var desired: float = clampf(
-		_ghost.manual_hover_offset + change * ghost_tuning.hover_manual_adjust_speed * delta,
+		_ghost.manual_hover_offset + change * speed * delta,
 		0.0,
-		ghost_tuning.hover_manual_max
+		_hover_offset_ceiling()
 	)
 	_ghost.manual_hover_offset = _clamp_hover_offset(desired)
+	_refresh_ghost_pose()
 
 
 ## Bontago-mv0.14 (spec 1.5): the mouse "positions the block" directly,
