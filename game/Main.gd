@@ -187,6 +187,16 @@ func _start_sandbox_match_with_args(args: PackedStringArray) -> void:
 	_debug_overlay = NET_DEBUG_OVERLAY_SCENE.instantiate() as NetDebugOverlay
 	add_child(_debug_overlay)
 
+	# Bontago-1en.24: `--force-special=<id>` sets the same state F9
+	# (sandbox_force_special) toggles at runtime, so a scripted sandbox launch
+	# can start already forcing one special. _sandbox is already _ready()
+	# (add_child() above runs it synchronously -- Main is already inside the
+	# tree by the time _start_sandbox_match_with_args() runs from its own
+	# _ready()), so its roster cache exists by the time this reaches it.
+	var forced: String = _sandbox_force_special_arg(args)
+	if forced != "":
+		_sandbox.force_special_by_id(StringName(forced))
+
 
 ## Same lobby-settings-minus-a-few-overrides shape as _build_hot_seat_config().
 ## config.sandbox is what lets MatchConfig.sanitize() allow `player_count`
@@ -217,6 +227,23 @@ func _sandbox_player_count(args: PackedStringArray) -> int:
 		if text.begins_with(PREFIX):
 			return int(text.substr(PREFIX.length()))
 	return sandbox_config.default_player_count
+
+
+## `--force-special=<id>`, same "-"-stripping loop and same "takes the
+## argument list explicitly" seam as _sandbox_player_count() right above (so a
+## test can drive it with a manufactured list) -- validation of `<id>` against
+## the real roster is game/Sandbox.gd's force_special_by_id()'s job, not this
+## file's; an unrecognized id there warns and leaves forcing off rather than
+## this parser guessing at the roster itself.
+func _sandbox_force_special_arg(args: PackedStringArray) -> String:
+	const PREFIX: String = "force-special="
+	for raw: String in args:
+		var text: String = raw
+		while text.begins_with("-"):
+			text = text.substr(1)
+		if text.begins_with(PREFIX):
+			return text.substr(PREFIX.length())
+	return ""
 
 
 # --- Menu / lobby routing -----------------------------------------------------

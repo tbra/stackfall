@@ -376,6 +376,17 @@ func _actions() -> Dictionary:
 	a["sandbox_spawn_tower"] = [_key(KEY_F7), _pad(JOY_BUTTON_PADDLE2)]
 	a["sandbox_toggle_overlay"] = [_key(KEY_F8), _pad(JOY_BUTTON_PADDLE4)]
 
+	# DECISION (tools/bootstrap_project.gd, Bontago-1en.24): sandbox_force_
+	# special (game/Sandbox.gd's F9) is the fifth sandbox-only hotkey, but
+	# PADDLE1-4 above already claim every Xbox Elite/DualSense-class paddle,
+	# and every face/shoulder/stick/D-pad/Back/Start/MISC1 button on a
+	# standard pad is claimed by placement, camera, shell or another sandbox
+	# hotkey (see this block's own opening comment). JOY_BUTTON_TOUCHPAD
+	# (DualSense's touchpad click) is the one JoyButton value still free
+	# anywhere in this file -- same debug-only, uncommon-pad tolerance the
+	# PADDLE buttons above already established, not a shipped-game binding.
+	a["sandbox_force_special"] = [_key(KEY_F9), _pad(JOY_BUTTON_TOUCHPAD)]
+
 	return a
 
 

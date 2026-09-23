@@ -335,6 +335,23 @@ func set_special_drawer(drawer: Callable) -> void:
 	_gifts.set_special_drawer(drawer)
 
 
+## Bontago-1en.24: game/Sandbox.gd's F9 hotkey turning back "off" -- reinstalls
+## whatever drawer a real match would be running (the weighted SpecialDef
+## pick, or the shipped placeholder). See MatchGifts.restore_default_special_
+## drawer().
+func restore_default_special_drawer() -> void:
+	_gifts.restore_default_special_drawer()
+
+
+## Bontago-1en.24: game/Sandbox.gd's F9 sandbox_force_special hotkey and
+## `--force-special=` -- appends `special_id` straight onto `slot_id`'s
+## pending queue with no crate needed, host-only and sandbox-only. See
+## MatchGifts.debug_queue_special() for the full contract (the cap, the
+## DEBUG_GIFT_ID sentinel on Events.gift_claimed).
+func debug_queue_special(slot_id: int, special_id: StringName) -> bool:
+	return _gifts.debug_queue_special(slot_id, special_id)
+
+
 ## M4 P1b DECISION: "the feed issues a new window" is Events.feed_block_issued
 ## -- see MatchGifts.on_feed_block_issued()'s own DECISION for the full
 ## reasoning. Connected once in _ready(); this is the one call site both the

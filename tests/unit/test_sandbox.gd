@@ -49,6 +49,16 @@ func before_each() -> void:
 
 
 func after_each() -> void:
+	# Bontago-1en.24: several sandbox_force_special tests below install a
+	# forced Callable via Match.set_special_drawer() (game/Sandbox.gd's
+	# force_special_by_id()); Match._gifts.reset() (run by abort_match() right
+	# below) deliberately leaves `_special_drawer` untouched -- it is an
+	# injectable dependency, not per-match state (see that function's own
+	# comment) -- and Match is a singleton that outlives this script. Without
+	# this, a forced drawer left installed here would leak into whichever
+	# test file's Match._gifts the test runner happens to load next in the
+	# same process (see test_gift_claim.gd's matching after_each() cleanup).
+	Match._gifts.set_special_drawer(Match._gifts._default_special_drawer)
 	Match.abort_match()
 	Match.set_process(true)
 	await get_tree().process_frame
@@ -309,3 +319,157 @@ func test_sandbox_toggle_overlay_flips_the_fields_territory_overlay() -> void:
 
 	sandbox._unhandled_input(event)
 	assert_eq(overlay.visible, initial, "the hotkey toggles both ways")
+
+
+# --- sandbox_force_special: F9 (Bontago-1en.24) -------------------------------
+
+## config/specials/ ships exactly these 7 .tres today (anvil, bomb,
+## earthquake, jumping_bean, propeller, rocket, volcano);
+## SpecialDef.load_all_specials() sorts by id, so this is the exact cycle
+## order F9 must walk through -- pinned here rather than re-derived from the
+## loader, so a regression in the loader's own sort shows up as a failure
+## here too, not just in test_special_def.gd.
+const _EXPECTED_ROSTER_ORDER: PackedStringArray = [
+	"anvil", "bomb", "earthquake", "jumping_bean", "propeller", "rocket", "volcano",
+]
+
+
+func test_sandbox_force_special_hotkey_cycles_the_roster_in_order_and_wraps_to_off() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+	assert_eq(sandbox.forced_special(), &"", "off by default")
+
+	var event: InputEventKey = _key_press(KEY_F9)
+	assert_true(event.is_action_pressed(&"sandbox_force_special"), "F9 should map to sandbox_force_special")
+
+	for expected_id: String in _EXPECTED_ROSTER_ORDER:
+		sandbox._unhandled_input(event)
+		assert_eq(sandbox.forced_special(), StringName(expected_id))
+		assert_eq(
+			Match.held_special(sandbox.active_slot()), StringName(expected_id),
+			"the forced special must be seeded into the active slot's queue with no crate needed"
+		)
+		Match.pop_pending_special(sandbox.active_slot())
+
+	# One more press than the roster is long wraps back to "off".
+	sandbox._unhandled_input(event)
+	assert_eq(sandbox.forced_special(), &"", "cycling past the last roster id must wrap back to off")
+
+
+func test_sandbox_force_special_gamepad_binding_also_cycles() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+
+	var event: InputEventJoypadButton = _pad_press(JOY_BUTTON_TOUCHPAD)
+	assert_true(event.is_action_pressed(&"sandbox_force_special"), "gamepad Touchpad should map to sandbox_force_special")
+
+	sandbox._unhandled_input(event)
+
+	assert_eq(sandbox.forced_special(), StringName(_EXPECTED_ROSTER_ORDER[0]))
+
+
+func test_sandbox_force_special_installs_a_forced_drawer() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+
+	sandbox.force_special_by_id(&"rocket")
+
+	assert_eq(
+		Match._gifts._special_drawer.call(), &"rocket",
+		"while forced, every future draw (a real crate claim included) must return the forced id"
+	)
+
+	sandbox.force_special_by_id(&"")  # not on the roster -> ignored, stays forced
+	assert_eq(sandbox.forced_special(), &"rocket", "an unknown id must not change the forced state")
+
+
+func test_sandbox_force_special_off_restores_the_default_drawer() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+	sandbox.force_special_by_id(&"rocket")
+	assert_eq(Match._gifts._special_drawer.call(), &"rocket", "fixture")
+
+	# Cycle all the way back around to "off" -- bounded to one full period
+	# (every roster id plus "off" itself), regardless of which id the fixture
+	# above happened to start from.
+	for _i: int in range(_EXPECTED_ROSTER_ORDER.size() + 1):
+		if sandbox.forced_special() == &"":
+			break
+		sandbox._cycle_forced_special()
+	assert_eq(sandbox.forced_special(), &"", "fixture: cycled back to off")
+
+	assert_ne(
+		Match._gifts._special_drawer.call(), &"rocket",
+		"turning forcing back off must reinstall the normal drawer, not leave the forced one active"
+	)
+
+
+## GiftConfig.max_pending_specials caps debug_queue_special() exactly like a
+## real claim; a full queue must not be silently overfilled, and the panel
+## must be able to show why nothing new appeared.
+func test_sandbox_force_special_queue_full_sets_the_panel_flag_without_queuing() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+	Match._gifts._gift_config = Match._gifts._gift_config.duplicate() as GiftConfig
+	Match._gifts._gift_config.max_pending_specials = 1
+	assert_true(Match.debug_queue_special(0, &"filler"), "fixture: fill the queue to its cap")
+
+	sandbox.force_special_by_id(&"anvil")
+
+	assert_true(sandbox.forced_special_queue_full(), "F9 must report the queue as full when it is")
+	assert_eq(Match.pending_special_count(0), 1, "a full queue must not grow past the cap")
+	assert_eq(Match.held_special(0), &"filler", "the existing queue entry must be untouched")
+
+
+func test_sandbox_panel_shows_the_forced_special_and_off_states() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+	sandbox.panel()._refresh()
+	assert_eq(sandbox.panel()._forced_special_label.text, "Forced special: off")
+
+	sandbox.force_special_by_id(&"volcano")
+	sandbox.panel()._refresh()
+	assert_true(
+		sandbox.panel()._forced_special_label.text.findn("volcano") >= 0,
+		"panel must show the forced id: %s" % sandbox.panel()._forced_special_label.text
+	)
+
+
+## M4 P2e: game/GhostPreview.gd's own current_state() reports STATE_THROW
+## while show_throw_hint(true) is active; the panel's Ghost: label must show
+## "throw" instead of a stale validity reason for that gesture.
+func test_sandbox_panel_ghost_label_shows_throw_state() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+	sandbox.ghost().show_throw_hint(true)
+
+	sandbox.panel()._refresh()
+
+	assert_eq(sandbox.panel()._validity_label.text, "Ghost: throw")
+	sandbox.ghost().show_throw_hint(false)
+
+
+# --- `--force-special=<id>` (Bontago-1en.24) ----------------------------------
+
+func test_force_special_cli_arg_sets_the_forced_special_at_startup() -> void:
+	_main._start_sandbox_match_with_args(PackedStringArray(["sandbox", "players=2", "force-special=anvil"]))
+
+	assert_eq(_main._sandbox.forced_special(), &"anvil")
+	assert_eq(Match.held_special(0), &"anvil", "the CLI flag must seed the active slot immediately, like F9 does")
+
+
+func test_force_special_by_id_with_an_unknown_id_warns_and_stays_off() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+
+	sandbox.force_special_by_id(&"not_a_real_special")
+
+	assert_eq(sandbox.forced_special(), &"", "an unknown id must leave forcing off, not crash or force a garbage id")

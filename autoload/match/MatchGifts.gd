@@ -176,6 +176,61 @@ func pending_special_count(slot_id: int) -> int:
 	return queue.size()
 
 
+## The gift_id every debug_queue_special() claim reports (Bontago-1en.24).
+## _spawn_crate_at()'s real ids start at 0 and only ever increase, so a
+## negative sentinel can never collide with one -- a client/HUD watching
+## Events.gift_claimed sees an id it can recognize as "not a real crate" if it
+## ever needs to (nothing does today).
+const DEBUG_GIFT_ID: int = -1
+
+
+## Sandbox-only debug entry point (Bontago-1en.24, game/Sandbox.gd's F9
+## sandbox_force_special hotkey and `--force-special=`): appends `special_id`
+## straight onto `slot_id`'s pending queue and emits Events.gift_claimed with
+## DEBUG_GIFT_ID, exactly the same signal _claim_gift() fires for a real
+## claim, so the HUD/ghost/client mirrors all follow the normal path with no
+## second code path to keep in sync. Skips the crate roll and the
+## territory-tick claim sweep entirely -- there is no crate to free.
+##
+## Gated the same way _claim_gift()/claim_or_expire_gifts() already are
+## (`if not _match._is_host(): return`) plus one more check this package adds
+## on top: `_match.config.sandbox` must also be true, so a real match can
+## never be handed a free special through this seam even if something
+## mistakenly called it host-side. Also respects _claim_gift()'s own
+## GiftConfig.max_pending_specials cap (amendment 3's "a full queue does
+## nothing" contract) -- returns false and mutates nothing when the queue is
+## already full, so game/Sandbox.gd can show that in its panel rather than
+## silently dropping the request.
+func debug_queue_special(slot_id: int, special_id: StringName) -> bool:
+	if not _match._is_host():
+		return false
+	if _match.config == null or not _match.config.sandbox:
+		return false
+	if slot_id < 0 or slot_id >= _match.slot_count():
+		return false
+	_ensure_capacity(slot_id)
+	var queue: Array = _pending_queues[slot_id]
+	if queue.size() >= _gift_config.max_pending_specials:
+		return false
+	queue.append(special_id)
+	Events.gift_claimed.emit(DEBUG_GIFT_ID, slot_id, special_id)
+	return true
+
+
+## Sandbox-only reset seam (Bontago-1en.24, game/Sandbox.gd's F9 hotkey
+## turning back "off"): re-runs the exact same lazy install
+## _ensure_special_drawer_installed() already performs at a match's first
+## real claim, rather than a second, divergent copy of that roster-filtering
+## logic living in game/Sandbox.gd. Resets `_roster_ready` first so the lazy
+## install actually runs again -- a forced special's own set_special_drawer()
+## call already replaced whatever ran before, so a plain
+## _ensure_special_drawer_installed() call would otherwise stay a no-op
+## forever, per its own idempotency guard.
+func restore_default_special_drawer() -> void:
+	_roster_ready = false
+	_ensure_special_drawer_installed()
+
+
 func _ensure_capacity(slot_id: int) -> void:
 	while _pending_queues.size() <= slot_id:
 		_pending_queues.append(_new_typed_queue())

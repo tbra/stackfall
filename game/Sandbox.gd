@@ -29,14 +29,44 @@ extends Node
 var _field: Field = null
 var _active_slot: int = 0
 
+## Bontago-1en.24: SpecialDef.load_all_specials()'s own id order, cached once
+## at _ready() rather than re-scanning res://config/specials/ on every F9
+## press -- a plain Array[SpecialDef] there is the roster's authority; this
+## file only needs the ids, and only ever reads them (never mutates the
+## roster), so a cached copy cannot drift from a rewrite mid-match (nothing
+## in this package edits config/specials/ at runtime).
+var _special_roster_ids: Array[StringName] = []
+
+## -1 is "off"; otherwise an index into _special_roster_ids. sandbox_force_
+## special (F9) cycles this: off -> each id in roster order -> off.
+var _forced_special_index: int = -1
+## The forced id ui/SandboxPanel.gd shows, or &"" when off. Kept alongside
+## _forced_special_index rather than derived on every panel refresh so a
+## garbage index (there is none today, but see _apply_forced_special()'s own
+## bounds check) can never read out of range.
+var _forced_special_id: StringName = &""
+## True when the last _apply_forced_special() call's debug_queue_special()
+## refused because the active slot's queue was already at GiftConfig.
+## max_pending_specials -- ui/SandboxPanel.gd surfaces this so a tester knows
+## why F9 didn't visibly hand out anything, rather than looking like a bug.
+var _forced_special_queue_full: bool = false
+
 
 func _ready() -> void:
 	Events.turn_changed.connect(_on_turn_changed)
 	_panel.configure(self, _ghost)
 	_tuning_panel.set_controller(_controller)
+	_special_roster_ids = _load_special_roster_ids()
 	# Bontago-mv0.14 (spec 1.5): see HotSeat.gd's matching _ready() comment --
 	# safe headless (a silent no-op with no window to capture).
 	_controller.enable_mouse_capture()
+
+
+func _load_special_roster_ids() -> Array[StringName]:
+	var ids: Array[StringName] = []
+	for def: SpecialDef in SpecialDef.load_all_specials():
+		ids.append(def.id)
+	return ids
 
 
 ## Called once by game/Main.gd, the same way HotSeat.set_camera_rig() is —
@@ -77,6 +107,19 @@ func active_slot() -> int:
 	return _active_slot
 
 
+## The forced special's id, or &"" when off (sandbox_force_special is
+## currently cycled to "off"). ui/SandboxPanel.gd reads this every refresh.
+func forced_special() -> StringName:
+	return _forced_special_id
+
+
+## Whether the last F9/--force-special apply refused to seed the active
+## slot's queue because it was already full. ui/SandboxPanel.gd reads this
+## every refresh.
+func forced_special_queue_full() -> bool:
+	return _forced_special_queue_full
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed(&"sandbox_next_slot"):
 		_cycle_active_slot()
@@ -92,6 +135,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed(&"sandbox_toggle_overlay"):
 		_toggle_overlay()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed(&"sandbox_force_special"):
+		_cycle_forced_special()
 		get_viewport().set_input_as_handled()
 
 
@@ -173,6 +219,64 @@ func _toggle_overlay() -> void:
 	var overlay: TerritoryOverlay = _field.overlay()
 	if overlay != null:
 		overlay.visible = not overlay.visible
+
+
+# --- sandbox_force_special: F9 -----------------------------------------------
+#
+# Bontago-1en.24: forces the next drawn special to a fixed id so a tester can
+# exercise each of the seven specials on demand instead of waiting on the
+# crate roll's RNG (spec 2.6/2.8). F9 cycles off -> each SpecialDef.
+# load_all_specials() id, in that order -> off; `--force-special=<id>`
+# (game/Main.gd) sets the same state at startup. Both converge on
+# _apply_forced_special() below, so the hotkey and the CLI flag can never
+# diverge in behaviour.
+
+## sandbox_force_special (F9 / gamepad): advances _forced_special_index one
+## step, wrapping "off" (-1) back in after the last roster id -- see this
+## field's own doc comment for the off/on-roster/off shape.
+func _cycle_forced_special() -> void:
+	if _special_roster_ids.is_empty():
+		return
+	_forced_special_index += 1
+	if _forced_special_index >= _special_roster_ids.size():
+		_forced_special_index = -1
+	_apply_forced_special()
+
+
+## `--force-special=<id>` (game/Main.gd's own CLI parsing) converges here:
+## `special_id` must be one of _special_roster_ids' own ids or this is a
+## no-op with a warning, never a silent ignore -- the CLI flag is a debug
+## convenience, not a second source of truth for the roster load_all_
+## specials() already built.
+func force_special_by_id(special_id: StringName) -> void:
+	var index: int = _special_roster_ids.find(special_id)
+	if index < 0:
+		push_warning("Sandbox: --force-special=%s is not a known special id; ignoring" % [special_id])
+		return
+	_forced_special_index = index
+	_apply_forced_special()
+
+
+## The one place both _cycle_forced_special() and force_special_by_id()
+## install state: "off" restores whatever drawer a real match would be
+## running (Match.restore_default_special_drawer()); any roster index installs
+## a Callable that always returns that one id (Match.set_special_drawer()) so
+## every future crate claim/on_feed_block_issued() roll keeps handing out the
+## forced special for as long as this stays on, and immediately seeds the
+## active slot's queue via Match.debug_queue_special() so a tester need not
+## wait on a crate at all. A full queue leaves _forced_special_queue_full
+## true for the panel and otherwise does nothing (debug_queue_special()'s own
+## contract) -- the forced drawer is still installed either way.
+func _apply_forced_special() -> void:
+	if _forced_special_index < 0 or _forced_special_index >= _special_roster_ids.size():
+		_forced_special_id = &""
+		_forced_special_queue_full = false
+		Match.restore_default_special_drawer()
+		return
+	var special_id: StringName = _special_roster_ids[_forced_special_index]
+	_forced_special_id = special_id
+	Match.set_special_drawer(func() -> StringName: return special_id)
+	_forced_special_queue_full = not Match.debug_queue_special(_active_slot, special_id)
 
 
 func _on_turn_changed(slot_id: int) -> void:
