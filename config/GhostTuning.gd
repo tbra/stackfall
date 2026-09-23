@@ -73,7 +73,28 @@ extends Resource
 ## via the wheel" -- original behaviour): raised from 3 m to clear a tall
 ## tower, now that the ghost's own height is the disk surface plus this
 ## manual offset rather than whatever is directly underneath it.
-@export var hover_manual_max: float = 30.0
+## Bontago-mv0.34 (owner playtest 2026-09-23, "there's a max height above
+## which I can't scroll up or place blocks, there shouldn't be"): raised again
+## from 30 m to 60 m -- MapDef.cell_wake_height's own doc comment already
+## calls 60 m "tall enough to cover any tower this map can realistically
+## carry", the same bound this field needs, so it reuses that figure rather
+## than inventing a second one. Not read from MapDef directly: GhostTuning is
+## a plain preloaded Resource with no reference to whichever map is live, and
+## every shipped map uses the same 60 m cell_wake_height today (no .tres
+## overrides it), so a fixed constant here costs nothing in practice while
+## keeping this package's scope to its own owned files.
+## DECISION (config/GhostTuning.gd, Bontago-mv0.34): capped at 60 m, not the
+## wire's own full headroom -- net/MatchNet.gd's _pose_is_acceptable() refuses
+## any placement whose Y falls outside NetConfig.pos_min_y..pos_max_y (-48..72
+## m, config/net_config.tres), the same band core/net/Quantize.gd's
+## pack_position() quantizes into. At the disk surface (y=0) a manual offset
+## of 60 m plus PhysicsTuning.hover_height (0.3 m) tops out at 60.3 m, 11.7 m
+## under that 72 m ceiling -- comfortably inside the wire's own budget, so
+## this package needed no change to NetConfig, Quantize, or MatchNet.gd's
+## check (see this package's own report for the full audit). See
+## config/tuning_panel_hints.tres's own DECISION for why the F4 slider itself
+## is capped below the wire ceiling too, not just this default.
+@export var hover_manual_max: float = 60.0
 
 ## -- Placement raycast --------------------------------------------------
 @export var placement_ray_length: float = 200.0
