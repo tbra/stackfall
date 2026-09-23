@@ -298,14 +298,49 @@ extends Resource
 ## more solid" reason those give.
 @export var throw_aim_tint_color: Color = Color(1.0, 0.55, 0.15, 0.75)
 ## How many straight segments game/ThrowArcPreview.gd's ballistic polyline is
-## divided into; higher reads smoother but costs more per-frame vertices.
-@export var throw_arc_sample_count: int = 24
-## Seconds of flight the arc preview samples out to. A real thrown special
-## flies until it lands or the fuse times out (SpecialTuning.fuse_timeout_s
-## et al.); this is only how far the *preview line* draws before stopping,
-## not a gameplay limit.
-@export var throw_arc_max_time_s: float = 1.5
-## Colour of the arc preview polyline.
+## divided into before its own landing cutoff (Bontago-1en.25) can stop it
+## early; higher reads smoother but costs more per-frame vertices. Raised
+## from 24 to 64 alongside throw_arc_max_time_s's own default increase below,
+## so the per-segment time step (throw_arc_max_time_s / this) stays about the
+## same as before that change (~0.0625 s/segment) instead of getting coarser.
+@export var throw_arc_sample_count: int = 64
+## Seconds of flight the arc preview samples out to before giving up. Since
+## Bontago-1en.25 the preview normally stops the moment it actually reaches
+## the landing surface (game/Field.gd's own surface_y(), or
+## throw_arc_floor_below_disc_m under it once the throw has flown past the
+## disc's rim) -- this is now only the safety cap for a throw that never
+## "lands" at all (no Field wired, or the floor disabled below): a real
+## thrown special still flies until it lands or the fuse times out
+## (SpecialTuning.fuse_timeout_s et al.), never this value. Raised from 1.5 s
+## to 4 s, comfortably past the ~3.6 s hang time SpecialTuning's own
+## throw_max_speed (25 m/s) and throw_loft_ratio (1.0, 45 degrees) defaults
+## produce, so the cap rarely bites in practice (feedback/throw-arc.png: the
+## old 1.5 s cut a hard lofted throw off while it was still rising).
+@export var throw_arc_max_time_s: float = 4.0
+## Colour of the arc preview polyline (and its optional landing-point marker,
+## throw_arc_end_marker_enabled below).
 @export var throw_arc_color: Color = Color(1.0, 0.85, 0.3, 0.9)
 ## World-space width (meters) of the arc preview's ribbon.
 @export var throw_arc_width: float = 0.05
+
+## -- Throw arc landing (Bontago-1en.25, feedback/throw-arc.png: "arc leaves
+## the screen while rising") -- game/ThrowArcPreview.gd's sample_arc()/
+## update_arc() now stop the preview at ground/disc contact instead of always
+## sampling out to throw_arc_max_time_s above. ------------------------------
+## Height, in meters below game/Field.gd's own surface_y(), the arc keeps
+## falling to when its XZ has flown past the disc's own rim (map_def.
+## field_radius) -- a flat "there is no ground here" backstop for an off-disc
+## throw, rather than letting it fall forever (see throw_arc_floor_enabled
+## below to turn this off instead).
+@export var throw_arc_floor_below_disc_m: float = 3.0
+## Whether an off-disc sample (past the rim) lands on throw_arc_floor_below_
+## disc_m at all. False lets an off-disc throw's preview keep falling until
+## throw_arc_max_time_s's own safety cap stops it instead, with no landing
+## point -- e.g. for a map/tuning combination where "3 m below the disc" would
+## still read as floating in the air.
+@export var throw_arc_floor_enabled: bool = true
+## Whether the arc preview drops a small flat disc marker at its own landing
+## point, for extra legibility beyond the polyline simply stopping there.
+@export var throw_arc_end_marker_enabled: bool = true
+## World-space radius (meters) of the landing-point marker disc above.
+@export var throw_arc_end_marker_radius: float = 0.12
