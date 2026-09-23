@@ -458,3 +458,93 @@ func test_replicated_claim_with_a_garbage_slot_id_is_ignored() -> void:
 	assert_eq(Match._gifts._pending_queues.size(), before_size, "a garbage slot_id must never grow _pending_queues")
 
 	net.set_providers(null, null)
+
+
+# --- debug_queue_special (Bontago-1en.24, game/Sandbox.gd's F9 hotkey) -------
+
+func _sandbox_config(player_count: int = 2) -> MatchConfig:
+	var config: MatchConfig = _config_with_no_real_specials(player_count)
+	config.sandbox = true
+	return config
+
+
+func test_debug_queue_special_appends_and_emits_gift_claimed_with_the_debug_id_on_a_sandbox_host() -> void:
+	_start_playing(_sandbox_config())
+	watch_signals(Events)
+
+	var accepted: bool = Match.debug_queue_special(0, &"anvil")
+
+	assert_true(accepted, "a sandbox host must accept the debug queue call")
+	assert_eq(Match.held_special(0), &"anvil")
+	assert_signal_emitted_with_parameters(
+		Events, "gift_claimed", [MatchGifts.DEBUG_GIFT_ID, 0, &"anvil"]
+	)
+
+
+func test_debug_queue_special_refused_outside_sandbox() -> void:
+	_start_playing(_config_with_no_real_specials())
+	assert_false(Match.config.sandbox, "fixture: an ordinary match config is not sandbox")
+	watch_signals(Events)
+
+	var accepted: bool = Match.debug_queue_special(0, &"anvil")
+
+	assert_false(accepted, "a real (non-sandbox) match must never grant a free special")
+	assert_eq(Match.held_special(0), &"", "nothing must be queued")
+	assert_signal_not_emitted(Events, "gift_claimed")
+
+
+func test_debug_queue_special_refused_when_not_host() -> void:
+	_start_playing(_sandbox_config())
+	Match.set_net_provider(FakeNet.client(1))
+	watch_signals(Events)
+
+	var accepted: bool = Match.debug_queue_special(0, &"anvil")
+
+	assert_false(accepted, "a client must never queue a special through this seam")
+	assert_eq(Match.held_special(0), &"")
+	assert_signal_not_emitted(Events, "gift_claimed")
+
+	Match.set_net_provider(null)
+
+
+func test_debug_queue_special_refused_when_the_queue_is_already_full() -> void:
+	_start_playing(_sandbox_config())
+	Match._gifts._gift_config = Match._gifts._gift_config.duplicate() as GiftConfig
+	Match._gifts._gift_config.max_pending_specials = 1
+	assert_true(Match.debug_queue_special(0, &"anvil"), "fixture: fill the queue to its cap")
+	watch_signals(Events)
+
+	var accepted: bool = Match.debug_queue_special(0, &"bomb")
+
+	assert_false(accepted, "a full queue must refuse, mirroring _claim_gift()'s own cap")
+	assert_eq(Match.held_special(0), &"anvil", "the queue must be unchanged")
+	assert_eq(Match.pending_special_count(0), 1)
+	assert_signal_not_emitted(Events, "gift_claimed")
+
+
+func test_debug_queue_special_refused_for_an_out_of_range_slot() -> void:
+	_start_playing(_sandbox_config(2))
+	var before_size: int = Match._gifts._pending_queues.size()
+
+	var accepted: bool = Match.debug_queue_special(999999999, &"anvil")
+
+	assert_false(accepted, "an out-of-range slot must be refused")
+	assert_eq(Match._gifts._pending_queues.size(), before_size, "must never grow _pending_queues")
+
+
+## restore_default_special_drawer() (game/Sandbox.gd's F9 "off") re-runs the
+## exact lazy install _ensure_special_drawer_installed() performs at a match's
+## first real claim -- with a non-empty filtered roster, that means the real
+## weighted drawer, not the shipped placeholder.
+func test_restore_default_special_drawer_reinstalls_the_weighted_drawer() -> void:
+	_start_playing(_config())
+	Match._gifts.set_special_drawer(func() -> StringName: return &"forced_id")
+	assert_eq(Match._gifts._special_drawer.call(), &"forced_id", "fixture: a forced drawer is installed")
+
+	Match.restore_default_special_drawer()
+
+	assert_true(Match._gifts._roster_ready, "the normal lazy install must have run")
+	assert_ne(
+		Match._gifts._special_drawer.call(), &"forced_id",
+		"the forced drawer must no longer be installed"
+	)

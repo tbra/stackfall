@@ -50,6 +50,7 @@ const REQUIRED_ACTIONS: PackedStringArray = [
 	"sandbox_toggle_timer",
 	"sandbox_spawn_tower",
 	"sandbox_toggle_overlay",
+	"sandbox_force_special",
 	"screenshot_capture",
 ]
 

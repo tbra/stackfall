@@ -52,6 +52,8 @@ var _ghost: GhostPreview = null
 @onready var _spawned_label: Label = %SpawnedLabel
 @onready var _physics_ms_label: Label = %PhysicsMsLabel
 @onready var _rules_label: Label = %RulesLabel
+## Bontago-1en.24: game/Sandbox.gd's F9 sandbox_force_special hotkey.
+@onready var _forced_special_label: Label = %ForcedSpecialLabel
 
 var _refresh_accum: float = 0.0
 
@@ -90,6 +92,7 @@ func _refresh() -> void:
 	_refresh_spawned()
 	_refresh_physics_ms()
 	_refresh_rules_mode()
+	_refresh_forced_special()
 
 
 func _refresh_active_slot(slot_id: int) -> void:
@@ -124,9 +127,20 @@ func _refresh_timer(slot_id: int) -> void:
 	]
 
 
+## Bontago-1en.24: game/GhostPreview.gd's own current_state() already
+## distinguishes STATE_THROW (M4 P2e's throw-aim tint, set by show_throw_hint()
+## while a held special is being dragged for a throw) from the ordinary
+## valid/hole/invalid tints this label used to show exclusively via a fresh
+## preview_placement() call -- reading that seam here, before falling back to
+## the plain validity check, means a tester aiming a throw sees "throw"
+## instead of whatever stale landing-spot reason preview_placement() would
+## otherwise report for a gesture that isn't a placement at all.
 func _refresh_validity(slot_id: int) -> void:
 	if _ghost == null or slot_id < 0:
 		_validity_label.text = "Ghost: -"
+		return
+	if _ghost.current_state() == GhostPreview.STATE_THROW:
+		_validity_label.text = "Ghost: throw"
 		return
 	var result: PlacementRules.Result = match_provider.preview_placement(
 		slot_id, _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion
@@ -175,3 +189,20 @@ func _refresh_rules_mode() -> void:
 		hole_mode_names[config.hole_mode].to_lower() if config.hole_mode < hole_mode_names.size() else "?"
 	)
 	_rules_label.text = "Rules: holes %s" % hole_mode_name
+
+
+## Bontago-1en.24: game/Sandbox.gd's F9 sandbox_force_special hotkey (and
+## `--force-special=`). _sandbox is the same Variant test seam active_slot()
+## already reads through (see this file's own DECISION on why it isn't a
+## typed Sandbox); forced_special()/forced_special_queue_full() are the two
+## getters game/Sandbox.gd exposes for it.
+func _refresh_forced_special() -> void:
+	if _sandbox == null:
+		_forced_special_label.text = "Forced special: -"
+		return
+	var forced_id: StringName = _sandbox.forced_special()
+	if forced_id == &"":
+		_forced_special_label.text = "Forced special: off"
+		return
+	var suffix: String = "  (queue full)" if bool(_sandbox.forced_special_queue_full()) else ""
+	_forced_special_label.text = "Forced special: %s%s" % [String(forced_id), suffix]
