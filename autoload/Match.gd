@@ -524,6 +524,13 @@ func circle_wire_radius_max() -> float:
 	return _territory_tuning.influence_max_fraction * config.map_def().field_radius
 
 
+## M4 P5-HOLE: a special effect's own hole, independent of contest. See
+## MatchTerritory.punch_special_hole() for the full contract (host-only,
+## no-op under HoleMode.OFF, disk-local world_pos, home-flag elimination).
+func punch_special_hole(world_pos: Vector2, radius_m: float, hole_open_s: float) -> void:
+	_territory.punch_special_hole(world_pos, radius_m, hole_open_s)
+
+
 # --- The client's read model (spec 3.4) -------------------------------------
 #
 # Everything below is called only by net/MatchNet.gd, only on a client, and

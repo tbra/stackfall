@@ -352,3 +352,86 @@ func apply_replicated_territory(
 		_match._field.set_overlay_circles(
 			circle_xs, circle_zs, circle_radii, circle_teams, goal_positions, goal_radii, argmax_mode
 		)
+
+
+# --- Special-punched holes (M4 P5-HOLE) -------------------------------------
+
+## A special effect's own hole, independent of territory contest (spec 2.6).
+## `world_pos` is disk-local (x, z) metres -- Field.disk_local_from_world()'s
+## convention, the same one CellGrid documents -- not a Vector3 world
+## position; a caller (e.g. game/specials/JumpingBeanEffect.gd) converts
+## before calling in.
+##
+## Host-only, the same guard _tick_territory()/_check_home_flags() use, and a
+## no-op under HoleMode.OFF -- owner decision Bontago-z4h: enforced here, not
+## trusted to every SpecialEffect caller, so a special cannot invent a hole
+## ruleset the lobby turned off. Otherwise force-opens every in-disk cell
+## whose centre falls within radius_m of world_pos, then runs the same
+## change-set path _run_territory_step() runs for a natural hole: one
+## Events.hole_cells_changed for the whole punch, then _check_home_flags(opened)
+## -- Bontago-3td (owner question 2, M4_SPECIALS_PACKAGES.md orchestrator
+## decision 2): a special-punched hole eliminates a home flag exactly like a
+## natural one, shipped as the default while that question is open.
+##
+## DECISION (autoload/match/MatchTerritory.gd, Bontago-1en.20): the opened
+## change-set is computed locally from is_hole() before/after each cell,
+## rather than by reading TerritoryRaster.holes_opened() the way
+## _run_territory_step() does. That array is only cleared at the top of
+## update() -- a periodic 10 Hz solve tick, not this call -- so between two
+## solves it still holds whatever the *last* update() opened, already
+## reported once by _run_territory_step(). This call can land in that gap
+## (a Jumping Bean hops on its own clock, not the solve's), and reading
+## holes_opened() then would re-announce those stale cells as newly opened.
+## `closed` is always empty here: force_hole_cell() only ever opens a cell
+## immediately, never closes one -- closing stays _advance_timers()'s job,
+## later, off the existing solve loop.
+func punch_special_hole(world_pos: Vector2, radius_m: float, hole_open_s: float) -> void:
+	if not _match._is_host():
+		return
+	# DECISION (autoload/match/MatchTerritory.gd, Bontago-1en.20 review):
+	# mirror MatchPlacement.spawn_special_projectile()'s State.PLAYING guard.
+	# _finish_match() only sets State.END -- it never tears the raster down or
+	# stops a SpecialEffect's physics_tick() -- so a Jumping Bean still hopping
+	# after a natural win could otherwise still punch a hole here and, through
+	# _check_home_flags() below, eliminate a still-alive slot (even one on the
+	# already-decided winning team) after the match is already over.
+	if _match.state() != MatchAutoload.State.PLAYING:
+		return
+	if _match.config.hole_mode == MatchConfig.HoleMode.OFF:
+		return
+	if _raster == null or _cell_grid == null:
+		return
+	if radius_m <= 0.0:
+		return
+
+	var permanent_holes: bool = _match.config.hole_mode == MatchConfig.HoleMode.PERMANENT
+	var opened: PackedInt32Array = PackedInt32Array()
+
+	var res: int = _cell_grid.res
+	var cell_size: float = _cell_grid.cell_size
+	var half_extent: float = _cell_grid.half_extent
+	var radius_squared: float = radius_m * radius_m
+
+	var cy_min: int = maxi(0, ceili((world_pos.y - radius_m + half_extent) / cell_size - 0.5))
+	var cy_max: int = mini(res - 1, floori((world_pos.y + radius_m + half_extent) / cell_size - 0.5))
+
+	for cy: int in range(cy_min, cy_max + 1):
+		var dz: float = (float(cy) + 0.5) * cell_size - half_extent - world_pos.y
+		var remaining: float = radius_squared - dz * dz
+		if remaining < 0.0:
+			continue
+		var half_span: float = sqrt(remaining)
+		var cx_min: int = maxi(0, ceili((world_pos.x - half_span + half_extent) / cell_size - 0.5))
+		var cx_max: int = mini(res - 1, floori((world_pos.x + half_span + half_extent) / cell_size - 0.5))
+
+		for cx: int in range(cx_min, cx_max + 1):
+			if not _cell_grid.is_in_disk(cx, cy):
+				continue
+			var was_hole: bool = _raster.is_hole(cx, cy)
+			_raster.force_hole_cell(cx, cy, hole_open_s, permanent_holes)
+			if not was_hole:
+				opened.append(_cell_grid.cell_index(cx, cy))
+
+	if opened.size() > 0:
+		Events.hole_cells_changed.emit(opened, PackedInt32Array())
+		_check_home_flags(opened)
