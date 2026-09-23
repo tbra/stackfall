@@ -133,3 +133,37 @@ func test_controller_skips_preview_when_no_active_slot() -> void:
 	controller._update_ghost_tint()
 
 	assert_eq(fake_match.preview_placement_calls.size(), 0, "No hot-seat turn yet, so nothing should be previewed.")
+
+
+# --- Bontago-xtq.9 (owner test 2026-09-23, "the ghost block should be a bit
+# more opaque") --------------------------------------------------------------
+
+## Must fail against the old ~0.55-0.65 GhostTuning defaults and pass once
+## every valid/state tint's own alpha is raised to ~0.75.
+func test_every_tint_state_alpha_is_at_least_the_new_more_opaque_default() -> void:
+	var ghost: GhostPreview = _make_ghost()
+	var minimum_alpha: float = 0.75
+
+	ghost.apply_validity(PlacementRules.Result.VALID)
+	assert_true(
+		ghost.current_tint_color().a >= minimum_alpha - 0.001,
+		"valid tint alpha %.3f should be >= %.3f" % [ghost.current_tint_color().a, minimum_alpha]
+	)
+
+	ghost.apply_validity(PlacementRules.Result.OUTSIDE_TERRITORY)
+	assert_true(
+		ghost.current_tint_color().a >= minimum_alpha - 0.001,
+		"invalid tint alpha %.3f should be >= %.3f" % [ghost.current_tint_color().a, minimum_alpha]
+	)
+
+	ghost.apply_validity(PlacementRules.Result.HOLE)
+	assert_true(
+		ghost.current_tint_color().a >= minimum_alpha - 0.001,
+		"hole tint alpha %.3f should be >= %.3f" % [ghost.current_tint_color().a, minimum_alpha]
+	)
+
+	ghost.set_locked(true)
+	assert_true(
+		ghost.current_tint_color().a >= minimum_alpha - 0.001,
+		"locked tint alpha %.3f should be >= %.3f" % [ghost.current_tint_color().a, minimum_alpha]
+	)

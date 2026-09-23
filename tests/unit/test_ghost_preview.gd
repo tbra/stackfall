@@ -119,6 +119,35 @@ func _visual_world_bottom_y(ghost: GhostPreview) -> float:
 	return min_world_y
 
 
+## Bontago-xtq.9 (owner test 2026-09-23, "the preview starts from the bottom
+## of the ghost block which looks a bit weird when it's angled"): the mirror
+## image of _visual_world_bottom_y() above -- the highest world-space Y any
+## corner of the ghost's own shape visual reaches, used to check the
+## projection prism's own new top-of-column cap.
+func _visual_world_top_y(ghost: GhostPreview) -> float:
+	var visual: Node3D = null
+	for child: Node in ghost.get_children():
+		if child.name == "ShapeVisual":
+			visual = child as Node3D
+			break
+	assert_not_null(visual, "fixture: the ghost should have a shape visual once a shape is set.")
+	var max_world_y: float = -INF
+	for mesh_child: Node in visual.get_children():
+		var mesh_instance: MeshInstance3D = mesh_child as MeshInstance3D
+		if mesh_instance == null or mesh_instance.mesh == null:
+			continue
+		var local_aabb: AABB = mesh_instance.mesh.get_aabb()
+		for corner_index: int in range(8):
+			var corner_local: Vector3 = local_aabb.position + Vector3(
+				local_aabb.size.x * float(corner_index & 1),
+				local_aabb.size.y * float((corner_index >> 1) & 1),
+				local_aabb.size.z * float((corner_index >> 2) & 1)
+			)
+			var world_corner: Vector3 = ghost.global_position + ghost.basis * (mesh_instance.position + corner_local)
+			max_world_y = maxf(max_world_y, world_corner.y)
+	return max_world_y
+
+
 func test_update_placement_puts_an_unrotated_shapes_visual_bottom_at_the_reported_height() -> void:
 	var ghost: GhostPreview = _make_ghost()
 
@@ -205,6 +234,12 @@ func test_footprint_stays_one_quad_for_a_rotated_shape_spanning_many_columns() -
 	)
 
 
+## Bontago-xtq.10 (owner test 2026-09-23, "the footprint on the disc should
+## be almost white"): the footprint no longer shows the *full* state colour
+## the held shape's own body does -- only footprint_base_color blended with a
+## faint (footprint_hue_strength) amount of it -- so this test's own
+## expectations are now built the same way _footprint_color_for_state()
+## computes them, not a bare copy of the state colour.
 func test_footprint_tint_follows_validity_like_the_held_shapes_own_body() -> void:
 	var ghost: GhostPreview = _make_ghost()
 
@@ -212,22 +247,49 @@ func test_footprint_tint_follows_validity_like_the_held_shapes_own_body() -> voi
 	assert_almost_eq(ghost.current_footprint_tint_color().a, ghost.ghost_tuning.footprint_alpha, 0.001)
 
 	ghost.apply_validity(PlacementRules.Result.OUTSIDE_TERRITORY)
-	var expected_invalid: Color = ghost.ghost_tuning.invalid_tint_color
+	var expected_invalid: Color = ghost.ghost_tuning.footprint_base_color.lerp(
+		ghost.ghost_tuning.invalid_tint_color, ghost.ghost_tuning.footprint_hue_strength
+	)
 	assert_true(
 		ghost.current_footprint_tint_color().is_equal_approx(
 			Color(expected_invalid.r, expected_invalid.g, expected_invalid.b, ghost.ghost_tuning.footprint_alpha)
 		),
-		"the footprint should turn invalid-red (at footprint_alpha) exactly like the body does."
+		"the footprint should blend a faint invalid hue into its near-white base, at footprint_alpha."
 	)
 
 	ghost.set_locked(true)
-	var expected_locked: Color = ghost.ghost_tuning.locked_tint_color
+	var expected_locked: Color = ghost.ghost_tuning.footprint_base_color.lerp(
+		ghost.ghost_tuning.locked_tint_color, ghost.ghost_tuning.footprint_hue_strength
+	)
 	assert_true(
 		ghost.current_footprint_tint_color().is_equal_approx(
 			Color(expected_locked.r, expected_locked.g, expected_locked.b, ghost.ghost_tuning.footprint_alpha)
 		),
 		"the locked tint should win over validity for the footprint too, exactly like the body does."
 	)
+
+
+## Must fail against the pre-Bontago-xtq.10 code (where the footprint showed
+## the *full* state colour, e.g. invalid_tint_color's own 0.6 grey channels)
+## and pass once the footprint blends only a faint hue into a near-white base.
+func test_footprint_colour_reads_near_white_even_in_the_invalid_state() -> void:
+	var ghost: GhostPreview = _make_ghost()
+	ghost.set_player_color(Color(0.25, 0.55, 0.95, 1.0))
+
+	assert_true(
+		ghost.ghost_tuning.footprint_base_color.r >= 0.85
+		and ghost.ghost_tuning.footprint_base_color.g >= 0.85
+		and ghost.ghost_tuning.footprint_base_color.b >= 0.85,
+		"the footprint's own base colour must be near-white by default (each channel >= 0.85)."
+	)
+
+	ghost.apply_validity(PlacementRules.Result.OUTSIDE_TERRITORY)
+	var footprint_color: Color = ghost.current_footprint_tint_color()
+	assert_true(
+		footprint_color.r >= 0.85 and footprint_color.g >= 0.85 and footprint_color.b >= 0.85,
+		"even the invalid-state footprint (%s) should still read close to white, just faintly tinted -- not the old full grey." % footprint_color
+	)
+	assert_almost_eq(footprint_color.a, ghost.ghost_tuning.footprint_alpha, 0.001, "the footprint should also be highly opaque.")
 
 
 # --- Bontago-mv0.25 (docs/rotation-issue.png, owner test 2026-09-22): the
@@ -406,8 +468,9 @@ func _footprint_test_map() -> MapDef:
 ## pillar must show exactly one footprint polygon, landed on the bare disc
 ## (never the pillar's own top face -- the old per-cell raycast against the
 ## unfiltered world happily landed there), plus a projection prism reaching
-## from the held shape's own current lowest point down to that same disc
-## height.
+## from that same disc height up to the held shape's own current highest
+## point (Bontago-xtq.9: the column now caps at the shape's top, not its
+## bottom, so a pitched/yawed ghost sits fully inside it).
 func test_pitched_bar3_over_a_placed_block_gets_one_disc_footprint_and_a_matching_prism() -> void:
 	var field: Field = autofree(Field.new())
 	field.map_def = _footprint_test_map()
@@ -445,19 +508,20 @@ func test_pitched_bar3_over_a_placed_block_gets_one_disc_footprint_and_a_matchin
 
 	assert_true(ghost.has_projection_mesh(), "a real gap between the shape and the disc must show a projection prism.")
 	var span: Vector2 = ghost.projection_span_y()
-	# Wider tolerance than test_update_placement_keeps_a_rotated_talls_shapes_
-	# visual_bottom_at_the_reported_height() above uses for an axis-aligned
-	# 90-degree pitch: the prism's own top comes from _rotated_bottom_offset()
-	# (the *collision*-sized half_size, shrunk by cube_margin, per this
-	# file's own DECISION on collision_box_local_centers()), while
-	# _visual_world_bottom_y() reads the *visual* mesh (deliberately a hair
-	# larger, un-shrunk -- BlockMeshBuilder's own header) -- the two agree up
-	# to cube_margin/2 per axis the extremal corner projects onto, which for
-	# this test's diagonal 20-degree pitch (unlike a clean 90-degree step) is
-	# more than one axis at once, up to cube_margin/2 * sqrt(2).
+	# Bontago-xtq.9: unlike _rotated_bottom_offset() (deliberately the
+	# cube_margin-shrunk *collision* half_size, so placed blocks don't jam --
+	# this file's own DECISION on collision_box_local_centers()),
+	# _rotated_top_offset() uses the same full cube_size the *visual* mesh
+	# itself is built from (core/blocks/BlockMeshBuilder.gd's own
+	# `half: float = cube_size * 0.5`), so the prism's own top should match
+	# _visual_world_top_y() tightly, not just within a cube_margin tolerance.
 	assert_almost_eq(
-		span.x, _visual_world_bottom_y(ghost), ghost.tuning.cube_margin + 0.001,
-		"the prism's own top must match the held shape's own current lowest rendered point."
+		span.x, _visual_world_top_y(ghost), 0.01,
+		"Bontago-xtq.9: the prism's own top must reach the held shape's own current highest rendered point, not its lowest."
+	)
+	assert_true(
+		span.x >= _visual_world_top_y(ghost) - 0.001,
+		"the prism mesh's own AABB top must be at or above the ghost body's own AABB max Y."
 	)
 	assert_almost_eq(
 		span.y, disk_surface_point.y, 0.01,
@@ -475,27 +539,116 @@ func test_no_projection_prism_when_no_shape_is_held() -> void:
 	assert_eq(ghost.projection_span_y(), Vector2.ZERO)
 
 
-## A flush shape sitting right on the surface it hovers over (manual_hover_
-## offset cancelling out tuning.hover_height, spec 2.5's own wheel-adjustable
-## height) has no real gap between its own underside and the footprint -- the
-## prism must collapse (no mesh, not a paper-thin sliver).
-func test_projection_prism_collapses_when_the_shape_already_touches_the_ground() -> void:
+## Bontago-xtq.9: the prism's own top cap now reaches the shape's own
+## *highest* point (this file's own header), so a merely-flush placement (the
+## shape's underside touching the ground, manual_hover_offset cancelling out
+## tuning.hover_height) no longer collapses the prism -- the column still has
+## to show the whole body's own height standing above the disc. The prism
+## only collapses now when the shape is pushed down so far that even its own
+## *highest* point sits at or below the footprint's own landing height -- a
+## degenerate/adversarial manual_hover_offset no real player input reaches,
+## but still a case _update_projection_mesh()'s own guard must not render a
+## paper-thin (or inverted) sliver for.
+func test_projection_prism_collapses_when_even_the_shapes_own_top_is_at_the_ground() -> void:
 	var ghost: GhostPreview = _make_ghost()
-	ghost.manual_hover_offset = -ghost.tuning.hover_height
+	var half_collision: float = (ghost.tuning.cube_size - ghost.tuning.cube_margin) * 0.5
+	var half_visual: float = ghost.tuning.cube_size * 0.5
+	ghost.manual_hover_offset = -(ghost.tuning.hover_height + half_collision + half_visual + 1.0)
 
 	ghost.update_placement(Vector3.ZERO, Vector3.UP)
 
-	assert_false(ghost.has_projection_mesh(), "with no vertical gap, the collapsed prism should not render a sliver.")
+	assert_false(
+		ghost.has_projection_mesh(),
+		"with the shape's own top at or below the ground, the collapsed prism should not render a sliver."
+	)
 	assert_eq(ghost.projection_span_y(), Vector2.ZERO)
 
 
 ## hover_height alone (spec 2.5's default lift) is a real, known gap -- proof
 ## the collapse guard above isn't just always true.
-func test_projection_prism_spans_hover_height_over_flat_ground() -> void:
+func test_projection_prism_spans_hover_height_plus_the_shapes_own_height_over_flat_ground() -> void:
 	var ghost: GhostPreview = _make_ghost()
 
 	ghost.update_placement(Vector3.ZERO, Vector3.UP)
 
 	assert_true(ghost.has_projection_mesh(), "hover_height alone should still show a prism.")
 	var span: Vector2 = ghost.projection_span_y()
-	assert_almost_eq(span.x - span.y, ghost.tuning.hover_height, 0.01, "the prism should span exactly hover_height with nothing else in the way.")
+	# Bontago-xtq.9: the prism's own top is now the shape's own highest
+	# point, not its lowest -- for an unrotated cube resting hover_height
+	# above the ground, that adds the collision half-extent (how far the
+	# node's own origin sits above the ground, _rotated_bottom_offset()) plus
+	# the visual half-extent (how far the shape's own top sits above that
+	# same origin, _rotated_top_offset()) on top of hover_height itself.
+	var half_collision: float = (ghost.tuning.cube_size - ghost.tuning.cube_margin) * 0.5
+	var half_visual: float = ghost.tuning.cube_size * 0.5
+	var expected_span: float = ghost.tuning.hover_height + half_collision + half_visual
+	assert_almost_eq(
+		span.x - span.y, expected_span, 0.01,
+		"the prism should span hover_height plus the whole cube's own height above flat ground."
+	)
+
+
+## Bontago-xtq.9 (owner test 2026-09-23, "the preview starts from the bottom
+## of the ghost block which looks a bit weird when it's angled"): the
+## regression this pins -- before the fix, the prism's own top tracked the
+## rotated shape's *lowest* point, which for a steeply pitched/yawed shape
+## sits well below its own highest rendered corner, so the column visibly cut
+## through the middle of the ghost instead of surrounding it. Must fail
+## against the pre-fix code (which used _rotated_bottom_offset() for the
+## prism's own top) and pass once the prism uses _rotated_top_offset().
+func test_projection_prism_top_reaches_the_ghosts_highest_point_when_pitched_and_yawed() -> void:
+	var ghost: GhostPreview = _make_ghost()
+	ghost.apply_free_rotation_delta(deg_to_rad(35.0), deg_to_rad(25.0), Vector3.RIGHT)
+
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	assert_true(ghost.has_projection_mesh(), "fixture: a real gap should still show a prism once rotated.")
+	# projection_span_y()'s own doc: (top, bottom) are exactly the Y extremes
+	# _build_prism_mesh() uses for every wall vertex, i.e. the prism mesh's
+	# own world-space AABB Y span.
+	var span: Vector2 = ghost.projection_span_y()
+	var body_top_y: float = _visual_world_top_y(ghost)
+	var body_bottom_y: float = _visual_world_bottom_y(ghost)
+
+	assert_true(
+		span.x >= body_top_y - 0.001,
+		"the prism mesh's own AABB top (%s) must be at or above the ghost body's own AABB max Y (%s)." % [span.x, body_top_y]
+	)
+	assert_true(
+		span.x > body_bottom_y,
+		"fixture: the prism's own top must not still be sitting down at the shape's lowest point (the pre-fix bug)."
+	)
+	assert_almost_eq(
+		span.y, ghost.footprint_quad_position(0).y - ghost.ghost_tuning.footprint_offset, 0.01,
+		"the prism's own bottom must sit at the disc surface, matching the footprint."
+	)
+
+
+# --- Bontago-xtq.10 (owner test 2026-09-23, "any surface that falls within
+# the projection should be a lot brighter (maybe emissive?)") ---------------
+
+## Must fail against the pre-Bontago-xtq.10 material (plain alpha
+## compositing, no emission) and pass once the prism material blends
+## additively and emits its own light.
+func test_projection_prism_material_uses_additive_blend_and_emission() -> void:
+	var ghost: GhostPreview = _make_ghost()
+	ghost.apply_validity(PlacementRules.Result.VALID)
+
+	assert_true(
+		ghost.projection_uses_additive_blend(),
+		"the projection prism's own material must blend additively so surfaces behind/inside it brighten."
+	)
+	assert_true(
+		ghost.projection_emission_enabled(),
+		"the projection prism's own material must also emit its own light."
+	)
+	assert_true(
+		ghost.ghost_tuning.projection_emission_energy > 0.0,
+		"a zero emission energy would make the emission_enabled switch above pointless."
+	)
+	var emission: Color = ghost.current_projection_emission_color()
+	var tint: Color = ghost.current_projection_tint_color()
+	assert_true(
+		Color(emission.r, emission.g, emission.b).is_equal_approx(Color(tint.r, tint.g, tint.b)),
+		"the prism's own emission colour should track its current state tint, not a fixed/neutral colour."
+	)

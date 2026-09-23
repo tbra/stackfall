@@ -49,6 +49,58 @@ extends Node3D
 ## whole rotated silhouette reads as one solid prism the way the original
 ## does, regardless of what is directly underneath any one part of it.
 ##
+## Bontago-xtq.9 (owner test 2026-09-23, "the ghost block should be a bit more
+## opaque. the preview starts from the bottom of the ghost block which looks
+## a bit weird when it's angled."): two independent fixes on top of xtq.7's.
+## (1) Every valid/state tint's own alpha (tint_color, invalid_tint_color,
+## hole_tint_color, locked_tint_color) raised from ~0.55-0.65 to 0.75 --
+## config/GhostTuning.gd's own DECISIONs, not this file.
+## (2) The projection prism's top cap used to sit at the rotated shape's own
+## *lowest* point (_rotated_bottom_offset(), matching where the shape's
+## underside rests on the cursor height) -- correct for an unrotated shape
+## (whose lowest point already reads as "the bottom"), but for a pitched or
+## yawed shape that point is no longer anywhere near the shape's own top, so
+## the prism visibly cut through the middle of an angled ghost instead of
+## surrounding it. _update_projection_mesh() now caps the prism at the
+## rotated shape's own *highest* point instead (_rotated_top_offset(), a new
+## sibling of _rotated_bottom_offset() below), so the column always reaches
+## from the disc up past the whole ghost, at any rotation -- the ghost sits
+## fully inside the column exactly like the original's own silhouette
+## (docs/original_single-block.png, docs/original_stacked-tower.png), not
+## just its lower half.
+## DECISION (game/GhostPreview.gd, Bontago-xtq.9): _rotated_top_offset() uses
+## the *visual* mesh's own full cube_size (matching BlockMeshBuilder.
+## build_mesh()'s own `half: float = cube_size * 0.5`, core/blocks/
+## BlockMeshBuilder.gd), not _rotated_bottom_offset()'s cube_margin-shrunk
+## collision half_size -- the prism's job is to visually contain the
+## *rendered* shape, so it should match the rendered shape's own true extent
+## exactly rather than the (deliberately smaller, so blocks don't jam)
+## physics box _rotated_bottom_offset() measures for placement.
+##
+## Bontago-xtq.10 (owner test 2026-09-23, "the projection colour is right but
+## any surface that falls within the projection should be a lot brighter
+## (maybe emissive?), and the footprint on the disc should be almost white."):
+## two more independent fixes, both purely visual.
+## (1) The flat footprint decal (_footprint_color_for_state()) is now
+## ghost_tuning.footprint_base_color (near-white) with only a faint amount of
+## the current validity state's own hue blended in
+## (ghost_tuning.footprint_hue_strength), at a higher footprint_alpha (0.55 ->
+## 0.85) -- previously it was the *same* full state colour the held shape's
+## own body shows, just more transparent, so it never read as the original's
+## own bright ground marker.
+## (2) The projection prism's own material (_projection_material) now blends
+## additively (BaseMaterial3D.BLEND_MODE_ADD, _ready()) and emits its own
+## light (emission_enabled, driven every refresh by
+## ghost_tuning.projection_emission_energy in _apply_projection_material())
+## instead of the usual alpha-over translucency -- a surface seen through the
+## column now brightens instead of just being tinted over, matching the
+## brief's own "a lot brighter (maybe emissive?)" wording. DECISION
+## (game/GhostPreview.gd, Bontago-xtq.10): a per-block emission hook on
+## BlockFactory/Block.gd (outside this package's default ownership) was
+## considered and rejected in favour of this material-only change -- it
+## reaches the same brightening effect with no gameplay-code touch at all,
+## confined entirely to this file/config/GhostTuning.gd.
+##
 ## Rotation is stored as an integer index over the 24 axis-aligned cube
 ## orientations (core/blocks/BlockOrientations.gd) plus a separate free-
 ## rotation quaternion layered on top. Resetting clears the quaternion and
@@ -205,6 +257,16 @@ func _ready() -> void:
 	_projection_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_projection_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_projection_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	# Bontago-xtq.10 (owner test 2026-09-23, "any surface that falls within
+	# the projection should be a lot brighter (maybe emissive?)"): additive
+	# blending sums the prism's own colour onto whatever already rendered
+	# behind it instead of the usual alpha-over mix, so a surface seen
+	# through the column reads brighter, not just tinted -- combined with
+	# emission_enabled below (_apply_projection_material() drives both the
+	# emission colour and ghost_tuning.projection_emission_energy every
+	# refresh), matching the brief's own "additive blend / emission" wording.
+	_projection_material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	_projection_material.emission_enabled = true
 
 	_projection_mesh = MeshInstance3D.new()
 	_projection_mesh.material_override = _projection_material
@@ -332,6 +394,36 @@ func _rotated_bottom_offset() -> float:
 	return 0.0 if min_y == INF else min_y
 
 
+## Bontago-xtq.9 (this file's own header, fix (2)): the mirror image of
+## _rotated_bottom_offset() above -- how far *above* this node's own local
+## origin the current, rotated shape's *highest* point sits, so
+## _update_projection_mesh() can cap the projection prism there instead of at
+## the shape's lowest point (correct for an unrotated shape, wrong for a
+## pitched/yawed one -- this file's own header). Always >= 0 for the same
+## reason _rotated_bottom_offset() is always <= 0: the origin itself is
+## always a point on the shape's own surface.
+## DECISION (game/GhostPreview.gd, Bontago-xtq.9): uses the *visual* mesh's
+## own full cube_size (`half_size = tuning.cube_size * 0.5`, matching
+## core/blocks/BlockMeshBuilder.gd's build_mesh()), not
+## _rotated_bottom_offset()'s cube_margin-shrunk collision half_size -- the
+## prism's job is to contain the *rendered* shape the player actually sees,
+## so its top should match that shape's true rendered extent, not the
+## slightly smaller physics box.
+func _rotated_top_offset() -> float:
+	if _shape == null or _shape.cells.is_empty():
+		return 0.0
+	var half_size: float = tuning.cube_size * 0.5
+	var pivot: Vector3 = _shape.bottom_center()
+	var max_y: float = -INF
+	for cell: Vector3i in _shape.cells:
+		var local: Vector3 = (Vector3(cell) - pivot) * tuning.cube_size
+		for corner_sign: Vector3 in _CORNER_SIGNS:
+			var corner: Vector3 = local + corner_sign * half_size
+			var rotated_y: float = (basis * corner).y
+			max_y = maxf(max_y, rotated_y)
+	return 0.0 if max_y == -INF else max_y
+
+
 ## Bontago-mv0.28 (owner report 2026-09-22, "when rotating the block the
 ## camera adjusts; lock the camera to the center of the box without messing
 ## up the bottom center"): how far this node's own local origin (still
@@ -449,18 +541,24 @@ func _update_footprint() -> void:
 
 
 ## Bontago-xtq.7 (this file's own header, fix (2)): the vertical walls of a
-## prism running from the held shape's own current lowest world point (the
-## ghost visual's own underside -- exactly what _rotated_bottom_offset() also
-## measures, added back onto global_position.y) down to `landing_y` (the
-## footprint's own disc height, just computed by _update_footprint()), traced
-## around `hull`'s edges in world XZ. No top or bottom cap: the shape's own
-## body already covers the top, and the flat footprint quad already covers
-## the bottom, so this is only ever the side walls -- a plain vertical
-## extrusion (not tilted to match the ghost's own rotation) exactly like the
-## original's own straight-down silhouette (docs/original_in-game.png), not a
-## rotated tube.
+## prism running from `landing_y` (the footprint's own disc height, just
+## computed by _update_footprint()) up to the held shape's own current
+## highest world point, traced around `hull`'s edges in world XZ. No bottom
+## cap: the flat footprint quad already covers it, so this is only ever the
+## side walls -- a plain vertical extrusion (not tilted to match the ghost's
+## own rotation) exactly like the original's own straight-down silhouette
+## (docs/original_in-game.png), not a rotated tube.
+## Bontago-xtq.9 (this file's own header, fix (2)): the top cap used to be
+## the shape's own *lowest* point (_rotated_bottom_offset()) -- right for an
+## unrotated shape, but for a pitched/yawed one that point sits partway
+## through the shape rather than above it, so the prism used to cut through
+## an angled ghost instead of surrounding it. Now uses _rotated_top_offset()
+## (the shape's own *highest* point) instead, so the column always reaches
+## from the disc past the whole ghost, at any rotation -- no top cap mesh is
+## added either way (same reasoning as the "no bottom cap" note above: the
+## shape's own body already renders that surface).
 func _update_projection_mesh(hull: PackedVector2Array, landing_y: float) -> void:
-	var top_y: float = global_position.y + _rotated_bottom_offset()
+	var top_y: float = global_position.y + _rotated_top_offset()
 	var bottom_y: float = landing_y
 	_projection_span_y = Vector2(top_y, bottom_y)
 	if top_y - bottom_y <= ghost_tuning.footprint_offset:
@@ -643,8 +741,11 @@ func footprint_polygon_world(index: int) -> PackedVector2Array:
 ## For tests: the world-space Y span (top, bottom) the projection prism
 ## currently covers -- Vector2.ZERO when nothing is held or the prism
 ## collapsed (see _update_projection_mesh()'s own guard). `top` is always the
-## held shape's own current lowest point (matches _rotated_bottom_offset()'s
-## own contract); `bottom` is the footprint's own landing height.
+## held shape's own current *highest* point (Bontago-xtq.9: matches
+## _rotated_top_offset()'s own contract, not _rotated_bottom_offset()'s);
+## `bottom` is the footprint's own landing height. These are exactly the Y
+## extremes _build_prism_mesh() uses for every wall vertex, so this is also
+## the prism mesh's own world-space AABB Y span.
 func projection_span_y() -> Vector2:
 	return _projection_span_y
 
@@ -760,11 +861,14 @@ func _apply_validity_material() -> void:
 			_material.albedo_color = ghost_tuning.invalid_tint_color
 
 
-## Bontago-mv0.17 item 6: the footprint quads get the same validity/lock
-## colours as the held shape's own body (_apply_validity_material() above),
-## just at ghost_tuning.footprint_alpha instead of each state's own baked-in
-## alpha -- a whole-footprint decal reads better a bit more transparent than
-## the held shape itself, and every footprint quad shares this one material.
+## Bontago-mv0.17 item 6: the footprint quads get a validity/lock cue tied to
+## the held shape's own body state (_apply_validity_material() above), at
+## ghost_tuning.footprint_alpha -- every footprint quad shares this one
+## material. Bontago-xtq.10 (owner test 2026-09-23, "the footprint on the
+## disc should be almost white"): that cue is now only a faint hue blended
+## into a near-white base (_footprint_color_for_state()'s own doc), not the
+## full state colour the held shape's own body still shows -- see this same
+## file's _state_hue_color() for the one shared lookup both now use.
 func _apply_footprint_material() -> void:
 	if _footprint_material == null:
 		return
@@ -785,23 +889,42 @@ func current_footprint_tint_color() -> Color:
 	return _footprint_material.albedo_color if _footprint_material != null else Color.WHITE
 
 
-func _footprint_color_for_state() -> Color:
+## Bontago-xtq.10 (owner test 2026-09-23, "the projection colour is right"):
+## the raw, un-alpha'd, un-blended state colour -- valid/invalid/hole/locked,
+## exactly what _apply_validity_material() picks for the held shape's own
+## body -- factored out of the old _footprint_color_for_state() so both the
+## footprint (now blended toward near-white below) and the projection prism
+## (still the plain state colour, just fainter and additive) can share one
+## lookup instead of drifting apart.
+func _state_hue_color() -> Color:
 	if _locked:
-		return _with_alpha(ghost_tuning.locked_tint_color, ghost_tuning.footprint_alpha)
+		return ghost_tuning.locked_tint_color
 	match _last_result:
 		PlacementRules.Result.VALID:
-			return _with_alpha(_player_color, ghost_tuning.footprint_alpha)
+			return _player_color
 		PlacementRules.Result.HOLE, PlacementRules.Result.GOAL_ZONE:
-			return _with_alpha(ghost_tuning.hole_tint_color, ghost_tuning.footprint_alpha)
+			return ghost_tuning.hole_tint_color
 		_:
-			return _with_alpha(ghost_tuning.invalid_tint_color, ghost_tuning.footprint_alpha)
+			return ghost_tuning.invalid_tint_color
+
+
+## Bontago-xtq.10 (owner test 2026-09-23, "the footprint on the disc should
+## be almost white"): the footprint decal is now ghost_tuning.
+## footprint_base_color (near-white) with only a faint amount of the current
+## state's own hue blended in (footprint_hue_strength), rather than the full
+## state colour this used to return directly -- validity is still readable
+## (a hint of red/grey/gold tints the near-white disc), just far more subtle
+## than the held shape's own body or the projection prism now are.
+func _footprint_color_for_state() -> Color:
+	var blended: Color = ghost_tuning.footprint_base_color.lerp(_state_hue_color(), ghost_tuning.footprint_hue_strength)
+	return _with_alpha(blended, ghost_tuning.footprint_alpha)
 
 
 ## Bontago-xtq.7 (this file's own header, fix (2)): the projection prism's own
 ## walls, at ghost_tuning.projection_alpha instead of footprint_alpha -- the
 ## brief calls for a noticeably fainter volume marker than the flat footprint
 ## decal it stands on. DECISION (game/GhostPreview.gd): reuses
-## _footprint_color_for_state()'s own state colour when
+## _state_hue_color()'s own plain state colour when
 ## ghost_tuning.projection_uses_state_tint is true (the default -- the owner
 ## report's own reference screenshot, docs/original_in-game.png, tints its
 ## silhouette prism the same as everything else the ghost shows), just at the
@@ -809,20 +932,52 @@ func _footprint_color_for_state() -> Color:
 ## a state-neutral prism (always the base tint_color) without a second
 ## migration, the same reasoning already used for several other GhostTuning
 ## fields' own master-switch DECISIONs in this file/config/GhostTuning.gd.
+## Bontago-xtq.10 (owner test 2026-09-23, "any surface that falls within the
+## projection should be a lot brighter (maybe emissive?)"): the prism's own
+## _projection_material now blends additively (BLEND_MODE_ADD, _ready())
+## rather than the usual alpha-over compositing, and this also drives its
+## emission colour at ghost_tuning.projection_emission_energy -- both make
+## the column brighten whatever is behind/inside it instead of just tinting
+## over it. DECISION (game/GhostPreview.gd, Bontago-xtq.10): a per-block
+## emission hook on BlockFactory/Block.gd (outside this package's ownership)
+## was considered and rejected -- the prism material approach here achieves
+## the brief's own brightening effect with a purely visual, self-contained
+## change to this package's own material, with no gameplay-code touch at all.
 func _apply_projection_material() -> void:
 	if _projection_material == null:
 		return
-	if ghost_tuning.projection_uses_state_tint:
-		var state_color: Color = _footprint_color_for_state()
-		_projection_material.albedo_color = _with_alpha(state_color, ghost_tuning.projection_alpha)
-	else:
-		_projection_material.albedo_color = _with_alpha(ghost_tuning.tint_color, ghost_tuning.projection_alpha)
+	var state_color: Color = _state_hue_color() if ghost_tuning.projection_uses_state_tint else ghost_tuning.tint_color
+	_projection_material.albedo_color = _with_alpha(state_color, ghost_tuning.projection_alpha)
+	_projection_material.emission = Color(state_color.r, state_color.g, state_color.b)
+	_projection_material.emission_energy_multiplier = ghost_tuning.projection_emission_energy
 
 
 ## For tests: the projection prism's own current tint colour (see
 ## current_footprint_tint_color() for the flat footprint decal's own colour).
 func current_projection_tint_color() -> Color:
 	return _projection_material.albedo_color if _projection_material != null else Color.WHITE
+
+
+## For tests: the projection prism's own current emission colour
+## (Bontago-xtq.10 -- see ghost_tuning.projection_emission_energy for its
+## strength and projection_uses_additive_blend()/projection_emission_enabled()
+## for the material settings that make it actually brighten what's behind it).
+func current_projection_emission_color() -> Color:
+	return _projection_material.emission if _projection_material != null else Color.BLACK
+
+
+## For tests: whether the projection prism material blends additively
+## (BaseMaterial3D.BLEND_MODE_ADD) instead of the usual alpha-over
+## compositing (Bontago-xtq.10, owner test 2026-09-23: "any surface that
+## falls within the projection should be a lot brighter").
+func projection_uses_additive_blend() -> bool:
+	return _projection_material != null and _projection_material.blend_mode == BaseMaterial3D.BLEND_MODE_ADD
+
+
+## For tests: whether the projection prism material emits its own light
+## (Bontago-xtq.10) on top of the additive blend above.
+func projection_emission_enabled() -> bool:
+	return _projection_material != null and _projection_material.emission_enabled
 
 
 func _with_alpha(color: Color, alpha: float) -> Color:
