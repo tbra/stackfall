@@ -58,6 +58,7 @@ func before_each() -> void:
 func after_each() -> void:
 	Match.abort_match()
 	Match.set_process(true)
+	MatchTestReset.clear_world()
 
 
 ## Every MatchConfig this file hands to Match.start_match() goes through this

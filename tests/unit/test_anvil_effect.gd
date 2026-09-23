@@ -157,6 +157,7 @@ var _blocks_root: Node3D = null
 
 func after_each() -> void:
 	Match.abort_match()
+	MatchTestReset.clear_world()
 
 
 func _register_spy_field() -> SpyField:

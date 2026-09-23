@@ -40,6 +40,7 @@ func after_each() -> void:
 	for child: Node in _blocks_root.get_children():
 		child.free()
 	Match.set_process(true)
+	MatchTestReset.clear_world()
 	# Belt and suspenders: anything else this test's own spawns left queued
 	# for a deferred free (Godot's own internal bookkeeping, not this file's
 	# code) gets a real idle frame to run before GUT's end-of-script orphan

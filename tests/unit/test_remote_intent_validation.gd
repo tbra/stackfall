@@ -65,6 +65,7 @@ func after_each() -> void:
 	Match.set_replicator(null)
 	Match.abort_match()
 	Match.set_process(true)
+	MatchTestReset.clear_world()
 
 
 ## A listen-server host (peer 1, slot 0) with one remote client (peer 2,

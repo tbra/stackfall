@@ -75,6 +75,7 @@ var _registry: BlockRegistry = null
 
 func after_each() -> void:
 	Match.abort_match()
+	MatchTestReset.clear_world()
 
 
 func _register_spy_field() -> SpyField:
