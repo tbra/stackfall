@@ -212,7 +212,7 @@ func test_start_clamps_player_count_to_connected_peers() -> void:
 	assert_signal_emitted(lobby, "start_requested")
 	var config: MatchConfig = get_signal_parameters(lobby, "start_requested")[0]
 	assert_eq(config.player_count, 2, "no slot may be left without a connected peer")
-	assert_eq(config.ai_count, 0, "bots don't exist until M5")
+	assert_eq(config.ai_count, 0, "match_defaults.tres ships ai_count = 0, so no bots were requested")
 
 
 func test_start_does_not_shrink_player_count_below_connected_peers() -> void:
