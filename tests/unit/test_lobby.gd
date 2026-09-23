@@ -266,6 +266,58 @@ func test_roster_in_lobby_data_builds_player_rows() -> void:
 	assert_eq(list.get_child_count(), 2)
 
 
+## M5 P4 (docs/M5_PLAN.md, Bontago-d5c.5): the host's own outbound
+## _build_roster() must append one synthetic row per bot seat -- slot_id
+## running from player_count - ai_count up, matching autoload/match/
+## MatchLifecycle.gd's _build_slots() formula for PlayerSlot.is_bot -- so the
+## lobby preview and the eventual real match slots never disagree about
+## which ids are bots.
+func test_build_roster_appends_bot_rows_for_ai_count() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var fake: FakeNet = _fake_of(lobby)
+	fake.slots_by_peer = {1: 0, 2: 1, 3: 2, 4: 3}  # 4 connected peers
+	(lobby.get_node("%PlayerCountSpin") as SpinBox).value = 6
+	(lobby.get_node("%AiCountSpin") as SpinBox).value = 2
+
+	var calls: Array[Dictionary] = fake.set_lobby_data_calls
+	var roster: Array = calls[calls.size() - 1].get("roster") as Array
+	assert_eq(roster.size(), 6, "4 connected peers + 2 bot seats")
+	var bot_one: Dictionary = roster[4] as Dictionary
+	var bot_two: Dictionary = roster[5] as Dictionary
+	assert_eq(int(bot_one.get("slot_id")), 4)
+	assert_eq(int(bot_two.get("slot_id")), 5)
+	assert_eq(str(bot_one.get("name")), "Bot 1 (Normal)")
+	assert_eq(str(bot_two.get("name")), "Bot 2 (Normal)")
+	assert_true(bool(bot_one.get("ready")))
+	assert_true(bool(bot_two.get("ready")))
+
+
+## The Start gate must stay peer-only: bot rows are always ready, but a
+## lobby with connected humans who haven't checked Ready still can't Start.
+func test_bot_rows_do_not_affect_all_peers_ready() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var fake: FakeNet = _fake_of(lobby)
+	fake.slots_by_peer = {1: 0, 2: 1, 3: 2, 4: 3}
+	fake.all_peers_ready_value = false
+	(lobby.get_node("%PlayerCountSpin") as SpinBox).value = 6
+	(lobby.get_node("%AiCountSpin") as SpinBox).value = 2
+	lobby._update_host_only_state()
+	assert_true((lobby.get_node("%StartButton") as Button).disabled,
+		"bot rows are always ready, but that must not open the gate for not-ready humans")
+
+
+func test_build_roster_has_no_bot_rows_when_ai_count_is_zero() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var fake: FakeNet = _fake_of(lobby)
+	fake.slots_by_peer = {1: 0, 2: 1}
+	(lobby.get_node("%PlayerCountSpin") as SpinBox).value = 2
+	(lobby.get_node("%AiCountSpin") as SpinBox).value = 0
+
+	var calls: Array[Dictionary] = fake.set_lobby_data_calls
+	var roster: Array = calls[calls.size() - 1].get("roster") as Array
+	assert_eq(roster.size(), 2, "no bot rows when ai_count is 0")
+
+
 # --- Invite Friends (docs/M3b_PLAN.md P3) -------------------------------------
 
 func test_invite_friends_button_hidden_when_not_a_steam_session() -> void:

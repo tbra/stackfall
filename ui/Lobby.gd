@@ -196,7 +196,7 @@ func _on_setting_changed() -> void:
 func _publish_lobby_data(config: MatchConfig) -> void:
 	config.sanitize()
 	var data: Dictionary = config.to_dict()
-	data["roster"] = _build_roster()
+	data["roster"] = _build_roster(config)
 	net_provider.set_lobby_data(data)
 	_apply_data(data)
 
@@ -295,7 +295,14 @@ func _on_lobby_data_changed(data: Dictionary) -> void:
 
 # --- Player list / ready / start --------------------------------------------
 
-func _build_roster() -> Array[Dictionary]:
+## Difficulty labels for the synthetic bot rows _build_roster() appends
+## below, in MatchConfig.AiDifficulty enum order (EASY, NORMAL, HARD) -- the
+## same order _populate_options() fills %AiDifficultyOption with, so
+## config.ai_difficulty indexes both consistently (P4, Bontago-d5c.5).
+const _AI_DIFFICULTY_LABELS: Array[String] = ["Easy", "Normal", "Hard"]
+
+
+func _build_roster(config: MatchConfig) -> Array[Dictionary]:
 	var roster: Array[Dictionary] = []
 	if net_provider == null:
 		return roster
@@ -306,6 +313,26 @@ func _build_roster() -> Array[Dictionary]:
 			"slot_id": int(info.get("slot_id", -1)),
 			"name": str(info.get("name", "")),
 			"ready": bool(info.get("ready", false)),
+		})
+	# M5 P4 (docs/M5_PLAN.md): one synthetic row per bot seat, slot_id running
+	# from player_count - ai_count to player_count - 1 -- the same formula
+	# autoload/match/MatchLifecycle.gd's _build_slots() uses for
+	# PlayerSlot.is_bot, so the lobby preview and the real match slots never
+	# disagree about which ids are bots. A bot has no connected peer behind
+	# it to ready up, so ready is always true; Net.all_peers_ready() only
+	# ever iterates real peers (its own header), so this can never let an
+	# unready human's Start gate open.
+	var difficulty: String = _AI_DIFFICULTY_LABELS[
+		clampi(config.ai_difficulty, 0, _AI_DIFFICULTY_LABELS.size() - 1)
+	]
+	var bot_start: int = config.player_count - config.ai_count
+	for slot_id: int in range(bot_start, config.player_count):
+		var bot_index: int = slot_id - bot_start + 1
+		roster.append({
+			"peer_id": -1,
+			"slot_id": slot_id,
+			"name": "Bot %d (%s)" % [bot_index, difficulty],
+			"ready": true,
 		})
 	return roster
 
