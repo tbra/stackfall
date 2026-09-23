@@ -107,6 +107,18 @@ signal gift_claimed(gift_id: int, slot_id: int, special_id: StringName)
 ## A crate lived past GiftConfig.life_s without being claimed.
 signal gift_expired(gift_id: int)
 
+## M4 P2c (docs/M4_P2_PACKAGES.md, orchestrator amendment 2): a spawned
+## special (placed or thrown) triggered -- game/specials/SpecialBehavior.gd
+## emits its own `triggered(def_id, position, chain_depth)` signal per
+## instance; autoload/match/MatchPlacement.gd connects every behaviour it
+## attaches to a forwarder that re-emits it here with the block's net_id
+## added, so a listener can tell which block without holding a live reference
+## to it. Host-only: only the host ever attaches a SpecialBehavior (a client
+## never calls _spawn_block() -- decision 4 in docs/M4_P2_PACKAGES.md).
+## net/MatchNet.gd (Bontago-1en.17, not this package) replicates it to
+## clients from here.
+signal special_triggered(net_id: int, def_id: StringName, position: Vector3, chain_depth: int)
+
 # --- M3a: session and transport (spec 3.4) ----------------------------------
 
 ## Net changed between OFFLINE, HOST and CLIENT. `mode` is a Net.Mode value.
