@@ -22,6 +22,8 @@ var _saved_friction: float
 var _saved_bounce: float
 var _saved_linear_damp: float
 var _saved_angular_damp: float
+var _saved_cube_mass: float
+var _saved_rebound_damping: float
 var _saved_follow_block: bool
 var _saved_follow_distance: float
 var _saved_max_cell_toggles: int
@@ -38,6 +40,8 @@ func before_each() -> void:
 	_saved_bounce = _panel.physics_tuning.block_bounce
 	_saved_linear_damp = _panel.physics_tuning.block_linear_damp
 	_saved_angular_damp = _panel.physics_tuning.block_angular_damp
+	_saved_cube_mass = _panel.physics_tuning.cube_mass
+	_saved_rebound_damping = _panel.physics_tuning.rebound_damping
 	_saved_follow_block = _panel.camera_tuning.follow_block
 	_saved_follow_distance = _panel.camera_tuning.follow_distance
 	_saved_max_cell_toggles = _panel.territory_tuning.max_cell_toggles_per_frame
@@ -51,6 +55,8 @@ func after_each() -> void:
 	_panel.physics_tuning.block_bounce = _saved_bounce
 	_panel.physics_tuning.block_linear_damp = _saved_linear_damp
 	_panel.physics_tuning.block_angular_damp = _saved_angular_damp
+	_panel.physics_tuning.cube_mass = _saved_cube_mass
+	_panel.physics_tuning.rebound_damping = _saved_rebound_damping
 	_panel.camera_tuning.follow_block = _saved_follow_block
 	_panel.camera_tuning.follow_distance = _saved_follow_distance
 	_panel.territory_tuning.max_cell_toggles_per_frame = _saved_max_cell_toggles
@@ -66,11 +72,12 @@ func after_each() -> void:
 
 # --- Reflection: one control per exported field ------------------------------
 
-## PhysicsTuning is 14 plain floats and nothing else (config/PhysicsTuning.gd)
-## -- no Color/Array/bool fields to complicate the count -- so it is the
-## clean "one control per numeric field" fixture the design brief asks for.
+## PhysicsTuning is 15 plain floats and nothing else (config/PhysicsTuning.gd,
+## Bontago-xtq.17 added rebound_damping) -- no Color/Array/bool fields to
+## complicate the count -- so it is the clean "one control per numeric field"
+## fixture the design brief asks for.
 func test_physics_tab_builds_one_control_per_exported_float_field() -> void:
-	assert_eq(_panel.row_count_for(_panel.physics_tuning), 14)
+	assert_eq(_panel.row_count_for(_panel.physics_tuning), 15)
 
 
 func test_float_field_gets_an_hslider() -> void:
@@ -160,6 +167,48 @@ func test_apply_physics_live_updates_an_existing_blocks_damping_material_and_gra
 	assert_almost_eq(block.physics_material_override.friction, 0.11, 0.0001)
 	assert_almost_eq(block.physics_material_override.bounce, 0.22, 0.0001)
 	assert_almost_eq(block.gravity_scale, 1.9, 0.0001)
+
+
+# --- Bontago-xtq.17: Physics preset dropdown ---------------------------------
+
+func test_physics_tab_has_a_preset_option_button_with_three_presets() -> void:
+	var physics_tab: Control = _panel._tab_container.get_node("Physics")
+	var found: Array[Node] = physics_tab.find_children("*", "OptionButton", true, false)
+	assert_eq(found.size(), 1)
+	assert_eq((found[0] as OptionButton).item_count, 3)
+
+
+func test_apply_physics_preset_copies_values_and_reapplies_live() -> void:
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block: Block = BlockFactory.build(shape, _panel.physics_tuning)
+	add_child_autofree(block)  # _ready() joins Block.TUNING_GROUP for real.
+
+	_panel.apply_physics_preset("heavy_bouncy")
+
+	var preset: PhysicsTuning = load("res://config/physics_presets/heavy_bouncy.tres")
+	assert_almost_eq(_panel.physics_tuning.cube_mass, preset.cube_mass, 0.0001)
+	assert_almost_eq(_panel.physics_tuning.gravity_multiplier, preset.gravity_multiplier, 0.0001)
+	assert_almost_eq(_panel.physics_tuning.rebound_damping, preset.rebound_damping, 0.0001)
+	assert_almost_eq(
+		block.gravity_scale, preset.gravity_multiplier, 0.0001,
+		"a preset pick must reach an already-standing block via apply_physics_live(), not just write the Resource."
+	)
+
+
+func test_apply_physics_preset_current_matches_the_shipped_defaults() -> void:
+	_panel.physics_tuning.gravity_multiplier = 99.0
+	_panel.physics_tuning.rebound_damping = 0.1
+
+	_panel.apply_physics_preset("current")
+
+	assert_almost_eq(_panel.physics_tuning.gravity_multiplier, _saved_gravity, 0.0001)
+	assert_almost_eq(_panel.physics_tuning.rebound_damping, 1.0, 0.0001)
+
+
+func test_apply_physics_preset_ignores_an_unknown_id() -> void:
+	var before: float = _panel.physics_tuning.gravity_multiplier
+	_panel.apply_physics_preset("not_a_real_preset")
+	assert_almost_eq(_panel.physics_tuning.gravity_multiplier, before, 0.0001)
 
 
 func test_a_slider_drag_reaches_an_already_placed_block_end_to_end() -> void:

@@ -12,6 +12,14 @@ extends Node3D
 ## Add --offset=x,z (metres, default 0,0) to shift the whole tower sideways
 ## before it drops, e.g. to straddle a cell seam:
 ##   godot --headless --path . res://tests/bench/bench_tower.tscn -- --offset=0.5,0
+##
+## Add --preset=<id> (Bontago-xtq.17 review fix SHOULD-FIX 2; id = a file stem
+## under config/physics_presets/, e.g. "heavy_bouncy") to run this bench
+## against one of ui/TuningPanel.gd's shipped presets instead of the default
+## shipped config/physics_tuning.tres -- a reproducible way to check a preset
+## doesn't collapse/never-sleep the same 40-cube tower, mirroring
+## test_physics_tuning.gd's own byte-identical "current" preset check:
+##   godot --headless --path . res://tests/bench/bench_tower.tscn -- --preset=heavy_bouncy
 
 const TOWER_HEIGHT: int = 40
 const RUN_SECONDS: float = 60.0
@@ -24,8 +32,15 @@ const TRACE_ARG_PREFIX: String = "--trace="
 const OFFSET_ARG_PREFIX: String = "--offset="
 ## Default --offset when the arg is absent.
 const DEFAULT_OFFSET: Vector2 = Vector2.ZERO
+## --preset=<id>; absent (the default) uses the shipped config/physics_tuning.tres.
+const PRESET_ARG_PREFIX: String = "--preset="
+## Where --preset=<id> resolves `<id>.tres` from.
+const PRESET_DIR: String = "res://config/physics_presets/"
 
 var _tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
+## Which tuning source produced `_tuning`, for the printed result line --
+## "shipped" (default) or the --preset= id.
+var _preset_label: String = "shipped"
 var _blocks: Array[RigidBody3D] = []
 var _tick: int = 0
 var _total_ticks: int = 0
@@ -43,6 +58,8 @@ func _ready() -> void:
 			_trace_every = arg.substr(TRACE_ARG_PREFIX.length()).to_int()
 		if arg.begins_with(OFFSET_ARG_PREFIX):
 			_offset = _parse_offset(arg.substr(OFFSET_ARG_PREFIX.length()))
+		if arg.begins_with(PRESET_ARG_PREFIX):
+			_apply_preset_arg(arg.substr(PRESET_ARG_PREFIX.length()))
 
 	var field: Field = Field.new()
 	add_child(field)
@@ -72,8 +89,8 @@ func _ready() -> void:
 
 	_top_start_position = _blocks[TOWER_HEIGHT - 1].global_position
 	print(
-		"BENCH_TOWER start blocks=%d duration_s=%.1f offset=%.3f,%.3f"
-		% [TOWER_HEIGHT, RUN_SECONDS, _offset.x, _offset.y]
+		"BENCH_TOWER start blocks=%d duration_s=%.1f offset=%.3f,%.3f preset=%s"
+		% [TOWER_HEIGHT, RUN_SECONDS, _offset.x, _offset.y, _preset_label]
 	)
 
 
@@ -84,6 +101,21 @@ func _parse_offset(value: String) -> Vector2:
 	if parts.size() != 2:
 		return DEFAULT_OFFSET
 	return Vector2(parts[0].to_float(), parts[1].to_float())
+
+
+## Loads `config/physics_presets/<id>.tres` and replaces `_tuning` with it,
+## called from _ready() before any block is built -- so every block this
+## bench spawns is built from the requested preset, not the shipped default.
+## An id that doesn't resolve to a real preset .tres is reported and left on
+## the shipped default rather than silently mis-running with a null tuning.
+func _apply_preset_arg(preset_id: String) -> void:
+	var path: String = PRESET_DIR + preset_id + ".tres"
+	var preset: PhysicsTuning = ResourceLoader.load(path) as PhysicsTuning
+	if preset == null:
+		push_error("BENCH_TOWER --preset=%s did not resolve a PhysicsTuning at %s; using the shipped default." % [preset_id, path])
+		return
+	_tuning = preset
+	_preset_label = preset_id
 
 
 func _physics_process(_delta: float) -> void:
@@ -129,10 +161,10 @@ func _report_result(passed: bool, all_asleep: bool) -> void:
 	print(
 		(
 			"BENCH_TOWER result=%s blocks=%d duration_s=%.1f max_top_drift_m=%.5f "
-			+ "all_asleep=%s asleep_at_s=%s offset=%.3f,%.3f"
+			+ "all_asleep=%s asleep_at_s=%s offset=%.3f,%.3f preset=%s"
 		) % [
 			"PASS" if passed else "FAIL", TOWER_HEIGHT, RUN_SECONDS, _max_top_drift, all_asleep,
-			_seconds_label(_first_all_asleep_tick), _offset.x, _offset.y,
+			_seconds_label(_first_all_asleep_tick), _offset.x, _offset.y, _preset_label,
 		]
 	)
 

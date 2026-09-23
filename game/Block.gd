@@ -46,9 +46,47 @@ const IMPACT_EMIT_INTERVAL_MS: int = 120
 var _last_impact_emit_ms: int = -1000000
 var _prev_linear_velocity: Vector3 = Vector3.ZERO
 
+## Bontago-xtq.17 (owner feel report "heavier and more bouncy, but a dropped
+## block shouldn't just bounce straight up again"): the live PhysicsTuning
+## this Block was built from, kept only so _integrate_forces() below can read
+## rebound_damping without a scene-tree/group lookup every physics step. Set
+## once by BlockFactory.build() and refreshed by apply_physics_tuning() below,
+## so the live-apply path (ui/TuningPanel.gd's apply_physics_live(), driven by
+## a preset pick or a slider drag) keeps it current for a block that's
+## already standing. Null-safe: a bare Block never built through
+## BlockFactory (none exist today, but nothing stops it) just never damps its
+## rebound, the same as rebound_damping's own 1.0 no-op default.
+var tuning: PhysicsTuning = null
+
+## Previous physics step's post-solve vertical velocity, tracked only for the
+## rebound-damping heuristic below -- the same "compare this tick's velocity
+## against last tick's" idiom the impact-audio code above already uses (see
+## its own DECISION), kept on a separate variable because this one is read
+## and written from _integrate_forces() (runs once per physics step, before
+## the engine commits the body's new velocity) rather than _physics_process()
+## (runs after).
+var _prev_step_linear_velocity_y: float = 0.0
+
+## Review fix (Bontago-xtq.17 SHOULD-FIX 1): set by kick()/mark_script_kick()
+## below, consumed (and cleared) by the very next _integrate_forces() call.
+## See kick()'s own doc comment for what this is for.
+var _script_kick_pending: bool = false
+
 
 func _ready() -> void:
 	add_to_group(TUNING_GROUP)
+	if tuning == null:
+		# Review fix (Bontago-xtq.17 SHOULD-FIX 3): game/BlockFactory.gd's
+		# build() now sets `block.tuning = tuning` itself (its own build()
+		# doc comment), so this fallback only matters for a bare Block never
+		# built through that factory (e.g. Block.new() directly in a test) --
+		# it defaults such a block to the shared preloaded
+		# config/physics_tuning.tres instance rather than leaving `tuning`
+		# null (rebound_damping would just never apply otherwise, the same
+		# no-op as tuning == null everywhere below already handles safely,
+		# but every real gameplay default should still get the shipped
+		# rebound-damping behavior instead of silently opting out of it).
+		tuning = preload("res://config/physics_tuning.tres")
 
 
 ## Sleeping bodies (a settled pile) skip this entirely -- Jolt stops
@@ -75,6 +113,130 @@ func _physics_process(_delta: float) -> void:
 	Events.block_impacted.emit(decel)
 
 
+## Bontago-xtq.17: damps only a fresh bounce's straight-up (world Y) velocity,
+## leaving horizontal and angular velocity alone so block_bounce still gives
+## lateral/tumbling liveliness off a corner or edge hit -- see
+## config/PhysicsTuning.gd's rebound_damping DECISION for why this can't just
+## be a lower Jolt restitution. Runs every physics step regardless of
+## contact_monitor (RigidBody3D always calls a script's _integrate_forces()
+## override once per step it isn't sleeping; no signal/contact-report setup
+## needed) -- Block._physics_process's own DECISION above is why
+## contact_monitor itself stays off. A client's synced blocks are frozen
+## (RigidBody3D.FREEZE_MODE_KINEMATIC, net/SnapshotSync.gd's freeze_body()),
+## so Jolt never integrates them and this never runs there -- host-only
+## follows from "only the host runs physics" (CLAUDE.md) without this file
+## needing to ask Net anything.
+##
+## Review fix (Bontago-xtq.17 SHOULD-FIX 1): a special effect's own
+## intentional velocity write (a Jumping Bean hop, a Rocket's continuous
+## thrust tick, a Propeller lift start, an explosion's apply_impulse) can also
+## flip a block's vertical velocity from falling to rising -- indistinguishable
+## from a real bounce to the heuristic below unless the writer says so.
+## `_script_kick_pending` is that signal: kick()/mark_script_kick() below set
+## it, this function consumes (and clears) it before ever reaching
+## _damp_rebound(), so exactly the one step a special's own write lands on is
+## passed through untouched, and every step after goes back to the normal
+## heuristic.
+##
+## DECISION (game/Block.gd): a flag consumed on the very next
+## _integrate_forces() call, not a real contact-detection signal
+## (contact_monitor/body_entered), for the same reason contact_monitor stays
+## off project-wide (this function's own opening DECISION: ~5-7 ms/step at
+## 300 blocks, measured, well over budget) -- a flag costs one bool check and
+## needs no per-body contact reporting turned on at all. It is also strictly
+## narrower than "any velocity write": only a caller that explicitly opts in
+## (kick()/mark_script_kick()) skips damping for that step; anything that
+## writes `linear_velocity`/`apply_impulse()` without calling either still
+## gets the normal bounce heuristic, so a bug elsewhere fails toward "damped
+## like a bounce" rather than silently exempting itself.
+##
+## DECISION (game/Block.gd): `state.linear_velocity` is only ever *written*
+## on the one step a bounce is actually being damped, never on every step
+## "just to reassign the same number" -- an earlier revision wrote it every
+## step (a no-op multiply by rebound_damping's own 1.0 default), and that
+## alone kept tests/unit/test_tower_placement.gd's 30-cube tower from ever
+## sleeping (still 30/30 awake after 10 s where it used to be 0/30):
+## RigidBody3D/Jolt apparently treats any script write to a body's velocity
+## from _integrate_forces() as an external disturbance for that step's sleep
+## bookkeeping, even when the value written is bit-for-bit identical to what
+## was already there. Reading `state.linear_velocity.y` every step to update
+## `_prev_step_linear_velocity_y` is safe (a read, not a write); only a real
+## bounce step's `state.linear_velocity.y = ...` assignment actually runs.
+##
+## DECISION (game/Block.gd): "a real bounce", not any sign flip at all --
+## _damp_rebound() below gates on tuning.sleep_linear_threshold (the same
+## settled-block speed floor spec 2.2 already defines, reused rather than
+## inventing a second magic number for "this is noise"). A stacked tower's
+## resting contacts flicker by a fraction of a mm/s of solver noise every
+## step (PhysicsTuning.gd's own long comment on this exact 40-chain's
+## fragility -- velocity_steps=192 and the tightened contact-cache threshold
+## in tools/bootstrap_project.gd), and reacting to that noise as a "bounce"
+## (bench_tower.tscn with rebound_damping=0.3, gravity_multiplier=1.4,
+## block_bounce=0.4: max_top_drift_m=117.97, all_asleep=false -- reproduced
+## against this exact combination) fed the tower a stream of tiny scripted
+## velocity writes it never needed and never recovered from. Gating out
+## anything at or below the settled-block speed floor (bounce_damping=0.3 at
+## the same tuning otherwise: max_top_drift_m=0.02210, all_asleep=true,
+## asleep_at_s=0.52 -- identical to the ungated tower's own baseline) fixed
+## it outright; see config/physics_presets/heavy_bouncy.tres for the shipped
+## values this was tuned against.
+func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
+	var current_y: float = state.linear_velocity.y
+	if _script_kick_pending:
+		# Review fix (Bontago-xtq.17 SHOULD-FIX 1): this step's velocity was
+		# just written by a special effect (kick()/mark_script_kick()), not
+		# produced by Jolt's own contact solver -- pass it through untouched
+		# and consume the flag so only THIS step is exempt.
+		_script_kick_pending = false
+	elif tuning != null and tuning.rebound_damping != 1.0:
+		var damped_y: float = _damp_rebound(
+			_prev_step_linear_velocity_y, current_y, tuning.rebound_damping, tuning.sleep_linear_threshold
+		)
+		if damped_y != current_y:
+			current_y = damped_y
+			state.linear_velocity.y = current_y
+	_prev_step_linear_velocity_y = current_y
+
+
+## Sets `linear_velocity` and marks the resulting step exempt from rebound
+## damping in one call -- the common case for a special effect that only ever
+## overwrites the whole vector (JumpingBeanEffect's hop, RocketEffect's thrust
+## tick). See mark_script_kick() below for the case that doesn't fit this
+## (a partial write like Propeller's `.y` component, or an external caller
+## that only has this Block as a plain RigidBody3D, like SpecialPhysics.
+## explode()).
+func kick(velocity: Vector3) -> void:
+	linear_velocity = velocity
+	mark_script_kick()
+
+
+## Marks the very next _integrate_forces() step as a script-driven velocity
+## write, not a natural bounce -- see _integrate_forces()'s own review-fix
+## DECISION above for why a flag, not contact detection. Call this right after
+## directly assigning/adding to `linear_velocity` (or apply_impulse()) from a
+## special effect, whenever kick() itself doesn't fit (PropellerEffect only
+## overwrites the Y component every tick; SpecialPhysics.explode() only has
+## the body it hits as a plain RigidBody3D, so it casts to Block first).
+func mark_script_kick() -> void:
+	_script_kick_pending = true
+
+
+## Pure rebound-damping rule, static and scene-tree/physics-server-free so
+## tests/unit/test_physics_tuning.gd can check it directly without a real
+## physics step: a step whose vertical velocity flips from clearly falling
+## (`prev_step_y < -noise_floor`) to clearly rising (`current_y >
+## noise_floor`) is a fresh bounce off whatever is below the block -- scale
+## that step's rising velocity by `rebound_damping`. Every other case (still
+## falling, still rising from an earlier bounce, at rest, or a flicker too
+## small to be a real bounce) passes `current_y` through unchanged. See
+## _integrate_forces()'s own DECISION above for why the noise floor is
+## required, not just a nice-to-have.
+static func _damp_rebound(prev_step_y: float, current_y: float, rebound_damping: float, noise_floor: float) -> float:
+	if prev_step_y < -noise_floor and current_y > noise_floor:
+		return current_y * rebound_damping
+	return current_y
+
+
 ## Re-applies every PhysicsTuning number a live body would otherwise only
 ## ever read once, at BlockFactory.build() time: damping, the friction/bounce
 ## material, and gravity_scale (spec 2.8 "Gravity 0.5x-2x" -- BlockFactory.
@@ -84,6 +246,7 @@ func _physics_process(_delta: float) -> void:
 ## already accumulated, so there is no visible "kick", just a smooth change in
 ## how fast it keeps falling from here.
 func apply_physics_tuning(tuning: PhysicsTuning) -> void:
+	self.tuning = tuning
 	linear_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
 	angular_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
 	linear_damp = tuning.block_linear_damp

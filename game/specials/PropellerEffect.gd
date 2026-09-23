@@ -88,6 +88,13 @@ func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void
 		block.set_meta(_SETTLED_META, true)
 		block.set_meta(_START_AGE_META, behavior.age())
 	block.linear_velocity.y = lift_speed
+	# Review fix (Bontago-xtq.17 SHOULD-FIX 1): mark_script_kick(), not
+	# kick() -- this only overwrites the Y component (kick() would stomp any
+	# horizontal velocity the block already has). Without this, the very
+	# first lift tick (waking a just-settled, still-near-zero-velocity body)
+	# can read as a falling-to-rising transition and get scaled by
+	# PhysicsTuning.rebound_damping as if it were a real bounce.
+	block.mark_script_kick()
 	var field: Field = Match.field()
 	# No live Field registered (e.g. an isolated unit test that never called
 	# Match.register_world()): the lift itself and the elapsed-time

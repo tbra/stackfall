@@ -80,6 +80,46 @@ func test_gravity_scale_matches_the_shared_tunings_multiplier() -> void:
 	assert_almost_eq(block.gravity_scale, _tuning.gravity_multiplier, 0.0001)
 
 
+# --- Bontago-xtq.17 (rebound damping): BlockFactory wires its own tuning ----
+
+## Review fix (SHOULD-FIX 3): BlockFactory.build() sets `block.tuning =
+## tuning` itself, so a non-singleton PhysicsTuning instance (not the shared
+## preloaded config/physics_tuning.tres) is honored by Block._integrate_
+## forces()'s rebound-damping read from the moment build() returns -- before
+## the block ever joins the tree/runs _ready() at all.
+func test_block_factory_build_wires_its_own_tuning_parameter_immediately() -> void:
+	var custom_tuning: PhysicsTuning = PhysicsTuning.new()
+	custom_tuning.rebound_damping = 0.4
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block: Block = autofree(BlockFactory.build(shape, custom_tuning))
+	assert_same(
+		block.tuning, custom_tuning,
+		"BlockFactory.build() must wire its own tuning parameter onto the Block, not leave it null until _ready()."
+	)
+
+
+## The shared preloaded config/physics_tuning.tres instance every real spawn
+## path uses is what build() wires on (test's own `_tuning` is `load()`ed
+## from the same path, and Godot caches a Resource by path within one
+## process -- ui/TuningPanel.gd's own class doc relies on the same fact) --
+## _ready()'s own null-check fallback (see Block.gd) never even needs to run
+## for this, since `tuning` is already non-null by the time build() returns.
+func test_block_ready_wires_the_shared_physics_tuning_singleton() -> void:
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block: Block = autofree(BlockFactory.build(shape, _tuning))
+	add_child_autofree(block)  # runs _ready()
+	assert_same(block.tuning, load("res://config/physics_tuning.tres"))
+
+
+func test_block_ready_does_not_overwrite_a_tuning_set_before_it_joined_the_tree() -> void:
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block: Block = autofree(BlockFactory.build(shape, _tuning))
+	var custom_tuning: PhysicsTuning = PhysicsTuning.new()
+	block.tuning = custom_tuning
+	add_child_autofree(block)  # runs _ready()
+	assert_same(block.tuning, custom_tuning)
+
+
 ## A dedicated PhysicsTuning instance, not the shared preloaded resource (see
 ## test_playercontroller_mouse.gd's matching CameraTuning comment on why),
 ## since this test's whole point is a *non-default* multiplier.
