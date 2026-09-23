@@ -411,3 +411,12 @@ original fidelity, matching spec 2.6's own framing.
    per-special package to land (P5-EARTHQUAKE) also owns those test adjustments
    (`tests/unit/test_gift_claim.gd`, `test_match_net.gd`, `test_match_throw.gd`,
    `test_special_def.gd`) — later packages must not need any.
+
+5. **Correction (found by the Earthquake worker, 2026-09-23):** `Field.apply_tilt_impulse(direction,
+   magnitude)` takes a disk-local XZ *position* to push down on and maps it to a tilt-velocity
+   kick through the perpendicular map `Vector2(dz, -dx)`. `Field.tilt_vector()` is already in
+   that rotated space, so passing `-tilt.normalized()` as `direction` (the P5-EARTHQUAKE
+   pseudocode above) produces a kick orthogonal to the tilt — a torque, not leveling. To oppose
+   the tilt, pass the perpendicular of the normalized tilt (`Vector2(t.y, -t.x)`); the two
+   quarter-turns compose to a negation. `game/specials/EarthquakeEffect.gd` does this and
+   documents the derivation. Propeller and Anvil pass genuine disk positions and are unaffected.

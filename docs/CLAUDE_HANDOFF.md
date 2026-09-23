@@ -34,9 +34,10 @@ amendments), `docs/M4_SPECIALS_PACKAGES.md` (ten packages for the seven specials
   phase in `tests/bench/m3a_acceptance.gd` / `tools/run_m3a_local.ps1`). If the working tree
   shows those edits and `tools/run_gut.ps1 test_match_net,test_net_session,test_match_throw
   -Path M:/Bontago-worktrees/p2cw` is green, commit on the branch, merge, gate, close.
-- `M:/Bontago-worktrees/eq` (`wt/sp-earthquake`, base af8092c) — `Bontago-1en.4` Earthquake
-  effect + the roster-nonempty test adjustments (decision 4 in `docs/M4_SPECIALS_PACKAGES.md`).
-  Must merge BEFORE the Anvil.
+- `M:/Bontago-worktrees/eq` (`wt/sp-earthquake`, committed after the stop) — `Bontago-1en.4`
+  Earthquake effect + the roster-nonempty test adjustments, 128/128 targeted, open-editor
+  clean; ready to merge. Must merge BEFORE the Anvil. It also corrected the tilt-leveling
+  pseudocode (decision 5 in `docs/M4_SPECIALS_PACKAGES.md`).
 - `M:/Bontago-worktrees/anvil` (`wt/sp-anvil`, committed 755a419) — `Bontago-1en.5` Anvil,
   done (40/40); merge after Earthquake, then run the full suite once for the batch.
 
