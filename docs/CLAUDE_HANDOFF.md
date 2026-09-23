@@ -3,6 +3,65 @@
 Prepared 2026-09-18 from Git, Beads, project files and the interrupted local Claude
 session. This is a restart snapshot. Refresh live state; keep task progress in Beads.
 
+## Update 2026-09-23 (end of day) — resume here
+
+**Git:** `main` clean and pushed at the commit carrying this note. Owner's play copy
+`M:/Bontago-worktrees/play` (detached; move it with `git -C M:/Bontago-worktrees/play checkout
+--detach main`, then run `godot --headless --editor --path M:/Bontago-worktrees/play --quit`
+once so the class cache picks up new `class_name`s — a stale cache produced "Could not find
+type SpecialDef" script errors today). Owner feedback lives in the gitignored `feedback/`
+folder (F12 / pad MISC1 saves screenshots there; the owner also writes notes there):
+**check both `M:/Bontago/feedback/` and `M:/Bontago-worktrees/play/feedback/` on every
+worker return.** Reference screenshots of the original stay in `docs/original_*.png`.
+
+**Shipped today (all merged to main, full suite 945/945 at d5a0ab3, later commits are docs):**
+`Bontago-xtq.5` block mesh winding (every face was inverted), `mv0.28` camera follows the
+rotated centre + centre-corrected ghost collision sweep, `xtq.6` thin matte disk (0.2 m),
+`xtq.7` ghost as one clean solid + whole-shape projection prism + single hull footprint,
+`xtq.8` skybox faces drive the Environment sky (reflections/ambient), `02u` screenshot key,
+M4 P2a special interfaces (`config/specials/`, `game/specials/`), P2b pending-special FIFO
+queue with claim-time drawn id replicated on the wire (`Bontago-csc`), P2b-ii HUD queue
+indicator, P2c-i host-side `request_throw` + `ThrowRules` + spawn-time `SpecialBehavior`
+attachment (burned auto-drops keep the special queued). Owner answered z4h(b) mvl(a) 4fa(a)
+59u(b); SPEC §2.5/§2.6 updated. Design contracts: `docs/M4_P2_PACKAGES.md` (+ orchestrator
+amendments), `docs/M4_SPECIALS_PACKAGES.md` (ten packages for the seven specials; Beads
+1en.1-.8 + helpers 1en.18/.19/.20).
+
+**In flight when the owner stopped work (worktrees preserved, NOT merged):**
+- `M:/Bontago-worktrees/p2cw` (`wt/p2c-wire`, base d5a0ab3) — `Bontago-1en.17` P2c-ii throw
+  intent over the wire + `special_triggered` replication. Reviewed accept-with-nits; worker was
+  applying the fixes (args-length guard on the EVENT_SPECIAL_TRIGGERED arm; `--throw-pass`
+  phase in `tests/bench/m3a_acceptance.gd` / `tools/run_m3a_local.ps1`). If the working tree
+  shows those edits and `tools/run_gut.ps1 test_match_net,test_net_session,test_match_throw
+  -Path M:/Bontago-worktrees/p2cw` is green, commit on the branch, merge, gate, close.
+- `M:/Bontago-worktrees/eq` (`wt/sp-earthquake`, base af8092c) — `Bontago-1en.4` Earthquake
+  effect + the roster-nonempty test adjustments (decision 4 in `docs/M4_SPECIALS_PACKAGES.md`).
+  Must merge BEFORE the Anvil.
+- `M:/Bontago-worktrees/anvil` (`wt/sp-anvil`, committed 755a419) — `Bontago-1en.5` Anvil,
+  done (40/40); merge after Earthquake, then run the full suite once for the batch.
+
+**Owner's fourth test (2026-09-23, after d5a0ab3) — start here, all P1, unassigned:**
+`Bontago-xtq.9` ghost more opaque + prism encloses the whole angled ghost (extrude from its
+top); `xtq.10` surfaces inside the projection glow (emissive) and the disc footprint is
+near-white; `xtq.11` disc is an opaque mirror-like surface, not glass; `mv0.29` camera locked
+in place while MMB is held; `mv0.30` QoL: the next ghost spawns clear of the just-placed block.
+Briefs are in the Beads descriptions; references `docs/original_single-block.png`,
+`docs/original_stacked-tower.png`, `docs/original_in-game.png`. xtq.9/xtq.10 share
+`GhostPreview.gd` (one worker, sequential); xtq.11 and mv0.29 are independent.
+
+**Open owner questions (`bd human list`):** `Bontago-4nz` (queued special when the held piece
+auto-drops and burns; default: stays queued), `Bontago-3td` (special-punched hole eliminating a
+home; default: yes, consistent).
+
+**Then:** M4 specials per `docs/M4_SPECIALS_PACKAGES.md` dispatch order (Propeller and P3-SH
+next, then P4-SPAWN/P5-HOLE serialized, Rocket+Bomb, Volcano+Bean), P2d throw input (LMB
+flick, `Bontago-1en.14`, needs 1en.17), P2e arc preview (`1en.15`). Process notes learned
+today: fresh worktrees need `godot --headless --editor --path <wt> --quit` twice before GUT;
+`Match` is a singleton across a GUT run — tests that duplicate a config must restore it in
+`after_each`; blocks spawned in a test must be freed synchronously in `after_each` or GUT
+reports unfreed children; `--sandbox` windows the owner runs are visible in `tasklist`, never
+kill them. Untouched owner files: `tools/start_scotty.ps1` (modified), `Scotty.cmd`.
+
 ## Update 2026-09-22 (end of day) — resume here
 
 **Git:** `main` clean and pushed at the commit carrying this note. Only worktree:
