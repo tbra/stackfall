@@ -216,6 +216,12 @@ const HATCH_TEXTURE_SIZE: int = 32
 ## from the rotation basis on otherwise-identical grid-aligned corners).
 const _EDGE_MATCH_EPSILON: float = 0.001
 
+## Bontago-mv0.35: the group game/PlayerController.gd puts its own (local,
+## player-driven) ghost in, so ui/HUD.gd can show that block's height
+## (height_above_surface()) without a node path. Remote peers' ghosts
+## (game/RemoteCursors.gd) are never in it.
+const LOCAL_HELD_GROUP: StringName = &"local_held_ghost"
+
 ## The 8 corner signs of a unit box centred on its own local position, used by
 ## _rotated_bottom_offset() to find a rotated shape's true lowest point.
 const _CORNER_SIGNS: Array[Vector3] = [
@@ -466,6 +472,16 @@ func update_placement(surface_point: Vector3, surface_normal: Vector3) -> void:
 	) + _reject_offset
 	_last_surface_point = surface_point
 	_update_footprint()
+
+
+## Bontago-mv0.35: how high the held shape's own lowest point hovers above
+## the disk surface under it (the point update_placement() last received),
+## in meters -- what the player is actually adjusting with the wheel. The
+## HUD shows this next to the tower height, which alone never moved while
+## the block was raised (the follow camera keeps the ghost centred on screen
+## too), so a raise read as "stuck".
+func height_above_surface() -> float:
+	return global_position.y - _reject_offset.y + _rotated_bottom_offset() - _last_surface_point.y
 
 
 ## Positions this ghost at an already-fully-resolved world point, with no
