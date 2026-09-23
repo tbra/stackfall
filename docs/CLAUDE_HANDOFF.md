@@ -3,31 +3,35 @@
 Prepared 2026-09-18 from Git, Beads, project files and the interrupted local Claude
 session. This is a restart snapshot. Refresh live state; keep task progress in Beads.
 
-## Update 2026-09-23 (evening, in progress) — resume here
+## Update 2026-09-23 (late evening) — resume here
 
-**Git:** `main` 10c2698 pushed (owner allowed merge/push mid-session; the classifier may deny
-`git merge`/`git push` again in a new session — ask). M4 is feature-complete on main: all
-seven specials, throw input (P2d) + arc preview (P2e), special_consumed replication, tilt
-wiring, F9 force-special (`--force-special=<id>`), M3 P3 bug batch. M3 4-peer lag/loss +
-throw harness PASS on bcd645f; Steam probe steamInitEx(480) status 0. Full suite last run
-1007/1007 at 35fef30 — **run it once more** on the next idle window (targeted sets + harness
-covered everything since).
+**Git:** `main` 03850cb pushed; full suite 1173/1173 at 99b2995 (physics merge after it verified
+with 92/92 targeted + idle benches). Owner granted merge/push mid-session; a new session's
+classifier may deny `git merge`/`git push` again — ask once. Owner also lifted the two-writer
+cap (`bd memories writer-cap`) and requires agent windowed runs off-screen
+(`--position 10000,10000`; rule is in every worker profile).
 
-**In flight (uncommitted worktrees):** `f7ghost` (`wt/feel7-ghost`: xtq.16 per-column
-prism → xtq.13 ghost_opacity slider + F4 tab memory → xtq.15 block projection decal),
-`f7ctrl` (`wt/feel7-ctrl`: mv0.34 remove hover height cap → mv0.33 conditional spawn
-clearance), `disktilt` (`wt/net-disk-tilt`, 1en.27 client applies replicated disk tilt —
-reviewed, two SHOULD-FIXes pending: stall smoothing + bracket tests; then commit/merge).
-Queued: disc group xtq.12 (not reflective) + xtq.14 (sharp edge), xtq.17 physics-feel
-presets (review yes), 1en.25 arc ends at ground, 1en.22, 1en.26, p0a (m2_acceptance h/f/d/e
-fail on main), mv0.32, mv0.4, mv0.1.12. Owner questions open: Bontago-b6l (volcano orbs
-persist?), 4nz, 3td. Owner playtest notes: `feedback/playtest.md` (round 7, all filed);
-reference `docs/original_hover-preview.png`.
+**Shipped today (all closed in Beads):** every M4 special + throw input/arc + special_consumed
+replication + tilt wiring + client disk-tilt mirroring + F9 force-special + impact_triggers hook;
+all M3 code children (mv0.1.10/.13/.12, mv0.4, mv0.31/.32) — only the owner two-PC Steam match
+(`mv0.2`) keeps M3 open; owner feel rounds 6 and 7 (xtq.9–11, xtq.13–17, mv0.29/.30/.33/.34,
+1en.25); m2_acceptance 9/9 again (p0a); MatchTestReset fixture (bmh). M3 4-peer lag/loss +
+throw harness PASS; Steam probe status 0; bench_tower ×3 presets PASS; bench_specials_chain
+PASS 7.1 ms/step; bench_rain is environmentally noisy on this machine (`bd memories bench-noise`).
 
-**Play copy:** `M:/Bontago-worktrees/play` detached at a09336b with assets installed; move
-with `git -C M:/Bontago-worktrees/play checkout --detach main` + one open-editor pass.
-Leftover dir `M:/Bontago-worktrees/force` is pruned from git (delete by hand). Beads
-memories added today: `stackfall-class-cache`, `stackfall-animatablebody-tests`.
+**In flight:** `M:/Bontago-worktrees/mirror` (`wt/disc-mirror`, xtq.12 step 2: SSR then a planar
+mirror so the disc reflects blocks like `docs/original_hover-preview.png`; step 1 ReflectionProbe
+is merged but visually weak — xtq.12 stays OPEN until the owner sees block reflections).
+
+**Owner questions open (`bd human list`):** Bontago-b6l (volcano orbs persist as owner blocks?),
+Bontago-6op (may Earthquake/Volcano start mid-air?), 4nz, 3td. **Owner manual pass wanted:**
+play copy `M:/Bontago-worktrees/play` (detached at main 03850cb, cache warmed): F9 cycles
+specials; LMB drag throws with arc; F4 Physics preset dropdown; two-instance check that the
+client's disc tilts under an Anvil. Notes go in `feedback/playtest.md` (round 7 items all filed).
+
+**Then:** M4 epic close (needs the owner's LAN/manual pass + xtq.12 verdict), then M5 AI bots
+(`docs/SPEC.md` Part 4: BotController, 3 difficulties, 8-bot headless match) — start with
+`stackfall-planner` writing `docs/M5_PLAN.md`. Backlog: `Bontago-ogd` (trimesh rebuild bench).
 
 ## Update 2026-09-23 (afternoon session, in progress) — resume here
 
