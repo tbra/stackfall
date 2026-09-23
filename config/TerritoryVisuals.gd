@@ -15,43 +15,41 @@ extends Resource
 ## The disk's own color where no team owns the ground.
 @export var disk_base_color: Color = Color(0.68, 0.70, 0.74)
 ## Bontago-xtq.4 (owner, 2026-09-22: "a bit transparent and reflective"):
-## retuned from 0.1 toward a glass-like metallic response; drives the
-## shader's SPECULAR-visible reflection of ProceduralSky.
+## retuned from 0.1 toward a metallic response; drives the shader's
+## SPECULAR/METALLIC-visible reflection of ProceduralSky.
 ##
 ## DECISION (config/TerritoryVisuals.gd, Bontago-xtq.6, owner 2026-09-23:
 ## "the bottom reflects what's on top... also it reflects whatever light
-## source you've put in"): brought back down from 0.6 -- combined with
-## disk_roughness's old 0.1, the disk read as a near-mirror (shaders/
-## territory.gdshader's METALLIC/ROUGHNESS write, cull_disabled on both the
-## top and underside), which is what made a resting block look reflected in
-## the surface under it and the DirectionalLight3D's specular highlight read
-## as a hot mirror spot. Interim fix per the owner's note ("we'll work more
-## on the design in m7"); not art direction.
-@export var disk_metallic: float = 0.2
-## Retuned from 0.45 toward glass-smooth (Bontago-xtq.4); low roughness is
-## what makes the sky's reflection actually visible rather than a diffuse
-## blur.
+## source you've put in"): brought back down from 0.6 to 0.2 -- at the time
+## combined with disk_roughness's old 0.1, the disk read as a near-mirror,
+## which made a resting block look reflected in the surface under it and the
+## DirectionalLight3D's specular highlight read as a hot mirror spot. Interim
+## fix per the owner's note ("we'll work more on the design in m7").
 ##
-## DECISION (config/TerritoryVisuals.gd, Bontago-xtq.6): raised back toward
-## matte alongside disk_metallic above, for the same mirror-reflection
-## complaint. Still glossier than a fully diffuse surface (1.0), so the disk
-## keeps some sky highlight without doubling as a mirror for the blocks
-## resting on it.
-@export var disk_roughness: float = 0.45
+## DECISION (config/TerritoryVisuals.gd, Bontago-xtq.11, owner 2026-09-23:
+## "I think the disc is a mirror-like surface and not glass, so it should be
+## reflective but not transparent"): raised back to a high value against
+## docs/original_single-block.png and docs/original_stacked-tower.png (an
+## opaque orange disk with a soft, slightly blurred reflection of the sky and
+## the tower standing on it, not a sharp mirror and not a diffuse matte
+## surface). The disk being genuinely opaque now (not blending its reflection
+## over whatever sits below it, see the DECISION further down) is what
+## removes the earlier "hot mirror spot"/reflected-block complaint, so
+## metallic can go back up without reintroducing it.
+@export var disk_metallic: float = 0.85
+## DECISION (config/TerritoryVisuals.gd, Bontago-xtq.11): lowered back toward
+## glass-smooth, same reference screenshots as disk_metallic above -- the
+## reflections in both are soft-edged, not a razor-sharp mirror, so this
+## stops short of 0.0.
+@export var disk_roughness: float = 0.18
 ## Radial segments of the disk mesh. High enough that the rim reads as a
 ## circle rather than a polygon at the camera distances spec 2.5 allows.
 @export var disk_mesh_segments: int = 96
 
-## -- Glass translucency (Bontago-xtq.4) --------------------------------------
-## Base opacity of the disk everywhere; 1.0 is fully opaque, 0.0 fully clear.
-## Rises toward 1 via tint_opacity_boost wherever a territory tint, the
-## animated rim/outline, a contested/goal shimmer, or a hole's rim glow is
-## drawn, so ownership stays readable through the glass.
-@export var glass_alpha: float = 0.75
-## How much extra opacity a drawn tint/rim/shimmer/goal indicator adds on top
-## of glass_alpha (added then clamped to 1, so a full-strength indicator
-## always reads fully opaque regardless of how translucent the bare glass is).
-@export var tint_opacity_boost: float = 0.25
+## DECISION (config/TerritoryVisuals.gd, Bontago-xtq.11, owner 2026-09-23:
+## "the disc is a mirror-like surface and not glass ... reflective but not
+## transparent"): the two disk-opacity tunables that used to live here were
+## removed -- the disk is opaque now, not translucent.
 
 ## -- Territory tint (spec 2.10: "a soft tint in their color") ---------------
 ## Half-width of the smoothstep applied to the bilinear owner edge, in owner

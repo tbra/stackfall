@@ -301,8 +301,8 @@ The AI runs only on the host, and for multiple bots it spreads its thinking acro
 
 ### 2.10 Presentation [NEW, modernizing the original look]
 
-**Owner direction 2026-09-22:** blocks render as solid single shapes (no visible per-cell cubes, as in the original); the map disc reads as glass — slightly transparent and reflective — with territory colours still legible on it; camera FOV is a tunable.
-- **Disk:** Frosted glass or polished stone look, with screen-space reflections and a reflection probe for nearby blocks.
+**Owner direction 2026-09-22:** blocks render as solid single shapes (no visible per-cell cubes, as in the original); the map disc reads as glass — slightly transparent and reflective — with territory colours still legible on it (superseded 2026-09-23: the disc is an opaque, mirror-like reflective surface, not glass — Bontago-xtq.11); camera FOV is a tunable.
+- **Disk:** Opaque, mirror-like polished surface (reflective, never transparent; owner 2026-09-23), with sky reflections via the Environment sky and a reflection probe for nearby blocks.
   - Territory is drawn by a shader. Each player's area is a soft tint in their color with an animated outline.
   - Contested areas shimmer. Hole edges glow and crackle.
 - **Blocks:** Bevelled cubes with a subtle PBR material and an emissive seam in the owner's color. They glow brighter when they're contributing influence.
