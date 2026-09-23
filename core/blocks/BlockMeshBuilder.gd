@@ -16,10 +16,17 @@ const _FACE_DIRECTIONS: Array[Vector3i] = [
 	Vector3i(0, 0, 1), Vector3i(0, 0, -1),
 ]
 
-## Per-face tangent basis (u, v) with u x v == the face's own outward normal,
-## so appending corners in the order (center - u - v, +u - v, +u + v, -u + v)
-## -- see _append_face() -- always winds counter-clockwise as seen from
-## outside the cube, Godot's front-face convention, for all 6 directions.
+## Per-face tangent basis (u, v) with u x v == the face's own outward normal.
+## _append_face() below appends corners in the order
+## (center - u - v, +u - v, +u + v, -u + v) but indexes its 2 triangles as
+## (0, 2, 1) and (0, 3, 2) -- clockwise as seen from outside the cube, which
+## is Godot's actual front-face convention (verified empirically against
+## BoxMesh's own winding by tests/unit/test_block_mesh_builder.gd,
+## Bontago-xtq.5: a prior version of this comment claimed counter-clockwise
+## was the convention and the triangle indices were wound accordingly, which
+## put every face backwards -- every placed/ghost block rendered inside-out,
+## only hidden on the ghost by its culling-off material) -- for all 6
+## directions.
 const _FACE_TANGENTS: Dictionary = {
 	Vector3i(1, 0, 0): [Vector3(0.0, 1.0, 0.0), Vector3(0.0, 0.0, 1.0)],
 	Vector3i(-1, 0, 0): [Vector3(0.0, 0.0, 1.0), Vector3(0.0, 1.0, 0.0)],
@@ -136,12 +143,15 @@ static func _append_face(
 		normals.append(normal)
 		uvs.append(uv_corners[i])
 
+	# DECISION (Bontago-xtq.5): (0, 2, 1) / (0, 3, 2), not (0, 1, 2) / (0, 2, 3)
+	# -- see the _FACE_TANGENTS doc comment above for why this order (not the
+	# corners or normals) is the fix.
 	indices.append(base_index)
+	indices.append(base_index + 2)
 	indices.append(base_index + 1)
-	indices.append(base_index + 2)
 	indices.append(base_index)
-	indices.append(base_index + 2)
 	indices.append(base_index + 3)
+	indices.append(base_index + 2)
 
 
 ## For tests: clears the cache so a test can assert on cache identity (same
