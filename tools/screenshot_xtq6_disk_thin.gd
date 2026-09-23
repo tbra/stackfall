@@ -33,7 +33,7 @@ extends Node
 ## Lives in tools/ (CLAUDE.md: build-time/manual-QA scripts, not part of the
 ## running game).
 
-const OUTPUT_DIR: String = "res://docs/"
+const OUTPUT_DIR: String = "res://feedback/"
 const DEFAULT_OUTPUT: String = "disk-thin-after.png"
 const SETTLE_FRAMES: int = 90
 const SHAPE_IDS: Array[String] = ["cube", "cube", "bar4"]

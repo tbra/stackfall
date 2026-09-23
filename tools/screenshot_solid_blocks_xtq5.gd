@@ -17,7 +17,7 @@ extends Node3D
 ## Lives in tools/ (CLAUDE.md: build-time/manual-QA scripts, not part of the
 ## running game).
 
-const OUTPUT_PATH: String = "res://docs/solid-blocks-fixed.png"
+const OUTPUT_PATH: String = "res://feedback/solid-blocks-fixed.png"
 const SETTLE_FRAMES: int = 2
 const ROW_GAP: float = 1.0
 
