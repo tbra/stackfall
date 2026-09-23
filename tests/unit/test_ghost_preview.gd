@@ -60,8 +60,15 @@ func test_set_locked_overrides_the_validity_tint() -> void:
 	ghost.set_locked(true)
 
 	assert_eq(ghost.current_state(), GhostPreview.STATE_LOCKED)
+	# Bontago-xtq.13: the locked colour's own RGB must win, but its alpha now
+	# always comes from ghost_tuning.ghost_opacity, not locked_tint_color's own
+	# stored alpha channel -- compare against that, not the raw constant.
+	var expected_locked: Color = Color(
+		ghost.ghost_tuning.locked_tint_color.r, ghost.ghost_tuning.locked_tint_color.g,
+		ghost.ghost_tuning.locked_tint_color.b, ghost.ghost_tuning.ghost_opacity
+	)
 	assert_true(
-		ghost.current_tint_color().is_equal_approx(ghost.ghost_tuning.locked_tint_color),
+		ghost.current_tint_color().is_equal_approx(expected_locked),
 		"the locked tint must win over the (still legal) validity tint."
 	)
 
@@ -320,10 +327,12 @@ func test_no_shadow_node_remains_once_a_shape_is_held() -> void:
 
 	# The footprint/projection are the only ground markers now: the shape
 	# visual, the persistent projection-prism mesh (Bontago-xtq.7 -- added
-	# once in _ready(), always present even with an empty mesh), and one
-	# footprint quad -- no separate shadow quad.
+	# once in _ready(), always present even with an empty mesh), the
+	# persistent block-projection decal (Bontago-xtq.15 -- same "added once,
+	# always present" idea, just hidden rather than freed when nothing is
+	# held), and one footprint quad -- no separate shadow quad.
 	assert_eq(
-		ghost.get_child_count(), 2 + ghost.footprint_quad_count(),
+		ghost.get_child_count(), 3 + ghost.footprint_quad_count(),
 		"a leftover shadow child would show up here as an extra, unaccounted-for node."
 	)
 
@@ -652,3 +661,237 @@ func test_projection_prism_material_uses_additive_blend_and_emission() -> void:
 		Color(emission.r, emission.g, emission.b).is_equal_approx(Color(tint.r, tint.g, tint.b)),
 		"the prism's own emission colour should track its current state tint, not a fixed/neutral colour."
 	)
+
+
+# --- Bontago-xtq.16 (owner playtest 2026-09-23, "the projection column
+# visible above the actual cells (S-piece)") --------------------------------
+# xtq.9's single whole-hull prism capped every column at the *whole* shape's
+# own highest point; for a non-convex shape (S4) that drew a lit shaft over
+# an empty notch, reaching well above the solid cell actually sitting in that
+# column. The fix: one column per rotated XZ footprint patch (merged for a
+# straight/yaw-only stack), each capped at that patch's own lowest cell's
+# underside. These tests exercise the new projection_column_count()/
+## projection_column_span_y()/projection_mesh_vertices_world() test seams
+# directly against the real built mesh, not just this file's own bookkeeping.
+
+## The same 8 corner signs _CORNER_SIGNS declares (game/GhostPreview.gd),
+## independently re-declared here (not read off the ghost) so this is a real
+## check of the implementation's own per-cell math, the same style
+## test_footprint_polygon_matches_the_whole_rotated_shapes_projected_corners()
+## above already uses for the footprint hull.
+const _TEST_CORNER_SIGNS: Array[Vector3] = [
+	Vector3(-1.0, -1.0, -1.0), Vector3(1.0, -1.0, -1.0), Vector3(-1.0, 1.0, -1.0), Vector3(1.0, 1.0, -1.0),
+	Vector3(-1.0, -1.0, 1.0), Vector3(1.0, -1.0, 1.0), Vector3(-1.0, 1.0, 1.0), Vector3(1.0, 1.0, 1.0),
+]
+
+
+## One rotated `cell`'s own lowest world-space Y (its own underside) --
+## independently mirrors game/GhostPreview.gd's own _rotated_cell_footprint()
+## (visual half_size, `shape.bottom_center()` pivot) so these tests check the
+## real algorithm's output, not just its own self-consistency.
+func _expected_cell_min_y(ghost: GhostPreview, cell: Vector3i) -> float:
+	var half_size: float = ghost.tuning.cube_size * 0.5
+	var pivot: Vector3 = ghost.get_shape().bottom_center()
+	var local_center: Vector3 = (Vector3(cell) - pivot) * ghost.tuning.cube_size
+	var min_y: float = INF
+	for corner_sign: Vector3 in _TEST_CORNER_SIGNS:
+		var rotated: Vector3 = ghost.basis * (local_center + corner_sign * half_size)
+		min_y = minf(min_y, rotated.y)
+	return ghost.global_position.y + min_y
+
+
+## "a single cube unchanged": for a shape with only one cell there is only one
+## silhouette column, and its own cap must be that cell's own underside
+## (matching the pre-xtq.9 pillar-era behaviour, docs/original_hover-preview.
+## png's light shaft under a hovering cube) -- never the cube's own *top*
+## (the xtq.9 whole-shape cap this package partially undoes).
+func test_single_cube_projection_column_caps_at_its_own_underside_not_the_shapes_own_top() -> void:
+	var ghost: GhostPreview = _make_ghost()
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	assert_eq(ghost.projection_column_count(), 1, "a single cube has exactly one silhouette column.")
+	var column: Vector2 = ghost.projection_column_span_y(0)
+	assert_almost_eq(
+		column.x, _visual_world_bottom_y(ghost), 0.01,
+		"the column's own top must be the cube's own underside, not its top (the old xtq.9 whole-shape cap)."
+	)
+	assert_almost_eq(
+		column.y, ghost.footprint_quad_position(0).y - ghost.ghost_tuning.footprint_offset, 0.01,
+		"the column's own bottom must match the footprint's disc landing height."
+	)
+	# Must fail against the pre-xtq.16 code, which capped a single cube's one
+	# (whole-shape) prism at its own *top*, enclosing the entire solid body
+	# instead of stopping at its underside.
+	assert_true(
+		column.x < _visual_world_top_y(ghost) - 0.001,
+		"the column must stop below the cube's own top, not enclose the whole solid body."
+	)
+
+
+## The literal S4 bug repro: config/blocks/S4.tres has cells (1,0,0)/(2,0,0)
+## in a bottom row and (0,1,0)/(1,1,0) directly above, offset one column left
+## -- (2,0,0)'s own column has nothing above it at all, and (0,1,0)'s own
+## column has nothing *below* it. Must fail against the pre-xtq.16 code (whose
+## single whole-hull prism capped *every* column, including (2,0,0)'s, at the
+## entire shape's own highest point -- (0,1,0)/(1,1,0)'s own top face, a full
+## cube_size above (2,0,0)'s own top) and pass once each column caps at its
+## own patch's lowest cell.
+func test_s4_at_identity_rotation_never_projects_above_the_lower_cells_own_top() -> void:
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+	ghost.set_shape(load("res://config/blocks/S4.tres"))
+
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	var lower_cell_top_y: float = _expected_cell_min_y(ghost, Vector3i(2, 0, 0)) + ghost.tuning.cube_size
+
+	assert_eq(
+		ghost.projection_column_count(), 3,
+		"S4's footprint spans 3 distinct XZ columns (x=0, x=1 -- merged from its 2 stacked cells --, x=2)."
+	)
+
+	var vertices: PackedVector3Array = ghost.projection_mesh_vertices_world()
+	assert_false(vertices.is_empty(), "fixture: a real gap between the shape and the disc must show prism geometry.")
+	for vertex: Vector3 in vertices:
+		assert_true(
+			vertex.y <= lower_cell_top_y + 0.01,
+			"no prism vertex may sit above (2,0,0)'s own top face (%.3f); got %.3f at (%.3f, %.3f)"
+				% [lower_cell_top_y, vertex.y, vertex.x, vertex.z]
+		)
+
+
+## "a pitched bar is enclosed from below": bar3 pitched about its own long
+## axis rotates each of its 3 cells to a distinct XZ footprint (no merging --
+## this file's own header), so each cell is its own column, capped at its own
+## rotated underside. Must fail against the pre-xtq.16 code (whose single
+## whole-hull prism reached the shape's own highest point, per
+## test_projection_prism_top_reaches_the_ghosts_highest_point_when_pitched_
+## and_yawed above) and pass once every column stops at its own cell.
+func test_pitched_bar_is_enclosed_from_below_never_above_its_own_cells() -> void:
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+	ghost.set_shape(load("res://config/blocks/bar3.tres"))
+	ghost.apply_free_rotation_delta(0.0, deg_to_rad(20.0), Vector3.RIGHT)
+
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	var expected_cell_min_ys: Array[float] = []
+	for cell: Vector3i in ghost.get_shape().cells:
+		expected_cell_min_ys.append(_expected_cell_min_y(ghost, cell))
+	var expected_max_column_top: float = expected_cell_min_ys.max()
+
+	var vertices: PackedVector3Array = ghost.projection_mesh_vertices_world()
+	assert_false(vertices.is_empty(), "fixture: a real gap should still show prism geometry once pitched.")
+	var actual_max_vertex_y: float = -INF
+	for vertex: Vector3 in vertices:
+		actual_max_vertex_y = maxf(actual_max_vertex_y, vertex.y)
+
+	assert_true(
+		actual_max_vertex_y <= expected_max_column_top + 0.01,
+		"no prism vertex may sit above the highest column's own lowest-cell underside (%.3f); got %.3f"
+			% [expected_max_column_top, actual_max_vertex_y]
+	)
+	assert_true(
+		actual_max_vertex_y < _visual_world_top_y(ghost) - 0.01,
+		"must be enclosed strictly below the shape's own highest point (%.3f) -- the pre-xtq.16 whole-hull cap."
+			% _visual_world_top_y(ghost)
+	)
+
+
+# --- Bontago-xtq.15 (owner playtest 2026-09-23, "the same white projection
+# that shows up on the disk should show up on the blocks as well, just a bit
+# fainter") -------------------------------------------------------------------
+
+## Must fail against the pre-xtq.15 code (block_projection_decal_visible()
+## did not exist at all -- no decal was ever built) and pass once the decal
+## is built, hidden by default, and shown the moment a shape is held.
+func test_block_projection_decal_exists_and_is_hidden_with_no_shape_held() -> void:
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	assert_false(
+		ghost.block_projection_decal_visible(),
+		"no shape held -> no footprint at all -> the block-projection decal must stay hidden."
+	)
+
+
+func test_block_projection_decal_is_visible_enabled_once_a_shape_is_held() -> void:
+	var ghost: GhostPreview = _make_ghost()
+
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	assert_true(
+		ghost.block_projection_decal_visible(),
+		"a real gap between a held cube and the disc must show the block-projection decal."
+	)
+
+
+## The decal's own horizontal size/position must track the footprint hull's
+## own world-space bounding box exactly -- the same hull the flat footprint
+## quad (footprint_polygon_world()) already shows.
+func test_block_projection_decal_size_tracks_the_footprint_hull() -> void:
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+	ghost.set_shape(load("res://config/blocks/bar3.tres"))
+
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	var hull: PackedVector2Array = ghost.footprint_polygon_world(0)
+	var min_point: Vector2 = hull[0]
+	var max_point: Vector2 = hull[0]
+	for point: Vector2 in hull:
+		min_point = Vector2(minf(min_point.x, point.x), minf(min_point.y, point.y))
+		max_point = Vector2(maxf(max_point.x, point.x), maxf(max_point.y, point.y))
+
+	var decal_size: Vector3 = ghost.block_projection_decal_size()
+	assert_almost_eq(decal_size.x, max_point.x - min_point.x, 0.01, "decal width must match the footprint hull's own width.")
+	assert_almost_eq(decal_size.z, max_point.y - min_point.y, 0.01, "decal depth must match the footprint hull's own depth.")
+
+	var decal_position: Vector3 = ghost.block_projection_decal_position()
+	assert_almost_eq(decal_position.x, (min_point.x + max_point.x) * 0.5, 0.01, "decal must be centred on the footprint hull.")
+	assert_almost_eq(decal_position.z, (min_point.y + max_point.y) * 0.5, 0.01, "decal must be centred on the footprint hull.")
+
+
+## The decal's own vertical span must reach from the ghost's own current
+## underside down to the disc -- never any higher (the held ghost's own body
+## must never fall inside the decal's own projection volume, this file's
+## own _update_block_projection_decal() DECISION) and never any lower (the
+## disc/a placed block sitting on it is the floor).
+func test_block_projection_decal_spans_from_the_ghosts_underside_to_the_disc() -> void:
+	var ghost: GhostPreview = _make_ghost()
+
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	var decal_size: Vector3 = ghost.block_projection_decal_size()
+	var decal_position: Vector3 = ghost.block_projection_decal_position()
+	var decal_top: float = decal_position.y + decal_size.y * 0.5
+	var decal_bottom: float = decal_position.y - decal_size.y * 0.5
+
+	assert_almost_eq(
+		decal_top, _visual_world_bottom_y(ghost), 0.05,
+		"the decal's own top must reach the ghost's own current underside, not any higher into its solid body."
+	)
+	assert_almost_eq(
+		decal_bottom, ghost.footprint_quad_position(0).y - ghost.ghost_tuning.footprint_offset, 0.05,
+		"the decal's own bottom must match the footprint's own disc landing height."
+	)
+
+
+## Colour/alpha must come straight from GhostTuning, not a hard-coded value.
+func test_block_projection_decal_colour_comes_from_tuning() -> void:
+	var ghost: GhostPreview = _make_ghost()
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	var color: Color = ghost.block_projection_decal_color()
+	assert_almost_eq(color.r, ghost.ghost_tuning.block_projection_color.r, 0.001)
+	assert_almost_eq(color.g, ghost.ghost_tuning.block_projection_color.g, 0.001)
+	assert_almost_eq(color.b, ghost.ghost_tuning.block_projection_color.b, 0.001)
+	assert_almost_eq(color.a, ghost.ghost_tuning.block_projection_alpha, 0.001, "alpha must come from block_projection_alpha, not the colour's own stored alpha.")
+
+
+func test_block_projection_defaults() -> void:
+	var fresh: GhostTuning = GhostTuning.new()
+	assert_almost_eq(fresh.block_projection_alpha, 0.5, 0.0001)
+	assert_true(fresh.block_projection_color.r >= 0.85 and fresh.block_projection_color.g >= 0.85 and fresh.block_projection_color.b >= 0.85, "default must be near-white, matching the disc's own footprint marker.")

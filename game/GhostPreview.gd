@@ -101,6 +101,58 @@ extends Node3D
 ## reaches the same brightening effect with no gameplay-code touch at all,
 ## confined entirely to this file/config/GhostTuning.gd.
 ##
+## Bontago-xtq.16 (owner playtest 2026-09-23, "the projection column [is]
+## visible above the actual cells (S-piece)"): xtq.9's single whole-hull prism
+## (capped at the whole shape's own *highest* point, walled by the whole
+## shape's own *convex* hull) reads wrong for any non-convex shape -- config/
+## blocks/S4.tres has a cell at (0, 1, 0) with nothing at (0, 0, 0) beneath it,
+## so the old convex-hull column drew a lit shaft over that empty notch too,
+## reaching all the way up to the *other* column's own top -- exactly "a
+## projected piece above the actual block". Correct model (docs/original_
+## hover-preview.png, original_stacked-tower.png): the shaft is per silhouette
+## column, reaching only from the disc up to the *underside of the lowest
+## solid cell sitting over that column* -- nothing is ever drawn beside or
+## above a solid cell, and a column with no cell in it draws nothing at all.
+## _update_projection_mesh() now groups `_shape.cells` by their own rotated XZ
+## footprint centre (_group_cells_by_footprint(), merging cells that land on
+## the same column -- an unrotated or yaw-only stack -- so the column caps at
+## the *lowest* member's own underside, never a higher member's) and builds
+## one prism wall per surviving column (_append_prism_walls(), appended into
+## one shared mesh/surface since they all share _projection_material already).
+## DECISION (game/GhostPreview.gd, Bontago-xtq.16): a pitched/rolled shape's
+## cells generically rotate to distinct XZ centres (no merging occurs), so the
+## same grouping code doubles as "one column per cell" for that case with no
+## extra branch -- exactly the brief's own "for axis-aligned yaw this is per
+## cell column; for pitched/rolled ghosts use the rotated cell AABBs" split,
+## reached by one algorithm rather than two. Overlapping columns (a cell whose
+## own prism wall happens to pass behind/through another cell's solid body,
+## e.g. every member of a merged stack below the top one) are accepted rather
+## than trimmed -- _projection_material already blends additively/translucent,
+## so an overlap reads as "a bit brighter there", never as a visible seam.
+## projection_span_y() itself is untouched (still the *whole* shape's own
+## highest point down to the disc) -- game/PlayerController.gd's own
+## _pending_spawn_top_y (outside this package's ownership) reads exactly that
+## contract for spawn clearance, unrelated to how the prism's own walls are
+## now built.
+##
+## Bontago-xtq.13 (owner playtest 2026-09-23, "ghost block should still be
+## less transparent -> add a slider for it in the F4 menu"): every state
+## tint's own RGB is unchanged, but _apply_validity_material() now applies
+## ghost_tuning.ghost_opacity as the material's alpha in every branch instead
+## of each colour's own baked-in alpha channel, so one F4 slider (config/
+## GhostTuning.gd) controls every state's opacity together.
+##
+## Bontago-xtq.15 (owner playtest 2026-09-23, "the same white projection that
+## shows up on the disk should show up on the blocks as well, just a bit
+## fainter"): a Decal (_block_projection_decal), sized/positioned over the
+## footprint hull's own world-space bounding box every frame
+## (_update_block_projection_decal()), projects ghost_tuning.
+## block_projection_color/_alpha straight down from the ghost's own current
+## underside to the disc -- a real placed block sitting in that gap now reads
+## pale/whitish (docs/original_hover-preview.png), not just the disc's own
+## footprint quad. See _update_block_projection_decal()'s own DECISION for why
+## cull_mask is left at its default rather than restricted to placed blocks.
+##
 ## Rotation is stored as an integer index over the 24 axis-aligned cube
 ## orientations (core/blocks/BlockOrientations.gd) plus a separate free-
 ## rotation quaternion layered on top. Resetting clears the quaternion and
@@ -199,6 +251,13 @@ var _projection_material: StandardMaterial3D
 ## bottom) -- Vector2.ZERO (and no visible mesh) when nothing is held or the
 ## prism collapsed (top <= bottom; see _update_footprint()'s own guard).
 var _projection_span_y: Vector2 = Vector2.ZERO
+## Bontago-xtq.16: one (top_y, bottom_y) entry per surviving footprint column
+## the prism mesh currently draws (see _group_cells_by_footprint()) -- unlike
+## _projection_span_y above (kept at the *whole* shape's own bookkeeping for
+## game/PlayerController.gd's spawn-clearance contract), every entry here is
+## capped at its own column's lowest solid cell, for tests to check the S4
+## bug's own literal repro directly.
+var _projection_columns: Array[Vector2] = []
 ## Bontago-xtq.7: the last disk-surface point PlayerController's own
 ## placed-block-skipping probe reported (update_placement()'s own
 ## `surface_point` argument), kept so _update_footprint()'s disk-under-the-
@@ -227,6 +286,18 @@ var _locked: bool = false
 ## _locked already wins over it, since "aiming a throw" is about the current
 ## gesture, not the landing spot show_throw_hint()'s caller never queried.
 var _throw_hint_active: bool = false
+
+## Bontago-xtq.15 (owner playtest 2026-09-23, "the same white projection that
+## shows up on the disk should show up on the blocks as well, just a bit
+## fainter"): projects ghost_tuning.block_projection_color downward over the
+## whole footprint hull, from the ghost's own current underside down to the
+## disc, so a placed block sitting in that gap reads pale/whitish like the
+## disc's own footprint marker (docs/original_hover-preview.png). top_level
+## (like _footprint_quads/_projection_mesh) so it never tilts with the ghost's
+## own rotation. Persistent (like _projection_mesh) -- _update_block_
+## projection_decal() rebuilds its size/position every frame rather than
+## pooling/recreating it, since there is always at most one.
+var _block_projection_decal: Decal
 
 var _flash_tween: Tween
 var _reject_tween: Tween
@@ -284,6 +355,21 @@ func _ready() -> void:
 	_projection_mesh.top_level = true
 	_projection_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_projection_mesh)
+
+	# Bontago-xtq.15: a plain, fully-opaque white texture -- Decal has no
+	# "flat colour, no texture" mode, so this is the runtime-built equivalent
+	# of _footprint_material's own flat StandardMaterial3D.albedo_color,
+	# tinted/faded through `modulate` instead (see
+	# _update_block_projection_decal()). A tiny 2x2 image is enough: the
+	# decal only ever stretches it across size.x/size.z, it is never sampled
+	# for detail.
+	_block_projection_decal = Decal.new()
+	_block_projection_decal.texture_albedo = _build_white_decal_texture()
+	_block_projection_decal.upper_fade = 0.0
+	_block_projection_decal.lower_fade = 0.0
+	_block_projection_decal.top_level = true
+	_block_projection_decal.visible = false
+	add_child(_block_projection_decal)
 
 	_hatch_texture = _build_hatch_texture()
 	_refresh_materials()
@@ -522,6 +608,7 @@ func _update_footprint() -> void:
 		_set_footprint_quad_count(0)
 		_footprint_polygons.clear()
 		_clear_projection_mesh()
+		_hide_block_projection_decal()
 		return
 
 	_set_footprint_quad_count(1)
@@ -548,57 +635,244 @@ func _update_footprint() -> void:
 		world_hull.append(Vector2(global_position.x + point.x, global_position.z + point.y))
 	_footprint_polygons[0] = world_hull
 
-	_update_projection_mesh(hull, landing_y)
+	_update_projection_mesh(landing_y)
+	_update_block_projection_decal(world_hull, landing_y)
 
 
-## Bontago-xtq.7 (this file's own header, fix (2)): the vertical walls of a
-## prism running from `landing_y` (the footprint's own disc height, just
-## computed by _update_footprint()) up to the held shape's own current
-## highest world point, traced around `hull`'s edges in world XZ. No bottom
-## cap: the flat footprint quad already covers it, so this is only ever the
-## side walls -- a plain vertical extrusion (not tilted to match the ghost's
-## own rotation) exactly like the original's own straight-down silhouette
-## (docs/original_in-game.png), not a rotated tube.
-## Bontago-xtq.9 (this file's own header, fix (2)): the top cap used to be
-## the shape's own *lowest* point (_rotated_bottom_offset()) -- right for an
-## unrotated shape, but for a pitched/yawed one that point sits partway
-## through the shape rather than above it, so the prism used to cut through
-## an angled ghost instead of surrounding it. Now uses _rotated_top_offset()
-## (the shape's own *highest* point) instead, so the column always reaches
-## from the disc past the whole ghost, at any rotation -- no top cap mesh is
-## added either way (same reasoning as the "no bottom cap" note above: the
-## shape's own body already renders that surface).
-func _update_projection_mesh(hull: PackedVector2Array, landing_y: float) -> void:
-	var top_y: float = global_position.y + _rotated_top_offset()
-	var bottom_y: float = landing_y
-	_projection_span_y = Vector2(top_y, bottom_y)
-	if top_y - bottom_y <= ghost_tuning.footprint_offset:
+## Bontago-xtq.16 (this file's own header): `_projection_span_y` stays the
+## *whole* shape's own bookkeeping (top = _rotated_top_offset(), untouched --
+## game/PlayerController.gd's own spawn-clearance reads this contract), but
+## the prism's actual mesh is now one wall per surviving footprint column
+## (_group_cells_by_footprint()), each capped at that column's own lowest
+## solid cell's underside instead of the whole shape's own highest point --
+## the fix for the S4 bug this package exists for (see this file's own
+## header). A column collapses (drawn nothing) the same way the old single
+## hull did: its own top within ghost_tuning.footprint_offset of the disc, or
+## below it.
+func _update_projection_mesh(landing_y: float) -> void:
+	if _shape == null or _shape.cells.is_empty():
 		_clear_projection_mesh()
 		return
+
+	var whole_top_y: float = global_position.y + _rotated_top_offset()
+	if whole_top_y - landing_y <= ghost_tuning.footprint_offset:
+		# The whole shape's own top is at or below the ground -- every column
+		# below it would collapse too (a column's own cap is always <= the
+		# whole shape's own top; see _rotated_cell_footprint()'s doc), so skip
+		# straight to the same "nothing to show" state _clear_projection_mesh()
+		# already gives the no-shape-held case, preserving projection_span_y()'s
+		# existing "Vector2.ZERO when collapsed" contract (test_projection_
+		# prism_collapses_when_even_the_shapes_own_top_is_at_the_ground).
+		_clear_projection_mesh()
+		return
+
+	_projection_span_y = Vector2(whole_top_y, landing_y)
+	_projection_columns.clear()
 	_projection_mesh.global_position = Vector3(global_position.x, 0.0, global_position.z)
-	_projection_mesh.mesh = _build_prism_mesh(hull, top_y, bottom_y)
 
-
-## Hides the projection prism (nothing held, or the prism collapsed -- see
-## _update_projection_mesh()'s own guard) without freeing the persistent node.
-func _clear_projection_mesh() -> void:
-	_projection_span_y = Vector2.ZERO
-	if _projection_mesh != null:
-		_projection_mesh.mesh = null
-
-
-## Builds the projection prism's side walls: for every edge of `hull` (in
-## ghost-local XZ, already offset to world X/Z by _projection_mesh's own
-## global_position), one vertical quad (2 triangles) from `top_y` down to
-## `bottom_y`. One winding is enough -- _projection_material's own
-## CULL_DISABLED (see _ready()) draws both sides of every triangle regardless
-## of winding, so this never has to know or match the hull's own winding
-## direction the way a single-sided material would.
-func _build_prism_mesh(hull: PackedVector2Array, top_y: float, bottom_y: float) -> ArrayMesh:
 	var verts: PackedVector3Array = PackedVector3Array()
 	var normals: PackedVector3Array = PackedVector3Array()
 	var uvs: PackedVector2Array = PackedVector2Array()
 	var indices: PackedInt32Array = PackedInt32Array()
+
+	for group: Dictionary in _group_cells_by_footprint():
+		var hull: PackedVector2Array = Geometry2D.convex_hull(group["points"])
+		if hull.size() < 3:
+			continue
+		var top_y: float = global_position.y + float(group["min_y"])
+		if top_y - landing_y <= ghost_tuning.footprint_offset:
+			continue
+		_append_prism_walls(hull, top_y, landing_y, verts, normals, uvs, indices)
+		_projection_columns.append(Vector2(top_y, landing_y))
+
+	if verts.is_empty():
+		_projection_mesh.mesh = null
+		return
+
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var built: ArrayMesh = ArrayMesh.new()
+	built.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	_projection_mesh.mesh = built
+
+
+## Hides the projection prism (nothing held, or every column collapsed -- see
+## _update_projection_mesh()'s own guard) without freeing the persistent node.
+func _clear_projection_mesh() -> void:
+	_projection_span_y = Vector2.ZERO
+	_projection_columns.clear()
+	if _projection_mesh != null:
+		_projection_mesh.mesh = null
+
+
+# --- Block projection decal (spec 2.5, Bontago-xtq.15) ----------------------
+
+## Bontago-xtq.15 (owner playtest 2026-09-23, docs/original_hover-preview.png:
+## a placed block inside the light shaft reads pale/whitish): sizes and
+## positions `_block_projection_decal` over `world_hull`'s own bounding box
+## (world-space X/Z, same hull _update_footprint() already built the flat
+## footprint quad from), projecting straight down from the ghost's own
+## current underside (_rotated_bottom_offset() -- deliberately *not* any
+## higher, so the decal's own projection volume never overlaps the held
+## ghost's own rendered body) down to `landing_y` (the footprint's own disc
+## height). DECISION (game/GhostPreview.gd, Bontago-xtq.15): cull_mask is left
+## at Decal's own default (layer 1) rather than restricted to placed blocks
+## only -- game/Block.gd's MeshInstance3D and game/TerritoryOverlay.gd's disc
+## mesh both render on the engine default layer 1 with no distinguishing
+## layer of their own (grepped this package's own read-only files to check),
+## so a placed block and the disc are the *only* two things this decal could
+## ever paint onto anyway (the held ghost's own body is excluded by the
+## vertical range above, not by layer) -- the disc already shows its own
+## near-white footprint quad, so painting it there too is harmless, matching
+## this package's own brief ("if Blocks are on the default layer with the
+## disc, projecting onto the disc too is acceptable").
+func _update_block_projection_decal(world_hull: PackedVector2Array, landing_y: float) -> void:
+	if _block_projection_decal == null:
+		return
+	var top_y: float = global_position.y + _rotated_bottom_offset()
+	if top_y - landing_y <= 0.001:
+		_hide_block_projection_decal()
+		return
+
+	var min_point: Vector2 = world_hull[0]
+	var max_point: Vector2 = world_hull[0]
+	for point: Vector2 in world_hull:
+		min_point = Vector2(minf(min_point.x, point.x), minf(min_point.y, point.y))
+		max_point = Vector2(maxf(max_point.x, point.x), maxf(max_point.y, point.y))
+	var size_x: float = maxf(max_point.x - min_point.x, 0.01)
+	var size_z: float = maxf(max_point.y - min_point.y, 0.01)
+	var center_x: float = (min_point.x + max_point.x) * 0.5
+	var center_z: float = (min_point.y + max_point.y) * 0.5
+
+	_block_projection_decal.visible = true
+	_block_projection_decal.size = Vector3(size_x, top_y - landing_y, size_z)
+	_block_projection_decal.global_position = Vector3(center_x, (top_y + landing_y) * 0.5, center_z)
+	_block_projection_decal.modulate = Color(
+		ghost_tuning.block_projection_color.r, ghost_tuning.block_projection_color.g,
+		ghost_tuning.block_projection_color.b, ghost_tuning.block_projection_alpha
+	)
+
+
+## Hides the block-projection decal (nothing held, or the gap collapsed --
+## see _update_block_projection_decal()'s own guard) without freeing the
+## persistent node -- same idea as _clear_projection_mesh() just above.
+func _hide_block_projection_decal() -> void:
+	if _block_projection_decal != null:
+		_block_projection_decal.visible = false
+
+
+## For tests: whether the block-projection decal is currently shown.
+func block_projection_decal_visible() -> bool:
+	return _block_projection_decal != null and _block_projection_decal.visible
+
+
+## For tests: the block-projection decal's own current world-space size
+## (width, height, depth -- Decal.size's own axis order) and position.
+func block_projection_decal_size() -> Vector3:
+	return _block_projection_decal.size if _block_projection_decal != null else Vector3.ZERO
+
+
+func block_projection_decal_position() -> Vector3:
+	return _block_projection_decal.global_position if _block_projection_decal != null else Vector3.ZERO
+
+
+## For tests: the block-projection decal's own current modulate colour (RGB
+## from ghost_tuning.block_projection_color, alpha from
+## ghost_tuning.block_projection_alpha -- see _update_block_projection_decal()).
+func block_projection_decal_color() -> Color:
+	return _block_projection_decal.modulate if _block_projection_decal != null else Color.WHITE
+
+
+## A plain, fully-opaque white 2x2 texture -- Decal.texture_albedo needs a
+## real Texture2D, and this project has no flat-colour art asset to spend on
+## something `modulate` (see _update_block_projection_decal()) already tints
+## and fades on its own; same runtime-built-texture idea as _build_hatch_
+## texture() below.
+func _build_white_decal_texture() -> ImageTexture:
+	var image: Image = Image.create(2, 2, false, Image.FORMAT_RGBA8)
+	image.fill(Color(1.0, 1.0, 1.0, 1.0))
+	return ImageTexture.create_from_image(image)
+
+
+## Bontago-xtq.16 (replaces the old whole-shape-only _build_prism_mesh()):
+## one rotated cell's own footprint (its 8 corners projected to ghost-local
+## XZ, same corner table _rotated_top_offset() uses) and its own lowest
+## world-relative Y (its own underside) -- the per-cell version of what
+## _rotated_top_offset() computes for the *whole* shape, so each silhouette
+## column below can be capped at its own solid floor. Uses the same *visual*
+## half_size as _rotated_top_offset() (tuning.cube_size, not the cube_margin-
+## shrunk collision half_size _rotated_bottom_offset() uses), matching that
+## function's own DECISION: this prism exists to visually contain the
+## rendered shape.
+func _rotated_cell_footprint(cell: Vector3i) -> Dictionary:
+	var half_size: float = tuning.cube_size * 0.5
+	var pivot: Vector3 = _shape.bottom_center()
+	var local_center: Vector3 = (Vector3(cell) - pivot) * tuning.cube_size
+	var points: PackedVector2Array = PackedVector2Array()
+	var min_y: float = INF
+	for corner_sign: Vector3 in _CORNER_SIGNS:
+		var rotated: Vector3 = basis * (local_center + corner_sign * half_size)
+		points.append(Vector2(rotated.x, rotated.z))
+		min_y = minf(min_y, rotated.y)
+	var rotated_center: Vector3 = basis * local_center
+	return {"points": points, "center": Vector2(rotated_center.x, rotated_center.z), "min_y": min_y}
+
+
+## Bontago-xtq.16: buckets `_shape.cells` by their own rotated XZ footprint
+## centre, rounded to 3 decimal places (millimetre precision at this
+## project's typical cube_size) -- an axis-aligned yaw rotation (or identity)
+## sends every cell that shares an unrotated (x, z) grid column to *exactly*
+## the same rotated centre (any difference is floating-point noise well
+## inside that tolerance), so those cells merge into one column, capped at
+## the *lowest* of their own undersides (never a higher member's, which would
+## still read as "a shaft above a solid cell" for the lower one). DECISION
+## (game/GhostPreview.gd, Bontago-xtq.16): a pitched/rolled rotation
+## generically sends every cell's own centre to a distinct point (this file's
+## own header), so this same bucketing naturally falls back to one column per
+## cell for that case with no extra branch needed -- exactly the brief's own
+## "axis-aligned yaw is per cell column; pitched/rolled is the rotated cell
+## AABBs" split, reached by one algorithm rather than two.
+func _group_cells_by_footprint() -> Array[Dictionary]:
+	var order: Array[String] = []
+	var groups: Dictionary = {}
+	for cell: Vector3i in _shape.cells:
+		var footprint: Dictionary = _rotated_cell_footprint(cell)
+		var center: Vector2 = footprint["center"]
+		var key: String = "%.3f,%.3f" % [center.x, center.y]
+		if not groups.has(key):
+			groups[key] = {"points": PackedVector2Array(), "min_y": INF}
+			order.append(key)
+		var group: Dictionary = groups[key]
+		var points: PackedVector2Array = group["points"]
+		for point: Vector2 in (footprint["points"] as PackedVector2Array):
+			points.append(point)
+		group["points"] = points
+		group["min_y"] = minf(float(group["min_y"]), footprint["min_y"])
+		groups[key] = group
+	var result: Array[Dictionary] = []
+	for key: String in order:
+		result.append(groups[key])
+	return result
+
+
+## Appends one footprint column's own prism walls into the caller's shared
+## mesh arrays: for every edge of `hull` (ghost-local XZ), one vertical quad
+## (2 triangles) from `top_y` down to `bottom_y`. Bontago-xtq.16: called once
+## per surviving column (_update_projection_mesh()) rather than once for the
+## whole shape's own hull (Bontago-xtq.7's original _build_prism_mesh()), so
+## every column's own walls land in the same combined mesh/surface -- they
+## already share one _projection_material. One winding is enough --
+## _projection_material's own CULL_DISABLED (see _ready()) draws both sides of
+## every triangle regardless of winding, so this never has to know or match
+## the hull's own winding direction the way a single-sided material would.
+func _append_prism_walls(
+	hull: PackedVector2Array, top_y: float, bottom_y: float,
+	verts: PackedVector3Array, normals: PackedVector3Array, uvs: PackedVector2Array, indices: PackedInt32Array
+) -> void:
 	var edge_count: int = hull.size()
 	for i: int in range(edge_count):
 		var a: Vector2 = hull[i]
@@ -628,15 +902,6 @@ func _build_prism_mesh(hull: PackedVector2Array, top_y: float, bottom_y: float) 
 		indices.append(base_index)
 		indices.append(base_index + 3)
 		indices.append(base_index + 2)
-	var arrays: Array = []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = verts
-	arrays[Mesh.ARRAY_NORMAL] = normals
-	arrays[Mesh.ARRAY_TEX_UV] = uvs
-	arrays[Mesh.ARRAY_INDEX] = indices
-	var built: ArrayMesh = ArrayMesh.new()
-	built.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	return built
 
 
 ## Unweighted average of `hull`'s own vertices -- good enough as "roughly the
@@ -749,16 +1014,61 @@ func footprint_polygon_world(index: int) -> PackedVector2Array:
 	return _footprint_polygons[index]
 
 
-## For tests: the world-space Y span (top, bottom) the projection prism
-## currently covers -- Vector2.ZERO when nothing is held or the prism
-## collapsed (see _update_projection_mesh()'s own guard). `top` is always the
-## held shape's own current *highest* point (Bontago-xtq.9: matches
+## For tests: the world-space Y span (top, bottom) of the held shape's own
+## whole bookkeeping -- Vector2.ZERO when nothing is held or every prism
+## column collapsed (see _update_projection_mesh()'s own guard). `top` is
+## always the held shape's own current *highest* point (Bontago-xtq.9: matches
 ## _rotated_top_offset()'s own contract, not _rotated_bottom_offset()'s);
-## `bottom` is the footprint's own landing height. These are exactly the Y
-## extremes _build_prism_mesh() uses for every wall vertex, so this is also
-## the prism mesh's own world-space AABB Y span.
+## `bottom` is the footprint's own landing height. Bontago-xtq.16: this no
+## longer describes the prism *mesh*'s own AABB (a non-convex shape's columns
+## can each cap lower than this) -- game/PlayerController.gd's own spawn-
+## clearance still reads exactly this whole-shape contract, so it stays
+## unchanged; see projection_column_span_y() for what an individual column's
+## own wall actually spans.
 func projection_span_y() -> Vector2:
 	return _projection_span_y
+
+
+## For tests (Bontago-xtq.16, S4 bug -- docs/original_hover-preview.png): how
+## many separate light-shaft columns the projection prism currently draws --
+## one per rotated XZ footprint patch with at least one solid cell over it
+## (several cells merge into one column when they share a patch, e.g. a
+## straight unrotated stack), not one flat hull for the whole shape's own
+## convex silhouette any more (that used to draw a shaft over an empty notch
+## of a non-convex shape like S4, reaching as high as a *different*, taller
+## column).
+func projection_column_count() -> int:
+	return _projection_columns.size()
+
+
+## For tests: the world-space (top, bottom) Y span projection column `index`
+## currently covers. `top` is the lowest world-space Y among every cell
+## sharing that column's own rotated XZ footprint patch -- never the whole
+## shape's own highest point (see projection_span_y() for that, which
+## PlayerController's spawn clearance still reads unchanged); `bottom` is
+## always the footprint's own disc landing height, the same value
+## projection_span_y().y already reports.
+func projection_column_span_y(index: int) -> Vector2:
+	return _projection_columns[index]
+
+
+## For tests: every world-space vertex of the projection prism mesh currently
+## built, flattened across every column's own walls -- lets a test check the
+## S4 bug's own literal repro ("no prism vertex lies above the min Y of the
+## cells over its XZ patch") directly against the real rendered geometry
+## rather than trusting this file's own per-column bookkeeping above.
+func projection_mesh_vertices_world() -> PackedVector3Array:
+	var result: PackedVector3Array = PackedVector3Array()
+	if _projection_mesh == null or _projection_mesh.mesh == null:
+		return result
+	var mesh: ArrayMesh = _projection_mesh.mesh as ArrayMesh
+	var offset: Vector3 = _projection_mesh.global_position
+	for surface: int in range(mesh.get_surface_count()):
+		var arrays: Array = mesh.surface_get_arrays(surface)
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		for v: Vector3 in verts:
+			result.append(Vector3(v.x + offset.x, v.y, v.z + offset.z))
+	return result
 
 
 ## For tests: whether the projection prism mesh is currently visible (has a
@@ -864,31 +1174,38 @@ func current_tint_color() -> Color:
 	return _material.albedo_color if _material != null else Color.WHITE
 
 
+## Bontago-xtq.13 (owner playtest 2026-09-23, "ghost block should still be
+## less transparent"): every branch below now applies ghost_tuning.
+## ghost_opacity as the material's own alpha instead of whatever alpha the
+## picked colour happens to carry (_with_alpha() below) -- one F4 slider then
+## controls every state's own opacity together, rather than five separate
+## colour-picker alpha channels that would otherwise all need editing to stay
+## in sync.
 func _apply_validity_material() -> void:
 	if _material == null:
 		return
 	if _locked:
 		_material.albedo_texture = null
-		_material.albedo_color = ghost_tuning.locked_tint_color
+		_material.albedo_color = _with_alpha(ghost_tuning.locked_tint_color, ghost_tuning.ghost_opacity)
 		return
 	# M4 P2e: throw-aim wins over plain validity (same precedence _locked
 	# already has above) but loses to _locked -- an interval-locked piece
 	# cannot be released as a throw either, so that cue must still win.
 	if _throw_hint_active:
 		_material.albedo_texture = null
-		_material.albedo_color = ghost_tuning.throw_aim_tint_color
+		_material.albedo_color = _with_alpha(ghost_tuning.throw_aim_tint_color, ghost_tuning.ghost_opacity)
 		return
 	match _last_result:
 		PlacementRules.Result.VALID:
 			_material.albedo_texture = null
-			_material.albedo_color = Color(_player_color.r, _player_color.g, _player_color.b, ghost_tuning.tint_color.a)
+			_material.albedo_color = _with_alpha(_player_color, ghost_tuning.ghost_opacity)
 		PlacementRules.Result.HOLE, PlacementRules.Result.GOAL_ZONE:
 			_material.albedo_texture = _hatch_texture
 			_material.uv1_scale = Vector3(ghost_tuning.hatch_scale, ghost_tuning.hatch_scale, 1.0)
-			_material.albedo_color = ghost_tuning.hole_tint_color
+			_material.albedo_color = _with_alpha(ghost_tuning.hole_tint_color, ghost_tuning.ghost_opacity)
 		_:
 			_material.albedo_texture = null
-			_material.albedo_color = ghost_tuning.invalid_tint_color
+			_material.albedo_color = _with_alpha(ghost_tuning.invalid_tint_color, ghost_tuning.ghost_opacity)
 
 
 ## Bontago-mv0.17 item 6: the footprint quads get a validity/lock cue tied to

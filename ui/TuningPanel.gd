@@ -69,6 +69,12 @@ extends CanvasLayer
 const SAVE_PATH: String = "user://tuning_overrides.cfg"
 const VALUE_WIDTH: float = 74.0
 
+## Bontago-xtq.13: the selected-tab memory shares SAVE_PATH with every tuning
+## resource's own override section (one ConfigFile, one section per concern)
+## rather than a second settings file.
+const SELECTED_TAB_SECTION: String = "TuningPanel"
+const SELECTED_TAB_KEY: String = "selected_tab"
+
 ## DECISION (ui/TuningPanel.gd, Bontago-mv0.21): row name/description column
 ## widened from the bare label's old 260px width so a whole one-sentence
 ## description can sit under the field name without wrapping to more than a
@@ -131,11 +137,28 @@ var _rows: Array[Dictionary] = []
 var _tab_container: TabContainer = null
 var _status_label: Label = null
 
+## Bontago-xtq.13 (owner playtest 2026-09-23, "F4 should remember which tab
+## was active when reopened"): the last tab index the owner picked, restored
+## onto _tab_container every rebuild() (rebuild() replaces every tab page,
+## which would otherwise silently reset TabContainer.current_tab to 0) and
+## persisted into SAVE_PATH's own ConfigFile so it survives a full app
+## restart too, not just a close/reopen in the same session.
+var _selected_tab_index: int = 0
+
+## Bontago-xtq.13: true only while rebuild() is (re)populating _tab_container.
+## Adding the *first* child tab to an emptied TabContainer auto-selects it and
+## fires tab_changed(0) synchronously (unlike a plain property assignment on
+## an already-populated container) -- without this guard, that spurious event
+## reached _on_tab_changed() and clobbered _selected_tab_index back to 0
+## before rebuild()'s own explicit restore below even ran.
+var _rebuilding_tabs: bool = false
+
 
 func _ready() -> void:
 	visible = false
 	net_provider = Net
 	_build_ui()
+	_selected_tab_index = _load_selected_tab_index()
 	rebuild()
 
 
@@ -201,7 +224,50 @@ func _toggle_panel() -> void:
 		# since this panel last opened (a match restart's fresh MatchConfig,
 		# another peer... in practice nothing else writes these fields today,
 		# but rebuilding is cheap and this is the one moment it's worth it).
+		# Bontago-xtq.13: also restores _selected_tab_index (below), so a
+		# close/reopen in the same session lands back on whichever tab was
+		# open, not tab 0.
 		rebuild()
+
+
+# --- Tab memory (F4 remembers the last active tab, Bontago-xtq.13) ----------
+
+## TabContainer.tab_changed fires both for a real click and for rebuild()'s
+## own programmatic current_tab restore -- either way this is "the tab the
+## owner should come back to", so it is also persisted immediately rather
+## than only on close, surviving a crash/quit between now and the next save.
+func _on_tab_changed(index: int) -> void:
+	if _rebuilding_tabs:
+		return
+	_selected_tab_index = index
+	_save_selected_tab_index()
+
+
+## Loads just the persisted tab index from SAVE_PATH, if any -- called once
+## from _ready(), before the first rebuild() so the very first open already
+## restores it. Returns 0 (the sane default) with no saved file, an unreadable
+## one, or no matching key, exactly like _apply_saved_section()'s own
+## stale/missing-key tolerance below.
+func _load_selected_tab_index() -> int:
+	var config: ConfigFile = ConfigFile.new()
+	if config.load(SAVE_PATH) != OK:
+		return 0
+	if not config.has_section_key(SELECTED_TAB_SECTION, SELECTED_TAB_KEY):
+		return 0
+	return int(config.get_value(SELECTED_TAB_SECTION, SELECTED_TAB_KEY, 0))
+
+
+## Writes just the selected-tab section into SAVE_PATH -- loads whatever is
+## already on disk first (rather than a fresh ConfigFile, which save_overrides()
+## below now also does) so this never clobbers the tuning-override sections a
+## "Save override" click wrote, and vice versa: both share one file, per
+## sections, the same way save_overrides() already groups every tuning
+## resource under its own section.
+func _save_selected_tab_index() -> void:
+	var config: ConfigFile = ConfigFile.new()
+	config.load(SAVE_PATH)
+	config.set_value(SELECTED_TAB_SECTION, SELECTED_TAB_KEY, _selected_tab_index)
+	config.save(SAVE_PATH)
 
 
 # --- Tab construction (reflection) -------------------------------------------
@@ -226,6 +292,10 @@ func _build_ui() -> void:
 
 	_tab_container = TabContainer.new()
 	_tab_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# Bontago-xtq.13: fires for both a real click *and* rebuild()'s own
+	# programmatic restore below -- either way, "whatever tab is now showing"
+	# is exactly what the next close/reopen (or app restart) should return to.
+	_tab_container.tab_changed.connect(_on_tab_changed)
 	layout.add_child(_tab_container)
 
 	var button_row: HBoxContainer = HBoxContainer.new()
@@ -257,6 +327,7 @@ func _build_ui() -> void:
 func rebuild() -> void:
 	if _tab_container == null:
 		return
+	_rebuilding_tabs = true
 	for child: Node in _tab_container.get_children():
 		_tab_container.remove_child(child)
 		child.free()
@@ -269,6 +340,14 @@ func rebuild() -> void:
 	_add_tab("Feed", [block_feed_config])
 
 	_apply_availability()
+
+	# Bontago-xtq.13: rebuild() just replaced every tab page (a fresh
+	# TabContainer would otherwise land back on tab 0) -- restore whatever
+	# tab the owner last had open, clamped in case a stale saved index no
+	# longer fits (e.g. a client's hidden-tab availability changed the count).
+	if _tab_container.get_tab_count() > 0:
+		_tab_container.current_tab = clampi(_selected_tab_index, 0, _tab_container.get_tab_count() - 1)
+	_rebuilding_tabs = false
 
 
 func _add_tab(tab_name: String, resources: Array) -> void:
@@ -749,8 +828,12 @@ func _on_save_pressed() -> void:
 ## Writes every exported float/int/bool/Color field of every tuning resource
 ## into user://tuning_overrides.cfg (one ConfigFile section per resource
 ## class). Public so a test can drive/verify it without a real Button.
+## Bontago-xtq.13: loads whatever is already on disk first -- a fresh
+## ConfigFile here would silently drop the selected-tab section
+## _save_selected_tab_index() writes on its own, independent schedule.
 func save_overrides() -> Error:
 	var config: ConfigFile = ConfigFile.new()
+	config.load(SAVE_PATH)
 	_write_overrides(config, "CameraTuning", camera_tuning)
 	_write_overrides(config, "GhostTuning", ghost_tuning)
 	_write_overrides(config, "PhysicsTuning", physics_tuning)
