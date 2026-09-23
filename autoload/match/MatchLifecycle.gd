@@ -15,6 +15,26 @@ var _countdown_last_whole: int = 0
 var _slots: Array[PlayerSlot] = []
 var _active_slot: int = -1
 
+## True for the duration of a start_match() call (set at its first line,
+## cleared at its last). net/MatchNet.gd's _on_match_state_changed() reads
+## this through is_starting_match() to decide whether a state change is worth
+## replicating on its own: every transition start_match() produces internally
+## -- the leading old_state->LOBBY from abort_match() when restarting from
+## PLAYING/END, then LOBBY->LOADING, then LOADING->COUNTDOWN -- is already
+## fully reproduced the moment a client runs this same start_match() locally
+## from net_match_start (see that RPC's own doc). Replicating them again as
+## separate EVENT_STATE_CHANGED events would land on a client after its own
+## _state has already moved past them (this function runs synchronously
+## start-to-finish, with no yield in between), so apply_replicated_state_
+## change() would read them as new backward transitions instead of the no-ops
+## they should be (Bontago-mv0.1.13: a client-observed COUNTDOWN->LOADING
+## immediately followed by LOADING->COUNTDOWN, spurious both times). Only
+## net_match_start carries the start across the wire; every OTHER state
+## change -- PLAYING->END from a win, a future standalone "return to lobby"
+## that is not part of starting a new match -- happens outside this window
+## and keeps replicating exactly as before.
+var _starting: bool = false
+
 ## Slots whose peer has vanished and whose NetConfig.disconnect_grace is still
 ## running: the feed is stopped and the timer is not ticking, but the slot is
 ## still alive and its towers still hold territory. Parallel to _slots;
@@ -56,6 +76,12 @@ func start_match(match_config: MatchConfig) -> void:
 	# rather than by every caller (the Lobby, net_match_start, the tests, a
 	# future rematch button): Match owns its state machine, so it is Match
 	# that guarantees the sequence consumers can rely on.
+	#
+	# Bontago-mv0.1.13: set before the abort_match() branch below, not just
+	# around the two _set_state() calls further down, so the leading
+	# old_state->LOBBY transition a restart-from-PLAYING/END produces is
+	# covered too -- see _starting's own doc.
+	_starting = true
 	if _state != MatchAutoload.State.LOBBY:
 		abort_match()
 	else:
@@ -110,6 +136,7 @@ func start_match(match_config: MatchConfig) -> void:
 	_countdown_remaining = MatchAutoload.COUNTDOWN_SECONDS
 	_countdown_last_whole = int(ceil(_countdown_remaining))
 	Events.countdown_tick.emit(_countdown_last_whole)
+	_starting = false
 
 
 ## Back to Lobby from anywhere, clearing the field. Emits (old -> LOBBY) even
@@ -187,6 +214,11 @@ func _apply_tilt_mode() -> void:
 
 func state() -> MatchAutoload.State:
 	return _state
+
+
+## Bontago-mv0.1.13: see _starting's own doc.
+func is_starting_match() -> bool:
+	return _starting
 
 
 ## Seconds left in the countdown, or 0.0 outside State.COUNTDOWN.

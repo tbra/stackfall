@@ -594,6 +594,23 @@ func _run_client() -> void:
 		print("M3A_ACCEPT harness_blocked layer=Match reason=match_never_reached_playing")
 		get_tree().quit(2)
 		return
+	# Bontago-mv0.31: a baseline, not an assumed zero. _matchnet_is_wired()
+	# already sent one throwaway probe intent for this same slot before
+	# _run_client() ever started (see its own doc) -- reset_counters() above
+	# is expected to wipe it, but whether it actually lands before or after
+	# that probe is a race between this process's own _ready() sequence and
+	# the host's net_match_start RPC arriving, and -sim-lag/-sim-loss can flip
+	# it (seen once as client_sent_matches_script sent=7 expected=6, %TEMP%/
+	# consumed_m3a_2peer_run7.log). Counting the delta across exactly this
+	# loop's own sends, rather than trusting the absolute counter is 0 going
+	# in, is correct regardless of which side of that race the probe landed
+	# on -- and regardless of anything else that might otherwise leave a
+	# stray count behind before this point.
+	var baseline_sent: int = _intents_sent(slot_id)
+	_check(
+		"client_baseline_sent_at_most_one", baseline_sent <= 1,
+		"baseline=%d" % baseline_sent
+	)
 	# Bontago-mv0.10: spaced the same one-interval-plus-margin apart as the
 	# host's own script (INTENT_SPACING_SECONDS' comment), so this client's
 	# own releases land after its slot's interval boundary unlocks each one
@@ -606,7 +623,7 @@ func _run_client() -> void:
 
 	await get_tree().create_timer(RESULT_WAIT_SECONDS).timeout
 
-	var sent: int = _intents_sent(slot_id)
+	var sent: int = _intents_sent(slot_id) - baseline_sent
 	_check(
 		"client_sent_matches_script", sent == INTENTS_PER_CLIENT,
 		"sent=%d expected=%d" % [sent, INTENTS_PER_CLIENT]

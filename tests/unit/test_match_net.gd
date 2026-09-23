@@ -814,6 +814,72 @@ func test_a_replicated_despawn_removes_the_body() -> void:
 	assert_eq(net.replicated_block_count(), 0)
 
 
+# --- Bontago-mv0.1.13: start_match()'s own transient states are not --------
+# --- replicated a second time ------------------------------------------------
+#
+# Before the fix, _on_match_state_changed() replicated every state change,
+# including the LOBBY/LOADING/COUNTDOWN start_match() produces internally --
+# already fully reproduced on a client by net_match_start's own inline
+# start_match() call. replicated_state_changes/match_starts_replicated are
+# test-only instrumentation (see net/MatchNet.gd): _can_send() is already
+# false in every test in this file with no live peer, so it alone cannot
+# prove a redundant event was suppressed rather than merely handed to a
+# no-op rpc().
+
+
+func test_start_match_from_lobby_does_not_replicate_its_own_transient_states() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	var host_net: MatchNetScript = _make_net({}, [0, 1])
+	watch_signals(Events)
+
+	Match.start_match(_config())
+
+	assert_eq(
+		host_net.replicated_state_changes, [],
+		"LOBBY->LOADING->COUNTDOWN inside start_match() must not be replicated a second time -- only net_match_start carries the start"
+	)
+	assert_eq(host_net.match_starts_replicated, 1)
+	assert_eq(
+		get_signal_emit_count(Events, "match_state_changed"), 2,
+		"exactly the real LOBBY->LOADING and LOADING->COUNTDOWN transitions, the same two a client's own net_match_start-triggered start_match() call produces"
+	)
+
+
+## Mirrors the bug's second scenario: a host restart from PLAYING/END (with a
+## client connected) used to replicate the transient LOBBY plus LOADING/
+## COUNTDOWN as separate EVENT_STATE_CHANGED RPCs interleaved with
+## net_match_start, racing the client's own start. Reaches END the same way
+## test_an_eliminated_slots_towers_lose_their_influence does (disconnect-grace
+## elimination), then restarts on the same host_net a real restart would use.
+func test_host_restart_from_end_replicates_no_transient_states_and_exactly_one_start() -> void:
+	Match.set_net_provider(FakeNet.host({1: 0, 2: 1}, [0]))
+	var host_net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
+	_start_playing(2, 6.0)
+	Match.on_peer_left(1)
+	var grace: float = load("res://config/net_config.tres").disconnect_grace
+	for _i: int in range(int(grace * 60.0) + 10):
+		Match._process(1.0 / 60.0)
+	assert_eq(Match.state(), Match.State.END, "fixture must reach END before the restart")
+
+	host_net.replicated_state_changes.clear()
+	host_net.match_starts_replicated = 0
+	watch_signals(Events)
+
+	Match.start_match(_config())
+
+	assert_eq(
+		host_net.replicated_state_changes, [],
+		"the restart's own END->LOBBY->LOADING->COUNTDOWN must not replicate a second time"
+	)
+	assert_eq(host_net.match_starts_replicated, 1, "exactly one start for the restart")
+	assert_eq(Match.state(), Match.State.COUNTDOWN)
+	# A real client's own net_match_start-triggered start_match() call would
+	# produce exactly these same three transitions (END->LOBBY, LOBBY->
+	# LOADING, LOADING->COUNTDOWN) and, since replicated_state_changes is
+	# empty above, nothing else can arrive afterward to re-emit on top of it.
+	assert_eq(get_signal_emit_count(Events, "match_state_changed"), 3)
+
+
 # --- The client's read model ------------------------------------------------
 
 

@@ -436,7 +436,9 @@ func set_lobby_data(data: Dictionary) -> void:
 		return
 	_lobby_data = data.duplicate(true)
 	Events.net_lobby_data_changed.emit(_lobby_data)
-	_rpc_lobby_data.rpc(_lobby_data)
+	# Bontago-mv0.1.10 review: same teardown hazard as _broadcast_roster().
+	if _can_send():
+		_rpc_lobby_data.rpc(_lobby_data)
 	if _lan.is_advertising():
 		_lan.update_advert({"map": str(_lobby_data.get("map_variant", 0))})
 	# docs/M3b_PLAN.md "Design notes": tee the same Dictionary into Steam
@@ -1160,6 +1162,27 @@ func _reject_peer(peer_id: int, error: int) -> void:
 		multiplayer.multiplayer_peer.disconnect_peer(peer_id)
 
 
+## Bontago-mv0.1.10: whether an RPC broadcast can actually reach the wire
+## right now. _on_peer_disconnected can call _broadcast_roster() while the
+## transport is mid-teardown — the multiplayer_peer already closed/nulled
+## (leave()/host shutdown racing a late disconnect signal), or still open but
+## down to zero connected remote peers (the last client just left). Either
+## way there is nothing to send to, and forcing the RPC anyway either raises
+## "Trying to call an RPC while no multiplayer peer is active" (peer null) or
+## logs ENet's own "Unable to send packet on channel 0, max channels: 0" for
+## a remote peer whose ENetPeer object already reports itself disconnected
+## before Godot's own peer_disconnected signal/roster bookkeeping catches up.
+func _can_send() -> bool:
+	if not is_host():
+		return false
+	var peer: MultiplayerPeer = multiplayer.multiplayer_peer
+	if peer == null:
+		return false
+	if peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
+		return false
+	return not multiplayer.get_peers().is_empty()
+
+
 func _broadcast_roster() -> void:
 	if not is_host():
 		return
@@ -1170,7 +1193,8 @@ func _broadcast_roster() -> void:
 	# leaves, kicks — every caller of _broadcast_roster()) changed right here;
 	# tell ui/Lobby.gd directly rather than waiting on a lobby-data republish.
 	Events.net_roster_changed.emit(roster)
-	_rpc_roster_update.rpc(roster)
+	if _can_send():
+		_rpc_roster_update.rpc(roster)
 	if _lan.is_advertising():
 		_lan.update_advert({"players": _peers.size()})
 
@@ -1278,6 +1302,9 @@ func _tick_ping(delta: float) -> void:
 		return
 	_ping_accum = fmod(_ping_accum, interval)
 	var now_ms: int = Time.get_ticks_msec()
+	# Bontago-mv0.1.10 review: same teardown hazard as _broadcast_roster().
+	if not _can_send():
+		return
 	for peer_id: int in _peers.keys():
 		if peer_id != HOST_PEER_ID:
 			_rpc_ping.rpc_id(peer_id, now_ms)

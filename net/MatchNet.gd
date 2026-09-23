@@ -138,6 +138,20 @@ var _duplicate_net_ids: int = 0
 ## counter is the seam that does. Game code never reads it.
 var _invalid_spawn_refusals: int = 0
 
+## Test-only (Bontago-mv0.1.13): to_state values _on_match_state_changed
+## actually decided to replicate as EVENT_STATE_CHANGED, in order. Needed for
+## the same reason as _invalid_spawn_refusals above: _can_send() is already
+## false in a unit test with no live peer, so it alone cannot prove the
+## transient LOBBY/LOADING/COUNTDOWN states a start_match() call produces
+## internally were suppressed rather than merely handed to a no-op rpc().
+## Game code never reads it.
+var replicated_state_changes: Array[int] = []
+
+## Test-only (Bontago-mv0.1.13): how many times replicate_match_start()
+## actually queued net_match_start for the running match. Must be exactly 1
+## per start, including a restart from PLAYING/END with a client connected.
+var match_starts_replicated: int = 0
+
 var _cursor_send_accum: float = 0.0
 var _raster_send_accum: float = 0.0
 
@@ -495,6 +509,7 @@ func replicate_match_start(match_config: MatchConfig) -> void:
 	if not _is_host() or match_config == null or _match_start_sent:
 		return
 	_match_start_sent = true
+	match_starts_replicated += 1
 	_force_full_raster = true
 	if not _can_send():
 		return
@@ -567,6 +582,9 @@ func reset_counters() -> void:
 	_force_full_raster = true
 	_capture_team = -1
 	_capture_progress = 0.0
+	# Test-only instrumentation; bounded per match (review mv0.1.13).
+	replicated_state_changes.clear()
+	match_starts_replicated = 0
 
 
 # --- Host-side intent handling ----------------------------------------------
@@ -943,6 +961,23 @@ func _on_match_state_changed(_from_state: int, to_state: int) -> void:
 		replicate_match_start(_authority().config)
 	elif to_state == Match.State.LOBBY:
 		_match_start_sent = false
+	# Bontago-mv0.1.13: the LOBBY/LOADING/COUNTDOWN start_match() produces
+	# internally (see MatchLifecycle._starting's own doc) is fully replayed on
+	# a client by net_match_start alone; replicating them again here would
+	# race that local replay and turn into spurious re-emits on the other
+	# side. Every OTHER state change -- reached outside a start_match() call,
+	# such as PLAYING->END from a win -- still replicates normally.
+	#
+	# DECISION (net/MatchNet.gd, Bontago-mv0.1.13): reaches _authority()'s own
+	# _lifecycle directly rather than through a new Match.is_starting_match()
+	# forward -- autoload/Match.gd is not one of this package's owned files.
+	# _authority() is always either the real Match (which always has a
+	# _lifecycle by the time any match flow can run, built in Match._ready())
+	# or a test double; nothing in the current test suite ever hands MatchNet
+	# a _match_provider without one.
+	if _authority()._lifecycle.is_starting_match():
+		return
+	replicated_state_changes.append(to_state)
 	replicate_match_event(EVENT_STATE_CHANGED, [to_state])
 
 
