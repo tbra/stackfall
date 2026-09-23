@@ -677,7 +677,13 @@ func _drive_throw_visuals() -> void:
 	# shows the tint alone, not a misleading arc for a gesture that would
 	# really just place the block where it stands.
 	if _aiming_throw and _is_throw_drag_committable():
-		_arc_preview.update_arc(_ghost.global_position, current_throw_velocity())
+		# Bontago-1en.25: Match.field() (read-only, same accessor
+		# _on_placement_relocated() already uses) so the preview lands where
+		# it actually would rather than always sampling out to
+		# GhostTuning.throw_arc_max_time_s -- null in a bare unit test (no
+		# Field wired to the Match autoload), which update_arc()/sample_arc()
+		# both already treat as "no landing cutoff, safety cap only".
+		_arc_preview.update_arc(_ghost.global_position, current_throw_velocity(), Match.field())
 	else:
 		_arc_preview.clear_arc()
 
