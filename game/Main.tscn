@@ -1,10 +1,11 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://game/Main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://game/Field.tscn" id="2_field"]
 [ext_resource type="PackedScene" path="res://game/CameraRig.tscn" id="3_camera"]
 [ext_resource type="Script" path="res://game/BlockRegistry.gd" id="4_registry"]
 [ext_resource type="PackedScene" path="res://game/Skybox.tscn" id="5_skybox"]
+[ext_resource type="PackedScene" path="res://game/DiscMirror.tscn" id="6_discmirror"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 
@@ -15,7 +16,7 @@ sky_material = SubResource("ProceduralSkyMaterial_1")
 background_mode = 2
 sky = SubResource("Sky_1")
 ambient_light_source = 3
-ssr_enabled = false
+ssr_enabled = true
 ssao_enabled = false
 glow_enabled = false
 
@@ -43,3 +44,7 @@ shadow_enabled = true
 script = ExtResource("4_registry")
 
 [node name="CameraRig" parent="." instance=ExtResource("3_camera")]
+
+[node name="DiscMirror" parent="." instance=ExtResource("6_discmirror")]
+camera_path = NodePath("../CameraRig/Camera3D")
+field_path = NodePath("../Field")
