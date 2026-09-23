@@ -37,6 +37,16 @@ extends Resource
 ## position (see BotController._sample_territory_point()).
 @export var max_territory_sample_attempts: int = 12
 
+## Bontago-d5c.2 (review fix, append-only per docs/M5_PLAN.md's "if you need
+## a new numeric... add it as an @export on BotTuning, append-only"): seconds
+## BotController._apply_rejection_backoff() holds a bot in IDLE after
+## request_place()/request_throw() comes back with anything but
+## PlacementRules.REASON_OK, so a rejected placement (e.g. another block
+## landed on the sampled spot between GENERATING and ACTING) doesn't spend
+## every following physics frame re-generating and re-sending the identical
+## rejected request.
+@export var rejection_backoff_s: float = 0.5
+
 
 ## Returns the profile for `difficulty`; NORMAL (and any out-of-range value)
 ## falls back to `normal` rather than failing, so a stale/corrupt wire value

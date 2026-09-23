@@ -30,6 +30,11 @@ class BotControllerFakeMatch:
 
 	var request_place_calls: Array[Dictionary] = []
 	var request_throw_calls: Array[Dictionary] = []
+	## Bontago-d5c.2 (review fix regression): lets a test make every
+	## request_place()/request_throw() come back rejected, the same shape a
+	## real MatchPlacement/ThrowRules refusal returns (any StringName other
+	## than PlacementRules.REASON_OK).
+	var next_request_reason: StringName = PlacementRules.REASON_OK
 
 	func state() -> int:
 		return state_value
@@ -68,7 +73,7 @@ class BotControllerFakeMatch:
 			"slot_id": slot_id, "origin": origin, "orientation_index": orientation_index,
 			"free_quat": free_quat, "auto_drop": auto_drop, "feed_seq": feed_seq_arg,
 		})
-		return PlacementRules.REASON_OK
+		return next_request_reason
 
 	func request_throw(
 		slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion, velocity: Vector3, feed_seq_arg: int = -1
@@ -77,7 +82,7 @@ class BotControllerFakeMatch:
 			"slot_id": slot_id, "origin": origin, "orientation_index": orientation_index,
 			"free_quat": free_quat, "velocity": velocity, "feed_seq": feed_seq_arg,
 		})
-		return PlacementRules.REASON_OK
+		return next_request_reason
 
 
 class BotControllerFakeNet:
@@ -85,6 +90,25 @@ class BotControllerFakeNet:
 
 	func is_host() -> bool:
 		return is_host_value
+
+
+## Bontago-d5c.2 (review fix regression, MAJOR): forces both the pre-noise
+## candidate origin (_sample_territory_point()) and the aim-noise offset
+## (_aim_noise_offset()) to fixed values so a test can prove
+## _send_best_placement() samples support height at the *noisy* point, not
+## the pre-noise one, without depending on the seeded RNG's own draw order
+## (GDScript inner classes may extend a global class_name; both overridden
+## methods are ordinary, non-virtual functions on BotController).
+class BotControllerForcedNoise:
+	extends BotController
+	var forced_origin: Vector2 = Vector2.ZERO
+	var forced_noise: Vector2 = Vector2.ZERO
+
+	func _sample_territory_point(_team_id: int) -> Vector2:
+		return forced_origin
+
+	func _aim_noise_offset() -> Vector2:
+		return forced_noise
 
 
 func _small_map() -> MapDef:
@@ -102,6 +126,25 @@ func _make_field() -> Field:
 	field.map_def = _small_map()
 	add_child_autofree(field)
 	return field
+
+
+## A static box collider under `field`'s own physics world, top surface at
+## `at.y + size * 0.5` (world Y, since a fresh Field's own transform is
+## identity -- Field.to_local()/world_from_disk_local() are then a straight
+## pass-through) -- test_field_raycast.gd's own _make_cube() pattern, a
+## StaticBody3D instead of a RigidBody3D so no settle time is needed before
+## the raycast is stable.
+func _make_platform(field: Field, at: Vector3, size: float) -> StaticBody3D:
+	var body: StaticBody3D = StaticBody3D.new()
+	var collision: CollisionShape3D = CollisionShape3D.new()
+	var box: BoxShape3D = BoxShape3D.new()
+	box.size = Vector3.ONE * size
+	collision.shape = box
+	body.add_child(collision)
+	field.get_parent().add_child(body)
+	autofree(body)
+	body.global_position = at
+	return body
 
 
 func _make_config() -> MatchConfig:
@@ -241,3 +284,72 @@ func test_two_bots_with_different_jitter_draws_never_start_generating_on_the_sam
 	assert_true(frame_a >= 0, "fixture: bot A eventually starts thinking")
 	assert_true(frame_b >= 0, "fixture: bot B eventually starts thinking")
 	assert_ne(frame_a, frame_b, "different per-slot jitter draws land on different frames")
+
+
+## Bontago-d5c.2 (review fix regression, MAJOR): best.support_height was
+## sampled at the pre-noise origin -- the aim-noise offset can legitimately
+## move the request onto a different collider's surface. Two platforms sit
+## under two known disk-local points: a low one under the forced pre-noise
+## origin (0, 0), top at world Y 1.0, and a taller one under the forced
+## noisy point (3, 0), top at world Y 2.5. If the bug were still present the
+## request would quote Y 1.0 (the pre-noise sample); the fix must quote Y 2.5
+## (a fresh raycast at the actual noisy point).
+func test_send_best_placement_resamples_support_height_at_the_noisy_origin() -> void:
+	var field: Field = _make_field()
+	_make_platform(field, Vector3(0.0, 0.5, 0.0), 1.0)
+	_make_platform(field, Vector3(3.0, 2.0, 0.0), 1.0)
+	# test_field_raycast.gd's own precedent: a freshly added StaticBody3D's
+	# collision shape is only committed to the physics server on the next
+	# real physics frame, and _tick()'s manual _physics_process() calls below
+	# never step the engine itself -- without this, both raycasts miss.
+	await wait_physics_frames(2)
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
+	var controller: BotControllerForcedNoise = BotControllerForcedNoise.new()
+	add_child_autofree(controller)
+	controller.set_match_provider(match_ref)
+	controller.set_net_provider(net_ref)
+	controller.forced_origin = Vector2(0.0, 0.0)
+	controller.forced_noise = Vector2(3.0, 0.0)
+
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+	Events.feed_block_issued.emit(0, &"cube", &"")
+	_tick(controller, 72)
+
+	assert_eq(match_ref.request_place_calls.size(), 1, "one placement request after the think-cycle")
+	var world_origin: Vector3 = match_ref.request_place_calls[0]["origin"] as Vector3
+	assert_almost_eq(world_origin.x, 3.0, 0.05, "fixture: the noisy point's own x")
+	assert_almost_eq(world_origin.z, 0.0, 0.05, "fixture: the noisy point's own z")
+	assert_almost_eq(
+		world_origin.y, 2.5, 0.05,
+		"must sample support height under the noisy point (2.5), not the stale pre-noise sample (1.0)"
+	)
+
+
+## Bontago-d5c.2 (review fix regression, MINOR): with no backoff, a rejected
+## request_place() leaves _countdown at 0.0 and _tick_idle() re-enters
+## GENERATING the very next frame, so an always-rejecting FakeMatch would
+## retry roughly once per full GENERATING+ACTING cycle (~10 frames for
+## NORMAL) forever. tuning.rejection_backoff_s (0.5 s = 30 frames) must hold
+## the bot in IDLE after each rejection, bounding the call count over `seconds`
+## of simulated time to `ceil(seconds / rejection_backoff_s) + 1` (+1 for the
+## first think-cycle's own reaction delay, which isn't backoff-gated).
+func test_rejected_request_backs_off_before_retrying() -> void:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	match_ref.next_request_reason = PlacementRules.REASON_CONTESTED
+	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
+	var controller: BotController = _make_controller(field, match_ref, net_ref)
+
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+	Events.feed_block_issued.emit(0, &"cube", &"")
+
+	var seconds: float = 5.0
+	_tick(controller, int(seconds * 60.0))
+
+	var max_calls: int = int(ceil(seconds / controller.tuning.rejection_backoff_s)) + 1
+	assert_true(
+		match_ref.request_place_calls.size() <= max_calls,
+		"a rejected placement must back off for tuning.rejection_backoff_s before retrying (got %d calls, expected <= %d)"
+			% [match_ref.request_place_calls.size(), max_calls]
+	)

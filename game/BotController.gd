@@ -23,13 +23,6 @@ extends Node
 ## game/HotSeat.gd already establishes for a human controller (one instance
 ## per seat).
 
-## Unit cube edge length, meters. An architectural constant, not a tunable
-## (CLAUDE.md's "no magic numbers" targets tunables) -- every BlockShape cell
-## is exactly one unit cube regardless of difficulty or map, the same
-## constant tests/unit/test_placement_rules.gd's own CUBE names for
-## PlacementRules.footprint_cells()'s identical parameter.
-const CUBE_SIZE_M: float = 1.0
-
 ## Bontago-d5c: a large odd offset distinct from MatchFeed._build_bags()'s own
 ## per-slot bag stride (1000003) and MatchGifts' two RNG offsets (999983,
 ## 999979) -- this file's own per-system stream off the shared
@@ -114,8 +107,12 @@ func _seed_rng() -> void:
 	var config: MatchConfig = match_ref.config if match_ref != null else null
 	if config != null and config.rng_seed >= 0:
 		_rng.seed = config.rng_seed + RNG_OFFSET + _slot_id * 1000003
-	# else: leave the RNG's own construction-time random seed (BlockBag's
-	# identical convention for rng_seed < 0, "randomize" mode).
+	else:
+		# BlockBag._init()'s identical convention for rng_seed < 0
+		# ("randomize" mode) -- explicit rather than relying on _rng's own
+		# construction-time seed (review fix, Bontago-d5c.2: RandomNumberGenerator
+		# is not guaranteed random at construction across engine versions).
+		_rng.randomize()
 
 
 func _match() -> Variant:
@@ -213,7 +210,13 @@ func _generate_one_candidate(team_id: int, shape: BlockShape, orientation_index:
 	var grid: CellGrid = match_ref.cell_grid()
 	if grid != null:
 		var basis: Basis = BlockOrientations.get_basis(orientation_index)
-		candidate.footprint_cells = PlacementRules.footprint_cells(shape.cells, basis, origin, CUBE_SIZE_M, grid)
+		# Review fix (Bontago-d5c.2, nit): the real PhysicsTuning.cube_size,
+		# read off _field the same way BlockFactory/GhostPreview do (both
+		# take a PhysicsTuning and read .cube_size off it), not a duplicate
+		# local literal that could silently drift from the shipped value.
+		candidate.footprint_cells = PlacementRules.footprint_cells(
+			shape.cells, basis, origin, _field.tuning.cube_size, grid
+		)
 		_fire_stability_raycasts(candidate.footprint_cells, grid)
 	candidate.on_top_of_own_stack = _is_own_block(hit.get("collider"), team_id)
 	_candidates.append(candidate)
@@ -321,19 +324,36 @@ func _tick_acting() -> void:
 			tuning
 		)
 		if action.should_throw:
-			_send_throw(action)
+			_apply_rejection_backoff(_send_throw(action))
 			return
 		if not action.should_place_ordinarily:
 			# Neither throws nor places -- nothing to do this cycle. P1's own
 			# default action never reaches this branch (should_place_
 			# ordinarily is always true); kept for P3's own real heuristics.
 			return
-	_send_best_placement()
+	_apply_rejection_backoff(_send_best_placement())
 
 
-func _send_best_placement() -> void:
-	if _candidates.is_empty():
-		return
+## Review fix (Bontago-d5c.2, MINOR): an outright-rejected request_place()/
+## request_throw() (anything but PlacementRules.REASON_OK -- e.g.
+## REASON_CONTESTED after another block landed on the sampled spot between
+## GENERATING and ACTING) must not spend every following physics frame
+## retrying the exact same rejected cycle -- with no backoff, _tick_idle()'s
+## own countdown gate reads 0.0 the very next frame (nothing resets it short
+## of a fresh Events.feed_block_issued) and GENERATING restarts immediately.
+## `reason` is `PlacementRules.REASON_OK` (StringName "") both when a request
+## actually succeeded and when `_send_best_placement()`/`_send_throw()` sent
+## nothing at all (empty candidates, null best, null `_field`) -- neither
+## case needs a backoff, only a genuine non-OK reason from a request that was
+## actually sent does.
+func _apply_rejection_backoff(reason: StringName) -> void:
+	if reason != PlacementRules.REASON_OK:
+		_countdown = tuning.rejection_backoff_s
+
+
+func _send_best_placement() -> StringName:
+	if _candidates.is_empty() or _field == null:
+		return PlacementRules.REASON_OK
 	var match_ref: Variant = _match()
 	var team_id: int = int(match_ref.team_of(_slot_id))
 	var best: BotCandidate = BotPlacementScorer.pick_best(
@@ -348,21 +368,30 @@ func _send_best_placement() -> void:
 		_field_radius()
 	)
 	if best == null:
-		return
+		return PlacementRules.REASON_OK
 	var noisy_origin: Vector2 = best.origin + _aim_noise_offset()
-	var world_origin: Vector3 = _field.world_from_disk_local(noisy_origin, best.support_height)
-	match_ref.request_place(
+	# Review fix (Bontago-d5c.2, MAJOR): best.support_height was sampled at
+	# the pre-noise origin -- the aim-noise offset can legitimately land the
+	# request over a different (e.g. taller) collider than the one the
+	# candidate was scored against, so the height must be resampled at the
+	# actual noisy point the request is about to use, never the stale
+	# pre-noise sample.
+	var hit: Dictionary = _raycast_support_height(noisy_origin)
+	var world_origin: Vector3 = _field.world_from_disk_local(noisy_origin, float(hit.get("height", 0.0)))
+	return StringName(match_ref.request_place(
 		_slot_id, world_origin, best.orientation_index, Quaternion.IDENTITY, false, int(match_ref.feed_seq(_slot_id))
-	)
+	))
 
 
-func _send_throw(action: BotSpecialPlanner.BotSpecialAction) -> void:
+func _send_throw(action: BotSpecialPlanner.BotSpecialAction) -> StringName:
+	if _field == null:
+		return PlacementRules.REASON_OK
 	var match_ref: Variant = _match()
 	var noisy_origin: Vector2 = action.throw_origin + _aim_noise_offset()
 	var world_origin: Vector3 = _field.world_from_disk_local(noisy_origin, 0.0)
-	match_ref.request_throw(
+	return StringName(match_ref.request_throw(
 		_slot_id, world_origin, 0, Quaternion.IDENTITY, action.throw_velocity, int(match_ref.feed_seq(_slot_id))
-	)
+	))
 
 
 ## Random aiming error (spec 2.9), drawn from the same per-bot seeded RNG as

@@ -47,3 +47,4 @@ risk_active_special_radius_m = 5.0
 think_phase_jitter_s = 0.4
 max_generation_frames = 40
 max_territory_sample_attempts = 12
+rejection_backoff_s = 0.5
