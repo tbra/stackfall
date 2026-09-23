@@ -3,6 +3,62 @@
 Prepared 2026-09-18 from Git, Beads, project files and the interrupted local Claude
 session. This is a restart snapshot. Refresh live state; keep task progress in Beads.
 
+## Update 2026-09-23 (evening, in progress) — resume here
+
+**Git:** `main` 10c2698 pushed (owner allowed merge/push mid-session; the classifier may deny
+`git merge`/`git push` again in a new session — ask). M4 is feature-complete on main: all
+seven specials, throw input (P2d) + arc preview (P2e), special_consumed replication, tilt
+wiring, F9 force-special (`--force-special=<id>`), M3 P3 bug batch. M3 4-peer lag/loss +
+throw harness PASS on bcd645f; Steam probe steamInitEx(480) status 0. Full suite last run
+1007/1007 at 35fef30 — **run it once more** on the next idle window (targeted sets + harness
+covered everything since).
+
+**In flight (uncommitted worktrees):** `f7ghost` (`wt/feel7-ghost`: xtq.16 per-column
+prism → xtq.13 ghost_opacity slider + F4 tab memory → xtq.15 block projection decal),
+`f7ctrl` (`wt/feel7-ctrl`: mv0.34 remove hover height cap → mv0.33 conditional spawn
+clearance), `disktilt` (`wt/net-disk-tilt`, 1en.27 client applies replicated disk tilt —
+reviewed, two SHOULD-FIXes pending: stall smoothing + bracket tests; then commit/merge).
+Queued: disc group xtq.12 (not reflective) + xtq.14 (sharp edge), xtq.17 physics-feel
+presets (review yes), 1en.25 arc ends at ground, 1en.22, 1en.26, p0a (m2_acceptance h/f/d/e
+fail on main), mv0.32, mv0.4, mv0.1.12. Owner questions open: Bontago-b6l (volcano orbs
+persist?), 4nz, 3td. Owner playtest notes: `feedback/playtest.md` (round 7, all filed);
+reference `docs/original_hover-preview.png`.
+
+**Play copy:** `M:/Bontago-worktrees/play` detached at a09336b with assets installed; move
+with `git -C M:/Bontago-worktrees/play checkout --detach main` + one open-editor pass.
+Leftover dir `M:/Bontago-worktrees/force` is pruned from git (delete by hand). Beads
+memories added today: `stackfall-class-cache`, `stackfall-animatablebody-tests`.
+
+## Update 2026-09-23 (afternoon session, in progress) — resume here
+
+**Git:** `main` at 6c21ed4 or later (see `git log`), NOT pushed: `git push origin main` is
+denied by the permission classifier in this session; the owner runs `git -C M:/Bontago push
+origin main` or adds a Bash allow-rule. The same classifier blocked `git merge` until the owner
+said "permission granted"; expect to ask again in a new session.
+
+**Merged today (all accepted, closed in Beads):** the three end-of-day branches (p2c-wire
+`1en.17`, Earthquake `1en.4`, Anvil `1en.5`; gate ff263b5 974/974), the owner's fourth-test
+feel-6 items (`xtq.9/.10` ghost prism+emissive column+near-white footprint, `xtq.11` opaque
+mirror disc incl. SPEC §2.10 text + `glass_alpha`/`tint_opacity_boost` removed, `mv0.29`
+camera frozen during MMB, `mv0.30` next ghost spawns above the placed block), M4 wave 2+
+(`1en.6` Propeller, `1en.18` P3-SH `SpecialPhysics.explode()` with per-body de-dup, `1en.2`
+Bomb, `1en.1` Rocket, `1en.19` P4-SPAWN `Match.spawn_special_projectile()` +
+`SpecialTuning.ccd_speed_threshold_mps`). Gate on 35fef30: 1007/1007; later merges verified
+with targeted sets — run the full suite once more after the current wave merges.
+
+**In flight (worktrees, uncommitted until accepted):** `M:/Bontago-worktrees/p5hole`
+(`wt/sp-p5hole`, `1en.20` P5-HOLE, Jev review=yes) and `M:/Bontago-worktrees/volcano`
+(`wt/sp-volcano`, `1en.3` Volcano + `bench_specials_chain`, Jev review=yes). Then Jumping Bean
+`1en.8` (needs P5-HOLE), P2d throw input `1en.14`, P2e arc preview `1en.15`, `1en.21` client
+pending-count decrement. Owner's play copy `M:/Bontago-worktrees/play` is detached at 35fef30;
+move it with `git -C M:/Bontago-worktrees/play checkout --detach main` and run the open-editor
+pass there once (class cache — see Beads memory `stackfall-class-cache`).
+
+**Process notes today:** two headless Godot processes running `Temp/cast_test.gd` (PIDs
+29820/24028) belong to someone else — leave them. Workers' `.import` files for
+`docs/original_*.png` are now tracked (came in with the ghost branch). Jev override on Rocket
+(review skipped: contract transcription, helper reviewed) is logged in `1en.1`.
+
 ## Update 2026-09-23 (end of day) — resume here
 
 **Git:** `main` clean and pushed at the commit carrying this note. Owner's play copy

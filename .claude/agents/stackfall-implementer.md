@@ -35,3 +35,5 @@ assignment authority. Keep partial work recoverable if blocked or rate-limited.
 - Logs: write every gate's output to the scratchpad path given in the brief with the prefix given; report paths, not contents.
 - Report with the template in `docs/AGENT_WORKFLOW.md` ("Package size, reports and review scope"); keep it short. If you are stopped or rate-limited, leave the tree in a compiling state and say exactly where you stopped.
 - Godot processes: `tasklist | findstr` is broken in Git Bash; use `tasklist | grep -i godot` or `wmic process where "name like '%godot%'" get ProcessId,CommandLine`. Never kill by image name (`//IM`): other agents' benchmarks share the machine. Kill only your own PIDs.
+
+- **Windowed Godot runs (owner, 2026-09-23):** any windowed launch you make (screenshot probes, smoke runs) must pass `--position 10000,10000` so it opens off-screen, never `--always-on-top`/`--maximized`, and must quit right after the capture; use `--headless` when no screenshot is needed. Visible windows interrupt the owner on another monitor.

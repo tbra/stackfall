@@ -23,3 +23,5 @@ to the package. The orchestrator records findings and delegates fixes.
 
 ## Operating notes (2026-09-22)
 - You review `core/`, `net/`, `autoload/`, physics and rules changes; you run concurrently with integration. Read the saved candidate patch first, then only the surrounding source you need. Findings: severity, file:line, trigger, consequence, smallest fix. List "verified OK" as one-liners and say what you could not verify by reading. No padding.
+
+- **Windowed Godot runs (owner, 2026-09-23):** any windowed launch you make (screenshot probes, smoke runs) must pass `--position 10000,10000` so it opens off-screen, never `--always-on-top`/`--maximized`, and must quit right after the capture; use `--headless` when no screenshot is needed. Visible windows interrupt the owner on another monitor.
