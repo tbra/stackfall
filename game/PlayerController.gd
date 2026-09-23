@@ -42,6 +42,11 @@ extends Node
 
 @export var camera_rig_path: NodePath
 @export var ghost_path: NodePath
+## M4 P2e (docs/M4_P2_PACKAGES.md P2e): the same NodePath pattern as
+## ghost_path above, wired in game/HotSeat.tscn / game/Sandbox.tscn to a
+## sibling ThrowArcPreview instance. Null on a bare unit-test controller
+## (no scene wiring) -- every call site below guards for that.
+@export var arc_preview_path: NodePath
 @export var tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
 @export var ghost_tuning: GhostTuning = preload("res://config/ghost_tuning.tres")
 @export var camera_tuning: CameraTuning = preload("res://config/camera_tuning.tres")
@@ -55,6 +60,9 @@ extends Node
 
 var _camera_rig: CameraRig
 var _ghost: GhostPreview
+## M4 P2e: resolved from arc_preview_path in _ready(); null (and every driver
+## below no-ops) when the scene doesn't wire one, exactly like _camera_rig.
+var _arc_preview: ThrowArcPreview
 
 ## DECISION (game/PlayerController.gd): Match is a global autoload (like
 ## Events), so gameplay code normally calls `Match.foo()` directly with full
@@ -187,6 +195,7 @@ var _throw_aim_elapsed: float = 0.0
 func _ready() -> void:
 	_camera_rig = get_node_or_null(camera_rig_path) as CameraRig
 	_ghost = get_node_or_null(ghost_path) as GhostPreview
+	_arc_preview = get_node_or_null(arc_preview_path) as ThrowArcPreview
 	_match = Match
 	_shapes_by_id = _load_shapes_by_id()
 	Events.turn_changed.connect(_on_turn_changed)
@@ -622,11 +631,56 @@ func _update_throw_aim(delta: float) -> void:
 			_aiming_throw = true
 			_throw_drag = Vector3.ZERO
 			_throw_aim_elapsed = 0.0
+		# M4 P2e: unchanged control flow above (still one early return per the
+		# original P2d state machine) -- only this observer call is new, so it
+		# runs on both "just started aiming" and "still not aiming" alike.
+		_drive_throw_visuals()
 		return
 	_throw_aim_elapsed += delta
 	_accumulate_gamepad_throw_drag(delta)
 	if not throw_held:
 		_commit_throw_aim()
+	# M4 P2e: runs after a possible _commit_throw_aim() above, so the hint/arc
+	# disappear the same frame _aiming_throw goes false on release, not one
+	# frame late.
+	_drive_throw_visuals()
+
+
+## M4 P2e (docs/M4_P2_PACKAGES.md P2e, presentation only): the ghost's throw
+## tint and the arc preview both track _aiming_throw every frame, called from
+## both branches of the state machine above -- the "just started aiming"
+## branch above (so the very first frame already shows the hint) and the
+## normal per-frame branch, and once more from the exact frame
+## _commit_throw_aim() clears _aiming_throw (so the hint/arc disappear the
+## same frame the throw/place actually fires, not one frame late).
+func _drive_throw_visuals() -> void:
+	if _ghost != null:
+		_ghost.show_throw_hint(_aiming_throw)
+	if _arc_preview == null:
+		return
+	# DECISION (game/PlayerController.gd, M4 P2e): while aiming, the ghost's
+	# throw tint stays on for the whole hold (a "you are aiming a throw" cue),
+	# but the arc itself only appears once the drag would actually commit as a
+	# throw rather than an ordinary place -- _commit_throw_aim()'s own
+	# distance/speed gate, mirrored here read-only against the *live* drag
+	# rather than the release snapshot it uses. A drag below the threshold
+	# shows the tint alone, not a misleading arc for a gesture that would
+	# really just place the block where it stands.
+	if _aiming_throw and _is_throw_drag_committable():
+		_arc_preview.update_arc(_ghost.global_position, current_throw_velocity())
+	else:
+		_arc_preview.clear_arc()
+
+
+## Read-only mirror of _commit_throw_aim()'s own distance/speed gate, against
+## the live _throw_drag/_throw_aim_elapsed instead of the release snapshot --
+## see _drive_throw_visuals()'s own DECISION for why this duplicates the gate
+## rather than the velocity math (current_throw_velocity() below shares that
+## part instead).
+func _is_throw_drag_committable() -> bool:
+	var distance: float = _throw_drag.length()
+	var speed: float = (distance / _throw_aim_elapsed) if _throw_aim_elapsed > 0.0 else INF
+	return distance >= special_tuning.throw_drag_min_distance_m and speed >= special_tuning.throw_drag_min_speed_mps
 
 
 ## Mouse's half of the drag accumulation, called from _unhandled_input's
@@ -692,15 +746,30 @@ func _commit_throw_aim() -> void:
 	if distance < special_tuning.throw_drag_min_distance_m or speed < special_tuning.throw_drag_min_speed_mps:
 		_request_place(false)
 		return
-	# DECISION (game/PlayerController.gd, M4 P2d): _throw_drag is already
-	# ground-plane only (both accumulators above build it from
-	# _camera_relative_dir(), which never has a Y component) -- "the drag
-	# vector projected onto the ground plane" needs no extra step. The
-	# "plus an upward component" half lofts it at a fixed 45 degree
-	# The loft is SpecialTuning.throw_loft_ratio (default 1.0 = 45 degrees).
+	_request_throw(_throw_velocity_for_drag(drag))
+
+
+## The one place that turns a ground-plane drag vector into a launch
+## velocity -- shared by _commit_throw_aim() above (the actual throw) and
+## current_throw_velocity() below (P2e's read-only preview of what that same
+## throw would be *right now*, mid-drag, before release). DECISION (game/
+## PlayerController.gd, M4 P2e: "the arc must use the SAME formula ... share
+## the implementation ... rather than duplicating the math"): both callers
+## pass a snapshot of _throw_drag (the release copy, or the live one) rather
+## than reading the field directly, so this stays a pure function of its
+## argument.
+## _throw_drag is already ground-plane only (both accumulators build it from
+## _camera_relative_dir(), which never has a Y component) -- "the drag vector
+## projected onto the ground plane" needs no extra step. The "plus an upward
+## component" half lofts it; the loft is SpecialTuning.throw_loft_ratio
+## (default 1.0 = 45 degrees).
+func _throw_velocity_for_drag(drag: Vector3) -> Vector3:
+	var distance: float = drag.length()
+	if distance <= 0.0:
+		return Vector3.ZERO
 	var direction: Vector3 = (drag + Vector3.UP * distance * special_tuning.throw_loft_ratio).normalized()
 	var speed_mps: float = minf(distance * special_tuning.throw_speed_per_meter, special_tuning.throw_max_speed)
-	_request_throw(direction * speed_mps)
+	return direction * speed_mps
 
 
 ## Cancels an in-progress aim with no side effect other than clearing state --
@@ -724,6 +793,14 @@ func is_aiming_throw() -> bool:
 ## P2e's own read-only seam for the arc preview's start point/direction.
 func current_throw_drag() -> Vector3:
 	return _throw_drag
+
+
+## P2e's own read-only seam for the arc preview's launch velocity -- the
+## live drag's would-be throw velocity, computed by the exact same formula
+## _commit_throw_aim() uses on release (see _throw_velocity_for_drag()'s own
+## doc comment). Vector3.ZERO before any drag has accumulated.
+func current_throw_velocity() -> Vector3:
+	return _throw_velocity_for_drag(_throw_drag)
 
 
 ## Spec M2 owner decision 3: a slot whose home flag is gone is effectively
