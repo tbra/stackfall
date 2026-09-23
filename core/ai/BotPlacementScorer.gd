@@ -15,8 +15,12 @@ extends RefCounted
 ## not a recompute of the real territory/physics state:
 ## - Goal progress: distance(candidate.origin, nearest goal) minus the
 ##   candidate's own estimated future influence-circle radius
-##   (InfluenceCircle.radius_for_height(candidate.support_height, ...)) -- a
-##   smaller (even negative) number is better. A full TerritorySolver.solve()
+##   (InfluenceCircle.radius_for_height(candidate.support_height +
+##   candidate.shape_height, ...) -- Bontago-d5c.9 appends `shape_height`,
+##   the oriented shape's own height in cube units, since the circle's radius
+##   is driven by the block's highest point above the disk, not merely its
+##   pivot's support height) -- a smaller (even negative) number is better.
+##   A full TerritorySolver.solve()
 ##   per candidate (up to 120 per bot per think-cycle, docs/M5_PLAN.md's own
 ##   "Known risks: Perf") is the actual thing this estimate avoids doing.
 ## - Stability: BotCandidate carries `footprint_cells` (the geometric
@@ -82,7 +86,8 @@ static func _goal_progress_metric(
 	var nearest: float = INF
 	for goal: Vector2 in goal_positions:
 		nearest = minf(nearest, candidate.origin.distance_to(goal))
-	var radius: float = InfluenceCircle.radius_for_height(candidate.support_height, territory_tuning, field_radius)
+	var estimated_height: float = candidate.support_height + candidate.shape_height
+	var radius: float = InfluenceCircle.radius_for_height(estimated_height, territory_tuning, field_radius)
 	return nearest - radius
 
 
@@ -122,7 +127,7 @@ static func _origin_within_footprint_bounds(candidate: BotCandidate, grid: CellG
 ## inside the supported area, and a flat bonus for resting on the bot's own
 ## already-placed stack -- "on_top_of_own_stack == true with full contact
 ## scores higher than one balanced on a corner" (docs/M5_PLAN.md P2).
-static func _stability_term(candidate: BotCandidate, grid: CellGrid) -> float:
+static func _stability_term(candidate: BotCandidate, grid: CellGrid, tuning: BotTuning) -> float:
 	var cell_count: int = candidate.footprint_cells.size()
 	if cell_count == 0:
 		return 0.0
@@ -134,8 +139,8 @@ static func _stability_term(candidate: BotCandidate, grid: CellGrid) -> float:
 		# assumed in contact, which is exactly what every real candidate
 		# reports today.
 		contact_cells = float(cell_count)
-	var balance_factor: float = 1.0 if _origin_within_footprint_bounds(candidate, grid) else 0.5
-	var stack_bonus: float = 1.0 if candidate.on_top_of_own_stack else 0.0
+	var balance_factor: float = 1.0 if _origin_within_footprint_bounds(candidate, grid) else tuning.stability_off_centre_factor
+	var stack_bonus: float = tuning.stability_stack_bonus if candidate.on_top_of_own_stack else 0.0
 	return contact_cells * balance_factor + stack_bonus
 
 
@@ -159,7 +164,7 @@ static func score(
 ) -> float:
 	var territory_tuning: TerritoryTuning = raster.tuning() if raster != null else null
 	var goal_metric: float = _goal_progress_metric(candidate, goal_positions, territory_tuning, field_radius)
-	var stability_term: float = _stability_term(candidate, grid)
+	var stability_term: float = _stability_term(candidate, grid, tuning)
 	var risk_term: float = _risk_term(candidate, enemy_circle_centers, active_special_positions, tuning)
 	return (
 		tuning.weight_height * candidate.support_height
@@ -179,8 +184,9 @@ static func _flat_footprint_coverage(cells: Array[Vector3i], basis: Basis) -> in
 		return 0
 	var heights: PackedInt32Array = PackedInt32Array()
 	heights.resize(cells.size())
-	var min_height: int = 2147483647
-	for i: int in range(cells.size()):
+	heights[0] = int(round((basis * Vector3(cells[0])).y))
+	var min_height: int = heights[0]
+	for i: int in range(1, cells.size()):
 		var transformed: Vector3 = basis * Vector3(cells[i])
 		var height: int = int(round(transformed.y))
 		heights[i] = height

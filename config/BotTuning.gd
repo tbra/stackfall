@@ -69,6 +69,17 @@ extends Resource
 ## code with no SpecialTuning reference.
 @export var special_throw_loft_ratio: float = 0.6
 
+## Bontago-d5c.9 (M5 P3b-i, append-only): core/ai/BotPlacementScorer.gd's
+## stability factor multiplies the supported-cell contact count by this
+## factor when a candidate's own centre-of-mass estimate (BotCandidate.origin)
+## falls outside its footprint's bounds -- an off-balance placement still
+## scores something, just less than a well-centred one.
+@export var stability_off_centre_factor: float = 0.5
+## Flat bonus core/ai/BotPlacementScorer.gd's stability factor adds when a
+## candidate rests on the bot's own already-placed stack
+## (BotCandidate.on_top_of_own_stack).
+@export var stability_stack_bonus: float = 1.0
+
 ## Returns the profile for `difficulty`; NORMAL (and any out-of-range value)
 ## falls back to `normal` rather than failing, so a stale/corrupt wire value
 ## never leaves a bot with a null profile.

@@ -50,3 +50,5 @@ max_territory_sample_attempts = 12
 rejection_backoff_s = 0.5
 special_throw_speed_mps = 16.0
 special_throw_loft_ratio = 0.6
+stability_off_centre_factor = 0.5
+stability_stack_bonus = 1.0

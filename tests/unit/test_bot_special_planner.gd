@@ -51,6 +51,8 @@ func test_rocket_never_should_throw() -> void:
 	)
 	assert_false(action.should_throw, "a Rocket has no homing target -- it is always placed, never thrown")
 	assert_true(action.should_place_ordinarily, "falls through to the ordinary placement path")
+	assert_true(action.has_place_target, "records the intended target for a placed-with-intent heuristic")
+	assert_eq(action.throw_origin, Vector2.ZERO, "the placed target lives in place_target, never throw_origin")
 
 
 func test_rocket_never_should_throw_even_with_no_enemies() -> void:
@@ -61,17 +63,37 @@ func test_rocket_never_should_throw_even_with_no_enemies() -> void:
 	)
 	assert_false(action.should_throw)
 	assert_true(action.should_place_ordinarily)
+	assert_false(action.has_place_target, "no enemies to cluster around -- the untouched default action")
+
+
+func test_rocket_places_ordinarily_without_targeting_when_defensive_only() -> void:
+	# DECISION (Bontago-d5c.9): Rocket/Bomb's aim-at-a-cluster behaviour is
+	# offensive special use (spec 2.9's difficulty axis names defensive
+	# special use only) -- a defensive-only (NORMAL-shaped) profile places a
+	# held Rocket like an ordinary block, with no recorded target.
+	var tuning: BotTuning = _uniform_tuning(true, false)
+	var points: PackedVector2Array = PackedVector2Array([Vector2(1.0, 0.0), Vector2(-1.0, 0.0)])
+	var enemies: PackedVector2Array = PackedVector2Array([Vector2(10.0, 0.0)])
+	var action: BotSpecialPlanner.BotSpecialAction = BotSpecialPlanner.plan(
+		&"rocket", HOME, points, enemies, PackedVector2Array(), MatchConfig.AiDifficulty.NORMAL, tuning
+	)
+	assert_false(action.should_throw)
+	assert_true(action.should_place_ordinarily)
+	assert_false(action.has_place_target, "defensive-only never aims a Rocket at a cluster")
 
 
 # --- Bomb: thrown at the nearest/densest enemy cluster -----------------------
 
 func test_bomb_should_throw_toward_the_cluster_under_the_speed_cap() -> void:
-	var tuning: BotTuning = _uniform_tuning(true, false)
+	# Bomb's aim-at-a-cluster throw is offensive special use (see the Rocket/
+	# Bomb DECISION above) -- exercised here with an offensive-capable
+	# profile (HARD-shaped: both flags true), not NORMAL's defensive-only one.
+	var tuning: BotTuning = _uniform_tuning(true, true)
 	var points: PackedVector2Array = PackedVector2Array([Vector2(1.0, 0.0), Vector2(-1.0, 0.0)])
 	var cluster: Vector2 = Vector2(10.0, 0.0)
 	var action: BotSpecialPlanner.BotSpecialAction = BotSpecialPlanner.plan(
 		&"bomb", HOME, points, PackedVector2Array([cluster]), PackedVector2Array(),
-		MatchConfig.AiDifficulty.NORMAL, tuning
+		MatchConfig.AiDifficulty.HARD, tuning
 	)
 	assert_true(action.should_throw, "an impact is what activates a Bomb -- it is thrown at the cluster")
 	assert_false(action.should_place_ordinarily)
@@ -87,6 +109,23 @@ func test_bomb_should_throw_toward_the_cluster_under_the_speed_cap() -> void:
 		action.throw_velocity.length() <= special_tuning.throw_max_speed,
 		"the AI's own pre-clamp speed must already sit at or under SpecialTuning.throw_max_speed"
 	)
+
+
+func test_bomb_does_not_throw_when_defensive_only() -> void:
+	# DECISION (Bontago-d5c.9): a defensive-only (NORMAL-shaped) profile must
+	# not aim/throw a Bomb at all -- it places the held Bomb like an ordinary
+	# block instead (spec 2.9's difficulty axis names defensive special use;
+	# offensive use, including a Bomb's targeted throw, is the Hard tier).
+	var tuning: BotTuning = _uniform_tuning(true, false)
+	var points: PackedVector2Array = PackedVector2Array([Vector2(1.0, 0.0), Vector2(-1.0, 0.0)])
+	var cluster: Vector2 = Vector2(10.0, 0.0)
+	var action: BotSpecialPlanner.BotSpecialAction = BotSpecialPlanner.plan(
+		&"bomb", HOME, points, PackedVector2Array([cluster]), PackedVector2Array(),
+		MatchConfig.AiDifficulty.NORMAL, tuning
+	)
+	assert_false(action.should_throw, "defensive-only never throws a Bomb at a cluster")
+	assert_true(action.should_place_ordinarily)
+	assert_false(action.has_place_target, "falls back to the untouched default action, no recorded target")
 
 
 func test_bomb_with_no_enemies_does_not_throw_and_has_finite_velocity() -> void:
@@ -172,7 +211,8 @@ func test_volcano_defensive_targets_the_nearest_single_enemy_border() -> void:
 	)
 	assert_false(action.should_throw, "an eruption doesn't benefit from a throw's flight time")
 	assert_true(action.should_place_ordinarily)
-	assert_eq(action.throw_origin, Vector2(-1.0, 0.0), "defensive: near the border closest to any single enemy")
+	assert_true(action.has_place_target)
+	assert_eq(action.place_target, Vector2(-1.0, 0.0), "defensive: near the border closest to any single enemy")
 
 
 func test_volcano_offensive_targets_the_densest_enemy_cluster() -> void:
@@ -184,7 +224,8 @@ func test_volcano_offensive_targets_the_densest_enemy_cluster() -> void:
 	)
 	assert_false(action.should_throw)
 	assert_true(action.should_place_ordinarily)
-	assert_eq(action.throw_origin, Vector2(2.0, 0.0), "offensive: near the densest enemy cluster")
+	assert_true(action.has_place_target)
+	assert_eq(action.place_target, Vector2(2.0, 0.0), "offensive: near the densest enemy cluster")
 
 
 func test_volcano_with_no_enemies_places_ordinarily() -> void:
@@ -208,7 +249,8 @@ func test_tilt_specials_pick_the_point_farthest_from_own_home() -> void:
 		)
 		assert_false(action.should_throw, "a tilt effect self-triggers -- never thrown (id=%s)" % id)
 		assert_true(action.should_place_ordinarily, "id=%s" % id)
-		assert_eq(action.throw_origin, Vector2(-5.0, 0.0), "the farthest own-territory sample point (id=%s)" % id)
+		assert_true(action.has_place_target, "id=%s" % id)
+		assert_eq(action.place_target, Vector2(-5.0, 0.0), "the farthest own-territory sample point (id=%s)" % id)
 
 
 func test_tilt_specials_never_crash_with_no_territory_samples() -> void:
@@ -219,7 +261,8 @@ func test_tilt_specials_never_crash_with_no_territory_samples() -> void:
 	)
 	assert_false(action.should_throw)
 	assert_true(action.should_place_ordinarily)
-	assert_eq(action.throw_origin, HOME, "falls back to the bot's own home with no territory samples at all")
+	assert_true(action.has_place_target)
+	assert_eq(action.place_target, HOME, "falls back to the bot's own home with no territory samples at all")
 
 
 # --- Jumping Bean: only when uses_offensive_specials -------------------------
@@ -233,7 +276,8 @@ func test_jumping_bean_targets_own_edge_nearest_an_enemy_home_when_offensive() -
 	)
 	assert_false(action.should_throw)
 	assert_true(action.should_place_ordinarily)
-	assert_eq(action.throw_origin, Vector2(4.0, 0.0), "the own edge point nearest the enemy home")
+	assert_true(action.has_place_target)
+	assert_eq(action.place_target, Vector2(4.0, 0.0), "the own edge point nearest the enemy home")
 
 
 func test_jumping_bean_falls_back_to_ordinary_without_offensive_specials() -> void:
@@ -248,4 +292,4 @@ func test_jumping_bean_falls_back_to_ordinary_without_offensive_specials() -> vo
 	)
 	assert_false(action.should_throw)
 	assert_true(action.should_place_ordinarily)
-	assert_eq(action.throw_origin, Vector2.ZERO, "the untouched default action -- no offensive targeting applied")
+	assert_false(action.has_place_target, "the untouched default action -- no offensive targeting applied")

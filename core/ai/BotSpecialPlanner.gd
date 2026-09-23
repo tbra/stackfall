@@ -12,31 +12,37 @@ extends RefCounted
 ## own field list are frozen from P1 (docs/M5_PLAN.md's dispatch brief); this
 ## package rewrites only the function bodies below.
 ##
-## # DECISION (core/ai/BotSpecialPlanner.gd): `BotSpecialAction` has no field
-## for "where to place a special that is NOT thrown" -- only `throw_origin`/
-## `throw_velocity` (read by `game/BotController.gd._send_throw()` only when
-## `should_throw` is true) and `should_place_ordinarily` (a bare bool;
-## `_send_best_placement()` ignores this planner's output entirely and uses
-## its own already-generated candidate list). Since this package must not
-## touch `game/BotController.gd` or `core/ai/BotPlacementScorer.gd`, a
-## "placed near X" heuristic below still sets `should_place_ordinarily = true`
-## (so a real request goes out, through the existing ordinary-placement path)
-## and *additionally* records the intended disk-local target in
-## `throw_origin` even though `should_throw` is false -- inert today (ignored
-## by `_send_best_placement()`), but observable/testable at this layer and
-## forward-compatible if a later package wires `BotController`'s ordinary
-## placement to prefer it. This is the one reasonable way to honor "Rocket
-## placed near the densest enemy cluster" etc. without touching either
-## must-not-touch file or widening the frozen `BotSpecialAction` shape.
+## # DECISION (core/ai/BotSpecialPlanner.gd, Bontago-d5c.9, supersedes the
+## earlier throw_origin-parking DECISION): `BotSpecialAction` now carries its
+## own disk-local `place_target`/`has_place_target` pair, distinct from
+## `throw_origin` (read by `game/BotController.gd._send_throw()` only when
+## `should_throw` is true). Every placed-special heuristic below (Rocket,
+## Volcano, Earthquake/Anvil/Propeller, Jumping Bean -- anything that sets
+## `should_place_ordinarily = true` with intent) sets `has_place_target = true`
+## and `place_target` to the intended disk-local point; `throw_origin` is only
+## ever set on a genuine `should_throw = true` action (Bomb). This package
+## still must not touch `game/BotController.gd` or `core/ai/
+## BotPlacementScorer.gd`, so `has_place_target`/`place_target` are inert
+## today (`_send_best_placement()` ignores this planner's output entirely and
+## uses its own already-generated candidate list) but observable/testable at
+## this layer and forward-compatible if a later package wires
+## `BotController`'s ordinary placement to prefer them.
 
 class BotSpecialAction:
 	var should_throw: bool = false
-	## Disk-local release point, inside own territory.
+	## Disk-local release point, inside own territory. Only meaningful when
+	## should_throw is true.
 	var throw_origin: Vector2 = Vector2.ZERO
 	## World-space; caller still clamps via request_throw().
 	var throw_velocity: Vector3 = Vector3.ZERO
 	## Fall back to an ordinary placement candidate.
 	var should_place_ordinarily: bool = true
+	## True when a placed-special heuristic (Rocket/Volcano/tilt/Jumping Bean)
+	## recorded an intended disk-local target in `place_target` below -- never
+	## true at the same time as `should_throw`.
+	var has_place_target: bool = false
+	## Disk-local intended placement target, set only when has_place_target.
+	var place_target: Vector2 = Vector2.ZERO
 
 
 ## Per-type heuristics (spec 2.9: "do not aim a Rocket as if it homes or a
@@ -61,8 +67,20 @@ static func plan(
 
 	match held_special_id:
 		&"rocket":
+			# DECISION (Bontago-d5c.9): spec 2.9's difficulty axis is defensive
+			# special use; offensive use (aiming/targeting a special with
+			# intent, even a placed one like Rocket) is gated on the Hard
+			# tier's uses_offensive_specials -- a defensive-only (NORMAL)
+			# profile places a held Rocket like an ordinary block instead of
+			# aiming it at a cluster.
+			if not offensive:
+				return BotSpecialAction.new()
 			return _plan_rocket(own_home_position, own_territory_sample_points, enemy_circle_centers, tuning)
 		&"bomb":
+			# Same DECISION as Rocket above: throwing a Bomb at a target is
+			# offensive special use, gated on uses_offensive_specials.
+			if not offensive:
+				return BotSpecialAction.new()
 			return _plan_bomb(own_home_position, own_territory_sample_points, enemy_circle_centers, tuning)
 		&"volcano":
 			return _plan_volcano(
@@ -93,7 +111,8 @@ static func _plan_rocket(
 	if enemy_circle_centers.is_empty():
 		return action
 	var cluster: Vector2 = _densest_cluster_center(enemy_circle_centers, tuning.risk_enemy_territory_radius_m)
-	action.throw_origin = _nearest(own_territory_sample_points, cluster, own_home_position)
+	action.place_target = _nearest(own_territory_sample_points, cluster, own_home_position)
+	action.has_place_target = true
 	action.should_throw = false
 	action.should_place_ordinarily = true
 	return action
@@ -149,12 +168,14 @@ static func _plan_volcano(
 		return action
 	if defensive:
 		var nearest_enemy: Vector2 = _nearest(enemy_circle_centers, own_home_position, own_home_position)
-		action.throw_origin = _nearest(own_territory_sample_points, nearest_enemy, own_home_position)
+		action.place_target = _nearest(own_territory_sample_points, nearest_enemy, own_home_position)
+		action.has_place_target = true
 		action.should_place_ordinarily = true
 		return action
 	if offensive:
 		var cluster: Vector2 = _densest_cluster_center(enemy_circle_centers, tuning.risk_enemy_territory_radius_m)
-		action.throw_origin = _nearest(own_territory_sample_points, cluster, own_home_position)
+		action.place_target = _nearest(own_territory_sample_points, cluster, own_home_position)
+		action.has_place_target = true
 		action.should_place_ordinarily = true
 		return action
 	return action
@@ -172,7 +193,8 @@ static func _plan_tilt(
 	own_territory_sample_points: PackedVector2Array
 ) -> BotSpecialAction:
 	var action: BotSpecialAction = BotSpecialAction.new()
-	action.throw_origin = _farthest(own_territory_sample_points, own_home_position, own_home_position)
+	action.place_target = _farthest(own_territory_sample_points, own_home_position, own_home_position)
+	action.has_place_target = true
 	action.should_place_ordinarily = true
 	return action
 
@@ -192,7 +214,8 @@ static func _plan_jumping_bean(
 	if not offensive or enemy_circle_centers.is_empty():
 		return action
 	var enemy_home: Vector2 = _nearest(enemy_circle_centers, own_home_position, own_home_position)
-	action.throw_origin = _nearest(own_territory_sample_points, enemy_home, own_home_position)
+	action.place_target = _nearest(own_territory_sample_points, enemy_home, own_home_position)
+	action.has_place_target = true
 	action.should_place_ordinarily = true
 	return action
 
