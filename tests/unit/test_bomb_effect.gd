@@ -215,3 +215,43 @@ func test_bomb_tres_loads_with_expected_id_and_effect_defaults() -> void:
 	assert_eq(effect.explosion_impulse, 18.0)
 	assert_not_null(effect.tuning, "tuning must fall back to the preloaded config/special_tuning.tres")
 	assert_eq(effect.tuning.max_explosion_impulse, 30.0)
+
+
+# --- Bomb keeps SpecialEffect's default impact_triggers() == true (Bontago-1en.22) --
+
+## Bontago-1en.22 gave SpecialEffect a new impact_triggers() hook so a timed-
+## effect special (Propeller/Jumping Bean/Earthquake/Volcano) can veto its
+## own arming-tick landing impact. BombEffect deliberately does NOT override
+## it -- an ordinary impact/fuse special still activates on a hard landing
+## exactly as before this package. Drives SpecialBehavior.advance() directly
+## (no physics simulation), mirroring tests/unit/test_special_behavior.gd's
+## own impact-triggering tests, but through a real BombEffect instead of a
+## null/stub one.
+func test_impact_after_arming_still_triggers_a_hard_landing() -> void:
+	var bomb_block: Block = _make_block(Vector3.ZERO)
+	var effect: BombEffect = BombEffect.new()
+	effect.explosion_radius = RADIUS
+	effect.explosion_impulse = IMPULSE
+	var def: SpecialDef = SpecialDef.new()
+	def.id = &"bomb"
+	def.arm_delay = 0.0
+	def.arm_impulse = 5.0
+	def.fuse_timeout_s = 999.0
+	def.effect = effect
+	var tuning: SpecialTuning = SpecialTuning.new()
+	var behavior: SpecialBehavior = SpecialBehavior.new()
+	bomb_block.add_child(behavior)
+	behavior.bind(bomb_block, def, tuning)
+
+	behavior.advance(0.1)  # arms this tick (arm_delay == 0.0); decel sampled against itself
+	assert_false(behavior.is_triggered())
+
+	bomb_block.linear_velocity = Vector3(10.0, 0.0, 0.0)
+	behavior.advance(0.01)  # speeding up, never a "decel"
+	bomb_block.linear_velocity = Vector3.ZERO  # a hard landing: mass(1) * (10 - 0) = 10 >= 5
+	behavior.advance(0.01)
+
+	assert_true(
+		behavior.is_triggered(),
+		"Bomb must still impact-trigger on a hard landing -- it keeps SpecialEffect's default impact_triggers() == true"
+	)

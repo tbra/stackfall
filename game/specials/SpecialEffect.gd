@@ -19,6 +19,29 @@ func physics_tick(_block: Block, _behavior: SpecialBehavior, _delta: float) -> v
 	pass
 
 
+## Checked by SpecialBehavior._check_impact() right before an impact
+## (mass * speed-drop >= arm_impulse), once armed and not yet triggered, would
+## otherwise call trigger(0) this same tick. True by default -- an ordinary
+## impact/fuse special (Bomb, Rocket, Anvil) activates on its own hard
+## landing or the fuse timeout, nothing else needed.
+##
+## FIX (game/specials/SpecialEffect.gd, Bontago-1en.22): a "timed-effect
+## pattern" special (Propeller, Jumping Bean, Earthquake, Volcano -- see
+## docs/M4_SPECIALS_PACKAGES.md's timed-effect pattern) overrides this to
+## false. Those effects already run physics_tick() every armed tick
+## regardless of impact, and their own end is entirely time-driven
+## (wants_early_trigger()/the fuse) -- without this veto, a block thrown or
+## dropped hard enough that its OWN landing impact exceeds arm_impulse right
+## as it arms calls trigger(0) before physics_tick() has run even once, so
+## the eruption/shake/lift/hop-timer never starts at all (the reported bug:
+## "detonated by their own landing impact right after arming"). Chain
+## triggering (SpecialBehavior.trigger_others_in_range() -> trigger()) never
+## goes through this hook or _check_impact() at all, so a nearby explosion
+## still detonates a vetoing special exactly as before.
+func impact_triggers(_block: Block, _behavior: SpecialBehavior) -> bool:
+	return true
+
+
 ## Checked once per physics tick, right after physics_tick() above, while
 ## armed and not yet triggered. Returning true makes SpecialBehavior call
 ## trigger() this same tick, independent of any impact. False by default --

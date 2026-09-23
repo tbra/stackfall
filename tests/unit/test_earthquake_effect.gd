@@ -291,3 +291,32 @@ func test_the_tres_loads_via_load_all_specials_with_id_and_effect() -> void:
 		found.effect is EarthquakeEffect,
 		"earthquake.tres's effect must be an EarthquakeEffect instance"
 	)
+
+
+# --- impact_triggers() veto (Bontago-1en.22) ---------------------------------
+
+## A hard deceleration past arm_impulse right on/after the arming tick must
+## not detonate this timed effect -- its own end is entirely time-driven
+## (wants_early_trigger()) or a chain trigger; physics_tick() must still run
+## and start the shake regardless.
+func test_hard_impact_after_arming_does_not_prematurely_trigger_and_the_shake_still_runs() -> void:
+	var effect: EarthquakeEffect = EarthquakeEffect.new()
+	var block: Block = _make_block(Vector3(3.0, 0.0, 4.0))
+	var def: SpecialDef = _make_def(effect, 0.0)
+	def.arm_impulse = 5.0
+	var behavior: SpecialBehavior = _make_behavior(block, def)
+
+	behavior.advance(0.1)  # arms this tick; decel sampled against itself, no trigger
+	block.linear_velocity = Vector3(10.0, 0.0, 0.0)
+	behavior.advance(0.01)
+	block.linear_velocity = Vector3.ZERO  # mass(1) * (10 - 0) = 10 >= 5: would trigger pre-fix
+	behavior.advance(0.01)
+
+	assert_false(
+		behavior.is_triggered(),
+		"EarthquakeEffect must veto the decel-based impact trigger (Bontago-1en.22)."
+	)
+	assert_true(
+		block.has_meta(EarthquakeEffect.START_AGE_META),
+		"physics_tick() must have run and started the shake despite the hard impact."
+	)

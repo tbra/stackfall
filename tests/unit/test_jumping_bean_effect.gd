@@ -110,6 +110,37 @@ func test_inert_until_first_settle_no_hop_no_velocity_change() -> void:
 	assert_false(behavior.is_triggered())
 
 
+# --- impact_triggers() veto (Bontago-1en.22) ---------------------------------
+
+## A hard deceleration past arm_impulse while still airborne (mirroring the
+## reported bug: a hard-thrown/dropped block lands right as it arms, before
+## it ever settles) must not detonate this timed effect either -- its own
+## end is entirely time-driven (wants_early_trigger()) or a chain trigger.
+## Deliberately never settles (block.sleeping stays false throughout, same
+## as _make_block()'s own default) -- covers the case this effect's
+## settle-gated physics_tick() hasn't even started yet, distinct from
+## test_real_physics_hop_landing_does_not_prematurely_impact_trigger below
+## (a real hop's own landing, which relies on jumping_bean.tres's own
+## arm_impulse = 10.0 tuning).
+func test_hard_impact_before_settling_does_not_prematurely_trigger() -> void:
+	var effect: JumpingBeanEffect = JumpingBeanEffect.new()
+	var block: Block = _make_block(Vector3.ZERO)  # sleeping == false: still airborne
+	var def: SpecialDef = _make_def(effect)
+	def.arm_impulse = 5.0
+	var behavior: SpecialBehavior = _make_behavior(block, def)
+
+	behavior.advance(0.1)  # arms this tick; decel sampled against itself, no trigger
+	block.linear_velocity = Vector3(10.0, 0.0, 0.0)
+	behavior.advance(0.01)
+	block.linear_velocity = Vector3.ZERO  # mass(1) * (10 - 0) = 10 >= 5: would trigger pre-fix
+	behavior.advance(0.01)
+
+	assert_false(
+		behavior.is_triggered(),
+		"JumpingBeanEffect must veto the decel-based impact trigger (Bontago-1en.22)."
+	)
+
+
 # --- hop cadence: exactly one hop per hop_interval_s, frame-rate independent -
 
 ## Counts _hop() calls (not just physics_tick() calls) -- proves the
