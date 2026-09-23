@@ -970,3 +970,60 @@ func test_a_replicated_territory_packet_drives_the_mirror_and_the_hole_signal() 
 	assert_signal_emitted(Events, "hole_cells_changed")
 	assert_signal_emitted(Events, "territory_replicated")
 	assert_signal_emitted_with_parameters(Events, "goal_capture_progress", [1, 0.4])
+
+
+# --- M4 P2b: EVENT_GIFT_CLAIMED's third argument (Orchestrator amendment 1) -
+
+## Bontago-csc: the drawn special id must reach a client's Events.gift_claimed
+## re-emit and its own queue verbatim, the same "the mirror holds exactly
+## what the host sent" contract test_a_replicated_territory_packet... above
+## proves for the raster.
+func test_a_replicated_gift_claim_carries_all_three_args_to_the_client() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	var net: MatchNetScript = _make_net({}, [1], true)
+	watch_signals(Events)
+
+	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [3, 1, &"jumping_bean"])
+
+	assert_signal_emitted_with_parameters(Events, "gift_claimed", [3, 1, &"jumping_bean"])
+	assert_eq(Match.held_special(1), &"jumping_bean", "a client's queue after replication must match the host's drawn id")
+
+
+## net/MatchNet.gd's _special_id_wire_ok(): empty, over-length (40 chars) and
+## non-[A-Za-z0-9_] (a space) payloads are all dropped -- mirrors
+## test_gift_claim.gd's test_gift_wire_rejects_malformed_payloads for
+## EVENT_GIFT_SPAWNED's own position check.
+func test_a_malformed_special_id_is_dropped_not_applied() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	var net: MatchNetScript = _make_net({}, [1], true)
+	watch_signals(Events)
+
+	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [4, 1, &""])
+	assert_signal_not_emitted(Events, "gift_claimed", "an empty special_id must be dropped")
+	assert_eq(Match.held_special(1), &"", "and never queued")
+
+	var too_long: String = "a".repeat(40)
+	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [5, 1, StringName(too_long)])
+	assert_signal_not_emitted(Events, "gift_claimed", "a 40-character special_id must be dropped")
+	assert_eq(Match.held_special(1), &"")
+
+	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [6, 1, &"has space"])
+	assert_signal_not_emitted(Events, "gift_claimed", "a special_id with a space must be dropped")
+	assert_eq(Match.held_special(1), &"")
+
+
+## Two claims replicate in order; the client's FIFO after both matches the
+## host's claim order exactly.
+func test_a_clients_queue_after_replication_matches_the_hosts_claim_order() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	var net: MatchNetScript = _make_net({}, [1], true)
+
+	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [10, 1, &"special_a"])
+	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [11, 1, &"special_b"])
+
+	assert_eq(Match.pending_special_count(1), 2)
+	assert_eq(Match.pop_pending_special(1), &"special_a")
+	assert_eq(Match.pop_pending_special(1), &"special_b")

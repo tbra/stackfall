@@ -42,3 +42,11 @@ extends Resource
 ## already clip the rim, small enough to leave nearly the whole disk eligible
 ## even on the smallest map size.
 @export var spawn_edge_margin_m: float = 2.0
+
+## Caps each slot's FIFO of drawn-but-unspent specials (Orchestrator
+## amendment 1, M4 P2b/Bontago-csc, 2026-09-23 — supersedes the earlier
+## single-slot "latest wins" scalar). A claim landing while a slot's queue is
+## already at this many leaves the crate alive for someone else instead of
+## consuming it (amendment 3) — nothing a slot claims is ever silently
+## discarded.
+@export var max_pending_specials: int = 3

@@ -31,6 +31,22 @@ func before_each() -> void:
 
 
 func after_each() -> void:
+	# Several tests below install a custom Callable via set_special_drawer();
+	# Match is a singleton that outlives any one test, so a lingering custom
+	# drawer (whose closure may capture a now-out-of-scope index array) would
+	# corrupt every later test's claims. Always restore the shipped default.
+	Match._gifts.set_special_drawer(Match._gifts._default_special_drawer)
+	# Regression found while validating this change: test_apply_replicated_
+	# claim_respects_the_cap (and, less harmfully, a couple of pre-existing
+	# tests above) duplicate-and-mutate Match._gifts._gift_config without
+	# ever restoring it. Match is a singleton that outlives this whole
+	# script, so a max_pending_specials = 1 left behind silently broke
+	# test_match_net.gd's gift-claim replication tests (a false cap on a
+	# fresh GiftConfig.tres value) the moment they ran later in the same
+	# process. Reload the real resource here so every test in this file
+	# starts the next one -- in this script or any other -- with the
+	# shipped default.
+	Match._gifts._gift_config = load("res://config/gift_config.tres") as GiftConfig
 	Match.abort_match()
 	Match.set_process(true)
 
@@ -79,7 +95,7 @@ func test_crate_on_owned_uncontested_cell_is_claimed_and_grants_special() -> voi
 
 	assert_false(Match._gifts._crates.has(gift_id), "claimed crate must be removed from the live set")
 	assert_eq(Match.held_special(0), MatchGifts.PENDING_SPECIAL_ID)
-	assert_signal_emitted_with_parameters(Events, "gift_claimed", [gift_id, 0])
+	assert_signal_emitted_with_parameters(Events, "gift_claimed", [gift_id, 0, MatchGifts.PENDING_SPECIAL_ID])
 
 
 func test_crate_expires_after_life_s_without_being_claimed() -> void:
@@ -112,16 +128,92 @@ func test_no_spawn_when_gifts_disabled() -> void:
 	assert_true(Match._gifts._crates.is_empty(), "gifts_enabled = false must never spawn a crate")
 
 
-func test_second_claim_replaces_the_pending_special() -> void:
+## Bontago-csc / Orchestrator amendment 1+3: rewrites the old "latest wins"
+## replace test into the FIFO-with-cap contract. max_pending_specials = 2, a
+## third claim leaves the crate alive (amendment 3 -- not freed, not expired,
+## and fires no gift_claimed) rather than replacing anything.
+func test_claim_cap_queues_in_claim_order_and_a_full_queue_leaves_the_crate_alive() -> void:
+	_start_playing(_config())
+	Match._gifts._gift_config = Match._gifts._gift_config.duplicate() as GiftConfig
+	Match._gifts._gift_config.max_pending_specials = 2
+	var drawn_ids: Array[StringName] = [&"special_a", &"special_b", &"special_c"]
+	var draw_index: int = 0
+	Match._gifts.set_special_drawer(func() -> StringName:
+		var id: StringName = drawn_ids[draw_index]
+		draw_index += 1
+		return id
+	)
+	watch_signals(Events)
+
+	var gift_id_1: int = _inject_crate(0)
+	_step_territory()
+	var gift_id_2: int = _inject_crate(0)
+	_step_territory()
+	var gift_id_3: int = _inject_crate(0)
+	_step_territory()
+
+	assert_eq(Match.pending_special_count(0), 2, "the cap stops the queue at max_pending_specials")
+	assert_eq(Match.held_special(0), &"special_a", "the queue holds claim order, oldest first")
+	assert_false(Match._gifts._crates.has(gift_id_1), "the first claim must consume its crate")
+	assert_false(Match._gifts._crates.has(gift_id_2), "the second claim must consume its crate")
+	assert_true(Match._gifts._crates.has(gift_id_3), "a claim into a full queue must not consume the crate")
+	assert_signal_emit_count(Events, "gift_claimed", 2, "the third claim must not fire gift_claimed")
+
+
+## pop_pending_special() dequeues oldest-first and empties to the blank
+## sentinel, exactly like held_special()'s own peek.
+func test_pop_pending_special_dequeues_fifo_and_empties_to_blank() -> void:
 	_start_playing(_config())
 	Match._gifts._ensure_capacity(0)
-	Match._gifts._held_specials[0] = &"stale_pending"
+	(Match._gifts._pending_queues[0] as Array).append(&"special_a")
+	(Match._gifts._pending_queues[0] as Array).append(&"special_b")
+
+	assert_eq(Match.pop_pending_special(0), &"special_a")
+	assert_eq(Match.pop_pending_special(0), &"special_b")
+	assert_eq(Match.pop_pending_special(0), &"", "an empty queue pops to the blank sentinel")
+	assert_eq(Match.held_special(0), &"")
+
+
+## Orchestrator amendment 1: the unconditional clear on_feed_block_issued()
+## used to run is gone -- a slot's queue now only shrinks via an explicit
+## pop_pending_special() call.
+func test_feed_block_issued_no_longer_clears_the_pending_queue() -> void:
+	_start_playing(_config())
+	Match._gifts._ensure_capacity(0)
+	(Match._gifts._pending_queues[0] as Array).append(&"special_a")
+
+	Match._gifts.on_feed_block_issued(0)
+
+	assert_eq(Match.held_special(0), &"special_a", "a new feed window must not clear the queue; only pop does")
+
+
+## A custom drawer's id, not the default PENDING_SPECIAL_ID, is what gets
+## queued and emitted -- proves _claim_gift() actually calls through
+## _special_drawer rather than hard-coding the placeholder.
+func test_custom_drawer_id_is_queued_and_emitted() -> void:
+	_start_playing(_config())
+	Match._gifts.set_special_drawer(func() -> StringName: return &"jumping_bean")
+	watch_signals(Events)
 	var gift_id: int = _inject_crate(0)
 
 	_step_territory()
 
-	assert_eq(Match.held_special(0), MatchGifts.PENDING_SPECIAL_ID)
-	assert_false(Match._gifts._crates.has(gift_id))
+	assert_eq(Match.held_special(0), &"jumping_bean")
+	assert_signal_emitted_with_parameters(Events, "gift_claimed", [gift_id, 0, &"jumping_bean"])
+
+
+## apply_replicated_claim() is the client mirror of _claim_gift() and must
+## respect the identical cap.
+func test_apply_replicated_claim_respects_the_cap() -> void:
+	_start_playing(_config())
+	Match._gifts._gift_config = Match._gifts._gift_config.duplicate() as GiftConfig
+	Match._gifts._gift_config.max_pending_specials = 1
+
+	Match._gifts.apply_replicated_claim(1, 0, &"special_a")
+	Match._gifts.apply_replicated_claim(2, 0, &"special_b")
+
+	assert_eq(Match.pending_special_count(0), 1, "a client mirror must respect the same cap as the host")
+	assert_eq(Match.held_special(0), &"special_a")
 
 
 func test_reset_clears_crates_and_held_specials() -> void:
@@ -129,7 +221,7 @@ func test_reset_clears_crates_and_held_specials() -> void:
 	_inject_crate(0)
 	_inject_crate(1)
 	Match._gifts._ensure_capacity(0)
-	Match._gifts._held_specials[0] = MatchGifts.PENDING_SPECIAL_ID
+	(Match._gifts._pending_queues[0] as Array).append(MatchGifts.PENDING_SPECIAL_ID)
 
 	Match.abort_match()
 
@@ -149,8 +241,8 @@ func test_net_mirrors_gift_spawned_claimed_and_expired() -> void:
 	assert_signal_emitted_with_parameters(Events, "gift_spawned", [7, Vector2(1.0, 2.0)])
 	assert_true(Match._gifts._crates.has(7))
 
-	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [7, 1])
-	assert_signal_emitted_with_parameters(Events, "gift_claimed", [7, 1])
+	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [7, 1, MatchGifts.PENDING_SPECIAL_ID])
+	assert_signal_emitted_with_parameters(Events, "gift_claimed", [7, 1, MatchGifts.PENDING_SPECIAL_ID])
 	assert_eq(Match.held_special(1), MatchGifts.PENDING_SPECIAL_ID)
 	assert_false(Match._gifts._crates.has(7))
 
@@ -226,7 +318,7 @@ func test_gift_wire_rejects_malformed_payloads() -> void:
 	assert_signal_not_emitted(Events, "gift_spawned")
 	assert_false(Match._gifts._crates.has(9))
 
-	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [-1, 0])
+	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [-1, 0, MatchGifts.PENDING_SPECIAL_ID])
 	assert_signal_not_emitted(Events, "gift_claimed")
 
 	net.net_match_event(MatchNetScript.EVENT_GIFT_EXPIRED, [-1])
@@ -236,17 +328,17 @@ func test_gift_wire_rejects_malformed_payloads() -> void:
 
 
 ## Review fix #1 regression: a garbage slot_id over the wire must not grow
-## _held_specials, and must not apply any special at all.
+## _pending_queues, and must not apply any special at all.
 func test_replicated_claim_with_a_garbage_slot_id_is_ignored() -> void:
 	_start_playing(_config())
 	var net: MatchNetScript = MatchNetScript.new()
 	net.set_process(false)
 	add_child_autofree(net)
 	net.set_providers(FakeNet.client(1), Match)
-	var before_size: int = Match._gifts._held_specials.size()
+	var before_size: int = Match._gifts._pending_queues.size()
 
-	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [7, 999999999])
+	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [7, 999999999, MatchGifts.PENDING_SPECIAL_ID])
 
-	assert_eq(Match._gifts._held_specials.size(), before_size, "a garbage slot_id must never grow _held_specials")
+	assert_eq(Match._gifts._pending_queues.size(), before_size, "a garbage slot_id must never grow _pending_queues")
 
 	net.set_providers(null, null)

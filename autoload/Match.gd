@@ -303,13 +303,36 @@ func next_shape(slot_id: int) -> BlockShape:
 	return _feed.next_shape(slot_id)
 
 
-## M4 P1b: the pending special `slot_id` is holding from a claimed gift crate,
-## or &"" for none (spec 2.6: "your next fed block becomes a special"). P2
-## reads this from its own _spawn_block() extension and swaps the held shape
-## where MatchGifts._clear_held_special() already runs. See
-## autoload/match/MatchGifts.gd for the placeholder id P1 hands out.
+## M4 P1b/P2b: the oldest pending special `slot_id` is holding from a claimed
+## gift crate, or &"" for none (spec 2.6: "your next fed block becomes a
+## special") -- a peek, not a pop. P2c reads this from its own
+## _spawn_block() extension and pops via pop_pending_special() where
+## MatchGifts.on_feed_block_issued()'s unconditional clear used to run. See
+## autoload/match/MatchGifts.gd for the placeholder id the default drawer
+## hands out.
 func held_special(slot_id: int) -> StringName:
 	return _gifts.held_special(slot_id)
+
+
+## M4 P2b (Bontago-csc): dequeues and returns `slot_id`'s oldest pending
+## special, or &"" if its queue is empty. See MatchGifts.pop_pending_special().
+func pop_pending_special(slot_id: int) -> StringName:
+	return _gifts.pop_pending_special(slot_id)
+
+
+## M4 P2b: how many specials `slot_id` currently has queued (capped at
+## GiftConfig.max_pending_specials). ui/HUD.gd's queued-count indicator
+## (Bontago-1en.16, not this package) is the only consumer today.
+func pending_special_count(slot_id: int) -> int:
+	return _gifts.pending_special_count(slot_id)
+
+
+## M4 P2b: installs the real weighted special-type draw P2c wires in once
+## config/specials/ exists; the default (MatchGifts._default_special_drawer)
+## always returns MatchGifts.PENDING_SPECIAL_ID. See
+## MatchGifts.set_special_drawer().
+func set_special_drawer(drawer: Callable) -> void:
+	_gifts.set_special_drawer(drawer)
 
 
 ## M4 P1b DECISION: "the feed issues a new window" is Events.feed_block_issued
@@ -510,17 +533,20 @@ func apply_replicated_elimination(slot_id: int) -> void:
 	_lifecycle.apply_replicated_elimination(slot_id)
 
 
-## M4 P1b: net/MatchNet.gd's net_match_event() mirrors for the three gift
+## M4 P1b/P2b: net/MatchNet.gd's net_match_event() mirrors for the three gift
 ## events. A client only ever builds/frees the crate visual and (for a claim)
-## keeps held_special() accurate -- it never spawns, claims or expires
-## anything itself. See autoload/match/MatchGifts.gd's own client-read-model
-## section.
+## keeps held_special()/pending_special_count() accurate -- it never spawns,
+## claims or expires anything itself. See autoload/match/MatchGifts.gd's own
+## client-read-model section.
 func apply_replicated_gift_spawned(gift_id: int, position: Vector2) -> void:
 	_gifts.apply_replicated_spawn(gift_id, position)
 
 
-func apply_replicated_gift_claimed(gift_id: int, slot_id: int) -> void:
-	_gifts.apply_replicated_claim(gift_id, slot_id)
+## `special_id` is the third EVENT_GIFT_CLAIMED wire argument (Orchestrator
+## amendment 1) -- net/MatchNet.gd's wire check has already rejected a
+## malformed one before this is ever called.
+func apply_replicated_gift_claimed(gift_id: int, slot_id: int, special_id: StringName) -> void:
+	_gifts.apply_replicated_claim(gift_id, slot_id, special_id)
 
 
 func apply_replicated_gift_expired(gift_id: int) -> void:
