@@ -313,7 +313,12 @@ func _build_slots() -> void:
 	for i: int in range(_match.config.player_count):
 		var color: Color = _match.config.player_colors[i % _match.config.player_colors.size()]
 		var home: Vector2 = PlayerSlot.home_position_for(i, _match.config.player_count, map_def)
-		_slots.append(PlayerSlot.new(i, _match.config.team_of_slot(i), "Player %d" % (i + 1), color, home))
+		var new_slot: PlayerSlot = PlayerSlot.new(i, _match.config.team_of_slot(i), "Player %d" % (i + 1), color, home)
+		# Bontago-d5c (M5 P1): the trailing ai_count slots become bots; every
+		# slot before that stays a human seat exactly as today. See
+		# docs/M5_PLAN.md P1's own doc for why this is a one-line append.
+		new_slot.is_bot = i >= _match.config.player_count - _match.config.ai_count
+		_slots.append(new_slot)
 
 	_match._feed._held_shapes.resize(_slots.size())
 	_match._feed._feed_time_left.resize(_slots.size())

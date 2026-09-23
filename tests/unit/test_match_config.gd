@@ -105,15 +105,43 @@ func test_sanitize_pads_short_player_colors() -> void:
 	assert_eq(config.player_colors[1], Color.GREEN)
 
 
-func test_clamp_to_connected_peers_matches_player_count_to_peers_and_zeroes_ai() -> void:
+## Bontago-d5c (M5): ai_count == 0 behaves exactly as before -- no connected
+## peer is ever left without a slot (Bontago-mv0.7), and a match with no bots
+## requested still shrinks player_count straight to the peer count.
+func test_clamp_to_connected_peers_with_no_bots_matches_old_behaviour() -> void:
 	var config: MatchConfig = MatchConfig.new()
 	config.player_count = 8
-	config.ai_count = 3
+	config.ai_count = 0
 
 	config.clamp_to_connected_peers(2)
 
 	assert_eq(config.player_count, 2, "no slot may be left without a connected peer (Bontago-mv0.7)")
-	assert_eq(config.ai_count, 0, "bots don't exist until M5")
+	assert_eq(config.ai_count, 0)
+
+
+## Bots don't need a connected peer behind them (M5): the requested ai_count
+## fills the remaining seats up to the spec 2.8 max instead of being zeroed.
+func test_clamp_to_connected_peers_fills_remaining_seats_with_bots() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	config.ai_count = 7
+
+	config.clamp_to_connected_peers(1)
+
+	assert_eq(config.player_count, 8, "1 human + 7 bots fills every seat")
+	assert_eq(config.ai_count, 7)
+
+
+## Humans outrank bots for the available seats (# DECISION,
+## config/MatchConfig.gd): 8 connected peers already fill every seat, so a
+## stale ai_count trims to 0 rather than evicting a connected human.
+func test_clamp_to_connected_peers_humans_outrank_bots_for_scarce_seats() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	config.ai_count = 3
+
+	config.clamp_to_connected_peers(8)
+
+	assert_eq(config.player_count, 8)
+	assert_eq(config.ai_count, 0, "no room left for bots once 8 peers are connected")
 
 
 func test_clamp_to_connected_peers_respects_the_spec_28_range() -> void:
@@ -124,6 +152,15 @@ func test_clamp_to_connected_peers_respects_the_spec_28_range() -> void:
 
 	config.clamp_to_connected_peers(99)
 	assert_eq(config.player_count, MatchConfig.PLAYER_COUNT_MAX)
+
+
+func test_clamp_to_connected_peers_player_count_always_stays_in_range() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	for peer_count: int in range(0, 10):
+		for ai_count: int in range(0, 10):
+			config.ai_count = ai_count
+			config.clamp_to_connected_peers(peer_count)
+			assert_between(config.player_count, MatchConfig.PLAYER_COUNT_MIN, MatchConfig.PLAYER_COUNT_MAX)
 
 
 func test_team_of_slot_is_free_for_all_by_default() -> void:

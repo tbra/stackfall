@@ -427,3 +427,19 @@ func test_start_match_re_applies_gravity_to_a_block_already_standing() -> void:
 	_main._on_lobby_start_requested(config)
 
 	assert_almost_eq(block.gravity_scale, 1.6, 0.0001)
+
+
+# --- (h) M5 P1: _build_slots() marks the trailing ai_count slots as bots ----
+
+func test_build_slots_marks_exactly_the_trailing_ai_count_slots_as_bots() -> void:
+	_host()
+	var config: MatchConfig = _config(6)
+	config.ai_count = 2
+
+	_main._on_lobby_start_requested(config)
+
+	assert_eq(Match.slot_count(), 6)
+	for i: int in range(4):
+		assert_false(Match.slot(i).is_bot, "slot %d is a human seat" % i)
+	assert_true(Match.slot(4).is_bot, "the first trailing slot is a bot")
+	assert_true(Match.slot(5).is_bot, "the second trailing slot is a bot")

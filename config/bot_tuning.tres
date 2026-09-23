@@ -1,0 +1,50 @@
+[gd_resource type="Resource" script_class="BotTuning" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://config/BotTuning.gd" id="1_bot_tuning"]
+[ext_resource type="Script" path="res://config/BotDifficultyProfile.gd" id="2_bot_profile"]
+
+[sub_resource type="Resource" id="Resource_easy"]
+script = ExtResource("2_bot_profile")
+candidate_count = 40
+candidates_per_frame = 8
+stability_raycast_count = 2
+aim_noise_m = 0.6
+reaction_delay_s = 1.2
+uses_defensive_specials = false
+uses_offensive_specials = false
+
+[sub_resource type="Resource" id="Resource_normal"]
+script = ExtResource("2_bot_profile")
+candidate_count = 70
+candidates_per_frame = 8
+stability_raycast_count = 4
+aim_noise_m = 0.3
+reaction_delay_s = 0.6
+uses_defensive_specials = true
+uses_offensive_specials = false
+
+[sub_resource type="Resource" id="Resource_hard"]
+script = ExtResource("2_bot_profile")
+candidate_count = 110
+candidates_per_frame = 8
+stability_raycast_count = 6
+aim_noise_m = 0.05
+reaction_delay_s = 0.2
+uses_defensive_specials = true
+uses_offensive_specials = true
+
+[resource]
+script = ExtResource("1_bot_tuning")
+easy = SubResource("Resource_easy")
+normal = SubResource("Resource_normal")
+hard = SubResource("Resource_hard")
+weight_height = 1.0
+weight_goal_progress = 1.5
+weight_stability = 2.0
+weight_risk = 1.0
+risk_enemy_territory_radius_m = 4.0
+risk_active_special_radius_m = 5.0
+think_phase_jitter_s = 0.4
+max_generation_frames = 40
+max_territory_sample_attempts = 12
+rejection_backoff_s = 0.5
