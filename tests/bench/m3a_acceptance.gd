@@ -15,6 +15,19 @@ extends Node
 ## has no such thing), read directly off OS.get_cmdline_user_args() so the
 ## host knows how many peers to wait for before starting.
 ##
+## Review item 2 (M4 P2c-ii acceptance): passing `--throw-pass` to every
+## instance (tools/run_m3a_local.ps1 -ThrowPass / .sh THROW_PASS=1) runs an
+## additional phase after the placement phase above, proving
+## MatchNet.submit_throw()/net_request_throw() over a real ENet transport --
+## an accepted throw for slot THROW_SLOT_ID (clamped speed, continuous_cd,
+## pending count back to zero) and a refused one outside that slot's own
+## territory. Off by default, so the existing placement-only regression's
+## command line and behavior are unchanged. Reports a second, independent
+## `M3A_THROW result=PASS|FAIL` line (see _throw_check()); a throw failure
+## still fails the whole run's exit code via M3A_ACCEPT's own summary (see
+## _ready()'s own comment on why no separate ps1/sh parsing is needed for
+## that).
+##
 ## **Must be a .tscn, not a -s script.** Commit 12d2ec2's finding: a script
 ## run with `-s` executes as a bare SceneTree, where autoload identifiers
 ## (Net, Match) do not resolve. tests/bench/m2_acceptance.tscn set this
@@ -94,10 +107,106 @@ const PLACE_HEIGHT: float = 0.6
 ## in the slot's own home circle regardless of map size.
 const OFFSET_STEP: float = 1.5
 
+## Review item 2: an optional throw phase, gated on --throw-pass (default
+## off, so the existing placement-only regression is unchanged), proving
+## M4 P2c-ii's submit_throw()/net_request_throw() over a real ENet transport
+## rather than only FakeNet unit tests. Always slot 1 (the first, and in
+## tools/run_m3a_local.*'s own default -Peers 2 usage the only, client) --
+## this phase does not attempt to generalise to every peer, only to prove the
+## wire path end to end for one of them.
+const THROW_SLOT_ID: int = 1
+## Distinct, out-of-band gift ids (no real crate spawner runs in this
+## harness, so nothing else can ever claim these) for the two claims this
+## phase queues: one the accepted throw spends, one queued again afterward so
+## the negative (outside-territory) throw below is refused by ThrowRules'
+## own territory check rather than by "nothing pending" (see
+## _run_host_throw_phase()'s own comment).
+const THROW_GIFT_ID_ACCEPT: int = 900001
+const THROW_GIFT_ID_REJECT: int = 900002
+## Comfortably above SpecialTuning.throw_max_speed (25 m/s) so the host's own
+## clamp (spec 3.4: "the host clamps velocity to throw_max_speed") is the
+## thing actually under test, not merely "a velocity was accepted."
+const THROW_VELOCITY_SPEED: float = 40.0
+## Review fix: offset from the slot's own home_position the accepted throw
+## releases at (see _run_client_throw_phase()'s own comment). Unlike a unit
+## test, this harness's host runs real Jolt physics continuously, and the
+## placement phase already scattered six blocks within OFFSET_STEP *
+## {-1,0,1}/{0,1} of home_position (~2.1 m radius) -- releasing straight into
+## that cluster let the thrown block collide almost immediately, losing most
+## of its speed before this script's own poll could ever read it
+## (reproduced: an observed post-throw speed of ~9.6 m/s against the ~25.0
+## the clamp should have left it at). (-3.0, -3.0) clears that whole cluster
+## (>1.5 m margin) while its magnitude (~4.24 m) stays well inside
+## TerritoryTuning.home_radius (6 m), so the release point is still
+## unambiguously inside the slot's own territory.
+const THROW_ORIGIN_OFFSET: Vector2 = Vector2(-3.0, -3.0)
+## Review fix: how close the clamped speed must land to throw_max_speed to
+## count as "clamped, not still ~40 (unclamped) or ~0 (an unrelated
+## auto-drop, see THROW_MIN_SPEED_TO_COUNT_AS_THROWN below)". Loosened from an
+## original 1% once the actual harness run showed *why* 1% assumes an
+## instantaneous read this design cannot deliver: this script detects the new
+## block by polling every _wait_for_condition tick (up to 0.05s later), during
+## which real, continuously-running Jolt physics (not a GUT test's frozen
+## world) has already added a tick or two of gravity to the vertical
+## component. 5% (1.25 m/s here) comfortably covers that detection latency
+## while staying nowhere near "unclamped" (40) or "auto-dropped" (~0) --
+## still a real, meaningful clamp check, not a rubber stamp.
+const THROW_SPEED_TOLERANCE_FRACTION: float = 0.05
+## Review fix: the slot always holds *some* ordinary piece and MatchConfig.
+## BLOCK_TIMER_MIN (3 s, held by _run_host()'s own config) keeps ticking
+## throughout this multi-second phase's own claim/round-trip waits -- an
+## auto-drop (spec 2.5) for that ordinary piece is expected, unrelated
+## background noise here, not a bug, and it always releases at rest (no
+## velocity ever set on an ordinary placement or auto-drop). A thrown special
+## never does: even after clamping it still leaves at throw_max_speed (25),
+## so any observed speed above this threshold, for this slot, can only be the
+## one throw this phase actually sent -- see _run_host_throw_phase()'s own
+## use of it, both to find the real block among any interleaved auto-drops
+## and to prove the negative throw spawned no *thrown* block (an auto-drop
+## for the slot's ordinary piece may well still occur meanwhile, and is not
+## itself a failure).
+const THROW_MIN_SPEED_TO_COUNT_AS_THROWN: float = 5.0
+## Point well outside any shipped map's field_radius (tens of meters), so a
+## throw released there is unambiguously "outside your own territory"
+## (spec 2.5) rather than merely off this particular map's disk edge.
+const THROW_OUTSIDE_TERRITORY_POINT: Vector2 = Vector2(500.0, 500.0)
+## How long the client polls after a host-side claim before giving up on
+## seeing it replicate (SimLag/SimLoss-tolerant; see _wait_for_condition()).
+const THROW_CLAIM_WAIT_SECONDS: float = 4.0
+## How long either side waits for a submitted throw's round trip (request out,
+## spawn/rejection back) to settle before checking results.
+const THROW_RESULT_WAIT_SECONDS: float = 3.0
+
 var _failures: Array[String] = []
+## Review item 2: kept separate from _failures so "M3A_THROW result=..."
+## reports only the throw phase's own criteria; folded into _failures before
+## the final quit() so a throw failure still fails the whole harness run
+## (and therefore tools/run_m3a_local.* via its existing non-zero-exit check,
+## with no ps1/sh changes needed for that part).
+var _throw_failures: Array[String] = []
 var _blocks_spawned: int = 0
 var _seen_net_ids: Dictionary = {}
 var _duplicate_net_id: bool = false
+
+## Review item 2: the most recent Block this instance saw placed for each
+## slot (host: built locally by _spawn_block(); client: never built at all in
+## this bare-scene harness -- see _on_block_placed()'s own comment -- so this
+## dictionary is host-only in practice). Read only through _fast_block_for_
+## slot() below, never directly, because an ordinary auto-drop can overwrite
+## it with an unrelated block at any time (see that function's own comment).
+var _last_block_by_slot: Dictionary = {}
+## Review item 2, host only: sticky per-slot "last block this instance ever
+## saw moving faster than THROW_MIN_SPEED_TO_COUNT_AS_THROWN" -- see
+## _fast_block_for_slot()'s own comment for why this has to be sticky rather
+## than re-derived live from _last_block_by_slot on every read.
+var _last_thrown_block_by_slot: Dictionary = {}
+## Review item 2, client only: every Events.placement_rejected this instance
+## has seen since the last time the throw phase cleared it, {slot_id, reason}
+## dictionaries in order. A fresh Array per throw attempt would miss a
+## rejection that arrives during the polling gap between "send" and "start
+## checking"; connecting once in _ready() and clearing between attempts does
+## not.
+var _rejected_events: Array[Dictionary] = []
 
 ## Found dynamically at /root/MatchNet — see the header's guard 1. Once the
 ## integrator registers the real autoload this still resolves correctly;
@@ -129,6 +238,7 @@ func _ready() -> void:
 
 	Events.block_placed.connect(_on_block_placed)
 	Events.block_replicated.connect(_on_block_replicated)
+	Events.placement_rejected.connect(_on_placement_rejected)
 
 	if not await _wait_for_connection():
 		print("M3A_ACCEPT harness_blocked layer=Net reason=stub_no_transport mode=%d peers=%d" % [
@@ -147,6 +257,19 @@ func _ready() -> void:
 	else:
 		await _run_client()
 
+	# Review item 2: opt-in, after the placement phase's own checks are
+	# already recorded, so a throw failure never masks or reorders the
+	# placement regression's own M3A_ACCEPT accounting.
+	if _throw_pass_enabled():
+		if Net.mode() == Net.Mode.HOST:
+			await _run_host_throw_phase()
+		else:
+			await _run_client_throw_phase()
+		print("M3A_THROW result=%s failures=%d" % ["PASS" if _throw_failures.is_empty() else "FAIL", _throw_failures.size()])
+		for throw_failure: String in _throw_failures:
+			print("M3A_THROW failure %s" % throw_failure)
+		_failures.append_array(_throw_failures)
+
 	print("M3A_ACCEPT result=%s failures=%d" % ["PASS" if _failures.is_empty() else "FAIL", _failures.size()])
 	for failure: String in _failures:
 		print("M3A_ACCEPT failure %s" % failure)
@@ -157,6 +280,16 @@ func _ready() -> void:
 
 func _submit_place(slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion, auto_drop: bool) -> void:
 	_match_net.call(&"submit_place", slot_id, origin, orientation_index, free_quat, auto_drop, _feed_seq_for(slot_id))
+
+
+## Review item 2: MatchNet.submit_throw()'s own harness-side call site,
+## mirroring _submit_place() exactly (M4 P2c-ii, net/MatchNet.gd:submit_throw
+## -- called dynamically for the same "not a registered autoload yet" reason
+## as every other _match_net.call() here).
+func _submit_throw(slot_id: int, origin: Vector3, velocity: Vector3) -> void:
+	_match_net.call(
+		&"submit_throw", slot_id, origin, 0, Quaternion.IDENTITY, velocity, _feed_seq_for(slot_id)
+	)
 
 
 func _intents_sent(slot_id: int) -> int:
@@ -308,6 +441,92 @@ func _run_host() -> void:
 	)
 
 
+## Review item 2: proves M4 P2c-ii's request_throw over a real ENet
+## transport. Runs only when --throw-pass is given, after the placement
+## phase's own checks are already recorded (_ready()'s own comment). Skips
+## cleanly (one informational PASS line, no failure) when there is no
+## THROW_SLOT_ID client in this run, so a `-Peers 1` sanity run still works.
+func _run_host_throw_phase() -> void:
+	if Match.config.player_count <= THROW_SLOT_ID:
+		_throw_check(
+			"throw_phase_skipped_not_enough_players", true,
+			"player_count=%d needs > %d" % [Match.config.player_count, THROW_SLOT_ID]
+		)
+		return
+
+	# --- Accepted throw: queue a special for THROW_SLOT_ID the same way a
+	# real crate claim does (MatchGifts.apply_replicated_claim() plus the
+	# Events.gift_claimed emit _on_gift_claimed() listens for -- see
+	# net/MatchNet.gd:_on_gift_claimed()), then let the real wire carry it to
+	# the client exactly like a real claim would.
+	#
+	# Review fix: detection below filters on THROW_MIN_SPEED_TO_COUNT_AS_
+	# THROWN rather than merely "a new block for this slot" -- the slot's own
+	# feed timer (MatchConfig.BLOCK_TIMER_MIN, 3 s) keeps ticking throughout
+	# this phase's multi-second waits, so an unrelated auto-drop of the
+	# slot's ordinary held piece (spec 2.5, always released at rest) can and
+	# did interleave with the throw's own spawn in practice (reproduced: a
+	# second, unrelated block appeared while this phase was still waiting on
+	# the *next* claim to replicate). Only the throw itself ever leaves a
+	# block moving this fast, so filtering on speed finds the right one
+	# regardless of how many ordinary auto-drops land around it.
+	Match._gifts.apply_replicated_claim(THROW_GIFT_ID_ACCEPT, THROW_SLOT_ID, MatchGifts.PENDING_SPECIAL_ID)
+	Events.gift_claimed.emit(THROW_GIFT_ID_ACCEPT, THROW_SLOT_ID, MatchGifts.PENDING_SPECIAL_ID)
+
+	if not await _wait_for_condition(
+		func() -> bool: return _fast_block_for_slot(THROW_SLOT_ID) != null,
+		THROW_CLAIM_WAIT_SECONDS + THROW_RESULT_WAIT_SECONDS
+	):
+		_throw_check(
+			"throw_accepted_block_spawned", false,
+			"no block moving > %.1f m/s for slot=%d within %.1fs" % [
+				THROW_MIN_SPEED_TO_COUNT_AS_THROWN, THROW_SLOT_ID,
+				THROW_CLAIM_WAIT_SECONDS + THROW_RESULT_WAIT_SECONDS
+			]
+		)
+		return
+	var thrown_block: Block = _fast_block_for_slot(THROW_SLOT_ID)
+	_throw_check("throw_accepted_block_spawned", true, "net_id=%d" % thrown_block.net_id)
+
+	var special_tuning: SpecialTuning = load("res://config/special_tuning.tres") as SpecialTuning
+	var speed: float = thrown_block.linear_velocity.length()
+	var tolerance: float = special_tuning.throw_max_speed * THROW_SPEED_TOLERANCE_FRACTION
+	_throw_check(
+		"throw_speed_clamped_to_max", absf(speed - special_tuning.throw_max_speed) <= tolerance,
+		"speed=%.3f throw_max_speed=%.3f tolerance=%.3f" % [speed, special_tuning.throw_max_speed, tolerance]
+	)
+	_throw_check(
+		"throw_continuous_cd_set", thrown_block.continuous_cd,
+		"continuous_cd=%s" % thrown_block.continuous_cd
+	)
+	var pending_after: int = Match.pending_special_count(THROW_SLOT_ID)
+	_throw_check(
+		"throw_host_pending_count_zero", pending_after == 0,
+		"pending_special_count(%d)=%d" % [THROW_SLOT_ID, pending_after]
+	)
+
+	# --- Negative: queue a second special so the coming refusal is genuinely
+	# ThrowRules' "outside your own territory" (spec 2.5), not merely "no
+	# special pending" (the first claim's was already spent above).
+	Match._gifts.apply_replicated_claim(THROW_GIFT_ID_REJECT, THROW_SLOT_ID, MatchGifts.PENDING_SPECIAL_ID)
+	Events.gift_claimed.emit(THROW_GIFT_ID_REJECT, THROW_SLOT_ID, MatchGifts.PENDING_SPECIAL_ID)
+
+	# The client's own _run_client_throw_phase() does the actual send and the
+	# "was it rejected" assertions; this side only has to confirm no *second
+	# thrown* block landed for the slot while that plays out (an ordinary
+	# auto-drop for the slot's held piece may still legitimately occur in the
+	# meantime -- see this function's own opening comment -- and is not
+	# itself a failure here).
+	await get_tree().create_timer(THROW_CLAIM_WAIT_SECONDS + THROW_RESULT_WAIT_SECONDS).timeout
+	var after_negative: Block = _fast_block_for_slot(THROW_SLOT_ID)
+	_throw_check(
+		"throw_outside_territory_spawned_nothing_on_host", after_negative == thrown_block,
+		"slot=%d accepted_net_id=%d observed_after_net_id=%d" % [
+			THROW_SLOT_ID, thrown_block.net_id, after_negative.net_id if after_negative != null else -1
+		]
+	)
+
+
 func _wait_for_peer_count(expected: int) -> bool:
 	var deadline_ms: int = Time.get_ticks_msec() + int(CONNECT_TIMEOUT_SECONDS * 1000.0)
 	while Time.get_ticks_msec() < deadline_ms:
@@ -386,6 +605,130 @@ func _run_client() -> void:
 		)
 
 
+## Review item 2: the client half of the throw phase. Only THROW_SLOT_ID's own
+## client does anything -- every other client in a >2-peer run returns
+## immediately, since this phase proves the wire path for one participant,
+## not every peer (THROW_SLOT_ID's own comment).
+func _run_client_throw_phase() -> void:
+	var slot_id: int = Net.local_slot()
+	if slot_id != THROW_SLOT_ID:
+		return
+
+	# --- Accepted throw ---------------------------------------------------
+	var pending_before: int = Match.pending_special_count(slot_id)
+	if not await _wait_for_condition(
+		func() -> bool: return Match.pending_special_count(slot_id) > pending_before,
+		THROW_CLAIM_WAIT_SECONDS
+	):
+		_throw_check(
+			"throw_client_learned_pending_special", false,
+			"pending_special_count(%d) still %d after %.1fs" % [
+				slot_id, Match.pending_special_count(slot_id), THROW_CLAIM_WAIT_SECONDS
+			]
+		)
+		return
+	_throw_check(
+		"throw_client_learned_pending_special", true,
+		"pending_special_count(%d)=%d" % [slot_id, Match.pending_special_count(slot_id)]
+	)
+
+	# Review fix: captured here, before the accepted throw below is even
+	# sent, not after its own checks run. The host only ever queues its
+	# second claim (THROW_GIFT_ID_REJECT) *after* it independently confirms
+	# this throw succeeded (_run_host_throw_phase()'s own sequencing), so
+	# capturing the baseline this early guarantees it cannot already include
+	# that second claim -- reading it after the accepted-throw checks (this
+	# function's own ~THROW_RESULT_WAIT_SECONDS pause) raced the host's much
+	# faster round trip and intermittently read a baseline that had already
+	# been bumped to 2, so "wait for > baseline" below could never resolve
+	# (reproduced: Bontago's M4 P2c-ii review, "still 2 after 4.0s").
+	var pending_after_first_claim: int = Match.pending_special_count(slot_id)
+
+	# Known limitation (not asserted here): the host never replicates a
+	# "special consumed" event, so this client's own pending_special_count
+	# stays at 1 even after the throw below is accepted and spent on the
+	# host -- see this file's header and the M4 P2c-ii report for the full
+	# reasoning. Only the host side (_run_host_throw_phase()) asserts the
+	# pending count returns to zero.
+	#
+	# Review fix: offset away from home_position, not home_position itself --
+	# the placement phase's own six releases per slot already scattered
+	# blocks within OFFSET_STEP * {-1,0,1}/{0,1} of home (up to ~2.1 m), and a
+	# throw released right into that cluster collided with one of them within
+	# a tick or two, losing most of its speed before this script ever reads
+	# it (reproduced: observed speed=9.6 against an expected ~25.0 after
+	# clamping). THROW_ORIGIN_OFFSET clears that whole cluster by design (see
+	# its own comment) while staying well inside TerritoryTuning.home_radius.
+	var home: Vector2 = Match.slot(slot_id).home_position + THROW_ORIGIN_OFFSET
+	var origin: Vector3 = Vector3(home.x, PLACE_HEIGHT, home.y)
+	var before_replicated: int = _replicated_block_count()
+	_rejected_events.clear()
+	_submit_throw(slot_id, origin, Vector3(THROW_VELOCITY_SPEED, 0.0, 0.0))
+	await get_tree().create_timer(THROW_RESULT_WAIT_SECONDS).timeout
+
+	_throw_check(
+		"throw_client_no_rejection", _rejected_events.is_empty(),
+		"rejected_events=%s" % [_rejected_events]
+	)
+	var after_replicated: int = _replicated_block_count()
+	# Review fix: ">=", not "==" -- MatchConfig.BLOCK_TIMER_MIN (3 s) can
+	# legitimately auto-drop the slot's ordinary held piece during this same
+	# window (see _fast_block_for_slot()'s own comment for the full story),
+	# which also replicates and also bumps this same counter. This still
+	# proves the accepted throw's own block specifically arrived over the
+	# snapshot pipeline (throw_client_no_rejection above already rules out a
+	# refusal for *this* request), just not that it was the only spawn.
+	_throw_check(
+		"throw_client_block_arrived", after_replicated >= before_replicated + 1,
+		"replicated_block_count before=%d after=%d" % [before_replicated, after_replicated]
+	)
+
+	# --- Negative: a release point outside this slot's own territory ------
+	# Waiting for the client's own pending_special_count to grow past the
+	# baseline captured above proves the host's second claim
+	# (_run_host_throw_phase()'s own THROW_GIFT_ID_REJECT) has already been
+	# applied host-side too -- the host always applies a claim to itself
+	# before broadcasting it, so by the time this client observes the
+	# replicated increase, the coming refusal is guaranteed to be ThrowRules'
+	# territory check, not "nothing pending".
+	if not await _wait_for_condition(
+		func() -> bool: return Match.pending_special_count(slot_id) > pending_after_first_claim,
+		THROW_CLAIM_WAIT_SECONDS
+	):
+		_throw_check(
+			"throw_client_learned_second_pending_special", false,
+			"pending_special_count(%d) still %d after %.1fs" % [
+				slot_id, Match.pending_special_count(slot_id), THROW_CLAIM_WAIT_SECONDS
+			]
+		)
+		return
+	_throw_check(
+		"throw_client_learned_second_pending_special", true,
+		"pending_special_count(%d)=%d" % [slot_id, Match.pending_special_count(slot_id)]
+	)
+
+	var far_origin: Vector3 = Vector3(
+		THROW_OUTSIDE_TERRITORY_POINT.x, PLACE_HEIGHT, THROW_OUTSIDE_TERRITORY_POINT.y
+	)
+	_rejected_events.clear()
+	_submit_throw(slot_id, far_origin, Vector3(1.0, 0.0, 0.0))
+	await get_tree().create_timer(THROW_RESULT_WAIT_SECONDS).timeout
+
+	# Review fix: no "replicated_block_count unchanged" check here -- an
+	# ordinary auto-drop for this slot's held piece (see
+	# _fast_block_for_slot()'s own comment) can legitimately bump this same
+	# counter while this waits, regardless of whether the throw above was
+	# refused, so it would not actually be testing this negative case.
+	# _run_host_throw_phase()'s own "no *thrown* (fast) block" check already
+	# covers "nothing spawned specifically from this request"; the signal
+	# that is reliable here, on the client, is that the request came back
+	# rejected at all.
+	_throw_check(
+		"throw_outside_territory_rejected", not _rejected_events.is_empty(),
+		"rejected_events=%s" % [_rejected_events]
+	)
+
+
 # --- Helpers -----------------------------------------------------------------
 
 func _offset_for_index(i: int) -> Vector2:
@@ -394,8 +737,42 @@ func _offset_for_index(i: int) -> Vector2:
 	return Vector2(float(column), float(row)) * OFFSET_STEP
 
 
-func _on_block_placed(_block: RigidBody3D, _shape_id: StringName) -> void:
+## Review item 2: `block` used to be discarded (`_block`) -- now recorded per
+## slot so _run_host_throw_phase() can tell a *new* spawn for THROW_SLOT_ID
+## apart from the placement phase's own six. Locally built blocks always have
+## `owner_slot` set (game/Block.gd:owner_slot, set by BlockFactory.build());
+## harmless on a client too, where no local Block is ever built at all in
+## this bare-scene harness (Events.block_placed only fires from a *local*
+## spawn -- Match.register_world() is never called client-side here, so
+## MatchPlacement._spawn_block() never runs there either), so
+## _last_block_by_slot simply stays empty on a client, which
+## _run_client_throw_phase() never reads.
+func _on_block_placed(block: RigidBody3D, _shape_id: StringName) -> void:
 	_blocks_spawned += 1
+	var typed: Block = block as Block
+	if typed != null:
+		_last_block_by_slot[typed.owner_slot] = typed
+
+
+## Review item 2: `_last_block_by_slot[slot_id]` alone is not enough to find
+## (or rule out) a *thrown* block for THROW_SLOT_ID, because MatchConfig.
+## BLOCK_TIMER_MIN (3 s) keeps ticking through this phase's multi-second
+## waits and can auto-drop the slot's ordinary held piece in between polls,
+## overwriting the dictionary entry with an unrelated, at-rest block (spec
+## 2.5; reproduced during this package's own review pass). A thrown special
+## always leaves the host clamped to at least throw_max_speed's own ballpark
+## (25 m/s), which no ordinary placement or auto-drop ever does, so speed is
+## what actually identifies it. The result is cached into
+## _last_thrown_block_by_slot rather than recomputed from the live velocity
+## on every call: the thrown block's own speed decays (gravity, eventually
+## landing) well before this phase's *later* checks re-read it, and a fresh
+## live read at that point would wrongly read as "gone" even though nothing
+## further happened to it.
+func _fast_block_for_slot(slot_id: int) -> Block:
+	var current: Block = _last_block_by_slot.get(slot_id) as Block
+	if current != null and current.linear_velocity.length() > THROW_MIN_SPEED_TO_COUNT_AS_THROWN:
+		_last_thrown_block_by_slot[slot_id] = current
+	return _last_thrown_block_by_slot.get(slot_id) as Block
 
 
 func _on_block_replicated(_block: RigidBody3D, net_id: int) -> void:
@@ -404,9 +781,37 @@ func _on_block_replicated(_block: RigidBody3D, net_id: int) -> void:
 	_seen_net_ids[net_id] = true
 
 
+## Review item 2, client only in practice (see this file's other
+## _run_client_throw_phase()): records every rejection this instance's own
+## slot receives so the negative throw case can prove one actually arrived,
+## and the accepted case can prove none did.
+func _on_placement_rejected(slot_id: int, reason: StringName) -> void:
+	# Review fix: EVENT_PLACEMENT_REJECTED broadcasts to every peer (net/
+	# MatchNet.gd's replicate_match_event(), not targeted rpc_id()), so an
+	# unrelated refusal for another slot (host's own auto-drop, say) would
+	# otherwise show up here too and could spuriously fail
+	# throw_client_no_rejection below. Only this instance's own slot's
+	# rejections are what "no placement_rejected reaches it" (this package's
+	# own brief) actually means.
+	if slot_id != Net.local_slot():
+		return
+	_rejected_events.append({"slot_id": slot_id, "reason": reason})
+
+
 func _role_flag_was_given() -> bool:
 	for arg: String in OS.get_cmdline_user_args():
 		if arg == "--headless-host" or arg.begins_with("--join="):
+			return true
+	return false
+
+
+## Review item 2: --throw-pass is this harness's own flag, exactly like
+## --expect-peers above (Net.apply_command_line() has no equivalent), read
+## directly off OS.get_cmdline_user_args(). Default off, so the existing
+## placement-only regression's command line and behavior are unchanged.
+func _throw_pass_enabled() -> bool:
+	for arg: String in OS.get_cmdline_user_args():
+		if arg == "--throw-pass":
 			return true
 	return false
 
@@ -424,3 +829,28 @@ func _check(criterion: String, passed: bool, detail: String) -> void:
 	print("M3A_ACCEPT (%s) %s %s" % [criterion, "PASS" if passed else "FAIL", detail])
 	if not passed:
 		_failures.append("(%s) %s" % [criterion, detail])
+
+
+## Review item 2's own twin of _check(), printing "M3A_THROW" lines and
+## appending to _throw_failures (folded into _failures once the whole throw
+## phase finishes -- see _ready()'s own comment) so the two phases' pass/fail
+## accounting never mixes in the raw per-criterion output.
+func _throw_check(criterion: String, passed: bool, detail: String) -> void:
+	print("M3A_THROW (%s) %s %s" % [criterion, "PASS" if passed else "FAIL", detail])
+	if not passed:
+		_throw_failures.append("(%s) %s" % [criterion, detail])
+
+
+## Review item 2: a generic poll, mirroring _wait_for_connection()'s own
+## deadline-then-one-more-check shape (a `while` loop can exit right as the
+## deadline ticks over without re-testing the condition one last time; every
+## existing wait helper in this file already re-checks after the loop for
+## exactly that reason). `check` is called at most once per 0.05s tick, cheap
+## enough for the Dictionary/int reads every call site here passes it.
+func _wait_for_condition(check: Callable, timeout_seconds: float) -> bool:
+	var deadline_ms: int = Time.get_ticks_msec() + int(timeout_seconds * 1000.0)
+	while Time.get_ticks_msec() < deadline_ms:
+		if bool(check.call()):
+			return true
+		await get_tree().create_timer(0.05).timeout
+	return bool(check.call())

@@ -13,10 +13,15 @@
 # Usage:
 #   tools/run_m3a_local.sh
 #   PEERS=4 SIM_LAG=100 SIM_LOSS=0.02 tools/run_m3a_local.sh
+#   PEERS=2 THROW_PASS=1 tools/run_m3a_local.sh   # + the M4 P2c-ii throw phase
 #
 # Exit code: 0 if every instance exited 0; 1 otherwise. An instance exiting 2
 # means it hit the "layer is still a stub" guard in m3a_acceptance.gd rather
-# than actually failing an assertion — see that script's header.
+# than actually failing an assertion — see that script's header. THROW_PASS=1
+# passes tests/bench/m3a_acceptance.gd's own --throw-pass flag to every
+# instance; a throw-phase failure there already makes that instance exit 1
+# (m3a_acceptance.gd's _ready()), so the existing non-zero-exit check below
+# already fails this script on a throw failure too.
 
 set -u
 
@@ -26,6 +31,7 @@ SIM_LAG="${SIM_LAG:-100}"
 SIM_LOSS="${SIM_LOSS:-0.02}"
 GODOT="${GODOT:-godot}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-120}"
+THROW_PASS="${THROW_PASS:-0}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -52,7 +58,12 @@ start_instance() {
 # actually joined -- slot_of_peer() collisions in the host's per-slot
 # counters then masqueraded as duplicate/lost placements. The host must be
 # told how many peers this run is actually bringing.
-start_instance "host" --headless-host --port="$PORT" --expect-peers="$PEERS"
+declare -a THROW_ARGS=()
+if [ "$THROW_PASS" != "0" ]; then
+	THROW_ARGS+=(--throw-pass)
+fi
+
+start_instance "host" --headless-host --port="$PORT" --expect-peers="$PEERS" "${THROW_ARGS[@]}"
 
 # The host needs a moment to bind and start advertising before a client
 # dials in directly.
@@ -60,9 +71,9 @@ sleep 2
 
 for ((i = 1; i < PEERS; i++)); do
 	if [ "$i" -eq 1 ]; then
-		start_instance "client$i" --join="127.0.0.1:$PORT" --sim-lag="$SIM_LAG" --sim-loss="$SIM_LOSS"
+		start_instance "client$i" --join="127.0.0.1:$PORT" --sim-lag="$SIM_LAG" --sim-loss="$SIM_LOSS" "${THROW_ARGS[@]}"
 	else
-		start_instance "client$i" --join="127.0.0.1:$PORT"
+		start_instance "client$i" --join="127.0.0.1:$PORT" "${THROW_ARGS[@]}"
 	fi
 done
 
@@ -81,7 +92,7 @@ for idx in "${!PIDS[@]}"; do
 	wait "$pid"
 	code=$?
 	echo "--- $name (exit $code) ---"
-	grep "M3A_ACCEPT" "$LOG_DIR/$name.out.log" || true
+	grep -E "M3A_ACCEPT|M3A_THROW" "$LOG_DIR/$name.out.log" || true
 	if [ -s "$LOG_DIR/$name.err.log" ]; then
 		echo "  (stderr, see $LOG_DIR/$name.err.log)"
 	fi

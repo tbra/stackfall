@@ -14,11 +14,16 @@
 #   tools/run_m3a_local.ps1
 #   tools/run_m3a_local.ps1 -Peers 4 -SimLag 100 -SimLoss 0.02
 #   tools/run_m3a_local.ps1 -Peers 2 -SimLag 0 -SimLoss 0    # a clean run, no simulated link
+#   tools/run_m3a_local.ps1 -Peers 2 -ThrowPass               # + the M4 P2c-ii throw phase
 #
 # Exit code: 0 if every instance exited 0; the first non-zero exit code
 # otherwise (an instance exiting 2 means it hit the "layer is still a stub"
 # guard in m3a_acceptance.gd rather than actually failing an assertion — see
-# that script's header).
+# that script's header). -ThrowPass passes tests/bench/m3a_acceptance.gd's own
+# --throw-pass flag to every instance; a throw-phase failure there already
+# makes that instance exit 1 (see m3a_acceptance.gd's _ready()), so no extra
+# handling is needed here for "the ps1 fails on FAIL" -- the existing
+# non-zero-exit check below already covers it.
 
 param(
 	[int]$Peers = 4,
@@ -26,7 +31,8 @@ param(
 	[double]$SimLag = 100,
 	[double]$SimLoss = 0.02,
 	[string]$Godot = "godot",
-	[int]$TimeoutSeconds = 120
+	[int]$TimeoutSeconds = 120,
+	[switch]$ThrowPass
 )
 
 $ErrorActionPreference = "Stop"
@@ -67,7 +73,11 @@ $instances = @()
 # peers had actually joined, so slot_of_peer() collisions in the host's
 # per-slot counters masqueraded as duplicate/lost placements. The host must
 # be told how many peers this run is actually bringing.
-$instances += Start-Instance -Name "host" -GameArgs @("--headless-host", "--port=$Port", "--expect-peers=$Peers")
+$hostArgs = @("--headless-host", "--port=$Port", "--expect-peers=$Peers")
+if ($ThrowPass) {
+	$hostArgs += "--throw-pass"
+}
+$instances += Start-Instance -Name "host" -GameArgs $hostArgs
 
 # The host needs a moment to bind and start advertising before a client
 # dials in directly (tests/support/... has no equivalent for a live socket,
@@ -79,6 +89,9 @@ for ($i = 1; $i -lt $Peers; $i++) {
 	if ($i -eq 1) {
 		$clientArgs += "--sim-lag=$SimLag"
 		$clientArgs += "--sim-loss=$SimLoss"
+	}
+	if ($ThrowPass) {
+		$clientArgs += "--throw-pass"
 	}
 	$instances += Start-Instance -Name "client$i" -GameArgs $clientArgs
 }
@@ -97,7 +110,7 @@ foreach ($instance in $instances) {
 	$code = $instance.Process.ExitCode
 	$exitCodes[$instance.Name] = $code
 	Write-Host "--- $($instance.Name) (exit $code) ---"
-	if (Test-Path $instance.OutLog) { Get-Content $instance.OutLog | Where-Object { $_ -match "M3A_ACCEPT" } | ForEach-Object { Write-Host $_ } }
+	if (Test-Path $instance.OutLog) { Get-Content $instance.OutLog | Where-Object { $_ -match "M3A_ACCEPT|M3A_THROW" } | ForEach-Object { Write-Host $_ } }
 	if ((Test-Path $instance.ErrLog) -and ((Get-Item $instance.ErrLog).Length -gt 0)) {
 		Write-Host "  (stderr, see $($instance.ErrLog))"
 	}
