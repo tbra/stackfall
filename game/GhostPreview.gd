@@ -209,6 +209,13 @@ const STATE_THROW: StringName = &"throw"
 
 const HATCH_TEXTURE_SIZE: int = 32
 
+## Bontago-xtq.18: how close two footprint columns' own edge endpoints must
+## land (world units) to count as the *same* shared boundary in
+## _shared_edge_exists() -- matches _group_cells_by_footprint()'s own "%.3f"
+## (millimetre) rounding tolerance for the same reason (floating-point noise
+## from the rotation basis on otherwise-identical grid-aligned corners).
+const _EDGE_MATCH_EPSILON: float = 0.001
+
 ## The 8 corner signs of a unit box centred on its own local position, used by
 ## _rotated_bottom_offset() to find a rotated shape's true lowest point.
 const _CORNER_SIGNS: Array[Vector3] = [
@@ -324,6 +331,14 @@ func _ready() -> void:
 	_footprint_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_footprint_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_footprint_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	# Bontago-xtq.18 (feedback/owner-noise-footprint.png): the footprint quad
+	# is a near-ground-parallel decal viewed at a shallow grazing angle from
+	# the match camera -- on top of _build_hatch_texture()'s own mipmap fix,
+	# anisotropic filtering keeps the HOLE/GOAL_ZONE hatch's diagonal stripes
+	# from re-aliasing at that angle the way plain trilinear filtering still
+	# can. Harmless for every other state, which never assigns albedo_texture
+	# here at all (_apply_footprint_material()).
+	_footprint_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 
 	# Bontago-xtq.7 (this file's own header, fix (2)): the flat footprint
 	# above stays CULL_DISABLED (a flat quad has no "back" a camera can't
@@ -675,6 +690,56 @@ func _update_projection_mesh(landing_y: float) -> void:
 	var uvs: PackedVector2Array = PackedVector2Array()
 	var indices: PackedInt32Array = PackedInt32Array()
 
+	# Bontago-xtq.18 (feedback/owner-noise-footprint.png, "the footprint under
+	# the ghost renders as black/white speckled noise"): root-caused to this
+	# mesh via tools/screenshot_xtq15_block_projection.gd (forced into
+	# PlacementRules.Result.HOLE, holding S4 -- a notched shape with two
+	# adjacent footprint columns of different height, this file's own
+	# _group_cells_by_footprint() header): hiding just _projection_mesh made
+	# the noise disappear with the footprint quad/decal both still visible and
+	# unchanged, ruling both of them out (the bug's own original diagnostic
+	# guesses). Two independent, additive causes, both now fixed below:
+	# (1) every wall used to bottom out at exactly `landing_y` -- the same Y
+	# the disc's own collision mesh sits at right there -- so at a shallow
+	# camera angle the wall's own ground-contact edge and the disc surface
+	# beneath it rasterize to near-identical depth over a wide screen area,
+	# and CULL_DISABLED (this file's own _ready(), needed so the far wall of a
+	# single column's own box reads through the near one) has no way to
+	# prefer one over the other -- textbook Z-fighting. wall_bottom_y lifts
+	# the wall's own geometry by ghost_tuning.footprint_offset, the same
+	# epsilon the footprint quad already uses above the disc for exactly this
+	# reason (_update_footprint()). Confirmed insufficient alone (the noise
+	# was still visible with only this fix): _projection_columns below keeps
+	# recording the raw, unlifted `landing_y` (projection_column_span_y()'s
+	# own existing contract, read by this file's own tests and by no other
+	# owned file), so this half is a render-only change with no bookkeeping
+	# change.
+	# (2) two ADJACENT surviving columns (e.g. S4's x=0 and merged x=1 column)
+	# each independently walled *every* edge of their own hull, including the
+	# edge exactly *shared* between them -- so that shared internal boundary
+	# got drawn twice, by two different (oppositely-wound, since a shared cell
+	# edge is traversed in reverse order by each side's own convex hull)
+	# triangles occupying the exact same space over their shorter neighbour's
+	# own height range: full Z-fighting, independent of the ground-contact
+	# epsilon above (this is an internal seam between two walls, not a wall-
+	# vs-disc seam). DECISION (game/GhostPreview.gd, Bontago-xtq.18): rather
+	# than compute the exact partial "step" wall a differently-capped neighbour
+	# would still legitimately show above its own shorter neighbour (a proper
+	# per-height silhouette boundary trace), _collect_projection_columns()/
+	# _shared_edge_exists() below simply never draw a column's own edge at all
+	# once another *surviving* column's hull has the same edge reversed --
+	# every remaining (non-shared, true outer-perimeter) edge is completely
+	# unaffected, so a single isolated column (no neighbour sharing any edge,
+	# by far the common case: a lone cube, a pitched/rolled shape whose cells
+	# generically rotate to distinct footprints, this file's own header) keeps
+	# its full hollow-box near+far wall look exactly as before. The accepted
+	# trade-off is losing the small internal "step" wall between two adjacent,
+	# differently-capped columns (S4's own case) -- a minor visual
+	# simplification, not a correctness regression: the outer silhouette this
+	# file's own header cares about is untouched, and no gameplay code reads
+	# that missing step wall's own geometry.
+	var wall_bottom_y: float = landing_y + ghost_tuning.footprint_offset
+	var columns: Array[Dictionary] = []
 	for group: Dictionary in _group_cells_by_footprint():
 		var hull: PackedVector2Array = Geometry2D.convex_hull(group["points"])
 		if hull.size() < 3:
@@ -682,8 +747,13 @@ func _update_projection_mesh(landing_y: float) -> void:
 		var top_y: float = global_position.y + float(group["min_y"])
 		if top_y - landing_y <= ghost_tuning.footprint_offset:
 			continue
-		_append_prism_walls(hull, top_y, landing_y, verts, normals, uvs, indices)
+		columns.append({"hull": hull, "top_y": top_y})
 		_projection_columns.append(Vector2(top_y, landing_y))
+
+	for index: int in range(columns.size()):
+		var hull: PackedVector2Array = columns[index]["hull"]
+		var top_y: float = columns[index]["top_y"]
+		_append_prism_walls(hull, top_y, wall_bottom_y, verts, normals, uvs, indices, columns, index)
 
 	if verts.is_empty():
 		_projection_mesh.mesh = null
@@ -869,9 +939,16 @@ func _group_cells_by_footprint() -> Array[Dictionary]:
 ## _projection_material's own CULL_DISABLED (see _ready()) draws both sides of
 ## every triangle regardless of winding, so this never has to know or match
 ## the hull's own winding direction the way a single-sided material would.
+## Bontago-xtq.18 (this file's own header, fix (2)): `columns`/`self_index`
+## are optional (default empty/-1) purely so this function's own signature
+## stays backward-callable -- every real caller (_update_projection_mesh())
+## always passes them now, to skip an edge exactly shared with another
+## surviving column (see _shared_edge_exists() below) instead of drawing it
+## twice.
 func _append_prism_walls(
 	hull: PackedVector2Array, top_y: float, bottom_y: float,
-	verts: PackedVector3Array, normals: PackedVector3Array, uvs: PackedVector2Array, indices: PackedInt32Array
+	verts: PackedVector3Array, normals: PackedVector3Array, uvs: PackedVector2Array, indices: PackedInt32Array,
+	columns: Array[Dictionary] = [], self_index: int = -1
 ) -> void:
 	var edge_count: int = hull.size()
 	for i: int in range(edge_count):
@@ -879,6 +956,8 @@ func _append_prism_walls(
 		var b: Vector2 = hull[(i + 1) % edge_count]
 		var edge_length: float = a.distance_to(b)
 		if edge_length <= 0.0:
+			continue
+		if _shared_edge_exists(a, b, columns, self_index):
 			continue
 		# Outward-ish normal for this edge (SHADING_MODE_UNSHADED means it
 		# has no visible effect today, but a correct value costs nothing and
@@ -902,6 +981,27 @@ func _append_prism_walls(
 		indices.append(base_index)
 		indices.append(base_index + 3)
 		indices.append(base_index + 2)
+
+
+## Bontago-xtq.18 (this file's own header, fix (2)): true when some *other*
+## surviving column in `columns` has an edge exactly matching (a, b) in
+## reverse -- (other_b, other_a) within _EDGE_MATCH_EPSILON of (a, b) -- i.e.
+## an internal boundary shared between two adjacent footprint columns (a
+## shared cell edge is always traversed in opposite order by each side's own
+## convex hull), rather than a true outer-perimeter edge. `self_index` is
+## excluded so a column never matches against its own hull.
+func _shared_edge_exists(a: Vector2, b: Vector2, columns: Array[Dictionary], self_index: int) -> bool:
+	for other_index: int in range(columns.size()):
+		if other_index == self_index:
+			continue
+		var other_hull: PackedVector2Array = columns[other_index]["hull"]
+		var other_edge_count: int = other_hull.size()
+		for j: int in range(other_edge_count):
+			var other_a: Vector2 = other_hull[j]
+			var other_b: Vector2 = other_hull[(j + 1) % other_edge_count]
+			if other_a.distance_to(b) <= _EDGE_MATCH_EPSILON and other_b.distance_to(a) <= _EDGE_MATCH_EPSILON:
+				return true
+	return false
 
 
 ## Unweighted average of `hull`'s own vertices -- good enough as "roughly the
@@ -1427,4 +1527,22 @@ func _build_hatch_texture() -> ImageTexture:
 			var phase: float = fmod(float(x + y), period) / period
 			var opaque: bool = phase < ghost_tuning.hatch_stripe_width
 			image.set_pixel(x, y, Color(1.0, 1.0, 1.0, 1.0 if opaque else 0.0))
+	# Bontago-xtq.18 (owner F12 2026-09-23, feedback/owner-noise-footprint.png:
+	# the footprint under the ghost read as black/white speckled noise instead
+	# of a flat pale quad/hatch pattern): the footprint quad's own diagonal
+	# stripe pattern is a HOLE/GOAL_ZONE-only visual (_apply_footprint_
+	# material()/_apply_validity_material() above) tiled several times across
+	# a small quad via ghost_tuning.hatch_scale -- with no mip chain, the GPU
+	# had only this one full-resolution level to minify from at any distance
+	# or oblique ground-decal viewing angle, and linear-filtering a
+	# diagonal high-frequency stripe pattern down that hard aliases into the
+	# reported speckled noise (confirmed by reproducing the exact same
+	# artefact via tools/screenshot_xtq15_block_projection.gd with the ghost
+	# forced into PlacementRules.Result.HOLE, and by ruling out
+	# _block_projection_decal -- its own texture is a single flat colour
+	# with no frequency content to alias, and the artefact persisted with
+	# ghost_tuning.block_projection_alpha forced to 0). generate_mipmaps()
+	# gives the renderer the downsampled levels it needs to blend a proper
+	# grey average instead of aliasing, fixing this at any distance/angle.
+	image.generate_mipmaps()
 	return ImageTexture.create_from_image(image)

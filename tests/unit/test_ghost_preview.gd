@@ -760,6 +760,69 @@ func test_s4_at_identity_rotation_never_projects_above_the_lower_cells_own_top()
 		)
 
 
+## Bontago-xtq.18 (feedback/owner-noise-footprint.png, "the footprint under
+## the ghost renders as black/white speckled noise"): fail-before regression
+## for this file's own fix (2) -- S4's x=0 column (only cell (0,1,0), capped
+## high) and merged x=1 column (cells (1,0,0)/(1,1,0), capped low) share the
+## grid edge between them, and the pre-fix code walled *every* edge of *every*
+## column independently, so that shared edge was drawn twice -- once by each
+## side, both occupying the exact same XZ line over their shorter neighbour's
+## own height range (real screen-space Z-fighting, reproduced via
+## tools/screenshot_xtq15_block_projection.gd forced into HOLE and holding
+## S4). Reconstructs each wall quad from the flat vertex list (_append_prism_
+## walls() always appends exactly 4 unique vertices per wall, in (a_top,
+## b_top, b_bottom, a_bottom) order, so every consecutive run of 4 is one
+## wall) and asserts no undirected (a, b) ground-plan segment appears twice.
+func test_s4_at_identity_rotation_never_draws_the_same_wall_edge_twice() -> void:
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+	ghost.set_shape(load("res://config/blocks/S4.tres"))
+
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	var vertices: PackedVector3Array = ghost.projection_mesh_vertices_world()
+	assert_false(vertices.is_empty(), "fixture: a real gap between the shape and the disc must show prism geometry.")
+	assert_eq(vertices.size() % 4, 0, "fixture: _append_prism_walls() always appends exactly 4 vertices per wall.")
+
+	var seen_edges: Dictionary = {}
+	var wall_count: int = vertices.size() / 4
+	for wall_index: int in range(wall_count):
+		var a: Vector2 = Vector2(vertices[wall_index * 4].x, vertices[wall_index * 4].z)
+		var b: Vector2 = Vector2(vertices[wall_index * 4 + 1].x, vertices[wall_index * 4 + 1].z)
+		var key: String = (
+			"%.3f,%.3f/%.3f,%.3f" % [a.x, a.y, b.x, b.y] if a.x < b.x or (a.x == b.x and a.y <= b.y)
+			else "%.3f,%.3f/%.3f,%.3f" % [b.x, b.y, a.x, a.y]
+		)
+		assert_false(
+			seen_edges.has(key),
+			"wall edge %s drawn more than once -- two coincident walls Z-fight into visible noise." % key
+		)
+		seen_edges[key] = true
+
+
+## Bontago-xtq.18 (this file's own fix (1)): the prism's own wall geometry
+## must not sit exactly at the disc's own surface height -- CULL_DISABLED
+## alpha geometry coincident with the disc's own opaque depth Z-fights into
+## the same reported noise. Reuses ghost_tuning.footprint_offset, the same
+## epsilon the footprint quad already lifts itself by above the disc
+## (_update_footprint()).
+func test_projection_prism_wall_bottom_clears_the_disc_by_footprint_offset() -> void:
+	var ghost: GhostPreview = _make_ghost()
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	var vertices: PackedVector3Array = ghost.projection_mesh_vertices_world()
+	assert_false(vertices.is_empty(), "fixture: a real gap between the shape and the disc must show prism geometry.")
+	var lowest_vertex_y: float = INF
+	for vertex: Vector3 in vertices:
+		lowest_vertex_y = minf(lowest_vertex_y, vertex.y)
+
+	var disc_landing_y: float = ghost.footprint_quad_position(0).y - ghost.ghost_tuning.footprint_offset
+	assert_almost_eq(
+		lowest_vertex_y, disc_landing_y + ghost.ghost_tuning.footprint_offset, 0.001,
+		"the wall's own lowest vertex must clear the disc surface by footprint_offset, never sit exactly on it."
+	)
+
+
 ## "a pitched bar is enclosed from below": bar3 pitched about its own long
 ## axis rotates each of its 3 cells to a distinct XZ footprint (no merging --
 ## this file's own header), so each cell is its own column, capped at its own

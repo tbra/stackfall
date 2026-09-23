@@ -45,8 +45,8 @@ func _ready() -> void:
 
 	# 2. Hold another cube directly above it, identity rotation (a single
 	# silhouette column, matching docs/original_hover-preview.png exactly).
-	ghost.set_shape(load("res://config/blocks/cube.tres"))
-	ghost.apply_validity(PlacementRules.Result.VALID)
+	ghost.set_shape(load("res://config/blocks/S4.tres"))
+	ghost.apply_validity(PlacementRules.Result.HOLE)
 	controller._cursor = home
 	controller._update_ghost_transform()
 	await _wait(10)
@@ -74,13 +74,52 @@ func _ready() -> void:
 	# block_issued() -> _ghost.set_shape()), silently overriding this probe's
 	# own manual override again. Pinning it here (no more awaits afterward)
 	# guarantees the screenshot shows exactly what this probe asked for.
-	ghost.set_shape(load("res://config/blocks/cube.tres"))
+	ghost.set_shape(load("res://config/blocks/S4.tres"))
 	controller._update_ghost_transform()
+	# Bontago-xtq.18 (this repro's own diagnostic use): re-centre the rig on
+	# the just-reasserted cube's own position too -- the shape reassert above
+	# already protects ghost.get_shape(), but a cube's own bottom offset
+	# differs from whatever shape the feed cadence had briefly swapped in at
+	# the rig-setup wait above, so leaving rig._target at that stale value
+	# aimed the camera away from the reasserted cube's own footprint. One more
+	# frame lets the rig actually orbit to the corrected target before the shot.
+	rig._target = ghost.global_position
+	await get_tree().process_frame
 	print("SCREENSHOT re-asserted ghost_shape=%s" % [ghost.get_shape().id if ghost.get_shape() != null else "null"])
 	print("SCREENSHOT rig yaw=%.3f pitch=%.3f distance=%.3f target=%s camera_global=%s" % [
 		rig._yaw, rig._pitch, rig._distance, rig._target, rig.get_node("Camera3D").global_position
 	])
+	print("SCREENSHOT DEBUG current_state=%s footprint_tex=%s" % [
+		ghost.current_state(), ghost._footprint_material.albedo_texture
+	])
+	var verts: PackedVector3Array = ghost.projection_mesh_vertices_world()
+	print("SCREENSHOT DEBUG vertex_count=%d wall_count=%d" % [verts.size(), verts.size() / 4])
+	var seen: Dictionary = {}
+	for i: int in range(verts.size() / 4):
+		var a: Vector2 = Vector2(verts[i * 4].x, verts[i * 4].z)
+		var b: Vector2 = Vector2(verts[i * 4 + 1].x, verts[i * 4 + 1].z)
+		var key: String = (
+			"%.3f,%.3f/%.3f,%.3f" % [a.x, a.y, b.x, b.y] if a.x < b.x or (a.x == b.x and a.y <= b.y)
+			else "%.3f,%.3f/%.3f,%.3f" % [b.x, b.y, a.x, a.y]
+		)
+		if seen.has(key):
+			print("SCREENSHOT DEBUG DUPLICATE EDGE %s at wall_index=%d" % [key, i])
+		seen[key] = seen.get(key, 0) + 1
+	print("SCREENSHOT DEBUG lowest_vertex_y=%.5f footprint_quad_y=%.5f footprint_offset=%.5f" % [
+		_min_y(verts), ghost.footprint_quad_position(0).y, ghost.ghost_tuning.footprint_offset
+	])
+	ghost._projection_mesh.visible = false
+	print("SCREENSHOT DEBUG projection_mesh hidden for isolation test")
+	await _shoot(SHOT_NAME + "_prism_hidden")
+	ghost._projection_mesh.visible = true
 	await _shoot(SHOT_NAME)
+
+
+func _min_y(verts: PackedVector3Array) -> float:
+	var m: float = INF
+	for v: Vector3 in verts:
+		m = minf(m, v.y)
+	return m
 
 	get_tree().quit()
 
