@@ -49,3 +49,6 @@ throw_arc_floor_below_disc_m = 3.0
 throw_arc_floor_enabled = true
 throw_arc_end_marker_enabled = true
 throw_arc_end_marker_radius = 0.12
+ghost_opacity = 0.9
+block_projection_color = Color(0.95, 0.95, 0.95, 1.0)
+block_projection_alpha = 0.5

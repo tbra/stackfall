@@ -361,6 +361,57 @@ func test_gamepad_start_plus_x_toggles() -> void:
 	assert_true(_panel.visible, "Start held + X pressed should toggle the panel.")
 
 
+# --- Bontago-xtq.13 (owner playtest 2026-09-23, "F4 should remember which
+# tab was active when reopened") ---------------------------------------------
+
+## Must fail against the pre-xtq.13 code (rebuild() on every reopen replaced
+## every tab page with no restore step, so TabContainer.current_tab silently
+## landed back on 0) and pass once the panel remembers the tab across a
+## close/reopen in the same session.
+func test_f4_remembers_selected_tab_across_close_and_reopen() -> void:
+	_panel._unhandled_input(_key_press(KEY_F4))
+	assert_true(_panel.visible, "fixture: opened.")
+
+	# Same deterministic-equivalent-of-a-real-click technique this file's own
+	# header already documents for HSlider/SpinBox/CheckButton/
+	# ColorPickerButton: TabContainer.current_tab's own C++ setter does not
+	# emit tab_changed synchronously from a plain property assignment on this
+	# engine build either, only a real click (or an explicit emit) does.
+	var target_tab: int = _panel._tab_container.get_tab_count() - 1
+	_panel._tab_container.current_tab = target_tab
+	_panel._tab_container.emit_signal("tab_changed", target_tab)
+
+	_panel._unhandled_input(_key_press(KEY_F4))  # close
+	assert_false(_panel.visible)
+
+	_panel._unhandled_input(_key_press(KEY_F4))  # reopen -> rebuild()
+	assert_true(_panel.visible)
+	assert_eq(
+		_panel._tab_container.current_tab, target_tab,
+		"F4 must remember the tab that was open when it closed, not reset to tab 0."
+	)
+
+
+## The same memory, but via a real save/load round trip through SAVE_PATH
+## (test_save_and_apply_saved_overrides_round_trip_via_user_dir's own idea,
+## applied to _selected_tab_index instead of a tuning field) -- proves the tab
+## choice survives a fresh TuningPanel instance (a stand-in for a full app
+## restart), not just the same live panel object.
+func test_selected_tab_index_persists_across_a_fresh_panel_instance() -> void:
+	var target_tab: int = _panel._tab_container.get_tab_count() - 1
+	_panel._tab_container.current_tab = target_tab
+	_panel._tab_container.emit_signal("tab_changed", target_tab)
+	assert_eq(_panel._selected_tab_index, target_tab, "fixture: tab_changed must update the panel's own bookkeeping.")
+
+	var fresh_panel: TuningPanel = autofree(load("res://ui/TuningPanel.tscn").instantiate())
+	add_child_autofree(fresh_panel)
+
+	assert_eq(
+		fresh_panel._tab_container.current_tab, target_tab,
+		"a brand-new panel instance must read the persisted tab straight from disk in its own _ready()."
+	)
+
+
 # --- Bontago-mv0.21: owner-tuned defaults --------------------------------------
 
 func test_camera_tuning_default_values() -> void:

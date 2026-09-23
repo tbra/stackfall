@@ -344,3 +344,32 @@ extends Resource
 @export var throw_arc_end_marker_enabled: bool = true
 ## World-space radius (meters) of the landing-point marker disc above.
 @export var throw_arc_end_marker_radius: float = 0.12
+
+## -- Feel round 7 (ghost) --
+
+## Bontago-xtq.13 (owner playtest 2026-09-23, "ghost block should still be
+## less transparent -> add a slider for it in the F4 menu"): one alpha shared
+## by every ghost state tint (tint_color/invalid_tint_color/hole_tint_color/
+## locked_tint_color/throw_aim_tint_color all keep their own RGB --
+## game/GhostPreview.gd's _apply_validity_material() now applies this as the
+## alpha of whichever colour it picks, rather than each colour's own baked-in
+## alpha channel). DECISION (config/GhostTuning.gd, Bontago-xtq.13): kept as
+## one new field rather than editing each tint colour's own stored alpha --
+## a single slider matches the brief's own "add a slider for it", and every
+## existing tint colour's alpha channel becomes dead weight this field
+## overrides rather than a second value to keep in sync by hand.
+@export var ghost_opacity: float = 0.9
+
+## Bontago-xtq.15 (owner playtest 2026-09-23, "the same white projection that
+## shows up on the disk should show up on the blocks as well, just a bit
+## fainter"): game/GhostPreview.gd's _block_projection_decal projects this RGB
+## (its own alpha channel is ignored, same convention as ghost_opacity above
+## overriding every tint colour's own alpha -- see block_projection_alpha)
+## downward from the held ghost's own underside onto whatever real block sits
+## beneath it, near-white to match footprint_base_color's own disc marker.
+@export var block_projection_color: Color = Color(0.95, 0.95, 0.95, 1.0)
+## Alpha of the block-projection decal above -- deliberately fainter than
+## footprint_alpha's own disc marker (the brief's own "just a bit fainter"),
+## since a placed block already has its own lit surface to read through,
+## unlike the flat disc.
+@export var block_projection_alpha: float = 0.5
