@@ -3,35 +3,41 @@
 Prepared 2026-09-18 from Git, Beads, project files and the interrupted local Claude
 session. This is a restart snapshot. Refresh live state; keep task progress in Beads.
 
-## Update 2026-09-23 (late evening) — resume here
+## Update 2026-09-23 (night) — resume here
 
-**Git:** `main` 03850cb pushed; full suite 1173/1173 at 99b2995 (physics merge after it verified
-with 92/92 targeted + idle benches). Owner granted merge/push mid-session; a new session's
-classifier may deny `git merge`/`git push` again — ask once. Owner also lifted the two-writer
-cap (`bd memories writer-cap`) and requires agent windowed runs off-screen
-(`--position 10000,10000`; rule is in every worker profile).
+**Session end:** owner stopped a runaway worker (~20 windowed probe runs for one visual bug) and
+ended the session. Rules added tonight, in every worker profile and Beads memory: **max three
+windowed probe runs per package, diagnose by reading first** (`probe-cap`); **all agent windows
+off-screen** `--position 10000,10000` (`windowed-probes`); the two-writer cap is lifted
+(`writer-cap`). `SendMessage` was disabled in this session, so workers could not be steered
+mid-run — check whether it is available before relying on it; if not, brief tightly and kill a
+worker's own Godot PIDs rather than waiting.
 
-**Shipped today (all closed in Beads):** every M4 special + throw input/arc + special_consumed
-replication + tilt wiring + client disk-tilt mirroring + F9 force-special + impact_triggers hook;
-all M3 code children (mv0.1.10/.13/.12, mv0.4, mv0.31/.32) — only the owner two-PC Steam match
-(`mv0.2`) keeps M3 open; owner feel rounds 6 and 7 (xtq.9–11, xtq.13–17, mv0.29/.30/.33/.34,
-1en.25); m2_acceptance 9/9 again (p0a); MatchTestReset fixture (bmh). M3 4-peer lag/loss +
-throw harness PASS; Steam probe status 0; bench_tower ×3 presets PASS; bench_specials_chain
-PASS 7.1 ms/step; bench_rain is environmentally noisy on this machine (`bd memories bench-noise`).
+**Git:** `main` ae24041 pushed, clean. Full suite 1173/1173 at 99b2995; later merges (physics
+presets, disc mirror + restored tests) verified with targeted sets + idle benches. Play copy
+`M:/Bontago-worktrees/play` detached at d0a0645 (cache warmed).
 
-**In flight:** `M:/Bontago-worktrees/mirror` (`wt/disc-mirror`, xtq.12 step 2: SSR then a planar
-mirror so the disc reflects blocks like `docs/original_hover-preview.png`; step 1 ReflectionProbe
-is merged but visually weak — xtq.12 stays OPEN until the owner sees block reflections).
+**Unmerged branches (preserve, then judge):**
+- `wt/footprint-noise` @ 37775dd (worktree `M:/Bontago-worktrees/fpnoise`) — WIP from the stopped
+  worker for `xtq.18`: footprint texture mipmaps + anisotropic filter (speckle was aliasing) and no
+  interior walls between adjacent per-column projection shafts (likely also fixes `xtq.19`
+  "divided blocks"). 51/51 ghost tests on the branch. Needs ONE confirming screenshot, then merge.
+- `wt/m5-plan` @ 49176d2 (worktree `M:/Bontago-worktrees/m5plan`) — `docs/M5_PLAN.md`, 7 packages;
+  P0 must stop `MatchConfig.clamp_to_connected_peers()` zeroing `ai_count`; P1 BotController stub
+  first. Merge the doc, create Beads children under `Bontago-d5c`, dispatch P0.
 
-**Owner questions open (`bd human list`):** Bontago-b6l (volcano orbs persist as owner blocks?),
-Bontago-6op (may Earthquake/Volcano start mid-air?), 4nz, 3td. **Owner manual pass wanted:**
-play copy `M:/Bontago-worktrees/play` (detached at main 03850cb, cache warmed): F9 cycles
-specials; LMB drag throws with arc; F4 Physics preset dropdown; two-instance check that the
-client's disc tilts under an Anvil. Notes go in `feedback/playtest.md` (round 7 items all filed).
+**Owner feel round 8 (screenshot `feedback/owner-noise-footprint.png`, all P1, open):** `xtq.19`
+divided blocks (see lead above), `xtq.18` footprint noise (WIP above), `mv0.35` height cap still
+present after mv0.34 (first check a saved F4 override in `user://tuning_overrides.cfg` shadowing
+`hover_manual_max`), `xtq.20` flicker + sun glare in the disc reflection (planar mirror/SSR).
+`xtq.12` (disc reflective) stays open until the owner accepts the mirror look.
 
-**Then:** M4 epic close (needs the owner's LAN/manual pass + xtq.12 verdict), then M5 AI bots
-(`docs/SPEC.md` Part 4: BotController, 3 difficulties, 8-bot headless match) — start with
-`stackfall-planner` writing `docs/M5_PLAN.md`. Backlog: `Bontago-ogd` (trimesh rebuild bench).
+**Owner questions open (`bd human list`):** `Bontago-b6l` volcano orbs persist?, `Bontago-6op`
+Earthquake/Volcano start mid-air?, `4nz`, `3td`. M3 epic closes on the owner's two-PC Steam match.
+
+**Shipped today:** see the two sections below (M4 complete on main; all M3 code children closed;
+feel rounds 6–7; m2_acceptance 9/9; MatchTestReset fixture). Lessons in Beads memories:
+`class-cache`, `animatablebody-tests`, `bench-noise`, `worktree-commit-check`, `probe-cap`.
 
 ## Update 2026-09-23 (afternoon session, in progress) — resume here
 
