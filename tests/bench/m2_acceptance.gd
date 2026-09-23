@@ -35,8 +35,10 @@ extends Node3D
 ##       and covering the flag with reach rather than by placing inside the
 ##       zone; a placement attempt inside the zone is refused with
 ##       REASON_GOAL_ZONE (scenario 4), and the win fires only after the hold.
-##   (e) an invalid release burns the block: it spawns, is thrown off the map,
-##       and the next block is fed (docs/M2_PLAN.md owner decision 2).
+##   (e) a deliberate release on an invalid spot is refused outright: nothing
+##       spawns or is consumed, and the same still-held piece places
+##       correctly right after (spec 2.5 "Held-block behaviour"/"Expiry and
+##       invalid actions", Bontago-mv0.24, owner test 2026-09-22).
 ##   (f) a hole under a home flag eliminates that slot (owner decision 3).
 ##   (g) the placement cadence (spec 2.4): an early release locks the slot's
 ##       next piece until the interval boundary, a second release before then
@@ -388,45 +390,64 @@ func _scenario_capture_win() -> void:
 	await _end_match()
 
 
-## (e) A deliberate release on an invalid spot burns the block: it is spawned,
-## thrown off the map, and the next block is fed (owner decision 2).
+## (e) A deliberate (manual, non-auto_drop) release on an invalid spot is
+## refused outright: nothing spawns, nothing is consumed, and the same piece
+## is still there to place correctly afterward.
+##
+## DECISION (tests/bench/m2_acceptance.gd, Bontago-p0a): rewritten from the
+## old "burns the block: it is spawned, thrown off the map, and the next
+## block is fed (docs/M2_PLAN.md owner decision 2)" expectation, which
+## Bontago-mv0.24 (owner test 2026-09-22) superseded for exactly this case --
+## SPEC.md 2.5 "Held-block behaviour": "A drop outside the player's own
+## territory is refused (the block stays in hand; no drop, feedback only)",
+## and "Expiry and invalid actions": "An invalid manual click does not drop
+## and does not consume the piece: the game refuses it and the block stays
+## in hand... Failed clicks never advance the cadence." That change predates
+## this test's own last rewrite (Bontago-cmc.6, 2026-09-21) by a day, which
+## is why this scenario went stale rather than ever having been broken by
+## it. autoload/match/MatchPlacement.gd's request_place() now returns before
+## spawning anything at all on this path (auto_drop == false and reason !=
+## REASON_OK) -- the burn/throw path this used to exercise is only reachable
+## with auto_drop == true (the timer-expiry case), which criterion (g)
+## already covers via its own auto-drop check.
 func _scenario_burned_block() -> void:
 	await _start_match(GOAL_COUNT)
 
 	var blocks_before: int = _blocks.get_child_count()
+	var tracked_before: int = _registry.tracked_block_count()
+	# Force the held shape to _cube *before* snapshotting it: _release() below
+	# does this too (every release forces a cube for deterministic geometry --
+	# see _hold_cube()'s own comment), so capturing the bag's own random deal
+	# here instead would make held_before != held_after look like a burn even
+	# though nothing was actually consumed.
+	_hold_cube(0)
+	var held_before: BlockShape = Match.held_shape(0)
+	var feed_seq_before: int = Match.feed_seq(0)
+
 	# On the disk but outside either player's territory, so this is a refusal
 	# on the territory rule itself rather than an empty footprint.
 	var reason: StringName = _release(0, _neutral_spot())
-	var spawned_one: bool = _blocks.get_child_count() == blocks_before + 1
-	var spawned_id: int = 0
-	if spawned_one:
-		spawned_id = _blocks.get_child(_blocks.get_child_count() - 1).get_instance_id()
-	var refed: bool = Match.held_shape(0) != null
-	var tracked_before: int = _registry.tracked_block_count()
+	var spawned_none: bool = _blocks.get_child_count() == blocks_before
+	var still_held: bool = Match.held_shape(0) == held_before
+	var seq_unmoved: bool = Match.feed_seq(0) == feed_seq_before
+	var tracked_unmoved: bool = _registry.tracked_block_count() == tracked_before
 
-	# The reject impulse lands on the next physics step, not on the call.
-	await _step(1)
-	var launched: bool = false
-	if _alive(spawned_id):
-		var body: Block = instance_from_id(spawned_id) as Block
-		launched = body.linear_velocity.length() > 0.0
-
-	# Thrown clear of the disk, the kill plane frees it and reports it, which
-	# is what unregisters it from the BlockRegistry.
-	var gone: bool = await _step_until(_frames_for_seconds(15.0), func() -> bool:
-		return not _alive(spawned_id)
-	)
+	# Nothing was consumed, so the same slot may simply try again -- this
+	# time at a spot inside its own home circle, which must succeed and
+	# actually spawn the still-held piece.
+	var retry_reason: StringName = _release(0, _world_point(Match.slot(0).home_position, PLACE_HEIGHT))
+	var retry_spawned: bool = _blocks.get_child_count() == blocks_before + 1
 
 	_check("e", (
 		reason == PlacementRules.REASON_OUTSIDE_TERRITORY
-		and spawned_one
-		and launched
-		and refed
-		and gone
-		and _registry.tracked_block_count() < tracked_before
-	), "reason=%s spawned=%s launched=%s refed=%s killed=%s tracked %d->%d" % [
-		reason, spawned_one, launched, refed, gone,
-		tracked_before, _registry.tracked_block_count()
+		and spawned_none
+		and still_held
+		and seq_unmoved
+		and tracked_unmoved
+		and retry_reason == PlacementRules.REASON_OK
+		and retry_spawned
+	), "reason=%s spawned_none=%s still_held=%s seq_unmoved=%s tracked_unmoved=%s retry_reason=%s retry_spawned=%s" % [
+		reason, spawned_none, still_held, seq_unmoved, tracked_unmoved, retry_reason, retry_spawned
 	])
 
 	await _end_match()
@@ -933,12 +954,37 @@ func _build_isolated_tower(
 	return base
 
 
-## Spends a slot's turn without building: releasing off the disk burns the
-## block (owner decision 2) and hands the turn on.
+## Spends a slot's turn without building, and hands the turn on.
+##
+## DECISION (tests/bench/m2_acceptance.gd, Bontago-p0a): must call
+## request_place() with auto_drop = true, not _release()'s manual
+## (auto_drop = false) path. Bontago-mv0.24 (owner test 2026-09-22, SPEC.md
+## 2.5 "Held-block behaviour"/"Expiry and invalid actions") changed a
+## *manual* release on an invalid spot from "spawns, burns, and hands the
+## turn on" (the old docs/M2_PLAN.md owner decision 2 this comment used to
+## cite) to "refused outright: nothing spawns, nothing is consumed, feed_seq
+## does not move" -- autoload/match/MatchPlacement.gd's request_place()
+## returns before ever reaching _consume_and_refeed()/advance_turn() on that
+## path now. An off-disk _release() (auto_drop = false) therefore no longer
+## advances hot-seat's turn at all, which silently wedged every march that
+## alternates real placements with a passed turn (_march_pair(),
+## _march_solo_route(), _march_to_distance(), _build_isolated_tower(): a
+## stuck active_slot() turns every next real release into
+## REASON_NOT_YOUR_TURN, which _march_one() treats as "no further step
+## possible" -- Bontago-p0a's (d)/(f)/(h) failures, each stalled at exactly
+## the chain length reached right before this function's first call).
+## auto_drop = true still burns an off-disk release (spec 2.5's forced-
+## release case keeps "nowhere valid to land -> spawn and throw it off the
+## map"), and unlike the manual path it always reaches
+## _consume_and_refeed()/advance_turn(), which is what a harness-only "pass"
+## actually needs -- a real player's timer expiry is the only other caller
+## that ever sets auto_drop = true, so this exercises exactly that code path,
+## not a bench-only shortcut.
 func _pass_turn(slot_id: int) -> void:
 	if Match.state() != Match.State.PLAYING or not Match.slot(slot_id).home_flag_alive:
 		return
-	_release(slot_id, _off_disk_point())
+	_hold_cube(slot_id)
+	Match.request_place(slot_id, _off_disk_point(), 0, Quaternion.IDENTITY, true)
 	await _step(1)
 
 
@@ -950,7 +996,10 @@ func _hold_cube(slot_id: int) -> void:
 	Match._held_shapes[slot_id] = _cube
 
 
-## The placement intent Match would get from a player.
+## The deliberate (auto_drop = false) placement intent Match would get from a
+## player's own click -- an invalid spot here is refused outright, not
+## burned (see _pass_turn()'s DECISION above for the auto_drop = true path
+## this is not).
 func _release(slot_id: int, world_origin: Vector3) -> StringName:
 	_hold_cube(slot_id)
 	return Match.request_place(slot_id, world_origin, 0, Quaternion.IDENTITY, false)
