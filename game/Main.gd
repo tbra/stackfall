@@ -85,6 +85,22 @@ var _debug_overlay: NetDebugOverlay = null
 ## a P4 lobby append.
 var _bot_controllers: Array[BotController] = []
 
+## Bontago-d5c.6 review finding 2: diagnostics-only cadence for the
+## `HEADLESS_BOTS` progress line printed by _on_headless_bots_report_tick()
+## below, while a `--headless-host --bots=<n>` match is running. Not a
+## gameplay tunable (CLAUDE.md's "no magic numbers" targets values that affect
+## rules or feel; this only affects how chatty a CI log is), so it stays a
+## const here rather than moving to a config/*.tres resource.
+const HEADLESS_BOTS_REPORT_INTERVAL_S: float = 5.0
+
+## Diagnostics-only state for the `HEADLESS_BOTS` progress line: see
+## _start_headless_bots_diagnostics()'s own doc below. Null/0 whenever no
+## headless bot match is running (every other entry point never touches
+## these three).
+var _headless_bots_report_timer: Timer = null
+var _headless_bots_start_msec: int = 0
+var _headless_bots_placements: int = 0
+
 ## True once _build_match_world() has run for the match currently in
 ## progress, so a repeated match_state_changed(LOBBY, LOADING) firing twice
 ## (should not happen, but a state machine is exactly the place to be
@@ -277,7 +293,11 @@ func _sandbox_force_special_arg(args: PackedStringArray) -> String:
 # is what lets _build_match_world()'s own bot-controller wiring (below) serve
 # both this entry point and an ordinary mixed human+bot lobby match with one
 # piece of code (docs/M5_PLAN.md P5 item 3), rather than a second, divergent
-# world-build path.
+# world-build path. host_game() can still fail (its port already bound, say)
+# and leave Net at OFFLINE despite --headless-host being present on the
+# command line; _net_is_hosting()'s guard below refuses to build a match in
+# that case rather than silently running every bot against a session nothing
+# can ever join.
 
 func _start_headless_bot_match_with_args(args: PackedStringArray) -> void:
 	var bots: int = _bots_arg(args)
@@ -286,15 +306,43 @@ func _start_headless_bot_match_with_args(args: PackedStringArray) -> void:
 		# command line (no `--bots=`) falls straight through to the normal
 		# Lobby wait-for-Start path, unaffected.
 		return
+	if not _net_is_hosting():
+		# Bontago-d5c.6 review finding 1: --headless-host's own host_game()
+		# call (Net.apply_command_line(), already run by the time _ready()
+		# reaches this branch -- see this function's own doc above) can fail
+		# to bind its port and leave Net at OFFLINE. Net.is_host() cannot see
+		# that failure (autoload/Net.gd's own doc: "True on the host **and
+		# offline**" -- offline is the normal, successful state for
+		# --sandbox/--hot-seat and every existing unit test's own fixture),
+		# so _net_is_hosting() below checks Net.mode() directly instead.
+		# Building a bot match with nobody actually hosting would run every
+		# bot and the whole feed/territory/win loop against a session no
+		# client, and no acceptance harness, could ever reach.
+		push_error(
+			"--headless-host --bots=%d: Net never became the host (host_game() likely failed to bind its port) -- refusing to start a bot match with no host." % bots
+		)
+		return
 	Match.register_world(_field, _registry, _blocks_container)
 	Match.start_match(_build_headless_bot_config(bots, args))
+	_start_headless_bots_diagnostics()
 
 	# `--seconds=<n>` bounds the run with a hard wall-clock quit: the
 	# acceptance command has no real win condition to end on within a CI
 	# harness's own patience (docs/M5_PLAN.md P5).
 	var seconds: float = _seconds_arg(args)
 	if seconds > 0.0:
-		get_tree().create_timer(seconds).timeout.connect(func() -> void: get_tree().quit(0))
+		get_tree().create_timer(seconds).timeout.connect(_on_headless_bots_seconds_elapsed)
+
+
+## Bontago-d5c.6 review finding 1: true only when Net actually became the
+## HOST, unlike Net.is_host() (autoload/Net.gd: "True on the host **and
+## offline**"), which cannot tell a genuine offline mode apart from
+## --headless-host's own host_game() call having failed to bind. A private
+## helper rather than inlining `Net.mode() == Net.Mode.HOST` at the one call
+## site above, so a test that needs to force either outcome has exactly one
+## seam to reach for.
+func _net_is_hosting() -> bool:
+	return Net.mode() == Net.Mode.HOST
 
 
 ## `--bots=<n>`, same "-"-stripping/PREFIX convention as _sandbox_player_
@@ -356,6 +404,89 @@ func _build_headless_bot_config(bots: int, args: PackedStringArray) -> MatchConf
 	config.hot_seat = false
 	config.sandbox = false
 	return config
+
+
+# --- Headless bot match diagnostics (Bontago-d5c.6 review finding 2) ---------
+#
+# The literal acceptance command (`--headless-host --bots=8 --seconds=60`) has
+# no console to watch, so this prints one `HEADLESS_BOTS` line every
+# HEADLESS_BOTS_REPORT_INTERVAL_S and a final one right before the --seconds
+# quit, each carrying the wall-clock time since the match began, Match's own
+# state name and how many blocks have been placed so far (Events.block_placed
+# -- autoload/Events.gd: "a block became a live physics body, either placed by
+# a player or auto-dropped when its feed timer ran out", exactly what a bot's
+# own placements are). Diagnostics only: nothing here feeds a rule or a test
+# assertion about gameplay, only a human (or tools/triage_log.py) reading the
+# log. `bots_active` from the brief is omitted -- BotController's own _state
+# (game/BotController.gd) has no public accessor and this file does not own
+# that script, so reading it here is not "cheaply readable" without editing a
+# file outside this package's ownership.
+
+func _start_headless_bots_diagnostics() -> void:
+	_headless_bots_start_msec = Time.get_ticks_msec()
+	_headless_bots_placements = 0
+	Events.block_placed.connect(_on_headless_bots_block_placed)
+	_headless_bots_report_timer = Timer.new()
+	_headless_bots_report_timer.wait_time = HEADLESS_BOTS_REPORT_INTERVAL_S
+	_headless_bots_report_timer.autostart = true
+	_headless_bots_report_timer.timeout.connect(_on_headless_bots_report_tick)
+	add_child(_headless_bots_report_timer)
+
+
+## Torn down from _end_match_world() (idempotent: a no-op for every match
+## world that never called _start_headless_bots_diagnostics() above, since
+## _headless_bots_report_timer stays null and Events.block_placed was never
+## connected by this instance).
+func _stop_headless_bots_diagnostics() -> void:
+	if Events.block_placed.is_connected(_on_headless_bots_block_placed):
+		Events.block_placed.disconnect(_on_headless_bots_block_placed)
+	if _headless_bots_report_timer != null and is_instance_valid(_headless_bots_report_timer):
+		_headless_bots_report_timer.queue_free()
+	_headless_bots_report_timer = null
+
+
+func _on_headless_bots_block_placed(_block: RigidBody3D, _shape_id: StringName) -> void:
+	_headless_bots_placements += 1
+
+
+func _on_headless_bots_report_tick() -> void:
+	print(_headless_bots_periodic_line())
+
+
+## _start_headless_bot_match_with_args()'s own `--seconds=<n>` quit timer,
+## above: prints one last line (with the same counters the periodic line
+## used) so the acceptance command's log always ends with a placements total,
+## even when the process quits between two HEADLESS_BOTS_REPORT_INTERVAL_S
+## ticks.
+func _on_headless_bots_seconds_elapsed() -> void:
+	print(_headless_bots_done_line())
+	get_tree().quit(0)
+
+
+func _headless_bots_periodic_line() -> String:
+	return "HEADLESS_BOTS t=%.1f state=%s placements=%d" % [
+		_headless_bots_elapsed_s(), _headless_bots_state_name(), _headless_bots_placements,
+	]
+
+
+func _headless_bots_done_line() -> String:
+	return "HEADLESS_BOTS done t=%.1f placements=%d" % [
+		_headless_bots_elapsed_s(), _headless_bots_placements,
+	]
+
+
+func _headless_bots_elapsed_s() -> float:
+	return float(Time.get_ticks_msec() - _headless_bots_start_msec) / 1000.0
+
+
+## Match.State's own name for Match.state() (e.g. "PLAYING"), read the same
+## way an enum-to-string helper would if Match exported one: Dictionary.
+## find_key() on the enum itself, since GDScript enums are plain Dictionaries
+## under the hood. "UNKNOWN" only if Match.state() is ever a value the enum
+## does not declare, which should not be possible.
+func _headless_bots_state_name() -> String:
+	var key: Variant = Match.State.find_key(Match.state())
+	return str(key) if key != null else "UNKNOWN"
 
 
 # --- Menu / lobby routing -----------------------------------------------------
@@ -518,6 +649,7 @@ func _end_match_world() -> void:
 	if not _world_built:
 		return
 	_world_built = false
+	_stop_headless_bots_diagnostics()
 	SnapshotSync.end_match()
 	# Field is persistent (unlike everything else torn down below) and Match's
 	# own teardown never touches it, so its flags, overlay raster reference

@@ -9,11 +9,15 @@ extends GutTest
 ##
 ## Same fixture shape as tests/unit/test_match_lifecycle.gd (the real Main
 ## scene, a tiny map override so round_medium.tres's own collision build
-## doesn't pay its ~6300-cell cost per test) -- offline throughout, since
-## this path (unlike that file's own `_host()`/`_start()`) never needs a real
-## ENet session: register_world()/start_match() work exactly as they do for
-## --hot-seat/--sandbox while Net stays offline (Net.is_host()'s own
-## contract: "True on the host and offline").
+## doesn't pay its ~6300-cell cost per test), including that file's own
+## `_host()` (a real Net.host_game() with an incrementing port, no clients):
+## unlike this file's original version, `_start_headless_bot_match_with_args()`
+## now refuses to build a match unless Net actually became the HOST (review
+## finding 1, Bontago-d5c.6) -- exactly what a real `--headless-host --bots=N`
+## command line has already done, via Net.apply_command_line(), by the time
+## `_ready()` reaches that call. `test_offline_with_bots_is_refused_and_logs_
+## an_error()` below covers the case this guards against: --headless-host's
+## own host_game() call failing to bind and leaving Net at OFFLINE.
 
 const MAIN_SCENE: PackedScene = preload("res://game/Main.tscn")
 
@@ -23,6 +27,12 @@ const MAIN_SCENE: PackedScene = preload("res://game/Main.tscn")
 var _main: Variant = null
 
 var _tiny_map: MapDef
+
+## Well clear of test_net_session.gd's 47800+ and test_match_lifecycle.gd's
+## 47900+ ranges (this file's own comment on those files), incrementing per
+## test the same way, so a port the OS has not released yet can never
+## collide with the next one.
+static var _next_port: int = 48300
 
 
 func before_each() -> void:
@@ -50,6 +60,22 @@ func after_each() -> void:
 	Match.set_process(true)
 	await get_tree().process_frame
 	await get_tree().process_frame
+
+
+func _take_port() -> int:
+	var port: int = _next_port
+	_next_port += 1
+	return port
+
+
+## What a real `--headless-host --bots=<n>` command line has already done by
+## the time `_ready()` reaches `_start_headless_bot_match_with_args()`
+## (Net.apply_command_line() -> host_game()) -- test_match_lifecycle.gd's own
+## `_host()` doc: "opens a listen server with no clients", so nothing here
+## touches the network beyond binding a port.
+func _host() -> void:
+	assert_eq(Net.host_game(_take_port(), "Hostie"), OK)
+	assert_true(_main._net_is_hosting())
 
 
 func _bot_controller_count() -> int:
@@ -97,7 +123,29 @@ func test_bots_zero_is_a_no_op() -> void:
 	assert_false(_main._world_built)
 
 
+# --- Review finding 1: refuse a bot match with nobody actually hosting -------
+
+func test_offline_with_bots_is_refused_and_logs_an_error() -> void:
+	assert_true(Net.is_offline(), "fixture: no _host() call in this test -- host_game() never ran")
+	assert_false(_main._net_is_hosting())
+
+	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=4"]))
+	await _settle()
+
+	assert_eq(Match.state(), Match.State.LOBBY, "refused: Net never became the host")
+	assert_false(_main._world_built)
+	assert_eq(_bot_controller_count(), 0, "no bots are spawned when the match never starts")
+	assert_push_error("never became the host", "refusal must be logged, not silent")
+
+
+func test_net_is_hosting_reflects_net_mode() -> void:
+	assert_false(_main._net_is_hosting(), "offline is not the same as actually hosting")
+	_host()
+	assert_true(_main._net_is_hosting())
+
+
 func test_all_bot_match_reaches_playing_with_n_bot_slots_and_no_hot_seat() -> void:
+	_host()
 	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=4"]))
 	await _settle()
 
@@ -119,6 +167,7 @@ func test_all_bot_match_reaches_playing_with_n_bot_slots_and_no_hot_seat() -> vo
 
 
 func test_players_override_leaves_idle_human_seats_and_still_builds_a_hot_seat() -> void:
+	_host()
 	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=2", "--players=3"]))
 	await _settle()
 
@@ -132,6 +181,7 @@ func test_players_override_leaves_idle_human_seats_and_still_builds_a_hot_seat()
 
 
 func test_end_match_world_frees_the_bot_controllers() -> void:
+	_host()
 	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=4"]))
 	await _settle()
 	var bots: Array = []
@@ -150,3 +200,40 @@ func test_end_match_world_frees_the_bot_controllers() -> void:
 	# is_instance_valid() itself works fine on the raw Variant either way.
 	for bot: Variant in bots:
 		assert_false(is_instance_valid(bot), "each bot must actually be freed, not merely detached")
+
+
+# --- Review finding 2: HEADLESS_BOTS progress line ----------------------------
+
+func test_headless_bots_diagnostics_counts_placements_and_formats_lines() -> void:
+	_host()
+	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=4"]))
+	await _settle()
+
+	assert_eq(_main._headless_bots_placements, 0, "fixture: no blocks placed yet")
+	Events.block_placed.emit(null, &"cube")
+	Events.block_placed.emit(null, &"cube")
+	assert_eq(_main._headless_bots_placements, 2, "each Events.block_placed increments the counter")
+
+	var periodic: String = _main._headless_bots_periodic_line()
+	assert_true(periodic.begins_with("HEADLESS_BOTS t="), "periodic line: %s" % periodic)
+	assert_true(periodic.contains(" state=%s " % _main._headless_bots_state_name()), "carries Match's own state name: %s" % periodic)
+	assert_true(periodic.ends_with("placements=2"), "periodic line: %s" % periodic)
+
+	var done: String = _main._headless_bots_done_line()
+	assert_true(done.begins_with("HEADLESS_BOTS done t="), "done line: %s" % done)
+	assert_true(done.ends_with("placements=2"), "done line: %s" % done)
+
+
+func test_end_match_world_stops_headless_bots_diagnostics() -> void:
+	_host()
+	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=4"]))
+	await _settle()
+
+	_main._end_match_world()
+	await _settle()
+
+	assert_false(
+		Events.block_placed.is_connected(_main._on_headless_bots_block_placed),
+		"teardown disconnects the placements counter"
+	)
+	assert_null(_main._headless_bots_report_timer, "teardown frees the report timer")
