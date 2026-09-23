@@ -36,3 +36,14 @@ var on_top_of_own_stack: bool = false
 ## wiring _fire_stability_raycasts() to set it for real is a follow-up for
 ## whichever package next owns game/BotController.gd.
 var corner_support_hits: int = -1
+
+## Bontago-d5c.9 (M5 P3b-i, append-only): the oriented shape's own height, in
+## cube units, above its own pivot -- e.g. a pillar lying flat is 1, standing
+## on end is 3. Producer is game/BotController.gd (Bontago-d5c.8, a later
+## package's own window); every candidate here defaults to 0.0 until that
+## package wires it in. core/ai/BotPlacementScorer.gd's goal-progress metric
+## adds this to `support_height` before estimating the candidate's own future
+## influence-circle radius (InfluenceCircle.radius_for_height()), since the
+## circle's radius formula is driven by the block's own highest point above
+## the disk, not merely where its pivot rests.
+var shape_height: float = 0.0

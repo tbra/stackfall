@@ -17,6 +17,8 @@ var _bot_tuning: BotTuning = preload("res://config/bot_tuning.tres")
 var _cube_shape: BlockShape = preload("res://config/blocks/cube.tres")
 var _bar4_shape: BlockShape = preload("res://config/blocks/bar4.tres")
 var _slab6_shape: BlockShape = preload("res://config/blocks/slab6.tres")
+var _pillar_shape: BlockShape = preload("res://config/blocks/pillar.tres")
+var _l4_shape: BlockShape = preload("res://config/blocks/L4.tres")
 
 ## A 2x2-cube footprint, like the first four cells of config/blocks/slab6.tres.
 var _two_by_two: Array[Vector3i] = [
@@ -119,11 +121,31 @@ func test_closer_to_goal_beats_farther_all_else_equal() -> void:
 
 func test_a_candidate_whose_estimated_circle_already_reaches_the_goal_scores_at_least_as_well() -> void:
 	var goal: PackedVector2Array = PackedVector2Array([Vector2(2.0, 0.0)])
-	# A tall candidate right next to the goal: its estimated influence circle
-	# should already reach the goal (a negative goal-progress metric).
-	var reaching: BotCandidate = _candidate(Vector2(0.0, 0.0), 20.0)
-	var not_reaching: BotCandidate = _candidate(Vector2(0.0, 0.0), 0.0)
+	# Bontago-d5c.9 (rebalanced): support_height is held equal between the two
+	# candidates so only the goal metric differs -- a taller *oriented shape*
+	# (shape_height, not support_height) right next to the goal makes its
+	# estimated influence circle already reach the goal (a negative
+	# goal-progress metric), without also picking up the unrelated height-term
+	# bonus a differing support_height would have conflated this with.
+	var reaching: BotCandidate = _candidate(Vector2(0.0, 0.0), 2.0)
+	reaching.shape_height = 20.0
+	var not_reaching: BotCandidate = _candidate(Vector2(0.0, 0.0), 2.0)
 	assert_gt(_score(reaching, goal), _score(not_reaching, goal))
+
+
+func test_taller_shape_height_estimates_a_larger_goal_progress_radius() -> void:
+	# Bontago-d5c.9 (item E): BotCandidate.shape_height (the oriented shape's
+	# own height in cube units) feeds InfluenceCircle.radius_for_height()
+	# alongside support_height -- at equal support_height, a taller shape
+	# estimates a larger future influence radius, which is a better (higher)
+	# goal-progress score.
+	var goal: PackedVector2Array = PackedVector2Array([Vector2(15.0, 0.0)])
+	var tall: BotCandidate = _candidate(Vector2(0.0, 0.0), 2.0)
+	tall.shape_height = 3.0
+	var short: BotCandidate = _candidate(Vector2(0.0, 0.0), 2.0)
+	short.shape_height = 0.0
+	assert_gt(_score(tall, goal), _score(short, goal),
+		"A taller oriented shape at equal support height scores higher via the goal-progress metric alone.")
 
 
 ## -- score(): risk -------------------------------------------------------------
@@ -191,6 +213,25 @@ func test_slab6_flattest_orientation_lies_flat_not_on_end() -> void:
 	var result: Array[int] = BotPlacementScorer.flattest_orientations(_slab6_shape, 5)
 	assert_false(result.is_empty())
 	_assert_flat(_slab6_shape, result[0])
+
+
+func test_pillar_flattest_orientation_lies_flat_not_on_end() -> void:
+	# config/blocks/pillar.tres is a 3-cube vertical column
+	# (Vector3i(0,0,0),(0,1,0),(0,2,0)) -- orientation 0 (identity) stands it
+	# on end (heights 0/1/2, not flat), so the flattest lay must not be it.
+	var result: Array[int] = BotPlacementScorer.flattest_orientations(_pillar_shape, 5)
+	assert_false(result.is_empty())
+	assert_ne(result[0], 0, "orientation 0 stands the pillar on end; the flattest lay must not be the identity.")
+	_assert_flat(_pillar_shape, result[0])
+
+
+func test_l4_flattest_orientation_lies_flat_not_on_end() -> void:
+	# config/blocks/L4.tres's cells span y = 0..2 under the identity
+	# orientation (not flat), so its flattest lay must not be orientation 0.
+	var result: Array[int] = BotPlacementScorer.flattest_orientations(_l4_shape, 5)
+	assert_false(result.is_empty())
+	assert_ne(result[0], 0, "orientation 0 does not lay the L4 flat; the flattest lay must not be the identity.")
+	_assert_flat(_l4_shape, result[0])
 
 
 func test_flattest_orientations_returns_distinct_indices_up_to_max_count() -> void:
