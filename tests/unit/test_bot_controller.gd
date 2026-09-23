@@ -11,6 +11,7 @@ extends GutTest
 ## seam, a call-log array) instead of extending someone else's file.
 
 const CUBE_SHAPE: BlockShape = preload("res://config/blocks/cube.tres")
+const PILLAR_SHAPE: BlockShape = preload("res://config/blocks/pillar.tres")
 
 ## Small enough that a bare Field (no colliders at all) still answers
 ## get_world_3d()/map_def-driven raycasts without a real match world --
@@ -27,6 +28,16 @@ class BotControllerFakeMatch:
 	var slot_count_value: int = 1
 	var raster_value: TerritoryRaster = null
 	var cell_grid_value: CellGrid = null
+	## Bontago-d5c.10 (item F): Match.circle_render_arrays()'s own shape
+	## (parallel xs/zs/teams, disk-local) -- empty by default, so every
+	## existing fixture that never sets this still gets the pre-existing
+	## home-flags-only behaviour of _enemy_circle_centers().
+	var circle_arrays_value: Dictionary = {
+		"xs": PackedFloat32Array(),
+		"zs": PackedFloat32Array(),
+		"radii": PackedFloat32Array(),
+		"teams": PackedInt32Array(),
+	}
 
 	var request_place_calls: Array[Dictionary] = []
 	var request_throw_calls: Array[Dictionary] = []
@@ -65,6 +76,9 @@ class BotControllerFakeMatch:
 
 	func cell_grid() -> CellGrid:
 		return cell_grid_value
+
+	func circle_render_arrays() -> Dictionary:
+		return circle_arrays_value
 
 	func request_place(
 		slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion, auto_drop: bool, feed_seq_arg: int = -1
@@ -109,6 +123,28 @@ class BotControllerForcedNoise:
 
 	func _aim_noise_offset() -> Vector2:
 		return forced_noise
+
+
+## Bontago-d5c.10 (item C): writes a known, fixed rotation onto a Field's own
+## transform from inside a physics tick, then goes idle -- the memory'd
+## convention for a Field write (game/Field.gd's own DECISION on
+## sync_to_physics/AnimatableBody3D: a plain node keeps sync_to_physics false,
+## per `set_tilt_enabled()`'s own comment, so a direct write outside physics
+## already sticks here too, but writing it inside _physics_process and
+## awaiting a frame is the same safe pattern every other Field-transform test
+## in this codebase uses, and keeps this test valid even if Field's own
+## defaults ever change). One-shot: the rotation is applied exactly once.
+class BotControllerFieldTiltWriter:
+	extends Node
+	var field: Field = null
+	var basis_to_apply: Basis = Basis.IDENTITY
+	var applied: bool = false
+
+	func _physics_process(_delta: float) -> void:
+		if applied or field == null:
+			return
+		field.transform = Transform3D(basis_to_apply, field.transform.origin)
+		applied = true
 
 
 func _small_map() -> MapDef:
@@ -353,3 +389,297 @@ func test_rejected_request_backs_off_before_retrying() -> void:
 		"a rejected placement must back off for tuning.rejection_backoff_s before retrying (got %d calls, expected <= %d)"
 			% [match_ref.request_place_calls.size(), max_calls]
 	)
+
+
+# --- Bontago-d5c.8 (M5 P3b-ii item E): BotCandidate.shape_height producer ----
+
+func test_generate_one_candidate_sets_shape_height_for_cube_and_pillar() -> void:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
+	var controller: BotController = _make_controller(field, match_ref, net_ref)
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+
+	controller._generate_one_candidate(0, CUBE_SHAPE, 0)
+	assert_almost_eq(
+		controller._candidates[-1].shape_height, 1.0, 0.001,
+		"a cube is one cube unit tall in any orientation, including identity (index 0)"
+	)
+
+	controller._generate_one_candidate(0, PILLAR_SHAPE, 0)
+	assert_almost_eq(
+		controller._candidates[-1].shape_height, 3.0, 0.001,
+		"a pillar standing at the identity orientation (index 0) is three cube units tall"
+	)
+
+	var flat_orientation: int = BotPlacementScorer.flattest_orientations(PILLAR_SHAPE, 1)[0]
+	controller._generate_one_candidate(0, PILLAR_SHAPE, flat_orientation)
+	assert_almost_eq(
+		controller._candidates[-1].shape_height, 1.0, 0.001,
+		"the pillar's own flattest orientation lies it down to one cube unit tall"
+	)
+
+
+# --- Bontago-d5c.8 (M5 P3b-ii item B): BotCandidate.corner_support_hits ------
+
+## Two footprint cells side by side (disk-local (0, 0) and (1, 0)); a platform
+## sits only under (0, 0), with its top surface at the same height the origin
+## raycast (also at (0, 0), forced) reports as `support_height`. Of the two
+## corner rays `_fire_stability_raycasts()` fires (profile.normal.
+## stability_raycast_count is 4, capped by the 2-cell footprint), exactly one
+## (the one over the platform) must land within tuning.
+## stability_contact_tolerance_m of support_height; the other (over open air,
+## the disk-surface fallback height 0.0) must not.
+func test_fire_stability_raycasts_counts_only_corners_within_tolerance() -> void:
+	var field: Field = _make_field()
+	_make_platform(field, Vector3(0.0, 0.5, 0.0), 1.0)
+	# test_field_raycast.gd's own precedent: a freshly added StaticBody3D's
+	# collision shape only commits to the physics server on the next real
+	# physics frame -- without this, the raycast at (0, 0) would miss too.
+	await wait_physics_frames(2)
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	match_ref.cell_grid_value = CellGrid.new(field.map_def.field_radius, field.map_def.cell_size)
+	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
+	var controller: BotControllerForcedNoise = BotControllerForcedNoise.new()
+	add_child_autofree(controller)
+	controller.set_match_provider(match_ref)
+	controller.set_net_provider(net_ref)
+	controller.forced_origin = Vector2(0.0, 0.0)
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+
+	var two_wide_shape: BlockShape = BlockShape.new()
+	two_wide_shape.cells = [Vector3i(0, 0, 0), Vector3i(1, 0, 0)]
+	controller._generate_one_candidate(0, two_wide_shape, 0)
+
+	assert_eq(controller._candidates.size(), 1, "fixture: exactly one candidate generated")
+	var candidate: BotCandidate = controller._candidates[0]
+	assert_eq(candidate.footprint_cells.size(), 2, "fixture: the two-wide shape covers exactly two footprint cells")
+	assert_almost_eq(candidate.support_height, 1.0, 0.05, "fixture: the origin raycast hits the platform's own top surface")
+	assert_eq(
+		candidate.corner_support_hits, 1,
+		"only the corner over the platform (half the 2-ray footprint) counts as in contact"
+	)
+
+
+# --- Bontago-d5c.8 (M5 P3b-ii item A): a placed special's own place_target --
+
+## HARD (uses_offensive_specials = true) with a held Rocket: core/ai/
+## BotSpecialPlanner.gd's own _plan_rocket() sets has_place_target and aims it
+## at the bot's own already-generated candidate nearest the densest enemy
+## cluster -- here, the sole enemy's home flag, placed far from this bot's own
+## home so BotPlacementScorer.pick_best()'s risk term would instead steer
+## toward a candidate far from it. _tick_acting() must send whichever
+## candidate is nearest that place_target, not pick_best()'s own choice.
+func test_send_best_placement_honours_a_held_specials_place_target() -> void:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	match_ref.held_specials[0] = &"rocket"
+	match_ref.slot_count_value = 2
+	match_ref.team_by_slot[1] = 1
+	match_ref.slots_by_id[1] = PlayerSlot.new(1, 1, "Enemy", Color.RED, Vector2(8.0, 0.0))
+	# A real CellGrid/TerritoryRaster, solved once with a single team-0 circle
+	# covering the whole disk (test_placement_rules.gd's own "past the rim"
+	# fixture pattern: a circle of radius >= 2x field_radius centred on the
+	# origin) -- an unsolved TerritoryRaster's own reset() leaves every cell at
+	# team -1 (unowned), which would make _sample_territory_point() exhaust
+	# every attempt and fall back to the same home position for every
+	# candidate; this instead lets it actually spread candidates across the
+	# whole disk, same as a real match.
+	var territory_tuning: TerritoryTuning = preload("res://config/territory_tuning.tres")
+	match_ref.cell_grid_value = CellGrid.new(field.map_def.field_radius, field.map_def.cell_size)
+	match_ref.raster_value = TerritoryRaster.new(match_ref.cell_grid_value, territory_tuning)
+	var solver: TerritorySolver = TerritorySolver.new(territory_tuning)
+	var whole_disk_circles: Array[InfluenceCircle] = [
+		InfluenceCircle.new(Vector2.ZERO, field.map_def.field_radius * 2.0, 0, 0, true, -1)
+	]
+	match_ref.raster_value.update(whole_disk_circles, solver.solve(whole_disk_circles), 0.1, false, false)
+	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
+	var controller: BotController = _make_controller(field, match_ref, net_ref)
+
+	controller.setup(0, MatchConfig.AiDifficulty.HARD, field, null)
+	Events.feed_block_issued.emit(0, &"cube", &"")
+
+	# Worst case per BotDifficultyProfile.hard's own tunables (reaction_delay_s
+	# 0.2 + up to think_phase_jitter_s 0.4 = 0.6s = 36 frames) plus
+	# ceil(candidate_count 110 / candidates_per_frame 8) = 14 GENERATING frames
+	# plus 1 ACTING frame = 51 frames worst case; a manual loop (rather than a
+	# fixed frame count) stops the instant the one request lands, since
+	# ticking even one frame past ACTING would re-enter GENERATING and clear
+	# _candidates before this test can inspect them.
+	var frame: int = 0
+	while match_ref.request_place_calls.is_empty() and match_ref.request_throw_calls.is_empty() and frame < 120:
+		controller._physics_process(1.0 / 60.0)
+		frame += 1
+
+	assert_eq(match_ref.request_throw_calls.size(), 0, "fixture: Rocket is a placed special, never thrown")
+	assert_eq(match_ref.request_place_calls.size(), 1, "exactly one placement request after one full think-cycle")
+
+	var expected_action: BotSpecialPlanner.BotSpecialAction = BotSpecialPlanner.plan(
+		&"rocket",
+		controller._home_position(),
+		controller._territory_sample_points(),
+		controller._enemy_circle_centers(),
+		PackedVector2Array(),
+		MatchConfig.AiDifficulty.HARD,
+		controller.tuning
+	)
+	assert_true(expected_action.has_place_target, "fixture: Rocket on HARD (offensive) always sets a place_target here")
+	assert_false(expected_action.should_throw, "fixture: Rocket never throws")
+
+	var expected_candidate: BotCandidate = null
+	var expected_dist_sq: float = INF
+	for candidate: BotCandidate in controller._candidates:
+		var dist_sq: float = candidate.origin.distance_squared_to(expected_action.place_target)
+		if expected_candidate == null or dist_sq < expected_dist_sq:
+			expected_candidate = candidate
+			expected_dist_sq = dist_sq
+
+	var requested_origin: Vector3 = match_ref.request_place_calls[0]["origin"] as Vector3
+	var requested_xz: Vector2 = Vector2(requested_origin.x, requested_origin.z)
+	var max_aim_noise: float = controller._profile.aim_noise_m
+	assert_true(
+		requested_xz.distance_to(expected_candidate.origin) <= max_aim_noise + 0.01,
+		"the request must land within aim-noise of the target-nearest candidate (got %s, expected near %s)"
+			% [requested_xz, expected_candidate.origin]
+	)
+
+	# Confirm this really is a different candidate than pick_best() would have
+	# chosen on its own, so the test cannot pass merely because the two
+	# coincide.
+	var pick_best_candidate: BotCandidate = BotPlacementScorer.pick_best(
+		controller._candidates, match_ref.raster(), match_ref.cell_grid(), 0,
+		controller._goal_positions(), controller._enemy_circle_centers(), PackedVector2Array(),
+		controller.tuning, controller._field_radius()
+	)
+	assert_ne(
+		pick_best_candidate.origin, expected_candidate.origin,
+		"fixture: the enemy placement must make pick_best() diverge from the Rocket's own place_target"
+	)
+
+
+# --- Bontago-d5c.10 (item C): _send_throw's world-space velocity ------------
+
+## Field tilted 15 degrees about its local X axis (a known, fixed rotation --
+## not the spring-integrated tilt path, which never lands on an exact angle):
+## a HARD (offensive) Bomb throw's own `throw_velocity` (core/ai/
+## BotSpecialPlanner.gd's `_ballistic_velocity()`, disk-local axes) must reach
+## Match.request_throw() rotated through Field.global_transform.basis, not
+## verbatim -- the regression this test guards is exactly the pre-fix
+## behaviour, where a level Field made the two spaces coincide and hid the
+## bug.
+func test_send_throw_rotates_the_planners_velocity_through_the_field_basis() -> void:
+	var field: Field = _make_field()
+	var tilt_basis: Basis = Basis(Vector3.RIGHT, deg_to_rad(15.0))
+	var writer: BotControllerFieldTiltWriter = BotControllerFieldTiltWriter.new()
+	writer.field = field
+	writer.basis_to_apply = tilt_basis
+	add_child_autofree(writer)
+	await wait_physics_frames(1)
+	assert_true(field.global_transform.basis.is_equal_approx(tilt_basis), "fixture: the tilt write landed")
+
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	match_ref.held_specials[0] = &"bomb"
+	match_ref.slot_count_value = 2
+	match_ref.team_by_slot[1] = 1
+	match_ref.slots_by_id[1] = PlayerSlot.new(1, 1, "Enemy", Color.RED, Vector2(8.0, 0.0))
+	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
+	var controller: BotController = _make_controller(field, match_ref, net_ref)
+
+	controller.setup(0, MatchConfig.AiDifficulty.HARD, field, null)
+	Events.feed_block_issued.emit(0, &"cube", &"")
+
+	# Manual loop, same pattern as the Rocket test above: stop the instant the
+	# throw lands, before a further tick can clear _candidates/re-enter
+	# GENERATING.
+	var frame: int = 0
+	while match_ref.request_throw_calls.is_empty() and match_ref.request_place_calls.is_empty() and frame < 120:
+		controller._physics_process(1.0 / 60.0)
+		frame += 1
+
+	assert_eq(match_ref.request_place_calls.size(), 0, "fixture: HARD offensive Bomb always throws, never places")
+	assert_eq(match_ref.request_throw_calls.size(), 1, "exactly one throw request after one full think-cycle")
+
+	# Recompute the planner's own decision the same way _tick_acting() did --
+	# a pure function of state _tick_acting() left untouched (_candidates is
+	# only cleared on the next GENERATING/feed_block_issued, neither of which
+	# has run since the throw landed).
+	var expected_action: BotSpecialPlanner.BotSpecialAction = BotSpecialPlanner.plan(
+		&"bomb",
+		controller._home_position(),
+		controller._territory_sample_points(),
+		controller._enemy_circle_centers(),
+		controller._active_special_positions(),
+		MatchConfig.AiDifficulty.HARD,
+		controller.tuning
+	)
+	assert_true(expected_action.should_throw, "fixture: an offensive Bomb with a live enemy target always throws")
+
+	var expected_world_velocity: Vector3 = tilt_basis * expected_action.throw_velocity
+	var actual_velocity: Vector3 = match_ref.request_throw_calls[0]["velocity"] as Vector3
+	assert_almost_eq(actual_velocity.x, expected_world_velocity.x, 0.01, "world-space x")
+	assert_almost_eq(actual_velocity.y, expected_world_velocity.y, 0.01, "world-space y")
+	assert_almost_eq(actual_velocity.z, expected_world_velocity.z, 0.01, "world-space z")
+	assert_almost_eq(
+		actual_velocity.length(), expected_action.throw_velocity.length(), 0.01,
+		"a pure rotation preserves the planner's own throw speed"
+	)
+	assert_true(
+		actual_velocity.distance_to(expected_action.throw_velocity) > 0.05,
+		"fixture: the tilt must actually change the vector -- otherwise this test cannot tell the fix from the bug"
+	)
+
+
+# --- Bontago-d5c.10 (item F): real enemy circle centers + active specials ---
+
+## Bontago-d5c.10 (item F): _enemy_circle_centers() must include both a living
+## enemy's home flag AND the disk-local centers of that team's own live
+## (Match.circle_render_arrays()) influence circles -- and never an ally's
+## own circle (team 0, this bot's own team).
+func test_enemy_circle_centers_includes_home_flags_and_live_enemy_circles() -> void:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	match_ref.slot_count_value = 2
+	match_ref.team_by_slot[1] = 1
+	match_ref.slots_by_id[1] = PlayerSlot.new(1, 1, "Enemy", Color.RED, Vector2(8.0, 0.0))
+	match_ref.circle_arrays_value = {
+		"xs": PackedFloat32Array([5.0, -3.0]),
+		"zs": PackedFloat32Array([2.0, 1.0]),
+		"radii": PackedFloat32Array([4.0, 6.0]),
+		"teams": PackedInt32Array([1, 0]),
+	}
+	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
+	var controller: BotController = _make_controller(field, match_ref, net_ref)
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+
+	var centers: PackedVector2Array = controller._enemy_circle_centers()
+
+	assert_true(centers.has(Vector2(8.0, 0.0)), "enemy slot 1's own home flag")
+	assert_true(centers.has(Vector2(5.0, 2.0)), "enemy team 1's own live circle center")
+	assert_false(centers.has(Vector2(-3.0, 1.0)), "this bot's own team (0) must never count as an enemy circle")
+
+
+## Bontago-d5c.10 (item F): every SpecialBehavior.GROUP node's parent's
+## global_position, converted to disk-local through Field.disk_local_from_world().
+func test_active_special_positions_converts_ticking_specials_to_disk_local() -> void:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
+	var controller: BotController = _make_controller(field, match_ref, net_ref)
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+
+	# "A Block-like Node3D" (docs/M5_PLAN.md's own item F brief) -- a plain
+	# Node3D stands in for a real, physics-backed Block, since only its
+	# global_position and its being the behaviour's parent matter here.
+	var block_like: Node3D = Node3D.new()
+	add_child_autofree(block_like)
+	block_like.global_position = Vector3(4.0, 1.0, -2.0)
+	var behavior: SpecialBehavior = SpecialBehavior.new()
+	block_like.add_child(behavior)
+	autofree(behavior)
+	behavior.add_to_group(SpecialBehavior.GROUP)
+
+	var positions: PackedVector2Array = controller._active_special_positions()
+
+	assert_eq(positions.size(), 1, "exactly the one ticking special found in the group")
+	assert_almost_eq(positions[0].x, 4.0, 0.001, "disk-local x off a level, origin-centered Field")
+	assert_almost_eq(positions[0].y, -2.0, 0.001, "disk-local y (Field's local z) off a level, origin-centered Field")

@@ -207,9 +207,14 @@ func _generate_one_candidate(team_id: int, shape: BlockShape, orientation_index:
 	candidate.origin = origin
 	candidate.orientation_index = orientation_index
 	candidate.support_height = float(hit.get("height", 0.0))
+	var basis: Basis = BlockOrientations.get_basis(orientation_index)
+	# Bontago-d5c.8 (M5 P3b-ii, BotCandidate.shape_height producer): pure
+	# geometry off shape.cells/basis, independent of grid/terrain, so this is
+	# set regardless of whether a CellGrid is available below (a bare unit
+	# test with no cell_grid() still gets a real shape_height).
+	candidate.shape_height = _shape_height_cubes(shape.cells, basis)
 	var grid: CellGrid = match_ref.cell_grid()
 	if grid != null:
-		var basis: Basis = BlockOrientations.get_basis(orientation_index)
 		# Review fix (Bontago-d5c.2, nit): the real PhysicsTuning.cube_size,
 		# read off _field the same way BlockFactory/GhostPreview do (both
 		# take a PhysicsTuning and read .cube_size off it), not a duplicate
@@ -217,9 +222,29 @@ func _generate_one_candidate(team_id: int, shape: BlockShape, orientation_index:
 		candidate.footprint_cells = PlacementRules.footprint_cells(
 			shape.cells, basis, origin, _field.tuning.cube_size, grid
 		)
-		_fire_stability_raycasts(candidate.footprint_cells, grid)
+		_fire_stability_raycasts(candidate, candidate.footprint_cells, grid)
 	candidate.on_top_of_own_stack = _is_own_block(hit.get("collider"), team_id)
 	_candidates.append(candidate)
+
+
+## Bontago-d5c.8 (M5 P3b-ii): the oriented shape's own height above its own
+## pivot, in cube units -- e.g. a pillar lying flat is 1, standing on end is
+## 3 (BotCandidate.shape_height's own doc). `basis` is always one of
+## BlockOrientations' 24 axis-aligned rotations (same guarantee
+## BotPlacementScorer._flat_footprint_coverage() relies on), so every
+## transformed cell's own y lands on, or within float rounding of, an
+## integer -- round() before taking the span keeps that exact rather than
+## accumulating rotation error over repeated calls.
+func _shape_height_cubes(cells: Array[Vector3i], basis: Basis) -> float:
+	if cells.is_empty():
+		return 0.0
+	var min_height: float = INF
+	var max_height: float = -INF
+	for cell: Vector3i in cells:
+		var transformed_height: float = round((basis * Vector3(cell)).y)
+		min_height = minf(min_height, transformed_height)
+		max_height = maxf(max_height, transformed_height)
+	return max_height - min_height + 1.0
 
 
 ## Disk-local point inside this bot's own territory (uniform-in-disk
@@ -287,17 +312,28 @@ func _raycast_support_height(local_xz: Vector2) -> Dictionary:
 
 
 ## Footprint-corner raycasts (spec 2.9's stability factor, P2's own scoring):
-## P1 fires up to profile.stability_raycast_count of them -- sampled at the
+## fires up to profile.stability_raycast_count of them -- sampled at the
 ## footprint's own cell centers, since PlacementRules.footprint_cells()
 ## already gives a pure, terrain-independent list of covered grid cells --
-## and discards the results. This is deliberate: it is the real per-candidate
-## raycast cost docs/M5_PLAN.md's "Known risks: Perf" measures, so P1 already
-## pays it; P2 is the package that stores and scores what each one finds
-## (BotCandidate may gain a field for that then).
-func _fire_stability_raycasts(cells: PackedInt32Array, grid: CellGrid) -> void:
+## and tallies into `candidate.corner_support_hits` how many landed within
+## tuning.stability_contact_tolerance_m of `candidate.support_height` (the
+## same origin-point sample every candidate is scored against), i.e. how much
+## of the footprint is actually in flush contact rather than hovering over a
+## gap or a lower stack (core/ai/BotPlacementScorer.gd's own `_stability_
+## term()` is the consumer). Leaves `corner_support_hits` at its -1 ("not
+## measured") default only when `cells` is empty -- no ray is ever fired for
+## an empty footprint.
+func _fire_stability_raycasts(candidate: BotCandidate, cells: PackedInt32Array, grid: CellGrid) -> void:
 	var count: int = mini(_profile.stability_raycast_count, cells.size())
+	if count <= 0:
+		return
+	var hits: int = 0
 	for i: int in range(count):
-		_raycast_support_height(grid.index_center(cells[i]))
+		var hit: Dictionary = _raycast_support_height(grid.index_center(cells[i]))
+		var height: float = float(hit.get("height", 0.0))
+		if absf(height - candidate.support_height) <= tuning.stability_contact_tolerance_m:
+			hits += 1
+	candidate.corner_support_hits = hits
 
 
 func _is_own_block(collider: Variant, team_id: int) -> bool:
@@ -319,7 +355,7 @@ func _tick_acting() -> void:
 			_home_position(),
 			_territory_sample_points(),
 			_enemy_circle_centers(),
-			PackedVector2Array(),
+			_active_special_positions(),
 			_difficulty,
 			tuning
 		)
@@ -327,9 +363,24 @@ func _tick_acting() -> void:
 			_apply_rejection_backoff(_send_throw(action))
 			return
 		if not action.should_place_ordinarily:
-			# Neither throws nor places -- nothing to do this cycle. P1's own
-			# default action never reaches this branch (should_place_
-			# ordinarily is always true); kept for P3's own real heuristics.
+			# Neither throws nor places -- nothing to do this cycle. A default
+			# BotSpecialAction (e.g. an EASY profile's both-flags-false gate)
+			# never reaches this branch (should_place_ordinarily is always
+			# true then); core/ai/BotSpecialPlanner.gd's Bomb heuristic is the
+			# one path that does (should_throw already handled above, so this
+			# is reached only when a special neither throws nor places).
+			return
+		if action.has_place_target:
+			# Bontago-d5c.8 (M5 P3b-ii): a placed-special heuristic already
+			# picked an intended disk-local target (e.g. Rocket aiming near
+			# the densest enemy cluster) -- honour it by sending whichever
+			# already-generated candidate landed nearest that target, instead
+			# of BotPlacementScorer.pick_best()'s own general-purpose scoring
+			# (which would happily steer a Rocket away from the enemy risk it
+			# was aimed at). Aim noise, the noisy-point height resample and
+			# the request itself are unchanged -- only which candidate is
+			# chosen differs.
+			_apply_rejection_backoff(_send_best_placement(action.place_target))
 			return
 	_apply_rejection_backoff(_send_best_placement())
 
@@ -351,22 +402,37 @@ func _apply_rejection_backoff(reason: StringName) -> void:
 		_countdown = tuning.rejection_backoff_s
 
 
-func _send_best_placement() -> StringName:
+## `place_target_override` is null for an ordinary think-cycle (score every
+## generated candidate with BotPlacementScorer.pick_best(), spec 2.9's normal
+## height/goal-progress/stability/risk formula); a Vector2 when a placed-
+## special heuristic already picked an intended disk-local target
+## (BotSpecialPlanner.BotSpecialAction.place_target, Bontago-d5c.8's own
+## _tick_acting DECISION) -- then the candidate whose own `origin` is nearest
+## that target is sent instead, honouring the special's own intent (e.g.
+## Rocket aiming at a cluster) over the general-purpose scorer, which would
+## otherwise steer away from exactly the risk the special was aimed at.
+## Everything past candidate selection (aim noise, the noisy-point height
+## resample, the request itself) is identical either way.
+func _send_best_placement(place_target_override: Variant = null) -> StringName:
 	if _candidates.is_empty() or _field == null:
 		return PlacementRules.REASON_OK
 	var match_ref: Variant = _match()
 	var team_id: int = int(match_ref.team_of(_slot_id))
-	var best: BotCandidate = BotPlacementScorer.pick_best(
-		_candidates,
-		match_ref.raster(),
-		match_ref.cell_grid(),
-		team_id,
-		_goal_positions(),
-		_enemy_circle_centers(),
-		PackedVector2Array(),
-		tuning,
-		_field_radius()
-	)
+	var best: BotCandidate = null
+	if place_target_override != null:
+		best = _pick_candidate_nearest_to(place_target_override as Vector2)
+	else:
+		best = BotPlacementScorer.pick_best(
+			_candidates,
+			match_ref.raster(),
+			match_ref.cell_grid(),
+			team_id,
+			_goal_positions(),
+			_enemy_circle_centers(),
+			_active_special_positions(),
+			tuning,
+			_field_radius()
+		)
 	if best == null:
 		return PlacementRules.REASON_OK
 	var noisy_origin: Vector2 = best.origin + _aim_noise_offset()
@@ -383,14 +449,48 @@ func _send_best_placement() -> StringName:
 	))
 
 
+## Bontago-d5c.8 (M5 P3b-ii): the already-generated candidate whose `origin`
+## is disk-local nearest `target` -- _send_best_placement()'s own selection
+## when a placed-special heuristic supplied a `place_target`. Assumes
+## `_candidates` is non-empty; its only caller already checked that.
+func _pick_candidate_nearest_to(target: Vector2) -> BotCandidate:
+	var best: BotCandidate = _candidates[0]
+	var best_dist_sq: float = best.origin.distance_squared_to(target)
+	for i: int in range(1, _candidates.size()):
+		var candidate: BotCandidate = _candidates[i]
+		var dist_sq: float = candidate.origin.distance_squared_to(target)
+		if dist_sq < best_dist_sq:
+			best_dist_sq = dist_sq
+			best = candidate
+	return best
+
+
 func _send_throw(action: BotSpecialPlanner.BotSpecialAction) -> StringName:
 	if _field == null:
 		return PlacementRules.REASON_OK
 	var match_ref: Variant = _match()
 	var noisy_origin: Vector2 = action.throw_origin + _aim_noise_offset()
 	var world_origin: Vector3 = _field.world_from_disk_local(noisy_origin, 0.0)
+	# DECISION (game/BotController.gd, Bontago-d5c.10 item C): core/ai/
+	# BotSpecialPlanner.gd's own _ballistic_velocity() builds `throw_velocity`
+	# in disk-local axes (x, y=up, z -- see that file's own doc comment on the
+	# function), never world space; MatchPlacement.request_throw() applies
+	# `velocity` to the spawned RigidBody3D verbatim (world space, only
+	# clamped to throw_max_speed -- see that file's own doc comment on
+	# request_throw()), so a level Field happened to make the two spaces
+	# coincide, but a tilted disk (SPECIALS_ONLY, spec 2.1/2.7/3.5) would then
+	# throw a Bomb along the FLAT disk's axes instead of the bot's own tilted
+	# one. Rotating through Field.global_transform.basis (a pure rotation,
+	# tilt has no scale) converts the planner's disk-local direction into the
+	# same world-space vector request_throw() expects, exactly like
+	# MatchPlacement._burn_block()'s own `_match._field.global_transform.basis
+	# * Vector3(outward.x, 0.0, outward.y)` conversion of a disk-local
+	# direction into world space -- the same pattern, reused rather than
+	# reinvented. A pure rotation preserves length, so the planner's own
+	# `special_throw_speed_mps` speed survives the conversion unchanged.
+	var world_velocity: Vector3 = _field.global_transform.basis * action.throw_velocity
 	return StringName(match_ref.request_throw(
-		_slot_id, world_origin, 0, Quaternion.IDENTITY, action.throw_velocity, int(match_ref.feed_seq(_slot_id))
+		_slot_id, world_origin, 0, Quaternion.IDENTITY, world_velocity, int(match_ref.feed_seq(_slot_id))
 	))
 
 
@@ -413,10 +513,20 @@ func _goal_positions() -> PackedVector2Array:
 	return PlayerSlot.goal_positions_for(config.goal_flag_count, config.map_def())
 
 
-## A crude stand-in for "where the enemy is": every other team's home flag.
-## P1's own scorer/planner ignore this argument entirely (trivial bodies), so
-## its quality does not change P1's behaviour; P2/P3 may replace this with a
-## real territory-circle query once they need it to matter.
+## Bontago-d5c.10 (item F): "where the enemy is" -- every other team's home
+## flag, PLUS the disk-local center of every one of that team's own live
+## influence circles.
+##
+## DECISION (game/BotController.gd, Bontago-d5c.10): the circle source is
+## `Match.circle_render_arrays()` (forwarded from autoload/match/
+## MatchTerritory.gd's own method of the same name), which already exists on
+## the autoload/ this package does not own -- no new accessor was added
+## there. It is the *render* list (home-anchored, connected-group circles
+## only, already capped at TerritoryTuning.max_circles, each tagged with its
+## own `teams[i]`), not every raw per-block circle MatchTerritory ever builds
+## internally, which is exactly "the centers of that team's live influence
+## circles" the brief asks for and cheap enough to call every ACTING tick (it
+## is already recomputed at most once per territory solve, not on demand).
 func _enemy_circle_centers() -> PackedVector2Array:
 	var match_ref: Variant = _match()
 	var own_team: int = int(match_ref.team_of(_slot_id))
@@ -427,7 +537,43 @@ func _enemy_circle_centers() -> PackedVector2Array:
 		var slot: PlayerSlot = match_ref.slot(i)
 		if slot != null:
 			centers.append(slot.home_position)
+	var circle_arrays: Dictionary = match_ref.circle_render_arrays()
+	var xs: PackedFloat32Array = circle_arrays.get("xs", PackedFloat32Array()) as PackedFloat32Array
+	var zs: PackedFloat32Array = circle_arrays.get("zs", PackedFloat32Array()) as PackedFloat32Array
+	var teams: PackedInt32Array = circle_arrays.get("teams", PackedInt32Array()) as PackedInt32Array
+	for i: int in range(teams.size()):
+		if teams[i] == own_team:
+			continue
+		centers.append(Vector2(xs[i], zs[i]))
 	return centers
+
+
+## Bontago-d5c.10 (item F): every other special currently ticking on the disk
+## (`game/specials/SpecialBehavior.GROUP`, its own scene-tree group -- see
+## that file's own header comment), converted to a disk-local point through
+## `_field.disk_local_from_world()`, the same conversion Field's own
+## raycast_down_disk_local() uses. Fed to both BotSpecialPlanner.plan() and
+## BotPlacementScorer.pick_best() as `active_special_positions` (spec 2.9's
+## risk term: don't stack a new block, or aim a special, on top of one
+## already armed and ticking). A behaviour is always added as a child of its
+## owning Block (autoload/match/MatchPlacement.gd's `_arm_special_behavior()`:
+## `block.add_child(behavior)`) -- read generically as `Node3D` rather than
+## the concrete `Block` type, so a test fixture that stands in for "a
+## Block-like Node3D" (any parented Node3D with a `global_position`) does not
+## need to construct a real, physics-backed Block.
+func _active_special_positions() -> PackedVector2Array:
+	var positions: PackedVector2Array = PackedVector2Array()
+	if _field == null:
+		return positions
+	for node: Node in get_tree().get_nodes_in_group(SpecialBehavior.GROUP):
+		var behavior: SpecialBehavior = node as SpecialBehavior
+		if behavior == null:
+			continue
+		var owner_node: Node3D = behavior.get_parent() as Node3D
+		if owner_node == null:
+			continue
+		positions.append(_field.disk_local_from_world(owner_node.global_position))
+	return positions
 
 
 func _territory_sample_points() -> PackedVector2Array:
