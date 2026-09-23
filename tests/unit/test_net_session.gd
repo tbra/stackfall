@@ -326,6 +326,68 @@ func test_peer_disconnect_fires_net_peer_left_with_the_right_slot() -> void:
 	assert_true(still_two, "the host's roster must drop the departed peer")
 
 
+## Bontago-mv0.1.10: reproduces the teardown-ordering race in isolation.
+## Before the _can_send() guard, _broadcast_roster() called
+## _rpc_roster_update.rpc(roster) unconditionally, and this exact sequence
+## (peer_disconnected signal for a still-registered peer arriving after the
+## transport itself has already been closed and nulled — as can happen while
+## a multi-peer session is tearing down) raised an engine error:
+##   "ERROR: Trying to call an RPC while no multiplayer peer is active."
+##   at res://autoload/Net.gd:1173 (_broadcast_roster), called from
+##   _on_peer_disconnected (Net.gd:1072).
+## GUT surfaces engine-level errors raised during a test as an "Unexpected
+## Errors" failure, so this fails outright pre-fix rather than merely
+## printing — no extra assertion needed to catch it.
+func test_broadcast_roster_after_transport_closed_does_not_rpc() -> void:
+	var port: int = _take_port()
+	_connect_host_and_client(port)
+	await _wait_until(func() -> bool: return _host.peer_ids().size() == 2)
+	var client_id: int = _client.local_peer_id()
+
+	# Simulate the transport already closing while _mode is still HOST — the
+	# exact ordering _on_peer_disconnected can race.
+	_host.multiplayer.multiplayer_peer.close()
+	_host.multiplayer.multiplayer_peer = null
+
+	assert_false(_host._can_send(), "no live multiplayer_peer to send through")
+	_host._on_peer_disconnected(client_id)
+	await get_tree().process_frame
+	# Reaching here without GUT recording an "Unexpected Errors" failure is
+	# the assertion: the RPC attempt above must have been skipped.
+
+
+func test_tick_ping_after_transport_closed_does_not_rpc() -> void:
+	var port: int = _take_port()
+	_connect_host_and_client(port)
+	await _wait_until(func() -> bool: return _host.peer_ids().size() == 2)
+
+	# Simulate the transport already closing while _mode is still HOST.
+	_host.multiplayer.multiplayer_peer.close()
+	_host.multiplayer.multiplayer_peer = null
+
+	assert_false(_host._can_send(), "no live multiplayer_peer to send through")
+	_host._tick_ping(1.0)  # Force a ping attempt
+	await get_tree().process_frame
+	# Reaching here without GUT recording an "Unexpected Errors" failure is
+	# the assertion: the RPC attempt above must have been skipped.
+
+
+## Bontago-mv0.1.10, second half of the guard: the transport can still be
+## open and CONNECTED while the host has zero remaining connected peers (the
+## last client just left) — _can_send() must refuse this too, not just a
+## null/closed peer.
+func test_can_send_is_false_once_the_last_peer_leaves() -> void:
+	var port: int = _take_port()
+	_connect_host_and_client(port)
+	await _wait_until(func() -> bool: return _host.peer_ids().size() == 2)
+	assert_true(_host._can_send(), "still one connected client to broadcast to")
+
+	_client.leave()
+	var alone: bool = await _wait_until(func() -> bool: return _host.peer_ids().size() == 1)
+	assert_true(alone, "the host must observe the client leaving")
+	assert_false(_host._can_send(), "no connected peers left to broadcast to")
+
+
 func test_host_leaving_returns_client_to_offline() -> void:
 	var port: int = _take_port()
 	_connect_host_and_client(port)
