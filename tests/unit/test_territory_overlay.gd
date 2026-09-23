@@ -541,6 +541,81 @@ func test_shader_declares_the_mirror_uniforms_and_flips_screen_uv_x() -> void:
 	)
 
 
+func test_shader_default_mirror_max_luminance_matches_territory_visuals() -> void:
+	# Bontago-xtq.20 (owner, 2026-09-23 20:12: "the main light source is
+	# glaringly visible in the disc reflection"): game/DiscMirror.gd pushes
+	# this uniform itself every frame (through TerritoryOverlay's own public
+	# material() accessor, not a dedicated push method here -- see
+	# tests/unit/test_disc_mirror.gd for that push), so an overlay with no
+	# live DiscMirror ticking it yet (this test's _make_overlay(), same as
+	# every other fixture in this file) only ever shows the shader's own
+	# compiled-in default -- ShaderMaterial.get_shader_parameter() returns
+	# null for a uniform no set_shader_parameter() call has ever touched, even
+	# when the shader source declares a default, so this reads the literal
+	# default straight out of the compiled shader source instead (the same
+	# "parse the shader code" idiom
+	# test_shader_declares_the_mirror_uniforms_and_flips_screen_uv_x() above
+	# already uses) and checks it matches TerritoryVisuals.gd's own default.
+	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres")
+	var overlay: TerritoryOverlay = _make_overlay(_map())
+	var code: String = _shader_source_without_comments(overlay.material().shader)
+
+	var default_literal: RegEx = RegEx.new()
+	default_literal.compile("uniform\\s+float\\s+mirror_max_luminance[^=]*=\\s*([0-9.]+)\\s*;")
+	var match: RegExMatch = default_literal.search(code)
+	assert_not_null(match, "expected mirror_max_luminance to declare a default literal.")
+	if match != null:
+		assert_almost_eq(
+			match.get_string(1).to_float(), visuals.mirror_max_luminance, 0.0001,
+			"the shader's compiled-in default must match TerritoryVisuals.gd's own default.",
+		)
+
+
+func test_default_mirror_max_luminance_only_clamps_genuinely_blown_out_highlights() -> void:
+	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres")
+	assert_between(
+		visuals.mirror_max_luminance, 1.0, 2.0,
+		"low enough to tame a clipped sun disc/specular hot spot, high enough that an ordinarily-lit block or sky patch (luminance well under 1.0) is never touched.",
+	)
+
+
+func test_shader_clamps_mirror_color_luminance_before_mixing_into_albedo() -> void:
+	# Bontago-xtq.20: fail-before this fix -- the shader used to mix
+	# mirror_color into albedo completely unclamped, so a directly-visible
+	# sun disc or specular highlight read as a stark, hard-edged white blob
+	# substituted straight into the disk's own mid-toned albedo.
+	var overlay: TerritoryOverlay = _make_overlay(_map())
+	var code: String = _shader_source_without_comments(overlay.material().shader)
+
+	assert_true(
+		code.contains("uniform float mirror_max_luminance"),
+		"expected a mirror_max_luminance uniform.",
+	)
+
+	var luma_calc: RegEx = RegEx.new()
+	luma_calc.compile("float\\s+mirror_luma\\s*=\\s*dot\\(\\s*mirror_color\\s*,")
+	assert_not_null(
+		luma_calc.search(code),
+		"expected mirror_color's luminance to be computed via a dot product.",
+	)
+
+	var clamp_scale: RegEx = RegEx.new()
+	clamp_scale.compile(
+		"if\\s*\\(\\s*mirror_luma\\s*>\\s*mirror_max_luminance\\s*\\)\\s*\\{[\\s\\S]*?mirror_color\\s*\\*="
+	)
+	assert_not_null(
+		clamp_scale.search(code),
+		"expected mirror_color to be scaled down whenever its luminance exceeds mirror_max_luminance.",
+	)
+
+	# The clamp must run before mirror_color gets mixed into albedo, not after
+	# (a clamp applied to the already-mixed albedo would also dim the
+	# unrelated ownership tint/rim/shimmer colors it was mixed with).
+	var mix_index: int = code.find("albedo = mix(albedo, mirror_color, mirror_amount)")
+	var clamp_index: int = code.find("mirror_luma > mirror_max_luminance")
+	assert_true(mix_index >= 0 and clamp_index >= 0 and clamp_index < mix_index)
+
+
 func test_mirror_transform_reflects_a_camera_above_a_horizontal_plane() -> void:
 	var plane: Plane = Plane(Vector3.UP, 0.0)
 	var camera_origin: Vector3 = Vector3(2.0, 5.0, 3.0)

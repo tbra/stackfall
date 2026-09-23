@@ -269,3 +269,16 @@ extends Resource
 ## trades reflection sharpness for the cost of rendering the whole scene a
 ## second time every frame.
 @export var mirror_resolution_scale: float = 0.5
+## Bontago-xtq.20 (owner, 2026-09-23 20:12: "the main light source is
+## glaringly visible in the disc reflection"): caps the mirror-sampled
+## color's luminance (hue-preserving) before shaders/territory.gdshader mixes
+## it into ALBEDO -- see that shader's own uniform doc for why a raw sun disc
+## / specular hot spot reads far worse mixed directly into the disk's albedo
+## than it would rendered normally, and why a luminance clamp (not disabling
+## the light's specular scene-wide, which the mirror SubViewport cannot do
+## selectively -- see game/DiscMirror.gd's class doc on own_world_3d) is the
+## fix. Pushed onto the shader by game/DiscMirror.gd's _process() through
+## TerritoryOverlay's own public material() accessor -- not through
+## game/TerritoryOverlay.gd's set_mirror_texture() (that file is out of this
+## package's ownership; see DiscMirror.gd's own DECISION comment on this).
+@export var mirror_max_luminance: float = 1.35
