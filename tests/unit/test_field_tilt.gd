@@ -7,6 +7,29 @@ extends GutTest
 ## small enough that a real physics settle (the one test here that needs one)
 ## runs in a blink.
 
+## PhysicsCallDriver (tests/unit/support/PhysicsCallDriver.gd) gets a call
+## into a genuine physics step, needed for apply_replicated_pose():
+## game/Field.gd's own DECISION on set_tilt_enabled() documents that once
+## sync_to_physics is true (which it is, the moment set_tilt_enabled(true)
+## runs), Godot's kinematic body only accepts transform writes made through
+## the physics step -- calling field.apply_replicated_pose() as a bare
+## synchronous test call (the same way
+## test_coordinate_round_trip_at_a_synthetic_nonzero_tilt() below calls
+## _apply_tilt_transform() directly) silently reverts to the last
+## physics-synced transform, exactly the failure mode that DECISION describes
+## for a direct field.global_position write. Wrapping the call in a node the
+## SceneTree really ticks (await wait_physics_frames(1) below) is the same
+## fix test_a_resting_block_stays_at_its_disk_local_point_during_a_slow_tilt()
+## already relies on for its own tilt-driven physics. Review NIT
+## (Bontago-1en.27): shared with tests/unit/test_snapshot_sync.gd, which
+## previously carried an identical inner class of its own.
+func _drive_during_physics(callable: Callable) -> void:
+	var driver: PhysicsCallDriver = PhysicsCallDriver.new()
+	driver.callable = callable
+	add_child_autofree(driver)
+	await wait_physics_frames(1)
+
+
 const SETTLE_FRAMES: int = 90
 ## One manual _update_tilt() step at a time is a real 1/60 s physics tick's
 ## worth of the spring's own math -- no engine frame needed for the tests
@@ -189,4 +212,113 @@ func test_a_resting_block_stays_at_its_disk_local_point_during_a_slow_tilt() -> 
 	assert_gt(
 		field.tilt_vector().length(), 0.0,
 		"fixture: the disk actually tilted during the sampled frames"
+	)
+
+
+# --- apply_replicated_pose (Bontago-1en.27: a client's mirror) --------------
+#
+# net/SnapshotSync.gd calls this on a client's Field once per client_tick(),
+# never on a host's -- these tests exercise Field's own contract directly, at
+# the same level test_apply_tilt_impulse_moves_the_tilt_vector() etc. already
+# do above, without needing a live SnapshotSync/interpolator.
+
+func test_apply_replicated_pose_sets_the_transform_and_tilt_vector() -> void:
+	var field: Field = _make_field()
+	field.set_tilt_enabled(true)
+	var tilt_vector: Vector2 = Vector2(0.1, -0.05)
+	var tilt_quat: Quaternion = (
+		Basis(Vector3.RIGHT, tilt_vector.x) * Basis(Vector3.BACK, tilt_vector.y)
+	).get_rotation_quaternion()
+	var offset: Vector3 = Vector3(0.2, 0.0, -0.3)
+
+	await _drive_during_physics(func() -> void: field.apply_replicated_pose(offset, tilt_quat))
+
+	assert_lt(
+		(field.global_transform.origin - offset).length(), 0.001,
+		"the replicated offset lands on the transform"
+	)
+	assert_lt(
+		field.global_transform.basis.get_rotation_quaternion().angle_to(tilt_quat),
+		deg_to_rad(0.01),
+		"the replicated tilt lands on the transform"
+	)
+	assert_almost_eq(
+		field.tilt_vector().x, tilt_vector.x, 0.001,
+		"tilt_vector() reflects the replicated tilt's X component"
+	)
+	assert_almost_eq(
+		field.tilt_vector().y, tilt_vector.y, 0.001,
+		"tilt_vector() reflects the replicated tilt's Y component"
+	)
+
+
+func test_apply_replicated_pose_suppresses_the_local_spring_and_impulses() -> void:
+	var field: Field = _make_field()
+	field.set_tilt_enabled(true)
+	var tilt_quat: Quaternion = Quaternion(Vector3.RIGHT, 0.08)
+	await _drive_during_physics(func() -> void: field.apply_replicated_pose(Vector3.ZERO, tilt_quat))
+	var mirrored_transform: Transform3D = field.global_transform
+
+	# A stray apply_tilt_impulse() (never actually called on a client's own
+	# Field in real play, since specials simulate host-side only) must not
+	# make the mirrored pose drift once _physics_process() runs again --
+	# real physics frames this time, since _mirrored is now sticky state and
+	# Field's own _physics_process() (dispatched for real by the engine
+	# below) is exactly what must skip _update_tilt().
+	field.apply_tilt_impulse(Vector2(1.0, 0.0), 5.0)
+	await wait_physics_frames(10)
+
+	assert_lt(
+		(field.global_transform.origin - mirrored_transform.origin).length(), 0.0001,
+		"a mirrored Field's origin does not drift on its own"
+	)
+	assert_lt(
+		field.global_transform.basis.get_rotation_quaternion().angle_to(
+			mirrored_transform.basis.get_rotation_quaternion()
+		),
+		deg_to_rad(0.001),
+		"a mirrored Field's tilt does not drift on its own, even with a queued impulse"
+	)
+
+
+func test_clear_match_state_ends_mirroring_and_levels_the_disc() -> void:
+	var field: Field = _make_field()
+	field.set_tilt_enabled(true)
+	await _drive_during_physics(
+		func() -> void: field.apply_replicated_pose(Vector3(0.0, 0.0, 0.0), Quaternion(Vector3.RIGHT, 0.1))
+	)
+	assert_gt(field.tilt_vector().length(), 0.0, "fixture: mirrored to a non-level tilt")
+
+	# clear_match_state() writes `transform` too (_apply_tilt_transform()),
+	# under the same sync_to_physics constraint apply_replicated_pose() is
+	# under, so it needs the same real-physics-frame treatment to check the
+	# transform it left behind.
+	await _drive_during_physics(func() -> void: field.clear_match_state())
+
+	assert_lt(
+		field.global_transform.basis.get_rotation_quaternion().angle_to(Quaternion.IDENTITY),
+		deg_to_rad(0.01),
+		"clear_match_state levels the disc"
+	)
+	assert_eq(field.tilt_vector(), Vector2.ZERO, "clear_match_state zeroes the tilt vector")
+	assert_false(field._mirrored, "clear_match_state ends mirroring")
+
+	# Mirroring is over: the local spring must be able to move the disc again
+	# (a rehost, or a fresh match starting on the same persistent Field).
+	field.apply_tilt_impulse(Vector2(1.0, 0.0), 5.0)
+	await wait_physics_frames(10)
+	assert_gt(
+		field.tilt_vector().length(), 0.0,
+		"the local spring resumes moving the disc once mirroring has ended"
+	)
+
+
+func test_a_fresh_field_is_not_mirrored_and_ticks_its_own_spring() -> void:
+	var field: Field = _make_field()
+	field.set_tilt_enabled(true)
+	field.apply_tilt_impulse(Vector2(1.0, 0.0), 0.5)
+	field._physics_process(TICK)
+	assert_gt(
+		field.tilt_vector().length(), 0.0,
+		"a Field that never mirrored a replicated pose still runs its own spring (the host path)"
 	)
