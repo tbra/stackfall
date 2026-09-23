@@ -4,11 +4,30 @@ extends RefCounted
 ## a bot does with a held special (spec 2.6, 2.9) -- place it, or throw it at
 ## a target.
 ##
-## docs/M5_PLAN.md P1 (Bontago-d5c): this file's own default body --
-## `plan()` always returns `should_throw = false, should_place_ordinarily =
-## true` (spend the special like a normal block). P3 rewrites the body; this
-## signature does not change (P1 is the interface-stub package every later
-## M5 package builds on).
+## docs/M5_PLAN.md P3 (Bontago-d5c.4): per-type heuristics keyed on
+## `held_special_id`, gated by the acting difficulty's own
+## `uses_defensive_specials`/`uses_offensive_specials` flags
+## (`tuning.profile_for(difficulty)`, spec 2.9 "Difficulty:... whether the bot
+## uses defensive specials"). `plan()`'s own signature and `BotSpecialAction`'s
+## own field list are frozen from P1 (docs/M5_PLAN.md's dispatch brief); this
+## package rewrites only the function bodies below.
+##
+## # DECISION (core/ai/BotSpecialPlanner.gd): `BotSpecialAction` has no field
+## for "where to place a special that is NOT thrown" -- only `throw_origin`/
+## `throw_velocity` (read by `game/BotController.gd._send_throw()` only when
+## `should_throw` is true) and `should_place_ordinarily` (a bare bool;
+## `_send_best_placement()` ignores this planner's output entirely and uses
+## its own already-generated candidate list). Since this package must not
+## touch `game/BotController.gd` or `core/ai/BotPlacementScorer.gd`, a
+## "placed near X" heuristic below still sets `should_place_ordinarily = true`
+## (so a real request goes out, through the existing ordinary-placement path)
+## and *additionally* records the intended disk-local target in
+## `throw_origin` even though `should_throw` is false -- inert today (ignored
+## by `_send_best_placement()`), but observable/testable at this layer and
+## forward-compatible if a later package wires `BotController`'s ordinary
+## placement to prefer it. This is the one reasonable way to honor "Rocket
+## placed near the densest enemy cluster" etc. without touching either
+## must-not-touch file or widening the frozen `BotSpecialAction` shape.
 
 class BotSpecialAction:
 	var should_throw: bool = false
@@ -20,9 +39,11 @@ class BotSpecialAction:
 	var should_place_ordinarily: bool = true
 
 
-## P1's own default body: always returns should_throw=false,
-## should_place_ordinarily=true (spend the special like a normal block). P3
-## rewrites the body; this signature does not change.
+## Per-type heuristics (spec 2.9: "do not aim a Rocket as if it homes or a
+## Propeller as if it blows sideways"; spec 2.6's own effect table). An EASY
+## bot (both flags false on `tuning.profile_for(difficulty)`) never uses any
+## special with intent, regardless of `held_special_id` -- the same safe
+## default P1 already shipped, applied uniformly instead of per-type.
 static func plan(
 	held_special_id: StringName,
 	own_home_position: Vector2,
@@ -32,4 +53,216 @@ static func plan(
 	difficulty: MatchConfig.AiDifficulty,
 	tuning: BotTuning
 ) -> BotSpecialAction:
-	return BotSpecialAction.new()
+	var profile: BotDifficultyProfile = tuning.profile_for(difficulty)
+	var offensive: bool = profile != null and profile.uses_offensive_specials
+	var defensive: bool = profile != null and profile.uses_defensive_specials
+	if not offensive and not defensive:
+		return BotSpecialAction.new()
+
+	match held_special_id:
+		&"rocket":
+			return _plan_rocket(own_home_position, own_territory_sample_points, enemy_circle_centers, tuning)
+		&"bomb":
+			return _plan_bomb(own_home_position, own_territory_sample_points, enemy_circle_centers, tuning)
+		&"volcano":
+			return _plan_volcano(
+				own_home_position, own_territory_sample_points, enemy_circle_centers, offensive, defensive, tuning
+			)
+		&"earthquake", &"anvil", &"propeller":
+			return _plan_tilt(own_home_position, own_territory_sample_points)
+		&"jumping_bean":
+			return _plan_jumping_bean(own_home_position, own_territory_sample_points, enemy_circle_centers, offensive)
+		_:
+			# Any unrecognized id (a future M8 special -- Magnet/Freeze/Glue/
+			# Gravity well -- or the roster empty): never crash, spend it like
+			# an ordinary block.
+			return BotSpecialAction.new()
+
+
+## Rocket (spec 2.6: launches upward on activation, no homing, explodes on
+## fuel-out): a thrown/aimed launch would imply a homing target it doesn't
+## have -- placed instead, near the densest enemy cluster, `should_throw`
+## always false.
+static func _plan_rocket(
+	own_home_position: Vector2,
+	own_territory_sample_points: PackedVector2Array,
+	enemy_circle_centers: PackedVector2Array,
+	tuning: BotTuning
+) -> BotSpecialAction:
+	var action: BotSpecialAction = BotSpecialAction.new()
+	if enemy_circle_centers.is_empty():
+		return action
+	var cluster: Vector2 = _densest_cluster_center(enemy_circle_centers, tuning.risk_enemy_territory_radius_m)
+	action.throw_origin = _nearest(own_territory_sample_points, cluster, own_home_position)
+	action.should_throw = false
+	action.should_place_ordinarily = true
+	return action
+
+
+## Bomb/DaBomb (impact-activated, no proximity trigger by the landed code):
+## thrown at the nearest/densest enemy cluster, since an impact is what
+## activates it. `throw_origin` is the bot's own territory point nearest that
+## cluster; `throw_velocity` is a ballistic estimate (see `_ballistic_
+## velocity()`) capped by `tuning.special_throw_speed_mps` -- deliberately
+## under `SpecialTuning.throw_max_speed`'s own default (25 m/s); the actual
+## hard clamp still lives in `MatchPlacement.request_throw()`.
+static func _plan_bomb(
+	own_home_position: Vector2,
+	own_territory_sample_points: PackedVector2Array,
+	enemy_circle_centers: PackedVector2Array,
+	tuning: BotTuning
+) -> BotSpecialAction:
+	var action: BotSpecialAction = BotSpecialAction.new()
+	if enemy_circle_centers.is_empty():
+		return action
+	var cluster: Vector2 = _densest_cluster_center(enemy_circle_centers, tuning.risk_enemy_territory_radius_m)
+	var origin: Vector2 = _nearest(own_territory_sample_points, cluster, own_home_position)
+	var velocity: Vector3 = _ballistic_velocity(origin, cluster, tuning)
+	if velocity == Vector3.ZERO or not velocity.is_finite():
+		# Degenerate only when origin and cluster coincide exactly (no
+		# direction to aim); fall back to spending it like an ordinary block
+		# rather than throwing nowhere.
+		return action
+	action.should_throw = true
+	action.throw_origin = origin
+	action.throw_velocity = velocity
+	action.should_place_ordinarily = false
+	return action
+
+
+## Volcano (self-erupting, no target needed, never thrown -- an eruption
+## doesn't benefit from a throw's flight time): placed defensively near the
+## bot's own border nearest any single enemy (a proxy for "most contested"
+## without raster access at this layer -- see the file-level DECISION) when
+## `uses_defensive_specials`, else offensively near the densest enemy cluster
+## when `uses_offensive_specials`.
+static func _plan_volcano(
+	own_home_position: Vector2,
+	own_territory_sample_points: PackedVector2Array,
+	enemy_circle_centers: PackedVector2Array,
+	offensive: bool,
+	defensive: bool,
+	tuning: BotTuning
+) -> BotSpecialAction:
+	var action: BotSpecialAction = BotSpecialAction.new()
+	if enemy_circle_centers.is_empty():
+		return action
+	if defensive:
+		var nearest_enemy: Vector2 = _nearest(enemy_circle_centers, own_home_position, own_home_position)
+		action.throw_origin = _nearest(own_territory_sample_points, nearest_enemy, own_home_position)
+		action.should_place_ordinarily = true
+		return action
+	if offensive:
+		var cluster: Vector2 = _densest_cluster_center(enemy_circle_centers, tuning.risk_enemy_territory_radius_m)
+		action.throw_origin = _nearest(own_territory_sample_points, cluster, own_home_position)
+		action.should_place_ordinarily = true
+		return action
+	return action
+
+
+## Earthquake/Anvil/Propeller (self-triggering tilt effects): placed near the
+## disk edge farthest from the bot's own home, for the biggest lever arm on
+## the tilt -- approximated, with no field-radius/raster access at this layer,
+## as the bot's own territory sample point farthest from `own_home_position`
+## (the caller already only reaches this branch when at least one of
+## `uses_defensive_specials`/`uses_offensive_specials` is true; see the
+## both-false EASY gate in `plan()`).
+static func _plan_tilt(
+	own_home_position: Vector2,
+	own_territory_sample_points: PackedVector2Array
+) -> BotSpecialAction:
+	var action: BotSpecialAction = BotSpecialAction.new()
+	action.throw_origin = _farthest(own_territory_sample_points, own_home_position, own_home_position)
+	action.should_place_ordinarily = true
+	return action
+
+
+## Jumping Bean (hops, punches holes -- a rules consequence, docs/
+## M4_SPECIALS_PACKAGES.md "Open question 2"): placed near the bot's own
+## territory edge nearest an enemy's home flag, only when
+## `uses_offensive_specials` (its hop-hole threatens a home flag like a
+## natural hole -- an offensive use, not a defensive one).
+static func _plan_jumping_bean(
+	own_home_position: Vector2,
+	own_territory_sample_points: PackedVector2Array,
+	enemy_circle_centers: PackedVector2Array,
+	offensive: bool
+) -> BotSpecialAction:
+	var action: BotSpecialAction = BotSpecialAction.new()
+	if not offensive or enemy_circle_centers.is_empty():
+		return action
+	var enemy_home: Vector2 = _nearest(enemy_circle_centers, own_home_position, own_home_position)
+	action.throw_origin = _nearest(own_territory_sample_points, enemy_home, own_home_position)
+	action.should_place_ordinarily = true
+	return action
+
+
+## A simple, non-time-of-flight-solved launch estimate (spec 2.9 does not
+## demand an exact ballistic solve; the deep-dive is `MatchPlacement.
+## request_throw()`'s own clamp/validate, the real safety net): aim the
+## horizontal component straight at `target`, add a fixed vertical lift ratio
+## (`tuning.special_throw_loft_ratio`, the bot's own analogue of
+## `SpecialTuning.throw_loft_ratio` -- this planner is never handed a
+## `SpecialTuning` instance), then normalise to `tuning.
+## special_throw_speed_mps`. Returns `Vector3.ZERO` only when `origin` and
+## `target` coincide (no direction to aim) -- callers must treat that as "do
+## not throw", never divide by the resulting zero length.
+static func _ballistic_velocity(origin: Vector2, target: Vector2, tuning: BotTuning) -> Vector3:
+	var delta: Vector2 = target - origin
+	var horizontal_dist: float = delta.length()
+	if horizontal_dist <= 0.0001:
+		return Vector3.ZERO
+	var horizontal_dir: Vector2 = delta / horizontal_dist
+	var raw: Vector3 = Vector3(horizontal_dir.x, tuning.special_throw_loft_ratio, horizontal_dir.y)
+	return raw.normalized() * tuning.special_throw_speed_mps
+
+
+## Nearest of `centers`/`points` to `target`; `fallback` (never NaN) when the
+## array is empty.
+static func _nearest(points: PackedVector2Array, target: Vector2, fallback: Vector2) -> Vector2:
+	if points.is_empty():
+		return fallback
+	var best: Vector2 = points[0]
+	var best_dist_sq: float = best.distance_squared_to(target)
+	for i: int in range(1, points.size()):
+		var dist_sq: float = points[i].distance_squared_to(target)
+		if dist_sq < best_dist_sq:
+			best_dist_sq = dist_sq
+			best = points[i]
+	return best
+
+
+## Farthest of `points` from `from`; `fallback` (never NaN) when the array is
+## empty.
+static func _farthest(points: PackedVector2Array, from: Vector2, fallback: Vector2) -> Vector2:
+	if points.is_empty():
+		return fallback
+	var best: Vector2 = points[0]
+	var best_dist_sq: float = best.distance_squared_to(from)
+	for i: int in range(1, points.size()):
+		var dist_sq: float = points[i].distance_squared_to(from)
+		if dist_sq > best_dist_sq:
+			best_dist_sq = dist_sq
+			best = points[i]
+	return best
+
+
+## The entry in `centers` with the most other entries (itself included)
+## within `radius` -- a plain O(n^2) density count, fine at the small n this
+## planner ever sees (one point per opposing slot, spec 2.9's 2-8 players).
+## Ties keep the earliest index, so the result is deterministic for a fixed
+## input order (unit-testable without relying on iteration order elsewhere).
+## Assumes `centers` is non-empty; every call site above already checked.
+static func _densest_cluster_center(centers: PackedVector2Array, radius: float) -> Vector2:
+	var radius_sq: float = radius * radius
+	var best_index: int = 0
+	var best_count: int = 0
+	for i: int in range(centers.size()):
+		var count: int = 0
+		for j: int in range(centers.size()):
+			if centers[i].distance_squared_to(centers[j]) <= radius_sq:
+				count += 1
+		if count > best_count:
+			best_count = count
+			best_index = i
+	return centers[best_index]
