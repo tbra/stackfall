@@ -48,6 +48,27 @@ extends Resource
 @export var rejection_backoff_s: float = 0.5
 
 
+## P3 (Bontago-d5c.4, append-only per docs/M5_PLAN.md's "if you need a new
+## numeric... add it as an @export on BotTuning, append-only"): core/ai/
+## BotSpecialPlanner.gd's Bomb heuristic (a thrown special) needs its own
+## pre-clamp launch-speed and loft tunables -- the planner is never handed a
+## SpecialTuning instance, so it cannot read SpecialTuning.throw_max_speed/
+## throw_loft_ratio directly.
+
+## Bomb/DaBomb pre-clamp launch speed BotSpecialPlanner._ballistic_velocity()
+## picks, in m/s. Deliberately well under SpecialTuning.throw_max_speed's own
+## default (25.0 m/s) so the host's request_throw() clamp is never the actual
+## limiting factor for a bot's own throw -- a value at or above throw_max_speed
+## would just get silently clamped down there anyway.
+@export var special_throw_speed_mps: float = 16.0
+## Vertical component of that same pre-clamp velocity, as a plain ratio
+## against the horizontal (ground-plane) component, before normalising to
+## special_throw_speed_mps -- the bot's own analogue of SpecialTuning.
+## throw_loft_ratio's "1.0 lofts at 45 degrees" convention for a human throw's
+## drag gesture, kept as a separate tunable since the planner is pure core/
+## code with no SpecialTuning reference.
+@export var special_throw_loft_ratio: float = 0.6
+
 ## Returns the profile for `difficulty`; NORMAL (and any out-of-range value)
 ## falls back to `normal` rather than failing, so a stale/corrupt wire value
 ## never leaves a bot with a null profile.
