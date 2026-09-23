@@ -509,6 +509,57 @@ func test_rotate_drag_never_moves_the_cameras_follow_position_in_xz() -> void:
 	)
 
 
+## Bontago-mv0.29 (owner: "the mmb rotation issue persists, can the camera
+## just be locked in place while mmb is pressed?" -- feedback/rotation-issue.png):
+## mv0.28's rotated-centre follow target still made the camera visibly move
+## *during* a drag -- only the settled end state ever matched the ghost's
+## rotated centre exactly, not every frame in between (rotated_center_offset()'s
+## own doc comment: a pitch component tips the vertical origin-to-centre
+## offset sideways progressively as the drag accumulates). This pins the
+## actual owner complaint: the rig must not move at all, frame to frame, for
+## as long as rotate_drag stays held, and must resume immediately once it's
+## released.
+func test_rotate_drag_freezes_the_camera_rig_for_the_whole_drag_then_resumes_on_release() -> void:
+	var controller: PlayerController = _make_controller()
+	var rig: CameraRig = autofree(load("res://game/CameraRig.tscn").instantiate())
+	add_child_autofree(rig)
+	controller.set_camera_rig(rig)
+	assert_almost_eq(rig.tuning.follow_lag_seconds, 0.0, 0.0001, "fixture: the shipped rig snaps to its follow target instantly.")
+
+	controller._process(1.0 / 60.0)
+	rig._process(1.0 / 60.0)
+	var target_before: Vector3 = rig.get_target()
+	var transform_before: Transform3D = rig.get_camera().global_transform
+
+	Input.action_press(&"rotate_drag")
+	for i: int in range(6):
+		controller._unhandled_input(_motion(Vector2(15.0, 10.0)))
+		controller._process(1.0 / 60.0)
+		rig._process(1.0 / 60.0)
+		assert_true(
+			rig.get_target().is_equal_approx(target_before),
+			"frame %d: the rig's follow target must not move while rotate_drag is held." % i
+		)
+		assert_true(
+			rig.get_camera().global_transform.is_equal_approx(transform_before),
+			"frame %d: global_transform must be bit-for-bit unchanged for the whole drag." % i
+		)
+	Input.action_release(&"rotate_drag")
+	assert_ne(controller._ghost.free_quaternion, Quaternion.IDENTITY, "fixture: the drag should have rotated the held block.")
+
+	controller._process(1.0 / 60.0)
+	rig._process(1.0 / 60.0)
+
+	assert_true(
+		rig.get_target().is_equal_approx(controller._ghost.rotated_center_world()),
+		"after release, the rig should resume following the ghost's rotated centre."
+	)
+	assert_false(
+		rig.get_target().is_equal_approx(target_before),
+		"fixture: the rotated centre should actually have moved once resumed, or this isn't exercising the bug."
+	)
+
+
 func test_follow_block_false_pins_the_legacy_free_orbit_camera() -> void:
 	# A dedicated CameraTuning instance, not the shared preloaded resource:
 	# CameraRig's @export tuning defaults to a preload()'d singleton, so

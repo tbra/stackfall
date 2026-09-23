@@ -230,3 +230,88 @@ func test_apply_follow_tuning_is_a_noop_when_not_following_the_block() -> void:
 		"the free-orbit camera must not be reset by a follow-only tuning push."
 	)
 	assert_almost_eq(rig.get_pitch(), pitch_before, 0.0001)
+
+
+# --- Bontago-mv0.29 (owner: "the mmb rotation issue persists, can the camera
+# just be locked in place while mmb is pressed?" -- feedback/rotation-issue.png)
+# -----------------------------------------------------------------------------
+
+
+func _motion(relative: Vector2) -> InputEventMouseMotion:
+	var event: InputEventMouseMotion = InputEventMouseMotion.new()
+	event.relative = relative
+	return event
+
+
+func test_process_freezes_target_yaw_pitch_and_distance_while_rotate_drag_is_held() -> void:
+	var rig: CameraRig = _make_rig()
+	rig.tuning = rig.tuning.duplicate() as CameraTuning
+	rig.set_home_view(Vector3(5.0, 0.0, 10.0))
+	rig._process(1.0 / 60.0)
+
+	var target_before: Vector3 = rig.get_target()
+	var yaw_before: float = rig.get_yaw()
+	var pitch_before: float = rig.get_pitch()
+	var distance_before: float = rig.get_distance()
+	var transform_before: Transform3D = rig.get_camera().global_transform
+
+	Input.action_press(&"rotate_drag")
+	# A moving follow target -- the ghost's rotated centre sliding during the
+	# drag, mv0.28's own regression -- must not move the camera while frozen,
+	# and neither should the gamepad's always-on right-stick orbit strength
+	# left at zero here (asserted separately by the RMB+MMB test below).
+	for i: int in range(5):
+		rig.set_follow_position(Vector3(5.0 + float(i), 1.0, 10.0 - float(i)))
+		rig._process(1.0 / 60.0)
+		assert_true(
+			rig.get_target().is_equal_approx(target_before),
+			"frame %d: target must not move while rotate_drag is held." % i
+		)
+	Input.action_release(&"rotate_drag")
+
+	assert_almost_eq(rig.get_yaw(), yaw_before, 0.0001, "yaw must be untouched by the frozen frames.")
+	assert_almost_eq(rig.get_pitch(), pitch_before, 0.0001, "pitch must be untouched by the frozen frames.")
+	assert_almost_eq(rig.get_distance(), distance_before, 0.0001, "distance must be untouched by the frozen frames.")
+	assert_true(
+		rig.get_camera().global_transform.is_equal_approx(transform_before),
+		"global_transform must be bit-for-bit unchanged for the whole drag."
+	)
+
+	# MMB release -> follows again (follow_lag_seconds == 0 here, an instant
+	# snap to the latest set_follow_position(), same as any other frame).
+	rig._process(1.0 / 60.0)
+	assert_true(
+		rig.get_target().is_equal_approx(Vector3(9.0, 1.0, 6.0)),
+		"after release, the rig must resume following the latest follow position."
+	)
+
+
+func test_unhandled_input_ignores_camera_orbit_motion_while_rotate_drag_is_held() -> void:
+	# DECISION (game/CameraRig.gd, _rotate_drag_frozen()): rotate_drag (MMB)
+	# always wins over camera_orbit (RMB) when both are held at once.
+	var rig: CameraRig = _make_rig()
+	var yaw_before: float = rig.get_yaw()
+	var pitch_before: float = rig.get_pitch()
+
+	Input.action_press(&"rotate_drag")
+	Input.action_press(&"camera_orbit")
+	rig._unhandled_input(_motion(Vector2(120.0, 40.0)))
+	Input.action_release(&"camera_orbit")
+	Input.action_release(&"rotate_drag")
+
+	assert_almost_eq(rig.get_yaw(), yaw_before, 0.0001, "rotate_drag must freeze yaw even with camera_orbit also held.")
+	assert_almost_eq(rig.get_pitch(), pitch_before, 0.0001, "rotate_drag must freeze pitch even with camera_orbit also held.")
+
+
+func test_zoom_by_orbit_step_is_a_noop_while_rotate_drag_is_held() -> void:
+	var rig: CameraRig = _make_rig()
+	var distance_before: float = rig.get_distance()
+
+	Input.action_press(&"rotate_drag")
+	rig.zoom_by_orbit_step(-1.0)
+	Input.action_release(&"rotate_drag")
+
+	assert_almost_eq(
+		rig.get_distance(), distance_before, 0.0001,
+		"PlayerController calls zoom_by_orbit_step() directly (bypassing this rig's own _unhandled_input), so it needs its own freeze guard."
+	)
