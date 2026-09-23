@@ -958,3 +958,51 @@ func test_block_projection_defaults() -> void:
 	var fresh: GhostTuning = GhostTuning.new()
 	assert_almost_eq(fresh.block_projection_alpha, 0.5, 0.0001)
 	assert_true(fresh.block_projection_color.r >= 0.85 and fresh.block_projection_color.g >= 0.85 and fresh.block_projection_color.b >= 0.85, "default must be near-white, matching the disc's own footprint marker.")
+
+
+# --- Bontago-xtq.18 attempt 3 (feel8a, feedback/owner-noise-footprint.png:
+# black/white speckle under the ghost; root cause was the block-projection
+# decal painting the disc with a box bottom exactly on the disc and 0.0
+# fades, i.e. pow(0, 0) = NaN per pixel) ------------------------------------
+
+## Failed before the fix: the decal kept Decal's default all-layers cull_mask,
+## which includes DiscMirror.DISC_LAYER_BIT, the disc's only render layer.
+func test_block_projection_decal_never_paints_the_disc_layer() -> void:
+	var ghost: GhostPreview = _make_ghost()
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	var mask: int = ghost._block_projection_decal.cull_mask
+	assert_eq(mask & DiscMirror.DISC_LAYER_BIT, 0, "the decal must not reach the disc's own render layer.")
+	assert_ne(mask & 1, 0, "placed blocks (render layer 1) must still receive the projection.")
+
+
+## Failed before the fix: both fades were hard-coded 0.0, so any surface
+## lying exactly on the decal box's top or bottom plane evaluated pow(0, 0).
+func test_block_projection_decal_fades_stay_above_zero() -> void:
+	var ghost: GhostPreview = _make_ghost()
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	assert_gt(ghost._block_projection_decal.upper_fade, 0.0, "upper fade 0.0 renders NaN speckle on the box's top plane.")
+	assert_gt(ghost._block_projection_decal.lower_fade, 0.0, "lower fade 0.0 renders NaN speckle on the box's bottom plane.")
+
+
+## A tuning value of 0 (reachable from the F4 panel or a hand-edited .tres)
+## must still be clamped above zero, not passed straight to the Decal.
+func test_block_projection_decal_fade_is_clamped_when_tuning_is_zero() -> void:
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	ghost.ghost_tuning = (load("res://config/ghost_tuning.tres") as GhostTuning).duplicate()
+	ghost.ghost_tuning.block_projection_edge_fade = 0.0
+	add_child_autofree(ghost)
+	ghost.set_shape(load("res://config/blocks/cube.tres"))
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	var fades: Vector2 = ghost.block_projection_decal_fades()
+	assert_gt(fades.x, 0.0)
+	assert_gt(fades.y, 0.0)
+	assert_eq(ghost.block_projection_decal_cull_mask(), ghost._block_projection_decal.cull_mask)
+
+
+func test_block_projection_edge_fade_default_is_small_and_positive() -> void:
+	var fresh: GhostTuning = GhostTuning.new()
+	assert_gt(fresh.block_projection_edge_fade, 0.0)
+	assert_lt(fresh.block_projection_edge_fade, 0.05, "the shaft should stay crisp, not visibly fade.")
