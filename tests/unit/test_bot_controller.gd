@@ -28,6 +28,16 @@ class BotControllerFakeMatch:
 	var slot_count_value: int = 1
 	var raster_value: TerritoryRaster = null
 	var cell_grid_value: CellGrid = null
+	## Bontago-d5c.10 (item F): Match.circle_render_arrays()'s own shape
+	## (parallel xs/zs/teams, disk-local) -- empty by default, so every
+	## existing fixture that never sets this still gets the pre-existing
+	## home-flags-only behaviour of _enemy_circle_centers().
+	var circle_arrays_value: Dictionary = {
+		"xs": PackedFloat32Array(),
+		"zs": PackedFloat32Array(),
+		"radii": PackedFloat32Array(),
+		"teams": PackedInt32Array(),
+	}
 
 	var request_place_calls: Array[Dictionary] = []
 	var request_throw_calls: Array[Dictionary] = []
@@ -66,6 +76,9 @@ class BotControllerFakeMatch:
 
 	func cell_grid() -> CellGrid:
 		return cell_grid_value
+
+	func circle_render_arrays() -> Dictionary:
+		return circle_arrays_value
 
 	func request_place(
 		slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion, auto_drop: bool, feed_seq_arg: int = -1
@@ -110,6 +123,28 @@ class BotControllerForcedNoise:
 
 	func _aim_noise_offset() -> Vector2:
 		return forced_noise
+
+
+## Bontago-d5c.10 (item C): writes a known, fixed rotation onto a Field's own
+## transform from inside a physics tick, then goes idle -- the memory'd
+## convention for a Field write (game/Field.gd's own DECISION on
+## sync_to_physics/AnimatableBody3D: a plain node keeps sync_to_physics false,
+## per `set_tilt_enabled()`'s own comment, so a direct write outside physics
+## already sticks here too, but writing it inside _physics_process and
+## awaiting a frame is the same safe pattern every other Field-transform test
+## in this codebase uses, and keeps this test valid even if Field's own
+## defaults ever change). One-shot: the rotation is applied exactly once.
+class BotControllerFieldTiltWriter:
+	extends Node
+	var field: Field = null
+	var basis_to_apply: Basis = Basis.IDENTITY
+	var applied: bool = false
+
+	func _physics_process(_delta: float) -> void:
+		if applied or field == null:
+			return
+		field.transform = Transform3D(basis_to_apply, field.transform.origin)
+		applied = true
 
 
 func _small_map() -> MapDef:
@@ -520,3 +555,131 @@ func test_send_best_placement_honours_a_held_specials_place_target() -> void:
 		pick_best_candidate.origin, expected_candidate.origin,
 		"fixture: the enemy placement must make pick_best() diverge from the Rocket's own place_target"
 	)
+
+
+# --- Bontago-d5c.10 (item C): _send_throw's world-space velocity ------------
+
+## Field tilted 15 degrees about its local X axis (a known, fixed rotation --
+## not the spring-integrated tilt path, which never lands on an exact angle):
+## a HARD (offensive) Bomb throw's own `throw_velocity` (core/ai/
+## BotSpecialPlanner.gd's `_ballistic_velocity()`, disk-local axes) must reach
+## Match.request_throw() rotated through Field.global_transform.basis, not
+## verbatim -- the regression this test guards is exactly the pre-fix
+## behaviour, where a level Field made the two spaces coincide and hid the
+## bug.
+func test_send_throw_rotates_the_planners_velocity_through_the_field_basis() -> void:
+	var field: Field = _make_field()
+	var tilt_basis: Basis = Basis(Vector3.RIGHT, deg_to_rad(15.0))
+	var writer: BotControllerFieldTiltWriter = BotControllerFieldTiltWriter.new()
+	writer.field = field
+	writer.basis_to_apply = tilt_basis
+	add_child_autofree(writer)
+	await wait_physics_frames(1)
+	assert_true(field.global_transform.basis.is_equal_approx(tilt_basis), "fixture: the tilt write landed")
+
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	match_ref.held_specials[0] = &"bomb"
+	match_ref.slot_count_value = 2
+	match_ref.team_by_slot[1] = 1
+	match_ref.slots_by_id[1] = PlayerSlot.new(1, 1, "Enemy", Color.RED, Vector2(8.0, 0.0))
+	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
+	var controller: BotController = _make_controller(field, match_ref, net_ref)
+
+	controller.setup(0, MatchConfig.AiDifficulty.HARD, field, null)
+	Events.feed_block_issued.emit(0, &"cube", &"")
+
+	# Manual loop, same pattern as the Rocket test above: stop the instant the
+	# throw lands, before a further tick can clear _candidates/re-enter
+	# GENERATING.
+	var frame: int = 0
+	while match_ref.request_throw_calls.is_empty() and match_ref.request_place_calls.is_empty() and frame < 120:
+		controller._physics_process(1.0 / 60.0)
+		frame += 1
+
+	assert_eq(match_ref.request_place_calls.size(), 0, "fixture: HARD offensive Bomb always throws, never places")
+	assert_eq(match_ref.request_throw_calls.size(), 1, "exactly one throw request after one full think-cycle")
+
+	# Recompute the planner's own decision the same way _tick_acting() did --
+	# a pure function of state _tick_acting() left untouched (_candidates is
+	# only cleared on the next GENERATING/feed_block_issued, neither of which
+	# has run since the throw landed).
+	var expected_action: BotSpecialPlanner.BotSpecialAction = BotSpecialPlanner.plan(
+		&"bomb",
+		controller._home_position(),
+		controller._territory_sample_points(),
+		controller._enemy_circle_centers(),
+		controller._active_special_positions(),
+		MatchConfig.AiDifficulty.HARD,
+		controller.tuning
+	)
+	assert_true(expected_action.should_throw, "fixture: an offensive Bomb with a live enemy target always throws")
+
+	var expected_world_velocity: Vector3 = tilt_basis * expected_action.throw_velocity
+	var actual_velocity: Vector3 = match_ref.request_throw_calls[0]["velocity"] as Vector3
+	assert_almost_eq(actual_velocity.x, expected_world_velocity.x, 0.01, "world-space x")
+	assert_almost_eq(actual_velocity.y, expected_world_velocity.y, 0.01, "world-space y")
+	assert_almost_eq(actual_velocity.z, expected_world_velocity.z, 0.01, "world-space z")
+	assert_almost_eq(
+		actual_velocity.length(), expected_action.throw_velocity.length(), 0.01,
+		"a pure rotation preserves the planner's own throw speed"
+	)
+	assert_true(
+		actual_velocity.distance_to(expected_action.throw_velocity) > 0.05,
+		"fixture: the tilt must actually change the vector -- otherwise this test cannot tell the fix from the bug"
+	)
+
+
+# --- Bontago-d5c.10 (item F): real enemy circle centers + active specials ---
+
+## Bontago-d5c.10 (item F): _enemy_circle_centers() must include both a living
+## enemy's home flag AND the disk-local centers of that team's own live
+## (Match.circle_render_arrays()) influence circles -- and never an ally's
+## own circle (team 0, this bot's own team).
+func test_enemy_circle_centers_includes_home_flags_and_live_enemy_circles() -> void:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	match_ref.slot_count_value = 2
+	match_ref.team_by_slot[1] = 1
+	match_ref.slots_by_id[1] = PlayerSlot.new(1, 1, "Enemy", Color.RED, Vector2(8.0, 0.0))
+	match_ref.circle_arrays_value = {
+		"xs": PackedFloat32Array([5.0, -3.0]),
+		"zs": PackedFloat32Array([2.0, 1.0]),
+		"radii": PackedFloat32Array([4.0, 6.0]),
+		"teams": PackedInt32Array([1, 0]),
+	}
+	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
+	var controller: BotController = _make_controller(field, match_ref, net_ref)
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+
+	var centers: PackedVector2Array = controller._enemy_circle_centers()
+
+	assert_true(centers.has(Vector2(8.0, 0.0)), "enemy slot 1's own home flag")
+	assert_true(centers.has(Vector2(5.0, 2.0)), "enemy team 1's own live circle center")
+	assert_false(centers.has(Vector2(-3.0, 1.0)), "this bot's own team (0) must never count as an enemy circle")
+
+
+## Bontago-d5c.10 (item F): every SpecialBehavior.GROUP node's parent's
+## global_position, converted to disk-local through Field.disk_local_from_world().
+func test_active_special_positions_converts_ticking_specials_to_disk_local() -> void:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
+	var controller: BotController = _make_controller(field, match_ref, net_ref)
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+
+	# "A Block-like Node3D" (docs/M5_PLAN.md's own item F brief) -- a plain
+	# Node3D stands in for a real, physics-backed Block, since only its
+	# global_position and its being the behaviour's parent matter here.
+	var block_like: Node3D = Node3D.new()
+	add_child_autofree(block_like)
+	block_like.global_position = Vector3(4.0, 1.0, -2.0)
+	var behavior: SpecialBehavior = SpecialBehavior.new()
+	block_like.add_child(behavior)
+	autofree(behavior)
+	behavior.add_to_group(SpecialBehavior.GROUP)
+
+	var positions: PackedVector2Array = controller._active_special_positions()
+
+	assert_eq(positions.size(), 1, "exactly the one ticking special found in the group")
+	assert_almost_eq(positions[0].x, 4.0, 0.001, "disk-local x off a level, origin-centered Field")
+	assert_almost_eq(positions[0].y, -2.0, 0.001, "disk-local y (Field's local z) off a level, origin-centered Field")
