@@ -497,3 +497,94 @@ func _shader_source_without_comments(shader: Shader) -> String:
 		if not stripped.begins_with("//"):
 			code_lines.append(line.split("//")[0])
 	return "\n".join(code_lines)
+
+
+# --- Bontago-xtq.12 step 2: the disc planar mirror ---------------------------
+#
+# game/DiscMirror.gd renders a mirrored camera into a SubViewport every frame
+# and hands this overlay the result through set_mirror_texture(); shaders/
+# territory.gdshader blends it over the disk. These tests cover this file's
+# own share of that feature (the plain uniform push, same shape as
+# set_slot_colors()) plus DiscMirror.mirror_transform()'s pure math, which
+# that file's own class doc says is exposed here for exactly this reason.
+
+
+func test_set_mirror_texture_pushes_the_shader_uniforms() -> void:
+	var overlay: TerritoryOverlay = _make_overlay(_map())
+	var image: Image = Image.create(4, 4, false, Image.FORMAT_RGB8)
+	var texture: ImageTexture = ImageTexture.create_from_image(image)
+
+	overlay.set_mirror_texture(texture, true, 0.7)
+
+	assert_eq(overlay.material().get_shader_parameter(&"mirror_tex"), texture)
+	assert_true(bool(overlay.material().get_shader_parameter(&"mirror_enabled")))
+	assert_almost_eq(
+		float(overlay.material().get_shader_parameter(&"mirror_strength")), 0.7, 0.0001
+	)
+
+
+func test_shader_declares_the_mirror_uniforms_and_flips_screen_uv_x() -> void:
+	var overlay: TerritoryOverlay = _make_overlay(_map())
+	var code: String = _shader_source_without_comments(overlay.material().shader)
+
+	assert_true(code.contains("uniform sampler2D mirror_tex"), "expected a mirror_tex sampler uniform.")
+	assert_true(code.contains("uniform bool mirror_enabled"), "expected a mirror_enabled uniform.")
+	assert_true(code.contains("uniform float mirror_strength"), "expected a mirror_strength uniform.")
+
+	var flip_sample: RegEx = RegEx.new()
+	flip_sample.compile(
+		"texture\\(\\s*mirror_tex\\s*,\\s*vec2\\(\\s*1\\.0\\s*-\\s*SCREEN_UV\\.x\\s*,\\s*SCREEN_UV\\.y\\s*\\)\\s*\\)"
+	)
+	assert_not_null(
+		flip_sample.search(code),
+		"mirror_tex must be sampled at a horizontally-flipped SCREEN_UV (see DiscMirror.gd's mirror_transform() DECISION)."
+	)
+
+
+func test_mirror_transform_reflects_a_camera_above_a_horizontal_plane() -> void:
+	var plane: Plane = Plane(Vector3.UP, 0.0)
+	var camera_origin: Vector3 = Vector3(2.0, 5.0, 3.0)
+	var target: Vector3 = Vector3.ZERO
+	var camera_xf: Transform3D = Transform3D.IDENTITY.translated(camera_origin).looking_at(target, Vector3.UP)
+
+	var mirrored: Transform3D = DiscMirror.mirror_transform(camera_xf, plane)
+
+	assert_almost_eq(
+		mirrored.origin.y, -camera_origin.y, 0.0001,
+		"reflecting a camera above the y=0 plane must negate its height."
+	)
+	assert_almost_eq(mirrored.origin.x, camera_origin.x, 0.0001, "x is unchanged by a horizontal-plane reflection.")
+	assert_almost_eq(mirrored.origin.z, camera_origin.z, 0.0001, "z is unchanged by a horizontal-plane reflection.")
+	assert_almost_eq(
+		mirrored.basis.determinant(), 1.0, 0.0001,
+		"the reflected basis must stay proper (determinant 1), or backface culling flips the wrong way."
+	)
+
+	var mirrored_target: Vector3 = target - 2.0 * plane.distance_to(target) * plane.normal
+	var forward: Vector3 = -mirrored.basis.z
+	var to_target: Vector3 = (mirrored_target - mirrored.origin).normalized()
+	assert_almost_eq(
+		forward.dot(to_target), 1.0, 0.0001,
+		"the mirrored camera must look at the mirrored target, not just sit at the mirrored origin."
+	)
+
+
+func test_mirror_transform_reflects_across_a_tilted_plane() -> void:
+	var tilt: float = deg_to_rad(10.0)
+	var normal: Vector3 = Vector3(0.0, cos(tilt), sin(tilt)).normalized()
+	var plane: Plane = Plane(normal, Vector3.ZERO)
+	var camera_origin: Vector3 = Vector3(2.0, 5.0, 3.0)
+	var camera_xf: Transform3D = Transform3D.IDENTITY.translated(camera_origin).looking_at(Vector3.ZERO, Vector3.UP)
+
+	var mirrored: Transform3D = DiscMirror.mirror_transform(camera_xf, plane)
+
+	var camera_distance: float = plane.distance_to(camera_origin)
+	var mirrored_distance: float = plane.distance_to(mirrored.origin)
+	assert_almost_eq(
+		mirrored_distance, -camera_distance, 0.0001,
+		"the mirrored origin must sit the same distance on the opposite side of a tilted plane."
+	)
+	assert_almost_eq(
+		mirrored.basis.determinant(), 1.0, 0.0001,
+		"the reflected basis must stay proper for a tilted plane too."
+	)

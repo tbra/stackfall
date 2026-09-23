@@ -257,6 +257,97 @@ func test_reflection_probe_configuration_is_a_noop_with_no_path_wired() -> void:
 	assert_true(is_instance_valid(_skybox), "an unwired skybox must not error during _ready().")
 
 
+# --- Bontago-xtq.12 step 2: SSR configuration and the TUNING_GROUP live-apply
+# door (owner: "the disc isn't very reflective, like at all?") -- game/
+# Skybox.gd's configure_ssr()/refresh_from_visuals() push config/
+# TerritoryVisuals.gd's ssr_* fields onto the wired Environment, mirroring
+# configure_reflection_probe()'s own contract above.
+
+
+func test_configure_ssr_pushes_visuals_fields_onto_the_environment() -> void:
+	var wired: Dictionary = _make_wired_skybox()
+	var skybox: Skybox = wired["skybox"] as Skybox
+	var environment: Environment = wired["environment"] as Environment
+	var visuals: TerritoryVisuals = TerritoryVisuals.new()
+	visuals.ssr_enabled = true
+	visuals.ssr_max_steps = 12
+	visuals.ssr_fade_in = 0.33
+	visuals.ssr_fade_out = 1.23
+	visuals.ssr_depth_tolerance = 0.44
+	skybox.visuals = visuals
+
+	skybox.configure_ssr()
+
+	assert_true(environment.ssr_enabled)
+	assert_eq(environment.ssr_max_steps, 12)
+	assert_almost_eq(environment.ssr_fade_in, 0.33, 0.0001)
+	assert_almost_eq(environment.ssr_fade_out, 1.23, 0.0001)
+	assert_almost_eq(environment.ssr_depth_tolerance, 0.44, 0.0001)
+
+
+func test_configure_ssr_disabled_turns_off_ssr_in_the_environment() -> void:
+	var wired: Dictionary = _make_wired_skybox()
+	var skybox: Skybox = wired["skybox"] as Skybox
+	var environment: Environment = wired["environment"] as Environment
+	var visuals: TerritoryVisuals = TerritoryVisuals.new()
+	visuals.ssr_enabled = false
+	skybox.visuals = visuals
+
+	skybox.configure_ssr()
+
+	assert_false(environment.ssr_enabled)
+
+
+func test_configure_ssr_and_refresh_are_noops_without_a_wired_environment() -> void:
+	# before_each()'s plain _skybox never wires `environment` (only the tests
+	# above build their own via _make_wired_skybox()) or a
+	# reflection_probe_path -- configure_ssr()/refresh_from_visuals() must not
+	# error with nothing wired, the same no-op contract
+	# configure_reflection_probe() already has (see the test right above this
+	# section).
+	_skybox.configure_ssr()
+	_skybox.refresh_from_visuals()
+	assert_true(
+		is_instance_valid(_skybox),
+		"configure_ssr()/refresh_from_visuals() must not error with no Environment/probe wired."
+	)
+
+
+func test_refresh_from_visuals_reapplies_probe_and_ssr_after_a_visuals_change() -> void:
+	var wired: Dictionary = _make_wired_skybox()
+	var skybox: Skybox = wired["skybox"] as Skybox
+	var environment: Environment = wired["environment"] as Environment
+	var probe: ReflectionProbe = ReflectionProbe.new()
+	probe.name = "Probe"
+	skybox.add_child(probe)
+	skybox.reflection_probe_path = NodePath("Probe")
+	var visuals: TerritoryVisuals = TerritoryVisuals.new()
+	visuals.ssr_enabled = true
+	visuals.reflection_probe_enabled = true
+	skybox.visuals = visuals
+	skybox.refresh_from_visuals()
+
+	visuals.ssr_enabled = false
+	visuals.ssr_max_steps = 7
+	visuals.reflection_probe_enabled = false
+
+	skybox.refresh_from_visuals()
+
+	assert_false(environment.ssr_enabled, "SSR must be re-applied from the changed visuals.")
+	assert_eq(environment.ssr_max_steps, 7)
+	assert_false(
+		probe.visible,
+		"refresh_from_visuals() must re-apply the reflection probe settings too, not only SSR."
+	)
+
+
+func test_skybox_is_in_the_tuning_group_after_ready() -> void:
+	assert_true(
+		_skybox.is_in_group(Skybox.TUNING_GROUP),
+		"ui/TuningPanel.gd's refresh_territory_visuals_live() reaches every live Skybox via this group."
+	)
+
+
 func _remove_dir_recursive(path: String) -> void:
 	var dir: DirAccess = DirAccess.open(path)
 	if dir == null:
