@@ -8,28 +8,61 @@ extends Node3D
 ## load_set() falls back to the existing ProceduralSkyMaterial untouched
 ## whenever that folder or a face inside it is missing.
 ##
-## DECISION (game/Skybox.gd): approach (b) from the assets-sky brief -- six
-## unshaded quads on a big inverted box -- not approach (a) (a custom
-## `shader_type sky` sampling a Cubemap). A shader-based sky would need to get
-## Godot's Cubemap.create_from_images() face order and per-face UV direction
-## right with no way to iterate visually except a full screenshot round trip;
-## building the box directly lets each face's orientation be reasoned about
-## and, if wrong, corrected one face at a time via SkyboxConfig.face_rotations/
-## face_flip_u/face_flip_v -- found numerically, not eyeballed, by
-## tools/skybox_seam_probe.gd (see its report for the discovered table and
-## the measured before/after seam error).
-##
-## The box does not follow the camera. Its box_half_extent (400 m) is far
-## larger than any map's field_radius (60 m max) or the camera's zoom range
+## DECISION (game/Skybox.gd, Bontago-1en/assets-sky): six unshaded quads on a
+## big inverted box, not a `shader_type sky` sampling a Cubemap. The box does
+## not follow the camera -- box_half_extent (400 m) is far larger than any
+## map's field_radius (60 m max) or the camera's zoom range
 ## (config/camera_tuning.tres: zoom_max 100 m), so the parallax from orbiting
-## within the field is invisible in practice; a stationary box avoids the
-## camera-coupling approach (a) was chosen to avoid, at zero extra cost.
-## Because the box does not follow the camera, this also means ambient/sky
-## lighting is unaffected by it: the WorldEnvironment's ProceduralSkyMaterial
-## is left in place for ambient_light_source (spec 2.10) exactly as before --
-## this node only draws the box in front of it.
+## within the field is invisible in practice, at zero extra cost.
+##
+## DECISION (game/Skybox.gd, Bontago-xtq.8, owner 2026-09-23: "it reflects
+## whatever light source you've put in but not the skybox we added
+## recently"): the box alone was never enough -- the WorldEnvironment's own
+## Sky resource is a separate thing the render server samples for reflections
+## and ambient light (Main.tscn: ambient_light_source = AMBIENT_SOURCE_SKY),
+## and drawing a box in front of the camera does not change what that
+## resource shows. load_set() success now ALSO installs a `shader_type sky`
+## ShaderMaterial (shaders/cubemap_sky.gdshader) onto `environment.sky.
+## sky_material`, sampling the same six face textures with the same
+## SkyboxConfig.face_rotations/face_flip_u/face_flip_v correction the box
+## uses (shaders/cubemap_sky.gdshader's own doc has the per-face direction
+## algebra, derived by inverting Skybox._face_corners()' corner mapping and
+## checked against all four UV corners of all six faces). Reflections/ambient
+## now show the loaded set's horizon instead of the ProceduralSkyMaterial
+## gradient; a missing/failed set restores the original ProceduralSkyMaterial
+## on the Sky resource exactly as it restores the box's fallback.
+##
+## The box mesh itself is deliberately kept rather than dropped now that the
+## sky shader exists: the box is the one part of this system whose
+## correctness was verified pixel-by-pixel (tools/skybox_seam_probe.gd's
+## measured seam error) and is trivially checkable by eye in a single
+## screenshot; the sky shader's face-selection math (its sky() function) was
+## checked algebraically against all six faces' corners (see
+## shaders/cubemap_sky.gdshader) and
+## against two live camera yaws (docs/sky-reflection-before.png/-after.png),
+## but a shader bug that only shows up at a grazing reflection angle this
+## package's screenshots did not happen to catch would otherwise have no
+## direct-view fallback to catch it visually during play. Once the sky
+## shader has more mileage (e.g. the seam probe or an equivalent check is
+## extended to score it the same way it scores the box), dropping the box and
+## letting the sky alone draw the background is a safe, mechanical follow-up.
 
 @export var config: SkyboxConfig = preload("res://config/skybox_config.tres")
+## The live Environment resource Main.tscn's WorldEnvironment displays
+## (wired there by a plain node-property reference to the same sub-resource,
+## not a node path -- CLAUDE.md's "no deep node paths" is about get_node()
+## chains, not sharing one Resource two nodes both already own a reference
+## to). Optional (null in a fixture test that only cares about the box/
+## fallback_active state, e.g. most of tests/unit/test_skybox.gd): every sky-
+## material write below is skipped when this or its .sky is unset.
+@export var environment: Environment = null
+
+const SKY_SHADER: Shader = preload("res://shaders/cubemap_sky.gdshader")
+
+## The Sky's own material before this node ever touched it (Main.tscn's
+## ProceduralSkyMaterial, captured once in _ready()) -- restored whenever
+## load_set() falls back, the same moment the box itself is hidden.
+var _fallback_sky_material: Material = null
 
 ## True whenever no textured box is showing (initial state, a missing
 ## set/face, or config.enabled == false) -- the existing ProceduralSkyMaterial
@@ -42,6 +75,8 @@ var _face_meshes: Dictionary = {}
 
 
 func _ready() -> void:
+	if environment != null and environment.sky != null:
+		_fallback_sky_material = environment.sky.sky_material
 	for face_name: String in config.face_names:
 		var mesh_instance: MeshInstance3D = MeshInstance3D.new()
 		mesh_instance.name = face_name.capitalize()
@@ -128,6 +163,7 @@ func _resolve_asset_root() -> String:
 func _hide_faces() -> void:
 	for mesh_instance: MeshInstance3D in _face_meshes.values():
 		mesh_instance.visible = false
+	_restore_fallback_sky()
 
 
 func _build_faces() -> void:
@@ -146,6 +182,49 @@ func _build_faces() -> void:
 		mesh_instance.material_override = material
 		mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mesh_instance.visible = true
+	_install_sky_material()
+
+
+## Restores the Environment's Sky to whatever material it carried before this
+## node ever touched it (Main.tscn's ProceduralSkyMaterial) -- a no-op when no
+## `environment` was wired (most of tests/unit/test_skybox.gd) or _ready()
+## never captured one (environment.sky was null at the time).
+func _restore_fallback_sky() -> void:
+	if environment == null or environment.sky == null or _fallback_sky_material == null:
+		return
+	environment.sky.sky_material = _fallback_sky_material
+
+
+## Bontago-xtq.8: installs shaders/cubemap_sky.gdshader onto the Environment's
+## Sky, with the same six face textures and the same SkyboxConfig.
+## face_rotations/face_flip_u/face_flip_v the box's own quads use -- see the
+## class doc and the shader's doc for why the two are the same convention
+## read two different ways. A no-op when no `environment` was wired.
+func _install_sky_material() -> void:
+	if environment == null or environment.sky == null:
+		return
+	var material: ShaderMaterial = ShaderMaterial.new()
+	material.shader = SKY_SHADER
+	for index: int in range(config.face_names.size()):
+		var face_name: String = config.face_names[index]
+		var rotation: int = config.face_rotations[index] if index < config.face_rotations.size() else 0
+		var flip_u: bool = index < config.face_flip_u.size() and config.face_flip_u[index] != 0
+		var flip_v: bool = index < config.face_flip_v.size() and config.face_flip_v[index] != 0
+		material.set_shader_parameter(face_name + "_tex", _face_textures.get(face_name))
+		material.set_shader_parameter(face_name + "_rotation", rotation)
+		material.set_shader_parameter(face_name + "_flip_u", flip_u)
+		material.set_shader_parameter(face_name + "_flip_v", flip_v)
+	environment.sky.sky_material = material
+	# DECISION (game/Skybox.gd): PROCESS_MODE_QUALITY, not the default
+	# AUTOMATIC/INCREMENTAL. Reflections/ambient are read from the sky's own
+	# radiance/irradiance maps, not the background pixels directly --
+	# INCREMENTAL mode (meant for a sky that keeps changing, e.g. a day/night
+	# cycle) spreads that recompute over many frames, so a freshly-loaded set
+	# would keep showing the *previous* sky's (or the fallback gradient's)
+	# stale reflection for a visible stretch of play. QUALITY recomputes fully
+	# on the next frame instead; this skybox only ever changes at
+	# load_set() (once per match/map), so the one-frame cost is negligible.
+	environment.sky.process_mode = Sky.PROCESS_MODE_QUALITY
 
 
 ## One quad per face of a box_half_extent-sided cube, in Skybox-local space

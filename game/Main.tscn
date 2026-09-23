@@ -26,6 +26,7 @@ script = ExtResource("1_main")
 environment = SubResource("Environment_1")
 
 [node name="Skybox" parent="." instance=ExtResource("5_skybox")]
+environment = SubResource("Environment_1")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 rotation_degrees = Vector3(-45, -30, 0)
