@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="SpecialDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://config/specials/SpecialDef.gd" id="1_def"]
+[ext_resource type="Script" path="res://game/specials/EarthquakeEffect.gd" id="2_effect"]
+
+[sub_resource type="Resource" id="Resource_earthquake_effect"]
+script = ExtResource("2_effect")
+shake_duration_s = 4.0
+shake_magnitude = 0.05
+leveling_strength = 0.5
+
+[resource]
+script = ExtResource("1_def")
+id = &"earthquake"
+scene = null
+weight = 1.0
+enabled_by_default = true
+arm_delay = 0.4
+arm_impulse = 5.0
+fuse_timeout_s = 6.0
+effect = SubResource("Resource_earthquake_effect")

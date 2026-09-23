@@ -1,10 +1,13 @@
 extends GutTest
 ## SpecialDef checks (spec 2.6, docs/M4_P2_PACKAGES.md P2a): the roster
-## loader and the weighted draw. config/specials/ genuinely has no .tres
-## resources yet (P2a lands before P3-P5 add concrete specials), so every
-## test here either proves that empty-roster state is handled cleanly or
-## exercises pick_weighted()/the sort comparator against in-memory
-## SpecialDef instances built by the test itself -- no disk writes needed.
+## loader and the weighted draw. config/specials/ started genuinely empty
+## (P2a landed before P3-P5's concrete specials); as of P5-EARTHQUAKE it
+## holds at least earthquake.tres, so the loader test below now asserts
+## against the real roster's contents instead of assuming it is empty
+## (docs/M4_SPECIALS_PACKAGES.md orchestrator decision 4). Every other test
+## here exercises pick_weighted()/the sort comparator against in-memory
+## SpecialDef instances built by the test itself -- no disk writes needed,
+## unaffected by what is or isn't under config/specials/.
 
 
 func _make_def(id: StringName, weight: float = 1.0) -> SpecialDef:
@@ -16,9 +19,25 @@ func _make_def(id: StringName, weight: float = 1.0) -> SpecialDef:
 
 ## -- load_all_specials --------------------------------------------------------
 
-func test_load_all_specials_returns_an_empty_array_when_the_directory_has_no_resources_yet() -> void:
+## DECISION (tests/unit/test_special_def.gd, orchestrator decision 4): this
+## used to assert defs.size() == 0 -- true only while config/specials/ held
+## no real .tres. P5-EARTHQUAKE's earthquake.tres makes that assumption
+## false, so this now asserts against the real roster's actual contents
+## (finds the committed special, and the loader's own sort-by-id contract
+## still holds) rather than a directory-emptiness assumption future packages
+## would have had to keep re-breaking.
+func test_load_all_specials_finds_every_committed_special_and_sorts_by_id() -> void:
 	var defs: Array[SpecialDef] = SpecialDef.load_all_specials()
-	assert_eq(defs.size(), 0, "config/specials/ should have no .tres resources yet (P2a).")
+	var ids: Array[String] = []
+	for def: SpecialDef in defs:
+		ids.append(String(def.id))
+
+	assert_true(
+		ids.has("earthquake"), "config/specials/earthquake.tres must be found by the loader"
+	)
+	var sorted_ids: Array[String] = ids.duplicate()
+	sorted_ids.sort()
+	assert_eq(ids, sorted_ids, "load_all_specials() must return results sorted by id")
 
 
 func test_load_all_specials_does_not_error_on_a_missing_directory() -> void:
