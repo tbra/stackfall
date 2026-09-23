@@ -24,6 +24,19 @@ extends Resource
 ## frames").
 @export var think_phase_jitter_s: float = 0.4
 
+## Bontago-d5c (M5 P1, append-only per docs/M5_PLAN.md's "if you need a new
+## numeric... add it as an @export on BotTuning, append-only"): a hard safety
+## bound on how many physics frames BotController's GENERATING state may run
+## for one think-cycle, in case territory sampling keeps missing (e.g. a
+## slot's whole territory is momentarily empty/contested) and the natural
+## ceiling of profile.candidate_count / profile.candidates_per_frame is never
+## reached by successful samples alone.
+@export var max_generation_frames: int = 40
+## How many random points inside the field disk BotController samples,
+## per candidate, before giving up and falling back to the slot's own home
+## position (see BotController._sample_territory_point()).
+@export var max_territory_sample_attempts: int = 12
+
 
 ## Returns the profile for `difficulty`; NORMAL (and any out-of-range value)
 ## falls back to `normal` rather than failing, so a stale/corrupt wire value
