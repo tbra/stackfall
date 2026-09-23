@@ -1,8 +1,7 @@
 extends Node
 ## In-game screenshot capture (owner request 2026-09-23: "add a button to
-## take in-game screenshots which automatically saves to the docs" -- the
-## owner has been dropping bug screenshots into docs/ by hand, e.g.
-## docs/solid-blocks2-issue.png).
+## take in-game screenshots which automatically saves to the docs", revised
+## the same day to the gitignored feedback/ folder -- see FEEDBACK_DIR).
 ##
 ## Bound to the screenshot_capture action (F12 + gamepad, see
 ## tools/bootstrap_project.gd), fired from _unhandled_input so it works while
@@ -19,7 +18,7 @@ extends Node
 const ACTION_NAME: StringName = &"screenshot_capture"
 const TIMESTAMP_FORMAT: String = "%04d%02d%02d_%02d%02d%02d"
 
-## Test seam: overrides the save directory so tests never touch res://docs or
+## Test seam: overrides the save directory so tests never touch res://feedback or
 ## a shared user:// folder. Empty means "use the real resolution logic below"
 ## (autoload/Sfx.gd's set_root_dir_for_test is the same pattern).
 var output_dir_override: String = ""
@@ -99,23 +98,38 @@ func _next_filename() -> String:
 	return "screenshot_%s_%d.png" % [stamp, _captures_this_second]
 
 
+## Owner 2026-09-23 (revised): screenshots go to the gitignored feedback/
+## folder at the repo root, not docs/ -- the owner drops screenshots and
+## written feedback there for the orchestrator to pick up, so nothing in it
+## should ever be committed. The folder is created on first use, with a
+## .gdignore so the editor never imports the PNGs.
+const FEEDBACK_DIR: String = "res://feedback"
+
+
 func _resolve_output_dir() -> String:
 	if output_dir_override != "":
 		return output_dir_override
-	var docs_dir: String = ProjectSettings.globalize_path("res://docs")
-	if _dir_is_writable(docs_dir):
-		return docs_dir
+	var project_root: String = ProjectSettings.globalize_path("res://")
+	if _dir_is_writable(project_root):
+		var feedback_dir: String = ProjectSettings.globalize_path(FEEDBACK_DIR)
+		DirAccess.make_dir_recursive_absolute(feedback_dir)
+		var gdignore_path: String = feedback_dir.path_join(".gdignore")
+		if not FileAccess.file_exists(gdignore_path):
+			var marker: FileAccess = FileAccess.open(gdignore_path, FileAccess.WRITE)
+			if marker != null:
+				marker.close()
+		return feedback_dir
 	return ProjectSettings.globalize_path("user://screenshots")
 
 
 ## DECISION (autoload/Screenshots.gd): OS.has_feature("editor") only tells us
-## the *editor process* is running, not whether res://docs exists on disk --
+## the *editor process* is running, not whether res://feedback exists on disk --
 ## `godot --path .` (an unexported source run, the brief's own manual-proof
-## command) reports has_feature("editor") == false despite res://docs being a
+## command) reports has_feature("editor") == false despite res://feedback being a
 ## real, writable folder, which would wrongly send every screenshot to
 ## user://screenshots/ instead of docs/. A DirAccess write probe answers the
-## actual question ("can I write a file at res://docs's real path right now?")
-## and degrades correctly in an exported build too, where res://docs is
+## actual question ("can I write a file at res://feedback's real path right now?")
+## and degrades correctly in an exported build too, where res://feedback is
 ## packed into the .pck and DirAccess.dir_exists_absolute() on its globalized
 ## path correctly reports nothing there.
 func _dir_is_writable(path: String) -> bool:

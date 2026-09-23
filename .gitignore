@@ -76,3 +76,6 @@ typesafe_key*
 
 # Throwaway configs written by tools/run_gut.ps1
 tests/.gut_targeted/
+
+# Owner feedback drop (screenshots via F12 + written notes); never committed
+/feedback/
