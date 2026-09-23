@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="SpecialTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/specials/SpecialTuning.gd" id="1_special"]
+
+[resource]
+script = ExtResource("1_special")
+max_chain_depth = 4
+throw_max_speed = 25.0
+throw_drag_min_distance_m = 0.15
+throw_drag_min_speed_mps = 1.0
+throw_speed_per_meter = 12.0
