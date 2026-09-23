@@ -95,7 +95,11 @@ extends Resource
 ## DECISION) -----------------------------------------------------------------
 ## Base alpha-blended tint before a per-state color is known (its alpha is
 ## reused as every state's transparency).
-@export var tint_color: Color = Color(0.35, 0.9, 0.55, 0.55)
+## Bontago-xtq.9 (owner test 2026-09-23, "the ghost block should be a bit
+## more opaque"): alpha raised from 0.55 to 0.75, matching the other
+## valid/state tints below (invalid_tint_color, hole_tint_color,
+## locked_tint_color) so every state reads more solid, not just VALID.
+@export var tint_color: Color = Color(0.35, 0.9, 0.55, 0.75)
 
 ## -- Footprint projection (Bontago-mv0.17 item 6 -- owner feel report:
 ## replaces the single vertical guide line with the whole footprint, one
@@ -109,15 +113,33 @@ extends Resource
 ## underneath it was redundant and visually wrong once the footprint itself
 ## rotates correctly). Their old field names are gone; nothing else in the
 ## project reads them (see this package's own grep audit).
-## Alpha of each footprint quad's validity tint (valid/invalid/hole/locked
-## share the same colours as the held shape's own tint -- see
-## GhostPreview._footprint_color_for_state() -- just at this alpha instead of
-## each state colour's own baked-in one, since a whole-footprint decal reads
-## better a bit more transparent than the held shape itself).
-@export var footprint_alpha: float = 0.55
+## Alpha of each footprint quad's own colour (footprint_base_color blended
+## with a faint amount of the current state's own hue -- see
+## GhostPreview._footprint_color_for_state()/footprint_hue_strength below).
+## Bontago-xtq.10 (owner test 2026-09-23, "the footprint on the disc should
+## be almost white"): raised from 0.55 to 0.85 -- a near-white marker needs
+## real opacity to actually read as "almost white" rather than a faint grey
+## wash of the disc showing through.
+@export var footprint_alpha: float = 0.85
 ## How far above the landing surface each footprint quad floats, so it
 ## doesn't z-fight with the disk/block it's projected onto.
 @export var footprint_offset: float = 0.01
+## Bontago-xtq.10 (owner test 2026-09-23, "the footprint on the disc should
+## be almost white"): the footprint's own base colour before any state hue is
+## blended in -- deliberately near-white (not pure white: a hair of "already
+## lit" warmth reads better than a flat, possibly-blown-out RGB(1,1,1) patch
+## on a bright disc). See footprint_hue_strength below for how much of the
+## current validity state still shows through it.
+@export var footprint_base_color: Color = Color(0.95, 0.95, 0.95, 1.0)
+## Bontago-xtq.10: how much of the current state's own hue (player colour /
+## invalid_tint_color / hole_tint_color / locked_tint_color) is blended into
+## footprint_base_color above (GhostPreview._footprint_color_for_state()'s
+## own Color.lerp) -- 0 keeps the footprint pure white regardless of state
+## (loses the valid/invalid/hole/locked cue entirely), 1 restores the old
+## fully state-coloured footprint from before this package. A low default
+## keeps the disc marker reading "almost white" (owner's own words) while
+## still faintly hinting at validity.
+@export var footprint_hue_strength: float = 0.18
 
 ## -- Projection prism (Bontago-xtq.7, docs/solid-blocks2-issue.png, owner
 ## test 2026-09-23: "in the original the ghost block projects its whole shape
@@ -129,6 +151,15 @@ extends Resource
 ## footprint_alpha (the flat decal it stands on): a tall, mostly-empty volume
 ## marker reads better subtle than a solid wall would.
 @export var projection_alpha: float = 0.18
+## Bontago-xtq.10 (owner test 2026-09-23, "the projection colour is right but
+## any surface that falls within the projection should be a lot brighter"):
+## the prism's own material now blends additively (BaseMaterial3D.
+## BLEND_MODE_ADD, GhostPreview._ready()) instead of the usual alpha-over
+## compositing, and also emits light of its own (emission_enabled) at this
+## multiplier -- both brighten whatever renders behind/inside the column
+## instead of just tinting over it, matching the owner's request. Visual
+## only: nothing about placement rules reads this prism.
+@export var projection_emission_energy: float = 1.5
 ## DECISION (config/GhostTuning.gd, Bontago-xtq.7): true reuses the same
 ## valid/invalid/hole/locked state colours the footprint and held shape's own
 ## body already show (see GhostPreview._apply_projection_material()'s own
@@ -148,9 +179,14 @@ extends Resource
 ## how the interval-locked state already reads. Left as its own field (not a
 ## direct reuse of locked_tint_color) so the tuning panel can still split them
 ## apart later without a second migration.
-@export var invalid_tint_color: Color = Color(0.6, 0.6, 0.6, 0.55)
+## Bontago-xtq.9: alpha raised from 0.55 to 0.75 alongside tint_color's own
+## alpha above (owner test 2026-09-23, "the ghost block should be a bit more
+## opaque").
+@export var invalid_tint_color: Color = Color(0.6, 0.6, 0.6, 0.75)
 ## Hatched pattern tint over a hole.
-@export var hole_tint_color: Color = Color(0.95, 0.75, 0.15, 0.65)
+## Bontago-xtq.9: alpha raised from 0.65 to 0.75, same reasoning as
+## tint_color/invalid_tint_color above.
+@export var hole_tint_color: Color = Color(0.95, 0.75, 0.15, 0.75)
 ## Bontago-mv0.10 (spec 2.4/2.5 "[ORIGINAL target]" placement cadence): grey,
 ## the interval-locked state -- this slot released a piece early this
 ## interval and is only aiming/preparing the next one, which cannot be
@@ -158,7 +194,9 @@ extends Resource
 ## red on purpose: spec 2.5, "A location-valid ghost does not imply that the
 ## current interval permits release," so a locked-but-otherwise-valid spot
 ## must not read as "you're standing somewhere wrong."
-@export var locked_tint_color: Color = Color(0.6, 0.6, 0.6, 0.55)
+## Bontago-xtq.9: alpha raised from 0.55 to 0.75, same reasoning as
+## tint_color/invalid_tint_color above.
+@export var locked_tint_color: Color = Color(0.6, 0.6, 0.6, 0.75)
 ## UV tiling density of the procedural hatch pattern across the held shape.
 @export var hatch_scale: float = 6.0
 ## Fraction of each hatch tile that's opaque stripe vs. see-through gap.
