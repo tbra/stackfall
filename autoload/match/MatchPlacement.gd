@@ -42,6 +42,30 @@ var _match: MatchAutoload = null
 ## duplicated or lost").
 var _blocks_spawned: int = 0
 
+## M4 P2c: request_throw()'s own tunable (throw_max_speed) -- preloaded here
+## rather than added to autoload/Match.gd's field set (that file, per this
+## package's own file ownership, gets only a one-line forward), the same way
+## Match.gd itself preloads _physics_tuning/_territory_tuning etc.
+var _special_tuning: SpecialTuning = preload("res://config/special_tuning.tres")
+
+## _spawn_block()'s SpecialDef-by-id cache (M4 P2c), rebuilt once per match:
+## `_special_defs_config` is compared by *identity*, not equality, against
+## `_match.config` -- autoload/match/MatchLifecycle.gd's start_match()
+## replaces that field with a fresh `match_config.duplicate(true)` every
+## match, so a changed reference alone means "a new match started", with no
+## reset() hook of this package's own needed on a file it does not own.
+var _special_defs_by_id: Dictionary = {}
+var _special_defs_config: MatchConfig = null
+
+## _attach_pending_special()'s per-id warning gate: an empty config/specials/
+## roster (P3-P5 not landed yet) or a misconfigured drawer would otherwise
+## push_warning on every single spawn once gifts are common, drowning any
+## other warning in the log. DECISION (autoload/match/MatchPlacement.gd, M4
+## P2c): warn once per distinct bad id for the life of the process rather
+## than once per match or every occurrence -- surfaces a genuinely stuck
+## drawer/roster bug without spamming it.
+var _warned_special_ids: Dictionary = {}
+
 
 func setup(match_ref: MatchAutoload) -> void:
 	_match = match_ref
@@ -214,20 +238,138 @@ func request_place(
 		# narrowed by Bontago-mv0.24 to auto-drop only (see above): a forced
 		# release that finds no valid point to relocate to still spawns the
 		# block and throws it off the map; it is still consumed either way.
+		#
+		# DECISION (autoload/match/MatchPlacement.gd, Bontago-1en.13 review
+		# fix, spec 2.5's OPEN "how expiry handles a held special"): a burn
+		# must NOT pop/attach the pending special -- _attach_pending_special()
+		# is deliberately not called on this path, so an unlucky forced
+		# auto-drop that finds nowhere valid to land never destroys a queued
+		# special; it stays queued for the slot's next spawn instead.
 		_burn_block(spawned, final_disk_origin)
 		Events.placement_rejected.emit(slot_id, reason)
-	elif outcome["use_relocation"]:
-		# Bontago-mv0.24: this auto-drop *did* find a valid point and landed
-		# there instead of at the caller's raw ghost position -- tell the
-		# owning client where, so its cursor and camera can jump to match
-		# (game/PlayerController.gd's _on_placement_relocated).
-		Events.placement_relocated.emit(slot_id, final_disk_origin)
+	else:
+		# The block actually landed somewhere valid -- at the caller's own
+		# spot, or (see below) relocated -- so this is the one path allowed
+		# to consume the pending special.
+		_attach_pending_special(spawned, slot_id)
+		if outcome["use_relocation"]:
+			# Bontago-mv0.24: this auto-drop *did* find a valid point and
+			# landed there instead of at the caller's raw ghost position --
+			# tell the owning client where, so its cursor and camera can jump
+			# to match (game/PlayerController.gd's _on_placement_relocated).
+			Events.placement_relocated.emit(slot_id, final_disk_origin)
 
 	_match._feed._consume_and_refeed(slot_id, auto_drop)
 	if _match.config.hot_seat:
 		_match.advance_turn()
 
 	return reason
+
+
+## Spec 2.5's throw: releases a pending special with velocity instead of
+## dropping it in place (spec 2.5: "Throw strength scales with drag distance,
+## capped at throw_max_speed = 25 m/s"; spec 3.4: "request_throw(slot_id,
+## pos, orient, velocity): the host clamps velocity to throw_max_speed").
+## Mirrors request_place() guard-for-guard (docs/M4_P2_PACKAGES.md P2c:
+## "check-for-check identical") through the pose-well-formed gate, then
+## diverges: a throw only ever fires a pending special (REASON_NOT_A_SPECIAL
+## otherwise, checked before the raycast -- there is nothing to test a point
+## for without one), a refused throw is never burned -- the piece stays held
+## exactly like a refused manual placement (Bontago-mv0.24's own contract,
+## see that function's doc comment) -- and the release velocity is always
+## clamped rather than ever being a refusal reason.
+##
+## `velocity` is world-space, the throw gesture's own launch vector (P2d
+## builds it from drag distance/direction, capped again on that side too --
+## this clamp is the authoritative one). `feed_seq`/the -1 sentinel are
+## exactly request_place()'s own contract.
+func request_throw(
+	slot_id: int,
+	origin: Vector3,
+	orientation_index: int,
+	free_quat: Quaternion,
+	velocity: Vector3,
+	feed_seq: int = -1
+) -> StringName:
+	if not _match._is_host():
+		return PlacementRules.REASON_NO_BLOCK
+	if _match.state() != MatchAutoload.State.PLAYING or _match._field == null or _match._blocks_parent == null:
+		return PlacementRules.REASON_NO_BLOCK
+	if slot_id < 0 or slot_id >= _match.slot_count():
+		return PlacementRules.REASON_NO_BLOCK
+	if feed_seq >= 0 and feed_seq != _match.feed_seq(slot_id):
+		return PlacementRules.REASON_NO_BLOCK
+	var acting_slot: PlayerSlot = _match.slot(slot_id)
+	if not acting_slot.home_flag_alive:
+		return PlacementRules.REASON_NO_BLOCK
+	if _match.config.hot_seat and slot_id != _match.active_slot():
+		return PlacementRules.REASON_NOT_YOUR_TURN
+	var shape: BlockShape = _match.held_shape(slot_id)
+	if shape == null:
+		return PlacementRules.REASON_NO_BLOCK
+	if _match.is_release_locked(slot_id):
+		# DECISION (autoload/match/MatchPlacement.gd, M4 P2c): request_place()
+		# only checks this when `not auto_drop` -- a throw has no auto_drop
+		# equivalent at all (the feed timer's forced release always drops
+		# wherever the ghost sits, never throws it), so this is unconditional,
+		# the same branch request_place() takes for every one of its own
+		# deliberate (non-auto_drop) releases.
+		return PlacementRules.REASON_NO_BLOCK
+	if not is_pose_well_formed(origin, orientation_index, free_quat) or not velocity.is_finite():
+		return PlacementRules.REASON_NO_BLOCK
+	if _match.held_special(slot_id) == &"":
+		return ThrowRules.REASON_NOT_A_SPECIAL
+
+	var basis: Basis = Basis(free_quat) * BlockOrientations.get_basis(orientation_index)
+	var local_origin: Vector3 = _match._field.to_local(origin)
+	var team_id: int = acting_slot.team_id
+
+	# Exactly request_place()'s own raycast-then-point-test (Bontago-cmc.7);
+	# ThrowRules.validate_release_point() delegates to the identical
+	# PlacementRules.validate_point() so a throw and a placement can never
+	# disagree about what "your own territory" means at a point.
+	var result: PlacementRules.Result
+	var disk_origin: Vector2 = Vector2(local_origin.x, local_origin.z)
+	var hit: Variant = _match._field.raycast_down_disk_local(origin)
+	if hit == null:
+		result = PlacementRules.Result.OFF_DISK
+	else:
+		disk_origin = hit as Vector2
+		result = ThrowRules.validate_release_point(disk_origin, _match.raster(), team_id)
+	if result != PlacementRules.Result.VALID:
+		# docs/M4_P2_PACKAGES.md P2c: "a refused throw keeps the piece in
+		# hand, like a refused click; never burns" -- mirrors request_place()'s
+		# manual-refusal path (Bontago-mv0.24): nothing spawns, nothing is
+		# consumed, and the caller may simply try again.
+		var reason: StringName = ThrowRules.reason_for(result)
+		Events.placement_rejected.emit(slot_id, reason)
+		return reason
+
+	var clamped_velocity: Vector3 = velocity.limit_length(_special_tuning.throw_max_speed)
+	var world_origin: Vector3 = _match._field.to_global(Vector3(disk_origin.x, local_origin.y, disk_origin.y))
+	var spawned: Block = _spawn_block(shape, world_origin, basis, slot_id)
+	spawned.linear_velocity = clamped_velocity
+	# DECISION (autoload/match/MatchPlacement.gd, M4 P2c): spec 3.5 names
+	# "thrown specials" as their own continuous_cd case in the same sentence
+	# as "any body moving faster than 15 m/s", but as a case of its own, not
+	# conditioned on that speed -- request_throw() only ever reaches this line
+	# for a pending special (REASON_NOT_A_SPECIAL above refuses every other
+	# call), so every thrown body qualifies unconditionally; no second
+	# threshold tunable is read or needed here.
+	spawned.continuous_cd = true
+	# DECISION (autoload/match/MatchPlacement.gd, Bontago-1en.13 review fix):
+	# a throw is never a burn -- every earlier return above already refused
+	# anything that would not land -- so this is always the one call that
+	# pops/attaches the pending special this throw is spending (see
+	# request_place()'s matching call, which is conditional, for why this one
+	# is not).
+	_attach_pending_special(spawned, slot_id)
+
+	_match._feed._consume_and_refeed(slot_id, false)
+	if _match.config.hot_seat:
+		_match.advance_turn()
+
+	return PlacementRules.REASON_OK
 
 
 ## Whether a pose can be evaluated at all: a finite origin, a free quaternion
@@ -322,7 +464,90 @@ func _spawn_block(shape: BlockShape, world_origin: Vector3, basis: Basis, slot_i
 	_blocks_spawned += 1
 	if _match._replicator != null:
 		_match._replicator.replicate_spawn(block, block.net_id)
+	# M4 P2c: unlike every earlier revision of this file, _spawn_block() does
+	# NOT itself pop/attach a pending special -- see _attach_pending_special()'s
+	# own doc comment (DECISION, Bontago-1en.13 review fix): a burned block
+	# must not consume the queue, and only the caller (request_place()/
+	# request_throw()) knows at this point whether the spawn it just asked for
+	# is going to be burned. Each call site calls _attach_pending_special()
+	# itself, only on a path that is never a burn.
 	return block
+
+
+## M4 P2c (docs/M4_P2_PACKAGES.md, orchestrator amendment 1): the special
+## TYPE was already drawn at claim time by MatchGifts' own weighted drawer
+## (autoload/match/MatchGifts.gd's set_special_drawer()/_ensure_special_
+## drawer_installed()) -- this only pops the head id `slot_id`'s queue was
+## holding and, if it resolves to a real, roster-enabled SpecialDef, attaches
+## a bound SpecialBehavior. Called explicitly by request_place() (only on its
+## non-burn path) and request_throw() (always -- a throw is never a burn), a
+## placed special arms too, exactly like a thrown one, only the launch
+## velocity differs.
+##
+## DECISION (autoload/match/MatchPlacement.gd, Bontago-1en.13 review fix,
+## spec 2.5's OPEN "how expiry handles a held special"): this is
+## deliberately NOT called from _spawn_block() itself any more -- popping the
+## queue there ran unconditionally, before the caller knew whether the block
+## it just spawned was about to be burned (a forced auto-drop with nowhere
+## valid to land), so an unlucky expiry could destroy a player's queued
+## special for nothing. Each call site now decides for itself, only on a
+## path that actually keeps the block.
+##
+## Both call sites are host-only (request_place()/request_throw() both
+## refuse immediately off-host), so every attach and every
+## Events.special_triggered forward this produces happens on the host only
+## (docs/M4_P2_PACKAGES.md P2c brief).
+func _attach_pending_special(block: Block, slot_id: int) -> void:
+	var special_id: StringName = _match.pop_pending_special(slot_id)
+	if special_id == &"":
+		return
+	if special_id == MatchGifts.PENDING_SPECIAL_ID:
+		# The default drawer's placeholder -- MatchGifts has not installed its
+		# real weighted drawer yet (an empty config/specials/ roster; P3-P5 not
+		# landed). Safe default: spawn exactly as an ordinary block.
+		_warn_unresolved_special_once(special_id, "no roster installed yet")
+		return
+	var def: SpecialDef = _special_def_for_id(special_id)
+	var enabled: Array[StringName] = _match.config.enabled_specials if _match.config != null else []
+	if def == null:
+		_warn_unresolved_special_once(special_id, "unknown special id")
+		return
+	if not enabled.is_empty() and not enabled.has(def.id):
+		_warn_unresolved_special_once(special_id, "not in this match's enabled_specials")
+		return
+	var behavior: SpecialBehavior = SpecialBehavior.new()
+	block.add_child(behavior)
+	behavior.bind(block, def, _special_tuning)
+	behavior.triggered.connect(_on_special_behavior_triggered.bind(block.net_id))
+
+
+## Forwards SpecialBehavior's own `triggered` signal (game/specials/
+## SpecialBehavior.gd, not touched by this package -- orchestrator amendment
+## 2) into Events.special_triggered, appended to autoload/Events.gd by this
+## package. `net_id` is bound at connect time in _attach_pending_special()
+## rather than read from `block` here, so a freed block between trigger and
+## forward can never matter.
+func _on_special_behavior_triggered(def_id: StringName, position: Vector3, chain_depth: int, net_id: int) -> void:
+	Events.special_triggered.emit(net_id, def_id, position, chain_depth)
+
+
+## Caches SpecialDef.load_all_specials() once per match -- see
+## `_special_defs_config`'s own field comment for the identity-check
+## rebuild rule.
+func _special_def_for_id(special_id: StringName) -> SpecialDef:
+	if _special_defs_config != _match.config:
+		_special_defs_config = _match.config
+		_special_defs_by_id.clear()
+		for def: SpecialDef in SpecialDef.load_all_specials():
+			_special_defs_by_id[def.id] = def
+	return _special_defs_by_id.get(special_id) as SpecialDef
+
+
+func _warn_unresolved_special_once(special_id: StringName, why: String) -> void:
+	if _warned_special_ids.has(special_id):
+		return
+	_warned_special_ids[special_id] = true
+	push_warning("MatchPlacement: spawning %s as an ordinary block (%s)" % [special_id, why])
 
 
 ## Blocks this instance has spawned since the match started. The M3a

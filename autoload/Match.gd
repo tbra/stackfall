@@ -386,6 +386,21 @@ func request_place(
 	return _placement.request_place(slot_id, origin, orientation_index, free_quat, auto_drop, feed_seq)
 
 
+## Spec 2.5's throw: releases a pending special with velocity instead of
+## dropping it in place. See MatchPlacement.request_throw() for the full
+## contract (guard order, REASON_NOT_A_SPECIAL, the never-burns refusal, the
+## throw_max_speed clamp and continuous_cd).
+func request_throw(
+	slot_id: int,
+	origin: Vector3,
+	orientation_index: int,
+	free_quat: Quaternion,
+	velocity: Vector3,
+	feed_seq: int = -1
+) -> StringName:
+	return _placement.request_throw(slot_id, origin, orientation_index, free_quat, velocity, feed_seq)
+
+
 ## Whether a pose can be evaluated at all. See MatchPlacement.is_pose_well_formed().
 func is_pose_well_formed(origin: Vector3, orientation_index: int, free_quat: Quaternion) -> bool:
 	return _placement.is_pose_well_formed(origin, orientation_index, free_quat)

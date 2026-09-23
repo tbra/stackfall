@@ -40,6 +40,27 @@ var _next_gift_id: int = 0
 ## P2b can land in parallel with fully disjoint files.
 var _special_drawer: Callable = _default_special_drawer
 
+## M4 P2c: the roster _weighted_special_drawer() draws from, filtered to
+## `_match.config.enabled_specials` (empty means every special, per
+## config/MatchConfig.gd:57's own doc comment) once per match, plus the own
+## RNG that draw uses. Reset flags (`_roster_ready`/`_special_rng_ready`) so a
+## new match re-filters against its own config rather than reusing the
+## previous match's roster or reseeding an already-seeded RNG.
+##
+## DECISION (autoload/match/MatchGifts.gd, M4 P2c): the P2c package brief
+## says the real drawer is installed "on match start/setup"; there is no
+## start_match() hook this package may add one to without editing
+## autoload/match/MatchLifecycle.gd (owned by a different package, and not
+## this package's file) or autoload/Match.gd's _ready() (config is not yet
+## assigned there either). Installing lazily on first real use --
+## _ensure_special_drawer_installed(), called from _claim_gift() right before
+## _draw_special_id() -- mirrors _ensure_rng()'s own lazy convention just
+## below and needs no other file to know P2c exists.
+var _roster_ready: bool = false
+var _special_roster: Array[SpecialDef] = []
+var _special_rng: RandomNumberGenerator = RandomNumberGenerator.new()
+var _special_rng_ready: bool = false
+
 ## Live, unclaimed crates: gift_id -> {"position": Vector2 (disk-local),
 ## "age": float, "node": GiftCrate}. Every entry, host or client mirror, is
 ## created and freed only through _make_crate_node()/_free_crate_visual() so
@@ -231,6 +252,62 @@ func _ensure_rng() -> void:
 		_rng.randomize()
 
 
+## Lazily installs the real weighted-SpecialDef drawer the first time a
+## match actually claims a crate, filtered to
+## `_match.config.enabled_specials` (empty means every special --
+## config/MatchConfig.gd:57). Idempotent per match via `_roster_ready`,
+## cleared by reset(). Keeps `_special_drawer` at its default
+## (_default_special_drawer, always PENDING_SPECIAL_ID) when the filtered
+## roster is empty -- P3-P5 have not landed any config/specials/*.tres yet,
+## so a spawn with no draw stays a safe, ordinary block (see
+## MatchPlacement._spawn_block()'s own P2c extension).
+func _ensure_special_drawer_installed() -> void:
+	if _roster_ready:
+		return
+	_roster_ready = true
+	var all_defs: Array[SpecialDef] = SpecialDef.load_all_specials()
+	var enabled: Array[StringName] = _match.config.enabled_specials if _match.config != null else []
+	var roster: Array[SpecialDef] = []
+	if enabled.is_empty():
+		roster = all_defs
+	else:
+		for def: SpecialDef in all_defs:
+			if enabled.has(def.id):
+				roster.append(def)
+	if roster.is_empty():
+		return
+	_special_roster = roster
+	_ensure_special_rng()
+	_special_drawer = _weighted_special_drawer
+
+
+## DECISION (autoload/match/MatchGifts.gd, M4 P2c): rng_seed + a distinct odd
+## offset from _ensure_rng()'s own 999983, so a fixed match seed reproduces
+## the special-type draw deterministically without ever colliding with the
+## gift-spawn-point RNG or a slot's own bag sequence (same stride convention
+## as MatchFeed._build_bags()/this file's _ensure_rng()).
+func _ensure_special_rng() -> void:
+	if _special_rng_ready:
+		return
+	_special_rng_ready = true
+	if _match.config != null and _match.config.rng_seed >= 0:
+		_special_rng.seed = _match.config.rng_seed + 999979
+	else:
+		_special_rng.randomize()
+
+
+## The real drawer, installed by _ensure_special_drawer_installed() once the
+## filtered roster is non-empty. Roulette-weighted via SpecialDef.
+## pick_weighted() -- see that function's own null-on-empty-array contract,
+## guarded against here too since `_special_roster` could in principle be
+## reassigned empty only by _ensure_special_drawer_installed() itself, which
+## never installs this Callable in that case; kept anyway so this function's
+## own contract (always a valid, non-empty StringName) never depends on that.
+func _weighted_special_drawer() -> StringName:
+	var picked: SpecialDef = SpecialDef.pick_weighted(_special_roster, _special_rng)
+	return picked.id if picked != null else PENDING_SPECIAL_ID
+
+
 func _spawn_crate_at(point: Vector2) -> void:
 	var gift_id: int = _next_gift_id
 	_next_gift_id += 1
@@ -299,6 +376,7 @@ func _claim_gift(gift_id: int, team_id: int) -> void:
 		return
 	if not _free_crate_visual(gift_id):
 		return
+	_ensure_special_drawer_installed()
 	var special_id: StringName = _draw_special_id()
 	queue.append(special_id)
 	Events.gift_claimed.emit(gift_id, team_id, special_id)
@@ -430,6 +508,9 @@ func reset() -> void:
 	_pending_queues.clear()
 	_next_gift_id = 0
 	_rng_ready = false
+	_roster_ready = false
+	_special_roster = []
+	_special_rng_ready = false
 	if _container != null and is_instance_valid(_container):
 		_container.queue_free()
 	_container = null

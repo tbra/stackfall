@@ -202,6 +202,43 @@ func test_custom_drawer_id_is_queued_and_emitted() -> void:
 	assert_signal_emitted_with_parameters(Events, "gift_claimed", [gift_id, 0, &"jumping_bean"])
 
 
+## M4 P2c: _ensure_special_drawer_installed() must leave the shipped default
+## drawer (always PENDING_SPECIAL_ID) in place when the filtered
+## res://config/specials/ roster is empty -- true today, since P3-P5 have not
+## landed any real SpecialDef .tres there yet. Proves the install path runs
+## (does not error, does not clobber the injected test drawer this file's
+## own after_each() always restores) without needing a real .tres on disk.
+func test_installing_the_real_drawer_with_an_empty_roster_keeps_the_placeholder() -> void:
+	_start_playing(_config())
+	assert_false(Match._gifts._roster_ready, "setup: not installed until the first real claim")
+
+	var gift_id: int = _inject_crate(0)
+	_step_territory()
+
+	assert_true(Match._gifts._roster_ready, "the install attempt must run exactly once per match")
+	assert_eq(Match.held_special(0), MatchGifts.PENDING_SPECIAL_ID,
+		"an empty config/specials/ roster must leave the placeholder drawer installed")
+	assert_true(Match._gifts._special_roster.is_empty())
+
+
+## _weighted_special_drawer() itself (the Callable
+## _ensure_special_drawer_installed() would install for a non-empty roster),
+## exercised directly against a manufactured roster/rng so this test needs no
+## real .tres under res://config/specials/ either (docs/M4_P2_PACKAGES.md
+## P2c: config/specials/ stays genuinely empty until P3-P5).
+func test_weighted_special_drawer_draws_from_the_installed_roster() -> void:
+	_start_playing(_config())
+	var only: SpecialDef = SpecialDef.new()
+	only.id = &"only_special"
+	only.weight = 1.0
+	Match._gifts._special_roster = [only]
+	Match._gifts._special_rng.seed = 1
+
+	var drawn: StringName = Match._gifts._weighted_special_drawer()
+
+	assert_eq(drawn, &"only_special", "a single-candidate roster must always draw that candidate")
+
+
 ## apply_replicated_claim() is the client mirror of _claim_gift() and must
 ## respect the identical cap.
 func test_apply_replicated_claim_respects_the_cap() -> void:
