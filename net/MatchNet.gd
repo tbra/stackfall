@@ -646,6 +646,30 @@ func _gift_wire_ok(gift_id: int, position: Vector2) -> bool:
 	return position.length() <= radius + 0.01
 
 
+## M4 P2b wire safety for EVENT_GIFT_CLAIMED's third argument (Orchestrator
+## amendment 1): the drawn special id is trusted only if it is shaped like
+## one of ours -- non-empty, at most 32 characters, [A-Za-z0-9_] only --
+## following _gift_wire_ok's own "a malformed or ancient payload is dropped,
+## not trusted" pattern. This is a syntactic check only (P2c tightens it to
+## real roster membership once SpecialDef.load_all_specials() exists); a
+## client only ever uses this id to show in its own HUD/ghost and, later, to
+## hand to SpecialBehavior.bind(), and an unchecked string could otherwise
+## reach either unfiltered. No RegEx dependency (none exists elsewhere in
+## this codebase) -- a plain character scan is enough for an id this short.
+func _special_id_wire_ok(special_id: String) -> bool:
+	if special_id.is_empty() or special_id.length() > 32:
+		return false
+	for i: int in range(special_id.length()):
+		var c: int = special_id.unicode_at(i)
+		var is_upper: bool = c >= 65 and c <= 90
+		var is_lower: bool = c >= 97 and c <= 122
+		var is_digit: bool = c >= 48 and c <= 57
+		var is_underscore: bool = c == 95
+		if not (is_upper or is_lower or is_digit or is_underscore):
+			return false
+	return true
+
+
 ## A remote intent the host will not act on: counted against the sender's own
 ## slot so the harness identity accepted + refused == sent still holds, and
 ## echoed back so the sender's ghost unlocks now instead of waiting out
@@ -819,9 +843,9 @@ func _on_gift_spawned(gift_id: int, position: Vector2) -> void:
 		replicate_match_event(EVENT_GIFT_SPAWNED, [gift_id, position])
 
 
-func _on_gift_claimed(gift_id: int, slot_id: int) -> void:
+func _on_gift_claimed(gift_id: int, slot_id: int, special_id: StringName) -> void:
 	if _is_host():
-		replicate_match_event(EVENT_GIFT_CLAIMED, [gift_id, slot_id])
+		replicate_match_event(EVENT_GIFT_CLAIMED, [gift_id, slot_id, special_id])
 
 
 func _on_gift_expired(gift_id: int) -> void:
@@ -1063,8 +1087,19 @@ func net_match_event(event: StringName, args: Array) -> void:
 			# defense in depth) or the Events bus other listeners read.
 			if slot_id < 0 or slot_id >= _authority().slot_count():
 				return
-			_authority().apply_replicated_gift_claimed(claimed_gift_id, slot_id)
-			Events.gift_claimed.emit(claimed_gift_id, slot_id)
+			# Orchestrator amendment 1 (M4 P2b): the third argument is the
+			# special id drawn for this claim. A short args array (an older
+			# or malformed sender) is dropped rather than defaulted, unlike
+			# EVENT_FEED_ISSUED's optional trailing fields -- there is no
+			# safe "not sent" default for a special id the way there is for
+			# an unset feed_time_left.
+			if args.size() < 3:
+				return
+			var special_id: StringName = StringName(args[2])
+			if not _special_id_wire_ok(String(special_id)):
+				return
+			_authority().apply_replicated_gift_claimed(claimed_gift_id, slot_id, special_id)
+			Events.gift_claimed.emit(claimed_gift_id, slot_id, special_id)
 		EVENT_GIFT_EXPIRED:
 			var expired_gift_id: int = int(args[0])
 			if expired_gift_id < 0:

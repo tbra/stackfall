@@ -1,8 +1,8 @@
 class_name MatchGifts
 extends RefCounted
 ## Match's gift-crate lifecycle (spec 2.6): per-window spawn rolls, the
-## territory-tick claim/expire sweep, and the per-slot pending-special array
-## P2 reads (held_special()/_clear_held_special()).
+## territory-tick claim/expire sweep, and the per-slot pending-special FIFO
+## queue (held_special()/pop_pending_special()/pending_special_count()).
 ##
 ## Split out the same way MatchFeed/MatchPlacement/MatchTerritory/MatchLifecycle
 ## are (docs/AGENT_WORKFLOW.md "file ownership over function ownership"): a
@@ -19,15 +19,26 @@ var _gift_config: GiftConfig = preload("res://config/gift_config.tres")
 
 const GIFT_CRATE_SCENE: PackedScene = preload("res://game/GiftCrate.tscn")
 
-## The placeholder special id every claim hands out in M4 P1 (docs/M4_PLAN.md
-## P2 defines the real SpecialDef roster and swaps the held shape where
-## _clear_held_special() already runs; P1 only needs one stable, inspectable
-## value so held_special() is meaningful before that roster exists).
+## The id MatchGifts.PENDING_SPECIAL_ID's default drawer hands out until P2c
+## installs the real weighted SpecialDef pick (set_special_drawer() below).
+## Also the fallback a malformed drawer result is replaced with -- see
+## _draw_special_id().
 const PENDING_SPECIAL_ID: StringName = &"special_pending"
 
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _rng_ready: bool = false
 var _next_gift_id: int = 0
+
+## Orchestrator amendment 1 (docs/M4_P2_PACKAGES.md, 2026-09-23): the special
+## TYPE is drawn here, at claim time, on the host -- not at spawn time. Spec
+## 2.6 hands a player "a special as the next piece", so the player (and
+## later the HUD/ghost) must be able to know what they hold while aiming,
+## not just that they hold something. _draw_special_id() is the one call
+## site; P2c installs the real weighted SpecialDef.pick_weighted() draw
+## through set_special_drawer() once config/specials/ exists. Kept an
+## injectable Callable rather than a hard SpecialDef dependency so P2a and
+## P2b can land in parallel with fully disjoint files.
+var _special_drawer: Callable = _default_special_drawer
 
 ## Live, unclaimed crates: gift_id -> {"position": Vector2 (disk-local),
 ## "age": float, "node": GiftCrate}. Every entry, host or client mirror, is
@@ -35,13 +46,24 @@ var _next_gift_id: int = 0
 ## the two paths cannot drift.
 var _crates: Dictionary = {}
 
-## Parallel to Match's slots (see MatchLifecycle._build_slots()): the pending
-## special each slot is holding, or &"" for none. Grown lazily by
+## Parallel to Match's slots (see MatchLifecycle._build_slots()): each slot's
+## FIFO of drawn-but-unspent special ids, capped at
+## GiftConfig.max_pending_specials (Bontago-csc/Orchestrator amendment 1 --
+## replaces the earlier single-slot "latest wins" scalar). Grown lazily by
 ## _ensure_capacity() rather than sized off slot_count() at reset() time,
 ## because _reset_match_state() runs *before* the new match's slots are built
 ## (autoload/match/MatchLifecycle.gd's start_match(): reset, then
 ## _build_slots()) -- see that file's one-line reset() call below.
-var _held_specials: Array[StringName] = []
+##
+## DECISION (autoload/match/MatchGifts.gd, M4 P2b): this engine (Godot
+## 4.7.2) parses `Array[Array[StringName]]` as a "nested typed collections
+## are not supported" error -- verified directly against this build, not
+## assumed from docs. The outer array is therefore a plain `Array[Array]`;
+## each inner queue is still built exactly once, as a real `Array[StringName]`,
+## by _new_typed_queue() below, so every element still carries StringName's
+## runtime type check. Only the outer container's own element type is
+## unenforced by the engine.
+var _pending_queues: Array[Array] = []
 
 ## Lazily created the first time a crate needs a visual (host spawn or client
 ## mirror), as a SIBLING of Match's own blocks_parent (a child of that node's
@@ -60,54 +82,93 @@ func setup(match_ref: MatchAutoload) -> void:
 	_match = match_ref
 
 
-## The pending special `slot_id` is holding, or &"" for none. P2 reads this to
-## decide whether the next spawned block should be a special.
+## The default drawer: always PENDING_SPECIAL_ID, until P2c installs the real
+## weighted SpecialDef pick via set_special_drawer(). Bound as a Callable
+## default at declaration time (autoload/match/MatchGifts.gd's field-order
+## comment above _special_drawer), so P2a and P2b's file sets never overlap.
+func _default_special_drawer() -> StringName:
+	return PENDING_SPECIAL_ID
+
+
+## Host-only entry point P2c calls once config/specials/ exists; `drawer`
+## must be a `func() -> StringName`. Passing an invalid/null Callable is not
+## guarded here -- Callable.call() on one simply fails at the call site in
+## _draw_special_id(), which is guarded (see its own doc comment).
+func set_special_drawer(drawer: Callable) -> void:
+	_special_drawer = drawer
+
+
+## Builds one fresh per-slot queue. A real Array[StringName], not a plain
+## Array -- see _pending_queues' own DECISION for why the *outer* container
+## cannot also be typed on this engine version.
+func _new_typed_queue() -> Array[StringName]:
+	var queue: Array[StringName] = []
+	return queue
+
+
+## The oldest pending special `slot_id` is holding, or &"" for none -- a
+## peek, not a pop. P2c reads this to decide whether the next spawned block
+## should be a special; the HUD (Bontago-1en.16, split out of this package)
+## reads pending_special_count() for the queued-count indicator.
 func held_special(slot_id: int) -> StringName:
-	if slot_id < 0 or slot_id >= _held_specials.size():
+	if slot_id < 0 or slot_id >= _pending_queues.size():
 		return &""
-	return _held_specials[slot_id]
+	var queue: Array = _pending_queues[slot_id]
+	if queue.is_empty():
+		return &""
+	return queue[0]
 
 
-## Reconciling this with docs/M4_PLAN.md P2's own text (review fix 4): P2's
-## `_spawn_block()` extension (autoload/match/MatchPlacement.gd) runs before
-## MatchFeed._consume_and_refeed()'s clear -- request_place() resolves and
-## spawns the physical Block for the *currently* held shape first, and only
-## afterwards consumes/refeeds the slot -- so P2 reading held_special() inside
-## _spawn_block() always sees the value this package's on_feed_block_issued()
-## set for that slot's *previous* window, never the one this same placement
-## is about to clear. P2 is therefore safe to read held_special() there
-## without moving anything in this file.
-func _clear_held_special(slot_id: int) -> void:
-	if slot_id < 0 or slot_id >= _held_specials.size():
-		return
-	_held_specials[slot_id] = &""
+## Dequeues and returns `slot_id`'s oldest pending special, or &"" if its
+## queue is empty. P2c's _spawn_block() extension is the only mutator --
+## the queue no longer advances on its own when a new feed window opens (see
+## on_feed_block_issued() below); only an explicit pop shrinks it.
+func pop_pending_special(slot_id: int) -> StringName:
+	if slot_id < 0 or slot_id >= _pending_queues.size():
+		return &""
+	var queue: Array = _pending_queues[slot_id]
+	if queue.is_empty():
+		return &""
+	var popped: StringName = queue.pop_front()
+	return popped
+
+
+## How many specials `slot_id` currently has queued. ui/HUD.gd's indicator
+## (Bontago-1en.16, not this package) is the only consumer today.
+func pending_special_count(slot_id: int) -> int:
+	if slot_id < 0 or slot_id >= _pending_queues.size():
+		return 0
+	var queue: Array = _pending_queues[slot_id]
+	return queue.size()
 
 
 func _ensure_capacity(slot_id: int) -> void:
-	while _held_specials.size() <= slot_id:
-		_held_specials.append(&"")
+	while _pending_queues.size() <= slot_id:
+		_pending_queues.append(_new_typed_queue())
 
 
 ## DECISION (autoload/match/MatchGifts.gd, M4 P1b): "the feed issues a new
 ## window" is Events.feed_block_issued -- MatchFeed._issue_next_block() emits
 ## it every time any slot is handed a new held piece, on an early release, a
 ## forced auto-drop, or a hot-seat turn change alike. autoload/Match.gd
-## connects this to Events.feed_block_issued and forwards slot_id here; both
-## the special-clear and the spawn-roll gate below share the one connection
-## since P2's own clear needs the identical "a slot's next block was just
-## issued" moment.
+## connects this to Events.feed_block_issued and forwards slot_id here.
 ##
-## The clear always runs, for every slot, every window. The *roll* is gated
-## by _should_roll_for_window() below -- see review fix (Beads Bontago-4fa):
-## outside hot-seat every slot's window advances independently (spec 2.4's
-## "players act concurrently, each handling their own supplied piece"), so
-## rolling here unconditionally gave an N-player match ~N rolls per window
-## instead of GiftSpawner.should_spawn()'s documented "one roll per window,
-## for the whole match, not per player".
+## Orchestrator amendment 1 / Bontago-csc (M4 P2b): earlier this connection
+## also cleared the slot's held special every window -- that unconditional
+## clear is gone. The pending queue now advances only by an explicit
+## pop_pending_special() call (P2c's _spawn_block() extension), so a slot
+## that claims two crates before it ever places one special keeps both
+## queued across as many ordinary feed windows as it takes to burn through
+## them. Only the roll is still gated here, by _should_roll_for_window()
+## below -- see review fix (Beads Bontago-4fa): outside hot-seat every
+## slot's window advances independently (spec 2.4's "players act
+## concurrently, each handling their own supplied piece"), so rolling here
+## unconditionally gave an N-player match ~N rolls per window instead of
+## GiftSpawner.should_spawn()'s documented "one roll per window, for the
+## whole match, not per player".
 func on_feed_block_issued(slot_id: int) -> void:
 	if not _match._is_host():
 		return
-	_clear_held_special(slot_id)
 	if not _should_roll_for_window(slot_id):
 		return
 	_try_spawn()
@@ -218,18 +279,45 @@ func claim_or_expire_gifts(delta: float) -> void:
 		_expire_gift(gift_id)
 
 
-## DECISION (autoload/match/MatchGifts.gd, Bontago-59u): a new claim REPLACES
-## an existing pending special -- latest wins, never queued. There is only one
-## placeholder id in P1, so this matters only in that a second claim does not
-## error or stack; P2's real roster is where two different pending ids would
-## actually make the replacement observable end to end.
+## Bontago-csc, superseding the earlier "latest wins" scalar: a claim now
+## pushes onto `team_id`'s FIFO queue, capped at
+## GiftConfig.max_pending_specials.
+##
+## Orchestrator amendment 3 (2026-09-23, overrides this file's earlier
+## decision that a claim into a full queue "still pops the crate"): a claim
+## landing while the queue is already full does NOT consume the crate -- it
+## stays alive for anyone else in range and still expires by
+## GiftConfig.life_s, and gift_claimed does not fire. The cap check therefore
+## runs *before* _free_crate_visual(), not after -- simplest option that
+## cannot let a full queue deny the crate to every other player forever.
 func _claim_gift(gift_id: int, team_id: int) -> void:
-	if not _free_crate_visual(gift_id):
+	if team_id < 0:
 		return
 	_ensure_capacity(team_id)
-	if team_id >= 0 and team_id < _held_specials.size():
-		_held_specials[team_id] = PENDING_SPECIAL_ID
-	Events.gift_claimed.emit(gift_id, team_id)
+	var queue: Array = _pending_queues[team_id]
+	if queue.size() >= _gift_config.max_pending_specials:
+		return
+	if not _free_crate_visual(gift_id):
+		return
+	var special_id: StringName = _draw_special_id()
+	queue.append(special_id)
+	Events.gift_claimed.emit(gift_id, team_id, special_id)
+
+
+## Orchestrator amendment 1: the special TYPE is drawn here, at claim time.
+## A drawer that returns something that isn't a real, non-empty StringName is
+## treated as a bug in whatever installed it, not trusted silently -- an
+## empty id is held_special()'s own "nothing queued" sentinel, so queuing one
+## would silently swallow a claim. Checked with typeof() rather than an `as`
+## cast: casting an arbitrary Variant to StringName is not a safe no-op for
+## every input type on this engine, and a syntactic type check is all this
+## guard needs.
+func _draw_special_id() -> StringName:
+	var drawn: Variant = _special_drawer.call()
+	if typeof(drawn) == TYPE_STRING_NAME and String(drawn) != "":
+		return drawn
+	push_warning("MatchGifts: special drawer returned an invalid id (%s); falling back to PENDING_SPECIAL_ID" % [drawn])
+	return PENDING_SPECIAL_ID
 
 
 func _expire_gift(gift_id: int) -> void:
@@ -287,8 +375,8 @@ func _make_crate_node(point: Vector2) -> GiftCrate:
 # Called only by net/MatchNet.gd's net_match_event, only on a client (a
 # well-behaved host never receives its own replicated RPC). A client never
 # claims or expires anything itself -- these three only ever build or free a
-# visual, and the claim mirror also keeps held_special() accurate for a
-# client's own future HUD/P2 use.
+# visual, and the claim mirror also keeps held_special()/pending_special_
+# count() accurate for a client's own future HUD/P2c use.
 
 func apply_replicated_spawn(gift_id: int, position: Vector2) -> void:
 	if _crates.has(gift_id):
@@ -298,15 +386,27 @@ func apply_replicated_spawn(gift_id: int, position: Vector2) -> void:
 
 ## Review fix (Must #1): slot_id arrives over the wire, so it is bounds-checked
 ## against _match.slot_count() before it ever reaches _ensure_capacity() --
-## an unchecked garbage id would otherwise grow _held_specials without limit
+## an unchecked garbage id would otherwise grow _pending_queues without limit
 ## on every client that received it. Mirrors MatchLifecycle.
 ## apply_replicated_elimination()'s own slot(slot_id) null-check convention.
-func apply_replicated_claim(gift_id: int, slot_id: int) -> void:
+##
+## Bontago-csc: mirrors _claim_gift()'s own cap check (net/MatchNet.gd's wire
+## check has already rejected a malformed `special_id` by the time this
+## runs) -- a client's queue can never exceed the same
+## GiftConfig.max_pending_specials the host enforces. The crate visual is
+## freed unconditionally either way: a well-behaved host only ever sends
+## EVENT_GIFT_CLAIMED for a claim it actually accepted (amendment 3 keeps a
+## claim into a full queue from firing gift_claimed at all), so by the time a
+## client applies this, the host really did free that crate.
+func apply_replicated_claim(gift_id: int, slot_id: int, special_id: StringName) -> void:
 	_free_crate_visual(gift_id)
 	if slot_id < 0 or slot_id >= _match.slot_count():
 		return
 	_ensure_capacity(slot_id)
-	_held_specials[slot_id] = PENDING_SPECIAL_ID
+	var queue: Array = _pending_queues[slot_id]
+	if queue.size() >= _gift_config.max_pending_specials:
+		return
+	queue.append(special_id)
 
 
 func apply_replicated_expire(gift_id: int) -> void:
@@ -315,9 +415,11 @@ func apply_replicated_expire(gift_id: int) -> void:
 
 ## autoload/match/MatchLifecycle.gd's _reset_match_state() one-line call:
 ## drops every live crate (host-spawned or client-mirrored) and every pending
-## special, and un-seeds the RNG so the next match reseeds from its own
+## special queue, and un-seeds the RNG so the next match reseeds from its own
 ## config.rng_seed. Leaves _match alone -- same shape as every other
-## controller's reset.
+## controller's reset. Leaves _special_drawer untouched: it is an injectable
+## dependency (set_special_drawer()), not per-match state, the same way
+## _gift_config is never reset here either.
 func reset() -> void:
 	for gift_id: int in _crates.keys():
 		var entry: Dictionary = _crates[gift_id]
@@ -325,7 +427,7 @@ func reset() -> void:
 		if node != null and is_instance_valid(node):
 			node.queue_free()
 	_crates.clear()
-	_held_specials.clear()
+	_pending_queues.clear()
 	_next_gift_id = 0
 	_rng_ready = false
 	if _container != null and is_instance_valid(_container):

@@ -95,9 +95,14 @@ signal player_eliminated(slot_id: int, team_id: int)
 ## client only ever builds the visual from this and the two events below.
 signal gift_spawned(gift_id: int, position: Vector2)
 
-## `slot_id`'s territory swallowed a live crate: it pops, and `slot_id`'s next
-## fed block becomes a special (Match.held_special()).
-signal gift_claimed(gift_id: int, slot_id: int)
+## `slot_id`'s territory swallowed a live crate: it pops, and `slot_id`
+## queues a special (Match.held_special()/Match.pop_pending_special()).
+## `special_id` is the id drawn for this claim -- Orchestrator amendment 1
+## (M4 P2b, 2026-09-23): the special TYPE is decided at claim time on the
+## host, not at spawn time, so a player already knows what they hold while
+## aiming/placing it. See autoload/match/MatchGifts.gd's PENDING_SPECIAL_ID
+## for the placeholder id used until P2c installs the real weighted draw.
+signal gift_claimed(gift_id: int, slot_id: int, special_id: StringName)
 
 ## A crate lived past GiftConfig.life_s without being claimed.
 signal gift_expired(gift_id: int)
