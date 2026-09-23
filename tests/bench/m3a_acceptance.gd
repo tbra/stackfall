@@ -20,8 +20,10 @@ extends Node
 ## additional phase after the placement phase above, proving
 ## MatchNet.submit_throw()/net_request_throw() over a real ENet transport --
 ## an accepted throw for slot THROW_SLOT_ID (clamped speed, continuous_cd,
-## pending count back to zero) and a refused one outside that slot's own
-## territory. Off by default, so the existing placement-only regression's
+## pending count back to zero on both the host AND, since Bontago-1en.21's
+## EVENT_SPECIAL_CONSUMED replication, the throwing client itself) and a
+## refused one outside that slot's own territory. Off by default, so the
+## existing placement-only regression's
 ## command line and behavior are unchanged. Reports a second, independent
 ## `M3A_THROW result=PASS|FAIL` line (see _throw_check()); a throw failure
 ## still fails the whole run's exit code via M3A_ACCEPT's own summary (see
@@ -208,6 +210,27 @@ var _last_thrown_block_by_slot: Dictionary = {}
 ## not.
 var _rejected_events: Array[Dictionary] = []
 
+## Bontago-1en.21, client only: every Events.special_consumed this instance's
+## own slot has seen since the last time the throw phase cleared it, mirroring
+## _rejected_events' own pattern above -- {slot_id, special_id} dictionaries
+## in order. Waiting for this event to arrive is the robust proof "the host's
+## pop replicated", independent of pending_special_count()'s own transient
+## value: under -sim-lag/-sim-loss a retransmit can deliver this event and the
+## *next* claim's own replication back-to-back in the same frame, so a poll of
+## the derived count alone could miss the intermediate zero entirely (see
+## _run_client_throw_phase()'s own DECISION).
+var _consumed_events: Array[Dictionary] = []
+
+## Bontago-1en.21, client only: every Events.gift_claimed this instance's own
+## slot has seen, in order, since _ready() connected it -- an append-only log
+## (unlike Match.pending_special_count(), which both a claim and a consumed
+## pop can move in either direction), used to detect the throw phase's own
+## *second* claim (THROW_GIFT_ID_REJECT) robustly: "size() grew past a
+## baseline" is always well-defined regardless of how the derived queue depth
+## happens to read at any one polled instant (see _run_client_throw_phase()'s
+## own DECISION on why the derived count alone is not enough there).
+var _claimed_events: Array[Dictionary] = []
+
 ## Found dynamically at /root/MatchNet — see the header's guard 1. Once the
 ## integrator registers the real autoload this still resolves correctly;
 ## nothing here needs to change.
@@ -239,6 +262,8 @@ func _ready() -> void:
 	Events.block_placed.connect(_on_block_placed)
 	Events.block_replicated.connect(_on_block_replicated)
 	Events.placement_rejected.connect(_on_placement_rejected)
+	Events.special_consumed.connect(_on_special_consumed)
+	Events.gift_claimed.connect(_on_gift_claimed_for_slot)
 
 	if not await _wait_for_connection():
 		print("M3A_ACCEPT harness_blocked layer=Net reason=stub_no_transport mode=%d peers=%d" % [
@@ -632,24 +657,27 @@ func _run_client_throw_phase() -> void:
 		"pending_special_count(%d)=%d" % [slot_id, Match.pending_special_count(slot_id)]
 	)
 
-	# Review fix: captured here, before the accepted throw below is even
-	# sent, not after its own checks run. The host only ever queues its
-	# second claim (THROW_GIFT_ID_REJECT) *after* it independently confirms
-	# this throw succeeded (_run_host_throw_phase()'s own sequencing), so
-	# capturing the baseline this early guarantees it cannot already include
-	# that second claim -- reading it after the accepted-throw checks (this
-	# function's own ~THROW_RESULT_WAIT_SECONDS pause) raced the host's much
-	# faster round trip and intermittently read a baseline that had already
-	# been bumped to 2, so "wait for > baseline" below could never resolve
-	# (reproduced: Bontago's M4 P2c-ii review, "still 2 after 4.0s").
-	var pending_after_first_claim: int = Match.pending_special_count(slot_id)
+	# DECISION (tests/bench/m3a_acceptance.gd, Bontago-1en.21): captured here,
+	# before the throw below is even submitted -- at this exact point exactly
+	# one claim (the accepted one) can possibly exist, since the host's own
+	# second claim is only ever queued after it independently confirms this
+	# throw's own block exists, which cannot happen before the throw itself
+	# is sent. Capturing any later (e.g. once the accepted throw's own
+	# consumed-event has been confirmed below) is NOT safe: reproduced with
+	# both -Peers 2 and -Peers 4, the second claim's own replication can
+	# arrive close enough behind the first's consumed-event replication that
+	# a later snapshot already includes it, leaving no "one more claim"
+	# transition for the wait near the end of this function to ever detect.
+	var claims_before_throw: int = _claimed_events.size()
 
-	# Known limitation (not asserted here): the host never replicates a
-	# "special consumed" event, so this client's own pending_special_count
-	# stays at 1 even after the throw below is accepted and spent on the
-	# host -- see this file's header and the M4 P2c-ii report for the full
-	# reasoning. Only the host side (_run_host_throw_phase()) asserts the
-	# pending count returns to zero.
+	# Bontago-1en.21 (was a known limitation, now fixed): the host replicates
+	# a "special consumed" event (Events.special_consumed / net/MatchNet.gd's
+	# EVENT_SPECIAL_CONSUMED) the moment it pops the queue for an accepted
+	# throw or placement, so this client eventually learns its own special
+	# was actually spent -- not just stay at pending_special_count() == 1
+	# forever, which was this package's own bug. See the DECISION below on
+	# why that is proved by waiting for the *event*, not by re-polling the
+	# count the way "throw_client_learned_pending_special" above does.
 	#
 	# Review fix: offset away from home_position, not home_position itself --
 	# the placement phase's own six releases per slot already scattered
@@ -663,9 +691,34 @@ func _run_client_throw_phase() -> void:
 	var origin: Vector3 = Vector3(home.x, PLACE_HEIGHT, home.y)
 	var before_replicated: int = _replicated_block_count()
 	_rejected_events.clear()
+	_consumed_events.clear()
 	_submit_throw(slot_id, origin, Vector3(THROW_VELOCITY_SPEED, 0.0, 0.0))
-	await get_tree().create_timer(THROW_RESULT_WAIT_SECONDS).timeout
 
+	# DECISION (tests/bench/m3a_acceptance.gd, Bontago-1en.21): waits for the
+	# Events.special_consumed *event* to arrive (via _consumed_events, an
+	# _on_placement_rejected-style listener -- see its own field comment),
+	# not for Match.pending_special_count(slot_id) to read back down to zero.
+	# Reproduced against THROW_SLOT_ID's own -sim-lag=100 -sim-loss=0.02
+	# client (tools/run_m3a_local.ps1's default):
+	# an ENet retransmit after a lost packet can deliver this event and the
+	# *next* claim's own EVENT_GIFT_CLAIMED replication in the same client
+	# frame, so polling the derived count risked reading only their *net*
+	# effect (back to 1, having skipped 0 entirely) and never observing the
+	# transient zero at all -- a false "still 1" failure for a decrement that
+	# genuinely happened. The event itself always fires exactly once for this
+	# throw's own pop, strictly before that next claim's own dispatch (both
+	# ride net_match_event on the same reliable channel, in send order), so
+	# it is unaffected by whether the *count* ever visibly rests at zero.
+	var got_consumed_event: bool = await _wait_for_condition(
+		func() -> bool: return not _consumed_events.is_empty(),
+		THROW_CLAIM_WAIT_SECONDS + THROW_RESULT_WAIT_SECONDS
+	)
+	_throw_check(
+		"throw_client_pending_count_zero", got_consumed_event,
+		"consumed_events=%s pending_special_count(%d)=%d" % [
+			_consumed_events, slot_id, Match.pending_special_count(slot_id)
+		]
+	)
 	_throw_check(
 		"throw_client_no_rejection", _rejected_events.is_empty(),
 		"rejected_events=%s" % [_rejected_events]
@@ -684,27 +737,26 @@ func _run_client_throw_phase() -> void:
 	)
 
 	# --- Negative: a release point outside this slot's own territory ------
-	# Waiting for the client's own pending_special_count to grow past the
-	# baseline captured above proves the host's second claim
-	# (_run_host_throw_phase()'s own THROW_GIFT_ID_REJECT) has already been
-	# applied host-side too -- the host always applies a claim to itself
-	# before broadcasting it, so by the time this client observes the
-	# replicated increase, the coming refusal is guaranteed to be ThrowRules'
-	# territory check, not "nothing pending".
+	# Waiting for _claimed_events to grow past the baseline captured above
+	# proves the host's second claim (_run_host_throw_phase()'s own
+	# THROW_GIFT_ID_REJECT) has already been applied host-side too -- the
+	# host always applies a claim to itself before broadcasting it, so by the
+	# time this client observes the new entry, the coming refusal is
+	# guaranteed to be ThrowRules' territory check, not "nothing pending".
 	if not await _wait_for_condition(
-		func() -> bool: return Match.pending_special_count(slot_id) > pending_after_first_claim,
+		func() -> bool: return _claimed_events.size() > claims_before_throw,
 		THROW_CLAIM_WAIT_SECONDS
 	):
 		_throw_check(
 			"throw_client_learned_second_pending_special", false,
-			"pending_special_count(%d) still %d after %.1fs" % [
-				slot_id, Match.pending_special_count(slot_id), THROW_CLAIM_WAIT_SECONDS
-			]
+			"claimed_events=%s after %.1fs" % [_claimed_events, THROW_CLAIM_WAIT_SECONDS]
 		)
 		return
 	_throw_check(
 		"throw_client_learned_second_pending_special", true,
-		"pending_special_count(%d)=%d" % [slot_id, Match.pending_special_count(slot_id)]
+		"claimed_events=%s pending_special_count(%d)=%d" % [
+			_claimed_events, slot_id, Match.pending_special_count(slot_id)
+		]
 	)
 
 	var far_origin: Vector3 = Vector3(
@@ -796,6 +848,24 @@ func _on_placement_rejected(slot_id: int, reason: StringName) -> void:
 	if slot_id != Net.local_slot():
 		return
 	_rejected_events.append({"slot_id": slot_id, "reason": reason})
+
+
+## Bontago-1en.21: _on_placement_rejected's own twin for Events.special_
+## consumed -- see _consumed_events' own field comment for why this is
+## more reliable proof of arrival than polling pending_special_count().
+func _on_special_consumed(slot_id: int, special_id: StringName) -> void:
+	if slot_id != Net.local_slot():
+		return
+	_consumed_events.append({"slot_id": slot_id, "special_id": special_id})
+
+
+## Bontago-1en.21: see _claimed_events' own field comment. Named _for_slot,
+## not _on_gift_claimed, so it reads distinctly from net/MatchNet.gd's own
+## same-named host-side handler in any shared log/backtrace.
+func _on_gift_claimed_for_slot(_gift_id: int, slot_id: int, special_id: StringName) -> void:
+	if slot_id != Net.local_slot():
+		return
+	_claimed_events.append({"slot_id": slot_id, "special_id": special_id})
 
 
 func _role_flag_was_given() -> bool:

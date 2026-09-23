@@ -346,3 +346,60 @@ func test_auto_drop_that_relocates_still_attaches_and_pops() -> void:
 			behavior = child as SpecialBehavior
 	assert_not_null(behavior, "a relocated auto-drop must still attach the special")
 	behavior.free()
+
+
+# --- Bontago-1en.21: Events.special_consumed must fire exactly on a real pop -
+
+## The bug this package fixes: MatchGifts.pop_pending_special() must emit
+## Events.special_consumed exactly once, with the popped id, on the accepted-
+## throw path -- request_throw()'s own call to _attach_pending_special() is
+## its only pop.
+func test_accepted_throw_emits_special_consumed_exactly_once_with_the_popped_id() -> void:
+	Match.start_match(_config())
+	_run_countdown()
+	var slot_id: int = 0
+	_queue_special(slot_id, &"special_a")
+	_queue_special(slot_id, &"special_b")
+	watch_signals(Events)
+
+	Match.request_throw(slot_id, _home_world_position(slot_id), 0, Quaternion.IDENTITY, Vector3(1.0, 0.0, 0.0))
+
+	assert_signal_emit_count(Events, "special_consumed", 1, "exactly one pop per accepted throw")
+	assert_signal_emitted_with_parameters(Events, "special_consumed", [slot_id, &"special_a"])
+
+
+## The place-spawn twin of the throw test above -- request_place()'s own call
+## to _attach_pending_special(), on its non-burn path.
+func test_request_place_emits_special_consumed_exactly_once_with_the_popped_id() -> void:
+	Match.start_match(_config())
+	_run_countdown()
+	var slot_id: int = 0
+	_queue_special(slot_id, &"test_special")
+	var def: SpecialDef = _make_test_def(&"test_special")
+	_install_test_def(def)
+	watch_signals(Events)
+
+	Match.request_place(slot_id, _home_world_position(slot_id), 0, Quaternion.IDENTITY, false)
+
+	assert_signal_emit_count(Events, "special_consumed", 1, "exactly one pop per accepted placement")
+	assert_signal_emitted_with_parameters(Events, "special_consumed", [slot_id, &"test_special"])
+
+
+## The P2c-i rule this package must not break: a burned auto-drop (nowhere
+## valid to relocate to) keeps the special queued, so it must never emit
+## Events.special_consumed either -- the companion case to
+## test_auto_drop_burn_does_not_consume_the_pending_special above.
+func test_auto_drop_burn_never_emits_special_consumed() -> void:
+	Match.start_match(_config())
+	_run_countdown()
+	var slot_id: int = 0
+	_queue_special(slot_id, &"test_special")
+	var def: SpecialDef = _make_test_def(&"test_special")
+	_install_test_def(def)
+	watch_signals(Events)
+
+	var far_world: Vector3 = _field.to_global(Vector3(5000.0, 5.0, 5000.0))
+	var reason: StringName = Match.request_place(slot_id, far_world, 0, Quaternion.IDENTITY, true)
+
+	assert_ne(reason, PlacementRules.REASON_OK, "setup: nothing valid within reach must burn, not relocate")
+	assert_signal_not_emitted(Events, "special_consumed", "a burn must never emit special_consumed")

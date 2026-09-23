@@ -591,6 +591,24 @@ func apply_replicated_gift_expired(gift_id: int) -> void:
 	_gifts.apply_replicated_expire(gift_id)
 
 
+## Bontago-1en.21: net/MatchNet.gd's EVENT_SPECIAL_CONSUMED dispatch calls
+## this before re-emitting Events.special_consumed -- the spend-side
+## counterpart of apply_replicated_gift_claimed() above. `special_id` is the
+## wire argument net/MatchNet.gd's own _special_id_wire_ok() has already
+## checked before this is ever called.
+##
+## DECISION (autoload/Match.gd, Bontago-1en.21): this package's own brief did
+## not list autoload/Match.gd among its owned files, but net/MatchNet.gd's
+## dispatch needs an entry point on the same _authority() surface every other
+## apply_replicated_* call already uses (see the three siblings directly
+## above) -- reaching into Match._gifts directly from net/MatchNet.gd would
+## break that established forwarding convention instead. This is a one-line,
+## additive, same-shape stub with no risk of colliding with another
+## package's edits to this file.
+func apply_replicated_special_consumed(slot_id: int, special_id: StringName) -> void:
+	_gifts.apply_replicated_special_consumed(slot_id, special_id)
+
+
 ## Writes one territory payload into the mirror raster. See
 ## MatchTerritory.apply_replicated_territory() for the full contract
 ## (circle_*/goal_*/argmax_mode defaults for pre-existing call sites).
