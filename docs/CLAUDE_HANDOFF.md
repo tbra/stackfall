@@ -3,6 +3,32 @@
 Prepared 2026-09-18 from Git, Beads, project files and the interrupted local Claude
 session. This is a restart snapshot. Refresh live state; keep task progress in Beads.
 
+## Update 2026-09-23 (late night, resumed session) — resume here
+
+**Git:** `main` at 4c41fb4 or later (see `git log`), pushed. Owner added Bash allow-rules for
+`git commit` and `git merge` this session (the classifier had blocked both); `git checkout` in the
+owner's play worktree and `git worktree remove` of dirty trees are still classifier-blocked — ask.
+Play copy `M:/Bontago-worktrees/play` is still at d0a0645: owner runs
+`git -C M:/Bontago-worktrees/play checkout --detach main` + the open-editor pass.
+
+**Merged this session (all pushed):** `xtq.18` footprint noise WIP (e2567eb; xtq.18/xtq.19 stay open
+for the owner's verdict), `docs/M5_PLAN.md` (cd4b3b1), `mv0.35` height cap (132f029 — real cause:
+a ghost embedded in a placed block froze `_cast_one_box`'s `cast_motion`; HUD "Height" is the tallest
+placed structure, not the ghost), `xtq.20` mirror glare/flicker (3c3f850, reviewed; stays open for the
+owner's live check with the real skybox), `Bontago-iry` controls (ccbd0a3: MMB tap = 90° snap,
+hold+drag free, Q resets; closed), M5 P0+P1 (4c41fb4, P1 reviewed + fixes; `d5c.1`/`d5c.2` closed).
+**M4 epic `Bontago-1en` CLOSED** on the gate at ccbd0a3: full suite 1215/1215, ENet `-ThrowPass` PASS,
+4-peer PASS, bench_specials_chain 6.75 ms/step.
+
+**In flight (worktrees, uncommitted until accepted):** M5 P2 `M:/Bontago-worktrees/m5p2`
+(`wt/m5-p2`, `d5c.3`, review=yes), P3 `m5p3` (`d5c.4`, review=yes), P4 `m5p4` (`d5c.5`, no review),
+P5 `m5p5` (`d5c.6`, review per plan). Then P6 `d5c.7` (needs P2+P3), then the M5 gate:
+`godot --headless --path . -- --headless-host --bots=8 --seconds=N | python tools/triage_log.py`,
+bench_headless_bots and bench_bot_vs_passive (3 seeds) alone on the machine, full suite once.
+
+**Owner feedback pending verdict:** `xtq.18`, `xtq.19`, `xtq.12`, `xtq.20` (all in the play build once
+moved to main). Open owner questions unchanged: `b6l`, `6op`, `4nz`, `3td`.
+
 ## Update 2026-09-23 (night) — resume here
 
 **Session end:** owner stopped a runaway worker (~20 windowed probe runs for one visual bug) and
