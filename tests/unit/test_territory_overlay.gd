@@ -344,21 +344,19 @@ func test_refresh_visual_uniforms_rebuilds_the_disk_mesh_when_segments_change() 
 	assert_eq(rebuilt.top_radius, original_cylinder.top_radius, "radius must be preserved across a rebuild.")
 
 
-# --- Bontago-xtq.4: glass look uniforms --------------------------------------
+# --- Bontago-xtq.11: mirror-like opaque disk ---------------------------------
+#
+# Bontago-xtq.4's disk-opacity tunables and the shader uniforms they drove
+# are gone (owner, 2026-09-23: "the disc is a mirror-like surface and not
+# glass, so it should be reflective but not transparent"); see
+# config/TerritoryVisuals.gd and shaders/territory.gdshader for the removal
+# DECISIONs.
 
 
-func test_configure_pushes_the_default_glass_uniforms() -> void:
+func test_configure_pushes_the_default_metallic_and_roughness() -> void:
 	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres")
 	var overlay: TerritoryOverlay = _make_overlay(_map())
 
-	assert_almost_eq(
-		float(overlay.material().get_shader_parameter(&"glass_alpha")),
-		visuals.glass_alpha, 0.0001,
-	)
-	assert_almost_eq(
-		float(overlay.material().get_shader_parameter(&"tint_opacity_boost")),
-		visuals.tint_opacity_boost, 0.0001,
-	)
 	assert_almost_eq(
 		float(overlay.material().get_shader_parameter(&"base_metallic")),
 		visuals.disk_metallic, 0.0001,
@@ -369,27 +367,49 @@ func test_configure_pushes_the_default_glass_uniforms() -> void:
 	)
 
 
-func test_refresh_visual_uniforms_pushes_an_edited_glass_alpha() -> void:
-	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres").duplicate() as TerritoryVisuals
-	var overlay: TerritoryOverlay = _make_overlay_with_visuals(_map(), visuals)
-
-	visuals.glass_alpha = 0.2
-	visuals.tint_opacity_boost = 0.9
-	overlay.refresh_visual_uniforms()
-
-	assert_almost_eq(
-		float(overlay.material().get_shader_parameter(&"glass_alpha")), 0.2, 0.0001,
-	)
-	assert_almost_eq(
-		float(overlay.material().get_shader_parameter(&"tint_opacity_boost")), 0.9, 0.0001,
-	)
-
-
-func test_default_glass_alpha_and_boost_clamp_within_0_and_1() -> void:
+func test_disk_defaults_to_a_mirror_like_metallic_and_roughness() -> void:
 	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres")
-	assert_between(visuals.glass_alpha, 0.0, 1.0, "glass_alpha must stay a valid alpha value.")
 	assert_between(
-		visuals.tint_opacity_boost, 0.0, 1.0, "tint_opacity_boost must stay a valid alpha value."
+		visuals.disk_metallic, 0.6, 1.0,
+		"docs/original_single-block.png and docs/original_stacked-tower.png show a strongly reflective disk.",
+	)
+	assert_between(
+		visuals.disk_roughness, 0.0, 0.3,
+		"Same reference screenshots: soft but clearly mirror-like reflections, not a diffuse matte surface.",
+	)
+
+
+func test_territory_shader_never_blends_or_writes_alpha() -> void:
+	# Bontago-xtq.11: the earlier "glass" material queued the disk as
+	# transparent (render_mode blend_mix + a written ALPHA) even once its
+	# runtime alpha value was tuned to fully opaque. Writing ALPHA at all,
+	# regardless of its value, keeps a Godot spatial shader in the transparent
+	# draw queue, so "opaque" has to be a property of the shader source
+	# itself -- assert directly on the compiled shader code.
+	var overlay: TerritoryOverlay = _make_overlay(_map())
+	var shader: Shader = overlay.material().shader
+	# Strip `//` line comments first: this file's own DECISION comments discuss
+	# "blend_mix" and "ALPHA" by name, which would otherwise false-positive a
+	# naive substring search of the whole source.
+	var code_lines: PackedStringArray = PackedStringArray()
+	for line: String in shader.code.split("\n"):
+		var stripped: String = line.strip_edges()
+		if not stripped.begins_with("//"):
+			code_lines.append(line.split("//")[0])
+	var code: String = "\n".join(code_lines)
+
+	assert_false(
+		code.contains("blend_mix"),
+		"The disk must not declare a transparent blend render_mode.",
+	)
+	# Matches ALPHA=, ALPHA =, ALPHA+=, ALPHA -= etc, not just the exact
+	# "ALPHA =" substring, so a reintroduced accumulating ALPHA write still
+	# fails this test.
+	var alpha_write: RegEx = RegEx.new()
+	alpha_write.compile("\\bALPHA\\s*[-+*/]?=")
+	assert_null(
+		alpha_write.search(code),
+		"fragment() must never write ALPHA -- the disk is unconditionally opaque, not glass.",
 	)
 
 
