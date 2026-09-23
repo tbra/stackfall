@@ -511,7 +511,10 @@ func _run_host_throw_phase() -> void:
 		)
 		return
 	var thrown_block: Block = _fast_block_for_slot(THROW_SLOT_ID)
-	_throw_check("throw_accepted_block_spawned", true, "net_id=%d" % thrown_block.net_id)
+	# Bontago-mv0.32: capture net_id immediately before the block might be freed (kill/burn)
+	var thrown_net_id: int = thrown_block.net_id
+	var thrown_continuous_cd: bool = thrown_block.continuous_cd
+	_throw_check("throw_accepted_block_spawned", true, "net_id=%d" % thrown_net_id)
 
 	var special_tuning: SpecialTuning = load("res://config/special_tuning.tres") as SpecialTuning
 	var speed: float = thrown_block.linear_velocity.length()
@@ -521,8 +524,8 @@ func _run_host_throw_phase() -> void:
 		"speed=%.3f throw_max_speed=%.3f tolerance=%.3f" % [speed, special_tuning.throw_max_speed, tolerance]
 	)
 	_throw_check(
-		"throw_continuous_cd_set", thrown_block.continuous_cd,
-		"continuous_cd=%s" % thrown_block.continuous_cd
+		"throw_continuous_cd_set", thrown_continuous_cd,
+		"continuous_cd=%s" % thrown_continuous_cd
 	)
 	var pending_after: int = Match.pending_special_count(THROW_SLOT_ID)
 	_throw_check(
@@ -544,10 +547,12 @@ func _run_host_throw_phase() -> void:
 	# itself a failure here).
 	await get_tree().create_timer(THROW_CLAIM_WAIT_SECONDS + THROW_RESULT_WAIT_SECONDS).timeout
 	var after_negative: Block = _fast_block_for_slot(THROW_SLOT_ID)
+	# Bontago-mv0.32: capture net_id before the block might be freed (kill/burn)
+	var after_negative_net_id: int = after_negative.net_id if after_negative != null else -1
 	_throw_check(
 		"throw_outside_territory_spawned_nothing_on_host", after_negative == thrown_block,
 		"slot=%d accepted_net_id=%d observed_after_net_id=%d" % [
-			THROW_SLOT_ID, thrown_block.net_id, after_negative.net_id if after_negative != null else -1
+			THROW_SLOT_ID, thrown_net_id, after_negative_net_id
 		]
 	)
 
@@ -839,9 +844,15 @@ func _on_block_placed(block: RigidBody3D, _shape_id: StringName) -> void:
 ## further happened to it.
 func _fast_block_for_slot(slot_id: int) -> Block:
 	var current: Block = _last_block_by_slot.get(slot_id) as Block
-	if current != null and current.linear_velocity.length() > THROW_MIN_SPEED_TO_COUNT_AS_THROWN:
+	# Bontago-mv0.32: skip freed blocks before dereferencing
+	if current != null and is_instance_valid(current) and current.linear_velocity.length() > THROW_MIN_SPEED_TO_COUNT_AS_THROWN:
 		_last_thrown_block_by_slot[slot_id] = current
-	return _last_thrown_block_by_slot.get(slot_id) as Block
+	var cached: Block = _last_thrown_block_by_slot.get(slot_id) as Block
+	# Bontago-mv0.32: skip freed cached blocks
+	if cached != null and not is_instance_valid(cached):
+		_last_thrown_block_by_slot[slot_id] = null
+		return null
+	return cached
 
 
 func _on_block_replicated(_block: RigidBody3D, net_id: int) -> void:
