@@ -45,6 +45,20 @@ extends Node3D
 ## resting on the cursor's reported height is always the *rotated* one's
 ## lowest point, per the spec audit's "simplest correct behaviour" note,
 ## never the original's own "keep the block where it is and let it fall".
+##
+## Bontago-mv0.28 (owner test 2026-09-22, "when rotating the block the camera
+## adjusts; lock the camera to the center of the box without messing up the
+## bottom center"): rotation still swings this node's own fixed local origin
+## around, which used to be what game/CameraRig.gd followed -- so a pitch/
+## roll visibly dragged the camera's framing sideways even though the block
+## itself should just spin in place. update_placement() now also re-centres
+## this node's XZ so the *rotated* shape's own geometric centre (not the
+## fixed origin) sits over the cursor (rotated_center_offset()), and
+## game/PlayerController.gd's camera follow now tracks
+## rotated_center_world() instead of this node's own global_position. The Y
+## fix above is untouched: bottom_offset still measures from the same fixed
+## origin, so the shape's rotated lowest point still lands exactly at the
+## reported hover height.
 
 const STATE_VALID: StringName = &"valid"
 const STATE_INVALID: StringName = &"invalid"
@@ -181,16 +195,21 @@ func _apply_rotation() -> void:
 ## Called every frame by PlayerController with the disk surface point/normal
 ## straight under the cursor (Bontago-mv0.17 item 5: a raycast that skips
 ## over any placed block, so this is always the bare disk, tilt-ready via
-## `hit_normal` for M4). Positions the ghost at hover height above that
-## surface, corrected so the *rotated* held shape's lowest point — not
-## necessarily this node's own origin once rotated — is what actually sits at
-## that height (item 3's rotated-bounds pivot), then refreshes the footprint
-## projection (item 6).
+## `hit_normal` for M4). Positions the ghost so the *rotated* held shape's
+## lowest point sits at hover height above that surface (item 3's
+## rotated-bounds pivot, Y only -- unchanged by Bontago-mv0.28 below), and so
+## the *rotated* shape's own geometric centre column sits over the cursor's
+## XZ (Bontago-mv0.28, owner report "lock the camera to the center of the box
+## without messing up the bottom center" -- see rotated_center_offset()'s own
+## doc comment), then refreshes the footprint projection (item 6).
 func update_placement(surface_point: Vector3, surface_normal: Vector3) -> void:
 	var hover: float = tuning.hover_height + manual_hover_offset
 	var anchor: Vector3 = surface_point + surface_normal * hover
 	var bottom_offset: float = _rotated_bottom_offset()
-	global_position = Vector3(anchor.x, anchor.y - bottom_offset, anchor.z) + _reject_offset
+	var center_offset: Vector3 = rotated_center_offset()
+	global_position = Vector3(
+		anchor.x - center_offset.x, anchor.y - bottom_offset, anchor.z - center_offset.z
+	) + _reject_offset
 	_update_footprint()
 
 
@@ -230,6 +249,48 @@ func _rotated_bottom_offset() -> float:
 			var rotated_y: float = (basis * corner).y
 			min_y = minf(min_y, rotated_y)
 	return 0.0 if min_y == INF else min_y
+
+
+## Bontago-mv0.28 (owner report 2026-09-22, "when rotating the block the
+## camera adjusts; lock the camera to the center of the box without messing
+## up the bottom center"): how far this node's own local origin (still
+## BlockShape.bottom_center() of the *unrotated* shape) sits from the
+## *rotated* held shape's own geometric centre, in world space. The
+## unrotated centre-to-origin vector is always purely vertical -- the AABB
+## centre of `cells` shares bottom_center()'s own X/Z (both are the same cell
+## bounds' midpoint by construction, whatever shape the cells happen to
+## trace), so only Y ever differs before rotation -- so a yaw-only rotation
+## (about world/local up) never moves this in XZ, while a pitch/roll tips
+## that vertical offset sideways exactly as update_placement() needs to keep
+## the *rotated* shape's centre, not this fixed local origin, under the
+## cursor. Zero for a shape with no cells and when nothing is held (global_
+## position itself is then already the only sensible "centre").
+func rotated_center_offset() -> Vector3:
+	if _shape == null or _shape.cells.is_empty():
+		return Vector3.ZERO
+	var pivot: Vector3 = _shape.bottom_center()
+	var min_local: Vector3 = Vector3(INF, INF, INF)
+	var max_local: Vector3 = Vector3(-INF, -INF, -INF)
+	for cell: Vector3i in _shape.cells:
+		var local: Vector3 = (Vector3(cell) - pivot) * tuning.cube_size
+		min_local.x = minf(min_local.x, local.x)
+		min_local.y = minf(min_local.y, local.y)
+		min_local.z = minf(min_local.z, local.z)
+		max_local.x = maxf(max_local.x, local.x)
+		max_local.y = maxf(max_local.y, local.y)
+		max_local.z = maxf(max_local.z, local.z)
+	var center_local: Vector3 = (min_local + max_local) * 0.5
+	return basis * center_local
+
+
+## The rotated held shape's own geometric centre, in world space -- what
+## game/CameraRig.gd's follow target should track instead of this node's own
+## origin (see rotated_center_offset()'s doc comment) so orbiting/pitching the
+## block spins it in place instead of visibly swinging the camera's framing.
+## Falls back to global_position itself (rotated_center_offset() is then
+## Vector3.ZERO) when nothing is held, so callers never need a null check.
+func rotated_center_world() -> Vector3:
+	return global_position + rotated_center_offset()
 
 
 # --- Footprint projection (spec 2.5, Bontago-mv0.17 item 6) -----------------

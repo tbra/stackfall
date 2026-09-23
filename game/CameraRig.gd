@@ -65,8 +65,10 @@ var _yaw: float = 0.0
 var _pitch: float = 0.0
 var _distance: float = 0.0
 var _target: Vector3 = Vector3.ZERO
-## Where PlayerController says the held ghost is, updated by
-## set_follow_position() every frame. Only read when tuning.follow_block.
+## Where PlayerController says the held ghost's own rotated centre is
+## (Bontago-mv0.28: GhostPreview.rotated_center_world(), not its node
+## origin -- see that method's doc comment), updated by set_follow_position()
+## every frame. Only read when tuning.follow_block.
 var _follow_position: Vector3 = Vector3.ZERO
 
 @onready var _camera: Camera3D = $Camera3D
@@ -176,8 +178,10 @@ func _process(delta: float) -> void:
 
 
 ## Bontago-mv0.14: called by PlayerController every frame with the held
-## ghost's world position. Only used while tuning.follow_block is true; the
-## legacy free-orbit camera ignores it.
+## ghost's world position (Bontago-mv0.28: its rotated geometric centre, not
+## its node origin, so a pitch/roll spins the block in place instead of
+## dragging the camera's framing). Only used while tuning.follow_block is
+## true; the legacy free-orbit camera ignores it.
 func set_follow_position(pos: Vector3) -> void:
 	_follow_position = pos
 

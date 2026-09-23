@@ -177,7 +177,13 @@ func _process(delta: float) -> void:
 	_publish_cursor()
 	if _camera_rig != null and _ghost != null:
 		_camera_rig.block_held = _ghost.get_shape() != null
-		_camera_rig.set_follow_position(_ghost.global_position)
+		# Bontago-mv0.28 (owner test 2026-09-22): follow the rotated shape's own
+		# centre, not this node's fixed local origin -- see GhostPreview.
+		# rotated_center_world()'s own doc comment. Placement intents/cursor
+		# publishing below keep sending _ghost.global_position unchanged (the
+		# node origin), matching what MatchPlacement._spawn_block() actually
+		# spawns the block at.
+		_camera_rig.set_follow_position(_ghost.rotated_center_world())
 
 
 func _session() -> Variant:
@@ -539,7 +545,7 @@ func _on_placement_relocated(slot_id: int, point: Vector2) -> void:
 	_collision_cursor_seeded = true
 	_update_ghost_transform()
 	if _camera_rig != null:
-		_camera_rig.set_follow_position(_ghost.global_position)
+		_camera_rig.set_follow_position(_ghost.rotated_center_world())
 
 
 ## Every frame: the read-only, advisory preview (spec 2.5) that tints the
@@ -763,6 +769,18 @@ func _seed_collision_cursor_if_needed() -> void:
 ## no-op -- and keeps _last_safe_cursor in sync so re-enabling collision
 ## later never sweeps across a stale gap -- when collision is disabled,
 ## nothing is held, or the cursor didn't move this frame.
+##
+## Bontago-mv0.28 (owner test 2026-09-22): _cursor is the aim point the
+## *rotated* held shape's own centre sits over (GhostPreview.
+## update_placement()), not this node's own origin -- so the boxes
+## _sweep_motion() below places at `position + basis * local_center` have to
+## be built from the same cursor-minus-centre-offset point update_placement()
+## will actually put the ghost's node origin at, or a pitched/rolled shape's
+## swept boxes would land somewhere the render then doesn't match (this
+## sweep would validate one position, update_placement() would show a
+## different one). `center_offset` is zero for a yaw-only or unrotated pose
+## (rotated_center_offset()'s own doc comment), so this is a no-op change for
+## every pre-mv0.28 test that never pitches/rolls the held shape.
 func _clamp_cursor_collision() -> void:
 	_seed_collision_cursor_if_needed()
 	if not ghost_tuning.ghost_collision_enabled or _ghost == null or _ghost.get_shape() == null:
@@ -772,10 +790,13 @@ func _clamp_cursor_collision() -> void:
 	if motion.length() <= 0.0:
 		return
 	var height: float = _ghost.global_position.y
-	var from_position: Vector3 = Vector3(_last_safe_cursor.x, height, _last_safe_cursor.z)
-	var to_position: Vector3 = Vector3(_cursor.x, height, _cursor.z)
+	var center_offset: Vector3 = _ghost.rotated_center_offset()
+	var from_position: Vector3 = Vector3(
+		_last_safe_cursor.x - center_offset.x, height, _last_safe_cursor.z - center_offset.z
+	)
+	var to_position: Vector3 = Vector3(_cursor.x - center_offset.x, height, _cursor.z - center_offset.z)
 	var clamped: Vector3 = _sweep_ghost_position(from_position, to_position)
-	_cursor = Vector3(clamped.x, _cursor.y, clamped.z)
+	_cursor = Vector3(clamped.x + center_offset.x, _cursor.y, clamped.z + center_offset.z)
 	_last_safe_cursor = _cursor
 
 

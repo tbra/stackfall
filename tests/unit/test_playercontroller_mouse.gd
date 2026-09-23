@@ -470,6 +470,45 @@ func test_camera_rig_follows_the_ghost_smoothly_within_its_lag() -> void:
 	rig.tuning.follow_lag_seconds = saved_lag
 
 
+## Bontago-mv0.28 (owner test 2026-09-22, "when rotating the block the camera
+## adjusts; lock the camera to the center of the box without messing up the
+## bottom center"): the camera's own follow target must track the ghost's
+## rotated centre column (GhostPreview.rotated_center_world()), not its
+## swinging node origin -- rotating in place must never drag the framing.
+func test_rotate_drag_never_moves_the_cameras_follow_position_in_xz() -> void:
+	var controller: PlayerController = _make_controller()
+	var rig: CameraRig = autofree(load("res://game/CameraRig.tscn").instantiate())
+	add_child_autofree(rig)
+	controller.set_camera_rig(rig)
+	assert_almost_eq(rig.tuning.follow_lag_seconds, 0.0, 0.0001, "fixture: the shipped rig snaps to its follow target instantly.")
+
+	controller._process(1.0 / 60.0)
+	rig._process(1.0 / 60.0)
+	var target_before: Vector3 = rig.get_target()
+	assert_almost_eq(target_before.x, 0.0, 0.0001, "fixture: the cursor starts at the world origin.")
+	assert_almost_eq(target_before.z, 0.0, 0.0001)
+
+	Input.action_press(&"rotate_drag")
+	controller._unhandled_input(_motion(Vector2(100.0, 50.0)))
+	Input.action_release(&"rotate_drag")
+	assert_ne(controller._ghost.free_quaternion, Quaternion.IDENTITY, "fixture: the drag should have rotated the held block.")
+
+	controller._process(1.0 / 60.0)
+	rig._process(1.0 / 60.0)
+	var target_after: Vector3 = rig.get_target()
+
+	assert_almost_eq(target_after.x, target_before.x, 0.0001, "rotating the held block must not drift the camera's framing in X.")
+	assert_almost_eq(target_after.z, target_before.z, 0.0001, "rotating the held block must not drift the camera's framing in Z.")
+	assert_true(
+		target_after.is_equal_approx(controller._ghost.rotated_center_world()),
+		"the rig's follow target should be exactly the ghost's rotated centre, got %s expected %s" % [target_after, controller._ghost.rotated_center_world()]
+	)
+	assert_true(
+		not is_equal_approx(controller._ghost.global_position.x, target_after.x) or not is_equal_approx(controller._ghost.global_position.z, target_after.z),
+		"fixture: the ghost's own node origin should have swung off-centre once rotated -- otherwise this isn't exercising the bug the owner reported."
+	)
+
+
 func test_follow_block_false_pins_the_legacy_free_orbit_camera() -> void:
 	# A dedicated CameraTuning instance, not the shared preloaded resource:
 	# CameraRig's @export tuning defaults to a preload()'d singleton, so
