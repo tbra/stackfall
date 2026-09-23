@@ -55,6 +55,7 @@ ranges = {
 "BlockFeedConfig.preview_count": Vector2(1.0, 5.0),
 "TerritoryVisuals.disk_metallic": Vector2(0.0, 1.0),
 "TerritoryVisuals.disk_roughness": Vector2(0.0, 1.0),
+"TerritoryVisuals.edge_softness_m": Vector2(0.0, 0.5),
 }
 descriptions = {
 "CameraTuning.mouse_orbit_speed": "How fast the camera orbits (yaw/pitch) per pixel of mouse motion while holding orbit.",
@@ -154,7 +155,8 @@ descriptions = {
 "TerritoryVisuals.disk_metallic": "Metallic value of the disk's mirror-like opaque surface; higher makes ProceduralSky reflections stronger.",
 "TerritoryVisuals.disk_roughness": "Roughness value of the disk's mirror-like opaque surface; lower makes reflections sharper.",
 "TerritoryVisuals.disk_mesh_segments": "Radial segments in the disk mesh; higher makes the rim read as a circle rather than a polygon.",
-"TerritoryVisuals.edge_softness": "How blurry the territory tint's edge is where ownership changes.",
+"TerritoryVisuals.edge_softness": "How blurry the territory tint's edge is where ownership changes (raster fallback path only; see edge_softness_m for the ordinary analytic path).",
+"TerritoryVisuals.edge_softness_m": "Half-width, in meters, of the ownership tint's own edge feather on the analytic (ordinary) rendering path; smaller is crisper. The rim glow's own softness is unaffected (see rim_soft_width/rim_width).",
 "TerritoryVisuals.tint_alpha": "How strongly a team's color tints the disk at full territory coverage.",
 "TerritoryVisuals.outline_width": "Width of the animated outline band drawn around a territory edge.",
 "TerritoryVisuals.outline_speed": "Pulses per second of the territory outline's animation.",
@@ -185,6 +187,10 @@ descriptions = {
 "TerritoryVisuals.rim_speed": "Pulses per second along the territory rim.",
 "TerritoryVisuals.metaball_blend": "Smooth-blend radius, in meters, used when overlapping same-team circles merge into one shape; 0 disables the blend.",
 "TerritoryVisuals.max_shader_circles": "Maximum circles the territory shader draws per pixel before falling back to the raster path; lower this on weaker GPUs.",
+"TerritoryVisuals.reflection_probe_enabled": "Whether a ReflectionProbe over the disc mirrors placed blocks (not just the sky) in the disk's metallic surface.",
+"TerritoryVisuals.reflection_probe_update_always": "Recompute the reflection probe every frame (blocks show up as they land, more GPU cost) instead of once at boot (cheap, but later blocks stay invisible in the reflection).",
+"TerritoryVisuals.reflection_probe_margin_m": "Extra meters of box half-width the reflection probe extends beyond the largest map's radius.",
+"TerritoryVisuals.reflection_probe_height_m": "Full box height, in meters, of the reflection probe above the disk.",
 "BlockFeedConfig.min_stabilizers_per_bag": "Minimum stabilizing shapes guaranteed in every bag of blocks.",
 "BlockFeedConfig.bag_multiplier": "How many copies of each shape's weight go into a bag; bigger means a longer, looser bag.",
 "BlockFeedConfig.preview_count": "How many upcoming blocks the HUD shows in the feed preview.",

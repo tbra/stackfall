@@ -143,6 +143,13 @@ uniform int goal_count = 0;
 uniform float metaball_blend : hint_range(0.0, 3.0) = 0.3;
 uniform float rim_soft_width : hint_range(0.001, 2.0) = 0.25;
 uniform float rim_width : hint_range(0.001, 2.0) = 0.35;
+// Bontago-xtq.14 (owner: "the edge of the area is a bit blurry, sharpen
+// it"): the ownership TINT's own smoothstep used to share rim_soft_width
+// with the glow band's coverage gate above -- crisp per docs/original_hover-
+// preview.png ("hard-edged shadows/edges"), the rim glow (rim_width/
+// rim_strength/rim_pulse_depth/rim_speed below, untouched) stays its own,
+// deliberately soft effect. See circle_path()'s own DECISION comment.
+uniform float edge_softness_m : hint_range(0.0, 2.0) = 0.03;
 uniform float rim_strength = 1.4;
 uniform float rim_pulse_depth : hint_range(0.0, 1.0) = 0.45;
 uniform float rim_speed = 1.6;
@@ -286,8 +293,19 @@ void circle_path(vec2 point, out vec3 albedo, out vec3 emission) {
 	albedo = base_color.rgb;
 	emission = vec3(0.0);
 
-	if (owner_team >= 0 && !contested && best_overall >= -rim_soft_width) {
-		float coverage = smoothstep(-rim_soft_width, rim_soft_width, best_overall);
+	// DECISION (shaders/territory.gdshader, Bontago-xtq.14): the tint's own
+	// coverage smoothstep now feathers over edge_softness_m (a few cm
+	// default), not rim_soft_width (still 0.25 m, the glow band's own
+	// property below) -- the two used to be the same value, which is what
+	// made the ownership boundary itself read as blurred rather than the rim
+	// glow around it. The `>= -edge_softness_m` gate matches, so tint starts
+	// exactly where the smoothstep does rather than up to 0.25 m early.
+	// max(..., 0.0001): smoothstep(a, a, x) with a == 0 divides by zero
+	// (NaN) in GLSL, and 0.0 is a legal (deliberately "as crisp as
+	// possible") edge_softness_m value on the hint_range above.
+	float edge_half_width = max(edge_softness_m, 0.0001);
+	if (owner_team >= 0 && !contested && best_overall >= -edge_half_width) {
+		float coverage = smoothstep(-edge_half_width, edge_half_width, best_overall);
 		vec3 team_color = slot_colors[owner_team].rgb;
 		albedo = mix(base_color.rgb, team_color, coverage * tint_alpha);
 

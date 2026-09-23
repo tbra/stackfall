@@ -57,7 +57,32 @@ extends Node3D
 ## material write below is skipped when this or its .sky is unset.
 @export var environment: Environment = null
 
+## Bontago-xtq.12 (owner: "isn't very reflective, like at all"): Forward+
+## never reflects dynamic scene geometry (the placed blocks) without a
+## ReflectionProbe or SSR, so the disk's high metallic/low roughness
+## (config/TerritoryVisuals.gd) only ever showed the sky's own smooth
+## gradient -- reads as a dull tint, not a mirror. NodePath, not a typed Node
+## export, matching game/PlayerController.gd's camera_rig_path/ghost_path
+## convention elsewhere in this codebase. Wired in Main.tscn to a sibling
+## ReflectionProbe over the disc; left empty in every test fixture below
+## (most of tests/unit/test_skybox.gd), so configure_reflection_probe() must
+## no-op cleanly with nothing wired, the same optionality `environment` above
+## already has.
+@export var reflection_probe_path: NodePath = NodePath("")
+## config/TerritoryVisuals.gd's reflection_probe_* fields; defaulted the same
+## way `environment` is optional above, but never actually null in practice
+## (every real scene shares config/territory_visuals.tres, same as
+## game/Field.gd's own `visuals` export).
+@export var visuals: TerritoryVisuals = preload("res://config/territory_visuals.tres")
+
 const SKY_SHADER: Shader = preload("res://shaders/cubemap_sky.gdshader")
+## Vertical position of the probe's box center, in meters above the disk
+## surface (which sits at world y == 0 -- game/Field.gd positions its
+## TerritoryOverlay at `-map_def.disk_height * 0.5`, negligible next to this
+## scale). A small local constant, not a TerritoryVisuals field: it is a
+## derived placement detail of reflection_probe_height_m right below, not an
+## independent tunable a playtester would ever need to move on its own.
+const PROBE_GROUND_CLEARANCE_M: float = 4.0
 
 ## The Sky's own material before this node ever touched it (Main.tscn's
 ## ProceduralSkyMaterial, captured once in _ready()) -- restored whenever
@@ -87,6 +112,36 @@ func _ready() -> void:
 		mesh_instance.extra_cull_margin = config.box_half_extent
 		add_child(mesh_instance)
 		_face_meshes[face_name] = mesh_instance
+	configure_reflection_probe()
+
+
+## Bontago-xtq.12: sizes and enables the ReflectionProbe wired via
+## reflection_probe_path (Main.tscn), once at boot -- not per-match, unlike
+## TerritoryOverlay's own configure() (see reflection_probe_margin_m's
+## DECISION comment in config/TerritoryVisuals.gd for why). A no-op when
+## nothing is wired (path empty or the node doesn't resolve) or `visuals` is
+## unset, so every existing fixture in tests/unit/test_skybox.gd -- none of
+## which wire this -- is unaffected.
+func configure_reflection_probe() -> void:
+	if visuals == null or reflection_probe_path.is_empty():
+		return
+	var probe: ReflectionProbe = get_node_or_null(reflection_probe_path) as ReflectionProbe
+	if probe == null:
+		return
+	probe.visible = visuals.reflection_probe_enabled
+	probe.update_mode = (
+		ReflectionProbe.UPDATE_ALWAYS if visuals.reflection_probe_update_always
+		else ReflectionProbe.UPDATE_ONCE
+	)
+	var half_width: float = MapDef.RADIUS_LARGE + visuals.reflection_probe_margin_m
+	var height: float = visuals.reflection_probe_height_m
+	probe.size = Vector3(half_width * 2.0, height, half_width * 2.0)
+	probe.position = Vector3(0.0, height * 0.5 - PROBE_GROUND_CLEARANCE_M, 0.0)
+	# Box-corrected reflections: the disk is a large flat static surface, so
+	# aligning reflected rays to the probe's own box (rather than treating it
+	# as infinitely far away, ReflectionProbe's default) keeps the mirrored
+	# blocks positioned correctly instead of drifting as the camera orbits.
+	probe.box_projection = true
 
 
 ## Called once per match/scene start (game/Main.gd) with the map's chosen set
