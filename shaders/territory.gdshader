@@ -15,7 +15,19 @@ shader_type spatial;
 // (blocks and the ghost footprint quad depth-testing correctly against the
 // disk) no longer applies once the disk itself is not in the transparent
 // queue.
-render_mode cull_disabled, specular_schlick_ggx;
+// DECISION (shaders/territory.gdshader, Bontago-xtq.20, reproduced by
+// tools/screenshot_feel8b_disc_glare.gd): specular_disabled. The "main light
+// source glaringly visible in the disc reflection" was never in the mirror
+// texture -- it is the DirectionalLight3D's own GGX specular lobe on this
+// surface (the bisect run shows it unchanged with the planar mirror, SSR, the
+// ReflectionProbe or shadows switched off, and gone only with the light's
+// specular at 0). At a polished roughness that lobe peaks hundreds of times
+// brighter than the sun's diffuse light, so any clamp on a sampled texture
+// cannot reach it. Direct-light specular is turned off on the disc only (the
+// light still shades blocks normally); the disc's reflection is the planar
+// mirror (EMISSION below) plus the ambient/probe/SSR reflection, which never
+// shows a hot spot for a sun the skybox does not paint.
+render_mode cull_disabled, specular_disabled;
 
 // Territory on the disk (spec 2.10, 3.3, Bontago-cmc.5).
 //
@@ -89,12 +101,11 @@ uniform sampler2D territory_state_soft : filter_linear, repeat_disable;
 uniform vec4 slot_colors[SLOT_COLOR_MAX];
 
 uniform vec4 base_color : source_color = vec4(0.68, 0.70, 0.74, 1.0);
-// Bontago-xtq.11: mirror-like defaults (docs/original_single-block.png,
-// docs/original_stacked-tower.png) match TerritoryVisuals.gd's disk_metallic/
-// disk_roughness; only used if TerritoryOverlay never pushes the real
+// Defaults match TerritoryVisuals.gd's disk_metallic/disk_roughness
+// (Bontago-xtq.20: a glossy dielectric under the planar mirror); only used if TerritoryOverlay never pushes the real
 // resource values (it always does in practice -- see refresh_visual_uniforms()).
-uniform float base_metallic : hint_range(0.0, 1.0) = 0.85;
-uniform float base_roughness : hint_range(0.0, 1.0) = 0.18;
+uniform float base_metallic : hint_range(0.0, 1.0) = 0.1;
+uniform float base_roughness : hint_range(0.0, 1.0) = 0.3;
 
 // DECISION (shaders/territory.gdshader, Bontago-xtq.11): the two disk-opacity
 // uniforms that used to live here were removed -- fragment() no longer
@@ -164,27 +175,18 @@ uniform float rim_speed = 1.6;
 // look whenever no DiscMirror is wired (every existing
 // tests/unit/test_territory_overlay.gd fixture, none of which call
 // TerritoryOverlay.set_mirror_texture()).
-uniform sampler2D mirror_tex : filter_linear;
+// source_color (Bontago-xtq.20): the SubViewport holds the mirror camera's
+// final, tonemapped sRGB-encoded frame; without the hint the shader read
+// those encoded values as linear and the reflection came out washed-out and
+// brighter than the scene it mirrors.
+uniform sampler2D mirror_tex : source_color, filter_linear;
 uniform bool mirror_enabled = false;
 uniform float mirror_strength : hint_range(0.0, 1.0) = 0.0;
-// Bontago-xtq.20 (owner, 2026-09-23 20:12: "the main light source is
-// glaringly visible in the disc reflection"): mirror_color below is a literal
-// per-pixel copy of the mirrored camera's own rendered scene, mixed straight
-// into ALBEDO with none of the rest of the disk's own lit response around it
-// -- a directly-visible sun disc (ProceduralSkyMaterial, whose brightness
-// this project's DirectionalLight3D drives) or a hard specular highlight off
-// that same light, both already clipped by Environment's own (default
-// Linear) tonemap operator, reads as a stark, hard-edged white blob once it
-// is substituted for the disk's own mid-toned albedo -- worse than the same
-// highlight reads rendered normally, where it is one small bright patch
-// among an otherwise-lit scene. Clamping the SAMPLED color's luminance
-// before the mix (hue-preserving: scaling all three channels by the same
-// factor) is the fix, not disabling the light's specular contribution scene-
-// wide -- the mirror SubViewport cannot do that selectively anyway
-// (game/DiscMirror.gd's class doc: own_world_3d = false means it shares
-// every light with the main camera). Default picked so the clamp only ever
-// engages on a genuinely blown-out highlight (a normally-lit block or sky
-// patch sits well under 1.0), not on an ordinary bright reflection.
+// Bontago-xtq.20: hue-preserving luminance cap on the sampled mirror color.
+// The mirror viewport is LDR (tonemapped, <= 1.0 per channel), so this only
+// engages below 1.0 -- it is a safety knob for a clipped white patch (e.g. the
+// procedural fallback sky's own sun disc), not the glare fix (see the
+// render_mode DECISION above: the glare was the light's specular lobe).
 uniform float mirror_max_luminance : hint_range(0.1, 8.0) = 1.35;
 
 varying vec3 v_local;
@@ -403,16 +405,9 @@ void fragment() {
 		raster_path(uv, albedo, emission);
 	}
 
-	// Bontago-xtq.12 step 2: the planar mirror REPLACES the metallic/probe/
-	// SSR reflection response where it is wired and enabled, scaled by both
-	// disk_metallic (a more metallic disk shows more of the mirror, same as
-	// it would show more of any other reflection) and mirror_strength (an
-	// independent knob to dial the mirror back without touching the disk's
-	// own material feel) -- a mix() into ALBEDO, not an EMISSION add, is
-	// deliberate: METALLIC's own IBL/probe/SSR response is itself driven by
-	// ALBEDO, so this reads as "swap in the true per-pixel reflection where
-	// we have one" rather than stacking a second, brighter reflection on top
-	// of the first.
+	// Bontago-xtq.12 step 2: the planar mirror, where it is wired and
+	// enabled, blends mirror_strength of the true per-pixel reflection over
+	// the disk (see the Bontago-xtq.20 DECISION inside the branch for how).
 	if (mirror_enabled) {
 		// game/DiscMirror.gd's own mirror_transform() DECISION comment: its
 		// camera basis is deliberately proper (not a raw per-axis
@@ -420,15 +415,23 @@ void fragment() {
 		// renders the true mirror image flipped left-right -- flipping X
 		// here undoes exactly that, so this samples the correct final image.
 		vec3 mirror_color = texture(mirror_tex, vec2(1.0 - SCREEN_UV.x, SCREEN_UV.y)).rgb;
-		// Bontago-xtq.20: hue-preserving luminance clamp -- see
-		// mirror_max_luminance's own doc above for why this, and not a
-		// scene-wide specular/light change, is the fix.
+		// Bontago-xtq.20: hue-preserving luminance cap -- see
+		// mirror_max_luminance's own doc above.
 		float mirror_luma = dot(mirror_color, vec3(0.2126, 0.7152, 0.0722));
 		if (mirror_luma > mirror_max_luminance) {
 			mirror_color *= mirror_max_luminance / max(mirror_luma, 0.0001);
 		}
-		float mirror_amount = clamp(base_metallic * mirror_strength, 0.0, 1.0);
-		albedo = mix(albedo, mirror_color, mirror_amount);
+		// DECISION (shaders/territory.gdshader, Bontago-xtq.20): the mirror is
+		// composited as the surface's reflected light -- the lit albedo is
+		// scaled down by the reflected fraction and the mirror image is added
+		// as EMISSION (it is already a fully lit render, so it must not be lit
+		// a second time). It used to be mixed into ALBEDO under METALLIC 0.85,
+		// where albedo only tints the environment reflection: the true
+		// per-pixel mirror image barely showed (the owner's "not very
+		// reflective") while the sun's specular lobe dominated.
+		float mirror_amount = clamp(mirror_strength, 0.0, 1.0);
+		albedo *= 1.0 - mirror_amount;
+		emission += mirror_color * mirror_amount;
 	}
 
 	ALBEDO = albedo;

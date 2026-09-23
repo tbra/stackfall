@@ -5,8 +5,8 @@
 [resource]
 script = ExtResource("1_visuals")
 disk_base_color = Color(0.68, 0.7, 0.74, 1)
-disk_metallic = 0.85
-disk_roughness = 0.18
+disk_metallic = 0.1
+disk_roughness = 0.3
 disk_mesh_segments = 96
 edge_softness = 0.4
 edge_softness_m = 0.03
@@ -51,5 +51,5 @@ ssr_fade_in = 0.15
 ssr_fade_out = 2.0
 ssr_depth_tolerance = 0.2
 mirror_enabled = true
-mirror_strength = 0.85
+mirror_strength = 0.5
 mirror_resolution_scale = 0.5

@@ -36,12 +36,25 @@ extends Resource
 ## over whatever sits below it, see the DECISION further down) is what
 ## removes the earlier "hot mirror spot"/reflected-block complaint, so
 ## metallic can go back up without reintroducing it.
-@export var disk_metallic: float = 0.85
+##
+## DECISION (config/TerritoryVisuals.gd, Bontago-xtq.20, reproduced by
+## tools/screenshot_feel8b_disc_glare.gd): back down to a glossy dielectric.
+## The mirror-like look now comes from the planar mirror (mirror_strength
+## below, composited as reflected light), not from metallic: at 0.85 the lit
+## albedo -- the territory tint and the mirror image both -- only tinted the
+## environment reflection, which is why the mirror barely read and the tint
+## was muddy. The sun hot spot itself was the light's specular lobe, now off
+## on the disc (shaders/territory.gdshader's render_mode DECISION).
+@export var disk_metallic: float = 0.1
 ## DECISION (config/TerritoryVisuals.gd, Bontago-xtq.11): lowered back toward
 ## glass-smooth, same reference screenshots as disk_metallic above -- the
 ## reflections in both are soft-edged, not a razor-sharp mirror, so this
 ## stops short of 0.0.
-@export var disk_roughness: float = 0.18
+##
+## Bontago-xtq.20: 0.3 -- only the ambient/probe/SSR sheen reads this now
+## (direct-light specular is off on the disc), and a slightly softer sheen
+## sits under the sharp planar mirror image instead of competing with it.
+@export var disk_roughness: float = 0.3
 ## Radial segments of the disk mesh. High enough that the rim reads as a
 ## circle rather than a polygon at the camera distances spec 2.5 allows.
 @export var disk_mesh_segments: int = 96
@@ -261,24 +274,23 @@ extends Resource
 ## reflection_probe_enabled is: read once at boot and again on every
 ## refresh_from_visuals() (F4 live edit), never per-match.
 @export var mirror_enabled: bool = true
-## How much of the disk's reflection comes from the planar mirror texture
-## versus the plain metallic/probe/SSR response above; 0 disables the blend
-## even if mirror_enabled leaves the viewport itself rendering.
-@export var mirror_strength: float = 0.85
+## Fraction of the disk's color that is the planar mirror image (Bontago-
+## xtq.20: the lit disk/territory color is scaled by 1 - this and the mirror
+## added as reflected light); 0 disables the blend even if mirror_enabled
+## leaves the viewport itself rendering. 0.5 keeps the territory tint legible
+## under a clearly visible reflection (docs/original_stacked-tower.png).
+@export var mirror_strength: float = 0.5
 ## SubViewport size as a fraction of the main viewport's own size. Below 1.0
 ## trades reflection sharpness for the cost of rendering the whole scene a
 ## second time every frame.
 @export var mirror_resolution_scale: float = 0.5
-## Bontago-xtq.20 (owner, 2026-09-23 20:12: "the main light source is
-## glaringly visible in the disc reflection"): caps the mirror-sampled
-## color's luminance (hue-preserving) before shaders/territory.gdshader mixes
-## it into ALBEDO -- see that shader's own uniform doc for why a raw sun disc
-## / specular hot spot reads far worse mixed directly into the disk's albedo
-## than it would rendered normally, and why a luminance clamp (not disabling
-## the light's specular scene-wide, which the mirror SubViewport cannot do
-## selectively -- see game/DiscMirror.gd's class doc on own_world_3d) is the
-## fix. Pushed onto the shader by game/DiscMirror.gd's _process() through
-## TerritoryOverlay's own public material() accessor -- not through
-## game/TerritoryOverlay.gd's set_mirror_texture() (that file is out of this
-## package's ownership; see DiscMirror.gd's own DECISION comment on this).
+## Bontago-xtq.20: caps the mirror-sampled color's luminance (hue-
+## preserving) before shaders/territory.gdshader composites it. The mirror
+## viewport is LDR (<= 1.0), so the 1.35 default never engages; lower it
+## below 1.0 only to dim a clipped white patch in the reflection (e.g. the
+## procedural fallback sky's own sun disc). It was NOT the glare fix: the
+## reproduced glare was the DirectionalLight3D's specular lobe on the disc,
+## which never passes through this texture (see the shader's render_mode
+## DECISION). Pushed by game/DiscMirror.gd's _process() through
+## TerritoryOverlay's public material() accessor.
 @export var mirror_max_luminance: float = 1.35
