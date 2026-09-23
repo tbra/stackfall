@@ -9,3 +9,4 @@ throw_max_speed = 25.0
 throw_drag_min_distance_m = 0.15
 throw_drag_min_speed_mps = 1.0
 throw_speed_per_meter = 12.0
+ccd_speed_threshold_mps = 15.0
