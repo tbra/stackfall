@@ -153,7 +153,11 @@ func test_update_placement_keeps_a_rotated_talls_shapes_visual_bottom_at_the_rep
 	)
 
 
-# --- Bontago-mv0.17 item 6: footprint projection -----------------------------
+# --- Bontago-mv0.17 item 6 / Bontago-xtq.7: footprint projection ------------
+# (docs/solid-blocks2-issue.png, owner test 2026-09-23): the footprint is now
+# always the *whole* rotated shape's own silhouette -- one polygon, not one
+# per bottom cell -- so every case below that used to expect one quad per
+# distinct column now expects exactly 1.
 
 func test_no_footprint_quads_when_no_shape_is_held() -> void:
 	var ghost: GhostPreview = autofree(GhostPreview.new())
@@ -164,14 +168,17 @@ func test_no_footprint_quads_when_no_shape_is_held() -> void:
 	assert_eq(ghost.footprint_quad_count(), 0)
 
 
-func test_footprint_has_one_quad_per_cell_for_a_flat_shape() -> void:
+func test_footprint_has_exactly_one_quad_for_a_flat_multi_cell_shape() -> void:
 	var ghost: GhostPreview = autofree(GhostPreview.new())
 	add_child_autofree(ghost)
 	ghost.set_shape(load("res://config/blocks/square4.tres"))
 
 	ghost.update_placement(Vector3.ZERO, Vector3.UP)
 
-	assert_eq(ghost.footprint_quad_count(), 4, "square4's 4 cells sit in 4 distinct (x, z) columns.")
+	assert_eq(
+		ghost.footprint_quad_count(), 1,
+		"Bontago-xtq.7: the footprint is the whole shape's own hull, not one quad per one of square4's 4 cells."
+	)
 
 
 func test_footprint_has_one_quad_for_a_shape_stacked_straight_up() -> void:
@@ -184,7 +191,7 @@ func test_footprint_has_one_quad_for_a_shape_stacked_straight_up() -> void:
 	assert_eq(ghost.footprint_quad_count(), 1, "pillar standing upright touches the ground in exactly one column.")
 
 
-func test_footprint_quad_count_matches_the_rotated_shapes_own_columns() -> void:
+func test_footprint_stays_one_quad_for_a_rotated_shape_spanning_many_columns() -> void:
 	var ghost: GhostPreview = autofree(GhostPreview.new())
 	add_child_autofree(ghost)
 	ghost.set_shape(load("res://config/blocks/pillar.tres"))
@@ -192,7 +199,10 @@ func test_footprint_quad_count_matches_the_rotated_shapes_own_columns() -> void:
 
 	ghost.update_placement(Vector3.ZERO, Vector3.UP)
 
-	assert_eq(ghost.footprint_quad_count(), 3, "tipped onto its side, pillar's 3 cells occupy 3 distinct footprint columns.")
+	assert_eq(
+		ghost.footprint_quad_count(), 1,
+		"Bontago-xtq.7: tipped onto its side, pillar's 3 cells span 3 columns but still project one whole-shape hull."
+	)
 
 
 func test_footprint_tint_follows_validity_like_the_held_shapes_own_body() -> void:
@@ -246,10 +256,12 @@ func test_no_shadow_node_remains_once_a_shape_is_held() -> void:
 
 	ghost.update_placement(Vector3.ZERO, Vector3.UP)
 
-	# The footprint is the only ground marker now: exactly the shape visual
-	# plus one footprint quad per bottom cell, no separate shadow quad.
+	# The footprint/projection are the only ground markers now: the shape
+	# visual, the persistent projection-prism mesh (Bontago-xtq.7 -- added
+	# once in _ready(), always present even with an empty mesh), and one
+	# footprint quad -- no separate shadow quad.
 	assert_eq(
-		ghost.get_child_count(), 1 + ghost.footprint_quad_count(),
+		ghost.get_child_count(), 2 + ghost.footprint_quad_count(),
 		"a leftover shadow child would show up here as an extra, unaccounted-for node."
 	)
 
@@ -313,10 +325,18 @@ func _polygon_area(points: PackedVector2Array) -> float:
 ## rotated shape (docs/rotation-issue.png: a rotated block with unrotated,
 ## overlapping footprint squares). At a 90-degree yaw a square's own bounding
 ## box happens to look the same either way, so this checks 45 degrees too,
-## where a truly rotated cell's footprint becomes a diamond -- a bug that
+## where a truly rotated shape's footprint becomes a diamond -- a bug that
 ## left the bounding box at the original axis-aligned size would be caught by
 ## the 45-degree case's larger, non-axis-aligned bounding box.
-func test_footprint_polygon_matches_the_rotated_cells_projected_corners() -> void:
+##
+## Bontago-xtq.7: updated for the whole-shape hull contract -- there is now
+## exactly one footprint polygon (index 0) covering every cell's own rotated
+## corners together, not one polygon per cell, so the expected points below
+## are gathered across all of the L-shape's 3 cells before taking their own
+## convex hull (the same primitive the implementation calls, but the corner
+## *rotation* math is still independently hand-expanded, which is the part
+## Bontago-mv0.25's regression was actually in).
+func test_footprint_polygon_matches_the_whole_rotated_shapes_projected_corners() -> void:
 	var shape: BlockShape = _flat_l_shape()
 	var ghost: GhostPreview = autofree(GhostPreview.new())
 	add_child_autofree(ghost)
@@ -334,10 +354,9 @@ func test_footprint_polygon_matches_the_rotated_cells_projected_corners() -> voi
 		ghost.set_orientation_index(0)
 		ghost.update_placement(Vector3.ZERO, Vector3.UP)
 
-		for cell_index: int in range(shape.cells.size()):
-			var cell: Vector3i = shape.cells[cell_index]
+		var expected_points: PackedVector2Array = PackedVector2Array()
+		for cell: Vector3i in shape.cells:
 			var local_center: Vector3 = (Vector3(cell) - pivot) * ghost.tuning.cube_size
-			var expected_points: PackedVector2Array = PackedVector2Array()
 			for corner_sign: Vector3 in corner_signs:
 				var corner: Vector3 = local_center + corner_sign * half_size
 				# Basis(Vector3.UP, angle) * corner, hand-expanded (matches
@@ -346,20 +365,137 @@ func test_footprint_polygon_matches_the_rotated_cells_projected_corners() -> voi
 				var x: float = corner.x * cos(angle) + corner.z * sin(angle)
 				var z: float = -corner.x * sin(angle) + corner.z * cos(angle)
 				expected_points.append(Vector2(x, z))
-			var expected_bbox: Rect2 = _bbox_of(expected_points)
-			var expected_area: float = (2.0 * half_size) * (2.0 * half_size)
+		var expected_hull: PackedVector2Array = Geometry2D.convex_hull(expected_points)
+		var expected_bbox: Rect2 = _bbox_of(expected_hull)
+		var expected_area: float = _polygon_area(expected_hull)
 
-			var actual_polygon: PackedVector2Array = ghost.footprint_polygon_world(cell_index)
-			var actual_bbox: Rect2 = _bbox_of(actual_polygon)
-			assert_true(
-				actual_bbox.position.is_equal_approx(expected_bbox.position),
-				"cell %d bbox origin wrong at angle %.3f: got %s expected %s" % [cell_index, angle, actual_bbox.position, expected_bbox.position]
-			)
-			assert_true(
-				actual_bbox.size.is_equal_approx(expected_bbox.size),
-				"cell %d bbox size wrong at angle %.3f: got %s expected %s" % [cell_index, angle, actual_bbox.size, expected_bbox.size]
-			)
-			assert_almost_eq(
-				_polygon_area(actual_polygon), expected_area, 0.001,
-				"a rigid rotation must preserve each cell's own footprint area exactly, at any angle."
-			)
+		assert_eq(ghost.footprint_quad_count(), 1, "the whole L-shape must still show exactly one footprint polygon.")
+		var actual_polygon: PackedVector2Array = ghost.footprint_polygon_world(0)
+		var actual_bbox: Rect2 = _bbox_of(actual_polygon)
+		assert_true(
+			actual_bbox.position.is_equal_approx(expected_bbox.position),
+			"bbox origin wrong at angle %.3f: got %s expected %s" % [angle, actual_bbox.position, expected_bbox.position]
+		)
+		assert_true(
+			actual_bbox.size.is_equal_approx(expected_bbox.size),
+			"bbox size wrong at angle %.3f: got %s expected %s" % [angle, actual_bbox.size, expected_bbox.size]
+		)
+		assert_almost_eq(
+			_polygon_area(actual_polygon), expected_area, 0.001,
+			"a rigid rotation must preserve the whole shape's own footprint area exactly, at any angle."
+		)
+
+
+# --- Bontago-xtq.7: the whole-shape projection prism -------------------------
+# (docs/solid-blocks2-issue.png, owner test 2026-09-23) -----------------------
+
+func _footprint_test_map() -> MapDef:
+	var map_def: MapDef = MapDef.new()
+	map_def.id = &"test_ghost_preview_footprint_disk"
+	map_def.field_radius = 12.0
+	map_def.cell_size = 1.0
+	map_def.disk_height = 1.0
+	map_def.territory_res = 16
+	return map_def
+
+
+## The owner's own repro ("I took a screenshot where I'm hovering a tilted
+## ghost block on top of a dropped block and you can see that the middle
+## section of the ghost block shows up on top of the dropped block and the
+## other sections land on the disc"): a tilted bar3 held above a real placed
+## pillar must show exactly one footprint polygon, landed on the bare disc
+## (never the pillar's own top face -- the old per-cell raycast against the
+## unfiltered world happily landed there), plus a projection prism reaching
+## from the held shape's own current lowest point down to that same disc
+## height.
+func test_pitched_bar3_over_a_placed_block_gets_one_disc_footprint_and_a_matching_prism() -> void:
+	var field: Field = autofree(Field.new())
+	field.map_def = _footprint_test_map()
+	add_child_autofree(field)
+
+	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres")
+	var block: Block = BlockFactory.build(load("res://config/blocks/pillar.tres"), tuning)
+	field.get_parent().add_child(block)
+	autofree(block)
+	block.global_position = Vector3(0.0, 5.0, 0.0)
+	await wait_physics_frames(90)
+	block.sleeping = true
+
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+	ghost.set_shape(load("res://config/blocks/bar3.tres"))
+	# A partial pitch (not a 90-degree step, which for an X-extending bar
+	# pitched about X is a geometric no-op -- see game/PlayerController.gd's
+	# own test_moving_horizontally_into_a_placed_block_stops_short_of_it_at_a_
+	# pitched_rotation for the same choice), same as the owner's own
+	# rotate-drag gesture.
+	ghost.apply_free_rotation_delta(0.0, deg_to_rad(20.0), Vector3.RIGHT)
+
+	# The disk-only probe (Bontago-mv0.17 item 5) reports the bare disk
+	# surface at the field's own origin regardless of the pillar sitting
+	# there -- same surface_point PlayerController's own probe would report.
+	var disk_surface_point: Vector3 = Vector3.ZERO
+	ghost.update_placement(disk_surface_point, Vector3.UP)
+
+	assert_eq(ghost.footprint_quad_count(), 1, "one whole-shape footprint, not one per cell.")
+	assert_almost_eq(
+		ghost.footprint_quad_position(0).y, disk_surface_point.y + ghost.ghost_tuning.footprint_offset, 0.01,
+		"the footprint must land on the bare disc, never the placed pillar's own top face."
+	)
+
+	assert_true(ghost.has_projection_mesh(), "a real gap between the shape and the disc must show a projection prism.")
+	var span: Vector2 = ghost.projection_span_y()
+	# Wider tolerance than test_update_placement_keeps_a_rotated_talls_shapes_
+	# visual_bottom_at_the_reported_height() above uses for an axis-aligned
+	# 90-degree pitch: the prism's own top comes from _rotated_bottom_offset()
+	# (the *collision*-sized half_size, shrunk by cube_margin, per this
+	# file's own DECISION on collision_box_local_centers()), while
+	# _visual_world_bottom_y() reads the *visual* mesh (deliberately a hair
+	# larger, un-shrunk -- BlockMeshBuilder's own header) -- the two agree up
+	# to cube_margin/2 per axis the extremal corner projects onto, which for
+	# this test's diagonal 20-degree pitch (unlike a clean 90-degree step) is
+	# more than one axis at once, up to cube_margin/2 * sqrt(2).
+	assert_almost_eq(
+		span.x, _visual_world_bottom_y(ghost), ghost.tuning.cube_margin + 0.001,
+		"the prism's own top must match the held shape's own current lowest rendered point."
+	)
+	assert_almost_eq(
+		span.y, disk_surface_point.y, 0.01,
+		"the prism's own bottom must match the footprint's disc landing height, not the pillar's top."
+	)
+
+
+func test_no_projection_prism_when_no_shape_is_held() -> void:
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	assert_false(ghost.has_projection_mesh())
+	assert_eq(ghost.projection_span_y(), Vector2.ZERO)
+
+
+## A flush shape sitting right on the surface it hovers over (manual_hover_
+## offset cancelling out tuning.hover_height, spec 2.5's own wheel-adjustable
+## height) has no real gap between its own underside and the footprint -- the
+## prism must collapse (no mesh, not a paper-thin sliver).
+func test_projection_prism_collapses_when_the_shape_already_touches_the_ground() -> void:
+	var ghost: GhostPreview = _make_ghost()
+	ghost.manual_hover_offset = -ghost.tuning.hover_height
+
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	assert_false(ghost.has_projection_mesh(), "with no vertical gap, the collapsed prism should not render a sliver.")
+	assert_eq(ghost.projection_span_y(), Vector2.ZERO)
+
+
+## hover_height alone (spec 2.5's default lift) is a real, known gap -- proof
+## the collapse guard above isn't just always true.
+func test_projection_prism_spans_hover_height_over_flat_ground() -> void:
+	var ghost: GhostPreview = _make_ghost()
+
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	assert_true(ghost.has_projection_mesh(), "hover_height alone should still show a prism.")
+	var span: Vector2 = ghost.projection_span_y()
+	assert_almost_eq(span.x - span.y, ghost.tuning.hover_height, 0.01, "the prism should span exactly hover_height with nothing else in the way.")

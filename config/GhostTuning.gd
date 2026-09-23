@@ -119,6 +119,24 @@ extends Resource
 ## doesn't z-fight with the disk/block it's projected onto.
 @export var footprint_offset: float = 0.01
 
+## -- Projection prism (Bontago-xtq.7, docs/solid-blocks2-issue.png, owner
+## test 2026-09-23: "in the original the ghost block projects its whole shape
+## downwards to the disc, it's not just a footprint indicator where the
+## raycast lands") -- the vertical walls connecting the held shape's own
+## underside down to its footprint on the disc, matching the original's own
+## translucent silhouette (docs/original_in-game.png). ------------------------
+## Alpha of the projection prism's own walls -- deliberately fainter than
+## footprint_alpha (the flat decal it stands on): a tall, mostly-empty volume
+## marker reads better subtle than a solid wall would.
+@export var projection_alpha: float = 0.18
+## DECISION (config/GhostTuning.gd, Bontago-xtq.7): true reuses the same
+## valid/invalid/hole/locked state colours the footprint and held shape's own
+## body already show (see GhostPreview._apply_projection_material()'s own
+## DECISION); false always tints the prism with the base tint_color
+## regardless of state, kept as a tuning-panel escape hatch for an owner feel
+## comparison rather than a field this project expects to ship off.
+@export var projection_uses_state_tint: bool = true
+
 ## -- Placement validity tint (spec 2.2, 2.5) ---------------------------------
 ## Shown for every "can't drop here" reason that isn't a hole/goal-zone:
 ## outside your own territory, contested, or off the disk.
