@@ -16,6 +16,17 @@ extends Node3D
 ## the DECISION comments below. Setting follow_block = false on the
 ## CameraTuning resource restores the exact pre-mv0.14 free-orbit behaviour
 ## (manual pan, snap-to actions), so a test can still pin it deliberately.
+##
+## Bontago-mv0.29 (owner: "the mmb rotation issue persists, can the camera
+## just be locked in place while mmb is pressed?" -- feedback/rotation-issue.png):
+## mv0.28 made the follow target track the held ghost's rotated geometric
+## centre instead of its node origin, but any shape whose mass isn't
+## symmetric about its own rotation axis still slides that centre while
+## rotate_drag (MMB) spins it, so the camera still visibly moved. This rig
+## now freezes completely -- target, yaw, pitch and distance -- for as long
+## as rotate_drag is held (see _rotate_drag_frozen()), and resumes following
+## on release through the same follow_lag lerp/snap _process() already runs
+## every other frame.
 
 @export var tuning: CameraTuning = preload("res://config/camera_tuning.tres")
 @export var map_def: MapDef = preload("res://config/maps/round_medium.tres")
@@ -96,6 +107,15 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _rotate_drag_frozen():
+		# Bontago-mv0.29: freeze consumes every camera input this rig would
+		# otherwise react to (orbit motion, pan motion, zoom keys, snap
+		# actions) while rotate_drag is held -- see this method's own
+		# doc comment on _rotate_drag_frozen() for why. PlayerController has
+		# its own separate _unhandled_input() and still receives this same
+		# event undisturbed (Godot dispatches _unhandled_input to every
+		# listening node, not just the first), so the ghost keeps rotating.
+		return
 	if event is InputEventMouseMotion:
 		var motion: InputEventMouseMotion = event
 		if Input.is_action_pressed(&"camera_mode") or Input.is_action_pressed(&"camera_orbit"):
@@ -138,6 +158,23 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
+	if _rotate_drag_frozen():
+		# Bontago-mv0.29 (owner: "the mmb rotation issue persists, can the
+		# camera just be locked in place while mmb is pressed?"): returning
+		# here before touching _target/_yaw/_pitch/_distance or calling
+		# _update_transform() leaves global_transform bit-for-bit whatever it
+		# was last frame, regardless of what PlayerController's own
+		# set_follow_position() reports this frame (the ghost's rotated
+		# centre moves during a drag whenever the held shape isn't symmetric
+		# about its rotation axis -- mv0.28 alone did not stop that) or what
+		# the height wheel/gamepad stick/right-stick orbit did. Releasing
+		# rotate_drag needs no special "resume" code: the very next
+		# non-frozen _process() lerps _target toward whatever
+		# _follow_position has meanwhile become, at the normal
+		# follow_lag_seconds rate (an instant snap when that tuning is 0, the
+		# shipped default) -- exactly the same path every other frame already
+		# takes.
+		return
 	# The gamepad's right stick always free-orbits (spec 2.5's camera row has
 	# no gamepad hold requirement; see test_project_setup.gd's DEVICE_EXCEPTIONS
 	# for camera_mode). Bontago-mv0.14 removed the previous rotate_free_hold
@@ -258,6 +295,29 @@ func _clamp_pitch() -> void:
 	_pitch = clampf(_pitch, deg_to_rad(tuning.min_pitch_deg), deg_to_rad(tuning.max_pitch_deg))
 
 
+## Bontago-mv0.29 (owner: "the mmb rotation issue persists, can the camera
+## just be locked in place while mmb is pressed?"): true for exactly as long
+## as rotate_drag is held, on whichever device -- Input.is_action_pressed()
+## already reads every binding the Input Map has for the action (mouse and
+## gamepad alike; tools/bootstrap_project.gd), so a pad binding added there
+## later needs no change here. Read by _process(), _unhandled_input() and
+## zoom_by_orbit_step() (the one mutator PlayerController can reach directly,
+## bypassing this rig's own _unhandled_input) so the freeze is total: no
+## target/yaw/pitch/distance mutation anywhere while true.
+## DECISION (game/CameraRig.gd): camera_orbit (RMB) is bound to a different
+## action than rotate_drag (MMB), so both can physically be held at once.
+## The simplest consistent rule is that rotate_drag always wins outright --
+## _unhandled_input()'s early return above fires before it ever checks
+## camera_orbit/camera_mode, so starting or continuing an RMB-orbit drag
+## while MMB is already down does nothing until MMB is released, and holding
+## RMB first and then also pressing MMB freezes the rig mid-orbit exactly
+## like any other frozen frame. This matches the plain-language brief ("the
+## camera just be locked in place while mmb is pressed") without a second
+## precedence rule to test and explain.
+func _rotate_drag_frozen() -> bool:
+	return Input.is_action_pressed(&"rotate_drag")
+
+
 func _zoom(direction: float) -> void:
 	_distance = clampf(_distance + direction * tuning.zoom_step, tuning.zoom_min, tuning.zoom_max)
 
@@ -269,6 +329,13 @@ func _zoom(direction: float) -> void:
 ## triggers already use via _zoom() -- letting the held-orbit wheel feel be
 ## tuned independently.
 func zoom_by_orbit_step(direction: float) -> void:
+	if _rotate_drag_frozen():
+		# Bontago-mv0.29: PlayerController calls this directly (not through
+		# this rig's own _unhandled_input, which already guards itself above)
+		# whenever camera_orbit/camera_mode is held and the wheel fires; if
+		# the player also holds rotate_drag at the same time, freeze wins --
+		# see the DECISION on _rotate_drag_frozen().
+		return
 	_distance = clampf(_distance + direction * tuning.orbit_zoom_step, tuning.zoom_min, tuning.zoom_max)
 
 
