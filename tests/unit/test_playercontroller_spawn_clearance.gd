@@ -42,6 +42,16 @@ func before_each() -> void:
 func after_each() -> void:
 	Match.abort_match()
 	Match.set_process(true)
+	# Bontago-integ (2026-09-23 combined-run regression): before_each()'s own
+	# _field is autofree()'d at the end of this test, but Match._field is a
+	# plain autoload var nothing else resets (same DECISION as
+	# test_jumping_bean_effect.gd:251) -- left alone, the next script in a
+	# combined run that reads Match.field() without registering its own world
+	# (e.g. test_throw_arc_preview.gd's PlayerController fixtures) gets a
+	# freed Field and Godot's own argument type-check throws "previously
+	# freed" before the callee even runs. Clear it here, not just abort the
+	# match, so this script's own throwaway Field never outlives it.
+	Match._field = null
 
 
 func _config(player_count: int = 2) -> MatchConfig:

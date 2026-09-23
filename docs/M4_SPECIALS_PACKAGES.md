@@ -53,6 +53,14 @@ func wants_early_trigger(block: Block, behavior: SpecialBehavior) -> bool:
     if not block.has_meta(&"<key>_start_age"): return false
     return behavior.age() - float(block.get_meta(&"<key>_start_age")) >= duration_s
 ```
+**Amendment (2026-09-23, Bontago-1en.22):** `SpecialEffect.impact_triggers(block, behavior) -> bool`
+(default `true`) is consulted by `SpecialBehavior._check_impact()` before an impact may call
+`trigger(0)`. Timed effects whose activation is the settle/window itself — Propeller, Jumping Bean,
+Earthquake, Volcano — override it to `false`, so their own landing can no longer detonate them
+before `physics_tick()` ever ran (a hard-landed Propeller used to "fire" with zero effect). Chain
+triggering (`trigger_others_in_range()` → `trigger()`) bypasses the hook; Bomb, Rocket and Anvil keep
+impact activation.
+
 `<key>` unique per effect type. Driven by simulation time, so results are
 frame-rate independent — testable by calling `advance()` N times at a fixed
 `delta`, as `test_special_behavior.gd` already does.
