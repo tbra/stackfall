@@ -78,6 +78,12 @@ var _hot_seat: HotSeat = null
 var _sandbox: Sandbox = null
 var _remote_cursors: RemoteCursors = null
 var _debug_overlay: NetDebugOverlay = null
+## Bontago-d5c.6 (M5 P5): one instance per bot slot in the match currently
+## built, built in _build_match_world() (or _start_headless_bot_match_with_
+## args()'s own reuse of it) and freed in _end_match_world() -- see
+## _spawn_bot_controllers()'s own doc for why this lives here rather than in
+## a P4 lobby append.
+var _bot_controllers: Array[BotController] = []
 
 ## True once _build_match_world() has run for the match currently in
 ## progress, so a repeated match_state_changed(LOBBY, LOADING) firing twice
@@ -117,6 +123,15 @@ func _ready() -> void:
 	# Events.net_mode_changed before this call returns -- _on_net_mode_changed
 	# has already swapped the menu for the lobby by the time we get here.
 	Net.apply_command_line()
+
+	# Bontago-d5c.6 (M5 P5): a headless host has no human to click the
+	# Lobby's own Start button, so `--headless-host --bots=<n>` (n > 0) skips
+	# straight past that wait -- see _start_headless_bot_match_with_args()'s
+	# own doc. A no-op (and so byte-identical to today) for every other
+	# --headless-host command line: the function itself gates on --bots=<n>
+	# being present and > 0.
+	if _has_cmdline_flag("headless-host"):
+		_start_headless_bot_match_with_args(OS.get_cmdline_user_args())
 
 
 func _physics_process(delta: float) -> void:
@@ -246,6 +261,103 @@ func _sandbox_force_special_arg(args: PackedStringArray) -> String:
 	return ""
 
 
+# --- Headless bot match: `--bots=<n>` (Bontago-d5c.6, M5 P5) -----------------
+#
+# `godot --headless --path . -- --headless-host --bots=<n> [--players=<n2>]
+# [--seconds=<n3>]` starts a **real** networked match (config.sandbox = false,
+# config.hot_seat = false -- the real feed/territory/win loop, unlike
+# --sandbox above) with `n` bot-driven seats and no human required to click
+# the Lobby's Start button. Unlike --hot-seat/--sandbox this does NOT return
+# early out of _ready(): Events.match_state_changed/net_mode_changed are
+# already connected and Net.apply_command_line() has already run host_game()
+# for --headless-host by the time _ready() reaches this call, so
+# Match.start_match() below's own (LOBBY -> LOADING) emit runs the normal
+# _build_match_world() exactly as a lobby-started match would -- only the
+# "wait for a human to press Start" step is skipped. This is deliberate: it
+# is what lets _build_match_world()'s own bot-controller wiring (below) serve
+# both this entry point and an ordinary mixed human+bot lobby match with one
+# piece of code (docs/M5_PLAN.md P5 item 3), rather than a second, divergent
+# world-build path.
+
+func _start_headless_bot_match_with_args(args: PackedStringArray) -> void:
+	var bots: int = _bots_arg(args)
+	if bots <= 0:
+		# Feature off by default: every existing `--headless-host`-only
+		# command line (no `--bots=`) falls straight through to the normal
+		# Lobby wait-for-Start path, unaffected.
+		return
+	Match.register_world(_field, _registry, _blocks_container)
+	Match.start_match(_build_headless_bot_config(bots, args))
+
+	# `--seconds=<n>` bounds the run with a hard wall-clock quit: the
+	# acceptance command has no real win condition to end on within a CI
+	# harness's own patience (docs/M5_PLAN.md P5).
+	var seconds: float = _seconds_arg(args)
+	if seconds > 0.0:
+		get_tree().create_timer(seconds).timeout.connect(func() -> void: get_tree().quit(0))
+
+
+## `--bots=<n>`, same "-"-stripping/PREFIX convention as _sandbox_player_
+## count()/_sandbox_force_special_arg() above. 0 when absent -- see
+## _start_headless_bot_match_with_args()'s own "feature off by default" doc.
+func _bots_arg(args: PackedStringArray) -> int:
+	const PREFIX: String = "bots="
+	for raw: String in args:
+		var text: String = raw
+		while text.begins_with("-"):
+			text = text.substr(1)
+		if text.begins_with(PREFIX):
+			return int(text.substr(PREFIX.length()))
+	return 0
+
+
+## `--seconds=<n>`, same convention. 0.0 (unbounded -- the match runs until a
+## real win condition or the process is killed) when absent.
+func _seconds_arg(args: PackedStringArray) -> float:
+	const PREFIX: String = "seconds="
+	for raw: String in args:
+		var text: String = raw
+		while text.begins_with("-"):
+			text = text.substr(1)
+		if text.begins_with(PREFIX):
+			return float(text.substr(PREFIX.length()))
+	return 0.0
+
+
+## Same "players="-reading loop as _sandbox_player_count(), with a different
+## absent-flag default (0, so `maxi(bots, ...)` below reduces to exactly
+## `bots` with no --players given -- docs/M5_PLAN.md P5: "every seat a bot"
+## is the literal acceptance command's own shape) -- kept separate from
+## _sandbox_player_count() rather than reused, since that function's own
+## absent-flag default (sandbox_config.default_player_count) is wrong here.
+func _headless_bot_players_arg(args: PackedStringArray) -> int:
+	const PREFIX: String = "players="
+	for raw: String in args:
+		var text: String = raw
+		while text.begins_with("-"):
+			text = text.substr(1)
+		if text.begins_with(PREFIX):
+			return int(text.substr(PREFIX.length()))
+	return 0
+
+
+## Same lobby-settings-minus-a-few-overrides shape as _build_hot_seat_config()/
+## _build_sandbox_config() above: `config.player_count` may be raised past
+## `bots` by `--players=<n2>` to leave human seats idle (docs/M5_PLAN.md P5:
+## "matching --sandbox's own --players= precedent, but is not required for
+## the acceptance criterion"); `config.sandbox` stays false (unlike
+## --sandbox's own config) -- this is a real match, real timers/cadence, the
+## whole point being that the real feed/territory/win loop survives N
+## concurrent bots, not sandbox's relaxed rules.
+func _build_headless_bot_config(bots: int, args: PackedStringArray) -> MatchConfig:
+	var config: MatchConfig = match_config.duplicate(true) as MatchConfig
+	config.ai_count = bots
+	config.player_count = maxi(bots, _headless_bot_players_arg(args))
+	config.hot_seat = false
+	config.sandbox = false
+	return config
+
+
 # --- Menu / lobby routing -----------------------------------------------------
 
 func _show_main_menu() -> void:
@@ -350,26 +462,56 @@ func _build_match_world() -> void:
 	_remote_cursors = REMOTE_CURSORS_SCENE.instantiate() as RemoteCursors
 	add_child(_remote_cursors)
 
-	_hot_seat = HOT_SEAT_SCENE.instantiate() as HotSeat
-	add_child(_hot_seat)
-	_hot_seat.set_camera_rig(_camera_rig)
-	_hot_seat.set_field(_field)
-	_hot_seat.bind_local_slot(Net.local_slot())
-	# Bontago-mv0.26 (owner test 2026-09-22, "the original lets me keep moving
-	# once I hit the edge of the screen"): HotSeat.gd's own _ready() already
-	# calls this unconditionally (this scene is the exact same HOT_SEAT_SCENE
-	# --hot-seat uses), so it should already be captured by the time
-	# add_child() above returns. Called again here, explicitly, the same way
-	# HotSeat.gd/Sandbox.gd each call it for their own subtree: this world
-	# build is the one place that wires a controller into a match Main itself
-	# owns, so it gets its own direct call rather than depending solely on a
-	# child scene's _ready() timing -- idempotent (enable_mouse_capture() just
-	# re-sets Input.mouse_mode) and a no-op headless, so it changes nothing
-	# for --headless-host or the test suite.
-	_hot_seat.controller().enable_mouse_capture()
+	# Bontago-d5c.6 (M5 P5): a HotSeat instance always binds Net.local_slot()
+	# (0 on the host, whether online, offline or the headless-bots path
+	# above), so it must not be built when that slot itself is a bot -- the
+	# all-bot `--bots=<n>` acceptance command (config.player_count ==
+	# config.ai_count, no `--players=` override) leaves no human slot at all.
+	# A mixed lobby match (some humans, some bots) still gets it exactly as
+	# before: humans always fill the lowest slot ids first (MatchLifecycle.
+	# _build_slots()'s `is_bot = i >= player_count - ai_count`), so
+	# Net.local_slot() is never a bot slot on any path but this one.
+	if config.ai_count < config.player_count:
+		_hot_seat = HOT_SEAT_SCENE.instantiate() as HotSeat
+		add_child(_hot_seat)
+		_hot_seat.set_camera_rig(_camera_rig)
+		_hot_seat.set_field(_field)
+		_hot_seat.bind_local_slot(Net.local_slot())
+		# Bontago-mv0.26 (owner test 2026-09-22, "the original lets me keep moving
+		# once I hit the edge of the screen"): HotSeat.gd's own _ready() already
+		# calls this unconditionally (this scene is the exact same HOT_SEAT_SCENE
+		# --hot-seat uses), so it should already be captured by the time
+		# add_child() above returns. Called again here, explicitly, the same way
+		# HotSeat.gd/Sandbox.gd each call it for their own subtree: this world
+		# build is the one place that wires a controller into a match Main itself
+		# owns, so it gets its own direct call rather than depending solely on a
+		# child scene's _ready() timing -- idempotent (enable_mouse_capture() just
+		# re-sets Input.mouse_mode) and a no-op headless, so it changes nothing
+		# for --headless-host or the test suite.
+		_hot_seat.controller().enable_mouse_capture()
+
+	_spawn_bot_controllers(config)
 
 	_debug_overlay = NET_DEBUG_OVERLAY_SCENE.instantiate() as NetDebugOverlay
 	add_child(_debug_overlay)
+
+
+## docs/M5_PLAN.md P5 item 3: one BotController per bot slot, for the
+## headless-only-bots path above (_start_headless_bot_match_with_args()'s own
+## Match.start_match() reaches this function too, via Events.match_state_
+## changed -- see its own doc) and an ordinary mixed human+bot lobby match
+## alike -- the trailing `config.ai_count` slots, exactly matching
+## MatchLifecycle._build_slots()'s own `is_bot` assignment
+## (`i >= player_count - ai_count`). Host-gated inside BotController itself
+## (`game/BotController.gd`'s own `_is_host()` check), so building one on a
+## client too costs nothing and stays inert.
+func _spawn_bot_controllers(config: MatchConfig) -> void:
+	var first_bot_slot: int = config.player_count - config.ai_count
+	for slot_id: int in range(first_bot_slot, config.player_count):
+		var bot: BotController = BotController.new()
+		add_child(bot)
+		bot.setup(slot_id, config.ai_difficulty, _field, _registry)
+		_bot_controllers.append(bot)
 
 
 func _end_match_world() -> void:
@@ -388,6 +530,10 @@ func _end_match_world() -> void:
 	if _hot_seat != null and is_instance_valid(_hot_seat):
 		_hot_seat.queue_free()
 	_hot_seat = null
+	for bot: BotController in _bot_controllers:
+		if bot != null and is_instance_valid(bot):
+			bot.queue_free()
+	_bot_controllers.clear()
 	if _debug_overlay != null and is_instance_valid(_debug_overlay):
 		_debug_overlay.queue_free()
 	_debug_overlay = null
