@@ -64,6 +64,7 @@ ranges = {
 "TerritoryVisuals.ssr_depth_tolerance": Vector2(0.0, 2.0),
 "TerritoryVisuals.mirror_strength": Vector2(0.0, 1.0),
 "TerritoryVisuals.mirror_resolution_scale": Vector2(0.1, 1.0),
+"TerritoryVisuals.mirror_max_luminance": Vector2(0.1, 8.0),
 }
 descriptions = {
 "CameraTuning.mouse_orbit_speed": "How fast the camera orbits (yaw/pitch) per pixel of mouse motion while holding orbit.",
@@ -215,6 +216,7 @@ descriptions = {
 "TerritoryVisuals.mirror_enabled": "Whether a planar mirror camera renders a true per-pixel reflection of the scene onto the disk.",
 "TerritoryVisuals.mirror_strength": "How much of the disk's reflection comes from the planar mirror texture versus the plain metallic/probe/SSR response.",
 "TerritoryVisuals.mirror_resolution_scale": "Planar mirror's render resolution as a fraction of the main viewport's; lower trades sharpness for GPU cost.",
+"TerritoryVisuals.mirror_max_luminance": "Caps how bright the planar mirror's sampled color can be (hue preserved) before it is mixed into the disk; lower this to tame a glaring sun/highlight reflection.",
 "BlockFeedConfig.min_stabilizers_per_bag": "Minimum stabilizing shapes guaranteed in every bag of blocks.",
 "BlockFeedConfig.bag_multiplier": "How many copies of each shape's weight go into a bag; bigger means a longer, looser bag.",
 "BlockFeedConfig.preview_count": "How many upcoming blocks the HUD shows in the feed preview.",

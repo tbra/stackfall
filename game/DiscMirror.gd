@@ -10,8 +10,10 @@ extends Node3D
 ##
 ## This node renders a second Camera3D, mirrored about the disk's own plane,
 ## into a SubViewport every frame; shaders/territory.gdshader (via
-## game/TerritoryOverlay.gd's set_mirror_texture(), this file's only touch on
-## that file) samples that viewport's texture at SCREEN_UV (X flipped -- see
+## game/TerritoryOverlay.gd's set_mirror_texture() and, for
+## mirror_max_luminance below, its public material() accessor -- neither
+## requires editing that file, which stays out of this package's ownership)
+## samples that viewport's texture at SCREEN_UV (X flipped -- see
 ## mirror_transform()'s own DECISION comment below for why) -- the standard
 ## planar-reflection technique (e.g. Half-Life 2's water, many racing games'
 ## puddle/floor reflections): the mirror camera shares the main camera's
@@ -114,6 +116,18 @@ func _process(_delta: float) -> void:
 		_overlay.set_mirror_texture(
 			_viewport.get_texture(), visuals.mirror_enabled, visuals.mirror_strength
 		)
+		# Bontago-xtq.20: mirror_max_luminance has no dedicated push method on
+		# TerritoryOverlay (out of this package's ownership -- see the class
+		# doc above) -- material() is the same public accessor
+		# tests/unit/test_territory_overlay.gd already reads shader params
+		# through, so this is not a new kind of touch on that file.
+		# Review (xtq.20): material() is null until TerritoryOverlay.configure()
+		# has run, the same guard set_mirror_texture() applies internally.
+		var overlay_material: ShaderMaterial = _overlay.material()
+		if overlay_material != null:
+			overlay_material.set_shader_parameter(
+				&"mirror_max_luminance", visuals.mirror_max_luminance
+			)
 	if not visuals.mirror_enabled:
 		return
 

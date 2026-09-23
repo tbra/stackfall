@@ -250,6 +250,30 @@ func test_reflection_probe_disabled_hides_it() -> void:
 	assert_false(probe.visible)
 
 
+func test_reflection_probe_excludes_the_disc_mirror_layer() -> void:
+	# Bontago-xtq.20 (owner, 2026-09-23 20:12: "graphics flickering"):
+	# fail-before this fix -- a fresh ReflectionProbe's default cull_mask
+	# includes every layer, including DiscMirror.DISC_LAYER_BIT (the layer
+	# game/DiscMirror.gd moves the disc onto in _ready() so its OWN mirror
+	# camera cannot see it). Left unset, the probe would still bake the disc's
+	# own shader (which samples SCREEN_UV of a SubViewport rendered for the
+	# main camera's projection, meaningless from a cubemap face's own
+	# projection) into its cubemap every UPDATE_ALWAYS frame -- an incoherent
+	# image that changes every frame, i.e. flicker.
+	var visuals: TerritoryVisuals = TerritoryVisuals.new()
+	var wired: Dictionary = _make_skybox_with_probe(visuals)
+	var probe: ReflectionProbe = wired["probe"] as ReflectionProbe
+
+	assert_eq(
+		probe.cull_mask & DiscMirror.DISC_LAYER_BIT, 0,
+		"the reflection probe must not see the layer the disc's planar-mirror material lives on.",
+	)
+	assert_eq(
+		probe.cull_mask, DiscMirror.MIRROR_CULL_MASK,
+		"the probe should exclude exactly the same layer DiscMirror's own mirror camera already excludes.",
+	)
+
+
 func test_reflection_probe_configuration_is_a_noop_with_no_path_wired() -> void:
 	# before_each()'s plain _skybox never wires reflection_probe_path or a
 	# probe child -- _ready() already ran in before_each() without error, so

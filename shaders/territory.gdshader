@@ -167,6 +167,25 @@ uniform float rim_speed = 1.6;
 uniform sampler2D mirror_tex : filter_linear;
 uniform bool mirror_enabled = false;
 uniform float mirror_strength : hint_range(0.0, 1.0) = 0.0;
+// Bontago-xtq.20 (owner, 2026-09-23 20:12: "the main light source is
+// glaringly visible in the disc reflection"): mirror_color below is a literal
+// per-pixel copy of the mirrored camera's own rendered scene, mixed straight
+// into ALBEDO with none of the rest of the disk's own lit response around it
+// -- a directly-visible sun disc (ProceduralSkyMaterial, whose brightness
+// this project's DirectionalLight3D drives) or a hard specular highlight off
+// that same light, both already clipped by Environment's own (default
+// Linear) tonemap operator, reads as a stark, hard-edged white blob once it
+// is substituted for the disk's own mid-toned albedo -- worse than the same
+// highlight reads rendered normally, where it is one small bright patch
+// among an otherwise-lit scene. Clamping the SAMPLED color's luminance
+// before the mix (hue-preserving: scaling all three channels by the same
+// factor) is the fix, not disabling the light's specular contribution scene-
+// wide -- the mirror SubViewport cannot do that selectively anyway
+// (game/DiscMirror.gd's class doc: own_world_3d = false means it shares
+// every light with the main camera). Default picked so the clamp only ever
+// engages on a genuinely blown-out highlight (a normally-lit block or sky
+// patch sits well under 1.0), not on an ordinary bright reflection.
+uniform float mirror_max_luminance : hint_range(0.1, 8.0) = 1.35;
 
 varying vec3 v_local;
 
@@ -401,6 +420,13 @@ void fragment() {
 		// renders the true mirror image flipped left-right -- flipping X
 		// here undoes exactly that, so this samples the correct final image.
 		vec3 mirror_color = texture(mirror_tex, vec2(1.0 - SCREEN_UV.x, SCREEN_UV.y)).rgb;
+		// Bontago-xtq.20: hue-preserving luminance clamp -- see
+		// mirror_max_luminance's own doc above for why this, and not a
+		// scene-wide specular/light change, is the fix.
+		float mirror_luma = dot(mirror_color, vec3(0.2126, 0.7152, 0.0722));
+		if (mirror_luma > mirror_max_luminance) {
+			mirror_color *= mirror_max_luminance / max(mirror_luma, 0.0001);
+		}
 		float mirror_amount = clamp(base_metallic * mirror_strength, 0.0, 1.0);
 		albedo = mix(albedo, mirror_color, mirror_amount);
 	}
