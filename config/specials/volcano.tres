@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="SpecialDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://config/specials/SpecialDef.gd" id="1_def"]
+[ext_resource type="Script" path="res://game/specials/VolcanoEffect.gd" id="2_effect"]
+
+[sub_resource type="Resource" id="Resource_volcano_effect"]
+script = ExtResource("2_effect")
+eruption_duration_s = 3.0
+min_orb_count = 8
+max_orb_count = 14
+orb_impulse = 6.0
+cone_angle_deg = 35.0
+orb_explosion_radius = 1.5
+orb_explosion_impulse_fraction = 0.5
+orb_spawn_clearance_m = 0.25
+
+[resource]
+script = ExtResource("1_def")
+id = &"volcano"
+scene = null
+weight = 1.0
+enabled_by_default = true
+arm_delay = 0.4
+arm_impulse = 5.0
+fuse_timeout_s = 6.0
+effect = SubResource("Resource_volcano_effect")
