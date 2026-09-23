@@ -388,3 +388,10 @@ extends Resource
 ## since a placed block already has its own lit surface to read through,
 ## unlike the flat disc.
 @export var block_projection_alpha: float = 0.5
+## Bontago-xtq.18 attempt 3: the block-projection decal's upper/lower fade
+## exponent (Decal.upper_fade/lower_fade: 1 - |height in box| raised to this).
+## Tiny by default so the projection stays a crisp full-strength shaft, but
+## never 0 -- game/GhostPreview.gd clamps it above zero, since a fade of 0.0
+## makes any surface lying exactly on the decal box's top or bottom plane
+## render as NaN (black speckle; feedback/owner-noise-footprint.png).
+@export var block_projection_edge_fade: float = 0.001
