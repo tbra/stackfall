@@ -244,7 +244,16 @@ func _actions() -> Dictionary:
 	# nothing to lock there.
 	a["lock_vertical"] = [_key(KEY_CTRL)]
 
-	a["throw_aim"] = [_mouse(MOUSE_BUTTON_RIGHT), _axis(JOY_AXIS_TRIGGER_LEFT, 1.0)]
+	# Bontago-1en.14 (M4 P2d, owner decision 2026-09-22 Bontago-mvl (a): "hold
+	# left mouse on the held special, drag, flick-release; drag distance/speed
+	# sets the arc. Right mouse stays camera orbit"): moved off MOUSE_BUTTON_
+	# RIGHT (this used to share camera_orbit's own button, an [OPEN] overlap
+	# spec 2.5 flagged pending this exact owner decision -- see camera_orbit's
+	# own comment below, which no longer needs to mention throw_aim at all)
+	# onto MOUSE_BUTTON_LEFT instead, the same physical button ghost_place
+	# already uses -- game/PlayerController.gd's ghost_place handler tells
+	# the two apart by whether the piece in hand is a throwable special.
+	a["throw_aim"] = [_mouse(MOUSE_BUTTON_LEFT), _axis(JOY_AXIS_TRIGGER_LEFT, 1.0)]
 
 	# --- Camera -------------------------------------------------------------
 	# Bontago-mv0.14 (original tutorial: "while holding the camera-mode key,
@@ -261,14 +270,16 @@ func _actions() -> Dictionary:
 	# same gesture (CameraRig._unhandled_input checks both actions). The wheel
 	# also zooms instead of changing block height while either is held
 	# (PlayerController._camera_orbit_held()/_zoom_camera(),
-	# CameraRig.zoom_by_orbit_step()). DECISION: shares MOUSE_BUTTON_RIGHT with
-	# throw_aim above -- spec 2.5 flags that overlap as [OPEN], to be settled
-	# by a Beads owner question before M4 P2 throwing lands; nothing reads
-	# throw_aim yet, so there is no runtime conflict today. No gamepad binding
-	# either, for the same reason camera_mode has none: the right stick
-	# already orbits unconditionally, with no hold required -- a documented
-	# "pad" DEVICE_EXCEPTION (tests/unit/test_project_setup.gd), same as
-	# camera_mode's own entry there.
+	# CameraRig.zoom_by_orbit_step()). Bontago-1en.14 (M4 P2d): this used to
+	# share MOUSE_BUTTON_RIGHT with throw_aim, an [OPEN] overlap spec 2.5
+	# flagged pending an owner decision -- throw_aim moved to MOUSE_BUTTON_LEFT
+	# instead (Bontago-mvl (a), see throw_aim's own comment above), so
+	# camera_orbit keeps MOUSE_BUTTON_RIGHT to itself now with no remaining
+	# conflict. No gamepad binding either, for the same reason camera_mode has
+	# none: the right stick already orbits unconditionally, with no hold
+	# required -- a documented "pad" DEVICE_EXCEPTION
+	# (tests/unit/test_project_setup.gd), same as camera_mode's own entry
+	# there.
 	a["camera_orbit"] = [_mouse(MOUSE_BUTTON_RIGHT)]
 
 	a["camera_look_left"] = [_axis(JOY_AXIS_RIGHT_X, -1.0)]

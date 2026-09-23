@@ -106,15 +106,20 @@ own home flag, with the camera already looking from there toward the disk's cent
 5. **Left click** to release. Inside your territory the block lands and the turn passes.
    Outside it, the block is thrown off the map and you lose it anyway — the HUD names the
    reason.
-6. Hold **`C`** (Camera Mode) and move the mouse to orbit the camera around the held block
+6. **Throwing a special:** when the held piece is a claimed special, left click instead holds
+   and aims it — drag to build up a launch vector, then release (flick). A negligible drag
+   (barely moved, or released slowly) still just places it in the usual spot; a real drag
+   throws it, launch speed scaling with drag distance up to `SpecialTuning.throw_max_speed`.
+   Right click stays the camera orbit and is never part of this gesture.
+7. Hold **`C`** (Camera Mode) and move the mouse to orbit the camera around the held block
    instead of moving it; `Z` / `X` zoom while no block is held.
-7. Let the timer ring in the top-left run out to watch the auto-drop relocate the block to
+8. Let the timer ring in the top-left run out to watch the auto-drop relocate the block to
    the nearest valid spot, or burn it if there isn't one.
-8. Build toward the other player. Where your territories overlap, the cells shimmer, then
+9. Build toward the other player. Where your territories overlap, the cells shimmer, then
    open into holes after about a second; drop a block on one and it falls through the disk.
-9. Cut a tower off from your home flag — knock out the blocks between — and watch its
-   patch of territory disappear from the overlay and from the share bars.
-10. Surround the goal flag in the middle with one connected territory. Its ring fills over
+10. Cut a tower off from your home flag — knock out the blocks between — and watch its
+    patch of territory disappear from the overlay and from the share bars.
+11. Surround the goal flag in the middle with one connected territory. Its ring fills over
     three seconds and you win.
 
 **Gamepad** (same order, Xbox layout)
@@ -126,9 +131,13 @@ own home flag, with the camera already looking from there toward the disk's cent
    resets the rotation.
 4. Right stick always orbits the camera around the held block (no hold needed — the stick
    has no other job).
-5. The triggers zoom while no block is held (they double as rotation_mode/throw while one
-   is); **Back** snaps to your home flag, **B** to the goal (both only apply to the legacy
-   free-orbit camera, off by default — see `CameraTuning.follow_block`).
+5. **Throwing a special:** hold **LT** (`throw_aim`) while holding a claimed special and use
+   the right stick to aim/drag; release LT to throw (or place, for a negligible drag), same
+   thresholds as mouse. **A** still places a held special immediately if you tap it without
+   ever holding LT — the two gestures use different physical inputs, so they don't conflict.
+6. The triggers otherwise zoom while no block is held (they double as rotation_mode/throw_aim
+   while one is); **Back** snaps to your home flag, **B** to the goal (both only apply to the
+   legacy free-orbit camera, off by default — see `CameraTuning.follow_block`).
 
 There is no dedicated `lock_vertical` gamepad binding: the stick (movement) and the hover
 buttons (height) are already on separate physical inputs, so there's nothing to lock.

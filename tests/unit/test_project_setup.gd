@@ -178,6 +178,33 @@ func test_autoloads_are_registered() -> void:
 		)
 
 
+## Bontago-1en.14 (M4 P2d, owner decision 2026-09-22 Bontago-mvl (a)):
+## throw_aim moved off MOUSE_BUTTON_RIGHT (camera_orbit's own button, an
+## [OPEN] overlap spec 2.5 flagged) onto MOUSE_BUTTON_LEFT -- the same button
+## ghost_place uses -- plus the gamepad's left trigger, unchanged. Pins the
+## exact device/button rather than just "has some desktop and some pad
+## binding" (test_every_action_is_bound_on_both_devices above), since the
+## button choice itself is the whole point of this package.
+func test_throw_aim_is_bound_to_left_mouse_and_left_trigger_not_right_mouse() -> void:
+	var has_left_mouse: bool = false
+	var has_right_mouse: bool = false
+	var has_left_trigger: bool = false
+	for event: InputEvent in InputMap.action_get_events(&"throw_aim"):
+		if event is InputEventMouseButton:
+			var button: InputEventMouseButton = event
+			if button.button_index == MOUSE_BUTTON_LEFT:
+				has_left_mouse = true
+			elif button.button_index == MOUSE_BUTTON_RIGHT:
+				has_right_mouse = true
+		elif event is InputEventJoypadMotion:
+			var motion: InputEventJoypadMotion = event
+			if motion.axis == JOY_AXIS_TRIGGER_LEFT:
+				has_left_trigger = true
+	assert_true(has_left_mouse, "throw_aim must be bound to the left mouse button (shared with ghost_place).")
+	assert_true(has_left_trigger, "throw_aim must be bound to the gamepad's left trigger.")
+	assert_false(has_right_mouse, "throw_aim must not still be bound to the right mouse button (that is camera_orbit's alone now).")
+
+
 func test_every_required_action_exists() -> void:
 	for action: String in REQUIRED_ACTIONS:
 		assert_true(InputMap.has_action(action), "Input action %s is missing (spec 2.5)." % action)

@@ -50,3 +50,9 @@ extends Resource
 ## specials" as a case of its own alongside the numeric threshold, not
 ## conditioned on it.
 @export var ccd_speed_threshold_mps: float = 15.0
+
+## M4 P2d throw loft: the vertical component added to a throw's ground-plane
+## drag direction, as a fraction of the drag distance, before normalising.
+## 1.0 lofts every throw at 45 degrees; lower is flatter, higher is steeper.
+## Spec 2.6 leaves the arc OPEN; PlayerController._commit_throw_aim() reads it.
+@export var throw_loft_ratio: float = 1.0

@@ -46,6 +46,12 @@ extends Node
 @export var ghost_tuning: GhostTuning = preload("res://config/ghost_tuning.tres")
 @export var camera_tuning: CameraTuning = preload("res://config/camera_tuning.tres")
 @export var net_config: NetConfig = preload("res://config/net_config.tres")
+## M4 P2d (spec 2.5 "Throw (specials only)"): throw_drag_min_distance_m/
+## throw_drag_min_speed_mps gate a release between an ordinary place and a
+## throw; throw_speed_per_meter/throw_max_speed turn the drag into a launch
+## velocity. Same @export-a-preloaded-Resource pattern as ghost_tuning/
+## camera_tuning above.
+@export var special_tuning: SpecialTuning = preload("res://config/special_tuning.tres")
 
 var _camera_rig: CameraRig
 var _ghost: GhostPreview
@@ -150,6 +156,33 @@ var _pending_spawn_top_y: float = 0.0
 ## keeps behaving exactly as before.
 var input_enabled: bool = true
 
+## Bontago-1en.14 (M4 P2d, spec 2.5 "Throw (specials only)", owner decision
+## Bontago-mvl (a)): true from the moment `throw_aim` (LMB, shared with
+## ghost_place; gamepad LT) is held down over a held special until the
+## matching release, whichever this controller decides it is: submit_throw()
+## once the drag clears both thresholds, or an ordinary _request_place(false)
+## for a negligible one. Lifecycle lives entirely in _update_throw_aim()'s
+## per-frame Input.is_action_pressed(&"throw_aim") poll -- exactly how every
+## other hold in this file (rotate_drag, rotation_mode, camera_mode/orbit)
+## already tracks its own state -- rather than event-based press/release
+## dispatch, so mouse and gamepad share one code path with no per-device
+## branching for start/stop.
+var _aiming_throw: bool = false
+## World-space drag accumulated since aiming began -- always ground-plane
+## (both accumulators below feed it through _camera_relative_dir(), which
+## never has a Y component), summed separately from _cursor so aiming a
+## throw never also drags the ghost around (mirrors rotate_drag's own
+## "accumulate, don't move the cursor" pattern). _commit_throw_aim() reads
+## this once, on release, and clears it either way.
+var _throw_drag: Vector3 = Vector3.ZERO
+## Seconds _aiming_throw has been true, accumulated by _update_throw_aim()'s
+## own delta -- used only to turn _throw_drag's distance into a release
+## speed (distance / elapsed) for throw_drag_min_speed_mps's gate. A bare
+## unit test that never calls _update_throw_aim() leaves this at 0, and
+## _commit_throw_aim() treats that as "speed unknown, don't gate on it" (see
+## its own comment) rather than a divide-by-zero.
+var _throw_aim_elapsed: float = 0.0
+
 
 func _ready() -> void:
 	_camera_rig = get_node_or_null(camera_rig_path) as CameraRig
@@ -202,6 +235,7 @@ func _process(delta: float) -> void:
 		return
 	_intent_lock_left = maxf(_intent_lock_left - delta, 0.0)
 	_update_gamepad_cursor(delta)
+	_update_throw_aim(delta)
 	_clamp_cursor_collision()
 	_update_ghost_transform()
 	_update_ghost_tint()
@@ -274,7 +308,15 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		var motion: InputEventMouseMotion = event
 		_using_gamepad_cursor = false
-		if Input.is_action_pressed(&"rotate_drag"):
+		if _aiming_throw:
+			# Bontago-1en.14 (M4 P2d): while aiming a throw, mouse motion is the
+			# drag gesture itself -- accumulate it into _throw_drag instead of
+			# any of the other holds below (they are different physical
+			# buttons anyway, but this keeps the priority explicit and matches
+			# every other hold branch here returning instead of falling
+			# through to _move_cursor_from_mouse).
+			_accumulate_throw_drag(motion.relative)
+		elif Input.is_action_pressed(&"rotate_drag"):
 			# Bontago-mv0.22 (spec 2.5 "Rotate block (hold + drag)" [ORIGINAL,
 			# owner test 2026-09-22]): a genuine continuous rotation, unlike
 			# rotation_mode's 90 degree snap grid below -- GhostPreview.
@@ -360,7 +402,22 @@ func _unhandled_input(event: InputEvent) -> void:
 			_ghost.reset_rotation()
 		_rotation_drag = Vector2.ZERO
 	elif event.is_action_pressed(&"ghost_place"):
-		_place_ghost_block()
+		# Bontago-1en.14 (M4 P2d, owner decision Bontago-mvl (a)): on mouse,
+		# throw_aim is bound to the same left-mouse button as ghost_place
+		# (tools/bootstrap_project.gd), so this same press event also
+		# satisfies throw_aim's own is_action_pressed() -- that is the "same
+		# LMB event fires both actions" case. When it does, and the piece in
+		# hand is a special ready to aim, do NOT place here: _update_throw_aim()
+		# 's per-frame poll (already true by the time _process() next runs,
+		# since input is dispatched before _process() each frame) starts
+		# aiming instead, and the eventual release decides place-vs-throw
+		# (_commit_throw_aim()). On gamepad, ghost_place (A) and throw_aim
+		# (LT) are different physical inputs, so a bare A press here never
+		# also satisfies throw_aim -- gamepad places a held special exactly
+		# as before unless LT is separately held, matching spec 2.5's
+		# independent "Place (drop): A" / "Throw: Hold LT" gamepad rows.
+		if not (event.is_action_pressed(&"throw_aim") and _can_begin_throw_aim()):
+			_place_ghost_block()
 	elif event.is_action_pressed(&"pause_menu"):
 		# Bontago-mv0.14 DECISION (game/PlayerController.gd): there is no
 		# pause-menu UI yet (out of scope for this task), but the mouse
@@ -492,6 +549,183 @@ func _request_place(auto_drop: bool) -> StringName:
 	)
 
 
+## The one door a throw goes through, mirroring _request_place() above
+## (Bontago-1en.14, M4 P2d): same slot/pose arguments, same membrane
+## (net/MatchNet.gd's submit_throw on the wire, or the offline/test-double
+## Match.request_throw()/FakeMatch.request_throw() directly), same
+## spawn-clearance bookkeeping for the next ghost. DECISION (game/
+## PlayerController.gd): a thrown special's shape does not actually stay
+## where _pending_spawn_top_y is captured -- it flies off with `velocity` --
+## so the next ghost's spawn-clearance nudge is only ever approximate for a
+## throw (it clears the aim spot, not wherever physics finally lands the
+## piece). Filed under this package's Unresolved rather than skipped
+## entirely: an approximate clearance is still strictly better than none,
+## and _apply_spawn_clearance() already tolerates being wrong (it just
+## reseeds hover height, never blocks anything).
+func _request_throw(velocity: Vector3) -> StringName:
+	var slot_id: int = _acting_slot()
+	var membrane: Variant = _intent_target()
+	_pending_spawn_active = true
+	_pending_spawn_top_y = _ghost.projection_span_y().x
+	if membrane == null:
+		return _match.request_throw(
+			slot_id, _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion, velocity
+		)
+	if bool(_session().is_client()):
+		_intent_lock_left = net_config.intent_ack_timeout
+	return membrane.submit_throw(
+		slot_id,
+		_ghost.global_position,
+		_ghost.orientation_index,
+		_ghost.free_quaternion,
+		velocity,
+		int(_match.feed_seq(slot_id))
+	)
+
+
+# --- Throw-aim state machine (M4 P2d, spec 2.5 "Throw (specials only)",
+# owner decision Bontago-mvl (a): "hold LMB on a held special, drag, release
+# throws; negligible drag = ordinary place") -----------------------------
+
+## Whether this controller could start aiming right now: guards both the
+## ghost_place-elif's suppression above and _update_throw_aim()'s own poll
+## below with the identical rule, so a press that is refused for one reason
+## (e.g. the interval lock) never starts an aim the poll would immediately
+## refuse anyway. Deliberately does NOT read Input at all -- only whether the
+## piece in hand is a throwable special right now; the caller decides which
+## input state (the event, or the per-frame poll) triggers it.
+func _can_begin_throw_aim() -> bool:
+	if _ghost == null or _match == null or _acting_slot() < 0:
+		return false
+	if _ghost.get_shape() == null:
+		return false
+	if _is_active_slot_eliminated():
+		return false
+	if _intent_lock_left > 0.0:
+		return false
+	return StringName(_match.held_special(_acting_slot())) != &""
+
+
+## Bontago-1en.14: the whole start/stop lifecycle for aiming, driven by
+## Input.is_action_pressed(&"throw_aim") every frame -- the same continuous-
+## hold convention rotate_drag/rotation_mode/camera_mode/camera_orbit already
+## use elsewhere in this file (Input.is_action_pressed() polled per frame),
+## rather than one-shot press/release event dispatch. That one convention
+## covers both devices identically: throw_aim is bound to the left mouse
+## button (shared with ghost_place) and the gamepad's left trigger
+## (tools/bootstrap_project.gd) -- Input.is_action_pressed() reports "is
+## either bound input currently held" regardless of which fired it.
+func _update_throw_aim(delta: float) -> void:
+	var throw_held: bool = Input.is_action_pressed(&"throw_aim")
+	if not _aiming_throw:
+		if throw_held and _can_begin_throw_aim():
+			_aiming_throw = true
+			_throw_drag = Vector3.ZERO
+			_throw_aim_elapsed = 0.0
+		return
+	_throw_aim_elapsed += delta
+	_accumulate_gamepad_throw_drag(delta)
+	if not throw_held:
+		_commit_throw_aim()
+
+
+## Mouse's half of the drag accumulation, called from _unhandled_input's
+## InputEventMouseMotion branch while _aiming_throw is true. `relative` is
+## the same raw pixel delta _move_cursor_from_mouse() converts for ordinary
+## cursor movement; this mirrors that exact conversion (camera-relative
+## direction times the same block_move_sensitivity) into _throw_drag instead
+## of _cursor, so "how far you dragged" means the same number of world
+## meters whichever the drag is for.
+func _accumulate_throw_drag(relative: Vector2) -> void:
+	_throw_drag += _camera_relative_dir(relative) * ghost_tuning.block_move_sensitivity
+
+
+## Gamepad's half, called every frame from _update_throw_aim() while aiming
+## (a no-op on a mouse-only setup: camera_look_* has no mouse binding at all,
+## tests/unit/test_project_setup.gd's DEVICE_EXCEPTIONS, so its strengths are
+## always 0 there). DECISION (game/PlayerController.gd): reads camera_look_*
+## directly as a velocity (stick strength * ghost_tuning.gamepad_cursor_base_
+## speed * delta) rather than _update_gamepad_cursor()'s acceleration ramp --
+## an aim drag is a deliberate analog gesture the player is already holding
+## at some deflection, not a cursor that needs smoothing away from a standing
+## start, and reusing gamepad_cursor_base_speed rather than inventing a
+## dedicated speed keeps this package from needing a tuning Resource of its
+## own (SpecialTuning/GhostTuning both belong to other M4 P2 packages).
+func _accumulate_gamepad_throw_drag(delta: float) -> void:
+	var look: Vector2 = Vector2(
+		Input.get_action_strength(&"camera_look_right") - Input.get_action_strength(&"camera_look_left"),
+		Input.get_action_strength(&"camera_look_down") - Input.get_action_strength(&"camera_look_up")
+	)
+	if look.length() > 1.0:
+		look = look.normalized()
+	if look.length() <= 0.0:
+		return
+	_throw_drag += _camera_relative_dir(look) * ghost_tuning.gamepad_cursor_base_speed * delta
+
+
+## Fires once on the release that ends _update_throw_aim()'s hold, deciding
+## between an ordinary place and a throw (owner decision Bontago-mvl (a)).
+## Always clears the aim state first, so a refused/guarded outcome below
+## never leaves _aiming_throw stuck true.
+func _commit_throw_aim() -> void:
+	var drag: Vector3 = _throw_drag
+	var elapsed: float = _throw_aim_elapsed
+	_aiming_throw = false
+	_throw_drag = Vector3.ZERO
+	_throw_aim_elapsed = 0.0
+	if _ghost == null or _match == null or _acting_slot() < 0 or _is_active_slot_eliminated():
+		return
+	if _intent_lock_left > 0.0:
+		return
+	var distance: float = drag.length()
+	# DECISION (game/PlayerController.gd): "release speed" is this whole
+	# gesture's average speed (total drag distance / seconds aiming), not an
+	# instantaneous final-frame flick speed -- simpler to compute from state
+	# this controller already tracks, and throw_drag_min_speed_mps's own doc
+	# comment ("below this release speed") does not demand the fancier
+	# instantaneous measure. A bare unit test that drives _unhandled_input
+	# directly without ever calling _update_throw_aim() leaves `elapsed` at
+	# 0; treating that as "speed unknown, don't gate on it" (INF) rather than
+	# a divide-by-zero means such a test is judged on drag distance alone,
+	# which is exactly what this package's own acceptance tests exercise.
+	var speed: float = (distance / elapsed) if elapsed > 0.0 else INF
+	if distance < special_tuning.throw_drag_min_distance_m or speed < special_tuning.throw_drag_min_speed_mps:
+		_request_place(false)
+		return
+	# DECISION (game/PlayerController.gd, M4 P2d): _throw_drag is already
+	# ground-plane only (both accumulators above build it from
+	# _camera_relative_dir(), which never has a Y component) -- "the drag
+	# vector projected onto the ground plane" needs no extra step. The
+	# "plus an upward component" half lofts it at a fixed 45 degree
+	# The loft is SpecialTuning.throw_loft_ratio (default 1.0 = 45 degrees).
+	var direction: Vector3 = (drag + Vector3.UP * distance * special_tuning.throw_loft_ratio).normalized()
+	var speed_mps: float = minf(distance * special_tuning.throw_speed_per_meter, special_tuning.throw_max_speed)
+	_request_throw(direction * speed_mps)
+
+
+## Cancels an in-progress aim with no side effect other than clearing state --
+## called when the piece in hand has already changed or been resolved out
+## from under the player mid-drag (Events.feed_block_issued/
+## placement_rejected below), so a stale _aiming_throw can never survive into
+## the next held piece or fire _commit_throw_aim() against it later.
+func _cancel_throw_aim() -> void:
+	_aiming_throw = false
+	_throw_drag = Vector3.ZERO
+	_throw_aim_elapsed = 0.0
+
+
+## P2e's own read-only seam (docs/M4_P2_PACKAGES.md P2e: "reads only
+## PlayerController.gd's P2d-added getters, no edit needed there") for the
+## arc preview's visibility.
+func is_aiming_throw() -> bool:
+	return _aiming_throw
+
+
+## P2e's own read-only seam for the arc preview's start point/direction.
+func current_throw_drag() -> Vector3:
+	return _throw_drag
+
+
 ## Spec M2 owner decision 3: a slot whose home flag is gone is effectively
 ## eliminated. Match.slot(id).home_flag_alive is the one already-documented
 ## source of truth for this — no dedicated Events signal exists for it, so
@@ -526,6 +760,12 @@ func _on_feed_block_issued(slot_id: int, shape_id: StringName, _next_shape_id: S
 		return
 	# The host answered, so whatever intent was in flight has resolved.
 	_intent_lock_left = 0.0
+	# Bontago-1en.14 (M4 P2d): the piece this controller was aiming a throw
+	# for is gone the moment a new one is fed -- whether this feed follows
+	# this controller's own placement/throw or an unrelated auto-drop makes
+	# no difference, a stale drag must never carry over onto whatever shape
+	# just arrived.
+	_cancel_throw_aim()
 	# Networked there is no Events.turn_changed to colour the ghost from, so
 	# the first feed this slot receives does it instead.
 	if _match != null:
@@ -594,6 +834,13 @@ func _on_placement_rejected(slot_id: int, _reason: StringName) -> void:
 	if slot_id != _acting_slot() or _ghost == null:
 		return
 	_intent_lock_left = 0.0
+	# Bontago-1en.14 (M4 P2d): a refused throw/place leaves the same piece in
+	# hand (spec 2.5 "an invalid manual click does not drop and does not
+	# consume the piece"), but this controller's own in-flight aim (if any)
+	# already resolved into the request that got refused -- nothing is still
+	# being dragged, so clear it rather than leave a stale _aiming_throw the
+	# next _update_throw_aim() poll could reuse.
+	_cancel_throw_aim()
 	# Bontago-mv0.30: neither refusal branch spawned anything near the cursor
 	# (a manual refusal spawns nothing at all; an auto-drop burn spawns
 	# something, but throws it off the map) -- see _pending_spawn_active's own
