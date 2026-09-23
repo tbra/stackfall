@@ -510,3 +510,20 @@ func _apply_visual_uniforms() -> void:
 	_material.set_shader_parameter(&"hole_rim_width", _visuals.hole_rim_width)
 	_material.set_shader_parameter(&"hole_rim_glow", _visuals.hole_rim_glow)
 	set_slot_colors(PackedColorArray())
+
+
+## Bontago-xtq.12 step 2: the one door game/DiscMirror.gd (owned by this same
+## package, but a different file) uses to push its rendered planar-mirror
+## viewport texture onto shaders/territory.gdshader's mirror_tex/
+## mirror_enabled/mirror_strength uniforms every frame -- this file's whole
+## share of the planar-mirror feature, per this package's own file ownership
+## (DiscMirror.gd owns the camera math/viewport lifecycle; this is a plain
+## uniform push, the same shape as set_slot_colors() above). A no-op before
+## configure() has built _material, same contract as every other public
+## setter on this class.
+func set_mirror_texture(texture: Texture2D, enabled: bool, strength: float) -> void:
+	if _material == null:
+		return
+	_material.set_shader_parameter(&"mirror_tex", texture)
+	_material.set_shader_parameter(&"mirror_enabled", enabled)
+	_material.set_shader_parameter(&"mirror_strength", strength)

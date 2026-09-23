@@ -98,8 +98,18 @@ var fallback_active: bool = true
 var _face_textures: Dictionary = {}
 var _face_meshes: Dictionary = {}
 
+## Bontago-xtq.12 step 2 (F4 tuning panel live-apply, same idiom
+## game/CameraRig.gd's own TUNING_GROUP doc explains): every Skybox adds
+## itself to this group in _ready() so ui/TuningPanel.gd's
+## refresh_territory_visuals_live() can push a live SSR/reflection-probe edit
+## onto whichever Skybox is actually in the tree, the same way it already
+## reaches every live CameraRig/Block, without needing its own reference to
+## this node wired first.
+const TUNING_GROUP: StringName = &"tuning_skybox"
+
 
 func _ready() -> void:
+	add_to_group(TUNING_GROUP)
 	if environment != null and environment.sky != null:
 		_fallback_sky_material = environment.sky.sky_material
 	for face_name: String in config.face_names:
@@ -113,6 +123,40 @@ func _ready() -> void:
 		add_child(mesh_instance)
 		_face_meshes[face_name] = mesh_instance
 	configure_reflection_probe()
+	configure_ssr()
+
+
+## Public re-apply seam ui/TuningPanel.gd calls (via TUNING_GROUP above)
+## whenever the owner edits a reflection tunable live in the F4 panel --
+## configure_reflection_probe()/configure_ssr() otherwise only ever run once,
+## at boot. Also the one place tools/screenshot_xtq11_disk_opaque.gd's
+## `--mirror-mode=`/`--reflection-mode=` overrides re-apply their duplicated
+## TerritoryVisuals after swapping `visuals` out from under an already-ready
+## Skybox.
+func refresh_from_visuals() -> void:
+	configure_reflection_probe()
+	configure_ssr()
+
+
+## Bontago-xtq.12 step 2 (owner: "the disc isn't very reflective, like at
+## all?" -- step 1's ReflectionProbe alone only ever showed a faint, blurred
+## sky gradient): Forward+'s screen-space reflections trace the actual
+## rendered depth/color buffer per pixel, so a block that is currently on
+## screen shows up in the disk's reflection at roughly its true screen
+## position -- the probe's own blurred, periodically-snapshotted cubemap
+## cannot do that on its own. Written onto the wired Environment directly
+## (not the ReflectionProbe node): SSR is a WorldEnvironment-level effect,
+## the same as the sky/ambient the class doc's Bontago-xtq.8 DECISION
+## explains. A no-op when no `environment` was wired or `visuals` is unset,
+## matching configure_reflection_probe()'s own contract.
+func configure_ssr() -> void:
+	if visuals == null or environment == null:
+		return
+	environment.ssr_enabled = visuals.ssr_enabled
+	environment.ssr_max_steps = visuals.ssr_max_steps
+	environment.ssr_fade_in = visuals.ssr_fade_in
+	environment.ssr_fade_out = visuals.ssr_fade_out
+	environment.ssr_depth_tolerance = visuals.ssr_depth_tolerance
 
 
 ## Bontago-xtq.12: sizes and enables the ReflectionProbe wired via

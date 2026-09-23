@@ -31,6 +31,18 @@ extends Node
 ## (SCREENSHOT xtq11 frame_time_ms_avg=...) over the settle window so the
 ## three modes can be compared directly from one tool.
 ##
+## `--follow` (Bontago-xtq.12 step 2): frames the shot at the owner's actual
+## typical view -- config/camera_tuning.tres's own follow_distance/
+## follow_pitch_deg -- instead of this tool's own closer/steeper evidence
+## angles above.
+##
+## `--mirror-mode=none|ssr|planar|both` (Bontago-xtq.12 step 2, owner: "the
+## disc isn't very reflective, like at all?"): overrides TerritoryVisuals.
+## ssr_enabled/mirror_enabled on the same duplicated-copy pattern
+## `--reflection-mode=` uses above -- never touches the shipped
+## config/territory_visuals.tres. Omitted, the disk keeps whichever
+## combination territory_visuals.tres itself ships (both true by default).
+##
 ## Run windowed (a real render is required for the screenshot):
 ##   godot --path . --scene res://tools/screenshot_xtq11_disk_opaque.tscn -- \
 ##       --before --out=disk-before.png
@@ -52,6 +64,14 @@ extends Node
 ##       --steep --edge-softness=0.3 --out=disk-edge-blurry-steep.png
 ##   godot --path . --scene res://tools/screenshot_xtq11_disk_opaque.tscn -- \
 ##       --steep --out=disk-edge-crisp-steep.png
+##   godot --path . --scene res://tools/screenshot_xtq11_disk_opaque.tscn -- \
+##       --follow --mirror-mode=none --out=xtq12-step2-follow-none.png
+##   godot --path . --scene res://tools/screenshot_xtq11_disk_opaque.tscn -- \
+##       --follow --mirror-mode=ssr --out=xtq12-step2-follow-ssr.png
+##   godot --path . --scene res://tools/screenshot_xtq11_disk_opaque.tscn -- \
+##       --follow --mirror-mode=planar --out=xtq12-step2-follow-planar.png
+##   godot --path . --scene res://tools/screenshot_xtq11_disk_opaque.tscn -- \
+##       --low --mirror-mode=planar --out=xtq12-step2-low-planar.png
 ##
 ## Lives in tools/ (CLAUDE.md: build-time/manual-QA scripts, not part of the
 ## running game).
@@ -122,8 +142,21 @@ const BLOCK_SETTLE_FRAMES: int = 45
 const BEFORE_ARG: String = "--before"
 const LOW_ARG: String = "--low"
 const STEEP_ARG: String = "--steep"
+## Bontago-xtq.12 step 2: the owner's actual typical view (config/
+## camera_tuning.tres's own follow_distance/follow_pitch_deg -- read off the
+## live CameraTuning at runtime below, not re-hardcoded here), rather than
+## this tool's own closer/steeper evidence angles above -- both the follow
+## and --low shots are the two the step 2 package report is asked for.
+const FOLLOW_ARG: String = "--follow"
 const OUT_ARG: String = "--out="
 const REFLECTION_MODE_ARG: String = "--reflection-mode="
+## Bontago-xtq.12 step 2 (owner: "the disc isn't very reflective, like at
+## all?"): none|ssr|planar|both, overriding TerritoryVisuals.ssr_enabled/
+## mirror_enabled on the same duplicated-copy pattern REFLECTION_MODE_ARG
+## uses right above -- never touches the shipped config/territory_visuals.tres.
+## Omitted, the disk keeps whichever combination territory_visuals.tres
+## itself ships (both true by default).
+const MIRROR_MODE_ARG: String = "--mirror-mode="
 ## Bontago-xtq.14: overrides the disk's own edge_softness_m for one run, same
 ## override-a-copy pattern as `--before` right below (never touches the
 ## shipped config/territory_visuals.tres). e.g. `--edge-softness=0.3` recreates
@@ -138,14 +171,17 @@ func _ready() -> void:
 	var before: bool = args.has(BEFORE_ARG)
 	var low: bool = args.has(LOW_ARG)
 	var steep: bool = args.has(STEEP_ARG)
+	var follow: bool = args.has(FOLLOW_ARG)
 	var out_name: String = _string_arg(args, OUT_ARG, DEFAULT_OUTPUT)
 	var reflection_mode: String = _string_arg(args, REFLECTION_MODE_ARG, "")
+	var mirror_mode: String = _string_arg(args, MIRROR_MODE_ARG, "")
 	var edge_softness_str: String = _string_arg(args, EDGE_SOFTNESS_ARG, "")
 
 	var main: Node = (load("res://game/Main.tscn") as PackedScene).instantiate()
 	var field: Field = main.get_node("Field") as Field
 	var rig: CameraRig = main.get_node("CameraRig") as CameraRig
 	var skybox: Skybox = main.get_node("Skybox") as Skybox
+	var discmirror: DiscMirror = main.get_node("DiscMirror") as DiscMirror
 
 	if before or edge_softness_str != "":
 		var visuals: TerritoryVisuals = (field.visuals as TerritoryVisuals).duplicate(true) as TerritoryVisuals
@@ -156,24 +192,51 @@ func _ready() -> void:
 			visuals.edge_softness_m = float(edge_softness_str)
 		field.visuals = visuals
 
-	if reflection_mode != "":
+	if reflection_mode != "" or mirror_mode != "":
+		# One duplicated copy shared by skybox and discmirror (Bontago-xtq.12
+		# step 2): both `visuals` exports resolve to the exact same preloaded
+		# res://config/territory_visuals.tres instance by default, so a
+		# single override here still reads consistently from both nodes --
+		# splitting it into two independent duplicates would let
+		# --reflection-mode= and --mirror-mode= silently stop agreeing with
+		# each other.
 		var probe_visuals: TerritoryVisuals = (skybox.visuals as TerritoryVisuals).duplicate(true) as TerritoryVisuals
-		match reflection_mode:
-			"none":
-				probe_visuals.reflection_probe_enabled = false
-			"once":
-				probe_visuals.reflection_probe_enabled = true
-				probe_visuals.reflection_probe_update_always = false
-			"always":
-				probe_visuals.reflection_probe_enabled = true
-				probe_visuals.reflection_probe_update_always = true
-			_:
-				push_warning("screenshot_xtq11_disk_opaque: unknown --reflection-mode=%s, ignoring." % reflection_mode)
+		if reflection_mode != "":
+			match reflection_mode:
+				"none":
+					probe_visuals.reflection_probe_enabled = false
+				"once":
+					probe_visuals.reflection_probe_enabled = true
+					probe_visuals.reflection_probe_update_always = false
+				"always":
+					probe_visuals.reflection_probe_enabled = true
+					probe_visuals.reflection_probe_update_always = true
+				_:
+					push_warning("screenshot_xtq11_disk_opaque: unknown --reflection-mode=%s, ignoring." % reflection_mode)
+		if mirror_mode != "":
+			match mirror_mode:
+				"none":
+					probe_visuals.ssr_enabled = false
+					probe_visuals.mirror_enabled = false
+				"ssr":
+					probe_visuals.ssr_enabled = true
+					probe_visuals.mirror_enabled = false
+				"planar":
+					probe_visuals.ssr_enabled = false
+					probe_visuals.mirror_enabled = true
+				"both":
+					probe_visuals.ssr_enabled = true
+					probe_visuals.mirror_enabled = true
+				_:
+					push_warning("screenshot_xtq11_disk_opaque: unknown --mirror-mode=%s, ignoring." % mirror_mode)
 		skybox.visuals = probe_visuals
-		# Skybox._ready() already ran configure_reflection_probe() once
-		# against the shipped resource before this script's override above
-		# could reach it -- re-run it now against the duplicated copy.
-		skybox.configure_reflection_probe()
+		discmirror.visuals = probe_visuals
+		# Skybox._ready() already ran configure_reflection_probe()/
+		# configure_ssr() once against the shipped resource before this
+		# script's override above could reach it -- re-run both now against
+		# the duplicated copy (DiscMirror re-reads its own `visuals` every
+		# _process() frame, so it needs no equivalent re-run call).
+		skybox.refresh_from_visuals()
 
 	var free_tuning: CameraTuning = (rig.tuning as CameraTuning).duplicate(true) as CameraTuning
 	free_tuning.follow_block = false
@@ -205,12 +268,25 @@ func _ready() -> void:
 		distance = CLOSE_CAMERA_DISTANCE
 
 	print((
-		"SCREENSHOT xtq11 before=%s low=%s steep=%s reflection_mode=%s metallic=%s "
-		+ "roughness=%s edge_softness_m=%s blocks_placed=%s"
+		"SCREENSHOT xtq11 before=%s low=%s steep=%s follow=%s reflection_mode=%s mirror_mode=%s "
+		+ "metallic=%s roughness=%s edge_softness_m=%s blocks_placed=%s"
 	) % [
-		before, low, steep, reflection_mode, field.visuals.disk_metallic, field.visuals.disk_roughness,
-		field.visuals.edge_softness_m, block_world_spot != null,
+		before, low, steep, follow, reflection_mode, mirror_mode, field.visuals.disk_metallic,
+		field.visuals.disk_roughness, field.visuals.edge_softness_m, block_world_spot != null,
 	])
+
+	if follow:
+		# The owner's actual typical view: config/camera_tuning.tres's own
+		# follow_distance/follow_pitch_deg, read off the live (duplicated)
+		# tuning above rather than re-hardcoded here -- follow_block is
+		# forced false for this tool's free-orbit camera, but the distance/
+		# pitch fields it was duplicated from are untouched.
+		_point_camera(rig, target, free_tuning.follow_distance, yaw_deg, free_tuning.follow_pitch_deg)
+		await _wait(SETTLE_FRAMES)
+		await _measure_frame_time(reflection_mode)
+		await _shoot(out_name)
+		get_tree().quit()
+		return
 
 	if steep:
 		_point_camera(rig, target, distance, yaw_deg, STEEP_CAMERA_PITCH_DEG)

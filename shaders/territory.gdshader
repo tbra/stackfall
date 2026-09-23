@@ -154,6 +154,20 @@ uniform float rim_strength = 1.4;
 uniform float rim_pulse_depth : hint_range(0.0, 1.0) = 0.45;
 uniform float rim_speed = 1.6;
 
+// -- Planar mirror (Bontago-xtq.12 step 2) -----------------------------------
+// game/DiscMirror.gd's SubViewport, holding a camera-mirrored-about-the-disk
+// render of the scene at the same fov/near/far as the main camera. Sampled
+// with SCREEN_UV (X flipped -- see below), the standard planar-reflection
+// trick: a shared projection between the two cameras means a given screen
+// pixel's mirrored-camera color is the correct reflection for that pixel's
+// real-camera ray. Defaults (false / 0.0) match the ReflectionProbe/SSR-only
+// look whenever no DiscMirror is wired (every existing
+// tests/unit/test_territory_overlay.gd fixture, none of which call
+// TerritoryOverlay.set_mirror_texture()).
+uniform sampler2D mirror_tex : filter_linear;
+uniform bool mirror_enabled = false;
+uniform float mirror_strength : hint_range(0.0, 1.0) = 0.0;
+
 varying vec3 v_local;
 
 void vertex() {
@@ -368,6 +382,27 @@ void fragment() {
 		circle_path(v_local.xz, albedo, emission);
 	} else {
 		raster_path(uv, albedo, emission);
+	}
+
+	// Bontago-xtq.12 step 2: the planar mirror REPLACES the metallic/probe/
+	// SSR reflection response where it is wired and enabled, scaled by both
+	// disk_metallic (a more metallic disk shows more of the mirror, same as
+	// it would show more of any other reflection) and mirror_strength (an
+	// independent knob to dial the mirror back without touching the disk's
+	// own material feel) -- a mix() into ALBEDO, not an EMISSION add, is
+	// deliberate: METALLIC's own IBL/probe/SSR response is itself driven by
+	// ALBEDO, so this reads as "swap in the true per-pixel reflection where
+	// we have one" rather than stacking a second, brighter reflection on top
+	// of the first.
+	if (mirror_enabled) {
+		// game/DiscMirror.gd's own mirror_transform() DECISION comment: its
+		// camera basis is deliberately proper (not a raw per-axis
+		// reflection), which keeps triangle winding/culling correct but
+		// renders the true mirror image flipped left-right -- flipping X
+		// here undoes exactly that, so this samples the correct final image.
+		vec3 mirror_color = texture(mirror_tex, vec2(1.0 - SCREEN_UV.x, SCREEN_UV.y)).rgb;
+		float mirror_amount = clamp(base_metallic * mirror_strength, 0.0, 1.0);
+		albedo = mix(albedo, mirror_color, mirror_amount);
 	}
 
 	ALBEDO = albedo;

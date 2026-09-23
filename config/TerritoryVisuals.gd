@@ -219,3 +219,53 @@ extends Resource
 ## Full box height of the reflection probe, in meters, so it also captures a
 ## tall stack of blocks above the disk, not just the sky at grazing angles.
 @export var reflection_probe_height_m: float = 40.0
+
+## -- Screen-space reflections (Bontago-xtq.12 step 2, owner: "the disc
+## isn't very reflective, like at all?") -------------------------------------
+##
+## The ReflectionProbe above (step 1) only ever samples a static/periodic
+## cubemap snapshot of the scene, blurred by distance from the probe's own
+## origin -- from the follow camera's shallow angle it reads as a faint tint,
+## not a legible mirror image of a specific block. SSR marches the actual
+## depth/color buffer per pixel instead, so a block that is currently on
+## screen shows up in the disk's reflection at roughly its true screen
+## position, not just contributing to one blurred cubemap texel. game/
+## Skybox.gd's configure_ssr() writes these onto the wired Environment each
+## time refresh_from_visuals() runs (boot, and every live F4 edit), mirroring
+## configure_reflection_probe()'s own no-op-when-unwired contract. Kept
+## alongside the probe (not a replacement for it): SSR can only ever reflect
+## what is already rendered on screen, so it still needs the probe's cubemap
+## for anything off-screen or behind the camera.
+@export var ssr_enabled: bool = true
+## Ray-march steps per pixel; Environment's own engine default. Higher finds
+## thinner/further occluders at more GPU cost.
+@export var ssr_max_steps: int = 64
+## Meters of ray travel over which a reflection fades in from nothing, so a
+## reflection does not pop in sharply right at the reflective surface.
+@export var ssr_fade_in: float = 0.15
+## Meters of ray travel over which a reflection fades out toward the probe/
+## sky fallback, so a long ray does not cut off sharply once it runs out of
+## on-screen depth to march against.
+@export var ssr_fade_out: float = 2.0
+## Depth-buffer tolerance, in meters, for a marched ray to count as hitting a
+## surface; Environment's own engine default.
+@export var ssr_depth_tolerance: float = 0.2
+
+## -- Planar mirror (Bontago-xtq.12 step 2) -----------------------------------
+##
+## game/DiscMirror.gd renders a second camera, mirrored about the disk's own
+## plane, into a SubViewport; shaders/territory.gdshader blends that
+## viewport's texture over the disk wherever SSR/the probe leave off, so a
+## block standing on the disk shows up as a true, per-pixel mirror image
+## regardless of screen-space or cubemap-snapshot limits. Wired the same way
+## reflection_probe_enabled is: read once at boot and again on every
+## refresh_from_visuals() (F4 live edit), never per-match.
+@export var mirror_enabled: bool = true
+## How much of the disk's reflection comes from the planar mirror texture
+## versus the plain metallic/probe/SSR response above; 0 disables the blend
+## even if mirror_enabled leaves the viewport itself rendering.
+@export var mirror_strength: float = 0.85
+## SubViewport size as a fraction of the main viewport's own size. Below 1.0
+## trades reflection sharpness for the cost of rendering the whole scene a
+## second time every frame.
+@export var mirror_resolution_scale: float = 0.5

@@ -46,6 +46,10 @@ extends CanvasLayer
 ##     refresh_visual_uniforms() also rebuilds the disk's CylinderMesh
 ##     (game/TerritoryOverlay.gd's own rebuild_disk_mesh()) whenever
 ##     disk_mesh_segments itself changed, so that field is live too now.
+##     Bontago-xtq.12 step 2: the same function also calls
+##     Skybox.refresh_from_visuals() on every rig in Skybox.TUNING_GROUP, so
+##     the reflection probe/SSR fields (also on TerritoryVisuals) update live
+##     too instead of only ever applying once at boot.
 ##   - CameraTuning: apply_camera_tuning_live() calls
 ##     CameraRig.apply_follow_tuning() on every rig in CameraRig.TUNING_GROUP,
 ##     re-snapshotting follow_distance/follow_pitch_deg (clamped, as _ready()
@@ -859,14 +863,24 @@ func apply_camera_tuning_live() -> void:
 
 
 ## Pushes territory_visuals onto the wired Field's TerritoryOverlay shader
-## immediately. A no-op if this panel was never wired to a Field (a bare
-## unit-test instance, or a moment before set_field() has run).
+## immediately, and re-applies the same resource's reflection-probe/SSR
+## fields onto every live Skybox (Bontago-xtq.12 step 2: those two only ever
+## ran once at boot otherwise -- see game/Skybox.gd's refresh_from_visuals()
+## doc). Iterates Skybox.TUNING_GROUP the same "every live instance already
+## in the tree" idiom apply_camera_tuning_live()/apply_physics_live() use
+## right above, so this half of the push works even in a bare-panel test
+## that never wired a Field. The overlay half stays a no-op if this panel was
+## never wired to a Field (a bare unit-test instance, or a moment before
+## set_field() has run).
 func refresh_territory_visuals_live() -> void:
-	if _field == null:
-		return
-	var overlay: TerritoryOverlay = _field.overlay()
-	if overlay != null:
-		overlay.refresh_visual_uniforms()
+	if _field != null:
+		var overlay: TerritoryOverlay = _field.overlay()
+		if overlay != null:
+			overlay.refresh_visual_uniforms()
+	for node: Node in get_tree().get_nodes_in_group(Skybox.TUNING_GROUP):
+		var skybox: Skybox = node as Skybox
+		if skybox != null:
+			skybox.refresh_from_visuals()
 
 
 # --- Reset / Save / Copy -----------------------------------------------------
