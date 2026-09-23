@@ -62,6 +62,10 @@ const EVENT_GIFT_EXPIRED: StringName = &"gift_expired"
 ## autoload/match/MatchPlacement._on_special_behavior_triggered() ->
 ## Events.special_triggered (host only). See _on_special_triggered() below.
 const EVENT_SPECIAL_TRIGGERED: StringName = &"special_triggered"
+## Bontago-1en.21: mirrors autoload/match/MatchGifts.gd's pop_pending_special()
+## own emit (Events.special_consumed, host-only) -- see _on_special_consumed()
+## below.
+const EVENT_SPECIAL_CONSUMED: StringName = &"special_consumed"
 
 @export var config: NetConfig = preload("res://config/net_config.tres")
 
@@ -170,6 +174,7 @@ func _ready() -> void:
 	Events.gift_claimed.connect(_on_gift_claimed)
 	Events.gift_expired.connect(_on_gift_expired)
 	Events.special_triggered.connect(_on_special_triggered)
+	Events.special_consumed.connect(_on_special_consumed)
 	Events.block_removed.connect(_on_block_removed)
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 	Events.net_peer_left.connect(_on_net_peer_left)
@@ -1051,6 +1056,15 @@ func _on_special_triggered(net_id: int, def_id: StringName, position: Vector3, c
 		replicate_match_event(EVENT_SPECIAL_TRIGGERED, [net_id, def_id, position, chain_depth])
 
 
+## Bontago-1en.21: mirrors autoload/match/MatchGifts.gd's pop_pending_special()
+## emit to every client -- a client never pops its own queue (it only ever
+## mirrors the host's, via apply_replicated_special_consumed() below), so this
+## dispatch is the only place a client ever learns a special was spent.
+func _on_special_consumed(slot_id: int, special_id: StringName) -> void:
+	if _is_host():
+		replicate_match_event(EVENT_SPECIAL_CONSUMED, [slot_id, special_id])
+
+
 func _on_goal_capture_progress(team_id: int, progress: float) -> void:
 	_capture_team = team_id
 	_capture_progress = progress
@@ -1357,6 +1371,41 @@ func net_match_event(event: StringName, args: Array) -> void:
 			if chain_depth < 0 or chain_depth > _special_tuning.max_chain_depth:
 				return
 			Events.special_triggered.emit(triggered_net_id, triggered_def_id, triggered_position, chain_depth)
+		EVENT_SPECIAL_CONSUMED:
+			# DECISION (net/MatchNet.gd, Bontago-1en.21): unlike this match's
+			# other cases, this one guards `_is_host()` itself rather than
+			# relying only on net_match_event's own @rpc("authority", ...)
+			# annotation -- a well-behaved client never sends this RPC at all
+			# (only the host ever fires Events.special_consumed for a real
+			# pop; see MatchGifts.pop_pending_special()'s own doc comment),
+			# so this dispatch has no legitimate host-side caller. Popping
+			# the host's own authoritative queue a second time for an
+			# already-spent special (a stale duplicate, or a spoofed direct
+			# call) would silently desync it from every client's mirror with
+			# no wire message able to undo it, so the host refuses to ever
+			# apply one to itself, belt-and-braces on top of the RPC config.
+			if _is_host():
+				return
+			# Bontago-1en.21: a short args array (an older or malformed
+			# sender) is dropped before either arg is read, exactly
+			# EVENT_GIFT_CLAIMED's/EVENT_SPECIAL_TRIGGERED's own guard.
+			if args.size() < 2:
+				return
+			var consumed_slot_id: int = int(args[0])
+			if consumed_slot_id < 0 or consumed_slot_id >= _authority().slot_count():
+				return
+			var consumed_special_id: StringName = StringName(args[1])
+			# Only the syntactic shape check, not _gift_special_id_wire_ok()'s
+			# roster-membership tightening: exactly EVENT_SPECIAL_TRIGGERED's
+			# own reasoning (_known_special_ids()'s doc comment above) -- a
+			# special already popped and consumed on the host is by
+			# construction an id EVENT_GIFT_CLAIMED already roster-checked
+			# when it was queued; nothing here needs to reject one a
+			# client's own (possibly stale) roster cache does not recognise.
+			if not _special_id_wire_ok(String(consumed_special_id)):
+				return
+			_authority().apply_replicated_special_consumed(consumed_slot_id, consumed_special_id)
+			Events.special_consumed.emit(consumed_slot_id, consumed_special_id)
 		_:
 			pass
 

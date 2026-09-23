@@ -1256,3 +1256,69 @@ func test_a_short_special_trigger_args_array_is_dropped_not_applied() -> void:
 	assert_signal_not_emitted(
 		Events, "special_triggered", "a short args array must be dropped, not read past its end"
 	)
+
+
+# --- Bontago-1en.21: EVENT_SPECIAL_CONSUMED replication ---------------------
+
+## The bug this package fixes: a client's own pending_special_count() must
+## shrink in step with the host's real pop, not just grow at claim time. See
+## MatchGifts.apply_replicated_special_consumed()'s own doc comment for the
+## mirror mismatch handling this dispatch relies on.
+func test_a_replicated_special_consumed_decrements_the_clients_pending_count_and_reemits() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	var net: MatchNetScript = _make_net({}, [1], true)
+	Match._gifts.apply_replicated_claim(20, 1, MatchGifts.PENDING_SPECIAL_ID)
+	assert_eq(Match.pending_special_count(1), 1, "setup: the client's mirror queue must hold the claimed special")
+	watch_signals(Events)
+
+	net.net_match_event(MatchNetScript.EVENT_SPECIAL_CONSUMED, [1, MatchGifts.PENDING_SPECIAL_ID])
+
+	assert_eq(Match.pending_special_count(1), 0, "the mirror must shrink in step with the host's own pop")
+	assert_signal_emitted_with_parameters(Events, "special_consumed", [1, MatchGifts.PENDING_SPECIAL_ID])
+
+
+## Mirrors EVENT_GIFT_CLAIMED's/EVENT_SPECIAL_TRIGGERED's own malformed-payload
+## tests: an out-of-range slot_id, a malformed special_id shape, and a short
+## args array must all be dropped without ever touching the mirror queue.
+func test_a_malformed_special_consumed_is_dropped_not_applied() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	var net: MatchNetScript = _make_net({}, [1], true)
+	Match._gifts.apply_replicated_claim(21, 1, MatchGifts.PENDING_SPECIAL_ID)
+	assert_eq(Match.pending_special_count(1), 1, "setup")
+	watch_signals(Events)
+
+	net.net_match_event(MatchNetScript.EVENT_SPECIAL_CONSUMED, [999999999, MatchGifts.PENDING_SPECIAL_ID])
+	assert_signal_not_emitted(Events, "special_consumed", "an out-of-range slot_id must be dropped")
+	assert_eq(Match.pending_special_count(1), 1, "and the mirror must be untouched")
+
+	net.net_match_event(MatchNetScript.EVENT_SPECIAL_CONSUMED, [1, &"has space"])
+	assert_signal_not_emitted(Events, "special_consumed", "a malformed special_id must be dropped")
+	assert_eq(Match.pending_special_count(1), 1)
+
+	net.net_match_event(MatchNetScript.EVENT_SPECIAL_CONSUMED, [1])
+	assert_signal_not_emitted(
+		Events, "special_consumed", "a short args array must be dropped, not read past its end"
+	)
+	assert_eq(Match.pending_special_count(1), 1)
+
+
+## DECISION (net/MatchNet.gd, Bontago-1en.21): the host must never apply this
+## event to its own authoritative queue -- see net_match_event's own
+## EVENT_SPECIAL_CONSUMED case comment. `net` here is a HOST-mode MatchNet
+## (unlike every test above, which uses client_mode = true), simulating a
+## stale duplicate or a spoofed direct call the host itself receives.
+func test_host_ignores_a_spoofed_special_consumed_event() -> void:
+	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
+	_start_playing()
+	var slot_id: int = 1
+	Match._gifts._ensure_capacity(slot_id)
+	(Match._gifts._pending_queues[slot_id] as Array).append(&"test_special")
+	assert_eq(Match.pending_special_count(slot_id), 1, "setup")
+	watch_signals(Events)
+
+	net.net_match_event(MatchNetScript.EVENT_SPECIAL_CONSUMED, [slot_id, &"test_special"])
+
+	assert_signal_not_emitted(Events, "special_consumed", "the host must never apply this event to itself")
+	assert_eq(Match.pending_special_count(slot_id), 1, "a spoofed event must never pop the host's own queue")

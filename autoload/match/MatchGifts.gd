@@ -144,6 +144,18 @@ func held_special(slot_id: int) -> StringName:
 ## queue is empty. P2c's _spawn_block() extension is the only mutator --
 ## the queue no longer advances on its own when a new feed window opens (see
 ## on_feed_block_issued() below); only an explicit pop shrinks it.
+##
+## Bontago-1en.21: the one host-side emit site for Events.special_consumed --
+## _attach_pending_special() (autoload/match/MatchPlacement.gd) is this
+## function's only caller, on the place-spawn non-burn path and always on a
+## throw, so a single emit here covers both consumers without a second call
+## site in MatchPlacement.gd. A burned auto-drop never reaches this call at
+## all (see that function's own doc comment on why), so it never emits either
+## -- exactly the P2c-i rule that a burn keeps the special queued. Both
+## real callers are host-only (request_place()/request_throw() refuse
+## immediately off-host), so this never runs on a client in the shipped game;
+## unit tests that call it directly (test_gift_claim.gd,
+## test_match_throw.gd) exercise the same host-only emit deliberately.
 func pop_pending_special(slot_id: int) -> StringName:
 	if slot_id < 0 or slot_id >= _pending_queues.size():
 		return &""
@@ -151,6 +163,7 @@ func pop_pending_special(slot_id: int) -> StringName:
 	if queue.is_empty():
 		return &""
 	var popped: StringName = queue.pop_front()
+	Events.special_consumed.emit(slot_id, popped)
 	return popped
 
 
@@ -489,6 +502,46 @@ func apply_replicated_claim(gift_id: int, slot_id: int, special_id: StringName) 
 
 func apply_replicated_expire(gift_id: int) -> void:
 	_free_crate_visual(gift_id)
+
+
+## Bontago-1en.21: the client mirror of pop_pending_special(), called by
+## net/MatchNet.gd's EVENT_SPECIAL_CONSUMED dispatch (after its own wire
+## check) right before it re-emits Events.special_consumed. Keeps a client's
+## pending_special_count()/held_special() shrinking in step with the host's
+## queue, the spend-side counterpart of apply_replicated_claim()'s own
+## grow-side mirror.
+##
+## Review fix pattern (Must #1, mirrored from apply_replicated_claim()): a
+## garbage slot_id must never grow _pending_queues, so this bounds-checks
+## against _match.slot_count() and never calls _ensure_capacity() itself --
+## unlike a claim, a consumed-special mirror has nothing useful to do for a
+## slot whose queue was never grown by an earlier claim anyway.
+##
+## DECISION (autoload/match/MatchGifts.gd, Bontago-1en.21): if the queue's
+## own head does not match `special_id` -- the two mirrors have drifted, from
+## a lost/out-of-order EVENT_GIFT_CLAIMED or a bug -- this pops the head
+## anyway (logging a warning) rather than silently doing nothing. Silently
+## skipping would leave this mirror's queue permanently one entry longer than
+## the host's, so every later pop would stay off by one forever; there is no
+## wire message in this package to request a full resync. Popping the
+## (wrong) head at least keeps the mirror's *length* -- what pending_special_
+## count()'s HUD indicator actually renders -- in step with the host's; a
+## wrong id sitting in a queue slot self-corrects at the very next claim,
+## which still appends the right id at the tail.
+func apply_replicated_special_consumed(slot_id: int, special_id: StringName) -> void:
+	if slot_id < 0 or slot_id >= _match.slot_count():
+		return
+	if slot_id >= _pending_queues.size():
+		return
+	var queue: Array = _pending_queues[slot_id]
+	if queue.is_empty():
+		return
+	if queue[0] != special_id:
+		push_warning(
+			"MatchGifts: special_consumed mirror mismatch for slot %d (head=%s, reported=%s); popping head anyway"
+			% [slot_id, queue[0], special_id]
+		)
+	queue.pop_front()
 
 
 ## autoload/match/MatchLifecycle.gd's _reset_match_state() one-line call:

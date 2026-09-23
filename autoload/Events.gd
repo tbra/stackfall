@@ -119,6 +119,18 @@ signal gift_expired(gift_id: int)
 ## clients from here.
 signal special_triggered(net_id: int, def_id: StringName, position: Vector3, chain_depth: int)
 
+## Bontago-1en.21: the head of `slot_id`'s pending-special queue was actually
+## spent -- a place-spawn or a throw (autoload/match/MatchGifts.gd's
+## pop_pending_special() is the one host-side emit site; a burned auto-drop
+## deliberately never reaches it, see MatchPlacement._attach_pending_special()'s
+## own doc comment). `special_id` is the id that was popped. Host-authored;
+## net/MatchNet.gd replicates it (EVENT_SPECIAL_CONSUMED) and a client's mirror
+## (MatchGifts.apply_replicated_special_consumed()) re-emits this same signal
+## after popping its own queue, so a client's pending_special_count()/
+## held_special() shrink in step with the host's, the spend-side counterpart of
+## gift_claimed's own grow-side replication.
+signal special_consumed(slot_id: int, special_id: StringName)
+
 # --- M3a: session and transport (spec 3.4) ----------------------------------
 
 ## Net changed between OFFLINE, HOST and CLIENT. `mode` is a Net.Mode value.

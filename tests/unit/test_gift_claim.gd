@@ -195,10 +195,22 @@ func test_pop_pending_special_dequeues_fifo_and_empties_to_blank() -> void:
 	(Match._gifts._pending_queues[0] as Array).append(&"special_a")
 	(Match._gifts._pending_queues[0] as Array).append(&"special_b")
 
+	watch_signals(Events)
+
 	assert_eq(Match.pop_pending_special(0), &"special_a")
 	assert_eq(Match.pop_pending_special(0), &"special_b")
 	assert_eq(Match.pop_pending_special(0), &"", "an empty queue pops to the blank sentinel")
 	assert_eq(Match.held_special(0), &"")
+
+	# Bontago-1en.21: a real pop emits Events.special_consumed with the id it
+	# actually popped; popping an already-empty queue (the third call above)
+	# must not emit a third, empty-id event.
+	assert_signal_emit_count(Events, "special_consumed", 2, "one emit per real pop, none for the empty pop")
+	# Explicit index (0/1): assert_signal_emitted_with_parameters() defaults to
+	# -1 (the most recent emission), so checking two distinct emissions of the
+	# same signal in order needs each call pinned to its own index.
+	assert_signal_emitted_with_parameters(Events, "special_consumed", [0, &"special_a"], 0)
+	assert_signal_emitted_with_parameters(Events, "special_consumed", [0, &"special_b"], 1)
 
 
 ## Orchestrator amendment 1: the unconditional clear on_feed_block_issued()
@@ -278,6 +290,46 @@ func test_apply_replicated_claim_respects_the_cap() -> void:
 
 	assert_eq(Match.pending_special_count(0), 1, "a client mirror must respect the same cap as the host")
 	assert_eq(Match.held_special(0), &"special_a")
+
+
+## apply_replicated_special_consumed() is the client mirror of
+## pop_pending_special() (Bontago-1en.21) and must shrink the same queue
+## apply_replicated_claim() grows, oldest-first.
+func test_apply_replicated_special_consumed_pops_fifo_like_the_host() -> void:
+	_start_playing(_config())
+	Match._gifts.apply_replicated_claim(1, 0, &"special_a")
+	Match._gifts.apply_replicated_claim(2, 0, &"special_b")
+	assert_eq(Match.pending_special_count(0), 2, "setup")
+
+	Match._gifts.apply_replicated_special_consumed(0, &"special_a")
+
+	assert_eq(Match.pending_special_count(0), 1, "the mirror must shrink exactly like the host's own pop")
+	assert_eq(Match.held_special(0), &"special_b", "FIFO order preserved")
+
+
+## DECISION (autoload/match/MatchGifts.gd, Bontago-1en.21): a mismatched head
+## (the two mirrors drifted) still pops -- it does not silently do nothing --
+## so the mirror's length stays in step with the host's even though the
+## popped id itself was the wrong one.
+func test_apply_replicated_special_consumed_pops_the_head_even_on_a_mismatch() -> void:
+	_start_playing(_config())
+	Match._gifts.apply_replicated_claim(1, 0, &"special_a")
+	assert_eq(Match.pending_special_count(0), 1, "setup")
+
+	Match._gifts.apply_replicated_special_consumed(0, &"totally_different_id")
+
+	assert_eq(Match.pending_special_count(0), 0, "a mismatched id must still pop the head, not leave it queued")
+
+
+## Review-fix pattern (mirrors test_replicated_claim_with_a_garbage_slot_id_is_
+## ignored above): a garbage slot_id must never grow _pending_queues.
+func test_apply_replicated_special_consumed_with_a_garbage_slot_id_is_ignored() -> void:
+	_start_playing(_config())
+	var before_size: int = Match._gifts._pending_queues.size()
+
+	Match._gifts.apply_replicated_special_consumed(999999999, &"special_a")
+
+	assert_eq(Match._gifts._pending_queues.size(), before_size, "a garbage slot_id must never grow _pending_queues")
 
 
 func test_reset_clears_crates_and_held_specials() -> void:
