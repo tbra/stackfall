@@ -51,6 +51,8 @@ ranges = {
 "BlockFeedConfig.preview_count": Vector2(1.0, 5.0),
 "TerritoryVisuals.glass_alpha": Vector2(0.0, 1.0),
 "TerritoryVisuals.tint_opacity_boost": Vector2(0.0, 1.0),
+"TerritoryVisuals.disk_metallic": Vector2(0.0, 1.0),
+"TerritoryVisuals.disk_roughness": Vector2(0.0, 1.0),
 }
 descriptions = {
 "CameraTuning.mouse_orbit_speed": "How fast the camera orbits (yaw/pitch) per pixel of mouse motion while holding orbit.",
