@@ -47,6 +47,15 @@ var spawn_on_ok: bool = false
 var request_place_calls: Array[Dictionary] = []
 var preview_placement_calls: Array[Dictionary] = []
 
+## Bontago-1en.14 (M4 P2d): request_throw()'s own call log, exactly
+## request_place_calls' own pattern -- PlayerController._request_throw()
+## reaches this fake the same way _request_place() does (the membrane==null
+## branch, since a FakeMatch is never the real `Match` singleton
+## _intent_target() checks for), so tests/unit/test_playercontroller_throw.gd
+## asserts against this the same way test_playercontroller_mouse.gd's own
+## regression test asserts against request_place_calls.
+var request_throw_calls: Array[Dictionary] = []
+
 
 func slot(slot_id: int) -> PlayerSlot:
 	return slots_by_id.get(slot_id) as PlayerSlot
@@ -130,6 +139,32 @@ func request_place(
 		if spawn_on_ok:
 			_spawn(slot_id, origin, orientation_index, free_quat)
 	else:
+		Events.placement_rejected.emit(slot_id, next_request_result)
+	return next_request_result
+
+
+## Bontago-1en.14 (M4 P2d): request_throw()'s own fake, exactly request_place()
+## above's shape (same defaulted trailing feed_seq, same call log instead of
+## enforcement) but with no spawn_on_ok/auto_drop path -- a throw never burns
+## a rejected piece and this fake's callers only ever assert on the recorded
+## call, never on a spawned Block, so there is nothing here to mirror.
+func request_throw(
+	slot_id: int,
+	origin: Vector3,
+	orientation_index: int,
+	free_quat: Quaternion,
+	velocity: Vector3,
+	feed_seq: int = -1
+) -> StringName:
+	request_throw_calls.append({
+		"slot_id": slot_id,
+		"origin": origin,
+		"orientation_index": orientation_index,
+		"free_quat": free_quat,
+		"velocity": velocity,
+		"feed_seq": feed_seq,
+	})
+	if next_request_result != PlacementRules.REASON_OK:
 		Events.placement_rejected.emit(slot_id, next_request_result)
 	return next_request_result
 
