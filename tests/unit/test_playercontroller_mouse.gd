@@ -285,6 +285,96 @@ func test_mmb_press_plus_motion_does_not_also_fire_the_old_90_degree_snap() -> v
 	)
 
 
+# --- Bontago-iry (owner feedback/controller-update.md, "clicking mmb rotates
+# the ghost block, seems to follow a set pattern" / "Q or Home resets ghost
+# block rotation back to default"): MMB tap (no/tiny motion) snaps 90 degrees
+# on release; MMB hold+drag past ghost_tuning.rotate_tap_max_motion_px keeps
+# mv0.22/mv0.25's continuous free rotation and does not also snap. -----------
+
+func _mmb(pressed: bool) -> InputEventMouseButton:
+	var event: InputEventMouseButton = InputEventMouseButton.new()
+	event.button_index = MOUSE_BUTTON_MIDDLE
+	event.pressed = pressed
+	return event
+
+
+func test_mmb_tap_with_no_motion_snaps_one_yaw_step_on_release() -> void:
+	var controller: PlayerController = _make_controller()
+	var start_index: int = controller._orientation_index()
+
+	controller._unhandled_input(_mmb(true))
+	controller._unhandled_input(_mmb(false))
+
+	assert_eq(
+		controller._ghost.orientation_index, BlockOrientations.step_yaw_cw(start_index),
+		"a bare MMB press+release with no motion at all must snap exactly one 90 degree yaw step."
+	)
+	assert_eq(
+		controller._ghost.free_quaternion, Quaternion.IDENTITY,
+		"a bare tap must never touch the continuous free rotation."
+	)
+
+
+func test_mmb_drag_above_tap_threshold_rotates_freely_and_does_not_snap_on_release() -> void:
+	var controller: PlayerController = _make_controller()
+	var start_index: int = controller._orientation_index()
+
+	controller._unhandled_input(_mmb(true))
+	Input.action_press(&"rotate_drag")
+	controller._unhandled_input(_motion(Vector2(50.0, 0.0)))
+	Input.action_release(&"rotate_drag")
+	controller._unhandled_input(_mmb(false))
+
+	assert_ne(
+		controller._ghost.free_quaternion, Quaternion.IDENTITY,
+		"motion past the tap threshold must still drive the continuous free rotation, exactly as before."
+	)
+	assert_eq(
+		controller._ghost.orientation_index, start_index,
+		"once a hold crossed the drag threshold, release must not also apply a 90 degree snap."
+	)
+
+
+func test_mmb_tiny_motion_below_tap_threshold_snaps_and_does_not_drag() -> void:
+	var controller: PlayerController = _make_controller()
+	var start_index: int = controller._orientation_index()
+	assert_lt(
+		2.0, controller.ghost_tuning.rotate_tap_max_motion_px,
+		"fixture: this test's motion must stay under the shipped tap threshold."
+	)
+
+	controller._unhandled_input(_mmb(true))
+	Input.action_press(&"rotate_drag")
+	controller._unhandled_input(_motion(Vector2(2.0, 0.0)))
+	Input.action_release(&"rotate_drag")
+	controller._unhandled_input(_mmb(false))
+
+	assert_eq(
+		controller._ghost.free_quaternion, Quaternion.IDENTITY,
+		"motion under the tap threshold must not drive any continuous free rotation."
+	)
+	assert_eq(
+		controller._ghost.orientation_index, BlockOrientations.step_yaw_cw(start_index),
+		"a hold that never crossed the drag threshold must still snap once on release."
+	)
+
+
+func test_q_key_resets_rotation_same_as_home_and_f() -> void:
+	var controller: PlayerController = _make_controller()
+	controller._ghost.set_orientation_index(BlockOrientations.step_yaw_cw(0))
+	controller._ghost.apply_free_rotation_delta(0.3, 0.0, Vector3.RIGHT)
+	assert_ne(controller._ghost.orientation_index, 0, "fixture: the ghost must actually be rotated before resetting it.")
+	assert_ne(controller._ghost.free_quaternion, Quaternion.IDENTITY, "fixture: the ghost must have some free rotation too.")
+
+	var q_event: InputEventKey = InputEventKey.new()
+	q_event.physical_keycode = KEY_Q
+	q_event.pressed = true
+	controller._unhandled_input(q_event)
+
+	assert_eq(controller._ghost.orientation_index, 0, "Q must reset the 90 degree orientation index like Home/F.")
+	assert_eq(controller._ghost.free_quaternion, Quaternion.IDENTITY, "Q must reset the continuous free rotation like Home/F.")
+
+
 ## Bontago-mv0.25 (spec 2.5, docs/rotation-issue.png, owner test 2026-09-22,
 ## "like the RMB orbit but for the block"): replaces the old
 ## test_rotate_drag_ignores_vertical_motion pin -- rotate_drag is full 3-DOF

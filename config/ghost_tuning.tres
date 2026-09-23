@@ -11,6 +11,7 @@ gamepad_cursor_acceleration = 40.0
 block_rotation_sensitivity = 0.008333333333333333
 pad_rotation_speed = 2.5
 rotate_drag_sensitivity = 0.008
+rotate_tap_max_motion_px = 6.0
 hover_manual_adjust_speed = 1.0
 hover_wheel_step = 0.4
 hover_manual_max = 60.0

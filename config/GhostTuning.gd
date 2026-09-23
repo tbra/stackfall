@@ -60,6 +60,21 @@ extends Resource
 ## would feel inconsistent for no clear benefit.
 @export var rotate_drag_sensitivity: float = 0.008
 
+## Bontago-iry (owner feedback/controller-update.md, "clicking mmb rotates
+## the ghost block, seems to follow a set pattern"): total unscaled mouse
+## pixels of motion (game/PlayerController.gd's _rotate_drag_motion_px)
+## rotate_drag can accumulate while held before the hold counts as a drag
+## instead of a tap. Below this, no continuous free rotation is applied at
+## all and release fires one BlockOrientations.step_yaw_cw() snap (the same
+## fixed 90 degree pattern rotate_snap/rotate_yaw_cw use); at or above it,
+## every further frame's motion drives the continuous free rotation as
+## before and release does nothing extra. DECISION (config/GhostTuning.gd):
+## ~6 px is small enough that a deliberate drag crosses it on the very first
+## real mouse-motion event (matching every pre-existing rotate_drag test's
+## 20-130 px single-event motions) while a genuine click-with-jitter tap
+## stays under it.
+@export var rotate_tap_max_motion_px: float = 6.0
+
 ## -- Hover height (spec 1.5/2.5: "the mouse wheel raises and lowers the
 ## block") --------------------------------------------------------------------
 ## Continuous per-second rate for held inputs (PageUp/PageDown keys, gamepad

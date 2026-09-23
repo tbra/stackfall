@@ -205,8 +205,8 @@ original's tutorial only names the action, not the key.
 | Rotate yaw ±90° (tap) | A / S | LB / RB |
 | Rotate pitch ±90° (tap) | W / D | D-pad up / down |
 | Rotate roll ±90° (tap) | [ / ] | D-pad left / right |
-| Rotate block (hold + drag) [ORIGINAL, owner test 2026-09-22] | Middle mouse held + mouse motion, full 3-DOF: X = yaw about world up, Y = pitch about the camera's right axis (like the orbit, for the block) | (RB snaps 90° yaw) |
-| Reset rotation | Home or F | Y |
+| Rotate block (tap = snap, hold + drag = free) [ORIGINAL, owner test 2026-09-22; tap/drag split Bontago-iry] | Middle mouse tapped (released before crossing the drag-motion threshold) snaps 90° yaw, same fixed pattern as Rotate yaw ±90°; middle mouse held past that threshold and dragged is full 3-DOF: X = yaw about world up, Y = pitch about the camera's right axis (like the orbit, for the block) | (RB snaps 90° yaw) |
+| Reset rotation | Home, F, or Q | Y |
 | Lock to vertical (hold) | Ctrl | (stick and height are already separate) |
 | Camera orbit (hold + drag) [ORIGINAL, owner test 2026-09-22] | Right mouse held + mouse motion; mouse wheel zooms while held (C + mouse remains as a keyboard alias) | Right stick (always) |
 | Camera zoom | Z / X | Triggers while no block is held |

@@ -191,7 +191,11 @@ func _actions() -> Dictionary:
 	# mouse motion / left stick that normally moves the ghost. Same physical
 	# bindings the old rotate_free_hold used.
 	a["rotation_mode"] = [_key(KEY_R), _axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)]
-	a["rotate_reset"] = [_key(KEY_HOME), _key(KEY_F), _pad(JOY_BUTTON_Y)]
+	# Bontago-iry (owner feedback/controller-update.md, "Q or Home resets ghost
+	# block rotation back to default"): spec 1.5 (ORIGINAL) already names Q for
+	# this -- "Q levels the block" -- so it joins Home/F rather than replacing
+	# either; KEY_Q is otherwise unbound in this map (grepped before adding).
+	a["rotate_reset"] = [_key(KEY_HOME), _key(KEY_F), _key(KEY_Q), _pad(JOY_BUTTON_Y)]
 	# Original tutorial: "a key snap-rotates the block" -- a plain 90 degree
 	# yaw tap, distinct from rotate_reset. Bontago-mv0.22 fix (coordinator,
 	# 2026-09-22): this used to double up on MMB with rotate_drag below, so
