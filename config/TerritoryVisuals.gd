@@ -54,8 +54,31 @@ extends Resource
 ## -- Territory tint (spec 2.10: "a soft tint in their color") ---------------
 ## Half-width of the smoothstep applied to the bilinear owner edge, in owner
 ## units (the texture's R channel counts teams, so 1.0 is one whole team
-## step). Larger is blurrier.
+## step). Larger is blurrier. Only the raster (fallback) path
+## (shaders/territory.gdshader's `circles_valid == false` branch) reads
+## this -- see edge_softness_m right below for the analytic path's own
+## equivalent, which is what ordinary play actually renders.
 @export var edge_softness: float = 0.4
+## Half-width, in meters, of the smoothstep applied to the analytic path's
+## ownership TINT (shaders/territory.gdshader's circle_path(), the ordinary
+## rendering path whenever circle_count doesn't overflow
+## max_shader_circles). Spec 2.10, updated Bontago-xtq.14 (owner: "the edge
+## of the area is a bit blurry, sharpen it", reference docs/original_hover-
+## preview.png's hard-edged look).
+##
+## DECISION (config/TerritoryVisuals.gd, Bontago-xtq.14): split out of
+## rim_soft_width below, which the tint's coverage smoothstep and the rim
+## glow's own coverage gate used to share -- the two are different effects
+## (spec 2.10 lists them separately: "a soft tint" vs. "an animated
+## outline"), and blurring the tint by as much as the glow (0.25 m) is what
+## read as the ownership boundary itself being blurry rather than crisp.
+## rim_soft_width/rim_width/rim_strength/rim_pulse_depth/rim_speed below are
+## unchanged and still shape only the glow band. Default (0.03 m == 3 cm) is
+## "as crisp as a still screenshot can tell apart from a hard edge" without
+## going all the way to 0 (legal, but a literal one-pixel-wide transition can
+## alias/shimmer at a shallow camera angle where many world meters map to
+## one screen pixel).
+@export var edge_softness_m: float = 0.03
 ## How much of the owner color is mixed over the disk at full coverage.
 @export var tint_alpha: float = 0.55
 
@@ -148,3 +171,51 @@ extends Resource
 ## TerritoryTuning.max_circles; lower this on weaker GPUs without touching
 ## the solver's own cap.
 @export var max_shader_circles: int = 400
+
+## -- Reflections (spec 2.10, updated 2026-09-23: "Opaque, mirror-like
+## polished surface ... with sky reflections via the Environment sky and a
+## reflection probe for nearby blocks") ---------------------------------------
+##
+## Bontago-xtq.12 (owner playtest: "isn't very reflective, like at all"):
+## disk_metallic/disk_roughness above were already correct (TerritoryOverlay.
+## refresh_visual_uniforms() does push them to the shader every time), and
+## Main.tscn's Environment already reflects its Sky (background_mode ==
+## BG_SKY, reflected_light_source left at its default REFLECTION_SOURCE_BG,
+## which samples the same Sky the background shows). What was missing is
+## something to reflect: Forward+ never reflects dynamic scene geometry (the
+## placed blocks) without a ReflectionProbe or screen-space reflections — a
+## flat metallic disk with only the sky's own smooth gradient in it reads as
+## a dull tint, not a mirror, exactly the report. game/Skybox.gd now builds a
+## ReflectionProbe from these fields (see its class doc for why the box is
+## sized once, for the largest map, rather than resized per active MapDef).
+@export var reflection_probe_enabled: bool = true
+## UPDATE_ALWAYS recomputes the probe's cubemap every frame, so a block that
+## lands after boot still shows up in the disk's reflection (accurate, more
+## GPU cost); UPDATE_ONCE captures a single snapshot at boot and never again
+## (cheap, but every block placed afterward is invisible in the reflection
+## until the scene reloads).
+##
+## DECISION (config/TerritoryVisuals.gd, Bontago-xtq.12): default true.
+## tools/screenshot_xtq11_disk_opaque.gd's --reflection-mode=once/always
+## comparison in a windowed run with several placed blocks measured well
+## under a millisecond of extra frame time for ALWAYS over ONCE at this
+## scene's scale (one small disk, a handful of blocks) — see the package
+## report for the numbers — and a stale reflection would look like a new
+## bug (blocks players just placed missing from the mirror) worse than the
+## small, currently unmeasurable-in-practice cost of recomputing every frame.
+@export var reflection_probe_update_always: bool = true
+## Extra meters of box half-width beyond MapDef.RADIUS_LARGE (spec 2.8's
+## largest map size), so one static probe box covers every map without
+## resizing itself per match. DECISION (config/TerritoryVisuals.gd,
+## Bontago-xtq.12): game/Main.gd is integrator-owned (its own class doc:
+## "the one file nobody but the integrator owns"), so a per-match MapDef ->
+## probe resize call is out of this package's file ownership; Field.gd's own
+## `map_def` export is not actually reassigned per match at runtime today
+## either (only tools/*.gd screenshot scripts override it directly), so a
+## fixed box sized for the largest map is not a regression against current
+## behavior. Revisit alongside any future fix that makes Field.map_def
+## per-match again.
+@export var reflection_probe_margin_m: float = 15.0
+## Full box height of the reflection probe, in meters, so it also captures a
+## tall stack of blocks above the disk, not just the sky at grazing angles.
+@export var reflection_probe_height_m: float = 40.0

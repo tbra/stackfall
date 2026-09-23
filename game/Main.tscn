@@ -27,6 +27,9 @@ environment = SubResource("Environment_1")
 
 [node name="Skybox" parent="." instance=ExtResource("5_skybox")]
 environment = SubResource("Environment_1")
+reflection_probe_path = NodePath("../ReflectionProbe")
+
+[node name="ReflectionProbe" type="ReflectionProbe" parent="."]
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 rotation_degrees = Vector3(-45, -30, 0)

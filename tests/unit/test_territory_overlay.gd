@@ -425,3 +425,75 @@ func test_refresh_visual_uniforms_does_not_reallocate_the_mesh_when_segments_are
 	overlay.refresh_visual_uniforms()
 
 	assert_eq(overlay.mesh, before, "the disk mesh instance must be reused when disk_mesh_segments has not changed.")
+
+
+# --- Bontago-xtq.14: crisp ownership edge, separate from the rim glow --------
+#
+# Owner playtest 2026-09-23: "the edge of the area is a bit blurry, sharpen
+# it." shaders/territory.gdshader's analytic circle_path() used to feather
+# the ownership TINT over rim_soft_width (0.25 m, the rim glow's own width) --
+# edge_softness_m below is now a separate, much smaller default so the
+# boundary itself reads as crisp while the glow keeps its existing rim_*
+# tunables untouched (docs/original_hover-preview.png: "hard-edged shadows/
+# edges").
+
+func test_edge_softness_m_default_is_a_few_centimeters() -> void:
+	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres")
+	assert_between(
+		visuals.edge_softness_m, 0.0, 0.1,
+		"spec 2.10 / Bontago-xtq.14: a crisp ownership edge, a few cm at most.",
+	)
+
+
+func test_configure_pushes_edge_softness_m() -> void:
+	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres")
+	var overlay: TerritoryOverlay = _make_overlay(_map())
+
+	assert_almost_eq(
+		float(overlay.material().get_shader_parameter(&"edge_softness_m")),
+		visuals.edge_softness_m, 0.0001,
+	)
+
+
+func test_refresh_visual_uniforms_pushes_a_changed_edge_softness_m() -> void:
+	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres").duplicate() as TerritoryVisuals
+	var overlay: TerritoryOverlay = _make_overlay_with_visuals(_map(), visuals)
+
+	visuals.edge_softness_m = 0.21
+	overlay.refresh_visual_uniforms()
+
+	assert_almost_eq(
+		float(overlay.material().get_shader_parameter(&"edge_softness_m")), 0.21, 0.0001,
+	)
+
+
+func test_shader_declares_a_separate_edge_softness_m_uniform_from_rim_soft_width() -> void:
+	var overlay: TerritoryOverlay = _make_overlay(_map())
+	var code: String = _shader_source_without_comments(overlay.material().shader)
+
+	assert_true(
+		code.contains("uniform float edge_softness_m"),
+		"the ownership tint's own edge width must be a distinct uniform.",
+	)
+	# The two must not have silently become the same uniform again: circle_path()
+	# feathers the tint's own coverage over edge_softness_m specifically, not
+	# rim_soft_width (the rim glow's width, still declared and used separately).
+	var coverage_smoothstep: RegEx = RegEx.new()
+	coverage_smoothstep.compile("smoothstep\\(\\s*-edge_half_width\\s*,\\s*edge_half_width")
+	assert_not_null(
+		coverage_smoothstep.search(code),
+		"the tint coverage smoothstep must feather over edge_softness_m (via edge_half_width), not rim_soft_width.",
+	)
+
+
+## Strips `//` line comments the same way test_territory_shader_never_blends_
+## or_writes_alpha() above already does, factored out so this section's own
+## source-text assertion can reuse it without a false-positive match against
+## this file's own doc comments (which discuss the uniform names by name).
+func _shader_source_without_comments(shader: Shader) -> String:
+	var code_lines: PackedStringArray = PackedStringArray()
+	for line: String in shader.code.split("\n"):
+		var stripped: String = line.strip_edges()
+		if not stripped.begins_with("//"):
+			code_lines.append(line.split("//")[0])
+	return "\n".join(code_lines)

@@ -485,6 +485,12 @@ func _apply_visual_uniforms() -> void:
 	_material.set_shader_parameter(&"base_metallic", _visuals.disk_metallic)
 	_material.set_shader_parameter(&"base_roughness", _visuals.disk_roughness)
 	_material.set_shader_parameter(&"edge_softness", _visuals.edge_softness)
+	# Bontago-xtq.14: pushed here (configure()/refresh_visual_uniforms()),
+	# not alongside rim_soft_width/rim_width in set_circles() below, so a
+	# freshly configured overlay already renders a crisp boundary before the
+	# first 5 Hz circle upload ever runs, exactly like edge_softness (raster)
+	# right above it.
+	_material.set_shader_parameter(&"edge_softness_m", _visuals.edge_softness_m)
 	_material.set_shader_parameter(&"tint_alpha", _visuals.tint_alpha)
 	_material.set_shader_parameter(&"outline_width", _visuals.outline_width)
 	_material.set_shader_parameter(&"outline_speed", _visuals.outline_speed)

@@ -193,6 +193,70 @@ func _write_fixture_set(set_name: String, faces: PackedStringArray) -> void:
 		image.save_jpg(dir_path.path_join(face_name + ".jpg"))
 
 
+# --- Bontago-xtq.12: the ReflectionProbe wired via reflection_probe_path ----
+# (owner: "isn't very reflective, like at all") is configured from
+# config/TerritoryVisuals.gd's reflection_probe_* fields once at _ready().
+
+func _make_skybox_with_probe(visuals: TerritoryVisuals) -> Dictionary:
+	var skybox: Skybox = Skybox.new()
+	skybox.config = SkyboxConfig.new()
+	var probe: ReflectionProbe = ReflectionProbe.new()
+	probe.name = "Probe"
+	skybox.add_child(probe)
+	skybox.reflection_probe_path = NodePath("Probe")
+	skybox.visuals = visuals
+	add_child_autofree(skybox)
+	return {"skybox": skybox, "probe": probe}
+
+
+func test_reflection_probe_sized_from_visuals_and_the_largest_map_radius() -> void:
+	var visuals: TerritoryVisuals = TerritoryVisuals.new()
+	visuals.reflection_probe_margin_m = 5.0
+	visuals.reflection_probe_height_m = 20.0
+	var wired: Dictionary = _make_skybox_with_probe(visuals)
+	var probe: ReflectionProbe = wired["probe"] as ReflectionProbe
+
+	var expected_half_width: float = MapDef.RADIUS_LARGE + 5.0
+	assert_almost_eq(probe.size.x, expected_half_width * 2.0, 0.001)
+	assert_almost_eq(probe.size.z, expected_half_width * 2.0, 0.001)
+	assert_almost_eq(probe.size.y, 20.0, 0.001)
+	assert_true(probe.box_projection, "a flat static disk should use box-corrected reflections.")
+
+
+func test_reflection_probe_update_always_when_visuals_says_so() -> void:
+	var visuals: TerritoryVisuals = TerritoryVisuals.new()
+	visuals.reflection_probe_update_always = true
+	var wired: Dictionary = _make_skybox_with_probe(visuals)
+	var probe: ReflectionProbe = wired["probe"] as ReflectionProbe
+
+	assert_eq(probe.update_mode, ReflectionProbe.UPDATE_ALWAYS)
+
+
+func test_reflection_probe_update_once_when_visuals_says_so() -> void:
+	var visuals: TerritoryVisuals = TerritoryVisuals.new()
+	visuals.reflection_probe_update_always = false
+	var wired: Dictionary = _make_skybox_with_probe(visuals)
+	var probe: ReflectionProbe = wired["probe"] as ReflectionProbe
+
+	assert_eq(probe.update_mode, ReflectionProbe.UPDATE_ONCE)
+
+
+func test_reflection_probe_disabled_hides_it() -> void:
+	var visuals: TerritoryVisuals = TerritoryVisuals.new()
+	visuals.reflection_probe_enabled = false
+	var wired: Dictionary = _make_skybox_with_probe(visuals)
+	var probe: ReflectionProbe = wired["probe"] as ReflectionProbe
+
+	assert_false(probe.visible)
+
+
+func test_reflection_probe_configuration_is_a_noop_with_no_path_wired() -> void:
+	# before_each()'s plain _skybox never wires reflection_probe_path or a
+	# probe child -- _ready() already ran in before_each() without error, so
+	# this just pins that this stays true rather than relying on it silently.
+	assert_true(is_instance_valid(_skybox), "an unwired skybox must not error during _ready().")
+
+
 func _remove_dir_recursive(path: String) -> void:
 	var dir: DirAccess = DirAccess.open(path)
 	if dir == null:
