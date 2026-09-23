@@ -483,3 +483,51 @@ func test_volcano_tres_loads_with_contract_defaults() -> void:
 	assert_eq(effect.orb_explosion_impulse_fraction, 0.5)
 	assert_not_null(effect.tuning, "tuning must fall back to the preloaded config/special_tuning.tres")
 	assert_eq(effect.tuning.max_explosion_impulse, 30.0)
+
+
+# --- physics smoke: a hard landing on the arming tick must not detonate ----
+# --- the volcano before the eruption ever ran (Bontago-1en.22) -------------
+
+## Reproduces the reported bug with a real BlockFactory-built cube, this
+## fixture's own real Field (before_each(), 20 m radius) and a real
+## SpecialBehavior bound to the real config/specials/volcano.tres def
+## (arm_delay = 0.4, arm_impulse = 5.0) -- dropped from ~2 m so it lands well
+## after arm_delay has elapsed (fall time for 2 m under standard gravity is
+## ~0.64 s > 0.4 s). Before the fix, the landing's own deceleration
+## (comfortably over arm_impulse = 5.0) called trigger(0) before
+## VolcanoEffect.physics_tick() ever ran a single armed tick, so the eruption
+## silently never spawned an orb and the volcano just "activated" as a no-op
+## detonate() the moment it touched down.
+func test_real_physics_hard_landing_does_not_prematurely_impact_trigger() -> void:
+	var defs: Array[SpecialDef] = SpecialDef.load_all_specials()
+	var found: SpecialDef = null
+	for def: SpecialDef in defs:
+		if def.id == &"volcano":
+			found = def
+			break
+	assert_not_null(found, "config/specials/volcano.tres must be found by load_all_specials()")
+
+	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres") as PhysicsTuning
+	var block: Block = BlockFactory.build(_cube_shape(), tuning)
+	add_child_autofree(block)
+	block.global_position = Vector3(0.0, _field.surface_y() + 2.0, 0.0)  # disk centre, ~2 m drop
+
+	var behavior: SpecialBehavior = SpecialBehavior.new()
+	block.add_child(behavior)
+	autofree(behavior)
+	behavior.bind(block, found, SpecialTuning.new())
+
+	var settle_ticks: int = 0
+	while not block.sleeping and settle_ticks < 180:
+		await wait_physics_frames(1)
+		settle_ticks += 1
+
+	assert_true(block.sleeping, "setup: the volcano must settle from its ~2 m drop")
+	assert_false(
+		behavior.is_triggered(),
+		"a hard landing on the arming tick must not detonate the volcano before the eruption ever ran"
+	)
+	assert_true(
+		block.has_meta(&"volcano_start_age"),
+		"physics_tick() must have run and seeded its own start-age instead of being skipped by a premature trigger"
+	)

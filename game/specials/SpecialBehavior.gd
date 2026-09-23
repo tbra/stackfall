@@ -125,6 +125,14 @@ func advance(delta: float) -> void:
 ## Block.gd's own `_prev_linear_velocity = linear_velocity; return` early
 ## exit. Arming/fuse ageing (advance()'s caller) is untouched by this --
 ## only the impact *test* is skipped while asleep.
+##
+## FIX (Bontago-1en.22): a decel past `arm_impulse` now also consults
+## `_def.effect.impact_triggers()` (SpecialEffect.gd's own doc comment on
+## that hook) before calling trigger() -- a timed-effect-pattern special
+## (Propeller/Jumping Bean/Earthquake/Volcano) vetoes it so its OWN arming-
+## tick landing impact can never short-circuit its physics_tick() window
+## before that window ever ran even once. A null `_def.effect` (no special
+## script assigned) keeps the old unconditional behavior.
 func _check_impact() -> void:
 	if _block.sleeping:
 		_prev_linear_velocity = _block.linear_velocity
@@ -134,8 +142,11 @@ func _check_impact() -> void:
 	var now_speed: float = current_velocity.length()
 	var decel: float = _block.mass * (prev_speed - now_speed)
 	_prev_linear_velocity = current_velocity
-	if not _has_triggered and decel >= _def.arm_impulse:
-		trigger(0)
+	if _has_triggered or decel < _def.arm_impulse:
+		return
+	if _def.effect != null and not _def.effect.impact_triggers(_block, self):
+		return
+	trigger(0)
 
 
 ## Idempotent (docs/M4_P2_PACKAGES.md P2a): a second/third call after the

@@ -25,6 +25,10 @@ class StubEffect:
 	var detonate_chain_depths: Array[int] = []
 	var call_order: Array[String] = []
 	var early_trigger_result: bool = false
+	var impact_triggers_result: bool = true
+
+	func impact_triggers(_block: Block, _behavior: SpecialBehavior) -> bool:
+		return impact_triggers_result
 
 	func physics_tick(_block: Block, _behavior: SpecialBehavior, _delta: float) -> void:
 		physics_tick_calls += 1
@@ -201,6 +205,90 @@ func test_impact_after_waking_is_detected_against_a_fresh_baseline() -> void:
 		behavior.is_triggered(),
 		"A real drop measured against the wake-time baseline must still trigger."
 	)
+
+
+## -- impact_triggers() hook (Bontago-1en.22) ---------------------------------------
+
+## SpecialEffect's own base implementation, with no subclass override at all,
+## must default to true -- an ordinary impact/fuse special (Bomb, Rocket,
+## Anvil, and any special with no effect script at all via _check_impact()'s
+## own null-effect fallback) needs no opt-in to keep today's impact-triggered
+## activation.
+func test_special_effect_base_impact_triggers_defaults_true() -> void:
+	var effect: SpecialEffect = SpecialEffect.new()
+	assert_true(effect.impact_triggers(null, null))
+
+
+## A hard deceleration past arm_impulse must NOT call trigger() when the
+## effect vetoes it -- the arming-tick self-trigger bug (Bontago-1en.22) this
+## hook exists to fix. physics_tick() must keep running regardless (the
+## effect's own timed window is what SpecialBehavior must never cut short).
+func test_impact_does_not_trigger_when_the_effect_vetoes_it() -> void:
+	var block: Block = _make_block(Vector3.ZERO, 1.0)
+	var def: SpecialDef = _make_def(0.1, 5.0, 999.0)
+	var stub: StubEffect = StubEffect.new()
+	stub.impact_triggers_result = false
+	def.effect = stub
+	var behavior: SpecialBehavior = _make_behavior(block, def)
+
+	behavior.advance(0.1)  # arms this tick
+	assert_true(behavior.is_armed())
+
+	block.linear_velocity = Vector3(10.0, 0.0, 0.0)
+	behavior.advance(0.01)
+	block.linear_velocity = Vector3.ZERO  # mass(1) * (10 - 0) = 10 >= 5: would trigger if allowed
+	behavior.advance(0.01)
+
+	assert_false(
+		behavior.is_triggered(),
+		"impact_triggers() == false must veto the decel-based trigger entirely."
+	)
+	assert_gt(
+		stub.physics_tick_calls, 0,
+		"physics_tick() must keep running on every armed tick despite the vetoed impact."
+	)
+
+
+## The companion case: an effect that does NOT veto (the common/default case)
+## must still impact-trigger exactly as before this hook was added.
+func test_impact_still_triggers_when_the_effect_allows_it() -> void:
+	var block: Block = _make_block(Vector3.ZERO, 1.0)
+	var def: SpecialDef = _make_def(0.1, 5.0, 999.0)
+	var stub: StubEffect = StubEffect.new()
+	stub.impact_triggers_result = true
+	def.effect = stub
+	var behavior: SpecialBehavior = _make_behavior(block, def)
+
+	behavior.advance(0.1)  # arms this tick
+	block.linear_velocity = Vector3(10.0, 0.0, 0.0)
+	behavior.advance(0.01)
+	block.linear_velocity = Vector3.ZERO  # mass(1) * (10 - 0) = 10 >= 5
+	behavior.advance(0.01)
+
+	assert_true(behavior.is_triggered(), "impact_triggers() == true must keep triggering on impact.")
+
+
+## Chain triggering must bypass the veto entirely: trigger_others_in_range()
+## calls trigger() directly, never _check_impact()/impact_triggers().
+func test_chain_trigger_still_detonates_an_effect_that_vetoes_impact_triggering() -> void:
+	var origin_block: Block = _make_block(Vector3.ZERO)
+	var origin_def: SpecialDef = _make_def()
+	var origin: SpecialBehavior = _make_behavior(origin_block, origin_def)
+
+	var neighbor_block: Block = _make_block(Vector3(2.0, 0.0, 0.0))
+	var neighbor_def: SpecialDef = _make_def()
+	var neighbor_stub: StubEffect = StubEffect.new()
+	neighbor_stub.impact_triggers_result = false
+	neighbor_def.effect = neighbor_stub
+	var neighbor: SpecialBehavior = _make_behavior(neighbor_block, neighbor_def)
+
+	origin.trigger_others_in_range(Vector3.ZERO, 5.0, 0)
+
+	assert_true(
+		neighbor.is_triggered(),
+		"a chain trigger must still detonate an effect that vetoes decel-based impact triggering."
+	)
+	assert_eq(neighbor_stub.detonate_calls, 1)
 
 
 ## -- effect hooks: physics_tick / wants_early_trigger ------------------------------

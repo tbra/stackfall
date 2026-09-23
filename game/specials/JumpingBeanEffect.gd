@@ -80,6 +80,17 @@ extends SpecialEffect
 ## either -- acceptable, since settling is what starts its own hop timer
 ## regardless (wants_early_trigger()/physics_tick()'s settle gate above).
 ##
+## AMENDMENT (Bontago-1en.22): the decel-based "player smashed something into
+## it" impact path described above is now vetoed outright by
+## impact_triggers() below -- a hard-thrown/dropped bean landing right as it
+## arms (not just its own hop) could still satisfy arm_impulse before
+## physics_tick() ever seeded its settle meta even once, the same
+## arming-tick bug every other timed-effect special had. arm_impulse = 10.0
+## above is kept as harmless headroom (it no longer gates anything through
+## _check_impact() for this effect), but a nearby explosion still reaches the
+## bean exactly as before via SpecialBehavior.trigger_others_in_range()'s
+## chain path (radius-based, not decel-based, and untouched by this hook).
+##
 ## DECISION (game/specials/JumpingBeanEffect.gd, P5-BEAN, matches
 ## VolcanoEffect.gd's own precedent): a SpecialDef's `effect` is one shared
 ## Resource instance reused by every block spawned with this special during
@@ -169,10 +180,25 @@ func physics_tick(block: Block, behavior: SpecialBehavior, _delta: float) -> voi
 	block.set_meta(_NEXT_HOP_META, next_hop_at)
 
 
+## FIX (game/specials/JumpingBeanEffect.gd, Bontago-1en.22): vetoes the
+## decel-based impact trigger entirely -- see SpecialEffect.impact_triggers()'s
+## own doc comment and this class's AMENDMENT doc comment above. This
+## effect's own end is entirely time-driven (wants_early_trigger() below) or
+## a chain trigger from a nearby special (SpecialBehavior.
+## trigger_others_in_range(), unaffected by this hook).
+func impact_triggers(_block: Block, _behavior: SpecialBehavior) -> bool:
+	return false
+
+
 ## True once elapsed-since-first-settled reaches lifetime_s. False while
 ## still airborne (never settled, no start-age meta yet) -- an impact strong
 ## enough to satisfy SpecialBehavior's own arm_impulse check can still
 ## trigger this earlier, same as every other special.
+##
+## Bontago-1en.22 amendment: "an impact ... can still trigger this earlier"
+## above described the pre-fix decel path, now vetoed by impact_triggers()
+## above -- an early trigger for this effect is only ever the fuse timeout
+## or a chain trigger from a nearby special now.
 func wants_early_trigger(block: Block, behavior: SpecialBehavior) -> bool:
 	if not block.has_meta(_START_AGE_META):
 		return false

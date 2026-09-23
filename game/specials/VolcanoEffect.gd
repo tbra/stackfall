@@ -204,9 +204,26 @@ func physics_tick(block: Block, behavior: SpecialBehavior, _delta: float) -> voi
 	block.set_meta(_SPAWNED_META, spawned)
 
 
+## FIX (game/specials/VolcanoEffect.gd, Bontago-1en.22): vetoes the decel-
+## based impact trigger entirely -- see SpecialEffect.impact_triggers()'s own
+## doc comment. A volcano thrown/dropped hard enough to land right as it
+## arms used to satisfy arm_impulse on that very landing and detonate (a
+## no-op detonate()) before physics_tick() ever spawned a single orb. This
+## effect's own end is entirely time-driven (wants_early_trigger() below) or
+## a chain trigger from a nearby special (SpecialBehavior.
+## trigger_others_in_range(), unaffected by this hook).
+func impact_triggers(_block: Block, _behavior: SpecialBehavior) -> bool:
+	return false
+
+
 ## True once elapsed-since-armed reaches eruption_duration_s. An impact
 ## strong enough to satisfy SpecialBehavior's own arm_impulse check can still
 ## trigger this earlier, same as every other special.
+##
+## Bontago-1en.22 amendment: "an impact ... can still trigger this earlier"
+## above described the pre-fix decel path, now vetoed by impact_triggers()
+## above -- an early trigger for this effect is only ever the fuse timeout
+## or a chain trigger from a nearby special now.
 func wants_early_trigger(block: Block, behavior: SpecialBehavior) -> bool:
 	if not block.has_meta(_START_AGE_META):
 		return false

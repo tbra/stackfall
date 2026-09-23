@@ -443,3 +443,90 @@ func test_respects_tilt_mode_off_via_the_real_field_guard() -> void:
 	field._update_tilt(TICK)
 
 	assert_eq(field.tilt_vector(), Vector2.ZERO, "tilt_mode OFF must leave the disk untouched")
+
+
+# --- physics smoke: a hard landing on the arming tick must not detonate ----
+# --- the propeller before the lift+tilt ever ran (Bontago-1en.22) ----------
+
+## Reproduces the reported bug with a real BlockFactory-built cube, a real
+## Field (game/Field.gd) and a real SpecialBehavior bound to the real
+## config/specials/propeller.tres def (arm_delay = 0.4, arm_impulse = 5.0) --
+## dropped from ~2 m so it lands well after arm_delay has elapsed (fall time
+## for 2 m under standard gravity is ~0.64 s > 0.4 s), the exact scenario the
+## bug report names ("a thrown volcano at high speed" / "hard-landed or
+## thrown Propeller"). Before the fix (SpecialBehavior._check_impact() with
+## no impact_triggers() veto), the landing's own deceleration (mass 1.0 *
+## ~6+ m/s drop, comfortably over arm_impulse = 5.0) called trigger(0) before
+## PropellerEffect.physics_tick() ever ran a single tick with block.sleeping
+## true -- the lift+tilt never started, and detonate() (a no-op for this
+## timed effect) made the whole special silently vanish on landing.
+##
+## DECISION (tests/unit/test_propeller_effect.gd): samples at a fixed tick
+## count rather than waiting for `block.sleeping` to read true, unlike
+## test_jumping_bean_effect.gd's own real-physics test -- measured here (a
+## debug trace, since removed), the propeller's own continuous lift write
+## (`block.linear_velocity.y = lift_speed` every armed tick once settled,
+## PropellerEffect.physics_tick()'s own review-fix comment: any velocity
+## write wakes a sleeping RigidBody3D) means `sleeping` never stays
+## externally observable as true even once the lift is genuinely running --
+## unlike the Bean, which only writes velocity once per hop_interval_s and so
+## is truly still (and externally "asleep") in between. 70 ticks (~1.17 s) is
+## comfortably past the observed landing+settle window (settled and lifting
+## by ~0.6 s in that same trace) and comfortably short of lift_duration_s's
+## own natural end-of-window trigger (observed at ~2.1 s in that trace).
+func test_real_physics_hard_landing_does_not_prematurely_impact_trigger() -> void:
+	var spy: SpyField = _register_spy_field()
+
+	var defs: Array[SpecialDef] = SpecialDef.load_all_specials()
+	var found: SpecialDef = null
+	for def: SpecialDef in defs:
+		if def.id == &"propeller":
+			found = def
+			break
+	assert_not_null(found, "config/specials/propeller.tres must be found by load_all_specials()")
+
+	var shape: BlockShape = load("res://config/blocks/cube.tres") as BlockShape
+	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres") as PhysicsTuning
+	var block: Block = BlockFactory.build(shape, tuning)
+	add_child_autofree(block)
+	block.global_position = Vector3(0.0, spy.surface_y() + 2.0, 0.0)  # disk centre, ~2 m drop
+
+	var behavior: SpecialBehavior = SpecialBehavior.new()
+	block.add_child(behavior)
+	autofree(behavior)
+	behavior.bind(block, found, SpecialTuning.new())
+
+	for _i: int in range(70):
+		await wait_physics_frames(1)
+
+	assert_false(
+		behavior.is_triggered(),
+		"a hard landing on the arming tick must not detonate the propeller before the lift+tilt ever ran"
+	)
+	assert_almost_eq(
+		block.linear_velocity.y, (found.effect as PropellerEffect).lift_speed, 0.5,
+		"the lift must actually be running once settled, not skipped by a premature trigger"
+	)
+
+
+# --- chain trigger still detonates a Propeller despite the impact veto -----
+
+## PropellerEffect.impact_triggers() now vetoes the decel-based impact path
+## (Bontago-1en.22), but SpecialBehavior.trigger_others_in_range()'s chain
+## path calls trigger() directly and must still reach it -- e.g. a Bomb next
+## to a Propeller must still set it off.
+func test_chain_trigger_still_detonates_a_propeller() -> void:
+	var effect: PropellerEffect = PropellerEffect.new()
+	var block: Block = _make_block(Vector3(1.0, 0.0, 0.0))
+	block.sleeping = true
+	var behavior: SpecialBehavior = _make_behavior(block, _make_def(effect))
+
+	var neighbor_block: Block = _make_block(Vector3.ZERO)
+	var neighbor_behavior: SpecialBehavior = _make_behavior(neighbor_block, _make_def(PropellerEffect.new()))
+
+	neighbor_behavior.trigger_others_in_range(Vector3.ZERO, 5.0, 0)
+
+	assert_true(
+		behavior.is_triggered(),
+		"a chain trigger must still detonate a Propeller even though impact_triggers() is false"
+	)
