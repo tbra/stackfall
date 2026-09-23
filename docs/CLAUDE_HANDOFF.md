@@ -27,13 +27,12 @@ attachment (burned auto-drops keep the special queued). Owner answered z4h(b) mv
 amendments), `docs/M4_SPECIALS_PACKAGES.md` (ten packages for the seven specials; Beads
 1en.1-.8 + helpers 1en.18/.19/.20).
 
-**In flight when the owner stopped work (worktrees preserved, NOT merged):**
-- `M:/Bontago-worktrees/p2cw` (`wt/p2c-wire`, base d5a0ab3) — `Bontago-1en.17` P2c-ii throw
-  intent over the wire + `special_triggered` replication. Reviewed accept-with-nits; worker was
-  applying the fixes (args-length guard on the EVENT_SPECIAL_TRIGGERED arm; `--throw-pass`
-  phase in `tests/bench/m3a_acceptance.gd` / `tools/run_m3a_local.ps1`). If the working tree
-  shows those edits and `tools/run_gut.ps1 test_match_net,test_net_session,test_match_throw
-  -Path M:/Bontago-worktrees/p2cw` is green, commit on the branch, merge, gate, close.
+**Finished after the owner stopped work (committed on their branches, NOT merged — merge order: p2cw, eq, anvil; then one full-suite gate, then push):**
+- `M:/Bontago-worktrees/p2cw` (`wt/p2c-wire`, committed c39130b after the stop) — `Bontago-1en.17`
+  P2c-ii throw intent over the wire + `special_triggered` replication, review fixes applied,
+  116/116 targeted, `run_m3a_local.ps1 -Peers 2 -ThrowPass` PASS twice with lag, `-Peers 4`
+  regression PASS. Ready to merge; then close. Gap it surfaced: `Bontago-1en.21` (client
+  pending-special count never decrements; needs a consumed-special replication).
 - `M:/Bontago-worktrees/eq` (`wt/sp-earthquake`, committed after the stop) — `Bontago-1en.4`
   Earthquake effect + the roster-nonempty test adjustments, 128/128 targeted, open-editor
   clean; ready to merge. Must merge BEFORE the Anvil. It also corrected the tilt-leveling
