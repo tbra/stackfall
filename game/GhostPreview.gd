@@ -148,6 +148,12 @@ const STATE_VALID: StringName = &"valid"
 const STATE_INVALID: StringName = &"invalid"
 const STATE_HOLE: StringName = &"hole"
 const STATE_LOCKED: StringName = &"locked"
+## M4 P2e (docs/M4_P2_PACKAGES.md P2e): shown while game/PlayerController.gd
+## reports is_aiming_throw() true (show_throw_hint()) -- a distinct state
+## from the placement-validity ones above since it says nothing about where
+## the block would land, only that the current gesture is a throw in
+## progress.
+const STATE_THROW: StringName = &"throw"
 
 const HATCH_TEXTURE_SIZE: int = 32
 
@@ -216,6 +222,11 @@ var _last_result: PlacementRules.Result = PlacementRules.Result.VALID
 ## since the lock is about *when* the piece may drop, not *where* the ghost
 ## sits.
 var _locked: bool = false
+## M4 P2e: set by show_throw_hint(); wins over the validity tint (below
+## _locked in priority -- see _apply_validity_material()) exactly the way
+## _locked already wins over it, since "aiming a throw" is about the current
+## gesture, not the landing spot show_throw_hint()'s caller never queried.
+var _throw_hint_active: bool = false
 
 var _flash_tween: Tween
 var _reject_tween: Tween
@@ -817,6 +828,16 @@ func set_locked(locked: bool) -> void:
 	_refresh_materials()
 
 
+## M4 P2e (docs/M4_P2_PACKAGES.md P2e): called every frame by game/
+## PlayerController.gd's _drive_throw_visuals() with is_aiming_throw(), so the
+## tint appears/disappears the same frame the drag starts/ends. Reuses
+## _refresh_materials()'s existing dispatch (only _apply_validity_material()
+## reads _throw_hint_active -- see that function's own priority comment).
+func show_throw_hint(active: bool) -> void:
+	_throw_hint_active = active
+	_refresh_materials()
+
+
 func _refresh_materials() -> void:
 	_apply_validity_material()
 	_apply_footprint_material()
@@ -827,6 +848,8 @@ func _refresh_materials() -> void:
 func current_state() -> StringName:
 	if _locked:
 		return STATE_LOCKED
+	if _throw_hint_active:
+		return STATE_THROW
 	match _last_result:
 		PlacementRules.Result.VALID:
 			return STATE_VALID
@@ -847,6 +870,13 @@ func _apply_validity_material() -> void:
 	if _locked:
 		_material.albedo_texture = null
 		_material.albedo_color = ghost_tuning.locked_tint_color
+		return
+	# M4 P2e: throw-aim wins over plain validity (same precedence _locked
+	# already has above) but loses to _locked -- an interval-locked piece
+	# cannot be released as a throw either, so that cue must still win.
+	if _throw_hint_active:
+		_material.albedo_texture = null
+		_material.albedo_color = ghost_tuning.throw_aim_tint_color
 		return
 	match _last_result:
 		PlacementRules.Result.VALID:

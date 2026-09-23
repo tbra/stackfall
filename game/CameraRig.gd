@@ -181,8 +181,18 @@ func _process(delta: float) -> void:
 	# conflict here: that action is now rotation_mode, which reuses the *left*
 	# stick (PlayerController._accumulate_rotation_drag), so the right stick no
 	# longer has a second job to gate against.
-	var look_x: float = Input.get_action_strength(&"camera_look_right") - Input.get_action_strength(&"camera_look_left")
-	var look_y: float = Input.get_action_strength(&"camera_look_down") - Input.get_action_strength(&"camera_look_up")
+	# M4 P2e (docs/M4_P2_PACKAGES.md P2e): throw_aim shares its gamepad binding
+	# (the left trigger) with nothing on the right stick, but the right stick
+	# is also the player's own aim-drag gesture while throw_aim is held
+	# (game/PlayerController.gd._accumulate_gamepad_throw_drag()) -- reading
+	# it here too would spin the camera under the player mid-aim. Suppressed
+	# outright rather than consumed/shared, same as _rotate_drag_frozen()
+	# above freezes the whole rig for a different hold.
+	var look_x: float = 0.0
+	var look_y: float = 0.0
+	if not Input.is_action_pressed(&"throw_aim"):
+		look_x = Input.get_action_strength(&"camera_look_right") - Input.get_action_strength(&"camera_look_left")
+		look_y = Input.get_action_strength(&"camera_look_down") - Input.get_action_strength(&"camera_look_up")
 	if look_x != 0.0 or look_y != 0.0:
 		_yaw -= look_x * tuning.pad_orbit_speed * delta
 		_pitch -= look_y * tuning.pad_orbit_speed * delta

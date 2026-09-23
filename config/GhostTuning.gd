@@ -266,3 +266,25 @@ extends Resource
 ## manual release, or an auto-drop burn thrown off the map) -- see that
 ## function's own DECISION comments.
 @export var spawn_clearance: float = 0.15
+
+## -- Throw aim (M4 P2e, docs/M4_P2_PACKAGES.md P2e; spec 2.5 "Throw
+## (specials only)") ----------------------------------------------------------
+## Ghost tint while game/PlayerController.gd's is_aiming_throw() is true
+## (game/GhostPreview.gd's show_throw_hint()) -- distinct from every other
+## tint here since it says nothing about where the block would land, only
+## that a throw gesture is in progress. Same alpha as tint_color/
+## invalid_tint_color/hole_tint_color/locked_tint_color for the same "reads
+## more solid" reason those give.
+@export var throw_aim_tint_color: Color = Color(1.0, 0.55, 0.15, 0.75)
+## How many straight segments game/ThrowArcPreview.gd's ballistic polyline is
+## divided into; higher reads smoother but costs more per-frame vertices.
+@export var throw_arc_sample_count: int = 24
+## Seconds of flight the arc preview samples out to. A real thrown special
+## flies until it lands or the fuse times out (SpecialTuning.fuse_timeout_s
+## et al.); this is only how far the *preview line* draws before stopping,
+## not a gameplay limit.
+@export var throw_arc_max_time_s: float = 1.5
+## Colour of the arc preview polyline.
+@export var throw_arc_color: Color = Color(1.0, 0.85, 0.3, 0.9)
+## World-space width (meters) of the arc preview's ribbon.
+@export var throw_arc_width: float = 0.05
