@@ -14,6 +14,14 @@ extends CanvasLayer
 ## ui/MainMenu.gd, ui/Lobby.gd and ui/HUD.gd's match_provider.
 var net_provider: Variant = null
 
+## DECISION (ui/NetDebugOverlay.gd, Bontago-mv0.1.12): a second `Variant` test
+## seam, exactly net_provider's own pattern, for the counters
+## net/MatchNet.gd keeps per slot (intents_sent/accepted/refused,
+## cursors_refused). null (the default outside tests) reads the real
+## MatchNet autoload; a test hands it a small double the same way
+## test_net_debug_overlay.gd already hands net_provider a FakeNet.
+var match_net_provider: Variant = null
+
 @export var net_config: NetConfig = preload("res://config/net_config.tres")
 
 @onready var _mode_label: Label = %ModeLabel
@@ -21,6 +29,11 @@ var net_provider: Variant = null
 @onready var _snapshot_label: Label = %SnapshotLabel
 @onready var _interp_label: Label = %InterpLabel
 @onready var _loss_label: Label = %LossLabel
+## Bontago-mv0.1.12: one Label per slot (Panel/Layout/SlotRows in the .tscn,
+## sized to MatchConfig.PLAYER_COUNT_MAX so every legal slot has a row),
+## indexed by scene order -- child 0 is slot 0, etc. _refresh_slot_rows()
+## shows/hides each one rather than creating nodes at runtime.
+@onready var _slot_rows: VBoxContainer = %SlotRows
 @onready var _lag_slider: HSlider = %LagSlider
 @onready var _lag_value_label: Label = %LagValueLabel
 @onready var _loss_slider: HSlider = %LossSlider
@@ -36,6 +49,7 @@ var _applying_preset: bool = false
 
 func _ready() -> void:
 	net_provider = Net
+	match_net_provider = MatchNet
 	visible = false
 	_lag_slider.max_value = net_config.max_interp_delay_ms
 	_loss_slider.min_value = 0.0
@@ -46,6 +60,7 @@ func _ready() -> void:
 	_off_button.pressed.connect(_on_off_pressed)
 	Events.net_stats_updated.connect(_on_stats_updated)
 	_refresh_labels(net_provider.stats() if net_provider != null else {})
+	_refresh_slot_rows()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -66,6 +81,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _on_stats_updated(stats: Dictionary) -> void:
 	_refresh_labels(stats)
+	_refresh_slot_rows()
 
 
 func _refresh_labels(stats: Dictionary) -> void:
@@ -80,6 +96,45 @@ func _refresh_labels(stats: Dictionary) -> void:
 	]
 	_interp_label.text = "Interp delay: %.0f ms" % float(stats.get("interp_delay_ms", 0.0))
 	_loss_label.text = "Loss: %.1f%%" % (float(stats.get("loss_pct", 0.0)) * 100.0)
+
+
+## net/MatchNet.gd's per-slot intent/cursor counters (Bontago-mv0.1.12) are
+## host-only: `_apply_intent`/`_apply_throw_intent` and the malformed-cursor
+## drop that bumps `cursors_refused` all run "Host only" (see their own
+## comments), so a client's copy of every one of these dictionaries stays
+## empty even for its own slot. Showing all-zero rows to a client would read
+## as "nobody is being refused" when the truth is "this instance can't see
+## it" -- so the whole section is gated on net_provider.is_host(), exactly
+## the host-only condition net/MatchNet.gd itself gates on internally
+## (_is_host() / _session().is_host()), reached through the same net_provider
+## seam _push_simulation() already uses.
+##
+## Row visibility is activity-gated rather than driven by a slot count: a
+## slot's row appears once any of its four counters goes non-zero and hides
+## again after net/MatchNet.gd's reset_counters() (a new match) zeroes them
+## all -- exactly "slot count changes handled" without this script needing
+## its own notion of the current roster.
+func _refresh_slot_rows() -> void:
+	var rows: Array[Node] = _slot_rows.get_children()
+	var is_host: bool = net_provider != null and match_net_provider != null and bool(
+		net_provider.is_host()
+	)
+	for slot_id: int in range(rows.size()):
+		var label: Label = rows[slot_id] as Label
+		if not is_host:
+			label.visible = false
+			continue
+		var sent: int = int(match_net_provider.intents_sent(slot_id))
+		var accepted: int = int(match_net_provider.intents_accepted(slot_id))
+		var refused: int = int(match_net_provider.intents_refused(slot_id))
+		var cursors_refused: int = int(match_net_provider.cursors_refused(slot_id))
+		if sent == 0 and accepted == 0 and refused == 0 and cursors_refused == 0:
+			label.visible = false
+			continue
+		label.visible = true
+		label.text = "Slot %d: intents %d ok / %d no, cursors refused %d" % [
+			slot_id, accepted, refused, cursors_refused
+		]
 
 
 # --- Simulated lag/loss controls ---------------------------------------------
