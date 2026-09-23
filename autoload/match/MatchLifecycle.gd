@@ -64,6 +64,17 @@ func start_match(match_config: MatchConfig) -> void:
 	_match.config = match_config.duplicate(true) as MatchConfig
 	_match.config.sanitize()
 
+	# Bontago-1en.23 (M4 P5-TILT): register_world() itself runs before
+	# start_match() on every path (hot-seat, sandbox and the lobby -- see
+	# game/Main.gd's own "Wiring order matters" doc), before Match.config
+	# exists, so this is the first point at which both the Field and the new
+	# match's tilt_mode are known together. Runs on the host and on a client
+	# alike: this whole function is what net/MatchNet.gd's net_match_start RPC
+	# calls locally on a client's own Match copy (see this file's start_match()
+	# doc above), so a client's Field spring stays enabled in step with the
+	# host's rather than only reacting to specials it never simulates itself.
+	_apply_tilt_mode()
+
 	# DECISION (autoload/match/MatchLifecycle.gd, Bontago-mv0.20a): the lobby's
 	# gravity_multiplier (spec 2.8 "Gravity 0.5x-2x") is written straight into
 	# the shared config/physics_tuning.tres *instance* Match already holds
@@ -140,6 +151,38 @@ func _reset_match_state() -> void:
 	_match._feed._feed_timer_enabled = true
 	_match._gifts.reset()
 	_match.config = null
+	# Bontago-1en.23 (M4 P5-TILT): shared by abort_match() (teardown back to
+	# LOBBY) and start_match()'s own leading call to this function (tearing
+	# down whatever match was running before the new one's _apply_tilt_mode()
+	# call re-enables it) -- Field is a persistent node game/Field.gd's own
+	# clear_match_state() doc describes, so a tilt (and its spring velocity)
+	# left enabled here would otherwise still be live the moment the field
+	# sits idle behind the main menu. set_tilt_enabled(false) is also what
+	# levels the disc (game/Field.gd: "Disabling mid-match also snaps the tilt
+	# itself back to level"); a no-op if tilt was never enabled this match.
+	if _match._field != null:
+		_match._field.set_tilt_enabled(false)
+
+
+## Bontago-1en.23 (M4 P5-TILT): turns the Field tilt controller on for the
+## match that just got a config, per config/MatchConfig.gd's tilt_mode (spec
+## 2.8). A no-op if register_world() was never called (some unit tests never
+## hand Match a field at all) or by a caller who -- unlike every real path in
+## game/Main.gd -- called start_match() before register_world().
+##
+## DECISION (autoload/match/MatchLifecycle.gd): written as an exhaustive match
+## over TiltMode's two current members, both of which tilt (config/
+## MatchConfig.gd's own comment: "PHYSICAL_BALANCE's weight-driven tilt is
+## M6", not "PHYSICAL_BALANCE doesn't tilt yet" -- SPECIALS_ONLY's spring still
+## runs under it in the meantime), rather than "!= some OFF value" that does
+## not exist yet: a future OFF mode is one new branch calling
+## set_tilt_enabled(false), not an inverted condition to re-derive.
+func _apply_tilt_mode() -> void:
+	if _match._field == null:
+		return
+	match _match.config.tilt_mode:
+		MatchConfig.TiltMode.SPECIALS_ONLY, MatchConfig.TiltMode.PHYSICAL_BALANCE:
+			_match._field.set_tilt_enabled(true)
 
 
 func state() -> MatchAutoload.State:
