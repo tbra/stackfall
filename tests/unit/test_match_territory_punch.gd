@@ -43,6 +43,7 @@ func before_each() -> void:
 func after_each() -> void:
 	Match.abort_match()
 	Match.set_process(true)
+	MatchTestReset.clear_world()
 
 
 func _tiny_map_config() -> MatchConfig:

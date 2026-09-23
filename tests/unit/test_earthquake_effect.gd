@@ -45,6 +45,7 @@ func before_each() -> void:
 func after_each() -> void:
 	Match.abort_match()
 	Match.set_process(true)
+	MatchTestReset.clear_world()
 
 
 func _make_block(position: Vector3 = Vector3.ZERO) -> Block:

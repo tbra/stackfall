@@ -39,6 +39,7 @@ func before_each() -> void:
 func after_each() -> void:
 	Match.abort_match()
 	Match.set_process(true)
+	MatchTestReset.clear_world()
 
 
 func _config(player_count: int = 2) -> MatchConfig:

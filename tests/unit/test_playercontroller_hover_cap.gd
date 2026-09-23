@@ -63,7 +63,7 @@ func after_each() -> void:
 	# freed Field and Godot's own argument type-check throws "previously
 	# freed" before the callee even runs. Clear it here, not just abort the
 	# match, so this script's own throwaway Field never outlives it.
-	Match._field = null
+	MatchTestReset.clear_world()
 
 
 func _config(player_count: int = 2) -> MatchConfig:

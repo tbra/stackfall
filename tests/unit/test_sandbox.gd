@@ -43,6 +43,7 @@ func before_each() -> void:
 	var tiny_match_config: MatchConfig = (load("res://config/match_defaults.tres") as MatchConfig).duplicate(true)
 	tiny_match_config.set_script(load("res://tests/unit/support/TinyMapMatchConfig.gd"))
 	(tiny_match_config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
+	tiny_match_config.rng_seed = 4242
 	_main.match_config = tiny_match_config
 	add_child_autofree(_main)
 	assert_not_null(_main._main_menu, "fixture: Main boots to the main menu with no command-line flags")
@@ -63,6 +64,7 @@ func after_each() -> void:
 	Match.set_process(true)
 	await get_tree().process_frame
 	await get_tree().process_frame
+	MatchTestReset.clear_world()
 
 
 func _run_countdown() -> void:

@@ -69,6 +69,7 @@ var _registry: BlockRegistry = null
 func after_each() -> void:
 	Match.abort_match()
 	Match.set_process(true)
+	MatchTestReset.clear_world()
 
 
 ## Registers a plain (non-spy) Field -- this package never inspects what

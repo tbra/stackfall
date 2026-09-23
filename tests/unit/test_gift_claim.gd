@@ -49,6 +49,7 @@ func after_each() -> void:
 	Match._gifts._gift_config = load("res://config/gift_config.tres") as GiftConfig
 	Match.abort_match()
 	Match.set_process(true)
+	MatchTestReset.clear_world()
 
 
 func _config(player_count: int = 2, gifts_enabled: bool = true) -> MatchConfig:

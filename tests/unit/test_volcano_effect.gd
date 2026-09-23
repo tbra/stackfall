@@ -45,6 +45,7 @@ func after_each() -> void:
 		child.free()
 	Match.set_process(true)
 	await get_tree().process_frame
+	MatchTestReset.clear_world()
 
 
 func _config(player_count: int = 2) -> MatchConfig:

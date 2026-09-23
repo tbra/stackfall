@@ -55,6 +55,7 @@ func after_each() -> void:
 	Match.set_replicator(null)
 	Match.abort_match()
 	Match.set_process(true)
+	MatchTestReset.clear_world()
 
 
 ## MatchNet bound to the real Match and a scripted session. `peer_slots` maps
