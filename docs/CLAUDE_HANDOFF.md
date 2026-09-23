@@ -3,6 +3,28 @@
 Prepared 2026-09-18 from Git, Beads, project files and the interrupted local Claude
 session. This is a restart snapshot. Refresh live state; keep task progress in Beads.
 
+## Update 2026-09-24 00:57 (final, machine put to sleep) — resume here
+
+After the session-close note below, three of the four interrupted workers finished and were
+MERGED to main (0dec778, pushed): `xtq.18` root cause = block-projection Decal painting the disc with
+fade 0 → pow(0,0) NaN speckle (also the "flicker"); `xtq.20` root cause = the sun's GGX specular on
+the metallic disc, not the mirror (shader `specular_disabled`, mirror as reflected light, defaults
+metallic 0.1/roughness 0.3/mirror 0.5 — saved F4 overrides would shadow them); `mv0.35` = no clamp
+below 60 m; the held raise was 1 m/s so the timer auto-dropped at ~6 m, and the HUD only showed the
+tower height (now ceiling = wire band ~70 m, held raise accelerates, HUD "Tower / Block"). All three
+Jev review=yes overridden (game/ui/shader only, fail-before tests + measured frames) — owner verdict
+in the play build is the acceptance. `xtq.19` NOT reproduced: ask the owner for an F12 close-up.
+New: `Bontago-d04` gift-claim feedback (ready), an AA follow-up (P3).
+
+**P6 (`d5c.7`) interrupted:** bench committed as WIP on `wt/m5-p6` (worktree `m5p6`, base 01f4efb,
+rebase first). Seed 1 FAILED: Hard bot 87 placements vs passive 903, share 7% vs 15% → new P1 bug
+under `Bontago-d5c` ("Hard bot loses to a passive auto-drop player"). The bench ran ~2 h wall for
+600 s sim and the worker ran three seeds in parallel — make it faster than real time and run seeds
+sequentially. Orchestrator killed those three Godot processes at close; foreign PIDs 29820/24028 left.
+
+**Next session order:** owner verdicts on xtq.18/20, mv0.35 (+ xtq.19 screenshot) → the Hard-bot
+placement-rate bug → P6 seeds → M5 gate → `d04` gift feedback.
+
 ## Update 2026-09-23 (session close) — resume here
 
 **Session end:** owner stopped for the day with FOUR workers still running. Their worktrees are
