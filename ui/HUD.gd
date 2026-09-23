@@ -3,7 +3,9 @@ extends CanvasLayer
 ## Spec 2.10's HUD, scoped to what M2/Bontago-mv0.9 need: a timer ring around
 ## the held-block preview, a separate next-block preview, max height,
 ## per-player territory share, capture ring, a LOCKED indicator, and a
-## hot-seat turn indicator. The minimap and presentation polish are M7.
+## hot-seat turn indicator. Bontago-1en.16 (M4 P2b-ii) adds a small pending-
+## special queue indicator beside the next-shape preview. The minimap and
+## presentation polish are M7.
 ##
 ## Bontago-mv0.9: outside hot-seat there is no "turn" — every slot plays at
 ## once (spec 2.4 "[ORIGINAL target]") — so this HUD shows **the local
@@ -75,6 +77,7 @@ var match_provider: Variant = null
 @onready var _timer_ring: Control = %TimerRing
 @onready var _shape_preview: Control = %ShapePreview
 @onready var _next_shape_preview: Control = %NextShapePreview
+@onready var _special_indicator: Label = %SpecialIndicator
 @onready var _locked_label: Label = %LockedLabel
 @onready var _height_label: Label = %HeightLabel
 @onready var _shares_box: VBoxContainer = %SharesBox
@@ -116,6 +119,7 @@ func _ready() -> void:
 	_winner_label.visible = false
 	_capture_ring.visible = false
 	_locked_label.visible = false
+	_special_indicator.visible = false
 
 	Events.turn_changed.connect(_on_turn_changed)
 	Events.feed_block_issued.connect(_on_feed_block_issued)
@@ -124,6 +128,7 @@ func _ready() -> void:
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 	Events.match_won.connect(_on_match_won)
 	Events.player_eliminated.connect(_on_player_eliminated)
+	Events.gift_claimed.connect(_on_gift_claimed)
 
 
 func _process(_delta: float) -> void:
@@ -132,6 +137,7 @@ func _process(_delta: float) -> void:
 	set_feed_progress(match_provider.feed_progress(_active_slot))
 	set_height(match_provider.max_height_for_slot(_active_slot))
 	set_locked(bool(match_provider.is_release_locked(_active_slot)))
+	_refresh_special_indicator()
 
 
 # --- Public API (docs/M2_PLAN.md — "implement exactly"; Bontago-mv0.9 adds
@@ -291,6 +297,17 @@ func _on_player_eliminated(slot_id: int, _team_id: int) -> void:
 		set_local_slot(_active_slot)
 
 
+## Bontago-1en.16: an instant refresh for the local slot the moment it claims
+## a crate, rather than waiting up to one frame for _process()'s poll below.
+## _refresh_special_indicator() re-reads Match itself (not the signal's own
+## special_id) so this handler and the per-frame poll can never disagree about
+## what the queue currently holds.
+func _on_gift_claimed(_gift_id: int, slot_id: int, _special_id: StringName) -> void:
+	if slot_id != _active_slot:
+		return
+	_refresh_special_indicator()
+
+
 # --- Helpers -----------------------------------------------------------------
 
 ## Bontago-mv0.9: whether Events.turn_changed still means "it is this slot's
@@ -337,6 +354,52 @@ func _name_for_slot(slot_id: int) -> String:
 		if slot != null and not slot.display_name.is_empty():
 			return slot.display_name
 	return "Player %d" % (slot_id + 1)
+
+
+## Bontago-1en.16 (docs/M4_P2_PACKAGES.md P2b-ii): the pending-special queue
+## indicator, next to the next-shape preview. Reads `_active_slot` the exact
+## same way the previews do (set_active_slot/set_local_slot both drive it, so
+## this follows hot-seat's acting slot or the local slot outside hot-seat,
+## whichever _active_slot currently is) rather than tracking a slot of its
+## own. No dedicated "a special was consumed at spawn" signal exists yet
+## (P2c, not landed on this branch) so, like set_feed_progress/set_height/
+## set_locked above, _process() polls it every frame; _on_gift_claimed()
+## above only shortcuts the wait for the specific claim case.
+func _refresh_special_indicator() -> void:
+	if match_provider == null or _active_slot < 0:
+		_special_indicator.visible = false
+		return
+	var count: int = int(match_provider.pending_special_count(_active_slot))
+	if count <= 0:
+		_special_indicator.visible = false
+		return
+	var head_id: StringName = match_provider.held_special(_active_slot)
+	_special_indicator.text = _special_display_text(head_id, count)
+	_special_indicator.modulate = _active_color
+	_special_indicator.visible = true
+
+
+## "Special ×N" once a second one is queued (N > 1); just the head id's
+## display name otherwise (decision: matches the next-shape preview, which
+## also never shows a bare count for a single item).
+func _special_display_text(head_id: StringName, count: int) -> String:
+	var display_name: String = _special_display_name(head_id)
+	if count > 1:
+		return "%s ×%d" % [display_name, count]
+	return display_name
+
+
+## MatchGifts.PENDING_SPECIAL_ID is the placeholder every claim draws until
+## P2c installs the real weighted SpecialDef pick (autoload/match/
+## MatchGifts.gd's own DECISION) -- shown as the generic "Special" rather than
+## its literal id ("special_pending".capitalize() would misleadingly read
+## "Special Pending"). A real special's id is shown as its own
+## String.capitalize() (snake_case -> Title Case), e.g. "jumping_bean" ->
+## "Jumping Bean" -- placeholder art only, M7 replaces this with real icons.
+func _special_display_name(head_id: StringName) -> String:
+	if head_id == MatchGifts.PENDING_SPECIAL_ID or head_id == &"":
+		return "Special"
+	return String(head_id).capitalize()
 
 
 func _ensure_share_row_count(count: int) -> void:

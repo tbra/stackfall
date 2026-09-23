@@ -11,6 +11,23 @@ func _make_hud() -> HUD:
 	return hud
 
 
+## Bontago-1en.16: the special-indicator tests below drive Match._gifts
+## directly, the same way tests/unit/test_gift_claim.gd does (no full match
+## needs to be running for a FIFO queue read/write). Match is a singleton
+## that outlives this script, so a lingering pending-special queue or claim
+## left behind here would leak into whichever test file runs next -- the same
+## singleton-leak class of bug test_gift_claim.gd's own after_each documents.
+## Match.abort_match() resets MatchGifts entirely (autoload/match/
+## MatchLifecycle.gd's _reset_match_state() calls _gifts.reset()), so it is
+## both the setup and the teardown here.
+func before_each() -> void:
+	Match.abort_match()
+
+
+func after_each() -> void:
+	Match.abort_match()
+
+
 func test_set_active_slot_updates_the_turn_label() -> void:
 	var hud: HUD = _make_hud()
 	hud.set_active_slot(0, Color.RED)
@@ -259,3 +276,70 @@ func test_process_shows_locked_when_the_local_slots_release_is_locked() -> void:
 
 	assert_false(hud._locked)
 	assert_false(hud._locked_label.visible)
+
+
+# --- Bontago-1en.16: pending-special queue indicator ------------------------
+# Drives the real Match/MatchGifts singleton, the same way
+# tests/unit/test_gift_claim.gd does, rather than FakeMatch -- these tests
+# are specifically about the indicator's read of the live FIFO queue.
+
+
+func test_special_indicator_hidden_when_nothing_is_pending() -> void:
+	var hud: HUD = _make_hud()
+	hud.set_local_slot(0)
+
+	hud._process(0.0)
+
+	assert_false(hud._special_indicator.visible)
+
+
+func test_special_indicator_shows_special_after_a_claim_for_the_local_slot() -> void:
+	var hud: HUD = _make_hud()
+	hud.set_local_slot(0)
+
+	Match._gifts._ensure_capacity(0)
+	(Match._gifts._pending_queues[0] as Array).append(MatchGifts.PENDING_SPECIAL_ID)
+	Events.gift_claimed.emit(0, 0, MatchGifts.PENDING_SPECIAL_ID)
+
+	assert_true(hud._special_indicator.visible)
+	assert_eq(hud._special_indicator.text, "Special")
+
+
+func test_special_indicator_shows_a_count_badge_once_a_second_special_is_queued() -> void:
+	var hud: HUD = _make_hud()
+	hud.set_local_slot(0)
+
+	Match._gifts._ensure_capacity(0)
+	var queue: Array = Match._gifts._pending_queues[0]
+	queue.append(&"jumping_bean")
+	queue.append(&"jumping_bean")
+	Events.gift_claimed.emit(1, 0, &"jumping_bean")
+
+	assert_true(hud._special_indicator.visible)
+	assert_eq(hud._special_indicator.text, "Jumping Bean ×2")
+
+
+func test_special_indicator_hides_again_after_popping_the_last_pending_special() -> void:
+	var hud: HUD = _make_hud()
+	hud.set_local_slot(0)
+	Match._gifts._ensure_capacity(0)
+	(Match._gifts._pending_queues[0] as Array).append(MatchGifts.PENDING_SPECIAL_ID)
+	hud._process(0.0)
+	assert_true(hud._special_indicator.visible, "must show before the pop")
+
+	Match.pop_pending_special(0)
+	hud._process(0.0)
+
+	assert_false(hud._special_indicator.visible)
+
+
+func test_special_indicator_ignores_a_claim_for_a_different_slot() -> void:
+	var hud: HUD = _make_hud()
+	hud.set_local_slot(0)
+
+	Match._gifts._ensure_capacity(1)
+	(Match._gifts._pending_queues[1] as Array).append(MatchGifts.PENDING_SPECIAL_ID)
+	Events.gift_claimed.emit(0, 1, MatchGifts.PENDING_SPECIAL_ID)
+	hud._process(0.0)
+
+	assert_false(hud._special_indicator.visible, "a claim for another slot must not show on this HUD")

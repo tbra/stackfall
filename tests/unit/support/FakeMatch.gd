@@ -88,6 +88,23 @@ func is_release_locked(slot_id: int) -> bool:
 	return bool(release_locked_by_slot.get(slot_id, false))
 
 
+## Bontago-1en.16: ui/HUD.gd's _process() polls these every frame regardless
+## of which double it is bound to (same reasoning as is_release_locked's own
+## comment above) -- test_hud.gd's other _process() tests use this fake
+## without caring about specials, so both default to "nothing pending"
+## rather than requiring every caller to populate them.
+var pending_special_count_by_slot: Dictionary = {}
+var held_special_by_slot: Dictionary = {}
+
+
+func pending_special_count(slot_id: int) -> int:
+	return int(pending_special_count_by_slot.get(slot_id, 0))
+
+
+func held_special(slot_id: int) -> StringName:
+	return held_special_by_slot.get(slot_id, &"") as StringName
+
+
 ## M3a adds the trailing feed_seq the real Match takes (docs/M3a_PLAN.md,
 ## "Never duplicated, never lost"). It is defaulted here exactly as it is
 ## there, so every M2 call site and every M2 test still compiles unchanged;
