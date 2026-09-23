@@ -50,6 +50,7 @@ const REQUIRED_ACTIONS: PackedStringArray = [
 	"sandbox_toggle_timer",
 	"sandbox_spawn_tower",
 	"sandbox_toggle_overlay",
+	"screenshot_capture",
 ]
 
 ## Actions whose mouse or gamepad half is deliberately absent, with the reason.
@@ -90,7 +91,7 @@ const DEVICE_EXCEPTIONS: Dictionary = {
 	"lock_vertical": "pad",
 }
 
-const AUTOLOADS: PackedStringArray = ["Events", "Settings", "Net", "Match"]
+const AUTOLOADS: PackedStringArray = ["Events", "Settings", "Net", "Match", "Screenshots"]
 
 
 func test_physics_engine_is_jolt() -> void:

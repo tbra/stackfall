@@ -23,6 +23,7 @@ const BUTTON_DEADZONE: float = 0.5
 func _init() -> void:
 	_apply_settings()
 	_apply_input_map()
+	_apply_autoloads()
 	var err: Error = ProjectSettings.save()
 	if err != OK:
 		push_error("Could not save project.godot: %s" % error_string(err))
@@ -131,6 +132,18 @@ func _apply_input_map() -> void:
 			"deadzone": _deadzone_for(events),
 			"events": events,
 		})
+
+
+## Autoload singletons (spec 3.2). DECISION (Bontago-02u): every autoload
+## before this one (Events, Settings, Net, Match, SnapshotSync, MatchNet,
+## Sfx) was registered by hand directly in project.godot's [autoload]
+## section over the project's history; this script never managed that
+## section before now. Registering Screenshots here instead keeps the
+## "regenerate, then `git diff project.godot` should show only the new
+## lines" gate (CLAUDE.md, "never hand-edit project.godot") honest for
+## autoloads too, rather than adding another hand-edited exception.
+func _apply_autoloads() -> void:
+	ProjectSettings.set_setting("autoload/Screenshots", "*res://autoload/Screenshots.gd")
 
 
 ## Every action in spec 2.5/1.5 (Bontago-mv0.14 rewrites the mouse/keyboard
@@ -291,6 +304,17 @@ func _actions() -> Dictionary:
 
 	# --- Shell --------------------------------------------------------------
 	a["pause_menu"] = [_key(KEY_ESCAPE), _pad(JOY_BUTTON_START)]
+
+	# Bontago-02u (owner request, 2026-09-23: "add a button to take in-game
+	# screenshots which automatically saves to the docs"). F12 is the
+	# conventional desktop screenshot key and was still free. DECISION: every
+	# face/shoulder/stick/D-pad/Back/Start button a standard pad exposes is
+	# already claimed by placement, camera or shell controls above; MISC1
+	# (JOY_BUTTON_MISC1 -- the extra button modern Xbox Series and DualSense
+	# pads expose, e.g. Xbox's "Share" button) is unused anywhere else in this
+	# file and isn't the Guide/Home button (JOY_BUTTON_GUIDE), which the OS
+	# itself typically intercepts rather than passing to the game.
+	a["screenshot_capture"] = [_key(KEY_F12), _pad(JOY_BUTTON_MISC1)]
 
 	# DECISION (tools/bootstrap_project.gd): docs/M3a_PLAN.md specifies
 	# net_debug_toggle as "F3 + gamepad Back+Y". Every face/shoulder/stick
