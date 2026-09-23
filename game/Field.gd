@@ -121,6 +121,20 @@ var _tilt_enabled: bool = false
 var _tilt: Vector2 = Vector2.ZERO
 var _tilt_velocity: Vector2 = Vector2.ZERO
 
+## True once apply_replicated_pose() has driven this disc at least once since
+## the last clear_match_state() (Bontago-1en.27). A client's own Field never
+## gets an apply_tilt_impulse() call -- specials simulate host-side only, per
+## CLAUDE.md's "clients are frozen mirrors" -- so autoload/match/
+## MatchLifecycle.gd's _apply_tilt_mode() turning _tilt_enabled on for a
+## client too (it cannot tell host and client apart) would otherwise just
+## leave the local spring sitting at rest, silently overwriting whatever
+## apply_replicated_pose() wrote the moment _physics_process() runs
+## _update_tilt() next. Once mirroring starts, _physics_process() stops
+## calling _update_tilt() so the replicated pose is the only thing that ever
+## moves this disc; it never affects the host, which never calls
+## apply_replicated_pose() at all.
+var _mirrored: bool = false
+
 var _overlay: TerritoryOverlay = null
 var _home_flags: Array[HomeFlag] = []
 var _goal_flags: Array[GoalFlag] = []
@@ -151,7 +165,7 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	_drain_toggles()
-	if _tilt_enabled:
+	if _tilt_enabled and not _mirrored:
 		_update_tilt(delta)
 
 
@@ -258,12 +272,49 @@ func tilt_vector() -> Vector2:
 ## one single-axis tilt) -- so "hit the disk over there" reads as "that side
 ## dips", the same intuition apply_tilt_impulse's own doc promises callers.
 func apply_tilt_impulse(direction: Vector2, magnitude: float) -> void:
-	if not _tilt_enabled:
+	# Review NIT (Bontago-1en.27): nothing calls this on a client's own,
+	# mirroring Field in real play (specials simulate host-side only, per
+	# CLAUDE.md's "clients are frozen mirrors"), but _update_tilt() already
+	# stops running the moment _mirrored is true (see _physics_process()), so
+	# an impulse that did land here would otherwise sit queued in
+	# _tilt_velocity forever, silently waiting to snap the disc the instant
+	# mirroring ever ended. Guarding here too keeps the two states (queued
+	# velocity, running spring) from ever disagreeing.
+	if not _tilt_enabled or _mirrored:
 		return
 	var dir: Vector2 = direction.normalized()
 	if dir == Vector2.ZERO or magnitude == 0.0:
 		return
 	_tilt_velocity += Vector2(dir.y, -dir.x) * magnitude
+
+
+## The client-side entry point net/SnapshotSync.gd's client_tick() calls every
+## frame with the interpolated disk pose off the snapshot stream (spec 3.4
+## "Disk state: tilt quaternion and position offset, sent every snapshot").
+## Never called on the host -- SnapshotSync only calls it from client_tick(),
+## which is itself gated on Net.is_client() (Bontago-1en.27: before this,
+## nothing ever wrote the replicated pose into a client's Field, so the host's
+## disc tilted under Anvil/Propeller/Earthquake while every client saw a level
+## one). `offset`/`tilt` are world-space -- the same convention every synced
+## body's snapshot pose already uses (net/SnapshotSync.gd's _record():
+## block.global_position) -- so this writes global_transform, matching how
+## client_tick() writes a frozen Block's pose, rather than assuming Field has
+## no parent transform the way _apply_tilt_transform()'s plain `transform`
+## write already does for every existing caller.
+##
+## The first call switches this Field into mirror mode (see _mirrored's own
+## comment): from here on _physics_process() stops running the local tilt
+## spring, so it can never fight this write. tilt_vector() is kept honest by
+## decomposing `tilt` back into the same (rotation about local X, rotation
+## about local Z) vector _tilt_basis() builds it from -- exact for any tilt
+## this system can produce (asserted a valid inverse only within the small
+## angle range tilt_tuning.max_tilt_rad() clamps to, which is well inside
+## atan2's +-90 degree domain for either axis).
+func apply_replicated_pose(offset: Vector3, tilt: Quaternion) -> void:
+	_mirrored = true
+	_tilt = _tilt_vector_from_quaternion(tilt)
+	_tilt_velocity = Vector2.ZERO
+	global_transform = Transform3D(Basis(tilt), offset)
 
 
 ## One physics tick of the critically damped spring (x'' + 2*omega*x'
@@ -308,6 +359,25 @@ func _clamp_tilt() -> void:
 ## needs.
 func _tilt_basis(tilt: Vector2) -> Basis:
 	return Basis(Vector3.RIGHT, tilt.x) * Basis(Vector3.BACK, tilt.y)
+
+
+## The exact inverse of _tilt_basis(), for apply_replicated_pose(): given
+## B = Rx(tilt.x) * Rz(tilt.y), standard XZ-Euler extraction reads
+## tilt.x off B's Z column (rotated by Rx alone) and tilt.y off B's X row
+## (rotated by Rz alone) -- atan2 rather than asin/acos so the sign survives.
+## This recovers any (tilt.x, tilt.y) exactly, for the whole domain each
+## angle can take short of the +-90 degree gimbal-lock singularity where B's
+## Z column (or X row) goes to zero and atan2's two arguments vanish
+## together; it is not a small-angle approximation that only happens to hold
+## near zero. tilt_tuning.max_tilt_rad() (spec 3.5's 12 degrees) simply never
+## asks this to extract anywhere near that singularity -- it does not make
+## the extraction any more exact than it already is everywhere else.
+func _tilt_vector_from_quaternion(tilt: Quaternion) -> Vector2:
+	var basis: Basis = Basis(tilt)
+	return Vector2(
+		atan2(-basis.z.y, basis.z.z),
+		atan2(-basis.y.x, basis.x.x)
+	)
 
 
 ## Writes the tilt into this Node3D's own local transform (never the parent's)
@@ -765,6 +835,14 @@ func clear_match_state() -> void:
 	# set_tilt_enabled() alone would no-op on an enabled -> enabled transition.
 	_tilt = Vector2.ZERO
 	_tilt_velocity = Vector2.ZERO
+	# Bontago-1en.27: also drops mirror mode, so a Field that mirrored a
+	# previous match's host (or is about to host a fresh one itself) starts
+	# the next match with its local spring live again until/unless
+	# apply_replicated_pose() ever calls again -- and so the disc actually
+	# snaps level here rather than staying wherever the last replicated pose
+	# left it (_apply_tilt_transform() below only writes local `transform`
+	# from the now-zeroed _tilt, not global_transform).
+	_mirrored = false
 	_apply_tilt_transform()
 
 

@@ -118,6 +118,37 @@ var _disk_position: Vector3 = Vector3.ZERO
 var _disk_rotation: Quaternion = Quaternion.IDENTITY
 var _stats_accumulator: float = 0.0
 
+## Disk pose interpolation (Bontago-1en.27): a 2-sample bracket (oldest,
+## newest) kept the same way Interpolator.Track keeps one per body, sampled at
+## _interpolator.render_time_ms() so the disc moves on the same render clock
+## bodies do. Not folded into Interpolator itself: it buffers per net_id
+## through a BlockRegistry-backed "is this id spawned yet?" filter (net/
+## Interpolator.gd's set_known_id_filter()) that the disk -- one pose, no
+## net_id, never absent -- does not need and should not be made to fake one
+## for. -1 means "no sample yet".
+var _disk_prev_time_ms: int = -1
+var _disk_prev_position: Vector3 = Vector3.ZERO
+var _disk_prev_rotation: Quaternion = Quaternion.IDENTITY
+var _disk_next_time_ms: int = -1
+var _disk_next_position: Vector3 = Vector3.ZERO
+var _disk_next_rotation: Quaternion = Quaternion.IDENTITY
+
+## Convergence state for the disk pose, the scalar (there is only ever one
+## disk) equivalent of Interpolator.Track's error_position/error_rotation/
+## last_position/last_rotation/was_clamped fields (see that class's docs for
+## why: leaving a held/extrapolated pose is the one place a jump can appear,
+## so that is the one place an offset is seeded, and it decays everywhere
+## else). Review fix (Bontago-1en.27 SHOULD-FIX 1): before this, past the
+## newest sample the disk pose held flat forever with no cap-then-resume
+## offset, so a snapshot that broke a stall at a materially different tilt
+## snapped the mirrored disc straight there.
+var _disk_error_position: Vector3 = Vector3.ZERO
+var _disk_error_rotation: Quaternion = Quaternion.IDENTITY
+var _disk_last_position: Vector3 = Vector3.ZERO
+var _disk_last_rotation: Quaternion = Quaternion.IDENTITY
+var _disk_has_last: bool = false
+var _disk_was_clamped: bool = false
+
 ## Seconds since begin_match(): the one time base the NetSim queue and the
 ## Interpolator's jitter estimate share. It has to be read at *arrival*, not
 ## accumulated from _physics_process's delta, or every packet in a tick would
@@ -157,6 +188,12 @@ func begin_match(registry: BlockRegistry, map_def: MapDef) -> void:
 	_last_noted_sequence = -1
 	_last_snapshot_bytes = 0
 	_keyframe_cursor = 0
+	_disk_prev_time_ms = -1
+	_disk_next_time_ms = -1
+	_disk_error_position = Vector3.ZERO
+	_disk_error_rotation = Quaternion.IDENTITY
+	_disk_has_last = false
+	_disk_was_clamped = false
 
 	_interpolator = Interpolator.new(config)
 	_interpolator.set_known_id_filter(_is_spawned)
@@ -183,6 +220,12 @@ func end_match() -> void:
 	_registry = null
 	_bodies.clear()
 	_last_sent.clear()
+	_disk_prev_time_ms = -1
+	_disk_next_time_ms = -1
+	_disk_error_position = Vector3.ZERO
+	_disk_error_rotation = Quaternion.IDENTITY
+	_disk_has_last = false
+	_disk_was_clamped = false
 	if _interpolator != null:
 		_interpolator.clear()
 	_interpolator = null
@@ -196,8 +239,9 @@ func is_running() -> bool:
 
 
 ## The disk, so its tilt can ride every snapshot (spec 3.4 "Disk state"). Main
-## hands it over when it builds the world; until M4 the disk never moves, which
-## is exactly why sending it now costs nothing and changes no wire format later.
+## hands it over when it builds the world, on the host (host_tick() reads its
+## real global_transform via _disk_transform()) and on a client (client_tick()
+## drives it via apply_replicated_pose(), Bontago-1en.27) alike.
 func set_disk(disk: Node3D) -> void:
 	_disk = disk
 
@@ -292,6 +336,7 @@ func client_tick(delta: float) -> void:
 			_apply_packet(payload as PackedByteArray)
 
 	_interpolator.advance(delta)
+	_decay_disk_error(delta * 1000.0)
 
 	for net_id: int in _interpolator.tracked_ids():
 		var block: Block = _registry.block_for_net_id(net_id) if _registry != null else null
@@ -308,6 +353,22 @@ func client_tick(delta: float) -> void:
 		block.global_transform = Transform3D(
 			Basis(pose["rotation"] as Quaternion), pose["position"] as Vector3
 		)
+
+	# Bontago-1en.27: the disk rides every snapshot the same way a body does
+	# (spec 3.4 "Disk state ... sent every snapshot"), so it gets the same
+	# render-time interpolation treatment here, on a client only -- a host
+	# drives its own Field straight off Field's own tilt spring, never off
+	# this. `_disk` is a plain Node3D so set_disk() stays decoupled from any
+	# one node type; the cast is guarded because a headless test that never
+	# calls set_disk() with a real Field (test_snapshot_wire.gd's pure wire
+	# tests) must not have client_tick() throw.
+	var field: Field = _disk as Field
+	if field != null:
+		var disk_pose: Dictionary = _disk_pose_at_render_time()
+		if bool(disk_pose["ok"]):
+			field.apply_replicated_pose(
+				disk_pose["position"] as Vector3, disk_pose["rotation"] as Quaternion
+			)
 
 	_stats_accumulator += delta
 	var stats_interval: float = 1.0 / maxf(config.stats_hz, 0.1)
@@ -560,6 +621,7 @@ func _apply_packet(packet: PackedByteArray) -> void:
 		var disk_transform: Transform3D = fragment["disk_transform"] as Transform3D
 		_disk_position = disk_transform.origin
 		_disk_rotation = disk_transform.basis.get_rotation_quaternion()
+		_push_disk_sample(host_time_ms, _disk_position, _disk_rotation)
 
 	for entry: Variant in fragment["bodies"] as Array:
 		var body: Dictionary = entry as Dictionary
@@ -654,6 +716,130 @@ func _disk_transform() -> Transform3D:
 	if _disk != null and is_instance_valid(_disk):
 		return _disk.global_transform
 	return Transform3D.IDENTITY
+
+
+## Buffers one decoded disk sample as the (prev, next) bracket
+## sample_at_render_time()-style interpolation needs (see the fields' own
+## comment). A late or duplicate host_time_ms is dropped rather than
+## reordering the bracket, the same rule Interpolator.push_sample() applies
+## per body.
+func _push_disk_sample(host_time_ms: int, position: Vector3, rotation: Quaternion) -> void:
+	if host_time_ms <= _disk_next_time_ms:
+		return
+	_disk_prev_time_ms = _disk_next_time_ms
+	_disk_prev_position = _disk_next_position
+	_disk_prev_rotation = _disk_next_rotation
+	_disk_next_time_ms = host_time_ms
+	_disk_next_position = position
+	_disk_next_rotation = rotation
+
+
+## {"ok": bool, "position": Vector3, "rotation": Quaternion} for the disk at
+## _interpolator's current render time -- lerp/slerp between the buffered
+## bracket the same way Interpolator.sample_at_render_time() blends a body's
+## two bracketing samples, extrapolating past the newest sample for at most
+## config.max_extrapolation_ms (the same tunable Interpolator reads, see the
+## DECISION on _extrapolate_disk() below) and then holding, with a
+## convergence offset seeded the moment a hold/extrapolation cap ends so the
+## resumed pose eases back in step rather than snapping (mirrors
+## Interpolator.sample_at_render_time()'s own comment on the same trick --
+## the disk's own spring is irrelevant here: once apply_replicated_pose() is
+## mirroring a client's disc, the spring never runs, so nothing else here
+## smooths a stall). `ok` is false until the first disk sample has arrived.
+##
+## Review fix (Bontago-1en.27 SHOULD-FIX 1): before this, past the newest
+## sample the pose held flat with no extrapolation and no offset, so a
+## dropped fragment at high tilt made the next real sample apply as a hard
+## snap once it finally arrived.
+func _disk_pose_at_render_time() -> Dictionary:
+	if _disk_next_time_ms < 0:
+		return {"ok": false, "position": Vector3.ZERO, "rotation": Quaternion.IDENTITY}
+
+	var render_ms: float = _interpolator.render_time_ms()
+	# With only one sample ever buffered there is no "oldest" distinct from
+	# "newest" yet; treat the lone sample as both, the same degenerate case
+	# Interpolator's own single-sample buffer collapses to.
+	var has_prev: bool = _disk_prev_time_ms >= 0
+	var oldest_time_ms: int = _disk_prev_time_ms if has_prev else _disk_next_time_ms
+	var oldest_position: Vector3 = _disk_prev_position if has_prev else _disk_next_position
+	var oldest_rotation: Quaternion = _disk_prev_rotation if has_prev else _disk_next_rotation
+
+	var raw_position: Vector3 = _disk_next_position
+	var raw_rotation: Quaternion = _disk_next_rotation
+	var clamped: bool = false
+
+	if render_ms <= float(oldest_time_ms):
+		raw_position = oldest_position
+		raw_rotation = oldest_rotation
+	elif render_ms >= float(_disk_next_time_ms):
+		var ahead_ms: float = render_ms - float(_disk_next_time_ms)
+		clamped = ahead_ms > config.max_extrapolation_ms
+		var extrapolated: Dictionary = _extrapolate_disk(has_prev, ahead_ms)
+		raw_position = extrapolated["position"] as Vector3
+		raw_rotation = extrapolated["rotation"] as Quaternion
+	else:
+		var span_ms: float = float(_disk_next_time_ms - oldest_time_ms)
+		var t: float = clampf((render_ms - float(oldest_time_ms)) / span_ms, 0.0, 1.0)
+		raw_position = oldest_position.lerp(_disk_next_position, t)
+		raw_rotation = oldest_rotation.slerp(_disk_next_rotation, t)
+
+	# Leaving the hold/extrapolation cap is the one place a jump can appear, so
+	# that is the one place an offset is seeded; everywhere else the raw pose
+	# is continuous in render time and the offset only decays
+	# (_decay_disk_error(), called once per client_tick()).
+	if _disk_was_clamped and not clamped and _disk_has_last:
+		_disk_error_position = _disk_last_position - raw_position
+		_disk_error_rotation = (_disk_last_rotation * raw_rotation.inverse()).normalized()
+	_disk_was_clamped = clamped
+
+	_disk_last_position = raw_position + _disk_error_position
+	_disk_last_rotation = (_disk_error_rotation * raw_rotation).normalized()
+	_disk_has_last = true
+	return {"ok": true, "position": _disk_last_position, "rotation": _disk_last_rotation}
+
+
+## Past the newest disk sample: continues the (prev, next) segment's velocity
+## for at most config.max_extrapolation_ms, then holds -- the disk's own
+## _extrapolate() twin. `ahead_ms` is the *uncapped* time past the newest
+## sample (the caller uses it to decide `clamped` too); this clamps it
+## internally so the hold is exact, same as Interpolator._extrapolate()'s own
+## comment on why clamping the elapsed time rather than the result is what
+## makes the hold exact.
+##
+## DECISION (net/SnapshotSync.gd, Bontago-1en.27 SHOULD-FIX 1): reuses
+## config.max_extrapolation_ms rather than adding a second tunable. The disk
+## rides the same NetConfig resource and the same render clock
+## (_interpolator.render_time_ms()) every synced body does; a second knob for
+## the same "how late is late" question would let the disk and the bodies
+## disagree about it for no reason a player could ever perceive.
+func _extrapolate_disk(has_prev: bool, ahead_ms: float) -> Dictionary:
+	var capped_ahead_ms: float = clampf(ahead_ms, 0.0, config.max_extrapolation_ms)
+	if not has_prev or capped_ahead_ms <= 0.0:
+		return {"position": _disk_next_position, "rotation": _disk_next_rotation}
+	var span_ms: float = float(_disk_next_time_ms - _disk_prev_time_ms)
+	if span_ms <= 0.0:
+		return {"position": _disk_next_position, "rotation": _disk_next_rotation}
+	var t: float = capped_ahead_ms / span_ms
+	var position: Vector3 = _disk_next_position + (_disk_next_position - _disk_prev_position) * t
+	var rotation: Quaternion = _disk_prev_rotation.slerp(_disk_next_rotation, 1.0 + t).normalized()
+	return {"position": position, "rotation": rotation}
+
+
+## Relaxes the disk's convergence offset toward zero with a time constant of
+## config.max_extrapolation_ms, the same decay Interpolator._decay_errors()
+## runs per body, so the disk catches up over roughly the same window the
+## hold froze it for. Exponential, so it is frame-rate independent and never
+## overshoots. Called once per client_tick(), unconditionally -- a no-op
+## while the offset is already zero, which is the steady-state case.
+func _decay_disk_error(delta_ms: float) -> void:
+	if _disk_error_position == Vector3.ZERO and _disk_error_rotation == Quaternion.IDENTITY:
+		return
+	var tau_ms: float = maxf(config.max_extrapolation_ms, 1.0)
+	var keep: float = exp(-delta_ms / tau_ms)
+	_disk_error_position *= keep
+	_disk_error_rotation = Quaternion.IDENTITY.slerp(_disk_error_rotation, keep).normalized()
+	if _disk_error_position.length_squared() < 1e-12:
+		_disk_error_position = Vector3.ZERO
 
 
 func _on_block_placed(block: RigidBody3D, _shape_id: StringName) -> void:

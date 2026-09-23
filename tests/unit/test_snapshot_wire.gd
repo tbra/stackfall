@@ -163,6 +163,26 @@ func test_the_disk_transform_round_trips_when_the_flag_is_set() -> void:
 	)
 
 
+## Bontago-1en.27: the round trip above uses an arbitrary ~7 degree tilt;
+## this pins it at exactly TiltTuning's max_tilt_deg (12 degrees, spec 3.5),
+## composed the same way game/Field.gd's own _tilt_basis() builds a tilt
+## (Basis(RIGHT, x) * Basis(BACK, y)), so quantization is proven to cover the
+## tilt controller's actual maximum, not just some angle well inside it.
+func test_the_disk_transform_round_trips_at_the_tilt_controllers_max_angle() -> void:
+	var tilt_tuning: TiltTuning = load("res://config/tilt_tuning.tres") as TiltTuning
+	var max_rad: float = tilt_tuning.max_tilt_rad()
+	var tilt_vector: Vector2 = Vector2(max_rad, 0.0) # full magnitude on the x axis alone
+	var basis: Basis = Basis(Vector3.RIGHT, tilt_vector.x) * Basis(Vector3.BACK, tilt_vector.y)
+	var disk: Transform3D = Transform3D(basis, Vector3(0.0, 0.0, 0.0))
+	var decoded: Dictionary = _decode(_encode(1, 0, 1, 0, _flag_disk(), [], disk))
+	var back: Transform3D = decoded["disk_transform"] as Transform3D
+	assert_lt(
+		back.basis.get_rotation_quaternion().angle_to(disk.basis.get_rotation_quaternion()),
+		deg_to_rad(0.01),
+		"the disk tilt round trips at the 12 degree max"
+	)
+
+
 func test_without_the_flag_the_disk_is_absent_and_the_bodies_still_decode() -> void:
 	var bodies: Array = _bodies(7)
 	var decoded: Dictionary = _decode(_encode(1, 1, 3, 500, 0, bodies))
