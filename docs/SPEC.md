@@ -210,7 +210,7 @@ original's tutorial only names the action, not the key.
 | Lock to vertical (hold) | Ctrl | (stick and height are already separate) |
 | Camera orbit (hold + drag) [ORIGINAL, owner test 2026-09-22] | Right mouse held + mouse motion; mouse wheel zooms while held (C + mouse remains as a keyboard alias) | Right stick (always) |
 | Camera zoom | Z / X | Triggers while no block is held |
-| Throw (specials only) | **[OPEN]** right mouse now orbits the camera; binding to be decided before M4 P2 (Beads owner question) | Hold LT, aim, release |
+| Throw (specials only) | **[OWNER decision 2026-09-22, Bontago-mvl]** hold left mouse on the held special, drag, flick-release; drag distance/speed sets the arc. Right mouse stays camera orbit | Hold LT, aim, release |
 | Pause / release mouse | Esc | Start |
 
 **Held-block behaviour [ORIGINAL, owner test 2026-09-22]:** the held (ghost) block collides with already placed blocks — it cannot pass through a tower — but it never pushes or knocks them; placed blocks are unaffected by the ghost. A drop outside the player's own territory is **refused** (the block stays in hand; no drop, feedback only). When the placement window expires while the held block is outside the zone, the block and the camera jump to the nearest valid point inside the player's territory and the block drops there. Owner-tuned feel: `follow_lag_seconds` 0, `follow_pitch_deg` −35, `block_move_sensitivity` 0.015. The held block is tinted grey whenever it cannot be dropped (outside the player's zone, or waiting for the next window); its only ground marker is the projected footprint of the rotated shape (no separate shadow). Mouse capture keeps the cursor moving past the screen edge in every match mode.
@@ -233,12 +233,12 @@ Legacy free camera (pan with arrows / Space-drag, snap 1 / 2) remains behind
 
 ### 2.6 Gifts & specials
 Use the [installed tutorial/menu](ORIGINAL_INSTALL_EVIDENCE.md) as the primary effect contract. It documents behavior but not numerical tuning. All radii, force values, durations and projectile counts below remain **[NEW]** starting values, not decoded original constants.
-- **Gift spawning [ORIGINAL target]:** probability per placement turn/window, not the earlier seconds-based interval with ±40% jitter. Original trial scope (one per match or per player), distribution and probability scale are **[OPEN]**. Type-specific probability controls exist. Do not implement the removed 20 → 45 s / 100 → 6 s mapping as original behavior.
+- **Gift spawning [ORIGINAL target]:** probability per placement turn/window, not the earlier seconds-based interval with ±40% jitter. Original trial scope (one per match or per player), distribution and probability scale are unverified; **[OWNER decision 2026-09-22, Bontago-4fa]** ship the M4 P1 tunables (`spawn_chance_per_window` 0.15, one roll per window for the whole match, `max_live_crates` 1, crate expiry 60 s, lobby frequency 0–100 → chance 0–0.5) and tune via F4. Type-specific probability controls exist. Do not implement the removed 20 → 45 s / 100 → 6 s mapping as original behavior.
 - **Crate life [RECONSTRUCTED; owner decision 2026-09-22]:** crates are **stationary pickups** — they land at a host-chosen point and stay put until claimed or expired (60 s expiry remains a prototype starting value). Installed text says specials fall to the field but does not establish lifetime or crate physics; the owner chose the stationary design over rigid-body crates for M4 (Beads `Bontago-1en`).
 - **Claiming:** When a crate is inside your territory, it pops. It shows which player it belongs to, and your next fed block becomes a special. [ORIGINAL]
 - **Activation [ORIGINAL]:** substantial impact activates a special. Numeric impulse threshold and the earlier 0.4 s arm delay are **[NEW]** tunings. Whether explosion proximity alone activates an untouched special needs verification.
   - Remove the universal eight-second auto-trigger from the fidelity target: it has no recovered basis. Type-specific lifecycle is separate, notably Rocket's fuel-exhaustion explosion after activation.
-- **Chain reactions:** Retained from player reports. Cap them at `max_chain_depth = 4` as a remake performance choice. Multiple simultaneous claims, pending-special queues and replacement of an already prepared piece remain **[OPEN]**.
+- **Chain reactions:** Retained from player reports. Cap them at `max_chain_depth = 4` as a remake performance choice. Multiple simultaneous claims and replacement of an already prepared piece remain **[OPEN]**. **[OWNER decision 2026-09-22, Bontago-59u]** pending specials form a per-player FIFO queue capped at `max_pending_specials` (tunable; Bontago-csc), not a latest-wins single slot.
 
 | Special | Behavior | Tunables | Source |
 |---|---|---|---|
@@ -254,7 +254,7 @@ Use the [installed tutorial/menu](ORIGINAL_INSTALL_EVIDENCE.md) as the primary e
 | **Glue** | Joins touching blocks of yours within 4 m with breakable joints | break force 40 | NEW |
 | **Gravity well** | Flips gravity to 30% within 10 m for 5 s | | NEW |
 
-Every special is its own `SpecialDef` resource plus a script. The seven evidenced effects are the original-fidelity roster; Magnet, Freeze, Glue and Gravity well are optional remake extras, not original discoveries. Type probabilities are original menu features; per-type enable checkboxes are the remake interface. Jumping Bean's local hole is independent of opponent overlap; its treatment in optional `HoleMode.OFF` is **[OPEN]**, not silently disabled.
+Every special is its own `SpecialDef` resource plus a script. The seven evidenced effects are the original-fidelity roster; Magnet, Freeze, Glue and Gravity well are optional remake extras, not original discoveries. Type probabilities are original menu features; per-type enable checkboxes are the remake interface. Jumping Bean's local hole is independent of opponent overlap; **[OWNER decision 2026-09-22, Bontago-z4h]** under `HoleMode.OFF` the Jumping Bean punches no hole and keeps only its hop knockback.
 
 ### 2.7 Modes
 - **Free-for-all:** 2–8 players, humans and AI.
