@@ -17,10 +17,27 @@ extends Resource
 ## Bontago-xtq.4 (owner, 2026-09-22: "a bit transparent and reflective"):
 ## retuned from 0.1 toward a glass-like metallic response; drives the
 ## shader's SPECULAR-visible reflection of ProceduralSky.
-@export var disk_metallic: float = 0.6
-## Retuned from 0.45 toward glass-smooth; low roughness is what makes the
-## sky's reflection actually visible rather than a diffuse blur.
-@export var disk_roughness: float = 0.1
+##
+## DECISION (config/TerritoryVisuals.gd, Bontago-xtq.6, owner 2026-09-23:
+## "the bottom reflects what's on top... also it reflects whatever light
+## source you've put in"): brought back down from 0.6 -- combined with
+## disk_roughness's old 0.1, the disk read as a near-mirror (shaders/
+## territory.gdshader's METALLIC/ROUGHNESS write, cull_disabled on both the
+## top and underside), which is what made a resting block look reflected in
+## the surface under it and the DirectionalLight3D's specular highlight read
+## as a hot mirror spot. Interim fix per the owner's note ("we'll work more
+## on the design in m7"); not art direction.
+@export var disk_metallic: float = 0.2
+## Retuned from 0.45 toward glass-smooth (Bontago-xtq.4); low roughness is
+## what makes the sky's reflection actually visible rather than a diffuse
+## blur.
+##
+## DECISION (config/TerritoryVisuals.gd, Bontago-xtq.6): raised back toward
+## matte alongside disk_metallic above, for the same mirror-reflection
+## complaint. Still glossier than a fully diffuse surface (1.0), so the disk
+## keeps some sky highlight without doubling as a mirror for the blocks
+## resting on it.
+@export var disk_roughness: float = 0.45
 ## Radial segments of the disk mesh. High enough that the rim reads as a
 ## circle rather than a polygon at the camera distances spec 2.5 allows.
 @export var disk_mesh_segments: int = 96

@@ -32,7 +32,20 @@ const TERRITORY_RES_LARGE: int = 512
 @export var skybox_set: String = "beach"
 
 ## Thickness of the disk. Field builds its collision and mesh from this.
-@export var disk_height: float = 1.0
+##
+## DECISION (config/MapDef.gd, Bontago-xtq.6, owner 2026-09-23: "the glass
+## disk is quite thick... looks like the blocks are hovering"): lowered from
+## 1.0 to 0.2 m -- a thin slab a 1 m block visibly rests ON rather than IN.
+## Every reader of this field already scales with it (game/Field.gd's hole/
+## rim wall depth and overlay y-offset, game/TerritoryOverlay.gd's CylinderMesh
+## height), so nothing needed a second, decoupled tunable to keep the old
+## depth: a shallower guide wall still pushes a block sliding into a hole off
+## to the side before it clears the wall's bottom edge and free-falls, the
+## same behaviour test_a_block_over_a_lone_hole_cell_falls_through
+## (tests/unit/test_field_cells.gd) pins with its own fixture MapDef. Interim
+## fix per the owner's note ("we'll work more on the design in m7"); not art
+## direction.
+@export var disk_height: float = 0.2
 
 ## Spec 3.3: the disk's collision is a square grid of BoxShape3Ds of this
 ## edge length, clipped to the disk. One cell is also one pixel of the
