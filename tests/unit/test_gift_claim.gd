@@ -63,6 +63,33 @@ func _config(player_count: int = 2, gifts_enabled: bool = true) -> MatchConfig:
 	return config
 
 
+## An id nothing in res://config/specials/ will ever match, so
+## _ensure_special_drawer_installed()'s own `enabled_specials` filter
+## (config/MatchConfig.gd, autoload/match/MatchGifts.gd:264-282) always
+## computes an empty *filtered* roster regardless of how many real specials
+## are committed there.
+const _NO_SUCH_SPECIAL_ID: StringName = &"__no_special_with_this_id_exists__"
+
+
+## DECISION (tests/unit/test_gift_claim.gd, orchestrator decision 4): several
+## tests below are about crate-claim mechanics (the FIFO queue, the claim
+## cap, a custom drawer's id passing through unchanged) rather than about
+## which real SpecialDef gets drawn, and used to rely on
+## res://config/specials/ genuinely holding no .tres to keep
+## _ensure_special_drawer_installed() a no-op on the first claim. P5-EARTHQUAKE's
+## earthquake.tres ends that; forcing `enabled_specials` to an id nothing on
+## disk can match (the loader's own filter seam) keeps those tests exercising
+## exactly the same "no real drawer installed" path -- either because the
+## default placeholder drawer must still be returned, or because a
+## Match._gifts.set_special_drawer() call made before the first claim must
+## not be clobbered by the lazy install -- independent of how many real
+## specials future packages land.
+func _config_with_no_real_specials(player_count: int = 2, gifts_enabled: bool = true) -> MatchConfig:
+	var config: MatchConfig = _config(player_count, gifts_enabled)
+	config.enabled_specials = [_NO_SUCH_SPECIAL_ID]
+	return config
+
+
 func _start_playing(config: MatchConfig) -> void:
 	Match.start_match(config)
 	for _i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * 60.0)) + 2):
@@ -87,7 +114,7 @@ func _inject_crate(slot_id: int) -> int:
 
 
 func test_crate_on_owned_uncontested_cell_is_claimed_and_grants_special() -> void:
-	_start_playing(_config())
+	_start_playing(_config_with_no_real_specials())
 	var gift_id: int = _inject_crate(0)
 	watch_signals(Events)
 
@@ -133,7 +160,7 @@ func test_no_spawn_when_gifts_disabled() -> void:
 ## third claim leaves the crate alive (amendment 3 -- not freed, not expired,
 ## and fires no gift_claimed) rather than replacing anything.
 func test_claim_cap_queues_in_claim_order_and_a_full_queue_leaves_the_crate_alive() -> void:
-	_start_playing(_config())
+	_start_playing(_config_with_no_real_specials())
 	Match._gifts._gift_config = Match._gifts._gift_config.duplicate() as GiftConfig
 	Match._gifts._gift_config.max_pending_specials = 2
 	var drawn_ids: Array[StringName] = [&"special_a", &"special_b", &"special_c"]
@@ -191,7 +218,7 @@ func test_feed_block_issued_no_longer_clears_the_pending_queue() -> void:
 ## queued and emitted -- proves _claim_gift() actually calls through
 ## _special_drawer rather than hard-coding the placeholder.
 func test_custom_drawer_id_is_queued_and_emitted() -> void:
-	_start_playing(_config())
+	_start_playing(_config_with_no_real_specials())
 	Match._gifts.set_special_drawer(func() -> StringName: return &"jumping_bean")
 	watch_signals(Events)
 	var gift_id: int = _inject_crate(0)
@@ -204,12 +231,12 @@ func test_custom_drawer_id_is_queued_and_emitted() -> void:
 
 ## M4 P2c: _ensure_special_drawer_installed() must leave the shipped default
 ## drawer (always PENDING_SPECIAL_ID) in place when the filtered
-## res://config/specials/ roster is empty -- true today, since P3-P5 have not
-## landed any real SpecialDef .tres there yet. Proves the install path runs
-## (does not error, does not clobber the injected test drawer this file's
-## own after_each() always restores) without needing a real .tres on disk.
-func test_installing_the_real_drawer_with_an_empty_roster_keeps_the_placeholder() -> void:
-	_start_playing(_config())
+## res://config/specials/ roster is empty. See _config_with_no_real_specials()'s
+## own DECISION for why this uses that helper rather than depending on
+## res://config/specials/ genuinely holding no .tres (true only before
+## P5-EARTHQUAKE).
+func test_installing_the_real_drawer_with_an_empty_filtered_roster_keeps_the_placeholder() -> void:
+	_start_playing(_config_with_no_real_specials())
 	assert_false(Match._gifts._roster_ready, "setup: not installed until the first real claim")
 
 	var gift_id: int = _inject_crate(0)
@@ -217,7 +244,7 @@ func test_installing_the_real_drawer_with_an_empty_roster_keeps_the_placeholder(
 
 	assert_true(Match._gifts._roster_ready, "the install attempt must run exactly once per match")
 	assert_eq(Match.held_special(0), MatchGifts.PENDING_SPECIAL_ID,
-		"an empty config/specials/ roster must leave the placeholder drawer installed")
+		"an empty filtered roster must leave the placeholder drawer installed")
 	assert_true(Match._gifts._special_roster.is_empty())
 
 
