@@ -32,3 +32,11 @@ extends Resource
 ## Throw launch speed in m/s per meter of aim drag, before the
 ## throw_max_speed clamp above (P2d).
 @export var throw_speed_per_meter: float = 12.0
+
+## Hard per-body clamp on an explosion's applied impulse magnitude (spec 3.5
+## "Explosions": "Clamp the impulse per body to max_explosion_impulse" --
+## names the clamp, gives no number). Shared across every explosion-based
+## special (Rocket, Bomb, Volcano; see game/specials/SpecialPhysics.gd's
+## explode()), so one body caught by a very high per-def impulse can never
+## launch faster than this.
+@export var max_explosion_impulse: float = 30.0
