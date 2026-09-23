@@ -23,3 +23,4 @@ the authority specified by the project workflow and assignment.
 - Godot processes: `tasklist | findstr` is broken in Git Bash; use `tasklist | grep -i godot` or `wmic process where "name like '%godot%'" get ProcessId,CommandLine`. Never kill by image name (`//IM`): other agents' benchmarks share the machine. Kill only your own PIDs.
 
 - **Windowed Godot runs (owner, 2026-09-23):** any windowed launch you make (screenshot probes, smoke runs) must pass `--position 10000,10000` so it opens off-screen, never `--always-on-top`/`--maximized`, and must quit right after the capture; use `--headless` when no screenshot is needed. Visible windows interrupt the owner on another monitor.
+- **Probe budget (owner, 2026-09-23):** diagnose by reading code first; at most THREE windowed probe/screenshot runs per package (reproduce, confirm, final shot). If that is not enough, stop and report - do not iterate visually.

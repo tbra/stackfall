@@ -36,3 +36,4 @@ commit, push, remotely sync or terminate unrelated processes on your own.
 - Read the `Totals` block, not the runner's exit code. Report with the template in `docs/AGENT_WORKFLOW.md`; paths to logs, not log contents.
 
 - **Windowed Godot runs (owner, 2026-09-23):** any windowed launch you make (screenshot probes, smoke runs) must pass `--position 10000,10000` so it opens off-screen, never `--always-on-top`/`--maximized`, and must quit right after the capture; use `--headless` when no screenshot is needed. Visible windows interrupt the owner on another monitor.
+- **Probe budget (owner, 2026-09-23):** diagnose by reading code first; at most THREE windowed probe/screenshot runs per package (reproduce, confirm, final shot). If that is not enough, stop and report - do not iterate visually.

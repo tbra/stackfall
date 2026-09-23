@@ -46,3 +46,4 @@ changed files, Beads IDs, actual validation, outstanding gates and next action.
 Before dispatching a worker, pipe the brief to `python tools/route_model.py --title ... --files ... --kind ...` and use its verdict for the Agent `model`, review need and split decision; log the verdict in the Beads dispatch comment. Override only with a written reason.
 
 - **Windowed Godot runs (owner, 2026-09-23):** any windowed launch you make (screenshot probes, smoke runs) must pass `--position 10000,10000` so it opens off-screen, never `--always-on-top`/`--maximized`, and must quit right after the capture; use `--headless` when no screenshot is needed. Visible windows interrupt the owner on another monitor.
+- **Probe budget (owner, 2026-09-23):** diagnose by reading code first; at most THREE windowed probe/screenshot runs per package (reproduce, confirm, final shot). If that is not enough, stop and report - do not iterate visually.
