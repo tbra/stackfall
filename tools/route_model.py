@@ -12,11 +12,10 @@ Usage (the brief comes from stdin so long text is safe):
         --kind bugfix < brief.txt
     cat brief.txt | python tools/route_model.py --title "..." --json
 
-Prints a one-line verdict (or JSON with --json): the model to use, Jev's
-probability for each option, whether an independent review is warranted and
-whether the package should be split first. Exit code 0 always; the caller
-decides. Without TYPESAFE_API_KEY (or when the API is unreachable) it falls
-back to a deterministic rule set and says so.
+Prints a one-line verdict (or JSON with --json): model, review, split and
+verification tier, with a bounded visual-probe recommendation. Code keeps
+hard review and probe policy. Obvious mechanical and known-gate work uses
+rules without a network call. Other work falls back to rules when needed.
 
 Requires TYPESAFE_API_KEY (user environment). Same HTTP contract as
 tools/triage_log.py (POST https://api.typesafe.ai/v1/systemone).
@@ -33,7 +32,7 @@ from typing import Any, Dict, List, Optional
 
 TYPESAFE_API_URL = "https://api.typesafe.ai/v1/systemone"
 TYPESAFE_MODEL = "jev-latest"
-TIMEOUT_S = 30.0
+TIMEOUT_S = 8.0
 
 MODELS: Dict[str, str] = {
     "haiku": (
@@ -58,6 +57,12 @@ MODELS: Dict[str, str] = {
 }
 
 CORE_PATH_PREFIXES = ("core/", "net/", "autoload/", "shaders/")
+SPECIALIZED_PATH_PREFIXES = ("net/", "autoload/", "core/territory", "tests/bench/")
+VERIFICATION_TIERS = {
+    "quick": "Documentation, generated files or mechanical edits: inspect the diff or run one quick check; no game launch.",
+    "targeted": "Local behavior or UI change: run only the named affected tests, at most one retry after a fix.",
+    "specialized": "Network, physics, territory or wire behavior: named targeted tests plus one relevant harness or isolated benchmark.",
+}
 
 
 def _request(payload: Dict[str, Any], api_key: str) -> Dict[str, Any]:
@@ -74,10 +79,13 @@ def _request(payload: Dict[str, Any], api_key: str) -> Dict[str, Any]:
 
 def _fallback(files: List[str], kind: str, brief: str) -> Dict[str, Any]:
     touches_core = any(f.startswith(CORE_PATH_PREFIXES) for f in files)
-    mechanical = kind in ("gate", "triage", "mechanical")
+    mechanical = kind in ("gate", "triage", "mechanical", "docs", "documentation")
     hard_words = ("wire", "replicat", "byte-identical", "argmax", "invariant", "collision", "trimesh")
     hard = touches_core and any(w in brief.lower() for w in hard_words)
     model = "haiku" if mechanical else ("opus" if hard else "sonnet")
+    specialized = any(f.startswith(SPECIALIZED_PATH_PREFIXES) for f in files)
+    tier = "quick" if mechanical or kind in ("docs", "documentation") else ("specialized" if specialized else "targeted")
+    visual = tier != "quick" and any(f.startswith(("ui/", "scenes/", "shaders/")) for f in files)
     return {
         "source": "fallback-rules",
         "model": model,
@@ -85,11 +93,19 @@ def _fallback(files: List[str], kind: str, brief: str) -> Dict[str, Any]:
         "confidence": None,
         "needs_review": touches_core,
         "split_first": len(files) > 10,
+        "verification_tier": tier,
+        "visual_probe_recommended": visual,
+        "max_targeted_runs": 0 if tier == "quick" else 2,
+        "max_windowed_probes": 2 if visual else 0,
         "reason": "TYPESAFE_API_KEY missing or API unreachable; deterministic rules applied",
     }
 
 
 def route(title: str, brief: str, files: List[str], kind: str, prior_attempts: int) -> Dict[str, Any]:
+    if kind in ("gate", "triage", "mechanical", "docs", "documentation") and prior_attempts == 0:
+        result = _fallback(files, kind, brief)
+        result["reason"] = "Deterministic fast path for known or mechanical work"
+        return result
     api_key = os.environ.get("TYPESAFE_API_KEY", "")
     if not api_key:
         return _fallback(files, kind, brief)
@@ -139,6 +155,23 @@ def route(title: str, brief: str, files: List[str], kind: str, prior_attempts: i
                 "that it should be split before dispatch?"
             ),
         },
+        "verification_tier": {
+            "type": "choice",
+            "instructions": (
+                "Which bounded verification tier fits `task`? Choose by the behavior changed, "
+                "not by the number of files. Actual test names, run limits and acceptance "
+                "remain code and orchestrator policy."
+            ),
+            "criteria": VERIFICATION_TIERS,
+        },
+        "visual_probe": {
+            "type": "noul",
+            "instructions": (
+                "Does verifying `task` require observing rendered or animated behavior "
+                "that named headless tests and code inspection cannot establish? "
+                "Do not recommend a screenshot merely because UI files are touched."
+            ),
+        },
     }
     payload = {"model": TYPESAFE_MODEL, "state": state, "questions": questions}
     try:
@@ -155,6 +188,17 @@ def route(title: str, brief: str, files: List[str], kind: str, prior_attempts: i
     # A Noul answer carries its probability of "yes" under the key "noul".
     review_p = float((answers.get("needs_review", {}) or {}).get("noul", 0.0) or 0.0)
     split_p = float((answers.get("split_first", {}) or {}).get("noul", 0.0) or 0.0)
+    tier_ans = answers.get("verification_tier", {}) or {}
+    tier = str(tier_ans.get("choice", "targeted"))
+    if tier not in VERIFICATION_TIERS:
+        tier = "targeted"
+    if any(f.startswith(SPECIALIZED_PATH_PREFIXES) for f in files):
+        tier = "specialized"
+    visual_p = float((answers.get("visual_probe", {}) or {}).get("noul", 0.0) or 0.0)
+    visual_scope = any(f.startswith(("ui/", "scenes/", "shaders/")) for f in files) or any(
+        word in brief.lower() for word in ("visual", "animation", "screenshot", "hud")
+    )
+    visual = visual_p >= 0.7 and visual_scope and tier != "quick"
     # Policy lives here, not in the model: a low-confidence Opus pick costs real
     # money, so require confidence >= 0.6 to escalate; otherwise fall to Sonnet.
     if chosen == "opus" and (confidence is None or float(confidence) < 0.6):
@@ -164,10 +208,15 @@ def route(title: str, brief: str, files: List[str], kind: str, prior_attempts: i
         "model": chosen,
         "probabilities": probabilities,
         "confidence": confidence,
-        "needs_review": review_p >= 0.5,
+        "needs_review": review_p >= 0.5 or any(f.startswith(CORE_PATH_PREFIXES) for f in files),
         "needs_review_probability": review_p,
         "split_first": split_p >= 0.5,
         "split_first_probability": split_p,
+        "verification_tier": tier,
+        "visual_probe_recommended": visual,
+        "visual_probe_probability": visual_p,
+        "max_targeted_runs": 0 if tier == "quick" else 2,
+        "max_windowed_probes": 2 if visual else 0,
         "usage": response.get("usage", {}),
         "reason": "Jev judgement; opus requires confidence >= 0.6",
     }
@@ -192,6 +241,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(
             f"model={result['model']} confidence={result.get('confidence')} {prob_text} "
             f"review={'yes' if result['needs_review'] else 'no'} split={'yes' if result['split_first'] else 'no'} "
+            f"verify={result['verification_tier']} visual={'yes' if result['visual_probe_recommended'] else 'no'} "
             f"source={result['source']}"
         )
     return 0

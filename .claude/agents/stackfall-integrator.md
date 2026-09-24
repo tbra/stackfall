@@ -20,7 +20,10 @@ performing the assigned Git operations. Otherwise validate the supplied combined
 candidate and report the exact blocked integration step. Fix only assigned small
 integration defects; return larger ownership/interface changes to the orchestrator.
 
-Run relevant import, GUT, acceptance and regression gates. Record commands, exit
+Run only the changed-area gates named in the brief, with its time and run-count
+budget; do not repeat a worker's successful check without a concrete integration
+risk. Stop after one focused retry on failure and return the decisive evidence.
+Record commands, exit
 results, candidate identity and log paths; read stderr and per-peer harness output.
 Run physics/network timing benchmarks serially on an otherwise idle machine and
 label contention-contaminated runs invalid. Never equate headless physics timing
@@ -36,4 +39,4 @@ commit, push, remotely sync or terminate unrelated processes on your own.
 - Read the `Totals` block, not the runner's exit code. Report with the template in `docs/AGENT_WORKFLOW.md`; paths to logs, not log contents.
 
 - **Windowed Godot runs (owner, 2026-09-23):** any windowed launch you make (screenshot probes, smoke runs) must pass `--position 10000,10000` so it opens off-screen, never `--always-on-top`/`--maximized`, and must quit right after the capture; use `--headless` when no screenshot is needed. Visible windows interrupt the owner on another monitor.
-- **Probe budget (owner, 2026-09-23):** diagnose by reading code first; at most THREE windowed probe/screenshot runs per package (reproduce, confirm, final shot). If that is not enough, stop and report - do not iterate visually.
+- **Probe ceiling:** diagnose by reading code first. A visual brief defaults to one reproduction and one final capture; never exceed three windowed runs even with an explicit extension. Stop and report when the budget is used.

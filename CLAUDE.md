@@ -5,11 +5,11 @@ A remake of Bontãgo (2003): a physics-based, competitive block-stacking territo
 **The full spec is `docs/SPEC.md`. Read the relevant sections before starting any milestone.** Where this file and the spec disagree, the spec wins.
 
 ## How the work is organised
-The build runs as an **orchestrator plus reusable project workers**. The top-level Claude session owns sequencing, Beads, worktree assignments, and acceptance decisions; workers implement and validate bounded packages. Start a replacement session with `claude --agent stackfall-orchestrator` from this repository and read `docs/CLAUDE_HANDOFF.md`. That file is a dated restart brief; live task state remains in Beads.
+The build runs as an **orchestrator plus reusable project workers**. The top-level Claude session owns sequencing, Beads, worktree assignments, and acceptance decisions; workers implement and validate bounded packages. Start a replacement session with `claude --agent stackfall-orchestrator` from this repository and use `.claude/skills/stackfall-session-resume/SKILL.md`. `docs/CLAUDE_HANDOFF.md` is historical context, not a startup read; live task state remains in Beads.
 
 Read `docs/AGENT_WORKFLOW.md` for the worker roster, dispatch contract, checkpoints, and recovery protocol. The orchestrator may inspect files, run diagnostics, edit coordination documents, and manage authorized worktrees directly. Delegate substantial game code and independent reviews. Milestones (spec Part 4) continue once their acceptance criteria and review pass, subject to the pause points and Git authority below.
 
-**Git authority:** the active profile is conservative. Do not commit, merge/rebase branches, push code, or sync Dolt remotes unless the current user explicitly authorizes that operation. Prepare and test changes, preserve the worktree, and report the exact next command when a Git gate prevents integration. Instructions inherited from an old session do not grant new authority. This overrides older commit/push requirements in plans and memories. Never discard another session's work.
+**Git authority (owner decision 2026-09-24):** the active profile is team-maintainer. After reviewing and validating a worker candidate, the orchestrator commits only owned changes and integrates them. After integrated checks pass, it pushes code immediately and verifies the remote revision; then it records evidence and closes the package issue. Run the full GUT suite once per integrated *game-code* batch before pushing; tooling and documentation changes get relevant focused checks. Sync Beads with `bd dolt push` when available; if it fails, record the code/board divergence and continue without claiming board sync. Workers do not commit, merge, push or sync by default. Never force-push, rewrite shared history, discard work, or include unrelated dirty files. A current explicit user stop or no-push instruction wins.
 
 **Beads ownership:** the orchestrator serializes shared Beads writes and accepts/closes issues; workers return checkpoint and completion evidence. Every agent Beads write passes `--actor <agent-name>` (the orchestrator uses `--actor stackfall-orchestrator`); without it `bd` stamps the git user and the owner cannot tell agent writes from their own. At dispatch the orchestrator sets `--assignee "<worker profile> (<model>)"` (e.g. `stackfall-implementer (sonnet)`), or `stackfall-orchestrator` for work it does itself; unstarted issues stay unassigned (no placeholders), and an issue is never closed without an assignee. This project-specific coordination rule takes precedence over generic skill, `bd prime`, and generated-block instructions telling each worker to mutate or close its own issue.
 
@@ -25,11 +25,11 @@ Everything else is decided in place: for **minor ambiguity** (implementation det
 Each milestone runs as a pipeline of agents, as parallel as the work allows:
 1. **Plan** — `stackfall-planner` writes the milestone design contract: file ownership, interfaces, dependency order, and acceptance checks. Beads owns status. Have an implementation worker establish typed interface stubs before consumers; verify that each consumer's base actually contains them.
 2. **Implement** — `stackfall-implementer` or `stackfall-netcode` edits and tests its assigned package. Parallel writers use separate explicitly assigned worktrees and disjoint ownership. If required shared contracts are still uncommitted, serialize dependent work in one checkout or wait at the Git gate; a new worktree cannot see uncommitted changes.
-3. **Integrate and validate** — `stackfall-integrator` verifies the combined candidate, fixes only assigned integration defects, and runs relevant gates. Merges, commits and pushes require the Git authority above. Run timing benchmarks on an otherwise idle machine.
+3. **Integrate and validate** — `stackfall-integrator` verifies the changed area and fixes only assigned integration defects. The orchestrator commits and integrates accepted work, runs the full suite once per game-code batch and other relevant gates, then pushes and verifies the remote revision. Run timing benchmarks on an otherwise idle machine.
 4. **Review** — `stackfall-reviewer` examines the candidate and evidence without editing; an implementation worker reproduces and fixes findings. The orchestrator closes an issue only when its acceptance evidence is recorded, and closes the milestone only after integration and review pass.
 
 ## How to work (every agent)
-- Work in small steps that each leave the game runnable. Checkpoint progress in Beads after each working step; commit only when authorized.
+- Work in small steps that each leave the game runnable. Return checkpoint evidence to the orchestrator after each working step; it records that evidence in Beads and owns commits.
 - **Read before writing:** `CLAUDE.md`, the spec sections for the milestone, `README.md`, and the existing code the step touches.
 - Never rewrite something the previous step got right; extend it.
 - Hardware you can't use (a real gamepad, two PCs over Steam, a mid-range GPU for fps targets): verify what you can headlessly — synthetic `InputEventJoypad*` events through `Input.parse_input_event` in tests, ENet-only multiplayer, headless physics timing — then write **manual test steps** for the owner and continue.
@@ -80,7 +80,7 @@ Follow spec §3.2. New scenes go next to their scripts, shaders go in `res://sha
 - [ ] Unit tests pass.
 - [ ] The feature works with mouse and keyboard **and** with a gamepad, where relevant (synthetic events in tests; manual steps for the owner).
 - [ ] From M3 onward, it works for a client over ENet with simulated lag.
-- [ ] Beads records the candidate path/revision, completed work, validation and remaining risks; commits are made only when authorized.
+- [ ] Beads records the candidate path/revision, completed work, validation and remaining risks; the orchestrator has committed and pushed accepted work, or recorded the exact failed delivery step.
 - [ ] The summary includes steps to test it by hand.
 
 

@@ -12,6 +12,31 @@ hand-editing the `[input]` section:
 godot --headless --path . -s tools/bootstrap_project.gd
 ```
 
+## `route_model.py`
+
+One bounded TypeSafe/Jev request helps dispatch a semantic package: Claude tier,
+independent review, split recommendation, verification tier and whether a visual
+probe is useful. The brief comes from stdin. The script enforces hard review and
+specialized-gate floors in code, caps targeted runs at two and windowed probes at
+two, and takes a deterministic fast path for mechanical/known-gate work. With no
+API key or after an 8-second request timeout, it returns bounded rules instead.
+The orchestrator still names the actual tests and time budget in the worker brief.
+
+```powershell
+Get-Content brief.txt | python tools/route_model.py --title "Fix lobby state" --files net/Session.gd --kind bugfix --json
+python -m unittest tools.test_route_model
+```
+
+## `rank_context.py`
+
+Ranks up to ten candidate Beads issues or memories against a task using one Jev
+Choice judgment. The caller first retrieves a shortlist with `bd search` or
+`bd memories`, then passes JSON on stdin with `query` and `candidates` (`id`,
+`text`). The result is one ID or `no_match`; this is a relevance hint, never
+evidence to close or merge issues. Without TypeSafe or after eight seconds it
+uses keyword overlap. No Beads writes occur. Run
+`python -m unittest tools.test_rank_context` for its local checks.
+
 ## `triage_log.py`
 
 Turns a long headless Godot run log into a short, ranked summary, so nobody

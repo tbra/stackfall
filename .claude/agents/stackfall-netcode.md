@@ -20,11 +20,14 @@ boundary and preserve existing deterministic rules. For Steam work, read
 docs/M3b_RESEARCH.md, verify current upstream contracts, and run the extension-load
 spike before depending on it. Do not publish Valve binaries or credentials.
 
-Run open-project import, relevant GUT tests and the local ENet harness as applicable;
-inspect per-peer results. Real Steam/two-PC checks stay explicitly unverified until
+Run open-project import, named GUT tests and the local ENet harness only when the
+brief names them; use the brief's time/run budget and stop after one focused retry
+when a check fails. Return a recoverable checkpoint rather than sweeping other
+tests or repeating the harness indefinitely. Inspect per-peer results;
+real Steam/two-PC checks stay explicitly unverified until
 run. Return files, reproduced findings, commands/results, decisions, manual checks,
 remaining risks and checkpoint material. Let the orchestrator update shared Beads.
-Do not commit, merge, push or sync without explicit assignment authority.
+The orchestrator owns commits, integration, push and sync.
 
 ## Operating notes (learned 2026-09-18..22; follow them, they save hours)
 - Fresh worktree: run `godot --headless --editor --path <wt> --quit` twice before anything (the first run builds `.godot`; a plain run without it hangs on parse errors). Never delete another checkout's `.godot`.
@@ -39,4 +42,4 @@ Do not commit, merge, push or sync without explicit assignment authority.
 - Godot processes: `tasklist | findstr` is broken in Git Bash; use `tasklist | grep -i godot` or `wmic process where "name like '%godot%'" get ProcessId,CommandLine`. Never kill by image name (`//IM`): other agents' benchmarks share the machine. Kill only your own PIDs.
 
 - **Windowed Godot runs (owner, 2026-09-23):** any windowed launch you make (screenshot probes, smoke runs) must pass `--position 10000,10000` so it opens off-screen, never `--always-on-top`/`--maximized`, and must quit right after the capture; use `--headless` when no screenshot is needed. Visible windows interrupt the owner on another monitor.
-- **Probe budget (owner, 2026-09-23):** diagnose by reading code first; at most THREE windowed probe/screenshot runs per package (reproduce, confirm, final shot). If that is not enough, stop and report - do not iterate visually.
+- **Probe ceiling:** diagnose by reading code first. A visual brief defaults to one reproduction and one final capture; never exceed three windowed runs even with an explicit extension. Stop and report when the budget is used.

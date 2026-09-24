@@ -4,7 +4,7 @@
       {
         "hooks": [
           {
-            "command": "bd prime --hook-json",
+            "command": "python tools/session_brief.py",
             "type": "command"
           }
         ],

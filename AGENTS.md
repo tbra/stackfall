@@ -4,15 +4,17 @@
 
 For Stackfall architecture and game rules, read `CLAUDE.md` and the relevant sections of `docs/SPEC.md`. For worker assignments, recovery and validation, read `docs/AGENT_WORKFLOW.md`. `docs/CLAUDE_HANDOFF.md` is a dated restart brief; inspect live Beads and Git state before using it.
 
-The active Git profile is conservative: no commits, branch merges/rebases, code pushes or Dolt remote sync without explicit current-user authorization. Preserve all existing work. Parallel implementation uses disjoint file ownership and explicitly assigned worktrees with a verified base; serialize dependent work if shared changes are uncommitted. Run performance benchmarks without competing workloads.
+The active Git profile is **team-maintainer** (owner decision 2026-09-24): after a package is verified and accepted, the orchestrator commits and integrates it, runs proportionate integrated gates, pushes code, verifies the remote revision, and closes its issue. The orchestrator also syncs Beads through `bd dolt push` when available and records failures honestly. Workers do not commit, merge, push or sync unless an assignment explicitly grants that responsibility. Never force-push, rebase shared history, discard work or include unrelated changes. Parallel implementation uses disjoint file ownership and explicitly assigned worktrees with a verified base; serialize dependent work if shared changes are uncommitted. Run performance benchmarks without competing workloads. This project-specific profile supersedes generic conservative defaults in managed Beads blocks below.
 
 Reusable Claude roles live in `.claude/agents/`. Their durable task checkpoints and project knowledge live in Beads; do not create separate MEMORY.md files. Record assignment, checkout/branch/base, changed files, validation, blockers and next action so a replacement worker can recover without the previous conversation. Only the orchestrator closes milestone issues after integrated validation and independent review.
+
+The orchestrator uses `.claude/skills/stackfall-auto-run`, `stackfall-session-close`, and `stackfall-session-resume` for continued work and handoff. Keep bulky logs and iterative probes in worker context; dispatches name exact checks, time and screenshot budgets. Workers return compact evidence and stop when their budget is exhausted. The full GUT suite runs once per integrated game-code batch, never per package.
 
 The orchestrator serializes all shared Beads writes and accepts/closes package issues too; workers return checkpoint and completion evidence. This project-specific ownership rule takes precedence over generic skill, `bd prime`, or generated instructions telling individual workers to mutate/close issues.
 
 Claude model routing follows `docs/AGENT_WORKFLOW.md`: user-selected orchestrator (currently Fable), Haiku for mechanical/triage/known validation/CLI relay work, Sonnet for normal implementation/planning/review, and explicit Opus overrides only for genuinely hard reasoning. Worker models must not all inherit the orchestrator's model.
 
-This project uses **bd** (beads) for issue tracking. Run `bd prime` for full workflow context.
+This project uses **bd** (beads) for issue tracking. Use `bd prime` when Beads workflow context is missing or stale; normal session recovery uses the compact resume skill and targeted Beads queries.
 
 > **Architecture in one line:** Issues live in a local Dolt database
 > (`.beads/embeddeddolt/` in this checkout; verify with `bd info`); cross-machine sync uses `bd dolt push/pull` (a
