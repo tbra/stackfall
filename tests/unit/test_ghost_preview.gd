@@ -686,7 +686,7 @@ const _TEST_CORNER_SIGNS: Array[Vector3] = [
 
 
 ## One rotated `cell`'s own lowest world-space Y (its own underside) --
-## independently mirrors game/GhostPreview.gd's own _rotated_cell_footprint()
+## independently mirrors game/GhostPreview.gd's own _column_top_world_y()
 ## (visual half_size, `shape.bottom_center()` pivot) so these tests check the
 ## real algorithm's output, not just its own self-consistency.
 func _expected_cell_min_y(ghost: GhostPreview, cell: Vector3i) -> float:
@@ -698,6 +698,31 @@ func _expected_cell_min_y(ghost: GhostPreview, cell: Vector3i) -> float:
 		var rotated: Vector3 = ghost.basis * (local_center + corner_sign * half_size)
 		min_y = minf(min_y, rotated.y)
 	return ghost.global_position.y + min_y
+
+
+## Bontago-xtq.19: the highest world-space Y among just `cell`'s own 4
+## *underside* corners (corner_sign.y == -1) -- unlike _expected_cell_min_y()
+## above (the lowest point among all 8 corners, top face included), this is
+## the tight per-vertex bound the new per-corner wall geometry
+## (GhostPreview._append_outline_wall()) actually needs: since Bontago-xtq.19
+## rotates each outline edge's own 2 real corners individually instead of
+## capping a whole column at one flat scalar, a wall vertex can legitimately
+## sit anywhere between the underside's own lowest and highest corner (a
+## tilted underside is a tilted plane, not a point) without ever being wrong
+## -- it is always a literal corner of the real solid's own surface. Any wall
+## vertex above this bound, though, really would be poking into the cell's own
+## solid volume (the underside's own worst corner).
+func _expected_cell_max_underside_corner_y(ghost: GhostPreview, cell: Vector3i) -> float:
+	var half_size: float = ghost.tuning.cube_size * 0.5
+	var pivot: Vector3 = ghost.get_shape().bottom_center()
+	var local_center: Vector3 = (Vector3(cell) - pivot) * ghost.tuning.cube_size
+	var max_y: float = -INF
+	for corner_sign: Vector3 in _TEST_CORNER_SIGNS:
+		if corner_sign.y > 0.0:
+			continue
+		var rotated: Vector3 = ghost.basis * (local_center + corner_sign * half_size)
+		max_y = maxf(max_y, rotated.y)
+	return ghost.global_position.y + max_y
 
 
 ## "a single cube unchanged": for a shape with only one cell there is only one
@@ -859,6 +884,135 @@ func test_pitched_bar_is_enclosed_from_below_never_above_its_own_cells() -> void
 		"must be enclosed strictly below the shape's own highest point (%.3f) -- the pre-xtq.16 whole-hull cap."
 			% _visual_world_top_y(ghost)
 	)
+
+
+# --- Bontago-xtq.19 attempt 2 (owner test 2026-09-24, screenshot_20260924_
+# 204137/204154.png: "the segmented preview is not fixed" -- a combined
+# yaw+pitch turns each cell's own per-cell shadow into a hexagon whose edges
+# never match its neighbour's under the old float-based _shared_edge_exists(),
+# leaving both cells' full walls in place as visible internal seams/overlaps)
+# --------------------------------------------------------------------------
+
+## The brief's own acceptance count: a straight run of `cell_count` cells has
+## 2*cell_count + 2 outline edges (4 sides per cell, minus 2 per internal
+## boundary shared between consecutive cells) -- 10 for bar4's 4 cells, not 16
+## (every cell's own 4 sides with nothing cancelled).
+func _expected_row_outline_edge_count(cell_count: int) -> int:
+	return 2 * cell_count + 2
+
+
+## Sanity check at identity rotation -- the pre-xtq.19 code already got this
+## case right (a per-cell hull at identity/yaw-only rotation reduces to a
+## simple rectangle, so the old float matching worked), so this alone would
+## NOT fail against the pre-fix code; it only pins the expected count before
+## the harder rotated case below.
+func test_bar4_at_identity_has_exactly_the_outline_wall_count() -> void:
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+	ghost.set_shape(load("res://config/blocks/bar4.tres"))
+
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	var vertices: PackedVector3Array = ghost.projection_mesh_vertices_world()
+	assert_eq(
+		vertices.size() / 4, _expected_row_outline_edge_count(4),
+		"a straight 4-cell bar must show exactly its own outer-perimeter edges (10), not one hull per cell (16)."
+	)
+
+
+## The owner's own repro (screenshot_20260924_204137.png, a 4-long bar held at
+## 68 m showing internal vertical seams): combined yaw+pitch turns each cell's
+## own per-cell shadow into a hexagon (verified independently in Python during
+## this fix's own investigation -- two grid-adjacent cells pitched 20 degrees
+## and yawed 30 degrees produce two hexagons with *no* edge pair matching
+## within any epsilon), so the pre-xtq.19 code's _shared_edge_exists() never
+## found the internal boundary and walled both cells' full hexagons
+## independently -- more than the 10 true outline edges, and visibly
+## overlapping/crossing. Must fail against the pre-xtq.19 code (which draws
+## each cell's own ~6-edge hull independently once no shared edge is found)
+## and pass once the outline is built from the local, pre-rotation grid.
+func test_bar4_pitched_and_yawed_still_has_exactly_the_outline_wall_count() -> void:
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+	ghost.set_shape(load("res://config/blocks/bar4.tres"))
+	ghost.apply_free_rotation_delta(deg_to_rad(30.0), deg_to_rad(20.0), Vector3.RIGHT)
+
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	var vertices: PackedVector3Array = ghost.projection_mesh_vertices_world()
+	assert_false(vertices.is_empty(), "fixture: a real gap should still show prism geometry once rotated.")
+	assert_eq(
+		vertices.size() / 4, _expected_row_outline_edge_count(4),
+		"a pitched+yawed 4-cell bar must still show exactly its own 10 outer-perimeter edges, "
+			+ "never a separate hexagonal hull per cell (the owner's own reported seams)."
+	)
+
+
+## T4 (config/blocks/T4.tres, cells (0,0,0)/(1,0,0)/(2,0,0)/(1,1,0)) projects
+## to the *same* 3-cell-in-a-row local footprint as bar3 when viewed from
+## directly above (its 4th cell sits directly above the middle one, merging
+## into that column rather than adding a new one) -- the owner's own T-piece
+## repro (screenshot_20260924_204154.png, "overlapping columns, visibly
+## stepped"). Same fail-before reasoning as the bar4 test above, and also
+## covers the brief's own "no wall is emitted along an internal shared edge"
+## for a shape with a genuine vertical notch (T4's own (1,1,0) sits over
+## nothing at y=0 on either side of it in the *column* sense the S4 bug was
+## about) as well as the horizontal one.
+func test_t4_pitched_and_yawed_still_has_exactly_the_outline_wall_count() -> void:
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+	ghost.set_shape(load("res://config/blocks/T4.tres"))
+	ghost.apply_free_rotation_delta(deg_to_rad(30.0), deg_to_rad(20.0), Vector3.RIGHT)
+
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	var vertices: PackedVector3Array = ghost.projection_mesh_vertices_world()
+	assert_false(vertices.is_empty(), "fixture: a real gap should still show prism geometry once rotated.")
+	assert_eq(
+		vertices.size() / 4, _expected_row_outline_edge_count(3),
+		"T4's own 3-cell-wide footprint must show exactly 8 outer-perimeter edges, "
+			+ "never a separate hull per cell/column."
+	)
+
+
+## No wall vertex may land strictly inside the whole shape's own flat
+## footprint polygon (the projected XZ hull footprint_polygon_world() already
+## shows) -- a leftover internal wall (the seam bug) would put vertices
+## *inside* that outline, not merely on its boundary. `edge_distance_tolerance`
+## covers the small, expected gap between the footprint hull's own collision-
+## sized half_size (tuning.cube_size - tuning.cube_margin) and the prism
+## wall's visual half_size (tuning.cube_size) -- 0.01 m at this project's
+## default tuning, well under the >= half a cell width an actual internal wall
+## would sit inset by.
+func test_bar4_pitched_and_yawed_prism_has_no_internal_wall() -> void:
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+	ghost.set_shape(load("res://config/blocks/bar4.tres"))
+	ghost.apply_free_rotation_delta(deg_to_rad(30.0), deg_to_rad(20.0), Vector3.RIGHT)
+
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	var hull: PackedVector2Array = ghost.footprint_polygon_world(0)
+	var vertices: PackedVector3Array = ghost.projection_mesh_vertices_world()
+	assert_false(vertices.is_empty(), "fixture: a real gap should still show prism geometry once rotated.")
+
+	var edge_distance_tolerance: float = 0.05
+	var edge_count: int = hull.size()
+	for vertex: Vector3 in vertices:
+		var point: Vector2 = Vector2(vertex.x, vertex.z)
+		var min_edge_distance: float = INF
+		for i: int in range(edge_count):
+			var a: Vector2 = hull[i]
+			var b: Vector2 = hull[(i + 1) % edge_count]
+			var closest: Vector2 = Geometry2D.get_closest_point_to_segment(point, a, b)
+			min_edge_distance = minf(min_edge_distance, closest.distance_to(point))
+		assert_true(
+			min_edge_distance <= edge_distance_tolerance,
+			(
+				"prism vertex (%.3f, %.3f) sits %.4f m inside the footprint's own outline -- "
+				+ "an internal wall the owner sees as a seam."
+			) % [point.x, point.y, min_edge_distance]
+		)
 
 
 # --- Bontago-xtq.15 (owner playtest 2026-09-23, "the same white projection
