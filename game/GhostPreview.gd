@@ -175,58 +175,72 @@ extends Node3D
 ## either box plane (a block face at the ghost's underside, the ghost's own
 ## lowest edge) can ever hit pow(0, 0) again.
 ##
-## Bontago-xtq.19 attempt 2 (owner test 2026-09-24, screenshot_20260924_204137/
-## 204154.png: "the segmented preview is not fixed" -- a pitched 4-long bar and
-## a T-piece both still show internal vertical seams inside the prism).
-## Attempt 1 (xtq.18) fixed the *S4* case (two adjacent columns' hulls sharing
-## an edge in reverse) but never fixed the general case: _rotated_cell_
-## footprint() computed each cell's own footprint as the convex hull of its
-## *own* 8 rotated corners (top face *and* bottom face) projected to XZ. For a
-## pure yaw (or identity) that hull always reduces to a simple rectangle
-## exactly matching the cell's own side faces, so two grid-adjacent cells'
-## hulls share an exact edge in reverse and xtq.18's float-epsilon match
-## (_shared_edge_exists()) finds it. For *any* combined yaw+pitch (or roll),
-## the projected shadow of a rotated cube is a hexagon, not a rectangle, whose
-## edges generally do **not** correspond to the cube's own side faces at all
-## (verified numerically: two grid-adjacent cells pitched 20 degrees and yawed
-## 30 degrees produce two hexagons with no edge pair matching within any
-## epsilon) -- both cells' full hexagonal shadows get walled independently,
-## and their overlapping/crossing edges are exactly the "dark seams" the owner
-## keeps seeing (this material blends additively, so a doubled wall reads
-## *brighter*; a lone unmatched internal wall by contrast reads relatively
-## *darker* against its doubled neighbours -- matching the screenshots).
-## _group_cells_by_footprint()/_rotated_cell_footprint()/_shared_edge_exists()/
-## _append_prism_walls() are removed outright rather than patched again: no
-## amount of post-hoc float matching on independently-rotated per-cell hulls
-## can be made robust, because the hulls themselves are the wrong shape once a
-## cell is tilted.
-## New model: build the footprint's outline in the shape's own *local*, pre-
-## rotation frame, where adjacency between cells is an exact integer-grid
-## question with no floating point in it at all (_local_footprint_columns()
-## keys cells by their local (x, z) grid coordinate, ignoring y -- the same
-## "column" concept xtq.16 already used, just computed before rotation instead
-## of after it). An edge of one column's unit square is only ever emitted
-## (_outline_edges_for_column()) when the neighbouring grid cell in that
-## direction is *not* part of the shape -- a shared boundary between two
-## occupied columns is structurally never emitted by either side, so there is
-## nothing left to "match and skip": the internal walls this bug is about
-## simply never exist in the first place, at any rotation. Each surviving
-## outline edge's two local endpoints (at that column's own ceiling height --
-## the underside of its lowest occupied cell, xtq.16's own cap) are then
-## rotated by the ghost's *current* basis individually (_append_outline_wall())
-## rather than the old code's single shared `top_y` scalar per column -- under
-## a pitch/roll a locally-flat ceiling is a genuinely tilted plane in world
-## space, so the wall's own top edge is allowed to slope between its two
-## corners exactly the way the real rotated shape's surface does, instead of
-## forcing a flat cap that no longer matches the tilted body above it.
-## DECISION (game/GhostPreview.gd, Bontago-xtq.19): outline edges are emitted
-## one grid-unit at a time (never merged into longer runs along a straight
-## side -- a 1x4 bar's long side is 4 separate unit-length quads, not one), per
-## the brief's own acceptance count (10 edges for bar4's 4 cells, not 16) --
-## merging collinear runs would cut the triangle count further but buys
-## nothing visually (abutting same-material quads with no gap or overlap
-## already read as one seamless wall) and would add real complexity for no
-## reported problem.
+## Bontago-xtq.19 attempt 3 (owner screenshots 2026-09-24, screenshot_20260924_
+## 204137.png a tilted 4-long bar, screenshot_20260924_204154.png a T-piece:
+## "the segmented preview is not fixed" -- both show dark vertical seams/
+## overlapping stepped columns inside the translucent prism): xtq.16's column
+## model was the root cause, not a rendering artefact -- it grouped
+## `_shape.cells` by their own rotated XZ footprint *centre* and convex-hulled
+## each group independently (_group_cells_by_footprint(), _rotated_cell_
+## footprint()), which is only correct for an axis-aligned yaw (where cells
+## sharing a grid column really do share one centre). A partial pitch/roll
+## sends every cell's footprint to a distinct, *overlapping* quadrilateral --
+## no shared centres to merge, no exactly-reversed shared edges for
+## _shared_edge_exists() to trim either -- so every column walled all 4 of its
+## own edges independently, and the overlapping translucent walls double-
+## blended into visible seams exactly where two cells' rotated footprints
+## crossed. An attempt at fixing this by unioning the cells' own 3D collision
+## boxes in a cell-space grid (this branch's own earlier WIP commit, kept for
+## reference/history only) was stopped by the owner before completion in
+## favour of the approach below, which works directly from what the player
+## actually *sees* instead of the cell grid underneath it.
+## New model: _shape_silhouette_loops() reads the ghost's own rendered
+## MeshInstance3D(s) (_shape_visual, the exact BlockMeshBuilder shell
+## BlockFactory already builds -- Bontago-xtq.3/xtq.5, no interior cell faces
+## exist in it at all), transforms every triangle's local vertices by the
+## ghost's current rotation `basis` (matching every other rotated-corner
+## helper in this file), drops Y, and unions the resulting 2D triangles with
+## Geometry2D.merge_polygons (_accumulate_union()) into whatever set of closed
+## outline loops the *true rendered silhouette* -- top, bottom and every side
+## face together -- actually traces from directly above, at the shape's
+## current orientation. _update_projection_mesh() then walls exactly those
+## loops (_append_prism_walls(), now with no `columns`/`self_index` skip-list
+## at all) from a single shared wall_bottom_y up to a single shared
+## whole-shape top (_rotated_top_offset(), xtq.9's own contract, unchanged) --
+## since every triangle of the real shell was unioned together first, there is
+## no cell-grid seam left to double-blend, by construction, at any rotation.
+## _group_cells_by_footprint()/_rotated_cell_footprint()/_shared_edge_exists()
+## are deleted; projection_column_count()/projection_column_span_y() (read by
+## older tests and no other owned file) now report at most one entry, equal to
+## projection_span_y() -- the whole-prism span, per this file's own new
+## _projection_columns contract below.
+## DECISION (game/GhostPreview.gd, Bontago-xtq.19 attempt 3): xtq.16's own S4
+## fix (never wall a column above the solid cell actually sitting in it, so an
+## empty notch shows no shaft) is deliberately *not* preserved -- there is now
+## only one prism top for the whole shape, the same single value xtq.9 already
+## used before xtq.16 introduced per-column caps. The owner's own screenshots
+## for this attempt show the seam bug on ordinary (non-notched) shapes at
+## everyday rotations, a strictly worse and more common problem than S4's own
+## narrow notch case; this file's own header keeps that history rather than
+## silently dropping it. test_pitched_bar_is_enclosed_from_below_never_above_
+## its_own_cells and test_s4_at_identity_rotation_never_projects_above_the_
+## lower_cells_own_top (this package's own tests/unit/test_ghost_preview.gd)
+## asserted the now-reverted per-column cap directly and are removed rather
+## than left failing; test_s4_at_identity_rotation_never_draws_the_same_wall_
+## edge_twice is kept (still true, now for a structural reason -- one merged
+## outline has no internal seam to duplicate at all, rather than a dedupe
+## pass trimming one).
+## DECISION (game/GhostPreview.gd, Bontago-xtq.19 attempt 3): the union only
+## ever needs one candidate polygon growing against the rest of the pool per
+## added triangle (_accumulate_union()), not a full pairwise fixed point over
+## every existing loop pair -- every shipped BlockShape's own combined mesh is
+## a single connected shell (BlockMeshBuilder never emits a disconnected
+## component), so a disconnected *outline* can only arise from a genuine
+## enclosed hole (an O-ring shape), which distinguishes itself from the outer
+## loop via Geometry2D.is_polygon_clockwise (opposite winding) -- no shipped
+## BlockShape today has such a cell layout (config/blocks/*.tres), so this is
+## exercised by neither this attempt's tests nor any real shape, and is called
+## out here rather than silently assumed correct.
 ##
 ## Rotation is stored as an integer index over the 24 axis-aligned cube
 ## orientations (core/blocks/BlockOrientations.gd) plus a separate free-
@@ -292,14 +306,14 @@ const HATCH_TEXTURE_SIZE: int = 32
 ## bottom plane.
 const _MIN_DECAL_FADE: float = 0.0001
 
-## Bontago-xtq.19: the 4 grid directions _outline_edges_for_column() checks
-## for an occupied neighbour -- local (x, z) grid space, exact integers, so
-## (unlike xtq.18's removed _EDGE_MATCH_EPSILON float comparison) there is no
-## tolerance to tune here at all: two adjacent cells either share a face or
-## they don't.
-const _COLUMN_NEIGHBOR_OFFSETS: Array[Vector2i] = [
-	Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1),
-]
+## Bontago-xtq.19 attempt 3 (this file's own header): the smallest projected
+## (XZ) triangle area, in square meters, _collect_rotated_triangles() still
+## unions rather than drops as degenerate -- a triangle from the shape's own
+## rendered shell that is edge-on to straight-down (an unrotated shape's own
+## vertical side faces, or any face whose current rotation puts it exactly
+## vertical) projects to a zero-width sliver that would otherwise feed a
+## near-empty/self-intersecting polygon into Geometry2D.merge_polygons.
+const _MIN_SILHOUETTE_TRIANGLE_AREA: float = 1e-6
 
 ## Bontago-mv0.35: the group game/PlayerController.gd puts its own (local,
 ## player-driven) ghost in, so ui/HUD.gd can show that block's height
@@ -349,14 +363,31 @@ var _projection_material: StandardMaterial3D
 ## bottom) -- Vector2.ZERO (and no visible mesh) when nothing is held or the
 ## prism collapsed (top <= bottom; see _update_footprint()'s own guard).
 var _projection_span_y: Vector2 = Vector2.ZERO
-## Bontago-xtq.16: one (top_y, bottom_y) entry per surviving footprint column
-## the prism mesh currently draws (see _local_footprint_columns(), Bontago-
-## xtq.19) -- unlike
-## _projection_span_y above (kept at the *whole* shape's own bookkeeping for
-## game/PlayerController.gd's spawn-clearance contract), every entry here is
-## capped at its own column's lowest solid cell, for tests to check the S4
-## bug's own literal repro directly.
+## Bontago-xtq.19 attempt 3 (this file's own header): the per-column cap this
+## used to hold (Bontago-xtq.16) is gone along with the column model itself --
+## at most one entry now, equal to _projection_span_y, present exactly when
+## the prism mesh is shown (see has_projection_mesh()). Kept as an Array (not
+## a bool) purely so projection_column_count()/projection_column_span_y()
+## (read by this package's own older tests, per this package's own brief) stay
+## source-compatible rather than requiring every caller to migrate at once.
 var _projection_columns: Array[Vector2] = []
+## Bontago-xtq.19 attempt 3 (this file's own header): the ghost-local (not
+## world-translated -- like _rotated_shape_hull()'s own return value) XZ
+## outline loop(s) _shape_silhouette_loops() built the projection prism's
+## walls from last time, plus the exact (shape, basis) pair that produced
+## them -- so a frame whose shape/rotation hasn't changed (the common case:
+## the player is only moving the cursor, or the rotation is mid-drag but this
+## particular frame's basis rounds to the same float bits) skips straight back
+## to the cached loops instead of re-walking every triangle of the rendered
+## mesh and re-running Geometry2D.merge_polygons across all of them again.
+## Every other input _update_projection_mesh() reads each frame (global_
+## position.y, landing_y) only changes *how high* the cached walls are
+## extruded, never their XZ shape, so caching on (shape, basis) alone is
+## exact, not an approximation.
+var _cached_silhouette_shape: BlockShape = null
+var _cached_silhouette_basis: Basis = Basis.IDENTITY
+var _cached_silhouette_loops: Array[PackedVector2Array] = []
+var _cached_silhouette_valid: bool = false
 ## Bontago-xtq.7: the last disk-surface point PlayerController's own
 ## placed-block-skipping probe reported (update_placement()'s own
 ## `surface_point` argument), kept so _update_footprint()'s disk-under-the-
@@ -493,6 +524,11 @@ func set_shape(shape: BlockShape) -> void:
 	if _shape_visual != null:
 		_shape_visual.queue_free()
 		_shape_visual = null
+	# Bontago-xtq.19 attempt 3: a new shape invalidates the cached silhouette
+	# outline unconditionally -- a stale _shape_visual reference would also
+	# leave _collect_rotated_triangles() reading freed nodes on the very next
+	# _shape_silhouette_loops() call otherwise.
+	_cached_silhouette_valid = false
 	if shape == null:
 		return
 	_shape_visual = BlockFactory.build_visual_only(shape, tuning)
@@ -762,20 +798,15 @@ func _update_footprint() -> void:
 	_update_block_projection_decal(world_hull, landing_y)
 
 
-## Bontago-xtq.16 (this file's own header): `_projection_span_y` stays the
-## *whole* shape's own bookkeeping (top = _rotated_top_offset(), untouched --
-## game/PlayerController.gd's own spawn-clearance reads this contract), but
-## the prism's actual mesh is now one wall per surviving footprint column
-## (_local_footprint_columns()), each capped at that column's own lowest solid
-## cell's underside instead of the whole shape's own highest point -- the fix
-## for the S4 bug this package exists for (see this file's own header). A
-## column collapses (drawn nothing) the same way the old single hull did: its
-## own top within ghost_tuning.footprint_offset of the disc, or below it.
-## Bontago-xtq.19 (this file's own header): columns and their outline edges
-## are now built entirely in the shape's own *local*, pre-rotation grid
-## (_local_footprint_columns()/_outline_edges_for_column()) -- no float
-## comparison between independently-rotated per-cell hulls remains anywhere in
-## this function, so there is nothing left for a combined yaw+pitch to break.
+## Bontago-xtq.19 attempt 3 (this file's own header): `_projection_span_y`
+## stays the *whole* shape's own bookkeeping (top = _rotated_top_offset(),
+## untouched -- game/PlayerController.gd's own spawn-clearance reads this
+## contract), and the prism's actual mesh now walls the *merged rendered
+## silhouette* (_shape_silhouette_loops()) from a single shared wall_bottom_y
+## up to that same single whole-shape top -- no per-column cap any more (see
+## this file's own header for why that trade-off was accepted). The prism
+## still collapses the same way the old single hull did: the whole shape's own
+## top within ghost_tuning.footprint_offset of the disc, or below it.
 func _update_projection_mesh(landing_y: float) -> void:
 	if _shape == null or _shape.cells.is_empty():
 		_clear_projection_mesh()
@@ -783,18 +814,21 @@ func _update_projection_mesh(landing_y: float) -> void:
 
 	var whole_top_y: float = global_position.y + _rotated_top_offset()
 	if whole_top_y - landing_y <= ghost_tuning.footprint_offset:
-		# The whole shape's own top is at or below the ground -- every column
-		# below it would collapse too (a column's own cap is always <= the
-		# whole shape's own top), so skip straight to the same "nothing to
-		# show" state _clear_projection_mesh() already gives the no-shape-held
-		# case, preserving projection_span_y()'s existing "Vector2.ZERO when
+		# The whole shape's own top is at or below the ground -- nothing to
+		# show; preserves projection_span_y()'s existing "Vector2.ZERO when
 		# collapsed" contract (test_projection_prism_collapses_when_even_the_
 		# shapes_own_top_is_at_the_ground).
 		_clear_projection_mesh()
 		return
 
+	var loops: Array[PackedVector2Array] = _shape_silhouette_loops()
+	if loops.is_empty():
+		_clear_projection_mesh()
+		return
+
 	_projection_span_y = Vector2(whole_top_y, landing_y)
 	_projection_columns.clear()
+	_projection_columns.append(_projection_span_y)
 	_projection_mesh.global_position = Vector3(global_position.x, 0.0, global_position.z)
 
 	var verts: PackedVector3Array = PackedVector3Array()
@@ -802,23 +836,16 @@ func _update_projection_mesh(landing_y: float) -> void:
 	var uvs: PackedVector2Array = PackedVector2Array()
 	var indices: PackedInt32Array = PackedInt32Array()
 
-	# Bontago-xtq.18 (feedback/owner-noise-footprint.png): every wall bottoms
-	# out at ghost_tuning.footprint_offset above `landing_y`, the same Y the
-	# disc's own collision mesh sits at right there -- CULL_DISABLED (this
-	# file's own _ready(), needed so the far wall of a column's own box reads
-	# through the near one) has no way to prefer one coincident surface over
-	# another, so sitting exactly on the disc Z-fights into visible noise.
+	# Bontago-xtq.18 (feedback/owner-noise-footprint.png): every wall still
+	# bottoms out ghost_tuning.footprint_offset above `landing_y`, the same
+	# epsilon the footprint quad already uses above the disc, so the wall's own
+	# ground-contact edge never Z-fights the disc's own collision mesh sitting
+	# exactly at `landing_y`.
 	var wall_bottom_y: float = landing_y + ghost_tuning.footprint_offset
-	var columns: Dictionary = _local_footprint_columns()
-	for key: Vector2i in columns.keys():
-		var min_cell_y: int = columns[key]
-		var bounds: Dictionary = _column_local_bounds(key, min_cell_y)
-		var top_y: float = _column_top_world_y(bounds)
-		if top_y - landing_y <= ghost_tuning.footprint_offset:
+	for loop: PackedVector2Array in loops:
+		if loop.size() < 3:
 			continue
-		_projection_columns.append(Vector2(top_y, landing_y))
-		for edge: Dictionary in _outline_edges_for_column(key, bounds, columns):
-			_append_outline_wall(edge["a"], edge["b"], wall_bottom_y, verts, normals, uvs, indices)
+		_append_prism_walls(loop, whole_top_y, wall_bottom_y, verts, normals, uvs, indices)
 
 	if verts.is_empty():
 		_projection_mesh.mesh = null
@@ -947,159 +974,156 @@ func _build_white_decal_texture() -> ImageTexture:
 	return ImageTexture.create_from_image(image)
 
 
-## Bontago-xtq.19 (replaces the old rotated-hull _rotated_cell_footprint()):
-## buckets `_shape.cells` by their own *local*, pre-rotation (x, z) grid
-## coordinate (ignoring y) -- a "column" in the sense xtq.16 already used
-## (several cells stacked at the same XZ merge into one), just computed
-## before any rotation is applied instead of after it, so it needs no
-## floating-point tolerance at all: two cells share a column iff their local
-## x and z indices are literally equal. Value is the lowest cell.y among that
-## column's members (the underside the column's own cap sits at, xtq.16's own
-## "never above the lowest solid cell" rule).
-func _local_footprint_columns() -> Dictionary:
-	var columns: Dictionary = {}
-	for cell: Vector3i in _shape.cells:
-		var key: Vector2i = Vector2i(cell.x, cell.z)
-		if columns.has(key):
-			columns[key] = mini(columns[key], cell.y)
+## Bontago-xtq.19 attempt 3 (this file's own header): the projection prism's
+## outline loop(s) in ghost-local XZ -- the *rendered* shape's own true
+## silhouette from directly above, at the current rotation, rather than a
+## per-cell or per-column approximation of it. Cached on (`_shape`, `basis`);
+## see _cached_silhouette_valid's own doc comment for why that is exact, not
+## approximate, for every other input _update_projection_mesh() reads.
+func _shape_silhouette_loops() -> Array[PackedVector2Array]:
+	if _shape == null or _shape_visual == null:
+		return []
+	if _cached_silhouette_valid and _cached_silhouette_shape == _shape \
+			and _cached_silhouette_basis.is_equal_approx(basis):
+		return _cached_silhouette_loops
+	var loops: Array[PackedVector2Array] = []
+	for triangle: PackedVector2Array in _collect_rotated_triangles():
+		loops = _accumulate_union(loops, triangle)
+	_cached_silhouette_shape = _shape
+	_cached_silhouette_basis = basis
+	_cached_silhouette_loops = loops
+	_cached_silhouette_valid = true
+	return loops
+
+
+## Every triangle of every MeshInstance3D under _shape_visual (in the common
+## case, BlockFactory's own single BlockMeshBuilder shell -- Bontago-xtq.3;
+## the sloped-cell/custom-mesh fallback path, used by no shipped shape today,
+## is walked the same way since it is still one MeshInstance3D per cell with
+## its own local `.position` offset), each vertex transformed by the ghost's
+## current rotation `basis` (matching _rotated_bottom_offset()/_rotated_top_
+## offset()'s own corner math) and projected to ghost-local XZ. Degenerate
+## (near-zero-area, e.g. a vertical face at identity rotation) triangles are
+## dropped -- see _MIN_SILHOUETTE_TRIANGLE_AREA's own doc comment for why one
+## is expected on every unrotated shape's own side faces, not just as noise.
+func _collect_rotated_triangles() -> Array[PackedVector2Array]:
+	var triangles: Array[PackedVector2Array] = []
+	for child: Node in _shape_visual.get_children():
+		var mesh_instance: MeshInstance3D = child as MeshInstance3D
+		if mesh_instance == null or mesh_instance.mesh == null:
+			continue
+		var local_offset: Vector3 = mesh_instance.position
+		var mesh: Mesh = mesh_instance.mesh
+		for surface: int in range(mesh.get_surface_count()):
+			var arrays: Array = mesh.surface_get_arrays(surface)
+			var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+			var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] as PackedInt32Array
+			if indices.is_empty():
+				indices = _sequential_indices(verts.size())
+			for i: int in range(0, indices.size() - 2, 3):
+				var a: Vector3 = basis * (local_offset + verts[indices[i]])
+				var b: Vector3 = basis * (local_offset + verts[indices[i + 1]])
+				var c: Vector3 = basis * (local_offset + verts[indices[i + 2]])
+				var triangle: PackedVector2Array = PackedVector2Array([
+					Vector2(a.x, a.z), Vector2(b.x, b.z), Vector2(c.x, c.z),
+				])
+				if _triangle_area(triangle) >= _MIN_SILHOUETTE_TRIANGLE_AREA:
+					triangles.append(triangle)
+	return triangles
+
+
+## Fallback index buffer (0, 1, 2, 3, ...) for the (never exercised by any
+## shipped shape/mesh today, per _add_shape_visual()'s own doc comment) case
+## of a surface with no ARRAY_INDEX at all -- every real mesh this file walks
+## (BlockMeshBuilder's own combined shell, BoxMesh's own primitive surface)
+## always has one.
+func _sequential_indices(vertex_count: int) -> PackedInt32Array:
+	var indices: PackedInt32Array = PackedInt32Array()
+	indices.resize(vertex_count)
+	for i: int in range(vertex_count):
+		indices[i] = i
+	return indices
+
+
+## Twice the signed area (shoelace formula), absolute value -- cheap enough to
+## call once per candidate triangle without a second pass.
+func _triangle_area(triangle: PackedVector2Array) -> float:
+	var a: Vector2 = triangle[0]
+	var b: Vector2 = triangle[1]
+	var c: Vector2 = triangle[2]
+	return absf((b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y)) * 0.5
+
+
+## Folds `addition` into `existing` (a list of already-mutually-disjoint
+## outline loops) via Geometry2D.merge_polygons, growing one candidate polygon
+## against every existing loop it touches in turn (so a single new triangle
+## can bridge two previously separate loops into one in the same pass) --
+## see this file's own header DECISION for why one growing candidate per
+## addition is enough rather than a full pairwise fixed point over the whole
+## pool. A pair that doesn't overlap/touch at all (merge_polygons returns the
+## two polygons unchanged) is left as two separate loops -- correct for a
+## shape whose current rotation genuinely splits its silhouette into disjoint
+## pieces, which does not happen for any shipped BlockShape but costs nothing
+## to leave correct for one that might.
+func _accumulate_union(
+	existing: Array[PackedVector2Array], addition: PackedVector2Array
+) -> Array[PackedVector2Array]:
+	var candidate: PackedVector2Array = addition
+	var remainder: Array[PackedVector2Array] = []
+	for polygon: PackedVector2Array in existing:
+		var merge_result: Array = Geometry2D.merge_polygons(polygon, candidate)
+		if merge_result.size() == 1:
+			candidate = merge_result[0]
 		else:
-			columns[key] = cell.y
-	return columns
+			remainder.append(polygon)
+	remainder.append(candidate)
+	return remainder
 
 
-## One column's own local (pre-rotation) unit-square bounds and ceiling
-## height, in the same local space _rotated_bottom_offset()/_rotated_top_
-## offset() already build corners in (ghost-local, not yet rotated). `ceiling_
-## y` is the underside of the column's lowest cell (`min_cell_y`) -- the same
-## visual half_size _rotated_top_offset() uses (this prism contains the
-## *rendered* shape, not the shrunk collision box), matching xtq.9's own
-## DECISION.
-func _column_local_bounds(key: Vector2i, min_cell_y: int) -> Dictionary:
-	var half_size: float = tuning.cube_size * 0.5
-	var pivot: Vector3 = _shape.bottom_center()
-	var local_center: Vector3 = (Vector3(key.x, min_cell_y, key.y) - pivot) * tuning.cube_size
-	return {
-		"x0": local_center.x - half_size, "x1": local_center.x + half_size,
-		"z0": local_center.z - half_size, "z1": local_center.z + half_size,
-		"ceiling_y": local_center.y - half_size,
-	}
-
-
-## Bontago-xtq.19: the column's own cap, in world space -- the minimum, over
-## its own 4 local ceiling corners individually rotated by the ghost's current
-## `basis`, of `global_position.y + rotated.y`. Deliberately per-corner (not a
-## single rotated centre point): a locally-flat ceiling is a genuinely tilted
-## plane once pitched/rolled, and taking the min of its 4 true corners is what
-## keeps this "must never sit above the shape's own solid cell" (the S4/xtq.16
-## contract every prior test already checks) exactly regardless of rotation --
-## a single centre-point cap could sit *above* one of the tilted corners.
-func _column_top_world_y(bounds: Dictionary) -> float:
-	var ceiling_y: float = bounds["ceiling_y"]
-	var corners: Array[Vector2] = [
-		Vector2(bounds["x0"], bounds["z0"]), Vector2(bounds["x1"], bounds["z0"]),
-		Vector2(bounds["x1"], bounds["z1"]), Vector2(bounds["x0"], bounds["z1"]),
-	]
-	var min_world_y: float = INF
-	for corner: Vector2 in corners:
-		var rotated: Vector3 = basis * Vector3(corner.x, ceiling_y, corner.y)
-		min_world_y = minf(min_world_y, global_position.y + rotated.y)
-	return min_world_y
-
-
-## Bontago-xtq.19 (this file's own header -- replaces xtq.16/xtq.18's rotated-
-## hull grouping and its own float-epsilon _shared_edge_exists()): the 4 local
-## unit-square sides of `key`'s own column, one entry per side whose grid
-## neighbour (`columns` -- the same dictionary _local_footprint_columns()
-## returns) is *not* part of the shape. A side whose neighbour *is* present is
-## a shared boundary between two occupied columns and is never emitted at
-## all -- there is no post-hoc matching step left to get wrong, at any
-## rotation. Each edge's two endpoints are local (ghost-local, pre-rotation)
-## 3D points at the column's own ceiling height, ready for
-## _append_outline_wall() to rotate individually.
-func _outline_edges_for_column(key: Vector2i, bounds: Dictionary, columns: Dictionary) -> Array[Dictionary]:
-	var edges: Array[Dictionary] = []
-	var y: float = bounds["ceiling_y"]
-	var x0: float = bounds["x0"]
-	var x1: float = bounds["x1"]
-	var z0: float = bounds["z0"]
-	var z1: float = bounds["z1"]
-	if not columns.has(Vector2i(key.x + 1, key.y)):
-		edges.append({"a": Vector3(x1, y, z0), "b": Vector3(x1, y, z1)})
-	if not columns.has(Vector2i(key.x - 1, key.y)):
-		edges.append({"a": Vector3(x0, y, z1), "b": Vector3(x0, y, z0)})
-	if not columns.has(Vector2i(key.x, key.y + 1)):
-		edges.append({"a": Vector3(x1, y, z1), "b": Vector3(x0, y, z1)})
-	if not columns.has(Vector2i(key.x, key.y - 1)):
-		edges.append({"a": Vector3(x0, y, z0), "b": Vector3(x1, y, z0)})
-	return edges
-
-
-## Appends one outline edge's own prism wall into the caller's shared mesh
-## arrays: a vertical(-ish) quad (2 triangles) from `a_local`/`b_local` --
-## ghost-local, pre-rotation 3D points at the edge's own column's ceiling
-## height (_outline_edges_for_column()) -- down to `bottom_y` (world Y).
-## Bontago-xtq.19 (this file's own header): `a_local`/`b_local` are rotated by
-## the ghost's current `basis` individually, right here, rather than the old
-## per-column _append_prism_walls()'s single shared `top_y` scalar -- under a
-## pitch/roll the two ends of one flat local edge land at different world Y
-## (a tilted plane's own true silhouette edge), which is what keeps this
-## wall's own geometry matching the real rotated shape above it exactly,
-## instead of forcing a flat cap that no longer lines up with a tilted
-## neighbour's own true (also tilted) edge -- the geometric root cause of the
-## visible seams this fix exists for (this file's own header).
-func _append_outline_wall(
-	a_local: Vector3, b_local: Vector3, bottom_y: float,
+## Appends one outline loop's own prism walls into the caller's shared mesh
+## arrays: for every edge of `loop` (ghost-local XZ, either an outer boundary
+## or a hole loop -- Bontago-xtq.19 attempt 3's own header DECISION: both wall
+## identically, since a hole in the rendered silhouette needs its own interior
+## wall exactly as much as the outer perimeter does), one vertical quad (2
+## triangles) from `top_y` down to `bottom_y`. Bontago-xtq.19 attempt 3: no
+## `columns`/`self_index` skip-list any more -- the loops _shape_silhouette_
+## loops() returns already have every internal cell-grid seam unioned away, so
+## every edge here is already a true outer-perimeter (or hole-perimeter) edge.
+## One winding is enough -- _projection_material's own CULL_DISABLED (see
+## _ready()) draws both sides of every triangle regardless of winding.
+func _append_prism_walls(
+	loop: PackedVector2Array, top_y: float, bottom_y: float,
 	verts: PackedVector3Array, normals: PackedVector3Array, uvs: PackedVector2Array, indices: PackedInt32Array
 ) -> void:
-	var edge_length: float = a_local.distance_to(b_local)
-	if edge_length <= 0.0:
-		return
-	var a_rot: Vector3 = basis * a_local
-	var b_rot: Vector3 = basis * b_local
-	var a_top_y: float = global_position.y + a_rot.y
-	var b_top_y: float = global_position.y + b_rot.y
-	if maxf(a_top_y, b_top_y) - bottom_y <= 0.0:
-		return
-	# Bontago-xtq.19: clamp each corner independently rather than skipping the
-	# whole edge -- an extreme rotation could in principle tip one corner of
-	# an otherwise-valid edge below the ground while its neighbour stays well
-	# above it; clamping keeps the wall a valid (if locally flattened) quad
-	# instead of an inverted one. No shipped rotation range reaches this in
-	# practice (this file's own _column_top_world_y() already guarantees the
-	# column's own worst corner clears the ground before this is ever called).
-	var a_top: float = maxf(a_top_y, bottom_y)
-	var b_top: float = maxf(b_top_y, bottom_y)
-
-	var projected_dir: Vector2 = Vector2(b_rot.x - a_rot.x, b_rot.z - a_rot.z)
-	var projected_length: float = projected_dir.length()
-	# Outward-ish normal for this edge (SHADING_MODE_UNSHADED means it has no
-	# visible effect today, but a correct value costs nothing and keeps the
-	# mesh sane if the material ever changes). Falls back to a fixed axis for
-	# the degenerate near-vertical-in-XZ case (a wall edge whose two ends
-	# project to (almost) the same XZ point) rather than dividing by zero.
-	var normal: Vector3 = Vector3.UP
-	if projected_length > 0.0001:
-		var edge_dir: Vector2 = projected_dir / projected_length
-		normal = Vector3(edge_dir.y, 0.0, -edge_dir.x)
-
-	var base_index: int = verts.size()
-	verts.append(Vector3(a_rot.x, a_top, a_rot.z))
-	verts.append(Vector3(b_rot.x, b_top, b_rot.z))
-	verts.append(Vector3(b_rot.x, bottom_y, b_rot.z))
-	verts.append(Vector3(a_rot.x, bottom_y, a_rot.z))
-	for _k: int in range(4):
-		normals.append(normal)
-	var wall_height: float = maxf(a_top, b_top) - bottom_y
-	uvs.append(Vector2(0.0, 0.0))
-	uvs.append(Vector2(edge_length / tuning.cube_size, 0.0))
-	uvs.append(Vector2(edge_length / tuning.cube_size, wall_height / tuning.cube_size))
-	uvs.append(Vector2(0.0, wall_height / tuning.cube_size))
-	indices.append(base_index)
-	indices.append(base_index + 2)
-	indices.append(base_index + 1)
-	indices.append(base_index)
-	indices.append(base_index + 3)
-	indices.append(base_index + 2)
+	var edge_count: int = loop.size()
+	for i: int in range(edge_count):
+		var a: Vector2 = loop[i]
+		var b: Vector2 = loop[(i + 1) % edge_count]
+		var edge_length: float = a.distance_to(b)
+		if edge_length <= 0.0:
+			continue
+		# Outward-ish normal for this edge (SHADING_MODE_UNSHADED means it
+		# has no visible effect today, but a correct value costs nothing and
+		# keeps the mesh sane if the material ever changes).
+		var edge_dir: Vector2 = (b - a) / edge_length
+		var normal: Vector3 = Vector3(edge_dir.y, 0.0, -edge_dir.x)
+		var base_index: int = verts.size()
+		verts.append(Vector3(a.x, top_y, a.y))
+		verts.append(Vector3(b.x, top_y, b.y))
+		verts.append(Vector3(b.x, bottom_y, b.y))
+		verts.append(Vector3(a.x, bottom_y, a.y))
+		for _k: int in range(4):
+			normals.append(normal)
+		uvs.append(Vector2(0.0, 0.0))
+		uvs.append(Vector2(edge_length / tuning.cube_size, 0.0))
+		uvs.append(Vector2(edge_length / tuning.cube_size, (top_y - bottom_y) / tuning.cube_size))
+		uvs.append(Vector2(0.0, (top_y - bottom_y) / tuning.cube_size))
+		indices.append(base_index)
+		indices.append(base_index + 2)
+		indices.append(base_index + 1)
+		indices.append(base_index)
+		indices.append(base_index + 3)
+		indices.append(base_index + 2)
 
 
 ## Unweighted average of `hull`'s own vertices -- good enough as "roughly the
@@ -1213,48 +1237,66 @@ func footprint_polygon_world(index: int) -> PackedVector2Array:
 
 
 ## For tests: the world-space Y span (top, bottom) of the held shape's own
-## whole bookkeeping -- Vector2.ZERO when nothing is held or every prism
-## column collapsed (see _update_projection_mesh()'s own guard). `top` is
-## always the held shape's own current *highest* point (Bontago-xtq.9: matches
+## whole bookkeeping -- Vector2.ZERO when nothing is held or the prism
+## collapsed (see _update_projection_mesh()'s own guard). `top` is always the
+## held shape's own current *highest* point (Bontago-xtq.9: matches
 ## _rotated_top_offset()'s own contract, not _rotated_bottom_offset()'s);
-## `bottom` is the footprint's own landing height. Bontago-xtq.16: this no
-## longer describes the prism *mesh*'s own AABB (a non-convex shape's columns
-## can each cap lower than this) -- game/PlayerController.gd's own spawn-
-## clearance still reads exactly this whole-shape contract, so it stays
-## unchanged; see projection_column_span_y() for what an individual column's
-## own wall actually spans.
+## `bottom` is the footprint's own landing height. Bontago-xtq.19 attempt 3:
+## since every wall now shares this one span (no per-column cap any more --
+## this file's own header), this is also exactly what projection_column_
+## span_y() below now reports.
 func projection_span_y() -> Vector2:
 	return _projection_span_y
 
 
-## For tests (Bontago-xtq.16, S4 bug -- docs/original_hover-preview.png): how
-## many separate light-shaft columns the projection prism currently draws --
-## one per rotated XZ footprint patch with at least one solid cell over it
-## (several cells merge into one column when they share a patch, e.g. a
-## straight unrotated stack), not one flat hull for the whole shape's own
-## convex silhouette any more (that used to draw a shaft over an empty notch
-## of a non-convex shape like S4, reaching as high as a *different*, taller
-## column).
+## For tests: 1 while the projection prism is shown, 0 while it is collapsed
+## or nothing is held -- the same thing has_projection_mesh() reports, kept as
+## a count (rather than removed outright) purely so this package's own older
+## tests/unit/test_ghost_preview.gd calls to this contract stay source-
+## compatible. Bontago-xtq.19 attempt 3 (this file's own header): Bontago-
+## xtq.16's per-column model (several entries, one per surviving footprint
+## patch) is gone along with the columns themselves -- the merged silhouette
+## prism has exactly one shared top/bottom span for its every wall.
 func projection_column_count() -> int:
 	return _projection_columns.size()
 
 
-## For tests: the world-space (top, bottom) Y span projection column `index`
-## currently covers. `top` is the lowest world-space Y among every cell
-## sharing that column's own rotated XZ footprint patch -- never the whole
-## shape's own highest point (see projection_span_y() for that, which
-## PlayerController's spawn clearance still reads unchanged); `bottom` is
-## always the footprint's own disc landing height, the same value
-## projection_span_y().y already reports.
+## For tests: the world-space (top, bottom) Y span the projection prism
+## currently covers -- identical to projection_span_y() regardless of `index`
+## (Bontago-xtq.19 attempt 3: every wall shares one span now; see this file's
+## own header for why the old per-column cap was not preserved). `index` is
+## kept as a parameter only so this package's own older call sites/tests stay
+## source-compatible; any in-range value returns the same span.
 func projection_column_span_y(index: int) -> Vector2:
 	return _projection_columns[index]
 
 
+## For tests (Bontago-xtq.19 attempt 3): how many separate outline loops the
+## merged-mesh silhouette currently produced -- 1 for every shipped BlockShape
+## at every rotation this package tests (a single connected rendered shell has
+## no enclosed hole to split its outline into an outer + hole pair), 0 when
+## nothing is held. See this file's own header DECISION for the one
+## unexercised case (an O-ring-shaped BlockShape, none shipped today) this
+## would report 2 for instead.
+func projection_outline_loop_count() -> int:
+	return _shape_silhouette_loops().size()
+
+
+## For tests: outline loop `index` (see projection_outline_loop_count()),
+## translated into world-space XZ the same way footprint_polygon_world()
+## already exposes the flat footprint hull -- lets a test measure the actual
+## rendered prism's own footprint area/shape directly, not just its vertex
+## count.
+func projection_outline_polygon_world(index: int) -> PackedVector2Array:
+	var loop: PackedVector2Array = _shape_silhouette_loops()[index]
+	var world_loop: PackedVector2Array = PackedVector2Array()
+	for point: Vector2 in loop:
+		world_loop.append(Vector2(global_position.x + point.x, global_position.z + point.y))
+	return world_loop
+
+
 ## For tests: every world-space vertex of the projection prism mesh currently
-## built, flattened across every column's own walls -- lets a test check the
-## S4 bug's own literal repro ("no prism vertex lies above the min Y of the
-## cells over its XZ patch") directly against the real rendered geometry
-## rather than trusting this file's own per-column bookkeeping above.
+## built, flattened across every outline loop's own walls.
 func projection_mesh_vertices_world() -> PackedVector3Array:
 	var result: PackedVector3Array = PackedVector3Array()
 	if _projection_mesh == null or _projection_mesh.mesh == null:
