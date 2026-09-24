@@ -6,9 +6,12 @@ session. This is a restart snapshot. Refresh live state; keep task progress in B
 ## Update 2026-09-24 evening (session close, "ship it") — resume here
 
 Main `9ebe87a` + this note, pushed. Play copy `M:/Bontago-worktrees/play` is on the same commit.
-Owner played two bot matches (`--headless-host --bots=3 --players=4`, windowed) and closed the
-feel round with "good enough for now, ship it": **xtq.18/.19/.20/.21, xtq.12 CLOSED**; **mv0.35
-CLOSED as a documented limitation** (held-block ceiling = wire band, ~70 m; owner: fine for now).
+Owner played two bot matches (`--headless-host --bots=3 --players=4`, windowed). Verdicts:
+**xtq.18 and xtq.20 CLOSED (fixed)**; **xtq.19 (prism segmentation), xtq.21 (mirror lag) and
+mv0.35 (~70 m ceiling) are NOT fixed → BACKLOG (deferred, P3)**, owner does not want more time on
+them now; **xtq.12 (reflectivity) reopened** — "hard to judge with that texture" → `xtq.22` F4
+**Skybox dropdown** (Territory tab; installed sets + Procedural/none, switches sky + disc reflection
+live) merged so the owner can judge it next session.
 
 Merged today: `d04` gift-claim feedback (pop in claimer colour, HUD toast, hint pulse; claim rule
 [ORIGINAL] unchanged — the owner's crate was simply outside his territory), `tdw` F4 preset
