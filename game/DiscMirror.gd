@@ -39,6 +39,43 @@ extends Node3D
 ## the mirror camera would render the disc's own shader material (which
 ## itself samples mirror_tex), producing a one-frame-stale nested reflection
 ## of a reflection instead of a clean image of the blocks/sky above it.
+##
+## Bontago-xtq.21 (owner 2026-09-24: "there's a clear delay between the
+## reflection and the ghost block while moving ... they don't align at
+## all"). ROOT CAUSE, confirmed with tests/unit/test_disc_mirror.gd's own
+## process-order regression test below: Godot dispatches every node's
+## _process() once per frame in ascending process_priority order (tree
+## position only breaks a tie between equal priorities) -- this node used to
+## sit at the engine's default (0), the same priority CameraRig.gd's own
+## class doc already explains is not safe to assume another node runs after
+## (that file's _PROCESS_PRIORITY_AFTER_GHOST exists for exactly this reason,
+## for a *different* pair of nodes: PlayerController's ghost vs CameraRig's
+## own follow target). CameraRig only moves its Camera3D to *this* frame's
+## pose inside CameraRig._process() itself (priority 1) -- so at priority 0
+## this node's own _process() ran first, every frame, and read
+## _source_camera.global_transform exactly as CameraRig had left it at the
+## END of the PREVIOUS frame. Under any camera/ghost motion that is a
+## persistent one-whole-frame-stale mirror pose, which reads exactly like the
+## owner's "clear delay ... they don't align at all" (a fixed lag under
+## motion, not random jitter). process_priority = _PROCESS_PRIORITY_LAST
+## below fixes the ordering; _camera.physics_interpolation_mode =
+## PHYSICS_INTERPOLATION_MODE_OFF (project.godot's physics/common/
+## physics_interpolation is on) removes a second, independent contributor
+## the owner's own log flagged directly (`WARNING: [Physics interpolation]
+## Interpolated Camera3D triggered from outside physics process:
+## ".../MirrorCamera" (possibly benign)`): the RenderingServer's physics
+## interpolation smooths a node's rendered transform between two states it
+## expects to be written once per *physics* tick, using the physics-tick
+## interpolation fraction; a transform written every rendered _process()
+## frame instead (this node's own mirror_transform() call, same as the main
+## CameraRig's Camera3D, which logs the identical warning and is out of this
+## package's ownership -- see the REPORT this package hands back) is exactly
+## the "outside physics process" case the warning names, and produces extra
+## smoothing/lag on top of the ordering bug rather than the clean, immediate
+## pose a per-frame-driven camera needs. OFF makes this node's own mirror
+## camera always show its latest logical transform with no server-side
+## smoothing, matching how CameraRig itself drives its own Camera3D (a
+## _process()-only walk with no _physics_process motion at all).
 
 @export var camera_path: NodePath = NodePath("")
 @export var field_path: NodePath = NodePath("")
@@ -53,6 +90,16 @@ const MIRROR_CULL_MASK: int = 0xFFFFF & ~DISC_LAYER_BIT
 ## could resolve.
 const MIN_RESOLUTION_SCALE: float = 0.05
 const MAX_RESOLUTION_SCALE: float = 1.0
+## Bontago-xtq.21 (see the class doc's own ROOT CAUSE paragraph): far higher
+## than the minimum "one more than CameraRig's own _PROCESS_PRIORITY_AFTER_
+## GHOST (1)" would need. CameraRig.gd is out of this package's ownership
+## (assigned-file rules, Bontago-xtq.21 brief), so its own private constant
+## cannot be imported or asserted against here, and picking the bare minimum
+## would silently break again the next time any node's own camera-mover
+## priority is raised past 1 for an unrelated reason. A large fixed margin
+## means this node simply always runs last among plausible camera-movers,
+## with no cross-file number to keep in sync.
+const _PROCESS_PRIORITY_LAST: int = 4096
 
 var _viewport: SubViewport = null
 var _camera: Camera3D = null
@@ -62,6 +109,11 @@ var _overlay: TerritoryOverlay = null
 
 
 func _ready() -> void:
+	# Bontago-xtq.21 (class doc's own ROOT CAUSE paragraph): must run after
+	# whatever moves _source_camera this same frame (CameraRig._process(),
+	# priority 1), or mirror_transform() below reflects last frame's camera
+	# pose instead of this one's.
+	process_priority = _PROCESS_PRIORITY_LAST
 	_source_camera = get_node_or_null(camera_path) as Camera3D
 	_field = get_node_or_null(field_path) as Field
 
@@ -76,6 +128,13 @@ func _ready() -> void:
 	_camera = Camera3D.new()
 	_camera.name = "MirrorCamera"
 	_camera.cull_mask = MIRROR_CULL_MASK
+	# Bontago-xtq.21 (class doc's own ROOT CAUSE paragraph): this camera's own
+	# transform is fully re-derived from _source_camera every _process() frame
+	# below -- physics interpolation smoothing it between ticks only ever adds
+	# lag on top of that, never anything correct to show, and is exactly what
+	# the owner's own log (`Interpolated Camera3D triggered from outside
+	# physics process ... MirrorCamera`) flagged.
+	_camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_viewport.add_child(_camera)
 
 	if _field != null:
