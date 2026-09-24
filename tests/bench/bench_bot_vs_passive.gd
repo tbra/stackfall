@@ -146,6 +146,36 @@ extends Node3D
 ## be the true cause, so seeds 2 and 3 were deliberately not run against the
 ## unfixed match code -- they would very likely reproduce the same shortfall
 ## without adding new evidence.
+##
+## DECISION, part 3 (Bontago-d5c.7/.12 follow-up, this file's own fix, NOT a
+## MatchFeed/BotController change): the hypothesis above was right about the
+## mechanism but wrong about where the fix belongs. `_feed_expired[BOT_SLOT]`
+## really was latching, but not because MatchFeed.gd has a bug this bench can
+## trigger in a real match -- this bench's own `_on_feed_timer_expired()`
+## fallback only ever answered `PASSIVE_SLOT`'s expiry, leaving `BOT_SLOT`
+## with nothing to clear its own latch once the Hard bot missed one window,
+## something a *real* net-hosted match never suffers because `net/MatchNet.
+## gd`'s own `_on_feed_timer_expired()` auto-drops for every non-local slot,
+## bot or not (`Net.is_local_slot()` is only ever true for slot 0 on a host).
+## Extending this bench's own fallback to `BOT_SLOT` (see `_on_
+## feed_timer_expired()`'s own DECISION below for the full mechanism and why
+## `Match.default_ghost_origin()` is not a compromise here) is a fixture
+## fidelity fix, not a tuning change to the bot or a MatchFeed patch --
+## Bontago-2lr (the suspected underlying MatchFeed latch, for a slot that
+## really has no fallback of any kind) remains filed separately and untouched.
+## Seeds 2 and 3 (docs/M5_PLAN.md P6's own "run at least 3" acceptance line)
+## were run once this fix landed. All three seeds at the graded default
+## (time_scale=1, no --timeout-s override) now PASS, sanity-valid, no
+## latch_guard triggered: seed=1 bot_placements=64 (bot_own=50,
+## bot_forced=14) elapsed_s=382.45; seed=2 bot_placements=89 (bot_own=73,
+## bot_forced=16) elapsed_s=531.25; seed=3 bot_placements=58 (bot_own=53,
+## bot_forced=5) elapsed_s=352.00 -- every seed's bot_placements_per_min is
+## ~9.9-10.05, i.e. the Hard bot now sustains the full block_timer cadence
+## for the whole run rather than collapsing after an early clean rate, and
+## most of each run's placements are the bot's own voluntary request_place()
+## calls (bot_own_placements), not this file's own forced fallback. See this
+## session's Beads checkpoint (Bontago-d5c.7/.12) for the full command lines
+## and log paths.
 
 ## Bench-only knobs (CLAUDE.md: no magic numbers scattered through the logic
 ## below) -- not gameplay tunables, so they live here rather than in a
@@ -205,6 +235,16 @@ const SANITY_MIN_INTERVALS: float = 4.0
 ## finite run always has, tight enough to still catch the ~9x corruption the
 ## revised DECISION above documents.
 const SANITY_TOLERANCE_FRACTION: float = 0.2
+## Feed-latch guard (Bontago-2lr / DECISION part 3 above): a slot whose own
+## placement count has not advanced for this many config.block_timer
+## intervals, while Match.state() == PLAYING, is treated as stalled rather
+## than genuinely idle -- MatchFeed's own per-slot loop guarantees a placement
+## (voluntary or forced) at least once every interval once this file's own
+## uniform per-slot auto-drop fallback (_on_feed_timer_expired() below) is
+## wired up, so a gap this wide can only mean the run's placement counts are
+## no longer trustworthy for a PASS/FAIL verdict. Generous for the same
+## +-1-interval edge-effect reason SANITY_TOLERANCE_FRACTION is.
+const LATCH_MAX_INTERVALS: float = 3.0
 
 var _field: Field = null
 var _blocks_root: Node3D = null
@@ -218,9 +258,27 @@ var _original_time_scale: float = 1.0
 var _original_max_physics_steps: int = 8
 var _bot_placements: int = 0
 var _passive_placements: int = 0
+## Bontago-d5c.7/.12: how many of _bot_placements were this bench's own
+## forced auto-drop (Events.feed_timer_expired -> _on_feed_timer_expired())
+## rather than the bot's own voluntary request_place() from _send_best_
+## placement() -- territory/win-condition-wise a placement is a placement
+## either way (see _on_feed_timer_expired()'s own DECISION), but the split is
+## the whole point of grading this bench meaningfully: a run that is mostly
+## bot_forced_drops is not evidence the Hard bot plays well, even if it wins.
+var _bot_forced_drops: int = 0
 var _match_won: bool = false
 var _winner_team: int = -1
 var _passed: bool = false
+## Feed-latch guard bookkeeping (see LATCH_MAX_INTERVALS above). _tick_now is
+## the same counted-tick value _run_ticks() is already iterating; _on_block_
+## placed() stamps it into whichever slot's own last-placement tick just
+## advanced, and _check_feed_latch() compares the two against the current
+## tick each iteration.
+var _tick_now: int = 0
+var _last_bot_placement_tick: int = 0
+var _last_passive_placement_tick: int = 0
+var _latch_slot: int = -1
+var _latch_note: String = ""
 
 
 ## Godot's own Logger (OS.add_logger()/remove_logger()) -- the mechanism
@@ -371,8 +429,10 @@ func _on_block_placed(block: RigidBody3D, _shape_id: StringName) -> void:
 	var owner_slot: int = (block as Block).owner_slot
 	if owner_slot == BOT_SLOT:
 		_bot_placements += 1
+		_last_bot_placement_tick = _tick_now
 	elif owner_slot == PASSIVE_SLOT:
 		_passive_placements += 1
+		_last_passive_placement_tick = _tick_now
 
 
 func _on_match_won(team_id: int) -> void:
@@ -380,31 +440,69 @@ func _on_match_won(team_id: int) -> void:
 	_winner_team = team_id
 
 
-## DECISION (tests/bench/bench_bot_vs_passive.gd): reproduces net/MatchNet.gd's
-## own `_on_feed_timer_expired()` "the host drops for every slot it does not
-## itself control, from the last cursor it received" fallback (with no cursor
-## ever received for a truly silent slot, `default_ghost_origin(slot_id)` is
-## exactly what MatchNet itself falls back to). autoload/match/MatchFeed.gd
-## only *emits* Events.feed_timer_expired -- the actual auto-drop call
-## normally comes from net/MatchNet.gd (a live Net/session layer) or
-## game/PlayerController.gd (a human/bot controller), neither of which this
-## bench's Field/BlockRegistry/Match-direct fixture (tests/bench/
-## bench_headless_bots.gd's own precedent) constructs. Without this handler
-## the passive slot's blocks never leave its hand at all (confirmed by a
-## seed=1 run: passive_placements=0 across the full 600 s budget) --
-## "passive" per docs/M5_PLAN.md P6 means "plays exactly as badly as a human
-## who never touches the controls," not "never places a single block," so
-## this bench supplies the same fallback net/MatchNet.gd would have, using
-## only Match's own public request_place()/default_ghost_origin()/feed_seq()
-## API -- no game code changed. feed_seq is left at request_place()'s -1
-## sentinel ("trusted local caller", autoload/Match.gd's own doc comment),
-## matching how every other host-local call in this fixture already works.
+## DECISION (tests/bench/bench_bot_vs_passive.gd, revised for DECISION part 3
+## above -- Bontago-d5c.7/.12): reproduces net/MatchNet.gd's own
+## `_on_feed_timer_expired()` "the host drops for every slot it does not
+## itself control, from the last cursor it received" fallback, now for BOTH
+## slots -- BOT_SLOT as well as PASSIVE_SLOT. autoload/match/MatchFeed.gd only
+## *emits* Events.feed_timer_expired; the actual auto-drop call normally comes
+## from net/MatchNet.gd (a live Net/session layer) or game/PlayerController.gd
+## (a human/bot controller), neither of which this bench's Field/
+## BlockRegistry/Match-direct fixture (tests/bench/bench_headless_bots.gd's
+## own precedent) constructs. The original single-slot (PASSIVE_SLOT-only)
+## version of this handler left BOT_SLOT with no fallback of its own: the
+## instant the Hard bot missed one config.block_timer window (a long
+## GENERATING think-cycle, or a rejection-backoff chain pushing it past the
+## boundary), nothing ever answered Events.feed_timer_expired for BOT_SLOT,
+## autoload/match/MatchFeed.gd's own `_feed_expired[BOT_SLOT]` latch (filed
+## separately as Bontago-2lr, NOT fixed here) never cleared (`_consume_and_
+## refeed()` only clears it on the `auto_drop == true` branch), and the bot's
+## slot silently stopped receiving any further blocks for the rest of the
+## run. That is not a fair reproduction of a real match: net/MatchNet.gd's own
+## fallback answers for every slot `Net.is_local_slot()` reports false for,
+## and `is_local_slot()` (autoload/Net.gd) is only ever true for slot 0 on a
+## host -- a bot occupying any other slot in a real net-hosted match is
+## exactly as un-local, so MatchNet's own uniform per-slot fallback is what
+## keeps a real bot's slot alive there. This bench's own BOT_SLOT happens to
+## be 0 for an unrelated, P6-mandated reason (docs/M5_PLAN.md's own "slot 0 =
+## bot, slot 1 = passive"), so without this fix the bench was silently *more*
+## fragile than the real net path it exists to approximate, not a faithful
+## stand-in for it -- the seed=1 FAIL evidence in DECISION part 2 above
+## (bot_placements=37 collapsing well after an early clean 10.0/min) is this
+## exact bug, not proof of a genuine Hard-bot weakness.
+##
+## "the bot's last requested cursor, if the bench can observe one cheaply"
+## (this package's own brief): there is no cheap one to observe, for either
+## slot. net/MatchNet.gd's `cursor_for_slot()` is only ever populated by the
+## `net_cursor`/`net_update_cursor` RPCs a `PlayerController`'s own aim-and-
+## click input sends (`net/MatchNet.gd`'s `_send_cursor_update()` and its
+## matching RPC handler) -- game/BotController.gd never calls either (grepped:
+## no `update_cursor` reference anywhere in that file), so a bot-only slot's
+## cursor is exactly as unknown to a *real* MatchNet as it is to this bench's
+## own Field/Match-direct fixture, which constructs no Net/PlayerController at
+## all for either slot. `Match.default_ghost_origin(slot_id)` (the slot's own
+## home flag position) is therefore not a compromise made only for this
+## bench -- it is the same fallback a real net-hosted match would also use for
+## any slot with no PlayerController ever aiming it, bot-driven or truly
+## silent alike.
+##
+## `feed_seq` is now quoted explicitly (`Match.feed_seq(slot_id)`) rather than
+## left at request_place()'s own `-1` "trusted local caller" sentinel (what
+## the single-slot version used): this matches net/MatchNet.gd's own
+## `_on_feed_timer_expired()` call exactly (it always quotes `_authority().
+## feed_seq(slot_id)`). autoload/match/MatchPlacement.gd's request_place()
+## feed_seq guard only ever refuses a *stale* quoted value, and Events.
+## feed_timer_expired only ever fires for a slot whose current interval's
+## piece is genuinely unspent (MatchFeed._tick_feed()'s own early-return for
+## `_release_locked[i]`, see that function's own comment), so the value
+## quoted here is always the live one -- functionally identical to `-1` for
+## this fixture, but a closer mirror of the real code path this bench exists
+## to approximate.
 func _on_feed_timer_expired(slot_id: int) -> void:
-	if slot_id != PASSIVE_SLOT:
-		return
-	Match.request_place(
-		PASSIVE_SLOT, Match.default_ghost_origin(PASSIVE_SLOT), 0, Quaternion.IDENTITY, true
-	)
+	var origin: Vector3 = Match.default_ghost_origin(slot_id)
+	Match.request_place(slot_id, origin, 0, Quaternion.IDENTITY, true, Match.feed_seq(slot_id))
+	if slot_id == BOT_SLOT:
+		_bot_forced_drops += 1
 
 
 ## Polls one physics tick at a time via SceneTree's own physics_frame signal,
@@ -432,7 +530,36 @@ func _run_ticks() -> int:
 		if Match.state() != Match.State.PLAYING:
 			continue
 		tick += 1
+		_tick_now = tick
+		_check_feed_latch(tick)
 	return tick
+
+
+## Bontago-2lr guard (see LATCH_MAX_INTERVALS's own comment and DECISION part
+## 3 above): once per counted tick, checks whether either slot has gone more
+## than LATCH_MAX_INTERVALS * config.block_timer sim-seconds since its own
+## last placement -- converted to a tick count the same way _report()'s own
+## elapsed_s conversion works, so it stays correct at any _time_scale. Latches
+## the first slot found stalled (checks BOT_SLOT first only because it is
+## this bench's own graded side; either slot stalling equally invalidates the
+## run) so only the earliest failure is reported, and does nothing once
+## _latch_slot is already set.
+func _check_feed_latch(tick: int) -> void:
+	if _latch_slot != -1 or _config == null or _config.block_timer <= 0.0:
+		return
+	var threshold_ticks: int = int(ceil(
+		LATCH_MAX_INTERVALS * _config.block_timer * Engine.physics_ticks_per_second / _time_scale
+	))
+	if tick - _last_bot_placement_tick > threshold_ticks:
+		_latch_slot = BOT_SLOT
+		_latch_note = "slot=%d(bot) idle_ticks=%d threshold_ticks=%d" % [
+			BOT_SLOT, tick - _last_bot_placement_tick, threshold_ticks,
+		]
+	elif tick - _last_passive_placement_tick > threshold_ticks:
+		_latch_slot = PASSIVE_SLOT
+		_latch_note = "slot=%d(passive) idle_ticks=%d threshold_ticks=%d" % [
+			PASSIVE_SLOT, tick - _last_passive_placement_tick, threshold_ticks,
+		]
 
 
 ## Sanity check (see the revised DECISION above): a passive slot's own
@@ -465,15 +592,16 @@ func _report(ticks: int, errors: int) -> void:
 	var sanity: Array = _sanity_check(elapsed_s)
 	var sanity_valid: bool = bool(sanity[0])
 	var sanity_note: String = String(sanity[1])
+	var latch_invalid: bool = _latch_slot != -1
 	var core_passed: bool = errors == 0 and _winner_team == BOT_SLOT and elapsed_s < _timeout_seconds
-	var result: String = "INVALID" if not sanity_valid else ("PASS" if core_passed else "FAIL")
+	var result: String = "INVALID" if (not sanity_valid or latch_invalid) else ("PASS" if core_passed else "FAIL")
 	_passed = result == "PASS"
 
 	if not _error_logger.messages.is_empty():
 		for message: String in _error_logger.messages:
 			print("BENCH_BOT_VS_PASSIVE logged_error: %s" % message)
 
-	if not core_passed or not sanity_valid:
+	if not core_passed or not sanity_valid or latch_invalid:
 		# Cheap diagnosis for a timeout/loss: each slot's own territory share
 		# at the moment the run ended (Match.team_of(slot_id) is the identity
 		# function today -- MatchConfig.TeamMode beyond OFF is not
@@ -483,6 +611,12 @@ func _report(ticks: int, errors: int) -> void:
 				Match.territory_share(BOT_SLOT), Match.territory_share(PASSIVE_SLOT), _match_won,
 			]
 		)
+
+	if latch_invalid:
+		# Bontago-2lr guard: printed distinctly from the sanity line below so a
+		# reader can tell "engine timing drifted" (sanity) apart from "a slot
+		# stopped placing altogether" (this) at a glance.
+		print("BENCH_BOT_VS_PASSIVE latch_guard %s" % _latch_note)
 
 	print("BENCH_BOT_VS_PASSIVE sanity %s" % sanity_note)
 	_report_bot_timeline(elapsed_s)
@@ -501,10 +635,23 @@ func _report(ticks: int, errors: int) -> void:
 ## PlacementRules.REASON_* already surfaces to a human PlayerController).
 func _report_bot_timeline(elapsed_s: float) -> void:
 	var bot_per_min: float = (float(_bot_placements) / elapsed_s) * 60.0 if elapsed_s > 0.0 else 0.0
+	# Bontago-d5c.7/.12: bot_own_placements is _bot_placements minus every
+	# forced auto-drop this bench's own _on_feed_timer_expired() issued for
+	# BOT_SLOT (see that function's own DECISION) -- the split that actually
+	# distinguishes "the Hard bot plays well" from "the bench's own fallback
+	# is carrying it". maxi() guards against nothing but a logic error here
+	# (_bot_forced_drops can never exceed _bot_placements: every forced drop
+	# that lands or burns is exactly one of the block_placed events counted
+	# into _bot_placements).
+	var bot_own_placements: int = maxi(_bot_placements - _bot_forced_drops, 0)
 	var rejections: Dictionary = _bot.rejection_counts() if _bot != null else {}
 	print(
-		"BENCH_BOT_VS_PASSIVE bot_timeline bot_placements=%d bot_placements_per_min=%.3f rejections=%s" % [
-			_bot_placements, bot_per_min, _format_rejection_counts(rejections),
+		(
+			"BENCH_BOT_VS_PASSIVE bot_timeline bot_placements=%d bot_own_placements=%d " +
+			"bot_forced_drops=%d bot_placements_per_min=%.3f rejections=%s"
+		) % [
+			_bot_placements, bot_own_placements, _bot_forced_drops, bot_per_min,
+			_format_rejection_counts(rejections),
 		]
 	)
 
