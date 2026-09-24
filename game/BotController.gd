@@ -70,6 +70,15 @@ var _state: State = State.IDLE
 var _candidates: Array[BotCandidate] = []
 var _generation_frames_used: int = 0
 
+## Bontago-d5c.12 diagnostic: per-reason count of every non-OK
+## request_place()/request_throw() this bot has sent, keyed by
+## PlacementRules.REASON_* (never REASON_OK, which is never counted -- see
+## _apply_rejection_backoff()). Read-only outside this file; a bench/test
+## seam so tests/bench/bench_bot_vs_passive.gd can report *why* a bot's
+## requests were refused without this file exposing anything beyond a
+## snapshot count.
+var _rejection_counts: Dictionary = {}
+
 
 func _ready() -> void:
 	Events.feed_block_issued.connect(_on_feed_block_issued)
@@ -400,6 +409,13 @@ func _tick_acting() -> void:
 func _apply_rejection_backoff(reason: StringName) -> void:
 	if reason != PlacementRules.REASON_OK:
 		_countdown = tuning.rejection_backoff_s
+		_rejection_counts[reason] = int(_rejection_counts.get(reason, 0)) + 1
+
+
+## Bontago-d5c.12 diagnostic accessor: a duplicate (never the live
+## dictionary) so a caller cannot mutate this bot's own counters.
+func rejection_counts() -> Dictionary:
+	return _rejection_counts.duplicate()
 
 
 ## `place_target_override` is null for an ordinary think-cycle (score every
