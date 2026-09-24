@@ -3,6 +3,34 @@
 Prepared 2026-09-18 from Git, Beads, project files and the interrupted local Claude
 session. This is a restart snapshot. Refresh live state; keep task progress in Beads.
 
+## Update 2026-09-24 evening (session close, "ship it") — resume here
+
+Main `9ebe87a` + this note, pushed. Play copy `M:/Bontago-worktrees/play` is on the same commit.
+Owner played two bot matches (`--headless-host --bots=3 --players=4`, windowed) and closed the
+feel round with "good enough for now, ship it": **xtq.18/.19/.20/.21, xtq.12 CLOSED**; **mv0.35
+CLOSED as a documented limitation** (held-block ceiling = wire band, ~70 m; owner: fine for now).
+
+Merged today: `d04` gift-claim feedback (pop in claimer colour, HUD toast, hint pulse; claim rule
+[ORIGINAL] unchanged — the owner's crate was simply outside his territory), `tdw` F4 preset
+free-during-signal crash, `d5c.7` P6 bench with **3 seeds PASS** (382/531/352 s), `xtq.21` mirror
+one frame behind (DiscMirror process_priority + MirrorCamera interpolation off), `xtq.19` prism =
+merged-mesh silhouette union capped at the shape's underside (attempt 4, Opus).
+
+**P6 lesson:** `d5c.12` "Hard bot loses" was the bench — MatchNet auto-drops every non-local slot
+at the timer boundary in the real game; the bench lacked that fallback for the bot slot, so one
+missed window latched `MatchFeed._feed_expired` (latent trap filed as `2lr`). `Engine.time_scale`
+starves the bot (think budget is per real tick) — graded runs stay at 1x, ~11 min per seed.
+
+**M5 gate:** 8-bot triage clean, full suite 1311/1311, `bench_headless_bots` PASS (5.1 ms/step).
+Only the owner's mixed human+bot lobby check remains before closing epic `Bontago-d5c`.
+
+**Next session order:** owner lobby check → close `d5c` → follow-ups `6y2` (gift SFX), `2lr`
+(MatchFeed latch), `1bt` (CameraRig interpolation), `d5c.11` (bot goal-zone rejections), `t3c`
+(AA) → M6 planning (`stackfall-planner`). Owner questions `b6l`, `6op`, `4nz`, `3td` still open.
+Permission notes: `git checkout*` now allowed; read-only `bd`/GUT/Jev rules live in the gitignored
+`.claude/settings.local.json`. Worker-to-orchestrator messaging (SendMessage) is disabled in this
+harness — a running worker cannot be redirected; stop it and re-dispatch.
+
 ## Update 2026-09-24 00:57 (final, machine put to sleep) — resume here
 
 After the session-close note below, three of the four interrupted workers finished and were
