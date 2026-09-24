@@ -391,6 +391,55 @@ func test_rejected_request_backs_off_before_retrying() -> void:
 	)
 
 
+## Bontago-d5c.12 diagnostic accessor (tests/bench/bench_bot_vs_passive.gd's
+## own bot-timeline report reads this): every non-OK reason
+## _apply_rejection_backoff() ever saw must be tallied, and REASON_OK itself
+## (a successful send, or nothing sent at all) must never be counted.
+func test_rejection_counts_tallies_non_ok_reasons_only() -> void:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	match_ref.next_request_reason = PlacementRules.REASON_CONTESTED
+	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
+	var controller: BotController = _make_controller(field, match_ref, net_ref)
+
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+	Events.feed_block_issued.emit(0, &"cube", &"")
+	assert_eq(controller.rejection_counts(), {}, "no rejection has happened yet")
+
+	_tick(controller, int(5.0 * 60.0))
+
+	var counts: Dictionary = controller.rejection_counts()
+	assert_true(
+		int(counts.get(PlacementRules.REASON_CONTESTED, 0)) >= 1,
+		"a rejected send must be tallied under its own reason"
+	)
+	assert_false(
+		counts.has(PlacementRules.REASON_OK), "REASON_OK must never be tallied"
+	)
+
+	match_ref.next_request_reason = PlacementRules.REASON_OK
+	_tick(controller, int(5.0 * 60.0))
+	assert_false(
+		controller.rejection_counts().has(PlacementRules.REASON_OK),
+		"a later successful send must still never add a REASON_OK entry"
+	)
+
+
+func test_rejection_counts_returns_a_copy_not_the_live_dictionary() -> void:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
+	var controller: BotController = _make_controller(field, match_ref, net_ref)
+
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+	var counts: Dictionary = controller.rejection_counts()
+	counts[PlacementRules.REASON_CONTESTED] = 999
+	assert_eq(
+		controller.rejection_counts().get(PlacementRules.REASON_CONTESTED, 0), 0,
+		"mutating a returned snapshot must not affect this bot's own counters"
+	)
+
+
 # --- Bontago-d5c.8 (M5 P3b-ii item E): BotCandidate.shape_height producer ----
 
 func test_generate_one_candidate_sets_shape_height_for_cube_and_pillar() -> void:
