@@ -29,6 +29,8 @@ var _saved_follow_distance: float
 var _saved_max_cell_toggles: int
 var _saved_tint_color: Color
 var _saved_disk_metallic: float
+var _saved_skybox_default_set: String
+var _saved_skybox_enabled: bool
 
 
 func before_each() -> void:
@@ -47,6 +49,8 @@ func before_each() -> void:
 	_saved_max_cell_toggles = _panel.territory_tuning.max_cell_toggles_per_frame
 	_saved_tint_color = _panel.ghost_tuning.tint_color
 	_saved_disk_metallic = _panel.territory_visuals.disk_metallic
+	_saved_skybox_default_set = _panel.skybox_config.default_set
+	_saved_skybox_enabled = _panel.skybox_config.enabled
 
 
 func after_each() -> void:
@@ -62,6 +66,8 @@ func after_each() -> void:
 	_panel.territory_tuning.max_cell_toggles_per_frame = _saved_max_cell_toggles
 	_panel.ghost_tuning.tint_color = _saved_tint_color
 	_panel.territory_visuals.disk_metallic = _saved_disk_metallic
+	_panel.skybox_config.default_set = _saved_skybox_default_set
+	_panel.skybox_config.enabled = _saved_skybox_enabled
 
 	Input.action_release(&"pause_menu")
 
@@ -209,6 +215,110 @@ func test_apply_physics_preset_ignores_an_unknown_id() -> void:
 	var before: float = _panel.physics_tuning.gravity_multiplier
 	_panel.apply_physics_preset("not_a_real_preset")
 	assert_almost_eq(_panel.physics_tuning.gravity_multiplier, before, 0.0001)
+
+
+# --- Bontago-xtq.22: Skybox dropdown (Territory tab) -------------------------
+# (owner: disc reflectivity is "hard to judge with that texture -- add an
+# option to F4 to change the skybox"). Every assertion below reads
+# Skybox.list_available_sets() itself rather than a hardcoded set name, so
+# this stays green on a checkout with the (gitignored, third-party) original
+# textures installed AND on a bare CI checkout with none installed -- see
+# tools/install_original_assets.ps1 and game/Skybox.gd's own class doc on why
+# those assets never ship in this repo.
+
+func _find_skybox_option(tab: Control) -> OptionButton:
+	for node: Node in tab.find_children("*", "OptionButton", true, false):
+		var option: OptionButton = node as OptionButton
+		if option.item_count > 0 and option.get_item_text(0) == "Procedural / none":
+			return option
+	return null
+
+
+func test_territory_tab_has_a_skybox_option_button_listing_procedural_and_every_discovered_set() -> void:
+	var territory_tab: Control = _panel._tab_container.get_node("Territory")
+	var option: OptionButton = _find_skybox_option(territory_tab)
+	assert_not_null(option, "expected a Skybox OptionButton with 'Procedural / none' as its first item")
+
+	var expected_sets: PackedStringArray = Skybox.list_available_sets()
+	assert_eq(option.item_count, expected_sets.size() + 1)
+	for i: int in range(expected_sets.size()):
+		assert_eq(option.get_item_text(i + 1), expected_sets[i])
+
+
+func test_skybox_row_preselects_the_current_config_value() -> void:
+	var available: PackedStringArray = Skybox.list_available_sets()
+	var target_id: String = available[0] if available.size() > 0 else Skybox.PROCEDURAL_SET_ID
+	_panel.skybox_config.default_set = target_id
+	_panel.skybox_config.enabled = target_id != Skybox.PROCEDURAL_SET_ID
+
+	_panel.rebuild()
+
+	var territory_tab: Control = _panel._tab_container.get_node("Territory")
+	var option: OptionButton = _find_skybox_option(territory_tab)
+	var expected_text: String = "Procedural / none" if target_id == Skybox.PROCEDURAL_SET_ID else target_id
+	assert_eq(option.get_item_text(option.selected), expected_text)
+
+
+func test_apply_skybox_set_writes_the_config_and_reaches_a_live_skybox() -> void:
+	var skybox: Skybox = Skybox.new()
+	skybox.config = _panel.skybox_config
+	add_child_autofree(skybox)  # _ready() joins Skybox.TUNING_GROUP for real.
+
+	_panel.apply_skybox_set("bontago-xtq22-no-such-set")
+
+	assert_eq(_panel.skybox_config.default_set, "bontago-xtq22-no-such-set")
+	assert_true(_panel.skybox_config.enabled)
+	assert_true(
+		skybox.fallback_active,
+		"an unknown set falls back cleanly, but fallback_active only flips via Skybox.apply_set() actually " +
+		"running on this live node -- proves the panel pushed the pick, not just wrote the Resource."
+	)
+
+
+func test_apply_skybox_set_procedural_disables_the_live_skybox() -> void:
+	var skybox: Skybox = Skybox.new()
+	skybox.config = _panel.skybox_config
+	add_child_autofree(skybox)
+
+	_panel.apply_skybox_set(Skybox.PROCEDURAL_SET_ID)
+
+	assert_false(_panel.skybox_config.enabled)
+	assert_true(skybox.fallback_active)
+
+
+func test_apply_skybox_set_is_safe_with_no_live_skybox_in_the_tree() -> void:
+	# No Skybox ever joined Skybox.TUNING_GROUP here -- must not error, and must
+	# still write the shared config so Save override/Copy see the pick.
+	_panel.apply_skybox_set("some-set")
+	assert_eq(_panel.skybox_config.default_set, "some-set")
+	assert_true(_panel.skybox_config.enabled)
+
+
+## Same deterministic-equivalent-of-a-real-click technique this file's own
+## header documents for HSlider/SpinBox/CheckButton/ColorPickerButton: driving
+## the control's own signal directly is what a real mouse click eventually
+## delivers too.
+func test_selecting_the_skybox_dropdown_item_applies_it() -> void:
+	var skybox: Skybox = Skybox.new()
+	skybox.config = _panel.skybox_config
+	add_child_autofree(skybox)
+
+	var territory_tab: Control = _panel._tab_container.get_node("Territory")
+	var option: OptionButton = _find_skybox_option(territory_tab)
+	# Last item is always the highest-sorted discovered set, or index 0
+	# (Procedural, the only item) if none are installed -- either way a real,
+	# in-range index distinct from whatever _find_skybox_option()'s own probe
+	# (index 0) selected by default.
+	var target_index: int = option.item_count - 1
+	option.selected = target_index
+	option.emit_signal("item_selected", target_index)
+
+	var item_text: String = option.get_item_text(target_index)
+	if item_text == "Procedural / none":
+		assert_false(_panel.skybox_config.enabled)
+	else:
+		assert_eq(_panel.skybox_config.default_set, item_text)
+		assert_true(_panel.skybox_config.enabled)
 
 
 func test_a_slider_drag_reaches_an_already_placed_block_end_to_end() -> void:

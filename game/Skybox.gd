@@ -107,6 +107,13 @@ var _face_meshes: Dictionary = {}
 ## this node wired first.
 const TUNING_GROUP: StringName = &"tuning_skybox"
 
+## Bontago-xtq.22: the id apply_set()/list_available_sets() use for "no
+## textured set -- keep the procedural sky", i.e. the empty string. Matches
+## config.default_set's own type (String) so ui/TuningPanel.gd's dropdown can
+## carry it as one more item alongside every real set name, with no separate
+## sentinel enum/type to keep in sync between the two files.
+const PROCEDURAL_SET_ID: String = ""
+
 
 func _ready() -> void:
 	add_to_group(TUNING_GROUP)
@@ -269,10 +276,63 @@ func get_face_texture(face_name: String) -> ImageTexture:
 	return _face_textures.get(face_name) as ImageTexture
 
 
-func _resolve_asset_root() -> String:
+## Static (Bontago-xtq.22): list_available_sets() below calls this from a
+## static context too (building ui/TuningPanel.gd's dropdown does not need a
+## live Skybox instance), and the body never read `self` to begin with.
+static func _resolve_asset_root() -> String:
 	if OS.has_feature("editor"):
 		return "res://assets/original/textures"
 	return OS.get_executable_path().get_base_dir().path_join("assets/original/textures")
+
+
+## Bontago-xtq.22 (owner: "add an option to F4 to change the skybox"): every
+## subfolder of the resolved asset root (or `root_override`, the same test
+## seam load_set() already has), sorted -- the F4 dropdown's own list of real
+## sets, built by ui/TuningPanel.gd alongside its fixed "Procedural / none"
+## entry. Returns an empty array (never an error) when the root itself does
+## not exist -- the ordinary "original assets not installed" case (CLAUDE.md/
+## docs/AGENT_WORKFLOW.md: this repo never ships the third-party textures),
+## so a CI machine's dropdown just shows the procedural entry alone.
+static func list_available_sets(root_override: String = "") -> PackedStringArray:
+	var root: String = root_override if root_override != "" else _resolve_asset_root()
+	var sets: PackedStringArray = PackedStringArray()
+	var dir: DirAccess = DirAccess.open(root)
+	if dir == null:
+		return sets
+	dir.list_dir_begin()
+	var entry: String = dir.get_next()
+	while entry != "":
+		if entry != "." and entry != ".." and dir.current_is_dir():
+			sets.append(entry)
+		entry = dir.get_next()
+	dir.list_dir_end()
+	sets.sort()
+	return sets
+
+
+## Bontago-xtq.22 (owner: disc reflectivity is "hard to judge with that
+## texture -- add an option to F4 to change the skybox"): the live-switch
+## entry point ui/TuningPanel.gd's new Skybox dropdown calls on every Skybox
+## in TUNING_GROUP. `set_name == PROCEDURAL_SET_ID` (the dropdown's
+## "Procedural / none" item) turns the textured box/sky off by setting
+## `config.enabled = false` -- load_set()'s own first check already falls
+## back to the existing ProceduralSkyMaterial whenever that flag is off, so
+## this needs no separate fallback path of its own. Any other name is
+## remembered onto config.default_set (see that field's own DECISION for why
+## reusing it, rather than a second field, is enough for the F4 override
+## save/load path to pick it up) and re-enables the box before delegating to
+## load_set() -- which prints its own one-line fallback notice and leaves the
+## box hidden, exactly as an owner-typed unknown name already does today, for
+## an unknown/missing set. `root_override` mirrors load_set()'s own test seam
+## so tests/unit/test_skybox.gd can drive this against a temp fixture root
+## instead of the real (gitignored) asset root.
+func apply_set(set_name: String, root_override: String = "") -> bool:
+	if set_name == PROCEDURAL_SET_ID:
+		config.enabled = false
+		return load_set(set_name, root_override)
+	config.default_set = set_name
+	config.enabled = true
+	return load_set(set_name, root_override)
 
 
 func _hide_faces() -> void:

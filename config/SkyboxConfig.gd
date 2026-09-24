@@ -13,6 +13,18 @@ extends Resource
 ## Bontago-1en/assets-sky DECISION: "beach" is the calmest, most legible set
 ## (spec 2.10 presentation) and doubles as MapDef's own default for maps that
 ## do not specify one and for the two GUT tests below.
+##
+## DECISION (config/SkyboxConfig.gd, Bontago-xtq.22, owner: "isn't very
+## reflective, like at all -- add an option to F4 to change the skybox"):
+## this same field also doubles as the F4 tuning panel's live selection --
+## game/Skybox.apply_set() writes the name the owner picked here (and flips
+## `enabled` below off/on for the panel's "Procedural / none" entry) so the
+## choice round-trips through ui/TuningPanel.gd's existing Save override/
+## Reset/Copy path exactly like every other tunable, with no second field. No
+## map ever reads this one at match start (game/Main.gd loads
+## config/MapDef.gd's own `skybox_set` instead, which every map resource
+## specifies directly) -- reusing it here does not change which set any map
+## boots with, only what the F4 panel remembers between opens.
 @export var default_set: String = "beach"
 
 ## File names (without extension) inside a set's folder, matching the original

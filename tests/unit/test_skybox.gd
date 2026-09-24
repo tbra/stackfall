@@ -365,6 +365,69 @@ func test_refresh_from_visuals_reapplies_probe_and_ssr_after_a_visuals_change() 
 	)
 
 
+# --- Bontago-xtq.22: apply_set()/list_available_sets() -- the F4 "Skybox"
+# dropdown (owner: disc reflectivity is "hard to judge with that texture --
+# add an option to F4 to change the skybox").
+
+func test_apply_set_loads_the_named_set_and_records_it_on_config() -> void:
+	_write_fixture_set("beach_like", _skybox.config.face_names)
+
+	var result: bool = _skybox.apply_set("beach_like", FIXTURE_ROOT)
+
+	assert_true(result)
+	assert_false(_skybox.fallback_active)
+	assert_eq(_skybox.config.default_set, "beach_like")
+	assert_true(_skybox.config.enabled)
+
+
+func test_apply_set_with_an_unknown_name_falls_back_cleanly() -> void:
+	var result: bool = _skybox.apply_set("does-not-exist", FIXTURE_ROOT)
+
+	assert_false(result)
+	assert_true(_skybox.fallback_active, "an unknown/missing set must fall back, not error.")
+	# The owner's request is still remembered (round-trips through the F4
+	# override the same as every other tunable), even though it never loaded.
+	assert_eq(_skybox.config.default_set, "does-not-exist")
+
+
+func test_apply_set_switches_from_one_loaded_set_to_another() -> void:
+	_write_fixture_set("beach_like", _skybox.config.face_names)
+	_write_fixture_set("mountain_like", _skybox.config.face_names)
+	assert_true(_skybox.apply_set("beach_like", FIXTURE_ROOT))
+
+	var result: bool = _skybox.apply_set("mountain_like", FIXTURE_ROOT)
+
+	assert_true(result)
+	assert_false(_skybox.fallback_active)
+	assert_eq(_skybox.config.default_set, "mountain_like")
+
+
+func test_apply_set_with_the_procedural_id_disables_the_skybox() -> void:
+	_write_fixture_set("beach_like", _skybox.config.face_names)
+	assert_true(_skybox.apply_set("beach_like", FIXTURE_ROOT), "fixture: a real set must load first.")
+
+	var result: bool = _skybox.apply_set(Skybox.PROCEDURAL_SET_ID, FIXTURE_ROOT)
+
+	assert_false(result)
+	assert_true(_skybox.fallback_active)
+	assert_false(_skybox.config.enabled, "the Procedural/none entry must flip config.enabled off.")
+
+
+func test_list_available_sets_returns_sorted_subfolders_of_the_root() -> void:
+	_write_fixture_set("zzz_last", _skybox.config.face_names)
+	_write_fixture_set("aaa_first", _skybox.config.face_names)
+
+	var sets: PackedStringArray = Skybox.list_available_sets(FIXTURE_ROOT)
+
+	assert_eq(sets, PackedStringArray(["aaa_first", "zzz_last"]))
+
+
+func test_list_available_sets_is_empty_for_a_missing_root() -> void:
+	var sets: PackedStringArray = Skybox.list_available_sets(FIXTURE_ROOT.path_join("no-such-root"))
+
+	assert_eq(sets.size(), 0)
+
+
 func test_skybox_is_in_the_tuning_group_after_ready() -> void:
 	assert_true(
 		_skybox.is_in_group(Skybox.TUNING_GROUP),

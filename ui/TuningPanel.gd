@@ -15,7 +15,9 @@ extends CanvasLayer
 ##   Controls  -> PlayerController.ghost_tuning (GhostTuning)
 ##   Physics   -> PlayerController.tuning (PhysicsTuning)
 ##   Territory -> Field.territory_tuning (TerritoryTuning) + Field.visuals
-##                (TerritoryVisuals)
+##                (TerritoryVisuals) + a Skybox dropdown row (Bontago-xtq.22,
+##                config/SkyboxConfig.gd's `default_set`/`enabled`, not
+##                reflection-built -- see _build_skybox_row()'s own doc)
 ##   Feed      -> config/block_feed.tres (BlockFeedConfig), preloaded
 ##                directly -- autoload/Match.gd is the only script holding a
 ##                live reference to this one and it's a different package's
@@ -54,6 +56,13 @@ extends CanvasLayer
 ##     CameraRig.apply_follow_tuning() on every rig in CameraRig.TUNING_GROUP,
 ##     re-snapshotting follow_distance/follow_pitch_deg (clamped, as _ready()
 ##     does) without disturbing a manual orbit/zoom the player already did.
+##   - SkyboxConfig: the Territory tab's Skybox dropdown calls
+##     apply_skybox_set(), which writes default_set/enabled onto the live
+##     skybox_config and then calls Skybox.apply_set() on every Skybox in
+##     Skybox.TUNING_GROUP so the loaded six-face set (and the Environment's
+##     Sky material every reflection/ambient read samples -- see
+##     game/Skybox.gd's own class doc) actually reloads, rather than only
+##     changing a Resource field nothing re-reads on its own.
 ##
 ## Toggled by the tuning_panel_toggle Input Map action (F4; gamepad
 ## pause_menu[Start] + X -- see tools/bootstrap_project.gd's DECISION on that
@@ -142,6 +151,14 @@ var physics_tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
 var territory_tuning: TerritoryTuning = preload("res://config/territory_tuning.tres")
 var territory_visuals: TerritoryVisuals = preload("res://config/territory_visuals.tres")
 var block_feed_config: BlockFeedConfig = preload("res://config/block_feed.tres")
+
+## Bontago-xtq.22: the same preloaded singleton game/Skybox.gd's own `config`
+## field defaults to (Main.tscn's Skybox node never overrides it -- see
+## config/SkyboxConfig.gd's own DECISION on why one field/one path is enough
+## to keep this panel and every live Skybox reading/writing the identical
+## Resource instance, the same BlockFeedConfig idiom this file's own class doc
+## documents right above).
+var skybox_config: SkyboxConfig = preload("res://config/skybox_config.tres")
 
 ## DECISION (ui/TuningPanel.gd): same `Variant` test seam as
 ## ui/NetDebugOverlay.gd's net_provider -- GUT cannot double the plain Net
@@ -389,6 +406,13 @@ func _add_tab(tab_name: String, resources: Array) -> void:
 
 	if tab_name == "Physics":
 		list.add_child(_build_physics_preset_row())
+	if tab_name == "Territory":
+		# Bontago-xtq.22 (owner: disc reflectivity is "hard to judge with that
+		# texture -- add an option to F4 to change the skybox"): placed here,
+		# not a new tab of its own, alongside TerritoryVisuals' own reflection
+		# fields (reflection_probe_*/ssr_*/mirror_*) this row's live-switch
+		# result is judged against.
+		list.add_child(_build_skybox_row())
 
 	for entry: Variant in resources:
 		var resource: Resource = entry as Resource
@@ -834,6 +858,71 @@ func apply_physics_preset(preset_id: String) -> void:
 	rebuild()
 
 
+## Bontago-xtq.22: the Territory tab's own Skybox row, built the same way
+## _build_physics_preset_row() above is (a plain Control returned to
+## _add_tab's caller, not reflection-built and not registered in _rows --
+## config/SkyboxConfig.gd's `default_set`/`enabled` are a String and a bool
+## the reflection loop either can't render (String) or would show as a
+## second, redundant control alongside this dropdown (`enabled`), so both
+## stay off the generic per-field roster and are written here as a pair
+## instead, the same "one control owns several fields at once" idiom the
+## preset row already established).
+func _build_skybox_row() -> Control:
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+
+	var label: Label = Label.new()
+	label.text = "Skybox"
+	label.custom_minimum_size = Vector2(NAME_COLUMN_WIDTH, 0.0)
+	row.add_child(label)
+
+	var option: OptionButton = OptionButton.new()
+	option.tooltip_text = (
+		"Switches the loaded six-face skybox set live (the sky and the disc's " +
+		"mirror/reflection both update immediately) -- lets the owner judge " +
+		"disc reflectivity against different skies without restarting the match."
+	)
+	var ids: Array[String] = [Skybox.PROCEDURAL_SET_ID]
+	option.add_item("Procedural / none")
+	for set_id: String in Skybox.list_available_sets():
+		ids.append(set_id)
+		option.add_item(set_id)
+
+	var selected_id: String = (
+		skybox_config.default_set if skybox_config.enabled else Skybox.PROCEDURAL_SET_ID
+	)
+	var selected_index: int = ids.find(selected_id)
+	option.selected = selected_index if selected_index >= 0 else 0
+
+	option.item_selected.connect(func(index: int) -> void:
+		apply_skybox_set(ids[index])
+	)
+	row.add_child(option)
+
+	return row
+
+
+## Writes the owner's dropdown pick onto the shared skybox_config (so it
+## round-trips through Save override/Reset/Copy exactly like every other
+## tunable -- see config/SkyboxConfig.gd's own DECISION) and then pushes it
+## onto every live Skybox the same "every live instance already in the tree"
+## way apply_physics_live()/apply_camera_tuning_live()/
+## refresh_territory_visuals_live() already do via their own TUNING_GROUPs --
+## a no-op push (but not a no-op write) in a bare-panel test with no Skybox in
+## the tree, the same contract those three already have. Public so a test can
+## drive it without a real OptionButton.
+func apply_skybox_set(set_id: String) -> void:
+	if set_id == Skybox.PROCEDURAL_SET_ID:
+		skybox_config.enabled = false
+	else:
+		skybox_config.default_set = set_id
+		skybox_config.enabled = true
+	for node: Node in get_tree().get_nodes_in_group(Skybox.TUNING_GROUP):
+		var skybox: Skybox = node as Skybox
+		if skybox != null:
+			skybox.apply_set(set_id)
+
+
 func _physics_preset_resource(preset_id: String) -> PhysicsTuning:
 	for preset: Dictionary in PHYSICS_PRESETS:
 		if String(preset["id"]) == preset_id:
@@ -904,8 +993,10 @@ func reset_all() -> void:
 	_reset_resource(territory_tuning)
 	_reset_resource(territory_visuals)
 	_reset_resource(block_feed_config)
+	_reset_resource(skybox_config)
 	apply_physics_live()
 	refresh_territory_visuals_live()
+	apply_skybox_set(skybox_config.default_set if skybox_config.enabled else Skybox.PROCEDURAL_SET_ID)
 	rebuild()
 
 
@@ -942,9 +1033,17 @@ func save_overrides() -> Error:
 	_write_overrides(config, "TerritoryTuning", territory_tuning)
 	_write_overrides(config, "TerritoryVisuals", territory_visuals)
 	_write_overrides(config, "BlockFeedConfig", block_feed_config)
+	_write_overrides(config, "SkyboxConfig", skybox_config)
 	return config.save(SAVE_PATH)
 
 
+## Bontago-xtq.22: TYPE_STRING joins the allowed set here (and in
+## _copy_section() below) so config/SkyboxConfig.gd's `default_set` --
+## the F4 Skybox row's own value, not reflection-built and so never reaching
+## either function through a Control -- still round-trips through Save
+## override/Copy the same as every BOOL/INT/FLOAT/COLOR field already does.
+## No existing resource this panel writes had a String field before, so nothing
+## else changes behavior.
 func _write_overrides(config: ConfigFile, section: String, resource: Resource) -> void:
 	if resource == null:
 		return
@@ -952,7 +1051,10 @@ func _write_overrides(config: ConfigFile, section: String, resource: Resource) -
 		if not _is_exported_field(prop):
 			continue
 		var type: int = int(prop.get("type", TYPE_NIL))
-		if type != TYPE_BOOL and type != TYPE_INT and type != TYPE_FLOAT and type != TYPE_COLOR:
+		if (
+			type != TYPE_BOOL and type != TYPE_INT and type != TYPE_FLOAT
+			and type != TYPE_COLOR and type != TYPE_STRING
+		):
 			continue
 		var prop_name: String = str(prop.get("name", ""))
 		config.set_value(section, prop_name, resource.get(prop_name))
@@ -973,6 +1075,7 @@ static func apply_saved_overrides() -> void:
 	_apply_saved_section(config, "TerritoryTuning", load("res://config/territory_tuning.tres"))
 	_apply_saved_section(config, "TerritoryVisuals", load("res://config/territory_visuals.tres"))
 	_apply_saved_section(config, "BlockFeedConfig", load("res://config/block_feed.tres"))
+	_apply_saved_section(config, "SkyboxConfig", load("res://config/skybox_config.tres"))
 
 
 static func _apply_saved_section(config: ConfigFile, section: String, resource: Resource) -> void:
@@ -1009,6 +1112,7 @@ func build_copy_text() -> String:
 	parts.append(_copy_section("TerritoryTuning", territory_tuning))
 	parts.append(_copy_section("TerritoryVisuals", territory_visuals))
 	parts.append(_copy_section("BlockFeedConfig", block_feed_config))
+	parts.append(_copy_section("SkyboxConfig", skybox_config))
 	return "\n\n".join(parts)
 
 
@@ -1020,7 +1124,10 @@ func _copy_section(section: String, resource: Resource) -> String:
 		if not _is_exported_field(prop):
 			continue
 		var type: int = int(prop.get("type", TYPE_NIL))
-		if type != TYPE_BOOL and type != TYPE_INT and type != TYPE_FLOAT and type != TYPE_COLOR:
+		if (
+			type != TYPE_BOOL and type != TYPE_INT and type != TYPE_FLOAT
+			and type != TYPE_COLOR and type != TYPE_STRING
+		):
 			continue
 		var prop_name: String = str(prop.get("name", ""))
 		lines.append("%s = %s" % [prop_name, _format_value(resource.get(prop_name), type)])
@@ -1039,5 +1146,7 @@ func _format_value(value: Variant, type: int) -> String:
 		TYPE_COLOR:
 			var c: Color = value
 			return "Color(%s, %s, %s, %s)" % [c.r, c.g, c.b, c.a]
+		TYPE_STRING:
+			return "\"%s\"" % String(value)
 		_:
 			return str(value)
