@@ -6,14 +6,41 @@ extends Node
 ## pitched domino beside/above it in the VALID state, then saves one
 ## screenshot per suspect toggled off, all from the same process and pose.
 ##
+## Bontago-xtq.19 attempt 3 (owner screenshots 2026-09-24, screenshot_20260924_
+## 204137.png a tilted 4-long bar, screenshot_20260924_204154.png a T-piece:
+## "the segmented preview is not fixed"): `--seam-check` instead holds a bar4
+## rolled 30 degrees, then a T4, each at a real height above the bare disc, and
+## saves one shot per pose so the merged-mesh-silhouette prism (game/
+## GhostPreview.gd's _shape_silhouette_loops()) can be read for leftover
+## per-cell seams the same way the owner's own screenshots showed them.
+##
 ## Run windowed and off-screen (a real render is required):
 ##   godot --path . --position 10000,10000 --scene res://tools/screenshot_feel8a_footprint.tscn -- --shot-prefix=feel8a-before
+##   godot --path . --position 10000,10000 --resolution 1600x900 --scene res://tools/screenshot_feel8a_footprint.tscn -- --seam-check --shot-prefix=xtq19-seam
+##
+## Bontago-xtq.19 attempt 4: --seam-check now also shoots an S4 at identity
+## (the xtq.16 case: no shaft may rise above its lower cells), holds every pose
+## ~SEAM_CHECK_HEIGHT_M above the disc, and frames the camera on the midpoint
+## between the disc and the ghost from SEAM_CHECK_CAMERA_DISTANCE_M away, so
+## the whole shaft from disc to shape is in one readable shot.
 ##
 ## Lives in tools/ (CLAUDE.md: manual-QA scripts, not part of the running game).
 
 const OUTPUT_DIR: String = "res://feedback/"
 const SETTLE_FRAMES: int = 90
 const TOGGLE_FRAMES: int = 4
+## Bontago-xtq.19 attempt 4 (--seam-check framing, manual QA only): how far
+## above the disc each pose's underside is held, the camera's distance from
+## the shaft's midpoint, and its pitch.
+const SEAM_CHECK_HEIGHT_M: float = 3.0
+const SEAM_CHECK_CAMERA_DISTANCE_M: float = 9.0
+const SEAM_CHECK_CAMERA_PITCH_DEG: float = -12.0
+const SEAM_CHECK_CAMERA_YAW_DEG: float = 40.0
+const SEAM_CHECK_ROLL_DEG: float = 30.0
+## An off-screen (--position 10000,10000) window is clamped by the OS to a tiny
+## size whatever --resolution says, so --seam-check renders its shots through a
+## SubViewport of this size sharing the world and the rig camera's transform.
+const SEAM_CHECK_SHOT_SIZE: Vector2i = Vector2i(1600, 900)
 
 var _prefix: String = "feel8a-before"
 var _main: Node = null
@@ -24,6 +51,7 @@ var _pitch: Quaternion = Quaternion.IDENTITY
 var _bisect: bool = true
 var _confirm: bool = false
 var _after: bool = false
+var _seam_check: bool = false
 
 
 func _ready() -> void:
@@ -36,6 +64,8 @@ func _ready() -> void:
 			_confirm = true
 		elif arg == "--after":
 			_after = true
+		elif arg == "--seam-check":
+			_seam_check = true
 	_main = (load("res://game/Main.tscn") as PackedScene).instantiate()
 	get_tree().root.add_child.call_deferred(_main)
 	await get_tree().process_frame
@@ -47,6 +77,11 @@ func _ready() -> void:
 	_ghost = sandbox.ghost()
 	_controller = sandbox.controller()
 	var home: Vector3 = Match.default_ghost_origin(0)
+
+	if _seam_check:
+		await _run_seam_check(home)
+		get_tree().quit()
+		return
 
 	Match._held_shapes[0] = load("res://config/blocks/L3.tres")
 	var reason: StringName = Match.request_place(0, home + Vector3.UP * 0.6, 0, Quaternion.IDENTITY, false)
@@ -128,6 +163,72 @@ func _ready() -> void:
 	visuals.mirror_enabled = false
 	await _close_shot(rig, close_target, "L-close-ssr-mirror-off")
 	get_tree().quit()
+
+
+## Bontago-xtq.19 attempt 3 (owner screenshots 2026-09-24): holds a bar4 rolled
+## 30 degrees, then a T4 at the same rotation, both at a real height above the
+## bare disc with the projection prism visible, and saves one shot each --
+## freezing the controller/camera rig first (same idea as _run_after_
+## mechanism() above) so neither the sandbox feed nor the follow camera
+## disturbs the pose between _pose_seam_check_ghost() and the saved frame.
+func _run_seam_check(home: Vector3) -> void:
+	# Bontago-xtq.19 attempt 3: the controller is frozen (so _shot()'s own
+	# "re-pin to domino" guard skips, and the sandbox feed cannot reissue a
+	# piece mid-shot) -- but CameraRig.follow_block reads its own follow
+	# target from PlayerController's own per-frame set_follow_position() call
+	# (game/PlayerController.gd), which a frozen controller never makes any
+	# more, so _pose_seam_check_ghost() below calls it directly instead. The
+	# rig itself stays processing (unlike the controller) so it actually
+	# applies _yaw/_pitch/_distance/the follow position into the camera
+	# transform every frame (CameraTuning.follow_lag_seconds defaults to 0, an
+	# instant snap -- no extra settle wait needed beyond _shot()'s own).
+	_controller.set_process(false)
+	_controller.set_physics_process(false)
+	var rig: CameraRig = _main._camera_rig
+
+	_cursor = home
+	rig._yaw = deg_to_rad(SEAM_CHECK_CAMERA_YAW_DEG)
+	rig._pitch = deg_to_rad(SEAM_CHECK_CAMERA_PITCH_DEG)
+	rig._distance = SEAM_CHECK_CAMERA_DISTANCE_M
+
+	_pose_seam_check_ghost(load("res://config/blocks/S4.tres"), 0.0, rig)
+	await _wait(6)
+	await _shot("s4-identity")
+
+	_pose_seam_check_ghost(load("res://config/blocks/bar4.tres"), deg_to_rad(SEAM_CHECK_ROLL_DEG), rig)
+	await _wait(6)
+	await _shot("bar4-tilted30")
+
+	_pose_seam_check_ghost(load("res://config/blocks/T4.tres"), deg_to_rad(SEAM_CHECK_ROLL_DEG), rig)
+	await _wait(6)
+	await _shot("t4-tilted30")
+
+
+func _pose_seam_check_ghost(shape: BlockShape, roll_radians: float, rig: CameraRig) -> void:
+	_ghost.set_shape(shape)
+	_ghost.orientation_index = 0
+	_ghost.free_quaternion = Quaternion(Vector3.RIGHT, roll_radians)
+	_ghost._apply_rotation()
+	_ghost.apply_validity(PlacementRules.Result.VALID)
+	# Bontago-xtq.19 attempt 3: a real height (not just tuning.hover_height's
+	# own 0.3 m default) so the prism's own vertical walls read clearly in
+	# frame instead of hugging the disc.
+	_ghost.manual_hover_offset = SEAM_CHECK_HEIGHT_M - _ghost.tuning.hover_height
+	_controller._cursor = _cursor
+	_controller._update_ghost_transform()
+	# Frame the whole shaft: aim at the midpoint between the disc and the
+	# ghost's own centre rather than at the ghost.
+	var centre: Vector3 = _ghost.rotated_center_world()
+	var disc_y: float = _ghost.footprint_quad_position(0).y if _ghost.footprint_quad_count() > 0 else _cursor.y
+	rig.set_follow_position(Vector3(centre.x, (centre.y + disc_y) * 0.5, centre.z))
+	var verts: PackedVector3Array = _ghost.projection_mesh_vertices_world()
+	var top_max: float = -INF
+	for v: Vector3 in verts:
+		top_max = maxf(top_max, v.y)
+	print("XTQ19 pose shape=%s height_above_surface=%.3f walls=%d wall_top_max=%.3f shape_top=%.3f loops=%d" % [
+		shape.id, _ghost.height_above_surface(), verts.size() / 4, top_max,
+		_ghost.projection_span_y().x, _ghost.projection_outline_loop_count()
+	])
 
 
 ## Run 3: after the fix, re-prove the mechanism in-process -- freeze the
@@ -234,18 +335,20 @@ func _shot(suffix: String, _log_state: bool = false) -> void:
 		await get_tree().process_frame
 	if not _controller.is_processing():
 		await RenderingServer.frame_post_draw
-		_save(suffix)
+		await _save(suffix)
 		return
 	# The sandbox feed can reissue a piece at any time; re-pin the pose last.
 	if _ghost.get_shape() == null or _ghost.get_shape().id != &"domino":
 		_pose_ghost()
 		await get_tree().process_frame
 	await RenderingServer.frame_post_draw
-	_save(suffix)
+	await _save(suffix)
 
 
 func _save(suffix: String) -> void:
 	var image: Image = get_viewport().get_texture().get_image()
+	if _seam_check:
+		image = await _render_large_shot()
 	var name: String = _prefix if suffix.is_empty() else "%s_%s" % [_prefix, suffix]
 	var path: String = ProjectSettings.globalize_path("%s%s.png" % [OUTPUT_DIR, name])
 	image.save_png(path)
@@ -254,6 +357,30 @@ func _save(suffix: String) -> void:
 		_ghost.footprint_quad_position(0) if _ghost.footprint_quad_count() > 0 else Vector3.ZERO,
 		_ghost.footprint_quad_count(), _ghost.block_projection_decal_visible(), path
 	])
+
+
+## Bontago-xtq.19 attempt 4: one frame of the current scene at
+## SEAM_CHECK_SHOT_SIZE, from the active camera's own transform/FOV (no HUD).
+func _render_large_shot() -> Image:
+	var source: Camera3D = get_viewport().get_camera_3d()
+	var sub: SubViewport = SubViewport.new()
+	sub.size = SEAM_CHECK_SHOT_SIZE
+	sub.world_3d = get_viewport().world_3d
+	sub.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	var camera: Camera3D = Camera3D.new()
+	camera.fov = source.fov
+	camera.near = source.near
+	camera.far = source.far
+	camera.environment = source.environment
+	sub.add_child(camera)
+	add_child(sub)
+	camera.global_transform = source.global_transform
+	camera.current = true
+	for _i: int in range(3):
+		await RenderingServer.frame_post_draw
+	var image: Image = sub.get_texture().get_image()
+	sub.queue_free()
+	return image
 
 
 func _wait(frames: int) -> void:
