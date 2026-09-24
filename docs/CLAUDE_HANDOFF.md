@@ -3,6 +3,27 @@
 Prepared 2026-09-18 from Git, Beads, project files and the interrupted local Claude
 session. This is a restart snapshot. Refresh live state; keep task progress in Beads.
 
+## Update 2026-09-24 late (final for the day) — resume here
+
+Main `c1dbf9a` + this note, pushed; play copy on `6650c5d` (needs `git -C M:/Bontago-worktrees/play
+checkout --detach main` + open-editor pass). After the "ship it" note below the owner corrected the
+verdicts (see the corrected paragraph there) and reported two more bugs:
+- **Camera could not look up** — fixed, `pdv` closed (`max_pitch_deg` −5 → 60, F4-tunable).
+- **`xtq.23` (P1, BLOCKED): expiry auto-drop "yeets" the block when far from own territory.**
+  Root cause confirmed from the owner's screenshots: `PlacementRules.closest_valid_point` only
+  searches 12 m (`auto_drop_search_max_radius`); beyond that `MatchPlacement` takes the
+  "spawn + throw off the map" fallback and the block lands on the disc outside the owner's zone.
+  Merged so far: HUD "Relocated into your territory" message (`c1dbf9a`, harmless). **The real fix
+  is a WIP commit `a0e9305` on `wt/place-reject`** (worktree `M:/Bontago-worktrees/place-reject`):
+  disk-wide nearest-valid-cell scan after the ring search, throw only with zero own cells;
+  49/49 placement tests. **Blocked by 4 old tests** that force the throw path by distance:
+  `test_match_flow` (`test_repro_far_off_disk_burn_*` ×2) and `test_match_throw`
+  (`test_auto_drop_burn_*` ×2). **Next action:** dispatch a Sonnet implementer owning those two test
+  files to build a genuine zero-territory fixture, run the full suite, reviewer, merge.
+- `xtq.22` F4 Skybox dropdown merged; owner judged the disc reflection "fine until M7" → `xtq.12` closed.
+- M5 epic `d5c`: all automated gates green; still needs the owner's mixed human+bot lobby check.
+- Stray folder `M:/Bontago-worktrees/skybox-f4` (worktree already pruned) can be deleted.
+
 ## Update 2026-09-24 evening (session close, "ship it") — resume here
 
 Main `9ebe87a` + this note, pushed. Play copy `M:/Bontago-worktrees/play` is on the same commit.
