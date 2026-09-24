@@ -9,7 +9,7 @@ extends Resource
 ## Radians per second at full gamepad stick deflection.
 @export var pad_orbit_speed: float = 2.4
 @export var min_pitch_deg: float = -80.0
-@export var max_pitch_deg: float = -5.0
+@export var max_pitch_deg: float = 60.0
 
 ## -- Zoom -----------------------------------------------------------------
 @export var zoom_min: float = 4.0
