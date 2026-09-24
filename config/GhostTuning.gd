@@ -286,6 +286,24 @@ extends Resource
 ## -- HUD (ui/HUD.gd) ---------------------------------------------------------
 @export var hud_reject_message_duration: float = 1.5
 @export var hud_reject_fade_duration: float = 0.5
+## Bontago-xtq.23 (owner playtest 2026-09-24, "if I'm hovering over another
+## player's area I get the rejected message but the block still drops more or
+## less in place"): root cause was missing feedback, not a rule bug -- a
+## manual click over enemy territory is correctly refused (nothing spawns,
+## nothing is consumed, spec 2.5), but the *next* interval boundary still
+## auto-drops that same held piece from wherever the ghost is currently
+## hovering, and PlacementRules.closest_valid_point() relocates it to the
+## nearest legal point inside the player's own territory -- often only a
+## couple of metres from the invalid spot the player was just refused at, and
+## until now with zero HUD acknowledgement distinct from the earlier reject
+## message. That reads as "the rejected placement still happened, roughly in
+## place" even though the two are separate events (a refusal that dropped
+## nothing, then a later forced auto-drop that did). ui/HUD.show_relocated()
+## uses these two durations exactly like hud_reject_message_duration/
+## hud_reject_fade_duration above, so tuning one pair doesn't silently detune
+## the other.
+@export var hud_relocated_message_duration: float = 1.5
+@export var hud_relocated_fade_duration: float = 0.5
 
 ## -- Ghost-vs-placed-block collision (Bontago-mv0.23, spec 2.5 "Held-block
 ## behaviour" [ORIGINAL], owner test 2026-09-22): the held ghost collides with

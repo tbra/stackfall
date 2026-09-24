@@ -136,6 +136,8 @@ descriptions = {
 "GhostTuning.auto_drop_flash_duration": "How long the auto-drop flash lasts, in seconds.",
 "GhostTuning.hud_reject_message_duration": "How long the HUD's reject message stays fully visible before it starts fading.",
 "GhostTuning.hud_reject_fade_duration": "How long the HUD's reject message takes to fade out.",
+"GhostTuning.hud_relocated_message_duration": "How long the HUD's \"relocated into your territory\" auto-drop message stays fully visible before it starts fading.",
+"GhostTuning.hud_relocated_fade_duration": "How long the HUD's relocated message takes to fade out.",
 "GhostTuning.spawn_clearance": "Extra height kept above a just-placed block's own top when the next held block's ghost is seeded clear of it.",
 "GhostTuning.throw_aim_tint_color": "Ghost tint shown while aiming a throw (holding throw_aim on a held special).",
 "GhostTuning.throw_arc_sample_count": "Number of straight segments the throw-aim arc preview is divided into before its own landing cutoff can stop it early.",

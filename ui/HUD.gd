@@ -131,6 +131,7 @@ func _ready() -> void:
 	Events.turn_changed.connect(_on_turn_changed)
 	Events.feed_block_issued.connect(_on_feed_block_issued)
 	Events.placement_rejected.connect(_on_placement_rejected)
+	Events.placement_relocated.connect(_on_placement_relocated)
 	Events.territory_share_changed.connect(_on_territory_share_changed)
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 	Events.match_won.connect(_on_match_won)
@@ -247,12 +248,44 @@ func set_capture(team_id: int, progress: float, color: Color) -> void:
 
 func show_reject(reason: StringName) -> void:
 	_reject_label.text = "Rejected: %s" % String(reason).replace("_", " ")
-	_reject_label.modulate.a = 1.0
+	# DECISION (ui/HUD.gd, Bontago-xtq.23): explicit full-white modulate, not
+	# just the alpha channel show_reject() alone used to touch -- show_relocated()
+	# below tints this same label a distinct colour, and without resetting the
+	# whole modulate here a reject message right after a relocated one would
+	# stay tinted instead of reading as its own, distinct message.
+	_reject_label.modulate = Color(1.0, 1.0, 1.0, 1.0)
 	if _reject_tween != null and _reject_tween.is_valid():
 		_reject_tween.kill()
 	_reject_tween = create_tween()
 	_reject_tween.tween_interval(ghost_tuning.hud_reject_message_duration)
 	_reject_tween.tween_property(_reject_label, ^"modulate:a", 0.0, ghost_tuning.hud_reject_fade_duration)
+
+
+## Bontago-xtq.23 (owner playtest 2026-09-24, "if I'm hovering over another
+## player's area I get the rejected message but the block still drops more or
+## less in place"): a manual click over enemy territory is correctly refused
+## (show_reject() above, nothing spawns) -- the "drops more or less in place"
+## half of the report is a *separate*, later event: the interval boundary
+## still auto-drops that same held piece, and PlacementRules.
+## closest_valid_point() relocates it into the player's own territory, often
+## only a couple of metres from the spot they were just refused at. Until now
+## nothing distinguished that forced auto-drop from silence, so it read as
+## "the rejected placement still happened". Reuses show_reject()'s own label/
+## tween shape (hold, then fade) but its own wording, colour (the same bluish-
+## white as GhostTuning.auto_drop_flash_color, tying it visually to the
+## auto-drop flash game/GhostPreview.play_auto_drop_flash() already plays for
+## this same event) and durations (hud_relocated_message_duration/
+## hud_relocated_fade_duration), so tuning the reject message never silently
+## detunes this one.
+func show_relocated() -> void:
+	_reject_label.text = "Relocated into your territory"
+	var tint: Color = ghost_tuning.auto_drop_flash_color
+	_reject_label.modulate = Color(tint.r, tint.g, tint.b, 1.0)
+	if _reject_tween != null and _reject_tween.is_valid():
+		_reject_tween.kill()
+	_reject_tween = create_tween()
+	_reject_tween.tween_interval(ghost_tuning.hud_relocated_message_duration)
+	_reject_tween.tween_property(_reject_label, ^"modulate:a", 0.0, ghost_tuning.hud_relocated_fade_duration)
 
 
 func show_winner(team_id: int, color: Color) -> void:
@@ -308,6 +341,16 @@ func _on_placement_rejected(slot_id: int, reason: StringName) -> void:
 	if slot_id != _active_slot:
 		return
 	show_reject(reason)
+
+
+## Bontago-xtq.23: same per-viewer-HUD filter as _on_placement_rejected() above
+## -- every other slot's own relocation is none of this instance's business.
+## `point` (the disk-local landing spot) is not shown; the message text alone
+## already says everything this placeholder HUD needs to (M7 owns richer art).
+func _on_placement_relocated(slot_id: int, _point: Vector2) -> void:
+	if slot_id != _active_slot:
+		return
+	show_relocated()
 
 
 func _on_territory_share_changed(shares: PackedFloat32Array) -> void:

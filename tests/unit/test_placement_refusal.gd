@@ -100,6 +100,44 @@ func test_manual_drop_outside_territory_is_refused_and_the_block_stays_held() ->
 	assert_eq(_blocks_root.get_child_count(), 1)
 
 
+## Bontago-xtq.23 (owner playtest 2026-09-24): the report's "the block still
+## drops more or less in place" hypothesis this pins down and refutes is that
+## a refused manual click somehow burns the slot's release lock -- if it did,
+## the *next* interval's early release would find itself already locked out
+## for no reason. Sets up the lock first (one legitimate early release) so the
+## refused click below has a lock to (not) clobber, rather than the ambient
+## default-false a refusal can't be shown to have touched either way.
+func test_manual_drop_outside_territory_never_touches_an_existing_release_lock() -> void:
+	Match.start_match(_config())
+	_run_countdown()
+	var slot_id: int = 0
+
+	var early: StringName = Match.request_place(
+		slot_id, _home_world_position(slot_id), 0, Quaternion.IDENTITY, false
+	)
+	assert_eq(early, PlacementRules.REASON_OK, "fixture: the early release itself must succeed.")
+	assert_true(
+		Match.is_release_locked(slot_id),
+		"fixture: an early release locks the next piece until the interval boundary (spec 2.4)."
+	)
+	var seq_before: int = Match.feed_seq(slot_id)
+
+	var reason: StringName = Match.request_place(
+		slot_id, _home_world_position(1), 0, Quaternion.IDENTITY, false
+	)
+
+	assert_eq(
+		reason, PlacementRules.REASON_NO_BLOCK,
+		"a release-locked slot refuses any manual click regardless of the point's own territory."
+	)
+	assert_true(
+		Match.is_release_locked(slot_id),
+		"a refused manual click must never clear a release lock it didn't cause."
+	)
+	assert_eq(Match.feed_seq(slot_id), seq_before, "the refusal must not consume anything either.")
+	assert_eq(_blocks_root.get_child_count(), 1, "still just the one early-released block, nothing burned.")
+
+
 func test_manual_drop_in_a_goal_flags_no_build_zone_is_refused_too() -> void:
 	Match.start_match(_config())
 	_run_countdown()
@@ -149,6 +187,18 @@ func test_auto_drop_outside_the_zone_relocates_and_emits_placement_relocated() -
 	assert_almost_eq(relocated_point.x, spawned_local.x, 0.01)
 	assert_almost_eq(relocated_point.y, spawned_local.z, 0.01)
 
+	# Bontago-xtq.23 (owner playtest 2026-09-24, "the block still drops more
+	# or less in place"): the relocated point is by construction near the
+	# invalid one it replaces (closest_valid_point() widens outward one step
+	# at a time), which is exactly what reads as "in place" to the owner --
+	# so pin down that it is nonetheless genuinely inside the acting slot's
+	# OWN territory, never merely close, not still contested/enemy ground.
+	var cell: Vector2i = Match.cell_grid().world_to_cell(relocated_point)
+	assert_eq(
+		Match.raster().team_at(cell.x, cell.y), Match.slot(slot_id).team_id,
+		"the relocated point must be owned by the acting slot's own team, not just nearby."
+	)
+
 
 func test_auto_drop_inside_the_zone_never_emits_placement_relocated() -> void:
 	Match.start_match(_config())
@@ -185,4 +235,45 @@ func test_playercontroller_moves_its_cursor_on_its_own_slots_placement_relocated
 	assert_true(
 		controller._cursor.is_equal_approx(expected_world),
 		"the controller's own slot's relocation must move the cursor to the reported disk-local point."
+	)
+
+
+## Bontago-xtq.23 (brief hypothesis (b): "verify PlayerController actually
+## handles Events.placement_relocated for the LOCAL slot ... camera + ghost
+## jump"): the cursor moving (test above) is necessary but not sufficient --
+## spec 2.5's own expiry contract is "the block AND THE CAMERA jump", so this
+## pins the camera rig's own follow target down too, wired exactly the way
+## game/HotSeat.gd/Sandbox.gd wire a live controller (set_camera_rig()).
+func test_playercontroller_moves_the_camera_on_its_own_slots_placement_relocated() -> void:
+	Match.start_match(_config())
+	_run_countdown()
+
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+	var rig: CameraRig = autofree(load("res://game/CameraRig.tscn").instantiate())
+	add_child_autofree(rig)
+	var controller: PlayerController = autofree(PlayerController.new())
+	add_child_autofree(controller)
+	controller._ghost = ghost
+	controller.set_camera_rig(rig)
+	controller.set_acting_slot(0)
+
+	var point: Vector2 = Match.slot(0).home_position + Vector2(2.0, 0.0)
+	var expected_world: Vector3 = _field.to_global(Vector3(point.x, 0.0, point.y))
+
+	# A relocation for a different slot must not move this controller's camera.
+	Events.placement_relocated.emit(1, point)
+	assert_eq(rig._follow_position, Vector3.ZERO, "another slot's relocation must not move this controller's camera.")
+
+	Events.placement_relocated.emit(0, point)
+	# X/Z only: the ghost's own hover height (PhysicsTuning.hover_height above
+	# whatever the disk surface probe hit) offsets rotated_center_world()'s Y
+	# from the flat `expected_world` this test builds at y = 0, but the
+	# straight-down raycast the ghost repositions from starts at the same X/Z
+	# the cursor jumped to, so those two components must still match.
+	assert_almost_eq(rig._follow_position.x, expected_world.x, 0.05)
+	assert_almost_eq(rig._follow_position.z, expected_world.z, 0.05)
+	assert_false(
+		rig._follow_position.is_equal_approx(Vector3.ZERO),
+		"the camera rig's follow target must actually have moved off its untouched fixture default."
 	)

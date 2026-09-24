@@ -129,6 +129,54 @@ func test_show_reject_sets_the_message() -> void:
 	assert_almost_eq(hud._reject_label.modulate.a, 1.0, 0.001)
 
 
+## Bontago-xtq.23 (owner playtest 2026-09-24, "if I'm hovering over another
+## player's area I get the rejected message but the block still drops more or
+## less in place"): root cause was a silent auto-drop relocation right after
+## an earlier, correctly-refused manual click -- see
+## tests/unit/test_placement_refusal.gd for the rule-level regression tests;
+## these pin the HUD's own missing feedback fix.
+func test_show_relocated_sets_a_distinct_message_from_show_reject() -> void:
+	var hud: HUD = _make_hud()
+	hud.show_relocated()
+	assert_true(hud._reject_label.text.findn("relocated") >= 0)
+	assert_true(hud._reject_label.text.findn("territory") >= 0)
+	assert_almost_eq(hud._reject_label.modulate.a, 1.0, 0.001)
+	assert_almost_eq(
+		hud._reject_label.modulate.r, hud.ghost_tuning.auto_drop_flash_color.r, 0.001,
+		"the relocated message should read distinctly from a reject (ties it to the same auto-drop flash tint)."
+	)
+
+
+## Guards show_reject()/show_relocated() sharing one label from bleeding into
+## each other: a relocated message right after an unrelated reject must not
+## keep the reject's own (different) tint.
+func test_show_relocated_after_show_reject_does_not_keep_the_stale_reject_tint() -> void:
+	var hud: HUD = _make_hud()
+	hud.show_reject(&"outside_territory")
+	hud.show_relocated()
+	assert_true(hud._reject_label.text.findn("relocated") >= 0)
+	assert_almost_eq(hud._reject_label.modulate.r, hud.ghost_tuning.auto_drop_flash_color.r, 0.001)
+
+	hud.show_reject(&"outside_territory")
+	assert_true(hud._reject_label.text.findn("outside territory") >= 0)
+	assert_almost_eq(
+		hud._reject_label.modulate.r, 1.0, 0.001,
+		"a reject right after a relocated message must not keep the relocated tint either."
+	)
+
+
+func test_placement_relocated_event_shows_relocated_only_for_the_active_slot() -> void:
+	var hud: HUD = _make_hud()
+	Events.turn_changed.emit(0)
+	Events.placement_relocated.emit(1, Vector2(3.0, -2.0))
+	assert_eq(
+		hud._reject_label.text, "",
+		"a relocation for a different slot shouldn't show on this hot-seat HUD."
+	)
+	Events.placement_relocated.emit(0, Vector2(3.0, -2.0))
+	assert_true(hud._reject_label.text.findn("relocated") >= 0)
+
+
 func test_show_winner_reveals_the_banner() -> void:
 	var hud: HUD = _make_hud()
 	assert_false(hud._winner_label.visible)
