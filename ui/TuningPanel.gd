@@ -354,7 +354,10 @@ func rebuild() -> void:
 	_rebuilding_tabs = true
 	for child: Node in _tab_container.get_children():
 		_tab_container.remove_child(child)
-		child.free()
+		# queue_free, not free: rebuild() is reached from a control's own signal
+		# (e.g. the physics-preset OptionButton's item_selected), and freeing the
+		# emitter mid-emission is a Godot error / potential crash.
+		child.queue_free()
 	_rows.clear()
 
 	_add_tab("Camera", [camera_tuning])
