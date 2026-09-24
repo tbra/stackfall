@@ -3,6 +3,66 @@
 Prepared 2026-09-18 from Git, Beads, project files and the interrupted local Claude
 session. This is a restart snapshot. Refresh live state; keep task progress in Beads.
 
+## Update 2026-09-24 00:57 (final, machine put to sleep) — resume here
+
+After the session-close note below, three of the four interrupted workers finished and were
+MERGED to main (0dec778, pushed): `xtq.18` root cause = block-projection Decal painting the disc with
+fade 0 → pow(0,0) NaN speckle (also the "flicker"); `xtq.20` root cause = the sun's GGX specular on
+the metallic disc, not the mirror (shader `specular_disabled`, mirror as reflected light, defaults
+metallic 0.1/roughness 0.3/mirror 0.5 — saved F4 overrides would shadow them); `mv0.35` = no clamp
+below 60 m; the held raise was 1 m/s so the timer auto-dropped at ~6 m, and the HUD only showed the
+tower height (now ceiling = wire band ~70 m, held raise accelerates, HUD "Tower / Block"). All three
+Jev review=yes overridden (game/ui/shader only, fail-before tests + measured frames) — owner verdict
+in the play build is the acceptance. `xtq.19` NOT reproduced: ask the owner for an F12 close-up.
+New: `Bontago-d04` gift-claim feedback (ready), an AA follow-up (P3).
+
+**P6 (`d5c.7`) interrupted:** bench committed as WIP on `wt/m5-p6` (worktree `m5p6`, base 01f4efb,
+rebase first). Seed 1 FAILED: Hard bot 87 placements vs passive 903, share 7% vs 15% → new P1 bug
+under `Bontago-d5c` ("Hard bot loses to a passive auto-drop player"). The bench ran ~2 h wall for
+600 s sim and the worker ran three seeds in parallel — make it faster than real time and run seeds
+sequentially. Orchestrator killed those three Godot processes at close; foreign PIDs 29820/24028 left.
+
+**Next session order:** owner verdicts on xtq.18/20, mv0.35 (+ xtq.19 screenshot) → the Hard-bot
+placement-rate bug → P6 seeds → M5 gate → `d04` gift feedback.
+
+## Update 2026-09-23 (session close) — resume here
+
+**Session end:** owner stopped for the day with FOUR workers still running. Their worktrees are
+preserved; check each with `git status --short` + the scratchpad logs before re-dispatching the same
+role with that checkpoint (all recorded in Beads):
+- `M:/Bontago-worktrees/feel8a` (`wt/feel8a`, Opus) — `xtq.18`+`xtq.19` third attempt (footprint
+  noise, divided blocks); original assets installed; probe screenshots go to its `feedback/`.
+- `M:/Bontago-worktrees/feel8b` (`wt/feel8b`, Opus) — `xtq.20` third attempt (mirror glare/flicker).
+- `M:/Bontago-worktrees/height2` (`wt/height2`, Opus) — `mv0.35` second attempt (height cap, real
+  match path). Jev routed all three to Opus after two failed Sonnet passes; re-dispatch on Opus too.
+- `M:/Bontago-worktrees/m5p6` (`wt/m5-p6`, Sonnet) — `d5c.7` P6 bench; `tests/bench/bench_bot_vs_passive.*`
+  already exist untracked there — read them before re-dispatching; base was 01f4efb, main moved on.
+Headless Godot processes those workers started may still be alive; read their CommandLine before
+killing anything (foreign PIDs 29820/24028 stay).
+
+**Owner verdict tonight (main c50510c, real windowed bot match):** "none of the feel issues were
+fixed" — `xtq.18`, `xtq.19`, `xtq.20`, `mv0.35` all remain open despite merged fixes. Ask the owner
+for F12 screenshots of each in the current build before more probing. New: `Bontago-d04` gift crate
+"grabbed a yellow cube, nothing happened" (claim is territory-based [ORIGINAL]; add pop + HUD toast,
+verify the claim path in the bot match) — unassigned, ready to dispatch (Sonnet).
+
+**M5 state:** P0–P5 + follow-ups merged (`d5c.1–.6`, `.8`, `.9`, `.10` closed); main at c50510c or
+later. Remaining before the epic closes: `d5c.7` P6 bench (3 seeds < 600 s each), `d5c.11`-ish minor
+BotController follow-ups (P3, optional), then the M5 gate: `godot --headless --path . --
+--headless-host --bots=8 --seconds=60 | python tools/triage_log.py` (prints `HEADLESS_BOTS` lines),
+`bench_headless_bots.tscn` alone on the machine, full suite once, owner's mixed human+bot lobby check.
+Owner ran a 3-bot windowed match tonight: bots "working ok"; run ended naturally at ~4 min; a
+`7 RIDs of type Texture leaked` warning appeared at shutdown (windowed only) — watch it.
+
+**Merged today, in order:** e2567eb xtq.18 WIP, cd4b3b1 M5 plan, 132f029 mv0.35 attempt 1, 3c3f850 xtq.20
+attempt 1, ccbd0a3 controls (`Bontago-iry` closed: MMB tap snap, Q reset), 4c41fb4 M5 P0+P1, d3bfd0c P4,
+e5d685f P3, af7451e P2, 7f31a32 d5c.9, 01f4efb P5, c50510c d5c.8+10. M4 epic `Bontago-1en` CLOSED.
+
+**Permissions this session:** owner added allow-rules for `git commit` and `git merge`. Still
+classifier-blocked: `git checkout` in the owner's play worktree, `git worktree remove` of dirty
+trees, `git add -A`. Play copy still at d0a0645 — owner: `git -C M:/Bontago-worktrees/play checkout
+--detach main` + open-editor pass.
+
 ## Update 2026-09-23 (late night, resumed session) — resume here
 
 **Git:** `main` at 4c41fb4 or later (see `git log`), pushed. Owner added Bash allow-rules for

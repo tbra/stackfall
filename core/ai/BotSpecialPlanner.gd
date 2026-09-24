@@ -22,11 +22,19 @@ extends RefCounted
 ## and `place_target` to the intended disk-local point; `throw_origin` is only
 ## ever set on a genuine `should_throw = true` action (Bomb). This package
 ## still must not touch `game/BotController.gd` or `core/ai/
-## BotPlacementScorer.gd`, so `has_place_target`/`place_target` are inert
-## today (`_send_best_placement()` ignores this planner's output entirely and
-## uses its own already-generated candidate list) but observable/testable at
-## this layer and forward-compatible if a later package wires
-## `BotController`'s ordinary placement to prefer them.
+## BotPlacementScorer.gd` itself, so at the time this package landed
+## `has_place_target`/`place_target` were inert (`_send_best_placement()`
+## ignored this planner's output and used its own already-generated candidate
+## list) but observable/testable at this layer and forward-compatible.
+##
+## UPDATE (Bontago-d5c.8, M5 P3b-ii): `game/BotController.gd._tick_acting()`
+## now reads `has_place_target`/`place_target` and, when set, sends whichever
+## already-generated candidate lands nearest `place_target`
+## (`_send_best_placement(place_target_override)`) instead of
+## `BotPlacementScorer.pick_best()`'s general-purpose scoring -- this comment-
+## only edit (Bontago-d5c.10) corrects the paragraph above, which this
+## package's own file ownership does not let it touch again; the code below
+## is unchanged.
 
 class BotSpecialAction:
 	var should_throw: bool = false

@@ -367,15 +367,23 @@ func test_configure_pushes_the_default_metallic_and_roughness() -> void:
 	)
 
 
-func test_disk_defaults_to_a_mirror_like_metallic_and_roughness() -> void:
+func test_disk_defaults_to_a_glossy_dielectric_under_the_planar_mirror() -> void:
+	# Bontago-xtq.20: the mirror-like look is the planar mirror
+	# (mirror_strength), composited as reflected light; metallic stays low so
+	# the lit territory tint and the mirror image are not reduced to a tint of
+	# the environment reflection (tools/screenshot_feel8b_disc_glare.gd).
 	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres")
 	assert_between(
-		visuals.disk_metallic, 0.6, 1.0,
-		"docs/original_single-block.png and docs/original_stacked-tower.png show a strongly reflective disk.",
+		visuals.disk_metallic, 0.0, 0.3,
+		"a glossy dielectric; high metallic hid the mirror image and muddied the tint.",
 	)
 	assert_between(
-		visuals.disk_roughness, 0.0, 0.3,
-		"Same reference screenshots: soft but clearly mirror-like reflections, not a diffuse matte surface.",
+		visuals.disk_roughness, 0.0, 0.5,
+		"a soft sky/probe sheen under the planar mirror, not a matte surface.",
+	)
+	assert_between(
+		visuals.mirror_strength, 0.3, 0.8,
+		"a clearly visible reflection (docs/original_stacked-tower.png) that still leaves the territory tint legible.",
 	)
 
 
@@ -579,7 +587,7 @@ func test_default_mirror_max_luminance_only_clamps_genuinely_blown_out_highlight
 	)
 
 
-func test_shader_clamps_mirror_color_luminance_before_mixing_into_albedo() -> void:
+func test_shader_clamps_mirror_color_luminance_before_compositing() -> void:
 	# Bontago-xtq.20: fail-before this fix -- the shader used to mix
 	# mirror_color into albedo completely unclamped, so a directly-visible
 	# sun disc or specular highlight read as a stark, hard-edged white blob
@@ -608,12 +616,62 @@ func test_shader_clamps_mirror_color_luminance_before_mixing_into_albedo() -> vo
 		"expected mirror_color to be scaled down whenever its luminance exceeds mirror_max_luminance.",
 	)
 
-	# The clamp must run before mirror_color gets mixed into albedo, not after
-	# (a clamp applied to the already-mixed albedo would also dim the
-	# unrelated ownership tint/rim/shimmer colors it was mixed with).
-	var mix_index: int = code.find("albedo = mix(albedo, mirror_color, mirror_amount)")
+	# The clamp must run before mirror_color is composited, not after (a clamp
+	# applied to the already-composited color would also dim the unrelated
+	# ownership tint/rim/shimmer colors).
+	var add_index: int = code.find("emission += mirror_color * mirror_amount")
 	var clamp_index: int = code.find("mirror_luma > mirror_max_luminance")
-	assert_true(mix_index >= 0 and clamp_index >= 0 and clamp_index < mix_index)
+	assert_true(add_index >= 0 and clamp_index >= 0 and clamp_index < add_index)
+
+
+func test_shader_disables_direct_light_specular_on_the_disc() -> void:
+	# Bontago-xtq.20, fail-before: the reproduced "main light source glaringly
+	# visible in the reflection" is the DirectionalLight3D's GGX specular lobe
+	# on the disc (feedback/feel8b-before-bisect-*: unchanged with mirror/SSR/
+	# probe/shadows off, gone only with light specular 0). specular_schlick_ggx
+	# used to be the render mode.
+	var overlay: TerritoryOverlay = _make_overlay(_map())
+	var code: String = _shader_source_without_comments(overlay.material().shader)
+	var render_mode: RegEx = RegEx.new()
+	render_mode.compile("render_mode\\s+([^;]*);")
+	var found: RegExMatch = render_mode.search(code)
+	assert_not_null(found, "expected a render_mode line.")
+	if found != null:
+		assert_true(found.get_string(1).contains("specular_disabled"), found.get_string(1))
+		assert_false(found.get_string(1).contains("specular_schlick_ggx"), found.get_string(1))
+
+
+func test_shader_reads_the_mirror_viewport_as_srgb() -> void:
+	# Bontago-xtq.20, fail-before: the SubViewport holds a tonemapped sRGB
+	# frame; without source_color the shader treated the encoded values as
+	# linear (a washed-out, too-bright reflection).
+	var overlay: TerritoryOverlay = _make_overlay(_map())
+	var code: String = _shader_source_without_comments(overlay.material().shader)
+	var decl: RegEx = RegEx.new()
+	decl.compile("uniform\\s+sampler2D\\s+mirror_tex\\s*:\\s*([^;]*);")
+	var found: RegExMatch = decl.search(code)
+	assert_not_null(found, "expected a mirror_tex declaration with hints.")
+	if found != null:
+		assert_true(found.get_string(1).contains("source_color"), found.get_string(1))
+
+
+func test_shader_composites_the_mirror_as_reflected_light_not_metallic_albedo() -> void:
+	# Bontago-xtq.20, fail-before: the mirror used to be mixed into ALBEDO
+	# under METALLIC, where albedo only tints the environment reflection, so
+	# the per-pixel mirror image barely showed. It is now the reflected
+	# fraction: albedo scaled down, mirror added as EMISSION, independent of
+	# base_metallic.
+	var overlay: TerritoryOverlay = _make_overlay(_map())
+	var code: String = _shader_source_without_comments(overlay.material().shader)
+	assert_false(code.contains("mix(albedo, mirror_color"), "the mirror must not be mixed into albedo.")
+	assert_true(code.contains("albedo *= 1.0 - mirror_amount"), "the lit albedo must be scaled by the non-reflected fraction.")
+	assert_true(code.contains("emission += mirror_color * mirror_amount"), "the mirror must be added as reflected light.")
+	var amount: RegEx = RegEx.new()
+	amount.compile("float\\s+mirror_amount\\s*=\\s*([^;]*);")
+	var found: RegExMatch = amount.search(code)
+	assert_not_null(found)
+	if found != null:
+		assert_false(found.get_string(1).contains("base_metallic"), found.get_string(1))
 
 
 func test_mirror_transform_reflects_a_camera_above_a_horizontal_plane() -> void:

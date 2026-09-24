@@ -153,6 +153,28 @@ extends Node3D
 ## footprint quad. See _update_block_projection_decal()'s own DECISION for why
 ## cull_mask is left at its default rather than restricted to placed blocks.
 ##
+## Bontago-xtq.18 attempt 3 (feel8a, feedback/owner-noise-footprint.png, owner
+## "none of the feel issues were fixed" on c50510c): the black/white speckle
+## under the ghost was never the footprint quad, the hatch texture or the
+## prism -- it was _block_projection_decal painting the *disc*.
+## tools/screenshot_feel8a_footprint.gd evidence: the speckle survives hiding
+## the footprint quad, the prism, the planar mirror, SSR, the sun's shadows and
+## the ReflectionProbe one at a time (feel8a-before_bisect-*.png), and vanishes
+## (241 -> 0 near-black pixels) the moment the decal stops reaching the disc
+## (cull_mask 0, or cull_mask without DiscMirror.DISC_LAYER_BIT). The decal's
+## box bottom sits exactly on the disc surface (landing_y) and both fades were
+## 0.0: Godot's decal fade is pow(1 - |uv.y|, fade), and at the box's own
+## bottom plane that is pow(0, 0) -- NaN on the GPU (exp2(0 * log2(0))) for
+## every disc pixel whose interpolated height lands exactly on the plane,
+## i.e. a per-pixel speckle, and a NaN stays black through the translucent
+## footprint quad blended over it. Two fixes, _ready()/_update_block_
+## projection_decal(): the decal's cull_mask drops DiscMirror.DISC_LAYER_BIT
+## (the disc already has its own footprint quad; the decal is for placed
+## blocks, xtq.15's own brief), and both fades are clamped above zero
+## (ghost_tuning.block_projection_edge_fade) so no surface lying exactly on
+## either box plane (a block face at the ghost's underside, the ghost's own
+## lowest edge) can ever hit pow(0, 0) again.
+##
 ## Rotation is stored as an integer index over the 24 axis-aligned cube
 ## orientations (core/blocks/BlockOrientations.gd) plus a separate free-
 ## rotation quaternion layered on top. Resetting clears the quaternion and
@@ -209,12 +231,26 @@ const STATE_THROW: StringName = &"throw"
 
 const HATCH_TEXTURE_SIZE: int = 32
 
+## Bontago-xtq.18 attempt 3 (this file's own header): the smallest decal fade
+## exponent _update_block_projection_decal() ever applies. Not a look tunable
+## (ghost_tuning.block_projection_edge_fade is): a structural floor, because a
+## fade of exactly 0.0 makes Godot's pow(1 - |uv.y|, fade) evaluate pow(0, 0)
+## (NaN, drawn black) on any surface lying exactly on the decal box's top or
+## bottom plane.
+const _MIN_DECAL_FADE: float = 0.0001
+
 ## Bontago-xtq.18: how close two footprint columns' own edge endpoints must
 ## land (world units) to count as the *same* shared boundary in
 ## _shared_edge_exists() -- matches _group_cells_by_footprint()'s own "%.3f"
 ## (millimetre) rounding tolerance for the same reason (floating-point noise
 ## from the rotation basis on otherwise-identical grid-aligned corners).
 const _EDGE_MATCH_EPSILON: float = 0.001
+
+## Bontago-mv0.35: the group game/PlayerController.gd puts its own (local,
+## player-driven) ghost in, so ui/HUD.gd can show that block's height
+## (height_above_surface()) without a node path. Remote peers' ghosts
+## (game/RemoteCursors.gd) are never in it.
+const LOCAL_HELD_GROUP: StringName = &"local_held_ghost"
 
 ## The 8 corner signs of a unit box centred on its own local position, used by
 ## _rotated_bottom_offset() to find a rotated shape's true lowest point.
@@ -380,8 +416,14 @@ func _ready() -> void:
 	# for detail.
 	_block_projection_decal = Decal.new()
 	_block_projection_decal.texture_albedo = _build_white_decal_texture()
-	_block_projection_decal.upper_fade = 0.0
-	_block_projection_decal.lower_fade = 0.0
+	_block_projection_decal.upper_fade = _decal_fade()
+	_block_projection_decal.lower_fade = _decal_fade()
+	# Bontago-xtq.18 attempt 3 (this file's own header): never paint the disc.
+	# DiscMirror moves the disc onto DISC_LAYER_BIT alone, so removing that
+	# bit from Decal's own default (all 20 layers) leaves placed blocks
+	# (layer 1) painted and the disc -- whose box-bottom contact produced the
+	# speckle -- untouched; the disc keeps its own footprint quad.
+	_block_projection_decal.cull_mask = _block_projection_decal.cull_mask & ~DiscMirror.DISC_LAYER_BIT
 	_block_projection_decal.top_level = true
 	_block_projection_decal.visible = false
 	add_child(_block_projection_decal)
@@ -466,6 +508,16 @@ func update_placement(surface_point: Vector3, surface_normal: Vector3) -> void:
 	) + _reject_offset
 	_last_surface_point = surface_point
 	_update_footprint()
+
+
+## Bontago-mv0.35: how high the held shape's own lowest point hovers above
+## the disk surface under it (the point update_placement() last received),
+## in meters -- what the player is actually adjusting with the wheel. The
+## HUD shows this next to the tower height, which alone never moved while
+## the block was raised (the follow camera keeps the ghost centred on screen
+## too), so a raise read as "stuck".
+func height_above_surface() -> float:
+	return global_position.y - _reject_offset.y + _rotated_bottom_offset() - _last_surface_point.y
 
 
 ## Positions this ghost at an already-fully-resolved world point, with no
@@ -690,6 +742,9 @@ func _update_projection_mesh(landing_y: float) -> void:
 	var uvs: PackedVector2Array = PackedVector2Array()
 	var indices: PackedInt32Array = PackedInt32Array()
 
+	# Bontago-xtq.18 attempt 3 correction: the speckle's real cause was the
+	# block-projection decal painting the disc (this file's own header); the
+	# two changes below are kept as harmless hygiene, not as the fix.
 	# Bontago-xtq.18 (feedback/owner-noise-footprint.png, "the footprint under
 	# the ghost renders as black/white speckled noise"): root-caused to this
 	# mesh via tools/screenshot_xtq15_block_projection.gd (forced into
@@ -789,17 +844,10 @@ func _clear_projection_mesh() -> void:
 ## current underside (_rotated_bottom_offset() -- deliberately *not* any
 ## higher, so the decal's own projection volume never overlaps the held
 ## ghost's own rendered body) down to `landing_y` (the footprint's own disc
-## height). DECISION (game/GhostPreview.gd, Bontago-xtq.15): cull_mask is left
-## at Decal's own default (layer 1) rather than restricted to placed blocks
-## only -- game/Block.gd's MeshInstance3D and game/TerritoryOverlay.gd's disc
-## mesh both render on the engine default layer 1 with no distinguishing
-## layer of their own (grepped this package's own read-only files to check),
-## so a placed block and the disc are the *only* two things this decal could
-## ever paint onto anyway (the held ghost's own body is excluded by the
-## vertical range above, not by layer) -- the disc already shows its own
-## near-white footprint quad, so painting it there too is harmless, matching
-## this package's own brief ("if Blocks are on the default layer with the
-## disc, projecting onto the disc too is acceptable").
+## height). Bontago-xtq.18 attempt 3 supersedes xtq.15's original "painting
+## the disc too is harmless" DECISION: it was not harmless (this file's own
+## header) -- the disc lives on DiscMirror.DISC_LAYER_BIT since xtq.12, and
+## _ready() now strips that bit from this decal's cull_mask.
 func _update_block_projection_decal(world_hull: PackedVector2Array, landing_y: float) -> void:
 	if _block_projection_decal == null:
 		return
@@ -819,12 +867,33 @@ func _update_block_projection_decal(world_hull: PackedVector2Array, landing_y: f
 	var center_z: float = (min_point.y + max_point.y) * 0.5
 
 	_block_projection_decal.visible = true
+	_block_projection_decal.upper_fade = _decal_fade()
+	_block_projection_decal.lower_fade = _decal_fade()
 	_block_projection_decal.size = Vector3(size_x, top_y - landing_y, size_z)
 	_block_projection_decal.global_position = Vector3(center_x, (top_y + landing_y) * 0.5, center_z)
 	_block_projection_decal.modulate = Color(
 		ghost_tuning.block_projection_color.r, ghost_tuning.block_projection_color.g,
 		ghost_tuning.block_projection_color.b, ghost_tuning.block_projection_alpha
 	)
+
+
+## Bontago-xtq.18 attempt 3: ghost_tuning.block_projection_edge_fade, never
+## below _MIN_DECAL_FADE (see that constant for why zero is unsafe).
+func _decal_fade() -> float:
+	return maxf(ghost_tuning.block_projection_edge_fade, _MIN_DECAL_FADE)
+
+
+## For tests: the decal's own cull mask and (upper, lower) fade exponents
+## (Bontago-xtq.18 attempt 3 -- the disc layer must be excluded and both
+## fades must stay above zero).
+func block_projection_decal_cull_mask() -> int:
+	return _block_projection_decal.cull_mask if _block_projection_decal != null else 0
+
+
+func block_projection_decal_fades() -> Vector2:
+	if _block_projection_decal == null:
+		return Vector2.ZERO
+	return Vector2(_block_projection_decal.upper_fade, _block_projection_decal.lower_fade)
 
 
 ## Hides the block-projection decal (nothing held, or the gap collapsed --
