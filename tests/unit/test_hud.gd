@@ -343,3 +343,49 @@ func test_special_indicator_ignores_a_claim_for_a_different_slot() -> void:
 	hud._process(0.0)
 
 	assert_false(hud._special_indicator.visible, "a claim for another slot must not show on this HUD")
+
+
+# --- Bontago-d04: claim toast -------------------------------------------------
+# Owner report "I grabbed a yellow cube but nothing seemed to happen": the
+# claim itself already worked (the indicator tests above), but nothing told
+# the player it had. show_gift_toast()/_on_gift_claimed() add a one-line
+# "Special queued: <name>" message next to the pending-special indicator.
+
+func test_gift_claimed_for_the_local_slot_shows_the_toast_with_the_special_name() -> void:
+	var hud: HUD = _make_hud()
+	hud.set_local_slot(0)
+
+	Match._gifts._ensure_capacity(0)
+	(Match._gifts._pending_queues[0] as Array).append(&"jumping_bean")
+	Events.gift_claimed.emit(0, 0, &"jumping_bean")
+
+	assert_eq(hud._gift_toast_label.text, "Special queued: Jumping Bean")
+	assert_almost_eq(hud._gift_toast_label.modulate.a, 1.0, 0.0001)
+
+
+func test_gift_claimed_toast_ignores_a_claim_for_a_different_slot() -> void:
+	var hud: HUD = _make_hud()
+	hud.set_local_slot(0)
+
+	Match._gifts._ensure_capacity(1)
+	(Match._gifts._pending_queues[1] as Array).append(MatchGifts.PENDING_SPECIAL_ID)
+	Events.gift_claimed.emit(0, 1, MatchGifts.PENDING_SPECIAL_ID)
+
+	assert_eq(hud._gift_toast_label.text, "", "a claim for another slot must not show a toast on this HUD")
+
+
+func test_gift_claimed_toast_fades_after_its_configured_hold_duration() -> void:
+	var hud: HUD = _make_hud()
+	hud.set_local_slot(0)
+	hud.gift_config = hud.gift_config.duplicate() as GiftConfig
+	hud.gift_config.claim_toast_visible_duration_s = 0.1
+	hud.gift_config.claim_toast_fade_duration_s = 0.1
+
+	Match._gifts._ensure_capacity(0)
+	(Match._gifts._pending_queues[0] as Array).append(MatchGifts.PENDING_SPECIAL_ID)
+	Events.gift_claimed.emit(0, 0, MatchGifts.PENDING_SPECIAL_ID)
+	assert_almost_eq(hud._gift_toast_label.modulate.a, 1.0, 0.0001, "fixture: fully visible right after the claim")
+
+	await get_tree().create_timer(0.35).timeout
+
+	assert_almost_eq(hud._gift_toast_label.modulate.a, 0.0, 0.0001, "must have faded out after hold + fade elapsed")

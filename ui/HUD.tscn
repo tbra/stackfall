@@ -81,6 +81,15 @@ offset_right = -24.0
 offset_bottom = 72.0
 visible = false
 
+[node name="GiftToastLabel" type="Label" parent="."]
+unique_name_in_owner = true
+offset_left = 100.0
+offset_top = 122.0
+offset_right = 420.0
+offset_bottom = 140.0
+theme_override_font_sizes/font_size = 14
+text = ""
+
 [node name="RejectLabel" type="Label" parent="."]
 unique_name_in_owner = true
 anchor_left = 0.5

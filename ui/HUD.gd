@@ -60,6 +60,10 @@ const PREVIEW_CELL_PX: float = 8.0
 const PREVIEW_CELL_MARGIN: float = 0.9
 
 @export var ghost_tuning: GhostTuning = preload("res://config/ghost_tuning.tres")
+## Bontago-d04: durations for the "Special queued: <name>" claim toast below
+## (see config/GiftConfig.gd's own "-- Claim feedback --" section for why
+## these live there rather than in ghost_tuning above).
+@export var gift_config: GiftConfig = preload("res://config/gift_config.tres")
 ## Fallback player colours for a slot Match cannot name — before a match
 ## starts, or in a HUD-only test with no Match behind it. An @export var
 ## rather than a const: a const's value has to resolve while the script is
@@ -84,6 +88,7 @@ var match_provider: Variant = null
 @onready var _capture_ring: Control = %CaptureRing
 @onready var _reject_label: Label = %RejectLabel
 @onready var _winner_label: Label = %WinnerLabel
+@onready var _gift_toast_label: Label = %GiftToastLabel
 
 var _shapes_by_id: Dictionary = {}
 ## Whichever slot this HUD's widgets currently read: the hot-seat active
@@ -102,6 +107,7 @@ var _locked: bool = false
 var _capture_color: Color = Color.WHITE
 var _capture_progress: float = 0.0
 var _reject_tween: Tween
+var _gift_toast_tween: Tween
 
 var _share_rows: Array = []
 var _share_bars: Array = []
@@ -116,6 +122,7 @@ func _ready() -> void:
 	_next_shape_preview.draw.connect(_on_next_shape_preview_draw)
 	_capture_ring.draw.connect(_on_capture_ring_draw)
 	_reject_label.modulate.a = 0.0
+	_gift_toast_label.modulate.a = 0.0
 	_winner_label.visible = false
 	_capture_ring.visible = false
 	_locked_label.visible = false
@@ -254,6 +261,22 @@ func show_winner(team_id: int, color: Color) -> void:
 	_winner_label.visible = true
 
 
+## Bontago-d04: the local player's own claim feedback beside the pending-
+## special indicator (_refresh_special_indicator() above) -- same fade shape
+## as show_reject() (a hold, then a fade), but its own durations
+## (GiftConfig.claim_toast_visible_duration_s/claim_toast_fade_duration_s)
+## since a claim toast and a rejection message read very differently and
+## shouldn't be forced to share one timing.
+func show_gift_toast(special_id: StringName) -> void:
+	_gift_toast_label.text = "Special queued: %s" % _special_display_name(special_id)
+	_gift_toast_label.modulate = Color(_active_color.r, _active_color.g, _active_color.b, 1.0)
+	if _gift_toast_tween != null and _gift_toast_tween.is_valid():
+		_gift_toast_tween.kill()
+	_gift_toast_tween = create_tween()
+	_gift_toast_tween.tween_interval(gift_config.claim_toast_visible_duration_s)
+	_gift_toast_tween.tween_property(_gift_toast_label, ^"modulate:a", 0.0, gift_config.claim_toast_fade_duration_s)
+
+
 # --- Events reactions --------------------------------------------------------
 
 ## Bontago-mv0.9: in hot-seat this really is a turn changing hands
@@ -317,10 +340,11 @@ func _on_player_eliminated(slot_id: int, _team_id: int) -> void:
 ## _refresh_special_indicator() re-reads Match itself (not the signal's own
 ## special_id) so this handler and the per-frame poll can never disagree about
 ## what the queue currently holds.
-func _on_gift_claimed(_gift_id: int, slot_id: int, _special_id: StringName) -> void:
+func _on_gift_claimed(_gift_id: int, slot_id: int, special_id: StringName) -> void:
 	if slot_id != _active_slot:
 		return
 	_refresh_special_indicator()
+	show_gift_toast(special_id)
 
 
 # --- Helpers -----------------------------------------------------------------
