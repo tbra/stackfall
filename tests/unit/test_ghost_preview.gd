@@ -663,27 +663,50 @@ func test_projection_prism_material_uses_additive_blend_and_emission() -> void:
 	)
 
 
-# --- Bontago-xtq.19 attempt 3 (owner screenshots 2026-09-24: a tilted 4-long
-# bar and a T-piece both show dark vertical seams / overlapping stepped
-# columns inside the translucent prism) ---------------------------------------
-# xtq.16's per-column model (one convex hull per rotated-footprint-centre
-# group) was only correct for an axis-aligned yaw; a partial pitch/roll sends
-# every cell's footprint to a distinct, overlapping quadrilateral with no
-# shared centres or exactly-reversed edges to merge/dedupe, so every column
-# walled all 4 of its own edges independently and the overlapping translucent
-# walls double-blended into seams. The fix: wall the *merged rendered mesh's*
-# own silhouette (game/GhostPreview.gd's _shape_silhouette_loops(),
-# Geometry2D.merge_polygons over every triangle of the shape's own real visual
-# shell) instead of a per-cell/per-column approximation of it -- there is now
-## exactly one shared top/bottom span for every wall (this file's own header),
-# so projection_column_count()/projection_column_span_y() (kept for source
-# compatibility, per this package's own brief) now report at most one entry.
-# xtq.16's own S4 fix (never wall a column above the solid cell sitting in it)
-# is deliberately not preserved -- see game/GhostPreview.gd's own header for
-# why that trade-off was accepted; test_s4_at_identity_rotation_never_
-# projects_above_the_lower_cells_own_top and test_pitched_bar_is_enclosed_
-# from_below_never_above_its_own_cells (both asserted the now-reverted
-# per-column cap directly) are removed rather than left failing.
+# --- Bontago-xtq.19 (owner screenshots 2026-09-24: a tilted 4-long bar and a
+# T-piece both show dark vertical seams / overlapping stepped columns inside
+# the translucent prism) --------------------------------------------------------
+# Attempt 3 walls the *merged rendered mesh's* own silhouette (game/
+# GhostPreview.gd's _shape_silhouette_loops(), Geometry2D.merge_polygons over
+# every triangle of the shape's own real visual shell) instead of xtq.16's
+# per-column hulls, so no interior wall is left to double-blend. Attempt 4
+# restores xtq.16's owner-verified rule on top of that: the prism is the shaft
+# *under* the shape -- every wall's top follows the shape's own underside along
+# the outline (sloped for a tilted shape, stepped where an overhang begins),
+# never the whole shape's top. projection_span_y()/projection_column_span_y()
+# stay the whole-shape bookkeeping game/PlayerController.gd reads; the tests
+# below check the built mesh itself (projection_mesh_vertices_world()).
+
+## The same 8 corner signs _CORNER_SIGNS declares (game/GhostPreview.gd),
+## independently re-declared here so the per-cell expectations below are a real
+## check of the implementation, not its own self-consistency.
+const _TEST_CORNER_SIGNS: Array[Vector3] = [
+	Vector3(-1.0, -1.0, -1.0), Vector3(1.0, -1.0, -1.0), Vector3(-1.0, 1.0, -1.0), Vector3(1.0, 1.0, -1.0),
+	Vector3(-1.0, -1.0, 1.0), Vector3(1.0, -1.0, 1.0), Vector3(-1.0, 1.0, 1.0), Vector3(1.0, 1.0, 1.0),
+]
+## How far the independent underside probe below nudges its sample point off
+## the wall line toward the shape (it must not land exactly on the outline,
+## which every neighbouring triangle touches) -- deliberately different from
+## GhostPreview's own inset so the two are not trivially the same computation.
+const _TEST_PROBE_NUDGE: float = 0.004
+## Allowed mismatch between a wall's top edge and the independently probed
+## underside: the nudge times the steepest face slope a 30-degree roll makes
+## (tan 60 ~ 1.73) plus float slack.
+const _TEST_UNDERSIDE_TOLERANCE: float = 0.015
+
+
+## One rotated `cell`'s own lowest world-space Y (its own underside), from the
+## visual cube_size box and the shape's bottom_center() pivot.
+func _expected_cell_min_y(ghost: GhostPreview, cell: Vector3i) -> float:
+	var half_size: float = ghost.tuning.cube_size * 0.5
+	var pivot: Vector3 = ghost.get_shape().bottom_center()
+	var local_center: Vector3 = (Vector3(cell) - pivot) * ghost.tuning.cube_size
+	var min_y: float = INF
+	for corner_sign: Vector3 in _TEST_CORNER_SIGNS:
+		var rotated: Vector3 = ghost.basis * (local_center + corner_sign * half_size)
+		min_y = minf(min_y, rotated.y)
+	return ghost.global_position.y + min_y
+
 
 ## Signed area via the shoelace formula -- used by the outer-loop tests below
 ## to check the merged silhouette's own *area* (not vertex count, since
@@ -692,123 +715,353 @@ func _outline_area(points: PackedVector2Array) -> float:
 	return _polygon_area(points)
 
 
-## No two prism walls may occupy the same undirected ground-plane segment --
-## the exact seam symptom the owner's own screenshots show (two walls
-## Z-fighting/double-blending along the same line). Reconstructs each wall
-## quad from the flat vertex list (_append_prism_walls() always appends
-## exactly 4 unique vertices per wall, in (a_top, b_top, b_bottom, a_bottom)
-## order, so every consecutive run of 4 is one wall).
+## Every world-space triangle of the ghost's own rendered shell, read straight
+## off the ShapeVisual meshes (not through any GhostPreview helper).
+func _world_shell_triangles(ghost: GhostPreview) -> Array[PackedVector3Array]:
+	var triangles: Array[PackedVector3Array] = []
+	for child: Node in ghost.get_children():
+		if child.name != "ShapeVisual":
+			continue
+		for mesh_child: Node in child.get_children():
+			var mesh_instance: MeshInstance3D = mesh_child as MeshInstance3D
+			if mesh_instance == null or mesh_instance.mesh == null:
+				continue
+			for surface: int in range(mesh_instance.mesh.get_surface_count()):
+				var arrays: Array = mesh_instance.mesh.surface_get_arrays(surface)
+				var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+				var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+				for i: int in range(0, indices.size(), 3):
+					var triangle: PackedVector3Array = PackedVector3Array()
+					for k: int in range(3):
+						triangle.append(ghost.global_position + ghost.basis * (mesh_instance.position + verts[indices[i + k]]))
+					triangles.append(triangle)
+	return triangles
+
+
+## The lowest point of the shell straight above/below world XZ `point`
+## (INF if no triangle covers it) -- a closed shell's lowest surface there is
+## its underside. Own barycentric math, skipping edge-on (vertical) triangles.
+func _probe_underside_y(triangles: Array[PackedVector3Array], point: Vector2) -> float:
+	var lowest: float = INF
+	for triangle: PackedVector3Array in triangles:
+		var p0: Vector2 = Vector2(triangle[0].x, triangle[0].z)
+		var e1: Vector2 = Vector2(triangle[1].x, triangle[1].z) - p0
+		var e2: Vector2 = Vector2(triangle[2].x, triangle[2].z) - p0
+		var denominator: float = e1.x * e2.y - e2.x * e1.y
+		if absf(denominator) < 1e-8:
+			continue
+		var d: Vector2 = point - p0
+		var w1: float = (d.x * e2.y - e2.x * d.y) / denominator
+		var w2: float = (e1.x * d.y - d.x * e1.y) / denominator
+		if w1 < 0.0 or w2 < 0.0 or w1 + w2 > 1.0:
+			continue
+		lowest = minf(lowest, triangle[0].y + w1 * (triangle[1].y - triangle[0].y) + w2 * (triangle[2].y - triangle[0].y))
+	return lowest
+
+
+## Every prism wall's top edge must sit on the shape's own underside: sampled
+## at 3 interior points per wall, nudged toward whichever side the shell
+## covers, and compared against the independently probed underside. Must fail
+## against attempt 3 (every wall capped at the whole shape's own top).
+func _assert_wall_tops_follow_the_underside(ghost: GhostPreview) -> void:
+	var triangles: Array[PackedVector3Array] = _world_shell_triangles(ghost)
+	var vertices: PackedVector3Array = ghost.projection_mesh_vertices_world()
+	assert_false(vertices.is_empty(), "fixture: a real gap between the shape and the disc must show prism geometry.")
+	for wall_index: int in range(vertices.size() / 4):
+		var top_a: Vector3 = vertices[wall_index * 4]
+		var top_b: Vector3 = vertices[wall_index * 4 + 1]
+		var a: Vector2 = Vector2(top_a.x, top_a.z)
+		var b: Vector2 = Vector2(top_b.x, top_b.z)
+		if a.distance_to(b) < 0.01:
+			continue
+		var direction: Vector2 = (b - a).normalized()
+		var side_normal: Vector2 = Vector2(-direction.y, direction.x)
+		for t: float in [0.25, 0.5, 0.75]:
+			var point: Vector2 = a.lerp(b, t)
+			var wall_top: float = lerpf(top_a.y, top_b.y, t)
+			var underside: float = _probe_underside_y(triangles, point + side_normal * _TEST_PROBE_NUDGE)
+			if underside == INF:
+				underside = _probe_underside_y(triangles, point - side_normal * _TEST_PROBE_NUDGE)
+			assert_true(underside != INF, "wall at (%.3f, %.3f) has no shape over it at all." % [point.x, point.y])
+			assert_almost_eq(
+				wall_top, underside, _TEST_UNDERSIDE_TOLERANCE,
+				"wall top at (%.3f, %.3f) must follow the shape's own underside there." % [point.x, point.y]
+			)
+
+
+## No two prism walls may overlap along the same stretch of ground-plane line
+## -- the exact seam symptom the owner's own screenshots show (two walls
+## Z-fighting/double-blending). Reconstructs each wall quad from the flat
+## vertex list (GhostPreview always appends exactly 4 vertices per wall, in
+## (a_top, b_top, b_bottom, a_bottom) order) and checks every pair of collinear
+## walls for a shared interior span, not just identical endpoints (walls are
+## split into pieces now, so a duplicate need not share both ends).
 func _assert_no_duplicate_wall_edges(vertices: PackedVector3Array) -> void:
-	assert_eq(vertices.size() % 4, 0, "fixture: _append_prism_walls() always appends exactly 4 vertices per wall.")
-	var seen_edges: Dictionary = {}
+	assert_eq(vertices.size() % 4, 0, "fixture: GhostPreview always appends exactly 4 vertices per wall.")
 	var wall_count: int = vertices.size() / 4
-	for wall_index: int in range(wall_count):
+	for i: int in range(wall_count):
+		var a: Vector2 = Vector2(vertices[i * 4].x, vertices[i * 4].z)
+		var b: Vector2 = Vector2(vertices[i * 4 + 1].x, vertices[i * 4 + 1].z)
+		var length: float = a.distance_to(b)
+		if length < 0.001:
+			continue
+		var direction: Vector2 = (b - a) / length
+		for j: int in range(i + 1, wall_count):
+			var c: Vector2 = Vector2(vertices[j * 4].x, vertices[j * 4].z)
+			var d: Vector2 = Vector2(vertices[j * 4 + 1].x, vertices[j * 4 + 1].z)
+			# Collinear with wall i?
+			if absf(direction.cross(c - a)) > 0.001 or absf(direction.cross(d - a)) > 0.001:
+				continue
+			var t_c: float = direction.dot(c - a)
+			var t_d: float = direction.dot(d - a)
+			var overlap: float = minf(length, maxf(t_c, t_d)) - maxf(0.0, minf(t_c, t_d))
+			assert_true(
+				overlap <= 0.001,
+				"walls %d and %d overlap by %.3f m along the same line -- coincident walls double-blend into a visible seam." % [i, j, overlap]
+			)
+
+
+## Every prism wall must lie on one of the merged silhouette's own outline
+## edges (no interior wall left over from a per-cell/per-column approximation,
+## the seam bug's own root cause), and -- with the whole shape clear of the
+## ground -- together they must cover the outline's whole perimeter exactly.
+func _assert_walls_tile_the_outline(ghost: GhostPreview) -> void:
+	var edges: Array[PackedVector2Array] = []
+	var perimeter: float = 0.0
+	for loop_index: int in range(ghost.projection_outline_loop_count()):
+		var loop: PackedVector2Array = ghost.projection_outline_polygon_world(loop_index)
+		for i: int in range(loop.size()):
+			var edge: PackedVector2Array = PackedVector2Array([loop[i], loop[(i + 1) % loop.size()]])
+			edges.append(edge)
+			perimeter += edge[0].distance_to(edge[1])
+	var vertices: PackedVector3Array = ghost.projection_mesh_vertices_world()
+	var wall_length: float = 0.0
+	for wall_index: int in range(vertices.size() / 4):
 		var a: Vector2 = Vector2(vertices[wall_index * 4].x, vertices[wall_index * 4].z)
 		var b: Vector2 = Vector2(vertices[wall_index * 4 + 1].x, vertices[wall_index * 4 + 1].z)
-		var key: String = (
-			"%.3f,%.3f/%.3f,%.3f" % [a.x, a.y, b.x, b.y] if a.x < b.x or (a.x == b.x and a.y <= b.y)
-			else "%.3f,%.3f/%.3f,%.3f" % [b.x, b.y, a.x, a.y]
-		)
-		assert_false(
-			seen_edges.has(key),
-			"wall edge %s drawn more than once -- two coincident walls double-blend into a visible seam." % key
-		)
-		seen_edges[key] = true
+		wall_length += a.distance_to(b)
+		var on_edge: bool = false
+		for edge: PackedVector2Array in edges:
+			var closest_a: Vector2 = Geometry2D.get_closest_point_to_segment(a, edge[0], edge[1])
+			var closest_b: Vector2 = Geometry2D.get_closest_point_to_segment(b, edge[0], edge[1])
+			if closest_a.distance_to(a) < 0.001 and closest_b.distance_to(b) < 0.001:
+				on_edge = true
+				break
+		assert_true(on_edge, "wall (%.3f, %.3f)->(%.3f, %.3f) is not on the silhouette outline." % [a.x, a.y, b.x, b.y])
+	assert_almost_eq(wall_length, perimeter, 0.01, "the walls must cover the whole silhouette perimeter, once.")
 
 
-## Every prism wall must be exactly one of the merged silhouette's own outline
-## edges -- no extra interior wall left over from a per-cell/per-column
-## approximation (the seam bug's own root cause).
-func _assert_walls_match_outline_edges(ghost: GhostPreview) -> void:
-	var loop_count: int = ghost.projection_outline_loop_count()
-	var expected_wall_count: int = 0
-	for i: int in range(loop_count):
-		expected_wall_count += ghost.projection_outline_polygon_world(i).size()
-	var vertices: PackedVector3Array = ghost.projection_mesh_vertices_world()
-	assert_eq(
-		vertices.size(), expected_wall_count * 4,
-		"one wall (4 vertices) per outline edge, no extra interior wall left over."
-	)
+func _max_wall_vertex_y(ghost: GhostPreview) -> float:
+	var highest: float = -INF
+	for vertex: Vector3 in ghost.projection_mesh_vertices_world():
+		highest = maxf(highest, vertex.y)
+	return highest
+
+
+func _held_ghost(shape_path: String, roll_degrees: float) -> GhostPreview:
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+	ghost.set_shape(load(shape_path))
+	if roll_degrees != 0.0:
+		ghost.apply_free_rotation_delta(0.0, deg_to_rad(roll_degrees), Vector3.RIGHT)
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+	return ghost
 
 
 ## The owner's own first repro shape (screenshot_20260924_204137.png): a flat,
 ## unrotated 4-long bar must show exactly one outer silhouette loop, at the
-## whole shape's own true footprint area (4 cells * cube_size^2) -- not 4
-## separate per-cell columns.
+## whole shape's own true footprint area (4 cells * cube_size^2), with every
+## wall top at the bar's own underside.
 func test_flat_bar_silhouette_is_a_single_outer_loop_with_full_area() -> void:
-	var ghost: GhostPreview = autofree(GhostPreview.new())
-	add_child_autofree(ghost)
-	ghost.set_shape(load("res://config/blocks/bar4.tres"))
-
-	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+	var ghost: GhostPreview = _held_ghost("res://config/blocks/bar4.tres", 0.0)
 
 	assert_eq(ghost.projection_outline_loop_count(), 1, "a flat 4-long bar's rendered silhouette is one outer loop.")
 	var area: float = _outline_area(ghost.projection_outline_polygon_world(0))
 	var expected_area: float = 4.0 * ghost.tuning.cube_size * ghost.tuning.cube_size
 	assert_almost_eq(area, expected_area, 0.01, "the outline's own area must match the whole bar's true footprint.")
-	_assert_walls_match_outline_edges(ghost)
-	_assert_no_duplicate_wall_edges(ghost.projection_mesh_vertices_world())
+	var underside_y: float = _visual_world_bottom_y(ghost)
+	var vertices: PackedVector3Array = ghost.projection_mesh_vertices_world()
+	for wall_index: int in range(vertices.size() / 4):
+		for k: int in range(2):
+			assert_almost_eq(
+				vertices[wall_index * 4 + k].y, underside_y, 0.001,
+				"a flat bar's every wall top must sit at the bar's own underside, not its top."
+			)
+	_assert_walls_tile_the_outline(ghost)
+	_assert_no_duplicate_wall_edges(vertices)
 
 
 ## config/blocks/T4.tres and S4.tres both stack one cell vertically off a
-## straight row (this file's own header, Bontago-xtq.16's own S4 doc comment)
-## -- each must still show exactly one outer silhouette loop, with no interior
-## wall left over from treating the stacked cell as its own column/patch.
+## straight row -- each must still show exactly one outer silhouette loop, with
+## no interior wall left over from treating the stacked cell as its own column.
 func test_t_and_s_piece_silhouettes_are_single_outer_loops() -> void:
 	for shape_path: String in ["res://config/blocks/T4.tres", "res://config/blocks/S4.tres"]:
-		var ghost: GhostPreview = autofree(GhostPreview.new())
-		add_child_autofree(ghost)
-		ghost.set_shape(load(shape_path))
-
-		ghost.update_placement(Vector3.ZERO, Vector3.UP)
+		var ghost: GhostPreview = _held_ghost(shape_path, 0.0)
 
 		assert_eq(
 			ghost.projection_outline_loop_count(), 1,
 			"%s's rendered silhouette must be one outer loop, not one per cell/column." % shape_path
 		)
-		_assert_walls_match_outline_edges(ghost)
+		_assert_walls_tile_the_outline(ghost)
 		_assert_no_duplicate_wall_edges(ghost.projection_mesh_vertices_world())
+		_assert_wall_tops_follow_the_underside(ghost)
+
+
+## Bontago-xtq.16's own "single cube unchanged" case: the shaft's top is the
+## cube's own underside, never its top (the xtq.9 whole-shape cap attempt 3
+## reverted to). Must fail against attempt 3.
+func test_single_cube_projection_walls_cap_at_its_own_underside_not_the_shapes_own_top() -> void:
+	var ghost: GhostPreview = _make_ghost()
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	assert_true(ghost.has_projection_mesh(), "fixture: hover_height alone leaves a real gap under the cube.")
+	assert_almost_eq(
+		_max_wall_vertex_y(ghost), _visual_world_bottom_y(ghost), 0.001,
+		"the walls' own top must be the cube's own underside, not its top."
+	)
+	assert_true(
+		_max_wall_vertex_y(ghost) < _visual_world_top_y(ghost) - 0.001,
+		"the walls must stop below the cube's own top, not enclose the whole solid body."
+	)
+	_assert_walls_tile_the_outline(ghost)
+
+
+## The literal Bontago-xtq.16 S4 repro, restored: config/blocks/S4.tres has
+## cells (1,0,0)/(2,0,0) in a bottom row and (0,1,0)/(1,1,0) directly above,
+## offset one column left. No wall vertex may rise above the lower cells' own
+## top (a full cube_size below the shape's own top), the x=0 end (under the
+## overhanging (0,1,0)) must reach exactly that overhang's underside, and the
+## x=2 end must stop at (2,0,0)'s own underside. Must fail against attempt 3
+## (every wall capped at the whole shape's own top).
+func test_s4_at_identity_rotation_never_projects_above_the_lower_cells_own_top() -> void:
+	var ghost: GhostPreview = _held_ghost("res://config/blocks/S4.tres", 0.0)
+
+	var lower_cell_underside_y: float = _expected_cell_min_y(ghost, Vector3i(2, 0, 0))
+	var overhang_underside_y: float = _expected_cell_min_y(ghost, Vector3i(0, 1, 0))
+	var lower_cell_top_y: float = lower_cell_underside_y + ghost.tuning.cube_size
+	assert_almost_eq(overhang_underside_y, lower_cell_top_y, 0.001, "fixture: the overhang sits on the lower row's top level.")
+
+	var vertices: PackedVector3Array = ghost.projection_mesh_vertices_world()
+	assert_false(vertices.is_empty(), "fixture: a real gap between the shape and the disc must show prism geometry.")
+	var min_x: float = INF
+	var max_x: float = -INF
+	for vertex: Vector3 in vertices:
+		min_x = minf(min_x, vertex.x)
+		max_x = maxf(max_x, vertex.x)
+		assert_true(
+			vertex.y <= lower_cell_top_y + 0.01,
+			"no prism vertex may sit above the lower cells' own top (%.3f); got %.3f at (%.3f, %.3f)"
+				% [lower_cell_top_y, vertex.y, vertex.x, vertex.z]
+		)
+	for wall_index: int in range(vertices.size() / 4):
+		for k: int in range(2):
+			var top: Vector3 = vertices[wall_index * 4 + k]
+			if absf(top.x - min_x) < 0.001:
+				assert_almost_eq(top.y, overhang_underside_y, 0.001, "the overhang's own end wall reaches its underside.")
+			elif absf(top.x - max_x) < 0.001:
+				assert_almost_eq(top.y, lower_cell_underside_y, 0.001, "(2,0,0)'s end wall stops at its own underside.")
+	_assert_no_duplicate_wall_edges(vertices)
+
+
+## "a pitched bar is enclosed from below", restored against the new model:
+## bar3 pitched 20 degrees about its own long axis -- every wall top follows
+## the bar's own (tilted) underside, so the prism never reaches the bar's own
+## highest point. Must fail against attempt 3 (walls capped at that point).
+func test_pitched_bar_is_enclosed_from_below_never_above_its_own_cells() -> void:
+	var ghost: GhostPreview = _held_ghost("res://config/blocks/bar3.tres", 20.0)
+
+	assert_true(
+		_max_wall_vertex_y(ghost) < _visual_world_top_y(ghost) - 0.01,
+		"must be enclosed strictly below the shape's own highest point (%.3f) -- the whole-hull cap."
+			% _visual_world_top_y(ghost)
+	)
+	_assert_wall_tops_follow_the_underside(ghost)
+	_assert_walls_tile_the_outline(ghost)
 
 
 ## The owner's own literal repro shape/gesture: a 1x4 bar rolled 30 degrees
 ## about its own long axis (screenshot_20260924_204137.png) sends every one of
-## its 4 cells to a distinct, overlapping rotated footprint -- exactly the
-## case xtq.16's per-column model could not merge or dedupe. The merged-mesh
-## silhouette must still collapse this to one outer loop with no two walls
-## occupying the same ground-plane segment. Must fail against the pre-xtq.19
-## column model (4 distinct, overlapping per-cell columns, each walling all 4
-## of its own edges with nothing to dedupe against) and pass once the whole
-## rendered shell is unioned first.
+## its 4 cells to a distinct, overlapping rotated footprint -- exactly the case
+## xtq.16's per-column model could not merge or dedupe. One outer loop, no
+## overlapping walls, and every wall top on the bar's own sloped underside.
 func test_tilted_bar_silhouette_stays_a_single_outer_loop_with_no_overlapping_walls() -> void:
-	var ghost: GhostPreview = autofree(GhostPreview.new())
-	add_child_autofree(ghost)
-	ghost.set_shape(load("res://config/blocks/bar4.tres"))
-	ghost.apply_free_rotation_delta(0.0, deg_to_rad(30.0), Vector3.RIGHT)
-
-	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+	var ghost: GhostPreview = _held_ghost("res://config/blocks/bar4.tres", 30.0)
 
 	assert_eq(
 		ghost.projection_outline_loop_count(), 1,
 		"a rolled bar's 4 cells project to overlapping quads, but the true rendered silhouette is one outer loop."
 	)
-	_assert_walls_match_outline_edges(ghost)
+	_assert_walls_tile_the_outline(ghost)
 	_assert_no_duplicate_wall_edges(ghost.projection_mesh_vertices_world())
+	_assert_wall_tops_follow_the_underside(ghost)
+	assert_true(
+		_max_wall_vertex_y(ghost) < _visual_world_top_y(ghost) - 0.01,
+		"the rolled bar's shaft must stay under the bar, never reach its own top."
+	)
+
+
+## The owner's second repro (screenshot_20260924_204154.png): a T-piece rolled
+## 30 degrees -- its stem tips out past the bar's silhouette, so part of the
+## outline sits under the stem's own tilted underside, higher than the bar's.
+func test_tilted_t_piece_silhouette_is_one_loop_hugging_its_underside() -> void:
+	var ghost: GhostPreview = _held_ghost("res://config/blocks/T4.tres", 30.0)
+
+	assert_eq(ghost.projection_outline_loop_count(), 1, "a rolled T4's rendered silhouette is one outer loop.")
+	_assert_walls_tile_the_outline(ghost)
+	_assert_no_duplicate_wall_edges(ghost.projection_mesh_vertices_world())
+	_assert_wall_tops_follow_the_underside(ghost)
+	assert_true(
+		_max_wall_vertex_y(ghost) < _visual_world_top_y(ghost) - 0.01,
+		"the rolled T4's shaft must stay under the piece, never reach its own top."
+	)
+
+
+## A shape resting flush on the ground (manual_hover_offset cancelling
+## hover_height and the collision margin) has no shaft under it at all --
+## Bontago-xtq.16's "no shaft where the shape sits on the ground" -- while
+## projection_span_y() (spawn-clearance bookkeeping) still reports the body.
+func test_flush_shape_draws_no_shaft_walls() -> void:
+	var ghost: GhostPreview = _make_ghost()
+	ghost.manual_hover_offset = ghost.tuning.cube_margin * 0.5 - ghost.tuning.hover_height
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	assert_false(ghost.has_projection_mesh(), "a cube sitting on the disc has no gap to show a shaft in.")
+	assert_true(ghost.projection_span_y().x > 0.0, "projection_span_y() still reports the body's own top for spawn clearance.")
 
 
 ## The S4 bug's own literal edge-dedup repro (Bontago-xtq.18): still true under
-## the new silhouette model, now for a structural reason -- one merged outline
-## has no internal seam to duplicate at all, rather than a dedupe pass
-## trimming one.
+## the silhouette model, now for a structural reason -- one merged outline has
+## no internal seam to duplicate at all.
 func test_s4_at_identity_rotation_never_draws_the_same_wall_edge_twice() -> void:
-	var ghost: GhostPreview = autofree(GhostPreview.new())
-	add_child_autofree(ghost)
-	ghost.set_shape(load("res://config/blocks/S4.tres"))
-
-	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+	var ghost: GhostPreview = _held_ghost("res://config/blocks/S4.tres", 0.0)
 
 	var vertices: PackedVector3Array = ghost.projection_mesh_vertices_world()
 	assert_false(vertices.is_empty(), "fixture: a real gap between the shape and the disc must show prism geometry.")
 	_assert_no_duplicate_wall_edges(vertices)
+
+
+## Cache contract: moving the ghost (same shape, same rotation) re-emits the
+## same walls at the new height without rebuilding the outline; the relative
+## wall heights are unchanged.
+func test_moving_the_ghost_only_offsets_the_cached_walls() -> void:
+	var ghost: GhostPreview = _held_ghost("res://config/blocks/T4.tres", 30.0)
+	var before: PackedVector3Array = ghost.projection_mesh_vertices_world()
+	var before_y: float = ghost.global_position.y
+	var cached_loops: Array[PackedVector2Array] = ghost._cached_silhouette_loops
+
+	ghost.update_placement(Vector3(1.0, 0.5, -2.0), Vector3.UP)
+
+	var after: PackedVector3Array = ghost.projection_mesh_vertices_world()
+	assert_same(ghost._cached_silhouette_loops, cached_loops, "a pure move must hit the (shape, basis) cache.")
+	assert_eq(after.size(), before.size())
+	var rise: float = ghost.global_position.y - before_y
+	for wall_index: int in range(before.size() / 4):
+		for k: int in range(2):
+			var old_top: Vector3 = before[wall_index * 4 + k]
+			var new_top: Vector3 = after[wall_index * 4 + k]
+			assert_almost_eq(new_top.y - old_top.y, rise, 0.001, "wall tops move with the ghost.")
+			assert_almost_eq(new_top.x - old_top.x, 1.0, 0.001)
+			assert_almost_eq(new_top.z - old_top.z, -2.0, 0.001)
 
 
 ## Bontago-xtq.18 (this file's own fix (1)): the prism's own wall geometry

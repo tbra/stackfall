@@ -242,6 +242,30 @@ extends Node3D
 ## exercised by neither this attempt's tests nor any real shape, and is called
 ## out here rather than silently assumed correct.
 ##
+## Bontago-xtq.19 attempt 4 (owner: "the prism must never rise above the lower
+## cells of an S/T piece" -- xtq.16's owner-verified rule, which attempt 3 above
+## reverted): the prism is the shaft *under* the shape, from the landing
+## surface up to the shape's own underside, not a box around it. Attempt 3's
+## silhouette union is kept (still one outline, no interior walls, no seams),
+## and its walls now hug the underside exactly: _build_underside_walls() splits
+## every outline edge wherever a projected mesh triangle edge crosses or
+## touches it, so each piece lies under one fixed triangle set; _underside_
+## heights() takes the lowest triangle over the piece (probe nudged
+## _SILHOUETTE_PROBE_INSET inside the outline) and evaluates its plane at the
+## piece's two ends -- exact for a tilted underside (sloped wall top) and
+## stepped where an overhang begins. Where the underside reaches the wall
+## bottom (the shape sitting on the ground) no wall is drawn
+## (_append_underside_wall()). Pieces and their heights, relative to the ghost
+## origin, are cached with the outline on (shape, basis), so a frame that only
+## moves the ghost just re-emits the cached quads at a new Y. This supersedes
+## attempt 3's two DECISIONs above about dropping xtq.16's per-column cap and
+## deleting its tests: the cap is back (exactly, per outline piece, rather than
+## per cell column), and the S4/single-cube/pitched-bar tests are restored
+## against the built mesh. There is still no top cap polygon (there never was
+## one in attempt 3 either); the ghost body itself closes the shaft's top.
+## projection_span_y() (whole-shape top, game/PlayerController.gd's spawn-
+## clearance contract) and projection_column_count()/_span_y() are unchanged.
+##
 ## Rotation is stored as an integer index over the 24 axis-aligned cube
 ## orientations (core/blocks/BlockOrientations.gd) plus a separate free-
 ## rotation quaternion layered on top. Resetting clears the quaternion and
@@ -314,6 +338,27 @@ const _MIN_DECAL_FADE: float = 0.0001
 ## vertical) projects to a zero-width sliver that would otherwise feed a
 ## near-empty/self-intersecting polygon into Geometry2D.merge_polygons.
 const _MIN_SILHOUETTE_TRIANGLE_AREA: float = 1e-6
+
+## Bontago-xtq.19 attempt 4 (this file's own header): geometric tolerances for
+## the underside-hugging prism walls, in meters. Structural float tolerances,
+## not look tunables -- DECISION (game/GhostPreview.gd, Bontago-xtq.19 attempt
+## 4): file consts rather than GhostTuning fields, the same call
+## _MIN_DECAL_FADE makes; no value in these ranges changes how the prism looks,
+## only whether rounding (Geometry2D.merge_polygons' own fixed-point output,
+## ~1e-5 m) is absorbed.
+## How far a split point may sit from an outline edge and still split it, and
+## the shortest outline piece kept (a T-junction vertex ending exactly on the
+## outline, _edge_split_params()).
+const _SILHOUETTE_SPLIT_EPSILON: float = 1e-4
+## How far _underside_heights() nudges its probe point off the outline, toward
+## the silhouette's interior, so point-in-triangle tests never land exactly on
+## the outline (which every neighbouring triangle "contains"). Two orders of
+## magnitude above merge_polygons' own rounding, two below a cube.
+const _SILHOUETTE_PROBE_INSET: float = 1e-3
+## How close the underside may come to the wall bottom before that stretch of
+## wall is treated as "the shape sits on the ground here" and not drawn
+## (_append_underside_wall()).
+const _UNDERSIDE_CONTACT_EPSILON: float = 1e-4
 
 ## Bontago-mv0.35: the group game/PlayerController.gd puts its own (local,
 ## player-driven) ghost in, so ui/HUD.gd can show that block's height
@@ -388,6 +433,17 @@ var _cached_silhouette_shape: BlockShape = null
 var _cached_silhouette_basis: Basis = Basis.IDENTITY
 var _cached_silhouette_loops: Array[PackedVector2Array] = []
 var _cached_silhouette_valid: bool = false
+## Bontago-xtq.19 attempt 4 (this file's own header): the underside-hugging
+## wall list built alongside _cached_silhouette_loops, same (shape, basis)
+## cache key. _cached_wall_segments holds consecutive (a, b) ghost-local XZ
+## pairs -- every outline edge split wherever a projected mesh triangle edge
+## crosses or touches it, so each piece lies under one fixed set of triangles
+## -- and _cached_wall_heights holds, per piece, the shape's own underside Y
+## at a and at b, *relative to the ghost origin* (global_position.y), so a
+## frame that only moves the ghost re-emits these quads at a new offset and
+## never re-walks the mesh.
+var _cached_wall_segments: PackedVector2Array = PackedVector2Array()
+var _cached_wall_heights: PackedVector2Array = PackedVector2Array()
 ## Bontago-xtq.7: the last disk-surface point PlayerController's own
 ## placed-block-skipping probe reported (update_placement()'s own
 ## `surface_point` argument), kept so _update_footprint()'s disk-under-the-
@@ -798,15 +854,17 @@ func _update_footprint() -> void:
 	_update_block_projection_decal(world_hull, landing_y)
 
 
-## Bontago-xtq.19 attempt 3 (this file's own header): `_projection_span_y`
+## Bontago-xtq.19 attempt 3/4 (this file's own header): `_projection_span_y`
 ## stays the *whole* shape's own bookkeeping (top = _rotated_top_offset(),
 ## untouched -- game/PlayerController.gd's own spawn-clearance reads this
-## contract), and the prism's actual mesh now walls the *merged rendered
+## contract), while the prism's actual mesh walls the *merged rendered
 ## silhouette* (_shape_silhouette_loops()) from a single shared wall_bottom_y
-## up to that same single whole-shape top -- no per-column cap any more (see
-## this file's own header for why that trade-off was accepted). The prism
-## still collapses the same way the old single hull did: the whole shape's own
-## top within ghost_tuning.footprint_offset of the disc, or below it.
+## up to the shape's own underside along the outline (attempt 4: the cached
+## pieces from _build_underside_walls(), re-emitted at this frame's height).
+## The prism still collapses the same way the old single hull did: the whole
+## shape's own top within ghost_tuning.footprint_offset of the disc, or below
+## it; and a shape resting on the ground draws no wall at all (no mesh, though
+## projection_span_y() still reports the body).
 func _update_projection_mesh(landing_y: float) -> void:
 	if _shape == null or _shape.cells.is_empty():
 		_clear_projection_mesh()
@@ -842,13 +900,25 @@ func _update_projection_mesh(landing_y: float) -> void:
 	# ground-contact edge never Z-fights the disc's own collision mesh sitting
 	# exactly at `landing_y`.
 	var wall_bottom_y: float = landing_y + ghost_tuning.footprint_offset
-	for loop: PackedVector2Array in loops:
-		if loop.size() < 3:
-			continue
-		_append_prism_walls(loop, whole_top_y, wall_bottom_y, verts, normals, uvs, indices)
+	# Bontago-xtq.19 attempt 4: re-emit the cached underside walls at this
+	# frame's own height -- the only per-frame work (see
+	# _cached_wall_heights' own doc comment).
+	var origin_y: float = global_position.y
+	for i: int in range(_cached_wall_heights.size()):
+		var heights: Vector2 = _cached_wall_heights[i]
+		_append_underside_wall(
+			_cached_wall_segments[i * 2], _cached_wall_segments[i * 2 + 1],
+			origin_y + heights.x, origin_y + heights.y, wall_bottom_y,
+			verts, normals, uvs, indices
+		)
 
 	if verts.is_empty():
+		# Bontago-xtq.19 attempt 4: the shape rests on the ground along its
+		# whole outline -- no shaft to draw. _projection_span_y is kept (spawn
+		# clearance still needs the body's own top); _projection_columns tracks
+		# the visible mesh, per its own doc comment.
 		_projection_mesh.mesh = null
+		_projection_columns.clear()
 		return
 
 	var arrays: Array = []
@@ -980,15 +1050,22 @@ func _build_white_decal_texture() -> ImageTexture:
 ## per-cell or per-column approximation of it. Cached on (`_shape`, `basis`);
 ## see _cached_silhouette_valid's own doc comment for why that is exact, not
 ## approximate, for every other input _update_projection_mesh() reads.
+## Bontago-xtq.19 attempt 4: the same cache fill also builds the underside
+## wall list (_build_underside_walls()), so a cache hit covers both.
 func _shape_silhouette_loops() -> Array[PackedVector2Array]:
 	if _shape == null or _shape_visual == null:
 		return []
 	if _cached_silhouette_valid and _cached_silhouette_shape == _shape \
 			and _cached_silhouette_basis.is_equal_approx(basis):
 		return _cached_silhouette_loops
+	var triangles_3d: Array[PackedVector3Array] = _collect_rotated_triangles()
+	var triangles_2d: Array[PackedVector2Array] = []
+	for triangle: PackedVector3Array in triangles_3d:
+		triangles_2d.append(_flatten_triangle(triangle))
 	var loops: Array[PackedVector2Array] = []
-	for triangle: PackedVector2Array in _collect_rotated_triangles():
+	for triangle: PackedVector2Array in triangles_2d:
 		loops = _accumulate_union(loops, triangle)
+	_build_underside_walls(loops, triangles_3d, triangles_2d)
 	_cached_silhouette_shape = _shape
 	_cached_silhouette_basis = basis
 	_cached_silhouette_loops = loops
@@ -1002,12 +1079,15 @@ func _shape_silhouette_loops() -> Array[PackedVector2Array]:
 ## is walked the same way since it is still one MeshInstance3D per cell with
 ## its own local `.position` offset), each vertex transformed by the ghost's
 ## current rotation `basis` (matching _rotated_bottom_offset()/_rotated_top_
-## offset()'s own corner math) and projected to ghost-local XZ. Degenerate
-## (near-zero-area, e.g. a vertical face at identity rotation) triangles are
-## dropped -- see _MIN_SILHOUETTE_TRIANGLE_AREA's own doc comment for why one
-## is expected on every unrotated shape's own side faces, not just as noise.
-func _collect_rotated_triangles() -> Array[PackedVector2Array]:
-	var triangles: Array[PackedVector2Array] = []
+## offset()'s own corner math), in ghost-local 3D (origin-relative, so each Y
+## is a height relative to global_position.y). Triangles whose XZ projection
+## is degenerate (near-zero-area, e.g. a vertical face at identity rotation)
+## are dropped -- see _MIN_SILHOUETTE_TRIANGLE_AREA's own doc comment for why
+## one is expected on every unrotated shape's own side faces, not just as
+## noise; such a triangle also has no well-defined plane height over XZ for
+## _underside_heights() to read.
+func _collect_rotated_triangles() -> Array[PackedVector3Array]:
+	var triangles: Array[PackedVector3Array] = []
 	for child: Node in _shape_visual.get_children():
 		var mesh_instance: MeshInstance3D = child as MeshInstance3D
 		if mesh_instance == null or mesh_instance.mesh == null:
@@ -1021,15 +1101,23 @@ func _collect_rotated_triangles() -> Array[PackedVector2Array]:
 			if indices.is_empty():
 				indices = _sequential_indices(verts.size())
 			for i: int in range(0, indices.size() - 2, 3):
-				var a: Vector3 = basis * (local_offset + verts[indices[i]])
-				var b: Vector3 = basis * (local_offset + verts[indices[i + 1]])
-				var c: Vector3 = basis * (local_offset + verts[indices[i + 2]])
-				var triangle: PackedVector2Array = PackedVector2Array([
-					Vector2(a.x, a.z), Vector2(b.x, b.z), Vector2(c.x, c.z),
+				var triangle: PackedVector3Array = PackedVector3Array([
+					basis * (local_offset + verts[indices[i]]),
+					basis * (local_offset + verts[indices[i + 1]]),
+					basis * (local_offset + verts[indices[i + 2]]),
 				])
-				if _triangle_area(triangle) >= _MIN_SILHOUETTE_TRIANGLE_AREA:
+				if _triangle_area(_flatten_triangle(triangle)) >= _MIN_SILHOUETTE_TRIANGLE_AREA:
 					triangles.append(triangle)
 	return triangles
+
+
+## A ghost-local 3D triangle dropped straight down onto XZ (x, z).
+func _flatten_triangle(triangle: PackedVector3Array) -> PackedVector2Array:
+	return PackedVector2Array([
+		Vector2(triangle[0].x, triangle[0].z),
+		Vector2(triangle[1].x, triangle[1].z),
+		Vector2(triangle[2].x, triangle[2].z),
+	])
 
 
 ## Fallback index buffer (0, 1, 2, 3, ...) for the (never exercised by any
@@ -1080,50 +1168,224 @@ func _accumulate_union(
 	return remainder
 
 
-## Appends one outline loop's own prism walls into the caller's shared mesh
-## arrays: for every edge of `loop` (ghost-local XZ, either an outer boundary
-## or a hole loop -- Bontago-xtq.19 attempt 3's own header DECISION: both wall
-## identically, since a hole in the rendered silhouette needs its own interior
-## wall exactly as much as the outer perimeter does), one vertical quad (2
-## triangles) from `top_y` down to `bottom_y`. Bontago-xtq.19 attempt 3: no
-## `columns`/`self_index` skip-list any more -- the loops _shape_silhouette_
-## loops() returns already have every internal cell-grid seam unioned away, so
-## every edge here is already a true outer-perimeter (or hole-perimeter) edge.
+## Bontago-xtq.19 attempt 4 (this file's own header): fills
+## _cached_wall_segments/_cached_wall_heights from the silhouette `loops` and
+## the rotated mesh triangles that produced them. Step 1: every outline edge
+## a->b is split at every parameter where a projected triangle edge crosses it
+## (Geometry2D.segment_intersects_segment) or where a projected triangle
+## vertex lies on it (within _SILHOUETTE_SPLIT_EPSILON -- a T-junction, e.g.
+## BlockMeshBuilder's per-cell bottom-face seams ending exactly on the outline,
+## which a crossing test alone can miss by float rounding). Between two
+## consecutive split parameters no triangle boundary crosses the edge, so the
+## lowest triangle over the piece is one fixed triangle. Step 2
+## (_underside_heights()): that triangle's own plane, evaluated at the piece's
+## two endpoints, is the shape's underside there -- exact for a tilted
+## underside (the wall's top edge slopes with it) and stepped wherever an
+## overhang begins (a split lands exactly on the step). Pieces shorter than
+## the split epsilon, or with no triangle on either side (an outline spike
+## thinner than _SILHOUETTE_PROBE_INSET), are dropped.
+func _build_underside_walls(
+	loops: Array[PackedVector2Array],
+	triangles_3d: Array[PackedVector3Array], triangles_2d: Array[PackedVector2Array]
+) -> void:
+	_cached_wall_segments = PackedVector2Array()
+	_cached_wall_heights = PackedVector2Array()
+	for loop: PackedVector2Array in loops:
+		var edge_count: int = loop.size()
+		if edge_count < 3:
+			continue
+		for i: int in range(edge_count):
+			var a: Vector2 = loop[i]
+			var b: Vector2 = loop[(i + 1) % edge_count]
+			var edge_length: float = a.distance_to(b)
+			if edge_length <= _SILHOUETTE_SPLIT_EPSILON:
+				continue
+			var params: PackedFloat64Array = _edge_split_params(a, b, triangles_2d)
+			var previous: float = params[0]
+			# Index (into _cached_wall_heights) of the last piece kept on *this*
+			# edge, or -1 -- lets a piece that just continues the previous one's
+			# plane (same height at the shared point, same slope: e.g. a flat
+			# bar's per-cell bottom-face seams) extend it instead of adding a
+			# redundant quad.
+			var last_piece: int = -1
+			for k: int in range(1, params.size()):
+				var current: float = params[k]
+				if (current - previous) * edge_length <= _SILHOUETTE_SPLIT_EPSILON:
+					continue
+				var piece_a: Vector2 = a.lerp(b, previous)
+				var piece_b: Vector2 = a.lerp(b, current)
+				previous = current
+				var heights: PackedFloat64Array = _underside_heights(piece_a, piece_b, triangles_3d, triangles_2d)
+				if heights.is_empty():
+					last_piece = -1
+					continue
+				if last_piece >= 0 and _continues_piece(last_piece, piece_a, piece_b, heights):
+					_cached_wall_segments[last_piece * 2 + 1] = piece_b
+					var extended: Vector2 = _cached_wall_heights[last_piece]
+					_cached_wall_heights[last_piece] = Vector2(extended.x, heights[1])
+					continue
+				_cached_wall_segments.append(piece_a)
+				_cached_wall_segments.append(piece_b)
+				_cached_wall_heights.append(Vector2(heights[0], heights[1]))
+				last_piece = _cached_wall_heights.size() - 1
+
+
+## Whether new piece piece_a->piece_b (underside `heights` at its ends) lies on
+## the same straight underside line as cached piece `index` on the same
+## outline edge: it starts where that one ends, at the same height, with the
+## same slope -- so one quad can cover both exactly.
+func _continues_piece(index: int, piece_a: Vector2, piece_b: Vector2, heights: PackedFloat64Array) -> bool:
+	var prev_a: Vector2 = _cached_wall_segments[index * 2]
+	var prev_b: Vector2 = _cached_wall_segments[index * 2 + 1]
+	var prev_heights: Vector2 = _cached_wall_heights[index]
+	if prev_b.distance_to(piece_a) > _SILHOUETTE_SPLIT_EPSILON:
+		return false
+	if absf(prev_heights.y - heights[0]) > _UNDERSIDE_CONTACT_EPSILON:
+		return false
+	var prev_slope: float = (prev_heights.y - prev_heights.x) / prev_a.distance_to(prev_b)
+	var slope: float = (heights[1] - heights[0]) / piece_a.distance_to(piece_b)
+	return absf(prev_slope - slope) <= _UNDERSIDE_CONTACT_EPSILON
+
+
+## Sorted split parameters (always including 0.0 and 1.0) along outline edge
+## a->b -- see _build_underside_walls()'s own step 1. Near-duplicates are left
+## in; the caller skips any piece shorter than _SILHOUETTE_SPLIT_EPSILON.
+func _edge_split_params(a: Vector2, b: Vector2, triangles_2d: Array[PackedVector2Array]) -> PackedFloat64Array:
+	var params: PackedFloat64Array = PackedFloat64Array([0.0, 1.0])
+	var edge: Vector2 = b - a
+	var length_squared: float = edge.length_squared()
+	for triangle: PackedVector2Array in triangles_2d:
+		for k: int in range(3):
+			var p: Vector2 = triangle[k]
+			var q: Vector2 = triangle[(k + 1) % 3]
+			var crossing: Variant = Geometry2D.segment_intersects_segment(a, b, p, q)
+			if crossing != null:
+				params.append(clampf(((crossing as Vector2) - a).dot(edge) / length_squared, 0.0, 1.0))
+			var closest: Vector2 = Geometry2D.get_closest_point_to_segment(p, a, b)
+			if closest.distance_to(p) <= _SILHOUETTE_SPLIT_EPSILON:
+				params.append(clampf((closest - a).dot(edge) / length_squared, 0.0, 1.0))
+	params.sort()
+	return params
+
+
+## The shape's own underside height (relative to the ghost origin) at the two
+## endpoints of outline piece a->b, as [height_at_a, height_at_b] -- or empty
+## when neither side of the piece has any mesh triangle over it. Probes the
+## piece's midpoint nudged _SILHOUETTE_PROBE_INSET off the outline (left side
+## first, then right: which side is "inside" depends on the loop's winding,
+## and a hole loop winds the other way, so both are tried rather than trusting
+## Geometry2D.is_polygon_clockwise), picks the triangle with the *lowest*
+## plane Y there (a closed shell's lowest surface over a point is its
+## underside), and evaluates that one triangle's plane at the two real,
+## un-nudged endpoints. No triangle boundary crosses the piece
+## (_edge_split_params()), so that plane is the underside along its whole
+## length.
+func _underside_heights(
+	a: Vector2, b: Vector2,
+	triangles_3d: Array[PackedVector3Array], triangles_2d: Array[PackedVector2Array]
+) -> PackedFloat64Array:
+	var midpoint: Vector2 = (a + b) * 0.5
+	var direction: Vector2 = (b - a).normalized()
+	var left: Vector2 = Vector2(-direction.y, direction.x)
+	for side: float in [1.0, -1.0]:
+		var probe: Vector2 = midpoint + left * (side * _SILHOUETTE_PROBE_INSET)
+		var best_index: int = -1
+		var best_y: float = INF
+		for j: int in range(triangles_2d.size()):
+			var flat: PackedVector2Array = triangles_2d[j]
+			if not Geometry2D.point_is_inside_triangle(probe, flat[0], flat[1], flat[2]):
+				continue
+			var y: float = _triangle_plane_y(triangles_3d[j], flat, probe)
+			if y < best_y:
+				best_y = y
+				best_index = j
+		if best_index >= 0:
+			var triangle: PackedVector3Array = triangles_3d[best_index]
+			var triangle_flat: PackedVector2Array = triangles_2d[best_index]
+			return PackedFloat64Array([
+				_triangle_plane_y(triangle, triangle_flat, a),
+				_triangle_plane_y(triangle, triangle_flat, b),
+			])
+	return PackedFloat64Array()
+
+
+## The Y of `triangle`'s own plane straight above/below XZ point `point`
+## (barycentric weights from its XZ projection `flat`, extrapolated if
+## `point` is outside it). `flat` is never degenerate here --
+## _collect_rotated_triangles() already dropped every triangle under
+## _MIN_SILHOUETTE_TRIANGLE_AREA.
+func _triangle_plane_y(triangle: PackedVector3Array, flat: PackedVector2Array, point: Vector2) -> float:
+	var e1: Vector2 = flat[1] - flat[0]
+	var e2: Vector2 = flat[2] - flat[0]
+	var d: Vector2 = point - flat[0]
+	var denominator: float = e1.x * e2.y - e2.x * e1.y
+	var weight_1: float = (d.x * e2.y - e2.x * d.y) / denominator
+	var weight_2: float = (e1.x * d.y - d.x * e1.y) / denominator
+	return triangle[0].y + weight_1 * (triangle[1].y - triangle[0].y) + weight_2 * (triangle[2].y - triangle[0].y)
+
+
+## Appends one underside wall (Bontago-xtq.19 attempt 4) into the caller's
+## shared mesh arrays: a vertical quad over ghost-local XZ segment a->b, from
+## `bottom_y` up to the shape's own underside at each end (`top_a`/`top_b`,
+## world Y -- the top edge may slope). Always exactly 4 vertices in
+## (a_top, b_top, b_bottom, a_bottom) order, the layout tests/unit/
+## test_ghost_preview.gd reconstructs walls from. Where the underside dips to
+## within _UNDERSIDE_CONTACT_EPSILON of `bottom_y` (the shape sitting on the
+## landing surface there -- Bontago-xtq.16's "no shaft where the shape
+## touches the ground") nothing is drawn; a piece crossing that level is
+## clipped at the crossing point, so its low end collapses to a triangle
+## (a_top == a_bottom) rather than dipping below the disc.
+## DECISION (game/GhostPreview.gd, Bontago-xtq.19 attempt 4): no extra
+## vertical "step" face is emitted where two consecutive pieces meet at
+## different heights -- both pieces lie on the same outline and each rises
+## from the same bottom to its own top at the shared vertex, so they tile the
+## wall with no gap (the height difference is a zero-area line). The vertical
+## face an interior overhang step would need is the shape's own side face
+## (e.g. S4's lower cell's inner side), already drawn by the ghost body.
 ## One winding is enough -- _projection_material's own CULL_DISABLED (see
 ## _ready()) draws both sides of every triangle regardless of winding.
-func _append_prism_walls(
-	loop: PackedVector2Array, top_y: float, bottom_y: float,
+func _append_underside_wall(
+	a: Vector2, b: Vector2, top_a: float, top_b: float, bottom_y: float,
 	verts: PackedVector3Array, normals: PackedVector3Array, uvs: PackedVector2Array, indices: PackedInt32Array
 ) -> void:
-	var edge_count: int = loop.size()
-	for i: int in range(edge_count):
-		var a: Vector2 = loop[i]
-		var b: Vector2 = loop[(i + 1) % edge_count]
-		var edge_length: float = a.distance_to(b)
-		if edge_length <= 0.0:
-			continue
-		# Outward-ish normal for this edge (SHADING_MODE_UNSHADED means it
-		# has no visible effect today, but a correct value costs nothing and
-		# keeps the mesh sane if the material ever changes).
-		var edge_dir: Vector2 = (b - a) / edge_length
-		var normal: Vector3 = Vector3(edge_dir.y, 0.0, -edge_dir.x)
-		var base_index: int = verts.size()
-		verts.append(Vector3(a.x, top_y, a.y))
-		verts.append(Vector3(b.x, top_y, b.y))
-		verts.append(Vector3(b.x, bottom_y, b.y))
-		verts.append(Vector3(a.x, bottom_y, a.y))
-		for _k: int in range(4):
-			normals.append(normal)
-		uvs.append(Vector2(0.0, 0.0))
-		uvs.append(Vector2(edge_length / tuning.cube_size, 0.0))
-		uvs.append(Vector2(edge_length / tuning.cube_size, (top_y - bottom_y) / tuning.cube_size))
-		uvs.append(Vector2(0.0, (top_y - bottom_y) / tuning.cube_size))
-		indices.append(base_index)
-		indices.append(base_index + 2)
-		indices.append(base_index + 1)
-		indices.append(base_index)
-		indices.append(base_index + 3)
-		indices.append(base_index + 2)
+	var limit: float = bottom_y + _UNDERSIDE_CONTACT_EPSILON
+	if top_a <= limit and top_b <= limit:
+		return
+	var start: Vector2 = a
+	var end: Vector2 = b
+	var top_start: float = top_a
+	var top_end: float = top_b
+	if top_start < bottom_y:
+		start = a.lerp(b, (bottom_y - top_a) / (top_b - top_a))
+		top_start = bottom_y
+	elif top_end < bottom_y:
+		end = b.lerp(a, (bottom_y - top_b) / (top_a - top_b))
+		top_end = bottom_y
+	var edge_length: float = start.distance_to(end)
+	if edge_length <= 0.0:
+		return
+	# Outward-ish normal for this edge (SHADING_MODE_UNSHADED means it has no
+	# visible effect today, but a correct value costs nothing and keeps the
+	# mesh sane if the material ever changes).
+	var edge_dir: Vector2 = (end - start) / edge_length
+	var normal: Vector3 = Vector3(edge_dir.y, 0.0, -edge_dir.x)
+	var base_index: int = verts.size()
+	verts.append(Vector3(start.x, top_start, start.y))
+	verts.append(Vector3(end.x, top_end, end.y))
+	verts.append(Vector3(end.x, bottom_y, end.y))
+	verts.append(Vector3(start.x, bottom_y, start.y))
+	for _k: int in range(4):
+		normals.append(normal)
+	uvs.append(Vector2(0.0, 0.0))
+	uvs.append(Vector2(edge_length / tuning.cube_size, 0.0))
+	uvs.append(Vector2(edge_length / tuning.cube_size, (top_end - bottom_y) / tuning.cube_size))
+	uvs.append(Vector2(0.0, (top_start - bottom_y) / tuning.cube_size))
+	indices.append(base_index)
+	indices.append(base_index + 2)
+	indices.append(base_index + 1)
+	indices.append(base_index)
+	indices.append(base_index + 3)
+	indices.append(base_index + 2)
 
 
 ## Unweighted average of `hull`'s own vertices -- good enough as "roughly the
@@ -1241,10 +1503,10 @@ func footprint_polygon_world(index: int) -> PackedVector2Array:
 ## collapsed (see _update_projection_mesh()'s own guard). `top` is always the
 ## held shape's own current *highest* point (Bontago-xtq.9: matches
 ## _rotated_top_offset()'s own contract, not _rotated_bottom_offset()'s);
-## `bottom` is the footprint's own landing height. Bontago-xtq.19 attempt 3:
-## since every wall now shares this one span (no per-column cap any more --
-## this file's own header), this is also exactly what projection_column_
-## span_y() below now reports.
+## `bottom` is the footprint's own landing height. Bontago-xtq.19 attempt 4:
+## this is bookkeeping, not the mesh's own extent -- the walls stop at the
+## shape's underside (projection_mesh_vertices_world() gives the real
+## geometry); projection_column_span_y() below reports this same span.
 func projection_span_y() -> Vector2:
 	return _projection_span_y
 
