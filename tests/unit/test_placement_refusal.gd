@@ -200,6 +200,50 @@ func test_auto_drop_outside_the_zone_relocates_and_emits_placement_relocated() -
 	)
 
 
+## Bontago-xtq.23 (owner playtest 2026-09-24, root cause): the ghost sits well
+## past auto_drop_search_max_radius (12 m) from the acting slot's own
+## territory -- the exact case that used to fall through the ring search
+## straight to NO_ORIGIN and get thrown off the map even though the slot's own
+## territory was sitting right there on the disk. PlacementRules.
+## closest_valid_point()'s disk-scan fallback must still find it and relocate,
+## the same as the near case above, just farther out.
+func test_auto_drop_far_outside_the_zone_still_relocates_instead_of_being_thrown() -> void:
+	Match.start_match(_config())
+	_run_countdown()
+	var slot_id: int = 0
+	var home: Vector2 = Match.slot(slot_id).home_position
+	var tuning: TerritoryTuning = load("res://config/territory_tuning.tres")
+	assert_gt(tuning.auto_drop_search_max_radius, 0.0, "sanity: the tunable exists.")
+	# Twice auto_drop_search_max_radius past the home circle's own rim -- the
+	# ring search alone cannot reach this; only the disk scan can.
+	var far_local: Vector2 = home + Vector2(
+		tuning.home_radius + tuning.auto_drop_search_max_radius * 2.0, 0.0
+	)
+	var far_world: Vector3 = _field.to_global(Vector3(far_local.x, 5.0, far_local.y))
+	watch_signals(Events)
+
+	var reason: StringName = Match.request_place(slot_id, far_world, 0, Quaternion.IDENTITY, true)
+
+	assert_eq(reason, PlacementRules.REASON_OK,
+		"A far auto-drop with owned territory elsewhere on the disk must relocate, not burn.")
+	assert_eq(_blocks_root.get_child_count(), 1, "Exactly one block spawned -- not thrown, not duplicated.")
+	assert_signal_emitted(Events, "placement_relocated")
+	var params: Array = get_signal_parameters(Events, "placement_relocated")
+	assert_eq(int(params[0]), slot_id)
+	var relocated_point: Vector2 = params[1]
+
+	var cell: Vector2i = Match.cell_grid().world_to_cell(relocated_point)
+	assert_eq(
+		Match.raster().team_at(cell.x, cell.y), Match.slot(slot_id).team_id,
+		"The relocated point must be owned by the acting slot's own team."
+	)
+	var block: Node3D = _blocks_root.get_child(0) as Node3D
+	var spawned_local: Vector3 = _field.to_local(block.global_position)
+	assert_almost_eq(relocated_point.x, spawned_local.x, 0.01,
+		"The block actually landed at the reported relocation point, not thrown off elsewhere.")
+	assert_almost_eq(relocated_point.y, spawned_local.z, 0.01)
+
+
 func test_auto_drop_inside_the_zone_never_emits_placement_relocated() -> void:
 	Match.start_match(_config())
 	_run_countdown()

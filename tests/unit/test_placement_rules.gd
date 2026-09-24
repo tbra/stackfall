@@ -397,10 +397,53 @@ func test_the_search_walks_out_of_a_goal_zone() -> void:
 		"The relocated drop has to land outside the no-build zone.")
 
 
-func test_no_valid_point_within_the_search_radius() -> void:
+## Bontago-xtq.23 (owner playtest 2026-09-24, "if I'm close to my area it
+## relocates, otherwise it just yeets the block in a direction"): the ring
+## search alone only reaches auto_drop_search_max_radius (12 m); this pins the
+## fix -- once the team's own territory is farther than that, the disk-scan
+## fallback still finds it instead of reporting NO_ORIGIN. Before the fix
+## this asserted is_no_origin(); MapDef's 20 m test map keeps -15/0 and 15/0
+## both on the disk, ~30 m apart, well past auto_drop_search_max_radius=12.
+func test_a_point_far_beyond_the_search_radius_still_finds_the_teams_own_territory() -> void:
 	_rasterize_v2([_home(-15.0, 0.0, 0)] as Array[InfluenceCircle])
-	assert_true(PlacementRules.is_no_origin(_closest_point(Vector2(15.0, 0.0))),
-		"With nowhere valid in reach the block has to be rejected, not teleported.")
+	var desired: Vector2 = Vector2(15.0, 0.0)
+	assert_gt(desired.distance_to(Vector2(-15.0, 0.0)), _tuning.auto_drop_search_max_radius,
+		"Setup: the only owned ground is farther than the fine ring search reaches.")
+
+	var found: Vector2 = _closest_point(desired)
+
+	assert_false(PlacementRules.is_no_origin(found),
+		"The team owns ground somewhere on the disk, so it must relocate there, not burn.")
+	assert_eq(_validate_point(found), PlacementRules.Result.VALID)
+	var cell: Vector2i = _grid.world_to_cell(found)
+	assert_eq(_raster.team_at(cell.x, cell.y), 0,
+		"The relocated point must actually belong to the requesting team.")
+
+
+## The disk-scan fallback must return the NEAREST owned point, not merely any
+## owned point, when the team holds ground in more than one place. Both
+## regions sit beyond auto_drop_search_max_radius from `desired`, so the ring
+## search finds neither and this exercises the scan itself, not the ring.
+func test_the_disk_scan_fallback_finds_the_nearer_of_two_owned_regions() -> void:
+	var near_home: Vector2 = Vector2(-2.0, 0.0)
+	var far_home: Vector2 = Vector2(-19.0, 0.0)
+	_rasterize_v2([
+		_home(near_home.x, near_home.y, 0),
+		_home(far_home.x, far_home.y, 0),
+	] as Array[InfluenceCircle])
+	var desired: Vector2 = Vector2(19.0, 0.0)
+	assert_gt(desired.distance_to(near_home), _tuning.auto_drop_search_max_radius,
+		"Setup: even the nearer region is beyond the fine ring search from here.")
+	assert_gt(desired.distance_to(far_home), _tuning.auto_drop_search_max_radius)
+
+	var found: Vector2 = _closest_point(desired)
+
+	assert_false(PlacementRules.is_no_origin(found))
+	assert_eq(_validate_point(found), PlacementRules.Result.VALID)
+	assert_lt(found.distance_to(near_home), found.distance_to(far_home),
+		"The scan must land in the nearer region's territory, not the farther one's.")
+	assert_lt(found.distance_to(desired), desired.distance_to(far_home),
+		"And the point it lands on must be closer to `desired` than the far region even is.")
 
 
 func test_no_valid_point_when_the_team_owns_nothing() -> void:
