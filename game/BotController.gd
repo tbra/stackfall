@@ -282,8 +282,11 @@ func _shape_height_cubes(cells: Array[Vector3i], basis: Basis) -> float:
 ## tres -- a 0.05s step); a bot cannot reach GENERATING (and so this function)
 ## before its own _think_delay_s has elapsed, and BotDifficultyProfile.hard's
 ## reaction_delay_s (0.2s, config/bot_tuning.tres) is already four solve
-## steps, so a real match always has at least one completed territory solve
-## by the time any bot's first candidate is sampled. An unsolved raster
+## steps, so in practice a real match has at least one completed territory
+## solve by the time any bot's first candidate is sampled (the only gap is a
+## single-frame hitch >= reaction_delay_s right at setup(), since the bot
+## state machine runs in _physics_process and the solve in _process; the
+## solve then catches up on the next idle frame). An unsolved raster
 ## (every cell at team -1, e.g. a bare unit test that never calls
 ## TerritoryRaster.update()) still degrades safely to the home-position
 ## fallback below, exactly as before.
@@ -630,11 +633,12 @@ func _enemy_circle_centers() -> PackedVector2Array:
 ## Bontago-d5c.11 item 3 (review fix): get_nodes_in_group() iteration order is
 ## not part of any contract (Godot's own docs: insertion order into the
 ## group's internal list, not spatial or otherwise stable across runs), so
-## sorting the result is what actually makes a caller's tie-break (e.g.
-## BotPlacementScorer's own risk term, or BotSpecialPlanner's target choice)
-## depend only on this bot's own seeded RNG stream, not on however many other
-## specials happened to spawn first. Vector2's own `<` (x, then y) is exactly
-## sort()'s default ordering.
+## sorting the result removes any dependence on it for the consumer that
+## reads this list (BotPlacementScorer's risk term; BotSpecialPlanner.plan()
+## receives it but does not use it yet), so a bot's choices depend only on
+## its own seeded RNG stream, not on however many other specials happened to
+## spawn first. Vector2's own `<` (x, then y) is exactly sort()'s default
+## ordering.
 func _active_special_positions() -> PackedVector2Array:
 	var positions: PackedVector2Array = PackedVector2Array()
 	if _field == null:
