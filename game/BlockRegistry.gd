@@ -54,7 +54,7 @@ func _ready() -> void:
 ## looks cells up against.
 func configure(field: Node3D, map_def: MapDef) -> void:
 	_field = field
-	_grid = CellGrid.new(map_def.field_radius, map_def.cell_size)
+	_grid = CellGrid.new(map_def.field_radius, map_def.cell_size, map_def.shape_test())
 
 
 ## Drops every tracked block (but does not free the bodies themselves — the

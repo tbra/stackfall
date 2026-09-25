@@ -39,6 +39,16 @@ var res: int = 1
 ## disk-local meters and cell coordinates goes through it.
 var half_extent: float = 0.5
 
+## The map-shape mechanism (spec 2.1, M6 A0): an optional extra membership
+## test consulted by is_in_disk() below, on top of the circle test every map
+## already relied on. Empty (the default, and every two-argument caller's
+## constructor) means "circle only" -- byte-identical to before this package.
+## Set from MapDef.shape_test() (config/MapDef.gd) by every production
+## CellGrid.new() call site; still a plain RefCounted with no map/config
+## dependency of its own -- the caller hands over a bound Callable, this
+## class never imports MapDef.
+var _shape_test: Callable = Callable()
+
 ## Lazily built by in_disk_cells(); every consumer of the disk membership list
 ## shares this one copy, because it is the denominator of every territory
 ## percentage and the iteration order of the raster's timer pass.
@@ -46,13 +56,16 @@ var _in_disk_cells: PackedInt32Array = PackedInt32Array()
 var _in_disk_built: bool = false
 
 
-func _init(p_field_radius: float = 1.0, p_cell_size: float = 1.0) -> void:
+func _init(
+	p_field_radius: float = 1.0, p_cell_size: float = 1.0, p_shape_test: Callable = Callable()
+) -> void:
 	field_radius = maxf(p_field_radius, 0.001)
 	cell_size = maxf(p_cell_size, 0.001)
 	res = int(ceil(2.0 * field_radius / cell_size))
 	if res % 2 == 0:
 		res += 1
 	half_extent = float(res) * cell_size * 0.5
+	_shape_test = p_shape_test
 
 
 ## Total cells in the square grid, including the corner cells outside the disk.
@@ -99,9 +112,18 @@ func index_center(index: int) -> Vector2:
 
 ## True when the cell's center lies inside the disk. Cells straddling the rim
 ## are in or out by their center, which keeps the collision grid and the
-## raster agreeing on the same rim.
+## raster agreeing on the same rim. The circle test always runs first and
+## always gates membership -- every map-shape mechanism (_shape_test above)
+## carves solid ground *out of* this circle, never past its rim -- then
+## _shape_test, when set, narrows it further to whichever cells the map's own
+## shape keeps solid.
 func is_in_disk(cx: int, cy: int) -> bool:
-	return cell_center(cx, cy).length_squared() <= field_radius * field_radius
+	var center: Vector2 = cell_center(cx, cy)
+	if center.length_squared() > field_radius * field_radius:
+		return false
+	if _shape_test.is_valid():
+		return bool(_shape_test.call(center))
+	return true
 
 
 ## How many cells of the grid are inside the disk. Used as the denominator of

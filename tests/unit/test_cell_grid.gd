@@ -138,3 +138,41 @@ func test_in_disk_cells_are_cached_not_rebuilt() -> void:
 	var second: PackedInt32Array = grid.in_disk_cells()
 	assert_eq(first.size(), second.size())
 	assert_eq(grid.in_disk_cell_count(), first.size())
+
+
+# --- The map-shape mechanism: an optional third p_shape_test Callable
+# (docs/M6_PLAN.md package A0, config/MapDef.gd's shape_test()) -------------
+
+func _always_false(_local: Vector2) -> bool:
+	return false
+
+
+func _always_true(_local: Vector2) -> bool:
+	return true
+
+
+func test_a_false_shape_test_excludes_every_cell() -> void:
+	var grid: CellGrid = CellGrid.new(MAP_RADIUS, CELL, Callable(self, "_always_false"))
+	assert_eq(
+		grid.in_disk_cell_count(), 0,
+		"an always-false shape_test must reject every cell, including the disk center"
+	)
+	assert_true(grid.in_disk_cells().is_empty())
+
+
+func test_a_true_shape_test_matches_the_plain_circle_count() -> void:
+	var plain: CellGrid = _grid()
+	var shaped: CellGrid = CellGrid.new(MAP_RADIUS, CELL, Callable(self, "_always_true"))
+	assert_eq(
+		shaped.in_disk_cell_count(), plain.in_disk_cell_count(),
+		"a shape_test present but equivalent to the circle must change nothing"
+	)
+	assert_eq(shaped.in_disk_cells(), plain.in_disk_cells())
+
+
+func test_two_argument_constructor_still_behaves_as_a_plain_circle() -> void:
+	# Byte-identical regression: every existing two-argument CellGrid.new()
+	# call site (a dozen of them, tests included) must keep compiling and
+	# behaving exactly as before this package.
+	var grid: CellGrid = CellGrid.new(MAP_RADIUS, CELL)
+	assert_eq(grid.in_disk_cell_count(), _grid().in_disk_cell_count())
