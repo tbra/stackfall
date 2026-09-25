@@ -142,3 +142,52 @@ func test_request_place_rejects_the_slot_whose_turn_it_isnt_under_turn_based() -
 	var reason: StringName = Match.request_place(1, _home_world_position(1), 0, Quaternion.IDENTITY, false)
 	assert_eq(reason, PlacementRules.REASON_NOT_YOUR_TURN)
 	assert_eq(_blocks_root.get_child_count(), 0, "A not-your-turn request must not spawn anything under turn_based either.")
+
+
+# --- stackfall-reviewer findings (Bontago-keo.10, MatchFeed.gd review fix) --
+# autoload/match/MatchFeed.gd's _tick_feed()/_consume_and_refeed() used to gate
+# only on config.hot_seat, so turn_based fell into the concurrent "every slot
+# ticks" branch instead of hot-seat's single-active-slot one.
+
+func test_eliminated_active_slot_advances_the_turn_before_it_ever_places() -> void:
+	# Free-for-all (TeamMode.OFF, this fixture's default): three players, three
+	# teams, mirrors test_sudden_death.gd's own
+	# test_elimination_during_sudden_death_finishes_the_match_immediately --
+	# eliminating one of three leaves two teams alive, so the match itself
+	# keeps running and _tick_turn_based() has somewhere to advance the turn
+	# to.
+	Match.start_match(_turn_based_config(3))
+	_run_countdown()
+	assert_eq(Match.active_slot(), 0)
+
+	# The active slot loses its home flag before ever placing a block this
+	# turn -- no settle-wait has been armed (MatchLifecycle's
+	# _turn_settle_wait_left is still -1.0), so before this fix nothing in
+	# _tick_turn_based() (which only acts once a wait is running) or
+	# _tick_feed() (which used to tick every slot's timer under turn_based,
+	# never checking whose turn it was) ever called advance_turn(): the match
+	# deadlocked on a slot that can never place again.
+	Match._lifecycle._eliminate_slot(0)
+	assert_eq(Match.state(), Match.State.PLAYING, "fixture: one of three eliminated must not end the match")
+
+	Match._process(1.0 / 60.0)
+
+	assert_eq(Match.active_slot(), 1,
+		"an active slot eliminated before it places must hand the turn to the next live slot, not deadlock")
+
+
+func test_only_the_active_slots_timer_runs_under_turn_based() -> void:
+	# Mirrors test_match_flow.gd's own
+	# test_only_the_active_slot_timer_runs_in_hot_seat() -- turn_based shares
+	# hot-seat's single-active-slot feed branch (this package's fix), not the
+	# concurrent "every slot ticks" branch spec 2.4's free-for-all uses.
+	Match.start_match(_turn_based_config(2))
+	_run_countdown()
+	assert_eq(Match.active_slot(), 0)
+
+	var full: float = Match.feed_time_left(0)
+	for _i: int in range(60):  # 1 second at 60 Hz
+		Match._process(1.0 / 60.0)
+
+	assert_lt(Match.feed_time_left(0), full, "The active slot's timer should have ticked down.")
+	assert_almost_eq(Match.feed_time_left(1), 6.0, 0.001, "The inactive slot's timer must not move under turn_based either.")

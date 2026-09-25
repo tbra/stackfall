@@ -30,8 +30,9 @@ var _feed_seq: Array[int] = []
 ## permits exactly one release; placing early does not restart the interval
 ## -- it hands the slot its next piece to aim/prepare immediately, but that
 ## piece stays locked until the interval boundary. Only meaningful outside
-## hot-seat -- see _consume_and_refeed()'s DECISION for why hot-seat never
-## sets this. Parallel to Match's slots, like every other per-slot feed array.
+## hot-seat and turn_based -- see _consume_and_refeed()'s DECISION for why
+## neither ever sets this. Parallel to Match's slots, like every other
+## per-slot feed array.
 var _release_locked: Array[bool] = []
 
 ## Lazily built id -> BlockShape index, used only by the client read model.
@@ -129,11 +130,41 @@ func _tick_feed(delta: float) -> void:
 		# gets no lock either, by the same reasoning _consume_and_refeed()'s
 		# matching DECISION explains.
 		return
-	if _match.config.hot_seat:
+	if _match.config.hot_seat or _match.config.turn_based:
+		# stackfall-reviewer finding (Bontago-keo.10, M6 B4 turn-based review):
+		# turn_based used to fall into the concurrent `else` branch below,
+		# which ticked down EVERY slot's timer regardless of whose turn it
+		# was -- a non-active slot could expire and auto-drop, and
+		# net/MatchNet.gd's host-side check refuses that placement as
+		# NOT_YOUR_TURN (docs/M6_PLAN.md B4: only the active slot may act).
+		# turn_based shares hot-seat's one-actor-at-a-time shape (spec 2.7 vs.
+		# spec 2.4's concurrent "[ORIGINAL target]"), so it takes the same
+		# single-slot branch, including the recovery just below.
 		var active_slot: int = _match.active_slot()
 		if active_slot == -1:
 			return
 		if not _match.slot(active_slot).home_flag_alive:
+			# stackfall-reviewer finding: without this, a turn_based active
+			# slot eliminated before it ever places (e.g. a hole from another
+			# player's territory capture) left _turn_settle_wait_left at its
+			# initial -1.0 -- no settle-wait is running to advance the turn --
+			# and the match deadlocked on a slot that can never place again.
+			# Mirrors hot-seat's own pre-existing recovery exactly.
+			#
+			# DECISION (autoload/match/MatchFeed.gd, not settled by docs/
+			# M6_PLAN.md's B4 section): this call is a no-op whenever a
+			# settle-wait IS currently running (the active slot placed, then
+			# died before its blocks finished settling) -- advance_turn()
+			# itself doesn't touch MatchLifecycle._turn_settle_wait_left, so a
+			# stale wait would still fire its own advance_turn() once settled
+			# or capped, double-advancing the turn. That case is narrow (a
+			# slot needs to lose its home flag strictly between placing and
+			# settling, e.g. a special detonating mid-fall) and
+			# MatchLifecycle.gd is out of this package's owned files; flagged
+			# for the MatchLifecycle owner rather than fixed here. The
+			# reported deadlock this package fixes is the more common case --
+			# eliminated BEFORE ever placing, when no wait is running yet, so
+			# this call is exactly the hot-seat recovery it mirrors.
 			_match.advance_turn()
 			return
 		_feed_time_left[active_slot] = maxf(_feed_time_left[active_slot] - delta, 0.0)
@@ -144,7 +175,8 @@ func _tick_feed(delta: float) -> void:
 		# Spec 2.4 "[ORIGINAL target]": "players act concurrently, each
 		# handling their own supplied piece". Every slot's fixed-interval
 		# timer runs at once and several blocks may land in the same second;
-		# nothing here serialises them.
+		# nothing here serialises them. Neither hot_seat nor turn_based ever
+		# reaches this branch (both take the single-active-slot branch above).
 		for i: int in range(_match._lifecycle._slots.size()):
 			if not _match._lifecycle._slots[i].home_flag_alive:
 				continue
@@ -223,12 +255,18 @@ func _build_bags() -> void:
 ## harness, not the target cadence ("A separate hot-seat/turn-based test mode
 ## must not become normal play"), so this keeps hot-seat exactly as M2 shipped
 ## it rather than growing it a lock it was never meant to need.
+##
+## stackfall-reviewer finding (Bontago-keo.10, M6 B4 turn-based review):
+## turn_based shares the same exemption -- its turn also passes to a
+## different slot's controls once the settle-wait ends (docs/M6_PLAN.md B4),
+## just not the instant a block lands, so the same slot likewise never places
+## twice in the same turn and never needs a release lock either.
 func _consume_and_refeed(slot_id: int, auto_drop: bool) -> void:
 	# The sequence advances before the new block is issued, so the
 	# feed_block_issued that tells the owner "you have a block" already
 	# carries the sequence its next intent must quote.
 	_feed_seq[slot_id] += 1
-	if _match.config.hot_seat:
+	if _match.config.hot_seat or _match.config.turn_based:
 		_feed_time_left[slot_id] = _match.config.block_timer
 		_feed_expired[slot_id] = false
 		_issue_next_block(slot_id)

@@ -470,6 +470,11 @@ func active_slot() -> int:
 func advance_turn() -> void:
 	if not _match.config.hot_seat and not _match.config.turn_based:
 		return
+	# Any settle-wait belonged to the outgoing turn. If the active slot was
+	# eliminated mid-wait, MatchFeed._tick_feed() advances the turn here and
+	# the stale wait must not fire a second advance_turn() once settled or
+	# capped (Bontago-keo.10 review follow-up).
+	_turn_settle_wait_left = -1.0
 	var next_slot: int = _next_alive_slot(_active_slot)
 	_active_slot = next_slot
 	if next_slot == -1:
