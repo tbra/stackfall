@@ -1,0 +1,126 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://ui/OptionsMenu.gd" id="1_options"]
+
+[node name="OptionsMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_options")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.06, 0.07, 0.09, 0.94)
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="Center"]
+layout_mode = 2
+custom_minimum_size = Vector2(560, 0)
+
+[node name="Layout" type="VBoxContainer" parent="Center/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="Center/Panel/Layout"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+horizontal_alignment = 1
+text = "Options"
+
+[node name="PresetRow" type="HBoxContainer" parent="Center/Panel/Layout"]
+layout_mode = 2
+
+[node name="PresetLabel" type="Label" parent="Center/Panel/Layout/PresetRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(180, 0)
+text = "Graphics preset"
+
+[node name="PresetOption" type="OptionButton" parent="Center/Panel/Layout/PresetRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="VolumeRow" type="HBoxContainer" parent="Center/Panel/Layout"]
+layout_mode = 2
+
+[node name="VolumeLabel" type="Label" parent="Center/Panel/Layout/VolumeRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(180, 0)
+text = "Master volume"
+
+[node name="VolumeSlider" type="HSlider" parent="Center/Panel/Layout/VolumeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="VolumeValueLabel" type="Label" parent="Center/Panel/Layout/VolumeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(60, 0)
+horizontal_alignment = 2
+text = "0 dB"
+
+[node name="MusicDirRow" type="HBoxContainer" parent="Center/Panel/Layout"]
+layout_mode = 2
+
+[node name="MusicDirLabel" type="Label" parent="Center/Panel/Layout/MusicDirRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(180, 0)
+text = "Music folder"
+
+[node name="MusicDirEdit" type="LineEdit" parent="Center/Panel/Layout/MusicDirRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "(bundled music)"
+
+[node name="BrowseButton" type="Button" parent="Center/Panel/Layout/MusicDirRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Browse..."
+
+[node name="HSeparator" type="HSeparator" parent="Center/Panel/Layout"]
+layout_mode = 2
+
+[node name="RebindHeader" type="Label" parent="Center/Panel/Layout"]
+layout_mode = 2
+text = "Controls"
+
+[node name="RebindScroll" type="ScrollContainer" parent="Center/Panel/Layout"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 320)
+size_flags_vertical = 3
+
+[node name="RebindList" type="VBoxContainer" parent="Center/Panel/Layout/RebindScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+
+[node name="BackButton" type="Button" parent="Center/Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Back"
+
+[node name="MusicDirDialog" type="FileDialog" parent="."]
+unique_name_in_owner = true
+title = "Choose music folder"
+initial_position = 1
+size = Vector2i(640, 420)
+access = 2
+file_mode = 2

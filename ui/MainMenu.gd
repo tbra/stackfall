@@ -38,11 +38,22 @@ signal sandbox_requested
 ## mirroring its own start_sandbox_from_menu() hookup.
 signal tutorial_requested
 
+## docs/M6_PLAN.md package C2: OptionsMenu.tscn is instanced/freed directly by
+## this menu (ui/OptionsMenu.gd's own header: "self-contained ... MainMenu
+## instances this scene directly"), not routed through game/Main.gd -- the
+## same reason sandbox_requested/tutorial_requested above are direct
+## child-signal emits rather than an Events bus post, except this signal never
+## even needs to leave MainMenu: _on_options_pressed()/_on_options_closed()
+## below are both handlers and emitter in one file.
+const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
+
 @onready var _name_edit: LineEdit = %NameEdit
 @onready var _host_button: Button = %HostButton
 @onready var _sandbox_button: Button = %SandboxButton
 @onready var _tutorial_button: Button = %TutorialButton
+@onready var _options_button: Button = %OptionsButton
 @onready var _quit_button: Button = %QuitButton
+@onready var _center: CenterContainer = %Center
 @onready var _game_list: ItemList = %GameList
 @onready var _refresh_button: Button = %RefreshButton
 @onready var _direct_ip_edit: LineEdit = %DirectIpEdit
@@ -69,12 +80,20 @@ var _steam_lobbies: Array[Dictionary] = []
 ## own extra wiring code anyway.
 var _steam_refresh_countdown_s: float = 0.0
 
+## The live OptionsMenu.tscn instance while it's open, or null. Tracked here
+## (rather than letting OptionsMenu free itself on `closed`) so
+## _on_options_closed() can both queue_free() it and restore focus in one
+## place, the same "one owner frees what it opened" convention
+## _on_quit_pressed() implicitly follows via get_tree().quit().
+var _options_menu: OptionsMenu = null
+
 
 func _ready() -> void:
 	net_provider = Net
 	_host_button.pressed.connect(_on_host_pressed)
 	_sandbox_button.pressed.connect(_on_sandbox_pressed)
 	_tutorial_button.pressed.connect(_on_tutorial_pressed)
+	_options_button.pressed.connect(_on_options_pressed)
 	_quit_button.pressed.connect(_on_quit_pressed)
 	_refresh_button.pressed.connect(_on_refresh_pressed)
 	_direct_join_button.pressed.connect(_on_direct_join_pressed)
@@ -111,8 +130,8 @@ func _exit_tree() -> void:
 ## exception to "Sfx listens, nothing calls it" (autoload/Sfx.gd's header).
 func _connect_click_and_hover_sounds() -> void:
 	var buttons: Array[BaseButton] = [
-		_host_button, _sandbox_button, _tutorial_button, _quit_button, _refresh_button, _direct_join_button,
-		_host_online_button, _refresh_steam_button,
+		_host_button, _sandbox_button, _tutorial_button, _options_button, _quit_button, _refresh_button,
+		_direct_join_button, _host_online_button, _refresh_steam_button,
 	]
 	for button: BaseButton in buttons:
 		button.pressed.connect(_on_sound_button_pressed)
@@ -139,6 +158,27 @@ func _on_sandbox_pressed() -> void:
 
 func _on_tutorial_pressed() -> void:
 	tutorial_requested.emit()
+
+
+## docs/M6_PLAN.md package C2: hides %Center (this menu's own root layout)
+## rather than this whole MainMenu, so the background stays visible behind
+## OptionsMenu's own semi-transparent %Background -- matches OptionsMenu.tscn
+## being authored as an overlay, not a full scene swap.
+func _on_options_pressed() -> void:
+	if _options_menu != null:
+		return
+	_options_menu = OPTIONS_MENU_SCENE.instantiate() as OptionsMenu
+	_center.visible = false
+	add_child(_options_menu)
+	_options_menu.closed.connect(_on_options_closed)
+
+
+func _on_options_closed() -> void:
+	if _options_menu != null:
+		_options_menu.queue_free()
+		_options_menu = null
+	_center.visible = true
+	_options_button.grab_focus()
 
 
 func _on_refresh_pressed() -> void:

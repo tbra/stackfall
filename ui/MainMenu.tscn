@@ -21,6 +21,7 @@ grow_vertical = 2
 color = Color(0.09, 0.1, 0.13, 1)
 
 [node name="Center" type="CenterContainer" parent="."]
+unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -160,13 +161,20 @@ text = "Sandbox"
 unique_name_in_owner = true
 layout_mode = 2
 focus_neighbor_top = NodePath("../SandboxButton")
-focus_neighbor_bottom = NodePath("../QuitButton")
+focus_neighbor_bottom = NodePath("../OptionsButton")
 text = "Tutorial"
+
+[node name="OptionsButton" type="Button" parent="Center/Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_neighbor_top = NodePath("../TutorialButton")
+focus_neighbor_bottom = NodePath("../QuitButton")
+text = "Options"
 
 [node name="QuitButton" type="Button" parent="Center/Panel/Layout"]
 unique_name_in_owner = true
 layout_mode = 2
-focus_neighbor_top = NodePath("../TutorialButton")
+focus_neighbor_top = NodePath("../OptionsButton")
 text = "Quit"
 
 [node name="StatusLabel" type="Label" parent="Center/Panel/Layout"]
