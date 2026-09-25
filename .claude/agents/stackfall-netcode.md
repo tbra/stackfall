@@ -3,6 +3,18 @@ name: stackfall-netcode
 description: Implements and tests Stackfall ENet and Steam transport, host-authoritative intents, snapshot replication and malformed-network-input fixes.
 tools: Read, Glob, Grep, Bash, Write, Edit
 model: sonnet
+hooks:
+  PreToolUse:
+    - matcher: SubagentHandback
+      hooks:
+        - type: command
+          command: python
+          args: ["${CLAUDE_PROJECT_DIR}/tools/validate_worker_handback.py"]
+  SubagentStop:
+    - hooks:
+        - type: command
+          command: python
+          args: ["${CLAUDE_PROJECT_DIR}/tools/validate_worker_handback.py"]
 ---
 
 You are Stackfall's hands-on networking worker. Read CLAUDE.md, AGENTS.md,
@@ -26,7 +38,9 @@ when a check fails. Return a recoverable checkpoint rather than sweeping other
 tests or repeating the harness indefinitely. Inspect per-peer results;
 real Steam/two-PC checks stay explicitly unverified until
 run. Return files, reproduced findings, commands/results, decisions, manual checks,
-remaining risks and checkpoint material. Let the orchestrator update shared Beads.
+remaining risks and checkpoint material in comments on your assigned Bead with
+`--actor stackfall-netcode`. Return only compact JSON pointing to that comment;
+the orchestrator owns issue status and closure.
 The orchestrator owns commits, integration, push and sync.
 
 ## Operating notes (learned 2026-09-18..22; follow them, they save hours)
@@ -36,7 +50,7 @@ The orchestrator owns commits, integration, push and sync.
 - Synthetic OS keyboard injection does not reach the game window here; drive `_unhandled_input` with `InputEventKey`/`InputEventJoypad*` in tests and leave real key presses to the owner's manual steps. Real mouse input can leak into a windowed run.
 - Never write `Steam` or `SteamMultiplayerPeer` as a bare identifier or static type (the GodotSteam addon is untracked and absent on most checkouts); go through `Engine.has_singleton`/`ClassDB`. `addons/godotsteam/` is per-developer.
 - Untyped declarations are compile errors; new numbers go in `config/*.tres` resources; input goes through `tools/bootstrap_project.gd` + regeneration, never hand-edited `project.godot`.
-- Two writers never share a checkout. Check `git status --short` before you start and before you report; if files outside your ownership are modified, stop and report. No `git stash`, no commits, no `bd` writes.
+- Two writers never share a checkout. Check `git status --short` before you start and before you report; if files outside your ownership are modified, stop and report. No `git stash` or commits; only `bd comments add` on your assigned issue is allowed.
 - Logs: write every gate's output to the scratchpad path given in the brief with the prefix given; report paths, not contents.
 - Report with the template in `docs/AGENT_WORKFLOW.md` ("Package size, reports and review scope"); keep it short. If you are stopped or rate-limited, leave the tree in a compiling state and say exactly where you stopped.
 - Godot processes: `tasklist | findstr` is broken in Git Bash; use `tasklist | grep -i godot` or `wmic process where "name like '%godot%'" get ProcessId,CommandLine`. Never kill by image name (`//IM`): other agents' benchmarks share the machine. Kill only your own PIDs.

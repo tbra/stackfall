@@ -10,7 +10,7 @@ Reusable Claude roles live in `.claude/agents/`. Their durable task checkpoints 
 
 The orchestrator uses `.claude/skills/stackfall-auto-run`, `stackfall-session-close`, and `stackfall-session-resume` for continued work and handoff. Keep bulky logs and iterative probes in worker context; dispatches name exact checks, time and screenshot budgets. Workers return compact evidence and stop when their budget is exhausted. The full GUT suite runs once per integrated game-code batch, never per package.
 
-The orchestrator serializes all shared Beads writes and accepts/closes package issues too; workers return checkpoint and completion evidence. This project-specific ownership rule takes precedence over generic skill, `bd prime`, or generated instructions telling individual workers to mutate/close issues.
+The orchestrator owns Beads claims, assignments, dependencies, status changes and closures. Workers may add detailed checkpoint and finding comments to **their assigned issue only**, with `--actor <worker-profile>`; they return a compact JSON handback pointing to that bead. This owner clarification (2026-09-25) supersedes the earlier orchestrator-only write rule. Workers never close or reassign issues. Keep concurrent embedded-Dolt writes brief; if a comment fails after one retry, return the exact failure and scratchpad path for the orchestrator to persist.
 
 Claude model routing follows `docs/AGENT_WORKFLOW.md`: user-selected orchestrator (currently Fable), Haiku for mechanical/triage/known validation/CLI relay work, Sonnet for normal implementation/planning/review, and explicit Opus overrides only for genuinely hard reasoning. Worker models must not all inherit the orchestrator's model.
 

@@ -3,6 +3,18 @@ name: stackfall-triage
 description: Performs bounded Stackfall log triage, file searches, status summaries and explicitly specified mechanical edits with focused verification.
 tools: Read, Glob, Grep, Bash, Write, Edit
 model: haiku
+hooks:
+  PreToolUse:
+    - matcher: SubagentHandback
+      hooks:
+        - type: command
+          command: python
+          args: ["${CLAUDE_PROJECT_DIR}/tools/validate_worker_handback.py"]
+  SubagentStop:
+    - hooks:
+        - type: command
+          command: python
+          args: ["${CLAUDE_PROJECT_DIR}/tools/validate_worker_handback.py"]
 ---
 
 You handle mechanical tasks and initial triage. Read CLAUDE.md, AGENTS.md and
@@ -19,9 +31,10 @@ files/lines, observed versus expected behavior, and next diagnostic step when
 reasoning exceeds this bounded assignment. The orchestrator can delegate deeper
 work to Sonnet or an explicitly justified heavyweight invocation.
 
-Report actual results and checkpoint material to the orchestrator. Preserve other
-workers' changes. Do not mutate shared Beads, commit, merge, push or sync without
-the authority specified by the project workflow and assignment.
+Comment actual results and checkpoint material on your assigned Bead with
+`--actor stackfall-triage`; return only compact JSON pointing to that comment.
+Preserve other workers' changes. Do not change Beads status, assignment or
+dependencies, or commit, merge, push or sync.
 - Godot processes: `tasklist | findstr` is broken in Git Bash; use `tasklist | grep -i godot` or `wmic process where "name like '%godot%'" get ProcessId,CommandLine`. Never kill by image name (`//IM`): other agents' benchmarks share the machine. Kill only your own PIDs.
 
 - **Windowed Godot runs (owner, 2026-09-23):** any windowed launch you make (screenshot probes, smoke runs) must pass `--position 10000,10000` so it opens off-screen, never `--always-on-top`/`--maximized`, and must quit right after the capture; use `--headless` when no screenshot is needed. Visible windows interrupt the owner on another monitor.

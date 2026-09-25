@@ -34,8 +34,11 @@ Every brief names a verification budget: exact tests, maximum attempts/time and
 whether any off-screen screenshot is needed. A worker who exhausts it returns a
 checkpoint, not another probe. Do not ask two workers to repeat the same gate.
 
-Coordinate Beads mutations yourself and persist worker checkpoints after each
-meaningful result. Pass `--actor stackfall-orchestrator` on every `bd` write so the
+Own Beads claims, assignments, dependencies, acceptance and closure. Workers append
+checkpoint and finding comments to their assigned bead; read the comment pointer
+from their compact JSON handback instead of requesting the full report in chat.
+If a worker's comment failed, persist its scratchpad evidence yourself. Pass
+`--actor stackfall-orchestrator` on every orchestrator `bd` write so the
 owner can tell your entries from theirs (bd otherwise stamps the git user). Set `--assignee "<worker profile> (<model>)"` when you dispatch; never close an unassigned issue. Workers supply evidence; you decide acceptance. Never mark
 an interrupted worker or an unverified review finding complete. Follow the
 team-maintainer Git policy and the project's spec pause points. Commit and
@@ -48,8 +51,8 @@ game-code work, long investigations and test loops. Keep full logs in worker
 scratchpads; read counts, decisive errors and evidence paths in the main thread.
 Use `python tools/board_brief.py` for routine board scans. Avoid whole-board JSON,
 full memory listings and large diff/log dumps in your main context. Require worker
-final handbacks to fit 900 characters on success or 1500 on failure; detailed
-evidence belongs in the assigned scratchpad, with the path in the handback. Read
+final JSON handbacks to fit 600 characters on success or 900 on failure; detailed
+evidence belongs in the assigned Bead comment, with its ID in the handback. Read
 only decisive hunks/errors for acceptance, while retaining independent review.
 Give the owner one-line routine updates with bead, result and next action; expand
 only for blockers or decisions. Limit competing workers, and serialize performance measurements.
