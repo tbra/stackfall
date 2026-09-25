@@ -4,9 +4,10 @@ extends Control
 ##
 ## Owner decision (docs/M3a_PLAN.md question 3): hot-seat is unlisted — this
 ## menu offers only Host, Join (LAN list or direct IP), Sandbox (docs/
-## M6_PLAN.md package B1, spec 2.7) and Quit. Hot-seat is reachable solely
-## through the `--hot-seat` command-line flag, which `Net.apply_command_
-## line()` / `game/Main.gd` handle before this scene is even shown.
+## M6_PLAN.md package B1, spec 2.7), Tutorial (docs/M6_PLAN.md package B3,
+## spec 2.7) and Quit. Hot-seat is reachable solely through the `--hot-seat`
+## command-line flag, which `Net.apply_command_line()` / `game/Main.gd`
+## handle before this scene is even shown.
 ##
 ## Connects to Events and calls Net directly, the same "no deep node paths"
 ## convention ui/HUD.gd uses; it does not know about ui/Lobby.gd or
@@ -31,9 +32,16 @@ var net_provider: Variant = null
 ## stays command-line only).
 signal sandbox_requested
 
+## docs/M6_PLAN.md package B3: %TutorialButton's own signal, the same direct
+## child-signal convention sandbox_requested above uses -- game/Main.gd's
+## start_tutorial_from_menu() connects to this in _show_main_menu(),
+## mirroring its own start_sandbox_from_menu() hookup.
+signal tutorial_requested
+
 @onready var _name_edit: LineEdit = %NameEdit
 @onready var _host_button: Button = %HostButton
 @onready var _sandbox_button: Button = %SandboxButton
+@onready var _tutorial_button: Button = %TutorialButton
 @onready var _quit_button: Button = %QuitButton
 @onready var _game_list: ItemList = %GameList
 @onready var _refresh_button: Button = %RefreshButton
@@ -66,6 +74,7 @@ func _ready() -> void:
 	net_provider = Net
 	_host_button.pressed.connect(_on_host_pressed)
 	_sandbox_button.pressed.connect(_on_sandbox_pressed)
+	_tutorial_button.pressed.connect(_on_tutorial_pressed)
 	_quit_button.pressed.connect(_on_quit_pressed)
 	_refresh_button.pressed.connect(_on_refresh_pressed)
 	_direct_join_button.pressed.connect(_on_direct_join_pressed)
@@ -102,7 +111,7 @@ func _exit_tree() -> void:
 ## exception to "Sfx listens, nothing calls it" (autoload/Sfx.gd's header).
 func _connect_click_and_hover_sounds() -> void:
 	var buttons: Array[BaseButton] = [
-		_host_button, _sandbox_button, _quit_button, _refresh_button, _direct_join_button,
+		_host_button, _sandbox_button, _tutorial_button, _quit_button, _refresh_button, _direct_join_button,
 		_host_online_button, _refresh_steam_button,
 	]
 	for button: BaseButton in buttons:
@@ -126,6 +135,10 @@ func _on_host_pressed() -> void:
 
 func _on_sandbox_pressed() -> void:
 	sandbox_requested.emit()
+
+
+func _on_tutorial_pressed() -> void:
+	tutorial_requested.emit()
 
 
 func _on_refresh_pressed() -> void:

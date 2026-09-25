@@ -1,0 +1,45 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://ui/Tutorial.gd" id="1_tutorial"]
+[ext_resource type="PackedScene" path="res://game/GhostPreview.tscn" id="2_ghost"]
+[ext_resource type="Script" path="res://game/PlayerController.gd" id="3_controller"]
+[ext_resource type="PackedScene" path="res://ui/HUD.tscn" id="4_hud"]
+[ext_resource type="PackedScene" path="res://game/ThrowArcPreview.tscn" id="5_arc"]
+[ext_resource type="Resource" path="res://config/tutorial_config.tres" id="6_config"]
+
+[node name="Tutorial" type="Node"]
+script = ExtResource("1_tutorial")
+tutorial_config = ExtResource("6_config")
+
+[node name="GhostPreview" parent="." instance=ExtResource("2_ghost")]
+
+[node name="ThrowArcPreview" parent="." instance=ExtResource("5_arc")]
+
+[node name="PlayerController" type="Node" parent="."]
+script = ExtResource("3_controller")
+ghost_path = NodePath("../GhostPreview")
+arc_preview_path = NodePath("../ThrowArcPreview")
+
+[node name="HUDLayer" parent="." instance=ExtResource("4_hud")]
+
+[node name="PromptLayer" type="CanvasLayer" parent="."]
+
+[node name="PromptPanel" type="PanelContainer" parent="PromptLayer"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.0
+anchor_right = 0.5
+anchor_bottom = 0.0
+offset_left = -260.0
+offset_top = 16.0
+offset_right = 260.0
+offset_bottom = 64.0
+grow_horizontal = 2
+
+[node name="PromptLabel" type="Label" parent="PromptLayer/PromptPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+horizontal_alignment = 1
+autowrap_mode = 2
+text = ""

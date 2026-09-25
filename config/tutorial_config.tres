@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="TutorialConfig" format=3]
+
+[ext_resource type="Script" path="res://config/TutorialConfig.gd" id="1_aj0iv"]
+[ext_resource type="Script" path="res://config/TutorialStep.gd" id="2_6hew3"]
+
+[sub_resource type="Resource" id="Resource_oiofv"]
+script = ExtResource("2_6hew3")
+id = &"placing"
+prompt_text = "Move your cursor (mouse or left stick) over the disk and press ghost_place (left click / A) to place your held block."
+completion_signal = &"block_placed"
+
+[sub_resource type="Resource" id="Resource_gjym1"]
+script = ExtResource("2_6hew3")
+id = &"rotating"
+prompt_text = "Rotate your held block -- tap rotate_yaw_cw (S / right bumper) or hold rotation_mode (R) and move -- then place it."
+completion_signal = &"orientation_changed"
+
+[sub_resource type="Resource" id="Resource_wa1dx"]
+script = ExtResource("2_6hew3")
+id = &"territory"
+prompt_text = "Keep placing blocks near your flag. The area you cover becomes your territory."
+completion_signal = &"territory_claimed"
+
+[sub_resource type="Resource" id="Resource_sg6et"]
+script = ExtResource("2_6hew3")
+id = &"specials"
+prompt_text = "A special block is queued for you -- place or throw it to trigger its effect."
+completion_signal = &"special_consumed"
+
+[sub_resource type="Resource" id="Resource_4k2e2"]
+script = ExtResource("2_6hew3")
+id = &"camera"
+prompt_text = "Orbit (hold camera_orbit / right stick) and pan (arrow keys / left stick) the camera to look around."
+completion_signal = &"camera_moved"
+
+[resource]
+script = ExtResource("1_aj0iv")
+steps = Array[ExtResource("2_6hew3")]([SubResource("Resource_oiofv"), SubResource("Resource_gjym1"), SubResource("Resource_wa1dx"), SubResource("Resource_sg6et"), SubResource("Resource_4k2e2")])
