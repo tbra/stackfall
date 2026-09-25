@@ -4,7 +4,7 @@
 
 For Stackfall architecture and game rules, read `CLAUDE.md` and the relevant sections of `docs/SPEC.md`. For worker assignments, recovery and validation, read `docs/AGENT_WORKFLOW.md`. `docs/CLAUDE_HANDOFF.md` is a dated restart brief; inspect live Beads and Git state before using it.
 
-The active Git profile is **team-maintainer** (owner decision 2026-09-24): after a package is verified and accepted, the orchestrator commits and integrates it, runs proportionate integrated gates, pushes code, verifies the remote revision, and closes its issue. The orchestrator also syncs Beads through `bd dolt push` when available and records failures honestly. Workers do not commit, merge, push or sync unless an assignment explicitly grants that responsibility. Never force-push, rebase shared history, discard work or include unrelated changes. Parallel implementation uses disjoint file ownership and explicitly assigned worktrees with a verified base; serialize dependent work if shared changes are uncommitted. Run performance benchmarks without competing workloads. This project-specific profile supersedes generic conservative defaults in managed Beads blocks below.
+The active Git profile is **team-maintainer** (owner decision 2026-09-24): after a package is verified and accepted, the orchestrator commits and integrates it, runs proportionate integrated gates, pushes code, verifies the remote revision, and closes its issue. **Beads has no configured remote (owner clarification 2026-09-25): keep issue writes local and do not attempt `bd dolt push` or `bd dolt pull` unless the owner explicitly configures and requests Beads remote sync.** Workers do not commit, merge, push or sync unless an assignment explicitly grants that responsibility. Never force-push, rebase shared history, discard work or include unrelated changes. Parallel implementation uses disjoint file ownership and explicitly assigned worktrees with a verified base; serialize dependent work if shared changes are uncommitted. Run performance benchmarks without competing workloads. This project-specific profile supersedes generic conservative defaults in managed Beads blocks below.
 
 Reusable Claude roles live in `.claude/agents/`. Their durable task checkpoints and project knowledge live in Beads; do not create separate MEMORY.md files. Record assignment, checkout/branch/base, changed files, validation, blockers and next action so a replacement worker can recover without the previous conversation. Only the orchestrator closes milestone issues after integrated validation and independent review.
 
@@ -34,7 +34,6 @@ bd ready              # Find available work
 bd show <id>          # View issue details
 bd update <id> --claim  # Claim work atomically
 bd close <id>         # Complete work
-bd dolt push          # Push beads data to remote
 ```
 
 ## Non-Interactive Shell Commands
@@ -105,7 +104,6 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
 
    # Team-maintainer opt-in only, unless current instructions forbid it:
    git pull --rebase
-   bd dolt push
    git push
    git status
    ```
