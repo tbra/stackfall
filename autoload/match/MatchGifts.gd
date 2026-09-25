@@ -87,6 +87,12 @@ var _crates: Dictionary = {}
 ## (autoload/match/MatchLifecycle.gd's start_match(): reset, then
 ## _build_slots()) -- see that file's one-line reset() call below.
 ##
+## Bontago-keo.17 (owner decision "b"): keyed by RECIPIENT SLOT, not by team.
+## A crate claimed in a team's territory is offered to the one teammate whose
+## home circle is nearest the crate (_resolve_recipient_slot() below), never
+## to a queue shared by the whole team -- so index i here is always slot i's
+## own queue, read/written directly, with no team_of_slot() translation.
+##
 ## DECISION (autoload/match/MatchGifts.gd, M4 P2b): this engine (Godot
 ## 4.7.2) parses `Array[Array[StringName]]` as a "nested typed collections
 ## are not supported" error -- verified directly against this build, not
@@ -138,13 +144,14 @@ func _new_typed_queue() -> Array[StringName]:
 	return queue
 
 
-## M6 A1: `_pending_queues` is indexed by team, not by slot -- teammates
-## share one queue (see _claim_gift()'s own team_at()-derived index) -- so
-## every reader below translates `slot_id` through this first.
-## `_match.config` can be null before a match ever starts (HUD/PlayerController
-## poll held_special()/pending_special_count() even then); a null config falls
+## Bontago-keo.17: still needed by _resolve_recipient_slot() below to test
+## whether a given slot is on the claiming team at all (team membership), now
+## that `_pending_queues` itself is keyed by recipient slot, not by team --
+## held_special()/pop_pending_special()/pending_special_count()/
+## debug_queue_special() no longer translate through this.
+## `_match.config` can be null before a match ever starts; a null config falls
 ## back to `slot_id` itself, exactly what team_of_slot() returns for
-## TeamMode.OFF, so a not-yet-started match reads no differently than today.
+## TeamMode.OFF.
 func _team_id_for_slot(slot_id: int) -> int:
 	if _match.config == null:
 		return slot_id
@@ -156,10 +163,9 @@ func _team_id_for_slot(slot_id: int) -> int:
 ## should be a special; the HUD (Bontago-1en.16, split out of this package)
 ## reads pending_special_count() for the queued-count indicator.
 func held_special(slot_id: int) -> StringName:
-	var team_id: int = _team_id_for_slot(slot_id)
-	if team_id < 0 or team_id >= _pending_queues.size():
+	if slot_id < 0 or slot_id >= _pending_queues.size():
 		return &""
-	var queue: Array = _pending_queues[team_id]
+	var queue: Array = _pending_queues[slot_id]
 	if queue.is_empty():
 		return &""
 	return queue[0]
@@ -182,16 +188,12 @@ func held_special(slot_id: int) -> StringName:
 ## unit tests that call it directly (test_gift_claim.gd,
 ## test_match_throw.gd) exercise the same host-only emit deliberately.
 func pop_pending_special(slot_id: int) -> StringName:
-	var team_id: int = _team_id_for_slot(slot_id)
-	if team_id < 0 or team_id >= _pending_queues.size():
+	if slot_id < 0 or slot_id >= _pending_queues.size():
 		return &""
-	var queue: Array = _pending_queues[team_id]
+	var queue: Array = _pending_queues[slot_id]
 	if queue.is_empty():
 		return &""
 	var popped: StringName = queue.pop_front()
-	# The event still reports `slot_id` (the acting player), not `team_id` (the
-	# shared queue's own index) -- Events.special_consumed's contract is "which
-	# slot spent it", unchanged by which queue backs that slot's specials.
 	Events.special_consumed.emit(slot_id, popped)
 	return popped
 
@@ -199,10 +201,9 @@ func pop_pending_special(slot_id: int) -> StringName:
 ## How many specials `slot_id` currently has queued. ui/HUD.gd's indicator
 ## (Bontago-1en.16, not this package) is the only consumer today.
 func pending_special_count(slot_id: int) -> int:
-	var team_id: int = _team_id_for_slot(slot_id)
-	if team_id < 0 or team_id >= _pending_queues.size():
+	if slot_id < 0 or slot_id >= _pending_queues.size():
 		return 0
-	var queue: Array = _pending_queues[team_id]
+	var queue: Array = _pending_queues[slot_id]
 	return queue.size()
 
 
@@ -238,16 +239,15 @@ func debug_queue_special(slot_id: int, special_id: StringName) -> bool:
 		return false
 	if slot_id < 0 or slot_id >= _match.slot_count():
 		return false
-	var team_id: int = _match.config.team_of_slot(slot_id)
-	_ensure_capacity(team_id)
-	var queue: Array = _pending_queues[team_id]
+	_ensure_capacity(slot_id)
+	var queue: Array = _pending_queues[slot_id]
 	if queue.size() >= _gift_config.max_pending_specials:
 		return false
 	queue.append(special_id)
-	# team_id, not slot_id -- matches _claim_gift()'s own gift_claimed emit
-	# below, whose second parameter is the team that claimed it (the signal's
-	# own parameter is still named slot_id -- see _claim_gift()'s DECISION).
-	Events.gift_claimed.emit(DEBUG_GIFT_ID, team_id, special_id)
+	# slot_id, not a team id -- matches _claim_gift()'s own gift_claimed emit
+	# below, whose second parameter is the resolved recipient slot
+	# (Events.gd's gift_claimed signal -- Bontago-keo.17).
+	Events.gift_claimed.emit(DEBUG_GIFT_ID, slot_id, special_id)
 	return true
 
 
@@ -462,15 +462,12 @@ func claim_or_expire_gifts(delta: float) -> void:
 		entry["age"] = age
 		var position: Vector2 = entry["position"]
 		var cell: Vector2i = grid.world_to_cell(position)
-		# M4 shipped with MatchConfig.team_count() == player_count
-		# (free-for-all only), so team_at()'s team id and the claiming
-		# slot id were the same number here. M6 A1 wires real teams
-		# (config/MatchConfig.gd's team_count()/team_of_slot()) --
-		# TerritorySolver/TerritoryRaster already resolve team_at() to
-		# the real team id (not a slot id), so `team` below is exactly
-		# the id held_special()/pop_pending_special() read after their
-		# own team_of_slot() translation: every teammate's next block
-		# becomes the special, off the one shared queue.
+		# TerritorySolver/TerritoryRaster resolve team_at() to the real team id
+		# that owns this cell (config/MatchConfig.gd's team_count()/
+		# team_of_slot()). Bontago-keo.17 (owner decision "b"): the team id is
+		# only the input to _claim_gift()'s own recipient resolution -- it
+		# picks the ONE teammate whose home circle is nearest the crate, not a
+		# queue shared by the whole team.
 		var team: int = raster.team_at(cell.x, cell.y) if grid.in_bounds(cell.x, cell.y) else -1
 		if team >= 0:
 			to_claim[gift_id] = team
@@ -483,22 +480,38 @@ func claim_or_expire_gifts(delta: float) -> void:
 		_expire_gift(gift_id)
 
 
+## Bontago-keo.17 (owner decision "b", overriding this file's earlier "one
+## shared team queue" design): a crate claimed in `team_id`'s territory is
+## offered to the ONE teammate whose home circle is nearest the crate, not to
+## every teammate through a queue they all share. _resolve_recipient_slot()
+## below does that resolution; if no teammate's home flag is still alive, the
+## crate is left untouched (no claim, no crate consumed, no event).
+##
 ## Bontago-csc, superseding the earlier "latest wins" scalar: a claim now
-## pushes onto `team_id`'s FIFO queue, capped at
+## pushes onto the resolved recipient's own FIFO queue, capped at
 ## GiftConfig.max_pending_specials.
 ##
 ## Orchestrator amendment 3 (2026-09-23, overrides this file's earlier
 ## decision that a claim into a full queue "still pops the crate"): a claim
-## landing while the queue is already full does NOT consume the crate -- it
-## stays alive for anyone else in range and still expires by
+## landing while the recipient's queue is already full does NOT consume the
+## crate -- it stays alive for anyone else in range and still expires by
 ## GiftConfig.life_s, and gift_claimed does not fire. The cap check therefore
 ## runs *before* _free_crate_visual(), not after -- simplest option that
-## cannot let a full queue deny the crate to every other player forever.
+## cannot let a full queue deny the crate to every other player forever. The
+## crate's position is read before _free_crate_visual() erases its `_crates`
+## entry, since _resolve_recipient_slot() needs it.
 func _claim_gift(gift_id: int, team_id: int) -> void:
 	if team_id < 0:
 		return
-	_ensure_capacity(team_id)
-	var queue: Array = _pending_queues[team_id]
+	var entry: Dictionary = _crates.get(gift_id, {})
+	if entry.is_empty():
+		return
+	var crate_position: Vector2 = entry["position"]
+	var recipient_slot: int = _resolve_recipient_slot(team_id, crate_position)
+	if recipient_slot < 0:
+		return
+	_ensure_capacity(recipient_slot)
+	var queue: Array = _pending_queues[recipient_slot]
 	if queue.size() >= _gift_config.max_pending_specials:
 		return
 	if not _free_crate_visual(gift_id):
@@ -506,7 +519,35 @@ func _claim_gift(gift_id: int, team_id: int) -> void:
 	_ensure_special_drawer_installed()
 	var special_id: StringName = _draw_special_id()
 	queue.append(special_id)
-	Events.gift_claimed.emit(gift_id, team_id, special_id)
+	Events.gift_claimed.emit(gift_id, recipient_slot, special_id)
+
+
+## Bontago-keo.17 (owner decision "b" on docs/M6_PLAN.md's Owner Q1): picks
+## the alive (home_flag_alive) member of `team_id` whose home circle
+## (PlayerSlot.home_position, disk-local, computed once by
+## MatchLifecycle._build_slots()) is closest to `crate_position`. Returns -1
+## if `team_id` has no living teammate to give the special to.
+##
+## DECISION (autoload/match/MatchGifts.gd, Bontago-keo.17): the spec/owner
+## answer settles "nearest wins" but not an exact tie (two teammates
+## equidistant from the crate). Iterating slots in ascending id order and
+## only replacing the current best on a strict `<` (not `<=`) comparison
+## makes the lowest slot id win a tie with no extra branching -- simplest
+## reasonable option, not a spec requirement.
+func _resolve_recipient_slot(team_id: int, crate_position: Vector2) -> int:
+	var best_slot: int = -1
+	var best_distance_sq: float = 0.0
+	for slot_id: int in range(_match.slot_count()):
+		var slot: PlayerSlot = _match.slot(slot_id)
+		if slot == null or not slot.home_flag_alive:
+			continue
+		if _team_id_for_slot(slot_id) != team_id:
+			continue
+		var distance_sq: float = slot.home_position.distance_squared_to(crate_position)
+		if best_slot < 0 or distance_sq < best_distance_sq:
+			best_slot = slot_id
+			best_distance_sq = distance_sq
+	return best_slot
 
 
 ## Orchestrator amendment 1: the special TYPE is drawn here, at claim time.
@@ -589,11 +630,14 @@ func apply_replicated_spawn(gift_id: int, position: Vector2) -> void:
 	_crates[gift_id] = {"position": position, "age": 0.0, "node": _make_crate_node(position)}
 
 
-## Review fix (Must #1): slot_id arrives over the wire, so it is bounds-checked
-## against _match.slot_count() before it ever reaches _ensure_capacity() --
-## an unchecked garbage id would otherwise grow _pending_queues without limit
-## on every client that received it. Mirrors MatchLifecycle.
-## apply_replicated_elimination()'s own slot(slot_id) null-check convention.
+## Bontago-keo.17 (owner decision "b"): the resolved RECIPIENT slot arrives
+## over the wire -- the host already picked the one teammate nearest the
+## crate in _claim_gift() before it ever replicated this event -- so this
+## bounds-checks against _match.slot_count() before it ever reaches
+## _ensure_capacity(). An unchecked garbage id would otherwise grow
+## _pending_queues without limit on every client that received it. Mirrors
+## MatchLifecycle.apply_replicated_elimination()'s own slot(slot_id)
+## null-check convention.
 ##
 ## Bontago-csc: mirrors _claim_gift()'s own cap check (net/MatchNet.gd's wire
 ## check has already rejected a malformed `special_id` by the time this
@@ -631,29 +675,24 @@ func apply_replicated_expire(gift_id: int) -> void:
 ## unlike a claim, a consumed-special mirror has nothing useful to do for a
 ## slot whose queue was never grown by an earlier claim anyway.
 ##
-## Review fix (M6 A1, HIGH): pop_pending_special()'s own emit reports the
-## acting `slot_id` (its own doc comment: "still reports slot_id ... not
-## team_id"), so this wire handler -- unlike apply_replicated_claim(), which
-## already receives a team id, see that function's own DECISION -- must
-## translate through _team_id_for_slot() itself before it ever touches
-## _pending_queues, exactly like held_special()/pop_pending_special()/
-## pending_special_count()/debug_queue_special() already do. Indexing by the
-## raw slot_id here read/popped the wrong (or a nonexistent) team queue for
-## any teammate other than team*team_count()'s own representative slot under
-## TEAMS_2/3/4, leaving that client's held_special() mirror stale forever.
+## Bontago-keo.17 (owner decision "b", superseding the earlier M6 A1 team
+## translation here): `_pending_queues` is now keyed by recipient slot, the
+## same slot pop_pending_special() popped on the host, so this indexes
+## `slot_id` directly -- no team_of_slot() translation needed or correct
+## anymore (a teammate other than the resolved recipient never held this
+## special in the first place).
 func apply_replicated_special_consumed(slot_id: int, special_id: StringName) -> void:
 	if slot_id < 0 or slot_id >= _match.slot_count():
 		return
-	var team_id: int = _team_id_for_slot(slot_id)
-	if team_id < 0 or team_id >= _pending_queues.size():
+	if slot_id >= _pending_queues.size():
 		return
-	var queue: Array = _pending_queues[team_id]
+	var queue: Array = _pending_queues[slot_id]
 	if queue.is_empty():
 		return
 	if queue[0] != special_id:
 		push_warning(
-			"MatchGifts: special_consumed mirror mismatch for slot %d (team %d, head=%s, reported=%s); popping head anyway"
-			% [slot_id, team_id, queue[0], special_id]
+			"MatchGifts: special_consumed mirror mismatch for slot %d (head=%s, reported=%s); popping head anyway"
+			% [slot_id, queue[0], special_id]
 		)
 	queue.pop_front()
 

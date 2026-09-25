@@ -383,8 +383,15 @@ func _on_player_eliminated(slot_id: int, _team_id: int) -> void:
 ## _refresh_special_indicator() re-reads Match itself (not the signal's own
 ## special_id) so this handler and the per-frame poll can never disagree about
 ## what the queue currently holds.
+##
+## Bontago-keo.17 (owner decision "b"): Events.gift_claimed's second argument
+## is the RESOLVED RECIPIENT slot -- the one teammate nearest the crate, not
+## every teammate. This HUD toast is still a team-wide notification (a
+## teammate should see "your team claimed a special" even on the frame they
+## don't hold it), so both sides of the comparison go through
+## _team_of_slot(): the active slot's own team against the recipient's team.
 func _on_gift_claimed(_gift_id: int, slot_id: int, special_id: StringName) -> void:
-	if slot_id != _active_slot:
+	if _team_of_slot(_active_slot) != _team_of_slot(slot_id):
 		return
 	_refresh_special_indicator()
 	show_gift_toast(special_id)
@@ -414,6 +421,20 @@ func _is_slot_eliminated(slot_id: int) -> bool:
 		return false
 	var slot: PlayerSlot = match_provider.slot(slot_id)
 	return slot != null and not slot.home_flag_alive
+
+
+## Bontago-keo.17: null-safe mirror of config/MatchConfig.gd's team_of_slot()
+## for _on_gift_claimed()'s team-membership check -- config == null (no match
+## built yet, or a bare HUD-only test with no FakeMatch.config set) falls back
+## to "every slot is its own team", the same TeamMode.OFF behaviour
+## team_of_slot() itself returns.
+func _team_of_slot(slot_id: int) -> int:
+	if match_provider == null:
+		return slot_id
+	var running_config: Variant = match_provider.config
+	if running_config == null:
+		return slot_id
+	return int(running_config.team_of_slot(slot_id))
 
 
 func _color_for_slot(slot_id: int) -> Color:

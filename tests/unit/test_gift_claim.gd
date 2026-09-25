@@ -558,10 +558,14 @@ func test_debug_queue_special_refused_for_an_out_of_range_slot() -> void:
 	assert_eq(Match._gifts._pending_queues.size(), before_size, "must never grow _pending_queues")
 
 
-## M6 A1: teammates (config.team_of_slot(slotA) == team_of_slot(slotB))
-## share one queue -- a claim credited to their shared team must make both
-## slots' held_special() read the same id, not just the claiming slot's own.
-func test_teammates_share_the_same_held_special_after_a_claim() -> void:
+## Bontago-keo.17 (owner decision "b" on docs/M6_PLAN.md's Owner Q1)
+## supersedes the old M6 A1 "shared team queue" contract below: a crate
+## claimed in a team's territory is offered to the ONE teammate whose home
+## circle is nearest the crate (MatchGifts._resolve_recipient_slot()), never
+## to a queue shared by the whole team. _inject_crate(0) places the crate
+## exactly on slot 0's own home -- distance 0 -- so slot 0, not its teammate
+## slot 2, is the resolved recipient even though both share a team.
+func test_only_the_nearest_teammate_holds_the_special_after_a_claim() -> void:
 	var config: MatchConfig = _config_with_no_real_specials(4)
 	config.team_mode = MatchConfig.TeamMode.TEAMS_2
 	_start_playing(config)
@@ -575,49 +579,109 @@ func test_teammates_share_the_same_held_special_after_a_claim() -> void:
 	_step_territory()
 
 	assert_false(Match._gifts._crates.has(gift_id), "claimed crate must be removed from the live set")
-	assert_eq(Match.held_special(0), MatchGifts.PENDING_SPECIAL_ID)
-	assert_eq(
-		Match.held_special(2), Match.held_special(0),
-		"a teammate must read the same shared queue as the claiming slot"
+	assert_eq(Match.held_special(0), MatchGifts.PENDING_SPECIAL_ID, "the nearest teammate (slot 0 itself) gets the special")
+	assert_eq(Match.held_special(2), &"", "a teammate who isn't the resolved recipient holds nothing")
+	assert_signal_emitted_with_parameters(Events, "gift_claimed", [gift_id, 0, MatchGifts.PENDING_SPECIAL_ID])
+
+
+## The mirror image of the test above: a crate nearest slot 2's own home
+## circle resolves to slot 2, not to its teammate slot 0, even though both
+## share team 0 -- "nearest wins" is symmetric, not biased to the lowest
+## slot id on a team.
+func test_a_crate_nearest_the_other_teammates_circle_resolves_to_that_teammate() -> void:
+	var config: MatchConfig = _config_with_no_real_specials(4)
+	config.team_mode = MatchConfig.TeamMode.TEAMS_2
+	_start_playing(config)
+	watch_signals(Events)
+
+	var gift_id: int = _inject_crate(2)
+	_step_territory()
+
+	assert_false(Match._gifts._crates.has(gift_id), "claimed crate must be removed from the live set")
+	assert_eq(Match.held_special(2), MatchGifts.PENDING_SPECIAL_ID, "the nearest teammate (slot 2 itself) gets the special")
+	assert_eq(Match.held_special(0), &"", "slot 0 is farther from this crate than slot 2 and holds nothing")
+	assert_signal_emitted_with_parameters(Events, "gift_claimed", [gift_id, 2, MatchGifts.PENDING_SPECIAL_ID])
+
+
+## A dead nearest teammate (PlayerSlot.home_flag_alive == false) is never a
+## candidate recipient -- _resolve_recipient_slot() must fall through to the
+## next-nearest ALIVE teammate rather than refusing the claim outright.
+##
+## DECISION (tests/unit/test_gift_claim.gd, Bontago-keo.17): exercised
+## directly against _resolve_recipient_slot() rather than through
+## _inject_crate()/_step_territory() -- MatchTerritory.gd's own solve skips
+## seeding a dead home flag's circle at all (autoload/match/MatchTerritory.gd:
+## 175/270/295), so killing slot 2's flag also stops that ground from
+## resolving as team 0's territory in the first place, which would make this
+## a test of the territory solver's fallback, not of the recipient-resolution
+## rule this bead is actually about.
+func test_a_dead_nearest_teammate_is_skipped_for_the_next_nearest_alive_one() -> void:
+	var config: MatchConfig = _config_with_no_real_specials(4)
+	config.team_mode = MatchConfig.TeamMode.TEAMS_2
+	_start_playing(config)
+	Match.slot(2).home_flag_alive = false
+
+	var recipient: int = Match._gifts._resolve_recipient_slot(0, Match.slot(2).home_position)
+
+	assert_eq(recipient, 0, "the only other alive teammate on team 0 must be picked once slot 2's home flag is dead")
+
+
+## Bontago-keo.17 (owner decision "b"): max_pending_specials caps each
+## RECIPIENT SLOT's own queue, never a team total -- slot 0 sitting at the
+## cap must not block its own teammate, slot 2, from claiming a crate that
+## resolves to slot 2 itself.
+func test_the_pending_cap_applies_per_recipient_slot_not_per_team() -> void:
+	var config: MatchConfig = _config_with_no_real_specials(4)
+	config.team_mode = MatchConfig.TeamMode.TEAMS_2
+	_start_playing(config)
+	Match._gifts._gift_config = Match._gifts._gift_config.duplicate() as GiftConfig
+	Match._gifts._gift_config.max_pending_specials = 1
+	watch_signals(Events)
+
+	var gift_id_1: int = _inject_crate(0)
+	_step_territory()
+	var gift_id_2: int = _inject_crate(0)
+	_step_territory()
+	var gift_id_3: int = _inject_crate(2)
+	_step_territory()
+
+	assert_false(Match._gifts._crates.has(gift_id_1), "the first claim into slot 0's own queue must consume its crate")
+	assert_true(Match._gifts._crates.has(gift_id_2), "a second claim into slot 0's own full queue must not consume the crate")
+	assert_false(
+		Match._gifts._crates.has(gift_id_3),
+		"slot 0 sitting at the cap must not block its teammate slot 2's own, independent queue"
 	)
+	assert_eq(Match.pending_special_count(0), 1, "slot 0 stays capped at its own limit")
+	assert_eq(Match.pending_special_count(2), 1, "slot 2's own queue fills independently of slot 0's cap")
+	assert_signal_emit_count(Events, "gift_claimed", 2, "exactly the two consumed claims fire gift_claimed, not the refused one")
 
 
-## The shared-queue half of the same contract: popping through one teammate's
-## slot_id must empty the queue for every other teammate too -- not a
-## per-slot copy that only the popping slot's own view shrinks.
-func test_pop_pending_special_empties_the_queue_for_every_teammate() -> void:
+## The opposite half of the same (b) contract: since only the resolved
+## recipient's own queue ever grows, popping it must never reach into a
+## teammate's queue -- there is no shared queue left to reach into.
+func test_pop_pending_special_never_touches_a_teammates_own_queue_under_teams_2() -> void:
 	var config: MatchConfig = _config_with_no_real_specials(4)
 	config.team_mode = MatchConfig.TeamMode.TEAMS_2
 	_start_playing(config)
 	_inject_crate(0)
 	_step_territory()
-	assert_eq(
-		Match.held_special(2), MatchGifts.PENDING_SPECIAL_ID,
-		"setup: the teammate holds the shared special before the pop"
-	)
+	assert_eq(Match.held_special(2), &"", "setup: the non-recipient teammate never held anything")
 
 	var popped: StringName = Match.pop_pending_special(0)
 
 	assert_eq(popped, MatchGifts.PENDING_SPECIAL_ID)
-	assert_eq(Match.held_special(0), &"", "the claiming slot's queue empties")
-	assert_eq(
-		Match.held_special(2), &"",
-		"the teammate's queue empties too -- one shared queue, not a per-slot copy"
-	)
+	assert_eq(Match.held_special(0), &"", "the recipient's own queue empties")
+	assert_eq(Match.held_special(2), &"", "the teammate's queue -- already empty -- is untouched")
 
 
-## Review fix (M6 A1, HIGH): apply_replicated_special_consumed() must
-## translate the wire `slot_id` through _team_id_for_slot() exactly like
-## held_special()/pop_pending_special() already do, not index
-## _pending_queues by the raw slot_id. pop_pending_special()'s own emit
-## reports the *acting* slot (its own doc comment: "still reports slot_id
-## ... not team_id"), so under TEAMS_2 with 4 players a claim made through
-## slot 0 can be reported consumed via slot 2 -- its teammate (config.
-## team_of_slot()'s interleaved assignment: slots 0 and 2 share team 0). The
-## unfixed code indexed _pending_queues[2] directly, which is team 1's queue
-## here (or out of range), leaving team 0's real queue -- and this client's
-## held_special(0)/held_special(2) mirror -- stale forever.
-func test_apply_replicated_special_consumed_translates_slot_to_team_under_teams_2() -> void:
+## Bontago-keo.17 (owner decision "b" supersedes the old M6 A1 review fix
+## below): apply_replicated_special_consumed() no longer translates its
+## slot_id through team_of_slot() -- there is no shared team queue left to
+## translate into -- it pops the exact slot it is given, same as
+## held_special()/pop_pending_special() now do. Team 1's own, unrelated
+## claim sits in this test to prove a report for slot 0 cannot bleed into
+## any other slot's queue, teammate or not.
+func test_apply_replicated_special_consumed_pops_only_the_reported_slots_own_queue_under_teams_2() -> void:
 	var config: MatchConfig = _config_with_no_real_specials(4)
 	config.team_mode = MatchConfig.TeamMode.TEAMS_2
 	_start_playing(config)
@@ -625,26 +689,19 @@ func test_apply_replicated_special_consumed_translates_slot_to_team_under_teams_
 		Match.config.team_of_slot(0), Match.config.team_of_slot(2),
 		"fixture: TEAMS_2 with 4 players makes slots 0 and 2 teammates (interleaved assignment)"
 	)
-	assert_ne(
-		Match.config.team_of_slot(0), Match.config.team_of_slot(1),
-		"fixture: slot 1 is on the other team"
-	)
 
 	_inject_crate(0)
 	_step_territory()
-	assert_eq(Match.held_special(0), MatchGifts.PENDING_SPECIAL_ID, "setup: team 0's queue holds the claimed special")
-	# Team 1 holds its own special too, so a wrong-index pop below would show up as damage there.
+	assert_eq(Match.held_special(0), MatchGifts.PENDING_SPECIAL_ID, "setup: slot 0 (nearest to its own home) holds the claim")
 	_inject_crate(1)
 	_step_territory()
-	assert_eq(Match.held_special(1), MatchGifts.PENDING_SPECIAL_ID, "setup: team 1 holds its own special")
+	assert_eq(Match.held_special(1), MatchGifts.PENDING_SPECIAL_ID, "setup: slot 1 holds its own, unrelated claim")
 
-	# The client mirror of the acting player's own pop -- reported via slot 2
-	# (team 0's other slot), not team 0 itself.
-	Match._gifts.apply_replicated_special_consumed(2, MatchGifts.PENDING_SPECIAL_ID)
+	Match._gifts.apply_replicated_special_consumed(0, MatchGifts.PENDING_SPECIAL_ID)
 
-	assert_eq(Match.held_special(0), &"", "the shared team-0 queue must empty")
-	assert_eq(Match.held_special(2), &"", "the teammate's own view must empty too")
-	assert_eq(Match.held_special(1), MatchGifts.PENDING_SPECIAL_ID, "the other team's queue must be untouched")
+	assert_eq(Match.held_special(0), &"", "the reported slot's own queue empties")
+	assert_eq(Match.held_special(2), &"", "slot 2 never held anything to begin with, and still doesn't")
+	assert_eq(Match.held_special(1), MatchGifts.PENDING_SPECIAL_ID, "an unrelated slot's queue must be untouched")
 
 
 ## restore_default_special_drawer() (game/Sandbox.gd's F9 "off") re-runs the
