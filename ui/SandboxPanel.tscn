@@ -10,7 +10,7 @@ unique_name_in_owner = true
 offset_left = 700.0
 offset_top = 16.0
 offset_right = 1020.0
-offset_bottom = 282.0
+offset_bottom = 460.0
 
 [node name="Layout" type="VBoxContainer" parent="Panel"]
 layout_mode = 2
@@ -18,7 +18,7 @@ theme_override_constants/separation = 4
 
 [node name="Title" type="Label" parent="Panel/Layout"]
 layout_mode = 2
-text = "Sandbox debug (F5 reset, F6 timer, F7 tower, F8 overlay, F9 force special, Tab slot)"
+text = "Sandbox debug (F5 reset, F6 timer, F7 tower, F8 overlay, F9 force special, F10 slow-mo, F11 pause physics, Tab slot)"
 autowrap_mode = 2
 
 [node name="ActiveSlotLabel" type="Label" parent="Panel/Layout"]
@@ -65,3 +65,42 @@ text = "Rules: -"
 unique_name_in_owner = true
 layout_mode = 2
 text = "Forced special: off"
+
+[node name="SlowMotionLabel" type="Label" parent="Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Slow-mo: off (1.00x)"
+
+[node name="PhysicsPausedLabel" type="Label" parent="Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Physics: running"
+
+[node name="HeightRecordLabel" type="Label" parent="Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Height record: 0.00 m"
+
+[node name="BlockPickerRow" type="HBoxContainer" parent="Panel/Layout"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Panel/Layout/BlockPickerRow"]
+layout_mode = 2
+text = "Block:"
+
+[node name="BlockPicker" type="OptionButton" parent="Panel/Layout/BlockPickerRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="SpecialPickerRow" type="HBoxContainer" parent="Panel/Layout"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Panel/Layout/SpecialPickerRow"]
+layout_mode = 2
+text = "Special:"
+
+[node name="SpecialPicker" type="OptionButton" parent="Panel/Layout/SpecialPickerRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3

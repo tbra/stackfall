@@ -356,6 +356,42 @@ func apply_replicated_feed(
 	_feed_expired[slot_id] = false
 
 
+## M6 B2, game/Sandbox.gd's block-picker OptionButton: forces `slot_id`'s
+## currently held shape to `shape_id` without touching the bag, so a tester
+## can drop an exact shape on demand instead of waiting on the bag's draw
+## order. Gated exactly like MatchGifts.debug_queue_special() (that
+## function's own comment) -- host-only and config.sandbox-only, so a real
+## match can never have its held shape overwritten by a debug seam even if
+## something mistakenly called this host-side. Re-emits Events.
+## feed_block_issued exactly like _issue_next_block() does, so every listener
+## that reacts to a newly-held shape (ghost, HUD, bot controllers) picks the
+## forced shape up the normal way, with no second code path to keep in sync.
+## Does not touch _feed_seq -- this is not a real consume, so no in-flight
+## intent for the previous held shape is invalidated by it.
+##
+## DECISION (autoload/match/MatchFeed.gd): game/Sandbox.gd calls this
+## directly as `Match._feed.debug_force_next_shape(...)` rather than through a
+## new one-line Match wrapper (the shape debug_queue_special/set_special_
+## drawer/etc. all have on autoload/Match.gd) -- docs/M6_PLAN.md's package B2
+## explicitly counts this file as the *only* autoload/match/ append this
+## package owns; autoload/Match.gd itself is out of this package's file list.
+func debug_force_next_shape(slot_id: int, shape_id: StringName) -> void:
+	if not _match._is_host():
+		return
+	if _match.config == null or not _match.config.sandbox:
+		return
+	if slot_id < 0 or slot_id >= _held_shapes.size():
+		return
+	var shape: BlockShape = _shape_by_id(shape_id)
+	if shape == null:
+		push_warning("MatchFeed: debug_force_next_shape(%s) is not a known shape id; ignoring" % [shape_id])
+		return
+	_held_shapes[slot_id] = shape
+	var preview: Array[BlockShape] = _bags[slot_id].peek(1) if slot_id < _bags.size() else []
+	var next_id: StringName = preview[0].id if preview.size() > 0 else &""
+	Events.feed_block_issued.emit(slot_id, shape.id, next_id)
+
+
 ## BlockShape.load_all_shapes() scans a directory, so the index is built once
 ## and only on the instance that needs it: a client, resolving the shape ids
 ## the host's feed events name.

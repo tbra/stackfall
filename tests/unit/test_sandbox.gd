@@ -475,3 +475,211 @@ func test_force_special_by_id_with_an_unknown_id_warns_and_stays_off() -> void:
 	sandbox.force_special_by_id(&"not_a_real_special")
 
 	assert_eq(sandbox.forced_special(), &"", "an unknown id must leave forcing off, not crash or force a garbage id")
+
+
+# --- M6 B2: block picker (MatchFeed.debug_force_next_shape) ------------------
+
+func test_debug_force_next_shape_sets_the_held_shape_and_reissues_the_event() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+	var domino: BlockShape = load("res://config/blocks/domino.tres")
+
+	watch_signals(Events)
+	sandbox.force_next_shape(&"domino")
+
+	assert_eq(Match.held_shape(0), domino, "the block picker must force the active slot's held shape")
+	assert_signal_emitted(Events, "feed_block_issued", "the picker reuses the real feed_block_issued path")
+
+
+func test_debug_force_next_shape_is_refused_off_sandbox() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var before: BlockShape = Match.held_shape(0)
+
+	Match.config.sandbox = false
+	Match._feed.debug_force_next_shape(0, &"domino")
+
+	assert_eq(Match.held_shape(0), before, "a non-sandbox match must refuse the block picker's seam")
+
+
+func test_debug_force_next_shape_is_refused_off_host() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var before: BlockShape = Match.held_shape(0)
+
+	Match.set_net_provider(FakeNet.client(0))
+	Match._feed.debug_force_next_shape(0, &"domino")
+	Match.set_net_provider(null)
+
+	assert_eq(Match.held_shape(0), before, "a client must never force its own held shape")
+
+
+func test_debug_force_next_shape_with_an_unknown_id_warns_and_leaves_the_held_shape() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var before: BlockShape = Match.held_shape(0)
+
+	Match._feed.debug_force_next_shape(0, &"not_a_real_shape")
+
+	assert_eq(Match.held_shape(0), before, "an unknown shape id must not change the held shape")
+
+
+# --- M6 B2: sandbox_slow_motion (F10) ----------------------------------------
+
+func test_sandbox_slow_motion_hotkey_sets_time_scale_and_toggles_back() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+
+	var event: InputEventKey = _key_press(KEY_F10)
+	assert_true(event.is_action_pressed(&"sandbox_slow_motion"), "F10 should map to sandbox_slow_motion")
+
+	sandbox._unhandled_input(event)
+	assert_eq(Engine.time_scale, sandbox.sandbox_config.slow_motion_scale)
+	assert_true(sandbox.is_slow_motion_active())
+
+	sandbox._unhandled_input(event)
+	assert_eq(Engine.time_scale, 1.0, "a second press must toggle it back off")
+	assert_false(sandbox.is_slow_motion_active())
+
+
+func test_sandbox_slow_motion_resets_to_1_0_on_scene_teardown() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+	sandbox._unhandled_input(_key_press(KEY_F10))
+	assert_ne(Engine.time_scale, 1.0, "fixture: slow motion is active before teardown")
+
+	_main.free()
+	await get_tree().process_frame
+
+	assert_eq(Engine.time_scale, 1.0, "Engine.time_scale must not leak past this scene's teardown")
+	_main = null
+
+
+func test_sandbox_slow_motion_resets_on_sandbox_reset_field() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+	sandbox._unhandled_input(_key_press(KEY_F10))
+	assert_ne(Engine.time_scale, 1.0, "fixture: slow motion is active before the reset")
+
+	sandbox._unhandled_input(_key_press(KEY_F5))
+
+	assert_eq(Engine.time_scale, 1.0, "F5 must not leave the previous match's slow motion running")
+	assert_false(sandbox.is_slow_motion_active())
+
+
+func test_sandbox_slow_motion_gamepad_chord_requires_the_overlay_button_held() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+
+	# PADDLE1 alone is sandbox_reset_field (fixture: a block lands first so
+	# the reset is observable), not sandbox_slow_motion.
+	Match.request_place(0, Match.default_ghost_origin(0), 0, Quaternion.IDENTITY, false)
+	assert_gt(Match.blocks_spawned(), 0, "fixture")
+	sandbox._unhandled_input(_pad_press(JOY_BUTTON_PADDLE1))
+	assert_eq(Match.blocks_spawned(), 0, "PADDLE1 alone must still mean sandbox_reset_field")
+	assert_false(sandbox.is_slow_motion_active())
+
+	# PADDLE1 + PADDLE4 (sandbox_toggle_overlay) held means sandbox_slow_motion.
+	Input.action_press(&"sandbox_toggle_overlay")
+	sandbox._unhandled_input(_pad_press(JOY_BUTTON_PADDLE1))
+	Input.action_release(&"sandbox_toggle_overlay")
+
+	assert_true(sandbox.is_slow_motion_active(), "PADDLE1 chorded with PADDLE4 must mean sandbox_slow_motion")
+
+
+# --- M6 B2: sandbox_pause_physics (F11) --------------------------------------
+
+func test_sandbox_pause_physics_hotkey_pauses_the_tree_and_toggles_back() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+
+	var event: InputEventKey = _key_press(KEY_F11)
+	assert_true(event.is_action_pressed(&"sandbox_pause_physics"), "F11 should map to sandbox_pause_physics")
+
+	sandbox._unhandled_input(event)
+	assert_true(get_tree().paused)
+	assert_true(sandbox.is_physics_paused())
+
+	sandbox._unhandled_input(event)
+	assert_false(get_tree().paused, "a second press must unpause again")
+	assert_false(sandbox.is_physics_paused())
+
+
+func test_sandbox_pause_physics_leaves_the_panel_processing_while_paused() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+
+	assert_eq(sandbox.process_mode, Node.PROCESS_MODE_ALWAYS, "Sandbox must keep processing input while paused")
+	assert_eq(
+		sandbox.panel().process_mode, Node.PROCESS_MODE_ALWAYS,
+		"SandboxPanel must keep processing while paused"
+	)
+
+	sandbox._unhandled_input(_key_press(KEY_F11))
+	assert_true(get_tree().paused, "fixture")
+	# The panel's own _unhandled_input path (sandbox hotkeys) must still be
+	# reachable while paused -- toggling it back off proves the node kept
+	# processing input rather than the engine silently dropping it.
+	sandbox._unhandled_input(_key_press(KEY_F11))
+	assert_false(get_tree().paused, "the pause hotkey itself must still work while paused")
+
+
+func test_sandbox_pause_physics_unpauses_on_scene_teardown() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+	sandbox._unhandled_input(_key_press(KEY_F11))
+	assert_true(get_tree().paused, "fixture: paused before teardown")
+
+	_main.free()
+	await get_tree().process_frame
+
+	assert_false(get_tree().paused, "get_tree().paused must not leak past this scene's teardown")
+	_main = null
+
+
+# --- M6 B2: height record -----------------------------------------------------
+
+func test_height_record_is_monotone_and_resets_on_sandbox_reset_field() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+	var panel: SandboxPanel = sandbox.panel()
+
+	panel._refresh()
+	assert_eq(panel._height_record_label.text, "Height record: 0.00 m", "fixture: nothing placed yet")
+
+	Match.request_place(0, Match.default_ghost_origin(0), 0, Quaternion.IDENTITY, false)
+	# game/BlockRegistry.gd's max_height_for_slot() only counts settled blocks
+	# (test_block_registry.gd's own fixture on the same rule) -- give the
+	# real physics simulation (untouched by this fixture's Match.set_process
+	# (false), which only pauses Match's own script) enough real ticks to
+	# reach PhysicsTuning.sleep_settle_time.
+	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres")
+	var settle_ticks: int = int(ceil(tuning.sleep_settle_time * Engine.physics_ticks_per_second)) + 5
+	for _i: int in range(settle_ticks):
+		await get_tree().physics_frame
+	panel._refresh()
+	var after_one: float = Match.registry().max_height_for_slot(0)
+	assert_gt(after_one, 0.0, "fixture: a settled block has positive height")
+	assert_true(panel._height_record_label.text.findn("%.2f" % after_one) >= 0)
+
+	# The record must never drop even if a later poll reads a lower current
+	# height (e.g. the active slot changed, or blocks/territory shifted).
+	panel._height_record = after_one + 5.0
+	panel._refresh()
+	assert_true(
+		panel._height_record_label.text.findn("%.2f" % (after_one + 5.0)) >= 0,
+		"the running max must not be lowered by a fresh, smaller poll"
+	)
+
+	sandbox._unhandled_input(_key_press(KEY_F5))
+	panel._refresh()
+	assert_eq(panel._height_record_label.text, "Height record: 0.00 m", "F5 must reset the height record")

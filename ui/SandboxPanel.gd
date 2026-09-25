@@ -54,12 +54,35 @@ var _ghost: GhostPreview = null
 @onready var _rules_label: Label = %RulesLabel
 ## Bontago-1en.24: game/Sandbox.gd's F9 sandbox_force_special hotkey.
 @onready var _forced_special_label: Label = %ForcedSpecialLabel
+## M6 B2: game/Sandbox.gd's F10/F11 hotkeys and the height record.
+@onready var _slow_motion_label: Label = %SlowMotionLabel
+@onready var _physics_paused_label: Label = %PhysicsPausedLabel
+@onready var _height_record_label: Label = %HeightRecordLabel
+## M6 B2: the block-picker and special-spawn dropdowns, replacing/augmenting
+## the F9 cycle with a direct pick.
+@onready var _block_picker: OptionButton = %BlockPicker
+@onready var _special_picker: OptionButton = %SpecialPicker
 
 var _refresh_accum: float = 0.0
+
+## The tallest point any of the active slot's settled blocks has reached this
+## match (game/BlockRegistry.gd's max_height_for_slot(), polled once per
+## _refresh() -- panel_refresh_hz is plenty for a value that only ever climbs
+## as fast as blocks settle). Monotone within one match; game/Sandbox.gd's F5
+## reset_height_record() call is the only thing that ever lowers it.
+var _height_record: float = 0.0
 
 
 func _ready() -> void:
 	match_provider = Match
+	# M6 B2 (sandbox_pause_physics, F11): stays interactive while get_tree().
+	# paused is true -- see game/Sandbox.gd's own _ready() for the matching
+	# flag on that node.
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	_populate_block_picker()
+	_populate_special_picker()
+	_block_picker.item_selected.connect(_on_block_picker_selected)
+	_special_picker.item_selected.connect(_on_special_picker_selected)
 
 
 ## Called once by game/Sandbox.gd after both children exist. `sandbox` gives
@@ -93,6 +116,9 @@ func _refresh() -> void:
 	_refresh_physics_ms()
 	_refresh_rules_mode()
 	_refresh_forced_special()
+	_refresh_slow_motion()
+	_refresh_physics_paused()
+	_refresh_height_record(slot_id)
 
 
 func _refresh_active_slot(slot_id: int) -> void:
@@ -206,3 +232,75 @@ func _refresh_forced_special() -> void:
 		return
 	var suffix: String = "  (queue full)" if bool(_sandbox.forced_special_queue_full()) else ""
 	_forced_special_label.text = "Forced special: %s%s" % [String(forced_id), suffix]
+
+
+# --- M6 B2: slow-motion / pause-physics / height record ---------------------
+
+func _refresh_slow_motion() -> void:
+	var active: bool = bool(_sandbox.is_slow_motion_active()) if _sandbox != null else false
+	_slow_motion_label.text = "Slow-mo: %s (%.2fx)" % ["on" if active else "off", Engine.time_scale]
+
+
+func _refresh_physics_paused() -> void:
+	var paused: bool = bool(_sandbox.is_physics_paused()) if _sandbox != null else false
+	_physics_paused_label.text = "Physics: %s" % ("paused" if paused else "running")
+
+
+func _refresh_height_record(slot_id: int) -> void:
+	if slot_id >= 0:
+		var registry: BlockRegistry = match_provider.registry()
+		if registry != null:
+			_height_record = maxf(_height_record, registry.max_height_for_slot(slot_id))
+	_height_record_label.text = "Height record: %.2f m" % _height_record
+
+
+## game/Sandbox.gd's sandbox_reset_field (F5): a freshly reset match starts a
+## new tallest stack, so the previous match's record must not linger (the
+## same reasoning game/Sandbox.gd's own DECISION gives for resetting Engine.
+## time_scale there).
+func reset_height_record() -> void:
+	_height_record = 0.0
+	_height_record_label.text = "Height record: 0.00 m"
+
+
+# --- M6 B2: block picker / special spawn dropdowns --------------------------
+
+## BlockShape.load_all_shapes()'s own id order (that function's own doc
+## comment: the single source of truth for "what shapes exist") -- one item
+## per shape, with the StringName id carried in item metadata rather than
+## re-derived from the display text.
+func _populate_block_picker() -> void:
+	_block_picker.clear()
+	for shape: BlockShape in BlockShape.load_all_shapes():
+		_block_picker.add_item(String(shape.id))
+		_block_picker.set_item_metadata(_block_picker.item_count - 1, shape.id)
+
+
+func _on_block_picker_selected(index: int) -> void:
+	if _sandbox == null:
+		return
+	var shape_id: StringName = _block_picker.get_item_metadata(index)
+	_sandbox.force_next_shape(shape_id)
+
+
+## "off" first (mirrors sandbox_force_special's own off/each-roster-id/off
+## cycle), then SpecialDef.load_all_specials()'s own id order -- the UI-only
+## front end docs/M6_PLAN.md's package B2 calls for over the existing F9
+## cycle/force_special_by_id().
+func _populate_special_picker() -> void:
+	_special_picker.clear()
+	_special_picker.add_item("off")
+	_special_picker.set_item_metadata(0, &"")
+	for special: SpecialDef in SpecialDef.load_all_specials():
+		_special_picker.add_item(String(special.id))
+		_special_picker.set_item_metadata(_special_picker.item_count - 1, special.id)
+
+
+func _on_special_picker_selected(index: int) -> void:
+	if _sandbox == null:
+		return
+	var special_id: StringName = _special_picker.get_item_metadata(index)
+	if special_id == &"":
+		_sandbox.force_special_off()
+	else:
+		_sandbox.force_special_by_id(special_id)

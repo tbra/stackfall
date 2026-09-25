@@ -391,6 +391,26 @@ func _actions() -> Dictionary:
 	# PADDLE buttons above already established, not a shipped-game binding.
 	a["sandbox_force_special"] = [_key(KEY_F9), _pad(JOY_BUTTON_TOUCHPAD)]
 
+	# DECISION (tools/bootstrap_project.gd, M6 B2): sandbox_slow_motion and
+	# sandbox_pause_physics are the sixth and seventh sandbox-only hotkeys --
+	# every JoyButton value this file can bind (every face/shoulder/stick/
+	# D-pad/Back/Start/MISC1/PADDLE1-4/TOUCHPAD button; JOY_BUTTON_GUIDE stays
+	# off-limits for the same reason screenshot_capture's own comment gives)
+	# is already claimed above. Rather than a cross-script chord like net_
+	# debug_toggle's Back+Y (a different node's _unhandled_input), these reuse
+	# PADDLE1/PADDLE2 -- already sandbox_reset_field's and sandbox_spawn_
+	# tower's own buttons, checked in this same file's game/Sandbox.gd
+	# _unhandled_input -- gated on sandbox_toggle_overlay (PADDLE4) / sandbox_
+	# force_special (TOUCHPAD) being held at the same time. Keeping both
+	# halves of each chord inside one script (rather than splitting the
+	# button and its modifier across two different nodes' input handlers, as
+	# net_debug_toggle/tuning_panel_toggle do) means there is only ever one
+	# place that decides which of the two actions a shared PADDLE press means,
+	# with no risk of Godot's viewport input order deciding it differently.
+	# F10/F11 (the desktop keyboard halves) are unclaimed and need no chord.
+	a["sandbox_slow_motion"] = [_key(KEY_F10), _pad(JOY_BUTTON_PADDLE1)]
+	a["sandbox_pause_physics"] = [_key(KEY_F11), _pad(JOY_BUTTON_PADDLE2)]
+
 	return a
 
 
