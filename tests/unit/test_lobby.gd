@@ -50,6 +50,7 @@ func test_every_2_8_setting_round_trips_through_to_dict_and_from_dict() -> void:
 	config.hole_mode = MatchConfig.HoleMode.PERMANENT
 	config.match_timer_minutes = 20
 	config.sudden_death = true
+	config.turn_based = true
 
 	Events.net_lobby_data_changed.emit(config.to_dict())
 
@@ -68,6 +69,26 @@ func test_every_2_8_setting_round_trips_through_to_dict_and_from_dict() -> void:
 	assert_eq((lobby.get_node("%HoleModeOption") as OptionButton).selected, MatchConfig.HoleMode.PERMANENT)
 	assert_eq(int((lobby.get_node("%MatchTimerSpin") as SpinBox).value), 20)
 	assert_true((lobby.get_node("%SuddenDeathCheck") as CheckButton).button_pressed)
+	assert_true((lobby.get_node("%TurnBasedCheck") as CheckButton).button_pressed)
+
+
+func test_toggling_turn_based_check_publishes_config_turn_based_true() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var check: CheckButton = lobby.get_node("%TurnBasedCheck") as CheckButton
+	check.button_pressed = true
+	var calls: Array[Dictionary] = _fake_of(lobby).set_lobby_data_calls
+	assert_eq(calls.size(), 1)
+	assert_true(bool(calls[0].get("turn_based")))
+
+
+func test_apply_data_with_turn_based_true_checks_the_box() -> void:
+	var lobby: Lobby = _make_lobby(false)
+	var data: Dictionary = MatchConfig.new().to_dict()
+	data["turn_based"] = true
+
+	Events.net_lobby_data_changed.emit(data)
+
+	assert_true((lobby.get_node("%TurnBasedCheck") as CheckButton).button_pressed)
 
 
 func test_out_of_range_value_arriving_over_the_wire_is_clamped() -> void:
