@@ -348,8 +348,8 @@ static func closest_valid_point(
 ##
 ## Cost: one validate_point() per in-disk cell (CellGrid.in_disk_cells(),
 ## cached after the first call). At MapDef's default cell_size = 1 m this is
-## a few hundred to a few thousand cells even on the largest shipped map (a
-## square of side 2 * field_radius, res^2 cells, times roughly pi/4 in disk) --
+## about 11.5k cells on round_large (field_radius 60: res 121, res^2 = 14641
+## cells, times roughly pi/4 in disk), a handful of array lookups each --
 ## a single scan on an expiry auto-drop, not a per-frame cost, so brute force
 ## here is cheap enough not to need CellGrid's spatial hash.
 static func _scan_disk_for_closest_valid_point(
