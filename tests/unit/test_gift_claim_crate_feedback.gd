@@ -185,3 +185,71 @@ func test_hint_does_not_trigger_with_no_local_ghost_held() -> void:
 		crate._material.albedo_color, GiftCrate.UNCLAIMED_COLOR,
 		"no held ghost at all must never show the hint"
 	)
+
+
+# --- Bontago-keo.17: the claim pop's colour is the resolved recipient's own -
+# Owner decision "b": Events.gift_claimed's second argument is the RESOLVED
+# RECIPIENT slot (the one teammate nearest the crate), not a team id, so
+# GiftCrate._claim_color() reads Match.slot(slot_id).color directly -- no
+# team-proxy trick needed. Under TEAMS_2 with 4 players, MatchConfig.
+# team_of_slot() interleaves (posmod(slot_id, team_count())), so slots 0/2
+# are team 0 and slots 1/3 are team 1; slot 0 here is a genuine resolved
+# recipient (_inject_crate places the fixture crate on its own home), not a
+# stand-in for the whole team.
+
+func _teams_2_config() -> MatchConfig:
+	var config: MatchConfig = _config(4)
+	config.team_mode = MatchConfig.TeamMode.TEAMS_2
+	return config
+
+
+func test_a_team_0_claim_pops_in_a_genuine_team_0_slots_colour_under_teams_2() -> void:
+	_start_playing(_teams_2_config())
+	var parent: Node3D = autofree(Node3D.new())
+	add_child_autofree(parent)
+	_make_crate(5, Match.slot(0).home_position, parent)
+
+	Events.gift_claimed.emit(5, 0, MatchGifts.PENDING_SPECIAL_ID)
+
+	var pop: Node3D = parent.get_node_or_null("GiftClaimPop") as Node3D
+	assert_not_null(pop, "fixture: a team-0 claim must still spawn a pop effect")
+	var mesh: MeshInstance3D = pop.get_child(0) as MeshInstance3D
+	var material: StandardMaterial3D = mesh.material_override as StandardMaterial3D
+	assert_eq(
+		material.albedo_color, Match.slot(0).color,
+		"team_of_slot(0) == 0 always, so team 0's own pop colour must read a genuine team-0 slot (slot 0)"
+	)
+	assert_ne(
+		material.albedo_color, Match.slot(1).color,
+		"team 0's pop colour must not read team 1's own slot 1"
+	)
+
+
+func test_hint_does_not_trigger_over_a_teammates_territory_under_teams_2() -> void:
+	# Regression for the bug this bead fixes: _crate_in_local_territory() used
+	# to compare TerritoryRaster.team_at() (a TEAM id -- MatchTerritory.gd
+	# seeds every home circle with slot.team_id) directly against the local
+	# player's own SLOT id. A local player on a real team whose slot id
+	# differs from its team id (slot 2, team 0 here) would then see the
+	# not-claimable hint over ground its own team already owns.
+	var config: MatchConfig = _teams_2_config()
+	config.hot_seat = true
+	_start_playing(config)
+	Match.advance_turn()
+	Match.advance_turn()
+	assert_eq(Match.active_slot(), 2, "fixture: hot-seat's local watch slot must now be slot 2")
+	_step_territory()
+	var parent: Node3D = autofree(Node3D.new())
+	add_child_autofree(parent)
+	# Slot 0's own home flag: team 0's ground (team_of_slot(0) == 0), and
+	# slot 2 is also team 0 (team_of_slot(2) == 0 under TEAMS_2).
+	var crate: GiftCrate = _make_crate(1, Match.slot(0).home_position, parent)
+	var ghost: GhostPreview = _make_local_ghost()
+	ghost.global_position = crate.global_position
+
+	crate._process(0.05)
+
+	assert_eq(
+		crate._material.albedo_color, GiftCrate.UNCLAIMED_COLOR,
+		"a crate over the local player's own team's territory must not show the not-claimable hint"
+	)

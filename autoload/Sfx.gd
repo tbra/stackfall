@@ -250,21 +250,54 @@ func _on_player_eliminated(_slot_id: int, _team_id: int) -> void:
 ## DECISION (autoload/Sfx.gd, Bontago-6y2): unlike the hooks above (a block
 ## drop/thud/rejection/breakage is a physical event any nearby player would
 ## actually hear happen, so every hook above plays for every slot, no
-## gating), a gift claim queues a special for exactly one slot -- it is
-## personal feedback, not a world event. Gating on Net.is_local_slot()
-## mirrors game/GiftCrate.gd's own "_local_watch_slot()" comment and
-## ui/HUD.gd's gift toast (Bontago-1en.16), both already local-only; a
-## global "someone somewhere claimed a gift" chime would be noise in an
-## 8-player match with crates spawning continuously. Net.is_local_slot() is
-## also correct in hot-seat/offline play with no extra branching: it always
-## returns true there (one human drives every slot), so every claim plays,
-## same as it would if the local human just made it.
+## gating), a gift claim queues a special for the whole claiming team -- it is
+## personal feedback, not a world event. Gating on "any locally-driven slot on
+## the claiming team" mirrors game/GiftCrate.gd's own "_local_watch_slot()"
+## comment and ui/HUD.gd's gift toast (Bontago-1en.16), both already
+## local-only; a global "someone somewhere claimed a gift" chime would be
+## noise in an 8-player match with crates spawning continuously. The
+## Net.is_local_slot() check inside the loop is also correct in hot-seat/
+## offline play with no extra branching: it always returns true there (one
+## human drives every slot), so every claim plays, same as it would if the
+## local human just made it.
 ##
 ## Simplest reasonable option per the brief: no quieter variant for other
-## slots' claims -- nothing else about a gift claim has non-local feedback
+## teams' claims -- nothing else about a gift claim has non-local feedback
 ## either, so this just stays silent for them rather than inventing a new
 ## tunable with no other precedent to match.
-func _on_gift_claimed(_gift_id: int, slot_id: int, _special_id: StringName) -> void:
-	if not Net.is_local_slot(slot_id):
+##
+## Bontago-keo.17 (owner decision "b"): `recipient_slot` is the RESOLVED
+## RECIPIENT -- the one teammate nearest the crate, not every teammate -- but
+## this sound is still a team-wide notification (a teammate should hear
+## "your team claimed a special" even on the claim that doesn't land in their
+## own queue). A single Net.is_local_slot(recipient_slot) check would only
+## ever fire for the recipient's own local slot, silently dropping the sound
+## for a teammate at a different slot index once real teams exist. Loops
+## every slot instead and plays once as soon as any locally-driven slot is
+## found on the recipient's team, so a claim landing on slot 0 plays for a
+## local player at slot 0 or its teammate slot 2 alike under TEAMS_2.
+##
+## The loop bound is `maxi(Match.slot_count(), recipient_slot + 1)`, not just
+## Match.slot_count(): tests/unit/test_sfx.gd's own gift_claimed tests call
+## this directly with no match ever started (Match.slot_count() == 0 then),
+## the same way they always have -- team_of_slot() falls back to identity
+## with no config (see _team_of_slot() below), so this bound keeps checking
+## at least slot recipient_slot itself in that case, reproducing the exact
+## single-slot check this handler used before real teams existed.
+func _on_gift_claimed(_gift_id: int, recipient_slot: int, _special_id: StringName) -> void:
+	for slot_id: int in range(maxi(Match.slot_count(), recipient_slot + 1)):
+		if not Net.is_local_slot(slot_id):
+			continue
+		if _team_of_slot(slot_id) != _team_of_slot(recipient_slot):
+			continue
+		play(AudioConfig.EVENT_GIFT_CLAIMED)
 		return
-	play(AudioConfig.EVENT_GIFT_CLAIMED)
+
+
+## Null-safe mirror of config/MatchConfig.gd's team_of_slot() -- Match.config
+## is null before a match starts (TeamMode.OFF's own "every slot is its own
+## team" fallback), matching ui/HUD.gd's own _team_of_slot() helper.
+func _team_of_slot(slot_id: int) -> int:
+	if Match.config == null:
+		return slot_id
+	return Match.config.team_of_slot(slot_id)

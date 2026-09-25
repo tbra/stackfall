@@ -437,3 +437,62 @@ func test_gift_claimed_toast_fades_after_its_configured_hold_duration() -> void:
 	await get_tree().create_timer(0.35).timeout
 
 	assert_almost_eq(hud._gift_toast_label.modulate.a, 0.0, 0.0001, "must have faded out after hold + fade elapsed")
+
+
+# --- Bontago-keo.17: gift_claimed's slot_id must still reach every teammate -
+# Owner decision "b": Events.gift_claimed's second argument is the RESOLVED
+# RECIPIENT slot (the one teammate nearest the crate), not a team id. Under
+# TEAMS_2 with 4 players, team_of_slot() interleaves
+# (posmod(slot_id, team_count())), so slots 0/2 are team 0 and slots 1/3 are
+# team 1. A claim resolved to slot 0 (team 0) must still show on both slots 0
+# and 2's HUD -- this toast is a team-wide notification, deriving "my team"
+# from _team_of_slot() on both sides -- and on neither slot 1 nor 3's.
+
+func _teams_2_config() -> MatchConfig:
+	var config: MatchConfig = load("res://config/match_defaults.tres").duplicate(true) as MatchConfig
+	config.player_count = 4
+	config.team_mode = MatchConfig.TeamMode.TEAMS_2
+	return config
+
+
+func _hud_for_slot(slot_id: int, config: MatchConfig) -> HUD:
+	var hud: HUD = _make_hud()
+	var fake_match: FakeMatch = FakeMatch.new()
+	fake_match.config = config
+	hud.match_provider = fake_match
+	hud.set_local_slot(slot_id)
+	return hud
+
+
+func test_gift_claimed_toast_reaches_both_teammates_under_teams_2() -> void:
+	var config: MatchConfig = _teams_2_config()
+	var hud_slot0: HUD = _hud_for_slot(0, config)
+	var hud_slot2: HUD = _hud_for_slot(2, config)
+
+	Events.gift_claimed.emit(0, 0, &"jumping_bean")
+
+	assert_eq(
+		hud_slot0._gift_toast_label.text, "Special queued: Jumping Bean",
+		"team 0's claim must show on slot 0's own HUD"
+	)
+	assert_eq(
+		hud_slot2._gift_toast_label.text, "Special queued: Jumping Bean",
+		"team 0's claim must also show on its teammate slot 2's HUD"
+	)
+
+
+func test_gift_claimed_toast_skips_the_other_team_under_teams_2() -> void:
+	var config: MatchConfig = _teams_2_config()
+	var hud_slot1: HUD = _hud_for_slot(1, config)
+	var hud_slot3: HUD = _hud_for_slot(3, config)
+
+	Events.gift_claimed.emit(0, 0, &"jumping_bean")
+
+	assert_eq(
+		hud_slot1._gift_toast_label.text, "",
+		"team 1's slot 1 HUD must not react to a team 0 claim"
+	)
+	assert_eq(
+		hud_slot3._gift_toast_label.text, "",
+		"team 1's slot 3 HUD must not react to a team 0 claim"
+	)

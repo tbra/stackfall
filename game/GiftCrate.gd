@@ -109,6 +109,9 @@ func _on_body_entered(_body: Node3D) -> void:
 ## / Events.gift_claimed.emit() pair), so this handler still reads a fully
 ## valid node: queue_free() only defers the actual deletion, it doesn't
 ## invalidate the node the same frame it's called.
+## Bontago-keo.17 (owner decision "b"): `slot_id` is now the RESOLVED
+## RECIPIENT -- the one teammate whose home circle is nearest the crate
+## (autoload/match/MatchGifts.gd's _resolve_recipient_slot()), not a team id.
 func _on_gift_claimed(claimed_gift_id: int, slot_id: int, _special_id: StringName) -> void:
 	if claimed_gift_id != gift_id or _claimed:
 		return
@@ -125,6 +128,13 @@ func _on_gift_claimed(claimed_gift_id: int, slot_id: int, _special_id: StringNam
 ## helper -- ui/HUD.gd is a different node with its own match_provider test
 ## seam, and this is three lines, not worth a new coupling between the two
 ## owned files for.
+##
+## Bontago-keo.17 (owner decision "b"): `slot_id` is now the actual resolved
+## recipient's own slot (MatchGifts._resolve_recipient_slot()), so
+## Match.slot(slot_id) is literally that player's own colour -- no team-proxy
+## trick needed anymore (an earlier revision of this comment explained why a
+## team id safely stood in for a teammate's colour; that no longer applies
+## now that the payload is a real slot).
 func _claim_color(slot_id: int) -> Color:
 	var slot: PlayerSlot = Match.slot(slot_id)
 	if slot != null:
@@ -220,6 +230,11 @@ func _local_watch_slot() -> int:
 	return -1
 
 
+## Bontago-keo.17 (A1 review fix, same bug class as _on_gift_claimed()):
+## TerritoryRaster.team_at() returns a TEAM id (territory is per-team), so a
+## local slot has to be resolved to its own team before the comparison --
+## under TeamMode.OFF, MatchConfig.team_of_slot() is the identity, so this is
+## a no-op there and only changes behaviour for a real TEAMS_2+ match.
 func _crate_in_local_territory(crate_local: Vector2) -> bool:
 	var raster: TerritoryRaster = Match.raster()
 	var grid: CellGrid = Match.cell_grid()
@@ -231,4 +246,7 @@ func _crate_in_local_territory(crate_local: Vector2) -> bool:
 	var watch_slot: int = _local_watch_slot()
 	if watch_slot < 0:
 		return false
-	return raster.team_at(cell.x, cell.y) == watch_slot
+	var watch_team: int = watch_slot
+	if Match.config != null:
+		watch_team = Match.config.team_of_slot(watch_slot)
+	return raster.team_at(cell.x, cell.y) == watch_team

@@ -95,13 +95,24 @@ signal player_eliminated(slot_id: int, team_id: int)
 ## client only ever builds the visual from this and the two events below.
 signal gift_spawned(gift_id: int, position: Vector2)
 
-## `slot_id`'s territory swallowed a live crate: it pops, and `slot_id`
-## queues a special (Match.held_special()/Match.pop_pending_special()).
-## `special_id` is the id drawn for this claim -- Orchestrator amendment 1
-## (M4 P2b, 2026-09-23): the special TYPE is decided at claim time on the
-## host, not at spawn time, so a player already knows what they hold while
-## aiming/placing it. See autoload/match/MatchGifts.gd's PENDING_SPECIAL_ID
-## for the placeholder id used until P2c installs the real weighted draw.
+## A crate in a team's territory popped: `slot_id` is the RESOLVED RECIPIENT --
+## the one teammate whose home circle (PlayerSlot.home_position) is nearest
+## the crate, picked by autoload/match/MatchGifts.gd's _resolve_recipient_slot()
+## (Bontago-keo.17, owner decision "b" on docs/M6_PLAN.md's Owner Q1). Only
+## that slot's own pending queue (Match.held_special()/pop_pending_special())
+## grows; a claim never queues onto a teammate's queue who isn't the resolved
+## recipient. `special_id` is the id drawn for this claim -- Orchestrator
+## amendment 1 (M4 P2b, 2026-09-23): the special TYPE is decided at claim
+## time on the host, not at spawn time, so a player already knows what they
+## hold while aiming/placing it. See autoload/match/MatchGifts.gd's
+## PENDING_SPECIAL_ID for the placeholder id used until P2c installs the real
+## weighted draw.
+##
+## Bontago-keo.17: a team-WIDE consumer (a toast/sfx every teammate should
+## still see/hear even though only `slot_id` holds the item) derives "is my
+## team" from `MatchConfig.team_of_slot(slot_id)`, never by comparing
+## `slot_id` to a raw local slot id -- harmless while team_of_slot() is the
+## identity (TeamMode.OFF), wrong once real teams exist.
 signal gift_claimed(gift_id: int, slot_id: int, special_id: StringName)
 
 ## A crate lived past GiftConfig.life_s without being claimed.
