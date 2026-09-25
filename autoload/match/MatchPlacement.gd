@@ -135,7 +135,10 @@ func request_place(
 	var acting_slot: PlayerSlot = _match.slot(slot_id)
 	if not acting_slot.home_flag_alive:
 		return PlacementRules.REASON_NO_BLOCK
-	if _match.config.hot_seat and slot_id != _match.active_slot():
+	if (
+		(_match.config.hot_seat or _match.config.turn_based)
+		and slot_id != _match.active_slot()
+	):
 		return PlacementRules.REASON_NOT_YOUR_TURN
 	var shape: BlockShape = _match.held_shape(slot_id)
 	if shape == null:
@@ -289,6 +292,8 @@ func request_place(
 	_match._feed._consume_and_refeed(slot_id, auto_drop)
 	if _match.config.hot_seat:
 		_match.advance_turn()
+	elif _match.config.turn_based:
+		_match._lifecycle.begin_turn_settle_wait()
 
 	return reason
 
@@ -329,7 +334,10 @@ func request_throw(
 	var acting_slot: PlayerSlot = _match.slot(slot_id)
 	if not acting_slot.home_flag_alive:
 		return PlacementRules.REASON_NO_BLOCK
-	if _match.config.hot_seat and slot_id != _match.active_slot():
+	if (
+		(_match.config.hot_seat or _match.config.turn_based)
+		and slot_id != _match.active_slot()
+	):
 		return PlacementRules.REASON_NOT_YOUR_TURN
 	var shape: BlockShape = _match.held_shape(slot_id)
 	if shape == null:
@@ -403,6 +411,8 @@ func request_throw(
 	_match._feed._consume_and_refeed(slot_id, false)
 	if _match.config.hot_seat:
 		_match.advance_turn()
+	elif _match.config.turn_based:
+		_match._lifecycle.begin_turn_settle_wait()
 
 	return PlacementRules.REASON_OK
 

@@ -166,3 +166,13 @@ extends Resource
 ## "If nobody has won when the disk has shrunk to a radius of 8, the player
 ## or team with the most territory wins" (spec 2.8, verbatim).
 @export var sudden_death_tiebreak_radius_m: float = 8.0
+
+## -- Turn-based (spec 2.7, M6 B4) --------------------------------------------
+## "Physics settles completely (all bodies asleep, or after 6 s) before the
+## next player's turn starts" (spec 2.7, verbatim). Safety cap:
+## MatchLifecycle._tick_turn_based() hands the turn over once
+## BlockRegistry.all_settled() turns true, or this many seconds have passed
+## since the placement that started the wait, whichever comes first, so a
+## block that never fully sleeps (balanced on an edge, gently rocking) cannot
+## stall the match forever.
+@export var turn_based_max_settle_s: float = 6.0

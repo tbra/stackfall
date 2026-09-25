@@ -971,9 +971,36 @@ func test_a_replicated_turn_is_mirrored_verbatim_in_hot_seat() -> void:
 	assert_signal_emitted_with_parameters(Events, "turn_changed", [0])
 
 
+## M6 B4 (spec 2.7): turn_based has real turns, one active slot at a time,
+## same as hot_seat -- so a client's turn banner (Events.turn_changed) must
+## track the host's actual active slot, not get substituted with the
+## receiving client's own slot the way real-time free-for-all does. As of
+## this test, net/MatchNet.gd's EVENT_TURN_CHANGED handler only special-cases
+## `not running.hot_seat`, so turn_based (hot_seat == false, turn_based ==
+## true) falls into the free-for-all substitution branch instead -- an
+## unowned-file gap this package cannot fix (see the Bead comment).
+func test_a_replicated_turn_is_mirrored_verbatim_under_turn_based() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	Match.start_match(_turn_based_config())
+	for _i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * 60.0)) + 2):
+		Match._process(1.0 / 60.0)
+	var net: MatchNetScript = _make_net({}, [1], true)
+	watch_signals(Events)
+
+	net.net_match_event(MatchNetScript.EVENT_TURN_CHANGED, [0])
+
+	assert_signal_emitted_with_parameters(Events, "turn_changed", [0])
+
+
 func _hot_seat_config() -> MatchConfig:
 	var config: MatchConfig = _config()
 	config.hot_seat = true
+	return config
+
+
+func _turn_based_config() -> MatchConfig:
+	var config: MatchConfig = _config()
+	config.turn_based = true
 	return config
 
 
