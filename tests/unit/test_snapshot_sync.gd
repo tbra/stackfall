@@ -208,6 +208,87 @@ func test_the_host_field_is_unaffected_by_the_client_apply_path() -> void:
 	assert_false(_host_field._mirrored, "the host Field is never switched into mirror mode")
 
 
+## M6 B5 (spec 2.1/2.7, Bontago-keo.11 ENet check): PHYSICAL_BALANCE feeds a
+## continuous per-tick torque into the host's own tilt spring (Field.
+## _physical_balance_torque_accel(), config/TiltTuning.gd's
+## physical_balance_torque_gain DECISION) rather than a one-shot
+## apply_tilt_impulse() -- so unlike every test above, the host's tilt never
+## settles onto one fixed value between snapshots, it keeps easing toward its
+## equilibrium lean the whole time. Replication itself is mode-agnostic
+## (apply_replicated_pose()/SnapshotSync read only the host's transform, never
+## tilt_mode), so this proves the client keeps tracking that moving target
+## across two separate snapshots, not just a single frozen pose.
+func test_the_client_field_mirrors_the_hosts_continuous_physical_balance_tilt() -> void:
+	# Same host BlockRegistry wiring MatchLifecycle._apply_tilt_mode() performs
+	# for TiltMode.PHYSICAL_BALANCE (tests/unit/test_field_tilt.gd's own
+	# _make_registry() pattern) -- built here, not in before_each, so every
+	# other test in this file keeps its SPECIALS_ONLY-shaped host untouched.
+	var host_registry: BlockRegistry = BlockRegistry.new()
+	add_child_autofree(host_registry)
+	host_registry.configure(_host_field, _map)
+	_host_field.set_registry(host_registry)
+	_host_field.set_physical_balance_enabled(true)
+
+	# A settled off-center block, same fixture as test_field_tilt.gd's
+	# _settled_block_at(): frozen so it settles immediately, its own weight is
+	# what PHYSICAL_BALANCE turns into the host's continuous torque.
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres")
+	var block: Block = BlockFactory.build(shape, tuning, 0)
+	_host_field.add_child(block)
+	autofree(block)
+	block.freeze = true
+	block.global_position = Vector3(2.0, 0.5, 0.0)
+	Events.block_placed.emit(block, shape.id)
+
+	var settle_ticks: int = int(ceil(tuning.sleep_settle_time * Engine.physics_ticks_per_second)) + 5
+	await wait_physics_frames(settle_ticks)
+
+	# First snapshot, taken while the spring is still easing toward its
+	# torque-driven equilibrium (config/TiltTuning.gd's DECISION: several
+	# return_time_constant_s pass before it is truly steady). 20 ticks (not
+	# just a handful) keeps host_tilt_1 comfortably above float noise given
+	# this mode's tuned (small, single-block) torque_gain.
+	await wait_physics_frames(20)
+	var host_tilt_1: Vector2 = _host_field.tilt_vector()
+	assert_gt(host_tilt_1.length(), 0.0, "fixture: PHYSICAL_BALANCE actually tilted the host")
+
+	var packet_1: PackedByteArray = _snapshot_packet(1, 1000, _host_field.global_transform)
+	await _deliver_to_client(packet_1)
+	assert_almost_eq(
+		_client_field.global_transform.basis.get_rotation_quaternion().angle_to(
+			_host_field.global_transform.basis.get_rotation_quaternion()
+		),
+		0.0, 0.001,
+		"the client mirrors the host's first PHYSICAL_BALANCE snapshot"
+	)
+	assert_gt(
+		_client_field.tilt_vector().length(), 0.0,
+		"the client's own tilt_vector() reflects a non-zero replicated PHYSICAL_BALANCE tilt"
+	)
+
+	# A second, later snapshot: PHYSICAL_BALANCE's continuous forcing means the
+	# host's tilt has moved again by now, not held at host_tilt_1 forever --
+	# and the client must follow it there too. 200 more ticks gives a clearly
+	# distinct float, again well clear of noise at this mode's tuned gain.
+	await wait_physics_frames(200)
+	var host_tilt_2: Vector2 = _host_field.tilt_vector()
+	assert_ne(
+		host_tilt_2, host_tilt_1,
+		"fixture: the host's PHYSICAL_BALANCE tilt keeps changing between snapshots (continuous, not one-shot)"
+	)
+
+	var packet_2: PackedByteArray = _snapshot_packet(2, 1500, _host_field.global_transform)
+	await _deliver_to_client(packet_2)
+	assert_almost_eq(
+		_client_field.global_transform.basis.get_rotation_quaternion().angle_to(
+			_host_field.global_transform.basis.get_rotation_quaternion()
+		),
+		0.0, 0.001,
+		"the client mirrors the host's second, changed PHYSICAL_BALANCE snapshot"
+	)
+
+
 # --- The 2-sample bracket: blend, ordering, extrapolation, decay -----------
 #
 # Bontago-1en.27 review SHOULD-FIX 2: every test above delivers exactly one

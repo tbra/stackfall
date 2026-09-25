@@ -86,6 +86,76 @@ func test_starting_a_physical_balance_match_also_enables_tilt() -> void:
 	)
 
 
+# --- M6 B5: PHYSICAL_BALANCE wires the registry, SPECIALS_ONLY does not ------
+
+func test_starting_a_physical_balance_match_wires_the_registry_onto_the_field() -> void:
+	Match.start_match(_config(MatchConfig.TiltMode.PHYSICAL_BALANCE))
+
+	assert_true(
+		_field._physical_balance_enabled,
+		"PHYSICAL_BALANCE must flip Field's physical-balance flag on"
+	)
+	assert_eq(
+		_field._registry, _registry,
+		"PHYSICAL_BALANCE must hand Field the same BlockRegistry register_world() gave Match"
+	)
+
+
+func test_starting_a_specials_only_match_leaves_physical_balance_off() -> void:
+	Match.start_match(_config(MatchConfig.TiltMode.SPECIALS_ONLY))
+
+	assert_false(
+		_field._physical_balance_enabled,
+		"SPECIALS_ONLY must not pick up settled blocks' weight"
+	)
+
+
+func test_switching_from_physical_balance_to_specials_only_clears_the_flag() -> void:
+	Match.start_match(_config(MatchConfig.TiltMode.PHYSICAL_BALANCE))
+	assert_true(_field._physical_balance_enabled, "fixture: PHYSICAL_BALANCE enabled it first")
+
+	Match.start_match(_config(MatchConfig.TiltMode.SPECIALS_ONLY))
+
+	assert_false(
+		_field._physical_balance_enabled,
+		"a fresh SPECIALS_ONLY match must not inherit the previous match's PHYSICAL_BALANCE flag"
+	)
+
+
+func test_abort_disables_physical_balance_too() -> void:
+	Match.start_match(_config(MatchConfig.TiltMode.PHYSICAL_BALANCE))
+	assert_true(_field._physical_balance_enabled, "fixture: PHYSICAL_BALANCE enabled it first")
+
+	Match.abort_match()
+
+	assert_false(
+		_field._physical_balance_enabled,
+		"abort_match() must not leave PHYSICAL_BALANCE wired into an idle field"
+	)
+
+
+func test_physical_balance_match_actually_tilts_toward_a_settled_offcenter_block() -> void:
+	Match.start_match(_config(MatchConfig.TiltMode.PHYSICAL_BALANCE))
+
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres")
+	var block: Block = BlockFactory.build(shape, tuning, 0)
+	_blocks_root.add_child(block)
+	autofree(block)
+	block.freeze = true
+	block.global_position = Vector3(3.0, 0.5, 0.0)
+	Events.block_placed.emit(block, shape.id)
+
+	var settle_ticks: int = int(ceil(tuning.sleep_settle_time * Engine.physics_ticks_per_second)) + 5
+	for _i: int in range(settle_ticks + 30):
+		await get_tree().physics_frame
+
+	assert_gt(
+		_field.tilt_vector().length(), 0.0,
+		"a real match under PHYSICAL_BALANCE must tilt from a settled off-center block's own weight"
+	)
+
+
 # --- abort disables tilt and levels the disc ---------------------------------
 
 func test_abort_disables_tilt_and_levels_the_disc() -> void:

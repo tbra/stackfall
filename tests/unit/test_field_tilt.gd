@@ -54,6 +54,39 @@ func _make_field() -> Field:
 	return field
 
 
+## PHYSICAL_BALANCE tests below (M6 B5, spec 2.1/2.7) need a real BlockRegistry
+## wired the same way MatchLifecycle._apply_tilt_mode() wires one -- same
+## configure()/settled-timer fixture pattern as
+## tests/unit/test_block_registry.gd's test_settled_block_produces_a_circle_after_settle_time().
+func _make_registry(field: Field) -> BlockRegistry:
+	var registry: BlockRegistry = BlockRegistry.new()
+	add_child_autofree(registry)
+	registry.configure(field, field.map_def)
+	return registry
+
+
+## A frozen, settled cube at disk-local (x, z), settled by waiting out
+## PhysicsTuning.sleep_settle_time on the real physics clock -- there is no
+## test-only seam to fake is_settled directly, so this is the fixture the
+## rest of the codebase already uses (test_block_registry.gd).
+func _settled_block_at(field: Field, x: float, z: float) -> Block:
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres")
+	var block: Block = BlockFactory.build(shape, tuning, 0)
+	field.add_child(block)
+	autofree(block)
+	block.freeze = true
+	block.global_position = Vector3(x, 0.5, z)
+	Events.block_placed.emit(block, shape.id)
+	return block
+
+
+func _wait_for_settle() -> void:
+	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres")
+	var ticks: int = int(ceil(tuning.sleep_settle_time * Engine.physics_ticks_per_second)) + 5
+	await wait_physics_frames(ticks)
+
+
 # --- apply_tilt_impulse moves the tilt vector, then it decays -------------
 
 func test_apply_tilt_impulse_moves_the_tilt_vector() -> void:
@@ -321,4 +354,186 @@ func test_a_fresh_field_is_not_mirrored_and_ticks_its_own_spring() -> void:
 	assert_gt(
 		field.tilt_vector().length(), 0.0,
 		"a Field that never mirrored a replicated pose still runs its own spring (the host path)"
+	)
+
+
+# --- PHYSICAL_BALANCE kinematic-torque approximation (M6 B5, spec 2.1/2.7) --
+#
+# docs/M6_PLAN.md DECISION, owner-approved Bontago-keo.16: a kinematic-torque
+# approximation, not a real RigidBody3D/joint coupling. These exercise
+# Field._physical_balance_torque_accel() end to end through a real
+# BlockRegistry, the same wiring MatchLifecycle._apply_tilt_mode() performs.
+
+func test_physical_balance_disabled_by_default_a_settled_offcenter_load_stays_level() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	field.set_tilt_enabled(true)
+	field.set_registry(registry)
+	# _physical_balance_enabled defaults to false: SPECIALS_ONLY must not pick
+	# up a stray settled load's weight even though a registry is wired.
+	_settled_block_at(field, 2.0, 0.0)
+	await _wait_for_settle()
+
+	await wait_physics_frames(10)
+
+	assert_eq(
+		field.tilt_vector(), Vector2.ZERO,
+		"PHYSICAL_BALANCE disabled: a settled off-center block must not tilt the disc"
+	)
+
+
+func test_physical_balance_with_no_registry_wired_is_a_safe_noop() -> void:
+	var field: Field = _make_field()
+	field.set_tilt_enabled(true)
+	field.set_physical_balance_enabled(true)
+	# set_registry() deliberately never called.
+
+	for _i: int in range(10):
+		field._update_tilt(TICK)
+
+	assert_eq(
+		field.tilt_vector(), Vector2.ZERO,
+		"PHYSICAL_BALANCE enabled without a registry must not crash or tilt the disc"
+	)
+
+
+func test_physical_balance_tilts_toward_a_settled_offcenter_load() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	field.set_tilt_enabled(true)
+	field.set_registry(registry)
+	field.set_physical_balance_enabled(true)
+	_settled_block_at(field, 2.0, 0.0)
+	await _wait_for_settle()
+
+	await wait_physics_frames(30)
+
+	assert_gt(
+		field.tilt_vector().length(), 0.0,
+		"a settled off-center block's weight must tilt the disc under PHYSICAL_BALANCE"
+	)
+	# DECISION (tests/unit/test_field_tilt.gd, M6 B5): matches
+	# apply_tilt_impulse()'s own Vector2(dir.y, -dir.x) convention -- a block
+	# sitting at disk-local +x tips the disc so tilt_vector().y goes negative.
+	assert_lt(
+		field.tilt_vector().y, 0.0,
+		"a block offset on +x must tilt tilt_vector().y negative, matching apply_tilt_impulse()'s sign convention"
+	)
+
+
+func test_physical_balance_symmetric_load_stays_level() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	field.set_tilt_enabled(true)
+	field.set_registry(registry)
+	field.set_physical_balance_enabled(true)
+	_settled_block_at(field, 2.0, 0.0)
+	_settled_block_at(field, -2.0, 0.0)
+	await _wait_for_settle()
+
+	await wait_physics_frames(30)
+
+	assert_almost_eq(
+		field.tilt_vector().length(), 0.0, 0.001,
+		"two equal masses balanced on opposite sides of center must cancel to no net tilt"
+	)
+
+
+# --- Torque latch (Bontago-keo.11 follow-up) --------------------------------
+#
+# BlockRegistry.settled_torque_samples() only counts entries whose own
+# is_settled accumulator is currently true; a real match's own tilt can wake
+# a resting body and drop it out of the sample set for a tick or more before
+# it resettles. These exercise Field._physical_balance_torque_accel()'s latch
+# (see its own DECISION) directly through physical_balance_torque(), without
+# waiting out a real wake/resettle cycle under a moving disk.
+
+func test_physical_balance_torque_holds_while_samples_go_empty_with_blocks_present() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	field.set_tilt_enabled(true)
+	field.set_registry(registry)
+	field.set_physical_balance_enabled(true)
+	var block: Block = _settled_block_at(field, 2.0, 0.0)
+	await _wait_for_settle()
+
+	field._update_tilt(TICK)
+	var latched: Vector2 = field.physical_balance_torque()
+	assert_ne(latched, Vector2.ZERO, "fixture: a settled off-center block produces a nonzero torque")
+
+	# Wake the block without removing it from the registry -- the same
+	# momentary sample gap a real PHYSICAL_BALANCE wake causes.
+	# BlockRegistry._physics_process() resets a moving block's settled
+	# accumulator to zero the instant it observes motion above threshold
+	# (game/BlockRegistry.gd's own doc), which is exactly what the direct
+	# linear_velocity write below, plus one real physics frame, reproduces --
+	# same fixture pattern as tests/unit/test_block_registry.gd's own
+	# test_unsettled_block_contributes_no_influence_circle().
+	block.sleeping = false
+	block.linear_velocity = Vector3(10.0, 0.0, 0.0)
+	await wait_physics_frames(1)
+	assert_eq(
+		registry.settled_torque_samples().size(), 0,
+		"fixture: the woken block no longer contributes a settled sample"
+	)
+
+	field._update_tilt(TICK)
+	assert_eq(
+		field.physical_balance_torque(), latched,
+		"the torque latch holds its last non-empty value while samples are momentarily empty"
+	)
+
+
+func test_physical_balance_torque_zeroes_when_the_registry_empties() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	field.set_tilt_enabled(true)
+	field.set_registry(registry)
+	field.set_physical_balance_enabled(true)
+	var block: Block = _settled_block_at(field, 2.0, 0.0)
+	await _wait_for_settle()
+
+	field._update_tilt(TICK)
+	assert_ne(
+		field.physical_balance_torque(), Vector2.ZERO,
+		"fixture: a settled off-center block produces a nonzero torque"
+	)
+
+	Events.block_removed.emit(block, String(Events.REASON_KILL_PLANE))
+	assert_eq(
+		registry.tracked_block_count(), 0,
+		"fixture: the registry no longer tracks the removed block"
+	)
+
+	field._update_tilt(TICK)
+	assert_eq(
+		field.physical_balance_torque(), Vector2.ZERO,
+		"the torque latch zeroes once the registry has no blocks left to hold a stale value for"
+	)
+
+
+func test_physical_balance_is_still_clamped_at_max_tilt_deg() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	field.set_tilt_enabled(true)
+	field.set_registry(registry)
+	field.set_physical_balance_enabled(true)
+	# A dozen settled cubes stacked at a deliberately unrealistic offset (well
+	# past this tiny test map's field_radius, same "exaggerate the input to
+	# force the branch" style as this file's own 1.0e6 single-impulse clamp
+	# test above): the resulting unclamped steady-state tilt (torque_gain *
+	# sum / spring_stiffness(), config/TiltTuning.gd's own DECISION) works out
+	# to roughly 26deg, more than double max_tilt_deg, so this only proves the
+	# clamp still holds under PHYSICAL_BALANCE forcing, not any particular
+	# tuned equilibrium (that is what tests/bench/bench_physical_balance.gd's
+	# realistic tower checks).
+	for _i: int in range(12):
+		_settled_block_at(field, 120.0, 0.0)
+	await _wait_for_settle()
+
+	await wait_physics_frames(120)
+
+	assert_lte(
+		rad_to_deg(field.tilt_vector().length()), field.tilt_tuning.max_tilt_deg + 0.001,
+		"PHYSICAL_BALANCE's continuous torque forcing still cannot exceed max_tilt_deg"
 	)

@@ -263,6 +263,31 @@ func all_settled() -> bool:
 	return true
 
 
+## One Vector3 per settled block, packed as (disk-local x offset from
+## center, mass, disk-local z offset) -- the same "a spare component carries a
+## second scalar" packing this codebase already uses to avoid a per-frame
+## Array[Object] allocation. game/Field.gd's PHYSICAL_BALANCE tilt (M6 B5,
+## spec 2.1/2.7; kinematic-torque approximation, docs/M6_PLAN.md DECISION,
+## owner-approved Bontago-keo.16) sums mass * lever-arm across these to drive
+## its tilt spring every physics tick.
+##
+## Host-authority gated exactly like influence_circles(): every body on a
+## client is frozen (this file's own _physics_process() doc), so a client
+## contributes no torque of its own -- it only ever mirrors the host's
+## already-tilted pose via Field.apply_replicated_pose().
+func settled_torque_samples() -> PackedVector3Array:
+	var samples: PackedVector3Array = PackedVector3Array()
+	if not _host_authority:
+		return samples
+	for id: Variant in _entries.keys():
+		var entry: _Entry = _entries[id]
+		if not entry.is_settled or not is_instance_valid(entry.block):
+			continue
+		var local_com: Vector3 = _local_center_of_mass(entry.block)
+		samples.append(Vector3(local_com.x, entry.block.mass, local_com.z))
+	return samples
+
+
 func _local_center_of_mass(block: Block) -> Vector3:
 	var world_com: Vector3 = block.global_transform * block.center_of_mass
 	return _to_local(world_com)
