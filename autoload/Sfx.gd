@@ -47,6 +47,7 @@ func _ready() -> void:
 	Events.placement_rejected.connect(_on_placement_rejected)
 	Events.block_placed.connect(_on_block_placed)
 	Events.player_eliminated.connect(_on_player_eliminated)
+	Events.gift_claimed.connect(_on_gift_claimed)
 	play_music()
 
 
@@ -185,3 +186,26 @@ func _on_block_placed(_block: RigidBody3D, _shape_id: StringName) -> void:
 
 func _on_player_eliminated(_slot_id: int, _team_id: int) -> void:
 	play(AudioConfig.EVENT_BREAKAGE)
+
+
+## DECISION (autoload/Sfx.gd, Bontago-6y2): unlike the hooks above (a block
+## drop/thud/rejection/breakage is a physical event any nearby player would
+## actually hear happen, so every hook above plays for every slot, no
+## gating), a gift claim queues a special for exactly one slot -- it is
+## personal feedback, not a world event. Gating on Net.is_local_slot()
+## mirrors game/GiftCrate.gd's own "_local_watch_slot()" comment and
+## ui/HUD.gd's gift toast (Bontago-1en.16), both already local-only; a
+## global "someone somewhere claimed a gift" chime would be noise in an
+## 8-player match with crates spawning continuously. Net.is_local_slot() is
+## also correct in hot-seat/offline play with no extra branching: it always
+## returns true there (one human drives every slot), so every claim plays,
+## same as it would if the local human just made it.
+##
+## Simplest reasonable option per the brief: no quieter variant for other
+## slots' claims -- nothing else about a gift claim has non-local feedback
+## either, so this just stays silent for them rather than inventing a new
+## tunable with no other precedent to match.
+func _on_gift_claimed(_gift_id: int, slot_id: int, _special_id: StringName) -> void:
+	if not Net.is_local_slot(slot_id):
+		return
+	play(AudioConfig.EVENT_GIFT_CLAIMED)
