@@ -46,6 +46,11 @@ authorized work when another package is blocked, but do not skip acceptance gate
 Perform coordination edits and bounded diagnostics directly. Delegate substantial
 game-code work, long investigations and test loops. Keep full logs in worker
 scratchpads; read counts, decisive errors and evidence paths in the main thread.
+Use `python tools/board_brief.py` for routine board scans. Avoid whole-board JSON,
+full memory listings and large diff/log dumps in your main context. Require worker
+final handbacks to fit 900 characters on success or 1500 on failure; detailed
+evidence belongs in the assigned scratchpad, with the path in the handback. Read
+only decisive hunks/errors for acceptance, while retaining independent review.
 Give the owner one-line routine updates with bead, result and next action; expand
 only for blockers or decisions. Limit competing workers, and serialize performance measurements.
 If usage is exhausted, save the next exact action and recoverable checkout/session
