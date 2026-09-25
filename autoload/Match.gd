@@ -186,15 +186,19 @@ func register_world(field: Field, registry: Node, blocks_parent: Node3D) -> void
 ## net/MatchNet.gd's replicated spawns. Nothing else should reach for these:
 ## rules go through request_place().
 func registry() -> BlockRegistry:
-	return _registry
+	return _registry if is_instance_valid(_registry) else null
 
 
 func blocks_parent() -> Node3D:
-	return _blocks_parent
+	return _blocks_parent if is_instance_valid(_blocks_parent) else null
 
 
+## Validity-guarded: Main frees its world without unregistering it, so
+## between one match world's teardown and the next register_world() these
+## accessors would otherwise hand out a freed node (seen when
+## ui/SandboxPanel.gd and game/PlayerController.gd read them from _ready()).
 func field() -> Field:
-	return _field
+	return _field if is_instance_valid(_field) else null
 
 
 ## Test seam for the Net autoload (see _net_provider). Passing null restores
