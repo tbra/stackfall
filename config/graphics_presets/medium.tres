@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="GraphicsPreset" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/GraphicsPreset.gd" id="1_preset"]
+
+[resource]
+script = ExtResource("1_preset")
+id = &"medium"
+ssr_enabled = true
+msaa_3d = 1
+shadow_atlas_size = 4096
