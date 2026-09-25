@@ -63,6 +63,8 @@ const MAIN_MENU_SCENE: PackedScene = preload("res://ui/MainMenu.tscn")
 const LOBBY_SCENE: PackedScene = preload("res://ui/Lobby.tscn")
 const HOT_SEAT_SCENE: PackedScene = preload("res://game/HotSeat.tscn")
 const SANDBOX_SCENE: PackedScene = preload("res://game/Sandbox.tscn")
+## docs/M6_PLAN.md package B3 (spec 2.7 "Tutorial").
+const TUTORIAL_SCENE: PackedScene = preload("res://ui/Tutorial.tscn")
 const REMOTE_CURSORS_SCENE: PackedScene = preload("res://game/RemoteCursors.tscn")
 const NET_DEBUG_OVERLAY_SCENE: PackedScene = preload("res://ui/NetDebugOverlay.tscn")
 
@@ -76,6 +78,10 @@ var _main_menu: MainMenu = null
 var _lobby: Lobby = null
 var _hot_seat: HotSeat = null
 var _sandbox: Sandbox = null
+## docs/M6_PLAN.md package B3: built/freed only by start_tutorial_from_menu()/
+## _on_tutorial_finished() below -- never touched by _build_match_world()/
+## _end_match_world() (this package does not own those functions).
+var _tutorial: Tutorial = null
 var _remote_cursors: RemoteCursors = null
 var _debug_overlay: NetDebugOverlay = null
 ## Bontago-d5c.6 (M5 P5): one instance per bot slot in the match currently
@@ -301,6 +307,65 @@ func _sandbox_force_special_arg(args: PackedStringArray) -> String:
 	return ""
 
 
+# --- Tutorial: single-player onboarding (docs/M6_PLAN.md package B3) --------
+#
+# Reachable only from the Main Menu's own %TutorialButton (ui/MainMenu.gd's
+# tutorial_requested signal, the same direct child-signal convention
+# start_sandbox_from_menu() above uses for sandbox_requested): a one-player,
+# offline match built exactly like start_sandbox_from_menu()'s own
+# register_world() -> start_match() -> place_flags()/set_overlay_source(),
+# with config.sandbox = true (so ui/Tutorial.gd's own Match.debug_queue_
+# special() call is allowed through MatchGifts.debug_queue_special()'s own
+# host/config.sandbox gate) and config.player_count = 1 (there is only ever
+# one tutorial participant). Never reached from --hot-seat/--sandbox or the
+# real lobby/net path, so it changes nothing about either.
+
+func start_tutorial_from_menu() -> void:
+	_clear_menu_and_lobby()
+	_world_built = true
+	_tutorial = TUTORIAL_SCENE.instantiate() as Tutorial
+	add_child(_tutorial)
+	_tutorial.set_camera_rig(_camera_rig)
+	_tutorial.finished.connect(_on_tutorial_finished)
+	Match.register_world(_field, _registry, _blocks_container)
+	Match.start_match(_build_tutorial_config())
+
+	var config: MatchConfig = Match.config
+	_field.rebuild_for_map(config.map_def())
+	_field.place_flags(config.player_count, config.player_colors, config.goal_flag_count)
+	_field.set_overlay_source(Match.raster(), config.player_colors)
+	_skybox.load_set(config.map_def().skybox_set)
+
+
+## Same lobby-settings-minus-a-few-overrides shape as _build_sandbox_config()
+## above: always exactly one player, config.sandbox = true so ui/Tutorial.gd's
+## forced special (Match.debug_queue_special()) is let through.
+func _build_tutorial_config() -> MatchConfig:
+	var config: MatchConfig = match_config.duplicate(true) as MatchConfig
+	config.player_count = 1
+	config.hot_seat = false
+	config.ai_count = 0
+	config.sandbox = true
+	return config
+
+
+## ui/Tutorial.gd's own `finished` signal (step 5 completing, or ui_cancel at
+## any step -- see its own doc comment): frees the Tutorial subtree
+## start_tutorial_from_menu() above built and returns to the Main Menu.
+## ui/Tutorial.gd already called Match.abort_match() itself before emitting
+## (consuming Match's own public API, not this package's -- Events.
+## match_state_changed's own (-> LOBBY) emit has already run
+## _on_match_state_changed()'s existing _end_match_world() call by the time
+## this handler runs, the same way start_sandbox_from_menu()'s own
+## _world_built guard above does), so this only has to clean up the one node
+## this package added.
+func _on_tutorial_finished() -> void:
+	if _tutorial != null and is_instance_valid(_tutorial):
+		_tutorial.queue_free()
+	_tutorial = null
+	_show_main_menu()
+
+
 # --- Headless bot match: `--bots=<n>` (Bontago-d5c.6, M5 P5) -----------------
 #
 # `godot --headless --path . -- --headless-host --bots=<n> [--players=<n2>]
@@ -520,6 +585,7 @@ func _show_main_menu() -> void:
 	_main_menu = MAIN_MENU_SCENE.instantiate() as MainMenu
 	add_child(_main_menu)
 	_main_menu.sandbox_requested.connect(start_sandbox_from_menu)
+	_main_menu.tutorial_requested.connect(start_tutorial_from_menu)
 
 
 func _show_lobby() -> void:
