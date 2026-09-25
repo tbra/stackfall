@@ -23,6 +23,16 @@ extends Resource
 @export var bounce_file: String = "boing.wav"
 @export var music_file: String = "bontago1.mp3"
 
+## DECISION (config/AudioConfig.gd, Bontago-6y2): the local slot's own gift
+## claim (spec 2.6, Events.gift_claimed). No dedicated original asset for
+## "you got a reward" exists in the SoundFX pack, and EVENT_BOUNCE/bounce_file
+## already registers "boing.wav" as an upbeat, positive bloop with no consumer
+## wired to it yet (nothing calls Sfx.play(EVENT_BOUNCE)) -- reusing that same
+## filename here keeps the "no new binary assets" rule (see this file's own
+## header) while giving the claim its own event/field so it can get its own
+## sound and tuning later without touching EVENT_BOUNCE.
+@export var gift_claimed_file: String = "boing.wav"
+
 ## M4 specials (spec 2.6): registered now so the event map is complete, no
 ## hooks call these yet -- the specials themselves aren't implemented.
 @export var bomb_file: String = "bomb.wav"
@@ -72,11 +82,12 @@ const EVENT_QUAKE: StringName = &"quake"
 const EVENT_PROPELLER: StringName = &"propeller"
 const EVENT_BREAKAGE: StringName = &"breakage"
 const EVENT_CREAK: StringName = &"creak"
+const EVENT_GIFT_CLAIMED: StringName = &"gift_claimed"
 
 const ALL_EVENTS: Array[StringName] = [
 	EVENT_THUD, EVENT_REJECTED, EVENT_CLICK, EVENT_HOVER, EVENT_DROP, EVENT_BOUNCE,
 	EVENT_MUSIC, EVENT_BOMB, EVENT_ROCKET, EVENT_VOLCANO, EVENT_QUAKE, EVENT_PROPELLER,
-	EVENT_BREAKAGE, EVENT_CREAK,
+	EVENT_BREAKAGE, EVENT_CREAK, EVENT_GIFT_CLAIMED,
 ]
 
 
@@ -112,6 +123,8 @@ func files_for_event(event: StringName) -> Array[String]:
 			return [breakage_file]
 		EVENT_CREAK:
 			return [creak_file]
+		EVENT_GIFT_CLAIMED:
+			return [gift_claimed_file]
 		_:
 			return []
 

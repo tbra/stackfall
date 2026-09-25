@@ -23,6 +23,7 @@ func before_each() -> void:
 	_tmp_dir = OS.get_user_data_dir().path_join("test_sfx_tmp")
 	DirAccess.make_dir_recursive_absolute(_tmp_dir)
 	_write_tiny_wav(_tmp_dir.path_join(_config.click_file))
+	_write_tiny_wav(_tmp_dir.path_join(_config.gift_claimed_file))
 	for filename: String in _config.thud_files:
 		_write_tiny_wav(_tmp_dir.path_join(filename))
 
@@ -35,6 +36,14 @@ func before_each() -> void:
 func after_each() -> void:
 	for filename: String in DirAccess.get_files_at(_tmp_dir):
 		DirAccess.remove_absolute(_tmp_dir.path_join(filename))
+	# The gift-claimed tests below poke Net's own private mode/local-slot
+	# state directly (the same underscore direct-access convention
+	# tests/unit/test_gift_claim.gd documents for Match._gifts) to exercise
+	# the "not the local slot" branch without a real ENet connection. Net is
+	# a singleton that outlives this one test file, so it must always come
+	# back to its real default afterward.
+	Net._mode = Net.Mode.OFFLINE
+	Net._local_slot = 0
 
 
 func _write_tiny_wav(path: String) -> void:
@@ -99,3 +108,36 @@ func test_volume_scaling_clamps_to_configured_range() -> void:
 	assert_almost_eq(at_min_db, _config.impact_quiet_db_offset, 0.0001)
 	assert_almost_eq(at_loud_db, _config.impact_loud_db_offset, 0.0001)
 	assert_almost_eq(far_above_loud_db, _config.impact_loud_db_offset, 0.0001)
+
+
+# --- Events.gift_claimed (Bontago-6y2) ----------------------------------------
+
+func test_gift_claimed_for_the_local_slot_plays_the_claim_sound() -> void:
+	_sfx.set_root_dir_for_test(_tmp_dir)
+	# Net defaults to OFFLINE, where is_local_slot() is true for every slot
+	# (hot-seat/offline: one human drives all of them) -- no setup needed.
+	assert_eq(Net._mode, Net.Mode.OFFLINE, "fixture: Net starts OFFLINE")
+
+	_sfx._on_gift_claimed(1, 0, &"anvil")
+
+	assert_true(_any_player_playing(), "the claiming slot's own claim must play a sound")
+
+
+func test_gift_claimed_for_a_non_local_slot_plays_nothing() -> void:
+	_sfx.set_root_dir_for_test(_tmp_dir)
+	Net._mode = Net.Mode.CLIENT
+	Net._local_slot = 0
+
+	_sfx._on_gift_claimed(1, 1, &"anvil")
+
+	assert_false(_any_player_playing(), "another slot's claim must not play a sound here")
+
+
+func test_gift_claimed_for_the_local_slot_plays_even_as_a_connected_client() -> void:
+	_sfx.set_root_dir_for_test(_tmp_dir)
+	Net._mode = Net.Mode.CLIENT
+	Net._local_slot = 2
+
+	_sfx._on_gift_claimed(1, 2, &"anvil")
+
+	assert_true(_any_player_playing(), "the local slot's own claim must still play once connected as a client")
