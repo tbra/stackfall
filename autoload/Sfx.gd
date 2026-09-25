@@ -17,6 +17,13 @@ extends Node
 ##
 ## No class_name: this is the Sfx autoload singleton (same reason Events,
 ## Settings, Net and Match have none -- see autoload/Net.gd's header).
+##
+## MUSIC (only) additionally loads from Settings.custom_music_dir() when it is
+## set and exists on disk (spec 1.4/2.10's custom music folder); SFX always
+## stay on the bundled folder above. Every play()/play_music()/impact-thud
+## volume_db also adds Settings.master_volume_db() on top of this file's own
+## AudioConfig.sfx_volume_db/music_volume_db baseline, live-updated via
+## Settings.audio_settings_changed (docs/M6_PLAN.md package C3).
 
 const AUDIO_SUBDIR: String = "assets/original/audio"
 
@@ -25,6 +32,14 @@ const AUDIO_SUBDIR: String = "assets/original/audio"
 var _root_dir: String = ""
 var _available: bool = false
 var _streams_by_filename: Dictionary = {}
+## Folder MUSIC streams load from: Settings.custom_music_dir() when set and
+## it exists on disk, otherwise the same bundled _root_dir as SFX (see
+## _refresh_music_root_dir()). Kept separate from _root_dir/_streams_by_filename
+## so a custom folder never affects SFX lookups (spec 1.4/2.10 name a custom
+## *music* folder only, never a custom SFX set).
+var _music_root_dir: String = ""
+var _music_available: bool = false
+var _music_streams_by_filename: Dictionary = {}
 var _sfx_players: Array[AudioStreamPlayer] = []
 var _next_sfx_player_index: int = 0
 var _music_player: AudioStreamPlayer
@@ -42,12 +57,14 @@ func _ready() -> void:
 			"Sfx: no original assets at %s -- run tools/install_original_assets.ps1 (optional; the game runs silently without it)."
 			% _root_dir
 		)
+	_refresh_music_root_dir()
 	_build_player_pool()
 	Events.block_impacted.connect(_on_block_impacted)
 	Events.placement_rejected.connect(_on_placement_rejected)
 	Events.block_placed.connect(_on_block_placed)
 	Events.player_eliminated.connect(_on_player_eliminated)
 	Events.gift_claimed.connect(_on_gift_claimed)
+	Settings.audio_settings_changed.connect(_on_audio_settings_changed)
 	play_music()
 
 
@@ -55,6 +72,33 @@ func _resolve_root_dir() -> String:
 	if OS.has_feature("editor"):
 		return ProjectSettings.globalize_path("res://" + AUDIO_SUBDIR)
 	return OS.get_executable_path().get_base_dir().path_join(AUDIO_SUBDIR)
+
+
+## Resolves _music_root_dir/_music_available from Settings.custom_music_dir():
+## a non-empty path that actually exists on disk wins for MUSIC only; anything
+## else (empty, or set but missing -- e.g. an unplugged drive) falls back to
+## the bundled _root_dir silently, the same "supported absence" pattern
+## _ready() already documents for a missing bundled folder itself. Clears the
+## music stream cache since the same filename can now resolve to a different
+## file underneath it (docs/M6_PLAN.md package C3).
+func _refresh_music_root_dir() -> void:
+	var custom_dir: String = Settings.custom_music_dir()
+	if not custom_dir.is_empty() and DirAccess.dir_exists_absolute(custom_dir):
+		_music_root_dir = custom_dir
+	else:
+		_music_root_dir = _root_dir
+	_music_available = DirAccess.dir_exists_absolute(_music_root_dir)
+	_music_streams_by_filename.clear()
+
+
+## Settings.audio_settings_changed fires for both a master-volume change and a
+## custom-music-dir change (autoload/Settings.gd), so this re-resolves the
+## music folder and, per docs/M6_PLAN.md package C3, re-applies the volume to
+## whatever is already playing -- no restart needed to hear a slider move.
+func _on_audio_settings_changed() -> void:
+	_refresh_music_root_dir()
+	if _music_player.playing:
+		_music_player.volume_db = config.music_volume_db + Settings.master_volume_db()
 
 
 func _build_player_pool() -> void:
@@ -79,7 +123,7 @@ func play(event: StringName) -> bool:
 		return true
 	var player: AudioStreamPlayer = _next_sfx_player()
 	player.stream = stream
-	player.volume_db = config.sfx_volume_db
+	player.volume_db = config.sfx_volume_db + Settings.master_volume_db()
 	player.play()
 	return true
 
@@ -112,25 +156,39 @@ func _play_music_stream(stream: AudioStream) -> void:
 	if stream is AudioStreamMP3:
 		(stream as AudioStreamMP3).loop = true
 	_music_player.stream = stream
-	_music_player.volume_db = config.music_volume_db
+	_music_player.volume_db = config.music_volume_db + Settings.master_volume_db()
 	_music_player.play()
 
 
 func _pick_stream(event: StringName) -> AudioStream:
-	if not _available:
+	var is_music: bool = event == AudioConfig.EVENT_MUSIC
+	if is_music:
+		if not _music_available:
+			return null
+	elif not _available:
 		return null
 	var files: Array[String] = config.files_for_event(event)
 	if files.is_empty():
 		return null
 	var filename: String = files[0] if files.size() == 1 else files[_rng.randi_range(0, files.size() - 1)]
+	if is_music:
+		return _load_stream_from_root(filename, _music_root_dir, _music_streams_by_filename)
 	return _load_stream(filename)
 
 
 func _load_stream(filename: String) -> AudioStream:
+	return _load_stream_from_root(filename, _root_dir, _streams_by_filename)
+
+
+## Shared by _load_stream() (bundled SFX root) and _pick_stream()'s music path
+## (bundled or custom root, per _refresh_music_root_dir()). `cache` is a
+## Dictionary reference (GDScript Dictionaries are reference types), so a hit
+## the caller adds here is visible to the caller's own dict too.
+func _load_stream_from_root(filename: String, root_dir: String, cache: Dictionary) -> AudioStream:
 	var key: String = filename.to_lower()
-	if _streams_by_filename.has(key):
-		return _streams_by_filename[key]
-	var full_path: String = _root_dir.path_join(key)
+	if cache.has(key):
+		return cache[key]
+	var full_path: String = root_dir.path_join(key)
 	if not FileAccess.file_exists(full_path):
 		print("Sfx: expected file missing: %s" % full_path)
 		return null
@@ -140,7 +198,7 @@ func _load_stream(filename: String) -> AudioStream:
 	elif key.ends_with(".mp3"):
 		stream = AudioStreamMP3.load_from_file(full_path)
 	if stream != null:
-		_streams_by_filename[key] = stream
+		cache[key] = stream
 	return stream
 
 
@@ -160,6 +218,7 @@ func set_root_dir_for_test(path: String) -> void:
 	_root_dir = path
 	_available = DirAccess.dir_exists_absolute(path)
 	_streams_by_filename.clear()
+	_refresh_music_root_dir()  # re-derive the bundled-fallback case against the new _root_dir
 
 
 # --- Events hooks -------------------------------------------------------------
@@ -172,7 +231,7 @@ func _on_block_impacted(speed: float) -> void:
 		return
 	var player: AudioStreamPlayer = _next_sfx_player()
 	player.stream = stream
-	player.volume_db = config.sfx_volume_db + config.impact_volume_db(speed)
+	player.volume_db = config.sfx_volume_db + config.impact_volume_db(speed) + Settings.master_volume_db()
 	player.play()
 
 
