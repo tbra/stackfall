@@ -1311,7 +1311,10 @@ func net_match_event(event: StringName, args: Array) -> void:
 			# own.
 			var turn_slot: int = int(args[0])
 			var running: MatchConfig = _authority().config
-			if running != null and not running.hot_seat:
+			# Turn-based (M6 B4) mirrors the host's slot verbatim like hot-seat:
+			# the client-side active-slot gate and turn banner must agree with
+			# the host on whose turn it is.
+			if running != null and not running.hot_seat and not running.turn_based:
 				turn_slot = int(_session().local_slot())
 			if turn_slot < 0:
 				return

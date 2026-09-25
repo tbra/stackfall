@@ -25,3 +25,4 @@ sudden_death_ramp_s = 60.0
 sudden_death_shrink_interval_s = 10.0
 sudden_death_shrink_step_m = 1.0
 sudden_death_tiebreak_radius_m = 8.0
+turn_based_max_settle_s = 6.0

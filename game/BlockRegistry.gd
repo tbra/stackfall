@@ -249,6 +249,20 @@ func tracked_block_count() -> int:
 	return _entries.size()
 
 
+## True once every tracked block's own settled flag (the per-block accumulator
+## _physics_process() above maintains from PhysicsTuning.sleep_linear_threshold
+## / sleep_angular_threshold / sleep_settle_time) is true. Used by
+## MatchLifecycle._tick_turn_based() (M6 B4, spec 2.7) to decide when to hand
+## the turn to the next player. An empty registry (no blocks placed yet) is
+## vacuously settled, matching the "nothing left to wait for" case.
+func all_settled() -> bool:
+	for id: Variant in _entries.keys():
+		var entry: _Entry = _entries[id]
+		if not entry.is_settled:
+			return false
+	return true
+
+
 func _local_center_of_mass(block: Block) -> Vector3:
 	var world_com: Vector3 = block.global_transform * block.center_of_mass
 	return _to_local(world_com)

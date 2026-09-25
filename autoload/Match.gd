@@ -276,6 +276,11 @@ func _process(delta: float) -> void:
 			_feed._tick_feed(delta)
 			_territory._tick_territory(delta)
 			_lifecycle._tick_match_timer(delta)
+			# DECISION (autoload/Match.gd, M6 B4): a no-op unless
+			# config.turn_based, so hot-seat and free-for-all matches pay
+			# nothing extra here (mirrors _tick_match_timer's own
+			# config.match_timer_minutes == 0 no-op).
+			_lifecycle._tick_turn_based(delta)
 		State.SUDDEN_DEATH:
 			# Spec 2.8 sudden death (M6 A3): normal play continues -- the same
 			# three ticks PLAYING runs -- plus the gift ramp / disk shrink /
@@ -284,6 +289,7 @@ func _process(delta: float) -> void:
 			_feed._tick_feed(delta)
 			_territory._tick_territory(delta)
 			_lifecycle._tick_sudden_death(delta)
+			_lifecycle._tick_turn_based(delta)
 		_:
 			pass
 

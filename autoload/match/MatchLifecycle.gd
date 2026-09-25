@@ -63,6 +63,17 @@ var _sudden_death_elapsed: float = 0.0
 ## always runs once.
 var _last_shrink_radius: float = INF
 
+## -- Turn-based (spec 2.7, M6 B4) ---------------------------------------------
+
+## Seconds left before a turn-based placement's settle-wait forces the turn to
+## advance anyway, or -1.0 when no wait is running (not turn-based, or the
+## current turn's placement already settled and advanced). Armed by
+## begin_turn_settle_wait() and ticked down by _tick_turn_based(); cleared the
+## moment advance_turn() actually fires so a second placement mid-wait (a
+## bot's held block, an already-in-flight throw) cannot arm a second,
+## overlapping wait -- the plan's one-active-wait-at-a-time contract.
+var _turn_settle_wait_left: float = -1.0
+
 
 func setup(match_ref: MatchAutoload) -> void:
 	_match = match_ref
@@ -194,6 +205,7 @@ func _reset_match_state() -> void:
 	_match_timer_left = 0.0
 	_sudden_death_elapsed = 0.0
 	_last_shrink_radius = INF
+	_turn_settle_wait_left = -1.0
 	_match._territory._cell_grid = null
 	_match._territory._raster = null
 	_match._territory._solver = null
@@ -386,6 +398,49 @@ func _resolve_sudden_death_tiebreak() -> void:
 	_finish_match(best_team)
 
 
+# --- Turn-based (spec 2.7, M6 B4) --------------------------------------------
+
+## DECISION (autoload/match/MatchLifecycle.gd, M6 B4, per docs/M6_PLAN.md's B4
+## section): turn_based and hot_seat are mutually exclusive in practice -- the
+## lobby never offers hot_seat, and the CLI --hot-seat path never sets
+## turn_based -- so nothing here resolves "both true" (advance_turn()'s own
+## instant hand-off would just win, since it runs unconditionally once either
+## flag is set). config.sanitize() does not need a cross-field rule for a
+## combination no caller can reach.
+
+## Called from MatchPlacement's two hot-seat advance_turn() sites, in the
+## turn_based branch alongside them: arms the settle-wait instead of handing
+## the turn over immediately. A no-op outside turn_based (callers only reach
+## this from the turn_based branch, but the guard keeps the field itself
+## authoritative about whether a wait is actually running).
+func begin_turn_settle_wait() -> void:
+	if _match.config == null or not _match.config.turn_based:
+		return
+	_turn_settle_wait_left = _match._territory_tuning.turn_based_max_settle_s
+
+
+## Ticked from Match._process()'s State.PLAYING and State.SUDDEN_DEATH
+## branches, only when config.turn_based (mirrors _tick_sudden_death()'s own
+## call site pattern). Spec 2.7: "Physics settles completely (all bodies
+## asleep, or after 6 s) before the next player's turn starts" -- hands the
+## turn over the instant every tracked block is settled, or once the safety
+## cap runs out, whichever comes first, so one block that never fully sleeps
+## cannot stall the match forever.
+func _tick_turn_based(delta: float) -> void:
+	if _match.config == null or not _match.config.turn_based:
+		return
+	if _turn_settle_wait_left < 0.0:
+		return
+	if _match._registry != null and _match._registry.all_settled():
+		_turn_settle_wait_left = -1.0
+		advance_turn()
+		return
+	_turn_settle_wait_left = maxf(_turn_settle_wait_left - delta, 0.0)
+	if _turn_settle_wait_left <= 0.0:
+		_turn_settle_wait_left = -1.0
+		advance_turn()
+
+
 # --- Slots and teams --------------------------------------------------------
 
 func slot_count() -> int:
@@ -409,10 +464,11 @@ func active_slot() -> int:
 	return _active_slot
 
 
-## Hot-seat: hands the turn to the next slot. Called after a placement
-## resolves, not by input.
+## Hot-seat and turn-based: hands the turn to the next slot. Called after a
+## placement resolves (hot-seat: immediately; turn-based: once
+## _tick_turn_based() decides the settle-wait is over), not by input.
 func advance_turn() -> void:
-	if not _match.config.hot_seat:
+	if not _match.config.hot_seat and not _match.config.turn_based:
 		return
 	var next_slot: int = _next_alive_slot(_active_slot)
 	_active_slot = next_slot

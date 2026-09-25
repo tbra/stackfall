@@ -235,3 +235,64 @@ func test_bodies_over_cells_finds_the_body_under_that_cell() -> void:
 
 	var elsewhere: Array[RigidBody3D] = registry.bodies_over_cells(PackedInt32Array([0]))
 	assert_eq(elsewhere.size(), 0)
+
+
+func test_all_settled_is_true_when_nothing_is_tracked() -> void:
+	# M6 B4: MatchLifecycle._tick_turn_based() treats an empty registry as
+	# settled -- vacuously true, so a turn with no live blocks left never
+	# stalls waiting for something that will never move again.
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	assert_true(registry.all_settled(), "an empty registry is vacuously settled")
+
+
+func test_all_settled_is_true_once_every_tracked_block_sleeps() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block_a: Block = BlockFactory.build(shape, _tuning, 0)
+	field.add_child(block_a)
+	block_a.freeze = true
+	block_a.global_position = Vector3(2.0, 0.5, 0.0)
+	Events.block_placed.emit(block_a, shape.id)
+
+	var block_b: Block = BlockFactory.build(shape, _tuning, 1)
+	field.add_child(block_b)
+	block_b.freeze = true
+	block_b.global_position = Vector3(-2.0, 0.5, 0.0)
+	Events.block_placed.emit(block_b, shape.id)
+
+	var ticks: int = int(ceil(_tuning.sleep_settle_time * Engine.physics_ticks_per_second)) + 5
+	for _i: int in range(ticks):
+		await get_tree().physics_frame
+
+	assert_true(registry.all_settled(), "both frozen blocks are settled after sleep_settle_time")
+
+
+func test_all_settled_is_false_while_one_tracked_block_still_moves() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var settled_block: Block = BlockFactory.build(shape, _tuning, 0)
+	field.add_child(settled_block)
+	settled_block.freeze = true
+	settled_block.global_position = Vector3(2.0, 0.5, 0.0)
+	Events.block_placed.emit(settled_block, shape.id)
+
+	var ticks: int = int(ceil(_tuning.sleep_settle_time * Engine.physics_ticks_per_second)) + 5
+	for _i: int in range(ticks):
+		await get_tree().physics_frame
+	assert_true(registry.all_settled(), "sanity check: the lone settled block reads as settled")
+
+	var moving_block: Block = BlockFactory.build(shape, _tuning, 1)
+	field.add_child(moving_block)
+	moving_block.global_position = Vector3(-2.0, 5.0, 0.0)
+	moving_block.linear_velocity = Vector3(10.0, 0.0, 0.0)  # far above sleep_linear_threshold
+	Events.block_placed.emit(moving_block, shape.id)
+
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+
+	assert_false(registry.all_settled(), "one still-moving block keeps the whole registry unsettled")
