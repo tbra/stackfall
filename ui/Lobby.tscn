@@ -200,12 +200,9 @@ layout_mode = 2
 custom_minimum_size = Vector2(56, 0)
 text = "35"
 
-[node name="SpecialsNote" type="Label" parent="Margin/Columns/Settings"]
+[node name="SpecialsChecklist" type="VBoxContainer" parent="Margin/Columns/Settings"]
 unique_name_in_owner = true
 layout_mode = 2
-autowrap_mode = 2
-modulate = Color(1, 1, 1, 0.6)
-text = "All specials enabled (none defined until M4)"
 
 [node name="TiltRow" type="HBoxContainer" parent="Margin/Columns/Settings"]
 layout_mode = 2
