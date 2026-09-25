@@ -285,12 +285,35 @@ static func validate_point(
 
 ## Spec 2.5's auto-drop relocation, now shared by every hole_mode
 ## (Bontago-cmc.7): the nearest disk-local point at or around `desired` that
-## validate_point() accepts, or NO_ORIGIN when nothing within
-## auto_drop_search_max_radius does. SPEC.md's 2026-09-20 audit, 2.5 "Expiry
-## and invalid actions", flags relocate-vs-lose-vs-retain as [OPEN] for the
+## validate_point() accepts, or NO_ORIGIN when the placing team owns no valid
+## point anywhere on the disk. SPEC.md's 2026-09-20 audit, 2.5 "Expiry and
+## invalid actions", flags relocate-vs-lose-vs-retain as [OPEN] for the
 ## original and calls the closest-valid-point search only the remake's own
 ## [NEW] fallback -- kept unchanged here because nothing in the audit
 ## contradicts it, only notes that it is not evidenced.
+##
+## Bontago-xtq.23 (owner playtest 2026-09-24, "if I'm close to my area it
+## relocates, otherwise it just yeets the block in a direction"): the ring
+## search below only ever looked out to auto_drop_search_max_radius (12 m by
+## default) and returned NO_ORIGIN past it, which sent request_place() down
+## the burn/throw path even though the player's own territory was sitting
+## right there on the disk, just further than 12 m from the expired ghost.
+## `_scan_disk_for_closest_valid_point()` is the fix: whenever the ring search
+## comes up empty, it falls back to a scan of every in-disk cell and returns
+## the nearest one that validates, so NO_ORIGIN now means what request_place()
+## has always assumed it means -- the team truly owns no valid point on the
+## whole disk (home flag down and every stack lost) -- and the throw-off-the-
+## map fallback is reachable only in that genuine case.
+##
+## DECISION (core/rules/PlacementRules.gd, Bontago-xtq.23): rather than raise
+## or repurpose auto_drop_search_max_radius, it keeps its old meaning -- the
+## radius of the cheap, sub-cell-accurate ring search below -- and the disk
+## scan is a second, unconditional fallback with no tunable of its own. A
+## bigger max_radius only makes the common near-miss case (a few metres off)
+## keep costing a ring walk instead of a full scan; it does not change what
+## the search can ultimately reach, since the scan below already covers the
+## whole disk. tuning_panel_hints.tres's entry for this field is reworded to
+## match (it no longer means "or the block is thrown").
 ##
 ## Same widening-ring geometry as closest_valid_origin(), and the same two
 ## tunables, but one point per candidate instead of a rotated footprint --
@@ -316,4 +339,31 @@ static func closest_valid_point(
 			if validate_point(candidate, raster, team_id) == Result.VALID:
 				return candidate
 		radius += step
-	return NO_ORIGIN
+	return _scan_disk_for_closest_valid_point(desired, raster, team_id)
+
+
+## The ring search's fallback: every in-disk cell, at most once, so a team
+## whose only territory sits farther than auto_drop_search_max_radius from the
+## expired ghost still gets relocated instead of burned (Bontago-xtq.23).
+##
+## Cost: one validate_point() per in-disk cell (CellGrid.in_disk_cells(),
+## cached after the first call). At MapDef's default cell_size = 1 m this is
+## about 11.5k cells on round_large (field_radius 60: res 121, res^2 = 14641
+## cells, times roughly pi/4 in disk), a handful of array lookups each --
+## a single scan on an expiry auto-drop, not a per-frame cost, so brute force
+## here is cheap enough not to need CellGrid's spatial hash.
+static func _scan_disk_for_closest_valid_point(
+	desired: Vector2, raster: TerritoryRaster, team_id: int
+) -> Vector2:
+	var grid: CellGrid = raster.grid()
+	var best_point: Vector2 = NO_ORIGIN
+	var best_distance_squared: float = INF
+	for index: int in grid.in_disk_cells():
+		var candidate: Vector2 = grid.index_center(index)
+		if validate_point(candidate, raster, team_id) != Result.VALID:
+			continue
+		var distance_squared: float = candidate.distance_squared_to(desired)
+		if distance_squared < best_distance_squared:
+			best_distance_squared = distance_squared
+			best_point = candidate
+	return best_point

@@ -177,7 +177,7 @@ descriptions = {
 "TerritoryTuning.goal_zone_radius": "Radius of the no-build zone around every goal flag.",
 "TerritoryTuning.capture_hold": "How long one connected territory must contain every goal flag to win.",
 "TerritoryTuning.auto_drop_search_step": "Distance between each ring of the spiral search used to auto-drop a block to the nearest valid spot.",
-"TerritoryTuning.auto_drop_search_max_radius": "Maximum distance the auto-drop spiral search will look before giving up.",
+"TerritoryTuning.auto_drop_search_max_radius": "Maximum distance the auto-drop spiral search looks before falling back to a full scan of the player's own territory; only an empty territory still throws the block off the map.",
 "TerritoryTuning.reject_impulse": "Strength of the impulse applied to a block that's thrown off the map for an invalid placement.",
 "TerritoryTuning.reject_upward_fraction": "Fraction of the reject impulse aimed straight up; the rest points radially outward from the disk center.",
 "TerritoryVisuals.disk_base_color": "Color of the disk surface where no team owns the ground.",

@@ -675,10 +675,21 @@ func test_resolve_outcome_auto_drop_burns_when_no_relocation_exists() -> void:
 # valid relocation point (MatchNet's own auto-drop-from-last-cursor path can
 # still be handed an arbitrarily far cursor by a hostile/buggy client), so
 # both tests below now drive request_place() with auto_drop == true.
+#
+# Bontago-xtq.23: closest_valid_point() now falls back to a full-disk scan
+# when the ring search comes up empty, so an origin merely far away no
+# longer forces the burn path by itself -- the disk scan would still find
+# slot 0's own territory and relocate there instead. Both tests below
+# blank slot 0's owned cells in the live raster first
+# (TerritoryTestHelpers.blank_owned_territory()), so the team genuinely owns
+# no valid point anywhere and the burn is the only outcome left -- which is
+# what these tests are actually about (the clamp on the spawned/thrown
+# point), not the distance that used to trigger it.
 
 func test_repro_far_off_disk_burn_spawns_within_the_kill_plane_area() -> void:
 	Match.start_match(_hotseat_config(2))
 	_run_countdown()
+	TerritoryTestHelpers.blank_owned_territory(Match.raster(), Match.team_of(0))
 	var hover: float = load("res://config/physics_tuning.tres").hover_height as float
 	var far_origin: Vector3 = _field.to_global(Vector3(1.0e6, hover, 0.0))
 
@@ -711,6 +722,7 @@ func test_repro_far_off_disk_burn_spawns_within_the_kill_plane_area() -> void:
 func test_repro_burn_clamp_margin_lets_a_maximally_clamped_burn_escape_the_kill_plane() -> void:
 	Match.start_match(_hotseat_config(2))
 	_run_countdown()
+	TerritoryTestHelpers.blank_owned_territory(Match.raster(), Match.team_of(0))
 	var hover: float = load("res://config/physics_tuning.tres").hover_height as float
 	var far_origin: Vector3 = _field.to_global(Vector3(1.0e6, hover, 0.0))
 

@@ -245,6 +245,19 @@ func request_place(
 		# is deliberately not called on this path, so an unlucky forced
 		# auto-drop that finds nowhere valid to land never destroys a queued
 		# special; it stays queued for the slot's next spawn instead.
+		#
+		# Bontago-xtq.23: PlacementRules.closest_valid_point() now falls back
+		# to a full-disk scan (see its own doc comment), so this line is only
+		# reachable when slot_id's team genuinely owns no valid point
+		# anywhere -- home flag down and every stack lost, not merely far
+		# from the ghost. That should be rare enough in a live match that a
+		# distinct warning, rather than silence, is worth its noise: a future
+		# run that hits this a lot again points straight back here instead of
+		# reading as an ordinary relocation.
+		push_warning(
+			"MatchPlacement: auto-drop burn for slot %d -- no valid point anywhere on the disk (%s)"
+			% [slot_id, reason]
+		)
 		_burn_block(spawned, final_disk_origin)
 		Events.placement_rejected.emit(slot_id, reason)
 	else:
