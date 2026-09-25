@@ -88,6 +88,20 @@ var _follow_position: Vector3 = Vector3.ZERO
 func _ready() -> void:
 	add_to_group(TUNING_GROUP)
 	process_priority = _PROCESS_PRIORITY_AFTER_GHOST
+	# Bontago-1bt (owner log: "Interpolated Camera3D triggered from outside
+	# physics process" -- the same warning game/DiscMirror.gd's own class doc
+	# already root-caused and fixed for its mirror camera, xtq.21): this rig's
+	# own global_position (_update_transform() below sets it every frame via
+	# `global_position = _target`) and its Camera3D child's position/rotation
+	# (_camera.look_at()) are both fully re-derived every rendered _process()
+	# frame from mouse/gamepad input, never from _physics_process -- so with
+	# project.godot's physics/common/physics_interpolation on, the
+	# RenderingServer's physics-tick smoothing only ever adds lag on top of a
+	# pose that is already correct for this frame, and logs this same warning
+	# for both nodes. OFF makes both always show their latest logical
+	# transform with no server-side smoothing between physics ticks.
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	_camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_camera.fov = tuning.fov_deg
 	# DECISION (game/CameraRig.gd): the initial view scales with the map's
 	# field_radius (a close-in fixed default looked fine on a small map but

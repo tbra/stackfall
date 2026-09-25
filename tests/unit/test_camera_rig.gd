@@ -17,6 +17,20 @@ func _make_rig() -> CameraRig:
 	return rig
 
 
+func test_rig_and_camera_have_physics_interpolation_off() -> void:
+	# Bontago-1bt (owner log: "Interpolated Camera3D triggered from outside
+	# physics process" x4 per 60s bot run): this rig writes both its own
+	# global_position and its Camera3D child's transform every rendered
+	# _process() frame (never _physics_process), the same pattern
+	# game/DiscMirror.gd's own mirror camera already had fixed -- see
+	# test_disc_mirror.gd's test_mirror_camera_has_physics_interpolation_off()
+	# and this rig's own _ready() doc comment.
+	var rig: CameraRig = _make_rig()
+
+	assert_eq(rig.physics_interpolation_mode, Node.PHYSICS_INTERPOLATION_MODE_OFF)
+	assert_eq(rig.get_camera().physics_interpolation_mode, Node.PHYSICS_INTERPOLATION_MODE_OFF)
+
+
 func test_set_home_view_points_the_rig_from_home_toward_the_center() -> void:
 	var rig: CameraRig = _make_rig()
 
