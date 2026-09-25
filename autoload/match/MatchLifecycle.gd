@@ -226,6 +226,11 @@ func _reset_match_state() -> void:
 	# itself back to level"); a no-op if tilt was never enabled this match.
 	if _match._field != null:
 		_match._field.set_tilt_enabled(false)
+		# M6 B5: also drops PHYSICAL_BALANCE's registry link on teardown, same
+		# reasoning as set_tilt_enabled(false) above -- a leftover torque
+		# source must not still be wired the moment the field sits idle behind
+		# the main menu.
+		_match._field.set_physical_balance_enabled(false)
 
 
 ## Bontago-1en.23 (M4 P5-TILT): turns the Field tilt controller on for the
@@ -241,11 +246,22 @@ func _reset_match_state() -> void:
 ## runs under it in the meantime), rather than "!= some OFF value" that does
 ## not exist yet: a future OFF mode is one new branch calling
 ## set_tilt_enabled(false), not an inverted condition to re-derive.
+##
+## M6 B5: PHYSICAL_BALANCE additionally hands Field the same BlockRegistry
+## Match already holds off register_world(), and explicitly clears it back off
+## for SPECIALS_ONLY -- so a match that starts PHYSICAL_BALANCE, aborts, then
+## starts a fresh SPECIALS_ONLY match cannot leave a stale torque source wired
+## into a mode that should never tilt from settled weight at all.
 func _apply_tilt_mode() -> void:
 	if _match._field == null:
 		return
 	match _match.config.tilt_mode:
-		MatchConfig.TiltMode.SPECIALS_ONLY, MatchConfig.TiltMode.PHYSICAL_BALANCE:
+		MatchConfig.TiltMode.SPECIALS_ONLY:
+			_match._field.set_physical_balance_enabled(false)
+			_match._field.set_tilt_enabled(true)
+		MatchConfig.TiltMode.PHYSICAL_BALANCE:
+			_match._field.set_registry(_match._registry)
+			_match._field.set_physical_balance_enabled(true)
 			_match._field.set_tilt_enabled(true)
 
 

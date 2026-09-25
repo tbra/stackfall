@@ -6,8 +6,13 @@ extends AnimatableBody3D
 ## it; AnimatableBody3D is a kinematic special case of StaticBody3D (Jolt and
 ## Godot both treat it as static collision the physics step sees moved, not
 ## simulated), so every existing shape-owner/collision API below keeps
-## working unchanged. `PHYSICAL_BALANCE` tilt (a RigidBody3D on a joint) is
-## M6 scope, out of this package.
+## working unchanged. `PHYSICAL_BALANCE` tilt (M6 B5, spec 2.1/2.7) is a
+## kinematic-torque approximation, not a real RigidBody3D on a joint (docs/
+## M6_PLAN.md DECISION, owner-approved Bontago-keo.16): settled blocks'
+## aggregate mass * lever-arm torque (BlockRegistry.settled_torque_samples())
+## feeds straight into the same _tilt_velocity a special's
+## apply_tilt_impulse() drives, and the existing SPECIALS_ONLY spring/clamp/
+## replication machinery below carries and mirrors it unchanged.
 ##
 ## **Cells (spec 3.3).** The disk's collision is one ConcavePolygonShape3D on
 ## one shape owner (Bontago-ruw, docs/M4_PLAN.md P0a): a trimesh with one
@@ -123,6 +128,9 @@ var _tilt_enabled: bool = false
 ## point.
 var _tilt: Vector2 = Vector2.ZERO
 var _tilt_velocity: Vector2 = Vector2.ZERO
+## Last _tilt written by _apply_tilt_transform(); see _update_tilt()'s
+## change gate (Bontago-keo.11).
+var _last_applied_tilt: Vector2 = Vector2.ZERO
 
 ## True once apply_replicated_pose() has driven this disc at least once since
 ## the last clear_match_state() (Bontago-1en.27). A client's own Field never
@@ -137,6 +145,26 @@ var _tilt_velocity: Vector2 = Vector2.ZERO
 ## moves this disc; it never affects the host, which never calls
 ## apply_replicated_pose() at all.
 var _mirrored: bool = false
+
+## PHYSICAL_BALANCE tilt (M6 B5, spec 2.1/2.7). Off by default, same as
+## _tilt_enabled/_mirrored, so nothing about this package changes behaviour
+## for a caller that never sets it. Only meaningful while _tilt_enabled is
+## also true -- autoload/match/MatchLifecycle.gd's _apply_tilt_mode() always
+## sets both together for a PHYSICAL_BALANCE match.
+var _physical_balance_enabled: bool = false
+## The registry PHYSICAL_BALANCE reads settled blocks from, set once by
+## _apply_tilt_mode() (Match already owns both Field and BlockRegistry
+## references from register_world()). Null-safe: a Field predating this
+## wiring -- a scene or test that never calls set_registry() -- simply
+## contributes no torque.
+var _registry: BlockRegistry = null
+## Latched torque input PHYSICAL_BALANCE last computed from a non-empty
+## BlockRegistry.settled_torque_samples() (Bontago-keo.11 follow-up; see the
+## DECISION on _physical_balance_torque_accel() below). Holds through a
+## momentary sample gap instead of decaying to zero, so a wake that
+## PHYSICAL_BALANCE's own tilt causes cannot start a limit cycle that never
+## lets the spring converge.
+var _physical_balance_torque: Vector2 = Vector2.ZERO
 
 var _overlay: TerritoryOverlay = null
 var _home_flags: Array[HomeFlag] = []
@@ -248,6 +276,24 @@ func tilt_enabled() -> bool:
 	return _tilt_enabled
 
 
+## PHYSICAL_BALANCE tilt (M6 B5, spec 2.1/2.7). autoload/match/MatchLifecycle.gd's
+## _apply_tilt_mode() is the only caller; a no-op combination with
+## _tilt_enabled left false, same as apply_tilt_impulse() above.
+func set_physical_balance_enabled(enabled: bool) -> void:
+	_physical_balance_enabled = enabled
+	if not enabled:
+		_physical_balance_torque = Vector2.ZERO
+
+
+## The BlockRegistry PHYSICAL_BALANCE reads settled blocks from (M6 B5, spec
+## 2.1/2.7). Set once by MatchLifecycle._apply_tilt_mode(), which already holds
+## both Field and BlockRegistry off Match.register_world(). Passing null is
+## safe -- _physical_balance_torque_accel() below treats a missing registry as
+## contributing no torque, same as a Field predating this package.
+func set_registry(registry: BlockRegistry) -> void:
+	_registry = registry
+
+
 ## Current tilt vector (radians, disk-local X/Z rotation angles as documented
 ## on _tilt above). Read-only; tests use it to check the spring's motion and
 ## its clamp without waiting out real seconds of physics frames.
@@ -325,14 +371,153 @@ func apply_replicated_pose(offset: Vector3, tilt: Quaternion) -> void:
 ## max_tilt_deg clamp, then the transform write sync_to_physics carries to
 ## Jolt. Split out from _physics_process so tests can step the dynamics
 ## directly without waiting on real engine frames.
+##
+## PHYSICAL_BALANCE (M6 B5) adds _physical_balance_torque_accel() into the
+## same acceleration term a special's apply_tilt_impulse() already drives via
+## _tilt_velocity, rather than a second independent integrator -- so the
+## existing spring/clamp/replication machinery below carries and mirrors it
+## unchanged, and a direct field._update_tilt(TICK) test call (this file's own
+## established convention) exercises it exactly like SPECIALS_ONLY.
 func _update_tilt(delta: float) -> void:
 	var stiffness: float = tilt_tuning.spring_stiffness()
 	var damping: float = tilt_tuning.spring_damping()
-	var accel: Vector2 = (-stiffness * _tilt) - (damping * _tilt_velocity)
+	var forcing_accel: Vector2 = Vector2.ZERO
+	if _physical_balance_enabled:
+		forcing_accel = _physical_balance_torque_accel()
+	var accel: Vector2 = (-stiffness * _tilt) - (damping * _tilt_velocity) + forcing_accel
 	_tilt_velocity += accel * delta
+	# DECISION (game/Field.gd, M6 B5, Bontago-keo.11 follow-up 2): see
+	# tilt_tuning.tilt_settle_relative_epsilon's own DECISION for why this is a
+	# ratio at all rather than a fixed rad/s floor. A critically damped
+	# spring's velocity only ever asymptotes toward zero, so without a snap
+	# _apply_tilt_transform() below would write a (bit-for-bit) different
+	# `transform` every single tick forever, and this Field's own
+	# sync_to_physics keeps Jolt treating it -- and every block resting on
+	# it -- as active no matter how small that difference gets.
+	#
+	# The scale must be the spring's actual driving TARGET
+	# (forcing_accel / stiffness, i.e. where PHYSICAL_BALANCE's torque is
+	# pulling _tilt toward, or Vector2.ZERO with no persistent forcing), not
+	# the live/transient _tilt position used by an earlier version of this
+	# fix: that broke test_field_tilt.gd's
+	# test_tilt_decays_back_toward_level_over_the_return_time_constant
+	# (SPECIALS_ONLY, no persistent forcing) once an impulse pushed _tilt into
+	# _clamp_tilt()'s ceiling -- the clamped _tilt.length() is large, so the
+	# small inward recovery velocity right after the clamp released fell below
+	# a threshold scaled off that same large clamped position and got snapped
+	# to zero immediately, freezing the disk at the clamp ceiling forever
+	# (observed: peak == final == deg_to_rad(12.0) bit-for-bit) instead of
+	# letting it decay back toward level.
+	#
+	# Scaling by the target alone reintroduces a different failure though: at
+	# t=0, velocity legitimately starts at (near) zero and only builds up from
+	# there (see the step-response formula below), so a target-scaled
+	# threshold that is already at its full size from the first tick would
+	# snap away that early, genuine build-up before _tilt ever gets anywhere
+	# near it. So this also gates on position error toward the target
+	# (target_tilt - _tilt).length(): for a step response released from rest,
+	# that error starts at ~|target_tilt| (large) and shrinks monotonically as
+	# _tilt approaches it (critically damped, so no overshoot past target to
+	# worry about), while right after a clamp release it is large again
+	# (target is ~zero, _tilt is pinned at the clamp) -- exactly the two
+	# conditions above where a snap must not fire yet. Both this and the
+	# velocity ratio use the same tilt_settle_relative_epsilon (position error
+	# in rad = epsilon * scale; velocity in rad/s = epsilon * omega * scale,
+	# consistent with velocity ~= omega * position-error near a critically
+	# damped step response's own convergence tail), so a single tuning number
+	# still governs both.
+	var target_tilt: Vector2 = Vector2.ZERO
+	if stiffness > 0.0:
+		target_tilt = forcing_accel / stiffness
+	var settle_scale: float = maxf(target_tilt.length(), tilt_tuning.tilt_settle_floor_rad)
+	var epsilon: float = tilt_tuning.tilt_settle_relative_epsilon
+	var velocity_settled: bool = (
+		_tilt_velocity.length() < epsilon * tilt_tuning.angular_frequency() * settle_scale
+	)
+	var position_settled: bool = (target_tilt - _tilt).length() < epsilon * settle_scale
+	if velocity_settled and position_settled:
+		_tilt_velocity = Vector2.ZERO
 	_tilt += _tilt_velocity * delta
 	_clamp_tilt()
+	# Orchestrator fix (Bontago-keo.11 bench, 2026-09-25): once the snap above
+	# has zeroed the velocity, _tilt is bit-for-bit unchanged, so re-submitting
+	# the same kinematic transform every tick only tells Jolt this body moved
+	# again and keeps every block resting on it awake. Write only on change.
+	if _tilt == _last_applied_tilt:
+		return
 	_apply_tilt_transform()
+
+
+## Sums settled blocks' mass * disk-local lever-arm into the same 2-axis
+## acceleration term the spring above integrates (M6 B5, spec 2.1/2.7;
+## kinematic-torque approximation, docs/M6_PLAN.md DECISION, owner-approved
+## Bontago-keo.16 -- explicitly not a real RigidBody3D/joint coupling).
+##
+## DECISION (game/Field.gd, M6 B5): each sample packs (disk-local x offset,
+## mass, disk-local z offset); Vector2(z, -x) * mass is the same small-angle
+## decomposition apply_tilt_impulse() above already uses for "push at this
+## offset tips the disk this way" (r=(x,0,z), F=(0,-weight,0), torque=r x F),
+## so a settled tower's own weight reads on the identical two axes a special's
+## impulse would.
+##
+## DECISION (game/Field.gd, Bontago-keo.11 follow-up): _physical_balance_torque
+## latches the last non-empty sample sum instead of recomputing (and
+## implicitly zeroing) it every tick. BlockRegistry.settled_torque_samples()
+## only counts entries whose own is_settled accumulator has finished (game/
+## BlockRegistry.gd's own doc) -- and PHYSICAL_BALANCE tilts the whole disk
+## every tick it has any torque at all, which is exactly the kind of motion
+## that re-wakes a resting body under a moving kinematic parent. That wake
+## drops the load out of settled_torque_samples() the instant the disk starts
+## moving toward it, the torque and this function's returned acceleration go
+## to zero, the spring's restoring term (-stiffness * _tilt) pulls the disk
+## back, the load resettles, the torque returns, and the disk tilts again -- a
+## limit cycle that never lets the spring converge (bench evidence,
+## Bontago-keo.11: RUN_SECONDS=40, gain 2e-5, drift 0.555 m and tilt still
+## creeping 1.06->1.14deg at the end, blocks never all asleep). Holding the
+## last known value through a momentary empty-sample gap instead means the
+## spring is driven by an input that itself settles (the load resettles at
+## very nearly the same lever arm it had before the brief wake), not one that
+## oscillates with every sleep/wake cycle. It only zeroes on a genuinely empty
+## registry (tracked_block_count() == 0 -- nothing left standing on the disk
+## at all) or when PHYSICAL_BALANCE itself is turned off/reset
+## (set_physical_balance_enabled(false), clear_match_state()), so removing the
+## load that was tilting the disk still returns it to level rather than
+## latching a stale torque forever.
+func _physical_balance_torque_accel() -> Vector2:
+	if _registry == null or not is_instance_valid(_registry):
+		_physical_balance_torque = Vector2.ZERO
+		return Vector2.ZERO
+	if _registry.tracked_block_count() == 0:
+		_physical_balance_torque = Vector2.ZERO
+		return Vector2.ZERO
+	# Orchestrator fix (Bontago-keo.11 bench, 2026-09-25): recompute only when
+	# the WHOLE stack is at rest. Recomputing on any partially-settled subset
+	# changed the target every time one block dozed off, the disk moved to
+	# chase it, that woke the rest, and the stack never slept. Holding the
+	# last all-settled torque lets the spring converge and snap, the blocks
+	# sleep on the still disk, and the next recompute sees only the tiny
+	# position shift that lean produced -- a geometrically shrinking series.
+	var samples: PackedVector3Array = PackedVector3Array()
+	if _registry.all_settled():
+		samples = _registry.settled_torque_samples()
+	if not samples.is_empty():
+		var torque: Vector2 = Vector2.ZERO
+		for sample: Vector3 in samples:
+			# sample = (disk-local x offset, mass, disk-local z offset)
+			torque += Vector2(sample.z, -sample.x) * sample.y
+		_physical_balance_torque = torque
+	return _physical_balance_torque * tilt_tuning.physical_balance_torque_gain
+
+
+## Read-only: the latched torque sum _physical_balance_torque_accel() above
+## last computed from a non-empty settled_torque_samples() (Bontago-keo.11
+## follow-up; see that function's DECISION). Tests use this to check the latch
+## holds or zeroes without waiting out a real wake/resettle cycle; nothing in
+## game code reads it -- Field's own spring already gets it, scaled by
+## tilt_tuning.physical_balance_torque_gain, through
+## _physical_balance_torque_accel()'s return value.
+func physical_balance_torque() -> Vector2:
+	return _physical_balance_torque
 
 
 ## Clamps _tilt's magnitude to tilt_tuning.max_tilt_deg regardless of how many
@@ -389,6 +574,7 @@ func _tilt_vector_from_quaternion(tilt: Quaternion) -> Vector2:
 ## no code change of their own, and so the rotation pivots on Field's own
 ## origin (spec 2.1 "the disk pivots around its center").
 func _apply_tilt_transform() -> void:
+	_last_applied_tilt = _tilt
 	transform = Transform3D(_tilt_basis(_tilt), transform.origin)
 
 
@@ -876,6 +1062,13 @@ func clear_match_state() -> void:
 	# left it (_apply_tilt_transform() below only writes local `transform`
 	# from the now-zeroed _tilt, not global_transform).
 	_mirrored = false
+	# M6 B5: also drops PHYSICAL_BALANCE and its registry link, so a leftover
+	# torque source from the previous match cannot feed the next one's spring
+	# before MatchLifecycle._apply_tilt_mode() gets a chance to wire the new
+	# match's own tilt_mode.
+	_physical_balance_enabled = false
+	_registry = null
+	_physical_balance_torque = Vector2.ZERO
 	_apply_tilt_transform()
 
 

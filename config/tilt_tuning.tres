@@ -6,3 +6,6 @@
 script = ExtResource("1_tilt")
 max_tilt_deg = 12.0
 return_time_constant_s = 4.0
+physical_balance_torque_gain = 0.00002
+tilt_settle_relative_epsilon = 0.01
+tilt_settle_floor_rad = 0.0001
