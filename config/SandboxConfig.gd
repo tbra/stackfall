@@ -31,3 +31,11 @@ extends Resource
 ## frame, but reads no better at 60 Hz than at 10, so it accumulates delta
 ## and only rebuilds its labels this often.
 @export var panel_refresh_hz: float = 10.0
+
+## sandbox_slow_motion (F10) sets Engine.time_scale to this while active, and
+## back to 1.0 when toggled off, on game/Sandbox.gd's own scene teardown, and
+## on sandbox_reset_field -- see that file's own DECISION on why the reset is
+## guaranteed rather than left to whoever remembers to toggle the hotkey back
+## (Engine.time_scale is process-global, not scoped to one scene, so a leaked
+## value here would still be in effect for the next match).
+@export var slow_motion_scale: float = 0.25

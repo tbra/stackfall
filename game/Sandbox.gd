@@ -51,6 +51,15 @@ var _forced_special_id: StringName = &""
 ## why F9 didn't visibly hand out anything, rather than looking like a bug.
 var _forced_special_queue_full: bool = false
 
+## sandbox_slow_motion (F10): whether Engine.time_scale is currently set to
+## sandbox_config.slow_motion_scale. ui/SandboxPanel.gd reads this every
+## refresh.
+var _slow_motion_active: bool = false
+## sandbox_pause_physics (F11): whether get_tree().paused is currently true
+## (set only by this hotkey, in sandbox). ui/SandboxPanel.gd reads this every
+## refresh.
+var _physics_paused: bool = false
+
 
 func _ready() -> void:
 	Events.turn_changed.connect(_on_turn_changed)
@@ -60,6 +69,23 @@ func _ready() -> void:
 	# Bontago-mv0.14 (spec 1.5): see HotSeat.gd's matching _ready() comment --
 	# safe headless (a silent no-op with no window to capture).
 	_controller.enable_mouse_capture()
+	# M6 B2 (sandbox_pause_physics, F11): PROCESS_MODE_ALWAYS so this whole
+	# subtree -- this node's own _unhandled_input (every sandbox hotkey,
+	# including the one that un-pauses again) plus the controller/ghost/HUD
+	# children that inherit it -- keeps responding while get_tree().paused is
+	# true. ui/SandboxPanel.gd sets the same flag on itself for the same
+	# reason.
+	process_mode = Node.PROCESS_MODE_ALWAYS
+
+
+## Engine.time_scale and get_tree().paused are both process-global, not
+## scoped to this scene (config/SandboxConfig.gd's own doc comment on
+## slow_motion_scale) -- without this, leaving sandbox with either hotkey
+## still active would leak into whatever match runs next in the same process
+## (the shipped game, or the next test file's fixture).
+func _exit_tree() -> void:
+	Engine.time_scale = 1.0
+	get_tree().paused = false
 
 
 func _load_special_roster_ids() -> Array[StringName]:
@@ -124,11 +150,18 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed(&"sandbox_next_slot"):
 		_cycle_active_slot()
 		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed(&"sandbox_reset_field"):
-		_reset_field()
+	elif event.is_action_pressed(&"sandbox_reset_field") or event.is_action_pressed(&"sandbox_slow_motion"):
+		# tools/bootstrap_project.gd's own DECISION: sandbox_reset_field (F5)
+		# and sandbox_slow_motion (F10) share gamepad PADDLE1 -- both actions'
+		# is_action_pressed() are true for that one press, so this one branch
+		# decides which was meant instead of an elif ever silently dropping
+		# one of them.
+		_dispatch_reset_or_slow_motion(event)
 		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed(&"sandbox_spawn_tower"):
-		_spawn_tower()
+	elif event.is_action_pressed(&"sandbox_spawn_tower") or event.is_action_pressed(&"sandbox_pause_physics"):
+		# Same reasoning as the branch above: sandbox_spawn_tower (F7) and
+		# sandbox_pause_physics (F11) share gamepad PADDLE2.
+		_dispatch_spawn_tower_or_pause(event)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed(&"sandbox_toggle_timer"):
 		Match.set_feed_timer_enabled(not Match.feed_timer_enabled())
@@ -142,6 +175,86 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 # --- Hotkeys ------------------------------------------------------------
+
+## A keyboard press is unambiguous (F5 and F10 are different physical keys,
+## so exactly one of the two is_action_pressed() checks is true); a gamepad
+## press on the shared PADDLE1 button means sandbox_slow_motion only while
+## sandbox_toggle_overlay (PADDLE4) is also held, otherwise it is the plain
+## reset -- see tools/bootstrap_project.gd's own DECISION for why these two
+## share a button at all.
+func _dispatch_reset_or_slow_motion(event: InputEvent) -> void:
+	if event is InputEventJoypadButton:
+		if Input.is_action_pressed(&"sandbox_toggle_overlay"):
+			_toggle_slow_motion()
+		else:
+			_reset_field()
+		return
+	if event.is_action_pressed(&"sandbox_slow_motion"):
+		_toggle_slow_motion()
+	else:
+		_reset_field()
+
+
+## Same shape as _dispatch_reset_or_slow_motion() above: F7/F11 are distinct
+## keys; the shared gamepad PADDLE2 means sandbox_pause_physics only while
+## sandbox_force_special (TOUCHPAD) is also held.
+func _dispatch_spawn_tower_or_pause(event: InputEvent) -> void:
+	if event is InputEventJoypadButton:
+		if Input.is_action_pressed(&"sandbox_force_special"):
+			_toggle_physics_paused()
+		else:
+			_spawn_tower()
+		return
+	if event.is_action_pressed(&"sandbox_pause_physics"):
+		_toggle_physics_paused()
+	else:
+		_spawn_tower()
+
+
+## sandbox_slow_motion (F10 / gamepad PADDLE1+PADDLE4): Engine.time_scale is
+## the standard Godot mechanism; toggled, not held, so a tester's hands stay
+## free to keep aiming/placing while it's active. _exit_tree() and _reset_
+## field() both guarantee a reset back to 1.0 -- see config/SandboxConfig.gd's
+## slow_motion_scale doc comment for why that reset cannot be optional.
+func _toggle_slow_motion() -> void:
+	_slow_motion_active = not _slow_motion_active
+	Engine.time_scale = sandbox_config.slow_motion_scale if _slow_motion_active else 1.0
+
+
+## sandbox_pause_physics (F11 / gamepad PADDLE2+TOUCHPAD): get_tree().paused,
+## the standard Godot mechanism -- see this node's own _ready() for why the
+## sandbox subtree stays responsive (PROCESS_MODE_ALWAYS) while this is true.
+func _toggle_physics_paused() -> void:
+	_physics_paused = not _physics_paused
+	get_tree().paused = _physics_paused
+
+
+## ui/SandboxPanel.gd reads this every refresh.
+func is_slow_motion_active() -> bool:
+	return _slow_motion_active
+
+
+## ui/SandboxPanel.gd reads this every refresh.
+func is_physics_paused() -> bool:
+	return _physics_paused
+
+
+## ui/SandboxPanel.gd's block-picker OptionButton (M6 B2): forces the active
+## slot's held shape to `shape_id`. See autoload/match/MatchFeed.gd's own
+## debug_force_next_shape() doc comment for the host/config.sandbox gate and
+## why this reaches into Match._feed directly rather than through a new
+## Match wrapper.
+func force_next_shape(shape_id: StringName) -> void:
+	Match._feed.debug_force_next_shape(_active_slot, shape_id)
+
+
+## ui/SandboxPanel.gd's special-spawn dropdown "off" entry: force_special_
+## by_id() deliberately ignores an unknown id rather than turning forcing off
+## (that function's own doc comment), so this mirrors _cycle_forced_
+## special()'s own wrap-to-off branch directly instead.
+func force_special_off() -> void:
+	_forced_special_index = -1
+	_apply_forced_special()
 
 ## sandbox_next_slot (Tab / gamepad Back): the one seam PlayerController
 ## exposes for this (set_sandbox_slot()), cycling 0..player_count-1. Wraps
@@ -181,6 +294,13 @@ func _reset_field() -> void:
 		_field.place_flags(config.player_count, config.player_colors, config.goal_flag_count)
 		_field.set_overlay_source(Match.raster(), config.player_colors)
 	_set_active_slot(0)
+	# M6 B2: a reset starts a brand new match, which must not silently
+	# inherit whatever slow-motion state the previous one left running (see
+	# _exit_tree()'s matching guarantee) or the previous match's tallest
+	# stack (ui/SandboxPanel.gd's own height record).
+	_slow_motion_active = false
+	Engine.time_scale = 1.0
+	_panel.reset_height_record()
 
 
 ## sandbox_spawn_tower (F7): drops sandbox_config.tower_block_count blocks,
