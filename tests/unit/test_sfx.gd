@@ -12,9 +12,20 @@ var _sfx: Node
 var _config: AudioConfig
 var _tmp_dir: String
 var _empty_dir: String
+var _settings_cfg_path: String
 
 
 func before_each() -> void:
+	# Sfx.gd talks to the real "Settings" autoload singleton directly
+	# (Settings.custom_music_dir()/master_volume_db()), so isolating this
+	# file's Settings state means redirecting that singleton itself to a
+	# temp cfg (set_config_path_for_test), not creating a second instance --
+	# restored to user://settings.cfg in after_each so nothing leaks into the
+	# owner's real settings file or another test file.
+	_settings_cfg_path = OS.get_user_data_dir().path_join("test_sfx_settings_tmp.cfg")
+	_delete_if_exists(_settings_cfg_path)
+	Settings.set_config_path_for_test(_settings_cfg_path)
+
 	_config = load("res://config/audio_config.tres").duplicate() as AudioConfig
 	_sfx = autofree(SFX_SCRIPT.new())
 	_sfx.config = _config
@@ -44,6 +55,16 @@ func after_each() -> void:
 	# back to its real default afterward.
 	Net._mode = Net.Mode.OFFLINE
 	Net._local_slot = 0
+	# Restore the real Settings singleton to its own persisted file so later
+	# tests (and the owner's real user://settings.cfg) never see this test
+	# file's temp custom_music_dir/master_volume_db values.
+	Settings.set_config_path_for_test("user://settings.cfg")
+	_delete_if_exists(_settings_cfg_path)
+
+
+func _delete_if_exists(path: String) -> void:
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)
 
 
 func _write_tiny_wav(path: String) -> void:
@@ -141,3 +162,69 @@ func test_gift_claimed_for_the_local_slot_plays_even_as_a_connected_client() -> 
 	_sfx._on_gift_claimed(1, 2, &"anvil")
 
 	assert_true(_any_player_playing(), "the local slot's own claim must still play once connected as a client")
+
+
+# --- Custom music folder + master volume (docs/M6_PLAN.md package C3) --------
+
+func test_play_music_uses_custom_music_dir_when_set() -> void:
+	var music_dir: String = OS.get_user_data_dir().path_join("test_sfx_custom_music")
+	DirAccess.make_dir_recursive_absolute(music_dir)
+	_config.music_file = "custom_track.wav"
+	_write_tiny_wav(music_dir.path_join(_config.music_file))
+
+	# The bundled root ( _tmp_dir, via set_root_dir_for_test) never has
+	# "custom_track.wav" -- only the custom music folder does, so a
+	# successfully playing track proves play_music() read the custom folder,
+	# not the bundled one.
+	_sfx.set_root_dir_for_test(_tmp_dir)
+	Settings.set_custom_music_dir(music_dir)
+	_sfx._music_player.stop()  # discard whatever _ready()'s own auto-play call already picked
+
+	_sfx.play_music()
+
+	assert_true(_sfx._music_player.playing, "play_music() should load the track from the custom music folder")
+
+	for filename: String in DirAccess.get_files_at(music_dir):
+		DirAccess.remove_absolute(music_dir.path_join(filename))
+	DirAccess.remove_absolute(music_dir)
+
+
+func test_play_music_falls_back_silently_when_custom_music_dir_is_missing() -> void:
+	# Settings.custom_music_dir() points at a path that was never created --
+	# the same "set but missing" case as an unplugged drive. This must fall
+	# back to the bundled root (here _empty_dir, which has no music file
+	# either) with no error, matching Sfx.gd's own "supported absence"
+	# pattern for the bundled folder itself.
+	Settings.set_custom_music_dir(OS.get_user_data_dir().path_join("test_sfx_custom_music_missing"))
+	_sfx.set_root_dir_for_test(_empty_dir)
+	_sfx._music_player.stop()  # discard whatever _ready()'s own auto-play call already picked
+
+	_sfx.play_music()
+
+	assert_false(_sfx._music_player.playing, "a missing custom music dir should fall back silently, not error")
+
+
+func test_master_volume_db_offsets_play_volume_db() -> void:
+	_sfx.set_root_dir_for_test(_tmp_dir)
+
+	assert_true(_sfx.play(AudioConfig.EVENT_CLICK))
+	var baseline_db: float = _first_playing_sfx_player().volume_db
+	_stop_all_sfx_players()
+
+	Settings.set_master_volume_db(-6.0)
+	assert_true(_sfx.play(AudioConfig.EVENT_CLICK))
+	var offset_db: float = _first_playing_sfx_player().volume_db
+
+	assert_almost_eq(offset_db - baseline_db, -6.0, 0.0001)
+
+
+func _first_playing_sfx_player() -> AudioStreamPlayer:
+	for player: AudioStreamPlayer in _sfx._sfx_players:
+		if player.playing:
+			return player
+	return null
+
+
+func _stop_all_sfx_players() -> void:
+	for player: AudioStreamPlayer in _sfx._sfx_players:
+		player.stop()
