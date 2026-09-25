@@ -257,22 +257,50 @@ func _shape_height_cubes(cells: Array[Vector3i], basis: Basis) -> float:
 
 
 ## Disk-local point inside this bot's own territory (uniform-in-disk
-## sampling, Match.raster()/cell_grid().team_at() -- docs/M5_PLAN.md P1),
-## retried up to tuning.max_territory_sample_attempts times before falling
-## back to the slot's own home position.
+## sampling, Match.raster()/cell_grid() -- docs/M5_PLAN.md P1), retried up to
+## tuning.max_territory_sample_attempts times before falling back to the
+## slot's own home position.
+##
+## Bontago-d5c.11 item 5 (review fix, MAJOR): a bare `raster.team_at(...) ==
+## team_id` check accepted goal-zone, contested and hole cells too (team_at()
+## only reads the ownership byte -- core/territory/TerritoryRaster.gd's own
+## doc), so a sampled origin could land somewhere request_place() would then
+## refuse every single time (the Hard bot's own P6 telemetry: goal-zone
+## rejections were the largest single failure bucket). PlacementRules.
+## validate_point() is the same one-point legality check MatchPlacement.
+## request_place() itself runs (core/rules/PlacementRules.gd's own header:
+## "the placement contract for every hole_mode"), so a candidate this
+## function returns is pre-validated against exactly the gate it will later
+## be asked to pass, not merely "owned".
+##
+## DECISION (game/BotController.gd, Bontago-d5c.11 item 4): no fallback for
+## "territory never solved yet" is added here. autoload/Match.gd's own
+## _process() (see its header comment: "the 10 Hz territory solve ... runs
+## here and only on the host") only calls
+## autoload/match/MatchTerritory.gd's _tick_territory() under
+## State.PLAYING, at TerritoryTuning.solve_hz (20 Hz, config/territory_tuning.
+## tres -- a 0.05s step); a bot cannot reach GENERATING (and so this function)
+## before its own _think_delay_s has elapsed, and BotDifficultyProfile.hard's
+## reaction_delay_s (0.2s, config/bot_tuning.tres) is already four solve
+## steps, so in practice a real match has at least one completed territory
+## solve by the time any bot's first candidate is sampled (the only gap is a
+## single-frame hitch >= reaction_delay_s right at setup(), since the bot
+## state machine runs in _physics_process and the solve in _process; the
+## solve then catches up on the next idle frame). An unsolved raster
+## (every cell at team -1, e.g. a bare unit test that never calls
+## TerritoryRaster.update()) still degrades safely to the home-position
+## fallback below, exactly as before.
 func _sample_territory_point(team_id: int) -> Vector2:
 	var match_ref: Variant = _match()
-	var grid: CellGrid = match_ref.cell_grid()
 	var raster: TerritoryRaster = match_ref.raster()
-	if grid != null and raster != null:
+	if raster != null:
 		var radius: float = _field_radius()
 		if radius > 0.0:
 			for _attempt: int in range(tuning.max_territory_sample_attempts):
 				var angle: float = _rng.randf() * TAU
 				var dist: float = sqrt(_rng.randf()) * radius
 				var candidate_xz: Vector2 = Vector2(cos(angle), sin(angle)) * dist
-				var cell: Vector2i = grid.world_to_cell(candidate_xz)
-				if raster.team_at(cell.x, cell.y) == team_id:
+				if PlacementRules.validate_point(candidate_xz, raster, team_id) == PlacementRules.Result.VALID:
 					return candidate_xz
 	return _home_position()
 
@@ -294,11 +322,22 @@ func _home_position() -> Vector2:
 ## (docs/M5_PLAN.md P1: "the same technique... just keeping the hit height").
 ## Returns `{}` only when there is no Field/no physics world to query at all
 ## (a bare unit test with no Field wired); a genuine miss (nothing directly
-## below, e.g. a hole or the rim) still returns a disk-surface fallback
-## height of 0.0 -- this raycast is only ever used for the bot's own scoring
-## estimate, never the placement's actual legality gate (MatchPlacement.
-## request_place() runs its own raycast_down_disk_local() and is the only
-## authority on whether a point is valid).
+## below, e.g. a hole or the rim) reports `"hit": false` alongside the same
+## disk-surface fallback height of 0.0 (kept for callers that only care about
+## a scoring reference height, e.g. `support_height`) -- this raycast is only
+## ever used for the bot's own scoring estimate, never the placement's actual
+## legality gate (MatchPlacement.request_place() runs its own
+## raycast_down_disk_local() and is the only authority on whether a point is
+## valid).
+##
+## Bontago-d5c.11 item 1 (review fix, MAJOR): before this, a genuine miss and
+## an actual raycast hit both reported the same `"height": 0.0`/no explicit
+## flag, so _fire_stability_raycasts() below could count a hole corner (a
+## miss straight through) as flush contact whenever `candidate.support_height`
+## itself happened to be near 0.0. `"hit"` is now the caller's only way to
+## tell "something is really there" from "nothing was hit, here's the safe
+## fallback" -- a caller that only reads `"height"` (support_height's own
+## producer, `_generate_one_candidate()`) is unaffected either way.
 func _raycast_support_height(local_xz: Vector2) -> Dictionary:
 	if _field == null or not _field.is_inside_tree():
 		return {}
@@ -315,9 +354,9 @@ func _raycast_support_height(local_xz: Vector2) -> Dictionary:
 	params.collide_with_areas = false
 	var hit: Dictionary = space.intersect_ray(params)
 	if hit.is_empty():
-		return {"height": 0.0, "collider": null}
+		return {"height": 0.0, "collider": null, "hit": false}
 	var local_hit: Vector3 = _field.to_local(hit["position"] as Vector3)
-	return {"height": local_hit.y, "collider": hit.get("collider")}
+	return {"height": local_hit.y, "collider": hit.get("collider"), "hit": true}
 
 
 ## Footprint-corner raycasts (spec 2.9's stability factor, P2's own scoring):
@@ -339,6 +378,12 @@ func _fire_stability_raycasts(candidate: BotCandidate, cells: PackedInt32Array, 
 	var hits: int = 0
 	for i: int in range(count):
 		var hit: Dictionary = _raycast_support_height(grid.index_center(cells[i]))
+		# Bontago-d5c.11 item 1: a corner with nothing directly below it (a
+		# hole, the rim, open air) must never count as support, no matter how
+		# close its fallback height happens to sit to candidate.support_height
+		# -- only a real raycast hit (`"hit": true`) can be flush contact.
+		if not bool(hit.get("hit", false)):
+			continue
 		var height: float = float(hit.get("height", 0.0))
 		if absf(height - candidate.support_height) <= tuning.stability_contact_tolerance_m:
 			hits += 1
@@ -577,6 +622,23 @@ func _enemy_circle_centers() -> PackedVector2Array:
 ## the concrete `Block` type, so a test fixture that stands in for "a
 ## Block-like Node3D" (any parented Node3D with a `global_position`) does not
 ## need to construct a real, physics-backed Block.
+## Bontago-d5c.11 item 2 (review fix): a triggered special's SpecialBehavior
+## node lingers in the group until its Block is actually freed (game/specials/
+## SpecialBehavior.gd's own is_triggered() doc: it flips once, on trigger(),
+## and nothing here removes the node from GROUP before then), so a spent
+## special (already exploded/landed) must not still count as "live" for
+## _tick_acting()'s risk term or BotSpecialPlanner's own chain-avoidance --
+## skip it before it is ever converted to a position.
+##
+## Bontago-d5c.11 item 3 (review fix): get_nodes_in_group() iteration order is
+## not part of any contract (Godot's own docs: insertion order into the
+## group's internal list, not spatial or otherwise stable across runs), so
+## sorting the result removes any dependence on it for the consumer that
+## reads this list (BotPlacementScorer's risk term; BotSpecialPlanner.plan()
+## receives it but does not use it yet), so a bot's choices depend only on
+## its own seeded RNG stream, not on however many other specials happened to
+## spawn first. Vector2's own `<` (x, then y) is exactly sort()'s default
+## ordering.
 func _active_special_positions() -> PackedVector2Array:
 	var positions: PackedVector2Array = PackedVector2Array()
 	if _field == null:
@@ -585,10 +647,13 @@ func _active_special_positions() -> PackedVector2Array:
 		var behavior: SpecialBehavior = node as SpecialBehavior
 		if behavior == null:
 			continue
+		if behavior.is_triggered():
+			continue
 		var owner_node: Node3D = behavior.get_parent() as Node3D
 		if owner_node == null:
 			continue
 		positions.append(_field.disk_local_from_world(owner_node.global_position))
+	positions.sort()
 	return positions
 
 
