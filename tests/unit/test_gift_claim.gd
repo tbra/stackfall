@@ -533,6 +533,95 @@ func test_debug_queue_special_refused_for_an_out_of_range_slot() -> void:
 	assert_eq(Match._gifts._pending_queues.size(), before_size, "must never grow _pending_queues")
 
 
+## M6 A1: teammates (config.team_of_slot(slotA) == team_of_slot(slotB))
+## share one queue -- a claim credited to their shared team must make both
+## slots' held_special() read the same id, not just the claiming slot's own.
+func test_teammates_share_the_same_held_special_after_a_claim() -> void:
+	var config: MatchConfig = _config_with_no_real_specials(4)
+	config.team_mode = MatchConfig.TeamMode.TEAMS_2
+	_start_playing(config)
+	assert_eq(
+		Match.config.team_of_slot(0), Match.config.team_of_slot(2),
+		"fixture: TEAMS_2 with 4 players makes slots 0 and 2 teammates (interleaved assignment)"
+	)
+	watch_signals(Events)
+
+	var gift_id: int = _inject_crate(0)
+	_step_territory()
+
+	assert_false(Match._gifts._crates.has(gift_id), "claimed crate must be removed from the live set")
+	assert_eq(Match.held_special(0), MatchGifts.PENDING_SPECIAL_ID)
+	assert_eq(
+		Match.held_special(2), Match.held_special(0),
+		"a teammate must read the same shared queue as the claiming slot"
+	)
+
+
+## The shared-queue half of the same contract: popping through one teammate's
+## slot_id must empty the queue for every other teammate too -- not a
+## per-slot copy that only the popping slot's own view shrinks.
+func test_pop_pending_special_empties_the_queue_for_every_teammate() -> void:
+	var config: MatchConfig = _config_with_no_real_specials(4)
+	config.team_mode = MatchConfig.TeamMode.TEAMS_2
+	_start_playing(config)
+	_inject_crate(0)
+	_step_territory()
+	assert_eq(
+		Match.held_special(2), MatchGifts.PENDING_SPECIAL_ID,
+		"setup: the teammate holds the shared special before the pop"
+	)
+
+	var popped: StringName = Match.pop_pending_special(0)
+
+	assert_eq(popped, MatchGifts.PENDING_SPECIAL_ID)
+	assert_eq(Match.held_special(0), &"", "the claiming slot's queue empties")
+	assert_eq(
+		Match.held_special(2), &"",
+		"the teammate's queue empties too -- one shared queue, not a per-slot copy"
+	)
+
+
+## Review fix (M6 A1, HIGH): apply_replicated_special_consumed() must
+## translate the wire `slot_id` through _team_id_for_slot() exactly like
+## held_special()/pop_pending_special() already do, not index
+## _pending_queues by the raw slot_id. pop_pending_special()'s own emit
+## reports the *acting* slot (its own doc comment: "still reports slot_id
+## ... not team_id"), so under TEAMS_2 with 4 players a claim made through
+## slot 0 can be reported consumed via slot 2 -- its teammate (config.
+## team_of_slot()'s interleaved assignment: slots 0 and 2 share team 0). The
+## unfixed code indexed _pending_queues[2] directly, which is team 1's queue
+## here (or out of range), leaving team 0's real queue -- and this client's
+## held_special(0)/held_special(2) mirror -- stale forever.
+func test_apply_replicated_special_consumed_translates_slot_to_team_under_teams_2() -> void:
+	var config: MatchConfig = _config_with_no_real_specials(4)
+	config.team_mode = MatchConfig.TeamMode.TEAMS_2
+	_start_playing(config)
+	assert_eq(
+		Match.config.team_of_slot(0), Match.config.team_of_slot(2),
+		"fixture: TEAMS_2 with 4 players makes slots 0 and 2 teammates (interleaved assignment)"
+	)
+	assert_ne(
+		Match.config.team_of_slot(0), Match.config.team_of_slot(1),
+		"fixture: slot 1 is on the other team"
+	)
+
+	_inject_crate(0)
+	_step_territory()
+	assert_eq(Match.held_special(0), MatchGifts.PENDING_SPECIAL_ID, "setup: team 0's queue holds the claimed special")
+	# Team 1 holds its own special too, so a wrong-index pop below would show up as damage there.
+	_inject_crate(1)
+	_step_territory()
+	assert_eq(Match.held_special(1), MatchGifts.PENDING_SPECIAL_ID, "setup: team 1 holds its own special")
+
+	# The client mirror of the acting player's own pop -- reported via slot 2
+	# (team 0's other slot), not team 0 itself.
+	Match._gifts.apply_replicated_special_consumed(2, MatchGifts.PENDING_SPECIAL_ID)
+
+	assert_eq(Match.held_special(0), &"", "the shared team-0 queue must empty")
+	assert_eq(Match.held_special(2), &"", "the teammate's own view must empty too")
+	assert_eq(Match.held_special(1), MatchGifts.PENDING_SPECIAL_ID, "the other team's queue must be untouched")
+
+
 ## restore_default_special_drawer() (game/Sandbox.gd's F9 "off") re-runs the
 ## exact lazy install _ensure_special_drawer_installed() performs at a match's
 ## first real claim -- with a non-empty filtered roster, that means the real

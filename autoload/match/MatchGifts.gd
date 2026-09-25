@@ -127,14 +127,28 @@ func _new_typed_queue() -> Array[StringName]:
 	return queue
 
 
+## M6 A1: `_pending_queues` is indexed by team, not by slot -- teammates
+## share one queue (see _claim_gift()'s own team_at()-derived index) -- so
+## every reader below translates `slot_id` through this first.
+## `_match.config` can be null before a match ever starts (HUD/PlayerController
+## poll held_special()/pending_special_count() even then); a null config falls
+## back to `slot_id` itself, exactly what team_of_slot() returns for
+## TeamMode.OFF, so a not-yet-started match reads no differently than today.
+func _team_id_for_slot(slot_id: int) -> int:
+	if _match.config == null:
+		return slot_id
+	return _match.config.team_of_slot(slot_id)
+
+
 ## The oldest pending special `slot_id` is holding, or &"" for none -- a
 ## peek, not a pop. P2c reads this to decide whether the next spawned block
 ## should be a special; the HUD (Bontago-1en.16, split out of this package)
 ## reads pending_special_count() for the queued-count indicator.
 func held_special(slot_id: int) -> StringName:
-	if slot_id < 0 or slot_id >= _pending_queues.size():
+	var team_id: int = _team_id_for_slot(slot_id)
+	if team_id < 0 or team_id >= _pending_queues.size():
 		return &""
-	var queue: Array = _pending_queues[slot_id]
+	var queue: Array = _pending_queues[team_id]
 	if queue.is_empty():
 		return &""
 	return queue[0]
@@ -157,12 +171,16 @@ func held_special(slot_id: int) -> StringName:
 ## unit tests that call it directly (test_gift_claim.gd,
 ## test_match_throw.gd) exercise the same host-only emit deliberately.
 func pop_pending_special(slot_id: int) -> StringName:
-	if slot_id < 0 or slot_id >= _pending_queues.size():
+	var team_id: int = _team_id_for_slot(slot_id)
+	if team_id < 0 or team_id >= _pending_queues.size():
 		return &""
-	var queue: Array = _pending_queues[slot_id]
+	var queue: Array = _pending_queues[team_id]
 	if queue.is_empty():
 		return &""
 	var popped: StringName = queue.pop_front()
+	# The event still reports `slot_id` (the acting player), not `team_id` (the
+	# shared queue's own index) -- Events.special_consumed's contract is "which
+	# slot spent it", unchanged by which queue backs that slot's specials.
 	Events.special_consumed.emit(slot_id, popped)
 	return popped
 
@@ -170,9 +188,10 @@ func pop_pending_special(slot_id: int) -> StringName:
 ## How many specials `slot_id` currently has queued. ui/HUD.gd's indicator
 ## (Bontago-1en.16, not this package) is the only consumer today.
 func pending_special_count(slot_id: int) -> int:
-	if slot_id < 0 or slot_id >= _pending_queues.size():
+	var team_id: int = _team_id_for_slot(slot_id)
+	if team_id < 0 or team_id >= _pending_queues.size():
 		return 0
-	var queue: Array = _pending_queues[slot_id]
+	var queue: Array = _pending_queues[team_id]
 	return queue.size()
 
 
@@ -208,12 +227,16 @@ func debug_queue_special(slot_id: int, special_id: StringName) -> bool:
 		return false
 	if slot_id < 0 or slot_id >= _match.slot_count():
 		return false
-	_ensure_capacity(slot_id)
-	var queue: Array = _pending_queues[slot_id]
+	var team_id: int = _match.config.team_of_slot(slot_id)
+	_ensure_capacity(team_id)
+	var queue: Array = _pending_queues[team_id]
 	if queue.size() >= _gift_config.max_pending_specials:
 		return false
 	queue.append(special_id)
-	Events.gift_claimed.emit(DEBUG_GIFT_ID, slot_id, special_id)
+	# team_id, not slot_id -- matches _claim_gift()'s own gift_claimed emit
+	# below, whose second parameter is the team that claimed it (the signal's
+	# own parameter is still named slot_id -- see _claim_gift()'s DECISION).
+	Events.gift_claimed.emit(DEBUG_GIFT_ID, team_id, special_id)
 	return true
 
 
@@ -406,12 +429,15 @@ func claim_or_expire_gifts(delta: float) -> void:
 		entry["age"] = age
 		var position: Vector2 = entry["position"]
 		var cell: Vector2i = grid.world_to_cell(position)
-		# DECISION (autoload/match/MatchGifts.gd, per docs/M4_PLAN.md P1):
-		# M4 ships with MatchConfig.team_count() == player_count
+		# M4 shipped with MatchConfig.team_count() == player_count
 		# (free-for-all only), so team_at()'s team id and the claiming
-		# slot id are the same number here. Revisit once M6 wires real
-		# teams -- which teammate's next block becomes the special is
-		# genuinely ambiguous then and is not decided by this file.
+		# slot id were the same number here. M6 A1 wires real teams
+		# (config/MatchConfig.gd's team_count()/team_of_slot()) --
+		# TerritorySolver/TerritoryRaster already resolve team_at() to
+		# the real team id (not a slot id), so `team` below is exactly
+		# the id held_special()/pop_pending_special() read after their
+		# own team_of_slot() translation: every teammate's next block
+		# becomes the special, off the one shared queue.
 		var team: int = raster.team_at(cell.x, cell.y) if grid.in_bounds(cell.x, cell.y) else -1
 		if team >= 0:
 			to_claim[gift_id] = team
@@ -572,29 +598,29 @@ func apply_replicated_expire(gift_id: int) -> void:
 ## unlike a claim, a consumed-special mirror has nothing useful to do for a
 ## slot whose queue was never grown by an earlier claim anyway.
 ##
-## DECISION (autoload/match/MatchGifts.gd, Bontago-1en.21): if the queue's
-## own head does not match `special_id` -- the two mirrors have drifted, from
-## a lost/out-of-order EVENT_GIFT_CLAIMED or a bug -- this pops the head
-## anyway (logging a warning) rather than silently doing nothing. Silently
-## skipping would leave this mirror's queue permanently one entry longer than
-## the host's, so every later pop would stay off by one forever; there is no
-## wire message in this package to request a full resync. Popping the
-## (wrong) head at least keeps the mirror's *length* -- what pending_special_
-## count()'s HUD indicator actually renders -- in step with the host's; a
-## wrong id sitting in a queue slot self-corrects at the very next claim,
-## which still appends the right id at the tail.
+## Review fix (M6 A1, HIGH): pop_pending_special()'s own emit reports the
+## acting `slot_id` (its own doc comment: "still reports slot_id ... not
+## team_id"), so this wire handler -- unlike apply_replicated_claim(), which
+## already receives a team id, see that function's own DECISION -- must
+## translate through _team_id_for_slot() itself before it ever touches
+## _pending_queues, exactly like held_special()/pop_pending_special()/
+## pending_special_count()/debug_queue_special() already do. Indexing by the
+## raw slot_id here read/popped the wrong (or a nonexistent) team queue for
+## any teammate other than team*team_count()'s own representative slot under
+## TEAMS_2/3/4, leaving that client's held_special() mirror stale forever.
 func apply_replicated_special_consumed(slot_id: int, special_id: StringName) -> void:
 	if slot_id < 0 or slot_id >= _match.slot_count():
 		return
-	if slot_id >= _pending_queues.size():
+	var team_id: int = _team_id_for_slot(slot_id)
+	if team_id < 0 or team_id >= _pending_queues.size():
 		return
-	var queue: Array = _pending_queues[slot_id]
+	var queue: Array = _pending_queues[team_id]
 	if queue.is_empty():
 		return
 	if queue[0] != special_id:
 		push_warning(
-			"MatchGifts: special_consumed mirror mismatch for slot %d (head=%s, reported=%s); popping head anyway"
-			% [slot_id, queue[0], special_id]
+			"MatchGifts: special_consumed mirror mismatch for slot %d (team %d, head=%s, reported=%s); popping head anyway"
+			% [slot_id, team_id, queue[0], special_id]
 		)
 	queue.pop_front()
 
