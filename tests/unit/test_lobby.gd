@@ -381,6 +381,121 @@ func test_roster_changed_signal_updates_ready_label_without_a_lobby_data_round_t
 	assert_true(guest_label.text.ends_with("(ready)"), "the ready flag flip must reach the row's label")
 
 
+# --- Specials checklist (M6 A4, docs/M6_PLAN.md) ------------------------------
+
+func test_every_loaded_special_def_gets_a_checkbox_checked_by_default() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var all_defs: Array[SpecialDef] = SpecialDef.load_all_specials()
+	assert_eq(lobby._special_checkboxes.size(), all_defs.size())
+	assert_eq(lobby._special_ids.size(), all_defs.size())
+	for i: int in range(all_defs.size()):
+		assert_eq(lobby._special_ids[i], all_defs[i].id)
+		assert_true(lobby._special_checkboxes[i].button_pressed, "every box starts checked (all enabled)")
+	var checklist: VBoxContainer = lobby.get_node("%SpecialsChecklist")
+	assert_eq(checklist.get_child_count(), all_defs.size())
+
+
+func test_all_boxes_checked_publishes_an_empty_enabled_specials_array() -> void:
+	# MatchConfig.enabled_specials's own convention: empty means "every special
+	# enabled by default" -- so the default all-checked state must not publish
+	# the full id list, which would be a different (if equivalent) Dictionary
+	# shape than every config this screen has ever produced before this
+	# package existed.
+	var lobby: Lobby = _make_lobby(true)
+	if lobby._special_ids.is_empty():
+		pass_test("no SpecialDef .tres on disk in this checkout; nothing to uncheck")
+		return
+	(lobby.get_node("%PlayerCountSpin") as SpinBox).value = 5  # force one publish
+	var calls: Array[Dictionary] = _fake_of(lobby).set_lobby_data_calls
+	var published: Array = calls[calls.size() - 1].get("enabled_specials") as Array
+	assert_true(published.is_empty())
+
+
+func test_unchecking_one_special_and_publishing_removes_exactly_that_id() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	if lobby._special_checkboxes.size() < 2:
+		pass_test("fewer than 2 SpecialDef .tres on disk in this checkout; nothing to distinguish")
+		return
+	var unchecked_id: StringName = lobby._special_ids[0]
+	lobby._special_checkboxes[0].button_pressed = false
+
+	var calls: Array[Dictionary] = _fake_of(lobby).set_lobby_data_calls
+	assert_eq(calls.size(), 1)
+	var published: Array = calls[0].get("enabled_specials") as Array
+	assert_false(published.has(unchecked_id), "the unchecked id must be gone")
+	for i: int in range(1, lobby._special_ids.size()):
+		assert_true(published.has(lobby._special_ids[i]), "every still-checked id must remain")
+	assert_eq(published.size(), lobby._special_ids.size() - 1)
+
+
+func test_unchecking_every_special_publishes_the_sentinel_not_an_empty_array() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	if lobby._special_checkboxes.is_empty():
+		pass_test("no SpecialDef .tres on disk in this checkout; nothing to uncheck")
+		return
+	for box: CheckBox in lobby._special_checkboxes:
+		box.button_pressed = false
+
+	var calls: Array[Dictionary] = _fake_of(lobby).set_lobby_data_calls
+	var published: Array = calls[calls.size() - 1].get("enabled_specials") as Array
+	assert_eq(published.size(), 1)
+	assert_eq(published[0], Lobby.ALL_DISABLED_SENTINEL)
+
+
+func test_apply_data_with_a_wire_list_checks_exactly_the_matching_boxes() -> void:
+	var lobby: Lobby = _make_lobby(false)
+	if lobby._special_ids.size() < 2:
+		pass_test("fewer than 2 SpecialDef .tres on disk in this checkout; nothing to distinguish")
+		return
+	var kept_id: StringName = lobby._special_ids[0]
+	var data: Dictionary = MatchConfig.new().to_dict()
+	data["enabled_specials"] = [kept_id]
+
+	Events.net_lobby_data_changed.emit(data)
+
+	assert_true(lobby._special_checkboxes[0].button_pressed, "the named id must be checked")
+	for i: int in range(1, lobby._special_ids.size()):
+		assert_false(lobby._special_checkboxes[i].button_pressed, "every other id must be unchecked")
+
+
+func test_apply_data_with_the_sentinel_unchecks_every_box() -> void:
+	var lobby: Lobby = _make_lobby(false)
+	if lobby._special_checkboxes.is_empty():
+		pass_test("no SpecialDef .tres on disk in this checkout; nothing to uncheck")
+		return
+	var data: Dictionary = MatchConfig.new().to_dict()
+	data["enabled_specials"] = [Lobby.ALL_DISABLED_SENTINEL]
+
+	Events.net_lobby_data_changed.emit(data)
+
+	for box: CheckBox in lobby._special_checkboxes:
+		assert_false(box.button_pressed)
+
+
+func test_apply_data_with_an_empty_list_checks_every_box() -> void:
+	var lobby: Lobby = _make_lobby(false)
+	if lobby._special_checkboxes.is_empty():
+		pass_test("no SpecialDef .tres on disk in this checkout; nothing to check")
+		return
+	for box: CheckBox in lobby._special_checkboxes:
+		box.button_pressed = false
+	var data: Dictionary = MatchConfig.new().to_dict()
+	data["enabled_specials"] = []
+
+	Events.net_lobby_data_changed.emit(data)
+
+	for box: CheckBox in lobby._special_checkboxes:
+		assert_true(box.button_pressed, "empty means every special enabled by default")
+
+
+func test_specials_checkboxes_are_disabled_for_a_client() -> void:
+	var lobby: Lobby = _make_lobby(false)
+	if lobby._special_checkboxes.is_empty():
+		pass_test("no SpecialDef .tres on disk in this checkout; nothing to gate")
+		return
+	assert_true(lobby._special_checkboxes[0].disabled)
+
+
 func test_roster_entry_with_a_steam_persona_name_renders_unchanged() -> void:
 	# docs/M3b_PLAN.md P3: once host_online()/join_lobby() default an empty
 	# player_name to the Steam persona name, _apply_roster() needs zero

@@ -25,6 +25,17 @@ const GIFT_CRATE_SCENE: PackedScene = preload("res://game/GiftCrate.tscn")
 ## _draw_special_id().
 const PENDING_SPECIAL_ID: StringName = &"special_pending"
 
+## DECISION (autoload/match/MatchGifts.gd, M6 A4): ui/Lobby.gd's specials
+## checklist writes this exact literal into config.enabled_specials when the
+## host unchecks every special (its own matching ALL_DISABLED_SENTINEL
+## constant/DECISION) -- an autoload must not import a ui/ script just to
+## share one StringName, so both files carry the same literal instead.
+## _ensure_special_drawer_installed() below checks for it explicitly, rather
+## than relying on it simply never matching a real SpecialDef.id, so a
+## real .tres someone ever misnames "__none__" could never sneak into the
+## roster once every special is meant to be off.
+const ALL_DISABLED_SENTINEL: StringName = &"__none__"
+
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _rng_ready: bool = false
 var _next_gift_id: int = 0
@@ -379,6 +390,8 @@ func _ensure_special_drawer_installed() -> void:
 	var all_defs: Array[SpecialDef] = SpecialDef.load_all_specials()
 	var enabled: Array[StringName] = _match.config.enabled_specials if _match.config != null else []
 	var roster: Array[SpecialDef] = []
+	if enabled.has(ALL_DISABLED_SENTINEL):
+		return
 	if enabled.is_empty():
 		roster = all_defs
 	else:

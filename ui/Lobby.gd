@@ -29,6 +29,17 @@ signal start_requested(config: MatchConfig)
 
 @export var default_config: MatchConfig = preload("res://config/match_defaults.tres")
 
+## DECISION (ui/Lobby.gd, M6 A4): MatchConfig.enabled_specials already means
+## "empty = every special enabled" (config/MatchConfig.gd's own doc comment),
+## so unchecking every %SpecialsChecklist box can't publish an empty array --
+## that would mean the opposite of what the host asked for. This sentinel id
+## published as the sole entry instead means "spawn nothing"; it isn't a
+## MatchConfig constant (this package doesn't own config/MatchConfig.gd) and
+## autoload/match/MatchGifts.gd can't import a ui/ script, so its
+## _ensure_special_drawer_installed() carries the identical literal with a
+## matching DECISION comment pointing back here.
+const ALL_DISABLED_SENTINEL: StringName = &"__none__"
+
 ## DECISION (ui/Lobby.gd): same `Variant` test seam as ui/MainMenu.gd and
 ## ui/HUD.gd's match_provider.
 var net_provider: Variant = null
@@ -51,7 +62,7 @@ var net_provider: Variant = null
 @onready var _hole_mode_option: OptionButton = %HoleModeOption
 @onready var _match_timer_spin: SpinBox = %MatchTimerSpin
 @onready var _sudden_death_check: CheckButton = %SuddenDeathCheck
-@onready var _specials_note: Label = %SpecialsNote
+@onready var _specials_checklist: VBoxContainer = %SpecialsChecklist
 
 @onready var _player_list: VBoxContainer = %PlayerList
 @onready var _ready_check: CheckButton = %ReadyCheck
@@ -62,6 +73,13 @@ var net_provider: Variant = null
 ## non-host is one loop instead of fourteen repeated lines.
 var _settings_controls: Array[Control] = []
 var _player_rows: Array[Node] = []
+
+## Built once by _build_specials_checklist(), in SpecialDef.load_all_specials()
+## order -- parallel arrays (the same convention _player_rows pairs with
+## roster entries by index) so _config_from_controls()/_apply_data() can walk
+## both together without a per-frame dictionary lookup.
+var _special_checkboxes: Array[CheckBox] = []
+var _special_ids: Array[StringName] = []
 
 ## True while _apply_data() is writing sanitized values back into the
 ## controls, so the value-changed signals that causes fire without
@@ -79,6 +97,7 @@ func _ready() -> void:
 		_goal_flag_spin, _gifts_check, _special_freq_slider, _tilt_mode_option,
 		_hole_mode_option, _match_timer_spin, _sudden_death_check,
 	]
+	_settings_controls.append_array(_special_checkboxes)
 	_connect_control_signals()
 	_start_button.pressed.connect(_on_start_pressed)
 	_ready_check.toggled.connect(_on_ready_toggled)
@@ -125,12 +144,45 @@ func _populate_options() -> void:
 	# (_ready()'s _apply_data(default_config.to_dict())), so no lobby-side
 	# default needs to move separately.
 	_fill_option(_hole_mode_option, ["Temporary", "Permanent", "Off"])
+	_build_specials_checklist()
 
 
 func _fill_option(option: OptionButton, labels: Array) -> void:
 	option.clear()
 	for label: String in labels:
 		option.add_item(label)
+
+
+## M6 A4 (docs/M6_PLAN.md "A4 -- Enabled-specials checklist"): one CheckBox per
+## config/specials/*.tres, in SpecialDef.load_all_specials() id order (the
+## same sorted, deterministic order every peer's own load produces, so the
+## checklist never shows two peers a differently-ordered list). Checked =
+## enabled, mirroring MatchConfig.enabled_specials's own "empty = all enabled"
+## default (every box starts checked here; _apply_data() below is the only
+## place that can later uncheck one, from a published config). Called once
+## from _populate_options(), before _ready() builds _settings_controls, the
+## same "every row already exists before the host/client gate runs" ordering
+## _build_roster()/_apply_roster() (player rows) also depends on.
+func _build_specials_checklist() -> void:
+	for child: Node in _specials_checklist.get_children():
+		_specials_checklist.remove_child(child)
+		child.queue_free()
+	_special_checkboxes.clear()
+	_special_ids.clear()
+
+	for special: SpecialDef in SpecialDef.load_all_specials():
+		var box: CheckBox = CheckBox.new()
+		# SpecialDef has no display_name (config/specials/SpecialDef.gd) -- the
+		# id itself (e.g. &"jumping_bean") is the only per-special label this
+		# package has to show; capitalize() turns "jumping_bean" into
+		# "Jumping Bean" the way String.capitalize() already title-cases an
+		# underscore-joined identifier.
+		box.text = String(special.id).capitalize()
+		box.button_pressed = true
+		box.toggled.connect(_on_toggled)
+		_specials_checklist.add_child(box)
+		_special_checkboxes.append(box)
+		_special_ids.append(special.id)
 
 
 func _connect_control_signals() -> void:
@@ -226,7 +278,27 @@ func _config_from_controls() -> MatchConfig:
 	config.hole_mode = _hole_mode_option.selected
 	config.match_timer_minutes = int(_match_timer_spin.value)
 	config.sudden_death = _sudden_death_check.button_pressed
+	config.enabled_specials = _enabled_specials_from_checkboxes()
 	return config
+
+
+## MatchConfig.enabled_specials's own doc: "Empty means every special enabled
+## by default" -- so "every box checked" (the default state _build_specials_
+## checklist() starts every box in) must publish an empty array, not the full
+## id list, to keep matching that convention exactly (and so a match started
+## before any SpecialDef.tres existed, or before this package landed, still
+## reads identically). Only "every box unchecked" gets the special-cased
+## ALL_DISABLED_SENTINEL; anything in between is the literal checked-id list.
+func _enabled_specials_from_checkboxes() -> Array[StringName]:
+	var checked: Array[StringName] = []
+	for i: int in range(_special_checkboxes.size()):
+		if _special_checkboxes[i].button_pressed:
+			checked.append(_special_ids[i])
+	if checked.is_empty() and not _special_ids.is_empty():
+		return [ALL_DISABLED_SENTINEL]
+	if checked.size() == _special_ids.size():
+		return []
+	return checked
 
 
 ## Applies a Dictionary from Events.net_lobby_data_changed (or the initial
@@ -279,14 +351,29 @@ func _apply_data(data: Dictionary) -> void:
 	_hole_mode_option.selected = config.hole_mode
 	_match_timer_spin.value = config.match_timer_minutes
 	_sudden_death_check.button_pressed = config.sudden_death
-	_specials_note.text = (
-		"All specials enabled (none defined until M4)" if config.enabled_specials.is_empty()
-		else "%d specials enabled" % config.enabled_specials.size()
-	)
+	_apply_enabled_specials_to_checkboxes(config.enabled_specials)
 	_applying_remote_data = false
 
 	if data.has("roster"):
 		_apply_roster(data["roster"])
+
+
+## _apply_data()'s round trip for the specials checklist: empty -> every box
+## checked (MatchConfig.enabled_specials's own "empty = all enabled"
+## convention), the ALL_DISABLED_SENTINEL alone -> every box unchecked,
+## otherwise check exactly the ids named. Runs inside _apply_data()'s existing
+## _applying_remote_data guard, so toggling a box here doesn't loop back into
+## _on_toggled() -> _on_setting_changed() -> another publish.
+func _apply_enabled_specials_to_checkboxes(enabled: Array[StringName]) -> void:
+	var all_enabled: bool = enabled.is_empty()
+	var all_disabled: bool = enabled.has(ALL_DISABLED_SENTINEL)
+	for i: int in range(_special_checkboxes.size()):
+		if all_enabled:
+			_special_checkboxes[i].button_pressed = true
+		elif all_disabled:
+			_special_checkboxes[i].button_pressed = false
+		else:
+			_special_checkboxes[i].button_pressed = enabled.has(_special_ids[i])
 
 
 func _on_lobby_data_changed(data: Dictionary) -> void:

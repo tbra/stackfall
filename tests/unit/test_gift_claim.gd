@@ -261,6 +261,31 @@ func test_installing_the_real_drawer_with_an_empty_filtered_roster_keeps_the_pla
 	assert_true(Match._gifts._special_roster.is_empty())
 
 
+## M6 A4 (docs/M6_PLAN.md "A4 -- Enabled-specials checklist"): ui/Lobby.gd
+## publishes MatchGifts.ALL_DISABLED_SENTINEL as enabled_specials' sole entry
+## when the host unchecks every special checkbox. Distinct from
+## test_installing_the_real_drawer_with_an_empty_filtered_roster_keeps_the_
+## placeholder() above (which already proves a bogus, non-matching id yields
+## the same "keep the placeholder" outcome): this pins the actual sentinel
+## constant both files share, and _ensure_special_drawer_installed()'s
+## explicit `enabled.has(ALL_DISABLED_SENTINEL)` guard specifically (rather
+## than relying on the sentinel merely never matching a real SpecialDef.id on
+## disk today).
+func test_all_disabled_sentinel_never_draws_a_real_special() -> void:
+	var config: MatchConfig = _config()
+	config.enabled_specials = [MatchGifts.ALL_DISABLED_SENTINEL]
+	_start_playing(config)
+	assert_false(Match._gifts._roster_ready, "setup: not installed until the first real claim")
+
+	var gift_id: int = _inject_crate(0)
+	_step_territory()
+
+	assert_true(Match._gifts._roster_ready, "the install attempt must run exactly once per match")
+	assert_eq(Match.held_special(0), MatchGifts.PENDING_SPECIAL_ID,
+		"the all-disabled sentinel must leave the placeholder drawer installed")
+	assert_true(Match._gifts._special_roster.is_empty())
+
+
 ## _weighted_special_drawer() itself (the Callable
 ## _ensure_special_drawer_installed() would install for a non-empty roster),
 ## exercised directly against a manufactured roster/rng so this test needs no
