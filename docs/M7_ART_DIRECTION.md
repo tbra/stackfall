@@ -9,6 +9,25 @@ This document is the art-direction proposal and the M7 package split. It does
 not implement anything; `docs/M7_PLAN.md` (not yet written) would carry the
 same file-ownership tables once the owner answers §5's questions.
 
+## Owner-selected visual direction (2026-09-26)
+
+The owner selected [cel-shaded Sunset Signal with home beacons](art_mockups/08-cel-shaded-home-beacons.png) as the game's gameplay visual target. This supersedes the more realistic rendering of the original proposal wherever they conflict: use graphic sunset clouds, restrained outlines and banded block lighting, an **opaque** graphite disk with stylized mirror reflections, crisp red/blue territory contours, and low geometric home beacons in place of cloth pennants. The image is a visual target, not a rules-accurate screenshot or finished asset specification.
+
+For menus, retain the red/blue block `STACKFALL` logo and “Build · Balance · Dominate” tagline. The owner rejected the previous generic translucent-panel main-menu and lobby layouts. A replacement design is still under review; no proposed menu flow is implemented. The other implementation choices in §5 remain open; visual selection alone does not settle them.
+
+**All images are references, not final art (owner, 2026-09-26).** Interpret their mood, palette, lighting and shape language; do not reproduce them pixel-for-pixel or treat any layout, count, HUD arrangement or label in them as a requirement. Rules, HUD contents and player counts come from `docs/SPEC.md`; 08 happens to show two players and omits spec-required HUD elements (max height, special indicator), which the game still needs.
+
+**Menu and lobby direction: layered pastel (owner, 2026-09-26).** The owner likes a layered-3D, soft-pastel look for menus and believes it pairs with the 08 gameplay style. The references are five third-party images kept locally only, in `feedback/menu ref/` (gitignored; not redistributable). In words, they show: paper-cut layers stacked with soft drop shadows; a cream/sand ground with mint, powder-blue, apricot and coral accents; slate or deep-teal contrast panels; raised pill-shaped controls and sunken input wells; rounded "plate" cards stacked with offsets; and diorama-style scenery. Canvas mockups (private to the owner) are on row 3 of <https://claude.ai/artifact/WNqknn7JxDHiFRoQX9BDtE>: *Main menu — Layered Pastel* and *Lobby — Layered Pastel*. The owner approved their direction, with the same references-not-final caveat. Key cues:
+- stacked paper cards behind the main panel;
+- a paper-cut sky with a layered sun and cloud strata;
+- a floating layered-plate island carrying 08-style beacons;
+- coral as the primary/focused fill, with a dark outline for gamepad focus;
+- dark slate ink on cream for text contrast.
+
+The owner has not accepted the menus as final; M7 menu work still needs a design pass that honours both references.
+
+**Open conflict with spec §2.10 (needs an owner answer before block-material work).** 08 shows each cube cell outlined inside a piece. §2.10 and the closed `Bontago-xtq.3` require blocks to read as one solid merged shape with no visible per-cell cubes. This ties to Q2 below (seam style). Either amend the spec (option (a), cell-grid seams, would be the closest match to 08) or keep merged blocks and match 08 only in lighting and colour. Do not decide this in code.
+
 ---
 
 ## 1. Current state inventory
