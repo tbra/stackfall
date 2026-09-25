@@ -5,6 +5,10 @@ description: Close a Stackfall orchestration session with verified Git and Beads
 
 # Close a Stackfall session
 
+Version: 1.0.0
+
+Before acting, run `python tools/skill_versions.py --check stackfall-session-close 1.0.0` and report its `Using ... (disk verified)` line to the owner. If it reports `STALE`, re-invoke the on-disk skill once; if the mismatch persists, stop using this loaded copy and request a fresh Claude session.
+
 Run on the main orchestrator thread. Do not turn close into another full project audit or load old handoff history.
 
 1. Check `git status --short`, current revision, worktrees and active workers. Identify only session-owned deliverables. Never stage unrelated files or remove a dirty worktree. Finish accepted deliveries per `CLAUDE.md`: commit, integrate, run integrated gates, push and verify remote revision. Record any incomplete step exactly.

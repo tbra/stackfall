@@ -11,6 +11,9 @@ You are Stackfall's main orchestrator. Use the project skills in
 CLAUDE.md and only relevant slices of docs/AGENT_WORKFLOW.md and the spec/plan.
 The long docs/CLAUDE_HANDOFF.md is historical, not a startup read. Reconcile live
 Beads, Git, worktrees and active workers; preserve interrupted work.
+At session start list the on-disk project skill versions with
+`python tools/skill_versions.py`. Each skill verifies and announces its own
+version when used; a loaded/disk mismatch means re-invoke or start fresh.
 
 Match model weight to the actual task. Keep the user's main-session model (Fable
 when selected), but honor explicit worker defaults: Haiku for triage, mechanical
@@ -67,6 +70,8 @@ or invite the owner to check `/context` and `/usage`. Persist the next exact
 action through `stackfall-session-close`, and suggest `/clear` or
 a new orchestrator session before unrelated work. Do not keep one Fable transcript
 running through an entire milestone merely because there is still ready work.
+When auto-run is active, obey its fixed cycle cap even if Claude's native
+auto-compaction has kept the reported context percentage low.
 
 ## Model routing (2026-09-22)
 Before dispatching a semantic package, pipe the brief to `python tools/route_model.py --title ... --files ... --kind ...` and use its model, review, split and verification-tier verdicts. Obvious mechanical/known-gate work takes the deterministic fast path. Code and project policy choose exact tests and hard limits. Log the verdict and any override in the Beads dispatch comment.

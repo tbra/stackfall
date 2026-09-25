@@ -5,6 +5,10 @@ description: Resume Stackfall orchestration from a compact handoff, reconciling 
 
 # Resume Stackfall
 
+Version: 1.0.0
+
+Before acting, run `python tools/skill_versions.py --check stackfall-session-resume 1.0.0` and report its `Using ... (disk verified)` line to the owner. If it reports `STALE`, re-invoke the on-disk skill once; if the mismatch persists, stop using this loaded copy and request a fresh Claude session. Run `python tools/skill_versions.py` once at session start to list all three project skill versions.
+
 Run on the main orchestrator thread when a chat starts, the owner says continue, or context is reset. Orientation should take a few targeted reads, not a full project dump.
 
 1. Read `AGENTS.md`, the short operational part of `CLAUDE.md`, and the handoff memory (`bd memories stackfall-handoff`). Run `bd prime --no-memories` only when Beads workflow context is absent or stale; retrieve only relevant memories by key. `docs/CLAUDE_HANDOFF.md` is dated history, not the live task ledger.
