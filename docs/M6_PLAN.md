@@ -1008,6 +1008,11 @@ above lives on a resource the panel does not show and needs no hints entry.
    complaint spec 1.7 already lists as a problem this remake tries to fix).
    **Recommendation: (a)**, ship now, revisit only if a team playtest reports
    it feeling arbitrary which teammate got the special.
+   **Owner answer (Bontago-keo.15, 2026-09-25): (b)** — implemented in
+   Bontago-keo.17: `MatchGifts._resolve_recipient_slot()` picks the alive
+   teammate whose home circle is nearest the crate (ties → lowest slot id),
+   pending queues are keyed per recipient slot, and `Events.gift_claimed`
+   carries that slot.
 2. **Is the `PHYSICAL_BALANCE` kinematic-torque approximation (B5) an
    acceptable substitute for spec 2.1's illustrative "RigidBody3D on a
    joint," or does the owner want a genuine second dynamic-body prototype
