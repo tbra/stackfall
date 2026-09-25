@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="MapDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/MapDef.gd" id="1_map"]
+
+[resource]
+script = ExtResource("1_map")
+id = &"twin_large"
+field_radius = 60.0
+map_shape = 3
+twin_disk_radius_fraction = 0.55
+twin_center_offset_fraction = 0.45
+twin_bridge_half_width = 3.0
+skybox_set = "mountain"
+disk_height = 0.2
+cell_size = 1.0
+territory_res = 512
+home_flag_radius_fraction = 0.85
+goal_flag_radius_fraction = 0.4
+cell_wake_height = 80.0
+cell_wake_max_bodies = 32
+cell_overlap = 0.2
