@@ -531,8 +531,23 @@ func _eliminate_slot(slot_id: int) -> void:
 	_check_last_team_standing()
 
 
+## True for PLAYING and SUDDEN_DEATH -- the two states a match can actually be
+## won from (spec 2.8: an elimination or a goal capture during sudden death
+## ends the match immediately, same as during ordinary play; only the
+## radius-8 tiebreak is sudden-death-exclusive, and that has its own guard in
+## _resolve_sudden_death_tiebreak()). Shared by _check_last_team_standing()
+## here and MatchTerritory.gd's goal-capture check so the two win paths can't
+## drift apart on which states are "live" (stackfall-reviewer finding F1).
+## Deliberately NOT used by MatchTerritory.punch_special_hole()'s own
+## State.PLAYING-only guard (mirrors MatchPlacement.spawn_special_projectile(),
+## which stays PLAYING-only per docs/M6_PLAN.md A3 -- a special's physical
+## effect is placement-adjacent, not a win check).
+static func is_live_state(state: MatchAutoload.State) -> bool:
+	return state == MatchAutoload.State.PLAYING or state == MatchAutoload.State.SUDDEN_DEATH
+
+
 func _check_last_team_standing() -> void:
-	if _state != MatchAutoload.State.PLAYING:
+	if not MatchLifecycle.is_live_state(_state):
 		return
 	var alive_teams: Dictionary = {}
 	for slot_item: PlayerSlot in _slots:

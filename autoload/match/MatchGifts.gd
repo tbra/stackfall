@@ -316,19 +316,20 @@ func _lowest_alive_slot() -> int:
 ## maximum of the finalized spawn model (2.6)." Outside sudden death this is
 ## exactly `_match.config.special_frequency` (should_spawn()'s existing
 ## input, unchanged behaviour); once MatchLifecycle.sudden_death_active() is
-## true it lerps monotonically toward 100.0 -- GiftConfig.frequency_to_chance_max
-## is already the finalized spawn model's own maximum spawn chance (spec
-## 2.6), so should_spawn() itself needs no change, only what frequency value
-## it is handed -- over TerritoryTuning.sudden_death_ramp_s, then clamps
-## there for the rest of the match. See that tunable's own DECISION for why
-## the ramp duration is not spec-given.
+## true it lerps monotonically toward MatchConfig.SPECIAL_FREQUENCY_MAX --
+## GiftConfig.frequency_to_chance_max is already the finalized spawn model's
+## own maximum spawn chance (spec 2.6), so should_spawn() itself needs no
+## change, only what frequency value it is handed -- over
+## TerritoryTuning.sudden_death_ramp_s, then clamps there for the rest of the
+## match. See that tunable's own DECISION for why the ramp duration is not
+## spec-given.
 func _effective_special_frequency() -> float:
 	var base_frequency: float = float(_match.config.special_frequency) if _match.config != null else 0.0
 	if not _match._lifecycle.sudden_death_active():
 		return base_frequency
 	var ramp_s: float = maxf(_match._territory_tuning.sudden_death_ramp_s, 0.001)
 	var t: float = clampf(_match._lifecycle._sudden_death_elapsed / ramp_s, 0.0, 1.0)
-	return lerpf(base_frequency, 100.0, t)
+	return lerpf(base_frequency, float(MatchConfig.SPECIAL_FREQUENCY_MAX), t)
 
 
 func _try_spawn() -> void:

@@ -223,6 +223,53 @@ func test_sudden_death_tiebreak_is_deterministic_lowest_team_id_on_a_tie() -> vo
 	assert_signal_emitted_with_parameters(Events, "match_won", [1])
 
 
+# --- Win checks during SUDDEN_DEATH (stackfall-reviewer F1: an elimination or
+# a goal capture must finish the match immediately, not only at the radius-8
+# tiebreak) --------------------------------------------------------------
+
+func test_elimination_during_sudden_death_finishes_the_match_immediately() -> void:
+	Match.start_match(_config(3))
+	_run_countdown()
+	Match._lifecycle._begin_sudden_death()
+	assert_eq(Match.state(), Match.State.SUDDEN_DEATH)
+	watch_signals(Events)
+
+	# Free-for-all (_config()'s default team_mode): three players, three teams.
+	# Eliminating the first of the two non-surviving teams must not end the
+	# match by itself -- two teams (1 and 2) are still alive.
+	Match._lifecycle._eliminate_slot(0)
+	assert_eq(Match.state(), Match.State.SUDDEN_DEATH,
+		"one team down of three: two are still alive, the match keeps running")
+
+	# Eliminating the second-to-last team leaves exactly one team standing.
+	Match._lifecycle._eliminate_slot(1)
+
+	assert_eq(Match.state(), Match.State.END,
+		"F1: an elimination during SUDDEN_DEATH must finish the match immediately, not only at the tiebreak")
+	assert_signal_emitted_with_parameters(Events, "match_won", [2])
+
+
+func test_goal_capture_during_sudden_death_finishes_the_match_immediately() -> void:
+	Match.start_match(_config(2))
+	_run_countdown()
+	Match._lifecycle._begin_sudden_death()
+	assert_eq(Match.state(), Match.State.SUDDEN_DEATH)
+	watch_signals(Events)
+
+	# Force WinChecker's latched winner directly (same direct-private-field
+	# convention this file's own header doc describes, and
+	# test_match_territory_punch.gd's Match._raster._team_counts already
+	# uses) rather than staging real blocks to hold every goal for
+	# capture_hold seconds -- _run_territory_step() below is what reads it.
+	Match._territory._win_checker._winner = 1
+
+	Match._territory._run_territory_step(1.0 / Match._territory_tuning.solve_hz)
+
+	assert_eq(Match.state(), Match.State.END,
+		"F1: a goal-capture winner during SUDDEN_DEATH must finish the match immediately, not only at the tiebreak")
+	assert_signal_emitted_with_parameters(Events, "match_won", [1])
+
+
 # --- Gift-chance ramp (spec 2.8: "climbs toward the maximum") ---------------
 
 func test_effective_special_frequency_lerps_monotonically_and_clamps_at_the_ramp() -> void:
@@ -230,6 +277,8 @@ func test_effective_special_frequency_lerps_monotonically_and_clamps_at_the_ramp
 	config.special_frequency = 20.0
 	Match.start_match(config)
 	_run_countdown()
+
+	var max_frequency: float = float(MatchConfig.SPECIAL_FREQUENCY_MAX)
 
 	assert_almost_eq(Match._gifts._effective_special_frequency(), 20.0, 0.0001,
 		"unchanged outside sudden death")
@@ -240,9 +289,9 @@ func test_effective_special_frequency_lerps_monotonically_and_clamps_at_the_ramp
 
 	var ramp_s: float = Match._territory_tuning.sudden_death_ramp_s
 	Match._lifecycle._sudden_death_elapsed = ramp_s * 0.5
-	assert_almost_eq(Match._gifts._effective_special_frequency(), 60.0, 0.0001,
-		"halfway through the ramp is halfway from 20 to 100")
+	assert_almost_eq(Match._gifts._effective_special_frequency(), lerpf(20.0, max_frequency, 0.5), 0.0001,
+		"halfway through the ramp is halfway from 20 to MatchConfig.SPECIAL_FREQUENCY_MAX")
 
 	Match._lifecycle._sudden_death_elapsed = ramp_s * 2.0
-	assert_almost_eq(Match._gifts._effective_special_frequency(), 100.0, 0.0001,
-		"clamped at the maximum once the ramp window has passed")
+	assert_almost_eq(Match._gifts._effective_special_frequency(), max_frequency, 0.0001,
+		"clamped at MatchConfig.SPECIAL_FREQUENCY_MAX once the ramp window has passed")

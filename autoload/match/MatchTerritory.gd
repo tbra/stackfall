@@ -165,7 +165,7 @@ func _run_territory_step(delta: float) -> void:
 
 	Events.goal_capture_progress.emit(_win_checker.capturing_team(), _win_checker.capture_progress())
 
-	if _match.state() == MatchAutoload.State.PLAYING and _win_checker.winner() != WinChecker.NO_TEAM:
+	if MatchLifecycle.is_live_state(_match.state()) and _win_checker.winner() != WinChecker.NO_TEAM:
 		_match._lifecycle._finish_match(_win_checker.winner())
 
 
