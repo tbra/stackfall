@@ -14,6 +14,8 @@ Beads, Git, worktrees and active workers; preserve interrupted work.
 At session start list the on-disk project skill versions with
 `python tools/skill_versions.py`. Each skill verifies and announces its own
 version when used; a loaded/disk mismatch means re-invoke or start fresh.
+Do not reprint already-loaded AGENTS/skill files in a Bash orientation call
+merely to find a version; query the helper and only missing relevant slices.
 
 Match model weight to the actual task. Keep the user's main-session model (Fable
 when selected), but honor explicit worker defaults: Haiku for triage, mechanical
@@ -62,16 +64,21 @@ detailed recovery evidence belongs in the assigned Bead comment. Read
 only decisive hunks/errors for acceptance, while retaining independent review.
 Give the owner one-line routine updates with bead, result and next action; expand
 only for blockers or decisions. Limit competing workers, and serialize performance measurements.
+Keep Bash results in the main thread to about 100 lines / 4 KB by default; save full
+logs in the worker scratchpad and read only totals, decisive errors or targeted slices.
+Preserve the actual test command's exit status when filtering output.
+Avoid repeated full Bead comments and plan excerpts: use comment-free `bd show`,
+cite plan path/section in worker briefs, collapse repetitive GUT `Orphans` lines
+to a count plus one example, and start code review with `git diff --stat`.
+Combine related small orientation queries when the combined result stays bounded.
 If usage is exhausted, save the next exact action and recoverable checkout/session
 identity instead of repeatedly starting new workers. Your final handoff names
 changed files, Beads IDs, actual validation, outstanding gates and next action.
 At a delivered integration-batch boundary, use any available context indicator
-or invite the owner to check `/context` and `/usage`. Persist the next exact
-action through `stackfall-session-close`, and suggest `/clear` or
-a new orchestrator session before unrelated work. Do not keep one Fable transcript
-running through an entire milestone merely because there is still ready work.
-When auto-run is active, obey its fixed cycle cap even if Claude's native
-auto-compaction has kept the reported context percentage low.
+or invite the owner to check `/context` and `/usage`. Persist a brief next-action
+checkpoint in Beads and continue auto-run through native compaction; do not end
+merely because a task-count or batch-count threshold was reached. If compaction
+cannot recover enough context for safe coordination, close with an exact handoff.
 
 ## Model routing (2026-09-22)
 Before dispatching a semantic package, pipe the brief to `python tools/route_model.py --title ... --files ... --kind ...` and use its model, review, split and verification-tier verdicts. Obvious mechanical/known-gate work takes the deterministic fast path. Code and project policy choose exact tests and hard limits. Log the verdict and any override in the Beads dispatch comment.

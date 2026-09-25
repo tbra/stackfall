@@ -27,6 +27,10 @@ Implement the requested package, including typed GDScript and regression tests
 where meaningful. For a reported bug, reproduce or demonstrate the faulty code
 path, fix it, then validate the intended behavior. Keep tunables in Resources,
 input in the Input Map, pure rules outside the scene tree, and host authority intact.
+For any new numeric, boolean or Color `@export` on an F4 tuning Resource, add its
+hint in `config/tuning_panel_hints.tres` and include `test_tuning_panel` among the
+named targeted checks in your brief/evidence; ask the orchestrator to add it if
+the assignment omitted it.
 Use the installed TypeSafe skill for relevant AI/tooling work only.
 
 Run only the open-project check and named relevant tests within the brief's run
