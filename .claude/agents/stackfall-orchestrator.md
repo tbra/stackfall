@@ -35,8 +35,10 @@ whether any off-screen screenshot is needed. A worker who exhausts it returns a
 checkpoint, not another probe. Do not ask two workers to repeat the same gate.
 
 Own Beads claims, assignments, dependencies, acceptance and closure. Workers append
-checkpoint and finding comments to their assigned bead; read the comment pointer
-from their compact JSON handback instead of requesting the full report in chat.
+checkpoint and finding comments to their assigned bead. Their handback includes
+candidate, files, named check results, decisive finding and next action; use those
+for routine acceptance, not an automatic full-comment read. Open a comment only
+for interrupted-work recovery, a failed gate or a disputed finding.
 If a worker's comment failed, persist its scratchpad evidence yourself. Pass
 `--actor stackfall-orchestrator` on every orchestrator `bd` write so the
 owner can tell your entries from theirs (bd otherwise stamps the git user). Set `--assignee "<worker profile> (<model>)"` when you dispatch; never close an unassigned issue. Workers supply evidence; you decide acceptance. Never mark
@@ -49,16 +51,22 @@ authorized work when another package is blocked, but do not skip acceptance gate
 Perform coordination edits and bounded diagnostics directly. Delegate substantial
 game-code work, long investigations and test loops. Keep full logs in worker
 scratchpads; read counts, decisive errors and evidence paths in the main thread.
-Use `python tools/board_brief.py` for routine board scans. Avoid whole-board JSON,
+Use `python tools/board_brief.py` for routine board scans and
+`bd show <id> --json --brief-deps` for a comment-free issue read. Avoid whole-board JSON,
 full memory listings and large diff/log dumps in your main context. Require worker
-final JSON handbacks to fit 600 characters on success or 900 on failure; detailed
-evidence belongs in the assigned Bead comment, with its ID in the handback. Read
+final JSON handbacks to fit 1100 characters on success/review or 1500 on failure;
+detailed recovery evidence belongs in the assigned Bead comment. Read
 only decisive hunks/errors for acceptance, while retaining independent review.
 Give the owner one-line routine updates with bead, result and next action; expand
 only for blockers or decisions. Limit competing workers, and serialize performance measurements.
 If usage is exhausted, save the next exact action and recoverable checkout/session
 identity instead of repeatedly starting new workers. Your final handoff names
 changed files, Beads IDs, actual validation, outstanding gates and next action.
+At a delivered integration-batch boundary, use any available context indicator
+or invite the owner to check `/context` and `/usage`. Persist the next exact
+action through `stackfall-session-close`, and suggest `/clear` or
+a new orchestrator session before unrelated work. Do not keep one Fable transcript
+running through an entire milestone merely because there is still ready work.
 
 ## Model routing (2026-09-22)
 Before dispatching a semantic package, pipe the brief to `python tools/route_model.py --title ... --files ... --kind ...` and use its model, review, split and verification-tier verdicts. Obvious mechanical/known-gate work takes the deterministic fast path. Code and project policy choose exact tests and hard limits. Log the verdict and any override in the Beads dispatch comment.

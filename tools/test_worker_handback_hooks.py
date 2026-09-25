@@ -19,8 +19,11 @@ def run_hook(script, event):
 
 
 class HandbackTests(unittest.TestCase):
-    def test_compact_bead_pointer_passes(self):
-        message = json.dumps({"bead": "Bontago-123", "verdict": "done", "checks": "2/2 pass", "evidence": "bd:Bontago-123", "next": "integrate"})
+    def test_self_contained_handback_passes(self):
+        message = json.dumps({"bead": "Bontago-123", "verdict": "done",
+                              "candidate": "M:/wt/a@abc123", "files": "core/rules.gd;tests/test_rules.gd",
+                              "checks": "test_rules: 12/12 pass", "finding": "Fixed overlap scoring; no known risk",
+                              "next": "integrate candidate", "record": "bd:Bontago-123"})
         self.assertIsNone(run_hook("validate_worker_handback.py", {
             "hook_event_name": "PreToolUse", "tool_name": "SubagentHandback",
             "tool_input": {"message": message},
@@ -34,11 +37,39 @@ class HandbackTests(unittest.TestCase):
         self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
 
     def test_comment_failure_keeps_longer_escape_hatch(self):
-        message = json.dumps({"bead": "Bontago-123", "verdict": "blocked", "checks": "failed", "evidence": "comment-failed:database locked", "next": "orchestrator persist finding", "findings": "x" * 1500})
+        message = json.dumps({"bead": "Bontago-123", "verdict": "blocked",
+                              "candidate": "M:/wt/a@uncommitted", "files": "core/rules.gd",
+                              "checks": "test_rules: blocked by import error",
+                              "finding": "x" * 1500, "next": "orchestrator persist finding",
+                              "record": "comment-failed:database locked"})
         self.assertIsNone(run_hook("validate_worker_handback.py", {
             "hook_event_name": "PreToolUse", "tool_name": "SubagentHandback",
             "tool_input": {"message": message},
         }))
+
+    def test_pointer_only_and_wrong_record_are_denied(self):
+        base = {"bead": "Bontago-123", "verdict": "done", "candidate": "M:/wt/a@abc123",
+                "files": "core/rules.gd", "checks": "test_rules: 12/12 pass",
+                "finding": "Fixed overlap scoring", "next": "integrate", "record": "bd:Bontago-123"}
+        for report in ({key: value for key, value in base.items() if key != "candidate"},
+                       dict(base, record="bd:Bontago-other"),
+                       dict(base, record="comment-failed:")):
+            result = run_hook("validate_worker_handback.py", {
+                "hook_event_name": "PreToolUse", "tool_name": "SubagentHandback",
+                "tool_input": {"message": json.dumps(report)},
+            })
+            self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
+
+    def test_oversized_success_is_denied(self):
+        message = json.dumps({"bead": "Bontago-123", "verdict": "done",
+                              "candidate": "M:/wt/a@abc123", "files": "core/rules.gd",
+                              "checks": "test_rules: 12/12 pass", "finding": "x" * 1100,
+                              "next": "integrate", "record": "bd:Bontago-123"})
+        result = run_hook("validate_worker_handback.py", {
+            "hook_event_name": "PreToolUse", "tool_name": "SubagentHandback",
+            "tool_input": {"message": message},
+        })
+        self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
 
     def test_plain_stop_blocks_once(self):
         event = {"hook_event_name": "SubagentStop", "last_assistant_message": "verbose report"}

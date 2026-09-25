@@ -10,11 +10,11 @@ Reusable Claude roles live in `.claude/agents/`. Their durable task checkpoints 
 
 The orchestrator uses `.claude/skills/stackfall-auto-run`, `stackfall-session-close`, and `stackfall-session-resume` for continued work and handoff. Keep bulky logs and iterative probes in worker context; dispatches name exact checks, time and screenshot budgets. Workers return compact evidence and stop when their budget is exhausted. The full GUT suite runs once per integrated game-code batch, never per package.
 
-The orchestrator owns Beads claims, assignments, dependencies, status changes and closures. Workers may add detailed checkpoint and finding comments to **their assigned issue only**, with `--actor <worker-profile>`; they return a compact JSON handback pointing to that bead. This owner clarification (2026-09-25) supersedes the earlier orchestrator-only write rule. Workers never close or reassign issues. Keep concurrent embedded-Dolt writes brief; if a comment fails after one retry, return the exact failure and scratchpad path for the orchestrator to persist.
+The orchestrator owns Beads claims, assignments, status and closure. Workers may comment on **their assigned issue only** with `--actor <worker-profile>`; they never close or reassign it. Their compact handback carries candidate, files, named checks, decisive finding and next action; the Bead comment is for recovery, not routine rereading. Use comment-free `bd show <id> --json --brief-deps` for ordinary issue reads. If a comment fails after one retry, return its error and scratchpad path. At delivered batch boundaries, checkpoint in Beads and refresh Claude context when stale transcript content accumulates. See `docs/AGENT_WORKFLOW.md`.
 
 Claude model routing follows `docs/AGENT_WORKFLOW.md`: user-selected orchestrator (currently Fable), Haiku for mechanical/triage/known validation/CLI relay work, Sonnet for normal implementation/planning/review, and explicit Opus overrides only for genuinely hard reasoning. Worker models must not all inherit the orchestrator's model.
 
-This project uses **bd** (beads) for issue tracking. Use `bd prime` when Beads workflow context is missing or stale; normal session recovery uses the compact resume skill and targeted Beads queries.
+This project uses **bd** (beads) for issue tracking. Use `bd prime --no-memories` when Beads workflow context is missing or stale and retrieve relevant memories by key; normal session recovery uses the compact resume skill and targeted Beads queries.
 
 > **Architecture in one line:** Issues live in a local Dolt database
 > (`.beads/embeddeddolt/` in this checkout; verify with `bd info`); cross-machine sync uses `bd dolt push/pull` (a
