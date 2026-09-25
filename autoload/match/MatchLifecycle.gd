@@ -41,6 +41,28 @@ var _starting: bool = false
 ## negative means "connected".
 var _disconnect_grace_left: Array[float] = []
 
+## -- Match timer + sudden death (spec 2.8, M6 A3) ----------------------------
+
+## Seconds left on the match timer, armed at State.PLAYING entry from
+## config.match_timer_minutes * 60.0. 0.0 means "off" (spec 2.8's own range
+## row: "Off / 10-40 min") and _tick_match_timer() is then a permanent no-op
+## for the rest of the match -- config.match_timer_minutes == 0 must never
+## start sudden death, timer or no.
+var _match_timer_left: float = 0.0
+
+## Seconds since State.SUDDEN_DEATH was entered. Drives both the gift-chance
+## ramp (MatchGifts._effective_special_frequency()) and the disk shrink
+## schedule below. Reset at _begin_sudden_death().
+var _sudden_death_elapsed: float = 0.0
+
+## The last shrink radius MatchTerritory.shrink_to_radius() was actually
+## called with, so _tick_sudden_death() only re-punches once the computed
+## radius has actually dropped another step rather than re-scanning every
+## in-disk cell every frame for no new holes. INF before sudden death has
+## shrunk the disk at all, so the very first call (radius = field_radius)
+## always runs once.
+var _last_shrink_radius: float = INF
+
 
 func setup(match_ref: MatchAutoload) -> void:
 	_match = match_ref
@@ -169,6 +191,9 @@ func _reset_match_state() -> void:
 	_active_slot = -1
 	_countdown_remaining = 0.0
 	_countdown_last_whole = 0
+	_match_timer_left = 0.0
+	_sudden_death_elapsed = 0.0
+	_last_shrink_radius = INF
 	_match._territory._cell_grid = null
 	_match._territory._raster = null
 	_match._territory._solver = null
@@ -238,6 +263,11 @@ func _tick_countdown(delta: float) -> void:
 
 func _begin_playing() -> void:
 	_set_state(MatchAutoload.State.PLAYING)
+	# Spec 2.8: "Match timer: Off / 10-40 min", 0 meaning off. Armed here (not
+	# at start_match(), which runs during LOADING/COUNTDOWN) so config changes
+	# made while still counting down are picked up, and so a match aborted
+	# before ever reaching PLAYING never arms a timer it will not tick.
+	_match_timer_left = _match.config.match_timer_minutes * 60.0 if _match.config.match_timer_minutes > 0 else 0.0
 	_active_slot = _next_alive_slot(-1)
 	for i: int in range(_slots.size()):
 		# Bontago-mv0.10 follow-up: set the interval before issuing, not
@@ -257,6 +287,103 @@ func _begin_playing() -> void:
 	# contested time accrues and no hole can open on the seeding step.
 	if _match._territory._raster != null and _match._territory._solver != null:
 		_match._territory._run_territory_step(0.0)
+
+
+# --- Match timer + sudden death (spec 2.8, M6 A3) ---------------------------
+
+## Seconds left on the match timer, or 0.0 once it has run out or was never
+## armed (config.match_timer_minutes == 0, "Off").
+func match_timer_left() -> float:
+	return _match_timer_left
+
+
+## True only in State.SUDDEN_DEATH. ui/HUD.gd may read this later (M6 A3's
+## own brief); MatchGifts._effective_special_frequency() reads it now, to
+## ramp the gift chance only once sudden death has actually started.
+func sudden_death_active() -> bool:
+	return _state == MatchAutoload.State.SUDDEN_DEATH
+
+
+## Ticked from Match._process()'s State.PLAYING branch. A no-op once the
+## timer has reached 0.0 (whether it was ever armed or already ran out), so a
+## match with config.match_timer_minutes == 0 -- timer "Off" -- never enters
+## sudden death no matter how long it plays (this file's own regression test).
+func _tick_match_timer(delta: float) -> void:
+	if _match_timer_left <= 0.0:
+		return
+	_match_timer_left = maxf(_match_timer_left - delta, 0.0)
+	if _match_timer_left <= 0.0 and _match.config != null and _match.config.sudden_death:
+		_begin_sudden_death()
+	# Spec 2.8: "Sudden death: Off/On ... on if match timer is set" by
+	# default, independently toggleable -- config.sudden_death == false with a
+	# set timer means the timer simply becomes cosmetic once it hits zero
+	# (this function's own doc header comment; also this package's plan
+	# doc). Falling through here (no transition) is exactly that: the match
+	# keeps running PLAYING under normal rules with no more timer.
+
+
+func _begin_sudden_death() -> void:
+	_sudden_death_elapsed = 0.0
+	_last_shrink_radius = INF
+	_set_state(MatchAutoload.State.SUDDEN_DEATH)
+
+
+## Ticked from Match._process()'s new State.SUDDEN_DEATH branch, alongside
+## the same three ticks State.PLAYING already runs (disconnect grace, feed,
+## territory) -- spec 2.8's three bullets: the gift-chance ramp is
+## MatchGifts._effective_special_frequency()'s own job (reads
+## sudden_death_active()/`_sudden_death_elapsed` above), so this function
+## only has to run the disk shrink and, once it has crumbled far enough, the
+## radius-8 tiebreak.
+func _tick_sudden_death(delta: float) -> void:
+	if _match.config == null:
+		return
+	_sudden_death_elapsed += delta
+
+	var tuning: TerritoryTuning = _match._territory_tuning
+	var field_radius: float = _match.config.map_def().field_radius
+	var interval: float = maxf(tuning.sudden_death_shrink_interval_s, 0.001)
+	# Spec 2.8: "crumbles inward by 1 m every 10 s" -- recomputed from total
+	# elapsed time rather than a second running accumulator, so a caller that
+	# fast-forwards with one large delta (a test, a client that missed a few
+	# frames) lands on exactly the same radius a real match reaches one frame
+	# at a time.
+	var steps: float = floor(_sudden_death_elapsed / interval)
+	var shrink_radius: float = field_radius - steps * tuning.sudden_death_shrink_step_m
+
+	if shrink_radius < _last_shrink_radius:
+		_last_shrink_radius = shrink_radius
+		_match._territory.shrink_to_radius(shrink_radius)
+
+	if shrink_radius <= tuning.sudden_death_tiebreak_radius_m:
+		_resolve_sudden_death_tiebreak()
+
+
+## Spec 2.8: "If nobody has won when the disk has shrunk to a radius of 8,
+## the player or team with the most territory wins." Guarded on _state still
+## being SUDDEN_DEATH so a tiebreak already resolved (or a natural win landed
+## the same tick) never calls _finish_match() a second time -- once this sets
+## State.END, Match._process()'s match statement no longer reaches
+## _tick_sudden_death() at all, so in practice this runs at most once, but the
+## guard costs nothing and documents the invariant.
+##
+## DECISION (autoload/match/MatchLifecycle.gd, M6 A3): ties broken by lowest
+## team id -- spec doesn't say, and an exact float tie between two teams'
+## territory share is a vanishingly unlikely edge case not worth a second
+## rule. `share > best_share` (strictly greater) rather than `>=` is what
+## makes that deterministic: iterating team ids in ascending order, the first
+## team to reach the current best share is the one that stays best on a tie.
+func _resolve_sudden_death_tiebreak() -> void:
+	if _state != MatchAutoload.State.SUDDEN_DEATH:
+		return
+	var best_team: int = 0
+	var best_share: float = -1.0
+	for t: int in range(_match.config.team_count()):
+		var share: float = _match._territory.territory_share(t)
+		if share > best_share:
+			best_share = share
+			best_team = t
+	_finish_match(best_team)
 
 
 # --- Slots and teams --------------------------------------------------------

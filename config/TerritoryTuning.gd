@@ -145,3 +145,24 @@ extends Resource
 ## Fraction of the reject impulse aimed straight up; the rest points radially
 ## outward from the disk center.
 @export var reject_upward_fraction: float = 0.35
+
+## -- Sudden death (spec 2.8's last row, M6 A3) -------------------------------
+## "Gift probability climbs toward the maximum of the finalized spawn model."
+## Seconds MatchGifts._effective_special_frequency() takes to lerp from
+## MatchConfig.special_frequency up to 100.0 (GiftConfig.frequency_to_chance_max
+## is that finalized model's own maximum chance, spec 2.6) once sudden death
+## starts, clamped there afterwards.
+##
+## DECISION (config/TerritoryTuning.gd, M6 A3): the spec names only the
+## direction ("climbs toward the maximum"), not a duration. 60 s is a round
+## number on the same order as the shrink schedule below (6 shrink steps) --
+## short enough that sudden death visibly escalates well before the disk has
+## crumbled to the radius-8 tiebreak on every map size, long enough not to
+## feel instantaneous. Tune freely by eye.
+@export var sudden_death_ramp_s: float = 60.0
+## "The disk's edge crumbles inward by 1 m every 10 s" (spec 2.8, verbatim).
+@export var sudden_death_shrink_interval_s: float = 10.0
+@export var sudden_death_shrink_step_m: float = 1.0
+## "If nobody has won when the disk has shrunk to a radius of 8, the player
+## or team with the most territory wins" (spec 2.8, verbatim).
+@export var sudden_death_tiebreak_radius_m: float = 8.0

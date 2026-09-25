@@ -312,6 +312,25 @@ func _lowest_alive_slot() -> int:
 	return -1
 
 
+## Spec 2.8's sudden-death bullet: "Gift probability climbs toward the
+## maximum of the finalized spawn model (2.6)." Outside sudden death this is
+## exactly `_match.config.special_frequency` (should_spawn()'s existing
+## input, unchanged behaviour); once MatchLifecycle.sudden_death_active() is
+## true it lerps monotonically toward 100.0 -- GiftConfig.frequency_to_chance_max
+## is already the finalized spawn model's own maximum spawn chance (spec
+## 2.6), so should_spawn() itself needs no change, only what frequency value
+## it is handed -- over TerritoryTuning.sudden_death_ramp_s, then clamps
+## there for the rest of the match. See that tunable's own DECISION for why
+## the ramp duration is not spec-given.
+func _effective_special_frequency() -> float:
+	var base_frequency: float = float(_match.config.special_frequency) if _match.config != null else 0.0
+	if not _match._lifecycle.sudden_death_active():
+		return base_frequency
+	var ramp_s: float = maxf(_match._territory_tuning.sudden_death_ramp_s, 0.001)
+	var t: float = clampf(_match._lifecycle._sudden_death_elapsed / ramp_s, 0.0, 1.0)
+	return lerpf(base_frequency, 100.0, t)
+
+
 func _try_spawn() -> void:
 	if _match.config == null or not _match.config.gifts_enabled:
 		return
@@ -320,7 +339,7 @@ func _try_spawn() -> void:
 	if raster == null or grid == null:
 		return
 	_ensure_rng()
-	if not GiftSpawner.should_spawn(_gift_config, float(_match.config.special_frequency), _crates.size(), _rng):
+	if not GiftSpawner.should_spawn(_gift_config, _effective_special_frequency(), _crates.size(), _rng):
 		return
 	var point: Vector2 = GiftSpawner.pick_spawn_point(raster, grid, _rng, _gift_config)
 	if GiftSpawner.is_no_spawn_point(point):
