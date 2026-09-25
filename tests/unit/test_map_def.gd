@@ -146,3 +146,104 @@ func test_every_shape_places_every_flag_on_solid_ground() -> void:
 					map_def.shape_contains(goal),
 					"shape %d goal flag %s (count %d) must be solid ground" % [shape, goal, goal_count]
 				)
+
+
+# --- A2a/A2b: Oval/Ring/Twin/Cross MapDef resources (docs/M6_PLAN.md A2a/A2b) --
+
+## for_variant_and_size() itself (config/MapDef.gd:200-205) never reads a
+## config/maps/<variant>_<size>.tres file by name -- for any non-ROUND variant
+## it duplicates for_size(size)'s cached ROUND resource and only overwrites
+## map_shape, so field_radius/cell_size/territory_res/etc are inherited from
+## the same-size Round resource by construction, not by a per-variant file.
+## Kept here (generalized to every non-ROUND shape x every size, not just
+## A0's single OVAL/MEDIUM spot check above) because the plan asks for exactly
+## this coverage even though it would pass unchanged whether or not A2a/A2b's
+## own .tres files below exist.
+func test_for_variant_and_size_non_round_matches_the_same_size_round_resource() -> void:
+	for size: MapDef.MapSize in [MapDef.MapSize.SMALL, MapDef.MapSize.MEDIUM, MapDef.MapSize.LARGE]:
+		var round_map: MapDef = MapDef.for_size(size)
+		for shape: MapDef.MapShape in [
+			MapDef.MapShape.OVAL, MapDef.MapShape.RING, MapDef.MapShape.TWIN, MapDef.MapShape.CROSS,
+		]:
+			var routed: MapDef = MapDef.for_variant_and_size(shape, size)
+			assert_eq(routed.map_shape, shape, "shape %d size %d must set map_shape" % [shape, size])
+			assert_almost_eq(
+				routed.field_radius, round_map.field_radius, 0.001,
+				"shape %d size %d field_radius must match the same-size Round resource" % [shape, size]
+			)
+			assert_almost_eq(
+				routed.cell_size, round_map.cell_size, 0.001,
+				"shape %d size %d cell_size must match the same-size Round resource" % [shape, size]
+			)
+
+
+## The 12 shipped config/maps/<variant>_<size>.tres resources (A2a/A2b). These
+## are not reached through for_variant_and_size() (see the DECISION above) --
+## they are validated by loading each file directly: map_shape/field_radius/
+## cell_size must match their same-size Round sibling, and every home/goal
+## flag position for player counts 2..8 / goal counts 1..5 must be solid
+## ground per that resource's own shape_contains(), using each map's real
+## field_radius (30/45/60) rather than this file's synthetic FIELD_RADIUS.
+const VARIANT_MAP_FILES: Dictionary = {
+	MapDef.MapShape.OVAL: ["oval_small", "oval_medium", "oval_large"],
+	MapDef.MapShape.RING: ["ring_small", "ring_medium", "ring_large"],
+	MapDef.MapShape.TWIN: ["twin_small", "twin_medium", "twin_large"],
+	MapDef.MapShape.CROSS: ["cross_small", "cross_medium", "cross_large"],
+}
+const ROUND_MAP_FILES: Array[String] = ["round_small", "round_medium", "round_large"]
+
+
+func test_shipped_variant_resources_load_and_match_their_round_sibling() -> void:
+	for shape: int in VARIANT_MAP_FILES.keys():
+		var names: Array = VARIANT_MAP_FILES[shape]
+		for i: int in range(names.size()):
+			var variant_map: MapDef = load("res://config/maps/%s.tres" % names[i]) as MapDef
+			assert_not_null(variant_map, "%s.tres must load as a MapDef" % names[i])
+			var round_map: MapDef = load("res://config/maps/%s.tres" % ROUND_MAP_FILES[i]) as MapDef
+			assert_eq(variant_map.map_shape, shape, "%s.tres must set map_shape" % names[i])
+			assert_almost_eq(
+				variant_map.field_radius, round_map.field_radius, 0.001,
+				"%s.tres field_radius must match %s.tres" % [names[i], ROUND_MAP_FILES[i]]
+			)
+			assert_almost_eq(
+				variant_map.cell_size, round_map.cell_size, 0.001,
+				"%s.tres cell_size must match %s.tres" % [names[i], ROUND_MAP_FILES[i]]
+			)
+
+
+func test_shipped_variant_resources_place_every_flag_on_solid_ground() -> void:
+	for shape: int in VARIANT_MAP_FILES.keys():
+		var names: Array = VARIANT_MAP_FILES[shape]
+		for map_name: String in names:
+			var map_def: MapDef = load("res://config/maps/%s.tres" % map_name) as MapDef
+			for slot_count: int in range(2, 9):
+				for slot_id: int in range(slot_count):
+					var home: Vector2 = map_def.home_flag_position(slot_id, slot_count)
+					assert_true(
+						map_def.shape_contains(home),
+						"%s.tres home flag %d/%d at %s must be solid ground"
+							% [map_name, slot_id, slot_count, home]
+					)
+			for goal_count: int in range(1, 6):
+				var goals: PackedVector2Array = map_def.goal_flag_positions(goal_count)
+				for goal: Vector2 in goals:
+					assert_true(
+						map_def.shape_contains(goal),
+						"%s.tres goal flag %s (count %d) must be solid ground"
+							% [map_name, goal, goal_count]
+					)
+
+
+# --- shipped per-variant resources are what for_variant_and_size() returns ----
+
+## A2a/A2b ship config/maps/<shape>_<size>.tres; for_variant_and_size() must
+## hand back that file (same resource_path) rather than the in-memory Round
+## duplicate fallback, for every non-Round shape and size.
+func test_for_variant_and_size_returns_the_shipped_variant_resource() -> void:
+	for shape: int in [MapDef.MapShape.OVAL, MapDef.MapShape.RING, MapDef.MapShape.TWIN, MapDef.MapShape.CROSS]:
+		for size: int in [MapDef.MapSize.SMALL, MapDef.MapSize.MEDIUM, MapDef.MapSize.LARGE]:
+			var path: String = MapDef.variant_resource_path(shape, size as MapDef.MapSize)
+			assert_true(ResourceLoader.exists(path), "%s should ship" % path)
+			var routed: MapDef = MapDef.for_variant_and_size(shape, size as MapDef.MapSize)
+			assert_eq(routed.resource_path, path)
+			assert_eq(routed.map_shape, shape as MapDef.MapShape)

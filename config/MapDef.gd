@@ -200,9 +200,26 @@ func shape_test() -> Callable:
 static func for_variant_and_size(variant: int, size: MapSize) -> MapDef:
 	if variant == MapShape.ROUND:
 		return for_size(size)
+	# DECISION: a shipped per-variant resource (config/maps/<shape>_<size>.tres,
+	# A2a/A2b data) wins when present; otherwise fall back to the same-size
+	# Round resource with only map_shape overridden, so a missing file degrades
+	# to this class's own shape defaults instead of failing to build a match.
+	var path: String = variant_resource_path(variant, size)
+	if ResourceLoader.exists(path):
+		var shipped: MapDef = load(path) as MapDef
+		if shipped != null:
+			return shipped
 	var result: MapDef = for_size(size).duplicate(true) as MapDef
 	result.map_shape = variant as MapShape
 	return result
+
+
+## res://config/maps/<shape>_<size>.tres for a MapVariant/MapShape ordinal and
+## a MapSize, e.g. "res://config/maps/ring_small.tres".
+static func variant_resource_path(variant: int, size: MapSize) -> String:
+	var shape_name: String = (MapShape.keys()[variant] as String).to_lower()
+	var size_name: String = (MapSize.keys()[size] as String).to_lower()
+	return "res://config/maps/%s_%s.tres" % [shape_name, size_name]
 
 
 ## Number of cells along one edge of the square grid that covers the disk.
