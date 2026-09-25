@@ -247,6 +247,16 @@ func countdown_remaining() -> float:
 	return _lifecycle.countdown_remaining()
 
 
+## Seconds left on the match timer (spec 2.8), 0.0 when off or run out.
+func match_timer_left() -> float:
+	return _lifecycle.match_timer_left()
+
+
+## True only in State.SUDDEN_DEATH (spec 2.8).
+func sudden_death_active() -> bool:
+	return _lifecycle.sudden_death_active()
+
+
 ## Spec 3.4: "The host is authoritative ... only the host runs physics." Every
 ## clock that decides something — the countdown, the feed timers and their
 ## auto-drops, the 10 Hz territory solve, the win check and the disconnect
@@ -265,6 +275,15 @@ func _process(delta: float) -> void:
 			_lifecycle._tick_disconnect_grace(delta)
 			_feed._tick_feed(delta)
 			_territory._tick_territory(delta)
+			_lifecycle._tick_match_timer(delta)
+		State.SUDDEN_DEATH:
+			# Spec 2.8 sudden death (M6 A3): normal play continues -- the same
+			# three ticks PLAYING runs -- plus the gift ramp / disk shrink /
+			# radius-8 tiebreak schedule in MatchLifecycle.
+			_lifecycle._tick_disconnect_grace(delta)
+			_feed._tick_feed(delta)
+			_territory._tick_territory(delta)
+			_lifecycle._tick_sudden_death(delta)
 		_:
 			pass
 

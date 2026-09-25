@@ -165,7 +165,7 @@ func _run_territory_step(delta: float) -> void:
 
 	Events.goal_capture_progress.emit(_win_checker.capturing_team(), _win_checker.capture_progress())
 
-	if _match.state() == MatchAutoload.State.PLAYING and _win_checker.winner() != WinChecker.NO_TEAM:
+	if MatchLifecycle.is_live_state(_match.state()) and _win_checker.winner() != WinChecker.NO_TEAM:
 		_match._lifecycle._finish_match(_win_checker.winner())
 
 
@@ -431,6 +431,50 @@ func punch_special_hole(world_pos: Vector2, radius_m: float, hole_open_s: float)
 			_raster.force_hole_cell(cx, cy, hole_open_s, permanent_holes)
 			if not was_hole:
 				opened.append(_cell_grid.cell_index(cx, cy))
+
+	if opened.size() > 0:
+		Events.hole_cells_changed.emit(opened, PackedInt32Array())
+		_check_home_flags(opened)
+
+
+# --- Sudden death disk shrink (spec 2.8, M6 A3) ------------------------------
+
+## Spec 2.8: "The disk's edge crumbles inward by 1 m every 10 s." Called by
+## MatchLifecycle._tick_sudden_death() with the current shrink radius (field
+## radius minus however many 1 m steps have elapsed); punches every currently
+## solid (not already a hole), still-in-disk cell whose center now falls
+## outside `radius_m` as a **permanent** hole -- regardless of the match's own
+## hole_mode, since a shrunk cell must never reopen.
+##
+## DECISION (autoload/match/MatchTerritory.gd, M6 A3): shrinking is expressed
+## entirely in the existing hole vocabulary (TerritoryRaster.force_hole_cell(),
+## the same mechanism punch_special_hole() above already proves for Jumping
+## Bean) rather than resizing CellGrid/rebuilding Field's trimesh -- A0
+## established that a whole-disk operation, not something to run every 10 s.
+## game/Field.gd needs no new code at all for sudden death: it already reacts
+## to set_hole_cells()/wakes bodies above a newly-opened cell exactly as it
+## does for a natural overlap hole.
+##
+## Monotonic by construction: a cell already a hole (`_raster.is_hole()` true)
+## is skipped, so calling this again -- even with a *larger* radius than a
+## previous call, which should never happen since the caller only ever shrinks
+## -- can never reopen a cell this function already punched; it can only ever
+## punch more.
+func shrink_to_radius(radius_m: float) -> void:
+	if not _match._is_host():
+		return
+	if _raster == null or _cell_grid == null:
+		return
+
+	var opened: PackedInt32Array = PackedInt32Array()
+	for index: int in _cell_grid.in_disk_cells():
+		var coords: Vector2i = _cell_grid.cell_coords(index)
+		if _raster.is_hole(coords.x, coords.y):
+			continue
+		if _cell_grid.index_center(index).length() <= radius_m:
+			continue
+		_raster.force_hole_cell(coords.x, coords.y, 0.0, true)
+		opened.append(index)
 
 	if opened.size() > 0:
 		Events.hole_cells_changed.emit(opened, PackedInt32Array())

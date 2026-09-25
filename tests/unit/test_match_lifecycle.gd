@@ -443,3 +443,26 @@ func test_build_slots_marks_exactly_the_trailing_ai_count_slots_as_bots() -> voi
 		assert_false(Match.slot(i).is_bot, "slot %d is a human seat" % i)
 	assert_true(Match.slot(4).is_bot, "the first trailing slot is a bot")
 	assert_true(Match.slot(5).is_bot, "the second trailing slot is a bot")
+
+
+# --- (i) M6 A3 regression: match_timer_minutes == 0 (Off) never arms sudden
+# death, no matter how it is toggled -----------------------------------------
+#
+# See tests/unit/test_sudden_death.gd for the full match-timer/sudden-death
+# contract; this one lives here (not there) because it is the one case this
+# package's own plan names as a test_match_lifecycle.gd append.
+
+func test_sudden_death_never_fires_with_match_timer_minutes_zero() -> void:
+	_host()
+	var config: MatchConfig = _config(2)
+	config.match_timer_minutes = 0
+	config.sudden_death = true
+	_main._on_lobby_start_requested(config)
+	_run_countdown()
+	assert_eq(Match.state(), Match.State.PLAYING, "fixture reaches PLAYING")
+	assert_almost_eq(Match.match_timer_left(), 0.0, 0.0001, "Off (0) never arms a timer")
+
+	for _i: int in range(5):
+		Match._process(1.0 / Engine.physics_ticks_per_second)
+
+	assert_eq(Match.state(), Match.State.PLAYING, "no timer means sudden death can never trigger")
