@@ -256,6 +256,18 @@ text = "Sudden death"
 unique_name_in_owner = true
 layout_mode = 2
 
+[node name="TurnBasedRow" type="HBoxContainer" parent="Margin/Columns/Settings"]
+layout_mode = 2
+
+[node name="TurnBasedLabel" type="Label" parent="Margin/Columns/Settings/TurnBasedRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(160, 0)
+text = "Turn-based (wait for blocks to settle)"
+
+[node name="TurnBasedCheck" type="CheckButton" parent="Margin/Columns/Settings/TurnBasedRow"]
+unique_name_in_owner = true
+layout_mode = 2
+
 [node name="Players" type="VBoxContainer" parent="Margin/Columns"]
 layout_mode = 2
 custom_minimum_size = Vector2(260, 0)

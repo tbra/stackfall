@@ -62,6 +62,7 @@ var net_provider: Variant = null
 @onready var _hole_mode_option: OptionButton = %HoleModeOption
 @onready var _match_timer_spin: SpinBox = %MatchTimerSpin
 @onready var _sudden_death_check: CheckButton = %SuddenDeathCheck
+@onready var _turn_based_check: CheckButton = %TurnBasedCheck
 @onready var _specials_checklist: VBoxContainer = %SpecialsChecklist
 
 @onready var _player_list: VBoxContainer = %PlayerList
@@ -95,7 +96,7 @@ func _ready() -> void:
 		_map_variant_option, _map_size_option, _player_count_spin, _ai_count_spin,
 		_ai_difficulty_option, _team_mode_option, _block_timer_slider, _gravity_slider,
 		_goal_flag_spin, _gifts_check, _special_freq_slider, _tilt_mode_option,
-		_hole_mode_option, _match_timer_spin, _sudden_death_check,
+		_hole_mode_option, _match_timer_spin, _sudden_death_check, _turn_based_check,
 	]
 	_settings_controls.append_array(_special_checkboxes)
 	_connect_control_signals()
@@ -201,6 +202,7 @@ func _connect_control_signals() -> void:
 	_match_timer_spin.value_changed.connect(_on_value_changed)
 	_gifts_check.toggled.connect(_on_toggled)
 	_sudden_death_check.toggled.connect(_on_toggled)
+	_turn_based_check.toggled.connect(_on_toggled)
 
 
 ## assets-audio package: UI button press/hover has no Events signal of its
@@ -278,6 +280,7 @@ func _config_from_controls() -> MatchConfig:
 	config.hole_mode = _hole_mode_option.selected
 	config.match_timer_minutes = int(_match_timer_spin.value)
 	config.sudden_death = _sudden_death_check.button_pressed
+	config.turn_based = _turn_based_check.button_pressed
 	config.enabled_specials = _enabled_specials_from_checkboxes()
 	return config
 
@@ -351,6 +354,7 @@ func _apply_data(data: Dictionary) -> void:
 	_hole_mode_option.selected = config.hole_mode
 	_match_timer_spin.value = config.match_timer_minutes
 	_sudden_death_check.button_pressed = config.sudden_death
+	_turn_based_check.button_pressed = config.turn_based
 	_apply_enabled_specials_to_checkboxes(config.enabled_specials)
 	_applying_remote_data = false
 
