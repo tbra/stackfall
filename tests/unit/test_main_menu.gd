@@ -50,6 +50,21 @@ func test_host_button_calls_host_game() -> void:
 	assert_eq(_fake_of(menu).host_game_calls.size(), 1)
 
 
+# --- Sandbox (docs/M6_PLAN.md package B1) ------------------------------------
+
+## game/Main.gd owns the seam this button reaches (start_sandbox_from_menu()),
+## the same "does not know about ... game/Main.gd" split ui/Lobby.gd's own
+## start_requested signal uses (test_lobby.gd's
+## test_start_pressed_emits_start_requested_only_when_ready): MainMenu only
+## has to prove pressing %SandboxButton reaches its own signal, not that Main
+## reacts to it (a separate, game/Main.gd-owned seam).
+func test_sandbox_button_emits_sandbox_requested() -> void:
+	var menu: MainMenu = _make_menu()
+	watch_signals(menu)
+	(menu.get_node("%SandboxButton") as Button).pressed.emit()
+	assert_signal_emitted(menu, "sandbox_requested")
+
+
 func test_direct_join_calls_join_game_with_parsed_address() -> void:
 	var menu: MainMenu = _make_menu()
 	(menu.get_node("%DirectIpEdit") as LineEdit).text = "10.0.0.5:47778"

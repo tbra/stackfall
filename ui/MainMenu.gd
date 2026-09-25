@@ -3,10 +3,10 @@ extends Control
 ## The game's front door (spec 3.4 "LAN discovery"; docs/M3a_PLAN.md P4).
 ##
 ## Owner decision (docs/M3a_PLAN.md question 3): hot-seat is unlisted — this
-## menu offers only Host, Join (LAN list or direct IP) and Quit. Hot-seat is
-## reachable solely through the `--hot-seat` command-line flag, which
-## `Net.apply_command_line()` / `game/Main.gd` handle before this scene is
-## even shown.
+## menu offers only Host, Join (LAN list or direct IP), Sandbox (docs/
+## M6_PLAN.md package B1, spec 2.7) and Quit. Hot-seat is reachable solely
+## through the `--hot-seat` command-line flag, which `Net.apply_command_
+## line()` / `game/Main.gd` handle before this scene is even shown.
 ##
 ## Connects to Events and calls Net directly, the same "no deep node paths"
 ## convention ui/HUD.gd uses; it does not know about ui/Lobby.gd or
@@ -20,8 +20,20 @@ extends Control
 ## add_child().
 var net_provider: Variant = null
 
+## docs/M6_PLAN.md package B1: game/Main.gd instantiates this scene directly
+## (`_show_main_menu()`) and connects to this signal the same way it connects
+## to ui/Lobby.gd's own `start_requested` -- a direct child-signal connection,
+## not the Events bus, since Main already owns this node's lifetime and this
+## menu "does not know about ... game/Main.gd" (this file's own header
+## comment above). Sandbox is still unlisted in the sense that spec 3.4 never
+## asked for it in the Host/Join/Quit set this header describes, but the
+## Main Menu is the one entry point spec 2.7 gives it (unlike hot-seat, which
+## stays command-line only).
+signal sandbox_requested
+
 @onready var _name_edit: LineEdit = %NameEdit
 @onready var _host_button: Button = %HostButton
+@onready var _sandbox_button: Button = %SandboxButton
 @onready var _quit_button: Button = %QuitButton
 @onready var _game_list: ItemList = %GameList
 @onready var _refresh_button: Button = %RefreshButton
@@ -53,6 +65,7 @@ var _steam_refresh_countdown_s: float = 0.0
 func _ready() -> void:
 	net_provider = Net
 	_host_button.pressed.connect(_on_host_pressed)
+	_sandbox_button.pressed.connect(_on_sandbox_pressed)
 	_quit_button.pressed.connect(_on_quit_pressed)
 	_refresh_button.pressed.connect(_on_refresh_pressed)
 	_direct_join_button.pressed.connect(_on_direct_join_pressed)
@@ -89,7 +102,7 @@ func _exit_tree() -> void:
 ## exception to "Sfx listens, nothing calls it" (autoload/Sfx.gd's header).
 func _connect_click_and_hover_sounds() -> void:
 	var buttons: Array[BaseButton] = [
-		_host_button, _quit_button, _refresh_button, _direct_join_button,
+		_host_button, _sandbox_button, _quit_button, _refresh_button, _direct_join_button,
 		_host_online_button, _refresh_steam_button,
 	]
 	for button: BaseButton in buttons:
@@ -109,6 +122,10 @@ func _on_host_pressed() -> void:
 	var err: Error = net_provider.host_game(0, _player_name())
 	if err != OK:
 		_show_status("Could not host: %s" % error_string(err))
+
+
+func _on_sandbox_pressed() -> void:
+	sandbox_requested.emit()
 
 
 func _on_refresh_pressed() -> void:

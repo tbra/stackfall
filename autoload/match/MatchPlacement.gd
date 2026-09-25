@@ -189,6 +189,20 @@ func request_place(
 	else:
 		disk_origin = hit as Vector2
 		result = PlacementRules.validate_point(disk_origin, _match.raster(), team_id)
+		# DECISION (autoload/match/MatchPlacement.gd, docs/M6_PLAN.md package
+		# B1, spec 2.7 "Sandbox: no territory limits"): only the two
+		# territory-ownership outcomes are waived here -- OFF_DISK (the
+		# hit == null branch above, which never reaches this remap), HOLE and
+		# GOAL_ZONE all stay refused, since the spec line is "no territory
+		# limits", not "place blocks in the void or through a hole/goal
+		# zone". core/rules/PlacementRules.gd itself stays config-agnostic;
+		# this is the one call site that already knows about config.sandbox
+		# (autoload/match/MatchLifecycle.gd:121's own precedent).
+		if _match.config.sandbox and (
+			result == PlacementRules.Result.OUTSIDE_TERRITORY
+			or result == PlacementRules.Result.CONTESTED
+		):
+			result = PlacementRules.Result.VALID
 	if result != PlacementRules.Result.VALID and auto_drop:
 		relocated = PlacementRules.closest_valid_point(disk_origin, _match.raster(), team_id, _match._territory_tuning)
 	var outcome: Dictionary = _resolve_outcome(result, auto_drop, relocated)
@@ -349,6 +363,14 @@ func request_throw(
 	else:
 		disk_origin = hit as Vector2
 		result = ThrowRules.validate_release_point(disk_origin, _match.raster(), team_id)
+		# DECISION (autoload/match/MatchPlacement.gd, docs/M6_PLAN.md package
+		# B1): the throw-path twin of request_place()'s own sandbox remap
+		# above -- same waived outcomes, same reasoning.
+		if _match.config.sandbox and (
+			result == PlacementRules.Result.OUTSIDE_TERRITORY
+			or result == PlacementRules.Result.CONTESTED
+		):
+			result = PlacementRules.Result.VALID
 	if result != PlacementRules.Result.VALID:
 		# docs/M4_P2_PACKAGES.md P2c: "a refused throw keeps the piece in
 		# hand, like a refused click; never burns" -- mirrors request_place()'s

@@ -231,6 +231,28 @@ func _start_sandbox_match_with_args(args: PackedStringArray) -> void:
 		_sandbox.force_special_by_id(StringName(forced))
 
 
+## The Main Menu's own entry point (docs/M6_PLAN.md package B1; ui/MainMenu.
+## gd's %SandboxButton, wired to this signal in _show_main_menu() below),
+## unlike _start_sandbox_match()'s CLI-only one above: reachable only once
+## the ordinary menu/lobby path in _ready() has already connected Events.
+## match_state_changed, so Match.start_match()'s own (LOBBY -> LOADING) emit
+## inside _start_sandbox_match_with_args() below would otherwise also run
+## _build_match_world() -- which builds a *HotSeat*-driven world, not this
+## function's own Sandbox one, and duplicates the field rebuild/overlay/
+## debug-overlay work _start_sandbox_match_with_args() already does.
+##
+## DECISION (game/Main.gd, package B1): set _world_built true first so that
+## duplicate _build_match_world() call is the same guarded no-op every one of
+## its other re-entrant calls already is (see its own `if _world_built:
+## return`), instead of teaching _on_match_state_changed() a new sandbox-
+## from-menu case. _start_sandbox_match_with_args([]) below still runs
+## byte-identical to the CLI path: default player count, no forced special.
+func start_sandbox_from_menu() -> void:
+	_clear_menu_and_lobby()
+	_world_built = true
+	_start_sandbox_match_with_args(PackedStringArray())
+
+
 ## Same lobby-settings-minus-a-few-overrides shape as _build_hot_seat_config().
 ## config.sandbox is what lets MatchConfig.sanitize() allow `player_count`
 ## below spec 2.8's normal floor of 2, and tells Match to start with its feed
@@ -497,6 +519,7 @@ func _show_main_menu() -> void:
 	_clear_menu_and_lobby()
 	_main_menu = MAIN_MENU_SCENE.instantiate() as MainMenu
 	add_child(_main_menu)
+	_main_menu.sandbox_requested.connect(start_sandbox_from_menu)
 
 
 func _show_lobby() -> void:
