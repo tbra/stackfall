@@ -171,12 +171,114 @@ func test_team_of_slot_is_free_for_all_by_default() -> void:
 	assert_eq(config.team_count(), 4)
 
 
+## TeamMode.OFF is free-for-all for every player_count, byte-identical to
+## today's one team per slot -- not just the 4-player case the test above
+## already covers.
+func test_team_of_slot_off_matches_slot_id_for_every_player_count() -> void:
+	for player_count: int in range(MatchConfig.PLAYER_COUNT_MIN, MatchConfig.PLAYER_COUNT_MAX + 1):
+		var config: MatchConfig = MatchConfig.new()
+		config.team_mode = MatchConfig.TeamMode.OFF
+		config.player_count = player_count
+		assert_eq(config.team_count(), player_count, "OFF: team_count() == player_count for %d players" % player_count)
+		for slot_id: int in range(player_count):
+			assert_eq(config.team_of_slot(slot_id), slot_id, "OFF: team_of_slot(%d) == %d" % [slot_id, slot_id])
+
+
+## Spec 2.8 "Teams: Off / 2 / 3 / 4": every real team mode, for every
+## player_count in 2..8. Assignment interleaves (slot_id % team_count),
+## team_count() never exceeds player_count (mini() guard: TEAMS_4 with 2
+## players still returns 2 teams, never 4 with two of them permanently
+## empty), and every team from 0 until team_count() has at least one slot.
+func test_team_of_slot_interleaves_for_every_team_mode_and_player_count() -> void:
+	var modes_and_sizes: Array[Array] = [
+		[MatchConfig.TeamMode.TEAMS_2, 2],
+		[MatchConfig.TeamMode.TEAMS_3, 3],
+		[MatchConfig.TeamMode.TEAMS_4, 4],
+	]
+	for entry: Array in modes_and_sizes:
+		var mode: MatchConfig.TeamMode = entry[0]
+		var team_size: int = entry[1]
+		for player_count: int in range(MatchConfig.PLAYER_COUNT_MIN, MatchConfig.PLAYER_COUNT_MAX + 1):
+			var config: MatchConfig = MatchConfig.new()
+			config.team_mode = mode
+			config.player_count = player_count
+			var expected_team_count: int = mini(team_size, player_count)
+			assert_eq(
+				config.team_count(), expected_team_count,
+				"mode=%d player_count=%d team_count()" % [mode, player_count]
+			)
+			var seen_teams: Dictionary = {}
+			for slot_id: int in range(player_count):
+				var team_id: int = config.team_of_slot(slot_id)
+				assert_eq(
+					team_id, posmod(slot_id, expected_team_count),
+					"mode=%d player_count=%d slot=%d interleaves" % [mode, player_count, slot_id]
+				)
+				assert_between(team_id, 0, expected_team_count - 1)
+				seen_teams[team_id] = true
+			assert_eq(
+				seen_teams.size(), expected_team_count,
+				"mode=%d player_count=%d: no team is ever empty" % [mode, player_count]
+			)
+
+
 func test_map_def_resolves_from_map_size() -> void:
 	var config: MatchConfig = MatchConfig.new()
 	config.map_size = MapDef.MapSize.SMALL
 	assert_almost_eq(config.field_radius(), MapDef.RADIUS_SMALL, 0.001)
 	config.map_size = MapDef.MapSize.LARGE
 	assert_almost_eq(config.field_radius(), MapDef.RADIUS_LARGE, 0.001)
+
+
+## map_def() routes through map_variant (config/MapDef.gd's for_variant_and_size),
+## for every variant x size combination -- spot-checked against calling that
+## static func directly. ROUND stays byte-identical to for_size() alone.
+func test_map_def_routes_through_map_variant() -> void:
+	var variants: Array[MatchConfig.MapVariant] = [
+		MatchConfig.MapVariant.ROUND,
+		MatchConfig.MapVariant.OVAL,
+		MatchConfig.MapVariant.RING,
+		MatchConfig.MapVariant.TWIN,
+		MatchConfig.MapVariant.CROSS,
+	]
+	var sizes: Array[MapDef.MapSize] = [MapDef.MapSize.SMALL, MapDef.MapSize.MEDIUM, MapDef.MapSize.LARGE]
+	for variant: MatchConfig.MapVariant in variants:
+		for size: MapDef.MapSize in sizes:
+			var config: MatchConfig = MatchConfig.new()
+			config.map_variant = variant
+			config.map_size = size
+			var expected: MapDef = MapDef.for_variant_and_size(int(variant), size)
+			var actual: MapDef = config.map_def()
+			assert_eq(actual.map_shape, expected.map_shape, "variant=%d size=%d map_shape" % [variant, size])
+			assert_almost_eq(actual.field_radius, expected.field_radius, 0.001, "variant=%d size=%d field_radius" % [variant, size])
+
+
+func test_map_def_round_is_byte_identical_to_for_size() -> void:
+	for size: MapDef.MapSize in [MapDef.MapSize.SMALL, MapDef.MapSize.MEDIUM, MapDef.MapSize.LARGE]:
+		var config: MatchConfig = MatchConfig.new()
+		config.map_variant = MatchConfig.MapVariant.ROUND
+		config.map_size = size
+		var expected: MapDef = MapDef.for_size(size)
+		var actual: MapDef = config.map_def()
+		assert_eq(actual.id, expected.id, "ROUND: map_def() resolves the same map id as for_size(size)")
+		assert_eq(actual.map_shape, expected.map_shape)
+		assert_almost_eq(actual.field_radius, expected.field_radius, 0.001)
+
+
+## turn_based defaults false, and round-trips through to_dict()/from_dict()
+## in both directions.
+func test_turn_based_round_trips() -> void:
+	assert_false(MatchConfig.new().turn_based, "turn_based defaults to false")
+
+	var config: MatchConfig = MatchConfig.new()
+	config.turn_based = true
+	var restored: MatchConfig = MatchConfig.from_dict(config.to_dict())
+	assert_true(restored.turn_based, "true round-trips through to_dict()/from_dict()")
+
+	var config_false: MatchConfig = MatchConfig.new()
+	config_false.turn_based = false
+	var restored_false: MatchConfig = MatchConfig.from_dict(config_false.to_dict())
+	assert_false(restored_false.turn_based, "false round-trips through to_dict()/from_dict()")
 
 
 # --- HoleMode.TEMPORARY, the default again (Bontago-cmc.7) --------------------

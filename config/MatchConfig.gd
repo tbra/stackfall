@@ -61,6 +61,13 @@ enum HoleMode { TEMPORARY, PERMANENT, OFF }
 ## Match timer in minutes; 0 is off, otherwise 10-40 (spec 2.8).
 @export var match_timer_minutes: int = 0
 @export var sudden_death: bool = false
+## Spec 2.7 "Turn-based [NEW]": physics settles completely before the next
+## player's turn starts. Orthogonal to team_mode and to hot_seat (M2's own
+## single-PC test harness, spec Part 4 M2: "must not become normal play") --
+## turn_based is a real, networkable mode B4 implements against active_slot/
+## advance_turn(), the same machinery hot_seat already uses for its own,
+## different (instant hand-off) trigger.
+@export var turn_based: bool = false
 
 ## -- Beyond the 2.8 table ---------------------------------------------------
 ## Spec "Still open" 1: was the block timer shared or per player? The spec's
@@ -131,24 +138,49 @@ const SPECIAL_FREQUENCY_MIN: int = 0
 const SPECIAL_FREQUENCY_MAX: int = 100
 
 
-## The MapDef this config's map_size selects.
+## The MapDef this config's map_variant + map_size select.
 func map_def() -> MapDef:
-	return MapDef.for_size(map_size)
+	return MapDef.for_variant_and_size(map_variant, map_size)
 
 
 func field_radius() -> float:
 	return map_def().field_radius
 
 
+## Number of teams `mode` selects (TeamMode.OFF excluded -- team_count()
+## already special-cases it before ever calling this). TeamMode's own
+## ordinals encode the count directly: TEAMS_2/3/4 sit at ordinals 1/2/3, one
+## below the team count each name promises, so `int(mode) + 1` reads it back
+## with no lookup table that could drift from the enum if a fifth team size
+## were ever added.
+func team_mode_team_count(mode: TeamMode) -> int:
+	return int(mode) + 1
+
+
 ## How many teams this config has. TeamMode.OFF is free-for-all, which is
 ## modelled as one team per player so the rest of the code never branches.
 func team_count() -> int:
-	return player_count
+	if team_mode == TeamMode.OFF:
+		return player_count
+	return mini(team_mode_team_count(team_mode), player_count)
 
 
 ## Which team a slot belongs to. Free-for-all gives every slot its own team.
+##
+## DECISION (config/MatchConfig.gd): teams interleave (`slot_id %
+## team_count`) rather than block-assign (first half one team, second half
+## the other). MapDef.home_flag_position() already spaces every slot's home
+## flag evenly around the disk by `slot_id` (config/MapDef.gd:221-223), so
+## interleaving spreads each team's starting positions around the disk
+## instead of clustering them on one arc -- a reasonable default reading of
+## "exact original team-win/home-anchor semantics remain unverified" (spec
+## 2.2). `mini(..., player_count)` in team_count() guards the degenerate case
+## (TEAMS_4 with player_count == 2: team_count() returns 2, not 4, so no team
+## is ever empty).
 func team_of_slot(slot_id: int) -> int:
-	return slot_id
+	if team_mode == TeamMode.OFF:
+		return slot_id
+	return posmod(slot_id, team_count())
 
 
 ## Bontago-mv0.7: networked play only has as many real players as connected
@@ -196,6 +228,7 @@ func sanitize() -> void:
 	tilt_mode = clampi(tilt_mode, TiltMode.SPECIALS_ONLY, TiltMode.PHYSICAL_BALANCE)
 	hole_mode = clampi(hole_mode, HoleMode.TEMPORARY, HoleMode.OFF) as HoleMode
 	match_timer_minutes = maxi(match_timer_minutes, 0)
+	# turn_based is a plain bool -- no range to clamp.
 	if player_colors.size() < PLAYER_COUNT_MAX:
 		var defaults: PackedColorArray = default_player_colors()
 		var padded: PackedColorArray = player_colors.duplicate()
@@ -223,6 +256,7 @@ func to_dict() -> Dictionary:
 		"hole_mode": hole_mode,
 		"match_timer_minutes": match_timer_minutes,
 		"sudden_death": sudden_death,
+		"turn_based": turn_based,
 		"per_player_timer": per_player_timer,
 		"hot_seat": hot_seat,
 		"player_colors": player_colors.duplicate(),
@@ -253,6 +287,7 @@ static func from_dict(data: Dictionary) -> MatchConfig:
 	config.hole_mode = int(data.get("hole_mode", config.hole_mode))
 	config.match_timer_minutes = int(data.get("match_timer_minutes", config.match_timer_minutes))
 	config.sudden_death = bool(data.get("sudden_death", config.sudden_death))
+	config.turn_based = bool(data.get("turn_based", config.turn_based))
 	config.per_player_timer = bool(data.get("per_player_timer", config.per_player_timer))
 	config.hot_seat = bool(data.get("hot_seat", config.hot_seat))
 	if data.has("player_colors"):
