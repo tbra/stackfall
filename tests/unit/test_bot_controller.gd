@@ -125,6 +125,21 @@ class BotControllerForcedNoise:
 		return forced_noise
 
 
+## Bontago-d5c.11 item 1 regression: canned raycast results keyed by the
+## disk-local point _raycast_support_height() would be asked for, so a test
+## can force one footprint corner to be a genuine miss (a hole) while a
+## sibling corner reports the identical fallback height as a real hit,
+## without needing a physics world or Field-level hole punching -- the
+## brief's own fallback ("If a real physics raycast is impractical in the
+## unit test, test the counting logic through the dictionary contract").
+class BotControllerForcedRaycasts:
+	extends BotController
+	var canned: Dictionary = {}
+
+	func _raycast_support_height(local_xz: Vector2) -> Dictionary:
+		return canned.get(local_xz, {"height": 0.0, "collider": null, "hit": false})
+
+
 ## Bontago-d5c.10 (item C): writes a known, fixed rotation onto a Field's own
 ## transform from inside a physics tick, then goes idle -- the memory'd
 ## convention for a Field write (game/Field.gd's own DECISION on
@@ -510,6 +525,125 @@ func test_fire_stability_raycasts_counts_only_corners_within_tolerance() -> void
 	)
 
 
+## Bontago-d5c.11 item 1 (review fix, MAJOR regression): before the fix, a
+## genuine miss (nothing directly below a footprint corner -- a hole) and a
+## real hit both reported the same shape (no explicit flag, `"height": 0.0`
+## as the safe fallback), so whenever a candidate's own `support_height`
+## happened to be 0.0 too, a hole corner counted as flush contact. Both
+## corners here canned-report the identical fallback height (0.0); only
+## `corner_b`'s dictionary carries `"hit": true`. If the old counting logic
+## regressed back in, this would report 2 (both "match" 0.0), not 1.
+func test_fire_stability_raycasts_excludes_a_hole_corner_even_at_a_matching_fallback_height() -> void:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	match_ref.cell_grid_value = CellGrid.new(field.map_def.field_radius, field.map_def.cell_size)
+	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
+	var controller: BotControllerForcedRaycasts = BotControllerForcedRaycasts.new()
+	add_child_autofree(controller)
+	controller.set_match_provider(match_ref)
+	controller.set_net_provider(net_ref)
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+
+	var grid: CellGrid = match_ref.cell_grid_value
+	var two_wide_shape: BlockShape = BlockShape.new()
+	two_wide_shape.cells = [Vector3i(0, 0, 0), Vector3i(1, 0, 0)]
+	var basis: Basis = BlockOrientations.get_basis(0)
+	var footprint: PackedInt32Array = PlacementRules.footprint_cells(
+		two_wide_shape.cells, basis, Vector2.ZERO, field.tuning.cube_size, grid
+	)
+	assert_eq(footprint.size(), 2, "fixture: the two-wide shape covers exactly two footprint cells")
+	var corner_a: Vector2 = grid.index_center(footprint[0])
+	var corner_b: Vector2 = grid.index_center(footprint[1])
+
+	controller.canned[corner_a] = {"height": 0.0, "collider": null, "hit": false}
+	controller.canned[corner_b] = {"height": 0.0, "collider": null, "hit": true}
+
+	var candidate: BotCandidate = BotCandidate.new()
+	candidate.origin = Vector2.ZERO
+	candidate.support_height = 0.0
+	controller._fire_stability_raycasts(candidate, footprint, grid)
+
+	assert_eq(
+		candidate.corner_support_hits, 1,
+		"the hole corner (hit: false) must never count as support, even though its fallback height matches support_height"
+	)
+
+
+# --- Bontago-d5c.11 items 2/3: skip triggered specials, sort output ---------
+
+## Bontago-d5c.11 item 2 (review fix): a spent special's SpecialBehavior node
+## lingers in game/specials/SpecialBehavior.GROUP until its Block is actually
+## freed (is_triggered() flips true on trigger() but nothing removes the node
+## from the group before then) -- _active_special_positions() must skip it.
+func test_active_special_positions_skips_already_triggered_specials() -> void:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
+	var controller: BotController = _make_controller(field, match_ref, net_ref)
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+
+	var live_block: Node3D = Node3D.new()
+	add_child_autofree(live_block)
+	live_block.global_position = Vector3(4.0, 1.0, -2.0)
+	var live_behavior: SpecialBehavior = SpecialBehavior.new()
+	live_block.add_child(live_behavior)
+	autofree(live_behavior)
+	live_behavior.add_to_group(SpecialBehavior.GROUP)
+
+	var spent_block: Node3D = Node3D.new()
+	add_child_autofree(spent_block)
+	spent_block.global_position = Vector3(1.0, 1.0, 1.0)
+	var spent_behavior: SpecialBehavior = SpecialBehavior.new()
+	spent_block.add_child(spent_behavior)
+	autofree(spent_behavior)
+	spent_behavior._has_triggered = true
+	spent_behavior.add_to_group(SpecialBehavior.GROUP)
+
+	var positions: PackedVector2Array = controller._active_special_positions()
+
+	assert_eq(positions.size(), 1, "only the still-live special counts")
+	assert_almost_eq(positions[0].x, 4.0, 0.001, "the live special's own disk-local x")
+	assert_almost_eq(positions[0].y, -2.0, 0.001, "the live special's own disk-local y")
+
+
+## Bontago-d5c.11 item 3 (review fix): get_nodes_in_group() iteration order is
+## not a stable contract, so the result must be sorted (Vector2's own `<`:
+## x, then y) regardless of the order the two behaviors were added in.
+func test_active_special_positions_sorts_by_x_then_y() -> void:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
+	var controller: BotController = _make_controller(field, match_ref, net_ref)
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+
+	# Added in reverse spatial order: the higher-x one first.
+	var block_high_x: Node3D = Node3D.new()
+	add_child_autofree(block_high_x)
+	block_high_x.global_position = Vector3(9.0, 1.0, 0.0)
+	var behavior_high_x: SpecialBehavior = SpecialBehavior.new()
+	block_high_x.add_child(behavior_high_x)
+	autofree(behavior_high_x)
+	behavior_high_x.add_to_group(SpecialBehavior.GROUP)
+
+	var block_low_x: Node3D = Node3D.new()
+	add_child_autofree(block_low_x)
+	block_low_x.global_position = Vector3(2.0, 1.0, 0.0)
+	var behavior_low_x: SpecialBehavior = SpecialBehavior.new()
+	block_low_x.add_child(behavior_low_x)
+	autofree(behavior_low_x)
+	behavior_low_x.add_to_group(SpecialBehavior.GROUP)
+
+	var positions: PackedVector2Array = controller._active_special_positions()
+
+	assert_eq(positions.size(), 2, "fixture: both live specials found")
+	assert_true(
+		positions[0].x <= positions[1].x,
+		"positions must come out sorted ascending by x regardless of group insertion order"
+	)
+	assert_almost_eq(positions[0].x, 2.0, 0.001, "the lower-x special sorts first")
+	assert_almost_eq(positions[1].x, 9.0, 0.001, "the higher-x special sorts second")
+
+
 # --- Bontago-d5c.8 (M5 P3b-ii item A): a placed special's own place_target --
 
 ## HARD (uses_offensive_specials = true) with a held Rocket: core/ai/
@@ -676,6 +810,45 @@ func test_send_throw_rotates_the_planners_velocity_through_the_field_basis() -> 
 		actual_velocity.distance_to(expected_action.throw_velocity) > 0.05,
 		"fixture: the tilt must actually change the vector -- otherwise this test cannot tell the fix from the bug"
 	)
+
+
+# --- Bontago-d5c.11 item 5: territory sampling excludes goal zones ----------
+
+## _sample_territory_point() must never accept a point PlacementRules.
+## validate_point() would itself refuse: this team owns the whole disk (same
+## whole-disk-circle fixture as the Rocket test above), but a goal zone is
+## stamped well away from the bot's own home flag (so the fallback home
+## position, which the function returns only when every attempt fails, can
+## never itself land in the zone and mask a real bug) and large enough that a
+## pre-fix `team_at()`-only check would land inside it constantly over many
+## samples.
+func test_sample_territory_point_never_lands_in_a_goal_zone() -> void:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	var territory_tuning: TerritoryTuning = preload("res://config/territory_tuning.tres")
+	match_ref.cell_grid_value = CellGrid.new(field.map_def.field_radius, field.map_def.cell_size)
+	match_ref.raster_value = TerritoryRaster.new(match_ref.cell_grid_value, territory_tuning)
+	var solver: TerritorySolver = TerritorySolver.new(territory_tuning)
+	var whole_disk_circles: Array[InfluenceCircle] = [
+		InfluenceCircle.new(Vector2.ZERO, field.map_def.field_radius * 2.0, 0, 0, true, -1)
+	]
+	match_ref.raster_value.update(whole_disk_circles, solver.solve(whole_disk_circles), 0.1, false, false)
+	# Slot 0's own home is (1, 0) (_make_ready_match()); the goal zone sits at
+	# (5, 0) with a 2.5 m radius, so home is well outside it and every sampled
+	# point that lands inside the zone is a genuine regression, not the
+	# fallback.
+	match_ref.raster_value.set_goal_zones(PackedVector2Array([Vector2(5.0, 0.0)]), 2.5)
+	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
+	var controller: BotController = _make_controller(field, match_ref, net_ref)
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+
+	for _i: int in range(200):
+		var point: Vector2 = controller._sample_territory_point(0)
+		var cell: Vector2i = match_ref.cell_grid_value.world_to_cell(point)
+		assert_false(
+			match_ref.raster_value.is_goal_zone(cell.x, cell.y),
+			"sampled territory point %s must never fall inside a goal flag's no-build zone" % point
+		)
 
 
 # --- Bontago-d5c.10 (item F): real enemy circle centers + active specials ---
