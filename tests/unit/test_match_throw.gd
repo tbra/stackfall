@@ -304,8 +304,14 @@ func test_auto_drop_burn_does_not_consume_the_pending_special() -> void:
 	_install_test_def(def)
 	assert_eq(Match.pending_special_count(slot_id), 1, "setup")
 
-	# Far enough off the disk that closest_valid_point() finds nothing within
-	# auto_drop_search_max_radius -- guarantees the burn path, not a relocation.
+	# Bontago-xtq.23: closest_valid_point() now falls back to a full-disk
+	# scan, so an origin merely far away no longer forces the burn path by
+	# itself -- the scan would still find slot_id's own territory and
+	# relocate there. Blanking its owned cells in the live raster first
+	# (TerritoryTestHelpers.blank_owned_territory()) makes the team genuinely
+	# own no valid point anywhere, guaranteeing the burn path, not a
+	# relocation.
+	TerritoryTestHelpers.blank_owned_territory(Match.raster(), Match.team_of(slot_id))
 	var far_world: Vector3 = _field.to_global(Vector3(5000.0, 5.0, 5000.0))
 	var reason: StringName = Match.request_place(slot_id, far_world, 0, Quaternion.IDENTITY, true)
 
@@ -399,6 +405,11 @@ func test_auto_drop_burn_never_emits_special_consumed() -> void:
 	_install_test_def(def)
 	watch_signals(Events)
 
+	# Bontago-xtq.23: guarantee the genuine no-valid-point-anywhere case (see
+	# test_auto_drop_burn_does_not_consume_the_pending_special's own comment)
+	# rather than relying on distance, which the full-disk scan fallback now
+	# always resolves to a relocation instead.
+	TerritoryTestHelpers.blank_owned_territory(Match.raster(), Match.team_of(slot_id))
 	var far_world: Vector3 = _field.to_global(Vector3(5000.0, 5.0, 5000.0))
 	var reason: StringName = Match.request_place(slot_id, far_world, 0, Quaternion.IDENTITY, true)
 
