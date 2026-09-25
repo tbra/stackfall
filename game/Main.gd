@@ -166,6 +166,7 @@ func _start_hot_seat_match() -> void:
 	Match.start_match(_build_hot_seat_config())
 
 	var config: MatchConfig = Match.config
+	_field.rebuild_for_map(config.map_def())
 	_field.place_flags(config.player_count, config.player_colors, config.goal_flag_count)
 	_field.set_overlay_source(Match.raster(), config.player_colors)
 	_skybox.load_set(config.map_def().skybox_set)
@@ -208,6 +209,7 @@ func _start_sandbox_match_with_args(args: PackedStringArray) -> void:
 	Match.start_match(_build_sandbox_config(_sandbox_player_count(args)))
 
 	var config: MatchConfig = Match.config
+	_field.rebuild_for_map(config.map_def())
 	_field.place_flags(config.player_count, config.player_colors, config.goal_flag_count)
 	_field.set_overlay_source(Match.raster(), config.player_colors)
 	_skybox.load_set(config.map_def().skybox_set)
@@ -583,6 +585,7 @@ func _build_match_world() -> void:
 	_clear_menu_and_lobby()
 
 	var config: MatchConfig = Match.config
+	_field.rebuild_for_map(config.map_def())
 	_field.place_flags(config.player_count, config.player_colors, config.goal_flag_count)
 	_field.set_overlay_source(Match.raster(), config.player_colors)
 	_skybox.load_set(config.map_def().skybox_set)

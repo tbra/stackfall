@@ -86,6 +86,9 @@ var _toggle_head: int = 0
 ## The disk's one collision shape and the one shape owner carrying it.
 var _disk_shape: ConcavePolygonShape3D = null
 var _disk_owner_id: int = -1
+## The kill-plane Area3D _build_kill_plane() built last, so rebuild_for_map()
+## can free it before building a fresh one sized to the new map_def.
+var _kill_plane_area: Area3D = null
 ## Grid line coordinates, disk-local meters: line i is the -x (or -z) edge of
 ## column (or row) i, so cell (cx, cy) spans lines cx..cx+1 and cy..cy+1.
 var _grid_lines: PackedFloat32Array = PackedFloat32Array()
@@ -156,7 +159,7 @@ func _ready() -> void:
 	# field itself (this scene, Main, that test) working exactly as it did as
 	# a StaticBody3D, right up until a match actually turns tilt on.
 	sync_to_physics = false
-	_build_cells()
+	_rebuild_cells()
 	_build_kill_plane()
 	_build_overlay()
 	Events.hole_cells_changed.connect(_on_hole_cells_changed)
@@ -175,7 +178,7 @@ func _physics_process(delta: float) -> void:
 ## _ready() (the editor, a unit test) still get the real convention.
 func grid() -> CellGrid:
 	if _grid == null:
-		_grid = CellGrid.new(map_def.field_radius, map_def.cell_size)
+		_grid = CellGrid.new(map_def.field_radius, map_def.cell_size, map_def.shape_test())
 	return _grid
 
 
@@ -389,7 +392,21 @@ func _apply_tilt_transform() -> void:
 	transform = Transform3D(_tilt_basis(_tilt), transform.origin)
 
 
-func _build_cells() -> void:
+## Builds (or rebuilds) the disk's cell grid, collision trimesh and shape
+## owner from the current map_def. Callable more than once (Bontago-keo.2,
+## docs/M6_PLAN.md package A0): create_shape_owner()'s own contract is that a
+## caller frees what it creates, and _ready() previously called this exactly
+## once, so the owner it made was never freed by anything -- calling this
+## again (rebuild_for_map() below) would otherwise leak one shape-owner RID
+## per rebuild. Freeing the previous owner first, and resetting _grid so
+## grid() below builds a fresh CellGrid against whatever map_def now is
+## rather than returning the previous map's cached one, makes this safe to
+## call as many times as a match's map ever changes.
+func _rebuild_cells() -> void:
+	if _disk_owner_id >= 0:
+		remove_shape_owner(_disk_owner_id)
+		_disk_owner_id = -1
+	_grid = null
 	var cell_grid: CellGrid = grid()
 	var cell_count: int = cell_grid.cell_count()
 	_cell_owner_ids = PackedInt32Array()
@@ -463,6 +480,22 @@ func _build_cells() -> void:
 	var material: PhysicsMaterial = PhysicsMaterial.new()
 	material.friction = tuning.disk_friction
 	physics_material_override = material
+
+
+## Public entry point for Bontago-keo.2: rebuilds this Field for a different
+## MapDef (docs/M6_PLAN.md package A0). game/Main.gd calls this at every site
+## that already calls place_flags()/set_overlay_source() together, right
+## before place_flags() (which reads map_def-derived flag positions) -- so a
+## match that picked a size/shape other than whatever map_def Field's own
+## @export last loaded (the actual keo.2 bug: Field baked its own default and
+## was never told the match's real config) rebuilds its collision, kill plane
+## and overlay to match before any flag or block ever needs them.
+func rebuild_for_map(new_map_def: MapDef) -> void:
+	map_def = new_map_def
+	_rebuild_cells()
+	_build_kill_plane()
+	if _overlay != null:
+		_overlay.configure(map_def, visuals, territory_tuning)
 
 
 ## Every in-disk cell index in row-major order. CellGrid is the one authority
@@ -960,7 +993,14 @@ func _color_for_index(index: int) -> Color:
 
 # --- Kill plane (spec 2.1) --------------------------------------------------
 
+## Builds (or rebuilds) the kill-plane trigger. Callable more than once
+## (rebuild_for_map() above, Bontago-keo.2): a previous call's Area3D is freed
+## first, so a map-shape/size change never leaves a stale kill plane, sized
+## for the old map_def, sitting alongside the new one.
 func _build_kill_plane() -> void:
+	if _kill_plane_area != null:
+		_kill_plane_area.queue_free()
+		_kill_plane_area = null
 	var area: Area3D = Area3D.new()
 	area.name = &"KillPlane"
 	var collision: CollisionShape3D = CollisionShape3D.new()
@@ -972,6 +1012,7 @@ func _build_kill_plane() -> void:
 	area.position = Vector3(0.0, tuning.kill_plane_y, 0.0)
 	add_child(area)
 	area.body_entered.connect(_on_kill_plane_body_entered)
+	_kill_plane_area = area
 
 
 func _on_kill_plane_body_entered(body: Node3D) -> void:
