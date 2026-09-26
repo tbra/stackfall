@@ -15,20 +15,19 @@ extends RefCounted
 ## can't make a single query scan unbounded results.
 const MAX_QUERY_RESULTS: int = 128
 
-## Sphere-queries real RigidBody3D bodies within `radius` of `center`, wakes
-## each, and applies an outward impulse with spec 3.5's falloff, clamped to
-## `max_impulse`. Skips anything that isn't a RigidBody3D (the disk's
-## AnimatableBody3D -- a kinematic StaticBody3D subtype per game/Field.gd's
-## own doc comment -- and the kill plane's Area3D, which collide_with_areas
-## = false already excludes) and any RID listed in `exclude`. Returns the
-## bodies actually hit.
-static func explode(
-	space_state: PhysicsDirectSpaceState3D,
-	center: Vector3,
-	radius: float,
-	impulse: float,
-	max_impulse: float,
-	exclude: Array[RID] = []
+## Sphere-queries real RigidBody3D bodies within `radius` of `center` and
+## returns each distinct body exactly once (see `_query_unique_bodies()`'s own
+## doc comment for the multi-shape dedupe this relies on). Skips anything that
+## isn't a RigidBody3D (the disk's AnimatableBody3D -- a kinematic
+## StaticBody3D subtype per game/Field.gd's own doc comment -- and the kill
+## plane's Area3D, which collide_with_areas = false already excludes) and any
+## RID listed in `exclude`.
+##
+## Shared by `explode()` (impulse + wake) and `query_bodies_in_range()`
+## (query-only, no impulse/wake/mark_script_kick) so the sphere-query and
+## per-body dedupe logic exists in exactly one place.
+static func _query_unique_bodies(
+	space_state: PhysicsDirectSpaceState3D, center: Vector3, radius: float, exclude: Array[RID]
 ) -> Array[RigidBody3D]:
 	var hit_bodies: Array[RigidBody3D] = []
 	if space_state == null or radius <= 0.0:
@@ -59,13 +58,12 @@ static func explode(
 	# Dictionary per overlapping CollisionShape3D, not per body, and
 	# BlockFactory.build() gives every placed block one CollisionShape3D per
 	# cell (game/BlockFactory.gd lines ~86-93: domino has 2, slab6 has 6). Left
-	# undeduplicated, a multi-cell block within range would take one
-	# apply_impulse() per one of its own cells -- up to 6x the intended
-	# per-body max_explosion_impulse the spec 3.5 clamp exists to enforce.
-	# Track visited bodies by instance id (RigidBody3D has no Comparable
-	# identity other than object identity/RID) and skip every shape after a
-	# body's first, so each distinct body is queried and pushed exactly once,
-	# using that first hit's own distance for the falloff -- matching a
+	# undeduplicated, a multi-cell block within range would be returned once
+	# per one of its own cells -- up to 6x the intended per-body effect (an
+	# explosion impulse, or a Magnet/Glue/Gravity-well hit count). Track
+	# visited bodies by instance id (RigidBody3D has no Comparable identity
+	# other than object identity/RID) and skip every shape after a body's
+	# first, so each distinct body is returned exactly once -- matching a
 	# body-level sphere query the way spec 3.5 describes it.
 	var seen_body_ids: Dictionary = {}
 	for overlap: Dictionary in overlaps:
@@ -80,7 +78,58 @@ static func explode(
 		if seen_body_ids.has(body_id):
 			continue
 		seen_body_ids[body_id] = true
+		hit_bodies.append(body)
 
+	return hit_bodies
+
+
+## Query-only sibling of `explode()` (docs/M8_PLAN.md "Interface stubs" item
+## 1). Sphere-queries real RigidBody3D bodies within `radius` of `center`,
+## deduped per-body exactly like `explode()`, but applies no impulse, no wake
+## and no `mark_script_kick()` -- purely a read of "what bodies are in range
+## right now". Consumed by the Magnet (P1), Glue (P3) and Gravity well (P4)
+## specials. `owner_filter`, when a valid Callable, is called as
+## `owner_filter.call(body)` for each deduped body and the body is dropped
+## when it returns false; ownership semantics (e.g. `body.owner_slot !=
+## mover.owner_slot` for Magnet, `==` for Glue) live entirely in the caller --
+## this function and `explode()` both stay team-agnostic, per the class's own
+## top-of-file DECISION.
+static func query_bodies_in_range(
+	space_state: PhysicsDirectSpaceState3D,
+	center: Vector3,
+	radius: float,
+	exclude: Array[RID],
+	owner_filter: Callable = Callable()
+) -> Array[RigidBody3D]:
+	var hit_bodies: Array[RigidBody3D] = []
+	if radius <= 0.0:
+		return hit_bodies
+
+	var candidates: Array[RigidBody3D] = _query_unique_bodies(space_state, center, radius, exclude)
+	for body: RigidBody3D in candidates:
+		if owner_filter.is_valid() and not owner_filter.call(body):
+			continue
+		hit_bodies.append(body)
+
+	return hit_bodies
+
+
+## Sphere-queries real RigidBody3D bodies within `radius` of `center`, wakes
+## each, and applies an outward impulse with spec 3.5's falloff, clamped to
+## `max_impulse`. See `_query_unique_bodies()` for the shared sphere-query +
+## dedupe this builds on. Returns the bodies actually hit.
+static func explode(
+	space_state: PhysicsDirectSpaceState3D,
+	center: Vector3,
+	radius: float,
+	impulse: float,
+	max_impulse: float,
+	exclude: Array[RID] = []
+) -> Array[RigidBody3D]:
+	var hit_bodies: Array[RigidBody3D] = []
+	var candidates: Array[RigidBody3D] = _query_unique_bodies(space_state, center, radius, exclude)
+
+	for body: RigidBody3D in candidates:
 		var offset: Vector3 = body.global_position - center
 		var distance: float = offset.length()
 		var direction: Vector3

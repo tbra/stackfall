@@ -284,3 +284,94 @@ func test_special_tuning_resource_has_max_explosion_impulse() -> void:
 	var tuning: SpecialTuning = load("res://config/special_tuning.tres") as SpecialTuning
 	assert_not_null(tuning)
 	assert_eq(tuning.max_explosion_impulse, 30.0)
+
+
+# --- query_bodies_in_range() ---------------------------------------------------
+## Query-only sibling of explode() (docs/M8_PLAN.md "Interface stubs" item 1):
+## same sphere-query + dedupe, no impulse/wake/mark_script_kick.
+
+func test_query_returns_multi_shape_body_exactly_once() -> void:
+	var position: Vector3 = Vector3(RADIUS * 0.3, 0.0, 0.0)
+	var multi_body: RigidBody3D = _make_multi_shape_rigid_body(position, 6)
+	await wait_physics_frames(1)
+
+	var hit: Array[RigidBody3D] = SpecialPhysics.query_bodies_in_range(
+		_space_state(), Vector3.ZERO, RADIUS, []
+	)
+
+	assert_eq(
+		hit.count(multi_body),
+		1,
+		"a body with 6 CollisionShape3D children must appear exactly once"
+	)
+	assert_eq(
+		multi_body.linear_velocity,
+		Vector3.ZERO,
+		"query_bodies_in_range() must not apply any impulse"
+	)
+
+
+func test_query_owner_filter_excludes_and_includes_as_expected() -> void:
+	var enemy_block: Block = Block.new()
+	enemy_block.owner_slot = 1
+	var enemy_collision: CollisionShape3D = CollisionShape3D.new()
+	var enemy_shape: SphereShape3D = SphereShape3D.new()
+	enemy_shape.radius = 0.3
+	enemy_collision.shape = enemy_shape
+	enemy_block.add_child(enemy_collision)
+	add_child(enemy_block)
+	enemy_block.global_position = Vector3(RADIUS * 0.5, 0.0, 0.0)
+	_bodies.append(enemy_block)
+
+	var own_block: Block = Block.new()
+	own_block.owner_slot = 0
+	var own_collision: CollisionShape3D = CollisionShape3D.new()
+	var own_shape: SphereShape3D = SphereShape3D.new()
+	own_shape.radius = 0.3
+	own_collision.shape = own_shape
+	own_block.add_child(own_collision)
+	add_child(own_block)
+	own_block.global_position = Vector3(RADIUS * 0.5, 0.0, 1.0)
+	_bodies.append(own_block)
+	await wait_physics_frames(1)
+
+	var mover_owner_slot: int = 0
+	var enemy_only_filter: Callable = func(body: RigidBody3D) -> bool:
+		var block: Block = body as Block
+		return block != null and block.owner_slot != mover_owner_slot
+
+	var hit: Array[RigidBody3D] = SpecialPhysics.query_bodies_in_range(
+		_space_state(), Vector3.ZERO, RADIUS, [], enemy_only_filter
+	)
+
+	assert_has(hit, enemy_block, "the filter must include a body it returns true for")
+	assert_does_not_have(hit, own_block, "the filter must exclude a body it returns false for")
+
+
+func test_query_radius_zero_or_negative_returns_empty() -> void:
+	_make_rigid_body(Vector3(RADIUS * 0.1, 0.0, 0.0))
+	await wait_physics_frames(1)
+
+	var hit_zero: Array[RigidBody3D] = SpecialPhysics.query_bodies_in_range(
+		_space_state(), Vector3.ZERO, 0.0, []
+	)
+	var hit_negative: Array[RigidBody3D] = SpecialPhysics.query_bodies_in_range(
+		_space_state(), Vector3.ZERO, -1.0, []
+	)
+
+	assert_eq(hit_zero.size(), 0, "radius 0 must return an empty array")
+	assert_eq(hit_negative.size(), 0, "a negative radius must return an empty array")
+
+
+func test_query_excluded_rid_is_not_returned() -> void:
+	var excluded_body: RigidBody3D = _make_rigid_body(Vector3(RADIUS * 0.5, 0.0, 0.0))
+	var other_body: RigidBody3D = _make_rigid_body(Vector3(RADIUS * 0.5, 0.0, 1.0))
+	await wait_physics_frames(1)
+
+	var exclude: Array[RID] = [excluded_body.get_rid()]
+	var hit: Array[RigidBody3D] = SpecialPhysics.query_bodies_in_range(
+		_space_state(), Vector3.ZERO, RADIUS, exclude
+	)
+
+	assert_does_not_have(hit, excluded_body)
+	assert_has(hit, other_body, "a non-excluded body in range must still be returned")
