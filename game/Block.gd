@@ -96,6 +96,23 @@ var _contributing_visual_set: bool = false
 var _block_mesh_cache: MeshInstance3D = null
 var _block_mesh_looked_up: bool = false
 
+## M8 P5 (spec 3.5 "freeze old stable blocks as static", docs/M8_PLAN.md
+## Interface stubs item 2): the one reason this milestone's own caller
+## (game/StableBlockManager.gd) ever passes to request_freeze_static() below.
+## A StringName constant, not a bare &"stable" literal at each call site, so a
+## typo can't silently open a second, never-released "reason" -- every caller
+## that means "the stable-block auto-freeze" spells it the same way.
+const FREEZE_REASON_STABLE: StringName = &"stable"
+
+## Reason-keyed set of who currently wants this block frozen to STATIC (Godot
+## Dictionary used as a set: presence of a key, not its value, is what
+## matters -- same idiom project-wide, e.g. game/BlockRegistry.gd's
+## _entries). More than one caller can hold this block frozen at once (this
+## milestone's StableBlockManager and a future Freeze special, per
+## docs/M8_PLAN.md's own Interface stub) without either caller needing to know
+## about the other or race the other's release.
+var _freeze_reasons: Dictionary = {}
+
 
 func _ready() -> void:
 	add_to_group(TUNING_GROUP)
@@ -328,3 +345,69 @@ func _block_mesh() -> MeshInstance3D:
 		_block_mesh_looked_up = true
 		_block_mesh_cache = get_node_or_null(^"BlockMesh") as MeshInstance3D
 	return _block_mesh_cache
+
+
+## Adds `reason` to the set of callers holding this block frozen to STATIC
+## (spec 3.5). Idempotent: a reason already held is a no-op, so a caller that
+## re-requests every scan tick (game/StableBlockManager.gd) never re-triggers
+## the freeze_mode/freeze writes below on ticks after the first. Only the
+## *first* reason to arrive actually flips the body to STATIC -- every
+## reason after that already finds it frozen. Host-only in practice (only the
+## host runs physics/StableBlockManager/specials per CLAUDE.md), but nothing
+## here checks Net itself; the caller is responsible for that, the same as
+## every other write this class exposes (kick(), apply_physics_tuning()).
+func request_freeze_static(reason: StringName) -> void:
+	if _freeze_reasons.has(reason):
+		return
+	_freeze_reasons[reason] = true
+	if _freeze_reasons.size() == 1:
+		freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
+		freeze = true
+
+
+## Removes `reason` from the held set; a reason never held is a no-op (so a
+## caller can call this defensively without first checking is_freeze_static()
+## -- game/StableBlockManager.gd's own "wake -> release" path does exactly
+## that on a block it never froze). Only unfreezes once every reason is
+## gone -- see request_freeze_static()'s own doc comment for why more than one
+## can be held at once.
+##
+## DECISION (game/Block.gd): `freeze = false` alone is what actually restores
+## normal rigid-body simulation -- RigidBody3D.FreezeMode only has
+## FREEZE_MODE_STATIC and FREEZE_MODE_KINEMATIC (there is no "RIGID" freeze
+## mode; a first draft of this function wrongly assumed one, a compile error
+## caught by `godot --headless --editor --quit`). `freeze_mode` itself is
+## simply ignored whenever `freeze` is false, so this leaves it at
+## FREEZE_MODE_STATIC (the value request_freeze_static() above set it to, and
+## also RigidBody3D's own default for a fresh, never-frozen block) rather
+## than writing a value that would be read back only if some other caller
+## later froze the same body through a path other than
+## request_freeze_static().
+func release_freeze_static(reason: StringName) -> void:
+	if not _freeze_reasons.has(reason):
+		return
+	_freeze_reasons.erase(reason)
+	if _freeze_reasons.is_empty():
+		freeze = false
+
+
+## Whether any reason at all currently holds this block frozen to STATIC --
+## the read side of request_freeze_static()/release_freeze_static() above,
+## for a caller that only wants to know the aggregate state (e.g. a test)
+## without reaching into the private reason set itself.
+func is_freeze_static() -> bool:
+	return not _freeze_reasons.is_empty()
+
+
+## Releases only FREEZE_REASON_STABLE (docs/M8_PLAN.md Interface stubs item
+## 2): called by a special effect right before it writes this block's
+## velocity/applies an impulse (game/specials/SpecialPhysics.gd's explode(),
+## a separate M8 P5b dispatch), so the stable-block auto-freeze above can
+## never turn a special's impulse into a silent no-op -- RigidBody3D ignores
+## apply_impulse()/linear_velocity writes on a STATIC body. Deliberately
+## narrower than "release everything": any *other* reason still holding this
+## block (e.g. a future Freeze special's own reason, per this same Interface
+## stub) is left exactly as it was, the same reason-keyed independence
+## request_freeze_static()/release_freeze_static() already give every caller.
+func wake_for_impulse() -> void:
+	release_freeze_static(FREEZE_REASON_STABLE)

@@ -19,3 +19,5 @@ sleep_angular_threshold = 0.3
 sleep_settle_time = 0.5
 gravity_multiplier = 1.0
 rebound_damping = 1.0
+stable_freeze_delay_s = 20.0
+stable_freeze_scan_interval_s = 0.5
