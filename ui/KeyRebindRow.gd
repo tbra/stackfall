@@ -52,9 +52,17 @@ func rebind_button() -> Button:
 	return _rebind_button
 
 
+## Also drops keyboard focus from the button (Bontago-8or.19, owner playtest
+## feedback/playtest.md: "no option to actually remap the ones that are
+## mapped") -- while this button stays focused, Godot's own GUI layer treats
+## Space/Enter as *that button's* activate accelerator and arrows/Tab as focus
+## navigation, so a still-focused RebindButton is a second, independent path
+## (besides _input() below) by which those keys could be swallowed before this
+## row ever sees them.
 func _on_rebind_pressed() -> void:
 	_listening = true
 	_rebind_button.text = LISTENING_TEXT
+	_rebind_button.release_focus()
 
 
 ## Captures the very next real input while listening -- InputEventKey,
@@ -63,12 +71,29 @@ func _on_rebind_pressed() -> void:
 ## discrete press, not an analog drift, the same digital-vs-analog split
 ## tools/bootstrap_project.gd's own action bindings already follow).
 ##
+## Captured in Node._input() rather than Node._unhandled_input() (Bontago-
+## 8or.19, owner playtest feedback/playtest.md: "no option to actually remap
+## the ones that are mapped"). Godot's own input pipeline runs, in order,
+## Node._input() -> Control GUI dispatch (focus navigation, button
+## accelerators, mouse_filter consumption) -> Node._unhandled_input(); as
+## _unhandled_input(), this method only ever saw whatever the GUI layer left
+## over, which for a full-screen options panel is close to nothing: a mouse
+## click anywhere on the panel's own mouse_filter=STOP background was
+## consumed by the GUI layer before it could reach here, and Space/Enter/
+## arrows/Tab were consumed by the still-focused RebindButton's own GUI
+## accelerator/focus-navigation handling instead (see _on_rebind_pressed()'s
+## release_focus() call above, which closes that second path). Moving the
+## capture to _input() runs it *before* any of that GUI processing, so a
+## listening row now sees the raw event first regardless of what sits under
+## the pointer or which control has focus.
+##
 ## ui_cancel cancels the capture instead of binding Escape/gamepad B onto the
 ## action -- caught here, before OptionsMenu's own _unhandled_input() back-out
-## handler, because Godot delivers _unhandled_input to the deepest node in a
-## branch first (this row is a descendant of OptionsMenu), so a listening row
-## always sees ui_cancel before the menu does.
-func _unhandled_input(event: InputEvent) -> void:
+## handler, because _input() is delivered to every node in the tree (deepest
+## first) before Godot even starts the GUI/_unhandled_input phases that
+## OptionsMenu's own handler relies on, so a listening row always sees
+## ui_cancel first.
+func _input(event: InputEvent) -> void:
 	if not _listening:
 		return
 	if event.is_action_pressed(&"ui_cancel"):
@@ -76,7 +101,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventKey or event is InputEventMouseButton or event is InputEventJoypadButton:
-		if not event.is_pressed():
+		if not event.is_pressed() or event.is_echo():
 			return
 		_capture(event)
 		get_viewport().set_input_as_handled()

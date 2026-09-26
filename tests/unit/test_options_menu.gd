@@ -172,6 +172,32 @@ func test_rebindable_actions_exclude_throw_aim() -> void:
 	assert_false(OptionsMenu.REBINDABLE_ACTIONS.has(&"throw_aim"))
 
 
+## Bontago-8or.19 (owner playtest: "many of them not mapped to anything"): a
+## row shown on the keyboard+mouse rebind screen must have a real
+## keyboard/mouse binding to rebind. tests/unit/test_project_setup.gd's own
+## DEVICE_EXCEPTIONS already names every action that is deliberately
+## desktop-absent (exception value "mouse" there means "no keyboard/mouse
+## event, gamepad only") -- this test asserts none of those ever sneak back
+## into REBINDABLE_ACTIONS, and independently scans the live InputMap so a
+## newly added gamepad-only action would fail here even if nobody remembers
+## to touch this file. The reverse asymmetry (a real K+M binding, no gamepad
+## one -- rotate_drag, lock_vertical, camera_mode, camera_orbit) is fine and
+## deliberately not checked here: that row is still usable for a K+M player.
+func test_every_rebindable_action_has_a_keyboard_or_mouse_binding() -> void:
+	var found_any: bool = false
+	for action: StringName in OptionsMenu.REBINDABLE_ACTIONS:
+		if not InputMap.has_action(action):
+			continue  # Reported by test_project_setup.gd's test_every_required_action_exists.
+		found_any = true
+		var has_desktop: bool = false
+		for event: InputEvent in InputMap.action_get_events(action):
+			if event is InputEventKey or event is InputEventMouseButton:
+				has_desktop = true
+				break
+		assert_true(has_desktop, "%s is listed as rebindable but has no keyboard/mouse binding for a K+M player to see or use" % action)
+	assert_true(found_any, "expected at least one real rebindable action to check")
+
+
 func test_options_menu_builds_one_row_per_rebindable_action() -> void:
 	var menu: OptionsMenu = _make_menu()
 	var rows: Array[KeyRebindRow] = menu.rebind_rows()
@@ -233,6 +259,13 @@ func test_ui_cancel_emits_closed_when_no_row_is_listening() -> void:
 
 
 # --- KeyRebindRow: listening state machine -----------------------------------------
+## These call row._input(event) directly (ui/KeyRebindRow.gd's own capture
+## method, Bontago-8or.19) rather than pushing input through a real Viewport
+## -- a fast unit-level check of the capture/cancel branches on their own,
+## with no Control/GUI layer involved at all. The GUI-layer regressions this
+## bug was actually about (a click over a mouse_filter=STOP panel, Space/
+## Enter/arrows/Tab swallowed by a focused Button) need a real Viewport to
+## reproduce and are covered by tests/unit/test_key_rebind_row.gd instead.
 
 func test_pressing_rebind_button_enters_listening_state() -> void:
 	var row: KeyRebindRow = _make_row()
@@ -247,7 +280,7 @@ func test_ui_cancel_exits_listening_without_capturing() -> void:
 	var cancel_event: InputEventAction = InputEventAction.new()
 	cancel_event.action = &"ui_cancel"
 	cancel_event.pressed = true
-	row._unhandled_input(cancel_event)
+	row._input(cancel_event)
 
 	assert_false(row.is_listening())
 	assert_eq(InputMap.action_get_events(_test_action).size(), 0, "cancelling must not bind anything")
@@ -267,7 +300,7 @@ func test_capturing_a_keyboard_event_calls_set_key_override_and_exits_listening(
 	var key_event: InputEventKey = InputEventKey.new()
 	key_event.keycode = KEY_F9
 	key_event.pressed = true
-	row._unhandled_input(key_event)
+	row._input(key_event)
 
 	assert_false(row.is_listening())
 	var events: Array[InputEvent] = InputMap.action_get_events(_test_action)
@@ -289,7 +322,7 @@ func test_capturing_a_gamepad_event_calls_set_key_override() -> void:
 	var joy_event: InputEventJoypadButton = InputEventJoypadButton.new()
 	joy_event.button_index = JOY_BUTTON_A
 	joy_event.pressed = true
-	row._unhandled_input(joy_event)
+	row._input(joy_event)
 
 	assert_false(row.is_listening())
 	var events: Array[InputEvent] = InputMap.action_get_events(_test_action)
