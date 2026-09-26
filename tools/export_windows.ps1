@@ -7,11 +7,14 @@
 # Usage:
 #   tools/export_windows.ps1                 # release export
 #   tools/export_windows.ps1 -Debug          # debug export (script errors visible)
+#   tools/export_windows.ps1 -SkipSmoke      # skip the exported-exe bot-match smoke gate (default: 1200 frames, -SmokeFrames N)
 #   tools/export_windows.ps1 -Path M:/some/worktree
 param(
 	[switch]$Debug,
 	[string]$Path = "",
-	[string]$Godot = "godot"
+	[string]$Godot = "godot",
+	[switch]$SkipSmoke,
+	[int]$SmokeFrames = 1200
 )
 
 $ErrorActionPreference = "Stop"
@@ -67,6 +70,32 @@ if (Test-Path $originalAssets) {
 	Copy-Item -Recurse -Force $originalAssets (Join-Path $outDir "assets/original")
 } else {
 	Write-Warning "assets/original/ not installed in $Path; the export will run with no original-asset sound (see tools/install_original_assets.ps1)."
+}
+
+# Smoke gate (Bontago-8or.18): GUT runs from source, never from the PCK, so
+# export-only regressions (e.g. .tres listed as .tres.remap, which once left the
+# block bag empty -- feedback/playtest.md 2026-09-26) are invisible to the unit
+# suite. Run a short headless bot match on the exported exe and require that
+# blocks were actually placed. -SkipSmoke bypasses it for debug/iteration builds.
+if (-not $SkipSmoke) {
+	# Start-Process with redirected streams: the exe writes Steam's breakpad
+	# notice to stderr, which under $ErrorActionPreference = "Stop" would turn a
+	# plain `& $exe 2>&1` into a terminating NativeCommandError.
+	$smokeLog = Join-Path $outDir "smoke_bots.log"
+	$smokeErr = Join-Path $outDir "smoke_bots.err"
+	$smokeArgs = @("--headless", "--quit-after", "$SmokeFrames", "--", "--headless-host", "--bots=4")
+	$proc = Start-Process -FilePath $exe -ArgumentList $smokeArgs -WorkingDirectory $outDir -NoNewWindow -Wait -PassThru -RedirectStandardOutput $smokeLog -RedirectStandardError $smokeErr
+	$last = Select-String -Path $smokeLog -Pattern 'HEADLESS_BOTS .*placements=(\d+)' | Select-Object -Last 1
+	$placements = 0
+	if ($last -and $last.Matches.Count -gt 0) { $placements = [int]$last.Matches[0].Groups[1].Value }
+	Remove-Item -Force $smokeLog, $smokeErr -ErrorAction SilentlyContinue
+	if ($placements -lt 1) {
+		# Not Write-Error: under $ErrorActionPreference = "Stop" that would
+		# terminate with exit 1 before the distinct gate code below.
+		[Console]::Error.WriteLine("Export smoke gate FAILED: exported exe placed $placements blocks in $SmokeFrames frames (expected >= 1; exe exit $($proc.ExitCode)). Last line: $($last.Line)")
+		exit 3
+	}
+	Write-Host "Smoke gate: exported exe bot match placed $placements blocks (exit $($proc.ExitCode); $($last.Line.Trim()))."
 }
 
 Get-ChildItem $outDir | ForEach-Object { "{0,12:N0}  {1}" -f $_.Length, $_.Name }
