@@ -477,7 +477,7 @@ func test_sandbox_toggle_overlay_flips_the_fields_territory_overlay() -> void:
 ## loader, so a regression in the loader's own sort shows up as a failure
 ## here too, not just in test_special_def.gd.
 const _EXPECTED_ROSTER_ORDER: PackedStringArray = [
-	"anvil", "bomb", "earthquake", "jumping_bean", "propeller", "rocket", "volcano",
+	"anvil", "bomb", "earthquake", "glue", "jumping_bean", "magnet", "propeller", "rocket", "volcano",
 ]
 
 
