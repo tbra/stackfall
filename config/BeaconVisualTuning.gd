@@ -19,16 +19,9 @@ extends Resource
 ## constant base for every flag" contract (see HomeFlag._build()'s comment) --
 ## only the socket ever stays a fixed size.
 ##
-## DECISION (config/BeaconVisualTuning.gd, Bontago-xtq.33): not on
-## ui/TuningPanel.gd's fixed F4 roster (grep confirms no "BeaconVisualTuning."
-## key in config/tuning_panel_hints.tres). That file and ui/TuningPanel.gd
-## were both outside this package's owned-files list (docs/M7_PLAN.md P8),
-## and CLAUDE.md's own F4-tuning-hint rule already anticipates asking the
-## orchestrator to add the wiring rather than reaching into another package's
-## files -- see config/GiftConfig.gd's own class doc for the identical,
-## previously-accepted precedent ("GiftConfig is exactly that resource, just
-## not wired to F4"). No loss of CLAUDE.md's "every tunable lives in some
-## res://config/ resource" rule either way.
+## Exposed on the F4 TuningPanel "Beacons" tab with ranges/descriptions in
+## config/tuning_panel_hints.tres (Bontago-xtq.34/xtq.36; the original xtq.33
+## package left the wiring to a follow-up).
 ##
 ## Loaded once as config/beacon_visual_tuning.tres.
 
