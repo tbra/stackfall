@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="SkyThemeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/SkyThemeDef.gd" id="1_theme"]
+
+[resource]
+script = ExtResource("1_theme")
+sky_top_color = Color(0.161, 0.2, 0.333, 1)
+sky_horizon_color = Color(0.98, 0.64, 0.38, 1)
+ground_bottom_color = Color(0.118, 0.098, 0.137, 1)
+ground_horizon_color = Color(0.847, 0.514, 0.333, 1)
+sun_angle_min_max = Vector2(8, 20)
+fog_color = Color(0.93, 0.58, 0.4, 1)
+fog_density = 0.006
+fog_sky_affect = 0.0
+volumetric_fog_density = 0.003
+volumetric_fog_albedo = Color(0.93, 0.58, 0.4, 1)
+cloud_deck_size_m = Vector3(800, 60, 800)
+cloud_deck_height_m = -40.0
