@@ -73,6 +73,11 @@ const NET_DEBUG_OVERLAY_SCENE: PackedScene = preload("res://ui/NetDebugOverlay.t
 @onready var _registry: BlockRegistry = $BlockRegistry
 @onready var _camera_rig: CameraRig = $CameraRig
 @onready var _skybox: Skybox = $Skybox
+## Bontago-xtq.26 (M7 P1): the one WorldEnvironment in game/Main.tscn --
+## _apply_graphics_preset() below forwards ssr_enabled/volumetric_fog_enabled
+## to its Environment resource. Null-checked rather than assumed non-null so a
+## stripped-down test fixture without this node stays a safe no-op.
+@onready var _world_environment: WorldEnvironment = $WorldEnvironment
 
 var _main_menu: MainMenu = null
 var _lobby: Lobby = null
@@ -124,6 +129,15 @@ func _ready() -> void:
 	# that ordering doesn't matter either way).
 	TuningPanel.apply_saved_overrides()
 
+	# Bontago-xtq.26 (M7 P1): connected before the hot-seat/sandbox early
+	# returns below so those offline entry points get the current graphics
+	# preset applied too, even though they skip ui/MainMenu.tscn/ui/Lobby.tscn
+	# entirely. current_graphics_preset() never returns null (Settings loads
+	# a default at its own _ready()), so the initial call always has a preset
+	# to apply.
+	Settings.graphics_preset_changed.connect(_apply_graphics_preset)
+	_apply_graphics_preset(Settings.current_graphics_preset())
+
 	if _has_cmdline_flag("hot-seat"):
 		_start_hot_seat_match()
 		return
@@ -159,6 +173,36 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	SnapshotSync.host_tick(delta)
 	SnapshotSync.client_tick(delta)
+
+
+## Bontago-xtq.26 (M7 P1): applies every field GraphicsPreset (config/
+## GraphicsPreset.gd) currently declares. Connected to
+## Settings.graphics_preset_changed and also called once at startup above, so
+## a mid-match preset change (Options screen, not built yet) and the initial
+## boot value both reach the same place.
+func _apply_graphics_preset(preset: GraphicsPreset) -> void:
+	var viewport: Viewport = get_viewport()
+	if viewport != null:
+		viewport.msaa_3d = preset.msaa_3d
+
+	# DECISION (Bontago-xtq.26): Godot 4 has no per-Viewport or per-light
+	# directional-shadow-atlas size -- RenderingServer.
+	# directional_shadow_atlas_set_size() is the only API surface (confirmed
+	# via ClassDB.class_get_method_list(&"RenderingServer"); Viewport only
+	# exposes positional_shadow_atlas_size, for OmniLight3D/SpotLight3D). It's
+	# a global, write-only call (no getter to assert against in a test), so it
+	# applies to every DirectionalLight3D in the process, which is correct
+	# here (game/Main.tscn has exactly one). `is_16bits = true` is the mandatory
+	# second argument, passed as the engine's own unmodified default
+	# (project.godot has no rendering/lights_and_shadows/directional_shadow/
+	# 16_bits override) -- not a preset-tunable value, so it isn't a
+	# GraphicsPreset field.
+	RenderingServer.directional_shadow_atlas_set_size(preset.shadow_atlas_size, true)
+
+	if _world_environment != null and _world_environment.environment != null:
+		var environment: Environment = _world_environment.environment
+		environment.ssr_enabled = preset.ssr_enabled
+		environment.volumetric_fog_enabled = preset.volumetric_fog_enabled
 
 
 # --- Hot-seat: byte-identical to M2 ------------------------------------------
@@ -717,6 +761,16 @@ func _build_match_world() -> void:
 
 	_debug_overlay = NET_DEBUG_OVERLAY_SCENE.instantiate() as NetDebugOverlay
 	add_child(_debug_overlay)
+
+	# Bontago-xtq.26 (M7 P1): re-applies the current preset once the match
+	# world exists. _world_environment is a static child of Main today, so
+	# this is a no-op repeat of the _ready()-time call -- kept here anyway
+	# because this is the one shared scene-load path (lobby-driven and
+	# headless-bot matches alike), so a later package that adds a
+	# WorldEnvironment under the field rebuilt above (P3's FogVolume) picks up
+	# the current preset without this package having to guess at that
+	# not-yet-built structure.
+	_apply_graphics_preset(Settings.current_graphics_preset())
 
 
 ## docs/M5_PLAN.md P5 item 3: one BotController per bot slot, for the

@@ -8,3 +8,4 @@ id = &"low"
 ssr_enabled = false
 msaa_3d = 0
 shadow_atlas_size = 2048
+volumetric_fog_enabled = false

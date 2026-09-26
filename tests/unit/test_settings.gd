@@ -88,6 +88,18 @@ func test_unknown_graphics_preset_id_is_ignored() -> void:
 	assert_eq(_settings.current_graphics_preset().id, &"low", "an unknown id must not overwrite the current preset")
 
 
+## Bontago-xtq.26 (M7 P1): volumetric_fog_enabled is the owner's M7
+## art-direction decision (Bontago-5h7 Q6) -- Low drops the cloud-deck
+## FogVolume P3 adds to the field; Medium/High keep it.
+func test_graphics_presets_set_volumetric_fog_enabled_per_tier() -> void:
+	_settings.set_graphics_preset(&"high")
+	assert_true(_settings.current_graphics_preset().volumetric_fog_enabled, "high keeps volumetric fog")
+	_settings.set_graphics_preset(&"medium")
+	assert_true(_settings.current_graphics_preset().volumetric_fog_enabled, "medium keeps volumetric fog")
+	_settings.set_graphics_preset(&"low")
+	assert_false(_settings.current_graphics_preset().volumetric_fog_enabled, "low drops the cloud-deck FogVolume")
+
+
 func test_set_key_override_updates_input_map_immediately() -> void:
 	var event: InputEventKey = InputEventKey.new()
 	event.keycode = KEY_F9

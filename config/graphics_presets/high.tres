@@ -8,3 +8,4 @@ id = &"high"
 ssr_enabled = true
 msaa_3d = 2
 shadow_atlas_size = 8192
+volumetric_fog_enabled = true
