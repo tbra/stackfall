@@ -758,15 +758,37 @@ func _on_lobby_start_requested(config: MatchConfig) -> void:
 ## ui/PauseMenu.gd is suppressed for its whole duration (start_tutorial_from_
 ## menu()/_on_tutorial_finished() above) -- Tutorial keeps its own existing
 ## ui_cancel -> _end_tutorial() quit gesture unmodified.
+##
+## DECISION (game/Main.gd, Bontago-xtq.42 round 3): _sandbox is freed and
+## nulled *before* Match.abort_match() below, not after. _on_match_state_
+## changed()'s own Bontago-xtq.43 round 2 fix diverts every (-> LOBBY)
+## reaction away from _end_match_world() while _sandbox is still a live
+## instance (see that handler's own DECISION) -- freeing it first here means
+## abort_match()'s (old -> LOBBY) emit instead takes the ordinary
+## _end_match_world() path, which is the only place that clears _world_built
+## back to false. The previous order (abort_match() first, free second) left
+## _world_built stuck true for the rest of this Main instance's life: the
+## *next* ordinary (non-sandbox) match's _build_match_world() call then hit
+## its own `if _world_built: return` guard and silently built nothing at all
+## (no HotSeat, RemoteCursors, bot controllers or debug overlay) -- not a
+## duplicate build, since Main never built any of those for a sandbox match
+## to begin with (_on_match_state_changed()'s own doc). _field.clear_match_
+## state() still runs exactly once, now via _end_match_world() itself instead
+## of the diverted branch's own direct call, so a reset's visible field-clear
+## behavior is unchanged. The online path above needs no matching fix: Net.
+## leave() reaches _end_match_world() through _on_net_mode_changed() (a
+## different handler, never diverted by _sandbox -- sandbox matches are
+## always offline, so _sandbox is never live while Net.mode() != OFFLINE).
+## tests/unit/test_sandbox.gd covers this with a regression test.
 func _on_pause_leave_requested() -> void:
 	if Net.mode() != Net.Mode.OFFLINE:
 		Net.leave()
 		return
-	if Match.state() != Match.State.LOBBY:
-		Match.abort_match()
 	if _sandbox != null and is_instance_valid(_sandbox):
 		_sandbox.queue_free()
 		_sandbox = null
+	if Match.state() != Match.State.LOBBY:
+		Match.abort_match()
 	_show_main_menu()
 
 

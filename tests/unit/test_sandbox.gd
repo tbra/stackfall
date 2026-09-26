@@ -116,6 +116,54 @@ func test_pause_menu_is_unsuppressed_after_sandbox_starts_from_the_menu() -> voi
 	assert_false(_main._pause_menu.suppressed, "starting a sandbox match from the main menu must make the pause menu usable.")
 
 
+# --- Leaving a sandbox via the pause menu (Bontago-xtq.42 P42 review, round 3) -
+#
+# game/Main.gd's _on_pause_leave_requested() (ui/PauseMenu.gd's own Leave
+# match, confirmed) frees _sandbox and aborts the offline match. Round 3
+# regression: the previous free-after-abort order left _world_built stuck
+# true forever after this call -- Match.abort_match()'s (-> LOBBY) emit
+# reached _on_match_state_changed() while _sandbox was still live, which
+# diverts that reaction away from _end_match_world(), the only place that
+# clears _world_built back to false -- so the *next* ordinary match's
+# _build_match_world() call silently built nothing at all (its own `if
+# _world_built: return` guard).
+
+func test_leaving_a_sandbox_via_the_pause_menu_clears_world_built_and_the_sandbox() -> void:
+	_main.start_sandbox_from_menu()
+	_run_countdown()
+	assert_eq(
+		get_tree().get_nodes_in_group(GhostPreview.LOCAL_HELD_GROUP).size(), 1,
+		"fixture: exactly one local-held ghost while the sandbox is live"
+	)
+
+	_main._on_pause_leave_requested()
+	await get_tree().process_frame
+
+	assert_null(_main._hot_seat, "leaving a sandbox must never leave a HotSeat behind")
+	assert_eq(
+		get_tree().get_nodes_in_group(GhostPreview.LOCAL_HELD_GROUP).size(), 0,
+		"leaving a sandbox must free its PlayerController/GhostPreview subtree"
+	)
+	assert_false(
+		_main._world_built,
+		"_world_built must be cleared so the next real match's _build_match_world() actually runs"
+	)
+	assert_null(_main._sandbox, "the sandbox instance itself must be freed and nulled")
+	assert_not_null(_main._main_menu, "leaving must show the main menu")
+
+	# A fresh sandbox afterward must still behave exactly as a first one does
+	# -- never a duplicate (or missing) HotSeat/ghost left over from the one
+	# just freed above.
+	_main.start_sandbox_from_menu()
+	_run_countdown()
+
+	assert_eq(
+		get_tree().get_nodes_in_group(GhostPreview.LOCAL_HELD_GROUP).size(), 1,
+		"a fresh sandbox after leaving must still control exactly one local-held block"
+	)
+	assert_null(_main._hot_seat, "a fresh sandbox must still never build a HotSeat-driven world")
+
+
 # --- Flag routing / world build ----------------------------------------------
 
 func test_sandbox_flag_builds_an_offline_world_with_n_slots() -> void:
