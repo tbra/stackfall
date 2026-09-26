@@ -86,6 +86,17 @@ var _own_ping_ms: float = 0.0
 var _lobby_data: Dictionary = {}
 var _lan: LanDiscovery
 
+## `--match-config=<res path>` (Bontago-3k0, deferred from Bontago-keo.19):
+## host-only override for the MatchConfig a `--headless-host` match starts
+## from. Null (the ordinary case) means "no override" -- game/Main.gd's own
+## _build_headless_bot_config() then falls back to its preloaded
+## config/match_defaults.tres exactly as before this flag existed. Set only
+## from inside _apply_command_line_args()'s host branch (see
+## _load_match_config_override() below), never touched by --join, so a client
+## passing this flag by accident is silently ignored -- this is a host-only
+## concern (spec 3.4: only the host's MatchConfig ever matters).
+var _match_config_override: MatchConfig = null
+
 ## docs/M3b_PLAN.md P1: the Steam-facing seam, exactly the net_provider/
 ## match_provider pattern ui/MainMenu.gd, ui/Lobby.gd and
 ## ui/NetDebugOverlay.gd already use. Set to a real SteamClient in _ready();
@@ -962,6 +973,12 @@ func _apply_command_line_args(args: PackedStringArray) -> bool:
 	var player_name: String = String(options.get("player-name", ""))
 
 	if flags.has("host") or flags.has("headless-host"):
+		# --match-config=<path> is parsed here, inside the host branch, rather
+		# than up with --sim-lag/--sim-loss above, so it is a no-op for --join
+		# (task brief: "host-only; ignore on --join") with no separate flags-
+		# have("join") guard needed.
+		if options.has("match-config"):
+			_load_match_config_override(String(options["match-config"]))
 		host_game(port, player_name if player_name != "" else "Host")
 		return true
 
@@ -991,6 +1008,41 @@ func _apply_command_line_args(args: PackedStringArray) -> bool:
 		return true
 
 	return false
+
+
+## The MatchConfig `--match-config=<path>` loaded, or null if the flag was
+## absent, the command line never reached the host branch (--join, or no
+## role flag at all), or the path/resource was rejected. game/Main.gd's
+## _build_headless_bot_config() reads this in place of its own preloaded
+## `match_config` export when it is non-null — the same
+## duplicate-then-override seam that function already uses for --bots=/
+## --players=, extended rather than replaced.
+func match_config_override() -> MatchConfig:
+	return _match_config_override
+
+
+## _apply_command_line_args()'s --match-config=<path> handler. A bad path or
+## a resource of the wrong type never blocks --headless-host from starting —
+## it logs a push_error and leaves _match_config_override null, which reads
+## downstream as "no override" (game/Main.gd falls back to
+## config/match_defaults.tres exactly as if the flag had been omitted).
+## Explicitly resets to null on failure (not "keep whatever was there
+## before") so one bad flag value can never be masked by an earlier good one.
+func _load_match_config_override(path: String) -> void:
+	if not ResourceLoader.exists(path):
+		push_error(
+			"--match-config=%s: no resource at that path -- falling back to the default MatchConfig." % path
+		)
+		_match_config_override = null
+		return
+	var resource: Resource = load(path)
+	if not (resource is MatchConfig):
+		push_error(
+			"--match-config=%s: resource is not a MatchConfig -- falling back to the default MatchConfig." % path
+		)
+		_match_config_override = null
+		return
+	_match_config_override = resource as MatchConfig
 
 
 ## The +connect_lobby scan, split out as its own sibling (rather than bolted

@@ -339,6 +339,7 @@ convention `OS.get_cmdline_user_args()` uses:
 | `--headless-host` | Same as `--host`, for a dedicated/scripted host with no window. |
 | `--join=<ip[:port]>` | Joins that address and opens the lobby. |
 | `--port=<n>` | Overrides the port for `--host`/`--headless-host`/`--join`. |
+| `--match-config=<res path>` | Loads that `MatchConfig` `.tres` as the base for the bot match `--headless-host --bots=<n>` starts (fixtures: `tests/fixtures/match_configs/`). Ignored on `--join`, and a no-op for a plain `--host`/`--headless-host` lobby, whose match still takes the lobby's settings. Falls back to the default on a bad path or wrong resource type. |
 | `--sim-lag=<ms>` / `--sim-loss=<0..1>` | Simulated one-way lag / packet loss from launch, the same sliders the F3 overlay controls. |
 
 With no flag, `Main` shows the main menu and these are chosen through Host/Join instead.
