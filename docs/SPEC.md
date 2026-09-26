@@ -301,11 +301,11 @@ The AI runs only on the host, and for multiple bots it spreads its thinking acro
 
 ### 2.10 Presentation [NEW, modernizing the original look]
 
-**Owner direction 2026-09-22:** blocks render as solid single shapes (no visible per-cell cubes, as in the original); the map disc reads as glass — slightly transparent and reflective — with territory colours still legible on it (superseded 2026-09-23: the disc is an opaque, mirror-like reflective surface, not glass — Bontago-xtq.11); camera FOV is a tunable.
+**Owner direction 2026-09-22:** blocks render as solid single shapes (no visible per-cell cubes, as in the original); the map disc reads as glass — slightly transparent and reflective — with territory colours still legible on it (superseded 2026-09-23: the disc is an opaque, mirror-like reflective surface, not glass — Bontago-xtq.11); camera FOV is a tunable. **Owner decision 2026-09-26 (Bontago-5h7 Q1):** the mesh stays one merged solid shape, but the block shader draws thin dark cell-grid lines on its faces (the cel-shaded reference `docs/art_mockups/08-cel-shaded-home-beacons.png`); this is a visual amendment, collision and connectivity are unchanged.
 - **Disk:** Opaque, mirror-like polished surface (reflective, never transparent; owner 2026-09-23), with sky reflections via the Environment sky and a reflection probe for nearby blocks.
   - Territory is drawn by a shader. Each player's area is a soft tint in their color with an animated outline.
   - Contested areas shimmer. Hole edges glow and crackle.
-- **Blocks:** Bevelled cubes with a subtle PBR material and an emissive seam in the owner's color. They glow brighter when they're contributing influence.
+- **Blocks:** One merged solid shape per piece, cel-shaded (banded toon lighting, restrained silhouette outline) with thin dark cell-grid lines drawn by the shader; the lines glow in the owner's color when the block is contributing influence. (Amended 2026-09-26, Bontago-5h7: replaces "bevelled cubes with a subtle PBR material and an emissive seam".)
 - **Sky:** Starts with a procedural sky, with support for HDRI panoramas for different themes (dawn, sunset, stormy, night). A cloud layer below the disk made with volumetric fog, and a distant ocean or landscape.
 - **Effects:** GPUParticles3D for explosions, lava orbs, dust when blocks land, and debris falling off the edge.
   - Camera shake scales with the size of the impulse, and can be turned off in settings.

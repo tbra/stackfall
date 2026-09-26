@@ -26,7 +26,14 @@ For menus, retain the red/blue block `STACKFALL` logo and “Build · Balance ·
 
 The owner has not accepted the menus as final; M7 menu work still needs a design pass that honours both references.
 
-**Open conflict with spec §2.10 (needs an owner answer before block-material work).** 08 shows each cube cell outlined inside a piece. §2.10 and the closed `Bontago-xtq.3` require blocks to read as one solid merged shape with no visible per-cell cubes. This ties to Q2 below (seam style). Either amend the spec (option (a), cell-grid seams, would be the closest match to 08) or keep merged blocks and match 08 only in lighting and colour. Do not decide this in code.
+**Owner decisions (2026-09-26, Bontago-5h7 — closes the questions in §5 and the §2.10 seam conflict):**
+- Q1 **a** — spec §2.10 amended: merged solid mesh stays; the block shader draws thin dark cell-grid lines that glow in the owner colour when contributing influence (xtq.3's one-mesh rule is unchanged).
+- Q2 **a** — `StandardMaterial3D` toon diffuse/specular modes plus an inverted-hull outline pass on blocks only; bench at 300 blocks.
+- Q3 **c** — M7 ships the sunset theme only; dawn/stormy/night move to M8.
+- Q4 **a** — territory: crisp thin contour over a flat tint, with a subtle pulse and the contested shimmer retained.
+- Q5 **b** — build P7 (menus/lobby) against mockups 10/11 now, one off-screen screenshot for owner approval before merge. Q5b **ii** — the menu background is a live 3D diorama (real disk, beacons, a few blocks). Q5c — Godot's default font for now.
+- Q6 **confirmed** — procedural home beacons (socket + luminous ring + faceted crystal) replace the pennants; a neutral variant for the goal flag.
+- Carried over, defaults accepted: live SubViewport minimap, two-stem adaptive music crossfade, no third-party addons.
 
 ---
 
