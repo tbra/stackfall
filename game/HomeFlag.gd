@@ -18,6 +18,18 @@ extends Node3D
 ## size across every flag; the ring and crystal scale with banner_scale(), so
 ## GoalFlag's beacon reads as the same shape at a larger scale (see its own
 ## class doc) exactly like the old pole/banner did.
+##
+## Bontago-mp0.3.1 (Graphics pass 2, owner feedback: "Same for the beacons"
+## [as the blocks' cel-shading detail], "pulsating glow from the beacons"):
+## the crystal now draws with shaders/beacon_crystal.gdshader (toon banding +
+## a hard specular facet highlight, matching the block shader's technique)
+## instead of a plain StandardMaterial3D; the ring stays unshaded (it is
+## meant to read as constantly luminous, not lit). Both the ring's scale and
+## the ring/crystal emission energy are animated every frame by
+## _apply_pulse(), driven by BeaconVisualTuning's pulse_* tunables -- no
+## per-flag phase offset, so every beacon on the disk pulses in lockstep.
+
+const CRYSTAL_SHADER: Shader = preload("res://shaders/beacon_crystal.gdshader")
 
 @export var visuals: TerritoryVisuals = preload("res://config/territory_visuals.tres")
 @export var beacon_visuals: BeaconVisualTuning = preload("res://config/beacon_visual_tuning.tres")
@@ -28,12 +40,21 @@ var _socket: MeshInstance3D = null
 var _beacon_ring: MeshInstance3D = null
 var _beacon_ring_material: StandardMaterial3D = null
 var _crystal: MeshInstance3D = null
-var _crystal_material: StandardMaterial3D = null
+var _crystal_material: ShaderMaterial = null
+var _pulse_time_s: float = 0.0
 
 
 func _ready() -> void:
 	_build()
 	_apply_color()
+	_apply_pulse(0.0)
+
+
+## Advances the shared pulse phase and pushes it onto the ring's own scale and
+## the ring/crystal emission energy every frame (owner feedback: "pulsating
+## glow from the beacons").
+func _process(delta: float) -> void:
+	_apply_pulse(delta)
 
 
 func _build() -> void:
@@ -76,9 +97,15 @@ func _build() -> void:
 	_crystal.mesh = _build_crystal_mesh(
 		beacon_visuals.crystal_facets, crystal_radius, crystal_height * 0.5
 	)
-	_crystal_material = StandardMaterial3D.new()
-	_crystal_material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_crystal_material.emission_enabled = true
+	_crystal_material = ShaderMaterial.new()
+	_crystal_material.shader = CRYSTAL_SHADER
+	_crystal_material.set_shader_parameter(&"toon_band_count", beacon_visuals.crystal_toon_band_count)
+	_crystal_material.set_shader_parameter(&"shadow_floor", beacon_visuals.crystal_shadow_floor)
+	_crystal_material.set_shader_parameter(&"shadow_tint", beacon_visuals.crystal_shadow_tint)
+	_crystal_material.set_shader_parameter(&"highlight_boost", beacon_visuals.crystal_highlight_boost)
+	_crystal_material.set_shader_parameter(&"specular_strength", beacon_visuals.crystal_specular_strength)
+	_crystal_material.set_shader_parameter(&"specular_sharpness", beacon_visuals.crystal_specular_sharpness)
+	_crystal_material.set_shader_parameter(&"specular_softness", beacon_visuals.crystal_specular_softness)
 	_crystal.material_override = _crystal_material
 	_crystal.position = Vector3(
 		0.0, beacon_visuals.socket_height + crystal_height * 0.5, 0.0
@@ -114,10 +141,38 @@ func _apply_color() -> void:
 		return
 	_beacon_ring_material.albedo_color = _color
 	_beacon_ring_material.emission = _color
-	_beacon_ring_material.emission_energy_multiplier = beacon_visuals.ring_emission
-	_crystal_material.albedo_color = _color
-	_crystal_material.emission = _color
-	_crystal_material.emission_energy_multiplier = beacon_visuals.crystal_emission
+	_crystal_material.set_shader_parameter(&"albedo_color", _color)
+	_crystal_material.set_shader_parameter(&"emission_color", _color)
+	# emission_energy_multiplier/emission_energy are owned by _apply_pulse()
+	# below (owner feedback: "pulsating glow from the beacons") -- it always
+	# recomputes the full energy from BeaconVisualTuning's base value each
+	# frame, so setting it here would just be overwritten on the next
+	# _process() tick.
+
+
+## Bontago-mp0.3.1 (owner feedback: "pulsating glow from the beacons"): a
+## single sine wave, shared by the ring's own uniform XZ scale and the
+## ring/crystal emission energy, so the whole beacon breathes together rather
+## than the ring and crystal pulsing independently. `delta` is unused when
+## called from _ready() with 0.0 (pre-first-frame initialization, so the
+## beacon never pops from "unpulsed" to "pulsed" on the first real _process()
+## tick) -- kept as a parameter anyway so both call sites share one method.
+func _apply_pulse(_delta: float) -> void:
+	if _beacon_ring_material == null or _crystal_material == null:
+		return
+	_pulse_time_s += _delta
+	var wave: float = 0.0
+	if beacon_visuals.pulse_period_s > 0.0:
+		wave = sin(TAU * _pulse_time_s / beacon_visuals.pulse_period_s)
+
+	var ring_scale: float = 1.0 + wave * beacon_visuals.pulse_scale_amplitude
+	_beacon_ring.scale = Vector3(ring_scale, 1.0, ring_scale)
+
+	var energy_mult: float = 1.0 + wave * beacon_visuals.pulse_emission_amplitude
+	_beacon_ring_material.emission_energy_multiplier = beacon_visuals.ring_emission * energy_mult
+	_crystal_material.set_shader_parameter(
+		&"emission_energy", beacon_visuals.crystal_emission * energy_mult
+	)
 
 
 ## A full annulus lying flat at y=0 in local space (see GoalFlag._build_arc()
