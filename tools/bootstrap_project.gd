@@ -39,6 +39,9 @@ func _apply_settings() -> void:
 		"application/config/features": PackedStringArray(["4.4", "Forward Plus"]),
 		"rendering/renderer/rendering_method": "forward_plus",
 		"physics/3d/physics_engine": "Jolt Physics",
+		# M8 P7 (Bontago-8or.13): the macOS export preset is universal/arm64,
+		# which Godot refuses unless ETC2/ASTC VRAM compression is imported.
+		"rendering/textures/vram_compression/import_etc2_astc": true,
 
 		# Spec 3.5 - physics tuning.
 		"physics/common/physics_ticks_per_second": 60,

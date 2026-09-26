@@ -322,3 +322,7 @@ jolt_physics_3d/simulation/velocity_steps=192
 jolt_physics_3d/simulation/position_steps=4
 jolt_physics_3d/simulation/body_pair_contact_cache_distance_threshold=0.0001
 common/physics_interpolation=true
+
+[rendering]
+
+textures/vram_compression/import_etc2_astc=true
