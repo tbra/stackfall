@@ -14,6 +14,7 @@ extends Node
 signal graphics_preset_changed(preset: GraphicsPreset)
 signal audio_settings_changed()
 signal camera_shake_setting_changed(enabled: bool)
+signal window_mode_changed(id: StringName)
 
 const DEFAULT_PRESET_ID: StringName = &"medium"
 const PRESETS_DIR: String = "res://config/graphics_presets/"
@@ -26,6 +27,37 @@ const KEY_PRESET: String = "preset"
 const KEY_MASTER_DB: String = "master_db"
 const KEY_CUSTOM_MUSIC_DIR: String = "custom_music_dir"
 const KEY_CAMERA_SHAKE_ENABLED: String = "camera_shake_enabled"
+const KEY_WINDOW_MODE: String = "window_mode"
+
+## Bontago-xtq.45 (M7 P4): the three player-facing window modes, exclusive
+## fullscreen, borderless fullscreen and windowed. Ids are StringName rather
+## than a real GDScript enum so they persist to ConfigFile directly (same
+## pattern as _current_preset_id) and so a future ui/OptionsMenu.gd
+## OptionButton can iterate WINDOW_MODE_IDS without depending on this
+## script's enum type.
+const WINDOW_MODE_FULLSCREEN: StringName = &"fullscreen"
+const WINDOW_MODE_BORDERLESS_FULLSCREEN: StringName = &"borderless_fullscreen"
+const WINDOW_MODE_WINDOWED: StringName = &"windowed"
+
+## Owner request (Bontago-xtq.45): borderless fullscreen is the default.
+const DEFAULT_WINDOW_MODE_ID: StringName = WINDOW_MODE_BORDERLESS_FULLSCREEN
+
+## Display order for the future OptionButton (ui/OptionsMenu.gd, a separate
+## package) -- exclusive fullscreen, then borderless fullscreen, then windowed.
+const WINDOW_MODE_IDS: Array[StringName] = [
+	WINDOW_MODE_FULLSCREEN,
+	WINDOW_MODE_BORDERLESS_FULLSCREEN,
+	WINDOW_MODE_WINDOWED,
+]
+
+## Human-readable labels for WINDOW_MODE_IDS, keyed the same way -- the future
+## OptionButton reads window_mode_label(id) rather than hand-rolling display
+## strings next to this script's own ids.
+const WINDOW_MODE_LABELS: Dictionary[StringName, String] = {
+	WINDOW_MODE_FULLSCREEN: "Fullscreen",
+	WINDOW_MODE_BORDERLESS_FULLSCREEN: "Borderless Fullscreen",
+	WINDOW_MODE_WINDOWED: "Windowed",
+}
 
 ## Bontago-xtq.29 (M7 P4): default on -- matches the shake game/CameraRig.gd
 ## already applies before the player ever opens Options, so a fresh install
@@ -37,6 +69,7 @@ var _current_preset_id: StringName = DEFAULT_PRESET_ID
 var _master_volume_db: float = 0.0
 var _custom_music_dir: String = ""
 var _camera_shake_enabled: bool = DEFAULT_CAMERA_SHAKE_ENABLED
+var _window_mode_id: StringName = DEFAULT_WINDOW_MODE_ID
 
 ## action -> Array of persisted InputEvent overrides for that action (never
 ## the full InputMap default set -- key_override_events() answers "what has
@@ -97,6 +130,97 @@ func set_camera_shake_enabled(enabled: bool) -> void:
 	_camera_shake_enabled = enabled
 	_save()
 	camera_shake_setting_changed.emit(enabled)
+
+
+## Bontago-xtq.45 (M7 P4): the persisted window-mode id. Defaults to
+## DEFAULT_WINDOW_MODE_ID (borderless fullscreen) when user://settings.cfg has
+## never stored one.
+func window_mode() -> StringName:
+	return _window_mode_id
+
+
+## Validates `id` against WINDOW_MODE_IDS, persists it, emits
+## window_mode_changed(id) and applies it immediately via apply_window_mode()
+## -- game/Main.gd (a separate package) only needs to call apply_window_mode()
+## once at boot for the persisted value; every later change goes through here.
+func set_window_mode(id: StringName) -> void:
+	if not WINDOW_MODE_IDS.has(id):
+		push_warning("Settings: unknown window mode id %s" % id)
+		return
+	_window_mode_id = id
+	_save()
+	window_mode_changed.emit(id)
+	apply_window_mode()
+
+
+## Human-readable label for `id`, for the future OptionButton. Returns the raw
+## id string if it's somehow missing from WINDOW_MODE_LABELS (must not happen
+## for any id in WINDOW_MODE_IDS, but an OptionButton reading a stale/unknown
+## persisted id should still get something printable rather than crash).
+func window_mode_label(id: StringName) -> String:
+	return WINDOW_MODE_LABELS.get(id, String(id))
+
+
+## Applies the current window_mode() to the real OS window via DisplayServer.
+## Safe to call any number of times (idempotent: re-applying the same mode is
+## just redundant DisplayServer calls, not observable state churn).
+##
+## Bontago-xtq.45: guarded so it is a no-op whenever there is no real player
+## window to change:
+##  - DisplayServer.get_name() == "headless": no window exists at all (every
+##    GUT test run, CI, `--headless-host` bot matches).
+##  - Engine.is_editor_hint(): the script is running inside the editor itself
+##    (tool mode), which owns its own window. Not OS.has_feature("editor"):
+##    that is true for every run from this repo's editor binary, including the
+##    owner's own `godot --path .` launches, and would make the setting inert
+##    until an export template exists (orchestrator correction, xtq.45).
+##  - `--position` present in OS.get_cmdline_args(): our own off-screen
+##    screenshot/probe tools launch with `--position 10000,10000` specifically
+##    so a windowed run never appears on the owner's monitor; forcing
+##    fullscreen would undo that.
+func apply_window_mode() -> void:
+	if not _can_apply_window_mode():
+		return
+	match _window_mode_id:
+		WINDOW_MODE_FULLSCREEN:
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
+			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
+		WINDOW_MODE_BORDERLESS_FULLSCREEN:
+			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, true)
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+		WINDOW_MODE_WINDOWED:
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
+			_restore_windowed_size_and_center()
+		_:
+			push_warning("Settings: apply_window_mode() has no case for id %s" % _window_mode_id)
+
+
+func _can_apply_window_mode() -> bool:
+	if DisplayServer.get_name() == "headless":
+		return false
+	if Engine.is_editor_hint():
+		return false
+	if OS.get_cmdline_args().has("--position"):
+		return false
+	return true
+
+
+## Windowed mode's fallback size/position: the "sane size" ProjectSettings
+## already declares for the whole project (display/window/size/viewport_
+## width|height, the same values the engine itself uses to size the very
+## first window it opens), not a magic literal duplicated here. Centered on
+## whatever screen it ends up on via Window.move_to_center() rather than a
+## hand-computed screen-size/2 - window-size/2, which would double-count
+## whatever DisplayServer.screen_get_size() already reports.
+func _restore_windowed_size_and_center() -> void:
+	var window: Window = get_window()
+	if window == null:
+		return
+	var width: int = int(ProjectSettings.get_setting("display/window/size/viewport_width"))
+	var height: int = int(ProjectSettings.get_setting("display/window/size/viewport_height"))
+	window.size = Vector2i(width, height)
+	window.move_to_center()
 
 
 ## Persisted overrides only, not the InputMap's full current binding set.
@@ -185,6 +309,7 @@ func _load() -> void:
 	_master_volume_db = 0.0
 	_custom_music_dir = ""
 	_camera_shake_enabled = DEFAULT_CAMERA_SHAKE_ENABLED
+	_window_mode_id = DEFAULT_WINDOW_MODE_ID
 	_key_overrides.clear()
 
 	var cfg: ConfigFile = ConfigFile.new()
@@ -196,6 +321,9 @@ func _load() -> void:
 	_master_volume_db = float(cfg.get_value(SECTION_AUDIO, KEY_MASTER_DB, 0.0))
 	_custom_music_dir = String(cfg.get_value(SECTION_AUDIO, KEY_CUSTOM_MUSIC_DIR, ""))
 	_camera_shake_enabled = bool(cfg.get_value(SECTION_GRAPHICS, KEY_CAMERA_SHAKE_ENABLED, DEFAULT_CAMERA_SHAKE_ENABLED))
+	var loaded_window_mode_id: StringName = StringName(cfg.get_value(SECTION_GRAPHICS, KEY_WINDOW_MODE, DEFAULT_WINDOW_MODE_ID))
+	if WINDOW_MODE_IDS.has(loaded_window_mode_id):
+		_window_mode_id = loaded_window_mode_id
 
 	if cfg.has_section(SECTION_INPUT):
 		for action_key: String in cfg.get_section_keys(SECTION_INPUT):
@@ -208,6 +336,7 @@ func _save() -> void:
 	var cfg: ConfigFile = ConfigFile.new()
 	cfg.set_value(SECTION_GRAPHICS, KEY_PRESET, String(_current_preset_id))
 	cfg.set_value(SECTION_GRAPHICS, KEY_CAMERA_SHAKE_ENABLED, _camera_shake_enabled)
+	cfg.set_value(SECTION_GRAPHICS, KEY_WINDOW_MODE, String(_window_mode_id))
 	cfg.set_value(SECTION_AUDIO, KEY_MASTER_DB, _master_volume_db)
 	cfg.set_value(SECTION_AUDIO, KEY_CUSTOM_MUSIC_DIR, _custom_music_dir)
 	for action: StringName in _key_overrides.keys():
