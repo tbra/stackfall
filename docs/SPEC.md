@@ -305,7 +305,7 @@ The AI runs only on the host, and for multiple bots it spreads its thinking acro
 - **Disk:** Opaque, mirror-like polished surface (reflective, never transparent; owner 2026-09-23), with sky reflections via the Environment sky and a reflection probe for nearby blocks.
   - Territory is drawn by a shader. Each player's area is a soft tint in their color with an animated outline.
   - Contested areas shimmer. Hole edges glow and crackle.
-- **Blocks:** One merged solid shape per piece, cel-shaded (banded toon lighting, restrained silhouette outline) with thin dark cell-grid lines drawn by the shader; the lines glow in the owner's color when the block is contributing influence. (Amended 2026-09-26, Bontago-5h7: replaces "bevelled cubes with a subtle PBR material and an emissive seam".)
+- **Blocks:** One merged solid shape per piece, cel-shaded (banded toon lighting, restrained silhouette outline) with thin dark cell-grid lines drawn by the shader; the lines always stay dark (the owner-colour glow for contributing blocks is retained as an off-by-default tunable). (Amended 2026-09-26, Bontago-5h7: replaces "bevelled cubes with a subtle PBR material and an emissive seam"; glow dropped after playtest, Bontago-xtq.39.)
 - **Sky:** Starts with a procedural sky, with support for HDRI panoramas for different themes (dawn, sunset, stormy, night). A cloud layer below the disk made with volumetric fog, and a distant ocean or landscape.
 - **Effects:** GPUParticles3D for explosions, lava orbs, dust when blocks land, and debris falling off the edge.
   - Camera shake scales with the size of the impulse, and can be turned off in settings.

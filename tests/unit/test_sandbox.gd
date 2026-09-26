@@ -96,6 +96,74 @@ func _pad_press(button: JoyButton) -> InputEventJoypadButton:
 	return event
 
 
+# --- Pause menu suppression (Bontago-xtq.42 fix round 2) ----------------------
+#
+# This fixture's own Main instance is the cheap place to exercise game/Main.gd's
+# suppress/unsuppress wiring end to end: before_each() already boots the real
+# Main scene to the real main menu (its own assert_not_null(_main._main_menu)
+# fixture assertion above), and start_sandbox_from_menu() is the actual
+# menu-driven entry point that owns its own explicit unsuppress (unlike
+# _start_sandbox()'s own _start_sandbox_match_with_args() helper above, which
+# bypasses that wrapper entirely -- see game/Main.gd's own comment on why).
+
+func test_pause_menu_is_suppressed_at_boot_on_the_main_menu() -> void:
+	assert_true(_main._pause_menu.suppressed, "the pause menu must be inert while the main menu is showing -- there is no match to leave.")
+
+
+func test_pause_menu_is_unsuppressed_after_sandbox_starts_from_the_menu() -> void:
+	_main.start_sandbox_from_menu()
+
+	assert_false(_main._pause_menu.suppressed, "starting a sandbox match from the main menu must make the pause menu usable.")
+
+
+# --- Leaving a sandbox via the pause menu (Bontago-xtq.42 P42 review, round 3) -
+#
+# game/Main.gd's _on_pause_leave_requested() (ui/PauseMenu.gd's own Leave
+# match, confirmed) frees _sandbox and aborts the offline match. Round 3
+# regression: the previous free-after-abort order left _world_built stuck
+# true forever after this call -- Match.abort_match()'s (-> LOBBY) emit
+# reached _on_match_state_changed() while _sandbox was still live, which
+# diverts that reaction away from _end_match_world(), the only place that
+# clears _world_built back to false -- so the *next* ordinary match's
+# _build_match_world() call silently built nothing at all (its own `if
+# _world_built: return` guard).
+
+func test_leaving_a_sandbox_via_the_pause_menu_clears_world_built_and_the_sandbox() -> void:
+	_main.start_sandbox_from_menu()
+	_run_countdown()
+	assert_eq(
+		get_tree().get_nodes_in_group(GhostPreview.LOCAL_HELD_GROUP).size(), 1,
+		"fixture: exactly one local-held ghost while the sandbox is live"
+	)
+
+	_main._on_pause_leave_requested()
+	await get_tree().process_frame
+
+	assert_null(_main._hot_seat, "leaving a sandbox must never leave a HotSeat behind")
+	assert_eq(
+		get_tree().get_nodes_in_group(GhostPreview.LOCAL_HELD_GROUP).size(), 0,
+		"leaving a sandbox must free its PlayerController/GhostPreview subtree"
+	)
+	assert_false(
+		_main._world_built,
+		"_world_built must be cleared so the next real match's _build_match_world() actually runs"
+	)
+	assert_null(_main._sandbox, "the sandbox instance itself must be freed and nulled")
+	assert_not_null(_main._main_menu, "leaving must show the main menu")
+
+	# A fresh sandbox afterward must still behave exactly as a first one does
+	# -- never a duplicate (or missing) HotSeat/ghost left over from the one
+	# just freed above.
+	_main.start_sandbox_from_menu()
+	_run_countdown()
+
+	assert_eq(
+		get_tree().get_nodes_in_group(GhostPreview.LOCAL_HELD_GROUP).size(), 1,
+		"a fresh sandbox after leaving must still control exactly one local-held block"
+	)
+	assert_null(_main._hot_seat, "a fresh sandbox must still never build a HotSeat-driven world")
+
+
 # --- Flag routing / world build ----------------------------------------------
 
 func test_sandbox_flag_builds_an_offline_world_with_n_slots() -> void:
@@ -279,6 +347,83 @@ func test_sandbox_reset_field_clears_blocks_and_rebuilds_for_the_same_config() -
 	assert_eq(sandbox.active_slot(), 0, "reset re-seeds the active slot")
 	assert_eq(_main._field._home_flags.size(), 2, "flags are rebuilt for the same config")
 	assert_not_null(Match.raster(), "territory is rebuilt")
+
+
+## Bontago-xtq.43 (owner playtest report: "after I hit F5 to reset I
+## controlled 2 blocks"). game/PlayerController.gd's _ready() unconditionally
+## adds its ghost to GhostPreview.LOCAL_HELD_GROUP regardless of which
+## controller built it, so "exactly one node in that group" is the correct
+## invariant for "the local player controls exactly one held block" — this
+## does not depend on knowing which controller is the stray one.
+##
+## Root cause traced to game/Main.gd (not owned by this package, reported
+## separately): _on_match_state_changed() calls _end_match_world() on any
+## `-> LOBBY` transition, and _end_match_world() unconditionally clears
+## _world_built to false even when the match that just left LOBBY (via
+## Match.start_match()'s internal abort_match()) is a sandbox match that
+## Sandbox.gd already fully owns. The same start_match() call's following
+## `LOBBY -> LOADING` transition then finds _world_built already false and
+## runs _build_match_world() for real, which instantiates a second, fully
+## independent HotSeat-driven PlayerController bound to the same local slot
+## Sandbox's own controller already serves. start_sandbox_from_menu() guards
+## only the *first* start (`_world_built = true` before the first
+## start_match()); nothing re-arms that guard before a later
+## sandbox_reset_field, and this test's own _start_sandbox() helper — like
+## the real CLI --sandbox entry point never reconnecting the listener, but
+## unlike the guarded menu button — calls _start_sandbox_match_with_args()
+## directly, so the very first start already exhibits it too.
+func test_sandbox_start_and_reset_field_leave_exactly_one_local_held_block() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	assert_eq(
+		get_tree().get_nodes_in_group(GhostPreview.LOCAL_HELD_GROUP).size(), 1,
+		"sandbox start must not also build a HotSeat-driven world on top of Sandbox's own"
+	)
+	assert_null(_main._hot_seat, "Main._build_match_world() must never run for a sandbox match")
+
+	var sandbox: Sandbox = _main._sandbox
+	# A block actually lands and the active slot moves on, same fixture shape
+	# as test_sandbox_reset_field_clears_blocks_and_rebuilds_for_the_same_config()
+	# above, so the reset is exercised with a block already placed (not an
+	# empty, just-booted field) -- one of the states the owner's report could
+	# plausibly have been in.
+	var reason: StringName = Match.request_place(0, Match.default_ghost_origin(0), 0, Quaternion.IDENTITY, false)
+	assert_eq(reason, PlacementRules.REASON_OK, "fixture: a block actually lands before the reset")
+	sandbox._cycle_active_slot()
+
+	for reset_pass: int in range(3):
+		sandbox._unhandled_input(_key_press(KEY_F5))
+		_run_countdown()
+		assert_eq(
+			get_tree().get_nodes_in_group(GhostPreview.LOCAL_HELD_GROUP).size(), 1,
+			"sandbox_reset_field pass %d must not leave a second local-held ghost controlled by a duplicate HotSeat" % reset_pass
+		)
+		assert_null(
+			_main._hot_seat,
+			"sandbox_reset_field pass %d must not (re)build a HotSeat-driven world for a sandbox match" % reset_pass
+		)
+
+
+## Same invariant as the test above, but the reset lands while the previous
+## held block is mid-drop (thrown, not yet resolved to a placement) rather
+## than already placed and settled -- a second state the owner's "after I hit
+## F5" report could have been in.
+func test_sandbox_reset_field_mid_throw_leaves_exactly_one_local_held_block() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+	var controller: PlayerController = sandbox.controller()
+	sandbox.ghost().update_placement(Match.default_ghost_origin(0), Vector3.UP)
+	controller._aiming_throw = true
+
+	sandbox._unhandled_input(_key_press(KEY_F5))
+	_run_countdown()
+
+	assert_eq(
+		get_tree().get_nodes_in_group(GhostPreview.LOCAL_HELD_GROUP).size(), 1,
+		"sandbox_reset_field mid-throw must not leave a second local-held ghost controlled by a duplicate HotSeat"
+	)
+	assert_null(_main._hot_seat, "Main._build_match_world() must never run for a sandbox match")
 
 
 # --- sandbox_spawn_tower: F7 --------------------------------------------------

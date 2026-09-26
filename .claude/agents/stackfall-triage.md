@@ -37,5 +37,5 @@ Preserve other workers' changes. Do not change Beads status, assignment or
 dependencies, or commit, merge, push or sync.
 - Godot processes: `tasklist | findstr` is broken in Git Bash; use `tasklist | grep -i godot` or `wmic process where "name like '%godot%'" get ProcessId,CommandLine`. Never kill by image name (`//IM`): other agents' benchmarks share the machine. Kill only your own PIDs.
 
-- **Windowed Godot runs (owner, 2026-09-23):** any windowed launch you make (screenshot probes, smoke runs) must pass `--position 10000,10000` so it opens off-screen, never `--always-on-top`/`--maximized`, and must quit right after the capture; use `--headless` when no screenshot is needed. Visible windows interrupt the owner on another monitor.
+- **Windowed Godot runs (owner, 2026-09-23):** any windowed launch you make (screenshot probes, smoke runs) must pass `--windowed --position 10000,10000` so it opens off-screen, never `--always-on-top`/`--maximized`, and must quit right after the capture; use `--headless` when no screenshot is needed. Visible windows interrupt the owner on another monitor.
 - **Probe ceiling:** no visual run unless the brief explicitly needs one. Never exceed three windowed runs even with an explicit extension; stop with evidence when the budget is used.

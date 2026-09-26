@@ -123,6 +123,31 @@ func test_toggling_camera_shake_check_calls_set_camera_shake_enabled() -> void:
 	assert_true(_settings_of(menu).camera_shake_enabled())
 
 
+# --- Window mode (Bontago-xtq.45, M7 P4) ------------------------------------------
+
+func test_window_mode_option_lists_every_id_with_borderless_fullscreen_selected_by_default() -> void:
+	var menu: OptionsMenu = _make_menu()
+	menu._load_current_values()
+	var option: OptionButton = menu.get_node("%WindowModeOption") as OptionButton
+	assert_eq(option.item_count, Settings.WINDOW_MODE_IDS.size())
+	for i: int in range(Settings.WINDOW_MODE_IDS.size()):
+		assert_eq(option.get_item_text(i), Settings.window_mode_label(Settings.WINDOW_MODE_IDS[i]))
+	assert_eq(option.selected, Settings.WINDOW_MODE_IDS.find(&"borderless_fullscreen"))
+
+
+func test_selecting_a_window_mode_calls_set_window_mode_with_matching_id() -> void:
+	var menu: OptionsMenu = _make_menu()
+	menu._on_window_mode_selected(Settings.WINDOW_MODE_IDS.find(&"windowed"))
+	assert_eq(_settings_of(menu).window_mode(), &"windowed")
+
+
+func test_window_mode_selection_ignores_out_of_range_index() -> void:
+	var menu: OptionsMenu = _make_menu()
+	menu._on_window_mode_selected(-1)
+	menu._on_window_mode_selected(999)
+	assert_eq(_settings_of(menu).window_mode(), &"borderless_fullscreen", "an out-of-range index must not change the window mode")
+
+
 # --- Rebindable action allow-list -------------------------------------------------
 
 ## docs/M6_PLAN.md package C2: an explicit allow-list must exclude every
@@ -170,6 +195,17 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	var camera_shake_check: Control = menu.get_node("%CameraShakeCheck") as Control
 	assert_ne(camera_shake_check.focus_neighbor_top, NodePath(""), "CameraShakeCheck must have an up neighbor")
 	assert_ne(camera_shake_check.focus_neighbor_bottom, NodePath(""), "CameraShakeCheck must have a down neighbor")
+
+	# Bontago-xtq.45: CameraShakeCheck -> WindowModeOption -> first rebind row,
+	# both directions, through the same get_path_to()-computed neighbors the
+	# rest of this test already checks (a real gamepad D-pad/stick "move
+	# focus down" sends ui_down, which Godot's own Control focus-neighbor
+	# resolution consumes via these NodePaths -- there is no separate
+	# synthetic-input path to drive here).
+	var window_mode_option: Control = menu.get_node("%WindowModeOption") as Control
+	assert_eq(camera_shake_check.get_node(camera_shake_check.focus_neighbor_bottom), window_mode_option, "CameraShakeCheck must move focus down to WindowModeOption")
+	assert_eq(window_mode_option.get_node(window_mode_option.focus_neighbor_top), camera_shake_check, "WindowModeOption must move focus up to CameraShakeCheck")
+	assert_eq(window_mode_option.get_node(window_mode_option.focus_neighbor_bottom), rows[0].rebind_button(), "WindowModeOption must move focus down to the first rebind row")
 
 	for row: KeyRebindRow in rows:
 		var button: Control = row.rebind_button()

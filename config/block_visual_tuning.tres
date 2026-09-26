@@ -9,5 +9,5 @@ outline_color = Color(0.05, 0.04, 0.05, 1)
 toon_band_count = 3
 grid_line_width_px = 1.5
 grid_line_color = Color(0.12, 0.1, 0.1, 1)
-grid_line_glow_color = Color(1, 0.92, 0.55, 1)
-grid_line_glow_strength = 2.2
+grid_line_glow_color = Color(0.12, 0.1, 0.1, 1)
+grid_line_glow_strength = 0.0

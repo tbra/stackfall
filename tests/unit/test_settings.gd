@@ -50,6 +50,7 @@ func test_defaults_with_no_saved_file() -> void:
 	assert_eq(_settings.custom_music_dir(), "")
 	assert_eq(_settings.key_override_events(_test_action).size(), 0)
 	assert_true(_settings.camera_shake_enabled(), "Bontago-xtq.29: camera shake defaults on")
+	assert_eq(_settings.window_mode(), &"borderless_fullscreen", "Bontago-xtq.45: borderless fullscreen is the default window mode")
 
 
 func test_graphics_preset_round_trips_and_persists() -> void:
@@ -113,6 +114,65 @@ func test_graphics_presets_set_volumetric_fog_enabled_per_tier() -> void:
 	assert_true(_settings.current_graphics_preset().volumetric_fog_enabled, "medium keeps volumetric fog")
 	_settings.set_graphics_preset(&"low")
 	assert_false(_settings.current_graphics_preset().volumetric_fog_enabled, "low drops the cloud-deck FogVolume")
+
+
+## Bontago-xtq.45 (M7 P4): the three window-mode ids round-trip through
+## ConfigFile the same way the graphics preset id does above.
+func test_window_mode_round_trips_and_persists() -> void:
+	_settings.set_window_mode(&"windowed")
+	assert_eq(_settings.window_mode(), &"windowed")
+
+	var reloaded: Node = _fresh_settings_at_same_path()
+	assert_eq(reloaded.window_mode(), &"windowed")
+
+
+func test_window_mode_changed_signal_emits_on_change() -> void:
+	watch_signals(_settings)
+	_settings.set_window_mode(&"fullscreen")
+	assert_signal_emitted(_settings, "window_mode_changed")
+
+
+func test_unknown_window_mode_id_is_ignored() -> void:
+	_settings.set_window_mode(&"fullscreen")
+	_settings.set_window_mode(&"not_a_real_window_mode")
+	assert_eq(_settings.window_mode(), &"fullscreen", "an unknown id must not overwrite the current window mode")
+
+
+## A window-mode id that made it onto disk despite not being one of
+## WINDOW_MODE_IDS (corrupted/handwritten settings.cfg, or a mode retired in a
+## later version) must not be trusted back into _window_mode_id either --
+## _load() falls back to DEFAULT_WINDOW_MODE_ID exactly like the "unknown id"
+## setter guard above.
+func test_unknown_window_mode_id_on_disk_falls_back_to_default() -> void:
+	var cfg: ConfigFile = ConfigFile.new()
+	cfg.set_value("graphics", "window_mode", "not_a_real_window_mode")
+	cfg.save(_cfg_path)
+
+	var reloaded: Node = _fresh_settings_at_same_path()
+	assert_eq(reloaded.window_mode(), &"borderless_fullscreen")
+
+
+func test_window_mode_ids_constant_covers_every_mode() -> void:
+	var ids: Array[StringName] = SETTINGS_SCRIPT.WINDOW_MODE_IDS
+	assert_eq(ids.size(), 3)
+	assert_true(ids.has(&"fullscreen"))
+	assert_true(ids.has(&"borderless_fullscreen"))
+	assert_true(ids.has(&"windowed"))
+	for id: StringName in ids:
+		assert_ne(_settings.window_mode_label(id), "", "every window mode id should have a display label")
+
+
+## The GUT runner is always headless (CLAUDE.md's own headless unit test
+## command), so apply_window_mode()'s DisplayServer.get_name() == "headless"
+## guard must make every call here a pure no-op -- no DisplayServer call to
+## assert against directly, but window_mode() itself (and, implicitly, the
+## absence of a crash/hang reaching into a nonexistent window) must be
+## unaffected by calling it.
+func test_apply_window_mode_is_a_no_op_under_headless() -> void:
+	_settings.set_window_mode(&"windowed")
+	assert_eq(DisplayServer.get_name(), "headless", "this test only proves the guard under a headless run")
+	_settings.apply_window_mode()
+	assert_eq(_settings.window_mode(), &"windowed", "apply_window_mode() must not change window_mode() itself")
 
 
 func test_set_key_override_updates_input_map_immediately() -> void:
