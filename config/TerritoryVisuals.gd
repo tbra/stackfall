@@ -13,7 +13,7 @@ extends Resource
 
 ## -- Disk surface -----------------------------------------------------------
 ## The disk's own color where no team owns the ground.
-@export var disk_base_color: Color = Color(0.68, 0.70, 0.74)
+@export var disk_base_color: Color = Color(0.10, 0.11, 0.14)
 ## Bontago-xtq.4 (owner, 2026-09-22: "a bit transparent and reflective"):
 ## retuned from 0.1 toward a metallic response; drives the shader's
 ## SPECULAR/METALLIC-visible reflection of ProceduralSky.
@@ -54,7 +54,7 @@ extends Resource
 ## Bontago-xtq.20: 0.3 -- only the ambient/probe/SSR sheen reads this now
 ## (direct-light specular is off on the disc), and a slightly softer sheen
 ## sits under the sharp planar mirror image instead of competing with it.
-@export var disk_roughness: float = 0.3
+@export var disk_roughness: float = 0.38
 ## Radial segments of the disk mesh. High enough that the rim reads as a
 ## circle rather than a polygon at the camera distances spec 2.5 allows.
 @export var disk_mesh_segments: int = 96
@@ -93,18 +93,18 @@ extends Resource
 ## one screen pixel).
 @export var edge_softness_m: float = 0.03
 ## How much of the owner color is mixed over the disk at full coverage.
-@export var tint_alpha: float = 0.55
+@export var tint_alpha: float = 0.38
 
 ## -- Animated outline (spec 2.10: "with an animated outline") ---------------
 ## Half-width of the outline band around a territory edge, same units as
 ## edge_softness.
-@export var outline_width: float = 0.16
+@export var outline_width: float = 0.10
 ## Pulses per second along the outline.
 @export var outline_speed: float = 1.6
 ## Emission strength of the outline at the peak of its pulse.
-@export var outline_strength: float = 1.4
+@export var outline_strength: float = 0.9
 ## How much of the pulse is animated; the rest is a constant outline.
-@export var outline_pulse_depth: float = 0.45
+@export var outline_pulse_depth: float = 0.12
 
 ## -- Contested cells (spec 2.10: "Contested areas shimmer") -----------------
 @export var contested_color: Color = Color(1.0, 0.95, 0.75)
@@ -166,11 +166,11 @@ extends Resource
 ## Half-width, in meters, of the bright rim band drawn just inside a
 ## territory's analytic edge (docs/ORIGINAL_BONTAGO_NOTES.md: "a bright
 ## border around the rim of the shaded area").
-@export var rim_width: float = 0.35
+@export var rim_width: float = 0.12
 ## Emission strength of the rim at the peak of its pulse.
-@export var rim_strength: float = 1.4
+@export var rim_strength: float = 0.9
 ## How much of the rim's pulse is animated; the rest is a constant glow.
-@export var rim_pulse_depth: float = 0.45
+@export var rim_pulse_depth: float = 0.12
 ## Pulses per second along the rim.
 @export var rim_speed: float = 1.6
 ## Smooth-min/-max blend radius, in meters, used when two overlapping
@@ -279,7 +279,7 @@ extends Resource
 ## added as reflected light); 0 disables the blend even if mirror_enabled
 ## leaves the viewport itself rendering. 0.5 keeps the territory tint legible
 ## under a clearly visible reflection (docs/original_stacked-tower.png).
-@export var mirror_strength: float = 0.5
+@export var mirror_strength: float = 0.34
 ## SubViewport size as a fraction of the main viewport's own size. Below 1.0
 ## trades reflection sharpness for the cost of rendering the whole scene a
 ## second time every frame.

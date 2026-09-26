@@ -118,9 +118,12 @@ func _apply_settings() -> void:
 		# `borderless = true` removes the window chrome -- together the same
 		# pair of calls Settings.apply_window_mode()'s own
 		# WINDOW_MODE_BORDERLESS_FULLSCREEN case makes at runtime. Does not
-		# set viewport_width/viewport_height: this project has never
-		# overridden those, so they stay at the engine's own built-in
-		# default (1152x648) exactly as before this change.
+		# UI uses a 720p logical canvas so fullscreen/high-DPI displays keep
+		# readable controls; expand preserves additional ultrawide space.
+		"display/window/size/viewport_width": 1280,
+		"display/window/size/viewport_height": 720,
+		"display/window/stretch/mode": "canvas_items",
+		"display/window/stretch/aspect": "expand",
 		"display/window/size/mode": 3,
 		"display/window/size/borderless": true,
 

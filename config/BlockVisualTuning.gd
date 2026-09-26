@@ -8,7 +8,7 @@ extends Resource
 
 ## Inverted-hull outline pass (shaders/block_outline.gdshader): how far the
 ## outline mesh's vertices are pushed out along their own normal, in meters.
-@export var outline_width_m: float = 0.012
+@export var outline_width_m: float = 0.009
 
 ## Flat, unshaded color of the outline pass.
 @export var outline_color: Color = Color(0.05, 0.04, 0.05)
@@ -20,7 +20,7 @@ extends Resource
 ## Screen-space width, in pixels, of the dark line drawn along each visible
 ## face's UV edge (BlockMeshBuilder's existing 0..1 per-cell UVs put one such
 ## edge at every cell boundary, spec 2.10 as amended).
-@export var grid_line_width_px: float = 1.5
+@export var grid_line_width_px: float = 0.9
 
 ## Cell-grid line color for a block that is not currently read as
 ## contributing to territory influence (in flight / just landed).

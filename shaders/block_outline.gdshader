@@ -12,7 +12,7 @@ shader_type spatial;
 // unshaded color -- an outline reads as a hand-inked line, not a lit surface.
 render_mode cull_front, unshaded;
 
-uniform float outline_width_m : hint_range(0.0, 0.1) = 0.012;
+uniform float outline_width_m : hint_range(0.0, 0.1) = 0.009;
 uniform vec4 outline_color : source_color = vec4(0.05, 0.04, 0.05, 1.0);
 
 void vertex() {

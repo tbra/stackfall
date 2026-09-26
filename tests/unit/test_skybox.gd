@@ -112,9 +112,25 @@ func _make_wired_skybox() -> Dictionary:
 	var skybox: Skybox = Skybox.new()
 	skybox.config = SkyboxConfig.new()
 	skybox.environment = environment
+	skybox.theme = SkyThemeDef.new()
 	add_child_autofree(skybox)
 
 	return {"skybox": skybox, "environment": environment, "procedural": procedural}
+
+
+func test_authored_theme_returns_after_switching_back_from_legacy_skybox() -> void:
+	var wired: Dictionary = _make_wired_skybox()
+	var skybox: Skybox = wired["skybox"] as Skybox
+	var environment: Environment = wired["environment"] as Environment
+	var sunset: SkyThemeDef = load("res://config/sky_themes/sunset.tres")
+	skybox.apply_theme(sunset)
+	assert_eq(environment.sky.sky_material, sunset.sky_material)
+	_write_fixture_set("beach_like", skybox.config.face_names)
+	assert_true(skybox.apply_set("beach_like", FIXTURE_ROOT))
+	assert_ne(environment.sky.sky_material, sunset.sky_material)
+	skybox.apply_set("", FIXTURE_ROOT)
+	assert_eq(environment.sky.sky_material, sunset.sky_material)
+	assert_true(skybox.fallback_active)
 
 
 func test_load_set_installs_a_cubemap_sky_material_referencing_the_faces() -> void:

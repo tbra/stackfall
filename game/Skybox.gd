@@ -421,6 +421,10 @@ func _build_faces() -> void:
 func apply_theme(applied_theme: SkyThemeDef) -> void:
 	if applied_theme == null or environment == null or environment.sky == null:
 		return
+	if applied_theme.sky_material != null:
+		_fallback_sky_material = applied_theme.sky_material
+		if fallback_active:
+			environment.sky.sky_material = _fallback_sky_material
 	var procedural: ProceduralSkyMaterial = _fallback_sky_material as ProceduralSkyMaterial
 	if procedural != null:
 		procedural.sky_top_color = applied_theme.sky_top_color

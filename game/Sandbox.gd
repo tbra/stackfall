@@ -64,6 +64,11 @@ var _physics_paused: bool = false
 func _ready() -> void:
 	Events.turn_changed.connect(_on_turn_changed)
 	_panel.configure(self, _ghost)
+	# The sandbox controls remain available through their documented hotkeys,
+	# but the diagnostic readout is opt-in so a gameplay capture has the same
+	# clean presentation as the approved mockup. Launch with --debug-ui when
+	# actively tuning or diagnosing a sandbox run.
+	_panel.visible = OS.get_cmdline_args().has("--debug-ui")
 	_tuning_panel.set_controller(_controller)
 	_special_roster_ids = _load_special_roster_ids()
 	# Bontago-mv0.14 (spec 1.5): see HotSeat.gd's matching _ready() comment --

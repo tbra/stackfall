@@ -1,5 +1,7 @@
 class_name SkyThemeDef
 extends Resource
+## Optional authored sky shader, also used for environment reflections.
+@export var sky_material: Material = null
 ## A named sky/ground/fog colour palette applied onto the fallback
 ## ProceduralSkyMaterial and the shared Environment's fog fields whenever no
 ## textured six-face set is loaded (game/Skybox.gd's `fallback_active == true`

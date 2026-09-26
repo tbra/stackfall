@@ -11,15 +11,15 @@ unique_name_in_owner = true
 offset_left = 8.0
 offset_top = 8.0
 offset_right = 432.0
-offset_bottom = 170.0
+offset_bottom = 142.0
 mouse_filter = 2
 
 [node name="SharesPanel" type="Panel" parent="."]
 unique_name_in_owner = true
 offset_left = 8.0
-offset_top = 168.0
+offset_top = 144.0
 offset_right = 232.0
-offset_bottom = 304.0
+offset_bottom = 270.0
 mouse_filter = 2
 
 [node name="TurnLabel" type="Label" parent="."]

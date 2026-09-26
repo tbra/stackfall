@@ -26,7 +26,7 @@ render_mode cull_back, specular_disabled;
 
 uniform vec4 albedo_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
 uniform int toon_band_count = 3;
-uniform float grid_line_width_px = 1.5;
+uniform float grid_line_width_px = 0.9;
 uniform vec4 grid_line_color : source_color = vec4(0.12, 0.1, 0.1, 1.0);
 uniform vec4 grid_line_glow_color : source_color = vec4(1.0, 0.92, 0.55, 1.0);
 uniform float grid_line_glow_strength = 2.2;

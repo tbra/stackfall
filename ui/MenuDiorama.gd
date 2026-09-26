@@ -34,11 +34,8 @@ var _orbit_angle_rad: float = 0.0
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stretch = true
-	# DECISION (ui/MenuDiorama.gd, Bontago-xtq.32): reframed from a full-screen
-	# background into a small framed rectangle in the right third of the
-	# screen (mockup 10: "floating ... island ... small, framed on the right
-	# third"). Anchors are applied here from tuning rather than authored per
-	# scene so ui/MainMenu.tscn and ui/Lobby.tscn share one source of layout.
+	_orbit_angle_rad = deg_to_rad(tuning.camera_start_yaw_degrees)
+	# Shared transparent miniature, framed to preserve the full disk silhouette.
 	anchor_left = tuning.diorama_anchor_left
 	anchor_top = tuning.diorama_anchor_top
 	anchor_right = tuning.diorama_anchor_right
@@ -47,6 +44,7 @@ func _ready() -> void:
 	_viewport.name = "DioramaViewport"
 	_viewport.own_world_3d = true
 	_viewport.transparent_bg = true
+	_viewport.msaa_3d = Viewport.MSAA_4X
 	_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	_viewport.disable_3d = false
 	add_child(_viewport)
@@ -79,7 +77,7 @@ func _build_environment() -> void:
 	var sky: Sky = Sky.new()
 	sky.sky_material = sky_material
 	environment.sky = sky
-	environment.background_mode = Environment.BG_SKY
+	environment.background_mode = Environment.BG_CLEAR_COLOR
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	environment.ambient_light_energy = tuning.ambient_energy
 	env_node.environment = environment
@@ -128,16 +126,19 @@ func _build_props() -> void:
 	_viewport.add_child(flag_a)
 	flag_a.set_slot(0, tuning.home_flag_a_color)
 	flag_a.position = pos_a
+	flag_a.scale = Vector3.ONE * tuning.miniature_home_scale
 
 	var pos_b: Vector3 = Vector3(tuning.disk_radius_m * 0.55, 0.0, -tuning.disk_radius_m * 0.35)
 	var flag_b: HomeFlag = HOME_FLAG_SCENE.instantiate()
 	_viewport.add_child(flag_b)
 	flag_b.set_slot(1, tuning.home_flag_b_color)
 	flag_b.position = pos_b
+	flag_b.scale = Vector3.ONE * tuning.miniature_home_scale
 
 	var goal: GoalFlag = GOAL_FLAG_SCENE.instantiate()
 	_viewport.add_child(goal)
 	goal.position = Vector3.ZERO
+	goal.scale = Vector3.ONE * tuning.miniature_goal_scale
 
 	_build_territory_patch(pos_a, tuning.territory_patch_color_a)
 	_build_territory_patch(pos_b, tuning.territory_patch_color_b)
@@ -170,20 +171,24 @@ func _build_territory_patch(flag_position: Vector3, color: Color) -> void:
 func _build_block_stack(flag_position: Vector3, color: Color) -> void:
 	for i: int in range(tuning.stack_block_count):
 		var block: Node3D = BlockFactory.build_visual_only(BLOCK_SHAPE, PHYSICS_TUNING)
+		# A full gameplay polycube dwarfs this decorative six-metre island.
+		block.scale = Vector3.ONE * tuning.miniature_block_scale
 		for child: Node in block.get_children():
 			if child is MeshInstance3D:
 				var material: StandardMaterial3D = StandardMaterial3D.new()
 				material.albedo_color = color
 				(child as MeshInstance3D).material_override = material
-		var height: float = PHYSICS_TUNING.cube_size * 0.5 + PHYSICS_TUNING.cube_size * tuning.stack_block_spacing_m * float(i)
+		var height: float = PHYSICS_TUNING.cube_size * tuning.miniature_block_scale * (0.5 + 3.0 * tuning.stack_block_spacing_m * float(i))
 		var jitter: Vector3 = Vector3(0.18 * float(i % 2), 0.0, 0.12 * float((i + 1) % 2))
-		block.position = flag_position + Vector3(0.0, height, 0.0) + jitter
+		block.position = flag_position + Vector3(tuning.stack_beacon_offset_m, height, 0.0) + jitter
 		_viewport.add_child(block)
 
 
 func _build_camera() -> void:
 	_camera = Camera3D.new()
 	_camera.fov = tuning.camera_fov_deg
+	_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	_camera.size = tuning.disk_radius_m * tuning.camera_span_radii
 	# DECISION (ui/MenuDiorama.gd, Bontago-xtq.32): Node3D.look_at() asserts
 	# is_inside_tree() (Godot's own error points at look_at_from_position()
 	# instead), so the camera must join _viewport as a child *before* it is
@@ -191,5 +196,5 @@ func _build_camera() -> void:
 	# treeless Camera3D) fails every time, headless or windowed, found via
 	# the targeted GUT run's engine error, not a headless-only quirk.
 	_viewport.add_child(_camera)
-	_camera.position = Vector3(0.0, tuning.camera_height_m, tuning.camera_radius_m)
+	_camera.position = Vector3(cos(_orbit_angle_rad) * tuning.camera_radius_m, tuning.camera_height_m, sin(_orbit_angle_rad) * tuning.camera_radius_m)
 	_camera.look_at(Vector3.ZERO, Vector3.UP)

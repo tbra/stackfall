@@ -49,6 +49,9 @@ static func make_card(color: Color, tuning: MenuVisualTuning) -> StyleBoxFlat:
 	box.set_corner_radius_all(int(tuning.card_corner_radius_px))
 	box.shadow_color = Color(0.0, 0.0, 0.0, tuning.card_shadow_base_alpha * tuning.card_shadow_alpha)
 	box.shadow_size = int(tuning.card_shadow_size_px)
+	box.shadow_offset = Vector2(tuning.card_offset_px * 0.5, tuning.card_offset_px)
+	box.border_color = color.lightened(0.35)
+	box.border_width_top = 2
 	box.content_margin_left = tuning.card_content_margin_px
 	box.content_margin_top = tuning.card_content_margin_px
 	box.content_margin_right = tuning.card_content_margin_px
@@ -89,6 +92,11 @@ static func _pill_box(color: Color, tuning: MenuVisualTuning) -> StyleBoxFlat:
 	var box: StyleBoxFlat = StyleBoxFlat.new()
 	box.bg_color = color
 	box.set_corner_radius_all(int(tuning.pill_corner_radius_px))
+	box.shadow_color = color.darkened(0.24)
+	box.shadow_size = 2
+	box.shadow_offset = Vector2(0.0, 4.0)
+	box.border_color = color.lightened(0.35)
+	box.border_width_top = 2
 	box.content_margin_left = tuning.pill_margin_x_px
 	box.content_margin_right = tuning.pill_margin_x_px
 	box.content_margin_top = tuning.pill_margin_y_px

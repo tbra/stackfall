@@ -87,12 +87,26 @@ func _draw_clouds(size: Vector2) -> void:
 		# a literal here rather than becoming a MenuVisualTuning export. Same
 		# for the two `* 0.5` centering terms above (rect.x, cloud_width).
 		pill.set_corner_radius_all(int(cloud_height * 0.5))
+		pill.shadow_color = Color(0.22, 0.32, 0.36, 0.16)
+		pill.shadow_size = int(tuning.card_shadow_size_px * 0.5)
+		pill.shadow_offset = Vector2(0.0, tuning.card_offset_px * 0.5)
 		draw_style_box(pill, rect)
 
 
 func _draw_ground_bands(size: Vector2) -> void:
 	var band_height: float = size.y * tuning.ground_band_height_fraction
-	var mint_rect: Rect2 = Rect2(0.0, size.y - band_height, size.x, band_height)
-	var apricot_rect: Rect2 = Rect2(0.0, size.y - band_height * 2.0, size.x, band_height)
-	draw_rect(apricot_rect, tuning.ground_band_apricot_color, true)
-	draw_rect(mint_rect, tuning.ground_band_mint_color, true)
+	_draw_paper_band(size, size.y - band_height * 2.8, tuning.card_cream_color)
+	_draw_paper_band(size, size.y - band_height * 1.9, tuning.ground_band_apricot_color)
+	_draw_paper_band(size, size.y - band_height, tuning.ground_band_mint_color)
+
+
+func _draw_paper_band(size: Vector2, top: float, color: Color) -> void:
+	var edge: PackedVector2Array = PackedVector2Array()
+	for i: int in range(33):
+		var t: float = float(i) / 32.0
+		edge.append(Vector2(t * size.x, top - sin(t * PI) * size.y * tuning.ground_band_height_fraction * 0.5))
+	var polygon: PackedVector2Array = edge.duplicate()
+	polygon.append(Vector2(size.x, size.y))
+	polygon.append(Vector2(0.0, size.y))
+	draw_colored_polygon(polygon, color)
+	draw_polyline(edge, color.darkened(0.12), tuning.card_offset_px * 0.5, true)

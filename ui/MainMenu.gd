@@ -177,10 +177,11 @@ func _apply_visual_style() -> void:
 	# Reproduced here as bold two-tone BBCode text in the shared font instead
 	# of building per-letter cube meshes/glyphs -- captures the two-tone split
 	# without a new glyph-authoring pipeline; disclosed as a simplification.
-	_title.text = "[b][color=#%s]Stack[/color][color=#%s]fall[/color][/b]" % [
+	_title.text = "[img=40x48]res://assets/ui/stackfall_mark.svg[/img] [font_size=42][b][color=#%s]Stack[/color][color=#%s]fall[/color][/b][/font_size]" % [
 		tuning.ink_color.to_html(false), tuning.pill_coral_color.to_html(false),
 	]
 	_title_accent.color = tuning.pill_coral_color
+	_title_accent.hide()
 	_name_label.add_theme_color_override("font_color", tuning.label_muted_color)
 	_join_label.add_theme_color_override("font_color", tuning.label_muted_color)
 
@@ -204,21 +205,20 @@ func _apply_visual_style() -> void:
 	MenuStyleFactory.apply_pill(_quit_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
 
 
-## Keeps %ShadowApricot/%ShadowMint's custom_minimum_size a fixed
-## tuning.card_offset_px larger than %Panel's own current size on every axis,
-## so CenterContainer (which centers every child on the same point) renders
-## them as a "matting border" peeking out evenly around the front card.
-# DECISION (ui/MainMenu.gd, Bontago-xtq.32 redo, gap item 2): mockup 10 shows
-# the two shadow cards diagonally offset (down-right), not centered evenly on
-# all sides. An evenly-centered "matting" look was chosen instead of a custom
-# manual-position wrapper Control, trading exact diagonal offset fidelity for
-# much lower layout risk within the verification budget; disclosed in the
-# handback as not pixel-perfect against the mockup.
+## Shift the painted back cards diagonally while retaining container layout.
+## StyleBox expansion changes drawing only, avoiding a resize/sort feedback loop.
 func _sync_shadow_card_sizes() -> void:
 	var base: Vector2 = _front_card.size
 	var offset: Vector2 = Vector2.ONE * tuning.card_offset_px
-	_shadow_apricot.custom_minimum_size = base + offset * 2.0
-	_shadow_mint.custom_minimum_size = base + offset
+	_shadow_apricot.custom_minimum_size = base
+	_shadow_mint.custom_minimum_size = base
+	for layer: Panel in [_shadow_apricot, _shadow_mint]:
+		var distance: float = offset.x * (2.0 if layer == _shadow_mint else 1.0)
+		var style: StyleBoxFlat = layer.get_theme_stylebox("panel") as StyleBoxFlat
+		style.expand_margin_left = distance
+		style.expand_margin_top = distance
+		style.expand_margin_right = -distance
+		style.expand_margin_bottom = -distance
 
 
 func _on_host_pressed() -> void:

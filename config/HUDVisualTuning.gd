@@ -69,15 +69,15 @@ extends Resource
 ## docs/art_mockups/08-cel-shaded-home-beacons.png) -------------------------
 ## Cream/parchment panel fill behind HUD readouts (turn label, timer,
 ## shares list). Alpha < 1 keeps the sunset field readable behind it.
-@export var panel_background_color: Color = Color(0.965, 0.925, 0.867, 0.85)
+@export var panel_background_color: Color = Color(0.07, 0.10, 0.14, 0.78)
 ## Coral border/accent stroke around a panel (mockup 10's "Host" button
 ## outline), also used for the minimap's own frame ring.
-@export var panel_border_color: Color = Color(0.886, 0.412, 0.322, 1.0)
+@export var panel_border_color: Color = Color(0.96, 0.45, 0.38, 0.95)
 ## Dark slate ink for HUD label text over the cream panels.
-@export var panel_text_color: Color = Color(0.169, 0.227, 0.271, 1.0)
+@export var panel_text_color: Color = Color(0.96, 0.94, 0.88, 1.0)
 ## Corner rounding, in pixels, applied to every reskinned HUD panel's
 ## StyleBoxFlat.
-@export var panel_corner_radius_px: float = 12.0
+@export var panel_corner_radius_px: float = 16.0
 ## Border stroke width, in pixels, for every reskinned HUD panel.
 @export var panel_border_width_px: float = 2.0
 ## Amber ring around the minimap, echoing the disk's own gold rim (mockup 08).

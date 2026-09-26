@@ -39,7 +39,7 @@ script = ExtResource("3_diorama")
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
-anchor_right = 0.58
+anchor_right = 0.51
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
@@ -70,6 +70,11 @@ fit_content = true
 scroll_active = false
 text = "Stackfall"
 theme_override_font_sizes/normal_font_size = 32
+
+[node name="Tagline" type="Label" parent="Center/Panel/Layout"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "BUILD · BALANCE · DOMINATE"
 
 [node name="TitleAccent" type="ColorRect" parent="Center/Panel/Layout"]
 unique_name_in_owner = true

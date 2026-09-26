@@ -37,6 +37,13 @@ extends Resource
 @export var camera_radius_m: float = 5.0
 @export var camera_orbit_period_s: float = 24.0
 @export var camera_fov_deg: float = 42.0
+## Orthographic span relative to island radius and miniature prop proportions.
+@export var camera_span_radii: float = 2.5
+@export var camera_start_yaw_degrees: float = 55.0
+@export var miniature_block_scale: float = 0.28
+@export var miniature_home_scale: float = 0.35
+@export var miniature_goal_scale: float = 0.25
+@export var stack_beacon_offset_m: float = 0.65
 
 ## -- Diorama props: two home flags + goal flag + per-owner block stacks ------
 @export var home_flag_a_color: Color = Color(0.92, 0.42, 0.36, 1.0)
