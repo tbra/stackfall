@@ -225,6 +225,13 @@ func _ready() -> void:
 	Events.feed_timer_expired.connect(_on_feed_timer_expired)
 	Events.placement_rejected.connect(_on_placement_rejected)
 	Events.placement_relocated.connect(_on_placement_relocated)
+	# Bontago-xtq.42 (M7 P42, pause menu): ui/PauseMenu.gd is the only thing
+	# that reads the pause_menu action now (its own _unhandled_input) -- this
+	# controller only reacts to the Events it emits, the same "gate input,
+	# don't touch the scene tree" contract input_enabled already has for
+	# ui/TuningPanel.gd's toggle.
+	Events.pause_menu_opened.connect(_on_pause_menu_opened)
+	Events.pause_menu_closed.connect(_on_pause_menu_closed)
 
 
 ## HotSeat.gd calls this after Main builds the shared CameraRig: HotSeat.tscn
@@ -254,11 +261,32 @@ func set_home_position(home_position: Vector3) -> void:
 ## Bontago-mv0.14: called once by HotSeat.gd/Sandbox.gd (never by a bare unit
 ## test) so a real play session hides/captures the OS cursor -- the original's
 ## mouse only ever positions the held block, there is nothing on screen for a
-## free system cursor to point at. pause_menu (Esc/Start) toggles it back to
-## visible so a future menu can use the mouse normally; see _unhandled_input().
+## free system cursor to point at. ui/PauseMenu.gd (Bontago-xtq.42) releases it
+## back to visible via Events.pause_menu_opened so the pause overlay's buttons
+## can be clicked; see _on_pause_menu_opened()/_on_pause_menu_closed().
 func enable_mouse_capture() -> void:
 	_mouse_capture_enabled = true
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+## Bontago-xtq.42: gates every other input handler in this file (input_enabled
+## already guards _process()/_unhandled_input(), the same seam ui/TuningPanel.
+## gd's own toggle uses) and releases the OS cursor so the overlay's buttons
+## are reachable -- physics/simulation itself is never paused (CLAUDE.md's
+## host-authority model); this only stops the *local* player from acting.
+func _on_pause_menu_opened() -> void:
+	input_enabled = false
+	if _mouse_capture_enabled:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+## Mirrors _on_pause_menu_opened() above: restores input and, if this session
+## ever had mouse capture on, re-captures it exactly as enable_mouse_capture()
+## originally set it up.
+func _on_pause_menu_closed() -> void:
+	input_enabled = true
+	if _mouse_capture_enabled:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
 func _process(delta: float) -> void:
@@ -489,17 +517,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		# independent "Place (drop): A" / "Throw: Hold LT" gamepad rows.
 		if not (event.is_action_pressed(&"throw_aim") and _can_begin_throw_aim()):
 			_place_ghost_block()
-	elif event.is_action_pressed(&"pause_menu"):
-		# Bontago-mv0.14 DECISION (game/PlayerController.gd): there is no
-		# pause-menu UI yet (out of scope for this task), but the mouse
-		# capture this same key is meant to release ("release in menus/Esc")
-		# has to go somewhere -- toggle it here so Esc/Start already does the
-		# right thing once a real pause menu lands and calls into this.
-		if _mouse_capture_enabled:
-			Input.mouse_mode = (
-				Input.MOUSE_MODE_VISIBLE if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
-				else Input.MOUSE_MODE_CAPTURED
-			)
 
 
 func _orientation_index() -> int:

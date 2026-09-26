@@ -236,3 +236,20 @@ signal block_impacted(speed: float)
 ## autoload/Sfx.gd deliberately keeps listening to block_impacted only and is
 ## untouched by this signal.
 signal block_impacted_at(speed: float, position: Vector3)
+
+# --- M7 P42: pause menu (owner playtest: "no pause menu, can't abandon a
+# game and go back to the main menu or quit the game") -----------------------
+
+## ui/PauseMenu.gd opened (pause_menu action -- Esc/gamepad Start -- while no
+## other menu already owns that input). game/PlayerController.gd is the one
+## listener today: it sets its own input_enabled false and releases mouse
+## capture, the same "gate input, don't touch the scene tree" contract
+## ui/TuningPanel.gd's own toggle already established. Physics/simulation is
+## never paused (CLAUDE.md's host-authority model) -- this only suppresses
+## local input while the overlay is up.
+signal pause_menu_opened
+
+## ui/PauseMenu.gd closed (Resume, or ui_cancel/pause_menu again while no
+## nested menu is capturing it). game/PlayerController.gd restores
+## input_enabled and, if it had mouse capture enabled, re-captures the mouse.
+signal pause_menu_closed

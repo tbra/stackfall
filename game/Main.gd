@@ -67,6 +67,9 @@ const SANDBOX_SCENE: PackedScene = preload("res://game/Sandbox.tscn")
 const TUTORIAL_SCENE: PackedScene = preload("res://ui/Tutorial.tscn")
 const REMOTE_CURSORS_SCENE: PackedScene = preload("res://game/RemoteCursors.tscn")
 const NET_DEBUG_OVERLAY_SCENE: PackedScene = preload("res://ui/NetDebugOverlay.tscn")
+## Bontago-xtq.42 (M7 P42, owner playtest: "there's no pause menu, I can't
+## abandon a game and go back to the main menu or quit the game").
+const PAUSE_MENU_SCENE: PackedScene = preload("res://ui/PauseMenu.tscn")
 
 @onready var _field: Field = $Field
 @onready var _blocks_container: Node3D = $BlocksContainer
@@ -89,6 +92,19 @@ var _sandbox: Sandbox = null
 var _tutorial: Tutorial = null
 var _remote_cursors: RemoteCursors = null
 var _debug_overlay: NetDebugOverlay = null
+## Bontago-xtq.42: built once below, right where Events.match_state_changed/
+## net_mode_changed are connected -- kept alive for every menu/lobby/match
+## screen that follows (main menu, lobby, sandbox-from-menu, tutorial-from-
+## menu, a real online host/client match), the same "instantiate once, self-
+## wire through Events" contract this file's own header describes. Never
+## built for --hot-seat/the CLI-only --sandbox debug entry point above (both
+## `return` out of _ready() before reaching this): this file's own header
+## requires --hot-seat stay byte-identical to M2, and --sandbox is explicitly
+## "not player-facing" (see _start_sandbox_match()'s own doc) -- the owner
+## playtest finding this package answers was about the ordinary menu-driven
+## game, which start_sandbox_from_menu()/start_tutorial_from_menu() below
+## already cover.
+var _pause_menu: PauseMenu = null
 ## Bontago-d5c.6 (M5 P5): one instance per bot slot in the match currently
 ## built, built in _build_match_world() (or _start_headless_bot_match_with_
 ## args()'s own reuse of it) and freed in _end_match_world() -- see
@@ -148,6 +164,15 @@ func _ready() -> void:
 
 	Events.match_state_changed.connect(_on_match_state_changed)
 	Events.net_mode_changed.connect(_on_net_mode_changed)
+
+	_pause_menu = PAUSE_MENU_SCENE.instantiate() as PauseMenu
+	add_child(_pause_menu)
+	_pause_menu.leave_match_requested.connect(_on_pause_leave_requested)
+	# Bontago-xtq.42 fix round 2 (orchestrator review): inert until a match/
+	# sandbox world actually exists -- _show_main_menu() below sets this too,
+	# but set it explicitly here as well so it's never even momentarily false
+	# before that first call.
+	_pause_menu.suppressed = true
 
 	# docs/M3b_PLAN.md integration order step 4: Steam init is synchronous by
 	# this point, so MainMenu._ready() can immediately read steam_available().
@@ -300,6 +325,11 @@ func _start_sandbox_match_with_args(args: PackedStringArray) -> void:
 func start_sandbox_from_menu() -> void:
 	_clear_menu_and_lobby()
 	_world_built = true
+	# Bontago-xtq.42 fix round 2: _build_match_world() (which owns this same
+	# line for every other match-start path) never runs for sandbox-from-menu
+	# -- see the `_world_built = true` line right above -- so this path needs
+	# its own explicit unsuppress.
+	_pause_menu.suppressed = false
 	_start_sandbox_match_with_args(PackedStringArray())
 
 
@@ -367,6 +397,11 @@ func _sandbox_force_special_arg(args: PackedStringArray) -> String:
 func start_tutorial_from_menu() -> void:
 	_clear_menu_and_lobby()
 	_world_built = true
+	# Bontago-xtq.42: see ui/PauseMenu.gd's own `suppressed` doc comment --
+	# Tutorial already owns ui_cancel/Escape for its own quit gesture, and the
+	# two scenes' _unhandled_input() dispatch order relative to each other
+	# (unrelated siblings under this node) is not a documented guarantee.
+	_pause_menu.suppressed = true
 	_tutorial = TUTORIAL_SCENE.instantiate() as Tutorial
 	add_child(_tutorial)
 	_tutorial.set_camera_rig(_camera_rig)
@@ -407,6 +442,9 @@ func _on_tutorial_finished() -> void:
 	if _tutorial != null and is_instance_valid(_tutorial):
 		_tutorial.queue_free()
 	_tutorial = null
+	# Bontago-xtq.42 fix round 2: _show_main_menu() below now owns re-
+	# suppressing/force-closing this menu for every "no match world" screen,
+	# so no explicit `= false` write belongs here -- see its own doc comment.
 	_show_main_menu()
 
 
@@ -626,6 +664,14 @@ func _headless_bots_state_name() -> String:
 
 func _show_main_menu() -> void:
 	_clear_menu_and_lobby()
+	# Bontago-xtq.42 fix round 2 (orchestrator review): the main menu is a
+	# "no match world" screen -- force_close() handles the case where the
+	# match ended by some means other than PauseMenu's own Leave button (e.g.
+	# a host disconnect on a client, reaching this via _on_net_mode_changed()
+	# below) while the overlay happened to be open; `suppressed = true` then
+	# keeps pause_menu inert here, same as start_tutorial_from_menu()'s own.
+	_pause_menu.force_close()
+	_pause_menu.suppressed = true
 	_main_menu = MAIN_MENU_SCENE.instantiate() as MainMenu
 	add_child(_main_menu)
 	_main_menu.sandbox_requested.connect(start_sandbox_from_menu)
@@ -634,6 +680,10 @@ func _show_main_menu() -> void:
 
 func _show_lobby() -> void:
 	_clear_menu_and_lobby()
+	# Bontago-xtq.42 fix round 2: see _show_main_menu()'s own comment just
+	# above -- the lobby is equally a "no match world" screen.
+	_pause_menu.force_close()
+	_pause_menu.suppressed = true
 	_lobby = LOBBY_SCENE.instantiate() as Lobby
 	add_child(_lobby)
 	_lobby.start_requested.connect(_on_lobby_start_requested)
@@ -687,6 +737,35 @@ func _on_lobby_start_requested(config: MatchConfig) -> void:
 	Match.start_match(config)
 
 
+## ui/PauseMenu.gd's own leave_match_requested (Leave match, confirmed).
+## DECISION (game/Main.gd, minor ambiguity): the online/offline split lives
+## here, not in ui/PauseMenu.gd (which never touches Net/Match -- see its own
+## doc comment on this signal), because this file already owns exactly this
+## split for the symmetric case, Net dropping to OFFLINE
+## (_on_net_mode_changed() above): online (host or client alike --
+## autoload/Net.gd's own leave() doc: "Safe to call... The host disconnects
+## everyone... first"), Net.leave() already tears the match world down and
+## shows the main menu through that same handler; offline (sandbox), there is
+## no Net transition to react to, so this aborts the match directly
+## (idempotent from LOBBY, matching _on_net_mode_changed()'s own guard) and
+## shows the menu itself. _sandbox is freed explicitly because it is this
+## package's own node, outside _end_match_world()'s ownership (see its own var
+## doc comment above). A tutorial session never reaches this handler:
+## ui/PauseMenu.gd is suppressed for its whole duration (start_tutorial_from_
+## menu()/_on_tutorial_finished() above) -- Tutorial keeps its own existing
+## ui_cancel -> _end_tutorial() quit gesture unmodified.
+func _on_pause_leave_requested() -> void:
+	if Net.mode() != Net.Mode.OFFLINE:
+		Net.leave()
+		return
+	if Match.state() != Match.State.LOBBY:
+		Match.abort_match()
+	if _sandbox != null and is_instance_valid(_sandbox):
+		_sandbox.queue_free()
+		_sandbox = null
+	_show_main_menu()
+
+
 # --- Building the match world (host and client alike) ------------------------
 
 ## The world exists exactly while Match is past the lobby. Match guarantees
@@ -716,6 +795,11 @@ func _build_match_world() -> void:
 		return
 	_world_built = true
 	_clear_menu_and_lobby()
+	# Bontago-xtq.42 fix round 2: every real (host/client/headless-bot) match
+	# reaches this one guarded builder -- start_sandbox_from_menu() above is
+	# the only match-start path that bypasses it (see its own doc comment),
+	# so it needs its own copy of this line.
+	_pause_menu.suppressed = false
 
 	var config: MatchConfig = Match.config
 	_field.rebuild_for_map(config.map_def())

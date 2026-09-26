@@ -96,6 +96,26 @@ func _pad_press(button: JoyButton) -> InputEventJoypadButton:
 	return event
 
 
+# --- Pause menu suppression (Bontago-xtq.42 fix round 2) ----------------------
+#
+# This fixture's own Main instance is the cheap place to exercise game/Main.gd's
+# suppress/unsuppress wiring end to end: before_each() already boots the real
+# Main scene to the real main menu (its own assert_not_null(_main._main_menu)
+# fixture assertion above), and start_sandbox_from_menu() is the actual
+# menu-driven entry point that owns its own explicit unsuppress (unlike
+# _start_sandbox()'s own _start_sandbox_match_with_args() helper above, which
+# bypasses that wrapper entirely -- see game/Main.gd's own comment on why).
+
+func test_pause_menu_is_suppressed_at_boot_on_the_main_menu() -> void:
+	assert_true(_main._pause_menu.suppressed, "the pause menu must be inert while the main menu is showing -- there is no match to leave.")
+
+
+func test_pause_menu_is_unsuppressed_after_sandbox_starts_from_the_menu() -> void:
+	_main.start_sandbox_from_menu()
+
+	assert_false(_main._pause_menu.suppressed, "starting a sandbox match from the main menu must make the pause menu usable.")
+
+
 # --- Flag routing / world build ----------------------------------------------
 
 func test_sandbox_flag_builds_an_offline_world_with_n_slots() -> void:
