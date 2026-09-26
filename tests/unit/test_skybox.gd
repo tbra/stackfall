@@ -8,14 +8,23 @@ const FIXTURE_ROOT: String = "user://skybox_test_fixture"
 
 var _skybox: Skybox = null
 
+## Bontago-xtq.28: saved/restored the same way tests/unit/test_main_graphics_
+## preset.gd's own _original_preset_id does -- the real "Settings" autoload
+## outlives this script, so a FogVolume-gating test that calls
+## Settings.set_graphics_preset() must not leak a changed preset into whatever
+## test file the runner loads next in the same process.
+var _original_preset_id: StringName
+
 
 func before_each() -> void:
+	_original_preset_id = Settings.current_graphics_preset().id
 	_skybox = Skybox.new()
 	_skybox.config = SkyboxConfig.new()
 	add_child_autofree(_skybox)
 
 
 func after_each() -> void:
+	Settings.set_graphics_preset(_original_preset_id)
 	_remove_dir_recursive(FIXTURE_ROOT)
 
 
@@ -179,6 +188,130 @@ func test_a_later_failure_restores_the_procedural_sky_after_a_successful_load() 
 	assert_eq(
 		environment.sky.sky_material, wired["procedural"],
 		"switching to a missing set must restore the procedural sky, not leave the previous set's sky showing."
+	)
+
+
+## Bontago-xtq.28 -----------------------------------------------------------
+
+func test_apply_theme_writes_sky_ground_and_fog_fields() -> void:
+	var wired: Dictionary = _make_wired_skybox()
+	var skybox: Skybox = wired["skybox"] as Skybox
+	var environment: Environment = wired["environment"] as Environment
+	var procedural: ProceduralSkyMaterial = wired["procedural"] as ProceduralSkyMaterial
+	var theme: SkyThemeDef = SkyThemeDef.new()
+	theme.sky_top_color = Color(0.11, 0.22, 0.33)
+	theme.sky_horizon_color = Color(0.44, 0.55, 0.66)
+	theme.ground_bottom_color = Color(0.71, 0.82, 0.93)
+	theme.ground_horizon_color = Color(0.15, 0.25, 0.35)
+	theme.sun_angle_min_max = Vector2(6.0, 14.0)
+	theme.fog_color = Color(0.91, 0.52, 0.23)
+	theme.fog_density = 0.021
+	theme.fog_sky_affect = 0.3
+	theme.volumetric_fog_density = 0.0012
+	theme.volumetric_fog_albedo = Color(0.81, 0.42, 0.19)
+
+	skybox.apply_theme(theme)
+
+	assert_eq(procedural.sky_top_color, theme.sky_top_color, "sky_top_color")
+	assert_eq(procedural.sky_horizon_color, theme.sky_horizon_color, "sky_horizon_color")
+	assert_eq(procedural.ground_bottom_color, theme.ground_bottom_color, "ground_bottom_color")
+	assert_eq(procedural.ground_horizon_color, theme.ground_horizon_color, "ground_horizon_color")
+	assert_almost_eq(
+		procedural.sun_angle_max, theme.sun_angle_min_max.y, 0.001,
+		"sun_angle_max must take sun_angle_min_max's wider/softer glow edge (.y), not .x"
+	)
+	assert_true(environment.fog_enabled, "apply_theme() must turn on the Environment's basic depth fog")
+	assert_eq(environment.fog_light_color, theme.fog_color, "fog_light_color")
+	assert_almost_eq(environment.fog_density, theme.fog_density, 0.0001, "fog_density")
+	assert_almost_eq(
+		environment.fog_sky_affect, theme.fog_sky_affect, 0.0001,
+		"fog_sky_affect must come from the theme, not sit at the Environment engine default (1.0), or the "
+		+ "depth fog fully replaces the rendered sky gradient with flat fog_light_color"
+	)
+	assert_almost_eq(
+		environment.volumetric_fog_density, theme.volumetric_fog_density, 0.0001,
+		"volumetric_fog_density must come from the theme, not sit at the Environment engine default (0.05), "
+		+ "or the whole frustum shows a uniform grey haze regardless of the FogVolume cloud deck's placement"
+	)
+	assert_eq(
+		environment.volumetric_fog_albedo, theme.volumetric_fog_albedo,
+		"volumetric_fog_albedo"
+	)
+
+
+func test_apply_theme_is_a_noop_with_no_environment_wired() -> void:
+	# The file-level before_each() fixture's `_skybox` never wires `environment`
+	# -- apply_theme() must not push an error/crash for the common "unwired
+	# fixture" shape every other test in this file already relies on.
+	_skybox.apply_theme(_skybox.theme)
+	assert_true(true, "apply_theme() must no-op silently with environment == null")
+
+
+func test_fog_volume_is_created_but_hidden_on_low_preset() -> void:
+	Settings.set_graphics_preset(&"low")
+	var skybox: Skybox = Skybox.new()
+	skybox.config = SkyboxConfig.new()
+	add_child_autofree(skybox)
+
+	var fog_volume: FogVolume = skybox.get_fog_volume()
+	assert_not_null(fog_volume, "a FogVolume child must always be created, only its visibility is gated")
+	assert_false(fog_volume.visible, "low preset must hide the cloud-deck FogVolume")
+
+
+func test_fog_volume_is_visible_on_medium_and_high_preset() -> void:
+	Settings.set_graphics_preset(&"medium")
+	var medium_skybox: Skybox = Skybox.new()
+	medium_skybox.config = SkyboxConfig.new()
+	add_child_autofree(medium_skybox)
+	assert_true(medium_skybox.get_fog_volume().visible, "medium preset must show the cloud-deck FogVolume")
+
+	Settings.set_graphics_preset(&"high")
+	var high_skybox: Skybox = Skybox.new()
+	high_skybox.config = SkyboxConfig.new()
+	add_child_autofree(high_skybox)
+	assert_true(high_skybox.get_fog_volume().visible, "high preset must show the cloud-deck FogVolume")
+
+
+func test_fog_volume_uses_the_theme_cloud_deck_size_and_height() -> void:
+	Settings.set_graphics_preset(&"high")
+	var custom_theme: SkyThemeDef = SkyThemeDef.new()
+	custom_theme.cloud_deck_size_m = Vector3(120.0, 20.0, 140.0)
+	custom_theme.cloud_deck_height_m = -55.0
+	var skybox: Skybox = Skybox.new()
+	skybox.config = SkyboxConfig.new()
+	skybox.theme = custom_theme
+	add_child_autofree(skybox)
+
+	var fog_volume: FogVolume = skybox.get_fog_volume()
+	assert_eq(fog_volume.size, custom_theme.cloud_deck_size_m, "FogVolume.size must come from the theme")
+	assert_almost_eq(
+		fog_volume.position.y, custom_theme.cloud_deck_height_m, 0.001,
+		"FogVolume.position.y must come from the theme, not a Skybox.gd constant"
+	)
+
+
+func test_sunset_theme_cloud_deck_sits_entirely_below_the_disk() -> void:
+	var sunset: SkyThemeDef = load("res://config/sky_themes/sunset.tres") as SkyThemeDef
+	var deck_top_y: float = sunset.cloud_deck_height_m + sunset.cloud_deck_size_m.y * 0.5
+	assert_lt(
+		deck_top_y, 0.0,
+		"the shipped sunset cloud deck's top edge must sit below world y == 0 (the disk's top surface), "
+		+ "not enclose the disk/gameplay camera in fog"
+	)
+
+
+func test_fog_volume_visibility_reacts_live_to_graphics_preset_changed() -> void:
+	Settings.set_graphics_preset(&"high")
+	var skybox: Skybox = Skybox.new()
+	skybox.config = SkyboxConfig.new()
+	add_child_autofree(skybox)
+	assert_true(skybox.get_fog_volume().visible, "fixture: starts visible on high")
+
+	Settings.set_graphics_preset(&"low")
+
+	assert_false(
+		skybox.get_fog_volume().visible,
+		"an already-created Skybox must hide its FogVolume live when the preset changes, not just at boot"
 	)
 
 

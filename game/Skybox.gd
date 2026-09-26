@@ -46,8 +46,37 @@ extends Node3D
 ## shader has more mileage (e.g. the seam probe or an equivalent check is
 ## extended to score it the same way it scores the box), dropping the box and
 ## letting the sky alone draw the background is a safe, mechanical follow-up.
+##
+## Bontago-xtq.28 (M7 P3, docs/M7_ART_DIRECTION.md's sunset/atmosphere lines):
+## two more pieces layer on top of the above, both applied only while
+## `fallback_active` (the six-face box/shader are a separate, self-contained
+## look and are left untouched by either):
+##   - apply_theme() writes `theme`'s (config/SkyThemeDef.gd) sky/ground
+##     colours onto `_fallback_sky_material` *in place*, its fog colour/
+##     density onto the wired Environment's basic depth fog, and its
+##     volumetric_fog_density/volumetric_fog_albedo onto that same
+##     Environment's global ambient volumetric-fog fields (fix round 2 --
+##     see SkyThemeDef.volumetric_fog_density's own doc for why the ambient
+##     floor has to be set too, not just the FogVolume cloud deck below) --
+##     called once from _ready(), so a later load_set() fallback restores the
+##     themed colours automatically (see _restore_fallback_sky()) rather than
+##     the material's own untouched defaults.
+##   - a single FogVolume "cloud deck" child (_spawn_fog_volume()) is always
+##     created, its `visible` flag alone tracking
+##     GraphicsPreset.volumetric_fog_enabled (Settings.graphics_preset_changed,
+##     the same read-only-preset pattern Main.gd's own P1 package
+##     establishes) -- dropped from view entirely on Low, present on
+##     Medium/High, per docs/M7_ART_DIRECTION.md's performance budget.
 
 @export var config: SkyboxConfig = preload("res://config/skybox_config.tres")
+
+## Bontago-xtq.28 (M7 P3): the sky/ground/fog palette applied onto the
+## fallback ProceduralSkyMaterial whenever `fallback_active` is true -- see
+## apply_theme() below and the class doc's new paragraph on it. Optional (null
+## in a fixture that only cares about the box/fallback_active state); the game
+## itself never overrides this from `preload`'s default, the same one-field/
+## one-instance convention `config`/`visuals` above already use.
+@export var theme: SkyThemeDef = preload("res://config/sky_themes/sunset.tres")
 ## The live Environment resource Main.tscn's WorldEnvironment displays
 ## (wired there by a plain node-property reference to the same sub-resource,
 ## not a node path -- CLAUDE.md's "no deep node paths" is about get_node()
@@ -84,6 +113,15 @@ const SKY_SHADER: Shader = preload("res://shaders/cubemap_sky.gdshader")
 ## independent tunable a playtester would ever need to move on its own.
 const PROBE_GROUND_CLEARANCE_M: float = 4.0
 
+## Bontago-xtq.28 fix round: the cloud deck's box footprint/thickness/height
+## are per-theme now (SkyThemeDef.cloud_deck_size_m/cloud_deck_height_m), not
+## local constants here -- the previous candidate's centred-at-y40 box (y
+## 10..70) enclosed the entire play volume up to NetConfig.pos_max_y (72.0)
+## and the gameplay camera itself, which read as a uniform haze with no
+## sunset gradient visible. See SkyThemeDef.gd's doc on those two fields for
+## the corrected placement (well below the disk, clear of the stacking
+## volume).
+
 ## The Sky's own material before this node ever touched it (Main.tscn's
 ## ProceduralSkyMaterial, captured once in _ready()) -- restored whenever
 ## load_set() falls back, the same moment the box itself is hidden.
@@ -97,6 +135,10 @@ var fallback_active: bool = true
 
 var _face_textures: Dictionary = {}
 var _face_meshes: Dictionary = {}
+
+## Bontago-xtq.28: the FogVolume _spawn_fog_volume() created, or null when
+## `theme` was unset in _ready() (see that method's own doc).
+var _fog_volume: FogVolume = null
 
 ## Bontago-xtq.12 step 2 (F4 tuning panel live-apply, same idiom
 ## game/CameraRig.gd's own TUNING_GROUP doc explains): every Skybox adds
@@ -131,6 +173,15 @@ func _ready() -> void:
 		_face_meshes[face_name] = mesh_instance
 	configure_reflection_probe()
 	configure_ssr()
+	apply_theme(theme)
+	_spawn_fog_volume()
+	_apply_fog_volume_visibility(Settings.current_graphics_preset())
+	Settings.graphics_preset_changed.connect(_on_graphics_preset_changed)
+
+
+func _exit_tree() -> void:
+	if Settings.graphics_preset_changed.is_connected(_on_graphics_preset_changed):
+		Settings.graphics_preset_changed.disconnect(_on_graphics_preset_changed)
 
 
 ## Public re-apply seam ui/TuningPanel.gd calls (via TUNING_GROUP above)
@@ -358,6 +409,99 @@ func _build_faces() -> void:
 		mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mesh_instance.visible = true
 	_install_sky_material()
+
+
+## Bontago-xtq.28: applies `applied_theme`'s sky/ground colours onto
+## `_fallback_sky_material` *in place* (so a later load_set() failure's
+## _restore_fallback_sky() restores the themed colours, not the material's own
+## untouched defaults) and its fog colour/density onto the wired Environment's
+## basic depth fog. A no-op when `applied_theme` is unset or no
+## `environment`/`environment.sky` was wired, matching every other
+## Environment-touching method above's contract.
+func apply_theme(applied_theme: SkyThemeDef) -> void:
+	if applied_theme == null or environment == null or environment.sky == null:
+		return
+	var procedural: ProceduralSkyMaterial = _fallback_sky_material as ProceduralSkyMaterial
+	if procedural != null:
+		procedural.sky_top_color = applied_theme.sky_top_color
+		procedural.sky_horizon_color = applied_theme.sky_horizon_color
+		procedural.ground_bottom_color = applied_theme.ground_bottom_color
+		procedural.ground_horizon_color = applied_theme.ground_horizon_color
+		# DECISION (game/Skybox.gd, Bontago-xtq.28): ProceduralSkyMaterial only
+		# exposes one sun_angle_max float, not a min/max pair -- write the
+		# wider/softer glow edge (sun_angle_min_max.y) since that is the value
+		# that actually controls the visible glow size onscreen; .x is kept on
+		# SkyThemeDef only as a design range a future per-theme sun animation
+		# could draw from (see that field's own doc in config/SkyThemeDef.gd).
+		procedural.sun_angle_max = applied_theme.sun_angle_min_max.y
+	environment.fog_enabled = true
+	environment.fog_light_color = applied_theme.fog_color
+	environment.fog_density = applied_theme.fog_density
+	# Bontago-xtq.28 fix round: the previous candidate never set this, so it
+	# silently sat at the Environment engine default (1.0), which fully
+	# replaces the rendered sky background with flat fog_light_color and
+	# masked the ProceduralSkyMaterial's sunset gradient regardless of
+	# fog_density. See SkyThemeDef.fog_sky_affect's own doc.
+	environment.fog_sky_affect = applied_theme.fog_sky_affect
+	# Bontago-xtq.28 fix round 2 (decisive finding): Environment.volumetric_fog_
+	# density defaults to 0.05 on a fresh Environment and was never written
+	# here, so the whole frustum showed a uniform grey haze regardless of
+	# _spawn_fog_volume()'s FogVolume placement -- a FogVolume only adds density
+	# on top of this ambient global floor, it cannot remove it. See
+	# SkyThemeDef.volumetric_fog_density's own doc.
+	environment.volumetric_fog_density = applied_theme.volumetric_fog_density
+	environment.volumetric_fog_albedo = applied_theme.volumetric_fog_albedo
+
+
+## Bontago-xtq.28: creates this Skybox's own FogVolume "cloud deck" child --
+## Skybox and Field are sibling nodes under Main.tscn (game/Skybox.gd's
+## Bontago-xtq.28 class-doc paragraph), so this is the only owned-file path to
+## add it; game/Field.tscn itself is left untouched (DECISION, this method):
+## a NodePath from Field to a Skybox-owned node, or vice versa, would need a
+## wire in Main.tscn, which this package does not own. Always created (so
+## _on_graphics_preset_changed() below only ever has to flip `visible`, never
+## construct/destroy) with `theme`'s fog colour/density shared onto its
+## FogMaterial, so the depth fog apply_theme() sets above and this volumetric
+## deck read as one coherent colour instead of two independently tuned
+## effects. A no-op (no node created, get_fog_volume() stays null) when
+## `theme` is unset.
+func _spawn_fog_volume() -> void:
+	if theme == null:
+		return
+	var fog_volume: FogVolume = FogVolume.new()
+	fog_volume.name = "CloudDeck"
+	fog_volume.size = theme.cloud_deck_size_m
+	fog_volume.position = Vector3(0.0, theme.cloud_deck_height_m, 0.0)
+	var fog_material: FogMaterial = FogMaterial.new()
+	fog_material.density = theme.fog_density
+	fog_material.albedo = theme.fog_color
+	fog_volume.material = fog_material
+	add_child(fog_volume)
+	_fog_volume = fog_volume
+
+
+## autoload/Settings.gd's graphics_preset_changed handler, connected in
+## _ready() and disconnected in _exit_tree() above.
+func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
+	_apply_fog_volume_visibility(preset)
+
+
+## Bontago-xtq.28: the FogVolume's only gating -- `visible` alone, never
+## created/destroyed (see _spawn_fog_volume()'s own doc on why). Matches
+## docs/M7_ART_DIRECTION.md's performance budget: dropped from view entirely
+## on Low (config/graphics_presets/low.tres: volumetric_fog_enabled == false),
+## present on Medium/High. A no-op when no FogVolume exists yet (`theme` was
+## unset in _ready()) or `preset` is unset.
+func _apply_fog_volume_visibility(preset: GraphicsPreset) -> void:
+	if _fog_volume == null or preset == null:
+		return
+	_fog_volume.visible = preset.volumetric_fog_enabled
+
+
+## Test/inspection seam: the FogVolume _spawn_fog_volume() created, or null if
+## `theme` was unset in _ready().
+func get_fog_volume() -> FogVolume:
+	return _fog_volume
 
 
 ## Restores the Environment's Sky to whatever material it carried before this
