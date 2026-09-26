@@ -3,11 +3,13 @@ extends HomeFlag
 ## A goal flag (spec 2.2, 2.3): one in the center by default, 1-5 in setup,
 ## extras placed symmetrically at 0.4 * field_radius.
 ##
-## Extends HomeFlag because a goal flag is the same pole and banner at a larger
-## scale in a neutral color; what it adds is spec 2.3's capture display, "a
-## radial progress ring appears on each goal flag while someone is capturing
-## it". The ring is a flat annulus arc lying on the disk, rebuilt only when the
-## progress it shows actually moves.
+## Extends HomeFlag because a goal flag is the same beacon (socket, ring and
+## crystal, M7 P8) at a larger scale in a neutral color; what it adds is spec
+## 2.3's capture display, "a radial progress ring appears on each goal flag
+## while someone is capturing it". That capture ring is a second, separate
+## flat annulus arc lying on the disk (distinct from the beacon's own always-
+## on Ring mesh above it), rebuilt only when the progress it shows actually
+## moves.
 ##
 ## Visual only: who is capturing and how far along they are is WinChecker's
 ## answer, arriving through Events.goal_capture_progress and
@@ -26,13 +28,19 @@ var _drawn_progress: float = -1.0
 
 
 func _ready() -> void:
-	_color = visuals.goal_flag_color
+	# DECISION (game/GoalFlag.gd, Bontago-xtq.33): the goal beacon's neutral
+	# color and scale now come from BeaconVisualTuning (neutral_color,
+	# goal_scale_factor) instead of TerritoryVisuals (goal_flag_color,
+	# goal_flag_scale), which this file was the only reader of for those two
+	# purposes -- TerritoryVisuals.goal_flag_color keeps its own, unrelated
+	# fallback uses in Field.gd/TerritoryOverlay.gd untouched.
+	_color = beacon_visuals.neutral_color
 	super()
 	_build_ring()
 
 
 func banner_scale() -> float:
-	return visuals.goal_flag_scale
+	return beacon_visuals.goal_scale_factor
 
 
 func _build_ring() -> void:

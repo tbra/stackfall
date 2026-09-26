@@ -161,3 +161,79 @@ func test_events_goal_capture_progress_drives_the_ring() -> void:
 	var flag: GoalFlag = field.goal_flags()[0]
 	assert_eq(flag.capture_team(), 1, "Field listens on the Events bus, not a node path.")
 	assert_almost_eq(flag.capture_progress(), 0.4, 0.0001)
+
+
+# --- Beacon visuals (M7 P8, Bontago-xtq.33) ----------------------------------
+
+func test_home_beacon_has_a_socket_ring_and_crystal() -> void:
+	var field: Field = _make_field()
+	field.place_flags(2, _slot_colors(), 1)
+
+	var flag: HomeFlag = field.home_flags()[0]
+	var socket: Node = flag.get_node(^"Socket")
+	var ring: Node = flag.get_node(^"Ring")
+	var crystal: Node = flag.get_node(^"Crystal")
+	assert_true(socket is MeshInstance3D, "Socket is a mesh.")
+	assert_true(ring is MeshInstance3D, "Ring is a mesh.")
+	assert_true(crystal is MeshInstance3D, "Crystal is a mesh.")
+	assert_not_null((socket as MeshInstance3D).mesh)
+	assert_not_null((ring as MeshInstance3D).mesh)
+	assert_not_null((crystal as MeshInstance3D).mesh)
+
+
+func test_goal_beacon_also_has_a_socket_ring_and_crystal() -> void:
+	var field: Field = _make_field()
+	field.place_flags(2, _slot_colors(), 1)
+
+	var flag: GoalFlag = field.goal_flags()[0]
+	assert_not_null(flag.get_node(^"Socket"))
+	assert_not_null(flag.get_node(^"Ring"))
+	assert_not_null(flag.get_node(^"Crystal"))
+
+
+func test_home_beacon_ring_and_crystal_follow_set_slots_color() -> void:
+	var field: Field = _make_field()
+	field.place_flags(4, _slot_colors(), 1)
+
+	for slot_id: int in range(4):
+		var flag: HomeFlag = field.home_flags()[slot_id]
+		var expected: Color = _slot_colors()[slot_id]
+		var ring: MeshInstance3D = flag.get_node(^"Ring") as MeshInstance3D
+		var crystal: MeshInstance3D = flag.get_node(^"Crystal") as MeshInstance3D
+		var ring_material: StandardMaterial3D = ring.material_override as StandardMaterial3D
+		var crystal_material: StandardMaterial3D = crystal.material_override as StandardMaterial3D
+		assert_almost_eq(
+			ring_material.albedo_color.r, expected.r, 0.0001,
+			"The ring is tinted the slot's own color."
+		)
+		assert_almost_eq(
+			crystal_material.albedo_color.r, expected.r, 0.0001,
+			"The crystal is tinted the slot's own color."
+		)
+
+
+func test_home_beacon_socket_stays_a_neutral_color_regardless_of_slot() -> void:
+	var field: Field = _make_field()
+	field.place_flags(2, _slot_colors(), 1)
+
+	var flag: HomeFlag = field.home_flags()[0]
+	var socket: MeshInstance3D = flag.get_node(^"Socket") as MeshInstance3D
+	var socket_material: StandardMaterial3D = socket.material_override as StandardMaterial3D
+	assert_eq(
+		socket_material.albedo_color, flag.beacon_visuals.socket_color,
+		"The socket never carries an owner's color, only the ring/crystal do."
+	)
+
+
+func test_goal_beacon_uses_the_neutral_color_not_a_slot_color() -> void:
+	var field: Field = _make_field()
+	field.place_flags(2, _slot_colors(), 1)
+
+	var flag: GoalFlag = field.goal_flags()[0]
+	var ring: MeshInstance3D = flag.get_node(^"Ring") as MeshInstance3D
+	var ring_material: StandardMaterial3D = ring.material_override as StandardMaterial3D
+	assert_eq(
+		ring_material.albedo_color, flag.beacon_visuals.neutral_color,
+		"The goal beacon's ring/crystal use BeaconVisualTuning's neutral color, "
+		+ "never a player's slot color (place_flags() never calls set_slot() on it)."
+	)
