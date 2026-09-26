@@ -44,15 +44,33 @@ const PRESET_LABELS: Array[String] = ["Low", "Medium", "High"]
 ## binding with ghost_place (PlayerController disambiguates by held-item type,
 ## not by a separate Input Map action -- rebinding it alone would desync that
 ## pairing).
+##
+## DECISION (Bontago-8or.19, owner playtest feedback/playtest.md: "many of
+## them not mapped to anything"): also excludes ghost_move_left/right/
+## forward/back and camera_look_left/right/up/down. Those 8 actions are
+## gamepad-axis-only by design (tools/bootstrap_project.gd's own DECISION
+## comments; game/PlayerController.gd:824 and game/CameraRig.gd read them via
+## Input.get_action_strength() purely for a connected stick -- mouse+keyboard
+## ghost movement/look reads raw mouse motion directly instead, which cannot
+## be bound to an Input Map action at all, spec 2.5). Listing them here showed
+## a K+M player a Rebind button and a raw "Joypad Motion on Axis N ..." string
+## with nothing to actually remap for their device -- exactly the reported
+## "not mapped to anything" rows. Removing them here is a display-only change
+## (docs/AGENT_WORKFLOW.md minor ambiguity: no gameplay rule or [ORIGINAL]
+## binding changes); the gamepad bindings themselves are untouched.
+##
+## Same reasoning excludes rotate_snap: tools/bootstrap_project.gd's own
+## comment on that action already documents it as gamepad-RB-only *because*
+## rotate_yaw_cw (KEY_S / RB) gives a K+M player the identical single-tap
+## 90-degree yaw already -- a real, listed row -- so rotate_snap's own row
+## would be a second, K+M-unmappable control for the same function.
 const REBINDABLE_ACTIONS: Array[StringName] = [
-	&"ghost_move_left", &"ghost_move_right", &"ghost_move_forward", &"ghost_move_back",
 	&"ghost_place",
 	&"rotate_yaw_ccw", &"rotate_yaw_cw", &"rotate_pitch_fwd", &"rotate_pitch_back",
 	&"rotate_roll_left", &"rotate_roll_right", &"rotation_mode", &"rotate_reset",
-	&"rotate_snap", &"rotate_drag",
+	&"rotate_drag",
 	&"hover_raise", &"hover_lower", &"lock_vertical",
 	&"camera_mode", &"camera_orbit",
-	&"camera_look_left", &"camera_look_right", &"camera_look_up", &"camera_look_down",
 	&"camera_pan_left", &"camera_pan_right", &"camera_pan_forward", &"camera_pan_back",
 	&"camera_modifier", &"camera_zoom_in", &"camera_zoom_out",
 	&"camera_snap_home", &"camera_snap_goal",
