@@ -15,6 +15,8 @@ Generated with the built-in image generator on 2026-09-26. These are exploratory
 | Cel-shaded Sunset Signal | [07-sunset-signal-cel-shaded.png](07-sunset-signal-cel-shaded.png) | Direct style comparison: graphic cloud masses, banded block lighting, restrained outlines and simplified mirror reflections. |
 | Cel-shaded home beacons | [08-cel-shaded-home-beacons.png](08-cel-shaded-home-beacons.png) | Replaces cloth pennants with low graphite sockets, luminous team rings and faceted red/blue marker lights. |
 | Command-spine main menu | [09-main-menu-command-spine.png](09-main-menu-command-spine.png) | Bolder menu concept following the selected cel-shaded gameplay style; keeps the block logo and tagline while replacing generic glass cards with a curved graphite command spine. |
+| Main menu — layered pastel | [10-main-menu-layered-pastel.png](10-main-menu-layered-pastel.png) | Owner-liked menu direction (2026-09-26): stacked paper cards, paper-cut sky, raised pill controls, coral primary with dark gamepad-focus outline, floating island with 08-style beacons. Rendered from the design canvas, not the image generator. |
+| Lobby — layered pastel | [11-lobby-layered-pastel.png](11-lobby-layered-pastel.png) | Matching lobby: real `ui/Lobby.tscn` settings in sunken wells and pill steppers, segmented Teams control, player pills with clay-cube swatches and ready badges, coral Start Match. Rendered from the design canvas. |
 
 ## Final prompts
 
