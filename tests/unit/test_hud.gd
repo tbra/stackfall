@@ -496,3 +496,88 @@ func test_gift_claimed_toast_skips_the_other_team_under_teams_2() -> void:
 		hud_slot3._gift_toast_label.text, "",
 		"team 1's slot 3 HUD must not react to a team 0 claim"
 	)
+
+
+# --- M7 P5: HUD minimap (docs/M7_PLAN.md "P5 -- HUD minimap + reskin") ------
+
+
+func test_minimap_owns_a_subviewport_and_camera() -> void:
+	var hud: HUD = _make_hud()
+	assert_not_null(hud._minimap.viewport(), "Minimap must own a SubViewport")
+	assert_not_null(hud._minimap.camera(), "Minimap must own a Camera3D")
+	assert_true(hud._minimap.camera().projection == Camera3D.PROJECTION_ORTHOGONAL)
+
+
+## Bontago-xtq.30 (owner: minimap "shows as a uniform grey radial blur -- no
+## disk outline"): root cause was the minimap camera inheriting the shared
+## World3D's own WorldEnvironment, whose volumetric fog washes out a top-down
+## view from height. Pins the fix: the minimap camera must carry its OWN
+## Environment (so it can never be affected by the main scene's preset-driven
+## fog/glow/SSR) with fog and volumetric fog off.
+func test_minimap_camera_has_its_own_fog_free_environment() -> void:
+	var hud: HUD = _make_hud()
+	var environment: Environment = hud._minimap.camera().environment
+	assert_not_null(environment, "the minimap camera must carry its own Environment, not inherit the shared WorldEnvironment")
+	assert_false(environment.fog_enabled, "fog must be off in the minimap's own environment")
+	assert_false(environment.volumetric_fog_enabled, "volumetric fog must be off in the minimap's own environment")
+
+
+## No match loaded (a bare HUD-only instance, e.g. a menu behind the scenes)
+## must render nothing and cost nothing: the SubViewport stays disabled and
+## the widget stays hidden until set_map_def() is ever called with a real map.
+func test_minimap_stays_disabled_with_no_match_loaded() -> void:
+	var hud: HUD = _make_hud()
+	assert_false(hud._minimap.is_active())
+	assert_false(hud._minimap.visible)
+	assert_eq(hud._minimap.viewport().render_target_update_mode, SubViewport.UPDATE_DISABLED)
+
+
+func test_set_map_def_frames_the_camera_from_the_maps_radius() -> void:
+	var hud: HUD = _make_hud()
+	var small_map: MapDef = MapDef.for_variant_and_size(MatchConfig.MapVariant.ROUND, MapDef.MapSize.SMALL)
+	var large_map: MapDef = MapDef.for_variant_and_size(MatchConfig.MapVariant.ROUND, MapDef.MapSize.LARGE)
+	assert_true(large_map.field_radius > small_map.field_radius, "fixture: LARGE must actually be bigger than SMALL")
+
+	hud._minimap.set_map_def(small_map)
+	var small_size: float = hud._minimap.camera().size
+	assert_true(hud._minimap.is_active())
+	assert_true(hud._minimap.visible)
+
+	hud._minimap.set_map_def(large_map)
+	var large_size: float = hud._minimap.camera().size
+
+	assert_true(
+		large_size > small_size,
+		"a bigger map's radius must widen the orthogonal camera's framed size"
+	)
+
+
+## Drives the minimap the same way real play does -- through
+## Events.territory_share_changed, HUD.gd's own chosen hook (no new signal) --
+## and confirms the camera actually re-frames from the FakeMatch's MapDef,
+## with no error in headless mode (SubViewport rendering is a no-op headless,
+## which is exactly the point: this must not crash or warn).
+func test_territory_share_changed_event_updates_the_minimap_from_match_config() -> void:
+	var hud: HUD = _make_hud()
+	var fake_match: FakeMatch = FakeMatch.new()
+	fake_match.config = MatchConfig.new()
+	fake_match.config.map_size = MapDef.MapSize.LARGE
+	hud.match_provider = fake_match
+
+	Events.territory_share_changed.emit(PackedFloat32Array([0.5, 0.5]))
+
+	assert_true(hud._minimap.is_active())
+	var expected_map: MapDef = fake_match.config.map_def()
+	assert_almost_eq(
+		hud._minimap.camera().size, (expected_map.field_radius + hud.hud_visual_tuning.minimap_zoom_margin_m) * 2.0, 0.01
+	)
+
+
+func test_territory_share_changed_event_leaves_the_minimap_disabled_with_no_config() -> void:
+	var hud: HUD = _make_hud()
+	var fake_match: FakeMatch = FakeMatch.new()
+	hud.match_provider = fake_match
+
+	Events.territory_share_changed.emit(PackedFloat32Array([0.5, 0.5]))
+
+	assert_false(hud._minimap.is_active())

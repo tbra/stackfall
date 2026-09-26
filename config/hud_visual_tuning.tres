@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="HUDVisualTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/HUDVisualTuning.gd" id="1_hud_visual"]
+
+[resource]
+script = ExtResource("1_hud_visual")
+minimap_size_px = 160
+minimap_zoom_margin_m = 6.0
+minimap_refresh_hz = 8.0
+minimap_camera_height_m = 80.0
+minimap_near_clip_m = 1.0
+minimap_far_clip_m = 40.0
+panel_background_color = Color(0.965, 0.925, 0.867, 0.85)
+panel_border_color = Color(0.886, 0.412, 0.322, 1)
+panel_text_color = Color(0.169, 0.227, 0.271, 1)
+panel_corner_radius_px = 12.0
+panel_border_width_px = 2.0
+minimap_frame_color = Color(0.867, 0.667, 0.318, 1)
+minimap_backdrop_color = Color(0.129, 0.153, 0.188, 1)

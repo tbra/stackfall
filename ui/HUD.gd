@@ -71,6 +71,11 @@ const PREVIEW_CELL_MARGIN: float = 0.9
 ## before it can load a .tres whose script is MatchConfig, which made the
 ## constant null and the parse fail.
 @export var default_palette: MatchConfig = preload("res://config/match_defaults.tres")
+## M7 P5 (docs/M7_PLAN.md): the minimap's camera framing and the reskinned
+## panels' colours — see config/HUDVisualTuning.gd's own class doc for why
+## this is the one Resource this file adds (everything else here stays the
+## pre-M7 "pure screen-space geometry is inline" DECISION above).
+@export var hud_visual_tuning: HUDVisualTuning = preload("res://config/hud_visual_tuning.tres")
 ## DECISION (ui/HUD.gd): a Variant test seam for the same reason
 ## PlayerController has one — GUT can't double a plain autoload, and P2's
 ## real Match hasn't landed on this branch yet. Defaults to the real
@@ -89,6 +94,12 @@ var match_provider: Variant = null
 @onready var _reject_label: Label = %RejectLabel
 @onready var _winner_label: Label = %WinnerLabel
 @onready var _gift_toast_label: Label = %GiftToastLabel
+## M7 P5: the two reskinned backing panels (status cluster, shares list) and
+## the live minimap. Added as new HUD.tscn nodes; every pre-existing
+## %UniqueName above keeps the exact same path it always had.
+@onready var _status_panel: Panel = %StatusPanel
+@onready var _shares_panel: Panel = %SharesPanel
+@onready var _minimap: Minimap = %Minimap
 
 var _shapes_by_id: Dictionary = {}
 ## Whichever slot this HUD's widgets currently read: the hot-seat active
@@ -112,6 +123,10 @@ var _gift_toast_tween: Tween
 var _share_rows: Array = []
 var _share_bars: Array = []
 var _share_labels: Array = []
+## M7 P5: last MapDef pushed to the minimap, so repeated territory_share_changed
+## ticks (every placement) don't re-frame its camera when the map hasn't
+## actually changed.
+var _last_map_def: MapDef = null
 
 
 func _ready() -> void:
@@ -127,6 +142,14 @@ func _ready() -> void:
 	_capture_ring.visible = false
 	_locked_label.visible = false
 	_special_indicator.visible = false
+
+	# M7 P5 (docs/M7_ART_DIRECTION.md HUD styling section): cream/coral
+	# StyleBoxFlat panels behind the two persistent readout clusters, driven
+	# from hud_visual_tuning so the .tscn holds no raw colour literals.
+	_style_panel(_status_panel)
+	_style_panel(_shares_panel)
+	_height_label.add_theme_color_override("font_color", hud_visual_tuning.panel_text_color)
+	_locked_label.add_theme_color_override("font_color", hud_visual_tuning.panel_text_color)
 
 	Events.turn_changed.connect(_on_turn_changed)
 	Events.feed_block_issued.connect(_on_feed_block_issued)
@@ -355,6 +378,7 @@ func _on_placement_relocated(slot_id: int, _point: Vector2) -> void:
 
 func _on_territory_share_changed(shares: PackedFloat32Array) -> void:
 	set_territory_shares(shares)
+	_update_minimap()
 
 
 func _on_goal_capture_progress(team_id: int, progress: float) -> void:
@@ -410,6 +434,40 @@ func _hot_seat_active() -> bool:
 		return false
 	var running_config: Variant = match_provider.config
 	return running_config != null and bool(running_config.hot_seat)
+
+
+## M7 P5: forwards the running match's MapDef to the minimap (docs/M7_PLAN.md
+## "P5 -- HUD minimap + reskin", "no new signal needed" — Events.
+## territory_share_changed already fires once the match's territory state
+## exists, which is after MatchConfig is set). Null-safe the same way
+## _hot_seat_active()/_team_of_slot() are: match_provider == null or no config
+## yet (pre-match, or a bare HUD-only test with no FakeMatch.config set) just
+## leaves the minimap in its initial hidden/disabled state. Only pushes
+## set_map_def() when the map actually changed, so this doesn't re-frame the
+## minimap's camera on every placement's territory-share tick.
+func _update_minimap() -> void:
+	if match_provider == null:
+		return
+	var running_config: Variant = match_provider.config
+	if running_config == null:
+		return
+	var map_def: MapDef = running_config.map_def()
+	if map_def == _last_map_def:
+		return
+	_last_map_def = map_def
+	_minimap.set_map_def(map_def)
+
+
+## M7 P5: the one StyleBoxFlat every reskinned HUD panel shares, built from
+## hud_visual_tuning so ui/HUD.tscn itself holds no colour literals (mirrors
+## ui/Minimap.gd's own panel styling for the minimap's frame/backdrop).
+func _style_panel(panel: Panel) -> void:
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = hud_visual_tuning.panel_background_color
+	style.border_color = hud_visual_tuning.panel_border_color
+	style.set_border_width_all(int(hud_visual_tuning.panel_border_width_px))
+	style.set_corner_radius_all(int(hud_visual_tuning.panel_corner_radius_px))
+	panel.add_theme_stylebox_override("panel", style)
 
 
 ## Spec M2 owner decision 3: no dedicated Events signal exists for "home flag
@@ -515,6 +573,7 @@ func _ensure_share_row_count(count: int) -> void:
 		bar_fill.custom_minimum_size = Vector2(0.0, SHARE_BAR_HEIGHT)
 		bar_bg.add_child(bar_fill)
 		var label: Label = Label.new()
+		label.add_theme_color_override("font_color", hud_visual_tuning.panel_text_color)
 		row.add_child(bar_bg)
 		row.add_child(label)
 		_shares_box.add_child(row)
