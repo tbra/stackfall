@@ -53,6 +53,12 @@ extends Resource
 ## reframed to the right third of the screen (gap item 1, mockup 10). -------
 @export var backdrop_sky_top_color: Color = Color(0.62, 0.80, 0.90, 1.0)
 @export var backdrop_sky_horizon_color: Color = Color(0.88, 0.92, 0.90, 1.0)
+## Number of horizontal gradient bands ui/MenuBackdrop.gd's _draw_sky() lerps
+## between the two sky colors across -- review finding #4 (Bontago-xtq.32
+## redo #3): this used to be a bare `const SKY_BAND_COUNT` in MenuBackdrop.gd
+## itself, contradicting that file's own "every color, count and layout
+## fraction it draws from is a MenuVisualTuning export" docstring.
+@export var backdrop_sky_band_count: int = 24
 @export var backdrop_sun_color: Color = Color(0.98, 0.86, 0.55, 1.0)
 @export var backdrop_sun_ring_color: Color = Color(0.99, 0.93, 0.74, 1.0)
 @export var backdrop_sun_ring_count: int = 4
@@ -61,6 +67,13 @@ extends Resource
 @export var backdrop_sun_pos_y_fraction: float = 0.20
 @export var backdrop_cloud_color: Color = Color(1.0, 1.0, 1.0, 0.75)
 @export var backdrop_cloud_count: int = 4
+## The rest of _draw_clouds()'s layout, as fractions of the backdrop's own
+## size (review finding #4: these were bare literals in MenuBackdrop.gd).
+@export var backdrop_cloud_width_fraction: float = 0.16
+@export var backdrop_cloud_height_fraction: float = 0.05
+@export var backdrop_cloud_base_y_fraction: float = 0.34
+## How far every other cloud is nudged down, as a fraction of cloud height.
+@export var backdrop_cloud_offset_fraction: float = 0.8
 @export var ground_band_apricot_color: Color = Color(0.95, 0.80, 0.64, 1.0)
 @export var ground_band_mint_color: Color = Color(0.75, 0.87, 0.78, 1.0)
 @export var ground_band_height_fraction: float = 0.16
@@ -73,6 +86,15 @@ extends Resource
 @export var card_offset_px: float = 14.0
 @export var card_corner_radius_px: float = 18.0
 @export var card_shadow_alpha: float = 0.9
+## The rest of ui/theme/MenuStyleFactory.gd's make_card() -- review finding
+## #4: these were bare literals despite that file's own "every color/size it
+## draws from comes from config/MenuVisualTuning.gd" docstring.
+## card_shadow_base_alpha is the shadow's alpha at card_shadow_alpha == 1.0;
+## the drawn alpha is their product, exactly reproducing make_card()'s
+## previous `0.12 * tuning.card_shadow_alpha` literal.
+@export var card_shadow_base_alpha: float = 0.12
+@export var card_shadow_size_px: float = 6.0
+@export var card_content_margin_px: float = 20.0
 
 ## -- Varied pastel pill buttons + sunken wells (gap items 4, 5, 6) -----------
 @export var pill_coral_color: Color = Color(0.92, 0.42, 0.36, 1.0)
@@ -89,12 +111,19 @@ extends Resource
 @export var well_color: Color = Color(0.88, 0.84, 0.76, 1.0)
 @export var well_border_color: Color = Color(0.78, 0.68, 0.52, 1.0)
 @export var well_corner_radius_px: float = 10.0
+## The rest of ui/theme/MenuStyleFactory.gd's make_well() (review finding #4).
+@export var well_border_width_px: float = 2.0
+@export var well_content_margin_px: float = 8.0
 @export var label_ink_light_color: Color = Color(0.97, 0.95, 0.92, 1.0)
 ## Small-caps-style grey field captions ("NAME", "LAN GAMES", gap item 3).
 @export var label_muted_color: Color = Color(0.55, 0.52, 0.48, 1.0)
 @export var pill_corner_radius_px: float = 16.0
 @export var pill_margin_x_px: float = 16.0
 @export var pill_margin_y_px: float = 8.0
+## apply_pill()'s "pressed" state darkens hover_color by this amount
+## (Color.darkened()'s own 0.0..1.0 fraction) -- review finding #4: this was
+## a bare `0.12` literal in MenuStyleFactory.gd.
+@export var pill_pressed_darken_amount: float = 0.12
 
 ## -- Shared panel/focus palette ----------------------------------------------
 @export var panel_border_color: Color = Color(0.78, 0.68, 0.52, 1.0)

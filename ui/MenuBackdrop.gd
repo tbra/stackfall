@@ -17,8 +17,6 @@ extends Control
 
 @export var tuning: MenuVisualTuning = preload("res://config/menu_visual_tuning.tres")
 
-const SKY_BAND_COUNT: int = 24
-
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -36,9 +34,10 @@ func _draw() -> void:
 
 
 func _draw_sky(size: Vector2) -> void:
-	var band_height: float = size.y / float(SKY_BAND_COUNT)
-	for i: int in range(SKY_BAND_COUNT):
-		var t: float = float(i) / float(SKY_BAND_COUNT - 1)
+	var band_count: int = tuning.backdrop_sky_band_count
+	var band_height: float = size.y / float(band_count)
+	for i: int in range(band_count):
+		var t: float = float(i) / float(band_count - 1)
 		var color: Color = tuning.backdrop_sky_top_color.lerp(tuning.backdrop_sky_horizon_color, t)
 		var rect: Rect2 = Rect2(0.0, band_height * float(i), size.x, band_height + 1.0)
 		draw_rect(rect, color, true)
@@ -68,12 +67,12 @@ func _draw_clouds(size: Vector2) -> void:
 	var count: int = tuning.backdrop_cloud_count
 	if count <= 0:
 		return
-	var cloud_height: float = size.y * 0.05
-	var cloud_width: float = size.x * 0.16
-	var base_y: float = size.y * 0.34
+	var cloud_height: float = size.y * tuning.backdrop_cloud_height_fraction
+	var cloud_width: float = size.x * tuning.backdrop_cloud_width_fraction
+	var base_y: float = size.y * tuning.backdrop_cloud_base_y_fraction
 	for i: int in range(count):
 		var t: float = (float(i) + 0.5) / float(count)
-		var offset_y: float = cloud_height * 0.8 if i % 2 == 0 else 0.0
+		var offset_y: float = cloud_height * tuning.backdrop_cloud_offset_fraction if i % 2 == 0 else 0.0
 		var rect: Rect2 = Rect2(
 			size.x * t - cloud_width * 0.5,
 			base_y + offset_y,
@@ -82,6 +81,11 @@ func _draw_clouds(size: Vector2) -> void:
 		)
 		var pill: StyleBoxFlat = StyleBoxFlat.new()
 		pill.bg_color = tuning.backdrop_cloud_color
+		# DECISION (review finding #4): cloud_height * 0.5 is pure geometry (a
+		# fully-rounded pill's corner radius is half its own height, by
+		# definition of "pill shape"), not an independent tunable, so it stays
+		# a literal here rather than becoming a MenuVisualTuning export. Same
+		# for the two `* 0.5` centering terms above (rect.x, cloud_width).
 		pill.set_corner_radius_all(int(cloud_height * 0.5))
 		draw_style_box(pill, rect)
 

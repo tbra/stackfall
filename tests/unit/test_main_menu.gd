@@ -125,12 +125,30 @@ func test_activating_a_list_entry_joins_that_game() -> void:
 
 # --- Steam section (docs/M3b_PLAN.md P3) --------------------------------------
 
+## Review finding #2 (Bontago-xtq.32 redo #3): _apply_steam_availability()
+## also disables %HostOnlineButton in place (gap item 4's own DECISION --
+## it stays in its %HostRow slot rather than hiding) and re-bridges the
+## ui_up/ui_down focus chain from %HostRow past the hidden %SteamSection
+## straight to %GameList's well, neither of which the two tests above
+## (added for the Steam section/notice toggle itself) exercised.
 func test_steam_section_hidden_and_notice_shown_when_steam_unavailable() -> void:
 	var menu: MainMenu = _make_menu()
 	_fake_of(menu).steam_available_value = false
 	menu._apply_steam_availability()
 	assert_false((menu.get_node("%SteamSection") as VBoxContainer).visible)
 	assert_true((menu.get_node("%SteamUnavailableLabel") as Label).visible)
+	var host_online_button: Button = menu.get_node("%HostOnlineButton")
+	assert_true(host_online_button.disabled, "Host Online must be disabled while Steam is unavailable")
+	var host_button: Button = menu.get_node("%HostButton")
+	var game_list: Control = menu.get_node("%GameList")
+	assert_eq(
+		host_button.get_node(host_button.focus_neighbor_bottom), game_list,
+		"focus must skip the hidden Steam section and land on the LAN game list"
+	)
+	assert_eq(
+		game_list.get_node(game_list.focus_neighbor_top), host_button,
+		"focus moving back up from the game list must return straight to Host"
+	)
 
 
 func test_steam_section_shown_and_notice_hidden_when_steam_available() -> void:
@@ -139,6 +157,20 @@ func test_steam_section_shown_and_notice_hidden_when_steam_available() -> void:
 	menu._apply_steam_availability()
 	assert_true((menu.get_node("%SteamSection") as VBoxContainer).visible)
 	assert_false((menu.get_node("%SteamUnavailableLabel") as Label).visible)
+	var host_online_button: Button = menu.get_node("%HostOnlineButton")
+	assert_false(host_online_button.disabled, "Host Online must be enabled once Steam is available")
+	var host_button: Button = menu.get_node("%HostButton")
+	var steam_lobby_list: Control = menu.get_node("%SteamLobbyList")
+	assert_eq(
+		host_button.get_node(host_button.focus_neighbor_bottom), steam_lobby_list,
+		"focus must reach the Steam lobby list once it is shown"
+	)
+	var refresh_steam_button: Button = menu.get_node("%RefreshSteamButton")
+	var game_list: Control = menu.get_node("%GameList")
+	assert_eq(
+		game_list.get_node(game_list.focus_neighbor_top), refresh_steam_button,
+		"focus moving back up from the LAN game list must pass through the Steam section"
+	)
 
 
 func test_host_online_button_calls_host_online() -> void:

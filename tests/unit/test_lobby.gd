@@ -202,6 +202,19 @@ func test_start_button_hidden_for_a_client() -> void:
 	assert_false((lobby.get_node("%StartButton") as Button).visible)
 
 
+## Review finding #1 (Bontago-xtq.32 redo #3): the Back pill's own
+## _on_back_pressed() only emits back_requested (line 365-366) -- this pins
+## that the button press actually reaches the signal, since nothing in this
+## file exercised %BackButton before. game/Main.gd owns the listener (no
+## node paths into game/Main.gd, this file's own header), so that side is
+## covered separately by tests/unit/test_main.gd.
+func test_back_button_emits_back_requested() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	watch_signals(lobby)
+	(lobby.get_node("%BackButton") as Button).pressed.emit()
+	assert_signal_emitted(lobby, "back_requested")
+
+
 func test_start_pressed_emits_start_requested_only_when_ready() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var fake: FakeNet = _fake_of(lobby)

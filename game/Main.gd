@@ -698,6 +698,7 @@ func _show_lobby() -> void:
 	_lobby = LOBBY_SCENE.instantiate() as Lobby
 	add_child(_lobby)
 	_lobby.start_requested.connect(_on_lobby_start_requested)
+	_lobby.back_requested.connect(_on_lobby_back_requested)
 	# Must happen only once Net.is_host()/is_client() reflects the real mode
 	# (register_world() reads it immediately, to set BlockRegistry's host
 	# authority), which is exactly what firing here, after net_mode_changed,
@@ -746,6 +747,22 @@ func _on_lobby_start_requested(config: MatchConfig) -> void:
 	if not Net.is_host():
 		return
 	Match.start_match(config)
+
+
+## ui/Lobby.gd's %BackButton (Bontago-xtq.32 redo #3, review finding #1):
+## _show_lobby() above is only ever entered from _on_net_mode_changed() once
+## Net is already HOST or CLIENT, so this needs no host/client branch --
+## Net.leave()'s own contract ("the host disconnects everyone ... first",
+## autoload/Net.gd) stops LAN/Steam advertising and drops peers for a host,
+## or simply disconnects for a client, either way emitting
+## Events.net_mode_changed(OFFLINE). _on_net_mode_changed() answers that the
+## same way it answers a mid-match disconnect: _end_match_world(), an
+## abort_match() skipped here too (Match is still LOBBY, the match never
+## started), then _show_main_menu() -- the exact online-branch behaviour
+## _on_pause_leave_requested() below already relies on for the pause menu's
+## own Leave button.
+func _on_lobby_back_requested() -> void:
+	Net.leave()
 
 
 ## ui/PauseMenu.gd's own leave_match_requested (Leave match, confirmed).

@@ -7,8 +7,10 @@ extends Node
 ## tools/screenshot_m3a_menu.gd.
 ##
 ## Run windowed, off-screen (owner convention: never on-screen, never
-## --always-on-top/--maximized):
-## godot --path . res://tools/screenshot_m7p7_menu.tscn --position 10000,10000 --quit-after 3
+## --always-on-top/--maximized; --windowed keeps it off-screen now the project
+## defaults to borderless fullscreen, Bontago-xtq.45, and --quit-after 3 was
+## too short to reach both captures -- review finding #3):
+## godot --path . res://tools/screenshot_m7p7_menu.tscn --windowed --position 10000,10000 --quit-after 90
 
 const MENU_OUTPUT_PATH: String = "user://m7p7_menu.png"
 const LOBBY_OUTPUT_PATH: String = "user://m7p7_lobby.png"

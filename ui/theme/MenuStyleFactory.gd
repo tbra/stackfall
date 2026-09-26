@@ -22,7 +22,7 @@ extends RefCounted
 static func apply_pill(button: Button, normal_color: Color, hover_color: Color, font_color: Color, tuning: MenuVisualTuning) -> void:
 	button.add_theme_stylebox_override("normal", _pill_box(normal_color, tuning))
 	button.add_theme_stylebox_override("hover", _pill_box(hover_color, tuning))
-	button.add_theme_stylebox_override("pressed", _pill_box(hover_color.darkened(0.12), tuning))
+	button.add_theme_stylebox_override("pressed", _pill_box(hover_color.darkened(tuning.pill_pressed_darken_amount), tuning))
 	button.add_theme_color_override("font_color", font_color)
 	button.add_theme_color_override("font_hover_color", font_color)
 	button.add_theme_color_override("font_pressed_color", font_color)
@@ -34,9 +34,9 @@ static func make_well(tuning: MenuVisualTuning) -> StyleBoxFlat:
 	var box: StyleBoxFlat = StyleBoxFlat.new()
 	box.bg_color = tuning.well_color
 	box.border_color = tuning.well_border_color
-	box.set_border_width_all(2)
+	box.set_border_width_all(int(tuning.well_border_width_px))
 	box.set_corner_radius_all(int(tuning.well_corner_radius_px))
-	box.set_content_margin_all(8.0)
+	box.set_content_margin_all(tuning.well_content_margin_px)
 	return box
 
 
@@ -47,12 +47,12 @@ static func make_card(color: Color, tuning: MenuVisualTuning) -> StyleBoxFlat:
 	var box: StyleBoxFlat = StyleBoxFlat.new()
 	box.bg_color = color
 	box.set_corner_radius_all(int(tuning.card_corner_radius_px))
-	box.shadow_color = Color(0.0, 0.0, 0.0, 0.12 * tuning.card_shadow_alpha)
-	box.shadow_size = 6
-	box.content_margin_left = 20.0
-	box.content_margin_top = 20.0
-	box.content_margin_right = 20.0
-	box.content_margin_bottom = 20.0
+	box.shadow_color = Color(0.0, 0.0, 0.0, tuning.card_shadow_base_alpha * tuning.card_shadow_alpha)
+	box.shadow_size = int(tuning.card_shadow_size_px)
+	box.content_margin_left = tuning.card_content_margin_px
+	box.content_margin_top = tuning.card_content_margin_px
+	box.content_margin_right = tuning.card_content_margin_px
+	box.content_margin_bottom = tuning.card_content_margin_px
 	return box
 
 
