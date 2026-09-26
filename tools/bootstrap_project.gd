@@ -106,6 +106,21 @@ func _apply_settings() -> void:
 		# Bodies sleep after 0.5 s below threshold (spec 3.5, "Sleep").
 		"physics/jolt_physics_3d/simulation/sleep_time_threshold": 0.5,
 
+		# Bontago-xtq.45 (M7 P4, owner request): a fresh launch (before the
+		# player has ever opened Options, so autoload/Settings.gd's own
+		# _load() has nothing persisted yet) must already be borderless
+		# fullscreen, matching Settings.DEFAULT_WINDOW_MODE_ID. `mode = 3` is
+		# DisplayServer.WINDOW_MODE_FULLSCREEN (a borderless-capable
+		# fullscreen window, distinct from `4` = Exclusive Fullscreen) and
+		# `borderless = true` removes the window chrome -- together the same
+		# pair of calls Settings.apply_window_mode()'s own
+		# WINDOW_MODE_BORDERLESS_FULLSCREEN case makes at runtime. Does not
+		# set viewport_width/viewport_height: this project has never
+		# overridden those, so they stay at the engine's own built-in
+		# default (1152x648) exactly as before this change.
+		"display/window/size/mode": 3,
+		"display/window/size/borderless": true,
+
 		# CLAUDE.md - untyped declarations are errors, not warnings. Godot 4.7
 		# exempts res://addons through debug/gdscript/warnings/directory_rules,
 		# so third-party code such as GUT still compiles.

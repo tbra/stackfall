@@ -154,6 +154,13 @@ func _ready() -> void:
 	Settings.graphics_preset_changed.connect(_apply_graphics_preset)
 	_apply_graphics_preset(Settings.current_graphics_preset())
 
+	# Bontago-xtq.45 (M7 P4): applies the persisted window mode (borderless
+	# fullscreen by default) over whatever project.godot's own boot-time
+	# window settings produced. Settings.apply_window_mode()'s own guards
+	# already skip headless/editor/--position runs, so this is a no-op for
+	# the test suite and off-screen probe tools.
+	Settings.apply_window_mode()
+
 	if _has_cmdline_flag("hot-seat"):
 		_start_hot_seat_match()
 		return

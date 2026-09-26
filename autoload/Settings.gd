@@ -174,10 +174,11 @@ func window_mode_label(id: StringName) -> String:
 ##    that is true for every run from this repo's editor binary, including the
 ##    owner's own `godot --path .` launches, and would make the setting inert
 ##    until an export template exists (orchestrator correction, xtq.45).
-##  - `--position` present in OS.get_cmdline_args(): our own off-screen
-##    screenshot/probe tools launch with `--position 10000,10000` specifically
-##    so a windowed run never appears on the owner's monitor; forcing
-##    fullscreen would undo that.
+##  - `--position`, `--windowed` or `-w` in OS.get_cmdline_args(): an explicit
+##    windowed/off-screen CLI request wins over the saved mode. Our own
+##    screenshot/probe tools launch with `--windowed --position 10000,10000`
+##    specifically so a run never appears on the owner's monitor; forcing
+##    fullscreen (now also the project default) would undo that.
 func apply_window_mode() -> void:
 	if not _can_apply_window_mode():
 		return
@@ -201,7 +202,8 @@ func _can_apply_window_mode() -> bool:
 		return false
 	if Engine.is_editor_hint():
 		return false
-	if OS.get_cmdline_args().has("--position"):
+	var args: PackedStringArray = OS.get_cmdline_args()
+	if args.has("--position") or args.has("--windowed") or args.has("-w"):
 		return false
 	return true
 

@@ -78,6 +78,7 @@ const VOLUME_STEP_DB: float = 1.0
 @onready var _browse_button: Button = %BrowseButton
 @onready var _music_dir_dialog: FileDialog = %MusicDirDialog
 @onready var _camera_shake_check: CheckButton = %CameraShakeCheck
+@onready var _window_mode_option: OptionButton = %WindowModeOption
 @onready var _rebind_list: VBoxContainer = %RebindList
 @onready var _back_button: Button = %BackButton
 
@@ -92,6 +93,7 @@ func _ready() -> void:
 	_volume_slider.step = VOLUME_STEP_DB
 
 	_build_preset_items()
+	_build_window_mode_items()
 	_load_current_values()
 	_build_rebind_rows()
 	_wire_focus_chain()
@@ -103,6 +105,7 @@ func _ready() -> void:
 	_browse_button.pressed.connect(_on_browse_pressed)
 	_music_dir_dialog.dir_selected.connect(_on_music_dir_selected)
 	_camera_shake_check.toggled.connect(_on_camera_shake_toggled)
+	_window_mode_option.item_selected.connect(_on_window_mode_selected)
 	_back_button.pressed.connect(_on_back_pressed)
 
 	_preset_option.grab_focus()
@@ -125,6 +128,16 @@ func _build_preset_items() -> void:
 		_preset_option.add_item(label)
 
 
+## Bontago-xtq.45 (M7 P4): reads Settings.WINDOW_MODE_IDS/window_mode_label()
+## directly (a fixed, script-level constant/lookup, not per-provider state)
+## rather than duplicating PRESET_LABELS' own hand-written parallel-array
+## pattern -- the ids and their display order already live in one place.
+func _build_window_mode_items() -> void:
+	_window_mode_option.clear()
+	for id: StringName in Settings.WINDOW_MODE_IDS:
+		_window_mode_option.add_item(Settings.window_mode_label(id))
+
+
 func _load_current_values() -> void:
 	var preset: GraphicsPreset = settings_provider.current_graphics_preset()
 	var preset_index: int = PRESET_IDS.find(preset.id) if preset != null else -1
@@ -137,6 +150,10 @@ func _load_current_values() -> void:
 	_music_dir_edit.text = String(settings_provider.custom_music_dir())
 
 	_camera_shake_check.set_pressed_no_signal(bool(settings_provider.camera_shake_enabled()))
+
+	var window_mode_id: StringName = settings_provider.window_mode()
+	var window_mode_index: int = Settings.WINDOW_MODE_IDS.find(window_mode_id)
+	_window_mode_option.select(window_mode_index if window_mode_index >= 0 else Settings.WINDOW_MODE_IDS.find(Settings.DEFAULT_WINDOW_MODE_ID))
 
 
 func _on_preset_selected(index: int) -> void:
@@ -176,6 +193,18 @@ func _on_camera_shake_toggled(enabled: bool) -> void:
 	settings_provider.set_camera_shake_enabled(enabled)
 
 
+## Bontago-xtq.45 (M7 P4): unlike every other setter this menu calls,
+## Settings.set_window_mode() already applies the change itself (its own doc
+## comment: "applies it immediately via apply_window_mode()") -- calling
+## apply_window_mode() again here would just be a redundant, no-observable-
+## effect re-application of the same mode, so this stays a single call, the
+## same shape as _on_preset_selected()/_on_camera_shake_toggled() above.
+func _on_window_mode_selected(index: int) -> void:
+	if index < 0 or index >= Settings.WINDOW_MODE_IDS.size():
+		return
+	settings_provider.set_window_mode(Settings.WINDOW_MODE_IDS[index])
+
+
 func _on_back_pressed() -> void:
 	closed.emit()
 
@@ -202,14 +231,15 @@ func _build_rebind_rows() -> void:
 ## Gamepad/keyboard navigability (docs/M6_PLAN.md package C2: "fully
 ## navigable with gamepad and keyboard"): chains every focusable control top
 ## to bottom -- PresetOption -> VolumeSlider -> MusicDirEdit -> BrowseButton ->
-## each rebind row's own RebindButton in order -> BackButton -> back up to
-## PresetOption. Computed at runtime (control.get_path_to()) rather than
+## CameraShakeCheck -> WindowModeOption -> each rebind row's own RebindButton
+## in order -> BackButton -> back up to PresetOption. Computed at runtime
+## (control.get_path_to()) rather than
 ## static NodePaths in the .tscn, the same reason ui/MainMenu.gd's own
 ## _apply_steam_availability() does this for its Steam-availability toggle:
 ## the rebind rows are built dynamically and don't exist yet when the scene
 ## file is authored.
 func _wire_focus_chain() -> void:
-	var chain: Array[Control] = [_preset_option, _volume_slider, _music_dir_edit, _browse_button, _camera_shake_check]
+	var chain: Array[Control] = [_preset_option, _volume_slider, _music_dir_edit, _browse_button, _camera_shake_check, _window_mode_option]
 	for row: KeyRebindRow in _rows:
 		chain.append(row.rebind_button())
 	chain.append(_back_button)
