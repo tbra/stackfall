@@ -32,6 +32,11 @@ var _saved_disk_metallic: float
 var _saved_skybox_default_set: String
 var _saved_skybox_enabled: bool
 
+## Bontago-xtq.36: saved/restored the same way every other live singleton
+## field above is (this file's own header explains why) -- mutated by the
+## new Sky-tab write-through test below.
+var _saved_sky_fog_density: float
+
 
 func before_each() -> void:
 	_panel = autofree(load("res://ui/TuningPanel.tscn").instantiate())
@@ -51,6 +56,7 @@ func before_each() -> void:
 	_saved_disk_metallic = _panel.territory_visuals.disk_metallic
 	_saved_skybox_default_set = _panel.skybox_config.default_set
 	_saved_skybox_enabled = _panel.skybox_config.enabled
+	_saved_sky_fog_density = _panel.sky_theme.fog_density
 
 
 func after_each() -> void:
@@ -68,6 +74,7 @@ func after_each() -> void:
 	_panel.territory_visuals.disk_metallic = _saved_disk_metallic
 	_panel.skybox_config.default_set = _saved_skybox_default_set
 	_panel.skybox_config.enabled = _saved_skybox_enabled
+	_panel.sky_theme.fog_density = _saved_sky_fog_density
 
 	Input.action_release(&"pause_menu")
 
@@ -452,13 +459,75 @@ func test_host_shows_every_tab() -> void:
 		assert_false(_panel._tab_container.is_tab_hidden(index))
 
 
-func test_client_hides_physics_territory_and_feed_but_not_camera_or_controls() -> void:
+## Bontago-xtq.36: rewritten for the 10-tab layout the M7 tabs added --
+## CLIENT_HIDDEN_TAB_FIRST moved from 2 to 7 (see that constant's own doc),
+## so every visual tab (Camera, Controls, and the five new M7 tabs) must stay
+## visible to a client, and only Physics/Territory/Feed (indices 7-9) hide.
+func test_client_hides_physics_territory_and_feed_but_not_the_visual_tabs() -> void:
 	_panel.net_provider = FakeNet.client(0)
 	_panel.rebuild()
-	assert_false(_panel._tab_container.is_tab_hidden(0), "Camera")
-	assert_false(_panel._tab_container.is_tab_hidden(1), "Controls")
-	for index: int in range(2, _panel._tab_container.get_tab_count()):
+	var visible_names: PackedStringArray = [
+		"Camera", "Controls", "Blocks FX", "Beacons", "Camera FX", "HUD", "Sky",
+	]
+	for index: int in range(visible_names.size()):
+		assert_false(
+			_panel._tab_container.is_tab_hidden(index),
+			visible_names[index]
+		)
+	for index: int in range(_panel.CLIENT_HIDDEN_TAB_FIRST, _panel._tab_container.get_tab_count()):
 		assert_true(_panel._tab_container.is_tab_hidden(index), "tab %d (Physics/Territory/Feed)" % index)
+
+
+# --- Bontago-xtq.36: M7 art-direction tabs (Blocks FX/Beacons/Camera FX/HUD/Sky) ---
+
+func test_tab_roster_names_and_count() -> void:
+	var expected: PackedStringArray = [
+		"Camera", "Controls", "Blocks FX", "Beacons", "Camera FX", "HUD", "Sky",
+		"Physics", "Territory", "Feed",
+	]
+	assert_eq(_panel._tab_container.get_tab_count(), expected.size())
+	for index: int in range(expected.size()):
+		assert_eq(_panel._tab_container.get_tab_title(index), expected[index])
+
+
+## CameraShakeConfig (config/CameraShakeConfig.gd) is four plain floats and
+## nothing else -- like PhysicsTuning's own "one control per numeric field"
+## fixture above, no Color/bool/Vector field to complicate the count.
+func test_camera_fx_tab_builds_one_control_per_exported_float_field() -> void:
+	assert_eq(_panel.row_count_for(_panel.camera_shake_config), 4)
+
+
+## SkyThemeDef.fog_density is a plain float (config/SkyThemeDef.gd) -- driving
+## its slider must both write the live sky_theme Resource and reach a live
+## Skybox via apply_sky_theme_live() (this file's header's "deterministic
+## equivalent of a real drag" technique, same as
+## test_apply_skybox_set_writes_the_config_and_reaches_a_live_skybox above).
+func test_sky_tab_fog_density_slider_writes_the_resource_and_reaches_a_live_skybox() -> void:
+	# Skybox.gd's own doc: environment is optional and every sky-material write
+	# no-ops without it, so a bare Skybox.new() (as most fixtures above use)
+	# would silently skip apply_theme()'s fog_density write. Wire a real
+	# Environment/Sky first, matching test_skybox.gd's _make_wired_skybox().
+	var sky: Sky = Sky.new()
+	sky.sky_material = ProceduralSkyMaterial.new()
+	var environment: Environment = Environment.new()
+	environment.sky = sky
+
+	var skybox: Skybox = Skybox.new()
+	skybox.config = _panel.skybox_config
+	skybox.environment = environment
+	add_child_autofree(skybox)  # _ready() joins Skybox.TUNING_GROUP for real.
+
+	var slider: HSlider = _panel.control_for(_panel.sky_theme, "fog_density") as HSlider
+	assert_true(slider is HSlider)
+
+	var new_value: float = _saved_sky_fog_density + 0.01
+	slider.emit_signal("value_changed", new_value)
+
+	assert_almost_eq(_panel.sky_theme.fog_density, new_value, 0.0001)
+	assert_almost_eq(
+		float(skybox.environment.fog_density), new_value, 0.0001,
+		"changing the field must push apply_sky_theme_live() too, not just write the Resource."
+	)
 
 
 # --- Toggle: F4 / gamepad Start+X --------------------------------------------

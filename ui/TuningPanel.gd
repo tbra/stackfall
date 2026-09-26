@@ -26,6 +26,20 @@ extends CanvasLayer
 ##                a Resource by path within one process), so no line there is
 ##                actually required for this field to be editable here.
 ##
+## Bontago-xtq.36 (M7 art direction): five more tabs, over the M7 config
+## Resources, all preloaded the same "identical cached path" way Feed's own
+## paragraph above documents -- none of these five needs a line anywhere else
+## in the project either. MenuVisualTuning is not merged yet and has no tab.
+##
+##   Blocks FX -> game/BlockFactory.gd's VISUAL_TUNING const (BlockVisualTuning)
+##                + game/BlockEffectsManager.gd's config (BlockEffectsConfig)
+##   Beacons   -> game/HomeFlag.gd's beacon_visuals (BeaconVisualTuning)
+##   Camera FX -> game/CameraRig.gd's shake_config (CameraShakeConfig)
+##   HUD       -> ui/HUD.gd's hud_visual_tuning + ui/Minimap.gd's tuning
+##                (both preload config/hud_visual_tuning.tres -- HUDVisualTuning)
+##   Sky       -> game/Skybox.gd's theme (SkyThemeDef), config/sky_themes/
+##                sunset.tres -- the only shipped theme on this branch
+##
 ## Every control writes straight onto the *live* resource instance the rest
 ## of the game already reads -- the same object every other
 ## `@export var tuning: ... = preload(...)` field across the project resolves
@@ -63,6 +77,22 @@ extends CanvasLayer
 ##     Sky material every reflection/ambient read samples -- see
 ##     game/Skybox.gd's own class doc) actually reloads, rather than only
 ##     changing a Resource field nothing re-reads on its own.
+##   - SkyThemeDef: apply_sky_theme_live() calls Skybox.apply_theme() on every
+##     rig in Skybox.TUNING_GROUP (see that function's own doc for a known
+##     partial-live gap around the FogVolume child).
+##
+## BlockVisualTuning, BlockEffectsConfig, BeaconVisualTuning, CameraShakeConfig
+## and HUDVisualTuning need no such hook: CameraShakeConfig/BlockEffectsConfig
+## are already read live per-frame/per-event by their consumer, and
+## BlockVisualTuning/BeaconVisualTuning/HUDVisualTuning are baked once at
+## construction time (a block's toon material, a beacon's geometry, a HUD
+## panel's StyleBoxFlat) with no existing re-push seam on that consumer -- an
+## edit still takes effect for anything built from here on (see
+## _on_field_changed()'s own comment on this). DECISION (Bontago-xtq.36): these
+## five resources are likewise not added to reset_all()/save_overrides()/
+## build_copy_text()/apply_saved_overrides() below -- the brief asked only for
+## the tabs, the (for Sky) live-apply hook, and the three named tests; wiring
+## Reset/Save/Copy for them is a reasonable small follow-up, not done here.
 ##
 ## Toggled by the tuning_panel_toggle Input Map action (F4; gamepad
 ## pause_menu[Start] + X -- see tools/bootstrap_project.gd's DECISION on that
@@ -120,8 +150,12 @@ const DEFAULT_FLOAT_PRECISION: int = 4
 const EXPORT_USAGE_MASK: int = PROPERTY_USAGE_STORAGE | PROPERTY_USAGE_EDITOR | PROPERTY_USAGE_SCRIPT_VARIABLE
 
 ## Tabs whose content is hidden from a client (see class doc "Availability").
-## Indices match the order _rebuild_tabs() adds tabs in.
-const CLIENT_HIDDEN_TAB_FIRST: int = 2
+## Indices match the order rebuild() adds tabs in -- rebuild() adds every
+## client-visible tab first (Camera, Controls, then the M7 visual tabs: Blocks
+## FX, Beacons, Camera FX, HUD, Sky) so this one cutoff still holds; Physics/
+## Territory/Feed (host-only: they tune the physics/territory simulation
+## itself, not just how it looks) always come last.
+const CLIENT_HIDDEN_TAB_FIRST: int = 7
 
 ## Bontago-xtq.17 (owner playtest 2026-09-23: "heavier and more bouncy, but a
 ## dropped block shouldn't just bounce straight up again" -- research +
@@ -159,6 +193,19 @@ var block_feed_config: BlockFeedConfig = preload("res://config/block_feed.tres")
 ## Resource instance, the same BlockFeedConfig idiom this file's own class doc
 ## documents right above).
 var skybox_config: SkyboxConfig = preload("res://config/skybox_config.tres")
+
+## Bontago-xtq.36: M7's art-direction tunables, added to the same preload
+## roster above -- each preloads the identical path its own consumer already
+## preloads/exports (BlockFactory.gd's VISUAL_TUNING const, BlockEffectsManager.
+## config, HomeFlag.beacon_visuals, CameraRig.shake_config, Skybox.theme), so
+## Godot's per-path Resource cache (see this file's class doc, BlockFeedConfig
+## paragraph) makes every field here the same live object those scripts read.
+var block_visual_tuning: BlockVisualTuning = preload("res://config/block_visual_tuning.tres")
+var block_effects_config: BlockEffectsConfig = preload("res://config/block_effects.tres")
+var beacon_visual_tuning: BeaconVisualTuning = preload("res://config/beacon_visual_tuning.tres")
+var camera_shake_config: CameraShakeConfig = preload("res://config/camera_shake.tres")
+var hud_visual_tuning: HUDVisualTuning = preload("res://config/hud_visual_tuning.tres")
+var sky_theme: SkyThemeDef = preload("res://config/sky_themes/sunset.tres")
 
 ## DECISION (ui/TuningPanel.gd): same `Variant` test seam as
 ## ui/NetDebugOverlay.gd's net_provider -- GUT cannot double the plain Net
@@ -379,6 +426,14 @@ func rebuild() -> void:
 
 	_add_tab("Camera", [camera_tuning])
 	_add_tab("Controls", [ghost_tuning])
+	# Bontago-xtq.36: the M7 art-direction tabs -- purely visual, so (unlike
+	# Physics/Territory/Feed below) available to a client too, hence grouped
+	# here before CLIENT_HIDDEN_TAB_FIRST's cutoff (see that constant's doc).
+	_add_tab("Blocks FX", [block_visual_tuning, block_effects_config])
+	_add_tab("Beacons", [beacon_visual_tuning])
+	_add_tab("Camera FX", [camera_shake_config])
+	_add_tab("HUD", [hud_visual_tuning])
+	_add_tab("Sky", [sky_theme])
 	_add_tab("Physics", [physics_tuning])
 	_add_tab("Territory", [territory_tuning, territory_visuals])
 	_add_tab("Feed", [block_feed_config])
@@ -798,9 +853,20 @@ func _on_field_changed(resource: Resource, _prop_name: String) -> void:
 		refresh_territory_visuals_live()
 	elif resource == camera_tuning:
 		apply_camera_tuning_live()
+	elif resource == sky_theme:
+		apply_sky_theme_live()
 	# ghost_tuning / territory_tuning / block_feed_config are already read
 	# live by whatever consumes them each frame/tick -- see this file's class
-	# doc for the live-apply hooks the other resources need.
+	# doc for the live-apply hooks the other resources need. Bontago-xtq.36:
+	# block_visual_tuning/block_effects_config/beacon_visual_tuning/
+	# camera_shake_config/hud_visual_tuning need no hook either -- each is
+	# either read live per-frame/per-event already (CameraShakeConfig,
+	# BlockEffectsConfig) or baked once at construction time with no existing
+	# re-push seam on the consumer (BlockVisualTuning's toon material in
+	# BlockFactory.build(), BeaconVisualTuning's geometry in HomeFlag._build(),
+	# HUDVisualTuning's StyleBoxFlat in HUD._style_panel()/_ensure_share_row_
+	# count()) -- a value write here still takes effect for anything built
+	# from here on, matching the brief's "otherwise a value write is enough".
 
 
 ## Bontago-xtq.17: the Physics tab's own preset row, built the same way every
@@ -973,6 +1039,25 @@ func refresh_territory_visuals_live() -> void:
 		var skybox: Skybox = node as Skybox
 		if skybox != null:
 			skybox.refresh_from_visuals()
+
+
+## Bontago-xtq.36: pushes sky_theme onto every live Skybox's own public
+## re-apply method (game/Skybox.gd's apply_theme(), the same seam
+## apply_skybox_set() above already calls it through -- see that function
+## and Skybox.apply_theme()'s own doc). Iterates Skybox.TUNING_GROUP, the same
+## "every live instance already in the tree" idiom apply_camera_tuning_live()/
+## refresh_territory_visuals_live() use, so this reaches a Skybox even in a
+## bare-panel test. Known gap (not fixed here -- Skybox.gd isn't an owned
+## file and apply_theme() doesn't touch it): Skybox._spawn_fog_volume() reads
+## cloud_deck_size_m/cloud_deck_height_m/fog_density/fog_color only once, at
+## _ready(), to build the FogVolume child's own size/position/FogMaterial --
+## apply_theme() doesn't resync those, so an edit to one of those four fields
+## only affects a Skybox that hasn't spawned its FogVolume yet.
+func apply_sky_theme_live() -> void:
+	for node: Node in get_tree().get_nodes_in_group(Skybox.TUNING_GROUP):
+		var skybox: Skybox = node as Skybox
+		if skybox != null:
+			skybox.apply_theme(sky_theme)
 
 
 # --- Reset / Save / Copy -----------------------------------------------------
