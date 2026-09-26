@@ -114,6 +114,41 @@ static func query_bodies_in_range(
 	return hit_bodies
 
 
+## Wakes `body` and applies `impulse` to it, in the one place every special
+## that hits an arbitrary RigidBody3D with an impulse (explode() below,
+## MagnetEffect.physics_tick()) should do it from (Bontago-8or.16 P5b).
+##
+## DECISION (game/specials/SpecialPhysics.gd): a block long enough at rest
+## gets frozen to FREEZE_MODE_STATIC by game/StableBlockManager.gd (spec 3.5's
+## "stable-block optimization"), and RigidBody3D silently ignores
+## apply_impulse()/`sleeping = false` on a STATIC body -- so without first
+## calling Block.wake_for_impulse(), an explosion, Magnet pull or Anvil hit
+## against a long-stable stack would do nothing at all. `body` is only
+## guaranteed to be a plain RigidBody3D by this class's own Block-agnostic
+## contract (top-of-file DECISION) -- only a Block actually has
+## wake_for_impulse()/mark_script_kick(), so both are gated behind the `as
+## Block` cast and a no-op for any other RigidBody3D (e.g. this file's own
+## test fixtures). wake_for_impulse() only ever releases
+## Block.FREEZE_REASON_STABLE (see its own doc comment on game/Block.gd) --
+## a block still held frozen by some other reason (e.g. a future Freeze
+## special) stays frozen and apply_impulse() below remains a no-op for it,
+## exactly as before this fix; unsticking StableBlockManager's own
+## auto-freeze is all this helper is asked to do.
+static func wake_and_impulse(body: RigidBody3D, impulse: Vector3) -> void:
+	var kicked_block: Block = body as Block
+	if kicked_block != null:
+		kicked_block.wake_for_impulse()
+	body.sleeping = false
+	body.apply_impulse(impulse)
+	# Review fix (Bontago-xtq.17 SHOULD-FIX 1): an airborne block's knockback
+	# can flip its vertical velocity from falling to rising exactly like a
+	# real bounce would -- mark it as a script kick so Block._integrate_
+	# forces() doesn't scale it by PhysicsTuning.rebound_damping on top of
+	# the caller's own falloff/clamp.
+	if kicked_block != null:
+		kicked_block.mark_script_kick()
+
+
 ## Sphere-queries real RigidBody3D bodies within `radius` of `center`, wakes
 ## each, and applies an outward impulse with spec 3.5's falloff, clamped to
 ## `max_impulse`. See `_query_unique_bodies()` for the shared sphere-query +
@@ -158,19 +193,12 @@ static func explode(
 		var falloff: float = pow(1.0 - ratio, 2.0)
 		var magnitude: float = clampf(impulse * falloff, 0.0, max_impulse)
 
-		body.sleeping = false
-		body.apply_impulse(direction * magnitude)
-		# Review fix (Bontago-xtq.17 SHOULD-FIX 1): an airborne block's
-		# explosion knockback can flip its vertical velocity from falling to
-		# rising exactly like a real bounce would -- mark it as a script kick
-		# so Block._integrate_forces() doesn't scale it by
-		# PhysicsTuning.rebound_damping on top of this function's own falloff/
-		# clamp. `body` is only known as a plain RigidBody3D here (this
-		# function is Block-agnostic, see its own class doc), so cast rather
-		# than call kick()/mark_script_kick() unconditionally.
-		var kicked_block: Block = body as Block
-		if kicked_block != null:
-			kicked_block.mark_script_kick()
+		# wake_and_impulse() releases Block.FREEZE_REASON_STABLE first (see its
+		# own doc comment above) so a long-stable, STATIC-frozen block still
+		# receives this impulse instead of silently ignoring it (Bontago-
+		# 8or.16 P5b), then applies the impulse and marks a script kick the
+		# same way this function always has.
+		wake_and_impulse(body, direction * magnitude)
 		hit_bodies.append(body)
 
 	return hit_bodies

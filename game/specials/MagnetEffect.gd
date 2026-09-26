@@ -97,15 +97,15 @@ func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void
 		if distance <= 0.0001:
 			continue  # exactly at the magnet's own position: no well-defined pull direction
 		var direction: Vector3 = offset / distance
-		body.sleeping = false
-		body.apply_impulse(direction * pull_force * delta)
-		# Review-fix pattern (matches SpecialPhysics.explode()'s own
-		# mark_script_kick() call): without this, a pull that flips a falling
-		# block's vertical velocity toward rising would otherwise get scaled
-		# by PhysicsTuning.rebound_damping as if it were a real bounce.
-		var pulled_block: Block = body as Block
-		if pulled_block != null:
-			pulled_block.mark_script_kick()
+		# wake_and_impulse() (game/specials/SpecialPhysics.gd, Bontago-8or.16
+		# P5b) first releases Block.FREEZE_REASON_STABLE so a long-stable,
+		# STATIC-frozen enemy block still gets pulled instead of silently
+		# ignoring the impulse, then applies it and marks a script kick the
+		# same way this call always has (matches SpecialPhysics.explode()'s
+		# own mark_script_kick() use -- without it, a pull that flips a
+		# falling block's vertical velocity toward rising would otherwise get
+		# scaled by PhysicsTuning.rebound_damping as if it were a real bounce).
+		SpecialPhysics.wake_and_impulse(body, direction * pull_force * delta)
 
 
 ## FIX pattern (matches PropellerEffect.gd/VolcanoEffect.gd's own

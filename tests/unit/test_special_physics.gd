@@ -280,6 +280,45 @@ func test_multi_shape_body_is_returned_once_and_gets_one_bodys_worth_of_impulse(
 	)
 
 
+# --- (8) a Block frozen STATIC by the stable-block optimization still gets
+# hit (Bontago-8or.16 P5b) -----------------------------------------------------
+
+func test_frozen_block_in_radius_is_unfrozen_and_receives_the_impulse() -> void:
+	var block: Block = Block.new()
+	block.mass = DEFAULT_MASS
+	block.gravity_scale = 0.0
+	block.linear_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
+	block.linear_damp = 0.0
+	var collision: CollisionShape3D = CollisionShape3D.new()
+	var shape: SphereShape3D = SphereShape3D.new()
+	shape.radius = 0.3
+	collision.shape = shape
+	block.add_child(collision)
+	add_child(block)
+	block.global_position = Vector3(RADIUS * 0.3, 0.0, 0.0)
+	_bodies.append(block)
+	block.request_freeze_static(Block.FREEZE_REASON_STABLE)
+	assert_true(block.is_freeze_static(), "fixture must actually start frozen")
+	assert_true(block.freeze, "fixture must actually start frozen")
+	await wait_physics_frames(1)
+
+	var hit: Array[RigidBody3D] = SpecialPhysics.explode(
+		_space_state(), Vector3.ZERO, RADIUS, IMPULSE, 1000.0
+	)
+	await wait_physics_frames(1)
+
+	assert_has(hit, block)
+	assert_false(
+		block.is_freeze_static(), "explode() must release the stable freeze so the impulse isn't a no-op"
+	)
+	assert_false(block.freeze)
+	assert_gt(
+		block.linear_velocity.length(),
+		0.0,
+		"a previously-frozen block in radius must actually gain velocity from the impulse"
+	)
+
+
 func test_special_tuning_resource_has_max_explosion_impulse() -> void:
 	var tuning: SpecialTuning = load("res://config/special_tuning.tres") as SpecialTuning
 	assert_not_null(tuning)

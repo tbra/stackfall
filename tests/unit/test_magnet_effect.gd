@@ -108,6 +108,39 @@ func test_enemy_block_gets_pulled_toward_the_magnet() -> void:
 	)
 
 
+# --- (a2) a frozen (stable-block-optimized) enemy block still gets pulled
+# (Bontago-8or.16 P5b) --------------------------------------------------------
+
+func test_frozen_enemy_block_is_unfrozen_and_pulled() -> void:
+	var magnet_block: Block = _make_block(Vector3.ZERO)
+	magnet_block.owner_slot = 0
+	var enemy_block: Block = _make_block(Vector3(RADIUS * 0.5, 0.0, 0.0))
+	enemy_block.owner_slot = 1
+	enemy_block.request_freeze_static(Block.FREEZE_REASON_STABLE)
+	assert_true(enemy_block.is_freeze_static(), "fixture must actually start frozen")
+	assert_true(enemy_block.freeze, "fixture must actually start frozen")
+	var effect: MagnetEffect = MagnetEffect.new()
+	effect.pull_radius_m = RADIUS
+	effect.pull_duration_s = 3.0
+	effect.pull_force = FORCE
+	var behavior: SpecialBehavior = _make_behavior(magnet_block, effect)
+	await wait_physics_frames(1)
+
+	behavior.advance(0.1)
+	await wait_physics_frames(1)
+
+	assert_false(
+		enemy_block.is_freeze_static(),
+		"the pull must release the stable freeze so the impulse isn't a no-op"
+	)
+	assert_false(enemy_block.freeze)
+	assert_gt(
+		enemy_block.linear_velocity.length(),
+		0.0,
+		"a previously-frozen enemy block in range must gain velocity from the pull"
+	)
+
+
 # --- (b) an own-owner block at the same distance is untouched ----------------
 
 func test_own_owner_block_is_untouched() -> void:
