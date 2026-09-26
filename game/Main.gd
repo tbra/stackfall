@@ -112,6 +112,16 @@ var _pause_menu: PauseMenu = null
 ## a P4 lobby append.
 var _bot_controllers: Array[BotController] = []
 
+## M8 P5 (spec 3.5 "Stable-block optimization"): one instance for the match
+## currently built, same build/teardown lifecycle as _bot_controllers above
+## (built in _build_match_world(), freed in _end_match_world()) -- see
+## _build_match_world()'s own single wiring-point comment. Host-gated inside
+## the manager itself (game/StableBlockManager.gd's own `Net.is_host()`
+## check), so building one on a client too costs nothing and stays inert,
+## exactly the reasoning _spawn_bot_controllers()'s own doc comment already
+## gives for BotController.
+var _stable_block_manager: StableBlockManager = null
+
 ## Bontago-d5c.6 review finding 2: diagnostics-only cadence for the
 ## `HEADLESS_BOTS` progress line printed by _on_headless_bots_report_tick()
 ## below, while a `--headless-host --bots=<n>` match is running. Not a
@@ -948,6 +958,16 @@ func _build_match_world() -> void:
 
 	_spawn_bot_controllers(config)
 
+	# M8 P5's single wiring point (docs/M8_PLAN.md P5): built here, right
+	# alongside _spawn_bot_controllers() above, for the same reason every
+	# other host-only match manager already lives in this function --
+	# BlockRegistry.all_blocks() only has anything to scan once _registry
+	# itself is populated, which SnapshotSync.begin_match(Match.registry(),
+	# ...) above has already done by this point.
+	_stable_block_manager = StableBlockManager.new()
+	add_child(_stable_block_manager)
+	_stable_block_manager.setup(_registry)
+
 	_debug_overlay = NET_DEBUG_OVERLAY_SCENE.instantiate() as NetDebugOverlay
 	add_child(_debug_overlay)
 
@@ -1001,6 +1021,9 @@ func _end_match_world() -> void:
 		if bot != null and is_instance_valid(bot):
 			bot.queue_free()
 	_bot_controllers.clear()
+	if _stable_block_manager != null and is_instance_valid(_stable_block_manager):
+		_stable_block_manager.queue_free()
+	_stable_block_manager = null
 	if _debug_overlay != null and is_instance_valid(_debug_overlay):
 		_debug_overlay.queue_free()
 	_debug_overlay = null

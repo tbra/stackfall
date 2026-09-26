@@ -249,6 +249,22 @@ func tracked_block_count() -> int:
 	return _entries.size()
 
 
+## Every live tracked Block, host or client alike (M8 P5,
+## docs/M8_PLAN.md's own Interface stub) -- game/StableBlockManager.gd's only
+## consumer this milestone, so it can scan for asleep-past-threshold blocks
+## without this class needing to know anything about freezing. Filters out
+## any entry whose Block was freed without going through
+## Events.block_removed first, the same defensive is_instance_valid() check
+## bodies_over_cells() above already makes.
+func all_blocks() -> Array[Block]:
+	var result: Array[Block] = []
+	for id: Variant in _entries.keys():
+		var entry: _Entry = _entries[id]
+		if is_instance_valid(entry.block):
+			result.append(entry.block)
+	return result
+
+
 ## True once every tracked block's own settled flag (the per-block accumulator
 ## _physics_process() above maintains from PhysicsTuning.sleep_linear_threshold
 ## / sleep_angular_threshold / sleep_settle_time) is true. Used by

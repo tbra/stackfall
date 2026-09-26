@@ -94,3 +94,28 @@ extends Resource
 ## config/physics_presets/*.tres for the shipped presets and
 ## game/Block._damp_rebound() for the pure scaling rule this field feeds.
 @export var rebound_damping: float = 1.0
+
+## -- Stable-block freeze (spec 3.5 "Stable-block optimization" [NEW],
+## docs/M8_PLAN.md P5) ---------------------------------------------------------
+## DECISION (config/PhysicsTuning.gd): spec 3.5 gives this rule's own number
+## directly ("asleep for more than 20 s") -- no fidelity-table ambiguity to
+## resolve, unlike some of this file's other fields. 20.0 also matches the
+## Freeze special's own duration (spec 2.9's table: "static for 20 s"), which
+## keeps "how long is a block frozen for" one number in the player's head
+## across both the optimization and the special, even though they arrive at
+## it through unrelated code paths (game/StableBlockManager.gd vs. a future
+## FreezeEffect). A block resets this timer (and un-freezes if already
+## frozen) the instant it wakes, per spec 3.5's "goes back to normal the
+## moment any impulse, tilt, or change in the cells under it happens".
+@export var stable_freeze_delay_s: float = 20.0
+## DECISION (config/PhysicsTuning.gd): docs/M8_PLAN.md's own P5 section
+## suggested reusing a bare internal accumulator instead of a tunable here,
+## since spec 3.5 names no interval of its own -- but this project's own "no
+## magic numbers" rule (CLAUDE.md) is stricter than that suggestion, so this
+## stays a real field rather than a hard-coded constant inside
+## game/StableBlockManager.gd. 0.5 s: cheap enough at a few hundred live
+## blocks (this only reads Block.sleeping and, rarely, flips freeze_mode --
+## nothing like the ~5-7 ms/step contact_monitor cost this file's rebound-
+## damping section above already documents) and coarse enough that the
+## 20 s freeze delay's own precision doesn't need anything tighter.
+@export var stable_freeze_scan_interval_s: float = 0.5
