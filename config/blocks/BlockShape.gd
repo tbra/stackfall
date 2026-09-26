@@ -105,6 +105,13 @@ static func load_all_shapes() -> Array[BlockShape]:
 	dir.list_dir_begin()
 	var file_name: String = dir.get_next()
 	while file_name != "":
+		# Exported PCKs list text resources as "<name>.tres.remap" (the editor's
+		# convert-text-resources-to-binary step); load() resolves the original
+		# path through that remap, so only the listing suffix needs stripping.
+		# Without this no shape/special ever loads in an exported build
+		# (feedback/playtest.md 2026-09-26: "no block ever spawns").
+		if file_name.ends_with(".remap"):
+			file_name = file_name.trim_suffix(".remap")
 		if file_name.ends_with(".tres"):
 			var shape: BlockShape = load(SHAPES_DIR + file_name)
 			if shape != null:

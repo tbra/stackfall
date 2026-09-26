@@ -264,6 +264,16 @@ func set_home_position(home_position: Vector3) -> void:
 ## free system cursor to point at. ui/PauseMenu.gd (Bontago-xtq.42) releases it
 ## back to visible via Events.pause_menu_opened so the pause overlay's buttons
 ## can be clicked; see _on_pause_menu_opened()/_on_pause_menu_closed().
+## Restores the OS cursor when this controller leaves the tree (match teardown
+## in Main._end_match_world()). Without this the cursor stayed captured on the
+## main menu after leaving a match, soft-locking mouse users
+## (feedback/playtest.md 2026-09-26). Only undoes a capture this controller
+## itself enabled, so headless runs and tests are unaffected.
+func _exit_tree() -> void:
+	if _mouse_capture_enabled and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
 func enable_mouse_capture() -> void:
 	_mouse_capture_enabled = true
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
