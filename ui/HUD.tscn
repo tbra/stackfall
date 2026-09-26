@@ -1,9 +1,26 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://ui/HUD.gd" id="1_hud"]
+[ext_resource type="Script" path="res://ui/Minimap.gd" id="2_minimap"]
 
 [node name="HUD" type="CanvasLayer"]
 script = ExtResource("1_hud")
+
+[node name="StatusPanel" type="Panel" parent="."]
+unique_name_in_owner = true
+offset_left = 8.0
+offset_top = 8.0
+offset_right = 432.0
+offset_bottom = 170.0
+mouse_filter = 2
+
+[node name="SharesPanel" type="Panel" parent="."]
+unique_name_in_owner = true
+offset_left = 8.0
+offset_top = 168.0
+offset_right = 232.0
+offset_bottom = 304.0
+mouse_filter = 2
 
 [node name="TurnLabel" type="Label" parent="."]
 unique_name_in_owner = true
@@ -119,3 +136,16 @@ horizontal_alignment = 1
 vertical_alignment = 1
 visible = false
 text = ""
+
+[node name="Minimap" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+script = ExtResource("2_minimap")
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -176.0
+offset_top = -176.0
+offset_right = -16.0
+offset_bottom = -16.0
+mouse_filter = 2
