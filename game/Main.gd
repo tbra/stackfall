@@ -291,12 +291,16 @@ func _start_sandbox_match_with_args(args: PackedStringArray) -> void:
 ## function's own Sandbox one, and duplicates the field rebuild/overlay/
 ## debug-overlay work _start_sandbox_match_with_args() already does.
 ##
-## DECISION (game/Main.gd, package B1): set _world_built true first so that
-## duplicate _build_match_world() call is the same guarded no-op every one of
-## its other re-entrant calls already is (see its own `if _world_built:
-## return`), instead of teaching _on_match_state_changed() a new sandbox-
-## from-menu case. _start_sandbox_match_with_args([]) below still runs
-## byte-identical to the CLI path: default player count, no forced special.
+## _world_built = true here is now belt-and-braces rather than the only
+## guard: _on_match_state_changed() itself diverts every state change away
+## from _build_match_world()/_end_match_world() while _sandbox is a live
+## instance (Bontago-xtq.43 round 2 -- see that handler's own DECISION), which
+## is also what makes a later sandbox_reset_field (F5, game/Sandbox.gd's
+## _reset_field()) safe: round 1 found that this line alone only suppressed
+## the duplicate build on this *first* start, not on a later reset, because
+## nothing re-armed it once _end_match_world() ran and cleared it back to
+## false. _start_sandbox_match_with_args([]) below still runs byte-identical
+## to the CLI path: default player count, no forced special.
 func start_sandbox_from_menu() -> void:
 	_clear_menu_and_lobby()
 	_world_built = true
@@ -705,6 +709,50 @@ func _on_match_state_changed(from_state: int, to_state: int) -> void:
 	# reopens it (Net.leave() also resets it itself). On a client this is a
 	# harmless flag write; _rpc_handshake is host-gated (Beads Bontago-mv0.1.8).
 	Net.set_accepting_joins(to_state == Match.State.LOBBY)
+
+	# DECISION (game/Main.gd, Bontago-xtq.43 round 2): a sandbox reset
+	# (sandbox_reset_field, F5 -- game/Sandbox.gd's _reset_field()) re-runs
+	# Match.start_match() with its own current config, which always goes back
+	# through abort_match() first (MatchLifecycle.start_match()'s own doc: "A
+	# start from anything but LOBBY first goes back through the lobby"), so a
+	# reset fires this handler twice in a row, synchronously: (X -> LOBBY)
+	# then (LOBBY -> LOADING). game/Sandbox.gd already owns the whole world
+	# for every slot in a sandbox match (its own PlayerController/GhostPreview
+	# subtree -- never Main's _hot_seat) and already replays Field.
+	# place_flags()/set_overlay_source() itself right after start_match()
+	# returns (see _reset_field()'s own doc) -- so routing this pair through
+	# the ordinary _end_match_world()/_build_match_world() below tore down and
+	# then rebuilt a *second*, independent HotSeat (_build_match_world() has
+	# no way to know a Sandbox is already serving every slot) bound to the
+	# same local slot Sandbox's own controller already drives, both then
+	# reading input for it (round 1's reproduction: LOCAL_HELD_GROUP count
+	# growing 2 -> 3 -> 4 -> 5 across resets).
+	#
+	# Checked against the live _sandbox instance rather than Match.config.
+	# sandbox: Tutorial also sets that flag on its own config (start_tutorial_
+	# from_menu()'s _build_tutorial_config()), and its _on_tutorial_finished()
+	# teardown still needs the ordinary _end_match_world() reaction to
+	# (-> LOBBY) to run -- unlike Sandbox, Tutorial has a real "return to
+	# menu" exit and never mid-session-resets. _sandbox is non-null for
+	# exactly the lifetime of a sandbox match on this Main instance (no
+	# "return to menu" path out of sandbox exists today), so this only ever
+	# diverts the reaction while a sandbox match is actually live.
+	#
+	# _field.clear_match_state() is still run directly on the (X -> LOBBY)
+	# half, so a reset still actually clears holes/tilt/physical-balance state
+	# the same way it visibly did before this fix (the previous, buggy
+	# _end_match_world() call happened to do that too, as a side effect of
+	# also building the duplicate world) -- everything else _end_match_world()/
+	# _build_match_world() would otherwise touch (SnapshotSync, _remote_
+	# cursors, bot controllers, the debug overlay Sandbox already built itself
+	# in _start_sandbox_match_with_args()) is correctly left alone; Sandbox's
+	# own place_flags()/set_overlay_source() calls right after start_match()
+	# returns pick the field back up from there.
+	if _sandbox != null and is_instance_valid(_sandbox):
+		if to_state == Match.State.LOBBY:
+			_field.clear_match_state()
+		return
+
 	if to_state == Match.State.LOBBY:
 		_end_match_world()
 	elif from_state == Match.State.LOBBY and to_state == Match.State.LOADING:
