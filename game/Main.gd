@@ -580,7 +580,18 @@ func _headless_bot_players_arg(args: PackedStringArray) -> int:
 ## whole point being that the real feed/territory/win loop survives N
 ## concurrent bots, not sandbox's relaxed rules.
 func _build_headless_bot_config(bots: int, args: PackedStringArray) -> MatchConfig:
-	var config: MatchConfig = match_config.duplicate(true) as MatchConfig
+	# DECISION (game/Main.gd, Bontago-3k0, deferred from Bontago-keo.19):
+	# Net.match_config_override() (set by --match-config=<path>, parsed inside
+	# Net's own host branch -- autoload/Net.gd's _apply_command_line_args())
+	# takes over `match_config`'s usual role as the duplication source here,
+	# extending this function's existing duplicate-then-override shape rather
+	# than adding a second, parallel config path. Null (no flag, or a
+	# rejected path/type) leaves this exactly as it was before the flag
+	# existed.
+	var base_config: MatchConfig = match_config
+	if Net.match_config_override() != null:
+		base_config = Net.match_config_override()
+	var config: MatchConfig = base_config.duplicate(true) as MatchConfig
 	config.ai_count = bots
 	config.player_count = maxi(bots, _headless_bot_players_arg(args))
 	config.hot_seat = false

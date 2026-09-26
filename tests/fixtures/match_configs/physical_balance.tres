@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="MatchConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/MatchConfig.gd" id="1_match"]
+
+[resource]
+script = ExtResource("1_match")
+map_variant = 0
+map_size = 1
+player_count = 4
+ai_count = 0
+ai_difficulty = 1
+team_mode = 0
+block_timer = 6.0
+gravity_multiplier = 1.0
+goal_flag_count = 1
+gifts_enabled = true
+special_frequency = 35
+enabled_specials = Array[StringName]([])
+tilt_mode = 1
+hole_mode = 0
+match_timer_minutes = 0
+sudden_death = false
+turn_based = false
+per_player_timer = true
+hot_seat = true
+rng_seed = -1
