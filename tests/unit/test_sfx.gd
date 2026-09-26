@@ -228,3 +228,139 @@ func _first_playing_sfx_player() -> AudioStreamPlayer:
 func _stop_all_sfx_players() -> void:
 	for player: AudioStreamPlayer in _sfx._sfx_players:
 		player.stop()
+
+
+# --- Adaptive music crossfade (docs/M7_PLAN.md P6, Bontago-xtq.31) ------------
+
+func _install_both_stem_files() -> void:
+	_config.music_stem_calm_file = "calm_stem.wav"
+	_config.music_stem_tense_file = "tense_stem.wav"
+	_write_tiny_wav(_tmp_dir.path_join(_config.music_stem_calm_file))
+	_write_tiny_wav(_tmp_dir.path_join(_config.music_stem_tense_file))
+	_sfx.set_root_dir_for_test(_tmp_dir)
+
+
+func test_tense_stem_unavailable_without_a_tense_file() -> void:
+	# The default fixture (before_each) never writes a file matching either
+	# AudioConfig's default music_stem_calm_file/music_stem_tense_file --
+	# this must resolve to "no pairing" with no error/warning, the same
+	# "supported absence" every other missing-asset case in this file gets.
+	_sfx.set_root_dir_for_test(_tmp_dir)
+
+	assert_false(_sfx.tense_stem_available(), "no tense (or calm) stem file installed -- pairing unavailable")
+
+	# Must not error when a capture starts even with nothing to crossfade to.
+	Events.goal_capture_progress.emit(0, 0.9)
+
+	assert_false(_sfx.tense_stem_available(), "still unavailable -- single-stream playback stays untouched")
+
+
+func test_goal_capture_progress_crossfades_toward_tense_when_stems_available() -> void:
+	_install_both_stem_files()
+	assert_true(_sfx.tense_stem_available(), "both stem files installed -- pairing should be available")
+
+	Events.goal_capture_progress.emit(0, 0.9)
+
+	assert_gt(
+		_sfx.tense_stem_target_volume_db(),
+		_sfx.calm_stem_target_volume_db(),
+		"progress above the tense threshold should target the tense stem louder than the calm one",
+	)
+
+
+func test_goal_capture_progress_returns_to_calm_when_a_capture_breaks() -> void:
+	_install_both_stem_files()
+
+	Events.goal_capture_progress.emit(0, 0.9)
+	# Events.gd: "team_id is -1 with progress 0 when a capture breaks".
+	Events.goal_capture_progress.emit(-1, 0.0)
+
+	assert_gt(
+		_sfx.calm_stem_target_volume_db(),
+		_sfx.tense_stem_target_volume_db(),
+		"a broken/reset capture should target the calm stem louder than the tense one",
+	)
+
+
+## Regression (Bontago-xtq.31 review, HIGH): in the shipped single-stream
+## config (no tense asset installed), crossing the tense threshold must never
+## leave the calm stem's own volume math muted -- it is the only music stream
+## that exists. Before the fix, _on_goal_capture_progress flipped
+## _tense_stem_is_active before checking _tense_stem_available, so the next
+## play_music()/audio_settings_changed volume re-apply silenced the single
+## stream permanently.
+func test_single_stream_progress_past_threshold_then_settings_change_stays_at_baseline() -> void:
+	# A real music file must exist for play_music() to have anything to set
+	# _music_player.volume_db to below -- .wav (not the default .mp3) so
+	# _write_tiny_wav's own fixture bytes load through the right codec.
+	_config.music_file = "single_stream_music.wav"
+	_write_tiny_wav(_tmp_dir.path_join(_config.music_file))
+	_sfx.set_root_dir_for_test(_tmp_dir)
+	assert_false(_sfx.tense_stem_available(), "fixture: no tense (or calm) stem file installed")
+
+	Events.goal_capture_progress.emit(0, 1.0)
+	_sfx.play_music()  # exercises _play_music_stream()'s own volume_db assignment
+
+	var expected_baseline_db: float = _config.music_volume_db + Settings.master_volume_db()
+	assert_almost_eq(
+		_sfx._music_player.volume_db,
+		expected_baseline_db,
+		0.0001,
+		"play_music() must not mute the only music stream after crossing the tense threshold",
+	)
+
+	# Settings.set_master_volume_db() emits audio_settings_changed, which
+	# re-applies calm_stem_target_volume_db() to the live _music_player --
+	# the second path the review flagged (besides play_music()) that could
+	# mute the single stream permanently.
+	Settings.set_master_volume_db(-3.0)
+	expected_baseline_db = _config.music_volume_db + Settings.master_volume_db()
+	assert_almost_eq(
+		_sfx._music_player.volume_db,
+		expected_baseline_db,
+		0.0001,
+		"audio_settings_changed must not mute the only music stream after crossing the tense threshold",
+	)
+	assert_almost_eq(
+		_sfx.calm_stem_target_volume_db(),
+		expected_baseline_db,
+		0.0001,
+		"calm_stem_target_volume_db() must never mute without an available tense stem",
+	)
+
+
+## MEDIUM (Bontago-xtq.31 review): once a real tense partner exists, the calm
+## player must actually play music_stem_calm_file, not whatever music_file's
+## own (possibly different) selection would otherwise pick.
+func test_calm_player_uses_the_calm_stem_file_once_both_stems_are_installed() -> void:
+	_install_both_stem_files()
+
+	_sfx.play_music()
+
+	var calm_stream: AudioStream = _sfx._music_streams_by_filename[_config.music_stem_calm_file.to_lower()]
+	assert_not_null(calm_stream, "fixture: the calm stem file should have loaded into the music stream cache")
+	assert_eq(
+		_sfx._music_player.stream,
+		calm_stream,
+		"the calm player should play music_stem_calm_file once a tense partner exists",
+	)
+
+
+## MINOR (Bontago-xtq.31 review): hysteresis around music_tense_progress_threshold
+## keeps progress hovering near the boundary from flapping the crossfade.
+func test_hysteresis_keeps_the_tense_stem_active_within_the_release_margin() -> void:
+	_install_both_stem_files()
+	_config.music_tense_progress_threshold = 0.6
+	_config.music_tense_release_margin = 0.1
+
+	Events.goal_capture_progress.emit(0, 0.65)  # cross the rising threshold
+	assert_true(_sfx._tense_stem_is_active, "fixture: crossing the threshold should activate the tense stem")
+
+	Events.goal_capture_progress.emit(0, 0.55)  # below the threshold, still above (threshold - margin) == 0.5
+	assert_true(
+		_sfx._tense_stem_is_active,
+		"progress within the release margin below the threshold should not flap back to calm",
+	)
+
+	Events.goal_capture_progress.emit(0, 0.45)  # below the release point
+	assert_false(_sfx._tense_stem_is_active, "progress below the release point should return to calm")
