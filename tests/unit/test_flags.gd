@@ -225,6 +225,48 @@ func test_home_beacon_socket_stays_a_neutral_color_regardless_of_slot() -> void:
 	)
 
 
+# --- Beacon size at gameplay scale (Bontago-xtq.41: owner playtest "the ------
+# beacons are way too small") -------------------------------------------------
+
+## Guards the xtq.41 size-up against a future re-shrink: a block cell is 1m,
+## and docs/M7_ART_DIRECTION.md's mockup (08-cel-shaded-home-beacons.png)
+## reads the crystal at roughly two to three cells tall and the ring wider
+## than one cell at the real follow-camera distance (config/camera_tuning.tres
+## follow_distance 9.0), not the far overview framing earlier screenshots used.
+func test_home_beacon_reads_clearly_at_gameplay_scale() -> void:
+	var tuning: BeaconVisualTuning = preload("res://config/beacon_visual_tuning.tres")
+	const BLOCK_CELL_M: float = 1.0
+
+	assert_gt(
+		tuning.crystal_height, BLOCK_CELL_M * 1.5,
+		"HomeFlag's crystal must read as at least ~1.5-2 block cells tall."
+	)
+	assert_lt(
+		tuning.crystal_height, BLOCK_CELL_M * 3.5,
+		"HomeFlag's crystal must not dwarf a 1m block cell either."
+	)
+	assert_gt(
+		tuning.ring_outer_radius * 2.0, BLOCK_CELL_M,
+		"The ring's diameter must read wider than a single block cell."
+	)
+
+
+## GoalFlag.banner_scale() returns goal_scale_factor, so its crystal must stay
+## both larger than a HomeFlag's own and within the mockup's cell-count range.
+func test_goal_beacon_crystal_stays_larger_but_within_gameplay_scale() -> void:
+	var tuning: BeaconVisualTuning = preload("res://config/beacon_visual_tuning.tres")
+	var goal_crystal_height: float = tuning.crystal_height * tuning.goal_scale_factor
+
+	assert_gt(
+		goal_crystal_height, tuning.crystal_height,
+		"The goal beacon's crystal must stay larger than a HomeFlag's own."
+	)
+	assert_lt(
+		goal_crystal_height, 3.5,
+		"Even the larger goal variant should stay near the mockup's 2-3 cell crystal."
+	)
+
+
 func test_goal_beacon_uses_the_neutral_color_not_a_slot_color() -> void:
 	var field: Field = _make_field()
 	field.place_flags(2, _slot_colors(), 1)

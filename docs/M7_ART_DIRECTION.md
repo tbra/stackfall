@@ -27,7 +27,7 @@ For menus, retain the red/blue block `STACKFALL` logo and “Build · Balance ·
 The owner has not accepted the menus as final; M7 menu work still needs a design pass that honours both references.
 
 **Owner decisions (2026-09-26, Bontago-5h7 — closes the questions in §5 and the §2.10 seam conflict):**
-- Q1 **a** — spec §2.10 amended: merged solid mesh stays; the block shader draws thin dark cell-grid lines that glow in the owner colour when contributing influence (xtq.3's one-mesh rule is unchanged).
+- Q1 **a** — spec §2.10 amended: merged solid mesh stays; the block shader draws thin dark cell-grid lines that glow in the owner colour when contributing influence (xtq.3's one-mesh rule is unchanged). **Revised after playtest (owner, 2026-09-26, Bontago-xtq.39): lines always stay black; the glow tunables default to off.**
 - Q2 **a** — `StandardMaterial3D` toon diffuse/specular modes plus an inverted-hull outline pass on blocks only; bench at 300 blocks.
 - Q3 **c** — M7 ships the sunset theme only; dawn/stormy/night move to M8.
 - Q4 **a** — territory: crisp thin contour over a flat tint, with a subtle pulse and the contested shimmer retained.

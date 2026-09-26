@@ -28,11 +28,13 @@ extends Resource
 
 ## Cell-grid line color for a block whose `contributing` per-instance shader
 ## parameter is true (settled/sleeping -- see BlockFactory.build()'s
-## `sleeping_state_changed` wiring).
-@export var grid_line_glow_color: Color = Color(1.0, 0.92, 0.55)
+## `sleeping_state_changed` wiring). Owner playtest 2026-09-26 (Bontago-xtq.39):
+## the owner-colour glow on landed blocks "looks bad, they should always stay
+## black", so the shipped default now equals grid_line_color; the uniform and
+## F4 slider stay so the glow can be re-enabled per session.
+@export var grid_line_glow_color: Color = Color(0.12, 0.1, 0.1)
 
 ## Emission multiplier applied to grid_line_glow_color while `contributing`
-## is true. 0 would make the glow invisible; this is not a magic 1.0 because
-## the grid lines are thin and need a boosted emission to read from the
-## typical match camera distance.
-@export var grid_line_glow_strength: float = 2.2
+## is true. 0 disables the glow entirely (owner decision above); raise it on
+## the F4 "Blocks FX" tab to preview the old lit-lines look.
+@export var grid_line_glow_strength: float = 0.0
