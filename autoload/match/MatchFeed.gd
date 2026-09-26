@@ -272,9 +272,30 @@ func _consume_and_refeed(slot_id: int, auto_drop: bool) -> void:
 		_issue_next_block(slot_id)
 		return
 
-	if auto_drop:
+	if auto_drop or _feed_expired[slot_id]:
 		# The interval's own piece was just forced out at the boundary: the
 		# new one starts fresh, unlocked, for a brand new interval.
+		#
+		# Bontago-2lr: `_feed_expired[slot_id]` can be true here with
+		# `auto_drop == false` -- the interval's piece was still unspent when
+		# `_tick_feed()` latched `_feed_expired` true and fired
+		# `feed_timer_expired` (see that function's own comment), but nobody
+		# answered it with the host's own forced auto_drop placement before
+		# the slot's owner placed voluntarily instead (a fixture/test with no
+		# controller listening; in the real game PlayerController/MatchNet
+		# always auto-drop unconditionally on that signal, so this race does
+		# not arise there -- see their own `_on_feed_timer_expired()`).
+		# Spec 2.4 "[ORIGINAL target]": "At expiry, force release only if
+		# that interval's piece is still unspent" -- this placement is
+		# exactly the piece becoming spent, so it resolves the expiry the
+		# same way the host's own forced release would have. Without this,
+		# `_feed_expired[slot_id]` stayed latched true forever (nothing but
+		# this branch or `_tick_feed()`'s own boundary-crossing ever clears
+		# it, and that function skips a slot for as long as
+		# `_feed_expired[i]` is true), so `_tick_feed()` never counted this
+		# slot's timer down again and its next voluntary release found itself
+		# `is_release_locked()` with no boundary left to unlock it --
+		# REASON_NO_BLOCK forever.
 		_release_locked[slot_id] = false
 		_feed_time_left[slot_id] = _match.config.block_timer
 		_feed_expired[slot_id] = false
