@@ -49,6 +49,7 @@ func test_defaults_with_no_saved_file() -> void:
 	assert_eq(_settings.master_volume_db(), 0.0)
 	assert_eq(_settings.custom_music_dir(), "")
 	assert_eq(_settings.key_override_events(_test_action).size(), 0)
+	assert_true(_settings.camera_shake_enabled(), "Bontago-xtq.29: camera shake defaults on")
 
 
 func test_graphics_preset_round_trips_and_persists() -> void:
@@ -68,6 +69,20 @@ func test_audio_settings_round_trip_and_persist() -> void:
 	var reloaded: Node = _fresh_settings_at_same_path()
 	assert_almost_eq(reloaded.master_volume_db(), -6.5, 0.0001)
 	assert_eq(reloaded.custom_music_dir(), "C:/music")
+
+
+func test_camera_shake_enabled_round_trips_and_persists() -> void:
+	_settings.set_camera_shake_enabled(false)
+	assert_false(_settings.camera_shake_enabled())
+
+	var reloaded: Node = _fresh_settings_at_same_path()
+	assert_false(reloaded.camera_shake_enabled())
+
+
+func test_camera_shake_setting_changed_signal_emits_on_toggle() -> void:
+	watch_signals(_settings)
+	_settings.set_camera_shake_enabled(false)
+	assert_signal_emitted(_settings, "camera_shake_setting_changed")
 
 
 func test_graphics_preset_changed_signal_emits_the_new_preset() -> void:

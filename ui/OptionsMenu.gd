@@ -77,6 +77,7 @@ const VOLUME_STEP_DB: float = 1.0
 @onready var _music_dir_edit: LineEdit = %MusicDirEdit
 @onready var _browse_button: Button = %BrowseButton
 @onready var _music_dir_dialog: FileDialog = %MusicDirDialog
+@onready var _camera_shake_check: CheckButton = %CameraShakeCheck
 @onready var _rebind_list: VBoxContainer = %RebindList
 @onready var _back_button: Button = %BackButton
 
@@ -101,6 +102,7 @@ func _ready() -> void:
 	_music_dir_edit.focus_exited.connect(_on_music_dir_focus_exited)
 	_browse_button.pressed.connect(_on_browse_pressed)
 	_music_dir_dialog.dir_selected.connect(_on_music_dir_selected)
+	_camera_shake_check.toggled.connect(_on_camera_shake_toggled)
 	_back_button.pressed.connect(_on_back_pressed)
 
 	_preset_option.grab_focus()
@@ -133,6 +135,8 @@ func _load_current_values() -> void:
 	_volume_value_label.text = _format_db(volume)
 
 	_music_dir_edit.text = String(settings_provider.custom_music_dir())
+
+	_camera_shake_check.set_pressed_no_signal(bool(settings_provider.camera_shake_enabled()))
 
 
 func _on_preset_selected(index: int) -> void:
@@ -168,6 +172,10 @@ func _on_music_dir_selected(dir: String) -> void:
 	settings_provider.set_custom_music_dir(dir)
 
 
+func _on_camera_shake_toggled(enabled: bool) -> void:
+	settings_provider.set_camera_shake_enabled(enabled)
+
+
 func _on_back_pressed() -> void:
 	closed.emit()
 
@@ -201,7 +209,7 @@ func _build_rebind_rows() -> void:
 ## the rebind rows are built dynamically and don't exist yet when the scene
 ## file is authored.
 func _wire_focus_chain() -> void:
-	var chain: Array[Control] = [_preset_option, _volume_slider, _music_dir_edit, _browse_button]
+	var chain: Array[Control] = [_preset_option, _volume_slider, _music_dir_edit, _browse_button, _camera_shake_check]
 	for row: KeyRebindRow in _rows:
 		chain.append(row.rebind_button())
 	chain.append(_back_button)

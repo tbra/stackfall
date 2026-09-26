@@ -106,6 +106,23 @@ func test_music_dir_submitted_calls_set_custom_music_dir() -> void:
 	assert_eq(_settings_of(menu).custom_music_dir(), "C:/my music")
 
 
+# --- Camera shake (Bontago-xtq.29, M7 P4) ------------------------------------------
+
+func test_camera_shake_check_reflects_the_current_settings_value() -> void:
+	var menu: OptionsMenu = _make_menu()
+	_settings_of(menu).set_camera_shake_enabled(false)
+	menu._load_current_values()
+	assert_false((menu.get_node("%CameraShakeCheck") as CheckButton).button_pressed)
+
+
+func test_toggling_camera_shake_check_calls_set_camera_shake_enabled() -> void:
+	var menu: OptionsMenu = _make_menu()
+	menu._on_camera_shake_toggled(false)
+	assert_false(_settings_of(menu).camera_shake_enabled())
+	menu._on_camera_shake_toggled(true)
+	assert_true(_settings_of(menu).camera_shake_enabled())
+
+
 # --- Rebindable action allow-list -------------------------------------------------
 
 ## docs/M6_PLAN.md package C2: an explicit allow-list must exclude every
@@ -149,6 +166,10 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	var back_button: Control = menu.get_node("%BackButton") as Control
 	var back_bottom: Node = back_button.get_node(back_button.focus_neighbor_bottom)
 	assert_eq(back_bottom, preset_option, "the chain must wrap from BackButton back to PresetOption")
+
+	var camera_shake_check: Control = menu.get_node("%CameraShakeCheck") as Control
+	assert_ne(camera_shake_check.focus_neighbor_top, NodePath(""), "CameraShakeCheck must have an up neighbor")
+	assert_ne(camera_shake_check.focus_neighbor_bottom, NodePath(""), "CameraShakeCheck must have a down neighbor")
 
 	for row: KeyRebindRow in rows:
 		var button: Control = row.rebind_button()
