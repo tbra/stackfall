@@ -72,6 +72,30 @@ var _prev_step_linear_velocity_y: float = 0.0
 ## See kick()'s own doc comment for what this is for.
 var _script_kick_pending: bool = false
 
+## Fix round (Bontago-xtq.27 review MAJOR): the "contributing to territory
+## influence" glow (BlockFactory.build()'s own DECISION: RigidBody3D.sleeping
+## as the settled proxy) used to be written straight onto the BlockMesh
+## MeshInstance3D from inside BlockFactory.build() and a local
+## sleeping_state_changed connection -- both of which only ever fire on
+## whichever peer actually runs physics for this body. A client's synced
+## blocks are frozen kinematic (net/SnapshotSync.gd's freeze_body(), spec
+## 3.4) and never sleep for real, so a client never saw the glow at all.
+## This seam moves the write onto Block itself so a client's own
+## SnapshotSync.client_tick() can drive it from the wire's `sleeping` flag
+## (net/Interpolator.gd's Sample.sleeping) instead, while BlockFactory.build()
+## keeps driving it from the real sleeping_state_changed signal on whichever
+## peer is this body's physics authority -- both paths converge here, so
+## neither has to know or care which one currently applies.
+var _contributing_visual: bool = false
+## Sentinel separate from _contributing_visual itself: without it, the very
+## first call with `contributing == false` (BlockFactory.build()'s own
+## initial call, since a freshly spawned block is never already asleep)
+## would be silently skipped by a plain "value unchanged" early-out, because
+## the field's own default (false) already equals that first argument.
+var _contributing_visual_set: bool = false
+var _block_mesh_cache: MeshInstance3D = null
+var _block_mesh_looked_up: bool = false
+
 
 func _ready() -> void:
 	add_to_group(TUNING_GROUP)
@@ -262,3 +286,45 @@ func apply_physics_tuning(tuning: PhysicsTuning) -> void:
 		physics_material_override = material
 	material.friction = tuning.block_friction
 	material.bounce = tuning.block_bounce
+
+
+## Fix round (Bontago-xtq.27 review MAJOR): the one write site for the
+## "contributing to territory influence" glow's instance shader parameter.
+## Called by BlockFactory.build() (from the real RigidBody3D.sleeping /
+## sleeping_state_changed on this body's physics authority) and by
+## net/SnapshotSync.gd's client_tick() (from the newest wire sample's
+## `sleeping` flag, net/Interpolator.gd's Sample.sleeping) -- whichever one
+## actually applies for this peer, the other's writes are simply inert (a
+## client's frozen kinematic body never fires sleeping_state_changed for
+## real; a host has no snapshot to apply). No-ops when this block has no
+## BlockMesh MeshInstance3D at all, e.g. a ghost built through
+## BlockFactory.build_visual_only(), which never calls this.
+func set_contributing_visual(contributing: bool) -> void:
+	if _contributing_visual_set and _contributing_visual == contributing:
+		return
+	var mesh_instance: MeshInstance3D = _block_mesh()
+	if mesh_instance == null:
+		return
+	mesh_instance.set_instance_shader_parameter(&"contributing", contributing)
+	_contributing_visual = contributing
+	_contributing_visual_set = true
+
+
+## Test seam for the write above (tests/unit/test_block_factory.gd,
+## tests/unit/test_snapshot_sync.gd): what the glow is currently set to,
+## regardless of which peer's path last drove it. Reads back the field this
+## class itself last wrote, not the shader parameter on the mesh, so it works
+## the same whether or not a real Viewport/shader is present (headless tests).
+func is_contributing_visual() -> bool:
+	return _contributing_visual
+
+
+## Cached BlockMesh lookup (looked up at most once per block, not on every
+## sleeping_state_changed/snapshot tick): a ghost built through
+## BlockFactory.build_visual_only() has no node named "BlockMesh" at all, so
+## the miss itself is cached too rather than re-searching the tree every call.
+func _block_mesh() -> MeshInstance3D:
+	if not _block_mesh_looked_up:
+		_block_mesh_looked_up = true
+		_block_mesh_cache = get_node_or_null(^"BlockMesh") as MeshInstance3D
+	return _block_mesh_cache

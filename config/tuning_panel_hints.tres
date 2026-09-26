@@ -71,6 +71,10 @@ ranges = {
 "TerritoryVisuals.mirror_strength": Vector2(0.0, 1.0),
 "TerritoryVisuals.mirror_resolution_scale": Vector2(0.1, 1.0),
 "TerritoryVisuals.mirror_max_luminance": Vector2(0.1, 8.0),
+"BlockVisualTuning.outline_width_m": Vector2(0.0, 0.1),
+"BlockVisualTuning.toon_band_count": Vector2(1.0, 6.0),
+"BlockVisualTuning.grid_line_width_px": Vector2(0.0, 6.0),
+"BlockVisualTuning.grid_line_glow_strength": Vector2(0.0, 6.0),
 }
 descriptions = {
 "CameraTuning.mouse_orbit_speed": "How fast the camera orbits (yaw/pitch) per pixel of mouse motion while holding orbit.",
@@ -238,4 +242,11 @@ descriptions = {
 "BlockFeedConfig.min_stabilizers_per_bag": "Minimum stabilizing shapes guaranteed in every bag of blocks.",
 "BlockFeedConfig.bag_multiplier": "How many copies of each shape's weight go into a bag; bigger means a longer, looser bag.",
 "BlockFeedConfig.preview_count": "How many upcoming blocks the HUD shows in the feed preview.",
+"BlockVisualTuning.outline_width_m": "How far the inverted-hull outline pass pushes a block's silhouette out along its own normal, in meters.",
+"BlockVisualTuning.outline_color": "Flat, unshaded color of a block's outline pass.",
+"BlockVisualTuning.toon_band_count": "How many discrete lit/shadow bands a block's toon diffuse ramp is quantized into.",
+"BlockVisualTuning.grid_line_width_px": "Screen-space width, in pixels, of the dark line drawn along each visible cell face's edge.",
+"BlockVisualTuning.grid_line_color": "Cell-grid line color for a block not currently read as contributing to territory influence.",
+"BlockVisualTuning.grid_line_glow_color": "Cell-grid line color for a block that is settled/sleeping and so counted as contributing to territory influence.",
+"BlockVisualTuning.grid_line_glow_strength": "Emission multiplier applied to the cell-grid glow color while a block is contributing.",
 }

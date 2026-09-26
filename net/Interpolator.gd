@@ -219,7 +219,7 @@ func advance(delta: float) -> void:
 func sample_at_render_time(net_id: int) -> Dictionary:
 	var track: Track = _buffers.get(net_id) as Track
 	if track == null or track.samples.is_empty():
-		return {"ok": false, "position": Vector3.ZERO, "rotation": Quaternion.IDENTITY}
+		return {"ok": false, "position": Vector3.ZERO, "rotation": Quaternion.IDENTITY, "sleeping": false}
 
 	var newest: Sample = track.samples[track.samples.size() - 1]
 	var oldest: Sample = track.samples[0]
@@ -260,7 +260,13 @@ func sample_at_render_time(net_id: int) -> Dictionary:
 	track.last_position = raw_position + track.error_position
 	track.last_rotation = (track.error_rotation * raw_rotation).normalized()
 	track.has_last = true
-	return _pose(track.last_position, track.last_rotation)
+	# Fix round (Bontago-xtq.27 review MAJOR): the newest buffered sample's
+	# own sleeping flag, not an interpolated/blended one -- a boolean can't be
+	# blended, and "is the body currently settled" is a property of the most
+	# recent state the host reported, regardless of which branch above
+	# produced this tick's position/rotation (bracketed, held, or
+	# extrapolated). SnapshotSync.client_tick() is the only reader.
+	return _pose(track.last_position, track.last_rotation, newest.sleeping)
 
 
 ## net_ids with at least one buffered sample.
@@ -367,8 +373,8 @@ func _trim_arrivals(now: float) -> void:
 		_arrivals.remove_at(0)
 
 
-func _pose(position: Vector3, rotation: Quaternion) -> Dictionary:
-	return {"ok": true, "position": position, "rotation": rotation}
+func _pose(position: Vector3, rotation: Quaternion, sleeping: bool = false) -> Dictionary:
+	return {"ok": true, "position": position, "rotation": rotation, "sleeping": sleeping}
 
 
 ## Relaxes every body's convergence offset toward zero with a time constant of

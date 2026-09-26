@@ -26,17 +26,38 @@ extends RefCounted
 ## MeshInstance3D (and visible seam) per cell. Collision is unchanged -- still
 ## one CollisionShape3D per cell, a compound of boxes -- since the physics
 ## shape was never the thing the owner was seeing.
+##
+## Bontago-xtq.27 (M7 P2, spec 2.10 as amended, owner decision 2026-09-26
+## Bontago-5h7 Q1/Q2): a real spawned block now carries a *second*
+## MeshInstance3D (named "BlockOutline") sharing that exact same ArrayMesh --
+## an inverted-hull outline pass, shaders/block_outline.gdshader -- in
+## addition to the primary one (named "BlockMesh"), whose material is now
+## shaders/block_cell_grid.gdshader (toon-banded diffuse + UV-edge cell-grid
+## lines + a per-instance "contributing" glow toggle). The mesh geometry
+## itself, and the ghost-only ("BlockOutline"-less) path through
+## build_visual_only(), are unchanged -- see _add_shape_visual()'s own
+## DECISION comment for why the outline is gated to real blocks only.
 
 const BLOCK_SCENE: PackedScene = preload("res://game/Block.tscn")
+const CELL_GRID_SHADER: Shader = preload("res://shaders/block_cell_grid.gdshader")
+const OUTLINE_SHADER: Shader = preload("res://shaders/block_outline.gdshader")
+const VISUAL_TUNING: BlockVisualTuning = preload("res://config/block_visual_tuning.tres")
 
-## Bontago-mv0.11 (owner-reported playability): one StandardMaterial3D per
-## owner colour, shared by every mesh of every block that colour ever builds,
-## instead of a new material per block. Keyed by the Color itself (Godot's
-## Dictionary supports Color keys directly); never cleared, since the whole
-## project palette is MatchConfig.player_colors' fixed 8 entries plus
-## Color.WHITE for the M1/no-owner call sites -- at most 9 materials for the
-## life of the process.
+## Bontago-mv0.11 (owner-reported playability), extended by Bontago-xtq.27:
+## one ShaderMaterial (shaders/block_cell_grid.gdshader) per owner colour,
+## shared by every mesh of every block that colour ever builds, instead of a
+## new material per block. Keyed by the Color itself (Godot's Dictionary
+## supports Color keys directly); never cleared, since the whole project
+## palette is MatchConfig.player_colors' fixed 8 entries plus Color.WHITE for
+## the M1/no-owner call sites -- at most 9 materials for the life of the
+## process.
 static var _materials_by_color: Dictionary = {}
+
+## Bontago-xtq.27: the outline pass's own ShaderMaterial never varies by
+## owner colour (outline_color/outline_width_m are both plain
+## BlockVisualTuning fields, not per-player), so exactly one instance is ever
+## built, lazily, the first time a real block spawns.
+static var _outline_material: ShaderMaterial = null
 
 
 ## `owner_slot` defaults to -1 so M1's call sites (no player slots yet) keep
@@ -81,7 +102,7 @@ static func build(shape: BlockShape, tuning: PhysicsTuning, owner_slot: int = -1
 	# that already exist).
 	block.gravity_scale = tuning.gravity_multiplier
 
-	var visual_material: StandardMaterial3D = _material_for_color(color)
+	var visual_material: ShaderMaterial = _material_for_color(color)
 	var half_size: float = (tuning.cube_size - tuning.cube_margin) * 0.5
 	# Bontago-mv0.17 item 3 (was Bontago-mv0.12's geometric centre): cells are
 	# built around the shape's bottom-centre, not raw cell (0, 0, 0) -- see
@@ -100,6 +121,25 @@ static func build(shape: BlockShape, tuning: PhysicsTuning, owner_slot: int = -1
 		block.add_child(collision)
 
 	_add_shape_visual(block, shape, tuning, visual_material)
+
+	# Bontago-xtq.27 (M7 P2, docs/M7_PLAN.md P2's own DECISION): "contributing
+	# to territory influence" has no dedicated solver signal yet this
+	# milestone, so a settled/resting block reads as contributing and an
+	# in-flight one doesn't -- RigidBody3D's own built-in sleeping state is the
+	# proxy. Fix round (review MAJOR): this only ever reflects reality on
+	# whichever peer is this body's physics authority -- a client's synced
+	# blocks are frozen kinematic (net/SnapshotSync.gd's freeze_body()) and
+	# never sleep for real, so client_tick() drives the same
+	# Block.set_contributing_visual() seam from the wire's `sleeping` flag
+	# instead (net/SnapshotSync.gd, net/Interpolator.gd). Connected
+	# unconditionally rather than gated on host/authority: a client's own
+	# sleeping_state_changed is simply inert (a frozen kinematic body never
+	# fires it for real), so it cannot race or conflict with the wire-driven
+	# call. A no-op on a ghost (build_visual_only() never calls this).
+	block.set_contributing_visual(block.sleeping)
+	block.sleeping_state_changed.connect(
+		func() -> void: block.set_contributing_visual(block.sleeping)
+	)
 
 	return block
 
@@ -123,21 +163,50 @@ static func build_visual_only(shape: BlockShape, tuning: PhysicsTuning) -> Node3
 
 
 ## Adds the visual MeshInstance3D(s) for `shape` to `parent`. The common path
-## (Bontago-xtq.3): one MeshInstance3D holding a BlockMeshBuilder-generated
-## mesh for the whole shape, with interior faces already removed. Falls back
-## to the pre-existing one-mesh-per-cell path (`material` per cell, no face
-## culling) only for a shape BlockMeshBuilder.build_mesh() refuses -- see its
-## own doc comment for exactly when that is (sloped_cells or a custom
-## shape.mesh, neither used by any shipped shape today).
+## (Bontago-xtq.3, outline added by Bontago-xtq.27): one MeshInstance3D named
+## "BlockMesh" holding a BlockMeshBuilder-generated mesh for the whole shape,
+## with interior faces already removed; when `material` is non-null (a real
+## spawned block, never build_visual_only()'s ghost -- see that function's own
+## doc comment) a second MeshInstance3D named "BlockOutline" is added sharing
+## that exact same mesh resource, with the shared inverted-hull outline
+## ShaderMaterial. Falls back to the pre-existing one-mesh-per-cell path
+## (`material` per cell, no face culling, no outline) only for a shape
+## BlockMeshBuilder.build_mesh() refuses -- see its own doc comment for
+## exactly when that is (sloped_cells or a custom shape.mesh, neither used by
+## any shipped shape today, so the outline pass was not extended to it).
 static func _add_shape_visual(
-	parent: Node3D, shape: BlockShape, tuning: PhysicsTuning, material: StandardMaterial3D
+	parent: Node3D, shape: BlockShape, tuning: PhysicsTuning, material: ShaderMaterial
 ) -> void:
 	var combined_mesh: ArrayMesh = BlockMeshBuilder.build_mesh(shape, tuning.cube_size, tuning.cube_margin)
 	if combined_mesh != null:
 		var mesh_instance: MeshInstance3D = MeshInstance3D.new()
+		mesh_instance.name = &"BlockMesh"
 		mesh_instance.mesh = combined_mesh
 		mesh_instance.material_override = material
 		parent.add_child(mesh_instance)
+
+		# DECISION (game/BlockFactory.gd, Bontago-xtq.27, docs/M7_PLAN.md P2):
+		# a second MeshInstance3D sharing this same ArrayMesh, not a
+		# next_pass material on the primary one. next_pass still costs
+		# Godot a full second render pass per block either way, but chains
+		# both shaders onto ONE surface's render_mode -- the cell-grid pass
+		# needs cull_back (normal) while the outline needs cull_front
+		# (inverted hull); a second MeshInstance3D keeps each shader's own
+		# render_mode simple and independent instead of fighting over one
+		# surface's cull state. Only added for a real spawned block
+		# (`material` non-null); build_visual_only()'s ghost stays at
+		# exactly one MeshInstance3D so GhostPreview's own tint logic
+		# (_apply_material_to_visual(), which overwrites every
+		# MeshInstance3D child's material_override with one plain tint)
+		# keeps working unmodified instead of stomping the outline's
+		# ShaderMaterial.
+		if material != null:
+			var outline_instance: MeshInstance3D = MeshInstance3D.new()
+			outline_instance.name = &"BlockOutline"
+			outline_instance.mesh = combined_mesh
+			outline_instance.material_override = _outline_material_singleton()
+			outline_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			parent.add_child(outline_instance)
 		return
 
 	var half_size: float = (tuning.cube_size - tuning.cube_margin) * 0.5
@@ -152,13 +221,29 @@ static func _add_shape_visual(
 		parent.add_child(mesh_instance)
 
 
-static func _material_for_color(color: Color) -> StandardMaterial3D:
+static func _material_for_color(color: Color) -> ShaderMaterial:
 	if _materials_by_color.has(color):
 		return _materials_by_color[color]
-	var material: StandardMaterial3D = StandardMaterial3D.new()
-	material.albedo_color = color
+	var material: ShaderMaterial = ShaderMaterial.new()
+	material.shader = CELL_GRID_SHADER
+	material.set_shader_parameter(&"albedo_color", color)
+	material.set_shader_parameter(&"toon_band_count", VISUAL_TUNING.toon_band_count)
+	material.set_shader_parameter(&"grid_line_width_px", VISUAL_TUNING.grid_line_width_px)
+	material.set_shader_parameter(&"grid_line_color", VISUAL_TUNING.grid_line_color)
+	material.set_shader_parameter(&"grid_line_glow_color", VISUAL_TUNING.grid_line_glow_color)
+	material.set_shader_parameter(&"grid_line_glow_strength", VISUAL_TUNING.grid_line_glow_strength)
 	_materials_by_color[color] = material
 	return material
+
+
+static func _outline_material_singleton() -> ShaderMaterial:
+	if _outline_material == null:
+		var material: ShaderMaterial = ShaderMaterial.new()
+		material.shader = OUTLINE_SHADER
+		material.set_shader_parameter(&"outline_width_m", VISUAL_TUNING.outline_width_m)
+		material.set_shader_parameter(&"outline_color", VISUAL_TUNING.outline_color)
+		_outline_material = material
+	return _outline_material
 
 
 static func _make_collision_shape(half_size: float, sloped: bool) -> Shape3D:

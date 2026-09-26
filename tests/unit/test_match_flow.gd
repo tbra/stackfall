@@ -552,16 +552,22 @@ func test_a_placed_block_carries_its_slots_colour() -> void:
 	Match.request_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false)
 
 	var spawned: Block = _blocks_root.get_child(0) as Block
-	var mesh_instance: MeshInstance3D = null
+	# Bontago-xtq.27 (M7 P2): the block visual is a ShaderMaterial
+	# (shaders/block_cell_grid.gdshader) carrying the slot colour as its
+	# albedo_color parameter; the outline pass is a sibling MeshInstance3D
+	# whose material has no such parameter, so pick the mesh that does.
+	var tint: Variant = null
 	for child: Node in spawned.get_children():
-		if child is MeshInstance3D:
-			mesh_instance = child
+		var mesh_instance: MeshInstance3D = child as MeshInstance3D
+		if mesh_instance == null:
+			continue
+		var material: ShaderMaterial = mesh_instance.material_override as ShaderMaterial
+		if material != null and material.get_shader_parameter(&"albedo_color") != null:
+			tint = material.get_shader_parameter(&"albedo_color")
 			break
-	assert_not_null(mesh_instance)
-	var material: StandardMaterial3D = mesh_instance.material_override as StandardMaterial3D
-	assert_not_null(material)
+	assert_not_null(tint, "a spawned block should carry a tinted cell-grid ShaderMaterial")
 	assert_true(
-		material.albedo_color.is_equal_approx(Match.slot(0).color),
+		(tint as Color).is_equal_approx(Match.slot(0).color),
 		"the spawned block should be tinted with slot 0's own colour."
 	)
 

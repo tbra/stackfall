@@ -353,6 +353,17 @@ func client_tick(delta: float) -> void:
 		block.global_transform = Transform3D(
 			Basis(pose["rotation"] as Quaternion), pose["position"] as Vector3
 		)
+		# Fix round (Bontago-xtq.27 review MAJOR): the "contributing to
+		# territory influence" glow (Block.set_contributing_visual()) has to
+		# be driven from here too, not just from a block's own
+		# sleeping_state_changed (BlockFactory.build()) -- this body is frozen
+		# kinematic (freeze_body() above) and never sleeps for real on a
+		# client, so without this a client never saw the settled glow at all.
+		# The newest buffered sample's sleeping flag (Interpolator's own
+		# pose["sleeping"]), applied every tick same as the pose itself;
+		# Block's own change-guard keeps a steady stream of identical values
+		# cheap.
+		block.set_contributing_visual(bool(pose["sleeping"]))
 
 	# Bontago-1en.27: the disk rides every snapshot the same way a body does
 	# (spec 3.4 "Disk state ... sent every snapshot"), so it gets the same

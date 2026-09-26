@@ -128,6 +128,26 @@ func _tilt_host(direction: Vector2, magnitude: float, ticks: int) -> void:
 	await wait_physics_frames(ticks)
 
 
+## One host -> client fragment carrying a single body record and no disk
+## state -- the shape host_tick() sends for a settled/moving block (see
+## SnapshotSync._select_bodies()/_encode_body()), used below to prove the
+## client's own "contributing to territory influence" glow
+## (Block.set_contributing_visual()) follows the wire's `sleeping` flag
+## rather than this body's own (inert, frozen-kinematic) sleeping_state_changed
+## (Bontago-xtq.27 fix round, review MAJOR).
+func _body_snapshot_packet(
+	sequence: int, host_time_ms: int, net_id: int, position: Vector3, rotation: Quaternion, sleeping: bool
+) -> PackedByteArray:
+	var encoder: Node = (load("res://net/SnapshotSync.gd") as GDScript).new() as Node
+	var packets: Array = encoder.call(
+		"build_snapshot", sequence, host_time_ms, 0,
+		[{"net_id": net_id, "position": position, "rotation": rotation, "sleeping": sleeping}],
+		Transform3D.IDENTITY, _bounds(), _config
+	) as Array
+	encoder.free()
+	return packets[0] as PackedByteArray
+
+
 ## Feeds `packet` to the client SnapshotSync and runs exactly one client_tick()
 ## through a genuine physics step (see PhysicsCallDriver's own doc comment).
 func _deliver_to_client(packet: PackedByteArray) -> void:
@@ -286,6 +306,48 @@ func test_the_client_field_mirrors_the_hosts_continuous_physical_balance_tilt() 
 		),
 		0.0, 0.001,
 		"the client mirrors the host's second, changed PHYSICAL_BALANCE snapshot"
+	)
+
+
+# --- Bontago-xtq.27 fix round (review MAJOR): a client's own "contributing" --
+# --- glow must follow the wire, not this body's own (inert on a client) -----
+# --- sleeping_state_changed ---------------------------------------------------
+
+## Before this fix round, BlockFactory.build() wrote Block.set_contributing_
+## visual() straight from this body's own `sleeping`/sleeping_state_changed --
+## which only ever reflects reality on whichever peer runs physics for this
+## body. A client's synced blocks are frozen kinematic (SnapshotSync.
+## freeze_body(), spec 3.4) and never sleep for real, so a client never saw
+## the settled glow at all. net/Interpolator.gd now threads the newest
+## buffered sample's own `sleeping` flag through sample_at_render_time(), and
+## client_tick() calls Block.set_contributing_visual() with it every tick,
+## the same seam BlockFactory.build()'s own sleeping_state_changed connection
+## writes through on the host.
+func test_a_clients_settled_glow_follows_the_wires_sleeping_flag() -> void:
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres")
+	var block: Block = BlockFactory.build(shape, tuning, 0)
+	add_child_autofree(block)
+	Events.block_placed.emit(block, shape.id)
+	assert_gt(block.net_id, 0, "fixture: the client registry allocated a net_id")
+	assert_false(block.is_contributing_visual(), "fixture: a fresh block starts non-contributing")
+
+	var packet_asleep: PackedByteArray = _body_snapshot_packet(
+		1, 1000, block.net_id, Vector3.ZERO, Quaternion.IDENTITY, true
+	)
+	await _deliver_to_client(packet_asleep)
+	assert_true(
+		block.is_contributing_visual(),
+		"a sleeping=true body record in the wire snapshot lights the client's glow, not just the host's own physics"
+	)
+
+	var packet_awake: PackedByteArray = _body_snapshot_packet(
+		2, 1033, block.net_id, Vector3(0.1, 0.0, 0.0), Quaternion.IDENTITY, false
+	)
+	await _deliver_to_client(packet_awake)
+	assert_false(
+		block.is_contributing_visual(),
+		"and a later sleeping=false sample turns it back off"
 	)
 
 

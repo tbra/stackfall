@@ -11,7 +11,10 @@ func test_cube_mass_and_shape_count() -> void:
 	assert_eq(block.cube_count, 1)
 	assert_almost_eq(block.mass, _tuning.cube_mass * 1.0, 0.0001)
 	assert_eq(_count_children_of_type(block, "CollisionShape3D"), 1)
-	assert_eq(_count_children_of_type(block, "MeshInstance3D"), 1)
+	# Bontago-xtq.27: a real spawned block now carries a second MeshInstance3D
+	# ("BlockOutline", inverted-hull outline pass) alongside the primary
+	# ("BlockMesh") one -- see game/BlockFactory.gd's own DECISION comment.
+	assert_eq(_count_children_of_type(block, "MeshInstance3D"), 2)
 
 
 func test_bar4_mass_and_shape_count() -> void:
@@ -22,19 +25,25 @@ func test_bar4_mass_and_shape_count() -> void:
 	assert_eq(_count_children_of_type(block, "CollisionShape3D"), 4)
 	# Bontago-xtq.3: one solid mesh for the whole shape, not one per cell --
 	# see game/BlockFactory.gd's DECISION and core/blocks/BlockMeshBuilder.gd.
-	assert_eq(_count_children_of_type(block, "MeshInstance3D"), 1)
+	# Bontago-xtq.27 adds a second MeshInstance3D (the outline pass) on top of
+	# that single solid mesh -- see game/BlockFactory.gd's own DECISION comment.
+	assert_eq(_count_children_of_type(block, "MeshInstance3D"), 2)
 
 
 ## Bontago-xtq.3 (owner feel report "our blocks are made up of many smaller
 ## blocks, is that necessary? the original just has solid shapes"): every
-## multi-cube shape now renders as exactly one MeshInstance3D, whatever its
-## cube_count, both for a spawned Block and for the ghost-only visual.
+## multi-cube shape now renders as exactly one solid MeshInstance3D, whatever
+## its cube_count, both for a spawned Block and for the ghost-only visual.
+## Bontago-xtq.27: a spawned Block's solid mesh additionally gets its own
+## outline MeshInstance3D (sharing that same one solid ArrayMesh, see
+## game/BlockFactory.gd's own DECISION comment) -- the ghost-only visual does
+## not, so it stays at exactly one.
 func test_every_shape_builds_exactly_one_mesh_instance_regardless_of_cube_count() -> void:
 	for shape: BlockShape in BlockShape.load_all_shapes():
 		var block: Block = autofree(BlockFactory.build(shape, _tuning))
 		assert_eq(
-			_count_children_of_type(block, "MeshInstance3D"), 1,
-			"%s (cube_count=%d) should build exactly one MeshInstance3D." % [shape.id, shape.cells.size()]
+			_count_children_of_type(block, "MeshInstance3D"), 2,
+			"%s (cube_count=%d) should build exactly one solid MeshInstance3D plus its outline pass." % [shape.id, shape.cells.size()]
 		)
 		assert_eq(_count_children_of_type(block, "CollisionShape3D"), shape.cells.size())
 		var visual: Node3D = autofree(BlockFactory.build_visual_only(shape, _tuning))
@@ -148,23 +157,29 @@ func _first_mesh_instance(node: Node) -> MeshInstance3D:
 
 # --- Bontago-mv0.11 (owner-reported playability): owner-coloured blocks -----
 
+## Bontago-xtq.27: the primary mesh's material_override is now a ShaderMaterial
+## (shaders/block_cell_grid.gdshader) rather than a StandardMaterial3D, so the
+## owner colour lives in its "albedo_color" shader parameter instead of
+## `.albedo_color` -- see game/BlockFactory.gd's `_material_for_color()`.
 func test_block_mesh_material_matches_the_requested_color() -> void:
 	var shape: BlockShape = load("res://config/blocks/cube.tres")
 	var color: Color = Color(0.9, 0.25, 0.25)
 	var block: Block = autofree(BlockFactory.build(shape, _tuning, 0, color))
 	var mesh_instance: MeshInstance3D = _first_mesh_instance(block)
 	assert_not_null(mesh_instance)
-	var material: StandardMaterial3D = mesh_instance.material_override as StandardMaterial3D
+	var material: ShaderMaterial = mesh_instance.material_override as ShaderMaterial
 	assert_not_null(material, "every mesh should carry an owner-coloured material override.")
-	assert_true(material.albedo_color.is_equal_approx(color))
+	var albedo: Color = material.get_shader_parameter(&"albedo_color")
+	assert_true(albedo.is_equal_approx(color))
 
 
 func test_default_color_is_white_for_call_sites_that_dont_pass_one() -> void:
 	var shape: BlockShape = load("res://config/blocks/cube.tres")
 	var block: Block = autofree(BlockFactory.build(shape, _tuning))
-	var material: StandardMaterial3D = _first_mesh_instance(block).material_override as StandardMaterial3D
+	var material: ShaderMaterial = _first_mesh_instance(block).material_override as ShaderMaterial
 	assert_not_null(material)
-	assert_eq(material.albedo_color, Color.WHITE, "M1's no-owner call sites keep looking exactly as before.")
+	var albedo: Color = material.get_shader_parameter(&"albedo_color")
+	assert_eq(albedo, Color.WHITE, "M1's no-owner call sites keep looking exactly as before.")
 
 
 func test_two_blocks_of_the_same_slot_color_share_one_cached_material() -> void:
@@ -176,12 +191,22 @@ func test_two_blocks_of_the_same_slot_color_share_one_cached_material() -> void:
 	var material_b: Material = _first_mesh_instance(block_b).material_override
 
 	assert_not_null(material_a)
-	assert_eq(material_a, material_b, "one cached StandardMaterial3D per colour, never one per block.")
+	assert_eq(material_a, material_b, "one cached ShaderMaterial per colour, never one per block.")
 
-	# Every mesh within one multi-cube block shares it too, not just the first.
+	# Every *solid* mesh within one multi-cube block shares it too, not just
+	# the first -- but Bontago-xtq.27's outline pass ("BlockOutline") is its
+	# own separately-cached shared ShaderMaterial (never colour-keyed, see
+	# _outline_material_singleton()), so it is excluded here and checked on
+	# its own below instead.
 	for child: Node in block_b.get_children():
-		if child is MeshInstance3D:
+		if child is MeshInstance3D and child.name == &"BlockMesh":
 			assert_eq((child as MeshInstance3D).material_override, material_a)
+
+	var outline_a: Material = (block_a.get_node(^"BlockOutline") as MeshInstance3D).material_override
+	var outline_b: Material = (block_b.get_node(^"BlockOutline") as MeshInstance3D).material_override
+	assert_not_null(outline_a)
+	assert_eq(outline_a, outline_b, "the outline pass is one shared ShaderMaterial regardless of owner colour.")
+	assert_ne(outline_a, material_a, "the outline pass must not be the same ShaderMaterial as the solid-mesh one.")
 
 
 func test_a_different_color_gets_its_own_material() -> void:
@@ -189,6 +214,59 @@ func test_a_different_color_gets_its_own_material() -> void:
 	var block_red: Block = autofree(BlockFactory.build(shape, _tuning, 0, Color(0.9, 0.25, 0.25)))
 	var block_blue: Block = autofree(BlockFactory.build(shape, _tuning, 1, Color(0.25, 0.55, 0.95)))
 	assert_ne(_first_mesh_instance(block_red).material_override, _first_mesh_instance(block_blue).material_override)
+
+
+# --- Bontago-xtq.27 fix round (review MAJOR): the "contributing to territory --
+# --- influence" glow seam now lives on Block itself, not written directly ---
+# --- from inside BlockFactory.build() -----------------------------------------
+
+## A freshly built block is never already asleep, so BlockFactory.build()'s own
+## initial `block.set_contributing_visual(block.sleeping)` call should leave it
+## reading as non-contributing until something says otherwise.
+func test_a_freshly_built_block_is_not_contributing_yet() -> void:
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block: Block = autofree(BlockFactory.build(shape, _tuning))
+	assert_false(block.is_contributing_visual())
+
+
+## BlockFactory.build() connects `block.sleeping_state_changed` to
+## `block.set_contributing_visual(block.sleeping)` unconditionally (this
+## peer's real physics authority path) -- setting `sleeping` directly and
+## re-emitting the signal by hand (outside a live physics step, RigidBody3D's
+## own setter is not guaranteed to fire it) exercises exactly that connection
+## without needing a real physics simulation.
+func test_the_glow_follows_this_blocks_own_sleeping_signal() -> void:
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block: Block = autofree(BlockFactory.build(shape, _tuning))
+
+	block.sleeping = true
+	block.sleeping_state_changed.emit()
+	assert_true(block.is_contributing_visual(), "sleeping_state_changed(sleeping=true) should light the glow.")
+
+	block.sleeping = false
+	block.sleeping_state_changed.emit()
+	assert_false(block.is_contributing_visual(), "sleeping_state_changed(sleeping=false) should turn it back off.")
+
+
+## Block.set_contributing_visual() is the seam net/SnapshotSync.gd's
+## client_tick() calls directly (a client's synced body is frozen kinematic
+## and never sleeps for real, so it never gets BlockFactory.build()'s own
+## sleeping_state_changed connection to fire) -- checked here on its own,
+## independent of BlockFactory's wiring, since it is a public method on Block.
+func test_set_contributing_visual_is_a_public_seam_independent_of_the_sleeping_signal() -> void:
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block: Block = autofree(BlockFactory.build(shape, _tuning))
+
+	block.set_contributing_visual(true)
+	assert_true(block.is_contributing_visual())
+	assert_eq(
+		_first_mesh_instance(block).get_instance_shader_parameter(&"contributing"), true,
+		"the BlockMesh instance shader parameter must reflect it too, not just the cached flag."
+	)
+
+	block.set_contributing_visual(false)
+	assert_false(block.is_contributing_visual())
+	assert_eq(_first_mesh_instance(block).get_instance_shader_parameter(&"contributing"), false)
 
 
 # --- Bontago-mv0.12 (owner-reported playability): the pivot is the shape's --
@@ -256,7 +334,11 @@ func test_built_blocks_use_the_same_cell_offsets_as_their_ghost_visual() -> void
 
 		var block_positions: Array[Vector3] = []
 		for child: Node in block.get_children():
-			if child is MeshInstance3D:
+			# Bontago-xtq.27: "BlockOutline" is excluded -- it is a rendering-
+			# only outline pass sharing the exact same ArrayMesh (and the exact
+			# same node position) as "BlockMesh", not a distinct cell placement,
+			# so it must not be double-counted against the ghost's one entry.
+			if child is MeshInstance3D and child.name != &"BlockOutline":
 				block_positions.append((child as MeshInstance3D).position)
 		var visual_positions: Array[Vector3] = []
 		for child: Node in visual.get_children():
