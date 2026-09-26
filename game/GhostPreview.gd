@@ -322,6 +322,20 @@ const STATE_THROW: StringName = &"throw"
 
 const HATCH_TEXTURE_SIZE: int = 32
 
+## Bontago-xtq.40 (owner playtest, "ghost block renders without any lines"):
+## dedicated ghost variant of game/BlockFactory.gd's own CELL_GRID_SHADER
+## const/preload pattern -- shaders/ghost_cell_grid.gdshader, not block_cell_
+## grid.gdshader itself, because the ghost needs ALPHA (translucency) and a
+## hatch overlay that shader structurally never supports (see that file's own
+## header for why the shared block shader must not gain either). Deliberately
+## has no `contributing` uniform at all, so the settled/sleeping glow
+## (Bontago-xtq.27) can never reach the ghost.
+const GHOST_CELL_GRID_SHADER: Shader = preload("res://shaders/ghost_cell_grid.gdshader")
+## Bontago-xtq.40: same BlockVisualTuning resource game/BlockFactory.gd's own
+## VISUAL_TUNING const reads, so a real block and its own ghost preview always
+## draw identical grid_line_color/grid_line_width_px.
+const VISUAL_TUNING: BlockVisualTuning = preload("res://config/block_visual_tuning.tres")
+
 ## Bontago-xtq.18 attempt 3 (this file's own header): the smallest decal fade
 ## exponent _update_block_projection_decal() ever applies. Not a look tunable
 ## (ghost_tuning.block_projection_edge_fade is): a structural floor, because a
@@ -457,7 +471,7 @@ var _cached_wall_heights: PackedVector2Array = PackedVector2Array()
 ## fallback data at all before this field existed.
 var _last_surface_point: Vector3 = Vector3.ZERO
 
-var _material: StandardMaterial3D
+var _material: ShaderMaterial
 var _hatch_texture: ImageTexture
 var _player_color: Color = Color.WHITE
 var _last_result: PlacementRules.Result = PlacementRules.Result.VALID
@@ -496,15 +510,19 @@ var _reject_offset: Vector3 = Vector3.ZERO
 
 
 func _ready() -> void:
-	_material = StandardMaterial3D.new()
-	_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	# DECISION (game/GhostPreview.gd, Bontago-xtq.7): CULL_BACK, not the old
-	# CULL_DISABLED -- see this file's own header, fix (1). Front faces only,
-	# so translucency reads as a solid surface instead of bleeding through to
-	# the far side's own face seams.
-	_material.cull_mode = BaseMaterial3D.CULL_BACK
-	_material.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
-	_material.uv1_triplanar = true
+	# Bontago-xtq.40 (owner playtest, "ghost block renders without any
+	# lines"): a dedicated ShaderMaterial (shaders/ghost_cell_grid.gdshader),
+	# not the plain StandardMaterial3D this replaces -- that material had no
+	# way to draw the same thin cell-grid lines real placed blocks show
+	# (game/BlockFactory.gd's own CELL_GRID_SHADER). CULL_BACK is unchanged
+	# from before (this file's own header, fix (1) -- front faces only, so
+	# translucency reads as a solid surface instead of bleeding through to the
+	# far side's own face seams); the shader's own `render_mode cull_back;`
+	# carries that forward instead of a BaseMaterial3D.cull_mode property.
+	_material = ShaderMaterial.new()
+	_material.shader = GHOST_CELL_GRID_SHADER
+	_material.set_shader_parameter(&"grid_line_width_px", VISUAL_TUNING.grid_line_width_px)
+	_material.set_shader_parameter(&"grid_line_color", VISUAL_TUNING.grid_line_color)
 
 	_footprint_material = StandardMaterial3D.new()
 	_footprint_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -572,6 +590,7 @@ func _ready() -> void:
 	add_child(_block_projection_decal)
 
 	_hatch_texture = _build_hatch_texture()
+	_material.set_shader_parameter(&"hatch_texture", _hatch_texture)
 	_refresh_materials()
 
 
@@ -1673,7 +1692,7 @@ func current_state() -> StringName:
 
 ## For tests: the material colour currently applied to the held shape.
 func current_tint_color() -> Color:
-	return _material.albedo_color if _material != null else Color.WHITE
+	return _material.get_shader_parameter(&"albedo_color") as Color if _material != null else Color.WHITE
 
 
 ## Bontago-xtq.13 (owner playtest 2026-09-23, "ghost block should still be
@@ -1687,27 +1706,35 @@ func _apply_validity_material() -> void:
 	if _material == null:
 		return
 	if _locked:
-		_material.albedo_texture = null
-		_material.albedo_color = _with_alpha(ghost_tuning.locked_tint_color, ghost_tuning.ghost_opacity)
+		_material.set_shader_parameter(&"use_hatch", false)
+		_material.set_shader_parameter(
+			&"albedo_color", _with_alpha(ghost_tuning.locked_tint_color, ghost_tuning.ghost_opacity)
+		)
 		return
 	# M4 P2e: throw-aim wins over plain validity (same precedence _locked
 	# already has above) but loses to _locked -- an interval-locked piece
 	# cannot be released as a throw either, so that cue must still win.
 	if _throw_hint_active:
-		_material.albedo_texture = null
-		_material.albedo_color = _with_alpha(ghost_tuning.throw_aim_tint_color, ghost_tuning.ghost_opacity)
+		_material.set_shader_parameter(&"use_hatch", false)
+		_material.set_shader_parameter(
+			&"albedo_color", _with_alpha(ghost_tuning.throw_aim_tint_color, ghost_tuning.ghost_opacity)
+		)
 		return
 	match _last_result:
 		PlacementRules.Result.VALID:
-			_material.albedo_texture = null
-			_material.albedo_color = _with_alpha(_player_color, ghost_tuning.ghost_opacity)
+			_material.set_shader_parameter(&"use_hatch", false)
+			_material.set_shader_parameter(&"albedo_color", _with_alpha(_player_color, ghost_tuning.ghost_opacity))
 		PlacementRules.Result.HOLE, PlacementRules.Result.GOAL_ZONE:
-			_material.albedo_texture = _hatch_texture
-			_material.uv1_scale = Vector3(ghost_tuning.hatch_scale, ghost_tuning.hatch_scale, 1.0)
-			_material.albedo_color = _with_alpha(ghost_tuning.hole_tint_color, ghost_tuning.ghost_opacity)
+			_material.set_shader_parameter(&"use_hatch", true)
+			_material.set_shader_parameter(&"hatch_scale", ghost_tuning.hatch_scale)
+			_material.set_shader_parameter(
+				&"albedo_color", _with_alpha(ghost_tuning.hole_tint_color, ghost_tuning.ghost_opacity)
+			)
 		_:
-			_material.albedo_texture = null
-			_material.albedo_color = _with_alpha(ghost_tuning.invalid_tint_color, ghost_tuning.ghost_opacity)
+			_material.set_shader_parameter(&"use_hatch", false)
+			_material.set_shader_parameter(
+				&"albedo_color", _with_alpha(ghost_tuning.invalid_tint_color, ghost_tuning.ghost_opacity)
+			)
 
 
 ## Bontago-mv0.17 item 6: the footprint quads get a validity/lock cue tied to
@@ -1897,10 +1924,15 @@ func _flash_material(color: Color, duration: float) -> void:
 		return
 	if _flash_tween != null and _flash_tween.is_valid():
 		_flash_tween.kill()
-	var restore_color: Color = _material.albedo_color
-	_material.albedo_color = color
+	var restore_color: Color = _material.get_shader_parameter(&"albedo_color") as Color
+	_material.set_shader_parameter(&"albedo_color", color)
 	_flash_tween = create_tween()
-	_flash_tween.tween_property(_material, ^"albedo_color", restore_color, duration)
+	# Bontago-xtq.40: ShaderMaterial uniforms are reachable as a dynamic
+	# "shader_parameter/<name>" property (Godot's own documented idiom for
+	# animating a shader uniform with a Tween), replacing the old direct
+	# `albedo_color` property path this tween used against the
+	# StandardMaterial3D _material used to be.
+	_flash_tween.tween_property(_material, ^"shader_parameter/albedo_color", restore_color, duration)
 
 
 # --- Mesh / texture builders -------------------------------------------------
@@ -1920,7 +1952,11 @@ func _make_footprint_quad() -> MeshInstance3D:
 
 ## A small diagonal-stripe pattern (spec 2.5: "hatched pattern when over a
 ## hole"), generated once instead of shipped as an art asset. Tiled across
-## the held shape via ghost_tuning.hatch_scale (StandardMaterial3D.uv1_scale).
+## the flat footprint quad via ghost_tuning.hatch_scale (StandardMaterial3D.
+## uv1_scale) and, since Bontago-xtq.40, across the held shape's own body via
+## the same hatch_scale read as a shaders/ghost_cell_grid.gdshader uniform
+## (hand-rolled triplanar sampling there, not uv1_scale -- that shape's mesh
+## has 0..1 UVs per cell face, not per whole shape).
 func _build_hatch_texture() -> ImageTexture:
 	var image: Image = Image.create(HATCH_TEXTURE_SIZE, HATCH_TEXTURE_SIZE, false, Image.FORMAT_RGBA8)
 	var period: float = float(HATCH_TEXTURE_SIZE) / 4.0

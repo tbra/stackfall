@@ -318,6 +318,99 @@ func test_invalid_state_uses_the_same_grey_as_locked() -> void:
 	)
 
 
+# --- Bontago-xtq.40 (owner playtest, "ghost block renders without any lines"):
+# the held shape's own body must draw the same cell-grid lines a real placed
+# block does, via a dedicated shader that can never gain the settled-block
+# glow -------------------------------------------------------------------
+
+## Reads straight off the mesh, like _world_shell_triangles() above, rather
+## than through ghost._material directly -- this is the check that the
+## material Bontago-xtq.40 built actually reaches the rendered "BlockMesh",
+## not just that the field holds the right value.
+func _shape_mesh_material(ghost: GhostPreview) -> ShaderMaterial:
+	for child: Node in ghost.get_children():
+		if child.name != "ShapeVisual":
+			continue
+		for mesh_child: Node in child.get_children():
+			var mesh_instance: MeshInstance3D = mesh_child as MeshInstance3D
+			if mesh_instance != null and mesh_instance.name == "BlockMesh":
+				return mesh_instance.material_override as ShaderMaterial
+	return null
+
+
+func test_held_shape_uses_the_dedicated_ghost_cell_grid_shader() -> void:
+	var ghost: GhostPreview = _make_ghost()
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	var material: ShaderMaterial = _shape_mesh_material(ghost)
+	assert_not_null(material, "fixture: the held shape's BlockMesh must have a material_override once a shape is held.")
+	assert_eq(
+		material.shader, GhostPreview.GHOST_CELL_GRID_SHADER,
+		"the ghost must draw with its own dedicated shader, not the plain material the old fix used."
+	)
+	assert_same(material, ghost._material, "the rendered mesh must use the exact same material GhostPreview itself tracks.")
+
+
+## Bontago-xtq.40's whole point: a real block and its own ghost preview must
+## draw identical grid lines -- both read the same BlockVisualTuning resource
+## (game/BlockFactory.gd's own VISUAL_TUNING const, GhostPreview.VISUAL_TUNING
+## here), so this pins the ghost's shader parameters to that shared source
+## rather than to some independently-tunable copy.
+func test_held_shape_grid_line_tuning_matches_the_shared_block_visual_tuning() -> void:
+	var ghost: GhostPreview = _make_ghost()
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+
+	var material: ShaderMaterial = _shape_mesh_material(ghost)
+	assert_eq(
+		material.get_shader_parameter(&"grid_line_width_px"), GhostPreview.VISUAL_TUNING.grid_line_width_px
+	)
+	assert_true(
+		(material.get_shader_parameter(&"grid_line_color") as Color).is_equal_approx(
+			GhostPreview.VISUAL_TUNING.grid_line_color
+		)
+	)
+
+
+## Structural guarantee, not a behavioural one: the settled/sleeping
+## "contributing" glow (Bontago-xtq.27, game/BlockFactory.gd's own
+## block_cell_grid.gdshader) must be unreachable from the ghost because the
+## uniform does not exist on this shader at all -- not merely because nothing
+## currently sets it true.
+func test_ghost_shader_has_no_contributing_uniform() -> void:
+	var uniforms: Array = GhostPreview.GHOST_CELL_GRID_SHADER.get_shader_uniform_list()
+	for uniform: Dictionary in uniforms:
+		assert_ne(
+			uniform.get("name"), "contributing",
+			"the ghost shader must never gain the settled-block glow uniform -- that effect is real-blocks-only."
+		)
+
+
+## HOLE/GOAL_ZONE are the only two validity states with a hatch overlay
+## (spec 2.5, "hatched pattern when over a hole") -- every other state must
+## leave use_hatch false so the shader's triplanar sampling never runs.
+func test_use_hatch_shader_param_is_true_only_for_hole_and_goal_zone() -> void:
+	var ghost: GhostPreview = _make_ghost()
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+	var material: ShaderMaterial = _shape_mesh_material(ghost)
+
+	ghost.apply_validity(PlacementRules.Result.VALID)
+	assert_false(material.get_shader_parameter(&"use_hatch"))
+
+	ghost.apply_validity(PlacementRules.Result.OUTSIDE_TERRITORY)
+	assert_false(material.get_shader_parameter(&"use_hatch"))
+
+	ghost.set_locked(true)
+	assert_false(material.get_shader_parameter(&"use_hatch"))
+	ghost.set_locked(false)
+
+	ghost.apply_validity(PlacementRules.Result.HOLE)
+	assert_true(material.get_shader_parameter(&"use_hatch"))
+	assert_eq(material.get_shader_parameter(&"hatch_scale"), ghost.ghost_tuning.hatch_scale)
+
+	ghost.apply_validity(PlacementRules.Result.GOAL_ZONE)
+	assert_true(material.get_shader_parameter(&"use_hatch"))
+
+
 # --- Bontago-mv0.25 (docs/rotation-issue.png): the shadow blob is gone -------
 
 func test_no_shadow_node_remains_once_a_shape_is_held() -> void:
