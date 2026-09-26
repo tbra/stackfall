@@ -13,6 +13,7 @@ extends Node
 
 signal graphics_preset_changed(preset: GraphicsPreset)
 signal audio_settings_changed()
+signal camera_shake_setting_changed(enabled: bool)
 
 const DEFAULT_PRESET_ID: StringName = &"medium"
 const PRESETS_DIR: String = "res://config/graphics_presets/"
@@ -24,11 +25,18 @@ const SECTION_INPUT: String = "input"
 const KEY_PRESET: String = "preset"
 const KEY_MASTER_DB: String = "master_db"
 const KEY_CUSTOM_MUSIC_DIR: String = "custom_music_dir"
+const KEY_CAMERA_SHAKE_ENABLED: String = "camera_shake_enabled"
+
+## Bontago-xtq.29 (M7 P4): default on -- matches the shake game/CameraRig.gd
+## already applies before the player ever opens Options, so a fresh install
+## shows the intended feel rather than a silent off-by-default.
+const DEFAULT_CAMERA_SHAKE_ENABLED: bool = true
 
 var _config_path: String = "user://settings.cfg"
 var _current_preset_id: StringName = DEFAULT_PRESET_ID
 var _master_volume_db: float = 0.0
 var _custom_music_dir: String = ""
+var _camera_shake_enabled: bool = DEFAULT_CAMERA_SHAKE_ENABLED
 
 ## action -> Array of persisted InputEvent overrides for that action (never
 ## the full InputMap default set -- key_override_events() answers "what has
@@ -74,6 +82,21 @@ func set_custom_music_dir(path: String) -> void:
 	_custom_music_dir = path
 	_save()
 	audio_settings_changed.emit()
+
+
+## Bontago-xtq.29 (M7 P4, spec 2.10 "camera shake"): read directly by
+## game/CameraRig.gd (autoload/Sfx.gd's own master_volume_db()/
+## custom_music_dir() precedent -- a plain-bool feel setting, not something
+## that needs a per-test provider seam the way ui/OptionsMenu.gd's InputMap
+## rebinding does).
+func camera_shake_enabled() -> bool:
+	return _camera_shake_enabled
+
+
+func set_camera_shake_enabled(enabled: bool) -> void:
+	_camera_shake_enabled = enabled
+	_save()
+	camera_shake_setting_changed.emit(enabled)
 
 
 ## Persisted overrides only, not the InputMap's full current binding set.
@@ -161,6 +184,7 @@ func _load() -> void:
 	_current_preset_id = DEFAULT_PRESET_ID
 	_master_volume_db = 0.0
 	_custom_music_dir = ""
+	_camera_shake_enabled = DEFAULT_CAMERA_SHAKE_ENABLED
 	_key_overrides.clear()
 
 	var cfg: ConfigFile = ConfigFile.new()
@@ -171,6 +195,7 @@ func _load() -> void:
 	_current_preset_id = StringName(cfg.get_value(SECTION_GRAPHICS, KEY_PRESET, DEFAULT_PRESET_ID))
 	_master_volume_db = float(cfg.get_value(SECTION_AUDIO, KEY_MASTER_DB, 0.0))
 	_custom_music_dir = String(cfg.get_value(SECTION_AUDIO, KEY_CUSTOM_MUSIC_DIR, ""))
+	_camera_shake_enabled = bool(cfg.get_value(SECTION_GRAPHICS, KEY_CAMERA_SHAKE_ENABLED, DEFAULT_CAMERA_SHAKE_ENABLED))
 
 	if cfg.has_section(SECTION_INPUT):
 		for action_key: String in cfg.get_section_keys(SECTION_INPUT):
@@ -182,6 +207,7 @@ func _load() -> void:
 func _save() -> void:
 	var cfg: ConfigFile = ConfigFile.new()
 	cfg.set_value(SECTION_GRAPHICS, KEY_PRESET, String(_current_preset_id))
+	cfg.set_value(SECTION_GRAPHICS, KEY_CAMERA_SHAKE_ENABLED, _camera_shake_enabled)
 	cfg.set_value(SECTION_AUDIO, KEY_MASTER_DB, _master_volume_db)
 	cfg.set_value(SECTION_AUDIO, KEY_CUSTOM_MUSIC_DIR, _custom_music_dir)
 	for action: StringName in _key_overrides.keys():

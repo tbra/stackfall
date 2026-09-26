@@ -31,6 +31,11 @@ extends Node3D
 @export var tuning: CameraTuning = preload("res://config/camera_tuning.tres")
 @export var map_def: MapDef = preload("res://config/maps/round_medium.tres")
 
+## Bontago-xtq.29 (M7 P4, spec 2.10 "camera shake"): tunables for the decaying
+## offset _update_transform() adds on top of the normal orbit position
+## whenever Events.block_impacted fires hard enough. See shake_offset().
+@export var shake_config: CameraShakeConfig = preload("res://config/camera_shake.tres")
+
 ## Bontago-mv0.20b (F4 tuning panel live-apply): every CameraRig adds itself
 ## to this group in _ready(), the same idea as game/Block.gd's TUNING_GROUP,
 ## so ui/TuningPanel.gd can push a live camera_tuning edit onto whichever rig
@@ -82,11 +87,22 @@ var _target: Vector3 = Vector3.ZERO
 ## every frame. Only read when tuning.follow_block.
 var _follow_position: Vector3 = Vector3.ZERO
 
+## Bontago-xtq.29 (camera shake): the amplitude (meters) of the shake impulse
+## currently decaying, and how long it has been decaying for. A fresh, harder
+## Events.block_impacted while one is still decaying replaces the amplitude
+## outright rather than stacking (spec 2.10 asks for a shake reaction per
+## impact, not compounding shakes from a rapid string of small settling
+## impacts) and restarts the decay clock, so the strongest recent hit always
+## governs.
+var _shake_amplitude_m: float = 0.0
+var _shake_elapsed_s: float = 0.0
+
 @onready var _camera: Camera3D = $Camera3D
 
 
 func _ready() -> void:
 	add_to_group(TUNING_GROUP)
+	Events.block_impacted.connect(_on_block_impacted)
 	process_priority = _PROCESS_PRIORITY_AFTER_GHOST
 	# Bontago-1bt (owner log: "Interpolated Camera3D triggered from outside
 	# physics process" -- the same warning game/DiscMirror.gd's own class doc
@@ -235,6 +251,7 @@ func _process(delta: float) -> void:
 		if pan_x != 0.0 or pan_z != 0.0:
 			_target += _pan_offset(Vector2(pan_x, pan_z)) * tuning.pan_speed * delta
 
+	_update_shake(delta)
 	_update_transform()
 
 
@@ -315,6 +332,32 @@ func get_target() -> Vector3:
 	return _target
 
 
+## Bontago-xtq.29 (M7 P4, spec 2.10 "camera shake"): the current shake offset
+## _update_transform() adds to the camera's local position, in meters -- zero
+## when no impact has happened yet, when the last shake has fully decayed, or
+## when Settings.camera_shake_enabled() is false. Exposed as its own getter
+## (rather than only being visible through get_camera().position) so
+## tests/unit/test_camera_shake.gd can assert on it directly without also
+## depending on the rig's current orbit distance/yaw/pitch.
+func shake_offset() -> Vector3:
+	if not Settings.camera_shake_enabled():
+		return Vector3.ZERO
+	var current_amplitude: float = _current_shake_amplitude()
+	if current_amplitude <= 0.0001:
+		return Vector3.ZERO
+	# DECISION (game/CameraRig.gd): a fixed, arbitrary-looking but
+	# deterministic 3-axis phase offset (not a random per-impact direction)
+	# so the same impact always shakes the same way in a test and in a real
+	# run, and so the three axes don't all peak in lockstep (which would read
+	# as a single up-down bounce rather than a shake).
+	var t: float = _shake_elapsed_s * shake_config.frequency_hz * TAU
+	return Vector3(
+		sin(t) * current_amplitude,
+		sin(t * 1.3 + 1.0) * current_amplitude,
+		sin(t * 0.7 + 2.0) * current_amplitude
+	)
+
+
 func _clamp_pitch() -> void:
 	_pitch = clampf(_pitch, deg_to_rad(tuning.min_pitch_deg), deg_to_rad(tuning.max_pitch_deg))
 
@@ -385,6 +428,42 @@ func _snap_to(point: Vector3) -> void:
 	tween.tween_property(self, ^"_pitch", deg_to_rad(tuning.snap_pitch_deg), tuning.snap_duration)
 
 
+## Bontago-xtq.29 (camera shake): Events.block_impacted carries only the
+## scalar deceleration magnitude (Block.gd's own emit site never passes the
+## block or its position -- confirmed by reading Block.gd directly), so this
+## can only start an undirected shake impulse, never one aimed at the impact
+## site. Below shake_config.impact_speed_threshold, the hit is too soft to
+## react to at all.
+func _on_block_impacted(speed: float) -> void:
+	if not Settings.camera_shake_enabled():
+		return
+	if speed < shake_config.impact_speed_threshold:
+		return
+	var over_threshold: float = speed - shake_config.impact_speed_threshold
+	var amplitude: float = clampf(over_threshold / maxf(shake_config.impact_speed_threshold, 0.0001), 0.0, 1.0) * shake_config.max_offset_m
+	if amplitude >= _current_shake_amplitude():
+		_shake_amplitude_m = amplitude
+		_shake_elapsed_s = 0.0
+
+
+func _current_shake_amplitude() -> float:
+	if _shake_amplitude_m <= 0.0:
+		return 0.0
+	var decay: float = 1.0
+	if shake_config.decay_seconds > 0.0:
+		decay = exp(-_shake_elapsed_s / shake_config.decay_seconds)
+	return _shake_amplitude_m * decay
+
+
+func _update_shake(delta: float) -> void:
+	if _shake_amplitude_m <= 0.0:
+		return
+	_shake_elapsed_s += delta
+	if _current_shake_amplitude() <= 0.0001:
+		_shake_amplitude_m = 0.0
+		_shake_elapsed_s = 0.0
+
+
 func _update_transform() -> void:
 	var offset: Vector3 = Vector3(
 		sin(_yaw) * cos(_pitch),
@@ -392,5 +471,5 @@ func _update_transform() -> void:
 		cos(_yaw) * cos(_pitch)
 	) * _distance
 	global_position = _target
-	_camera.position = offset
+	_camera.position = offset + shake_offset()
 	_camera.look_at(_target, Vector3.UP)

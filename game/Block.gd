@@ -111,6 +111,10 @@ func _physics_process(_delta: float) -> void:
 		return
 	_last_impact_emit_ms = now_ms
 	Events.block_impacted.emit(decel)
+	# Bontago-xtq.29 (M7 P4 fix): additive alongside the line above -- see
+	# Events.block_impacted_at's own doc comment. autoload/Sfx.gd's listener
+	# on block_impacted is unchanged.
+	Events.block_impacted_at.emit(decel, global_position)
 
 
 ## Bontago-xtq.17: damps only a fresh bounce's straight-up (world Y) velocity,

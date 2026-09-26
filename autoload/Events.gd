@@ -225,3 +225,14 @@ signal net_steam_lobbies_discovered(lobbies: Array[Dictionary])
 ## Throttled per block (Block.IMPACT_EMIT_INTERVAL_MS) so a long slide or
 ## tumble doesn't spam one impact into a machine-gun of thuds.
 signal block_impacted(speed: float)
+
+# --- M7 P4: block effects (spec 2.10) ---------------------------------------
+
+## Additive alongside block_impacted above (Bontago-xtq.29, M7 P4 fix):
+## game/Block.gd emits both from the same detection, in the same call, right
+## next to each other -- this one also carries the block's own global
+## position at emit time, for effects that need to know *where* the impact
+## happened (game/BlockEffectsManager.gd's landing-dust/impact burst).
+## autoload/Sfx.gd deliberately keeps listening to block_impacted only and is
+## untouched by this signal.
+signal block_impacted_at(speed: float, position: Vector3)

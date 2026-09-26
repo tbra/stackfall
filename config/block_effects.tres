@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="BlockEffectsConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/BlockEffectsConfig.gd" id="1_effects"]
+
+[resource]
+script = ExtResource("1_effects")
+dust_impact_speed_threshold = 4.0
+dust_particle_amount = 16
+dust_lifetime_s = 0.5
+dust_initial_speed = 1.5
+dust_spread_deg = 70.0
+dust_gravity = Vector3(0.0, -4.0, 0.0)
+dust_scale = 0.06
+dust_color = Color(0.55, 0.47, 0.37, 1.0)
+kill_particle_amount = 24
+kill_lifetime_s = 0.6
+kill_initial_speed = 3.5
+kill_spread_deg = 45.0
+kill_gravity = Vector3(0.0, -9.8, 0.0)
+kill_scale = 0.08
+kill_color = Color(0.82, 0.78, 0.68, 1.0)
+cleanup_margin_s = 0.2
