@@ -438,6 +438,7 @@ descriptions = {
 "HUDVisualTuning.panel_border_width_px": "Border stroke width in pixels for HUD panels.",
 "HUDVisualTuning.minimap_frame_color": "Amber ring color framing the minimap.",
 "HUDVisualTuning.minimap_backdrop_color": "Dark void background color behind the minimap rendered view.",
+"SkyThemeDef.sky_material": "Optional custom sky material (e.g. the painted sunset-cloud panorama); overrides the procedural sky colors when set.",
 "SkyThemeDef.sky_top_color": "Color of the sky zenith in the procedural sky.",
 "SkyThemeDef.sky_horizon_color": "Color of the sky horizon in the procedural sky.",
 "SkyThemeDef.ground_bottom_color": "Color of the ground zenith (cloud deck below from above).",
