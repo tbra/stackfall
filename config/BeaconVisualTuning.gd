@@ -78,6 +78,46 @@ extends Resource
 @export var crystal_facets: int = 6
 @export var crystal_emission: float = 1.1
 
+## -- Crystal cel shading (Bontago-mp0.3.1, owner feedback on docs/art_mockups/
+## 08-cel-shaded-home-beacons.png: "Same for the beacons" -- the faceted
+## crystal now draws with shaders/beacon_crystal.gdshader, the same toon-band
+## + shadow-tint + hard specular technique as shaders/block_cell_grid.gdshader,
+## kept as its own tunable set here (rather than reusing BlockVisualTuning)
+## since HomeFlag/BeaconVisualTuning own the beacon end to end and every
+## HomeFlag/GoalFlag already builds its own dedicated material instance, never
+## a shared/cached one. -----------------------------------------------------
+## How many discrete lit/shadow bands the crystal's toon diffuse ramp is
+## quantized into.
+@export var crystal_toon_band_count: int = 3
+## Minimum normalized shading factor on the crystal's own darkest facet, so it
+## never reads near-black even facing away from the DirectionalLight.
+@export var crystal_shadow_floor: float = 0.45
+## Cool ambient/sky tint blended into the crystal's darkest facets.
+@export var crystal_shadow_tint: Color = Color(0.72, 0.78, 0.97)
+## Shading factor on the crystal's brightest facet, pushed above 1.0 so the
+## lit side reads punchier than a flat repaint of its own colour.
+@export var crystal_highlight_boost: float = 1.2
+@export var crystal_specular_strength: float = 0.8
+## Blinn-Phong exponent before toon-quantizing; higher is a smaller, sharper
+## facet highlight dot.
+@export var crystal_specular_sharpness: float = 32.0
+## Width of the smoothstep used to turn the specular falloff into a hard edge.
+@export var crystal_specular_softness: float = 0.08
+
+## -- Pulsating glow (owner feedback: "pulsating glow from the beacons") ------
+## HomeFlag._process()/_apply_pulse() drive both the ring's own scale and the
+## ring/crystal emission energy from a single sine wave over this period, so
+## every beacon on the disk pulses in lockstep rather than drifting out of
+## phase against each other.
+## Seconds for one full pulse cycle; 0 or less disables the pulse (steady glow).
+@export var pulse_period_s: float = 2.4
+## Fractional swing in the ring's own uniform XZ scale at the peak of the
+## pulse (0.05 = the ring's radius grows/shrinks by +-5%).
+@export var pulse_scale_amplitude: float = 0.05
+## Fractional swing in ring_emission/crystal_emission at the peak of the pulse
+## (0.35 = the emission energy swings by +-35% of its base value).
+@export var pulse_emission_amplitude: float = 0.35
+
 ## -- Goal variant -------------------------------------------------------------
 ## How much larger a GoalFlag's ring and crystal are than a HomeFlag's;
 ## GoalFlag.banner_scale() returns this (spec keeps that method name -- see

@@ -37,6 +37,18 @@ extends RefCounted
 ## itself, and the ghost-only ("BlockOutline"-less) path through
 ## build_visual_only(), are unchanged -- see _add_shape_visual()'s own
 ## DECISION comment for why the outline is gated to real blocks only.
+##
+## Bontago-mp0.3.1 (Graphics pass 2, owner feedback on docs/art_mockups/
+## 08-cel-shaded-home-beacons.png: "Blocks only have the black borders, the
+## mockup shows much more detailed cel-shading with highlights and shadows
+## affected by the light source... restrained... a dark tinted version of the
+## block color rather than pure black"): `_material_for_color()` and
+## `_outline_material_singleton()` below now also wire shadow-tint/specular/
+## bevel-highlight/outline-tint tunables (all new config/BlockVisualTuning.gd
+## fields; shaders/block_cell_grid.gdshader and shaders/block_outline.gdshader
+## own DECISION comments carry the shading math itself) -- no material/mesh
+## architecture changed, only the parameter list each already-cached
+## ShaderMaterial receives.
 
 const BLOCK_SCENE: PackedScene = preload("res://game/Block.tscn")
 const CELL_GRID_SHADER: Shader = preload("res://shaders/block_cell_grid.gdshader")
@@ -206,6 +218,14 @@ static func _add_shape_visual(
 			outline_instance.mesh = combined_mesh
 			outline_instance.material_override = _outline_material_singleton()
 			outline_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			# Bontago-mp0.3.1 (owner feedback: the outline should be "a dark
+			# tinted version of the block color rather than pure black"): a
+			# per-instance shader parameter, not a second cached material --
+			# the outline ShaderMaterial stays the one shared singleton
+			# (_outline_material_singleton()) regardless of owner colour.
+			outline_instance.set_instance_shader_parameter(
+				&"tint_color", material.get_shader_parameter(&"albedo_color")
+			)
 			parent.add_child(outline_instance)
 		return
 
@@ -232,6 +252,26 @@ static func _material_for_color(color: Color) -> ShaderMaterial:
 	material.set_shader_parameter(&"grid_line_color", VISUAL_TUNING.grid_line_color)
 	material.set_shader_parameter(&"grid_line_glow_color", VISUAL_TUNING.grid_line_glow_color)
 	material.set_shader_parameter(&"grid_line_glow_strength", VISUAL_TUNING.grid_line_glow_strength)
+	material.set_shader_parameter(&"grid_line_seam_mix", VISUAL_TUNING.grid_line_seam_mix)
+	material.set_shader_parameter(&"highlight_tint", VISUAL_TUNING.highlight_tint)
+	material.set_shader_parameter(&"highlight_tint_mix", VISUAL_TUNING.highlight_tint_mix)
+	material.set_shader_parameter(&"highlight_brightness", VISUAL_TUNING.highlight_brightness)
+	material.set_shader_parameter(&"lit_tint", VISUAL_TUNING.lit_tint)
+	material.set_shader_parameter(&"lit_tint_mix", VISUAL_TUNING.lit_tint_mix)
+	material.set_shader_parameter(&"shadow_tint", VISUAL_TUNING.shadow_tint)
+	material.set_shader_parameter(&"shadow_tint_mix", VISUAL_TUNING.shadow_tint_mix)
+	material.set_shader_parameter(&"shadow_brightness", VISUAL_TUNING.shadow_brightness)
+	material.set_shader_parameter(&"specular_color", VISUAL_TUNING.specular_color)
+	material.set_shader_parameter(&"specular_sharpness", VISUAL_TUNING.specular_sharpness)
+	material.set_shader_parameter(&"specular_softness", VISUAL_TUNING.specular_softness)
+	material.set_shader_parameter(&"specular_strength", VISUAL_TUNING.specular_strength)
+	material.set_shader_parameter(&"specular_albedo_tint", VISUAL_TUNING.specular_albedo_tint)
+	material.set_shader_parameter(&"bevel_highlight_width_px", VISUAL_TUNING.bevel_highlight_width_px)
+	material.set_shader_parameter(&"bevel_highlight_color", VISUAL_TUNING.bevel_highlight_color)
+	material.set_shader_parameter(&"bevel_highlight_strength", VISUAL_TUNING.bevel_highlight_strength)
+	material.set_shader_parameter(&"rim_color", VISUAL_TUNING.rim_color)
+	material.set_shader_parameter(&"rim_power", VISUAL_TUNING.rim_power)
+	material.set_shader_parameter(&"rim_strength", VISUAL_TUNING.rim_strength)
 	_materials_by_color[color] = material
 	return material
 
@@ -242,6 +282,8 @@ static func _outline_material_singleton() -> ShaderMaterial:
 		material.shader = OUTLINE_SHADER
 		material.set_shader_parameter(&"outline_width_m", VISUAL_TUNING.outline_width_m)
 		material.set_shader_parameter(&"outline_color", VISUAL_TUNING.outline_color)
+		material.set_shader_parameter(&"outline_tint_amount", VISUAL_TUNING.outline_tint_amount)
+		material.set_shader_parameter(&"outline_tint_darken", VISUAL_TUNING.outline_tint_darken)
 		_outline_material = material
 	return _outline_material
 

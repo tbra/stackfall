@@ -201,13 +201,21 @@ func test_home_beacon_ring_and_crystal_follow_set_slots_color() -> void:
 		var ring: MeshInstance3D = flag.get_node(^"Ring") as MeshInstance3D
 		var crystal: MeshInstance3D = flag.get_node(^"Crystal") as MeshInstance3D
 		var ring_material: StandardMaterial3D = ring.material_override as StandardMaterial3D
-		var crystal_material: StandardMaterial3D = crystal.material_override as StandardMaterial3D
+		# Bontago-mp0.3.1: the crystal now draws with
+		# shaders/beacon_crystal.gdshader (toon banding + a hard specular
+		# facet highlight, owner feedback: "Same for the beacons"), so its
+		# colour lives in the "albedo_color" shader parameter instead of
+		# StandardMaterial3D's own `.albedo_color` -- see HomeFlag._build()'s
+		# own DECISION comment.
+		var crystal_material: ShaderMaterial = crystal.material_override as ShaderMaterial
+		assert_not_null(crystal_material, "the crystal must draw with the dedicated cel-shading shader.")
+		var crystal_albedo: Color = crystal_material.get_shader_parameter(&"albedo_color")
 		assert_almost_eq(
 			ring_material.albedo_color.r, expected.r, 0.0001,
 			"The ring is tinted the slot's own color."
 		)
 		assert_almost_eq(
-			crystal_material.albedo_color.r, expected.r, 0.0001,
+			crystal_albedo.r, expected.r, 0.0001,
 			"The crystal is tinted the slot's own color."
 		)
 
