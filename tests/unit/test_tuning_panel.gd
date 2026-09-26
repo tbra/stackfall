@@ -629,3 +629,52 @@ func test_modified_marker_toggles_on_change_and_clears_on_reset() -> void:
 	_panel.reset_all()
 
 	assert_false(_panel.is_modified(_panel.physics_tuning, "gravity_multiplier"), "reset_all() must clear the modified marker.")
+
+
+# --- Bontago-xtq.34: M7 config resource hints completeness ----------------------
+
+## Test that every exported numeric/bool/Color property in the M7 config resources
+## (BeaconVisualTuning, CameraShakeConfig, BlockEffectsConfig, HUDVisualTuning,
+## SkyThemeDef) has both a range hint (for numeric fields) and a description hint
+## in tuning_panel_hints.tres. These resources are not exposed in the TuningPanel
+## UI yet, but hints are provided for future panel extension.
+func test_m7_config_resources_have_complete_hints() -> void:
+	var resources: Array[Resource] = [
+		BeaconVisualTuning.new(),
+		CameraShakeConfig.new(),
+		BlockEffectsConfig.new(),
+		HUDVisualTuning.new(),
+		SkyThemeDef.new(),
+	]
+
+	var hints: TuningPanelHints = _panel.hints
+	var checked_any: bool = false
+
+	for resource: Resource in resources:
+		var class_label: String = String((resource.get_script() as Script).get_global_name())
+
+		for prop: Dictionary in resource.get_property_list():
+			if not _panel._is_exported_field(prop):
+				continue
+
+			var prop_name: String = str(prop.get("name", ""))
+			var type: int = int(prop.get("type", TYPE_NIL))
+			checked_any = true
+
+			# Every exported property must have a description.
+			var description: String = hints.description_for(class_label, prop_name)
+			assert_false(
+				description.is_empty(),
+				"%s.%s has no description in TuningPanelHints" % [class_label, prop_name]
+			)
+
+			# Numeric fields (float, int) must have a range.
+			if type == TYPE_FLOAT or type == TYPE_INT:
+				var range: Vector2 = hints.range_for(class_label, prop_name)
+				var has_range: bool = not (is_nan(range.x) and is_nan(range.y))
+				assert_true(
+					has_range,
+					"%s.%s (type %d) has no range in TuningPanelHints" % [class_label, prop_name, type]
+				)
+
+	assert_true(checked_any, "fixture: at least one M7 config field must exist to check.")
