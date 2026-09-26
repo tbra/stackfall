@@ -23,6 +23,41 @@ extends Resource
 @export var bounce_file: String = "boing.wav"
 @export var music_file: String = "bontago1.mp3"
 
+## Two-stem adaptive music (spec 2.10 "adaptive... more intense as someone
+## gets close to capturing"; docs/M7_PLAN.md P6). Sfx.gd crossfades between
+## this and music_stem_tense_file as Events.goal_capture_progress moves past
+## music_tense_progress_threshold. Defaults to the same file as music_file
+## (still EVENT_MUSIC's own source below) so a checkout with no tense asset
+## installed sounds identical to before this field existed.
+@export var music_stem_calm_file: String = "bontago1.mp3"
+
+## DECISION (config/AudioConfig.gd, Bontago-xtq.31): no real "tense" mix of
+## the original score has shipped yet (docs/M7_PLAN.md P6's own asset-risk
+## note) -- this points at a filename nothing installs today so
+## Sfx.tense_stem_available() is false out of the box and the adaptive
+## crossfade quietly does nothing until a real file lands here, the same
+## "supported absence" this file's own header documents for the whole
+## assets-audio package.
+@export var music_stem_tense_file: String = "bontago1_tense.mp3"
+
+## Crossfade duration (seconds) for Sfx's Tween between the calm and tense
+## stems.
+@export var music_crossfade_seconds: float = 3.0
+
+## Events.goal_capture_progress value (0..1) at or above which Sfx crossfades
+## toward the tense stem; below it, toward the calm stem (including the 0.0
+## a broken/reset capture reports -- see Events.gd's own doc comment).
+@export var music_tense_progress_threshold: float = 0.6
+
+## Hysteresis margin (docs/M7_PLAN.md P6 review, Bontago-xtq.31) subtracted
+## from music_tense_progress_threshold to get the *release* point once the
+## tense stem is active, so progress hovering right at the threshold doesn't
+## flap the crossfade back and forth every frame. The *rising* edge (calm ->
+## tense) always uses the plain threshold above; only the falling edge
+## (tense -> calm) is relaxed by this margin. 0.0 reproduces the old
+## single-threshold behaviour exactly.
+@export var music_tense_release_margin: float = 0.1
+
 ## DECISION (config/AudioConfig.gd, Bontago-6y2): the local slot's own gift
 ## claim (spec 2.6, Events.gift_claimed). No dedicated original asset for
 ## "you got a reward" exists in the SoundFX pack, and EVENT_BOUNCE/bounce_file

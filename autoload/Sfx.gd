@@ -27,6 +27,15 @@ extends Node
 
 const AUDIO_SUBDIR: String = "assets/original/audio"
 
+## Effectively-silent volume_db floor for whichever music stem is faded out
+## of the adaptive crossfade (docs/M7_PLAN.md P6). Not a tunable -- it is an
+## engineering constant matching AudioServer's own convention that -80 dB
+## reads as inaudible on any reasonable output device -- so it stays a local
+## const rather than another AudioConfig field (CLAUDE.md "no magic numbers"
+## is about designer-facing tunables; this is neither designer-facing nor
+## something anyone would want to retune).
+const MUSIC_STEM_MUTE_DB: float = -80.0
+
 @export var config: AudioConfig = preload("res://config/audio_config.tres")
 
 var _root_dir: String = ""
@@ -46,6 +55,22 @@ var _music_player: AudioStreamPlayer
 var _music_enabled: bool = true
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
+## Adaptive music (docs/M7_PLAN.md P6): a second AudioStreamPlayer for the
+## tense stem, on the same bus as _music_player, started in sync with it
+## whenever both config.music_stem_calm_file and config.music_stem_tense_file
+## resolve to real files under _music_root_dir. Missing tense file: this
+## player is simply never given a stream and _tense_stem_available stays
+## false -- single-stream playback through _music_player is untouched, no
+## error/warning (Skybox.gd's fallback_active pattern).
+var _tense_music_player: AudioStreamPlayer
+var _tense_stem_available: bool = false
+## Which side of the crossfade Events.goal_capture_progress last asked for.
+## Drives calm_stem_target_volume_db()/tense_stem_target_volume_db() even
+## when _tense_stem_available is false, so a test (or a later real asset
+## drop) can read the intended target without needing a live Tween to finish.
+var _tense_stem_is_active: bool = false
+var _music_crossfade_tween: Tween
+
 
 func _ready() -> void:
 	Block.impact_speed_min = config.impact_speed_min
@@ -59,11 +84,13 @@ func _ready() -> void:
 		)
 	_refresh_music_root_dir()
 	_build_player_pool()
+	_refresh_tense_stem()
 	Events.block_impacted.connect(_on_block_impacted)
 	Events.placement_rejected.connect(_on_placement_rejected)
 	Events.block_placed.connect(_on_block_placed)
 	Events.player_eliminated.connect(_on_player_eliminated)
 	Events.gift_claimed.connect(_on_gift_claimed)
+	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 	Settings.audio_settings_changed.connect(_on_audio_settings_changed)
 	play_music()
 
@@ -97,8 +124,11 @@ func _refresh_music_root_dir() -> void:
 ## whatever is already playing -- no restart needed to hear a slider move.
 func _on_audio_settings_changed() -> void:
 	_refresh_music_root_dir()
+	_refresh_tense_stem()
 	if _music_player.playing:
-		_music_player.volume_db = config.music_volume_db + Settings.master_volume_db()
+		_music_player.volume_db = calm_stem_target_volume_db()
+	if _tense_stem_available and _tense_music_player.playing:
+		_tense_music_player.volume_db = tense_stem_target_volume_db()
 
 
 func _build_player_pool() -> void:
@@ -108,6 +138,9 @@ func _build_player_pool() -> void:
 		_sfx_players.append(player)
 	_music_player = AudioStreamPlayer.new()
 	add_child(_music_player)
+	_tense_music_player = AudioStreamPlayer.new()
+	_tense_music_player.bus = _music_player.bus
+	add_child(_tense_music_player)
 
 
 ## Plays one of `event`'s configured files on a pooled AudioStreamPlayer (or
@@ -140,6 +173,7 @@ func set_music_enabled(enabled: bool) -> void:
 	_music_enabled = enabled
 	if not enabled:
 		_music_player.stop()
+		_tense_music_player.stop()
 	elif not _music_player.playing:
 		play_music()
 
@@ -156,8 +190,9 @@ func _play_music_stream(stream: AudioStream) -> void:
 	if stream is AudioStreamMP3:
 		(stream as AudioStreamMP3).loop = true
 	_music_player.stream = stream
-	_music_player.volume_db = config.music_volume_db + Settings.master_volume_db()
+	_music_player.volume_db = calm_stem_target_volume_db()
 	_music_player.play()
+	_sync_tense_player_with_calm()
 
 
 func _pick_stream(event: StringName) -> AudioStream:
@@ -165,6 +200,19 @@ func _pick_stream(event: StringName) -> AudioStream:
 	if is_music:
 		if not _music_available:
 			return null
+		# DECISION (autoload/Sfx.gd, Bontago-xtq.31 review, MEDIUM): only steer
+		# music_file's own EVENT_MUSIC selection toward music_stem_calm_file
+		# once a real tense partner exists (_tense_stem_available) -- with no
+		# tense asset installed there is nothing to be "calm" relative to, so
+		# the existing music_file selection (which defaults to the same
+		# filename anyway) stays the simplest single source of truth. Once
+		# both stems are installed, the calm player must actually play the
+		# calm-labelled file rather than whatever music_file/shuffle would
+		# otherwise pick, or the two could silently mismatch.
+		if _tense_stem_available:
+			return _load_stream_from_root(
+				config.music_stem_calm_file, _music_root_dir, _music_streams_by_filename
+			)
 	elif not _available:
 		return null
 	var files: Array[String] = config.files_for_event(event)
@@ -219,6 +267,140 @@ func set_root_dir_for_test(path: String) -> void:
 	_available = DirAccess.dir_exists_absolute(path)
 	_streams_by_filename.clear()
 	_refresh_music_root_dir()  # re-derive the bundled-fallback case against the new _root_dir
+	_refresh_tense_stem()
+
+
+# --- Adaptive music (docs/M7_PLAN.md P6) -------------------------------------
+
+## Re-derives _tense_stem_available against the current _music_root_dir.
+## Requires BOTH config.music_stem_calm_file and config.music_stem_tense_file
+## to resolve to real files there -- a "calm" stem with no matching "tense"
+## partner has nothing to crossfade to, so it is treated the same as a
+## missing tense file (no error either way, just tense_stem_available()
+## staying false). Called whenever _music_root_dir can change (_ready(),
+## _on_audio_settings_changed(), set_root_dir_for_test()) since a custom
+## music folder swap can gain or lose either file.
+func _refresh_tense_stem() -> void:
+	var was_available: bool = _tense_stem_available
+	_tense_stem_available = false
+	if _tense_music_player == null:
+		return  # called from _ready() before _build_player_pool() creates it
+	_tense_music_player.stop()
+	if not _music_available:
+		if was_available:
+			_tense_stem_is_active = false  # the tense stem just disappeared -- fall back to calm
+		return
+	var calm_path: String = _music_root_dir.path_join(config.music_stem_calm_file.to_lower())
+	var tense_path: String = _music_root_dir.path_join(config.music_stem_tense_file.to_lower())
+	if not FileAccess.file_exists(calm_path) or not FileAccess.file_exists(tense_path):
+		if was_available:
+			_tense_stem_is_active = false  # the tense (or its calm partner) just disappeared -- fall back to calm
+		return
+	var stream: AudioStream = _load_stream_from_root(
+		config.music_stem_tense_file, _music_root_dir, _music_streams_by_filename
+	)
+	if stream == null:
+		return
+	if stream is AudioStreamMP3:
+		(stream as AudioStreamMP3).loop = true
+	_tense_music_player.stream = stream
+	_tense_music_player.volume_db = tense_stem_target_volume_db()
+	_tense_stem_available = true
+	_sync_tense_player_with_calm()
+
+
+## Starts (or stops) the tense player alongside whatever _music_player is
+## currently doing, so the two stems never drift apart -- called any time
+## _music_player's playback state or position could have just changed.
+func _sync_tense_player_with_calm() -> void:
+	if not _tense_stem_available:
+		return
+	if _music_player.playing:
+		_tense_music_player.play(_music_player.get_playback_position())
+	else:
+		_tense_music_player.stop()
+
+
+## True only when both stem files resolved (see _refresh_tense_stem()) --
+## false with no tense asset installed, no calm partner, or the bundled/
+## custom music folder itself missing. Read by tests and a manual tester
+## checking for the absence of any error/warning in that case.
+func tense_stem_available() -> bool:
+	return _tense_stem_available
+
+
+## Target volume_db for the calm stem given the last _on_goal_capture_progress
+## call: full baseline while calm is the active side, MUSIC_STEM_MUTE_DB while
+## tense is. Exposed (with tense_stem_target_volume_db() below) so a test can
+## assert the intended crossfade direction without waiting for a live Tween
+## or touching audio hardware.
+##
+## DECISION (autoload/Sfx.gd, Bontago-xtq.31 review, HIGH): never mute unless
+## the tense stem is actually available -- _tense_stem_is_active alone isn't
+## enough to gate this, because it can flip true from a plain
+## Events.goal_capture_progress reading (no asset needed) even in the shipped
+## single-stream config with no tense file installed. Without this guard, the
+## next play_music()/_on_audio_settings_changed() call would apply
+## MUSIC_STEM_MUTE_DB to the only music stream that exists and mute it
+## permanently. _tense_stem_available true is required before this stem can
+## ever be the muted side.
+func calm_stem_target_volume_db() -> float:
+	var baseline_db: float = config.music_volume_db + Settings.master_volume_db()
+	if not _tense_stem_available:
+		return baseline_db
+	return MUSIC_STEM_MUTE_DB if _tense_stem_is_active else baseline_db
+
+
+## Mirror of calm_stem_target_volume_db() for the tense stem. Symmetric guard:
+## with no tense stem installed there is nothing to raise the volume of, so
+## this stays muted regardless of _tense_stem_is_active (moot in practice --
+## _tense_music_player is never given a stream or started while unavailable,
+## see _refresh_tense_stem()/_sync_tense_player_with_calm()).
+func tense_stem_target_volume_db() -> float:
+	var baseline_db: float = config.music_volume_db + Settings.master_volume_db()
+	if not _tense_stem_available:
+		return MUSIC_STEM_MUTE_DB
+	return baseline_db if _tense_stem_is_active else MUSIC_STEM_MUTE_DB
+
+
+## Events.goal_capture_progress (spec 2.10's adaptive music, docs/M7_PLAN.md
+## P6): the crossfade only cares how close ANY team is to capturing, not
+## which one, so team_id is unused here -- underscore-prefixed to match this
+## file's own convention for an unused handler parameter (e.g.
+## _on_player_eliminated()), even though ui/HUD.gd's own sibling handler of
+## this same signal does use it for a different purpose (which team's colour
+## to draw). Events.gd's own doc comment: "team_id is -1 with progress 0 when
+## a capture breaks" -- that case falls out of the plain
+## `progress >= threshold` check below with no special-casing, since 0.0 is
+## always below music_tense_progress_threshold.
+func _on_goal_capture_progress(_team_id: int, progress: float) -> void:
+	# Hysteresis (docs/M7_PLAN.md P6 review, MINOR, Bontago-xtq.31): the rising
+	# edge (calm -> tense) always uses the plain threshold; the falling edge
+	# (tense -> calm) only fires music_tense_release_margin below it, so
+	# progress hovering right at the threshold doesn't flap the crossfade
+	# every frame. config.music_tense_release_margin defaults to a small
+	# positive value; 0.0 reproduces the old single-threshold behaviour.
+	var release_threshold: float = config.music_tense_progress_threshold - config.music_tense_release_margin
+	var want_tense: bool = (
+		progress >= config.music_tense_progress_threshold
+		if not _tense_stem_is_active
+		else progress >= release_threshold
+	)
+	if want_tense == _tense_stem_is_active:
+		return
+	_tense_stem_is_active = want_tense
+	if not _tense_stem_available:
+		return  # single-stream playback: nothing installed to crossfade to
+	if _music_crossfade_tween != null and _music_crossfade_tween.is_valid():
+		_music_crossfade_tween.kill()
+	_music_crossfade_tween = create_tween()
+	_music_crossfade_tween.set_parallel(true)
+	_music_crossfade_tween.tween_property(
+		_music_player, "volume_db", calm_stem_target_volume_db(), config.music_crossfade_seconds
+	)
+	_music_crossfade_tween.tween_property(
+		_tense_music_player, "volume_db", tense_stem_target_volume_db(), config.music_crossfade_seconds
+	)
 
 
 # --- Events hooks -------------------------------------------------------------
