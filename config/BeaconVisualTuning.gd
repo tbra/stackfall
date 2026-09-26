@@ -24,10 +24,29 @@ extends Resource
 ## package left the wiring to a follow-up).
 ##
 ## Loaded once as config/beacon_visual_tuning.tres.
+##
+## DECISION (Bontago-xtq.41, owner playtest: "the beacons are way too small"):
+## socket/ring/crystal dimensions scaled up 2.5x from the xtq.33/34 launch
+## defaults (socket_radius 0.4->1.0, socket_height 0.25->0.625,
+## ring_outer_radius 0.55->1.375, ring_thickness 0.12->0.3, crystal_radius
+## 0.22->0.55, crystal_height 0.75->1.875) so a HomeFlag's crystal reads as
+## roughly two 1m block cells tall and its ring as wider than one, matching
+## docs/art_mockups/08-cel-shaded-home-beacons.png at the real follow-camera
+## distance (config/camera_tuning.tres' follow_distance 9.0) rather than only
+## at the far overview framing earlier screenshots used. goal_scale_factor is
+## unchanged (1.35) -- it already keeps the goal variant proportionately
+## larger (goal crystal ~2.53m), so no change was needed there. The socket
+## still stays a constant base across every flag (only scaled up in absolute
+## terms, not made proportional to banner_scale()) -- no per-flag rule
+## changed, only BeaconVisualTuning's own numbers. Checked HomeFlag.tscn/
+## GoalFlag.tscn and HomeFlag._build(): the beacon is three plain
+## MeshInstance3D pieces with no CollisionShape/StaticBody/Area3D anywhere,
+## so this size change carries no physics footprint and cannot affect block
+## placement (core/rules/PlacementRules.gd never reads flag geometry either).
 
 ## -- Socket (the low base every beacon shares) -------------------------------
-@export var socket_radius: float = 0.4
-@export var socket_height: float = 0.25
+@export var socket_radius: float = 1.0
+@export var socket_height: float = 0.625
 ## Always this color, home or goal -- only the ring and crystal above it
 ## carry an owner's (or the goal's neutral) color, matching the reference
 ## mockup's dark, uniform beacon bases (docs/art_mockups/
@@ -36,9 +55,9 @@ extends Resource
 
 ## -- Ring (the luminous halo lying flat on the socket) -----------------------
 ## Outer radius of a HomeFlag's ring; GoalFlag's is this * goal_scale_factor.
-@export var ring_outer_radius: float = 0.55
+@export var ring_outer_radius: float = 1.375
 ## Ring width (outer minus inner radius) at HomeFlag scale.
-@export var ring_thickness: float = 0.12
+@export var ring_thickness: float = 0.3
 ## Height above the top of the socket the ring sits at, so it never z-fights
 ## the socket's own cap (mirrors TerritoryVisuals.capture_ring_lift's role).
 @export var ring_lift: float = 0.03
@@ -48,11 +67,11 @@ extends Resource
 
 ## -- Crystal (the faceted gem on top) ----------------------------------------
 ## Waist radius of a HomeFlag's crystal; GoalFlag's is this * goal_scale_factor.
-@export var crystal_radius: float = 0.22
+@export var crystal_radius: float = 0.55
 ## Apex-to-apex height of a HomeFlag's crystal; GoalFlag's is this *
 ## goal_scale_factor. The crystal is a bipyramid (two low-poly cones base to
 ## base) so it reads as a cut gem, not a smooth cone.
-@export var crystal_height: float = 0.75
+@export var crystal_height: float = 1.875
 ## Sides of the bipyramid's waist ring. Each face gets its own flat normal
 ## (HomeFlag._add_facet()), so a low count reads as deliberately faceted
 ## rather than as an under-tessellated cone.

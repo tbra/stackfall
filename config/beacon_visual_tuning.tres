@@ -4,16 +4,16 @@
 
 [resource]
 script = ExtResource("1_beacon")
-socket_radius = 0.4
-socket_height = 0.25
+socket_radius = 1.0
+socket_height = 0.625
 socket_color = Color(0.16, 0.16, 0.18, 1)
-ring_outer_radius = 0.55
-ring_thickness = 0.12
+ring_outer_radius = 1.375
+ring_thickness = 0.3
 ring_lift = 0.03
 ring_segments = 48
 ring_emission = 1.4
-crystal_radius = 0.22
-crystal_height = 0.75
+crystal_radius = 0.55
+crystal_height = 1.875
 crystal_facets = 6
 crystal_emission = 1.1
 goal_scale_factor = 1.35
