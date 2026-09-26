@@ -27,7 +27,20 @@ extends Control
 ## sanitized MatchConfig the lobby is currently showing.
 signal start_requested(config: MatchConfig)
 
+## Emitted when the player presses the header's Back pill (Bontago-xtq.32
+## redo #3, mockup 11's top-right "< Back"). Whoever owns scene transitions
+## (game/Main.gd) is the only listener this package expects; see this file's
+## own header docstring, "no node paths into game/Main.gd" -- a signal keeps
+## that boundary intact instead of calling a scene-tree path directly.
+signal back_requested
+
 @export var default_config: MatchConfig = preload("res://config/match_defaults.tres")
+
+## Bontago-xtq.32 redo: same layered-pastel tunable set ui/MainMenu.gd draws
+## its visual style from (config/MenuVisualTuning.gd), so the Lobby matches
+## the Main Menu's look with zero magic numbers here (CLAUDE.md "No magic
+## numbers").
+@export var tuning: MenuVisualTuning = preload("res://config/menu_visual_tuning.tres")
 
 ## DECISION (ui/Lobby.gd, M6 A4): MatchConfig.enabled_specials already means
 ## "empty = every special enabled" (config/MatchConfig.gd's own doc comment),
@@ -63,12 +76,27 @@ var net_provider: Variant = null
 @onready var _match_timer_spin: SpinBox = %MatchTimerSpin
 @onready var _sudden_death_check: CheckButton = %SuddenDeathCheck
 @onready var _turn_based_check: CheckButton = %TurnBasedCheck
-@onready var _specials_checklist: VBoxContainer = %SpecialsChecklist
+## Bontago-xtq.32 redo #3: a compact wrap grid of small toggle chips
+## (mockup 11), not the round-1 full-width red bars -- HFlowContainer (a
+## Container sibling of VBoxContainer, not a subclass) wraps children onto as
+## many rows as the card's width needs instead of stacking one per row.
+@onready var _specials_checklist: HFlowContainer = %SpecialsChecklist
+@onready var _specials_label: Label = %SpecialsLabel
+@onready var _advanced_rules_label: Label = %AdvancedRulesLabel
 
 @onready var _player_list: VBoxContainer = %PlayerList
 @onready var _ready_check: CheckButton = %ReadyCheck
 @onready var _start_button: Button = %StartButton
 @onready var _invite_friends_button: Button = %InviteFriendsButton
+@onready var _player_count_label: Label = %PlayerCountLabel
+
+@onready var _settings_card: PanelContainer = %SettingsCard
+@onready var _players_card: PanelContainer = %PlayersCard
+@onready var _status_badge: PanelContainer = %StatusBadge
+@onready var _status_badge_label: Label = %StatusBadgeLabel
+@onready var _header_title: Label = %HeaderTitle
+@onready var _header_eyebrow: Label = %Eyebrow
+@onready var _back_button: Button = %BackButton
 
 ## Every control the round trip governs, so enabling/disabling them for a
 ## non-host is one loop instead of fourteen repeated lines.
@@ -103,6 +131,7 @@ func _ready() -> void:
 	_start_button.pressed.connect(_on_start_pressed)
 	_ready_check.toggled.connect(_on_ready_toggled)
 	_invite_friends_button.pressed.connect(_on_invite_friends_pressed)
+	_back_button.pressed.connect(_on_back_pressed)
 	_connect_click_and_hover_sounds()
 	Events.net_lobby_data_changed.connect(_on_lobby_data_changed)
 	Events.net_peer_joined.connect(_on_peer_joined)
@@ -111,6 +140,8 @@ func _ready() -> void:
 
 	_apply_data(default_config.to_dict())
 	_update_host_only_state()
+	_wire_focus_chain()
+	_apply_visual_style()
 	_map_variant_option.grab_focus()
 
 
@@ -186,6 +217,38 @@ func _build_specials_checklist() -> void:
 		_special_ids.append(special.id)
 
 
+## DECISION (ui/Lobby.gd, Bontago-xtq.32): ui/Lobby.tscn carries zero static
+## focus_neighbor_* NodePaths (unlike ui/MainMenu.tscn's authored chain) --
+## the specials checklist is built dynamically by _build_specials_checklist()
+## and doesn't exist yet when the scene file is authored, so any chain
+## covering it has to be computed at runtime. Mirrors ui/OptionsMenu.gd's own
+## _wire_focus_chain() (get_path_to()-based circular top/bottom wiring,
+## called once from _ready() after every dynamic row exists). Player rows
+## (_player_rows, rebuilt on every roster change) are plain
+## HBoxContainer(ColorRect, Label) with no focusable child, so they never
+## enter the chain and a later roster change can't invalidate it.
+func _wire_focus_chain() -> void:
+	var chain: Array[Control] = [
+		_map_variant_option, _map_size_option, _player_count_spin, _ai_count_spin,
+		_ai_difficulty_option, _team_mode_option, _block_timer_slider, _gravity_slider,
+		_goal_flag_spin, _gifts_check, _special_freq_slider, _back_button,
+	]
+	for box: CheckBox in _special_checkboxes:
+		chain.append(box)
+	chain.append_array([
+		_tilt_mode_option, _hole_mode_option, _match_timer_spin, _sudden_death_check,
+		_turn_based_check, _ready_check, _invite_friends_button, _start_button,
+	])
+
+	for i: int in range(chain.size()):
+		var current: Control = chain[i]
+		var prev: Control = chain[(i - 1 + chain.size()) % chain.size()]
+		var next: Control = chain[(i + 1) % chain.size()]
+		current.focus_neighbor_top = current.get_path_to(prev)
+		current.focus_neighbor_bottom = current.get_path_to(next)
+		current.focus_mode = Control.FOCUS_ALL
+
+
 func _connect_control_signals() -> void:
 	_map_variant_option.item_selected.connect(_on_option_changed)
 	_map_size_option.item_selected.connect(_on_option_changed)
@@ -211,7 +274,7 @@ func _connect_control_signals() -> void:
 ## Scoped to actual buttons, not every settings control, so dragging a
 ## slider doesn't spam hover sounds.
 func _connect_click_and_hover_sounds() -> void:
-	var buttons: Array[BaseButton] = [_start_button, _invite_friends_button, _ready_check]
+	var buttons: Array[BaseButton] = [_start_button, _invite_friends_button, _ready_check, _back_button]
 	for button: BaseButton in buttons:
 		button.pressed.connect(_on_sound_button_pressed)
 		button.mouse_entered.connect(_on_sound_button_hovered)
@@ -223,6 +286,84 @@ func _on_sound_button_pressed() -> void:
 
 func _on_sound_button_hovered() -> void:
 	Sfx.play(AudioConfig.EVENT_HOVER)
+
+
+## Bontago-xtq.32 redo: mirrors ui/MainMenu.gd's _apply_visual_style() -- the
+## same cream-card + pastel-pill language (docs/art_mockups/
+## 11-lobby-layered-pastel.png), built entirely from ui/theme/
+## MenuStyleFactory.gd's StyleBoxFlat helpers on top of the shared
+## ui/theme/stackfall_theme.tres Theme (no image assets, per the brief).
+##
+## DECISION (ui/Lobby.gd, Bontago-xtq.32): mockup 11 shows each column as a
+## front card with two peeking mint/apricot "shadow" cards behind it, the
+## same triple-stack ui/MainMenu.gd's %ShadowApricot/%ShadowMint achieve via
+## a CenterContainer sized to each child's own minimum size. ui/Lobby.tscn's
+## "Settings"/"Players" columns instead need size_flags_horizontal/vertical
+## = 3 to fill the available width of their HBoxContainer ("Columns"), which
+## a CenterContainer would collapse back down to minimum size -- so this
+## keeps a single flat cream PanelContainer card per column (no doubled
+## shadow cards) rather than risk breaking that fill layout within the
+## remaining verification budget. Reported as a known simplification versus
+## the mockup in the handback.
+##
+## DECISION (ui/Lobby.gd + ui/Lobby.tscn, Bontago-xtq.32 redo #3): the redo #2
+## DECISION directly above this one shipped without a Back button, reasoning
+## a decorative button with no listener was worse than none. The redo #3
+## brief now explicitly requires one, so %BackButton emits back_requested
+## (this file's new signal, just above start_requested) instead of calling
+## into game/Main.gd directly -- keeping this file's own "no node paths into
+## game/Main.gd" rule intact while giving Main.gd something to connect to.
+func _apply_visual_style() -> void:
+	_settings_card.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(tuning.card_cream_color, tuning))
+	_players_card.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(tuning.card_cream_color, tuning))
+
+	MenuStyleFactory.apply_pill(
+		_start_button, tuning.pill_coral_color, tuning.pill_coral_hover_color, tuning.label_ink_light_color, tuning
+	)
+	MenuStyleFactory.apply_pill(
+		_invite_friends_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning
+	)
+	MenuStyleFactory.apply_pill(
+		_back_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning
+	)
+
+	var well_box: StyleBoxFlat = MenuStyleFactory.make_well(tuning)
+	_block_timer_slider.add_theme_stylebox_override("slider", well_box)
+	_gravity_slider.add_theme_stylebox_override("slider", well_box)
+	_special_freq_slider.add_theme_stylebox_override("slider", well_box)
+
+	# Bontago-xtq.32 redo #3: compact toggle chips (specials grid + the
+	# Advanced Rules strip's two CheckButtons) replace round-1's full-width
+	# red CheckBox bars -- off = cream pill, on = mint pill, reusing the same
+	# tunables apply_pill() above already draws from (no new MenuVisualTuning
+	# exports). _gifts_check keeps its own %GoalFlagRow placement in the
+	# tscn but is visually the same chip family.
+	for box: CheckBox in _special_checkboxes:
+		MenuStyleFactory.apply_toggle_chip(
+			box, tuning.pill_cream_color, tuning.pill_cream_hover_color,
+			tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning
+		)
+	var chips: Array[Button] = [_gifts_check, _sudden_death_check, _turn_based_check, _ready_check]
+	for chip: Button in chips:
+		MenuStyleFactory.apply_toggle_chip(
+			chip, tuning.pill_cream_color, tuning.pill_cream_hover_color,
+			tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning
+		)
+
+	var captions: Array[Label] = [_specials_label, _advanced_rules_label]
+	for caption: Label in captions:
+		caption.add_theme_color_override("font_color", tuning.label_muted_color)
+
+	_status_badge.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_cream_color, tuning))
+	_status_badge_label.add_theme_color_override("font_color", tuning.ink_color)
+	_header_title.add_theme_color_override("font_color", tuning.ink_color)
+	_header_eyebrow.add_theme_color_override("font_color", tuning.label_muted_color)
+	_player_count_label.add_theme_color_override("font_color", tuning.ink_color)
+	_update_status_badge()
+
+
+func _on_back_pressed() -> void:
+	back_requested.emit()
 
 
 func _on_option_changed(_index: int) -> void:
@@ -430,6 +571,7 @@ func _build_roster(config: MatchConfig) -> Array[Dictionary]:
 
 func _apply_roster(roster_data: Variant) -> void:
 	var roster: Array = roster_data as Array
+	_player_count_label.text = "%d / %d" % [roster.size(), int(_player_count_spin.value)]
 	for row: Node in _player_rows:
 		row.queue_free()
 	_player_rows.clear()
@@ -459,8 +601,8 @@ func _apply_roster(roster_data: Variant) -> void:
 ## right now" (net_lobby_data_changed's own embedded roster only matters for
 ## the late-joiner snapshot _apply_data() already handles).
 func _on_roster_changed(roster: Array[Dictionary]) -> void:
-	_apply_roster(roster)
 	_mirror_player_count_to_peers(roster.size())
+	_apply_roster(roster)
 
 
 func _on_peer_joined(_peer_id: int, _slot_id: int, _player_name: String) -> void:
@@ -540,3 +682,20 @@ func _update_host_only_state() -> void:
 	_start_button.visible = is_host
 	_start_button.disabled = not is_host or not (net_provider != null and bool(net_provider.all_peers_ready()))
 	_invite_friends_button.visible = is_host and net_provider != null and bool(net_provider.is_steam_session())
+	_update_status_badge()
+
+
+## Header badge (Bontago-xtq.32 redo, mockup 11's top-right "Hosting * LAN"
+## pill): reads the same net_provider calls _update_host_only_state() above
+## already gates on, so it never assumes a transport (CLAUDE.md
+## "Multiplayer"). Runs every _update_host_only_state() call (once per
+## _process() frame, see that method's own DECISION) -- cheap, a Dictionary-
+## free string format on two bools.
+func _update_status_badge() -> void:
+	if net_provider == null:
+		return
+	var is_host: bool = bool(net_provider.is_host())
+	var is_steam: bool = bool(net_provider.is_steam_session())
+	_status_badge_label.text = "%s %s %s" % [
+		"Hosting" if is_host else "Joined", char(0xB7), "Steam" if is_steam else "LAN"
+	]

@@ -47,6 +47,11 @@ signal tutorial_requested
 ## below are both handlers and emitter in one file.
 const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
 
+## M7 P7 (Bontago-xtq.32 redo): every pastel pill/well/card color and the
+## offset-shadow-card geometry the layered-pastel mockups call for, so none of
+## the styling below is a magic number (CLAUDE.md "No magic numbers").
+@export var tuning: MenuVisualTuning = preload("res://config/menu_visual_tuning.tres")
+
 @onready var _name_edit: LineEdit = %NameEdit
 @onready var _host_button: Button = %HostButton
 @onready var _sandbox_button: Button = %SandboxButton
@@ -59,6 +64,18 @@ const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
 @onready var _direct_ip_edit: LineEdit = %DirectIpEdit
 @onready var _direct_join_button: Button = %DirectJoinButton
 @onready var _status_label: Label = %StatusLabel
+
+## M7 P7 (Bontago-xtq.32 redo, gap item 2): the offset triple-card stack --
+## %ShadowApricot/%ShadowMint sit behind %Panel (the front card) in the same
+## CenterContainer, so all three share one center point and %Panel's own size
+## decides how far the shadow cards' larger custom_minimum_size peeks out.
+@onready var _front_card: PanelContainer = %Panel
+@onready var _shadow_apricot: Panel = %ShadowApricot
+@onready var _shadow_mint: Panel = %ShadowMint
+@onready var _title: RichTextLabel = %Title
+@onready var _title_accent: ColorRect = %TitleAccent
+@onready var _name_label: Label = %NameLabel
+@onready var _join_label: Label = %JoinLabel
 
 ## M3b (docs/M3b_PLAN.md P3): the Steam section vs. the "not available" notice
 ## (spec 3.4: "Hide the online menu entries and show a notice").
@@ -106,6 +123,7 @@ func _ready() -> void:
 	Events.net_join_failed.connect(_on_join_failed)
 	Events.net_steam_lobbies_discovered.connect(_on_steam_lobbies_discovered)
 	net_provider.start_discovery()
+	_apply_visual_style()
 	_apply_steam_availability()
 	_host_button.grab_focus()
 
@@ -144,6 +162,63 @@ func _on_sound_button_pressed() -> void:
 
 func _on_sound_button_hovered() -> void:
 	Sfx.play(AudioConfig.EVENT_HOVER)
+
+
+# --- Visual style (Bontago-xtq.32 redo: layered-pastel look) -----------------
+
+## Wires every pill/well/card StyleBoxFlat from ui/theme/MenuStyleFactory.gd
+## and config/MenuVisualTuning.gd onto this scene's existing nodes. Runs once
+## from _ready() -- none of it changes at runtime except the shadow-card sizes
+## (_sync_shadow_card_sizes(), hooked to %Panel's own `resized` signal since
+## %SteamSection toggling visibility changes the front card's height).
+func _apply_visual_style() -> void:
+	# DECISION (ui/MainMenu.gd, Bontago-xtq.32 redo, gap item 3): mockup 10's
+	# title is a bespoke two-tone block-cube wordmark (individual cube glyphs).
+	# Reproduced here as bold two-tone BBCode text in the shared font instead
+	# of building per-letter cube meshes/glyphs -- captures the two-tone split
+	# without a new glyph-authoring pipeline; disclosed as a simplification.
+	_title.text = "[b][color=#%s]Stack[/color][color=#%s]fall[/color][/b]" % [
+		tuning.ink_color.to_html(false), tuning.pill_coral_color.to_html(false),
+	]
+	_title_accent.color = tuning.pill_coral_color
+	_name_label.add_theme_color_override("font_color", tuning.label_muted_color)
+	_join_label.add_theme_color_override("font_color", tuning.label_muted_color)
+
+	_front_card.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(tuning.card_cream_color, tuning))
+	_shadow_apricot.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(tuning.card_shadow_apricot_color, tuning))
+	_shadow_mint.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(tuning.card_shadow_mint_color, tuning))
+	_front_card.resized.connect(_sync_shadow_card_sizes)
+	call_deferred("_sync_shadow_card_sizes")
+
+	_game_list.add_theme_stylebox_override("panel", MenuStyleFactory.make_well(tuning))
+	_steam_lobby_list.add_theme_stylebox_override("panel", MenuStyleFactory.make_well(tuning))
+
+	MenuStyleFactory.apply_pill(_host_button, tuning.pill_coral_color, tuning.pill_coral_hover_color, tuning.label_ink_light_color, tuning)
+	MenuStyleFactory.apply_pill(_host_online_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
+	MenuStyleFactory.apply_pill(_refresh_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
+	MenuStyleFactory.apply_pill(_refresh_steam_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
+	MenuStyleFactory.apply_pill(_direct_join_button, tuning.pill_dark_slate_color, tuning.pill_dark_slate_hover_color, tuning.label_ink_light_color, tuning)
+	MenuStyleFactory.apply_pill(_sandbox_button, tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning)
+	MenuStyleFactory.apply_pill(_tutorial_button, tuning.pill_powder_blue_color, tuning.pill_powder_blue_hover_color, tuning.ink_color, tuning)
+	MenuStyleFactory.apply_pill(_options_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
+	MenuStyleFactory.apply_pill(_quit_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
+
+
+## Keeps %ShadowApricot/%ShadowMint's custom_minimum_size a fixed
+## tuning.card_offset_px larger than %Panel's own current size on every axis,
+## so CenterContainer (which centers every child on the same point) renders
+## them as a "matting border" peeking out evenly around the front card.
+# DECISION (ui/MainMenu.gd, Bontago-xtq.32 redo, gap item 2): mockup 10 shows
+# the two shadow cards diagonally offset (down-right), not centered evenly on
+# all sides. An evenly-centered "matting" look was chosen instead of a custom
+# manual-position wrapper Control, trading exact diagonal offset fidelity for
+# much lower layout risk within the verification budget; disclosed in the
+# handback as not pixel-perfect against the mockup.
+func _sync_shadow_card_sizes() -> void:
+	var base: Vector2 = _front_card.size
+	var offset: Vector2 = Vector2.ONE * tuning.card_offset_px
+	_shadow_apricot.custom_minimum_size = base + offset * 2.0
+	_shadow_mint.custom_minimum_size = base + offset
 
 
 func _on_host_pressed() -> void:
@@ -283,20 +358,26 @@ func _apply_steam_availability() -> void:
 	var available: bool = net_provider != null and bool(net_provider.steam_available())
 	_steam_section.visible = available
 	_steam_unavailable_label.visible = not available
+	# DECISION (ui/MainMenu.gd, Bontago-xtq.32 redo, gap item 4): %HostOnlineButton
+	# now stays in its %HostRow slot beside %HostButton always -- "hidden/disabled
+	# ... same layout slot kept" -- so only %SteamSection (the lobby list below
+	# Host) still changes shape when Steam is unavailable. It is disabled in
+	# place instead of hidden with its parent.
+	_host_online_button.disabled = not available
 	if available:
 		net_provider.refresh_lobby_list()
 		_steam_refresh_countdown_s = float(net_provider.config.steam_lobby_list_refresh_s)
-	# DECISION (ui/MainMenu.gd): the .tscn wires HostButton -> SteamSection ->
-	# GameList as the happy-path (Steam available) up/down focus chain
-	# declaratively. When Steam is unavailable the section is hidden, so
-	# bridge the ui_up/ui_down (incl. gamepad D-pad) chain straight from
-	# HostButton to GameList instead of leaving it pointed at hidden controls.
-	if available:
-		_host_button.focus_neighbor_bottom = _host_button.get_path_to(_host_online_button)
-		_game_list.focus_neighbor_top = _game_list.get_path_to(_refresh_steam_button)
-	else:
-		_host_button.focus_neighbor_bottom = _host_button.get_path_to(_game_list)
-		_game_list.focus_neighbor_top = _game_list.get_path_to(_host_button)
+	# DECISION (ui/MainMenu.gd): bridge the ui_up/ui_down (incl. gamepad D-pad)
+	# chain from %HostRow straight to %GameList's well when %SteamSection is
+	# hidden, the same way the previous version bridged past a hidden
+	# %HostOnlineButton.
+	var below_host: Control = _steam_lobby_list if available else _game_list
+	_host_button.focus_neighbor_bottom = _host_button.get_path_to(below_host)
+	_host_online_button.focus_neighbor_bottom = _host_online_button.get_path_to(below_host)
+	_game_list.focus_neighbor_top = (
+		_game_list.get_path_to(_refresh_steam_button) if available
+		else _game_list.get_path_to(_host_button)
+	)
 
 
 func _player_name() -> String:

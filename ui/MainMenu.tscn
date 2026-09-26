@@ -1,6 +1,9 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://ui/MainMenu.gd" id="1_menu"]
+[ext_resource type="Theme" path="res://ui/theme/stackfall_theme.tres" id="2_theme"]
+[ext_resource type="Script" path="res://ui/MenuDiorama.gd" id="3_diorama"]
+[ext_resource type="Script" path="res://ui/MenuBackdrop.gd" id="4_backdrop"]
 
 [node name="MainMenu" type="Control"]
 layout_mode = 3
@@ -9,27 +12,48 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme = ExtResource("2_theme")
 script = ExtResource("1_menu")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="Backdrop" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.09, 0.1, 0.13, 1)
+mouse_filter = 2
+script = ExtResource("4_backdrop")
+
+[node name="Diorama" type="SubViewportContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_diorama")
 
 [node name="Center" type="CenterContainer" parent="."]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
-anchor_right = 1.0
+anchor_right = 0.58
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
+[node name="ShadowApricot" type="Panel" parent="Center"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="ShadowMint" type="Panel" parent="Center"]
+unique_name_in_owner = true
+layout_mode = 2
+
 [node name="Panel" type="PanelContainer" parent="Center"]
+unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(420, 0)
 
@@ -37,18 +61,29 @@ custom_minimum_size = Vector2(420, 0)
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="Title" type="Label" parent="Center/Panel/Layout"]
+[node name="Title" type="RichTextLabel" parent="Center/Panel/Layout"]
+unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
-horizontal_alignment = 1
+custom_minimum_size = Vector2(0, 40)
+bbcode_enabled = true
+fit_content = true
+scroll_active = false
 text = "Stackfall"
+theme_override_font_sizes/normal_font_size = 32
+
+[node name="TitleAccent" type="ColorRect" parent="Center/Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(0, 4)
 
 [node name="NameRow" type="HBoxContainer" parent="Center/Panel/Layout"]
 layout_mode = 2
 
 [node name="NameLabel" type="Label" parent="Center/Panel/Layout/NameRow"]
+unique_name_in_owner = true
 layout_mode = 2
-text = "Name"
+theme_override_font_sizes/font_size = 12
+text = "NAME"
 
 [node name="NameEdit" type="LineEdit" parent="Center/Panel/Layout/NameRow"]
 unique_name_in_owner = true
@@ -57,27 +92,34 @@ size_flags_horizontal = 3
 placeholder_text = "Player"
 text = "Player"
 
-[node name="HostButton" type="Button" parent="Center/Panel/Layout"]
+[node name="HostRow" type="HBoxContainer" parent="Center/Panel/Layout"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="HostButton" type="Button" parent="Center/Panel/Layout/HostRow"]
 unique_name_in_owner = true
 layout_mode = 2
-focus_neighbor_bottom = NodePath("../SteamSection/HostOnlineButton")
+size_flags_horizontal = 3
+focus_neighbor_right = NodePath("../HostOnlineButton")
 text = "Host"
+
+[node name="HostOnlineButton" type="Button" parent="Center/Panel/Layout/HostRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_neighbor_left = NodePath("../HostButton")
+text = "Host online (Steam)"
 
 [node name="SteamSection" type="VBoxContainer" parent="Center/Panel/Layout"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 4
 
-[node name="HostOnlineButton" type="Button" parent="Center/Panel/Layout/SteamSection"]
+[node name="SteamLabel" type="Label" parent="Center/Panel/Layout/SteamSection"]
 unique_name_in_owner = true
 layout_mode = 2
-focus_neighbor_top = NodePath("../../HostButton")
-focus_neighbor_bottom = NodePath("../SteamListRow/SteamLobbyList")
-text = "Host online (Steam)"
-
-[node name="SteamLabel" type="Label" parent="Center/Panel/Layout/SteamSection"]
-layout_mode = 2
-text = "Steam lobbies"
+theme_override_font_sizes/font_size = 12
+text = "STEAM LOBBIES"
 
 [node name="SteamListRow" type="HBoxContainer" parent="Center/Panel/Layout/SteamSection"]
 layout_mode = 2
@@ -87,7 +129,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 90)
 layout_mode = 2
 size_flags_horizontal = 3
-focus_neighbor_top = NodePath("../../HostOnlineButton")
+focus_neighbor_top = NodePath("../../../HostRow/HostButton")
 focus_neighbor_bottom = NodePath("../RefreshSteamButton")
 
 [node name="RefreshSteamButton" type="Button" parent="Center/Panel/Layout/SteamSection/SteamListRow"]
@@ -108,8 +150,10 @@ text = "Steam not available - hidden. Host/join over LAN or direct IP below."
 layout_mode = 2
 
 [node name="JoinLabel" type="Label" parent="Center/Panel/Layout"]
+unique_name_in_owner = true
 layout_mode = 2
-text = "LAN games"
+theme_override_font_sizes/font_size = 12
+text = "LAN GAMES"
 
 [node name="ListRow" type="HBoxContainer" parent="Center/Panel/Layout"]
 layout_mode = 2
@@ -144,37 +188,48 @@ focus_neighbor_bottom = NodePath("../DirectJoinButton")
 unique_name_in_owner = true
 layout_mode = 2
 focus_neighbor_top = NodePath("../../DirectRow/DirectIpEdit")
-focus_neighbor_bottom = NodePath("../../SandboxButton")
+focus_neighbor_bottom = NodePath("../../BottomRow/SandboxButton")
 text = "Join IP"
 
 [node name="HSeparator2" type="HSeparator" parent="Center/Panel/Layout"]
 layout_mode = 2
 
-[node name="SandboxButton" type="Button" parent="Center/Panel/Layout"]
+[node name="BottomRow" type="HBoxContainer" parent="Center/Panel/Layout"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SandboxButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
 unique_name_in_owner = true
 layout_mode = 2
-focus_neighbor_top = NodePath("../DirectRow/DirectJoinButton")
-focus_neighbor_bottom = NodePath("../TutorialButton")
+size_flags_horizontal = 3
+focus_neighbor_top = NodePath("../../DirectRow/DirectJoinButton")
+focus_neighbor_right = NodePath("../TutorialButton")
 text = "Sandbox"
 
-[node name="TutorialButton" type="Button" parent="Center/Panel/Layout"]
+[node name="TutorialButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
 unique_name_in_owner = true
 layout_mode = 2
-focus_neighbor_top = NodePath("../SandboxButton")
-focus_neighbor_bottom = NodePath("../OptionsButton")
+size_flags_horizontal = 3
+focus_neighbor_top = NodePath("../../DirectRow/DirectJoinButton")
+focus_neighbor_left = NodePath("../SandboxButton")
+focus_neighbor_right = NodePath("../OptionsButton")
 text = "Tutorial"
 
-[node name="OptionsButton" type="Button" parent="Center/Panel/Layout"]
+[node name="OptionsButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
 unique_name_in_owner = true
 layout_mode = 2
-focus_neighbor_top = NodePath("../TutorialButton")
-focus_neighbor_bottom = NodePath("../QuitButton")
+size_flags_horizontal = 3
+focus_neighbor_top = NodePath("../../DirectRow/DirectJoinButton")
+focus_neighbor_left = NodePath("../TutorialButton")
+focus_neighbor_right = NodePath("../QuitButton")
 text = "Options"
 
-[node name="QuitButton" type="Button" parent="Center/Panel/Layout"]
+[node name="QuitButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
 unique_name_in_owner = true
 layout_mode = 2
-focus_neighbor_top = NodePath("../OptionsButton")
+size_flags_horizontal = 3
+focus_neighbor_top = NodePath("../../DirectRow/DirectJoinButton")
+focus_neighbor_left = NodePath("../OptionsButton")
 text = "Quit"
 
 [node name="StatusLabel" type="Label" parent="Center/Panel/Layout"]
@@ -183,3 +238,20 @@ layout_mode = 2
 autowrap_mode = 2
 modulate = Color(1, 0.6, 0.6, 1)
 text = ""
+
+[node name="GamepadHintBar" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -320.0
+offset_top = -28.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 2
+theme_override_font_sizes/font_size = 12
+horizontal_alignment = 2
+text = "(A) Select  *  (B) Back  *  Enter/Esc"

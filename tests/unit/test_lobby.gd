@@ -412,7 +412,7 @@ func test_every_loaded_special_def_gets_a_checkbox_checked_by_default() -> void:
 	for i: int in range(all_defs.size()):
 		assert_eq(lobby._special_ids[i], all_defs[i].id)
 		assert_true(lobby._special_checkboxes[i].button_pressed, "every box starts checked (all enabled)")
-	var checklist: VBoxContainer = lobby.get_node("%SpecialsChecklist")
+	var checklist: HFlowContainer = lobby.get_node("%SpecialsChecklist")
 	assert_eq(checklist.get_child_count(), all_defs.size())
 
 
@@ -532,3 +532,38 @@ func test_roster_entry_with_a_steam_persona_name_renders_unchanged() -> void:
 	var row: HBoxContainer = list.get_child(0) as HBoxContainer
 	var label: Label = row.get_child(1) as Label
 	assert_true(label.text.begins_with("SteamFriend#1234"), "a Steam persona name should render unchanged")
+
+
+# --- Focus chain (gamepad/keyboard navigability, Bontago-xtq.32) -------------------
+
+func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
+	# ui/Lobby.tscn (unlike ui/OptionsMenu.tscn) carries no static
+	# focus_neighbor_* NodePaths -- _wire_focus_chain() builds the chain at
+	# runtime once the dynamic specials checklist exists. Mirror
+	# test_options_menu.gd's test_focus_chain_is_a_closed_loop_through_every_row().
+	var lobby: Lobby = _make_lobby(true)
+
+	var start_button: Control = lobby.get_node("%StartButton") as Control
+	var map_variant_option: Control = lobby.get_node("%MapVariantOption") as Control
+	var start_bottom: Node = start_button.get_node(start_button.focus_neighbor_bottom)
+	assert_eq(start_bottom, map_variant_option, "the chain must wrap from StartButton back to MapVariantOption")
+
+	var top_neighbor: Node = map_variant_option.get_node(map_variant_option.focus_neighbor_top)
+	assert_eq(top_neighbor, start_button, "MapVariantOption's up neighbor must close the loop back to StartButton")
+
+	var chain_unique_names: Array[String] = [
+		"%MapVariantOption", "%MapSizeOption", "%PlayerCountSpin", "%AiCountSpin",
+		"%AiDifficultyOption", "%TeamModeOption", "%BlockTimerSlider", "%GravitySlider",
+		"%GoalFlagSpin", "%GiftsCheck", "%SpecialFreqSlider",
+		"%TiltModeOption", "%HoleModeOption", "%MatchTimerSpin", "%SuddenDeathCheck",
+		"%TurnBasedCheck", "%ReadyCheck", "%InviteFriendsButton", "%StartButton",
+	]
+	for unique_name: String in chain_unique_names:
+		var control: Control = lobby.get_node(unique_name) as Control
+		assert_ne(control.focus_neighbor_top, NodePath(""), "%s must have an up neighbor" % unique_name)
+		assert_ne(control.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor" % unique_name)
+
+	if not lobby._special_checkboxes.is_empty():
+		for box: CheckBox in lobby._special_checkboxes:
+			assert_ne(box.focus_neighbor_top, NodePath(""), "a specials checkbox must have an up neighbor")
+			assert_ne(box.focus_neighbor_bottom, NodePath(""), "a specials checkbox must have a down neighbor")
