@@ -1,9 +1,11 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://ui/Lobby.gd" id="1_lobby"]
 [ext_resource type="Theme" path="res://ui/theme/stackfall_theme.tres" id="2_theme"]
 [ext_resource type="Script" path="res://ui/MenuDiorama.gd" id="3_diorama"]
 [ext_resource type="Script" path="res://ui/MenuBackdrop.gd" id="4_backdrop"]
+
+[sub_resource type="ButtonGroup" id="ButtonGroup_teams"]
 
 [node name="Lobby" type="Control"]
 layout_mode = 3
@@ -55,39 +57,40 @@ theme_override_constants/separation = 16
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="TitleColumn" type="VBoxContainer" parent="Margin/Layout/Header"]
-layout_mode = 2
-theme_override_constants/separation = 0
-
-[node name="Eyebrow" type="Label" parent="Margin/Layout/Header/TitleColumn"]
+[node name="Eyebrow" type="Label" parent="Margin/Layout/Header"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 12
-text = "STACKFALL"
+size_flags_vertical = 8
+theme_type_variation = &"TitleLabel"
+theme_override_font_sizes/font_size = 22
+text = "Stackfall"
 
-[node name="HeaderTitle" type="Label" parent="Margin/Layout/Header/TitleColumn"]
+[node name="HeaderTitle" type="Label" parent="Margin/Layout/Header"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
+theme_type_variation = &"TitleLabel"
+theme_override_font_sizes/font_size = 34
 text = "Lobby"
-
-[node name="HeaderSpacer" type="Control" parent="Margin/Layout/Header"]
-layout_mode = 2
-size_flags_horizontal = 3
 
 [node name="StatusBadge" type="PanelContainer" parent="Margin/Layout/Header"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_vertical = 4
 
 [node name="StatusBadgeLabel" type="Label" parent="Margin/Layout/Header/StatusBadge"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Hosting"
 
+[node name="HeaderSpacer" type="Control" parent="Margin/Layout/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+
 [node name="BackButton" type="Button" parent="Margin/Layout/Header"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "< Back"
+size_flags_vertical = 4
+text = "‹ Back"
 
 [node name="Columns" type="HBoxContainer" parent="Margin/Layout"]
 layout_mode = 2
@@ -98,60 +101,96 @@ theme_override_constants/separation = 24
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_stretch_ratio = 2.6
 clip_contents = true
 
-[node name="SettingsScroll" type="ScrollContainer" parent="Margin/Layout/Columns/SettingsCard"]
+[node name="SettingsCardLayout" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="SettingsScroll" type="ScrollContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout"]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
 
-[node name="Settings" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll"]
+[node name="Settings" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 8
+theme_override_constants/separation = 10
 
-[node name="Title" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings"]
+[node name="Title" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 24
+theme_type_variation = &"TitleLabel"
 text = "Match settings"
 
-[node name="SettingsColumns" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings"]
+[node name="SettingsColumns" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings"]
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="SettingsLeft" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns"]
+[node name="SettingsLeft" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 6
+theme_override_constants/separation = 10
 
-[node name="MapRow" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsLeft"]
+[node name="MapSection" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft"]
 layout_mode = 2
+theme_override_constants/separation = 2
 
-[node name="MapLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsLeft/MapRow"]
+[node name="MapCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/MapSection"]
 layout_mode = 2
-custom_minimum_size = Vector2(96, 0)
-text = "Map"
+theme_type_variation = &"CaptionLabel"
+text = "MAP"
 
-[node name="MapVariantOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsLeft/MapRow"]
+[node name="MapRow" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/MapSection"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="MapThumbnail" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/MapSection/MapRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(28, 28)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="MapComboOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/MapSection/MapRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="MapSizeOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsLeft/MapRow"]
+[node name="MapVariantOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/MapSection/MapRow"]
 unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="MapSizeOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/MapSection/MapRow"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="PlayersAiSection" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="PlayersAiCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/PlayersAiSection"]
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+text = "PLAYERS / AI"
+
+[node name="PlayersAiRow" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/PlayersAiSection"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="PlayersCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/PlayersAiSection/PlayersAiRow"]
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_constants/separation = 2
 
-[node name="PlayersRow" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsLeft"]
+[node name="PlayersSubLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/PlayersAiSection/PlayersAiRow/PlayersCol"]
+unique_name_in_owner = true
 layout_mode = 2
+text = "Players"
 
-[node name="PlayersLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsLeft/PlayersRow"]
-layout_mode = 2
-custom_minimum_size = Vector2(96, 0)
-text = "Players/AI"
-
-[node name="PlayerCountSpin" type="SpinBox" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsLeft/PlayersRow"]
+[node name="PlayerCountSpin" type="SpinBox" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/PlayersAiSection/PlayersAiRow/PlayersCol"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -159,44 +198,116 @@ min_value = 2
 max_value = 8
 value = 4
 
-[node name="AiCountSpin" type="SpinBox" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsLeft/PlayersRow"]
+[node name="AiCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/PlayersAiSection/PlayersAiRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+
+[node name="AiSubLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/PlayersAiSection/PlayersAiRow/AiCol"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "AI"
+
+[node name="AiCountSpin" type="SpinBox" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/PlayersAiSection/PlayersAiRow/AiCol"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 max_value = 8
 
-[node name="AiDifficultyOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsLeft/PlayersRow"]
+[node name="AiDifficultyOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/PlayersAiSection"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="TeamsRow" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsLeft"]
+[node name="TeamsSection" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="TeamsCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/TeamsSection"]
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+text = "TEAMS"
+
+[node name="TeamsRow" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/TeamsSection"]
 layout_mode = 2
 
-[node name="TeamsLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsLeft/TeamsRow"]
+[node name="TeamModeOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/TeamsSection/TeamsRow"]
+unique_name_in_owner = true
+visible = false
 layout_mode = 2
-custom_minimum_size = Vector2(96, 0)
-text = "Teams"
+size_flags_horizontal = 3
 
-[node name="TeamModeOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsLeft/TeamsRow"]
+[node name="TeamsTrack" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/TeamsSection/TeamsRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="SettingsRight" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns"]
+[node name="TeamsSegmented" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/TeamsSection/TeamsRow/TeamsTrack"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="TeamOffButton" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/TeamsSection/TeamsRow/TeamsTrack/TeamsSegmented"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 6
+toggle_mode = true
+button_pressed = true
+button_group = SubResource("ButtonGroup_teams")
+text = "Off"
 
-[node name="BlockTimerRow" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsRight"]
+[node name="Team2Button" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/TeamsSection/TeamsRow/TeamsTrack/TeamsSegmented"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+button_group = SubResource("ButtonGroup_teams")
+text = "2 teams"
+
+[node name="Team3Button" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/TeamsSection/TeamsRow/TeamsTrack/TeamsSegmented"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+button_group = SubResource("ButtonGroup_teams")
+text = "3 teams"
+
+[node name="Team4Button" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/TeamsSection/TeamsRow/TeamsTrack/TeamsSegmented"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+button_group = SubResource("ButtonGroup_teams")
+text = "4 teams"
+
+[node name="SettingsRight" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="BlockTimerGroup" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsRight"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="BlockTimerHeader" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsRight/BlockTimerGroup"]
 layout_mode = 2
 
-[node name="BlockTimerLabelCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsRight/BlockTimerRow"]
+[node name="BlockTimerLabelCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsRight/BlockTimerGroup/BlockTimerHeader"]
 layout_mode = 2
-custom_minimum_size = Vector2(96, 0)
-text = "Block timer"
+size_flags_horizontal = 3
+theme_type_variation = &"CaptionLabel"
+text = "BLOCK TIMER"
 
-[node name="BlockTimerSlider" type="HSlider" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsRight/BlockTimerRow"]
+[node name="BlockTimerChip" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsRight/BlockTimerGroup/BlockTimerHeader"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="BlockTimerLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsRight/BlockTimerGroup/BlockTimerHeader/BlockTimerChip"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "6.0 s"
+
+[node name="BlockTimerSlider" type="HSlider" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsRight/BlockTimerGroup"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -205,21 +316,29 @@ max_value = 12.0
 step = 0.5
 value = 6.0
 
-[node name="BlockTimerLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsRight/BlockTimerRow"]
+[node name="GravityGroup" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsRight"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="GravityHeader" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsRight/GravityGroup"]
+layout_mode = 2
+
+[node name="GravityLabelCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsRight/GravityGroup/GravityHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"CaptionLabel"
+text = "GRAVITY"
+
+[node name="GravityChip" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsRight/GravityGroup/GravityHeader"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(48, 0)
-text = "6.0 s"
 
-[node name="GravityRow" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsRight"]
+[node name="GravityLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsRight/GravityGroup/GravityHeader/GravityChip"]
+unique_name_in_owner = true
 layout_mode = 2
+text = "1.00x"
 
-[node name="GravityLabelCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsRight/GravityRow"]
-layout_mode = 2
-custom_minimum_size = Vector2(96, 0)
-text = "Gravity"
-
-[node name="GravitySlider" type="HSlider" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsRight/GravityRow"]
+[node name="GravitySlider" type="HSlider" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsRight/GravityGroup"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -228,42 +347,50 @@ max_value = 2.0
 step = 0.05
 value = 1.0
 
-[node name="GravityLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsRight/GravityRow"]
+[node name="SpecialFreqGroup" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsRight"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="SpecialFreqHeader" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsRight/SpecialFreqGroup"]
+layout_mode = 2
+
+[node name="SpecialFreqLabelCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsRight/SpecialFreqGroup/SpecialFreqHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"CaptionLabel"
+text = "SPECIAL FREQUENCY"
+
+[node name="SpecialFreqChip" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsRight/SpecialFreqGroup/SpecialFreqHeader"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(48, 0)
-text = "1.00x"
 
-[node name="SpecialFreqRow" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsRight"]
+[node name="SpecialFreqLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsRight/SpecialFreqGroup/SpecialFreqHeader/SpecialFreqChip"]
+unique_name_in_owner = true
 layout_mode = 2
+text = "35"
 
-[node name="SpecialFreqLabelCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsRight/SpecialFreqRow"]
-layout_mode = 2
-custom_minimum_size = Vector2(96, 0)
-text = "Special freq."
-
-[node name="SpecialFreqSlider" type="HSlider" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsRight/SpecialFreqRow"]
+[node name="SpecialFreqSlider" type="HSlider" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsRight/SpecialFreqGroup"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 max_value = 100
 value = 35
 
-[node name="SpecialFreqLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsRight/SpecialFreqRow"]
-unique_name_in_owner = true
+[node name="GoalGiftsRow" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsRight"]
 layout_mode = 2
-custom_minimum_size = Vector2(48, 0)
-text = "35"
+theme_override_constants/separation = 8
 
-[node name="GoalFlagRow" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsRight"]
+[node name="GoalFlagCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsRight/GoalGiftsRow"]
 layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
 
-[node name="GoalFlagLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsRight/GoalFlagRow"]
+[node name="GoalFlagCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsRight/GoalGiftsRow/GoalFlagCol"]
 layout_mode = 2
-custom_minimum_size = Vector2(96, 0)
-text = "Goal flags"
+theme_type_variation = &"CaptionLabel"
+text = "GOAL FLAGS"
 
-[node name="GoalFlagSpin" type="SpinBox" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsRight/GoalFlagRow"]
+[node name="GoalFlagSpin" type="SpinBox" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsRight/GoalGiftsRow/GoalFlagCol"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -271,103 +398,121 @@ min_value = 1
 max_value = 5
 value = 1
 
-[node name="GiftsCheck" type="CheckButton" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SettingsColumns/SettingsRight/GoalFlagRow"]
+[node name="GiftsCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsRight/GoalGiftsRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+
+[node name="GiftsCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsRight/GoalGiftsRow/GiftsCol"]
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+text = "GIFTS"
+
+[node name="GiftsCheck" type="CheckButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsRight/GoalGiftsRow/GiftsCol"]
 unique_name_in_owner = true
 layout_mode = 2
 button_pressed = true
-text = "Gifts"
+text = "On"
 
-[node name="SpecialsSection" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings"]
-layout_mode = 2
-theme_override_constants/separation = 4
-
-[node name="SpecialsLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SpecialsSection"]
+[node name="AdvRulesBarPanel" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 12
-text = "Specials"
+size_flags_horizontal = 3
+size_flags_vertical = 0
 
-[node name="SpecialsChecklist" type="HFlowContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/SpecialsSection"]
+[node name="AdvRulesBar" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/h_separation = 8
-theme_override_constants/v_separation = 8
+focus_mode = 2
+text = ""
 
-[node name="AdvancedRulesSection" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings"]
+[node name="AdvRulesBarContent" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel"]
+mouse_filter = 2
 layout_mode = 2
-theme_override_constants/separation = 4
+theme_override_constants/separation = 10
 
-[node name="AdvancedRulesLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/AdvancedRulesSection"]
-unique_name_in_owner = true
+[node name="AdvRulesBarLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel/AdvRulesBarContent"]
+mouse_filter = 2
 layout_mode = 2
-theme_override_font_sizes/font_size = 12
+size_flags_vertical = 4
+theme_type_variation = &"TitleLabel"
+theme_override_font_sizes/font_size = 15
 text = "Advanced rules"
 
-[node name="AdvancedRules" type="HFlowContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/AdvancedRulesSection"]
-layout_mode = 2
-theme_override_constants/h_separation = 16
-theme_override_constants/v_separation = 8
-
-[node name="TiltCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/AdvancedRulesSection/AdvancedRules"]
-layout_mode = 2
-theme_override_constants/separation = 2
-
-[node name="TiltCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/AdvancedRulesSection/AdvancedRules/TiltCol"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 12
-text = "Tilt mode"
-
-[node name="TiltModeOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/AdvancedRulesSection/AdvancedRules/TiltCol"]
+[node name="AdvRulesChips" type="HFlowContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel/AdvRulesBarContent"]
 unique_name_in_owner = true
+mouse_filter = 2
 layout_mode = 2
-custom_minimum_size = Vector2(132, 0)
+size_flags_horizontal = 3
+size_flags_vertical = 4
+theme_override_constants/h_separation = 6
+theme_override_constants/v_separation = 6
 
-[node name="HoleCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/AdvancedRulesSection/AdvancedRules"]
+[node name="ChipTilt" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel/AdvRulesBarContent/AdvRulesChips"]
+mouse_filter = 2
 layout_mode = 2
-theme_override_constants/separation = 2
 
-[node name="HoleCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/AdvancedRulesSection/AdvancedRules/HoleCol"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 12
-text = "Hole mode"
-
-[node name="HoleModeOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/AdvancedRulesSection/AdvancedRules/HoleCol"]
+[node name="AdvChipTilt" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel/AdvRulesBarContent/AdvRulesChips/ChipTilt"]
 unique_name_in_owner = true
+mouse_filter = 2
 layout_mode = 2
-custom_minimum_size = Vector2(132, 0)
+theme_override_font_sizes/font_size = 11
+text = "Tilt: specials only"
 
-[node name="MatchTimerCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/AdvancedRulesSection/AdvancedRules"]
+[node name="ChipHole" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel/AdvRulesBarContent/AdvRulesChips"]
+mouse_filter = 2
 layout_mode = 2
-theme_override_constants/separation = 2
 
-[node name="MatchTimerCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/AdvancedRulesSection/AdvancedRules/MatchTimerCol"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 12
-text = "Match timer (0=off)"
-
-[node name="MatchTimerSpin" type="SpinBox" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/AdvancedRulesSection/AdvancedRules/MatchTimerCol"]
+[node name="AdvChipHole" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel/AdvRulesBarContent/AdvRulesChips/ChipHole"]
 unique_name_in_owner = true
+mouse_filter = 2
 layout_mode = 2
-custom_minimum_size = Vector2(96, 0)
-max_value = 40
+theme_override_font_sizes/font_size = 11
+text = "Holes: temporary"
 
-[node name="SuddenDeathCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/AdvancedRulesSection/AdvancedRules"]
+[node name="ChipTimer" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel/AdvRulesBarContent/AdvRulesChips"]
+mouse_filter = 2
 layout_mode = 2
-theme_override_constants/separation = 2
 
-[node name="SuddenDeathCheck" type="CheckButton" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/AdvancedRulesSection/AdvancedRules/SuddenDeathCol"]
+[node name="AdvChipTimer" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel/AdvRulesBarContent/AdvRulesChips/ChipTimer"]
 unique_name_in_owner = true
+mouse_filter = 2
 layout_mode = 2
-text = "Sudden death"
+theme_override_font_sizes/font_size = 11
+text = "Match timer: off"
 
-[node name="TurnBasedCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/AdvancedRulesSection/AdvancedRules"]
+[node name="ChipSudden" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel/AdvRulesBarContent/AdvRulesChips"]
+mouse_filter = 2
 layout_mode = 2
-theme_override_constants/separation = 2
 
-[node name="TurnBasedCheck" type="CheckButton" parent="Margin/Layout/Columns/SettingsCard/SettingsScroll/Settings/AdvancedRulesSection/AdvancedRules/TurnBasedCol"]
+[node name="AdvChipSudden" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel/AdvRulesBarContent/AdvRulesChips/ChipSudden"]
 unique_name_in_owner = true
+mouse_filter = 2
 layout_mode = 2
-text = "Turn-based"
+theme_override_font_sizes/font_size = 11
+text = "Sudden death: off"
+
+[node name="ChipTurn" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel/AdvRulesBarContent/AdvRulesChips"]
+mouse_filter = 2
+layout_mode = 2
+
+[node name="AdvChipTurn" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel/AdvRulesBarContent/AdvRulesChips/ChipTurn"]
+unique_name_in_owner = true
+mouse_filter = 2
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Turn-based: off"
+
+[node name="ChipSpecials" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel/AdvRulesBarContent/AdvRulesChips"]
+mouse_filter = 2
+layout_mode = 2
+
+[node name="AdvChipSpecials" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel/AdvRulesBarContent/AdvRulesChips/ChipSpecials"]
+unique_name_in_owner = true
+mouse_filter = 2
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Specials: 9/9"
 
 [node name="PlayersCard" type="PanelContainer" parent="Margin/Layout/Columns"]
 unique_name_in_owner = true
@@ -384,7 +529,7 @@ layout_mode = 2
 
 [node name="Title" type="Label" parent="Margin/Layout/Columns/PlayersCard/Players/TitleRow"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 24
+theme_type_variation = &"TitleLabel"
 text = "Players"
 
 [node name="PlayersTitleSpacer" type="Control" parent="Margin/Layout/Columns/PlayersCard/Players/TitleRow"]
@@ -401,19 +546,11 @@ text = "0 / 8"
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
+theme_override_constants/separation = 8
 
 [node name="Footer" type="HBoxContainer" parent="Margin/Layout/Columns/PlayersCard/Players"]
 layout_mode = 2
 theme_override_constants/separation = 12
-
-[node name="ReadyCheck" type="CheckButton" parent="Margin/Layout/Columns/PlayersCard/Players/Footer"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Ready"
-
-[node name="FooterSpacer" type="Control" parent="Margin/Layout/Columns/PlayersCard/Players/Footer"]
-layout_mode = 2
-size_flags_horizontal = 3
 
 [node name="InviteFriendsButton" type="Button" parent="Margin/Layout/Columns/PlayersCard/Players/Footer"]
 unique_name_in_owner = true
@@ -421,25 +558,212 @@ layout_mode = 2
 visible = false
 text = "Invite Friends"
 
-[node name="StartButton" type="Button" parent="Margin/Layout/Columns/PlayersCard/Players/Footer"]
+[node name="FooterSpacer" type="Control" parent="Margin/Layout/Columns/PlayersCard/Players/Footer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ReadyCheck" type="CheckButton" parent="Margin/Layout/Columns/PlayersCard/Players/Footer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Ready"
+
+[node name="BottomBar" type="HBoxContainer" parent="Margin/Layout"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="WaitingStatusPill" type="PanelContainer" parent="Margin/Layout/BottomBar"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="WaitingStatusLabel" type="Label" parent="Margin/Layout/BottomBar/WaitingStatusPill"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "● Waiting for players"
+
+[node name="BottomBarSpacer" type="Control" parent="Margin/Layout/BottomBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="StartButton" type="Button" parent="Margin/Layout/BottomBar"]
 unique_name_in_owner = true
 layout_mode = 2
 disabled = true
-text = "Start"
+custom_minimum_size = Vector2(0, 48)
+text = "▷ Start Match"
 
-[node name="GamepadHintBar" type="Label" parent="."]
+[node name="GamepadHintPill" type="PanelContainer" parent="."]
 unique_name_in_owner = true
+visible = false
 layout_mode = 1
 anchors_preset = 3
 anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -320.0
-offset_top = -28.0
+offset_left = -340.0
+offset_top = -44.0
+offset_right = -16.0
+offset_bottom = -16.0
 grow_horizontal = 0
 grow_vertical = 0
 mouse_filter = 2
-theme_override_font_sizes/font_size = 12
+
+[node name="GamepadHintBar" type="Label" parent="GamepadHintPill"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"CaptionLabel"
 horizontal_alignment = 2
 text = "(A) Select  *  (B) Back  *  Enter/Esc"
+
+[node name="AdvancedPopup" type="Control" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+
+[node name="AdvancedPopupDim" type="ColorRect" parent="AdvancedPopup"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+color = Color(0.05, 0.06, 0.08, 0.55)
+
+[node name="AdvancedPopupCenter" type="CenterContainer" parent="AdvancedPopup"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="AdvancedPopupCard" type="PanelContainer" parent="AdvancedPopup/AdvancedPopupCenter"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(620, 0)
+
+[node name="AdvancedPopupLayout" type="VBoxContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="AdvancedPopupHeader" type="HBoxContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout"]
+layout_mode = 2
+
+[node name="AdvancedRulesLabel" type="Label" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedPopupHeader"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+text = "Advanced rules"
+
+[node name="AdvancedPopupHeaderSpacer" type="Control" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedPopupHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="AdvancedPopupClose" type="Button" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedPopupHeader"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Done"
+
+[node name="SpecialsSection" type="VBoxContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="SpecialsLabel" type="Label" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/SpecialsSection"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+text = "Specials"
+
+[node name="SpecialsChecklist" type="HFlowContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/SpecialsSection"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+
+[node name="AdvancedRulesGridSection" type="VBoxContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="AdvancedRulesGridLabel" type="Label" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection"]
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+text = "Rules"
+
+[node name="AdvancedRules" type="HFlowContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection"]
+layout_mode = 2
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 8
+
+[node name="TiltCol" type="VBoxContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="TiltCaption" type="Label" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules/TiltCol"]
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+theme_override_font_sizes/font_size = 12
+text = "Tilt mode"
+
+[node name="TiltModeOption" type="OptionButton" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules/TiltCol"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+
+[node name="HoleCol" type="VBoxContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="HoleCaption" type="Label" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules/HoleCol"]
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+theme_override_font_sizes/font_size = 12
+text = "Hole mode"
+
+[node name="HoleModeOption" type="OptionButton" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules/HoleCol"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+
+[node name="MatchTimerCol" type="VBoxContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="MatchTimerCaption" type="Label" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules/MatchTimerCol"]
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+theme_override_font_sizes/font_size = 12
+text = "Match timer (0=off)"
+
+[node name="MatchTimerSpin" type="SpinBox" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules/MatchTimerCol"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(110, 0)
+max_value = 40
+
+[node name="SuddenDeathCol" type="VBoxContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="SuddenDeathCheck" type="CheckButton" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules/SuddenDeathCol"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Sudden death"
+
+[node name="TurnBasedCol" type="VBoxContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="TurnBasedCheck" type="CheckButton" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules/TurnBasedCol"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Turn-based"

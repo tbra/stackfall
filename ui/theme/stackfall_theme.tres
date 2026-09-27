@@ -1,4 +1,31 @@
-[gd_resource type="Theme" load_steps=13 format=3]
+[gd_resource type="Theme" load_steps=18 format=3]
+
+[ext_resource type="FontFile" path="res://assets/ui/fonts/Manrope-Regular.ttf" id="1_font"]
+
+[sub_resource type="FontVariation" id="FontVariation_regular"]
+base_font = ExtResource("1_font")
+variation_opentype = {
+2003265652: 640.0
+}
+
+[sub_resource type="FontVariation" id="FontVariation_bold"]
+base_font = ExtResource("1_font")
+variation_opentype = {
+2003265652: 700.0
+}
+
+[sub_resource type="FontVariation" id="FontVariation_extrabold"]
+base_font = ExtResource("1_font")
+variation_opentype = {
+2003265652: 800.0
+}
+
+[sub_resource type="FontVariation" id="FontVariation_caption"]
+base_font = ExtResource("1_font")
+variation_opentype = {
+2003265652: 700.0
+}
+spacing_glyph = 2
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
 bg_color = Color(0.96, 0.92, 0.84, 0.98)
@@ -66,7 +93,7 @@ border_width_left = 3
 border_width_top = 3
 border_width_right = 3
 border_width_bottom = 3
-border_color = Color(0.2, 0.16, 0.14, 1)
+border_color = Color(0.149, 0.196, 0.227, 1)
 corner_radius_top_left = 16
 corner_radius_top_right = 16
 corner_radius_bottom_right = 16
@@ -126,8 +153,12 @@ corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 
 [resource]
+default_font = SubResource("FontVariation_regular")
 default_font_size = 16
-Label/colors/font_color = Color(0.2, 0.16, 0.14, 1)
+Label/colors/font_color = Color(0.149, 0.196, 0.227, 1)
+RichTextLabel/fonts/normal_font = SubResource("FontVariation_regular")
+RichTextLabel/fonts/bold_font = SubResource("FontVariation_extrabold")
+Button/fonts/font = SubResource("FontVariation_bold")
 Panel/styles/panel = SubResource("StyleBoxFlat_panel")
 PanelContainer/styles/panel = SubResource("StyleBoxFlat_panel")
 Button/styles/normal = SubResource("StyleBoxFlat_button_normal")
@@ -143,16 +174,22 @@ CheckButton/styles/normal = SubResource("StyleBoxFlat_check_bg")
 CheckButton/styles/hover = SubResource("StyleBoxFlat_check_bg")
 CheckButton/styles/pressed = SubResource("StyleBoxFlat_check_bg")
 CheckButton/styles/focus = SubResource("StyleBoxFlat_focus")
-CheckButton/colors/font_color = Color(0.2, 0.16, 0.14, 1)
-CheckBox/colors/font_color = Color(0.2, 0.16, 0.14, 1)
+CheckButton/colors/font_color = Color(0.149, 0.196, 0.227, 1)
+CheckBox/colors/font_color = Color(0.149, 0.196, 0.227, 1)
 OptionButton/styles/normal = SubResource("StyleBoxFlat_field")
 OptionButton/styles/hover = SubResource("StyleBoxFlat_field")
 OptionButton/styles/pressed = SubResource("StyleBoxFlat_field")
+OptionButton/styles/disabled = SubResource("StyleBoxFlat_field")
 OptionButton/styles/focus = SubResource("StyleBoxFlat_focus")
-OptionButton/colors/font_color = Color(0.2, 0.16, 0.14, 1)
+OptionButton/colors/font_color = Color(0.149, 0.196, 0.227, 1)
+OptionButton/colors/font_hover_color = Color(0.149, 0.196, 0.227, 1)
+OptionButton/colors/font_pressed_color = Color(0.149, 0.196, 0.227, 1)
+OptionButton/colors/font_focus_color = Color(0.149, 0.196, 0.227, 1)
+OptionButton/colors/font_hover_pressed_color = Color(0.149, 0.196, 0.227, 1)
+OptionButton/colors/font_disabled_color = Color(0.5, 0.52, 0.54, 1)
 LineEdit/styles/normal = SubResource("StyleBoxFlat_field")
 LineEdit/styles/focus = SubResource("StyleBoxFlat_focus")
-LineEdit/colors/font_color = Color(0.2, 0.16, 0.14, 1)
+LineEdit/colors/font_color = Color(0.149, 0.196, 0.227, 1)
 LineEdit/colors/font_placeholder_color = Color(0.5, 0.45, 0.4, 0.8)
 SpinBox/styles/up_background = SubResource("StyleBoxFlat_field")
 SpinBox/styles/down_background = SubResource("StyleBoxFlat_field")
@@ -162,5 +199,13 @@ HSlider/styles/grabber_area_highlight = SubResource("StyleBoxFlat_slider_fill")
 HSlider/styles/focus = SubResource("StyleBoxFlat_focus")
 ItemList/styles/panel = SubResource("StyleBoxFlat_itemlist")
 ItemList/styles/focus = SubResource("StyleBoxFlat_focus")
-ItemList/colors/font_color = Color(0.2, 0.16, 0.14, 1)
+ItemList/colors/font_color = Color(0.149, 0.196, 0.227, 1)
 ItemList/colors/font_selected_color = Color(0.98, 0.96, 0.94, 1)
+TitleLabel/base_type = &"Label"
+TitleLabel/fonts/font = SubResource("FontVariation_extrabold")
+TitleLabel/font_sizes/font_size = 28
+TitleLabel/colors/font_color = Color(0.149, 0.196, 0.227, 1)
+CaptionLabel/base_type = &"Label"
+CaptionLabel/fonts/font = SubResource("FontVariation_caption")
+CaptionLabel/font_sizes/font_size = 11
+CaptionLabel/colors/font_color = Color(0.4, 0.44, 0.47, 1)

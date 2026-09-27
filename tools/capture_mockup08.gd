@@ -27,6 +27,16 @@ const BLUE: Color = Color(0.12, 0.42, 0.95)
 
 var _out_dir: String = "res://feedback/overhaul/latest"
 var _only: PackedStringArray = PackedStringArray()
+## Bontago-mp0.3.5: `--size=WxH` override for FRAME_SIZE, so a 1920x1080 pass
+## doesn't require a second copy of this tool -- the brief's own "you may add
+## a --size=WxH arg ... you own that small change". Defaults to FRAME_SIZE
+## unchanged when absent.
+var _frame_size: Vector2i = FRAME_SIZE
+## Bontago-mp0.3.5 (review r3): `--lobby-advanced` saves one extra
+## "<tag>-lobby-advanced.png" frame with the Lobby's Advanced Rules popup
+## open (docs/art_mockups/11-lobby-layered-pastel.png's own modal), right
+## after the plain "lobby" frame -- own small change per the brief.
+var _lobby_advanced: bool = false
 
 
 func _ready() -> void:
@@ -36,6 +46,12 @@ func _ready() -> void:
 			_out_dir = text.substr(4)
 		elif text.begins_with("only="):
 			_only = text.substr(5).split(",")
+		elif text.begins_with("size="):
+			var parts: PackedStringArray = text.substr(5).split("x")
+			if parts.size() == 2 and parts[0].is_valid_int() and parts[1].is_valid_int():
+				_frame_size = Vector2i(int(parts[0]), int(parts[1]))
+		elif text == "lobby-advanced":
+			_lobby_advanced = true
 	if not _out_dir.begins_with("res://") and not _out_dir.contains(":"):
 		_out_dir = "res://" + _out_dir
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_out_dir))
@@ -50,7 +66,7 @@ func _save(frame: String) -> void:
 	# The game's Settings autoload may restore a saved fullscreen/size, so
 	# force the capture size right before each frame.
 	get_window().mode = Window.MODE_WINDOWED
-	get_window().size = FRAME_SIZE
+	get_window().size = _frame_size
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
@@ -62,7 +78,7 @@ func _save(frame: String) -> void:
 
 func _capture() -> void:
 	get_window().mode = Window.MODE_WINDOWED
-	get_window().size = FRAME_SIZE
+	get_window().size = _frame_size
 	var main: Node = (load("res://game/Main.tscn") as PackedScene).instantiate()
 	get_tree().root.add_child.call_deferred(main)
 	await get_tree().process_frame
@@ -75,6 +91,12 @@ func _capture() -> void:
 		Net.host_game(0, "Mira")
 		await get_tree().create_timer(1.0).timeout
 		await _save("lobby")
+		if _lobby_advanced:
+			var lobby: Lobby = _find_lobby(get_tree().root)
+			if lobby != null:
+				lobby.debug_open_advanced_rules_popup()
+				await get_tree().process_frame
+				await _save("lobby-advanced")
 
 	if _wants("overview") or _wants("player"):
 		var config: MatchConfig = main.get("match_config") as MatchConfig
@@ -142,6 +164,20 @@ func _frame_overview(main: Node) -> void:
 		back = -back
 	camera.global_position = focus + back * radius * 1.25 + Vector3.UP * radius * 0.8
 	camera.look_at(focus + Vector3.DOWN * radius * 0.15)
+
+
+## Depth-first search for the (single) live Lobby instance game/Main.gd
+## builds when Net.host_game() is called above -- this tool has no scene
+## path of its own into game/Main.gd's node tree (mirrors ui/Lobby.gd's own
+## "no node paths into game/Main.gd" rule).
+func _find_lobby(node: Node) -> Lobby:
+	if node is Lobby:
+		return node as Lobby
+	for child: Node in node.get_children():
+		var found: Lobby = _find_lobby(child)
+		if found != null:
+			return found
+	return null
 
 
 func _home(slot_id: int) -> Vector2:

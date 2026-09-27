@@ -136,9 +136,12 @@ func test_steam_section_hidden_and_notice_shown_when_steam_unavailable() -> void
 	_fake_of(menu).steam_available_value = false
 	menu._apply_steam_availability()
 	assert_false((menu.get_node("%SteamSection") as VBoxContainer).visible)
-	assert_true((menu.get_node("%SteamUnavailableLabel") as Label).visible)
 	var host_online_button: Button = menu.get_node("%HostOnlineButton")
 	assert_true(host_online_button.disabled, "Host Online must be disabled while Steam is unavailable")
+	# Bontago-mp0.3.5 (review r1, item 4): the paragraph-length "Steam not
+	# available" notice is gone -- the disabled pill's own tooltip explains why
+	# instead of a permanent block of text in the card.
+	assert_ne(host_online_button.tooltip_text, "", "a disabled Host Online pill must explain itself via tooltip")
 	var host_button: Button = menu.get_node("%HostButton")
 	var game_list: Control = menu.get_node("%GameList")
 	assert_eq(
@@ -156,9 +159,9 @@ func test_steam_section_shown_and_notice_hidden_when_steam_available() -> void:
 	_fake_of(menu).steam_available_value = true
 	menu._apply_steam_availability()
 	assert_true((menu.get_node("%SteamSection") as VBoxContainer).visible)
-	assert_false((menu.get_node("%SteamUnavailableLabel") as Label).visible)
 	var host_online_button: Button = menu.get_node("%HostOnlineButton")
 	assert_false(host_online_button.disabled, "Host Online must be enabled once Steam is available")
+	assert_eq(host_online_button.tooltip_text, "", "an enabled Host Online pill needs no explanatory tooltip")
 	var host_button: Button = menu.get_node("%HostButton")
 	var steam_lobby_list: Control = menu.get_node("%SteamLobbyList")
 	assert_eq(

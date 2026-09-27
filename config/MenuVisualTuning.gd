@@ -12,17 +12,27 @@ extends Resource
 ## -- Diorama framing: the SubViewportContainer is reframed into a small,
 ## framed rectangle in the right third of the screen (gap item 1), instead of
 ## filling the whole background. Fractions of the parent Control's rect. -----
-@export var diorama_anchor_left: float = 0.62
-@export var diorama_anchor_top: float = 0.08
-@export var diorama_anchor_right: float = 0.97
-@export var diorama_anchor_bottom: float = 0.60
+@export var diorama_anchor_left: float = 0.48
+@export var diorama_anchor_top: float = 0.05
+@export var diorama_anchor_right: float = 0.99
+@export var diorama_anchor_bottom: float = 0.82
 
 ## -- Diorama island (a floating layered-plate disk, not a plain sand disk) ---
-@export var disk_radius_m: float = 3.2
+@export var disk_radius_m: float = 3.6
 @export var disk_thickness_m: float = 0.35
 @export var disk_color: Color = Color(0.22, 0.30, 0.34, 1.0)
 @export var island_rim_color: Color = Color(0.86, 0.90, 0.88, 1.0)
 @export var island_rim_height_m: float = 0.05
+## -- Two-tier disc + ground shadow (review r1, item 7) -----------------------
+@export var disk_lower_tier_color: Color = Color(0.14, 0.20, 0.24, 1.0)
+@export var disk_lower_tier_radius_scale: float = 0.94
+@export var disk_lower_tier_height_scale: float = 2.2
+## review r2 item (a): lighter (was 0.28), bigger and softer via a radial
+## fade texture, and dropped much further below the disc (drop_m) so it reads
+## as a ground shadow, not a halo hugging the rim.
+@export var disk_ground_shadow_color: Color = Color(0.10, 0.12, 0.14, 0.20)
+@export var disk_ground_shadow_radius_scale: float = 1.35
+@export var disk_ground_shadow_drop_m: float = 1.1
 
 ## -- Diorama sky/lighting (the live-3D half of the split background) --------
 @export var sky_top_color: Color = Color(0.53, 0.72, 0.86, 1.0)
@@ -66,8 +76,11 @@ extends Resource
 ## itself, contradicting that file's own "every color, count and layout
 ## fraction it draws from is a MenuVisualTuning export" docstring.
 @export var backdrop_sky_band_count: int = 24
-@export var backdrop_sun_color: Color = Color(0.98, 0.86, 0.55, 1.0)
-@export var backdrop_sun_ring_color: Color = Color(0.99, 0.93, 0.74, 1.0)
+## Sun gradient (review r1, item 7): 3-stop core->ring->halo instead of a
+## flat 2-color alternation, so the sun reads orange/peach, not yellow.
+@export var backdrop_sun_color: Color = Color(0.95, 0.55, 0.22, 1.0)
+@export var backdrop_sun_ring_color: Color = Color(0.98, 0.75, 0.55, 1.0)
+@export var backdrop_sun_halo_color: Color = Color(0.99, 0.92, 0.85, 0.55)
 @export var backdrop_sun_ring_count: int = 4
 @export var backdrop_sun_radius_fraction: float = 0.16
 @export var backdrop_sun_pos_x_fraction: float = 0.74
@@ -115,6 +128,14 @@ extends Resource
 @export var pill_powder_blue_hover_color: Color = Color(0.68, 0.81, 0.91, 1.0)
 @export var pill_dark_slate_color: Color = Color(0.24, 0.28, 0.32, 1.0)
 @export var pill_dark_slate_hover_color: Color = Color(0.32, 0.37, 0.42, 1.0)
+## Bontago-mp0.3.5 (lobby popup pass): a true near-white for the Players
+## card's raised row pills (mockup 11) -- pill_cream_hover_color is the exact
+## same value as card_cream_color, so a row painted with it reads as
+## invisible against its own card (the review r2 "no pill background" bug).
+## Not registered in config/tuning_panel_hints.tres: MenuVisualTuning has no
+## F4 tab yet (ui/TuningPanel.gd's own "MenuVisualTuning is not merged yet
+## and has no tab" comment), so the hints-file rule doesn't apply here.
+@export var pill_white_color: Color = Color(1.0, 0.995, 0.98, 1.0)
 @export var well_color: Color = Color(0.88, 0.84, 0.76, 1.0)
 @export var well_border_color: Color = Color(0.78, 0.68, 0.52, 1.0)
 @export var well_corner_radius_px: float = 10.0
@@ -134,5 +155,11 @@ extends Resource
 
 ## -- Shared panel/focus palette ----------------------------------------------
 @export var panel_border_color: Color = Color(0.78, 0.68, 0.52, 1.0)
-@export var focus_outline_color: Color = Color(0.20, 0.16, 0.14, 1.0)
-@export var ink_color: Color = Color(0.20, 0.16, 0.14, 1.0)
+@export var focus_outline_color: Color = Color(0.149, 0.196, 0.227, 1.0)
+@export var ink_color: Color = Color(0.149, 0.196, 0.227, 1.0)
+
+## -- Title treatment (Bontago-mp0.3.5 review r1): a soft offset shadow copy
+## behind "Stackfall" / "Lobby" -- ui/MainMenu.gd's %TitleShadow RichTextLabel
+## and ui/Lobby.gd's %HeaderTitle shadow override both read this.
+@export var title_shadow_color: Color = Color(0.95, 0.80, 0.64, 1.0)
+@export var title_shadow_offset_px: Vector2 = Vector2(3.0, 4.0)

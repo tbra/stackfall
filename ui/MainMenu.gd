@@ -61,6 +61,10 @@ const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
 @onready var _center: CenterContainer = %Center
 @onready var _game_list: ItemList = %GameList
 @onready var _refresh_button: Button = %RefreshButton
+## Bontago-mp0.3.5 (review r1, item 5): the sunken "well" card wrapping the
+## header row + %GameList + %DirectRow -- one sunken panel instead of a
+## standalone tall Refresh button and separator lines.
+@onready var _lan_games_well: PanelContainer = %LanGamesWell
 @onready var _direct_ip_edit: LineEdit = %DirectIpEdit
 @onready var _direct_join_button: Button = %DirectJoinButton
 @onready var _status_label: Label = %StatusLabel
@@ -73,9 +77,24 @@ const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
 @onready var _shadow_apricot: Panel = %ShadowApricot
 @onready var _shadow_mint: Panel = %ShadowMint
 @onready var _title: RichTextLabel = %Title
+## Bontago-mp0.3.5 (review r1, item 2): a solid-color offset copy behind
+## %Title, giving "Stackfall" the mockup's soft drop-shadow instead of flat
+## two-tone text. Positioned in _apply_visual_style() from tuning.title_shadow_offset_px.
+@onready var _title_shadow: RichTextLabel = %TitleShadow
 @onready var _title_accent: ColorRect = %TitleAccent
 @onready var _name_label: Label = %NameLabel
 @onready var _join_label: Label = %JoinLabel
+## Bontago-mp0.3.5: mockup 10's bottom-right controller hint is a pill, not a
+## bare Label -- %GamepadHintPill wraps the existing %GamepadHintBar Label in
+## a PanelContainer so it reads as a chip instead of floating text.
+@onready var _gamepad_hint_pill: PanelContainer = %GamepadHintPill
+@onready var _glyph_a: PanelContainer = %GlyphA
+@onready var _glyph_a_label: Label = %GlyphALabel
+@onready var _glyph_b: PanelContainer = %GlyphB
+@onready var _glyph_b_label: Label = %GlyphBLabel
+@onready var _select_label: Label = %SelectLabel
+@onready var _back_label: Label = %BackLabel
+@onready var _keyboard_label: Label = %KeyboardLabel
 
 ## M3b (docs/M3b_PLAN.md P3): the Steam section vs. the "not available" notice
 ## (spec 3.4: "Hide the online menu entries and show a notice").
@@ -83,7 +102,7 @@ const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
 @onready var _host_online_button: Button = %HostOnlineButton
 @onready var _steam_lobby_list: ItemList = %SteamLobbyList
 @onready var _refresh_steam_button: Button = %RefreshSteamButton
-@onready var _steam_unavailable_label: Label = %SteamUnavailableLabel
+@onready var _empty_state_label: Label = %EmptyStateLabel
 
 var _games: Array[Dictionary] = []
 var _steam_lobbies: Array[Dictionary] = []
@@ -172,14 +191,24 @@ func _on_sound_button_hovered() -> void:
 ## (_sync_shadow_card_sizes(), hooked to %Panel's own `resized` signal since
 ## %SteamSection toggling visibility changes the front card's height).
 func _apply_visual_style() -> void:
-	# DECISION (ui/MainMenu.gd, Bontago-xtq.32 redo, gap item 3): mockup 10's
-	# title is a bespoke two-tone block-cube wordmark (individual cube glyphs).
-	# Reproduced here as bold two-tone BBCode text in the shared font instead
-	# of building per-letter cube meshes/glyphs -- captures the two-tone split
-	# without a new glyph-authoring pipeline; disclosed as a simplification.
-	_title.text = "[img=40x48]res://assets/ui/stackfall_mark.svg[/img] [font_size=42][b][color=#%s]Stack[/color][color=#%s]fall[/color][/b][/font_size]" % [
-		tuning.ink_color.to_html(false), tuning.pill_coral_color.to_html(false),
+	# DECISION (ui/MainMenu.gd, Bontago-mp0.3.5 review r2, item b): mockup 10's
+	# wordmark is a single dark colour ("Stackfall" all one tone) with only
+	# the offset shadow copy carrying the peach accent -- the earlier two-tone
+	# coral "fall" (Bontago-xtq.32 redo's own simplification of a bespoke
+	# block-cube wordmark) is dropped in favor of matching that single-colour
+	# read exactly.
+	_title.text = "[img=40x48]res://assets/ui/stackfall_mark.svg[/img] [font_size=44][b][color=#%s]Stackfall[/color][/b][/font_size]" % [
+		tuning.ink_color.to_html(false),
 	]
+	# Bontago-mp0.3.5 (review r1, item 2): a solid peach/coral silhouette copy
+	# of the same text, offset by tuning.title_shadow_offset_px and drawn
+	# first (it's TitleWrap's first child), reading as a soft drop shadow
+	# behind the real two-tone title.
+	_title_shadow.text = "[img=40x48]res://assets/ui/stackfall_mark.svg[/img] [font_size=44][b][color=#%s]Stackfall[/color][/b][/font_size]" % [
+		tuning.title_shadow_color.to_html(false),
+	]
+	_title_shadow.position = tuning.title_shadow_offset_px
+	_title_shadow.modulate.a = 0.9
 	_title_accent.color = tuning.pill_coral_color
 	_title_accent.hide()
 	_name_label.add_theme_color_override("font_color", tuning.label_muted_color)
@@ -191,8 +220,13 @@ func _apply_visual_style() -> void:
 	_front_card.resized.connect(_sync_shadow_card_sizes)
 	call_deferred("_sync_shadow_card_sizes")
 
-	_game_list.add_theme_stylebox_override("panel", MenuStyleFactory.make_well(tuning))
+	_lan_games_well.add_theme_stylebox_override("panel", MenuStyleFactory.make_well(tuning))
+	_game_list.add_theme_stylebox_override("panel", MenuStyleFactory.make_flat_list(tuning))
 	_steam_lobby_list.add_theme_stylebox_override("panel", MenuStyleFactory.make_well(tuning))
+	_name_edit.add_theme_stylebox_override("normal", MenuStyleFactory.make_well(tuning))
+	_name_edit.add_theme_stylebox_override("focus", MenuStyleFactory.make_well(tuning))
+	_direct_ip_edit.add_theme_stylebox_override("normal", MenuStyleFactory.make_flat_list(tuning))
+	_direct_ip_edit.add_theme_stylebox_override("focus", MenuStyleFactory.make_flat_list(tuning))
 
 	MenuStyleFactory.apply_pill(_host_button, tuning.pill_coral_color, tuning.pill_coral_hover_color, tuning.label_ink_light_color, tuning)
 	MenuStyleFactory.apply_pill(_host_online_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
@@ -203,6 +237,11 @@ func _apply_visual_style() -> void:
 	MenuStyleFactory.apply_pill(_tutorial_button, tuning.pill_powder_blue_color, tuning.pill_powder_blue_hover_color, tuning.ink_color, tuning)
 	MenuStyleFactory.apply_pill(_options_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
 	MenuStyleFactory.apply_pill(_quit_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
+	_gamepad_hint_pill.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_cream_color, tuning))
+	MenuStyleFactory.apply_glyph_circle(_glyph_a, _glyph_a_label, tuning)
+	MenuStyleFactory.apply_glyph_circle(_glyph_b, _glyph_b_label, tuning)
+	for label: Label in [_select_label, _back_label, _keyboard_label]:
+		label.add_theme_color_override("font_color", tuning.ink_color)
 
 
 ## Shift the painted back cards diagonally while retaining container layout.
@@ -335,6 +374,10 @@ func _rebuild_game_list() -> void:
 			int(game.get("port", 0)),
 		]
 		_game_list.add_item(label)
+	# Bontago-mp0.3.5 (review r1, item 5): "Searching for games..." inside the
+	# well instead of a blank white box while LAN discovery has found nothing
+	# yet.
+	_empty_state_label.visible = _games.is_empty()
 
 
 func _rebuild_steam_lobby_list() -> void:
@@ -349,15 +392,20 @@ func _rebuild_steam_lobby_list() -> void:
 		_steam_lobby_list.add_item(label)
 
 
-## Toggles the Steam section vs. the "not available" notice (spec 3.4: "Hide
+## Toggles the Steam section vs. a disabled Host Online pill (spec 3.4: "Hide
 ## the online menu entries and show a notice"). Reads net_provider directly
 ## rather than taking a bool parameter, so a test can mutate a FakeNet's
 ## `steam_available_value` and re-call this the same way test_lobby.gd
 ## re-calls `_update_host_only_state()` after mutating its fake.
+##
+## Bontago-mp0.3.5 (review r1, item 4): the old permanent "Steam not
+## available - hidden. Host/join over LAN or direct IP below." paragraph is
+## gone -- %HostOnlineButton's own tooltip carries that explanation only when
+## it's actually disabled, instead of a standing block of card-width text.
 func _apply_steam_availability() -> void:
 	var available: bool = net_provider != null and bool(net_provider.steam_available())
 	_steam_section.visible = available
-	_steam_unavailable_label.visible = not available
+	_host_online_button.tooltip_text = "" if available else "Steam not available -- host/join over LAN or direct IP below."
 	# DECISION (ui/MainMenu.gd, Bontago-xtq.32 redo, gap item 4): %HostOnlineButton
 	# now stays in its %HostRow slot beside %HostButton always -- "hidden/disabled
 	# ... same layout slot kept" -- so only %SteamSection (the lobby list below
