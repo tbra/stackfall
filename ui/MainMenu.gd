@@ -100,9 +100,18 @@ const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
 ## (spec 3.4: "Hide the online menu entries and show a notice").
 @onready var _steam_section: VBoxContainer = %SteamSection
 @onready var _host_online_button: Button = %HostOnlineButton
+## Bontago-mp0.3.7: the sunken "well" card wrapping the Steam header row +
+## %SteamLobbyList -- same one-sunken-panel treatment as %LanGamesWell
+## (Bontago-mp0.3.5 review r1, item 5), replacing the old standalone tall
+## "Refresh" button + bare sunken %SteamLobbyList.
+@onready var _steam_games_well: PanelContainer = %SteamGamesWell
 @onready var _steam_lobby_list: ItemList = %SteamLobbyList
 @onready var _refresh_steam_button: Button = %RefreshSteamButton
 @onready var _empty_state_label: Label = %EmptyStateLabel
+## Bontago-mp0.3.7: "No lobbies yet" inside the Steam well while
+## _steam_lobbies is empty, mirroring %EmptyStateLabel's own role for
+## %GameList (_rebuild_game_list()'s own "blank white box" fix).
+@onready var _steam_empty_state_label: Label = %SteamEmptyStateLabel
 
 var _games: Array[Dictionary] = []
 var _steam_lobbies: Array[Dictionary] = []
@@ -222,7 +231,11 @@ func _apply_visual_style() -> void:
 
 	_lan_games_well.add_theme_stylebox_override("panel", MenuStyleFactory.make_well(tuning))
 	_game_list.add_theme_stylebox_override("panel", MenuStyleFactory.make_flat_list(tuning))
-	_steam_lobby_list.add_theme_stylebox_override("panel", MenuStyleFactory.make_well(tuning))
+	# Bontago-mp0.3.7: %SteamGamesWell is the sunken card (like %LanGamesWell);
+	# %SteamLobbyList itself is the flat white list inside it (like %GameList),
+	# not a second sunken box.
+	_steam_games_well.add_theme_stylebox_override("panel", MenuStyleFactory.make_well(tuning))
+	_steam_lobby_list.add_theme_stylebox_override("panel", MenuStyleFactory.make_flat_list(tuning))
 	_name_edit.add_theme_stylebox_override("normal", MenuStyleFactory.make_well(tuning))
 	_name_edit.add_theme_stylebox_override("focus", MenuStyleFactory.make_well(tuning))
 	_direct_ip_edit.add_theme_stylebox_override("normal", MenuStyleFactory.make_flat_list(tuning))
@@ -390,6 +403,9 @@ func _rebuild_steam_lobby_list() -> void:
 			str(lobby.get("map", "")),
 		]
 		_steam_lobby_list.add_item(label)
+	# Bontago-mp0.3.7: "No lobbies yet" inside the well instead of a blank
+	# white box, the same _rebuild_game_list() fix for %GameList.
+	_steam_empty_state_label.visible = _steam_lobbies.is_empty()
 
 
 ## Toggles the Steam section vs. a disabled Host Online pill (spec 3.4: "Hide
@@ -426,6 +442,25 @@ func _apply_steam_availability() -> void:
 		_game_list.get_path_to(_refresh_steam_button) if available
 		else _game_list.get_path_to(_host_button)
 	)
+
+
+## Bontago-mp0.3.7 (capture-only): tools/capture_mockup08.gd's own
+## `--force-steam-ui` flag calls this to show %SteamSection on a machine
+## where Steam isn't actually available, mirroring ui/Lobby.gd's
+## debug_open_advanced_rules_popup() -- a capture/test-only seam, not a
+## player-facing feature. [param sample_lobby] fills the well with one
+## placeholder row so the row style is visible too; false leaves it on the
+## "No lobbies yet" empty state.
+func debug_force_steam_ui(sample_lobby: bool = true) -> void:
+	_steam_section.visible = true
+	_host_online_button.tooltip_text = ""
+	_host_online_button.disabled = false
+	if sample_lobby:
+		_on_steam_lobbies_discovered([
+			{"lobby_id": 1, "name": "Alice's lobby", "players": 2, "max": 8, "map": "Round"},
+		])
+	else:
+		_on_steam_lobbies_discovered([])
 
 
 func _player_name() -> String:

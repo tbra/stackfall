@@ -42,6 +42,11 @@ var _lobby_advanced: bool = false
 # overview frame's camera placement for one that faces
 # config/sun_flare.tres's sun_direction instead of the red/blue home axis.
 var _face_sun: bool = false
+## Bontago-mp0.3.7: capture-only way to see ui/MainMenu.gd's %SteamSection
+## look on a machine where Steam isn't actually available -- calls
+## MainMenu.debug_force_steam_ui() right before the "menu" frame. Owned per
+## the assignment's own "you own that small change".
+var _force_steam_ui: bool = false
 
 
 func _ready() -> void:
@@ -59,6 +64,8 @@ func _ready() -> void:
 			_lobby_advanced = true
 		elif text == "face-sun":
 			_face_sun = true
+		elif text == "force-steam-ui":
+			_force_steam_ui = true
 	if not _out_dir.begins_with("res://") and not _out_dir.contains(":"):
 		_out_dir = "res://" + _out_dir
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_out_dir))
@@ -93,6 +100,11 @@ func _capture() -> void:
 	await get_tree().create_timer(SETTLE_S).timeout
 
 	if _wants("menu"):
+		if _force_steam_ui:
+			var main_menu: MainMenu = main.get("_main_menu") as MainMenu
+			if main_menu != null:
+				main_menu.debug_force_steam_ui()
+				await get_tree().process_frame
 		await _save("menu")
 	if _wants("lobby"):
 		Net.host_game(0, "Mira")
