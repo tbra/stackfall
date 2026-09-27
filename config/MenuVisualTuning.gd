@@ -114,7 +114,13 @@ extends Resource
 ## previous `0.12 * tuning.card_shadow_alpha` literal.
 @export var card_shadow_base_alpha: float = 0.12
 @export var card_shadow_size_px: float = 6.0
-@export var card_content_margin_px: float = 20.0
+## DECISION (config/MenuVisualTuning.gd, Bontago-1pi.9a): 20 -> 26. Owner
+## playtest ("too big and crammed, needs to be more airy and calm") --
+## MenuStyleFactory.make_card() reads this as every card's inner padding
+## (ui/MainMenu.gd's %Panel, ui/Lobby.gd's %SettingsCard/%PlayersCard/
+## %AdvancedPopupCard), so a single bump gives every card more breathing room
+## around its content without touching per-screen layout code.
+@export var card_content_margin_px: float = 26.0
 
 ## -- Varied pastel pill buttons + sunken wells (gap items 4, 5, 6) -----------
 @export var pill_coral_color: Color = Color(0.92, 0.42, 0.36, 1.0)
@@ -141,7 +147,12 @@ extends Resource
 @export var well_corner_radius_px: float = 10.0
 ## The rest of ui/theme/MenuStyleFactory.gd's make_well() (review finding #4).
 @export var well_border_width_px: float = 2.0
-@export var well_content_margin_px: float = 8.0
+## DECISION (config/MenuVisualTuning.gd, Bontago-1pi.9a): 8 -> 10, the same
+## "airier, calmer" pass as card_content_margin_px above -- make_well()/
+## make_flat_list() read this for every sunken list/field's own inner padding
+## (the LAN/Steam game lists, the direct-IP field, the block-timer/gravity/
+## special-frequency slider tracks).
+@export var well_content_margin_px: float = 10.0
 @export var label_ink_light_color: Color = Color(0.97, 0.95, 0.92, 1.0)
 ## Small-caps-style grey field captions ("NAME", "LAN GAMES", gap item 3).
 @export var label_muted_color: Color = Color(0.55, 0.52, 0.48, 1.0)

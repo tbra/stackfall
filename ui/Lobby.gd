@@ -388,6 +388,11 @@ func _connect_control_signals() -> void:
 	_tilt_mode_option.item_selected.connect(_on_option_changed)
 	_hole_mode_option.item_selected.connect(_on_option_changed)
 	_player_count_spin.value_changed.connect(_on_value_changed)
+	# Bontago-1pi.9b: a seat-count edit can shrink the room left for bots, so
+	# this recomputes %AiCountSpin's own max_value on every host edit too, not
+	# only on a roster event (_on_roster_changed already covers "a human
+	# joined/left"; this covers "the host changed the seat count").
+	_player_count_spin.value_changed.connect(func(_v: float) -> void: _clamp_ai_count_to_seats())
 	_ai_count_spin.value_changed.connect(_on_value_changed)
 	_block_timer_slider.value_changed.connect(_on_value_changed)
 	_gravity_slider.value_changed.connect(_on_value_changed)
@@ -896,6 +901,11 @@ func _apply_data(data: Dictionary) -> void:
 	_apply_enabled_specials_to_checkboxes(config.enabled_specials)
 	_applying_remote_data = false
 	_update_advanced_rules_summary()
+	# Bontago-1pi.9b: re-bound %AiCountSpin's max after every value assignment
+	# above (player_count and ai_count both just moved, possibly from a wire
+	# value that predates this clamp) -- see _clamp_ai_count_to_seats()'s own
+	# header for why this can't just live in _mirror_player_count_to_peers().
+	_clamp_ai_count_to_seats()
 
 	if data.has("roster"):
 		_apply_roster(data["roster"])
@@ -944,27 +954,42 @@ func _build_roster(config: MatchConfig) -> Array[Dictionary]:
 			"name": str(info.get("name", "")),
 			"ready": bool(info.get("ready", false)),
 		})
-	# M5 P4 (docs/M5_PLAN.md): one synthetic row per bot seat, slot_id running
-	# from player_count - ai_count to player_count - 1 -- the same formula
-	# autoload/match/MatchLifecycle.gd's _build_slots() uses for
-	# PlayerSlot.is_bot, so the lobby preview and the real match slots never
-	# disagree about which ids are bots. A bot has no connected peer behind
-	# it to ready up, so ready is always true; Net.all_peers_ready() only
-	# ever iterates real peers (its own header), so this can never let an
-	# unready human's Start gate open.
+	roster.append_array(_bot_roster_entries(config))
+	return roster
+
+
+## M5 P4 (docs/M5_PLAN.md): one synthetic row per bot seat, slot_id running
+## from player_count - ai_count to player_count - 1 -- the same formula
+## autoload/match/MatchLifecycle.gd's _build_slots() uses for
+## PlayerSlot.is_bot, so the lobby preview and the real match slots never
+## disagree about which ids are bots. A bot has no connected peer behind it
+## to ready up, so ready is always true; Net.all_peers_ready() only ever
+## iterates real peers (its own header), so this can never let an unready
+## human's Start gate open.
+##
+## Split out of _build_roster() (Bontago-1pi.9b) so _apply_roster() can
+## re-derive "how many bots exist right now" from [param config] alone,
+## instead of trusting an incoming roster's own bot rows -- a live
+## Events.net_roster_changed payload (autoload/Net.gd's _broadcast_roster())
+## never includes them, only _build_roster()'s own outbound publish does, so
+## the two payload shapes used to disagree about whether bots were "in" the
+## roster at all (see _apply_roster()'s own header for the confusion that
+## caused).
+func _bot_roster_entries(config: MatchConfig) -> Array[Dictionary]:
+	var bots: Array[Dictionary] = []
 	var difficulty: String = _AI_DIFFICULTY_LABELS[
 		clampi(config.ai_difficulty, 0, _AI_DIFFICULTY_LABELS.size() - 1)
 	]
 	var bot_start: int = config.player_count - config.ai_count
 	for slot_id: int in range(bot_start, config.player_count):
 		var bot_index: int = slot_id - bot_start + 1
-		roster.append({
+		bots.append({
 			"peer_id": -1,
 			"slot_id": slot_id,
 			"name": "Bot %d (%s)" % [bot_index, difficulty],
 			"ready": true,
 		})
-	return roster
+	return bots
 
 
 ## Bontago-mp0.3.5 (review r2, item 4): one white pill row per roster entry --
@@ -1050,15 +1075,43 @@ func _build_player_row(entry: Dictionary, ready: bool) -> PanelContainer:
 	return row
 
 
+## DECISION (ui/Lobby.gd, Bontago-1pi.9b): owner playtest -- "the right panel
+## lists 'players+bots'/'players', I can add bots up to the player limit" --
+## traced to two different roster payload shapes landing here: Net's own
+## live roster events (autoload/Net.gd's _broadcast_roster(), reached via
+## _on_roster_changed) never include bot rows (Net has no concept of
+## ai_count), while a full lobby-data apply's own _build_roster() roster
+## does. Whichever happened to run last decided whether the header (and the
+## row list) showed bots at all, even though ai_count itself hadn't changed
+## -- read by the owner as an inconsistent, confusing count. [param
+## roster_data] now only ever supplies the human rows (bot rows inside it,
+## if any, are dropped and rebuilt); _bot_roster_entries(_last_config) is the
+## single source of truth for the bot rows actually drawn, on every call
+## path alike.
 func _apply_roster(roster_data: Variant) -> void:
-	var roster: Array = roster_data as Array
-	_player_count_label.text = "%d / %d" % [roster.size(), int(_player_count_spin.value)]
+	var incoming: Array = roster_data as Array
+	var humans: Array[Dictionary] = []
+	for entry_variant: Variant in incoming:
+		var entry: Dictionary = entry_variant as Dictionary
+		if int(entry.get("peer_id", -1)) != -1:
+			humans.append(entry)
+	var bots: Array[Dictionary] = (
+		_bot_roster_entries(_last_config) if _last_config != null else []
+	)
+	var display_roster: Array[Dictionary] = humans.duplicate()
+	display_roster.append_array(bots)
+
+	# "3 players * 2 bots * 5/8 seats" (or, with no bots, "3 players * 3/8
+	# seats") -- unambiguous about how many of each are seated, unlike the
+	# old bare "roster.size() / seats" this replaces.
+	var seats: int = int(_player_count_spin.value)
+	_player_count_label.text = _format_roster_header(humans.size(), bots.size(), seats)
+
 	for row: Node in _player_rows:
 		row.queue_free()
 	_player_rows.clear()
 	var ready_count: int = 0
-	for entry_variant: Variant in roster:
-		var entry: Dictionary = entry_variant as Dictionary
+	for entry: Dictionary in display_roster:
 		var ready: bool = bool(entry.get("ready", false))
 		if ready:
 			ready_count += 1
@@ -1069,8 +1122,21 @@ func _apply_roster(roster_data: Variant) -> void:
 	# pill ("Waiting for players * 3 of 4 ready"), derived from the exact
 	# roster rows just drawn above rather than a second net_provider query.
 	_waiting_status_label.text = "%s Waiting for players %s %d of %d ready" % [
-		char(0x25CF), char(0xB7), ready_count, roster.size(),
+		char(0x25CF), char(0xB7), ready_count, display_roster.size(),
 	]
+
+
+## DECISION (ui/Lobby.gd, Bontago-1pi.9b): "3 players" (plural handled),
+## "2 bots" only appended when there are any (a 0-bot lobby doesn't need to
+## announce that), then the seat fraction against [param seats] -- the
+## player_count spin's own current value, i.e. how many seats this lobby is
+## configured for, not a hardcoded MatchConfig.PLAYER_COUNT_MAX.
+func _format_roster_header(humans: int, bots: int, seats: int) -> String:
+	var human_word: String = "player" if humans == 1 else "players"
+	if bots <= 0:
+		return "%d %s · %d/%d seats" % [humans, human_word, humans, seats]
+	var bot_word: String = "bot" if bots == 1 else "bots"
+	return "%d %s · %d %s · %d/%d seats" % [humans, human_word, bots, bot_word, humans + bots, seats]
 
 
 ## DECISION (ui/Lobby.gd, Bontago-mv0.6): Events.net_roster_changed's payload
@@ -1083,6 +1149,13 @@ func _apply_roster(roster_data: Variant) -> void:
 ## the late-joiner snapshot _apply_data() already handles).
 func _on_roster_changed(roster: Array[Dictionary]) -> void:
 	_mirror_player_count_to_peers(roster.size())
+	# Bontago-1pi.9b: a human joining/leaving changes how many seats are left
+	# for bots even when the host never touches %PlayerCountSpin itself (e.g.
+	# player_count already sits above the connected-peer count to leave bot
+	# headroom) -- _mirror_player_count_to_peers() above only republishes the
+	# spin when the seat count itself needs to move, so this clamp call is
+	# not redundant with it.
+	_clamp_ai_count_to_seats()
 	_apply_roster(roster)
 
 
@@ -1104,15 +1177,47 @@ func _republish_roster_if_host() -> void:
 ## DECISION); _on_start_pressed() below is the authoritative clamp (it runs
 ## even if a roster event was somehow missed), so this is display-only —
 ## keeping the spin from ever *showing* a count the match is about to
-## override the moment Start is pressed. Bots don't exist until M5, so until
-## then the spin simply tracks the peer count exactly rather than letting a
-## host pre-configure a headroom no bot can fill yet.
+## override the moment Start is pressed.
+##
+## DECISION (ui/Lobby.gd, Bontago-1pi.9b): this used to force
+## `_player_count_spin.value = peer_count` outright ("Bots don't exist until
+## M5, so ... the spin simply tracks the peer count exactly" -- true when it
+## was written, false now that M5 shipped ai_count). Left as-is, every human
+## join/leave would silently erase any seat headroom a host had set aside
+## for bots (seats == humans exactly => 0 room left), directly breaking the
+## owner's "I can add bots up to the player limit" expectation. Mirrors
+## MatchConfig.clamp_to_connected_peers()'s own "humans outrank bots, but an
+## existing bot count is preserved if there's room" rule instead: the seat
+## count only ever grows to admit every connected human, and shrinks no
+## further than the greater of the peer count or (peers + existing bots).
 func _mirror_player_count_to_peers(peer_count: int) -> void:
 	if net_provider == null or not bool(net_provider.is_host()):
 		return
-	var target: int = clampi(peer_count, MatchConfig.PLAYER_COUNT_MIN, MatchConfig.PLAYER_COUNT_MAX)
+	var wanted_total: int = clampi(peer_count + int(_ai_count_spin.value), peer_count, MatchConfig.PLAYER_COUNT_MAX)
+	var target: int = clampi(wanted_total, MatchConfig.PLAYER_COUNT_MIN, MatchConfig.PLAYER_COUNT_MAX)
 	if int(_player_count_spin.value) != target:
 		_player_count_spin.value = target
+
+
+## Bontago-1pi.9b: owner playtest ("I can add bots up to the player limit")
+## found the bot count could silently exceed the number of empty seats --
+## nothing stopped ai_count + connected humans from exceeding player_count.
+## Recomputes %AiCountSpin's own max_value from the current seat count minus
+## the connected-peer count; Range.set_max() re-clamps a current value above
+## the new max on its own (Godot core, `Range::set_max` calls `set_value()`),
+## so this is the single place that both bounds future edits and corrects an
+## already-too-high value the moment seats shrink or a human joins. Called
+## from _mirror_player_count_to_peers()'s own callers (a roster event) and
+## from every %PlayerCountSpin edit (_connect_control_signals()) and
+## _apply_data() (so a value that arrives over the wire is bounded here too,
+## on host and client alike -- harmless on a client since its controls are
+## already disabled).
+func _clamp_ai_count_to_seats() -> void:
+	if net_provider == null:
+		return
+	var seats: int = int(_player_count_spin.value)
+	var humans: int = net_provider.peer_ids().size()
+	_ai_count_spin.max_value = maxi(0, seats - humans)
 
 
 func _on_ready_toggled(pressed: bool) -> void:
