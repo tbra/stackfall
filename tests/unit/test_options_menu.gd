@@ -42,6 +42,7 @@ func after_each() -> void:
 	if InputMap.has_action(_test_action):
 		InputMap.erase_action(_test_action)
 	Settings.set_config_path_for_test(DEFAULT_SETTINGS_CFG_PATH)
+	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
 
 
 ## A fresh temp cfg path per call (not one shared filename) -- _make_menu()
@@ -206,6 +207,49 @@ func test_options_menu_builds_one_row_per_rebindable_action() -> void:
 		assert_eq(rows[i].action_name(), OptionsMenu.REBINDABLE_ACTIONS[i])
 
 
+# --- Settings/Controls tabs (Bontago-1pi.10) ----------------------------------------
+
+func test_settings_tab_is_selected_by_default() -> void:
+	var menu: OptionsMenu = _make_menu()
+	assert_true((menu.get_node("%SettingsPage") as Control).visible)
+	assert_false((menu.get_node("%ControlsPage") as Control).visible)
+
+
+func test_pressing_the_controls_tab_shows_the_controls_page_and_hides_settings() -> void:
+	var menu: OptionsMenu = _make_menu()
+	(menu.get_node("%ControlsTabButton") as Button).button_pressed = true
+	assert_true((menu.get_node("%ControlsPage") as Control).visible)
+	assert_false((menu.get_node("%SettingsPage") as Control).visible)
+
+
+func test_pressing_the_settings_tab_again_switches_back() -> void:
+	var menu: OptionsMenu = _make_menu()
+	(menu.get_node("%ControlsTabButton") as Button).button_pressed = true
+	(menu.get_node("%SettingsTabButton") as Button).button_pressed = true
+	assert_true((menu.get_node("%SettingsPage") as Control).visible)
+	assert_false((menu.get_node("%ControlsPage") as Control).visible)
+
+
+# --- Footer/device hint (owner: "show a device hint in the footer ... matching
+# the active device") ----------------------------------------------------------------
+
+func test_footer_hint_and_controls_label_default_to_keyboard_mouse() -> void:
+	var menu: OptionsMenu = _make_menu()
+	assert_eq((menu.get_node("%FooterHintLabel") as Label).text, OptionsMenu.FOOTER_HINT_KEYBOARD_MOUSE)
+	assert_eq((menu.get_node("%ControlsDeviceLabel") as Label).text, OptionsMenu.CONTROLS_LABEL_KEYBOARD_MOUSE)
+
+
+func test_footer_hint_and_controls_label_switch_live_when_the_active_device_changes() -> void:
+	var menu: OptionsMenu = _make_menu()
+	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+	assert_eq((menu.get_node("%FooterHintLabel") as Label).text, OptionsMenu.FOOTER_HINT_GAMEPAD)
+	assert_eq((menu.get_node("%ControlsDeviceLabel") as Label).text, OptionsMenu.CONTROLS_LABEL_GAMEPAD)
+
+	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
+	assert_eq((menu.get_node("%FooterHintLabel") as Label).text, OptionsMenu.FOOTER_HINT_KEYBOARD_MOUSE)
+	assert_eq((menu.get_node("%ControlsDeviceLabel") as Label).text, OptionsMenu.CONTROLS_LABEL_KEYBOARD_MOUSE)
+
+
 # --- Focus chain (gamepad/keyboard navigability) -----------------------------------
 
 func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
@@ -331,6 +375,60 @@ func test_capturing_a_gamepad_event_calls_set_key_override() -> void:
 	assert_eq((events[0] as InputEventJoypadButton).button_index, JOY_BUTTON_A)
 
 	_delete_if_exists(cfg_path)
+
+
+# --- KeyRebindRow: device-filtered glyphs (Bontago-1pi.10) --------------------------
+## Owner: "default to only showing mouse/keyboard, switch to showing only
+## gamepad options on gamepad input and switch back on mouse/keyboard input."
+## _test_action starts with no bound events at all (before_each only adds a
+## bare action), so each test below binds exactly the events it needs first.
+
+func test_row_shows_a_glyph_per_keyboard_mouse_binding_by_default() -> void:
+	InputMap.action_add_event(_test_action, _make_key_event(KEY_F9))
+	InputMap.action_add_event(_test_action, _make_joy_event(JOY_BUTTON_A))
+
+	var row: KeyRebindRow = _make_row()
+	var glyph_row: HBoxContainer = row.get_node("%GlyphRow") as HBoxContainer
+	assert_eq(glyph_row.get_child_count(), 1, "only the keyboard/mouse binding should show while that device is active")
+	assert_true(row.visible)
+
+
+func test_row_switches_to_the_gamepad_glyph_when_the_active_device_changes() -> void:
+	InputMap.action_add_event(_test_action, _make_key_event(KEY_F9))
+	InputMap.action_add_event(_test_action, _make_joy_event(JOY_BUTTON_A))
+
+	var row: KeyRebindRow = _make_row()
+	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+
+	var glyph_row: HBoxContainer = row.get_node("%GlyphRow") as HBoxContainer
+	assert_eq(glyph_row.get_child_count(), 1)
+	var glyph: InputGlyph = glyph_row.get_child(0) as InputGlyph
+	assert_eq(glyph.label_text(), "A")
+	assert_true(row.visible)
+
+
+func test_row_shows_no_glyph_but_stays_visible_when_the_active_device_has_no_binding() -> void:
+	InputMap.action_add_event(_test_action, _make_key_event(KEY_F9))
+	# No gamepad binding at all for this action.
+
+	var row: KeyRebindRow = _make_row()
+	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+
+	var glyph_row: HBoxContainer = row.get_node("%GlyphRow") as HBoxContainer
+	assert_eq(glyph_row.get_child_count(), 0, "no gamepad glyph exists for this action")
+	assert_true(row.visible, "the row itself (and its Rebind button) must stay usable, not disappear")
+
+
+func _make_key_event(keycode: Key) -> InputEventKey:
+	var event: InputEventKey = InputEventKey.new()
+	event.keycode = keycode
+	return event
+
+
+func _make_joy_event(button_index: JoyButton) -> InputEventJoypadButton:
+	var event: InputEventJoypadButton = InputEventJoypadButton.new()
+	event.button_index = button_index
+	return event
 
 
 func _delete_if_exists(path: String) -> void:

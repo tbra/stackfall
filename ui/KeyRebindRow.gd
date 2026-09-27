@@ -14,16 +14,28 @@ signal rebind_captured(action: StringName, event: InputEvent)
 const LISTENING_TEXT: String = "Press a key..."
 const REBIND_TEXT: String = "Rebind"
 
+const INPUT_GLYPH_SCENE: PackedScene = preload("res://ui/InputGlyph.tscn")
+
 @onready var _action_label: Label = %ActionLabel
 @onready var _binding_label: Label = %BindingLabel
+@onready var _glyph_row: HBoxContainer = %GlyphRow
 @onready var _rebind_button: Button = %RebindButton
 
 var _action: StringName = &""
 var _listening: bool = false
 
 
+## Bontago-1pi.10 (owner: "default to only showing mouse/keyboard, switch to
+## showing only gamepad options on gamepad input"): live-refreshes this row's
+## glyphs whenever the player's last-used device changes, without the
+## OptionsMenu that built this row needing to rebuild the whole list.
 func _ready() -> void:
 	_rebind_button.pressed.connect(_on_rebind_pressed)
+	Events.input_device_changed.connect(_on_input_device_changed)
+
+
+func _on_input_device_changed(_device: StringName) -> void:
+	_refresh_glyphs()
 
 
 ## Called once by OptionsMenu right after instancing this row, the same
@@ -122,6 +134,40 @@ func _cancel_listening() -> void:
 func _refresh_binding_label() -> void:
 	_rebind_button.text = REBIND_TEXT
 	_binding_label.text = _binding_text(_action)
+	_refresh_glyphs()
+
+
+## Bontago-1pi.10: rebuilds %GlyphRow from only the events of the active
+## device family (autoload/Settings.gd's own active_input_device()) -- the
+## "only showing mouse/keyboard, switch to showing only gamepad" behavior the
+## owner asked for. A row with no binding at all for the active family (the
+## K+M-only rows tools/bootstrap_project.gd never gave a gamepad binding,
+## e.g. rotate_drag/lock_vertical/camera_mode/camera_orbit -- see
+## ui/OptionsMenu.gd's own REBINDABLE_ACTIONS doc) is left visible with an
+## empty glyph row -- still a real, rebindable row for that device, the same
+## way _binding_text() below already shows a neutral "(unbound)" state rather
+## than disappearing.
+func _refresh_glyphs() -> void:
+	for child: Node in _glyph_row.get_children():
+		_glyph_row.remove_child(child)
+		child.queue_free()
+
+	for event: InputEvent in _events_for_active_device():
+		var glyph: InputGlyph = INPUT_GLYPH_SCENE.instantiate() as InputGlyph
+		_glyph_row.add_child(glyph)
+		glyph.set_event(event)
+
+
+func _events_for_active_device() -> Array[InputEvent]:
+	var want_gamepad: bool = Settings.active_input_device() == Settings.DEVICE_GAMEPAD
+	var matched: Array[InputEvent] = []
+	if not InputMap.has_action(_action):
+		return matched
+	for event: InputEvent in InputMap.action_get_events(_action):
+		var is_gamepad: bool = event is InputEventJoypadButton or event is InputEventJoypadMotion
+		if is_gamepad == want_gamepad:
+			matched.append(event)
+	return matched
 
 
 func _binding_text(action: StringName) -> String:
