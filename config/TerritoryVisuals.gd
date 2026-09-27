@@ -103,7 +103,7 @@ extends Resource
 ## grain that "shows up" specifically where the disc catches the sun.
 ## Amplitude of the NORMAL tilt the grain applies; 0 disables it entirely
 ## (a perfectly flat normal, exactly the old behavior).
-@export var top_grain_strength: float = 0.05
+@export var top_grain_strength: float = 0.0
 ## Spatial frequency, in cycles per meter, of the coarse "plank" bands.
 ## Lower reads as fewer, wider bands; higher as many narrow ones.
 @export var top_grain_scale: float = 0.35
@@ -115,7 +115,7 @@ extends Resource
 ## disk_roughness above); 0 disables it. Sign-symmetric (the grain height is
 ## centered on 0), so this only ever varies the reflection's sharpness in
 ## fine streaks, never dulls or polishes the disc as a whole.
-@export var top_grain_roughness_strength: float = 0.12
+@export var top_grain_roughness_strength: float = 0.0
 
 ## -- Sun-facing sheen / diffuse cooling (Bontago-mp0.3.8, owner: "the disc
 ## top reads flat maroon-brown, mockup is dark cool graphite/black lacquer

@@ -358,6 +358,12 @@ extends Resource
 ## function's own DECISION comments.
 @export var spawn_clearance: float = 0.15
 
+## Owner 2026-09-27 (Bontago-1pi.4 playtest: "Camera did not stay put. Just
+## disable the clear stack feature for now"): master switch for the raise
+## above. Off by default; the feature and its tests stay intact behind it
+## until the follow-up bead revisits it.
+@export var spawn_clearance_enabled: bool = false
+
 ## -- Throw aim (M4 P2e, docs/M4_P2_PACKAGES.md P2e; spec 2.5 "Throw
 ## (specials only)") ----------------------------------------------------------
 ## Ghost tint while game/PlayerController.gd's is_aiming_throw() is true

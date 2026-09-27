@@ -80,13 +80,13 @@ extends Resource
 ## StandardMaterial3D.anisotropy / the chamfer shader's own ANISOTROPY output
 ## -- 0 disables the anisotropic brushed-metal specular streak entirely
 ## (a plain isotropic GGX highlight).
-@export var surface_anisotropy: float = 0.6
+@export var surface_anisotropy: float = 0.0
 ## Strength (BaseMaterial3D.normal_scale / the chamfer shader's own
 ## NORMAL_MAP_DEPTH) of the generated fine-noise normal map -- how strongly
 ## it perturbs the surface normal, and so how visible the resulting specular
 ## sparkle is in the sun sheen. 0 disables the bump entirely (a perfectly
 ## smooth normal).
-@export var surface_noise_strength: float = 0.35
+@export var surface_noise_strength: float = 0.0
 ## FastNoiseLite.frequency for the generated normal-map texture -- higher
 ## reads as a finer, tighter grain; lower as broad, soft undulations.
 @export var surface_noise_frequency: float = 0.35

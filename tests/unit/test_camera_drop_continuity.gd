@@ -83,6 +83,10 @@ func _make_controller_with_rig() -> Dictionary:
 	var ghost: GhostPreview = autofree(GhostPreview.new())
 	add_child_autofree(ghost)
 	var controller: PlayerController = autofree(PlayerController.new())
+	# Bontago-1pi.4: spawn clearance is off by default now; these tests cover
+	# the feature itself, so enable it on a private copy of the tuning.
+	controller.ghost_tuning = controller.ghost_tuning.duplicate() as GhostTuning
+	controller.ghost_tuning.spawn_clearance_enabled = true
 	add_child_autofree(controller)
 	controller._ghost = ghost
 	var rig: CameraRig = autofree(load("res://game/CameraRig.tscn").instantiate())
