@@ -27,6 +27,11 @@ const BLUE: Color = Color(0.12, 0.42, 0.95)
 
 var _out_dir: String = "res://feedback/overhaul/latest"
 var _only: PackedStringArray = PackedStringArray()
+## Bontago-mp0.3.5: `--size=WxH` override for FRAME_SIZE, so a 1920x1080 pass
+## doesn't require a second copy of this tool -- the brief's own "you may add
+## a --size=WxH arg ... you own that small change". Defaults to FRAME_SIZE
+## unchanged when absent.
+var _frame_size: Vector2i = FRAME_SIZE
 
 
 func _ready() -> void:
@@ -36,6 +41,10 @@ func _ready() -> void:
 			_out_dir = text.substr(4)
 		elif text.begins_with("only="):
 			_only = text.substr(5).split(",")
+		elif text.begins_with("size="):
+			var parts: PackedStringArray = text.substr(5).split("x")
+			if parts.size() == 2 and parts[0].is_valid_int() and parts[1].is_valid_int():
+				_frame_size = Vector2i(int(parts[0]), int(parts[1]))
 	if not _out_dir.begins_with("res://") and not _out_dir.contains(":"):
 		_out_dir = "res://" + _out_dir
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_out_dir))
@@ -50,7 +59,7 @@ func _save(frame: String) -> void:
 	# The game's Settings autoload may restore a saved fullscreen/size, so
 	# force the capture size right before each frame.
 	get_window().mode = Window.MODE_WINDOWED
-	get_window().size = FRAME_SIZE
+	get_window().size = _frame_size
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await RenderingServer.frame_post_draw
@@ -62,7 +71,7 @@ func _save(frame: String) -> void:
 
 func _capture() -> void:
 	get_window().mode = Window.MODE_WINDOWED
-	get_window().size = FRAME_SIZE
+	get_window().size = _frame_size
 	var main: Node = (load("res://game/Main.tscn") as PackedScene).instantiate()
 	get_tree().root.add_child.call_deferred(main)
 	await get_tree().process_frame

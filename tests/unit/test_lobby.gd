@@ -22,6 +22,16 @@ func _fake_of(lobby: Lobby) -> FakeNet:
 	return lobby.net_provider as FakeNet
 
 
+## Bontago-mp0.3.5 (review r2, item 4): walks a player-row PanelContainer
+## (ui/Lobby.gd's _build_player_row()) down to its Ready/Not ready badge
+## Label -- layout is the row's only child, the badge is layout's 3rd child
+## (icon, text_column, badge), and the Label is the badge's own only child.
+func _row_badge_label(row: PanelContainer) -> Label:
+	var layout: HBoxContainer = row.get_child(0) as HBoxContainer
+	var badge: PanelContainer = layout.get_child(2) as PanelContainer
+	return badge.get_child(0) as Label
+
+
 # --- Round trip ----------------------------------------------------------------
 
 func test_host_changing_a_setting_publishes_lobby_data() -> void:
@@ -30,6 +40,54 @@ func test_host_changing_a_setting_publishes_lobby_data() -> void:
 	var calls: Array[Dictionary] = _fake_of(lobby).set_lobby_data_calls
 	assert_eq(calls.size(), 1)
 	assert_eq(int(calls[0].get("player_count")), 6)
+
+
+## Bontago-mp0.3.5 (mockup 11's TEAMS segmented control): pressing one of the
+## four visible buttons writes into the hidden %TeamModeOption and publishes
+## exactly like any other host edit -- ui/Lobby.gd's own _on_team_button_pressed().
+func test_host_pressing_a_team_segmented_button_publishes_lobby_data() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	(lobby.get_node("%Team3Button") as Button).emit_signal("pressed")
+	var calls: Array[Dictionary] = _fake_of(lobby).set_lobby_data_calls
+	assert_eq(calls.size(), 1)
+	assert_eq(int(calls[0].get("team_mode")), MatchConfig.TeamMode.TEAMS_3)
+	assert_eq((lobby.get_node("%TeamModeOption") as OptionButton).selected, MatchConfig.TeamMode.TEAMS_3)
+
+
+## Bontago-mp0.3.5 (review r2, item 1): %MapComboOption's own handler decodes
+## a combined "variant * size" index back into the hidden %MapVariantOption/
+## %MapSizeOption (index = variant * MAP_SIZE_LABELS.size() + size) and
+## publishes exactly like any other host edit.
+func test_host_selecting_a_map_combo_entry_publishes_the_decoded_variant_and_size() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	# Ring (index 2) * Large (index 2 of 3): combo index = 2 * 3 + 2 = 8.
+	lobby._on_map_combo_selected(8)
+	var calls: Array[Dictionary] = _fake_of(lobby).set_lobby_data_calls
+	assert_eq(calls.size(), 1)
+	assert_eq(int(calls[0].get("map_variant")), MatchConfig.MapVariant.RING)
+	assert_eq(int(calls[0].get("map_size")), int(MapDef.MapSize.LARGE))
+	assert_eq((lobby.get_node("%MapVariantOption") as OptionButton).selected, MatchConfig.MapVariant.RING)
+	assert_eq((lobby.get_node("%MapSizeOption") as OptionButton).selected, int(MapDef.MapSize.LARGE))
+
+
+## Bontago-mp0.3.5 (review r1, item 12): Net.host_game() populates its own
+## HOST_PEER_ID entry directly and only emits net_mode_changed (not
+## net_roster_changed / a lobby-data publish), so a Lobby opened right after
+## hosting used to sit at "0 / N" with no rows until a second peer actually
+## joined. ui/Lobby.gd's _ready() now calls _republish_roster_if_host() once
+## on its own -- this test drives that exact call against a FakeNet standing
+## in for a freshly hosted, peerless-so-far session (the host's own peer_id
+## already in slots_by_peer, matching Net.host_game()'s own _peers seed).
+func test_republish_roster_if_host_draws_the_hosts_own_row_with_no_other_peers() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var fake: FakeNet = _fake_of(lobby)
+	fake.slots_by_peer = {1: 0}
+	fake.names_by_peer = {1: "Mira"}
+	lobby._republish_roster_if_host()
+	var list: VBoxContainer = lobby.get_node("%PlayerList")
+	assert_eq(list.get_child_count(), 1, "the host's own row must appear without waiting for a second peer")
+	var count_label: Label = lobby.get_node("%PlayerCountLabel")
+	assert_true(count_label.text.begins_with("1 / "))
 
 
 func test_every_2_8_setting_round_trips_through_to_dict_and_from_dict() -> void:
@@ -60,6 +118,8 @@ func test_every_2_8_setting_round_trips_through_to_dict_and_from_dict() -> void:
 	assert_eq(int((lobby.get_node("%AiCountSpin") as SpinBox).value), 3)
 	assert_eq((lobby.get_node("%AiDifficultyOption") as OptionButton).selected, MatchConfig.AiDifficulty.HARD)
 	assert_eq((lobby.get_node("%TeamModeOption") as OptionButton).selected, MatchConfig.TeamMode.TEAMS_2)
+	assert_true((lobby.get_node("%Team2Button") as Button).button_pressed, "the segmented control mirrors a remote team_mode update")
+	assert_false((lobby.get_node("%TeamOffButton") as Button).button_pressed)
 	assert_almost_eq((lobby.get_node("%BlockTimerSlider") as HSlider).value, 9.5, 0.01)
 	assert_almost_eq((lobby.get_node("%GravitySlider") as HSlider).value, 1.75, 0.01)
 	assert_eq(int((lobby.get_node("%GoalFlagSpin") as SpinBox).value), 3)
@@ -401,18 +461,23 @@ func test_roster_changed_signal_updates_ready_label_without_a_lobby_data_round_t
 	# queue_free()s the old rows, which stay in the tree (just pending
 	# deletion) until the next idle frame, so querying the container
 	# directly a second time in the same frame would still see them.
-	var guest_row: HBoxContainer = lobby._player_rows[1] as HBoxContainer
-	var guest_label: Label = guest_row.get_child(1) as Label
-	assert_true(guest_label.text.ends_with("(not ready)"))
+	# Bontago-mp0.3.5 (review r2, item 4): each row is now a PanelContainer
+	# pill (ui/Lobby.gd's _build_player_row()) -- layout/badge/badge_label
+	# walk to the Ready/Not ready badge Label the same way that function
+	# builds it (layout child 0, badge child 2 of layout, label child 0 of
+	# badge), instead of the old row.get_child(1) plain trailing-text Label.
+	var guest_row: PanelContainer = lobby._player_rows[1] as PanelContainer
+	var guest_badge_label: Label = _row_badge_label(guest_row)
+	assert_true(guest_badge_label.text.containsn("not ready"))
 
 	roster = [
 		{"peer_id": 1, "slot_id": 0, "name": "Host", "ready": false},
 		{"peer_id": 2, "slot_id": 1, "name": "Guest", "ready": true},
 	]
 	Events.net_roster_changed.emit(roster)
-	guest_row = lobby._player_rows[1] as HBoxContainer
-	guest_label = guest_row.get_child(1) as Label
-	assert_true(guest_label.text.ends_with("(ready)"), "the ready flag flip must reach the row's label")
+	guest_row = lobby._player_rows[1] as PanelContainer
+	guest_badge_label = _row_badge_label(guest_row)
+	assert_true(guest_badge_label.text.containsn("ready") and not guest_badge_label.text.containsn("not"), "the ready flag flip must reach the row's badge")
 
 
 # --- Specials checklist (M6 A4, docs/M6_PLAN.md) ------------------------------
@@ -542,9 +607,14 @@ func test_roster_entry_with_a_steam_persona_name_renders_unchanged() -> void:
 	Events.net_lobby_data_changed.emit(data)
 	var list: VBoxContainer = lobby.get_node("%PlayerList")
 	assert_eq(list.get_child_count(), 1)
-	var row: HBoxContainer = list.get_child(0) as HBoxContainer
-	var label: Label = row.get_child(1) as Label
-	assert_true(label.text.begins_with("SteamFriend#1234"), "a Steam persona name should render unchanged")
+	# Bontago-mp0.3.5 (review r2, item 4): row is now the PanelContainer pill
+	# ui/Lobby.gd's _build_player_row() builds -- layout child 0, name Label
+	# is text_column (layout child 1)'s own child 0.
+	var row: PanelContainer = list.get_child(0) as PanelContainer
+	var layout: HBoxContainer = row.get_child(0) as HBoxContainer
+	var text_column: VBoxContainer = layout.get_child(1) as VBoxContainer
+	var name_label: Label = text_column.get_child(0) as Label
+	assert_true(name_label.text.begins_with("SteamFriend#1234"), "a Steam persona name should render unchanged")
 
 
 # --- Focus chain (gamepad/keyboard navigability, Bontago-xtq.32) -------------------
@@ -557,16 +627,25 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	var lobby: Lobby = _make_lobby(true)
 
 	var start_button: Control = lobby.get_node("%StartButton") as Control
-	var map_variant_option: Control = lobby.get_node("%MapVariantOption") as Control
+	var map_combo_option: Control = lobby.get_node("%MapComboOption") as Control
 	var start_bottom: Node = start_button.get_node(start_button.focus_neighbor_bottom)
-	assert_eq(start_bottom, map_variant_option, "the chain must wrap from StartButton back to MapVariantOption")
+	assert_eq(start_bottom, map_combo_option, "the chain must wrap from StartButton back to MapComboOption")
 
-	var top_neighbor: Node = map_variant_option.get_node(map_variant_option.focus_neighbor_top)
-	assert_eq(top_neighbor, start_button, "MapVariantOption's up neighbor must close the loop back to StartButton")
+	var top_neighbor: Node = map_combo_option.get_node(map_combo_option.focus_neighbor_top)
+	assert_eq(top_neighbor, start_button, "MapComboOption's up neighbor must close the loop back to StartButton")
 
+	# Bontago-mp0.3.5 (mockup 11's TEAMS segmented control): %TeamModeOption is
+	# now hidden -- %TeamOffButton/%Team2Button/%Team3Button/%Team4Button are
+	# its visible front end (ui/Lobby.gd's own DECISION on _team_buttons) --
+	# so the focus chain runs through those four buttons in its place, not
+	# through the hidden OptionButton a Tab press could never visibly land on.
+	# Bontago-mp0.3.5 (review r2, item 1): same pattern for the combined map
+	# dropdown -- %MapComboOption replaces the now-hidden %MapVariantOption/
+	# %MapSizeOption in the chain.
 	var chain_unique_names: Array[String] = [
-		"%MapVariantOption", "%MapSizeOption", "%PlayerCountSpin", "%AiCountSpin",
-		"%AiDifficultyOption", "%TeamModeOption", "%BlockTimerSlider", "%GravitySlider",
+		"%MapComboOption", "%PlayerCountSpin", "%AiCountSpin",
+		"%AiDifficultyOption", "%TeamOffButton", "%Team2Button", "%Team3Button", "%Team4Button",
+		"%BlockTimerSlider", "%GravitySlider",
 		"%GoalFlagSpin", "%GiftsCheck", "%SpecialFreqSlider",
 		"%TiltModeOption", "%HoleModeOption", "%MatchTimerSpin", "%SuddenDeathCheck",
 		"%TurnBasedCheck", "%ReadyCheck", "%InviteFriendsButton", "%StartButton",
@@ -575,6 +654,10 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 		var control: Control = lobby.get_node(unique_name) as Control
 		assert_ne(control.focus_neighbor_top, NodePath(""), "%s must have an up neighbor" % unique_name)
 		assert_ne(control.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor" % unique_name)
+
+	assert_false((lobby.get_node("%TeamModeOption") as Control).visible, "TeamModeOption stays hidden behind the segmented buttons")
+	assert_false((lobby.get_node("%MapVariantOption") as Control).visible, "MapVariantOption stays hidden behind the combined dropdown")
+	assert_false((lobby.get_node("%MapSizeOption") as Control).visible, "MapSizeOption stays hidden behind the combined dropdown")
 
 	if not lobby._special_checkboxes.is_empty():
 		for box: CheckBox in lobby._special_checkboxes:

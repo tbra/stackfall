@@ -90,8 +90,12 @@ func _build_environment() -> void:
 	_viewport.add_child(sun)
 
 
-## The floating layered-plate island (mockup 10): a slate/deep-teal disk with
-## a thin, lighter rim ring carried along its top edge.
+## The floating layered-plate island (mockup 10): a slate/deep-teal top slab
+## with a thin, lighter rim ring carried along its top edge, a slightly
+## narrower and darker lower tier below it (review r1, item 7: "two-tier
+## thick slate disc -- top slab + slightly inset darker lower tier"), and a
+## soft, low-opacity ground-shadow ellipse beneath both so the island reads
+## as floating rather than pasted flat onto the backdrop.
 func _build_disk() -> void:
 	var disk: MeshInstance3D = MeshInstance3D.new()
 	var mesh: CylinderMesh = CylinderMesh.new()
@@ -115,6 +119,59 @@ func _build_disk() -> void:
 	rim.mesh = rim_mesh
 	rim.position = Vector3(0.0, 0.0, 0.0)
 	_viewport.add_child(rim)
+
+	var lower_height: float = tuning.disk_thickness_m * tuning.disk_lower_tier_height_scale
+	var lower: MeshInstance3D = MeshInstance3D.new()
+	var lower_mesh: CylinderMesh = CylinderMesh.new()
+	lower_mesh.top_radius = tuning.disk_radius_m * tuning.disk_lower_tier_radius_scale
+	lower_mesh.bottom_radius = tuning.disk_radius_m * tuning.disk_lower_tier_radius_scale
+	lower_mesh.height = lower_height
+	lower.mesh = lower_mesh
+	var lower_material: StandardMaterial3D = StandardMaterial3D.new()
+	lower_material.albedo_color = tuning.disk_lower_tier_color
+	lower.material_override = lower_material
+	lower.position = Vector3(0.0, -tuning.disk_thickness_m - lower_height * 0.5, 0.0)
+	_viewport.add_child(lower)
+
+	# Bontago-mp0.3.5 (review r2, item a): review r1's shadow was a hard-edged
+	## flat-color disc barely larger than the island, so at this orbiting
+	## camera's angle it read as a ring/halo hugging the rim instead of a
+	## shadow cast on the ground below. A PlaneMesh with a radial-alpha
+	## texture (generated here, no image asset) reads as soft and blurred;
+	## dropping it disk_ground_shadow_drop_m further down (not just past the
+	## lower tier's own thickness) shifts it visibly below the disc's own
+	## silhouette for this camera's pitch instead of poking out around it.
+	var shadow: MeshInstance3D = MeshInstance3D.new()
+	var shadow_mesh: PlaneMesh = PlaneMesh.new()
+	var shadow_radius: float = tuning.disk_radius_m * tuning.disk_ground_shadow_radius_scale
+	shadow_mesh.size = Vector2.ONE * (shadow_radius * 2.0)
+	shadow.mesh = shadow_mesh
+	var shadow_material: StandardMaterial3D = StandardMaterial3D.new()
+	shadow_material.albedo_color = tuning.disk_ground_shadow_color
+	shadow_material.albedo_texture = _build_radial_fade_texture()
+	shadow_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	shadow_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	shadow.material_override = shadow_material
+	shadow.position = Vector3(
+		0.0, -tuning.disk_thickness_m - lower_height - tuning.disk_ground_shadow_drop_m, 0.0
+	)
+	_viewport.add_child(shadow)
+
+
+## A small radial-gradient alpha texture (opaque center fading to fully
+## transparent edge) for the ground shadow's PlaneMesh -- the "soft, blurred"
+## look review r2 item (a) asks for, without a sourced image asset.
+func _build_radial_fade_texture() -> ImageTexture:
+	const SIZE: int = 64
+	var image: Image = Image.create(SIZE, SIZE, false, Image.FORMAT_RGBA8)
+	var center: Vector2 = Vector2.ONE * (float(SIZE) * 0.5)
+	for y: int in range(SIZE):
+		for x: int in range(SIZE):
+			var d: float = Vector2(x, y).distance_to(center) / (float(SIZE) * 0.5)
+			var a: float = clampf(1.0 - d, 0.0, 1.0)
+			a = a * a
+			image.set_pixel(x, y, Color(1.0, 1.0, 1.0, a))
+	return ImageTexture.create_from_image(image)
 
 
 ## Two HomeFlag banners, one GoalFlag at the centre, and one loose decorative

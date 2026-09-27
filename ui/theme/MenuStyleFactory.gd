@@ -40,6 +40,28 @@ static func make_well(tuning: MenuVisualTuning) -> StyleBoxFlat:
 	return box
 
 
+## Bontago-mp0.3.5 (review r1, item 8): a small solid dark circle behind a
+## single-letter controller-button glyph ("A"/"B"), matching mockup 10's
+## bottom-right controller hint pill.
+static func apply_glyph_circle(panel: PanelContainer, label: Label, tuning: MenuVisualTuning) -> void:
+	var box: StyleBoxFlat = StyleBoxFlat.new()
+	box.bg_color = tuning.pill_dark_slate_color
+	box.set_corner_radius_all(11)
+	panel.add_theme_stylebox_override("panel", box)
+	label.add_theme_color_override("font_color", tuning.label_ink_light_color)
+
+
+## Bontago-mp0.3.5 (review r1, item 5): a borderless white list panel for a
+## server/lobby row list that already sits inside its own make_well() card
+## (ui/MainMenu.tscn's %LanGamesWell) -- avoids stacking two sunken borders.
+static func make_flat_list(tuning: MenuVisualTuning) -> StyleBoxFlat:
+	var box: StyleBoxFlat = StyleBoxFlat.new()
+	box.bg_color = tuning.pill_cream_hover_color
+	box.set_corner_radius_all(int(tuning.well_corner_radius_px) - 4)
+	box.set_content_margin_all(tuning.well_content_margin_px)
+	return box
+
+
 ## One card in the offset triple-card stack (gap item 2): a flat pastel
 ## rectangle with a soft shadow, used for the two "peeking out" shadow cards
 ## and (in cream) the front panel itself.

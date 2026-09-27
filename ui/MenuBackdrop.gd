@@ -44,8 +44,10 @@ func _draw_sky(size: Vector2) -> void:
 
 
 ## Draws the sun as [member MenuVisualTuning.backdrop_sun_ring_count] concentric
-## filled circles, largest first, alternating the two sun colors so each
-## smaller circle drawn on top leaves the previous one visible as a ring.
+## filled circles, largest (the pale halo) first, smallest (the orange core)
+## last, lerping through 3 stops -- halo -> ring -> core -- instead of
+## alternating 2 flat colors (review r1, item 7: "orange core, peach rings,
+## pale halo, not yellow").
 func _draw_sun(size: Vector2) -> void:
 	var ring_count: int = tuning.backdrop_sun_ring_count
 	if ring_count <= 0:
@@ -57,7 +59,12 @@ func _draw_sun(size: Vector2) -> void:
 	var outer_radius: float = minf(size.x, size.y) * tuning.backdrop_sun_radius_fraction
 	for k: int in range(ring_count, 0, -1):
 		var radius: float = outer_radius * (float(k) / float(ring_count))
-		var color: Color = tuning.backdrop_sun_color if k % 2 == 1 else tuning.backdrop_sun_ring_color
+		var t: float = 1.0 - float(k) / float(ring_count)
+		var color: Color
+		if t < 0.5:
+			color = tuning.backdrop_sun_halo_color.lerp(tuning.backdrop_sun_ring_color, t * 2.0)
+		else:
+			color = tuning.backdrop_sun_ring_color.lerp(tuning.backdrop_sun_color, (t - 0.5) * 2.0)
 		draw_circle(center, radius, color)
 
 
