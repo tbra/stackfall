@@ -498,65 +498,63 @@ func test_gift_claimed_toast_skips_the_other_team_under_teams_2() -> void:
 	)
 
 
-# --- M7 P5: HUD minimap (docs/M7_PLAN.md "P5 -- HUD minimap + reskin") ------
+# --- M7 P5 / Bontago-mp0.3.3: HUD minimap ------------------------------------
+## (docs/M7_PLAN.md "P5 -- HUD minimap + reskin"; rebuilt for Bontago-mp0.3.3,
+## owner: the minimap "reflecting the sky depending on the camera angle" --
+## see ui/Minimap.gd's own class doc DECISION for the root cause and fix.)
 
 
-func test_minimap_owns_a_subviewport_and_camera() -> void:
+## Pins the fix directly: nothing under the minimap may be a 3D camera or
+## viewport ever again, because that is exactly what let the mirror's sky
+## reflection leak in depending on view angle. The minimap now draws the live
+## TerritoryRaster in 2D instead.
+func test_minimap_never_creates_a_3d_camera_or_viewport() -> void:
 	var hud: HUD = _make_hud()
-	assert_not_null(hud._minimap.viewport(), "Minimap must own a SubViewport")
-	assert_not_null(hud._minimap.camera(), "Minimap must own a Camera3D")
-	assert_true(hud._minimap.camera().projection == Camera3D.PROJECTION_ORTHOGONAL)
-
-
-## Bontago-xtq.30 (owner: minimap "shows as a uniform grey radial blur -- no
-## disk outline"): root cause was the minimap camera inheriting the shared
-## World3D's own WorldEnvironment, whose volumetric fog washes out a top-down
-## view from height. Pins the fix: the minimap camera must carry its OWN
-## Environment (so it can never be affected by the main scene's preset-driven
-## fog/glow/SSR) with fog and volumetric fog off.
-func test_minimap_camera_has_its_own_fog_free_environment() -> void:
-	var hud: HUD = _make_hud()
-	var environment: Environment = hud._minimap.camera().environment
-	assert_not_null(environment, "the minimap camera must carry its own Environment, not inherit the shared WorldEnvironment")
-	assert_false(environment.fog_enabled, "fog must be off in the minimap's own environment")
-	assert_false(environment.volumetric_fog_enabled, "volumetric fog must be off in the minimap's own environment")
+	assert_eq(
+		hud._minimap.find_children("*", "Camera3D", true, false).size(), 0,
+		"the minimap must not own a Camera3D (that path sampled the sky/mirror through camera angle)"
+	)
+	assert_eq(
+		hud._minimap.find_children("*", "SubViewport", true, false).size(), 0,
+		"the minimap must not own a SubViewport"
+	)
 
 
 ## No match loaded (a bare HUD-only instance, e.g. a menu behind the scenes)
-## must render nothing and cost nothing: the SubViewport stays disabled and
-## the widget stays hidden until set_map_def() is ever called with a real map.
+## must render nothing and cost nothing: the widget stays hidden until
+## set_map_def() is ever called with a real map.
 func test_minimap_stays_disabled_with_no_match_loaded() -> void:
 	var hud: HUD = _make_hud()
 	assert_false(hud._minimap.is_active())
 	assert_false(hud._minimap.visible)
-	assert_eq(hud._minimap.viewport().render_target_update_mode, SubViewport.UPDATE_DISABLED)
 
 
-func test_set_map_def_frames_the_camera_from_the_maps_radius() -> void:
+func test_set_map_def_frames_from_the_maps_radius() -> void:
 	var hud: HUD = _make_hud()
 	var small_map: MapDef = MapDef.for_variant_and_size(MatchConfig.MapVariant.ROUND, MapDef.MapSize.SMALL)
 	var large_map: MapDef = MapDef.for_variant_and_size(MatchConfig.MapVariant.ROUND, MapDef.MapSize.LARGE)
 	assert_true(large_map.field_radius > small_map.field_radius, "fixture: LARGE must actually be bigger than SMALL")
 
 	hud._minimap.set_map_def(small_map)
-	var small_size: float = hud._minimap.camera().size
+	var small_extent: float = hud._minimap.half_extent()
 	assert_true(hud._minimap.is_active())
 	assert_true(hud._minimap.visible)
 
 	hud._minimap.set_map_def(large_map)
-	var large_size: float = hud._minimap.camera().size
+	var large_extent: float = hud._minimap.half_extent()
 
 	assert_true(
-		large_size > small_size,
-		"a bigger map's radius must widen the orthogonal camera's framed size"
+		large_extent > small_extent,
+		"a bigger map's radius must widen the minimap's framed half-extent"
 	)
 
 
 ## Drives the minimap the same way real play does -- through
 ## Events.territory_share_changed, HUD.gd's own chosen hook (no new signal) --
-## and confirms the camera actually re-frames from the FakeMatch's MapDef,
-## with no error in headless mode (SubViewport rendering is a no-op headless,
-## which is exactly the point: this must not crash or warn).
+## and confirms it actually re-frames from the FakeMatch's MapDef, with no
+## error in headless mode. FakeMatch has no raster(), pinning that the
+## has_method(&"raster") guard in HUD._update_minimap() lets this run cleanly
+## with a double that cannot answer it.
 func test_territory_share_changed_event_updates_the_minimap_from_match_config() -> void:
 	var hud: HUD = _make_hud()
 	var fake_match: FakeMatch = FakeMatch.new()
@@ -569,7 +567,7 @@ func test_territory_share_changed_event_updates_the_minimap_from_match_config() 
 	assert_true(hud._minimap.is_active())
 	var expected_map: MapDef = fake_match.config.map_def()
 	assert_almost_eq(
-		hud._minimap.camera().size, (expected_map.field_radius + hud.hud_visual_tuning.minimap_zoom_margin_m) * 2.0, 0.01
+		hud._minimap.half_extent(), expected_map.field_radius + hud.hud_visual_tuning.minimap_zoom_margin_m, 0.01
 	)
 
 
@@ -581,3 +579,44 @@ func test_territory_share_changed_event_leaves_the_minimap_disabled_with_no_conf
 	Events.territory_share_changed.emit(PackedFloat32Array([0.5, 0.5]))
 
 	assert_false(hud._minimap.is_active())
+
+
+## Content regression for the owner's actual complaint: the minimap must show
+## the real TerritoryRaster's team colors, and never anything sampled from a
+## 3D scene (no sky can leak into a value nothing here ever reads from a
+## camera). Builds a real raster (same fixture shape as
+## tests/unit/test_territory_raster.gd) with one home circle at the disk
+## centre, feeds it to the minimap directly via set_match_state()+
+## render_now(), and reads the rendered image back.
+func test_minimap_image_draws_the_live_raster_not_a_camera_sample() -> void:
+	var hud: HUD = _make_hud()
+	var map_def: MapDef = MapDef.new()
+	map_def.id = &"test_minimap"
+	map_def.field_radius = 20.0
+	map_def.cell_size = 1.0
+	hud._minimap.set_map_def(map_def)
+
+	var tuning: TerritoryTuning = load("res://config/territory_tuning.tres")
+	var grid: CellGrid = CellGrid.new(map_def.field_radius, map_def.cell_size)
+	var solver: TerritorySolver = TerritorySolver.new(tuning)
+	var raster: TerritoryRaster = TerritoryRaster.new(grid, tuning)
+	var circles: Array[InfluenceCircle] = [
+		InfluenceCircle.new(Vector2(0.0, 0.0), tuning.home_radius, 0, 0, true, -1)
+	]
+	var groups: TerritoryGroups = solver.solve(circles)
+	raster.update(circles, groups, 0.1, true, false)
+
+	hud._minimap.set_match_state(raster, PackedColorArray([Color.RED]), PackedVector2Array([Vector2.ZERO]))
+	hud._minimap.render_now()
+
+	var image: Image = hud._minimap.debug_image()
+	var size_px: int = image.get_width()
+	var center: Color = image.get_pixel(size_px / 2, size_px / 2)
+	assert_almost_eq(center.r, 1.0, 0.05, "the disk centre, inside the home circle, must render team 0's own color")
+	assert_almost_eq(center.a, 1.0, 0.05, "an owned in-disk cell must be fully opaque")
+
+	var corner: Color = image.get_pixel(1, 1)
+	assert_almost_eq(
+		corner.a, 0.0, 0.001,
+		"outside the disk must be fully transparent -- never a sampled sky/mirror pixel"
+	)

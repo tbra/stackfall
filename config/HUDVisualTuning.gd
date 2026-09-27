@@ -1,88 +1,93 @@
 class_name HUDVisualTuning
 extends Resource
-## Tunables for M7 P5 (docs/M7_PLAN.md, "P5 -- HUD minimap + reskin"): the
-## minimap's camera framing/refresh cadence and the layered-pastel/coral
-## panel palette used to restyle ui/HUD.tscn (docs/M7_ART_DIRECTION.md's HUD
-## styling section). CLAUDE.md: "No magic numbers... every tunable value
-## belongs in a Resource under res://config/".
+## Tunables for M7 P5 (docs/M7_PLAN.md, "P5 -- HUD minimap + reskin") and its
+## Bontago-mp0.3.3 restyle: the minimap's framing/refresh cadence and the
+## layered-pastel/coral -> mockup-08 palette used to restyle ui/HUD.tscn
+## (docs/M7_ART_DIRECTION.md's HUD styling section). CLAUDE.md: "No magic
+## numbers... every tunable value belongs in a Resource under res://config/".
 ##
 ## This is presentation only, same split TerritoryVisuals.gd documents for
 ## the disk: nothing here changes a rule. HUD.gd's own layout geometry
 ## (offset_left/offset_top pixel positions in ui/HUD.tscn) stays inline,
 ## following that scene's own pre-M7 DECISION that pure screen-space drawing
-## geometry is not worth resourcing -- only the minimap's world-space camera
+## geometry is not worth resourcing -- only the minimap's world-space
 ## framing and the reskin's *colors* (the part the mockups actually specify)
 ## live here.
 ##
 ## Loaded once as config/hud_visual_tuning.tres.
 
-## -- Minimap (docs/M7_ART_DIRECTION.md Q4: "(a) live orthographic SubViewport
-## camera ... recommended") -----------------------------------------------
-## Square pixel size of the minimap's SubViewport/TextureRect in the HUD
+## -- Minimap (Bontago-mp0.3.3, owner: minimap "reflecting the sky depending
+## on the camera angle" -- see ui/Minimap.gd's own class doc DECISION for the
+## fix: a 2D draw straight from the live TerritoryRaster, camera-relative, no
+## SubViewport/Camera3D at all, so there is no camera angle for it to depend
+## on) -----------------------------------------------------------------------
+## Square pixel size of the minimap's rendered image/Control in the HUD
 ## corner.
 @export var minimap_size_px: int = 160
-## Extra meters of orthographic half-extent beyond MapDef.field_radius, so
-## the disk's own rim (and anything just past it, e.g. a home flag) is never
-## clipped at the minimap's edge.
+## Extra meters of half-extent beyond MapDef.field_radius the minimap frames,
+## so the disk's own rim (and anything just past it, e.g. a home flag) is
+## never clipped at the minimap's edge.
 @export var minimap_zoom_margin_m: float = 6.0
-## How often the minimap's SubViewport re-renders, in Hz. ui/Minimap.gd gates
-## SubViewport.render_target_update_mode behind a Timer at this cadence
-## instead of UPDATE_ALWAYS (docs/M7_ART_DIRECTION.md: "small continuous
-## render cost" is the accepted tradeoff of option (a), but every frame is
-## more than a corner-of-the-screen top-down view needs to read as live).
+## How often the minimap's image is rebuilt from the live TerritoryRaster, in
+## Hz. Throttled the same way the old SubViewport was (a corner-of-the-screen
+## top-down readout does not need every-frame freshness), just driving a CPU
+## image rebuild now instead of a render pass.
 @export var minimap_refresh_hz: float = 8.0
-## Height, in meters above the field's own surface, the minimap's orthogonal
-## camera sits at, looking straight down. Only needs to clear the tallest
-## plausible stack; the orthogonal projection's own `size` (not distance)
-## is what actually controls framing.
-##
-## Bontago-xtq.30 (owner: minimap "shows as a uniform grey radial blur -- no
-## disk outline, no territory colour"). ROOT CAUSE (confirmed by reading
-## game/Main.tscn's WorldEnvironment + config/graphics_presets/medium.tres,
-## the Settings.DEFAULT_PRESET_ID the acceptance screenshot boots with):
-## ui/Minimap.gd's SubViewport shares the main scene's own World3D
-## (`own_world_3d = false`, same pattern as game/DiscMirror.gd) precisely so
-## it renders the live disk/blocks -- but that means the minimap camera also
-## inherited the SHARED Environment, whose volumetric_fog_enabled M7 P1 turns
-## on for every preset from "medium" up (game/Main.gd's
-## _apply_graphics_preset()). At the old 120 m height the top-down ray to the
-## field crosses the entire fog volume, washing the whole minimap to a flat
-## grey with no disk silhouette. ui/Minimap.gd now gives the minimap camera
-## its OWN Camera3D.environment (fog/volumetric fog/glow/SSR/SSAO all off,
-## solid minimap_backdrop_color background) so the shared world's
-## post-processing can never reach it, regardless of preset -- this is the
-## primary fix. Lowering the height only tightens the margin now that
-## nothing is fogging it: config/NetConfig.gd's own pos_max_y (72.0 m) is the
-## documented hard ceiling nothing in the match can rise above (spec's wire
-## band via GhostTuning.hover_ceiling_margin), so 80 m (72 + an 8 m margin)
-## clears every legal block/ghost position with room to spare, instead of
-## the old value's much larger, no-longer-needed allowance.
-@export var minimap_camera_height_m: float = 80.0
-## Near/far clip planes for the minimap camera, in meters from the camera
-## itself. Far must clear minimap_camera_height_m plus room for a tall stack
-## above the disk (see minimap_camera_height_m's own DECISION comment above
-## for why both shrank together).
-@export var minimap_near_clip_m: float = 1.0
-@export var minimap_far_clip_m: float = 40.0
+## Radius, in HUD pixels, of the small diamond beacon glyph the minimap
+## draws at each slot's home-flag position (docs/art_mockups/
+## 08-cel-shaded-home-beacons.png).
+@export var minimap_beacon_radius_px: float = 4.0
+## Border stroke width, in pixels, of the minimap's own frame ring --
+## a thin rim (owner review 2026-09-26: "thin light-grey rim (~2px)", not a
+## thick gold ring).
+@export var minimap_frame_border_width_px: float = 2.0
 
 ## -- HUD panel palette (docs/art_mockups/10-main-menu-layered-pastel.png,
 ## docs/art_mockups/08-cel-shaded-home-beacons.png) -------------------------
-## Cream/parchment panel fill behind HUD readouts (turn label, timer,
-## shares list). Alpha < 1 keeps the sunset field readable behind it.
+## Dark translucent panel fill behind the compact status readouts (turn/
+## height/locked/special text) and the next-shape card. Alpha < 1 keeps the
+## sunset field readable behind it.
 @export var panel_background_color: Color = Color(0.07, 0.10, 0.14, 0.78)
-## Coral border/accent stroke around a panel (mockup 10's "Host" button
-## outline), also used for the minimap's own frame ring.
+## Coral border/accent stroke around a panel (the next-shape card's outline).
 @export var panel_border_color: Color = Color(0.96, 0.45, 0.38, 0.95)
-## Dark slate ink for HUD label text over the cream panels.
+## Light ink for HUD label text over the dark translucent panels/sky.
 @export var panel_text_color: Color = Color(0.96, 0.94, 0.88, 1.0)
 ## Corner rounding, in pixels, applied to every reskinned HUD panel's
 ## StyleBoxFlat.
 @export var panel_corner_radius_px: float = 16.0
 ## Border stroke width, in pixels, for every reskinned HUD panel.
 @export var panel_border_width_px: float = 2.0
-## Amber ring around the minimap, echoing the disk's own gold rim (mockup 08).
-@export var minimap_frame_color: Color = Color(0.867, 0.667, 0.318, 1.0)
-## Dark slate void behind the minimap's rendered disk, matching the disk's
-## own base tone so an out-of-frame area (before a match starts) doesn't
-## flash white.
-@export var minimap_backdrop_color: Color = Color(0.129, 0.153, 0.188, 1.0)
+## Thin light-grey rim color framing the minimap (owner review 2026-09-26:
+## replaces the earlier thick amber ring).
+@export var minimap_frame_color: Color = Color(0.85, 0.87, 0.90, 0.85)
+## Dark, semi-translucent void behind the minimap's rendered disk, matching
+## the disk's own base tone. Used both as the minimap panel's backdrop
+## (before a match starts) and as the in-disk "unowned" fill once one is
+## running, so an unclaimed cell reads as bare floor rather than a hole in
+## the image. Alpha < 1 (owner review 2026-09-26: "dark translucent disc").
+@export var minimap_backdrop_color: Color = Color(0.129, 0.153, 0.188, 0.82)
+## Thin light stroke drawn at the disk's own field-radius edge (inside the
+## zoom-margin padded frame), so the playable disc's true boundary reads
+## clearly against the darker unowned floor around it.
+@export var minimap_disc_outline_color: Color = Color(0.85, 0.87, 0.90, 0.55)
+## How much brighter/more saturated a team's territory fill is drawn on the
+## minimap than its own base color (HSV value/saturation multipliers), so
+## even a small owned patch reads clearly at minimap scale (owner review
+## 2026-09-26: "brighter/more saturated fill... so even small shares read").
+@export var minimap_territory_saturation_boost: float = 1.2
+@export var minimap_territory_value_boost: float = 1.15
+
+## -- Top-left per-player rows (mockup 08: two-tone diamond glyph + slim
+## share bar, no boxy panel) --------------------------------------------------
+## Side length, in pixels, of the small faceted diamond glyph drawn beside
+## each player's territory-share bar (owner review 2026-09-26: "~20 px tall").
+@export var hud_row_glyph_size_px: float = 20.0
+## Dark translucent track color behind each player's territory-share bar
+## (the team-colored fill is drawn on top of this, per slot).
+@export var hud_share_bar_track_color: Color = Color(0.05, 0.06, 0.09, 0.55)
+## Subtle light sheen drawn across the top of every share bar's track, for
+## the same soft-highlight read the mockup's bars have.
+@export var hud_share_bar_highlight_color: Color = Color(1.0, 1.0, 1.0, 0.18)
+## Thin light inner border stroke around each share bar's track (owner
+## review 2026-09-26: "thin light inner border").
+@export var hud_share_bar_border_color: Color = Color(1.0, 1.0, 1.0, 0.22)
