@@ -19,7 +19,6 @@ func before_each() -> void:
 
 func after_each() -> void:
 	Input.action_release(&"pause_menu")
-	_quit_called = false
 
 
 func _key_press(keycode: Key) -> InputEventKey:
@@ -193,51 +192,8 @@ func test_leave_confirmed_emits_leave_match_requested_and_closes() -> void:
 	assert_false(_menu.visible, "confirming Leave must also close this overlay.")
 
 
-# --- Quit: confirmation gate + Callable test seam ------------------------------
-#
-# quit_callable is a plain Callable field, not a signal, so watch_signals()
-# doesn't apply -- a bound method on this test script (captured by reference
-# via `self`, unlike a lambda's captured locals) is the reliable stand-in.
-
-var _quit_called: bool = false
-
-
-func _mark_quit_called() -> void:
-	_quit_called = true
-
-
-func test_quit_button_does_not_call_quit_before_confirmation() -> void:
-	_menu.quit_callable = _mark_quit_called
-
-	_menu._on_quit_pressed()
-
-	assert_false(_quit_called, "pressing Quit must only open the confirmation dialog, not quit immediately.")
-	assert_true(_menu._confirm_dialog.visible)
-
-
-func test_quit_confirmed_invokes_the_quit_callable() -> void:
-	_menu.quit_callable = _mark_quit_called
-
-	_menu._on_quit_pressed()
-	_menu._on_confirm_dialog_confirmed()
-
-	assert_true(_quit_called, "confirming Quit must invoke quit_callable.")
-
-
-func test_leave_and_quit_pending_actions_do_not_cross_contaminate() -> void:
-	# Press Leave, then Quit, without ever confirming -- only the most recent
-	# pending action should fire on confirm (the shared ConfirmationDialog's
-	# own _pending_action selection this class documents).
-	watch_signals(_menu)
-	_menu.quit_callable = _mark_quit_called
-
-	_menu._on_leave_pressed()
-	_menu._on_quit_pressed()
-	_menu._on_confirm_dialog_confirmed()
-
-	assert_signal_not_emitted(_menu, "leave_match_requested", "Quit was pressed last -- Leave must not fire.")
-	assert_true(_quit_called, "Quit was pressed last -- confirming must invoke it.")
-
+# --- Quit game: removed outright (Bontago-1pi.7, owner: "remove quit game as
+# an option") -- no button, no handler, no confirmation path left to test.
 
 # --- Focus chain: wraps top to bottom -----------------------------------------
 
@@ -247,14 +203,11 @@ func test_focus_chain_top_and_bottom_wrap() -> void:
 	var resume: Button = _menu._resume_button
 	var options: Button = _menu._options_button
 	var leave: Button = _menu._leave_button
-	var quit: Button = _menu._quit_button
 
 	assert_eq(resume.get_node(resume.focus_neighbor_bottom), options)
 	assert_eq(options.get_node(options.focus_neighbor_bottom), leave)
-	assert_eq(leave.get_node(leave.focus_neighbor_bottom), quit)
-	assert_eq(quit.get_node(quit.focus_neighbor_bottom), resume, "the chain must wrap from the last button back to the first.")
+	assert_eq(leave.get_node(leave.focus_neighbor_bottom), resume, "the chain must wrap from the last button back to the first.")
 
-	assert_eq(resume.get_node(resume.focus_neighbor_top), quit, "the chain must wrap from the first button back to the last.")
+	assert_eq(resume.get_node(resume.focus_neighbor_top), leave, "the chain must wrap from the first button back to the last.")
 	assert_eq(options.get_node(options.focus_neighbor_top), resume)
 	assert_eq(leave.get_node(leave.focus_neighbor_top), options)
-	assert_eq(quit.get_node(quit.focus_neighbor_top), leave)
