@@ -484,6 +484,13 @@ func _apply_visual_uniforms() -> void:
 	_material.set_shader_parameter(&"base_color", _visuals.disk_base_color)
 	_material.set_shader_parameter(&"base_metallic", _visuals.disk_metallic)
 	_material.set_shader_parameter(&"base_roughness", _visuals.disk_roughness)
+	# Bontago-mp0.3.8: disc top color/sheen fix -- see shaders/territory.
+	# gdshader's own disk_sheen_*/disk_diffuse_* uniform DECISION.
+	_material.set_shader_parameter(&"disk_sheen_color", _visuals.disk_sheen_color)
+	_material.set_shader_parameter(&"disk_sheen_strength", _visuals.disk_sheen_strength)
+	_material.set_shader_parameter(&"disk_sheen_exponent", _visuals.disk_sheen_exponent)
+	_material.set_shader_parameter(&"disk_diffuse_response", _visuals.disk_diffuse_response)
+	_material.set_shader_parameter(&"disk_diffuse_desaturate", _visuals.disk_diffuse_desaturate)
 	_material.set_shader_parameter(&"edge_softness", _visuals.edge_softness)
 	# Bontago-xtq.14: pushed here (configure()/refresh_visual_uniforms()),
 	# not alongside rim_soft_width/rim_width in set_circles() below, so a

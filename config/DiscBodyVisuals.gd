@@ -61,13 +61,58 @@ extends Resource
 ## only a THIN warm-gold/amber lip line along the top edge glows"): cut to a
 ## genuinely thin lip -- 0.22 of the (now shorter) band was still a
 ## noticeable fraction of the visible edge, not a line.
-@export var rim_height_fraction: float = 0.05
+##
+## DECISION (config/DiscBodyVisuals.gd, Bontago-mp0.3.8): nudged 0.05 -> 0.08
+## alongside rim_screen_min_width_factor below -- a small additional safety
+## margin now that rim_radius_scale (below) turned out to be the actual fix
+## for the "breaks into dashes at distance" report; still a thin lip up
+## close (docs/art_mockups/08-cel-shaded-home-beacons.png).
+@export var rim_height_fraction: float = 0.08
 ## The rim's own outline is scaled out from the band's by this factor (a
 ## hair's-width proud lip) so it never z-fights the band's top edge.
+##
+## DECISION (config/DiscBodyVisuals.gd, Bontago-mp0.3.8, owner: "the thin
+## glowing gold lip breaks into dashes at distance"): diagnostic captures
+## (feedback/overhaul/disc2-diag1..5) proved the far/away side of the ring
+## stayed dashed even at 6x the rim's normal height and an extreme distance-
+## based widening factor (rim_screen_min_width_factor below) -- the actual
+## cause was the rim's TOP edge (radius = field_radius * this factor, y = 0)
+## sitting almost exactly at the same radius AND the same y as game/
+## TerritoryOverlay.gd's own CylinderMesh top-face edge, z-fighting at long
+## camera distances. First fix attempt raised this to 1.02 to separate them
+## radially, which did stop the dashing (disc2-diag5) but (owner review pass,
+## reading disc2-r3-overview.png's own left disc edge) left a visibly
+## floating gap ring between the disc's true edge and the lip -- 1.02 is
+## ~2% of field_radius, which reads as "proud" rather than "flush" once
+## actually looked for. Reverted to the original 1.006 (a genuine hair's-
+## width); the z-fight is instead resolved by rim_lift below, which
+## separates the two edges VERTICALLY (where nothing else needs to line up
+## with the rim) instead of radially (where the top surface's own true edge
+## does).
 @export var rim_radius_scale: float = 1.006
+## Bontago-mp0.3.8 (owner: fix the rim/overlay z-fight "another way ... lift
+## the lip slightly above the top surface"). World meters the rim mesh's own
+## top_y is raised above the true playing surface (0.0) -- separates it from
+## game/TerritoryOverlay.gd's own CylinderMesh top-face edge on the Y axis
+## instead of radially (rim_radius_scale above), so the lip can stay at
+## rim_radius_scale's own hair's-width radius (no visible floating gap) while
+## still resolving the depth-buffer precision fight at distance. Small enough
+## on any map size (a few centimeters) to read as sitting exactly on the
+## edge, not floating above it.
+@export var rim_lift: float = 0.03
 @export var rim_color: Color = Color(1.0, 0.78, 0.35)
 ## Main.tscn's HDR glow threshold is 1.1 (Bontago-mp0.3); comfortably above
 ## that so the rim actually blooms, matching the mockup's soft glow. Left
 ## unchanged from pass 1 -- pass 2's "neon" complaint was the glowing AREA
 ## (rim_height_fraction above), not this strip's own brightness.
 @export var rim_emission_energy: float = 2.6
+## shaders/disc_rim.gdshader's own min_screen_width_factor uniform -- world
+## meters the rim's bottom edge is pushed down per world meter of camera
+## distance, so a thin rim's rasterized screen coverage never drops below
+## roughly a pixel no matter how far the camera is, on any map radius. Not
+## the fix for the specific "dashes at distance" report (see
+## rim_radius_scale's own DECISION above for the actual cause) -- kept as a
+## genuine secondary safety net: it measurably thickened/solidified the
+## rim's near-camera portion in every diagnostic capture. 0 disables it
+## (the mesh renders exactly as authored).
+@export var rim_screen_min_width_factor: float = 0.004
