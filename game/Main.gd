@@ -70,6 +70,12 @@ const NET_DEBUG_OVERLAY_SCENE: PackedScene = preload("res://ui/NetDebugOverlay.t
 ## Bontago-xtq.42 (M7 P42, owner playtest: "there's no pause menu, I can't
 ## abandon a game and go back to the main menu or quit the game").
 const PAUSE_MENU_SCENE: PackedScene = preload("res://ui/PauseMenu.tscn")
+## Bontago-1pi.6 (owner playtest: "the win screen always says 'Team x wins!'
+## even when not playing in teams"). Self-contained the same way
+## ui/PauseMenu.gd is (see its own header) -- it self-wires to
+## Events.match_results_ready/match_state_changed, so this is only an
+## instantiate-and-hide, no further wiring in this file.
+const RESULTS_SCREEN_SCENE: PackedScene = preload("res://ui/ResultsScreen.tscn")
 
 @onready var _field: Field = $Field
 @onready var _blocks_container: Node3D = $BlocksContainer
@@ -105,6 +111,12 @@ var _debug_overlay: NetDebugOverlay = null
 ## game, which start_sandbox_from_menu()/start_tutorial_from_menu() below
 ## already cover.
 var _pause_menu: PauseMenu = null
+## Bontago-1pi.6: built once alongside _pause_menu above, for the same reason
+## (self-wired via Events, inert until it has something to show). Unlike
+## _pause_menu it needs no `suppressed` gate: it only ever appears in
+## response to Events.match_results_ready (never a raw key press), so there
+## is no toggle input to suppress during Tutorial/hot-seat/sandbox.
+var _results_screen: ResultsScreen = null
 ## Bontago-d5c.6 (M5 P5): one instance per bot slot in the match currently
 ## built, built in _build_match_world() (or _start_headless_bot_match_with_
 ## args()'s own reuse of it) and freed in _end_match_world() -- see
@@ -190,6 +202,9 @@ func _ready() -> void:
 	# but set it explicitly here as well so it's never even momentarily false
 	# before that first call.
 	_pause_menu.suppressed = true
+
+	_results_screen = RESULTS_SCREEN_SCENE.instantiate() as ResultsScreen
+	add_child(_results_screen)
 
 	# docs/M3b_PLAN.md integration order step 4: Steam init is synchronous by
 	# this point, so MainMenu._ready() can immediately read steam_available().
