@@ -15,9 +15,12 @@ extends CanvasLayer
 ##   Controls  -> PlayerController.ghost_tuning (GhostTuning)
 ##   Physics   -> PlayerController.tuning (PhysicsTuning)
 ##   Territory -> Field.territory_tuning (TerritoryTuning) + Field.visuals
-##                (TerritoryVisuals) + a Skybox dropdown row (Bontago-xtq.22,
-##                config/SkyboxConfig.gd's `default_set`/`enabled`, not
-##                reflection-built -- see _build_skybox_row()'s own doc)
+##                (TerritoryVisuals). Bontago-1pi.1: the Skybox dropdown row
+##                (Bontago-xtq.22, config/SkyboxConfig.gd's `default_set`/
+##                `enabled`) that used to live here moved to the Sky tab
+##                below (owner playtest: "the skybox setting in territory
+##                should probably move over to sky settings") -- see
+##                _build_skybox_row()'s own doc.
 ##   Feed      -> config/block_feed.tres (BlockFeedConfig), preloaded
 ##                directly -- autoload/Match.gd is the only script holding a
 ##                live reference to this one and it's a different package's
@@ -38,7 +41,9 @@ extends CanvasLayer
 ##   HUD       -> ui/HUD.gd's hud_visual_tuning + ui/Minimap.gd's tuning
 ##                (both preload config/hud_visual_tuning.tres -- HUDVisualTuning)
 ##   Sky       -> game/Skybox.gd's theme (SkyThemeDef), config/sky_themes/
-##                sunset.tres -- the only shipped theme on this branch
+##                sunset.tres -- the only shipped theme on this branch --
+##                plus the Skybox dropdown row (Bontago-1pi.1, moved from
+##                Territory above)
 ##
 ## Every control writes straight onto the *live* resource instance the rest
 ## of the game already reads -- the same object every other
@@ -464,12 +469,15 @@ func _add_tab(tab_name: String, resources: Array) -> void:
 
 	if tab_name == "Physics":
 		list.add_child(_build_physics_preset_row())
-	if tab_name == "Territory":
+	if tab_name == "Sky":
 		# Bontago-xtq.22 (owner: disc reflectivity is "hard to judge with that
-		# texture -- add an option to F4 to change the skybox"): placed here,
-		# not a new tab of its own, alongside TerritoryVisuals' own reflection
-		# fields (reflection_probe_*/ssr_*/mirror_*) this row's live-switch
-		# result is judged against.
+		# texture -- add an option to F4 to change the skybox"), moved here
+		# from the Territory tab per Bontago-1pi.1 (owner playtest: "the
+		# skybox setting in territory should probably move over to sky
+		# settings") -- this row switches the loaded six-face set/procedural
+		# fallback, which is a sky concern even though its live-switch result
+		# (the disc's mirror/reflection) is judged against TerritoryVisuals'
+		# own reflection fields, still on the Territory tab.
 		list.add_child(_build_skybox_row())
 
 	for entry: Variant in resources:
@@ -931,7 +939,9 @@ func apply_physics_preset(preset_id: String) -> void:
 	rebuild()
 
 
-## Bontago-xtq.22: the Territory tab's own Skybox row, built the same way
+## Bontago-xtq.22: the Sky tab's own Skybox row (Bontago-1pi.1: moved here
+## from the Territory tab -- owner playtest: "the skybox setting in
+## territory should probably move over to sky settings"), built the same way
 ## _build_physics_preset_row() above is (a plain Control returned to
 ## _add_tab's caller, not reflection-built and not registered in _rows --
 ## config/SkyboxConfig.gd's `default_set`/`enabled` are a String and a bool
@@ -1088,9 +1098,18 @@ func reset_all() -> void:
 	_reset_resource(territory_visuals)
 	_reset_resource(block_feed_config)
 	_reset_resource(skybox_config)
+	# Bontago-1pi.1 (owner playtest: "Sky settings in F4 doesn't reset"):
+	# sky_theme was the one preloaded tuning resource this loop never
+	# touched -- Bontago-xtq.36's own DECISION (this file's class doc)
+	# deliberately left it, along with Save/Copy/apply_saved_overrides, out
+	# of this roster as "a reasonable small follow-up, not done here". Reset
+	# is that follow-up; Save/Copy/apply_saved_overrides are unaffected
+	# (still out of scope -- not what the owner reported).
+	_reset_resource(sky_theme)
 	apply_physics_live()
 	refresh_territory_visuals_live()
 	apply_skybox_set(skybox_config.default_set if skybox_config.enabled else Skybox.PROCEDURAL_SET_ID)
+	apply_sky_theme_live()
 	rebuild()
 
 

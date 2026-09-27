@@ -259,7 +259,7 @@ func test_apply_physics_preset_ignores_an_unknown_id() -> void:
 	assert_almost_eq(_panel.physics_tuning.gravity_multiplier, before, 0.0001)
 
 
-# --- Bontago-xtq.22: Skybox dropdown (Territory tab) -------------------------
+# --- Bontago-xtq.22: Skybox dropdown (Sky tab) --------------------------------
 # (owner: disc reflectivity is "hard to judge with that texture -- add an
 # option to F4 to change the skybox"). Every assertion below reads
 # Skybox.list_available_sets() itself rather than a hardcoded set name, so
@@ -267,6 +267,11 @@ func test_apply_physics_preset_ignores_an_unknown_id() -> void:
 # textures installed AND on a bare CI checkout with none installed -- see
 # tools/install_original_assets.ps1 and game/Skybox.gd's own class doc on why
 # those assets never ship in this repo.
+#
+# Bontago-1pi.1 (owner playtest: "the skybox setting in territory should
+# probably move over to sky settings"): this row moved from the Territory tab
+# to the Sky tab -- every `_panel._tab_container.get_node("Territory")` below
+# became `_panel._tab_container.get_node("Sky")`.
 
 func _find_skybox_option(tab: Control) -> OptionButton:
 	for node: Node in tab.find_children("*", "OptionButton", true, false):
@@ -276,9 +281,9 @@ func _find_skybox_option(tab: Control) -> OptionButton:
 	return null
 
 
-func test_territory_tab_has_a_skybox_option_button_listing_procedural_and_every_discovered_set() -> void:
-	var territory_tab: Control = _panel._tab_container.get_node("Territory")
-	var option: OptionButton = _find_skybox_option(territory_tab)
+func test_sky_tab_has_a_skybox_option_button_listing_procedural_and_every_discovered_set() -> void:
+	var sky_tab: Control = _panel._tab_container.get_node("Sky")
+	var option: OptionButton = _find_skybox_option(sky_tab)
 	assert_not_null(option, "expected a Skybox OptionButton with 'Procedural / none' as its first item")
 
 	var expected_sets: PackedStringArray = Skybox.list_available_sets()
@@ -295,8 +300,8 @@ func test_skybox_row_preselects_the_current_config_value() -> void:
 
 	_panel.rebuild()
 
-	var territory_tab: Control = _panel._tab_container.get_node("Territory")
-	var option: OptionButton = _find_skybox_option(territory_tab)
+	var sky_tab: Control = _panel._tab_container.get_node("Sky")
+	var option: OptionButton = _find_skybox_option(sky_tab)
 	var expected_text: String = "Procedural / none" if target_id == Skybox.PROCEDURAL_SET_ID else target_id
 	assert_eq(option.get_item_text(option.selected), expected_text)
 
@@ -345,8 +350,8 @@ func test_selecting_the_skybox_dropdown_item_applies_it() -> void:
 	skybox.config = _panel.skybox_config
 	add_child_autofree(skybox)
 
-	var territory_tab: Control = _panel._tab_container.get_node("Territory")
-	var option: OptionButton = _find_skybox_option(territory_tab)
+	var sky_tab: Control = _panel._tab_container.get_node("Sky")
+	var option: OptionButton = _find_skybox_option(sky_tab)
 	# Last item is always the highest-sorted discovered set, or index 0
 	# (Procedural, the only item) if none are installed -- either way a real,
 	# in-range index distinct from whatever _find_skybox_option()'s own probe
@@ -429,6 +434,35 @@ func test_reset_reloads_physics_tuning_from_disk() -> void:
 	_panel.reset_all()
 
 	assert_almost_eq(_panel.physics_tuning.gravity_multiplier, original, 0.0001)
+
+
+## Bontago-1pi.1 (owner playtest: "Sky settings in F4 doesn't reset"):
+## reset_all() previously skipped sky_theme entirely (Bontago-xtq.36's own
+## DECISION deferred it -- see reset_all()'s own comment). Wires a real
+## Skybox (same fixture idiom test_sky_tab_fog_density_slider_writes_the_
+## resource_and_reaches_a_live_skybox above uses) so this also pins "applies
+## live", not just "the Resource field goes back to its file default".
+func test_reset_reloads_sky_theme_from_disk_and_applies_live() -> void:
+	var sky: Sky = Sky.new()
+	sky.sky_material = ProceduralSkyMaterial.new()
+	var environment: Environment = Environment.new()
+	environment.sky = sky
+
+	var skybox: Skybox = Skybox.new()
+	skybox.config = _panel.skybox_config
+	skybox.environment = environment
+	add_child_autofree(skybox)  # _ready() joins Skybox.TUNING_GROUP for real.
+
+	var original: float = _panel.sky_theme.fog_density
+	_panel.sky_theme.fog_density = original + 0.5
+
+	_panel.reset_all()
+
+	assert_almost_eq(_panel.sky_theme.fog_density, original, 0.0001)
+	assert_almost_eq(
+		float(skybox.environment.fog_density), original, 0.0001,
+		"reset must push apply_sky_theme_live() too, not just reload the Resource."
+	)
 
 
 func test_save_and_apply_saved_overrides_round_trip_via_user_dir() -> void:
