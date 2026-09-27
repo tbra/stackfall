@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="SunFlareConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/SunFlareConfig.gd" id="1_sunflare"]
+
+[resource]
+script = ExtResource("1_sunflare")
+sun_direction = Vector3(0.963087, 0.069011, -0.260192)
+sun_color = Color(1.0, 0.86, 0.62, 1.0)
+core_radius = 0.022
+core_softness = 0.5
+core_intensity = 0.9
+ray_count = 8
+ray_length = 0.09
+ray_sharpness = 30.0
+ray_intensity = 0.4
+ghost_count = 4
+ghost_positions = PackedFloat32Array(0.35, 0.65, 1.0, 1.35)
+ghost_base_size = 0.045
+ghost_size_falloff = 0.72
+ghost_alpha = 0.5
+ghost_color_b = Color(0.35, 0.78, 0.72, 1.0)
+edge_fade_margin = 0.18
+min_facing_dot = 0.05
+visibility_lerp_speed = 6.0
+max_intensity = 1.0
