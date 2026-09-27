@@ -13,7 +13,22 @@ extends Resource
 
 ## -- Disk surface -----------------------------------------------------------
 ## The disk's own color where no team owns the ground.
-@export var disk_base_color: Color = Color(0.10, 0.11, 0.14)
+##
+## DECISION (config/TerritoryVisuals.gd, Bontago-mp0.3.2, owner feedback: "the
+## disc is just a thin mirror currently ... the mockup has a much thicker
+## metallic disc"): darkened from a lit slate-grey toward the mockup's near-
+## black graphite/lacquer top -- the previous value, blended with a bright
+## uncapped mirror_strength, is what read as "brownish, almost see-through".
+##
+## DECISION (config/TerritoryVisuals.gd, Bontago-mp0.3.2 review pass 2, owner:
+## "flat muddy brown ... mockup is dark cool graphite/black lacquer (~
+## #23262c-#2e3138, slightly blue-grey, not brown)"): re-picked as a cool
+## blue-grey inside that hex range instead of a near-black neutral -- the
+## "muddy brown" was mostly the fresnel-attenuated mirror letting the warm
+## sky tint the disc almost unopposed (see mirror_center_fraction/
+## mirror_max_luminance below), but a neutral-to-warm base color compounded
+## it instead of pushing back cool.
+@export var disk_base_color: Color = Color(0.135, 0.148, 0.172)
 ## Bontago-xtq.4 (owner, 2026-09-22: "a bit transparent and reflective"):
 ## retuned from 0.1 toward a metallic response; drives the shader's
 ## SPECULAR/METALLIC-visible reflection of ProceduralSky.
@@ -45,7 +60,23 @@ extends Resource
 ## environment reflection, which is why the mirror barely read and the tint
 ## was muddy. The sun hot spot itself was the light's specular lobe, now off
 ## on the disc (shaders/territory.gdshader's render_mode DECISION).
-@export var disk_metallic: float = 0.1
+##
+## DECISION (config/TerritoryVisuals.gd, Bontago-mp0.3.2, owner feedback:
+## "the disc is just a thin mirror currently ... the mockup has a much
+## thicker metallic disc"): raised again toward docs/art_mockups/08-cel-
+## shaded-home-beacons.png's dark polished graphite/black-lacquer top,
+## alongside disk_base_color's own darkening and the new
+## mirror_center_fraction/mirror_fresnel_power below, which now do the actual
+## work of keeping the straight-down reflection subdued.
+##
+## DECISION (config/TerritoryVisuals.gd, Bontago-mp0.3.2 review pass 2):
+## brought back down -- the built-in env/probe/SSR reflection path this
+## drives samples the WorldEnvironment sky directly and, unlike the explicit
+## planar mirror below, has no per-pixel block image or luminance cap to keep
+## it from reading as a flat, blurred wash of the warm sky ("muddy brown,
+## mirror reflections gone"). The crisp block reflection now comes from
+## mirror_center_fraction/mirror_max_luminance instead.
+@export var disk_metallic: float = 0.16
 ## DECISION (config/TerritoryVisuals.gd, Bontago-xtq.11): lowered back toward
 ## glass-smooth, same reference screenshots as disk_metallic above -- the
 ## reflections in both are soft-edged, not a razor-sharp mirror, so this
@@ -93,7 +124,13 @@ extends Resource
 ## one screen pixel).
 @export var edge_softness_m: float = 0.03
 ## How much of the owner color is mixed over the disk at full coverage.
-@export var tint_alpha: float = 0.38
+##
+## DECISION (config/TerritoryVisuals.gd, Bontago-mp0.3.2 review pass 2, owner:
+## "mockup fills are translucent tints (~25-35%) with crisp luminous boundary
+## lines"): lowered from a fairly opaque wash toward that range; the boundary
+## itself stays bright via rim_strength/outline_strength below, which this
+## field does not touch.
+@export var tint_alpha: float = 0.3
 
 ## -- Animated outline (spec 2.10: "with an animated outline") ---------------
 ## Half-width of the outline band around a territory edge, same units as
@@ -102,7 +139,13 @@ extends Resource
 ## Pulses per second along the outline.
 @export var outline_speed: float = 1.6
 ## Emission strength of the outline at the peak of its pulse.
-@export var outline_strength: float = 0.9
+##
+## DECISION (config/TerritoryVisuals.gd, Bontago-mp0.3.2): raised so the
+## raster-fallback outline actually crosses Main.tscn's HDR glow threshold
+## (1.1) and reads as a luminous boundary line the way
+## docs/art_mockups/08-cel-shaded-home-beacons.png's territory edges do,
+## matching rim_strength below (the ordinary analytic path's own equivalent).
+@export var outline_strength: float = 1.6
 ## How much of the pulse is animated; the rest is a constant outline.
 @export var outline_pulse_depth: float = 0.12
 
@@ -168,7 +211,13 @@ extends Resource
 ## border around the rim of the shaded area").
 @export var rim_width: float = 0.12
 ## Emission strength of the rim at the peak of its pulse.
-@export var rim_strength: float = 0.9
+##
+## DECISION (config/TerritoryVisuals.gd, Bontago-mp0.3.2): raised past
+## Main.tscn's HDR glow threshold (1.1) so the ordinary analytic path's
+## territory boundary blooms slightly, matching
+## docs/art_mockups/08-cel-shaded-home-beacons.png's luminous contour lines
+## (outline_strength above is the raster-fallback path's own equivalent).
+@export var rim_strength: float = 1.8
 ## How much of the rim's pulse is animated; the rest is a constant glow.
 @export var rim_pulse_depth: float = 0.12
 ## Pulses per second along the rim.
@@ -279,7 +328,25 @@ extends Resource
 ## added as reflected light); 0 disables the blend even if mirror_enabled
 ## leaves the viewport itself rendering. 0.5 keeps the territory tint legible
 ## under a clearly visible reflection (docs/original_stacked-tower.png).
-@export var mirror_strength: float = 0.34
+##
+## DECISION (config/TerritoryVisuals.gd, Bontago-mp0.3.2 review pass 2): the
+## ceiling this and mirror_center_fraction's fraction both scale from -- raised
+## alongside that field so a grazing angle toward the sun reads as a
+## noticeably stronger gold sheen than straight down (mockup: "a warm gold
+## sheen gradient on the half toward the sun"), not a flat blend at every
+## angle.
+##
+## DECISION (config/TerritoryVisuals.gd, Bontago-mp0.3.2 review pass 3,
+## decisive finding): pass 2's block-reflection tuning was never actually
+## visible -- game/DiscBody.gd's own band/bottom-cap mesh, added by this same
+## package, sat directly in the mirror camera's own line of sight (it looks
+## back UP at the blocks/sky from a mirrored position below the disc) and was
+## fixed by moving that mesh off the disc's shared render layer (see that
+## file's own DECISION), not by this number. With reflections actually
+## reaching the shader again (confirmed at a 1.0/1.0 diagnostic extreme),
+## re-tuned down to a grazing-angle ceiling that reads as "moderate" together
+## with mirror_center_fraction below.
+@export var mirror_strength: float = 0.75
 ## SubViewport size as a fraction of the main viewport's own size. Below 1.0
 ## trades reflection sharpness for the cost of rendering the whole scene a
 ## second time every frame.
@@ -293,4 +360,70 @@ extends Resource
 ## which never passes through this texture (see the shader's render_mode
 ## DECISION). Pushed by game/DiscMirror.gd's _process() through
 ## TerritoryOverlay's public material() accessor.
+##
+## DECISION (config/TerritoryVisuals.gd, Bontago-mp0.3.2 review pass 2):
+## tests/unit/test_territory_overlay.gd's own
+## test_default_mirror_max_luminance_only_clamps_genuinely_blown_out_highlights
+## pins this to [1.0, 2.0] specifically so it stays a narrow blown-highlight
+## clamp, never a general sky-brightness knob (Bontago-xtq.20's own
+## reproduced-bug history above is why) -- left untouched. The "keep the sky
+## contribution low" ask (owner review pass 2) is instead mirror_sky_energy_
+## scale below, which dims the mirror CAMERA's own rendered sky brightness
+## directly (game/DiscMirror.gd), not this LDR-already color's luminance.
 @export var mirror_max_luminance: float = 1.35
+## Bontago-mp0.3.2 review pass 2 (owner: "restore the DiscMirror block
+## reflection at moderate strength and keep the SKY contribution in the
+## reflection low ... so the disc doesn't turn into a copy of the orange
+## clouds"). game/DiscMirror.gd's own mirror Camera3D renders through a
+## duplicated Environment whose background_energy_multiplier is this
+## fraction of the live scene Environment's own -- the sky/clouds show up
+## dimmer in the mirror texture while the DirectionalLight-lit blocks (not
+## driven by background energy) reflect at their ordinary brightness, so a
+## strong mirror_strength/mirror_center_fraction can show crisp block
+## reflections without the sky dominating them. 1.0 would leave the mirror's
+## sky exactly as bright as the real sky.
+##
+## Note (Bontago-mp0.3.2 review pass 3): NOT the cause of the pass-2
+## "reflections gone" regression (verified by a diagnostic capture with this
+## at 1.0 -- see mirror_strength's own review-pass-3 DECISION for the real
+## cause) -- this field's job (dimming sky specifically) is orthogonal to
+## whether the mirror camera can see the blocks at all.
+@export var mirror_sky_energy_scale: float = 0.4
+## Bontago-mp0.3.2 (owner feedback: "the disc is just a thin mirror
+## currently ... a much thicker metallic disc"): how strong mirror_strength's
+## blend stays looking straight down at the disc, as a fraction of
+## mirror_strength itself -- shaders/territory.gdshader's fragment() scales
+## the actual blended amount from this floor up to the full mirror_strength
+## ceiling by a fresnel term (mirror_fresnel_power below), so the disc reads
+## as a dark polished surface with subdued reflection near the camera and
+## opens up toward a full mirror image at a grazing angle near the horizon,
+## instead of one flat blend everywhere (which read as "brownish, almost
+## see-through" -- a near-complete copy of the whole cloud sky straight
+## down).
+##
+## DECISION (config/TerritoryVisuals.gd, Bontago-mp0.3.2 review pass 2, owner:
+## "restore the DiscMirror block reflection at moderate strength ... crisp
+## reflections [of] the red/blue towers"): raised well past halfway -- 0.55
+## left the crisp per-pixel block image too faint even close to straight
+## down, which combined with disk_metallic's own cut (see that field's own
+## DECISION) is what read as "mirror reflections gone" rather than merely
+## subdued. mirror_max_luminance above is now the lever that keeps this
+## strong center reflection from turning into a copy of the sky. Paired with
+## mirror_strength's own raise (below) so grazing angles toward the sun still
+## read as a visibly stronger gold sheen than straight down, instead of
+## flattening the fresnel gradient out.
+##
+## DECISION (config/TerritoryVisuals.gd, Bontago-mp0.3.2 review pass 3): the
+## reflection was actually invisible in every pass-2 capture regardless of
+## this value -- see mirror_strength's own review-pass-3 DECISION for the
+## real cause (game/DiscBody.gd's mesh blocking the mirror camera's own
+## view). Re-tuned to ~0.3-0.4 of mirror_strength's ceiling looking straight
+## down (0.75 * 0.47 =~ 0.35), rising toward the full ceiling at a grazing
+## angle, now that the reflection genuinely reaches the shader again.
+@export var mirror_center_fraction: float = 0.47
+## Fresnel exponent shaping how quickly mirror_center_fraction opens up
+## toward mirror_strength between straight-down and grazing angles; higher
+## keeps the center more subdued for longer before the grazing-angle
+## reflection appears.
+@export var mirror_fresnel_power: float = 1.6
+

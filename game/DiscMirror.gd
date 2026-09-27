@@ -106,6 +106,20 @@ var _camera: Camera3D = null
 var _source_camera: Camera3D = null
 var _field: Field = null
 var _overlay: TerritoryOverlay = null
+## Bontago-mp0.3.2 review pass 2 (owner: "keep the SKY contribution in the
+## reflection low ... so the disc doesn't turn into a copy of the orange
+## clouds"): a shallow duplicate() of the live scene Environment, so
+## everything but background_energy_multiplier below (sky material, fog,
+## glow, tonemap -- Resource.duplicate()'s default is a REFERENCE copy of
+## subresources like Environment.sky, not a deep clone) keeps tracking
+## whatever game/Skybox.gd is doing live, while this one top-level float
+## field is free to diverge for _camera alone. Built once in _ready() against
+## whatever Environment is live then; if Skybox ever swaps the live
+## Environment object outright rather than mutating it in place, this stays
+## a snapshot of the one it started with -- acceptable here since no code in
+## this project currently replaces the WorldEnvironment's Environment
+## resource at runtime (only individual fields on it change).
+var _mirror_environment: Environment = null
 
 
 func _ready() -> void:
@@ -136,6 +150,11 @@ func _ready() -> void:
 	# physics process ... MirrorCamera`) flagged.
 	_camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_viewport.add_child(_camera)
+
+	var live_environment: Environment = get_viewport().world_3d.environment
+	if live_environment != null:
+		_mirror_environment = live_environment.duplicate() as Environment
+		_camera.environment = _mirror_environment
 
 	if _field != null:
 		var overlay: TerritoryOverlay = _field.overlay()
@@ -187,6 +206,14 @@ func _process(_delta: float) -> void:
 			overlay_material.set_shader_parameter(
 				&"mirror_max_luminance", visuals.mirror_max_luminance
 			)
+	# Bontago-mp0.3.2 review pass 2: re-applied every frame (not just
+	# _ready()) so a live F4 edit of mirror_sky_energy_scale takes effect
+	# immediately, the same contract every other visuals field in this method
+	# already has.
+	if _mirror_environment != null:
+		_mirror_environment.background_energy_multiplier = clampf(
+			visuals.mirror_sky_energy_scale, 0.0, 1.0
+		)
 	if not visuals.mirror_enabled:
 		return
 

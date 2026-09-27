@@ -509,6 +509,18 @@ func _apply_visual_uniforms() -> void:
 	_material.set_shader_parameter(&"hole_rim_color", _visuals.hole_rim_color)
 	_material.set_shader_parameter(&"hole_rim_width", _visuals.hole_rim_width)
 	_material.set_shader_parameter(&"hole_rim_glow", _visuals.hole_rim_glow)
+	_material.set_shader_parameter(&"mirror_center_fraction", _visuals.mirror_center_fraction)
+	_material.set_shader_parameter(&"mirror_fresnel_power", _visuals.mirror_fresnel_power)
+	# Bontago-mp0.3.2: MapDef.MapShape.OVAL's true shape is an ellipse
+	# (field_radius in x, field_radius * oval_aspect in z) -- see the
+	# shader's own disc_z_scale uniform DECISION for why the vertex shader,
+	# not a node Transform, has to do this warp. Every other MapShape keeps a
+	# plain circle (1.0), same shape rebuild_disk_mesh() above already draws
+	# for them.
+	var z_scale: float = 1.0
+	if _map_def != null and _map_def.map_shape == MapDef.MapShape.OVAL:
+		z_scale = _map_def.oval_aspect
+	_material.set_shader_parameter(&"disc_z_scale", z_scale)
 	set_slot_colors(PackedColorArray())
 
 

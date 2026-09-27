@@ -66,6 +66,9 @@ const TRACE_ARG_PREFIX: String = "--trace-disk="
 @export var tilt_tuning: TiltTuning = preload("res://config/tilt_tuning.tres")
 @export var territory_tuning: TerritoryTuning = preload("res://config/territory_tuning.tres")
 @export var visuals: TerritoryVisuals = preload("res://config/territory_visuals.tres")
+## Bontago-mp0.3.2: the disc's purely-visual side band + glowing rim (see
+## game/DiscBody.gd's own class doc). Owned by that same package.
+@export var disc_body_visuals: DiscBodyVisuals = preload("res://config/disc_body_visuals.tres")
 @export var home_flag_scene: PackedScene = preload("res://game/HomeFlag.tscn")
 @export var goal_flag_scene: PackedScene = preload("res://game/GoalFlag.tscn")
 
@@ -167,6 +170,9 @@ var _registry: BlockRegistry = null
 var _physical_balance_torque: Vector2 = Vector2.ZERO
 
 var _overlay: TerritoryOverlay = null
+## Bontago-mp0.3.2: purely-visual disc thickness hanging below _overlay; see
+## game/DiscBody.gd's own class doc.
+var _disc_body: DiscBody = null
 var _home_flags: Array[HomeFlag] = []
 var _goal_flags: Array[GoalFlag] = []
 var _slot_colors: PackedColorArray = PackedColorArray()
@@ -190,6 +196,7 @@ func _ready() -> void:
 	_rebuild_cells()
 	_build_kill_plane()
 	_build_overlay()
+	_build_disc_body()
 	Events.hole_cells_changed.connect(_on_hole_cells_changed)
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 
@@ -682,6 +689,8 @@ func rebuild_for_map(new_map_def: MapDef) -> void:
 	_build_kill_plane()
 	if _overlay != null:
 		_overlay.configure(map_def, visuals, territory_tuning)
+	if _disc_body != null:
+		_disc_body.configure(map_def, disc_body_visuals, disc_body_visuals.segments)
 
 
 ## Every in-disk cell index in row-major order. CellGrid is the one authority
@@ -1084,6 +1093,22 @@ func _build_overlay() -> void:
 
 func overlay() -> TerritoryOverlay:
 	return _overlay
+
+
+## Bontago-mp0.3.2: the disc's own purely-visual thickness (see
+## game/DiscBody.gd's class doc). Built once here, then rebuilt in place by
+## rebuild_for_map() below whenever the match's map changes -- the same
+## create-once/reconfigure-after pattern _build_overlay()/_overlay.configure()
+## already use.
+func _build_disc_body() -> void:
+	_disc_body = DiscBody.new()
+	_disc_body.name = &"DiscBody"
+	add_child(_disc_body)
+	_disc_body.configure(map_def, disc_body_visuals, disc_body_visuals.segments)
+
+
+func disc_body() -> DiscBody:
+	return _disc_body
 
 
 ## Hands the overlay the live raster to draw and the per-slot colors to draw it
