@@ -589,9 +589,22 @@ func test_rotate_drag_never_moves_the_cameras_follow_position_in_xz() -> void:
 
 	assert_almost_eq(target_after.x, target_before.x, 0.0001, "rotating the held block must not drift the camera's framing in X.")
 	assert_almost_eq(target_after.z, target_before.z, 0.0001, "rotating the held block must not drift the camera's framing in Z.")
-	assert_true(
-		target_after.is_equal_approx(controller._ghost.rotated_center_world()),
-		"the rig's follow target should be exactly the ghost's rotated centre, got %s expected %s" % [target_after, controller._ghost.rotated_center_world()]
+	# Bontago-pt-4 (coordinator follow-up, shape-independent camera follow
+	# anchor): the rig's follow target's X/Z still come from the ghost's
+	# rotated centre (rotated_center_world()) -- checked here -- but its Y no
+	# longer does; PlayerController._camera_follow_anchor() now derives Y from
+	# the cursor's own surface hit plus the current hover height instead, so a
+	# held shape's own geometry (or a rotation tipping rotated_center_offset()
+	# sideways) can no longer move the camera's height at all. See that
+	# method's own doc comment, and tests/unit/test_camera_drop_continuity.gd
+	# for the Y-independence coverage.
+	assert_almost_eq(
+		target_after.x, controller._ghost.rotated_center_world().x, 0.0001,
+		"the rig's follow target X should match the ghost's rotated centre X."
+	)
+	assert_almost_eq(
+		target_after.z, controller._ghost.rotated_center_world().z, 0.0001,
+		"the rig's follow target Z should match the ghost's rotated centre Z."
 	)
 	assert_true(
 		not is_equal_approx(controller._ghost.global_position.x, target_after.x) or not is_equal_approx(controller._ghost.global_position.z, target_after.z),
@@ -640,14 +653,28 @@ func test_rotate_drag_freezes_the_camera_rig_for_the_whole_drag_then_resumes_on_
 	controller._process(1.0 / 60.0)
 	rig._process(1.0 / 60.0)
 
-	assert_true(
-		rig.get_target().is_equal_approx(controller._ghost.rotated_center_world()),
-		"after release, the rig should resume following the ghost's rotated centre."
+	# Bontago-pt-4 (coordinator follow-up, shape-independent camera follow
+	# anchor): only X/Z resume tracking the ghost's rotated centre -- Y now
+	# comes from PlayerController._camera_follow_anchor()'s shape-independent
+	# hover height instead (see that method's own doc comment), so it is
+	# deliberately not part of this "resumes following" check any more.
+	var target_after_release: Vector3 = rig.get_target()
+	assert_almost_eq(
+		target_after_release.x, controller._ghost.rotated_center_world().x, 0.0001,
+		"after release, the rig should resume following the ghost's rotated centre in X."
 	)
-	assert_false(
-		rig.get_target().is_equal_approx(target_before),
-		"fixture: the rotated centre should actually have moved once resumed, or this isn't exercising the bug."
+	assert_almost_eq(
+		target_after_release.z, controller._ghost.rotated_center_world().z, 0.0001,
+		"after release, the rig should resume following the ghost's rotated centre in Z."
 	)
+	# Bontago-pt-4: no longer asserts the target actually *moved* once resumed
+	# -- this fixture's rotation-only drag (no cursor motion, no hover change)
+	# now legitimately produces zero camera movement end to end, which is the
+	# whole point of the shape-independent anchor (see
+	# tests/unit/test_camera_drop_continuity.gd for that coverage). The frozen
+	# loop above (assert_true at every held frame) already pins "did not move
+	# while held"; free_quaternion's own assert_ne above already pins "the
+	# drag really did rotate the block".
 
 
 func test_follow_block_false_pins_the_legacy_free_orbit_camera() -> void:

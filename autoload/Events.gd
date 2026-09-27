@@ -31,6 +31,16 @@ signal turn_changed(slot_id: int)
 ## A team met the win condition (spec 2.3). The match state goes to End.
 signal match_won(team_id: int)
 
+## Bontago-1pi.13: the full results-screen payload is ready -- fired once per
+## match end, on the host directly from MatchLifecycle._finish_match() (right
+## after match_won above) and on every client after net/MatchNet.gd's single
+## EVENT_MATCH_RESULTS RPC has validated the wire payload
+## (MatchStats.validate_results_payload()). `results` is always the typed
+## Dictionary shape MatchStats.gd's own header comment documents (winner_kind/
+## winner_id/winner_name/match_duration/rows); the results-screen UI worker
+## (Bontago-1pi.6) is this signal's consumer.
+signal match_results_ready(results: Dictionary)
+
 # --- M2: block feed (spec 2.4, 3.7) -----------------------------------------
 
 ## A slot received a new block from the bag. `next_shape_id` is what the HUD

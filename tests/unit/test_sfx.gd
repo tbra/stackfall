@@ -8,6 +8,16 @@ extends GutTest
 
 const SFX_SCRIPT: GDScript = preload("res://autoload/Sfx.gd")
 
+
+func test_bundled_owner_theme_plays_without_original_assets_and_loops() -> void:
+	_config.bundled_theme = load("res://assets/music/stacking-blocks.mp3")
+	_sfx.set_root_dir_for_test(_empty_dir)
+	_sfx.play_music()
+	assert_same(_sfx._music_player.stream, _config.bundled_theme)
+	assert_true(_sfx._music_player.playing)
+	assert_true((_sfx._music_player.stream as AudioStreamMP3).loop)
+	_sfx._music_player.stop()
+
 var _sfx: Node
 var _config: AudioConfig
 var _tmp_dir: String
@@ -27,6 +37,8 @@ func before_each() -> void:
 	Settings.set_config_path_for_test(_settings_cfg_path)
 
 	_config = load("res://config/audio_config.tres").duplicate() as AudioConfig
+	_config.contextual_music_enabled = false # Legacy disk/stem fixtures only.
+	_config.bundled_theme = null # Existing fixtures test optional disk audio.
 	_sfx = autofree(SFX_SCRIPT.new())
 	_sfx.config = _config
 	add_child_autofree(_sfx)
@@ -166,23 +178,23 @@ func test_gift_claimed_for_the_local_slot_plays_even_as_a_connected_client() -> 
 
 # --- Custom music folder + master volume (docs/M6_PLAN.md package C3) --------
 
-func test_play_music_uses_custom_music_dir_when_set() -> void:
+func test_play_music_ignores_custom_music_dir_when_set() -> void:
 	var music_dir: String = OS.get_user_data_dir().path_join("test_sfx_custom_music")
 	DirAccess.make_dir_recursive_absolute(music_dir)
 	_config.music_file = "custom_track.wav"
+	_config.bundled_theme = load("res://assets/music/stacking-blocks.mp3")
 	_write_tiny_wav(music_dir.path_join(_config.music_file))
 
-	# The bundled root ( _tmp_dir, via set_root_dir_for_test) never has
-	# "custom_track.wav" -- only the custom music folder does, so a
-	# successfully playing track proves play_music() read the custom folder,
-	# not the bundled one.
+	# A real override file exists, but owner direction temporarily disables
+	# this path: the bundled stream must win, not merely missing-file fallback.
 	_sfx.set_root_dir_for_test(_tmp_dir)
 	Settings.set_custom_music_dir(music_dir)
 	_sfx._music_player.stop()  # discard whatever _ready()'s own auto-play call already picked
 
 	_sfx.play_music()
 
-	assert_true(_sfx._music_player.playing, "play_music() should load the track from the custom music folder")
+	assert_true(_sfx._music_player.playing, "bundled music still plays")
+	assert_same(_sfx._music_player.stream, _config.bundled_theme, "custom folder override is disabled")
 
 	for filename: String in DirAccess.get_files_at(music_dir):
 		DirAccess.remove_absolute(music_dir.path_join(filename))

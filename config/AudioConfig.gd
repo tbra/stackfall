@@ -6,10 +6,10 @@ extends Resource
 ## (which mix `Top.jpg`/`top.jpg` case) on install so this file never has to
 ## special-case casing at runtime.
 ##
-## Loaded once as config/audio_config.tres. The files themselves live under
-## the gitignored assets/original/audio/ (HARD CONSTRAINT: third-party
-## copyrighted assets never enter the public repo) -- this Resource only
-## records what filename plays for which event, not the bytes.
+## Loaded once as config/audio_config.tres. Original SFX live in gitignored
+## assets/original/audio/ and are referenced by filename only. Owner-created
+## music is imported and committed under assets/music/, referenced by the
+## typed AudioStream playlists below, and included in exported builds.
 
 ## Random thud on block impact (game/Block.gd's contact signal), one of five
 ## originals so repeated landings don't sound identical.
@@ -22,6 +22,32 @@ extends Resource
 @export var drop_file: String = "whoosh.wav"
 @export var bounce_file: String = "boing.wav"
 @export var music_file: String = "bontago1.mp3"
+
+## Legacy single-stream fallback (custom-folder overrides are disabled).
+@export var bundled_theme: AudioStream = null
+
+## Contextual tracks play once, with silence between songs instead of looping.
+@export var contextual_music_enabled: bool = true
+@export var menu_playlist: Array[AudioStream] = []
+@export var lobby_playlist: Array[AudioStream] = []
+@export var gameplay_playlist: Array[AudioStream] = []
+@export_range(0.0, 30.0) var music_fade_in_seconds: float = 4.0
+@export_range(0.0, 30.0) var music_fade_out_seconds: float = 5.0
+@export_range(0.0, 300.0) var music_gap_min_seconds: float = 30.0
+@export_range(0.0, 300.0) var music_gap_max_seconds: float = 75.0
+@export_range(0.0, 30.0) var music_initial_delay_seconds: float = 2.0
+
+
+func playlist_for_context(context: StringName) -> Array[AudioStream]:
+	match context:
+		&"menu":
+			return menu_playlist
+		&"lobby":
+			return lobby_playlist
+		&"gameplay":
+			return gameplay_playlist
+		_:
+			return []
 
 ## Two-stem adaptive music (spec 2.10 "adaptive... more intense as someone
 ## gets close to capturing"; docs/M7_PLAN.md P6). Sfx.gd crossfades between

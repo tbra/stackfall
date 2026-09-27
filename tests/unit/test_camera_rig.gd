@@ -83,6 +83,50 @@ func test_set_home_view_with_a_home_position_already_at_the_center_keeps_the_pre
 	assert_almost_eq(rig.get_yaw(), yaw_before, 0.001)
 
 
+# --- Bontago-pt-4 (owner playtest: "Camera always jumps up after block drops
+# or when clicking the drop button") -- begin_follow_transition() -----------
+
+
+func test_begin_follow_transition_eases_a_jump_instead_of_hard_snapping() -> void:
+	var rig: CameraRig = _make_rig()
+	rig.tuning = rig.tuning.duplicate() as CameraTuning
+	assert_almost_eq(rig.tuning.follow_lag_seconds, 0.0, 0.0001, "fixture: shipped default is a hard snap.")
+
+	rig.set_home_view(Vector3(0.0, 0.0, 10.0))
+	rig._process(1.0 / 60.0)
+	var target_y_before: float = rig.get_target().y
+
+	rig.begin_follow_transition()
+	rig.set_follow_position(Vector3(0.0, 5.0, 10.0))
+	rig._process(1.0 / 60.0)
+
+	var one_frame_delta: float = rig.get_target().y - target_y_before
+	assert_gt(one_frame_delta, 0.0, "the rig must still move toward the new height, just not all at once.")
+	assert_lt(one_frame_delta, 2.5, "a single frame must ease into the jump, not cover the whole 5m in one step.")
+
+	for _i: int in range(120):
+		rig._process(1.0 / 60.0)
+	assert_almost_eq(rig.get_target().y, 5.0, 0.01, "it must still fully converge, just not instantly.")
+
+
+func test_begin_follow_transition_does_not_affect_ordinary_movement_once_converged() -> void:
+	var rig: CameraRig = _make_rig()
+	rig.tuning = rig.tuning.duplicate() as CameraTuning
+
+	rig.begin_follow_transition()
+	rig.set_follow_position(Vector3(1.0, 0.0, 0.0))
+	for _i: int in range(120):
+		rig._process(1.0 / 60.0)
+	assert_almost_eq(rig.get_target().x, 1.0, 0.01, "fixture: the transition must have converged and cleared itself.")
+
+	# A brand new, ordinary follow_position update (no begin_follow_transition()
+	# call for it) must hard-snap exactly as before -- the eased state must not
+	# leak into unrelated later frames.
+	rig.set_follow_position(Vector3(9.0, 0.0, 0.0))
+	rig._process(1.0 / 60.0)
+	assert_almost_eq(rig.get_target().x, 9.0, 0.0001, "an ordinary update after convergence must still be a hard snap.")
+
+
 # --- Bontago-mv0.20b: apply_follow_tuning() (F4 tuning panel live-apply) -----
 
 

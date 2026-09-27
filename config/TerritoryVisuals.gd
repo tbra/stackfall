@@ -90,6 +90,33 @@ extends Resource
 ## circle rather than a polygon at the camera distances spec 2.5 allows.
 @export var disk_mesh_segments: int = 96
 
+## -- Top-surface brushed/plank grain (Bontago-pt.12 part 2, owner: "the
+## disc looks close to the mockup but it lacks the texture ... especially
+## visible in the mockup where it interacts with the sun (top-right and
+## bottom-center)") -- shaders/territory.gdshader's own top_grain_* uniforms,
+## a cheap hash-noise NORMAL/ROUGHNESS perturbation on the flat top surface
+## only (this package's own game/DiscBody.gd already textures the side
+## band/chamfer, a separate mesh/material). Nearly invisible in plain
+## diffuse/ambient light by design -- it only visibly breaks up the
+## explicit sun-facing sheen (disk_sheen_* above) and the mirror/ambient/
+## SSR/probe specular into fine streaks, matching the mockup's plank-like
+## grain that "shows up" specifically where the disc catches the sun.
+## Amplitude of the NORMAL tilt the grain applies; 0 disables it entirely
+## (a perfectly flat normal, exactly the old behavior).
+@export var top_grain_strength: float = 0.0
+## Spatial frequency, in cycles per meter, of the coarse "plank" bands.
+## Lower reads as fewer, wider bands; higher as many narrow ones.
+@export var top_grain_scale: float = 0.35
+## Multiplier on top_grain_scale for a finer "brushed" ripple layered inside
+## each plank band -- the actual frequency of that fine layer is
+## top_grain_scale * this value.
+@export var top_grain_fine_scale: float = 6.0
+## Amplitude of the grain's own small additive nudge to ROUGHNESS (on top of
+## disk_roughness above); 0 disables it. Sign-symmetric (the grain height is
+## centered on 0), so this only ever varies the reflection's sharpness in
+## fine streaks, never dulls or polishes the disc as a whole.
+@export var top_grain_roughness_strength: float = 0.0
+
 ## -- Sun-facing sheen / diffuse cooling (Bontago-mp0.3.8, owner: "the disc
 ## top reads flat maroon-brown, mockup is dark cool graphite/black lacquer
 ## with a warm gold sheen gradient toward the sun") --------------------------

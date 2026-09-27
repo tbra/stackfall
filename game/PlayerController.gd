@@ -323,12 +323,45 @@ func _process(delta: float) -> void:
 	if _camera_rig != null and _ghost != null:
 		_camera_rig.block_held = _ghost.get_shape() != null
 		# Bontago-mv0.28 (owner test 2026-09-22): follow the rotated shape's own
-		# centre, not this node's fixed local origin -- see GhostPreview.
+		# centre in X/Z, not this node's fixed local origin -- see GhostPreview.
 		# rotated_center_world()'s own doc comment. Placement intents/cursor
 		# publishing below keep sending _ghost.global_position unchanged (the
 		# node origin), matching what MatchPlacement._spawn_block() actually
 		# spawns the block at.
-		_camera_rig.set_follow_position(_ghost.rotated_center_world())
+		# Bontago-pt-4: Y comes from _camera_follow_anchor() instead, not
+		# rotated_center_world()'s own Y -- see that method's own doc comment
+		# for why (the held shape's own geometry must not move the camera).
+		_camera_rig.set_follow_position(_camera_follow_anchor())
+
+
+## Bontago-pt-4 (owner playtest: "Camera always jumps up after block drops or
+## when clicking the drop button", coordinator follow-up: easing over
+## CameraTuning.drop_recover_seconds still visibly moved the camera up on
+## every new piece). ROOT CAUSE: GhostPreview.rotated_center_world()'s own Y
+## is global_position.y plus roughly half the *held shape's* own height (see
+## that method's own doc comment) -- config/blocks/*.tres shapes range from 1
+## cell tall (cube, domino) to 3 (pillar) -- so swapping shapes moved that Y
+## even when the hover/contact height genuinely never changed at all (no
+## overlap, no spawn clearance, the very same cursor spot). What the camera
+## should follow instead: the same X/Z rotated_center_world() already gives
+## (so orbiting/pitching the block still doesn't swing the camera's
+## horizontal framing -- mv0.28's own fix), but a Y built from
+## _last_hit_point.y (the cursor's own surface hit, cached by
+## _update_ghost_transform()) plus the current hover height
+## (tuning.hover_height + _ghost.manual_hover_offset) -- exactly the anchor
+## GhostPreview.update_placement() itself positions the ghost's bottom from
+## (its own `anchor` local var), which depends only on the cursor's surface
+## hit and the hover wheel/raise input, never on which shape is held or how
+## it is rotated. A genuine hover change (the wheel, a held raise/lower, or
+## _apply_spawn_clearance()'s own spawn-clearance raise) still moves this
+## exactly as before; an ordinary shape swap with the hover otherwise
+## unchanged now gives *zero* movement here, so CameraRig.
+## begin_follow_transition() only needs calling for that genuine raise (see
+## _apply_spawn_clearance()'s own call site) -- not for every shape swap.
+func _camera_follow_anchor() -> Vector3:
+	var center: Vector3 = _ghost.rotated_center_world()
+	var anchor_y: float = _last_hit_point.y + tuning.hover_height + _ghost.manual_hover_offset
+	return Vector3(center.x, anchor_y, center.z)
 
 
 func _session() -> Variant:
@@ -966,6 +999,9 @@ func _on_turn_changed(slot_id: int) -> void:
 	var shape: BlockShape = _match.held_shape(slot_id)
 	if shape != null:
 		_ghost.set_shape(shape)
+		# Bontago-pt-4: no longer needs to tell the camera anything here --
+		# _camera_follow_anchor()'s own doc comment explains why an ordinary
+		# shape swap no longer moves the followed height at all.
 
 
 func _on_feed_block_issued(slot_id: int, shape_id: StringName, _next_shape_id: StringName) -> void:
@@ -1032,6 +1068,8 @@ func _apply_spawn_clearance() -> void:
 	if not _pending_spawn_active:
 		return
 	_pending_spawn_active = false
+	if not ghost_tuning.spawn_clearance_enabled:
+		return
 	if _ghost == null or _ghost.get_shape() == null:
 		return
 	if not _would_overlap_a_placed_block_at_baseline_hover():
@@ -1039,6 +1077,17 @@ func _apply_spawn_clearance() -> void:
 	var required_bottom_y: float = _pending_spawn_top_y + ghost_tuning.spawn_clearance
 	var desired_offset: float = required_bottom_y - _last_hit_point.y - tuning.hover_height
 	_ghost.manual_hover_offset = clampf(desired_offset, 0.0, _hover_offset_ceiling())
+	# Bontago-pt-4 (owner playtest: "Camera always jumps up after block drops
+	# or when clicking the drop button"): this is the exact call site that
+	# produces the discontinuous followed-height re-target CameraRig.
+	# begin_follow_transition()'s own doc comment root-causes -- the raise
+	# above just changed manual_hover_offset (and so the ghost's followed
+	# rotated_center_world() height) in one frame, not gradually across many.
+	# Telling the rig here, right where that jump originates, lets it ease
+	# into the new height instead of hard-snapping to it later this same
+	# frame's _camera_rig.set_follow_position() call below.
+	if _camera_rig != null:
+		_camera_rig.begin_follow_transition()
 	# Bontago-mv0.33: re-applies immediately rather than waiting for next
 	# frame's own _update_ghost_transform() call -- _would_overlap_a_placed_
 	# block_at_baseline_hover() above already left global_position restored to
@@ -1177,7 +1226,8 @@ func _on_placement_relocated(slot_id: int, point: Vector2) -> void:
 		# block truly is.
 		_pending_spawn_top_y = _ghost.projection_span_y().x
 	if _camera_rig != null:
-		_camera_rig.set_follow_position(_ghost.rotated_center_world())
+		# Bontago-pt-4: see _camera_follow_anchor()'s own doc comment.
+		_camera_rig.set_follow_position(_camera_follow_anchor())
 
 
 ## Every frame: the read-only, advisory preview (spec 2.5) that tints the

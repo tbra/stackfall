@@ -11,16 +11,16 @@ extends Node
 ##
 ## Listens on Events; nothing in gameplay code calls Sfx directly (CLAUDE.md's
 ## global-signal-bus convention). ui/MainMenu.gd and ui/Lobby.gd are the sole
-## exception -- UI button press/hover has no Events signal of its own and
-## isn't gameplay, so those two files call Sfx.play() straight from their
-## button handlers.
+## UI exceptions -- button press/hover has no Events signal of its own, so
+## those screens call Sfx.play() from their button handlers. Main.gd also
+## supplies the current menu/lobby/gameplay music context.
 ##
 ## No class_name: this is the Sfx autoload singleton (same reason Events,
 ## Settings, Net and Match have none -- see autoload/Net.gd's header).
 ##
-## MUSIC (only) additionally loads from Settings.custom_music_dir() when it is
-## set and exists on disk (spec 1.4/2.10's custom music folder); SFX always
-## stay on the bundled folder above. Every play()/play_music()/impact-thud
+## Music uses bundled context playlists; custom folder preferences are
+## temporarily ignored by owner direction. SFX stay on the folder above.
+## Every play()/play_music()/impact-thud
 ## volume_db also adds Settings.master_volume_db() on top of this file's own
 ## AudioConfig.sfx_volume_db/music_volume_db baseline, live-updated via
 ## Settings.audio_settings_changed (docs/M6_PLAN.md package C3).
@@ -41,11 +41,7 @@ const MUSIC_STEM_MUTE_DB: float = -80.0
 var _root_dir: String = ""
 var _available: bool = false
 var _streams_by_filename: Dictionary = {}
-## Folder MUSIC streams load from: Settings.custom_music_dir() when set and
-## it exists on disk, otherwise the same bundled _root_dir as SFX (see
-## _refresh_music_root_dir()). Kept separate from _root_dir/_streams_by_filename
-## so a custom folder never affects SFX lookups (spec 1.4/2.10 name a custom
-## *music* folder only, never a custom SFX set).
+## Legacy disk-music fallback cache; independent of bundled playlist streams.
 var _music_root_dir: String = ""
 var _music_available: bool = false
 var _music_streams_by_filename: Dictionary = {}
@@ -70,6 +66,17 @@ var _tense_stem_available: bool = false
 ## drop) can read the intended target without needing a live Tween to finish.
 var _tense_stem_is_active: bool = false
 var _music_crossfade_tween: Tween
+
+enum MusicState { STOPPED, WAITING, PLAYING, SWITCHING }
+var _music_state: MusicState = MusicState.STOPPED
+var _music_context: StringName = &"menu"
+var _music_wait_remaining: float = 0.0
+var _music_age: float = 0.0
+var _music_envelope: float = 0.0
+var _switch_start_envelope: float = 0.0
+var _switch_elapsed: float = 0.0
+var _last_track_by_context: Dictionary = {}
+var _last_music_tick_usec: int = Time.get_ticks_usec()
 
 
 func _ready() -> void:
@@ -101,19 +108,12 @@ func _resolve_root_dir() -> String:
 	return OS.get_executable_path().get_base_dir().path_join(AUDIO_SUBDIR)
 
 
-## Resolves _music_root_dir/_music_available from Settings.custom_music_dir():
-## a non-empty path that actually exists on disk wins for MUSIC only; anything
-## else (empty, or set but missing -- e.g. an unplugged drive) falls back to
-## the bundled _root_dir silently, the same "supported absence" pattern
-## _ready() already documents for a missing bundled folder itself. Clears the
-## music stream cache since the same filename can now resolve to a different
-## file underneath it (docs/M6_PLAN.md package C3).
+## Legacy fallback stays on the original bundled root. Custom folders are
+## ignored even when a saved preference points at an existing directory.
 func _refresh_music_root_dir() -> void:
-	var custom_dir: String = Settings.custom_music_dir()
-	if not custom_dir.is_empty() and DirAccess.dir_exists_absolute(custom_dir):
-		_music_root_dir = custom_dir
-	else:
-		_music_root_dir = _root_dir
+	# Owner request: ignore persisted custom-folder overrides for now, even
+	# on the legacy fallback path. Keep the preference for future restoration.
+	_music_root_dir = _root_dir
 	_music_available = DirAccess.dir_exists_absolute(_music_root_dir)
 	_music_streams_by_filename.clear()
 
@@ -123,6 +123,9 @@ func _refresh_music_root_dir() -> void:
 ## music folder and, per docs/M6_PLAN.md package C3, re-applies the volume to
 ## whatever is already playing -- no restart needed to hear a slider move.
 func _on_audio_settings_changed() -> void:
+	if config.contextual_music_enabled:
+		_apply_playlist_volume()
+		return
 	_refresh_music_root_dir()
 	_refresh_tense_stem()
 	if _music_player.playing:
@@ -138,6 +141,7 @@ func _build_player_pool() -> void:
 		_sfx_players.append(player)
 	_music_player = AudioStreamPlayer.new()
 	add_child(_music_player)
+	_music_player.finished.connect(_on_music_finished)
 	_tense_music_player = AudioStreamPlayer.new()
 	_tense_music_player.bus = _music_player.bus
 	add_child(_tense_music_player)
@@ -148,6 +152,9 @@ func _build_player_pool() -> void:
 ## actually played -- false with no assets installed, an unknown event, or a
 ## missing file.
 func play(event: StringName) -> bool:
+	if event == AudioConfig.EVENT_MUSIC and config.contextual_music_enabled:
+		play_music()
+		return _music_enabled and not config.playlist_for_context(_music_context).is_empty()
 	var stream: AudioStream = _pick_stream(event)
 	if stream == null:
 		return false
@@ -170,16 +177,24 @@ func play_at(event: StringName, _position: Vector3) -> bool:
 
 
 func set_music_enabled(enabled: bool) -> void:
+	if enabled == _music_enabled:
+		return
 	_music_enabled = enabled
 	if not enabled:
 		_music_player.stop()
 		_tense_music_player.stop()
+		_music_state = MusicState.STOPPED
+		_music_envelope = 0.0
 	elif not _music_player.playing:
 		play_music()
 
 
 func play_music() -> void:
 	if not _music_enabled:
+		return
+	if config.contextual_music_enabled:
+		if _music_state == MusicState.STOPPED:
+			_schedule_music(config.music_initial_delay_seconds)
 		return
 	var stream: AudioStream = _pick_stream(AudioConfig.EVENT_MUSIC)
 	if stream != null:
@@ -198,6 +213,9 @@ func _play_music_stream(stream: AudioStream) -> void:
 func _pick_stream(event: StringName) -> AudioStream:
 	var is_music: bool = event == AudioConfig.EVENT_MUSIC
 	if is_music:
+		# The legacy bundled theme is independent of optional original assets.
+		if config.bundled_theme != null:
+			return config.bundled_theme
 		if not _music_available:
 			return null
 		# DECISION (autoload/Sfx.gd, Bontago-xtq.31 review, MEDIUM): only steer
@@ -286,6 +304,10 @@ func _refresh_tense_stem() -> void:
 	if _tense_music_player == null:
 		return  # called from _ready() before _build_player_pool() creates it
 	_tense_music_player.stop()
+	# The owner theme is a complete mix, not a stem of the original score.
+	if config.contextual_music_enabled or config.bundled_theme != null:
+		_tense_stem_is_active = false
+		return
 	if not _music_available:
 		if was_available:
 			_tense_stem_is_active = false  # the tense stem just disappeared -- fall back to calm
@@ -374,6 +396,8 @@ func tense_stem_target_volume_db() -> float:
 ## `progress >= threshold` check below with no special-casing, since 0.0 is
 ## always below music_tense_progress_threshold.
 func _on_goal_capture_progress(_team_id: int, progress: float) -> void:
+	if config.contextual_music_enabled:
+		return
 	# Hysteresis (docs/M7_PLAN.md P6 review, MINOR, Bontago-xtq.31): the rising
 	# edge (calm -> tense) always uses the plain threshold; the falling edge
 	# (tense -> calm) only fires music_tense_release_margin below it, so
@@ -401,6 +425,123 @@ func _on_goal_capture_progress(_team_id: int, progress: float) -> void:
 	_music_crossfade_tween.tween_property(
 		_tense_music_player, "volume_db", tense_stem_target_volume_db(), config.music_crossfade_seconds
 	)
+
+
+# --- Contextual intermittent music -------------------------------------------
+
+## One state machine owns transitions; no delayed callbacks/tweens can start
+## stale music after rapid menu/lobby/gameplay changes.
+func set_music_context(context: StringName) -> void:
+	if context not in [&"menu", &"lobby", &"gameplay"] or context == _music_context:
+		return
+	_music_context = context
+	if not config.contextual_music_enabled or not _music_enabled:
+		return
+	if _music_state == MusicState.PLAYING:
+		_music_state = MusicState.SWITCHING
+		_switch_start_envelope = _music_envelope
+		_switch_elapsed = 0.0
+	elif _music_state != MusicState.SWITCHING:
+		_schedule_music(config.music_initial_delay_seconds)
+
+
+func _process(_delta: float) -> void:
+	# Sandbox slow-motion changes Engine.time_scale, not the audio clock.
+	# Silence and transitions use wall time; song fades follow the decoder.
+	var now_usec: int = Time.get_ticks_usec()
+	var real_delta: float = maxf(float(now_usec - _last_music_tick_usec) / 1000000.0, 0.0)
+	_last_music_tick_usec = now_usec
+	var playback_position: float = -1.0
+	if _music_state == MusicState.PLAYING and _music_player.playing:
+		playback_position = maxf(0.0, _music_player.get_playback_position() + AudioServer.get_time_since_last_mix() - AudioServer.get_output_latency())
+	_advance_music(real_delta, playback_position)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_UNPAUSED:
+		_last_music_tick_usec = Time.get_ticks_usec()
+
+
+func _advance_music(delta: float, playback_position: float = -1.0) -> void:
+	if not config.contextual_music_enabled or not _music_enabled:
+		return
+	match _music_state:
+		MusicState.WAITING:
+			_music_wait_remaining -= delta
+			if _music_wait_remaining <= 0.0:
+				_start_playlist_track()
+		MusicState.PLAYING:
+			_music_age = playback_position if playback_position >= 0.0 else _music_age + delta
+			var fade_in: float = 1.0 if config.music_fade_in_seconds <= 0.0 else clampf(_music_age / config.music_fade_in_seconds, 0.0, 1.0)
+			var remaining: float = _music_player.stream.get_length() - _music_age
+			var fade_out: float = 1.0 if config.music_fade_out_seconds <= 0.0 else clampf(remaining / config.music_fade_out_seconds, 0.0, 1.0)
+			_music_envelope = minf(fade_in, fade_out)
+			_apply_playlist_volume()
+		MusicState.SWITCHING:
+			_switch_elapsed += delta
+			var fraction: float = 1.0 if config.music_fade_out_seconds <= 0.0 else clampf(_switch_elapsed / config.music_fade_out_seconds, 0.0, 1.0)
+			_music_envelope = _switch_start_envelope * (1.0 - fraction)
+			_apply_playlist_volume()
+			if fraction >= 1.0:
+				_music_player.stop()
+				_schedule_music(config.music_initial_delay_seconds)
+
+
+func _schedule_music(delay: float) -> void:
+	_last_music_tick_usec = Time.get_ticks_usec()
+	_music_wait_remaining = maxf(delay, 0.0)
+	_music_state = MusicState.WAITING
+
+
+func _start_playlist_track() -> void:
+	var playlist: Array[AudioStream] = config.playlist_for_context(_music_context)
+	var choices: Array[int] = []
+	var previous: int = int(_last_track_by_context.get(_music_context, -1))
+	for index: int in range(playlist.size()):
+		if playlist[index] != null and (index != previous or playlist.size() == 1):
+			choices.append(index)
+	if choices.is_empty():
+		# Also tolerate a playlist with null entries and only one usable track.
+		if previous >= 0 and previous < playlist.size() and playlist[previous] != null:
+			choices.append(previous)
+		else:
+			_music_state = MusicState.STOPPED
+			return
+	var selected: int = choices[_rng.randi_range(0, choices.size() - 1)]
+	_last_track_by_context[_music_context] = selected
+	# Duplicate before changing loop flags: imported shared resources and
+	# legacy consumers must not inherit one another's playback settings.
+	var stream: AudioStream = playlist[selected].duplicate() as AudioStream
+	if stream is AudioStreamMP3:
+		(stream as AudioStreamMP3).loop = false
+	elif stream is AudioStreamOggVorbis:
+		(stream as AudioStreamOggVorbis).loop = false
+	elif stream is AudioStreamWAV:
+		(stream as AudioStreamWAV).loop_mode = AudioStreamWAV.LOOP_DISABLED
+	_music_player.stream = stream
+	_music_age = 0.0
+	_music_envelope = 0.0 if config.music_fade_in_seconds > 0.0 else 1.0
+	_music_state = MusicState.PLAYING
+	_apply_playlist_volume()
+	_music_player.play()
+
+
+func _apply_playlist_volume() -> void:
+	if _music_player == null:
+		return
+	var baseline: float = config.music_volume_db + Settings.master_volume_db()
+	_music_player.volume_db = MUSIC_STEM_MUTE_DB if _music_envelope <= 0.0 else maxf(MUSIC_STEM_MUTE_DB, baseline + linear_to_db(_music_envelope))
+
+
+func _on_music_finished() -> void:
+	if not config.contextual_music_enabled or not _music_enabled:
+		return
+	if _music_state == MusicState.SWITCHING:
+		_schedule_music(config.music_initial_delay_seconds)
+	elif _music_state == MusicState.PLAYING:
+		var minimum: float = maxf(config.music_gap_min_seconds, 0.0)
+		_schedule_music(_rng.randf_range(minimum, maxf(minimum, config.music_gap_max_seconds)))
+	_music_envelope = 0.0
 
 
 # --- Events hooks -------------------------------------------------------------

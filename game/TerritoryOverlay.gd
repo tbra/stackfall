@@ -484,6 +484,14 @@ func _apply_visual_uniforms() -> void:
 	_material.set_shader_parameter(&"base_color", _visuals.disk_base_color)
 	_material.set_shader_parameter(&"base_metallic", _visuals.disk_metallic)
 	_material.set_shader_parameter(&"base_roughness", _visuals.disk_roughness)
+	# Bontago-pt.12 part 2: top-surface brushed/plank grain -- see
+	# shaders/territory.gdshader's own top_grain_* uniform DECISION.
+	_material.set_shader_parameter(&"top_grain_strength", _visuals.top_grain_strength)
+	_material.set_shader_parameter(&"top_grain_scale", _visuals.top_grain_scale)
+	_material.set_shader_parameter(&"top_grain_fine_scale", _visuals.top_grain_fine_scale)
+	_material.set_shader_parameter(
+		&"top_grain_roughness_strength", _visuals.top_grain_roughness_strength
+	)
 	# Bontago-mp0.3.8: disc top color/sheen fix -- see shaders/territory.
 	# gdshader's own disk_sheen_*/disk_diffuse_* uniform DECISION.
 	_material.set_shader_parameter(&"disk_sheen_color", _visuals.disk_sheen_color)

@@ -79,7 +79,17 @@ extends Resource
 ## block") --------------------------------------------------------------------
 ## Continuous per-second rate for held inputs (PageUp/PageDown keys, gamepad
 ## RS click/X) -- these are genuinely holdable buttons, unlike the wheel.
-@export var hover_manual_adjust_speed: float = 1.0
+## Bontago-pt-4 (owner playtest: "Scrolling up/down should be a bit faster" --
+## coordinator clarified this means the default mouse wheel, i.e. this and
+## hover_wheel_step below, not CameraTuning's camera zoom): raised from 1.0 to
+## 1.5 (x1.5), matching hover_wheel_step's own bump below so the held-key/
+## gamepad path (PageUp/PageDown, RS click/X) speeds up by the same factor as
+## the wheel notch does.
+## DECISION (config/GhostTuning.gd): x1.5 on the base rate only --
+## hover_hold_acceleration/hover_hold_max_speed below are untouched, so a
+## held input still ramps up by the same amount per second, just from a
+## faster starting speed.
+@export var hover_manual_adjust_speed: float = 1.5
 ## Bontago-mv0.35 (owner: "there is still a maximum height the block cannot be
 ## raised"): at a flat hover_manual_adjust_speed (1 m/s) a held raise input
 ## could only lift one block ~MatchConfig.block_timer (6 s) = 6 m before the
@@ -93,7 +103,12 @@ extends Resource
 ## Meters applied per discrete wheel notch (InputEventMouseButton wheel
 ## events are momentary -- one press+release per notch -- so they get one
 ## fixed step instead of hover_manual_adjust_speed's per-frame rate).
-@export var hover_wheel_step: float = 0.4
+## Bontago-pt-4 (owner playtest: "Scrolling up/down should be a bit faster"):
+## this *is* the "scrolling" the owner meant -- the default mouse wheel action
+## (no camera_orbit/camera_mode held) already adjusts block hover height, not
+## camera zoom. Raised from 0.4 to 0.6 (x1.5, same factor as
+## hover_manual_adjust_speed above).
+@export var hover_wheel_step: float = 0.6
 ## Bontago-mv0.17 item 5 (owner feel report: "the block's height changes ONLY
 ## via the wheel" -- original behaviour): raised from 3 m to clear a tall
 ## tower, now that the ghost's own height is the disk surface plus this
@@ -342,6 +357,12 @@ extends Resource
 ## manual release, or an auto-drop burn thrown off the map) -- see that
 ## function's own DECISION comments.
 @export var spawn_clearance: float = 0.15
+
+## Owner 2026-09-27 (Bontago-1pi.4 playtest: "Camera did not stay put. Just
+## disable the clear stack feature for now"): master switch for the raise
+## above. Off by default; the feature and its tests stay intact behind it
+## until the follow-up bead revisits it.
+@export var spawn_clearance_enabled: bool = false
 
 ## -- Throw aim (M4 P2e, docs/M4_P2_PACKAGES.md P2e; spec 2.5 "Throw
 ## (specials only)") ----------------------------------------------------------
