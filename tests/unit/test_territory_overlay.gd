@@ -850,6 +850,66 @@ func test_an_empty_circle_list_disables_the_bins() -> void:
 	assert_false(bool(overlay.material().get_shader_parameter(&"circle_bins_valid")))
 
 
+func test_refresh_visual_uniforms_disables_bins_when_any_margin_component_grows() -> void:
+	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres").duplicate() as TerritoryVisuals
+	var overlay: TerritoryOverlay = _make_overlay_with_visuals(_map(), visuals)
+	var xs: PackedFloat32Array = PackedFloat32Array([0.0])
+	var radii: PackedFloat32Array = PackedFloat32Array([1.0])
+	var teams: PackedInt32Array = PackedInt32Array([0])
+	for property: StringName in [&"edge_softness_m", &"rim_width", &"rim_soft_width", &"metaball_blend"]:
+		overlay.set_circles(xs, xs, radii, teams, PackedVector2Array(), PackedFloat32Array(), false)
+		assert_true(overlay.circle_bins_valid())
+		visuals.set(property, float(visuals.get(property)) + 1.0)
+		overlay.refresh_visual_uniforms()
+		assert_false(overlay.circle_bins_valid(), "%s growth needs the full circle loop." % property)
+		assert_false(bool(overlay.material().get_shader_parameter(&"circle_bins_valid")))
+		assert_true(bool(overlay.material().get_shader_parameter(&"circles_valid")), "Analytic circles stay active.")
+		overlay.set_circles(xs, xs, radii, teams, PackedVector2Array(), PackedFloat32Array(), false)
+		assert_true(overlay.circle_bins_valid(), "The next circle upload restores bins with the wider margin.")
+		assert_true(bool(overlay.material().get_shader_parameter(&"circle_bins_valid")))
+
+
+func test_refresh_visual_uniforms_keeps_bins_when_margin_shrinks() -> void:
+	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres").duplicate() as TerritoryVisuals
+	visuals.edge_softness_m = 1.0
+	var overlay: TerritoryOverlay = _make_overlay_with_visuals(_map(), visuals)
+	overlay.set_circles(
+		PackedFloat32Array([0.0]), PackedFloat32Array([0.0]), PackedFloat32Array([1.0]),
+		PackedInt32Array([0]), PackedVector2Array(), PackedFloat32Array(), false
+	)
+	var image: Image = overlay.circle_bin_image()
+	visuals.edge_softness_m = 0.01
+	overlay.refresh_visual_uniforms()
+	assert_true(overlay.circle_bins_valid(), "Existing bins conservatively cover a smaller margin.")
+	assert_true(bool(overlay.material().get_shader_parameter(&"circle_bins_valid")))
+	assert_same(overlay.circle_bin_image(), image, "No unnecessary bin rebuild.")
+
+
+func test_circle_bin_overflow_keeps_analytic_full_loop_and_recovers() -> void:
+	var overlay: TerritoryOverlay = _make_overlay(_map())
+	var bins: int = TerritoryOverlay.CIRCLE_BIN_GRID * TerritoryOverlay.CIRCLE_BIN_GRID
+	var count: int = (TerritoryOverlay.CIRCLE_BIN_TEXELS_MAX - bins) / bins + 1
+	var xs: PackedFloat32Array = PackedFloat32Array()
+	var radii: PackedFloat32Array = PackedFloat32Array()
+	var teams: PackedInt32Array = PackedInt32Array()
+	xs.resize(count)
+	radii.resize(count)
+	radii.fill(100.0)
+	teams.resize(count)
+	overlay.set_circles(xs, xs, radii, teams, PackedVector2Array(), PackedFloat32Array(), false)
+	assert_false(overlay.circle_bins_valid(), "Reference overflow must fall back to the full circle loop.")
+	assert_false(bool(overlay.material().get_shader_parameter(&"circle_bins_valid")))
+	assert_null(overlay.circle_bin_image())
+	assert_true(bool(overlay.material().get_shader_parameter(&"circles_valid")), "Overflow does not select the raster fallback.")
+	assert_eq(int(overlay.material().get_shader_parameter(&"circle_count")), count, "No circles are lost.")
+	overlay.set_circles(
+		PackedFloat32Array([0.0]), PackedFloat32Array([0.0]), PackedFloat32Array([1.0]),
+		PackedInt32Array([0]), PackedVector2Array(), PackedFloat32Array(), false
+	)
+	assert_true(overlay.circle_bins_valid(), "A later smaller list restores binning.")
+	assert_true(bool(overlay.material().get_shader_parameter(&"circle_bins_valid")))
+
+
 func test_shader_declares_the_circle_bin_uniforms() -> void:
 	var code: String = (load("res://shaders/territory.gdshader") as Shader).code
 	assert_true(code.contains("uniform sampler2D circle_bin_tex"), "Bin texture uniform.")

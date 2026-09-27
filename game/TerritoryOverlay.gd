@@ -126,6 +126,7 @@ var _circle_count: int = 0
 var _circle_bin_texture: ImageTexture = null
 var _circle_bin_image: Image = null
 var _circle_bins_valid: bool = false
+var _circle_bin_baked_margin: float = 0.0
 var _goal_count: int = 0
 
 
@@ -397,6 +398,7 @@ func _update_circle_bins(
 	xs: PackedFloat32Array, zs: PackedFloat32Array, radii: PackedFloat32Array, count: int
 ) -> void:
 	_circle_bin_image = _pack_circle_bins(xs, zs, radii, count)
+	_circle_bin_baked_margin = circle_bin_margin()
 	_circle_bins_valid = _circle_bin_image != null
 	if _circle_bins_valid:
 		_circle_bin_texture = _store(_circle_bin_texture, _circle_bin_image)
@@ -617,6 +619,11 @@ func refresh_visual_uniforms() -> void:
 	if _visuals.disk_mesh_segments != _baked_mesh_segments:
 		rebuild_disk_mesh()
 	_apply_visual_uniforms()
+	# A wider visual band can reach circles excluded by the last bin upload.
+	# Use the exact full loop until the next solve rebuilds its circle bins.
+	if _circle_bins_valid and circle_bin_margin() > _circle_bin_baked_margin:
+		_circle_bins_valid = false
+		_material.set_shader_parameter(&"circle_bins_valid", false)
 
 
 func _apply_visual_uniforms() -> void:
