@@ -71,6 +71,7 @@ var _prev_step_linear_velocity_y: float = 0.0
 ## below, consumed (and cleared) by the very next _integrate_forces() call.
 ## See kick()'s own doc comment for what this is for.
 var _script_kick_pending: bool = false
+var _release_checked: bool = false
 
 ## Fix round (Bontago-xtq.27 review MAJOR): the "contributing to territory
 ## influence" glow (BlockFactory.build()'s own DECISION: RigidBody3D.sleeping
@@ -226,6 +227,9 @@ func _physics_process(_delta: float) -> void:
 ## it outright; see config/physics_presets/heavy_bouncy.tres for the shipped
 ## values this was tuned against.
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
+	if not _release_checked:
+		_release_checked = true
+		_apply_release_tilt(state)
 	var current_y: float = state.linear_velocity.y
 	if _script_kick_pending:
 		# Review fix (Bontago-xtq.17 SHOULD-FIX 1): this step's velocity was
@@ -241,6 +245,43 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 			current_y = damped_y
 			state.linear_velocity.y = current_y
 	_prev_step_linear_velocity_y = current_y
+
+
+## DECISION Bontago-8bc: Jolt keeps even offset flat impacts symmetrical.
+## Opt-in preset breaks release symmetry with a fixed tiny tilt, allowing
+## the solver's actual edge contact to create tumble. No impulses/randomness.
+## One downward query at first integration; resting/low-gap bodies untouched.
+func _apply_release_tilt(state: PhysicsDirectBodyState3D) -> void:
+	if tuning == null or tuning.release_tilt_degrees == 0.0 or freeze or _script_kick_pending:
+		return
+	var bottom_y: float = INF
+	for child: Node in get_children():
+		var collision: CollisionShape3D = child as CollisionShape3D
+		if collision == null or not collision.shape is BoxShape3D:
+			continue
+		var half: Vector3 = (collision.shape as BoxShape3D).size * 0.5
+		for x: float in [-half.x, half.x]:
+			for y: float in [-half.y, half.y]:
+				for z: float in [-half.z, half.z]:
+					bottom_y = minf(bottom_y, (state.transform * (collision.transform * Vector3(x, y, z))).y)
+	if bottom_y == INF:
+		return
+	var from: Vector3 = state.transform.origin
+	from.y = bottom_y
+	var to: Vector3 = Vector3(from.x, tuning.kill_plane_y, from.z)
+	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(from, to, collision_mask, [get_rid()])
+	var hit: Dictionary = state.get_space_state().intersect_ray(query)
+	if hit.is_empty():
+		return
+	var edge: float = tuning.cube_size - tuning.cube_margin
+	# First callback follows one solver advance; recover that tick's fall
+	# distance when checking the release gap, rather than lowering the gate.
+	var release_gap: float = bottom_y - (hit["position"] as Vector3).y + maxf(0.0, -state.linear_velocity.y * state.step)
+	if release_gap < tuning.release_tilt_min_gap_cubes * edge - 0.0001:
+		return
+	var transform: Transform3D = state.transform
+	transform.basis = Basis(Vector3(1.0, 0.0, 1.0).normalized(), deg_to_rad(tuning.release_tilt_degrees)) * transform.basis
+	state.transform = transform
 
 
 ## Sets `linear_velocity` and marks the resulting step exempt from rebound

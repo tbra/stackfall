@@ -20,6 +20,17 @@ pwsh -NoProfile -File tools/tokamak_compare/run.ps1
 
 Portable toolchain archive: https://ziglang.org/download/0.13.0/zig-windows-x86_64-0.13.0.zip
 
+## Cube-on-cube impact probe
+
+The `impact` mode starts a resting cube and drops a second cube from a gap of the specified height above it. An optional last argument offsets the falling cube horizontally in cube edges. This probes the owner's reported sideways/tumbling response without engine patches:
+
+```powershell
+feedback/tokamak-comparison/tokamak_compare.exe impact 1 2 0.3 feedback/tokamak-comparison/impact-1-0.csv 0
+feedback/tokamak-comparison/tokamak_compare.exe impact 2 2 0.3 feedback/tokamak-comparison/impact-2-0.2.csv 0.2
+```
+
+Contact is filtered to the measured falling cube, drift is relative to its release position, and peak angular speed is reported in rad/s. The resting cube is dynamic, not artificially anchored. The original game still has not been measured.
+
 SHA256: `d859994725ef9402381e557c60bb57497215682e355204d754ee3df75ee3c158`
 
 Source, compiler, caches, executable, logs, records and traces stay under ignored `feedback/`; no third-party code is vendored. Compiler target is 32-bit Windows GNU (`x86-windows-gnu`) because this 2007 source uses 32-bit pointer assumptions; optimization is `-O2`. Floating-point behavior may differ from the original game's build. Engine source is compiled as supplied; portability fixes, if needed, must be listed here explicitly.

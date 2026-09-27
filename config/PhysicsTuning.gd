@@ -95,6 +95,11 @@ extends Resource
 ## game/Block._damp_rebound() for the pure scaling rule this field feeds.
 @export var rebound_damping: float = 1.0
 
+## Experimental Original feel preset: deterministic release tilt, not a
+## reconstruction of the original solver. Applied once only above the gap.
+@export var release_tilt_degrees: float = 0.0
+@export var release_tilt_min_gap_cubes: float = 1.0
+
 ## -- Stable-block freeze (spec 3.5 "Stable-block optimization" [NEW],
 ## docs/M8_PLAN.md P5) ---------------------------------------------------------
 ## DECISION (config/PhysicsTuning.gd): spec 3.5 gives this rule's own number

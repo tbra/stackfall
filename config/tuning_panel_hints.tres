@@ -5,6 +5,8 @@
 [resource]
 script = ExtResource("1_hints")
 ranges = {
+"PhysicsTuning.release_tilt_degrees": Vector2(0.0, 5.0),
+"PhysicsTuning.release_tilt_min_gap_cubes": Vector2(0.1, 3.0),
 "CameraTuning.mouse_orbit_speed": Vector2(0.0, 0.02),
 "CameraTuning.orbit_zoom_step": Vector2(0.5, 8.0),
 "CameraTuning.pad_orbit_speed": Vector2(0.0, 6.0),
@@ -234,6 +236,8 @@ ranges = {
 "MenuVisualTuning.pill_pressed_darken_amount": Vector2(0.0, 1.0),
 }
 descriptions = {
+"PhysicsTuning.release_tilt_degrees": "Experimental deterministic release tilt for high drops; zero disables it and contacts still use real solver forces.",
+"PhysicsTuning.release_tilt_min_gap_cubes": "Minimum bottom-to-support gap in cube edges before a newly released block receives the experimental tilt.",
 "CameraTuning.mouse_orbit_speed": "How fast the camera orbits (yaw/pitch) per pixel of mouse motion while holding orbit.",
 "CameraTuning.orbit_zoom_step": "Metres the camera moves closer or further per wheel notch while the right mouse button (or C) is held.",
 "CameraTuning.pad_orbit_speed": "How fast the camera orbits per second at full gamepad stick deflection.",

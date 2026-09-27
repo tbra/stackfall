@@ -95,7 +95,8 @@ func after_each() -> void:
 func test_physics_tab_builds_one_control_per_exported_float_field() -> void:
 	# Bontago-8or.10 (M8 P5): +2 for stable_freeze_delay_s and
 	# stable_freeze_scan_interval_s (config/PhysicsTuning.gd's own new fields).
-	assert_eq(_panel.row_count_for(_panel.physics_tuning), 17)
+	# Bontago-8bc adds opt-in release tilt and minimum gap.
+	assert_eq(_panel.row_count_for(_panel.physics_tuning), 19)
 
 
 func test_float_field_gets_an_hslider() -> void:
@@ -189,12 +190,23 @@ func test_apply_physics_live_updates_an_existing_blocks_damping_material_and_gra
 
 # --- Bontago-xtq.17: Physics preset dropdown ---------------------------------
 
-func test_physics_tab_has_a_preset_option_button_with_four_presets() -> void:
+func test_physics_tab_has_a_preset_option_button_with_five_presets() -> void:
 	var physics_tab: Control = _panel._tab_container.get_node("Physics")
 	var found: Array[Node] = physics_tab.find_children("*", "OptionButton", true, false)
 	assert_eq(found.size(), 1)
-	assert_eq((found[0] as OptionButton).item_count, 4)
+	assert_eq((found[0] as OptionButton).item_count, 5)
 	assert_eq((found[0] as OptionButton).get_item_text(3), "Tokamak defaults (Jolt)")
+	assert_eq((found[0] as OptionButton).get_item_text(4), "Original feel (experimental)")
+
+func test_original_feel_preset_live_values_and_current_clears_release_tilt() -> void:
+	var block: Block = BlockFactory.build(load("res://config/blocks/cube.tres"), _panel.physics_tuning)
+	add_child_autofree(block)
+	_panel.apply_physics_preset("original_feel")
+	assert_almost_eq(block.physics_material_override.bounce, 0.4, 0.0001)
+	assert_almost_eq(block.angular_damp, 0.6, 0.0001)
+	assert_almost_eq(block.tuning.release_tilt_degrees, 2.0, 0.0001)
+	_panel.apply_physics_preset("current")
+	assert_eq(block.tuning.release_tilt_degrees, 0.0)
 
 
 func test_tokamak_preset_reaches_live_cube_and_disc_materials() -> void:

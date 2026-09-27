@@ -177,6 +177,7 @@ const PHYSICS_PRESETS: Array[Dictionary] = [
 	{"id": "heavy_damped", "label": "Heavy & Damped", "path": "res://config/physics_presets/heavy_damped.tres"},
 	# Source material/damping defaults; Jolt solver and sleep remain unchanged.
 	{"id": "tokamak_defaults", "label": "Tokamak defaults (Jolt)", "path": "res://config/physics_presets/tokamak_defaults.tres"},
+	{"id": "original_feel", "label": "Original feel (experimental)", "path": "res://config/physics_presets/original_feel.tres"},
 ]
 
 @export var hints: TuningPanelHints = preload("res://config/tuning_panel_hints.tres")
@@ -894,6 +895,8 @@ func _build_physics_preset_row() -> Control:
 	option.tooltip_text = (
 		"Presets change mass only for blocks placed after the switch " +
 		"(mass is not live-applied to standing blocks). " +
+		"Original feel adds a fixed 2-degree release tilt above a one-edge gap " +
+		"to break flat-impact symmetry; experimental, not original-game evidence. " +
 		"Tokamak defaults matches source material/damping values on Jolt; " +
 		"it does not change the engine or reproduce Bontago settings."
 	)

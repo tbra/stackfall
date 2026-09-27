@@ -25,12 +25,15 @@ var _release_y: float = 0.0
 var _observation_tick: int = 0
 var _snapshot: Dictionary = {}
 var _trial_tuning: PhysicsTuning = null
+var _offset: float = 0.0
+var _rotation_peak: float = 0.0
+var _initial_top_position: Vector3 = Vector3.ZERO
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_PAUSABLE
 
-func start(field: Field, mode: String, height: float, interval: float, gap: float, origin: Vector3 = Vector3.ZERO) -> bool:
-	if field == null or mode not in ["drop", "stack"] or height <= 0.0 or interval <= 0.0 or 2.0 * interval >= DURATION_S or gap <= 0.0:
+func start(field: Field, mode: String, height: float, interval: float, gap: float, origin: Vector3 = Vector3.ZERO, offset: float = 0.0) -> bool:
+	if field == null or mode not in ["drop", "stack", "impact"] or height <= 0.0 or interval <= 0.0 or 2.0 * interval >= DURATION_S or gap <= 0.0 or absf(offset) >= 1.0:
 		return false
 	clear()
 	_field = field
@@ -38,6 +41,8 @@ func start(field: Field, mode: String, height: float, interval: float, gap: floa
 	_height = height
 	_interval = interval
 	_gap = gap
+	_offset = offset
+	_rotation_peak = 0.0
 	_trial_tuning = tuning.duplicate() as PhysicsTuning
 	_origin = Vector3(origin.x, field.surface_y() - _trial_tuning.cube_margin * 0.5, origin.z)
 	_tick = 0
@@ -49,7 +54,10 @@ func start(field: Field, mode: String, height: float, interval: float, gap: floa
 	result = {}
 	_snapshot = {"gravity_multiplier": tuning.gravity_multiplier, "cube_mass": tuning.cube_mass, "block_bounce": tuning.block_bounce, "block_friction": tuning.block_friction, "linear_damp": tuning.block_linear_damp, "angular_damp": tuning.block_angular_damp, "rebound_damping": tuning.rebound_damping}
 	_spawn(0)
-	_release_y = blocks[0].global_position.y
+	if mode == "impact":
+		_spawn(1)
+	_release_y = blocks.back().global_position.y
+	_initial_top_position = blocks.back().global_position
 	running = true
 	return true
 
@@ -74,6 +82,8 @@ func _spawn(index: int) -> void:
 	var edge: float = _trial_tuning.cube_size - _trial_tuning.cube_margin
 	var height: float = _height * edge if _mode == "drop" else float(index) * edge + (_gap * edge if index > 0 else 0.0)
 	body.global_position = _origin + Vector3.UP * height
+	if _mode == "impact" and index == 1:
+		body.global_position.x += _offset * edge
 	blocks.append(body)
 
 func _physics_process(_delta: float) -> void:
@@ -92,10 +102,12 @@ func _physics_process(_delta: float) -> void:
 		asleep = asleep and body.sleeping
 	var top: RigidBody3D = blocks.back()
 	if _tick >= _observation_tick:
-		_drift = maxf(_drift, Vector2(top.global_position.x - _origin.x, top.global_position.z - _origin.z).length())
+		_drift = maxf(_drift, Vector2(top.global_position.x - _initial_top_position.x, top.global_position.z - _initial_top_position.z).length())
+		var angle: float = absf(top.quaternion.get_angle())
+		_rotation_peak = maxf(_rotation_peak, minf(angle, TAU - angle))
 		if asleep and _sleep_tick < 0:
 			_sleep_tick = _tick
-	if _mode == "drop":
+	if _mode in ["drop", "impact"]:
 		if _contact_tick < 0 and not top.get_colliding_bodies().is_empty():
 			_contact_tick = _tick
 		if _contact_tick >= 0:
@@ -108,12 +120,18 @@ func _physics_process(_delta: float) -> void:
 		"all_asleep": asleep, "first_asleep_s": -1.0 if _sleep_tick < 0 else (_sleep_tick - _observation_tick) * seconds,
 		"max_lateral_drift_cubes": _drift / (_trial_tuning.cube_size - _trial_tuning.cube_margin),
 		"top_final_y_cubes": (top.global_position.y - _field.surface_y()) / (_trial_tuning.cube_size - _trial_tuning.cube_margin), "tuning": _snapshot,
+		"max_rotation_degrees": rad_to_deg(_rotation_peak),
+		"release_tilt_degrees": _trial_tuning.release_tilt_degrees,
 	}
 	if _mode == "drop":
 		measured["drop_height_cubes"] = _height
 		measured["first_contact_s"] = -1.0 if _contact_tick < 0 else _contact_tick * seconds
 		measured["rebound_height_cubes"] = 0.0 if _contact_tick < 0 else maxf(0.0, (_peak_y - _origin.y) / (_trial_tuning.cube_size - _trial_tuning.cube_margin))
 		measured["rebound_to_drop_ratio"] = 0.0 if _contact_tick < 0 else maxf(0.0, (_peak_y - _origin.y) / (_release_y - _origin.y))
+	elif _mode == "impact":
+		measured["placement_gap_cubes"] = _gap
+		measured["offset_cubes"] = _offset
+		measured["first_contact_s"] = -1.0 if _contact_tick < 0 else _contact_tick * seconds
 	else:
 		measured["stack_count"] = STACK_COUNT
 		measured["placement_gap_cubes"] = _gap

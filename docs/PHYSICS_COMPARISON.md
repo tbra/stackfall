@@ -38,6 +38,16 @@ For a material/damping comparison on Jolt, select **F4 → Physics → Tokamak d
 
 Original-game measurements remain pending: no controlled original-game recording was available, and native app control/recording was unavailable in this session. Follow the protocol below; Beads `Bontago-2z7` tracks this remaining evidence step. No physics tuning was changed as a result of this comparison.
 
+## Experimental Original feel preset
+
+The owner reports that original high-gap cube-on-cube drops kick sideways/tumble and settle quickly. Native Tokamak now has an `impact` probe: centred one-/two-edge drops moved sideways 0.156/0.246 edges, with peak angular speed 3.63/4.72 rad/s and native idle at 2.00/2.05 s. At a 0.2-edge horizontal offset, the falling cube bounced off the supporting cube (drift 1.97/2.46 edges). Raw native records are in `feedback/tokamak-comparison/impact-results.json`.
+
+On Jolt, the Tokamak-settings preset preserved nearly vertical motion even with the same small offset. **Original feel (experimental)** therefore introduces a deterministic 2° release tilt only when the clearance below a newly released block is at least one cube edge. This permits real corner contacts to generate motion; it applies no sideways impulses and uses no randomness. Low-gap/resting placements and the Current/Tokamak presets retain zero release tilt. F4 exposes the tilt and minimum-gap settings so the approximation is visible and adjustable.
+
+The candidate uses bounce 0.4, block/disc friction 0.5, linear damping 0.1, angular damping 0.6 and vertical rebound multiplier 0.55. Its first centred one-edge cube-on-cube trial moved sideways 0.301 edges and reached engine sleep in 1.233 s, compared with about 0.000039 edges and 3.783 s for the Tokamak-settings preset on Jolt. These are quick iteration measurements, not original-game calibration or an acceptance claim for every block shape.
+
+In Sandbox, select the preset with **F4 → Physics**, then use **F2 → Cube on cube**. Test gaps of one and two edges, centred and offset landings; use the same mode and conditions when comparing native traces. This changes neither the shipped default nor the native reference. Judge the candidate by play feel before choosing further tuning.
+
 ## Capture in the installed original
 
 1. Use a quiet single-player/sandbox field with no specials, no board tilt and as few existing blocks as possible. Record screen at a fixed frame rate; keep the cube edge visible as the scale reference. Note game version, map, video frame rate, and any physics/settings changes.

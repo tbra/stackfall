@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="PhysicsTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/PhysicsTuning.gd" id="1_tuning"]
+
+[resource]
+script = ExtResource("1_tuning")
+block_friction = 0.5
+block_bounce = 0.4
+block_linear_damp = 0.1
+block_angular_damp = 0.6
+disk_friction = 0.5
+rebound_damping = 0.55
+release_tilt_degrees = 2.0
+release_tilt_min_gap_cubes = 1.0

@@ -18,6 +18,26 @@ func test_invalid_settings_do_not_start() -> void:
 	assert_false(_trial.running)
 	assert_eq(_trial.blocks.size(), 0)
 
+func test_original_feel_release_tilt_high_gap_only() -> void:
+	_trial.tuning = load("res://config/physics_presets/original_feel.tres") as PhysicsTuning
+	assert_true(_trial.start(_field, "impact", 2.0, 2.0, 0.3))
+	await wait_physics_frames(3)
+	assert_almost_eq(_trial.blocks[0].rotation.length(), 0.0, 0.001)
+	assert_almost_eq(_trial.blocks[1].rotation.length(), 0.0, 0.001)
+	assert_true(_trial.start(_field, "impact", 2.0, 2.0, 1.0))
+	await wait_physics_frames(3)
+	assert_almost_eq(_trial.blocks[0].rotation.length(), 0.0, 0.001)
+	assert_gt(_trial.blocks[1].rotation.length(), 0.02)
+	_trial.clear()
+
+func test_original_feel_does_not_tilt_scripted_launch() -> void:
+	_trial.tuning = load("res://config/physics_presets/original_feel.tres") as PhysicsTuning
+	assert_true(_trial.start(_field, "impact", 2.0, 2.0, 2.0))
+	(_trial.blocks[1] as Block).kick(Vector3.RIGHT)
+	await wait_physics_frames(3)
+	assert_almost_eq(_trial.blocks[1].rotation.length(), 0.0, 0.001)
+	_trial.clear()
+
 func test_drop_measures_actual_contact_and_owns_only_trial_bodies() -> void:
 	assert_true(_trial.start(_field, "drop", 2.0, 2.0, 0.3))
 	await wait_physics_frames(602)

@@ -369,7 +369,7 @@ func _comparison_controls_changed(open: bool) -> void:
 		Input.mouse_mode = _controls_mouse_mode
 
 
-func run_physics_comparison(mode: String, height: float, interval: float, gap: float) -> void:
+func run_physics_comparison(mode: String, height: float, interval: float, gap: float, offset: float = 0.0) -> void:
 	clear_physics_comparison()
 	if _field == null or Match.state() != Match.State.PLAYING:
 		_comparison_panel.show_status("Wait for the sandbox countdown to finish.")
@@ -401,7 +401,7 @@ func run_physics_comparison(mode: String, height: float, interval: float, gap: f
 	if _comparison_camera != null:
 		var target: Vector3 = origin + Vector3.UP * _controller.tuning.cube_size
 		_comparison_camera.set_home_view(target, target + Vector3.FORWARD)
-	if not _comparison.start(_field, mode, height, interval, gap, origin):
+	if not _comparison.start(_field, mode, height, interval, gap, origin, offset):
 		_restore_comparison_controls()
 		_comparison_panel.show_status("Invalid trial settings.")
 
