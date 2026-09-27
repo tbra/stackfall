@@ -56,4 +56,4 @@ mirror_resolution_scale = 0.5
 mirror_center_fraction = 0.47
 mirror_fresnel_power = 1.6
 mirror_max_luminance = 1.35
-mirror_sky_energy_scale = 0.4
+mirror_sky_energy_scale = 0.15
