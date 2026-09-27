@@ -55,6 +55,10 @@ const EVENT_PLACEMENT_REJECTED: StringName = &"placement_rejected"
 const EVENT_PLACEMENT_RELOCATED: StringName = &"placement_relocated"
 const EVENT_PLAYER_ELIMINATED: StringName = &"player_eliminated"
 const EVENT_MATCH_WON: StringName = &"match_won"
+## Bontago-1pi.13: mirrors Events.match_results_ready (autoload/match/
+## MatchStats.gd's own header documents the payload shape). See
+## _on_match_results_ready() below and net_match_event's own dispatch case.
+const EVENT_MATCH_RESULTS: StringName = &"match_results"
 const EVENT_GIFT_SPAWNED: StringName = &"gift_spawned"
 const EVENT_GIFT_CLAIMED: StringName = &"gift_claimed"
 const EVENT_GIFT_EXPIRED: StringName = &"gift_expired"
@@ -184,6 +188,7 @@ func _ready() -> void:
 	Events.placement_relocated.connect(_on_placement_relocated)
 	Events.player_eliminated.connect(_on_player_eliminated)
 	Events.match_won.connect(_on_match_won)
+	Events.match_results_ready.connect(_on_match_results_ready)
 	Events.gift_spawned.connect(_on_gift_spawned)
 	Events.gift_claimed.connect(_on_gift_claimed)
 	Events.gift_expired.connect(_on_gift_expired)
@@ -366,6 +371,101 @@ func submit_cursor(slot_id: int, origin: Vector3, orientation_index: int, free_q
 		rpc(&"net_cursor", slot_id, origin, orientation_index, free_quat)
 	else:
 		rpc_id(Net.HOST_PEER_ID, &"net_update_cursor", slot_id, origin, orientation_index, free_quat)
+
+
+## Bontago-1pi.13 (results screen "Play again"): restarts the match that just
+## ended with the same MatchConfig, for every peer. Mirrors submit_place()'s
+## own single-door shape: **the host's own local call acts inline, with no
+## sender check** (exactly submit_place()'s host branch calling
+## _apply_intent() directly, never through _handle_place_intent()'s
+## sender-owns-slot gate) -- a call arriving offline (hot-seat, sandbox) would
+## otherwise be refused, since Net's `_peers` map (slot_of_peer()'s backing
+## store) is only ever populated by host_game()/join_game(), never in pure
+## offline play. A **remote** request goes through the reliable RPC below,
+## which _is_ validated (spec 3.4 "the host checks every intent before acting
+## on it") -- a global restart/return affects every connected peer, so unlike
+## a placement there is no per-sender outcome to report back, only "the host
+## did it or it didn't".
+##
+## DECISION (net/MatchNet.gd, Bontago-1pi.13): any seated slot (not only the
+## host's own player) may request a replay/return over the wire -- spec 3.4
+## does not name a narrower "only the host's own local player" rule the way
+## it names "the host checks ... that the slot matches" for a placement, and
+## the results screen's own Replay/Return buttons are a natural thing for any
+## player to click. _remote_may_request_match_flow() below is what actually
+## authorizes a remote sender: unseated (no slot) and mid-match (not
+## State.END) requests are both dropped on the host's floor.
+func request_replay() -> void:
+	if _is_host():
+		_replay_current_match()
+		return
+	if _can_send():
+		rpc_id(Net.HOST_PEER_ID, &"net_request_replay")
+
+
+## Results screen "Return to lobby": sends every peer back to State.LOBBY.
+## Mirrors request_replay() above exactly.
+func request_return_to_lobby() -> void:
+	if _is_host():
+		_authority().abort_match()
+		return
+	if _can_send():
+		rpc_id(Net.HOST_PEER_ID, &"net_request_return_to_lobby")
+
+
+## The actual restart, shared by request_replay()'s trusted host-local branch
+## and _handle_replay_request()'s validated remote branch below. Reads
+## `_authority().config` (still the just-ended match's own sanitized
+## duplicate -- MatchLifecycle only clears it on the *next* start_match()/
+## abort_match()) rather than requiring a caller to have kept its own copy.
+func _replay_current_match() -> void:
+	var current: MatchConfig = _authority().config
+	if current == null:
+		return
+	_authority().start_match(current)
+
+
+## Gate for a REMOTE net_request_* RPC only (see request_replay()'s own doc
+## for why the host's local call never goes through this): the sender must
+## hold a live slot -- an unseated peer (mid-handshake, a spectator) gets no
+## say, exactly _handle_place_intent's own "no slot to count against" gate --
+## and the match must actually be over (State.END): a replay/return
+## mid-PLAYING would restart or abandon every other player's match out from
+## under them with no confirmation, which nothing in this package's brief
+## asks for.
+func _remote_may_request_match_flow(sender_peer_id: int) -> bool:
+	if int(_session().slot_of_peer(sender_peer_id)) < 0:
+		return false
+	return int(_authority().state()) == int(Match.State.END)
+
+
+## Host side of net_request_replay, split out (like _handle_place_intent) so
+## a test can drive it with a manufactured sender id and no peer at all.
+func _handle_replay_request(sender_peer_id: int) -> void:
+	if not _is_host():
+		return
+	if not _remote_may_request_match_flow(sender_peer_id):
+		return
+	_replay_current_match()
+
+
+## Host side of net_request_return_to_lobby, split out the same way.
+func _handle_return_to_lobby_request(sender_peer_id: int) -> void:
+	if not _is_host():
+		return
+	if not _remote_may_request_match_flow(sender_peer_id):
+		return
+	_authority().abort_match()
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func net_request_replay() -> void:
+	_handle_replay_request(multiplayer.get_remote_sender_id())
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func net_request_return_to_lobby() -> void:
+	_handle_return_to_lobby_request(multiplayer.get_remote_sender_id())
 
 
 ## The last cursor the host received for `slot_id`, or an empty Dictionary.
@@ -1066,6 +1166,18 @@ func _on_match_won(team_id: int) -> void:
 		replicate_match_event(EVENT_MATCH_WON, [team_id])
 
 
+## Bontago-1pi.13: mirrors MatchLifecycle._finish_match()'s own
+## Events.match_results_ready emit (fired right after match_won above) to
+## every client, in one reliable packet. The dictionary rides as a single
+## net_match_event argument -- Godot's high-level RPC marshalling already
+## carries a Dictionary/Array of built-in Variant types (this file's own
+## MatchConfig.to_dict()/net_match_start precedent), so no separate encoding
+## is needed the way the territory raster's binary payload requires.
+func _on_match_results_ready(results: Dictionary) -> void:
+	if _is_host():
+		replicate_match_event(EVENT_MATCH_RESULTS, [results])
+
+
 func _on_gift_spawned(gift_id: int, position: Vector2) -> void:
 	if _is_host():
 		replicate_match_event(EVENT_GIFT_SPAWNED, [gift_id, position])
@@ -1341,6 +1453,18 @@ func net_match_event(event: StringName, args: Array) -> void:
 			Events.player_eliminated.emit(int(args[0]), int(args[1]))
 		EVENT_MATCH_WON:
 			Events.match_won.emit(int(args[0]))
+		EVENT_MATCH_RESULTS:
+			# Bontago-1pi.13: an input boundary exactly like every other wire
+			# payload in this dispatch -- a malformed or truncated args array
+			# (an older/ancient build) must not reach a results-screen
+			# consumer half-typed. See MatchStats.validate_results_payload()'s
+			# own doc comment for why this rejects rather than defaults.
+			if args.size() < 1:
+				return
+			var validated: Dictionary = MatchStats.validate_results_payload(args[0])
+			if validated.is_empty():
+				return
+			Events.match_results_ready.emit(validated)
 		EVENT_GIFT_SPAWNED:
 			var gift_id: int = int(args[0])
 			var position: Vector2 = args[1] as Vector2
