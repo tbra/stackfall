@@ -17,6 +17,26 @@ func _make_rig() -> CameraRig:
 	return rig
 
 
+func test_b_snap_rotation_does_not_also_snap_the_camera_while_holding() -> void:
+	var rig: CameraRig = _make_rig()
+	rig.tuning = rig.tuning.duplicate()
+	rig.tuning.follow_block = false
+	rig.set_process(false)
+	rig.set_home_view(Vector3(8.0, 0.0, 3.0))
+	var original: Vector3 = rig.get_target()
+	var event: InputEventJoypadButton = InputEventJoypadButton.new()
+	event.button_index = JOY_BUTTON_B
+	event.pressed = true
+	rig.block_held = true
+	rig._unhandled_input(event)
+	await wait_seconds(rig.tuning.snap_duration + 0.05)
+	assert_eq(rig.get_target(), original)
+	rig.block_held = false
+	rig._unhandled_input(event)
+	await wait_seconds(rig.tuning.snap_duration + 0.05)
+	assert_eq(rig.get_target(), Vector3.ZERO)
+
+
 func test_rig_and_camera_have_physics_interpolation_off() -> void:
 	# Bontago-1bt (owner log: "Interpolated Camera3D triggered from outside
 	# physics process" x4 per 60s bot run): this rig writes both its own

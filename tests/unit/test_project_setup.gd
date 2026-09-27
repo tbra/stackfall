@@ -57,6 +57,9 @@ const REQUIRED_ACTIONS: PackedStringArray = [
 ## Actions whose mouse or gamepad half is deliberately absent, with the reason.
 ## Anything not listed here must be bound on both devices.
 const DEVICE_EXCEPTIONS: Dictionary = {
+	# Owner: B owns the gamepad yaw snap; shoulders no longer rotate.
+	"rotate_yaw_ccw": "pad",
+	"rotate_yaw_cw": "pad",
 	# Godot cannot bind InputEventMouseMotion to an action; the mouse drives the
 	# ghost through relative motion instead (see tools/bootstrap_project.gd).
 	"ghost_move_left": "mouse",
@@ -93,6 +96,18 @@ const DEVICE_EXCEPTIONS: Dictionary = {
 }
 
 const AUTOLOADS: PackedStringArray = ["Events", "Settings", "Net", "Match", "Screenshots"]
+
+
+func test_snap_rotation_uses_b_without_shoulder_rotation() -> void:
+	var snap_buttons: Array[int] = []
+	for event: InputEvent in InputMap.action_get_events(&"rotate_snap"):
+		if event is InputEventJoypadButton:
+			snap_buttons.append(event.button_index)
+	assert_eq(snap_buttons, [JOY_BUTTON_B])
+	for action: StringName in [&"rotate_snap", &"rotate_yaw_ccw", &"rotate_yaw_cw"]:
+		for event: InputEvent in InputMap.action_get_events(action):
+			if event is InputEventJoypadButton:
+				assert_false(event.button_index in [JOY_BUTTON_LEFT_SHOULDER, JOY_BUTTON_RIGHT_SHOULDER])
 
 
 func test_physics_engine_is_jolt() -> void:

@@ -203,7 +203,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif not tuning.follow_block and event.is_action_pressed(&"camera_snap_home"):
 		_snap_to(_home_point())
 	elif not tuning.follow_block and event.is_action_pressed(&"camera_snap_goal"):
-		_snap_to(Vector3.ZERO)
+		# B is snap rotation while holding a block, goal camera snap otherwise.
+		if event is InputEventKey or not block_held:
+			_snap_to(Vector3.ZERO)
 
 
 func _process(delta: float) -> void:

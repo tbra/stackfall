@@ -190,8 +190,8 @@ func _actions() -> Dictionary:
 	# Yaw keeps the original game's A/S (spec 1.5, ORIGINAL). Bontago-mv0.14:
 	# the wheel used to double as yaw too; it is now block height only (see
 	# hover_raise/hover_lower below), so it comes off every other action.
-	a["rotate_yaw_ccw"] = [_key(KEY_A), _pad(JOY_BUTTON_LEFT_SHOULDER)]
-	a["rotate_yaw_cw"] = [_key(KEY_S), _pad(JOY_BUTTON_RIGHT_SHOULDER)]
+	a["rotate_yaw_ccw"] = [_key(KEY_A)]
+	a["rotate_yaw_cw"] = [_key(KEY_S)]
 
 	# Pitch: W/D on keyboard, D-pad on gamepad. Bontago-mv0.14 DECISION: this
 	# used to be middle click / Shift+wheel; the wheel is height now and the
@@ -221,13 +221,10 @@ func _actions() -> Dictionary:
 	# yaw tap, distinct from rotate_reset. Bontago-mv0.22 fix (coordinator,
 	# 2026-09-22): this used to double up on MMB with rotate_drag below, so
 	# every drag started with an unwanted extra 90 degree step on the initial
-	# press. MMB now belongs to rotate_drag alone. DECISION: rotate_snap keeps
-	# only its gamepad RB binding -- the identical single-tap 90 degree yaw
-	# rotate_yaw_cw (KEY_S / RB) already gives on both devices makes a
-	# dedicated desktop key for this action pure duplication, not a missing
-	# feature, so it is a documented "mouse" DEVICE_EXCEPTION
-	# (tests/unit/test_project_setup.gd) rather than hunting for a spare key.
-	a["rotate_snap"] = [_pad(JOY_BUTTON_RIGHT_SHOULDER)]
+	# press. MMB owns the mouse tap/drag gesture; this explicit snap action
+	# is gamepad-only (the documented mouse DEVICE_EXCEPTION).
+	# Owner controller update: B snap-rotates; shoulders are reserved for height.
+	a["rotate_snap"] = [_pad(JOY_BUTTON_B)]
 
 	# Bontago-mv0.22 (spec 2.5 "Rotate block (hold + drag)" [ORIGINAL, owner
 	# test 2026-09-22]): holding MMB and dragging continuously spins the held
