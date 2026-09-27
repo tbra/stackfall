@@ -27,6 +27,11 @@ const BLUE: Color = Color(0.12, 0.42, 0.95)
 
 var _out_dir: String = "res://feedback/overhaul/latest"
 var _only: PackedStringArray = PackedStringArray()
+# Bontago-mp0.3.6 (owner feedback: verify the sun glow/rays + lens flare +
+# disc sheen read together like mockup 08, sun upper-right): swaps the
+# overview frame's camera placement for one that faces
+# config/sun_flare.tres's sun_direction instead of the red/blue home axis.
+var _face_sun: bool = false
 
 
 func _ready() -> void:
@@ -36,6 +41,8 @@ func _ready() -> void:
 			_out_dir = text.substr(4)
 		elif text.begins_with("only="):
 			_only = text.substr(5).split(",")
+		elif text == "face-sun":
+			_face_sun = true
 	if not _out_dir.begins_with("res://") and not _out_dir.contains(":"):
 		_out_dir = "res://" + _out_dir
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_out_dir))
@@ -86,7 +93,10 @@ func _capture() -> void:
 		if _wants("player"):
 			await _save("player")
 		if _wants("overview"):
-			_frame_overview(main)
+			if _face_sun:
+				_frame_face_sun(main)
+			else:
+				_frame_overview(main)
 			await get_tree().create_timer(0.5).timeout
 			await _save("overview")
 	get_tree().quit()
@@ -142,6 +152,26 @@ func _frame_overview(main: Node) -> void:
 		back = -back
 	camera.global_position = focus + back * radius * 1.25 + Vector3.UP * radius * 0.8
 	camera.look_at(focus + Vector3.DOWN * radius * 0.15)
+
+
+## Elevated view rotated toward config/sun_flare.tres's sun_direction rather
+## than the home axis, offset in yaw so the sun renders in the upper-right of
+## frame (mockup 08 framing) instead of dead-center.
+func _frame_face_sun(main: Node) -> void:
+	var field: Field = main.get("_field") as Field
+	var red_home: Vector3 = field.world_from_disk_local(_home(0), 0.0)
+	var blue_home: Vector3 = field.world_from_disk_local(_home(1), 0.0)
+	var focus: Vector3 = (red_home + blue_home) * 0.5
+	var radius: float = red_home.distance_to(blue_home) * 0.5
+	var sun_cfg: SunFlareConfig = load("res://config/sun_flare.tres") as SunFlareConfig
+	var sun_dir: Vector3 = sun_cfg.sun_direction.normalized()
+	var horizontal_sun: Vector3 = Vector3(sun_dir.x, 0.0, sun_dir.z).normalized()
+	var look_dir: Vector3 = horizontal_sun.rotated(Vector3.UP, deg_to_rad(28.0))
+	var rig: Node = main.get_node("CameraRig")
+	rig.set_process(false)
+	var camera: Camera3D = rig.get_node("Camera3D") as Camera3D
+	camera.global_position = focus - look_dir * radius * 1.6 + Vector3.UP * radius * 0.55
+	camera.look_at(focus + Vector3.UP * radius * 0.05)
 
 
 func _home(slot_id: int) -> Vector2:
