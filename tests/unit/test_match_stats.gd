@@ -119,6 +119,35 @@ func test_blocks_placed_and_blocks_lost_are_tracked_per_slot() -> void:
 	assert_eq(Match.stats().blocks_lost(1), 0, "slot 1 lost nothing")
 
 
+func _cube_shape() -> BlockShape:
+	return load("res://config/blocks/cube.tres") as BlockShape
+
+
+## Review fix (Bontago-1pi.13, finding B): MatchPlacement.spawn_special_
+## projectile() (a special effect's own runtime spawn, e.g. Volcano's 8-14
+## lava orbs -- not a player intent) used to share the same Events.block_
+## placed emission as a real placement, inflating the triggering slot's own
+## blocks_placed stat by however many orbs it launched.
+func test_special_projectile_spawns_do_not_count_as_blocks_placed() -> void:
+	Match.start_match(_free_for_all_config(2))
+	_run_countdown()
+	var tuning: SpecialTuning = (load("res://config/special_tuning.tres") as SpecialTuning).duplicate(true)
+
+	assert_eq(_place(0), PlacementRules.REASON_OK, "fixture: one genuine player placement for slot 0")
+	assert_eq(Match.stats().blocks_placed(0), 1)
+
+	for _i: int in range(10):
+		var orb: Block = Match.spawn_special_projectile(
+			_cube_shape(), _home_world_position(0), Basis.IDENTITY, 0, Vector3(0.0, 5.0, 0.0), null, tuning
+		)
+		assert_not_null(orb, "fixture: the projectile spawn itself must still succeed")
+
+	assert_eq(
+		Match.stats().blocks_placed(0), 1,
+		"ten Volcano-like orb spawns for slot 0 must not move its blocks_placed stat at all"
+	)
+
+
 func test_gifts_claimed_and_specials_used_are_tracked_per_slot() -> void:
 	Match.start_match(_free_for_all_config(2))
 	_run_countdown()
@@ -331,6 +360,31 @@ func test_return_to_lobby_request_sends_the_match_back_to_lobby() -> void:
 
 	net._handle_return_to_lobby_request(REMOTE_PEER)
 	assert_eq(Match.state(), MatchAutoload.State.LOBBY, "a valid return-to-lobby request ends the match for everyone")
+
+
+## Review fix (Bontago-1pi.13, finding A): the host's own local call used to
+## skip the END-state gate entirely (only a *remote* request was checked),
+## so a stray local request_replay()/request_return_to_lobby() call
+## mid-match would restart or abandon everyone's match with no confirmation.
+func test_host_local_replay_and_return_requests_are_ignored_mid_match() -> void:
+	var net: MatchNetScript = _make_net({1: 0})
+	Match.start_match(_free_for_all_config(2))
+	_run_countdown()
+	_place(0)
+	var placed_before: int = Match.stats().blocks_placed(0)
+
+	net.request_replay()
+	assert_eq(Match.state(), MatchAutoload.State.PLAYING, "the host's own local replay request must be ignored mid-match")
+	assert_eq(Match.stats().blocks_placed(0), placed_before, "no restart happened, so stats must be untouched")
+
+	net.request_return_to_lobby()
+	assert_eq(Match.state(), MatchAutoload.State.PLAYING, "the host's own local return-to-lobby request must be ignored mid-match")
+
+	# After the match actually ends, the same local calls are honored.
+	Match._finish_match(0)
+	assert_eq(Match.state(), MatchAutoload.State.END)
+	net.request_replay()
+	assert_eq(Match.state(), MatchAutoload.State.COUNTDOWN, "a local replay request is honored once the match has ended")
 
 
 func test_net_match_event_match_results_drops_a_malformed_payload() -> void:

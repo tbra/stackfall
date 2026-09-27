@@ -462,7 +462,10 @@ func spawn_special_projectile(
 	if shape == null:
 		return null
 
-	var spawned: Block = _spawn_block(shape, world_origin, basis, owner_slot)
+	# is_player_placement = false (Bontago-1pi.13 review fix): an effect's own
+	# projectile spawn (e.g. Volcano's 8-14 lava orbs) must not inflate
+	# `owner_slot`'s blocks_placed stat.
+	var spawned: Block = _spawn_block(shape, world_origin, basis, owner_slot, false)
 	# DECISION (autoload/match/MatchPlacement.gd, Bontago-1en.19 review): a null
 	# orb_tuning falls back to the match's preloaded _special_tuning, the same
 	# resource _attach_pending_special() uses, instead of crashing the host on
@@ -554,7 +557,16 @@ func preview_placement(
 ## already *is* that slot's team colour. If team colours are ever
 ## disambiguated from per-slot colours, this is the one line that needs to
 ## change to a team-colour lookup instead.
-func _spawn_block(shape: BlockShape, world_origin: Vector3, basis: Basis, slot_id: int) -> Block:
+## Bontago-1pi.13 review fix: `is_player_placement` (default true, so
+## request_place()/request_throw()'s own call sites below need no change)
+## distinguishes a genuine player placement/auto-drop from
+## spawn_special_projectile()'s own effect spawns -- that function's own call
+## site is the only one that ever passes false. See MatchStats.gd's header
+## comment for why blocks_placed cannot simply listen on Events.block_placed
+## the way every other counter listens on its own Events signal.
+func _spawn_block(
+	shape: BlockShape, world_origin: Vector3, basis: Basis, slot_id: int, is_player_placement: bool = true
+) -> Block:
 	var acting_slot: PlayerSlot = _match.slot(slot_id)
 	var color: Color = acting_slot.color if acting_slot != null else Color.WHITE
 	var block: Block = BlockFactory.build(shape, _match._physics_tuning, slot_id, color)
@@ -564,6 +576,8 @@ func _spawn_block(shape: BlockShape, world_origin: Vector3, basis: Basis, slot_i
 	# replication below has to come after it: the reliable spawn RPC must
 	# carry the same id the (unreliable) snapshots will address the body by.
 	Events.block_placed.emit(block, shape.id)
+	if is_player_placement:
+		_match._stats.record_block_placed(slot_id)
 	_blocks_spawned += 1
 	if _match._replicator != null:
 		_match._replicator.replicate_spawn(block, block.net_id)

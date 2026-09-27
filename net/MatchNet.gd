@@ -394,10 +394,15 @@ func submit_cursor(slot_id: int, origin: Vector3, orientation_index: int, free_q
 ## the results screen's own Replay/Return buttons are a natural thing for any
 ## player to click. _remote_may_request_match_flow() below is what actually
 ## authorizes a remote sender: unseated (no slot) and mid-match (not
-## State.END) requests are both dropped on the host's floor.
+## State.END) requests are both dropped on the host's floor. The host's own
+## local call skips only the sender-slot check (see _match_flow_state_allows()
+## below and its review-fix doc) -- it is validated on State.END exactly like
+## a remote request, since a stray local call mid-match must not restart or
+## abandon every other player's match either (Bontago-1pi.13 review fix).
 func request_replay() -> void:
 	if _is_host():
-		_replay_current_match()
+		if _match_flow_state_allows():
+			_replay_current_match()
 		return
 	if _can_send():
 		rpc_id(Net.HOST_PEER_ID, &"net_request_replay")
@@ -407,7 +412,8 @@ func request_replay() -> void:
 ## Mirrors request_replay() above exactly.
 func request_return_to_lobby() -> void:
 	if _is_host():
-		_authority().abort_match()
+		if _match_flow_state_allows():
+			_authority().abort_match()
 		return
 	if _can_send():
 		rpc_id(Net.HOST_PEER_ID, &"net_request_return_to_lobby")
@@ -425,18 +431,28 @@ func _replay_current_match() -> void:
 	_authority().start_match(current)
 
 
+## Bontago-1pi.13 review fix: the state half of both request_replay()'s and
+## request_return_to_lobby()'s authorization, shared by their trusted
+## host-local branch above (request_replay()'s own doc explains why a local
+## call is still checked against this) and _remote_may_request_match_flow()
+## below (a remote request's other check, sender-holds-a-slot, has no local
+## equivalent -- the host's own process always "holds a slot" in the sense
+## that matters here). A replay/return mid-PLAYING would restart or abandon
+## every other player's match out from under them with no confirmation,
+## which nothing in this package's brief asks for.
+func _match_flow_state_allows() -> bool:
+	return int(_authority().state()) == int(Match.State.END)
+
+
 ## Gate for a REMOTE net_request_* RPC only (see request_replay()'s own doc
-## for why the host's local call never goes through this): the sender must
-## hold a live slot -- an unseated peer (mid-handshake, a spectator) gets no
-## say, exactly _handle_place_intent's own "no slot to count against" gate --
-## and the match must actually be over (State.END): a replay/return
-## mid-PLAYING would restart or abandon every other player's match out from
-## under them with no confirmation, which nothing in this package's brief
-## asks for.
+## for why the host's local call above checks _match_flow_state_allows()
+## directly instead): the sender must additionally hold a live slot -- an
+## unseated peer (mid-handshake, a spectator) gets no say, exactly
+## _handle_place_intent's own "no slot to count against" gate.
 func _remote_may_request_match_flow(sender_peer_id: int) -> bool:
 	if int(_session().slot_of_peer(sender_peer_id)) < 0:
 		return false
-	return int(_authority().state()) == int(Match.State.END)
+	return _match_flow_state_allows()
 
 
 ## Host side of net_request_replay, split out (like _handle_place_intent) so

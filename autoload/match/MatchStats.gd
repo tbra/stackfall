@@ -21,14 +21,26 @@ extends RefCounted
 ## validate_results_payload() below before that signal ever reaches a
 ## client's game code.
 ##
-## **Counters are driven by the existing Events bus, not by new call sites in
-## MatchPlacement/MatchGifts** — Events.block_placed/block_removed already
-## carry the Block (whose owner_slot identifies the slot) and
+## **Most counters are driven by the existing Events bus, not by new call
+## sites in MatchPlacement/MatchGifts** — Events.block_removed already
+## carries the Block (whose owner_slot identifies the slot) and
 ## Events.gift_claimed/special_consumed already carry slot_id directly, so
 ## this file listens for those instead of adding hooks to files another
 ## package edits concurrently (docs/AGENT_WORKFLOW.md "disjoint file
 ## ownership"; this package's own brief flagged MatchGifts.gd's expiry logic
 ## as a concurrent edit to avoid colliding with).
+##
+## **blocks_placed is the one exception** (review fix, Bontago-1pi.13):
+## Events.block_placed alone cannot tell a genuine player placement/auto-drop
+## apart from MatchPlacement.spawn_special_projectile()'s own effect spawns
+## (e.g. Volcano's 8-14 lava orbs) — both go through the same
+## MatchPlacement._spawn_block() -> Events.block_placed pipeline, and a
+## chain of Volcano orbs would otherwise inflate the placing slot's own
+## "blocks placed" stat by however many orbs it triggered. record_block_
+## placed() below is the one-line hook MatchPlacement._spawn_block() calls
+## directly instead, only when `is_player_placement` (its own new parameter,
+## default true) is true; spawn_special_projectile()'s call site is the only
+## one that ever passes false.
 ##
 ## --- Results payload contract (for the results-screen UI worker) ----------
 ## Events.match_results_ready(results: Dictionary) fires once per match end,
@@ -58,7 +70,9 @@ extends RefCounted
 ##       "name": String,               # PlayerSlot.display_name.
 ##       "team_id": int,               # MatchConfig.team_of_slot(slot_id).
 ##       "is_bot": bool,
-##       "blocks_placed": int,         # Events.block_placed for this slot.
+##       "blocks_placed": int,         # record_block_placed() calls for this
+##           slot -- a genuine player placement/auto-drop only, never a
+##           special effect's own projectile spawn (see this file's header).
 ##       "blocks_lost": int,           # Events.block_removed, reason ==
 ##           Events.REASON_KILL_PLANE, for this slot (spec 3.5's kill plane:
 ##           "a block fell below tuning.kill_plane_y" -- "off the disc").
@@ -100,7 +114,6 @@ var _elapsed: float = 0.0
 
 func setup(match_ref: MatchAutoload) -> void:
 	_match = match_ref
-	Events.block_placed.connect(_on_block_placed)
 	Events.block_removed.connect(_on_block_removed)
 	Events.gift_claimed.connect(_on_gift_claimed)
 	Events.special_consumed.connect(_on_special_consumed)
@@ -154,6 +167,15 @@ func _tick(delta: float) -> void:
 
 func match_duration() -> float:
 	return _elapsed
+
+
+## Called directly by MatchPlacement._spawn_block() (this file's header
+## explains why blocks_placed cannot simply listen on Events.block_placed the
+## way every other counter listens on its own Events signal).
+func record_block_placed(slot_id: int) -> void:
+	if not _match._is_host():
+		return
+	_bump(_blocks_placed, slot_id)
 
 
 func blocks_placed(slot_id: int) -> int:
@@ -318,15 +340,6 @@ static func _validate_row(raw_row: Variant) -> Dictionary:
 
 
 # --- Event listeners (host only) --------------------------------------------
-
-func _on_block_placed(block: RigidBody3D, _shape_id: StringName) -> void:
-	if not _match._is_host():
-		return
-	var typed: Block = block as Block
-	if typed == null:
-		return
-	_bump(_blocks_placed, typed.owner_slot)
-
 
 ## Spec 3.5's kill plane is the only "off the disc" removal reason that
 ## exists today (Events.REASON_KILL_PLANE's own doc: "a block fell below
