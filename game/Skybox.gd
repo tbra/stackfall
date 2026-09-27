@@ -423,6 +423,10 @@ func apply_theme(applied_theme: SkyThemeDef) -> void:
 		return
 	if applied_theme.sky_material != null:
 		_fallback_sky_material = applied_theme.sky_material
+		var panorama: ShaderMaterial = _fallback_sky_material as ShaderMaterial
+		if panorama != null:
+			panorama.set_shader_parameter("sky_yaw_offset_deg", applied_theme.sky_yaw_offset_deg)
+			panorama.set_shader_parameter("sky_pitch_offset_deg", applied_theme.sky_pitch_offset_deg)
 		if fallback_active:
 			environment.sky.sky_material = _fallback_sky_material
 	var procedural: ProceduralSkyMaterial = _fallback_sky_material as ProceduralSkyMaterial

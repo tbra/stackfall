@@ -4,6 +4,28 @@ uniform sampler2D panorama : source_color, filter_linear_mipmap, repeat_enable;
 uniform float seam_blend_width = 0.025;
 uniform float pole_blend_width = 0.06;
 uniform float exposure = 0.8;
+// DECISION (shaders/sunset_clouds.gdshader, Bontago-1pi.1 v2, orchestrator
+// review of the v1 candidate): rotates the PANORAMA TEXTURE's own sampling
+// UV, not the world-space `sun_direction` below -- v1 fixed the two-sun bug
+// by pointing sun_direction (and DirectionalLight3D) at the panorama's own
+// painted-sun world direction, but that also spun the default CameraRig view
+// away from the sun and dropped the light to a near-horizon grazing angle
+// that blew out the goal-zone floor to flat yellow. Rotating the texture
+// instead keeps sun_direction/the light exactly as originally tuned and
+// moves the painted disc to meet them.
+//
+// Godot maps EYEDIR to U = atan(x, -z)/TAU (wrapped), V = acos(y)/PI.
+// The painted disc centre is (1276, 424) in the 1774x887 panorama; its lower
+// edge is hidden by clouds, so use the full circle centre, not the visible
+// pixels' centroid. The original flare direction maps to U = 0.208007,
+// V = 0.478016. sunset.tres therefore shifts U by 184.058612 degrees, and
+// leaves V unchanged: 424/887 already matches the flare's elevation.
+// Pitch is a latitude sampling offset, not a rigid spherical rotation;
+// clamp at the poles. Zero defaults let other panoramas opt into alignment.
+// This same sky() runs for background and radiance, so sky reflections and
+// ambient light rotate consistently; DiscMirror shares the Environment sky.
+uniform float sky_yaw_offset_deg = 0.0;
+uniform float sky_pitch_offset_deg = 0.0;
 
 // Bontago-mp0.3.4 (Graphics pass 2, owner feedback "lens flare from the sun"
 // + fix round "move god rays into the sky"): a warm sun glow/halo and
@@ -25,18 +47,19 @@ uniform float sun_halo_angular_radius_deg = 9.0;
 uniform float sun_halo_softness_deg = 10.0;
 // DECISION (shaders/sunset_clouds.gdshader, Bontago-1pi.1, owner playtest:
 // "there are 2 suns, one built in to the skybox and another with the lens
-// flares"): assets/sky/sunset-clouds-v1.png already has a painted sun disc
-// baked into the panorama at the same spot sun_direction above points at
-// (see config/SunFlareConfig.gd's own sun_direction DECISION -- both this
-// shader's default and that Resource's default are the identical measured
-// value), so this shader's own additive core+halo circle was a second,
-// separately-drawn disc sitting on top of the painted one -- not a second
-// sun in a different place, but visibly a second bright circle. Zeroing
-// these two defaults (rather than deleting the code, or the simpler-still
-// "just leave the halo" half-measure) is the simplest change that leaves
-// exactly one visible sun -- the painted panorama disc, reinforced only by
-// vfx/SunFlare.gd's screen-space sparkle (already coincident, same measured
-// direction) -- while a future theme that wants its own procedural disc (a
+// flares" + follow-up "the sun isn't fixed either... the suns are basically
+// 180 degrees apart"): assets/sky/sunset-clouds-v1.png already has a painted
+// sun disc baked into the panorama, and sky_yaw_offset_deg/
+// sky_pitch_offset_deg above now rotate that panorama so the painted disc
+// lands exactly at sun_direction (see those uniforms' own DECISION), so this
+// shader's own additive core+halo circle would be a second, separately-drawn
+// disc sitting on top of the painted one -- not a second sun in a different
+// place, but visibly a second bright circle. Zeroing these two defaults
+// (rather than deleting the code, or the simpler-still "just leave the halo"
+// half-measure) is the simplest change that leaves exactly one visible sun --
+// the painted panorama disc, reinforced only by vfx/SunFlare.gd's
+// screen-space sparkle (coincident with sun_direction, same as this disc) --
+// while a future theme that wants its own procedural disc (a
 // painted-texture-free sky, or a different sun position) can still opt back
 // in by overriding these two on its own ShaderMaterial, without touching
 // this shader file again. ray_* below is untouched: the god-ray beams read
@@ -62,6 +85,12 @@ uniform float ray_shimmer_amount = 0.08;
 
 void sky() {
 	vec2 uv = SKY_COORDS;
+	// Rotate the panorama sampling coordinate itself -- see sky_yaw_offset_deg/
+	// sky_pitch_offset_deg's own DECISION above. fract() wraps U around the
+	// seam regardless of sign; V is clamped rather than wrapped since it must
+	// never sample past a pole (unlike U, which repeats around the horizon).
+	uv.x = fract(uv.x + sky_yaw_offset_deg / 360.0);
+	uv.y = clamp(uv.y + sky_pitch_offset_deg / 180.0, 0.0, 1.0);
 	vec3 color = texture(panorama, uv).rgb;
 	// Symmetric edge blend makes imperfect authored panorama boundaries continuous.
 	float seam = 1.0 - smoothstep(0.0, seam_blend_width, min(uv.x, 1.0 - uv.x));

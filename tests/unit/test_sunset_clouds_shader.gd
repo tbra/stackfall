@@ -52,3 +52,20 @@ func test_ray_intensity_default_is_unchanged() -> void:
 		source.contains("uniform float ray_intensity = 0.35;"),
 		"ray_intensity must keep its own default -- only the disc (core/halo) was disabled, not the god rays."
 	)
+
+
+## The painted disc's lower cap is behind clouds. Pin its full-circle centre,
+## not the visible bright pixels' centroid, against the original flare axis.
+func test_panorama_disc_center_aligns_with_original_flare_direction() -> void:
+	var theme: SkyThemeDef = load("res://config/sky_themes/sunset.tres")
+	var config: SunFlareConfig = load("res://config/sun_flare.tres")
+	var direction: Vector3 = config.sun_direction.normalized()
+	var yaw: float = theme.sky_yaw_offset_deg
+	var pitch: float = theme.sky_pitch_offset_deg
+	var sample_uv: Vector2 = Vector2(
+		fposmod(atan2(direction.x, -direction.z) / TAU + yaw / 360.0, 1.0),
+		acos(direction.y) / PI + pitch / 180.0
+	)
+	assert_almost_eq(sample_uv.x * 1774.0, 1276.0, 0.5, "Panorama sun centre must match flare longitude.")
+	assert_almost_eq(sample_uv.y * 887.0, 424.0, 0.5, "Panorama sun centre must match flare elevation.")
+	assert_true(direction.is_equal_approx(Vector3(0.963087, 0.069011, -0.260192).normalized()), "Preserve the original flare axis.")
