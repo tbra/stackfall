@@ -177,12 +177,16 @@ func test_placement_relocated_event_shows_relocated_only_for_the_active_slot() -
 	assert_true(hud._reject_label.text.findn("relocated") >= 0)
 
 
-func test_show_winner_reveals_the_banner() -> void:
+## Bontago-1pi.5 (owner playtest: a separate results screen replaces this
+## in-HUD banner): show_winner() still formats the text/tint (a cheap seam
+## for whatever consumes it next) but must no longer make %WinnerLabel
+## visible.
+func test_show_winner_no_longer_shows_the_hud_banner() -> void:
 	var hud: HUD = _make_hud()
 	assert_false(hud._winner_label.visible)
 	hud.show_winner(0, Color.GOLD)
-	assert_true(hud._winner_label.visible)
-	assert_true(hud._winner_label.text.findn("wins") >= 0)
+	assert_false(hud._winner_label.visible, "the results screen owns the winner announcement now, not this HUD banner")
+	assert_true(hud._winner_label.text.findn("wins") >= 0, "the formatted text is kept harmless, just not shown")
 
 
 # --- Driven through Events, per docs/M2_PLAN.md's acceptance check ---------
@@ -223,10 +227,14 @@ func test_goal_capture_progress_event_updates_hud() -> void:
 	assert_almost_eq(hud._capture_progress, 0.8, 0.001)
 
 
-func test_match_won_event_shows_the_winner() -> void:
+## Bontago-1pi.5: the signal wiring (Events.match_won -> _on_match_won ->
+## show_winner()) must stay harmless -- it still runs, it just must not show
+## anything on this HUD instance anymore (a separate results screen owns
+## that now).
+func test_match_won_event_no_longer_shows_the_hud_winner_label() -> void:
 	var hud: HUD = _make_hud()
 	Events.match_won.emit(1)
-	assert_true(hud._winner_label.visible)
+	assert_false(hud._winner_label.visible)
 
 
 func test_placement_rejected_event_shows_reject_only_for_the_active_slot() -> void:
@@ -620,3 +628,56 @@ func test_minimap_image_draws_the_live_raster_not_a_camera_sample() -> void:
 		corner.a, 0.0, 0.001,
 		"outside the disk must be fully transparent -- never a sampled sky/mirror pixel"
 	)
+
+
+# --- Bontago-1pi.5: held/next preview rendering -----------------------------
+# Owner playtest: "Held/next previews should be grouped and moved to the
+# bottom left corner, some of the blocks are rendered oddly in the previews
+# as well." The grouping is a pure ui/HUD.tscn layout change (no script
+# assertion needed -- feedback/pt5-grouped-panel.png is the visual evidence).
+# This test pins the *rendering* half headlessly: HUD._iso_fit() is the pure
+# geometry ui/HUD.gd's _draw_iso_shape() uses, extracted specifically so this
+# can run without a windowed render.
+
+
+## Regression for the actual bug: the old centroid-anchored version put an
+## asymmetric shape's true bounding-box center away from the card's own
+## center (pinned in _iso_fit()'s own DECISION comment), which would fail
+## this test immediately on shapes like L3/L4/pillar. For every real
+## BlockShape (config/blocks/*.tres — whatever the bag can actually deal),
+## checks both halves of the fix at once: "fully in frame" (every cube's
+## full projected silhouette, top diamond plus its cube_h-tall sides, stays
+## inside the control's own rect) and "centered" (that silhouette's own
+## bounding box is centered in the control, not just clamped to fit).
+func test_iso_fit_centers_and_frames_every_block_shape() -> void:
+	var hud: HUD = _make_hud()
+	var control_size: Vector2 = Vector2(72.0, 72.0)
+	for shape: BlockShape in BlockShape.load_all_shapes():
+		var cells: Array[Vector3i] = shape.cells.duplicate()
+		var fit: Dictionary = hud._iso_fit(cells, control_size)
+		var tops: Array = fit["tops"]
+		var tile_h: float = fit["tile_h"]
+		var half_w: float = float(fit["tile_w"]) * 0.5
+		var cube_h: float = fit["cube_h"]
+
+		var min_pt: Vector2 = Vector2.INF
+		var max_pt: Vector2 = -Vector2.INF
+		for top: Vector2 in tops:
+			min_pt = min_pt.min((top as Vector2) + Vector2(-half_w, 0.0))
+			max_pt = max_pt.max((top as Vector2) + Vector2(half_w, tile_h + cube_h))
+
+		assert_true(
+			min_pt.x >= -0.5 and min_pt.y >= -0.5,
+			"%s must not clip the left/top edge of its %s card (min=%s)" % [shape.id, control_size, min_pt]
+		)
+		assert_true(
+			max_pt.x <= control_size.x + 0.5 and max_pt.y <= control_size.y + 0.5,
+			"%s must not clip the right/bottom edge of its %s card (max=%s)" % [shape.id, control_size, max_pt]
+		)
+		var box_center: Vector2 = (min_pt + max_pt) * 0.5
+		assert_almost_eq(
+			box_center.x, control_size.x * 0.5, 1.0, "%s must be horizontally centered, not just clamped in frame" % shape.id
+		)
+		assert_almost_eq(
+			box_center.y, control_size.y * 0.5, 1.0, "%s must be vertically centered, not just clamped in frame" % shape.id
+		)
