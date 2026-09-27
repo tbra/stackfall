@@ -70,6 +70,10 @@ const NET_DEBUG_OVERLAY_SCENE: PackedScene = preload("res://ui/NetDebugOverlay.t
 ## Bontago-xtq.42 (M7 P42, owner playtest: "there's no pause menu, I can't
 ## abandon a game and go back to the main menu or quit the game").
 const PAUSE_MENU_SCENE: PackedScene = preload("res://ui/PauseMenu.tscn")
+## Bontago-1pi.8 (owner playtest 2026-09-27): covers the LOBBY -> LOADING ->
+## COUNTDOWN window instead of leaving the idle centre-beacon camera shot on
+## screen -- see ui/LoadingScreen.gd's own header doc.
+const LOADING_SCREEN_SCENE: PackedScene = preload("res://ui/LoadingScreen.tscn")
 
 @onready var _field: Field = $Field
 @onready var _blocks_container: Node3D = $BlocksContainer
@@ -105,6 +109,12 @@ var _debug_overlay: NetDebugOverlay = null
 ## game, which start_sandbox_from_menu()/start_tutorial_from_menu() below
 ## already cover.
 var _pause_menu: PauseMenu = null
+## Bontago-1pi.8: built once, right alongside _pause_menu above (same
+## "instantiate once, self-wire" contract this file's own header describes),
+## never for --hot-seat/the CLI-only --sandbox debug entry point (both return
+## out of _ready() before Events.match_state_changed is even connected below,
+## same reason _debug_overlay is skipped there too).
+var _loading_screen: LoadingScreen = null
 ## Bontago-d5c.6 (M5 P5): one instance per bot slot in the match currently
 ## built, built in _build_match_world() (or _start_headless_bot_match_with_
 ## args()'s own reuse of it) and freed in _end_match_world() -- see
@@ -190,6 +200,12 @@ func _ready() -> void:
 	# but set it explicitly here as well so it's never even momentarily false
 	# before that first call.
 	_pause_menu.suppressed = true
+
+	# Bontago-1pi.8: built before Net.init_steam()/_show_main_menu() below,
+	# same reasoning as _pause_menu just above -- it must already exist the
+	# first time _on_match_state_changed() below can possibly fire.
+	_loading_screen = LOADING_SCREEN_SCENE.instantiate() as LoadingScreen
+	add_child(_loading_screen)
 
 	# docs/M3b_PLAN.md integration order step 4: Steam init is synchronous by
 	# this point, so MainMenu._ready() can immediately read steam_available().
@@ -901,8 +917,35 @@ func _on_match_state_changed(from_state: int, to_state: int) -> void:
 
 	if to_state == Match.State.LOBBY:
 		_end_match_world()
+		# Bontago-1pi.8: safety net for a match aborted mid-load -- see
+		# LoadingScreen.cancel()'s own doc.
+		_loading_screen.cancel()
 	elif from_state == Match.State.LOBBY and to_state == Match.State.LOADING:
+		# Bontago-1pi.8: shown before _build_match_world() below runs, so the
+		# overlay is already queued to composite over this same frame's draw
+		# pass -- see ui/LoadingScreen.gd's own header doc.
+		_loading_screen.show_for_match(Match.config, _loading_screen_slots())
 		_build_match_world()
+	elif to_state == Match.State.COUNTDOWN:
+		# Bontago-1pi.8: see LoadingScreen.fade_out()'s own doc for why this is
+		# not instantaneous.
+		_loading_screen.fade_out()
+
+
+## Bontago-1pi.8: MatchLifecycle._build_slots() (autoload/match/
+## MatchLifecycle.gd's start_match()) already ran before the LOBBY -> LOADING
+## emit this feeds, so every slot's display_name/is_bot is already final for
+## the match that is about to build -- collected into a plain array so
+## ui/LoadingScreen.gd never has to reach for the Match singleton itself
+## (same dependency-injection shape as ui/HUD.gd's match_provider seam, for
+## the same reason: a bare array of PlayerSlot.new(...) is trivial to test).
+func _loading_screen_slots() -> Array[PlayerSlot]:
+	var slots: Array[PlayerSlot] = []
+	for i: int in range(Match.slot_count()):
+		var slot_item: PlayerSlot = Match.slot(i)
+		if slot_item != null:
+			slots.append(slot_item)
+	return slots
 
 
 func _build_match_world() -> void:

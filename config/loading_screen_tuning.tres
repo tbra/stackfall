@@ -1,0 +1,6 @@
+[gd_resource type="Resource" script_class="LoadingScreenTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/LoadingScreenTuning.gd" id="1_loading"]
+
+[resource]
+script = ExtResource("1_loading")
