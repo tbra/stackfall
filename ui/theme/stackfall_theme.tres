@@ -154,7 +154,7 @@ corner_radius_bottom_left = 8
 
 [resource]
 default_font = SubResource("FontVariation_regular")
-default_font_size = 16
+default_font_size = 14
 Label/colors/font_color = Color(0.149, 0.196, 0.227, 1)
 RichTextLabel/fonts/normal_font = SubResource("FontVariation_regular")
 RichTextLabel/fonts/bold_font = SubResource("FontVariation_extrabold")
@@ -203,7 +203,7 @@ ItemList/colors/font_color = Color(0.149, 0.196, 0.227, 1)
 ItemList/colors/font_selected_color = Color(0.98, 0.96, 0.94, 1)
 TitleLabel/base_type = &"Label"
 TitleLabel/fonts/font = SubResource("FontVariation_extrabold")
-TitleLabel/font_sizes/font_size = 28
+TitleLabel/font_sizes/font_size = 24
 TitleLabel/colors/font_color = Color(0.149, 0.196, 0.227, 1)
 CaptionLabel/base_type = &"Label"
 CaptionLabel/fonts/font = SubResource("FontVariation_caption")

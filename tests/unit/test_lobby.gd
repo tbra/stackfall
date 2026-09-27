@@ -87,7 +87,9 @@ func test_republish_roster_if_host_draws_the_hosts_own_row_with_no_other_peers()
 	var list: VBoxContainer = lobby.get_node("%PlayerList")
 	assert_eq(list.get_child_count(), 1, "the host's own row must appear without waiting for a second peer")
 	var count_label: Label = lobby.get_node("%PlayerCountLabel")
-	assert_true(count_label.text.begins_with("1 / "))
+	# Bontago-1pi.9b: the roster header's new "N players * H/S seats" format
+	# (ui/Lobby.gd's _format_roster_header()) replaces the old bare "N / S".
+	assert_true(count_label.text.begins_with("1 player "), count_label.text)
 
 
 func test_every_2_8_setting_round_trips_through_to_dict_and_from_dict() -> void:
@@ -410,6 +412,60 @@ func test_build_roster_has_no_bot_rows_when_ai_count_is_zero() -> void:
 	var calls: Array[Dictionary] = fake.set_lobby_data_calls
 	var roster: Array = calls[calls.size() - 1].get("roster") as Array
 	assert_eq(roster.size(), 2, "no bot rows when ai_count is 0")
+
+
+## Bontago-1pi.9b: owner playtest -- "the right panel lists 'players+bots'/
+## 'players'" -- %PlayerCountLabel must always spell out humans, bots and
+## seats separately instead of one ambiguous "N / S" count.
+func test_roster_header_shows_players_bots_and_seats_separately() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var fake: FakeNet = _fake_of(lobby)
+	fake.slots_by_peer = {1: 0, 2: 1, 3: 2}  # 3 connected humans
+	(lobby.get_node("%PlayerCountSpin") as SpinBox).value = 8
+	(lobby.get_node("%AiCountSpin") as SpinBox).value = 2
+
+	var count_label: Label = lobby.get_node("%PlayerCountLabel")
+	assert_eq(count_label.text, "3 players · 2 bots · 5/8 seats")
+
+
+## A lobby with no bots requested shouldn't announce "0 bots". Sets seats to
+## 5 (not match_defaults.tres' own default of 4) so the SpinBox's own
+## value_changed actually fires and republishes/re-applies the roster --
+## setting it to its already-current value would be a silent no-op.
+func test_roster_header_omits_bots_when_ai_count_is_zero() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var fake: FakeNet = _fake_of(lobby)
+	fake.slots_by_peer = {1: 0, 2: 1}
+	(lobby.get_node("%PlayerCountSpin") as SpinBox).value = 5
+
+	var count_label: Label = lobby.get_node("%PlayerCountLabel")
+	assert_eq(count_label.text, "2 players · 2/5 seats")
+
+
+## Bontago-1pi.9b: owner playtest -- "I can add bots up to the player limit"
+## -- nothing previously stopped ai_count + connected humans from exceeding
+## player_count. %AiCountSpin's own max_value must track the empty-seat count
+## (seats - humans) and clamp an already-too-high value down to it.
+func test_ai_count_spin_clamps_to_seats_minus_connected_humans() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var fake: FakeNet = _fake_of(lobby)
+	fake.slots_by_peer = {1: 0, 2: 1, 3: 2, 4: 3}  # 4 connected humans
+	var ai_spin: SpinBox = lobby.get_node("%AiCountSpin")
+	(lobby.get_node("%PlayerCountSpin") as SpinBox).value = 8
+	ai_spin.value = 6  # only 4 empty seats exist (8 seats - 4 humans)
+
+	assert_eq(int(ai_spin.max_value), 4, "8 seats - 4 connected humans = 4 empty seats for bots")
+	assert_eq(int(ai_spin.value), 4, "an over-large request clamps down to the room actually left")
+
+	# A 5th human joining shrinks the room left for the existing bots too.
+	fake.slots_by_peer[5] = 4
+	var roster: Array[Dictionary] = []
+	for peer_id: int in fake.slots_by_peer.keys():
+		roster.append({"peer_id": peer_id, "slot_id": int(fake.slots_by_peer[peer_id]), "name": "P", "ready": true})
+	Events.net_roster_changed.emit(roster)
+
+	assert_eq(int(ai_spin.max_value), 3, "a 5th human leaves only 3 empty seats of 8")
+	assert_eq(int(ai_spin.value), 3, "the existing 4 bots shrink to fit the now-smaller headroom")
 
 
 # --- Invite Friends (docs/M3b_PLAN.md P3) -------------------------------------

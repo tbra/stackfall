@@ -59,11 +59,12 @@ custom_minimum_size = Vector2(420, 0)
 
 [node name="Layout" type="VBoxContainer" parent="Center/Panel"]
 layout_mode = 2
-theme_override_constants/separation = 10
+theme_override_constants/separation = 13
 
 [node name="TitleWrap" type="Control" parent="Center/Panel/Layout"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 44)
+custom_minimum_size = Vector2(0, 37)
+
 
 [node name="TitleShadow" type="RichTextLabel" parent="Center/Panel/Layout/TitleWrap"]
 unique_name_in_owner = true
@@ -75,7 +76,7 @@ bbcode_enabled = true
 fit_content = true
 scroll_active = false
 text = "Stackfall"
-theme_override_font_sizes/normal_font_size = 32
+theme_override_font_sizes/normal_font_size = 26
 
 [node name="Title" type="RichTextLabel" parent="Center/Panel/Layout/TitleWrap"]
 unique_name_in_owner = true
@@ -87,11 +88,11 @@ bbcode_enabled = true
 fit_content = true
 scroll_active = false
 text = "Stackfall"
-theme_override_font_sizes/normal_font_size = 32
+theme_override_font_sizes/normal_font_size = 26
 
 [node name="Tagline" type="Label" parent="Center/Panel/Layout"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 11
 text = "BUILD · BALANCE · DOMINATE"
 
 [node name="TitleAccent" type="ColorRect" parent="Center/Panel/Layout"]
@@ -111,20 +112,22 @@ text = "NAME"
 [node name="NameEdit" type="LineEdit" parent="Center/Panel/Layout"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(0, 44)
+custom_minimum_size = Vector2(0, 37)
+
 size_flags_horizontal = 3
 placeholder_text = "Player"
 text = "Player"
 
 [node name="HostRow" type="HBoxContainer" parent="Center/Panel/Layout"]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 10
 
 [node name="HostButton" type="Button" parent="Center/Panel/Layout/HostRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 48)
+custom_minimum_size = Vector2(0, 41)
+
 focus_neighbor_right = NodePath("../HostOnlineButton")
 text = "Host"
 
@@ -132,7 +135,8 @@ text = "Host"
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 48)
+custom_minimum_size = Vector2(0, 41)
+
 focus_neighbor_left = NodePath("../HostButton")
 text = "Host online (Steam)"
 
@@ -146,7 +150,7 @@ layout_mode = 2
 
 [node name="SteamGamesLayout" type="VBoxContainer" parent="Center/Panel/Layout/SteamSection/SteamGamesWell"]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 10
 
 [node name="SteamHeaderRow" type="HBoxContainer" parent="Center/Panel/Layout/SteamSection/SteamGamesWell/SteamGamesLayout"]
 layout_mode = 2
@@ -170,7 +174,8 @@ text = "⟳ Refresh"
 
 [node name="SteamListStack" type="Control" parent="Center/Panel/Layout/SteamSection/SteamGamesWell/SteamGamesLayout"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 72)
+custom_minimum_size = Vector2(0, 61)
+
 size_flags_horizontal = 3
 
 [node name="SteamLobbyList" type="ItemList" parent="Center/Panel/Layout/SteamSection/SteamGamesWell/SteamGamesLayout/SteamListStack"]
@@ -204,7 +209,7 @@ layout_mode = 2
 
 [node name="LanGamesLayout" type="VBoxContainer" parent="Center/Panel/Layout/LanGamesWell"]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 10
 
 [node name="LanHeaderRow" type="HBoxContainer" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout"]
 layout_mode = 2
@@ -229,7 +234,8 @@ text = "⟳ Refresh"
 
 [node name="GameListStack" type="Control" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 108)
+custom_minimum_size = Vector2(0, 92)
+
 size_flags_horizontal = 3
 
 [node name="GameList" type="ItemList" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout/GameListStack"]
@@ -258,7 +264,7 @@ text = "Searching for games..."
 
 [node name="DirectRow" type="HBoxContainer" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout"]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 10
 
 [node name="DirectIpEdit" type="LineEdit" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout/DirectRow"]
 unique_name_in_owner = true
@@ -277,7 +283,7 @@ text = "Join IP"
 
 [node name="BottomRow" type="HBoxContainer" parent="Center/Panel/Layout"]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 10
 
 [node name="SandboxButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
 unique_name_in_owner = true
@@ -338,7 +344,7 @@ mouse_filter = 2
 
 [node name="GamepadHintRow" type="HBoxContainer" parent="GamepadHintPill"]
 layout_mode = 2
-theme_override_constants/separation = 6
+theme_override_constants/separation = 8
 
 [node name="GlyphA" type="PanelContainer" parent="GamepadHintPill/GamepadHintRow"]
 unique_name_in_owner = true
