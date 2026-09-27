@@ -773,3 +773,88 @@ func test_mirror_transform_reflects_across_a_tilted_plane() -> void:
 		mirrored.basis.determinant(), 1.0, 0.0001,
 		"the reflected basis must stay proper for a tilted plane too."
 	)
+
+
+# --- Bontago-1pi.11: spatial circle bins -------------------------------------
+
+## Reads bin k's (start, count) header and its circle indices back out of the
+## flat RGF image, the same row-major walk the shader does.
+func _bin_indices(image: Image, k: int) -> PackedInt32Array:
+	var width: int = TerritoryOverlay.CIRCLE_BIN_TEX_WIDTH
+	var header: Color = image.get_pixel(k % width, k / width)
+	var start: int = int(round(header.r))
+	var count: int = int(round(header.g))
+	var out: PackedInt32Array = PackedInt32Array()
+	for j: int in range(count):
+		var ref_k: int = start + j
+		out.append(int(round(image.get_pixel(ref_k % width, ref_k / width).r)))
+	return out
+
+
+func test_circle_bins_list_every_circle_that_can_reach_a_pixel() -> void:
+	var map_def: MapDef = _map()
+	var overlay: TerritoryOverlay = _make_overlay(map_def)
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 1611
+	var xs: PackedFloat32Array = PackedFloat32Array()
+	var zs: PackedFloat32Array = PackedFloat32Array()
+	var radii: PackedFloat32Array = PackedFloat32Array()
+	var teams: PackedInt32Array = PackedInt32Array()
+	var circle_total: int = 120
+	var r: float = map_def.field_radius
+	for i: int in range(circle_total):
+		xs.append(rng.randf_range(-r, r))
+		zs.append(rng.randf_range(-r, r))
+		radii.append(rng.randf_range(0.2, 2.5))
+		teams.append(i % 4)
+
+	overlay.set_circles(xs, zs, radii, teams, PackedVector2Array(), PackedFloat32Array(), false)
+
+	assert_true(overlay.circle_bins_valid(), "A normal circle list is binned.")
+	assert_true(
+		bool(overlay.material().get_shader_parameter(&"circle_bins_valid")),
+		"The shader is told to use the bins."
+	)
+	var image: Image = overlay.circle_bin_image()
+	var grid: int = TerritoryOverlay.CIRCLE_BIN_GRID
+	var half: float = overlay.circle_bin_half_extent()
+	var margin: float = overlay.circle_bin_margin()
+	var cell: float = 2.0 * half / float(grid)
+	var misses: int = 0
+	var unordered: int = 0
+	var samples: int = 97
+	for sz: int in range(samples):
+		for sx: int in range(samples):
+			var point: Vector2 = Vector2(
+				-r + 2.0 * r * float(sx) / float(samples - 1),
+				-r + 2.0 * r * float(sz) / float(samples - 1)
+			)
+			var col: int = int(floor((point.x + half) / cell))
+			var row: int = int(floor((point.y + half) / cell))
+			var listed: PackedInt32Array = _bin_indices(image, row * grid + col)
+			for j: int in range(1, listed.size()):
+				if listed[j] <= listed[j - 1]:
+					unordered += 1
+			for i: int in range(circle_total):
+				var value: float = radii[i] - point.distance_to(Vector2(xs[i], zs[i]))
+				if value >= -margin and not listed.has(i):
+					misses += 1
+	assert_eq(misses, 0, "Every circle within radius + margin of a sample point is in that point's bin.")
+	assert_eq(unordered, 0, "Bin lists keep circle_tex's ascending (team-sorted) order.")
+
+
+func test_an_empty_circle_list_disables_the_bins() -> void:
+	var overlay: TerritoryOverlay = _make_overlay(_map())
+	overlay.clear_circles()
+	assert_false(overlay.circle_bins_valid(), "No circles, nothing to bin.")
+	assert_false(bool(overlay.material().get_shader_parameter(&"circle_bins_valid")))
+
+
+func test_shader_declares_the_circle_bin_uniforms() -> void:
+	var code: String = (load("res://shaders/territory.gdshader") as Shader).code
+	assert_true(code.contains("uniform sampler2D circle_bin_tex"), "Bin texture uniform.")
+	assert_true(code.contains("uniform bool circle_bins_valid"), "Bin enable uniform.")
+	assert_true(
+		code.contains("const int CIRCLE_BIN_TEX_WIDTH = %d;" % TerritoryOverlay.CIRCLE_BIN_TEX_WIDTH),
+		"Shader and overlay agree on the bin texture width."
+	)

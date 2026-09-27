@@ -70,6 +70,31 @@ const UV_CENTER: float = 0.5
 ## goal flags.
 const GOAL_TEXELS_MAX: int = 8
 
+## Bontago-1pi.11 (owner playtest: "the game slows down a lot after a
+## while"): the analytic circle path used to loop every circle for every disk
+## pixel, so its GPU cost grew with the live block count (windowed probe,
+## 1920x1080: ~95-120 ms/frame at 60-160 blocks, ~15-30 ms with the loop
+## skipped). _pack_circle_bins() buckets the list into a coarse square grid
+## over the disk so each pixel only loops the circles that can reach it.
+## DECISION (game/TerritoryOverlay.gd): implementation constants of the
+## acceleration structure, not presentation or rule tunables, kept here the
+## same way GOAL_TEXELS_MAX is. CIRCLE_BIN_TEX_WIDTH must match the shader's
+## own const of the same name.
+const CIRCLE_BIN_GRID: int = 24
+const CIRCLE_BIN_TEX_WIDTH: int = 256
+## Upper bound on bin texels (headers + references); a list that would need
+## more simply falls back to the full per-pixel loop (circle_bins_valid off).
+const CIRCLE_BIN_TEXELS_MAX: int = CIRCLE_BIN_TEX_WIDTH * CIRCLE_BIN_TEX_WIDTH
+## Extra slack past the half extent so a pixel exactly on the rim still lands
+## in the last bin rather than taking the full-loop path.
+const CIRCLE_BIN_EDGE_SLACK_M: float = 0.01
+## How many metaball_blend widths of extra margin a circle is binned with.
+## A circle whose value is below -(edge + rim + rim_soft + this * blend)
+## everywhere in a bin can shift a team's smooth max only inside a band no
+## drawn effect reads (the tint starts at -edge_softness_m, the rim band ends
+## at rim_width), so dropping it from that bin leaves every pixel unchanged.
+const CIRCLE_BIN_BLEND_MARGIN_FACTOR: float = 4.0
+
 var _map_def: MapDef = null
 var _visuals: TerritoryVisuals = null
 var _tuning: TerritoryTuning = null
@@ -98,6 +123,9 @@ var _goal_texture: ImageTexture = null
 var _circle_image: Image = null
 var _goal_image: Image = null
 var _circle_count: int = 0
+var _circle_bin_texture: ImageTexture = null
+var _circle_bin_image: Image = null
+var _circle_bins_valid: bool = false
 var _goal_count: int = 0
 
 
@@ -305,6 +333,7 @@ func set_circles(
 	var valid: bool = count > 0 and count <= _visuals.max_shader_circles
 	_material.set_shader_parameter(&"circle_tex", _circle_texture)
 	_material.set_shader_parameter(&"circle_count", count)
+	_update_circle_bins(xs, zs, radii, mini(count, _visuals.max_shader_circles))
 	_material.set_shader_parameter(&"max_shader_circles", _visuals.max_shader_circles)
 	_material.set_shader_parameter(&"circles_valid", valid)
 	_material.set_shader_parameter(&"argmax_mode", argmax_mode)
@@ -338,6 +367,116 @@ func circle_count() -> int:
 ## Goal discs currently uploaded (the shader's goal_count uniform).
 func goal_count() -> int:
 	return _goal_count
+
+
+## Bontago-1pi.11: the per-bin circle lists the shader reads (see
+## _pack_circle_bins()); null before the first set_circles().
+func circle_bin_image() -> Image:
+	return _circle_bin_image
+
+
+func circle_bins_valid() -> bool:
+	return _circle_bins_valid
+
+
+func circle_bin_half_extent() -> float:
+	return _map_def.field_radius + CIRCLE_BIN_EDGE_SLACK_M if _map_def != null else 1.0
+
+
+## Margin (m) past a circle's radius within which it still reaches a bin;
+## see CIRCLE_BIN_BLEND_MARGIN_FACTOR.
+func circle_bin_margin() -> float:
+	return (
+		maxf(_visuals.edge_softness_m, 0.0) + maxf(_visuals.rim_width, 0.0)
+		+ maxf(_visuals.rim_soft_width, 0.0)
+		+ CIRCLE_BIN_BLEND_MARGIN_FACTOR * maxf(_visuals.metaball_blend, 0.0)
+	)
+
+
+func _update_circle_bins(
+	xs: PackedFloat32Array, zs: PackedFloat32Array, radii: PackedFloat32Array, count: int
+) -> void:
+	_circle_bin_image = _pack_circle_bins(xs, zs, radii, count)
+	_circle_bins_valid = _circle_bin_image != null
+	if _circle_bins_valid:
+		_circle_bin_texture = _store(_circle_bin_texture, _circle_bin_image)
+		_material.set_shader_parameter(&"circle_bin_tex", _circle_bin_texture)
+	_material.set_shader_parameter(&"circle_bins_valid", _circle_bins_valid)
+	_material.set_shader_parameter(&"circle_bin_grid", CIRCLE_BIN_GRID)
+	_material.set_shader_parameter(&"circle_bin_half_extent", circle_bin_half_extent())
+
+
+## RGF, CIRCLE_BIN_TEX_WIDTH texels wide, read row-major as one flat array:
+## texel k < CIRCLE_BIN_GRID^2 is (start, count) for bin k (bin k covers
+## column k % grid, row k / grid of the square [-half, half]^2 in disk-local
+## x/z); texels from `start` hold that bin's circle indices, ascending, so the
+## shader walks them in the same team-sorted order as circle_tex. A circle is
+## listed in every bin whose rectangle comes within radius + margin of its
+## centre. Returns null (full-loop fallback) when there is nothing to bin or
+## the lists would overflow CIRCLE_BIN_TEXELS_MAX.
+func _pack_circle_bins(
+	xs: PackedFloat32Array, zs: PackedFloat32Array, radii: PackedFloat32Array, count: int
+) -> Image:
+	if count <= 0 or _map_def == null:
+		return null
+	var grid: int = CIRCLE_BIN_GRID
+	var bins: int = grid * grid
+	var half: float = circle_bin_half_extent()
+	var cell: float = 2.0 * half / float(grid)
+	var margin: float = circle_bin_margin()
+	var counts: PackedInt32Array = PackedInt32Array()
+	counts.resize(bins)
+	# Two passes (count, then fill) over the same per-circle bin walk, so the
+	# flat reference list needs no per-bin arrays.
+	var height: int = 1
+	for pass_index: int in range(2):
+		var cursor: PackedInt32Array = PackedInt32Array()
+		var flat: PackedFloat32Array = PackedFloat32Array()
+		var total: int = 0
+		if pass_index == 1:
+			var starts: PackedInt32Array = PackedInt32Array()
+			starts.resize(bins)
+			total = bins
+			for k: int in range(bins):
+				starts[k] = total
+				total += counts[k]
+			if total > CIRCLE_BIN_TEXELS_MAX:
+				return null
+			height = maxi(ceili(float(total) / float(CIRCLE_BIN_TEX_WIDTH)), 1)
+			flat.resize(CIRCLE_BIN_TEX_WIDTH * height * 2)
+			for k: int in range(bins):
+				flat[k * 2] = float(starts[k])
+				flat[k * 2 + 1] = float(counts[k])
+			cursor = starts
+		for i: int in range(count):
+			var reach: float = maxf(radii[i], 0.0) + margin
+			var cx: float = xs[i]
+			var cz: float = zs[i]
+			var col_lo: int = clampi(int(floor((cx - reach + half) / cell)), 0, grid - 1)
+			var col_hi: int = clampi(int(floor((cx + reach + half) / cell)), 0, grid - 1)
+			var row_lo: int = clampi(int(floor((cz - reach + half) / cell)), 0, grid - 1)
+			var row_hi: int = clampi(int(floor((cz + reach + half) / cell)), 0, grid - 1)
+			if cx + reach < -half or cx - reach > half or cz + reach < -half or cz - reach > half:
+				continue
+			for row: int in range(row_lo, row_hi + 1):
+				var z0: float = -half + float(row) * cell
+				var dz: float = maxf(maxf(z0 - cz, cz - (z0 + cell)), 0.0)
+				for col: int in range(col_lo, col_hi + 1):
+					var x0: float = -half + float(col) * cell
+					var dx: float = maxf(maxf(x0 - cx, cx - (x0 + cell)), 0.0)
+					if dx * dx + dz * dz > reach * reach:
+						continue
+					var k: int = row * grid + col
+					if pass_index == 0:
+						counts[k] += 1
+					else:
+						flat[cursor[k] * 2] = float(i)
+						cursor[k] += 1
+		if pass_index == 1:
+			return Image.create_from_data(
+				CIRCLE_BIN_TEX_WIDTH, height, false, Image.FORMAT_RGF, flat.to_byte_array()
+			)
+	return null
 
 
 func circle_texture() -> ImageTexture:
