@@ -367,6 +367,58 @@ func test_configure_pushes_the_default_metallic_and_roughness() -> void:
 	)
 
 
+## Bontago-pt.12 part 2 (owner: "the disc looks close to the mockup but it
+## lacks the texture ... visible where it interacts with the sun"): the
+## top-surface brushed/plank grain's own uniforms must reach the shader from
+## TerritoryVisuals, the same way every other presentation number here does.
+func test_configure_pushes_the_top_grain_uniforms() -> void:
+	var visuals: TerritoryVisuals = TerritoryVisuals.new()
+	visuals.top_grain_strength = 0.11
+	visuals.top_grain_scale = 0.42
+	visuals.top_grain_fine_scale = 8.5
+	visuals.top_grain_roughness_strength = 0.23
+	var overlay: TerritoryOverlay = TerritoryOverlay.new()
+	overlay.configure(_map(), visuals, load("res://config/territory_tuning.tres"))
+	add_child_autofree(overlay)
+
+	assert_almost_eq(
+		float(overlay.material().get_shader_parameter(&"top_grain_strength")), 0.11, 0.0001
+	)
+	assert_almost_eq(
+		float(overlay.material().get_shader_parameter(&"top_grain_scale")), 0.42, 0.0001
+	)
+	assert_almost_eq(
+		float(overlay.material().get_shader_parameter(&"top_grain_fine_scale")), 8.5, 0.0001
+	)
+	assert_almost_eq(
+		float(overlay.material().get_shader_parameter(&"top_grain_roughness_strength")),
+		0.23, 0.0001,
+	)
+
+
+## The grain is meant to be "nearly invisible in diffuse areas" and must
+## never distort the territory fill/border colors -- pins that structurally
+## by asserting the grain block in the shader source never writes ALBEDO or
+## EMISSION (it may only touch NORMAL/ROUGHNESS), same style of source-level
+## guard test_territory_shader_never_blends_or_writes_alpha() below already
+## uses for the disk's opacity contract.
+func test_shader_top_grain_block_never_writes_albedo_or_emission() -> void:
+	var overlay: TerritoryOverlay = _make_overlay(_map())
+	var shader: Shader = overlay.material().shader
+	var code: String = shader.code
+
+	var grain_start: int = code.find("float grain_h0")
+	var mirror_start: int = code.find("if (mirror_enabled)")
+	assert_true(grain_start >= 0 and mirror_start > grain_start,
+		"fixture: could not locate the top-grain block in the shader source.")
+	var grain_block: String = code.substr(grain_start, mirror_start - grain_start)
+
+	assert_false(grain_block.contains("ALBEDO"),
+		"the top-grain block must never write ALBEDO -- territory fill must be untouched.")
+	assert_false(grain_block.contains("EMISSION"),
+		"the top-grain block must never write EMISSION -- territory borders/shimmer must be untouched.")
+
+
 func test_disk_defaults_to_a_glossy_dielectric_under_the_planar_mirror() -> void:
 	# Bontago-xtq.20: the mirror-like look is the planar mirror
 	# (mirror_strength), composited as reflected light; metallic stays low so

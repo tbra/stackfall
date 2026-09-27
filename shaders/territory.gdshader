@@ -262,6 +262,26 @@ uniform float mirror_fresnel_power : hint_range(0.1, 8.0) = 2.0;
 // meaning, not the cylinder's original uniform-radius local space.
 uniform float disc_z_scale = 1.0;
 
+// -- Top-surface brushed/plank grain (Bontago-pt.12 part 2, owner: "the dark
+// graphite top shows fine plank/brush streaks ... where it interacts with
+// the sun (top-right and bottom-centre)"). Cheap hash-based value noise in
+// disk-local meters (v_local.xz below) -- no texture sampling, no extra
+// render pass, just a handful of extra ALU ops already inside this one
+// fragment() call. Perturbs NORMAL/ROUGHNESS only, computed in fragment()
+// BEFORE both the mirror block's fresnel term and the disk_sheen block
+// below, so the streaks show up exactly where the owner described (the
+// explicit sun-sheen term and the mirror/ambient/SSR/probe specular all
+// read the perturbed NORMAL/ROUGHNESS already) while staying invisible to
+// ALBEDO/EMISSION -- the territory tint/border/shimmer/hole-rim colors
+// computed by raster_path()/circle_path() above are already finalized
+// before this block runs and are never touched by it, so fills and borders
+// cannot distort. See fragment()'s own call site for the NORMAL-basis
+// DECISION (why this does not need the mesh's own TANGENT/BINORMAL data).
+uniform float top_grain_strength : hint_range(0.0, 0.5) = 0.05;
+uniform float top_grain_scale : hint_range(0.01, 5.0) = 0.35;
+uniform float top_grain_fine_scale : hint_range(1.0, 30.0) = 6.0;
+uniform float top_grain_roughness_strength : hint_range(0.0, 1.0) = 0.12;
+
 varying vec3 v_local;
 
 void vertex() {
@@ -316,6 +336,38 @@ float smax(float a, float b, float k) {
 float aa_stripes(float phase) {
 	float stripes = 0.5 + 0.5 * sin(phase * TAU);
 	return mix(stripes, 0.5, smoothstep(0.25, 0.5, fwidth(phase)));
+}
+
+// -- Bontago-pt.12 part 2: cheap hash-based value noise for the top-surface
+// brushed/plank grain (see top_grain_* uniforms' own header comment). No
+// texture sampling: a single sin()/fract() hash plus a smoothstep-
+// interpolated lerp between two integer cells, same "cheap hash noise"
+// family game/DiscBody.gd's own procedural texture used, just evaluated
+// directly in this shader instead of baked into a texture.
+float hash11(float n) {
+	return fract(sin(n) * 43758.5453123);
+}
+
+float value_noise_1d(float x) {
+	float i = floor(x);
+	float f = fract(x);
+	float a = hash11(i);
+	float b = hash11(i + 1.0);
+	return mix(a, b, f * f * (3.0 - 2.0 * f));
+}
+
+// Grain "height" at disk-local point `p` -- a coarse, low-frequency "plank"
+// band (top_grain_scale) plus a finer, higher-frequency "brushed" ripple
+// within it (top_grain_scale * top_grain_fine_scale), both driven by p.x
+// only (so the streaks read as long, roughly-parallel lines running along
+// local Z, the "brushed metal"/plank look) with a slow, low-frequency
+// waviness phase-shifted by p.y so the lines are not perfectly straight
+// across the whole disc.
+float grain_height(vec2 p) {
+	float waviness = value_noise_1d(p.y * 0.04) * 2.0;
+	float coarse = value_noise_1d(p.x * top_grain_scale + waviness) - 0.5;
+	float fine = value_noise_1d(p.x * top_grain_scale * top_grain_fine_scale + waviness) - 0.5;
+	return coarse * 0.7 + fine * 0.3;
 }
 
 void raster_path(vec2 uv, out vec3 albedo, out vec3 emission) {
@@ -505,6 +557,46 @@ void fragment() {
 		raster_path(uv, albedo, emission);
 	}
 
+	// Bontago-pt.12 part 2: top-surface brushed/plank grain -- see the
+	// top_grain_* uniforms' own header comment. ALBEDO/EMISSION above are
+	// already finalized (the territory tint/border/shimmer/hole-rim colors),
+	// so this block only ever touches NORMAL/ROUGHNESS, run before the mirror
+	// fresnel and disk_sheen blocks below so both read the grained NORMAL.
+	//
+	// DECISION (shaders/territory.gdshader, Bontago-pt.12 part 2): builds its
+	// own in-plane basis from MODEL_MATRIX/VIEW_MATRIX instead of the mesh's
+	// own TANGENT/BINORMAL -- this disc's CylinderMesh top cap's own
+	// generated UV/tangent direction is an implementation detail of Godot's
+	// primitive builder (unspecified whether it runs radially or along an
+	// axis), whereas the grain's own height field is deliberately sampled in
+	// disk-local (v_local.xz) meters so its streak direction is stable and
+	// predictable (parallel to local Z) regardless of that mesh detail. For
+	// this flat, uniformly-scaled disc, the linear (rotation/uniform-scale,
+	// no translation) part of VIEW_MATRIX * MODEL_MATRIX carries a local
+	// direction into view space correctly enough for a subtle bump (the
+	// final normalize() absorbs any residual scale) without needing a
+	// dedicated inverse-transpose normal matrix, which Godot only exposes in
+	// vertex(), not fragment().
+	float grain_h0 = 0.0;
+	if (top_grain_strength > 0.0 || top_grain_roughness_strength > 0.0) {
+		vec2 grain_point = v_local.xz;
+		float grain_eps = 0.05;
+		grain_h0 = grain_height(grain_point);
+		float grain_dx = (grain_height(grain_point + vec2(grain_eps, 0.0)) - grain_h0) / grain_eps;
+		float grain_dz = (grain_height(grain_point + vec2(0.0, grain_eps)) - grain_h0) / grain_eps;
+		if (top_grain_strength > 0.0) {
+			mat3 model_view_linear = mat3(VIEW_MATRIX) * mat3(MODEL_MATRIX);
+			vec3 grain_x = model_view_linear * vec3(1.0, 0.0, 0.0);
+			vec3 grain_z = model_view_linear * vec3(0.0, 0.0, 1.0);
+			vec3 base_normal = normalize(NORMAL);
+			NORMAL = normalize(
+				base_normal
+				- grain_x * grain_dx * top_grain_strength
+				- grain_z * grain_dz * top_grain_strength
+			);
+		}
+	}
+
 	// Bontago-xtq.12 step 2: the planar mirror, where it is wired and
 	// enabled, blends mirror_strength of the true per-pixel reflection over
 	// the disk (see the Bontago-xtq.20 DECISION inside the branch for how).
@@ -571,5 +663,11 @@ void fragment() {
 	// shimmer/goal) reads at full strength through ALBEDO/EMISSION above with
 	// no opacity trick needed.
 	METALLIC = base_metallic;
-	ROUGHNESS = base_roughness;
+	// Bontago-pt.12 part 2: grain_h0 (the same coarse+fine grain height the
+	// NORMAL perturbation above used, in [-0.5, 0.5]) also nudges ROUGHNESS a
+	// little -- a purely additive, sign-symmetric variation so the grain
+	// reads as fine streaks in the reflection's sharpness, not a visible
+	// overall dulling of the whole disc (top_grain_roughness_strength = 0
+	// leaves this identical to the old plain base_roughness assignment).
+	ROUGHNESS = clamp(base_roughness + grain_h0 * top_grain_roughness_strength, 0.0, 1.0);
 }
