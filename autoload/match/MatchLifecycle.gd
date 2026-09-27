@@ -214,6 +214,13 @@ func _reset_match_state() -> void:
 	_match._territory._solve_accum = 0.0
 	_match._feed._feed_timer_enabled = true
 	_match._gifts.reset()
+	# Bontago-1pi.13: shared by abort_match() and start_match()'s own leading
+	# call to this function, exactly like _match._gifts.reset() just above --
+	# a replay or a return-to-lobby must never leak one match's stats into
+	# the next. resize_for_slots() (this file's own _build_slots()) runs
+	# after this on every start, so the arrays are always re-sized before
+	# anything can bump them.
+	_match._stats.reset()
 	_match.config = null
 	# Bontago-1en.23 (M4 P5-TILT): shared by abort_match() (teardown back to
 	# LOBBY) and start_match()'s own leading call to this function (tearing
@@ -530,6 +537,10 @@ func _build_slots() -> void:
 	_match._feed._feed_seq.resize(_slots.size())
 	_match._feed._release_locked.resize(_slots.size())
 	_disconnect_grace_left.resize(_slots.size())
+	# Bontago-1pi.13: sizes MatchStats' per-slot arrays now that the new
+	# match's slot count is known (reset() above cannot do this -- it runs
+	# before _build_slots() on start_match()'s own call order).
+	_match._stats.resize_for_slots(_slots.size())
 	for i: int in range(_slots.size()):
 		_match._feed._held_shapes[i] = null
 		_match._feed._feed_time_left[i] = _match.config.block_timer
@@ -637,6 +648,18 @@ func _check_last_team_standing() -> void:
 func _finish_match(winning_team: int) -> void:
 	_set_state(MatchAutoload.State.END)
 	Events.match_won.emit(winning_team)
+	# Bontago-1pi.13: built after match_won so a listener that reacts to the
+	# win first (ui/HUD.gd's show_winner()) and one that wants the fuller
+	# payload (the results-screen UI worker) both see events in the same
+	# order every match. _finish_match() only ever runs on the host (see
+	# this function's own call sites: _check_last_team_standing() and
+	# _resolve_sudden_death_tiebreak(), both reached only from Match._process's
+	# `if not _is_host(): return`-gated ticks) -- a client's own copy never
+	# calls this, and instead reaches State.END and its results payload
+	# through EVENT_STATE_CHANGED and EVENT_MATCH_RESULTS respectively
+	# (net/MatchNet.gd).
+	var results: Dictionary = _match._stats.build_results_payload(winning_team)
+	Events.match_results_ready.emit(results)
 
 
 func _set_state(new_state: MatchAutoload.State) -> void:

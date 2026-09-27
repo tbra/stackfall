@@ -91,6 +91,11 @@ var _lifecycle: MatchLifecycle = null
 ## array. See autoload/match/MatchGifts.gd's own header for the split.
 var _gifts: MatchGifts = null
 
+## Bontago-1pi.13: per-slot match statistics and the results-screen payload
+## builder. See autoload/match/MatchStats.gd's own header for the split and
+## the full results payload contract.
+var _stats: MatchStats = null
+
 
 func _ready() -> void:
 	_feed = MatchFeed.new()
@@ -98,11 +103,13 @@ func _ready() -> void:
 	_territory = MatchTerritory.new()
 	_lifecycle = MatchLifecycle.new()
 	_gifts = MatchGifts.new()
+	_stats = MatchStats.new()
 	_feed.setup(self)
 	_placement.setup(self)
 	_territory.setup(self)
 	_lifecycle.setup(self)
 	_gifts.setup(self)
+	_stats.setup(self)
 	Events.feed_block_issued.connect(_on_feed_block_issued)
 
 
@@ -281,6 +288,10 @@ func _process(delta: float) -> void:
 			# nothing extra here (mirrors _tick_match_timer's own
 			# config.match_timer_minutes == 0 no-op).
 			_lifecycle._tick_turn_based(delta)
+			# Bontago-1pi.13: match_duration() accumulates only across the two
+			# "live" states (MatchLifecycle.is_live_state()), mirroring every
+			# other per-state tick call above.
+			_stats._tick(delta)
 		State.SUDDEN_DEATH:
 			# Spec 2.8 sudden death (M6 A3): normal play continues -- the same
 			# three ticks PLAYING runs -- plus the gift ramp / disk shrink /
@@ -290,6 +301,7 @@ func _process(delta: float) -> void:
 			_territory._tick_territory(delta)
 			_lifecycle._tick_sudden_death(delta)
 			_lifecycle._tick_turn_based(delta)
+			_stats._tick(delta)
 		_:
 			pass
 
@@ -542,6 +554,17 @@ func territory_share(team_id: int) -> float:
 ## The winning team, or -1.
 func winner_team() -> int:
 	return _territory.winner_team()
+
+
+# --- Match statistics + results (spec 3.7, Bontago-1pi.13) ------------------
+
+## Per-slot stats and the results-payload builder. See
+## autoload/match/MatchStats.gd's own header for the full contract; the
+## results-screen UI worker (Bontago-1pi.6) reads Events.match_results_ready
+## rather than reaching in here directly, but net/MatchNet.gd's replication
+## and this file's own tests need the object itself.
+func stats() -> MatchStats:
+	return _stats
 
 
 ## Tallest point any of this slot's settled blocks reaches above the disk, in
