@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="DiscBodyVisuals" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/DiscBodyVisuals.gd" id="1_discbody"]
+
+[resource]
+script = ExtResource("1_discbody")
+band_height_fraction = 0.035
+band_color = Color(0.035, 0.035, 0.04, 1)
+band_metallic = 0.85
+band_roughness = 0.32
+bottom_cap_enabled = true
+band_radius_scale = 1.003
+segments = 192
+rim_height_fraction = 0.05
+rim_radius_scale = 1.006
+rim_color = Color(1, 0.78, 0.35, 1)
+rim_emission_energy = 2.6

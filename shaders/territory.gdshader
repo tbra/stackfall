@@ -188,11 +188,40 @@ uniform float mirror_strength : hint_range(0.0, 1.0) = 0.0;
 // procedural fallback sky's own sun disc), not the glare fix (see the
 // render_mode DECISION above: the glare was the light's specular lobe).
 uniform float mirror_max_luminance : hint_range(0.1, 8.0) = 1.35;
+// Bontago-mp0.3.2 (owner feedback: "the disc is just a thin mirror
+// currently ... a much thicker metallic disc"): the mirror used to blend at
+// a flat mirror_strength everywhere, which read as a bright, near-complete
+// copy of the whole cloud sky straight down through the disc (the "brownish,
+// almost see-through reflection" report) -- there was nothing left to read
+// as a dark polished surface under it. fragment() below now scales the
+// blended amount by a fresnel term built from the disc's own NORMAL/VIEW:
+// mirror_center_fraction is how strong the reflection stays looking straight
+// down (a subdued, mostly-albedo graphite/lacquer read), mirror_strength
+// (unchanged) is the ceiling it opens up to at a grazing angle near the
+// horizon -- exactly where the mockup's warm sunset sheen shows.
+uniform float mirror_center_fraction : hint_range(0.0, 1.0) = 0.35;
+uniform float mirror_fresnel_power : hint_range(0.1, 8.0) = 2.0;
+
+// Bontago-mp0.3.2: disk_z_scale lets a non-round MapDef.MapShape.OVAL map
+// warp this mesh's plain circle into the true ellipse shape_contains() tests
+// membership against, entirely inside this shader -- see
+// game/TerritoryOverlay.gd's own DECISION beside where it pushes this
+// uniform for why VERTEX itself (not just the rendered position) has to be
+// the one that is scaled: v_local is read by both the UV math above and the
+// analytic circle_path() below, and CellGrid's own square raster/circle
+// coordinates are already true disk-local meters (field_radius in x,
+// field_radius * oval_aspect in z, not a unit circle later stretched by a
+// node transform) -- so v_local has to carry that same already-elliptical
+// meaning, not the cylinder's original uniform-radius local space.
+uniform float disc_z_scale = 1.0;
 
 varying vec3 v_local;
 
 void vertex() {
-	v_local = VERTEX;
+	vec3 local = VERTEX;
+	local.z *= disc_z_scale;
+	VERTEX = local;
+	v_local = local;
 }
 
 // Polynomial smooth min (Inigo Quilez). k <= 0 degrades to a hard min, so
@@ -421,6 +450,15 @@ void fragment() {
 		if (mirror_luma > mirror_max_luminance) {
 			mirror_color *= mirror_max_luminance / max(mirror_luma, 0.0001);
 		}
+		// Bontago-mp0.3.2: fresnel-scaled blend amount -- see the
+		// mirror_center_fraction/mirror_fresnel_power uniforms' own DECISION
+		// above. NORMAL/VIEW are both view-space here (Godot spatial
+		// fragment() built-ins), so this needs no extra transform.
+		float ndotv = clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0);
+		float fresnel = pow(1.0 - ndotv, mirror_fresnel_power);
+		float mirror_amount = clamp(
+			mix(mirror_strength * mirror_center_fraction, mirror_strength, fresnel), 0.0, 1.0
+		);
 		// DECISION (shaders/territory.gdshader, Bontago-xtq.20): the mirror is
 		// composited as the surface's reflected light -- the lit albedo is
 		// scaled down by the reflected fraction and the mirror image is added
@@ -429,7 +467,6 @@ void fragment() {
 		// where albedo only tints the environment reflection: the true
 		// per-pixel mirror image barely showed (the owner's "not very
 		// reflective") while the sun's specular lobe dominated.
-		float mirror_amount = clamp(mirror_strength, 0.0, 1.0);
 		albedo *= 1.0 - mirror_amount;
 		emission += mirror_color * mirror_amount;
 	}
