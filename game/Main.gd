@@ -744,7 +744,8 @@ func _show_main_menu() -> void:
 
 
 func _show_lobby() -> void:
-	Sfx.set_music_context(&"lobby")
+	# Menu and lobby share a playlist; navigation must not restart the song.
+	Sfx.set_music_context(&"menu")
 	_clear_menu_and_lobby()
 	# Bontago-xtq.42 fix round 2: see _show_main_menu()'s own comment just
 	# above -- the lobby is equally a "no match world" screen.

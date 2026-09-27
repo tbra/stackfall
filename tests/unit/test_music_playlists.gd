@@ -3,8 +3,8 @@ extends GutTest
 
 func test_shipped_playlists_load_owner_tracks() -> void:
 	var shipped: AudioConfig = load("res://config/audio_config.tres")
-	assert_eq(shipped.menu_playlist.size(), 1)
-	assert_eq(shipped.lobby_playlist.size(), 1)
+	assert_eq(shipped.menu_playlist.size(), 2)
+	assert_eq(shipped.lobby_playlist, shipped.menu_playlist)
 	assert_eq(shipped.gameplay_playlist.size(), 3)
 	for context: StringName in [&"menu", &"lobby", &"gameplay"]:
 		for stream: AudioStream in shipped.playlist_for_context(context):

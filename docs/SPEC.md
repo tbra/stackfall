@@ -315,7 +315,7 @@ The AI runs only on the host, and for multiple bots it spreads its thinking acro
   - Impact sounds vary in volume and pitch with impulse and material.
   - Stacking a block gives a rising "tick" that climbs in pitch with height.
   - Specials have distinct warning sounds.
-  - **Active owner direction (2026-09-27):** separate bundled menu, lobby and gameplay playlists. Tracks fade in, play once and fade out, followed by a randomized quiet interval before the next track; gameplay avoids immediate repeats. Initial defaults: 4-second fade-in, 5-second fade-out, 30–75-second gaps. These are configurable presentation settings, not original-game rules.
+  - **Active owner direction (2026-09-27):** one shared two-track menu/lobby playlist and a three-track gameplay playlist (the earlier theme is included once). Menu/lobby navigation preserves the current song and quiet interval. Tracks fade in, play once and fade out, followed by a randomized quiet interval before the next track; playlists avoid immediate repeats when more than one track exists. Initial defaults: 4-second fade-in, 5-second fade-out, 30–75-second gaps. These are configurable presentation settings, not original-game rules.
   - Adaptive capture-intensity stems are deferred while these complete theme mixes play.
   - A custom music folder was an original feature; the owner temporarily disabled the remake override and its Options control (2026-09-27). Saved folder preferences remain for possible later restoration. [REPORTED original feature; current remake override]
 

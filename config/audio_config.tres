@@ -10,8 +10,8 @@
 [resource]
 script = ExtResource("1_audio")
 bundled_theme = ExtResource("2_theme")
-menu_playlist = Array[AudioStream]([ExtResource("5_menu")])
-lobby_playlist = Array[AudioStream]([ExtResource("6_lobby")])
+menu_playlist = Array[AudioStream]([ExtResource("5_menu"), ExtResource("6_lobby")])
+lobby_playlist = Array[AudioStream]([ExtResource("5_menu"), ExtResource("6_lobby")])
 gameplay_playlist = Array[AudioStream]([ExtResource("2_theme"), ExtResource("3_theme"), ExtResource("4_theme")])
 thud_files = Array[String](["thud1.wav", "thud2.wav", "thud3.wav", "thud4.wav", "thud5.wav"])
 rejected_file = "no.wav"
