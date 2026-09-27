@@ -2,7 +2,7 @@ class_name OptionsMenu
 extends Control
 ## docs/M6_PLAN.md package C2: the options menu opened from the Main Menu's
 ## %OptionsButton (ui/MainMenu.gd's own _on_options_pressed()) -- graphics
-## preset picker, master volume slider, custom music folder, and one
+## preset picker, master volume slider, and one
 ## KeyRebindRow per rebindable Input Map action.
 ##
 ## Self-contained within ui/MainMenu.gd (does not know about game/Main.gd, the
@@ -113,6 +113,8 @@ func _ready() -> void:
 	_build_preset_items()
 	_build_window_mode_items()
 	_load_current_values()
+	# Owner-disabled temporarily; retain saved paths for a future re-enable.
+	_music_dir_edit.get_parent().hide()
 	_build_rebind_rows()
 	_wire_focus_chain()
 
@@ -189,22 +191,20 @@ func _format_db(value: float) -> String:
 	return "%d dB" % int(round(value))
 
 
-func _on_music_dir_submitted(text: String) -> void:
-	settings_provider.set_custom_music_dir(text)
+func _on_music_dir_submitted(_text: String) -> void:
+	pass # Custom music override temporarily disabled.
 
 
 func _on_music_dir_focus_exited() -> void:
-	settings_provider.set_custom_music_dir(_music_dir_edit.text)
+	pass
 
 
 func _on_browse_pressed() -> void:
-	_music_dir_dialog.current_dir = _music_dir_edit.text
-	_music_dir_dialog.popup_centered_ratio()
+	pass
 
 
-func _on_music_dir_selected(dir: String) -> void:
-	_music_dir_edit.text = dir
-	settings_provider.set_custom_music_dir(dir)
+func _on_music_dir_selected(_dir: String) -> void:
+	pass
 
 
 func _on_camera_shake_toggled(enabled: bool) -> void:
@@ -257,7 +257,7 @@ func _build_rebind_rows() -> void:
 ## the rebind rows are built dynamically and don't exist yet when the scene
 ## file is authored.
 func _wire_focus_chain() -> void:
-	var chain: Array[Control] = [_preset_option, _volume_slider, _music_dir_edit, _browse_button, _camera_shake_check, _window_mode_option]
+	var chain: Array[Control] = [_preset_option, _volume_slider, _camera_shake_check, _window_mode_option]
 	for row: KeyRebindRow in _rows:
 		chain.append(row.rebind_button())
 	chain.append(_back_button)

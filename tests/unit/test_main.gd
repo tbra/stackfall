@@ -55,7 +55,9 @@ func _take_port() -> int:
 
 
 func test_lobby_back_button_leaves_the_hosted_session_and_returns_to_the_main_menu() -> void:
+	assert_eq(Sfx._music_context, &"menu", "main menu selects its own playlist")
 	assert_eq(Net.host_game(_take_port(), "Hostie"), OK)
+	assert_eq(Sfx._music_context, &"lobby", "hosted lobby selects its own playlist")
 	assert_true(Net.is_host())
 	assert_not_null(_main._lobby, "hosting swaps the menu for the lobby synchronously")
 
@@ -65,6 +67,7 @@ func test_lobby_back_button_leaves_the_hosted_session_and_returns_to_the_main_me
 	assert_eq(Match.state(), Match.State.LOBBY, "the match never started, so no abort_match() round trip")
 	assert_null(_main._lobby, "the lobby is gone")
 	assert_not_null(_main._main_menu, "back on the main menu")
+	assert_eq(Sfx._music_context, &"menu", "returning restores the menu playlist")
 
 
 ## The handler itself (game/Main.gd's _on_lobby_back_requested()), isolated

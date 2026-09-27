@@ -1,6 +1,6 @@
 extends GutTest
 ## docs/M6_PLAN.md package C2: ui/OptionsMenu.gd (graphics preset picker,
-## master volume slider, custom music folder, one KeyRebindRow per
+## master volume slider, temporarily disabled custom music folder, one KeyRebindRow per
 ## rebindable Input Map action) and ui/KeyRebindRow.gd (one row's own
 ## listen/capture state machine).
 ##
@@ -100,10 +100,11 @@ func test_volume_slider_calls_set_master_volume_db() -> void:
 
 # --- Custom music folder ----------------------------------------------------------
 
-func test_music_dir_submitted_calls_set_custom_music_dir() -> void:
+func test_custom_music_override_is_hidden_and_disabled() -> void:
 	var menu: OptionsMenu = _make_menu()
 	menu._on_music_dir_submitted("C:/my music")
-	assert_eq(_settings_of(menu).custom_music_dir(), "C:/my music")
+	assert_eq(_settings_of(menu).custom_music_dir(), "")
+	assert_false(menu.get_node("%MusicDirEdit").get_parent().visible)
 
 
 # --- Camera shake (Bontago-xtq.29, M7 P4) ------------------------------------------

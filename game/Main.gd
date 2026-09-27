@@ -280,6 +280,7 @@ func _apply_graphics_preset(preset: GraphicsPreset) -> void:
 # --- Hot-seat: byte-identical to M2 ------------------------------------------
 
 func _start_hot_seat_match() -> void:
+	Sfx.set_music_context(&"gameplay")
 	_hot_seat = HOT_SEAT_SCENE.instantiate() as HotSeat
 	add_child(_hot_seat)
 	_hot_seat.set_camera_rig(_camera_rig)
@@ -323,6 +324,7 @@ func _start_sandbox_match() -> void:
 ## the same seam autoload/Net.gd's _apply_command_line_args() uses, since
 ## there is no OS.set_cmdline_user_args() to fake the real one with.
 func _start_sandbox_match_with_args(args: PackedStringArray) -> void:
+	Sfx.set_music_context(&"gameplay")
 	_sandbox = SANDBOX_SCENE.instantiate() as Sandbox
 	add_child(_sandbox)
 	_sandbox.set_camera_rig(_camera_rig)
@@ -725,6 +727,7 @@ func _headless_bots_state_name() -> String:
 # --- Menu / lobby routing -----------------------------------------------------
 
 func _show_main_menu() -> void:
+	Sfx.set_music_context(&"menu")
 	_clear_menu_and_lobby()
 	# Bontago-xtq.42 fix round 2 (orchestrator review): the main menu is a
 	# "no match world" screen -- force_close() handles the case where the
@@ -741,6 +744,7 @@ func _show_main_menu() -> void:
 
 
 func _show_lobby() -> void:
+	Sfx.set_music_context(&"lobby")
 	_clear_menu_and_lobby()
 	# Bontago-xtq.42 fix round 2: see _show_main_menu()'s own comment just
 	# above -- the lobby is equally a "no match world" screen.
@@ -878,6 +882,8 @@ func _on_pause_leave_requested() -> void:
 ## as (COUNTDOWN -> LOADING) after net_match_start already ran its own start
 ## (Match.apply_replicated_state_change), and that must not rebuild anything.
 func _on_match_state_changed(from_state: int, to_state: int) -> void:
+	if to_state == Match.State.LOADING:
+		Sfx.set_music_context(&"gameplay")
 	# Spec 3.4: joining is lobby-only in M3a. Net must not name Match, so the
 	# match flow flips Net's gate here, where every state change is routed: a
 	# handshake arriving while the match is past LOBBY is refused with
