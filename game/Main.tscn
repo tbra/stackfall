@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://game/BlockRegistry.gd" id="4_registry"]
 [ext_resource type="PackedScene" path="res://game/Skybox.tscn" id="5_skybox"]
 [ext_resource type="PackedScene" path="res://game/DiscMirror.tscn" id="6_discmirror"]
+[ext_resource type="Script" path="res://vfx/SunFlare.gd" id="7_sunflare"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 
@@ -52,3 +53,7 @@ script = ExtResource("4_registry")
 [node name="DiscMirror" parent="." instance=ExtResource("6_discmirror")]
 camera_path = NodePath("../CameraRig/Camera3D")
 field_path = NodePath("../Field")
+
+[node name="SunFlare" type="CanvasLayer" parent="."]
+script = ExtResource("7_sunflare")
+camera_path = NodePath("../CameraRig/Camera3D")
