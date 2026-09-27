@@ -4,8 +4,13 @@ extends CanvasLayer
 ## the held-block preview, a separate next-block preview, max height,
 ## per-player territory share, capture ring, a LOCKED indicator, and a
 ## hot-seat turn indicator. Bontago-1en.16 (M4 P2b-ii) adds a small pending-
-## special queue indicator beside the next-shape preview. The minimap and
-## presentation polish are M7.
+## special queue indicator beside the next-shape preview. M7 P5 adds the
+## live minimap (ui/Minimap.gd); Bontago-mp0.3.3 restyles the whole HUD
+## toward docs/art_mockups/08-cel-shaded-home-beacons.png (per-player
+## diamond+bar rows top-left, a numeral in the timer ring top-center, a
+## next-shape card top-right, a circular minimap bottom-right) and rebuilds
+## the minimap as a 2D draw off the live TerritoryRaster instead of a 3D
+## camera (see ui/Minimap.gd's own class doc for why).
 ##
 ## Bontago-mv0.9: outside hot-seat there is no "turn" — every slot plays at
 ## once (spec 2.4 "[ORIGINAL target]") — so this HUD shows **the local
@@ -47,17 +52,42 @@ extends CanvasLayer
 ## placeholder HUD everything else here explicitly defers to M7.
 
 
-const SHARE_BAR_MAX_WIDTH: float = 120.0
+## Bontago-mp0.3.3 (owner review 2026-09-26: "bar ~22-25% of screen width"):
+## 300px is 23.4% of the 1280px reference width tools/capture_mockup08.tscn
+## and every other fixed HUD offset in this file already assume.
+const SHARE_BAR_MAX_WIDTH: float = 300.0
 const SHARE_BAR_HEIGHT: float = 14.0
-const RING_LINE_WIDTH: float = 4.0
+## Bontago-mp0.3.3 (owner review 2026-09-26: "thicker ring (~8 px)").
+const RING_LINE_WIDTH: float = 8.0
 const RING_BACKGROUND_COLOR: Color = Color(1.0, 1.0, 1.0, 0.15)
+## Bontago-mp0.3.3: the bold numeral drawn in the middle of the timer ring
+## (mockup 08's "6"), pure screen-space geometry like every other constant in
+## this section (this file's own pre-M7 DECISION above). Owner review
+## 2026-09-26 grew the ring itself to ~84-96px; the numeral grows with it.
+const TIMER_NUMERAL_FONT_SIZE: int = 34
+## Bontago-mp0.3.3 (owner review 2026-09-26: "subtle drop shadow"), shared by
+## the timer ring's disc and the next-shape card's iso cubes.
+const DROP_SHADOW_OFFSET: Vector2 = Vector2(2.0, 3.0)
+const DROP_SHADOW_COLOR: Color = Color(0.0, 0.0, 0.0, 0.35)
+## Bontago-mp0.3.3 (owner review 2026-09-26, next-shape card; owner review
+## 2026-09-27 extended to the held-shape card too): isometric cube projection
+## constants for _draw_iso_shape() below -- a 2:1 axonometric tile (top
+## diamond width : height) is the standard "iso block" look the mockup's blue
+## L-piece uses. These are the *unit* sizes _draw_iso_shape() measures a
+## shape's own bounding box against before rescaling to ISO_FIT_FRACTION of
+## whichever card is drawing -- see that function's own doc.
+const ISO_TILE_WIDTH: float = 14.0
+const ISO_TILE_HEIGHT: float = 7.0
+const ISO_CUBE_HEIGHT: float = 11.0
+## Bontago-mp0.3.3 (owner review 2026-09-27: "scale the iso drawing so the
+## shape fills ~65-75% of the card regardless of shape size"); 0.7 sits in
+## the middle of that range.
+const ISO_FIT_FRACTION: float = 0.7
 const ELIMINATED_COLOR: Color = Color(0.4, 0.4, 0.4, 0.5)
 ## Bontago-mv0.9: a distinct grey from ELIMINATED_COLOR (same idea, different
 ## meaning) for the release-locked ring/label, so a locked-but-not-eliminated
 ## slot never reads as "this player is out".
 const LOCKED_COLOR: Color = Color(0.75, 0.75, 0.75, 0.9)
-const PREVIEW_CELL_PX: float = 8.0
-const PREVIEW_CELL_MARGIN: float = 0.9
 
 @export var ghost_tuning: GhostTuning = preload("res://config/ghost_tuning.tres")
 ## Bontago-d04: durations for the "Special queued: <name>" claim toast below
@@ -94,11 +124,19 @@ var match_provider: Variant = null
 @onready var _reject_label: Label = %RejectLabel
 @onready var _winner_label: Label = %WinnerLabel
 @onready var _gift_toast_label: Label = %GiftToastLabel
-## M7 P5: the two reskinned backing panels (status cluster, shares list) and
-## the live minimap. Added as new HUD.tscn nodes; every pre-existing
-## %UniqueName above keeps the exact same path it always had.
-@onready var _status_panel: Panel = %StatusPanel
-@onready var _shares_panel: Panel = %SharesPanel
+## Bontago-mp0.3.3 (mockup 08 restyle): the next-shape card's own backing
+## panel, and the live minimap. Added as new HUD.tscn nodes; every
+## pre-existing %UniqueName above keeps the exact same path it always had.
+## The M7 P5 status/shares boxy backing panels (StatusPanel/SharesPanel) are
+## gone -- feedback/graphics_feedback.md + Bontago-mp0.2 ("top-left HUD
+## unreadable"): mockup 08 has no panel behind the top-left readouts at all,
+## just outlined text and slim bars (see _apply_text_outline() below).
+@onready var _next_shape_card: Panel = %NextShapeCard
+## Bontago-mp0.3.3 (owner review 2026-09-27): the held-shape icon's own
+## labeled card, styled the same as _next_shape_card -- previously an
+## unlabeled flat icon floating loose beside the timer ring, which the
+## review correctly read as a stray leftover glyph.
+@onready var _held_shape_card: Panel = %HeldShapeCard
 @onready var _minimap: Minimap = %Minimap
 
 var _shapes_by_id: Dictionary = {}
@@ -123,6 +161,15 @@ var _gift_toast_tween: Tween
 var _share_rows: Array = []
 var _share_bars: Array = []
 var _share_labels: Array = []
+## Bontago-mp0.3.3: the small team-colored diamond glyph drawn beside each
+## player's share bar (mockup 08), parallel to _share_rows/_share_bars/
+## _share_labels above.
+var _share_glyphs: Array = []
+## Seconds left on the active slot's block timer, drawn as the bold numeral
+## inside the timer ring (mockup 08's "6"). -1 until the first _process()
+## poll (or a test's direct set_feed_seconds() call) has a real value, so a
+## bare HUD-only instance draws no numeral at all.
+var _feed_seconds_left: float = -1.0
 ## M7 P5: last MapDef pushed to the minimap, so repeated territory_share_changed
 ## ticks (every placement) don't re-frame its camera when the map hasn't
 ## actually changed.
@@ -143,13 +190,26 @@ func _ready() -> void:
 	_locked_label.visible = false
 	_special_indicator.visible = false
 
-	# M7 P5 (docs/M7_ART_DIRECTION.md HUD styling section): cream/coral
-	# StyleBoxFlat panels behind the two persistent readout clusters, driven
-	# from hud_visual_tuning so the .tscn holds no raw colour literals.
-	_style_panel(_status_panel)
-	_style_panel(_shares_panel)
-	_height_label.add_theme_color_override("font_color", hud_visual_tuning.panel_text_color)
-	_locked_label.add_theme_color_override("font_color", hud_visual_tuning.panel_text_color)
+	# Bontago-mp0.3.3 (mockup 08 restyle): no boxy panel behind the top-left
+	# readouts (feedback/graphics_feedback.md, Bontago-mp0.2) -- every label
+	# there gets a soft outline instead, so it stays legible directly over a
+	# bright sky. The next-shape and held-shape cards are the readouts that
+	# do keep a backing panel (see _style_panel()'s own doc).
+	_style_panel(_next_shape_card)
+	_style_panel(_held_shape_card)
+	for label: Label in [
+		_turn_label, _height_label, _locked_label, _special_indicator,
+		_gift_toast_label, _reject_label,
+	]:
+		label.add_theme_color_override("font_color", hud_visual_tuning.panel_text_color)
+		_apply_text_outline(label)
+	# Bontago-mp0.3.3 (owner review 2026-09-26: "row gap ~12 px"). The status
+	# labels above sit in %StatusPill, a VBoxContainer nested right under
+	# %SharesBox inside their shared %TopLeftCluster (ui/HUD.tscn) -- both
+	# stack directly under however many player rows currently exist, so
+	# nothing here floats independent of row count (the earlier "orphaned
+	# mid-left text" bug).
+	_shares_box.add_theme_constant_override("separation", 12)
 
 	Events.turn_changed.connect(_on_turn_changed)
 	Events.feed_block_issued.connect(_on_feed_block_issued)
@@ -163,9 +223,35 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
+	# Bontago-mp0.3.3 (owner review 2026-09-26: "the minimap must match what
+	# the player sees -- rotate it with the camera yaw"). DECISION (ui/HUD.gd):
+	# reads Viewport.get_camera_3d() (whichever Camera3D currently has
+	# `current = true`) rather than a node path into game/CameraRig.gd or a
+	# new Events signal -- this package owns ui/HUD.gd and ui/Minimap.gd only,
+	# not game/CameraRig.gd or autoload/Events.gd (see the assignment's file
+	# ownership), and Viewport.get_camera_3d() is a generic engine query, not
+	# a hardcoded path into Main.tscn's node tree, so it does not reintroduce
+	# the deep-node-path pattern the class doc's "connects to Events only"
+	# DECISION warns against. Runs unconditionally (before the active-slot
+	# gate below) so the minimap keeps tracking the camera even between
+	# active-slot changes; a null camera (tests, no 3D scene) leaves
+	# Minimap's basis at whatever it last was (its own no-op guard).
+	var camera: Camera3D = get_viewport().get_camera_3d()
+	if camera != null:
+		var basis: Basis = camera.global_transform.basis
+		var forward: Vector3 = -basis.z
+		var right: Vector3 = basis.x
+		_minimap.set_camera_basis(Vector2(right.x, right.z), Vector2(forward.x, forward.z))
 	if match_provider == null or _active_slot < 0:
 		return
 	set_feed_progress(match_provider.feed_progress(_active_slot))
+	# Bontago-mp0.3.3: the timer ring's numeral (mockup 08's "6"). Guarded by
+	# has_method() the same way _update_minimap()'s raster() read is --
+	# tests/unit/support/FakeMatch.gd (and any other Variant double) has no
+	# feed_time_left(), and a bare HUD-only instance should draw no numeral
+	# at all rather than error.
+	if match_provider.has_method(&"feed_time_left"):
+		set_feed_seconds(float(match_provider.feed_time_left(_active_slot)))
 	var tower_m: float = match_provider.max_height_for_slot(_active_slot)
 	var held: GhostPreview = get_tree().get_first_node_in_group(GhostPreview.LOCAL_HELD_GROUP) as GhostPreview
 	if held != null and held.get_shape() != null:
@@ -191,6 +277,7 @@ func set_active_slot(slot_id: int, color: Color) -> void:
 		"%s — eliminated" % display_name if eliminated else "%s's turn" % display_name
 	)
 	_turn_label.modulate = ELIMINATED_COLOR if eliminated else color
+	_pull_current_shapes(slot_id)
 	_timer_ring.queue_redraw()
 	_shape_preview.queue_redraw()
 
@@ -208,9 +295,31 @@ func set_local_slot(slot_id: int) -> void:
 	var display_name: String = _name_for_slot(slot_id)
 	_turn_label.text = "%s — eliminated" % display_name if eliminated else display_name
 	_turn_label.modulate = ELIMINATED_COLOR if eliminated else _active_color
+	_pull_current_shapes(slot_id)
 	_timer_ring.queue_redraw()
 	_shape_preview.queue_redraw()
 	_next_shape_preview.queue_redraw()
+
+
+## Bontago-mp0.3.3 (owner review 2026-09-26: "It must show the actual
+## upcoming/held block for the local player ... If it's genuinely empty at
+## capture time in sandbox, find out why"). ROOT CAUSE: the held/next
+## previews previously only ever updated from Events.feed_block_issued
+## (_on_feed_block_issued() below), which fires once, the moment Match first
+## feeds a slot -- almost always *before* this HUD instance's set_local_slot/
+## set_active_slot ever runs (game/Sandbox.gd/net/MatchNet.gd wire the local
+## slot in only after Match.start_match() has already fed it), so the signal
+## this HUD needed had already fired and gone by the time anyone was
+## listening for it: `_held_shape`/`_next_shape` stayed at their `null`
+## default for the rest of the match. Calling this from both set_active_slot()
+## and set_local_slot() pulls whatever `match_provider` is holding for
+## `slot_id` *right now*, independent of signal timing, and every later
+## Events.feed_block_issued tick still keeps it current as before.
+func _pull_current_shapes(slot_id: int) -> void:
+	if match_provider == null:
+		return
+	set_held_shape(match_provider.held_shape(slot_id))
+	set_next_shape(match_provider.next_shape(slot_id))
 
 
 func set_held_shape(shape: BlockShape) -> void:
@@ -239,6 +348,14 @@ func set_locked(locked: bool) -> void:
 ## timer ring's radial fill.
 func set_feed_progress(fraction: float) -> void:
 	_feed_progress = clampf(fraction, 0.0, 1.0)
+	_timer_ring.queue_redraw()
+
+
+## Bontago-mp0.3.3: seconds left on the block timer, shown as the bold
+## numeral inside the timer ring (mockup 08's "6"). A negative value (the
+## -1.0 default, or a caller's own choice) draws no numeral at all.
+func set_feed_seconds(seconds: float) -> void:
+	_feed_seconds_left = seconds
 	_timer_ring.queue_redraw()
 
 
@@ -444,7 +561,15 @@ func _hot_seat_active() -> bool:
 ## yet (pre-match, or a bare HUD-only test with no FakeMatch.config set) just
 ## leaves the minimap in its initial hidden/disabled state. Only pushes
 ## set_map_def() when the map actually changed, so this doesn't re-frame the
-## minimap's camera on every placement's territory-share tick.
+## minimap on every placement's territory-share tick.
+##
+## Bontago-mp0.3.3: also forwards the live TerritoryRaster/player colors/home
+## positions every tick (Minimap.set_match_state(), cheap reference stores —
+## see its own doc), guarded by has_method(&"raster") the same way
+## set_feed_seconds()'s feed_time_left() read is: the real Match autoload has
+## raster(), tests/unit/support/FakeMatch.gd does not, and a bare HUD-only
+## instance should just leave the minimap showing whatever it already had
+## rather than error.
 func _update_minimap() -> void:
 	if match_provider == null:
 		return
@@ -452,15 +577,26 @@ func _update_minimap() -> void:
 	if running_config == null:
 		return
 	var map_def: MapDef = running_config.map_def()
-	if map_def == _last_map_def:
+	if map_def != _last_map_def:
+		_last_map_def = map_def
+		_minimap.set_map_def(map_def)
+	if not match_provider.has_method(&"raster"):
 		return
-	_last_map_def = map_def
-	_minimap.set_map_def(map_def)
+	var raster: TerritoryRaster = match_provider.raster()
+	var homes: PackedVector2Array = PackedVector2Array()
+	var count: int = int(running_config.player_count)
+	for i: int in range(count):
+		var slot: PlayerSlot = match_provider.slot(i)
+		homes.append(slot.home_position if slot != null else Vector2.ZERO)
+	_minimap.set_match_state(raster, running_config.player_colors, homes)
 
 
-## M7 P5: the one StyleBoxFlat every reskinned HUD panel shares, built from
-## hud_visual_tuning so ui/HUD.tscn itself holds no colour literals (mirrors
-## ui/Minimap.gd's own panel styling for the minimap's frame/backdrop).
+## M7 P5 / Bontago-mp0.3.3: the one StyleBoxFlat a reskinned HUD panel uses,
+## built from hud_visual_tuning so ui/HUD.tscn itself holds no colour
+## literals (mirrors ui/Minimap.gd's own panel styling for the minimap's
+## frame/backdrop). Only the next-shape and held-shape cards use this now --
+## mockup 08's top-left readouts are plain outlined text
+## (_apply_text_outline() below), not a panel.
 func _style_panel(panel: Panel) -> void:
 	var style: StyleBoxFlat = StyleBoxFlat.new()
 	style.bg_color = hud_visual_tuning.panel_background_color
@@ -468,6 +604,14 @@ func _style_panel(panel: Panel) -> void:
 	style.set_border_width_all(int(hud_visual_tuning.panel_border_width_px))
 	style.set_corner_radius_all(int(hud_visual_tuning.panel_corner_radius_px))
 	panel.add_theme_stylebox_override("panel", style)
+
+
+## Bontago-mp0.3.3 (mockup 08 restyle; Bontago-mp0.2 "top-left HUD
+## unreadable"): a soft dark outline behind a label's text instead of a
+## backing panel, so it stays legible directly over a bright sunset sky.
+func _apply_text_outline(label: Label) -> void:
+	label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.85))
+	label.add_theme_constant_override("outline_size", 4)
 
 
 ## Spec M2 owner decision 3: no dedicated Events signal exists for "home flag
@@ -563,29 +707,69 @@ func _special_display_name(head_id: StringName) -> String:
 	return String(head_id).capitalize()
 
 
+## Bontago-mp0.3.3 (mockup 08): one row per player, a small team-colored
+## diamond glyph (_on_row_glyph_draw() below) beside a slim rounded
+## territory-share bar -- a dark translucent track (bar_track's StyleBoxFlat)
+## under a saturated team-colored fill (bar_fill, still a plain ColorRect so
+## tests/unit/test_hud.gd's existing `ColorRect` assertions on _share_bars
+## keep compiling unchanged) and a subtle highlight sheen on top. Replaces
+## the old boxy SharesPanel background entirely (Bontago-mp0.2).
 func _ensure_share_row_count(count: int) -> void:
 	while _share_rows.size() < count:
 		var row: HBoxContainer = HBoxContainer.new()
-		var bar_bg: ColorRect = ColorRect.new()
-		bar_bg.custom_minimum_size = Vector2(SHARE_BAR_MAX_WIDTH, SHARE_BAR_HEIGHT)
-		bar_bg.color = RING_BACKGROUND_COLOR
+		row.add_theme_constant_override("separation", 6)
+
+		var glyph: Control = Control.new()
+		glyph.custom_minimum_size = Vector2(
+			hud_visual_tuning.hud_row_glyph_size_px, hud_visual_tuning.hud_row_glyph_size_px
+		)
+		glyph.set_meta(&"glyph_color", Color.WHITE)
+		glyph.draw.connect(_on_row_glyph_draw.bind(glyph))
+
+		var bar_track: Panel = Panel.new()
+		bar_track.custom_minimum_size = Vector2(SHARE_BAR_MAX_WIDTH, SHARE_BAR_HEIGHT)
+		var track_style: StyleBoxFlat = StyleBoxFlat.new()
+		track_style.bg_color = hud_visual_tuning.hud_share_bar_track_color
+		track_style.set_corner_radius_all(int(SHARE_BAR_HEIGHT * 0.5))
+		# Bontago-mp0.3.3 (owner review 2026-09-26: "thin light inner border").
+		track_style.border_color = hud_visual_tuning.hud_share_bar_border_color
+		track_style.set_border_width_all(1)
+		bar_track.add_theme_stylebox_override("panel", track_style)
+
 		var bar_fill: ColorRect = ColorRect.new()
 		bar_fill.custom_minimum_size = Vector2(0.0, SHARE_BAR_HEIGHT)
-		bar_bg.add_child(bar_fill)
+		bar_fill.size = Vector2(0.0, SHARE_BAR_HEIGHT)
+		bar_track.add_child(bar_fill)
+
+		var highlight: ColorRect = ColorRect.new()
+		highlight.color = hud_visual_tuning.hud_share_bar_highlight_color
+		highlight.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		highlight.size = Vector2(SHARE_BAR_MAX_WIDTH, SHARE_BAR_HEIGHT * 0.35)
+		highlight.position = Vector2(0.0, 1.0)
+		bar_track.add_child(highlight)
+
 		var label: Label = Label.new()
+		# Bontago-mp0.3.3 (owner review 2026-09-26: "percent label optional/
+		# small ... with a text shadow").
+		label.add_theme_font_size_override("font_size", 12)
 		label.add_theme_color_override("font_color", hud_visual_tuning.panel_text_color)
-		row.add_child(bar_bg)
+		_apply_text_outline(label)
+
+		row.add_child(glyph)
+		row.add_child(bar_track)
 		row.add_child(label)
 		_shares_box.add_child(row)
 		_share_rows.append(row)
 		_share_bars.append(bar_fill)
 		_share_labels.append(label)
+		_share_glyphs.append(glyph)
 	while _share_rows.size() > count:
 		var last: int = _share_rows.size() - 1
 		(_share_rows[last] as Node).queue_free()
 		_share_rows.remove_at(last)
 		_share_bars.remove_at(last)
 		_share_labels.remove_at(last)
+		_share_glyphs.remove_at(last)
 
 
 func _update_share_row(i: int, share: float) -> void:
@@ -593,9 +777,39 @@ func _update_share_row(i: int, share: float) -> void:
 	var color: Color = ELIMINATED_COLOR if eliminated else _color_for_slot(i)
 	var bar: ColorRect = _share_bars[i]
 	bar.color = color
-	bar.custom_minimum_size = Vector2(SHARE_BAR_MAX_WIDTH * clampf(share, 0.0, 1.0), SHARE_BAR_HEIGHT)
+	var width: float = SHARE_BAR_MAX_WIDTH * clampf(share, 0.0, 1.0)
+	bar.custom_minimum_size = Vector2(width, SHARE_BAR_HEIGHT)
+	bar.size = Vector2(width, SHARE_BAR_HEIGHT)
 	var label: Label = _share_labels[i]
 	label.text = "P%d: %.0f%%%s" % [i + 1, share * 100.0, "  (out)" if eliminated else ""]
+	var glyph: Control = _share_glyphs[i]
+	glyph.set_meta(&"glyph_color", color)
+	glyph.queue_redraw()
+
+
+## Small faceted diamond beside each share bar (mockup 08), tinted the same
+## color _update_share_row() just gave that row's bar. Bontago-mp0.3.3 (owner
+## review 2026-09-26: "faceted (two-tone, lit/shade halves)") -- split down
+## the vertical diagonal into a lightened left half (facing the mockup's
+## implied upper-left light) and a darkened right half, instead of one flat
+## fill, so the glyph itself reads as a small faceted gem/block like the
+## mockup's.
+func _on_row_glyph_draw(glyph: Control) -> void:
+	var color: Color = glyph.get_meta(&"glyph_color", Color.WHITE)
+	var half: float = hud_visual_tuning.hud_row_glyph_size_px * 0.5
+	var center: Vector2 = glyph.size * 0.5
+	var top: Vector2 = center + Vector2(0.0, -half)
+	var right: Vector2 = center + Vector2(half, 0.0)
+	var bottom: Vector2 = center + Vector2(0.0, half)
+	var left: Vector2 = center + Vector2(-half, 0.0)
+	glyph.draw_colored_polygon(
+		PackedVector2Array([top, left, bottom]), color.lightened(0.25)
+	)
+	glyph.draw_colored_polygon(
+		PackedVector2Array([top, right, bottom]), color.darkened(0.25)
+	)
+	var outline: PackedVector2Array = PackedVector2Array([top, right, bottom, left, top])
+	glyph.draw_polyline(outline, Color(0.0, 0.0, 0.0, 0.55), 1.5, true)
 
 
 ## Events.feed_block_issued names the next shape by id; the preview needs the
@@ -614,45 +828,156 @@ func _on_timer_ring_draw() -> void:
 	var size: Vector2 = _timer_ring.size
 	var radius: float = minf(size.x, size.y) * 0.5 - RING_LINE_WIDTH
 	var center: Vector2 = size * 0.5
+	# Bontago-mp0.3.3 (owner review 2026-09-26: "subtle drop shadow"): a soft
+	# offset dark disc behind everything else, then the dark disc itself
+	# (mockup 08) instead of a bare transparent circle, so the countdown
+	# numeral below always has contrast against a bright sky.
+	_timer_ring.draw_circle(center + DROP_SHADOW_OFFSET, radius - RING_LINE_WIDTH * 0.5, DROP_SHADOW_COLOR)
+	_timer_ring.draw_circle(center, radius - RING_LINE_WIDTH * 0.5, hud_visual_tuning.panel_background_color)
 	_timer_ring.draw_arc(center, radius, 0.0, TAU, 48, RING_BACKGROUND_COLOR, RING_LINE_WIDTH)
 	if _feed_progress > 0.0:
 		# Bontago-mv0.9: greys out while release-locked (spec 2.4/2.5) instead
 		# of the active player's colour, so "the interval hasn't come around
 		# again yet" reads distinctly from "counting down normally".
+		#
+		# DECISION (ui/HUD.gd, owner review 2026-09-26: "mockup shows a
+		# red/blue two-tone ring -- use player colours as you see fit"):
+		# mockup 08's two-tone ring reads as a *shared spectator* HUD showing
+		# both players' timers on one ring; this HUD is per-viewer (its own
+		# class doc: "shows the local player's own status", one _active_slot
+		# at a time), so there is only ever one player's colour to draw here.
+		# The remaining-time arc stays that one active player's own colour
+		# over the dark RING_BACKGROUND_COLOR track -- the direct one-player
+		# equivalent of the mockup's two-tone idea.
 		var ring_color: Color = LOCKED_COLOR if _locked else _active_color
 		_timer_ring.draw_arc(
 			center, radius, -PI * 0.5, -PI * 0.5 + TAU * _feed_progress, 48, ring_color, RING_LINE_WIDTH
 		)
+	if _feed_seconds_left >= 0.0:
+		_draw_timer_numeral(center)
 
 
-## Draws `shape`'s cells centered in `control`, tinted `color`. Shared by the
-## held-block preview (inside the timer ring) and the next-block preview
-## (beside it) so the two can never draw differently by accident.
-func _draw_shape_preview(control: Control, shape: BlockShape, color: Color) -> void:
+## Bontago-mp0.3.3: the bold numeral inside the timer ring (mockup 08's "6"),
+## ceil()'d the same way a countdown reads to a player (still shows "1" for
+## the last fraction of a second, not "0").
+func _draw_timer_numeral(center: Vector2) -> void:
+	var text: String = str(int(ceil(_feed_seconds_left)))
+	var font: Font = _timer_ring.get_theme_default_font()
+	var text_width: float = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, TIMER_NUMERAL_FONT_SIZE).x
+	var baseline: Vector2 = center + Vector2(-text_width * 0.5, TIMER_NUMERAL_FONT_SIZE * 0.35)
+	_timer_ring.draw_string_outline(
+		font, baseline, text, HORIZONTAL_ALIGNMENT_LEFT, -1, TIMER_NUMERAL_FONT_SIZE, 3, Color.BLACK
+	)
+	_timer_ring.draw_string(
+		font, baseline, text, HORIZONTAL_ALIGNMENT_LEFT, -1, TIMER_NUMERAL_FONT_SIZE, Color.WHITE
+	)
+
+
+## Bontago-mp0.3.3 (owner review 2026-09-27: the old flat front-elevation
+## held-shape icon read as "a stray flat glyph of two small red squares"
+## next to the timer ring, unlabeled and easy to mistake for a leftover --
+## restyled into its own %HeldShapeCard (ui/HUD.tscn, styled alongside
+## %NextShapeCard in _ready(), with a static "HELD" label above it) and now
+## drawn with the same iso-cube renderer as the next-shape card, so "what am
+## I holding" and "what's coming next" read as one consistent visual language
+## instead of two different icon styles.
+func _on_shape_preview_draw() -> void:
+	_draw_iso_shape(_shape_preview, _held_shape, _active_color)
+
+
+## Bontago-mp0.3.3 (owner review 2026-09-26: "Draw the BlockShape cells as
+## small iso cubes ... 3 face shades (top light, left mid, right dark), like
+## the mockup's blue L piece"); owner review 2026-09-27 extended this to the
+## held-shape card too (_on_shape_preview_draw() above) once it got its own
+## labeled card.
+func _on_next_shape_preview_draw() -> void:
+	_draw_iso_shape(_next_shape_preview, _next_shape, _active_color)
+
+
+## Isometric (2:1 axonometric) render of `shape`'s cells, each a small cube
+## with three shaded faces (top lightened, left mid, right darkened -- a
+## fixed upper-left light, matching the row glyphs' own two-tone DECISION
+## above). Cells are centered on the shape's own centroid (not a pixel
+## bounding-box fit for centering -- cheap and close enough at this preview
+## size) and painter's-algorithm sorted back-to-front so a cube stacked on
+## top of another one draws over it correctly.
+##
+## Bontago-mp0.3.3 (owner review 2026-09-27: "scale the iso drawing so the
+## shape fills ~65-75% of the card regardless of shape size"): first
+## measures the shape's own iso bounding box at the unit ISO_TILE_*/
+## ISO_CUBE_HEIGHT constants, then rescales those constants so that box fits
+## ISO_FIT_FRACTION of `control`'s own size before drawing a single cube.
+## Every coordinate below is linear in those constants, so redoing the same
+## projection with rescaled ones is exactly equivalent to scaling an
+## already-fit drawing, just without ever drawing the unscaled one.
+func _draw_iso_shape(control: Control, shape: BlockShape, color: Color) -> void:
 	if shape == null:
 		return
-	var center: Vector2 = control.size * 0.5
-	# DECISION (ui/HUD.gd): projects each cube's (x, y) offset — a front
-	# elevation — rather than the top-down (x, z) footprint, so tall shapes
-	# (bar4, pillar) read as tall in the small preview instead of collapsing
-	# to a single square; flat shapes that only vary in (x, z) (square4,
-	# slab6) collapse to one row here, a fair trade for a placeholder icon.
+	var centroid: Vector3 = Vector3.ZERO
 	for cell: Vector3i in shape.cells:
-		var pos: Vector2 = center + Vector2(cell.x, -cell.y) * PREVIEW_CELL_PX - Vector2.ONE * PREVIEW_CELL_PX * 0.5
-		var rect: Rect2 = Rect2(pos, Vector2.ONE * PREVIEW_CELL_PX * PREVIEW_CELL_MARGIN)
-		control.draw_rect(rect, color)
+		centroid += Vector3(cell)
+	centroid /= float(shape.cells.size())
+
+	var cells: Array[Vector3i] = shape.cells.duplicate()
+	# Depth key: further back (smaller x+z, taller/lower y) draws first, so a
+	# cube nearer the viewer (or stacked above another) paints over it.
+	cells.sort_custom(
+		func(a: Vector3i, b: Vector3i) -> bool:
+			return (a.x + a.z - a.y * 2) < (b.x + b.z - b.y * 2)
+	)
+
+	var min_pt: Vector2 = Vector2.INF
+	var max_pt: Vector2 = -Vector2.INF
+	for cell: Vector3i in cells:
+		var local: Vector3 = Vector3(cell) - centroid
+		var top: Vector2 = Vector2(
+			(local.x - local.z) * ISO_TILE_WIDTH * 0.5, (local.x + local.z) * ISO_TILE_HEIGHT * 0.5 - local.y * ISO_CUBE_HEIGHT
+		)
+		var half_w: float = ISO_TILE_WIDTH * 0.5
+		min_pt = min_pt.min(top + Vector2(-half_w, 0.0))
+		max_pt = max_pt.max(top + Vector2(half_w, ISO_TILE_HEIGHT + ISO_CUBE_HEIGHT))
+	var raw_size: Vector2 = max_pt - min_pt
+
+	var scale: float = 1.0
+	if raw_size.x > 0.0 and raw_size.y > 0.0:
+		var target: Vector2 = control.size * ISO_FIT_FRACTION
+		scale = minf(target.x / raw_size.x, target.y / raw_size.y)
+	var tile_w: float = ISO_TILE_WIDTH * scale
+	var tile_h: float = ISO_TILE_HEIGHT * scale
+	var cube_h: float = ISO_CUBE_HEIGHT * scale
+
+	var center: Vector2 = control.size * 0.5
+	for cell: Vector3i in cells:
+		var local: Vector3 = Vector3(cell) - centroid
+		var top: Vector2 = center + Vector2(
+			(local.x - local.z) * tile_w * 0.5, (local.x + local.z) * tile_h * 0.5 - local.y * cube_h
+		)
+		_draw_iso_cube(control, top, color, tile_w, tile_h, cube_h)
 
 
-func _on_shape_preview_draw() -> void:
-	_draw_shape_preview(_shape_preview, _held_shape, _active_color)
+## One iso cube, `top` being the top-most vertex of its top diamond face, at
+## the given (already shape-fit) tile/cube-height dimensions.
+func _draw_iso_cube(
+	control: Control, top: Vector2, color: Color, tile_w: float, tile_h: float, cube_h: float
+) -> void:
+	var right: Vector2 = top + Vector2(tile_w * 0.5, tile_h * 0.5)
+	var bottom: Vector2 = top + Vector2(0.0, tile_h)
+	var left: Vector2 = top + Vector2(-tile_w * 0.5, tile_h * 0.5)
+	var down: Vector2 = Vector2(0.0, cube_h)
 
+	var top_face: PackedVector2Array = PackedVector2Array([top, right, bottom, left])
+	var left_face: PackedVector2Array = PackedVector2Array([left, bottom, bottom + down, left + down])
+	var right_face: PackedVector2Array = PackedVector2Array([right, bottom, bottom + down, right + down])
 
-func _on_next_shape_preview_draw() -> void:
-	# Bontago-mv0.9: drawn at reduced opacity so the held preview (inside the
-	# timer ring, full colour) reads as "current" and this one as "up next".
-	var next_color: Color = _active_color
-	next_color.a *= 0.6
-	_draw_shape_preview(_next_shape_preview, _next_shape, next_color)
+	control.draw_colored_polygon(left_face, color.darkened(0.1))
+	control.draw_colored_polygon(right_face, color.darkened(0.35))
+	control.draw_colored_polygon(top_face, color.lightened(0.3))
+
+	var outline: Color = Color(0.0, 0.0, 0.0, 0.45)
+	control.draw_polyline(PackedVector2Array([top, right, bottom, left, top]), outline, 1.0, true)
+	control.draw_polyline(PackedVector2Array([bottom, bottom + down]), outline, 1.0, true)
+	control.draw_polyline(PackedVector2Array([left, left + down]), outline, 1.0, true)
+	control.draw_polyline(PackedVector2Array([right, right + down]), outline, 1.0, true)
 
 
 func _on_capture_ring_draw() -> void:
