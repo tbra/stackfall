@@ -46,7 +46,10 @@ const TRAIL_SHADER: Shader = preload("res://vfx/trail_streak.gdshader")
 ## color_ramp -- both vfx/dust_puff.gdshader and vfx/cubelet.gdshader read
 ## this back as COLOR.a. Built once (GradientTexture1D.update() has real
 ## cost) and cached, not rebuilt per burst.
-static var _fade_ramp: GradientTexture1D = null
+# DECISION: instance (not static) caches -- static Resource vars kept the
+# whole Block/Field script graph alive at editor exit ("resources still in
+# use" leak on the open-project check). One manager per match, so cost is equal.
+var _fade_ramp: GradientTexture1D = null
 
 ## Bontago-mp0.3.4: per-block previous global_position, keyed by
 ## Object.get_instance_id() -- the same idiom
@@ -325,7 +328,7 @@ func _build_dust_process_material() -> ParticleProcessMaterial:
 ## vfx/dust_puff.gdshader and vfx/cubelet.gdshader read this back as
 ## COLOR.a. Built once and cached (GradientTexture1D.update() has real
 ## cost), not rebuilt per burst.
-static func _get_fade_ramp() -> GradientTexture1D:
+func _get_fade_ramp() -> GradientTexture1D:
 	if _fade_ramp == null:
 		var gradient: Gradient = Gradient.new()
 		gradient.set_color(0, Color(1.0, 1.0, 1.0, 1.0))
@@ -340,8 +343,8 @@ static func _get_fade_ramp() -> GradientTexture1D:
 ## lifetime) for cubelet_burst's ParticleProcessMaterial.scale_curve --
 ## "shrinking... over ~0.8 s". Not used by the dust burst (the brief asks for
 ## a "quick expand", not a shrink, for dust puffs).
-static var _shrink_curve: CurveTexture = null
-static func _get_shrink_curve() -> CurveTexture:
+var _shrink_curve: CurveTexture = null
+func _get_shrink_curve() -> CurveTexture:
 	if _shrink_curve == null:
 		var curve: Curve = Curve.new()
 		curve.add_point(Vector2(0.0, 1.0))
@@ -458,8 +461,8 @@ func _build_trail_wrapper(color: Color) -> Node3D:
 ## scale.z = length) rather than rebuilding this mesh, so every trail
 ## streak in the game shares this exact same ArrayMesh resource. Built once
 ## and cached, matching _get_fade_ramp()/_get_shrink_curve()'s own pattern.
-static var _trail_unit_mesh: ArrayMesh = null
-static func _get_trail_unit_mesh() -> ArrayMesh:
+var _trail_unit_mesh: ArrayMesh = null
+func _get_trail_unit_mesh() -> ArrayMesh:
 	if _trail_unit_mesh == null:
 		var positions: PackedVector3Array = PackedVector3Array([
 			Vector3(-0.5, 0.0, 0.0), Vector3(0.5, 0.0, 0.0),
