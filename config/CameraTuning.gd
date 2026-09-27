@@ -16,12 +16,21 @@ extends Resource
 @export var zoom_max: float = 100.0
 ## Distance change per discrete zoom step (wheel tick, key press, or trigger
 ## pull; spec 2.5 scopes wheel/trigger zoom to "while not holding a block").
+## Bontago-pt-4 (owner playtest: "Scrolling up/down should be a bit faster"):
+## briefly raised x1.5 here, then reverted -- the coordinator clarified the
+## owner's "scrolling" means the *default* mouse wheel (block hover height,
+## GhostTuning.hover_wheel_step, out of this resource entirely), not the
+## camera zoom this field only drives while camera_orbit/camera_mode is held
+## or via the dedicated Z/X keys/gamepad triggers. See config/GhostTuning.gd's
+## own hover_wheel_step/hover_manual_adjust_speed for the actual fix.
 @export var zoom_step: float = 4.0
 ## Bontago-mv0.22 (spec 2.5 "Camera orbit (hold+drag)... mouse wheel zooms
 ## while held" [ORIGINAL, owner test 2026-09-22]): distance change per wheel
 ## notch while camera_mode/camera_orbit is held (CameraRig.zoom_by_orbit_step()),
 ## tuned separately from zoom_step above so the held-orbit wheel can feel
 ## different from the dedicated Z/X zoom keys.
+## Bontago-pt-4: not the "scrolling" the owner meant either -- see zoom_step's
+## own DECISION above; reverted to its original value.
 @export var orbit_zoom_step: float = 2.0
 
 ## -- Pan --------------------------------------------------------------------
@@ -50,6 +59,25 @@ extends Resource
 ## Bontago): a hard snap (0.0) matches the original's feel best -- any
 ## remaining smoothing still read as lag once compared side by side.
 @export var follow_lag_seconds: float = 0.0
+## Bontago-pt-4 (owner playtest: "Camera always jumps up after block drops or
+## when clicking the drop button"). ROOT CAUSE (see game/CameraRig.gd's
+## begin_follow_transition() doc comment for the full writeup): every
+## set_follow_position() update is hard-snapped when follow_lag_seconds == 0
+## above -- correct for the small, continuous per-frame ghost motion that
+## reads as instant tracking (mv0.21), but wrong for the one genuinely
+## discontinuous re-target game/PlayerController.gd's own
+## _apply_spawn_clearance() produces: raising the newly issued ghost's
+## manual_hover_offset (so its followed height) the instant the next piece
+## would otherwise spawn inside the block just placed -- the common case of
+## building on your own stack. begin_follow_transition() eases into that one
+## re-target over this many seconds (an exponential approach, the same shape
+## follow_lag_seconds above already uses) instead of snapping to it, without
+## softening ordinary movement at all.
+## DECISION (config/CameraTuning.gd): 0.2 s is a simple, short value in the
+## same neighbourhood as follow_lag_seconds' own pre-mv0.21 tuning (0.05-0.15s)
+## -- long enough to read as a smooth catch-up, short enough not to feel like
+## the camera is lagging behind on the very next ordinary ghost move.
+@export var drop_recover_seconds: float = 0.2
 ## Camera distance and pitch while following the held block. The original
 ## (docs/original_in-game.png) frames the block from a few metres away at a
 ## shallow angle so the block fills the lower half of the view and the disk

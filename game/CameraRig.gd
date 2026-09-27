@@ -72,6 +72,16 @@ const TUNING_GROUP: StringName = &"tuning_camera"
 ## regardless of where either node sits in the tree.
 const _PROCESS_PRIORITY_AFTER_GHOST: int = 1
 
+## Bontago-pt-4: how close (meters) _target must get to _follow_position
+## before begin_follow_transition()'s easing is considered finished (see
+## _process()'s own use of this below). Not a gameplay tunable in the
+## CameraTuning sense -- CLAUDE.md's Resource/no-magic-numbers rule is about
+## values a designer would retune for feel; this is only "close enough to be
+## imperceptible", the same category as this file's own shake_offset()
+## epsilon (0.0001) and _current_shake_amplitude()'s, just sized in meters
+## rather than a unit amplitude fraction.
+const _DROP_RECOVER_CONVERGED_M: float = 0.001
+
 ## Set by PlayerController each frame: true while the player holds a ghost
 ## block. Spec 2.5 scopes trigger zoom to "while not holding a block"; the
 ## dedicated Z/X keys always zoom regardless (see _unhandled_input).
@@ -86,6 +96,15 @@ var _target: Vector3 = Vector3.ZERO
 ## origin -- see that method's doc comment), updated by set_follow_position()
 ## every frame. Only read when tuning.follow_block.
 var _follow_position: Vector3 = Vector3.ZERO
+
+## Bontago-pt-4 (owner playtest: "Camera always jumps up after block drops or
+## when clicking the drop button"): true for as long as _process() is easing
+## _target into _follow_position over tuning.drop_recover_seconds instead of
+## hard-snapping to it -- see begin_follow_transition()'s own doc comment for
+## why, and _process()'s follow_block branch for how it clears itself once
+## _target has actually caught up (rather than on a fixed timer, so it never
+## flips back to hard-snap mode with a residual gap still showing).
+var _drop_recovering: bool = false
 
 ## Bontago-xtq.29 (camera shake): the amplitude (meters) of the shake impulse
 ## currently decaying, and how long it has been decaying for. A fresh, harder
@@ -234,10 +253,22 @@ func _process(delta: float) -> void:
 		# last reported the ghost, rather than a hard snap -- an exponential
 		# approach so a sudden large motion (e.g. a mode switch) doesn't jerk
 		# the camera. follow_lag_seconds == 0 degrades to an exact snap.
+		# Bontago-pt-4: while _drop_recovering (see begin_follow_transition()),
+		# use tuning.drop_recover_seconds as the approach's time constant
+		# instead of follow_lag_seconds, even when the latter is 0 -- the one
+		# discontinuous re-target this eases into must not hard-snap just
+		# because ordinary movement is tuned to.
+		var lag_seconds: float = tuning.drop_recover_seconds if _drop_recovering else tuning.follow_lag_seconds
 		var weight: float = 1.0
-		if tuning.follow_lag_seconds > 0.0:
-			weight = 1.0 - exp(-delta / tuning.follow_lag_seconds)
+		if lag_seconds > 0.0:
+			weight = 1.0 - exp(-delta / lag_seconds)
 		_target = _target.lerp(_follow_position, clampf(weight, 0.0, 1.0))
+		if _drop_recovering and _target.distance_to(_follow_position) <= _DROP_RECOVER_CONVERGED_M:
+			# Bontago-pt-4: clears itself the moment _target has actually
+			# caught up, rather than on a fixed timer -- so flipping back to
+			# hard-snap mode (follow_lag_seconds, usually 0) never leaves a
+			# visible residual gap to snap across.
+			_drop_recovering = false
 	else:
 		# DECISION (game/CameraRig.gd): camera_pan_* shares its gamepad axis
 		# with ghost_move_* (both read the left stick). PlayerController
@@ -262,6 +293,34 @@ func _process(delta: float) -> void:
 ## true; the legacy free-orbit camera ignores it.
 func set_follow_position(pos: Vector3) -> void:
 	_follow_position = pos
+
+
+## Bontago-pt-4 (owner playtest: "Camera always jumps up after block drops or
+## when clicking the drop button"). ROOT CAUSE: this rig's follow-block mode
+## hard-snaps _target to whatever set_follow_position() reports every frame
+## whenever tuning.follow_lag_seconds is 0 (the shipped default since mv0.21,
+## "matches the original's feel best" for ordinary, small, continuous
+## per-frame ghost motion). game/PlayerController.gd's own
+## _apply_spawn_clearance() (Bontago-mv0.30/mv0.33) raises the newly issued
+## ghost's manual_hover_offset -- and so its followed rotated_center_world()
+## height -- in one single frame, the instant the next piece would otherwise
+## spawn inside the block just placed: the ordinary case of building on your
+## own stack. That is a genuinely discontinuous re-target, not the ghost
+## sliding under the cursor, but this rig's _process() had no way to tell the
+## two apart -- both are just "a new set_follow_position() value" -- so it
+## hard-snapped to that new height exactly like any other frame, which is the
+## reported jump.
+##
+## game/PlayerController.gd calls this once, at the exact call site that
+## produces that discontinuous re-target (_apply_spawn_clearance(), right
+## where it raises manual_hover_offset), so this rig eases its next several
+## set_follow_position() updates toward the ghost over tuning.
+## drop_recover_seconds instead of snapping (_process()'s own follow_block
+## branch) -- without touching follow_lag_seconds or softening the
+## always-continuous cursor-driven motion the owner already tuned to feel
+## instant.
+func begin_follow_transition() -> void:
+	_drop_recovering = true
 
 
 ## Bontago-mv0.17 item 4 (owner feel report: match start should look from the
