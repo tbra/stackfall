@@ -1,4 +1,42 @@
 extends GutTest
+
+func test_comparison_controls_cancel_and_reset_restore_manual_play() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+	sandbox._input(_key_press(KEY_F2))
+	assert_true(sandbox._comparison_panel.opened)
+	assert_false(sandbox.controller().input_enabled)
+	Match.set_feed_timer_enabled(true)
+	sandbox.run_physics_comparison("drop", 2.0, 2.0, 0.3)
+	assert_true(sandbox._comparison.running)
+	assert_false(Match.feed_timer_enabled())
+	assert_false(sandbox.ghost().visible)
+	sandbox._comparison_panel.set_open(false)
+	sandbox._comparison_panel.set_open(true)
+	sandbox.clear_physics_comparison()
+	assert_true(Match.feed_timer_enabled())
+	assert_true(sandbox.ghost().visible)
+	sandbox._comparison_panel.set_open(false)
+	assert_true(sandbox.controller().input_enabled)
+	var pad: InputEventJoypadButton = InputEventJoypadButton.new()
+	pad.button_index = JOY_BUTTON_X
+	pad.pressed = true
+	sandbox._input(pad)
+	assert_false(sandbox._comparison_panel.opened, "plain X does not toggle comparison")
+	Input.action_press(&"sandbox_next_slot")
+	sandbox._input(pad)
+	Input.action_release(&"sandbox_next_slot")
+	assert_true(sandbox._comparison_panel.opened, "Back+X opens focused controls")
+	assert_true(sandbox._comparison_panel._drop.has_focus())
+	sandbox._input(_key_press(KEY_F4))
+	assert_false(sandbox._comparison_panel.opened, "F4 releases comparison controls for tuning")
+	sandbox.run_physics_comparison("stack", 2.0, 2.0, 0.3)
+	assert_true(sandbox._comparison.running)
+	sandbox._reset_field()
+	assert_false(sandbox._comparison.running)
+	assert_eq(sandbox._comparison.blocks.size(), 0)
+	assert_true(sandbox.controller().input_enabled)
 ## Bontago-mv0.8: the unlisted `godot --path . -- --sandbox [--players=N]`
 ## debug entry point. Flag routing and offline world build (game/Main.gd),
 ## active-slot cycling (game/PlayerController.gd's set_sandbox_slot() seam),

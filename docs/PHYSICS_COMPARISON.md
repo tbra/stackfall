@@ -12,6 +12,12 @@ The original's placement cadence, hover height and exact release height are not 
 
 ## Run the remake fixture
 
+### Interactive sandbox
+
+Enter Sandbox from the main menu, then press **F2** (gamepad **Back + X**) to open the physics comparison controls. Run a single-cube drop or a sequential three-cube stack; adjust the release height, stack release interval and gap to match your original-game observations. Trials use the current physics tuning, so use **F4 → Physics** to select a preset or change its values before starting the next trial.
+
+Read the measurements as simulated seconds and cube-edge lengths. Engine sleep is not the same measurement as the original recording's “visually still for one second.” These trials measure Stackfall; they do not supply missing Bontago measurements or run Tokamak inside Godot. Use a clear, level field and keep other blocks and specials away from the trial area.
+
 From the repository root, after a normal Godot project import:
 
 ```powershell

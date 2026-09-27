@@ -396,6 +396,8 @@ func _actions() -> Dictionary:
 	# suggested — that chord is literally net_debug_toggle's own trigger
 	# condition and would fire both actions from one press.
 	a["sandbox_next_slot"] = [_key(KEY_TAB), _pad(JOY_BUTTON_BACK)]
+	# Sandbox comparison checks the Back modifier before accepting gamepad X.
+	a["sandbox_physics_comparison"] = [_key(KEY_F2), _pad(JOY_BUTTON_X)]
 	a["sandbox_reset_field"] = [_key(KEY_F5), _pad(JOY_BUTTON_PADDLE1)]
 	a["sandbox_toggle_timer"] = [_key(KEY_F6), _pad(JOY_BUTTON_PADDLE3)]
 	a["sandbox_spawn_tower"] = [_key(KEY_F7), _pad(JOY_BUTTON_PADDLE2)]
