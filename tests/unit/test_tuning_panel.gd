@@ -19,6 +19,7 @@ var _panel: TuningPanel = null
 
 var _saved_gravity: float
 var _saved_friction: float
+var _saved_disk_friction: float
 var _saved_bounce: float
 var _saved_linear_damp: float
 var _saved_angular_damp: float
@@ -44,6 +45,7 @@ func before_each() -> void:
 
 	_saved_gravity = _panel.physics_tuning.gravity_multiplier
 	_saved_friction = _panel.physics_tuning.block_friction
+	_saved_disk_friction = _panel.physics_tuning.disk_friction
 	_saved_bounce = _panel.physics_tuning.block_bounce
 	_saved_linear_damp = _panel.physics_tuning.block_linear_damp
 	_saved_angular_damp = _panel.physics_tuning.block_angular_damp
@@ -62,6 +64,7 @@ func before_each() -> void:
 func after_each() -> void:
 	_panel.physics_tuning.gravity_multiplier = _saved_gravity
 	_panel.physics_tuning.block_friction = _saved_friction
+	_panel.physics_tuning.disk_friction = _saved_disk_friction
 	_panel.physics_tuning.block_bounce = _saved_bounce
 	_panel.physics_tuning.block_linear_damp = _saved_linear_damp
 	_panel.physics_tuning.block_angular_damp = _saved_angular_damp
@@ -186,11 +189,29 @@ func test_apply_physics_live_updates_an_existing_blocks_damping_material_and_gra
 
 # --- Bontago-xtq.17: Physics preset dropdown ---------------------------------
 
-func test_physics_tab_has_a_preset_option_button_with_three_presets() -> void:
+func test_physics_tab_has_a_preset_option_button_with_four_presets() -> void:
 	var physics_tab: Control = _panel._tab_container.get_node("Physics")
 	var found: Array[Node] = physics_tab.find_children("*", "OptionButton", true, false)
 	assert_eq(found.size(), 1)
-	assert_eq((found[0] as OptionButton).item_count, 3)
+	assert_eq((found[0] as OptionButton).item_count, 4)
+	assert_eq((found[0] as OptionButton).get_item_text(3), "Tokamak defaults (Jolt)")
+
+
+func test_tokamak_preset_reaches_live_cube_and_disc_materials() -> void:
+	var field: Field = Field.new()
+	add_child_autofree(field)
+	_panel.set_field(field)
+	var block: Block = BlockFactory.build(load("res://config/blocks/cube.tres"), _panel.physics_tuning)
+	add_child_autofree(block)
+	_panel.apply_physics_preset("tokamak_defaults")
+	assert_almost_eq(block.physics_material_override.friction, 0.5, 0.0001)
+	assert_almost_eq(block.physics_material_override.bounce, 0.4, 0.0001)
+	assert_almost_eq(field.physics_material_override.friction, 0.5, 0.0001)
+	assert_almost_eq(block.linear_damp, 0.0, 0.0001)
+	assert_almost_eq(block.angular_damp, 0.0, 0.0001)
+	assert_almost_eq(_panel.physics_tuning.rebound_damping, 1.0, 0.0001)
+	assert_almost_eq(_panel.physics_tuning.cube_mass, 1.0, 0.0001)
+	assert_almost_eq(block.gravity_scale, 1.0, 0.0001)
 
 
 func test_apply_physics_preset_copies_values_and_reapplies_live() -> void:

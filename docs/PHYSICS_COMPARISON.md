@@ -34,6 +34,8 @@ pwsh -NoProfile -File tools/tokamak_compare/run.ps1
 
 To compare manually in Sandbox, use F2 with height **2.0**, interval **2.0**, gap **0.3**, and compare your result with the table. The runner also accepts `-Height`, `-Interval`, `-Gap` and `-Repeats` when testing other conditions; regenerate the native baseline for the same conditions.
 
+For a material/damping comparison on Jolt, select **F4 → Physics → Tokamak defaults (Jolt)** before the trial. It sets block and disc friction to 0.5, restitution to 0.4, linear/angular damping to zero and disables the custom vertical rebound reduction (multiplier 1). Cube mass 1 kg and gravity multiplier 1 are reference-fixture choices, not inferred Bontago values. Jolt's solver, contact mixing and sleep behavior remain unchanged; Tokamak's native sleep parameter is not mapped onto territory-settling thresholds. Select **Current** to restore shipped physics values.
+
 Original-game measurements remain pending: no controlled original-game recording was available, and native app control/recording was unavailable in this session. Follow the protocol below; Beads `Bontago-2z7` tracks this remaining evidence step. No physics tuning was changed as a result of this comparison.
 
 ## Capture in the installed original

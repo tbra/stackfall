@@ -175,6 +175,8 @@ const PHYSICS_PRESETS: Array[Dictionary] = [
 	{"id": "current", "label": "Current", "path": "res://config/physics_presets/current.tres"},
 	{"id": "heavy_bouncy", "label": "Heavy & Bouncy", "path": "res://config/physics_presets/heavy_bouncy.tres"},
 	{"id": "heavy_damped", "label": "Heavy & Damped", "path": "res://config/physics_presets/heavy_damped.tres"},
+	# Source material/damping defaults; Jolt solver and sleep remain unchanged.
+	{"id": "tokamak_defaults", "label": "Tokamak defaults (Jolt)", "path": "res://config/physics_presets/tokamak_defaults.tres"},
 ]
 
 @export var hints: TuningPanelHints = preload("res://config/tuning_panel_hints.tres")
@@ -891,7 +893,9 @@ func _build_physics_preset_row() -> Control:
 	# placed is, not any block already standing.
 	option.tooltip_text = (
 		"Presets change mass only for blocks placed after the switch " +
-		"(mass is not live-applied to standing blocks)."
+		"(mass is not live-applied to standing blocks). " +
+		"Tokamak defaults matches source material/damping values on Jolt; " +
+		"it does not change the engine or reproduce Bontago settings."
 	)
 	for preset: Dictionary in PHYSICS_PRESETS:
 		option.add_item(String(preset["label"]))
@@ -1000,6 +1004,8 @@ func _physics_preset_resource(preset_id: String) -> PhysicsTuning:
 ## build() already reads it for anything spawned from here on). Public so a
 ## test can drive it directly instead of dragging a real slider.
 func apply_physics_live() -> void:
+	if is_instance_valid(_field) and _field.physics_material_override != null:
+		_field.physics_material_override.friction = physics_tuning.disk_friction
 	for node: Node in get_tree().get_nodes_in_group(Block.TUNING_GROUP):
 		var block: Block = node as Block
 		if block != null:
