@@ -247,6 +247,15 @@ float smax(float a, float b, float k) {
 // 3.3's "Bounded cost" asks for a real fallback when the circle list
 // overflows, not a best-effort partial draw with some circles silently
 // missing.
+// Bontago-mp0.3.6: moving diagonal stripes for contested/goal areas, faded
+// to their mean wherever a stripe gets narrower than ~2 px on screen. At
+// gameplay distance the raw 24-stripes-per-metre pattern aliased into a
+// zebra moire around the goal flag.
+float aa_stripes(float phase) {
+	float stripes = 0.5 + 0.5 * sin(phase * TAU);
+	return mix(stripes, 0.5, smoothstep(0.25, 0.5, fwidth(phase)));
+}
+
 void raster_path(vec2 uv, out vec3 albedo, out vec3 emission) {
 	float owner_near = round(texture(territory_cells, uv).r * 255.0);
 	float owner_soft = texture(territory_tex, uv).r * 255.0;
@@ -274,8 +283,8 @@ void raster_path(vec2 uv, out vec3 albedo, out vec3 emission) {
 
 	int state_bits = int(state_near);
 	float shimmer_active = ((state_bits & (STATE_CONTESTED | STATE_GOAL_ZONE)) != 0) ? 1.0 : 0.0;
-	float shimmer = 0.5 + 0.5 * sin(
-		(uv.x + uv.y) * contested_shimmer_scale * TAU - TIME * contested_shimmer_rate * TAU
+	float shimmer = aa_stripes(
+		(uv.x + uv.y) * contested_shimmer_scale - TIME * contested_shimmer_rate
 	);
 	emission += contested_color.rgb * shimmer_active * shimmer * contested_shimmer_strength;
 
@@ -381,9 +390,9 @@ void circle_path(vec2 point, out vec3 albedo, out vec3 emission) {
 	}
 
 	if (contested) {
-		float shimmer = 0.5 + 0.5 * sin(
-			(point.x + point.y) * contested_shimmer_scale * TAU
-			- TIME * contested_shimmer_rate * TAU
+		float shimmer = aa_stripes(
+			(point.x + point.y) * contested_shimmer_scale
+			- TIME * contested_shimmer_rate
 		);
 		emission += contested_color.rgb * shimmer * contested_shimmer_strength;
 	}
@@ -402,9 +411,9 @@ void circle_path(vec2 point, out vec3 albedo, out vec3 emission) {
 		}
 	}
 	if (in_goal_zone) {
-		float shimmer = 0.5 + 0.5 * sin(
-			(point.x + point.y) * contested_shimmer_scale * TAU
-			- TIME * contested_shimmer_rate * TAU
+		float shimmer = aa_stripes(
+			(point.x + point.y) * contested_shimmer_scale
+			- TIME * contested_shimmer_rate
 		);
 		emission += contested_color.rgb * shimmer * contested_shimmer_strength;
 	}
