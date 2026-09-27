@@ -200,12 +200,63 @@ func test_every_rebindable_action_has_a_keyboard_or_mouse_binding() -> void:
 	assert_true(found_any, "expected at least one real rebindable action to check")
 
 
+## Bontago-1pi.10 polish pass: rows now build in ui/OptionsMenu.gd's own
+## SECTIONS grouping order (owner: "Keep action order sensible"), not
+## REBINDABLE_ACTIONS' own flat declaration order -- this only checks the
+## built row set matches REBINDABLE_ACTIONS, not their relative order.
 func test_options_menu_builds_one_row_per_rebindable_action() -> void:
 	var menu: OptionsMenu = _make_menu()
 	var rows: Array[KeyRebindRow] = menu.rebind_rows()
 	assert_eq(rows.size(), OptionsMenu.REBINDABLE_ACTIONS.size())
-	for i: int in range(rows.size()):
-		assert_eq(rows[i].action_name(), OptionsMenu.REBINDABLE_ACTIONS[i])
+	var built_actions: Array[StringName] = []
+	for row: KeyRebindRow in rows:
+		built_actions.append(row.action_name())
+	for action: StringName in OptionsMenu.REBINDABLE_ACTIONS:
+		assert_true(built_actions.has(action), "%s must have a built row" % action)
+
+
+## Guards ui/OptionsMenu.gd's own SECTIONS grouping: every rebindable action
+## must appear in exactly one section, so a future action added to
+## REBINDABLE_ACTIONS can't silently go missing from the Controls page (or
+## end up listed twice) just because nobody updated SECTIONS.
+func test_sections_cover_every_rebindable_action_exactly_once() -> void:
+	var seen: Dictionary[StringName, int] = {}
+	for section: Dictionary in OptionsMenu.SECTIONS:
+		for action: StringName in (section.get("actions", []) as Array):
+			seen[action] = seen.get(action, 0) + 1
+	for action: StringName in OptionsMenu.REBINDABLE_ACTIONS:
+		assert_eq(seen.get(action, 0), 1, "%s must appear in exactly one SECTIONS entry" % action)
+	assert_eq(seen.size(), OptionsMenu.REBINDABLE_ACTIONS.size(), "SECTIONS must not list any action outside REBINDABLE_ACTIONS")
+
+
+## Owner: "Friendly action names ... human labels" -- spot-checks a few
+## representative rows rather than asserting on the whole DISPLAY_NAMES
+## dictionary (which would just be a change-detector copy of it).
+func test_rebind_rows_use_friendly_display_names() -> void:
+	var menu: OptionsMenu = _make_menu()
+	var by_action: Dictionary[StringName, KeyRebindRow] = {}
+	for row: KeyRebindRow in menu.rebind_rows():
+		by_action[row.action_name()] = row
+	assert_eq((by_action[&"ghost_place"].get_node("%ActionLabel") as Label).text, "Place block")
+	assert_eq((by_action[&"hover_raise"].get_node("%ActionLabel") as Label).text, "Raise block")
+	assert_eq((by_action[&"hover_lower"].get_node("%ActionLabel") as Label).text, "Lower block")
+	assert_eq((by_action[&"pause_menu"].get_node("%ActionLabel") as Label).text, "Pause")
+
+
+# --- Reset to defaults (owner: "Add one 'Reset to defaults' action in the
+# footer") --------------------------------------------------------------------
+
+func test_reset_button_calls_reset_key_overrides_on_the_settings_provider() -> void:
+	var menu: OptionsMenu = _make_menu()
+	var fresh: Node = _settings_of(menu)
+	var event: InputEventKey = InputEventKey.new()
+	event.keycode = KEY_F9
+	fresh.set_key_override(&"ghost_place", event)
+	assert_eq(fresh.key_override_events(&"ghost_place").size(), 1, "sanity: an override exists before reset")
+
+	(menu.get_node("%ResetButton") as Button).pressed.emit()
+
+	assert_eq(fresh.key_override_events(&"ghost_place").size(), 0, "Reset to defaults must clear every persisted override")
 
 
 # --- Settings/Controls tabs (Bontago-1pi.10) ----------------------------------------
@@ -418,6 +469,34 @@ func test_row_shows_no_glyph_but_stays_visible_when_the_active_device_has_no_bin
 	var glyph_row: HBoxContainer = row.get_node("%GlyphRow") as HBoxContainer
 	assert_eq(glyph_row.get_child_count(), 0, "no gamepad glyph exists for this action")
 	assert_true(row.visible, "the row itself (and its Rebind button) must stay usable, not disappear")
+
+
+## Owner: "max two glyphs per row, extra bindings hidden behind '+1'".
+func test_row_shows_at_most_two_glyphs_and_an_overflow_badge_for_a_third_binding() -> void:
+	InputMap.action_add_event(_test_action, _make_key_event(KEY_F9))
+	InputMap.action_add_event(_test_action, _make_key_event(KEY_F10))
+	InputMap.action_add_event(_test_action, _make_key_event(KEY_F11))
+
+	var row: KeyRebindRow = _make_row()
+	var glyph_row: HBoxContainer = row.get_node("%GlyphRow") as HBoxContainer
+	assert_eq(glyph_row.get_child_count(), KeyRebindRow.MAX_GLYPHS + 1, "two real glyphs plus one overflow badge")
+	var overflow: InputGlyph = glyph_row.get_child(KeyRebindRow.MAX_GLYPHS) as InputGlyph
+	assert_eq(overflow.label_text(), "+1")
+
+
+## Owner: "activating it enters 'press a key/button…' state shown in the
+## glyph slot" -- clicking the row (its own `pressed` signal, since the row
+## IS the Button now) must replace the glyph row with a listening
+## placeholder rather than leaving the old bindings showing.
+func test_pressing_the_row_shows_a_listening_placeholder_in_the_glyph_slot() -> void:
+	InputMap.action_add_event(_test_action, _make_key_event(KEY_F9))
+	var row: KeyRebindRow = _make_row()
+
+	row.rebind_button().pressed.emit()
+
+	assert_true(row.is_listening())
+	var glyph_row: HBoxContainer = row.get_node("%GlyphRow") as HBoxContainer
+	assert_eq(glyph_row.get_child_count(), 1, "exactly one listening placeholder, not the old bindings")
 
 
 func _make_key_event(keycode: Key) -> InputEventKey:

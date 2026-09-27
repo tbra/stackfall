@@ -328,6 +328,18 @@ func set_key_override(action: StringName, event: InputEvent) -> void:
 	_save()
 
 
+## Bontago-1pi.10 polish pass (owner: "Add one 'Reset to defaults' action in
+## the footer"): clears every persisted override and reloads the InputMap
+## straight from project.godot's own [input] section -- the exact bindings
+## tools/bootstrap_project.gd wrote there, undoing every runtime
+## action_erase_event()/action_add_event() a rebind ever made, without this
+## file needing to remember what each action's original event was.
+func reset_key_overrides() -> void:
+	_key_overrides.clear()
+	InputMap.load_from_project_settings()
+	_save()
+
+
 ## Applies every InputMap override from user://settings.cfg. Called once from
 ## _ready(); never touches tools/bootstrap_project.gd's own generated
 ## defaults -- overrides layer on top via InputMap.action_erase_event()/

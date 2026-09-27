@@ -59,3 +59,39 @@ func test_gamepad_trigger_axis_shows_lt_rt() -> void:
 	event.axis = JOY_AXIS_TRIGGER_RIGHT
 	glyph.set_event(event)
 	assert_eq(glyph.label_text(), "RT")
+
+
+func test_gamepad_dpad_button_reports_its_kind_as_dpad() -> void:
+	var glyph: InputGlyph = _make_glyph()
+	var event: InputEventJoypadButton = InputEventJoypadButton.new()
+	event.button_index = JOY_BUTTON_DPAD_UP
+	glyph.set_event(event)
+	assert_eq(glyph.label_text(), "D-Up")
+	assert_eq(glyph._kind, InputGlyph.Kind.DPAD)
+
+
+func test_gamepad_stick_click_reports_its_kind_as_stick() -> void:
+	var glyph: InputGlyph = _make_glyph()
+	var event: InputEventJoypadButton = InputEventJoypadButton.new()
+	event.button_index = JOY_BUTTON_LEFT_STICK
+	glyph.set_event(event)
+	assert_eq(glyph.label_text(), "L3")
+	assert_eq(glyph._kind, InputGlyph.Kind.STICK)
+
+
+## Owner example: "map long names to short labels (BracketLeft → '[',
+## PageUp → 'PgUp', etc.)".
+func test_bracket_left_key_shows_a_short_bracket_glyph() -> void:
+	var glyph: InputGlyph = _make_glyph()
+	var event: InputEventKey = InputEventKey.new()
+	event.physical_keycode = KEY_BRACKETLEFT
+	glyph.set_event(event)
+	assert_eq(glyph.label_text(), "[")
+
+
+func test_page_up_key_shows_pgup() -> void:
+	var glyph: InputGlyph = _make_glyph()
+	var event: InputEventKey = InputEventKey.new()
+	event.physical_keycode = KEY_PAGEUP
+	glyph.set_event(event)
+	assert_eq(glyph.label_text(), "PgUp")

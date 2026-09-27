@@ -258,6 +258,27 @@ func test_key_override_keeps_other_device_class_and_round_trips_both() -> void:
 	assert_true(_events_contain_joy(reapplied, JOY_BUTTON_X), "joypad override should reapply on a fresh Settings instance")
 
 
+## Bontago-1pi.10 polish pass (owner: "Add one 'Reset to defaults' action in
+## the footer"): uses a real project action (ghost_place) rather than
+## _test_action -- InputMap.load_from_project_settings() reloads strictly
+## from project.godot's own [input] section, so a synthetic action added at
+## runtime (never in project.godot) would just vanish from the InputMap
+## entirely, not "reset to its default", which isn't what this is testing.
+func test_reset_key_overrides_clears_overrides_and_restores_project_defaults() -> void:
+	var real_action: StringName = &"ghost_place"
+	var original_count: int = InputMap.action_get_events(real_action).size()
+
+	var override_event: InputEventKey = InputEventKey.new()
+	override_event.keycode = KEY_F9
+	_settings.set_key_override(real_action, override_event)
+	assert_eq(_settings.key_override_events(real_action).size(), 1, "sanity: an override exists before reset")
+
+	_settings.reset_key_overrides()
+
+	assert_eq(_settings.key_override_events(real_action).size(), 0, "reset must clear the persisted override")
+	assert_eq(InputMap.action_get_events(real_action).size(), original_count, "reset must restore the action's original project.godot bindings")
+
+
 func _events_contain_key(events: Array[InputEvent], keycode: Key) -> bool:
 	for event: InputEvent in events:
 		if event is InputEventKey and (event as InputEventKey).keycode == keycode:
