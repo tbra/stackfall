@@ -1068,6 +1068,8 @@ func _apply_spawn_clearance() -> void:
 	if not _pending_spawn_active:
 		return
 	_pending_spawn_active = false
+	if not ghost_tuning.spawn_clearance_enabled:
+		return
 	if _ghost == null or _ghost.get_shape() == null:
 		return
 	if not _would_overlap_a_placed_block_at_baseline_hover():

@@ -312,6 +312,7 @@ descriptions = {
 "GhostTuning.hud_relocated_message_duration": "How long the HUD's \"relocated into your territory\" auto-drop message stays fully visible before it starts fading.",
 "GhostTuning.hud_relocated_fade_duration": "How long the HUD's relocated message takes to fade out.",
 "GhostTuning.spawn_clearance": "Extra height kept above a just-placed block's own top when the next held block's ghost is seeded clear of it.",
+"GhostTuning.spawn_clearance_enabled": "Raise the next held block clear of the block you just placed (off: it spawns at normal hover height).",
 "GhostTuning.throw_aim_tint_color": "Ghost tint shown while aiming a throw (holding throw_aim on a held special).",
 "GhostTuning.throw_arc_sample_count": "Number of straight segments the throw-aim arc preview is divided into before its own landing cutoff can stop it early.",
 "GhostTuning.throw_arc_max_time_s": "Safety-cap seconds of flight the throw-aim arc preview samples out to if it never reaches a landing height at all.",
