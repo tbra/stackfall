@@ -14,9 +14,8 @@ extends CanvasLayer
 ## should be grouped and moved to the bottom left corner") moves the
 ## held-shape and next-shape cards off the top edge into one grouped
 ## %HeldNextPanel in the bottom-left corner (clear of both the top-left
-## per-player cluster and the bottom-right minimap) and fixes the iso
-## preview renderer to center on each shape's own projected bounding box
-## instead of its cell centroid (see _draw_iso_shape()'s own DECISION).
+## per-player cluster and the bottom-right minimap). Bontago-35f replaces
+## the procedural cube drawing with pre-rendered actual mesh thumbnails.
 ##
 ## Bontago-mv0.9: outside hot-seat there is no "turn" — every slot plays at
 ## once (spec 2.4 "[ORIGINAL target]") — so this HUD shows **the local
@@ -48,14 +47,6 @@ extends CanvasLayer
 ## real art, and CLAUDE.md's "no magic numbers" is about tunables that affect
 ## gameplay feel, not every pixel constant behind a first-pass debug HUD.
 ##
-## DECISION (ui/HUD.gd, Bontago-mv0.9): the held/next previews stay the
-## existing flat 2D icon draw (BlockShape.cells projected to screen space)
-## rather than a mesh thumbnail rendered through a SubViewport +
-## BlockFactory.build_visual_only(). The assignment allows either "mesh
-## thumbnails ... or the existing icon approach — reuse what HUD.tscn
-## already has"; a SubViewport per preview is real M7-grade art (its own
-## camera rig, lighting, and a second render pass per HUD per frame) for a
-## placeholder HUD everything else here explicitly defers to M7.
 
 
 ## Bontago-mp0.3.3 (owner review 2026-09-26: "bar ~22-25% of screen width"):
@@ -72,29 +63,12 @@ const RING_BACKGROUND_COLOR: Color = Color(1.0, 1.0, 1.0, 0.15)
 ## 2026-09-26 grew the ring itself to ~84-96px; the numeral grows with it.
 const TIMER_NUMERAL_FONT_SIZE: int = 34
 ## Bontago-mp0.3.3 (owner review 2026-09-26: "subtle drop shadow"), shared by
-## the timer ring's disc and the next-shape card's iso cubes.
+## the timer ring's disc.
 const DROP_SHADOW_OFFSET: Vector2 = Vector2(2.0, 3.0)
 const DROP_SHADOW_COLOR: Color = Color(0.0, 0.0, 0.0, 0.35)
-## Bontago-mp0.3.3 (owner review 2026-09-26, next-shape card; owner review
-## 2026-09-27 extended to the held-shape card too): isometric cube projection
-## constants for _draw_iso_shape() below -- a 2:1 axonometric tile (top
-## diamond width : height) is the standard "iso block" look the mockup's blue
-## L-piece uses. These are the *unit* sizes _draw_iso_shape() measures a
-## shape's own bounding box against before rescaling to ISO_FIT_FRACTION of
-## whichever card is drawing -- see that function's own doc.
-const ISO_TILE_WIDTH: float = 14.0
-const ISO_TILE_HEIGHT: float = 7.0
-const ISO_CUBE_HEIGHT: float = 11.0
-## Bontago-mp0.3.3 (owner review 2026-09-27: "scale the iso drawing so the
-## shape fills ~65-75% of the card regardless of shape size"); 0.7 sits in
-## the middle of that range.
-const ISO_FIT_FRACTION: float = 0.7
 const ELIMINATED_COLOR: Color = Color(0.4, 0.4, 0.4, 0.5)
-## Bontago-mv0.9: a distinct grey from ELIMINATED_COLOR (same idea, different
-## meaning) for the release-locked ring/label, so a locked-but-not-eliminated
-## slot never reads as "this player is out".
+## Locked but still playing must remain distinct from eliminated.
 const LOCKED_COLOR: Color = Color(0.75, 0.75, 0.75, 0.9)
-
 @export var ghost_tuning: GhostTuning = preload("res://config/ghost_tuning.tres")
 ## Bontago-d04: durations for the "Special queued: <name>" claim toast below
 ## (see config/GiftConfig.gd's own "-- Claim feedback --" section for why
@@ -156,6 +130,7 @@ var match_provider: Variant = null
 @onready var _minimap: Minimap = %Minimap
 
 var _shapes_by_id: Dictionary = {}
+var _preview_textures: Dictionary[StringName, Texture2D] = {}
 ## Whichever slot this HUD's widgets currently read: the hot-seat active
 ## slot, or (outside hot-seat) the local player's slot. See the class
 ## doc comment above.
@@ -900,138 +875,35 @@ func _draw_timer_numeral(center: Vector2) -> void:
 	)
 
 
-## Bontago-mp0.3.3 (owner review 2026-09-27: the old flat front-elevation
-## held-shape icon read as "a stray flat glyph of two small red squares"
-## next to the timer ring, unlabeled and easy to mistake for a leftover --
-## restyled into its own %HeldShapeCard (ui/HUD.tscn, styled alongside
-## %NextShapeCard in _ready(), with a static "HELD" label above it) and now
-## drawn with the same iso-cube renderer as the next-shape card, so "what am
-## I holding" and "what's coming next" read as one consistent visual language
-## instead of two different icon styles.
 func _on_shape_preview_draw() -> void:
-	_draw_iso_shape(_shape_preview, _held_shape, _active_color)
+	_draw_static_shape(_shape_preview, _held_shape, _active_color)
 
 
-## Bontago-mp0.3.3 (owner review 2026-09-26: "Draw the BlockShape cells as
-## small iso cubes ... 3 face shades (top light, left mid, right dark), like
-## the mockup's blue L piece"); owner review 2026-09-27 extended this to the
-## held-shape card too (_on_shape_preview_draw() above) once it got its own
-## labeled card.
 func _on_next_shape_preview_draw() -> void:
-	_draw_iso_shape(_next_shape_preview, _next_shape, _active_color)
+	_draw_static_shape(_next_shape_preview, _next_shape, _active_color)
 
 
-## Isometric (2:1 axonometric) render of `shape`'s cells, each a small cube
-## with three shaded faces (top lightened, left mid, right darkened -- a
-## fixed upper-left light, matching the row glyphs' own two-tone DECISION
-## above). All the fit/centering geometry lives in the pure _iso_fit() helper
-## below (headlessly testable, see tests/unit/test_hud.gd
-## test_iso_fit_centers_and_frames_every_block_shape) -- this function is
-## just "sort back-to-front, then draw one cube per fitted top".
-func _draw_iso_shape(control: Control, shape: BlockShape, color: Color) -> void:
+## DECISION: bake actual meshes once; runtime previews only draw cached,
+## player-tinted images, without per-cell painter ordering or a 3D viewport.
+func _preview_texture(shape: BlockShape) -> Texture2D:
 	if shape == null:
+		return null
+	if not _preview_textures.has(shape.id):
+		var path: String = "res://assets/ui/block_previews/%s.png" % shape.id
+		_preview_textures[shape.id] = load(path) as Texture2D if ResourceLoader.exists(path) else null
+	return _preview_textures[shape.id]
+
+
+func _draw_static_shape(control: Control, shape: BlockShape, color: Color) -> void:
+	var texture: Texture2D = _preview_texture(shape)
+	if texture == null:
 		return
-	var cells: Array[Vector3i] = shape.cells.duplicate()
-	# Depth key: further back (smaller x+z, taller/lower y) draws first, so a
-	# cube nearer the viewer (or stacked above another) paints over it. This
-	# key is invariant to any constant shift of the cell coordinates, so it
-	# does not depend on _iso_fit()'s own centering.
-	cells.sort_custom(
-		func(a: Vector3i, b: Vector3i) -> bool:
-			return (a.x + a.z - a.y * 2) < (b.x + b.z - b.y * 2)
-	)
-	var fit: Dictionary = _iso_fit(cells, control.size)
-	var tops: Array[Vector2] = fit["tops"]
-	var tile_w: float = fit["tile_w"]
-	var tile_h: float = fit["tile_h"]
-	var cube_h: float = fit["cube_h"]
-	for i: int in range(cells.size()):
-		_draw_iso_cube(control, tops[i], color, tile_w, tile_h, cube_h)
+	var texture_size: Vector2 = texture.get_size()
+	var scale: float = minf(control.size.x / texture_size.x, control.size.y / texture_size.y)
+	var draw_size: Vector2 = texture_size * scale
+	control.draw_texture_rect(texture, Rect2((control.size - draw_size) * 0.5, draw_size), false, color)
 
 
-## Pure geometry half of the iso preview: projects each of `cells` (in the
-## given order -- painter-sort order for a real draw, but the fit itself is
-## order-independent) into unscaled axonometric space, then scales and
-## centers the whole set so it fits inside `control_size`. Returns
-## {"tops": Array[Vector2], "tile_w": float, "tile_h": float, "cube_h":
-## float} -- exactly what _draw_iso_cube() needs per cell, already scaled
-## and positioned; `tops[i]` corresponds to `cells[i]`.
-##
-## DECISION (ui/HUD.gd, owner playtest 2026-09-27: "some of the blocks are
-## rendered oddly in the previews"). ROOT CAUSE: the previous version
-## centered cells on the shape's own centroid (the mean of its cell indices)
-## and anchored that centroid at the card's center -- but the centroid of a
-## shape's cell indices does not generally project to the center of the
-## shape's own iso-projected bounding box (e.g. L3's cells (0,0,0)/(1,0,0)/
-## (0,1,0) project to a box whose true center sits ~3.5/5.25 unit-px away
-## from the centroid-anchored origin), so asymmetric shapes drew off-center
-## inside their card, occasionally scaled/positioned close enough to an edge
-## to look clipped or lopsided. FIX: measure every cell's unscaled projected
-## position first, take the actual min/max bounding box of that projection,
-## and anchor the *box's own center* (`raw_center` below) at the card's
-## center instead of the centroid's projection -- this is the "auto-fit
-## camera to the shape's AABB" the assignment asks for: every BlockShape
-## (config/blocks/*.tres) now ends up centered and fully in frame regardless
-## of how lopsided its cell layout is, with the same consistent axonometric
-## orientation and per-face shading as before.
-func _iso_fit(cells: Array[Vector3i], control_size: Vector2) -> Dictionary:
-	var half_w: float = ISO_TILE_WIDTH * 0.5
-	var unit_tops: Array[Vector2] = []
-	var min_pt: Vector2 = Vector2.INF
-	var max_pt: Vector2 = -Vector2.INF
-	for cell: Vector3i in cells:
-		var top: Vector2 = Vector2(
-			(cell.x - cell.z) * ISO_TILE_WIDTH * 0.5, (cell.x + cell.z) * ISO_TILE_HEIGHT * 0.5 - cell.y * ISO_CUBE_HEIGHT
-		)
-		unit_tops.append(top)
-		min_pt = min_pt.min(top + Vector2(-half_w, 0.0))
-		max_pt = max_pt.max(top + Vector2(half_w, ISO_TILE_HEIGHT + ISO_CUBE_HEIGHT))
-	var raw_size: Vector2 = max_pt - min_pt
-	# The projected AABB's own center, in the same unscaled units as
-	# `unit_tops` -- this, not the cell centroid, is what belongs at the
-	# card's center for the shape to read as centered.
-	var raw_center: Vector2 = (min_pt + max_pt) * 0.5
-
-	var scale: float = 1.0
-	if raw_size.x > 0.0 and raw_size.y > 0.0:
-		var target: Vector2 = control_size * ISO_FIT_FRACTION
-		scale = minf(target.x / raw_size.x, target.y / raw_size.y)
-
-	var center: Vector2 = control_size * 0.5
-	var tops: Array[Vector2] = []
-	for unit_top: Vector2 in unit_tops:
-		tops.append(center + (unit_top - raw_center) * scale)
-	return {
-		"tops": tops,
-		"tile_w": ISO_TILE_WIDTH * scale,
-		"tile_h": ISO_TILE_HEIGHT * scale,
-		"cube_h": ISO_CUBE_HEIGHT * scale,
-	}
-
-
-## One iso cube, `top` being the top-most vertex of its top diamond face, at
-## the given (already shape-fit) tile/cube-height dimensions.
-func _draw_iso_cube(
-	control: Control, top: Vector2, color: Color, tile_w: float, tile_h: float, cube_h: float
-) -> void:
-	var right: Vector2 = top + Vector2(tile_w * 0.5, tile_h * 0.5)
-	var bottom: Vector2 = top + Vector2(0.0, tile_h)
-	var left: Vector2 = top + Vector2(-tile_w * 0.5, tile_h * 0.5)
-	var down: Vector2 = Vector2(0.0, cube_h)
-
-	var top_face: PackedVector2Array = PackedVector2Array([top, right, bottom, left])
-	var left_face: PackedVector2Array = PackedVector2Array([left, bottom, bottom + down, left + down])
-	var right_face: PackedVector2Array = PackedVector2Array([right, bottom, bottom + down, right + down])
-
-	control.draw_colored_polygon(left_face, color.darkened(0.1))
-	control.draw_colored_polygon(right_face, color.darkened(0.35))
-	control.draw_colored_polygon(top_face, color.lightened(0.3))
-
-	var outline: Color = Color(0.0, 0.0, 0.0, 0.45)
-	control.draw_polyline(PackedVector2Array([top, right, bottom, left, top]), outline, 1.0, true)
-	control.draw_polyline(PackedVector2Array([bottom, bottom + down]), outline, 1.0, true)
-	control.draw_polyline(PackedVector2Array([left, left + down]), outline, 1.0, true)
-	control.draw_polyline(PackedVector2Array([right, right + down]), outline, 1.0, true)
 
 
 func _on_capture_ring_draw() -> void:
