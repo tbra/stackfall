@@ -23,8 +23,28 @@ uniform vec4 sun_ray_color : source_color = vec4(1.0, 0.72, 0.38, 1.0);
 uniform float sun_core_angular_radius_deg = 1.6;
 uniform float sun_halo_angular_radius_deg = 9.0;
 uniform float sun_halo_softness_deg = 10.0;
-uniform float sun_core_intensity = 3.2;
-uniform float sun_halo_intensity = 1.1;
+// DECISION (shaders/sunset_clouds.gdshader, Bontago-1pi.1, owner playtest:
+// "there are 2 suns, one built in to the skybox and another with the lens
+// flares"): assets/sky/sunset-clouds-v1.png already has a painted sun disc
+// baked into the panorama at the same spot sun_direction above points at
+// (see config/SunFlareConfig.gd's own sun_direction DECISION -- both this
+// shader's default and that Resource's default are the identical measured
+// value), so this shader's own additive core+halo circle was a second,
+// separately-drawn disc sitting on top of the painted one -- not a second
+// sun in a different place, but visibly a second bright circle. Zeroing
+// these two defaults (rather than deleting the code, or the simpler-still
+// "just leave the halo" half-measure) is the simplest change that leaves
+// exactly one visible sun -- the painted panorama disc, reinforced only by
+// vfx/SunFlare.gd's screen-space sparkle (already coincident, same measured
+// direction) -- while a future theme that wants its own procedural disc (a
+// painted-texture-free sky, or a different sun position) can still opt back
+// in by overriding these two on its own ShaderMaterial, without touching
+// this shader file again. ray_* below is untouched: the god-ray beams read
+// as atmosphere fanning from the (still painted) sun, not a second disc
+// shape, and moving them into this sky pass was itself an earlier owner fix
+// round (see this file's class doc) this package does not re-litigate.
+uniform float sun_core_intensity = 0.0;
+uniform float sun_halo_intensity = 0.0;
 // Long, soft god-ray beams fanning out from the sun. Two overlaid ray
 // layers (many thin + a few wide) rather than one uniform comb, matching
 // "varying widths, many thin + a few wide beams" from the mockup review.
