@@ -23,6 +23,9 @@ extends Resource
 @export var bounce_file: String = "boing.wav"
 @export var music_file: String = "bontago1.mp3"
 
+## Owner-created theme shipped in the PCK; custom music folders still win.
+@export var bundled_theme: AudioStream = null
+
 ## Two-stem adaptive music (spec 2.10 "adaptive... more intense as someone
 ## gets close to capturing"; docs/M7_PLAN.md P6). Sfx.gd crossfades between
 ## this and music_stem_tense_file as Events.goal_capture_progress moves past

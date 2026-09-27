@@ -8,6 +8,16 @@ extends GutTest
 
 const SFX_SCRIPT: GDScript = preload("res://autoload/Sfx.gd")
 
+
+func test_bundled_owner_theme_plays_without_original_assets_and_loops() -> void:
+	_config.bundled_theme = load("res://assets/music/stacking-blocks.mp3")
+	_sfx.set_root_dir_for_test(_empty_dir)
+	_sfx.play_music()
+	assert_same(_sfx._music_player.stream, _config.bundled_theme)
+	assert_true(_sfx._music_player.playing)
+	assert_true((_sfx._music_player.stream as AudioStreamMP3).loop)
+	_sfx._music_player.stop()
+
 var _sfx: Node
 var _config: AudioConfig
 var _tmp_dir: String
@@ -27,6 +37,7 @@ func before_each() -> void:
 	Settings.set_config_path_for_test(_settings_cfg_path)
 
 	_config = load("res://config/audio_config.tres").duplicate() as AudioConfig
+	_config.bundled_theme = null # Existing fixtures test optional disk audio.
 	_sfx = autofree(SFX_SCRIPT.new())
 	_sfx.config = _config
 	add_child_autofree(_sfx)
@@ -170,6 +181,7 @@ func test_play_music_uses_custom_music_dir_when_set() -> void:
 	var music_dir: String = OS.get_user_data_dir().path_join("test_sfx_custom_music")
 	DirAccess.make_dir_recursive_absolute(music_dir)
 	_config.music_file = "custom_track.wav"
+	_config.bundled_theme = load("res://assets/music/stacking-blocks.mp3")
 	_write_tiny_wav(music_dir.path_join(_config.music_file))
 
 	# The bundled root ( _tmp_dir, via set_root_dir_for_test) never has
@@ -183,6 +195,7 @@ func test_play_music_uses_custom_music_dir_when_set() -> void:
 	_sfx.play_music()
 
 	assert_true(_sfx._music_player.playing, "play_music() should load the track from the custom music folder")
+	assert_true(_sfx._music_player.stream is AudioStreamWAV, "custom folder overrides the bundled theme")
 
 	for filename: String in DirAccess.get_files_at(music_dir):
 		DirAccess.remove_absolute(music_dir.path_join(filename))

@@ -198,6 +198,11 @@ func _play_music_stream(stream: AudioStream) -> void:
 func _pick_stream(event: StringName) -> AudioStream:
 	var is_music: bool = event == AudioConfig.EVENT_MUSIC
 	if is_music:
+		# DECISION: bundled owner theme is independent of optional original
+		# assets. An existing custom music folder retains the previous behavior.
+		var custom_dir: String = Settings.custom_music_dir()
+		if config.bundled_theme != null and (custom_dir.is_empty() or not DirAccess.dir_exists_absolute(custom_dir)):
+			return config.bundled_theme
 		if not _music_available:
 			return null
 		# DECISION (autoload/Sfx.gd, Bontago-xtq.31 review, MEDIUM): only steer
@@ -286,6 +291,11 @@ func _refresh_tense_stem() -> void:
 	if _tense_music_player == null:
 		return  # called from _ready() before _build_player_pool() creates it
 	_tense_music_player.stop()
+	# The owner theme is a complete mix, not a stem of the original score.
+	var custom_dir: String = Settings.custom_music_dir()
+	if config.bundled_theme != null and (custom_dir.is_empty() or not DirAccess.dir_exists_absolute(custom_dir)):
+		_tense_stem_is_active = false
+		return
 	if not _music_available:
 		if was_available:
 			_tense_stem_is_active = false  # the tense stem just disappeared -- fall back to calm

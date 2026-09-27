@@ -1,9 +1,11 @@
-[gd_resource type="Resource" script_class="AudioConfig" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="AudioConfig" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://config/AudioConfig.gd" id="1_audio"]
+[ext_resource type="AudioStream" path="res://assets/music/stacking-blocks.mp3" id="2_theme"]
 
 [resource]
 script = ExtResource("1_audio")
+bundled_theme = ExtResource("2_theme")
 thud_files = Array[String](["thud1.wav", "thud2.wav", "thud3.wav", "thud4.wav", "thud5.wav"])
 rejected_file = "no.wav"
 click_file = "click.wav"
