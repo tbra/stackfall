@@ -8,9 +8,15 @@ extends CanvasLayer
 ## live minimap (ui/Minimap.gd); Bontago-mp0.3.3 restyles the whole HUD
 ## toward docs/art_mockups/08-cel-shaded-home-beacons.png (per-player
 ## diamond+bar rows top-left, a numeral in the timer ring top-center, a
-## next-shape card top-right, a circular minimap bottom-right) and rebuilds
-## the minimap as a 2D draw off the live TerritoryRaster instead of a 3D
-## camera (see ui/Minimap.gd's own class doc for why).
+## circular minimap bottom-right) and rebuilds the minimap as a 2D draw off
+## the live TerritoryRaster instead of a 3D camera (see ui/Minimap.gd's own
+## class doc for why). Bontago-1pi.5 (owner playtest: "Held/next previews
+## should be grouped and moved to the bottom left corner") moves the
+## held-shape and next-shape cards off the top edge into one grouped
+## %HeldNextPanel in the bottom-left corner (clear of both the top-left
+## per-player cluster and the bottom-right minimap) and fixes the iso
+## preview renderer to center on each shape's own projected bounding box
+## instead of its cell centroid (see _draw_iso_shape()'s own DECISION).
 ##
 ## Bontago-mv0.9: outside hot-seat there is no "turn" — every slot plays at
 ## once (spec 2.4 "[ORIGINAL target]") — so this HUD shows **the local
@@ -137,6 +143,16 @@ var match_provider: Variant = null
 ## unlabeled flat icon floating loose beside the timer ring, which the
 ## review correctly read as a stray leftover glyph.
 @onready var _held_shape_card: Panel = %HeldShapeCard
+## Bontago-1pi.5 (owner playtest: "Held/next previews should be grouped and
+## moved to the bottom left corner"): the outer frame around both
+## %HeldShapeCard and %NextShapeCard (ui/HUD.tscn's HeldNextRow), styled the
+## same as those two inner cards so the group reads as one panel rather than
+## two loose cards -- DECISION: keeps the inner cards' own borders too
+## (nested, not replaced) rather than stripping their styling now that
+## they're grouped, since a Panel with no stylebox override at all would fall
+## back to the engine's default gray theme box, which reads worse than a
+## slightly nested double border in the same palette.
+@onready var _held_next_panel: Panel = %HeldNextPanel
 @onready var _minimap: Minimap = %Minimap
 
 var _shapes_by_id: Dictionary = {}
@@ -195,6 +211,7 @@ func _ready() -> void:
 	# there gets a soft outline instead, so it stays legible directly over a
 	# bright sky. The next-shape and held-shape cards are the readouts that
 	# do keep a backing panel (see _style_panel()'s own doc).
+	_style_panel(_held_next_panel)
 	_style_panel(_next_shape_card)
 	_style_panel(_held_shape_card)
 	for label: Label in [
@@ -428,10 +445,20 @@ func show_relocated() -> void:
 	_reject_tween.tween_property(_reject_label, ^"modulate:a", 0.0, ghost_tuning.hud_relocated_fade_duration)
 
 
+## DECISION (ui/HUD.gd, Bontago-1pi.5): a separate results screen (built
+## elsewhere) now owns the "who won" announcement, so this in-HUD banner must
+## no longer appear. Keeps computing/storing the text and tint (harmless, and
+## a cheap seam for a future results-screen consumer that might want to read
+## %WinnerLabel's text instead of duplicating this formatting) but no longer
+## flips `visible` -- Events.match_won -> _on_match_won() -> show_winner()
+## still fires every time exactly as before, it just no longer has any
+## on-screen effect. %WinnerLabel itself is left in ui/HUD.tscn rather than
+## deleted so a future revert or the results-screen work doesn't need to
+## re-add the node.
 func show_winner(team_id: int, color: Color) -> void:
 	_winner_label.text = "Team %d wins!" % (team_id + 1)
 	_winner_label.modulate = color
-	_winner_label.visible = true
+	_winner_label.visible = false
 
 
 ## Bontago-d04: the local player's own claim feedback beside the pending-
@@ -897,62 +924,89 @@ func _on_next_shape_preview_draw() -> void:
 ## Isometric (2:1 axonometric) render of `shape`'s cells, each a small cube
 ## with three shaded faces (top lightened, left mid, right darkened -- a
 ## fixed upper-left light, matching the row glyphs' own two-tone DECISION
-## above). Cells are centered on the shape's own centroid (not a pixel
-## bounding-box fit for centering -- cheap and close enough at this preview
-## size) and painter's-algorithm sorted back-to-front so a cube stacked on
-## top of another one draws over it correctly.
-##
-## Bontago-mp0.3.3 (owner review 2026-09-27: "scale the iso drawing so the
-## shape fills ~65-75% of the card regardless of shape size"): first
-## measures the shape's own iso bounding box at the unit ISO_TILE_*/
-## ISO_CUBE_HEIGHT constants, then rescales those constants so that box fits
-## ISO_FIT_FRACTION of `control`'s own size before drawing a single cube.
-## Every coordinate below is linear in those constants, so redoing the same
-## projection with rescaled ones is exactly equivalent to scaling an
-## already-fit drawing, just without ever drawing the unscaled one.
+## above). All the fit/centering geometry lives in the pure _iso_fit() helper
+## below (headlessly testable, see tests/unit/test_hud.gd
+## test_iso_fit_centers_and_frames_every_block_shape) -- this function is
+## just "sort back-to-front, then draw one cube per fitted top".
 func _draw_iso_shape(control: Control, shape: BlockShape, color: Color) -> void:
 	if shape == null:
 		return
-	var centroid: Vector3 = Vector3.ZERO
-	for cell: Vector3i in shape.cells:
-		centroid += Vector3(cell)
-	centroid /= float(shape.cells.size())
-
 	var cells: Array[Vector3i] = shape.cells.duplicate()
 	# Depth key: further back (smaller x+z, taller/lower y) draws first, so a
-	# cube nearer the viewer (or stacked above another) paints over it.
+	# cube nearer the viewer (or stacked above another) paints over it. This
+	# key is invariant to any constant shift of the cell coordinates, so it
+	# does not depend on _iso_fit()'s own centering.
 	cells.sort_custom(
 		func(a: Vector3i, b: Vector3i) -> bool:
 			return (a.x + a.z - a.y * 2) < (b.x + b.z - b.y * 2)
 	)
+	var fit: Dictionary = _iso_fit(cells, control.size)
+	var tops: Array[Vector2] = fit["tops"]
+	var tile_w: float = fit["tile_w"]
+	var tile_h: float = fit["tile_h"]
+	var cube_h: float = fit["cube_h"]
+	for i: int in range(cells.size()):
+		_draw_iso_cube(control, tops[i], color, tile_w, tile_h, cube_h)
 
+
+## Pure geometry half of the iso preview: projects each of `cells` (in the
+## given order -- painter-sort order for a real draw, but the fit itself is
+## order-independent) into unscaled axonometric space, then scales and
+## centers the whole set so it fits inside `control_size`. Returns
+## {"tops": Array[Vector2], "tile_w": float, "tile_h": float, "cube_h":
+## float} -- exactly what _draw_iso_cube() needs per cell, already scaled
+## and positioned; `tops[i]` corresponds to `cells[i]`.
+##
+## DECISION (ui/HUD.gd, owner playtest 2026-09-27: "some of the blocks are
+## rendered oddly in the previews"). ROOT CAUSE: the previous version
+## centered cells on the shape's own centroid (the mean of its cell indices)
+## and anchored that centroid at the card's center -- but the centroid of a
+## shape's cell indices does not generally project to the center of the
+## shape's own iso-projected bounding box (e.g. L3's cells (0,0,0)/(1,0,0)/
+## (0,1,0) project to a box whose true center sits ~3.5/5.25 unit-px away
+## from the centroid-anchored origin), so asymmetric shapes drew off-center
+## inside their card, occasionally scaled/positioned close enough to an edge
+## to look clipped or lopsided. FIX: measure every cell's unscaled projected
+## position first, take the actual min/max bounding box of that projection,
+## and anchor the *box's own center* (`raw_center` below) at the card's
+## center instead of the centroid's projection -- this is the "auto-fit
+## camera to the shape's AABB" the assignment asks for: every BlockShape
+## (config/blocks/*.tres) now ends up centered and fully in frame regardless
+## of how lopsided its cell layout is, with the same consistent axonometric
+## orientation and per-face shading as before.
+func _iso_fit(cells: Array[Vector3i], control_size: Vector2) -> Dictionary:
+	var half_w: float = ISO_TILE_WIDTH * 0.5
+	var unit_tops: Array[Vector2] = []
 	var min_pt: Vector2 = Vector2.INF
 	var max_pt: Vector2 = -Vector2.INF
 	for cell: Vector3i in cells:
-		var local: Vector3 = Vector3(cell) - centroid
 		var top: Vector2 = Vector2(
-			(local.x - local.z) * ISO_TILE_WIDTH * 0.5, (local.x + local.z) * ISO_TILE_HEIGHT * 0.5 - local.y * ISO_CUBE_HEIGHT
+			(cell.x - cell.z) * ISO_TILE_WIDTH * 0.5, (cell.x + cell.z) * ISO_TILE_HEIGHT * 0.5 - cell.y * ISO_CUBE_HEIGHT
 		)
-		var half_w: float = ISO_TILE_WIDTH * 0.5
+		unit_tops.append(top)
 		min_pt = min_pt.min(top + Vector2(-half_w, 0.0))
 		max_pt = max_pt.max(top + Vector2(half_w, ISO_TILE_HEIGHT + ISO_CUBE_HEIGHT))
 	var raw_size: Vector2 = max_pt - min_pt
+	# The projected AABB's own center, in the same unscaled units as
+	# `unit_tops` -- this, not the cell centroid, is what belongs at the
+	# card's center for the shape to read as centered.
+	var raw_center: Vector2 = (min_pt + max_pt) * 0.5
 
 	var scale: float = 1.0
 	if raw_size.x > 0.0 and raw_size.y > 0.0:
-		var target: Vector2 = control.size * ISO_FIT_FRACTION
+		var target: Vector2 = control_size * ISO_FIT_FRACTION
 		scale = minf(target.x / raw_size.x, target.y / raw_size.y)
-	var tile_w: float = ISO_TILE_WIDTH * scale
-	var tile_h: float = ISO_TILE_HEIGHT * scale
-	var cube_h: float = ISO_CUBE_HEIGHT * scale
 
-	var center: Vector2 = control.size * 0.5
-	for cell: Vector3i in cells:
-		var local: Vector3 = Vector3(cell) - centroid
-		var top: Vector2 = center + Vector2(
-			(local.x - local.z) * tile_w * 0.5, (local.x + local.z) * tile_h * 0.5 - local.y * cube_h
-		)
-		_draw_iso_cube(control, top, color, tile_w, tile_h, cube_h)
+	var center: Vector2 = control_size * 0.5
+	var tops: Array[Vector2] = []
+	for unit_top: Vector2 in unit_tops:
+		tops.append(center + (unit_top - raw_center) * scale)
+	return {
+		"tops": tops,
+		"tile_w": ISO_TILE_WIDTH * scale,
+		"tile_h": ISO_TILE_HEIGHT * scale,
+		"cube_h": ISO_CUBE_HEIGHT * scale,
+	}
 
 
 ## One iso cube, `top` being the top-most vertex of its top diamond face, at
