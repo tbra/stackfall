@@ -566,10 +566,82 @@ func _draw_special_id() -> StringName:
 	return PENDING_SPECIAL_ID
 
 
+## Owner playtest report (Bontago-1pi.2, "Unclaimed presents should respawn in
+## different places when unclaimed"): captures the expiring crate's own
+## position before _free_crate_visual() erases its `_crates` entry, so
+## _relocate_after_expiry() below has something to measure the replacement's
+## minimum distance against.
 func _expire_gift(gift_id: int) -> void:
+	var entry: Dictionary = _crates.get(gift_id, {})
+	if entry.is_empty():
+		return
+	var old_position: Vector2 = entry["position"]
 	if not _free_crate_visual(gift_id):
 		return
 	Events.gift_expired.emit(gift_id)
+	_relocate_after_expiry(old_position)
+
+
+## Bontago-1pi.2: an expired (unclaimed) crate is immediately replaced by a
+## fresh one at a new valid random location at least
+## GiftConfig.relocate_min_distance_m from the one it replaces, using the same
+## seeded gift-spawn RNG and GiftSpawner.pick_spawn_point() location logic
+## _try_spawn() itself uses (_ensure_rng() is idempotent, so this never
+## reseeds), so replays stay deterministic under a fixed rng_seed.
+##
+## The per-window spawn chance (should_spawn()) and max_live_crates cap are
+## deliberately NOT re-checked here -- the crate that just expired already
+## counted against max_live_crates, and this relocation directly replaces it
+## one-for-one, so the live-crate count this produces is exactly what it was
+## the instant before expiry (spec 2.6 unchanged; owner instruction: "the
+## relocated crate counts as the live crate").
+##
+## DECISION (autoload/match/MatchGifts.gd, Bontago-1pi.2): if no valid spot
+## clearing relocate_min_distance_m can be found (raster/grid missing, gifts
+## disabled mid-match, or _pick_relocation_point() exhausts its attempt
+## budget), this simply falls back to the existing pre-Bontago-1pi.2 behavior
+## -- the crate stays gone and the next spawn comes from the ordinary
+## per-window roll -- rather than forcing a spawn at a too-close or invalid
+## point.
+func _relocate_after_expiry(old_position: Vector2) -> void:
+	if _match.config == null or not _match.config.gifts_enabled:
+		return
+	var raster: TerritoryRaster = _match.raster()
+	var grid: CellGrid = _match.cell_grid()
+	if raster == null or grid == null:
+		return
+	_ensure_rng()
+	var new_point: Vector2 = _pick_relocation_point(raster, grid, old_position)
+	if GiftSpawner.is_no_spawn_point(new_point):
+		# DECISION: fall back to the existing behavior (no immediate
+		# replacement; the next ordinary per-window roll will spawn one) --
+		# see this function's own doc comment above.
+		return
+	_spawn_crate_at(new_point)
+
+
+## Retries GiftSpawner.pick_spawn_point() -- the exact same seeded-RNG,
+## contested/hole-avoiding, edge-margined logic _try_spawn() calls -- up to
+## GiftConfig.spawn_max_attempts times (reusing that existing attempts budget
+## rather than adding a second one, since the two loops serve the same
+## "give up eventually" purpose), until a candidate lands at least
+## GiftConfig.relocate_min_distance_m from `old_position`. Returns
+## GiftSpawner.NO_SPAWN_POINT if every retry was either invalid or too close.
+##
+## Bails out immediately, without spending the rest of the attempt budget, the
+## first time pick_spawn_point() itself returns its own sentinel: that only
+## happens when no cell in the whole disk is valid at all (spec/GiftSpawner's
+## own contract), which retrying with a different RNG draw cannot fix within
+## the same raster/grid snapshot.
+func _pick_relocation_point(raster: TerritoryRaster, grid: CellGrid, old_position: Vector2) -> Vector2:
+	var min_distance_sq: float = _gift_config.relocate_min_distance_m * _gift_config.relocate_min_distance_m
+	for attempt: int in range(_gift_config.spawn_max_attempts):
+		var candidate: Vector2 = GiftSpawner.pick_spawn_point(raster, grid, _rng, _gift_config)
+		if GiftSpawner.is_no_spawn_point(candidate):
+			return GiftSpawner.NO_SPAWN_POINT
+		if candidate.distance_squared_to(old_position) >= min_distance_sq:
+			return candidate
+	return GiftSpawner.NO_SPAWN_POINT
 
 
 func _free_crate_visual(gift_id: int) -> bool:

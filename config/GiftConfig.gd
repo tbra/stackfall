@@ -30,6 +30,23 @@ extends Resource
 ## owner decision: stationary pickups, 60 s is a prototype starting value).
 @export var life_s: float = 60.0
 
+## Owner playtest report (Bontago-1pi.2, "Unclaimed presents should respawn in
+## different places when unclaimed"): how far (meters, disk-local XZ distance)
+## an expired crate's immediate replacement must land from the crate it
+## replaces. MatchGifts._pick_relocation_point() retries the same seeded RNG/
+## GiftSpawner.pick_spawn_point() spawn-location logic _try_spawn() already
+## uses -- up to spawn_max_attempts times -- until a candidate clears this
+## distance, so replays stay deterministic under a fixed rng_seed.
+##
+## DECISION (config/GiftConfig.gd, Bontago-1pi.2): 5.0 m -- large enough that a
+## relocated crate never reads as "the same crate that didn't move" next to a
+## 1 m cube, small enough that it still fits comfortably inside a 20 m disk's
+## effective (edge-margined) radius alongside spawn_edge_margin_m. GiftConfig
+## is not on ui/TuningPanel.gd's F4 roster (see this file's own "Claim
+## feedback" section DECISION below for why the whole resource is exempt), so
+## this field needs no config/tuning_panel_hints.tres entry either.
+@export var relocate_min_distance_m: float = 5.0
+
 ## How many random points GiftSpawner.pick_spawn_point() tries before giving
 ## up and returning its sentinel.
 @export var spawn_max_attempts: int = 32
