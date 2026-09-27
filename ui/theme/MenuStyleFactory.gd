@@ -40,6 +40,49 @@ static func make_well(tuning: MenuVisualTuning) -> StyleBoxFlat:
 	return box
 
 
+## Bontago-mp0.3.5 (polish pass, problem 2): a sunken, fully rounded pill --
+## same inset-border/no-shadow "well" language as make_well(), but with the
+## pill corner radius instead of the well's own smaller one, for mockup 11's
+## single "[label] (-) value (+)" stepper pill.
+static func make_well_pill(tuning: MenuVisualTuning) -> StyleBoxFlat:
+	var box: StyleBoxFlat = make_well(tuning)
+	box.set_corner_radius_all(int(tuning.pill_corner_radius_px))
+	return box
+
+
+## Bontago-mp0.3.5 (polish pass, problem 2): a borderless "-"/"+" glyph
+## button for inside a stepper pill -- no background of its own in any state
+## (the pill it sits in already draws one), just the ink-colored glyph, so it
+## doesn't read as a second nested button.
+static func apply_flat_stepper_button(button: Button, tuning: MenuVisualTuning) -> void:
+	var empty: StyleBoxEmpty = StyleBoxEmpty.new()
+	empty.content_margin_left = 4.0
+	empty.content_margin_right = 4.0
+	button.add_theme_stylebox_override("normal", empty)
+	button.add_theme_stylebox_override("hover", empty)
+	button.add_theme_stylebox_override("pressed", empty)
+	button.add_theme_stylebox_override("disabled", empty)
+	button.add_theme_color_override("font_color", tuning.ink_color)
+	button.add_theme_color_override("font_hover_color", tuning.ink_color)
+	button.add_theme_color_override("font_pressed_color", tuning.ink_color)
+	button.add_theme_color_override("font_disabled_color", tuning.label_muted_color)
+
+
+## Bontago-mp0.3.5 (polish pass, problem 1): a flat summary chip -- no
+## shadow and no border-highlight (unlike _pill_box()'s button-style pills),
+## smaller content margins, so %AdvRulesBar's six chips read as light, flat
+## tokens rather than another row of raised buttons.
+static func make_flat_chip(color: Color, tuning: MenuVisualTuning) -> StyleBoxFlat:
+	var box: StyleBoxFlat = StyleBoxFlat.new()
+	box.bg_color = color
+	box.set_corner_radius_all(maxi(int(tuning.pill_corner_radius_px) - 4, 0))
+	box.content_margin_left = tuning.pill_margin_x_px * 0.5
+	box.content_margin_right = tuning.pill_margin_x_px * 0.5
+	box.content_margin_top = tuning.pill_margin_y_px * 0.4
+	box.content_margin_bottom = tuning.pill_margin_y_px * 0.4
+	return box
+
+
 ## Bontago-mp0.3.5 (review r1, item 8): a small solid dark circle behind a
 ## single-letter controller-button glyph ("A"/"B"), matching mockup 10's
 ## bottom-right controller hint pill.
@@ -108,6 +151,37 @@ static func apply_toggle_chip(toggle: Button, off_color: Color, off_hover_color:
 	toggle.add_theme_color_override("font_hover_color", font_color)
 	toggle.add_theme_color_override("font_pressed_color", font_color)
 	toggle.add_theme_color_override("font_hover_pressed_color", font_color)
+
+
+## Cached 1x1 fully-transparent texture shared by every hide_spinbox_arrows()
+## call -- built once, not per SpinBox.
+static var _blank_icon: ImageTexture = null
+
+
+## Bontago-mp0.3.5 (review r3, problem 3): SpinBox's own "buttons_width" theme
+## constant only changes the *reserved layout width* for its native up/down
+## spinner, not whether the chevron icons themselves still draw (confirmed
+## by a windowed capture: the chevrons still rendered, just squeezed against
+## the LineEdit's right edge) -- the icons are theme items in their own
+## right (ThemeDB.get_default_theme().get_icon_list("SpinBox") ==
+## ["updown","up","up_hover","up_pressed","up_disabled","down","down_hover",
+## "down_pressed","down_disabled"]), so this overrides every one of them with
+## a blank 1x1 transparent texture. [param spin] keeps its normal min/max/
+## step/value/value_changed and LineEdit -- only its own native buttons
+## become invisible; mockup 11's round pill "-"/"+" buttons
+## (_add_stepper_buttons()) are the only visible way to nudge it now.
+static func hide_spinbox_arrows(spin: SpinBox) -> void:
+	if _blank_icon == null:
+		var image: Image = Image.create(1, 1, false, Image.FORMAT_RGBA8)
+		image.fill(Color(0.0, 0.0, 0.0, 0.0))
+		_blank_icon = ImageTexture.create_from_image(image)
+	for icon_name: String in [
+		"updown", "up", "up_hover", "up_pressed", "up_disabled",
+		"down", "down_hover", "down_pressed", "down_disabled",
+	]:
+		spin.add_theme_icon_override(icon_name, _blank_icon)
+	spin.add_theme_constant_override("buttons_width", 0)
+	spin.add_theme_constant_override("field_and_buttons_separation", 0)
 
 
 static func _pill_box(color: Color, tuning: MenuVisualTuning) -> StyleBoxFlat:

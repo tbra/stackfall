@@ -619,6 +619,90 @@ func test_roster_entry_with_a_steam_persona_name_renders_unchanged() -> void:
 
 # --- Focus chain (gamepad/keyboard navigability, Bontago-xtq.32) -------------------
 
+## Bontago-mp0.3.5 (review r3, problem 2): pressing %AdvRulesBar (a click or
+## ui_accept, per BaseButton's own `pressed` semantics) opens %AdvancedPopup.
+func test_advanced_rules_bar_opens_the_popup() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var popup: Control = lobby.get_node("%AdvancedPopup") as Control
+	assert_false(popup.visible)
+	(lobby.get_node("%AdvRulesBar") as Button).pressed.emit()
+	assert_true(popup.visible)
+
+
+## %AdvancedPopupClose ("Done") hides the popup and returns focus to the bar
+## it was opened from, per the brief's "focus returns to the bar".
+func test_advanced_popup_close_button_closes_it_and_returns_focus_to_the_bar() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var popup: Control = lobby.get_node("%AdvancedPopup") as Control
+	var bar: Button = lobby.get_node("%AdvRulesBar") as Button
+	lobby._open_advanced_popup()
+	assert_true(popup.visible)
+	(lobby.get_node("%AdvancedPopupClose") as Button).pressed.emit()
+	assert_false(popup.visible)
+	assert_true(bar.has_focus(), "closing must return focus to the bar that opened it")
+
+
+## Brief: "closable with a Close/Done pill and ui_cancel". Drives a synthetic
+## ui_cancel InputEventAction through _unhandled_input() the way a gamepad B
+## press or Esc would.
+func test_ui_cancel_closes_the_advanced_popup() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	lobby._open_advanced_popup()
+	var event: InputEventAction = InputEventAction.new()
+	event.action = &"ui_cancel"
+	event.pressed = true
+	lobby._unhandled_input(event)
+	assert_false((lobby.get_node("%AdvancedPopup") as Control).visible)
+
+
+## The six summary chips on %AdvRulesBar must reflect the live controls
+## (moved into the popup) without the popup ever needing to be open.
+func test_advanced_rules_summary_chips_reflect_current_settings() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	(lobby.get_node("%TiltModeOption") as OptionButton).selected = MatchConfig.TiltMode.PHYSICAL_BALANCE
+	(lobby.get_node("%HoleModeOption") as OptionButton).item_selected.emit(MatchConfig.HoleMode.OFF)
+	(lobby.get_node("%MatchTimerSpin") as SpinBox).value = 15
+	(lobby.get_node("%SuddenDeathCheck") as CheckButton).button_pressed = true
+	(lobby.get_node("%TurnBasedCheck") as CheckButton).button_pressed = true
+	if not lobby._special_checkboxes.is_empty():
+		lobby._special_checkboxes[0].button_pressed = false
+	lobby._update_advanced_rules_summary()
+	assert_eq((lobby.get_node("%AdvChipTilt") as Label).text, "Tilt: physical balance")
+	assert_eq((lobby.get_node("%AdvChipTimer") as Label).text, "Match timer: 15 min")
+	assert_eq((lobby.get_node("%AdvChipSudden") as Label).text, "Sudden death: on")
+	assert_eq((lobby.get_node("%AdvChipTurn") as Label).text, "Turn-based: on")
+	if not lobby._special_checkboxes.is_empty():
+		var expected: String = "Specials: %d/%d" % [lobby._special_checkboxes.size() - 1, lobby._special_checkboxes.size()]
+		assert_eq((lobby.get_node("%AdvChipSpecials") as Label).text, expected)
+
+
+## Gamepad/keyboard focus must reach every popup control too (brief: "Keep
+## gamepad focus navigation working through every control including the
+## popup"), in its own closed loop separate from the main card's.
+func test_advanced_popup_focus_chain_is_its_own_closed_loop() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var close_button: Control = lobby.get_node("%AdvancedPopupClose") as Control
+	var tilt_option: Control = lobby.get_node("%TiltModeOption") as Control
+	for unique_name: String in ["%TiltModeOption", "%HoleModeOption", "%MatchTimerSpin", "%SuddenDeathCheck", "%TurnBasedCheck", "%AdvancedPopupClose"]:
+		var control: Control = lobby.get_node(unique_name) as Control
+		assert_ne(control.focus_neighbor_top, NodePath(""), "%s must have an up neighbor" % unique_name)
+		assert_ne(control.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor" % unique_name)
+	# Walk forward from TiltModeOption all the way around and back to itself,
+	# proving it's a closed loop rather than a chain that dead-ends.
+	var current: Control = tilt_option
+	var steps: int = 0
+	var visited_close: bool = false
+	while steps < 20:
+		current = current.get_node(current.focus_neighbor_bottom) as Control
+		if current == close_button:
+			visited_close = true
+		if current == tilt_option:
+			break
+		steps += 1
+	assert_true(visited_close, "the popup loop must pass through the Close/Done button")
+	assert_eq(current, tilt_option, "the popup chain must wrap back to its own start")
+
+
 func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	# ui/Lobby.tscn (unlike ui/OptionsMenu.tscn) carries no static
 	# focus_neighbor_* NodePaths -- _wire_focus_chain() builds the chain at

@@ -128,6 +128,14 @@ extends Resource
 @export var pill_powder_blue_hover_color: Color = Color(0.68, 0.81, 0.91, 1.0)
 @export var pill_dark_slate_color: Color = Color(0.24, 0.28, 0.32, 1.0)
 @export var pill_dark_slate_hover_color: Color = Color(0.32, 0.37, 0.42, 1.0)
+## Bontago-mp0.3.5 (lobby popup pass): a true near-white for the Players
+## card's raised row pills (mockup 11) -- pill_cream_hover_color is the exact
+## same value as card_cream_color, so a row painted with it reads as
+## invisible against its own card (the review r2 "no pill background" bug).
+## Not registered in config/tuning_panel_hints.tres: MenuVisualTuning has no
+## F4 tab yet (ui/TuningPanel.gd's own "MenuVisualTuning is not merged yet
+## and has no tab" comment), so the hints-file rule doesn't apply here.
+@export var pill_white_color: Color = Color(1.0, 0.995, 0.98, 1.0)
 @export var well_color: Color = Color(0.88, 0.84, 0.76, 1.0)
 @export var well_border_color: Color = Color(0.78, 0.68, 0.52, 1.0)
 @export var well_corner_radius_px: float = 10.0

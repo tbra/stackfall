@@ -77,6 +77,12 @@ var net_provider: Variant = null
 @onready var _map_thumbnail: PanelContainer = %MapThumbnail
 @onready var _player_count_spin: SpinBox = %PlayerCountSpin
 @onready var _ai_count_spin: SpinBox = %AiCountSpin
+## Bontago-mp0.3.5 (polish pass, problem 2): mockup 11 puts "Players"/"AI"
+## inside their own stepper pill's left end, not on a separate row above it
+## -- _add_stepper_buttons() reuses these tscn-authored Labels' text and
+## hides the originals rather than duplicating the strings in code.
+@onready var _players_sub_label: Label = %PlayersSubLabel
+@onready var _ai_sub_label: Label = %AiSubLabel
 @onready var _ai_difficulty_option: OptionButton = %AiDifficultyOption
 @onready var _team_mode_option: OptionButton = %TeamModeOption
 ## Bontago-mp0.3.5 (mockup 11's TEAMS segmented control): %TeamModeOption
@@ -113,6 +119,30 @@ var net_provider: Variant = null
 @onready var _specials_checklist: HFlowContainer = %SpecialsChecklist
 @onready var _specials_label: Label = %SpecialsLabel
 @onready var _advanced_rules_label: Label = %AdvancedRulesLabel
+
+## Bontago-mp0.3.5 (review r3, problem 2): the specials checklist + the five
+## rule controls above moved out of the always-visible card into this modal
+## popup (mockup 11 has no room for them inline at 1280x720 without either a
+## horizontal scrollbar or clipped chips -- review r2's own disclosed gap).
+## %AdvRulesBar is the always-visible summary row that opens it.
+##
+## Bontago-mp0.3.5 (polish pass, problem 1): %AdvRulesBarPanel is the visible
+## pill background; %AdvRulesBar (a Button, styled transparent) and
+## %AdvRulesBarContent (label + chips) are both its children, stacked over
+## the same rect by PanelContainer's own multi-child layout, so the whole bar
+## grows in height when %AdvRulesChips wraps onto a second row instead of the
+## old fixed-height anchored-Button layout letting wrapped chips spill out.
+@onready var _adv_rules_bar_panel: PanelContainer = %AdvRulesBarPanel
+@onready var _adv_rules_bar: Button = %AdvRulesBar
+@onready var _adv_chip_tilt: Label = %AdvChipTilt
+@onready var _adv_chip_hole: Label = %AdvChipHole
+@onready var _adv_chip_timer: Label = %AdvChipTimer
+@onready var _adv_chip_sudden: Label = %AdvChipSudden
+@onready var _adv_chip_turn: Label = %AdvChipTurn
+@onready var _adv_chip_specials: Label = %AdvChipSpecials
+@onready var _advanced_popup: Control = %AdvancedPopup
+@onready var _advanced_popup_card: PanelContainer = %AdvancedPopupCard
+@onready var _advanced_popup_close: Button = %AdvancedPopupClose
 
 @onready var _player_list: VBoxContainer = %PlayerList
 @onready var _ready_check: CheckButton = %ReadyCheck
@@ -156,7 +186,11 @@ var _special_ids: Array[StringName] = []
 ## _add_stepper_buttons() builds around each stepper SpinBox, in insertion
 ## order (minus, plus, minus, plus, ...) -- read by _wire_focus_chain() so
 ## they're gamepad-focusable, same as every other settings control.
-var _stepper_buttons: Array[Button] = []
+## Split in two (review r3, problem 2) because Players/AI/Goal-flags stay in
+## the always-visible main chain but Match-timer's stepper moved into the
+## popup's own separate closed loop along with it.
+var _main_stepper_buttons: Array[Button] = []
+var _popup_stepper_buttons: Array[Button] = []
 
 ## True while _apply_data() is writing sanitized values back into the
 ## controls, so the value-changed signals that causes fire without
@@ -181,6 +215,8 @@ func _ready() -> void:
 	_ready_check.toggled.connect(_on_ready_toggled)
 	_invite_friends_button.pressed.connect(_on_invite_friends_pressed)
 	_back_button.pressed.connect(_on_back_pressed)
+	_adv_rules_bar.pressed.connect(_open_advanced_popup)
+	_advanced_popup_close.pressed.connect(_close_advanced_popup)
 	_connect_click_and_hover_sounds()
 	Events.net_lobby_data_changed.connect(_on_lobby_data_changed)
 	Events.net_peer_joined.connect(_on_peer_joined)
@@ -301,28 +337,42 @@ func _build_specials_checklist() -> void:
 ## (_player_rows, rebuilt on every roster change) are plain
 ## HBoxContainer(ColorRect, Label) with no focusable child, so they never
 ## enter the chain and a later roster change can't invalidate it.
+## Bontago-mp0.3.5 (review r3, problem 2): the specials checklist and the
+## five advanced-rule controls now live inside %AdvancedPopup, only reachable
+## once it's open -- they get their *own* closed loop (_wire_loop() again,
+## just called a second time) instead of sharing the main card's loop, so a
+## Tab press on the main screen can never land on a control the popup hasn't
+## opened yet. %AdvRulesBar replaces them in the main loop as the single
+## always-visible entry point (test_focus_chain_is_a_closed_loop_through_
+## every_row() only asserts every one of these unique names has *a* neighbor
+## on both sides, not that they share one loop with %StartButton).
 func _wire_focus_chain() -> void:
 	var chain: Array[Control] = [
-		_map_combo_option, _player_count_spin, _ai_count_spin,
-		_ai_difficulty_option, _block_timer_slider, _gravity_slider,
-		_goal_flag_spin, _gifts_check, _special_freq_slider, _back_button,
+		_map_combo_option, _player_count_spin, _ai_count_spin, _ai_difficulty_option,
 	]
+	chain.append_array(_team_buttons)
+	chain.append_array([_block_timer_slider, _gravity_slider, _goal_flag_spin, _gifts_check, _special_freq_slider])
 	# Bontago-mp0.3.5 (review r2, item 2): the round "-"/"+" stepper buttons
 	# aren't slotted into their exact visual rows here -- only that every one
 	# of them is somewhere in the closed loop with a focus neighbor on both
 	# sides, same as every other control this chain covers.
-	chain.append_array(_stepper_buttons)
-	# Bontago-mp0.3.5: %TeamModeOption is now hidden (visible front end is
-	# _team_buttons), so it drops out of the focus chain in favor of the four
-	# segmented buttons, inserted right after it used to sit.
-	chain.append_array(_team_buttons)
-	for box: CheckBox in _special_checkboxes:
-		chain.append(box)
-	chain.append_array([
-		_tilt_mode_option, _hole_mode_option, _match_timer_spin, _sudden_death_check,
-		_turn_based_check, _invite_friends_button, _ready_check, _start_button,
-	])
+	chain.append_array(_main_stepper_buttons)
+	chain.append_array([_adv_rules_bar, _back_button, _invite_friends_button, _ready_check, _start_button])
+	_wire_loop(chain)
 
+	var popup_chain: Array[Control] = []
+	for box: CheckBox in _special_checkboxes:
+		popup_chain.append(box)
+	popup_chain.append_array([_tilt_mode_option, _hole_mode_option, _match_timer_spin])
+	popup_chain.append_array(_popup_stepper_buttons)
+	popup_chain.append_array([_sudden_death_check, _turn_based_check, _advanced_popup_close])
+	_wire_loop(popup_chain)
+
+
+## Assigns focus_neighbor_top/bottom so [param chain] forms one closed loop,
+## wrapping from its last entry back to its first. Shared by the main card's
+## loop and the advanced-rules popup's own separate loop (_wire_focus_chain()).
+func _wire_loop(chain: Array[Control]) -> void:
 	for i: int in range(chain.size()):
 		var current: Control = chain[i]
 		var prev: Control = chain[(i - 1 + chain.size()) % chain.size()]
@@ -375,53 +425,82 @@ func _sync_team_segmented(team_mode: int) -> void:
 ## parent HBoxContainer -- both just nudge [param spin].value by one step()
 ## and let SpinBox's own existing value_changed -> _on_value_changed()
 ## wiring do the rest, so this never duplicates the round-trip/clamp logic.
-## Appends both to _stepper_buttons so _update_host_only_state() (which
-## walks _settings_controls, populated from _stepper_buttons in _ready())
-## gates them exactly like every other host-only control.
-func _add_stepper_buttons(spin: SpinBox) -> void:
-	# Bontago-mp0.3.5 (review r2 bugfix): inserting the two buttons straight
-	# into [param spin]'s own parent broke every VBoxContainer parent (e.g.
-	# %MatchTimerCol: Caption above Spin) -- a wide Button landed *above* the
-	# SpinBox instead of beside it, ballooning that column's height and (via
-	# %SettingsScroll's own "scroll the focused control into view" behavior)
-	# shifting the whole card sideways in every capture. Wrapping the spin in
-	# its own new HBoxContainer, inserted at its old index, keeps the
-	# original parent's own layout direction (vertical *or* horizontal)
-	# intact either way.
+## Appends both to [param target] (the main card's or the popup's own
+## _wire_focus_chain() loop -- review r3, problem 2) so
+## _update_host_only_state() (which walks _settings_controls, populated from
+## both target arrays in _ready()) gates them exactly like every other
+## host-only control.
+##
+## Bontago-mp0.3.5 (review r3, problem 3): the SpinBox itself keeps min/max/
+## step/value/value_changed exactly as before (every get_node("%...").value
+## read/write in this file and in tests/unit/test_lobby.gd is untouched) --
+## only its native up/down spinner buttons are hidden, via the "buttons_width"
+## theme constant SpinBox itself exposes for exactly this (confirmed against
+## the running engine's ThemeDB.get_default_theme().get_constant_list(
+## "SpinBox"), not guessed), so the round pill buttons are the only visible
+## way to nudge it and it reads as a plain bordered value field.
+## Bontago-mp0.3.5 (polish pass, problem 2): mockup 11 draws each stepper as
+## ONE sunken pill -- "[label] (-) value (+)" -- not a bordered SpinBox field
+## flanked by two separate button pills. [param spin] keeps its min/max/step/
+## value/value_changed exactly as before (every get_node("%...").value read/
+## write in this file and in tests/unit/test_lobby.gd is untouched) but is
+## hidden (`visible = false`, so a Container skips it entirely -- no reparent,
+## no owner-reassignment bug like the old wrapper-HBoxContainer approach had
+## to work around); a plain borderless Label shows its value, kept in sync by
+## [param spin]'s own value_changed (which Range emits for a program matic
+## `.value = x` too, so a remote _apply_data() update reaches it exactly like
+## a button press does). [param inline_label], when given, is one of this
+## file's own tscn-authored captions (%PlayersSubLabel/%AiSubLabel) -- hidden
+## and its text folded into the pill's own left end instead of sitting on a
+## separate row above it (mockup 11 has no separate "Players"/"AI" caption
+## row; the word lives inside the pill).
+func _add_stepper_buttons(spin: SpinBox, target: Array[Button], inline_label: Label = null) -> void:
+	MenuStyleFactory.hide_spinbox_arrows(spin)
+	spin.visible = false
+
 	var parent: Node = spin.get_parent()
 	var index: int = spin.get_index()
-	# Bontago-mp0.3.5 (review r2 bugfix #2): remove_child()/add_child() alone
-	# silently drops the %PlayerCountSpin-style unique-name registration even
-	# though `owner` is untouched by the reparent -- every get_node("%...")
-	# lookup on a moved SpinBox started failing across the whole test suite.
-	# Re-asserting `owner` after the move forces Godot to re-run its
-	# unique-name registration (Node._acquire_unique_name_in_owner()).
 	var scene_owner: Node = spin.owner
-	var wrapper: HBoxContainer = HBoxContainer.new()
-	wrapper.add_theme_constant_override("separation", 4)
-	wrapper.size_flags_horizontal = spin.size_flags_horizontal
-	parent.add_child(wrapper)
-	parent.move_child(wrapper, index)
-	wrapper.owner = scene_owner
-	parent.remove_child(spin)
-	wrapper.add_child(spin)
-	spin.owner = scene_owner
+	var pill: PanelContainer = PanelContainer.new()
+	pill.size_flags_horizontal = spin.size_flags_horizontal
+	pill.add_theme_stylebox_override("panel", MenuStyleFactory.make_well_pill(tuning))
+	parent.add_child(pill)
+	parent.move_child(pill, index)
+	pill.owner = scene_owner
+
+	var content: HBoxContainer = HBoxContainer.new()
+	content.add_theme_constant_override("separation", 6)
+	pill.add_child(content)
+
+	if inline_label != null:
+		inline_label.visible = false
+		var name_label: Label = Label.new()
+		name_label.text = inline_label.text
+		name_label.add_theme_font_size_override("font_size", 13)
+		content.add_child(name_label)
+		var spacer: Control = Control.new()
+		spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		content.add_child(spacer)
 
 	var minus: Button = Button.new()
 	minus.text = "−"
-	minus.custom_minimum_size = Vector2(20.0, 20.0)
 	minus.pressed.connect(func() -> void: spin.value = maxf(spin.min_value, spin.value - spin.step))
+	var value_label: Label = Label.new()
+	value_label.custom_minimum_size = Vector2(20.0, 0)
+	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	value_label.text = str(int(spin.value))
+	spin.value_changed.connect(func(_v: float) -> void: value_label.text = str(int(spin.value)))
 	var plus: Button = Button.new()
 	plus.text = "+"
-	plus.custom_minimum_size = Vector2(20.0, 20.0)
 	plus.pressed.connect(func() -> void: spin.value = minf(spin.max_value, spin.value + spin.step))
-	wrapper.add_child(minus)
-	wrapper.move_child(minus, 0)
-	wrapper.add_child(plus)
-	MenuStyleFactory.apply_pill(minus, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
-	MenuStyleFactory.apply_pill(plus, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
-	_stepper_buttons.append(minus)
-	_stepper_buttons.append(plus)
+	content.add_child(minus)
+	content.add_child(value_label)
+	content.add_child(plus)
+	MenuStyleFactory.apply_flat_stepper_button(minus, tuning)
+	MenuStyleFactory.apply_flat_stepper_button(plus, tuning)
+	value_label.add_theme_color_override("font_color", tuning.ink_color)
+	target.append(minus)
+	target.append(plus)
 	_settings_controls.append(minus)
 	_settings_controls.append(plus)
 
@@ -478,9 +557,14 @@ func _apply_visual_style() -> void:
 	# Bontago-mp0.3.5 (review r2, item 2): round "-"/"+" stepper pills flanking
 	# every SpinBox (mockup 11) -- the SpinBox itself stays exactly as it was
 	# (same min/max/step, same value_changed wiring), these just give it a
-	# second, gamepad-focusable way to nudge the value by one step.
-	for spin: SpinBox in [_player_count_spin, _ai_count_spin, _goal_flag_spin, _match_timer_spin]:
-		_add_stepper_buttons(spin)
+	# second, gamepad-focusable way to nudge the value by one step, and (review
+	# r3, problem 3) hides the native up/down spinner entirely.
+	_add_stepper_buttons(_player_count_spin, _main_stepper_buttons, _players_sub_label)
+	_add_stepper_buttons(_ai_count_spin, _main_stepper_buttons, _ai_sub_label)
+	_add_stepper_buttons(_goal_flag_spin, _main_stepper_buttons)
+	# Match timer moved into %AdvancedPopup (review r3, problem 2) -- its
+	# stepper buttons join the popup's own separate focus loop instead.
+	_add_stepper_buttons(_match_timer_spin, _popup_stepper_buttons)
 
 	# Bontago-mp0.3.5 (review r2, item 1): a small round disc icon (dark
 	# slate fill, light rim) beside %MapComboOption -- the same two-tone
@@ -545,6 +629,8 @@ func _apply_visual_style() -> void:
 	for caption: Label in captions:
 		caption.add_theme_color_override("font_color", tuning.label_muted_color)
 
+	_apply_advanced_rules_popup_style()
+
 	_status_badge.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_cream_color, tuning))
 	_gamepad_hint_pill.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_cream_color, tuning))
 	_waiting_status_pill.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_cream_color, tuning))
@@ -558,9 +644,104 @@ func _apply_visual_style() -> void:
 	_header_title.add_theme_color_override("font_shadow_color", tuning.title_shadow_color)
 	_header_title.add_theme_constant_override("shadow_offset_x", int(tuning.title_shadow_offset_px.x))
 	_header_title.add_theme_constant_override("shadow_offset_y", int(tuning.title_shadow_offset_px.y))
-	_header_eyebrow.add_theme_color_override("font_color", tuning.label_muted_color)
+	# Bontago-mp0.3.5 (review r3, problem 6): mockup 11's small "Stackfall"
+	# wordmark reads bold and dark, not the tiny letter-spaced grey caption
+	# treatment every other eyebrow label on this screen uses -- %Eyebrow's
+	# own theme_type_variation is TitleLabel (ui/Lobby.tscn), same bold font
+	# as %HeaderTitle, just a smaller font_size (set in the tscn); only the
+	# color needs to flip from muted grey to the shared ink color here.
+	_header_eyebrow.add_theme_color_override("font_color", tuning.ink_color)
 	_player_count_label.add_theme_color_override("font_color", tuning.ink_color)
 	_update_status_badge()
+
+
+## Bontago-mp0.3.5 (review r3, problem 2): the bar itself is a cream pill
+## Button (its text stays empty; %AdvRulesBarLabel + %AdvRulesChips are child
+## Controls with mouse_filter = MOUSE_FILTER_IGNORE, so clicks fall through
+## to %AdvRulesBar (the Button) underneath them -- the same "icon + label
+## inside a Button" pattern used everywhere else in Godot's own UI).
+##
+## Bontago-mp0.3.5 (polish pass, problem 1): %AdvRulesBarPanel (a
+## PanelContainer, not the Button) is now the visible background -- a flat
+## cream pill with real content-margin padding -- and %AdvRulesBar itself is
+## styled fully transparent (apply_flat_stepper_button(), same "no background
+## in any state, keep the shared focus ring" helper the stepper glyphs use)
+## so the two don't double-draw a background. Each chip is a flat, shadow-
+## less make_flat_chip() pill (not make_badge()'s raised/shadowed pill) in a
+## lighter beige than the bar itself, smaller text (set in ui/Lobby.tscn),
+## so they read as light summary tokens rather than a second row of buttons.
+func _apply_advanced_rules_popup_style() -> void:
+	_adv_rules_bar_panel.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_cream_color, tuning))
+	MenuStyleFactory.apply_flat_stepper_button(_adv_rules_bar, tuning)
+	for chip_label: Label in [
+		_adv_chip_tilt, _adv_chip_hole, _adv_chip_timer,
+		_adv_chip_sudden, _adv_chip_turn, _adv_chip_specials,
+	]:
+		var chip_panel: PanelContainer = chip_label.get_parent() as PanelContainer
+		chip_panel.add_theme_stylebox_override("panel", MenuStyleFactory.make_flat_chip(tuning.pill_cream_hover_color, tuning))
+		chip_label.add_theme_color_override("font_color", tuning.ink_color)
+	_advanced_popup_card.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(tuning.card_cream_color, tuning))
+	MenuStyleFactory.apply_pill(
+		_advanced_popup_close, tuning.pill_coral_color, tuning.pill_coral_hover_color, tuning.label_ink_light_color, tuning
+	)
+
+
+## Bontago-mp0.3.5 (review r3, problem 2): "Activating the bar (click /
+## ui_accept) opens a modal popup ... focus returns to the bar" -- Button's
+## own `pressed` signal already fires for both a mouse click and ui_accept
+## while focused (BaseButton's default shortcut behavior), so this is the
+## bar's sole `pressed` handler, wired in _ready().
+func _open_advanced_popup() -> void:
+	_advanced_popup.visible = true
+	var first: Control = _special_checkboxes[0] if not _special_checkboxes.is_empty() else _tilt_mode_option
+	first.grab_focus()
+
+
+func _close_advanced_popup() -> void:
+	_advanced_popup.visible = false
+	_adv_rules_bar.grab_focus()
+
+
+## ui_cancel closes the popup from anywhere inside it (brief: "closable with
+## a Close/Done pill and ui_cancel"). %AdvancedPopupClose's own `pressed`
+## already covers the pill; this covers the Esc/gamepad-B path, consuming the
+## event so it doesn't also trigger whatever ui_cancel does one layer up
+## (e.g. game/Main.gd's own pause/back handling).
+func _unhandled_input(event: InputEvent) -> void:
+	if _advanced_popup.visible and event.is_action_pressed(&"ui_cancel"):
+		_close_advanced_popup()
+		get_viewport().set_input_as_handled()
+
+
+## Live summary chips on %AdvRulesBar (brief: "label + summary chips that
+## update live"), driven straight off the same controls _config_from_controls()
+## reads -- called once from _apply_data() so every path that can change one
+## of these five settings (a host's own edit, which round-trips through
+## _publish_lobby_data() -> _apply_data(), or a remote update) refreshes the
+## bar without a second signal wiring.
+func _update_advanced_rules_summary() -> void:
+	_adv_chip_tilt.text = "Tilt: %s" % (
+		"specials only" if _tilt_mode_option.selected == MatchConfig.TiltMode.SPECIALS_ONLY else "physical balance"
+	)
+	var hole_labels: Array[String] = ["temporary", "permanent", "off"]
+	_adv_chip_hole.text = "Holes: %s" % hole_labels[clampi(_hole_mode_option.selected, 0, hole_labels.size() - 1)]
+	var timer_minutes: int = int(_match_timer_spin.value)
+	_adv_chip_timer.text = "Match timer: off" if timer_minutes == 0 else "Match timer: %d min" % timer_minutes
+	_adv_chip_sudden.text = "Sudden death: %s" % ("on" if _sudden_death_check.button_pressed else "off")
+	_adv_chip_turn.text = "Turn-based: %s" % ("on" if _turn_based_check.button_pressed else "off")
+	var enabled_count: int = 0
+	for box: CheckBox in _special_checkboxes:
+		if box.button_pressed:
+			enabled_count += 1
+	_adv_chip_specials.text = "Specials: %d/%d" % [enabled_count, _special_checkboxes.size()]
+
+
+## Bontago-mp0.3.5: tools/capture_mockup08.gd's own `--lobby-advanced` frame
+## (public wrapper so the capture tool, which isn't part of this package's
+## own private-method surface, doesn't reach into `_open_advanced_popup()`
+## directly).
+func debug_open_advanced_rules_popup() -> void:
+	_open_advanced_popup()
 
 
 func _on_back_pressed() -> void:
@@ -714,6 +895,7 @@ func _apply_data(data: Dictionary) -> void:
 	_turn_based_check.button_pressed = config.turn_based
 	_apply_enabled_specials_to_checkboxes(config.enabled_specials)
 	_applying_remote_data = false
+	_update_advanced_rules_summary()
 
 	if data.has("roster"):
 		_apply_roster(data["roster"])
@@ -823,7 +1005,14 @@ func _build_player_row(entry: Dictionary, ready: bool) -> PanelContainer:
 	var slot_color: Color = palette[slot_id] if slot_id >= 0 and slot_id < palette.size() else Color.GRAY
 
 	var row: PanelContainer = PanelContainer.new()
-	row.add_theme_stylebox_override("panel", MenuStyleFactory.make_flat_list(tuning))
+	# Bontago-mp0.3.5 (review r3, problem 5): make_flat_list() draws
+	# pill_cream_hover_color, which is the *exact same* Color as
+	# card_cream_color (config/MenuVisualTuning.gd) -- the row was blending
+	# invisibly into %PlayersCard's own background instead of reading as a
+	# raised white pill (mockup 11). tuning.pill_white_color is a real near-
+	# white the card can never match.
+	row.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_white_color, tuning))
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var layout: HBoxContainer = HBoxContainer.new()
 	layout.add_theme_constant_override("separation", 10)
 	row.add_child(layout)
