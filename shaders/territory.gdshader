@@ -107,6 +107,53 @@ uniform vec4 base_color : source_color = vec4(0.68, 0.70, 0.74, 1.0);
 uniform float base_metallic : hint_range(0.0, 1.0) = 0.1;
 uniform float base_roughness : hint_range(0.0, 1.0) = 0.3;
 
+// -- Sun-facing sheen / diffuse cooling (Bontago-mp0.3.8) --------------------
+// Owner report: "the disc top reads flat maroon-brown, mockup is dark cool
+// graphite/black lacquer with a warm gold sheen gradient toward the sun".
+// Main.tscn's DirectionalLight3D is warm (Bontago-mp0.3.6 look pass,
+// light_color (1, 0.94, 0.85)) -- deliberately tuned for the blocks and out
+// of scope here ("fix in the disc shading ... don't touch game/Main.tscn").
+// Godot's default diffuse response multiplies ALBEDO by that warm
+// LIGHT_COLOR every frame, which pushes disk_base_color's own cool grey
+// (~#23262c) toward brown wherever the top faces the sun -- confirmed:
+// disk_base_color is already the correct cool value; only the LIT result was
+// wrong. light() below (Godot 4: defining it replaces only the DIRECT
+// DirectionalLight3D diffuse/specular pass -- ambient/IBL/the planar mirror
+// above are computed elsewhere, untouched) desaturates that light's colour
+// toward its own luminance and caps its overall energy, so ambient/mirror/
+// the explicit sheen below stay the dominant read instead of a warm-lit
+// matte surface.
+//
+// DECISION (shaders/territory.gdshader, Bontago-mp0.3.8 review pass): the
+// first version of disk_sheen_* was a purely POSITION-based gradient
+// (disk-local direction from center, dotted with the sun's own horizontal
+// direction) -- camera-independent, so it painted the exact same half of the
+// disc gold from every angle, which read as a correct sunset gradient in the
+// one --face-sun framing it was tuned against but as a flat gold wash (the
+// default/player camera happens to look mostly at that same "sun half") or a
+// hard diagonal terminator (the default overview framing, whose camera angle
+// crosses the gradient boundary) in every other framing. Replaced with a
+// genuine VIEW-DEPENDENT specular-style term: reflect() the camera's own
+// view ray off the disc's flat NORMAL and compare the result with the sun's
+// own direction -- standard mirror optics (this is exactly "would a perfect
+// mirror at this point show the sun's reflection to this camera"), so the
+// sheen is strong only when the camera is actually positioned to see the
+// disc mirror the sun toward it (per-pixel VIEW varies across the surface
+// even for one camera, which is what gives the mockup's own broad gradient
+// rather than a single infinitesimal hot spot), and naturally falls to
+// ~0 when the sun sits behind the camera. disk_sheen_exponent (replacing the
+// old disk_sheen_softness) is deliberately LOW (a broad lobe, not a tight
+// mirror-sharp highlight) -- a real GGX specular hot spot was already
+// rejected on this surface for the DIRECT light (see the render_mode
+// DECISION above); this is still a hand-tuned, non-physical falloff shape,
+// just now genuinely reflection-driven rather than a fixed position mask.
+uniform vec3 sun_direction = vec3(0.963087, 0.069011, -0.260192);
+uniform vec3 disk_sheen_color : source_color = vec3(1.0, 0.78, 0.4);
+uniform float disk_sheen_strength : hint_range(0.0, 2.0) = 0.6;
+uniform float disk_sheen_exponent : hint_range(0.5, 16.0) = 2.5;
+uniform float disk_diffuse_response : hint_range(0.0, 1.0) = 0.45;
+uniform float disk_diffuse_desaturate : hint_range(0.0, 1.0) = 0.85;
+
 // DECISION (shaders/territory.gdshader, Bontago-xtq.11): the two disk-opacity
 // uniforms that used to live here were removed -- fragment() no longer
 // writes ALPHA, so the disk is unconditionally opaque now (see the
@@ -222,6 +269,21 @@ void vertex() {
 	local.z *= disc_z_scale;
 	VERTEX = local;
 	v_local = local;
+}
+
+// Bontago-mp0.3.8 problem 1 (see the disk_diffuse_* uniforms' own DECISION
+// above): only replaces the DIRECT DirectionalLight3D contribution --
+// ambient/IBL and the planar mirror EMISSION added in fragment() below are
+// untouched by defining this. Desaturating LIGHT_COLOR toward its own
+// luminance keeps the diffuse term's brightness/shading (ATTENUATION,
+// N.L via Godot's own light() call site) while dropping most of the sun's
+// warm hue, so the surface's own cool ALBEDO reads through instead of being
+// tinted brown; disk_diffuse_response then caps the whole term's energy so
+// the disc doesn't just become an evenly-lit flat grey either.
+void light() {
+	float luma = dot(LIGHT_COLOR.rgb, vec3(0.299, 0.587, 0.114));
+	vec3 cool_light = mix(LIGHT_COLOR.rgb, vec3(luma), disk_diffuse_desaturate);
+	DIFFUSE_LIGHT += ALBEDO * cool_light * ATTENUATION * disk_diffuse_response;
 }
 
 // Polynomial smooth min (Inigo Quilez). k <= 0 degrades to a hard min, so
@@ -479,6 +541,25 @@ void fragment() {
 		albedo *= 1.0 - mirror_amount;
 		emission += mirror_color * mirror_amount;
 	}
+
+	// Bontago-mp0.3.8 problem 1: the explicit warm-gold sheen -- see the
+	// disk_sheen_* uniforms' own DECISION above (view-dependent mirror-
+	// reflection term, not a fixed position mask). NORMAL/VIEW are both
+	// view-space here (same as the mirror fresnel block above); sun_view_dir
+	// is config/sun_flare.tres's own world-space sun_direction transformed
+	// into that same view space so it can be compared directly. reflected is
+	// "what direction would a perfect mirror at this point send the camera's
+	// own view ray back out towards" -- when that lines up with the sun's own
+	// direction, this point genuinely mirrors the sun toward the camera, the
+	// same test a real specular highlight uses, just with a deliberately low
+	// (broad, soft) exponent instead of a photorealistic sharp one.
+	vec3 sheen_normal = normalize(NORMAL);
+	vec3 sheen_view = normalize(VIEW);
+	vec3 sun_view_dir = normalize((VIEW_MATRIX * vec4(sun_direction, 0.0)).xyz);
+	vec3 reflected = reflect(-sheen_view, sheen_normal);
+	float alignment = clamp(dot(normalize(reflected), sun_view_dir), 0.0, 1.0);
+	float sheen = pow(alignment, disk_sheen_exponent);
+	emission += disk_sheen_color * disk_sheen_strength * sheen;
 
 	ALBEDO = albedo;
 	EMISSION = emission;

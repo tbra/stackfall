@@ -44,6 +44,10 @@ extends Node3D
 
 @export var visuals: DiscBodyVisuals = preload("res://config/disc_body_visuals.tres")
 
+## Bontago-mp0.3.8: the rim's own screen-space-minimum-width shader -- see
+## shaders/disc_rim.gdshader's own class-doc-equivalent header comment.
+const _RIM_SHADER: Shader = preload("res://shaders/disc_rim.gdshader")
+
 ## Minimum segments for a degenerate/test MapDef (a triangle is the fewest a
 ## closed band can be built from); production maps use
 ## TerritoryVisuals.disk_mesh_segments (96 by default), passed in by whoever
@@ -94,8 +98,19 @@ func rebuild(segments: int) -> void:
 
 	var rim_height: float = band_height * clampf(visuals.rim_height_fraction, 0.0, 1.0)
 	var rim_points: PackedVector2Array = _scaled_points(points, visuals.rim_radius_scale)
+	# Bontago-mp0.3.8: rim_lift raises the rim's own top edge a few
+	# centimeters above the true playing surface -- separates it from game/
+	# TerritoryOverlay.gd's own CylinderMesh top-face edge on the Y axis (a
+	# depth-buffer z-fight at long camera distances) without needing
+	# rim_radius_scale to be pushed out far enough to read as a floating gap
+	# (see that field's own DECISION).
+	var rim_top_y: float = top_y + visuals.rim_lift
 	_rim = _mesh_instance(_rim, &"Rim")
-	_rim.mesh = _build_band_mesh(rim_points, top_y, top_y - rim_height, false)
+	# Bontago-mp0.3.8: with_gradient = true paints COLOR.r = 0.0/1.0 on the
+	# top/bottom edges -- shaders/disc_rim.gdshader's own vertex() reads that
+	# to know which edge it may push down for its screen-space minimum width,
+	# and its fragment() to fade EMISSION from the top edge down.
+	_rim.mesh = _build_band_mesh(rim_points, rim_top_y, rim_top_y - rim_height, false, true)
 	_rim.material_override = _rim_material()
 
 
@@ -157,8 +172,18 @@ func _scaled_points(points: PackedVector2Array, scale: float) -> PackedVector2Ar
 ## A closed vertical band between `points` at `top_y` and `bottom_y`, with an
 ## optional flat bottom cap. Smooth-shaded (st.generate_normals()), the same
 ## look Godot's own CylinderMesh gives the top surface's side wall.
+##
+## `with_gradient` (Bontago-mp0.3.8) paints COLOR.r = 0.0 on every top-edge
+## vertex and 1.0 on every bottom-edge vertex, so shaders/disc_rim.gdshader's
+## rim material can tell, per vertex, which edge it is without a second
+## uniform -- see that shader's own header comment. Unused (false) by the
+## band's own plain StandardMaterial3D.
 func _build_band_mesh(
-	points: PackedVector2Array, top_y: float, bottom_y: float, cap_bottom: bool
+	points: PackedVector2Array,
+	top_y: float,
+	bottom_y: float,
+	cap_bottom: bool,
+	with_gradient: bool = false
 ) -> ArrayMesh:
 	var surface_tool: SurfaceTool = SurfaceTool.new()
 	surface_tool.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -170,7 +195,7 @@ func _build_band_mesh(
 		var p1: Vector3 = Vector3(b.x, top_y, b.y)
 		var p2: Vector3 = Vector3(b.x, bottom_y, b.y)
 		var p3: Vector3 = Vector3(a.x, bottom_y, a.y)
-		_add_quad(surface_tool, p0, p1, p2, p3)
+		_add_quad(surface_tool, p0, p1, p2, p3, with_gradient)
 	if cap_bottom:
 		_add_bottom_cap(surface_tool, points, bottom_y)
 	surface_tool.generate_normals()
@@ -178,13 +203,34 @@ func _build_band_mesh(
 
 
 func _add_quad(
-	surface_tool: SurfaceTool, p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3
+	surface_tool: SurfaceTool,
+	p0: Vector3,
+	p1: Vector3,
+	p2: Vector3,
+	p3: Vector3,
+	with_gradient: bool = false
 ) -> void:
+	# p0/p1 are this quad's top edge (COLOR.r = 0.0), p2/p3 its bottom edge
+	# (COLOR.r = 1.0) -- see _build_band_mesh()'s own `with_gradient` doc.
+	const TOP_COLOR: Color = Color(0.0, 0.0, 0.0, 1.0)
+	const BOTTOM_COLOR: Color = Color(1.0, 0.0, 0.0, 1.0)
+	if with_gradient:
+		surface_tool.set_color(TOP_COLOR)
 	surface_tool.add_vertex(p0)
+	if with_gradient:
+		surface_tool.set_color(TOP_COLOR)
 	surface_tool.add_vertex(p1)
+	if with_gradient:
+		surface_tool.set_color(BOTTOM_COLOR)
 	surface_tool.add_vertex(p2)
+	if with_gradient:
+		surface_tool.set_color(TOP_COLOR)
 	surface_tool.add_vertex(p0)
+	if with_gradient:
+		surface_tool.set_color(BOTTOM_COLOR)
 	surface_tool.add_vertex(p2)
+	if with_gradient:
+		surface_tool.set_color(BOTTOM_COLOR)
 	surface_tool.add_vertex(p3)
 
 
@@ -211,13 +257,18 @@ func _band_material() -> StandardMaterial3D:
 	return material
 
 
-func _rim_material() -> StandardMaterial3D:
-	var material: StandardMaterial3D = StandardMaterial3D.new()
-	material.albedo_color = visuals.rim_color
-	material.emission_enabled = true
-	material.emission = visuals.rim_color
-	material.emission_energy_multiplier = visuals.rim_emission_energy
-	material.metallic = 0.0
-	material.roughness = 1.0
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+## Bontago-mp0.3.8: a ShaderMaterial (shaders/disc_rim.gdshader) rather than
+## the band's own plain StandardMaterial3D -- the dashing-at-distance fix
+## needs a vertex shader that reads this mesh's own gradient vertex colors
+## (see _build_band_mesh()'s `with_gradient`) to push its bottom edge down by
+## a camera-distance-proportional amount, which a fixed material cannot do.
+func _rim_material() -> ShaderMaterial:
+	var material: ShaderMaterial = ShaderMaterial.new()
+	material.shader = _RIM_SHADER
+	material.set_shader_parameter(&"rim_color", visuals.rim_color)
+	material.set_shader_parameter(&"rim_emission_energy", visuals.rim_emission_energy)
+	material.set_shader_parameter(&"band_color", visuals.band_color)
+	material.set_shader_parameter(
+		&"min_screen_width_factor", visuals.rim_screen_min_width_factor
+	)
 	return material

@@ -90,6 +90,53 @@ extends Resource
 ## circle rather than a polygon at the camera distances spec 2.5 allows.
 @export var disk_mesh_segments: int = 96
 
+## -- Sun-facing sheen / diffuse cooling (Bontago-mp0.3.8, owner: "the disc
+## top reads flat maroon-brown, mockup is dark cool graphite/black lacquer
+## with a warm gold sheen gradient toward the sun") --------------------------
+## Overall energy of the disc top's DIRECT DirectionalLight3D diffuse
+## response (shaders/territory.gdshader's own light() function) -- ambient/
+## IBL/the planar mirror are untouched by this. < 1 so the sun (tuned for the
+## blocks in Main.tscn, out of scope here) doesn't dominate the disc's own
+## cool disk_base_color the way Godot's uncapped default diffuse response did.
+@export var disk_diffuse_response: float = 0.45
+## How much the direct light's own warm colour is desaturated toward its
+## luminance before it multiplies the disc's ALBEDO in that same light()
+## function -- 1.0 removes the hue entirely (brightness-only shading), 0.0
+## leaves it fully warm (Godot's ordinary default).
+@export var disk_diffuse_desaturate: float = 0.85
+## Color of the sun-facing sheen (docs/art_mockups/08-cel-shaded-home-
+## beacons.png: a warm gold sheen on the half of the disc toward the sun).
+@export var disk_sheen_color: Color = Color(1.0, 0.78, 0.4)
+## Peak strength of the sun-facing sheen; 0 disables it.
+##
+## DECISION (config/TerritoryVisuals.gd, Bontago-mp0.3.8): 0.35 (this field's
+## first-pass value, paired with the old fixed-position gradient) added
+## enough EMISSION to wash out a team's own tint entirely on the sun-facing
+## half (feedback/overhaul/disc2-r1-player.png: deep red territory near a
+## home flag read as flat gold, not "red with a gold sheen") -- the brief's
+## own "keep: territory tints" -- lowered. Re-raised somewhat (0.12 -> 0.6)
+## after switching to the view-dependent reflect()-based term below (see
+## shaders/territory.gdshader's own DECISION): that term is naturally more
+## localized (only bright where the disc genuinely mirrors the sun toward
+## the camera) than the old always-on half-disc gradient was, so the same
+## visible brightness needs a higher peak value.
+@export var disk_sheen_strength: float = 0.55
+## Shininess exponent shaping the sheen's specular-style falloff (shaders/
+## territory.gdshader's own light-reflected-toward-camera dot product raised
+## to this power) -- deliberately LOW (a broad, soft lobe) rather than a
+## tight mirror-sharp highlight; higher narrows it.
+##
+## DECISION (config/TerritoryVisuals.gd, Bontago-mp0.3.8 review pass, owner:
+## "the sun sheen must be VIEW-DEPENDENT ... reflect the view vector about
+## the surface normal and compare with the sun direction, or use the half-
+## vector with a low exponent"): replaces the old disk_sheen_softness (a
+## smoothstep width for a fixed disk-position gradient, independent of the
+## camera) -- that version painted the same half of the disc gold from every
+## angle, reading as a flat gold wash or a hard diagonal terminator on any
+## framing other than the one it was tuned against (feedback/overhaul/disc2-
+## r2-player.png, disc2-r3-overview.png).
+@export var disk_sheen_exponent: float = 6.0
+
 ## DECISION (config/TerritoryVisuals.gd, Bontago-xtq.11, owner 2026-09-23:
 ## "the disc is a mirror-like surface and not glass ... reflective but not
 ## transparent"): the two disk-opacity tunables that used to live here were
