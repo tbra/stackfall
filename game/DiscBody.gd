@@ -3,10 +3,41 @@ extends Node3D
 ## The play disc's visible THICKNESS (Bontago-mp0.3.2, owner feedback: "The
 ## disc is just a thin mirror currently, the mockup has a much thicker
 ## metallic disc with a soft glowing border going round the rim."). A dark
-## polished-metal side band, capped with a soft glowing rim line around its
-## top edge, hanging directly below game/TerritoryOverlay.gd's own thin
-## (MapDef.disk_height) surface disc so the two read as one continuous, much
-## thicker edge.
+## polished-metal side band, topped with a sloped, glowing CHAMFER face
+## around its top edge, hanging directly below game/TerritoryOverlay.gd's own
+## thin (MapDef.disk_height) surface disc so the two read as one continuous,
+## much thicker edge.
+##
+## Chamfer redesign (Bontago-pt.12, owner: "the glowing strip currently sits
+## slightly outside the disc as its own separate element; in the mockup the
+## disc has sort of a chamfered edge that makes up the glowing strip"). The
+## old design (Bontago-mp0.3.2/mp0.3.8) built the glow as a second, separate
+## vertical strip offset in both radius (rim_radius_scale) and height
+## (rim_lift) from the band -- correct to avoid a z-fighting/dashing bug, but
+## visibly disconnected from the disc's own edge. The chamfer below instead
+## is a single sloped ring frustum whose TOP ring sits exactly at the true
+## disc edge (radius scale 1.0, y = 0, flush with game/TerritoryOverlay.gd's
+## own CylinderMesh top-face boundary -- no offset, no gap) and whose BOTTOM
+## ring meets the band's own top ring (both at band_radius_scale) -- a real,
+## watertight, beveled edge whose sloped face carries the emissive glow, not
+## a floating second element. The two meshes only ever share a zero-width
+## edge (never a coincident area), so the mp0.3.8 z-fighting bug does not
+## recur -- see shaders/disc_rim.gdshader's own header comment for why.
+##
+## Surface texture (Bontago-pt.12, owner: "the disc looks close to the
+## mockup but it lacks the texture ... especially visible ... where it
+## interacts with the sun"): both the band's StandardMaterial3D and the
+## chamfer's ShaderMaterial sample a shared, procedurally-generated
+## (FastNoiseLite-backed NoiseTexture2D, no third-party asset) tangent-space
+## normal map for a subtle brushed-metal micro-texture, plus anisotropic
+## specular (StandardMaterial3D.anisotropy / the chamfer shader's own
+## ANISOTROPY output) that runs circumferentially thanks to this file's own
+## generated UV (U around the circumference) and SurfaceTool.generate_
+## tangents(). This package owns only the band + chamfer surfaces; the flat
+## mirrored TOP of the disc is game/TerritoryOverlay.gd's own CylinderMesh
+## (config/TerritoryVisuals.gd), a different package's ownership -- the
+## broad sun-sheen texture the owner also described on that flat surface is
+## out of this package's scope.
 ##
 ## Purely visual: this node carries no collision, no shape owner, and never
 ## reads or writes anything under game/Field.gd's own disk trimesh/hole
@@ -16,7 +47,9 @@ extends Node3D
 ## are). It hangs at world Y = -MapDef.disk_height and below, entirely
 ## beneath the collision trimesh's own top face (y = 0) and its
 ## disk_height-deep rim/hole walls, so it can never occlude or interfere with
-## anything a block's physics reads.
+## anything a block's physics reads. The chamfer's own top ring reaches up to
+## y = 0 (flush with the true playing surface) but, like the rest of this
+## node, carries no collision.
 ##
 ## **Shape support** (this package's own brief: "the rim/band must follow
 ## the actual outer edge of the disc shape for every variant"). ROUND and
@@ -44,9 +77,9 @@ extends Node3D
 
 @export var visuals: DiscBodyVisuals = preload("res://config/disc_body_visuals.tres")
 
-## Bontago-mp0.3.8: the rim's own screen-space-minimum-width shader -- see
-## shaders/disc_rim.gdshader's own class-doc-equivalent header comment.
-const _RIM_SHADER: Shader = preload("res://shaders/disc_rim.gdshader")
+## Bontago-mp0.3.8: the chamfer's own screen-space-minimum-width shader --
+## see shaders/disc_rim.gdshader's own class-doc-equivalent header comment.
+const _CHAMFER_SHADER: Shader = preload("res://shaders/disc_rim.gdshader")
 
 ## Minimum segments for a degenerate/test MapDef (a triangle is the fewest a
 ## closed band can be built from); production maps use
@@ -54,12 +87,20 @@ const _RIM_SHADER: Shader = preload("res://shaders/disc_rim.gdshader")
 ## configures this node.
 const MIN_SEGMENTS: int = 3
 
+## Bontago-pt.12: fixed generation parameters for the procedural surface-
+## texture normal map -- only the perceptual knobs (strength, frequency) are
+## tunables (DiscBodyVisuals.surface_noise_strength/_frequency); the raw
+## texture resolution and RNG seed are implementation detail, not something
+## an F4 tuning pass needs to reach.
+const _NOISE_TEX_SIZE: int = 128
+const _NOISE_SEED: int = 8302
+
 var _band: MeshInstance3D = null
-var _rim: MeshInstance3D = null
+var _chamfer: MeshInstance3D = null
 var _map_def: MapDef = null
 
 
-## Builds (or rebuilds) the band + rim meshes for `map_def`. `segments`
+## Builds (or rebuilds) the band + chamfer meshes for `map_def`. `segments`
 ## mirrors whatever radial segment count the overlay's own disk mesh is
 ## currently using (TerritoryVisuals.disk_mesh_segments), so the band's own
 ## polygon facets line up with the top surface's.
@@ -73,53 +114,55 @@ func configure(map_def: MapDef, body_visuals: DiscBodyVisuals, segments: int) ->
 func rebuild(segments: int) -> void:
 	if _map_def == null or visuals == null:
 		return
-	var points: PackedVector2Array = _outline_points(_map_def, maxi(segments, MIN_SEGMENTS))
+	var true_points: PackedVector2Array = _outline_points(_map_def, maxi(segments, MIN_SEGMENTS))
+	var outer_points: PackedVector2Array = _scaled_points(true_points, visuals.band_radius_scale)
 	var diameter: float = 2.0 * _map_def.field_radius
 	var band_height: float = maxf(diameter * visuals.band_height_fraction, 0.0)
+	var chamfer_height: float = band_height * clampf(visuals.chamfer_height_fraction, 0.0, 1.0)
 	# Bontago-mp0.3.2 review pass 3 (owner: "the glowing gold line sits
 	# partway down the band rather than on the top lip edge -- put it exactly
-	# at the top outer edge"): top_y is the true playing surface (y = 0), not
-	# -disk_height. game/TerritoryOverlay.gd's own CylinderMesh is a real
-	# cylinder disk_height tall, so it carries its own (non-emissive,
-	# territory-shaded) side wall from y = 0 down to y = -disk_height --
-	# anchoring this band at -disk_height left that thin sliver of the
-	# overlay's own wall sitting ABOVE the glowing rim, reading as the glow
-	# starting short of the actual top edge. bottom_y keeps the same anchor
-	# as before (band_height below -disk_height), so the band simply grows
-	# taller by disk_height to close that gap rather than the whole disc
-	# getting thinner.
-	var top_y: float = 0.0
-	var bottom_y: float = -_map_def.disk_height - band_height
-	var band_points: PackedVector2Array = _scaled_points(points, visuals.band_radius_scale)
+	# at the top outer edge"): the true playing surface (y = 0) is the disc's
+	# real top -- game/TerritoryOverlay.gd's own CylinderMesh is a real
+	# cylinder disk_height tall, carrying its own (non-emissive,
+	# territory-shaded) side wall from y = 0 down to y = -disk_height.
+	# band_bottom_y keeps the same anchor as before this package
+	# (band_height below -disk_height, so the combined band+disk_height drop
+	# from y = 0 is unchanged). Bontago-pt.12: band_top_y is now
+	# -chamfer_height rather than a flat 0.0 -- the chamfer above the band
+	# occupies the top chamfer_height slice of that same combined
+	# (band_height + disk_height) budget rather than adding on top of it, so
+	# the disc's overall silhouette height is unchanged by this package.
+	var band_bottom_y: float = -_map_def.disk_height - band_height
+	var band_top_y: float = -chamfer_height
 
 	_band = _mesh_instance(_band, &"Band")
-	_band.mesh = _build_band_mesh(band_points, top_y, bottom_y, visuals.bottom_cap_enabled)
+	_band.mesh = _build_ring_mesh(
+		outer_points, outer_points, band_top_y, band_bottom_y, visuals.bottom_cap_enabled
+	)
 	_band.material_override = _band_material()
 
-	var rim_height: float = band_height * clampf(visuals.rim_height_fraction, 0.0, 1.0)
-	var rim_points: PackedVector2Array = _scaled_points(points, visuals.rim_radius_scale)
-	# Bontago-mp0.3.8: rim_lift raises the rim's own top edge a few
-	# centimeters above the true playing surface -- separates it from game/
-	# TerritoryOverlay.gd's own CylinderMesh top-face edge on the Y axis (a
-	# depth-buffer z-fight at long camera distances) without needing
-	# rim_radius_scale to be pushed out far enough to read as a floating gap
-	# (see that field's own DECISION).
-	var rim_top_y: float = top_y + visuals.rim_lift
-	_rim = _mesh_instance(_rim, &"Rim")
+	# Bontago-pt.12: the chamfer's own TOP ring uses `true_points` (radius
+	# scale 1.0, y = 0) -- exactly the true disc edge, flush with game/
+	# TerritoryOverlay.gd's own CylinderMesh top-face boundary, no offset. Its
+	# BOTTOM ring uses `outer_points` (band_radius_scale) at band_top_y --
+	# exactly the band's own top ring, a watertight, seamless join. See this
+	# file's own class doc for why sharing that top edge does not reproduce
+	# the mp0.3.8 z-fighting bug.
+	_chamfer = _mesh_instance(_chamfer, &"Chamfer")
 	# Bontago-mp0.3.8: with_gradient = true paints COLOR.r = 0.0/1.0 on the
 	# top/bottom edges -- shaders/disc_rim.gdshader's own vertex() reads that
 	# to know which edge it may push down for its screen-space minimum width,
 	# and its fragment() to fade EMISSION from the top edge down.
-	_rim.mesh = _build_band_mesh(rim_points, rim_top_y, rim_top_y - rim_height, false, true)
-	_rim.material_override = _rim_material()
+	_chamfer.mesh = _build_ring_mesh(true_points, outer_points, 0.0, band_top_y, false, true)
+	_chamfer.material_override = _chamfer_material()
 
 
 func band_mesh_instance() -> MeshInstance3D:
 	return _band
 
 
-func rim_mesh_instance() -> MeshInstance3D:
-	return _rim
+func chamfer_mesh_instance() -> MeshInstance3D:
+	return _chamfer
 
 
 func _mesh_instance(existing: MeshInstance3D, node_name: StringName) -> MeshInstance3D:
@@ -169,17 +212,22 @@ func _scaled_points(points: PackedVector2Array, scale: float) -> PackedVector2Ar
 	return scaled
 
 
-## A closed vertical band between `points` at `top_y` and `bottom_y`, with an
-## optional flat bottom cap. Smooth-shaded (st.generate_normals()), the same
-## look Godot's own CylinderMesh gives the top surface's side wall.
+## A closed ring frustum between `top_points` at `top_y` and `bottom_points`
+## at `bottom_y` (the two are the SAME array for a plain vertical band, or
+## different-radius arrays for a sloped chamfer face), with an optional flat
+## bottom cap. Smooth-shaded (st.generate_normals()), with generated UV/
+## tangent data (U around the circumference, V from 0 at the top ring to 1 at
+## the bottom) so both this mesh's own material (StandardMaterial3D or
+## disc_rim.gdshader) can sample a shared procedural normal-map texture and
+## drive anisotropic specular from real tangent data (Bontago-pt.12).
 ##
 ## `with_gradient` (Bontago-mp0.3.8) paints COLOR.r = 0.0 on every top-edge
 ## vertex and 1.0 on every bottom-edge vertex, so shaders/disc_rim.gdshader's
 ## rim material can tell, per vertex, which edge it is without a second
-## uniform -- see that shader's own header comment. Unused (false) by the
-## band's own plain StandardMaterial3D.
-func _build_band_mesh(
-	points: PackedVector2Array,
+## uniform. Unused (false) by the band's own plain StandardMaterial3D.
+func _build_ring_mesh(
+	top_points: PackedVector2Array,
+	bottom_points: PackedVector2Array,
 	top_y: float,
 	bottom_y: float,
 	cap_bottom: bool,
@@ -187,18 +235,23 @@ func _build_band_mesh(
 ) -> ArrayMesh:
 	var surface_tool: SurfaceTool = SurfaceTool.new()
 	surface_tool.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var count: int = points.size()
+	var count: int = top_points.size()
 	for i: int in range(count):
-		var a: Vector2 = points[i]
-		var b: Vector2 = points[(i + 1) % count]
-		var p0: Vector3 = Vector3(a.x, top_y, a.y)
-		var p1: Vector3 = Vector3(b.x, top_y, b.y)
-		var p2: Vector3 = Vector3(b.x, bottom_y, b.y)
-		var p3: Vector3 = Vector3(a.x, bottom_y, a.y)
-		_add_quad(surface_tool, p0, p1, p2, p3, with_gradient)
+		var ta: Vector2 = top_points[i]
+		var tb: Vector2 = top_points[(i + 1) % count]
+		var ba: Vector2 = bottom_points[i]
+		var bb: Vector2 = bottom_points[(i + 1) % count]
+		var p0: Vector3 = Vector3(ta.x, top_y, ta.y)
+		var p1: Vector3 = Vector3(tb.x, top_y, tb.y)
+		var p2: Vector3 = Vector3(bb.x, bottom_y, bb.y)
+		var p3: Vector3 = Vector3(ba.x, bottom_y, ba.y)
+		var ua: float = float(i) / float(count)
+		var ub: float = float(i + 1) / float(count)
+		_add_quad(surface_tool, p0, p1, p2, p3, ua, ub, with_gradient)
 	if cap_bottom:
-		_add_bottom_cap(surface_tool, points, bottom_y)
+		_add_bottom_cap(surface_tool, bottom_points, bottom_y)
 	surface_tool.generate_normals()
+	surface_tool.generate_tangents()
 	return surface_tool.commit()
 
 
@@ -208,44 +261,85 @@ func _add_quad(
 	p1: Vector3,
 	p2: Vector3,
 	p3: Vector3,
+	ua: float,
+	ub: float,
 	with_gradient: bool = false
 ) -> void:
-	# p0/p1 are this quad's top edge (COLOR.r = 0.0), p2/p3 its bottom edge
-	# (COLOR.r = 1.0) -- see _build_band_mesh()'s own `with_gradient` doc.
+	# p0/p1 are this quad's top edge (COLOR.r = 0.0, V = 0.0), p2/p3 its
+	# bottom edge (COLOR.r = 1.0, V = 1.0) -- see _build_ring_mesh()'s own
+	# `with_gradient` doc.
 	const TOP_COLOR: Color = Color(0.0, 0.0, 0.0, 1.0)
 	const BOTTOM_COLOR: Color = Color(1.0, 0.0, 0.0, 1.0)
 	if with_gradient:
 		surface_tool.set_color(TOP_COLOR)
+	surface_tool.set_uv(Vector2(ua, 0.0))
 	surface_tool.add_vertex(p0)
 	if with_gradient:
 		surface_tool.set_color(TOP_COLOR)
+	surface_tool.set_uv(Vector2(ub, 0.0))
 	surface_tool.add_vertex(p1)
 	if with_gradient:
 		surface_tool.set_color(BOTTOM_COLOR)
+	surface_tool.set_uv(Vector2(ub, 1.0))
 	surface_tool.add_vertex(p2)
 	if with_gradient:
 		surface_tool.set_color(TOP_COLOR)
+	surface_tool.set_uv(Vector2(ua, 0.0))
 	surface_tool.add_vertex(p0)
 	if with_gradient:
 		surface_tool.set_color(BOTTOM_COLOR)
+	surface_tool.set_uv(Vector2(ub, 1.0))
 	surface_tool.add_vertex(p2)
 	if with_gradient:
 		surface_tool.set_color(BOTTOM_COLOR)
+	surface_tool.set_uv(Vector2(ua, 1.0))
 	surface_tool.add_vertex(p3)
 
 
 ## A triangle fan from the disk-local origin, closing the band's underside.
+## Rarely seen (only from a low, distant angle looking up under the disc),
+## so a simple planar UV (centered, spanning the bounding square) is enough
+## to keep the shared surface-texture material from sampling a degenerate
+## coordinate here.
 func _add_bottom_cap(
 	surface_tool: SurfaceTool, points: PackedVector2Array, y: float
 ) -> void:
 	var center: Vector3 = Vector3(0.0, y, 0.0)
 	var count: int = points.size()
+	var extent: float = 0.001
+	for point: Vector2 in points:
+		extent = maxf(extent, maxf(absf(point.x), absf(point.y)))
 	for i: int in range(count):
 		var a: Vector2 = points[i]
 		var b: Vector2 = points[(i + 1) % count]
+		surface_tool.set_uv(Vector2(0.5, 0.5))
 		surface_tool.add_vertex(center)
+		surface_tool.set_uv((a / (2.0 * extent)) + Vector2(0.5, 0.5))
 		surface_tool.add_vertex(Vector3(a.x, y, a.y))
+		surface_tool.set_uv((b / (2.0 * extent)) + Vector2(0.5, 0.5))
 		surface_tool.add_vertex(Vector3(b.x, y, b.y))
+
+
+## Bontago-pt.12: procedurally generated (FastNoiseLite-backed, no
+## third-party asset) tangent-space normal map, shared by the band's own
+## StandardMaterial3D and the chamfer's ShaderMaterial so both disc surfaces
+## this package owns carry the same fine-grained "brushed metal" micro-
+## texture -- the owner's "it lacks the texture ... visible where it
+## interacts with the sun" report. Regenerated on every rebuild() (a rare,
+## map-change-driven call, not a per-frame one) rather than cached, keeping
+## this file's own state simple; NoiseTexture2D generation is cheap at
+## _NOISE_TEX_SIZE and runs off the render thread.
+func _surface_noise_texture() -> NoiseTexture2D:
+	var noise: FastNoiseLite = FastNoiseLite.new()
+	noise.seed = _NOISE_SEED
+	noise.frequency = visuals.surface_noise_frequency
+	var texture: NoiseTexture2D = NoiseTexture2D.new()
+	texture.width = _NOISE_TEX_SIZE
+	texture.height = _NOISE_TEX_SIZE
+	texture.seamless = true
+	texture.as_normal_map = true
+	texture.noise = noise
+	return texture
 
 
 func _band_material() -> StandardMaterial3D:
@@ -254,21 +348,29 @@ func _band_material() -> StandardMaterial3D:
 	material.metallic = visuals.band_metallic
 	material.roughness = visuals.band_roughness
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	material.anisotropy_enabled = visuals.surface_anisotropy > 0.0
+	material.anisotropy = visuals.surface_anisotropy
+	material.normal_enabled = visuals.surface_noise_strength > 0.0
+	material.normal_texture = _surface_noise_texture()
+	material.normal_scale = visuals.surface_noise_strength
 	return material
 
 
 ## Bontago-mp0.3.8: a ShaderMaterial (shaders/disc_rim.gdshader) rather than
 ## the band's own plain StandardMaterial3D -- the dashing-at-distance fix
 ## needs a vertex shader that reads this mesh's own gradient vertex colors
-## (see _build_band_mesh()'s `with_gradient`) to push its bottom edge down by
+## (see _build_ring_mesh()'s `with_gradient`) to push its bottom edge down by
 ## a camera-distance-proportional amount, which a fixed material cannot do.
-func _rim_material() -> ShaderMaterial:
+func _chamfer_material() -> ShaderMaterial:
 	var material: ShaderMaterial = ShaderMaterial.new()
-	material.shader = _RIM_SHADER
-	material.set_shader_parameter(&"rim_color", visuals.rim_color)
-	material.set_shader_parameter(&"rim_emission_energy", visuals.rim_emission_energy)
+	material.shader = _CHAMFER_SHADER
+	material.set_shader_parameter(&"rim_color", visuals.chamfer_glow_color)
+	material.set_shader_parameter(&"rim_emission_energy", visuals.chamfer_glow_energy)
 	material.set_shader_parameter(&"band_color", visuals.band_color)
 	material.set_shader_parameter(
-		&"min_screen_width_factor", visuals.rim_screen_min_width_factor
+		&"min_screen_width_factor", visuals.chamfer_screen_min_width_factor
 	)
+	material.set_shader_parameter(&"surface_noise", _surface_noise_texture())
+	material.set_shader_parameter(&"surface_noise_strength", visuals.surface_noise_strength)
+	material.set_shader_parameter(&"surface_anisotropy", visuals.surface_anisotropy)
 	return material
