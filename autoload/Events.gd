@@ -263,3 +263,13 @@ signal pause_menu_opened
 ## nested menu is capturing it). game/PlayerController.gd restores
 ## input_enabled and, if it had mouse capture enabled, re-captures the mouse.
 signal pause_menu_closed
+
+# --- Options menu: input device tracking (Bontago-1pi.10) --------------------
+
+## autoload/Settings.gd detected the player's last-used input device changed
+## (a real keyboard/mouse press/motion vs. a gamepad button/stick beyond its
+## own deadzone -- see Settings._classify_device()). ui/OptionsMenu.gd's
+## Controls page and ui/KeyRebindRow.gd's own glyph row are today's only
+## listeners: each swaps which device's binding glyphs it shows, live,
+## without the player needing to reopen the menu.
+signal input_device_changed(device: StringName)

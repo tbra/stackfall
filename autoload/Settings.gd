@@ -19,6 +19,31 @@ signal window_mode_changed(id: StringName)
 const DEFAULT_PRESET_ID: StringName = &"medium"
 const PRESETS_DIR: String = "res://config/graphics_presets/"
 
+## Bontago-1pi.10 (owner: "default to only showing mouse/keyboard, switch to
+## showing only gamepad options on gamepad input and switch back on mouse/
+## keyboard input"). ui/OptionsMenu.gd's Controls page and ui/KeyRebindRow.gd
+## read active_input_device() to decide which device's binding glyphs to
+## show; Events.input_device_changed lets both live-swap without reopening
+## the menu.
+const DEVICE_KEYBOARD_MOUSE: StringName = &"keyboard_mouse"
+const DEVICE_GAMEPAD: StringName = &"gamepad"
+const DEFAULT_ACTIVE_DEVICE: StringName = DEVICE_KEYBOARD_MOUSE
+
+## DECISION (Bontago-1pi.10): a UI-feel/detection threshold, not gameplay or
+## physics tuning (CLAUDE.md's no-magic-numbers rule targets those), the same
+## reasoning ui/OptionsMenu.gd's own MIN_VOLUME_DB/MAX_VOLUME_DB DECISION
+## gives for a plain script const instead of a config/*.tres Resource.
+## Filters incidental mouse jitter (a resting hand, OS pointer noise) from
+## counting as "the player just used the mouse".
+const MOUSE_MOTION_DEVICE_THRESHOLD_PX: float = 4.0
+
+## Joypad axis deadzone for *device detection* only -- deliberately coarser
+## than InputMap's own per-action deadzone (an analog stick's own resting
+## drift must never flip the active device to gamepad on its own).
+const JOYPAD_MOTION_DEVICE_THRESHOLD: float = 0.35
+
+var _active_device: StringName = DEFAULT_ACTIVE_DEVICE
+
 const SECTION_GRAPHICS: String = "graphics"
 const SECTION_AUDIO: String = "audio"
 const SECTION_INPUT: String = "input"
@@ -80,6 +105,53 @@ var _key_overrides: Dictionary[StringName, Array] = {}
 func _ready() -> void:
 	_load()
 	_apply_key_overrides()
+
+
+## The player's last-used input device family (Bontago-1pi.10): real keyboard/
+## mouse key or button press, or mouse motion beyond
+## MOUSE_MOTION_DEVICE_THRESHOLD_PX, sets DEVICE_KEYBOARD_MOUSE; a real
+## gamepad button or a stick/trigger beyond JOYPAD_MOTION_DEVICE_THRESHOLD
+## sets DEVICE_GAMEPAD. Starts at DEFAULT_ACTIVE_DEVICE (keyboard/mouse) so a
+## fresh session's Controls page shows keyboard bindings before any input.
+func active_input_device() -> StringName:
+	return _active_device
+
+
+## Settings is a plain autoload Node (project.godot's [autoload] section), so
+## it receives _input() for every node in the tree the same as any other --
+## no viewport/Control involved, this only ever classifies the raw event.
+func _input(event: InputEvent) -> void:
+	var family: StringName = _classify_device(event)
+	if family == &"" or family == _active_device:
+		return
+	_active_device = family
+	Events.input_device_changed.emit(_active_device)
+
+
+func _classify_device(event: InputEvent) -> StringName:
+	if event is InputEventKey or event is InputEventMouseButton:
+		return DEVICE_KEYBOARD_MOUSE
+	if event is InputEventMouseMotion:
+		if (event as InputEventMouseMotion).relative.length() >= MOUSE_MOTION_DEVICE_THRESHOLD_PX:
+			return DEVICE_KEYBOARD_MOUSE
+		return &""
+	if event is InputEventJoypadButton:
+		return DEVICE_GAMEPAD
+	if event is InputEventJoypadMotion:
+		if absf((event as InputEventJoypadMotion).axis_value) >= JOYPAD_MOTION_DEVICE_THRESHOLD:
+			return DEVICE_GAMEPAD
+		return &""
+	return &""
+
+
+## Test seam: forces the active device without pushing a real InputEvent
+## through Input.parse_input_event() (the same "inject state GUT can't
+## otherwise reach" role set_config_path_for_test() plays below).
+func set_active_input_device_for_test(family: StringName) -> void:
+	if family == _active_device:
+		return
+	_active_device = family
+	Events.input_device_changed.emit(_active_device)
 
 
 func current_graphics_preset() -> GraphicsPreset:
@@ -253,6 +325,18 @@ func set_key_override(action: StringName, event: InputEvent) -> void:
 	kept.append(event)
 	_key_overrides[action] = kept
 	_apply_single_override(action, event)
+	_save()
+
+
+## Bontago-1pi.10 polish pass (owner: "Add one 'Reset to defaults' action in
+## the footer"): clears every persisted override and reloads the InputMap
+## straight from project.godot's own [input] section -- the exact bindings
+## tools/bootstrap_project.gd wrote there, undoing every runtime
+## action_erase_event()/action_add_event() a rebind ever made, without this
+## file needing to remember what each action's original event was.
+func reset_key_overrides() -> void:
+	_key_overrides.clear()
+	InputMap.load_from_project_settings()
 	_save()
 
 

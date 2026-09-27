@@ -11,6 +11,8 @@ shader_parameter/panorama = ExtResource("3_panorama")
 [resource]
 script = ExtResource("1_theme")
 sky_material = SubResource("SunsetClouds")
+sky_yaw_offset_deg = 184.058612
+sky_pitch_offset_deg = 0.0
 sky_top_color = Color(0.161, 0.2, 0.333, 1)
 sky_horizon_color = Color(0.98, 0.64, 0.38, 1)
 ground_bottom_color = Color(0.118, 0.098, 0.137, 1)

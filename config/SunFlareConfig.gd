@@ -18,21 +18,11 @@ extends Resource
 ## live-editable from the in-game F4 panel.
 
 ## World-space direction from the field's center toward the sun (normalized).
-## # DECISION (config/SunFlareConfig.gd, Bontago-mp0.3.4): measured from the
-## painted sun disc in the sunset panorama texture itself
-## (assets/sky/sunset-clouds-v1.png, sampled at its brightest pixel,
-## ~(0.708, 0.478) in equirectangular UV), NOT derived from
-## Main.tscn's DirectionalLight3D rotation_degrees (-45, -30, 0) -- that
-## light's own implied sun position (converted through the same
-## shaders/sunset_clouds.gdshader panorama-UV formula the sky shader uses)
-## lands at uv (0.083, 0.25), high in the sky and nowhere near the low,
-## right-of-center sun actually painted in the texture the player sees. The
-## two were never meant to agree (the DirectionalLight3D only drives
-## shading/shadow direction, spec's presentation layer never promised its
-## rotation would match a painted sky's own sun), and this package's brief
-## explicitly says to align the flare with the painted sun when they
-## disagree. See vfx/SunFlare.gd's class doc for how this direction is
-## turned into a screen position every frame.
+## # DECISION (Bontago-1pi.1 v2): preserve the original flare axis and scene
+## light rotation. sunset.tres rotates panorama sampling to place its painted
+## sun on this axis; changing the light instead caused a grazing hotspot and
+## moved the sun away from the default home view. See sunset_clouds.gdshader
+## for the measured panorama centre and tools/capture_pt1_sun_sweep.gd for QA.
 @export var sun_direction: Vector3 = Vector3(0.963087, 0.069011, -0.260192)
 
 ## Warm tint applied to every flare element (core, rays, ghosts) before
@@ -41,9 +31,8 @@ extends Resource
 
 ## Bright core disc radius/softness, in normalized screen-diagonal units
 ## (see vfx/sun_flare.gdshader's own doc for the exact unit conversion). Fix
-## round (owner: "reduce the hard white clipped look"): the sky shader
-## (shaders/sunset_clouds.gdshader) now draws the actual warm sun disc/halo
-## behind all geometry; this is only a small, additive-blended sparkle on
+## round (owner: "reduce the hard white clipped look"): the painted panorama
+## supplies the sun disc behind all geometry; this is a small sparkle on
 ## top of it, so it stays low-intensity rather than re-blowing-out the disc.
 @export var core_radius: float = 0.022
 @export var core_softness: float = 0.5
@@ -64,14 +53,24 @@ extends Resource
 ## Ghost ("ghost ring") ghost discs sampled along the sun-to-screen-center
 ## axis, alternating between sun_color (warm) and ghost_color_b (teal) --
 ## fix round (owner: "make them visible but subtle, like a camera flare").
+## # DECISION (config/SunFlareConfig.gd, Bontago-1pi.1): ghost_base_size and
+## ghost_alpha both trimmed down from this fix round's own earlier values
+## (0.06/0.65 before) -- this package's brief asks for ghost discs subtle
+## enough that none of them reads as a second sun on its own; now that
+## sun_direction actually points at the bright painted disc (see that
+## field's own DECISION), a same-size-as-before ghost sitting a third of the
+## way toward screen center read as too close in brightness/size to a small
+## second sun in the feedback/pt-sun-before-* probe images. Kept non-zero
+## (still "visible but subtle" per the owner's own fix-round wording above),
+## not zeroed.
 @export var ghost_count: int = 4
 ## Position of each ghost as a fraction of the way from the sun toward (and
 ## past) the screen center -- e.g. 0.5 sits halfway to center, 1.3 sits just
 ## past it on the opposite side.
 @export var ghost_positions: PackedFloat32Array = PackedFloat32Array([0.35, 0.65, 1.0, 1.35])
-@export var ghost_base_size: float = 0.045
+@export var ghost_base_size: float = 0.03
 @export var ghost_size_falloff: float = 0.72
-@export var ghost_alpha: float = 0.5
+@export var ghost_alpha: float = 0.32
 @export var ghost_color_b: Color = Color(0.35, 0.78, 0.72)
 
 ## Screen-space (0..1, with margin allowed to go slightly negative/above 1)

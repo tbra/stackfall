@@ -197,6 +197,23 @@ uniform bool circles_valid = false;
 uniform bool argmax_mode = false;
 uniform sampler2D goal_tex : filter_nearest, repeat_disable;
 uniform int goal_count = 0;
+// Bontago-1pi.11 (owner playtest: "the game slows down a lot after a
+// while"): a coarse spatial bin over the circle list, built on the CPU by
+// game/TerritoryOverlay.gd's _pack_circle_bins(). Without it every disk pixel
+// fetched every circle (O(pixels x circles), measured ~95-120 ms/frame at
+// 60-160 live blocks against ~15-30 ms with the circle loop skipped). Texel k
+// < bin_grid^2 holds (start, count) for bin k; the texels from `start`
+// onward hold ascending circle indices (the same team-sorted order as
+// circle_tex, so the saturation early-out below sees the same sequence). A
+// circle is binned wherever its value (radius - distance) can reach
+// -circle_bin margin, a band wider than every visual effect below reads, so
+// the skipped circles never change a drawn pixel. Points outside the grid,
+// or circle_bins_valid == false, loop the whole list exactly as before.
+uniform sampler2D circle_bin_tex : filter_nearest, repeat_disable;
+uniform bool circle_bins_valid = false;
+uniform int circle_bin_grid = 1;
+uniform float circle_bin_half_extent = 1.0;
+const int CIRCLE_BIN_TEX_WIDTH = 256;
 
 uniform float metaball_blend : hint_range(0.0, 3.0) = 0.3;
 uniform float rim_soft_width : hint_range(0.001, 2.0) = 0.25;
@@ -436,7 +453,34 @@ void circle_path(vec2 point, out vec3 albedo, out vec3 emission) {
 
 	int loop_n = min(circle_count, max_shader_circles);
 	float saturation = metaball_blend + rim_soft_width;
-	for (int i = 0; i < loop_n; i++) {
+	int bin_start = 0;
+	int bin_n = loop_n;
+	bool use_bins = false;
+	if (circle_bins_valid && circle_bin_grid > 0) {
+		vec2 cell_f = (point + vec2(circle_bin_half_extent))
+			/ (2.0 * circle_bin_half_extent) * float(circle_bin_grid);
+		if (cell_f.x >= 0.0 && cell_f.y >= 0.0
+			&& cell_f.x < float(circle_bin_grid) && cell_f.y < float(circle_bin_grid)) {
+			int k = int(floor(cell_f.y)) * circle_bin_grid + int(floor(cell_f.x));
+			vec2 bin_range = texelFetch(
+				circle_bin_tex, ivec2(k % CIRCLE_BIN_TEX_WIDTH, k / CIRCLE_BIN_TEX_WIDTH), 0
+			).rg;
+			bin_start = int(bin_range.x + 0.5);
+			bin_n = int(bin_range.y + 0.5);
+			use_bins = true;
+		}
+	}
+	for (int j = 0; j < bin_n; j++) {
+		int i = j;
+		if (use_bins) {
+			int ref_k = bin_start + j;
+			i = int(texelFetch(
+				circle_bin_tex, ivec2(ref_k % CIRCLE_BIN_TEX_WIDTH, ref_k / CIRCLE_BIN_TEX_WIDTH), 0
+			).r + 0.5);
+		}
+		if (i >= loop_n) {
+			continue;
+		}
 		vec4 c = texelFetch(circle_tex, ivec2(i, 0), 0);
 		int team = int(round(c.a));
 		if (team < 0 || team >= SLOT_COLOR_MAX || team_done[team]) {

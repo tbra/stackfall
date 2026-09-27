@@ -9,6 +9,14 @@ extends Control
 ## same "no deep node paths" convention ui/Tutorial.gd's own header
 ## documents): MainMenu instances this scene directly and listens for
 ## `closed` to hide it again, rather than routing through Main.
+##
+## Bontago-1pi.10 (owner: "too big and crammed ... the controls section where
+## you have to scroll both horizontally and vertically"): a left-side
+## Settings/Controls tab column replaces the single ever-growing scrolling
+## panel, and the Controls page shows only the active input device's
+## bindings (ui/KeyRebindRow.gd's own glyph row, autoload/Settings.gd's
+## active_input_device()) so a row never needs more than one short glyph
+## strip's worth of horizontal space.
 
 signal closed
 
@@ -77,7 +85,71 @@ const REBINDABLE_ACTIONS: Array[StringName] = [
 	&"pause_menu",
 ]
 
+## Bontago-1pi.10 polish pass (owner: "Friendly action names and grouping:
+## section headers ... Keep action order sensible"): the Controls list is
+## built from this grouping rather than REBINDABLE_ACTIONS' own flat order --
+## each entry is one section header + the actions shown under it, in build
+## order. Deliberately covers exactly REBINDABLE_ACTIONS' own action set (see
+## test_options_menu.gd's own test_sections_cover_every_rebindable_action_
+## exactly_once) so a future rebindable action can't silently go missing from
+## every section, or end up listed twice.
+const SECTIONS: Array[Dictionary] = [
+	{
+		"name": "Placement",
+		"actions": [&"ghost_place", &"hover_raise", &"hover_lower", &"lock_vertical"],
+	},
+	{
+		"name": "Rotation",
+		"actions": [
+			&"rotate_yaw_ccw", &"rotate_yaw_cw", &"rotate_pitch_fwd", &"rotate_pitch_back",
+			&"rotate_roll_left", &"rotate_roll_right", &"rotation_mode", &"rotate_reset",
+			&"rotate_drag",
+		],
+	},
+	{
+		"name": "Camera",
+		"actions": [
+			&"camera_mode", &"camera_orbit",
+			&"camera_pan_left", &"camera_pan_right", &"camera_pan_forward", &"camera_pan_back",
+			&"camera_modifier", &"camera_zoom_in", &"camera_zoom_out",
+			&"camera_snap_home", &"camera_snap_goal",
+		],
+	},
+	{
+		"name": "Menu / System",
+		"actions": [&"pause_menu"],
+	},
+]
+
 const KEY_REBIND_ROW_SCENE: PackedScene = preload("res://ui/KeyRebindRow.tscn")
+
+## DECISION (Bontago-1pi.10 polish pass, time-budgeted worker package): the
+## owner's brief also asks to "combine paired actions on one row where
+## natural (e.g. 'Raise / lower block — Wheel')". Deferred for this package
+## (not implemented) -- merging two Input Map actions into a single
+## rebindable row is a real structural change to KeyRebindRow's own
+## one-action-per-row contract (which two events belong to which half of a
+## capture, how Reset-to-defaults and device-filtering apply per sub-action)
+## and didn't fit the 40-minute budget alongside the rest of this package.
+## Every paired action still gets its own clearly labeled row in the same
+## section (e.g. Placement's "Raise block" / "Lower block" sit adjacently) --
+## a real, disclosed scope reduction, not a silent drop.
+
+## Bontago-1pi.10: reused only for the two tab buttons' pastel pill styling
+## (ui/theme/MenuStyleFactory.gd, config/menu_visual_tuning.tres already
+## shipped by the just-merged main menu/lobby reskin) -- everything else on
+## this menu keeps the shared stackfall_theme.tres Button/OptionButton look.
+@export var tuning: MenuVisualTuning = preload("res://config/menu_visual_tuning.tres")
+
+## Footer device hint text (owner: "show a device hint in the footer ...
+## matching the active device") and the Controls page's own device caption --
+## plain literals rather than a config/*.tres Resource, since these are
+## display-only strings, not gameplay/physics tuning (CLAUDE.md's
+## no-magic-numbers rule targets those).
+const FOOTER_HINT_KEYBOARD_MOUSE: String = "Enter · Esc"
+const FOOTER_HINT_GAMEPAD: String = "A Select   B Back"
+const CONTROLS_LABEL_KEYBOARD_MOUSE: String = "Showing keyboard & mouse bindings"
+const CONTROLS_LABEL_GAMEPAD: String = "Showing gamepad bindings"
 
 ## DECISION (ui/OptionsMenu.gd): the volume slider's range/step are scene-
 ## level widget configuration, not a "magic number" a config/*.tres Resource
@@ -99,6 +171,13 @@ const VOLUME_STEP_DB: float = 1.0
 @onready var _window_mode_option: OptionButton = %WindowModeOption
 @onready var _rebind_list: VBoxContainer = %RebindList
 @onready var _back_button: Button = %BackButton
+@onready var _reset_button: Button = %ResetButton
+@onready var _settings_tab_button: Button = %SettingsTabButton
+@onready var _controls_tab_button: Button = %ControlsTabButton
+@onready var _settings_page: VBoxContainer = %SettingsPage
+@onready var _controls_page: VBoxContainer = %ControlsPage
+@onready var _controls_device_label: Label = %ControlsDeviceLabel
+@onready var _footer_hint_label: Label = %FooterHintLabel
 
 var _rows: Array[KeyRebindRow] = []
 
@@ -110,6 +189,9 @@ func _ready() -> void:
 	_volume_slider.max_value = MAX_VOLUME_DB
 	_volume_slider.step = VOLUME_STEP_DB
 
+	MenuStyleFactory.apply_toggle_chip(_settings_tab_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.pill_coral_color, tuning.pill_coral_hover_color, tuning.ink_color, tuning)
+	MenuStyleFactory.apply_toggle_chip(_controls_tab_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.pill_coral_color, tuning.pill_coral_hover_color, tuning.ink_color, tuning)
+
 	_build_preset_items()
 	_build_window_mode_items()
 	_load_current_values()
@@ -117,6 +199,7 @@ func _ready() -> void:
 	_music_dir_edit.get_parent().hide()
 	_build_rebind_rows()
 	_wire_focus_chain()
+	_refresh_device_dependent_ui()
 
 	_preset_option.item_selected.connect(_on_preset_selected)
 	_volume_slider.value_changed.connect(_on_volume_changed)
@@ -127,8 +210,35 @@ func _ready() -> void:
 	_camera_shake_check.toggled.connect(_on_camera_shake_toggled)
 	_window_mode_option.item_selected.connect(_on_window_mode_selected)
 	_back_button.pressed.connect(_on_back_pressed)
+	_reset_button.pressed.connect(_on_reset_pressed)
+	_settings_tab_button.toggled.connect(_on_settings_tab_toggled)
+	_controls_tab_button.toggled.connect(_on_controls_tab_toggled)
+	Events.input_device_changed.connect(_on_input_device_changed)
 
 	_preset_option.grab_focus()
+
+
+## Owner: "switch to only gamepad options on gamepad input and switch back on
+## mouse/keyboard input" -- both tab buttons share one ButtonGroup
+## (ui/OptionsMenu.tscn), so pressing one always un-presses the other and
+## fires both toggled signals; each handler only ever needs to show/hide its
+## own page.
+func _on_settings_tab_toggled(pressed: bool) -> void:
+	_settings_page.visible = pressed
+
+
+func _on_controls_tab_toggled(pressed: bool) -> void:
+	_controls_page.visible = pressed
+
+
+func _on_input_device_changed(_device: StringName) -> void:
+	_refresh_device_dependent_ui()
+
+
+func _refresh_device_dependent_ui() -> void:
+	var gamepad: bool = Settings.active_input_device() == Settings.DEVICE_GAMEPAD
+	_footer_hint_label.text = FOOTER_HINT_GAMEPAD if gamepad else FOOTER_HINT_KEYBOARD_MOUSE
+	_controls_device_label.text = CONTROLS_LABEL_GAMEPAD if gamepad else CONTROLS_LABEL_KEYBOARD_MOUSE
 
 
 ## ui_cancel (Escape / gamepad B, spec 2.10) backs out -- the same
@@ -227,10 +337,31 @@ func _on_back_pressed() -> void:
 	closed.emit()
 
 
-## Test/inspection seam: every KeyRebindRow this menu built, in
-## REBINDABLE_ACTIONS order.
+## Owner: "Add one 'Reset to defaults' action in the footer." Reloads the
+## InputMap straight from project.godot (Settings.reset_key_overrides()),
+## then tells every already-built row to redraw its own glyphs from that
+## fresh InputMap state -- cheaper than _build_rebind_rows() rebuilding the
+## whole list, and preserves whichever row currently has focus.
+func _on_reset_pressed() -> void:
+	settings_provider.reset_key_overrides()
+	for row: KeyRebindRow in _rows:
+		row.refresh()
+
+
+## Test/inspection seam: every KeyRebindRow this menu built, in SECTIONS
+## build order (section by section, in each section's own action order).
 func rebind_rows() -> Array[KeyRebindRow]:
 	return _rows
+
+
+## One Label per SECTIONS entry, styled as a small muted section header
+## (owner: "section headers (Placement, Rotation, Camera, ... Menu/System)").
+func _build_section_header(name: String) -> Label:
+	var header: Label = Label.new()
+	header.text = name
+	header.add_theme_font_size_override("font_size", 15)
+	header.add_theme_color_override("font_color", tuning.label_muted_color)
+	return header
 
 
 func _build_rebind_rows() -> void:
@@ -239,27 +370,39 @@ func _build_rebind_rows() -> void:
 		child.queue_free()
 	_rows.clear()
 
-	for action: StringName in REBINDABLE_ACTIONS:
-		var row: KeyRebindRow = KEY_REBIND_ROW_SCENE.instantiate() as KeyRebindRow
-		_rebind_list.add_child(row)
-		row.setup(action)
-		_rows.append(row)
+	for section: Dictionary in SECTIONS:
+		_rebind_list.add_child(_build_section_header(section.get("name", "") as String))
+		for action: StringName in (section.get("actions", []) as Array):
+			var row: KeyRebindRow = KEY_REBIND_ROW_SCENE.instantiate() as KeyRebindRow
+			_rebind_list.add_child(row)
+			row.setup(action)
+			_rows.append(row)
 
 
 ## Gamepad/keyboard navigability (docs/M6_PLAN.md package C2: "fully
 ## navigable with gamepad and keyboard"): chains every focusable control top
-## to bottom -- PresetOption -> VolumeSlider -> MusicDirEdit -> BrowseButton ->
-## CameraShakeCheck -> WindowModeOption -> each rebind row's own RebindButton
-## in order -> BackButton -> back up to PresetOption. Computed at runtime
-## (control.get_path_to()) rather than
-## static NodePaths in the .tscn, the same reason ui/MainMenu.gd's own
-## _apply_steam_availability() does this for its Steam-availability toggle:
-## the rebind rows are built dynamically and don't exist yet when the scene
-## file is authored.
+## to bottom -- PresetOption -> VolumeSlider -> CameraShakeCheck ->
+## WindowModeOption -> each rebind row (a row IS its own Button now, Bontago-
+## 1pi.10 polish pass -- no separate child RebindButton) in section/build
+## order -> ResetButton -> BackButton -> back up to PresetOption. Computed at
+## runtime (control.get_path_to()) rather than static NodePaths in the
+## .tscn, the same reason ui/MainMenu.gd's own _apply_steam_availability()
+## does this for its Steam-availability toggle: the rebind rows are built
+## dynamically and don't exist yet when the scene file is authored.
+##
+## DECISION (Bontago-1pi.10): the two tab buttons are deliberately left out of
+## this explicit vertical chain -- they sit in their own column to the left,
+## and Godot's own automatic focus-neighbor resolution (used whenever
+## focus_neighbor_left/right is left as an empty NodePath, which this method
+## never sets) already finds them via ui_left/ui_right from whatever control
+## in ContentColumn currently has focus, the ordinary "arrow keys move to the
+## nearest Control in that screen direction" behavior every other Control in
+## the project already relies on.
 func _wire_focus_chain() -> void:
 	var chain: Array[Control] = [_preset_option, _volume_slider, _camera_shake_check, _window_mode_option]
 	for row: KeyRebindRow in _rows:
 		chain.append(row.rebind_button())
+	chain.append(_reset_button)
 	chain.append(_back_button)
 
 	for i: int in range(chain.size()):

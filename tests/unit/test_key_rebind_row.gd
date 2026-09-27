@@ -175,8 +175,12 @@ func _assert_key_replaces_binding(keycode: Key, cfg_name: String) -> void:
 	assert_true(events[0] is InputEventKey)
 	assert_eq((events[0] as InputEventKey).keycode, keycode)
 
-	var binding_label: Label = _row.get_node("%BindingLabel") as Label
-	assert_eq(binding_label.text, events[0].as_text(), "the binding label must reflect the new binding")
+	# Bontago-1pi.10 polish pass: the plain-text %BindingLabel is gone -- the
+	# new binding now shows as a real InputGlyph icon in %GlyphRow instead.
+	var glyph_row: HBoxContainer = _row.get_node("%GlyphRow") as HBoxContainer
+	assert_eq(glyph_row.get_child_count(), 1, "the new binding must show exactly one glyph")
+	var glyph: InputGlyph = glyph_row.get_child(0) as InputGlyph
+	assert_eq(glyph.label_text(), events[0].as_text(), "the glyph must reflect the new binding")
 
 	var persisted: Array[InputEvent] = Settings.key_override_events(_test_action)
 	assert_eq(persisted.size(), 1)

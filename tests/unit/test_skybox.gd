@@ -263,6 +263,25 @@ func test_apply_theme_is_a_noop_with_no_environment_wired() -> void:
 	assert_true(true, "apply_theme() must no-op silently with environment == null")
 
 
+func test_apply_theme_updates_panorama_offsets_on_shared_sky_material() -> void:
+	var wired: Dictionary = _make_wired_skybox()
+	var skybox: Skybox = wired["skybox"] as Skybox
+	var environment: Environment = wired["environment"] as Environment
+	var theme: SkyThemeDef = SkyThemeDef.new()
+	var material: ShaderMaterial = ShaderMaterial.new()
+	material.shader = load("res://shaders/sunset_clouds.gdshader")
+	theme.sky_material = material
+	theme.sky_yaw_offset_deg = 184.058612
+	theme.sky_pitch_offset_deg = 3.0
+	skybox.apply_theme(theme)
+	assert_eq(environment.sky.sky_material, material, "Background and sky reflections share the aligned material.")
+	assert_almost_eq(float(material.get_shader_parameter("sky_yaw_offset_deg")), theme.sky_yaw_offset_deg, 0.0001)
+	assert_almost_eq(float(material.get_shader_parameter("sky_pitch_offset_deg")), 3.0, 0.0001)
+	theme.sky_yaw_offset_deg = 12.0
+	skybox.apply_theme(theme)
+	assert_almost_eq(float(material.get_shader_parameter("sky_yaw_offset_deg")), 12.0, 0.0001, "F4 reapply updates live sampling.")
+
+
 func test_fog_volume_is_created_but_hidden_on_low_preset() -> void:
 	Settings.set_graphics_preset(&"low")
 	var skybox: Skybox = Skybox.new()
