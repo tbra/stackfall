@@ -16,6 +16,11 @@ signal audio_settings_changed()
 signal camera_shake_setting_changed(enabled: bool)
 signal window_mode_changed(id: StringName)
 
+## autoload/Rumble.gd reads rumble_enabled()/rumble_strength() directly (the
+## same camera_shake_enabled() precedent); this fires so a future
+## ui/OptionsMenu.gd row can live-update without polling.
+signal rumble_setting_changed(enabled: bool, strength: float)
+
 const DEFAULT_PRESET_ID: StringName = &"medium"
 const PRESETS_DIR: String = "res://config/graphics_presets/"
 
@@ -47,12 +52,15 @@ var _active_device: StringName = DEFAULT_ACTIVE_DEVICE
 const SECTION_GRAPHICS: String = "graphics"
 const SECTION_AUDIO: String = "audio"
 const SECTION_INPUT: String = "input"
+const SECTION_GAMEPAD: String = "gamepad"
 
 const KEY_PRESET: String = "preset"
 const KEY_MASTER_DB: String = "master_db"
 const KEY_CUSTOM_MUSIC_DIR: String = "custom_music_dir"
 const KEY_CAMERA_SHAKE_ENABLED: String = "camera_shake_enabled"
 const KEY_WINDOW_MODE: String = "window_mode"
+const KEY_RUMBLE_ENABLED: String = "rumble_enabled"
+const KEY_RUMBLE_STRENGTH: String = "rumble_strength"
 
 ## Bontago-xtq.45 (M7 P4): the three player-facing window modes, exclusive
 ## fullscreen, borderless fullscreen and windowed. Ids are StringName rather
@@ -89,12 +97,20 @@ const WINDOW_MODE_LABELS: Dictionary[StringName, String] = {
 ## shows the intended feel rather than a silent off-by-default.
 const DEFAULT_CAMERA_SHAKE_ENABLED: bool = true
 
+## Bontago (rumble package): the single source of truth for a fresh install's
+## rumble defaults -- see config/RumbleConfig.gd's own DECISION comment. Once
+## user://settings.cfg has a [gamepad] section, _load() never reads these
+## fields again.
+var _rumble_defaults: RumbleConfig = preload("res://config/rumble_config.tres")
+
 var _config_path: String = "user://settings.cfg"
 var _current_preset_id: StringName = DEFAULT_PRESET_ID
 var _master_volume_db: float = 0.0
 var _custom_music_dir: String = ""
 var _camera_shake_enabled: bool = DEFAULT_CAMERA_SHAKE_ENABLED
 var _window_mode_id: StringName = DEFAULT_WINDOW_MODE_ID
+var _rumble_enabled: bool = true
+var _rumble_strength: float = 1.0
 
 ## action -> Array of persisted InputEvent overrides for that action (never
 ## the full InputMap default set -- key_override_events() answers "what has
@@ -202,6 +218,32 @@ func set_camera_shake_enabled(enabled: bool) -> void:
 	_camera_shake_enabled = enabled
 	_save()
 	camera_shake_setting_changed.emit(enabled)
+
+
+## Bontago (rumble package): read directly by autoload/Rumble.gd, the same
+## way camera_shake_enabled() above is read directly by game/CameraRig.gd.
+## No Options menu row yet -- ui/OptionsMenu.gd ownership is a separate,
+## in-flight package; follow-up work adds the row and calls these setters.
+func rumble_enabled() -> bool:
+	return _rumble_enabled
+
+
+func set_rumble_enabled(enabled: bool) -> void:
+	_rumble_enabled = enabled
+	_save()
+	rumble_setting_changed.emit(_rumble_enabled, _rumble_strength)
+
+
+## 0..1, clamped -- the same range config/RumbleConfig.gd's
+## global_strength_scale default seeds this from.
+func rumble_strength() -> float:
+	return _rumble_strength
+
+
+func set_rumble_strength(strength: float) -> void:
+	_rumble_strength = clampf(strength, 0.0, 1.0)
+	_save()
+	rumble_setting_changed.emit(_rumble_enabled, _rumble_strength)
 
 
 ## Bontago-xtq.45 (M7 P4): the persisted window-mode id. Defaults to
@@ -396,6 +438,8 @@ func _load() -> void:
 	_custom_music_dir = ""
 	_camera_shake_enabled = DEFAULT_CAMERA_SHAKE_ENABLED
 	_window_mode_id = DEFAULT_WINDOW_MODE_ID
+	_rumble_enabled = _rumble_defaults.enabled_by_default
+	_rumble_strength = _rumble_defaults.global_strength_scale
 	_key_overrides.clear()
 
 	var cfg: ConfigFile = ConfigFile.new()
@@ -410,6 +454,10 @@ func _load() -> void:
 	var loaded_window_mode_id: StringName = StringName(cfg.get_value(SECTION_GRAPHICS, KEY_WINDOW_MODE, DEFAULT_WINDOW_MODE_ID))
 	if WINDOW_MODE_IDS.has(loaded_window_mode_id):
 		_window_mode_id = loaded_window_mode_id
+	_rumble_enabled = bool(cfg.get_value(SECTION_GAMEPAD, KEY_RUMBLE_ENABLED, _rumble_defaults.enabled_by_default))
+	_rumble_strength = clampf(
+		float(cfg.get_value(SECTION_GAMEPAD, KEY_RUMBLE_STRENGTH, _rumble_defaults.global_strength_scale)), 0.0, 1.0
+	)
 
 	if cfg.has_section(SECTION_INPUT):
 		for action_key: String in cfg.get_section_keys(SECTION_INPUT):
@@ -423,6 +471,8 @@ func _save() -> void:
 	cfg.set_value(SECTION_GRAPHICS, KEY_PRESET, String(_current_preset_id))
 	cfg.set_value(SECTION_GRAPHICS, KEY_CAMERA_SHAKE_ENABLED, _camera_shake_enabled)
 	cfg.set_value(SECTION_GRAPHICS, KEY_WINDOW_MODE, String(_window_mode_id))
+	cfg.set_value(SECTION_GAMEPAD, KEY_RUMBLE_ENABLED, _rumble_enabled)
+	cfg.set_value(SECTION_GAMEPAD, KEY_RUMBLE_STRENGTH, _rumble_strength)
 	cfg.set_value(SECTION_AUDIO, KEY_MASTER_DB, _master_volume_db)
 	cfg.set_value(SECTION_AUDIO, KEY_CUSTOM_MUSIC_DIR, _custom_music_dir)
 	for action: StringName in _key_overrides.keys():

@@ -165,6 +165,7 @@ func _apply_input_map() -> void:
 ## autoloads too, rather than adding another hand-edited exception.
 func _apply_autoloads() -> void:
 	ProjectSettings.set_setting("autoload/Screenshots", "*res://autoload/Screenshots.gd")
+	ProjectSettings.set_setting("autoload/Rumble", "*res://autoload/Rumble.gd")
 
 
 ## Every action in spec 2.5/1.5 (Bontago-mv0.14 rewrites the mouse/keyboard

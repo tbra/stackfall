@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="RumbleConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/RumbleConfig.gd" id="1_rumble"]
+
+[resource]
+script = ExtResource("1_rumble")
+enabled_by_default = true
+global_strength_scale = 1.0
+impact_speed_threshold = 4.0
+impact_speed_max = 10.0
+impact_weak_magnitude = 0.35
+impact_strong_magnitude = 0.55
+impact_duration_s = 0.12
+block_placed_weak_magnitude = 0.2
+block_placed_strong_magnitude = 0.0
+block_placed_duration_s = 0.06
+placement_refused_weak_magnitude = 0.0
+placement_refused_strong_magnitude = 0.5
+placement_refused_duration_s = 0.08
+special_triggered_weak_magnitude = 0.6
+special_triggered_strong_magnitude = 0.9
+special_triggered_duration_s = 0.35
+player_eliminated_weak_magnitude = 0.8
+player_eliminated_strong_magnitude = 1.0
+player_eliminated_duration_s = 0.6
+match_won_weak_magnitude = 0.5
+match_won_strong_magnitude = 0.5
+match_won_duration_s = 0.5
+match_lost_weak_magnitude = 0.4
+match_lost_strong_magnitude = 0.3
+match_lost_duration_s = 0.4
