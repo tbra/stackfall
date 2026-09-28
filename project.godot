@@ -30,6 +30,7 @@ SnapshotSync="*res://net/SnapshotSync.gd"
 MatchNet="*res://net/MatchNet.gd"
 Sfx="*res://autoload/Sfx.gd"
 Screenshots="*res://autoload/Screenshots.gd"
+Rumble="*res://autoload/Rumble.gd"
 
 [debug]
 
