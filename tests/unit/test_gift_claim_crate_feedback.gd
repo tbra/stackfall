@@ -72,6 +72,33 @@ func _make_local_ghost() -> GhostPreview:
 
 # --- Claim pop ---------------------------------------------------------------
 
+func test_real_spawn_claim_uses_its_id_for_the_pop() -> void:
+	_start_playing(_config())
+	var home: Vector2 = Match.slot(0).home_position
+	var gift_id: int = Match._gifts._next_gift_id
+	Match._gifts._spawn_crate_at(home)
+	var crate: GiftCrate = Match._gifts._crates[gift_id]["node"] as GiftCrate
+	assert_not_null(crate, "the match must create a real crate node")
+	assert_eq(crate.gift_id, gift_id, "the visual must listen for its actual spawn id")
+
+	_step_territory()
+
+	assert_false(Match._gifts._crates.has(gift_id), "owned territory claims the spawned crate")
+	assert_eq(Match.pending_special_count(0), 1, "the claim queues a special")
+	assert_not_null(Match._gifts._container.get_node_or_null("GiftClaimPop"), "the claim must leave visible feedback")
+
+
+func test_pickup_has_a_readable_wrapped_silhouette() -> void:
+	var parent: Node3D = autofree(Node3D.new())
+	add_child_autofree(parent)
+	var crate: GiftCrate = _make_crate(5, Vector2.ZERO, parent)
+	assert_not_null(crate.get_node_or_null("Lid"))
+	assert_not_null(crate.get_node_or_null("RibbonX"))
+	assert_not_null(crate.get_node_or_null("RibbonZ"))
+	assert_not_null(crate.get_node_or_null("PickupRing"))
+	assert_not_null(crate.get_node_or_null("GiftBeacon/BeaconDiamond"))
+
+
 func test_a_claim_spawns_a_separate_pop_effect_node_and_marks_the_crate_claimed() -> void:
 	_start_playing(_config())
 	var parent: Node3D = autofree(Node3D.new())

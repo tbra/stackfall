@@ -7,8 +7,9 @@ extends Area3D
 ## is wired to a documented, harmless no-op a later milestone can fill in
 ## (P3/P4/P5's specials do not need to know about crates this milestone).
 ##
-## Built from meshes, the same reason game/HomeFlag.gd is: M2-era placeholder
-## art, replaced whole in M7. autoload/match/MatchGifts.gd owns the only two
+## Built from simple meshes, the same reason game/HomeFlag.gd is. The dark
+## wrapped body, bright crossed ribbons and hovering beacon keep the pickup
+## legible against both pale and dark field tiles. MatchGifts owns the only two
 ## calls that matter here -- instancing this scene and calling
 ## set_owner_tint() -- so no rule of any kind lives on this script.
 ##
@@ -17,7 +18,15 @@ extends Area3D
 ## (docs/M4_P1b brief); move them into GiftConfig if a later package needs
 ## them configurable (flagged under Unresolved in the P1b report).
 const CRATE_SIZE: Vector3 = Vector3(0.6, 0.6, 0.6)
-const UNCLAIMED_COLOR: Color = Color(0.85, 0.75, 0.15)
+const UNCLAIMED_COLOR: Color = Color(0.11, 0.25, 0.38)
+const LID_COLOR: Color = Color(0.2, 0.38, 0.52)
+const RIBBON_COLOR: Color = Color(1.0, 0.7, 0.19)
+const BEACON_COLOR: Color = Color(1.0, 0.89, 0.48)
+const LID_SIZE: Vector3 = Vector3(0.74, 0.12, 0.74)
+const RIBBON_WIDTH: float = 0.13
+const BEACON_HEIGHT: float = 0.78
+const BEACON_BOB: float = 0.07
+const BEACON_SPEED: float = 2.2
 
 ## Set by MatchGifts right after instancing. -1 (this crate is not tracked by
 ## anything) is never a real id (MatchGifts._next_gift_id starts at 0).
@@ -26,6 +35,8 @@ var owner_slot: int = -1
 
 var _mesh: MeshInstance3D = null
 var _material: StandardMaterial3D = null
+var _beacon: Node3D = null
+var _visual_time: float = 0.0
 
 ## Bontago-d04 (owner report "I grabbed a yellow cube but nothing seemed to
 ## happen"): the claim rule itself was never broken (spec 2.6 [ORIGINAL]: a
@@ -60,6 +71,10 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if _claimed:
 		return
+	_visual_time += delta
+	if _beacon != null:
+		_beacon.position.y = BEACON_HEIGHT + sin(_visual_time * BEACON_SPEED) * BEACON_BOB
+		_beacon.rotation.y += delta * BEACON_SPEED
 	_update_hint(delta)
 
 
@@ -78,8 +93,59 @@ func _build() -> void:
 	_mesh.mesh = box_mesh
 	_material = StandardMaterial3D.new()
 	_material.albedo_color = UNCLAIMED_COLOR
+	_material.roughness = 1.0
 	_mesh.material_override = _material
 	add_child(_mesh)
+
+	# DECISION: fixed mesh dimensions are presentation, not gameplay tuning.
+	# The collision and field placement still use CRATE_SIZE.
+	var lid_material: StandardMaterial3D = _flat_material(LID_COLOR)
+	var ribbon_material: StandardMaterial3D = _flat_material(RIBBON_COLOR)
+	_add_box(self, &"Lid", LID_SIZE, Vector3(0.0, 0.34, 0.0), lid_material)
+	_add_box(self, &"RibbonX", Vector3(CRATE_SIZE.x + 0.025, CRATE_SIZE.y, RIBBON_WIDTH), Vector3.ZERO, ribbon_material)
+	_add_box(self, &"RibbonZ", Vector3(RIBBON_WIDTH, CRATE_SIZE.y, CRATE_SIZE.z + 0.025), Vector3.ZERO, ribbon_material)
+	_add_box(self, &"LidRibbonX", Vector3(LID_SIZE.x + 0.015, 0.025, RIBBON_WIDTH), Vector3(0.0, 0.41, 0.0), ribbon_material)
+	_add_box(self, &"LidRibbonZ", Vector3(RIBBON_WIDTH, 0.025, LID_SIZE.z + 0.015), Vector3(0.0, 0.41, 0.0), ribbon_material)
+
+	var ring: MeshInstance3D = MeshInstance3D.new()
+	ring.name = &"PickupRing"
+	var torus: TorusMesh = TorusMesh.new()
+	torus.inner_radius = 0.46
+	torus.outer_radius = 0.51
+	ring.mesh = torus
+	ring.position.y = -0.23
+	ring.material_override = _flat_material(BEACON_COLOR, true)
+	add_child(ring)
+
+	_beacon = Node3D.new()
+	_beacon.name = &"GiftBeacon"
+	_beacon.position.y = BEACON_HEIGHT
+	add_child(_beacon)
+	var jewel: MeshInstance3D = _add_box(_beacon, &"BeaconDiamond", Vector3(0.22, 0.22, 0.22), Vector3.ZERO, _flat_material(BEACON_COLOR, true))
+	jewel.rotation = Vector3(0.0, 0.0, PI * 0.25)
+
+
+func _flat_material(color: Color, emissive: bool = false) -> StandardMaterial3D:
+	var material: StandardMaterial3D = StandardMaterial3D.new()
+	material.albedo_color = color
+	material.roughness = 1.0
+	if emissive:
+		material.emission_enabled = true
+		material.emission = color
+		material.emission_energy_multiplier = 0.8
+	return material
+
+
+func _add_box(parent: Node3D, label: StringName, size: Vector3, offset: Vector3, material: StandardMaterial3D) -> MeshInstance3D:
+	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
+	mesh_instance.name = label
+	var mesh: BoxMesh = BoxMesh.new()
+	mesh.size = size
+	mesh_instance.mesh = mesh
+	mesh_instance.position = offset
+	mesh_instance.material_override = material
+	parent.add_child(mesh_instance)
+	return mesh_instance
 
 
 ## Tints the crate the claiming slot's color. Nothing in M4 P1 calls this yet

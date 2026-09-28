@@ -435,7 +435,7 @@ func _weighted_special_drawer() -> StringName:
 func _spawn_crate_at(point: Vector2) -> void:
 	var gift_id: int = _next_gift_id
 	_next_gift_id += 1
-	_crates[gift_id] = {"position": point, "age": 0.0, "node": _make_crate_node(point)}
+	_crates[gift_id] = {"position": point, "age": 0.0, "node": _make_crate_node(point, gift_id)}
 	Events.gift_spawned.emit(gift_id, point)
 
 
@@ -675,11 +675,12 @@ func _gifts_container() -> Node3D:
 ## disk-local (x, z); the crate sits on the field surface (spec 2.6:
 ## "stationary pickups"), lifted by half its own visual height so it rests on
 ## the surface rather than being bisected by it.
-func _make_crate_node(point: Vector2) -> GiftCrate:
+func _make_crate_node(point: Vector2, gift_id: int) -> GiftCrate:
 	var container: Node3D = _gifts_container()
 	if container == null:
 		return null
 	var crate: GiftCrate = GIFT_CRATE_SCENE.instantiate() as GiftCrate
+	crate.gift_id = gift_id
 	container.add_child(crate)
 	var field: Field = _match.field()
 	if field != null:
@@ -699,7 +700,7 @@ func _make_crate_node(point: Vector2) -> GiftCrate:
 func apply_replicated_spawn(gift_id: int, position: Vector2) -> void:
 	if _crates.has(gift_id):
 		return
-	_crates[gift_id] = {"position": position, "age": 0.0, "node": _make_crate_node(position)}
+	_crates[gift_id] = {"position": position, "age": 0.0, "node": _make_crate_node(position, gift_id)}
 
 
 ## Bontago-keo.17 (owner decision "b"): the resolved RECIPIENT slot arrives

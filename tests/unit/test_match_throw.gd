@@ -169,6 +169,42 @@ func test_throw_velocity_above_throw_max_speed_is_clamped_not_refused() -> void:
 
 # --- Accept: velocity, continuous_cd, special attach, pop-once --------------
 
+func test_real_crate_claim_can_be_thrown_and_activated() -> void:
+	var defs: Array[SpecialDef] = SpecialDef.load_all_specials()
+	assert_false(defs.is_empty(), "the shipped roster must contain a usable special")
+	var config: MatchConfig = _config()
+	config.enabled_specials = [defs[0].id]
+	config.special_frequency = 0  # The injected crate is the only gift in this path.
+	Match.start_match(config)
+	_run_countdown()
+	var home: Vector2 = Match.slot(0).home_position
+	var gift_id: int = Match._gifts._next_gift_id
+	Match._gifts._spawn_crate_at(home)
+	watch_signals(Events)
+
+	Match._run_territory_step(1.0 / Match._territory_tuning.solve_hz)
+
+	assert_false(Match._gifts._crates.has(gift_id), "territory claims the spawned crate")
+	assert_eq(Match.held_special(0), defs[0].id, "the claim draws a real enabled special")
+	assert_eq(Match.pending_special_count(0), 1, "only the injected crate was claimed")
+	var reason: StringName = Match.request_throw(
+		0, _home_world_position(0), 0, Quaternion.IDENTITY, Vector3(1.0, 0.0, 0.0)
+	)
+	assert_eq(reason, PlacementRules.REASON_OK)
+	assert_eq(Match.pending_special_count(0), 0, "the throw consumes the claimed special")
+	var block: Block = _blocks_root.get_child(0) as Block
+	var behavior: SpecialBehavior = null
+	for child: Node in block.get_children():
+		if child is SpecialBehavior:
+			behavior = child as SpecialBehavior
+	assert_not_null(behavior, "the thrown block must carry its behavior")
+	behavior.trigger(0)
+	assert_signal_emitted_with_parameters(
+		Events, "special_triggered", [block.net_id, defs[0].id, block.global_position, 0]
+	)
+	behavior.free()
+
+
 func test_accepted_throw_spawns_with_the_requested_velocity_and_continuous_cd() -> void:
 	Match.start_match(_config())
 	_run_countdown()
