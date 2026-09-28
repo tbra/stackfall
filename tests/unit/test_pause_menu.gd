@@ -19,6 +19,14 @@ func before_each() -> void:
 
 func after_each() -> void:
 	Input.action_release(&"pause_menu")
+	# Bontago-1pi.15.1: the real gamepad-button tests below flip the Settings
+	# autoload's own active_input_device() to DEVICE_GAMEPAD as a side effect
+	# of routing a real InputEventJoypadButton through Input.parse_input_event()
+	# -- reset it so a later test file in the same run (e.g. test_key_rebind_
+	# row.gd's own glyph-count assertions) doesn't inherit gamepad mode from
+	# this file, the same reset tests/unit/test_options_menu.gd's own
+	# after_each() already performs for its own gamepad tests.
+	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
 
 
 func _key_press(keycode: Key) -> InputEventKey:
@@ -57,6 +65,20 @@ func test_gamepad_start_toggles_visibility() -> void:
 	assert_false(_menu.visible)
 	_menu._unhandled_input(event)
 	assert_true(_menu.visible)
+
+
+## Bontago-1pi.15.1 ("B never goes back in any menu"): gamepad B is
+## ui_cancel's own binding now (tools/bootstrap_project.gd) -- proves the real
+## InputMap route, not just a synthetic ui_cancel InputEventAction.
+func test_gamepad_b_closes_the_open_menu() -> void:
+	var event: InputEventJoypadButton = _pad_press(JOY_BUTTON_B)
+	assert_true(event.is_action_pressed(&"ui_cancel"), "gamepad B should map to ui_cancel")
+
+	_menu._unhandled_input(_pad_press(JOY_BUTTON_START))  # open
+	assert_true(_menu.visible, "fixture: opened.")
+
+	_menu._unhandled_input(event)
+	assert_false(_menu.visible, "gamepad B must close the pause menu the same way ui_cancel/Escape does.")
 
 
 # --- Suppressed while Tutorial owns the scene ---------------------------------
@@ -123,6 +145,30 @@ func test_resume_button_closes_the_menu() -> void:
 	_menu._on_resume_pressed()
 
 	assert_false(_menu.visible)
+
+
+## Real Input.parse_input_event() route (the same technique test_main_menu.gd's
+## own test_gamepad_a_activates_the_focused_host_button() uses): gamepad A on
+## the already-focused Resume button must activate it via ui_accept, not just
+## a direct _on_resume_pressed() call.
+func test_gamepad_a_activates_the_focused_resume_button() -> void:
+	_menu._unhandled_input(_key_press(KEY_ESCAPE))  # open, grabs focus on Resume
+	assert_true(_menu._resume_button.has_focus(), "fixture: Resume is focused on open.")
+
+	var press: InputEventJoypadButton = InputEventJoypadButton.new()
+	press.device = -1
+	press.button_index = JOY_BUTTON_A
+	press.pressed = true
+	Input.parse_input_event(press)
+	var release: InputEventJoypadButton = InputEventJoypadButton.new()
+	release.device = -1
+	release.button_index = JOY_BUTTON_A
+	release.pressed = false
+	Input.parse_input_event(release)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	assert_false(_menu.visible, "gamepad A on the focused Resume button must close the menu via ui_accept.")
 
 
 func test_open_grabs_focus_on_the_resume_button() -> void:

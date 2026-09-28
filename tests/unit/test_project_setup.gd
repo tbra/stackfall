@@ -52,6 +52,10 @@ const REQUIRED_ACTIONS: PackedStringArray = [
 	"sandbox_toggle_overlay",
 	"sandbox_force_special",
 	"screenshot_capture",
+	# Bontago-1pi.15.1: menu accept/cancel need an explicit gamepad half too
+	# (tools/bootstrap_project.gd's own "--- UI (menus) ---" block).
+	"ui_accept",
+	"ui_cancel",
 ]
 
 ## Actions whose mouse or gamepad half is deliberately absent, with the reason.

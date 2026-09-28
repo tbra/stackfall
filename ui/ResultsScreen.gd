@@ -129,6 +129,17 @@ func _on_match_state_changed(_from_state: int, to_state: int) -> void:
 		_settings_panel.visible = false
 
 
+## Bontago-1pi.15.1: ui_cancel closes the quick-settings sub-panel the same
+## way ui/OptionsMenu.gd/ui/Lobby.gd close their own popups with B -- this
+## screen itself has no "back" (Replay/Back to lobby are the only two ways
+## off a results screen, both explicit host actions), so ui_cancel only ever
+## does something while %SettingsPanel is open.
+func _unhandled_input(event: InputEvent) -> void:
+	if _settings_panel.visible and event.is_action_pressed(&"ui_cancel"):
+		_on_settings_close_pressed()
+		get_viewport().set_input_as_handled()
+
+
 ## Public entry point (also the one GUT tests drive directly, the same
 ## "call the handler, don't fake the signal" style tests/unit/test_pause_menu.gd
 ## uses for _unhandled_input()) -- populates the headline and stats table,

@@ -17,6 +17,16 @@ func _fake_of(menu: MainMenu) -> FakeNet:
 	return menu.net_provider as FakeNet
 
 
+## Bontago-1pi.15.1: this file's own gamepad-A test below routes a real
+## InputEventJoypadButton through Input.parse_input_event(), which flips the
+## Settings autoload's own active_input_device() to DEVICE_GAMEPAD as a side
+## effect -- reset it so a later test file in the same run doesn't inherit
+## gamepad mode from this one (tests/unit/test_options_menu.gd's own
+## after_each() already does this for its own gamepad tests).
+func after_each() -> void:
+	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+
+
 # --- parse_address (static, no scene tree needed) ---------------------------
 
 func test_parse_address_accepts_bare_ip() -> void:
@@ -209,3 +219,42 @@ func test_refresh_steam_button_calls_refresh_lobby_list() -> void:
 	var menu: MainMenu = _make_menu()
 	menu._on_refresh_steam_pressed()
 	assert_eq(_fake_of(menu).refresh_lobby_list_calls, 1)
+
+
+# --- Gamepad parity (Bontago-1pi.15.1: "gamepad works in some menus but not
+# all") ------------------------------------------------------------------------
+#
+# Drives real InputEventJoypadButton press+release through Input.
+# parse_input_event() -- the actual InputMap route a real controller takes,
+# not a synthetic InputEventAction -- so these prove tools/bootstrap_project.
+# gd's ui_accept/ui_cancel gamepad bindings actually reach this menu, the same
+# real-binding technique tests/unit/test_pause_menu.gd's own
+# test_gamepad_start_toggles_visibility() already uses for pause_menu.
+
+func _pad_press_and_release(button: JoyButton) -> void:
+	var press: InputEventJoypadButton = InputEventJoypadButton.new()
+	press.device = -1
+	press.button_index = button
+	press.pressed = true
+	Input.parse_input_event(press)
+	var release: InputEventJoypadButton = InputEventJoypadButton.new()
+	release.device = -1
+	release.button_index = button
+	release.pressed = false
+	Input.parse_input_event(release)
+
+
+func test_opening_grabs_focus_on_the_host_button() -> void:
+	var menu: MainMenu = _make_menu()
+	assert_not_null(get_viewport().gui_get_focus_owner(), "the menu must land focus somewhere as soon as it opens.")
+	assert_true(menu._host_button.has_focus(), "Host is the menu's own first/primary action.")
+
+
+func test_gamepad_a_activates_the_focused_host_button() -> void:
+	var menu: MainMenu = _make_menu()
+	await get_tree().process_frame
+	menu._host_button.grab_focus()
+	_pad_press_and_release(JOY_BUTTON_A)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_eq(_fake_of(menu).host_game_calls.size(), 1, "gamepad A on the focused Host button must activate it via ui_accept.")

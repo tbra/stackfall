@@ -354,6 +354,53 @@ func test_ui_cancel_emits_closed_when_no_row_is_listening() -> void:
 	assert_signal_emitted(menu, "closed")
 
 
+# --- Gamepad parity (Bontago-1pi.15.1: "gamepad works in some menus but not
+# all; B never goes back in any menu") ------------------------------------------
+#
+# Real InputEventJoypadButton, checked via the event's own is_action_pressed()
+# against the real InputMap (not a synthetic InputEventAction) -- proves
+# tools/bootstrap_project.gd's ui_accept/ui_cancel gamepad bindings actually
+# reach this screen.
+
+func test_opening_grabs_focus_on_the_preset_option() -> void:
+	var menu: OptionsMenu = _make_menu()
+	assert_not_null(get_viewport().gui_get_focus_owner(), "OptionsMenu must land focus somewhere as soon as it opens.")
+	assert_true((menu.get_node("%PresetOption") as Control).has_focus())
+
+
+func test_gamepad_b_emits_closed_via_real_binding() -> void:
+	var menu: OptionsMenu = _make_menu()
+	watch_signals(menu)
+	var event: InputEventJoypadButton = InputEventJoypadButton.new()
+	event.device = -1
+	event.button_index = JOY_BUTTON_B
+	event.pressed = true
+	assert_true(event.is_action_pressed(&"ui_cancel"), "gamepad B should map to ui_cancel")
+	menu._unhandled_input(event)
+	assert_signal_emitted(menu, "closed")
+
+
+func test_gamepad_a_activates_the_focused_back_button() -> void:
+	var menu: OptionsMenu = _make_menu()
+	watch_signals(menu)
+	(menu.get_node("%BackButton") as Button).grab_focus()
+
+	var press: InputEventJoypadButton = InputEventJoypadButton.new()
+	press.device = -1
+	press.button_index = JOY_BUTTON_A
+	press.pressed = true
+	Input.parse_input_event(press)
+	var release: InputEventJoypadButton = InputEventJoypadButton.new()
+	release.device = -1
+	release.button_index = JOY_BUTTON_A
+	release.pressed = false
+	Input.parse_input_event(release)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	assert_signal_emitted(menu, "closed", "gamepad A on the focused Back button must activate it via ui_accept.")
+
+
 # --- KeyRebindRow: listening state machine -----------------------------------------
 ## These call row._input(event) directly (ui/KeyRebindRow.gd's own capture
 ## method, Bontago-8or.19) rather than pushing input through a real Viewport

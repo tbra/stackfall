@@ -22,6 +22,16 @@ func _fake_of(lobby: Lobby) -> FakeNet:
 	return lobby.net_provider as FakeNet
 
 
+## Bontago-1pi.15.1: this file's own real-gamepad-B tests below route real
+## InputEventJoypadButton events through Input.parse_input_event(), which
+## flips the Settings autoload's own active_input_device() to DEVICE_GAMEPAD
+## as a side effect -- reset it so a later test file in the same run doesn't
+## inherit gamepad mode from this one (tests/unit/test_options_menu.gd's own
+## after_each() already does this for its own gamepad tests).
+func after_each() -> void:
+	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+
+
 ## Bontago-mp0.3.5 (review r2, item 4): walks a player-row PanelContainer
 ## (ui/Lobby.gd's _build_player_row()) down to its Ready/Not ready badge
 ## Label -- layout is the row's only child, the badge is layout's 3rd child
@@ -709,6 +719,54 @@ func test_ui_cancel_closes_the_advanced_popup() -> void:
 	event.pressed = true
 	lobby._unhandled_input(event)
 	assert_false((lobby.get_node("%AdvancedPopup") as Control).visible)
+
+
+# --- Gamepad parity (Bontago-1pi.15.1: "gamepad works in some menus but not
+# all; B never goes back in any menu") ------------------------------------------
+#
+# Real InputEventJoypadButton, checked against the real InputMap via the
+# event's own is_action_pressed() (not a synthetic InputEventAction) -- proves
+# tools/bootstrap_project.gd's ui_cancel gamepad-B binding actually reaches
+# this screen, the same real-binding technique test_pause_menu.gd's own
+# _pad_press()/test_gamepad_start_toggles_visibility() already uses.
+
+func test_opening_grabs_focus_somewhere() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	assert_not_null(get_viewport().gui_get_focus_owner(), "the lobby must land focus somewhere as soon as it opens.")
+	assert_true((lobby.get_node("%MapComboOption") as Control).has_focus())
+
+
+## Bontago-1pi.15.1 fix: previously the popup was the *only* case ui_cancel
+## did anything for in this file -- pressing B on the main lobby screen did
+## nothing at all. _unhandled_input() now falls through to _on_back_pressed()
+## when the popup is closed.
+func test_gamepad_b_on_the_main_screen_emits_back_requested() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	watch_signals(lobby)
+	assert_false((lobby.get_node("%AdvancedPopup") as Control).visible, "fixture: popup starts closed.")
+
+	var event: InputEventJoypadButton = _pad_press_release_action_event(JOY_BUTTON_B)
+	assert_true(event.is_action_pressed(&"ui_cancel"), "gamepad B should map to ui_cancel")
+	lobby._unhandled_input(event)
+
+	assert_signal_emitted(lobby, "back_requested", "gamepad B must back all the way out of the lobby when no popup is open.")
+
+
+func test_gamepad_b_closes_the_advanced_popup_via_real_binding() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	lobby._open_advanced_popup()
+
+	lobby._unhandled_input(_pad_press_release_action_event(JOY_BUTTON_B))
+
+	assert_false((lobby.get_node("%AdvancedPopup") as Control).visible, "gamepad B must close the popup, not the whole lobby, while it is open.")
+
+
+func _pad_press_release_action_event(button: JoyButton) -> InputEventJoypadButton:
+	var event: InputEventJoypadButton = InputEventJoypadButton.new()
+	event.device = -1
+	event.button_index = button
+	event.pressed = true
+	return event
 
 
 ## The six summary chips on %AdvRulesBar must reflect the live controls

@@ -207,24 +207,48 @@ func test_step_camera_advances_after_the_configured_hold_and_ends_the_tutorial()
 	await _teardown_menu()
 
 
-# --- Cancel (ui_cancel) --------------------------------------------------------
+# --- Cancel (pause_menu) --------------------------------------------------------
 
-func test_ui_cancel_aborts_cleanly_from_any_step() -> void:
+## Bontago-1pi.15.1 fix: this used to fire ui_cancel, but ui_cancel now has a
+## gamepad B binding (project-wide menu back-navigation fix) and gamepad B is
+## also rotate_snap/camera_snap_goal's own button during gameplay -- reading
+## ui_cancel here would end the tutorial on every gamepad snap-rotate. See
+## ui/Tutorial.gd's own updated _unhandled_input() doc comment for why
+## pause_menu (Escape / gamepad Start) is the correct action to read instead.
+func test_pause_menu_action_aborts_cleanly_from_any_step() -> void:
 	_setup_menu()
 	_start_tutorial()
 	var freed_tutorial: Tutorial = _tutorial
 
 	var cancel_event: InputEventAction = InputEventAction.new()
-	cancel_event.action = &"ui_cancel"
+	cancel_event.action = &"pause_menu"
 	cancel_event.pressed = true
 	_tutorial._unhandled_input(cancel_event)
 
-	assert_eq(Match.state(), Match.State.LOBBY, "ui_cancel must call Match.abort_match().")
+	assert_eq(Match.state(), Match.State.LOBBY, "pause_menu must call Match.abort_match().")
 	assert_null(_main._tutorial, "game/Main.gd frees the Tutorial node once `finished` fires.")
 	assert_not_null(_main._main_menu, "cancelling returns control to the Main Menu.")
 
 	await get_tree().process_frame
 	await get_tree().process_frame
 	assert_false(is_instance_valid(freed_tutorial), "no Tutorial node must be left in the tree.")
+
+	await _teardown_menu()
+
+
+## Bontago-1pi.15.1: the regression this whole fix guards against -- gamepad B
+## (rotate_snap/camera_snap_goal's own button, and now also ui_cancel's) must
+## never end the tutorial.
+func test_ui_cancel_does_not_abort_tutorial() -> void:
+	_setup_menu()
+	_start_tutorial()
+
+	var cancel_event: InputEventAction = InputEventAction.new()
+	cancel_event.action = &"ui_cancel"
+	cancel_event.pressed = true
+	_tutorial._unhandled_input(cancel_event)
+
+	assert_ne(Match.state(), Match.State.LOBBY, "ui_cancel (shared with gamepad B / rotate_snap) must not abort the tutorial.")
+	assert_not_null(_main._tutorial, "the Tutorial node must still be alive.")
 
 	await _teardown_menu()
