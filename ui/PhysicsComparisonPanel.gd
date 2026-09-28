@@ -51,7 +51,7 @@ func _ready() -> void:
 	var close_row: HBoxContainer = HBoxContainer.new()
 	list.add_child(close_row)
 	_button(close_row, "Clear / cancel", func() -> void: clear_requested.emit())
-	_button(close_row, "Territory cones", func() -> void: cone_requested.emit())
+	_button(close_row, "Territory experiments", func() -> void: cone_requested.emit())
 	_button(close_row, "Close controls", func() -> void: set_open(false))
 	_status = Label.new()
 	_status.custom_minimum_size.x = 390

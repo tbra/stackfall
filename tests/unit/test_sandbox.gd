@@ -14,6 +14,11 @@ func test_cone_panel_measures_without_replacing_live_territory() -> void:
 	assert_not_null(sandbox._cone_panel._cone_map.texture)
 	assert_same(Match.raster(), live_raster, "experiment must not replace match territory")
 	assert_true(sandbox._cone_panel._status.text.contains("Current:"))
+	sandbox._cone_panel._mode.select(SandboxConeComparison.MODE_CONTAINMENT)
+	sandbox._cone_panel._on_mode_selected(SandboxConeComparison.MODE_CONTAINMENT)
+	assert_true(sandbox._cone_panel._status.text.contains("Containment:"))
+	assert_false(sandbox._cone_panel._angle_row.visible)
+	assert_true(sandbox._cone_panel._status.text.contains("Different cells: 0 (0.00%)"))
 	sandbox._cone_panel.set_open(false)
 	assert_true(sandbox.controller().input_enabled)
 

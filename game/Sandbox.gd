@@ -389,16 +389,16 @@ func _open_cone_comparison() -> void:
 	_cone_panel.set_open(true)
 
 
-func _measure_cone_comparison(angle_degrees: float) -> void:
+func _measure_cone_comparison(mode: int, angle_degrees: float) -> void:
 	if _field == null or Match.state() != Match.State.PLAYING:
 		_cone_panel.show_snapshot({"error": "Wait for sandbox countdown to finish."}, null, null, PackedColorArray())
 		return
-	var comparison: Dictionary = SandboxConeComparison.measure(_field, angle_degrees)
+	var comparison: Dictionary = SandboxConeComparison.measure(_field, mode, angle_degrees)
 	if comparison.has("error"):
 		_cone_panel.show_snapshot(comparison, null, null, PackedColorArray())
 		return
 	_cone_panel.show_snapshot(
-		comparison["metrics"], comparison["baseline"], comparison["cone"], Match.config.player_colors
+		comparison["metrics"], comparison["baseline"], comparison["experiment"], Match.config.player_colors
 	)
 
 
