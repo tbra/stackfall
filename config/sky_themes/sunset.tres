@@ -1,27 +1,38 @@
-[gd_resource type="Resource" script_class="SkyThemeDef" load_steps=5 format=3]
+[gd_resource type="Resource" script_class="SkyThemeDef" format=3 uid="uid://rxu2kofnhrum"]
 
-[ext_resource type="Script" path="res://config/SkyThemeDef.gd" id="1_theme"]
-[ext_resource type="Shader" path="res://shaders/sunset_clouds.gdshader" id="2_clouds"]
-[ext_resource type="Texture2D" path="res://assets/sky/sunset-clouds-v1.png" id="3_panorama"]
+[ext_resource type="Script" uid="uid://ddeais67gdwvk" path="res://config/SkyThemeDef.gd" id="1_theme"]
+[ext_resource type="Shader" uid="uid://l03n1dbfi36o" path="res://shaders/sunset_clouds.gdshader" id="2_clouds"]
+[ext_resource type="Texture2D" uid="uid://ca3slscpuorvc" path="res://assets/sky/sunset-clouds-v1.png" id="3_panorama"]
 
 [sub_resource type="ShaderMaterial" id="SunsetClouds"]
 shader = ExtResource("2_clouds")
 shader_parameter/panorama = ExtResource("3_panorama")
+shader_parameter/seam_blend_width = 0.025
+shader_parameter/pole_blend_width = 0.06
+shader_parameter/exposure = 0.8
+shader_parameter/sky_yaw_offset_deg = 0.0
+shader_parameter/sky_pitch_offset_deg = 0.0
+shader_parameter/sun_direction = Vector3(0.963087, 0.069011, -0.260192)
+shader_parameter/sun_core_color = Color(1, 0.94, 0.82, 1)
+shader_parameter/sun_halo_color = Color(1, 0.62, 0.28, 1)
+shader_parameter/sun_ray_color = Color(1, 0.72, 0.38, 1)
+shader_parameter/sun_core_angular_radius_deg = 1.6
+shader_parameter/sun_halo_angular_radius_deg = 9.0
+shader_parameter/sun_halo_softness_deg = 10.0
+shader_parameter/sun_core_intensity = 0.0
+shader_parameter/sun_halo_intensity = 0.0
+shader_parameter/ray_count = 14.0
+shader_parameter/ray_sharpness = 5.0
+shader_parameter/ray_wide_count = 4.0
+shader_parameter/ray_wide_sharpness = 2.0
+shader_parameter/ray_length_deg = 55.0
+shader_parameter/ray_intensity = 0.35
+shader_parameter/ray_shimmer_speed = 0.15
+shader_parameter/ray_shimmer_amount = 0.08
 
 [resource]
 script = ExtResource("1_theme")
 sky_material = SubResource("SunsetClouds")
 sky_yaw_offset_deg = 184.058612
-sky_pitch_offset_deg = 0.0
-sky_top_color = Color(0.161, 0.2, 0.333, 1)
-sky_horizon_color = Color(0.98, 0.64, 0.38, 1)
-ground_bottom_color = Color(0.118, 0.098, 0.137, 1)
-ground_horizon_color = Color(0.847, 0.514, 0.333, 1)
-sun_angle_min_max = Vector2(8, 20)
-fog_color = Color(0.93, 0.58, 0.4, 1)
 fog_density = 0.0003
-fog_sky_affect = 0.0
 volumetric_fog_density = 0.00015
-volumetric_fog_albedo = Color(0.93, 0.58, 0.4, 1)
-cloud_deck_size_m = Vector3(800, 60, 800)
-cloud_deck_height_m = -40.0

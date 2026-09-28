@@ -2,22 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://ca3slscpuorvc"
-path.s3tc="res://.godot/imported/sunset-clouds-v1.png-67668e43c078ff2e4dca12c6496330c7.s3tc.ctex"
-path.etc2="res://.godot/imported/sunset-clouds-v1.png-67668e43c078ff2e4dca12c6496330c7.etc2.ctex"
+uid="uid://51u2qqup57e3"
+path="res://.godot/imported/m7p7_main_menu_candidate.png-b7bf0f188c8028721280373d3f0a2adc.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc", "etc2_astc"],
-"vram_texture": true
+"vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/sky/sunset-clouds-v1.png"
-dest_files=["res://.godot/imported/sunset-clouds-v1.png-67668e43c078ff2e4dca12c6496330c7.s3tc.ctex", "res://.godot/imported/sunset-clouds-v1.png-67668e43c078ff2e4dca12c6496330c7.etc2.ctex"]
+source_file="res://docs/art_mockups/m7p7_main_menu_candidate.png"
+dest_files=["res://.godot/imported/m7p7_main_menu_candidate.png-b7bf0f188c8028721280373d3f0a2adc.ctex"]
 
 [params]
 
-compress/mode=2
+compress/mode=0
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -25,7 +23,7 @@ compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
-mipmaps/generate=true
+mipmaps/generate=false
 mipmaps/limit=-1
 roughness/mode=0
 roughness/src_normal=""
@@ -39,4 +37,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=0
+detect_3d/compress_to=1

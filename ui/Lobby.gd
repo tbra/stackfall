@@ -1238,6 +1238,7 @@ func _on_ready_toggled(pressed: bool) -> void:
 func _on_start_pressed() -> void:
 	if net_provider == null or not bool(net_provider.is_host()) or not bool(net_provider.all_peers_ready()):
 		return
+	Sfx.play(AudioConfig.EVENT_START_GAME)
 	var config: MatchConfig = (
 		_last_config if _last_config != null else _config_from_controls()
 	).duplicate(true) as MatchConfig

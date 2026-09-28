@@ -28,7 +28,8 @@ extends Node
 ## music playback additionally adds Settings.music_volume_db() -- master
 ## multiplies every channel, the music/SFX sliders only ever scale their own.
 
-const AUDIO_SUBDIR: String = "assets/original/audio"
+const AUDIO_SUBDIR: String = "assets/effects"
+const ORIGINAL_AUDIO_SUBDIR: String = "assets/original/audio"
 
 ## Effectively-silent volume_db floor for whichever music stem is faded out
 ## of the adaptive crossfade (docs/M7_PLAN.md P6). Not a tunable -- it is an
@@ -86,11 +87,11 @@ func _ready() -> void:
 	Block.impact_speed_min = config.impact_speed_min
 	Block.impacts_enabled = config.impacts_enabled
 	_root_dir = _resolve_root_dir()
-	_available = DirAccess.dir_exists_absolute(_root_dir)
+	_available = DirAccess.dir_exists_absolute(_root_dir) or DirAccess.dir_exists_absolute(_resolve_original_audio_root_dir())
 	if not _available:
 		print(
-			"Sfx: no original assets at %s -- run tools/install_original_assets.ps1 (optional; the game runs silently without it)."
-			% _root_dir
+			"Sfx: no effects at %s or original audio at %s -- game runs silently."
+			% [_root_dir, _resolve_original_audio_root_dir()]
 		)
 	_refresh_music_root_dir()
 	_build_player_pool()
@@ -109,6 +110,12 @@ func _resolve_root_dir() -> String:
 	if OS.has_feature("editor"):
 		return ProjectSettings.globalize_path("res://" + AUDIO_SUBDIR)
 	return OS.get_executable_path().get_base_dir().path_join(AUDIO_SUBDIR)
+
+
+func _resolve_original_audio_root_dir() -> String:
+	if OS.has_feature("editor"):
+		return ProjectSettings.globalize_path("res://" + ORIGINAL_AUDIO_SUBDIR)
+	return OS.get_executable_path().get_base_dir().path_join(ORIGINAL_AUDIO_SUBDIR)
 
 
 ## Legacy fallback stays on the original bundled root. Custom folders are
@@ -246,6 +253,14 @@ func _pick_stream(event: StringName) -> AudioStream:
 
 
 func _load_stream(filename: String) -> AudioStream:
+	# The replacement effects folder intentionally contains only newly chosen
+	# sounds. Keep original sounds (bomb, boing, rocket, etc.) working without
+	# copying the licensed originals into tracked assets/effects. Test-injected
+	# roots still stay isolated and never consult the developer's asset folder.
+	if _root_dir == _resolve_root_dir() and not FileAccess.file_exists(_root_dir.path_join(filename.to_lower())):
+		var original_root: String = _resolve_original_audio_root_dir()
+		if FileAccess.file_exists(original_root.path_join(filename.to_lower())):
+			return _load_stream_from_root(filename, original_root, _streams_by_filename)
 	return _load_stream_from_root(filename, _root_dir, _streams_by_filename)
 
 

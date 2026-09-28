@@ -1,5 +1,6 @@
 param(
     [ValidateRange(1024, 65535)][int]$Port = 3000,
+    [string]$ListenAddress = '192.168.86.65',
     [switch]$NoOpen
 )
 
@@ -9,7 +10,8 @@ $nextCli = Join-Path $scottyRoot 'node_modules/next/dist/bin/next'
 if (-not (Test-Path (Join-Path $scottyRoot '.next/BUILD_ID'))) {
     throw "Scotty is not built at $scottyRoot."
 }
-$baseUrl = "http://127.0.0.1:$Port"
+$bindAddress = [System.Net.IPAddress]::Parse($ListenAddress)
+$baseUrl = "http://${ListenAddress}:$Port"
 $projectPath = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 function Get-ScottyProject {
     try {
@@ -21,14 +23,14 @@ function Get-ScottyProject {
 $project = Get-ScottyProject
 if (-not $project) {
     # A port probe avoids the elevation required by Get-NetTCPConnection on some PCs.
-    $portProbe = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $Port)
+    $portProbe = [System.Net.Sockets.TcpListener]::new($bindAddress, $Port)
     try { $portProbe.Start() }
     catch { throw "Port $Port is occupied but did not identify this Scotty project. Choose -Port <number>; no existing process was stopped." }
     finally { $portProbe.Stop() }
 
     $nodePath = (Get-Command node.exe).Source
     $scottyProcess = Start-Process -FilePath $nodePath -ArgumentList @(
-        ('"{0}"' -f $nextCli), 'start', '-H', '127.0.0.1', '-p', $Port
+        ('"{0}"' -f $nextCli), 'start', '-H', $ListenAddress, '-p', $Port
     ) -WorkingDirectory $scottyRoot -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput (Join-Path $scottyRoot "server-$Port.log") `
         -RedirectStandardError (Join-Path $scottyRoot "server-$Port-error.log")

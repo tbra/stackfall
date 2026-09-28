@@ -14,12 +14,13 @@ extends Resource
 ## Random thud on block impact (game/Block.gd's contact signal), one of five
 ## originals so repeated landings don't sound identical.
 @export var thud_files: Array[String] = [
-	"thud1.wav", "thud2.wav", "thud3.wav", "thud4.wav", "thud5.wav",
+	"thud1.wav", "thud2.wav", "thud3.wav", "thud4.wav",
 ]
-@export var rejected_file: String = "no.wav"
-@export var click_file: String = "click.wav"
-@export var hover_file: String = "mouseover.wav"
-@export var drop_file: String = "whoosh.wav"
+@export var rejected_file: String = "placement_rejected_pcm.wav"
+@export var click_file: String = "select.wav"
+@export var start_game_file: String = "start_game.mp3"
+@export var hover_file: String = "button_hover_pcm.wav"
+@export var drop_file: String = "block_placed.wav"
 @export var bounce_file: String = "boing.wav"
 @export var music_file: String = "bontago1.mp3"
 
@@ -33,8 +34,8 @@ extends Resource
 @export var gameplay_playlist: Array[AudioStream] = []
 @export_range(0.0, 30.0) var music_fade_in_seconds: float = 4.0
 @export_range(0.0, 30.0) var music_fade_out_seconds: float = 5.0
-@export_range(0.0, 300.0) var music_gap_min_seconds: float = 30.0
-@export_range(0.0, 300.0) var music_gap_max_seconds: float = 75.0
+@export_range(0.0, 300.0) var music_gap_min_seconds: float = 20.0
+@export_range(0.0, 300.0) var music_gap_max_seconds: float = 50.0
 @export_range(0.0, 30.0) var music_initial_delay_seconds: float = 2.0
 
 
@@ -101,7 +102,7 @@ func playlist_for_context(context: StringName) -> Array[AudioStream]:
 @export var volcano_file: String = "volcano.wav"
 @export var quake_file: String = "quake2.wav"
 @export var propeller_file: String = "propeller.wav"
-@export var breakage_file: String = "breakage.wav"
+@export var breakage_file: String = "eliminated.wav"
 @export var creak_file: String = "creak.wav"
 
 ## Below this impact speed (m/s), a block landing makes no sound at all.
@@ -132,6 +133,7 @@ func playlist_for_context(context: StringName) -> Array[AudioStream]:
 const EVENT_THUD: StringName = &"thud"
 const EVENT_REJECTED: StringName = &"rejected"
 const EVENT_CLICK: StringName = &"click"
+const EVENT_START_GAME: StringName = &"start_game"
 const EVENT_HOVER: StringName = &"hover"
 const EVENT_DROP: StringName = &"drop"
 const EVENT_BOUNCE: StringName = &"bounce"
@@ -146,7 +148,7 @@ const EVENT_CREAK: StringName = &"creak"
 const EVENT_GIFT_CLAIMED: StringName = &"gift_claimed"
 
 const ALL_EVENTS: Array[StringName] = [
-	EVENT_THUD, EVENT_REJECTED, EVENT_CLICK, EVENT_HOVER, EVENT_DROP, EVENT_BOUNCE,
+	EVENT_THUD, EVENT_REJECTED, EVENT_CLICK, EVENT_START_GAME, EVENT_HOVER, EVENT_DROP, EVENT_BOUNCE,
 	EVENT_MUSIC, EVENT_BOMB, EVENT_ROCKET, EVENT_VOLCANO, EVENT_QUAKE, EVENT_PROPELLER,
 	EVENT_BREAKAGE, EVENT_CREAK, EVENT_GIFT_CLAIMED,
 ]
@@ -162,6 +164,8 @@ func files_for_event(event: StringName) -> Array[String]:
 			return [rejected_file]
 		EVENT_CLICK:
 			return [click_file]
+		EVENT_START_GAME:
+			return [start_game_file]
 		EVENT_HOVER:
 			return [hover_file]
 		EVENT_DROP:
