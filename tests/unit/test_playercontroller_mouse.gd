@@ -75,6 +75,22 @@ func test_mouse_motion_moves_the_cursor_in_the_disk_plane() -> void:
 	assert_almost_eq(controller._cursor.z, 0.0, 0.001)
 
 
+## Bontago (options package): Settings.mouse_move_speed_scale() (Options
+## menu's device-aware Controls-tab slider) scales the mouse cursor's own
+## block_move_sensitivity on top of the tuning Resource's baseline.
+func test_mouse_move_speed_scale_multiplies_cursor_motion() -> void:
+	var controller: PlayerController = _make_controller()
+	Settings.set_mouse_move_speed_scale(2.0)
+
+	controller._unhandled_input(_motion(Vector2(100.0, 0.0)))
+
+	assert_almost_eq(
+		controller._cursor.x, 100.0 * controller.ghost_tuning.block_move_sensitivity * 2.0, 0.001,
+		"a 2x mouse speed scale should double the cursor's own per-pixel motion."
+	)
+	Settings.reset_move_speed_scales()
+
+
 func test_mouse_motion_is_camera_relative_to_the_rigs_yaw() -> void:
 	var controller: PlayerController = _make_controller()
 	var rig: CameraRig = autofree(load("res://game/CameraRig.tscn").instantiate())

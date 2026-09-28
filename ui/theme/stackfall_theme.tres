@@ -1,6 +1,8 @@
-[gd_resource type="Theme" load_steps=18 format=3]
+[gd_resource type="Theme" load_steps=20 format=3]
 
 [ext_resource type="FontFile" path="res://assets/ui/fonts/Manrope-Regular.ttf" id="1_font"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/slider_grabber.svg" id="2_slider_grabber"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/slider_grabber_hover.svg" id="3_slider_grabber_hover"]
 
 [sub_resource type="FontVariation" id="FontVariation_regular"]
 base_font = ExtResource("1_font")
@@ -116,18 +118,26 @@ content_margin_right = 8.0
 content_margin_bottom = 4.0
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_slider_bg"]
-bg_color = Color(0.86, 0.8, 0.68, 1)
-corner_radius_top_left = 6
-corner_radius_top_right = 6
-corner_radius_bottom_right = 6
-corner_radius_bottom_left = 6
+bg_color = Color(0.7, 0.62, 0.48, 1)
+corner_radius_top_left = 7
+corner_radius_top_right = 7
+corner_radius_bottom_right = 7
+corner_radius_bottom_left = 7
+content_margin_left = 0.0
+content_margin_top = 7.0
+content_margin_right = 0.0
+content_margin_bottom = 7.0
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_slider_fill"]
 bg_color = Color(0.92, 0.42, 0.36, 1)
-corner_radius_top_left = 6
-corner_radius_top_right = 6
-corner_radius_bottom_right = 6
-corner_radius_bottom_left = 6
+corner_radius_top_left = 7
+corner_radius_top_right = 7
+corner_radius_bottom_right = 7
+corner_radius_bottom_left = 7
+content_margin_left = 0.0
+content_margin_top = 7.0
+content_margin_right = 0.0
+content_margin_bottom = 7.0
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_itemlist"]
 bg_color = Color(1, 0.98, 0.94, 1)
@@ -197,6 +207,9 @@ HSlider/styles/slider = SubResource("StyleBoxFlat_slider_bg")
 HSlider/styles/grabber_area = SubResource("StyleBoxFlat_slider_fill")
 HSlider/styles/grabber_area_highlight = SubResource("StyleBoxFlat_slider_fill")
 HSlider/styles/focus = SubResource("StyleBoxFlat_focus")
+HSlider/icons/grabber = ExtResource("2_slider_grabber")
+HSlider/icons/grabber_highlight = ExtResource("3_slider_grabber_hover")
+HSlider/icons/grabber_disabled = ExtResource("2_slider_grabber")
 ItemList/styles/panel = SubResource("StyleBoxFlat_itemlist")
 ItemList/styles/focus = SubResource("StyleBoxFlat_focus")
 ItemList/colors/font_color = Color(0.149, 0.196, 0.227, 1)

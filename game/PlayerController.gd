@@ -1349,8 +1349,11 @@ func _handle_hover_adjust(delta: float) -> void:
 ## Bontago-mv0.14 (spec 1.5): the mouse "positions the block" directly,
 ## camera-relative, instead of the old screen-space raycast. `relative` is the
 ## InputEventMouseMotion's raw pixel delta.
+## Bontago (options package): scaled by Settings.mouse_move_speed_scale() --
+## the Options menu's "Mouse speed" slider (Controls tab) -- on top of the
+## tuning Resource's own block_move_sensitivity baseline.
 func _move_cursor_from_mouse(relative: Vector2) -> void:
-	_cursor += _camera_relative_dir(relative) * ghost_tuning.block_move_sensitivity
+	_cursor += _camera_relative_dir(relative) * ghost_tuning.block_move_sensitivity * Settings.mouse_move_speed_scale()
 
 
 ## Moves the gamepad's world-space cursor (spec 2.5), relative to the camera,
@@ -1411,7 +1414,10 @@ func _update_gamepad_cursor(delta: float) -> void:
 	if stick.length() > 0.0:
 		_using_gamepad_cursor = true
 
-	var max_speed: float = ghost_tuning.gamepad_cursor_base_speed
+	# Bontago (options package): scaled by Settings.stick_move_speed_scale() --
+	# the Options menu's "Stick speed" slider (Controls tab) -- on top of the
+	# tuning Resource's own gamepad_cursor_base_speed baseline.
+	var max_speed: float = ghost_tuning.gamepad_cursor_base_speed * Settings.stick_move_speed_scale()
 	if _camera_rig != null and ghost_tuning.gamepad_cursor_zoom_reference_distance > 0.0:
 		max_speed *= _camera_rig.get_distance() / ghost_tuning.gamepad_cursor_zoom_reference_distance
 

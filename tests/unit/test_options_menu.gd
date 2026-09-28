@@ -91,12 +91,120 @@ func test_preset_selection_ignores_out_of_range_index() -> void:
 	assert_eq(_settings_of(menu).current_graphics_preset().id, &"medium", "an out-of-range index must not change the preset")
 
 
-# --- Master volume ---------------------------------------------------------------
+# --- Audio channels (Master/Music/SFX) ----------------------------------------
 
-func test_volume_slider_calls_set_master_volume_db() -> void:
+func test_master_volume_slider_calls_set_master_volume_percent() -> void:
 	var menu: OptionsMenu = _make_menu()
-	menu._on_volume_changed(-12.0)
-	assert_eq(_settings_of(menu).master_volume_db(), -12.0)
+	menu._on_master_volume_changed(0.3)
+	assert_almost_eq(_settings_of(menu).master_volume_percent(), 0.3, 0.0001)
+
+
+func test_music_volume_slider_calls_set_music_volume_percent_only() -> void:
+	var menu: OptionsMenu = _make_menu()
+	menu._on_music_volume_changed(0.6)
+	assert_almost_eq(_settings_of(menu).music_volume_percent(), 0.6, 0.0001)
+	assert_eq(_settings_of(menu).sfx_volume_percent(), 1.0, "the SFX channel must be untouched")
+
+
+func test_sfx_volume_slider_calls_set_sfx_volume_percent_only() -> void:
+	var menu: OptionsMenu = _make_menu()
+	menu._on_sfx_volume_changed(0.6)
+	assert_almost_eq(_settings_of(menu).sfx_volume_percent(), 0.6, 0.0001)
+	assert_eq(_settings_of(menu).music_volume_percent(), 1.0, "the music channel must be untouched")
+
+
+func test_master_mute_button_toggles_mute_and_round_trips() -> void:
+	var menu: OptionsMenu = _make_menu()
+	(menu.get_node("%MasterMuteButton") as Button).pressed.emit()
+	assert_true(_settings_of(menu).master_muted())
+	assert_eq(_mute_icon(menu, "%MasterMuteButton"), OptionsMenu.SPEAKER_MUTED_ICON)
+
+	(menu.get_node("%MasterMuteButton") as Button).pressed.emit()
+	assert_false(_settings_of(menu).master_muted())
+
+
+## DECISION (ui/OptionsMenu.gd): the icon lives on a child TextureRect
+## (see that file's own DECISION on _style_mute_button_icon()), not the
+## Button's own `icon` property.
+func _mute_icon(menu: OptionsMenu, unique_name: String) -> Texture2D:
+	var button: Button = menu.get_node(unique_name) as Button
+	return (button.get_node("Icon") as TextureRect).texture
+
+
+func test_volume_icon_reflects_percent_tier() -> void:
+	var menu: OptionsMenu = _make_menu()
+	var settings: Node = _settings_of(menu)
+
+	settings.set_sfx_volume_percent(0.1)
+	menu._load_current_values()
+	assert_eq(_mute_icon(menu, "%SfxMuteButton"), OptionsMenu.SPEAKER_LOW_ICON)
+
+	settings.set_sfx_volume_percent(0.5)
+	menu._load_current_values()
+	assert_eq(_mute_icon(menu, "%SfxMuteButton"), OptionsMenu.SPEAKER_MID_ICON)
+
+	settings.set_sfx_volume_percent(0.9)
+	menu._load_current_values()
+	assert_eq(_mute_icon(menu, "%SfxMuteButton"), OptionsMenu.SPEAKER_HIGH_ICON)
+
+	settings.set_sfx_volume_percent(0.0)
+	menu._load_current_values()
+	assert_eq(_mute_icon(menu, "%SfxMuteButton"), OptionsMenu.SPEAKER_MUTED_ICON)
+
+
+# --- Rumble ----------------------------------------------------------------------
+
+func test_rumble_toggle_calls_set_rumble_enabled() -> void:
+	var menu: OptionsMenu = _make_menu()
+	menu._on_rumble_enabled_toggled(false)
+	assert_false(_settings_of(menu).rumble_enabled())
+	menu._on_rumble_enabled_toggled(true)
+	assert_true(_settings_of(menu).rumble_enabled())
+
+
+func test_rumble_strength_slider_disabled_when_rumble_is_off() -> void:
+	var menu: OptionsMenu = _make_menu()
+	menu._on_rumble_enabled_toggled(false)
+	assert_false((menu.get_node("%RumbleStrengthSlider") as HSlider).editable)
+	menu._on_rumble_enabled_toggled(true)
+	assert_true((menu.get_node("%RumbleStrengthSlider") as HSlider).editable)
+
+
+func test_rumble_strength_slider_calls_set_rumble_strength() -> void:
+	var menu: OptionsMenu = _make_menu()
+	menu._on_rumble_strength_changed(0.4)
+	assert_almost_eq(_settings_of(menu).rumble_strength(), 0.4, 0.0001)
+
+
+# --- Block move speed (Controls tab, device-aware) -----------------------------
+
+func test_move_speed_row_shows_mouse_speed_by_default() -> void:
+	var menu: OptionsMenu = _make_menu()
+	assert_eq((menu.get_node("%MoveSpeedLabel") as Label).text, "Mouse speed")
+
+
+func test_move_speed_slider_calls_set_mouse_move_speed_scale_on_keyboard_mouse() -> void:
+	var menu: OptionsMenu = _make_menu()
+	menu._on_move_speed_changed(1.4)
+	assert_almost_eq(_settings_of(menu).mouse_move_speed_scale(), 1.4, 0.0001)
+	assert_eq(_settings_of(menu).stick_move_speed_scale(), 1.0, "the stick scale must be untouched")
+
+
+func test_move_speed_row_switches_to_stick_speed_on_gamepad_and_calls_stick_setter() -> void:
+	var menu: OptionsMenu = _make_menu()
+	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+	assert_eq((menu.get_node("%MoveSpeedLabel") as Label).text, "Stick speed")
+
+	menu._on_move_speed_changed(0.7)
+	assert_almost_eq(_settings_of(menu).stick_move_speed_scale(), 0.7, 0.0001)
+	assert_eq(_settings_of(menu).mouse_move_speed_scale(), 1.0, "the mouse scale must be untouched")
+
+
+func test_move_speed_slider_keeps_focus_across_a_device_switch() -> void:
+	var menu: OptionsMenu = _make_menu()
+	(menu.get_node("%MoveSpeedSlider") as Control).grab_focus()
+	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+	assert_true((menu.get_node("%MoveSpeedSlider") as Control).has_focus())
 
 
 # --- Custom music folder ----------------------------------------------------------
@@ -259,6 +367,28 @@ func test_reset_button_calls_reset_key_overrides_on_the_settings_provider() -> v
 	assert_eq(fresh.key_override_events(&"ghost_place").size(), 0, "Reset to defaults must clear every persisted override")
 
 
+## Owner: audio/rumble/move-speed rows are "reset by the Reset button" too.
+func test_reset_button_also_resets_audio_rumble_and_move_speed() -> void:
+	var menu: OptionsMenu = _make_menu()
+	var fresh: Node = _settings_of(menu)
+	fresh.set_master_volume_percent(0.2)
+	fresh.set_sfx_muted(true)
+	fresh.set_rumble_enabled(false)
+	fresh.set_rumble_strength(0.1)
+	fresh.set_mouse_move_speed_scale(1.9)
+	fresh.set_stick_move_speed_scale(0.6)
+
+	(menu.get_node("%ResetButton") as Button).pressed.emit()
+
+	assert_eq(fresh.master_volume_percent(), 1.0)
+	assert_false(fresh.sfx_muted())
+	assert_true(fresh.rumble_enabled())
+	assert_eq(fresh.rumble_strength(), 1.0)
+	assert_eq(fresh.mouse_move_speed_scale(), 1.0)
+	assert_eq(fresh.stick_move_speed_scale(), 1.0)
+	assert_eq((menu.get_node("%MasterVolumeSlider") as HSlider).value, 1.0, "the UI must reload after a reset, not just the underlying Settings")
+
+
 # --- Settings/Controls tabs (Bontago-1pi.10) ----------------------------------------
 
 func test_settings_tab_is_selected_by_default() -> void:
@@ -318,16 +448,28 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	assert_ne(camera_shake_check.focus_neighbor_top, NodePath(""), "CameraShakeCheck must have an up neighbor")
 	assert_ne(camera_shake_check.focus_neighbor_bottom, NodePath(""), "CameraShakeCheck must have a down neighbor")
 
-	# Bontago-xtq.45: CameraShakeCheck -> WindowModeOption -> first rebind row,
-	# both directions, through the same get_path_to()-computed neighbors the
-	# rest of this test already checks (a real gamepad D-pad/stick "move
-	# focus down" sends ui_down, which Godot's own Control focus-neighbor
-	# resolution consumes via these NodePaths -- there is no separate
-	# synthetic-input path to drive here).
+	# Orchestrator review correction: the chain now matches the Settings tab's
+	# own visual row order top to bottom -- PresetOption -> WindowModeOption ->
+	# CameraShakeCheck -> Master/Music/SFX mute+volume -> Rumble toggle+
+	# intensity -> MoveSpeedSlider (Controls tab) -> first rebind row.
+	# Computed via the same get_path_to() NodePaths the rest of this test
+	# already checks (a real gamepad D-pad/stick "move focus down" sends
+	# ui_down, which Godot's own Control focus-neighbor resolution consumes
+	# via these NodePaths -- there is no separate synthetic-input path to
+	# drive here).
 	var window_mode_option: Control = menu.get_node("%WindowModeOption") as Control
-	assert_eq(camera_shake_check.get_node(camera_shake_check.focus_neighbor_bottom), window_mode_option, "CameraShakeCheck must move focus down to WindowModeOption")
-	assert_eq(window_mode_option.get_node(window_mode_option.focus_neighbor_top), camera_shake_check, "WindowModeOption must move focus up to CameraShakeCheck")
-	assert_eq(window_mode_option.get_node(window_mode_option.focus_neighbor_bottom), rows[0].rebind_button(), "WindowModeOption must move focus down to the first rebind row")
+	assert_eq(preset_option.get_node(preset_option.focus_neighbor_bottom), window_mode_option, "PresetOption must move focus down to WindowModeOption")
+	assert_eq(window_mode_option.get_node(window_mode_option.focus_neighbor_bottom), camera_shake_check, "WindowModeOption must move focus down to CameraShakeCheck")
+	assert_eq(camera_shake_check.get_node(camera_shake_check.focus_neighbor_top), window_mode_option, "CameraShakeCheck must move focus up to WindowModeOption")
+
+	var master_mute: Control = menu.get_node("%MasterMuteButton") as Control
+	var rumble_check: Control = menu.get_node("%RumbleEnabledCheck") as Control
+	var rumble_slider: Control = menu.get_node("%RumbleStrengthSlider") as Control
+	var move_speed_slider: Control = menu.get_node("%MoveSpeedSlider") as Control
+	assert_eq(camera_shake_check.get_node(camera_shake_check.focus_neighbor_bottom), master_mute, "CameraShakeCheck must move focus down to MasterMuteButton")
+	assert_eq(rumble_check.get_node(rumble_check.focus_neighbor_bottom), rumble_slider, "RumbleEnabledCheck must move focus down to RumbleStrengthSlider")
+	assert_eq(rumble_slider.get_node(rumble_slider.focus_neighbor_bottom), move_speed_slider, "RumbleStrengthSlider must move focus down to MoveSpeedSlider")
+	assert_eq(move_speed_slider.get_node(move_speed_slider.focus_neighbor_bottom), rows[0].rebind_button(), "MoveSpeedSlider must move focus down to the first rebind row")
 
 	for row: KeyRebindRow in rows:
 		var button: Control = row.rebind_button()

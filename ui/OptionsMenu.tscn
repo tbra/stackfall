@@ -1,7 +1,11 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://ui/OptionsMenu.gd" id="1_options"]
 [ext_resource type="Theme" path="res://ui/theme/stackfall_theme.tres" id="2_theme"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/speaker_muted.svg" id="3_speaker_muted"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/speaker_low.svg" id="4_speaker_low"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/speaker_mid.svg" id="5_speaker_mid"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/speaker_high.svg" id="6_speaker_high"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_tabs"]
 
@@ -105,25 +109,148 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="VolumeRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
+[node name="DisplaySectionHeader" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Display"
+
+[node name="WindowRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
 layout_mode = 2
 
-[node name="VolumeLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/VolumeRow"]
+[node name="WindowLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/WindowRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(180, 0)
-text = "Master volume"
+text = "Window"
 
-[node name="VolumeSlider" type="HSlider" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/VolumeRow"]
+[node name="WindowModeOption" type="OptionButton" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/WindowRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="VolumeValueLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/VolumeRow"]
+[node name="CameraShakeRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
+layout_mode = 2
+
+[node name="CameraShakeLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/CameraShakeRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(180, 0)
+text = "Camera shake"
+
+[node name="CameraShakeCheck" type="CheckButton" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/CameraShakeRow"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(60, 0)
+
+[node name="AudioSectionHeader" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Audio"
+
+[node name="MasterVolumeRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
+layout_mode = 2
+
+[node name="MasterVolumeLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/MasterVolumeRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Master volume"
+
+[node name="MasterMuteButton" type="Button" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/MasterVolumeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(28, 28)
+flat = true
+
+[node name="Icon" type="TextureRect" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/MasterVolumeRow/MasterMuteButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+texture = ExtResource("5_speaker_mid")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="MasterVolumeSlider" type="HSlider" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/MasterVolumeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="MasterVolumeValueLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/MasterVolumeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(50, 0)
 horizontal_alignment = 2
-text = "0 dB"
+text = "100%"
+
+[node name="MusicVolumeRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
+layout_mode = 2
+
+[node name="MusicVolumeLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/MusicVolumeRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Music volume"
+
+[node name="MusicMuteButton" type="Button" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/MusicVolumeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(28, 28)
+flat = true
+
+[node name="Icon" type="TextureRect" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/MusicVolumeRow/MusicMuteButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+texture = ExtResource("5_speaker_mid")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="MusicVolumeSlider" type="HSlider" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/MusicVolumeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="MusicVolumeValueLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/MusicVolumeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(50, 0)
+horizontal_alignment = 2
+text = "100%"
+
+[node name="SfxVolumeRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
+layout_mode = 2
+
+[node name="SfxVolumeLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SfxVolumeRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "SFX volume"
+
+[node name="SfxMuteButton" type="Button" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SfxVolumeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(28, 28)
+flat = true
+
+[node name="Icon" type="TextureRect" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SfxVolumeRow/SfxMuteButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+texture = ExtResource("5_speaker_mid")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="SfxVolumeSlider" type="HSlider" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SfxVolumeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="SfxVolumeValueLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SfxVolumeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(50, 0)
+horizontal_alignment = 2
+text = "100%"
 
 [node name="MusicDirRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
 layout_mode = 2
@@ -144,30 +271,42 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "Browse..."
 
-[node name="CameraShakeRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
+[node name="RumbleSectionHeader" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Rumble"
+
+[node name="RumbleEnabledRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
 layout_mode = 2
 
-[node name="CameraShakeLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/CameraShakeRow"]
+[node name="RumbleEnabledLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/RumbleEnabledRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(180, 0)
-text = "Camera shake"
+text = "Rumble"
 
-[node name="CameraShakeCheck" type="CheckButton" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/CameraShakeRow"]
+[node name="RumbleEnabledCheck" type="CheckButton" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/RumbleEnabledRow"]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="WindowRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
+[node name="RumbleStrengthRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
 layout_mode = 2
 
-[node name="WindowLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/WindowRow"]
+[node name="RumbleStrengthLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/RumbleStrengthRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(180, 0)
-text = "Window"
+text = "Rumble intensity"
 
-[node name="WindowModeOption" type="OptionButton" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/WindowRow"]
+[node name="RumbleStrengthSlider" type="HSlider" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/RumbleStrengthRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
+
+[node name="RumbleStrengthValueLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/RumbleStrengthRow"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(50, 0)
+horizontal_alignment = 2
+text = "100%"
 
 [node name="ControlsPage" type="VBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn"]
 unique_name_in_owner = true
@@ -180,6 +319,27 @@ theme_override_constants/separation = 8
 unique_name_in_owner = true
 layout_mode = 2
 text = "Showing keyboard & mouse bindings"
+
+[node name="MoveSpeedRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/ControlsPage"]
+layout_mode = 2
+
+[node name="MoveSpeedLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/ControlsPage/MoveSpeedRow"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+text = "Mouse speed"
+
+[node name="MoveSpeedSlider" type="HSlider" parent="Frame/Panel/Layout/Body/ContentColumn/ControlsPage/MoveSpeedRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="MoveSpeedValueLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/ControlsPage/MoveSpeedRow"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(50, 0)
+horizontal_alignment = 2
+text = "100%"
 
 [node name="RebindScroll" type="ScrollContainer" parent="Frame/Panel/Layout/Body/ContentColumn/ControlsPage"]
 layout_mode = 2
