@@ -78,6 +78,9 @@ var _replicator: Variant = null
 var _field: Field = null
 var _registry: BlockRegistry = null
 var _blocks_parent: Node3D = null
+## Diagnostic switch owned by Sandbox. It freezes periodic territory work,
+## leaving the last overlay visible so render cost remains comparable.
+var _sandbox_territory_paused: bool = false
 
 ## Bontago-split.1: the four controllers this file forwards to. Built and
 ## wired in _ready() rather than at field-declaration time, so each one's
@@ -238,6 +241,7 @@ func _is_host() -> bool:
 
 
 func start_match(match_config: MatchConfig) -> void:
+	_sandbox_territory_paused = false
 	_lifecycle.start_match(match_config)
 
 
@@ -281,7 +285,8 @@ func _process(delta: float) -> void:
 		State.PLAYING:
 			_lifecycle._tick_disconnect_grace(delta)
 			_feed._tick_feed(delta)
-			_territory._tick_territory(delta)
+			if not _sandbox_territory_paused:
+				_territory._tick_territory(delta)
 			_lifecycle._tick_match_timer(delta)
 			# DECISION (autoload/Match.gd, M6 B4): a no-op unless
 			# config.turn_based, so hot-seat and free-for-all matches pay
@@ -298,7 +303,8 @@ func _process(delta: float) -> void:
 			# radius-8 tiebreak schedule in MatchLifecycle.
 			_lifecycle._tick_disconnect_grace(delta)
 			_feed._tick_feed(delta)
-			_territory._tick_territory(delta)
+			if not _sandbox_territory_paused:
+				_territory._tick_territory(delta)
 			_lifecycle._tick_sudden_death(delta)
 			_lifecycle._tick_turn_based(delta)
 			_stats._tick(delta)
@@ -425,6 +431,16 @@ func feed_timer_enabled() -> bool:
 ## set_process(false) in the test harness is trusted rather than re-checked.
 func set_feed_timer_enabled(enabled: bool) -> void:
 	_feed.set_feed_timer_enabled(enabled)
+
+
+## Sandbox-only performance isolation. Match.start_match and Sandbox._exit_tree
+## both restore normal solving; other match types never opt into this switch.
+func set_sandbox_territory_paused(paused: bool) -> void:
+	_sandbox_territory_paused = paused
+
+
+func sandbox_territory_paused() -> bool:
+	return _sandbox_territory_paused
 
 
 # --- The one authoritative entry point (spec 3.4) ---------------------------

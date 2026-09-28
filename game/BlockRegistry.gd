@@ -309,6 +309,12 @@ func _local_center_of_mass(block: Block) -> Vector3:
 	return _to_local(world_com)
 
 
+## Exposes the same visual top height used by influence_circles() to sandbox
+## comparisons without duplicating the mesh-bound calculation there.
+func top_height_for_block(block: Block) -> float:
+	return _top_height_local(block)
+
+
 ## Highest point of `block`'s visual meshes above the disk surface, along the
 ## disk normal (spec 2.2). Reads mesh AABBs rather than collision shapes so
 ## the wedge's sloped visual, not its convex collision hull, decides the

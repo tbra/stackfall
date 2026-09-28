@@ -4,14 +4,18 @@ extends RefCounted
 ## Both sides use the same settled-block snapshot and an uncapped solver.
 const MODE_CONE: int = 0
 const MODE_CONTAINMENT: int = 1
+const HEIGHT_CENTER: int = 0
+const HEIGHT_TOP: int = 1
 
-static func measure(field: Field, mode: int, angle_degrees: float) -> Dictionary:
+static func measure(field: Field, mode: int, angle_degrees: float, height_source: int, base_mode: int) -> Dictionary:
 	var live_raster: TerritoryRaster = Match.raster()
 	var registry: BlockRegistry = Match.registry()
 	if field == null or live_raster == null or registry == null or Match.config == null:
 		return {"error": "Start a sandbox match before measuring territory."}
 	if mode != MODE_CONE and mode != MODE_CONTAINMENT:
 		return {"error": "Unknown territory experiment."}
+	if mode == MODE_CONE and (height_source != HEIGHT_CENTER and height_source != HEIGHT_TOP):
+		return {"error": "Unknown cone height source."}
 	var tuning: TerritoryTuning = live_raster.tuning().duplicate(true) as TerritoryTuning
 	tuning.max_circles = 0 # Measuring all points; never change the live cap.
 	var grid: CellGrid = live_raster.grid()
@@ -32,8 +36,11 @@ static func measure(field: Field, mode: int, angle_degrees: float) -> Dictionary
 			var body: Block = instance_from_id(circle.body_id) as Block
 			if body == null:
 				continue
-			var local_com: Vector3 = field.to_local(body.global_transform * body.center_of_mass)
-			heights.append(maxf(local_com.y, 0.0))
+			if height_source == HEIGHT_TOP:
+				heights.append(registry.top_height_for_block(body))
+			else:
+				var local_com: Vector3 = field.to_local(body.global_transform * body.center_of_mass)
+				heights.append(maxf(local_com.y, 0.0))
 		circles.append(circle)
 	var t1: int = Time.get_ticks_usec()
 
@@ -48,7 +55,10 @@ static func measure(field: Field, mode: int, angle_degrees: float) -> Dictionary
 
 	var filtered: Dictionary
 	if mode == MODE_CONE:
-		filtered = SandboxConeExperiment.build(circles, heights, angle_degrees)
+		filtered = SandboxConeExperiment.build(
+			circles, heights, angle_degrees, base_mode, tuning.influence_base,
+			tuning.influence_max_fraction * map_def.field_radius
+		)
 	else:
 		filtered = SandboxContainmentExperiment.build(circles)
 	var experiment_circles: Array[InfluenceCircle] = filtered["circles"]

@@ -99,6 +99,7 @@ func _ready() -> void:
 	add_child(_cone_panel)
 	_cone_panel.measure_requested.connect(_measure_cone_comparison)
 	_cone_panel.open_changed.connect(_comparison_controls_changed)
+	_cone_panel.live_territory_pause_changed.connect(_set_live_territory_paused)
 	# M6 B2 (sandbox_pause_physics, F11): PROCESS_MODE_ALWAYS so this whole
 	# subtree -- this node's own _unhandled_input (every sandbox hotkey,
 	# including the one that un-pauses again) plus the controller/ghost/HUD
@@ -114,6 +115,7 @@ func _ready() -> void:
 ## still active would leak into whatever match runs next in the same process
 ## (the shipped game, or the next test file's fixture).
 func _exit_tree() -> void:
+	Match.set_sandbox_territory_paused(false)
 	if _cone_panel != null and _cone_panel.opened:
 		_cone_panel.set_open(false)
 	clear_physics_comparison()
@@ -322,6 +324,9 @@ func _set_active_slot(slot_id: int) -> void:
 ## every other entry point: Field.place_flags()/set_overlay_source() need
 ## the fresh raster and slots that only exist once start_match() returns.
 func _reset_field() -> void:
+	Match.set_sandbox_territory_paused(false)
+	if _cone_panel != null:
+		_cone_panel.set_live_territory_paused(false)
 	if _cone_panel != null and _cone_panel.opened:
 		_cone_panel.set_open(false)
 	clear_physics_comparison()
@@ -389,17 +394,21 @@ func _open_cone_comparison() -> void:
 	_cone_panel.set_open(true)
 
 
-func _measure_cone_comparison(mode: int, angle_degrees: float) -> void:
+func _measure_cone_comparison(mode: int, angle_degrees: float, height_source: int, base_mode: int) -> void:
 	if _field == null or Match.state() != Match.State.PLAYING:
 		_cone_panel.show_snapshot({"error": "Wait for sandbox countdown to finish."}, null, null, PackedColorArray())
 		return
-	var comparison: Dictionary = SandboxConeComparison.measure(_field, mode, angle_degrees)
+	var comparison: Dictionary = SandboxConeComparison.measure(_field, mode, angle_degrees, height_source, base_mode)
 	if comparison.has("error"):
 		_cone_panel.show_snapshot(comparison, null, null, PackedColorArray())
 		return
 	_cone_panel.show_snapshot(
 		comparison["metrics"], comparison["baseline"], comparison["experiment"], Match.config.player_colors
 	)
+
+
+func _set_live_territory_paused(paused: bool) -> void:
+	Match.set_sandbox_territory_paused(paused)
 
 
 func run_physics_comparison(mode: String, height: float, interval: float, gap: float, offset: float = 0.0) -> void:

@@ -14,13 +14,36 @@ func test_cone_panel_measures_without_replacing_live_territory() -> void:
 	assert_not_null(sandbox._cone_panel._cone_map.texture)
 	assert_same(Match.raster(), live_raster, "experiment must not replace match territory")
 	assert_true(sandbox._cone_panel._status.text.contains("Current:"))
+	assert_eq(sandbox._cone_panel._height_source.get_selected_id(), SandboxConeComparison.HEIGHT_TOP)
+	assert_eq(sandbox._cone_panel._base_mode.get_selected_id(), SandboxConeExperiment.BASE_FLOOR)
+	sandbox._cone_panel._height_source.select(SandboxConeComparison.HEIGHT_CENTER)
+	sandbox._cone_panel._base_mode.select(SandboxConeExperiment.BASE_ADDITIVE)
+	sandbox._cone_panel._request_measurement()
+	assert_true(sandbox._cone_panel._status.text.contains("Cone:"))
 	sandbox._cone_panel._mode.select(SandboxConeComparison.MODE_CONTAINMENT)
 	sandbox._cone_panel._on_mode_selected(SandboxConeComparison.MODE_CONTAINMENT)
 	assert_true(sandbox._cone_panel._status.text.contains("Containment:"))
 	assert_false(sandbox._cone_panel._angle_row.visible)
+	assert_false(sandbox._cone_panel._cone_options_row.visible)
 	assert_true(sandbox._cone_panel._status.text.contains("Different cells: 0 (0.00%)"))
+	sandbox._cone_panel._pause_territory.button_pressed = true
+	assert_true(Match.sandbox_territory_paused())
+	assert_true(sandbox._cone_panel._paused_badge.visible)
+	Match._territory._last_groups = null
+	Match._process(0.1)
+	assert_null(Match._territory._last_groups, "paused sandbox must skip live territory solving")
+	sandbox._cone_panel._pause_territory.button_pressed = false
+	assert_false(Match.sandbox_territory_paused())
+	assert_false(sandbox._cone_panel._paused_badge.visible)
+	Match._process(0.1)
+	assert_not_null(Match._territory._last_groups, "unpausing resumes normal solves")
 	sandbox._cone_panel.set_open(false)
 	assert_true(sandbox.controller().input_enabled)
+	sandbox._cone_panel._pause_territory.button_pressed = true
+	sandbox._reset_field()
+	assert_false(Match.sandbox_territory_paused(), "field reset must restore live territory solving")
+	assert_false(sandbox._cone_panel._pause_territory.button_pressed)
+	assert_false(sandbox._cone_panel._paused_badge.visible)
 
 func test_comparison_controls_cancel_and_reset_restore_manual_play() -> void:
 	_start_sandbox(2)
