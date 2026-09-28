@@ -121,6 +121,14 @@ func _tick_territory(delta: float) -> void:
 
 func _run_territory_step(delta: float) -> void:
 	var circles: Array[InfluenceCircle] = _collect_circles()
+	if _match._sandbox_territory_mode == MatchAutoload.SANDBOX_TERRITORY_CONE:
+		var projected: Dictionary = SandboxConeAdapter.project(
+			circles, _match._field, _match._registry, _match._sandbox_cone_angle,
+			_match._sandbox_cone_height_source, _match._sandbox_cone_base_mode,
+			_match._territory_tuning, _match.config.map_def().field_radius
+		)
+		if not projected.has("error"):
+			circles = projected["circles"]
 	var groups: TerritoryGroups = _solver.solve(circles)
 	_last_groups = groups
 	var holes_enabled: bool = _match.config.hole_mode != MatchConfig.HoleMode.OFF

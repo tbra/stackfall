@@ -1,9 +1,9 @@
 class_name SandboxConePanel
 extends CanvasLayer
-## Sandbox-only, read-only comparisons. Does not modify Match or Field's raster.
+## Sandbox comparisons and an explicit live-only sandbox A/B selector.
 signal measure_requested(mode: int, angle_degrees: float, height_source: int, base_mode: int)
 signal open_changed(open: bool)
-signal live_territory_pause_changed(paused: bool)
+signal live_territory_mode_changed(mode: int, angle_degrees: float, height_source: int, base_mode: int)
 
 var opened: bool = false
 var _panel: PanelContainer
@@ -14,8 +14,8 @@ var _mode: OptionButton
 var _height_source: OptionButton
 var _base_mode: OptionButton
 var _measure_button: Button
-var _pause_territory: CheckBox
-var _paused_badge: Label
+var _live_mode: OptionButton
+var _live_badge: Label
 var _explanation: Label
 var _status: Label
 var _baseline_map: TextureRect
@@ -35,15 +35,14 @@ func _ready() -> void:
 	_panel.offset_bottom = 305.0
 	_panel.visible = false
 	add_child(_panel)
-	_paused_badge = Label.new()
-	_paused_badge.text = "TERRITORY SOLVE PAUSED — F2 to resume"
-	_paused_badge.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	_paused_badge.offset_left = -380.0
-	_paused_badge.offset_right = -12.0
-	_paused_badge.offset_top = 12.0
-	_paused_badge.offset_bottom = 48.0
-	_paused_badge.visible = false
-	add_child(_paused_badge)
+	_live_badge = Label.new()
+	_live_badge.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	_live_badge.offset_left = -400.0
+	_live_badge.offset_right = -12.0
+	_live_badge.offset_top = 12.0
+	_live_badge.offset_bottom = 48.0
+	_live_badge.visible = false
+	add_child(_live_badge)
 	var list: VBoxContainer = VBoxContainer.new()
 	_panel.add_child(list)
 	var title: Label = Label.new()
@@ -74,7 +73,8 @@ func _ready() -> void:
 	_angle.min_value = 5.0
 	_angle.max_value = 75.0
 	_angle.step = 0.1
-	_angle.value = 42.0
+	_angle.value = 45.0
+	_angle.value_changed.connect(_on_angle_changed)
 	_angle_row.add_child(_angle)
 	_cone_options_row = HBoxContainer.new()
 	list.add_child(_cone_options_row)
@@ -94,7 +94,7 @@ func _ready() -> void:
 	_base_mode.add_item("None (old)", SandboxConeExperiment.BASE_NONE)
 	_base_mode.add_item("Min 1.5 m", SandboxConeExperiment.BASE_FLOOR)
 	_base_mode.add_item("Add 1.5 m", SandboxConeExperiment.BASE_ADDITIVE)
-	_base_mode.select(SandboxConeExperiment.BASE_FLOOR)
+	_base_mode.select(SandboxConeExperiment.BASE_ADDITIVE)
 	_base_mode.tooltip_text = "Min uses max(1.5, height × tan(angle)); Add uses 1.5 + height × tan(angle). Both use the current radius cap."
 	_base_mode.item_selected.connect(_on_cone_option_changed)
 	_cone_options_row.add_child(_base_mode)
@@ -109,11 +109,13 @@ func _ready() -> void:
 	close.text = "Close / return to sandbox"
 	close.pressed.connect(func() -> void: set_open(false))
 	controls.add_child(close)
-	_pause_territory = CheckBox.new()
-	_pause_territory.text = "Pause live solve"
-	_pause_territory.tooltip_text = "Stops CPU territory updates while blocks and physics continue. The last territory overlay stays visible. Re-enable before judging capture or ownership."
-	_pause_territory.toggled.connect(_on_live_pause_toggled)
-	controls.add_child(_pause_territory)
+	_live_mode = OptionButton.new()
+	_live_mode.add_item("Live: current", MatchAutoload.SANDBOX_TERRITORY_CURRENT)
+	_live_mode.add_item("Live: cones", MatchAutoload.SANDBOX_TERRITORY_CONE)
+	_live_mode.add_item("Live: paused", MatchAutoload.SANDBOX_TERRITORY_PAUSED)
+	_live_mode.tooltip_text = "Current uses today's territory rule; Cones runs the selected cone settings live; Paused freezes territory CPU updates while physics continues. Sandbox only."
+	_live_mode.item_selected.connect(_on_live_mode_selected)
+	controls.add_child(_live_mode)
 	var maps: HBoxContainer = HBoxContainer.new()
 	list.add_child(maps)
 	_baseline_map = _map_column(maps, "CURRENT CIRCLES (ALL POINTS)")
@@ -167,8 +169,8 @@ func _on_mode_selected(_index: int) -> void:
 	_angle_row.visible = not containment
 	_cone_options_row.visible = not containment
 	_experiment_heading.text = "EXACT CONTAINMENT" if containment else "EXPERIMENTAL CONES"
-	_explanation.text = ("Static snapshot. Exact containment keeps current circle sizes; gameplay is unchanged."
-		if containment else "Static snapshot. Cones change circle sizes; gameplay is unchanged.")
+	_explanation.text = ("Exact containment is snapshot-only. The Live selector independently controls sandbox territory."
+		if containment else "Maps are snapshots. Select Live: cones to run these settings in the sandbox.")
 	if opened:
 		_request_measurement()
 
@@ -176,6 +178,13 @@ func _on_mode_selected(_index: int) -> void:
 func _on_cone_option_changed(_index: int) -> void:
 	if opened:
 		_request_measurement()
+	if _live_mode.get_selected_id() == MatchAutoload.SANDBOX_TERRITORY_CONE:
+		_emit_live_mode()
+
+
+func _on_angle_changed(_value: float) -> void:
+	if _live_mode != null and _live_mode.get_selected_id() == MatchAutoload.SANDBOX_TERRITORY_CONE:
+		_emit_live_mode()
 
 
 func _request_measurement() -> void:
@@ -184,14 +193,27 @@ func _request_measurement() -> void:
 	)
 
 
-func set_live_territory_paused(paused: bool) -> void:
-	_pause_territory.set_pressed_no_signal(paused)
-	_paused_badge.visible = paused
+func set_live_territory_mode(mode: int) -> void:
+	_live_mode.select(mode)
+	_update_live_badge()
 
 
-func _on_live_pause_toggled(paused: bool) -> void:
-	_paused_badge.visible = paused
-	live_territory_pause_changed.emit(paused)
+func _on_live_mode_selected(_index: int) -> void:
+	_update_live_badge()
+	_emit_live_mode()
+
+
+func _emit_live_mode() -> void:
+	live_territory_mode_changed.emit(
+		_live_mode.get_selected_id(), _angle.value, _height_source.get_selected_id(), _base_mode.get_selected_id()
+	)
+
+
+func _update_live_badge() -> void:
+	var mode: int = _live_mode.get_selected_id()
+	_live_badge.visible = mode != MatchAutoload.SANDBOX_TERRITORY_CURRENT
+	_live_badge.text = ("LIVE CONE TERRITORY — F2 to switch" if mode == MatchAutoload.SANDBOX_TERRITORY_CONE
+		else "TERRITORY SOLVE PAUSED — F2 to resume")
 
 
 func show_snapshot(result: Dictionary, old_raster: TerritoryRaster, cone_raster: TerritoryRaster, colors: PackedColorArray) -> void:
@@ -235,7 +257,9 @@ func _map_texture(raster: TerritoryRaster, colors: PackedColorArray) -> Texture2
 func _process(_delta: float) -> void:
 	if not opened:
 		return
+	var mode: int = _live_mode.get_selected_id()
+	var mode_name: String = "CURRENT" if mode == MatchAutoload.SANDBOX_TERRITORY_CURRENT else ("CONES" if mode == MatchAutoload.SANDBOX_TERRITORY_CONE else "PAUSED")
 	_live.text = "Live: %.0f FPS   Physics %.2f ms/frame   Territory %s" % [
 		Engine.get_frames_per_second(), Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
-		"PAUSED" if _pause_territory.button_pressed else "RUNNING"
+		mode_name
 	]

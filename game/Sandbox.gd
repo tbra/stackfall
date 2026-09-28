@@ -99,7 +99,7 @@ func _ready() -> void:
 	add_child(_cone_panel)
 	_cone_panel.measure_requested.connect(_measure_cone_comparison)
 	_cone_panel.open_changed.connect(_comparison_controls_changed)
-	_cone_panel.live_territory_pause_changed.connect(_set_live_territory_paused)
+	_cone_panel.live_territory_mode_changed.connect(_set_live_territory_mode)
 	# M6 B2 (sandbox_pause_physics, F11): PROCESS_MODE_ALWAYS so this whole
 	# subtree -- this node's own _unhandled_input (every sandbox hotkey,
 	# including the one that un-pauses again) plus the controller/ghost/HUD
@@ -115,7 +115,7 @@ func _ready() -> void:
 ## still active would leak into whatever match runs next in the same process
 ## (the shipped game, or the next test file's fixture).
 func _exit_tree() -> void:
-	Match.set_sandbox_territory_paused(false)
+	Match.set_sandbox_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
 	if _cone_panel != null and _cone_panel.opened:
 		_cone_panel.set_open(false)
 	clear_physics_comparison()
@@ -324,9 +324,9 @@ func _set_active_slot(slot_id: int) -> void:
 ## every other entry point: Field.place_flags()/set_overlay_source() need
 ## the fresh raster and slots that only exist once start_match() returns.
 func _reset_field() -> void:
-	Match.set_sandbox_territory_paused(false)
+	Match.set_sandbox_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
 	if _cone_panel != null:
-		_cone_panel.set_live_territory_paused(false)
+		_cone_panel.set_live_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
 	if _cone_panel != null and _cone_panel.opened:
 		_cone_panel.set_open(false)
 	clear_physics_comparison()
@@ -407,8 +407,8 @@ func _measure_cone_comparison(mode: int, angle_degrees: float, height_source: in
 	)
 
 
-func _set_live_territory_paused(paused: bool) -> void:
-	Match.set_sandbox_territory_paused(paused)
+func _set_live_territory_mode(mode: int, angle_degrees: float, height_source: int, base_mode: int) -> void:
+	Match.set_sandbox_territory_mode(mode, angle_degrees, height_source, base_mode)
 
 
 func run_physics_comparison(mode: String, height: float, interval: float, gap: float, offset: float = 0.0) -> void:

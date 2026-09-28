@@ -15,7 +15,7 @@ func test_cone_panel_measures_without_replacing_live_territory() -> void:
 	assert_same(Match.raster(), live_raster, "experiment must not replace match territory")
 	assert_true(sandbox._cone_panel._status.text.contains("Current:"))
 	assert_eq(sandbox._cone_panel._height_source.get_selected_id(), SandboxConeComparison.HEIGHT_TOP)
-	assert_eq(sandbox._cone_panel._base_mode.get_selected_id(), SandboxConeExperiment.BASE_FLOOR)
+	assert_eq(sandbox._cone_panel._base_mode.get_selected_id(), SandboxConeExperiment.BASE_ADDITIVE)
 	sandbox._cone_panel._height_source.select(SandboxConeComparison.HEIGHT_CENTER)
 	sandbox._cone_panel._base_mode.select(SandboxConeExperiment.BASE_ADDITIVE)
 	sandbox._cone_panel._request_measurement()
@@ -26,24 +26,75 @@ func test_cone_panel_measures_without_replacing_live_territory() -> void:
 	assert_false(sandbox._cone_panel._angle_row.visible)
 	assert_false(sandbox._cone_panel._cone_options_row.visible)
 	assert_true(sandbox._cone_panel._status.text.contains("Different cells: 0 (0.00%)"))
-	sandbox._cone_panel._pause_territory.button_pressed = true
+	sandbox._cone_panel._live_mode.select(MatchAutoload.SANDBOX_TERRITORY_CONE)
+	sandbox._cone_panel._on_live_mode_selected(MatchAutoload.SANDBOX_TERRITORY_CONE)
+	assert_eq(Match.sandbox_territory_mode(), MatchAutoload.SANDBOX_TERRITORY_CONE)
+	assert_true(sandbox._cone_panel._live_badge.visible)
+	sandbox._cone_panel._live_mode.select(MatchAutoload.SANDBOX_TERRITORY_PAUSED)
+	sandbox._cone_panel._on_live_mode_selected(MatchAutoload.SANDBOX_TERRITORY_PAUSED)
 	assert_true(Match.sandbox_territory_paused())
-	assert_true(sandbox._cone_panel._paused_badge.visible)
+	assert_true(sandbox._cone_panel._live_badge.visible)
 	Match._territory._last_groups = null
 	Match._process(0.1)
 	assert_null(Match._territory._last_groups, "paused sandbox must skip live territory solving")
-	sandbox._cone_panel._pause_territory.button_pressed = false
+	sandbox._cone_panel._live_mode.select(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
+	sandbox._cone_panel._on_live_mode_selected(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
 	assert_false(Match.sandbox_territory_paused())
-	assert_false(sandbox._cone_panel._paused_badge.visible)
+	assert_false(sandbox._cone_panel._live_badge.visible)
 	Match._process(0.1)
 	assert_not_null(Match._territory._last_groups, "unpausing resumes normal solves")
 	sandbox._cone_panel.set_open(false)
 	assert_true(sandbox.controller().input_enabled)
-	sandbox._cone_panel._pause_territory.button_pressed = true
+	sandbox._cone_panel._live_mode.select(MatchAutoload.SANDBOX_TERRITORY_CONE)
+	sandbox._cone_panel._on_live_mode_selected(MatchAutoload.SANDBOX_TERRITORY_CONE)
 	sandbox._reset_field()
-	assert_false(Match.sandbox_territory_paused(), "field reset must restore live territory solving")
-	assert_false(sandbox._cone_panel._pause_territory.button_pressed)
-	assert_false(sandbox._cone_panel._paused_badge.visible)
+	assert_eq(Match.sandbox_territory_mode(), MatchAutoload.SANDBOX_TERRITORY_CURRENT, "field reset must restore normal territory")
+	assert_eq(sandbox._cone_panel._live_mode.get_selected_id(), MatchAutoload.SANDBOX_TERRITORY_CURRENT)
+	assert_false(sandbox._cone_panel._live_badge.visible)
+
+
+func test_live_cone_switch_projects_a_settled_block_and_restores_current_rule() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var reason: StringName = Match.request_place(0, Match.default_ghost_origin(0), 0, Quaternion.IDENTITY, false)
+	assert_eq(reason, PlacementRules.REASON_OK)
+	var registry: BlockRegistry = Match.registry()
+	for entry: Variant in registry._entries.values():
+		entry.is_settled = true
+	var original: Array[InfluenceCircle] = Match._collect_circles()
+	assert_gt(original.size(), 2, "fixture needs two homes and one settled block")
+	var projected: Dictionary = SandboxConeAdapter.project(
+		original, _main._field, registry, 75.0, SandboxConeExperiment.HEIGHT_TOP,
+		SandboxConeExperiment.BASE_ADDITIVE, Match.raster().tuning(), Match.config.map_def().field_radius
+	)
+	assert_false(projected.has("error"))
+	var original_radius: float = 0.0
+	var cone_radius: float = 0.0
+	for circle: InfluenceCircle in original:
+		if not circle.is_home:
+			original_radius = circle.radius
+	for circle: InfluenceCircle in projected["circles"]:
+		if not circle.is_home:
+			cone_radius = circle.radius
+	assert_gt(cone_radius, original_radius)
+	Match.set_sandbox_territory_mode(
+		MatchAutoload.SANDBOX_TERRITORY_CONE, 75.0,
+		SandboxConeExperiment.HEIGHT_TOP, SandboxConeExperiment.BASE_ADDITIVE
+	)
+	Match._territory._run_territory_step(0.0)
+	var cone_render: PackedFloat32Array = Match.circle_render_arrays()["radii"]
+	assert_true(_has_radius(cone_render, cone_radius), "live overlay must receive projected radius")
+	Match.set_sandbox_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
+	Match._territory._run_territory_step(0.0)
+	var current_render: PackedFloat32Array = Match.circle_render_arrays()["radii"]
+	assert_true(_has_radius(current_render, original_radius), "switching back restores current block radius")
+
+
+func _has_radius(radii: PackedFloat32Array, expected: float) -> bool:
+	for radius: float in radii:
+		if is_equal_approx(radius, expected):
+			return true
+	return false
 
 func test_comparison_controls_cancel_and_reset_restore_manual_play() -> void:
 	_start_sandbox(2)
