@@ -6,6 +6,7 @@ func test_cone_panel_measures_without_replacing_live_territory() -> void:
 	var sandbox: Sandbox = _main._sandbox
 	var live_raster: TerritoryRaster = Match.raster()
 	assert_true(sandbox._cone_panel._hud.visible, "performance HUD is visible without F2")
+	assert_true(Match._territory_cache_enabled, "sandbox defaults to cached unchanged territory")
 	sandbox._cone_panel._process(0.25)
 	assert_true(sandbox._cone_panel._hud_live.text.contains("FPS"))
 	sandbox._comparison_panel.set_open(true)
@@ -18,6 +19,10 @@ func test_cone_panel_measures_without_replacing_live_territory() -> void:
 	assert_not_null(sandbox._cone_panel._cone_map.texture)
 	assert_same(Match.raster(), live_raster, "experiment must not replace match territory")
 	assert_true(sandbox._cone_panel._status.text.contains("Current:"))
+	sandbox._cone_panel._cache_territory.button_pressed = false
+	assert_false(Match._territory_cache_enabled)
+	sandbox._cone_panel._cache_territory.button_pressed = true
+	assert_true(Match._territory_cache_enabled)
 	assert_eq(sandbox._cone_panel._height_source.get_selected_id(), SandboxConeComparison.HEIGHT_TOP)
 	assert_eq(sandbox._cone_panel._base_mode.get_selected_id(), SandboxConeExperiment.BASE_ADDITIVE)
 	sandbox._cone_panel._height_source.select(SandboxConeComparison.HEIGHT_CENTER)
@@ -119,6 +124,56 @@ func test_block_collision_freeze_keeps_territory_running_and_restores_contacts()
 	assert_eq(block.collision_layer, original_layer)
 	assert_eq(block.collision_mask, original_mask)
 	assert_true(registry.is_physics_processing())
+
+
+func test_cached_territory_reuses_unchanged_layout_but_invalidates_for_lower_block_motion() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var first: StringName = Match.request_place(0, Match.default_ghost_origin(0), 0, Quaternion.IDENTITY, false)
+	assert_eq(first, PlacementRules.REASON_OK)
+	var second: StringName = Match.request_place(
+		0, Match.default_ghost_origin(0) + Vector3.UP * 3.0, 0, Quaternion.IDENTITY, false
+	)
+	assert_eq(second, PlacementRules.REASON_OK)
+	var registry: BlockRegistry = Match.registry()
+	for entry: Variant in registry._entries.values():
+		entry.is_settled = true
+	var lower: Block = Match.blocks_parent().get_child(0) as Block
+	var top: Block = Match.blocks_parent().get_child(1) as Block
+	var top_before: Transform3D = top.global_transform
+	Match._territory_cache_enabled = true
+	Match._territory._run_territory_step(0.0)
+	var original_groups: TerritoryGroups = Match._territory.groups()
+	var original_owner: PackedByteArray = Match.raster().owner_bytes()
+	Match._territory._run_territory_step(0.0)
+	assert_same(Match._territory.groups(), original_groups)
+	assert_eq(Match._territory.sandbox_profile()["cache_hits"], 1)
+	assert_eq(Match.raster().owner_bytes(), original_owner)
+	lower.global_position += Vector3.RIGHT
+	assert_eq(top.global_transform, top_before, "upper block remains stationary in the test")
+	Match._territory._run_territory_step(0.0)
+	assert_eq(Match._territory.sandbox_profile()["cache_hits"], 1, "lower block motion must invalidate the cache")
+	assert_ne(Match._territory.groups(), original_groups)
+	var moved_owner: PackedByteArray = Match.raster().owner_bytes()
+	Match._territory_cache_enabled = false
+	Match._territory._run_territory_step(0.0)
+	assert_eq(Match.raster().owner_bytes(), moved_owner, "cached and full solves agree after invalidation")
+
+
+func test_cached_territory_still_advances_capture_hold() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var checker: WinChecker = Match._territory._win_checker
+	checker._goal_positions = PackedVector2Array([Match.slot(0).home_position])
+	checker._capture_hold = 10.0
+	Match._territory_cache_enabled = true
+	Match._territory._run_territory_step(1.0)
+	var first_progress: float = checker.capture_progress()
+	assert_gt(first_progress, 0.0)
+	var hits_before: int = Match._territory.sandbox_profile()["cache_hits"]
+	Match._territory._run_territory_step(1.0)
+	assert_eq(Match._territory.sandbox_profile()["cache_hits"], hits_before + 1)
+	assert_gt(checker.capture_progress(), first_progress, "capture time must advance on cache hits")
 
 
 func _has_radius(radii: PackedFloat32Array, expected: float) -> bool:

@@ -21,6 +21,10 @@ var _solve_accum: float = 0.0
 var _sandbox_tick_ms: float = 0.0
 var _sandbox_tick_steps: int = 0
 var _sandbox_step_ms: Dictionary = {}
+var _sandbox_cache_hits: int = 0
+var _cached_sources: Dictionary = {}
+var _cached_circles: Array[InfluenceCircle] = []
+var _cached_groups: TerritoryGroups = null
 
 ## Bontago-cmc.5: goal no-build discs, cached at _build_territory() (goal
 ## flags never move) so _run_territory_step() does not rebuild them every
@@ -97,6 +101,10 @@ func _build_territory() -> void:
 	_win_checker = WinChecker.new(goal_positions, _match._territory_tuning.capture_hold)
 	_last_groups = null
 	_solve_accum = 0.0
+	_cached_sources.clear()
+	_cached_circles.clear()
+	_cached_groups = null
+	_sandbox_cache_hits = 0
 
 	# Bontago-cmc.5: the same goal list, cached for the analytic shader and
 	# the replicated circle wire (see the class-level DECISION on
@@ -135,17 +143,29 @@ func _tick_territory(delta: float) -> void:
 func _run_territory_step(delta: float) -> void:
 	var profile_enabled: bool = _match._sandbox_territory_profile_enabled
 	var t0: int = Time.get_ticks_usec() if profile_enabled else 0
-	var circles: Array[InfluenceCircle] = _collect_circles()
-	if _match._sandbox_territory_mode == MatchAutoload.SANDBOX_TERRITORY_CONE:
-		var projected: Dictionary = SandboxConeAdapter.project(
-			circles, _match._field, _match._registry, _match._sandbox_cone_angle,
-			_match._sandbox_cone_height_source, _match._sandbox_cone_base_mode,
-			_match._territory_tuning, _match.config.map_def().field_radius
-		)
-		if not projected.has("error"):
-			circles = projected["circles"]
+	var cache_enabled: bool = _match._territory_cache_enabled
+	var sources: Dictionary = _territory_source_signature() if cache_enabled else {}
+	var cache_hit: bool = cache_enabled and _cached_groups != null and sources == _cached_sources
+	var circles: Array[InfluenceCircle]
+	if cache_hit:
+		circles = _cached_circles
+		_sandbox_cache_hits += 1
+	else:
+		circles = _collect_circles()
+		if _match._sandbox_territory_mode == MatchAutoload.SANDBOX_TERRITORY_CONE:
+			var projected: Dictionary = SandboxConeAdapter.project(
+				circles, _match._field, _match._registry, _match._sandbox_cone_angle,
+				_match._sandbox_cone_height_source, _match._sandbox_cone_base_mode,
+				_match._territory_tuning, _match.config.map_def().field_radius
+			)
+			if not projected.has("error"):
+				circles = projected["circles"]
 	var t1: int = Time.get_ticks_usec() if profile_enabled else 0
-	var groups: TerritoryGroups = _solver.solve(circles)
+	var groups: TerritoryGroups = _cached_groups if cache_hit else _solver.solve(circles)
+	if cache_enabled and not cache_hit:
+		_cached_sources = sources
+		_cached_circles = circles
+		_cached_groups = groups
 	var t2: int = Time.get_ticks_usec() if profile_enabled else 0
 	_last_groups = groups
 	var holes_enabled: bool = _match.config.hole_mode != MatchConfig.HoleMode.OFF
@@ -153,7 +173,8 @@ func _run_territory_step(delta: float) -> void:
 	_raster.update(circles, groups, delta, holes_enabled, permanent_holes)
 	var t3: int = Time.get_ticks_usec() if profile_enabled else 0
 	_win_checker.update(_raster, delta)
-	_update_circle_render(circles, groups)
+	if not cache_hit:
+		_update_circle_render(circles, groups)
 	var t4: int = Time.get_ticks_usec() if profile_enabled else 0
 
 	Events.territory_updated.emit(_raster, groups)
@@ -207,7 +228,47 @@ func _run_territory_step(delta: float) -> void:
 
 
 func sandbox_profile() -> Dictionary:
-	return {"tick_ms": _sandbox_tick_ms, "steps": _sandbox_tick_steps, "step_ms": _sandbox_step_ms}
+	return {"tick_ms": _sandbox_tick_ms, "steps": _sandbox_tick_steps, "step_ms": _sandbox_step_ms, "cache_hits": _sandbox_cache_hits}
+
+
+## Include every settled block, not just a tower's top: an obscured block can
+## slide out from under a cone without moving that top block. Exact transforms
+## are deliberately conservative: a false miss costs time, a false hit changes rules.
+func _territory_source_signature() -> Dictionary:
+	var signature: Dictionary = {
+		"field": _match._field.global_transform if _match._field != null else Transform3D.IDENTITY,
+		"mode": _match._sandbox_territory_mode,
+		"angle": _match._sandbox_cone_angle,
+		"height_source": _match._sandbox_cone_height_source,
+		"base_mode": _match._sandbox_cone_base_mode,
+		"hole_mode": _match.config.hole_mode,
+		"influence_base": _match._territory_tuning.influence_base,
+		"influence_k": _match._territory_tuning.influence_k,
+		"influence_cap": _match._territory_tuning.influence_max_fraction,
+		"home_radius": _match._territory_tuning.home_radius,
+		"hash_cell_size": _match._territory_tuning.hash_cell_size,
+		"max_circles": _match._territory_tuning.max_circles,
+	}
+	var visuals: TerritoryVisuals = _match._field.visuals if _match._field != null else null
+	if visuals != null:
+		# set_circles() also uploads these shader settings and rebuilds bins.
+		# A live tuning-panel edit must force one overlay refresh even if every
+		# block is stationary.
+		signature["visuals"] = [
+			visuals.max_shader_circles, visuals.metaball_blend,
+			visuals.rim_soft_width, visuals.rim_width, visuals.rim_strength,
+			visuals.rim_pulse_depth, visuals.rim_speed, visuals.edge_softness_m,
+		]
+	for slot_item: PlayerSlot in _match._lifecycle._slots:
+		signature["home:%d" % slot_item.slot_id] = [
+			slot_item.home_flag_alive, slot_item.home_position, slot_item.team_id
+		]
+	if _match._registry != null:
+		for id: Variant in _match._registry._entries.keys():
+			var entry: Variant = _match._registry._entries[id]
+			if entry.is_settled and is_instance_valid(entry.block):
+				signature[id] = [entry.owner_slot, entry.block.global_transform]
+	return signature
 
 
 func _collect_circles() -> Array[InfluenceCircle]:

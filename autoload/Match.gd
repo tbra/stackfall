@@ -88,6 +88,7 @@ var _sandbox_cone_angle: float = 45.0
 var _sandbox_cone_height_source: int = SandboxConeExperiment.HEIGHT_TOP
 var _sandbox_cone_base_mode: int = SandboxConeExperiment.BASE_ADDITIVE
 var _sandbox_territory_profile_enabled: bool = false
+var _territory_cache_enabled: bool = true
 
 ## Bontago-split.1: the four controllers this file forwards to. Built and
 ## wired in _ready() rather than at field-declaration time, so each one's
@@ -249,6 +250,7 @@ func _is_host() -> bool:
 
 func start_match(match_config: MatchConfig) -> void:
 	_sandbox_territory_mode = SANDBOX_TERRITORY_CURRENT
+	_territory_cache_enabled = true
 	_lifecycle.start_match(match_config)
 
 

@@ -24,6 +24,9 @@ static func project(
 		if circle.is_home:
 			heights.append(0.0)
 			continue
+		if height_source == SandboxConeExperiment.HEIGHT_TOP and circle.top_height >= 0.0:
+			heights.append(circle.top_height)
+			continue
 		var body: Block = instance_from_id(circle.body_id) as Block
 		if body == null:
 			return {"error": "A settled block disappeared during cone projection."}

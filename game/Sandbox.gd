@@ -105,6 +105,7 @@ func _ready() -> void:
 	_cone_panel.open_changed.connect(_comparison_controls_changed)
 	_cone_panel.live_territory_mode_changed.connect(_set_live_territory_mode)
 	_cone_panel.block_collision_freeze_changed.connect(_set_block_physics_frozen)
+	_cone_panel.territory_cache_changed.connect(_set_territory_cache_enabled)
 	Events.block_placed.connect(_on_diagnostic_block_placed)
 	# M6 B2 (sandbox_pause_physics, F11): PROCESS_MODE_ALWAYS so this whole
 	# subtree -- this node's own _unhandled_input (every sandbox hotkey,
@@ -123,6 +124,7 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	_set_block_physics_frozen(false)
 	Match._sandbox_territory_profile_enabled = false
+	Match._territory_cache_enabled = true
 	Match.set_sandbox_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
 	if _cone_panel != null and _cone_panel.opened:
 		_cone_panel.set_open(false)
@@ -338,6 +340,7 @@ func _reset_field() -> void:
 	_set_block_physics_frozen(false)
 	if _cone_panel != null:
 		_cone_panel.set_blocks_frozen(false)
+		_cone_panel.set_cache_enabled(true)
 	Match.set_sandbox_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
 	if _cone_panel != null:
 		_cone_panel.set_live_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
@@ -423,6 +426,10 @@ func _measure_cone_comparison(mode: int, angle_degrees: float, height_source: in
 
 func _set_live_territory_mode(mode: int, angle_degrees: float, height_source: int, base_mode: int) -> void:
 	Match.set_sandbox_territory_mode(mode, angle_degrees, height_source, base_mode)
+
+
+func _set_territory_cache_enabled(enabled: bool) -> void:
+	Match._territory_cache_enabled = enabled
 
 
 ## A/B diagnostic only: remove contacts but keep the block transforms and

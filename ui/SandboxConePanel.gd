@@ -5,6 +5,7 @@ signal measure_requested(mode: int, angle_degrees: float, height_source: int, ba
 signal open_changed(open: bool)
 signal live_territory_mode_changed(mode: int, angle_degrees: float, height_source: int, base_mode: int)
 signal block_collision_freeze_changed(frozen: bool)
+signal territory_cache_changed(enabled: bool)
 
 var opened: bool = false
 var _panel: PanelContainer
@@ -17,6 +18,7 @@ var _base_mode: OptionButton
 var _measure_button: Button
 var _live_mode: OptionButton
 var _freeze_blocks: CheckBox
+var _cache_territory: CheckBox
 var _live_badge: Label
 var _explanation: Label
 var _status: Label
@@ -146,6 +148,12 @@ func _ready() -> void:
 	_freeze_blocks.tooltip_text = "Diagnostic: holds blocks in place, disables their contacts and settlement updates, while territory and rendering keep running on the same settled-block snapshot. Uncheck or reset to restore physics."
 	_freeze_blocks.toggled.connect(func(frozen: bool) -> void: block_collision_freeze_changed.emit(frozen))
 	list.add_child(_freeze_blocks)
+	_cache_territory = CheckBox.new()
+	_cache_territory.text = "Cache unchanged territory"
+	_cache_territory.button_pressed = true
+	_cache_territory.tooltip_text = "Reuses circles and connectivity when every settled block, home flag, field transform and territory setting is unchanged. Capture and hole timers still advance. Uncheck here to compare against uncached solving."
+	_cache_territory.toggled.connect(func(enabled: bool) -> void: territory_cache_changed.emit(enabled))
+	list.add_child(_cache_territory)
 	var maps: HBoxContainer = HBoxContainer.new()
 	list.add_child(maps)
 	_baseline_map = _map_column(maps, "CURRENT CIRCLES (ALL POINTS)")
@@ -234,6 +242,10 @@ func set_blocks_frozen(frozen: bool) -> void:
 	_freeze_blocks.set_pressed_no_signal(frozen)
 
 
+func set_cache_enabled(enabled: bool) -> void:
+	_cache_territory.set_pressed_no_signal(enabled)
+
+
 func _on_live_mode_selected(_index: int) -> void:
 	_update_live_badge()
 	_emit_live_mode()
@@ -297,10 +309,11 @@ func _process(delta: float) -> void:
 	_hud_elapsed = 0.0
 	var mode: int = _live_mode.get_selected_id()
 	var mode_name: String = "CURRENT" if mode == MatchAutoload.SANDBOX_TERRITORY_CURRENT else ("CONES" if mode == MatchAutoload.SANDBOX_TERRITORY_CONE else "PAUSED")
-	_live.text = "Live: %.0f FPS   Process %.2f ms   Physics %.2f ms   Territory %s   Blocks %s" % [
-		Engine.get_frames_per_second(), Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
+	_live.text = "Live: %.0f FPS   Physics %.2f ms   Territory %s   Blocks %s   Cache %s" % [
+		Engine.get_frames_per_second(),
 		Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
-		mode_name, "FROZEN" if _freeze_blocks.button_pressed else "SIMULATING"
+		mode_name, "FROZEN" if _freeze_blocks.button_pressed else "SIMULATING",
+		"ON" if _cache_territory.button_pressed else "OFF"
 	]
 	var profile: Dictionary = Match._territory.sandbox_profile()
 	var sample: Dictionary = profile["step_ms"]
@@ -308,6 +321,7 @@ func _process(delta: float) -> void:
 		_live.text += "\nTerritory tick %.2f ms / %d steps; last step %.2f ms" % [
 			profile["tick_ms"], profile["steps"], sample["total"]
 		]
+		_live.text += "   Cache hits %d" % profile["cache_hits"]
 		_live.text += "\nCollect %.2f  Solve %.2f  Raster %.2f  Overlay %.2f  Other %.2f ms" % [
 			sample["collect"], sample["solve"], sample["raster"], sample["overlay"], sample["other"]
 		]
