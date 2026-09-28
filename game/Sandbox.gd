@@ -134,6 +134,9 @@ func _load_special_roster_ids() -> Array[StringName]:
 ## CameraRig lives outside this subtree.
 func set_camera_rig(rig: CameraRig) -> void:
 	_comparison_camera = rig
+	# Bontago-b7r: gamepad Back is sandbox_next_slot here, so it must not also
+	# focus home; see CameraRig.suppress_pad_home_focus.
+	rig.suppress_pad_home_focus = true
 	_controller.set_camera_rig(rig)
 	_tuning_panel.set_camera_rig(rig)
 

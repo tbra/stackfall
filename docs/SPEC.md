@@ -211,6 +211,7 @@ original's tutorial only names the action, not the key.
 | Camera orbit (hold + drag) [ORIGINAL, owner test 2026-09-22] | Right mouse held + mouse motion; mouse wheel zooms while held (C + mouse remains as a keyboard alias) | Right stick (always) |
 | Camera zoom | Z / X (always; the trigger alone never zooms) | LT held + left stick up (in) / down (out), continuous; only when not aiming a throw with a held special [OWNER controller update 2026-09-28] |
 | Throw (specials only) | **[OWNER decision 2026-09-22, Bontago-mvl]** hold left mouse on the held special, drag, flick-release; drag distance/speed sets the arc. Right mouse stays camera orbit | Hold LT, aim, release |
+| Focus home / goal (tap = turn, hold = peek) **[OWNER decision 2026-09-28, Bontago-aem]** | 1 (home) / 2 (goal) | Back (home) / X (goal) |
 | Pause / release mouse | Esc | Start |
 
 Owner controller update (feedback/controller-update.md, re-confirmed 2026-09-28): while either
@@ -223,6 +224,19 @@ after owner feedback that the previous default felt too slow.
 
 Legacy free camera (pan with arrows / Space-drag, snap 1 / 2) remains behind
 `CameraTuning.follow_block = false`.
+
+**Focus home / goal [OWNER decision 2026-09-28, Bontago-aem]:** in the default follow camera,
+1/Back (home) and 2/X (goal) do both a tap and a hold gesture, not one instant snap. A **tap**
+(released before `CameraTuning.focus_hold_threshold_s`) **turns**: the camera's yaw tweens so the
+target — the local player's own home beacon, or the next goal beacon, cycling on every fresh goal
+press — lies straight ahead of the held block; the held block itself keeps following normally, and
+the player can orbit away afterward. A **hold** past that threshold **peeks**: the camera glides to
+frame the target at its own tunable distance/pitch (`CameraTuning.focus_peek_distance`/
+`focus_peek_pitch_deg`) for as long as the button is held, then glides back to the normal follow
+framing on release. The ghost cursor never moves during a peek, and gameplay input (movement,
+placement) is suppressed for its duration. Falls back to the disk center if no beacon is available
+(e.g. no Field yet, or the slot's flag is missing). The legacy free camera keeps its own single
+instant snap to the same real targets.
 
 **Rotation:**
 - Store rotation as an integer orientation index. There are 24 axis-aligned orientations of a cube.

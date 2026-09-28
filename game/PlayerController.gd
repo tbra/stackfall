@@ -302,6 +302,25 @@ func _on_pause_menu_closed() -> void:
 func _process(delta: float) -> void:
 	if not input_enabled:
 		return
+	if _camera_rig != null:
+		# Bontago-b7r: kept current every frame (harmless while peeking, too)
+		# so a Focus home press right after a turn hand-off or a sandbox slot
+		# cycle always resolves the beacon for whichever slot this controller
+		# is acting for right now -- see CameraRig.set_local_slot()'s own doc
+		# comment for who reads it.
+		_camera_rig.set_local_slot(_acting_slot())
+		if _camera_rig.is_peeking():
+			# Owner decision 2026-09-28 (Bontago-b7r): "the ghost/cursor never
+			# moves during peek" and placing must not happen while peeking --
+			# the simplest safe choice is to suppress every other per-frame
+			# gameplay input this controller drives while PEEK holds the
+			# camera on a focus target, exactly like input_enabled's own gate
+			# just above, but without touching mouse capture/OS cursor
+			# visibility the way that one does (CameraRig itself still needs
+			# camera_snap_home/goal's own release event to end the peek, and
+			# that goes through CameraRig's own _unhandled_input(), untouched
+			# by this).
+			return
 	_intent_lock_left = maxf(_intent_lock_left - delta, 0.0)
 	_update_gamepad_cursor(delta)
 	_update_throw_aim(delta)
@@ -416,6 +435,14 @@ func _publish_cursor() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not input_enabled:
+		return
+	if _camera_rig != null and _camera_rig.is_peeking():
+		# Bontago-b7r: same PEEK gate _process() applies above -- mouse/gamepad
+		# motion, rotation, and ghost_place must not reach the ghost while the
+		# camera is peeking at a focus target. CameraRig's own _unhandled_input
+		# is a separate listener and still gets camera_snap_home/goal's release
+		# event undisturbed (Godot dispatches to every listening node), so the
+		# peek itself can still end normally.
 		return
 	if event is InputEventMouseMotion:
 		var motion: InputEventMouseMotion = event

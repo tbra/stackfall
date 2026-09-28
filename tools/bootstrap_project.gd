@@ -339,9 +339,11 @@ func _actions() -> Dictionary:
 	# moves to the arrow keys; Space-and-drag from the spec still works.
 	# On gamepad, pan is the left stick while camera_modifier is held, so the
 	# pan actions share the left stick axes with ghost_move_*. Bontago-mv0.14:
-	# pan and snap-home/goal below are only live while
-	# CameraTuning.follow_block is false (see game/CameraRig.gd) -- the
-	# default block-locked camera has nothing to pan away from.
+	# pan below is only live while CameraTuning.follow_block is false (see
+	# game/CameraRig.gd) -- the default block-locked camera has nothing to
+	# pan away from. camera_snap_home/goal below are different: Bontago-b7r
+	# (owner decision 2026-09-28, Bontago-aem) gives them a tap-to-turn/
+	# hold-to-peek gesture that IS live in the default follow camera too.
 	a["camera_pan_left"] = [_key(KEY_LEFT), _axis(JOY_AXIS_LEFT_X, -1.0)]
 	a["camera_pan_right"] = [_key(KEY_RIGHT), _axis(JOY_AXIS_LEFT_X, 1.0)]
 	a["camera_pan_forward"] = [_key(KEY_UP), _axis(JOY_AXIS_LEFT_Y, -1.0)]
@@ -373,7 +375,13 @@ func _actions() -> Dictionary:
 	a["camera_zoom_modifier"] = [_axis(JOY_AXIS_TRIGGER_LEFT, 1.0)]
 
 	a["camera_snap_home"] = [_key(KEY_1), _pad(JOY_BUTTON_BACK)]
-	a["camera_snap_goal"] = [_key(KEY_2), _pad(JOY_BUTTON_B)]
+	# Bontago-b7r (owner decision 2026-09-28, Bontago-aem): moved off B -- B
+	# stays rotate_snap only now, no more block_held gate needed between the
+	# two (see game/CameraRig.gd's own DECISION on camera_snap_home's press
+	# handling). X was the next free face/shoulder button; game/CameraRig.gd's
+	# own _goal_focus_chord_blocked() keeps this from also firing through
+	# ui/TuningPanel.gd's Start+X chord or game/Sandbox.gd's Back+X chord.
+	a["camera_snap_goal"] = [_key(KEY_2), _pad(JOY_BUTTON_X)]
 
 	# --- UI (menus) -----------------------------------------------------------
 	# Bontago-1pi.15.1 (owner report: "gamepad works in some menus but not all;
