@@ -10,9 +10,15 @@ const SAMPLE_SECONDS: float = 3.0
 
 var _main: Node = null
 var _sandbox: Sandbox = null
+var _falling_only: bool = false
+var _simple_colliders: bool = false
+var _merged_colliders: bool = false
 
 
 func _ready() -> void:
+	_falling_only = OS.get_cmdline_user_args().has("falling-only")
+	_simple_colliders = OS.get_cmdline_user_args().has("simple-colliders")
+	_merged_colliders = OS.get_cmdline_user_args().has("merged-colliders")
 	Settings.set_graphics_preset(&"high")
 	_main = (load("res://game/Main.tscn") as PackedScene).instantiate()
 	get_tree().root.add_child.call_deferred(_main)
@@ -24,6 +30,15 @@ func _ready() -> void:
 	while Match.state() != Match.State.PLAYING:
 		await get_tree().process_frame
 	_spawn_piles()
+	Match._territory_cache_enabled = true
+	await _sample("falling_cached")
+	_sandbox._set_block_physics_frozen(true)
+	await _sample("falling_frozen")
+	_sandbox._set_block_physics_frozen(false)
+	if _falling_only:
+		get_tree().quit()
+		return
+	Match._territory_cache_enabled = false
 	await get_tree().create_timer(SETTLE_SECONDS).timeout
 	var settle_deadline: int = Time.get_ticks_usec() + 15000000
 	while _settled_count() < BLOCK_COUNT and Time.get_ticks_usec() < settle_deadline:
@@ -78,9 +93,86 @@ func _spawn_piles() -> void:
 		var height: float = field.surface_y() + rng.randf_range(2.0, 22.0)
 		var shape: BlockShape = shapes[rng.randi_range(0, shapes.size() - 1)]
 		var block: Block = BlockFactory.build(shape, Match._physics_tuning, slot_id, Match.slot(slot_id).color)
+		if _simple_colliders:
+			_replace_with_enclosing_box(block)
+		elif _merged_colliders:
+			_replace_with_merged_boxes(block, shape)
 		Match.blocks_parent().add_child(block)
 		block.global_position = field.world_from_disk_local(local, height)
 		Events.block_placed.emit(block, shape.id)
+
+
+## Benchmark-only upper bound on collision-shape cost. This fills concavities
+## and cube margins, so it must never be used as a gameplay collider.
+func _replace_with_enclosing_box(block: Block) -> void:
+	var minimum: Vector3 = Vector3(INF, INF, INF)
+	var maximum: Vector3 = Vector3(-INF, -INF, -INF)
+	var old_shapes: Array[CollisionShape3D] = []
+	for child: Node in block.get_children():
+		if child is CollisionShape3D:
+			var collider: CollisionShape3D = child as CollisionShape3D
+			var half: Vector3 = (collider.shape as BoxShape3D).size * 0.5
+			minimum = minimum.min(collider.position - half)
+			maximum = maximum.max(collider.position + half)
+			old_shapes.append(collider)
+	for collider: CollisionShape3D in old_shapes:
+		block.remove_child(collider)
+		collider.free()
+	var merged: CollisionShape3D = CollisionShape3D.new()
+	var box: BoxShape3D = BoxShape3D.new()
+	box.size = maximum - minimum
+	merged.shape = box
+	merged.position = (minimum + maximum) * 0.5
+	block.add_child(merged)
+
+
+## Benchmark-only axis-aligned cuboid cover: preserves the shape's outer
+## silhouette and concavities, but fills the 0.02 m seams between joined cells.
+func _replace_with_merged_boxes(block: Block, shape: BlockShape) -> void:
+	if not shape.sloped_cells.is_empty():
+		return
+	for child: Node in block.get_children():
+		if child is CollisionShape3D:
+			block.remove_child(child)
+			child.free()
+	var remaining: Dictionary = {}
+	for cell: Vector3i in shape.cells:
+		remaining[cell] = true
+	var cube_size: float = Match._physics_tuning.cube_size
+	var margin: float = Match._physics_tuning.cube_margin
+	var pivot: Vector3 = shape.bottom_center()
+	while not remaining.is_empty():
+		var low: Vector3i = remaining.keys()[0]
+		var high: Vector3i = low
+		while remaining.has(Vector3i(high.x + 1, low.y, low.z)):
+			high.x += 1
+		var can_extend: bool = true
+		while can_extend:
+			for x: int in range(low.x, high.x + 1):
+				if not remaining.has(Vector3i(x, high.y + 1, low.z)):
+					can_extend = false
+					break
+			if can_extend:
+				high.y += 1
+		can_extend = true
+		while can_extend:
+			for x: int in range(low.x, high.x + 1):
+				for y: int in range(low.y, high.y + 1):
+					if not remaining.has(Vector3i(x, y, high.z + 1)):
+						can_extend = false
+						break
+			if can_extend:
+				high.z += 1
+		for x: int in range(low.x, high.x + 1):
+			for y: int in range(low.y, high.y + 1):
+				for z: int in range(low.z, high.z + 1):
+					remaining.erase(Vector3i(x, y, z))
+		var collider: CollisionShape3D = CollisionShape3D.new()
+		var box: BoxShape3D = BoxShape3D.new()
+		box.size = Vector3(high - low + Vector3i.ONE) * cube_size - Vector3.ONE * margin
+		collider.shape = box
+		collider.position = (Vector3(high + low) * 0.5 - pivot) * cube_size
+		block.add_child(collider)
 
 
 func _settled_count() -> int:
@@ -129,8 +221,8 @@ func _sample(label: String) -> void:
 	var elapsed: float = float(Time.get_ticks_usec() - start) / 1000000.0
 	var denom: float = maxf(float(frames), 1.0)
 	var cache_hits: int = Match._territory.sandbox_profile()["cache_hits"] - cache_hits_before
-	print("LIVE_BENCH mode=%s fps=%.1f process_ms=%.2f physics_ms=%.2f territory_tick_ms=%.2f steps_per_frame=%.2f cache_hits=%d settled=%d frames=%d" % [
-		label, float(frames) / elapsed, process_ms / denom, physics_ms / denom,
+	print("LIVE_BENCH mode=%s collider=%s fps=%.1f process_ms=%.2f physics_ms=%.2f territory_tick_ms=%.2f steps_per_frame=%.2f cache_hits=%d settled=%d frames=%d" % [
+		label, "box" if _simple_colliders else ("merged" if _merged_colliders else "compound"), float(frames) / elapsed, process_ms / denom, physics_ms / denom,
 		territory_tick_ms / denom, float(territory_steps) / denom, cache_hits, _settled_count(), frames
 	])
 	if territory_steps > 0:
