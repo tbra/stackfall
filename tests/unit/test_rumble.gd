@@ -233,3 +233,33 @@ func test_strength_scale_applies_to_every_magnitude() -> void:
 	assert_eq(_calls.size(), 1)
 	assert_almost_eq(_calls[0]["weak"], Rumble.config.impact_weak_magnitude * 0.5, 0.001)
 	assert_almost_eq(_calls[0]["strong"], Rumble.config.impact_strong_magnitude * 0.5, 0.001)
+
+
+# --- trigger_test_pulse() (options package: rumble intensity slider nudge) ---
+
+func test_trigger_test_pulse_rumbles_the_last_gamepad() -> void:
+	_use_gamepad(3)
+
+	Rumble.trigger_test_pulse()
+
+	assert_eq(_calls.size(), 1)
+	assert_eq(_calls[0]["device"], 3)
+	assert_almost_eq(_calls[0]["weak"], Rumble.config.impact_weak_magnitude, 0.001)
+	assert_almost_eq(_calls[0]["strong"], Rumble.config.impact_strong_magnitude, 0.001)
+
+
+func test_trigger_test_pulse_is_silent_when_rumble_disabled() -> void:
+	_use_gamepad()
+	Settings.set_rumble_enabled(false)
+
+	Rumble.trigger_test_pulse()
+
+	assert_eq(_calls.size(), 0, "a disabled rumble setting must silence the test pulse too.")
+
+
+func test_trigger_test_pulse_is_silent_with_no_gamepad_active() -> void:
+	Rumble.set_last_device_for_test(Rumble.DEVICE_NONE, Settings.DEVICE_KEYBOARD_MOUSE)
+
+	Rumble.trigger_test_pulse()
+
+	assert_eq(_calls.size(), 0, "no active gamepad means nothing to nudge.")

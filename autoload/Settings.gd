@@ -1,10 +1,10 @@
 extends Node
 ## User settings: graphics preset, audio levels, control bindings, music folder.
 ##
-## Persisted to a single user://settings.cfg ConfigFile, loaded once in
-## _ready() (this autoload already runs before any scene, project.godot's
-## [autoload] section) and saved on every setter -- small, infrequent
-## writes, no debouncing needed (docs/M6_PLAN.md package C1).
+## Persisted to a single user://settings.cfg ConfigFile (this autoload already
+## runs before any scene, project.godot's [autoload] section) and saved on
+## every setter -- small, infrequent writes, no debouncing needed
+## (docs/M6_PLAN.md package C1).
 ##
 ## Settings only stores the user's choices and emits signals; it never
 ## touches a Viewport/Environment or plays audio itself -- C2 (options menu)
@@ -53,14 +53,26 @@ const SECTION_GRAPHICS: String = "graphics"
 const SECTION_AUDIO: String = "audio"
 const SECTION_INPUT: String = "input"
 const SECTION_GAMEPAD: String = "gamepad"
+const SECTION_CONTROLS: String = "controls"
 
 const KEY_PRESET: String = "preset"
+## Legacy pre-options-package key: a single dB value (-40..6). Only ever read
+## now, as a one-time migration source for KEY_MASTER_VOLUME_PERCENT below
+## (see _load()'s own DECISION) -- never written again.
 const KEY_MASTER_DB: String = "master_db"
+const KEY_MASTER_VOLUME_PERCENT: String = "master_volume_percent"
+const KEY_MASTER_MUTED: String = "master_muted"
+const KEY_MUSIC_VOLUME_PERCENT: String = "music_volume_percent"
+const KEY_MUSIC_MUTED: String = "music_muted"
+const KEY_SFX_VOLUME_PERCENT: String = "sfx_volume_percent"
+const KEY_SFX_MUTED: String = "sfx_muted"
 const KEY_CUSTOM_MUSIC_DIR: String = "custom_music_dir"
 const KEY_CAMERA_SHAKE_ENABLED: String = "camera_shake_enabled"
 const KEY_WINDOW_MODE: String = "window_mode"
 const KEY_RUMBLE_ENABLED: String = "rumble_enabled"
 const KEY_RUMBLE_STRENGTH: String = "rumble_strength"
+const KEY_MOUSE_MOVE_SPEED_SCALE: String = "mouse_move_speed_scale"
+const KEY_STICK_MOVE_SPEED_SCALE: String = "stick_move_speed_scale"
 
 ## Bontago-xtq.45 (M7 P4): the three player-facing window modes, exclusive
 ## fullscreen, borderless fullscreen and windowed. Ids are StringName rather
@@ -103,14 +115,62 @@ const DEFAULT_CAMERA_SHAKE_ENABLED: bool = true
 ## fields again.
 var _rumble_defaults: RumbleConfig = preload("res://config/rumble_config.tres")
 
+## Options package: Master/Music/SFX are three independent channels, each a
+## plain 0..1 linear "slider position" (owner: "Sliders 0-100% (linear,
+## mapped to dB with linear_to_db; 0% = silent)") plus its own mute flag.
+enum AudioChannel { MASTER, MUSIC, SFX }
+
+const DEFAULT_VOLUME_PERCENT: float = 1.0
+
+## Floor applied whenever a channel is silent (muted, or at 0%). Not a design
+## tunable -- an engineering constant matching AudioServer's own convention
+## that -80 dB reads as inaudible on any reasonable output device, the same
+## reasoning autoload/Sfx.gd's own MUSIC_STEM_MUTE_DB const already documents
+## (CLAUDE.md's "no magic numbers" targets designer-facing tunables, not
+## this). linear_to_db(0.0) would return -INF, which is correct but an
+## unpleasant value to carry through AudioStreamPlayer.volume_db math
+## elsewhere (autoload/Sfx.gd's own crossfade/envelope code does arithmetic
+## on top of this), so a large-but-finite floor is used instead.
+const SILENT_VOLUME_DB: float = -80.0
+
+## Owner correction (options package, mid-review): the single "block movement
+## speed" slider is replaced by two independent scales -- mouse_move_speed_
+## scale multiplies game/PlayerController.gd's mouse-cursor use of
+## GhostTuning.block_move_sensitivity, stick_move_speed_scale multiplies its
+## gamepad cursor's max speed. 1.0 = the tuning Resource's own untouched
+## default for either. The *designed* slider range lives in ui/OptionsMenu.gd
+## (the same MIN_VOLUME_DB/MAX_VOLUME_DB "scene-level widget configuration"
+## DECISION that file already documents), not here.
+const DEFAULT_MOUSE_MOVE_SPEED_SCALE: float = 1.0
+const DEFAULT_STICK_MOVE_SPEED_SCALE: float = 1.0
+
 var _config_path: String = "user://settings.cfg"
 var _current_preset_id: StringName = DEFAULT_PRESET_ID
-var _master_volume_db: float = 0.0
+
+## Keyed by AudioChannel; see the enum's own doc above. Muting never touches
+## the stored percent -- toggling mute back off simply reveals whatever
+## percent the slider was already at, so "restoring the previous level on
+## unmute" (the owner's own words) falls out of *not* changing this value
+## rather than needing a second stored "previous" field (DECISION,
+## autoload/Settings.gd).
+var _channel_volume_percent: Dictionary[int, float] = {
+	AudioChannel.MASTER: DEFAULT_VOLUME_PERCENT,
+	AudioChannel.MUSIC: DEFAULT_VOLUME_PERCENT,
+	AudioChannel.SFX: DEFAULT_VOLUME_PERCENT,
+}
+var _channel_muted: Dictionary[int, bool] = {
+	AudioChannel.MASTER: false,
+	AudioChannel.MUSIC: false,
+	AudioChannel.SFX: false,
+}
+
 var _custom_music_dir: String = ""
 var _camera_shake_enabled: bool = DEFAULT_CAMERA_SHAKE_ENABLED
 var _window_mode_id: StringName = DEFAULT_WINDOW_MODE_ID
 var _rumble_enabled: bool = true
 var _rumble_strength: float = 1.0
+var _mouse_move_speed_scale: float = DEFAULT_MOUSE_MOVE_SPEED_SCALE
+var _stick_move_speed_scale: float = DEFAULT_STICK_MOVE_SPEED_SCALE
 
 ## action -> Array of persisted InputEvent overrides for that action (never
 ## the full InputMap default set -- key_override_events() answers "what has
@@ -184,14 +244,125 @@ func set_graphics_preset(id: StringName) -> void:
 	graphics_preset_changed.emit(preset)
 
 
+# --- Audio channels (options package) ----------------------------------------
+## Master/Music/SFX volume sliders + mute toggles. Master multiplies every
+## channel (autoload/Sfx.gd adds master_volume_db() to every player's own
+## baseline); music_volume_db()/sfx_volume_db() additionally scale only their
+## own channel, never each other.
+
+func master_volume_percent() -> float:
+	return _channel_volume_percent[AudioChannel.MASTER]
+
+
+func set_master_volume_percent(percent: float) -> void:
+	_set_channel_volume_percent(AudioChannel.MASTER, percent)
+
+
+## Legacy name kept for autoload/Sfx.gd (and any other pre-existing caller):
+## computed from master_volume_percent()/master_muted() now, rather than
+## stored directly -- see SILENT_VOLUME_DB's own doc for the muted/0% case.
 func master_volume_db() -> float:
-	return _master_volume_db
+	return _channel_volume_db(AudioChannel.MASTER)
 
 
-func set_master_volume_db(db: float) -> void:
-	_master_volume_db = db
+func master_muted() -> bool:
+	return _channel_muted[AudioChannel.MASTER]
+
+
+func set_master_muted(muted: bool) -> void:
+	_set_channel_muted(AudioChannel.MASTER, muted)
+
+
+func toggle_master_mute() -> void:
+	set_master_muted(not master_muted())
+
+
+func music_volume_percent() -> float:
+	return _channel_volume_percent[AudioChannel.MUSIC]
+
+
+func set_music_volume_percent(percent: float) -> void:
+	_set_channel_volume_percent(AudioChannel.MUSIC, percent)
+
+
+func music_volume_db() -> float:
+	return _channel_volume_db(AudioChannel.MUSIC)
+
+
+func music_muted() -> bool:
+	return _channel_muted[AudioChannel.MUSIC]
+
+
+func set_music_muted(muted: bool) -> void:
+	_set_channel_muted(AudioChannel.MUSIC, muted)
+
+
+func toggle_music_mute() -> void:
+	set_music_muted(not music_muted())
+
+
+func sfx_volume_percent() -> float:
+	return _channel_volume_percent[AudioChannel.SFX]
+
+
+func set_sfx_volume_percent(percent: float) -> void:
+	_set_channel_volume_percent(AudioChannel.SFX, percent)
+
+
+func sfx_volume_db() -> float:
+	return _channel_volume_db(AudioChannel.SFX)
+
+
+func sfx_muted() -> bool:
+	return _channel_muted[AudioChannel.SFX]
+
+
+func set_sfx_muted(muted: bool) -> void:
+	_set_channel_muted(AudioChannel.SFX, muted)
+
+
+func toggle_sfx_mute() -> void:
+	set_sfx_muted(not sfx_muted())
+
+
+## ui/OptionsMenu.gd's ResetButton: every channel back to 100%, unmuted.
+func reset_audio_settings() -> void:
+	for channel: AudioChannel in [AudioChannel.MASTER, AudioChannel.MUSIC, AudioChannel.SFX]:
+		_channel_volume_percent[channel] = DEFAULT_VOLUME_PERCENT
+		_channel_muted[channel] = false
 	_save()
 	audio_settings_changed.emit()
+
+
+func _set_channel_volume_percent(channel: AudioChannel, percent: float) -> void:
+	var clamped: float = clampf(percent, 0.0, 1.0)
+	_channel_volume_percent[channel] = clamped
+	# DECISION (autoload/Settings.gd): dragging the slider above 0% implies
+	# the player wants to hear this channel again -- the same "moving the
+	# fader unmutes it" behaviour a real mixing console gives, and matches the
+	# owner's own "restoring the previous level on unmute" framing (nothing
+	# else un-mutes a channel on its own).
+	if clamped > 0.0 and _channel_muted[channel]:
+		_channel_muted[channel] = false
+	_save()
+	audio_settings_changed.emit()
+
+
+func _set_channel_muted(channel: AudioChannel, muted: bool) -> void:
+	if muted == _channel_muted[channel]:
+		return
+	_channel_muted[channel] = muted
+	_save()
+	audio_settings_changed.emit()
+
+
+## SILENT_VOLUME_DB while muted or at 0% ("0% = silent" per the brief);
+## linear_to_db() of the stored percent otherwise.
+func _channel_volume_db(channel: AudioChannel) -> float:
+	var percent: float = _channel_volume_percent[channel]
+	if _channel_muted[channel] or percent <= 0.0:
+		return SILENT_VOLUME_DB
+	return linear_to_db(percent)
 
 
 ## "" means: use the bundled folder (no custom override).
@@ -222,8 +393,6 @@ func set_camera_shake_enabled(enabled: bool) -> void:
 
 ## Bontago (rumble package): read directly by autoload/Rumble.gd, the same
 ## way camera_shake_enabled() above is read directly by game/CameraRig.gd.
-## No Options menu row yet -- ui/OptionsMenu.gd ownership is a separate,
-## in-flight package; follow-up work adds the row and calls these setters.
 func rumble_enabled() -> bool:
 	return _rumble_enabled
 
@@ -244,6 +413,52 @@ func set_rumble_strength(strength: float) -> void:
 	_rumble_strength = clampf(strength, 0.0, 1.0)
 	_save()
 	rumble_setting_changed.emit(_rumble_enabled, _rumble_strength)
+
+
+## ui/OptionsMenu.gd's ResetButton.
+func reset_rumble_settings() -> void:
+	_rumble_enabled = _rumble_defaults.enabled_by_default
+	_rumble_strength = _rumble_defaults.global_strength_scale
+	_save()
+	rumble_setting_changed.emit(_rumble_enabled, _rumble_strength)
+
+
+# --- Block movement speed (options package) -----------------------------------
+## Two independent feel multipliers game/PlayerController.gd applies: mouse_
+## move_speed_scale to the mouse cursor's block_move_sensitivity,
+## stick_move_speed_scale to the gamepad cursor's max speed. Owner correction
+## (mid-review): kept separate rather than one shared scale, since a mouse
+## and a gamepad player tune their own device's feel independently; 1.0 = the
+## tuning Resource's own untouched default for either.
+
+func mouse_move_speed_scale() -> float:
+	return _mouse_move_speed_scale
+
+
+func set_mouse_move_speed_scale(scale: float) -> void:
+	# DECISION (autoload/Settings.gd): the *designed* range (the Options
+	# slider's own min/max) lives in ui/OptionsMenu.gd, the same
+	# MIN_VOLUME_DB/MAX_VOLUME_DB "scene-level widget configuration" DECISION
+	# that file already documents -- this clamp is only a generic safety
+	# floor so a scale can never reach zero or negative and stall or invert
+	# cursor movement.
+	_mouse_move_speed_scale = clampf(scale, 0.01, 10.0)
+	_save()
+
+
+func stick_move_speed_scale() -> float:
+	return _stick_move_speed_scale
+
+
+func set_stick_move_speed_scale(scale: float) -> void:
+	_stick_move_speed_scale = clampf(scale, 0.01, 10.0)
+	_save()
+
+
+func reset_move_speed_scales() -> void:
+	_mouse_move_speed_scale = DEFAULT_MOUSE_MOVE_SPEED_SCALE
+	_stick_move_speed_scale = DEFAULT_STICK_MOVE_SPEED_SCALE
+	_save()
 
 
 ## Bontago-xtq.45 (M7 P4): the persisted window-mode id. Defaults to
@@ -372,7 +587,7 @@ func set_key_override(action: StringName, event: InputEvent) -> void:
 
 ## Bontago-1pi.10 polish pass (owner: "Add one 'Reset to defaults' action in
 ## the footer"): clears every persisted override and reloads the InputMap
-## straight from project.godot's own [input] section -- the exact bindings
+## straight from project.godot's own [input] section, the exact bindings
 ## tools/bootstrap_project.gd wrote there, undoing every runtime
 ## action_erase_event()/action_add_event() a rebind ever made, without this
 ## file needing to remember what each action's original event was.
@@ -434,12 +649,23 @@ func set_config_path_for_test(path: String) -> void:
 
 func _load() -> void:
 	_current_preset_id = DEFAULT_PRESET_ID
-	_master_volume_db = 0.0
+	_channel_volume_percent = {
+		AudioChannel.MASTER: DEFAULT_VOLUME_PERCENT,
+		AudioChannel.MUSIC: DEFAULT_VOLUME_PERCENT,
+		AudioChannel.SFX: DEFAULT_VOLUME_PERCENT,
+	}
+	_channel_muted = {
+		AudioChannel.MASTER: false,
+		AudioChannel.MUSIC: false,
+		AudioChannel.SFX: false,
+	}
 	_custom_music_dir = ""
 	_camera_shake_enabled = DEFAULT_CAMERA_SHAKE_ENABLED
 	_window_mode_id = DEFAULT_WINDOW_MODE_ID
 	_rumble_enabled = _rumble_defaults.enabled_by_default
 	_rumble_strength = _rumble_defaults.global_strength_scale
+	_mouse_move_speed_scale = DEFAULT_MOUSE_MOVE_SPEED_SCALE
+	_stick_move_speed_scale = DEFAULT_STICK_MOVE_SPEED_SCALE
 	_key_overrides.clear()
 
 	var cfg: ConfigFile = ConfigFile.new()
@@ -448,7 +674,29 @@ func _load() -> void:
 		return  # No file yet (or unreadable): every default above stands.
 
 	_current_preset_id = StringName(cfg.get_value(SECTION_GRAPHICS, KEY_PRESET, DEFAULT_PRESET_ID))
-	_master_volume_db = float(cfg.get_value(SECTION_AUDIO, KEY_MASTER_DB, 0.0))
+
+	if cfg.has_section_key(SECTION_AUDIO, KEY_MASTER_VOLUME_PERCENT):
+		_channel_volume_percent[AudioChannel.MASTER] = clampf(
+			float(cfg.get_value(SECTION_AUDIO, KEY_MASTER_VOLUME_PERCENT, DEFAULT_VOLUME_PERCENT)), 0.0, 1.0
+		)
+	elif cfg.has_section_key(SECTION_AUDIO, KEY_MASTER_DB):
+		# DECISION (autoload/Settings.gd): migrate a pre-options-package
+		# master_volume_db save to the new 0..1 percent slider by converting
+		# it straight through db_to_linear() -- the same loudness, expressed
+		# as a percent instead of dB, clamped into the slider's own range.
+		_channel_volume_percent[AudioChannel.MASTER] = clampf(
+			db_to_linear(float(cfg.get_value(SECTION_AUDIO, KEY_MASTER_DB, 0.0))), 0.0, 1.0
+		)
+	_channel_muted[AudioChannel.MASTER] = bool(cfg.get_value(SECTION_AUDIO, KEY_MASTER_MUTED, false))
+	_channel_volume_percent[AudioChannel.MUSIC] = clampf(
+		float(cfg.get_value(SECTION_AUDIO, KEY_MUSIC_VOLUME_PERCENT, DEFAULT_VOLUME_PERCENT)), 0.0, 1.0
+	)
+	_channel_muted[AudioChannel.MUSIC] = bool(cfg.get_value(SECTION_AUDIO, KEY_MUSIC_MUTED, false))
+	_channel_volume_percent[AudioChannel.SFX] = clampf(
+		float(cfg.get_value(SECTION_AUDIO, KEY_SFX_VOLUME_PERCENT, DEFAULT_VOLUME_PERCENT)), 0.0, 1.0
+	)
+	_channel_muted[AudioChannel.SFX] = bool(cfg.get_value(SECTION_AUDIO, KEY_SFX_MUTED, false))
+
 	_custom_music_dir = String(cfg.get_value(SECTION_AUDIO, KEY_CUSTOM_MUSIC_DIR, ""))
 	_camera_shake_enabled = bool(cfg.get_value(SECTION_GRAPHICS, KEY_CAMERA_SHAKE_ENABLED, DEFAULT_CAMERA_SHAKE_ENABLED))
 	var loaded_window_mode_id: StringName = StringName(cfg.get_value(SECTION_GRAPHICS, KEY_WINDOW_MODE, DEFAULT_WINDOW_MODE_ID))
@@ -457,6 +705,12 @@ func _load() -> void:
 	_rumble_enabled = bool(cfg.get_value(SECTION_GAMEPAD, KEY_RUMBLE_ENABLED, _rumble_defaults.enabled_by_default))
 	_rumble_strength = clampf(
 		float(cfg.get_value(SECTION_GAMEPAD, KEY_RUMBLE_STRENGTH, _rumble_defaults.global_strength_scale)), 0.0, 1.0
+	)
+	_mouse_move_speed_scale = clampf(
+		float(cfg.get_value(SECTION_CONTROLS, KEY_MOUSE_MOVE_SPEED_SCALE, DEFAULT_MOUSE_MOVE_SPEED_SCALE)), 0.01, 10.0
+	)
+	_stick_move_speed_scale = clampf(
+		float(cfg.get_value(SECTION_CONTROLS, KEY_STICK_MOVE_SPEED_SCALE, DEFAULT_STICK_MOVE_SPEED_SCALE)), 0.01, 10.0
 	)
 
 	if cfg.has_section(SECTION_INPUT):
@@ -473,8 +727,15 @@ func _save() -> void:
 	cfg.set_value(SECTION_GRAPHICS, KEY_WINDOW_MODE, String(_window_mode_id))
 	cfg.set_value(SECTION_GAMEPAD, KEY_RUMBLE_ENABLED, _rumble_enabled)
 	cfg.set_value(SECTION_GAMEPAD, KEY_RUMBLE_STRENGTH, _rumble_strength)
-	cfg.set_value(SECTION_AUDIO, KEY_MASTER_DB, _master_volume_db)
+	cfg.set_value(SECTION_AUDIO, KEY_MASTER_VOLUME_PERCENT, _channel_volume_percent[AudioChannel.MASTER])
+	cfg.set_value(SECTION_AUDIO, KEY_MASTER_MUTED, _channel_muted[AudioChannel.MASTER])
+	cfg.set_value(SECTION_AUDIO, KEY_MUSIC_VOLUME_PERCENT, _channel_volume_percent[AudioChannel.MUSIC])
+	cfg.set_value(SECTION_AUDIO, KEY_MUSIC_MUTED, _channel_muted[AudioChannel.MUSIC])
+	cfg.set_value(SECTION_AUDIO, KEY_SFX_VOLUME_PERCENT, _channel_volume_percent[AudioChannel.SFX])
+	cfg.set_value(SECTION_AUDIO, KEY_SFX_MUTED, _channel_muted[AudioChannel.SFX])
 	cfg.set_value(SECTION_AUDIO, KEY_CUSTOM_MUSIC_DIR, _custom_music_dir)
+	cfg.set_value(SECTION_CONTROLS, KEY_MOUSE_MOVE_SPEED_SCALE, _mouse_move_speed_scale)
+	cfg.set_value(SECTION_CONTROLS, KEY_STICK_MOVE_SPEED_SCALE, _stick_move_speed_scale)
 	for action: StringName in _key_overrides.keys():
 		cfg.set_value(SECTION_INPUT, String(action), _key_overrides[action])
 	var err: Error = cfg.save(_config_path)

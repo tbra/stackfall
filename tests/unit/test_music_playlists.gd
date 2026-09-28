@@ -103,10 +103,10 @@ func test_volume_change_preserves_fade_and_does_not_restart() -> void:
 	_sfx._advance_music(2.0)
 	var stream: AudioStream = _sfx._music_player.stream
 	var baseline: float = _sfx._music_player.volume_db
-	Settings.set_master_volume_db(-6.0)
+	Settings.set_master_volume_percent(0.5)
 	assert_same(_sfx._music_player.stream, stream)
 	assert_almost_eq(_sfx._music_envelope, 0.5, 0.001)
-	assert_almost_eq(_sfx._music_player.volume_db, baseline - 6.0, 0.001)
+	assert_almost_eq(_sfx._music_player.volume_db, baseline + linear_to_db(0.5), 0.001)
 
 
 func test_disable_cancels_wait_and_reenable_starts_current_context() -> void:

@@ -191,6 +191,21 @@ func _trigger(weak_magnitude: float, strong_magnitude: float, duration_s: float)
 	start_vibration_fn.call(_last_device_id, scaled_weak, scaled_strong, duration_s)
 
 
+## Bontago (options package): a short "test" pulse ui/OptionsMenu.gd's rumble
+## intensity slider nudges (when the slider is released or the rumble toggle
+## is turned on) so the player can feel the current intensity without
+## needing to trigger a real match event first. Reuses config.impact_weak_
+## magnitude/impact_strong_magnitude/impact_duration_s -- the same "moderate
+## hit" pulse _on_block_impacted() already produces at full impact speed --
+## rather than inventing a new RumbleConfig field for a UI-only nudge
+## (config/RumbleConfig.gd sits outside this package's owned files).
+## DECISION (autoload/Rumble.gd). Goes through the same _trigger() gating as
+## every other rumble reaction, so it is silent unless rumble is enabled and
+## a gamepad is the last-active device.
+func trigger_test_pulse() -> void:
+	_trigger(config.impact_weak_magnitude, config.impact_strong_magnitude, config.impact_duration_s)
+
+
 func _start_vibration_real(device: int, weak_magnitude: float, strong_magnitude: float, duration_s: float) -> void:
 	Input.start_joy_vibration(device, weak_magnitude, strong_magnitude, duration_s)
 

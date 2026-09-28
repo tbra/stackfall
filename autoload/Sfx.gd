@@ -23,7 +23,10 @@ extends Node
 ## Every play()/play_music()/impact-thud
 ## volume_db also adds Settings.master_volume_db() on top of this file's own
 ## AudioConfig.sfx_volume_db/music_volume_db baseline, live-updated via
-## Settings.audio_settings_changed (docs/M6_PLAN.md package C3).
+## Settings.audio_settings_changed (docs/M6_PLAN.md package C3). Bontago
+## (options package): SFX playback additionally adds Settings.sfx_volume_db(),
+## music playback additionally adds Settings.music_volume_db() -- master
+## multiplies every channel, the music/SFX sliders only ever scale their own.
 
 const AUDIO_SUBDIR: String = "assets/original/audio"
 
@@ -163,7 +166,7 @@ func play(event: StringName) -> bool:
 		return true
 	var player: AudioStreamPlayer = _next_sfx_player()
 	player.stream = stream
-	player.volume_db = config.sfx_volume_db + Settings.master_volume_db()
+	player.volume_db = config.sfx_volume_db + Settings.master_volume_db() + Settings.sfx_volume_db()
 	player.play()
 	return true
 
@@ -367,7 +370,7 @@ func tense_stem_available() -> bool:
 ## permanently. _tense_stem_available true is required before this stem can
 ## ever be the muted side.
 func calm_stem_target_volume_db() -> float:
-	var baseline_db: float = config.music_volume_db + Settings.master_volume_db()
+	var baseline_db: float = config.music_volume_db + Settings.master_volume_db() + Settings.music_volume_db()
 	if not _tense_stem_available:
 		return baseline_db
 	return MUSIC_STEM_MUTE_DB if _tense_stem_is_active else baseline_db
@@ -379,7 +382,7 @@ func calm_stem_target_volume_db() -> float:
 ## _tense_music_player is never given a stream or started while unavailable,
 ## see _refresh_tense_stem()/_sync_tense_player_with_calm()).
 func tense_stem_target_volume_db() -> float:
-	var baseline_db: float = config.music_volume_db + Settings.master_volume_db()
+	var baseline_db: float = config.music_volume_db + Settings.master_volume_db() + Settings.music_volume_db()
 	if not _tense_stem_available:
 		return MUSIC_STEM_MUTE_DB
 	return baseline_db if _tense_stem_is_active else MUSIC_STEM_MUTE_DB
@@ -529,7 +532,7 @@ func _start_playlist_track() -> void:
 func _apply_playlist_volume() -> void:
 	if _music_player == null:
 		return
-	var baseline: float = config.music_volume_db + Settings.master_volume_db()
+	var baseline: float = config.music_volume_db + Settings.master_volume_db() + Settings.music_volume_db()
 	_music_player.volume_db = MUSIC_STEM_MUTE_DB if _music_envelope <= 0.0 else maxf(MUSIC_STEM_MUTE_DB, baseline + linear_to_db(_music_envelope))
 
 
@@ -554,7 +557,7 @@ func _on_block_impacted(speed: float) -> void:
 		return
 	var player: AudioStreamPlayer = _next_sfx_player()
 	player.stream = stream
-	player.volume_db = config.sfx_volume_db + config.impact_volume_db(speed) + Settings.master_volume_db()
+	player.volume_db = config.sfx_volume_db + config.impact_volume_db(speed) + Settings.master_volume_db() + Settings.sfx_volume_db()
 	player.play()
 
 

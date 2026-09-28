@@ -47,6 +47,14 @@ func test_defaults_with_no_saved_file() -> void:
 	assert_not_null(preset, "medium preset resource should load by default")
 	assert_eq(preset.id, &"medium")
 	assert_eq(_settings.master_volume_db(), 0.0)
+	assert_eq(_settings.master_volume_percent(), 1.0)
+	assert_false(_settings.master_muted())
+	assert_eq(_settings.music_volume_percent(), 1.0)
+	assert_false(_settings.music_muted())
+	assert_eq(_settings.sfx_volume_percent(), 1.0)
+	assert_false(_settings.sfx_muted())
+	assert_eq(_settings.mouse_move_speed_scale(), 1.0)
+	assert_eq(_settings.stick_move_speed_scale(), 1.0)
 	assert_eq(_settings.custom_music_dir(), "")
 	assert_eq(_settings.key_override_events(_test_action).size(), 0)
 	assert_true(_settings.camera_shake_enabled(), "Bontago-xtq.29: camera shake defaults on")
@@ -62,14 +70,116 @@ func test_graphics_preset_round_trips_and_persists() -> void:
 
 
 func test_audio_settings_round_trip_and_persist() -> void:
-	_settings.set_master_volume_db(-6.5)
+	_settings.set_master_volume_percent(0.5)
 	_settings.set_custom_music_dir("C:/music")
-	assert_eq(_settings.master_volume_db(), -6.5)
+	assert_almost_eq(_settings.master_volume_percent(), 0.5, 0.0001)
 	assert_eq(_settings.custom_music_dir(), "C:/music")
 
 	var reloaded: Node = _fresh_settings_at_same_path()
-	assert_almost_eq(reloaded.master_volume_db(), -6.5, 0.0001)
+	assert_almost_eq(reloaded.master_volume_percent(), 0.5, 0.0001)
 	assert_eq(reloaded.custom_music_dir(), "C:/music")
+
+
+## Bontago (options package): Master/Music/SFX each have their own percent +
+## mute flag, all persisted independently.
+func test_music_and_sfx_volume_and_mute_round_trip_and_persist() -> void:
+	_settings.set_music_volume_percent(0.25)
+	_settings.set_sfx_volume_percent(0.75)
+	_settings.set_music_muted(true)
+	_settings.set_sfx_muted(true)
+
+	var reloaded: Node = _fresh_settings_at_same_path()
+	assert_almost_eq(reloaded.music_volume_percent(), 0.25, 0.0001)
+	assert_almost_eq(reloaded.sfx_volume_percent(), 0.75, 0.0001)
+	assert_true(reloaded.music_muted())
+	assert_true(reloaded.sfx_muted())
+
+
+## SILENT_VOLUME_DB while muted or at 0%, linear_to_db() of the stored percent
+## otherwise -- master multiplies every channel, so master_volume_db() and
+## sfx_volume_db()/music_volume_db() must each reflect only their own slider.
+func test_channel_volume_db_reflects_percent_and_mute() -> void:
+	_settings.set_master_volume_percent(1.0)
+	assert_almost_eq(_settings.master_volume_db(), 0.0, 0.01)
+
+	_settings.set_sfx_volume_percent(0.0)
+	assert_eq(_settings.sfx_volume_db(), Settings.SILENT_VOLUME_DB)
+
+	_settings.set_music_volume_percent(0.5)
+	_settings.set_music_muted(true)
+	assert_eq(_settings.music_volume_db(), Settings.SILENT_VOLUME_DB, "a muted channel must be silent regardless of its stored percent")
+
+
+## Owner: "restoring the previous level on unmute" -- toggling mute back off
+## must reveal whatever percent the slider was already at.
+func test_toggling_mute_off_restores_the_previous_percent() -> void:
+	_settings.set_sfx_volume_percent(0.6)
+	_settings.set_sfx_muted(true)
+	assert_eq(_settings.sfx_volume_db(), Settings.SILENT_VOLUME_DB)
+	assert_almost_eq(_settings.sfx_volume_percent(), 0.6, 0.0001, "the stored percent must be untouched while muted")
+
+	_settings.set_sfx_muted(false)
+	assert_almost_eq(_settings.sfx_volume_percent(), 0.6, 0.0001)
+	assert_almost_eq(_settings.sfx_volume_db(), linear_to_db(0.6), 0.01)
+
+
+## Owner: dragging a channel's slider above 0% while muted implies the player
+## wants to hear it again.
+func test_setting_a_positive_percent_unmutes_the_channel() -> void:
+	_settings.set_master_muted(true)
+	assert_true(_settings.master_muted())
+
+	_settings.set_master_volume_percent(0.4)
+	assert_false(_settings.master_muted())
+
+
+func test_reset_audio_settings_restores_every_channel_to_full_unmuted() -> void:
+	_settings.set_master_volume_percent(0.2)
+	_settings.set_music_volume_percent(0.3)
+	_settings.set_sfx_volume_percent(0.4)
+	_settings.set_master_muted(true)
+	_settings.set_music_muted(true)
+	_settings.set_sfx_muted(true)
+
+	_settings.reset_audio_settings()
+
+	assert_eq(_settings.master_volume_percent(), 1.0)
+	assert_eq(_settings.music_volume_percent(), 1.0)
+	assert_eq(_settings.sfx_volume_percent(), 1.0)
+	assert_false(_settings.master_muted())
+	assert_false(_settings.music_muted())
+	assert_false(_settings.sfx_muted())
+
+
+## Bontago (options package): a pre-existing settings.cfg with only the old
+## dB-based master_db key (no new percent key yet) must migrate sensibly
+## rather than default back to 100%.
+func test_master_volume_migrates_from_legacy_db_key() -> void:
+	var cfg: ConfigFile = ConfigFile.new()
+	cfg.set_value("audio", "master_db", -6.0206)  # ~50% linear
+	cfg.save(_cfg_path)
+
+	var reloaded: Node = _fresh_settings_at_same_path()
+	assert_almost_eq(reloaded.master_volume_percent(), 0.5, 0.01)
+
+
+func test_mouse_and_stick_move_speed_scale_round_trip_and_persist() -> void:
+	_settings.set_mouse_move_speed_scale(1.5)
+	_settings.set_stick_move_speed_scale(0.75)
+
+	var reloaded: Node = _fresh_settings_at_same_path()
+	assert_almost_eq(reloaded.mouse_move_speed_scale(), 1.5, 0.0001)
+	assert_almost_eq(reloaded.stick_move_speed_scale(), 0.75, 0.0001)
+
+
+func test_reset_move_speed_scales_restores_defaults() -> void:
+	_settings.set_mouse_move_speed_scale(1.8)
+	_settings.set_stick_move_speed_scale(0.6)
+
+	_settings.reset_move_speed_scales()
+
+	assert_eq(_settings.mouse_move_speed_scale(), 1.0)
+	assert_eq(_settings.stick_move_speed_scale(), 1.0)
 
 
 func test_camera_shake_enabled_round_trips_and_persists() -> void:
@@ -94,7 +204,7 @@ func test_graphics_preset_changed_signal_emits_the_new_preset() -> void:
 
 func test_audio_settings_changed_signal_emits_on_volume_change() -> void:
 	watch_signals(_settings)
-	_settings.set_master_volume_db(-3.0)
+	_settings.set_master_volume_percent(0.3)
 	assert_signal_emitted(_settings, "audio_settings_changed")
 
 

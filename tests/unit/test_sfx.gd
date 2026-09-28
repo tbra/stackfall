@@ -223,11 +223,56 @@ func test_master_volume_db_offsets_play_volume_db() -> void:
 	var baseline_db: float = _first_playing_sfx_player().volume_db
 	_stop_all_sfx_players()
 
-	Settings.set_master_volume_db(-6.0)
+	Settings.set_master_volume_percent(0.5)
 	assert_true(_sfx.play(AudioConfig.EVENT_CLICK))
 	var offset_db: float = _first_playing_sfx_player().volume_db
 
-	assert_almost_eq(offset_db - baseline_db, -6.0, 0.0001)
+	assert_almost_eq(offset_db - baseline_db, linear_to_db(0.5), 0.0001)
+
+
+## Bontago (options package): the SFX volume slider only ever scales SFX
+## playback, never music (Settings.sfx_volume_db(), added on top of
+## Settings.master_volume_db(), matches this file's own header doc).
+func test_sfx_volume_db_offsets_play_volume_db_independently_of_music() -> void:
+	_config.music_file = "sfx_test_music.wav"
+	_write_tiny_wav(_tmp_dir.path_join(_config.music_file))
+	_sfx.set_root_dir_for_test(_tmp_dir)
+
+	assert_true(_sfx.play(AudioConfig.EVENT_CLICK))
+	var baseline_db: float = _first_playing_sfx_player().volume_db
+	_stop_all_sfx_players()
+
+	Settings.set_sfx_volume_percent(0.25)
+	assert_true(_sfx.play(AudioConfig.EVENT_CLICK))
+	var offset_db: float = _first_playing_sfx_player().volume_db
+	_stop_all_sfx_players()
+
+	assert_almost_eq(offset_db - baseline_db, linear_to_db(0.25), 0.0001)
+
+	# Music volume must be untouched by the SFX slider.
+	_sfx.play_music()
+	assert_almost_eq(_sfx._music_player.volume_db, _config.music_volume_db + Settings.master_volume_db() + Settings.music_volume_db(), 0.01)
+
+
+## Mirror of the SFX test above, for the music channel.
+func test_music_volume_db_offsets_music_playback_independently_of_sfx() -> void:
+	_config.music_file = "music_test_music.wav"
+	_write_tiny_wav(_tmp_dir.path_join(_config.music_file))
+	_sfx.set_root_dir_for_test(_tmp_dir)
+	_sfx.play_music()
+	var baseline_db: float = _sfx._music_player.volume_db
+
+	Settings.set_music_volume_percent(0.25)
+	_sfx.play_music()
+	var offset_db: float = _sfx._music_player.volume_db
+
+	assert_almost_eq(offset_db - baseline_db, linear_to_db(0.25), 0.0001)
+
+	# SFX volume must be untouched by the music slider.
+	assert_true(_sfx.play(AudioConfig.EVENT_CLICK))
+	var sfx_db: float = _first_playing_sfx_player().volume_db
+	_stop_all_sfx_players()
+	assert_almost_eq(sfx_db, _config.sfx_volume_db + Settings.master_volume_db() + Settings.sfx_volume_db(), 0.01)
 
 
 func _first_playing_sfx_player() -> AudioStreamPlayer:
@@ -313,7 +358,7 @@ func test_single_stream_progress_past_threshold_then_settings_change_stays_at_ba
 	Events.goal_capture_progress.emit(0, 1.0)
 	_sfx.play_music()  # exercises _play_music_stream()'s own volume_db assignment
 
-	var expected_baseline_db: float = _config.music_volume_db + Settings.master_volume_db()
+	var expected_baseline_db: float = _config.music_volume_db + Settings.master_volume_db() + Settings.music_volume_db()
 	assert_almost_eq(
 		_sfx._music_player.volume_db,
 		expected_baseline_db,
@@ -321,12 +366,12 @@ func test_single_stream_progress_past_threshold_then_settings_change_stays_at_ba
 		"play_music() must not mute the only music stream after crossing the tense threshold",
 	)
 
-	# Settings.set_master_volume_db() emits audio_settings_changed, which
+	# Settings.set_master_volume_percent() emits audio_settings_changed, which
 	# re-applies calm_stem_target_volume_db() to the live _music_player --
 	# the second path the review flagged (besides play_music()) that could
 	# mute the single stream permanently.
-	Settings.set_master_volume_db(-3.0)
-	expected_baseline_db = _config.music_volume_db + Settings.master_volume_db()
+	Settings.set_master_volume_percent(0.7)
+	expected_baseline_db = _config.music_volume_db + Settings.master_volume_db() + Settings.music_volume_db()
 	assert_almost_eq(
 		_sfx._music_player.volume_db,
 		expected_baseline_db,

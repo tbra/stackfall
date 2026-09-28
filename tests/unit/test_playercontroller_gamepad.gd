@@ -74,6 +74,50 @@ func test_gamepad_stick_moves_the_ghost_cursor() -> void:
 	Input.flush_buffered_events()
 
 
+## Bontago (options package): Settings.stick_move_speed_scale() (Options
+## menu's device-aware Controls-tab slider) scales the gamepad cursor's own
+## max speed on top of the tuning Resource's gamepad_cursor_base_speed
+## baseline -- independent of Settings.mouse_move_speed_scale().
+func test_stick_move_speed_scale_increases_gamepad_cursor_motion() -> void:
+	var motion: InputEventJoypadMotion = InputEventJoypadMotion.new()
+	motion.device = -1
+	motion.axis = JOY_AXIS_LEFT_X
+	motion.axis_value = 1.0
+	Input.parse_input_event(motion)
+	Input.flush_buffered_events()
+
+	var baseline: PlayerController = autofree(PlayerController.new())
+	add_child_autofree(baseline)
+	Settings.set_stick_move_speed_scale(1.0)
+	# Bontago (options package): the cursor accelerates toward max_speed
+	# rather than snapping to it (ghost_tuning.gamepad_cursor_acceleration),
+	# so several frames are needed before the velocity actually saturates at
+	# (scaled) max_speed -- one single short frame is acceleration-capped
+	# identically regardless of the target speed and would not show a
+	# difference at all.
+	for _i: int in range(90):
+		baseline._update_gamepad_cursor(1.0 / 60.0)
+
+	var scaled: PlayerController = autofree(PlayerController.new())
+	add_child_autofree(scaled)
+	Settings.set_stick_move_speed_scale(2.0)
+	for _i: int in range(90):
+		scaled._update_gamepad_cursor(1.0 / 60.0)
+
+	assert_gt(scaled._cursor_velocity.length(), baseline._cursor_velocity.length(), "a 2x stick speed scale should saturate the gamepad cursor's velocity higher than the 1x baseline.")
+	assert_almost_eq(baseline._cursor_velocity.length(), baseline.ghost_tuning.gamepad_cursor_base_speed, 0.5)
+	assert_almost_eq(scaled._cursor_velocity.length(), scaled.ghost_tuning.gamepad_cursor_base_speed * 2.0, 0.5)
+	assert_eq(Settings.mouse_move_speed_scale(), 1.0, "the mouse scale must be untouched by the stick scale setter.")
+
+	Settings.reset_move_speed_scales()
+	var release: InputEventJoypadMotion = InputEventJoypadMotion.new()
+	release.device = -1
+	release.axis = JOY_AXIS_LEFT_X
+	release.axis_value = 0.0
+	Input.parse_input_event(release)
+	Input.flush_buffered_events()
+
+
 ## Bontago-mv0.14: rotate_yaw_ccw/cw are pad DEVICE_EXCEPTIONs (keyboard A/S
 ## only, tests/unit/test_project_setup.gd) -- B (rotate_snap) is the gamepad's
 ## own 90 degree yaw tap. Owner controller update (feedback/controller-update.md,
