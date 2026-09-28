@@ -43,6 +43,16 @@ func before_each() -> void:
 	_screen.match_provider = _fake_match
 
 
+## Bontago-1pi.15.1: this file's own gamepad D-pad/A/B tests route real
+## InputEventJoypadButton events through Input.parse_input_event(), which
+## flips the Settings autoload's own active_input_device() to DEVICE_GAMEPAD
+## as a side effect -- reset it so a later test file in the same run doesn't
+## inherit gamepad mode from this one (tests/unit/test_options_menu.gd's own
+## after_each() already does this for its own gamepad tests).
+func after_each() -> void:
+	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+
+
 func _ffa_results(winner_slot: int = 0) -> Dictionary:
 	return {
 		"winner_kind": MatchStats.WINNER_KIND_SLOT,
@@ -228,3 +238,51 @@ func test_gamepad_dpad_down_moves_focus_to_the_next_button() -> void:
 	await get_tree().process_frame
 
 	assert_true(_screen._lobby_button.has_focus(), "a synthetic gamepad D-pad-down press must move focus along the wired chain.")
+
+
+# --- Gamepad parity (Bontago-1pi.15.1: "gamepad works in some menus but not
+# all; B never goes back in any menu") ------------------------------------------
+
+func test_showing_results_grabs_focus_on_the_host() -> void:
+	_screen.show_results(_ffa_results())
+	assert_not_null(get_viewport().gui_get_focus_owner(), "the results screen must land focus somewhere as soon as it shows for the host.")
+	assert_true(_screen._replay_button.has_focus())
+
+
+func test_gamepad_a_activates_the_focused_replay_button() -> void:
+	_screen.show_results(_ffa_results())
+	assert_true(_screen._replay_button.has_focus(), "fixture: focus starts on Replay.")
+
+	var press: InputEventJoypadButton = InputEventJoypadButton.new()
+	press.device = -1
+	press.button_index = JOY_BUTTON_A
+	press.pressed = true
+	Input.parse_input_event(press)
+	var release: InputEventJoypadButton = InputEventJoypadButton.new()
+	release.device = -1
+	release.button_index = JOY_BUTTON_A
+	release.pressed = false
+	Input.parse_input_event(release)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	assert_eq(_fake_match_net.replay_calls, 1, "gamepad A on the focused Replay button must activate it via ui_accept.")
+
+
+## Bontago-1pi.15.1: %SettingsPanel is the one popup this screen owns; gamepad
+## B must close it (ui/ResultsScreen.gd's new _unhandled_input()), the same
+## "popups close with B" contract ui/Lobby.gd's advanced-rules popup and
+## ui/OptionsMenu.gd's own Back both already follow.
+func test_gamepad_b_closes_the_settings_panel_via_real_binding() -> void:
+	_screen.show_results(_ffa_results())
+	_screen._on_settings_pressed()
+	assert_true(_screen._settings_panel.visible, "fixture: settings panel opened.")
+
+	var event: InputEventJoypadButton = InputEventJoypadButton.new()
+	event.device = -1
+	event.button_index = JOY_BUTTON_B
+	event.pressed = true
+	assert_true(event.is_action_pressed(&"ui_cancel"), "gamepad B should map to ui_cancel")
+	_screen._unhandled_input(event)
+
+	assert_false(_screen._settings_panel.visible, "gamepad B must close the settings panel.")

@@ -712,10 +712,20 @@ func _close_advanced_popup() -> void:
 ## already covers the pill; this covers the Esc/gamepad-B path, consuming the
 ## event so it doesn't also trigger whatever ui_cancel does one layer up
 ## (e.g. game/Main.gd's own pause/back handling).
+##
+## Bontago-1pi.15.1 fix: with the popup closed, ui_cancel now backs all the
+## way out of the lobby too (%BackButton's own back_requested, same as a
+## click/ui_accept on it) -- previously B did nothing here at all unless the
+## advanced-rules popup happened to be open, the reported "B never goes back
+## in any menu" gap.
 func _unhandled_input(event: InputEvent) -> void:
-	if _advanced_popup.visible and event.is_action_pressed(&"ui_cancel"):
+	if not event.is_action_pressed(&"ui_cancel"):
+		return
+	if _advanced_popup.visible:
 		_close_advanced_popup()
-		get_viewport().set_input_as_handled()
+	else:
+		_on_back_pressed()
+	get_viewport().set_input_as_handled()
 
 
 ## Live summary chips on %AdvRulesBar (brief: "label + summary chips that

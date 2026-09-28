@@ -129,12 +129,24 @@ func _process(delta: float) -> void:
 				_advance()
 
 
-## ui_cancel (Escape / gamepad B -- Godot's own built-in UI action, already
-## bound on both devices by default; CLAUDE.md's "never raw keycodes" is why
-## this is the one action this file reads directly, rather than adding a new
-## project-specific one for a single Esc-to-quit case).
+## Bontago-1pi.15.1 fix: this used to read ui_cancel (Escape / gamepad B), but
+## Bontago-1pi.15.1 gave ui_cancel a gamepad B binding to fix menu back
+## navigation project-wide -- and gamepad B is also rotate_snap (and
+## camera_snap_goal)'s own button during actual gameplay (tools/
+## bootstrap_project.gd), which this tutorial's own PlayerController is live
+## for. Reading ui_cancel here would have ended the tutorial every time a
+## gamepad player tried to snap-rotate their held block, exactly the "ui_cancel
+## must not do anything else in-game" regression the owner's report flagged.
+##
+## pause_menu (Escape / gamepad Start) is the fix: it's already bound on both
+## devices (tools/bootstrap_project.gd), doesn't collide with any gameplay
+## action, and this class's own header + ui/PauseMenu.gd's `suppressed` doc
+## comment both already establish that the real PauseMenu never opens while
+## Tutorial owns the scene -- so Escape/Start is otherwise unclaimed input
+## here, free to reuse as this scene's own quit gesture instead of adding a
+## third action for the same two physical buttons.
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed(&"ui_cancel"):
+	if event.is_action_pressed(&"pause_menu"):
 		_end_tutorial()
 		get_viewport().set_input_as_handled()
 
