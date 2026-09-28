@@ -16,6 +16,11 @@ var _solver: TerritorySolver = null
 var _win_checker: WinChecker = null
 var _last_groups: TerritoryGroups = null
 var _solve_accum: float = 0.0
+## Sandbox diagnostics: measured on the real live path, not the one-shot
+## comparison. The most recent process tick may contain multiple solve steps.
+var _sandbox_tick_ms: float = 0.0
+var _sandbox_tick_steps: int = 0
+var _sandbox_step_ms: Dictionary = {}
 
 ## Bontago-cmc.5: goal no-build discs, cached at _build_territory() (goal
 ## flags never move) so _run_territory_step() does not rebuild them every
@@ -112,14 +117,24 @@ func _tick_territory(delta: float) -> void:
 		return
 	if _raster == null or _solver == null:
 		return
+	var profile_enabled: bool = _match._sandbox_territory_profile_enabled
+	var tick_start: int = Time.get_ticks_usec() if profile_enabled else 0
+	if profile_enabled:
+		_sandbox_tick_steps = 0
 	_solve_accum += delta
 	var step: float = 1.0 / maxf(_match._territory_tuning.solve_hz, 0.001)
 	while _solve_accum >= step:
 		_solve_accum -= step
+		if profile_enabled:
+			_sandbox_tick_steps += 1
 		_run_territory_step(step)
+	if profile_enabled:
+		_sandbox_tick_ms = float(Time.get_ticks_usec() - tick_start) / 1000.0
 
 
 func _run_territory_step(delta: float) -> void:
+	var profile_enabled: bool = _match._sandbox_territory_profile_enabled
+	var t0: int = Time.get_ticks_usec() if profile_enabled else 0
 	var circles: Array[InfluenceCircle] = _collect_circles()
 	if _match._sandbox_territory_mode == MatchAutoload.SANDBOX_TERRITORY_CONE:
 		var projected: Dictionary = SandboxConeAdapter.project(
@@ -129,13 +144,17 @@ func _run_territory_step(delta: float) -> void:
 		)
 		if not projected.has("error"):
 			circles = projected["circles"]
+	var t1: int = Time.get_ticks_usec() if profile_enabled else 0
 	var groups: TerritoryGroups = _solver.solve(circles)
+	var t2: int = Time.get_ticks_usec() if profile_enabled else 0
 	_last_groups = groups
 	var holes_enabled: bool = _match.config.hole_mode != MatchConfig.HoleMode.OFF
 	var permanent_holes: bool = _match.config.hole_mode == MatchConfig.HoleMode.PERMANENT
 	_raster.update(circles, groups, delta, holes_enabled, permanent_holes)
+	var t3: int = Time.get_ticks_usec() if profile_enabled else 0
 	_win_checker.update(_raster, delta)
 	_update_circle_render(circles, groups)
+	var t4: int = Time.get_ticks_usec() if profile_enabled else 0
 
 	Events.territory_updated.emit(_raster, groups)
 
@@ -175,6 +194,20 @@ func _run_territory_step(delta: float) -> void:
 
 	if MatchLifecycle.is_live_state(_match.state()) and _win_checker.winner() != WinChecker.NO_TEAM:
 		_match._lifecycle._finish_match(_win_checker.winner())
+	if profile_enabled:
+		var t5: int = Time.get_ticks_usec()
+		_sandbox_step_ms = {
+			"collect": float(t1 - t0) / 1000.0,
+			"solve": float(t2 - t1) / 1000.0,
+			"raster": float(t3 - t2) / 1000.0,
+			"overlay": float(t4 - t3) / 1000.0,
+			"other": float(t5 - t4) / 1000.0,
+			"total": float(t5 - t0) / 1000.0,
+		}
+
+
+func sandbox_profile() -> Dictionary:
+	return {"tick_ms": _sandbox_tick_ms, "steps": _sandbox_tick_steps, "step_ms": _sandbox_step_ms}
 
 
 func _collect_circles() -> Array[InfluenceCircle]:

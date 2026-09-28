@@ -31,6 +31,9 @@ var _active_slot: int = 0
 var _comparison: PhysicsComparison = null
 var _comparison_panel: PhysicsComparisonPanel = null
 var _cone_panel: SandboxConePanel = null
+var _frozen_block_states: Dictionary = {}
+var _block_physics_frozen: bool = false
+var _registry_physics_was_enabled: bool = false
 var _comparison_feed_enabled: bool = false
 var _comparison_controller_enabled: bool = true
 var _comparison_mouse_mode: Input.MouseMode = Input.MOUSE_MODE_VISIBLE
@@ -73,6 +76,7 @@ var _physics_paused: bool = false
 
 
 func _ready() -> void:
+	Match._sandbox_territory_profile_enabled = true
 	Events.turn_changed.connect(_on_turn_changed)
 	_panel.configure(self, _ghost)
 	# The sandbox controls remain available through their documented hotkeys,
@@ -100,6 +104,8 @@ func _ready() -> void:
 	_cone_panel.measure_requested.connect(_measure_cone_comparison)
 	_cone_panel.open_changed.connect(_comparison_controls_changed)
 	_cone_panel.live_territory_mode_changed.connect(_set_live_territory_mode)
+	_cone_panel.block_collision_freeze_changed.connect(_set_block_physics_frozen)
+	Events.block_placed.connect(_on_diagnostic_block_placed)
 	# M6 B2 (sandbox_pause_physics, F11): PROCESS_MODE_ALWAYS so this whole
 	# subtree -- this node's own _unhandled_input (every sandbox hotkey,
 	# including the one that un-pauses again) plus the controller/ghost/HUD
@@ -115,6 +121,8 @@ func _ready() -> void:
 ## still active would leak into whatever match runs next in the same process
 ## (the shipped game, or the next test file's fixture).
 func _exit_tree() -> void:
+	_set_block_physics_frozen(false)
+	Match._sandbox_territory_profile_enabled = false
 	Match.set_sandbox_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
 	if _cone_panel != null and _cone_panel.opened:
 		_cone_panel.set_open(false)
@@ -327,6 +335,9 @@ func _set_active_slot(slot_id: int) -> void:
 ## every other entry point: Field.place_flags()/set_overlay_source() need
 ## the fresh raster and slots that only exist once start_match() returns.
 func _reset_field() -> void:
+	_set_block_physics_frozen(false)
+	if _cone_panel != null:
+		_cone_panel.set_blocks_frozen(false)
 	Match.set_sandbox_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
 	if _cone_panel != null:
 		_cone_panel.set_live_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
@@ -412,6 +423,50 @@ func _measure_cone_comparison(mode: int, angle_degrees: float, height_source: in
 
 func _set_live_territory_mode(mode: int, angle_degrees: float, height_source: int, base_mode: int) -> void:
 	Match.set_sandbox_territory_mode(mode, angle_degrees, height_source, base_mode)
+
+
+## A/B diagnostic only: remove contacts but keep the block transforms and
+## territory solve running. F11 pauses both and cannot isolate collision cost.
+func _set_block_physics_frozen(frozen: bool) -> void:
+	if frozen == _block_physics_frozen:
+		return
+	_block_physics_frozen = frozen
+	var registry: BlockRegistry = Match.registry()
+	if frozen:
+		if registry != null:
+			_registry_physics_was_enabled = registry.is_physics_processing()
+			registry.set_physics_process(false)
+		var parent: Node3D = Match.blocks_parent()
+		if parent != null:
+			for child: Node in parent.get_children():
+				_freeze_diagnostic_block(child as Block)
+	else:
+		for state: Dictionary in _frozen_block_states.values():
+			var block: Block = state["block"]
+			if is_instance_valid(block):
+				block.collision_layer = state["layer"]
+				block.collision_mask = state["mask"]
+				block.freeze = state["freeze"]
+		_frozen_block_states.clear()
+		if registry != null:
+			registry.set_physics_process(_registry_physics_was_enabled)
+
+
+func _on_diagnostic_block_placed(block: RigidBody3D, _shape_id: StringName) -> void:
+	if _block_physics_frozen:
+		_freeze_diagnostic_block(block as Block)
+
+
+func _freeze_diagnostic_block(block: Block) -> void:
+	if block == null or _frozen_block_states.has(block.get_instance_id()):
+		return
+	_frozen_block_states[block.get_instance_id()] = {
+		"block": block, "layer": block.collision_layer,
+		"mask": block.collision_mask, "freeze": block.freeze,
+	}
+	block.freeze = true
+	block.collision_layer = 0
+	block.collision_mask = 0
 
 
 func run_physics_comparison(mode: String, height: float, interval: float, gap: float, offset: float = 0.0) -> void:

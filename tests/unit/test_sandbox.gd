@@ -90,6 +90,32 @@ func test_live_cone_switch_projects_a_settled_block_and_restores_current_rule() 
 	assert_true(_has_radius(current_render, original_radius), "switching back restores current block radius")
 
 
+func test_block_collision_freeze_keeps_territory_running_and_restores_contacts() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+	var reason: StringName = Match.request_place(0, Match.default_ghost_origin(0), 0, Quaternion.IDENTITY, false)
+	assert_eq(reason, PlacementRules.REASON_OK)
+	var block: Block = Match.blocks_parent().get_child(0) as Block
+	assert_not_null(block)
+	var original_layer: int = block.collision_layer
+	var original_mask: int = block.collision_mask
+	var registry: BlockRegistry = Match.registry()
+	assert_true(registry.is_physics_processing())
+	sandbox._set_block_physics_frozen(true)
+	assert_true(block.freeze)
+	assert_eq(block.collision_layer, 0)
+	assert_eq(block.collision_mask, 0)
+	assert_false(registry.is_physics_processing())
+	Match._territory._run_territory_step(0.0)
+	assert_gt(Match._territory.sandbox_profile()["step_ms"]["total"], 0.0)
+	sandbox._set_block_physics_frozen(false)
+	assert_false(block.freeze)
+	assert_eq(block.collision_layer, original_layer)
+	assert_eq(block.collision_mask, original_mask)
+	assert_true(registry.is_physics_processing())
+
+
 func _has_radius(radii: PackedFloat32Array, expected: float) -> bool:
 	for radius: float in radii:
 		if is_equal_approx(radius, expected):
