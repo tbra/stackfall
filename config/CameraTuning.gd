@@ -32,6 +32,16 @@ extends Resource
 ## Bontago-pt-4: not the "scrolling" the owner meant either -- see zoom_step's
 ## own DECISION above; reverted to its original value.
 @export var orbit_zoom_step: float = 2.0
+## Owner controller update (feedback/controller-update.md, re-confirmed
+## 2026-09-28: "LT held + left stick up/down = zoom camera in (stick up) /
+## out (stick down), continuous"): distance change per second at full
+## left-stick deflection while camera_zoom_modifier (LT) is held
+## (game/CameraRig.gd's zoom_continuous(), game/PlayerController.gd's
+## _drive_gamepad_zoom()). Distinct from zoom_step/orbit_zoom_step above,
+## which are both fixed per-notch/per-press steps, not a continuous per-second
+## rate -- this is the analog equivalent, the same "own tunable per gesture"
+## precedent orbit_zoom_step already set against zoom_step.
+@export var gamepad_trigger_zoom_speed: float = 15.0
 
 ## -- Pan --------------------------------------------------------------------
 ## Meters per second the orbit target moves at full input.

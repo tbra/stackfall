@@ -18,7 +18,13 @@ extends Resource
 ## much more slowly per pixel of mouse motion than this project's earlier
 ## default.
 @export var block_move_sensitivity: float = 0.015
-@export var gamepad_cursor_base_speed: float = 10.0
+## Owner controller update (feedback/controller-update.md, re-confirmed
+## 2026-09-28: "Left-stick cursor speed too slow"): raised from 10.0 -- a
+## prior worker attempt at this same package independently settled on 18.0
+## before it was abandoned mid-implementation (main's own uncommitted, never
+## landed changes), which this package reuses as a reasonable "moderately
+## faster" starting point rather than inventing a third number.
+@export var gamepad_cursor_base_speed: float = 18.0
 ## The zoom (camera orbit distance) at which base_speed applies; farther out
 ## moves the cursor faster, closer in moves it slower.
 @export var gamepad_cursor_zoom_reference_distance: float = 30.0
@@ -74,6 +80,20 @@ extends Resource
 ## 20-130 px single-event motions) while a genuine click-with-jitter tap
 ## stays under it.
 @export var rotate_tap_max_motion_px: float = 6.0
+
+## -- Rotate drag, gamepad (owner controller update, feedback/
+## controller-update.md, re-confirmed 2026-09-28: "RT held + left stick =
+## continuous free rotation of the held block exactly like holding MMB and
+## moving the mouse ... NOT the current rotation_mode 90-degree snap grid").
+## game/PlayerController.gd's _accumulate_gamepad_rotate_drag() drives the
+## same GhostPreview.apply_free_rotation_delta() rotate_drag's own mouse
+## motion branch above does, X = yaw about world up, Y = pitch about the
+## camera's right axis -- just scaled from a per-second stick deflection
+## instead of per-pixel mouse motion, the same "drag units" pattern
+## pad_rotation_speed already uses for the grid-snap version of this gesture.
+## Radians per second at full left-stick deflection while rotate_drag_pad (RT)
+## is held (tools/bootstrap_project.gd).
+@export var pad_free_rotation_speed: float = 2.0
 
 ## -- Hover height (spec 1.5/2.5: "the mouse wheel raises and lowers the
 ## block") --------------------------------------------------------------------

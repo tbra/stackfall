@@ -185,21 +185,21 @@ func _unhandled_input(event: InputEvent) -> void:
 			_update_transform()
 		return
 
-	# DECISION (game/CameraRig.gd): camera_zoom_in/out are bound to Z/X keys
-	# AND to the gamepad triggers, which also mean throw_aim/rotation_mode
-	# while a block is held (spec 2.5 scopes trigger zoom to "while not
-	# holding a block"). Checking the event's class (key vs. trigger)
-	# distinguishes the two without reading a raw keycode: Z/X always zoom,
-	# the shared trigger inputs only zoom when free. Bontago-mv0.14: the wheel
-	# used to double as zoom too; it is now block height only (ghost_tuning's
-	# hover_raise/hover_lower), so it is out of this action entirely (see
-	# tools/bootstrap_project.gd).
+	# Owner controller update (feedback/controller-update.md, re-confirmed
+	# 2026-09-28): camera_zoom_in/out are keyboard-only now (Z/X) -- the
+	# gamepad triggers no longer fire them at all (tools/bootstrap_project.gd),
+	# so both always zoom regardless of block_held; the old "trigger zoom only
+	# while free" scoping is moot now that no trigger binds these actions.
+	# The gamepad's own zoom gesture (LT + left stick, continuous) is
+	# PlayerController._drive_gamepad_zoom() -> zoom_continuous() below, driven
+	# every frame rather than through this event handler.
+	# Bontago-mv0.14: the wheel used to double as zoom too; it is now block
+	# height only (ghost_tuning's hover_raise/hover_lower), so it is out of
+	# this action entirely (see tools/bootstrap_project.gd).
 	if event.is_action_pressed(&"camera_zoom_in"):
-		if event is InputEventKey or not block_held:
-			_zoom(-1.0)
+		_zoom(-1.0)
 	elif event.is_action_pressed(&"camera_zoom_out"):
-		if event is InputEventKey or not block_held:
-			_zoom(1.0)
+		_zoom(1.0)
 	elif not tuning.follow_block and event.is_action_pressed(&"camera_snap_home"):
 		_snap_to(_home_point())
 	elif not tuning.follow_block and event.is_action_pressed(&"camera_snap_goal"):
@@ -465,6 +465,21 @@ func zoom_by_orbit_step(direction: float) -> void:
 		# see the DECISION on _rotate_drag_frozen().
 		return
 	_distance = clampf(_distance + direction * tuning.orbit_zoom_step, tuning.zoom_min, tuning.zoom_max)
+
+
+## Owner controller update (feedback/controller-update.md, re-confirmed
+## 2026-09-28: "LT held + left stick up/down = zoom camera in/out,
+## continuous"): called every frame by PlayerController._drive_gamepad_zoom()
+## while camera_zoom_modifier (LT) is held and not aiming a throw, with
+## `amount` already scaled by tuning.gamepad_trigger_zoom_speed and the
+## frame's delta -- unlike zoom_by_orbit_step's fixed per-notch step, this is
+## a continuous analog rate that tracks how far the stick is pushed. Frozen
+## exactly like zoom_by_orbit_step while rotate_drag is held, for the same
+## reason (see _rotate_drag_frozen()'s own doc comment).
+func zoom_continuous(amount: float) -> void:
+	if _rotate_drag_frozen():
+		return
+	_distance = clampf(_distance + amount, tuning.zoom_min, tuning.zoom_max)
 
 
 func _pan_offset(input_2d: Vector2) -> Vector3:

@@ -74,7 +74,15 @@ func test_gamepad_stick_moves_the_ghost_cursor() -> void:
 	Input.flush_buffered_events()
 
 
-func test_gamepad_rotation_buttons_step_the_orientation_table() -> void:
+## Bontago-mv0.14: rotate_yaw_ccw/cw are pad DEVICE_EXCEPTIONs (keyboard A/S
+## only, tests/unit/test_project_setup.gd) -- B (rotate_snap) is the gamepad's
+## own 90 degree yaw tap. Owner controller update (feedback/controller-update.md,
+## re-confirmed 2026-09-28) reassigned the shoulder buttons to hover raise/
+## lower (see test_gamepad_hover_raise_held_continuously_raises_the_ghost/
+## test_gamepad_hover_lower_held_continuously_lowers_the_ghost below), so this
+## exercises rotate_snap (B) instead of the shoulder-button binding this test
+## used to check before that reassignment.
+func test_gamepad_rotate_snap_button_steps_the_orientation_table() -> void:
 	var ghost: GhostPreview = autofree(GhostPreview.new())
 	add_child_autofree(ghost)
 	ghost.set_shape(load("res://config/blocks/cube.tres"))
@@ -85,23 +93,32 @@ func test_gamepad_rotation_buttons_step_the_orientation_table() -> void:
 
 	var button_event: InputEventJoypadButton = InputEventJoypadButton.new()
 	button_event.device = -1
-	button_event.button_index = JOY_BUTTON_LEFT_SHOULDER
+	button_event.button_index = JOY_BUTTON_B
 	button_event.pressed = true
 	assert_true(
-		button_event.is_action_pressed(&"rotate_yaw_ccw"),
-		"LB should map to rotate_yaw_ccw (tools/bootstrap_project.gd)."
+		button_event.is_action_pressed(&"rotate_snap"),
+		"B should map to rotate_snap (tools/bootstrap_project.gd)."
 	)
 
 	controller._unhandled_input(button_event)
 
-	assert_eq(ghost.orientation_index, BlockOrientations.step_yaw_ccw(0))
+	assert_eq(ghost.orientation_index, BlockOrientations.step_yaw_cw(0))
 
 
 ## Bontago-mv0.14 (original tutorial: "while holding the rotation-mode key,
 ## the movement keys change the orientation of the block"): the gamepad's
 ## "movement keys" are the left stick (ghost_move_*), the same axes
-## test_gamepad_stick_moves_the_ghost_cursor drives -- rotation_mode (right
-## trigger) reroutes them into a 90 degree snap instead of moving the cursor.
+## test_gamepad_stick_moves_the_ghost_cursor drives -- rotation_mode reroutes
+## them into a 90 degree snap instead of moving the cursor.
+##
+## Owner controller update (feedback/controller-update.md, re-confirmed
+## 2026-09-28): rotation_mode's gamepad binding (the right trigger) moved to
+## the new rotate_drag_pad action (free rotation, see
+## test_gamepad_rotate_drag_pad_free_rotates_like_mmb_drag_and_freezes_the_cursor
+## above) -- rotation_mode is keyboard-only now (R), so this drives the action
+## directly with Input.action_press() rather than a synthetic trigger event,
+## to keep covering PlayerController's own rotation_mode+stick handling
+## without depending on which physical input the Input Map binds it to.
 func test_gamepad_rotation_mode_left_stick_snaps_orientation_instead_of_moving_the_cursor() -> void:
 	var ghost: GhostPreview = autofree(GhostPreview.new())
 	add_child_autofree(ghost)
@@ -111,16 +128,7 @@ func test_gamepad_rotation_mode_left_stick_snaps_orientation_instead_of_moving_t
 	add_child_autofree(controller)
 	controller._ghost = ghost
 
-	var trigger: InputEventJoypadMotion = InputEventJoypadMotion.new()
-	trigger.device = -1
-	trigger.axis = JOY_AXIS_TRIGGER_RIGHT
-	trigger.axis_value = 1.0
-	assert_true(
-		trigger.is_action_pressed(&"rotation_mode"),
-		"Right trigger should map to rotation_mode (tools/bootstrap_project.gd)."
-	)
-	Input.parse_input_event(trigger)
-	Input.flush_buffered_events()
+	Input.action_press(&"rotation_mode")
 
 	var stick: InputEventJoypadMotion = InputEventJoypadMotion.new()
 	stick.device = -1
@@ -135,16 +143,11 @@ func test_gamepad_rotation_mode_left_stick_snaps_orientation_instead_of_moving_t
 	var seconds_needed: float = 1.0 / controller.ghost_tuning.pad_rotation_speed
 	controller._update_gamepad_cursor(seconds_needed + 0.05)
 
-	assert_eq(ghost.orientation_index, BlockOrientations.step_yaw_cw(0), "full right-stick deflection should snap one CW yaw step.")
+	assert_eq(ghost.orientation_index, BlockOrientations.step_yaw_cw(0), "full left-stick deflection should snap one CW yaw step.")
 	assert_eq(controller._cursor, Vector3.ZERO, "rotation_mode must not also move the cursor.")
 
-	# Release both synthetic axes so they don't bleed into later tests.
-	var trigger_release: InputEventJoypadMotion = InputEventJoypadMotion.new()
-	trigger_release.device = -1
-	trigger_release.axis = JOY_AXIS_TRIGGER_RIGHT
-	trigger_release.axis_value = 0.0
-	Input.parse_input_event(trigger_release)
-	Input.flush_buffered_events()
+	# Release so it doesn't bleed into later tests.
+	Input.action_release(&"rotation_mode")
 
 	var stick_release: InputEventJoypadMotion = InputEventJoypadMotion.new()
 	stick_release.device = -1
@@ -155,10 +158,12 @@ func test_gamepad_rotation_mode_left_stick_snaps_orientation_instead_of_moving_t
 
 
 ## Bontago-mv0.17 item 5 (owner feel report: "the block's height changes ONLY
-## via the wheel"): the gamepad's hover_raise/hover_lower bindings (RS click /
-## X, tools/bootstrap_project.gd) are the "wheel" for a gamepad player and
-## must keep working exactly as before -- held continuously, unlike the
-## mouse wheel's one-notch-per-press.
+## via the wheel"): the gamepad's hover_raise/hover_lower bindings are the
+## "wheel" for a gamepad player and must keep working exactly as before --
+## held continuously, unlike the mouse wheel's one-notch-per-press.
+## Owner controller update (feedback/controller-update.md, re-confirmed
+## 2026-09-28: "RB = hover raise, LB = hover lower (held)") moved these off
+## RS click/X onto the shoulder buttons.
 func test_gamepad_hover_raise_held_continuously_raises_the_ghost() -> void:
 	var ghost: GhostPreview = autofree(GhostPreview.new())
 	add_child_autofree(ghost)
@@ -170,11 +175,11 @@ func test_gamepad_hover_raise_held_continuously_raises_the_ghost() -> void:
 
 	var button_event: InputEventJoypadButton = InputEventJoypadButton.new()
 	button_event.device = -1
-	button_event.button_index = JOY_BUTTON_RIGHT_STICK
+	button_event.button_index = JOY_BUTTON_RIGHT_SHOULDER
 	button_event.pressed = true
 	assert_true(
 		button_event.is_action_pressed(&"hover_raise"),
-		"Right-stick click should map to hover_raise (tools/bootstrap_project.gd)."
+		"RB should map to hover_raise (tools/bootstrap_project.gd)."
 	)
 	Input.parse_input_event(button_event)
 	Input.flush_buffered_events()
@@ -190,7 +195,222 @@ func test_gamepad_hover_raise_held_continuously_raises_the_ghost() -> void:
 	# Release so it doesn't bleed into later tests.
 	var release: InputEventJoypadButton = InputEventJoypadButton.new()
 	release.device = -1
-	release.button_index = JOY_BUTTON_RIGHT_STICK
+	release.button_index = JOY_BUTTON_RIGHT_SHOULDER
 	release.pressed = false
 	Input.parse_input_event(release)
+	Input.flush_buffered_events()
+
+
+func test_gamepad_hover_lower_held_continuously_lowers_the_ghost() -> void:
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+	ghost.set_shape(load("res://config/blocks/cube.tres"))
+	ghost.manual_hover_offset = 5.0
+
+	var controller: PlayerController = autofree(PlayerController.new())
+	add_child_autofree(controller)
+	controller._ghost = ghost
+
+	var button_event: InputEventJoypadButton = InputEventJoypadButton.new()
+	button_event.device = -1
+	button_event.button_index = JOY_BUTTON_LEFT_SHOULDER
+	button_event.pressed = true
+	assert_true(
+		button_event.is_action_pressed(&"hover_lower"),
+		"LB should map to hover_lower (tools/bootstrap_project.gd)."
+	)
+	Input.parse_input_event(button_event)
+	Input.flush_buffered_events()
+
+	var before: float = ghost.manual_hover_offset
+	controller._handle_hover_adjust(1.0)
+
+	assert_almost_eq(
+		ghost.manual_hover_offset, before - controller.ghost_tuning.hover_manual_adjust_speed, 0.001,
+		"holding the gamepad's hover_lower button should lower the ghost continuously, at hover_manual_adjust_speed per second."
+	)
+
+	# Release so it doesn't bleed into later tests.
+	var release: InputEventJoypadButton = InputEventJoypadButton.new()
+	release.device = -1
+	release.button_index = JOY_BUTTON_LEFT_SHOULDER
+	release.pressed = false
+	Input.parse_input_event(release)
+	Input.flush_buffered_events()
+
+
+## Owner controller update (feedback/controller-update.md, re-confirmed
+## 2026-09-28): "RT held + left stick = continuous free rotation of the held
+## block exactly like holding MMB and moving the mouse ... NOT the current
+## rotation_mode 90-degree snap grid". Drives free_quaternion (not the
+## orientation_index snap table), same direction convention rotate_drag's own
+## mouse-motion branch uses (test_playercontroller_mouse.gd), and must not
+## move the cursor while held.
+func test_gamepad_rotate_drag_pad_free_rotates_like_mmb_drag_and_freezes_the_cursor() -> void:
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+	ghost.set_shape(load("res://config/blocks/cube.tres"))
+
+	var controller: PlayerController = autofree(PlayerController.new())
+	add_child_autofree(controller)
+	controller._ghost = ghost
+	var cursor_before: Vector3 = controller._cursor
+
+	var trigger: InputEventJoypadMotion = InputEventJoypadMotion.new()
+	trigger.device = -1
+	trigger.axis = JOY_AXIS_TRIGGER_RIGHT
+	trigger.axis_value = 1.0
+	assert_true(
+		trigger.is_action_pressed(&"rotate_drag_pad"),
+		"Right trigger should map to rotate_drag_pad (tools/bootstrap_project.gd)."
+	)
+	Input.parse_input_event(trigger)
+	Input.flush_buffered_events()
+
+	var stick: InputEventJoypadMotion = InputEventJoypadMotion.new()
+	stick.device = -1
+	stick.axis = JOY_AXIS_LEFT_X
+	stick.axis_value = 1.0
+	Input.parse_input_event(stick)
+	Input.flush_buffered_events()
+
+	controller._update_gamepad_cursor(1.0)
+
+	# Mirrors rotate_drag's own mouse-motion branch: +X input yaws the same
+	# direction a +X mouse-relative drag does (both negate the raw input
+	# before scaling), so free_quaternion must actually have changed, not
+	# just be non-identity by construction.
+	assert_ne(
+		ghost.free_quaternion, Quaternion.IDENTITY,
+		"holding rotate_drag_pad (RT) with stick deflection must free-rotate the ghost."
+	)
+	assert_eq(ghost.orientation_index, 0, "rotate_drag_pad must not touch the 90-degree snap table, only free_quaternion.")
+	assert_eq(controller._cursor, cursor_before, "rotate_drag_pad must not move the cursor while held.")
+
+	var trigger_release: InputEventJoypadMotion = InputEventJoypadMotion.new()
+	trigger_release.device = -1
+	trigger_release.axis = JOY_AXIS_TRIGGER_RIGHT
+	trigger_release.axis_value = 0.0
+	Input.parse_input_event(trigger_release)
+	Input.flush_buffered_events()
+
+	var stick_release: InputEventJoypadMotion = InputEventJoypadMotion.new()
+	stick_release.device = -1
+	stick_release.axis = JOY_AXIS_LEFT_X
+	stick_release.axis_value = 0.0
+	Input.parse_input_event(stick_release)
+	Input.flush_buffered_events()
+
+
+## Owner controller update: "LT held + left stick up/down = zoom camera in
+## (stick up) / out (stick down), continuous"; "Triggers alone must NEVER
+## zoom"; "While either trigger modifier is held, the ghost cursor must not
+## move".
+func test_gamepad_camera_zoom_modifier_zooms_with_stick_not_trigger_alone_and_freezes_the_cursor() -> void:
+	var rig: CameraRig = load("res://game/CameraRig.tscn").instantiate()
+	add_child_autofree(rig)
+	rig.set_process(false)
+
+	var controller: PlayerController = autofree(PlayerController.new())
+	add_child_autofree(controller)
+	controller.set_camera_rig(rig)
+	var cursor_before: Vector3 = controller._cursor
+
+	var trigger: InputEventJoypadMotion = InputEventJoypadMotion.new()
+	trigger.device = -1
+	trigger.axis = JOY_AXIS_TRIGGER_LEFT
+	trigger.axis_value = 1.0
+	assert_true(
+		trigger.is_action_pressed(&"camera_zoom_modifier"),
+		"Left trigger should map to camera_zoom_modifier (tools/bootstrap_project.gd)."
+	)
+	Input.parse_input_event(trigger)
+	Input.flush_buffered_events()
+
+	# Trigger alone (no stick deflection): distance must not change at all.
+	var distance_before: float = rig.get_distance()
+	controller._update_gamepad_cursor(1.0)
+	assert_almost_eq(rig.get_distance(), distance_before, 0.0001, "the trigger alone must never zoom.")
+	assert_eq(controller._cursor, cursor_before, "camera_zoom_modifier must not move the cursor while held, even with no stick input.")
+
+	var stick_up: InputEventJoypadMotion = InputEventJoypadMotion.new()
+	stick_up.device = -1
+	stick_up.axis = JOY_AXIS_LEFT_Y
+	stick_up.axis_value = -1.0  # stick pushed up.
+	Input.parse_input_event(stick_up)
+	Input.flush_buffered_events()
+
+	controller._update_gamepad_cursor(1.0)
+
+	assert_lt(rig.get_distance(), distance_before, "stick up while LT is held must zoom in (decrease distance).")
+	assert_eq(controller._cursor, cursor_before, "camera_zoom_modifier must not move the cursor while held.")
+
+	var closer_distance: float = rig.get_distance()
+	var stick_down: InputEventJoypadMotion = InputEventJoypadMotion.new()
+	stick_down.device = -1
+	stick_down.axis = JOY_AXIS_LEFT_Y
+	stick_down.axis_value = 1.0  # stick pushed down.
+	Input.parse_input_event(stick_down)
+	Input.flush_buffered_events()
+
+	controller._update_gamepad_cursor(1.0)
+
+	assert_gt(rig.get_distance(), closer_distance, "stick down while LT is held must zoom out (increase distance).")
+
+	var trigger_release: InputEventJoypadMotion = InputEventJoypadMotion.new()
+	trigger_release.device = -1
+	trigger_release.axis = JOY_AXIS_TRIGGER_LEFT
+	trigger_release.axis_value = 0.0
+	Input.parse_input_event(trigger_release)
+	Input.flush_buffered_events()
+
+	var stick_release: InputEventJoypadMotion = InputEventJoypadMotion.new()
+	stick_release.device = -1
+	stick_release.axis = JOY_AXIS_LEFT_Y
+	stick_release.axis_value = 0.0
+	Input.parse_input_event(stick_release)
+	Input.flush_buffered_events()
+
+
+## Owner controller update: "LT when the held piece is a throwable special:
+## keep spec 2.5 throw ... LT+stick zoom applies only when not aiming a
+## throw." A held special must still start a throw aim on LT, undisturbed by
+## camera_zoom_modifier sharing the same physical trigger.
+func test_gamepad_camera_zoom_modifier_does_not_block_throw_aim_on_a_held_special() -> void:
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+	var rocket_shape: BlockShape = load("res://config/blocks/cube.tres")
+	ghost.set_shape(rocket_shape)
+
+	var controller: PlayerController = autofree(PlayerController.new())
+	add_child_autofree(controller)
+	controller._ghost = ghost
+	controller._active_slot = 0
+
+	var fake_match: FakeMatch = FakeMatch.new()
+	fake_match.held_shapes[0] = rocket_shape
+	fake_match.held_special_by_slot[0] = &"rocket"
+	controller._match = fake_match
+
+	var trigger: InputEventJoypadMotion = InputEventJoypadMotion.new()
+	trigger.device = -1
+	trigger.axis = JOY_AXIS_TRIGGER_LEFT
+	trigger.axis_value = 1.0
+	Input.parse_input_event(trigger)
+	Input.flush_buffered_events()
+
+	assert_true(
+		controller._can_begin_throw_aim(),
+		"fixture: a held special with the aim gate open must still be able to start aiming."
+	)
+
+	controller._update_throw_aim(1.0 / 60.0)
+
+	assert_true(controller.is_aiming_throw(), "LT on a held special must still start a throw aim, camera_zoom_modifier notwithstanding.")
+
+	var trigger_release: InputEventJoypadMotion = InputEventJoypadMotion.new()
+	trigger_release.device = -1
+	trigger_release.axis = JOY_AXIS_TRIGGER_LEFT
+	trigger_release.axis_value = 0.0
+	Input.parse_input_event(trigger_release)
 	Input.flush_buffered_events()

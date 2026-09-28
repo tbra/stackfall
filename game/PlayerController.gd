@@ -661,6 +661,42 @@ func _accumulate_rotation_drag(relative: Vector2, sensitivity: float) -> void:
 		_rotation_drag.y += 1.0
 
 
+## Owner controller update (feedback/controller-update.md, re-confirmed
+## 2026-09-28: "RT held + left stick = continuous free rotation of the held
+## block exactly like holding MMB and moving the mouse"): the gamepad's own
+## path onto GhostPreview.apply_free_rotation_delta(), mirroring rotate_drag's
+## own InputEventMouseMotion branch in _unhandled_input() above -- X yaws
+## about world up, Y pitches about the camera's current right axis
+## (_camera_right_axis()), same as that branch. `stick` is the same
+## camera-relative Vector2 _update_gamepad_cursor() already builds for cursor
+## movement (x = ghost_move_right-left, y = ghost_move_back-forward), so its
+## sign convention already matches InputEventMouseMotion.relative's (stick up
+## == mouse motion up == negative y) -- negating both axes here the same way
+## rotate_drag's own mouse branch does keeps "drag the stick like the mouse"
+## true in both directions, not just yaw.
+func _accumulate_gamepad_rotate_drag(stick: Vector2, delta: float) -> void:
+	if _ghost == null:
+		return
+	var rate: float = ghost_tuning.pad_free_rotation_speed * delta
+	var yaw_delta: float = -stick.x * rate
+	var pitch_delta: float = -stick.y * rate
+	_ghost.apply_free_rotation_delta(yaw_delta, pitch_delta, _camera_right_axis())
+
+
+## Owner controller update: LT + left stick's continuous zoom, called from
+## _update_gamepad_cursor() once camera_zoom_modifier is confirmed held and
+## not aiming a throw. `stick_y` is the same camera-relative vertical stick
+## value _update_gamepad_cursor() already reads (negative = stick pushed up),
+## and CameraRig._zoom()'s own convention is "positive direction = zoom out" --
+## so pushing the stick up (negative y) shrinks distance (zooms in) and
+## pushing it down (positive y) grows distance (zooms out) with no extra sign
+## flip needed here.
+func _drive_gamepad_zoom(stick_y: float, delta: float) -> void:
+	if _camera_rig == null:
+		return
+	_camera_rig.zoom_continuous(stick_y * camera_tuning.gamepad_trigger_zoom_speed * delta)
+
+
 # --- Placement intent (spec 3.4) --------------------------------------------
 
 ## ghost_place: send exactly one intent to Match and let it decide. Never
@@ -1291,10 +1327,14 @@ func _move_cursor_from_mouse(relative: Vector2) -> void:
 
 
 ## Moves the gamepad's world-space cursor (spec 2.5), relative to the camera,
-## with acceleration and speed scaling with zoom -- unless rotation_mode is
-## held, in which case the same left stick drives _accumulate_rotation_drag()
-## instead (spec 1.5: "the movement keys change the orientation of the
-## block"), and the cursor doesn't move.
+## with acceleration and speed scaling with zoom -- unless rotation_mode,
+## rotate_drag_pad or camera_zoom_modifier is held, in which case the same
+## left stick drives one of those instead (spec 1.5: "the movement keys
+## change the orientation of the block"; owner controller update: RT/LT +
+## stick rotate/zoom), and the cursor doesn't move at all while any of them
+## is held (owner controller update, feedback/controller-update.md,
+## re-confirmed 2026-09-28: "While either trigger modifier is held, the ghost
+## cursor must not move").
 func _update_gamepad_cursor(delta: float) -> void:
 	var stick: Vector2 = Vector2(
 		Input.get_action_strength(&"ghost_move_right") - Input.get_action_strength(&"ghost_move_left"),
@@ -1308,6 +1348,32 @@ func _update_gamepad_cursor(delta: float) -> void:
 		stick = Vector2.ZERO
 	if stick.length() > 1.0:
 		stick = stick.normalized()
+
+	# Owner controller update (feedback/controller-update.md, re-confirmed
+	# 2026-09-28): RT (rotate_drag_pad) + left stick free-rotates the held
+	# block continuously, exactly like rotate_drag (MMB) + mouse motion --
+	# NOT rotation_mode's 90 degree snap grid below. Checked before
+	# rotation_mode so RT always wins over R if somehow both are held at once
+	# (RT is a gamepad-only gesture and R a keyboard-only one, so that overlap
+	# never happens on a single physical device in practice).
+	if Input.is_action_pressed(&"rotate_drag_pad"):
+		if stick.length() > 0.0:
+			_accumulate_gamepad_rotate_drag(stick, delta)
+		return
+
+	# Owner controller update: LT (camera_zoom_modifier) + left stick zooms
+	# the camera continuously, unless the held piece is a throwable special
+	# that LT would otherwise start aiming a throw for -- "LT+stick zoom
+	# applies only when not aiming a throw" -- checked with both
+	# is_aiming_throw() (already aiming, mid-drag) and _can_begin_throw_aim()
+	# (LT would start an aim the instant _update_throw_aim() next polls it,
+	# which runs after this method each frame -- see _process()'s own call
+	# order) so the very first frame LT is pressed on a special never sneaks
+	# in one zoom tick before the aim state catches up.
+	if Input.is_action_pressed(&"camera_zoom_modifier") and not _aiming_throw and not _can_begin_throw_aim():
+		if stick.y != 0.0:
+			_drive_gamepad_zoom(stick.y, delta)
+		return
 
 	if Input.is_action_pressed(&"rotation_mode"):
 		if stick.length() > 0.0:

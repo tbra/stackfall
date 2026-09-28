@@ -209,9 +209,26 @@ func _actions() -> Dictionary:
 	# the movement keys change the orientation of the block"): replaces the
 	# old rotate_free_hold's continuous quaternion drift with a 90 degree snap
 	# grid (PlayerController._accumulate_rotation_drag) driven by the same
-	# mouse motion / left stick that normally moves the ghost. Same physical
-	# bindings the old rotate_free_hold used.
-	a["rotation_mode"] = [_key(KEY_R), _axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)]
+	# mouse motion that normally moves the ghost.
+	#
+	# Owner controller update (feedback/controller-update.md, re-confirmed
+	# 2026-09-28): RT + left stick must be *continuous free rotation*, "exactly
+	# like holding MMB and moving the mouse", NOT this 90 degree snap grid --
+	# so RT comes off this action (keyboard R keeps the snap grid unchanged)
+	# and moves to its own rotate_drag_pad action below, mirroring rotate_drag
+	# (MMB)'s own free-rotation path instead of this one.
+	# DEVICE_EXCEPTION (tests/unit/test_project_setup.gd): rotation_mode is now
+	# keyboard-only; RT drives a different gesture (rotate_drag_pad).
+	a["rotation_mode"] = [_key(KEY_R)]
+
+	# Owner controller update (feedback/controller-update.md, re-confirmed
+	# 2026-09-28): RT held + left stick continuously free-rotates the held
+	# block exactly like rotate_drag (MMB) + mouse motion -- see
+	# PlayerController._accumulate_gamepad_rotate_drag(). Pad-only: there is no
+	# mouse/keyboard equivalent action here (rotate_drag itself already covers
+	# that device) -- a documented "mouse" DEVICE_EXCEPTION
+	# (tests/unit/test_project_setup.gd).
+	a["rotate_drag_pad"] = [_axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)]
 	# Bontago-iry (owner feedback/controller-update.md, "Q or Home resets ghost
 	# block rotation back to default"): spec 1.5 (ORIGINAL) already names Q for
 	# this -- "Q levels the block" -- so it joins Home/F rather than replacing
@@ -245,17 +262,24 @@ func _actions() -> Dictionary:
 	# continuously (PlayerController._handle_hover_adjust); the wheel notches
 	# are momentary and step once per notch (PlayerController._step_hover).
 	# DECISION: the spec left the gamepad hover bindings blank; RS click and X
-	# are the button budget left over after placement/camera/rotation claim
+	# were the button budget left over after placement/camera/rotation claimed
 	# everything else on a standard pad.
+	# Owner controller update (feedback/controller-update.md, re-confirmed
+	# 2026-09-28): "RB = hover raise, LB = hover lower (held)" -- the shoulder
+	# buttons were otherwise unclaimed (grepped before adding), and shoulders
+	# reading as height matches the original's own "wheel raises/lowers the
+	# block" gesture better than RS click/X did. Moves off RIGHT_STICK/X
+	# entirely rather than keeping them as extra bindings, so there is exactly
+	# one gamepad gesture for this per the brief.
 	a["hover_raise"] = [
 		_mouse(MOUSE_BUTTON_WHEEL_UP),
 		_key(KEY_PAGEUP),
-		_pad(JOY_BUTTON_RIGHT_STICK),
+		_pad(JOY_BUTTON_RIGHT_SHOULDER),
 	]
 	a["hover_lower"] = [
 		_mouse(MOUSE_BUTTON_WHEEL_DOWN),
 		_key(KEY_PAGEDOWN),
-		_pad(JOY_BUTTON_X),
+		_pad(JOY_BUTTON_LEFT_SHOULDER),
 	]
 
 	# Original tutorial: "Locks block to vertical movement only" -- while
@@ -323,14 +347,29 @@ func _actions() -> Dictionary:
 	a["camera_pan_back"] = [_key(KEY_DOWN), _axis(JOY_AXIS_LEFT_Y, 1.0)]
 	a["camera_modifier"] = [_key(KEY_SPACE), _pad(JOY_BUTTON_LEFT_STICK)]
 
-	# DECISION: the triggers double as zoom, as spec 2.5 asks ("Triggers"),
-	# while also being throw_aim and rotation_mode. The spec already scopes
-	# trigger zoom to "while not holding a block", so CameraRig ignores zoom
-	# whenever a block is held and the trigger means throw or rotate instead.
 	# Bontago-mv0.14: the wheel used to double as zoom too; it is block height
 	# only now (hover_raise/hover_lower above).
-	a["camera_zoom_in"] = [_key(KEY_Z), _axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)]
-	a["camera_zoom_out"] = [_key(KEY_X), _axis(JOY_AXIS_TRIGGER_LEFT, 1.0)]
+	#
+	# Owner controller update (feedback/controller-update.md, re-confirmed
+	# 2026-09-28): "Triggers alone must NEVER zoom" -- these used to double as
+	# zoom directly (a bare trigger pull, while also being throw_aim/
+	# rotation_mode), which the owner explicitly rejected. The trigger axes
+	# come off these two actions entirely; Z/X stay the sole zoom input on
+	# keyboard. See camera_zoom_modifier below for the trigger's new job (LT +
+	# left stick = continuous zoom).
+	# DEVICE_EXCEPTION (tests/unit/test_project_setup.gd): camera_zoom_in/out
+	# are keyboard-only now.
+	a["camera_zoom_in"] = [_key(KEY_Z)]
+	a["camera_zoom_out"] = [_key(KEY_X)]
+
+	# Owner controller update (feedback/controller-update.md, re-confirmed
+	# 2026-09-28): "LT held + left stick up/down = zoom camera in/out,
+	# continuous". LT keeps its other job too (throw_aim, unchanged) --
+	# game/PlayerController.gd tells the two apart by whether the held piece
+	# is a throwable special (_can_begin_throw_aim()/is_aiming_throw()): zoom
+	# applies only when it is not. Pad-only, no mouse/keyboard equivalent (Z/X
+	# already zoom on those devices) -- a documented "mouse" DEVICE_EXCEPTION.
+	a["camera_zoom_modifier"] = [_axis(JOY_AXIS_TRIGGER_LEFT, 1.0)]
 
 	a["camera_snap_home"] = [_key(KEY_1), _pad(JOY_BUTTON_BACK)]
 	a["camera_snap_goal"] = [_key(KEY_2), _pad(JOY_BUTTON_B)]

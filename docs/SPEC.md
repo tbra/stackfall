@@ -200,18 +200,24 @@ original's tutorial only names the action, not the key.
 |---|---|---|
 | Move block | Mouse motion | Left stick |
 | Place (drop) | Left click | A / Cross |
-| Raise / lower block | Mouse wheel; PageUp / PageDown held | RS click / X held |
-| Rotation Mode (hold) | R | RT |
-| Rotate yaw ±90° (tap) | A / S | B (clockwise snap); shoulders reserved for height [OWNER controller update] |
+| Raise / lower block | Mouse wheel; PageUp / PageDown held | RB raise / LB lower, held [OWNER controller update 2026-09-28] |
+| Rotation Mode (hold, 90° snap grid) | R | keyboard-only -- see Rotate block row for the gamepad's own free-rotate gesture [OWNER controller update 2026-09-28] |
+| Rotate yaw ±90° (tap) | A / S | B (clockwise snap); shoulders are hover raise/lower, not rotation [OWNER controller update] |
 | Rotate pitch ±90° (tap) | W / D | D-pad up / down |
 | Rotate roll ±90° (tap) | [ / ] | D-pad left / right |
-| Rotate block (tap = snap, hold + drag = free) [ORIGINAL, owner test 2026-09-22; tap/drag split Bontago-iry] | Middle mouse tapped (released before crossing the drag-motion threshold) snaps 90° yaw, same fixed pattern as Rotate yaw ±90°; middle mouse held past that threshold and dragged is full 3-DOF: X = yaw about world up, Y = pitch about the camera's right axis (like the orbit, for the block) | B snaps 90° yaw [OWNER controller update] |
+| Rotate block (tap = snap, hold + drag = free) [ORIGINAL, owner test 2026-09-22; tap/drag split Bontago-iry] | Middle mouse tapped (released before crossing the drag-motion threshold) snaps 90° yaw, same fixed pattern as Rotate yaw ±90°; middle mouse held past that threshold and dragged is full 3-DOF: X = yaw about world up, Y = pitch about the camera's right axis (like the orbit, for the block) | B snaps 90° yaw; RT held + left stick continuously free-rotates the block the same 3-DOF way as the mouse drag, NOT the 90° snap grid [OWNER controller update 2026-09-28] |
 | Reset rotation | Home, F, or Q | Y |
 | Lock to vertical (hold) | Ctrl | (stick and height are already separate) |
 | Camera orbit (hold + drag) [ORIGINAL, owner test 2026-09-22] | Right mouse held + mouse motion; mouse wheel zooms while held (C + mouse remains as a keyboard alias) | Right stick (always) |
-| Camera zoom | Z / X | Triggers while no block is held |
+| Camera zoom | Z / X (always; the trigger alone never zooms) | LT held + left stick up (in) / down (out), continuous; only when not aiming a throw with a held special [OWNER controller update 2026-09-28] |
 | Throw (specials only) | **[OWNER decision 2026-09-22, Bontago-mvl]** hold left mouse on the held special, drag, flick-release; drag distance/speed sets the arc. Right mouse stays camera orbit | Hold LT, aim, release |
 | Pause / release mouse | Esc | Start |
+
+Owner controller update (feedback/controller-update.md, re-confirmed 2026-09-28): while either
+trigger-held modifier above (RT free-rotate, LT zoom) is active, the gamepad's left stick drives
+only that modifier -- the ghost cursor does not move (no drift) until the trigger is released.
+`GhostTuning.gamepad_cursor_base_speed` (left-stick cursor speed) was also raised from 10 to 18
+after owner feedback that the previous default felt too slow.
 
 **Held-block behaviour [ORIGINAL, owner test 2026-09-22]:** the held (ghost) block collides with already placed blocks — it cannot pass through a tower — but it never pushes or knocks them; placed blocks are unaffected by the ghost. A drop outside the player's own territory is **refused** (the block stays in hand; no drop, feedback only). When the placement window expires while the held block is outside the zone, the block and the camera jump to the nearest valid point inside the player's territory and the block drops there. Owner-tuned feel: `follow_lag_seconds` 0, `follow_pitch_deg` −35, `block_move_sensitivity` 0.015. The held block is tinted grey whenever it cannot be dropped (outside the player's zone, or waiting for the next window); its only ground marker is the projected footprint of the rotated shape (no separate shadow). Mouse capture keeps the cursor moving past the screen edge in every match mode.
 

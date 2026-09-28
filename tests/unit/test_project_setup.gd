@@ -20,6 +20,7 @@ const REQUIRED_ACTIONS: PackedStringArray = [
 	"rotate_roll_left",
 	"rotate_roll_right",
 	"rotation_mode",
+	"rotate_drag_pad",
 	"rotate_reset",
 	"rotate_snap",
 	"rotate_drag",
@@ -40,6 +41,7 @@ const REQUIRED_ACTIONS: PackedStringArray = [
 	"camera_modifier",
 	"camera_zoom_in",
 	"camera_zoom_out",
+	"camera_zoom_modifier",
 	"camera_snap_home",
 	"camera_snap_goal",
 	"pause_menu",
@@ -93,6 +95,24 @@ const DEVICE_EXCEPTIONS: Dictionary = {
 	# The gamepad already keeps ghost movement (left stick) and height (RS
 	# click/X) on separate physical inputs, so there is nothing to lock.
 	"lock_vertical": "pad",
+	# Owner controller update (feedback/controller-update.md, re-confirmed
+	# 2026-09-28): RT held + left stick now free-rotates the block
+	# continuously (rotate_drag's own gesture, mirrored for gamepad); the
+	# keyboard's R key stays rotation_mode's 90 degree snap grid unchanged, so
+	# rotation_mode itself carries no gamepad binding any more.
+	"rotation_mode": "pad",
+	# The gamepad-only free-rotate gesture (RT + left stick) above -- rotate_drag
+	# (MMB) is this gesture's mouse/keyboard half already; there is no separate
+	# desktop binding for this action itself.
+	"rotate_drag_pad": "mouse",
+	# Owner controller update: "Triggers alone must NEVER zoom" -- the trigger
+	# axes came off camera_zoom_in/out entirely; Z/X are keyboard-only now.
+	"camera_zoom_in": "pad",
+	"camera_zoom_out": "pad",
+	# The gamepad-only continuous zoom modifier (LT + left stick) above -- Z/X
+	# are this gesture's keyboard half already; there is no separate desktop
+	# binding for this action itself.
+	"camera_zoom_modifier": "mouse",
 }
 
 const AUTOLOADS: PackedStringArray = ["Events", "Settings", "Net", "Match", "Screenshots"]
