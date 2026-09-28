@@ -223,7 +223,13 @@ func _ready() -> void:
 
 	# docs/M3b_PLAN.md integration order step 4: Steam init is synchronous by
 	# this point, so MainMenu._ready() can immediately read steam_available().
-	Net.init_steam()
+	# Spacewar (480) is only our development Steam AppID. On Windows, its
+	# Steam Input configuration intercepts physical pad events from Godot as
+	# soon as steamInitEx runs, even though the pad still appears connected.
+	# Keep local play/controller navigation functional by opting into Steam
+	# explicitly while using that test ID. A real AppID restores auto-init.
+	if Net.STEAM_APP_ID_EXPECTED != 480 or _has_cmdline_flag("steam-online") or _has_cmdline_flag("host-online"):
+		Net.init_steam()
 	_show_main_menu()
 
 	# apply_command_line() calls host_game()/join_game() synchronously when
