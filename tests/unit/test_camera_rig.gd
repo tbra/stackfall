@@ -17,24 +17,30 @@ func _make_rig() -> CameraRig:
 	return rig
 
 
-func test_b_snap_rotation_does_not_also_snap_the_camera_while_holding() -> void:
+## Bontago-b7r (owner decision 2026-09-28, Bontago-aem): camera_snap_goal no
+## longer shares gamepad B with rotate_snap at all (moved to X; see
+## tools/bootstrap_project.gd) -- so a bare JOY_BUTTON_B press must never
+## reach camera_snap_home/goal, regardless of block_held. The tap-to-TURN/
+## hold-to-PEEK gesture that replaced this file's old instant _snap_to() test
+## for camera_snap_home/goal now lives in tests/unit/test_camera_focus.gd,
+## alongside the X-chord gating (Start+X, Back+X) that made camera_snap_goal's
+## move onto X safe.
+func test_b_never_reaches_camera_snap_home_or_goal_regardless_of_block_held() -> void:
 	var rig: CameraRig = _make_rig()
-	rig.tuning = rig.tuning.duplicate()
-	rig.tuning.follow_block = false
-	rig.set_process(false)
-	rig.set_home_view(Vector3(8.0, 0.0, 3.0))
-	var original: Vector3 = rig.get_target()
+	var yaw_before: float = rig.get_yaw()
 	var event: InputEventJoypadButton = InputEventJoypadButton.new()
 	event.button_index = JOY_BUTTON_B
 	event.pressed = true
+
 	rig.block_held = true
 	rig._unhandled_input(event)
-	await wait_seconds(rig.tuning.snap_duration + 0.05)
-	assert_eq(rig.get_target(), original)
+	assert_false(rig.is_peeking())
+	assert_almost_eq(rig.get_yaw(), yaw_before, 0.0001)
+
 	rig.block_held = false
 	rig._unhandled_input(event)
-	await wait_seconds(rig.tuning.snap_duration + 0.05)
-	assert_eq(rig.get_target(), Vector3.ZERO)
+	assert_false(rig.is_peeking())
+	assert_almost_eq(rig.get_yaw(), yaw_before, 0.0001)
 
 
 func test_rig_and_camera_have_physics_interpolation_off() -> void:

@@ -82,6 +82,15 @@ const _PROCESS_PRIORITY_AFTER_GHOST: int = 1
 ## rather than a unit amplitude fraction.
 const _DROP_RECOVER_CONVERGED_M: float = 0.001
 
+## Bontago-b7r (owner decision 2026-09-28, Bontago-aem): game/Sandbox.gd's own
+## sandbox_next_slot hotkey is gamepad Back, which camera_snap_home also binds.
+## DECISION (game/CameraRig.gd, orchestrator review): game/Sandbox.gd sets this
+## true so a *gamepad* Back press there stays next-slot only; keyboard 1/2 and
+## gamepad X (focus goal) keep working in the sandbox, where the owner tests
+## most. Sandbox's Back+X comparison chord is already excluded by
+## _goal_focus_chord_blocked() (Back is camera_snap_home).
+@export var suppress_pad_home_focus: bool = false
+
 ## Set by PlayerController each frame: true while the player holds a ghost
 ## block. Spec 2.5 scopes trigger zoom to "while not holding a block"; the
 ## dedicated Z/X keys always zoom regardless (see _unhandled_input).
@@ -115,6 +124,43 @@ var _drop_recovering: bool = false
 ## governs.
 var _shake_amplitude_m: float = 0.0
 var _shake_elapsed_s: float = 0.0
+
+## Bontago-b7r: which slot's home beacon Focus home should target -- pushed
+## every frame by game/PlayerController.gd's own _acting_slot() (the same
+## "local/acting slot" HotSeat/Sandbox already resolve for it), never read
+## from here. -1 (the default) means "no local slot known yet"; _resolve_
+## home_target() below falls back to the disk center in that case, same as
+## an eliminated or missing flag.
+var _local_slot: int = -1
+
+## Bontago-b7r: camera_snap_home/camera_snap_goal's tap-vs-hold state, tracked
+## only while tuning.follow_block (the legacy free camera keeps its old
+## single-press _snap_to() below, unchanged). `_focus_action` is `&""` when
+## neither is currently held, or the StringName of whichever Input Map action
+## is being held (&"camera_snap_home" / &"camera_snap_goal") -- see
+## _on_focus_pressed()/_on_focus_released()/_update_focus_hold().
+var _focus_action: StringName = &""
+## The real world-space target (a beacon's global_position, or the disk
+## center fallback) resolved once at press time -- see _resolve_home_target()/
+## _resolve_goal_target() -- and reused by both the TURN tap and the PEEK
+## hold this same press produces, so a goal cycle only advances once per
+## press, not every frame it's held.
+var _focus_target_point: Vector3 = Vector3.ZERO
+var _focus_hold_elapsed_s: float = 0.0
+## True for exactly as long as PEEK is actively holding the camera on
+## _focus_target_point (past tuning.focus_hold_threshold_s, still held).
+## game/PlayerController.gd reads this through is_peeking() to suppress
+## ghost-cursor movement and placement while it's true (owner decision:
+## "the ghost/cursor never moves during peek").
+var _peek_active: bool = false
+## True while _process() is gliding _target/_distance/_pitch back to the
+## normal follow framing after a PEEK release, until it converges (the same
+## _DROP_RECOVER_CONVERGED_M-gated pattern _drop_recovering already uses).
+var _peek_returning: bool = false
+## Bontago-b7r ("each new goal press/tap cycles to the next goal"): advanced
+## once per fresh camera_snap_goal press by _resolve_goal_target() below, not
+## every frame -- so holding through a PEEK doesn't itself keep cycling.
+var _goal_cycle_index: int = 0
 
 @onready var _camera: Camera3D = $Camera3D
 
@@ -200,12 +246,19 @@ func _unhandled_input(event: InputEvent) -> void:
 		_zoom(-1.0)
 	elif event.is_action_pressed(&"camera_zoom_out"):
 		_zoom(1.0)
-	elif not tuning.follow_block and event.is_action_pressed(&"camera_snap_home"):
-		_snap_to(_home_point())
-	elif not tuning.follow_block and event.is_action_pressed(&"camera_snap_goal"):
-		# B is snap rotation while holding a block, goal camera snap otherwise.
-		if event is InputEventKey or not block_held:
-			_snap_to(Vector3.ZERO)
+	elif event.is_action_pressed(&"camera_snap_home"):
+		# Bontago-b7r: camera_snap_goal no longer shares B with rotate_snap
+		# (tools/bootstrap_project.gd), so camera_snap_home's own press/release
+		# needs no block_held gate either -- see _on_focus_pressed()'s own
+		# DECISION for the one gate that IS still needed (goal's shared X).
+		if not (suppress_pad_home_focus and event is InputEventJoypadButton):
+			_on_focus_pressed(&"camera_snap_home")
+	elif event.is_action_released(&"camera_snap_home") and _focus_action == &"camera_snap_home":
+		_on_focus_released()
+	elif event.is_action_pressed(&"camera_snap_goal"):
+		_on_focus_pressed(&"camera_snap_goal")
+	elif event.is_action_released(&"camera_snap_goal") and _focus_action == &"camera_snap_goal":
+		_on_focus_released()
 
 
 func _process(delta: float) -> void:
@@ -260,17 +313,32 @@ func _process(delta: float) -> void:
 		# instead of follow_lag_seconds, even when the latter is 0 -- the one
 		# discontinuous re-target this eases into must not hard-snap just
 		# because ordinary movement is tuned to.
-		var lag_seconds: float = tuning.drop_recover_seconds if _drop_recovering else tuning.follow_lag_seconds
-		var weight: float = 1.0
-		if lag_seconds > 0.0:
-			weight = 1.0 - exp(-delta / lag_seconds)
-		_target = _target.lerp(_follow_position, clampf(weight, 0.0, 1.0))
-		if _drop_recovering and _target.distance_to(_follow_position) <= _DROP_RECOVER_CONVERGED_M:
-			# Bontago-pt-4: clears itself the moment _target has actually
-			# caught up, rather than on a fixed timer -- so flipping back to
-			# hard-snap mode (follow_lag_seconds, usually 0) never leaves a
-			# visible residual gap to snap across.
-			_drop_recovering = false
+		# Bontago-b7r: PEEK and its own return glide own _target/_distance/
+		# _pitch outright while either is active -- the ordinary follow lerp
+		# below (and _drop_recovering, a discontinuous re-target of the same
+		# kind PEEK's own return glide already handles) must not fight them
+		# for the same three fields. _update_focus_hold() only ever starts a
+		# PEEK while tuning.follow_block, so this branch is the only place
+		# that needs to know about it.
+		_update_focus_hold(delta)
+		if _peek_active:
+			_approach_focus(_focus_target_point, tuning.focus_peek_distance, tuning.focus_peek_pitch_deg, tuning.focus_peek_transition_s, delta)
+		elif _peek_returning:
+			_approach_focus(_follow_position, tuning.follow_distance, tuning.follow_pitch_deg, tuning.focus_peek_transition_s, delta)
+			if _target.distance_to(_follow_position) <= _DROP_RECOVER_CONVERGED_M:
+				_peek_returning = false
+		else:
+			var lag_seconds: float = tuning.drop_recover_seconds if _drop_recovering else tuning.follow_lag_seconds
+			var weight: float = 1.0
+			if lag_seconds > 0.0:
+				weight = 1.0 - exp(-delta / lag_seconds)
+			_target = _target.lerp(_follow_position, clampf(weight, 0.0, 1.0))
+			if _drop_recovering and _target.distance_to(_follow_position) <= _DROP_RECOVER_CONVERGED_M:
+				# Bontago-pt-4: clears itself the moment _target has actually
+				# caught up, rather than on a fixed timer -- so flipping back to
+				# hard-snap mode (follow_lag_seconds, usually 0) never leaves a
+				# visible residual gap to snap across.
+				_drop_recovering = false
 	else:
 		# DECISION (game/CameraRig.gd): camera_pan_* shares its gamepad axis
 		# with ghost_move_* (both read the left stick). PlayerController
@@ -342,6 +410,26 @@ func set_home_view(home_position: Vector3, look_at_position: Vector3 = Vector3.Z
 	_target = home_position
 	_follow_position = home_position
 	_update_transform()
+
+
+## Bontago-b7r: pushed every frame by game/PlayerController.gd's own
+## _acting_slot() (the same "local/acting slot" HotSeat.bind_local_slot()/
+## Sandbox's own active-slot cycling already resolve) so Focus home can find
+## the right beacon among Field.home_flags() without this rig needing its own
+## copy of that resolution logic. -1 is the "not known yet" default;
+## _resolve_home_target() below treats that the same as a missing flag.
+func set_local_slot(slot_id: int) -> void:
+	_local_slot = slot_id
+
+
+## True only while PEEK is actively holding the camera on a focus target (past
+## tuning.focus_hold_threshold_s, camera_snap_home/goal still held) -- not
+## during the brief return glide after release. game/PlayerController.gd
+## reads this every frame to suppress ghost-cursor movement and placement
+## (owner decision 2026-09-28, Bontago-aem: "the ghost/cursor never moves
+## during peek").
+func is_peeking() -> bool:
+	return _peek_active
 
 
 ## Bontago-mv0.20b (F4 tuning panel live-apply): re-snapshots _distance/_pitch
@@ -488,20 +576,148 @@ func _pan_offset(input_2d: Vector2) -> Vector3:
 	return right * input_2d.x + forward * input_2d.y
 
 
-func _home_point() -> Vector3:
-	# DECISION (game/CameraRig.gd): M1 has no players or flags yet (those
-	# arrive in M2), so "snap to home" targets the disk edge nearest the
-	# current yaw instead of a real player flag.
-	var direction: Vector3 = Vector3(sin(_yaw), 0.0, cos(_yaw))
-	return direction * (map_def.field_radius * 0.85)
-
-
 func _snap_to(point: Vector3) -> void:
 	var tween: Tween = create_tween()
 	tween.set_parallel(true)
 	tween.tween_property(self, ^"_target", point, tuning.snap_duration)
 	tween.tween_property(self, ^"_distance", tuning.snap_distance, tuning.snap_duration)
 	tween.tween_property(self, ^"_pitch", deg_to_rad(tuning.snap_pitch_deg), tuning.snap_duration)
+
+
+# --- Bontago-b7r (owner decision 2026-09-28, Bontago-aem): Focus home/goal's
+# tap-to-TURN / hold-to-PEEK gesture --------------------------------------
+
+## Handles a fresh camera_snap_home/camera_snap_goal press: resolves the real
+## target once (so a goal cycle advances exactly once per press, not once per
+## frame it's held -- see _resolve_goal_target()'s own doc comment), then
+## either fires the legacy camera's single instant _snap_to() (follow_block
+## false) or starts this press's tap/hold tracking for _update_focus_hold()
+## to pick up next frame.
+func _on_focus_pressed(action: StringName) -> void:
+	# DECISION (game/CameraRig.gd): camera_snap_goal's gamepad half (X,
+	# tools/bootstrap_project.gd) doubles as ui/TuningPanel.gd's Start+X
+	# tuning_panel_toggle chord and, in game/Sandbox.gd, sandbox_physics_
+	# comparison's Back+X chord -- checked here directly (rather than relying
+	# on _unhandled_input dispatch order against those other nodes' own
+	# handlers) so it's robust regardless of tree order, the same defensive
+	# style PlayerController._camera_orbit_held() already uses for its own
+	# shared-wheel gating.
+	if action == &"camera_snap_goal" and _goal_focus_chord_blocked():
+		return
+	var target: Vector3 = _resolve_home_target() if action == &"camera_snap_home" else _resolve_goal_target()
+	if not tuning.follow_block:
+		_snap_to(target)
+		return
+	_focus_action = action
+	_focus_target_point = target
+	_focus_hold_elapsed_s = 0.0
+
+
+func _goal_focus_chord_blocked() -> bool:
+	return Input.is_action_pressed(&"pause_menu") or Input.is_action_pressed(&"camera_snap_home")
+
+
+## The release half of _on_focus_pressed() above: a still-tapping hold (never
+## crossed tuning.focus_hold_threshold_s, so PEEK never engaged) becomes a
+## TURN; a hold that was already PEEKing starts the glide back to the normal
+## follow framing instead (_process()'s own _peek_returning branch).
+func _on_focus_released() -> void:
+	var target: Vector3 = _focus_target_point
+	var was_peeking: bool = _peek_active
+	_focus_action = &""
+	_focus_hold_elapsed_s = 0.0
+	_peek_active = false
+	if was_peeking:
+		_peek_returning = true
+		return
+	_turn_to_face(target)
+
+
+## Bontago-b7r: advances _focus_hold_elapsed_s while camera_snap_home/goal is
+## still held and flips into PEEK the frame it crosses tuning.focus_hold_
+## threshold_s. Polls Input.is_action_pressed() rather than waiting only for
+## the matching is_action_released() event in _unhandled_input() -- a
+## defensive fallback for a hold that ends some other way (e.g. input_enabled
+## toggling off mid-hold) so this can never get stuck waiting for a release
+## event that will never come.
+func _update_focus_hold(delta: float) -> void:
+	if _focus_action == &"":
+		return
+	if not Input.is_action_pressed(_focus_action):
+		_on_focus_released()
+		return
+	_focus_hold_elapsed_s += delta
+	if not _peek_active and _focus_hold_elapsed_s >= tuning.focus_hold_threshold_s:
+		_peek_active = true
+
+
+## The exponential-approach shape _process()'s ordinary follow_lag_seconds
+## branch already uses, reused for both PEEK's glide onto a target and its
+## own glide back afterward -- unlike that branch, this also eases _distance/
+## _pitch, since PEEK reframes the whole shot rather than just re-centering
+## on a moving block.
+func _approach_focus(target_point: Vector3, distance_val: float, pitch_deg: float, lag_s: float, delta: float) -> void:
+	var weight: float = 1.0
+	if lag_s > 0.0:
+		weight = 1.0 - exp(-delta / lag_s)
+	weight = clampf(weight, 0.0, 1.0)
+	_target = _target.lerp(target_point, weight)
+	_distance = lerpf(_distance, clampf(distance_val, tuning.zoom_min, tuning.zoom_max), weight)
+	_pitch = lerpf(_pitch, deg_to_rad(pitch_deg), weight)
+
+
+## TURN (owner decision: "tween camera yaw so the target lies straight ahead
+## of the held block"): the same away-vector convention set_home_view() uses
+## (home/block on one side, look-at target on the other) with the held
+## block's own followed position standing in for "home" -- so the camera ends
+## up positioned on the block's own far side from `target`, looking through
+## the block toward it. Tweens through the shortest angular path (wrapf) so a
+## turn never spins the long way around past +/-180 degrees.
+func _turn_to_face(target: Vector3) -> void:
+	var away: Vector2 = Vector2(_follow_position.x - target.x, _follow_position.z - target.z)
+	if away.length() <= 0.0001:
+		return
+	var new_yaw: float = atan2(away.x, away.y)
+	var target_yaw: float = _yaw + wrapf(new_yaw - _yaw, -PI, PI)
+	var tween: Tween = create_tween()
+	tween.tween_property(self, ^"_yaw", target_yaw, tuning.focus_turn_duration_s)
+
+
+## Focus home's real target (owner decision 2026-09-28, Bontago-aem): the
+## local/acting slot's own home beacon, resolved from the live Field's
+## Field.home_flags() (see set_local_slot()'s own doc comment for how this
+## rig learns the slot). Falls back to the disk center -- gracefully, not an
+## error -- when there's no Field yet, no local slot known, or that slot's
+## flag can't be found (e.g. an eliminated slot's flag node was never
+## actually freed by Field._clear_flags(), only rebuilt on the next match, so
+## this should only miss between matches).
+func _resolve_home_target() -> Vector3:
+	var field: Field = Match.field()
+	if field == null:
+		return Vector3.ZERO
+	for flag: HomeFlag in field.home_flags():
+		if is_instance_valid(flag) and flag.slot_id() == _local_slot:
+			return flag.global_position
+	return Vector3.ZERO
+
+
+## Focus goal's real target: the live Field's Field.goal_flags(), cycling to
+## the next one on every fresh press (owner decision: "each new goal press/
+## tap cycles to the next goal") -- called exactly once per press by
+## _on_focus_pressed() above, never per frame, so holding through a PEEK
+## doesn't itself keep advancing the cycle. Falls back to the disk center
+## when there's no Field yet or no goals at all.
+func _resolve_goal_target() -> Vector3:
+	var field: Field = Match.field()
+	if field == null:
+		return Vector3.ZERO
+	var flags: Array[GoalFlag] = field.goal_flags()
+	if flags.is_empty():
+		return Vector3.ZERO
+	_goal_cycle_index = _goal_cycle_index % flags.size()
+	var target: Vector3 = flags[_goal_cycle_index].global_position
+	_goal_cycle_index = (_goal_cycle_index + 1) % flags.size()
+	return target
 
 
 ## Bontago-xtq.29 (camera shake): Events.block_impacted carries only the

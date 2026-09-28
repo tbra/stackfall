@@ -104,6 +104,27 @@ extends Resource
 @export var snap_distance: float = 30.0
 @export var snap_duration: float = 0.35
 
+## -- Focus home/goal (Bontago-b7r, owner decision 2026-09-28, Bontago-aem):
+## the default follow camera's camera_snap_home/camera_snap_goal actions now
+## do both a tap-to-TURN and a hold-to-PEEK gesture instead of one instant
+## snap (spec 2.5) -----------------------------------------------------------
+## Seconds camera_snap_home/goal must be held before the gesture becomes a
+## PEEK (glide to frame the target while held) instead of a TURN (a quick
+## tap: tween yaw only, so the target ends up dead ahead of the held block).
+@export var focus_hold_threshold_s: float = 0.3
+## How long the TURN gesture's yaw tween takes.
+@export var focus_turn_duration_s: float = 0.35
+## How long PEEK's glide to the target framing -- and its glide back to the
+## normal follow framing on release -- each take. One tunable for both
+## directions: a symmetric glide reads as one continuous motion rather than
+## two differently-paced ones.
+@export var focus_peek_transition_s: float = 0.35
+## Camera distance and pitch while PEEK holds on the focus target. Separate
+## from snap_distance/snap_pitch_deg (the legacy free-camera's own instant
+## snap) so the follow camera's PEEK framing can be tuned independently.
+@export var focus_peek_distance: float = 16.0
+@export var focus_peek_pitch_deg: float = -30.0
+
 ## -- Lens (Bontago-mv0.27, owner: "is there a fish-eye effect? add a
 ## slider") ------------------------------------------------------------------
 ## DECISION (config/CameraTuning.gd): default matches Camera3D's own engine
