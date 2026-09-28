@@ -113,7 +113,7 @@ func playlist_for_context(context: StringName) -> Array[AudioStream]:
 ## Decibel offset applied to a thud at or above impact_speed_loud.
 @export var impact_loud_db_offset: float = 0.0
 
-@export var sfx_volume_db: float = 0.0
+@export var sfx_volume_db: float = -16.0
 @export var music_volume_db: float = -10.0
 
 ## Sfx's AudioStreamPlayer pool size (spec: "max_simultaneous"). One extra
