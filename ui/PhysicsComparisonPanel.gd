@@ -4,6 +4,7 @@ extends CanvasLayer
 signal run_requested(mode: String, height: float, interval: float, gap: float, offset: float)
 signal clear_requested
 signal open_changed(open: bool)
+signal cone_requested
 var _panel: PanelContainer
 var _status: Label
 var _height: SpinBox
@@ -18,7 +19,7 @@ var opened: bool = false
 func _ready() -> void:
 	layer = 10
 	var hint: Label = Label.new()
-	hint.text = "F2 / Back+X: physics comparison   F4: tuning/presets"
+	hint.text = "F2 / Back+X: physics or territory comparison   F4: tuning/presets"
 	hint.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	hint.offset_left = 16.0
 	hint.offset_top = -30.0
@@ -50,6 +51,7 @@ func _ready() -> void:
 	var close_row: HBoxContainer = HBoxContainer.new()
 	list.add_child(close_row)
 	_button(close_row, "Clear / cancel", func() -> void: clear_requested.emit())
+	_button(close_row, "Territory cones", func() -> void: cone_requested.emit())
 	_button(close_row, "Close controls", func() -> void: set_open(false))
 	_status = Label.new()
 	_status.custom_minimum_size.x = 390

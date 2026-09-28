@@ -30,6 +30,7 @@ var _field: Field = null
 var _active_slot: int = 0
 var _comparison: PhysicsComparison = null
 var _comparison_panel: PhysicsComparisonPanel = null
+var _cone_panel: SandboxConePanel = null
 var _comparison_feed_enabled: bool = false
 var _comparison_controller_enabled: bool = true
 var _comparison_mouse_mode: Input.MouseMode = Input.MOUSE_MODE_VISIBLE
@@ -93,6 +94,11 @@ func _ready() -> void:
 	_comparison_panel.run_requested.connect(run_physics_comparison)
 	_comparison_panel.clear_requested.connect(clear_physics_comparison)
 	_comparison_panel.open_changed.connect(_comparison_controls_changed)
+	_comparison_panel.cone_requested.connect(_open_cone_comparison)
+	_cone_panel = SandboxConePanel.new()
+	add_child(_cone_panel)
+	_cone_panel.measure_requested.connect(_measure_cone_comparison)
+	_cone_panel.open_changed.connect(_comparison_controls_changed)
 	# M6 B2 (sandbox_pause_physics, F11): PROCESS_MODE_ALWAYS so this whole
 	# subtree -- this node's own _unhandled_input (every sandbox hotkey,
 	# including the one that un-pauses again) plus the controller/ghost/HUD
@@ -108,6 +114,8 @@ func _ready() -> void:
 ## still active would leak into whatever match runs next in the same process
 ## (the shipped game, or the next test file's fixture).
 func _exit_tree() -> void:
+	if _cone_panel != null and _cone_panel.opened:
+		_cone_panel.set_open(false)
 	clear_physics_comparison()
 	Engine.time_scale = 1.0
 	get_tree().paused = false
@@ -314,6 +322,8 @@ func _set_active_slot(slot_id: int) -> void:
 ## every other entry point: Field.place_flags()/set_overlay_source() need
 ## the fresh raster and slots that only exist once start_match() returns.
 func _reset_field() -> void:
+	if _cone_panel != null and _cone_panel.opened:
+		_cone_panel.set_open(false)
 	clear_physics_comparison()
 	if Match.config == null:
 		return
@@ -339,6 +349,10 @@ func _input(event: InputEvent) -> void:
 	var comparison_requested: bool = event.is_action_pressed(&"sandbox_physics_comparison") and (not joypad or Input.is_action_pressed(&"sandbox_next_slot"))
 	var tuning_requested: bool = event.is_action_pressed(&"tuning_panel_toggle") and (not joypad or Input.is_action_pressed(&"pause_menu"))
 	if comparison_requested:
+		if _cone_panel != null and _cone_panel.opened:
+			_cone_panel.set_open(false)
+			get_viewport().set_input_as_handled()
+			return
 		if _tuning_panel.visible:
 			_tuning_panel._toggle_panel()
 		_comparison_panel.set_open(not _comparison_panel.opened)
@@ -352,7 +366,7 @@ func _input(event: InputEvent) -> void:
 
 
 func _process(_delta: float) -> void:
-	if _comparison_locked or (_comparison_panel != null and _comparison_panel.opened):
+	if _comparison_locked or (_comparison_panel != null and _comparison_panel.opened) or (_cone_panel != null and _cone_panel.opened):
 		_controller.input_enabled = false
 	if _comparison != null and _comparison.running:
 		_comparison_panel.show_status("Running %0.1f / 10 simulation seconds. F11 pauses, F10 slows; Clear cancels." % _comparison.elapsed_s())
@@ -367,6 +381,25 @@ func _comparison_controls_changed(open: bool) -> void:
 	else:
 		_controller.input_enabled = false if _comparison_locked else _controls_input_enabled
 		Input.mouse_mode = _controls_mouse_mode
+
+
+func _open_cone_comparison() -> void:
+	clear_physics_comparison()
+	_comparison_panel.set_open(false)
+	_cone_panel.set_open(true)
+
+
+func _measure_cone_comparison(angle_degrees: float) -> void:
+	if _field == null or Match.state() != Match.State.PLAYING:
+		_cone_panel.show_snapshot({"error": "Wait for sandbox countdown to finish."}, null, null, PackedColorArray())
+		return
+	var comparison: Dictionary = SandboxConeComparison.measure(_field, angle_degrees)
+	if comparison.has("error"):
+		_cone_panel.show_snapshot(comparison, null, null, PackedColorArray())
+		return
+	_cone_panel.show_snapshot(
+		comparison["metrics"], comparison["baseline"], comparison["cone"], Match.config.player_colors
+	)
 
 
 func run_physics_comparison(mode: String, height: float, interval: float, gap: float, offset: float = 0.0) -> void:

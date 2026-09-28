@@ -1,5 +1,22 @@
 extends GutTest
 
+func test_cone_panel_measures_without_replacing_live_territory() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+	var live_raster: TerritoryRaster = Match.raster()
+	sandbox._comparison_panel.set_open(true)
+	sandbox._open_cone_comparison()
+	assert_true(sandbox._cone_panel.opened)
+	assert_false(sandbox._comparison_panel.opened)
+	assert_false(sandbox.controller().input_enabled)
+	assert_not_null(sandbox._cone_panel._baseline_map.texture)
+	assert_not_null(sandbox._cone_panel._cone_map.texture)
+	assert_same(Match.raster(), live_raster, "experiment must not replace match territory")
+	assert_true(sandbox._cone_panel._status.text.contains("Current:"))
+	sandbox._cone_panel.set_open(false)
+	assert_true(sandbox.controller().input_enabled)
+
 func test_comparison_controls_cancel_and_reset_restore_manual_play() -> void:
 	_start_sandbox(2)
 	_run_countdown()
