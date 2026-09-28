@@ -79,8 +79,14 @@ var _field: Field = null
 var _registry: BlockRegistry = null
 var _blocks_parent: Node3D = null
 ## Diagnostic switch owned by Sandbox. It freezes periodic territory work,
-## leaving the last overlay visible so render cost remains comparable.
-var _sandbox_territory_paused: bool = false
+## or selects the experimental cone projection. Reset at every match start.
+const SANDBOX_TERRITORY_CURRENT: int = 0
+const SANDBOX_TERRITORY_CONE: int = 1
+const SANDBOX_TERRITORY_PAUSED: int = 2
+var _sandbox_territory_mode: int = SANDBOX_TERRITORY_CURRENT
+var _sandbox_cone_angle: float = 45.0
+var _sandbox_cone_height_source: int = SandboxConeExperiment.HEIGHT_TOP
+var _sandbox_cone_base_mode: int = SandboxConeExperiment.BASE_ADDITIVE
 
 ## Bontago-split.1: the four controllers this file forwards to. Built and
 ## wired in _ready() rather than at field-declaration time, so each one's
@@ -241,7 +247,7 @@ func _is_host() -> bool:
 
 
 func start_match(match_config: MatchConfig) -> void:
-	_sandbox_territory_paused = false
+	_sandbox_territory_mode = SANDBOX_TERRITORY_CURRENT
 	_lifecycle.start_match(match_config)
 
 
@@ -285,7 +291,7 @@ func _process(delta: float) -> void:
 		State.PLAYING:
 			_lifecycle._tick_disconnect_grace(delta)
 			_feed._tick_feed(delta)
-			if not _sandbox_territory_paused:
+			if _sandbox_territory_mode != SANDBOX_TERRITORY_PAUSED:
 				_territory._tick_territory(delta)
 			_lifecycle._tick_match_timer(delta)
 			# DECISION (autoload/Match.gd, M6 B4): a no-op unless
@@ -303,7 +309,7 @@ func _process(delta: float) -> void:
 			# radius-8 tiebreak schedule in MatchLifecycle.
 			_lifecycle._tick_disconnect_grace(delta)
 			_feed._tick_feed(delta)
-			if not _sandbox_territory_paused:
+			if _sandbox_territory_mode != SANDBOX_TERRITORY_PAUSED:
 				_territory._tick_territory(delta)
 			_lifecycle._tick_sudden_death(delta)
 			_lifecycle._tick_turn_based(delta)
@@ -433,14 +439,33 @@ func set_feed_timer_enabled(enabled: bool) -> void:
 	_feed.set_feed_timer_enabled(enabled)
 
 
-## Sandbox-only performance isolation. Match.start_match and Sandbox._exit_tree
-## both restore normal solving; other match types never opt into this switch.
+## Sandbox-only A/B switch. It changes the actual host territory step only
+## while the Sandbox scene opts in. Normal matches start in CURRENT mode.
+func set_sandbox_territory_mode(
+	mode: int,
+	angle_degrees: float = 45.0,
+	height_source: int = SandboxConeExperiment.HEIGHT_TOP,
+	base_mode: int = SandboxConeExperiment.BASE_ADDITIVE
+) -> void:
+	if mode < SANDBOX_TERRITORY_CURRENT or mode > SANDBOX_TERRITORY_PAUSED:
+		return
+	_sandbox_territory_mode = mode
+	_sandbox_cone_angle = angle_degrees
+	_sandbox_cone_height_source = height_source
+	_sandbox_cone_base_mode = base_mode
+
+
+func sandbox_territory_mode() -> int:
+	return _sandbox_territory_mode
+
+
+## Compatibility with the earlier sandbox pause control.
 func set_sandbox_territory_paused(paused: bool) -> void:
-	_sandbox_territory_paused = paused
+	set_sandbox_territory_mode(SANDBOX_TERRITORY_PAUSED if paused else SANDBOX_TERRITORY_CURRENT)
 
 
 func sandbox_territory_paused() -> bool:
-	return _sandbox_territory_paused
+	return _sandbox_territory_mode == SANDBOX_TERRITORY_PAUSED
 
 
 # --- The one authoritative entry point (spec 3.4) ---------------------------

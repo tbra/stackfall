@@ -7,6 +7,8 @@ extends RefCounted
 const BASE_NONE: int = 0
 const BASE_FLOOR: int = 1
 const BASE_ADDITIVE: int = 2
+const HEIGHT_CENTER: int = 0
+const HEIGHT_TOP: int = 1
 
 
 static func build(
