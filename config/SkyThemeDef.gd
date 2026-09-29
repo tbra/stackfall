@@ -148,3 +148,7 @@ extends Resource
 @export var bird_speed_mps: float = 9.0
 @export var bird_size_min_m: float = 2.0
 @export var bird_size_max_m: float = 3.2
+
+## Bontago-adt.3: cosmetic local ambient life (perching birds on sunset,
+## fireflies on night) -- see config/AmbientLifeConfig.gd. Null means none.
+@export var ambient_life: AmbientLifeConfig = null

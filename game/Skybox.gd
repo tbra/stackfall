@@ -94,6 +94,14 @@ const THEME_DIR: String = "res://config/sky_themes"
 const DEFAULT_THEME_ID: String = "sunset"
 var _cloud_sea: CloudSea = null
 var _birds: DistantBirds = null
+## Bontago-adt.3: cosmetic local ambient life, gated by the theme's
+## AmbientLifeConfig (perching birds on sunset, fireflies on night) and the
+## graphics preset's ambient_life_enabled. field_path / registry_path are wired
+## in Main.tscn (same NodePath convention as light_path); empty in fixtures.
+@export var field_path: NodePath = NodePath("")
+@export var registry_path: NodePath = NodePath("")
+var _perching: PerchingBirds = null
+var _fireflies: Fireflies = null
 
 ## Bontago-xtq.12 (owner: "isn't very reflective, like at all"): Forward+
 ## never reflects dynamic scene geometry (the placed blocks) without a
@@ -193,6 +201,16 @@ func _ready() -> void:
 	_birds = DistantBirds.new()
 	_birds.name = "DistantBirds"
 	add_child(_birds)
+	_perching = PerchingBirds.new()
+	_perching.name = "PerchingBirds"
+	add_child(_perching)
+	_fireflies = Fireflies.new()
+	_fireflies.name = "Fireflies"
+	add_child(_fireflies)
+	var field_node: Field = get_node_or_null(field_path) as Field if not field_path.is_empty() else null
+	var registry_node: BlockRegistry = get_node_or_null(registry_path) as BlockRegistry if not registry_path.is_empty() else null
+	_perching.bind_scene(field_node, registry_node)
+	_fireflies.bind_field(field_node)
 	apply_theme(theme)
 	_spawn_fog_volume()
 	_apply_fog_volume_visibility(Settings.current_graphics_preset())
@@ -606,6 +624,14 @@ func _apply_ambient_life(preset: GraphicsPreset, applied_theme: SkyThemeDef) -> 
 		_cloud_sea.configure(applied_theme, density, sky_material)
 	if _birds != null:
 		_birds.configure(applied_theme, birds)
+	# Bontago-adt.3: perching birds / fireflies, rebuilt (never duplicated) on
+	# every theme apply, live switch and preset change.
+	var life: AmbientLifeConfig = applied_theme.ambient_life if applied_theme != null else null
+	var life_enabled: bool = preset == null or preset.ambient_life_enabled
+	if _perching != null:
+		_perching.configure(life, life_enabled)
+	if _fireflies != null:
+		_fireflies.configure(life, life_enabled, _disc_radius_for_ambient_life())
 
 
 ## Bontago-adt.1: writes the theme's light and glow/ambient values onto the
@@ -630,6 +656,24 @@ func get_cloud_sea() -> CloudSea:
 
 func get_birds() -> DistantBirds:
 	return _birds
+
+
+func get_perching_birds() -> PerchingBirds:
+	return _perching
+
+
+func get_fireflies() -> Fireflies:
+	return _fireflies
+
+
+## Disc radius (m) the fireflies ring around: the bound Field's map, else the
+## default map's radius.
+func _disc_radius_for_ambient_life() -> float:
+	if not field_path.is_empty():
+		var field_node: Field = get_node_or_null(field_path) as Field
+		if field_node != null:
+			return field_node.map_definition().field_radius
+	return MapDef.RADIUS_MEDIUM
 
 
 ## Bontago-xtq.28: the FogVolume's only gating -- `visible` alone, never

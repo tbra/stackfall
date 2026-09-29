@@ -6,6 +6,7 @@
 [ext_resource type="Shader" path="res://shaders/cloud_puffs.gdshader" id="4_puffs"]
 [ext_resource type="Texture2D" uid="uid://ca3slscpuorvc" path="res://assets/sky/sunset-clouds-v1.png" id="5_panorama"]
 [ext_resource type="Texture2D" path="res://config/sky_themes/puff_noise.tres" id="6_cells"]
+[ext_resource type="Resource" path="res://config/ambient_life_night.tres" id="ambient_life"]
 
 [sub_resource type="ShaderMaterial" id="NightSky"]
 shader = ExtResource("2_sky")
@@ -50,3 +51,4 @@ glow_hdr_threshold = 0.9
 sun_flare_enabled = false
 cloud_puff_material = SubResource("MoonlitPuffs")
 cloud_clump_count = 150
+ambient_life = ExtResource("ambient_life")

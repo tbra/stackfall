@@ -23,3 +23,5 @@ extends Resource
 @export var cloud_puff_density: float = 1.0
 ## Bontago-adt.1: distant animated bird flocks (vfx/DistantBirds.gd); off on Low.
 @export var birds_enabled: bool = true
+## Bontago-adt.3: cosmetic ambient life (perching birds, fireflies); off on Low.
+@export var ambient_life_enabled: bool = true
