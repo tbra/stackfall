@@ -126,6 +126,10 @@ func _add_kind(kind: int, count: int) -> void:
 	instance.multimesh = multimesh
 	instance.material_override = material
 	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# DECISION: share rain's weather-presentation render layer, which
+	# DiscMirror's cull mask excludes; mirrored streaks aimed at the camera
+	# read as grey squares on the disc.
+	instance.layers = RainPresentation.RENDER_LAYER_BIT
 	var extent: float = maxf(half, half_y) * 2.0
 	instance.custom_aabb = AABB(Vector3.ONE * -extent, Vector3.ONE * extent * 2.0)
 	add_child(instance)
