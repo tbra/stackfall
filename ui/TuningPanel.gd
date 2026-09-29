@@ -254,6 +254,10 @@ func _ready() -> void:
 	visible = false
 	net_provider = Net
 	_build_ui()
+	# Bontago-adt: the Sky tab's sliders edit whichever theme is active.
+	var boot_theme: SkyThemeDef = Skybox.load_theme(skybox_config.theme_name)
+	if boot_theme != null:
+		sky_theme = boot_theme
 	_selected_tab_index = _load_selected_tab_index()
 	rebuild()
 
@@ -478,6 +482,7 @@ func _add_tab(tab_name: String, resources: Array) -> void:
 		# fallback, which is a sky concern even though its live-switch result
 		# (the disc's mirror/reflection) is judged against TerritoryVisuals'
 		# own reflection fields, still on the Territory tab.
+		list.add_child(_build_theme_row())
 		list.add_child(_build_skybox_row())
 
 	for entry: Variant in resources:
@@ -939,6 +944,59 @@ func apply_physics_preset(preset_id: String) -> void:
 	rebuild()
 
 
+## Bontago-adt: the Sky tab's "Theme" dropdown (sunset / night / any future
+## config/sky_themes/*.tres SkyThemeDef, discovered by
+## Skybox.list_available_themes()). DECISION: a sibling row directly above the
+## Skybox row rather than extra Skybox entries -- the Skybox row picks a
+## six-face texture set (or procedural), a different axis from the whole-look
+## theme (light, fog, clouds, birds), and mixing them would make "night" and
+## "beach" look like mutually exclusive choices. Persists like the Skybox row:
+## the pick lives on skybox_config.theme_name (saved by Save override).
+func _build_theme_row() -> Control:
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+
+	var label: Label = Label.new()
+	label.text = "Theme"
+	label.custom_minimum_size = Vector2(NAME_COLUMN_WIDTH, 0.0)
+	row.add_child(label)
+
+	var option: OptionButton = OptionButton.new()
+	option.name = "ThemeOption"
+	option.tooltip_text = (
+		"Switches the whole sky theme live (sky, light, fog, clouds, birds, sun " +
+		"flare, reflections). The sliders below then edit the chosen theme."
+	)
+	var ids: PackedStringArray = Skybox.list_available_themes()
+	for theme_id: String in ids:
+		option.add_item(theme_id)
+	var selected_index: int = ids.find(skybox_config.theme_name)
+	option.selected = selected_index if selected_index >= 0 else 0
+	option.item_selected.connect(func(index: int) -> void:
+		apply_sky_theme_id(ids[index])
+		rebuild()
+	)
+	row.add_child(option)
+	return row
+
+
+## Bontago-adt: selects theme `theme_id` -- writes skybox_config.theme_name,
+## rebinds sky_theme (the Sky tab's sliders' resource) and re-applies
+## everything theme-driven on every live Skybox. False for an unknown id.
+## The Sky tab rows are rebuilt by the caller (rebuild()).
+func apply_sky_theme_id(theme_id: String) -> bool:
+	var chosen: SkyThemeDef = Skybox.load_theme(theme_id)
+	if chosen == null:
+		return false
+	skybox_config.theme_name = theme_id
+	sky_theme = chosen
+	for node: Node in get_tree().get_nodes_in_group(Skybox.TUNING_GROUP):
+		var skybox: Skybox = node as Skybox
+		if skybox != null:
+			skybox.set_theme_by_id(theme_id)
+	return true
+
+
 ## Bontago-xtq.22: the Sky tab's own Skybox row (Bontago-1pi.1: moved here
 ## from the Territory tab -- owner playtest: "the skybox setting in
 ## territory should probably move over to sky settings"), built the same way
@@ -1106,10 +1164,13 @@ func reset_all() -> void:
 	# is that follow-up; Save/Copy/apply_saved_overrides are unaffected
 	# (still out of scope -- not what the owner reported).
 	_reset_resource(sky_theme)
+	for theme_id: String in Skybox.list_available_themes():
+		_reset_resource(Skybox.load_theme(theme_id))
 	apply_physics_live()
 	refresh_territory_visuals_live()
 	apply_skybox_set(skybox_config.default_set if skybox_config.enabled else Skybox.PROCEDURAL_SET_ID)
-	apply_sky_theme_live()
+	if not apply_sky_theme_id(skybox_config.theme_name):
+		apply_sky_theme_live()
 	rebuild()
 
 

@@ -132,3 +132,24 @@ extends Resource
 ## exports are intentionally independent (this package doesn't own
 ## TerritoryVisuals.gd).
 @export var neutral_color: Color = Color(0.95, 0.93, 0.85)
+
+## Bontago-adt.2: Global multiplier on the beacon ring and crystal emission (raise/lower for night themes). Peaks stay near the 1.3 glow threshold at 1.0.
+@export var emission_scale: float = 1.0
+
+## Bontago-adt.2: Fraction of the crystal emission shown face-on (the dimmer core); the silhouette edges glow at full strength.
+@export var crystal_core_glow: float = 0.55
+
+## Bontago-adt.2: Extra white-hot emission on the crystal facet silhouettes (fresnel edge).
+@export var crystal_edge_glow: float = 0.6
+
+## Bontago-adt.2: How much white is mixed into the crystal edge glow (0 = pure beacon color).
+@export var crystal_edge_white_mix: float = 0.55
+
+## Bontago-adt.2: Fresnel exponent of the crystal edge glow; higher confines it to the very edge.
+@export var crystal_edge_power: float = 2.2
+
+## Bontago-adt.2: Metallic value of the beacon socket base (polished graphite).
+@export var socket_metallic: float = 0.8
+
+## Bontago-adt.2: Roughness of the beacon socket base.
+@export var socket_roughness: float = 0.3

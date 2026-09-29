@@ -3,6 +3,79 @@
 [ext_resource type="Script" uid="uid://ddeais67gdwvk" path="res://config/SkyThemeDef.gd" id="1_theme"]
 [ext_resource type="Shader" uid="uid://l03n1dbfi36o" path="res://shaders/sunset_clouds.gdshader" id="2_clouds"]
 [ext_resource type="Texture2D" uid="uid://ca3slscpuorvc" path="res://assets/sky/sunset-clouds-v1.png" id="3_panorama"]
+[ext_resource type="Texture2D" uid="uid://rqwcqno83yfq" path="res://config/sky_themes/cloud_noise.tres" id="4_noise"]
+[ext_resource type="Shader" uid="uid://blyom2f2plyld" path="res://shaders/cloud_puffs.gdshader" id="5_puffs"]
+[ext_resource type="Shader" uid="uid://cw83snuvx3c6r" path="res://shaders/distant_birds.gdshader" id="6_birds"]
+[ext_resource type="Texture2D" uid="uid://bh10x4wuue4oc" path="res://config/sky_themes/puff_noise.tres" id="7_cells"]
+
+[sub_resource type="ShaderMaterial" id="Birds"]
+render_priority = 0
+shader = ExtResource("6_birds")
+shader_parameter/bird_color = Color(0.16, 0.1, 0.2, 1)
+shader_parameter/haze_color = Color(0.85, 0.5, 0.42, 1)
+shader_parameter/haze_start_m = 400.0
+shader_parameter/haze_end_m = 1200.0
+shader_parameter/flap_speed = 7.0
+shader_parameter/flap_amount = 0.55
+shader_parameter/bank_amount = 0.35
+shader_parameter/formation_spread = 0.22
+shader_parameter/radius_spread = 0.12
+shader_parameter/height_spread_m = 9.0
+shader_parameter/bob_amount_m = 3.0
+
+[sub_resource type="ShaderMaterial" id="CloudPuffs"]
+render_priority = 0
+shader = ExtResource("5_puffs")
+shader_parameter/exposure = 0.8
+shader_parameter/seam_blend_width = 0.025
+shader_parameter/sky_yaw_offset_deg = 0.0
+shader_parameter/sky_pitch_offset_deg = 0.0
+shader_parameter/grade_amount = 0.0
+shader_parameter/grade_dark = Color(0.02, 0.03, 0.08, 1)
+shader_parameter/grade_mid = Color(0.12, 0.17, 0.33, 1)
+shader_parameter/grade_light = Color(0.55, 0.64, 0.82, 1)
+shader_parameter/grade_gamma = 1.2
+shader_parameter/flat_base = 0.15
+shader_parameter/light_direction = Vector3(0.963087, 0.069011, -0.260192)
+shader_parameter/min_light_elevation = 0.3
+shader_parameter/shadow_color = Color(0.27, 0.32, 0.48, 1)
+shader_parameter/mid_color = Color(0.57, 0.41, 0.49, 1)
+shader_parameter/lit_color = Color(1, 0.6, 0.3, 1)
+shader_parameter/rim_color = Color(1, 0.78, 0.42, 1)
+shader_parameter/mid_threshold = 0.38
+shader_parameter/lit_threshold = 0.64
+shader_parameter/band_edge_px = 1.0
+shader_parameter/light_weight = 0.7
+shader_parameter/height_weight = 0.2
+shader_parameter/ambient_shade = -0.05
+shader_parameter/underside_shade = 0.25
+shader_parameter/rim_power = 4.0
+shader_parameter/rim_sun_side = 0.9
+shader_parameter/rim_backlight = 1.4
+shader_parameter/rim_threshold = 0.5
+shader_parameter/rim_softness = 0.08
+shader_parameter/puff_noise = ExtResource("7_cells")
+shader_parameter/lump_frequency = 0.4
+shader_parameter/lump_cell_radius = 1.0
+shader_parameter/lump_height = 0.35
+shader_parameter/lump_vertex_scale = 0.7
+shader_parameter/lump_detail_scale = 2.3
+shader_parameter/lump_detail_weight = 0.4
+shader_parameter/lump_shade = 0.35
+shader_parameter/lump_bias = 0.6
+shader_parameter/lump_speed = 0.004
+shader_parameter/detail_lod_m = 260.0
+shader_parameter/billow_amount = 0.03
+shader_parameter/billow_speed = 0.35
+shader_parameter/billow_frequency = 2.0
+shader_parameter/hull_margin = 0.04
+shader_parameter/fade_start_m = 160.0
+shader_parameter/fade_end_m = 500.0
+shader_parameter/depth_fade_start_m = 40.0
+shader_parameter/depth_fade_end_m = 140.0
+shader_parameter/depth_fade_amount = 0.45
+shader_parameter/near_fade_start_m = 5.0
+shader_parameter/near_fade_end_m = 16.0
 
 [sub_resource type="ShaderMaterial" id="SunsetClouds"]
 shader = ExtResource("2_clouds")
@@ -29,6 +102,41 @@ shader_parameter/ray_length_deg = 55.0
 shader_parameter/ray_intensity = 0.35
 shader_parameter/ray_shimmer_speed = 0.15
 shader_parameter/ray_shimmer_amount = 0.08
+shader_parameter/noise_tex = ExtResource("4_noise")
+shader_parameter/sway_amount = 0.0
+shader_parameter/sway_speed = 0.05
+shader_parameter/sway_latitude_frequency = 3.0
+shader_parameter/warp_amount = 0.0
+shader_parameter/warp_speed = 0.006
+shader_parameter/warp_scale = 2.5
+shader_parameter/sun_motion_protect_deg = 6.0
+shader_parameter/sun_motion_fade_deg = 26.0
+shader_parameter/sea_flow = Vector2(-1, 0)
+shader_parameter/sea_flow_span = 0.006
+shader_parameter/sea_flow_period = 16.0
+shader_parameter/sea_flow_jitter_scale = 1.5
+shader_parameter/sea_flow_fade_start = 0.0
+shader_parameter/sea_flow_fade_end = -0.06
+shader_parameter/cloud_layer_opacity = 0.0
+shader_parameter/cloud_layer_scale = 1.1
+shader_parameter/cloud_horizon_lift = 0.5
+shader_parameter/cloud_fade_start = 0.25
+shader_parameter/cloud_fade_height = 0.6
+shader_parameter/cloud_wind = Vector2(1, 0.35)
+shader_parameter/cloud_wind_speed = 0.004
+shader_parameter/cloud_coverage = 0.68
+shader_parameter/cloud_edge_softness = 0.03
+shader_parameter/cloud_warp_amount = 0.12
+shader_parameter/cloud_bands = 4.0
+shader_parameter/cloud_cel_edge = 0.08
+shader_parameter/cloud_light_probe = 0.05
+shader_parameter/cloud_light_contrast = 6.0
+shader_parameter/cloud_rim_width = 0.15
+shader_parameter/cloud_sun_clear_deg = 12.0
+shader_parameter/cloud_shadow_color = Color(0.34, 0.27, 0.47, 1)
+shader_parameter/cloud_mid_color = Color(0.86, 0.55, 0.52, 1)
+shader_parameter/cloud_lit_color = Color(1, 0.82, 0.52, 1)
+shader_parameter/cloud_rim_color = Color(1, 0.9, 0.66, 1)
 
 [resource]
 script = ExtResource("1_theme")
@@ -36,3 +144,9 @@ sky_material = SubResource("SunsetClouds")
 sky_yaw_offset_deg = 184.058612
 fog_density = 0.0003
 volumetric_fog_density = 0.00015
+cloud_puff_material = SubResource("CloudPuffs")
+cloud_clump_count = 150
+bird_material = SubResource("Birds")
+bird_flock_count = 7
+bird_size_min_m = 3.5
+bird_size_max_m = 5.0

@@ -783,6 +783,8 @@ func test_m7_config_resources_have_complete_hints() -> void:
 		BlockEffectsConfig.new(),
 		HUDVisualTuning.new(),
 		SkyThemeDef.new(),
+		# Bontago-adt.2: the disc-top surface sets (texture and procedural).
+		DiscSurfaceDef.new(),
 	]
 
 	var hints: TuningPanelHints = _panel.hints
@@ -816,3 +818,39 @@ func test_m7_config_resources_have_complete_hints() -> void:
 				)
 
 	assert_true(checked_any, "fixture: at least one M7 config field must exist to check.")
+
+
+# --- Bontago-adt: Sky tab Theme dropdown ----------------------------------------
+
+func _find_option_named(node: Node, option_name: String) -> OptionButton:
+	if node is OptionButton and node.name == option_name:
+		return node as OptionButton
+	for child: Node in node.get_children():
+		var found: OptionButton = _find_option_named(child, option_name)
+		if found != null:
+			return found
+	return null
+
+
+func test_sky_tab_theme_dropdown_lists_themes_and_switches_live() -> void:
+	var saved_name: String = _panel.skybox_config.theme_name
+	var skybox: Skybox = Skybox.new()
+	skybox.config = _panel.skybox_config
+	add_child_autofree(skybox)
+	_panel.rebuild()
+	var option: OptionButton = _find_option_named(_panel, "ThemeOption")
+	assert_not_null(option, "expected a Theme OptionButton on the Sky tab")
+	var ids: PackedStringArray = Skybox.list_available_themes()
+	assert_eq(option.item_count, ids.size())
+	assert_eq(option.focus_mode, Control.FOCUS_ALL, "gamepad/keyboard focusable")
+	var night_index: int = ids.find("night")
+	option.select(night_index)
+	option.item_selected.emit(night_index)
+	assert_eq(_panel.skybox_config.theme_name, "night", "persists on SkyboxConfig like the Skybox row")
+	assert_eq(_panel.sky_theme, Skybox.load_theme("night"), "sliders rebind to the active theme")
+	assert_eq(skybox.theme, Skybox.load_theme("night"))
+	assert_true(_panel.apply_sky_theme_id("sunset"))
+	assert_eq(skybox.theme, Skybox.load_theme("sunset"))
+	assert_false(_panel.apply_sky_theme_id("no_such_theme"))
+	_panel.skybox_config.theme_name = saved_name
+	_panel.sky_theme = Skybox.load_theme("sunset")

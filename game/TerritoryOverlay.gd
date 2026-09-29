@@ -627,6 +627,7 @@ func refresh_visual_uniforms() -> void:
 
 
 func _apply_visual_uniforms() -> void:
+	_apply_disc_surface()
 	_material.set_shader_parameter(&"base_color", _visuals.disk_base_color)
 	_material.set_shader_parameter(&"base_metallic", _visuals.disk_metallic)
 	_material.set_shader_parameter(&"base_roughness", _visuals.disk_roughness)
@@ -640,7 +641,19 @@ func _apply_visual_uniforms() -> void:
 	)
 	# Bontago-mp0.3.8: disc top color/sheen fix -- see shaders/territory.
 	# gdshader's own disk_sheen_*/disk_diffuse_* uniform DECISION.
+	_material.set_shader_parameter(&"disk_ambient_scale", _visuals.disk_ambient_scale)
+	_material.set_shader_parameter(&"disk_specular", _visuals.disk_specular)
+	_material.set_shader_parameter(&"panel_size_m", _visuals.panel_size_m)
+	_material.set_shader_parameter(&"panel_seam_width_px", _visuals.panel_seam_width_px)
+	_material.set_shader_parameter(&"panel_seam_strength", _visuals.panel_seam_strength)
+	_material.set_shader_parameter(&"panel_variation", _visuals.panel_variation)
+	_material.set_shader_parameter(&"panel_fade_px", _visuals.panel_fade_px)
+	_material.set_shader_parameter(&"tint_fill_emission", _visuals.tint_fill_emission)
 	_material.set_shader_parameter(&"disk_sheen_color", _visuals.disk_sheen_color)
+	_material.set_shader_parameter(&"disk_fill_color", _visuals.disk_fill_color)
+	_material.set_shader_parameter(&"disk_sky_sheen_color", _visuals.disk_sky_sheen_color)
+	_material.set_shader_parameter(&"disk_sky_sheen_strength", _visuals.disk_sky_sheen_strength)
+	_material.set_shader_parameter(&"disk_sky_sheen_power", _visuals.disk_sky_sheen_power)
 	_material.set_shader_parameter(&"disk_sheen_strength", _visuals.disk_sheen_strength)
 	_material.set_shader_parameter(&"disk_sheen_exponent", _visuals.disk_sheen_exponent)
 	_material.set_shader_parameter(&"disk_diffuse_response", _visuals.disk_diffuse_response)
@@ -700,3 +713,88 @@ func set_mirror_texture(texture: Texture2D, enabled: bool, strength: float) -> v
 	_material.set_shader_parameter(&"mirror_tex", texture)
 	_material.set_shader_parameter(&"mirror_enabled", enabled)
 	_material.set_shader_parameter(&"mirror_strength", strength)
+
+
+## Bontago-adt.2: pushes the DiscSurfaceDef texture set (or clears it).
+func _apply_disc_surface() -> void:
+	var surface: DiscSurfaceDef = _visuals.disc_surface
+	var procedural: bool = surface != null and surface.mode == DiscSurfaceDef.Mode.PROCEDURAL
+	var textured: bool = surface != null and not procedural and surface.albedo_texture != null
+	_material.set_shader_parameter(&"disc_textured", textured)
+	_material.set_shader_parameter(&"disc_procedural", procedural)
+	if procedural:
+		_apply_procedural_disc(surface)
+	if not textured:
+		return
+	_material.set_shader_parameter(&"disc_albedo_tex", surface.albedo_texture)
+	_material.set_shader_parameter(&"disc_normal_tex", surface.normal_texture)
+	_material.set_shader_parameter(&"disc_roughness_tex", surface.roughness_texture)
+	_material.set_shader_parameter(&"disc_metalness_tex", surface.metalness_texture)
+	_material.set_shader_parameter(&"disc_tile_size_m", surface.tile_size_m)
+	_material.set_shader_parameter(&"disc_rotation_deg", surface.rotation_deg)
+	_material.set_shader_parameter(&"disc_albedo_strength", surface.albedo_strength)
+	_material.set_shader_parameter(&"disc_albedo_gain", surface.albedo_gain)
+	_material.set_shader_parameter(&"disc_albedo_contrast", surface.albedo_contrast)
+	_material.set_shader_parameter(&"disc_normal_strength", surface.normal_strength)
+	_material.set_shader_parameter(&"disc_roughness_min", surface.roughness_min)
+	_material.set_shader_parameter(&"disc_roughness_max", surface.roughness_max)
+	_material.set_shader_parameter(&"disc_metalness_map_mix", surface.metalness_map_mix)
+	_material.set_shader_parameter(&"disc_metalness_scale", surface.metalness_scale)
+	_material.set_shader_parameter(&"disc_detail_fade_px", surface.detail_fade_px)
+
+
+## Bontago-adt.2: pushes DiscSurfaceDef's procedural cel-plating tunables
+## (shaders/territory.gdshader disc_proc_* uniforms, see proc_plating()).
+func _apply_procedural_disc(surface: DiscSurfaceDef) -> void:
+	var params: Dictionary = {
+		&"disc_proc_base_tint": surface.proc_base_tint,
+		&"disc_proc_hub_radius_m": surface.proc_hub_radius_m,
+		&"disc_proc_ring_width_m": surface.proc_ring_width_m,
+		&"disc_proc_plate_length_m": surface.proc_plate_length_m,
+		&"disc_proc_plate_count_jitter": surface.proc_plate_count_jitter,
+		&"disc_proc_split_chance": surface.proc_split_chance,
+		&"disc_proc_tone_variation": surface.proc_tone_variation,
+		&"disc_proc_hatch_chance": surface.proc_hatch_chance,
+		&"disc_proc_hatch_inset_m": surface.proc_hatch_inset_m,
+		&"disc_proc_hatch_tone": surface.proc_hatch_tone,
+		&"disc_proc_seam_width_px": surface.proc_seam_width_px,
+		&"disc_proc_seam_darkness": surface.proc_seam_darkness,
+		&"disc_proc_lip_width_px": surface.proc_lip_width_px,
+		&"disc_proc_lip_strength": surface.proc_lip_strength,
+		&"disc_proc_lip_highlight": surface.proc_lip_highlight,
+		&"disc_proc_seam_reflection_occlusion": surface.proc_seam_reflection_occlusion,
+		&"disc_proc_rivet_radius_m": surface.proc_rivet_radius_m,
+		&"disc_proc_rivet_spacing_m": surface.proc_rivet_spacing_m,
+		&"disc_proc_rivet_inset_m": surface.proc_rivet_inset_m,
+		&"disc_proc_rivet_row_spacing_m": surface.proc_rivet_row_spacing_m,
+		&"disc_proc_rivet_weights": Vector4(
+			surface.proc_rivet_weight_none, surface.proc_rivet_weight_pairs,
+			surface.proc_rivet_weight_clusters, surface.proc_rivet_weight_rows
+		),
+		&"disc_proc_rivet_tone": surface.proc_rivet_tone,
+		&"disc_proc_rivet_highlight": surface.proc_rivet_highlight,
+		&"disc_proc_rivet_shadow": surface.proc_rivet_shadow,
+		&"disc_proc_rivet_shade": surface.proc_rivet_shade,
+		&"disc_proc_rivet_shadow_offset": surface.proc_rivet_shadow_offset,
+		&"disc_proc_highlight_color": surface.proc_highlight_color,
+		&"disc_proc_plate_tilt": surface.proc_plate_tilt,
+		&"disc_proc_sheen_strength": surface.proc_sheen_strength,
+		&"disc_proc_sky_sheen_power": surface.proc_sky_sheen_power,
+		&"disc_proc_sky_sheen_weight": surface.proc_sky_sheen_weight,
+		&"disc_proc_sheen_exponent": surface.proc_sheen_exponent,
+		&"disc_proc_sheen_bands": surface.proc_sheen_bands,
+		&"disc_proc_sheen_band_softness": surface.proc_sheen_band_softness,
+		&"disc_proc_brush_strength": surface.proc_brush_strength,
+		&"disc_proc_brush_scale_m": surface.proc_brush_scale_m,
+		&"disc_proc_roughness": surface.proc_roughness,
+		&"disc_proc_roughness_variation": surface.proc_roughness_variation,
+		&"disc_proc_rivet_fade_height_start_m": surface.proc_rivet_fade_height_start_m,
+		&"disc_proc_rivet_fade_height_end_m": surface.proc_rivet_fade_height_end_m,
+		&"disc_proc_seam_fade_height_start_m": surface.proc_seam_fade_height_start_m,
+		&"disc_proc_seam_fade_height_end_m": surface.proc_seam_fade_height_end_m,
+		&"disc_proc_aa_rivet_min_px": surface.proc_aa_rivet_min_px,
+		&"disc_proc_aa_plate_min_px": surface.proc_aa_plate_min_px,
+		&"disc_proc_brush_fade_px": surface.proc_brush_fade_px,
+	}
+	for key: StringName in params:
+		_material.set_shader_parameter(key, params[key])

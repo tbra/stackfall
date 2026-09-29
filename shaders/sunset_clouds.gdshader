@@ -1,4 +1,5 @@
 shader_type sky;
+#include "res://shaders/include/cloud_common.gdshaderinc"
 
 uniform sampler2D panorama : source_color, filter_linear_mipmap, repeat_enable;
 uniform float seam_blend_width = 0.025;
@@ -83,27 +84,175 @@ uniform float ray_intensity = 0.35;
 uniform float ray_shimmer_speed = 0.15;
 uniform float ray_shimmer_amount = 0.08;
 
+
+// Bontago-adt.1 (graphics pass, animated sky): the painted panorama is kept
+// (it carries the mockup-08 look) but now lives.
+//  1. SEAM FIX. The old thin dashed vertical line in the upper sky was a
+//     mip-selection artifact: fract() on the wrapped U coordinate makes the
+//     screen-space UV derivative spike to ~1 on the pixels straddling the
+//     wrap, so texture() picked the smallest mip level there and drew a one-
+//     pixel line of averaged colour. textureGrad() with derivatives taken from
+//     whichever of two half-shifted wraps is continuous removes it.
+//  2. DRIFT. Panorama sampling is sheared by latitude with a slow sine, plus a
+//     noise-driven UV warp, both faded to zero around the painted sun so it
+//     stays glued to sun_direction. Clouds at different heights slide past one
+//     another and billow instead of the picture being a static plate.
+//  3. CEL CLOUD LAYER. A procedural, cel-banded cloud layer (shared noise
+//     texture) scrolls with the wind above the horizon and blends over the
+//     panorama, so there is steady visible motion and the mockup's banded
+//     cel shading. It fades out near the sun disc and at the horizon.
+//  4. FAR CLOUD SEA (Bontago-adt.1 round 3). Below the horizon the painted
+//     cumulus is the distant cloud sea: it gets a two-phase flow drift
+//     (sea_flow_*) instead of the noise warp, so it slides slowly around the
+//     disc without marbling. The near/mid sea is real 3D puffs
+//     (vfx/CloudSea.gd, shaders/cloud_puffs.gdshader) that fade into this
+//     panorama by sampling it along their own view ray.
+// All animated terms are skipped in the radiance (reflection) pass, which
+// therefore stays as cheap and stable as before.
+uniform sampler2D noise_tex : filter_linear_mipmap, repeat_enable;
+uniform float sway_amount = 0.006;
+uniform float sway_speed = 0.05;
+uniform float sway_latitude_frequency = 3.0;
+uniform float warp_amount = 0.006;
+uniform float warp_speed = 0.006;
+uniform float warp_scale = 2.5;
+// Angular radius (degrees) around sun_direction inside which the panorama is
+// left un-animated; motion fades in over sun_motion_fade_deg beyond it.
+uniform float sun_motion_protect_deg = 6.0;
+uniform float sun_motion_fade_deg = 26.0;
+
+// Far cloud sea (the panorama's lower hemisphere): two-phase flow drift so
+// the painted cumulus below the horizon slides slowly around the disc with no
+// accumulating smear (cloud_common flow_phases). Span is the UV distance one
+// phase travels; the jitter noise staggers the cross-fade across the sea.
+// sea_flow_fade_start/_end are eyedir.y values: flow is full below _end and
+// zero above _start (the horizon band and sky keep only the sway above).
+uniform vec2 sea_flow = vec2(-1.0, 0.0);
+uniform float sea_flow_span = 0.006;
+uniform float sea_flow_period = 16.0;
+uniform float sea_flow_jitter_scale = 1.5;
+uniform float sea_flow_fade_start = 0.0;
+uniform float sea_flow_fade_end = -0.06;
+
+uniform float cloud_layer_opacity = 0.8;
+uniform float cloud_layer_scale = 1.1;
+uniform float cloud_horizon_lift = 0.5;
+uniform float cloud_fade_start = 0.25;
+uniform float cloud_fade_height = 0.6;
+uniform vec2 cloud_wind = vec2(1.0, 0.35);
+uniform float cloud_wind_speed = 0.004;
+uniform float cloud_coverage = 0.68;
+uniform float cloud_edge_softness = 0.03;
+uniform float cloud_warp_amount = 0.12;
+uniform float cloud_bands = 4.0;
+uniform float cloud_cel_edge = 0.08;
+uniform float cloud_light_probe = 0.05;
+uniform float cloud_light_contrast = 6.0;
+uniform float cloud_rim_width = 0.15;
+uniform float cloud_sun_clear_deg = 12.0;
+uniform vec3 cloud_shadow_color : source_color = vec3(0.34, 0.27, 0.47);
+uniform vec3 cloud_mid_color : source_color = vec3(0.86, 0.55, 0.52);
+uniform vec3 cloud_lit_color : source_color = vec3(1.0, 0.82, 0.52);
+uniform vec3 cloud_rim_color : source_color = vec3(1.0, 0.9, 0.66);
+
+// Panorama colour with the symmetric seam blend (imperfect authored
+// panorama edges made continuous).
+vec3 sample_panorama(vec2 uv, vec2 ddx_uv, vec2 ddy_uv) {
+	vec3 color = textureGrad(panorama, uv, ddx_uv, ddy_uv).rgb;
+	float seam = 1.0 - smoothstep(0.0, seam_blend_width, min(uv.x, 1.0 - uv.x));
+	vec2 mirrored_ddx = vec2(-ddx_uv.x, ddx_uv.y);
+	vec2 mirrored_ddy = vec2(-ddy_uv.x, ddy_uv.y);
+	return mix(color, textureGrad(panorama, vec2(1.0 - uv.x, uv.y), mirrored_ddx, mirrored_ddy).rgb, seam * 0.5);
+}
+
 void sky() {
+	vec3 eyedir = normalize(EYEDIR);
+	vec3 sun_dir = normalize(sun_direction);
+	float cos_angle = dot(eyedir, sun_dir);
+	float angle_deg = degrees(acos(clamp(cos_angle, -1.0, 1.0)));
+
 	vec2 uv = SKY_COORDS;
 	// Rotate the panorama sampling coordinate itself -- see sky_yaw_offset_deg/
 	// sky_pitch_offset_deg's own DECISION above. fract() wraps U around the
 	// seam regardless of sign; V is clamped rather than wrapped since it must
 	// never sample past a pole (unlike U, which repeats around the horizon).
-	uv.x = fract(uv.x + sky_yaw_offset_deg / 360.0);
+	float u_raw = uv.x + sky_yaw_offset_deg / 360.0;
+	uv.x = fract(u_raw);
 	uv.y = clamp(uv.y + sky_pitch_offset_deg / 180.0, 0.0, 1.0);
-	vec3 color = texture(panorama, uv).rgb;
-	// Symmetric edge blend makes imperfect authored panorama boundaries continuous.
-	float seam = 1.0 - smoothstep(0.0, seam_blend_width, min(uv.x, 1.0 - uv.x));
-	color = mix(color, texture(panorama, vec2(1.0 - uv.x, uv.y)).rgb, seam * 0.5);
+
+	// Seam-safe derivatives: pick the continuous one of two half-shifted wraps.
+	float u_alt = fract(u_raw + 0.5) - 0.5;
+	vec2 grad_a = vec2(dFdx(uv.x), dFdy(uv.x));
+	vec2 grad_b = vec2(dFdx(u_alt), dFdy(u_alt));
+	bool a_ok = abs(grad_a.x) + abs(grad_a.y) <= abs(grad_b.x) + abs(grad_b.y);
+	vec2 grad_u = a_ok ? grad_a : grad_b;
+	vec2 ddx_uv = vec2(grad_u.x, dFdx(uv.y));
+	vec2 ddy_uv = vec2(grad_u.y, dFdy(uv.y));
+
+	// Animated distortion (background pass only), faded out around the sun.
+	vec3 flow = vec3(0.0);
+	float sea = 0.0;
+	if (!AT_CUBEMAP_PASS) {
+		float motion = smoothstep(sun_motion_protect_deg, sun_motion_protect_deg + sun_motion_fade_deg, angle_deg);
+		vec2 np = eyedir.xz / (abs(eyedir.y) + 0.35) * warp_scale;
+		vec2 wobble = vec2(
+			texture(noise_tex, np + vec2(TIME * warp_speed, 0.0)).r,
+			texture(noise_tex, np + vec2(0.0, -TIME * warp_speed) + vec2(0.5, 0.5)).r) - 0.5;
+		float sway = sin(TIME * sway_speed + uv.y * sway_latitude_frequency * TAU + wobble.x * 4.0);
+		vec2 shift = vec2(sway * sway_amount, 0.0) + wobble * warp_amount;
+		// The far cloud sea below the horizon gets the flow drift instead of
+		// the noise warp (warping the painted cumulus there marbles it).
+		float sea_zone = smoothstep(sea_flow_fade_start, sea_flow_fade_end, eyedir.y);
+		uv += shift * motion * (1.0 - sea_zone);
+		uv.y = clamp(uv.y, 0.0, 1.0);
+		sea = sea_zone * motion;
+		if (sea > 0.0) {
+			float jitter = texture(noise_tex, np * sea_flow_jitter_scale * 0.1).r;
+			flow = flow_phases(TIME, sea_flow_period, jitter);
+		}
+	}
+
+	vec3 color;
+	if (sea <= 0.0) {
+		color = sample_panorama(uv, ddx_uv, ddy_uv);
+	} else {
+		vec2 step_a = sea_flow * sea_flow_span * flow.x * sea;
+		vec2 step_b = sea_flow * sea_flow_span * flow.y * sea;
+		vec3 color_a = sample_panorama(vec2(fract(uv.x + step_a.x), clamp(uv.y + step_a.y, 0.0, 1.0)), ddx_uv, ddy_uv);
+		vec3 color_b = sample_panorama(vec2(fract(uv.x + step_b.x), clamp(uv.y + step_b.y, 0.0, 1.0)), ddx_uv, ddy_uv);
+		color = mix(color_a, color_b, flow.z);
+	}
 	// Longitude converges to one color at each pole, avoiding a pinwheel seam.
 	float pole = 1.0 - smoothstep(0.0, pole_blend_width, min(uv.y, 1.0 - uv.y));
-	vec3 pole_color = texture(panorama, vec2(0.5, uv.y < 0.5 ? 0.0 : 1.0)).rgb;
+	vec3 pole_color = textureLod(panorama, vec2(0.5, uv.y < 0.5 ? 0.0 : 1.0), 0.0).rgb;
 	COLOR = mix(color, pole_color, pole) * exposure;
 
-	vec3 eyedir = normalize(EYEDIR);
-	vec3 sun_dir = normalize(sun_direction);
-	float cos_angle = dot(eyedir, sun_dir);
-	float angle_deg = degrees(acos(clamp(cos_angle, -1.0, 1.0)));
+	// Cel-banded procedural cloud layer over the panorama (background pass only).
+	if (!AT_CUBEMAP_PASS && eyedir.y > 0.0) {
+		vec2 cp = eyedir.xz / (eyedir.y + cloud_horizon_lift) * cloud_layer_scale;
+		vec2 drift = cloud_wind * cloud_wind_speed * TIME;
+		vec2 cwarp = (vec2(
+			texture(noise_tex, cp * 0.5 + drift * 0.6 + vec2(0.3, 0.7)).r,
+			texture(noise_tex, cp * 0.5 - drift * 0.4 + vec2(0.9, 0.2)).r) - 0.5) * cloud_warp_amount;
+		vec2 cq = cp + drift + cwarp;
+		float d = cloud_fbm(noise_tex, cq);
+		vec2 to_sun = normalize(sun_dir.xz + vec2(0.0001));
+		float d_sun = cloud_fbm(noise_tex, cq + to_sun * cloud_light_probe);
+		float body = smoothstep(cloud_coverage, cloud_coverage + cloud_edge_softness, d);
+		float height01 = clamp((d - cloud_coverage) / max(1.0 - cloud_coverage, 0.001), 0.0, 1.0);
+		float facing = clamp(0.5 + (d - d_sun) * cloud_light_contrast, 0.0, 1.0);
+		// Clouds nearer the sun are lit more from behind: warm them up.
+		float sun_side = clamp(cos_angle * 0.5 + 0.5, 0.0, 1.0);
+		float shade = clamp(height01 * 0.5 + facing * 0.4 + sun_side * 0.25, 0.0, 1.0);
+		float qs = cel_quantize(shade, cloud_bands, cloud_cel_edge);
+		vec3 ccol = cel_ramp(cloud_shadow_color, cloud_mid_color, cloud_lit_color, qs);
+		float rim = (1.0 - smoothstep(0.0, cloud_rim_width, height01)) * smoothstep(0.55, 0.85, facing);
+		ccol = mix(ccol, cloud_rim_color, rim * 0.8);
+		float alpha = body * cloud_layer_opacity
+			* smoothstep(cloud_fade_start, cloud_fade_height, eyedir.y)
+			* smoothstep(sun_core_angular_radius_deg, cloud_sun_clear_deg, angle_deg);
+		COLOR = mix(COLOR, ccol, alpha);
+	}
 
 	// Bright core + soft halo, both angular falloffs around the sun direction.
 	float core = 1.0 - smoothstep(0.0, sun_core_angular_radius_deg, angle_deg);

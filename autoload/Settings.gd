@@ -534,6 +534,15 @@ func _can_apply_window_mode() -> bool:
 	var args: PackedStringArray = OS.get_cmdline_args()
 	if args.has("--position") or args.has("--windowed") or args.has("-w"):
 		return false
+	# DECISION: Godot consumes its own window flags (--position, --windowed)
+	# before OS.get_cmdline_args(), so the check above never fires for the
+	# off-screen tool runs. A run that names a scene on the command line
+	# (tools/*.tscn, the editor's "Run Current Scene") keeps the project's
+	# windowed default instead of the saved fullscreen mode; plain
+	# `godot --path .` launches still honour the saved mode.
+	for arg: String in args:
+		if arg.ends_with(".tscn") or arg.ends_with(".scn"):
+			return false
 	return true
 
 

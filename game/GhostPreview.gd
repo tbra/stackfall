@@ -523,6 +523,8 @@ func _ready() -> void:
 	_material.shader = GHOST_CELL_GRID_SHADER
 	_material.set_shader_parameter(&"grid_line_width_px", VISUAL_TUNING.grid_line_width_px)
 	_material.set_shader_parameter(&"grid_line_color", VISUAL_TUNING.grid_line_color)
+	_material.set_shader_parameter(&"cell_ao_strength", VISUAL_TUNING.cell_ao_strength)
+	_material.set_shader_parameter(&"cell_ao_height", VISUAL_TUNING.cell_ao_height)
 
 	_footprint_material = StandardMaterial3D.new()
 	_footprint_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
