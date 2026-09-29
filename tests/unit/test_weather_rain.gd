@@ -163,7 +163,7 @@ func test_client_never_builds_physics_effect() -> void:
 	var calls: Array = []
 	var w: MatchWeather = _weather(false, calls)
 	var state: Dictionary = {"v": 1, "epoch": 1, "seed": 1, "mode": MatchConfig.WeatherMode.RAIN, "sched": MatchWeather.Sched.EVENT,
-		"left": 10.0, "id": "rain", "phase": WeatherTuning.Phase.HOLD, "t": 1.0}
+		"left": 10.0, "id": "rain", "phase": WeatherTuning.Phase.HOLD, "t": 1.0, "ev": 0}
 	assert_true(w.apply_replicated_state(state, true))
 	w.tick(DELTA)
 	assert_eq(w.active_id(), &"rain")
