@@ -59,6 +59,15 @@ const EVENT_MATCH_WON: StringName = &"match_won"
 ## MatchStats.gd's own header documents the payload shape). See
 ## _on_match_results_ready() below and net_match_event's own dispatch case.
 const EVENT_MATCH_RESULTS: StringName = &"match_results"
+const EVENT_GIFT_FLIGHT: StringName = &"gift_flight_spawned"
+const EVENT_GIFT_LANDED: StringName = &"gift_landed"
+
+# DECISION: reliable channel order plus per-match tombstones prevents a late
+# spawn/flight from resurrecting a claimed gift. Legacy spawn can upgrade once.
+enum GiftWirePhase { LEGACY, FALLING, LANDED, REMOVED }
+var _gift_wire_phases: Dictionary = {}
+var _gift_spawn_notified: Dictionary = {}
+
 const EVENT_GIFT_SPAWNED: StringName = &"gift_spawned"
 const EVENT_GIFT_CLAIMED: StringName = &"gift_claimed"
 const EVENT_GIFT_EXPIRED: StringName = &"gift_expired"
@@ -189,6 +198,8 @@ func _ready() -> void:
 	Events.player_eliminated.connect(_on_player_eliminated)
 	Events.match_won.connect(_on_match_won)
 	Events.match_results_ready.connect(_on_match_results_ready)
+	Events.gift_flight_spawned.connect(_on_gift_flight)
+	Events.gift_landed.connect(_on_gift_landed)
 	Events.gift_spawned.connect(_on_gift_spawned)
 	Events.gift_claimed.connect(_on_gift_claimed)
 	Events.gift_expired.connect(_on_gift_expired)
@@ -684,6 +695,8 @@ func invalid_spawn_refusal_count() -> int:
 
 ## Drops every counter and cursor. Called when a match starts or ends.
 func reset_counters() -> void:
+	_gift_wire_phases.clear()
+	_gift_spawn_notified.clear()
 	_intents_sent.clear()
 	_intents_accepted.clear()
 	_intents_refused.clear()
@@ -1194,6 +1207,16 @@ func _on_match_results_ready(results: Dictionary) -> void:
 		replicate_match_event(EVENT_MATCH_RESULTS, [results])
 
 
+func _on_gift_flight(gift_id: int, origin: Vector3, landing: Vector3) -> void:
+	if _is_host():
+		replicate_match_event(EVENT_GIFT_FLIGHT, [gift_id, origin, landing])
+
+
+func _on_gift_landed(gift_id: int, landing: Vector3) -> void:
+	if _is_host():
+		replicate_match_event(EVENT_GIFT_LANDED, [gift_id, landing])
+
+
 func _on_gift_spawned(gift_id: int, position: Vector2) -> void:
 	if _is_host():
 		replicate_match_event(EVENT_GIFT_SPAWNED, [gift_id, position])
@@ -1201,7 +1224,8 @@ func _on_gift_spawned(gift_id: int, position: Vector2) -> void:
 
 func _on_gift_claimed(gift_id: int, slot_id: int, special_id: StringName) -> void:
 	if _is_host():
-		replicate_match_event(EVENT_GIFT_CLAIMED, [gift_id, slot_id, special_id])
+		var next_shape: BlockShape = _authority().next_shape(slot_id)
+		replicate_match_event(EVENT_GIFT_CLAIMED, [gift_id, slot_id, special_id, next_shape.id if next_shape != null else &""])
 
 
 func _on_gift_expired(gift_id: int) -> void:
@@ -1481,16 +1505,51 @@ func net_match_event(event: StringName, args: Array) -> void:
 			if validated.is_empty():
 				return
 			Events.match_results_ready.emit(validated)
+		EVENT_GIFT_FLIGHT:
+			if args.size() != 3 or not args[0] is int or not args[1] is Vector3 or not args[2] is Vector3:
+				return
+			var gift_id: int = args[0]
+			var origin: Vector3 = args[1]
+			var landing: Vector3 = args[2]
+			if gift_id < 0 or not origin.is_finite() or not landing.is_finite():
+				return
+			if not is_finite(origin.distance_to(landing)) or origin.y < landing.y:
+				return
+			if _gift_wire_phases.has(gift_id) and int(_gift_wire_phases[gift_id]) != GiftWirePhase.LEGACY:
+				return
+			_authority().apply_replicated_gift_flight(gift_id, origin, landing)
+			_gift_wire_phases[gift_id] = GiftWirePhase.FALLING
+			Events.gift_flight_spawned.emit(gift_id, origin, landing)
+		EVENT_GIFT_LANDED:
+			if args.size() != 2 or not args[0] is int or not args[1] is Vector3:
+				return
+			var gift_id: int = args[0]
+			var landing: Vector3 = args[1]
+			if gift_id < 0 or not landing.is_finite() or _gift_wire_phases.get(gift_id, -1) != GiftWirePhase.FALLING:
+				return
+			var state: Dictionary = _authority().gift_state(gift_id)
+			if state.is_empty() or not landing.is_equal_approx(state["landing"]):
+				return
+			_authority().apply_replicated_gift_landed(gift_id, landing)
+			_gift_wire_phases[gift_id] = GiftWirePhase.LANDED
+			Events.gift_landed.emit(gift_id, landing)
 		EVENT_GIFT_SPAWNED:
+			if args.size() != 2 or not args[0] is int or not args[1] is Vector2:
+				return
 			var gift_id: int = int(args[0])
 			var position: Vector2 = args[1] as Vector2
-			if not _gift_wire_ok(gift_id, position):
+			if _gift_spawn_notified.has(gift_id) or not _gift_wire_ok(gift_id, position) or _gift_wire_phases.get(gift_id, -1) in [GiftWirePhase.LEGACY, GiftWirePhase.LANDED, GiftWirePhase.REMOVED]:
 				return
+			if not _gift_wire_phases.has(gift_id):
+				_gift_wire_phases[gift_id] = GiftWirePhase.LEGACY
 			_authority().apply_replicated_gift_spawned(gift_id, position)
+			_gift_spawn_notified[gift_id] = true
 			Events.gift_spawned.emit(gift_id, position)
 		EVENT_GIFT_CLAIMED:
+			if args.size() != 4 or not args[0] is int or not args[1] is int or not (args[2] is String or args[2] is StringName) or not (args[3] is String or args[3] is StringName):
+				return
 			var claimed_gift_id: int = int(args[0])
-			if claimed_gift_id < 0:
+			if claimed_gift_id < 0 or _gift_wire_phases.get(claimed_gift_id, -1) == GiftWirePhase.REMOVED:
 				return
 			var slot_id: int = int(args[1])
 			# Review fix (Must #1): bounds-check slot_id here too, next to the
@@ -1510,12 +1569,20 @@ func net_match_event(event: StringName, args: Array) -> void:
 			var special_id: StringName = StringName(args[2])
 			if not _gift_special_id_wire_ok(String(special_id)):
 				return
+			var gift_shape_id: StringName = StringName(args[3])
+			if _authority()._feed._shape_by_id(gift_shape_id) == null:
+				return
+			_gift_wire_phases[claimed_gift_id] = GiftWirePhase.REMOVED
 			_authority().apply_replicated_gift_claimed(claimed_gift_id, slot_id, special_id)
+			_authority()._feed.apply_replicated_next_gift(slot_id, gift_shape_id)
 			Events.gift_claimed.emit(claimed_gift_id, slot_id, special_id)
 		EVENT_GIFT_EXPIRED:
-			var expired_gift_id: int = int(args[0])
-			if expired_gift_id < 0:
+			if args.size() != 1 or not args[0] is int:
 				return
+			var expired_gift_id: int = int(args[0])
+			if expired_gift_id < 0 or _gift_wire_phases.get(expired_gift_id, -1) == GiftWirePhase.REMOVED:
+				return
+			_gift_wire_phases[expired_gift_id] = GiftWirePhase.REMOVED
 			_authority().apply_replicated_gift_expired(expired_gift_id)
 			Events.gift_expired.emit(expired_gift_id)
 		EVENT_SPECIAL_TRIGGERED:

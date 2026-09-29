@@ -60,6 +60,7 @@ var _visual_time: float = 0.0
 ## freed anyway.
 var _claimed: bool = false
 var _hint_time: float = 0.0
+var _canopy: Node3D = null
 
 
 func _ready() -> void:
@@ -124,6 +125,29 @@ func _build() -> void:
 	var jewel: MeshInstance3D = _add_box(_beacon, &"BeaconDiamond", Vector3(0.22, 0.22, 0.22), Vector3.ZERO, _flat_material(BEACON_COLOR, true))
 	jewel.rotation = Vector3(0.0, 0.0, PI * 0.25)
 
+	_canopy = Node3D.new()
+	_canopy.name = &"Parachute"
+	_canopy.position.y = 1.35
+	add_child(_canopy)
+	var canopy_mesh: SphereMesh = SphereMesh.new()
+	canopy_mesh.radius = 0.85
+	canopy_mesh.height = 0.45
+	var canopy: MeshInstance3D = MeshInstance3D.new()
+	canopy.mesh = canopy_mesh
+	canopy.material_override = _flat_material(RIBBON_COLOR)
+	_canopy.add_child(canopy)
+	var cord_material: StandardMaterial3D = _flat_material(LID_COLOR)
+	for x_sign: int in [-1, 1]:
+		for z_sign: int in [-1, 1]:
+			var cord: MeshInstance3D = _add_box(_canopy, &"Cord", Vector3(0.025, 1.0, 0.025),
+				Vector3(float(x_sign) * 0.4, -0.63, float(z_sign) * 0.4), cord_material)
+			cord.rotation.z = float(x_sign) * 0.17
+
+
+func set_falling(falling: bool) -> void:
+	if _canopy != null:
+		_canopy.visible = falling
+
 
 func _flat_material(color: Color, emissive: bool = false) -> StandardMaterial3D:
 	var material: StandardMaterial3D = StandardMaterial3D.new()
@@ -182,8 +206,10 @@ func _on_gift_claimed(claimed_gift_id: int, slot_id: int, _special_id: StringNam
 	if claimed_gift_id != gift_id or _claimed:
 		return
 	_claimed = true
+	if not is_inside_tree():
+		return
 	var parent: Node = get_parent()
-	if parent == null or not (parent is Node3D):
+	if parent == null or not (parent is Node3D) or not parent.is_inside_tree():
 		return
 	spawn_claim_pop(parent as Node3D, global_position, _claim_color(slot_id), gift_config)
 
@@ -251,6 +277,8 @@ static func spawn_claim_pop(parent: Node3D, world_position: Vector3, color: Colo
 ## either condition stops holding, so the hint never lingers on a crate the
 ## ghost has moved away from or that just became claimable.
 func _update_hint(delta: float) -> void:
+	if _canopy != null and _canopy.visible:
+		return
 	if not _is_hint_hovering():
 		if _hint_time > 0.0:
 			_hint_time = 0.0

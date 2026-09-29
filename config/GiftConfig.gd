@@ -28,7 +28,15 @@ extends Resource
 
 ## Seconds a crate lives before it expires unclaimed (spec 2.6, "Crate life"
 ## owner decision: stationary pickups, 60 s is a prototype starting value).
-@export var life_s: float = 60.0
+@export var life_s: float = 10.0
+
+## Descent begins this many metres above the field and advances on host physics ticks.
+@export var drop_height_m: float = 12.0
+@export var fall_speed_m_s: float = 3.0
+## Additional clearance around the held block and crate for in-flight touch.
+@export var air_touch_margin_m: float = 0.08
+## Ignore remote cursor poses older than this; a stale pose cannot collect a gift.
+@export var cursor_max_age_s: float = 0.5
 
 ## Owner playtest report (Bontago-1pi.2, "Unclaimed presents should respawn in
 ## different places when unclaimed"): how far (meters, disk-local XZ distance)

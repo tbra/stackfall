@@ -1,8 +1,7 @@
 class_name MatchGifts
 extends RefCounted
 ## Match's gift-crate lifecycle (spec 2.6): per-window spawn rolls, the
-## territory-tick claim/expire sweep, and the per-slot pending-special FIFO
-## queue (held_special()/pop_pending_special()/pending_special_count()).
+## territory-tick claim/expire sweep, and one replaceable next gift per slot.
 ##
 ## Split out the same way MatchFeed/MatchPlacement/MatchTerritory/MatchLifecycle
 ## are (docs/AGENT_WORKFLOW.md "file ownership over function ownership"): a
@@ -18,6 +17,8 @@ var _match: MatchAutoload = null
 var _gift_config: GiftConfig = preload("res://config/gift_config.tres")
 
 const GIFT_CRATE_SCENE: PackedScene = preload("res://game/GiftCrate.tscn")
+const FALLING: int = 0
+const LANDED: int = 1
 
 ## The id MatchGifts.PENDING_SPECIAL_ID's default drawer hands out until P2c
 ## installs the real weighted SpecialDef pick (set_special_drawer() below).
@@ -78,10 +79,9 @@ var _special_rng_ready: bool = false
 ## the two paths cannot drift.
 var _crates: Dictionary = {}
 
-## Parallel to Match's slots (see MatchLifecycle._build_slots()): each slot's
-## FIFO of drawn-but-unspent special ids, capped at
-## GiftConfig.max_pending_specials (Bontago-csc/Orchestrator amendment 1 --
-## replaces the earlier single-slot "latest wins" scalar). Grown lazily by
+## Parallel to Match's slots: each inner array has zero or one next gift.
+## A new claim replaces its element and never changes the current held piece.
+## Grown lazily by
 ## _ensure_capacity() rather than sized off slot_count() at reset() time,
 ## because _reset_match_state() runs *before* the new match's slots are built
 ## (autoload/match/MatchLifecycle.gd's start_match(): reset, then
@@ -102,6 +102,9 @@ var _crates: Dictionary = {}
 ## runtime type check. Only the outer container's own element type is
 ## unenforced by the engine.
 var _pending_queues: Array[Array] = []
+## The queued gift is separate from the currently held piece. A claim never
+## changes this value; only the subsequent feed activates the queued gift.
+var _held_specials: Dictionary = {}
 
 ## Lazily created the first time a crate needs a visual (host spawn or client
 ## mirror), as a SIBLING of Match's own blocks_parent (a child of that node's
@@ -163,18 +166,41 @@ func _team_id_for_slot(slot_id: int) -> int:
 ## should be a special; the HUD (Bontago-1en.16, split out of this package)
 ## reads pending_special_count() for the queued-count indicator.
 func held_special(slot_id: int) -> StringName:
+	return StringName(_held_specials.get(slot_id, &""))
+
+
+func activate_next_special(slot_id: int) -> void:
 	if slot_id < 0 or slot_id >= _pending_queues.size():
-		return &""
+		return
 	var queue: Array = _pending_queues[slot_id]
 	if queue.is_empty():
-		return &""
-	return queue[0]
+		return
+	_held_specials[slot_id] = StringName(queue[0])
+	queue.clear()
 
 
-## Dequeues and returns `slot_id`'s oldest pending special, or &"" if its
-## queue is empty. P2c's _spawn_block() extension is the only mutator --
-## the queue no longer advances on its own when a new feed window opens (see
-## on_feed_block_issued() below); only an explicit pop shrinks it.
+func clear_held_special(slot_id: int) -> void:
+	_held_specials.erase(slot_id)
+
+
+func defer_held_special_after_burn(slot_id: int) -> void:
+	var special_id: StringName = held_special(slot_id)
+	if special_id == &"":
+		return
+	_ensure_capacity(slot_id)
+	var queue: Array = _pending_queues[slot_id]
+	# DECISION (Bontago-3ow.5): a later claim already owns the next slot.
+	# A burned held gift must not replace it with the older gift again.
+	# Without a later claim, keep the existing burn behavior: retry this gift
+	# as the next held piece, replacing the next ordinary draw.
+	if queue.is_empty():
+		queue.append(special_id)
+		_match._feed.replace_next_with_gift(slot_id)
+	_held_specials.erase(slot_id)
+
+
+## Consumes the held gift, or returns &"" for an ordinary piece. The next
+## gift remains untouched until MatchFeed issues it as a held piece.
 ##
 ## Bontago-1en.21: the one host-side emit site for Events.special_consumed --
 ## _attach_pending_special() (autoload/match/MatchPlacement.gd) is this
@@ -188,23 +214,20 @@ func held_special(slot_id: int) -> StringName:
 ## unit tests that call it directly (test_gift_claim.gd,
 ## test_match_throw.gd) exercise the same host-only emit deliberately.
 func pop_pending_special(slot_id: int) -> StringName:
-	if slot_id < 0 or slot_id >= _pending_queues.size():
+	var popped: StringName = held_special(slot_id)
+	if popped == &"":
 		return &""
-	var queue: Array = _pending_queues[slot_id]
-	if queue.is_empty():
-		return &""
-	var popped: StringName = queue.pop_front()
+	_held_specials.erase(slot_id)
 	Events.special_consumed.emit(slot_id, popped)
 	return popped
 
 
-## How many specials `slot_id` currently has queued. ui/HUD.gd's indicator
-## (Bontago-1en.16, not this package) is the only consumer today.
+## Count the held gift and the one queued behind it for HUD compatibility.
 func pending_special_count(slot_id: int) -> int:
 	if slot_id < 0 or slot_id >= _pending_queues.size():
-		return 0
+		return 1 if held_special(slot_id) != &"" else 0
 	var queue: Array = _pending_queues[slot_id]
-	return queue.size()
+	return queue.size() + (1 if held_special(slot_id) != &"" else 0)
 
 
 ## The gift_id every debug_queue_special() claim reports (Bontago-1en.24).
@@ -216,8 +239,8 @@ const DEBUG_GIFT_ID: int = -1
 
 
 ## Sandbox-only debug entry point (Bontago-1en.24, game/Sandbox.gd's F9
-## sandbox_force_special hotkey and `--force-special=`): appends `special_id`
-## straight onto `slot_id`'s pending queue and emits Events.gift_claimed with
+## sandbox_force_special hotkey and `--force-special=`): replaces `slot_id`'s
+## next gift and emits Events.gift_claimed with
 ## DEBUG_GIFT_ID, exactly the same signal _claim_gift() fires for a real
 ## claim, so the HUD/ghost/client mirrors all follow the normal path with no
 ## second code path to keep in sync. Skips the crate roll and the
@@ -227,11 +250,7 @@ const DEBUG_GIFT_ID: int = -1
 ## (`if not _match._is_host(): return`) plus one more check this package adds
 ## on top: `_match.config.sandbox` must also be true, so a real match can
 ## never be handed a free special through this seam even if something
-## mistakenly called it host-side. Also respects _claim_gift()'s own
-## GiftConfig.max_pending_specials cap (amendment 3's "a full queue does
-## nothing" contract) -- returns false and mutates nothing when the queue is
-## already full, so game/Sandbox.gd can show that in its panel rather than
-## silently dropping the request.
+## mistakenly called it host-side.
 func debug_queue_special(slot_id: int, special_id: StringName) -> bool:
 	if not _match._is_host():
 		return false
@@ -241,9 +260,9 @@ func debug_queue_special(slot_id: int, special_id: StringName) -> bool:
 		return false
 	_ensure_capacity(slot_id)
 	var queue: Array = _pending_queues[slot_id]
-	if queue.size() >= _gift_config.max_pending_specials:
-		return false
+	queue.clear()
 	queue.append(special_id)
+	_match._feed.replace_next_with_gift(slot_id)
 	# slot_id, not a team id -- matches _claim_gift()'s own gift_claimed emit
 	# below, whose second parameter is the resolved recipient slot
 	# (Events.gd's gift_claimed signal -- Bontago-keo.17).
@@ -276,13 +295,10 @@ func _ensure_capacity(slot_id: int) -> void:
 ## forced auto-drop, or a hot-seat turn change alike. autoload/Match.gd
 ## connects this to Events.feed_block_issued and forwards slot_id here.
 ##
-## Orchestrator amendment 1 / Bontago-csc (M4 P2b): earlier this connection
-## also cleared the slot's held special every window -- that unconditional
-## clear is gone. The pending queue now advances only by an explicit
-## pop_pending_special() call (P2c's _spawn_block() extension), so a slot
-## that claims two crates before it ever places one special keeps both
-## queued across as many ordinary feed windows as it takes to burn through
-## them. Only the roll is still gated here, by _should_roll_for_window()
+## Feed issuance activates a queued gift in MatchFeed before this callback.
+## Gift activation and the ordinary piece after gift use do not create new
+## ordinary placement windows, so neither gets a gift-spawn roll. Other
+## rolls are gated here by _should_roll_for_window()
 ## below -- see review fix (Beads Bontago-4fa): outside hot-seat every
 ## slot's window advances independently (spec 2.4's "players act
 ## concurrently, each handling their own supplied piece"), so rolling here
@@ -291,6 +307,8 @@ func _ensure_capacity(slot_id: int) -> void:
 ## whole match, not per player".
 func on_feed_block_issued(slot_id: int) -> void:
 	if not _match._is_host():
+		return
+	if _match._feed._suppress_gift_roll:
 		return
 	if not _should_roll_for_window(slot_id):
 		return
@@ -435,49 +453,203 @@ func _weighted_special_drawer() -> StringName:
 func _spawn_crate_at(point: Vector2) -> void:
 	var gift_id: int = _next_gift_id
 	_next_gift_id += 1
-	_crates[gift_id] = {"position": point, "age": 0.0, "node": _make_crate_node(point, gift_id)}
+	var landing: Vector3 = _world_at(point, GiftCrate.CRATE_SIZE.y * 0.5)
+	var origin: Vector3 = landing + Vector3.UP * _gift_config.drop_height_m
+	var node: GiftCrate = _make_crate_node(point, gift_id)
+	_crates[gift_id] = {"position": point, "origin": origin, "landing": landing,
+		"elapsed": 0.0, "age": 0.0, "phase": FALLING, "node": node}
+	if node != null:
+		node.global_position = origin
+		node.set_falling(true)
+	Events.gift_flight_spawned.emit(gift_id, origin, landing)
 	Events.gift_spawned.emit(gift_id, point)
 
 
-## Runs once per territory solve tick, right after autoload/Match.gd's
-## _run_territory_step() forward updates the raster, so team_at() below reads
-## this tick's freshest ownership. `delta` is the same step the territory
-## solve just ran with, so a crate's age advances in real time regardless of
-## TerritoryTuning.solve_hz.
-func claim_or_expire_gifts(delta: float) -> void:
+func _world_at(point: Vector2, height: float) -> Vector3:
+	var field: Field = _match.field()
+	return field.world_from_disk_local(point, height) if field != null else Vector3(point.x, height, point.y)
+
+
+## A copy safe for minimap and network consumers. Position is host-authored.
+func gift_state(gift_id: int) -> Dictionary:
+	var entry: Dictionary = _crates.get(gift_id, {})
+	if entry.is_empty():
+		return {}
+	return {"id": gift_id, "phase": int(entry.get("phase", LANDED)),
+		"position": entry["position"], "origin": entry.get("origin", Vector3.ZERO),
+		"landing": entry.get("landing", Vector3.ZERO),
+		"elapsed": float(entry.get("elapsed", 0.0)), "landed_age": float(entry.get("age", 0.0))}
+
+
+func gift_states() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var ids: Array[int] = []
+	for gift_id: int in _crates.keys():
+		ids.append(gift_id)
+	ids.sort()
+	for gift_id: int in ids:
+		result.append(gift_state(gift_id))
+	return result
+
+
+## Runs only on host physics ticks. Sorted ids and slots make contention stable.
+func tick_host(delta: float) -> void:
 	if not _match._is_host():
 		return
-	if _crates.is_empty():
+	if delta <= 0.0 or _crates.is_empty():
 		return
+	var ids: Array[int] = []
+	for gift_id: int in _crates.keys():
+		ids.append(gift_id)
+	ids.sort()
+	for gift_id: int in ids:
+		if not _crates.has(gift_id):
+			continue
+		var entry: Dictionary = _crates[gift_id]
+		if int(entry.get("phase", LANDED)) == FALLING:
+			var origin: Vector3 = entry["origin"]
+			var landing: Vector3 = entry["landing"]
+			var distance: float = origin.distance_to(landing)
+			var elapsed: float = float(entry["elapsed"]) + delta
+			entry["elapsed"] = elapsed
+			var progress: float = 1.0 if distance <= 0.0 else minf(elapsed * maxf(_gift_config.fall_speed_m_s, 0.001) / distance, 1.0)
+			var world_position: Vector3 = origin.lerp(landing, progress)
+			var node: GiftCrate = entry.get("node") as GiftCrate
+			if node != null and is_instance_valid(node):
+				node.global_position = world_position
+			for slot_id: int in range(_match.slot_count()):
+				if _held_block_touches(slot_id, world_position):
+					if _claim_gift_for_slot(gift_id, slot_id):
+						break
+			if not _crates.has(gift_id):
+				continue
+			if progress >= 1.0:
+				entry["phase"] = LANDED
+				entry["age"] = 0.0
+				if node != null and is_instance_valid(node):
+					node.set_falling(false)
+				Events.gift_landed.emit(gift_id, landing)
+				_claim_landed(gift_id)
+		else:
+			_claim_landed(gift_id)
+			if not _crates.has(gift_id):
+				continue
+			entry["age"] = float(entry.get("age", 0.0)) + delta
+			if float(entry["age"]) >= _gift_config.life_s:
+				_expire_gift(gift_id)
+
+
+## Territory can change between physics ticks; this hook follows each solve.
+func claim_or_expire_gifts(_delta: float) -> void:
+	if not _match._is_host():
+		return
+	for gift_id: int in _crates.keys():
+		if _crates.has(gift_id) and int(_crates[gift_id].get("phase", LANDED)) == LANDED:
+			_claim_landed(gift_id)
+
+
+func _claim_landed(gift_id: int) -> void:
 	var raster: TerritoryRaster = _match.raster()
 	var grid: CellGrid = _match.cell_grid()
 	if raster == null or grid == null:
 		return
+	var entry: Dictionary = _crates.get(gift_id, {})
+	if entry.is_empty() or int(entry.get("phase", LANDED)) != LANDED:
+		return
+	var cell: Vector2i = grid.world_to_cell(entry["position"])
+	var team: int = raster.team_at(cell.x, cell.y) if grid.in_bounds(cell.x, cell.y) else -1
+	if team >= 0:
+		_claim_gift(gift_id, team)
 
-	var to_claim: Dictionary = {}
-	var to_expire: Array[int] = []
-	for gift_id: int in _crates.keys():
-		var entry: Dictionary = _crates[gift_id]
-		var age: float = float(entry["age"]) + delta
-		entry["age"] = age
-		var position: Vector2 = entry["position"]
-		var cell: Vector2i = grid.world_to_cell(position)
-		# TerritorySolver/TerritoryRaster resolve team_at() to the real team id
-		# that owns this cell (config/MatchConfig.gd's team_count()/
-		# team_of_slot()). Bontago-keo.17 (owner decision "b"): the team id is
-		# only the input to _claim_gift()'s own recipient resolution -- it
-		# picks the ONE teammate whose home circle is nearest the crate, not a
-		# queue shared by the whole team.
-		var team: int = raster.team_at(cell.x, cell.y) if grid.in_bounds(cell.x, cell.y) else -1
-		if team >= 0:
-			to_claim[gift_id] = team
-		elif age >= _gift_config.life_s:
-			to_expire.append(gift_id)
 
-	for gift_id: int in to_claim.keys():
-		_claim_gift(gift_id, int(to_claim[gift_id]))
-	for gift_id: int in to_expire:
-		_expire_gift(gift_id)
+## Only an accepted host cursor or the local held ghost is eligible.
+func _held_block_touches(slot_id: int, crate_world: Vector3) -> bool:
+	var slot: PlayerSlot = _match.slot(slot_id)
+	var shape: BlockShape = _match.held_shape(slot_id)
+	if slot == null or not slot.home_flag_alive or shape == null:
+		return false
+	if (_match.config.hot_seat or _match.config.turn_based) and slot_id != _match.active_slot():
+		return false
+	var origin: Vector3 = Vector3.ZERO
+	var orientation: int = 0
+	var free_quat: Quaternion = Quaternion.IDENTITY
+	var found: bool = false
+	var replicator: Variant = _match.replicator()
+	if replicator != null and replicator.has_method("cursor_for_slot"):
+		var cursor: Dictionary = replicator.cursor_for_slot(slot_id)
+		if not cursor.is_empty() and float(cursor.get("age", INF)) <= _gift_config.cursor_max_age_s:
+			origin = cursor.get("origin", Vector3.ZERO)
+			orientation = int(cursor.get("orientation_index", 0))
+			free_quat = cursor.get("free_quat", Quaternion.IDENTITY)
+			found = true
+	var local_slot: bool = slot_id == _match.active_slot() if Net.is_offline() else Net.is_local_slot(slot_id)
+	if not found and local_slot:
+		var tree: SceneTree = _match.get_tree()
+		var ghost: GhostPreview = tree.get_first_node_in_group(GhostPreview.LOCAL_HELD_GROUP) as GhostPreview
+		if ghost != null and ghost.get_shape() == shape:
+			origin = ghost.global_position
+			orientation = ghost.orientation_index
+			free_quat = ghost.free_quaternion
+			found = true
+	if not found or not _match.is_pose_well_formed(origin, orientation, free_quat):
+		return false
+	var basis: Basis = Basis(free_quat) * BlockOrientations.get_basis(orientation)
+	var half: float = _match._physics_tuning.cube_size * 0.5 + _gift_config.air_touch_margin_m
+	var crate_half: Vector3 = GiftCrate.CRATE_SIZE * 0.5
+	var pivot: Vector3 = shape.bottom_center()
+	for cell: Vector3i in shape.cells:
+		var center: Vector3 = origin + basis * ((Vector3(cell) - pivot) * _match._physics_tuning.cube_size)
+		if _oriented_cube_overlaps_crate(center, basis, half, crate_world, crate_half):
+			return true
+	return false
+
+
+## Separating-axis test for a rotated held cell and the world-aligned crate.
+## The three face axes of each box plus nine edge cross-products cover every
+## possible separation. Only the held cell expands by the configured margin.
+func _oriented_cube_overlaps_crate(
+	cell_center: Vector3, basis: Basis, cell_half: float,
+	crate_center: Vector3, crate_half: Vector3
+) -> bool:
+	var world_axes: Array[Vector3] = [Vector3.RIGHT, Vector3.UP, Vector3.BACK]
+	var cell_axes: Array[Vector3] = [basis.x, basis.y, basis.z]
+	var axes: Array[Vector3] = []
+	axes.append_array(world_axes)
+	axes.append_array(cell_axes)
+	for world_axis: Vector3 in world_axes:
+		for cell_axis: Vector3 in cell_axes:
+			var cross_axis: Vector3 = world_axis.cross(cell_axis)
+			if cross_axis.length_squared() > 0.00000001:
+				axes.append(cross_axis)
+	var displacement: Vector3 = crate_center - cell_center
+	for axis: Vector3 in axes:
+		var crate_radius: float = (
+			crate_half.x * absf(axis.x) + crate_half.y * absf(axis.y)
+			+ crate_half.z * absf(axis.z)
+		)
+		var cell_radius: float = cell_half * (
+			absf(axis.dot(cell_axes[0])) + absf(axis.dot(cell_axes[1]))
+			+ absf(axis.dot(cell_axes[2]))
+		)
+		if absf(displacement.dot(axis)) > crate_radius + cell_radius:
+			return false
+	return true
+
+
+func _claim_gift_for_slot(gift_id: int, slot_id: int) -> bool:
+	if not _crates.has(gift_id):
+		return false
+	_ensure_capacity(slot_id)
+	var queue: Array = _pending_queues[slot_id]
+	if not _free_crate_visual(gift_id):
+		return false
+	_ensure_special_drawer_installed()
+	var special_id: StringName = _draw_special_id()
+	queue.clear()
+	queue.append(special_id)
+	_match._feed.replace_next_with_gift(slot_id)
+	Events.gift_claimed.emit(gift_id, slot_id, special_id)
+	return true
 
 
 ## Bontago-keo.17 (owner decision "b", overriding this file's earlier "one
@@ -487,19 +659,9 @@ func claim_or_expire_gifts(delta: float) -> void:
 ## below does that resolution; if no teammate's home flag is still alive, the
 ## crate is left untouched (no claim, no crate consumed, no event).
 ##
-## Bontago-csc, superseding the earlier "latest wins" scalar: a claim now
-## pushes onto the resolved recipient's own FIFO queue, capped at
-## GiftConfig.max_pending_specials.
-##
-## Orchestrator amendment 3 (2026-09-23, overrides this file's earlier
-## decision that a claim into a full queue "still pops the crate"): a claim
-## landing while the recipient's queue is already full does NOT consume the
-## crate -- it stays alive for anyone else in range and still expires by
-## GiftConfig.life_s, and gift_claimed does not fire. The cap check therefore
-## runs *before* _free_crate_visual(), not after -- simplest option that
-## cannot let a full queue deny the crate to every other player forever. The
-## crate's position is read before _free_crate_visual() erases its `_crates`
-## entry, since _resolve_recipient_slot() needs it.
+## Bontago-3ow.5: the latest claim replaces this recipient's next gift or
+## ordinary draw. Resolve the recipient before freeing the crate because its
+## position is needed for that choice.
 func _claim_gift(gift_id: int, team_id: int) -> void:
 	if team_id < 0:
 		return
@@ -512,13 +674,13 @@ func _claim_gift(gift_id: int, team_id: int) -> void:
 		return
 	_ensure_capacity(recipient_slot)
 	var queue: Array = _pending_queues[recipient_slot]
-	if queue.size() >= _gift_config.max_pending_specials:
-		return
 	if not _free_crate_visual(gift_id):
 		return
 	_ensure_special_drawer_installed()
 	var special_id: StringName = _draw_special_id()
+	queue.clear()
 	queue.append(special_id)
+	_match._feed.replace_next_with_gift(recipient_slot)
 	Events.gift_claimed.emit(gift_id, recipient_slot, special_id)
 
 
@@ -697,10 +859,68 @@ func _make_crate_node(point: Vector2, gift_id: int) -> GiftCrate:
 # visual, and the claim mirror also keeps held_special()/pending_special_
 # count() accurate for a client's own future HUD/P2c use.
 
-func apply_replicated_spawn(gift_id: int, position: Vector2) -> void:
-	if _crates.has(gift_id):
+## Interpolate visuals only. Reaching the endpoint does not grant landing,
+## claim or expiry authority; the reliable host event commits each transition.
+func tick_client(delta: float) -> void:
+	if _match._is_host() or not is_finite(delta) or delta <= 0.0:
 		return
-	_crates[gift_id] = {"position": position, "age": 0.0, "node": _make_crate_node(position, gift_id)}
+	for entry: Dictionary in _crates.values():
+		if int(entry.get("phase", LANDED)) != FALLING:
+			continue
+		var origin: Vector3 = entry["origin"]
+		var landing: Vector3 = entry["landing"]
+		var distance: float = origin.distance_to(landing)
+		var elapsed: float = float(entry["elapsed"]) + delta
+		entry["elapsed"] = elapsed
+		var progress: float = 1.0 if distance <= 0.0 else minf(elapsed * maxf(_gift_config.fall_speed_m_s, 0.001) / distance, 1.0)
+		var node: GiftCrate = entry.get("node") as GiftCrate
+		if node != null and is_instance_valid(node):
+			node.global_position = origin.lerp(landing, progress)
+
+
+func apply_replicated_spawn(gift_id: int, position: Vector2) -> void:
+	if gift_id < 0 or not position.is_finite() or _crates.has(gift_id):
+		return
+	var landing: Vector3 = _world_at(position, GiftCrate.CRATE_SIZE.y * 0.5)
+	_crates[gift_id] = {"position": position, "origin": landing, "landing": landing,
+		"elapsed": 0.0, "age": 0.0, "phase": LANDED, "node": _make_crate_node(position, gift_id)}
+
+
+func apply_replicated_flight(gift_id: int, origin: Vector3, landing: Vector3) -> void:
+	if gift_id < 0 or not origin.is_finite() or not landing.is_finite():
+		return
+	var field: Field = _match.field()
+	var point: Vector2 = field.disk_local_from_world(landing) if field != null else Vector2(landing.x, landing.z)
+	if not _crates.has(gift_id):
+		apply_replicated_spawn(gift_id, point)
+	var entry: Dictionary = _crates[gift_id]
+	if entry.get("flight_received", false):
+		return
+	entry["flight_received"] = true
+	entry["position"] = point
+	entry["origin"] = origin
+	entry["landing"] = landing
+	entry["phase"] = FALLING
+	entry["elapsed"] = 0.0
+	var node: GiftCrate = entry.get("node") as GiftCrate
+	if node != null and is_instance_valid(node):
+		node.global_position = origin
+		node.set_falling(true)
+
+
+func apply_replicated_landing(gift_id: int, landing: Vector3) -> void:
+	if not _crates.has(gift_id) or not landing.is_finite():
+		return
+	var entry: Dictionary = _crates[gift_id]
+	if int(entry.get("phase", LANDED)) != FALLING:
+		return
+	entry["phase"] = LANDED
+	entry["landing"] = landing
+	entry["age"] = 0.0
+	var node: GiftCrate = entry.get("node") as GiftCrate
+	if node != null and is_instance_valid(node):
+		node.global_position = landing
+		node.set_falling(false)
 
 
 ## Bontago-keo.17 (owner decision "b"): the resolved RECIPIENT slot arrives
@@ -726,8 +946,7 @@ func apply_replicated_claim(gift_id: int, slot_id: int, special_id: StringName) 
 		return
 	_ensure_capacity(slot_id)
 	var queue: Array = _pending_queues[slot_id]
-	if queue.size() >= _gift_config.max_pending_specials:
-		return
+	queue.clear()
 	queue.append(special_id)
 
 
@@ -757,17 +976,12 @@ func apply_replicated_expire(gift_id: int) -> void:
 func apply_replicated_special_consumed(slot_id: int, special_id: StringName) -> void:
 	if slot_id < 0 or slot_id >= _match.slot_count():
 		return
-	if slot_id >= _pending_queues.size():
-		return
-	var queue: Array = _pending_queues[slot_id]
-	if queue.is_empty():
-		return
-	if queue[0] != special_id:
+	if held_special(slot_id) != special_id:
 		push_warning(
 			"MatchGifts: special_consumed mirror mismatch for slot %d (head=%s, reported=%s); popping head anyway"
-			% [slot_id, queue[0], special_id]
+			% [slot_id, held_special(slot_id), special_id]
 		)
-	queue.pop_front()
+	_held_specials.erase(slot_id)
 
 
 ## autoload/match/MatchLifecycle.gd's _reset_match_state() one-line call:
@@ -778,6 +992,10 @@ func apply_replicated_special_consumed(slot_id: int, special_id: StringName) -> 
 ## dependency (set_special_drawer()), not per-match state, the same way
 ## _gift_config is never reset here either.
 func reset() -> void:
+	_held_specials.clear()
+	# MatchLifecycle clears the feed arrays before calling this reset.
+	_match._feed._next_gift_shapes.clear()
+	_match._feed._held_is_gift.clear()
 	for gift_id: int in _crates.keys():
 		var entry: Dictionary = _crates[gift_id]
 		var node: GiftCrate = entry.get("node") as GiftCrate

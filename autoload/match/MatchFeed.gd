@@ -34,6 +34,11 @@ var _feed_seq: Array[int] = []
 ## neither ever sets this. Parallel to Match's slots, like every other
 ## per-slot feed array.
 var _release_locked: Array[bool] = []
+## A gift uses the ordinary bag's carrier shape, but is a distinct release.
+## These dictionaries are cleared when a new bag is built or a match resets.
+var _next_gift_shapes: Dictionary = {}
+var _held_is_gift: Dictionary = {}
+var _suppress_gift_roll: bool = false
 
 ## Lazily built id -> BlockShape index, used only by the client read model.
 var _shapes_by_id: Dictionary = {}
@@ -72,6 +77,8 @@ func held_shape(slot_id: int) -> BlockShape:
 
 ## What the HUD's next-block preview shows for `slot_id`.
 func next_shape(slot_id: int) -> BlockShape:
+	if _next_gift_shapes.has(slot_id):
+		return _next_gift_shapes[slot_id] as BlockShape
 	if slot_id < 0 or slot_id >= _bags.size():
 		return null
 	var preview: Array[BlockShape] = _bags[slot_id].peek(1)
@@ -111,10 +118,20 @@ func set_feed_timer_enabled(enabled: bool) -> void:
 func _issue_next_block(slot_id: int) -> void:
 	var bag: BlockBag = _bags[slot_id]
 	var shape: BlockShape = bag.next()
+	var is_gift: bool = _next_gift_shapes.has(slot_id)
+	_next_gift_shapes.erase(slot_id)
+	_held_is_gift[slot_id] = is_gift
+	if is_gift:
+		_match._gifts.activate_next_special(slot_id)
+	else:
+		_match._gifts.clear_held_special(slot_id)
 	_held_shapes[slot_id] = shape
 	var preview: Array[BlockShape] = bag.peek(1)
 	var next_id: StringName = preview[0].id if preview.size() > 0 else &""
+	var was_suppressed: bool = _suppress_gift_roll
+	_suppress_gift_roll = was_suppressed or is_gift
 	Events.feed_block_issued.emit(slot_id, shape.id if shape != null else &"", next_id)
+	_suppress_gift_roll = was_suppressed
 
 
 func _tick_feed(delta: float) -> void:
@@ -226,6 +243,8 @@ func _tick_client_display(delta: float) -> void:
 
 func _build_bags() -> void:
 	_bags.clear()
+	_next_gift_shapes.clear()
+	_held_is_gift.clear()
 	for i: int in range(_match.slot_count()):
 		# DECISION (autoload/Match.gd): MatchConfig has one rng_seed for the
 		# whole match; each slot's bag needs its own seed so slots don't deal
@@ -262,6 +281,7 @@ func _build_bags() -> void:
 ## just not the instant a block lands, so the same slot likewise never places
 ## twice in the same turn and never needs a release lock either.
 func _consume_and_refeed(slot_id: int, auto_drop: bool) -> void:
+	var released_gift: bool = is_held_gift(slot_id)
 	# The sequence advances before the new block is issued, so the
 	# feed_block_issued that tells the owner "you have a block" already
 	# carries the sequence its next intent must quote.
@@ -270,6 +290,13 @@ func _consume_and_refeed(slot_id: int, auto_drop: bool) -> void:
 		_feed_time_left[slot_id] = _match.config.block_timer
 		_feed_expired[slot_id] = false
 		_issue_next_block(slot_id)
+		return
+	if released_gift and not _feed_expired[slot_id]:
+		# DECISION: a gift consumes its own exception, not an ordinary window.
+		# Keep the original clock and ordinary release eligibility intact.
+		_suppress_gift_roll = true
+		_issue_next_block(slot_id)
+		_suppress_gift_roll = false
 		return
 
 	if auto_drop or _feed_expired[slot_id]:
@@ -345,7 +372,30 @@ func feed_seq(slot_id: int) -> int:
 func is_release_locked(slot_id: int) -> bool:
 	if slot_id < 0 or slot_id >= _release_locked.size():
 		return false
-	return _release_locked[slot_id]
+	return _release_locked[slot_id] and not is_held_gift(slot_id)
+
+
+func is_held_gift(slot_id: int) -> bool:
+	return bool(_held_is_gift.get(slot_id, false))
+
+
+## A claim replaces the bag's next draw. The next draw after the discarded
+## one supplies the gift carrier shape; a later claim discards that carrier.
+func replace_next_with_gift(slot_id: int) -> StringName:
+	if slot_id < 0 or slot_id >= _bags.size():
+		return &""
+	_bags[slot_id].next()
+	var preview: Array[BlockShape] = _bags[slot_id].peek(1)
+	if preview.is_empty():
+		return &""
+	_next_gift_shapes[slot_id] = preview[0]
+	return preview[0].id
+
+
+func apply_replicated_next_gift(slot_id: int, shape_id: StringName) -> void:
+	var shape: BlockShape = _shape_by_id(shape_id)
+	if shape != null:
+		_next_gift_shapes[slot_id] = shape
 
 
 ## Test-only seam (tests/unit/test_match_net.gd, test_remote_intent_
@@ -403,6 +453,15 @@ func apply_replicated_feed(
 ) -> void:
 	if slot_id < 0 or slot_id >= _held_shapes.size():
 		return
+	if host_feed_seq >= 0 and host_feed_seq < _feed_seq[slot_id]:
+		return
+	var is_gift: bool = _next_gift_shapes.has(slot_id)
+	_next_gift_shapes.erase(slot_id)
+	_held_is_gift[slot_id] = is_gift
+	if is_gift:
+		_match._gifts.activate_next_special(slot_id)
+	else:
+		_match._gifts.clear_held_special(slot_id)
 	_held_shapes[slot_id] = _shape_by_id(shape_id)
 	if host_feed_seq >= 0:
 		_feed_seq[slot_id] = host_feed_seq

@@ -37,6 +37,10 @@ extends Resource
 ## draws at each slot's home-flag position (docs/art_mockups/
 ## 08-cel-shaded-home-beacons.png).
 @export var minimap_beacon_radius_px: float = 4.0
+@export var minimap_gift_radius_px: float = 5.0
+@export var minimap_gift_falling_color: Color = Color(1.0, 0.91, 0.35)
+@export var minimap_gift_landed_color: Color = Color(1.0, 0.69, 0.27)
+@export var minimap_gift_outline_color: Color = Color(0.08, 0.09, 0.12, 0.95)
 ## Border stroke width, in pixels, of the minimap's own frame ring --
 ## a thin rim (owner review 2026-09-26: "thin light-grey rim (~2px)", not a
 ## thick gold ring).

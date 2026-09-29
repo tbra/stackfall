@@ -276,6 +276,8 @@ func request_place(
 			% [slot_id, reason]
 		)
 		_burn_block(spawned, final_disk_origin)
+		if _match._feed.is_held_gift(slot_id):
+			_match._gifts.defer_held_special_after_burn(slot_id)
 		Events.placement_rejected.emit(slot_id, reason)
 	else:
 		# The block actually landed somewhere valid -- at the caller's own

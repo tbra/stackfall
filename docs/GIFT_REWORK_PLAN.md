@@ -24,8 +24,9 @@ from MatchNet. Tuning values belong in GiftConfig, not in scripts.
    `config/GiftConfig.gd`, `config/gift_config.tres`, `autoload/Events.gd`,
    `autoload/Match.gd`. Define the `FALLING`/`LANDED` phase read model and
    host-authored landed event. Retain the existing gift-spawn roll and cap.
-   Fix the replacement and displaced-piece semantics in the decision bead
-   before freezing the feed interface. Gate: Godot import and typed parse.
+   Bontago-3ow.5 settles the replacement semantics: latest claim wins the
+   next slot and the displaced gift or ordinary draw is discarded. Gate:
+   Godot import and typed parse.
 2. **Host gift lifecycle** (`Bontago-3ow.1`): `autoload/match/MatchGifts.gd`,
    `core/gifts/GiftSpawner.gd`, `game/GiftCrate.gd/.tscn`, and focused gift tests.
    Store deterministic spawn origin, landing point and elapsed descent time;
@@ -63,11 +64,11 @@ Run any physics benchmarks without competing Godot processes.
 
 ## Decisions and dependencies
 
-`Bontago-3ow.3` depends on the queue decision and the interface package;
+`Bontago-3ow.3` depends on the now-answered queue decision and interface package;
 presentation depends on the replicated phase model. `Bontago-22y.1` through
 `.3` (new gifts) depend on this rework. The 2026-09-29 owner instructions
 already resolve stationary versus descending gifts, 60 versus 10 seconds, and
 ordinary FIFO versus next-piece replacement; no second approval is needed for
-those changes. The queue decision must settle whether another claim replaces an
-already queued gift and whether the displaced ordinary bag draw is discarded
-or deferred. Fall speed and touch margin are tunable implementation values.
+those changes. Bontago-3ow.5 records the owner's literal replacement rule:
+a new claim discards the previous next piece, whether gift or ordinary block.
+Fall speed and touch margin are tunable implementation values.

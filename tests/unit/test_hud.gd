@@ -214,6 +214,27 @@ func test_feed_block_issued_event_ignores_other_slots() -> void:
 	assert_null(hud._next_shape)
 
 
+func test_gift_claim_refreshes_only_recipient_next_preview_immediately() -> void:
+	var hud: HUD = _make_hud()
+	var fake_match: FakeMatch = FakeMatch.new()
+	var gift_shape: BlockShape = load("res://config/blocks/bar4.tres")
+	hud.match_provider = fake_match
+	hud.set_local_slot(0)
+	fake_match.next_shapes[0] = gift_shape
+	Events.gift_claimed.emit(42, 1, &"jumping_bean")
+	assert_null(hud._next_shape)
+	Events.gift_claimed.emit(43, 0, &"jumping_bean")
+	assert_same(hud._next_shape, gift_shape)
+	assert_eq(hud._next_label.text, "NEXT")
+	fake_match.pending_special_count_by_slot[0] = 1
+	hud._refresh_special_indicator()
+	assert_eq(hud._next_label.text, "NEXT GIFT")
+	fake_match.held_special_by_slot[0] = &"jumping_bean"
+	hud._refresh_special_indicator()
+	assert_eq(hud._held_label.text, "HELD: Jumping Bean")
+	assert_eq(hud._next_label.text, "NEXT")
+
+
 func test_territory_share_changed_event_updates_hud() -> void:
 	var hud: HUD = _make_hud()
 	Events.territory_share_changed.emit(PackedFloat32Array([0.3, 0.7]))
@@ -337,7 +358,7 @@ func test_process_shows_locked_when_the_local_slots_release_is_locked() -> void:
 # --- Bontago-1en.16: pending-special queue indicator ------------------------
 # Drives the real Match/MatchGifts singleton, the same way
 # tests/unit/test_gift_claim.gd does, rather than FakeMatch -- these tests
-# are specifically about the indicator's read of the live FIFO queue.
+# are specifically about the indicator's read of held and next gifts.
 
 
 func test_special_indicator_hidden_when_nothing_is_pending() -> void:
@@ -367,7 +388,7 @@ func test_special_indicator_shows_a_count_badge_once_a_second_special_is_queued(
 
 	Match._gifts._ensure_capacity(0)
 	var queue: Array = Match._gifts._pending_queues[0]
-	queue.append(&"jumping_bean")
+	Match._gifts._held_specials[0] = &"jumping_bean"
 	queue.append(&"jumping_bean")
 	Events.gift_claimed.emit(1, 0, &"jumping_bean")
 
@@ -383,6 +404,7 @@ func test_special_indicator_hides_again_after_popping_the_last_pending_special()
 	hud._process(0.0)
 	assert_true(hud._special_indicator.visible, "must show before the pop")
 
+	Match._gifts.activate_next_special(0)
 	Match.pop_pending_special(0)
 	hud._process(0.0)
 
@@ -555,6 +577,29 @@ func test_set_map_def_frames_from_the_maps_radius() -> void:
 		large_extent > small_extent,
 		"a bigger map's radius must widen the minimap's framed half-extent"
 	)
+
+
+func test_minimap_gift_markers_follow_camera_and_disappear_from_read_model() -> void:
+	var hud: HUD = _make_hud()
+	var minimap: Minimap = hud._minimap
+	var map_def: MapDef = MapDef.new()
+	map_def.field_radius = 20.0
+	minimap.set_map_def(map_def)
+	minimap.set_gift_states([
+		{"id": 7, "phase": MatchGifts.FALLING, "position": Vector2(10.0, 0.0)},
+		{"id": 8, "phase": MatchGifts.LANDED, "position": Vector2(0.0, 10.0)},
+	])
+	var markers: Array[Dictionary] = minimap.gift_marker_draw_data()
+	assert_eq(markers.size(), 2)
+	assert_gt((markers[0]["pixel"] as Vector2).x, minimap.size.x * 0.5)
+	assert_lt((markers[1]["pixel"] as Vector2).y, minimap.size.y * 0.5)
+	minimap.set_camera_basis(Vector2(0.0, -1.0), Vector2(1.0, 0.0))
+	markers = minimap.gift_marker_draw_data()
+	assert_lt((markers[0]["pixel"] as Vector2).y, minimap.size.y * 0.5)
+	minimap.set_gift_states([{"id": 8, "phase": MatchGifts.LANDED, "position": Vector2(0.0, 10.0)}])
+	assert_eq(minimap.gift_marker_draw_data().size(), 1)
+	minimap.set_gift_states([])
+	assert_eq(minimap.gift_marker_draw_data().size(), 0)
 
 
 ## Drives the minimap the same way real play does -- through

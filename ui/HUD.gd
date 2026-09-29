@@ -96,6 +96,8 @@ var match_provider: Variant = null
 @onready var _timer_ring: Control = %TimerRing
 @onready var _shape_preview: Control = %ShapePreview
 @onready var _next_shape_preview: Control = %NextShapePreview
+@onready var _next_label: Label = $HeldNextPanel/HeldNextRow/NextColumn/NextLabel
+@onready var _held_label: Label = $HeldNextPanel/HeldNextRow/HeldColumn/HeldLabel
 @onready var _special_indicator: Label = %SpecialIndicator
 @onready var _locked_label: Label = %LockedLabel
 @onready var _height_label: Label = %HeightLabel
@@ -212,6 +214,9 @@ func _ready() -> void:
 	Events.match_won.connect(_on_match_won)
 	Events.player_eliminated.connect(_on_player_eliminated)
 	Events.gift_claimed.connect(_on_gift_claimed)
+	Events.gift_flight_spawned.connect(_on_gift_state_changed)
+	Events.gift_landed.connect(_on_gift_state_changed)
+	Events.gift_expired.connect(_on_gift_state_changed)
 
 
 func _process(_delta: float) -> void:
@@ -234,6 +239,7 @@ func _process(_delta: float) -> void:
 		var forward: Vector3 = -basis.z
 		var right: Vector3 = basis.x
 		_minimap.set_camera_basis(Vector2(right.x, right.z), Vector2(forward.x, forward.z))
+	_update_gift_markers()
 	if match_provider == null or _active_slot < 0:
 		return
 	set_feed_progress(match_provider.feed_progress(_active_slot))
@@ -270,6 +276,7 @@ func set_active_slot(slot_id: int, color: Color) -> void:
 	)
 	_turn_label.modulate = ELIMINATED_COLOR if eliminated else color
 	_pull_current_shapes(slot_id)
+	_refresh_special_indicator()
 	_timer_ring.queue_redraw()
 	_shape_preview.queue_redraw()
 
@@ -288,6 +295,7 @@ func set_local_slot(slot_id: int) -> void:
 	_turn_label.text = "%s — eliminated" % display_name if eliminated else display_name
 	_turn_label.modulate = ELIMINATED_COLOR if eliminated else _active_color
 	_pull_current_shapes(slot_id)
+	_refresh_special_indicator()
 	_timer_ring.queue_redraw()
 	_shape_preview.queue_redraw()
 	_next_shape_preview.queue_redraw()
@@ -472,6 +480,7 @@ func _on_feed_block_issued(slot_id: int, shape_id: StringName, next_shape_id: St
 		return
 	set_held_shape(_shapes_by_id.get(shape_id) as BlockShape)
 	set_next_shape(_shapes_by_id.get(next_shape_id) as BlockShape)
+	_refresh_special_indicator()
 
 
 func _on_placement_rejected(slot_id: int, reason: StringName) -> void:
@@ -534,10 +543,22 @@ func _on_player_eliminated(slot_id: int, _team_id: int) -> void:
 ## don't hold it), so both sides of the comparison go through
 ## _team_of_slot(): the active slot's own team against the recipient's team.
 func _on_gift_claimed(_gift_id: int, slot_id: int, special_id: StringName) -> void:
+	_update_gift_markers()
+	if slot_id == _active_slot and match_provider != null:
+		set_next_shape(match_provider.next_shape(slot_id))
 	if _team_of_slot(_active_slot) != _team_of_slot(slot_id):
 		return
 	_refresh_special_indicator()
 	show_gift_toast(special_id)
+
+
+func _on_gift_state_changed(_gift_id: int, _position: Variant = null, _landing: Variant = null) -> void:
+	_update_gift_markers()
+
+
+func _update_gift_markers() -> void:
+	if match_provider != null and match_provider.has_method(&"gift_states"):
+		_minimap.set_gift_states(match_provider.gift_states())
 
 
 # --- Helpers -----------------------------------------------------------------
@@ -591,6 +612,7 @@ func _update_minimap() -> void:
 		var slot: PlayerSlot = match_provider.slot(i)
 		homes.append(slot.home_position if slot != null else Vector2.ZERO)
 	_minimap.set_match_state(raster, running_config.player_colors, homes)
+	_update_gift_markers()
 
 
 ## M7 P5 / Bontago-mp0.3.3: the one StyleBoxFlat a reskinned HUD panel uses,
@@ -675,12 +697,16 @@ func _name_for_slot(slot_id: int) -> String:
 func _refresh_special_indicator() -> void:
 	if match_provider == null or _active_slot < 0:
 		_special_indicator.visible = false
+		_held_label.text = "HELD"
+		_next_label.text = "NEXT"
 		return
 	var count: int = int(match_provider.pending_special_count(_active_slot))
+	var head_id: StringName = match_provider.held_special(_active_slot)
+	_held_label.text = "HELD: %s" % _special_display_name(head_id) if head_id != &"" else "HELD"
+	_next_label.text = "NEXT GIFT" if count > (1 if head_id != &"" else 0) else "NEXT"
 	if count <= 0:
 		_special_indicator.visible = false
 		return
-	var head_id: StringName = match_provider.held_special(_active_slot)
 	_special_indicator.text = _special_display_text(head_id, count)
 	_special_indicator.modulate = _active_color
 	_special_indicator.visible = true

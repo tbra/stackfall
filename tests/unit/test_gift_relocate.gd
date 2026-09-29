@@ -80,7 +80,7 @@ func test_expired_crate_is_replaced_by_a_new_one_at_least_min_distance_away() ->
 	var old_gift_id: int = _inject_crate_at(_OLD_POSITION)
 	watch_signals(Events)
 
-	Match._gifts.claim_or_expire_gifts(1.5)
+	Match._gifts.tick_host(1.5)
 
 	assert_false(Match._gifts._crates.has(old_gift_id), "the expired crate must be removed")
 	assert_signal_emitted_with_parameters(Events, "gift_expired", [old_gift_id])
@@ -91,6 +91,8 @@ func test_expired_crate_is_replaced_by_a_new_one_at_least_min_distance_away() ->
 	var new_gift_id: int = Match._gifts._crates.keys()[0]
 	assert_ne(new_gift_id, old_gift_id, "the replacement must be a new crate, not the same id")
 	var new_position: Vector2 = Match._gifts._crates[new_gift_id]["position"]
+	assert_eq(int(Match._gifts._crates[new_gift_id]["phase"]), MatchGifts.FALLING,
+		"an expired landed gift is replaced by a fresh descending gift")
 	assert_ne(new_position, _OLD_POSITION, "the replacement must land somewhere different")
 	assert_gte(new_position.distance_to(_OLD_POSITION), Match._gifts._gift_config.relocate_min_distance_m,
 		"the replacement must clear GiftConfig.relocate_min_distance_m from the crate it replaces")
@@ -125,7 +127,7 @@ func test_falls_back_to_no_replacement_when_no_point_can_clear_the_distance() ->
 	var old_gift_id: int = _inject_crate_at(_OLD_POSITION)
 	watch_signals(Events)
 
-	Match._gifts.claim_or_expire_gifts(1.5)
+	Match._gifts.tick_host(1.5)
 
 	assert_false(Match._gifts._crates.has(old_gift_id), "the expired crate must still be removed")
 	assert_signal_emitted_with_parameters(Events, "gift_expired", [old_gift_id])

@@ -105,6 +105,10 @@ signal player_eliminated(slot_id: int, team_id: int)
 ## client only ever builds the visual from this and the two events below.
 signal gift_spawned(gift_id: int, position: Vector2)
 
+## Host flight contract; the old gift_spawned signal remains for existing consumers.
+signal gift_flight_spawned(gift_id: int, origin: Vector3, landing: Vector3)
+signal gift_landed(gift_id: int, landing: Vector3)
+
 ## A crate in a team's territory popped: `slot_id` is the RESOLVED RECIPIENT --
 ## the one teammate whose home circle (PlayerSlot.home_position) is nearest
 ## the crate, picked by autoload/match/MatchGifts.gd's _resolve_recipient_slot()

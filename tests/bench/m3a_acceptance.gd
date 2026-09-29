@@ -230,6 +230,7 @@ var _consumed_events: Array[Dictionary] = []
 ## happens to read at any one polled instant (see _run_client_throw_phase()'s
 ## own DECISION on why the derived count alone is not enough there).
 var _claimed_events: Array[Dictionary] = []
+var _gift_flight_phases: Array[int] = []
 
 ## Found dynamically at /root/MatchNet — see the header's guard 1. Once the
 ## integrator registers the real autoload this still resolves correctly;
@@ -264,6 +265,8 @@ func _ready() -> void:
 	Events.placement_rejected.connect(_on_placement_rejected)
 	Events.special_consumed.connect(_on_special_consumed)
 	Events.gift_claimed.connect(_on_gift_claimed_for_slot)
+	Events.gift_flight_spawned.connect(_on_fixture_gift_flight)
+	Events.gift_landed.connect(_on_fixture_gift_landed)
 
 	if not await _wait_for_connection():
 		print("M3A_ACCEPT harness_blocked layer=Net reason=stub_no_transport mode=%d peers=%d" % [
@@ -495,7 +498,12 @@ func _run_host_throw_phase() -> void:
 	# the *next* claim to replicate). Only the throw itself ever leaves a
 	# block moving this fast, so filtering on speed finds the right one
 	# regardless of how many ordinary auto-drops land around it.
+	# Real reliable wire lifecycle before the existing accepted-claim fixture.
+	Events.gift_flight_spawned.emit(THROW_GIFT_ID_ACCEPT, Vector3.UP, Vector3.ZERO)
+	Events.gift_spawned.emit(THROW_GIFT_ID_ACCEPT, Vector2.ZERO)
+	Events.gift_landed.emit(THROW_GIFT_ID_ACCEPT, Vector3.ZERO)
 	Match._gifts.apply_replicated_claim(THROW_GIFT_ID_ACCEPT, THROW_SLOT_ID, MatchGifts.PENDING_SPECIAL_ID)
+	Match._feed.replace_next_with_gift(THROW_SLOT_ID)
 	Events.gift_claimed.emit(THROW_GIFT_ID_ACCEPT, THROW_SLOT_ID, MatchGifts.PENDING_SPECIAL_ID)
 
 	if not await _wait_for_condition(
@@ -537,6 +545,7 @@ func _run_host_throw_phase() -> void:
 	# ThrowRules' "outside your own territory" (spec 2.5), not merely "no
 	# special pending" (the first claim's was already spent above).
 	Match._gifts.apply_replicated_claim(THROW_GIFT_ID_REJECT, THROW_SLOT_ID, MatchGifts.PENDING_SPECIAL_ID)
+	Match._feed.replace_next_with_gift(THROW_SLOT_ID)
 	Events.gift_claimed.emit(THROW_GIFT_ID_REJECT, THROW_SLOT_ID, MatchGifts.PENDING_SPECIAL_ID)
 
 	# The client's own _run_client_throw_phase() does the actual send and the
@@ -678,6 +687,13 @@ func _run_client_throw_phase() -> void:
 		"throw_client_learned_pending_special", true,
 		"pending_special_count(%d)=%d" % [slot_id, Match.pending_special_count(slot_id)]
 	)
+	if not await _wait_for_condition(
+		func() -> bool: return Match.held_special(slot_id) != &"",
+		THROW_CLAIM_WAIT_SECONDS
+	):
+		_throw_check("throw_client_activated_gift", false, "gift stayed queued behind ordinary piece")
+		return
+	_throw_check("throw_client_activated_gift", true, "feed_seq=%d" % Match.feed_seq(slot_id))
 
 	# DECISION (tests/bench/m3a_acceptance.gd, Bontago-1en.21): captured here,
 	# before the throw below is even submitted -- at this exact point exactly
@@ -690,6 +706,8 @@ func _run_client_throw_phase() -> void:
 	# arrive close enough behind the first's consumed-event replication that
 	# a later snapshot already includes it, leaving no "one more claim"
 	# transition for the wait near the end of this function to ever detect.
+	_throw_check("gift_flight_landed_wire_order", _gift_flight_phases == [MatchGifts.FALLING, MatchGifts.LANDED], str(_gift_flight_phases))
+	_throw_check("gift_claim_removed_visual", Match.gift_state(THROW_GIFT_ID_ACCEPT).is_empty(), "host claim removes client gift")
 	var claims_before_throw: int = _claimed_events.size()
 
 	# Bontago-1en.21 (was a known limitation, now fixed): the host replicates
@@ -780,6 +798,12 @@ func _run_client_throw_phase() -> void:
 			_claimed_events, slot_id, Match.pending_special_count(slot_id)
 		]
 	)
+	if not await _wait_for_condition(
+		func() -> bool: return Match.held_special(slot_id) != &"",
+		THROW_CLAIM_WAIT_SECONDS
+	):
+		_throw_check("throw_client_activated_second_gift", false, "second gift stayed queued")
+		return
 
 	var far_origin: Vector3 = Vector3(
 		THROW_OUTSIDE_TERRITORY_POINT.x, PLACE_HEIGHT, THROW_OUTSIDE_TERRITORY_POINT.y
@@ -952,3 +976,13 @@ func _wait_for_condition(check: Callable, timeout_seconds: float) -> bool:
 			return true
 		await get_tree().create_timer(0.05).timeout
 	return bool(check.call())
+
+
+func _on_fixture_gift_flight(gift_id: int, _origin: Vector3, _landing: Vector3) -> void:
+	if gift_id == THROW_GIFT_ID_ACCEPT and not Net.is_host():
+		_gift_flight_phases.append(int(Match.gift_state(gift_id).get("phase", -1)))
+
+
+func _on_fixture_gift_landed(gift_id: int, _landing: Vector3) -> void:
+	if gift_id == THROW_GIFT_ID_ACCEPT and not Net.is_host():
+		_gift_flight_phases.append(int(Match.gift_state(gift_id).get("phase", -1)))

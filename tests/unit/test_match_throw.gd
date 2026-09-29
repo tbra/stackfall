@@ -75,7 +75,13 @@ func _home_world_position(slot_id: int) -> Vector3:
 ## about gifts (that is test_gift_claim.gd's job).
 func _queue_special(slot_id: int, special_id: StringName = &"test_special") -> void:
 	Match._gifts._ensure_capacity(slot_id)
-	(Match._gifts._pending_queues[slot_id] as Array).append(special_id)
+	if Match.held_special(slot_id) == &"":
+		Match._gifts._held_specials[slot_id] = special_id
+		Match._feed._held_is_gift[slot_id] = true
+	else:
+		(Match._gifts._pending_queues[slot_id] as Array).clear()
+		(Match._gifts._pending_queues[slot_id] as Array).append(special_id)
+		Match._feed.replace_next_with_gift(slot_id)
 
 
 ## Seeds Match._placement's SpecialDef-by-id cache directly with `def`, so
@@ -182,22 +188,26 @@ func test_real_crate_claim_can_be_thrown_and_activated() -> void:
 	Match._gifts._spawn_crate_at(home)
 	watch_signals(Events)
 
-	Match._run_territory_step(1.0 / Match._territory_tuning.solve_hz)
+	Match._gifts._claim_gift(gift_id, Match.slot(0).team_id)
 
 	assert_false(Match._gifts._crates.has(gift_id), "territory claims the spawned crate")
-	assert_eq(Match.held_special(0), defs[0].id, "the claim draws a real enabled special")
+	assert_eq(Match.held_special(0), &"", "the claim keeps the current held block ordinary")
 	assert_eq(Match.pending_special_count(0), 1, "only the injected crate was claimed")
+	assert_eq(Match.request_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false), PlacementRules.REASON_OK)
+	assert_eq(Match.held_special(0), defs[0].id, "the claimed gift is now held")
 	var reason: StringName = Match.request_throw(
 		0, _home_world_position(0), 0, Quaternion.IDENTITY, Vector3(1.0, 0.0, 0.0)
 	)
 	assert_eq(reason, PlacementRules.REASON_OK)
 	assert_eq(Match.pending_special_count(0), 0, "the throw consumes the claimed special")
-	var block: Block = _blocks_root.get_child(0) as Block
+	var block: Block = _blocks_root.get_child(_blocks_root.get_child_count() - 1) as Block
 	var behavior: SpecialBehavior = null
 	for child: Node in block.get_children():
 		if child is SpecialBehavior:
 			behavior = child as SpecialBehavior
 	assert_not_null(behavior, "the thrown block must carry its behavior")
+	if behavior == null:
+		return
 	behavior.trigger(0)
 	assert_signal_emitted_with_parameters(
 		Events, "special_triggered", [block.net_id, defs[0].id, block.global_position, 0]

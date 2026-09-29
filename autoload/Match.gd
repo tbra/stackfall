@@ -178,6 +178,14 @@ func _run_territory_step(delta: float) -> void:
 	_gifts.claim_or_expire_gifts(delta)
 
 
+## Gift flight and landed expiry use physics time, independent of territory solve cadence.
+func _physics_process(delta: float) -> void:
+	if _is_host() and _lifecycle != null and MatchLifecycle.is_live_state(state()):
+		_gifts.tick_host(delta)
+	elif not _is_host() and _lifecycle != null and MatchLifecycle.is_live_state(state()):
+		_gifts.tick_client(delta)
+
+
 func debug_unlock_slot(slot_id: int) -> void:
 	_feed.debug_unlock_slot(slot_id)
 
@@ -691,6 +699,22 @@ func apply_replicated_elimination(slot_id: int) -> void:
 ## client-read-model section.
 func apply_replicated_gift_spawned(gift_id: int, position: Vector2) -> void:
 	_gifts.apply_replicated_spawn(gift_id, position)
+
+
+func gift_state(gift_id: int) -> Dictionary:
+	return _gifts.gift_state(gift_id)
+
+
+func gift_states() -> Array[Dictionary]:
+	return _gifts.gift_states()
+
+
+func apply_replicated_gift_flight(gift_id: int, origin: Vector3, landing: Vector3) -> void:
+	_gifts.apply_replicated_flight(gift_id, origin, landing)
+
+
+func apply_replicated_gift_landed(gift_id: int, landing: Vector3) -> void:
+	_gifts.apply_replicated_landing(gift_id, landing)
 
 
 ## `special_id` is the third EVENT_GIFT_CLAIMED wire argument (Orchestrator

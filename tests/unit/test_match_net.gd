@@ -95,6 +95,12 @@ func _start_playing(player_count: int = 2, block_timer: float = 6.0) -> void:
 	assert_eq(Match.state(), Match.State.PLAYING, "fixture should reach PLAYING")
 
 
+func _seed_held_gift(slot_id: int, special_id: StringName) -> void:
+	Match._gifts.apply_replicated_claim(1, slot_id, special_id)
+	Match._gifts.activate_next_special(slot_id)
+	Match._feed._held_is_gift[slot_id] = true
+
+
 ## A world position right on `slot_id`'s own home flag, where a single block
 ## always validates.
 func _home_world_position(slot_id: int) -> Vector3:
@@ -1082,10 +1088,11 @@ func test_a_replicated_gift_claim_carries_all_three_args_to_the_client() -> void
 	net.set_special_roster_for_test([&"jumping_bean"])
 	watch_signals(Events)
 
-	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [3, 1, &"jumping_bean"])
+	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [3, 1, &"jumping_bean", &"cube"])
 
 	assert_signal_emitted_with_parameters(Events, "gift_claimed", [3, 1, &"jumping_bean"])
-	assert_eq(Match.held_special(1), &"jumping_bean", "a client's queue after replication must match the host's drawn id")
+	assert_eq(Match.held_special(1), &"", "claim does not change the held piece")
+	assert_eq((Match._gifts._pending_queues[1] as Array)[0], &"jumping_bean")
 
 
 ## net/MatchNet.gd's _special_id_wire_ok(): empty, over-length (40 chars) and
@@ -1098,16 +1105,16 @@ func test_a_malformed_special_id_is_dropped_not_applied() -> void:
 	var net: MatchNetScript = _make_net({}, [1], true)
 	watch_signals(Events)
 
-	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [4, 1, &""])
+	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [4, 1, &"", &"cube"])
 	assert_signal_not_emitted(Events, "gift_claimed", "an empty special_id must be dropped")
 	assert_eq(Match.held_special(1), &"", "and never queued")
 
 	var too_long: String = "a".repeat(40)
-	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [5, 1, StringName(too_long)])
+	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [5, 1, StringName(too_long), &"cube"])
 	assert_signal_not_emitted(Events, "gift_claimed", "a 40-character special_id must be dropped")
 	assert_eq(Match.held_special(1), &"")
 
-	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [6, 1, &"has space"])
+	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [6, 1, &"has space", &"cube"])
 	assert_signal_not_emitted(Events, "gift_claimed", "a special_id with a space must be dropped")
 	assert_eq(Match.held_special(1), &"")
 
@@ -1122,12 +1129,11 @@ func test_a_clients_queue_after_replication_matches_the_hosts_claim_order() -> v
 	# own comment on why this fakes a roster.
 	net.set_special_roster_for_test([&"special_a", &"special_b"])
 
-	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [10, 1, &"special_a"])
-	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [11, 1, &"special_b"])
+	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [10, 1, &"special_a", &"cube"])
+	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [11, 1, &"special_b", &"cube"])
 
-	assert_eq(Match.pending_special_count(1), 2)
-	assert_eq(Match.pop_pending_special(1), &"special_a")
-	assert_eq(Match.pop_pending_special(1), &"special_b")
+	assert_eq(Match.pending_special_count(1), 1)
+	assert_eq((Match._gifts._pending_queues[1] as Array)[0], &"special_b", "latest claim replaces the previous next gift")
 
 
 ## M4 P2c-ii: gift_claimed's roster-membership tightening (orchestrator
@@ -1141,17 +1147,17 @@ func test_an_unknown_special_id_is_dropped_but_the_placeholder_passes() -> void:
 	var net: MatchNetScript = _make_net({}, [1], true)
 	watch_signals(Events)
 
-	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [7, 1, &"totally_unknown"])
+	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [7, 1, &"totally_unknown", &"cube"])
 	assert_signal_not_emitted(
 		Events, "gift_claimed", "an id that is neither the placeholder nor in the roster must be dropped"
 	)
 	assert_eq(Match.held_special(1), &"")
 
-	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [8, 1, MatchGifts.PENDING_SPECIAL_ID])
+	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [8, 1, MatchGifts.PENDING_SPECIAL_ID, &"cube"])
 	assert_signal_emitted_with_parameters(
 		Events, "gift_claimed", [8, 1, MatchGifts.PENDING_SPECIAL_ID]
 	)
-	assert_eq(Match.held_special(1), MatchGifts.PENDING_SPECIAL_ID)
+	assert_eq((Match._gifts._pending_queues[1] as Array)[0], MatchGifts.PENDING_SPECIAL_ID)
 
 
 ## A real (faked) roster member must pass even though it is not the
@@ -1164,10 +1170,10 @@ func test_a_faked_roster_member_special_id_passes_the_tightened_check() -> void:
 	net.set_special_roster_for_test([&"volcano"])
 	watch_signals(Events)
 
-	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [9, 1, &"volcano"])
+	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [9, 1, &"volcano", &"cube"])
 
 	assert_signal_emitted_with_parameters(Events, "gift_claimed", [9, 1, &"volcano"])
-	assert_eq(Match.held_special(1), &"volcano")
+	assert_eq((Match._gifts._pending_queues[1] as Array)[0], &"volcano")
 
 
 # --- M4 P2c-ii: request_throw over the wire ---------------------------------
@@ -1176,7 +1182,7 @@ func test_a_faked_roster_member_special_id_passes_the_tightened_check() -> void:
 func test_submit_throw_on_the_host_spawns_and_launches_the_block_inline() -> void:
 	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
 	_start_playing()
-	Match._gifts.apply_replicated_claim(1, 0, MatchGifts.PENDING_SPECIAL_ID)
+	_seed_held_gift(0, MatchGifts.PENDING_SPECIAL_ID)
 	var velocity: Vector3 = Vector3(3.0, 0.0, 4.0)
 
 	var before: int = _block_count()
@@ -1198,7 +1204,7 @@ func test_submit_throw_on_the_host_spawns_and_launches_the_block_inline() -> voi
 func test_a_throw_intent_for_someone_elses_slot_is_refused() -> void:
 	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
 	_start_playing()
-	Match._gifts.apply_replicated_claim(1, 0, MatchGifts.PENDING_SPECIAL_ID)
+	_seed_held_gift(0, MatchGifts.PENDING_SPECIAL_ID)
 
 	# Peer 2 holds slot 1 but claims slot 0, exactly like the matching
 	# placement test above.
@@ -1215,7 +1221,7 @@ func test_a_throw_intent_for_someone_elses_slot_is_refused() -> void:
 func test_a_throw_intent_with_a_non_finite_velocity_is_dropped() -> void:
 	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
 	_start_playing()
-	Match._gifts.apply_replicated_claim(1, 0, MatchGifts.PENDING_SPECIAL_ID)
+	_seed_held_gift(0, MatchGifts.PENDING_SPECIAL_ID)
 
 	net._handle_throw_intent(
 		1, 0, _home_world_position(0), 0, Quaternion.IDENTITY, Vector3(NAN, 0.0, 0.0), Match.feed_seq(0)
@@ -1232,7 +1238,7 @@ func test_a_throw_intent_with_a_non_finite_velocity_is_dropped() -> void:
 func test_a_remote_peers_own_throw_intent_is_accepted_with_velocity_untouched() -> void:
 	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
 	_start_playing()
-	Match._gifts.apply_replicated_claim(1, 1, MatchGifts.PENDING_SPECIAL_ID)
+	_seed_held_gift(1, MatchGifts.PENDING_SPECIAL_ID)
 	var velocity: Vector3 = Vector3(2.0, 0.0, -1.0)
 
 	net._handle_throw_intent(
@@ -1257,7 +1263,7 @@ func test_a_remote_peers_own_throw_intent_is_accepted_with_velocity_untouched() 
 func test_a_negative_feed_seq_on_a_throw_intent_is_refused_at_the_wire_like_place() -> void:
 	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
 	_start_playing()
-	Match._gifts.apply_replicated_claim(1, 1, MatchGifts.PENDING_SPECIAL_ID)
+	_seed_held_gift(1, MatchGifts.PENDING_SPECIAL_ID)
 
 	net._handle_throw_intent(
 		2, 1, _home_world_position(1), 0, Quaternion.IDENTITY, Vector3(1.0, 0.0, 0.0), -1
@@ -1277,7 +1283,7 @@ func test_a_stale_feed_seq_on_a_throw_intent_is_refused() -> void:
 	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
 	_start_playing()
 	var stale: int = Match.feed_seq(0)
-	Match._gifts.apply_replicated_claim(1, 0, MatchGifts.PENDING_SPECIAL_ID)
+	_seed_held_gift(0, MatchGifts.PENDING_SPECIAL_ID)
 
 	net.submit_throw(0, _home_world_position(0), 0, Quaternion.IDENTITY, Vector3(1.0, 0.0, 0.0), stale)
 	# The feed has moved on (the throw above consumed it); the sender still
@@ -1362,7 +1368,7 @@ func test_a_replicated_special_consumed_decrements_the_clients_pending_count_and
 	Match.set_net_provider(FakeNet.host({}, [0, 1]))
 	_start_playing()
 	var net: MatchNetScript = _make_net({}, [1], true)
-	Match._gifts.apply_replicated_claim(20, 1, MatchGifts.PENDING_SPECIAL_ID)
+	_seed_held_gift(1, MatchGifts.PENDING_SPECIAL_ID)
 	assert_eq(Match.pending_special_count(1), 1, "setup: the client's mirror queue must hold the claimed special")
 	watch_signals(Events)
 
@@ -1379,7 +1385,7 @@ func test_a_malformed_special_consumed_is_dropped_not_applied() -> void:
 	Match.set_net_provider(FakeNet.host({}, [0, 1]))
 	_start_playing()
 	var net: MatchNetScript = _make_net({}, [1], true)
-	Match._gifts.apply_replicated_claim(21, 1, MatchGifts.PENDING_SPECIAL_ID)
+	_seed_held_gift(1, MatchGifts.PENDING_SPECIAL_ID)
 	assert_eq(Match.pending_special_count(1), 1, "setup")
 	watch_signals(Events)
 
@@ -1416,3 +1422,88 @@ func test_host_ignores_a_spoofed_special_consumed_event() -> void:
 
 	assert_signal_not_emitted(Events, "special_consumed", "the host must never apply this event to itself")
 	assert_eq(Match.pending_special_count(slot_id), 1, "a spoofed event must never pop the host's own queue")
+
+
+func _gift_client_fixture() -> MatchNetScript:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	Match._gifts.reset()
+	return _make_net({}, [1], true)
+
+
+func test_gift_flight_interpolates_but_waits_for_authoritative_landing() -> void:
+	var net: MatchNetScript = _gift_client_fixture()
+	var origin: Vector3 = Vector3(0, 10, 0)
+	var landing: Vector3 = Vector3(0, 1, 0)
+	net.net_match_event(MatchNetScript.EVENT_GIFT_FLIGHT, [101, origin, landing])
+	var node: GiftCrate = Match._gifts._crates[101]["node"]
+	Match._physics_process(0.5)
+	assert_lt(node.global_position.y, origin.y)
+	assert_gt(node.global_position.y, landing.y)
+	var elapsed: float = Match.gift_state(101)["elapsed"]
+	net.net_match_event(MatchNetScript.EVENT_GIFT_FLIGHT, [101, origin, landing])
+	net.net_match_event(MatchNetScript.EVENT_GIFT_SPAWNED, [101, Vector2.ZERO])
+	assert_eq(Match.gift_state(101)["elapsed"], elapsed, "duplicate must not rewind")
+	assert_same(Match._gifts._crates[101]["node"], node, "legacy event reuses the visual")
+	Match._physics_process(100.0)
+	assert_eq(node.global_position, landing)
+	assert_eq(Match.gift_state(101)["phase"], MatchGifts.FALLING)
+	assert_eq(Match.pending_special_count(0), 0, "interpolation cannot claim")
+	net.net_match_event(MatchNetScript.EVENT_GIFT_LANDED, [101, landing])
+	assert_eq(Match.gift_state(101)["phase"], MatchGifts.LANDED)
+	Match._physics_process(100.0)
+	assert_false(Match.gift_state(101).is_empty(), "client cannot expire")
+	net.net_match_event(MatchNetScript.EVENT_GIFT_FLIGHT, [101, origin, landing])
+	assert_eq(Match.gift_state(101)["phase"], MatchGifts.LANDED)
+
+
+func test_gift_wire_rejects_malformed_and_out_of_order_events() -> void:
+	var net: MatchNetScript = _gift_client_fixture()
+	watch_signals(Events)
+	for payload: Array in [[], [1], ["1", Vector3.UP, Vector3.ZERO], [-1, Vector3.UP, Vector3.ZERO], [1, Vector3(NAN, 1, 0), Vector3.ZERO], [1, Vector3.UP, Vector3(INF, 0, 0)], [1, Vector3.DOWN, Vector3.ZERO]]:
+		net.net_match_event(MatchNetScript.EVENT_GIFT_FLIGHT, payload)
+	for event: StringName in [MatchNetScript.EVENT_GIFT_LANDED, MatchNetScript.EVENT_GIFT_CLAIMED, MatchNetScript.EVENT_GIFT_EXPIRED, MatchNetScript.EVENT_GIFT_SPAWNED]:
+		net.net_match_event(event, [])
+	net.net_match_event(MatchNetScript.EVENT_GIFT_LANDED, [1, Vector3.ZERO])
+	assert_true(Match.gift_states().is_empty())
+	assert_signal_not_emitted(Events, "gift_flight_spawned")
+	assert_signal_not_emitted(Events, "gift_landed")
+	net.net_match_event(MatchNetScript.EVENT_GIFT_FLIGHT, [1, Vector3.UP, Vector3.ZERO])
+	net.net_match_event(MatchNetScript.EVENT_GIFT_LANDED, [1, Vector3.RIGHT])
+	assert_eq(Match.gift_state(1)["phase"], MatchGifts.FALLING)
+
+
+func test_gift_terminal_events_are_idempotent_and_prevent_resurrection() -> void:
+	var net: MatchNetScript = _gift_client_fixture()
+	watch_signals(Events)
+	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [102, 1, MatchGifts.PENDING_SPECIAL_ID, &"cube"])
+	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [102, 1, MatchGifts.PENDING_SPECIAL_ID, &"cube"])
+	net.net_match_event(MatchNetScript.EVENT_GIFT_EXPIRED, [102])
+	net.net_match_event(MatchNetScript.EVENT_GIFT_FLIGHT, [102, Vector3.UP, Vector3.ZERO])
+	net.net_match_event(MatchNetScript.EVENT_GIFT_SPAWNED, [102, Vector2.ZERO])
+	assert_eq(Match.pending_special_count(1), 1)
+	assert_true(Match.gift_state(102).is_empty())
+	assert_eq(get_signal_emit_count(Events, "gift_claimed"), 1)
+	assert_signal_not_emitted(Events, "gift_expired")
+	net.net_match_event(MatchNetScript.EVENT_GIFT_EXPIRED, [103])
+	net.net_match_event(MatchNetScript.EVENT_GIFT_EXPIRED, [103])
+	net.net_match_event(MatchNetScript.EVENT_GIFT_FLIGHT, [103, Vector3.UP, Vector3.ZERO])
+	assert_true(Match.gift_state(103).is_empty())
+	assert_eq(get_signal_emit_count(Events, "gift_expired"), 1)
+	net.reset_counters()
+	net.net_match_event(MatchNetScript.EVENT_GIFT_FLIGHT, [103, Vector3.UP, Vector3.ZERO])
+	assert_eq(Match.gift_state(103)["phase"], MatchGifts.FALLING, "new match resets tombstones")
+
+
+func test_gift_legacy_spawn_upgrades_once_without_duplicate_visual_or_signal() -> void:
+	var net: MatchNetScript = _gift_client_fixture()
+	watch_signals(Events)
+	net.net_match_event(MatchNetScript.EVENT_GIFT_SPAWNED, [104, Vector2.ZERO])
+	var node: GiftCrate = Match._gifts._crates[104]["node"]
+	net.net_match_event(MatchNetScript.EVENT_GIFT_FLIGHT, [104, Vector3.UP, Vector3.ZERO])
+	net.net_match_event(MatchNetScript.EVENT_GIFT_SPAWNED, [104, Vector2.ZERO])
+	assert_same(Match._gifts._crates[104]["node"], node)
+	assert_eq(get_signal_emit_count(Events, "gift_spawned"), 1)
+	net.net_match_event(MatchNetScript.EVENT_GIFT_LANDED, [104, Vector3.ZERO])
+	net.net_match_event(MatchNetScript.EVENT_GIFT_LANDED, [104, Vector3.ZERO])
+	assert_eq(get_signal_emit_count(Events, "gift_landed"), 1)

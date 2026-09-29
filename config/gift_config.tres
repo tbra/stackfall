@@ -6,7 +6,11 @@
 script = ExtResource("1_gift")
 frequency_to_chance_max = 0.5
 max_live_crates = 1
-life_s = 60.0
+life_s = 10.0
+drop_height_m = 12.0
+fall_speed_m_s = 3.0
+air_touch_margin_m = 0.08
+cursor_max_age_s = 0.5
 relocate_min_distance_m = 5.0
 spawn_max_attempts = 32
 spawn_edge_margin_m = 2.0

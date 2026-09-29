@@ -61,6 +61,8 @@ var _field_radius: float = 1.0
 var _raster: TerritoryRaster = null
 var _slot_colors: PackedColorArray = PackedColorArray()
 var _home_positions: PackedVector2Array = PackedVector2Array()
+## Host and client both expose disk-local gift positions through Match.gift_states().
+var _gift_states: Array[Dictionary] = []
 
 ## Orthonormal camera-relative basis for the world (x, z) -> minimap (u, v)
 ## rotation (see class doc DECISION). Defaults to the identity/north-up
@@ -115,6 +117,7 @@ func set_map_def(map_def: MapDef) -> void:
 	_map_def = map_def
 	if map_def == null:
 		_raster = null
+		_gift_states.clear()
 		if _refresh_timer != null:
 			_refresh_timer.stop()
 		visible = false
@@ -146,6 +149,12 @@ func set_match_state(
 	_raster = raster
 	_slot_colors = slot_colors
 	_home_positions = home_positions
+
+
+func set_gift_states(states: Array[Dictionary]) -> void:
+	_gift_states = states.duplicate(true)
+	if _canvas != null and _map_def != null:
+		_canvas.queue_redraw()
 
 
 ## The main gameplay camera's own horizontal right/forward directions (world
@@ -266,6 +275,46 @@ func _on_canvas_draw() -> void:
 	_canvas.draw_texture_rect(_texture, Rect2(Vector2.ZERO, _canvas.size), false)
 	_draw_disc_outline()
 	_draw_beacons()
+	_draw_gifts()
+
+
+## A falling crate has a parachute-like ring; a landed crate is a filled
+## square. Both share the same disk-local point and camera-relative transform.
+func _draw_gifts() -> void:
+	if _canvas == null or _map_def == null or _half_extent <= 0.0:
+		return
+	for marker: Dictionary in gift_marker_draw_data():
+		var point: Vector2 = marker["pixel"]
+		var radius: float = tuning.minimap_gift_radius_px
+		if int(marker["phase"]) == MatchGifts.FALLING:
+			_canvas.draw_circle(point, radius + 2.0, tuning.minimap_gift_outline_color)
+			_canvas.draw_arc(point, radius, 0.0, TAU, 20, tuning.minimap_gift_falling_color, 2.0)
+		else:
+			var rect: Rect2 = Rect2(point - Vector2.ONE * radius, Vector2.ONE * radius * 2.0)
+			_canvas.draw_rect(rect.grow(1.0), tuning.minimap_gift_outline_color)
+			_canvas.draw_rect(rect, tuning.minimap_gift_landed_color)
+
+
+## Also a deterministic seam for camera-bearing and lifecycle tests.
+func gift_marker_draw_data() -> Array[Dictionary]:
+	var markers: Array[Dictionary] = []
+	if _canvas == null or _map_def == null or _half_extent <= 0.0:
+		return markers
+	var canvas_width: float = _canvas.size.x if _canvas.size.x > 0.0 else float(tuning.minimap_size_px)
+	var px_per_m: float = canvas_width / (_half_extent * 2.0)
+	for state: Dictionary in _gift_states:
+		var position: Variant = state.get("position")
+		var phase: int = int(state.get("phase", -1))
+		if not position is Vector2 or not (position as Vector2).is_finite():
+			continue
+		if phase != MatchGifts.FALLING and phase != MatchGifts.LANDED:
+			continue
+		var disk_point: Vector2 = position
+		if disk_point.length_squared() > _field_radius * _field_radius:
+			continue
+		markers.append({"id": int(state.get("id", -1)), "phase": phase,
+			"pixel": _world_to_px(disk_point, px_per_m)})
+	return markers
 
 
 ## Thin stroke at the disk's own field-radius edge (inside the zoom-margin
