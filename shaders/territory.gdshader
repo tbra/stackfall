@@ -354,6 +354,59 @@ uniform float disc_metalness_map_mix : hint_range(0.0, 1.0) = 0.0;
 uniform float disc_metalness_scale = 1.0;
 uniform float disc_detail_fade_px = 96.0;
 
+// -- Bontago-adt.2: procedural cel plating (DiscSurfaceDef.Mode.PROCEDURAL) --
+// Concentric rings of plates (plate count per ring grows with radius, random
+// per-ring stagger and count jitter, so nothing tiles), crisp constant-pixel
+// seams with a sun-facing lip, toon rivets, banded per-plate sheen. Every
+// detail fades with its on-screen size (rivets first, then seams), leaving a
+// calm glossy disc from far away. See proc_plating() below; the values are
+// pushed from config/DiscSurfaceDef.gd by game/TerritoryOverlay.gd.
+uniform bool disc_procedural = false;
+uniform vec3 disc_proc_base_tint = vec3(0.14, 0.155, 0.25);
+uniform float disc_proc_hub_radius_m = 3.5;
+uniform float disc_proc_ring_width_m = 4.5;
+uniform float disc_proc_plate_length_m = 5.0;
+uniform float disc_proc_plate_count_jitter = 0.3;
+uniform float disc_proc_split_chance = 0.3;
+uniform float disc_proc_tone_variation = 0.12;
+uniform float disc_proc_hatch_chance = 0.06;
+uniform float disc_proc_hatch_inset_m = 0.7;
+uniform float disc_proc_hatch_tone = 0.88;
+uniform float disc_proc_seam_width_px = 1.3;
+uniform float disc_proc_seam_darkness = 0.85;
+uniform float disc_proc_lip_width_px = 1.2;
+uniform float disc_proc_lip_strength = 0.35;
+uniform float disc_proc_lip_highlight = 0.07;
+uniform float disc_proc_seam_reflection_occlusion = 0.6;
+uniform float disc_proc_rivet_radius_m = 0.085;
+uniform float disc_proc_rivet_spacing_m = 0.32;
+uniform float disc_proc_rivet_inset_m = 0.3;
+uniform float disc_proc_rivet_row_spacing_m = 0.75;
+// Pattern weights: none, corner pairs, 2x2 corner clusters, edge rows.
+uniform vec4 disc_proc_rivet_weights = vec4(0.1, 0.35, 0.35, 0.2);
+uniform float disc_proc_rivet_tone = 2.4;
+uniform float disc_proc_rivet_highlight = 0.14;
+uniform float disc_proc_rivet_shadow = 0.75;
+uniform float disc_proc_rivet_shade = 0.35;
+uniform float disc_proc_rivet_shadow_offset = 0.6;
+uniform vec3 disc_proc_highlight_color : source_color = vec3(1.0, 0.84, 0.62);
+uniform float disc_proc_plate_tilt = 0.08;
+uniform float disc_proc_sheen_strength = 0.08;
+uniform float disc_proc_sky_sheen_power = 4.0;
+uniform float disc_proc_sky_sheen_weight = 0.8;
+uniform float disc_proc_sheen_exponent = 4.0;
+uniform int disc_proc_sheen_bands = 3;
+uniform float disc_proc_sheen_band_softness = 0.15;
+uniform float disc_proc_brush_strength = 0.35;
+uniform float disc_proc_brush_scale_m = 0.05;
+uniform float disc_proc_roughness = 0.22;
+uniform float disc_proc_roughness_variation = 0.08;
+uniform float disc_proc_seam_fade_start_px = 45.0;
+uniform float disc_proc_seam_fade_end_px = 110.0;
+uniform float disc_proc_rivet_fade_start_px = 3.0;
+uniform float disc_proc_rivet_fade_end_px = 7.0;
+uniform float disc_proc_brush_fade_px = 3.0;
+
 varying vec3 v_local;
 
 void vertex() {
@@ -440,6 +493,215 @@ float grain_height(vec2 p) {
 	float coarse = value_noise_1d(p.x * top_grain_scale + waviness) - 0.5;
 	float fine = value_noise_1d(p.x * top_grain_scale * top_grain_fine_scale + waviness) - 0.5;
 	return coarse * 0.7 + fine * 0.3;
+}
+
+// -- Bontago-adt.2: procedural cel plating -----------------------------------
+// Fixed toon shape constants (the look's geometry, not tunables): where the
+// lit/shaded crescents start on a rivet dome (dot with the sun, -1..1), the
+// catchlight's offset/radius as fractions of the rivet radius, and the
+// facing range over which a seam lip turns from shaded to lit.
+const float PROC_RIVET_CRESCENT = 0.45;
+const float PROC_GLINT_OFFSET = 0.35;
+const float PROC_GLINT_RADIUS = 0.22;
+const float PROC_LIP_FACING_RAMP = 0.3;
+// Sine-free hash (hash12 by Dave Hoskins) of a small integer plate id + salt;
+// no precision loss for the id range used here.
+float proc_hash(vec2 id, float salt) {
+	vec3 p3 = fract(vec3(id.x, id.y, salt) * 0.1031);
+	p3 += dot(p3, p3.zyx + 31.32);
+	return fract((p3.x + p3.y) * p3.z);
+}
+
+// One toon rivet. `o` = offset of this pixel from the rivet centre (disc-local
+// metres), `sun2` = horizontal direction toward the sun, `fw` = metres per
+// pixel. Multiplies tone and adds to highlight.
+void proc_rivet(vec2 o, vec2 sun2, float fw, float fade, inout float tone, inout float highlight) {
+	float radius = max(disc_proc_rivet_radius_m, 0.001);
+	float d = length(o);
+	float body = 1.0 - smoothstep(radius - fw * 0.5, radius + fw * 0.5, d);
+	vec2 shadow_o = o + sun2 * radius * disc_proc_rivet_shadow_offset;
+	float cast_shadow = (1.0 - body)
+		* (1.0 - smoothstep(radius - fw * 0.5, radius + fw * 0.5, length(shadow_o)));
+	// Dome facing: -1 on the side away from the sun, +1 toward it. Crisp toon
+	// thresholds, anti-aliased over about one pixel (fw / radius here).
+	// Three toon tones on the head: a lit crescent toward the sun, a shaded
+	// crescent away from it and the plain mid-tone cap between them, plus a
+	// small catchlight dot on the lit side so the head reads as a dome.
+	float facing = dot(o / radius, sun2);
+	float aa = clamp(fw / radius, 0.02, 1.0);
+	float lit = smoothstep(PROC_RIVET_CRESCENT - aa, PROC_RIVET_CRESCENT + aa, facing) * body;
+	float shaded = smoothstep(PROC_RIVET_CRESCENT - aa, PROC_RIVET_CRESCENT + aa, -facing) * body;
+	vec2 glint_o = o / radius - sun2 * PROC_GLINT_OFFSET;
+	float glint = (1.0 - smoothstep(PROC_GLINT_RADIUS - aa, PROC_GLINT_RADIUS + aa, length(glint_o))) * body;
+	// Thin dark toon outline around the head (the seam line width).
+	float outline_w = 0.5 * disc_proc_seam_width_px * fw;
+	float outline = 1.0 - smoothstep(outline_w - 0.5 * fw, outline_w + 0.5 * fw, abs(d - radius));
+	tone *= mix(1.0, disc_proc_rivet_tone, body * fade);
+	tone *= 1.0 - shaded * disc_proc_rivet_shade * fade;
+	tone *= 1.0 - clamp(cast_shadow + outline, 0.0, 1.0) * disc_proc_rivet_shadow * fade;
+	highlight += (lit + glint) * disc_proc_rivet_highlight * fade;
+}
+
+// Seam line + sun-facing lip for a groove `d` metres from this pixel;
+// `into_plate` = unit direction from the groove toward the pixel. Width is
+// constant in screen pixels (fwidth), like the block cell-grid seams.
+void proc_groove(float d, vec2 into_plate, vec2 sun2, float fade, inout float tone, inout float highlight, inout float seam_occ) {
+	float fw = max(fwidth(d), 0.00001);
+	float half_w = 0.5 * disc_proc_seam_width_px * fw;
+	float seam = 1.0 - smoothstep(half_w - 0.5 * fw, half_w + 0.5 * fw, d);
+	float lip_end = half_w + disc_proc_lip_width_px * fw;
+	float lip = smoothstep(half_w - 0.5 * fw, half_w + 0.5 * fw, d)
+		* (1.0 - smoothstep(lip_end - 0.5 * fw, lip_end + 0.5 * fw, d));
+	// The plate edge beside a groove faces back toward the groove: lit when
+	// that points at the sun, in shade when it points away.
+	float edge_facing = dot(-into_plate, sun2);
+	float lip_lit = smoothstep(0.0, PROC_LIP_FACING_RAMP, edge_facing);
+	float lip_shade = smoothstep(0.0, PROC_LIP_FACING_RAMP, -edge_facing);
+	tone *= 1.0 - seam * disc_proc_seam_darkness * fade;
+	tone *= 1.0 - lip * lip_shade * disc_proc_lip_strength * fade;
+	highlight += lip * lip_lit * disc_proc_lip_highlight * fade;
+	seam_occ = max(seam_occ, seam * fade);
+}
+
+// The plating at disc-local point p (x, z): an albedo/fill multiplier, an
+// additive highlight amount, a seam mask for the reflection, the per-plate
+// sheen normal (disc-local), roughness and the brushed-streak value.
+void proc_plating(vec2 p, vec2 sun2, out float tone, out float highlight, out float seam_occ,
+		out vec3 plate_n, out float rough, out float brush) {
+	tone = 1.0;
+	highlight = 0.0;
+	seam_occ = 0.0;
+	float m_per_px = max(max(length(dFdx(p)), length(dFdy(p))), 0.00001);
+	float plate_px = disc_proc_plate_length_m / m_per_px;
+	float seam_fade = smoothstep(disc_proc_seam_fade_start_px, disc_proc_seam_fade_end_px, plate_px);
+	float rivet_px = 2.0 * disc_proc_rivet_radius_m / m_per_px;
+	float rivet_fade = smoothstep(disc_proc_rivet_fade_start_px, disc_proc_rivet_fade_end_px, rivet_px)
+		* seam_fade;
+
+	float r = max(length(p), 0.0001);
+	vec2 r_hat = p / r;
+	vec2 t_hat = vec2(-r_hat.y, r_hat.x);
+	float hub = max(disc_proc_hub_radius_m, 0.0);
+	float ring_w = max(disc_proc_ring_width_m, 0.1);
+
+	vec2 plate_id = vec2(-1.0, 0.0);
+	float u_c = p.x;
+	float v_c = p.y;
+	float half_u = 0.0;
+	float half_v = 0.0;
+	bool is_hub = r < hub;
+	// Groove distance/direction and the hatch field are computed without
+	// divergent branches around the derivative calls (fwidth in proc_groove),
+	// so screen-space widths stay valid across plate and hub boundaries.
+	float d_seam = hub - r;
+	vec2 into_seam = -r_hat;
+	float hatch_sd = 1000.0;
+	vec2 hatch_grad = r_hat;
+	if (!is_hub) {
+		float ring = floor((r - hub) / ring_w);
+		float r_in = hub + ring * ring_w;
+		float circumference = TAU * (r_in + 0.5 * ring_w);
+		float jitter = (proc_hash(vec2(ring, 0.0), 1.0) - 0.5) * 2.0 * disc_proc_plate_count_jitter;
+		float count = max(3.0, round(circumference / max(disc_proc_plate_length_m, 0.1) * (1.0 + jitter)));
+		float stagger = proc_hash(vec2(ring, 0.0), 2.0);
+		// Integer count: the atan() wrap at +-PI shifts s by exactly `count`,
+		// so fract(s) and mod(floor(s), count) stay continuous across it.
+		float s = atan(p.y, p.x) / TAU * count + stagger;
+		float plate = mod(floor(s), count);
+		half_u = PI * r / count;
+		u_c = (fract(s) - 0.5) * 2.0 * half_u;
+		half_v = 0.5 * ring_w;
+		v_c = r - (r_in + half_v);
+		plate_id = vec2(ring, plate);
+		if (proc_hash(plate_id, 3.0) < disc_proc_split_chance) {
+			// Split lengthwise into an inner and an outer strip.
+			float outer = v_c > 0.0 ? 1.0 : 0.0;
+			half_v *= 0.5;
+			v_c -= (outer * 2.0 - 1.0) * half_v;
+			plate_id.y += 1000.0 * (outer + 1.0);
+		}
+		float d_u = half_u - abs(u_c);
+		float d_v = half_v - abs(v_c);
+		d_seam = min(d_u, d_v);
+		into_seam = d_u < d_v ? -sign(u_c) * t_hat : -sign(v_c) * r_hat;
+		// Access hatch: an inset groove loop with a slightly different cover.
+		float inset = disc_proc_hatch_inset_m;
+		if (proc_hash(plate_id, 4.0) < disc_proc_hatch_chance
+			&& half_u > 2.0 * inset && half_v > 1.5 * inset) {
+			vec2 q = vec2(abs(u_c) - (half_u - inset), abs(v_c) - (half_v - inset));
+			hatch_sd = max(q.x, q.y);
+			hatch_grad = q.x > q.y ? sign(u_c) * t_hat : sign(v_c) * r_hat;
+		}
+	}
+	float fw_sd = max(fwidth(hatch_sd), 0.00001);
+	tone *= mix(1.0, disc_proc_hatch_tone, (1.0 - smoothstep(-fw_sd, fw_sd, hatch_sd)) * seam_fade);
+	if (abs(hatch_sd) < d_seam) {
+		d_seam = abs(hatch_sd);
+		into_seam = (hatch_sd > 0.0 ? 1.0 : -1.0) * hatch_grad;
+	}
+	proc_groove(d_seam, into_seam, sun2, seam_fade, tone, highlight, seam_occ);
+
+	// Rivets: one pattern per plate, chosen by disc_proc_rivet_weights.
+	if (rivet_fade > 0.0) {
+		float inset = disc_proc_rivet_inset_m;
+		float spacing = disc_proc_rivet_spacing_m;
+		if (is_hub) {
+			float ring_r = hub - inset;
+			if (ring_r > inset) {
+				float n = max(3.0, floor(TAU * ring_r / max(disc_proc_rivet_row_spacing_m, 0.05)));
+				float ang = round(atan(p.y, p.x) / TAU * n) / n * TAU;
+				proc_rivet(p - vec2(cos(ang), sin(ang)) * ring_r, sun2, m_per_px, rivet_fade, tone, highlight);
+			}
+		} else {
+			vec4 w = max(disc_proc_rivet_weights, vec4(0.0));
+			float pick = proc_hash(plate_id, 5.0) * max(w.x + w.y + w.z + w.w, 0.0001);
+			// Folded corner coordinates: distance from the nearest plate corner
+			// along each edge; dir_a/dir_b point into the plate.
+			float a = half_u - abs(u_c);
+			float b = half_v - abs(v_c);
+			vec2 dir_a = -sign(u_c) * t_hat;
+			vec2 dir_b = -sign(v_c) * r_hat;
+			bool any_rivet = true;
+			vec2 o = vec2(0.0);
+			if (pick < w.x) {
+				any_rivet = false;
+			} else if (pick < w.x + w.y) {
+				float ka = clamp(round((a - inset) / spacing), 0.0, 1.0);
+				o = dir_a * (inset + ka * spacing - a) + dir_b * (inset - b);
+			} else if (pick < w.x + w.y + w.z) {
+				float ka = clamp(round((a - inset) / spacing), 0.0, 1.0);
+				float kb = clamp(round((b - inset) / spacing), 0.0, 1.0);
+				o = dir_a * (inset + ka * spacing - a) + dir_b * (inset + kb * spacing - b);
+			} else {
+				float span = max(2.0 * (half_u - inset), 0.0);
+				float n = max(1.0, floor(span / max(disc_proc_rivet_row_spacing_m, 0.05)));
+				float step_u = span / n;
+				float k = clamp(round((u_c + half_u - inset) / max(step_u, 0.0001)), 0.0, n);
+				float cu = -half_u + inset + k * step_u;
+				o = t_hat * (cu - u_c) + dir_b * (inset - b);
+			}
+			// o above points from the pixel to the rivet; proc_rivet wants the
+			// pixel's offset from the rivet centre.
+			if (any_rivet) {
+				proc_rivet(-o, sun2, m_per_px, rivet_fade, tone, highlight);
+			}
+		}
+	}
+
+	tone *= 1.0 + (proc_hash(plate_id, 6.0) - 0.5) * 2.0 * disc_proc_tone_variation * seam_fade;
+	vec2 tilt = (vec2(proc_hash(plate_id, 7.0), proc_hash(plate_id, 8.0)) - 0.5)
+		* 2.0 * disc_proc_plate_tilt * seam_fade;
+	plate_n = normalize(vec3(tilt.x, 1.0, tilt.y));
+
+	// Brushed streaks along or across each plate (sheen/roughness only).
+	float brush_coord = proc_hash(plate_id, 9.0) < 0.5 ? u_c : v_c;
+	float scale = max(disc_proc_brush_scale_m, 0.001);
+	float brush_fade = smoothstep(disc_proc_brush_fade_px, 2.0 * disc_proc_brush_fade_px, scale / m_per_px);
+	brush = (value_noise_1d(brush_coord / scale + proc_hash(plate_id, 10.0) * 97.0) - 0.5)
+		* 2.0 * disc_proc_brush_strength * brush_fade;
+	rough = disc_proc_roughness
+		+ (proc_hash(plate_id, 11.0) - 0.5) * 2.0 * disc_proc_roughness_variation * seam_fade
+		+ brush * disc_proc_roughness_variation;
 }
 
 void raster_path(vec2 uv, out vec3 albedo, out vec3 emission) {
@@ -699,6 +961,23 @@ void fragment() {
 		vec3 local_n = normalize(vec3(grad_local.x, max(n_ts.z, 0.2), grad_local.y));
 		NORMAL = normalize(mat3(VIEW_MATRIX) * mat3(MODEL_MATRIX) * local_n);
 	}
+	// Bontago-adt.2: procedural cel plating (see proc_plating()). The plate
+	// NORMAL itself stays flat (the planar mirror and SSR stay undistorted);
+	// only the banded sheen below reads the per-plate tilted normal.
+	float proc_seam_occ = 0.0;
+	float proc_highlight = 0.0;
+	float proc_rough = -1.0;
+	float proc_brush = 0.0;
+	vec3 proc_plate_n = vec3(0.0, 1.0, 0.0);
+	if (disc_procedural) {
+		vec3 sun_local = transpose(mat3(MODEL_MATRIX)) * sun_direction;
+		vec2 sun2 = length(sun_local.xz) > 0.0001 ? normalize(sun_local.xz) : vec2(1.0, 0.0);
+		float proc_tone;
+		proc_plating(v_local.xz, sun2, proc_tone, proc_highlight, proc_seam_occ,
+			proc_plate_n, proc_rough, proc_brush);
+		tex_mod = proc_tone * disc_proc_base_tint;
+		albedo *= tex_mod;
+	}
 
 	// Bontago-adt.2: machined panel seams + per-panel brightness (albedo only).
 	{
@@ -770,6 +1049,8 @@ void fragment() {
 		// per-pixel mirror image barely showed (the owner's "not very
 		// reflective") while the sun's specular lobe dominated.
 		albedo *= 1.0 - mirror_amount;
+		// Bontago-adt.2: procedural seams cut through the reflection a little.
+		mirror_color *= 1.0 - proc_seam_occ * disc_proc_seam_reflection_occlusion;
 		emission += mirror_color * mirror_amount;
 	}
 
@@ -796,6 +1077,29 @@ void fragment() {
 	emission += disk_fill_color * tex_mod;
 	float sky_fresnel = pow(1.0 - clamp(dot(sheen_normal, sheen_view), 0.0, 1.0), disk_sky_sheen_power);
 	emission += disk_sky_sheen_color * disk_sky_sheen_strength * sky_fresnel;
+	if (disc_procedural) {
+		// Bontago-adt.2: cel sheen -- a broad sun lobe off each plate's own
+		// slightly tilted normal, quantised into flat bands, so neighbouring
+		// plates catch the sun in different steps; brushed streaks modulate it.
+		vec3 plate_view_n = normalize(mat3(VIEW_MATRIX) * mat3(MODEL_MATRIX) * proc_plate_n);
+		float plate_align = clamp(dot(reflect(-sheen_view, plate_view_n), sun_view_dir), 0.0, 1.0);
+		float sun_lobe = pow(plate_align, disc_proc_sheen_exponent);
+		// Sky part: the plate's own fresnel toward grazing angles, so the
+		// banded facets show in every view, not only when facing the sun.
+		float sky_lobe = pow(1.0 - clamp(dot(plate_view_n, sheen_view), 0.0, 1.0), disc_proc_sky_sheen_power)
+			* disc_proc_sky_sheen_weight;
+		float lobe = clamp(max(sun_lobe, sky_lobe), 0.0, 1.0);
+		vec3 sheen_col = mix(disk_sky_sheen_color, disc_proc_highlight_color,
+			sun_lobe / max(sun_lobe + sky_lobe, 0.0001));
+		float bands = max(float(disc_proc_sheen_bands), 1.0);
+		float q = lobe * bands;
+		float band = floor(q);
+		float band_aa = max(disc_proc_sheen_band_softness, fwidth(q));
+		band += smoothstep(1.0 - band_aa, 1.0, q - band);
+		float banded = band / bands;
+		emission += sheen_col * disc_proc_sheen_strength * banded * (1.0 + proc_brush);
+		emission += disc_proc_highlight_color * proc_highlight;
+	}
 
 	ALBEDO = albedo;
 	EMISSION = emission;
@@ -819,5 +1123,8 @@ void fragment() {
 	ROUGHNESS = clamp(base_roughness + grain_h0 * top_grain_roughness_strength, 0.0, 1.0);
 	if (disc_textured) {
 		ROUGHNESS = clamp(mix(disc_roughness_min, disc_roughness_max, tex_rough), 0.0, 1.0);
+	}
+	if (disc_procedural) {
+		ROUGHNESS = clamp(proc_rough, 0.0, 1.0);
 	}
 }

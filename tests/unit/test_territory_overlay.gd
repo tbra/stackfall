@@ -416,6 +416,56 @@ func test_disc_surface_pushes_texture_uniforms_and_null_disables_them() -> void:
 	assert_not_null(overlay.material().get_shader_parameter(&"disc_normal_tex"))
 
 
+
+## Bontago-adt.2: the procedural cel plating is the shipped default, and a
+## PROCEDURAL DiscSurfaceDef turns the texture path off and pushes its own
+## tunables (including the packed rivet-pattern weights).
+func test_procedural_disc_surface_is_default_and_pushes_its_uniforms() -> void:
+	var shipped: TerritoryVisuals = load("res://config/territory_visuals.tres") as TerritoryVisuals
+	assert_not_null(shipped.disc_surface)
+	assert_eq(shipped.disc_surface.mode, DiscSurfaceDef.Mode.PROCEDURAL,
+		"the procedural plating should be the default disc surface.")
+
+	var visuals: TerritoryVisuals = TerritoryVisuals.new()
+	var surface: DiscSurfaceDef = (shipped.disc_surface as DiscSurfaceDef).duplicate() as DiscSurfaceDef
+	surface.proc_plate_length_m = 3.25
+	surface.proc_rivet_weight_rows = 0.9
+	surface.proc_seam_fade_end_px = 140.0
+	visuals.disc_surface = surface
+	var overlay: TerritoryOverlay = TerritoryOverlay.new()
+	overlay.configure(_map(), visuals, load("res://config/territory_tuning.tres"))
+	add_child_autofree(overlay)
+	var material: ShaderMaterial = overlay.material()
+	assert_true(bool(material.get_shader_parameter(&"disc_procedural")))
+	assert_false(bool(material.get_shader_parameter(&"disc_textured")),
+		"procedural mode must not also draw the texture maps.")
+	assert_almost_eq(float(material.get_shader_parameter(&"disc_proc_plate_length_m")), 3.25, 0.0001)
+	assert_almost_eq(float(material.get_shader_parameter(&"disc_proc_seam_fade_end_px")), 140.0, 0.0001)
+	var weights: Vector4 = material.get_shader_parameter(&"disc_proc_rivet_weights") as Vector4
+	assert_almost_eq(weights.w, 0.9, 0.0001)
+
+	# Switching back to a texture set disables the procedural path.
+	visuals.disc_surface = load("res://config/disc_surfaces/MetalPlates001.tres") as DiscSurfaceDef
+	overlay.refresh_visual_uniforms()
+	assert_false(bool(material.get_shader_parameter(&"disc_procedural")))
+	assert_true(bool(material.get_shader_parameter(&"disc_textured")))
+
+
+## Every disc_proc_* uniform the overlay pushes must exist in the shader, so a
+## renamed uniform cannot silently fall back to its shader default.
+func test_procedural_disc_uniforms_all_exist_in_the_shader() -> void:
+	var overlay: TerritoryOverlay = _make_overlay(_map())
+	var code: String = overlay.material().shader.code
+	var script_code: String = (load("res://game/TerritoryOverlay.gd") as GDScript).source_code
+	var regex: RegEx = RegEx.create_from_string("&\"(disc_proc_[a-z_]+)\"")
+	var found: int = 0
+	for match_: RegExMatch in regex.search_all(script_code):
+		found += 1
+		var uniform_name: String = match_.get_string(1)
+		assert_true(code.contains(" " + uniform_name + " ") or code.contains(" " + uniform_name + ";"),
+			"shader is missing uniform %s" % uniform_name)
+	assert_gt(found, 30, "fixture: expected the procedural uniform list in TerritoryOverlay.gd.")
+
 ## The grain is meant to be "nearly invisible in diffuse areas" and must
 ## never distort the territory fill/border colors -- pins that structurally
 ## by asserting the grain block in the shader source never writes ALBEDO or

@@ -15,6 +15,9 @@ extends Node
 ##   --wait=1.0                                 seconds to run before shooting
 ##                                              (lets TIME-driven shaders move)
 ##   --views=player,overview,sun,horizon,close  subset/order of views
+##                                              (also zoom_close,zoom_mid,zoom_far)
+##   --measure                                  also print the mean GPU frame
+##                                              time per view (GFX_GPU lines)
 ## Writes <out>/<tag>_<view>.png per view and <tag>_sheet.png, a 3x2 contact
 ## sheet of all views.
 ##
@@ -26,6 +29,8 @@ const SHOT_SIZE: Vector2i = Vector2i(1280, 720)
 const SHEET_COLUMNS: int = 3
 const SHEET_CELL: Vector2i = Vector2i(640, 360)
 const SETTLE_FRAMES: int = 8
+## Frames averaged per view for --measure.
+const MEASURE_FRAMES: int = 60
 const ALL_VIEWS: PackedStringArray = ["player", "overview", "sun", "horizon", "close"]
 
 ## View framings as multiples of the disk radius (measured from DiskMesh).
@@ -39,6 +44,14 @@ const CLOSE_DISTANCE_M: float = 9.0
 const CLOSE_HEIGHT_M: float = 4.0
 const FALLBACK_RADIUS_M: float = 30.0
 const VIEW_FOV_DEG: float = 50.0
+## Bontago-adt.2 zoom series (zoom_close/zoom_mid/zoom_far): one fixed disc
+## spot seen from three distances along the same line, to show how disc-top
+## detail fades with distance. Spot = ZOOM_SPOT_R of the radius out, ZOOM_SPOT_
+## YAW_DEG around from the sun; camera pitched ZOOM_PITCH_DEG down.
+const ZOOM_SPOT_R: float = 0.45
+const ZOOM_SPOT_YAW_DEG: float = 150.0
+const ZOOM_PITCH_DEG: float = 35.0
+const ZOOM_DISTANCES_M: Dictionary = {"zoom_close": 6.0, "zoom_mid": 22.0, "zoom_far": 70.0}
 
 
 func _ready() -> void:
@@ -48,6 +61,7 @@ func _ready() -> void:
 	var tag: String = _string_arg(args, "tag", "shot")
 	var wait_s: float = _string_arg(args, "wait", "1.0").to_float()
 	var views: PackedStringArray = _string_arg(args, "views", ",".join(ALL_VIEWS)).split(",", false)
+	var measure: bool = args.has("--measure")
 	if not ResourceLoader.exists(scene_path):
 		push_error("GFX_SHOT missing %s (run tools/bake_visual_demo.tscn first)" % scene_path)
 		get_tree().quit(1)
@@ -78,6 +92,14 @@ func _ready() -> void:
 		camera.current = true
 		for _i: int in range(SETTLE_FRAMES):
 			await RenderingServer.frame_post_draw
+		if measure:
+			var rid: RID = sub.get_viewport_rid()
+			RenderingServer.viewport_set_measure_render_time(rid, true)
+			var total_ms: float = 0.0
+			for _i: int in range(MEASURE_FRAMES):
+				await RenderingServer.frame_post_draw
+				total_ms += RenderingServer.viewport_get_measured_render_time_gpu(rid)
+			print("GFX_GPU %s=%.3f ms" % [view, total_ms / float(MEASURE_FRAMES)])
 		var image: Image = sub.get_texture().get_image()
 		var path: String = "%s/%s_%s.png" % [out_dir, tag, view]
 		image.save_png(path)
@@ -123,6 +145,12 @@ func _frame(camera: Camera3D, player_camera: Camera3D, scene: Node3D, view: Stri
 			if from_center == Vector3.ZERO:
 				from_center = Vector3.BACK
 			_place(camera, target + from_center * CLOSE_DISTANCE_M + Vector3.UP * CLOSE_HEIGHT_M, target + Vector3.UP)
+		"zoom_close", "zoom_mid", "zoom_far":
+			var spot: Vector3 = sun_flat.rotated(Vector3.UP, deg_to_rad(ZOOM_SPOT_YAW_DEG)) * radius * ZOOM_SPOT_R
+			var back: Vector3 = spot.normalized() if spot != Vector3.ZERO else Vector3.BACK
+			var pitch: float = deg_to_rad(ZOOM_PITCH_DEG)
+			var dist: float = float(ZOOM_DISTANCES_M[view])
+			_place(camera, spot + back * cos(pitch) * dist + Vector3.UP * sin(pitch) * dist, spot)
 		_:
 			return false
 	camera.fov = VIEW_FOV_DEG
