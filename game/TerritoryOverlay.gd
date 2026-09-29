@@ -627,6 +627,7 @@ func refresh_visual_uniforms() -> void:
 
 
 func _apply_visual_uniforms() -> void:
+	_apply_disc_surface()
 	_material.set_shader_parameter(&"base_color", _visuals.disk_base_color)
 	_material.set_shader_parameter(&"base_metallic", _visuals.disk_metallic)
 	_material.set_shader_parameter(&"base_roughness", _visuals.disk_roughness)
@@ -712,3 +713,27 @@ func set_mirror_texture(texture: Texture2D, enabled: bool, strength: float) -> v
 	_material.set_shader_parameter(&"mirror_tex", texture)
 	_material.set_shader_parameter(&"mirror_enabled", enabled)
 	_material.set_shader_parameter(&"mirror_strength", strength)
+
+
+## Bontago-adt.2: pushes the DiscSurfaceDef texture set (or clears it).
+func _apply_disc_surface() -> void:
+	var surface: DiscSurfaceDef = _visuals.disc_surface
+	var textured: bool = surface != null and surface.albedo_texture != null
+	_material.set_shader_parameter(&"disc_textured", textured)
+	if not textured:
+		return
+	_material.set_shader_parameter(&"disc_albedo_tex", surface.albedo_texture)
+	_material.set_shader_parameter(&"disc_normal_tex", surface.normal_texture)
+	_material.set_shader_parameter(&"disc_roughness_tex", surface.roughness_texture)
+	_material.set_shader_parameter(&"disc_metalness_tex", surface.metalness_texture)
+	_material.set_shader_parameter(&"disc_tile_size_m", surface.tile_size_m)
+	_material.set_shader_parameter(&"disc_rotation_deg", surface.rotation_deg)
+	_material.set_shader_parameter(&"disc_albedo_strength", surface.albedo_strength)
+	_material.set_shader_parameter(&"disc_albedo_gain", surface.albedo_gain)
+	_material.set_shader_parameter(&"disc_albedo_contrast", surface.albedo_contrast)
+	_material.set_shader_parameter(&"disc_normal_strength", surface.normal_strength)
+	_material.set_shader_parameter(&"disc_roughness_min", surface.roughness_min)
+	_material.set_shader_parameter(&"disc_roughness_max", surface.roughness_max)
+	_material.set_shader_parameter(&"disc_metalness_map_mix", surface.metalness_map_mix)
+	_material.set_shader_parameter(&"disc_metalness_scale", surface.metalness_scale)
+	_material.set_shader_parameter(&"disc_detail_fade_px", surface.detail_fade_px)

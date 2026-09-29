@@ -396,6 +396,26 @@ func test_configure_pushes_the_top_grain_uniforms() -> void:
 	)
 
 
+## Bontago-adt.2: the swappable DiscSurfaceDef texture set reaches the shader,
+## and a null set leaves the flat look (disc_textured false).
+func test_disc_surface_pushes_texture_uniforms_and_null_disables_them() -> void:
+	var visuals: TerritoryVisuals = TerritoryVisuals.new()
+	var overlay: TerritoryOverlay = TerritoryOverlay.new()
+	overlay.configure(_map(), visuals, load("res://config/territory_tuning.tres"))
+	add_child_autofree(overlay)
+	assert_false(bool(overlay.material().get_shader_parameter(&"disc_textured")))
+
+	var surface: DiscSurfaceDef = (load("res://config/disc_surfaces/MetalPlates001.tres") as DiscSurfaceDef).duplicate() as DiscSurfaceDef
+	surface.tile_size_m = 7.5
+	visuals.disc_surface = surface
+	overlay.refresh_visual_uniforms()
+	assert_true(bool(overlay.material().get_shader_parameter(&"disc_textured")))
+	assert_almost_eq(
+		float(overlay.material().get_shader_parameter(&"disc_tile_size_m")), 7.5, 0.0001
+	)
+	assert_not_null(overlay.material().get_shader_parameter(&"disc_normal_tex"))
+
+
 ## The grain is meant to be "nearly invisible in diffuse areas" and must
 ## never distort the territory fill/border colors -- pins that structurally
 ## by asserting the grain block in the shader source never writes ALBEDO or

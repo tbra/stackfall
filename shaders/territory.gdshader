@@ -27,7 +27,11 @@ shader_type spatial;
 // light still shades blocks normally); the disc's reflection is the planar
 // mirror (EMISSION below) plus the ambient/probe/SSR reflection, which never
 // shows a hot spot for a sun the skybox does not paint.
-render_mode cull_disabled, specular_disabled;
+// Bontago-adt.2 DECISION: fog_disabled. The sunset depth/volumetric fog (warm
+// albedo) was what turned the cool graphite disc top brown (verified: fog off
+// gives a neutral near-black surface); the disc keeps its own cool sky sheen
+// for atmosphere instead.
+render_mode cull_disabled, specular_disabled, fog_disabled;
 
 // Territory on the disk (spec 2.10, 3.3, Bontago-cmc.5).
 //
@@ -329,6 +333,26 @@ uniform float panel_fade_px = 12.0;
 // Flat, light-independent emissive fill of the territory tint so it reads at
 // the same strength in day and night themes.
 uniform float tint_fill_emission : hint_range(0.0, 1.0) = 0.12;
+
+// -- Bontago-adt.2: textured disc top (config/DiscSurfaceDef.gd) -------------
+// World-space planar UVs on the disc top. Color is sRGB; normal/roughness/
+// metalness are linear data. disc_textured false = the flat look above.
+uniform bool disc_textured = false;
+uniform sampler2D disc_albedo_tex : source_color, filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;
+uniform sampler2D disc_normal_tex : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D disc_roughness_tex : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;
+uniform sampler2D disc_metalness_tex : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_black;
+uniform float disc_tile_size_m = 6.0;
+uniform float disc_rotation_deg = 0.0;
+uniform float disc_albedo_strength : hint_range(0.0, 1.0) = 0.5;
+uniform float disc_albedo_gain = 1.0;
+uniform float disc_albedo_contrast = 1.0;
+uniform float disc_normal_strength : hint_range(0.0, 4.0) = 1.0;
+uniform float disc_roughness_min : hint_range(0.0, 1.0) = 0.2;
+uniform float disc_roughness_max : hint_range(0.0, 1.0) = 0.5;
+uniform float disc_metalness_map_mix : hint_range(0.0, 1.0) = 0.0;
+uniform float disc_metalness_scale = 1.0;
+uniform float disc_detail_fade_px = 96.0;
 
 varying vec3 v_local;
 
@@ -653,6 +677,29 @@ void fragment() {
 	// final normalize() absorbs any residual scale) without needing a
 	// dedicated inverse-transpose normal matrix, which Godot only exposes in
 	// vertex(), not fragment().
+	// Bontago-adt.2: textured top (planar world-space UVs).
+	vec3 tex_mod = vec3(1.0);
+	float tex_rough = -1.0;
+	float tex_metal = -1.0;
+	if (disc_textured) {
+		float rot = radians(disc_rotation_deg);
+		mat2 rot_m = mat2(vec2(cos(rot), -sin(rot)), vec2(sin(rot), cos(rot)));
+		vec2 tex_uv = rot_m * (v_local.xz / max(disc_tile_size_m, 0.01));
+		float px_per_tile = 1.0 / max(length(fwidth(tex_uv)), 0.00001);
+		float detail = smoothstep(disc_detail_fade_px * 0.5, disc_detail_fade_px, px_per_tile);
+		vec3 tex_col = texture(disc_albedo_tex, tex_uv).rgb;
+		tex_mod = mix(vec3(1.0), pow(tex_col, vec3(disc_albedo_contrast)) * disc_albedo_gain, disc_albedo_strength * detail);
+		albedo *= tex_mod;
+		tex_rough = mix(0.5, texture(disc_roughness_tex, tex_uv).r, detail);
+		tex_metal = mix(0.5, texture(disc_metalness_tex, tex_uv).r, detail);
+		vec3 n_ts = texture(disc_normal_tex, tex_uv).xyz * 2.0 - 1.0;
+		vec2 grad_uv = vec2(n_ts.x, -n_ts.y) * disc_normal_strength * detail;
+		// Back from texture space to disc-local xz (undo the rotation).
+		vec2 grad_local = vec2(dot(grad_uv, rot_m[0]), dot(grad_uv, rot_m[1]));
+		vec3 local_n = normalize(vec3(grad_local.x, max(n_ts.z, 0.2), grad_local.y));
+		NORMAL = normalize(mat3(VIEW_MATRIX) * mat3(MODEL_MATRIX) * local_n);
+	}
+
 	// Bontago-adt.2: machined panel seams + per-panel brightness (albedo only).
 	{
 		vec2 panel_p = v_local.xz / max(panel_size_m, 0.01);
@@ -744,7 +791,9 @@ void fragment() {
 	float alignment = clamp(dot(normalize(reflected), sun_view_dir), 0.0, 1.0);
 	float sheen = pow(alignment, disk_sheen_exponent);
 	emission += disk_sheen_color * disk_sheen_strength * sheen;
-	emission += disk_fill_color;
+	// The flat cool fill carries the texture too, so the pattern reads even
+	// where the sky ambient is weak.
+	emission += disk_fill_color * tex_mod;
 	float sky_fresnel = pow(1.0 - clamp(dot(sheen_normal, sheen_view), 0.0, 1.0), disk_sky_sheen_power);
 	emission += disk_sky_sheen_color * disk_sky_sheen_strength * sky_fresnel;
 
@@ -757,7 +806,7 @@ void fragment() {
 	// unconditionally opaque, so every ownership indicator (tint/rim/
 	// shimmer/goal) reads at full strength through ALBEDO/EMISSION above with
 	// no opacity trick needed.
-	METALLIC = base_metallic;
+	METALLIC = disc_textured ? mix(base_metallic, clamp(tex_metal * disc_metalness_scale, 0.0, 1.0), disc_metalness_map_mix) : base_metallic;
 	SPECULAR = disk_specular;
 	AO = disk_ambient_scale;
 	AO_LIGHT_AFFECT = 0.0;
@@ -768,4 +817,7 @@ void fragment() {
 	// overall dulling of the whole disc (top_grain_roughness_strength = 0
 	// leaves this identical to the old plain base_roughness assignment).
 	ROUGHNESS = clamp(base_roughness + grain_h0 * top_grain_roughness_strength, 0.0, 1.0);
+	if (disc_textured) {
+		ROUGHNESS = clamp(mix(disc_roughness_min, disc_roughness_max, tex_rough), 0.0, 1.0);
+	}
 }
