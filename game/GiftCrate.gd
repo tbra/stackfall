@@ -1,6 +1,6 @@
 class_name GiftCrate
 extends Area3D
-## A gift crate (spec 2.6): a stationary pickup that shows which player it
+## A gift crate (spec 2.6): a descending pickup that shows which player it
 ## belongs to once claimed. Presence-only for M4 P1 -- a block or a thrown
 ## special can be seen to strike it, matching the chain-reaction flavor text,
 ## even though nothing here currently *reacts* to that contact: body_entered
@@ -39,9 +39,8 @@ var _beacon: Node3D = null
 var _visual_time: float = 0.0
 
 ## Bontago-d04 (owner report "I grabbed a yellow cube but nothing seemed to
-## happen"): the claim rule itself was never broken (spec 2.6 [ORIGINAL]: a
-## crate claims only when it lands inside the claiming slot's own territory
-## — see autoload/match/MatchGifts.gd's claim_or_expire_gifts()), but a
+## happen"): a successful claim needs visible feedback whether a held block
+## touches the descending crate or territory owns its landing cell, but a
 ## successful claim had no visible feedback at all: MatchGifts.
 ## _free_crate_visual() queue_free()s this node the instant it is claimed, so
 ## by the time Events.gift_claimed reaches any listener the crate is already
@@ -269,13 +268,10 @@ static func spawn_claim_pop(parent: Node3D, world_position: Vector3, color: Colo
 
 # --- Not-claimable hint (Bontago-d04) ----------------------------------------
 
-## Pulses this crate's own tint while the local player's held ghost hovers
-## near it AND it sits outside that player's own territory -- the case that
-## used to read as "nothing happened" (spec 2.6's claim rule is
-## territory-only [ORIGINAL]; walking a held block over a crate elsewhere
-## does nothing by design). Resets to the flat UNCLAIMED_COLOR the moment
-## either condition stops holding, so the hint never lingers on a crate the
-## ghost has moved away from or that just became claimable.
+## Pulses a LANDED crate's tint while the local player's held ghost hovers
+## near it outside that player's own territory. Falling crates can be claimed
+## by a held block touch, so they never show this not-claimable hint. Resets
+## to the flat UNCLAIMED_COLOR when hovering stops.
 func _update_hint(delta: float) -> void:
 	if _canopy != null and _canopy.visible:
 		return

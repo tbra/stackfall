@@ -60,9 +60,8 @@ var _forced_special_index: int = -1
 ## bounds check) can never read out of range.
 var _forced_special_id: StringName = &""
 ## True when the last _apply_forced_special() call's debug_queue_special()
-## refused because the active slot's queue was already at GiftConfig.
-## max_pending_specials -- ui/SandboxPanel.gd surfaces this so a tester knows
-## why F9 didn't visibly hand out anything, rather than looking like a bug.
+## refused the request. A filled next slot is replaced under the latest-gift-
+## wins rule; it no longer sets this flag.
 var _forced_special_queue_full: bool = false
 
 ## sandbox_slow_motion (F10): whether Engine.time_scale is currently set to
@@ -622,10 +621,10 @@ func force_special_by_id(special_id: StringName) -> void:
 ## a Callable that always returns that one id (Match.set_special_drawer()) so
 ## every future crate claim/on_feed_block_issued() roll keeps handing out the
 ## forced special for as long as this stays on, and immediately seeds the
-## active slot's queue via Match.debug_queue_special() so a tester need not
-## wait on a crate at all. A full queue leaves _forced_special_queue_full
-## true for the panel and otherwise does nothing (debug_queue_special()'s own
-## contract) -- the forced drawer is still installed either way.
+## active slot's next piece via Match.debug_queue_special() so a tester need
+## not wait on a crate at all. Like a real claim, this replaces an older next
+## gift while leaving the current held piece untouched. The forced drawer is
+## still installed if the debug request is refused.
 func _apply_forced_special() -> void:
 	if _forced_special_index < 0 or _forced_special_index >= _special_roster_ids.size():
 		_forced_special_id = &""

@@ -714,10 +714,10 @@ func test_sandbox_force_special_hotkey_cycles_the_roster_in_order_and_wraps_to_o
 		sandbox._unhandled_input(event)
 		assert_eq(sandbox.forced_special(), StringName(expected_id))
 		assert_eq(
-			Match.held_special(sandbox.active_slot()), StringName(expected_id),
-			"the forced special must be seeded into the active slot's queue with no crate needed"
+			(Match._gifts._pending_queues[sandbox.active_slot()] as Array)[0], StringName(expected_id),
+			"the forced special must become the active slot's next piece with no crate needed"
 		)
-		Match.pop_pending_special(sandbox.active_slot())
+		assert_eq(Match.held_special(sandbox.active_slot()), &"", "forcing leaves the current piece alone")
 
 	# One more press than the roster is long wraps back to "off".
 	sandbox._unhandled_input(event)
@@ -775,10 +775,9 @@ func test_sandbox_force_special_off_restores_the_default_drawer() -> void:
 	)
 
 
-## GiftConfig.max_pending_specials caps debug_queue_special() exactly like a
-## real claim; a full queue must not be silently overfilled, and the panel
-## must be able to show why nothing new appeared.
-func test_sandbox_force_special_queue_full_sets_the_panel_flag_without_queuing() -> void:
+## With the next slot occupied, a later forced gift replaces that piece just
+## like a later crate claim; it does not grow the queue or report refusal.
+func test_sandbox_force_special_replaces_an_occupied_next_slot() -> void:
 	_start_sandbox(2)
 	_run_countdown()
 	var sandbox: Sandbox = _main._sandbox
@@ -788,9 +787,10 @@ func test_sandbox_force_special_queue_full_sets_the_panel_flag_without_queuing()
 
 	sandbox.force_special_by_id(&"anvil")
 
-	assert_true(sandbox.forced_special_queue_full(), "F9 must report the queue as full when it is")
-	assert_eq(Match.pending_special_count(0), 1, "a full queue must not grow past the cap")
-	assert_eq(Match.held_special(0), &"filler", "the existing queue entry must be untouched")
+	assert_false(sandbox.forced_special_queue_full(), "replacement is a successful debug request")
+	assert_eq(Match.pending_special_count(0), 1, "replacement must not grow the queue")
+	assert_eq((Match._gifts._pending_queues[0] as Array)[0], &"anvil", "the latest forced gift wins the next slot")
+	assert_eq(Match.held_special(0), &"", "the current held piece stays unchanged")
 
 
 func test_sandbox_panel_shows_the_forced_special_and_off_states() -> void:
@@ -829,7 +829,8 @@ func test_force_special_cli_arg_sets_the_forced_special_at_startup() -> void:
 	_main._start_sandbox_match_with_args(PackedStringArray(["sandbox", "players=2", "force-special=anvil"]))
 
 	assert_eq(_main._sandbox.forced_special(), &"anvil")
-	assert_eq(Match.held_special(0), &"anvil", "the CLI flag must seed the active slot immediately, like F9 does")
+	assert_eq((Match._gifts._pending_queues[0] as Array)[0], &"anvil", "the CLI flag must seed the active slot's next piece, like F9 does")
+	assert_eq(Match.held_special(0), &"", "the CLI flag must leave the current held piece alone")
 
 
 func test_force_special_by_id_with_an_unknown_id_warns_and_stays_off() -> void:

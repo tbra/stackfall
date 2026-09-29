@@ -59,6 +59,7 @@ func _make_crate(gift_id: int, disk_point: Vector2, parent: Node3D) -> GiftCrate
 	parent.add_child(crate)
 	crate.gift_id = gift_id
 	crate.global_position = _field.world_from_disk_local(disk_point, GiftCrate.CRATE_SIZE.y * 0.5)
+	crate.set_falling(false)
 	return crate
 
 
@@ -82,8 +83,11 @@ func test_real_spawn_claim_uses_its_id_for_the_pop() -> void:
 	assert_eq(crate.gift_id, gift_id, "the visual must listen for its actual spawn id")
 
 	_step_territory()
+	assert_true(Match._gifts._crates.has(gift_id), "territory cannot claim a crate still descending")
+	var fall_time: float = Match._gifts._gift_config.drop_height_m / Match._gifts._gift_config.fall_speed_m_s
+	Match._gifts.tick_host(fall_time + 0.01)
 
-	assert_false(Match._gifts._crates.has(gift_id), "owned territory claims the spawned crate")
+	assert_false(Match._gifts._crates.has(gift_id), "owned territory claims the crate on landing")
 	assert_eq(Match.pending_special_count(0), 1, "the claim queues a special")
 	assert_not_null(Match._gifts._container.get_node_or_null("GiftClaimPop"), "the claim must leave visible feedback")
 
