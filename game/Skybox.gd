@@ -165,6 +165,28 @@ var _fog_volume: FogVolume = null
 ## reaches every live CameraRig/Block, without needing its own reference to
 ## this node wired first.
 const TUNING_GROUP: StringName = &"tuning_skybox"
+## Weather overcast (Bontago-22y.5) finds the Skybox through this group.
+const OVERCAST_GROUP: StringName = &"weather_skybox"
+## Weather overcast, presentation only. DECISION (Skybox.gd): the Skybox OWNS
+## every value the overcast touches. set_overcast() only stores the request;
+## _apply_overcast() re-derives the light, ambient, sky exposure and fog tint
+## from the current theme's baseline, and apply_theme() ends with it, so a live
+## theme switch during rain re-bases on the new theme and amount 0 is exactly
+## the theme's own values (no stale multipliers). Weather code never writes the
+## Environment or the light directly.
+var _overcast_amount: float = 0.0
+var _overcast_light_scale: float = 1.0
+var _overcast_ambient_scale: float = 1.0
+var _overcast_exposure_scale: float = 1.0
+var _overcast_fog_tint: Color = Color.WHITE
+var _overcast_fog_tint_strength: float = 0.0
+var _overcast_exposure_base: float = -1.0
+var _overcast_theme: SkyThemeDef = null
+## Sky shaders with an `exposure` uniform (sunset_clouds, night_sky): the real
+## dimming lever, since Environment.background_energy_multiplier barely reads on
+## them. material -> its baseline exposure, so amount 0 restores exactly.
+const SKY_EXPOSURE_UNIFORM: StringName = &"exposure"
+var _overcast_sky_bases: Dictionary = {}
 
 ## Bontago-xtq.22: the id apply_set()/list_available_sets() use for "no
 ## textured set -- keep the procedural sky", i.e. the empty string. Matches
@@ -176,6 +198,7 @@ const PROCEDURAL_SET_ID: String = ""
 
 func _ready() -> void:
 	add_to_group(TUNING_GROUP)
+	add_to_group(OVERCAST_GROUP)
 	if environment != null and environment.sky != null:
 		_fallback_sky_material = environment.sky.sky_material
 	for face_name: String in config.face_names:
@@ -498,6 +521,7 @@ func apply_theme(applied_theme: SkyThemeDef) -> void:
 	environment.volumetric_fog_density = applied_theme.volumetric_fog_density
 	environment.volumetric_fog_albedo = applied_theme.volumetric_fog_albedo
 	_apply_light_and_environment(applied_theme)
+	_apply_overcast(applied_theme)
 	_sync_fog_volume(applied_theme)
 	_apply_sun_flare(applied_theme)
 	# Bontago-adt.1: the cloud puffs and birds are rebuilt from the applied
@@ -839,3 +863,56 @@ static func _face_corners(face: StringName, h: float) -> Dictionary:
 			}
 		_:
 			return {}
+
+
+## Weather overcast (Bontago-22y.5): `amount` 0..1 scales the theme's light and
+## ambient energy, the sky exposure and tints the fog toward `fog_tint`. The
+## *_scale values are the factors reached at amount 1. Amount 0 restores the
+## theme exactly.
+func set_overcast(amount: float, light_scale: float, ambient_scale: float, exposure_scale: float, fog_tint: Color, fog_tint_strength: float) -> void:
+	_overcast_amount = clampf(amount, 0.0, 1.0)
+	_overcast_light_scale = light_scale
+	_overcast_ambient_scale = ambient_scale
+	_overcast_exposure_scale = exposure_scale
+	_overcast_fog_tint = fog_tint
+	_overcast_fog_tint_strength = fog_tint_strength
+	_apply_overcast(_overcast_theme if _overcast_theme != null else theme)
+
+
+func overcast_amount() -> float:
+	return _overcast_amount
+
+
+func _apply_overcast(applied_theme: SkyThemeDef) -> void:
+	if applied_theme == null or environment == null:
+		return
+	_overcast_theme = applied_theme
+	if _overcast_exposure_base < 0.0:
+		_overcast_exposure_base = environment.background_energy_multiplier
+	var amount: float = _overcast_amount
+	environment.ambient_light_energy = applied_theme.ambient_energy * lerpf(1.0, _overcast_ambient_scale, amount)
+	environment.background_energy_multiplier = _overcast_exposure_base * lerpf(1.0, _overcast_exposure_scale, amount)
+	_apply_sky_exposure(amount)
+	var tint: float = _overcast_fog_tint_strength * amount
+	var fog_color: Color = applied_theme.fog_color.lerp(_overcast_fog_tint, tint)
+	environment.fog_light_color = fog_color
+	var fog_material: FogMaterial = _fog_volume.material as FogMaterial if _fog_volume != null else null
+	if fog_material != null:
+		fog_material.albedo = fog_color
+	if light_path.is_empty():
+		return
+	var light: DirectionalLight3D = get_node_or_null(light_path) as DirectionalLight3D
+	if light != null:
+		light.light_energy = applied_theme.light_energy * lerpf(1.0, _overcast_light_scale, amount)
+
+
+func _apply_sky_exposure(amount: float) -> void:
+	var active: ShaderMaterial = null
+	if environment.sky != null:
+		active = environment.sky.sky_material as ShaderMaterial
+	if active != null and not _overcast_sky_bases.has(active) and active.get_shader_parameter(SKY_EXPOSURE_UNIFORM) is float:
+		_overcast_sky_bases[active] = float(active.get_shader_parameter(SKY_EXPOSURE_UNIFORM))
+	for key: Variant in _overcast_sky_bases.keys():
+		var material: ShaderMaterial = key as ShaderMaterial
+		var base: float = float(_overcast_sky_bases[key])
+		material.set_shader_parameter(SKY_EXPOSURE_UNIFORM, base * lerpf(1.0, _overcast_exposure_scale, amount) if material == active else base)
