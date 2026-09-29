@@ -16,6 +16,11 @@ var _sfx: Node
 var _config: AudioConfig
 var _settings_path: String
 
+## The fixture pins its own silent-gap range so the gap assertions do not
+## depend on AudioConfig's shipped defaults (retuned in 7416172).
+const GAP_MIN_S: float = 30.0
+const GAP_MAX_S: float = 75.0
+
 
 func before_each() -> void:
 	_settings_path = OS.get_user_data_dir().path_join("test_playlist_settings.cfg")
@@ -25,6 +30,8 @@ func before_each() -> void:
 	_config.menu_playlist = [_track(20.0)]
 	_config.lobby_playlist = [_track(25.0)]
 	_config.gameplay_playlist = [_track(30.0), _track(35.0), _track(40.0)]
+	_config.music_gap_min_seconds = GAP_MIN_S
+	_config.music_gap_max_seconds = GAP_MAX_S
 	_sfx = SFX_SCRIPT.new()
 	_sfx.config = _config
 	add_child_autofree(_sfx)
@@ -73,10 +80,10 @@ func test_finished_track_waits_before_next_and_does_not_repeat() -> void:
 	var first: int = _sfx._last_track_by_context[&"gameplay"]
 	_sfx._music_player.stop() # Simulate audio backend end then its finished signal.
 	_sfx._on_music_finished()
-	assert_between(_sfx._music_wait_remaining, 30.0, 75.0)
+	assert_between(_sfx._music_wait_remaining, GAP_MIN_S, GAP_MAX_S)
 	_sfx._advance_music(1.0)
 	assert_false(_sfx._music_player.playing, "silent gap remains")
-	_sfx._advance_music(75.0)
+	_sfx._advance_music(GAP_MAX_S)
 	assert_true(_sfx._music_player.playing)
 	assert_ne(_sfx._last_track_by_context[&"gameplay"], first)
 
