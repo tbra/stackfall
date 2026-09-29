@@ -81,3 +81,67 @@ extends Resource
 ## still reading as a cloud layer the island floats above.
 @export var cloud_deck_size_m: Vector3 = Vector3(800.0, 60.0, 800.0)
 @export var cloud_deck_height_m: float = -40.0
+
+## Bontago-adt.1 (graphics pass): per-theme light and environment values that
+## Skybox.apply_theme() writes onto the scene's DirectionalLight3D (via
+## Skybox.light_path) and the shared Environment. Defaults equal the values
+## game/Main.tscn shipped with, so a theme that leaves them alone (sunset)
+## looks exactly as before.
+@export var light_color: Color = Color(1.0, 0.94, 0.85)
+@export var light_energy: float = 0.85
+## DirectionalLight3D.rotation_degrees; its +Z axis points toward the sun/moon.
+@export var light_rotation_deg: Vector3 = Vector3(-45.0, -30.0, 0.0)
+## Environment.ambient_light_energy (ambient comes from the sky).
+@export var ambient_energy: float = 0.5
+## Environment glow_intensity / glow_hdr_threshold: lower threshold makes
+## emissive territory, beacons and the moon bloom more.
+@export var glow_intensity: float = 0.5
+@export var glow_hdr_threshold: float = 1.3
+
+## Cloud sea below the disc (vfx/CloudSea.gd): 3D toon cumulus clumps built
+## from flat-bottomed puffs, drawn with a ShaderMaterial using
+## shaders/cloud_puffs.gdshader (its colours, lighting and fades live on that
+## material). The clumps scatter over a ring (inner/outer radius from the disc
+## axis) with bases between cloud_base_min_m and cloud_base_max_m; no puff top
+## rises above cloud_top_max_m (keep it well under the disc's underside and
+## the 0..72 m play volume). Each clump is cloud_clump_radius_* wide and
+## cloud_clump_height_ratio of that tall, and drifts around the disc at
+## cloud_drift_speed_* metres per second (negative reverses). cloud_flat_base
+## is how far below a puff's centre (fraction of its radius) its flat base
+## sits. GraphicsPreset.cloud_puff_density scales cloud_clump_count. Null
+## material or zero clumps means no puffs (the far cloud sea in the sky
+## panorama remains).
+@export var cloud_puff_material: Material = null
+@export var cloud_clump_count: int = 0
+@export var cloud_puffs_per_clump: int = 12
+@export var cloud_seed: int = 11
+@export var cloud_ring_inner_m: float = 80.0
+@export var cloud_ring_outer_m: float = 460.0
+@export var cloud_base_min_m: float = -75.0
+@export var cloud_base_max_m: float = -45.0
+@export var cloud_top_max_m: float = -18.0
+@export var cloud_clump_radius_min_m: float = 15.0
+@export var cloud_clump_radius_max_m: float = 36.0
+@export var cloud_clump_height_ratio: float = 0.65
+@export var cloud_flat_base: float = 0.15
+@export var cloud_drift_speed_min_mps: float = 0.8
+@export var cloud_drift_speed_max_mps: float = 1.8
+
+## Distant bird flocks (vfx/DistantBirds.gd): a ShaderMaterial using
+## shaders/distant_birds.gdshader; flock/bird counts, placement ring and
+## altitude band (metres), orbit radius, glide speed and size ranges. Kept far
+## outside the play area (distance_min minus orbit radius is well past the
+## disc). Null material or zero flocks means no birds.
+@export var bird_material: Material = null
+@export var bird_flock_count: int = 0
+@export var birds_per_flock: int = 6
+@export var bird_seed: int = 7
+@export var bird_distance_min_m: float = 260.0
+@export var bird_distance_max_m: float = 520.0
+@export var bird_altitude_min_m: float = 10.0
+@export var bird_altitude_max_m: float = 70.0
+@export var bird_orbit_radius_min_m: float = 30.0
+@export var bird_orbit_radius_max_m: float = 70.0
+@export var bird_speed_mps: float = 9.0
+@export var bird_size_min_m: float = 2.0
+@export var bird_size_max_m: float = 3.2

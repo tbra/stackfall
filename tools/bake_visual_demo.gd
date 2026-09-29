@@ -16,7 +16,9 @@ extends Node
 ## ArrayMeshes keep their surface data):
 ##   godot --path . --position 10000,10000 tools/bake_visual_demo.tscn
 ## Optional user args after `--`: --players=N (2-8, default 4), --map=<variant_size>
-## (e.g. ring_large; default: config/match_defaults.tres).
+## (e.g. ring_large; default: config/match_defaults.tres), --theme=<name> (a
+## config/sky_themes/<name>.tres; default sunset). Sunset bakes to VisualDemo.tscn,
+## any other theme to VisualDemo_<Name>.tscn (e.g. VisualDemo_Night.tscn).
 ##
 ## The output folder is gitignored: when assets/original is installed the
 ## baked sky faces are the original game's copyrighted textures.
@@ -36,6 +38,7 @@ extends Node
 
 const OUTPUT_DIR: String = "res://visual_demo"
 const OUTPUT_SCENE: String = "res://visual_demo/VisualDemo.tscn"
+const DEFAULT_THEME: String = "sunset"
 const DEFAULT_PLAYERS: int = 4
 const BOOT_WAIT_S: float = 1.5
 const SETTLE_WAIT_S: float = 8.0
@@ -74,6 +77,7 @@ const CHECK_SHOT_SIZE: Vector2i = Vector2i(1280, 720)
 const CHECK_SHOT_FRAMES: int = 6
 
 var _externalized: int = 0
+var _output_scene: String = OUTPUT_SCENE
 var _name_counts: Dictionary[String, int] = {}
 
 
@@ -96,6 +100,16 @@ func _ready() -> void:
 		match_config.map_size = MapDef.MapSize[parts[1]] as MapDef.MapSize
 		main.set("match_config", match_config)
 
+	var theme_id: String = _string_arg(args, "theme", DEFAULT_THEME)
+	if theme_id != DEFAULT_THEME:
+		var sky_theme: SkyThemeDef = Skybox.load_theme(theme_id)
+		if sky_theme == null:
+			push_error("VISUAL_DEMO unknown theme '%s'" % theme_id)
+			get_tree().quit(1)
+			return
+		(main.get_node("Skybox") as Skybox).theme = sky_theme
+		_output_scene = "%s/VisualDemo_%s.tscn" % [OUTPUT_DIR, theme_id.capitalize()]
+
 	get_tree().root.add_child.call_deferred(main)
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -114,7 +128,7 @@ func _ready() -> void:
 	var error: Error = _bake(main)
 	if error == OK:
 		main.queue_free()
-		await _render_shot(null, (load(OUTPUT_SCENE) as PackedScene).instantiate(), CHECK_SHOT_PATH)
+		await _render_shot(null, (load(_output_scene) as PackedScene).instantiate(), CHECK_SHOT_PATH)
 	get_tree().quit(0 if error == OK else 1)
 
 
@@ -168,10 +182,10 @@ func _bake(main: Node) -> Error:
 	if pack_error != OK:
 		push_error("VISUAL_DEMO pack failed: %s" % error_string(pack_error))
 		return pack_error
-	var save_error: Error = ResourceSaver.save(packed, OUTPUT_SCENE)
-	var size: int = FileAccess.get_file_as_bytes(OUTPUT_SCENE).size()
+	var save_error: Error = ResourceSaver.save(packed, _output_scene)
+	var size: int = FileAccess.get_file_as_bytes(_output_scene).size()
 	print("VISUAL_DEMO saved=%s bytes=%d externalized_textures=%d error=%s" % [
-		ProjectSettings.globalize_path(OUTPUT_SCENE), size, _externalized, error_string(save_error),
+		ProjectSettings.globalize_path(_output_scene), size, _externalized, error_string(save_error),
 	])
 	root.free()
 	return save_error
