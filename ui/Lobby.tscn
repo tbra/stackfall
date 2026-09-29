@@ -735,6 +735,21 @@ unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(150, 0)
 
+[node name="WeatherCol" type="VBoxContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="WeatherCaption" type="Label" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules/WeatherCol"]
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+theme_override_font_sizes/font_size = 10
+text = "Weather"
+
+[node name="WeatherOption" type="OptionButton" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules/WeatherCol"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+
 [node name="MatchTimerCol" type="VBoxContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules"]
 layout_mode = 2
 theme_override_constants/separation = 4

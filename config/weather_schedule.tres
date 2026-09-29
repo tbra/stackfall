@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="WeatherScheduleTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/WeatherScheduleTuning.gd" id="1_ws"]
+
+[resource]
+script = ExtResource("1_ws")
+first_delay_s = 45.0
+gap_min_s = 60.0
+gap_max_s = 150.0
+avoid_repeat_type = true
+intensity_epsilon = 0.001
+wire_max_time_s = 3600.0
