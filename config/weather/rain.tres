@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="WeatherTuning" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="RainTuning" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://config/WeatherTuning.gd" id="1_wt"]
+[ext_resource type="Script" path="res://config/RainTuning.gd" id="1_wt"]
 
 [resource]
 script = ExtResource("1_wt")
@@ -12,4 +12,4 @@ ramp_out_s = 4.0
 hold_min_s = 40.0
 hold_max_s = 80.0
 presentation_scene = "res://vfx/weather/rain_presentation.tscn"
-effect_script = ""
+effect_script = "res://autoload/match/weather/RainEffect.gd"

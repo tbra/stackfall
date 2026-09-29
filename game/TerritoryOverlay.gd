@@ -61,6 +61,14 @@ const STATE_HOLE: int = TerritoryRaster.STATE_HOLE
 const TERRITORY_SHADER: Shader = preload("res://shaders/territory.gdshader")
 ## Slot colors the shader's uniform array holds; MatchConfig ships eight.
 const SLOT_COLOR_MAX: int = 8
+## Weather wetness (Bontago-22y.5) finds the overlay through this group.
+const WET_GROUP: StringName = &"weather_territory"
+## Wet-disc request, presentation only: extra sheen and a roughness factor
+## layered over TerritoryVisuals. _apply_visual_uniforms() re-applies it, so a
+## visuals refresh (F4 panel) mid-rain never drops it.
+var _wet_amount: float = 0.0
+var _wet_sheen_add: float = 0.0
+var _wet_roughness_scale: float = 1.0
 ## The disk centre sits at the middle of the raster square, so disk-local
 ## (0, 0) maps to the middle of the texture. See _apply_uv_uniforms().
 const UV_CENTER: float = 0.5
@@ -149,6 +157,7 @@ func configure(map_def: MapDef, visuals: TerritoryVisuals, tuning: TerritoryTuni
 	_visuals = visuals
 	_tuning = tuning
 	_cells_per_side = map_def.cells_per_side()
+	add_to_group(WET_GROUP)
 
 	rebuild_disk_mesh()
 
@@ -696,6 +705,7 @@ func _apply_visual_uniforms() -> void:
 		z_scale = _map_def.oval_aspect
 	_material.set_shader_parameter(&"disc_z_scale", z_scale)
 	set_slot_colors(PackedColorArray())
+	_apply_wet()
 
 
 ## Bontago-xtq.12 step 2: the one door game/DiscMirror.gd (owned by this same
@@ -798,3 +808,28 @@ func _apply_procedural_disc(surface: DiscSurfaceDef) -> void:
 	}
 	for key: StringName in params:
 		_material.set_shader_parameter(key, params[key])
+
+
+## Weather wetness (Bontago-22y.5): `amount` 0..1 adds `sheen_add` to the disc's
+## sheen strength and scales its roughness by `roughness_scale` at amount 1.
+## Amount 0 is exactly TerritoryVisuals' own values.
+func set_wet(amount: float, sheen_add: float, roughness_scale: float) -> void:
+	_wet_amount = clampf(amount, 0.0, 1.0)
+	_wet_sheen_add = sheen_add
+	_wet_roughness_scale = roughness_scale
+	_apply_wet()
+
+
+func _apply_wet() -> void:
+	if _material == null or _visuals == null:
+		return
+	var add: float = _wet_sheen_add * _wet_amount
+	var rough: float = lerpf(1.0, _wet_roughness_scale, _wet_amount)
+	_material.set_shader_parameter(&"disk_sheen_strength", _visuals.disk_sheen_strength + add)
+	_material.set_shader_parameter(&"base_roughness", clampf(_visuals.disk_roughness * rough, 0.0, 1.0))
+	var surface: DiscSurfaceDef = _visuals.disc_surface
+	if surface != null:
+		_material.set_shader_parameter(&"disc_proc_sheen_strength", surface.proc_sheen_strength + add)
+		_material.set_shader_parameter(&"disc_proc_roughness", clampf(surface.proc_roughness * rough, 0.0, 1.0))
+		_material.set_shader_parameter(&"disc_roughness_min", clampf(surface.roughness_min * rough, 0.0, 1.0))
+		_material.set_shader_parameter(&"disc_roughness_max", clampf(surface.roughness_max * rough, 0.0, 1.0))
