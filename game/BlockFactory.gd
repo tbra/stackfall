@@ -272,6 +272,18 @@ static func _material_for_color(color: Color) -> ShaderMaterial:
 	material.set_shader_parameter(&"rim_color", VISUAL_TUNING.rim_color)
 	material.set_shader_parameter(&"rim_power", VISUAL_TUNING.rim_power)
 	material.set_shader_parameter(&"rim_strength", VISUAL_TUNING.rim_strength)
+	material.set_shader_parameter(&"grid_line_far_cell_px", VISUAL_TUNING.grid_line_far_cell_px)
+	material.set_shader_parameter(&"grid_line_full_cell_px", VISUAL_TUNING.grid_line_full_cell_px)
+	material.set_shader_parameter(&"grid_line_far_strength", VISUAL_TUNING.grid_line_far_strength)
+	material.set_shader_parameter(&"albedo_saturation", VISUAL_TUNING.albedo_saturation)
+	material.set_shader_parameter(&"cell_ao_strength", VISUAL_TUNING.cell_ao_strength)
+	material.set_shader_parameter(&"cell_ao_height", VISUAL_TUNING.cell_ao_height)
+	material.set_shader_parameter(&"ambient_scale", VISUAL_TUNING.ambient_scale)
+	material.set_shader_parameter(&"light_gain", VISUAL_TUNING.light_gain)
+	material.set_shader_parameter(&"band_softness", VISUAL_TUNING.band_softness)
+	material.set_shader_parameter(&"bevel_shadow_side_fraction", VISUAL_TUNING.bevel_shadow_side_fraction)
+	material.set_shader_parameter(&"rim_cool_color", VISUAL_TUNING.rim_cool_color)
+	material.set_shader_parameter(&"rim_cool_strength", VISUAL_TUNING.rim_cool_strength)
 	_materials_by_color[color] = material
 	return material
 
@@ -280,7 +292,10 @@ static func _outline_material_singleton() -> ShaderMaterial:
 	if _outline_material == null:
 		var material: ShaderMaterial = ShaderMaterial.new()
 		material.shader = OUTLINE_SHADER
-		material.set_shader_parameter(&"outline_width_m", VISUAL_TUNING.outline_width_m)
+		material.set_shader_parameter(&"outline_width_px", VISUAL_TUNING.outline_width_px)
+		material.set_shader_parameter(&"outline_far_width_px", VISUAL_TUNING.outline_far_width_px)
+		material.set_shader_parameter(&"outline_fade_start_m", VISUAL_TUNING.outline_fade_start_m)
+		material.set_shader_parameter(&"outline_far_distance_m", VISUAL_TUNING.outline_far_distance_m)
 		material.set_shader_parameter(&"outline_color", VISUAL_TUNING.outline_color)
 		material.set_shader_parameter(&"outline_tint_amount", VISUAL_TUNING.outline_tint_amount)
 		material.set_shader_parameter(&"outline_tint_darken", VISUAL_TUNING.outline_tint_darken)

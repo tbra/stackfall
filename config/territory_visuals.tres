@@ -4,19 +4,31 @@
 
 [resource]
 script = ExtResource("1_visuals")
-disk_base_color = Color(0.141, 0.153, 0.176, 1)
+disk_base_color = Color(0.045, 0.045, 0.05, 1)
 disk_metallic = 0.1
-disk_roughness = 0.45
+disk_roughness = 0.3
 disk_mesh_segments = 96
 top_grain_strength = 0.0
 top_grain_scale = 0.35
 top_grain_fine_scale = 6.0
 top_grain_roughness_strength = 0.0
+tint_fill_emission = 0.12
+panel_fade_px = 12.0
+panel_variation = 0.12
+panel_seam_strength = 0.35
+panel_seam_width_px = 1.0
+panel_size_m = 6.0
+disk_specular = 0.55
+disk_sky_sheen_color = Color(0.85, 0.6, 0.5, 1)
+disk_sky_sheen_strength = 0.18
+disk_sky_sheen_power = 8.0
+disk_fill_color = Color(0.016, 0.017, 0.02, 1)
+disk_ambient_scale = 0.08
 disk_diffuse_response = 0.45
 disk_diffuse_desaturate = 0.85
 disk_sheen_color = Color(1, 0.78, 0.4, 1)
-disk_sheen_strength = 0.55
-disk_sheen_exponent = 6.0
+disk_sheen_strength = 0.35
+disk_sheen_exponent = 40.0
 edge_softness = 0.4
 edge_softness_m = 0.03
 tint_alpha = 0.3

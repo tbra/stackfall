@@ -299,6 +299,37 @@ uniform float top_grain_scale : hint_range(0.01, 5.0) = 0.35;
 uniform float top_grain_fine_scale : hint_range(1.0, 30.0) = 6.0;
 uniform float top_grain_roughness_strength : hint_range(0.0, 1.0) = 0.12;
 
+// -- Bontago-adt.2: polished graphite look (roadmap "Textures/materials") ------
+// The flat brown read came from the warm sky ambient + reflection probe/SSR
+// lighting a dielectric surface at full default strength. disk_ambient_scale
+// scales the ambient diffuse term (AO built-in) and disk_specular the
+// dielectric F0 (SPECULAR built-in, 0.5 = engine default), so the surface
+// stays a dark graphite instead of borrowing the sunset; the sky still shows
+// up as a strong fresnel sheen at grazing angles and through the mirror.
+// Flat cool graphite fill added as light-independent emission so the disc
+// keeps its cool hue whatever colour the sky ambient is (warm sunset ambient
+// on a cool albedo is what turned the disc brown).
+uniform vec3 disk_fill_color : source_color = vec3(0.045, 0.05, 0.065);
+uniform float disk_ambient_scale : hint_range(0.0, 1.0) = 0.35;
+uniform float disk_specular : hint_range(0.0, 1.0) = 0.5;
+// Procedural machined-panel texture (albedo only, tint/contours untouched):
+// square panels of panel_size_m with constant-pixel-width seams and a subtle
+// per-panel brightness variation. Seams fade out where panels shrink below
+// ~panel_fade_px on screen so distant views never moire.
+// Cool sky-coloured fresnel sheen: the graphite picks up a lavender sky
+// reflection toward grazing angles (far side of the disc), as in mockup 08.
+uniform vec3 disk_sky_sheen_color : source_color = vec3(0.45, 0.42, 0.62);
+uniform float disk_sky_sheen_strength : hint_range(0.0, 2.0) = 0.35;
+uniform float disk_sky_sheen_power : hint_range(0.5, 10.0) = 3.0;
+uniform float panel_size_m = 6.0;
+uniform float panel_seam_width_px = 1.0;
+uniform float panel_seam_strength : hint_range(0.0, 1.0) = 0.5;
+uniform float panel_variation : hint_range(0.0, 0.5) = 0.12;
+uniform float panel_fade_px = 12.0;
+// Flat, light-independent emissive fill of the territory tint so it reads at
+// the same strength in day and night themes.
+uniform float tint_fill_emission : hint_range(0.0, 1.0) = 0.12;
+
 varying vec3 v_local;
 
 void vertex() {
@@ -402,7 +433,7 @@ void raster_path(vec2 uv, out vec3 albedo, out vec3 emission) {
 
 	vec3 team_color = slot_colors[clamp(owner_id, 0, SLOT_COLOR_MAX - 1)].rgb;
 	albedo = mix(base_color.rgb, team_color, tint * tint_alpha);
-	emission = vec3(0.0);
+	emission = team_color * tint * tint_fill_emission;
 
 	float band = 1.0 - smoothstep(0.0, outline_width, abs(presence - 0.5));
 	float pulse = mix(
@@ -539,6 +570,7 @@ void circle_path(vec2 point, out vec3 albedo, out vec3 emission) {
 		float coverage = smoothstep(-edge_half_width, edge_half_width, best_overall);
 		vec3 team_color = slot_colors[owner_team].rgb;
 		albedo = mix(base_color.rgb, team_color, coverage * tint_alpha);
+		emission += team_color * coverage * tint_fill_emission;
 
 		float band = 1.0 - smoothstep(0.0, rim_width, abs(best_overall));
 		float pulse = mix(
@@ -621,6 +653,22 @@ void fragment() {
 	// final normalize() absorbs any residual scale) without needing a
 	// dedicated inverse-transpose normal matrix, which Godot only exposes in
 	// vertex(), not fragment().
+	// Bontago-adt.2: machined panel seams + per-panel brightness (albedo only).
+	{
+		vec2 panel_p = v_local.xz / max(panel_size_m, 0.01);
+		vec2 panel_id = floor(panel_p);
+		vec2 panel_f = fract(panel_p);
+		float panel_rand = fract(sin(dot(panel_id, vec2(12.9898, 78.233))) * 43758.5453);
+		albedo *= 1.0 + (panel_rand - 0.5) * 2.0 * panel_variation;
+		vec2 seam_d = min(panel_f, vec2(1.0) - panel_f);
+		float seam_dist = min(seam_d.x, seam_d.y);
+		float panel_px = 1.0 / max(fwidth(seam_dist), 0.0001);
+		float seam_fade = smoothstep(panel_fade_px * 0.5, panel_fade_px, panel_px);
+		float seam_w = max(fwidth(seam_dist), 0.0001) * panel_seam_width_px;
+		float seam_mask = (1.0 - smoothstep(0.0, seam_w, seam_dist)) * seam_fade;
+		albedo *= 1.0 - seam_mask * panel_seam_strength;
+	}
+
 	float grain_h0 = 0.0;
 	if (top_grain_strength > 0.0 || top_grain_roughness_strength > 0.0) {
 		vec2 grain_point = v_local.xz;
@@ -696,6 +744,9 @@ void fragment() {
 	float alignment = clamp(dot(normalize(reflected), sun_view_dir), 0.0, 1.0);
 	float sheen = pow(alignment, disk_sheen_exponent);
 	emission += disk_sheen_color * disk_sheen_strength * sheen;
+	emission += disk_fill_color;
+	float sky_fresnel = pow(1.0 - clamp(dot(sheen_normal, sheen_view), 0.0, 1.0), disk_sky_sheen_power);
+	emission += disk_sky_sheen_color * disk_sky_sheen_strength * sky_fresnel;
 
 	ALBEDO = albedo;
 	EMISSION = emission;
@@ -707,6 +758,9 @@ void fragment() {
 	// shimmer/goal) reads at full strength through ALBEDO/EMISSION above with
 	// no opacity trick needed.
 	METALLIC = base_metallic;
+	SPECULAR = disk_specular;
+	AO = disk_ambient_scale;
+	AO_LIGHT_AFFECT = 0.0;
 	// Bontago-pt.12 part 2: grain_h0 (the same coarse+fine grain height the
 	// NORMAL perturbation above used, in [-0.5, 0.5]) also nudges ROUGHNESS a
 	// little -- a purely additive, sign-symmetric variation so the grain
