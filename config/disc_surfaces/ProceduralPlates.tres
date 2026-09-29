@@ -5,3 +5,8 @@
 [resource]
 script = ExtResource("1_def")
 mode = 1
+proc_hatch_inset_m = 0.15
+proc_hatch_tone = 0.8
+proc_lip_highlight = 0.01
+proc_rivet_fade_height_end_m = 30.0
+proc_seam_fade_height_end_m = 60.0
