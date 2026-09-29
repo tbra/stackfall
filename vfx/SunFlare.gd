@@ -73,9 +73,15 @@ var _material: ShaderMaterial = null
 var _camera: Camera3D = null
 var _current_visibility: float = 0.0
 var _enabled: bool = true
+## Bontago-adt: the active SkyThemeDef's sun_flare_enabled (Skybox.apply_theme()
+## pushes it through set_theme_enabled(); night turns the sunset-aimed flare off).
+var _theme_enabled: bool = true
+
+const GROUP: StringName = &"sun_flare"
 
 
 func _ready() -> void:
+	add_to_group(GROUP)
 	_rect = ColorRect.new()
 	_rect.name = &"FlareRect"
 	_rect.color = Color(0.0, 0.0, 0.0, 0.0)
@@ -105,10 +111,22 @@ func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 	_enabled = preset == null or preset.volumetric_fog_enabled
 
 
+## Bontago-adt: theme gate (see _theme_enabled). Fades out via the hidden rect
+## immediately; the smoothed visibility restarts from 0 on re-enable.
+func set_theme_enabled(value: bool) -> void:
+	_theme_enabled = value
+	if not value:
+		_current_visibility = 0.0
+
+
+func is_theme_enabled() -> bool:
+	return _theme_enabled
+
+
 func _process(delta: float) -> void:
 	if _rect == null or _material == null:
 		return
-	if not _enabled or _camera == null or config == null or not is_instance_valid(_camera):
+	if not _enabled or not _theme_enabled or _camera == null or config == null or not is_instance_valid(_camera):
 		_rect.visible = false
 		return
 	_rect.visible = true

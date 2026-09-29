@@ -97,6 +97,9 @@ extends Resource
 ## emissive territory, beacons and the moon bloom more.
 @export var glow_intensity: float = 0.5
 @export var glow_hdr_threshold: float = 1.3
+## Whether vfx/SunFlare.gd's screen-space lens flare is drawn under this theme
+## (it aims at the painted sunset's sun, so a night theme turns it off).
+@export var sun_flare_enabled: bool = true
 
 ## Cloud sea below the disc (vfx/CloudSea.gd): 3D toon cumulus clumps built
 ## from flat-bottomed puffs, drawn with a ShaderMaterial using

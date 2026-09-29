@@ -119,3 +119,70 @@ func test_bird_flocks_stay_far_from_the_play_area() -> void:
 	var sunset: SkyThemeDef = load(SUNSET_PATH) as SkyThemeDef
 	var nearest: float = sunset.bird_distance_min_m - sunset.bird_orbit_radius_max_m
 	assert_gt(nearest, MapDef.RADIUS_LARGE * 2.0, "flocks must never orbit near the disc")
+
+
+# --- Bontago-adt: live theme switching ------------------------------------------
+
+func test_list_available_themes_skips_noise_textures() -> void:
+	var ids: PackedStringArray = Skybox.list_available_themes()
+	assert_true(ids.has("sunset"))
+	assert_true(ids.has("night"))
+	assert_false(ids.has("cloud_noise"))
+	assert_false(ids.has("puff_noise"))
+
+
+func _ambient_child_count(skybox: Skybox) -> int:
+	# Every node under the skybox plus the multimesh instance counts: repeated
+	# switches must not accumulate nodes or puffs.
+	var total: int = 0
+	var stack: Array[Node] = [skybox]
+	while not stack.is_empty():
+		var node: Node = stack.pop_back()
+		total += 1
+		for child: Node in node.get_children():
+			if not child.is_queued_for_deletion():
+				stack.append(child)
+	return total
+
+
+func test_live_theme_switch_is_stable_and_matches_the_theme() -> void:
+	var parts: Array = _make_skybox(load(SUNSET_PATH) as SkyThemeDef)
+	var skybox: Skybox = parts[0]
+	var environment: Environment = parts[1]
+	var light: DirectionalLight3D = parts[2]
+	var flare: SunFlare = SunFlare.new()
+	add_child_autofree(flare)
+	var night: SkyThemeDef = load(NIGHT_PATH) as SkyThemeDef
+	var sunset: SkyThemeDef = load(SUNSET_PATH) as SkyThemeDef
+	var saved_theme_name: String = skybox.config.theme_name
+	assert_true(skybox.set_theme_by_id("night"))
+	await get_tree().process_frame
+	var baseline: int = _ambient_child_count(skybox)
+	var night_puffs: int = skybox.get_cloud_sea().puff_count()
+	assert_eq(night_puffs, night.cloud_clump_count * night.cloud_puffs_per_clump
+		if Settings.current_graphics_preset() == null
+		else skybox.get_cloud_sea().puff_count())
+	for cycle: int in range(4):
+		assert_true(skybox.set_theme_by_id("sunset"))
+		assert_eq(light.light_color, sunset.light_color)
+		assert_almost_eq(light.light_energy, sunset.light_energy, 0.0001)
+		assert_almost_eq(environment.ambient_light_energy, sunset.ambient_energy, 0.0001)
+		assert_almost_eq(environment.fog_density, sunset.fog_density, 0.000001)
+		assert_true(flare.is_theme_enabled())
+		assert_true(skybox.set_theme_by_id("night"))
+		assert_eq(light.light_color, night.light_color)
+		assert_almost_eq(light.light_energy, night.light_energy, 0.0001)
+		assert_almost_eq(light.rotation_degrees.x, night.light_rotation_deg.x, 0.001)
+		assert_almost_eq(environment.glow_hdr_threshold, night.glow_hdr_threshold, 0.0001)
+		assert_eq(environment.sky.sky_material, night.sky_material)
+		assert_false(flare.is_theme_enabled(), "night hides the sunset-aimed flare")
+		var fog: FogVolume = skybox.get_fog_volume()
+		assert_eq(fog.size, night.cloud_deck_size_m)
+		assert_eq((fog.material as FogMaterial).albedo, night.fog_color)
+		await get_tree().process_frame
+		assert_eq(skybox.get_cloud_sea().puff_count(), night_puffs, "same puff count each night switch")
+		assert_eq(_ambient_child_count(skybox), baseline, "no leaked or duplicated nodes")
+	assert_true(skybox.set_theme_by_id("sunset"))
+	assert_eq(environment.sky.sky_material, sunset.sky_material)
+	assert_false(skybox.set_theme_by_id("no_such_theme"))
+	skybox.config.theme_name = saved_theme_name

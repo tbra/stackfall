@@ -480,6 +480,8 @@ func apply_theme(applied_theme: SkyThemeDef) -> void:
 	environment.volumetric_fog_density = applied_theme.volumetric_fog_density
 	environment.volumetric_fog_albedo = applied_theme.volumetric_fog_albedo
 	_apply_light_and_environment(applied_theme)
+	_sync_fog_volume(applied_theme)
+	_apply_sun_flare(applied_theme)
 	# Bontago-adt.1: the cloud puffs and birds are rebuilt from the applied
 	# theme too, so a live F4 edit or theme switch reaches them.
 	_apply_ambient_life(Settings.current_graphics_preset(), applied_theme)
@@ -527,14 +529,70 @@ static func load_theme(theme_id: String) -> SkyThemeDef:
 	return load(path) as SkyThemeDef
 
 
-## Bontago-adt.1: live theme switch (sky, light, environment, cloud sea, birds).
+## Bontago-adt.1: live theme switch (sky, light, environment, cloud sea, birds,
+## cloud-deck fog volume, sun flare, reflection probe re-capture).
 func set_theme_by_id(theme_id: String) -> bool:
 	var chosen: SkyThemeDef = load_theme(theme_id)
 	if chosen == null:
 		return false
 	theme = chosen
+	config.theme_name = theme_id
 	apply_theme(theme)
+	refresh_reflection_capture()
 	return true
+
+
+## Theme ids (file basenames) under THEME_DIR whose resource is a SkyThemeDef
+## (skips the noise textures), sorted. Future themes appear automatically.
+static func list_available_themes() -> PackedStringArray:
+	var ids: PackedStringArray = PackedStringArray()
+	var dir: DirAccess = DirAccess.open(THEME_DIR)
+	if dir == null:
+		return ids
+	for file_name: String in dir.get_files():
+		var clean: String = file_name.trim_suffix(".remap")
+		if not clean.ends_with(".tres"):
+			continue
+		var theme_id: String = clean.get_basename()
+		if load_theme(theme_id) != null and not ids.has(theme_id):
+			ids.append(theme_id)
+	ids.sort()
+	return ids
+
+
+## Forces the ReflectionProbe to re-capture the (new) sky: an UPDATE_ONCE probe
+## only renders when it becomes visible, so toggle it after re-configuring.
+func refresh_reflection_capture() -> void:
+	configure_reflection_probe()
+	if reflection_probe_path.is_empty():
+		return
+	var probe: ReflectionProbe = get_node_or_null(reflection_probe_path) as ReflectionProbe
+	if probe != null and probe.visible:
+		probe.visible = false
+		probe.visible = true
+
+
+## Resyncs the CloudDeck FogVolume's size/position/material to `applied_theme`
+## (it was only ever built once in _ready() from the boot theme).
+func _sync_fog_volume(applied_theme: SkyThemeDef) -> void:
+	if _fog_volume == null:
+		return
+	_fog_volume.size = applied_theme.cloud_deck_size_m
+	_fog_volume.position = Vector3(0.0, applied_theme.cloud_deck_height_m, 0.0)
+	var fog_material: FogMaterial = _fog_volume.material as FogMaterial
+	if fog_material != null:
+		fog_material.density = applied_theme.fog_density
+		fog_material.albedo = applied_theme.fog_color
+
+
+## Pushes the theme's sun_flare_enabled onto every SunFlare in the tree.
+func _apply_sun_flare(applied_theme: SkyThemeDef) -> void:
+	if not is_inside_tree():
+		return
+	for node: Node in get_tree().get_nodes_in_group(SunFlare.GROUP):
+		var flare: SunFlare = node as SunFlare
+		if flare != null:
+			flare.set_theme_enabled(applied_theme.sun_flare_enabled)
 
 
 ## Bontago-adt.1: cloud puffs and birds follow the graphics preset (Low:

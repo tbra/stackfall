@@ -318,6 +318,7 @@ ranges = {
 "SkyThemeDef.bird_size_max_m": Vector2(0.5, 12.0),
 }
 descriptions = {
+"SkyThemeDef.sun_flare_enabled": "Whether the screen-space sun lens flare is drawn under this sky theme (off for night).",
 "SkyThemeDef.sky_yaw_offset_deg": "Rotate panorama longitude sampling to align its painted sun with the flare; reflections rotate with it.",
 "SkyThemeDef.sky_pitch_offset_deg": "Shift panorama latitude sampling in degrees to align sun elevation; zero preserves the authored horizon.",
 "PhysicsTuning.release_tilt_degrees": "Experimental deterministic release tilt for high drops; zero disables it and contacts still use real solver forces.",

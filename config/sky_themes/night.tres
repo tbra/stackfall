@@ -47,5 +47,6 @@ light_rotation_deg = Vector3(-18, -30, 0)
 ambient_energy = 1.0
 glow_intensity = 0.8
 glow_hdr_threshold = 0.9
+sun_flare_enabled = false
 cloud_puff_material = SubResource("MoonlitPuffs")
 cloud_clump_count = 150
