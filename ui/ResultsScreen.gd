@@ -343,6 +343,15 @@ func _on_settings_apply_pressed() -> void:
 		config.ai_count = int(_ai_count_spin.value)
 		config.ai_difficulty = _ai_difficulty_option.selected
 		config.sanitize()
+		# The Lobby is recreated after Back to lobby and reads Net's cached
+		# lobby data. Publish the edited config now, preserving its roster until
+		# the new Lobby refreshes that roster on entry.
+		if net_provider != null and bool(net_provider.is_host()):
+			var data: Dictionary = config.to_dict()
+			var previous: Dictionary = net_provider.lobby_data()
+			if previous.has("roster"):
+				data["roster"] = previous["roster"]
+			net_provider.set_lobby_data(data)
 	_settings_panel.visible = false
 	_settings_button.grab_focus()
 

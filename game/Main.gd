@@ -947,6 +947,12 @@ func _on_match_state_changed(from_state: int, to_state: int) -> void:
 		# Bontago-1pi.8: safety net for a match aborted mid-load -- see
 		# LoadingScreen.cancel()'s own doc.
 		_loading_screen.cancel()
+		# A results-screen return ends the match without changing Net's mode,
+		# so _on_net_mode_changed() cannot rebuild the lobby for us. A replay
+		# briefly passes through LOBBY inside start_match(); keep that transition
+		# out of the UI route so the new match builds directly.
+		if not Match._lifecycle.is_starting_match() and not Net.is_offline():
+			_show_lobby()
 	elif from_state == Match.State.LOBBY and to_state == Match.State.LOADING:
 		# Bontago-1pi.8: shown before _build_match_world() below runs, so the
 		# overlay is already queued to composite over this same frame's draw

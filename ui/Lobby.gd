@@ -223,7 +223,11 @@ func _ready() -> void:
 	Events.net_peer_left.connect(_on_peer_left)
 	Events.net_roster_changed.connect(_on_roster_changed)
 
-	_apply_data(default_config.to_dict())
+	# Returning from results creates a fresh Lobby while Net keeps its hosted
+	# session. Read the last published settings so quick edits made there are
+	# reflected by the controls and the next Start action.
+	var initial_data: Dictionary = net_provider.lobby_data()
+	_apply_data(initial_data if not initial_data.is_empty() else default_config.to_dict())
 	# Bontago-mp0.3.5 (review r1, item 12): Net.host_game() populates its own
 	# HOST_PEER_ID roster entry directly and only emits net_mode_changed, not
 	# net_roster_changed / a lobby-data publish -- so a Lobby scene opened
