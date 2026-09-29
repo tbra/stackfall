@@ -70,6 +70,8 @@ const SETTLE_TICKS: int = 60
 var _wide_output_name: String = "arena_live_wide.png"
 const WIDE_DISTANCE_M: float = 22.0
 const WIDE_PITCH_DEG: float = -28.0
+const GRAZE_DISTANCE_M: float = 14.0
+const GRAZE_PITCH_DEG: float = -9.0
 
 
 func _ready() -> void:
@@ -130,6 +132,15 @@ func _ready() -> void:
 	rig.get_camera().reset_physics_interpolation()
 	await _wait(SETTLE_FRAMES)
 	await _shoot(_wide_output_name)
+
+	# Third view: low grazing angle across the disc.
+	rig.tuning.follow_distance = GRAZE_DISTANCE_M
+	rig.tuning.follow_pitch_deg = GRAZE_PITCH_DEG
+	rig.apply_follow_tuning()
+	rig.reset_physics_interpolation()
+	rig.get_camera().reset_physics_interpolation()
+	await _wait(SETTLE_FRAMES)
+	await _shoot(_tag + "_graze.png")
 
 	get_tree().quit()
 

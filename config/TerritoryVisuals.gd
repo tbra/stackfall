@@ -103,7 +103,7 @@ extends Resource
 ## grain that "shows up" specifically where the disc catches the sun.
 ## Amplitude of the NORMAL tilt the grain applies; 0 disables it entirely
 ## (a perfectly flat normal, exactly the old behavior).
-@export var top_grain_strength: float = 0.02
+@export var top_grain_strength: float = 0.0
 ## Spatial frequency, in cycles per meter, of the coarse "plank" bands.
 ## Lower reads as fewer, wider bands; higher as many narrow ones.
 @export var top_grain_scale: float = 0.35
@@ -115,12 +115,12 @@ extends Resource
 ## disk_roughness above); 0 disables it. Sign-symmetric (the grain height is
 ## centered on 0), so this only ever varies the reflection's sharpness in
 ## fine streaks, never dulls or polishes the disc as a whole.
-@export var top_grain_roughness_strength: float = 0.1
+@export var top_grain_roughness_strength: float = 0.0
 
 ## Bontago-adt.2: cool sky-coloured fresnel sheen on the disc top, strongest at grazing angles (the far side of the disc), like the mockup's lavender reflection on graphite.
 @export var disk_sky_sheen_color: Color = Color(0.85, 0.6, 0.5)
-@export var disk_sky_sheen_strength: float = 0.28
-@export var disk_sky_sheen_power: float = 6.0
+@export var disk_sky_sheen_strength: float = 0.18
+@export var disk_sky_sheen_power: float = 8.0
 
 ## Bontago-adt.2: flat cool graphite fill on the disc top, added as emission so the disc keeps its cool hue whatever colour the sky ambient is. Darken it (or scale by a night theme) for night.
 @export var disk_fill_color: Color = Color(0.016, 0.017, 0.02)
@@ -179,7 +179,7 @@ extends Resource
 ## localized (only bright where the disc genuinely mirrors the sun toward
 ## the camera) than the old always-on half-disc gradient was, so the same
 ## visible brightness needs a higher peak value.
-@export var disk_sheen_strength: float = 0.3
+@export var disk_sheen_strength: float = 0.35
 ## Shininess exponent shaping the sheen's specular-style falloff (shaders/
 ## territory.gdshader's own light-reflected-toward-camera dot product raised
 ## to this power) -- deliberately LOW (a broad, soft lobe) rather than a
@@ -194,7 +194,7 @@ extends Resource
 ## angle, reading as a flat gold wash or a hard diagonal terminator on any
 ## framing other than the one it was tuned against (feedback/overhaul/disc2-
 ## r2-player.png, disc2-r3-overview.png).
-@export var disk_sheen_exponent: float = 12.0
+@export var disk_sheen_exponent: float = 40.0
 
 ## DECISION (config/TerritoryVisuals.gd, Bontago-xtq.11, owner 2026-09-23:
 ## "the disc is a mirror-like surface and not glass ... reflective but not
