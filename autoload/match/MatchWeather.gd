@@ -30,7 +30,7 @@ enum Sched { OFF, CALM, EVENT }
 
 ## Wire format version of state_dict(). Architecture, not a tunable.
 const WIRE_VERSION: int = 1
-const WIRE_KEYS: PackedStringArray = ["v", "epoch", "seed", "mode", "sched", "left", "id", "phase", "t"]
+const WIRE_KEYS: PackedStringArray = ["v", "epoch", "seed", "mode", "sched", "left", "id", "phase", "t", "ev"]
 
 var _match: MatchAutoload = null
 var _defs: Dictionary = {}
@@ -45,6 +45,9 @@ var _running: bool = false
 var _mode: int = MatchConfig.WeatherMode.OFF
 var _seed: int = 0
 var _epoch: int = -1
+## Bontago-22y.4: which event of this match is (or was last) active, 1-based;
+## replicated so per-event seeded effects (wind heading) agree on every peer.
+var _event_index: int = 0
 var _host_epoch_counter: int = 0
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _fixed_id: StringName = &""
@@ -121,6 +124,11 @@ func next_event_in() -> float:
 
 func seed_value() -> int:
 	return _seed
+
+
+## Ordinal of the current event within the match (0 before the first).
+func event_index() -> int:
+	return _event_index
 
 
 ## Which Match states a client accepts a replicated weather state in: from the
@@ -208,6 +216,7 @@ func reset() -> void:
 	_sched = Sched.OFF
 	_left = 0.0
 	_epoch = -1
+	_event_index = 0
 	_fixed_id = &""
 	_last_id = &""
 	_intensity = 0.0
@@ -311,6 +320,7 @@ func _current_def() -> WeatherTuning:
 
 func _begin_event(weather_id: StringName) -> void:
 	_active_id = weather_id
+	_event_index += 1
 	var def: WeatherTuning = _current_def()
 	_phase = WeatherTuning.Phase.RAMP_IN
 	_phase_t = 0.0
@@ -426,6 +436,7 @@ func state_dict() -> Dictionary:
 		"id": String(_active_id),
 		"phase": _phase,
 		"t": _phase_t,
+		"ev": _event_index,
 	}
 
 
@@ -456,6 +467,8 @@ func sanitize_wire_state(raw: Variant) -> Dictionary:
 		return {}
 	if phase_value < WeatherTuning.Phase.RAMP_IN or phase_value > WeatherTuning.Phase.RAMP_OUT:
 		return {}
+	if not _is_int(data["ev"]) or int(data["ev"]) < 0:
+		return {}
 	if not _is_number(data["left"]) or not _is_number(data["t"]):
 		return {}
 	var left_value: float = float(data["left"])
@@ -480,6 +493,7 @@ func sanitize_wire_state(raw: Variant) -> Dictionary:
 		"v": WIRE_VERSION, "epoch": int(data["epoch"]), "seed": int(data["seed"]),
 		"mode": mode_value, "sched": sched_value, "left": left_value,
 		"id": id_value, "phase": phase_value, "t": t_value,
+		"ev": int(data["ev"]),
 	}
 
 
@@ -504,6 +518,7 @@ func apply_replicated_state(raw: Variant, match_live: bool) -> bool:
 		return false
 	_epoch = int(data["epoch"])
 	_seed = int(data["seed"])
+	_event_index = int(data["ev"])
 	_mode = int(data["mode"])
 	_running = int(data["sched"]) != Sched.OFF
 	_sched = int(data["sched"])
