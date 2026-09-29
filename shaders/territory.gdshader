@@ -357,9 +357,10 @@ uniform float disc_detail_fade_px = 96.0;
 // -- Bontago-adt.2: procedural cel plating (DiscSurfaceDef.Mode.PROCEDURAL) --
 // Concentric rings of plates (plate count per ring grows with radius, random
 // per-ring stagger and count jitter, so nothing tiles), crisp constant-pixel
-// seams with a sun-facing lip, toon rivets, banded per-plate sheen. Every
-// detail fades with its on-screen size (rivets first, then seams), leaving a
-// calm glossy disc from far away. See proc_plating() below; the values are
+// seams with a sun-facing lip, toon rivets, banded per-plate sheen. Detail
+// fades with the camera's height above the disc (rivets first, then seams),
+// uniformly across the whole disc, leaving a calm glossy disc from high up;
+// a small per-pixel guard drops only sub-pixel detail at the grazing horizon. See proc_plating() below; the values are
 // pushed from config/DiscSurfaceDef.gd by game/TerritoryOverlay.gd.
 uniform bool disc_procedural = false;
 uniform vec3 disc_proc_base_tint = vec3(0.14, 0.155, 0.25);
@@ -401,10 +402,16 @@ uniform float disc_proc_brush_strength = 0.35;
 uniform float disc_proc_brush_scale_m = 0.05;
 uniform float disc_proc_roughness = 0.22;
 uniform float disc_proc_roughness_variation = 0.08;
-uniform float disc_proc_seam_fade_start_px = 45.0;
-uniform float disc_proc_seam_fade_end_px = 110.0;
-uniform float disc_proc_rivet_fade_start_px = 3.0;
-uniform float disc_proc_rivet_fade_end_px = 7.0;
+// Bontago-adt.2 (owner follow-up): detail fades with the camera's HEIGHT
+// above the disc top only, so the whole disc fades in and out together.
+uniform float disc_proc_rivet_fade_height_start_m = 14.0;
+uniform float disc_proc_rivet_fade_height_end_m = 22.0;
+uniform float disc_proc_seam_fade_height_start_m = 24.0;
+uniform float disc_proc_seam_fade_height_end_m = 40.0;
+// Per-pixel anti-alias guard only (not a distance fade): detail smaller than
+// this on screen is dropped so grazing horizon pixels never moire.
+uniform float disc_proc_aa_rivet_min_px = 1.5;
+uniform float disc_proc_aa_plate_min_px = 6.0;
 uniform float disc_proc_brush_fade_px = 3.0;
 
 varying vec3 v_local;
@@ -566,17 +573,25 @@ void proc_groove(float d, vec2 into_plate, vec2 sun2, float fade, inout float to
 // The plating at disc-local point p (x, z): an albedo/fill multiplier, an
 // additive highlight amount, a seam mask for the reflection, the per-plate
 // sheen normal (disc-local), roughness and the brushed-streak value.
-void proc_plating(vec2 p, vec2 sun2, out float tone, out float highlight, out float seam_occ,
+void proc_plating(vec2 p, vec2 sun2, float cam_height, out float tone, out float highlight, out float seam_occ,
 		out vec3 plate_n, out float rough, out float brush) {
 	tone = 1.0;
 	highlight = 0.0;
 	seam_occ = 0.0;
 	float m_per_px = max(max(length(dFdx(p)), length(dFdy(p))), 0.00001);
+	// Height fade: one value for the whole disc (camera height above the top).
+	float seam_height_fade = 1.0 - smoothstep(
+		disc_proc_seam_fade_height_start_m, disc_proc_seam_fade_height_end_m, cam_height);
+	float rivet_height_fade = 1.0 - smoothstep(
+		disc_proc_rivet_fade_height_start_m, disc_proc_rivet_fade_height_end_m, cam_height);
+	// Anti-alias guard: drops only genuinely sub-resolution detail (plates a
+	// few pixels across, sub-pixel rivets), i.e. the grazing horizon band.
 	float plate_px = disc_proc_plate_length_m / m_per_px;
-	float seam_fade = smoothstep(disc_proc_seam_fade_start_px, disc_proc_seam_fade_end_px, plate_px);
 	float rivet_px = 2.0 * disc_proc_rivet_radius_m / m_per_px;
-	float rivet_fade = smoothstep(disc_proc_rivet_fade_start_px, disc_proc_rivet_fade_end_px, rivet_px)
-		* seam_fade;
+	float seam_fade = seam_height_fade
+		* smoothstep(0.5 * disc_proc_aa_plate_min_px, disc_proc_aa_plate_min_px, plate_px);
+	float rivet_fade = rivet_height_fade * seam_fade
+		* smoothstep(0.5 * disc_proc_aa_rivet_min_px, disc_proc_aa_rivet_min_px, rivet_px);
 
 	float r = max(length(p), 0.0001);
 	vec2 r_hat = p / r;
@@ -973,7 +988,11 @@ void fragment() {
 		vec3 sun_local = transpose(mat3(MODEL_MATRIX)) * sun_direction;
 		vec2 sun2 = length(sun_local.xz) > 0.0001 ? normalize(sun_local.xz) : vec2(1.0, 0.0);
 		float proc_tone;
-		proc_plating(v_local.xz, sun2, proc_tone, proc_highlight, proc_seam_occ,
+		// Camera height above the disc top (world y difference); the top face
+		// is flat, so this is one value across the whole disc.
+		float disc_world_y = (INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).y;
+		float cam_height = max(CAMERA_POSITION_WORLD.y - disc_world_y, 0.0);
+		proc_plating(v_local.xz, sun2, cam_height, proc_tone, proc_highlight, proc_seam_occ,
 			proc_plate_n, proc_rough, proc_brush);
 		tex_mod = proc_tone * disc_proc_base_tint;
 		albedo *= tex_mod;

@@ -15,7 +15,8 @@ extends Node
 ##   --wait=1.0                                 seconds to run before shooting
 ##                                              (lets TIME-driven shaders move)
 ##   --views=player,overview,sun,horizon,close  subset/order of views
-##                                              (also zoom_close,zoom_mid,zoom_far)
+##                                              (also zoom_close,zoom_mid,zoom_far,
+##                                              height_<m>: zoom line at <m> up)
 ##   --measure                                  also print the mean GPU frame
 ##                                              time per view (GFX_GPU lines)
 ## Writes <out>/<tag>_<view>.png per view and <tag>_sheet.png, a 3x2 contact
@@ -145,6 +146,15 @@ func _frame(camera: Camera3D, player_camera: Camera3D, scene: Node3D, view: Stri
 			if from_center == Vector3.ZERO:
 				from_center = Vector3.BACK
 			_place(camera, target + from_center * CLOSE_DISTANCE_M + Vector3.UP * CLOSE_HEIGHT_M, target + Vector3.UP)
+		_ when view.begins_with("height_"):
+			# Bontago-adt.2 height series: same spot and look direction as the
+			# zoom views, camera moved back along that line until it sits
+			# height_<metres> above the disc top.
+			var spot_h: Vector3 = sun_flat.rotated(Vector3.UP, deg_to_rad(ZOOM_SPOT_YAW_DEG)) * radius * ZOOM_SPOT_R
+			var back_h: Vector3 = spot_h.normalized() if spot_h != Vector3.ZERO else Vector3.BACK
+			var pitch_h: float = deg_to_rad(ZOOM_PITCH_DEG)
+			var dist_h: float = view.trim_prefix("height_").to_float() / sin(pitch_h)
+			_place(camera, spot_h + back_h * cos(pitch_h) * dist_h + Vector3.UP * sin(pitch_h) * dist_h, spot_h)
 		"zoom_close", "zoom_mid", "zoom_far":
 			var spot: Vector3 = sun_flat.rotated(Vector3.UP, deg_to_rad(ZOOM_SPOT_YAW_DEG)) * radius * ZOOM_SPOT_R
 			var back: Vector3 = spot.normalized() if spot != Vector3.ZERO else Vector3.BACK

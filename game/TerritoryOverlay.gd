@@ -788,10 +788,12 @@ func _apply_procedural_disc(surface: DiscSurfaceDef) -> void:
 		&"disc_proc_brush_scale_m": surface.proc_brush_scale_m,
 		&"disc_proc_roughness": surface.proc_roughness,
 		&"disc_proc_roughness_variation": surface.proc_roughness_variation,
-		&"disc_proc_seam_fade_start_px": surface.proc_seam_fade_start_px,
-		&"disc_proc_seam_fade_end_px": surface.proc_seam_fade_end_px,
-		&"disc_proc_rivet_fade_start_px": surface.proc_rivet_fade_start_px,
-		&"disc_proc_rivet_fade_end_px": surface.proc_rivet_fade_end_px,
+		&"disc_proc_rivet_fade_height_start_m": surface.proc_rivet_fade_height_start_m,
+		&"disc_proc_rivet_fade_height_end_m": surface.proc_rivet_fade_height_end_m,
+		&"disc_proc_seam_fade_height_start_m": surface.proc_seam_fade_height_start_m,
+		&"disc_proc_seam_fade_height_end_m": surface.proc_seam_fade_height_end_m,
+		&"disc_proc_aa_rivet_min_px": surface.proc_aa_rivet_min_px,
+		&"disc_proc_aa_plate_min_px": surface.proc_aa_plate_min_px,
 		&"disc_proc_brush_fade_px": surface.proc_brush_fade_px,
 	}
 	for key: StringName in params:

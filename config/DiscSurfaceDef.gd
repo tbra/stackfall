@@ -46,7 +46,7 @@ extends Resource
 ## -- Bontago-adt.2: procedural cel-styled plating ---------------------------
 ## TEXTURE draws the image maps above; PROCEDURAL draws the analytic plating
 ## below in shaders/territory.gdshader (no textures, no tiling, so it never
-## repeats, and every detail fades out with on-screen size).
+## repeats, and every detail fades out with the camera height above the disc).
 enum Mode { TEXTURE, PROCEDURAL }
 
 ## Which disc-top look this set uses.
@@ -148,15 +148,20 @@ enum Mode { TEXTURE, PROCEDURAL }
 @export var proc_roughness: float = 0.22
 @export var proc_roughness_variation: float = 0.08
 
-@export_group("Procedural distance fade")
-## Plate size in pixels at which seams, hatches, tone variation and sheen
-## facets are fully gone (start) and fully drawn (end). Between, they fade
-## smoothly, so far/overview views show a calm glossy disc.
-@export var proc_seam_fade_start_px: float = 45.0
-@export var proc_seam_fade_end_px: float = 110.0
-## Rivet diameter in pixels at which rivets are fully gone (start) and fully
-## drawn (end); rivets fade well before the seams.
-@export var proc_rivet_fade_start_px: float = 3.0
-@export var proc_rivet_fade_end_px: float = 7.0
+@export_group("Procedural height fade")
+## Detail fades with the camera's height above the disc top alone (owner
+## follow-up), so the whole disc fades in and out together as the camera
+## rises or zooms: rivets first, then seams, hatches, tone variation and sheen
+## facets. Below *_start_m the detail is fully drawn, above *_end_m it is gone.
+@export var proc_rivet_fade_height_start_m: float = 14.0
+@export var proc_rivet_fade_height_end_m: float = 22.0
+@export var proc_seam_fade_height_start_m: float = 24.0
+@export var proc_seam_fade_height_end_m: float = 40.0
+## Anti-alias guard only (not a distance fade): rivets smaller than this many
+## pixels across are dropped, so far grazing pixels never sparkle.
+@export var proc_aa_rivet_min_px: float = 1.5
+## Anti-alias guard only: seams of plates smaller than this many pixels across
+## are dropped (the grazing horizon band), so they never moire.
+@export var proc_aa_plate_min_px: float = 6.0
 ## Streak spacing in pixels below which the brushed streaks fade out.
 @export var proc_brush_fade_px: float = 3.0

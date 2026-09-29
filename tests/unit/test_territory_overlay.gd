@@ -430,7 +430,7 @@ func test_procedural_disc_surface_is_default_and_pushes_its_uniforms() -> void:
 	var surface: DiscSurfaceDef = (shipped.disc_surface as DiscSurfaceDef).duplicate() as DiscSurfaceDef
 	surface.proc_plate_length_m = 3.25
 	surface.proc_rivet_weight_rows = 0.9
-	surface.proc_seam_fade_end_px = 140.0
+	surface.proc_seam_fade_height_end_m = 55.0
 	visuals.disc_surface = surface
 	var overlay: TerritoryOverlay = TerritoryOverlay.new()
 	overlay.configure(_map(), visuals, load("res://config/territory_tuning.tres"))
@@ -440,7 +440,7 @@ func test_procedural_disc_surface_is_default_and_pushes_its_uniforms() -> void:
 	assert_false(bool(material.get_shader_parameter(&"disc_textured")),
 		"procedural mode must not also draw the texture maps.")
 	assert_almost_eq(float(material.get_shader_parameter(&"disc_proc_plate_length_m")), 3.25, 0.0001)
-	assert_almost_eq(float(material.get_shader_parameter(&"disc_proc_seam_fade_end_px")), 140.0, 0.0001)
+	assert_almost_eq(float(material.get_shader_parameter(&"disc_proc_seam_fade_height_end_m")), 55.0, 0.0001)
 	var weights: Vector4 = material.get_shader_parameter(&"disc_proc_rivet_weights") as Vector4
 	assert_almost_eq(weights.w, 0.9, 0.0001)
 
