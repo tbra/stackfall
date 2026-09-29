@@ -105,6 +105,10 @@ var _pending_queues: Array[Array] = []
 ## The queued gift is separate from the currently held piece. A claim never
 ## changes this value; only the subsequent feed activates the queued gift.
 var _held_specials: Dictionary = {}
+## DECISION (Bontago-22y.3.1): a dictionary keyed by recipient slot keeps
+## charges independent of the shared GlueEffect resource and gift queue.
+## A later Glue activation replaces the count instead of adding to it.
+var _glue_drops: Dictionary = {}
 
 ## Lazily created the first time a crate needs a visual (host spawn or client
 ## mirror), as a SIBLING of Match's own blocks_parent (a child of that node's
@@ -167,6 +171,39 @@ func _team_id_for_slot(slot_id: int) -> int:
 ## reads pending_special_count() for the queued-count indicator.
 func held_special(slot_id: int) -> StringName:
 	return StringName(_held_specials.get(slot_id, &""))
+
+
+## Host-authoritative activation. The activation block is already placed by
+## the time its SpecialBehavior triggers, so no charge is spent here.
+func grant_glue_drops(slot_id: int, count: int) -> bool:
+	if _match == null or not _match._is_host():
+		return false
+	if slot_id < 0 or slot_id >= _match.slot_count() or count <= 0:
+		return false
+	_glue_drops[slot_id] = count
+	return true
+
+
+func glue_drops_left(slot_id: int) -> int:
+	if _match == null or slot_id < 0 or slot_id >= _match.slot_count():
+		return 0
+	return int(_glue_drops.get(slot_id, 0))
+
+
+## Called only after a successful future drop by the placement package.
+func consume_glue_drop(slot_id: int) -> bool:
+	if _match == null or not _match._is_host():
+		return false
+	if slot_id < 0 or slot_id >= _match.slot_count():
+		return false
+	var left: int = glue_drops_left(slot_id)
+	if left <= 0:
+		return false
+	if left == 1:
+		_glue_drops.erase(slot_id)
+	else:
+		_glue_drops[slot_id] = left - 1
+	return true
 
 
 func activate_next_special(slot_id: int) -> void:
@@ -993,6 +1030,7 @@ func apply_replicated_special_consumed(slot_id: int, special_id: StringName) -> 
 ## _gift_config is never reset here either.
 func reset() -> void:
 	_held_specials.clear()
+	_glue_drops.clear()
 	# MatchLifecycle clears the feed arrays before calling this reset.
 	_match._feed._next_gift_shapes.clear()
 	_match._feed._held_is_gift.clear()

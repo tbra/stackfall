@@ -398,6 +398,20 @@ func pending_special_count(slot_id: int) -> int:
 	return _gifts.pending_special_count(slot_id)
 
 
+## Glue's activation grants future successful drops; MatchPlacement will
+## consume a charge once each later drop is accepted.
+func grant_glue_drops(slot_id: int, count: int) -> bool:
+	return _gifts.grant_glue_drops(slot_id, count)
+
+
+func glue_drops_left(slot_id: int) -> int:
+	return _gifts.glue_drops_left(slot_id)
+
+
+func consume_glue_drop(slot_id: int) -> bool:
+	return _gifts.consume_glue_drop(slot_id)
+
+
 ## M4 P2b: installs the real weighted special-type draw P2c wires in once
 ## config/specials/ exists; the default (MatchGifts._default_special_drawer)
 ## always returns MatchGifts.PENDING_SPECIAL_ID. See

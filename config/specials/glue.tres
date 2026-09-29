@@ -5,9 +5,7 @@
 
 [sub_resource type="Resource" id="Resource_glue_effect"]
 script = ExtResource("2_effect")
-glue_radius_m = 4.0
-break_force = 40.0
-touching_slack_m = 0.05
+drop_charges = 3
 
 [resource]
 script = ExtResource("1_def")
