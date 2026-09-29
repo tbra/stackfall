@@ -10,6 +10,9 @@
 
 [sub_resource type="ShaderMaterial" id="SunsetClouds"]
 shader = ExtResource("2_clouds")
+shader_parameter/sway_amount = 0.0
+shader_parameter/warp_amount = 0.0
+shader_parameter/cloud_layer_opacity = 0.0
 shader_parameter/panorama = ExtResource("3_panorama")
 shader_parameter/noise_tex = ExtResource("4_noise")
 shader_parameter/seam_blend_width = 0.025

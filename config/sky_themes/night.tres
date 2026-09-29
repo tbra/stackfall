@@ -9,6 +9,7 @@
 
 [sub_resource type="ShaderMaterial" id="NightSky"]
 shader = ExtResource("2_sky")
+shader_parameter/cloud_layer_opacity = 0.0
 shader_parameter/noise_tex = ExtResource("3_noise")
 shader_parameter/moon_direction = Vector3(-0.4755, 0.309, 0.8236)
 shader_parameter/panorama = ExtResource("5_panorama")
