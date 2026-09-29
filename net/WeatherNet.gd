@@ -80,7 +80,12 @@ func _on_weather_state_changed(state: Dictionary) -> void:
 ## A peer joined or rejoined: hand it the current state so it does not wait for
 ## the next phase change.
 func _on_net_peer_joined(peer_id: int, _slot_id: int, _player_name: String) -> void:
-	if not _is_host() or peer_id == multiplayer.get_unique_id():
+	# Net emits net_peer_joined for sessions that may use their own
+	# MultiplayerAPI; with no peer on this node's API there is nothing to send
+	# (and get_unique_id() would raise an engine error).
+	if not _is_host():
+		return
+	if multiplayer.has_multiplayer_peer() and peer_id == multiplayer.get_unique_id():
 		return
 	var weather: MatchWeather = _authority().weather()
 	if weather == null or not weather.is_running():
