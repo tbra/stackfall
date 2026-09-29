@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="TerritoryVisuals" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://config/TerritoryVisuals.gd" id="1_visuals"]
-[ext_resource type="Resource" path="res://config/disc_surfaces/MetalPlates001.tres" id="2_surface"]
+[ext_resource type="Resource" path="res://config/disc_surfaces/ProceduralPlates.tres" id="2_surface"]
 
 [resource]
 script = ExtResource("1_visuals")
