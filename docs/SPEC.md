@@ -154,6 +154,13 @@ Audit date: 2026-09-20. DigiPen, the interview, release thread, description mirr
 ### 2.4 Blocks
 **Placement cadence [ORIGINAL target, §1.2]:** players act concurrently, each handling their own supplied piece; never rotate through players as in hot-seat. Each fixed interval permits one release. Releasing early does not restart the interval: the next piece can be positioned but remains release-locked until the interval boundary. At expiry, force release only if that interval's piece is still unspent. Crossing a boundary must not release a prepared next piece automatically merely because the previous piece was placed early. Equal shapes can occur by chance; "own piece" does not require distinct shapes across players.
 
+**Gift exception [OWNER decision 2026-09-29]:** after a player drops their held
+ordinary piece, a gift queued immediately behind it can be activated before
+the next ordinary release boundary. The next ordinary piece then follows the
+shared interval clock without granting an extra ordinary release. The
+temporary gift exception is new behavior; the original cadence above remains
+the rule for ordinary pieces. See `docs/GIFT_REWORK_PLAN.md`.
+
 The original global-versus-per-player phase alignment is **[OPEN]**; it must not be confused with player turn-taking or immediate-reset timers. The earlier owner-requested immediate-reset behavior is superseded by the later original-evidence priority. A future cadence option may preserve it, but adding such a setting is not required by this documentation audit.
 
 - **Rigid bodies:** Every block is one RigidBody3D with a compound shape made of cube BoxShape3Ds. The cube size is 1 m, minus a 0.02 m margin so neighboring blocks don't jam against each other.
@@ -254,11 +261,11 @@ instant snap to the same real targets.
 ### 2.6 Gifts & specials
 Use the [installed tutorial/menu](ORIGINAL_INSTALL_EVIDENCE.md) as the primary effect contract. It documents behavior but not numerical tuning. All radii, force values, durations and projectile counts below remain **[NEW]** starting values, not decoded original constants.
 - **Gift spawning [ORIGINAL target]:** probability per placement turn/window, not the earlier seconds-based interval with ±40% jitter. Original trial scope (one per match or per player), distribution and probability scale are unverified; **[OWNER decision 2026-09-22, Bontago-4fa]** ship the M4 P1 tunables (`spawn_chance_per_window` 0.15, one roll per window for the whole match, `max_live_crates` 1, crate expiry 60 s, lobby frequency 0–100 → chance 0–0.5) and tune via F4. Type-specific probability controls exist. Do not implement the removed 20 → 45 s / 100 → 6 s mapping as original behavior.
-- **Crate life [RECONSTRUCTED; owner decision 2026-09-22]:** crates are **stationary pickups** — they land at a host-chosen point and stay put until claimed or expired (60 s expiry remains a prototype starting value). Installed text says specials fall to the field but does not establish lifetime or crate physics; the owner chose the stationary design over rigid-body crates for M4 (Beads `Bontago-1en`).
-- **Claiming:** When a crate is inside your territory, it pops. It shows which player it belongs to, and your next fed block becomes a special. [ORIGINAL]
+- **Gift flight and life [OWNER decision 2026-09-29, supersedes the 2026-09-22 stationary/60 s prototype]:** gifts descend visibly with parachutes and appear on the minimap. Any player's held block can capture a gift while it is still in the air. On landing, a gift is automatically claimed by the player whose territory owns that point; if unclaimed, the first player to claim that area receives it. A landed, still-unclaimed gift expires after 10 seconds. The host decides claims and replicates them.
+- **Claiming and next piece [OWNER decision 2026-09-29, overriding the ordinary claim timing]:** a claimed gift is queued directly behind the current held piece and replaces the next queued piece. When that held piece drops, the gift can be activated immediately under the gift cadence exception in §2.4. Whether an existing queued gift is displaced and whether a displaced ordinary bag draw is discarded are tracked in the gift rework decision bead.
 - **Activation [ORIGINAL]:** substantial impact activates a special. Numeric impulse threshold and the earlier 0.4 s arm delay are **[NEW]** tunings. Whether explosion proximity alone activates an untouched special needs verification.
   - Remove the universal eight-second auto-trigger from the fidelity target: it has no recovered basis. Type-specific lifecycle is separate, notably Rocket's fuel-exhaustion explosion after activation.
-- **Chain reactions:** Retained from player reports. Cap them at `max_chain_depth = 4` as a remake performance choice. Multiple simultaneous claims and replacement of an already prepared piece remain **[OPEN]**. **[OWNER decision 2026-09-22, Bontago-59u]** pending specials form a per-player FIFO queue capped at `max_pending_specials` (tunable; Bontago-csc), not a latest-wins single slot.
+- **Chain reactions:** Retained from player reports. Cap them at `max_chain_depth = 4` as a remake performance choice. The 2026-09-22 capped per-player FIFO decision governed the earlier stationary prototype and is superseded by the 2026-09-29 next-piece replacement direction above. Simultaneous midair claims and replacement of an already prepared gift need a deterministic host rule; see `docs/GIFT_REWORK_PLAN.md`.
 
 | Special | Behavior | Tunables | Source |
 |---|---|---|---|
