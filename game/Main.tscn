@@ -37,6 +37,8 @@ environment = SubResource("Environment_1")
 environment = SubResource("Environment_1")
 reflection_probe_path = NodePath("../ReflectionProbe")
 light_path = NodePath("../DirectionalLight3D")
+field_path = NodePath("../Field")
+registry_path = NodePath("../BlockRegistry")
 
 [node name="ReflectionProbe" type="ReflectionProbe" parent="."]
 

@@ -11,3 +11,4 @@ shadow_atlas_size = 2048
 volumetric_fog_enabled = false
 cloud_puff_density = 0.35
 birds_enabled = false
+ambient_life_enabled = false

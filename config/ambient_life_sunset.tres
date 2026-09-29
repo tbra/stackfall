@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="AmbientLifeConfig" format=3]
+
+[ext_resource type="Script" path="res://config/AmbientLifeConfig.gd" id="1_life"]
+
+[resource]
+script = ExtResource("1_life")
+perch_bird_count = 4
+fireflies_count = 0
