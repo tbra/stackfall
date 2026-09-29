@@ -63,3 +63,10 @@ extends Resource
 ## Set false to always keep the existing ProceduralSkyMaterial (e.g. for a
 ## screenshot fixture that wants a deterministic sky with no file I/O).
 @export var enabled: bool = true
+
+## Bontago-adt.1: id of the SkyThemeDef (res://config/sky_themes/<id>.tres)
+## Skybox applies at start-up. DECISION: a SkyboxConfig field rather than a
+## MapDef/MatchConfig one, so choosing a night look touches no gameplay or
+## network-synced resource; "sunset" (the default) keeps Skybox's own preloaded
+## theme export untouched.
+@export var theme_name: String = "sunset"

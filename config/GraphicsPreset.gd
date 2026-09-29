@@ -17,3 +17,8 @@ extends Resource
 @export var msaa_3d: Viewport.MSAA = Viewport.MSAA_2X
 @export var shadow_atlas_size: int = 4096
 @export var volumetric_fog_enabled: bool = true
+## Bontago-adt.1: how many stacked layers of the animated cloud sea
+## (vfx/CloudSea.gd) to draw; 0 hides it. Low keeps a single layer.
+@export var cloud_sea_layers: int = 3
+## Bontago-adt.1: distant animated bird flocks (vfx/DistantBirds.gd); off on Low.
+@export var birds_enabled: bool = true

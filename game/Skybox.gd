@@ -85,6 +85,15 @@ extends Node3D
 ## fallback_active state, e.g. most of tests/unit/test_skybox.gd): every sky-
 ## material write below is skipped when this or its .sky is unset.
 @export var environment: Environment = null
+## Bontago-adt.1: the scene's DirectionalLight3D (wired in Main.tscn, same
+## NodePath convention as reflection_probe_path); apply_theme() writes the
+## theme's light colour/energy/rotation onto it. Empty in fixtures: no-op.
+@export var light_path: NodePath = NodePath("")
+
+const THEME_DIR: String = "res://config/sky_themes"
+const DEFAULT_THEME_ID: String = "sunset"
+var _cloud_sea: CloudSea = null
+var _birds: DistantBirds = null
 
 ## Bontago-xtq.12 (owner: "isn't very reflective, like at all"): Forward+
 ## never reflects dynamic scene geometry (the placed blocks) without a
@@ -173,9 +182,21 @@ func _ready() -> void:
 		_face_meshes[face_name] = mesh_instance
 	configure_reflection_probe()
 	configure_ssr()
+	# Bontago-adt.1: SkyboxConfig.theme_name picks a non-default theme.
+	if config.theme_name != "" and config.theme_name != DEFAULT_THEME_ID:
+		var chosen: SkyThemeDef = load_theme(config.theme_name)
+		if chosen != null:
+			theme = chosen
+	_cloud_sea = CloudSea.new()
+	_cloud_sea.name = "CloudSea"
+	add_child(_cloud_sea)
+	_birds = DistantBirds.new()
+	_birds.name = "DistantBirds"
+	add_child(_birds)
 	apply_theme(theme)
 	_spawn_fog_volume()
 	_apply_fog_volume_visibility(Settings.current_graphics_preset())
+	_apply_ambient_life(Settings.current_graphics_preset())
 	Settings.graphics_preset_changed.connect(_on_graphics_preset_changed)
 
 
@@ -459,6 +480,7 @@ func apply_theme(applied_theme: SkyThemeDef) -> void:
 	# SkyThemeDef.volumetric_fog_density's own doc.
 	environment.volumetric_fog_density = applied_theme.volumetric_fog_density
 	environment.volumetric_fog_albedo = applied_theme.volumetric_fog_albedo
+	_apply_light_and_environment(applied_theme)
 
 
 ## Bontago-xtq.28: creates this Skybox's own FogVolume "cloud deck" child --
@@ -492,6 +514,61 @@ func _spawn_fog_volume() -> void:
 ## _ready() and disconnected in _exit_tree() above.
 func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 	_apply_fog_volume_visibility(preset)
+	_apply_ambient_life(preset)
+
+
+## Bontago-adt.1: loads res://config/sky_themes/<id>.tres, or null if missing.
+static func load_theme(theme_id: String) -> SkyThemeDef:
+	var path: String = "%s/%s.tres" % [THEME_DIR, theme_id]
+	if not ResourceLoader.exists(path):
+		return null
+	return load(path) as SkyThemeDef
+
+
+## Bontago-adt.1: live theme switch (sky, light, environment, cloud sea, birds).
+func set_theme_by_id(theme_id: String) -> bool:
+	var chosen: SkyThemeDef = load_theme(theme_id)
+	if chosen == null:
+		return false
+	theme = chosen
+	apply_theme(theme)
+	_apply_ambient_life(Settings.current_graphics_preset())
+	return true
+
+
+## Bontago-adt.1: cloud sea layers and birds follow the graphics preset
+## (Low: one layer, no birds). A null preset means full quality.
+func _apply_ambient_life(preset: GraphicsPreset) -> void:
+	var layers: int = preset.cloud_sea_layers if preset != null else CloudSea.MAX_LAYERS
+	var birds: bool = preset == null or preset.birds_enabled
+	if _cloud_sea != null:
+		_cloud_sea.configure(theme, layers)
+	if _birds != null:
+		_birds.configure(theme, birds)
+
+
+## Bontago-adt.1: writes the theme's light and glow/ambient values onto the
+## wired DirectionalLight3D and Environment.
+func _apply_light_and_environment(applied_theme: SkyThemeDef) -> void:
+	environment.ambient_light_energy = applied_theme.ambient_energy
+	environment.glow_intensity = applied_theme.glow_intensity
+	environment.glow_hdr_threshold = applied_theme.glow_hdr_threshold
+	if light_path.is_empty():
+		return
+	var light: DirectionalLight3D = get_node_or_null(light_path) as DirectionalLight3D
+	if light == null:
+		return
+	light.light_color = applied_theme.light_color
+	light.light_energy = applied_theme.light_energy
+	light.rotation_degrees = applied_theme.light_rotation_deg
+
+
+func get_cloud_sea() -> CloudSea:
+	return _cloud_sea
+
+
+func get_birds() -> DistantBirds:
+	return _birds
 
 
 ## Bontago-xtq.28: the FogVolume's only gating -- `visible` alone, never

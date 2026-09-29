@@ -81,3 +81,46 @@ extends Resource
 ## still reading as a cloud layer the island floats above.
 @export var cloud_deck_size_m: Vector3 = Vector3(800.0, 60.0, 800.0)
 @export var cloud_deck_height_m: float = -40.0
+
+## Bontago-adt.1 (graphics pass): per-theme light and environment values that
+## Skybox.apply_theme() writes onto the scene's DirectionalLight3D (via
+## Skybox.light_path) and the shared Environment. Defaults equal the values
+## game/Main.tscn shipped with, so a theme that leaves them alone (sunset)
+## looks exactly as before.
+@export var light_color: Color = Color(1.0, 0.94, 0.85)
+@export var light_energy: float = 0.85
+## DirectionalLight3D.rotation_degrees; its +Z axis points toward the sun/moon.
+@export var light_rotation_deg: Vector3 = Vector3(-45.0, -30.0, 0.0)
+## Environment.ambient_light_energy (ambient comes from the sky).
+@export var ambient_energy: float = 0.5
+## Environment glow_intensity / glow_hdr_threshold: lower threshold makes
+## emissive territory, beacons and the moon bloom more.
+@export var glow_intensity: float = 0.5
+@export var glow_hdr_threshold: float = 1.3
+
+## Cloud sea below the disc (vfx/CloudSea.gd): a ShaderMaterial using
+## shaders/cloud_sea.gdshader (duplicated per layer), the world-Y height of each
+## stacked layer (top first) and the layer disc radius. Null material or an
+## empty height list means no cloud sea.
+@export var cloud_sea_material: Material = null
+@export var cloud_sea_layer_heights_m: PackedFloat32Array = PackedFloat32Array([-34.0, -48.0, -64.0])
+@export var cloud_sea_radius_m: float = 1400.0
+
+## Distant bird flocks (vfx/DistantBirds.gd): a ShaderMaterial using
+## shaders/distant_birds.gdshader; flock/bird counts, placement ring and
+## altitude band (metres), orbit radius, glide speed and size ranges. Kept far
+## outside the play area (distance_min minus orbit radius is well past the
+## disc). Null material or zero flocks means no birds.
+@export var bird_material: Material = null
+@export var bird_flock_count: int = 0
+@export var birds_per_flock: int = 6
+@export var bird_seed: int = 7
+@export var bird_distance_min_m: float = 260.0
+@export var bird_distance_max_m: float = 520.0
+@export var bird_altitude_min_m: float = 10.0
+@export var bird_altitude_max_m: float = 70.0
+@export var bird_orbit_radius_min_m: float = 30.0
+@export var bird_orbit_radius_max_m: float = 70.0
+@export var bird_speed_mps: float = 9.0
+@export var bird_size_min_m: float = 2.0
+@export var bird_size_max_m: float = 3.2
