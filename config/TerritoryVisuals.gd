@@ -28,7 +28,7 @@ extends Resource
 ## sky tint the disc almost unopposed (see mirror_center_fraction/
 ## mirror_max_luminance below), but a neutral-to-warm base color compounded
 ## it instead of pushing back cool.
-@export var disk_base_color: Color = Color(0.135, 0.148, 0.172)
+@export var disk_base_color: Color = Color(0.045, 0.045, 0.05)
 ## Bontago-xtq.4 (owner, 2026-09-22: "a bit transparent and reflective"):
 ## retuned from 0.1 toward a metallic response; drives the shader's
 ## SPECULAR/METALLIC-visible reflection of ProceduralSky.
@@ -85,7 +85,7 @@ extends Resource
 ## Bontago-xtq.20: 0.3 -- only the ambient/probe/SSR sheen reads this now
 ## (direct-light specular is off on the disc), and a slightly softer sheen
 ## sits under the sharp planar mirror image instead of competing with it.
-@export var disk_roughness: float = 0.38
+@export var disk_roughness: float = 0.3
 ## Radial segments of the disk mesh. High enough that the rim reads as a
 ## circle rather than a polygon at the camera distances spec 2.5 allows.
 @export var disk_mesh_segments: int = 96
@@ -103,7 +103,7 @@ extends Resource
 ## grain that "shows up" specifically where the disc catches the sun.
 ## Amplitude of the NORMAL tilt the grain applies; 0 disables it entirely
 ## (a perfectly flat normal, exactly the old behavior).
-@export var top_grain_strength: float = 0.0
+@export var top_grain_strength: float = 0.02
 ## Spatial frequency, in cycles per meter, of the coarse "plank" bands.
 ## Lower reads as fewer, wider bands; higher as many narrow ones.
 @export var top_grain_scale: float = 0.35
@@ -115,7 +115,39 @@ extends Resource
 ## disk_roughness above); 0 disables it. Sign-symmetric (the grain height is
 ## centered on 0), so this only ever varies the reflection's sharpness in
 ## fine streaks, never dulls or polishes the disc as a whole.
-@export var top_grain_roughness_strength: float = 0.0
+@export var top_grain_roughness_strength: float = 0.1
+
+## Bontago-adt.2: cool sky-coloured fresnel sheen on the disc top, strongest at grazing angles (the far side of the disc), like the mockup's lavender reflection on graphite.
+@export var disk_sky_sheen_color: Color = Color(0.85, 0.6, 0.5)
+@export var disk_sky_sheen_strength: float = 0.28
+@export var disk_sky_sheen_power: float = 6.0
+
+## Bontago-adt.2: flat cool graphite fill on the disc top, added as emission so the disc keeps its cool hue whatever colour the sky ambient is. Darken it (or scale by a night theme) for night.
+@export var disk_fill_color: Color = Color(0.016, 0.017, 0.02)
+
+## Bontago-adt.2: scale of the sky ambient diffuse light on the disc top (shaders/territory.gdshader AO). Lower keeps the graphite from borrowing the sunset colour.
+@export var disk_ambient_scale: float = 0.08
+
+## Bontago-adt.2: dielectric reflectance F0 of the disc top (SPECULAR built-in; 0.5 = engine default).
+@export var disk_specular: float = 0.55
+
+## Bontago-adt.2: edge length (m) of the procedural machined-panel tiles on the disc top.
+@export var panel_size_m: float = 6.0
+
+## Constant screen-space width (px) of the panel seams.
+@export var panel_seam_width_px: float = 1.0
+
+## How much panel seams darken the albedo (0 = invisible).
+@export var panel_seam_strength: float = 0.35
+
+## Per-panel brightness variation (fraction of albedo).
+@export var panel_variation: float = 0.12
+
+## Panels smaller than this on screen (px) fade their seams out to avoid moire at distance.
+@export var panel_fade_px: float = 12.0
+
+## Flat, light-independent emissive fill of the territory tint (keeps it readable under any sky/night theme).
+@export var tint_fill_emission: float = 0.12
 
 ## -- Sun-facing sheen / diffuse cooling (Bontago-mp0.3.8, owner: "the disc
 ## top reads flat maroon-brown, mockup is dark cool graphite/black lacquer
@@ -147,7 +179,7 @@ extends Resource
 ## localized (only bright where the disc genuinely mirrors the sun toward
 ## the camera) than the old always-on half-disc gradient was, so the same
 ## visible brightness needs a higher peak value.
-@export var disk_sheen_strength: float = 0.55
+@export var disk_sheen_strength: float = 0.3
 ## Shininess exponent shaping the sheen's specular-style falloff (shaders/
 ## territory.gdshader's own light-reflected-toward-camera dot product raised
 ## to this power) -- deliberately LOW (a broad, soft lobe) rather than a
@@ -162,7 +194,7 @@ extends Resource
 ## angle, reading as a flat gold wash or a hard diagonal terminator on any
 ## framing other than the one it was tuned against (feedback/overhaul/disc2-
 ## r2-player.png, disc2-r3-overview.png).
-@export var disk_sheen_exponent: float = 6.0
+@export var disk_sheen_exponent: float = 12.0
 
 ## DECISION (config/TerritoryVisuals.gd, Bontago-xtq.11, owner 2026-09-23:
 ## "the disc is a mirror-like surface and not glass ... reflective but not

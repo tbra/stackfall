@@ -80,6 +80,7 @@ extends Node3D
 ## Bontago-mp0.3.8: the chamfer's own screen-space-minimum-width shader --
 ## see shaders/disc_rim.gdshader's own class-doc-equivalent header comment.
 const _CHAMFER_SHADER: Shader = preload("res://shaders/disc_rim.gdshader")
+const _BAND_OVERLAY_SHADER: Shader = preload("res://shaders/disc_band_overlay.gdshader")
 
 ## Minimum segments for a degenerate/test MapDef (a triangle is the fewest a
 ## closed band can be built from); production maps use
@@ -353,7 +354,24 @@ func _band_material() -> StandardMaterial3D:
 	material.normal_enabled = visuals.surface_noise_strength > 0.0
 	material.normal_texture = _surface_noise_texture()
 	material.normal_scale = visuals.surface_noise_strength
+	material.next_pass = _band_overlay_material()
 	return material
+
+
+## Bontago-adt.2: additive banded-wall overlay (inlay line, lower line, cool
+## fresnel sheen) chained after the band's StandardMaterial3D.
+func _band_overlay_material() -> ShaderMaterial:
+	var overlay: ShaderMaterial = ShaderMaterial.new()
+	overlay.shader = _BAND_OVERLAY_SHADER
+	overlay.set_shader_parameter(&"inlay_color", visuals.band_inlay_color)
+	overlay.set_shader_parameter(&"inlay_energy", visuals.band_inlay_energy)
+	overlay.set_shader_parameter(&"inlay_position", visuals.band_inlay_position)
+	overlay.set_shader_parameter(&"inlay_width", visuals.band_inlay_width)
+	overlay.set_shader_parameter(&"lower_line_strength", visuals.band_lower_line_strength)
+	overlay.set_shader_parameter(&"sheen_color", visuals.band_sheen_color)
+	overlay.set_shader_parameter(&"sheen_strength", visuals.band_sheen_strength)
+	overlay.set_shader_parameter(&"sheen_power", visuals.band_sheen_power)
+	return overlay
 
 
 ## Bontago-mp0.3.8: a ShaderMaterial (shaders/disc_rim.gdshader) rather than

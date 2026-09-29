@@ -27,9 +27,9 @@ extends Resource
 ## reading of the same image.
 @export var band_height_fraction: float = 0.035
 ## Dark polished metal, matching the mockup's black-lacquer/graphite band.
-@export var band_color: Color = Color(0.035, 0.035, 0.04)
-@export var band_metallic: float = 0.85
-@export var band_roughness: float = 0.32
+@export var band_color: Color = Color(0.02, 0.02, 0.024)
+@export var band_metallic: float = 0.1
+@export var band_roughness: float = 0.3
 ## Closes the band's underside with a flat cap so the disc never reads as a
 ## hollow shell from a low or distant camera angle.
 @export var bottom_cap_enabled: bool = true
@@ -109,10 +109,10 @@ extends Resource
 ## same 0.08 magnitude the old rim_height_fraction (a thin lip, not a thick
 ## neon band) was already tuned to across two owner review passes.
 @export var chamfer_height_fraction: float = 0.08
-@export var chamfer_glow_color: Color = Color(1.0, 0.78, 0.35)
+@export var chamfer_glow_color: Color = Color(1.0, 0.64, 0.22)
 ## Main.tscn's HDR glow threshold is 1.1 (Bontago-mp0.3); comfortably above
 ## that so the chamfer actually blooms, matching the mockup's soft glow.
-@export var chamfer_glow_energy: float = 2.6
+@export var chamfer_glow_energy: float = 1.7
 ## shaders/disc_rim.gdshader's own min_screen_width_factor uniform -- world
 ## meters the chamfer's bottom edge (where it meets the band, never the true
 ## top edge shared with the overlay) is pushed down per world meter of camera
@@ -120,3 +120,29 @@ extends Resource
 ## roughly a pixel no matter how far the camera is, on any map radius. 0
 ## disables it (the mesh renders exactly as authored).
 @export var chamfer_screen_min_width_factor: float = 0.004
+
+## -- Banded side wall (Bontago-adt.2): an additive overlay pass (shaders/disc_band_overlay.gdshader) on the band material.
+
+## Color of the thin inlay line just under the glowing chamfer on the disc side wall.
+@export var band_inlay_color: Color = Color(1.0, 0.7, 0.3)
+
+## Emission of the side-wall inlay line; 0 hides it.
+@export var band_inlay_energy: float = 0.9
+
+## Where the inlay line sits on the side wall, 0 = top edge, 1 = bottom edge.
+@export var band_inlay_position: float = 0.12
+
+## Width of the inlay line as a fraction of the side wall height.
+@export var band_inlay_width: float = 0.03
+
+## Cool sky-sheen color of the side wall (fresnel and lower line).
+@export var band_sheen_color: Color = Color(0.7, 0.62, 0.6)
+
+## Strength of the cool fresnel sheen on the side wall; 0 disables it.
+@export var band_sheen_strength: float = 0.12
+
+## Fresnel exponent of the side wall sheen; higher confines it to grazing angles.
+@export var band_sheen_power: float = 3.5
+
+## Brightness of the faint line near the bottom edge of the side wall.
+@export var band_lower_line_strength: float = 0.25

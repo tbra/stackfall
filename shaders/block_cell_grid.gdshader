@@ -38,6 +38,23 @@ shader_type spatial;
 // see BlockFactory.build()'s `sleeping_state_changed` wiring for who flips it
 // and why "resting" stands in for "contributing to territory influence"
 // this milestone.
+//
+// Bontago-adt.2 (graphics roadmap "Improved cel-shader/toon-shader", mockup 08):
+// look rework.
+//   - The toon ramp used to bake ALBEDO into its band colours, but Godot
+//     multiplies DIFFUSE_LIGHT by ALBEDO once more after light(), so colours
+//     were squared (muddy, over-dark saturation). The bands are now pure
+//     per-channel multipliers (cool shadow / neutral lit / warm highlight) and
+//     the engine applies ALBEDO exactly once. `light_gain` rescales the
+//     result; LIGHT_COLOR already carries the PI factor, hence the /PI.
+//   - Bevel highlight and rim are added through SPECULAR_LIGHT so they stay
+//     light-coloured instead of being tinted by ALBEDO a second time.
+//   - The bevel is a narrow band just inside the dark seam (peaking at the
+//     seam edge and fading inward), giving each cell a bevelled-cube read.
+//   - A cool "sky bounce" rim reads on faces turned away from the sun.
+//   - At long range (cells only a few pixels wide) the grid line and bevel
+//     fade to a fraction of their strength so distant towers stay clean
+//     instead of collapsing to a dark mesh; everything is screen-space.
 render_mode cull_back;
 
 uniform vec4 albedo_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
@@ -45,36 +62,65 @@ uniform int toon_band_count = 3;
 uniform float grid_line_width_px = 0.9;
 uniform vec4 grid_line_color : source_color = vec4(0.12, 0.1, 0.1, 1.0);
 uniform vec4 grid_line_glow_color : source_color = vec4(1.0, 0.92, 0.55, 1.0);
-uniform float grid_line_glow_strength = 2.2;
-uniform float grid_line_seam_mix : hint_range(0.0, 1.0) = 0.4;
+uniform float grid_line_glow_strength = 0.0;
+uniform float grid_line_seam_mix : hint_range(0.0, 1.0) = 0.75;
+// Distance stability: below grid_line_far_cell_px on-screen pixels per cell
+// the grid line/bevel are scaled toward grid_line_far_strength; at or above
+// grid_line_full_cell_px they are full strength.
+uniform float grid_line_far_cell_px = 5.0;
+uniform float grid_line_full_cell_px = 22.0;
+uniform float grid_line_far_strength : hint_range(0.0, 1.0) = 0.45;
 
-uniform vec4 highlight_tint : source_color = vec4(1.0, 0.85, 0.65, 1.0);
-uniform float highlight_tint_mix : hint_range(0.0, 1.0) = 0.35;
-uniform float highlight_brightness : hint_range(0.5, 1.5) = 1.0;
-uniform vec4 lit_tint : source_color = vec4(1.0, 0.15, 0.0, 1.0);
-uniform float lit_tint_mix : hint_range(0.0, 1.0) = 0.15;
-uniform vec4 shadow_tint : source_color = vec4(0.85, 0.85, 0.95, 1.0);
-uniform float shadow_tint_mix : hint_range(0.0, 1.0) = 0.6;
-uniform float shadow_brightness : hint_range(0.0, 1.5) = 0.72;
+uniform vec4 highlight_tint : source_color = vec4(1.0, 0.9, 0.72, 1.0);
+uniform float highlight_tint_mix : hint_range(0.0, 1.0) = 1.0;
+uniform float highlight_brightness : hint_range(0.5, 2.0) = 1.15;
+uniform vec4 lit_tint : source_color = vec4(1.0, 0.97, 0.94, 1.0);
+uniform float lit_tint_mix : hint_range(0.0, 1.0) = 1.0;
+uniform vec4 shadow_tint : source_color = vec4(0.62, 0.66, 0.9, 1.0);
+uniform float shadow_tint_mix : hint_range(0.0, 1.0) = 1.0;
+uniform float shadow_brightness : hint_range(0.0, 1.5) = 0.62;
+// Saturation multiplier on the block colour before shading (1 = as authored);
+// keeps player colours vivid after the warm sun colour and cool shadow tint.
+uniform float albedo_saturation : hint_range(0.0, 2.0) = 1.15;
+// Bottom-of-cell contact shading on side faces (strength = darkening at the
+// bottom edge, height = fraction of the cell it fades over).
+uniform float cell_ao_strength : hint_range(0.0, 1.0) = 0.3;
+uniform float cell_ao_height : hint_range(0.05, 1.0) = 0.7;
+// Scale of the sky ambient light on blocks (AO built-in). The sunset ambient
+// is orange, which tinted blue blocks teal on their shadow faces; the toon
+// shadow band (cool shadow_tint) supplies the fill instead.
+uniform float ambient_scale : hint_range(0.0, 1.0) = 0.5;
+uniform float light_gain : hint_range(0.0, 4.0) = 1.0;
+uniform float band_softness : hint_range(0.0, 0.2) = 0.02;
 
-uniform vec4 specular_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
-uniform float specular_sharpness = 96.0;
-uniform float specular_softness : hint_range(0.001, 0.3) = 0.03;
-uniform float specular_strength : hint_range(0.0, 2.0) = 0.16;
-uniform float specular_albedo_tint : hint_range(0.0, 1.0) = 0.4;
+uniform vec4 specular_color : source_color = vec4(1.0, 0.97, 0.9, 1.0);
+uniform float specular_sharpness = 64.0;
+uniform float specular_softness : hint_range(0.001, 0.3) = 0.04;
+uniform float specular_strength : hint_range(0.0, 2.0) = 0.32;
+uniform float specular_albedo_tint : hint_range(0.0, 1.0) = 0.25;
 
-uniform float bevel_highlight_width_px = 1.4;
-uniform vec4 bevel_highlight_color : source_color = vec4(1.0, 0.92, 0.8, 1.0);
-uniform float bevel_highlight_strength : hint_range(0.0, 2.0) = 0.22;
+uniform float bevel_highlight_width_px = 2.4;
+uniform vec4 bevel_highlight_color : source_color = vec4(1.0, 0.93, 0.8, 1.0);
+uniform float bevel_highlight_strength : hint_range(0.0, 2.0) = 0.42;
+uniform float bevel_shadow_side_fraction : hint_range(0.0, 1.0) = 0.3;
+// Fake chamfer: within bevel_width_fraction of a cell edge (never thinner than
+// bevel_min_width_px) the shading normal tilts toward the edge by bevel_tilt,
+// so the toon ramp lights sun-facing edges and shades the others.
+uniform float bevel_width_fraction : hint_range(0.0, 0.3) = 0.07;
+uniform float bevel_min_width_px = 1.5;
+uniform float bevel_tilt : hint_range(0.0, 3.0) = 1.1;
 
 uniform vec4 rim_color : source_color = vec4(1.0, 0.75, 0.5, 1.0);
-uniform float rim_power : hint_range(0.5, 8.0) = 2.5;
-uniform float rim_strength : hint_range(0.0, 1.0) = 0.15;
+uniform float rim_power : hint_range(0.5, 8.0) = 3.0;
+uniform float rim_strength : hint_range(0.0, 1.0) = 0.22;
+uniform vec4 rim_cool_color : source_color = vec4(0.55, 0.65, 1.0, 1.0);
+uniform float rim_cool_strength : hint_range(0.0, 1.0) = 0.16;
 
 instance uniform bool contributing = false;
 
 varying vec2 v_uv;
 varying float v_bevel_amount;
+varying float v_seam;
 
 void vertex() {
 	v_uv = UV;
@@ -86,80 +132,116 @@ void fragment() {
 	vec2 to_edge = min(v_uv, vec2(1.0) - v_uv);
 	float dist_to_edge = min(to_edge.x, to_edge.y);
 
-	// hint_range keeps grid_line_width_px a "pixels" knob rather than a raw
-	// UV fraction: fwidth(dist_to_edge) is how much dist_to_edge changes per
-	// screen pixel here, so multiplying by the pixel count gives a line that
-	// reads the same width on screen regardless of the block's distance from
-	// the camera or its cell size.
+	// fwidth(dist_to_edge) is UV change per screen pixel, so multiplying by a
+	// pixel count gives lines of constant screen width at any distance.
 	float uv_per_px = max(fwidth(dist_to_edge), 0.0001);
+	float cell_px = 1.0 / uv_per_px;
+	float detail = mix(
+		grid_line_far_strength, 1.0,
+		smoothstep(grid_line_far_cell_px, grid_line_full_cell_px, cell_px)
+	);
 	float px_width = uv_per_px * grid_line_width_px;
-	float seam_amount = 1.0 - smoothstep(0.0, px_width, dist_to_edge);
+	float seam_amount = (1.0 - smoothstep(0.0, px_width, dist_to_edge)) * detail;
 
-	// Bontago-mp0.3.1 fix round: measured from the *same* true edge
-	// (dist_to_edge = 0) as the seam above, not offset past it -- this is
-	// what makes the bright band hug the actual cell edge instead of
-	// drawing an inset "picture frame" square further in.
-	float bevel_width = uv_per_px * bevel_highlight_width_px;
-	float bevel_amount = 1.0 - smoothstep(0.0, bevel_width, dist_to_edge);
+	// Bevel: a band peaking just inside the seam and fading inward.
+	float band_start = px_width * 0.6;
+	float band_end = px_width + uv_per_px * bevel_highlight_width_px;
+	float bevel_amount = smoothstep(0.0, band_start, dist_to_edge)
+		* (1.0 - smoothstep(band_start, band_end, dist_to_edge));
+
+	// Fake chamfer normal (cotangent frame from screen derivatives, since the
+	// merged mesh carries no tangents).
+	vec3 n = normalize(NORMAL);
+	vec3 dp1 = dFdx(VERTEX);
+	vec3 dp2 = dFdy(VERTEX);
+	vec2 duv1 = dFdx(v_uv);
+	vec2 duv2 = dFdy(v_uv);
+	vec3 dp2perp = cross(dp2, n);
+	vec3 dp1perp = cross(n, dp1);
+	vec3 tan_u = normalize(dp2perp * duv1.x + dp1perp * duv2.x + vec3(0.00001));
+	vec3 tan_v = normalize(dp2perp * duv1.y + dp1perp * duv2.y + vec3(0.00001));
+	float chamfer_w = min(max(bevel_width_fraction, uv_per_px * bevel_min_width_px), 0.45);
+	float wx = 1.0 - smoothstep(chamfer_w * 0.85, chamfer_w, to_edge.x);
+	float wy = 1.0 - smoothstep(chamfer_w * 0.85, chamfer_w, to_edge.y);
+	float sx = v_uv.x < 0.5 ? -1.0 : 1.0;
+	float sy = v_uv.y < 0.5 ? -1.0 : 1.0;
+	vec3 tilt = tan_u * sx * wx + tan_v * sy * wy;
+	NORMAL = normalize(n + tilt * bevel_tilt * detail);
 
 	vec3 seam_target = contributing ? grid_line_glow_color.rgb : grid_line_color.rgb;
-	// Owner feedback (Bontago-mp0.3.1): a darker *shade of the block's own
-	// colour*, not a flat-replace black line -- grid_line_seam_mix < 1.0 keeps
-	// some of albedo_color in the seam instead of fully overwriting it.
 	vec3 seam_color = mix(albedo_color.rgb, seam_target, grid_line_seam_mix);
 	float glow = contributing ? grid_line_glow_strength : 0.0;
 
-	ALBEDO = mix(albedo_color.rgb, seam_color, seam_amount);
+	float base_luma = dot(albedo_color.rgb, vec3(0.299, 0.587, 0.114));
+	vec3 base_rgb = clamp(mix(vec3(base_luma), albedo_color.rgb, albedo_saturation), 0.0, 1.0);
+	// Per-cell contact shading: the lower part of every side face darkens
+	// (world-up measured through the same tangent frame as the chamfer), so
+	// each cube reads as a solid with a grounded bottom instead of a flat tile.
+	vec3 up_view = normalize((VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+	float up_u = dot(tan_u, up_view);
+	float up_v = dot(tan_v, up_view);
+	float side_w = clamp(abs(up_u) + abs(up_v), 0.0, 1.0);
+	float h_u = up_u > 0.0 ? v_uv.x : 1.0 - v_uv.x;
+	float h_v = up_v > 0.0 ? v_uv.y : 1.0 - v_uv.y;
+	float cell_h = (abs(up_u) * h_u + abs(up_v) * h_v) / max(abs(up_u) + abs(up_v), 0.0001);
+	float cell_shade = mix(1.0 - cell_ao_strength, 1.0, smoothstep(0.0, cell_ao_height, cell_h));
+	base_rgb *= mix(1.0, cell_shade, side_w * detail);
+	ALBEDO = mix(base_rgb, seam_color, seam_amount);
+	AO = ambient_scale;
+	AO_LIGHT_AFFECT = 0.0;
 	EMISSION = seam_target * seam_amount * glow;
 
-	v_bevel_amount = clamp(bevel_amount, 0.0, 1.0);
+	v_bevel_amount = clamp(bevel_amount * detail, 0.0, 1.0);
+	v_seam = seam_amount;
 }
 
 void light() {
 	float band_count = max(float(toon_band_count), 1.0);
 	float ndotl = clamp(dot(NORMAL, LIGHT), 0.0, 1.0);
-	float band_index = floor(ndotl * band_count);
-	float band_norm = band_count > 1.0 ? band_index / (band_count - 1.0) : band_index;
-	band_norm = clamp(band_norm, 0.0, 1.0);
+	// Anti-aliased band quantization (softness keeps thresholds crisp but
+	// not stair-stepped where the normal is not constant).
+	float scaled = ndotl * band_count;
+	float band_index = floor(scaled);
+	float frac_part = scaled - band_index;
+	band_index += smoothstep(1.0 - band_softness * band_count, 1.0, frac_part);
+	float band_norm = band_count > 1.0 ? clamp(band_index / (band_count - 1.0), 0.0, 1.0) : 1.0;
 
-	// Bontago-mp0.3.1 fix round (owner review: "make the bands produce ~3
-	// distinct values per colour", "top faces noticeably lighter/warmer...
-	// lit side mid saturated... away side darker and slightly cool"): three
-	// explicit tinted keyframe colours built from this fragment's own ALBEDO
-	// (already carries the cell-seam darkening from fragment() above),
-	// interpolated by the toon band instead of one hue scaled by a single
-	// shadow_floor/highlight_boost brightness scalar.
-	vec3 shadow_color = mix(ALBEDO, ALBEDO * shadow_tint.rgb, shadow_tint_mix) * shadow_brightness;
-	vec3 lit_color = mix(ALBEDO, lit_tint.rgb, lit_tint_mix);
-	vec3 highlight_color = mix(ALBEDO, highlight_tint.rgb, highlight_tint_mix) * highlight_brightness;
+	// Per-channel multipliers, not colours: the engine multiplies
+	// DIFFUSE_LIGHT by ALBEDO once after light().
+	vec3 shadow_mul = mix(vec3(1.0), shadow_tint.rgb, shadow_tint_mix) * shadow_brightness;
+	vec3 lit_mul = mix(vec3(1.0), lit_tint.rgb, lit_tint_mix);
+	vec3 highlight_mul = mix(vec3(1.0), highlight_tint.rgb, highlight_tint_mix) * highlight_brightness;
 
-	vec3 band_color;
+	vec3 band_mul;
 	if (band_norm < 0.5) {
-		band_color = mix(shadow_color, lit_color, band_norm * 2.0);
+		band_mul = mix(shadow_mul, lit_mul, band_norm * 2.0);
 	} else {
-		band_color = mix(lit_color, highlight_color, (band_norm - 0.5) * 2.0);
+		band_mul = mix(lit_mul, highlight_mul, (band_norm - 0.5) * 2.0);
 	}
-	DIFFUSE_LIGHT += band_color * LIGHT_COLOR * ATTENUATION;
+	// Where the sun is blocked by a shadow map (ATTENUATION 0) the face keeps
+	// the cool shadow-band fill instead of dropping to the warm sky ambient,
+	// so shadowed faces stay the block's own hue.
+	vec3 effective_mul = mix(shadow_mul, band_mul, ATTENUATION);
+	DIFFUSE_LIGHT += effective_mul * light_gain * LIGHT_COLOR / PI;
 
-	// Hard-edged, tinted specular "plastic" highlight -- a Blinn-Phong term
-	// quantized to a crisp, small, dim dot (not GGX's soft PBR falloff), and
-	// blended toward the lit albedo instead of pure white so it never reads
-	// as a blown-out patch (owner review: "clamp the specular... never
-	// whites out a whole face").
+	// Crisp specular band.
 	vec3 half_vec = normalize(LIGHT + VIEW);
 	float spec_term = pow(max(dot(NORMAL, half_vec), 0.0), specular_sharpness);
 	float spec_mask = smoothstep(0.5 - specular_softness, 0.5 + specular_softness, spec_term);
-	vec3 tinted_specular = mix(specular_color.rgb, band_color, specular_albedo_tint);
-	SPECULAR_LIGHT += spec_mask * specular_strength * tinted_specular * LIGHT_COLOR.rgb * ATTENUATION;
+	vec3 tinted_specular = mix(specular_color.rgb, ALBEDO * 1.5, specular_albedo_tint);
+	SPECULAR_LIGHT += spec_mask * specular_strength * tinted_specular * LIGHT_COLOR.rgb * ATTENUATION / PI;
 
-	// Bright bevel hugging the true cell edge, fading inward, restricted to
-	// faces angled toward the light so the shape reads as a gently bevelled
-	// cube rather than a second grid line running everywhere.
-	float bevel_mask = v_bevel_amount * smoothstep(0.05, 0.35, ndotl);
-	DIFFUSE_LIGHT += bevel_mask * bevel_highlight_strength * bevel_highlight_color.rgb * LIGHT_COLOR.rgb * ATTENUATION;
+	// Edge bevel light: full on sun-facing faces, a fraction on the rest so
+	// every cell edge still reads as bevelled.
+	float facing = mix(bevel_shadow_side_fraction, 1.0, smoothstep(0.05, 0.6, ndotl));
+	// The lip never paints over the dark seam groove (grid lines stay black).
+	SPECULAR_LIGHT += (1.0 - v_seam) * v_bevel_amount * facing * bevel_highlight_strength
+		* bevel_highlight_color.rgb * LIGHT_COLOR.rgb * ATTENUATION / PI;
 
-	// Subtle warm rim light on silhouette edges facing the sun.
+	// Rim: warm on the sun side, cool "sky bounce" on the shadow side.
 	float fresnel = pow(clamp(1.0 - dot(NORMAL, VIEW), 0.0, 1.0), rim_power);
-	float rim_mask = fresnel * smoothstep(0.0, 0.3, ndotl);
-	DIFFUSE_LIGHT += rim_mask * rim_strength * rim_color.rgb * LIGHT_COLOR.rgb * ATTENUATION;
+	SPECULAR_LIGHT += (1.0 - v_seam) * fresnel * smoothstep(0.0, 0.3, ndotl) * rim_strength
+		* rim_color.rgb * LIGHT_COLOR.rgb * ATTENUATION / PI;
+	SPECULAR_LIGHT += (1.0 - v_seam) * fresnel * (1.0 - smoothstep(0.0, 0.3, ndotl)) * rim_cool_strength
+		* rim_cool_color.rgb * LIGHT_COLOR.rgb / PI;
 }

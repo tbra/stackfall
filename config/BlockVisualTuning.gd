@@ -6,11 +6,21 @@ extends Resource
 ## shape per block (Bontago-xtq.3); everything here only changes how that one
 ## `ArrayMesh` is shaded and outlined, never its geometry/collision.
 
-## Inverted-hull outline pass (shaders/block_outline.gdshader): how far the
-## outline mesh's vertices are pushed out along their own normal, in meters.
-## Bontago-mp0.3.1 (owner feedback "restrained... thinner/softer than now"):
-## thinned from 0.009.
-@export var outline_width_m: float = 0.006
+## Inverted-hull outline pass (shaders/block_outline.gdshader): outline width
+## in screen pixels for blocks closer than outline_fade_start_m. The push is
+## done in clip space, so the line stays this many pixels wide at any distance
+## instead of shrinking to a shimmering sub-pixel line (Bontago-adt.2).
+@export var outline_width_px: float = 1.6
+
+## Outline width in pixels for blocks at or beyond outline_far_distance_m;
+## eases from outline_width_px between the two distances.
+@export var outline_far_width_px: float = 0.9
+
+## Camera distance (m) where the outline starts thinning toward its far width.
+@export var outline_fade_start_m: float = 45.0
+
+## Camera distance (m) where the outline reaches outline_far_width_px.
+@export var outline_far_distance_m: float = 110.0
 
 ## Flat, unshaded color of the outline pass.
 @export var outline_color: Color = Color(0.05, 0.04, 0.05)
@@ -22,11 +32,11 @@ extends Resource
 ## Screen-space width, in pixels, of the dark line drawn along each visible
 ## face's UV edge (BlockMeshBuilder's existing 0..1 per-cell UVs put one such
 ## edge at every cell boundary, spec 2.10 as amended).
-@export var grid_line_width_px: float = 0.9
+@export var grid_line_width_px: float = 1.4
 
 ## Cell-grid line color for a block that is not currently read as
 ## contributing to territory influence (in flight / just landed).
-@export var grid_line_color: Color = Color(0.12, 0.1, 0.1)
+@export var grid_line_color: Color = Color(0.03, 0.028, 0.03)
 
 ## Cell-grid line color for a block whose `contributing` per-instance shader
 ## parameter is true (settled/sleeping -- see BlockFactory.build()'s
@@ -47,7 +57,7 @@ extends Resource
 ## the block's own albedo_color (0 = seam invisible, 1 = the old flat-replace
 ## look). A darker *shade of the block's own colour* reads as a seam instead
 ## of a heavy ink line.
-@export var grid_line_seam_mix: float = 0.4
+@export var grid_line_seam_mix: float = 0.95
 
 ## -- Toon banding: three explicit, distinctly-coloured bands ----------------
 ## Fix round (owner review of blocks-r1: "Right now all red faces are nearly
@@ -61,23 +71,23 @@ extends Resource
 ## (base red 0.9,0.25,0.25 -> top ~#F2705E, lit ~#DE3F30, shadow ~#9E2A2E).
 
 ## Warm near-white blended into the brightest (top, sun-facing) band.
-@export var highlight_tint: Color = Color(1.0, 0.85, 0.65)
-@export var highlight_tint_mix: float = 0.35
+@export var highlight_tint: Color = Color(1.0, 0.98, 0.94)
+@export var highlight_tint_mix: float = 1.0
 ## Extra brightness multiplier on top of the tint mix; kept near 1.0 so the
 ## top band alone never pushes a pixel toward the HDR glow threshold.
-@export var highlight_brightness: float = 1.0
+@export var highlight_brightness: float = 1.05
 
 ## Warm, saturated tint blended lightly into the mid ("lit side") band, so it
 ## reads as the block's own strongest, most saturated colour.
-@export var lit_tint: Color = Color(1.0, 0.15, 0.0)
-@export var lit_tint_mix: float = 0.15
+@export var lit_tint: Color = Color(1.0, 0.97, 0.94)
+@export var lit_tint_mix: float = 1.0
 
 ## Cool tint blended into the darkest (shadow) band before it is dimmed by
 ## shadow_brightness -- together they read as "darker but slightly cool/
 ## desaturated, never near-black" rather than a flat multiply-by-black.
-@export var shadow_tint: Color = Color(0.85, 0.85, 0.95)
-@export var shadow_tint_mix: float = 0.6
-@export var shadow_brightness: float = 0.72
+@export var shadow_tint: Color = Color(0.7, 0.68, 1.0)
+@export var shadow_tint_mix: float = 1.0
+@export var shadow_brightness: float = 0.7
 
 ## -- Hard-edged specular highlight (a small "plastic" light-catcher) ---------
 ## Fix round (owner review: "blue blocks show large pure-white patches...
@@ -86,16 +96,16 @@ extends Resource
 ## specular_strength/sharpness/softness retuned so the lit dot is small and
 ## dim, and specular_albedo_tint blends the block's own colour into the
 ## highlight instead of a flat pure-white patch.
-@export var specular_color: Color = Color(1.0, 1.0, 1.0)
+@export var specular_color: Color = Color(1.0, 0.97, 0.9)
 ## Blinn-Phong exponent before toon-quantizing; higher is a smaller, sharper dot.
-@export var specular_sharpness: float = 96.0
+@export var specular_sharpness: float = 64.0
 ## Width of the smoothstep used to turn the specular falloff into a hard edge.
-@export var specular_softness: float = 0.03
-@export var specular_strength: float = 0.16
+@export var specular_softness: float = 0.04
+@export var specular_strength: float = 0.32
 ## How much of the block's own lit albedo to blend into specular_color, so the
 ## highlight reads as a light-catch on the block's own surface, not a plain
 ## white sticker.
-@export var specular_albedo_tint: float = 0.4
+@export var specular_albedo_tint: float = 0.25
 
 ## -- Bevelled cell-edge highlight (hugs the true cell edge, fades inward) ----
 ## Fix round (owner review: "every cell face shows a second square drawn well
@@ -107,11 +117,11 @@ extends Resource
 ## (dist_to_edge = 0), so the bright band starts exactly at the edge and
 ## fades over bevel_highlight_width_px, with no gap or offset ring.
 ## Screen-space width, in pixels, the bright edge band fades over.
-@export var bevel_highlight_width_px: float = 1.4
-@export var bevel_highlight_color: Color = Color(1.0, 0.92, 0.8)
+@export var bevel_highlight_width_px: float = 2.4
+@export var bevel_highlight_color: Color = Color(1.0, 0.93, 0.8)
 ## Only applied where a face's own N.L is bright enough to be "toward the
 ## light" -- see shaders/block_cell_grid.gdshader light()'s own bevel_mask.
-@export var bevel_highlight_strength: float = 0.22
+@export var bevel_highlight_strength: float = 0.42
 
 ## -- Subtle warm rim light on silhouette/cell edges facing the sun -----------
 ## Fix round (owner review: "plus a subtle warm rim light on silhouette edges
@@ -119,8 +129,8 @@ extends Resource
 ## kept low-strength so it reads as a soft edge glow rather than a second
 ## specular pass.
 @export var rim_color: Color = Color(1.0, 0.75, 0.5)
-@export var rim_power: float = 2.5
-@export var rim_strength: float = 0.15
+@export var rim_power: float = 3.0
+@export var rim_strength: float = 0.22
 
 ## -- Outline tint (owner feedback: "restrained... a dark tinted version of
 ## the block color rather than pure black") -----------------------------------
@@ -133,3 +143,32 @@ extends Resource
 ## How much a block's own colour is darkened before it is mixed into the
 ## outline, so the tint still reads as a silhouette, not a lit surface.
 @export var outline_tint_darken: float = 0.35
+
+## -- Bontago-adt.2 cel-shader rework (mockup 08) -------------------------------
+## Cell-grid line/bevel distance stability: once a cell face is smaller than
+## grid_line_full_cell_px on screen the line and bevel fade toward
+## grid_line_far_strength (reached at grid_line_far_cell_px), so a distant
+## 300-block skyline does not collapse into a dark mesh. Lines stay black.
+@export var grid_line_far_cell_px: float = 5.0
+@export var grid_line_full_cell_px: float = 22.0
+@export var grid_line_far_strength: float = 0.45
+
+## Saturation multiplier on a block's colour before shading (1 = as authored).
+@export var albedo_saturation: float = 1.1
+## Bottom-of-cell contact shading on side faces: darkening at the bottom edge of each cell face (0 disables).
+@export var cell_ao_strength: float = 0.3
+## Fraction of the cell face height the contact shading fades out over.
+@export var cell_ao_height: float = 0.7
+## Scale of the sky ambient light on blocks (0 = none). The orange sunset ambient tinted blue blocks teal on their shadow faces; lower values let the cool toon shadow band dominate.
+@export var ambient_scale: float = 0.5
+## Overall gain on the toon diffuse ramp (1.0 = albedo shown at the lit band
+## exactly as authored under a neutral light of energy 1).
+@export var light_gain: float = 0.9
+## Width of the anti-aliasing smoothstep at each toon band step (in fractions of a band).
+@export var band_softness: float = 0.02
+## Fraction of the bevel edge light kept on faces turned away from the sun, so
+## shadow-side cell edges still read as bevelled.
+@export var bevel_shadow_side_fraction: float = 0.3
+## Cool "sky bounce" rim on silhouette edges turned away from the sun.
+@export var rim_cool_color: Color = Color(0.55, 0.65, 1.0)
+@export var rim_cool_strength: float = 0.16

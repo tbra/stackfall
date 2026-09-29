@@ -69,6 +69,8 @@ func _build() -> void:
 	_socket.mesh = socket_mesh
 	var socket_material: StandardMaterial3D = StandardMaterial3D.new()
 	socket_material.albedo_color = beacon_visuals.socket_color
+	socket_material.metallic = beacon_visuals.socket_metallic
+	socket_material.roughness = beacon_visuals.socket_roughness
 	_socket.material_override = socket_material
 	_socket.position = Vector3(0.0, beacon_visuals.socket_height * 0.5, 0.0)
 	add_child(_socket)
@@ -106,6 +108,11 @@ func _build() -> void:
 	_crystal_material.set_shader_parameter(&"specular_strength", beacon_visuals.crystal_specular_strength)
 	_crystal_material.set_shader_parameter(&"specular_sharpness", beacon_visuals.crystal_specular_sharpness)
 	_crystal_material.set_shader_parameter(&"specular_softness", beacon_visuals.crystal_specular_softness)
+	_crystal_material.set_shader_parameter(&"emission_scale", beacon_visuals.emission_scale)
+	_crystal_material.set_shader_parameter(&"core_glow", beacon_visuals.crystal_core_glow)
+	_crystal_material.set_shader_parameter(&"edge_glow", beacon_visuals.crystal_edge_glow)
+	_crystal_material.set_shader_parameter(&"edge_white_mix", beacon_visuals.crystal_edge_white_mix)
+	_crystal_material.set_shader_parameter(&"edge_power", beacon_visuals.crystal_edge_power)
 	_crystal.material_override = _crystal_material
 	_crystal.position = Vector3(
 		0.0, beacon_visuals.socket_height + crystal_height * 0.5, 0.0
@@ -169,7 +176,9 @@ func _apply_pulse(_delta: float) -> void:
 	_beacon_ring.scale = Vector3(ring_scale, 1.0, ring_scale)
 
 	var energy_mult: float = 1.0 + wave * beacon_visuals.pulse_emission_amplitude
-	_beacon_ring_material.emission_energy_multiplier = beacon_visuals.ring_emission * energy_mult
+	_beacon_ring_material.emission_energy_multiplier = (
+		beacon_visuals.ring_emission * beacon_visuals.emission_scale * energy_mult
+	)
 	_crystal_material.set_shader_parameter(
 		&"emission_energy", beacon_visuals.crystal_emission * energy_mult
 	)

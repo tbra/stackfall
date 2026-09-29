@@ -66,6 +66,14 @@ uniform vec4 grid_line_color : source_color = vec4(0.12, 0.1, 0.1, 1.0);
 // _apply_validity_material(), which is the only place any of these three
 // change together (use_hatch toggled with hatch_scale, hatch_texture bound
 // once in _ready()).
+// Bontago-adt.2: same bottom-of-cell contact shading and edge catch-light as
+// shaders/block_cell_grid.gdshader so the ghost matches the real block.
+uniform float cell_ao_strength : hint_range(0.0, 1.0) = 0.3;
+uniform float cell_ao_height : hint_range(0.05, 1.0) = 0.7;
+uniform float bevel_highlight_strength : hint_range(0.0, 1.0) = 0.25;
+uniform float bevel_highlight_width_px = 2.4;
+uniform vec4 bevel_highlight_color : source_color = vec4(1.0, 0.93, 0.8, 1.0);
+
 uniform bool use_hatch = false;
 uniform sampler2D hatch_texture : hint_default_white, filter_linear_mipmap_anisotropic;
 uniform float hatch_scale = 6.0;
@@ -104,6 +112,27 @@ void fragment() {
 		hatch_alpha = sample_hatch_triplanar_alpha(v_world_pos, v_world_normal, hatch_scale);
 	}
 
-	ALBEDO = mix(albedo_color.rgb, grid_line_color.rgb, line_amount);
+	vec3 n = normalize(NORMAL);
+	vec3 dp1 = dFdx(VERTEX);
+	vec3 dp2 = dFdy(VERTEX);
+	vec2 duv1 = dFdx(v_uv);
+	vec2 duv2 = dFdy(v_uv);
+	vec3 dp2perp = cross(dp2, n);
+	vec3 dp1perp = cross(n, dp1);
+	vec3 tan_u = normalize(dp2perp * duv1.x + dp1perp * duv2.x + vec3(0.00001));
+	vec3 tan_v = normalize(dp2perp * duv1.y + dp1perp * duv2.y + vec3(0.00001));
+	vec3 up_view = normalize((VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+	float up_u = dot(tan_u, up_view);
+	float up_v = dot(tan_v, up_view);
+	float side_w = clamp(abs(up_u) + abs(up_v), 0.0, 1.0);
+	float h_u = up_u > 0.0 ? v_uv.x : 1.0 - v_uv.x;
+	float h_v = up_v > 0.0 ? v_uv.y : 1.0 - v_uv.y;
+	float cell_h = (abs(up_u) * h_u + abs(up_v) * h_v) / max(abs(up_u) + abs(up_v), 0.0001);
+	float cell_shade = mix(1.0 - cell_ao_strength, 1.0, smoothstep(0.0, cell_ao_height, cell_h));
+	float uv_per_px = max(fwidth(dist_to_edge), 0.0001);
+	float bevel_amount = (1.0 - smoothstep(0.0, uv_per_px * bevel_highlight_width_px, dist_to_edge));
+	vec3 shaded = albedo_color.rgb * mix(1.0, cell_shade, side_w);
+	shaded += bevel_highlight_color.rgb * bevel_amount * bevel_highlight_strength;
+	ALBEDO = mix(shaded, grid_line_color.rgb, line_amount);
 	ALPHA = albedo_color.a * hatch_alpha;
 }
