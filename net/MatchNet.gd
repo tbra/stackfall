@@ -185,6 +185,9 @@ var _capture_progress: float = 0.0
 ## fire.
 var _match_start_sent: bool = false
 
+## Bontago-22y.10: the weather RPC surface (net/WeatherNet.gd), a child node.
+var _weather_net: WeatherNet = null
+
 
 func _ready() -> void:
 	_authority().set_replicator(self)
@@ -209,6 +212,11 @@ func _ready() -> void:
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 	Events.net_peer_left.connect(_on_net_peer_left)
 	Events.net_peer_joined.connect(_on_net_peer_joined)
+	# Bontago-22y.10: weather replication lives in its own child node.
+	_weather_net = WeatherNet.new()
+	_weather_net.name = "WeatherNet"
+	add_child(_weather_net)
+	_weather_net.set_providers(_net_provider, _match_provider)
 
 
 func _exit_tree() -> void:
@@ -222,6 +230,8 @@ func _exit_tree() -> void:
 func set_providers(net_provider: Variant, match_provider: Variant) -> void:
 	_net_provider = net_provider
 	_match_provider = match_provider
+	if _weather_net != null:
+		_weather_net.set_providers(net_provider, match_provider)
 	if _match_provider != null:
 		_match_provider.set_replicator(self)
 

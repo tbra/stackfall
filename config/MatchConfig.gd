@@ -35,6 +35,14 @@ enum TiltMode { SPECIALS_ONLY, PHYSICAL_BALANCE }
 ## previous build -- keeps meaning exactly what it meant.
 enum HoleMode { TEMPORARY, PERMANENT, OFF }
 
+## Weather (Bontago-22y.10, owner decision Bontago-22y.14). Weather is a random
+## EVENT on a host schedule, one weather at a time, calm most of the time.
+## DECISION (config/MatchConfig.gd): WIND/RAIN/SNOW = events of that type only;
+## RANDOM = one type drawn at match start and used for every event; CHANGING =
+## each event draws its own type (WeatherScheduleTuning.avoid_repeat_type).
+## OFF is first so a missing/old wire key means no weather.
+enum WeatherMode { OFF, WIND, RAIN, SNOW, RANDOM, CHANGING }
+
 ## -- Spec 2.8 table, in order -----------------------------------------------
 @export var map_variant: MapVariant = MapVariant.ROUND
 ## Spec 2.8's map size; the enum lives on MapDef (see the note there).
@@ -68,6 +76,8 @@ enum HoleMode { TEMPORARY, PERMANENT, OFF }
 ## advance_turn(), the same machinery hot_seat already uses for its own,
 ## different (instant hand-off) trigger.
 @export var turn_based: bool = false
+## Weather event schedule (Bontago-22y.10); see WeatherMode.
+@export var weather_mode: WeatherMode = WeatherMode.OFF
 
 ## -- Beyond the 2.8 table ---------------------------------------------------
 ## Spec "Still open" 1: was the block timer shared or per player? The spec's
@@ -229,6 +239,7 @@ func sanitize() -> void:
 	hole_mode = clampi(hole_mode, HoleMode.TEMPORARY, HoleMode.OFF) as HoleMode
 	match_timer_minutes = maxi(match_timer_minutes, 0)
 	# turn_based is a plain bool -- no range to clamp.
+	weather_mode = clampi(weather_mode, WeatherMode.OFF, WeatherMode.CHANGING) as WeatherMode
 	if player_colors.size() < PLAYER_COUNT_MAX:
 		var defaults: PackedColorArray = default_player_colors()
 		var padded: PackedColorArray = player_colors.duplicate()
@@ -257,6 +268,7 @@ func to_dict() -> Dictionary:
 		"match_timer_minutes": match_timer_minutes,
 		"sudden_death": sudden_death,
 		"turn_based": turn_based,
+		"weather_mode": weather_mode,
 		"per_player_timer": per_player_timer,
 		"hot_seat": hot_seat,
 		"player_colors": player_colors.duplicate(),
@@ -288,6 +300,7 @@ static func from_dict(data: Dictionary) -> MatchConfig:
 	config.match_timer_minutes = int(data.get("match_timer_minutes", config.match_timer_minutes))
 	config.sudden_death = bool(data.get("sudden_death", config.sudden_death))
 	config.turn_based = bool(data.get("turn_based", config.turn_based))
+	config.weather_mode = int(data.get("weather_mode", config.weather_mode)) as WeatherMode
 	config.per_player_timer = bool(data.get("per_player_timer", config.per_player_timer))
 	config.hot_seat = bool(data.get("hot_seat", config.hot_seat))
 	if data.has("player_colors"):

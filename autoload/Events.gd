@@ -277,3 +277,24 @@ signal pause_menu_closed
 ## listeners: each swaps which device's binding glyphs it shows, live,
 ## without the player needing to reopen the menu.
 signal input_device_changed(device: StringName)
+
+# --- Weather events (Bontago-22y.10) ------------------------------------------
+# Emitted on the host and, from replicated state, on every client, so
+# presentation code (vfx/weather/WeatherPresenter.gd, a later HUD cue) needs
+# no networking of its own.
+
+## A weather event began (one at a time). `weather_id` is a WeatherTuning.id.
+signal weather_started(weather_id: StringName)
+
+## The event finished its ramp-out (or the match ended) and physics is back
+## at baseline.
+signal weather_stopped(weather_id: StringName)
+
+## The ramped intensity 0..1 of the active weather changed.
+signal weather_intensity_changed(weather_id: StringName, intensity: float)
+
+## The schedule phase changed (calm began, an event began, hold, ramp-out).
+## `state` is MatchWeather.state_dict(): "sched" (MatchWeather.Sched), "left"
+## (seconds until the next event while calm, or until the event ends), "id",
+## "phase" and "t". A HUD can show a "weather incoming" cue from it.
+signal weather_state_changed(state: Dictionary)

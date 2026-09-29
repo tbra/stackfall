@@ -107,6 +107,9 @@ var _gifts: MatchGifts = null
 ## the full results payload contract.
 var _stats: MatchStats = null
 
+## Bontago-22y.10: host-scheduled weather events. See autoload/match/MatchWeather.gd.
+var _weather: MatchWeather = null
+
 
 func _ready() -> void:
 	_feed = MatchFeed.new()
@@ -115,12 +118,14 @@ func _ready() -> void:
 	_lifecycle = MatchLifecycle.new()
 	_gifts = MatchGifts.new()
 	_stats = MatchStats.new()
+	_weather = MatchWeather.new()
 	_feed.setup(self)
 	_placement.setup(self)
 	_territory.setup(self)
 	_lifecycle.setup(self)
 	_gifts.setup(self)
 	_stats.setup(self)
+	_weather.setup(self)
 	Events.feed_block_issued.connect(_on_feed_block_issued)
 
 
@@ -184,6 +189,8 @@ func _physics_process(delta: float) -> void:
 		_gifts.tick_host(delta)
 	elif not _is_host() and _lifecycle != null and MatchLifecycle.is_live_state(state()):
 		_gifts.tick_client(delta)
+	# Bontago-22y.10: no-op unless a weather schedule is running.
+	_weather.tick(delta)
 
 
 func debug_unlock_slot(slot_id: int) -> void:
@@ -606,6 +613,12 @@ func territory_share(team_id: int) -> float:
 ## The winning team, or -1.
 func winner_team() -> int:
 	return _territory.winner_team()
+
+
+## Bontago-22y.10: the weather controller (net/WeatherNet.gd, the HUD cue and
+## tests read it; rules never do).
+func weather() -> MatchWeather:
+	return _weather
 
 
 # --- Match statistics + results (spec 3.7, Bontago-1pi.13) ------------------
