@@ -98,13 +98,34 @@ extends Resource
 @export var glow_intensity: float = 0.5
 @export var glow_hdr_threshold: float = 1.3
 
-## Cloud sea below the disc (vfx/CloudSea.gd): a ShaderMaterial using
-## shaders/cloud_sea.gdshader (duplicated per layer), the world-Y height of each
-## stacked layer (top first) and the layer disc radius. Null material or an
-## empty height list means no cloud sea.
-@export var cloud_sea_material: Material = null
-@export var cloud_sea_layer_heights_m: PackedFloat32Array = PackedFloat32Array([-34.0, -48.0, -64.0])
-@export var cloud_sea_radius_m: float = 1400.0
+## Cloud sea below the disc (vfx/CloudSea.gd): 3D toon cumulus clumps built
+## from flat-bottomed puffs, drawn with a ShaderMaterial using
+## shaders/cloud_puffs.gdshader (its colours, lighting and fades live on that
+## material). The clumps scatter over a ring (inner/outer radius from the disc
+## axis) with bases between cloud_base_min_m and cloud_base_max_m; no puff top
+## rises above cloud_top_max_m (keep it well under the disc's underside and
+## the 0..72 m play volume). Each clump is cloud_clump_radius_* wide and
+## cloud_clump_height_ratio of that tall, and drifts around the disc at
+## cloud_drift_speed_* metres per second (negative reverses). cloud_flat_base
+## is how far below a puff's centre (fraction of its radius) its flat base
+## sits. GraphicsPreset.cloud_puff_density scales cloud_clump_count. Null
+## material or zero clumps means no puffs (the far cloud sea in the sky
+## panorama remains).
+@export var cloud_puff_material: Material = null
+@export var cloud_clump_count: int = 0
+@export var cloud_puffs_per_clump: int = 12
+@export var cloud_seed: int = 11
+@export var cloud_ring_inner_m: float = 80.0
+@export var cloud_ring_outer_m: float = 460.0
+@export var cloud_base_min_m: float = -75.0
+@export var cloud_base_max_m: float = -45.0
+@export var cloud_top_max_m: float = -18.0
+@export var cloud_clump_radius_min_m: float = 15.0
+@export var cloud_clump_radius_max_m: float = 36.0
+@export var cloud_clump_height_ratio: float = 0.65
+@export var cloud_flat_base: float = 0.15
+@export var cloud_drift_speed_min_mps: float = 0.8
+@export var cloud_drift_speed_max_mps: float = 1.8
 
 ## Distant bird flocks (vfx/DistantBirds.gd): a ShaderMaterial using
 ## shaders/distant_birds.gdshader; flock/bird counts, placement ring and

@@ -9,4 +9,4 @@ ssr_enabled = true
 msaa_3d = 1
 shadow_atlas_size = 4096
 volumetric_fog_enabled = true
-cloud_sea_layers = 2
+cloud_puff_density = 0.7

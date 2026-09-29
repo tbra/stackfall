@@ -196,7 +196,6 @@ func _ready() -> void:
 	apply_theme(theme)
 	_spawn_fog_volume()
 	_apply_fog_volume_visibility(Settings.current_graphics_preset())
-	_apply_ambient_life(Settings.current_graphics_preset())
 	Settings.graphics_preset_changed.connect(_on_graphics_preset_changed)
 
 
@@ -481,6 +480,9 @@ func apply_theme(applied_theme: SkyThemeDef) -> void:
 	environment.volumetric_fog_density = applied_theme.volumetric_fog_density
 	environment.volumetric_fog_albedo = applied_theme.volumetric_fog_albedo
 	_apply_light_and_environment(applied_theme)
+	# Bontago-adt.1: the cloud puffs and birds are rebuilt from the applied
+	# theme too, so a live F4 edit or theme switch reaches them.
+	_apply_ambient_life(Settings.current_graphics_preset(), applied_theme)
 
 
 ## Bontago-xtq.28: creates this Skybox's own FogVolume "cloud deck" child --
@@ -514,7 +516,7 @@ func _spawn_fog_volume() -> void:
 ## _ready() and disconnected in _exit_tree() above.
 func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 	_apply_fog_volume_visibility(preset)
-	_apply_ambient_life(preset)
+	_apply_ambient_life(preset, theme)
 
 
 ## Bontago-adt.1: loads res://config/sky_themes/<id>.tres, or null if missing.
@@ -532,19 +534,20 @@ func set_theme_by_id(theme_id: String) -> bool:
 		return false
 	theme = chosen
 	apply_theme(theme)
-	_apply_ambient_life(Settings.current_graphics_preset())
 	return true
 
 
-## Bontago-adt.1: cloud sea layers and birds follow the graphics preset
-## (Low: one layer, no birds). A null preset means full quality.
-func _apply_ambient_life(preset: GraphicsPreset) -> void:
-	var layers: int = preset.cloud_sea_layers if preset != null else CloudSea.MAX_LAYERS
+## Bontago-adt.1: cloud puffs and birds follow the graphics preset (Low:
+## sparse puffs, no birds). A null preset means full quality. The puffs copy
+## the theme's sky material uniforms so their far fade matches the sky.
+func _apply_ambient_life(preset: GraphicsPreset, applied_theme: SkyThemeDef) -> void:
+	var density: float = preset.cloud_puff_density if preset != null else 1.0
 	var birds: bool = preset == null or preset.birds_enabled
 	if _cloud_sea != null:
-		_cloud_sea.configure(theme, layers)
+		var sky_material: Material = applied_theme.sky_material if applied_theme != null else null
+		_cloud_sea.configure(applied_theme, density, sky_material)
 	if _birds != null:
-		_birds.configure(theme, birds)
+		_birds.configure(applied_theme, birds)
 
 
 ## Bontago-adt.1: writes the theme's light and glow/ambient values onto the

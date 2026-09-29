@@ -82,8 +82,11 @@ extends Node3D
 @export var visuals: TerritoryVisuals = preload("res://config/territory_visuals.tres")
 
 const DISC_LAYER_BIT: int = 1 << 19
-## Camera3D.cull_mask default (all 20 render layers on), minus DISC_LAYER_BIT.
-const MIRROR_CULL_MASK: int = 0xFFFFF & ~DISC_LAYER_BIT
+## Camera3D.cull_mask default (all 20 render layers on), minus DISC_LAYER_BIT
+## and (Bontago-adt.1) CloudSea.RENDER_LAYER_BIT: the cloud puffs sit below
+## the disc plane, where this mirror camera is, and nothing below a mirror
+## may show up in its reflection.
+const MIRROR_CULL_MASK: int = 0xFFFFF & ~DISC_LAYER_BIT & ~CloudSea.RENDER_LAYER_BIT
 ## mirror_resolution_scale is clamped into this range: 0 would make an
 ## invalid (zero-area) SubViewport, and > 1.0 would only ever cost more than
 ## the main viewport itself for no sharpness the main camera's own screen

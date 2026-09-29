@@ -101,6 +101,12 @@ uniform float ray_shimmer_amount = 0.08;
 //     texture) scrolls with the wind above the horizon and blends over the
 //     panorama, so there is steady visible motion and the mockup's banded
 //     cel shading. It fades out near the sun disc and at the horizon.
+//  4. FAR CLOUD SEA (Bontago-adt.1 round 3). Below the horizon the painted
+//     cumulus is the distant cloud sea: it gets a two-phase flow drift
+//     (sea_flow_*) instead of the noise warp, so it slides slowly around the
+//     disc without marbling. The near/mid sea is real 3D puffs
+//     (vfx/CloudSea.gd, shaders/cloud_puffs.gdshader) that fade into this
+//     panorama by sampling it along their own view ray.
 // All animated terms are skipped in the radiance (reflection) pass, which
 // therefore stays as cheap and stable as before.
 uniform sampler2D noise_tex : filter_linear_mipmap, repeat_enable;
@@ -114,6 +120,19 @@ uniform float warp_scale = 2.5;
 // left un-animated; motion fades in over sun_motion_fade_deg beyond it.
 uniform float sun_motion_protect_deg = 6.0;
 uniform float sun_motion_fade_deg = 26.0;
+
+// Far cloud sea (the panorama's lower hemisphere): two-phase flow drift so
+// the painted cumulus below the horizon slides slowly around the disc with no
+// accumulating smear (cloud_common flow_phases). Span is the UV distance one
+// phase travels; the jitter noise staggers the cross-fade across the sea.
+// sea_flow_fade_start/_end are eyedir.y values: flow is full below _end and
+// zero above _start (the horizon band and sky keep only the sway above).
+uniform vec2 sea_flow = vec2(-1.0, 0.0);
+uniform float sea_flow_span = 0.006;
+uniform float sea_flow_period = 16.0;
+uniform float sea_flow_jitter_scale = 1.5;
+uniform float sea_flow_fade_start = 0.0;
+uniform float sea_flow_fade_end = -0.06;
 
 uniform float cloud_layer_opacity = 0.8;
 uniform float cloud_layer_scale = 1.1;
@@ -135,6 +154,16 @@ uniform vec3 cloud_shadow_color : source_color = vec3(0.34, 0.27, 0.47);
 uniform vec3 cloud_mid_color : source_color = vec3(0.86, 0.55, 0.52);
 uniform vec3 cloud_lit_color : source_color = vec3(1.0, 0.82, 0.52);
 uniform vec3 cloud_rim_color : source_color = vec3(1.0, 0.9, 0.66);
+
+// Panorama colour with the symmetric seam blend (imperfect authored
+// panorama edges made continuous).
+vec3 sample_panorama(vec2 uv, vec2 ddx_uv, vec2 ddy_uv) {
+	vec3 color = textureGrad(panorama, uv, ddx_uv, ddy_uv).rgb;
+	float seam = 1.0 - smoothstep(0.0, seam_blend_width, min(uv.x, 1.0 - uv.x));
+	vec2 mirrored_ddx = vec2(-ddx_uv.x, ddx_uv.y);
+	vec2 mirrored_ddy = vec2(-ddy_uv.x, ddy_uv.y);
+	return mix(color, textureGrad(panorama, vec2(1.0 - uv.x, uv.y), mirrored_ddx, mirrored_ddy).rgb, seam * 0.5);
+}
 
 void sky() {
 	vec3 eyedir = normalize(EYEDIR);
@@ -161,24 +190,38 @@ void sky() {
 	vec2 ddy_uv = vec2(grad_u.y, dFdy(uv.y));
 
 	// Animated distortion (background pass only), faded out around the sun.
+	vec3 flow = vec3(0.0);
+	float sea = 0.0;
 	if (!AT_CUBEMAP_PASS) {
 		float motion = smoothstep(sun_motion_protect_deg, sun_motion_protect_deg + sun_motion_fade_deg, angle_deg);
 		vec2 np = eyedir.xz / (abs(eyedir.y) + 0.35) * warp_scale;
-		vec2 flow = vec2(
+		vec2 wobble = vec2(
 			texture(noise_tex, np + vec2(TIME * warp_speed, 0.0)).r,
 			texture(noise_tex, np + vec2(0.0, -TIME * warp_speed) + vec2(0.5, 0.5)).r) - 0.5;
-		float sway = sin(TIME * sway_speed + uv.y * sway_latitude_frequency * TAU + flow.x * 4.0);
-		vec2 shift = vec2(sway * sway_amount, 0.0) + flow * warp_amount;
-		uv += shift * motion;
+		float sway = sin(TIME * sway_speed + uv.y * sway_latitude_frequency * TAU + wobble.x * 4.0);
+		vec2 shift = vec2(sway * sway_amount, 0.0) + wobble * warp_amount;
+		// The far cloud sea below the horizon gets the flow drift instead of
+		// the noise warp (warping the painted cumulus there marbles it).
+		float sea_zone = smoothstep(sea_flow_fade_start, sea_flow_fade_end, eyedir.y);
+		uv += shift * motion * (1.0 - sea_zone);
 		uv.y = clamp(uv.y, 0.0, 1.0);
+		sea = sea_zone * motion;
+		if (sea > 0.0) {
+			float jitter = texture(noise_tex, np * sea_flow_jitter_scale * 0.1).r;
+			flow = flow_phases(TIME, sea_flow_period, jitter);
+		}
 	}
 
-	vec3 color = textureGrad(panorama, uv, ddx_uv, ddy_uv).rgb;
-	// Symmetric edge blend makes imperfect authored panorama boundaries continuous.
-	float seam = 1.0 - smoothstep(0.0, seam_blend_width, min(uv.x, 1.0 - uv.x));
-	vec2 mirrored_ddx = vec2(-ddx_uv.x, ddx_uv.y);
-	vec2 mirrored_ddy = vec2(-ddy_uv.x, ddy_uv.y);
-	color = mix(color, textureGrad(panorama, vec2(1.0 - uv.x, uv.y), mirrored_ddx, mirrored_ddy).rgb, seam * 0.5);
+	vec3 color;
+	if (sea <= 0.0) {
+		color = sample_panorama(uv, ddx_uv, ddy_uv);
+	} else {
+		vec2 step_a = sea_flow * sea_flow_span * flow.x * sea;
+		vec2 step_b = sea_flow * sea_flow_span * flow.y * sea;
+		vec3 color_a = sample_panorama(vec2(fract(uv.x + step_a.x), clamp(uv.y + step_a.y, 0.0, 1.0)), ddx_uv, ddy_uv);
+		vec3 color_b = sample_panorama(vec2(fract(uv.x + step_b.x), clamp(uv.y + step_b.y, 0.0, 1.0)), ddx_uv, ddy_uv);
+		color = mix(color_a, color_b, flow.z);
+	}
 	// Longitude converges to one color at each pole, avoiding a pinwheel seam.
 	float pole = 1.0 - smoothstep(0.0, pole_blend_width, min(uv.y, 1.0 - uv.y));
 	vec3 pole_color = textureLod(panorama, vec2(0.5, uv.y < 0.5 ? 0.0 : 1.0), 0.0).rgb;

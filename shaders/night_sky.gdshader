@@ -3,10 +3,14 @@ shader_type sky;
 
 // Bontago-adt.1: procedural night sky for config/sky_themes/night.tres --
 // deep blue gradient, twinkling stars, a shaded moon with glow, and a
-// slowly drifting cel-banded moonlit cloud layer. No textures except the
-// shared cloud noise. Stars, twinkle and clouds are skipped in the radiance
-// (reflection) pass, which keeps only gradient + moon glow: cheap and free of
-// flicker in the disc's reflections.
+// slowly drifting cel-banded moonlit cloud layer above the horizon. Below
+// the horizon the far cloud sea is the sunset panorama's painted cumulus,
+// gradient-mapped onto a moonlit ramp (cloud_common moonlit_grade: forms kept,
+// warm hue and sun glow gone) and rotated (sky_yaw_offset_deg) so its bright
+// horizon sheen sits under the moon; it drifts with the same two-phase flow
+// as the sunset sea. Stars, twinkle, clouds and flow are skipped in the
+// radiance (reflection) pass, which keeps gradient, moon glow and one static
+// sea sample: cheap and free of flicker in the disc's reflections.
 
 uniform sampler2D noise_tex : filter_linear_mipmap, repeat_enable;
 
@@ -33,6 +37,25 @@ uniform float moon_intensity = 2.0;
 uniform vec2 moon_phase_direction = vec2(-0.55, 0.35);
 uniform float moon_phase = 0.86;
 uniform float moon_maria_strength = 0.45;
+
+// Far cloud sea (below the horizon): the painted panorama, graded to moonlight.
+uniform sampler2D panorama : source_color, filter_linear_mipmap, repeat_enable;
+uniform float exposure = 0.8;
+uniform float seam_blend_width = 0.025;
+uniform float sky_yaw_offset_deg = 0.0;
+uniform float sky_pitch_offset_deg = 0.0;
+uniform float grade_amount = 1.0;
+uniform vec3 grade_dark : source_color = vec3(0.02, 0.03, 0.08);
+uniform vec3 grade_mid : source_color = vec3(0.12, 0.17, 0.33);
+uniform vec3 grade_light : source_color = vec3(0.55, 0.64, 0.82);
+uniform float grade_gamma = 1.2;
+// eyedir.y band over which the sky gradient hands over to the sea.
+uniform float sea_blend_top = 0.02;
+uniform float sea_blend_bottom = -0.03;
+uniform vec2 sea_flow = vec2(-1.0, 0.0);
+uniform float sea_flow_span = 0.006;
+uniform float sea_flow_period = 16.0;
+uniform float sea_flow_jitter_scale = 1.5;
 
 uniform float star_cells_fine = 105.0;
 uniform float star_cells_coarse = 46.0;
@@ -165,6 +188,25 @@ void sky() {
 				* smoothstep(moon_angular_radius_deg, moon_angular_radius_deg + cloud_moon_clear_deg, moon_deg);
 			col = mix(col, ccol, alpha);
 		}
+	}
+	// Far cloud sea below the horizon.
+	float sea = smoothstep(sea_blend_top, sea_blend_bottom, eyedir.y);
+	if (sea > 0.0) {
+		vec2 puv = sky_panorama_uv(eyedir, sky_yaw_offset_deg, sky_pitch_offset_deg);
+		vec3 sea_col;
+		if (AT_CUBEMAP_PASS) {
+			sea_col = panorama_lod(panorama, puv, seam_blend_width);
+		} else {
+			vec2 np = eyedir.xz / (abs(eyedir.y) + 0.35);
+			vec3 flow = flow_phases(TIME, sea_flow_period, texture(noise_tex, np * sea_flow_jitter_scale * 0.1).r);
+			vec2 uv_a = puv + sea_flow * sea_flow_span * flow.x;
+			vec2 uv_b = puv + sea_flow * sea_flow_span * flow.y;
+			vec3 col_a = panorama_lod(panorama, vec2(fract(uv_a.x), clamp(uv_a.y, 0.0, 1.0)), seam_blend_width);
+			vec3 col_b = panorama_lod(panorama, vec2(fract(uv_b.x), clamp(uv_b.y, 0.0, 1.0)), seam_blend_width);
+			sea_col = mix(col_a, col_b, flow.z);
+		}
+		sea_col = moonlit_grade(sea_col * exposure, grade_amount, grade_dark, grade_mid, grade_light, grade_gamma);
+		col = mix(col, sea_col, sea);
 	}
 	if (AT_CUBEMAP_PASS) {
 		col += ambient_fill_color;
