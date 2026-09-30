@@ -282,6 +282,26 @@ func test_apply_theme_updates_panorama_offsets_on_shared_sky_material() -> void:
 	assert_almost_eq(float(material.get_shader_parameter("sky_yaw_offset_deg")), 12.0, 0.0001, "F4 reapply updates live sampling.")
 
 
+func test_apply_theme_writes_procedural_sky_params_to_material() -> void:
+	var wired: Dictionary = _make_wired_skybox()
+	var skybox: Skybox = wired["skybox"] as Skybox
+	var theme: SkyThemeDef = SkyThemeDef.new()
+	var material: ShaderMaterial = ShaderMaterial.new()
+	material.shader = load("res://shaders/sunset_clouds.gdshader")
+	theme.sky_material = material
+	theme.procedural_sea_mix = 0.75
+	theme.proc_horizon_color = Color(0.1, 0.2, 0.3)
+	theme.proc_strata_scale = 2.5
+	skybox.apply_theme(theme)
+	assert_false(theme.sky_look_procedural, "fixture: the toggle defaults to off.")
+	assert_almost_eq(float(material.get_shader_parameter("procedural_sea_mix")), 0.0, 0.0001, "Toggle off keeps the painted look.")
+	theme.sky_look_procedural = true
+	skybox.apply_theme(theme)
+	assert_almost_eq(float(material.get_shader_parameter("procedural_sea_mix")), 0.75, 0.0001)
+	assert_eq(material.get_shader_parameter("proc_horizon_color"), Color(0.1, 0.2, 0.3))
+	assert_almost_eq(float(material.get_shader_parameter("proc_strata_scale")), 2.5, 0.0001)
+
+
 func test_fog_volume_is_created_but_hidden_on_low_preset() -> void:
 	Settings.set_graphics_preset(&"low")
 	var skybox: Skybox = Skybox.new()

@@ -507,6 +507,7 @@ func apply_theme(applied_theme: SkyThemeDef) -> void:
 		if panorama != null:
 			panorama.set_shader_parameter("sky_yaw_offset_deg", applied_theme.sky_yaw_offset_deg)
 			panorama.set_shader_parameter("sky_pitch_offset_deg", applied_theme.sky_pitch_offset_deg)
+			_apply_procedural_params(panorama, applied_theme)
 		if fallback_active:
 			environment.sky.sky_material = _fallback_sky_material
 	var procedural: ProceduralSkyMaterial = _fallback_sky_material as ProceduralSkyMaterial
@@ -546,6 +547,27 @@ func apply_theme(applied_theme: SkyThemeDef) -> void:
 	# Bontago-adt.1: the cloud puffs and birds are rebuilt from the applied
 	# theme too, so a live F4 edit or theme switch reaches them.
 	_apply_ambient_life(Settings.current_graphics_preset(), applied_theme)
+
+
+## Bontago-59o.16 (procedural sky P1): writes the opt-in procedural-look uniforms
+## onto the theme's sky ShaderMaterial. The effective mix is 0 unless
+## sky_look_procedural is set, so the default look is unchanged. Shaders that
+## lack a uniform ignore the write.
+func _apply_procedural_params(material: ShaderMaterial, applied_theme: SkyThemeDef) -> void:
+	var mix: float = applied_theme.procedural_sea_mix if applied_theme.sky_look_procedural else 0.0
+	material.set_shader_parameter("procedural_sea_mix", mix)
+	material.set_shader_parameter("proc_zenith_color", applied_theme.proc_zenith_color)
+	material.set_shader_parameter("proc_mid_color", applied_theme.proc_mid_color)
+	material.set_shader_parameter("proc_horizon_color", applied_theme.proc_horizon_color)
+	material.set_shader_parameter("proc_gradient_mid_height", applied_theme.proc_gradient_mid_height)
+	material.set_shader_parameter("proc_gradient_power", applied_theme.proc_gradient_power)
+	material.set_shader_parameter("proc_horizon_glow_color", applied_theme.proc_horizon_glow_color)
+	material.set_shader_parameter("proc_horizon_glow_width", applied_theme.proc_horizon_glow_width)
+	material.set_shader_parameter("proc_sun_glow_strength", applied_theme.proc_sun_glow_strength)
+	material.set_shader_parameter("proc_sea_color_near", applied_theme.proc_sea_color_near)
+	material.set_shader_parameter("proc_sea_color_far", applied_theme.proc_sea_color_far)
+	material.set_shader_parameter("proc_sea_horizon_fade", applied_theme.proc_sea_horizon_fade)
+	material.set_shader_parameter("proc_strata_scale", applied_theme.proc_strata_scale)
 
 
 ## Bontago-xtq.28: creates this Skybox's own FogVolume "cloud deck" child --

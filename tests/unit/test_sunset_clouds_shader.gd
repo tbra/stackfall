@@ -69,3 +69,22 @@ func test_panorama_disc_center_aligns_with_original_flare_direction() -> void:
 	assert_almost_eq(sample_uv.x * 1774.0, 1276.0, 0.5, "Panorama sun centre must match flare longitude.")
 	assert_almost_eq(sample_uv.y * 887.0, 424.0, 0.5, "Panorama sun centre must match flare elevation.")
 	assert_true(direction.is_equal_approx(Vector3(0.963087, 0.069011, -0.260192).normalized()), "Preserve the original flare axis.")
+
+
+## Bontago-59o.16 P3: the far cloud sea is a shared include function, guarded
+## against the horizon singularity, and never sampled in the radiance pass.
+func test_procedural_sea_color_is_shared_and_guarded() -> void:
+	var include_src: String = (load("res://shaders/include/cloud_common.gdshaderinc") as Shader).code \
+		if load("res://shaders/include/cloud_common.gdshaderinc") is Shader \
+		else FileAccess.get_file_as_string("res://shaders/include/cloud_common.gdshaderinc")
+	assert_true(include_src.contains("vec3 procedural_sea_color("), "shared sea function must exist for P4 consumers.")
+	assert_true(include_src.contains("max(-dir.y, 0.0005)"), "projection depth must be clamped so eyedir.y == 0 cannot divide by zero.")
+
+
+func test_sea_and_second_strata_skip_the_radiance_pass() -> void:
+	var source: String = _shader_source_without_comments()
+	var call_at: int = source.find("pcol = procedural_sea_color(")
+	var before: String = source.substr(maxi(call_at - 80, 0), mini(80, call_at))
+	assert_true(call_at > 0 and before.contains("!AT_CUBEMAP_PASS"), "sea noise taps must be background-pass only.")
+	assert_true(source.contains("if (!AT_CUBEMAP_PASS && eyedir.y > 0.0 && procedural_sea_mix > 0.0)"), "second strata layer must be background-pass only.")
+	assert_true(source.contains("scol * exposure"), "procedural strata must be multiplied by exposure.")

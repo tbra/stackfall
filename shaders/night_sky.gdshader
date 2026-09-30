@@ -56,6 +56,21 @@ uniform vec2 sea_flow = vec2(-1.0, 0.0);
 uniform float sea_flow_span = 0.006;
 uniform float sea_flow_period = 16.0;
 uniform float sea_flow_jitter_scale = 1.5;
+// Bontago-59o.16 (procedural sky P4): procedural cloud sea instead of the
+// painted panorama when procedural_sea_mix > 0 (game/Skybox.gd writes it from
+// the theme toggle). Same palette-driven function as the sunset sea, with the
+// night cloud colours, then moonlit-graded like the panorama sea. proc_sea_*
+// colours/fade come from the theme; the rest is set on this material.
+uniform float procedural_sea_mix = 0.0;
+uniform vec4 proc_sea_color_near : source_color = vec4(0.06, 0.1, 0.22, 1.0);
+uniform vec4 proc_sea_color_far : source_color = vec4(0.03, 0.05, 0.12, 1.0);
+uniform float proc_sea_horizon_fade = 0.12;
+uniform vec4 proc_sea_params = vec4(0.5, 0.9, 0.004, 4.0);
+uniform vec2 proc_sea_heights = vec2(1.0, 0.6);
+uniform vec2 proc_sea_wind = vec2(1.0, 0.35);
+uniform float proc_sea_coverage = 0.5;
+uniform float proc_sea_softness = 0.06;
+uniform float proc_sea_band_edge = 0.08;
 
 uniform float star_cells_fine = 105.0;
 uniform float star_cells_coarse = 46.0;
@@ -194,7 +209,18 @@ void sky() {
 	if (sea > 0.0) {
 		vec2 puv = sky_panorama_uv(eyedir, sky_yaw_offset_deg, sky_pitch_offset_deg);
 		vec3 sea_col;
-		if (AT_CUBEMAP_PASS) {
+		if (procedural_sea_mix > 0.0) {
+			// Flat palette in the radiance pass (no noise taps there).
+			vec3 flat_sea = mix(proc_sea_color_near.rgb, proc_sea_color_far.rgb, smoothstep(0.0, 1.0, -eyedir.y));
+			sea_col = flat_sea;
+			if (!AT_CUBEMAP_PASS) {
+				sea_col = procedural_sea_color(noise_tex, eyedir, normalize(moon_direction), TIME, proc_sea_params,
+					proc_sea_heights, proc_sea_wind, proc_sea_coverage, proc_sea_softness, proc_sea_band_edge,
+					proc_sea_horizon_fade, proc_sea_color_near.rgb, proc_sea_color_far.rgb, cloud_shadow_color,
+					cloud_mid_color, cloud_lit_color, cloud_rim_color, col / max(exposure, 0.001));
+			}
+			sea_col = mix(panorama_lod(panorama, puv, seam_blend_width), sea_col, clamp(procedural_sea_mix, 0.0, 1.0));
+		} else if (AT_CUBEMAP_PASS) {
 			sea_col = panorama_lod(panorama, puv, seam_blend_width);
 		} else {
 			vec2 np = eyedir.xz / (abs(eyedir.y) + 0.35);

@@ -187,3 +187,22 @@ extends Resource
 ## Bontago-adt.3: cosmetic local ambient life (perching birds on sunset,
 ## fireflies on night) -- see config/AmbientLifeConfig.gd. Null means none.
 @export var ambient_life: AmbientLifeConfig = null
+
+## Bontago-59o.16 (procedural sky, docs/SKY_PROCEDURAL_PLAN.md P1): opt-in
+## procedural look for shaders/sunset_clouds.gdshader. Skybox.apply_theme()
+## writes procedural_sea_mix (0 while sky_look_procedural is false) and the
+## proc_* parameters; the shader branch arrives in P2-P4, so today they are unused.
+@export var sky_look_procedural: bool = false
+@export var procedural_sea_mix: float = 1.0
+@export var proc_zenith_color: Color = Color(0.161, 0.2, 0.333)
+@export var proc_mid_color: Color = Color(0.55, 0.36, 0.5)
+@export var proc_horizon_color: Color = Color(0.98, 0.64, 0.38)
+@export var proc_gradient_mid_height: float = 0.35
+@export var proc_gradient_power: float = 1.5
+@export var proc_horizon_glow_color: Color = Color(1.0, 0.62, 0.28)
+@export var proc_horizon_glow_width: float = 0.18
+@export var proc_sun_glow_strength: float = 1.0
+@export var proc_sea_color_near: Color = Color(0.85, 0.5, 0.42)
+@export var proc_sea_color_far: Color = Color(0.34, 0.27, 0.47)
+@export var proc_sea_horizon_fade: float = 0.12
+@export var proc_strata_scale: float = 1.0

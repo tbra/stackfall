@@ -95,6 +95,22 @@ func test_cloud_puffs_share_the_sky_panorama_and_grade() -> void:
 	assert_ne(material, night.cloud_puff_material, "the theme's material is duplicated, not edited")
 
 
+func test_cloud_puffs_copy_procedural_sea_uniforms() -> void:
+	var night: SkyThemeDef = load(NIGHT_PATH) as SkyThemeDef
+	var sky: ShaderMaterial = (night.sky_material as ShaderMaterial).duplicate() as ShaderMaterial
+	sky.set_shader_parameter(&"procedural_sea_mix", 1.0)
+	sky.set_shader_parameter(&"proc_sea_color_near", Color(0.1, 0.2, 0.3))
+	var sea: CloudSea = CloudSea.new()
+	add_child_autofree(sea)
+	sea.configure(night, 1.0, sky)
+	var material: ShaderMaterial = sea.puff_material()
+	assert_almost_eq(float(material.get_shader_parameter(&"procedural_sea_mix")), 1.0, 0.0001)
+	assert_eq(material.get_shader_parameter(&"proc_sea_color_near"), Color(0.1, 0.2, 0.3))
+	assert_eq(material.get_shader_parameter(&"noise_tex"), sky.get_shader_parameter(&"noise_tex"))
+	assert_almost_eq(float(material.get_shader_parameter(&"proc_horizon_glow_strength")), 0.0, 0.0001,
+		"night puffs carry no orange horizon glow")
+
+
 func test_puff_mesh_has_a_flat_base() -> void:
 	var mesh: ArrayMesh = CloudSea.build_puff_mesh(0.35)
 	var arrays: Array = mesh.surface_get_arrays(0)

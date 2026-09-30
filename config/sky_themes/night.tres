@@ -20,6 +20,16 @@ shader_parameter/grade_dark = Color(0.02, 0.03, 0.08, 1)
 shader_parameter/grade_mid = Color(0.12, 0.17, 0.33, 1)
 shader_parameter/grade_light = Color(0.55, 0.64, 0.82, 1)
 shader_parameter/grade_gamma = 1.2
+shader_parameter/cloud_shadow_color = Color(0.015, 0.025, 0.07, 1)
+shader_parameter/cloud_mid_color = Color(0.05, 0.08, 0.2, 1)
+shader_parameter/cloud_lit_color = Color(0.35, 0.47, 0.72, 1)
+shader_parameter/cloud_rim_color = Color(0.68, 0.8, 1, 1)
+shader_parameter/proc_sea_params = Vector4(0.5, 0.9, 0.004, 4)
+shader_parameter/proc_sea_heights = Vector2(1, 0.6)
+shader_parameter/proc_sea_wind = Vector2(1, 0.35)
+shader_parameter/proc_sea_coverage = 0.5
+shader_parameter/proc_sea_softness = 0.06
+shader_parameter/proc_sea_band_edge = 0.08
 
 [sub_resource type="ShaderMaterial" id="MoonlitPuffs"]
 shader = ExtResource("4_puffs")
@@ -29,6 +39,12 @@ shader_parameter/shadow_color = Color(0.04, 0.06, 0.14, 1)
 shader_parameter/mid_color = Color(0.14, 0.2, 0.37, 1)
 shader_parameter/lit_color = Color(0.4, 0.5, 0.7, 1)
 shader_parameter/rim_color = Color(0.75, 0.84, 1, 1)
+shader_parameter/sun_direction = Vector3(-0.4755, 0.309, 0.8236)
+shader_parameter/proc_horizon_glow_strength = 0.0
+shader_parameter/cloud_shadow_color = Color(0.015, 0.025, 0.07, 1)
+shader_parameter/cloud_mid_color = Color(0.05, 0.08, 0.2, 1)
+shader_parameter/cloud_lit_color = Color(0.35, 0.47, 0.72, 1)
+shader_parameter/cloud_rim_color = Color(0.68, 0.8, 1, 1)
 
 [resource]
 script = ExtResource("1_theme")
@@ -64,3 +80,8 @@ cloud_bank_top_max_m = 60.0
 cloud_bank_radius_min_m = 32.0
 cloud_bank_radius_max_m = 62.0
 ambient_life = ExtResource("ambient_life")
+proc_zenith_color = Color(0.008, 0.018, 0.06, 1)
+proc_mid_color = Color(0.04, 0.07, 0.16, 1)
+proc_horizon_color = Color(0.07, 0.11, 0.24, 1)
+proc_sea_color_near = Color(0.06, 0.1, 0.22, 1)
+proc_sea_color_far = Color(0.03, 0.05, 0.12, 1)
