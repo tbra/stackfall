@@ -57,6 +57,11 @@ var _material: ShaderMaterial = null
 var _highest_top: float = -INF
 
 
+## Weather fog changed (vfx/weather/WeatherFogShader.gd).
+func refresh_weather_fog() -> void:
+	WeatherFogShader.apply(_material)
+
+
 ## Rebuilds the puffs from `theme`. `density` (GraphicsPreset.cloud_puff_density,
 ## 0..1) scales the theme's clump count; 0 hides the cloud sea. `sky_material`
 ## is the active sky material whose panorama/grade uniforms the puffs copy.
@@ -77,6 +82,8 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 		visible = false
 		return
 	visible = true
+	add_to_group(WeatherFogShader.GROUP)
+	WeatherFogShader.apply(_material)
 	_material.set_shader_parameter(YAW_PARAMETER, theme.sky_yaw_offset_deg)
 	_material.set_shader_parameter(PITCH_PARAMETER, theme.sky_pitch_offset_deg)
 	_material.set_shader_parameter(FLAT_BASE_PARAMETER, theme.cloud_flat_base)

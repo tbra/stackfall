@@ -104,6 +104,13 @@ uniform float billow_frequency = 2.0;
 // Extra hull inflation (fraction of radius) covering the low-poly chord error.
 uniform float hull_margin = 0.04;
 
+// Bontago-470.3: weather fog for a fog_disabled shader (see
+// vfx/weather/WeatherFogShader.gd). Nothing closer than wfog_begin metres from
+// the camera, wfog_strength at wfog_end; 0 strength = off.
+uniform float wfog_strength : hint_range(0.0, 1.0) = 0.0;
+uniform float wfog_begin = 25.0;
+uniform float wfog_end = 110.0;
+uniform vec4 wfog_color : source_color = vec4(0.72, 0.8, 0.88, 1.0);
 uniform float fade_start_m = 160.0;
 uniform float fade_end_m = 500.0;
 uniform float depth_fade_start_m = 40.0;
@@ -269,6 +276,7 @@ void fragment() {
 		sky = moonlit_grade(sky, grade_amount, grade_dark, grade_mid, grade_light, grade_gamma);
 		col = mix(col, sky, fade);
 	}
+	col = mix(col, wfog_color.rgb, clamp((dist - wfog_begin) / max(wfog_end - wfog_begin, 0.001), 0.0, 1.0) * wfog_strength);
 	ALBEDO = col;
 	ALPHA = 1.0;
 }

@@ -95,6 +95,12 @@ const int STATE_GOAL_ZONE = 4;
 // shader safety cap, not a rule.
 const int GOAL_MAX = 8;
 
+// Bontago-470.3: weather fog for a fog_disabled surface. Nothing closer than
+// wfog_begin metres (view space), wfog_strength at wfog_end; 0 strength = off.
+uniform float wfog_strength : hint_range(0.0, 1.0) = 0.0;
+uniform float wfog_begin = 30.0;
+uniform float wfog_end = 110.0;
+uniform vec4 wfog_color : source_color = vec4(0.72, 0.8, 0.88, 1.0);
 uniform sampler2D territory_tex : filter_linear, repeat_disable;
 uniform sampler2D territory_cells : filter_nearest, repeat_disable;
 uniform sampler2D territory_state : filter_nearest, repeat_disable;
@@ -1268,5 +1274,11 @@ void fragment() {
 		SPECULAR = mix(SPECULAR, 0.0, snow);
 		AO = mix(AO, AO * snow_ambient_factor, snow);
 		NORMAL = normalize(mix(NORMAL, snow_flat_normal, snow));
+	}
+	if (wfog_strength > 0.0) {
+		float wfog = clamp((length(VERTEX) - wfog_begin) / max(wfog_end - wfog_begin, 0.001), 0.0, 1.0) * wfog_strength;
+		ALBEDO = mix(ALBEDO, vec3(0.0), wfog);
+		EMISSION = mix(EMISSION, wfog_color.rgb, wfog);
+		METALLIC = mix(METALLIC, 0.0, wfog);
 	}
 }

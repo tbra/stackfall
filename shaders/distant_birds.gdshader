@@ -15,6 +15,14 @@ render_mode unshaded, cull_disabled, skip_vertex_transform, shadows_disabled, fo
 // The mesh is a flat V in the XZ plane, nose toward +X; UV.x is 0 at the body
 // and 1 at the wing tips, so the tips flap and the body stays put.
 
+// Bontago-470.3: weather fog for a fog_disabled shader (see
+// vfx/weather/WeatherFogShader.gd). Nothing closer than wfog_begin metres from
+// the camera, wfog_strength at wfog_end; 0 strength = off.
+uniform float wfog_strength : hint_range(0.0, 1.0) = 0.0;
+uniform float wfog_begin = 25.0;
+uniform float wfog_end = 110.0;
+uniform vec4 wfog_color : source_color = vec4(0.72, 0.8, 0.88, 1.0);
+varying float wfog_dist;
 uniform vec3 bird_color : source_color = vec3(0.16, 0.1, 0.2);
 uniform vec3 haze_color : source_color = vec3(0.85, 0.5, 0.42);
 uniform float haze_start_m = 250.0;
@@ -58,9 +66,11 @@ void vertex() {
 	vec3 world = MODEL_MATRIX[3].xyz + orbit + (forward * local.x + up * local.y + side * local.z) * size;
 	haze = smoothstep(haze_start_m, haze_end_m, length(world.xz));
 	VERTEX = (VIEW_MATRIX * vec4(world, 1.0)).xyz;
+	wfog_dist = length(VERTEX);
 	NORMAL = (VIEW_MATRIX * vec4(up, 0.0)).xyz;
 }
 
 void fragment() {
 	ALBEDO = mix(bird_color, haze_color, haze * 0.7);
+	ALBEDO = mix(ALBEDO, wfog_color.rgb, clamp((wfog_dist - wfog_begin) / max(wfog_end - wfog_begin, 0.001), 0.0, 1.0) * wfog_strength);
 }

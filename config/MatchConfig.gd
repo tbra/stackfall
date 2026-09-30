@@ -45,7 +45,7 @@ enum HoleMode { TEMPORARY, PERMANENT, OFF }
 ## names, so the ints must stay contiguous and CHANGING last);
 ## MatchWeather.id_for_mode() maps a type mode to config/weather/<name>.tres by
 ## lower-casing its name.
-enum WeatherMode { OFF, STORM, RAIN, SNOW, RANDOM, CHANGING }
+enum WeatherMode { OFF, STORM, RAIN, SNOW, FOG, RANDOM, CHANGING }
 
 ## -- Spec 2.8 table, in order -----------------------------------------------
 @export var map_variant: MapVariant = MapVariant.ROUND

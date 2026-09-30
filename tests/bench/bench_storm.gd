@@ -2,6 +2,7 @@ extends Node3D
 ## Bontago-22y.4: wind cost on a 300-block moving pile. Run twice, alone:
 ##   godot --headless --path . res://tests/bench/bench_storm.tscn
 ##   godot --headless --path . res://tests/bench/bench_storm.tscn -- wind
+## Bontago-470.2: `-- breeze` runs the gust layer alone, `-- wind breeze` both.
 ## Prints avg physics step ms and the effect's own per-tick cost. Headless
 ## timing is a proxy only.
 
@@ -23,10 +24,15 @@ var _effect_sum_us: int = 0
 var _samples: int = 0
 var _pushed_sum: int = 0
 var _use_wind: bool = false
+var _use_breeze: bool = false
+var _breeze: BreezeEffect = null
+var _breeze_sum_us: int = 0
+var _gusts_sum: int = 0
 
 
 func _ready() -> void:
 	_use_wind = OS.get_cmdline_user_args().has("wind")
+	_use_breeze = OS.get_cmdline_user_args().has("breeze")
 	_total_ticks = int(round(RUN_SECONDS * Engine.physics_ticks_per_second))
 	var field: Field = Field.new()
 	add_child(field)
@@ -45,6 +51,9 @@ func _ready() -> void:
 	_wind.tuning = load("res://config/weather/storm.tres") as WeatherTuning
 	_wind.set_seed(1)
 	_wind.set_test_world(func() -> Array: return _blocks, func() -> float: return 0.0)
+	_breeze = BreezeEffect.new()
+	_breeze.set_test_world(func() -> Array: return _blocks, func() -> float: return 0.0)
+	_breeze.begin(RNG_SEED)
 
 
 func _physics_process(delta: float) -> void:
@@ -58,6 +67,12 @@ func _physics_process(delta: float) -> void:
 		if _tick > WARMUP_TICKS:
 			_effect_sum_us += Time.get_ticks_usec() - start_us
 			_pushed_sum += _wind.last_pushed
+	if _use_breeze:
+		var breeze_start_us: int = Time.get_ticks_usec()
+		_breeze.tick(delta)
+		if _tick > WARMUP_TICKS:
+			_breeze_sum_us += Time.get_ticks_usec() - breeze_start_us
+			_gusts_sum += _breeze.gust_count()
 	if _tick < _total_ticks:
 		return
 	var alive: int = 0
@@ -69,5 +84,8 @@ func _physics_process(delta: float) -> void:
 	print("BENCH_WIND wind=%s blocks=%d alive=%d asleep=%d avg_physics_step_ms=%.4f effect_tick_us=%.1f avg_pushed=%.1f" % [
 		_use_wind, BLOCK_COUNT, alive, asleep, _step_sum_ms / float(maxi(_samples, 1)),
 		float(_effect_sum_us) / float(maxi(_samples, 1)), float(_pushed_sum) / float(maxi(_samples, 1)),
+	])
+	print("BENCH_BREEZE breeze=%s breeze_tick_us=%.1f avg_active_gusts=%.2f" % [
+		_use_breeze, float(_breeze_sum_us) / float(maxi(_samples, 1)), float(_gusts_sum) / float(maxi(_samples, 1)),
 	])
 	get_tree().quit()

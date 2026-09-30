@@ -125,7 +125,7 @@ func test_registry_loads_storm_rain_snow_with_sane_tunables() -> void:
 		assert_gt(def.ramp_out_s, 0.0)
 		assert_lte(def.hold_min_s, def.hold_max_s)
 		assert_true(load(def.presentation_scene) is PackedScene, "%s presentation scene loads" % def.id)
-	assert_eq(ids, ["rain", "snow", "storm"], "sorted by id")
+	assert_eq(ids, ["fog", "rain", "snow", "storm"], "sorted by id")
 	for mode: int in [MatchConfig.WeatherMode.STORM, MatchConfig.WeatherMode.RAIN, MatchConfig.WeatherMode.SNOW]:
 		assert_true(ids.has(String(MatchWeather.id_for_mode(mode))))
 

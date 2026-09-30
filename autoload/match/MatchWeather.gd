@@ -37,6 +37,9 @@ enum Sched { OFF, CALM, EVENT }
 ## set_debug_override() value meaning "no weather at all".
 const DEBUG_OFF: StringName = &"off"
 
+## Mixed into the match seed so Breeze's stream differs from the schedule's.
+const BREEZE_SEED_SALT: int = 0x5B1EE2E
+
 ## Wire format version of state_dict(). Architecture, not a tunable.
 const WIRE_VERSION: int = 1
 const WIRE_KEYS: PackedStringArray = ["v", "epoch", "seed", "mode", "sched", "left", "id", "phase", "t", "ev"]
@@ -77,10 +80,16 @@ var _phase_t: float = 0.0
 var _hold_total: float = 0.0
 var _intensity: float = 0.0
 var _effect: WeatherEffect = null
+## Bontago-470.2: the always-on gust layer, independent of the weather mode.
+## DECISION: it lives here because MatchWeather already owns the host check,
+## the per-frame tick and the PLAYING/teardown lifecycle; it never touches the
+## schedule or the epoch.
+var _breeze: BreezeEffect = BreezeEffect.new()
 
 
 func setup(match_ref: MatchAutoload) -> void:
 	_match = match_ref
+	_breeze.bind(match_ref, _is_host)
 	Events.match_state_changed.connect(_on_match_state_changed)
 
 
@@ -103,6 +112,31 @@ func set_effect_factory(factory: Callable) -> void:
 
 func set_host_override(is_host: Variant) -> void:
 	_host_override = is_host
+
+
+# --- Breeze ----------------------------------------------------------------------
+
+func breeze() -> BreezeEffect:
+	return _breeze
+
+
+## Host: starts the gust layer for a match (seeded from the match seed).
+func begin_breeze(config: MatchConfig) -> void:
+	var seed_value: int = config.rng_seed if config.rng_seed != -1 else int(randi())
+	_breeze.begin(seed_value ^ BREEZE_SEED_SALT)
+
+
+## F4: turns the gust layer on/off at runtime (host only; clients see gusts
+## through replication). Returns false on a client.
+func set_breeze_enabled(value: bool) -> bool:
+	if not _is_host():
+		return false
+	_breeze.set_enabled(value)
+	return true
+
+
+func breeze_enabled() -> bool:
+	return _breeze.is_enabled()
 
 
 # --- Queries -------------------------------------------------------------------
@@ -216,8 +250,11 @@ func _sorted_ids() -> Array[StringName]:
 func _on_match_state_changed(_from_state: int, to_state: int) -> void:
 	match to_state:
 		MatchAutoload.State.PLAYING:
-			if _is_host() and not _running and _match != null and _match.config != null:
-				begin_match(_match.config)
+			if _is_host() and _match != null and _match.config != null:
+				if not _running:
+					begin_match(_match.config)
+				if not _breeze.is_running():
+					begin_breeze(_match.config)
 		MatchAutoload.State.LOADING, MatchAutoload.State.LOBBY, MatchAutoload.State.END:
 			reset()
 
@@ -249,6 +286,7 @@ func begin_match(config: MatchConfig) -> void:
 ## Ends any event (restoring physics) and clears the schedule. Safe from any
 ## state, on host and client, and idempotent.
 func reset() -> void:
+	_breeze.stop()
 	if _active_id != &"":
 		_end_event()
 	_running = false
@@ -267,6 +305,7 @@ func reset() -> void:
 
 
 func tick(delta: float) -> void:
+	_breeze.tick(delta)
 	if not _running:
 		return
 	if _is_host():

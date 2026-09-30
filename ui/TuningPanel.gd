@@ -487,6 +487,7 @@ func _add_tab(tab_name: String, resources: Array) -> void:
 		list.add_child(_build_theme_row())
 		list.add_child(_build_skybox_row())
 		list.add_child(_build_weather_row())
+		list.add_child(_build_breeze_row())
 
 	for entry: Variant in resources:
 		var resource: Resource = entry as Resource
@@ -1028,6 +1029,43 @@ func _build_weather_row() -> Control:
 		hint.text = "(host only)"
 		row.add_child(hint)
 	return row
+
+
+## Bontago-470.2: F4 toggle for the always-on Breeze gust layer (host only, for
+## testing; strength lives in config/breeze.tres). Clients see gusts through
+## replication, so the box is disabled with a hint on a client.
+func _build_breeze_row() -> Control:
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var label: Label = Label.new()
+	label.text = "Breeze"
+	label.custom_minimum_size = Vector2(NAME_COLUMN_WIDTH, 0.0)
+	row.add_child(label)
+	var box: CheckButton = CheckButton.new()
+	box.name = "BreezeToggle"
+	box.text = "Gusts on"
+	var weather: MatchWeather = _weather()
+	var host: bool = _has_full_access()
+	box.button_pressed = weather != null and weather.breeze_enabled()
+	box.disabled = not host or weather == null
+	box.tooltip_text = "Always-on weak local gusts (host only). Turn off to test a weather alone." if host else "Host only."
+	box.toggled.connect(func(pressed: bool) -> void:
+		apply_breeze_enabled(pressed)
+	)
+	row.add_child(box)
+	if not host:
+		var hint: Label = Label.new()
+		hint.text = "(host only)"
+		row.add_child(hint)
+	return row
+
+
+## Turns Breeze on/off on the host; false on a client or with no weather.
+func apply_breeze_enabled(value: bool) -> bool:
+	var weather: MatchWeather = _weather()
+	if weather == null or not _has_full_access():
+		return false
+	return weather.set_breeze_enabled(value)
 
 
 ## Forces (or, with &"", releases) the debug weather on the host; false on a

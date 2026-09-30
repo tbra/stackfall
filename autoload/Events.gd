@@ -302,3 +302,9 @@ signal weather_intensity_changed(weather_id: StringName, intensity: float)
 ## (seconds until the next event while calm, or until the event ends), "id",
 ## "phase" and "t". A HUD can show a "weather incoming" cue from it.
 signal weather_state_changed(state: Dictionary)
+
+## Bontago-470.2: a Breeze gust started (host, and on clients from
+## net/BreezeNet.gd). `gust` is the compact wire dictionary: "id", "x", "y",
+## "z" (world centre), "a" (heading, radians), "r" radius, "d" duration s, "s"
+## strength 0..1. Presentation only.
+signal breeze_gust_started(gust: Dictionary)
