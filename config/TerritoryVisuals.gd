@@ -344,6 +344,14 @@ extends Resource
 ## TerritoryTuning.max_circles; lower this on weaker GPUs without touching
 ## the solver's own cap.
 @export var max_shader_circles: int = 400
+## Bontago-1pi.11.1: bake the circle field into a texture only when the circle
+## set changes (shaders/territory_circle_bake.gdshader) so the disc shader does
+## two texture reads per pixel instead of looping circles. Off = the old
+## per-pixel loop.
+@export var circle_bake_enabled: bool = true
+## Bake resolution in texels per metre (6 = 0.17 m texels; edge accuracy is
+## sub-centimetre because the baked values are a continuous distance field).
+@export_range(1.0, 16.0, 0.5) var circle_bake_texels_per_m: float = 6.0
 
 ## -- Reflections (spec 2.10, updated 2026-09-23: "Opaque, mirror-like
 ## polished surface ... with sky reflections via the Environment sky and a

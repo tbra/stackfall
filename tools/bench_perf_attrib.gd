@@ -61,6 +61,10 @@ func _ready() -> void:
 		elif arg.begins_with("--weather="):
 			weather = StringName(arg.trim_prefix("--weather="))
 	var toggles: bool = not args.has("--no-toggles")
+	var shot_prefix: String = ""
+	for arg: String in args:
+		if arg.begins_with("--shot="):
+			shot_prefix = arg.trim_prefix("--shot=")
 	_shapes = BlockShape.load_all_shapes()
 	Settings.set_graphics_preset(&"high")
 	_main = (load("res://game/Main.tscn") as PackedScene).instantiate()
@@ -83,6 +87,8 @@ func _ready() -> void:
 	if weather != &"":
 		var ok: bool = Match.weather().set_debug_override(weather)
 		print("ATTRIB weather=%s ok=%s" % [weather, ok])
+	if args.has("--no-bake"):
+		_field.overlay().set_bake_enabled_for_bench(false)
 	print("ATTRIB renderer=%s headless=%s" % [DisplayServer.get_name(), DisplayServer.get_name() == "headless"])
 	for target: int in counts:
 		while _spawned < target:
@@ -91,6 +97,8 @@ func _ready() -> void:
 				await get_tree().physics_frame
 		await _settle()
 		await _sample("base", target)
+		if shot_prefix != "":
+			get_viewport().get_texture().get_image().save_png("%s_%d.png" % [shot_prefix, target])
 		if not toggles:
 			continue
 		PhysicsServer3D.set_active(false)
