@@ -1,0 +1,88 @@
+[gd_scene load_steps=11 format=3]
+
+[sub_resource type="CylinderMesh" id="m0"]
+top_radius = 0.24
+bottom_radius = 0.26
+height = 0.5
+radial_segments = 16
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="c0"]
+albedo_color = Color(0.93, 0.93, 0.9, 1)
+roughness = 0.7
+
+[sub_resource type="CylinderMesh" id="m1"]
+top_radius = 0.27
+bottom_radius = 0.27
+height = 0.22
+radial_segments = 16
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="c1"]
+albedo_color = Color(0.15, 0.4, 0.85, 1)
+roughness = 0.7
+
+[sub_resource type="CylinderMesh" id="m2"]
+top_radius = 0.09
+bottom_radius = 0.24
+height = 0.14
+radial_segments = 16
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="c2"]
+albedo_color = Color(0.93, 0.93, 0.9, 1)
+roughness = 0.7
+
+[sub_resource type="CylinderMesh" id="m3"]
+top_radius = 0.03
+bottom_radius = 0.08
+height = 0.18
+radial_segments = 16
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="c3"]
+albedo_color = Color(1, 0.55, 0.1, 1)
+roughness = 0.7
+
+[sub_resource type="SphereMesh" id="m4"]
+radius = 0.07
+height = 0.14
+radial_segments = 16
+rings = 8
+
+[sub_resource type="StandardMaterial3D" id="c4"]
+albedo_color = Color(0.96, 0.96, 0.7, 1)
+roughness = 0.7
+
+[node name="Glue" type="Node3D"]
+transform = Transform3D(0.9, 0, 0, 0, 0.9, 0, 0, 0, 0.9, 0, 0, 0)
+
+[node name="Bottle" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.12, 0)
+mesh = SubResource("m0")
+surface_material_override/0 = SubResource("c0")
+cast_shadow = 0
+
+[node name="Label" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.14, 0)
+mesh = SubResource("m1")
+surface_material_override/0 = SubResource("c1")
+cast_shadow = 0
+
+[node name="Shoulder" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+mesh = SubResource("m2")
+surface_material_override/0 = SubResource("c2")
+cast_shadow = 0
+
+[node name="Nozzle" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.36, 0)
+mesh = SubResource("m3")
+surface_material_override/0 = SubResource("c3")
+cast_shadow = 0
+
+[node name="Drip" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, -0.42, 0)
+mesh = SubResource("m4")
+surface_material_override/0 = SubResource("c4")
+cast_shadow = 0

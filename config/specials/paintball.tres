@@ -1,7 +1,8 @@
-[gd_resource type="Resource" script_class="SpecialDef" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="SpecialDef" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://config/specials/SpecialDef.gd" id="1_def"]
 [ext_resource type="Script" path="res://game/specials/PaintballEffect.gd" id="2_effect"]
+[ext_resource type="PackedScene" path="res://assets/gifts/held/paintball.tscn" id="9_held"]
 
 [sub_resource type="Resource" id="Resource_paintball_effect"]
 script = ExtResource("2_effect")
@@ -10,6 +11,7 @@ splash_radius_m = 3.5
 [resource]
 script = ExtResource("1_def")
 id = &"paintball"
+held_scene = ExtResource("9_held")
 weight = 1.0
 enabled_by_default = true
 arm_delay = 0.4

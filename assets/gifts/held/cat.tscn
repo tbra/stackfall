@@ -1,0 +1,118 @@
+[gd_scene load_steps=15 format=3]
+
+[sub_resource type="SphereMesh" id="m0"]
+radius = 0.3
+height = 0.6
+radial_segments = 16
+rings = 8
+
+[sub_resource type="StandardMaterial3D" id="c0"]
+albedo_color = Color(1, 0.55, 0.1, 1)
+roughness = 0.7
+
+[sub_resource type="SphereMesh" id="m1"]
+radius = 0.22
+height = 0.44
+radial_segments = 16
+rings = 8
+
+[sub_resource type="StandardMaterial3D" id="c1"]
+albedo_color = Color(1, 0.55, 0.1, 1)
+roughness = 0.7
+
+[sub_resource type="CylinderMesh" id="m2"]
+top_radius = 0
+bottom_radius = 0.08
+height = 0.16
+radial_segments = 16
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="c2"]
+albedo_color = Color(1, 0.55, 0.1, 1)
+roughness = 0.7
+
+[sub_resource type="CylinderMesh" id="m3"]
+top_radius = 0
+bottom_radius = 0.08
+height = 0.16
+radial_segments = 16
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="c3"]
+albedo_color = Color(1, 0.55, 0.1, 1)
+roughness = 0.7
+
+[sub_resource type="SphereMesh" id="m4"]
+radius = 0.04
+height = 0.08
+radial_segments = 16
+rings = 8
+
+[sub_resource type="StandardMaterial3D" id="c4"]
+albedo_color = Color(0.05, 0.05, 0.05, 1)
+roughness = 0.7
+
+[sub_resource type="SphereMesh" id="m5"]
+radius = 0.04
+height = 0.08
+radial_segments = 16
+rings = 8
+
+[sub_resource type="StandardMaterial3D" id="c5"]
+albedo_color = Color(0.05, 0.05, 0.05, 1)
+roughness = 0.7
+
+[sub_resource type="CapsuleMesh" id="m6"]
+radius = 0.05
+height = 0.5
+radial_segments = 16
+rings = 4
+
+[sub_resource type="StandardMaterial3D" id="c6"]
+albedo_color = Color(0.85, 0.45, 0.08, 1)
+roughness = 0.7
+
+[node name="Cat" type="Node3D"]
+transform = Transform3D(0.9, 0, 0, 0, 0.9, 0, 0, 0, 0.9, 0, 0, 0)
+
+[node name="Body" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.2, 0)
+mesh = SubResource("m0")
+surface_material_override/0 = SubResource("c0")
+cast_shadow = 0
+
+[node name="Head" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.22, 0.05)
+mesh = SubResource("m1")
+surface_material_override/0 = SubResource("c1")
+cast_shadow = 0
+
+[node name="EarL" type="MeshInstance3D" parent="."]
+transform = Transform3D(0.978148, 0.207912, 0, -0.207912, 0.978148, 0, 0, 0, 1, -0.14, 0.42, 0.05)
+mesh = SubResource("m2")
+surface_material_override/0 = SubResource("c2")
+cast_shadow = 0
+
+[node name="EarR" type="MeshInstance3D" parent="."]
+transform = Transform3D(0.978148, -0.207912, 0, 0.207912, 0.978148, 0, 0, 0, 1, 0.14, 0.42, 0.05)
+mesh = SubResource("m3")
+surface_material_override/0 = SubResource("c3")
+cast_shadow = 0
+
+[node name="EyeL" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.08, 0.26, 0.25)
+mesh = SubResource("m4")
+surface_material_override/0 = SubResource("c4")
+cast_shadow = 0
+
+[node name="EyeR" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.08, 0.26, 0.25)
+mesh = SubResource("m5")
+surface_material_override/0 = SubResource("c5")
+cast_shadow = 0
+
+[node name="Tail" type="MeshInstance3D" parent="."]
+transform = Transform3D(0.819152, -0.573576, 0, 0.573576, 0.819152, 0, 0, 0, 1, 0.3, -0.2, -0.15)
+mesh = SubResource("m6")
+surface_material_override/0 = SubResource("c6")
+cast_shadow = 0

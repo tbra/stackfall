@@ -671,6 +671,29 @@ func _rebuild_gift_visual() -> void:
 		max_local = max_local.max(local)
 	_gift_visual.position = (min_local + max_local) * 0.5
 	add_child(_gift_visual)
+	_apply_gift_tint()
+
+
+## Bontago-59o.14.1: held gift models keep their own colours; the ghost's
+## valid/invalid/hole/locked/throw state shows as a translucent overlay of the
+## same colour the block ghost material currently uses (_material's
+## albedo_color), so a gift reads the same state cues as a plain block.
+## Overlay share of the ghost's own opacity (a blend constant, not a tunable).
+const HELD_GIFT_TINT_STRENGTH: float = 0.55
+var _gift_tint_material: StandardMaterial3D = null
+
+
+func _apply_gift_tint() -> void:
+	if _gift_visual == null or _material == null:
+		return
+	if _gift_tint_material == null:
+		_gift_tint_material = StandardMaterial3D.new()
+		_gift_tint_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_gift_tint_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var tint: Color = current_tint_color()
+	_gift_tint_material.albedo_color = Color(tint.r, tint.g, tint.b, tint.a * HELD_GIFT_TINT_STRENGTH)
+	for node: Node in _gift_visual.find_children("*", "MeshInstance3D", true, false):
+		(node as MeshInstance3D).material_overlay = _gift_tint_material
 
 
 ## Generic gift look (GiftCrate's crate + ribbon colours), one cell in size.
@@ -1763,6 +1786,7 @@ func show_throw_hint(active: bool) -> void:
 
 func _refresh_materials() -> void:
 	_apply_validity_material()
+	_apply_gift_tint()
 	_apply_footprint_material()
 	_apply_projection_material()
 

@@ -50,9 +50,10 @@ func test_held_scene_overrides_fallback() -> void:
 	node.name = &"CustomArt"
 	packed.pack(node)
 	node.free()
+	var previous: PackedScene = def.held_scene
 	def.held_scene = packed
 	ghost.set_held_gift(&"rocket")
-	def.held_scene = null
+	def.held_scene = previous
 	assert_eq(ghost.gift_visual().get_child_count(), 0, "custom scene root, not the fallback crate")
 
 
@@ -93,3 +94,49 @@ func test_hud_uses_gift_icon_for_held_and_next() -> void:
 	hud._refresh_special_indicator()
 	assert_null(hud.held_gift_icon())
 	assert_null(hud.next_gift_icon())
+
+
+const GIFT_IDS: Array[StringName] = [
+	&"anvil", &"bomb", &"cat", &"earthquake", &"glue", &"jumping_bean",
+	&"magnet", &"paintball", &"propeller", &"rocket", &"stackfall", &"volcano",
+]
+
+
+func test_every_gift_has_held_scene_within_one_cell() -> void:
+	for id: StringName in GIFT_IDS:
+		var def: SpecialDef = SpecialDef.find_by_id(id)
+		assert_not_null(def, String(id))
+		assert_not_null(def.held_scene, "%s held_scene" % id)
+		var root: Node3D = autofree(def.held_scene.instantiate() as Node3D)
+		var meshes: Array[Node] = root.find_children("*", "MeshInstance3D", true, false)
+		assert_between(meshes.size(), 1, 12, "%s draw-call budget" % id)
+		var bounds: AABB = AABB()
+		var first: bool = true
+		for node: Node in meshes:
+			var mi: MeshInstance3D = node as MeshInstance3D
+			var box: AABB = mi.transform * mi.mesh.get_aabb()
+			bounds = box if first else bounds.merge(box)
+			first = false
+		bounds = root.transform * bounds
+		assert_lt(bounds.size.x, 1.01, "%s x" % id)
+		assert_lt(bounds.size.y, 1.01, "%s y" % id)
+		assert_lt(bounds.size.z, 1.01, "%s z" % id)
+
+
+func test_held_gift_shows_validity_tint() -> void:
+	var ghost: GhostPreview = _make_ghost()
+	ghost.set_held_gift(&"rocket")
+	var meshes: Array[Node] = ghost.gift_visual().find_children("*", "MeshInstance3D", true, false)
+	var mi: MeshInstance3D = meshes[0] as MeshInstance3D
+	assert_not_null(mi.material_overlay)
+	var valid_color: Color = (mi.material_overlay as StandardMaterial3D).albedo_color
+	ghost.set_locked(true)
+	var locked_color: Color = (mi.material_overlay as StandardMaterial3D).albedo_color
+	assert_ne(valid_color, locked_color, "tint follows ghost state")
+
+
+func test_fallback_crate_is_tinted_too() -> void:
+	var ghost: GhostPreview = _make_ghost()
+	ghost.set_held_gift(&"no_such_gift")
+	var mi: MeshInstance3D = ghost.gift_visual().find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D
+	assert_not_null(mi.material_overlay)
