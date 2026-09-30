@@ -1,5 +1,10 @@
 class_name SkyThemeDef
 extends Resource
+## Bontago-59o.16: opt-in procedural sky look (docs/SKY_PROCEDURAL_PLAN.md),
+## declared first so it is the first row of the F4 Sky tab for the owner's
+## painted-vs-procedural comparison. Skybox.apply_theme() writes
+## procedural_sea_mix (0 while this is false) and the proc_* parameters.
+@export var sky_look_procedural: bool = false
 ## Optional authored sky shader, also used for environment reflections.
 @export var sky_material: Material = null
 ## Panorama longitude sampling offset, shared by sky background and reflections.
@@ -188,11 +193,9 @@ extends Resource
 ## fireflies on night) -- see config/AmbientLifeConfig.gd. Null means none.
 @export var ambient_life: AmbientLifeConfig = null
 
-## Bontago-59o.16 (procedural sky, docs/SKY_PROCEDURAL_PLAN.md P1): opt-in
-## procedural look for shaders/sunset_clouds.gdshader. Skybox.apply_theme()
-## writes procedural_sea_mix (0 while sky_look_procedural is false) and the
-## proc_* parameters; the shader branch arrives in P2-P4, so today they are unused.
-@export var sky_look_procedural: bool = false
+## Bontago-59o.16 (procedural sky, docs/SKY_PROCEDURAL_PLAN.md): the proc_*
+## parameters below drive the procedural branch of shaders/sunset_clouds.gdshader
+## (plus the puff far-fade and night sea) when sky_look_procedural is on.
 @export var procedural_sea_mix: float = 1.0
 @export var proc_zenith_color: Color = Color(0.161, 0.2, 0.333)
 @export var proc_mid_color: Color = Color(0.55, 0.36, 0.5)
