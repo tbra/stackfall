@@ -82,8 +82,22 @@ var _image_forward: Vector2 = Vector2(0.0, 1.0)
 ## is read from this frame's final camera transform, not the previous one.
 const _PROCESS_PRIORITY_AFTER_CAMERA: int = 2
 
-var _image: Image = null
-var _texture: ImageTexture = null
+## Bontago-1pi.11.11: the territory is coloured on the GPU from the raster's
+## per-cell textures (shaders/minimap_territory.gdshader); no CPU image.
+const MAX_SLOTS: int = 16
+var _territory_layer: Control = null
+var _territory_material: ShaderMaterial = null
+var _white_texture: ImageTexture = null
+var _team_tex: ImageTexture = null
+var _hole_tex: ImageTexture = null
+var _disk_tex: ImageTexture = null
+var _disk_raster: TerritoryRaster = null
+var _tex_res: int = 0
+var _built_size_px: int = 0
+## Bontago-1pi.11.9: inputs of the last _rebuild_image(), so the refresh timer can skip an unchanged rebuild.
+const NO_BUILD_HASH: int = -1
+var _built_raster_hash: int = NO_BUILD_HASH
+var _built_colors: PackedColorArray = PackedColorArray()
 
 
 func _ready() -> void:
@@ -102,14 +116,23 @@ func _ready() -> void:
 	style.set_corner_radius_all(int(tuning.minimap_size_px * 0.5))
 	add_theme_stylebox_override("panel", style)
 
+	_territory_layer = Control.new()
+	_territory_layer.name = "TerritoryLayer"
+	_territory_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_territory_layer.draw.connect(_on_territory_draw)
+	_territory_material = ShaderMaterial.new()
+	_territory_material.shader = preload("res://shaders/minimap_territory.gdshader")
+	_territory_layer.material = _territory_material
+	add_child(_territory_layer)
+	var white: Image = Image.create_empty(1, 1, false, Image.FORMAT_RGBA8)
+	white.fill(Color.WHITE)
+	_white_texture = ImageTexture.create_from_image(white)
+
 	_canvas = Control.new()
 	_canvas.name = "MinimapCanvas"
 	_canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_canvas.draw.connect(_on_canvas_draw)
 	add_child(_canvas)
-
-	_image = Image.create(tuning.minimap_size_px, tuning.minimap_size_px, false, Image.FORMAT_RGBA8)
-	_texture = ImageTexture.create_from_image(_image)
 
 	_refresh_timer = Timer.new()
 	_refresh_timer.name = "RefreshTimer"
@@ -166,7 +189,7 @@ func set_match_state(
 func set_gift_states(states: Array[Dictionary]) -> void:
 	_gift_states = states.duplicate(true)
 	if _canvas != null and _map_def != null:
-		_canvas.queue_redraw()
+		_queue_redraw_all()
 
 
 ## The main gameplay camera's own horizontal right/forward directions (world
@@ -194,7 +217,7 @@ func set_camera_basis(right_xz: Vector2, forward_xz: Vector2) -> void:
 	_camera_right = new_right
 	_camera_forward = new_forward
 	if _canvas != null and _map_def != null:
-		_canvas.queue_redraw()
+		_queue_redraw_all()
 
 
 func _process(_delta: float) -> void:
@@ -239,6 +262,13 @@ func half_extent() -> float:
 func render_now() -> void:
 	_rebuild_image()
 	if _canvas != null:
+		_queue_redraw_all()
+
+
+func _queue_redraw_all() -> void:
+	if _territory_layer != null:
+		_territory_layer.queue_redraw()
+	if _canvas != null:
 		_canvas.queue_redraw()
 
 
@@ -249,7 +279,26 @@ func _refresh_interval() -> float:
 func _on_refresh_timeout() -> void:
 	if _map_def == null:
 		return
+	# Bontago-1pi.11.9: the pixel loop in _rebuild_image() costs ~60 ms of
+	# GDScript; at minimap_refresh_hz that was an 8 Hz frame hitch even with a
+	# completely settled board. DECISION: rebuild only when the image inputs
+	# changed. Camera rotation alone is covered by image_to_current_transform()
+	# (the cached texture is rotated on draw), so it does not force a rebuild.
+	if not _image_inputs_changed():
+		return
 	render_now()
+
+
+## True when the raster's owner ids, the team colors or the image size differ
+## from what the cached image was last built from.
+func _image_inputs_changed() -> bool:
+	if _raster == null:
+		return _built_raster_hash != NO_BUILD_HASH
+	return (
+		_raster.ownership_hash() != _built_raster_hash
+		or _slot_colors != _built_colors
+		or _built_size_px != tuning.minimap_size_px
+	)
 
 
 ## World-space (disk-local x, z) -> minimap pixel, through the current
@@ -262,61 +311,84 @@ func _world_to_px(world: Vector2, px_per_m: float) -> Vector2:
 	return Vector2((u + _half_extent) * px_per_m, (_half_extent - v) * px_per_m)
 
 
-## Rasterizes the live TerritoryRaster into a small top-down RGBA image,
+## Uploads the live TerritoryRaster to the territory shader. Bontago-1pi.11.11:
+## the former 160x160 GDScript per-pixel loop (55-100 ms) now lives only in
+## debug_image() for tests; here the per-cell data goes up as native-copied
+## textures and shaders/minimap_territory.gdshader colours it at draw time,
 ## camera-relative (see class doc DECISION), entirely in 2D -- no Camera3D/
-## SubViewport, so nothing here can ever sample the sky or a 3D mirror. One
-## output pixel is one grid-cell lookup (CellGrid.world_to_cell), so the cost
-## is tuning.minimap_size_px^2 regardless of the raster's own (usually much
-## higher) resolution. Off-disk pixels are left fully transparent so the
-## panel's own circular backdrop (see _ready()) shows through and gives the
-## minimap its circular silhouette with no separate clip/mask. Each pixel
-## walks the *inverse* of _world_to_px() -- from screen (u, v) back to a
-## world point -- since that is the direction the loop actually needs (one
-## lookup per output pixel, not one per raster cell).
+## SubViewport. Off-disk pixels are transparent so the panel's own circular
+## backdrop (see _ready()) shows through.
 func _rebuild_image() -> void:
+	_built_raster_hash = _raster.ownership_hash() if _raster != null else NO_BUILD_HASH
+	_built_colors = _slot_colors
 	_image_right = _camera_right
 	_image_forward = _camera_forward
-	var size_px: int = tuning.minimap_size_px
-	if _image == null or _image.get_width() != size_px or _image.get_height() != size_px:
-		_image = Image.create(size_px, size_px, false, Image.FORMAT_RGBA8)
-	_image.fill(Color(0.0, 0.0, 0.0, 0.0))
-
-	if _raster != null and _half_extent > 0.0:
-		var grid: CellGrid = _raster.grid()
-		var meters_per_px: float = (_half_extent * 2.0) / float(size_px)
-		var unowned: Color = tuning.minimap_backdrop_color
-		var sat_boost: float = tuning.minimap_territory_saturation_boost
-		var val_boost: float = tuning.minimap_territory_value_boost
-		for py: int in range(size_px):
-			var v: float = _half_extent - (float(py) + 0.5) * meters_per_px
-			for px: int in range(size_px):
-				var u: float = (float(px) + 0.5) * meters_per_px - _half_extent
-				var world_x: float = u * _camera_right.x + v * _camera_forward.x
-				var world_z: float = u * _camera_right.y + v * _camera_forward.y
-				var cell: Vector2i = grid.world_to_cell(Vector2(world_x, world_z))
-				if not grid.in_bounds(cell.x, cell.y) or not grid.is_in_disk(cell.x, cell.y):
-					continue
-				var team: int = _raster.team_at(cell.x, cell.y)
-				var color: Color = unowned
-				if team >= 0 and team < _slot_colors.size():
-					var base: Color = _slot_colors[team]
-					color = Color.from_hsv(
-						base.h, clampf(base.s * sat_boost, 0.0, 1.0), clampf(base.v * val_boost, 0.0, 1.0), base.a
-					)
-				_image.set_pixel(px, py, color)
-
-	if _texture == null:
-		_texture = ImageTexture.create_from_image(_image)
+	_built_size_px = tuning.minimap_size_px
+	if _territory_material == null:
+		return
+	_territory_material.set_shader_parameter("slot_count", 0)
+	if _raster == null or _half_extent <= 0.0:
+		_territory_layer.visible = false
+		return
+	_territory_layer.visible = true
+	var grid: CellGrid = _raster.grid()
+	var res: int = grid.res
+	if res != _tex_res or _team_tex == null:
+		_tex_res = res
+		_team_tex = ImageTexture.create_from_image(_raster.team_id_image())
+		_hole_tex = ImageTexture.create_from_image(_raster.hole_image())
+		_disk_tex = null
 	else:
-		_texture.update(_image)
+		_team_tex.update(_raster.team_id_image())
+		_hole_tex.update(_raster.hole_image())
+	if _disk_tex == null or _disk_raster != _raster:
+		_disk_raster = _raster
+		_disk_tex = ImageTexture.create_from_image(_raster.in_disk_image())
+	var colors: PackedVector4Array = PackedVector4Array()
+	for team: int in range(mini(_slot_colors.size(), MAX_SLOTS)):
+		var color: Color = _territory_color(_slot_colors[team])
+		colors.append(Vector4(color.r, color.g, color.b, color.a))
+	var slot_count: int = colors.size()
+	colors.resize(MAX_SLOTS)
+	_territory_material.set_shader_parameter("team_tex", _team_tex)
+	_territory_material.set_shader_parameter("hole_tex", _hole_tex)
+	_territory_material.set_shader_parameter("disk_tex", _disk_tex)
+	_territory_material.set_shader_parameter("slot_colors", colors)
+	_territory_material.set_shader_parameter("slot_count", slot_count)
+	_territory_material.set_shader_parameter("unowned_color", _color_to_vec4(tuning.minimap_backdrop_color))
+	_territory_material.set_shader_parameter("half_extent", _half_extent)
+	_territory_material.set_shader_parameter("image_right", _image_right)
+	_territory_material.set_shader_parameter("image_forward", _image_forward)
+	_territory_material.set_shader_parameter("grid_half_extent", grid.half_extent)
+	_territory_material.set_shader_parameter("grid_cell_size", grid.cell_size)
+	_territory_material.set_shader_parameter("grid_res", res)
+
+
+func _color_to_vec4(color: Color) -> Vector4:
+	return Vector4(color.r, color.g, color.b, color.a)
+
+
+## The team's slot colour with the minimap's saturation/value boost applied.
+func _territory_color(base: Color) -> Color:
+	return Color.from_hsv(
+		base.h,
+		clampf(base.s * tuning.minimap_territory_saturation_boost, 0.0, 1.0),
+		clampf(base.v * tuning.minimap_territory_value_boost, 0.0, 1.0),
+		base.a
+	)
+
+
+func _on_territory_draw() -> void:
+	if _territory_layer == null or _white_texture == null:
+		return
+	_territory_layer.draw_set_transform_matrix(image_to_current_transform(_territory_layer.size * 0.5))
+	_territory_layer.draw_texture_rect(_white_texture, Rect2(Vector2.ZERO, _territory_layer.size), false)
+	_territory_layer.draw_set_transform_matrix(Transform2D.IDENTITY)
 
 
 func _on_canvas_draw() -> void:
-	if _texture == null or _canvas == null:
+	if _canvas == null:
 		return
-	_canvas.draw_set_transform_matrix(image_to_current_transform(_canvas.size * 0.5))
-	_canvas.draw_texture_rect(_texture, Rect2(Vector2.ZERO, _canvas.size), false)
-	_canvas.draw_set_transform_matrix(Transform2D.IDENTITY)
 	_draw_disc_outline()
 	_draw_beacons()
 	_draw_gifts()
@@ -402,8 +474,29 @@ func _draw_beacons() -> void:
 		_canvas.draw_polyline(outline, Color(0.0, 0.0, 0.0, 0.6), 1.0, true)
 
 
-## Test seam (tests/unit/test_hud.gd): the last image render_now() built, so
-## a test can assert on actual pixel colors without reaching into private
-## state by name.
+## Test seam (tests/unit/test_hud.gd, test_minimap.gd): a slow CPU reference
+## rasterization of the current state, the exact look the territory shader
+## reproduces. Never called by the running game.
 func debug_image() -> Image:
-	return _image
+	var size_px: int = tuning.minimap_size_px
+	var image: Image = Image.create(size_px, size_px, false, Image.FORMAT_RGBA8)
+	if _raster == null or _half_extent <= 0.0:
+		return image
+	var grid: CellGrid = _raster.grid()
+	var meters_per_px: float = (_half_extent * 2.0) / float(size_px)
+	for py: int in range(size_px):
+		var v: float = _half_extent - (float(py) + 0.5) * meters_per_px
+		for px: int in range(size_px):
+			var u: float = (float(px) + 0.5) * meters_per_px - _half_extent
+			var world: Vector2 = Vector2(
+				u * _image_right.x + v * _image_forward.x, u * _image_right.y + v * _image_forward.y
+			)
+			var cell: Vector2i = grid.world_to_cell(world)
+			if not grid.in_bounds(cell.x, cell.y) or not grid.is_in_disk(cell.x, cell.y):
+				continue
+			var team: int = _raster.team_at(cell.x, cell.y)
+			var color: Color = tuning.minimap_backdrop_color
+			if team >= 0 and team < mini(_slot_colors.size(), MAX_SLOTS):
+				color = _territory_color(_slot_colors[team])
+			image.set_pixel(px, py, color)
+	return image
