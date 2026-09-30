@@ -340,3 +340,28 @@ func test_sanitize_clamps_hole_mode_to_the_three_modes() -> void:
 		config.hole_mode = mode
 		config.sanitize()
 		assert_eq(config.hole_mode, mode, "sanitize() leaves a legal mode alone.")
+
+
+func test_sky_theme_mode_round_trips_and_defaults_to_day() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	assert_eq(config.sky_theme_mode, MatchConfig.SkyThemeMode.DAY)
+	assert_eq(config.effective_sky_theme(), "sunset")
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.RANDOM
+	config.resolve_sky_theme(1)
+	var restored: MatchConfig = MatchConfig.from_dict(config.to_dict())
+	assert_eq(restored.sky_theme_mode, MatchConfig.SkyThemeMode.RANDOM)
+	assert_eq(restored.effective_sky_theme(), "night", "clients use the host's resolved theme")
+	assert_eq(MatchConfig.from_dict({}).sky_theme_mode, MatchConfig.SkyThemeMode.DAY, "old wire data means Day")
+
+
+func test_resolve_sky_theme_maps_modes_and_sanitize_drops_unknown_ids() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.NIGHT
+	config.resolve_sky_theme(0)
+	assert_eq(config.sky_theme_resolved, "night")
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.RANDOM
+	config.resolve_sky_theme(0)
+	assert_eq(config.sky_theme_resolved, "sunset")
+	config.sky_theme_resolved = "../evil"
+	config.sanitize()
+	assert_eq(config.sky_theme_resolved, "")

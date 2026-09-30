@@ -121,8 +121,10 @@ func test_every_2_8_setting_round_trips_through_to_dict_and_from_dict() -> void:
 	config.match_timer_minutes = 20
 	config.sudden_death = true
 	config.turn_based = true
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.NIGHT
 
 	Events.net_lobby_data_changed.emit(config.to_dict())
+	assert_eq((lobby.get_node("%SkyThemeOption") as OptionButton).selected, int(MatchConfig.SkyThemeMode.NIGHT))
 
 	assert_eq((lobby.get_node("%MapVariantOption") as OptionButton).selected, MatchConfig.MapVariant.RING)
 	assert_eq((lobby.get_node("%MapSizeOption") as OptionButton).selected, int(MapDef.MapSize.LARGE))

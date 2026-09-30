@@ -166,9 +166,11 @@ const CLIENT_HIDDEN_TAB_FIRST: int = 7
 ## dropped block shouldn't just bounce straight up again" -- research +
 ## A/B presets): the Physics tab's preset dropdown copies one of these
 ## PhysicsTuning resources' every exported field onto the live physics_tuning
-## instance (apply_physics_preset() below). "current" is byte-identical to
-## config/physics_tuning.tres's own defaults, so picking it is a no-op;
-## "heavy_bouncy"/"heavy_damped" both raise cube_mass and gravity_multiplier
+## instance (apply_physics_preset() below). "heavy_bouncy" is byte-identical to
+## config/physics_tuning.tres's own defaults (owner 2026-09-30: Heavy &
+## Bouncy is the shipped default), so picking it is a no-op; "current" keeps
+## the OLD default numbers, labelled "Previous default"; "heavy_bouncy"/"heavy_damped" both raise
+## cube_mass and gravity_multiplier
 ## for a heavier fall and set rebound_damping below 1 so a flat drop doesn't
 ## bounce straight back up, while still giving lateral/tumbling liveliness
 ## from block_bounce (see config/PhysicsTuning.gd's rebound_damping DECISION
@@ -177,7 +179,7 @@ const CLIENT_HIDDEN_TAB_FIRST: int = 7
 ## the same heavier fall settles quieter. See config/physics_presets/*.tres
 ## for the exact numbers.
 const PHYSICS_PRESETS: Array[Dictionary] = [
-	{"id": "current", "label": "Current", "path": "res://config/physics_presets/current.tres"},
+	{"id": "current", "label": "Previous default", "path": "res://config/physics_presets/current.tres"},
 	{"id": "heavy_bouncy", "label": "Heavy & Bouncy", "path": "res://config/physics_presets/heavy_bouncy.tres"},
 	{"id": "heavy_damped", "label": "Heavy & Damped", "path": "res://config/physics_presets/heavy_damped.tres"},
 	# Source material/damping defaults; Jolt solver and sleep remain unchanged.

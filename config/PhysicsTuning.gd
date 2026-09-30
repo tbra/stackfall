@@ -12,10 +12,10 @@ extends Resource
 ## jam against each other.
 @export var cube_margin: float = 0.02
 ## Mass per cube; a shape's total mass is cube count * cube_mass.
-@export var cube_mass: float = 1.0
+@export var cube_mass: float = 2.0
 ## Block physics material.
-@export var block_friction: float = 0.8
-@export var block_bounce: float = 0.05
+@export var block_friction: float = 0.85
+@export var block_bounce: float = 0.4
 ## DECISION (config/PhysicsTuning.gd): spec 2.4 doesn't specify body damping,
 ## so blocks use Godot's project-default 0.1 and nothing more. Damping is
 ## deliberately NOT used to hold towers up.
@@ -50,7 +50,7 @@ extends Resource
 ## settled-block/influence rule and aren't engine settings.
 ## See tests/unit/test_tower_placement.gd and tests/bench/bench_tower.gd.
 @export var block_linear_damp: float = 0.1
-@export var block_angular_damp: float = 0.1
+@export var block_angular_damp: float = 0.15
 
 ## -- Field (spec 2.1, 3.5) ---------------------------------------------------
 @export var disk_friction: float = 0.9
@@ -69,7 +69,7 @@ extends Resource
 @export var sleep_settle_time: float = 0.5
 
 ## -- Gravity (spec 2.8 "Gravity 0.5x-2x") ------------------------------------
-@export var gravity_multiplier: float = 1.0
+@export var gravity_multiplier: float = 1.4
 
 ## -- Rebound damping (Bontago-xtq.17, owner playtest 2026-09-23: "heavier and
 ## more bouncy, but a dropped block shouldn't just bounce straight up
@@ -93,7 +93,12 @@ extends Resource
 ## behavior is byte-identical until a preset sets it below 1. See
 ## config/physics_presets/*.tres for the shipped presets and
 ## game/Block._damp_rebound() for the pure scaling rule this field feeds.
-@export var rebound_damping: float = 1.0
+## Bontago-470.4: script defaults now equal the shipped Heavy & Bouncy tuning
+## (cube_mass, block_friction, block_bounce, block_angular_damp,
+## gravity_multiplier, rebound_damping), so F4 "modified" markers and Reset
+## agree with config/physics_tuning.tres.
+## (Rebound default was 1.0, a pass-through, before that change.)
+@export var rebound_damping: float = 0.3
 
 ## Experimental Original feel preset: deterministic release tilt, not a
 ## reconstruction of the original solver. Applied once only above the gap.
