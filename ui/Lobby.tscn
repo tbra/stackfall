@@ -347,8 +347,8 @@ text = "1.00x"
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-min_value = 0.5
-max_value = 2.0
+min_value = 0.35
+max_value = 1.45
 step = 0.05
 value = 1.0
 

@@ -149,7 +149,7 @@ func start_match(match_config: MatchConfig) -> void:
 	# the rest of the process session; the F4 tuning panel's Reset re-reads
 	# the .tres from disk, which still restores the shipped default, so this
 	# is acceptable.
-	_match._physics_tuning.gravity_multiplier = _match.config.gravity_multiplier
+	_match._physics_tuning.gravity_multiplier = _match._physics_tuning.lobby_gravity_baseline * _match.config.gravity_multiplier
 	for node: Node in _match.get_tree().get_nodes_in_group(Block.TUNING_GROUP):
 		var block: Block = node as Block
 		if block != null:

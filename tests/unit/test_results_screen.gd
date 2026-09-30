@@ -188,7 +188,7 @@ func test_settings_apply_writes_sanitized_fields_onto_the_running_config() -> vo
 	_screen.show_results(_ffa_results())
 
 	_screen._block_timer_spin.value = 9.0
-	_screen._gravity_spin.value = 1.5
+	_screen._gravity_spin.value = 1.2
 	_screen._special_freq_spin.value = 60
 	_screen._gifts_check.button_pressed = false
 	_screen._ai_count_spin.value = 8  # spin's own max; sanitize() must clamp to player_count.
@@ -198,7 +198,7 @@ func test_settings_apply_writes_sanitized_fields_onto_the_running_config() -> vo
 
 	var config: MatchConfig = _fake_match.config
 	assert_eq(config.block_timer, 9.0)
-	assert_eq(config.gravity_multiplier, 1.5)
+	assert_eq(config.gravity_multiplier, 1.2)
 	assert_eq(config.special_frequency, 60)
 	assert_false(config.gifts_enabled)
 	assert_eq(config.ai_count, 2, "sanitize() must clamp ai_count down to player_count.")

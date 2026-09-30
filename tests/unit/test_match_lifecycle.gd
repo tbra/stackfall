@@ -434,12 +434,12 @@ func test_leaving_mid_match_clears_the_fields_flags_overlay_and_holes() -> void:
 func test_start_match_writes_the_lobbys_gravity_into_the_shared_physics_tuning() -> void:
 	_host()
 	var config: MatchConfig = _config(2)
-	config.gravity_multiplier = 1.6
+	config.gravity_multiplier = 1.2
 
 	_main._on_lobby_start_requested(config)
 
 	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres")
-	assert_almost_eq(tuning.gravity_multiplier, 1.6, 0.0001)
+	assert_almost_eq(tuning.gravity_multiplier, 1.4 * 1.2, 0.0001)
 
 
 func test_start_match_re_applies_gravity_to_a_block_already_standing() -> void:
@@ -450,10 +450,10 @@ func test_start_match_re_applies_gravity_to_a_block_already_standing() -> void:
 
 	_host()
 	var config: MatchConfig = _config(2)
-	config.gravity_multiplier = 1.6
+	config.gravity_multiplier = 1.2
 	_main._on_lobby_start_requested(config)
 
-	assert_almost_eq(block.gravity_scale, 1.6, 0.0001)
+	assert_almost_eq(block.gravity_scale, 1.4 * 1.2, 0.0001)
 
 
 # --- (h) M5 P1: _build_slots() marks the trailing ai_count slots as bots ----

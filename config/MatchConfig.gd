@@ -66,17 +66,18 @@ const SKY_THEME_IDS: PackedStringArray = ["sunset", "night"]
 @export var ai_difficulty: AiDifficulty = AiDifficulty.NORMAL
 @export var team_mode: TeamMode = TeamMode.OFF
 ## Block timer in seconds, 3-12.
-@export var block_timer: float = 6.0
-## Gravity multiplier, 0.5-2.0.
-## DECISION (Bontago-470.4): 1.4 to match config/physics_tuning.tres's new
-## Heavy & Bouncy default -- start_match() writes this value over the shared
-## tuning's gravity_multiplier, so a 1.0 here would silently undo it.
-@export var gravity_multiplier: float = 1.4
+@export var block_timer: float = 5.0
+## Lobby gravity multiplier, GRAVITY_MIN-GRAVITY_MAX, 1.0 = the shipped feel.
+## DECISION (Bontago-59o.11): this is relative to PhysicsTuning.lobby_gravity_baseline
+## (the old 1.4 Heavy & Bouncy factor); start_match() writes
+## baseline * this into the shared tuning's gravity_multiplier, so the
+## effective default gravity is unchanged while the lobby reads 1.0.
+@export var gravity_multiplier: float = 1.0
 ## Goal flags, 1-5.
 @export var goal_flag_count: int = 1
 @export var gifts_enabled: bool = true
 ## Special frequency, 0-100.
-@export var special_frequency: int = 35
+@export var special_frequency: int = 30
 ## Empty means "every special enabled by default" (M4 populates it).
 @export var enabled_specials: Array[StringName] = []
 @export var tilt_mode: TiltMode = TiltMode.SPECIALS_ONLY
@@ -160,8 +161,12 @@ const PLAYER_COUNT_MIN: int = 2
 const PLAYER_COUNT_MAX: int = 8
 const BLOCK_TIMER_MIN: float = 3.0
 const BLOCK_TIMER_MAX: float = 12.0
-const GRAVITY_MIN: float = 0.5
-const GRAVITY_MAX: float = 2.0
+## Old effective range 0.5-2.0 divided by the 1.4 baseline, rounded.
+const GRAVITY_MIN: float = 0.35
+const GRAVITY_MAX: float = 1.45
+## Saved/networked dicts without a "gravity_scale_version" key hold the old
+## absolute multiplier; from_dict() divides it by this legacy baseline.
+const LEGACY_GRAVITY_BASELINE: float = 1.4
 const GOAL_FLAG_MIN: int = 1
 const GOAL_FLAG_MAX: int = 5
 const SPECIAL_FREQUENCY_MIN: int = 0
@@ -304,6 +309,7 @@ func to_dict() -> Dictionary:
 		"team_mode": team_mode,
 		"block_timer": block_timer,
 		"gravity_multiplier": gravity_multiplier,
+		"gravity_scale_version": 2,
 		"goal_flag_count": goal_flag_count,
 		"gifts_enabled": gifts_enabled,
 		"special_frequency": special_frequency,
@@ -334,6 +340,10 @@ static func from_dict(data: Dictionary) -> MatchConfig:
 	config.team_mode = int(data.get("team_mode", config.team_mode))
 	config.block_timer = float(data.get("block_timer", config.block_timer))
 	config.gravity_multiplier = float(data.get("gravity_multiplier", config.gravity_multiplier))
+	# DECISION (Bontago-59o.11): a dict without the version key is pre-rescale,
+	# so its multiplier was absolute; convert to the new baseline-relative scale.
+	if data.has("gravity_multiplier") and not data.has("gravity_scale_version"):
+		config.gravity_multiplier /= LEGACY_GRAVITY_BASELINE
 	config.goal_flag_count = int(data.get("goal_flag_count", config.goal_flag_count))
 	config.gifts_enabled = bool(data.get("gifts_enabled", config.gifts_enabled))
 	config.special_frequency = int(data.get("special_frequency", config.special_frequency))

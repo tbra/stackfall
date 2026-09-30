@@ -70,6 +70,9 @@ extends Resource
 
 ## -- Gravity (spec 2.8 "Gravity 0.5x-2x") ------------------------------------
 @export var gravity_multiplier: float = 1.4
+## Bontago-59o.11: the Heavy & Bouncy factor folded out of the lobby scale.
+## start_match() sets gravity_multiplier = this * MatchConfig.gravity_multiplier.
+@export var lobby_gravity_baseline: float = 1.4
 
 ## -- Rebound damping (Bontago-xtq.17, owner playtest 2026-09-23: "heavier and
 ## more bouncy, but a dropped block shouldn't just bounce straight up

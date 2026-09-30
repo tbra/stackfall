@@ -11,7 +11,7 @@ func test_to_dict_from_dict_round_trips_every_field() -> void:
 	config.ai_difficulty = MatchConfig.AiDifficulty.HARD
 	config.team_mode = MatchConfig.TeamMode.TEAMS_2
 	config.block_timer = 9.5
-	config.gravity_multiplier = 1.5
+	config.gravity_multiplier = 1.2
 	config.goal_flag_count = 3
 	config.gifts_enabled = false
 	config.special_frequency = 70
@@ -365,3 +365,21 @@ func test_resolve_sky_theme_maps_modes_and_sanitize_drops_unknown_ids() -> void:
 	config.sky_theme_resolved = "../evil"
 	config.sanitize()
 	assert_eq(config.sky_theme_resolved, "")
+
+
+func test_default_lobby_gravity_reads_one_and_effective_gravity_is_unchanged() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres") as PhysicsTuning
+	assert_eq(config.gravity_multiplier, 1.0)
+	assert_eq((load("res://config/match_defaults.tres") as MatchConfig).gravity_multiplier, 1.0)
+	# Old effective default was the lobby's 1.4 written over the tuning.
+	assert_eq(tuning.lobby_gravity_baseline * config.gravity_multiplier, 1.4)
+	assert_eq(config.block_timer, 5.0)
+	assert_eq(config.special_frequency, 30)
+
+
+func test_legacy_dict_gravity_is_rescaled_but_versioned_dict_is_not() -> void:
+	var legacy: MatchConfig = MatchConfig.from_dict({"gravity_multiplier": 1.4})
+	assert_almost_eq(legacy.gravity_multiplier, 1.0, 0.0001)
+	var current: MatchConfig = MatchConfig.from_dict(MatchConfig.new().to_dict())
+	assert_eq(current.gravity_multiplier, 1.0)
