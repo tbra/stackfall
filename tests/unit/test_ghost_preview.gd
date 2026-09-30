@@ -10,6 +10,22 @@ func _make_ghost() -> GhostPreview:
 	return ghost
 
 
+func test_glue_overlay_toggles_with_charges() -> void:
+	var ghost: GhostPreview = _make_ghost()
+	assert_false(ghost.is_glue_overlay_active())
+	ghost.set_glue_charges(5)
+	assert_true(ghost.is_glue_overlay_active())
+	var mesh: MeshInstance3D = null
+	for node: Node in ghost._shape_visual.get_children():
+		mesh = node as MeshInstance3D
+		if mesh != null:
+			break
+	assert_not_null(mesh)
+	assert_not_null(mesh.material_overlay)
+	ghost.set_glue_charges(0)
+	assert_null(mesh.material_overlay)
+
+
 func test_default_orientation_is_identity() -> void:
 	var ghost: GhostPreview = _make_ghost()
 	assert_eq(ghost.orientation_index, 0)

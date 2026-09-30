@@ -388,6 +388,20 @@ func test_glue_charges_show_for_the_active_slot_and_clear_when_spent() -> void:
 	assert_false(hud._special_indicator.visible)
 
 
+func test_glue_preview_overlay_follows_charges() -> void:
+	var hud: HUD = _make_hud()
+	var fake_match: FakeMatch = FakeMatch.new()
+	hud.match_provider = fake_match
+	hud.set_local_slot(0)
+	assert_false(hud.glue_preview_active())
+	fake_match.glue_drops_by_slot[0] = 5
+	hud._refresh_special_indicator()
+	assert_true(hud.glue_preview_active())
+	fake_match.glue_drops_by_slot[0] = 0
+	hud._refresh_special_indicator()
+	assert_false(hud.glue_preview_active())
+
+
 func test_special_indicator_shows_special_after_a_claim_for_the_local_slot() -> void:
 	var hud: HUD = _make_hud()
 	hud.set_local_slot(0)

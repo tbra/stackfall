@@ -188,6 +188,26 @@ func grant_glue_drops(slot_id: int, count: int) -> bool:
 	return true
 
 
+## DECISION (Bontago-sen.3): Glue is a modifier, not a held piece. On claim
+## the host grants its charges at once and leaves the queued gift and the
+## feed untouched; every other gift queues as the next held piece.
+const GLUE_SPECIAL_ID: StringName = &"glue"
+const GLUE_DEF: SpecialDef = preload("res://config/specials/glue.tres")
+
+
+func _queue_claimed_special(slot_id: int, special_id: StringName) -> void:
+	if special_id == GLUE_SPECIAL_ID:
+		var effect: GlueEffect = GLUE_DEF.effect as GlueEffect
+		if effect != null:
+			grant_glue_drops(slot_id, effect.drop_charges)
+		return
+	_ensure_capacity(slot_id)
+	var queue: Array = _pending_queues[slot_id]
+	queue.clear()
+	queue.append(special_id)
+	_match._feed.replace_next_with_gift(slot_id)
+
+
 func glue_drops_left(slot_id: int) -> int:
 	if _match == null or slot_id < 0 or slot_id >= _match.slot_count():
 		return 0
@@ -336,10 +356,7 @@ func debug_queue_special(slot_id: int, special_id: StringName) -> bool:
 	if slot_id < 0 or slot_id >= _match.slot_count():
 		return false
 	_ensure_capacity(slot_id)
-	var queue: Array = _pending_queues[slot_id]
-	queue.clear()
-	queue.append(special_id)
-	_match._feed.replace_next_with_gift(slot_id)
+	_queue_claimed_special(slot_id, special_id)
 	# slot_id, not a team id -- matches _claim_gift()'s own gift_claimed emit
 	# below, whose second parameter is the resolved recipient slot
 	# (Events.gd's gift_claimed signal -- Bontago-keo.17).
@@ -733,14 +750,11 @@ func _claim_gift_for_slot(gift_id: int, slot_id: int) -> bool:
 	if not _crates.has(gift_id):
 		return false
 	_ensure_capacity(slot_id)
-	var queue: Array = _pending_queues[slot_id]
 	if not _free_crate_visual(gift_id):
 		return false
 	_ensure_special_drawer_installed()
 	var special_id: StringName = _draw_special_id()
-	queue.clear()
-	queue.append(special_id)
-	_match._feed.replace_next_with_gift(slot_id)
+	_queue_claimed_special(slot_id, special_id)
 	Events.gift_claimed.emit(gift_id, slot_id, special_id)
 	return true
 
@@ -766,14 +780,11 @@ func _claim_gift(gift_id: int, team_id: int) -> void:
 	if recipient_slot < 0:
 		return
 	_ensure_capacity(recipient_slot)
-	var queue: Array = _pending_queues[recipient_slot]
 	if not _free_crate_visual(gift_id):
 		return
 	_ensure_special_drawer_installed()
 	var special_id: StringName = _draw_special_id()
-	queue.clear()
-	queue.append(special_id)
-	_match._feed.replace_next_with_gift(recipient_slot)
+	_queue_claimed_special(recipient_slot, special_id)
 	Events.gift_claimed.emit(gift_id, recipient_slot, special_id)
 
 
@@ -1038,6 +1049,8 @@ func apply_replicated_claim(gift_id: int, slot_id: int, special_id: StringName) 
 	_free_crate_visual(gift_id)
 	if slot_id < 0 or slot_id >= _match.slot_count():
 		return
+	if special_id == GLUE_SPECIAL_ID:
+		return # charges arrive through apply_replicated_glue_charges()
 	_ensure_capacity(slot_id)
 	var queue: Array = _pending_queues[slot_id]
 	queue.clear()
