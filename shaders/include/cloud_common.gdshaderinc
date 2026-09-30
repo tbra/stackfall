@@ -85,3 +85,33 @@ vec3 panorama_lod(sampler2D pano, vec2 uv, float seam_width) {
 	float seam = 1.0 - smoothstep(0.0, seam_width, min(uv.x, 1.0 - uv.x));
 	return mix(color, textureLod(pano, vec2(1.0 - uv.x, uv.y), 0.0).rgb, seam * 0.5);
 }
+
+// Bontago-59o.16 (procedural sky P2): pure helpers for the painted-panorama-free
+// sunset. No texture taps, so they are safe in the radiance (cubemap) pass and
+// never divide by eyedir.y (no NaN at the horizon).
+
+// Three-stop vertical ramp on elevation `y` (= EYEDIR.y, -1..1). 0 -> horizon,
+// `mid_height` -> mid, 1 -> zenith. The lower segment is linear, the upper one
+// bends by `power`. Below the horizon the horizon colour is returned (the sea
+// layer paints over it). `bands` > 0 snaps the ramp parameter into flat cel
+// steps with soft edge `edge`; 0 keeps it smooth.
+vec3 sky_gradient(float y, vec3 horizon, vec3 mid, vec3 zenith, float mid_height, float power, float bands, float edge) {
+	float h = clamp(y, 0.0, 1.0);
+	float m = clamp(mid_height, 0.001, 0.999);
+	float t = h < m ? 0.5 * (h / m) : 0.5 + 0.5 * pow((h - m) / (1.0 - m), max(power, 0.001));
+	if (bands > 0.5) {
+		t = cel_quantize(t, bands, edge);
+	}
+	return t < 0.5 ? mix(horizon, mid, t * 2.0) : mix(mid, zenith, t * 2.0 - 1.0);
+}
+
+// Sun disc + halo mask around the sun direction. x = hard-edged disc (0..1,
+// edge width `edge_deg`), y = cel-banded halo falloff (0..1) that reaches 0 at
+// `halo_deg` and is snapped to `halo_bands` steps. `cos_angle` is dot(eyedir, sun_dir).
+vec2 sun_disc(float cos_angle, float core_deg, float edge_deg, float halo_deg, float halo_bands, float band_edge) {
+	float angle_deg = degrees(acos(clamp(cos_angle, -1.0, 1.0)));
+	float disc = 1.0 - smoothstep(core_deg - edge_deg, core_deg + edge_deg, angle_deg);
+	float falloff = 1.0 - smoothstep(core_deg, max(halo_deg, core_deg + 0.001), angle_deg);
+	float halo = cel_quantize(falloff * falloff, halo_bands, band_edge);
+	return vec2(disc, halo);
+}

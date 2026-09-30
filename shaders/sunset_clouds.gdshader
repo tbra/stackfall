@@ -170,6 +170,14 @@ uniform vec4 proc_sea_color_near : source_color = vec4(0.85, 0.5, 0.42, 1.0);
 uniform vec4 proc_sea_color_far : source_color = vec4(0.34, 0.27, 0.47, 1.0);
 uniform float proc_sea_horizon_fade = 0.12;
 uniform float proc_strata_scale = 1.0;
+// P2 shader-only look tuning (set per theme on the material).
+uniform float proc_gradient_bands = 8.0;
+uniform float proc_gradient_band_edge = 0.12;
+uniform float proc_sun_edge_deg = 0.25;
+uniform float proc_sun_halo_bands = 4.0;
+uniform float proc_sun_halo_strength = 0.6;
+uniform float proc_horizon_glow_strength = 0.45;
+uniform float proc_horizon_glow_sun_bias = 3.0;
 
 // Panorama colour with the symmetric seam blend (imperfect authored
 // panorama edges made continuous).
@@ -242,6 +250,28 @@ void sky() {
 	float pole = 1.0 - smoothstep(0.0, pole_blend_width, min(uv.y, 1.0 - uv.y));
 	vec3 pole_color = textureLod(panorama, vec2(0.5, uv.y < 0.5 ? 0.0 : 1.0), 0.0).rgb;
 	COLOR = mix(color, pole_color, pole) * exposure;
+
+	// Procedural gradient sky (Bontago-59o.16 P2): replaces the panorama,
+	// including its painted sun (so there is no second disc), by
+	// procedural_sea_mix. No noise taps, so it is valid in the radiance pass.
+	if (procedural_sea_mix > 0.0) {
+		vec3 pcol = sky_gradient(eyedir.y, proc_horizon_color.rgb, proc_mid_color.rgb, proc_zenith_color.rgb,
+			proc_gradient_mid_height, proc_gradient_power, proc_gradient_bands, proc_gradient_band_edge);
+		if (eyedir.y < 0.0) {
+			float below = smoothstep(0.0, max(proc_sea_horizon_fade, 0.001), -eyedir.y);
+			pcol = mix(pcol, proc_sea_color_near.rgb, below);
+			pcol = mix(pcol, proc_sea_color_far.rgb, smoothstep(0.0, 1.0, -eyedir.y) * below);
+		}
+		float sun_side = pow(max(cos_angle, 0.0), max(proc_horizon_glow_sun_bias, 0.001));
+		float glow = (1.0 - smoothstep(0.0, max(proc_horizon_glow_width, 0.001), abs(eyedir.y)))
+			* mix(0.35, 1.0, sun_side) * proc_horizon_glow_strength;
+		pcol = mix(pcol, proc_horizon_glow_color.rgb, clamp(glow, 0.0, 1.0));
+		vec2 sd = sun_disc(cos_angle, sun_core_angular_radius_deg, proc_sun_edge_deg,
+			sun_halo_angular_radius_deg + sun_halo_softness_deg, proc_sun_halo_bands, cloud_cel_edge);
+		pcol += sun_halo_color.rgb * sd.y * proc_sun_halo_strength * proc_sun_glow_strength;
+		pcol = mix(pcol, sun_core_color.rgb, sd.x * clamp(proc_sun_glow_strength, 0.0, 1.0));
+		COLOR = mix(COLOR, pcol * exposure, clamp(procedural_sea_mix, 0.0, 1.0));
+	}
 
 	// Cel-banded procedural cloud layer over the panorama (background pass only).
 	if (!AT_CUBEMAP_PASS && eyedir.y > 0.0) {
