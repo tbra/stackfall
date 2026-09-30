@@ -288,6 +288,12 @@ func _apply_graphics_preset(preset: GraphicsPreset) -> void:
 	# GraphicsPreset field.
 	RenderingServer.directional_shadow_atlas_set_size(preset.shadow_atlas_size, true)
 
+	# Bontago-1pi.11.2: cascade count / range of the sun's shadow pass.
+	var sun: DirectionalLight3D = get_node_or_null("DirectionalLight3D") as DirectionalLight3D
+	if sun != null:
+		sun.directional_shadow_mode = preset.sun_shadow_mode as DirectionalLight3D.ShadowMode
+		sun.directional_shadow_max_distance = preset.sun_shadow_max_distance
+
 	if _world_environment != null and _world_environment.environment != null:
 		var environment: Environment = _world_environment.environment
 		environment.ssr_enabled = preset.ssr_enabled

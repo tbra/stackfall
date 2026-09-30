@@ -12,3 +12,6 @@ volumetric_fog_enabled = false
 cloud_puff_density = 0.2
 birds_enabled = false
 ambient_life_enabled = false
+sun_shadow_mode = 1
+sun_shadow_max_distance = 70.0
+mirror_resolution_factor = 0.5

@@ -236,8 +236,13 @@ func _process(_delta: float) -> void:
 ## window resize both take effect without extra wiring.
 func _resize_viewport() -> void:
 	var main_size: Vector2i = get_viewport().size
+	# Bontago-1pi.11.2: the active graphics preset scales the mirror further.
+	var preset_factor: float = 1.0
+	var settings: Node = get_node_or_null(^"/root/Settings")
+	if settings != null:
+		preset_factor = (settings.call(&"current_graphics_preset") as GraphicsPreset).mirror_resolution_factor
 	var scale: float = clampf(
-		visuals.mirror_resolution_scale, MIN_RESOLUTION_SCALE, MAX_RESOLUTION_SCALE
+		visuals.mirror_resolution_scale * preset_factor, MIN_RESOLUTION_SCALE, MAX_RESOLUTION_SCALE
 	)
 	var size: Vector2i = Vector2i(
 		maxi(int(float(main_size.x) * scale), 1), maxi(int(float(main_size.y) * scale), 1)
