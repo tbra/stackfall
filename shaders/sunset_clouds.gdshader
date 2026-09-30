@@ -178,6 +178,25 @@ uniform float proc_sun_halo_bands = 4.0;
 uniform float proc_sun_halo_strength = 0.6;
 uniform float proc_horizon_glow_strength = 0.45;
 uniform float proc_horizon_glow_sun_bias = 3.0;
+// P3 shader-only look tuning: far cloud sea (below horizon) and the second
+// upper-strata layer. sea_params: x far-stratum scale, y near-stratum scale,
+// z drift speed, w cel bands. sea_heights: x far, y near stratum plane height.
+uniform vec4 proc_sea_params = vec4(0.5, 0.9, 0.004, 4.0);
+uniform vec2 proc_sea_heights = vec2(1.0, 0.6);
+uniform vec2 proc_sea_wind = vec2(1.0, 0.35);
+uniform float proc_sea_coverage = 0.5;
+uniform float proc_sea_softness = 0.06;
+uniform float proc_sea_band_edge = 0.08;
+uniform float proc_strata_opacity = 0.8;
+uniform float proc_strata2_opacity = 0.55;
+uniform float proc_strata2_scale = 0.7;
+uniform vec2 proc_strata2_stretch = vec2(2.2, 1.0);
+uniform vec2 proc_strata2_wind = vec2(-0.6, 0.2);
+uniform float proc_strata2_lift = 0.9;
+uniform float proc_strata2_coverage = 0.6;
+uniform float proc_strata2_bands = 3.0;
+uniform float proc_strata2_fade_start = 0.08;
+uniform float proc_strata2_fade_height = 0.4;
 
 // Panorama colour with the symmetric seam blend (imperfect authored
 // panorama edges made continuous).
@@ -261,6 +280,14 @@ void sky() {
 			float below = smoothstep(0.0, max(proc_sea_horizon_fade, 0.001), -eyedir.y);
 			pcol = mix(pcol, proc_sea_color_near.rgb, below);
 			pcol = mix(pcol, proc_sea_color_far.rgb, smoothstep(0.0, 1.0, -eyedir.y) * below);
+			// Background pass only: the layered cel cloud sea (noise taps). The
+			// radiance pass keeps the flat placeholder above.
+			if (!AT_CUBEMAP_PASS) {
+				pcol = procedural_sea_color(noise_tex, eyedir, sun_dir, TIME, proc_sea_params, proc_sea_heights,
+					proc_sea_wind, proc_sea_coverage, proc_sea_softness, proc_sea_band_edge, proc_sea_horizon_fade,
+					proc_sea_color_near.rgb, proc_sea_color_far.rgb, cloud_shadow_color, cloud_mid_color,
+					cloud_lit_color, cloud_rim_color, pcol);
+			}
 		}
 		float sun_side = pow(max(cos_angle, 0.0), max(proc_horizon_glow_sun_bias, 0.001));
 		float glow = (1.0 - smoothstep(0.0, max(proc_horizon_glow_width, 0.001), abs(eyedir.y)))
@@ -275,7 +302,7 @@ void sky() {
 
 	// Cel-banded procedural cloud layer over the panorama (background pass only).
 	if (!AT_CUBEMAP_PASS && eyedir.y > 0.0) {
-		vec2 cp = eyedir.xz / (eyedir.y + cloud_horizon_lift) * cloud_layer_scale;
+		vec2 cp = eyedir.xz / (eyedir.y + cloud_horizon_lift) * cloud_layer_scale * mix(1.0, proc_strata_scale, clamp(procedural_sea_mix, 0.0, 1.0));
 		vec2 drift = cloud_wind * cloud_wind_speed * TIME;
 		vec2 cwarp = (vec2(
 			texture(noise_tex, cp * 0.5 + drift * 0.6 + vec2(0.3, 0.7)).r,
@@ -294,10 +321,32 @@ void sky() {
 		vec3 ccol = cel_ramp(cloud_shadow_color, cloud_mid_color, cloud_lit_color, qs);
 		float rim = (1.0 - smoothstep(0.0, cloud_rim_width, height01)) * smoothstep(0.55, 0.85, facing);
 		ccol = mix(ccol, cloud_rim_color, rim * 0.8);
-		float alpha = body * cloud_layer_opacity
+		float alpha = body * mix(cloud_layer_opacity, max(cloud_layer_opacity, proc_strata_opacity), clamp(procedural_sea_mix, 0.0, 1.0))
 			* smoothstep(cloud_fade_start, cloud_fade_height, eyedir.y)
 			* smoothstep(sun_core_angular_radius_deg, cloud_sun_clear_deg, angle_deg);
 		COLOR = mix(COLOR, ccol, alpha);
+	}
+
+	// Second, parallax upper-strata layer (procedural look only): stretched
+	// along the wind, higher virtual plane, own bands and drift. Background
+	// pass only, like the first layer.
+	if (!AT_CUBEMAP_PASS && eyedir.y > 0.0 && procedural_sea_mix > 0.0) {
+		vec2 sp = eyedir.xz / (eyedir.y + proc_strata2_lift) * proc_strata2_scale * proc_strata2_stretch;
+		vec2 sq = sp + proc_strata2_wind * cloud_wind_speed * 1.8 * TIME;
+		float sd = cloud_fbm(noise_tex, sq);
+		vec2 sun_xz = normalize(sun_dir.xz + vec2(0.0001));
+		float sd_sun = texture(noise_tex, sq + sun_xz * cloud_light_probe).r;
+		float sbody = smoothstep(proc_strata2_coverage, proc_strata2_coverage + cloud_edge_softness, sd);
+		float sh01 = clamp((sd - proc_strata2_coverage) / max(1.0 - proc_strata2_coverage, 0.001), 0.0, 1.0);
+		float sface = clamp(0.5 + (texture(noise_tex, sq).r - sd_sun) * cloud_light_contrast, 0.0, 1.0);
+		float ssun = clamp(cos_angle * 0.5 + 0.5, 0.0, 1.0);
+		float sshade = clamp(sh01 * 0.45 + sface * 0.35 + ssun * 0.35, 0.0, 1.0);
+		vec3 scol = cel_ramp(cloud_shadow_color, cloud_mid_color, cloud_lit_color,
+			cel_quantize(sshade, proc_strata2_bands, cloud_cel_edge));
+		float salpha = sbody * proc_strata2_opacity * clamp(procedural_sea_mix, 0.0, 1.0)
+			* smoothstep(proc_strata2_fade_start, proc_strata2_fade_height, eyedir.y)
+			* smoothstep(sun_core_angular_radius_deg, cloud_sun_clear_deg, angle_deg);
+		COLOR = mix(COLOR, scol * exposure, salpha);
 	}
 
 	// Bright core + soft halo, both angular falloffs around the sun direction.

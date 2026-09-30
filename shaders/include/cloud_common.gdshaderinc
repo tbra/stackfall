@@ -115,3 +115,52 @@ vec2 sun_disc(float cos_angle, float core_deg, float edge_deg, float halo_deg, f
 	float halo = cel_quantize(falloff * falloff, halo_bands, band_edge);
 	return vec2(disc, halo);
 }
+
+// Bontago-59o.16 (procedural sky P3): one plane-projected cel cloud stratum
+// seen from above (dir.y < 0). `height` is the camera height above the stratum
+// plane, so a smaller height is a nearer, faster-parallaxing sheet. Four noise
+// taps (3 for the lumps, 1 for the sun-facing probe). Returns rgb + coverage
+// alpha; `depth` must already be guarded > 0 by the caller.
+vec4 procedural_sea_stratum(sampler2D noise_tex, vec3 dir, vec2 to_sun, float depth, float time, float height,
+		float scale, vec2 drift_dir, float drift_speed, float coverage, float softness, float bands, float band_edge,
+		float probe, float contrast, vec3 shadow, vec3 mid, vec3 lit, vec3 rim_color, bool lumpy) {
+	vec2 q = dir.xz / depth * height * scale + drift_dir * drift_speed * time;
+	float d = lumpy ? cumulus_height(noise_tex, q) : cloud_fbm(noise_tex, q);
+	float d_sun = texture(noise_tex, q + to_sun * probe).r;
+	float d_here = texture(noise_tex, q).r;
+	float body = smoothstep(coverage, coverage + softness, d);
+	float height01 = clamp((d - coverage) / max(1.0 - coverage, 0.001), 0.0, 1.0);
+	float facing = clamp(0.5 + (d_here - d_sun) * contrast, 0.0, 1.0);
+	float shade = clamp(height01 * 0.55 + facing * 0.45, 0.0, 1.0);
+	vec3 col = cel_ramp(shadow, mid, lit, cel_quantize(shade, bands, band_edge));
+	float rim = (1.0 - smoothstep(0.0, 0.2, height01)) * smoothstep(0.55, 0.85, facing);
+	return vec4(mix(col, rim_color, rim * 0.6), body);
+}
+
+// Far cloud sea below the horizon for procedural_sea_mix: warm sun-lit tops,
+// violet shadowed undersides, cel banding, slow drift, two parallax strata over
+// a flat base. `dir` is the (normalised) view direction, `time` seconds.
+// Guards dir.y == 0: the projection depth is clamped and the result fades to
+// `haze` (the horizon colour) over `horizon_fade` of elevation, so no
+// infinite/NaN coordinate is ever produced. Never call it from the radiance
+// (cubemap) pass: it samples noise. `sea_params`: x far-stratum scale,
+// y near-stratum scale, z drift speed, w cel bands. `heights`: x far, y near.
+vec3 procedural_sea_color(sampler2D noise_tex, vec3 dir, vec3 sun_dir, float time, vec4 sea_params, vec2 heights,
+		vec2 wind, float coverage, float softness, float band_edge, float horizon_fade,
+		vec3 base_near, vec3 base_far, vec3 shadow, vec3 mid, vec3 lit, vec3 rim_color, vec3 haze) {
+	float depth = max(-dir.y, 0.0005);
+	float fade = 1.0 - smoothstep(0.0, max(horizon_fade, 0.001), depth);
+	vec3 col = mix(base_near, base_far, smoothstep(0.0, 1.0, depth));
+	if (fade < 0.999) {
+		vec2 to_sun = normalize(sun_dir.xz + vec2(0.0001));
+		vec4 far_s = procedural_sea_stratum(noise_tex, dir, to_sun, depth, time, heights.x, sea_params.x,
+			wind, sea_params.z, coverage, softness, sea_params.w, band_edge, 0.04, 6.0,
+			shadow, mid, lit, rim_color, false);
+		col = mix(col, far_s.rgb, far_s.a);
+		vec4 near_s = procedural_sea_stratum(noise_tex, dir, to_sun, depth, time, heights.y, sea_params.y,
+			wind * 1.7, sea_params.z * 1.6, coverage + 0.04, softness, sea_params.w, band_edge, 0.05, 7.0,
+			shadow, mid, lit, rim_color, true);
+		col = mix(col, near_s.rgb, near_s.a);
+	}
+	return mix(col, haze, fade);
+}

@@ -1,5 +1,5 @@
 extends Node
-## Bontago-59o.16 P2 evidence: captures the sky from one camera pose with the
+## Bontago-59o.16 P2/P3 evidence: captures the sky from one camera pose with the
 ## procedural look off (painted) and on. Off-screen run:
 ##   godot --path . --windowed --position 10000,10000 res://tools/screenshot_sky_procedural.tscn
 
@@ -44,4 +44,12 @@ func _capture() -> void:
 	skybox.apply_theme(skybox.theme)
 	await get_tree().create_timer(0.5).timeout
 	await _shot("procedural")
+	# Looking down at the far cloud sea (P3), painted then procedural.
+	camera.global_position += Vector3.UP * 150.0
+	camera.look_at(camera.global_position + direction + Vector3.DOWN * 0.3, Vector3.UP)
+	await _shot("procedural-down")
+	skybox.theme.sky_look_procedural = false
+	skybox.apply_theme(skybox.theme)
+	await get_tree().create_timer(0.5).timeout
+	await _shot("painted-down")
 	get_tree().quit()
