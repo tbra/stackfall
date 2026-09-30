@@ -42,6 +42,8 @@ var _saved_sky_fog_density: float
 func before_each() -> void:
 	_panel = autofree(load("res://ui/TuningPanel.tscn").instantiate())
 	add_child_autofree(_panel)
+	# Bontago-1pi.11.5: the tab UI is built lazily on open; build it up front.
+	_panel.rebuild()
 
 	_saved_gravity = _panel.physics_tuning.gravity_multiplier
 	_saved_friction = _panel.physics_tuning.block_friction
@@ -765,6 +767,7 @@ func test_selected_tab_index_persists_across_a_fresh_panel_instance() -> void:
 
 	var fresh_panel: TuningPanel = autofree(load("res://ui/TuningPanel.tscn").instantiate())
 	add_child_autofree(fresh_panel)
+	fresh_panel.rebuild()
 
 	assert_eq(
 		fresh_panel._tab_container.current_tab, target_tab,
@@ -955,3 +958,14 @@ func test_sky_tab_theme_dropdown_lists_themes_and_switches_live() -> void:
 	assert_false(_panel.apply_sky_theme_id("no_such_theme"))
 	_panel.skybox_config.theme_name = saved_name
 	_panel.sky_theme = Skybox.load_theme("sunset")
+
+
+func test_ui_is_lazy_and_freed_on_close() -> void:
+	var fresh: TuningPanel = autofree(load("res://ui/TuningPanel.tscn").instantiate())
+	add_child_autofree(fresh)
+	assert_eq(fresh.get_children().map(func(n: Node) -> String: return str(n.name) + n.get_class()), [], "No UI nodes are built while the panel has never been opened.")
+	fresh._toggle_panel()
+	assert_gt(fresh.row_count_for(fresh.physics_tuning), 0, "Opening builds the rows.")
+	fresh._toggle_panel()
+	assert_eq(fresh.get_child_count(), 0, "Closing frees the UI.")
+	assert_eq(fresh.row_count_for(fresh.physics_tuning), 0, "Closing drops the row references.")
