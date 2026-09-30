@@ -57,7 +57,7 @@ func _spawn(point: Vector2) -> int:
 	return gift_id
 
 
-func test_flight_lands_then_expires_at_exact_ten_second_boundary() -> void:
+func test_flight_lands_then_expires_at_exact_configured_life_boundary() -> void:
 	_start()
 	Match._gifts._gift_config.relocate_min_distance_m = 1000.0
 	var gift_id: int = _spawn(Vector2(0.0, 15.0))
@@ -69,7 +69,8 @@ func test_flight_lands_then_expires_at_exact_ten_second_boundary() -> void:
 	Match._gifts.tick_host(4.5)
 	assert_eq(int(Match.gift_state(gift_id)["phase"]), MatchGifts.LANDED)
 	assert_eq(float(Match.gift_state(gift_id)["landed_age"]), 0.0)
-	Match._gifts.tick_host(9.999)
+	var life_s: float = Match._gifts._gift_config.life_s
+	Match._gifts.tick_host(life_s - 0.001)
 	assert_true(Match._gifts._crates.has(gift_id))
 	Match._gifts.tick_host(0.001)
 	assert_false(Match._gifts._crates.has(gift_id))

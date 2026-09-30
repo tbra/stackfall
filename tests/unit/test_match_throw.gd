@@ -121,9 +121,25 @@ func test_throw_with_no_pending_special_is_refused_and_nothing_is_consumed() -> 
 	assert_eq(Match.held_shape(slot_id), shape_before)
 
 
-# --- REASON_OUTSIDE_TERRITORY: refused, never burned ------------------------
+# --- Held gifts waive territory (Bontago-sen.1) -------------------------------
 
-func test_throw_outside_territory_is_refused_and_the_piece_stays_held() -> void:
+func test_held_gift_throw_outside_territory_is_accepted() -> void:
+	Match.start_match(_config())
+	_run_countdown()
+	var slot_id: int = 0
+	_queue_special(slot_id)
+
+	# Slot 1's home is outside slot 0's own territory; a gift may go anywhere.
+	var reason: StringName = Match.request_throw(
+		slot_id, _home_world_position(1), 0, Quaternion.IDENTITY, Vector3(5.0, 0.0, 0.0)
+	)
+
+	assert_eq(reason, PlacementRules.REASON_OK)
+
+
+# --- Refusal (off the disk): never burned ------------------------------------
+
+func test_throw_off_the_disk_is_refused_and_the_piece_stays_held() -> void:
 	Match.start_match(_config())
 	_run_countdown()
 	var slot_id: int = 0
@@ -132,17 +148,17 @@ func test_throw_outside_territory_is_refused_and_the_piece_stays_held() -> void:
 	var shape_before: BlockShape = Match.held_shape(slot_id)
 	watch_signals(Events)
 
-	# Slot 1's home is outside slot 0's own territory.
+	var off_disk: Vector3 = _home_world_position(slot_id) + Vector3(1000.0, 0.0, 1000.0)
 	var reason: StringName = Match.request_throw(
-		slot_id, _home_world_position(1), 0, Quaternion.IDENTITY, Vector3(5.0, 0.0, 0.0)
+		slot_id, off_disk, 0, Quaternion.IDENTITY, Vector3(5.0, 0.0, 0.0)
 	)
 
-	assert_eq(reason, ThrowRules.REASON_OUTSIDE_TERRITORY)
+	assert_ne(reason, PlacementRules.REASON_OK)
 	assert_eq(_blocks_root.get_child_count(), 0, "a refused throw must never spawn, burned or otherwise.")
 	assert_eq(Match.feed_seq(slot_id), seq_before, "the piece must not be consumed")
 	assert_eq(Match.held_shape(slot_id), shape_before)
 	assert_eq(Match.pending_special_count(slot_id), 1, "a refused throw must not pop the pending special either")
-	assert_signal_emitted_with_parameters(Events, "placement_rejected", [slot_id, ThrowRules.REASON_OUTSIDE_TERRITORY])
+	assert_signal_emitted_with_parameters(Events, "placement_rejected", [slot_id, reason])
 
 	# The refusal must not have jammed anything: a real throw right after
 	# still works.

@@ -710,10 +710,14 @@ func test_sandbox_force_special_hotkey_cycles_the_roster_in_order_and_wraps_to_o
 	for expected_id: String in _EXPECTED_ROSTER_ORDER:
 		sandbox._unhandled_input(event)
 		assert_eq(sandbox.forced_special(), StringName(expected_id))
-		assert_eq(
-			(Match._gifts._pending_queues[sandbox.active_slot()] as Array)[0], StringName(expected_id),
-			"the forced special must become the active slot's next piece with no crate needed"
-		)
+		if expected_id == "glue":
+			# Bontago-sen.3: glue applies on claim as charges, not a queued piece.
+			assert_gt(Match._gifts.glue_drops_left(sandbox.active_slot()), 0, "forced glue grants charges")
+		else:
+			assert_eq(
+				(Match._gifts._pending_queues[sandbox.active_slot()] as Array)[0], StringName(expected_id),
+				"the forced special must become the active slot's next piece with no crate needed"
+			)
 		assert_eq(Match.held_special(sandbox.active_slot()), &"", "forcing leaves the current piece alone")
 
 	# One more press than the roster is long wraps back to "off".
