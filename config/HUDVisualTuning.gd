@@ -37,6 +37,11 @@ extends Resource
 ## draws at each slot's home-flag position (docs/art_mockups/
 ## 08-cel-shaded-home-beacons.png).
 @export var minimap_beacon_radius_px: float = 4.0
+## Goal beacon glyph (filled circle, distinct from the home diamonds).
+@export var minimap_goal_radius_px: float = 5.0
+@export var minimap_goal_neutral_color: Color = Color(0.85, 0.85, 0.85)
+@export var minimap_goal_contested_color: Color = Color(1.0, 0.55, 0.15)
+@export var minimap_goal_capture_width_px: float = 2.0
 @export var minimap_gift_radius_px: float = 5.0
 @export var minimap_gift_falling_color: Color = Color(1.0, 0.91, 0.35)
 @export var minimap_gift_landed_color: Color = Color(1.0, 0.69, 0.27)

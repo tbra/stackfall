@@ -63,6 +63,13 @@ var _slot_colors: PackedColorArray = PackedColorArray()
 var _home_positions: PackedVector2Array = PackedVector2Array()
 ## Host and client both expose disk-local gift positions through Match.gift_states().
 var _gift_states: Array[Dictionary] = []
+## Goal beacons (Bontago-sen.10): disk-local positions, controllers derived with
+## GoalControl.owner_at on the replicated raster (host and client agree), and
+## the shared capture progress from Events.goal_capture_progress.
+var _goal_positions: PackedVector2Array = PackedVector2Array()
+var _goal_controls: PackedInt32Array = PackedInt32Array()
+var _capture_team: int = -1
+var _capture_progress: float = 0.0
 
 ## Orthonormal camera-relative basis for the world (x, z) -> minimap (u, v)
 ## rotation (see class doc DECISION). Defaults to the identity/north-up
@@ -153,6 +160,10 @@ func set_map_def(map_def: MapDef) -> void:
 	if map_def == null:
 		_raster = null
 		_gift_states.clear()
+		_goal_positions = PackedVector2Array()
+		_goal_controls = PackedInt32Array()
+		_capture_team = -1
+		_capture_progress = 0.0
 		if _refresh_timer != null:
 			_refresh_timer.stop()
 		visible = false
@@ -184,6 +195,35 @@ func set_match_state(
 	_raster = raster
 	_slot_colors = slot_colors
 	_home_positions = home_positions
+	_refresh_goal_controls()
+
+
+## Disk-local goal flag positions for this match (ui/HUD.gd).
+func set_goal_positions(positions: PackedVector2Array) -> void:
+	if positions == _goal_positions:
+		return
+	_goal_positions = positions
+	_refresh_goal_controls()
+
+
+## Shared capture display: team -1 or progress 0 clears it.
+func set_capture(team_id: int, progress: float) -> void:
+	var clamped: float = clampf(progress, 0.0, 1.0)
+	if team_id == _capture_team and is_equal_approx(clamped, _capture_progress):
+		return
+	_capture_team = team_id
+	_capture_progress = clamped
+	if _canvas != null and _map_def != null:
+		_canvas.queue_redraw()
+
+
+func _refresh_goal_controls() -> void:
+	var controls: PackedInt32Array = GoalControl.owners(_raster, _goal_positions)
+	if controls == _goal_controls:
+		return
+	_goal_controls = controls
+	if _canvas != null and _map_def != null:
+		_canvas.queue_redraw()
 
 
 func set_gift_states(states: Array[Dictionary]) -> void:
@@ -391,7 +431,54 @@ func _on_canvas_draw() -> void:
 		return
 	_draw_disc_outline()
 	_draw_beacons()
+	_draw_goals()
 	_draw_gifts()
+
+
+## Fill colour of goal marker `index`: neutral, the holder's slot colour, or contested.
+func goal_marker_color(index: int) -> Color:
+	var control: int = _goal_controls[index] if index < _goal_controls.size() else GoalControl.NEUTRAL
+	if control == GoalControl.CONTESTED:
+		return tuning.minimap_goal_contested_color
+	if control >= 0 and control < _slot_colors.size():
+		return _slot_colors[control]
+	return tuning.minimap_goal_neutral_color
+
+
+## One entry per goal: {"pixel", "color", "control"}; also the test seam.
+func goal_marker_draw_data() -> Array[Dictionary]:
+	var markers: Array[Dictionary] = []
+	if _map_def == null or _half_extent <= 0.0:
+		return markers
+	var canvas_width: float = float(tuning.minimap_size_px)
+	if _canvas != null and _canvas.size.x > 0.0:
+		canvas_width = _canvas.size.x
+	var px_per_m: float = canvas_width / (_half_extent * 2.0)
+	for i: int in range(_goal_positions.size()):
+		markers.append({
+			"pixel": _world_to_px(_goal_positions[i], px_per_m),
+			"color": goal_marker_color(i),
+			"control": _goal_controls[i] if i < _goal_controls.size() else GoalControl.NEUTRAL,
+		})
+	return markers
+
+
+## Filled circle per goal (home beacons are diamonds), plus the capture arc.
+func _draw_goals() -> void:
+	if _canvas == null:
+		return
+	var radius: float = tuning.minimap_goal_radius_px
+	for marker: Dictionary in goal_marker_draw_data():
+		var point: Vector2 = marker["pixel"]
+		_canvas.draw_circle(point, radius + 1.0, tuning.minimap_gift_outline_color)
+		_canvas.draw_circle(point, radius, marker["color"])
+		if _capture_team >= 0 and _capture_progress > 0.0:
+			var color: Color = Color.WHITE
+			if _capture_team < _slot_colors.size():
+				color = _slot_colors[_capture_team]
+			# Clockwise from "up", like a clock hand.
+			_canvas.draw_arc(point, radius + 3.0, -PI * 0.5, -PI * 0.5 + TAU * _capture_progress, 24,
+				color, tuning.minimap_goal_capture_width_px)
 
 
 ## A falling crate has a parachute-like ring; a landed crate is a filled

@@ -529,6 +529,7 @@ func _on_territory_share_changed(shares: PackedFloat32Array) -> void:
 
 
 func _on_goal_capture_progress(team_id: int, progress: float) -> void:
+	_minimap.set_capture(team_id, progress)
 	set_capture(team_id, progress, _color_for_slot(team_id) if team_id >= 0 else Color.WHITE)
 
 
@@ -636,6 +637,7 @@ func _update_minimap() -> void:
 	for i: int in range(count):
 		var slot: PlayerSlot = match_provider.slot(i)
 		homes.append(slot.home_position if slot != null else Vector2.ZERO)
+	_minimap.set_goal_positions(map_def.goal_flag_positions(int(running_config.goal_flag_count)))
 	_minimap.set_match_state(raster, running_config.player_colors, homes)
 	_update_gift_markers()
 
