@@ -247,6 +247,34 @@ func block_for_net_id(net_id: int) -> Block:
 	return _net_id_to_block.get(net_id) as Block
 
 
+## Host Paintball conversion and client mirror converge here so influence
+## attribution and the visible material cannot diverge from Block.owner_slot.
+func convert_owner(block: Block, new_slot: int, color: Color) -> bool:
+	if not _host_authority or block == null or new_slot < 0:
+		return false
+	return _set_owner(block, new_slot, color)
+
+
+func apply_replicated_owner(net_id: int, new_slot: int, color: Color) -> bool:
+	if _host_authority or new_slot < 0:
+		return false
+	return _set_owner(block_for_net_id(net_id), new_slot, color)
+
+
+func _set_owner(block: Block, new_slot: int, color: Color) -> bool:
+	if block == null or not is_instance_valid(block):
+		return false
+	var id: int = block.get_instance_id()
+	if not _entries.has(id) or block.net_id <= 0 or block.owner_slot == new_slot:
+		return false
+	var entry: _Entry = _entries[id]
+	entry.owner_slot = new_slot
+	block.owner_slot = new_slot
+	BlockFactory.recolor(block, color)
+	Events.block_owner_changed.emit(block.net_id, new_slot)
+	return true
+
+
 func tracked_block_count() -> int:
 	return _entries.size()
 

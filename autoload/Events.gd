@@ -160,6 +160,10 @@ signal special_consumed(slot_id: int, special_id: StringName)
 ## one match; client mirrors re-emit only when accepting a newer update.
 signal glue_charges_changed(slot_id: int, charges: int, revision: int)
 
+## Paintball's host-owned block conversion. Clients emit this only after a
+## valid, new owner change by net ID; terrain ownership uses the registry.
+signal block_owner_changed(net_id: int, owner_slot: int)
+
 # --- M3a: session and transport (spec 3.4) ----------------------------------
 
 ## Net changed between OFFLINE, HOST and CLIENT. `mode` is a Net.Mode value.

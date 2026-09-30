@@ -86,6 +86,44 @@ func _place(field: Field, shape: BlockShape, slot: int) -> Block:
 	return block
 
 
+func test_owner_conversion_updates_territory_and_only_target_material() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var target: Block = _place(field, shape, 1)
+	var other: Block = _place(field, shape, 1)
+	var target_mesh: MeshInstance3D = target.get_node("BlockMesh")
+	var other_mesh: MeshInstance3D = other.get_node("BlockMesh")
+	var old_material: Material = target_mesh.material_override
+	var other_material: Material = other_mesh.material_override
+	var paint_color: Color = Color.RED
+	registry._entries[target.get_instance_id()].is_settled = true
+	assert_true(registry.convert_owner(target, 0, paint_color))
+	assert_eq(target.owner_slot, 0)
+	assert_eq(registry.influence_circles(_slots(2), _territory_tuning, _map_def)[0].slot_id, 0)
+	assert_ne(target_mesh.material_override, old_material)
+	assert_eq((target_mesh.material_override as ShaderMaterial).get_shader_parameter(&"albedo_color"), paint_color)
+	assert_eq((target.get_node("BlockOutline") as MeshInstance3D).get_instance_shader_parameter(&"tint_color"), paint_color)
+	assert_eq(other_mesh.material_override, other_material)
+	assert_false(registry.convert_owner(target, 0, paint_color), "repeat conversion does nothing")
+	var untracked: Block = autofree(Block.new())
+	assert_false(registry.convert_owner(untracked, 0, paint_color), "untracked bodies are refused")
+
+
+func test_client_owner_mirror_uses_net_id_and_refuses_unknown_or_duplicate() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	registry.set_host_authority(false)
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block: Block = _place(field, shape, 1)
+	registry.bind_net_id(block, 81)
+	assert_false(registry.apply_replicated_owner(82, 0, Color.RED))
+	assert_true(registry.apply_replicated_owner(81, 0, Color.RED))
+	assert_eq(block.owner_slot, 0)
+	assert_false(registry.apply_replicated_owner(81, 0, Color.RED))
+	assert_false(registry.convert_owner(block, 1, Color.BLUE), "client cannot author conversion")
+
+
 func test_net_ids_walk_past_the_u16_boundary_without_reuse() -> void:
 	# Bontago-mv0.1.7: the counter is monotonic and never reused within a
 	# match, so it *will* pass 65535 in a long enough match. Every id it hands

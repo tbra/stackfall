@@ -80,6 +80,7 @@ const EVENT_SPECIAL_TRIGGERED: StringName = &"special_triggered"
 ## below.
 const EVENT_SPECIAL_CONSUMED: StringName = &"special_consumed"
 const EVENT_GLUE_CHARGES: StringName = &"glue_charges_changed"
+const EVENT_BLOCK_OWNER_CHANGED: StringName = &"block_owner_changed"
 
 @export var config: NetConfig = preload("res://config/net_config.tres")
 
@@ -210,6 +211,7 @@ func _ready() -> void:
 	Events.special_triggered.connect(_on_special_triggered)
 	Events.special_consumed.connect(_on_special_consumed)
 	Events.glue_charges_changed.connect(_on_glue_charges_changed)
+	Events.block_owner_changed.connect(_on_block_owner_changed)
 	Events.block_removed.connect(_on_block_removed)
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 	Events.net_peer_left.connect(_on_net_peer_left)
@@ -1269,6 +1271,11 @@ func _on_glue_charges_changed(slot_id: int, charges: int, revision: int) -> void
 		replicate_match_event(EVENT_GLUE_CHARGES, [slot_id, charges, revision])
 
 
+func _on_block_owner_changed(net_id: int, owner_slot: int) -> void:
+	if _is_host():
+		replicate_match_event(EVENT_BLOCK_OWNER_CHANGED, [net_id, owner_slot])
+
+
 func _on_goal_capture_progress(team_id: int, progress: float) -> void:
 	_capture_team = team_id
 	_capture_progress = progress
@@ -1696,6 +1703,14 @@ func net_match_event(event: StringName, args: Array) -> void:
 			if charges < 0 or charges > 100 or revision <= 0:
 				return
 			_authority().apply_replicated_glue_charges(glue_slot, charges, revision)
+		EVENT_BLOCK_OWNER_CHANGED:
+			if _is_host() or args.size() != 2 or not args[0] is int or not args[1] is int:
+				return
+			var painted_id: int = args[0]
+			var painted_slot: int = args[1]
+			if not Quantize.is_wire_id(painted_id) or painted_slot < 0 or painted_slot >= _authority().slot_count():
+				return
+			_authority().apply_replicated_block_owner(painted_id, painted_slot)
 		_:
 			pass
 

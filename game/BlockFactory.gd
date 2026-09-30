@@ -288,6 +288,19 @@ static func _material_for_color(color: Color) -> ShaderMaterial:
 	return material
 
 
+## Ownership-changing effects swap the Block's material reference. The cached
+## material for another player's color is never mutated in place.
+static func recolor(block: Block, color: Color) -> void:
+	if block == null:
+		return
+	var material: ShaderMaterial = _material_for_color(color)
+	for child: Node in block.get_children():
+		if child is MeshInstance3D and child.name == &"BlockOutline":
+			(child as MeshInstance3D).set_instance_shader_parameter(&"tint_color", color)
+		elif child is MeshInstance3D:
+			(child as MeshInstance3D).material_override = material
+
+
 static func _outline_material_singleton() -> ShaderMaterial:
 	if _outline_material == null:
 		var material: ShaderMaterial = ShaderMaterial.new()

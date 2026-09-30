@@ -1361,6 +1361,28 @@ func test_a_short_special_trigger_args_array_is_dropped_not_applied() -> void:
 # --- Bontago-1en.21: EVENT_SPECIAL_CONSUMED replication ---------------------
 
 
+func test_paintball_owner_event_mirrors_only_valid_known_block() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	var net: MatchNetScript = _make_net({}, [1], true)
+	_registry.set_host_authority(false)
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block: Block = BlockFactory.build(shape, load("res://config/physics_tuning.tres"), 1, Match.slot(1).color)
+	_blocks_root.add_child(block)
+	Events.block_placed.emit(block, shape.id)
+	_registry.bind_net_id(block, 91)
+	watch_signals(Events)
+	for payload: Array in [[92, 0], [91], [91, "0"], [-1, 0], [91, 99]]:
+		net.net_match_event(MatchNetScript.EVENT_BLOCK_OWNER_CHANGED, payload)
+	assert_eq(block.owner_slot, 1)
+	assert_eq(get_signal_emit_count(Events, "block_owner_changed"), 0)
+	net.net_match_event(MatchNetScript.EVENT_BLOCK_OWNER_CHANGED, [91, 0])
+	assert_eq(block.owner_slot, 0)
+	assert_eq(get_signal_emit_count(Events, "block_owner_changed"), 1)
+	net.net_match_event(MatchNetScript.EVENT_BLOCK_OWNER_CHANGED, [91, 0])
+	assert_eq(get_signal_emit_count(Events, "block_owner_changed"), 1)
+
+
 func test_glue_charge_mirror_accepts_only_new_valid_absolute_updates() -> void:
 	Match.set_net_provider(FakeNet.host({}, [0, 1]))
 	_start_playing()

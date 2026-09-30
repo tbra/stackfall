@@ -37,6 +37,11 @@ the environment supports `user://` writes. Physics benchmarks run alone.
    conversion by block net ID, validating repeats and unknown IDs. Ownership:
    new projectile/effect, `Block`, `BlockRegistry`, `BlockFactory`, `MatchNet`
    and focused paintball/net tests. Avoid mutating a shared color material.
+   The shipped gift uses the normal thrown special block as the glob. Its
+   impact or six-second fuse splashes a 3.5 m collider radius. Each peer shows
+   a short owner-colored splash from the existing special-trigger event;
+   conversions travel as reliable net-ID owner updates. Already-owned,
+   unknown and repeated updates leave the block unchanged.
 4. **Stackfall (`Bontago-22y.1`):** The host drops a bounded, seeded rain of
    ordinary blocks in the activating player's color through the normal
    `BlockFactory`/registry/snapshot path. Ownership: new effect, placement

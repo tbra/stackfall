@@ -127,6 +127,19 @@ func _ready() -> void:
 	_stats.setup(self)
 	_weather.setup(self)
 	Events.feed_block_issued.connect(_on_feed_block_issued)
+	Events.special_triggered.connect(_on_paintball_triggered)
+
+
+func _on_paintball_triggered(net_id: int, def_id: StringName, position: Vector3, _chain_depth: int) -> void:
+	if def_id != &"paintball" or blocks_parent() == null or registry() == null:
+		return
+	var glob: Block = _registry.block_for_net_id(net_id)
+	if glob == null or glob.owner_slot < 0 or glob.owner_slot >= slot_count():
+		return
+	var splash: PaintballSplash = PaintballSplash.new()
+	_blocks_parent.add_child(splash)
+	splash.global_position = position
+	splash.setup(slot(glob.owner_slot).color)
 
 
 # --- Test/debug seams (Bontago-split.1) --------------------------------------
@@ -224,6 +237,18 @@ func register_world(field: Field, registry: Node, blocks_parent: Node3D) -> void
 ## rules go through request_place().
 func registry() -> BlockRegistry:
 	return _registry if is_instance_valid(_registry) else null
+
+
+func convert_block_owner(block: Block, new_slot: int) -> bool:
+	if not _is_host() or block == null or new_slot < 0 or new_slot >= slot_count() or registry() == null:
+		return false
+	return _registry.convert_owner(block, new_slot, slot(new_slot).color)
+
+
+func apply_replicated_block_owner(net_id: int, new_slot: int) -> bool:
+	if _is_host() or new_slot < 0 or new_slot >= slot_count() or registry() == null:
+		return false
+	return _registry.apply_replicated_owner(net_id, new_slot, slot(new_slot).color)
 
 
 func blocks_parent() -> Node3D:
