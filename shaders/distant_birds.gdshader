@@ -12,7 +12,7 @@ render_mode unshaded, cull_disabled, skip_vertex_transform, shadows_disabled, fo
 //   MODEL_MATRIX[2]          = (duration s, sway amplitude m, flock phase rad)
 //   INSTANCE_CUSTOM          = (start clock, bird seed 0..1, size m, flap-rate mult)
 // A bird outside [start, start + duration] collapses to a point (not drawn).
-// The mesh is a flat V in the XZ plane, nose toward +X; UV.x is 0 at the body
+// The mesh is a bird silhouette (body, tail fan, swept wings) in the XZ plane, nose toward +X; UV.x is 0 at the body
 // and 1 at the wing tips, so the tips flap and the body stays put.
 
 // Bontago-470.3: weather fog for a fog_disabled shader (see

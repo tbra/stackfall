@@ -193,3 +193,28 @@ func test_live_theme_switch_is_stable_and_matches_the_theme() -> void:
 	assert_eq(environment.sky.sky_material, sunset.sky_material)
 	assert_false(skybox.set_theme_by_id("no_such_theme"))
 	skybox.config.theme_name = saved_theme_name
+
+
+func test_bird_mesh_has_a_body_and_two_flapping_swept_wings() -> void:
+	var mesh: ArrayMesh = DistantBirds.build_bird_mesh()
+	var arrays: Array = mesh.surface_get_arrays(0)
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
+	assert_eq(vertices.size(), uvs.size())
+	assert_gt(vertices.size(), 12, "more than the old 6-vertex triangle pair")
+	var max_z: float = 0.0
+	var min_z: float = 0.0
+	var body_vertices: int = 0
+	var tip_flap: float = 0.0
+	for i: int in range(vertices.size()):
+		max_z = maxf(max_z, vertices[i].z)
+		min_z = minf(min_z, vertices[i].z)
+		if uvs[i].x == 0.0:
+			body_vertices += 1
+		if absf(vertices[i].z) >= DistantBirds.HALF_SPAN - 0.001:
+			tip_flap = maxf(tip_flap, uvs[i].x)
+			assert_lt(vertices[i].x, 0.0, "wing tips sweep back behind the body centre")
+	assert_almost_eq(max_z, DistantBirds.HALF_SPAN, 0.001)
+	assert_almost_eq(min_z, -DistantBirds.HALF_SPAN, 0.001)
+	assert_almost_eq(tip_flap, 1.0, 0.001)
+	assert_gt(body_vertices, 8, "body vertices stay put (flap weight 0)")

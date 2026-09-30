@@ -21,10 +21,26 @@ const CLOCK_PARAMETER: StringName = &"flight_clock"
 const PARKED_START: float = 1.0e9
 ## Wing half-span in mesh units (the instance size is the bird size in m).
 const HALF_SPAN: float = 1.0
-const BODY_LENGTH_FRONT: float = 0.55
-const BODY_LENGTH_BACK: float = 0.4
-const WING_ROOT_X: float = 0.1
-const WING_TIP_X: float = -0.25
+## Wing outline along the span (fractions of HALF_SPAN, root to tip): x of the
+## leading and trailing edge at each station. The wing sweeps back and tapers
+## to a pointed tip, so a bird reads as a bird, not a triangle.
+const WING_STATIONS: PackedFloat32Array = [0.0, 0.25, 0.5, 0.75, 1.0]
+const WING_LEADING_X: PackedFloat32Array = [0.3, 0.24, 0.08, -0.2, -0.55]
+const WING_TRAILING_X: PackedFloat32Array = [-0.3, -0.3, -0.34, -0.44, -0.72]
+## UV.x (flap weight) = station^this: the inner wing barely moves, the tip
+## swings most, so the wing bends like an arm rather than hinging flat.
+const WING_FLAP_CURVE: float = 1.6
+## Body rings (x, half-width, top y, bottom y) nose to tail, then the nose and
+## tail-tip x, and the tail fan (x of its end, half-width there).
+const BODY_RINGS: Array[Vector4] = [
+	Vector4(0.45, 0.075, 0.09, -0.07),
+	Vector4(0.05, 0.11, 0.14, -0.12),
+	Vector4(-0.35, 0.06, 0.07, -0.05),
+]
+const BODY_NOSE_X: float = 0.78
+const BODY_TAIL_X: float = -0.5
+const TAIL_FAN_END_X: float = -1.0
+const TAIL_FAN_HALF_WIDTH: float = 0.22
 ## Per-bird flap-rate multiplier range.
 const FLAP_RATE_MIN: float = 0.9
 const FLAP_RATE_MAX: float = 1.12
@@ -172,21 +188,54 @@ static func _park(multimesh: MultiMesh, index: int) -> void:
 	multimesh.set_instance_custom_data(index, Color(PARKED_START, 0.0, 1.0, 1.0))
 
 
-## A flat V: nose, tail and two wing tips. UV.x = 0 on the body, 1 at the tips.
+## Bird silhouette: a spindle body with head and tail fan, and two swept,
+## tapering wings that flap. UV.x = 0 on the body, rising to 1 at the wing tips
+## (the shader flaps by UV.x). Double-sided in the shader, so winding is free.
 static func build_bird_mesh() -> ArrayMesh:
-	var vertices: PackedVector3Array = PackedVector3Array([
-		Vector3(BODY_LENGTH_FRONT, 0.0, 0.0),
-		Vector3(-BODY_LENGTH_BACK, 0.0, 0.0),
-		Vector3(WING_ROOT_X, 0.0, -HALF_SPAN),
-		Vector3(WING_ROOT_X, 0.0, HALF_SPAN),
-		Vector3(WING_TIP_X, 0.0, -HALF_SPAN),
-		Vector3(WING_TIP_X, 0.0, HALF_SPAN),
-	])
-	var uvs: PackedVector2Array = PackedVector2Array([
-		Vector2.ZERO, Vector2.ZERO, Vector2.ONE, Vector2.ONE, Vector2.ONE, Vector2.ONE,
-	])
-	# Left wing: nose-tip_root-tail; right wing mirrored. Tips use UV.x = 1.
-	var indices: PackedInt32Array = PackedInt32Array([0, 2, 1, 0, 1, 3, 2, 4, 1, 3, 1, 5])
+	var vertices: PackedVector3Array = PackedVector3Array()
+	var uvs: PackedVector2Array = PackedVector2Array()
+	var indices: PackedInt32Array = PackedInt32Array()
+	# Body: rings of (top, bottom, left, right) plus nose and tail-tip points.
+	var nose: int = _add_vertex(vertices, uvs, Vector3(BODY_NOSE_X, 0.0, 0.0), 0.0)
+	var rings: Array[PackedInt32Array] = []
+	for ring: Vector4 in BODY_RINGS:
+		rings.append(PackedInt32Array([
+			_add_vertex(vertices, uvs, Vector3(ring.x, ring.z, 0.0), 0.0),
+			_add_vertex(vertices, uvs, Vector3(ring.x, ring.w, 0.0), 0.0),
+			_add_vertex(vertices, uvs, Vector3(ring.x, 0.0, -ring.y), 0.0),
+			_add_vertex(vertices, uvs, Vector3(ring.x, 0.0, ring.y), 0.0),
+		]))
+	var tail_tip: int = _add_vertex(vertices, uvs, Vector3(BODY_TAIL_X, 0.0, 0.0), 0.0)
+	# Ring order around the body: top, left, bottom, right.
+	var around: PackedInt32Array = PackedInt32Array([0, 2, 1, 3])
+	for k: int in range(4):
+		var a: int = around[k]
+		var b: int = around[(k + 1) % 4]
+		indices.append_array(PackedInt32Array([nose, rings[0][a], rings[0][b]]))
+		for r: int in range(rings.size() - 1):
+			_add_quad(indices, rings[r][a], rings[r][b], rings[r + 1][a], rings[r + 1][b])
+		indices.append_array(PackedInt32Array([tail_tip, rings[rings.size() - 1][b], rings[rings.size() - 1][a]]))
+	# Tail fan: flat, from the last ring's width out to the fan end.
+	var last: Vector4 = BODY_RINGS[BODY_RINGS.size() - 1]
+	var fan_root_l: int = _add_vertex(vertices, uvs, Vector3(last.x, 0.0, -last.y), 0.0)
+	var fan_root_r: int = _add_vertex(vertices, uvs, Vector3(last.x, 0.0, last.y), 0.0)
+	var fan_end_l: int = _add_vertex(vertices, uvs, Vector3(TAIL_FAN_END_X, 0.0, -TAIL_FAN_HALF_WIDTH), 0.0)
+	var fan_end_r: int = _add_vertex(vertices, uvs, Vector3(TAIL_FAN_END_X, 0.0, TAIL_FAN_HALF_WIDTH), 0.0)
+	_add_quad(indices, fan_root_l, fan_root_r, fan_end_l, fan_end_r)
+	# Wings: a strip of quads per side; the root stations sit on the body.
+	for side: float in [-1.0, 1.0]:
+		var previous_lead: int = -1
+		var previous_trail: int = -1
+		for station: int in range(WING_STATIONS.size()):
+			var t: float = WING_STATIONS[station]
+			var flap: float = pow(t, WING_FLAP_CURVE)
+			var z: float = side * t * HALF_SPAN
+			var lead: int = _add_vertex(vertices, uvs, Vector3(WING_LEADING_X[station], 0.0, z), flap)
+			var trail: int = _add_vertex(vertices, uvs, Vector3(WING_TRAILING_X[station], 0.0, z), flap)
+			if previous_lead >= 0:
+				_add_quad(indices, previous_lead, previous_trail, lead, trail)
+			previous_lead = lead
+			previous_trail = trail
 	var arrays: Array = []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = vertices
@@ -195,6 +244,17 @@ static func build_bird_mesh() -> ArrayMesh:
 	var mesh: ArrayMesh = ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
+
+
+static func _add_vertex(vertices: PackedVector3Array, uvs: PackedVector2Array, at: Vector3, flap: float) -> int:
+	vertices.append(at)
+	uvs.append(Vector2(flap, 0.0))
+	return vertices.size() - 1
+
+
+## Quad a-b (one edge) to c-d (the next edge), as two triangles.
+static func _add_quad(indices: PackedInt32Array, a: int, b: int, c: int, d: int) -> void:
+	indices.append_array(PackedInt32Array([a, b, c, b, d, c]))
 
 
 ## Weather fog changed (vfx/weather/WeatherFogShader.gd).
