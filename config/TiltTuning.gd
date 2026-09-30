@@ -171,6 +171,18 @@ extends Resource
 @export var tilt_settle_relative_epsilon: float = 0.01
 @export var tilt_settle_floor_rad: float = 0.0001
 
+## Bontago-b0w rest deadband. Once |_tilt_velocity| < rest_velocity_rad_s and the
+## error toward the spring's target is < rest_position_rad for rest_hold_s, Field
+## zeroes the velocity and stops writing its transform (the kinematic disc is truly
+## static, so blocks on it can sleep). It wakes only when the target moves more than
+## rest_wake_position_rad from the tilt (hysteresis: wake > rest) or on an impulse.
+## Defaults: 0.0002 rad = 0.011 deg (2 mm at the 10 m rim), 0.0012 rad/s = 0.07 deg/s,
+## wake 0.0006 rad = 0.034 deg. All far below any visible tilt motion.
+@export var rest_velocity_rad_s: float = 0.0012
+@export var rest_position_rad: float = 0.0002
+@export var rest_wake_position_rad: float = 0.0006
+@export var rest_hold_s: float = 0.5
+
 ## DECISION (config/TiltTuning.gd, Bontago M4 P0b): "critically damped" fixes
 ## the damping ratio (zeta = 1) but return_time_constant_s alone doesn't by
 ## itself fix a natural frequency unless a convention is picked for what

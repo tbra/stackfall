@@ -537,3 +537,23 @@ func test_physical_balance_is_still_clamped_at_max_tilt_deg() -> void:
 		rad_to_deg(field.tilt_vector().length()), field.tilt_tuning.max_tilt_deg + 0.001,
 		"PHYSICAL_BALANCE's continuous torque forcing still cannot exceed max_tilt_deg"
 	)
+
+
+## Bontago-b0w: a tilt that has come to rest stops writing the kinematic
+## transform (so blocks on it can sleep) and an impulse wakes it again.
+func test_rest_deadband_stops_transform_writes_and_an_impulse_wakes_it() -> void:
+	var field: Field = _make_field()
+	field.set_tilt_enabled(true)
+	field.apply_tilt_impulse(Vector2.RIGHT, 0.02)
+	for _i: int in range(60 * 40):
+		field._update_tilt(TICK)
+	assert_true(field._tilt_at_rest, "fixture: the decayed disc is at rest")
+	var resting: Transform3D = field.transform
+	for _i: int in range(60):
+		field._update_tilt(TICK)
+	assert_eq(field.transform, resting, "no writes while at rest")
+	field.apply_tilt_impulse(Vector2.RIGHT, 0.02)
+	assert_false(field._tilt_at_rest, "an impulse wakes the disc")
+	for _i: int in range(10):
+		field._update_tilt(TICK)
+	assert_ne(field.tilt_vector(), Vector2.ZERO, "the woken disc moves again")
