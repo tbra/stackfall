@@ -1,8 +1,8 @@
 extends GutTest
 ## Wind weather (Bontago-22y.4): the pure height/gust/direction rules
-## (core/WindField.gd), the host effect (autoload/match/WindEffect.gd) against
+## (core/WindField.gd), the host effect (autoload/match/StormEffect.gd) against
 ## real Jolt bodies, and the client presentation. Wind's shipped numbers come
-## from config/weather/wind.tres.
+## from config/weather/storm.tres.
 
 const DELTA: float = 1.0 / 60.0
 const TOWER_CUBES: int = 14
@@ -14,13 +14,13 @@ const STAY_DISPLACEMENT_M: float = 0.5
 const SEED_A: int = 12345
 const SEED_B: int = 987654
 
-var _tuning: WindTuning = null
+var _tuning: StormTuning = null
 var _blocks: Array[Block] = []
 var _root: Node3D = null
 
 
 func before_each() -> void:
-	_tuning = load("res://config/weather/wind.tres") as WindTuning
+	_tuning = load("res://config/weather/storm.tres") as StormTuning
 	_blocks.clear()
 	_root = Node3D.new()
 	add_child_autofree(_root)
@@ -35,8 +35,8 @@ func after_each() -> void:
 	await get_tree().process_frame
 
 
-func _effect(seed_value: int = SEED_A) -> WindEffect:
-	var effect: WindEffect = WindEffect.new()
+func _effect(seed_value: int = SEED_A) -> StormEffect:
+	var effect: StormEffect = StormEffect.new()
 	effect.tuning = _tuning
 	effect.set_seed(seed_value)
 	effect.set_test_world(func() -> Array: return _blocks, func() -> float: return 0.0)
@@ -76,7 +76,7 @@ func _tower(count: int, x: float) -> Array[Block]:
 	return built
 
 
-func _run_wind(effect: WindEffect, seconds: float, intensity: float = 1.0) -> void:
+func _run_wind(effect: StormEffect, seconds: float, intensity: float = 1.0) -> void:
 	for _i: int in range(int(seconds * 60.0)):
 		effect.tick(DELTA, intensity)
 		await get_tree().physics_frame
@@ -103,7 +103,7 @@ func test_accel_scales_with_intensity_and_clamps_per_tick() -> void:
 	var half: float = WindField.accel_at(_tuning.cap_height_m, 0.25, 1.0, DELTA, _tuning)
 	assert_almost_eq(half, full * 0.5, 0.0001)
 	assert_lte(WindField.accel_at(_tuning.cap_height_m, 1.0, 1.0, DELTA, _tuning) * DELTA, _tuning.max_dv_per_tick + 0.0001)
-	var strong: WindTuning = _tuning.duplicate() as WindTuning
+	var strong: StormTuning = _tuning.duplicate() as StormTuning
 	strong.max_accel = 1000.0
 	assert_almost_eq(WindField.accel_at(strong.cap_height_m, 1.0, 1.0, DELTA, strong) * DELTA, strong.max_dv_per_tick, 0.0001)
 
@@ -137,7 +137,7 @@ func test_direction_is_drawn_per_event_and_replicated() -> void:
 	var host: MatchWeather = MatchWeather.new()
 	host.set_host_override(true)
 	host.set_defs([_tuning] as Array[WeatherTuning])
-	assert_true(host.start_event(&"wind"))
+	assert_true(host.start_event(&"storm"))
 	var state: Dictionary = host.state_dict()
 	assert_eq(int(state["ev"]), 1)
 	var client: MatchWeather = MatchWeather.new()
@@ -155,7 +155,7 @@ func test_blocks_owning_their_physics_are_skipped() -> void:
 	special.add_child(SpecialBehavior.new())
 	var glued: Block = _floating_block(_tuning.cap_height_m + 2.0)
 	glued.add_child(GlueJoint.new())
-	var effect: WindEffect = _effect()
+	var effect: StormEffect = _effect()
 	effect.tick(DELTA, 1.0)
 	assert_eq(effect.last_pushed, 0)
 	special.get_child(special.get_child_count() - 1).queue_free()
@@ -169,7 +169,7 @@ func test_blocks_owning_their_physics_are_skipped() -> void:
 func test_only_blocks_above_threshold_are_pushed() -> void:
 	var low: Block = _floating_block(_tuning.threshold_height_m - 0.5)
 	var high: Block = _floating_block(_tuning.cap_height_m + 2.0)
-	var effect: WindEffect = _effect()
+	var effect: StormEffect = _effect()
 	await _run_wind(effect, 0.5)
 	assert_almost_eq(low.linear_velocity.length(), 0.0, 0.001, "below the threshold nothing moves")
 	assert_gt(high.linear_velocity.length(), 0.1, "above the cap the block is pushed")
@@ -178,7 +178,7 @@ func test_only_blocks_above_threshold_are_pushed() -> void:
 
 func test_speed_and_velocity_change_are_clamped() -> void:
 	var high: Block = _floating_block(_tuning.cap_height_m + 5.0)
-	var effect: WindEffect = _effect()
+	var effect: StormEffect = _effect()
 	var widest_step: float = 0.0
 	var previous: Vector3 = Vector3.ZERO
 	for _i: int in range(60 * 6):
@@ -198,7 +198,7 @@ func test_sleeping_blocks_wake_only_above_the_wake_threshold() -> void:
 	await get_tree().physics_frame
 	gentle.sleeping = true
 	strong.sleeping = true
-	var effect: WindEffect = _effect()
+	var effect: StormEffect = _effect()
 	await _run_wind(effect, 0.5)
 	assert_true(gentle.sleeping, "a gentle push leaves a sleeper asleep")
 	assert_false(strong.sleeping, "a strong push wakes it")
@@ -208,7 +208,7 @@ func test_sleepers_are_a_rotating_subset() -> void:
 	var sleeper: Block = _floating_block(_tuning.cap_height_m + 2.0)
 	await get_tree().physics_frame
 	sleeper.sleeping = true
-	var effect: WindEffect = _effect()
+	var effect: StormEffect = _effect()
 	var pushed_ticks: int = 0
 	var awake_pushes: int = 0
 	for _i: int in range(_tuning.sleeper_stride_ticks):
@@ -226,7 +226,7 @@ func test_sleepers_are_a_rotating_subset() -> void:
 func test_frozen_blocks_are_never_pushed() -> void:
 	var frozen: Block = _floating_block(_tuning.cap_height_m + 2.0)
 	frozen.request_freeze_static(Block.FREEZE_REASON_STABLE)
-	var effect: WindEffect = _effect()
+	var effect: StormEffect = _effect()
 	effect.tick(DELTA, 1.0)
 	assert_eq(effect.last_pushed, 0)
 
@@ -235,7 +235,7 @@ func test_clients_never_apply_physics() -> void:
 	var high: Block = _floating_block(_tuning.cap_height_m + 2.0)
 	# A client has no host authority: an effect with no host seam and no
 	# authoritative Match never pushes, even given blocks to push.
-	var effect: WindEffect = WindEffect.new()
+	var effect: StormEffect = StormEffect.new()
 	effect.tuning = _tuning
 	effect._blocks_source = func() -> Array: return _blocks
 	effect._surface_source = func() -> float: return 0.0
@@ -247,7 +247,7 @@ func test_clients_never_apply_physics() -> void:
 
 func test_stop_leaves_no_force() -> void:
 	var high: Block = _floating_block(_tuning.cap_height_m + 2.0)
-	var effect: WindEffect = _effect()
+	var effect: StormEffect = _effect()
 	await _run_wind(effect, 0.5)
 	effect.restore()
 	effect.restore()
@@ -261,17 +261,17 @@ func test_stop_leaves_no_force() -> void:
 
 func test_zero_intensity_pushes_nothing() -> void:
 	_floating_block(_tuning.cap_height_m + 2.0)
-	var effect: WindEffect = _effect()
+	var effect: StormEffect = _effect()
 	effect.tick(DELTA, 0.0)
 	assert_eq(effect.last_pushed, 0)
 
 
 func test_match_weather_builds_wind_effect_from_the_shipped_def() -> void:
-	var def: WeatherTuning = load("res://config/weather/wind.tres") as WeatherTuning
-	assert_true(def is WindTuning)
-	assert_eq(def.id, &"wind")
+	var def: WeatherTuning = load("res://config/weather/storm.tres") as WeatherTuning
+	assert_true(def is StormTuning)
+	assert_eq(def.id, &"storm")
 	var effect: WeatherEffect = (load(def.effect_script) as Script).new() as WeatherEffect
-	assert_true(effect is WindEffect)
+	assert_true(effect is StormEffect)
 
 
 func test_tall_thin_tower_topples_at_full_intensity() -> void:
@@ -281,7 +281,7 @@ func test_tall_thin_tower_topples_at_full_intensity() -> void:
 		await get_tree().physics_frame
 	var top: Block = tower[TOWER_CUBES - 1]
 	var start: Vector3 = top.global_position
-	var effect: WindEffect = _effect()
+	var effect: StormEffect = _effect()
 	var moved: float = 0.0
 	var lowest: float = start.y
 	for _i: int in range(int(RUN_SECONDS * 60.0)):
@@ -305,7 +305,7 @@ func test_low_pile_stays_at_full_intensity() -> void:
 		await get_tree().physics_frame
 	var top: Block = pile[LOW_PILE_CUBES - 1]
 	var start: Vector3 = top.global_position
-	var effect: WindEffect = _effect()
+	var effect: StormEffect = _effect()
 	await _run_wind(effect, RUN_SECONDS)
 	assert_lt(top.global_position.distance_to(start), STAY_DISPLACEMENT_M, "a 2-high pile is not swept")
 
@@ -313,7 +313,7 @@ func test_low_pile_stays_at_full_intensity() -> void:
 # --- Presentation -------------------------------------------------------------------
 
 func test_presentation_density_follows_intensity_and_never_touches_physics() -> void:
-	var presentation: WindPresentation = WindPresentation.new()
+	var presentation: StormPresentation = StormPresentation.new()
 	add_child_autofree(presentation)
 	presentation.configure(SEED_A)
 	assert_eq(presentation.total_instances(), _tuning.streak_count + _tuning.mote_count)
@@ -328,7 +328,7 @@ func test_presentation_density_follows_intensity_and_never_touches_physics() -> 
 
 
 func test_presentation_heading_matches_the_host_field() -> void:
-	var presentation: WindPresentation = WindPresentation.new()
+	var presentation: StormPresentation = StormPresentation.new()
 	add_child_autofree(presentation)
 	presentation.configure(SEED_A)
 	assert_eq(presentation.heading(), WindField.direction(SEED_A, 0.0, _tuning))

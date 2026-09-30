@@ -10,6 +10,10 @@ extends Resource
 
 ## Calm seconds before the first event of a match.
 @export var first_delay_s: float = 45.0
+## Constant mode (a type picked in the lobby, or RANDOM): calm seconds before
+## that weather ramps in for the rest of the match. It then holds at full
+## intensity with no calm gaps.
+@export var constant_start_delay_s: float = 8.0
 ## Calm gap between one event finishing its ramp-out and the next starting,
 ## drawn uniformly from this range by the host's seeded schedule.
 @export var gap_min_s: float = 60.0

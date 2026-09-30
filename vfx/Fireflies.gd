@@ -56,6 +56,8 @@ func configure(life: AmbientLifeConfig, enabled: bool, radius_m: float = 30.0) -
 	_material = ShaderMaterial.new()
 	_material.shader = SHADER
 	_apply_uniforms()
+	add_to_group(WeatherFogShader.GROUP)
+	WeatherFogShader.apply(_material)
 	_instance = MultiMeshInstance3D.new()
 	_instance.name = "Motes"
 	_instance.multimesh = multimesh
@@ -78,6 +80,11 @@ func _process(_delta: float) -> void:
 
 func mote_instance() -> MultiMeshInstance3D:
 	return _instance
+
+
+## Weather fog changed (vfx/weather/WeatherFogShader.gd).
+func refresh_weather_fog() -> void:
+	WeatherFogShader.apply(_material)
 
 
 func _apply_uniforms() -> void:

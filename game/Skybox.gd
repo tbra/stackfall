@@ -187,6 +187,25 @@ var _overcast_theme: SkyThemeDef = null
 ## them. material -> its baseline exposure, so amount 0 restores exactly.
 const SKY_EXPOSURE_UNIFORM: StringName = &"exposure"
 var _overcast_sky_bases: Dictionary = {}
+## Weather fog (Bontago-470.3), presentation only. DECISION (Skybox.gd): same
+## ownership pattern as the overcast above -- set_weather_fog() stores the
+## request and _apply_overcast() (which apply_theme() ends with) re-derives the
+## Environment's fog (DEPTH mode from a begin distance) and a further fog tint;
+## the fog mode/range baseline is the Environment's own, captured lazily. Amount 0 is
+## exactly the theme (and the untouched height fog) again, and a live theme
+## switch in fog re-bases on the new theme.
+var _wfog_amount: float = 0.0
+var _wfog_max_opacity: float = 0.0
+var _wfog_depth_begin_m: float = 0.0
+var _wfog_depth_end_m: float = 0.0
+var _wfog_tint: Color = Color.WHITE
+var _wfog_tint_strength: float = 0.0
+var _wfog_sky_affect_add: float = 0.0
+var _wfog_base_captured: bool = false
+var _wfog_base_mode: int = 0
+var _wfog_base_begin: float = 0.0
+var _wfog_base_end: float = 0.0
+var _wfog_base_curve: float = 1.0
 
 ## Bontago-xtq.22: the id apply_set()/list_available_sets() use for "no
 ## textured set -- keep the procedural sky", i.e. the empty string. Matches
@@ -883,6 +902,31 @@ func overcast_amount() -> float:
 	return _overcast_amount
 
 
+## Weather fog (Bontago-470.3): `amount` 0..1 switches the Environment to DEPTH
+## fog that starts `depth_begin_m` from the camera (so nearby blocks keep their
+## full colour) and reaches `max_opacity * amount` at `depth_end_m`, tints the
+## fog toward `tint` and lets it wash the sky/horizon by `sky_affect_add` more.
+## Amount 0 restores the theme (and its own fog mode) exactly.
+func set_weather_fog(amount: float, max_opacity: float, depth_begin_m: float, depth_end_m: float, tint: Color, tint_strength: float, sky_affect_add: float = 0.0) -> void:
+	_wfog_amount = clampf(amount, 0.0, 1.0)
+	_wfog_max_opacity = max_opacity
+	_wfog_depth_begin_m = depth_begin_m
+	_wfog_depth_end_m = depth_end_m
+	_wfog_tint = tint
+	_wfog_tint_strength = tint_strength
+	_wfog_sky_affect_add = sky_affect_add
+	_apply_overcast(_overcast_theme if _overcast_theme != null else theme)
+
+
+## The fog colour currently in the Environment (the disc's own fog uses it).
+func weather_fog_color() -> Color:
+	return environment.fog_light_color if environment != null else _wfog_tint
+
+
+func weather_fog_amount() -> float:
+	return _wfog_amount
+
+
 func _apply_overcast(applied_theme: SkyThemeDef) -> void:
 	if applied_theme == null or environment == null:
 		return
@@ -895,7 +939,9 @@ func _apply_overcast(applied_theme: SkyThemeDef) -> void:
 	_apply_sky_exposure(amount)
 	var tint: float = _overcast_fog_tint_strength * amount
 	var fog_color: Color = applied_theme.fog_color.lerp(_overcast_fog_tint, tint)
+	fog_color = fog_color.lerp(_wfog_tint, _wfog_tint_strength * _wfog_amount)
 	environment.fog_light_color = fog_color
+	_apply_weather_fog(applied_theme)
 	var fog_material: FogMaterial = _fog_volume.material as FogMaterial if _fog_volume != null else null
 	if fog_material != null:
 		fog_material.albedo = fog_color
@@ -904,6 +950,30 @@ func _apply_overcast(applied_theme: SkyThemeDef) -> void:
 	var light: DirectionalLight3D = get_node_or_null(light_path) as DirectionalLight3D
 	if light != null:
 		light.light_energy = applied_theme.light_energy * lerpf(1.0, _overcast_light_scale, amount)
+
+
+func _apply_weather_fog(applied_theme: SkyThemeDef) -> void:
+	if not _wfog_base_captured:
+		_wfog_base_captured = true
+		_wfog_base_mode = environment.fog_mode
+		_wfog_base_begin = environment.fog_depth_begin
+		_wfog_base_end = environment.fog_depth_end
+		_wfog_base_curve = environment.fog_depth_curve
+	var amount: float = _wfog_amount
+	environment.fog_sky_affect = clampf(applied_theme.fog_sky_affect + _wfog_sky_affect_add * amount, 0.0, 1.0)
+	if amount <= 0.0:
+		environment.fog_mode = _wfog_base_mode as Environment.FogMode
+		environment.fog_depth_begin = _wfog_base_begin
+		environment.fog_depth_end = _wfog_base_end
+		environment.fog_depth_curve = _wfog_base_curve
+		environment.fog_density = applied_theme.fog_density
+		return
+	environment.fog_mode = Environment.FOG_MODE_DEPTH
+	environment.fog_depth_begin = _wfog_depth_begin_m
+	environment.fog_depth_end = _wfog_depth_end_m
+	environment.fog_depth_curve = 1.0
+	# In DEPTH mode fog_density is the maximum opacity reached at fog_depth_end.
+	environment.fog_density = clampf(_wfog_max_opacity * amount, 0.0, 1.0)
 
 
 func _apply_sky_exposure(amount: float) -> void:

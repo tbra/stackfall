@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="BreezeTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/BreezeTuning.gd" id="1_bt"]
+
+[resource]
+script = ExtResource("1_bt")
+id = &"breeze"
+display_name = "Breeze"
+max_accel = 1.6
+threshold_height_m = 1.0
+cap_height_m = 10.0
+max_speed_ms = 1.5
+max_dv_per_tick = 0.02
+wake_accel = 0.5

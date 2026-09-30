@@ -820,6 +820,19 @@ func set_wet(amount: float, sheen_add: float, roughness_scale: float) -> void:
 	_apply_wet()
 
 
+## Weather fog (Bontago-470.3): the disc shader is `fog_disabled` (the warm
+## theme fog once browned the graphite), so it applies the SAME distance fog as
+## the Environment itself -- nothing within `begin_m`, `max_strength` at `end_m`,
+## toward `color` -- to match the blocks. Amount 0 turns it off exactly.
+func set_weather_fog(amount: float, max_strength: float, begin_m: float, end_m: float, color: Color) -> void:
+	if _material == null:
+		return
+	_material.set_shader_parameter(&"wfog_strength", clampf(max_strength * amount, 0.0, 1.0))
+	_material.set_shader_parameter(&"wfog_begin", begin_m)
+	_material.set_shader_parameter(&"wfog_end", end_m)
+	_material.set_shader_parameter(&"wfog_color", color)
+
+
 func _apply_wet() -> void:
 	if _material == null or _visuals == null:
 		return

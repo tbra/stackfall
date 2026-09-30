@@ -35,13 +35,17 @@ enum TiltMode { SPECIALS_ONLY, PHYSICAL_BALANCE }
 ## previous build -- keeps meaning exactly what it meant.
 enum HoleMode { TEMPORARY, PERMANENT, OFF }
 
-## Weather (Bontago-22y.10, owner decision Bontago-22y.14). Weather is a random
-## EVENT on a host schedule, one weather at a time, calm most of the time.
-## DECISION (config/MatchConfig.gd): WIND/RAIN/SNOW = events of that type only;
-## RANDOM = one type drawn at match start and used for every event; CHANGING =
-## each event draws its own type (WeatherScheduleTuning.avoid_repeat_type).
-## OFF is first so a missing/old wire key means no weather.
-enum WeatherMode { OFF, WIND, RAIN, SNOW, RANDOM, CHANGING }
+## Weather (Bontago-22y.10, owner decisions Bontago-22y.14 and 470.1).
+## DECISION (config/MatchConfig.gd): a TYPE mode (STORM/RAIN/SNOW/...) is that
+## weather active CONSTANTLY for the whole match (short start delay, then full
+## intensity, no calm gaps); RANDOM = one type drawn at match start, then
+## constant; CHANGING = random events, calm most of the time, each event draws
+## its own type (WeatherScheduleTuning.avoid_repeat_type); OFF = none.
+## New weather types go BEFORE RANDOM (lobby labels are derived from these
+## names, so the ints must stay contiguous and CHANGING last);
+## MatchWeather.id_for_mode() maps a type mode to config/weather/<name>.tres by
+## lower-casing its name.
+enum WeatherMode { OFF, STORM, RAIN, SNOW, FOG, RANDOM, CHANGING }
 
 ## -- Spec 2.8 table, in order -----------------------------------------------
 @export var map_variant: MapVariant = MapVariant.ROUND
@@ -77,7 +81,7 @@ enum WeatherMode { OFF, WIND, RAIN, SNOW, RANDOM, CHANGING }
 ## different (instant hand-off) trigger.
 @export var turn_based: bool = false
 ## Weather event schedule (Bontago-22y.10); see WeatherMode.
-@export var weather_mode: WeatherMode = WeatherMode.OFF
+@export var weather_mode: WeatherMode = WeatherMode.CHANGING
 
 ## -- Beyond the 2.8 table ---------------------------------------------------
 ## Spec "Still open" 1: was the block timer shared or per player? The spec's

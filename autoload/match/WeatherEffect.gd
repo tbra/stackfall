@@ -1,6 +1,6 @@
 class_name WeatherEffect
 extends RefCounted
-## Host-side physics hook a weather implements (Bontago-22y.10). Wind, Rain
+## Host-side physics hook a weather implements (Bontago-22y.10). Storm, Rain
 ## and Snow packages subclass this and name the script in their
 ## config/weather/*.tres `effect_script`. Clients never run one: they only
 ## present.

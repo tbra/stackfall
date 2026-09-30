@@ -220,6 +220,8 @@ var sky_theme: SkyThemeDef = preload("res://config/sky_themes/sunset.tres")
 ## autoload (addons/gut/test.gd's double_singleton only recognizes engine
 ## singletons).
 var net_provider: Variant = null
+## Test seam: the MatchWeather the Weather row drives (null = the Match autoload's).
+var weather_provider: Variant = null
 
 var _controller: PlayerController = null
 var _camera_rig: CameraRig = null
@@ -484,6 +486,8 @@ func _add_tab(tab_name: String, resources: Array) -> void:
 		# own reflection fields, still on the Territory tab.
 		list.add_child(_build_theme_row())
 		list.add_child(_build_skybox_row())
+		list.add_child(_build_weather_row())
+		list.add_child(_build_breeze_row())
 
 	for entry: Variant in resources:
 		var resource: Resource = entry as Resource
@@ -978,6 +982,112 @@ func _build_theme_row() -> Control:
 	)
 	row.add_child(option)
 	return row
+
+
+## Bontago-470.1: the Sky tab's "Weather" dropdown -- "Schedule" (follow the
+## lobby mode) / "Off" / every config/weather/*.tres by display name (new
+## types appear automatically). Host-only effect via
+## MatchWeather.set_debug_override(); switching ends the previous weather
+## (restoring its physics) first. On a client the row is disabled with a hint;
+## clients see the host's weather through normal replication.
+## DECISION: no intensity slider -- a local intensity scale would not replicate,
+## so a client would present a different strength than the host simulates.
+func _build_weather_row() -> Control:
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+
+	var label: Label = Label.new()
+	label.text = "Weather"
+	label.custom_minimum_size = Vector2(NAME_COLUMN_WIDTH, 0.0)
+	row.add_child(label)
+
+	var option: OptionButton = OptionButton.new()
+	option.name = "WeatherOption"
+	var weather: MatchWeather = _weather()
+	var ids: Array[StringName] = [&"", MatchWeather.DEBUG_OFF]
+	option.add_item("Schedule (lobby mode)")
+	option.add_item("Off")
+	if weather != null:
+		for weather_id: StringName in weather.available_ids():
+			ids.append(weather_id)
+			option.add_item(_weather_display_name(weather_id))
+		var current: int = ids.find(weather.debug_override())
+		option.selected = current if current >= 0 else 0
+	var host: bool = _has_full_access()
+	option.disabled = not host or weather == null
+	option.tooltip_text = (
+		"Forces a weather for testing (host only), replacing the lobby mode until " +
+		"the match ends or you pick Schedule. The previous weather is removed cleanly."
+		if host else "Host only: the host decides the weather; you see it as it happens."
+	)
+	option.item_selected.connect(func(index: int) -> void:
+		apply_weather_override(ids[index])
+	)
+	row.add_child(option)
+	if not host:
+		var hint: Label = Label.new()
+		hint.text = "(host only)"
+		row.add_child(hint)
+	return row
+
+
+## Bontago-470.2: F4 toggle for the always-on Breeze gust layer (host only, for
+## testing; strength lives in config/breeze.tres). Clients see gusts through
+## replication, so the box is disabled with a hint on a client.
+func _build_breeze_row() -> Control:
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var label: Label = Label.new()
+	label.text = "Breeze"
+	label.custom_minimum_size = Vector2(NAME_COLUMN_WIDTH, 0.0)
+	row.add_child(label)
+	var box: CheckButton = CheckButton.new()
+	box.name = "BreezeToggle"
+	box.text = "Gusts on"
+	var weather: MatchWeather = _weather()
+	var host: bool = _has_full_access()
+	box.button_pressed = weather != null and weather.breeze_enabled()
+	box.disabled = not host or weather == null
+	box.tooltip_text = "Always-on weak local gusts (host only). Turn off to test a weather alone." if host else "Host only."
+	box.toggled.connect(func(pressed: bool) -> void:
+		apply_breeze_enabled(pressed)
+	)
+	row.add_child(box)
+	if not host:
+		var hint: Label = Label.new()
+		hint.text = "(host only)"
+		row.add_child(hint)
+	return row
+
+
+## Turns Breeze on/off on the host; false on a client or with no weather.
+func apply_breeze_enabled(value: bool) -> bool:
+	var weather: MatchWeather = _weather()
+	if weather == null or not _has_full_access():
+		return false
+	return weather.set_breeze_enabled(value)
+
+
+## Forces (or, with &"", releases) the debug weather on the host; false on a
+## client, for an unknown id, or with no Match weather available. Public for tests.
+func apply_weather_override(weather_id: StringName) -> bool:
+	var weather: MatchWeather = _weather()
+	if weather == null or not _has_full_access():
+		return false
+	return weather.set_debug_override(weather_id)
+
+
+func _weather() -> MatchWeather:
+	if weather_provider != null:
+		return weather_provider as MatchWeather
+	return Match.weather()
+
+
+func _weather_display_name(weather_id: StringName) -> String:
+	for def: WeatherTuning in WeatherTuning.load_all():
+		if def.id == weather_id:
+			return def.display_name if def.display_name != "" else String(weather_id).capitalize()
+	return String(weather_id).capitalize()
 
 
 ## Bontago-adt: selects theme `theme_id` -- writes skybox_config.theme_name,

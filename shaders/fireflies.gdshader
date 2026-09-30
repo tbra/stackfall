@@ -13,6 +13,14 @@ render_mode unshaded, blend_add, cull_disabled, depth_draw_never, skip_vertex_tr
 //   INSTANCE_CUSTOM.z = height fraction 0..1 within the band
 //   INSTANCE_CUSTOM.w = per-mote random seed 0..1
 
+// Bontago-470.3: weather fog for a fog_disabled shader (see
+// vfx/weather/WeatherFogShader.gd). Nothing closer than wfog_begin metres from
+// the camera, wfog_strength at wfog_end; 0 strength = off.
+uniform float wfog_strength : hint_range(0.0, 1.0) = 0.0;
+uniform float wfog_begin = 25.0;
+uniform float wfog_end = 110.0;
+uniform vec4 wfog_color : source_color = vec4(0.72, 0.8, 0.88, 1.0);
+varying float wfog_visible;
 uniform float disc_radius = 30.0;
 uniform vec2 rim_offset = vec2(-1.0, 26.0);
 uniform vec2 rim_height = vec2(-22.0, 4.0);
@@ -51,6 +59,7 @@ void vertex() {
 	pulse = mix(min_glow, 1.0, smoothstep(0.35, 0.95, 0.5 + 0.5 * sin(blink_phase)));
 	float dist = length(view_pos.xyz);
 	fade = 1.0 - smoothstep(fade_far_m * 0.55, fade_far_m, dist);
+	wfog_visible = 1.0 - clamp((dist - wfog_begin) / max(wfog_end - wfog_begin, 0.001), 0.0, 1.0) * wfog_strength;
 	float scale = size_m * (0.6 + 0.4 * pulse);
 	VERTEX = view_pos.xyz + vec3(VERTEX.xy * scale, 0.0);
 }
@@ -58,6 +67,6 @@ void vertex() {
 void fragment() {
 	float d = clamp(length(UV - vec2(0.5)) * 2.0, 0.0, 1.0);
 	float falloff = pow(1.0 - d, 2.0) + 0.6 * pow(1.0 - d, 6.0);
-	ALBEDO = glow_color * energy * pulse * fade;
+	ALBEDO = glow_color * energy * pulse * fade * wfog_visible;
 	ALPHA = clamp(falloff, 0.0, 1.0);
 }

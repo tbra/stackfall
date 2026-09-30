@@ -293,7 +293,8 @@ func _populate_options() -> void:
 	# default needs to move separately.
 	_fill_option(_hole_mode_option, ["Temporary", "Permanent", "Off"])
 	# Bontago-22y.10: order must match MatchConfig.WeatherMode.
-	_fill_option(_weather_option, ["Off", "Wind", "Rain", "Snow", "Random", "Changing"])
+	# Labels come from the enum names, so a new weather type needs no edit here.
+	_fill_option(_weather_option, MatchWeather.mode_labels())
 	_build_specials_checklist()
 
 

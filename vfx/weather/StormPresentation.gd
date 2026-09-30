@@ -1,4 +1,4 @@
-class_name WindPresentation
+class_name StormPresentation
 extends WeatherPresentation
 ## Bontago-22y.4: client-side wind visuals -- cel wind streaks and drifting
 ## dust/leaf motes flowing along the seeded wind heading (core/WindField.gd,
@@ -8,11 +8,11 @@ extends WeatherPresentation
 ## Density follows the ramped intensity; the Low graphics preset thins both.
 
 const SHADER: Shader = preload("res://shaders/wind_streak.gdshader")
-const TUNING: WindTuning = preload("res://config/weather/wind.tres")
+const TUNING: StormTuning = preload("res://config/weather/storm.tres")
 const KIND_STREAK: int = 0
 const KIND_MOTE: int = 1
 
-var tuning: WindTuning = TUNING
+var tuning: StormTuning = TUNING
 var _seed: int = 0
 ## True once configure() fixed the seed (tests, probes); otherwise it follows
 ## the replicated match seed.
@@ -28,7 +28,7 @@ func _ready() -> void:
 
 
 ## Rebuilds for `seed_value`; tests and the screenshot probe call it directly.
-func configure(seed_value: int, wind_tuning: WindTuning = null) -> void:
+func configure(seed_value: int, wind_tuning: StormTuning = null) -> void:
 	_seed = seed_value
 	_seed_locked = true
 	if wind_tuning != null:

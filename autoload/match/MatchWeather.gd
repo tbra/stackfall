@@ -15,10 +15,16 @@ extends RefCounted
 ## rather than per frame.
 ##
 ## DECISION (autoload/match/MatchWeather.gd): lobby mapping, per the owner
-## decision above. WIND/RAIN/SNOW = every event is that type; RANDOM = one type
-## is drawn at match start and every event uses it; CHANGING = each event draws
-## its type (avoiding the previous when WeatherScheduleTuning.avoid_repeat_type
-## and another type exists). OFF = no schedule at all.
+## decision above, revised by owner decision 470.1: a TYPE mode (STORM/RAIN/
+## SNOW/...) is CONSTANT weather: after WeatherScheduleTuning.constant_start_delay_s
+## the type ramps in, holds at full intensity for the whole match and never
+## ramps out. RANDOM = one type drawn at match start, then constant. CHANGING =
+## the random-event schedule above, each event drawing its type (avoiding the
+## previous when avoid_repeat_type and another type exists). OFF = none.
+##
+## DECISION: the F4 debug override (set_debug_override) pauses the schedule and
+## forces one type constantly (or none) on the host; clients follow through
+## normal replication. Clearing it restarts the mode's own schedule.
 ##
 ## DECISION: lifecycle is tied to Events.match_state_changed rather than a
 ## hook in MatchLifecycle, so no lifecycle file needed editing: PLAYING starts
@@ -27,6 +33,12 @@ extends RefCounted
 ## through one of those transitions.
 
 enum Sched { OFF, CALM, EVENT }
+
+## set_debug_override() value meaning "no weather at all".
+const DEBUG_OFF: StringName = &"off"
+
+## Mixed into the match seed so Breeze's stream differs from the schedule's.
+const BREEZE_SEED_SALT: int = 0x5B1EE2E
 
 ## Wire format version of state_dict(). Architecture, not a tunable.
 const WIRE_VERSION: int = 1
@@ -52,6 +64,13 @@ var _host_epoch_counter: int = 0
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _fixed_id: StringName = &""
 var _last_id: StringName = &""
+## The active event never ends by itself (constant modes and the F4 override).
+var _constant: bool = false
+## F4 override: &"" = follow the lobby mode, DEBUG_OFF = force no weather, else
+## a weather id held constantly.
+var _debug: StringName = &""
+## The override (not a lobby mode) started the schedule; clearing it stops it.
+var _debug_started_run: bool = false
 
 var _sched: int = Sched.OFF
 var _left: float = 0.0
@@ -61,10 +80,16 @@ var _phase_t: float = 0.0
 var _hold_total: float = 0.0
 var _intensity: float = 0.0
 var _effect: WeatherEffect = null
+## Bontago-470.2: the always-on gust layer, independent of the weather mode.
+## DECISION: it lives here because MatchWeather already owns the host check,
+## the per-frame tick and the PLAYING/teardown lifecycle; it never touches the
+## schedule or the epoch.
+var _breeze: BreezeEffect = BreezeEffect.new()
 
 
 func setup(match_ref: MatchAutoload) -> void:
 	_match = match_ref
+	_breeze.bind(match_ref, _is_host)
 	Events.match_state_changed.connect(_on_match_state_changed)
 
 
@@ -87,6 +112,31 @@ func set_effect_factory(factory: Callable) -> void:
 
 func set_host_override(is_host: Variant) -> void:
 	_host_override = is_host
+
+
+# --- Breeze ----------------------------------------------------------------------
+
+func breeze() -> BreezeEffect:
+	return _breeze
+
+
+## Host: starts the gust layer for a match (seeded from the match seed).
+func begin_breeze(config: MatchConfig) -> void:
+	var seed_value: int = config.rng_seed if config.rng_seed != -1 else int(randi())
+	_breeze.begin(seed_value ^ BREEZE_SEED_SALT)
+
+
+## F4: turns the gust layer on/off at runtime (host only; clients see gusts
+## through replication). Returns false on a client.
+func set_breeze_enabled(value: bool) -> bool:
+	if not _is_host():
+		return false
+	_breeze.set_enabled(value)
+	return true
+
+
+func breeze_enabled() -> bool:
+	return _breeze.is_enabled()
 
 
 # --- Queries -------------------------------------------------------------------
@@ -137,15 +187,38 @@ static func accepts_replication_in(match_state: int) -> bool:
 	return match_state == MatchAutoload.State.COUNTDOWN 		or match_state == MatchAutoload.State.PLAYING 		or match_state == MatchAutoload.State.SUDDEN_DEATH
 
 
+## The weather id a TYPE mode stands for (its enum name lower-cased, matching
+## config/weather/<id>.tres); &"" for OFF/RANDOM/CHANGING or an out-of-range int.
 static func id_for_mode(weather_mode: int) -> StringName:
-	match weather_mode:
-		MatchConfig.WeatherMode.WIND:
-			return &"wind"
-		MatchConfig.WeatherMode.RAIN:
-			return &"rain"
-		MatchConfig.WeatherMode.SNOW:
-			return &"snow"
-	return &""
+	if not is_type_mode(weather_mode):
+		return &""
+	return StringName(String(MatchConfig.WeatherMode.keys()[weather_mode]).to_lower())
+
+
+static func is_type_mode(weather_mode: int) -> bool:
+	return weather_mode > MatchConfig.WeatherMode.OFF and weather_mode < MatchConfig.WeatherMode.RANDOM
+
+
+## Lobby labels indexed by WeatherMode value ("Storm", "Random", ...).
+static func mode_labels() -> Array:
+	var labels: Array = []
+	for key: String in MatchConfig.WeatherMode.keys():
+		labels.append(key.capitalize())
+	return labels
+
+
+## True while the active weather never ends by itself.
+func is_constant() -> bool:
+	return _constant
+
+
+func debug_override() -> StringName:
+	return _debug
+
+
+## Weather ids the F4 panel can force, sorted (all config/weather/*.tres).
+func available_ids() -> Array[StringName]:
+	return _sorted_ids()
 
 
 func _is_host() -> bool:
@@ -177,8 +250,11 @@ func _sorted_ids() -> Array[StringName]:
 func _on_match_state_changed(_from_state: int, to_state: int) -> void:
 	match to_state:
 		MatchAutoload.State.PLAYING:
-			if _is_host() and not _running and _match != null and _match.config != null:
-				begin_match(_match.config)
+			if _is_host() and _match != null and _match.config != null:
+				if not _running:
+					begin_match(_match.config)
+				if not _breeze.is_running():
+					begin_breeze(_match.config)
 		MatchAutoload.State.LOADING, MatchAutoload.State.LOBBY, MatchAutoload.State.END:
 			reset()
 
@@ -192,6 +268,7 @@ func begin_match(config: MatchConfig) -> void:
 	_mode = clampi(config.weather_mode, MatchConfig.WeatherMode.OFF, MatchConfig.WeatherMode.CHANGING)
 	if _mode == MatchConfig.WeatherMode.OFF:
 		return
+	_constant = _mode != MatchConfig.WeatherMode.CHANGING
 	_seed = config.rng_seed if config.rng_seed != -1 else int(randi())
 	_rng.seed = _seed
 	_host_epoch_counter += 1
@@ -203,12 +280,13 @@ func begin_match(config: MatchConfig) -> void:
 		if not ids.is_empty():
 			_fixed_id = ids[_rng.randi_range(0, ids.size() - 1)]
 	_running = true
-	_enter_calm(_schedule.first_delay_s)
+	_enter_calm(_schedule.constant_start_delay_s if _constant else _schedule.first_delay_s)
 
 
 ## Ends any event (restoring physics) and clears the schedule. Safe from any
 ## state, on host and client, and idempotent.
 func reset() -> void:
+	_breeze.stop()
 	if _active_id != &"":
 		_end_event()
 	_running = false
@@ -219,11 +297,15 @@ func reset() -> void:
 	_event_index = 0
 	_fixed_id = &""
 	_last_id = &""
+	_constant = false
+	_debug = &""
+	_debug_started_run = false
 	_intensity = 0.0
 	_phase_t = 0.0
 
 
 func tick(delta: float) -> void:
+	_breeze.tick(delta)
 	if not _running:
 		return
 	if _is_host():
@@ -234,15 +316,16 @@ func tick(delta: float) -> void:
 
 func _tick_host(delta: float) -> void:
 	if _sched == Sched.CALM:
-		_left -= delta
-		if _left <= 0.0:
-			var carry: float = -_left
-			var next_id: StringName = _draw_type()
-			if next_id == &"":
-				_enter_calm(_draw_gap())
-			else:
-				_begin_event(next_id)
-				_advance_event(carry)
+		if _debug == &"":  # the F4 override pauses the schedule
+			_left -= delta
+			if _left <= 0.0:
+				var carry: float = -_left
+				var next_id: StringName = _draw_type()
+				if next_id == &"":
+					_enter_calm(_draw_gap())
+				else:
+					_begin_event(next_id)
+					_advance_event(carry)
 	elif _sched == Sched.EVENT:
 		_advance_event(delta)
 	if _active_id != &"":
@@ -254,7 +337,7 @@ func _tick_host(delta: float) -> void:
 func _tick_client(delta: float) -> void:
 	_left = maxf(_left - delta, 0.0)
 	if _active_id != &"":
-		_phase_t += delta
+		_phase_t = minf(_phase_t + delta, _schedule.wire_max_time_s)
 		_present_intensity()
 
 
@@ -298,6 +381,47 @@ func start_event(weather_id: StringName) -> bool:
 		_end_event()
 	_begin_event(weather_id)
 	return true
+
+
+## Host, F4 debug: `value` is &"" (follow the lobby mode again), DEBUG_OFF (no
+## weather) or a weather id (held constantly). The previous weather's physics
+## are restored before anything new starts. Returns false on a client or for an
+## unknown id.
+func set_debug_override(value: StringName) -> bool:
+	if not _is_host():
+		return false
+	if value != &"" and value != DEBUG_OFF and not _defs_ready_for(value):
+		return false
+	if value != &"" and not _running:
+		_debug_started_run = true
+	_debug = value
+	if value == &"":
+		if _debug_started_run:
+			# Back to "no weather": end the event and announce Sched.OFF (keeping
+			# the epoch, so clients accept it) instead of a silent reset().
+			if _active_id != &"":
+				_end_event()
+			_debug_started_run = false
+			_running = false
+			_mode = MatchConfig.WeatherMode.OFF
+			_constant = false
+			_sched = Sched.OFF
+			_left = 0.0
+			_announce()
+		elif _running:
+			if _active_id != &"":
+				_end_event()
+			_constant = _mode != MatchConfig.WeatherMode.CHANGING
+			_enter_calm(_schedule.constant_start_delay_s if _constant else _schedule.first_delay_s)
+		return true
+	if value == DEBUG_OFF:
+		if _active_id != &"":
+			_end_event()
+		if _running:
+			_enter_calm(0.0)
+		return true
+	_constant = true
+	return start_event(value)
 
 
 ## Ramps the current event out early (host). The calm gap follows.
@@ -355,6 +479,9 @@ func _advance_event(delta: float) -> void:
 			_phase_t -= def.ramp_in_s
 			_phase = WeatherTuning.Phase.HOLD
 			_announce_phase()
+		elif _phase == WeatherTuning.Phase.HOLD and _constant:
+			_phase_t = minf(_phase_t, _schedule.wire_max_time_s)
+			break
 		elif _phase == WeatherTuning.Phase.HOLD and _phase_t >= _hold_total:
 			_phase_t -= _hold_total
 			_phase = WeatherTuning.Phase.RAMP_OUT
@@ -381,8 +508,12 @@ func _event_remaining() -> float:
 		return 0.0
 	match _phase:
 		WeatherTuning.Phase.RAMP_IN:
+			if _constant:
+				return maxf(def.ramp_in_s - _phase_t, 0.0)
 			return maxf(def.ramp_in_s - _phase_t, 0.0) + _hold_total + def.ramp_out_s
 		WeatherTuning.Phase.HOLD:
+			if _constant:
+				return 0.0
 			return maxf(_hold_total - _phase_t, 0.0) + def.ramp_out_s
 	return maxf(def.ramp_out_s - _phase_t, 0.0)
 

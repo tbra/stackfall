@@ -60,7 +60,7 @@ func _def(id: StringName) -> WeatherTuning:
 
 func _weather(host: bool) -> MatchWeather:
 	var w: MatchWeather = MatchWeather.new()
-	w.set_defs([_def(&"wind"), _def(&"rain"), _def(&"snow")])
+	w.set_defs([_def(&"storm"), _def(&"rain"), _def(&"snow")])
 	var s: WeatherScheduleTuning = WeatherScheduleTuning.new()
 	s.first_delay_s = 1.0
 	s.gap_min_s = 5.0
@@ -356,16 +356,16 @@ func test_match_reset_clears_a_client_so_a_new_match_starts_clean() -> void:
 func test_presenter_instances_the_active_scene_and_frees_it_on_stop() -> void:
 	var presenter: WeatherPresenter = WeatherPresenter.new()
 	add_child_autofree(presenter)
-	var wind: WeatherTuning = _def(&"wind")
-	wind.presentation_scene = "res://vfx/weather/wind_presentation.tscn"
+	var wind: WeatherTuning = _def(&"storm")
+	wind.presentation_scene = "res://vfx/weather/storm_presentation.tscn"
 	presenter.set_defs([wind])
-	Events.weather_started.emit(&"wind")
+	Events.weather_started.emit(&"storm")
 	assert_eq(presenter.active_count(), 1)
-	Events.weather_intensity_changed.emit(&"wind", 0.6)
-	assert_almost_eq(presenter.presentation_for(&"wind").intensity, 0.6, 0.0001)
-	Events.weather_started.emit(&"wind")
+	Events.weather_intensity_changed.emit(&"storm", 0.6)
+	assert_almost_eq(presenter.presentation_for(&"storm").intensity, 0.6, 0.0001)
+	Events.weather_started.emit(&"storm")
 	assert_eq(presenter.active_count(), 1, "a repeated start does not double-instance")
-	Events.weather_stopped.emit(&"wind")
+	Events.weather_stopped.emit(&"storm")
 	assert_eq(presenter.active_count(), 0)
 	Events.weather_started.emit(&"unknown")
 	assert_eq(presenter.active_count(), 0, "unknown ids present nothing")
@@ -395,13 +395,14 @@ func _make_lobby(is_host: bool) -> Lobby:
 	return lobby
 
 
-func test_lobby_weather_row_has_every_mode_in_enum_order_and_defaults_off() -> void:
+func test_lobby_weather_row_has_every_mode_in_enum_order_and_defaults_changing() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var option: OptionButton = lobby.get_node("%WeatherOption")
 	assert_eq(option.item_count, MatchConfig.WeatherMode.size())
 	assert_eq(option.get_item_text(MatchConfig.WeatherMode.RANDOM), "Random")
 	assert_eq(option.get_item_text(MatchConfig.WeatherMode.CHANGING), "Changing")
-	assert_eq(option.selected, MatchConfig.WeatherMode.OFF)
+	assert_eq(option.get_item_text(MatchConfig.WeatherMode.STORM), "Storm")
+	assert_eq(option.selected, MatchConfig.WeatherMode.CHANGING, "Changing is the default")
 
 
 func test_host_choosing_weather_publishes_it() -> void:
@@ -440,3 +441,18 @@ func test_a_hostile_weather_mode_over_the_wire_is_clamped() -> void:
 	lobby._apply_data({"weather_mode": 250})
 	var option: OptionButton = lobby.get_node("%WeatherOption")
 	assert_eq(option.selected, MatchConfig.WeatherMode.CHANGING)
+
+
+func test_a_constant_type_replicates_as_a_held_event_and_a_client_stays_at_full_intensity() -> void:
+	var host_weather: MatchWeather = _weather(true)
+	host_weather.begin_match(_config(MatchConfig.WeatherMode.RAIN))
+	for _i: int in range(80):
+		host_weather.tick(0.25)
+	assert_eq(host_weather.active_id(), &"rain")
+	var client_weather: MatchWeather = _weather(false)
+	assert_true(client_weather.apply_replicated_state(host_weather.state_dict(), true))
+	for _i: int in range(400):
+		client_weather.tick(0.25)
+	assert_eq(client_weather.active_id(), &"rain")
+	assert_eq(client_weather.event_phase(), WeatherTuning.Phase.HOLD)
+	assert_almost_eq(client_weather.active_intensity(), 1.0, 0.001)

@@ -2,6 +2,8 @@ class_name WindField
 extends RefCounted
 ## Pure wind rules (Bontago-22y.4): direction, gust and the height response.
 ## No scene tree; the host effect and the client presentation both call these
+## NOTE (470.1): typed on StormTuning (the Storm rename). A future always-on
+## Breeze reuses these rules by extending StormTuning with its own numbers.
 ## with the replicated match seed so they agree on the wind.
 
 ## Salts splitting a seed into independent phases. Architecture only.
@@ -31,7 +33,7 @@ static func base_angle(seed_value: int) -> float:
 
 
 ## Horizontal unit direction (x, z) at `elapsed` seconds into the event.
-static func direction(seed_value: int, elapsed: float, tuning: WindTuning) -> Vector2:
+static func direction(seed_value: int, elapsed: float, tuning: StormTuning) -> Vector2:
 	var veer: float = 0.0
 	if tuning.veer_period_s > 0.0:
 		veer = deg_to_rad(tuning.veer_amplitude_deg) * sin(
@@ -41,7 +43,7 @@ static func direction(seed_value: int, elapsed: float, tuning: WindTuning) -> Ve
 
 
 ## Gust multiplier in [1 - gust_amplitude, 1]: smooth and seeded.
-static func gust(seed_value: int, elapsed: float, tuning: WindTuning) -> float:
+static func gust(seed_value: int, elapsed: float, tuning: StormTuning) -> float:
 	if tuning.gust_period_s <= 0.0:
 		return 1.0
 	var t: float = elapsed / tuning.gust_period_s
@@ -52,7 +54,7 @@ static func gust(seed_value: int, elapsed: float, tuning: WindTuning) -> float:
 
 
 ## 0 at/below the threshold, 1 at/above the cap, monotonic between.
-static func height_factor(height_m: float, tuning: WindTuning) -> float:
+static func height_factor(height_m: float, tuning: StormTuning) -> float:
 	if height_m <= tuning.threshold_height_m:
 		return 0.0
 	var span: float = tuning.cap_height_m - tuning.threshold_height_m
@@ -63,7 +65,7 @@ static func height_factor(height_m: float, tuning: WindTuning) -> float:
 
 ## Acceleration magnitude (m/s^2) on a block at `height_m`, already clamped so
 ## one tick never changes velocity by more than max_dv_per_tick.
-static func accel_at(height_m: float, intensity: float, gust_mult: float, delta: float, tuning: WindTuning) -> float:
+static func accel_at(height_m: float, intensity: float, gust_mult: float, delta: float, tuning: StormTuning) -> float:
 	var accel: float = tuning.max_accel * clampf(intensity, 0.0, 1.0) * gust_mult * height_factor(height_m, tuning)
 	if delta > 0.0:
 		accel = minf(accel, tuning.max_dv_per_tick / delta)

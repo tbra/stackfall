@@ -41,7 +41,10 @@ func _ready() -> void:
 	var snow_net: SnowNet = SnowNet.new()
 	snow_net.name = "SnowNet"
 	add_child(snow_net)
-
+	# Bontago-470.2: Breeze gust replication and visuals (net/BreezeNet.gd).
+	var breeze_net: BreezeNet = BreezeNet.new()
+	breeze_net.name = "BreezeNet"
+	add_child(breeze_net)
 
 ## Same seam as MatchNet.set_providers(); null keeps the real autoload.
 func set_providers(net_provider: Variant, match_provider: Variant) -> void:

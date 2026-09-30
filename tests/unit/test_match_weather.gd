@@ -62,6 +62,7 @@ func _def(id: StringName, hold: float = 10.0) -> WeatherTuning:
 func _schedule(first: float = 5.0, gap_min: float = 10.0, gap_max: float = 20.0) -> WeatherScheduleTuning:
 	var s: WeatherScheduleTuning = WeatherScheduleTuning.new()
 	s.first_delay_s = first
+	s.constant_start_delay_s = first
 	s.gap_min_s = gap_min
 	s.gap_max_s = gap_max
 	return s
@@ -90,15 +91,16 @@ func _run(w: MatchWeather, seconds: float) -> void:
 
 
 func _abc() -> Array[WeatherTuning]:
-	return [_def(&"wind"), _def(&"rain"), _def(&"snow")]
+	return [_def(&"storm"), _def(&"rain"), _def(&"snow")]
 
 
 # --- Config ---------------------------------------------------------------------
 
-func test_weather_defaults_to_off_everywhere() -> void:
-	assert_eq(MatchConfig.new().weather_mode, MatchConfig.WeatherMode.OFF)
-	assert_eq((load("res://config/match_defaults.tres") as MatchConfig).weather_mode, MatchConfig.WeatherMode.OFF)
-	assert_eq(MatchConfig.from_dict({}).weather_mode, MatchConfig.WeatherMode.OFF, "an old peer without the key means no weather")
+func test_weather_defaults_to_changing_everywhere() -> void:
+	# DECISION (470.1): Changing (calm most of the time) is the default.
+	assert_eq(MatchConfig.new().weather_mode, MatchConfig.WeatherMode.CHANGING)
+	assert_eq((load("res://config/match_defaults.tres") as MatchConfig).weather_mode, MatchConfig.WeatherMode.CHANGING)
+	assert_eq(MatchConfig.from_dict({}).weather_mode, MatchConfig.WeatherMode.CHANGING, "a missing key means the default")
 
 
 func test_weather_mode_round_trips_and_sanitize_clamps() -> void:
@@ -113,7 +115,7 @@ func test_weather_mode_round_trips_and_sanitize_clamps() -> void:
 	assert_eq(negative.weather_mode, MatchConfig.WeatherMode.OFF)
 
 
-func test_registry_loads_wind_rain_snow_with_sane_tunables() -> void:
+func test_registry_loads_storm_rain_snow_with_sane_tunables() -> void:
 	var defs: Array[WeatherTuning] = WeatherTuning.load_all()
 	var ids: Array[String] = []
 	for def: WeatherTuning in defs:
@@ -123,8 +125,8 @@ func test_registry_loads_wind_rain_snow_with_sane_tunables() -> void:
 		assert_gt(def.ramp_out_s, 0.0)
 		assert_lte(def.hold_min_s, def.hold_max_s)
 		assert_true(load(def.presentation_scene) is PackedScene, "%s presentation scene loads" % def.id)
-	assert_eq(ids, ["rain", "snow", "wind"], "sorted by id")
-	for mode: int in [MatchConfig.WeatherMode.WIND, MatchConfig.WeatherMode.RAIN, MatchConfig.WeatherMode.SNOW]:
+	assert_eq(ids, ["fog", "rain", "snow", "storm"], "sorted by id")
+	for mode: int in [MatchConfig.WeatherMode.STORM, MatchConfig.WeatherMode.RAIN, MatchConfig.WeatherMode.SNOW]:
 		assert_true(ids.has(String(MatchWeather.id_for_mode(mode))))
 
 
@@ -135,7 +137,7 @@ func test_schedule_tuning_resource_is_sane() -> void:
 
 
 func test_ramp_curve() -> void:
-	var def: WeatherTuning = _def(&"wind")
+	var def: WeatherTuning = _def(&"storm")
 	def.intensity = 0.8
 	assert_almost_eq(def.intensity_at(WeatherTuning.Phase.RAMP_IN, 0.0), 0.0, 0.0001)
 	assert_almost_eq(def.intensity_at(WeatherTuning.Phase.RAMP_IN, 1.0), 0.4, 0.0001)
@@ -154,30 +156,121 @@ func test_off_never_runs_a_schedule() -> void:
 	assert_eq(_log.size(), 0)
 
 
-func test_fixed_mode_runs_only_that_type_one_at_a_time_with_calm_between() -> void:
+func test_changing_mode_repeats_events_one_at_a_time_with_calm_between() -> void:
 	var w: MatchWeather = _make(_abc(), _schedule())
-	w.begin_match(_cfg(MatchConfig.WeatherMode.RAIN))
+	w.begin_match(_cfg(MatchConfig.WeatherMode.CHANGING))
 	assert_eq(w.schedule_phase(), MatchWeather.Sched.CALM)
 	_run(w, 4.5)
 	assert_eq(_log.size(), 0, "calm through the initial delay")
 	_run(w, 1.0)
-	assert_eq(w.active_id(), &"rain")
+	assert_ne(w.active_id(), &"")
 	assert_eq(w.schedule_phase(), MatchWeather.Sched.EVENT)
 	_run(w, 200.0)
 	var starts: int = 0
 	for entry: Array in _log:
 		if entry[1] == "start":
 			starts += 1
-			assert_eq(entry[2], &"rain")
 	assert_gt(starts, 1, "events repeat on the schedule")
 	assert_lte(_max_active, 1, "never two weathers at once")
 
 
+func test_type_mode_is_constant_after_the_start_delay_with_no_calm_gaps() -> void:
+	var sched: WeatherScheduleTuning = _schedule()
+	sched.constant_start_delay_s = 3.0
+	var w: MatchWeather = _make(_abc(), sched)
+	w.begin_match(_cfg(MatchConfig.WeatherMode.RAIN))
+	assert_true(w.is_constant())
+	_run(w, 2.5)
+	assert_eq(_log.size(), 0, "calm through the short start delay")
+	_run(w, 1.0)
+	assert_eq(w.active_id(), &"rain")
+	_run(w, 3.0)
+	assert_almost_eq(w.active_intensity(), 1.0, 0.001, "ramped in")
+	_run(w, 900.0)
+	assert_eq(w.active_id(), &"rain", "still raining, never ramps out")
+	assert_eq(w.event_phase(), WeatherTuning.Phase.HOLD)
+	assert_almost_eq(w.active_intensity(), 1.0, 0.001)
+	assert_eq(_log.size(), 1, "one start, no stop")
+	assert_eq(w.state_dict()["left"], 0.0)
+
+
+func test_random_mode_draws_one_type_then_holds_it_constantly() -> void:
+	var sched: WeatherScheduleTuning = _schedule()
+	sched.constant_start_delay_s = 1.0
+	for seed_value: int in [1, 2, 3, 4, 5]:
+		var w: MatchWeather = _make(_abc(), sched)
+		_log.clear()
+		w.begin_match(_cfg(MatchConfig.WeatherMode.RANDOM, seed_value))
+		_run(w, 400.0)
+		assert_eq(_log.size(), 1, "seed %d: one weather for the whole match" % seed_value)
+		assert_eq(w.event_phase(), WeatherTuning.Phase.HOLD)
+		w.reset()
+
+
+func test_id_for_mode_and_labels_derive_from_the_enum() -> void:
+	assert_eq(MatchWeather.id_for_mode(MatchConfig.WeatherMode.STORM), &"storm")
+	assert_eq(MatchWeather.id_for_mode(MatchConfig.WeatherMode.SNOW), &"snow")
+	assert_eq(MatchWeather.id_for_mode(MatchConfig.WeatherMode.OFF), &"")
+	assert_eq(MatchWeather.id_for_mode(MatchConfig.WeatherMode.RANDOM), &"")
+	assert_eq(MatchWeather.id_for_mode(MatchConfig.WeatherMode.CHANGING), &"")
+	assert_eq(MatchWeather.id_for_mode(99), &"")
+	assert_eq(MatchWeather.mode_labels().size(), MatchConfig.WeatherMode.size())
+	assert_eq(MatchWeather.mode_labels()[MatchConfig.WeatherMode.STORM], "Storm")
+	for mode: int in range(MatchConfig.WeatherMode.RANDOM):
+		if MatchWeather.is_type_mode(mode):
+			var ids: Array[StringName] = []
+			for def: WeatherTuning in WeatherTuning.load_all():
+				ids.append(def.id)
+			assert_true(ids.has(MatchWeather.id_for_mode(mode)), "every type mode has a config/weather resource")
+
+
+# --- F4 debug override -------------------------------------------------------------
+
+func test_debug_override_forces_a_type_swaps_cleanly_and_releases_to_the_schedule() -> void:
+	var w: MatchWeather = _make(_abc(), _schedule(5.0))
+	w.set_effect_factory(_probe_factory)
+	w.begin_match(_cfg(MatchConfig.WeatherMode.CHANGING))
+	assert_true(w.set_debug_override(&"rain"))
+	assert_eq(w.active_id(), &"rain")
+	assert_true(w.is_constant())
+	_run(w, 200.0)
+	assert_eq(w.active_id(), &"rain", "held constantly, schedule paused")
+	assert_true(w.set_debug_override(&"snow"))
+	assert_eq(w.active_id(), &"snow")
+	assert_eq(_effects.size(), 2)
+	assert_almost_eq(float(_world["friction"]), 0.8 * (1.0 - WeatherProbeEffect.FRICTION_DROP_AT_FULL * w.active_intensity()), 0.05)
+	assert_true(_effects[0].restore_calls > 0, "the previous weather's physics were restored")
+	assert_true(w.set_debug_override(MatchWeather.DEBUG_OFF))
+	assert_eq(w.active_id(), &"")
+	assert_gt(_effects[1].restore_calls, 0)
+	_run(w, 300.0)
+	assert_eq(w.active_id(), &"", "off stays off")
+	assert_false(w.set_debug_override(&"nope"), "unknown id refused")
+	assert_true(w.set_debug_override(&""))
+	assert_eq(w.debug_override(), &"")
+	assert_eq(w.schedule_phase(), MatchWeather.Sched.CALM)
+	_run(w, 5.5)
+	assert_ne(w.active_id(), &"", "lobby schedule resumed")
+
+
+func test_debug_override_on_a_client_is_refused_and_from_off_returns_to_off() -> void:
+	var client: MatchWeather = _make(_abc(), _schedule(), false)
+	assert_false(client.set_debug_override(&"rain"))
+	var w: MatchWeather = _make(_abc(), _schedule())
+	assert_true(w.set_debug_override(&"storm"))
+	assert_true(w.is_running())
+	assert_eq(w.active_id(), &"storm")
+	assert_true(w.set_debug_override(&""))
+	assert_eq(w.active_id(), &"")
+	assert_false(w.is_running(), "an override that started the run stops it when released")
+	assert_eq(w.schedule_phase(), MatchWeather.Sched.OFF)
+
+
 func test_event_ramps_up_holds_ramps_down_then_gap_in_range() -> void:
-	var w: MatchWeather = _make([_def(&"wind", 10.0)], _schedule(1.0, 10.0, 20.0))
-	w.begin_match(_cfg(MatchConfig.WeatherMode.WIND))
+	var w: MatchWeather = _make([_def(&"storm", 10.0)], _schedule(1.0, 10.0, 20.0))
+	w.begin_match(_cfg(MatchConfig.WeatherMode.CHANGING))
 	_run(w, 1.25)
-	assert_eq(w.active_id(), &"wind")
+	assert_eq(w.active_id(), &"storm")
 	var previous: float = -1.0
 	for _i: int in range(int(2.0 / DELTA)):
 		_run(w, DELTA)
@@ -277,7 +370,7 @@ func test_shipped_schedule_is_calm_most_of_the_time() -> void:
 
 func test_a_missing_fixed_type_stays_calm_without_error() -> void:
 	var w: MatchWeather = _make([_def(&"rain")], _schedule())
-	w.begin_match(_cfg(MatchConfig.WeatherMode.WIND))
+	w.begin_match(_cfg(MatchConfig.WeatherMode.STORM))
 	_run(w, 200.0)
 	assert_eq(_log.size(), 0)
 
@@ -293,7 +386,7 @@ func _probe_factory(_def_arg: WeatherTuning) -> WeatherEffect:
 func test_effect_scales_with_intensity_and_restores_baseline_when_the_event_ends() -> void:
 	var w: MatchWeather = _make([_def(&"rain", 6.0)], _schedule(1.0))
 	w.set_effect_factory(_probe_factory)
-	w.begin_match(_cfg(MatchConfig.WeatherMode.RAIN))
+	w.begin_match(_cfg(MatchConfig.WeatherMode.CHANGING))
 	_run(w, 5.0)
 	assert_eq(_effects.size(), 1)
 	assert_almost_eq(float(_world["friction"]), 0.4, 0.001, "full intensity halves friction")

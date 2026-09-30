@@ -57,6 +57,8 @@ func configure(theme: SkyThemeDef, enabled: bool) -> void:
 	_instance.name = "Flocks"
 	_instance.multimesh = multimesh
 	_instance.material_override = theme.bird_material
+	add_to_group(WeatherFogShader.GROUP)
+	WeatherFogShader.apply(theme.bird_material as ShaderMaterial)
 	_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# The shader moves vertices far from the instance origins, so the culling
 	# box must cover the whole sky volume.
@@ -88,6 +90,12 @@ static func build_bird_mesh() -> ArrayMesh:
 	var mesh: ArrayMesh = ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
+
+
+## Weather fog changed (vfx/weather/WeatherFogShader.gd).
+func refresh_weather_fog() -> void:
+	if _instance != null:
+		WeatherFogShader.apply(_instance.material_override as ShaderMaterial)
 
 
 func flock_instance() -> MultiMeshInstance3D:
