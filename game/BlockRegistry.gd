@@ -335,6 +335,14 @@ func tracked_block_count() -> int:
 ## any entry whose Block was freed without going through
 ## Events.block_removed first, the same defensive is_instance_valid() check
 ## bodies_over_cells() above already makes.
+## The field's current global transform (identity with no field). Lets
+## StableBlockManager notice a tilting/moving disc (Bontago-sen.11).
+func field_global_transform() -> Transform3D:
+	if _field == null or not is_instance_valid(_field):
+		return Transform3D.IDENTITY
+	return _field.global_transform
+
+
 func all_blocks() -> Array[Block]:
 	var result: Array[Block] = []
 	for id: Variant in _entries.keys():
