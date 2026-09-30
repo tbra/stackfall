@@ -232,7 +232,14 @@ func _ready() -> void:
 	# explicitly while using that test ID. A real AppID restores auto-init.
 	if Net.STEAM_APP_ID_EXPECTED != 480 or _has_cmdline_flag("steam-online") or _has_cmdline_flag("host-online"):
 		Net.init_steam()
-	_show_main_menu()
+	# Bontago-59o.1: interactive launches show the SlopShop splash (with its
+	# jingle) first; headless/CLI entry points go straight to the menu.
+	if SplashScreen.should_show_now():
+		var splash: SplashScreen = SplashScreen.new()
+		add_child(splash)
+		splash.finished.connect(_show_main_menu)
+	else:
+		_show_main_menu()
 
 	# apply_command_line() calls host_game()/join_game() synchronously when
 	# --host, --headless-host or --join is present, which emits
