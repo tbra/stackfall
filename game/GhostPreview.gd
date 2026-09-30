@@ -335,6 +335,9 @@ const GHOST_CELL_GRID_SHADER: Shader = preload("res://shaders/ghost_cell_grid.gd
 ## VISUAL_TUNING const reads, so a real block and its own ghost preview always
 ## draw identical grid_line_color/grid_line_width_px.
 const VISUAL_TUNING: BlockVisualTuning = preload("res://config/block_visual_tuning.tres")
+## Bontago-sen.6: additive rim used as the held-gift overlay's next_pass (the
+## plain block ghost computes the same rim inside GHOST_CELL_GRID_SHADER).
+const GHOST_GLOW_RIM_SHADER: Shader = preload("res://shaders/ghost_glow_rim.gdshader")
 
 ## Bontago-xtq.18 attempt 3 (this file's own header): the smallest decal fade
 ## exponent _update_block_projection_decal() ever applies. Not a look tunable
@@ -681,6 +684,7 @@ func _rebuild_gift_visual() -> void:
 ## Overlay share of the ghost's own opacity (a blend constant, not a tunable).
 const HELD_GIFT_TINT_STRENGTH: float = 0.55
 var _gift_tint_material: StandardMaterial3D = null
+var _gift_glow_material: ShaderMaterial = null
 
 
 func _apply_gift_tint() -> void:
@@ -690,10 +694,15 @@ func _apply_gift_tint() -> void:
 		_gift_tint_material = StandardMaterial3D.new()
 		_gift_tint_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		_gift_tint_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		# Bontago-sen.6: glow rim for gift models rides as a next pass.
+		_gift_glow_material = ShaderMaterial.new()
+		_gift_glow_material.shader = GHOST_GLOW_RIM_SHADER
+		_gift_tint_material.next_pass = _gift_glow_material
 	var tint: Color = current_tint_color()
 	_gift_tint_material.albedo_color = Color(tint.r, tint.g, tint.b, tint.a * HELD_GIFT_TINT_STRENGTH)
 	for node: Node in _gift_visual.find_children("*", "MeshInstance3D", true, false):
 		(node as MeshInstance3D).material_overlay = _gift_tint_material
+	_apply_glow()
 
 
 ## Generic gift look (GiftCrate's crate + ribbon colours), one cell in size.
@@ -1787,6 +1796,7 @@ func show_throw_hint(active: bool) -> void:
 func _refresh_materials() -> void:
 	_apply_validity_material()
 	_apply_gift_tint()
+	_apply_glow()
 	_apply_footprint_material()
 	_apply_projection_material()
 
@@ -1970,6 +1980,82 @@ func projection_uses_additive_blend() -> bool:
 ## (Bontago-xtq.10) on top of the additive blend above.
 func projection_emission_enabled() -> bool:
 	return _projection_material != null and _projection_material.emission_enabled
+
+# --- Glow (Bontago-sen.6) ----------------------------------------------------
+# Presentation only: a fresnel rim in the ghost's tint colour. Steady at
+# ghost_tuning.glow_strength; once the local block timer is within
+# glow_warning_lead_seconds of the forced drop it pulses, the rate ramping from
+# glow_pulse_start_hz to glow_pulse_end_hz. Nothing here touches timers or drops.
+# DECISION (Bontago-sen.6): remote ghosts get the steady glow (same material, so
+# it is free and consistent) but never the warning pulse -- only the ghost in
+# LOCAL_HELD_GROUP polls the local slot's timer.
+
+## Seconds left on the block timer, or a negative value when no timer applies.
+var _drop_time_left: float = -1.0
+var _pulse_phase: float = 0.0
+
+
+func _process(delta: float) -> void:
+	if is_in_group(LOCAL_HELD_GROUP):
+		set_drop_time_left(_local_feed_time_left())
+	advance_glow(delta)
+
+
+func _local_feed_time_left() -> float:
+	if _shape == null or not Match.feed_timer_enabled():
+		return -1.0
+	var slot: int = Match.active_slot() if Net.is_offline() else Net.local_slot()
+	return Match.feed_time_left(slot)
+
+
+## Feeds the block timer (seconds left before the forced drop; negative = none).
+func set_drop_time_left(seconds: float) -> void:
+	_drop_time_left = seconds
+	if not is_pulse_active():
+		_pulse_phase = 0.0
+
+
+## True while the forced drop is within glow_warning_lead_seconds.
+func is_pulse_active() -> bool:
+	return _drop_time_left >= 0.0 and _drop_time_left <= ghost_tuning.glow_warning_lead_seconds
+
+
+## Current warning pulse rate in Hz (0 while inactive); ramps start -> end.
+func pulse_frequency_hz() -> float:
+	if not is_pulse_active():
+		return 0.0
+	var lead: float = maxf(ghost_tuning.glow_warning_lead_seconds, 0.0001)
+	var progress: float = clampf(1.0 - _drop_time_left / lead, 0.0, 1.0)
+	return lerpf(ghost_tuning.glow_pulse_start_hz, ghost_tuning.glow_pulse_end_hz, progress)
+
+
+## Effective glow multiplier right now (steady strength, or pulsing above it).
+func glow_level() -> float:
+	var level: float = ghost_tuning.glow_strength
+	if is_pulse_active():
+		var wave: float = 0.5 + 0.5 * sin(_pulse_phase)
+		level *= lerpf(1.0, ghost_tuning.glow_pulse_peak_multiplier, wave)
+	return level
+
+
+func advance_glow(delta: float) -> void:
+	if is_pulse_active():
+		_pulse_phase = fmod(_pulse_phase + TAU * pulse_frequency_hz() * delta, TAU)
+	else:
+		_pulse_phase = 0.0
+	_apply_glow()
+
+
+func _apply_glow() -> void:
+	var level: float = glow_level()
+	if _material != null:
+		_material.set_shader_parameter(&"glow_strength", level)
+		_material.set_shader_parameter(&"glow_rim_power", ghost_tuning.glow_rim_power)
+	if _gift_glow_material != null:
+		var tint: Color = current_tint_color()
+		_gift_glow_material.set_shader_parameter(&"glow_color", Color(tint.r, tint.g, tint.b, 1.0))
+		_gift_glow_material.set_shader_parameter(&"glow_strength", level)
+		_gift_glow_material.set_shader_parameter(&"glow_rim_power", ghost_tuning.glow_rim_power)
 
 
 func _with_alpha(color: Color, alpha: float) -> Color:
