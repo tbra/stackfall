@@ -306,3 +306,44 @@ func test_a_solved_fixtures_circles_survive_the_wire() -> void:
 		decoded["goal_positions"], decoded["goal_radii"], bool(decoded["argmax_mode"])
 	)
 	assert_eq(overlay.circle_count(), 2)
+
+
+## Bontago-1pi.11.14: the host skips solves on a clean board, so its raster bytes
+## do not change and MatchNet.replicate_territory() finds no changed cells. The
+## mirror must still pick up the next real change as a diff.
+func test_mirror_still_receives_updates_after_host_clean_ticks_skip() -> void:
+	var host: TerritoryRaster = _solved_host_raster()
+	var mirror: TerritoryRaster = _make_raster()
+	mirror.apply_replicated_state(host.owner_bytes(), host.state_bytes())
+	var sent_owners: PackedByteArray = host.owner_bytes().duplicate()
+	var sent_states: PackedByteArray = host.state_bytes().duplicate()
+
+	# Clean ticks: the host does not touch the raster at all.
+	assert_eq(host.owner_bytes(), sent_owners, "Skipped ticks leave the owner bytes unchanged (nothing to replicate).")
+	assert_eq(host.state_bytes(), sent_states)
+
+	# A real change (third home nearby) solves again and must reach the mirror as a diff.
+	var circles: Array[InfluenceCircle] = [
+		InfluenceCircle.for_home(Vector2(-2.0, 0.0), 0, 0, _tuning),
+		InfluenceCircle.for_home(Vector2(2.0, 0.0), 1, 1, _tuning),
+		InfluenceCircle.for_home(Vector2(0.0, 7.0), 2, 2, _tuning),
+	]
+	var groups: TerritoryGroups = TerritoryGroups.new()
+	groups.add_group(0, PackedInt32Array([0]))
+	groups.add_group(1, PackedInt32Array([1]))
+	groups.add_group(2, PackedInt32Array([2]))
+	host.update(circles, groups, 1.0 / _tuning.solve_hz, true)
+	var changed: PackedInt32Array = PackedInt32Array()
+	var owners: PackedByteArray = host.owner_bytes()
+	var states: PackedByteArray = host.state_bytes()
+	for index: int in range(owners.size()):
+		if owners[index] != sent_owners[index] or states[index] != sent_states[index]:
+			changed.append(index)
+	assert_gt(changed.size(), 0, "fixture: the new solve changed cells.")
+	var picked_owners: PackedByteArray = PackedByteArray()
+	var picked_states: PackedByteArray = PackedByteArray()
+	for index: int in changed:
+		picked_owners.append(owners[index])
+		picked_states.append(states[index])
+	mirror.apply_replicated_diff(changed, picked_owners, picked_states)
+	_assert_mirrors(host, mirror)

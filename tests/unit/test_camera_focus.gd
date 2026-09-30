@@ -91,6 +91,14 @@ func _expected_turn_yaw(follow_position: Vector3, target: Vector3) -> float:
 	return atan2(away.x, away.y)
 
 
+## Deterministically advances every live SceneTree Tween (the rig's turn/snap
+## tweens) by `seconds` of tween time, independent of wall-clock frames.
+func _finish_tweens(seconds: float) -> void:
+	for tween: Tween in get_tree().get_processed_tweens():
+		if tween.is_valid() and tween.is_running():
+			tween.custom_step(seconds)
+
+
 # --- TAP: TURN ---------------------------------------------------------------
 
 
@@ -107,12 +115,12 @@ func test_tap_camera_snap_home_turns_yaw_toward_the_local_slots_home_beacon() ->
 	# one frame, release -- never crosses into PEEK. TURN itself is a Tween
 	# (game/CameraRig.gd's _turn_to_face()), which only advances on the
 	# engine's own real frames -- not on this file's own manual rig._process()
-	# calls -- so this awaits real time afterward, same as the legacy _snap_to()
-	# tests elsewhere in this project.
+	# calls -- so the tween is stepped explicitly via _finish_tweens() (no
+	# wall-clock wait, which flaked under full-suite load; Bontago-fca.3).
 	_press_and_hold(rig, &"camera_snap_home", 1)
 	_release_and_settle(rig, &"camera_snap_home")
 	assert_false(rig.is_peeking(), "a tap must never engage PEEK.")
-	await wait_seconds(rig.tuning.focus_turn_duration_s + 0.05)
+	_finish_tweens(rig.tuning.focus_turn_duration_s + 0.05)
 
 	assert_almost_eq(rig.get_yaw(), expected_yaw, 0.01)
 
@@ -130,12 +138,12 @@ func test_tap_camera_snap_goal_turns_yaw_toward_the_first_goal_and_repeated_taps
 
 	_press_and_hold(rig, &"camera_snap_goal", 1)
 	_release_and_settle(rig, &"camera_snap_goal")
-	await wait_seconds(rig.tuning.focus_turn_duration_s + 0.05)
+	_finish_tweens(rig.tuning.focus_turn_duration_s + 0.05)
 	assert_almost_eq(rig.get_yaw(), _expected_turn_yaw(rig.get_target(), first_goal), 0.01)
 
 	_press_and_hold(rig, &"camera_snap_goal", 1)
 	_release_and_settle(rig, &"camera_snap_goal")
-	await wait_seconds(rig.tuning.focus_turn_duration_s + 0.05)
+	_finish_tweens(rig.tuning.focus_turn_duration_s + 0.05)
 	assert_almost_eq(rig.get_yaw(), _expected_turn_yaw(rig.get_target(), second_goal), 0.01)
 
 
@@ -210,7 +218,7 @@ func test_camera_snap_home_held_blocks_camera_snap_goal_entirely() -> void:
 
 	_release_and_settle(rig, &"camera_snap_home")
 	assert_false(rig.is_peeking(), "fixture: too short a hold to have engaged PEEK.")
-	await wait_seconds(rig.tuning.focus_turn_duration_s + 0.05)
+	_finish_tweens(rig.tuning.focus_turn_duration_s + 0.05)
 
 	assert_almost_eq(rig.get_yaw(), expected_home_yaw, 0.01)
 
@@ -247,7 +255,7 @@ func test_legacy_camera_still_snaps_instantly_to_the_real_home_beacon() -> void:
 
 	var home_target: Vector3 = _field.home_flags()[1].global_position
 	rig._unhandled_input(_action_event(&"camera_snap_home", true))
-	await wait_seconds(rig.tuning.snap_duration + 0.05)
+	_finish_tweens(rig.tuning.snap_duration + 0.05)
 
 	assert_almost_eq(rig.get_target().x, home_target.x, 0.05)
 	assert_almost_eq(rig.get_target().z, home_target.z, 0.05)

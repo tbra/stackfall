@@ -334,3 +334,91 @@ func test_all_settled_is_false_while_one_tracked_block_still_moves() -> void:
 	await get_tree().physics_frame
 
 	assert_false(registry.all_settled(), "one still-moving block keeps the whole registry unsettled")
+
+
+# --- Bontago-1pi.11.14: physics-driven territory_revision bumps ---------------
+
+
+func _settled_frozen_block(field: Field, registry: BlockRegistry, shape: BlockShape) -> Block:
+	var block: Block = BlockFactory.build(shape, _tuning, 0)
+	field.add_child(block)
+	block.freeze = true
+	block.global_position = Vector3(3.0, 0.5, -1.0)
+	Events.block_placed.emit(block, shape.id)
+	var ticks: int = int(ceil(_tuning.sleep_settle_time * Engine.physics_ticks_per_second)) + 5
+	for _i: int in range(ticks):
+		await get_tree().physics_frame
+	assert_true(registry._entries[block.get_instance_id()].is_settled, "fixture: block settled")
+	return block
+
+
+func test_physics_settle_flip_bumps_territory_revision() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block: Block = BlockFactory.build(shape, _tuning, 0)
+	field.add_child(block)
+	block.freeze = true
+	block.global_position = Vector3(3.0, 0.5, -1.0)
+	Events.block_placed.emit(block, shape.id)
+	var placed_revision: int = registry.territory_revision()
+	await get_tree().physics_frame
+	assert_eq(registry.territory_revision(), placed_revision, "No flip yet: still inside the settle window.")
+	var ticks: int = int(ceil(_tuning.sleep_settle_time * Engine.physics_ticks_per_second)) + 5
+	for _i: int in range(ticks):
+		await get_tree().physics_frame
+	assert_eq(registry.territory_revision(), placed_revision + 1, "Unsettled -> settled bumps exactly once.")
+	for _i: int in range(5):
+		await get_tree().physics_frame
+	assert_eq(registry.territory_revision(), placed_revision + 1, "A still settled block stays clean.")
+
+
+func test_physics_settled_move_beyond_epsilon_bumps_but_jitter_does_not() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block: Block = await _settled_frozen_block(field, registry, shape)
+	var eps: float = _territory_tuning.dirty_move_epsilon
+	registry.set_move_epsilon(eps)
+	var before: int = registry.territory_revision()
+	block.global_position += Vector3(eps * 0.25, 0.0, 0.0)
+	await get_tree().physics_frame
+	assert_eq(registry.territory_revision(), before, "Sub-epsilon jitter does not bump.")
+	block.global_position += Vector3(eps * 4.0, 0.0, 0.0)
+	await get_tree().physics_frame
+	assert_eq(registry.territory_revision(), before + 1, "A move beyond epsilon bumps once.")
+	await get_tree().physics_frame
+	assert_eq(registry.territory_revision(), before + 1, "The mark follows the block: no repeat bump.")
+
+
+func test_physics_settled_to_moving_flip_bumps_territory_revision() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block: Block = await _settled_frozen_block(field, registry, shape)
+	var before: int = registry.territory_revision()
+	block.freeze = false
+	block.linear_velocity = Vector3(10.0, 0.0, 0.0)  # far above sleep_linear_threshold
+	await get_tree().physics_frame
+	assert_false(registry._entries[block.get_instance_id()].is_settled)
+	assert_gt(registry.territory_revision(), before, "Settled -> moving bumps.")
+
+
+func test_paintball_owner_conversion_bumps_revision_host_and_client() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block: Block = _place(field, shape, 1)
+	var before: int = registry.territory_revision()
+	assert_true(registry.convert_owner(block, 0, Color.RED))
+	assert_eq(registry.territory_revision(), before + 1, "Host conversion bumps.")
+	assert_false(registry.convert_owner(block, 0, Color.RED))
+	assert_eq(registry.territory_revision(), before + 1, "A no-op conversion does not bump.")
+
+	var client_registry: BlockRegistry = _make_registry(field)
+	client_registry.set_host_authority(false)
+	var mirrored: Block = _place(field, shape, 1)
+	client_registry.bind_net_id(mirrored, 81)
+	var client_before: int = client_registry.territory_revision()
+	assert_true(client_registry.apply_replicated_owner(81, 0, Color.RED))
+	assert_eq(client_registry.territory_revision(), client_before + 1, "Client mirror conversion bumps.")
