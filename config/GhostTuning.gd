@@ -114,7 +114,7 @@ extends Resource
 @export var hover_manual_adjust_speed: float = 1.5
 ## Bontago-mv0.35 (owner: "there is still a maximum height the block cannot be
 ## raised"): at a flat hover_manual_adjust_speed (1 m/s) a held raise input
-## could only lift one block ~MatchConfig.block_timer (6 s) = 6 m before the
+## could only lift one block ~MatchConfig.block_timer (6 s at the time) = 6 m before the
 ## feed timer auto-dropped it -- a de-facto cap on the PageUp/gamepad path.
 ## A held raise/lower now starts at hover_manual_adjust_speed and accelerates
 ## by this many m/s every second it stays held...

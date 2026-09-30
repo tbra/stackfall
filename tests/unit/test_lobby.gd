@@ -112,7 +112,7 @@ func test_every_2_8_setting_round_trips_through_to_dict_and_from_dict() -> void:
 	config.ai_difficulty = MatchConfig.AiDifficulty.HARD
 	config.team_mode = MatchConfig.TeamMode.TEAMS_2
 	config.block_timer = 9.5
-	config.gravity_multiplier = 1.75
+	config.gravity_multiplier = 1.25
 	config.goal_flag_count = 3
 	config.gifts_enabled = false
 	config.special_frequency = 80
@@ -135,7 +135,7 @@ func test_every_2_8_setting_round_trips_through_to_dict_and_from_dict() -> void:
 	assert_true((lobby.get_node("%Team2Button") as Button).button_pressed, "the segmented control mirrors a remote team_mode update")
 	assert_false((lobby.get_node("%TeamOffButton") as Button).button_pressed)
 	assert_almost_eq((lobby.get_node("%BlockTimerSlider") as HSlider).value, 9.5, 0.01)
-	assert_almost_eq((lobby.get_node("%GravitySlider") as HSlider).value, 1.75, 0.01)
+	assert_almost_eq((lobby.get_node("%GravitySlider") as HSlider).value, 1.25, 0.01)
 	assert_eq(int((lobby.get_node("%GoalFlagSpin") as SpinBox).value), 3)
 	assert_false((lobby.get_node("%GiftsCheck") as CheckButton).button_pressed)
 	assert_eq(int((lobby.get_node("%SpecialFreqSlider") as HSlider).value), 80)
