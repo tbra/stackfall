@@ -416,6 +416,88 @@ uniform float disc_proc_brush_fade_px = 3.0;
 
 varying vec3 v_local;
 
+// -- Weather snow (Bontago-22y.6) --------------------------------------------
+// Visual-only snow layer, driven by vfx/weather/SnowDiscCover.gd through this
+// material. snow_strength 0 (the default) leaves the disc exactly as it was.
+// Coverage is a soft low-frequency field (domain-warped gradient noise, wide
+// smoothstep edges) biased up along plate seams, near the rim and around
+// block bases (snow_drift_tex), so drifts gather there first; light snow is
+// a faint frosting (snow_strength well below 1), heavy snow soft drifts with
+// dark bare disc between them.
+uniform float snow_strength = 0.0;
+uniform float snow_threshold = 0.5;
+uniform float snow_softness = 0.14;
+uniform float snow_scale = 0.12;
+uniform float snow_warp = 0.9;
+uniform vec2 snow_offset = vec2(0.0);
+uniform float snow_seam_bias = 0.12;
+uniform float snow_seam_width = 0.08;
+uniform float snow_rim_start = 0.8;
+uniform float snow_rim_bias = 0.15;
+uniform sampler2D snow_drift_tex : filter_linear, repeat_disable;
+uniform float snow_drift_span = 1.0;
+uniform float snow_base_bias = 0.25;
+uniform float snow_field_radius = 45.0;
+uniform vec4 snow_color : source_color = vec4(0.84, 0.86, 0.93, 1.0);
+uniform vec4 snow_shade_tint : source_color = vec4(0.55, 0.58, 0.82, 1.0);
+uniform float snow_shadow_band = 0.2;
+uniform float snow_band_softness = 0.1;
+uniform float snow_light_gain = 0.42;
+uniform float snow_ambient_factor = 0.6;
+// Cel tones inside a drift: depth below snow_tone_mid is the cool shadow
+// tone, above snow_tone_lit the lit off-white, between them pale lavender;
+// each step is snow_tone_width wide. Only the outermost snow_edge_soft of
+// depth fades softly into the bare disc.
+uniform vec4 snow_tone_mid : source_color = vec4(0.74, 0.76, 0.9, 1.0);
+uniform vec4 snow_tone_shade : source_color = vec4(0.6, 0.63, 0.82, 1.0);
+uniform float snow_tone_mid_at = 0.35;
+uniform float snow_tone_lit_at = 0.7;
+uniform float snow_tone_width = 0.03;
+uniform float snow_edge_soft = 0.3;
+varying float v_snow;
+
+// Integer lattice hash: exact on every GPU. (A float fract() hash lost
+// precision at larger lattice coordinates and gave seams in the snow.)
+float snow_hash(vec2 p) {
+	uvec2 q = uvec2(ivec2(floor(p)) + ivec2(65536));
+	uint h = q.x * 1597334677u ^ q.y * 3812015801u;
+	h ^= h >> 16u;
+	h *= 2246822519u;
+	h ^= h >> 13u;
+	return float(h) * (1.0 / 4294967295.0);
+}
+
+float snow_noise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+	float a0 = snow_hash(i) * 6.2831853;
+	float a1 = snow_hash(i + vec2(1.0, 0.0)) * 6.2831853;
+	float a2 = snow_hash(i + vec2(0.0, 1.0)) * 6.2831853;
+	float a3 = snow_hash(i + vec2(1.0, 1.0)) * 6.2831853;
+	float g0 = dot(vec2(cos(a0), sin(a0)), f);
+	float g1 = dot(vec2(cos(a1), sin(a1)), f - vec2(1.0, 0.0));
+	float g2 = dot(vec2(cos(a2), sin(a2)), f - vec2(0.0, 1.0));
+	float g3 = dot(vec2(cos(a3), sin(a3)), f - vec2(1.0, 1.0));
+	return mix(mix(g0, g1, u.x), mix(g2, g3, u.x), u.y) * 0.7 + 0.5;
+}
+
+// Raw snow depth 0..1 at disc-local `point` (before snow_strength).
+float snow_coverage(vec2 point) {
+	vec2 p = point * snow_scale + snow_offset;
+	vec2 warp = vec2(snow_noise(p * 0.6 + 5.2), snow_noise(p * 0.6 + 1.3)) - 0.5;
+	p += warp * snow_warp;
+	float field = snow_noise(p) * 0.65 + snow_noise(p * 2.1 + 17.1) * 0.35;
+	vec2 panel = fract(point / max(panel_size_m, 0.01));
+	vec2 seam_d = min(panel, vec2(1.0) - panel);
+	// Seams only gather snow next to a drift (not as a grid over bare disc).
+	float near_drift = smoothstep(snow_threshold - 2.0 * snow_softness, snow_threshold, field);
+	field += snow_seam_bias * near_drift * (1.0 - smoothstep(0.0, snow_seam_width, min(seam_d.x, seam_d.y)));
+	field += snow_rim_bias * smoothstep(snow_rim_start, 1.0, length(point) / max(snow_field_radius, 0.001));
+	field += snow_base_bias * texture(snow_drift_tex, point / max(snow_drift_span, 0.001) + 0.5).r;
+	return smoothstep(snow_threshold - snow_softness, snow_threshold + snow_softness, field);
+}
+
 void vertex() {
 	vec3 local = VERTEX;
 	local.z *= disc_z_scale;
@@ -435,7 +517,21 @@ void vertex() {
 void light() {
 	float luma = dot(LIGHT_COLOR.rgb, vec3(0.299, 0.587, 0.114));
 	vec3 cool_light = mix(LIGHT_COLOR.rgb, vec3(luma), disk_diffuse_desaturate);
-	DIFFUSE_LIGHT += ALBEDO * cool_light * ATTENUATION * disk_diffuse_response;
+	vec3 disc_light = ALBEDO * cool_light * ATTENUATION * disk_diffuse_response;
+	if (v_snow > 0.0) {
+		// Bontago-22y.6: snow is cel-lit in three flat bands (cool lavender
+		// shadow, mid, lit) instead of the metal's damped response.
+		// Lit / shadowed only (the tone bands come from snow depth); NORMAL
+		// was flattened for snow in fragment(), so plate seams and grain do
+		// not draw lines through it. The band follows the shadow
+		// (ATTENUATION), not the low sunset N.L, so cascade transitions do not
+		// draw arcs across the snow.
+		float facing = step(0.0, dot(NORMAL, LIGHT));
+		float lit = facing * smoothstep(snow_shadow_band - snow_band_softness, snow_shadow_band + snow_band_softness, ATTENUATION);
+		vec3 band = mix(snow_shade_tint.rgb, vec3(1.0), lit);
+		disc_light = mix(disc_light, ALBEDO * band * cool_light * snow_light_gain, v_snow);
+	}
+	DIFFUSE_LIGHT += disc_light;
 }
 
 // Polynomial smooth min (Inigo Quilez). k <= 0 degrades to a hard min, so
@@ -719,7 +815,7 @@ void proc_plating(vec2 p, vec2 sun2, float cam_height, out float tone, out float
 		+ brush * disc_proc_roughness_variation;
 }
 
-void raster_path(vec2 uv, out vec3 albedo, out vec3 emission) {
+void raster_path(vec2 uv, vec3 base, out vec3 albedo, out vec3 emission) {
 	float owner_near = round(texture(territory_cells, uv).r * 255.0);
 	float owner_soft = texture(territory_tex, uv).r * 255.0;
 	float state_near = round(texture(territory_state, uv).r * 255.0);
@@ -733,7 +829,7 @@ void raster_path(vec2 uv, out vec3 albedo, out vec3 emission) {
 	float tint = owned ? coverage : 0.0;
 
 	vec3 team_color = slot_colors[clamp(owner_id, 0, SLOT_COLOR_MAX - 1)].rgb;
-	albedo = mix(base_color.rgb, team_color, tint * tint_alpha);
+	albedo = mix(base, team_color, tint * tint_alpha);
 	emission = team_color * tint * tint_fill_emission;
 
 	float band = 1.0 - smoothstep(0.0, outline_width, abs(presence - 0.5));
@@ -773,7 +869,7 @@ void raster_path(vec2 uv, out vec3 albedo, out vec3 emission) {
 // index per team, not just a sort) for no measured win at 400 texels, so it
 // was not built. Revisit with real profiling numbers if max_shader_circles
 // is ever raised well past 400.
-void circle_path(vec2 point, out vec3 albedo, out vec3 emission) {
+void circle_path(vec2 point, vec3 base, out vec3 albedo, out vec3 emission) {
 	float team_best[SLOT_COLOR_MAX];
 	bool team_seen[SLOT_COLOR_MAX];
 	bool team_done[SLOT_COLOR_MAX];
@@ -853,7 +949,7 @@ void circle_path(vec2 point, out vec3 albedo, out vec3 emission) {
 	// exactly one owner — so it never sets this.
 	bool contested = !argmax_mode && inside_count >= 2;
 
-	albedo = base_color.rgb;
+	albedo = base;
 	emission = vec3(0.0);
 
 	// DECISION (shaders/territory.gdshader, Bontago-xtq.14): the tint's own
@@ -870,7 +966,7 @@ void circle_path(vec2 point, out vec3 albedo, out vec3 emission) {
 	if (owner_team >= 0 && !contested && best_overall >= -edge_half_width) {
 		float coverage = smoothstep(-edge_half_width, edge_half_width, best_overall);
 		vec3 team_color = slot_colors[owner_team].rgb;
-		albedo = mix(base_color.rgb, team_color, coverage * tint_alpha);
+		albedo = mix(base, team_color, coverage * tint_alpha);
 		emission += team_color * coverage * tint_fill_emission;
 
 		float band = 1.0 - smoothstep(0.0, rim_width, abs(best_overall));
@@ -928,11 +1024,27 @@ void fragment() {
 
 	vec3 albedo;
 	vec3 emission;
+	// Bontago-22y.6: weather snow composites disc -> snow -> territory: the
+	// snow replaces the base albedo the territory tint is mixed onto, and the
+	// tint fill, contour, shimmer and hole rim (path emission) stay on top.
+	vec3 snow_flat_normal = NORMAL;
+	float snow_depth = snow_strength > 0.0 ? snow_coverage(v_local.xz) : 0.0;
+	float snow = snow_strength * smoothstep(0.0, max(snow_edge_soft, 0.001), snow_depth);
+	v_snow = snow;
+	vec3 snow_tone = mix(snow_tone_shade.rgb, snow_tone_mid.rgb,
+		smoothstep(snow_tone_mid_at - snow_tone_width, snow_tone_mid_at + snow_tone_width, snow_depth));
+	snow_tone = mix(snow_tone, snow_color.rgb,
+		smoothstep(snow_tone_lit_at - snow_tone_width, snow_tone_lit_at + snow_tone_width, snow_depth));
+	vec3 path_base = mix(base_color.rgb, snow_tone, snow);
 	if (circles_valid) {
-		circle_path(v_local.xz, albedo, emission);
+		circle_path(v_local.xz, path_base, albedo, emission);
 	} else {
-		raster_path(uv, albedo, emission);
+		raster_path(uv, path_base, albedo, emission);
 	}
+	// Snowy pixels keep the path result: the metal texture, plating, seams,
+	// mirror and sheen below belong to the bare disc, not to snow on it.
+	vec3 path_albedo = albedo;
+	vec3 path_emission = emission;
 
 	// Bontago-pt.12 part 2: top-surface brushed/plank grain -- see the
 	// top_grain_* uniforms' own header comment. ALBEDO/EMISSION above are
@@ -1120,6 +1232,10 @@ void fragment() {
 		emission += disc_proc_highlight_color * proc_highlight;
 	}
 
+	if (snow > 0.0) {
+		albedo = mix(albedo, path_albedo, snow);
+		emission = mix(emission, path_emission, snow);
+	}
 	ALBEDO = albedo;
 	EMISSION = emission;
 	// Bontago-xtq.11 (owner, 2026-09-23: "the disc is a mirror-like surface
@@ -1145,5 +1261,12 @@ void fragment() {
 	}
 	if (disc_procedural) {
 		ROUGHNESS = clamp(proc_rough, 0.0, 1.0);
+	}
+	if (snow > 0.0) {
+		ROUGHNESS = mix(ROUGHNESS, 1.0, snow);
+		METALLIC = mix(METALLIC, 0.0, snow);
+		SPECULAR = mix(SPECULAR, 0.0, snow);
+		AO = mix(AO, AO * snow_ambient_factor, snow);
+		NORMAL = normalize(mix(NORMAL, snow_flat_normal, snow));
 	}
 }

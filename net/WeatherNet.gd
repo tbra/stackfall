@@ -35,6 +35,12 @@ func _ready() -> void:
 	add_child(presenter)
 	Events.weather_state_changed.connect(_on_weather_state_changed)
 	Events.net_peer_joined.connect(_on_net_peer_joined)
+	# Bontago-22y.6: snow's patch replication and client caps (net/SnowNet.gd).
+	# Added after the connections above so a late joiner gets the weather
+	# state before the snow state.
+	var snow_net: SnowNet = SnowNet.new()
+	snow_net.name = "SnowNet"
+	add_child(snow_net)
 
 
 ## Same seam as MatchNet.set_providers(); null keeps the real autoload.

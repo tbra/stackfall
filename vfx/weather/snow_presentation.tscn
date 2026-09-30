@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://vfx/weather/WeatherPresentation.gd" id="1_wp"]
+[ext_resource type="Script" path="res://vfx/weather/SnowPresentation.gd" id="1_sp"]
 
 [node name="SnowPresentation" type="Node3D"]
-script = ExtResource("1_wp")
+script = ExtResource("1_sp")
