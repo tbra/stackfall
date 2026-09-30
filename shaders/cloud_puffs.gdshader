@@ -148,6 +148,9 @@ uniform float fade_end_m = 500.0;
 uniform float depth_fade_start_m = 40.0;
 uniform float depth_fade_end_m = 140.0;
 uniform float depth_fade_amount = 0.45;
+// Bontago-59o.19: cap on the combined distance/depth fade into the sky (1 = none,
+// the painted look; the procedural look sets <1 so far puffs stay shaded cumulus).
+uniform float far_fade_cap = 1.0;
 uniform float near_fade_start_m = 5.0;
 uniform float near_fade_end_m = 16.0;
 
@@ -301,7 +304,7 @@ void fragment() {
 
 	// Blend into the sky drawn behind: distance haze plus depth below the disc.
 	float depth = smoothstep(depth_fade_start_m, depth_fade_end_m, -surface.y) * depth_fade_amount;
-	fade = 1.0 - (1.0 - fade) * (1.0 - depth);
+	fade = min(1.0 - (1.0 - fade) * (1.0 - depth), far_fade_cap);
 	if (fade > 0.001) {
 		vec2 sky_uv = sky_panorama_uv(view_dir, sky_yaw_offset_deg, sky_pitch_offset_deg);
 		vec3 sky = panorama_lod(panorama, sky_uv, seam_blend_width) * exposure;

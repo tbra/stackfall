@@ -209,3 +209,18 @@ extends Resource
 @export var proc_sea_color_far: Color = Color(0.34, 0.27, 0.47)
 @export var proc_sea_horizon_fade: float = 0.12
 @export var proc_strata_scale: float = 1.0
+## Bontago-59o.19: far puff ring drawn only while sky_look_procedural is on --
+## a third set of big cumulus clumps reaching toward the horizon so the cloud sea
+## below it is real lit cumulus, not shader noise. proc_far_count 0 = none.
+## proc_far_fade_cap (0..1) caps the puffs' distance fade into the sky colour so
+## distant clumps keep visible lit/shadow shading.
+@export var proc_far_count: int = 0
+@export var proc_far_ring_inner_m: float = 650.0
+@export var proc_far_ring_outer_m: float = 2600.0
+@export var proc_far_radial_bias: float = 1.0
+@export var proc_far_base_min_m: float = -160.0
+@export var proc_far_base_max_m: float = -90.0
+@export var proc_far_top_max_m: float = -20.0
+@export var proc_far_radius_min_m: float = 60.0
+@export var proc_far_radius_max_m: float = 130.0
+@export var proc_far_fade_cap: float = 0.7
