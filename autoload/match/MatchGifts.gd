@@ -538,6 +538,22 @@ func _world_at(point: Vector2, height: float) -> Vector3:
 	return field.world_from_disk_local(point, height) if field != null else Vector3(point.x, height, point.y)
 
 
+## Host and client use the same time/id-derived arc; no extra wire data or
+## random state is needed. Clients begin on event receipt, so their visual can
+## trail the host by transport latency; only the host resolves airborne touch.
+## Height stays linear, and sway fades to the exact authoritative landing point.
+func _flight_position(gift_id: int, origin: Vector3, landing: Vector3,
+		elapsed: float, progress: float) -> Vector3:
+	if progress <= 0.0:
+		return origin
+	if progress >= 1.0:
+		return landing
+	var straight: Vector3 = origin.lerp(landing, progress)
+	var amplitude: float = maxf(_gift_config.sway_amplitude_m, 0.0) * sin(PI * progress)
+	var angle: float = TAU * maxf(_gift_config.sway_frequency_hz, 0.0) * elapsed + float(gift_id) * 2.39996323
+	return straight + Vector3(sin(angle), 0.0, sin(angle * 0.73 + 0.8)) * amplitude
+
+
 ## A copy safe for minimap and network consumers. Position is host-authored.
 func gift_state(gift_id: int) -> Dictionary:
 	var entry: Dictionary = _crates.get(gift_id, {})
@@ -581,7 +597,7 @@ func tick_host(delta: float) -> void:
 			var elapsed: float = float(entry["elapsed"]) + delta
 			entry["elapsed"] = elapsed
 			var progress: float = 1.0 if distance <= 0.0 else minf(elapsed * maxf(_gift_config.fall_speed_m_s, 0.001) / distance, 1.0)
-			var world_position: Vector3 = origin.lerp(landing, progress)
+			var world_position: Vector3 = _flight_position(gift_id, origin, landing, elapsed, progress)
 			var node: GiftCrate = entry.get("node") as GiftCrate
 			if node != null and is_instance_valid(node):
 				node.global_position = world_position
@@ -932,7 +948,8 @@ func _make_crate_node(point: Vector2, gift_id: int) -> GiftCrate:
 func tick_client(delta: float) -> void:
 	if _match._is_host() or not is_finite(delta) or delta <= 0.0:
 		return
-	for entry: Dictionary in _crates.values():
+	for gift_id: int in _crates.keys():
+		var entry: Dictionary = _crates[gift_id]
 		if int(entry.get("phase", LANDED)) != FALLING:
 			continue
 		var origin: Vector3 = entry["origin"]
@@ -943,7 +960,7 @@ func tick_client(delta: float) -> void:
 		var progress: float = 1.0 if distance <= 0.0 else minf(elapsed * maxf(_gift_config.fall_speed_m_s, 0.001) / distance, 1.0)
 		var node: GiftCrate = entry.get("node") as GiftCrate
 		if node != null and is_instance_valid(node):
-			node.global_position = origin.lerp(landing, progress)
+			node.global_position = _flight_position(gift_id, origin, landing, elapsed, progress)
 
 
 func apply_replicated_spawn(gift_id: int, position: Vector2) -> void:

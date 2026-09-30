@@ -14,6 +14,11 @@ FIFO behavior. Per-window spawn probability and host authority stay as shipped.
 
 The host owns phase, position, collision, claim order, feed sequence, and timer.
 Clients render replicated state and never send an authoritative claim intent.
+The 2026-09-30 descent tuning starts 18 m above the landing point, falls at
+2 m/s, and sways horizontally by up to about 0.6 m. Host and clients derive
+the same sway from gift ID and local elapsed flight time; a client's visual
+can trail the host by event delivery latency. Only the host resolves touch.
+Sway fades to zero at the exact landing point.
 The held ghost is not a physics body, so its touch is measured against the
 host-validated cursor pose and held BlockShape, including remote cursor poses
 from MatchNet. Tuning values belong in GiftConfig, not in scripts.

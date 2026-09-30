@@ -31,8 +31,12 @@ extends Resource
 @export var life_s: float = 10.0
 
 ## Descent begins this many metres above the field and advances on host physics ticks.
-@export var drop_height_m: float = 12.0
-@export var fall_speed_m_s: float = 3.0
+@export var drop_height_m: float = 18.0
+@export var fall_speed_m_s: float = 2.0
+## Small deterministic sideways motion; its envelope vanishes at both ends
+## so the crate reaches the exact landing point used for claims.
+@export var sway_amplitude_m: float = 0.45
+@export var sway_frequency_hz: float = 0.33
 ## Additional clearance around the held block and crate for in-flight touch.
 @export var air_touch_margin_m: float = 0.08
 ## Ignore remote cursor poses older than this; a stale pose cannot collect a gift.

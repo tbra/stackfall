@@ -28,6 +28,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
+	Match.set_net_provider(null)
 	Match.set_replicator(null)
 	Match._gifts._gift_config = load("res://config/gift_config.tres") as GiftConfig
 	Match.abort_match()
@@ -62,10 +63,10 @@ func test_flight_lands_then_expires_at_exact_ten_second_boundary() -> void:
 	var gift_id: int = _spawn(Vector2(0.0, 15.0))
 	var initial: Dictionary = Match.gift_state(gift_id)
 	assert_eq(int(initial["phase"]), MatchGifts.FALLING)
-	assert_almost_eq(float(initial["origin"].y - initial["landing"].y), 12.0, 0.001)
-	Match._gifts.tick_host(2.0)
+	assert_almost_eq(float(initial["origin"].y - initial["landing"].y), 18.0, 0.001)
+	Match._gifts.tick_host(4.5)
 	assert_eq(int(Match.gift_state(gift_id)["phase"]), MatchGifts.FALLING)
-	Match._gifts.tick_host(2.0)
+	Match._gifts.tick_host(4.5)
 	assert_eq(int(Match.gift_state(gift_id)["phase"]), MatchGifts.LANDED)
 	assert_eq(float(Match.gift_state(gift_id)["landed_age"]), 0.0)
 	Match._gifts.tick_host(9.999)
@@ -78,7 +79,7 @@ func test_owned_landing_claims_once() -> void:
 	_start()
 	var gift_id: int = _spawn(Match.slot(0).home_position)
 	watch_signals(Events)
-	Match._gifts.tick_host(4.0)
+	Match._gifts.tick_host(9.0)
 	assert_false(Match._gifts._crates.has(gift_id))
 	assert_signal_emit_count(Events, "gift_claimed", 1)
 	Match._gifts.tick_host(1.0)
@@ -99,6 +100,38 @@ func test_seeded_spawn_and_reset_repeat_flight_origin() -> void:
 	assert_eq(id_b, id_a)
 	assert_eq(point_b, point_a)
 	assert_eq(Match.gift_state(id_b)["origin"], origin_a)
+
+
+func test_sway_is_bounded_and_host_client_follow_the_same_path() -> void:
+	_start()
+	var gift_id: int = _spawn(Vector2(0.0, 15.0))
+	var state: Dictionary = Match.gift_state(gift_id)
+	var origin: Vector3 = state["origin"]
+	var landing: Vector3 = state["landing"]
+	var crate: GiftCrate = Match._gifts._crates[gift_id]["node"]
+	Match._gifts.tick_host(2.0)
+	var host_position: Vector3 = crate.global_position
+	var straight: Vector3 = origin.lerp(landing, 2.0 / 9.0)
+	assert_almost_eq(host_position.y, straight.y, 0.001, "sway changes only the horizontal position")
+	assert_gt(Vector2(host_position.x - straight.x, host_position.z - straight.z).length(), 0.01)
+	assert_lte(Vector2(host_position.x - straight.x, host_position.z - straight.z).length(), 0.64)
+	Match._gifts._crates[gift_id]["elapsed"] = 0.0
+	crate.global_position = origin
+	Match.set_net_provider(FakeNet.client(0))
+	Match._gifts.tick_client(2.0)
+	assert_eq(crate.global_position, host_position, "client uses the same id/time-derived sway")
+	assert_eq(Match._gifts._flight_position(gift_id, origin, landing, 9.0, 1.0), landing)
+	var max_horizontal_lag: float = 0.0
+	for step in range(1, 91):
+		var host_elapsed: float = float(step) * 0.1
+		var client_elapsed: float = maxf(host_elapsed - 0.1, 0.0)
+		var host_visual: Vector3 = Match._gifts._flight_position(gift_id, origin, landing,
+			host_elapsed, minf(host_elapsed / 9.0, 1.0))
+		var delayed_visual: Vector3 = Match._gifts._flight_position(gift_id, origin, landing,
+			client_elapsed, minf(client_elapsed / 9.0, 1.0))
+		max_horizontal_lag = maxf(max_horizontal_lag,
+			Vector2(host_visual.x - delayed_visual.x, host_visual.z - delayed_visual.z).length())
+	assert_lte(max_horizontal_lag, 0.2, "100 ms delivery lag keeps sway within 20 cm")
 
 
 func test_two_held_blocks_touching_in_air_claim_once_in_slot_order() -> void:
@@ -141,7 +174,7 @@ func test_landed_gift_claims_when_territory_arrives_later() -> void:
 	_start()
 	var point: Vector2 = Vector2(0.0, 15.0)
 	var gift_id: int = _spawn(point)
-	Match._gifts.tick_host(4.0)
+	Match._gifts.tick_host(9.0)
 	assert_eq(int(Match.gift_state(gift_id)["phase"]), MatchGifts.LANDED)
 	assert_eq(Match.held_special(1), &"")
 	var circles: Array[InfluenceCircle] = [InfluenceCircle.new(point, 3.0, 1, 1, true, -1)]
