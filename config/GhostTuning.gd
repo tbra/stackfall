@@ -486,3 +486,21 @@ extends Resource
 ## makes any surface lying exactly on the decal box's top or bottom plane
 ## render as NaN (black speckle; feedback/owner-noise-footprint.png).
 @export var block_projection_edge_fade: float = 0.001
+
+## -- Ghost glow (Bontago-sen.6, owner: "soft glow shader effect to the ghost
+## blocks, then 1s before it force drops it should start glowing rapidly").
+## Presentation only; the glow is a fresnel rim in the ghost's own tint colour
+## (game/GhostPreview.gd, shaders/ghost_cell_grid.gdshader). ------------------
+## Emission multiplier of the steady rim glow.
+@export var glow_strength: float = 1.0
+## Fresnel exponent: higher keeps the glow on the silhouette edge, lower spreads
+## it over the whole face.
+@export var glow_rim_power: float = 1.5
+## Seconds before the forced (timer) drop at which the glow starts pulsing.
+@export var glow_warning_lead_seconds: float = 1.0
+## Pulse rate (Hz) when the warning begins, ramping linearly to the end rate at
+## the moment of the drop.
+@export var glow_pulse_start_hz: float = 3.0
+@export var glow_pulse_end_hz: float = 10.0
+## Glow multiplier reached at the peak of each warning pulse (1 = no pulse).
+@export var glow_pulse_peak_multiplier: float = 4.0

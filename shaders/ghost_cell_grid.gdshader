@@ -74,6 +74,13 @@ uniform float bevel_highlight_strength : hint_range(0.0, 1.0) = 0.25;
 uniform float bevel_highlight_width_px = 2.4;
 uniform vec4 bevel_highlight_color : source_color = vec4(1.0, 0.93, 0.8, 1.0);
 
+// Bontago-sen.6: soft fresnel rim glow in the ghost's own tint colour
+// (albedo_color.rgb, so it follows valid/invalid/hole/locked/throw). Strength is
+// driven per frame by game/GhostPreview.gd (steady glow, pulsing near the forced
+// drop); rim power comes from GhostTuning.glow_rim_power.
+uniform float glow_strength = 0.0;
+uniform float glow_rim_power = 2.5;
+
 uniform bool use_hatch = false;
 uniform sampler2D hatch_texture : hint_default_white, filter_linear_mipmap_anisotropic;
 uniform float hatch_scale = 6.0;
@@ -135,4 +142,6 @@ void fragment() {
 	shaded += bevel_highlight_color.rgb * bevel_amount * bevel_highlight_strength;
 	ALBEDO = mix(shaded, grid_line_color.rgb, line_amount);
 	ALPHA = albedo_color.a * hatch_alpha;
+	float rim = pow(1.0 - clamp(dot(n, normalize(VIEW)), 0.0, 1.0), max(glow_rim_power, 0.01));
+	EMISSION = albedo_color.rgb * glow_strength * rim;
 }
