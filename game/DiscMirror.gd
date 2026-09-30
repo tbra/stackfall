@@ -125,6 +125,9 @@ var _overlay: TerritoryOverlay = null
 var _mirror_environment: Environment = null
 ## Bontago-1pi.11.6: change-gate caches for _process().
 var _settings: Node = null
+## Bontago-1pi.11.20: Settings.current_graphics_preset() does ResourceLoader.exists()
+## + load() (~1.2 ms/call); cached here, refreshed on graphics_preset_changed.
+var _preset: GraphicsPreset = null
 var _last_shader_key: Array = []
 var _last_source_xf: Transform3D = Transform3D()
 var _last_field_xf: Transform3D = Transform3D()
@@ -250,6 +253,10 @@ func _process(_delta: float) -> void:
 	_camera.projection = _source_camera.projection
 
 
+func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
+	_preset = preset
+
+
 ## Sizes the SubViewport to the main viewport's own size, scaled by
 ## visuals.mirror_resolution_scale -- keeping the exact same aspect ratio is
 ## what lets the shader sample it at SCREEN_UV directly (see class doc).
@@ -262,9 +269,12 @@ func _resize_viewport() -> void:
 	var preset_factor: float = 1.0
 	if _settings == null:
 		_settings = get_node_or_null(^"/root/Settings")
-	var settings: Node = _settings
-	if settings != null:
-		preset_factor = (settings.call(&"current_graphics_preset") as GraphicsPreset).mirror_resolution_factor
+		if _settings != null and _settings.has_signal(&"graphics_preset_changed"):
+			_settings.connect(&"graphics_preset_changed", _on_graphics_preset_changed)
+	if _preset == null and _settings != null:
+		_preset = _settings.call(&"current_graphics_preset") as GraphicsPreset
+	if _preset != null:
+		preset_factor = _preset.mirror_resolution_factor
 	var scale: float = clampf(
 		visuals.mirror_resolution_scale * preset_factor, MIN_RESOLUTION_SCALE, MAX_RESOLUTION_SCALE
 	)

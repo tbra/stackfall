@@ -29,17 +29,23 @@ var _acc_ticks: int = 0
 var _frames: int = 0
 var _peak_frame_us: int = 0
 var _late_node: Node = null
+var _early_node: Node = null
+var _t_early: int = 0
+var _acc_proc_pre: int = 0
+var _acc_proc_body: int = 0
 
 
 class LateHook:
 	extends Node
 	var bench: Node = null
+	var early: bool = false
 
 	func _physics_process(_delta: float) -> void:
-		bench.call(&"_on_late_physics")
+		if not early:
+			bench.call(&"_on_late_physics")
 
 	func _process(_delta: float) -> void:
-		bench.call(&"_on_late_process")
+		bench.call(&"_on_early_process" if early else &"_on_late_process")
 
 
 func _ready() -> void:
@@ -72,6 +78,11 @@ func _ready() -> void:
 	_late_node.process_priority = LATE_PRIORITY
 	_late_node.process_physics_priority = LATE_PRIORITY
 	add_child(_late_node)
+	_early_node = LateHook.new()
+	(_early_node as LateHook).bench = self
+	(_early_node as LateHook).early = true
+	_early_node.process_priority = -LATE_PRIORITY
+	add_child(_early_node)
 	await _run()
 	get_tree().quit()
 
@@ -96,6 +107,7 @@ func _run() -> void:
 			if awake >= _callcost_marks[i]:
 				print("BM callcost_at_awake>=%d (awake=%d)" % [_callcost_marks[i], awake])
 				_call_cost(12)
+				_dm_probe()
 				_callcost_marks.remove_at(i)
 		if Match.state() != Match.State.PLAYING and t > 30:
 			print("BM match state=%s" % [Match.state()])
@@ -143,11 +155,11 @@ func _report(t: int, dt: int) -> void:
 			speed_sum += body.linear_velocity.length()
 			if body.linear_velocity.length() > 0.15:
 				moving += 1
-	print("BM t=%d weather=%s blocks=%d awake=%d moving=%d speed=%.3f frozen=%d frames=%d ticks/frame=%.2f frame_ms=%.2f peak_ms=%.1f step_ms/tick=%.2f scripts_ms/tick=%.2f proc_scripts_ms=%.2f active=%d pairs=%d islands=%d eng_phys=%.1f fps=%d probes(ms/tick,calls/s,peak):%s" % [
+	print("BM t=%d weather=%s blocks=%d awake=%d moving=%d speed=%.3f frozen=%d frames=%d ticks/frame=%.2f frame_ms=%.2f peak_ms=%.1f step_ms/tick=%.2f scripts_ms/tick=%.2f proc_scripts_ms=%.2f (pre=%.2f body=%.2f) active=%d pairs=%d islands=%d eng_phys=%.1f fps=%d probes(ms/tick,calls/s,peak):%s" % [
 		t, Match.weather().active_id(), blocks.size(), awake, moving, speed_sum / maxf(float(awake), 1.0), frozen, _frames, float(_acc_ticks) / f,
 		float(_acc_frame) / 1000.0 / f, float(_peak_frame_us) / 1000.0,
 		float(_acc_phys_step) / 1000.0 / ticks, float(_acc_phys_scripts) / 1000.0 / ticks,
-		float(_acc_proc_scripts) / 1000.0 / f,
+		float(_acc_proc_scripts) / 1000.0 / f, float(_acc_proc_pre) / 1000.0 / f, float(_acc_proc_body) / 1000.0 / f,
 		int(Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS)),
 		int(Performance.get_monitor(Performance.PHYSICS_3D_COLLISION_PAIRS)),
 		int(Performance.get_monitor(Performance.PHYSICS_3D_ISLAND_COUNT)),
@@ -157,6 +169,8 @@ func _report(t: int, dt: int) -> void:
 	_acc_phys_scripts = 0
 	_acc_phys_step = 0
 	_acc_proc_scripts = 0
+	_acc_proc_pre = 0
+	_acc_proc_body = 0
 	_acc_frame = 0
 	_acc_ticks = 0
 	_frames = 0
@@ -197,9 +211,18 @@ func _on_process_frame() -> void:
 	_t_proc_frame = now
 
 
-func _on_late_process() -> void:
+func _on_early_process() -> void:
+	_t_early = Time.get_ticks_usec()
 	if _t_proc_frame != 0:
-		_acc_proc_scripts += Time.get_ticks_usec() - _t_proc_frame
+		_acc_proc_pre += _t_early - _t_proc_frame
+
+
+func _on_late_process() -> void:
+	var now: int = Time.get_ticks_usec()
+	if _t_proc_frame != 0:
+		_acc_proc_scripts += now - _t_proc_frame
+	if _t_early != 0:
+		_acc_proc_body += now - _t_early
 
 
 func _call_cost(top: int) -> void:
@@ -232,3 +255,40 @@ func _call_cost(top: int) -> void:
 	print("BM callcost total_us=%d phys_us=%d proc_us=%d nodes=%d" % [total, phys_total, proc_total, rows.size()])
 	for i: int in range(mini(top, rows.size())):
 		print("BM callcost %6d us  %s (%s)" % [rows[i][0], rows[i][1], rows[i][2]])
+
+
+## Bontago-1pi.11.20: per-statement cost of DiscMirror._process's pieces (us per call).
+func _dm_probe() -> void:
+	var dm: Node = get_tree().root.find_child("DiscMirror", true, false)
+	if dm == null:
+		return
+	var cam: Camera3D = dm.get(&"_source_camera") as Camera3D
+	var fld: Node3D = dm.get(&"_field") as Node3D
+	var vp: SubViewport = dm.get(&"_viewport") as SubViewport
+	var vis: Resource = dm.get(&"visuals") as Resource
+	var n: int = 300
+	var t0: int = Time.get_ticks_usec()
+	for i: int in range(n):
+		var x: Transform3D = cam.global_transform
+	var t1: int = Time.get_ticks_usec()
+	for i: int in range(n):
+		var x: Transform3D = fld.global_transform
+	var t2: int = Time.get_ticks_usec()
+	for i: int in range(n):
+		var s: Vector2i = dm.get_viewport().size
+	var t3: int = Time.get_ticks_usec()
+	for i: int in range(n):
+		dm.call(&"_resize_viewport")
+	var t4: int = Time.get_ticks_usec()
+	for i: int in range(n):
+		var k: Array = [cam.fov, cam.near, cam.far, cam.projection]
+	var t5: int = Time.get_ticks_usec()
+	for i: int in range(n):
+		var m: bool = vp.render_target_update_mode == SubViewport.UPDATE_ALWAYS
+		var e: float = vis.get(&"mirror_strength")
+	var t6: int = Time.get_ticks_usec()
+	for i: int in range(n):
+		dm.call(&"_process", 0.016)
+	var t7: int = Time.get_ticks_usec()
+	print("BM dmprobe us/call: cam_xf=%.2f field_xf=%.2f vp_size=%.2f resize=%.2f lenskey=%.2f props=%.2f whole=%.2f" % [
+		float(t1 - t0) / n, float(t2 - t1) / n, float(t3 - t2) / n, float(t4 - t3) / n, float(t5 - t4) / n, float(t6 - t5) / n, float(t7 - t6) / n])
