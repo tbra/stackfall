@@ -390,9 +390,9 @@ extends Resource
 
 ## Owner 2026-09-27 (Bontago-1pi.4 playtest: "Camera did not stay put. Just
 ## disable the clear stack feature for now"): master switch for the raise
-## above. Off by default; the feature and its tests stay intact behind it
-## until the follow-up bead revisits it.
-@export var spawn_clearance_enabled: bool = false
+## above. Re-enabled by Bontago-1pi.14 once the camera follow anchor stopped
+## including the raise (PlayerController._clearance_raise).
+@export var spawn_clearance_enabled: bool = true
 
 ## -- Throw aim (M4 P2e, docs/M4_P2_PACKAGES.md P2e; spec 2.5 "Throw
 ## (specials only)") ----------------------------------------------------------
