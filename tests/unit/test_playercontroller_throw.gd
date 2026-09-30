@@ -103,7 +103,7 @@ func test_tiny_drag_releases_as_an_ordinary_place_not_a_throw() -> void:
 	assert_true(controller.is_aiming_throw(), "fixture: aiming should have started.")
 
 	# Well under throw_drag_min_distance_m (0.15 m default) at
-	# block_move_sensitivity (0.015 m/px default): 1px * 0.015 = 0.015 m.
+	# block_move_sensitivity (set explicitly by this test): 1px * 0.015 = 0.015 m.
 	controller._unhandled_input(_motion(Vector2(1.0, 0.0)))
 
 	Input.action_release(&"throw_aim")

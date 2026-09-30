@@ -4,8 +4,8 @@
 
 [resource]
 script = ExtResource("1_ghost")
-block_move_sensitivity = 0.015
-gamepad_cursor_base_speed = 18.0
+block_move_sensitivity = 0.05
+gamepad_cursor_base_speed = 30.0
 gamepad_cursor_zoom_reference_distance = 30.0
 gamepad_cursor_acceleration = 40.0
 block_rotation_sensitivity = 0.008333333333333333
@@ -17,6 +17,9 @@ hover_manual_adjust_speed = 1.5
 hover_hold_acceleration = 3.0
 hover_hold_max_speed = 10.0
 hover_wheel_step = 0.6
+hover_wheel_ramp_seconds = 1.5
+hover_wheel_max_multiplier = 4.0
+hover_wheel_gap_seconds = 0.25
 hover_manual_max = 100.0
 hover_ceiling_margin = 2.0
 placement_ray_length = 200.0

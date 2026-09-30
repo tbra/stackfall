@@ -751,3 +751,53 @@ func test_a_networked_hosts_own_slot_places_without_any_turn_changed() -> void:
 		fake_match.request_place_calls[0]["slot_id"], 0,
 		"the host's own instance always acts for its own slot, not whoever Match's hot-seat names"
 	)
+
+
+# --- Bontago-gyy: local ghost is moved per render frame, so no interpolation --
+
+func test_local_ghost_has_physics_interpolation_off() -> void:
+	var controller: PlayerController = autofree(PlayerController.new())
+	var ghost: GhostPreview = GhostPreview.new()
+	ghost.name = "Ghost"
+	controller.add_child(ghost)
+	controller.ghost_path = NodePath("Ghost")
+	add_child_autofree(controller)
+
+	assert_eq(
+		ghost.physics_interpolation_mode, Node.PHYSICS_INTERPOLATION_MODE_OFF,
+		"the local ghost is moved in _process(); interpolating it jitters against the non-interpolated camera."
+	)
+	var remote: GhostPreview = autofree(GhostPreview.new())
+	assert_eq(remote.physics_interpolation_mode, Node.PHYSICS_INTERPOLATION_MODE_INHERIT, "remote ghosts are unchanged.")
+
+
+# --- Bontago-59o.5: continuous wheel scrolling accelerates ------------------
+
+func test_continuous_wheel_scroll_ramps_the_step_and_resets_after_a_gap() -> void:
+	var controller: PlayerController = _make_controller()
+	var tuning: GhostTuning = controller.ghost_tuning
+	var step: float = tuning.hover_wheel_step
+
+	controller._unhandled_input(_wheel(MOUSE_BUTTON_WHEEL_UP))
+	assert_almost_eq(controller._ghost.manual_hover_offset, step, 0.001, "first notch is a plain step.")
+
+	# Scroll on, one notch per short frame, past the ramp time.
+	var frame: float = tuning.hover_wheel_gap_seconds * 0.5
+	var elapsed: float = 0.0
+	while elapsed < tuning.hover_wheel_ramp_seconds + frame:
+		controller._tick_wheel_ramp(frame)
+		controller._unhandled_input(_wheel(MOUSE_BUTTON_WHEEL_UP))
+		elapsed += frame
+	var before: float = controller._ghost.manual_hover_offset
+	controller._tick_wheel_ramp(frame)
+	controller._unhandled_input(_wheel(MOUSE_BUTTON_WHEEL_UP))
+	assert_almost_eq(
+		controller._ghost.manual_hover_offset - before, step * tuning.hover_wheel_max_multiplier, 0.001,
+		"after the ramp time of continuous scrolling the notch uses the max multiplier."
+	)
+
+	# A pause longer than the gap resets to a plain step.
+	controller._tick_wheel_ramp(tuning.hover_wheel_gap_seconds + 0.1)
+	before = controller._ghost.manual_hover_offset
+	controller._unhandled_input(_wheel(MOUSE_BUTTON_WHEEL_UP))
+	assert_almost_eq(controller._ghost.manual_hover_offset - before, step, 0.001, "the ramp resets after a gap.")
