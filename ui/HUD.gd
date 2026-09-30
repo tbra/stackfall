@@ -702,12 +702,17 @@ func _refresh_special_indicator() -> void:
 		return
 	var count: int = int(match_provider.pending_special_count(_active_slot))
 	var head_id: StringName = match_provider.held_special(_active_slot)
+	var glue_charges: int = 0
+	if match_provider.has_method(&"glue_drops_left"):
+		glue_charges = int(match_provider.glue_drops_left(_active_slot))
 	_held_label.text = "HELD: %s" % _special_display_name(head_id) if head_id != &"" else "HELD"
 	_next_label.text = "NEXT GIFT" if count > (1 if head_id != &"" else 0) else "NEXT"
-	if count <= 0:
+	if count <= 0 and glue_charges <= 0:
 		_special_indicator.visible = false
 		return
-	_special_indicator.text = _special_display_text(head_id, count)
+	var pending_text: String = _special_display_text(head_id, count) if count > 0 else ""
+	var glue_text: String = "Glue ×%d" % glue_charges if glue_charges > 0 else ""
+	_special_indicator.text = "%s · %s" % [pending_text, glue_text] if count > 0 and glue_charges > 0 else pending_text + glue_text
 	_special_indicator.modulate = _active_color
 	_special_indicator.visible = true
 

@@ -1360,6 +1360,43 @@ func test_a_short_special_trigger_args_array_is_dropped_not_applied() -> void:
 
 # --- Bontago-1en.21: EVENT_SPECIAL_CONSUMED replication ---------------------
 
+
+func test_glue_charge_mirror_accepts_only_new_valid_absolute_updates() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	var net: MatchNetScript = _make_net({}, [1], true)
+	watch_signals(Events)
+	net.net_match_event(MatchNetScript.EVENT_GLUE_CHARGES, [1, 3, 1])
+	assert_eq(Match.glue_drops_left(1), 3)
+	assert_eq(Match.glue_revision(1), 1)
+	assert_eq(get_signal_emit_count(Events, "glue_charges_changed"), 1)
+	net.net_match_event(MatchNetScript.EVENT_GLUE_CHARGES, [1, 2, 1])
+	net.net_match_event(MatchNetScript.EVENT_GLUE_CHARGES, [1, 2, 0])
+	assert_eq(Match.glue_drops_left(1), 3, "duplicate or stale revisions cannot restore charges")
+	net.net_match_event(MatchNetScript.EVENT_GLUE_CHARGES, [1, 0, 2])
+	assert_eq(Match.glue_drops_left(1), 0)
+	assert_eq(get_signal_emit_count(Events, "glue_charges_changed"), 2)
+	for payload: Array in [[1], [1, "3", 3], [1, 101, 3], [99, 2, 3], [1, 2, -1]]:
+		net.net_match_event(MatchNetScript.EVENT_GLUE_CHARGES, payload)
+	assert_eq(Match.glue_drops_left(1), 0)
+	assert_eq(get_signal_emit_count(Events, "glue_charges_changed"), 2)
+
+
+func test_host_does_not_accept_glue_charge_wire_updates() -> void:
+	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
+	_start_playing()
+	assert_true(Match.grant_glue_drops(1, 3))
+	net.net_match_event(MatchNetScript.EVENT_GLUE_CHARGES, [1, 0, 99])
+	assert_eq(Match.glue_drops_left(1), 3)
+
+
+func test_glue_rejoin_snapshot_includes_a_spent_zero_count() -> void:
+	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
+	_start_playing()
+	assert_true(Match.grant_glue_drops(1, 1))
+	assert_true(Match.consume_glue_drop(1))
+	assert_eq(net._glue_rejoin_snapshot(), [[1, 0, 2]])
+
 ## The bug this package fixes: a client's own pending_special_count() must
 ## shrink in step with the host's real pop, not just grow at claim time. See
 ## MatchGifts.apply_replicated_special_consumed()'s own doc comment for the

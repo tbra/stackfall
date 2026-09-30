@@ -408,6 +408,14 @@ func glue_drops_left(slot_id: int) -> int:
 	return _gifts.glue_drops_left(slot_id)
 
 
+func glue_revision(slot_id: int) -> int:
+	return _gifts.glue_revision(slot_id)
+
+
+func apply_replicated_glue_charges(slot_id: int, count: int, revision: int) -> bool:
+	return _gifts.apply_replicated_glue_charges(slot_id, count, revision)
+
+
 func consume_glue_drop(slot_id: int) -> bool:
 	return _gifts.consume_glue_drop(slot_id)
 

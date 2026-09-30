@@ -109,6 +109,9 @@ var _held_specials: Dictionary = {}
 ## charges independent of the shared GlueEffect resource and gift queue.
 ## A later Glue activation replaces the count instead of adding to it.
 var _glue_drops: Dictionary = {}
+## Absolute charge updates carry a per-slot revision so duplicate or delayed
+## reliable packets cannot restore a spent charge on a client.
+var _glue_revisions: Dictionary = {}
 
 ## Lazily created the first time a crate needs a visual (host spawn or client
 ## mirror), as a SIBLING of Match's own blocks_parent (a child of that node's
@@ -178,9 +181,10 @@ func held_special(slot_id: int) -> StringName:
 func grant_glue_drops(slot_id: int, count: int) -> bool:
 	if _match == null or not _match._is_host():
 		return false
-	if slot_id < 0 or slot_id >= _match.slot_count() or count <= 0:
+	if slot_id < 0 or slot_id >= _match.slot_count() or count <= 0 or count > 100:
 		return false
 	_glue_drops[slot_id] = count
+	_publish_glue_charges(slot_id)
 	return true
 
 
@@ -188,6 +192,32 @@ func glue_drops_left(slot_id: int) -> int:
 	if _match == null or slot_id < 0 or slot_id >= _match.slot_count():
 		return 0
 	return int(_glue_drops.get(slot_id, 0))
+
+
+func glue_revision(slot_id: int) -> int:
+	return int(_glue_revisions.get(slot_id, 0))
+
+
+func apply_replicated_glue_charges(slot_id: int, count: int, revision: int) -> bool:
+	if _match == null or _match._is_host():
+		return false
+	if slot_id < 0 or slot_id >= _match.slot_count() or count < 0 or count > 100:
+		return false
+	if revision <= glue_revision(slot_id):
+		return false
+	_glue_revisions[slot_id] = revision
+	if count == 0:
+		_glue_drops.erase(slot_id)
+	else:
+		_glue_drops[slot_id] = count
+	Events.glue_charges_changed.emit(slot_id, count, revision)
+	return true
+
+
+func _publish_glue_charges(slot_id: int) -> void:
+	var revision: int = glue_revision(slot_id) + 1
+	_glue_revisions[slot_id] = revision
+	Events.glue_charges_changed.emit(slot_id, glue_drops_left(slot_id), revision)
 
 
 ## Called only after a successful future drop by the placement package.
@@ -203,6 +233,7 @@ func consume_glue_drop(slot_id: int) -> bool:
 		_glue_drops.erase(slot_id)
 	else:
 		_glue_drops[slot_id] = left - 1
+	_publish_glue_charges(slot_id)
 	return true
 
 
@@ -1031,6 +1062,7 @@ func apply_replicated_special_consumed(slot_id: int, special_id: StringName) -> 
 func reset() -> void:
 	_held_specials.clear()
 	_glue_drops.clear()
+	_glue_revisions.clear()
 	# MatchLifecycle clears the feed arrays before calling this reset.
 	_match._feed._next_gift_shapes.clear()
 	_match._feed._held_is_gift.clear()

@@ -370,6 +370,24 @@ func test_special_indicator_hidden_when_nothing_is_pending() -> void:
 	assert_false(hud._special_indicator.visible)
 
 
+func test_glue_charges_show_for_the_active_slot_and_clear_when_spent() -> void:
+	var hud: HUD = _make_hud()
+	var fake_match: FakeMatch = FakeMatch.new()
+	hud.match_provider = fake_match
+	fake_match.glue_drops_by_slot[0] = 3
+	hud.set_local_slot(0)
+	assert_true(hud._special_indicator.visible)
+	assert_eq(hud._special_indicator.text, "Glue ×3")
+	fake_match.held_special_by_slot[0] = &"paintball"
+	fake_match.pending_special_count_by_slot[0] = 1
+	hud._refresh_special_indicator()
+	assert_eq(hud._special_indicator.text, "Paintball · Glue ×3")
+	fake_match.glue_drops_by_slot[0] = 0
+	fake_match.pending_special_count_by_slot[0] = 0
+	hud._refresh_special_indicator()
+	assert_false(hud._special_indicator.visible)
+
+
 func test_special_indicator_shows_special_after_a_claim_for_the_local_slot() -> void:
 	var hud: HUD = _make_hud()
 	hud.set_local_slot(0)

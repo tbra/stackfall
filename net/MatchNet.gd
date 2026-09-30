@@ -79,6 +79,7 @@ const EVENT_SPECIAL_TRIGGERED: StringName = &"special_triggered"
 ## own emit (Events.special_consumed, host-only) -- see _on_special_consumed()
 ## below.
 const EVENT_SPECIAL_CONSUMED: StringName = &"special_consumed"
+const EVENT_GLUE_CHARGES: StringName = &"glue_charges_changed"
 
 @export var config: NetConfig = preload("res://config/net_config.tres")
 
@@ -208,6 +209,7 @@ func _ready() -> void:
 	Events.gift_expired.connect(_on_gift_expired)
 	Events.special_triggered.connect(_on_special_triggered)
 	Events.special_consumed.connect(_on_special_consumed)
+	Events.glue_charges_changed.connect(_on_glue_charges_changed)
 	Events.block_removed.connect(_on_block_removed)
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 	Events.net_peer_left.connect(_on_net_peer_left)
@@ -1262,6 +1264,11 @@ func _on_special_consumed(slot_id: int, special_id: StringName) -> void:
 		replicate_match_event(EVENT_SPECIAL_CONSUMED, [slot_id, special_id])
 
 
+func _on_glue_charges_changed(slot_id: int, charges: int, revision: int) -> void:
+	if _is_host():
+		replicate_match_event(EVENT_GLUE_CHARGES, [slot_id, charges, revision])
+
+
 func _on_goal_capture_progress(team_id: int, progress: float) -> void:
 	_capture_team = team_id
 	_capture_progress = progress
@@ -1281,11 +1288,26 @@ func _on_net_peer_left(_peer_id: int, slot_id: int, _reason: int) -> void:
 		_authority().on_peer_left(slot_id)
 
 
-func _on_net_peer_joined(_peer_id: int, slot_id: int, _player_name: String) -> void:
+func _on_net_peer_joined(peer_id: int, slot_id: int, _player_name: String) -> void:
 	# A fresh client has nothing to diff a territory packet against.
 	_force_full_raster = true
 	if slot_id >= 0:
 		_authority().on_peer_rejoined(slot_id)
+	# A reconnecting client may have missed an activation or a spend. Ship
+	# absolute state after its prior reliable match events, including zeroes
+	# for slots whose last charge was spent while the peer was away.
+	if _is_host() and _can_send():
+		for payload: Array in _glue_rejoin_snapshot():
+			rpc_id(peer_id, &"net_match_event", EVENT_GLUE_CHARGES, payload)
+
+
+func _glue_rejoin_snapshot() -> Array[Array]:
+	var snapshot: Array[Array] = []
+	for glue_slot: int in range(_authority().slot_count()):
+		var revision: int = _authority().glue_revision(glue_slot)
+		if revision > 0:
+			snapshot.append([glue_slot, _authority().glue_drops_left(glue_slot), revision])
+	return snapshot
 
 
 # --- Territory payload ------------------------------------------------------
@@ -1661,6 +1683,19 @@ func net_match_event(event: StringName, args: Array) -> void:
 				return
 			_authority().apply_replicated_special_consumed(consumed_slot_id, consumed_special_id)
 			Events.special_consumed.emit(consumed_slot_id, consumed_special_id)
+		EVENT_GLUE_CHARGES:
+			if _is_host() or args.size() != 3:
+				return
+			if not args[0] is int or not args[1] is int or not args[2] is int:
+				return
+			var glue_slot: int = args[0]
+			var charges: int = args[1]
+			var revision: int = args[2]
+			if glue_slot < 0 or glue_slot >= _authority().slot_count():
+				return
+			if charges < 0 or charges > 100 or revision <= 0:
+				return
+			_authority().apply_replicated_glue_charges(glue_slot, charges, revision)
 		_:
 			pass
 

@@ -156,6 +156,10 @@ signal special_triggered(net_id: int, def_id: StringName, position: Vector3, cha
 ## gift_claimed's own grow-side replication.
 signal special_consumed(slot_id: int, special_id: StringName)
 
+## Absolute host-owned Glue charge state. revision increases per slot within
+## one match; client mirrors re-emit only when accepting a newer update.
+signal glue_charges_changed(slot_id: int, charges: int, revision: int)
+
 # --- M3a: session and transport (spec 3.4) ----------------------------------
 
 ## Net changed between OFFLINE, HOST and CLIENT. `mode` is a Net.Mode value.

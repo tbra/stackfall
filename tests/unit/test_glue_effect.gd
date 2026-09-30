@@ -99,6 +99,7 @@ func test_mutation_is_host_only_and_slot_bounds_checked() -> void:
 	assert_false(Match.grant_glue_drops(-1, 3))
 	assert_false(Match.grant_glue_drops(2, 3))
 	assert_false(Match.grant_glue_drops(0, 0))
+	assert_false(Match.grant_glue_drops(0, 101))
 	assert_false(Match.consume_glue_drop(2))
 	assert_true(Match.grant_glue_drops(0, 3))
 	Match.set_net_provider(FakeNet.client(0))

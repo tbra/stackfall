@@ -104,6 +104,7 @@ func is_release_locked(slot_id: int) -> bool:
 ## rather than requiring every caller to populate them.
 var pending_special_count_by_slot: Dictionary = {}
 var held_special_by_slot: Dictionary = {}
+var glue_drops_by_slot: Dictionary = {}
 
 
 func pending_special_count(slot_id: int) -> int:
@@ -112,6 +113,10 @@ func pending_special_count(slot_id: int) -> int:
 
 func held_special(slot_id: int) -> StringName:
 	return held_special_by_slot.get(slot_id, &"") as StringName
+
+
+func glue_drops_left(slot_id: int) -> int:
+	return int(glue_drops_by_slot.get(slot_id, 0))
 
 
 ## M3a adds the trailing feed_seq the real Match takes (docs/M3a_PLAN.md,
