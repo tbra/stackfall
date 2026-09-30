@@ -257,3 +257,47 @@ func test_focus_chain_top_and_bottom_wrap() -> void:
 	assert_eq(resume.get_node(resume.focus_neighbor_top), leave, "the chain must wrap from the first button back to the last.")
 	assert_eq(options.get_node(options.focus_neighbor_top), resume)
 	assert_eq(leave.get_node(leave.focus_neighbor_top), options)
+
+
+# --- Bontago-59o.3: draws above the HUD and its buttons take mouse clicks -----
+
+## Headless viewports do not deliver hover/click to the GUI here, so this
+## mirrors Godot's mouse pick: layers top-down (CanvasLayer.layer, then later
+## tree order on top), first visible Control under the point whose
+## mouse_filter is not IGNORE receives the click.
+func _pick_topmost_control(point: Vector2) -> Control:
+	var layers: Array[CanvasLayer] = []
+	for child: Node in get_tree().root.get_children():
+		if child is CanvasLayer:
+			layers.append(child as CanvasLayer)
+	for node: Node in get_tree().root.find_children("*", "CanvasLayer", true, false):
+		if not layers.has(node):
+			layers.append(node as CanvasLayer)
+	layers.sort_custom(func(a: CanvasLayer, b: CanvasLayer) -> bool: return a.layer < b.layer)
+	for i: int in range(layers.size() - 1, -1, -1):
+		var controls: Array[Node] = layers[i].find_children("*", "Control", true, false)
+		controls.reverse()
+		for node: Node in controls:
+			var control: Control = node as Control
+			if control.is_visible_in_tree() and control.mouse_filter != Control.MOUSE_FILTER_IGNORE 					and control.get_global_rect().has_point(point):
+				return control
+	return null
+
+
+func test_pause_menu_layer_is_above_the_hud_layer() -> void:
+	var hud: CanvasLayer = autofree(load("res://ui/HUD.tscn").instantiate())
+	assert_gt(_menu.layer, hud.layer, "the pause/options overlay must draw above the HUD CanvasLayer.")
+
+
+func test_options_tab_buttons_are_the_topmost_mouse_target_over_the_hud() -> void:
+	var hud: CanvasLayer = load("res://ui/HUD.tscn").instantiate()
+	add_child_autofree(hud)
+	_menu._open()
+	_menu._on_options_pressed()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var options: OptionsMenu = _menu._options_menu
+	for path: String in ["%SettingsTabButton", "%ControlsTabButton"]:
+		var tab: Button = options.get_node(path)
+		var target: Control = _pick_topmost_control(tab.get_global_rect().get_center())
+		assert_eq(target, tab, "%s must be the topmost clickable control, not a HUD control." % path)

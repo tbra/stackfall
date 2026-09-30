@@ -1,5 +1,5 @@
 class_name PauseMenu
-extends Control
+extends CanvasLayer
 ## Bontago-xtq.42 (M7 P42, owner playtest: "there's no pause menu, I can't
 ## abandon a game and go back to the main menu or quit the game").
 ## Instantiated once by game/Main.gd (kept alive for the whole session, unlike
@@ -52,6 +52,13 @@ const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
 ## Escape-to-quit keeps working unmodified.
 var suppressed: bool = false
 
+## Bontago-59o.3: the menu is a CanvasLayer (was a plain Control at layer 0),
+## so it and the Options menu it hosts draw above ui/HUD.gd (CanvasLayer 1)
+## and swallow mouse clicks that used to fall through to HUD controls.
+## DECISION: 100 leaves room for debug overlays below and stays a script
+## export rather than a tuning resource (a draw-order constant, not a tunable).
+const OVERLAY_LAYER: int = 100
+
 ## Emitted once Leave match is confirmed. game/Main.gd is the one listener:
 ## online, it calls Net.leave() (which already tears the match world down and
 ## returns to the main menu via its own _on_net_mode_changed()); offline
@@ -63,6 +70,7 @@ signal leave_match_requested
 
 var _options_menu: OptionsMenu = null
 
+@onready var _root: Control = %Root
 @onready var _center: CenterContainer = %Center
 @onready var _panel: PanelContainer = %Panel
 @onready var _title_label: Label = %Title
@@ -73,6 +81,7 @@ var _options_menu: OptionsMenu = null
 
 
 func _ready() -> void:
+	layer = OVERLAY_LAYER
 	visible = false
 	_resume_button.pressed.connect(_on_resume_pressed)
 	_options_button.pressed.connect(_on_options_pressed)
@@ -130,12 +139,6 @@ func _toggle_menu() -> void:
 
 func _open() -> void:
 	visible = true
-	# Bontago-xtq.42 fix round 2 (orchestrator review): this node is added to
-	# game/Main.gd's tree once, at boot, before every later menu/HUD/overlay
-	# (%Center's own siblings included) -- move_to_front() re-parents-in-place
-	# so an overlay opened mid-match still draws above whatever in-match UI was
-	# added after it, without this file ever reaching into that UI itself.
-	move_to_front()
 	Events.pause_menu_opened.emit()
 	_resume_button.grab_focus()
 
@@ -173,7 +176,7 @@ func _on_options_pressed() -> void:
 		return
 	_options_menu = OPTIONS_MENU_SCENE.instantiate() as OptionsMenu
 	_center.visible = false
-	add_child(_options_menu)
+	_root.add_child(_options_menu)
 	_options_menu.closed.connect(_on_options_closed)
 
 
