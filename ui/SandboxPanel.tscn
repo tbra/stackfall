@@ -46,16 +46,6 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "Territory: -"
 
-[node name="SpawnedLabel" type="Label" parent="Panel/Layout"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Blocks spawned: 0"
-
-[node name="PhysicsMsLabel" type="Label" parent="Panel/Layout"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Physics step: 0.00 ms"
-
 [node name="RulesLabel" type="Label" parent="Panel/Layout"]
 unique_name_in_owner = true
 layout_mode = 2

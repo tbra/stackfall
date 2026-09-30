@@ -1,8 +1,9 @@
 class_name SandboxPanel
 extends CanvasLayer
 ## Bontago-mv0.8's sandbox debug panel: active slot + colour, block held/next,
-## timer state, the ghost's placement-validity reason under the cursor,
-## territory share per slot, blocks spawned and physics step time.
+## timer state, the ghost's placement-validity reason under the cursor and
+## territory share per slot. Block count and physics step time live in the F1
+## PerfOverlay (ui/PerfOverlay.gd), not here.
 ##
 ## Reads only public Match/PlacementRules APIs, never a rule of its own — see
 ## game/GhostPreview.gd's apply_validity()/_apply_validity_material() for the
@@ -49,8 +50,6 @@ var _ghost: GhostPreview = null
 @onready var _timer_label: Label = %TimerLabel
 @onready var _validity_label: Label = %ValidityLabel
 @onready var _shares_label: Label = %SharesLabel
-@onready var _spawned_label: Label = %SpawnedLabel
-@onready var _physics_ms_label: Label = %PhysicsMsLabel
 @onready var _rules_label: Label = %RulesLabel
 ## Bontago-1en.24: game/Sandbox.gd's F9 sandbox_force_special hotkey.
 @onready var _forced_special_label: Label = %ForcedSpecialLabel
@@ -112,8 +111,6 @@ func _refresh() -> void:
 	_refresh_timer(slot_id)
 	_refresh_validity(slot_id)
 	_refresh_shares()
-	_refresh_spawned()
-	_refresh_physics_ms()
 	_refresh_rules_mode()
 	_refresh_forced_special()
 	_refresh_slow_motion()
@@ -188,15 +185,6 @@ func _refresh_shares() -> void:
 		var team_id: int = int(match_provider.team_of(i))
 		parts.append("P%d %.0f%%" % [i + 1, float(match_provider.territory_share(team_id)) * 100.0])
 	_shares_label.text = "Territory: -" if parts.is_empty() else "Territory: %s" % ", ".join(parts)
-
-
-func _refresh_spawned() -> void:
-	_spawned_label.text = "Blocks spawned: %d" % int(match_provider.blocks_spawned())
-
-
-func _refresh_physics_ms() -> void:
-	var seconds: float = Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)
-	_physics_ms_label.text = "Physics step: %.2f ms" % (seconds * 1000.0)
 
 
 ## DECISION (ui/SandboxPanel.gd): the enum key's own name
