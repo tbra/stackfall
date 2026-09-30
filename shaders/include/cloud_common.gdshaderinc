@@ -200,3 +200,69 @@ vec4 procedural_upper_clouds(sampler2D noise_tex, vec3 dir, vec2 to_sun, float t
 	float rim = (1.0 - smoothstep(0.0, 0.18, height01)) * smoothstep(0.55, 0.85, facing);
 	return vec4(mix(col, rim_color, rim * 0.6), body);
 }
+
+// Bontago-59o.20: authored cloud-card layer. `atlas` is the 4x2 Blender card
+// atlas (tools/blender/make_cloud_cards.py): rg = camera-space normal xy,
+// b = openness (AO), a = coverage. The view ray is projected onto a high plane
+// (horizon lift avoids a divide by zero), jittered per grid cell, and each
+// card is oriented so its up axis points at the zenith. Cards are cel-shaded
+// with the live sun direction: lit tops, shadowed undersides, bright rim when
+// backlit. Nine cells are tested; only cells that cover the pixel cost a tap.
+// `layout`: x plane scale, y horizon lift, z density (0..1), w card half-size
+// in cells. `contrast` stretches the wrapped lambert term around 0.5. `light`: x openness floor, y skylight up-bias, z rim power, w rim
+// strength. `seed` decorrelates layers. Returns rgb + coverage alpha.
+vec4 sky_cloud_cards(sampler2D atlas, vec3 dir, vec3 sun_dir, float time, vec4 layout, float seed,
+		vec2 wind, float bands, float band_edge, vec4 light, float contrast,
+		vec3 shadow, vec3 mid, vec3 lit, vec3 rim_color) {
+	vec2 shift = wind * time;
+	vec2 base = dir.xz / (max(dir.y, 0.0) + max(layout.y, 0.05)) * layout.x;
+	vec2 dp = base + shift;
+	float px = max(length(fwidth(base)), 0.00001);
+	vec3 right_v = normalize(vec3(-dir.z, 0.0, dir.x) + vec3(0.00001, 0.0, 0.0));
+	vec3 up_v = cross(right_v, dir);
+	vec3 sun_v = vec3(dot(sun_dir, right_v), dot(sun_dir, up_v), dot(sun_dir, -dir));
+	vec3 lh = normalize(sun_v + vec3(0.0, light.y, 0.0));
+	float back = clamp(-sun_v.z, 0.0, 1.0);
+	vec2 cell0 = floor(dp);
+	vec3 acc = vec3(0.0);
+	float acc_a = 0.0;
+	for (int j = -1; j <= 1; j++) {
+		for (int i = -1; i <= 1; i++) {
+			vec2 id = cell0 + vec2(float(i), float(j)) + vec2(seed);
+			vec4 h = fract(sin(vec4(dot(id, vec2(127.1, 311.7)), dot(id, vec2(269.5, 183.3)),
+				dot(id, vec2(419.2, 371.9)), dot(id, vec2(97.3, 53.1)))) * 43758.5453);
+			if (h.x > layout.z) {
+				continue;
+			}
+			vec2 centre = id - vec2(seed) + 0.5 + (h.yz - 0.5) * 0.5;
+			float hs = layout.w * (0.65 + 0.7 * h.w);
+			vec2 r = normalize(centre - shift + vec2(0.0001));
+			vec2 q = dp - centre;
+			float flip = h.y > 0.5 ? 1.0 : -1.0;
+			float cu = dot(q, vec2(-r.y, r.x)) / hs * flip;
+			float cv = dot(q, -r) / hs;
+			if (abs(cu) >= 1.0 || abs(cv) >= 1.0) {
+				continue;
+			}
+			float idx = floor(fract(h.x * 91.7 + h.z * 13.3) * 8.0);
+			vec2 tile = vec2(mod(idx, 4.0), floor(idx / 4.0));
+			vec2 uv = (tile + vec2(cu * 0.5 + 0.5, 0.5 - cv * 0.5)) / vec2(4.0, 2.0);
+			float lod = max(log2(px / hs * 256.0), 0.0);
+			vec4 d = textureLod(atlas, uv, lod);
+			if (d.a < 0.01) {
+				continue;
+			}
+			vec3 n = vec3((d.r * 2.0 - 1.0) * flip, d.g * 2.0 - 1.0, 0.0);
+			n.z = sqrt(max(1.0 - dot(n.xy, n.xy), 0.0));
+			float wrap = dot(n, lh) * 0.5 + 0.5;
+			float shade = clamp((wrap - 0.5) * contrast + 0.5, 0.0, 1.0) * mix(light.x, 1.0, d.b) + cv * 0.08;
+			vec3 col = cel_ramp(shadow, mid, lit, cel_quantize(shade, bands, band_edge));
+			float rim = pow(1.0 - n.z, max(light.z, 0.1)) * back * light.w;
+			col = mix(col, rim_color, clamp(rim, 0.0, 1.0));
+			float a = d.a * (1.0 - acc_a);
+			acc += col * a;
+			acc_a += a;
+		}
+	}
+	return vec4(acc / max(acc_a, 0.0001), acc_a);
+}

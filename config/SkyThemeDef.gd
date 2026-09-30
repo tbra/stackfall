@@ -224,3 +224,13 @@ extends Resource
 @export var proc_far_radius_min_m: float = 60.0
 @export var proc_far_radius_max_m: float = 130.0
 @export var proc_far_fade_cap: float = 0.7
+
+## Bontago-59o.20: authored cloud-card overhead layer (procedural look only).
+## proc_cards_enabled swaps the noise overhead layers for the Blender card
+## atlas (assets/sky/cloud_cards); density is the chance a grid cell holds a
+## card, scale the plane scale (higher = more, smaller cards), opacity the
+## overall cloud alpha.
+@export var proc_cards_enabled: bool = true
+@export var proc_cards_density: float = 0.85
+@export var proc_cards_scale: float = 1.5
+@export var proc_cards_opacity: float = 0.95

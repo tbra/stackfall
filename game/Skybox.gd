@@ -568,6 +568,13 @@ func _apply_procedural_params(material: ShaderMaterial, applied_theme: SkyThemeD
 	material.set_shader_parameter("proc_sea_color_far", applied_theme.proc_sea_color_far)
 	material.set_shader_parameter("proc_sea_horizon_fade", applied_theme.proc_sea_horizon_fade)
 	material.set_shader_parameter("proc_strata_scale", applied_theme.proc_strata_scale)
+	material.set_shader_parameter("proc_cards_mix", 1.0 if applied_theme.proc_cards_enabled else 0.0)
+	material.set_shader_parameter("proc_cards_opacity", applied_theme.proc_cards_opacity)
+	var layout: Variant = material.get_shader_parameter("proc_cards_layout")
+	if layout is Vector4:
+		var cards_layout: Vector4 = layout as Vector4
+		material.set_shader_parameter("proc_cards_layout", Vector4(
+			applied_theme.proc_cards_scale, cards_layout.y, applied_theme.proc_cards_density, cards_layout.w))
 
 
 ## Bontago-xtq.28: creates this Skybox's own FogVolume "cloud deck" child --

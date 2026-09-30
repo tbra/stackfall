@@ -8,6 +8,7 @@
 [ext_resource type="Shader" uid="uid://cw83snuvx3c6r" path="res://shaders/distant_birds.gdshader" id="6_birds"]
 [ext_resource type="Texture2D" uid="uid://bh10x4wuue4oc" path="res://config/sky_themes/puff_noise.tres" id="7_cells"]
 [ext_resource type="Resource" path="res://config/ambient_life_sunset.tres" id="ambient_life"]
+[ext_resource type="Texture2D" path="res://assets/sky/cloud_cards/cloud_cards_atlas.png" id="8_cards"]
 
 [sub_resource type="ShaderMaterial" id="Birds"]
 render_priority = 0
@@ -147,6 +148,7 @@ shader_parameter/proc_strata2_coverage = 0.5
 shader_parameter/proc_strata2_bands = 4.0
 shader_parameter/proc_strata2_fade_start = 0.08
 shader_parameter/proc_strata2_fade_height = 0.4
+shader_parameter/cloud_cards = ExtResource("8_cards")
 
 [resource]
 script = ExtResource("1_theme")
