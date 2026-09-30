@@ -995,10 +995,26 @@ func test_circle_bin_overflow_keeps_analytic_full_loop_and_recovers() -> void:
 
 
 func test_shader_declares_the_circle_bin_uniforms() -> void:
-	var code: String = (load("res://shaders/territory.gdshader") as Shader).code
+	# Bontago-1pi.11.1: the circle/bin uniforms moved into the shared include.
+	var code: String = FileAccess.get_file_as_string("res://shaders/territory_circle_field.gdshaderinc")
 	assert_true(code.contains("uniform sampler2D circle_bin_tex"), "Bin texture uniform.")
 	assert_true(code.contains("uniform bool circle_bins_valid"), "Bin enable uniform.")
 	assert_true(
 		code.contains("const int CIRCLE_BIN_TEX_WIDTH = %d;" % TerritoryOverlay.CIRCLE_BIN_TEX_WIDTH),
 		"Shader and overlay agree on the bin texture width."
 	)
+
+
+# --- Bontago-1pi.11.1: baked circle field -----------------------------------
+func test_bake_is_off_without_a_renderer_and_the_shaders_declare_it() -> void:
+	var overlay: TerritoryOverlay = _make_overlay(_map())
+	overlay.set_circles(
+		PackedFloat32Array([0.0]), PackedFloat32Array([0.0]), PackedFloat32Array([5.0]),
+		PackedInt32Array([0]), PackedVector2Array(), PackedFloat32Array(), false
+	)
+	assert_false(overlay.bake_valid(), "Headless has no renderer, so the direct loop stays.")
+	var code: String = (load("res://shaders/territory.gdshader") as Shader).code
+	assert_true(code.contains("uniform sampler2D circle_bake_linear"), "Linear bake sampler.")
+	assert_true(code.contains("uniform bool bake_valid"), "Bake enable uniform.")
+	var bake: String = (load("res://shaders/territory_circle_bake.gdshader") as Shader).code
+	assert_true(bake.contains("circle_field("), "The bake runs the shared circle field.")

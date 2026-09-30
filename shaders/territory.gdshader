@@ -85,7 +85,7 @@ render_mode cull_disabled, specular_disabled, fog_disabled;
 // UV at all; uv is still computed for the raster path and the shimmer's
 // travelling-band pattern.
 
-const int SLOT_COLOR_MAX = 8;
+#include "res://shaders/territory_circle_field.gdshaderinc"
 // TerritoryRaster's per-cell state bits.
 const int STATE_CONTESTED = 1;
 const int STATE_HOLE = 2;
@@ -191,12 +191,6 @@ uniform float hole_rim_width : hint_range(0.001, 1.0) = 0.35;
 uniform float hole_rim_glow = 2.5;
 
 // -- Analytic circle path uniforms (Bontago-cmc.5) ---------------------------
-uniform sampler2D circle_tex : filter_nearest, repeat_disable;
-uniform int circle_count = 0;
-// TerritoryVisuals.max_shader_circles: the cap actually looped, independent
-// of TerritoryTuning.max_circles so a weaker GPU can loop fewer circles
-// without touching the rules.
-uniform int max_shader_circles = 400;
 // False when circle_count is 0 (no solve yet, or a match just ended) or
 // exceeds max_shader_circles (spec 3.3, "Bounded cost"): the raster path
 // below is drawn instead for that frame.
@@ -219,14 +213,6 @@ uniform int goal_count = 0;
 // -circle_bin margin, a band wider than every visual effect below reads, so
 // the skipped circles never change a drawn pixel. Points outside the grid,
 // or circle_bins_valid == false, loop the whole list exactly as before.
-uniform sampler2D circle_bin_tex : filter_nearest, repeat_disable;
-uniform bool circle_bins_valid = false;
-uniform int circle_bin_grid = 1;
-uniform float circle_bin_half_extent = 1.0;
-const int CIRCLE_BIN_TEX_WIDTH = 256;
-
-uniform float metaball_blend : hint_range(0.0, 3.0) = 0.3;
-uniform float rim_soft_width : hint_range(0.001, 2.0) = 0.25;
 uniform float rim_width : hint_range(0.001, 2.0) = 0.35;
 // Bontago-xtq.14 (owner: "the edge of the area is a bit blurry, sharpen
 // it"): the ownership TINT's own smoothstep used to share rim_soft_width
@@ -540,24 +526,6 @@ void light() {
 	DIFFUSE_LIGHT += disc_light;
 }
 
-// Polynomial smooth min (Inigo Quilez). k <= 0 degrades to a hard min, so
-// TerritoryVisuals.metaball_blend = 0 is a plain (still curved) union.
-float smin(float a, float b, float k) {
-	if (k <= 0.0) {
-		return min(a, b);
-	}
-	float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
-	return mix(b, a, h) - k * h * (1.0 - h);
-}
-
-// Smooth max is smooth min of the negated inputs, negated back — the
-// "positive inside" convention InfluenceCircle/TerritoryRaster._argmax()
-// already uses (value = radius - distance) reads directly as a smooth union
-// with no sign flip at the call site below.
-float smax(float a, float b, float k) {
-	return -smin(-a, -b, k);
-}
-
 // The raster (fallback) path: exactly Bontago-cmc.7's shader, unchanged.
 // Kept whole rather than folded into the analytic path below, because spec
 // 3.3's "Bounded cost" asks for a real fallback when the circle list
@@ -862,6 +830,26 @@ void raster_path(vec2 uv, vec3 base, out vec3 albedo, out vec3 emission) {
 	// EMISSION with no opacity trick needed.
 }
 
+// DECISION (shaders/territory.gdshader, Bontago-1pi.11.1): bake the circle loop.
+// Measured (tools/bench_perf_attrib, 300 asleep blocks): uploading only the 2
+// home circles cut GPU 16.4 -> 7.6 ms, so the per-pixel circle loop (even
+// binned) dominated and scales with pixels (3440x1440 is 2.4x 1080p). The
+// loop's three outputs (best value, second-best team value, owner) are a pure
+// function of the circle set, which changes at most ~5 Hz. game/
+// TerritoryOverlay.gd therefore renders them into a texture with
+// territory_circle_bake.gdshader only when the set changes, and this shader
+// does two texture reads per pixel. Edge quality: the baked values are the
+// continuous signed field (radius - distance, smooth-maxed), so the linear
+// filter gives a smooth sub-texel boundary; only the discrete owner is nearest.
+// Works identically on host and clients: both feed set_circles(). Pulse,
+// shimmer, rim band, goals and the hole discard stay per-pixel and live.
+// bake_valid is false (direct loop) until the first bake has rendered and
+// whenever no renderer exists.
+uniform bool bake_valid = false;
+uniform vec2 bake_half_extent = vec2(45.0, 45.0);
+uniform sampler2D circle_bake_linear : filter_linear, repeat_disable;
+uniform sampler2D circle_bake_near : filter_nearest, repeat_disable;
+
 // The analytic path (Bontago-cmc.5). `point` is disk-local (x, z).
 //
 // DECISION (shaders/territory.gdshader): cheap early-out, not a free one.
@@ -876,84 +864,29 @@ void raster_path(vec2 uv, vec3 base, out vec3 albedo, out vec3 emission) {
 // was not built. Revisit with real profiling numbers if max_shader_circles
 // is ever raised well past 400.
 void circle_path(vec2 point, vec3 base, out vec3 albedo, out vec3 emission) {
-	float team_best[SLOT_COLOR_MAX];
-	bool team_seen[SLOT_COLOR_MAX];
-	bool team_done[SLOT_COLOR_MAX];
-	for (int t = 0; t < SLOT_COLOR_MAX; t++) {
-		team_best[t] = -1000000.0;
-		team_seen[t] = false;
-		team_done[t] = false;
-	}
-
-	int loop_n = min(circle_count, max_shader_circles);
-	float saturation = metaball_blend + rim_soft_width;
-	int bin_start = 0;
-	int bin_n = loop_n;
-	bool use_bins = false;
-	if (circle_bins_valid && circle_bin_grid > 0) {
-		vec2 cell_f = (point + vec2(circle_bin_half_extent))
-			/ (2.0 * circle_bin_half_extent) * float(circle_bin_grid);
-		if (cell_f.x >= 0.0 && cell_f.y >= 0.0
-			&& cell_f.x < float(circle_bin_grid) && cell_f.y < float(circle_bin_grid)) {
-			int k = int(floor(cell_f.y)) * circle_bin_grid + int(floor(cell_f.x));
-			vec2 bin_range = texelFetch(
-				circle_bin_tex, ivec2(k % CIRCLE_BIN_TEX_WIDTH, k / CIRCLE_BIN_TEX_WIDTH), 0
-			).rg;
-			bin_start = int(bin_range.x + 0.5);
-			bin_n = int(bin_range.y + 0.5);
-			use_bins = true;
-		}
-	}
-	for (int j = 0; j < bin_n; j++) {
-		int i = j;
-		if (use_bins) {
-			int ref_k = bin_start + j;
-			i = int(texelFetch(
-				circle_bin_tex, ivec2(ref_k % CIRCLE_BIN_TEX_WIDTH, ref_k / CIRCLE_BIN_TEX_WIDTH), 0
-			).r + 0.5);
-		}
-		if (i >= loop_n) {
-			continue;
-		}
-		vec4 c = texelFetch(circle_tex, ivec2(i, 0), 0);
-		int team = int(round(c.a));
-		if (team < 0 || team >= SLOT_COLOR_MAX || team_done[team]) {
-			continue;
-		}
-		float value = c.b - distance(point, c.xy);
-		if (!team_seen[team]) {
-			team_best[team] = value;
-			team_seen[team] = true;
-		} else {
-			team_best[team] = smax(team_best[team], value, metaball_blend);
-		}
-		if (team_best[team] > saturation) {
-			team_done[team] = true;
-		}
-	}
-
-	int owner_team = -1;
-	int inside_count = 0;
 	float best_overall = -1000000.0;
-	for (int t = 0; t < SLOT_COLOR_MAX; t++) {
-		if (!team_seen[t]) {
-			continue;
-		}
-		if (team_best[t] > best_overall) {
-			best_overall = team_best[t];
-			owner_team = t;
-		}
-		if (team_best[t] >= 0.0) {
-			inside_count += 1;
-		}
+	float second_best = -1000000.0;
+	int owner_team = -1;
+	if (bake_valid) {
+		// Bontago-1pi.11.1: the baked field (see the DECISION above); the
+		// linear sampler reconstructs the continuous values, the nearest one the
+		// discrete owner.
+		vec2 bake_uv = point / (2.0 * bake_half_extent) + vec2(0.5);
+		vec2 fields = texture(circle_bake_linear, bake_uv).rg;
+		best_overall = (fields.r - 0.5) * 2.0 * BAKE_VALUE_CLAMP_M;
+		second_best = (fields.g - 0.5) * 2.0 * BAKE_VALUE_CLAMP_M;
+		owner_team = int(round(texture(circle_bake_near, bake_uv).b * OWNER_ENCODE_DIV)) - 1;
+	} else {
+		circle_field(point, best_overall, second_best, owner_team);
 	}
+	bool two_teams_inside = best_overall >= 0.0 && second_best >= 0.0;
 
 	// Default (overlap) mode: two or more teams' circles covering the same
 	// point is a contest (spec 2.2), drawn with no team tint at all, same as
 	// the raster path's CONTESTED cells. argmax_mode (v2, hole_mode == OFF)
 	// has no contested concept — TerritoryRaster._argmax() always picks
 	// exactly one owner — so it never sets this.
-	bool contested = !argmax_mode && inside_count >= 2;
+	bool contested = !argmax_mode && two_teams_inside;
 
 	albedo = base;
 	emission = vec3(0.0);

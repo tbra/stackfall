@@ -59,6 +59,15 @@ const STATE_CONTESTED: int = TerritoryRaster.STATE_CONTESTED
 const STATE_HOLE: int = TerritoryRaster.STATE_HOLE
 
 const TERRITORY_SHADER: Shader = preload("res://shaders/territory.gdshader")
+const CIRCLE_BAKE_SHADER: Shader = preload("res://shaders/territory_circle_bake.gdshader")
+## Frames the first bake is given to reach the render target before the disc
+## shader is told to trust it (the SubViewport draws on the frame after the
+## request at the latest).
+const BAKE_SETTLE_FRAMES: int = 2
+## Smallest bake edge in texels, and a cap so a huge map x a high density can
+## never allocate an absurd render target.
+const BAKE_SIZE_MIN: int = 16
+const BAKE_SIZE_MAX: int = 2048
 ## Slot colors the shader's uniform array holds; MatchConfig ships eight.
 const SLOT_COLOR_MAX: int = 8
 ## Weather wetness (Bontago-22y.5) finds the overlay through this group.
@@ -141,6 +150,13 @@ var _circle_bin_image: Image = null
 var _circle_bins_valid: bool = false
 var _circle_bin_baked_margin: float = 0.0
 var _goal_count: int = 0
+## Bontago-1pi.11.1 circle-field bake (see _request_bake()).
+var _bake_viewport: SubViewport = null
+var _bake_rect: ColorRect = null
+var _bake_material: ShaderMaterial = null
+var _bake_key: Array = []
+var _bake_settle_left: int = 0
+var _bake_wanted: bool = false
 
 
 func _process(delta: float) -> void:
@@ -170,6 +186,7 @@ func configure(map_def: MapDef, visuals: TerritoryVisuals, tuning: TerritoryTuni
 	_material.shader = TERRITORY_SHADER
 	_apply_visual_uniforms()
 	_set_blank_texture()
+	_build_bake_viewport()
 	clear_circles()
 	material_override = _material
 
@@ -361,6 +378,7 @@ func set_circles(
 	_material.set_shader_parameter(&"rim_strength", _visuals.rim_strength)
 	_material.set_shader_parameter(&"rim_pulse_depth", _visuals.rim_pulse_depth)
 	_material.set_shader_parameter(&"rim_speed", _visuals.rim_speed)
+	_request_bake(valid)
 
 
 ## Drops the circle list: circle_count/goal_count go to 0, so the shader's
@@ -494,6 +512,114 @@ func _pack_circle_bins(
 				CIRCLE_BIN_TEX_WIDTH, height, false, Image.FORMAT_RGF, flat.to_byte_array()
 			)
 	return null
+
+
+## Bontago-1pi.11.1 DECISION (game/TerritoryOverlay.gd): the circle loop that
+## dominated the disc's GPU time (home-only circles: 16.4 -> 7.6 ms at 300
+## blocks) is baked into a render texture only when the circle set changes,
+## via a SubViewport + ColorRect running territory_circle_bake.gdshader. A
+## GPU bake was chosen over the host's TerritoryRaster because (a) clients have
+## no raster, only the replicated circles every peer feeds set_circles(), and
+## (b) the raster is a 1 m cell grid, while the bake keeps the continuous
+## signed distance that gives the sub-centimetre edge. The bake is skipped
+## (and the disc shader loops circles as before) with no renderer (headless),
+## when disabled in TerritoryVisuals, or until the first bake has rendered.
+func _build_bake_viewport() -> void:
+	if _bake_viewport != null or _map_def == null:
+		return
+	_bake_viewport = SubViewport.new()
+	_bake_viewport.disable_3d = true
+	_bake_viewport.use_hdr_2d = true
+	_bake_viewport.transparent_bg = false
+	_bake_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	_bake_viewport.size = Vector2i(BAKE_SIZE_MIN, BAKE_SIZE_MIN)
+	_bake_material = ShaderMaterial.new()
+	_bake_material.shader = CIRCLE_BAKE_SHADER
+	_bake_rect = ColorRect.new()
+	_bake_rect.material = _bake_material
+	_bake_rect.size = Vector2(_bake_viewport.size)
+	_bake_viewport.add_child(_bake_rect)
+	add_child(_bake_viewport)
+
+
+## Bench/test hook: flips TerritoryVisuals.circle_bake_enabled on the live
+## resource and re-requests the bake.
+func set_bake_enabled_for_bench(enabled: bool) -> void:
+	_visuals.circle_bake_enabled = enabled
+	_request_bake(_bake_wanted)
+
+
+func bake_valid() -> bool:
+	return _bake_viewport != null and bool(_material.get_shader_parameter(&"bake_valid"))
+
+
+func _bake_extent() -> Vector2:
+	var z_scale: float = 1.0
+	if _map_def.map_shape == MapDef.MapShape.OVAL:
+		z_scale = _map_def.oval_aspect
+	return Vector2(_map_def.field_radius, _map_def.field_radius * z_scale)
+
+
+## Re-renders the bake if the circle field it would hold changed (or the
+## visuals that shape it did); otherwise a no-op, so a steady 5 Hz re-upload of
+## an unchanged set costs nothing.
+func _request_bake(circles_ok: bool) -> void:
+	_bake_wanted = circles_ok
+	var usable: bool = (
+		circles_ok and _bake_viewport != null and _visuals.circle_bake_enabled
+		and DisplayServer.get_name() != "headless"
+	)
+	if not usable:
+		_bake_key = []
+		_bake_settle_left = 0
+		_material.set_shader_parameter(&"bake_valid", false)
+		return
+	var extent: Vector2 = _bake_extent()
+	var key: Array = [
+		_circle_image.get_data(), _visuals.metaball_blend, _visuals.rim_soft_width,
+		_circle_bins_valid, _circle_bin_image.get_data() if _circle_bins_valid else null,
+		extent, _visuals.circle_bake_texels_per_m, _circle_count,
+	]
+	if key == _bake_key:
+		return
+	var first: bool = _bake_key.is_empty() or not bool(_material.get_shader_parameter(&"bake_valid"))
+	_bake_key = key
+	var edge_x: int = clampi(ceili(extent.x * 2.0 * _visuals.circle_bake_texels_per_m), BAKE_SIZE_MIN, BAKE_SIZE_MAX)
+	var edge_y: int = clampi(ceili(extent.y * 2.0 * _visuals.circle_bake_texels_per_m), BAKE_SIZE_MIN, BAKE_SIZE_MAX)
+	_bake_viewport.size = Vector2i(edge_x, edge_y)
+	_bake_rect.size = Vector2(edge_x, edge_y)
+	_bake_material.set_shader_parameter(&"circle_tex", _circle_texture)
+	_bake_material.set_shader_parameter(&"circle_count", _circle_count)
+	_bake_material.set_shader_parameter(&"max_shader_circles", _visuals.max_shader_circles)
+	_bake_material.set_shader_parameter(&"circle_bins_valid", _circle_bins_valid)
+	if _circle_bins_valid:
+		_bake_material.set_shader_parameter(&"circle_bin_tex", _circle_bin_texture)
+	_bake_material.set_shader_parameter(&"circle_bin_grid", CIRCLE_BIN_GRID)
+	_bake_material.set_shader_parameter(&"circle_bin_half_extent", circle_bin_half_extent())
+	_bake_material.set_shader_parameter(&"metaball_blend", _visuals.metaball_blend)
+	_bake_material.set_shader_parameter(&"rim_soft_width", _visuals.rim_soft_width)
+	_bake_material.set_shader_parameter(&"bake_half_extent", extent)
+	_material.set_shader_parameter(&"bake_half_extent", extent)
+	var baked: ViewportTexture = _bake_viewport.get_texture()
+	_material.set_shader_parameter(&"circle_bake_linear", baked)
+	_material.set_shader_parameter(&"circle_bake_near", baked)
+	_bake_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+	if first:
+		# Until a bake has rendered, keep drawing with the direct loop.
+		_material.set_shader_parameter(&"bake_valid", false)
+		_bake_settle_left = BAKE_SETTLE_FRAMES
+		if not RenderingServer.frame_post_draw.is_connected(_on_bake_frame_drawn):
+			RenderingServer.frame_post_draw.connect(_on_bake_frame_drawn)
+
+
+func _on_bake_frame_drawn() -> void:
+	_bake_settle_left -= 1
+	if _bake_settle_left > 0:
+		return
+	RenderingServer.frame_post_draw.disconnect(_on_bake_frame_drawn)
+	if _bake_key.is_empty():
+		return
+	_material.set_shader_parameter(&"bake_valid", true)
 
 
 func circle_texture() -> ImageTexture:
@@ -639,6 +765,7 @@ func refresh_visual_uniforms() -> void:
 	if _circle_bins_valid and circle_bin_margin() > _circle_bin_baked_margin:
 		_circle_bins_valid = false
 		_material.set_shader_parameter(&"circle_bins_valid", false)
+	_request_bake(_bake_wanted)
 
 
 func _apply_visual_uniforms() -> void:

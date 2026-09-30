@@ -62,6 +62,10 @@ func _ready() -> void:
 		elif arg.begins_with("--weather="):
 			weather = StringName(arg.trim_prefix("--weather="))
 	var toggles: bool = not args.has("--no-toggles")
+	var shot_prefix: String = ""
+	for arg: String in args:
+		if arg.begins_with("--shot="):
+			shot_prefix = arg.trim_prefix("--shot=")
 	_shapes = BlockShape.load_all_shapes()
 	var preset_id: StringName = &"high"
 	for arg: String in args:
@@ -94,6 +98,8 @@ func _ready() -> void:
 	if weather != &"":
 		var ok: bool = Match.weather().set_debug_override(weather)
 		print("ATTRIB weather=%s ok=%s" % [weather, ok])
+	if args.has("--no-bake"):
+		_field.overlay().set_bake_enabled_for_bench(false)
 	print("ATTRIB renderer=%s headless=%s window=%s render=%s" % [DisplayServer.get_name(), DisplayServer.get_name() == "headless", DisplayServer.window_get_size(), _render_vp.size if _render_vp != null else get_viewport().get_visible_rect().size])
 	for target: int in counts:
 		while _spawned < target:
@@ -102,9 +108,9 @@ func _ready() -> void:
 				await get_tree().physics_frame
 		await _settle()
 		await _sample("base", target)
-		for arg: String in args:
-			if arg.begins_with("--shot="):
-				get_viewport().get_texture().get_image().save_png(arg.trim_prefix("--shot=") + "_%d.png" % target)
+		if shot_prefix != "":
+			var shot_vp: Viewport = _render_vp if _render_vp != null else get_viewport()
+			shot_vp.get_texture().get_image().save_png("%s_%d.png" % [shot_prefix, target])
 		if not toggles:
 			continue
 		PhysicsServer3D.set_active(false)
