@@ -148,29 +148,15 @@ func test_camera_target_y_stays_continuous_across_a_drop_that_needs_spawn_cleara
 	rig.set_follow_position(controller._camera_follow_anchor())
 	rig._process(1.0 / 60.0)
 
-	var full_jump_y: float = controller._camera_follow_anchor().y - target_y_before_clearance
-	assert_gt(
-		full_jump_y, 0.05,
-		"fixture: spawn clearance must have actually raised the followed height by a noticeable amount."
-	)
-
-	var one_frame_delta_y: float = absf(rig.get_target().y - target_y_before_clearance)
-	assert_lt(
-		one_frame_delta_y, full_jump_y * 0.5,
-		"a genuine spawn-clearance raise must still ease in, not hard-snap across the whole thing in a single frame."
+	# Bontago-1pi.14: the clearance raise lifts the ghost only; the camera
+	# target must not move at all (previously it eased up by the raise).
+	assert_almost_eq(
+		rig.get_target().y, target_y_before_clearance, 0.001,
+		"a spawn-clearance raise must not move the camera follow height."
 	)
 	assert_almost_eq(
 		rig.get_pitch(), pitch_before, 0.0001,
 		"nothing in this drop should touch the camera's pitch."
-	)
-
-	# ...but it must not get stuck either: given enough frames it converges on
-	# the new (raised) followed position.
-	for _i: int in range(120):
-		rig._process(1.0 / 60.0)
-	assert_almost_eq(
-		rig.get_target().y, target_y_before_clearance + full_jump_y, 0.01,
-		"the camera must eventually catch up to the drop's new height, not just ease forever."
 	)
 
 

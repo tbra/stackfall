@@ -168,6 +168,12 @@ var _pending_spawn_active: bool = false
 ## ended up, not just wherever this controller last aimed.
 var _pending_spawn_top_y: float = 0.0
 
+## Bontago-1pi.14: how much of _ghost.manual_hover_offset is spawn-clearance
+## raise (see _apply_spawn_clearance()) rather than player hover input. The
+## ghost rises by it, but _camera_follow_anchor() subtracts it so a release
+## never lifts the camera. Clamped to the live offset when read.
+var _clearance_raise: float = 0.0
+
 ## Bontago-mv0.18 (in-game tuning panel): ui/TuningPanel.gd sets this false
 ## while it is open, so dragging a slider or clicking Reset/Save/Copy can't
 ## also move the ghost, rotate it, or spend a placement underneath the panel.
@@ -392,7 +398,9 @@ func _process(delta: float) -> void:
 ## _apply_spawn_clearance()'s own call site) -- not for every shape swap.
 func _camera_follow_anchor() -> Vector3:
 	var center: Vector3 = _ghost.rotated_center_world()
-	var anchor_y: float = _last_hit_point.y + tuning.hover_height + _ghost.manual_hover_offset
+	# Bontago-1pi.14: the spawn-clearance raise lifts the ghost, never the camera.
+	_clearance_raise = clampf(_clearance_raise, 0.0, maxf(_ghost.manual_hover_offset, 0.0))
+	var anchor_y: float = _last_hit_point.y + tuning.hover_height + _ghost.manual_hover_offset - _clearance_raise
 	return Vector3(center.x, anchor_y, center.z)
 
 
@@ -1200,18 +1208,12 @@ func _apply_spawn_clearance() -> void:
 		return
 	var required_bottom_y: float = _pending_spawn_top_y + ghost_tuning.spawn_clearance
 	var desired_offset: float = required_bottom_y - _last_hit_point.y - tuning.hover_height
+	var previous_offset: float = _ghost.manual_hover_offset
 	_ghost.manual_hover_offset = clampf(desired_offset, 0.0, _hover_offset_ceiling())
-	# Bontago-pt-4 (owner playtest: "Camera always jumps up after block drops
-	# or when clicking the drop button"): this is the exact call site that
-	# produces the discontinuous followed-height re-target CameraRig.
-	# begin_follow_transition()'s own doc comment root-causes -- the raise
-	# above just changed manual_hover_offset (and so the ghost's followed
-	# rotated_center_world() height) in one frame, not gradually across many.
-	# Telling the rig here, right where that jump originates, lets it ease
-	# into the new height instead of hard-snapping to it later this same
-	# frame's _camera_rig.set_follow_position() call below.
-	if _camera_rig != null:
-		_camera_rig.begin_follow_transition()
+	# Bontago-1pi.14: remember the raise so the camera follow ignores it.
+	_clearance_raise = maxf(_clearance_raise + _ghost.manual_hover_offset - previous_offset, 0.0)
+	# Bontago-1pi.14: no begin_follow_transition() here any more -- the camera
+	# anchor excludes _clearance_raise, so this raise does not move it at all.
 	# Bontago-mv0.33: re-applies immediately rather than waiting for next
 	# frame's own _update_ghost_transform() call -- _would_overlap_a_placed_
 	# block_at_baseline_hover() above already left global_position restored to

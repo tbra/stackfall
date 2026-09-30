@@ -182,6 +182,24 @@ func test_next_ghost_does_not_overlap_the_block_just_placed() -> void:
 	)
 
 
+# --- Bontago-1pi.14: the clearance raise lifts the ghost, never the camera ---
+
+func test_clearance_raise_does_not_lift_camera_follow_height() -> void:
+	Match.start_match(_config())
+	_run_countdown()
+	var slot_id: int = 0
+	var controller: PlayerController = _make_controller()
+	controller.set_acting_slot(slot_id)
+	controller._ghost.set_shape(Match.held_shape(slot_id))
+	controller._cursor = _home_world_position(slot_id)
+	controller._update_ghost_transform()
+	var before_y: float = controller._camera_follow_anchor().y
+	controller._place_ghost_block()
+	await _resolve_pending_spawn_clearance(controller)
+	assert_gt(controller._ghost.manual_hover_offset, 0.0, "fixture: the ghost must have been raised.")
+	assert_almost_eq(controller._camera_follow_anchor().y, before_y, 0.001, "camera follow height must not rise on release.")
+
+
 # --- The first piece of a match must never be pre-displaced -----------------
 
 func test_first_piece_of_the_match_is_not_displaced() -> void:
