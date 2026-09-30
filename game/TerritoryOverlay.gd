@@ -69,6 +69,11 @@ const WET_GROUP: StringName = &"weather_territory"
 var _wet_amount: float = 0.0
 var _wet_sheen_add: float = 0.0
 var _wet_roughness_scale: float = 1.0
+## Last per-slot colors handed in (Bontago-sen.4). _apply_visual_uniforms()
+## re-pushes these; it used to reset every slot to goal_flag_color, wiping the
+## team colors whenever the F4 panel / a graphics refresh called
+## refresh_visual_uniforms() mid-match.
+var _slot_colors: PackedColorArray = PackedColorArray()
 ## The disk centre sits at the middle of the raster square, so disk-local
 ## (0, 0) maps to the middle of the texture. See _apply_uv_uniforms().
 const UV_CENTER: float = 0.5
@@ -249,6 +254,7 @@ func set_source(raster: TerritoryRaster, slot_colors: PackedColorArray) -> void:
 ## MatchConfig.player_colors, indexed by team/slot id. Converted to linear
 ## because the shader's array uniform cannot carry a source_color hint.
 func set_slot_colors(slot_colors: PackedColorArray) -> void:
+	_slot_colors = slot_colors
 	if _material == null:
 		return
 	var linear: PackedColorArray = PackedColorArray()
@@ -704,7 +710,7 @@ func _apply_visual_uniforms() -> void:
 	if _map_def != null and _map_def.map_shape == MapDef.MapShape.OVAL:
 		z_scale = _map_def.oval_aspect
 	_material.set_shader_parameter(&"disc_z_scale", z_scale)
-	set_slot_colors(PackedColorArray())
+	set_slot_colors(_slot_colors)
 	_apply_wet()
 
 

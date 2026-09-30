@@ -188,6 +188,20 @@ func test_slot_colors_reach_the_shader() -> void:
 	)
 
 
+func test_refresh_visual_uniforms_keeps_slot_colors() -> void:
+	# Bontago-sen.4: an F4 visuals refresh used to reset every slot to the
+	# goal-flag color, so territories lost their team colors.
+	var overlay: TerritoryOverlay = _make_overlay(_map())
+	var colors: PackedColorArray = PackedColorArray([
+		Color(0.9, 0.25, 0.25), Color(0.25, 0.55, 0.95),
+	])
+	overlay.set_slot_colors(colors)
+	overlay.refresh_visual_uniforms()
+	var stored: Array = overlay.material().get_shader_parameter(&"slot_colors") as Array
+	var second: Color = stored[1]
+	assert_almost_eq(second.b, colors[1].srgb_to_linear().b, 0.01, "Slot 1 keeps its team color.")
+
+
 func test_uv_uniforms_map_the_disk_onto_the_texture() -> void:
 	var map_def: MapDef = _map()
 	var overlay: TerritoryOverlay = _make_overlay(map_def)
