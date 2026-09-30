@@ -1049,3 +1049,24 @@ func test_height_record_is_monotone_and_resets_on_sandbox_reset_field() -> void:
 	sandbox._unhandled_input(_key_press(KEY_F5))
 	panel._refresh()
 	assert_eq(panel._height_record_label.text, "Height record: 0.00 m", "F5 must reset the height record")
+
+
+## Bontago-470.8: with debug mode off the F2 comparison panel and the F5
+## reset hotkey do nothing, while slot switching (Tab) stays a play feature.
+func test_debug_hotkeys_ignored_when_debug_mode_off() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+	DebugMode.set_override_for_test(false)
+	sandbox._input(_key_press(KEY_F2))
+	assert_false(sandbox._comparison_panel.opened, "F2 is debug-only")
+	sandbox._unhandled_input(_key_press(KEY_F10))
+	assert_false(sandbox._slow_motion_active, "F10 is debug-only")
+	var slot_before: int = sandbox._active_slot if "_active_slot" in sandbox else -1
+	sandbox._unhandled_input(_key_press(KEY_TAB))
+	if slot_before >= 0:
+		assert_ne(sandbox._active_slot, slot_before, "Tab still switches slots")
+	DebugMode.set_override_for_test(true)
+	sandbox._input(_key_press(KEY_F2))
+	assert_true(sandbox._comparison_panel.opened, "F2 works in debug mode")
+	DebugMode.clear_override_for_test()

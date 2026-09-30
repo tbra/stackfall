@@ -195,6 +195,10 @@ func forced_special_queue_full() -> bool:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# Bontago-470.8: every sandbox hotkey but slot switching (Tab / pad Back, a
+	# play feature, not a debug tool) is debug-only.
+	if not DebugMode.is_enabled() and not event.is_action_pressed(&"sandbox_next_slot"):
+		return
 	if _comparison_locked and not event.is_action_pressed(&"sandbox_reset_field") and not event.is_action_pressed(&"sandbox_slow_motion") and not event.is_action_pressed(&"sandbox_pause_physics"):
 		return
 	if event.is_action_pressed(&"sandbox_next_slot"):
@@ -365,6 +369,9 @@ func _reset_field() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	# Bontago-470.8: F2/F4 (and their pad chords) are debug-only.
+	if not DebugMode.is_enabled():
+		return
 	# Handle the Back+X chord before PlayerController's hover-lower action.
 	var joypad: bool = event is InputEventJoypadButton
 	var comparison_requested: bool = event.is_action_pressed(&"sandbox_physics_comparison") and (not joypad or Input.is_action_pressed(&"sandbox_next_slot"))

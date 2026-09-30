@@ -185,12 +185,16 @@ func _run_territory_step(delta: float) -> void:
 
 ## Gift flight and landed expiry use physics time, independent of territory solve cadence.
 func _physics_process(delta: float) -> void:
+	var probe_gifts: int = PerfProbe.start()
 	if _is_host() and _lifecycle != null and MatchLifecycle.is_live_state(state()):
 		_gifts.tick_host(delta)
 	elif not _is_host() and _lifecycle != null and MatchLifecycle.is_live_state(state()):
 		_gifts.tick_client(delta)
+	PerfProbe.stop(&"gifts", probe_gifts)
 	# Bontago-22y.10: no-op unless a weather schedule is running.
+	var probe_weather: int = PerfProbe.start()
 	_weather.tick(delta)
+	PerfProbe.stop(&"weather", probe_weather)
 
 
 func debug_unlock_slot(slot_id: int) -> void:
@@ -310,7 +314,9 @@ func _process(delta: float) -> void:
 			_lifecycle._tick_disconnect_grace(delta)
 			_feed._tick_feed(delta)
 			if _sandbox_territory_mode != SANDBOX_TERRITORY_PAUSED:
+				var probe_territory: int = PerfProbe.start()
 				_territory._tick_territory(delta)
+				PerfProbe.stop(&"territory", probe_territory)
 			_lifecycle._tick_match_timer(delta)
 			# DECISION (autoload/Match.gd, M6 B4): a no-op unless
 			# config.turn_based, so hot-seat and free-for-all matches pay
@@ -328,7 +334,9 @@ func _process(delta: float) -> void:
 			_lifecycle._tick_disconnect_grace(delta)
 			_feed._tick_feed(delta)
 			if _sandbox_territory_mode != SANDBOX_TERRITORY_PAUSED:
+				var probe_territory: int = PerfProbe.start()
 				_territory._tick_territory(delta)
+				PerfProbe.stop(&"territory", probe_territory)
 			_lifecycle._tick_sudden_death(delta)
 			_lifecycle._tick_turn_based(delta)
 			_stats._tick(delta)
