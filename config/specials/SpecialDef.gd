@@ -17,6 +17,22 @@ extends Resource
 ## Optional -- SpecialBehavior only needs `effect` below to arm and trigger.
 @export var scene: PackedScene = null
 
+## Bontago-59o.13/.14 presentation interface (per-gift art is 59o.14; both
+## fields are optional and every gift already shows something sensible):
+## `held_scene` is the model the local/remote ghost shows INSTEAD of the plain
+## block ghost while this gift is the current piece. It is instanced under the
+## ghost, centred on the held shape's bounds and rotated with it; its root
+## should be a Node3D roughly one block cell in size. Null falls back to the
+## generic gift-crate look (game/GhostPreview.gd build_fallback_gift_visual()).
+@export var held_scene: PackedScene = null
+
+## 2D icon the HUD held/next previews draw while this gift is held or next.
+## Null falls back to GENERIC_PREVIEW_ICON.
+@export var preview_icon: Texture2D = null
+
+## Generic gift icon used by the HUD when `preview_icon` is unset.
+const GENERIC_PREVIEW_ICON: Texture2D = preload("res://assets/ui/icons/gift_generic.svg")
+
 ## Feed weight for pick_weighted() below, same convention as
 ## config/blocks/BlockShape.gd's `weight`.
 @export var weight: float = 1.0
@@ -45,6 +61,27 @@ extends Resource
 ## so a SpecialDef with no effect assigned still ages/arms/force-triggers,
 ## it just detonates as a no-op.
 @export var effect: SpecialEffect = null
+
+## Looks up a roster entry by id (cached); null for unknown/empty ids.
+static var _by_id_cache: Dictionary = {}
+
+
+static func find_by_id(special_id: StringName) -> SpecialDef:
+	if special_id == &"":
+		return null
+	if _by_id_cache.is_empty():
+		for def: SpecialDef in load_all_specials():
+			_by_id_cache[def.id] = def
+	return _by_id_cache.get(special_id) as SpecialDef
+
+
+## The HUD icon for `special_id`: its own preview_icon or the generic one.
+static func preview_icon_for(special_id: StringName) -> Texture2D:
+	var def: SpecialDef = find_by_id(special_id)
+	if def != null and def.preview_icon != null:
+		return def.preview_icon
+	return GENERIC_PREVIEW_ICON
+
 
 ## Directory scanned by load_all_specials() for every SpecialDef .tres
 ## resource, mirroring config/blocks/BlockShape.gd:28's SHAPES_DIR.

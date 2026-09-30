@@ -1112,9 +1112,19 @@ func _on_turn_changed(slot_id: int) -> void:
 	var shape: BlockShape = _match.held_shape(slot_id)
 	if shape != null:
 		_ghost.set_shape(shape)
+		_sync_ghost_gift(slot_id)
 		# Bontago-pt-4: no longer needs to tell the camera anything here --
 		# _camera_follow_anchor()'s own doc comment explains why an ordinary
 		# shape swap no longer moves the followed height at all.
+
+
+## Bontago-59o.13: show the held-gift presentation on the ghost while the
+## slot's current piece is a claimed gift (Match.held_special is set before
+## feed_block_issued fires), the plain block ghost otherwise.
+func _sync_ghost_gift(slot_id: int) -> void:
+	if _ghost == null or _match == null or not _match.has_method(&"held_special"):
+		return
+	_ghost.set_held_gift(StringName(_match.held_special(slot_id)))
 
 
 func _on_feed_block_issued(slot_id: int, shape_id: StringName, _next_shape_id: StringName) -> void:
@@ -1137,6 +1147,7 @@ func _on_feed_block_issued(slot_id: int, shape_id: StringName, _next_shape_id: S
 	var shape: BlockShape = _shapes_by_id.get(shape_id) as BlockShape
 	if shape != null:
 		_ghost.set_shape(shape)
+		_sync_ghost_gift(slot_id)
 	# Bontago-mv0.33: does NOT call _apply_spawn_clearance() here anymore --
 	# see that function's own header DECISION. This handler runs synchronously
 	# inside the placement request that spawned the block (Events dispatch is

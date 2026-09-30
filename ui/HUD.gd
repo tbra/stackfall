@@ -132,6 +132,8 @@ var match_provider: Variant = null
 @onready var _minimap: Minimap = %Minimap
 
 var _shapes_by_id: Dictionary = {}
+## Placeholder id for a queued gift whose def id is unknown (icon falls back).
+const GENERIC_GIFT_ID: StringName = &"gift"
 var _preview_textures: Dictionary[StringName, Texture2D] = {}
 ## Whichever slot this HUD's widgets currently read: the hot-seat active
 ## slot, or (outside hot-seat) the local player's slot. See the class
@@ -697,6 +699,7 @@ func _name_for_slot(slot_id: int) -> String:
 func _refresh_special_indicator() -> void:
 	if match_provider == null or _active_slot < 0:
 		_special_indicator.visible = false
+		_set_gift_icons(&"", &"")
 		_held_label.text = "HELD"
 		_next_label.text = "NEXT"
 		return
@@ -705,6 +708,7 @@ func _refresh_special_indicator() -> void:
 	var glue_charges: int = 0
 	if match_provider.has_method(&"glue_drops_left"):
 		glue_charges = int(match_provider.glue_drops_left(_active_slot))
+	_set_gift_icons(head_id, _next_gift_id_for(count, head_id))
 	_held_label.text = "HELD: %s" % _special_display_name(head_id) if head_id != &"" else "HELD"
 	_next_label.text = "NEXT GIFT" if count > (1 if head_id != &"" else 0) else "NEXT"
 	if count <= 0 and glue_charges <= 0:
@@ -925,8 +929,44 @@ func _preview_texture(shape: BlockShape) -> Texture2D:
 	return _preview_textures[shape.id]
 
 
+## Bontago-59o.13: gift ids currently shown by the held/next previews
+## (&"" = ordinary block). A gift draws SpecialDef.preview_icon_for() (the
+## generic gift icon when the def has none) instead of the shape image.
+var _held_gift_id: StringName = &""
+var _next_gift_id: StringName = &""
+
+
+func held_gift_icon() -> Texture2D:
+	return SpecialDef.preview_icon_for(_held_gift_id) if _held_gift_id != &"" else null
+
+
+func next_gift_icon() -> Texture2D:
+	return SpecialDef.preview_icon_for(_next_gift_id) if _next_gift_id != &"" else null
+
+
+## The next piece is a gift iff more is queued than the held piece accounts
+## for; the id is the queue head (falls back to a generic placeholder id).
+func _next_gift_id_for(count: int, head_id: StringName) -> StringName:
+	if count <= (1 if head_id != &"" else 0):
+		return &""
+	var next_id: StringName = &""
+	if match_provider.has_method(&"next_special"):
+		next_id = match_provider.next_special(_active_slot)
+	return next_id if next_id != &"" else GENERIC_GIFT_ID
+
+
+func _set_gift_icons(held_id: StringName, next_id: StringName) -> void:
+	if held_id != _held_gift_id:
+		_held_gift_id = held_id
+		_shape_preview.queue_redraw()
+	if next_id != _next_gift_id:
+		_next_gift_id = next_id
+		_next_shape_preview.queue_redraw()
+
+
 func _draw_static_shape(control: Control, shape: BlockShape, color: Color) -> void:
-	var texture: Texture2D = _preview_texture(shape)
+	var gift_id: StringName = _held_gift_id if control == _shape_preview else _next_gift_id
+	var texture: Texture2D = SpecialDef.preview_icon_for(gift_id) if gift_id != &"" else _preview_texture(shape)
 	if texture == null:
 		return
 	var texture_size: Vector2 = texture.get_size()

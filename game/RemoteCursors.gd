@@ -103,6 +103,14 @@ func _on_feed_block_issued(slot_id: int, shape_id: StringName, _next_shape_id: S
 	var shape: BlockShape = _shape_for_id(shape_id)
 	if shape != null:
 		ghost.set_shape(shape)
+		_sync_gift(ghost, slot_id)
+
+
+## Bontago-59o.13: mirror the held-gift presentation on remote ghosts.
+func _sync_gift(ghost: GhostPreview, slot_id: int) -> void:
+	var authority: Object = _authority()
+	if authority != null and authority.has_method(&"held_special"):
+		ghost.set_held_gift(StringName(authority.held_special(slot_id)))
 
 
 func _on_player_eliminated(slot_id: int, _team_id: int) -> void:
@@ -134,6 +142,7 @@ func _ensure_ghost(slot_id: int) -> GhostPreview:
 	var held: BlockShape = _authority().held_shape(slot_id)
 	if held != null:
 		ghost.set_shape(held)
+		_sync_gift(ghost, slot_id)
 	# Someone else's ghost is always drawn as valid: only the host knows
 	# whether their spot is, and telling every player about every other
 	# player's territory check would be both noisy and a small information

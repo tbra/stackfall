@@ -509,6 +509,10 @@ var _reject_tween: Tween
 var _reject_offset: Vector3 = Vector3.ZERO
 
 
+## Bontago-59o.13: ribbon bands on the generic held crate sit 3% proud of the
+## box so they never z-fight with its faces (a draw constant, not a tunable).
+const HELD_GIFT_RIBBON_OVERHANG: float = 1.03
+
 func _ready() -> void:
 	# Bontago-xtq.40 (owner playtest, "ghost block renders without any
 	# lines"): a dedicated ShaderMaterial (shaders/ghost_cell_grid.gdshader),
@@ -611,6 +615,92 @@ func set_shape(shape: BlockShape) -> void:
 	_shape_visual = BlockFactory.build_visual_only(shape, tuning)
 	add_child(_shape_visual)
 	_apply_material_to_visual()
+	_rebuild_gift_visual()
+
+
+## Bontago-59o.13: while the current piece is a gift the ghost shows a gift
+## presentation (SpecialDef.held_scene, else a generic crate) INSTEAD of the
+## plain block mesh. The block meshes stay in _shape_visual (hidden) because
+## the footprint/projection silhouette is built from them; only visibility
+## changes. Pass &"" to return to the plain block ghost.
+const GIFT_VISUAL_NAME: StringName = &"HeldGift"
+var _held_gift_id: StringName = &""
+var _gift_visual: Node3D = null
+
+
+func set_held_gift(special_id: StringName) -> void:
+	_held_gift_id = special_id
+	_rebuild_gift_visual()
+
+
+func held_gift_id() -> StringName:
+	return _held_gift_id
+
+
+func gift_visual() -> Node3D:
+	return _gift_visual
+
+
+func _rebuild_gift_visual() -> void:
+	if _gift_visual != null:
+		_gift_visual.queue_free()
+		_gift_visual.get_parent().remove_child(_gift_visual)
+		_gift_visual = null
+	var show_gift: bool = _held_gift_id != &"" and _shape != null
+	if _shape_visual != null:
+		for child: Node in _shape_visual.get_children():
+			var mesh_instance: MeshInstance3D = child as MeshInstance3D
+			if mesh_instance != null:
+				mesh_instance.visible = not show_gift
+	if not show_gift:
+		return
+	var def: SpecialDef = SpecialDef.find_by_id(_held_gift_id)
+	if def != null and def.held_scene != null:
+		_gift_visual = def.held_scene.instantiate() as Node3D
+	if _gift_visual == null:
+		_gift_visual = build_fallback_gift_visual(tuning.cube_size)
+	_gift_visual.name = GIFT_VISUAL_NAME
+	# Centre on the shape's bounds, in the ghost's unrotated frame (the ghost
+	# basis rotates it together with the block).
+	var pivot: Vector3 = _shape.bottom_center()
+	var min_local: Vector3 = Vector3(INF, INF, INF)
+	var max_local: Vector3 = Vector3(-INF, -INF, -INF)
+	for cell: Vector3i in _shape.cells:
+		var local: Vector3 = (Vector3(cell) - pivot) * tuning.cube_size
+		min_local = min_local.min(local)
+		max_local = max_local.max(local)
+	_gift_visual.position = (min_local + max_local) * 0.5
+	add_child(_gift_visual)
+
+
+## Generic gift look (GiftCrate's crate + ribbon colours), one cell in size.
+static func build_fallback_gift_visual(cell_size: float) -> Node3D:
+	var root: Node3D = Node3D.new()
+	var box_size: Vector3 = Vector3.ONE * cell_size
+	var body: MeshInstance3D = _fallback_box(box_size, GiftCrate.LID_COLOR)
+	body.name = &"Body"
+	root.add_child(body)
+	var ribbon_x: MeshInstance3D = _fallback_box(
+		Vector3(box_size.x * HELD_GIFT_RIBBON_OVERHANG, box_size.y * HELD_GIFT_RIBBON_OVERHANG, box_size.z * GiftCrate.RIBBON_WIDTH / GiftCrate.CRATE_SIZE.z), GiftCrate.RIBBON_COLOR)
+	ribbon_x.name = &"RibbonX"
+	root.add_child(ribbon_x)
+	var ribbon_z: MeshInstance3D = _fallback_box(
+		Vector3(box_size.x * GiftCrate.RIBBON_WIDTH / GiftCrate.CRATE_SIZE.x, box_size.y * HELD_GIFT_RIBBON_OVERHANG, box_size.z * HELD_GIFT_RIBBON_OVERHANG), GiftCrate.RIBBON_COLOR)
+	ribbon_z.name = &"RibbonZ"
+	root.add_child(ribbon_z)
+	return root
+
+
+static func _fallback_box(size: Vector3, color: Color) -> MeshInstance3D:
+	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
+	var box: BoxMesh = BoxMesh.new()
+	box.size = size
+	mesh_instance.mesh = box
+	var material: StandardMaterial3D = StandardMaterial3D.new()
+	material.albedo_color = color
+	mesh_instance.material_override = material
+	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return mesh_instance
 
 
 func get_shape() -> BlockShape:

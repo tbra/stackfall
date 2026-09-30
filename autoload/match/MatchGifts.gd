@@ -247,6 +247,15 @@ func activate_next_special(slot_id: int) -> void:
 	queue.clear()
 
 
+## Presentation getter (Bontago-59o.13): the queued gift that will be the
+## slot's NEXT held piece, or &"" for none. A peek; changes no state.
+func next_special(slot_id: int) -> StringName:
+	if slot_id < 0 or slot_id >= _pending_queues.size():
+		return &""
+	var queue: Array = _pending_queues[slot_id]
+	return StringName(queue[0]) if not queue.is_empty() else &""
+
+
 func clear_held_special(slot_id: int) -> void:
 	_held_specials.erase(slot_id)
 

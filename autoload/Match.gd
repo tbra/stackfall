@@ -503,6 +503,12 @@ func held_special(slot_id: int) -> StringName:
 	return _gifts.held_special(slot_id)
 
 
+## Presentation peek (Bontago-59o.13): the gift queued as `slot_id`'s next
+## piece, or &"" for none. See MatchGifts.next_special().
+func next_special(slot_id: int) -> StringName:
+	return _gifts.next_special(slot_id)
+
+
 ## M4 P2b (Bontago-csc): dequeues and returns `slot_id`'s oldest pending
 ## special, or &"" if its queue is empty. See MatchGifts.pop_pending_special().
 func pop_pending_special(slot_id: int) -> StringName:
