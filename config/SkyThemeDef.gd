@@ -130,24 +130,59 @@ extends Resource
 @export var cloud_drift_speed_min_mps: float = 0.8
 @export var cloud_drift_speed_max_mps: float = 1.8
 
-## Distant bird flocks (vfx/DistantBirds.gd): a ShaderMaterial using
-## shaders/distant_birds.gdshader; flock/bird counts, placement ring and
-## altitude band (metres), orbit radius, glide speed and size ranges. Kept far
-## outside the play area (distance_min minus orbit radius is well past the
-## disc). Null material or zero flocks means no birds.
+## Cloud banks (Bontago-470.5): a second, sparser set of big cumulus clumps far
+## out past the disc edge, standing higher than the sea (tops up to
+## cloud_bank_top_max_m) so a camera looking outward sees them on the horizon.
+## Their ring starts far beyond the largest disc, so they never cover the play
+## area; drawn by the same MultiMesh as the sea and scaled by the same
+## GraphicsPreset density. cloud_bank_count 0 means none.
+## cloud_radial_bias crowds the sea's clumps toward its inner (near) edge
+## (1 = even over the ring's area, higher = denser near the disc).
+@export var cloud_radial_bias: float = 1.0
+@export var cloud_bank_count: int = 0
+@export var cloud_bank_ring_inner_m: float = 260.0
+@export var cloud_bank_ring_outer_m: float = 520.0
+@export var cloud_bank_base_min_m: float = -30.0
+@export var cloud_bank_base_max_m: float = -5.0
+@export var cloud_bank_top_max_m: float = 45.0
+@export var cloud_bank_radius_min_m: float = 30.0
+@export var cloud_bank_radius_max_m: float = 60.0
+
+## Distant bird flocks (vfx/DistantBirds.gd, Bontago-470.5): a ShaderMaterial
+## using shaders/distant_birds.gdshader. Flocks are a random occurrence, not a
+## permanent fixture: up to bird_flock_count flocks may be in flight at once
+## (each slot waits a random bird_gap_min_s..bird_gap_max_s between flights;
+## bird_first_delay_* is the wait before the first), a flock is
+## bird_flock_size_min..max birds (bird_single_chance: a lone bird instead),
+## and each flight is a straight-ish path that enters from the far
+## bird_path_radius_m ring, passes the disc axis at bird_distance_min..max_m
+## (its closest approach; keep this well past the disc) at bird_altitude_*
+## metres, and leaves the far side at bird_speed_min..max_mps. bird_spacing_m is
+## the formation spacing, bird_v_chance the odds of a V rather than a loose
+## cluster; bird_size_* is the wing half-span (m). bird_seed 0 = different
+## flocks every run. Null material or zero slots means no birds.
 @export var bird_material: Material = null
 @export var bird_flock_count: int = 0
-@export var birds_per_flock: int = 6
-@export var bird_seed: int = 7
-@export var bird_distance_min_m: float = 260.0
-@export var bird_distance_max_m: float = 520.0
-@export var bird_altitude_min_m: float = 10.0
-@export var bird_altitude_max_m: float = 70.0
-@export var bird_orbit_radius_min_m: float = 30.0
-@export var bird_orbit_radius_max_m: float = 70.0
-@export var bird_speed_mps: float = 9.0
+@export var bird_flock_size_min: int = 2
+@export var bird_flock_size_max: int = 7
+@export var bird_single_chance: float = 0.2
+@export var bird_gap_min_s: float = 90.0
+@export var bird_gap_max_s: float = 240.0
+@export var bird_first_delay_min_s: float = 10.0
+@export var bird_first_delay_max_s: float = 60.0
+@export var bird_seed: int = 0
+@export var bird_path_radius_m: float = 650.0
+@export var bird_distance_min_m: float = 150.0
+@export var bird_distance_max_m: float = 380.0
+@export var bird_altitude_min_m: float = 15.0
+@export var bird_altitude_max_m: float = 80.0
+@export var bird_climb_max_mps: float = 1.2
+@export var bird_speed_min_mps: float = 11.0
+@export var bird_speed_max_mps: float = 17.0
 @export var bird_size_min_m: float = 2.0
 @export var bird_size_max_m: float = 3.2
+@export var bird_spacing_m: float = 14.0
+@export var bird_v_chance: float = 0.55
 
 ## Bontago-adt.3: cosmetic local ambient life (perching birds on sunset,
 ## fireflies on night) -- see config/AmbientLifeConfig.gd. Null means none.

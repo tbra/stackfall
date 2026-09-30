@@ -50,6 +50,21 @@ const SIZE_JITTER: float = 0.15
 const TOP_JITTER_MIN: float = 0.82
 const STRETCH_MAX: float = 1.2
 
+## One placement layer: the sea below the disc, or the cloud banks past its
+## edge. Both draw through the same MultiMesh.
+class _Layer:
+	extends RefCounted
+	var clumps: int = 0
+	var ring_inner_m: float = 0.0
+	var ring_outer_m: float = 0.0
+	var radial_bias: float = 1.0
+	var base_min_m: float = 0.0
+	var base_max_m: float = 0.0
+	var top_max_m: float = 0.0
+	var radius_min_m: float = 1.0
+	var radius_max_m: float = 1.0
+
+
 var _instance: MultiMeshInstance3D = null
 var _material: ShaderMaterial = null
 ## Highest puff top written by the last configure() (tracked here because a
@@ -71,9 +86,10 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 		_instance = null
 	_material = null
 	_highest_top = -INF
+	var layers: Array[_Layer] = _layers_for(theme, density)
 	var clumps: int = 0
-	if theme != null:
-		clumps = int(round(float(theme.cloud_clump_count) * clampf(density, 0.0, 1.0)))
+	for layer: _Layer in layers:
+		clumps += layer.clumps
 	if theme == null or theme.cloud_puff_material == null or clumps <= 0 or theme.cloud_puffs_per_clump <= 0:
 		visible = false
 		return
@@ -105,8 +121,9 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = theme.cloud_seed
 	var index: int = 0
-	for _clump: int in range(clumps):
-		index = _add_clump(multimesh, index, theme, rng)
+	for layer: _Layer in layers:
+		for _clump: int in range(layer.clumps):
+			index = _add_clump(multimesh, index, theme, layer, rng)
 	_instance = MultiMeshInstance3D.new()
 	_instance.name = "Puffs"
 	_instance.multimesh = multimesh
@@ -115,26 +132,64 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 	_instance.layers = RENDER_LAYER_BIT
 	# The shader orbits puffs around the disc axis, so the culling box must
 	# cover the whole ring at every angle.
-	var extent: float = theme.cloud_ring_outer_m + theme.cloud_clump_radius_max_m * 2.0
-	var low: float = theme.cloud_base_min_m - theme.cloud_clump_radius_max_m
-	_instance.custom_aabb = AABB(
-		Vector3(-extent, low, -extent), Vector3(extent * 2.0, theme.cloud_top_max_m - low, extent * 2.0)
-	)
+	var extent: float = 0.0
+	var low: float = INF
+	var high: float = -INF
+	for layer: _Layer in layers:
+		if layer.clumps <= 0:
+			continue
+		extent = maxf(extent, layer.ring_outer_m + layer.radius_max_m * 2.0)
+		low = minf(low, layer.base_min_m - layer.radius_max_m)
+		high = maxf(high, layer.top_max_m)
+	_instance.custom_aabb = AABB(Vector3(-extent, low, -extent), Vector3(extent * 2.0, high - low, extent * 2.0))
 	add_child(_instance)
 
 
+## The sea layer and (when the theme has any) the cloud-bank layer, with the
+## density preset applied to both clump counts.
+static func _layers_for(theme: SkyThemeDef, density: float) -> Array[_Layer]:
+	var layers: Array[_Layer] = []
+	if theme == null:
+		return layers
+	var scale: float = clampf(density, 0.0, 1.0)
+	var sea: _Layer = _Layer.new()
+	sea.clumps = int(round(float(theme.cloud_clump_count) * scale))
+	sea.ring_inner_m = theme.cloud_ring_inner_m
+	sea.ring_outer_m = theme.cloud_ring_outer_m
+	sea.radial_bias = theme.cloud_radial_bias
+	sea.base_min_m = theme.cloud_base_min_m
+	sea.base_max_m = theme.cloud_base_max_m
+	sea.top_max_m = theme.cloud_top_max_m
+	sea.radius_min_m = theme.cloud_clump_radius_min_m
+	sea.radius_max_m = theme.cloud_clump_radius_max_m
+	layers.append(sea)
+	var banks: _Layer = _Layer.new()
+	banks.clumps = int(round(float(theme.cloud_bank_count) * scale))
+	banks.ring_inner_m = theme.cloud_bank_ring_inner_m
+	banks.ring_outer_m = theme.cloud_bank_ring_outer_m
+	banks.radial_bias = 1.0
+	banks.base_min_m = theme.cloud_bank_base_min_m
+	banks.base_max_m = theme.cloud_bank_base_max_m
+	banks.top_max_m = theme.cloud_bank_top_max_m
+	banks.radius_min_m = theme.cloud_bank_radius_min_m
+	banks.radius_max_m = theme.cloud_bank_radius_max_m
+	layers.append(banks)
+	return layers
+
+
 ## Writes one clump's puffs from `index`; returns the next free index.
-func _add_clump(multimesh: MultiMesh, index: int, theme: SkyThemeDef, rng: RandomNumberGenerator) -> int:
+func _add_clump(multimesh: MultiMesh, index: int, theme: SkyThemeDef, layer: _Layer, rng: RandomNumberGenerator) -> int:
 	var azimuth: float = rng.randf() * TAU
 	# Uniform over the ring's area, not its radius.
-	var inner_sq: float = theme.cloud_ring_inner_m * theme.cloud_ring_inner_m
-	var outer_sq: float = theme.cloud_ring_outer_m * theme.cloud_ring_outer_m
-	var ring_radius: float = sqrt(lerpf(inner_sq, outer_sq, rng.randf()))
+	# A radial bias above 1 crowds clumps toward the inner (near) edge.
+	var inner_sq: float = layer.ring_inner_m * layer.ring_inner_m
+	var outer_sq: float = layer.ring_outer_m * layer.ring_outer_m
+	var ring_radius: float = sqrt(lerpf(inner_sq, outer_sq, pow(rng.randf(), maxf(layer.radial_bias, 0.01))))
 	var centre: Vector3 = Vector3(cos(azimuth) * ring_radius, 0.0, sin(azimuth) * ring_radius)
-	var clump_radius: float = rng.randf_range(theme.cloud_clump_radius_min_m, theme.cloud_clump_radius_max_m)
+	var clump_radius: float = rng.randf_range(layer.radius_min_m, layer.radius_max_m)
 	var clump_height: float = clump_radius * theme.cloud_clump_height_ratio * rng.randf_range(1.0 - SIZE_JITTER, 1.0 + SIZE_JITTER)
-	var base_y: float = rng.randf_range(theme.cloud_base_min_m, theme.cloud_base_max_m)
-	base_y = minf(base_y, theme.cloud_top_max_m - clump_height)
+	var base_y: float = rng.randf_range(layer.base_min_m, layer.base_max_m)
+	base_y = minf(base_y, layer.top_max_m - clump_height)
 	var speed: float = rng.randf_range(theme.cloud_drift_speed_min_mps, theme.cloud_drift_speed_max_mps)
 	var angular_speed: float = speed / maxf(ring_radius, 1.0)
 	var flat: float = theme.cloud_flat_base
@@ -152,7 +207,7 @@ func _add_clump(multimesh: MultiMesh, index: int, theme: SkyThemeDef, rng: Rando
 		var top: float = base_y + clump_height * (1.0 - DOME_FALLOFF * spread * spread) * rng.randf_range(TOP_JITTER_MIN, 1.0)
 		var y: float = maxf(top - radius, base_y + radius * flat)
 		var at: Vector3 = centre + offset + Vector3(0.0, y, 0.0)
-		index = _write_puff(multimesh, index, at, radius, theme, rng, angular_speed, base_y, clump_height)
+		index = _write_puff(multimesh, index, at, radius, layer, rng, angular_speed, base_y, clump_height)
 		body_centres.append(at)
 		body_radii.append(radius)
 	for _detail: int in range(detail_count):
@@ -163,14 +218,14 @@ func _add_clump(multimesh: MultiMesh, index: int, theme: SkyThemeDef, rng: Rando
 		var direction: Vector3 = Vector3(cos(around) * side, up, sin(around) * side)
 		var radius: float = body_radii[host] * rng.randf_range(DETAIL_RADIUS_MIN_FRACTION, DETAIL_RADIUS_MAX_FRACTION)
 		var at: Vector3 = body_centres[host] + direction * body_radii[host] * DETAIL_SURFACE_OFFSET
-		index = _write_puff(multimesh, index, at, radius, theme, rng, angular_speed, base_y, clump_height)
+		index = _write_puff(multimesh, index, at, radius, layer, rng, angular_speed, base_y, clump_height)
 	return index
 
 
-func _write_puff(multimesh: MultiMesh, index: int, at: Vector3, radius: float, theme: SkyThemeDef,
+func _write_puff(multimesh: MultiMesh, index: int, at: Vector3, radius: float, layer: _Layer,
 		rng: RandomNumberGenerator, angular_speed: float, base_y: float, clump_height: float) -> int:
 	# Never let a puff top rise above the ceiling under the disc.
-	at.y = minf(at.y, theme.cloud_top_max_m - radius)
+	at.y = minf(at.y, layer.top_max_m - radius)
 	_highest_top = maxf(_highest_top, at.y + radius)
 	var stretch: float = rng.randf_range(1.0, STRETCH_MAX)
 	var basis: Basis = Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(radius * stretch, radius, radius * stretch))

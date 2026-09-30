@@ -244,7 +244,7 @@ func _spawn(slot: _Slot) -> void:
 	var bird: PerchingBird = PerchingBird.new()
 	bird.name = "Bird%d" % _bird_serial
 	add_child(bird)
-	var length: float = _rng.randf_range(config.perch_bird_length_min_m, config.perch_bird_length_max_m)
+	var length: float = _rng.randf_range(config.perch_bird_length_min_m, config.perch_bird_length_max_m) * config.perch_bird_scale
 	var colors: PackedColorArray = config.perch_body_colors
 	var body_color: Color = colors[_rng.randi() % colors.size()] if colors.size() > 0 else Color.GRAY
 	bird.setup(config, length, body_color, _material, _rng.randi())
