@@ -157,3 +157,49 @@ func test_rebuild_cost_is_small() -> void:
 	var per_ms: float = float(Time.get_ticks_usec() - start) / 20000.0
 	gut.p("minimap _rebuild_image: %.3f ms" % per_ms)
 	assert_lt(per_ms, 5.0, "texture upload path, not a per-pixel loop")
+
+
+func _goal_minimap(goals: PackedVector2Array) -> Minimap:
+	var minimap: Minimap = _make_minimap()
+	minimap.set_goal_positions(goals)
+	minimap.set_match_state(null, PackedColorArray([Color.RED, Color.BLUE]), PackedVector2Array())
+	return minimap
+
+
+func test_one_goal_marker_per_goal_and_neutral_without_control() -> void:
+	var goals: PackedVector2Array = PackedVector2Array([Vector2(0.0, 0.0), Vector2(5.0, 0.0), Vector2(-5.0, 0.0)])
+	var minimap: Minimap = _goal_minimap(goals)
+	var markers: Array[Dictionary] = minimap.goal_marker_draw_data()
+	assert_eq(markers.size(), 3)
+	for marker: Dictionary in markers:
+		assert_eq(marker["color"], minimap.tuning.minimap_goal_neutral_color)
+
+
+func test_goal_colour_follows_controller() -> void:
+	var minimap: Minimap = _goal_minimap(PackedVector2Array([Vector2.ZERO, Vector2(4.0, 0.0), Vector2(-4.0, 0.0)]))
+	minimap._goal_controls = PackedInt32Array([1, GoalControl.CONTESTED, 0])
+	assert_eq(minimap.goal_marker_color(0), Color.BLUE)
+	assert_eq(minimap.goal_marker_color(1), minimap.tuning.minimap_goal_contested_color)
+	assert_eq(minimap.goal_marker_color(2), Color.RED)
+
+
+func test_goal_controls_come_from_raster() -> void:
+	var raster: TerritoryRaster = _make_raster(MapDef.new())
+	var minimap: Minimap = _make_minimap()
+	minimap.set_goal_positions(PackedVector2Array([Vector2.ZERO]))
+	minimap.set_match_state(raster, PackedColorArray([Color.RED]), PackedVector2Array())
+	assert_eq(minimap._goal_controls.size(), 1)
+	assert_eq(minimap._goal_controls[0], GoalControl.owner_at(raster, Vector2.ZERO))
+
+
+func test_goal_marker_position_rotates_with_camera() -> void:
+	var minimap: Minimap = _goal_minimap(PackedVector2Array([Vector2(3.0, 0.0)]))
+	var size_px: float = float(minimap.tuning.minimap_size_px)
+	var px_per_m: float = size_px / (minimap.half_extent() * 2.0)
+	var center: Vector2 = Vector2(size_px, size_px) * 0.5
+	var north_up: Vector2 = minimap.goal_marker_draw_data()[0]["pixel"]
+	assert_almost_eq(north_up, center + Vector2(3.0 * px_per_m, 0.0), Vector2(0.01, 0.01))
+	# Camera looking along +x: the goal is straight ahead, so it moves up.
+	minimap.set_camera_basis(Vector2(0.0, -1.0), Vector2(1.0, 0.0))
+	var rotated: Vector2 = minimap.goal_marker_draw_data()[0]["pixel"]
+	assert_almost_eq(rotated, center + Vector2(0.0, -3.0 * px_per_m), Vector2(0.01, 0.01))
