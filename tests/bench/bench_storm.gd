@@ -1,7 +1,7 @@
 extends Node3D
 ## Bontago-22y.4: wind cost on a 300-block moving pile. Run twice, alone:
-##   godot --headless --path . res://tests/bench/bench_wind.tscn
-##   godot --headless --path . res://tests/bench/bench_wind.tscn -- wind
+##   godot --headless --path . res://tests/bench/bench_storm.tscn
+##   godot --headless --path . res://tests/bench/bench_storm.tscn -- wind
 ## Prints avg physics step ms and the effect's own per-tick cost. Headless
 ## timing is a proxy only.
 
@@ -14,7 +14,7 @@ const RNG_SEED: int = 1
 const WARMUP_TICKS: int = 60
 
 var _tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
-var _wind: WindEffect = null
+var _wind: StormEffect = null
 var _blocks: Array[Block] = []
 var _tick: int = 0
 var _total_ticks: int = 0
@@ -41,8 +41,8 @@ func _ready() -> void:
 		var angle: float = rng.randf_range(0.0, TAU)
 		block.global_position = Vector3(cos(angle) * radius, rng.randf_range(SPAWN_HEIGHT_MIN, SPAWN_HEIGHT_MAX), sin(angle) * radius)
 		_blocks.append(block)
-	_wind = WindEffect.new()
-	_wind.tuning = load("res://config/weather/wind.tres") as WeatherTuning
+	_wind = StormEffect.new()
+	_wind.tuning = load("res://config/weather/storm.tres") as WeatherTuning
 	_wind.set_seed(1)
 	_wind.set_test_world(func() -> Array: return _blocks, func() -> float: return 0.0)
 

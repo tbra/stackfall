@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="StormTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/StormTuning.gd" id="1_wt"]
+
+[resource]
+script = ExtResource("1_wt")
+id = &"storm"
+display_name = "Storm"
+intensity = 1.0
+ramp_in_s = 4.0
+ramp_out_s = 4.0
+hold_min_s = 40.0
+hold_max_s = 80.0
+presentation_scene = "res://vfx/weather/storm_presentation.tscn"
+effect_script = "res://autoload/match/StormEffect.gd"

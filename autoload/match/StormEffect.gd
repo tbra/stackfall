@@ -1,7 +1,7 @@
-class_name WindEffect
+class_name StormEffect
 extends WeatherEffect
 ## Host-side wind physics (Bontago-22y.4). Every physics tick pushes live
-## blocks sideways with a force that is zero below WindTuning.threshold_height_m
+## blocks sideways with a force that is zero below StormTuning.threshold_height_m
 ## and rises to a maximum at cap_height_m, so tall thin stacks topple while low
 ## piles stay put. The push is mass-proportional (acceleration), clamped per
 ## tick and by along-wind speed so nothing launches.
@@ -10,16 +10,16 @@ extends WeatherEffect
 ## apply_central_force (Jolt clears them each step), so restore() only drops
 ## bookkeeping and stopping the tick is a complete undo.
 ##
-## DECISION (WindEffect): sleeping blocks are scanned as a rotating subset
+## DECISION (StormEffect): sleeping blocks are scanned as a rotating subset
 ## (1 in sleeper_stride_ticks per tick) and woken only if the push reaches
 ## wake_accel; awake blocks are pushed every tick. Frozen/static blocks
 ## (StableBlockManager or a Freeze special) are never touched, and neither
 ## are blocks not yet placed (held/ghost blocks are not in the registry).
-## DECISION (WindEffect): wind direction is drawn per EVENT from the schedule
+## DECISION (StormEffect): wind direction is drawn per EVENT from the schedule
 ## seed and the replicated event index (WindField.event_seed), plus a slow veer
 ## over the event; the client presentation derives the same value from the
 ## replicated state. The gust phase is approximate on clients (local clock).
-## DECISION (WindEffect): a block carrying a SpecialBehavior child (an
+## DECISION (StormEffect): a block carrying a SpecialBehavior child (an
 ## untriggered special, e.g. rocket/propeller/jumping bean, which write its
 ## velocity) or a GlueJoint child (glue owner, joints under stress) is skipped
 ## so wind cannot break those rules; no other special leaves a marker.
@@ -54,7 +54,7 @@ func set_seed(seed_value: int) -> void:
 
 func tick(delta: float, intensity: float) -> void:
 	last_pushed = 0
-	var wt: WindTuning = tuning as WindTuning
+	var wt: StormTuning = tuning as StormTuning
 	if wt == null or intensity <= 0.0 or not _is_host():
 		return
 	_elapsed += delta

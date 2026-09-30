@@ -1,8 +1,8 @@
-class_name WindTuning
+class_name StormTuning
 extends WeatherTuning
 ## Wind's tunables (Bontago-22y.4): the height-weighted push the host applies
-## to live blocks (autoload/match/WindEffect.gd) and the client-side streak
-## look (vfx/weather/WindPresentation.gd). config/weather/wind.tres is the
+## to live blocks (autoload/match/StormEffect.gd) and the client-side streak
+## look (vfx/weather/StormPresentation.gd). config/weather/storm.tres is the
 ## shipped instance. Rules live in core/WindField.gd.
 
 @export_group("Force")

@@ -512,6 +512,69 @@ func test_copy_text_includes_every_resource_section_and_current_values() -> void
 	assert_true(text.contains("gravity_multiplier = 1.75"))
 
 
+# --- Bontago-470.1: F4 Weather row ---------------------------------------------
+
+func _weather_option() -> OptionButton:
+	return _panel._tab_container.find_child("WeatherOption", true, false) as OptionButton
+
+
+func _fake_weather(host: bool) -> MatchWeather:
+	var w: MatchWeather = MatchWeather.new()
+	var defs: Array[WeatherTuning] = []
+	for id: StringName in [&"rain", &"snow", &"storm"]:
+		var def: WeatherTuning = WeatherTuning.new()
+		def.id = id
+		def.display_name = String(id).capitalize()
+		defs.append(def)
+	w.set_defs(defs)
+	w.set_host_override(host)
+	return w
+
+
+func test_weather_row_lists_schedule_off_and_every_registered_type() -> void:
+	_panel.net_provider = FakeNet.host()
+	_panel.weather_provider = _fake_weather(true)
+	_panel.rebuild()
+	var option: OptionButton = _weather_option()
+	assert_not_null(option)
+	var texts: Array[String] = []
+	for i: int in range(option.item_count):
+		texts.append(option.get_item_text(i))
+	assert_eq(texts, ["Schedule (lobby mode)", "Off", "Rain", "Snow", "Storm"])
+	assert_false(option.disabled)
+
+
+func test_weather_row_selection_forces_swaps_and_releases_on_the_host() -> void:
+	_panel.net_provider = FakeNet.host()
+	var weather: MatchWeather = _fake_weather(true)
+	_panel.weather_provider = weather
+	_panel.rebuild()
+	var option: OptionButton = _weather_option()
+	option.select(2)
+	option.item_selected.emit(2)
+	assert_eq(weather.active_id(), &"rain")
+	option = _weather_option()
+	option.select(4)
+	option.item_selected.emit(4)
+	assert_eq(weather.active_id(), &"storm", "switching replaces the previous weather")
+	option.select(1)
+	option.item_selected.emit(1)
+	assert_eq(weather.active_id(), &"")
+	option.select(0)
+	option.item_selected.emit(0)
+	assert_eq(weather.debug_override(), &"")
+
+
+func test_weather_row_is_disabled_on_a_client_and_changes_nothing() -> void:
+	_panel.net_provider = FakeNet.client(0)
+	var weather: MatchWeather = _fake_weather(false)
+	_panel.weather_provider = weather
+	_panel.rebuild()
+	assert_true(_weather_option().disabled)
+	assert_false(_panel.apply_weather_override(&"rain"))
+	assert_eq(weather.active_id(), &"")
+
+
 # --- Availability: host/offline vs. client -----------------------------------
 
 func test_offline_shows_every_tab() -> void:

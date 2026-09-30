@@ -2,7 +2,7 @@ class_name WeatherTuning
 extends Resource
 ## One weather's tunables and registry entry (Bontago-22y.10). One .tres per
 ## weather under res://config/weather/; WeatherTuning.load_all() is the
-## registry. Effects (Wind 22y.4, Rain 22y.5, Snow 22y.6) read their own
+## registry. Effects (Storm 22y.4, Rain 22y.5, Snow 22y.6) read their own
 ## strength numbers from a subclass or a sibling resource; this base only
 ## carries what the framework itself needs.
 

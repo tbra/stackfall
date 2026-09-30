@@ -2,7 +2,7 @@ extends Node
 ## Bontago-22y.4: wind presentation capture. Boots the real Main.tscn sandbox,
 ## builds a tall tower, starts a wind event through the real weather schedule
 ## and shoots the streaks from a wide and a low view. Off-screen only:
-##   godot --path . --windowed --position 10000,10000 tools/screenshot_wind.tscn --quit-after 2000
+##   godot --path . --windowed --position 10000,10000 tools/screenshot_storm.tscn --quit-after 2000
 const OUTPUT_DIR: String = "user://"
 const CAPTURE_SIZE: Vector2i = Vector2i(1280, 720)
 const TOWER_CUBES: int = 12
@@ -27,8 +27,8 @@ func _ready() -> void:
 		block.global_position = field.world_from_disk_local(Vector2(-6.0, 0.0), 0.5 + 0.98 * float(i))
 		Events.block_placed.emit(block, shape.id)
 	if OS.get_cmdline_user_args().has("nomotes"):
-		(load("res://config/weather/wind.tres") as WindTuning).mote_count = 0
-	print("WIND started=%s" % Match.weather().start_event(&"wind"))
+		(load("res://config/weather/storm.tres") as StormTuning).mote_count = 0
+	print("WIND started=%s" % Match.weather().start_event(&"storm"))
 	await _wait(RAMP_WAIT_FRAMES)
 	print("WIND active=%s intensity=%.2f" % [Match.weather().active_id(), Match.weather().active_intensity()])
 	_aim(Vector3.ZERO, 62.0, -40.0, 0.0)
