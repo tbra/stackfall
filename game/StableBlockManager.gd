@@ -43,6 +43,8 @@ var _frozen_by_this: Dictionary = {}
 ## Real-time accumulator gating how often _tick() below actually scans,
 ## consumed by _tick() itself -- see that function's own doc comment.
 var _scan_accumulator: float = 0.0
+## Field pose seen on the previous physics tick (Bontago-sen.11).
+var _last_field_transform: Transform3D = Transform3D.IDENTITY
 
 
 ## Called once by game/Main.gd right after it builds a match's BlockRegistry
@@ -55,7 +57,32 @@ func setup(registry: BlockRegistry) -> void:
 func _physics_process(delta: float) -> void:
 	if not Net.is_host():
 		return
+	check_field_motion()
 	_tick(delta)
+
+
+## Bontago-sen.11 (owner: "gifts that cause tilting lead to settled blocks
+## clipping through the disc"): a STATIC-frozen block does not ride a
+## kinematic disc, so a tilting Field swept through every long-stable block.
+## The scan below only releases a block once it reads awake, which a frozen
+## body never does, and only every scan interval. So the moment the disc pose
+## changes, release every block this manager froze and wake it, and restart
+## its asleep timer; the blocks then ride the disc (awake while it moves,
+## Bontago-b0w) and re-freeze after the normal delay once it stops.
+func check_field_motion() -> void:
+	if _registry == null:
+		return
+	var current: Transform3D = _registry.field_global_transform()
+	if current == _last_field_transform:
+		return
+	_last_field_transform = current
+	for block: Block in _registry.all_blocks():
+		var id: int = block.get_instance_id()
+		_asleep_elapsed[id] = 0.0
+		if _frozen_by_this.get(id, false):
+			block.release_freeze_static(Block.FREEZE_REASON_STABLE)
+			block.sleeping = false
+			_frozen_by_this[id] = false
 
 
 ## Test seam (tests/unit/test_stable_block_manager.gd): advances the scan

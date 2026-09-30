@@ -145,3 +145,30 @@ func test_a_second_block_that_wakes_before_the_scan_interval_elapses_is_never_cr
 	block.sleeping = false
 	manager._tick(_tuning.stable_freeze_scan_interval_s)
 	assert_false(block.is_freeze_static(), "never asleep long enough to be frozen in the first place")
+
+
+func test_tilting_field_releases_frozen_blocks_and_restarts_the_timer() -> void:
+	# Bontago-sen.11: a frozen-static block does not ride a moving disc.
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	var manager: StableBlockManager = _make_manager(registry)
+	manager.check_field_motion()
+
+	var block: Block = _place(field, 0)
+	block.sleeping = true
+	manager._tick(_tuning.stable_freeze_delay_s + 1.0)
+	assert_true(block.is_freeze_static(), "sanity check: frozen first")
+
+	field.transform = Transform3D(Basis(Vector3.RIGHT, 0.05), field.transform.origin)
+	manager.check_field_motion()
+
+	assert_false(block.is_freeze_static(), "disc motion releases the stable freeze")
+	assert_false(block.freeze)
+	assert_false(block.sleeping, "released block is awake so it rides the disc")
+
+	block.sleeping = true
+	manager._tick(_tuning.stable_freeze_delay_s - 1.0)
+	assert_false(block.is_freeze_static(), "timer restarted; still inside the delay")
+	manager.check_field_motion()
+	manager._tick(2.0)
+	assert_true(block.is_freeze_static(), "disc still: re-freezes after the normal delay")
