@@ -152,15 +152,51 @@ vec3 procedural_sea_color(sampler2D noise_tex, vec3 dir, vec3 sun_dir, float tim
 	float fade = 1.0 - smoothstep(0.0, max(horizon_fade, 0.001), depth);
 	vec3 col = mix(base_near, base_far, smoothstep(0.0, 1.0, depth));
 	if (fade < 0.999) {
+		// DECISION (Bontago-59o.19): the 3D puffs (incl. the far ring added for the
+		// procedural look) carry the bright lit cumulus tops; this shader deck is
+		// only the violet-rose cloud floor between them, so its ramp tops out just
+		// above `mid` and never paints flat white puddles.
+		vec3 deck_lit = mix(mid, lit, 0.2);
 		vec2 to_sun = normalize(sun_dir.xz + vec2(0.0001));
 		vec4 far_s = procedural_sea_stratum(noise_tex, dir, to_sun, depth, time, heights.x, sea_params.x,
 			wind, sea_params.z, coverage, softness, sea_params.w, band_edge, 0.04, 6.0,
-			shadow, mid, lit, rim_color, false);
-		col = mix(col, far_s.rgb, far_s.a);
-		vec4 near_s = procedural_sea_stratum(noise_tex, dir, to_sun, depth, time, heights.y, sea_params.y,
-			wind * 1.7, sea_params.z * 1.6, coverage + 0.04, softness, sea_params.w, band_edge, 0.05, 7.0,
-			shadow, mid, lit, rim_color, true);
-		col = mix(col, near_s.rgb, near_s.a);
+			shadow, mid, deck_lit, deck_lit, false);
+		// One low-contrast stratum only: a soft mottled cloud floor (the second
+		// stratum was dropped; it read as flat puddles and cost 4 more taps).
+		col = mix(col, far_s.rgb, far_s.a * 0.55);
 	}
 	return mix(col, haze, fade);
+}
+
+// Bontago-59o.19 (procedural sky pass 2): one upper cloud layer for the
+// procedural look. Replaces the old stretched fbm strata, whose per-axis stretch
+// read as radial streaks/spirals. The view direction is projected onto a high
+// plane with a horizon lift (no divide by zero), rotated by `rot` radians
+// (isotropic: layers differ by rotation and scale, never by stretch), domain
+// warped, and shaped as broken cumulus/altocumulus: fbm blobs grouped by a
+// low-frequency bank mask. Eight taps. Returns rgb + coverage alpha.
+// `shape`: x warp amount, y bank-mask weight (0..1), z sun probe, w light contrast.
+vec4 procedural_upper_clouds(sampler2D noise_tex, vec3 dir, vec2 to_sun, float time, float scale, float lift,
+		float rot, vec2 wind, float speed, float coverage, float softness, float bands, float band_edge, vec4 shape,
+		vec3 shadow, vec3 mid, vec3 lit, vec3 rim_color) {
+	vec2 dp = dir.xz / (max(dir.y, 0.0) + max(lift, 0.05));
+	float c = cos(rot);
+	float s = sin(rot);
+	vec2 q = vec2(dp.x * c - dp.y * s, dp.x * s + dp.y * c) * scale + wind * speed * time;
+	vec2 w = vec2(texture(noise_tex, q * 0.6 + vec2(0.3, 0.7)).r, texture(noise_tex, q * 0.6 + vec2(0.9, 0.2)).r) - 0.5;
+	q += w * shape.x;
+	float bank = texture(noise_tex, q * 0.35 + vec2(0.17, 0.43)).r;
+	// Smooth fbm blobs (billow creases read as marbled veins, not cumulus), grouped
+	// into banks by the low-frequency mask.
+	float lump = cloud_fbm(noise_tex, q);
+	float d = mix(lump, bank, shape.y);
+	float d_sun = mix(texture(noise_tex, q + to_sun * shape.z).r, bank, shape.y);
+	float d_here = mix(texture(noise_tex, q).r, bank, shape.y);
+	float body = smoothstep(coverage, coverage + softness, d);
+	float height01 = clamp((d - coverage) / max(1.0 - coverage, 0.001), 0.0, 1.0);
+	float facing = clamp(0.5 + (d_here - d_sun) * shape.w, 0.0, 1.0);
+	float shade = clamp(height01 * 0.45 + facing * 0.5 + 0.1, 0.0, 1.0);
+	vec3 col = cel_ramp(shadow, mid, lit, cel_quantize(shade, bands, band_edge));
+	float rim = (1.0 - smoothstep(0.0, 0.18, height01)) * smoothstep(0.55, 0.85, facing);
+	return vec4(mix(col, rim_color, rim * 0.6), body);
 }

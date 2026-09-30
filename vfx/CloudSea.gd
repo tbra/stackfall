@@ -38,6 +38,7 @@ const SHARED_SKY_PARAMETERS: Array[StringName] = [
 const YAW_PARAMETER: StringName = &"sky_yaw_offset_deg"
 const PITCH_PARAMETER: StringName = &"sky_pitch_offset_deg"
 const FLAT_BASE_PARAMETER: StringName = &"flat_base"
+const FAR_FADE_CAP_PARAMETER: StringName = &"far_fade_cap"
 ## Icosphere subdivision of the puff mesh (2 = 320 triangles). The mesh is
 ## only a hull: the shader carves the round, lumpy silhouette per pixel
 ## (its hull_margin covers this tessellation's chord error).
@@ -112,6 +113,7 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 	_material.set_shader_parameter(YAW_PARAMETER, theme.sky_yaw_offset_deg)
 	_material.set_shader_parameter(PITCH_PARAMETER, theme.sky_pitch_offset_deg)
 	_material.set_shader_parameter(FLAT_BASE_PARAMETER, theme.cloud_flat_base)
+	_material.set_shader_parameter(FAR_FADE_CAP_PARAMETER, theme.proc_far_fade_cap if theme.sky_look_procedural else 1.0)
 	# Transparent-pass draw (see the shader's DECISION): first among
 	# transparents, so ghosts, particles and birds blend over the clouds.
 	_material.render_priority = RenderingServer.MATERIAL_RENDER_PRIORITY_MIN
@@ -183,6 +185,23 @@ static func _layers_for(theme: SkyThemeDef, density: float) -> Array[_Layer]:
 	banks.radius_min_m = theme.cloud_bank_radius_min_m
 	banks.radius_max_m = theme.cloud_bank_radius_max_m
 	layers.append(banks)
+	# DECISION (Bontago-59o.19): the below-horizon cloud sea of the procedural
+	# look is a far ring of the same 3D puffs (they already read well and need no
+	# new art) rather than a shader-only height field; the sky shader keeps only a
+	# flat violet cloud floor and haze between them. Gated on the toggle so the
+	# painted look is unchanged.
+	if theme.sky_look_procedural and theme.proc_far_count > 0:
+		var far: _Layer = _Layer.new()
+		far.clumps = int(round(float(theme.proc_far_count) * scale))
+		far.ring_inner_m = theme.proc_far_ring_inner_m
+		far.ring_outer_m = theme.proc_far_ring_outer_m
+		far.radial_bias = theme.proc_far_radial_bias
+		far.base_min_m = theme.proc_far_base_min_m
+		far.base_max_m = theme.proc_far_base_max_m
+		far.top_max_m = theme.proc_far_top_max_m
+		far.radius_min_m = theme.proc_far_radius_min_m
+		far.radius_max_m = theme.proc_far_radius_max_m
+		layers.append(far)
 	return layers
 
 

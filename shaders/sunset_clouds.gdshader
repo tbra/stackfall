@@ -197,6 +197,12 @@ uniform float proc_strata2_coverage = 0.6;
 uniform float proc_strata2_bands = 3.0;
 uniform float proc_strata2_fade_start = 0.08;
 uniform float proc_strata2_fade_height = 0.4;
+// Pass 2 (Bontago-59o.19) upper-cloud shape: x warp, y bank-mask weight, z sun probe, w light contrast.
+uniform vec4 proc_upper_shape = vec4(0.15, 0.3, 0.04, 6.0);
+uniform float proc_upper_rot2 = 0.6;
+// Plane-coordinate multipliers for the two upper layers (higher = smaller cumulus).
+uniform float proc_upper_coverage_shift = 0.1;
+uniform vec2 proc_upper_scale = vec2(3.6, 2.6);
 
 // Panorama colour with the symmetric seam blend (imperfect authored
 // panorama edges made continuous).
@@ -301,7 +307,7 @@ void sky() {
 	}
 
 	// Cel-banded procedural cloud layer over the panorama (background pass only).
-	if (!AT_CUBEMAP_PASS && eyedir.y > 0.0) {
+	if (!AT_CUBEMAP_PASS && eyedir.y > 0.0 && procedural_sea_mix <= 0.0) {
 		vec2 cp = eyedir.xz / (eyedir.y + cloud_horizon_lift) * cloud_layer_scale * mix(1.0, proc_strata_scale, clamp(procedural_sea_mix, 0.0, 1.0));
 		vec2 drift = cloud_wind * cloud_wind_speed * TIME;
 		vec2 cwarp = (vec2(
@@ -327,26 +333,24 @@ void sky() {
 		COLOR = mix(COLOR, ccol, alpha);
 	}
 
-	// Second, parallax upper-strata layer (procedural look only): stretched
-	// along the wind, higher virtual plane, own bands and drift. Background
-	// pass only, like the first layer.
+	// Procedural upper clouds (Bontago-59o.19): two isotropic broken-cumulus
+	// layers on rotated high planes (see cloud_common procedural_upper_clouds),
+	// background pass only.
 	if (!AT_CUBEMAP_PASS && eyedir.y > 0.0 && procedural_sea_mix > 0.0) {
-		vec2 sp = eyedir.xz / (eyedir.y + proc_strata2_lift) * proc_strata2_scale * proc_strata2_stretch;
-		vec2 sq = sp + proc_strata2_wind * cloud_wind_speed * 1.8 * TIME;
-		float sd = cloud_fbm(noise_tex, sq);
-		vec2 sun_xz = normalize(sun_dir.xz + vec2(0.0001));
-		float sd_sun = texture(noise_tex, sq + sun_xz * cloud_light_probe).r;
-		float sbody = smoothstep(proc_strata2_coverage, proc_strata2_coverage + cloud_edge_softness, sd);
-		float sh01 = clamp((sd - proc_strata2_coverage) / max(1.0 - proc_strata2_coverage, 0.001), 0.0, 1.0);
-		float sface = clamp(0.5 + (texture(noise_tex, sq).r - sd_sun) * cloud_light_contrast, 0.0, 1.0);
-		float ssun = clamp(cos_angle * 0.5 + 0.5, 0.0, 1.0);
-		float sshade = clamp(sh01 * 0.45 + sface * 0.35 + ssun * 0.35, 0.0, 1.0);
-		vec3 scol = cel_ramp(cloud_shadow_color, cloud_mid_color, cloud_lit_color,
-			cel_quantize(sshade, proc_strata2_bands, cloud_cel_edge));
-		float salpha = sbody * proc_strata2_opacity * clamp(procedural_sea_mix, 0.0, 1.0)
-			* smoothstep(proc_strata2_fade_start, proc_strata2_fade_height, eyedir.y)
-			* smoothstep(sun_core_angular_radius_deg, cloud_sun_clear_deg, angle_deg);
-		COLOR = mix(COLOR, scol * exposure, salpha);
+		vec2 to_sun_xz = normalize(sun_dir.xz + vec2(0.0001));
+		float sun_clear = smoothstep(sun_core_angular_radius_deg, cloud_sun_clear_deg, angle_deg);
+		float mixv = clamp(procedural_sea_mix, 0.0, 1.0);
+		vec4 u1 = procedural_upper_clouds(noise_tex, eyedir, to_sun_xz, TIME, cloud_layer_scale * proc_strata_scale * proc_upper_scale.x,
+			cloud_horizon_lift, 0.0, cloud_wind, cloud_wind_speed, cloud_coverage - proc_upper_coverage_shift, cloud_edge_softness, cloud_bands,
+			cloud_cel_edge, proc_upper_shape, cloud_shadow_color, cloud_mid_color, cloud_lit_color, cloud_rim_color);
+		COLOR = mix(COLOR, u1.rgb * exposure, u1.a * proc_strata_opacity * mixv
+			* smoothstep(cloud_fade_start, cloud_fade_height, eyedir.y) * sun_clear);
+		vec4 u2 = procedural_upper_clouds(noise_tex, eyedir, to_sun_xz, TIME, proc_strata2_scale * proc_upper_scale.y, proc_strata2_lift,
+			proc_upper_rot2, proc_strata2_wind, cloud_wind_speed * 1.8, proc_strata2_coverage - proc_upper_coverage_shift * 0.5, cloud_edge_softness,
+			proc_strata2_bands, cloud_cel_edge, proc_upper_shape, cloud_shadow_color, cloud_mid_color, cloud_lit_color,
+			cloud_rim_color);
+		COLOR = mix(COLOR, u2.rgb * exposure, u2.a * proc_strata2_opacity * mixv
+			* smoothstep(proc_strata2_fade_start, proc_strata2_fade_height, eyedir.y) * sun_clear);
 	}
 
 	// Bright core + soft halo, both angular falloffs around the sun direction.
