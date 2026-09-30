@@ -656,6 +656,7 @@ descriptions = {
 "TerritoryTuning.solve_hz": "How many times per second territory ownership is recomputed.",
 "TerritoryTuning.raster_upload_hz": "How many times per second the territory raster/circle list is uploaded for rendering and networking.",
 "TerritoryTuning.solve_defer_max_s": "While any block is still moving, territory solves wait until everything settles, but never longer than this many seconds; 0 solves on every tick regardless.",
+"TerritoryTuning.dirty_move_epsilon": "How far (metres) a settled block must move before territory is recomputed; an unchanged board skips the solve entirely.",
 "TerritoryTuning.hash_cell_size": "Size of the spatial-hash cells used to speed up territory circle overlap checks.",
 "TerritoryTuning.hole_delay": "How long a cell must stay contested before it becomes a hole.",
 "TerritoryTuning.hole_close_delay": "How long a temporary hole stays open after the contest that created it ends.",

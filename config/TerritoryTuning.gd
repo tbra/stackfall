@@ -63,6 +63,10 @@ extends Resource
 ## claims, gift sweeps and captures are never delayed longer than this. 0 turns
 ## deferral off (solve every 1/solve_hz).
 @export var solve_defer_max_s: float = 0.5
+## Bontago-1pi.11.10: a settled block that moves (or turns) less than this many
+## metres since it was last counted does not mark the territory dirty; an
+## unchanged board skips collect/solve/raster/overlay entirely.
+@export var dirty_move_epsilon: float = 0.005
 
 ## -- Solver spatial hash (spec 3.3) -----------------------------------------
 ## DECISION: spec 3.3 says "cell size = influence_max". influence_max is

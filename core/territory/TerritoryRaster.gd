@@ -208,6 +208,15 @@ func update(
 		_fill_v2(circles, groups)
 
 
+## Bontago-1pi.11.10: advances only the contest/hole timers on an unchanged
+## legacy-mode board (the stamp would reproduce the same ids), clearing the
+## per-step opened/closed lists exactly as update() does.
+func advance_time(delta: float, permanent_holes: bool) -> void:
+	_opened.resize(0)
+	_closed.resize(0)
+	_advance_timers(delta, permanent_holes)
+
+
 ## Stamps the goal flags' no-build zones, replacing any previous layout. Goal
 ## flags never move, so this is called once per match rather than per solve.
 ## The zones are placement-only: they never touch ownership or influence

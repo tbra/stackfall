@@ -25,6 +25,14 @@ var _sandbox_cache_hits: int = 0
 var _cached_sources: Dictionary = {}
 var _cached_circles: Array[InfluenceCircle] = []
 var _cached_groups: TerritoryGroups = null
+## Bontago-1pi.11.10: dirty state. The board is clean when no block event bumped
+## the registry revision, the small non-block config signature is unchanged and
+## nobody called mark_dirty() since the last real solve step.
+var _seen_revision: int = -1
+var _seen_config: Dictionary = {}
+var _force_dirty: bool = true
+var _clean_skips: int = 0
+var _solve_steps: int = 0
 
 ## Bontago-cmc.5: goal no-build discs, cached at _build_territory() (goal
 ## flags never move) so _run_territory_step() does not rebuild them every
@@ -105,6 +113,7 @@ func _build_territory() -> void:
 	_cached_circles.clear()
 	_cached_groups = null
 	_sandbox_cache_hits = 0
+	_force_dirty = true
 
 	# Bontago-cmc.5: the same goal list, cached for the analytic shader and
 	# the replicated circle wire (see the class-level DECISION on
@@ -132,6 +141,13 @@ func _tick_territory(delta: float) -> void:
 	_solve_accum += delta
 	var step: float = 1.0 / maxf(_match._territory_tuning.solve_hz, 0.001)
 	var due_steps: int = int(floorf(_solve_accum / step))
+	var legacy: bool = _match.config.hole_mode != MatchConfig.HoleMode.OFF
+	if due_steps > 0 and not legacy and _is_clean():
+		# Nothing that feeds the result changed: only time-based state moves.
+		var clean_time: float = float(due_steps) * step
+		_solve_accum = maxf(_solve_accum - clean_time, 0.0)
+		_advance_clean(clean_time)
+		due_steps = 0
 	# Bontago-na5: awake blocks contribute no influence and keep flipping the
 	# source signature, so re-solving every 50 ms while a pile tumbles is wasted
 	# work. Hold the solve until everything settles, but never longer than
@@ -144,9 +160,12 @@ func _tick_territory(delta: float) -> void:
 		_solve_accum = maxf(_solve_accum - due_time, 0.0)
 		# Legacy holes can open, eliminate a home, then close again within a
 		# catch-up window. Preserve each timer transition in those modes.
-		if _match.config.hole_mode != MatchConfig.HoleMode.OFF:
+		if legacy:
 			for i: int in range(due_steps):
-				_run_territory_step(step)
+				if _is_clean():
+					_run_clean_legacy_step(step)
+				else:
+					_run_territory_step(step)
 				if profile_enabled:
 					_sandbox_tick_steps += 1
 		else:
@@ -185,6 +204,64 @@ func _should_defer_solve() -> bool:
 	return not _match._registry.all_settled()
 
 
+## Forces the next due tick to re-solve (external raster edits, tests).
+func mark_dirty() -> void:
+	_force_dirty = true
+
+
+func clean_skip_count() -> int:
+	return _clean_skips
+
+
+func solve_step_count() -> int:
+	return _solve_steps
+
+
+## True when nothing that feeds the solve changed since the last real step.
+func _is_clean() -> bool:
+	if _force_dirty or _last_groups == null:
+		return false
+	if not _match._territory_cache_enabled or _match._registry == null:
+		return false
+	_match._registry.set_move_epsilon(_match._territory_tuning.dirty_move_epsilon)
+	if _match._registry.territory_revision() != _seen_revision:
+		return false
+	return _territory_config_signature() == _seen_config
+
+
+## Time-only work for an unchanged v2 board: the win checker's hold timer and the
+## capture-progress event still advance; ownership, overlay and events are as before.
+func _advance_clean(delta: float) -> void:
+	_clean_skips += 1
+	_win_checker.update(_raster, delta)
+	Events.goal_capture_progress.emit(_win_checker.capturing_team(), _win_checker.capture_progress())
+	if MatchLifecycle.is_live_state(_match.state()) and _win_checker.winner() != WinChecker.NO_TEAM:
+		_match._lifecycle._finish_match(_win_checker.winner())
+
+
+## Legacy hole modes on an unchanged board: the stamp would reproduce the same
+## group/team ids, so only the contest/hole timers advance (by `delta`, exactly as
+## update() would) and the hole events, home check and capture hold follow.
+func _run_clean_legacy_step(delta: float) -> void:
+	_clean_skips += 1
+	_raster.advance_time(delta, _match.config.hole_mode == MatchConfig.HoleMode.PERMANENT)
+	_win_checker.update(_raster, delta)
+	var opened: PackedInt32Array = _raster.holes_opened()
+	var closed: PackedInt32Array = _raster.holes_closed()
+	if opened.size() > 0 or closed.size() > 0:
+		Events.territory_updated.emit(_raster, _last_groups)
+		Events.hole_cells_changed.emit(opened, closed)
+		if opened.size() > 0:
+			_check_home_flags(opened)
+		var shares: PackedFloat32Array = PackedFloat32Array()
+		for t: int in range(_match.config.team_count()):
+			shares.append(_raster.team_share(t))
+		Events.territory_share_changed.emit(shares)
+	Events.goal_capture_progress.emit(_win_checker.capturing_team(), _win_checker.capture_progress())
+	if MatchLifecycle.is_live_state(_match.state()) and _win_checker.winner() != WinChecker.NO_TEAM:
+		_match._lifecycle._finish_match(_win_checker.winner())
+
+
 func _alive_home_count() -> int:
 	var count: int = 0
 	for slot_item: PlayerSlot in _match._lifecycle._slots:
@@ -194,6 +271,11 @@ func _alive_home_count() -> int:
 
 
 func _run_territory_step(delta: float) -> void:
+	_solve_steps += 1
+	if _match._registry != null:
+		_seen_revision = _match._registry.territory_revision()
+	_seen_config = _territory_config_signature()
+	_force_dirty = false
 	var profile_enabled: bool = _match._sandbox_territory_profile_enabled
 	var t0: int = Time.get_ticks_usec() if profile_enabled else 0
 	var cache_enabled: bool = _match._territory_cache_enabled
@@ -287,7 +369,7 @@ func sandbox_profile() -> Dictionary:
 ## Include every settled block, not just a tower's top: an obscured block can
 ## slide out from under a cone without moving that top block. Exact transforms
 ## are deliberately conservative: a false miss costs time, a false hit changes rules.
-func _territory_source_signature() -> Dictionary:
+func _territory_config_signature() -> Dictionary:
 	var signature: Dictionary = {
 		"field": _match._field.global_transform if _match._field != null else Transform3D.IDENTITY,
 		"mode": _match._sandbox_territory_mode,
@@ -316,6 +398,11 @@ func _territory_source_signature() -> Dictionary:
 		signature["home:%d" % slot_item.slot_id] = [
 			slot_item.home_flag_alive, slot_item.home_position, slot_item.team_id
 		]
+	return signature
+
+
+func _territory_source_signature() -> Dictionary:
+	var signature: Dictionary = _territory_config_signature()
 	if _match._registry != null:
 		for id: Variant in _match._registry._entries.keys():
 			var entry: Variant = _match._registry._entries[id]
@@ -587,6 +674,7 @@ func punch_special_hole(world_pos: Vector2, radius_m: float, hole_open_s: float)
 			if not was_hole:
 				opened.append(_cell_grid.cell_index(cx, cy))
 
+	_force_dirty = true
 	if opened.size() > 0:
 		Events.hole_cells_changed.emit(opened, PackedInt32Array())
 		_check_home_flags(opened)
@@ -631,6 +719,7 @@ func shrink_to_radius(radius_m: float) -> void:
 		_raster.force_hole_cell(coords.x, coords.y, 0.0, true)
 		opened.append(index)
 
+	_force_dirty = true
 	if opened.size() > 0:
 		Events.hole_cells_changed.emit(opened, PackedInt32Array())
 		_check_home_flags(opened)
