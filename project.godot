@@ -360,6 +360,7 @@ perf_overlay_toggle={
 3d/physics_engine="Jolt Physics"
 jolt_physics_3d/simulation/velocity_steps=192
 jolt_physics_3d/simulation/position_steps=4
+jolt_physics_3d/simulation/sleep_velocity_threshold=0.03
 jolt_physics_3d/simulation/body_pair_contact_cache_distance_threshold=0.0001
 common/physics_interpolation=true
 
