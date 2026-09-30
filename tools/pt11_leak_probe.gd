@@ -8,6 +8,7 @@ extends Node
 
 const MAIN_SCENE: PackedScene = preload("res://game/Main.tscn")
 const SAMPLE_INTERVAL_S: float = 5.0
+const FORCE_WEATHER_AT_S: float = 90.0
 var MATCH_SECONDS: float = 40.0
 var MATCH_COUNT: int = 3
 
@@ -21,6 +22,9 @@ var _baseline_hist: Dictionary = {}
 var _placements: int = 0
 var _profile: bool = false
 var _ab: bool = false
+var _manual_territory_probe: bool = true
+var _forced_weather: StringName = &""
+var _weather_forced: bool = false
 const AB_THRESHOLDS: Array[int] = [40, 90, 150, 190]
 const AB_VARIANTS: Array[String] = ["base", "mirror_off", "fx_off", "circles_off", "all_off", "base2"]
 const AB_SETTLE_FRAMES: int = 15
@@ -61,6 +65,10 @@ func _ready() -> void:
 			_ab = true
 		elif raw == "--probe-profile":
 			_profile = true
+		elif raw == "--probe-no-manual-territory":
+			_manual_territory_probe = false
+		elif raw.begins_with("--probe-force-weather="):
+			_forced_weather = StringName(raw.get_slice("=", 1))
 		elif raw.begins_with("--probe-matches="):
 			MATCH_COUNT = int(raw.get_slice("=", 1))
 	_main = MAIN_SCENE.instantiate()
@@ -77,6 +85,11 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	_elapsed += delta
 	_match_elapsed += delta
+	if not _weather_forced and _forced_weather != &"" and _elapsed >= FORCE_WEATHER_AT_S:
+		_weather_forced = true
+		print("PT11 force_weather id=%s accepted=%s" % [
+			String(_forced_weather), Match.weather().set_debug_override(_forced_weather)
+		])
 	if _elapsed >= _next_sample:
 		_next_sample += SAMPLE_INTERVAL_S
 		_sample()
@@ -109,7 +122,20 @@ func _sample() -> void:
 			float(m.get("gifts_ms", 0.0)), float(m.get("registry_ms", 0.0)),
 			float(m.get("block_effects_ms", 0.0)), float(m.get("snapshot_ms", 0.0)),
 		])
-	if Match._territory != null and Match._territory._solver != null and Match.state() == Match.State.PLAYING:
+		var weather: MatchWeather = Match.weather()
+		if weather != null:
+			var storm_pushed: int = (weather._effect as StormEffect).last_pushed if weather._effect is StormEffect else 0
+			print("PT11 weather id=%s intensity=%.2f breeze_gusts=%d breeze_pushed=%d storm_pushed=%d" % [
+				String(weather.active_id()), weather.active_intensity(),
+				weather.breeze().gust_count(), weather.breeze().last_pushed, storm_pushed,
+			])
+	if Match._field != null and Match._territory != null:
+		var overlay: TerritoryOverlay = Match._field.overlay()
+		print("PT11 render circles=%d bins_valid=%s cache_hits=%d" % [
+			overlay.circle_count(), overlay.circle_bins_valid(),
+			int(Match._territory.sandbox_profile()["cache_hits"]),
+		])
+	if _manual_territory_probe and Match._territory != null and Match._territory._solver != null and Match.state() == Match.State.PLAYING:
 		var t0: int = Time.get_ticks_usec()
 		var circles: Array[InfluenceCircle] = Match._territory._collect_circles()
 		var t1: int = Time.get_ticks_usec()
