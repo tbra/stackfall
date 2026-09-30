@@ -111,6 +111,8 @@ var net_provider: Variant = null
 @onready var _hole_mode_option: OptionButton = %HoleModeOption
 @onready var _match_timer_spin: SpinBox = %MatchTimerSpin
 @onready var _weather_option: OptionButton = %WeatherOption
+## Bontago-470.4: the "Map" time-of-day dropdown (MatchConfig.SkyThemeMode).
+@onready var _sky_theme_option: OptionButton = %SkyThemeOption
 @onready var _sudden_death_check: CheckButton = %SuddenDeathCheck
 @onready var _turn_based_check: CheckButton = %TurnBasedCheck
 ## Bontago-xtq.32 redo #3: a compact wrap grid of small toggle chips
@@ -210,6 +212,7 @@ func _ready() -> void:
 		_hole_mode_option, _match_timer_spin, _sudden_death_check, _turn_based_check,
 	]
 	_settings_controls.append(_weather_option)
+	_settings_controls.append(_sky_theme_option)
 	_settings_controls.append_array(_special_checkboxes)
 	_settings_controls.append_array(_team_buttons)
 	_connect_control_signals()
@@ -295,6 +298,8 @@ func _populate_options() -> void:
 	# Bontago-22y.10: order must match MatchConfig.WeatherMode.
 	# Labels come from the enum names, so a new weather type needs no edit here.
 	_fill_option(_weather_option, MatchWeather.mode_labels())
+	# Bontago-470.4: order must match MatchConfig.SkyThemeMode.
+	_fill_option(_sky_theme_option, ["Day", "Night", "Random"])
 	_build_specials_checklist()
 
 
@@ -359,6 +364,7 @@ func _wire_focus_chain() -> void:
 	var chain: Array[Control] = [
 		_map_combo_option, _player_count_spin, _ai_count_spin, _ai_difficulty_option,
 	]
+	chain.insert(1, _sky_theme_option)
 	chain.append_array(_team_buttons)
 	chain.append_array([_block_timer_slider, _gravity_slider, _goal_flag_spin, _gifts_check, _special_freq_slider])
 	# Bontago-mp0.3.5 (review r2, item 2): the round "-"/"+" stepper buttons
@@ -398,6 +404,7 @@ func _connect_control_signals() -> void:
 	_tilt_mode_option.item_selected.connect(_on_option_changed)
 	_hole_mode_option.item_selected.connect(_on_option_changed)
 	_weather_option.item_selected.connect(_on_option_changed)
+	_sky_theme_option.item_selected.connect(_on_option_changed)
 	_player_count_spin.value_changed.connect(_on_value_changed)
 	# Bontago-1pi.9b: a seat-count edit can shrink the room left for bots, so
 	# this recomputes %AiCountSpin's own max_value on every host edit too, not
@@ -841,6 +848,7 @@ func _config_from_controls() -> MatchConfig:
 	config.tilt_mode = _tilt_mode_option.selected
 	config.hole_mode = _hole_mode_option.selected
 	config.weather_mode = _weather_option.selected as MatchConfig.WeatherMode
+	config.sky_theme_mode = _sky_theme_option.selected as MatchConfig.SkyThemeMode
 	config.match_timer_minutes = int(_match_timer_spin.value)
 	config.sudden_death = _sudden_death_check.button_pressed
 	config.turn_based = _turn_based_check.button_pressed
@@ -918,6 +926,7 @@ func _apply_data(data: Dictionary) -> void:
 	_tilt_mode_option.selected = config.tilt_mode
 	_hole_mode_option.selected = config.hole_mode
 	_weather_option.selected = config.weather_mode
+	_sky_theme_option.selected = config.sky_theme_mode
 	_match_timer_spin.value = config.match_timer_minutes
 	_sudden_death_check.button_pressed = config.sudden_death
 	_turn_based_check.button_pressed = config.turn_based

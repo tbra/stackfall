@@ -997,6 +997,9 @@ func _build_match_world() -> void:
 	_field.place_flags(config.player_count, config.player_colors, config.goal_flag_count)
 	_field.set_overlay_source(Match.raster(), config.player_colors)
 	_skybox.load_set(config.map_def().skybox_set)
+	# Bontago-470.4: the lobby's Day/Night/Random, resolved by the host and
+	# replicated; the F4 Theme dropdown still overrides live afterwards.
+	_skybox.set_theme_by_id(config.effective_sky_theme())
 
 	SnapshotSync.set_disk(_field)
 	SnapshotSync.begin_match(Match.registry(), config.map_def())

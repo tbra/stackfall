@@ -157,6 +157,11 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
+[node name="SkyThemeOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/MapSection/MapRow"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(110, 0)
+
 [node name="MapVariantOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/MapSection/MapRow"]
 unique_name_in_owner = true
 visible = false

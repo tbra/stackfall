@@ -243,14 +243,14 @@ func test_apply_physics_preset_copies_values_and_reapplies_live() -> void:
 	)
 
 
-func test_apply_physics_preset_current_matches_the_shipped_defaults() -> void:
+func test_apply_physics_preset_heavy_bouncy_matches_the_shipped_defaults() -> void:
 	_panel.physics_tuning.gravity_multiplier = 99.0
 	_panel.physics_tuning.rebound_damping = 0.1
 
-	_panel.apply_physics_preset("current")
+	_panel.apply_physics_preset("heavy_bouncy")
 
 	assert_almost_eq(_panel.physics_tuning.gravity_multiplier, _saved_gravity, 0.0001)
-	assert_almost_eq(_panel.physics_tuning.rebound_damping, 1.0, 0.0001)
+	assert_almost_eq(_panel.physics_tuning.rebound_damping, 0.3, 0.0001)
 
 
 func test_apply_physics_preset_ignores_an_unknown_id() -> void:

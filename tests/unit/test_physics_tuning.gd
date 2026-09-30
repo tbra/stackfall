@@ -15,20 +15,19 @@ func _is_exported_field(prop: Dictionary) -> bool:
 
 # --- rebound_damping's default is a byte-identical no-op --------------------
 
-func test_rebound_damping_defaults_to_one_a_no_op_multiplier() -> void:
+func test_rebound_damping_default_is_the_heavy_bouncy_value() -> void:
 	var fresh: PhysicsTuning = PhysicsTuning.new()
-	assert_almost_eq(fresh.rebound_damping, 1.0, 0.0001)
+	assert_almost_eq(fresh.rebound_damping, 0.3, 0.0001)
 
 
 # --- The shipped presets ------------------------------------------------------
 
-## "current" must stay byte-identical to config/physics_tuning.tres's own
-## defaults (CLAUDE.md/the design brief: "Keep default behaviour byte-
-## identical unless the owner picks a preset"), field for field, not just on
+## "heavy_bouncy" must stay byte-identical to config/physics_tuning.tres's own
+## defaults (owner 2026-09-30: Heavy & Bouncy is the shipped default), field for field, not just on
 ## the fields this package happened to touch.
-func test_current_preset_matches_the_shipped_physics_tuning() -> void:
+func test_heavy_bouncy_preset_matches_the_shipped_physics_tuning() -> void:
 	var live: PhysicsTuning = load("res://config/physics_tuning.tres")
-	var current: PhysicsTuning = load("res://config/physics_presets/current.tres")
+	var current: PhysicsTuning = load("res://config/physics_presets/heavy_bouncy.tres")
 	var checked_any: bool = false
 	for prop: Dictionary in live.get_property_list():
 		if not _is_exported_field(prop):
@@ -37,7 +36,7 @@ func test_current_preset_matches_the_shipped_physics_tuning() -> void:
 		var prop_name: String = str(prop.get("name", ""))
 		assert_almost_eq(
 			float(live.get(prop_name)), float(current.get(prop_name)), 0.0001,
-			"%s should be byte-identical between physics_tuning.tres and the 'current' preset" % prop_name
+			"%s should be byte-identical between physics_tuning.tres and the 'heavy_bouncy' preset" % prop_name
 		)
 	assert_true(checked_any, "fixture: PhysicsTuning must have at least one exported field.")
 

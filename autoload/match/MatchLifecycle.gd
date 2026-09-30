@@ -122,6 +122,10 @@ func start_match(match_config: MatchConfig) -> void:
 
 	_match.config = match_config.duplicate(true) as MatchConfig
 	_match.config.sanitize()
+	# Bontago-470.4: the host resolves Random once; a client keeps the id it
+	# was sent (net_match_start carries sky_theme_resolved).
+	if _match._is_host():
+		_match.config.resolve_sky_theme(randi())
 
 	# Bontago-1en.23 (M4 P5-TILT): register_world() itself runs before
 	# start_match() on every path (hot-seat, sandbox and the lobby -- see

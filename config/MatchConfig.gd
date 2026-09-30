@@ -47,6 +47,14 @@ enum HoleMode { TEMPORARY, PERMANENT, OFF }
 ## lower-casing its name.
 enum WeatherMode { OFF, STORM, RAIN, SNOW, FOG, RANDOM, CHANGING }
 
+## Lobby "Map" time of day (Bontago-470.4, owner 2026-09-30). DAY = the sunset
+## sky theme, NIGHT = the night theme, RANDOM = the host picks one at match
+## start (autoload/match/MatchLifecycle.gd) and replicates the concrete id in
+## sky_theme_resolved, so every client shows the same sky.
+enum SkyThemeMode { DAY, NIGHT, RANDOM }
+## Theme ids (config/sky_themes/<id>.tres) per concrete mode, DAY then NIGHT.
+const SKY_THEME_IDS: PackedStringArray = ["sunset", "night"]
+
 ## -- Spec 2.8 table, in order -----------------------------------------------
 @export var map_variant: MapVariant = MapVariant.ROUND
 ## Spec 2.8's map size; the enum lives on MapDef (see the note there).
@@ -60,7 +68,10 @@ enum WeatherMode { OFF, STORM, RAIN, SNOW, FOG, RANDOM, CHANGING }
 ## Block timer in seconds, 3-12.
 @export var block_timer: float = 6.0
 ## Gravity multiplier, 0.5-2.0.
-@export var gravity_multiplier: float = 1.0
+## DECISION (Bontago-470.4): 1.4 to match config/physics_tuning.tres's new
+## Heavy & Bouncy default -- start_match() writes this value over the shared
+## tuning's gravity_multiplier, so a 1.0 here would silently undo it.
+@export var gravity_multiplier: float = 1.4
 ## Goal flags, 1-5.
 @export var goal_flag_count: int = 1
 @export var gifts_enabled: bool = true
@@ -82,6 +93,11 @@ enum WeatherMode { OFF, STORM, RAIN, SNOW, FOG, RANDOM, CHANGING }
 @export var turn_based: bool = false
 ## Weather event schedule (Bontago-22y.10); see WeatherMode.
 @export var weather_mode: WeatherMode = WeatherMode.CHANGING
+## Lobby "Map" time of day (see SkyThemeMode). DECISION: default DAY.
+@export var sky_theme_mode: SkyThemeMode = SkyThemeMode.DAY
+## The concrete theme id the host resolved at match start ("" = not resolved
+## yet). Rides in to_dict() so clients never roll their own.
+@export var sky_theme_resolved: String = ""
 
 ## -- Beyond the 2.8 table ---------------------------------------------------
 ## Spec "Still open" 1: was the block timer shared or per player? The spec's
@@ -244,12 +260,37 @@ func sanitize() -> void:
 	match_timer_minutes = maxi(match_timer_minutes, 0)
 	# turn_based is a plain bool -- no range to clamp.
 	weather_mode = clampi(weather_mode, WeatherMode.OFF, WeatherMode.CHANGING) as WeatherMode
+	sky_theme_mode = clampi(sky_theme_mode, SkyThemeMode.DAY, SkyThemeMode.RANDOM) as SkyThemeMode
+	if not SKY_THEME_IDS.has(sky_theme_resolved):
+		sky_theme_resolved = ""
 	if player_colors.size() < PLAYER_COUNT_MAX:
 		var defaults: PackedColorArray = default_player_colors()
 		var padded: PackedColorArray = player_colors.duplicate()
 		for i: int in range(padded.size(), PLAYER_COUNT_MAX):
 			padded.append(defaults[i])
 		player_colors = padded
+
+
+## Host only, at match start: turns sky_theme_mode into a concrete theme id.
+## `roll` (0 or 1) picks the theme for RANDOM; callers pass randi() % size.
+func resolve_sky_theme(roll: int) -> void:
+	match sky_theme_mode:
+		SkyThemeMode.NIGHT:
+			sky_theme_resolved = SKY_THEME_IDS[SkyThemeMode.NIGHT]
+		SkyThemeMode.RANDOM:
+			sky_theme_resolved = SKY_THEME_IDS[posmod(roll, SKY_THEME_IDS.size())]
+		_:
+			sky_theme_resolved = SKY_THEME_IDS[SkyThemeMode.DAY]
+
+
+## The theme id a match should show: the host's resolved id when present, else
+## the mode's own (an unresolved RANDOM falls back to DAY).
+func effective_sky_theme() -> String:
+	if sky_theme_resolved != "":
+		return sky_theme_resolved
+	if sky_theme_mode == SkyThemeMode.NIGHT:
+		return SKY_THEME_IDS[SkyThemeMode.NIGHT]
+	return SKY_THEME_IDS[SkyThemeMode.DAY]
 
 
 ## Serializes to a plain Dictionary for RPCs and Steam lobby data.
@@ -273,6 +314,8 @@ func to_dict() -> Dictionary:
 		"sudden_death": sudden_death,
 		"turn_based": turn_based,
 		"weather_mode": weather_mode,
+		"sky_theme_mode": sky_theme_mode,
+		"sky_theme_resolved": sky_theme_resolved,
 		"per_player_timer": per_player_timer,
 		"hot_seat": hot_seat,
 		"player_colors": player_colors.duplicate(),
@@ -305,6 +348,8 @@ static func from_dict(data: Dictionary) -> MatchConfig:
 	config.sudden_death = bool(data.get("sudden_death", config.sudden_death))
 	config.turn_based = bool(data.get("turn_based", config.turn_based))
 	config.weather_mode = int(data.get("weather_mode", config.weather_mode)) as WeatherMode
+	config.sky_theme_mode = int(data.get("sky_theme_mode", config.sky_theme_mode)) as SkyThemeMode
+	config.sky_theme_resolved = String(data.get("sky_theme_resolved", config.sky_theme_resolved))
 	config.per_player_timer = bool(data.get("per_player_timer", config.per_player_timer))
 	config.hot_seat = bool(data.get("hot_seat", config.hot_seat))
 	if data.has("player_colors"):
