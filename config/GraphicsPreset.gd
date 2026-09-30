@@ -21,6 +21,10 @@ extends Resource
 ## (vfx/CloudSea.gd) to draw; 0 hides them and leaves only the sky panorama's
 ## far cloud sea. Low draws a sparse set.
 @export var cloud_puff_density: float = 1.0
+## Bontago-1pi.11.6: icosphere subdivisions of each cloud puff hull (1 = 80 tris, 2 = 320).
+## The shader carves the silhouette per pixel, so 1 looks the same at a quarter of the
+## ~1.2M-primitive cloud-sea cost.
+@export_range(1, 2) var cloud_puff_subdivisions: int = 2
 ## Bontago-adt.1: distant animated bird flocks (vfx/DistantBirds.gd); off on Low.
 @export var birds_enabled: bool = true
 ## Bontago-adt.3: cosmetic ambient life (perching birds, fireflies); off on Low.

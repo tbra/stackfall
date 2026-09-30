@@ -155,6 +155,8 @@ func _ready() -> void:
 		_call_cost()
 	if args.has("--subtrees"):
 		await _subtree_toggles(counts[counts.size() - 1])
+	if args.has("--visoff"):
+		await _visibility_toggles(counts[counts.size() - 1])
 	if args.has("--groups"):
 		await _group_toggles(counts[counts.size() - 1])
 	get_tree().quit()
@@ -272,6 +274,22 @@ func _subtree_toggles(target: int) -> void:
 		await _sample("sub_off_%s_n%d" % [child.name, count], target)
 		_set_subtree_processing(child, true)
 		await _sample("sub_recheck_base", target)
+
+
+## Bontago-1pi.11.6: hides each Node3D child of Main (and of the Field) in turn
+## and samples, so the prims= column attributes primitives to a subtree.
+func _visibility_toggles(target: int) -> void:
+	var candidates: Array[Node3D] = []
+	for parent: Node in [_main, _field]:
+		for child: Node in parent.get_children():
+			if child is Node3D and child != Match.blocks_parent() and (child as Node3D).visible:
+				candidates.append(child as Node3D)
+	for node: Node3D in candidates:
+		var meshes: int = node.find_children("*", "VisualInstance3D", true, false).size()
+		node.visible = false
+		await _sample("vis_off_%s_%s_vi%d" % [node.name, node.get_class(), meshes], target)
+		node.visible = true
+	await _sample("vis_recheck_base", target)
 
 
 func _group_toggles(target: int) -> void:

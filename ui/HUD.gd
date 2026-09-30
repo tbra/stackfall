@@ -169,6 +169,10 @@ var _feed_seconds_left: float = -1.0
 ## ticks (every placement) don't re-frame its camera when the map hasn't
 ## actually changed.
 var _last_map_def: MapDef = null
+## Bontago-1pi.11.6: change-gates for the per-frame _process() polls.
+var _last_gift_states: Array[Dictionary] = []
+var _last_height_text: String = ""
+var _last_special_signature: Array = []
 
 
 func _ready() -> void:
@@ -349,7 +353,10 @@ func set_locked(locked: bool) -> void:
 ## fraction runs 1 -> 0 as the slot's block timer counts down; drives the
 ## timer ring's radial fill.
 func set_feed_progress(fraction: float) -> void:
-	_feed_progress = clampf(fraction, 0.0, 1.0)
+	var clamped: float = clampf(fraction, 0.0, 1.0)
+	if is_equal_approx(clamped, _feed_progress):
+		return
+	_feed_progress = clamped
 	_timer_ring.queue_redraw()
 
 
@@ -357,12 +364,14 @@ func set_feed_progress(fraction: float) -> void:
 ## numeral inside the timer ring (mockup 08's "6"). A negative value (the
 ## -1.0 default, or a caller's own choice) draws no numeral at all.
 func set_feed_seconds(seconds: float) -> void:
+	if is_equal_approx(seconds, _feed_seconds_left):
+		return
 	_feed_seconds_left = seconds
 	_timer_ring.queue_redraw()
 
 
 func set_height(meters: float) -> void:
-	_height_label.text = "Height: %.2f m" % meters
+	_set_height_text("Height: %.2f m" % meters)
 
 
 ## Bontago-mv0.35 (owner: "there is still a maximum height the block cannot
@@ -372,7 +381,15 @@ func set_height(meters: float) -> void:
 ## ghost fixed at screen centre -- so raising looked capped. While a local
 ## block is held the label names both numbers explicitly.
 func set_tower_and_block_height(tower_meters: float, block_meters: float) -> void:
-	_height_label.text = "Tower: %.2f m   Block: %.1f m" % [tower_meters, block_meters]
+	_set_height_text("Tower: %.2f m   Block: %.1f m" % [tower_meters, block_meters])
+
+
+## Bontago-1pi.11.6: only touches the Label (which re-lays out text) on change.
+func _set_height_text(text: String) -> void:
+	if text == _last_height_text:
+		return
+	_last_height_text = text
+	_height_label.text = text
 
 
 func set_territory_shares(shares: PackedFloat32Array) -> void:
@@ -560,7 +577,13 @@ func _on_gift_state_changed(_gift_id: int, _position: Variant = null, _landing: 
 
 func _update_gift_markers() -> void:
 	if match_provider != null and match_provider.has_method(&"gift_states"):
-		_minimap.set_gift_states(match_provider.gift_states())
+		# Bontago-1pi.11.6: _process() polls this every frame; skip the
+		# minimap's duplicate + redraw unless a crate actually changed.
+		var states: Array[Dictionary] = match_provider.gift_states()
+		if states == _last_gift_states:
+			return
+		_last_gift_states = states.duplicate(true)
+		_minimap.set_gift_states(states)
 
 
 # --- Helpers -----------------------------------------------------------------
@@ -698,6 +721,7 @@ func _name_for_slot(slot_id: int) -> String:
 ## above only shortcuts the wait for the specific claim case.
 func _refresh_special_indicator() -> void:
 	if match_provider == null or _active_slot < 0:
+		_last_special_signature = []
 		_special_indicator.visible = false
 		_set_gift_icons(&"", &"")
 		_held_label.text = "HELD"
@@ -708,7 +732,13 @@ func _refresh_special_indicator() -> void:
 	var glue_charges: int = 0
 	if match_provider.has_method(&"glue_drops_left"):
 		glue_charges = int(match_provider.glue_drops_left(_active_slot))
-	_set_gift_icons(head_id, _next_gift_id_for(count, head_id))
+	# Bontago-1pi.11.6: nothing below depends on anything but these inputs.
+	var next_id: StringName = _next_gift_id_for(count, head_id)
+	var signature: Array = [_active_slot, _active_color, count, head_id, next_id, glue_charges]
+	if signature == _last_special_signature:
+		return
+	_last_special_signature = signature
+	_set_gift_icons(head_id, next_id)
 	_set_glue_active(glue_charges > 0)
 	_held_label.text = "HELD: %s" % _special_display_name(head_id) if head_id != &"" else "HELD"
 	_next_label.text = "NEXT GIFT" if count > (1 if head_id != &"" else 0) else "NEXT"

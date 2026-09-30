@@ -123,6 +123,12 @@ var _overlay: TerritoryOverlay = null
 ## this project currently replaces the WorldEnvironment's Environment
 ## resource at runtime (only individual fields on it change).
 var _mirror_environment: Environment = null
+## Bontago-1pi.11.6: change-gate caches for _process().
+var _settings: Node = null
+var _last_shader_key: Array = []
+var _last_source_xf: Transform3D = Transform3D()
+var _last_field_xf: Transform3D = Transform3D()
+var _last_lens_key: Array = []
 
 
 func _ready() -> void:
@@ -190,18 +196,24 @@ func _process(_delta: float) -> void:
 	# blending its result in shaders/territory.gdshader -- UPDATE_DISABLED
 	# is the actual GPU-cost knob; camera math below would otherwise still
 	# run and the viewport would still re-render every frame for nothing.
-	_viewport.render_target_update_mode = (
+	# Bontago-1pi.11.6: every push below is change-gated (a live F4 edit still
+	# lands the next frame, since the inputs are compared by value).
+	var update_mode: SubViewport.UpdateMode = (
 		SubViewport.UPDATE_ALWAYS if visuals.mirror_enabled else SubViewport.UPDATE_DISABLED
 	)
-	if _overlay != null:
+	if _viewport.render_target_update_mode != update_mode:
+		_viewport.render_target_update_mode = update_mode
+	var shader_key: Array = [
+		_overlay, visuals.mirror_enabled, visuals.mirror_strength, visuals.mirror_max_luminance
+	]
+	if _overlay != null and shader_key != _last_shader_key:
+		_last_shader_key = shader_key
 		_overlay.set_mirror_texture(
 			_viewport.get_texture(), visuals.mirror_enabled, visuals.mirror_strength
 		)
 		# Bontago-xtq.20: mirror_max_luminance has no dedicated push method on
-		# TerritoryOverlay (out of this package's ownership -- see the class
-		# doc above) -- material() is the same public accessor
-		# tests/unit/test_territory_overlay.gd already reads shader params
-		# through, so this is not a new kind of touch on that file.
+		# TerritoryOverlay (out of this package's ownership) -- material() is
+		# the same public accessor tests/unit/test_territory_overlay.gd reads.
 		# Review (xtq.20): material() is null until TerritoryOverlay.configure()
 		# has run, the same guard set_mirror_texture() applies internally.
 		var overlay_material: ShaderMaterial = _overlay.material()
@@ -209,19 +221,29 @@ func _process(_delta: float) -> void:
 			overlay_material.set_shader_parameter(
 				&"mirror_max_luminance", visuals.mirror_max_luminance
 			)
-	# Bontago-mp0.3.2 review pass 2: re-applied every frame (not just
-	# _ready()) so a live F4 edit of mirror_sky_energy_scale takes effect
-	# immediately, the same contract every other visuals field in this method
-	# already has.
+	# Bontago-mp0.3.2 review pass 2: re-applied on change so a live F4 edit of
+	# mirror_sky_energy_scale takes effect immediately.
 	if _mirror_environment != null:
-		_mirror_environment.background_energy_multiplier = clampf(
-			visuals.mirror_sky_energy_scale, 0.0, 1.0
-		)
+		var sky_scale: float = clampf(visuals.mirror_sky_energy_scale, 0.0, 1.0)
+		if not is_equal_approx(_mirror_environment.background_energy_multiplier, sky_scale):
+			_mirror_environment.background_energy_multiplier = sky_scale
 	if not visuals.mirror_enabled:
 		return
 
 	_resize_viewport()
-	_camera.global_transform = mirror_transform(_source_camera.global_transform, _mirror_plane())
+	# The reflected pose only changes when the camera or the (tiltable) field
+	# moves; skip the plane/reflection math and five property writes otherwise.
+	var source_xf: Transform3D = _source_camera.global_transform
+	var field_xf: Transform3D = _field.global_transform if _field != null else Transform3D.IDENTITY
+	var lens_key: Array = [
+		_source_camera.fov, _source_camera.near, _source_camera.far, _source_camera.projection
+	]
+	if source_xf == _last_source_xf and field_xf == _last_field_xf and lens_key == _last_lens_key:
+		return
+	_last_source_xf = source_xf
+	_last_field_xf = field_xf
+	_last_lens_key = lens_key
+	_camera.global_transform = mirror_transform(source_xf, _mirror_plane())
 	_camera.fov = _source_camera.fov
 	_camera.near = _source_camera.near
 	_camera.far = _source_camera.far
@@ -238,7 +260,9 @@ func _resize_viewport() -> void:
 	var main_size: Vector2i = get_viewport().size
 	# Bontago-1pi.11.2: the active graphics preset scales the mirror further.
 	var preset_factor: float = 1.0
-	var settings: Node = get_node_or_null(^"/root/Settings")
+	if _settings == null:
+		_settings = get_node_or_null(^"/root/Settings")
+	var settings: Node = _settings
 	if settings != null:
 		preset_factor = (settings.call(&"current_graphics_preset") as GraphicsPreset).mirror_resolution_factor
 	var scale: float = clampf(
