@@ -12,6 +12,7 @@ max_circles = 400
 solve_hz = 20.0
 raster_upload_hz = 5.0
 solve_defer_max_s = 0.5
+dirty_move_epsilon = 0.005
 hash_cell_size = 12.0
 hole_delay = 0.75
 hole_close_delay = 2.0

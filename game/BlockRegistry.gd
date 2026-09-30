@@ -21,12 +21,20 @@ class _Entry:
 	var owner_slot: int = -1
 	var settled_time: float = 0.0
 	var is_settled: bool = false
+	## Transform last reported to the territory dirty state (settled only).
+	var marked_transform: Transform3D = Transform3D.IDENTITY
 
 @export var tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
 
 var _entries: Dictionary = {}          ## instance id (int) -> _Entry
 var _net_id_to_block: Dictionary = {}  ## net_id (int) -> Block
 var _next_net_id: int = 1
+## Bontago-1pi.11.10: bumped by anything that can change territory influence
+## (block placed/removed, settled flag flips, a settled block moving beyond
+## TerritoryTuning.dirty_move_epsilon, owner change). MatchTerritory compares it
+## to skip solves on an unchanged board.
+var _territory_revision: int = 0
+var _move_epsilon: float = 0.005
 
 ## Set by Match.start_match() via configure(). Used only for the disk-local
 ## projection (Field.to_local/to_global are plain Node3D methods, not part of
@@ -60,9 +68,26 @@ func configure(field: Node3D, map_def: MapDef) -> void:
 ## Drops every tracked block (but does not free the bodies themselves — the
 ## caller, Match, owns and clears blocks_parent). Called when a match starts.
 func reset() -> void:
+	_territory_revision += 1
 	_entries.clear()
 	_net_id_to_block.clear()
 	_next_net_id = 1
+
+
+## Monotonic counter of territory-relevant changes (see _territory_revision).
+func territory_revision() -> int:
+	return _territory_revision
+
+
+## Forces the next territory comparison to see a change (tests, external edits).
+func mark_territory_dirty() -> void:
+	_territory_revision += 1
+
+
+## Settled-block movement below this (metres; also the basis column delta)
+## does not dirty the territory. Set by Match from TerritoryTuning.
+func set_move_epsilon(epsilon: float) -> void:
+	_move_epsilon = maxf(epsilon, 0.0)
 
 
 ## Whether this instance is the authority (see _host_authority). Set by
@@ -108,6 +133,7 @@ func _on_block_placed(block: RigidBody3D, _shape_id: StringName) -> void:
 	entry.block = typed
 	entry.owner_slot = typed.owner_slot
 	_entries[typed.get_instance_id()] = entry
+	_territory_revision += 1
 
 	if not _host_authority:
 		# The spawner calls bind_net_id() with the host's id instead.
@@ -137,7 +163,8 @@ func _on_block_placed(block: RigidBody3D, _shape_id: StringName) -> void:
 
 func _on_block_removed(block: RigidBody3D, _reason: String) -> void:
 	var id: int = block.get_instance_id()
-	_entries.erase(id)
+	if _entries.erase(id):
+		_territory_revision += 1
 	var typed: Block = block as Block
 	if typed != null and _net_id_to_block.get(typed.net_id) == typed:
 		_net_id_to_block.erase(typed.net_id)
@@ -156,6 +183,7 @@ func _physics_process(delta: float) -> void:
 		var entry: _Entry = _entries[id]
 		if not is_instance_valid(entry.block):
 			_entries.erase(id)
+			_territory_revision += 1
 			continue
 		var settled_now: bool = (
 			entry.block.linear_velocity.length() < tuning.sleep_linear_threshold
@@ -165,8 +193,28 @@ func _physics_process(delta: float) -> void:
 			entry.settled_time += delta
 		else:
 			entry.settled_time = 0.0
+		var was_settled: bool = entry.is_settled
 		entry.is_settled = entry.settled_time >= tuning.sleep_settle_time
+		if entry.is_settled != was_settled:
+			_territory_revision += 1
+			if entry.is_settled:
+				entry.marked_transform = entry.block.global_transform
+		elif entry.is_settled and _moved_beyond_epsilon(entry):
+			_territory_revision += 1
+			entry.marked_transform = entry.block.global_transform
 	PerfProbe.stop(&"registry", probe_registry)
+
+
+func _moved_beyond_epsilon(entry: _Entry) -> bool:
+	var current: Transform3D = entry.block.global_transform
+	var last: Transform3D = entry.marked_transform
+	var eps: float = _move_epsilon
+	return (
+		current.origin.distance_squared_to(last.origin) > eps * eps
+		or current.basis.x.distance_squared_to(last.basis.x) > eps * eps
+		or current.basis.y.distance_squared_to(last.basis.y) > eps * eps
+		or current.basis.z.distance_squared_to(last.basis.z) > eps * eps
+	)
 
 
 ## One InfluenceCircle per settled, still-owned block (spec 2.2). Home circles
@@ -269,6 +317,7 @@ func _set_owner(block: Block, new_slot: int, color: Color) -> bool:
 		return false
 	var entry: _Entry = _entries[id]
 	entry.owner_slot = new_slot
+	_territory_revision += 1
 	block.owner_slot = new_slot
 	BlockFactory.recolor(block, color)
 	Events.block_owner_changed.emit(block.net_id, new_slot)

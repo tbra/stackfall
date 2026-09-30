@@ -977,6 +977,7 @@ func test_slow_frame_coalesces_due_territory_solves_and_keeps_fractional_time() 
 	Match.start_match(config)
 	_run_countdown()
 	Match._territory._solve_accum = 0.0
+	Match._territory.mark_dirty()
 	Match._sandbox_territory_profile_enabled = true
 	watch_signals(Events)
 
@@ -985,6 +986,7 @@ func test_slow_frame_coalesces_due_territory_solves_and_keeps_fractional_time() 
 	assert_eq(int(Match._territory.sandbox_profile()["steps"]), 2)
 	assert_eq(get_signal_emit_count(Events, "territory_updated"), 2)
 	assert_almost_eq(Match._territory._solve_accum, step * 0.5, 0.001)
+	Match._territory.mark_dirty()
 	Match._territory._tick_territory(step * 0.51)
 	assert_eq(int(Match._territory.sandbox_profile()["steps"]), 1)
 	assert_eq(get_signal_emit_count(Events, "territory_updated"), 3)
@@ -1000,7 +1002,108 @@ func _add_awake_block() -> BlockRegistry._Entry:
 	entry.block = block
 	entry.is_settled = false
 	_registry._entries[block.get_instance_id()] = entry
+	_registry.mark_territory_dirty()
 	return entry
+
+
+class _TimeSpyChecker:
+	extends WinChecker
+	var total: float = 0.0
+
+	func update(raster: TerritoryRaster, delta: float) -> void:
+		total += delta
+		super.update(raster, delta)
+
+
+func _clean_v2_match() -> float:
+	var config: MatchConfig = _hotseat_config(2)
+	config.hole_mode = MatchConfig.HoleMode.OFF
+	Match.start_match(config)
+	_run_countdown()
+	var step: float = 1.0 / Match._territory_tuning.solve_hz
+	Match._territory._solve_accum = 0.0
+	Match._territory._tick_territory(step)
+	Match._territory._tick_territory(step)
+	return step
+
+
+func test_clean_board_skips_solve_work() -> void:
+	var step: float = _clean_v2_match()
+	var solves: int = Match._territory.solve_step_count()
+	var skips: int = Match._territory.clean_skip_count()
+	watch_signals(Events)
+	for _i: int in range(10):
+		Match._territory._tick_territory(step)
+	assert_eq(Match._territory.solve_step_count(), solves, "An unchanged board must not solve.")
+	assert_eq(Match._territory.clean_skip_count(), skips + 10)
+	assert_eq(get_signal_emit_count(Events, "territory_updated"), 0)
+
+
+func test_spawn_then_move_each_trigger_one_solve() -> void:
+	var step: float = _clean_v2_match()
+	var solves: int = Match._territory.solve_step_count()
+	var entry: BlockRegistry._Entry = _add_awake_block()
+	entry.is_settled = true
+	Match._territory._tick_territory(step)
+	Match._territory._tick_territory(step)
+	assert_eq(Match._territory.solve_step_count(), solves + 1, "A spawn costs exactly one solve.")
+	_registry.mark_territory_dirty()
+	Match._territory._tick_territory(step)
+	Match._territory._tick_territory(step)
+	assert_eq(Match._territory.solve_step_count(), solves + 2)
+
+
+func test_settled_block_move_beyond_epsilon_dirties_but_jitter_does_not() -> void:
+	var step: float = _clean_v2_match()
+	var entry: BlockRegistry._Entry = _add_awake_block()
+	entry.is_settled = true
+	entry.marked_transform = entry.block.global_transform
+	Match._territory._tick_territory(step)
+	var revision: int = _registry.territory_revision()
+	var eps: float = Match._territory_tuning.dirty_move_epsilon
+	_registry.set_move_epsilon(eps)
+	entry.block.global_position += Vector3(eps * 0.25, 0.0, 0.0)
+	assert_false(_registry._moved_beyond_epsilon(entry), "Sub-epsilon jitter stays clean.")
+	entry.block.global_position += Vector3(eps * 2.0, 0.0, 0.0)
+	assert_true(_registry._moved_beyond_epsilon(entry), "Real movement is detected.")
+	assert_eq(_registry.territory_revision(), revision)
+
+
+func test_home_change_dirties_clean_board() -> void:
+	var step: float = _clean_v2_match()
+	var solves: int = Match._territory.solve_step_count()
+	Match.slot(1).home_position += Vector2(1.0, 0.0)
+	Match._territory._tick_territory(step)
+	assert_eq(Match._territory.solve_step_count(), solves + 1)
+
+
+func test_win_checker_time_advances_while_clean() -> void:
+	var step: float = _clean_v2_match()
+	var spy: _TimeSpyChecker = _TimeSpyChecker.new(Match._territory._goal_positions, 100.0)
+	Match._territory._win_checker = spy
+	Match._territory._tick_territory(step * 3.0)
+	assert_almost_eq(spy.total, step * 3.0, 0.0001, "Capture time advances by the elapsed time while clean.")
+
+
+func test_legacy_clean_board_advances_hole_timers_without_solving() -> void:
+	var config: MatchConfig = _hotseat_config(2)
+	config.hole_mode = MatchConfig.HoleMode.TEMPORARY
+	Match.start_match(config)
+	_run_countdown()
+	var step: float = 1.0 / Match._territory_tuning.solve_hz
+	Match._territory._solve_accum = 0.0
+	Match._territory._tick_territory(step)
+	Match.slot(1).home_position = Match.slot(0).home_position + Vector2(2.0, 0.0)
+	Match._territory._tick_territory(step)
+	var solves: int = Match._territory.solve_step_count()
+	var skips: int = Match._territory.clean_skip_count()
+	Match._territory._tick_territory(step)
+	assert_eq(Match._territory.solve_step_count(), solves, "Unchanged legacy board does not re-solve.")
+	assert_eq(Match._territory.clean_skip_count(), skips + 1)
+	watch_signals(Events)
+	Match._territory._tick_territory(Match._territory_tuning.hole_delay + step)
+	assert_signal_emitted(Events, "hole_cells_changed", "Contest timers keep advancing while clean.")
+	assert_false(Match.slot(0).home_flag_alive)
 
 
 func test_awake_block_defers_solves_until_cap_then_forces_one() -> void:
@@ -1037,6 +1140,7 @@ func test_solve_runs_promptly_once_awake_block_settles() -> void:
 	Match._territory._tick_territory(step * 2.0)
 	assert_eq(get_signal_emit_count(Events, "territory_updated"), 0)
 	entry.is_settled = true
+	_registry.mark_territory_dirty()
 	Match._territory._tick_territory(0.001)
 	assert_gt(get_signal_emit_count(Events, "territory_updated"), 0, "Settling releases the deferred solve.")
 
