@@ -71,11 +71,23 @@ var _gift_states: Array[Dictionary] = []
 var _camera_right: Vector2 = Vector2(1.0, 0.0)
 var _camera_forward: Vector2 = Vector2(0.0, 1.0)
 
+## Basis the cached image was rasterized with. The image is rebuilt at
+## minimap_refresh_hz, but the basis changes every frame while the camera
+## orbits, so _on_canvas_draw() rotates the cached texture by the difference
+## (Bontago-sen.5: territory used to lag behind the beacons and the camera).
+var _image_right: Vector2 = Vector2(1.0, 0.0)
+var _image_forward: Vector2 = Vector2(0.0, 1.0)
+
+## Runs after game/CameraRig.gd (priority 1) and ui/HUD.gd (0), so the basis
+## is read from this frame's final camera transform, not the previous one.
+const _PROCESS_PRIORITY_AFTER_CAMERA: int = 2
+
 var _image: Image = null
 var _texture: ImageTexture = null
 
 
 func _ready() -> void:
+	process_priority = _PROCESS_PRIORITY_AFTER_CAMERA
 	custom_minimum_size = Vector2(tuning.minimap_size_px, tuning.minimap_size_px)
 
 	var style: StyleBoxFlat = StyleBoxFlat.new()
@@ -175,8 +187,36 @@ func set_gift_states(states: Array[Dictionary]) -> void:
 func set_camera_basis(right_xz: Vector2, forward_xz: Vector2) -> void:
 	if right_xz.length_squared() < 0.0001 or forward_xz.length_squared() < 0.0001:
 		return
-	_camera_right = right_xz.normalized()
-	_camera_forward = forward_xz.normalized()
+	var new_right: Vector2 = right_xz.normalized()
+	var new_forward: Vector2 = forward_xz.normalized()
+	if new_right.is_equal_approx(_camera_right) and new_forward.is_equal_approx(_camera_forward):
+		return
+	_camera_right = new_right
+	_camera_forward = new_forward
+	if _canvas != null and _map_def != null:
+		_canvas.queue_redraw()
+
+
+func _process(_delta: float) -> void:
+	if _map_def == null or not is_inside_tree():
+		return
+	var camera: Camera3D = get_viewport().get_camera_3d()
+	if camera == null:
+		return
+	var basis: Basis = camera.global_transform.basis
+	set_camera_basis(Vector2(basis.x.x, basis.x.z), Vector2(-basis.z.x, -basis.z.z))
+
+
+## Transform mapping a pixel of the cached image (rasterized with the image
+## basis) to where it belongs under the current basis, about `center`.
+func image_to_current_transform(center: Vector2) -> Transform2D:
+	var a: float = _image_right.dot(_camera_right)
+	var b: float = _image_forward.dot(_camera_right)
+	var d: float = _image_right.dot(_camera_forward)
+	var e: float = _image_forward.dot(_camera_forward)
+	var rot: Transform2D = Transform2D(Vector2(a, -d), Vector2(-b, e), Vector2.ZERO)
+	rot.origin = center - rot.basis_xform(center)
+	return rot
 
 
 ## True once a non-null MapDef has been set (i.e. the minimap is actually
@@ -234,6 +274,8 @@ func _world_to_px(world: Vector2, px_per_m: float) -> Vector2:
 ## world point -- since that is the direction the loop actually needs (one
 ## lookup per output pixel, not one per raster cell).
 func _rebuild_image() -> void:
+	_image_right = _camera_right
+	_image_forward = _camera_forward
 	var size_px: int = tuning.minimap_size_px
 	if _image == null or _image.get_width() != size_px or _image.get_height() != size_px:
 		_image = Image.create(size_px, size_px, false, Image.FORMAT_RGBA8)
@@ -272,7 +314,9 @@ func _rebuild_image() -> void:
 func _on_canvas_draw() -> void:
 	if _texture == null or _canvas == null:
 		return
+	_canvas.draw_set_transform_matrix(image_to_current_transform(_canvas.size * 0.5))
 	_canvas.draw_texture_rect(_texture, Rect2(Vector2.ZERO, _canvas.size), false)
+	_canvas.draw_set_transform_matrix(Transform2D.IDENTITY)
 	_draw_disc_outline()
 	_draw_beacons()
 	_draw_gifts()
