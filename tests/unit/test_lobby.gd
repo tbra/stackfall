@@ -808,7 +808,9 @@ func test_advanced_popup_focus_chain_is_its_own_closed_loop() -> void:
 	var current: Control = tilt_option
 	var steps: int = 0
 	var visited_close: bool = false
-	while steps < 20:
+	# The popup adds one focusable checkbox per installed special, so the
+	# closed-loop bound must grow with the roster.
+	while steps < lobby._special_checkboxes.size() + lobby._popup_stepper_buttons.size() + 10:
 		current = current.get_node(current.focus_neighbor_bottom) as Control
 		if current == close_button:
 			visited_close = true

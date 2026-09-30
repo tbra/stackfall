@@ -690,14 +690,14 @@ func test_sandbox_toggle_overlay_flips_the_fields_territory_overlay() -> void:
 
 # --- sandbox_force_special: F9 (Bontago-1en.24) -------------------------------
 
-## config/specials/ ships exactly these 7 .tres today (anvil, bomb,
-## earthquake, jumping_bean, propeller, rocket, volcano);
+## config/specials/ includes the original roster and the enabled remake gifts;
 ## SpecialDef.load_all_specials() sorts by id, so this is the exact cycle
 ## order F9 must walk through -- pinned here rather than re-derived from the
 ## loader, so a regression in the loader's own sort shows up as a failure
 ## here too, not just in test_special_def.gd.
 const _EXPECTED_ROSTER_ORDER: PackedStringArray = [
-	"anvil", "bomb", "earthquake", "glue", "jumping_bean", "magnet", "propeller", "rocket", "volcano",
+	"anvil", "bomb", "cat", "earthquake", "glue", "jumping_bean", "magnet",
+	"paintball", "propeller", "rocket", "stackfall", "volcano",
 ]
 
 
