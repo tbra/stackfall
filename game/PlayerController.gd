@@ -293,7 +293,7 @@ func _exit_tree() -> void:
 
 func enable_mouse_capture() -> void:
 	_mouse_capture_enabled = true
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	AgentProbe.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
 
 ## Bontago-xtq.42: gates every other input handler in this file (input_enabled
@@ -313,7 +313,7 @@ func _on_pause_menu_opened() -> void:
 func _on_pause_menu_closed() -> void:
 	input_enabled = true
 	if _mouse_capture_enabled:
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		AgentProbe.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
 
 func _process(delta: float) -> void:

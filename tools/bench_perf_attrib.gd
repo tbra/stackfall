@@ -4,7 +4,7 @@ extends Node
 ## render (rendering info + viewport measured CPU/GPU when windowed) and
 ## node counts, with one-system-at-a-time toggles.
 ##   godot --headless --path . res://tools/bench_perf_attrib.tscn -- [--weather=snow] [--counts=25,100,200,300]
-##   godot --path . --windowed --position 10000,10000 res://tools/bench_perf_attrib.tscn -- ...
+##   godot --path . --windowed --position 10000,10000 --resolution 320x180 --audio-driver Dummy res://tools/bench_perf_attrib.tscn -- --agent-probe --render-size=1920x1080 ...
 ## Diagnostic only (tools/): not part of the running game.
 
 const LATE_PRIORITY: int = 1000000
@@ -35,6 +35,7 @@ var _acc_frame: int = 0
 var _acc_ticks: int = 0
 var _frames: int = 0
 var _late_node: Node = null
+var _render_vp: SubViewport = null
 
 
 class LateHook:
@@ -64,7 +65,13 @@ func _ready() -> void:
 	_shapes = BlockShape.load_all_shapes()
 	Settings.set_graphics_preset(&"high")
 	_main = (load("res://game/Main.tscn") as PackedScene).instantiate()
-	get_tree().root.add_child.call_deferred(_main)
+	# Bontago-fca.1: with --render-size=WxH the game renders into a SubViewport of
+	# that size while the OS window stays tiny (AgentProbe).
+	var host: Node = get_tree().root
+	if AgentProbe.parse_render_size(args) != Vector2i.ZERO:
+		_render_vp = AgentProbe.make_render_viewport(self, Vector2i.ZERO)
+		host = _render_vp
+	host.add_child.call_deferred(_main)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_main.call(&"_start_sandbox_match_with_args", PackedStringArray(["sandbox", "players=2"]))
@@ -72,7 +79,7 @@ func _ready() -> void:
 		await get_tree().process_frame
 	_field = _main.get_node("Field") as Field
 	PerfProbe.enabled = true
-	RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), true)
+	RenderingServer.viewport_set_measure_render_time(_render_rid(), true)
 	get_tree().physics_frame.connect(_on_physics_frame)
 	get_tree().process_frame.connect(_on_process_frame)
 	_late_node = LateHook.new()
@@ -83,7 +90,7 @@ func _ready() -> void:
 	if weather != &"":
 		var ok: bool = Match.weather().set_debug_override(weather)
 		print("ATTRIB weather=%s ok=%s" % [weather, ok])
-	print("ATTRIB renderer=%s headless=%s" % [DisplayServer.get_name(), DisplayServer.get_name() == "headless"])
+	print("ATTRIB renderer=%s headless=%s window=%s render=%s" % [DisplayServer.get_name(), DisplayServer.get_name() == "headless", DisplayServer.window_get_size(), _render_vp.size if _render_vp != null else get_viewport().get_visible_rect().size])
 	for target: int in counts:
 		while _spawned < target:
 			_spawn_one()
@@ -288,6 +295,10 @@ func _hide_ui() -> Array[CanvasItem]:
 	return out
 
 
+func _render_rid() -> RID:
+	return (_render_vp if _render_vp != null else get_viewport()).get_viewport_rid()
+
+
 func _sample(label: String, target: int) -> void:
 	for i: int in range(WARMUP_FRAMES):
 		await get_tree().process_frame
@@ -298,7 +309,7 @@ func _sample(label: String, target: int) -> void:
 	_acc_frame = 0
 	_acc_ticks = 0
 	_frames = 0
-	var vp: RID = get_viewport().get_viewport_rid()
+	var vp: RID = _render_rid()
 	var gpu_sum: float = 0.0
 	var rcpu_sum: float = 0.0
 	var start: int = Time.get_ticks_usec()

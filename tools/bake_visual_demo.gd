@@ -375,13 +375,3 @@ func _wait_ticks(ticks: int) -> void:
 	for _i: int in range(ticks):
 		await get_tree().physics_frame
 
-
-## Tool runs must never take over the owner's desktop: no focus stealing, and
-## the sandbox's PlayerController mouse capture is undone every frame.
-func _enter_tree() -> void:
-	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_NO_FOCUS, true)
-
-
-func _process(_delta: float) -> void:
-	if Input.mouse_mode != Input.MOUSE_MODE_VISIBLE:
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE

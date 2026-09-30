@@ -325,7 +325,7 @@ func _toggle_panel() -> void:
 	visible = not visible
 	if _controller != null:
 		_controller.input_enabled = not visible
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if visible else Input.MOUSE_MODE_CAPTURED
+	AgentProbe.set_mouse_mode(Input.MOUSE_MODE_VISIBLE if visible else Input.MOUSE_MODE_CAPTURED)
 	if visible:
 		# Reflects anything another system changed the live resources to
 		# since this panel last opened (a match restart's fresh MatchConfig,

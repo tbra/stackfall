@@ -62,7 +62,7 @@ Use it for an independent review, a hard bug, or an isolated implementation pack
 - Godot 4.7.2 standard build. `godot` is on PATH via a shim in `C:\Users\tonyf\bin` (works in Git Bash and cmd/PowerShell). Full binary: `%LOCALAPPDATA%\Microsoft\WinGet\Packages\GodotEngine.GodotEngine_Microsoft.Winget.Source_8wekyb3d8bbwe\Godot_v4.7.2-stable_win64_console.exe`.
 - The repo root is this folder (`M:\Bontago`); `res://` is the repo root.
 - Test framework: **GUT 9.6.1** in `addons/gut/`, config in `.gutconfig.json`. Tests live in `tests/unit/`, benchmarks in `tests/bench/`.
-- A windowed run can save a screenshot for verification: `get_viewport().get_texture().get_image().save_png(...)` after a frame, with `--quit-after N`.
+- A windowed run can save a screenshot for verification: `get_viewport().get_texture().get_image().save_png(...)` after a frame, with `--quit-after N`. Agent-launched windowed runs must pass `--windowed --position 10000,10000 --resolution 320x180 --audio-driver Dummy -- --agent-probe` (+ `--render-size=WxH` for real render size); see docs/AGENT_WORKFLOW.md.
 
 ## Commands
 - Run the editor: `godot --editor --path .`

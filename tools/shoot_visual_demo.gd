@@ -217,13 +217,3 @@ func _string_arg(args: PackedStringArray, key: String, fallback: String) -> Stri
 			return arg.substr(prefix.length())
 	return fallback
 
-
-## Tool runs must never take over the owner's desktop: no focus stealing, and
-## the sandbox's PlayerController mouse capture is undone every frame.
-func _enter_tree() -> void:
-	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_NO_FOCUS, true)
-
-
-func _process(_delta: float) -> void:
-	if Input.mouse_mode != Input.MOUSE_MODE_VISIBLE:
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE

@@ -186,6 +186,7 @@ var _debug_setting: int = -1
 
 
 func _ready() -> void:
+	AgentProbe.apply()
 	_load()
 	_apply_key_overrides()
 
@@ -535,6 +536,8 @@ func apply_window_mode() -> void:
 
 func _can_apply_window_mode() -> bool:
 	if DisplayServer.get_name() == "headless":
+		return false
+	if AgentProbe.is_active():
 		return false
 	if Engine.is_editor_hint():
 		return false
