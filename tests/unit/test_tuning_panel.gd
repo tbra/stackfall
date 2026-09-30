@@ -832,6 +832,43 @@ func test_modified_marker_toggles_on_change_and_clears_on_reset() -> void:
 	assert_false(_panel.is_modified(_panel.physics_tuning, "gravity_multiplier"), "reset_all() must clear the modified marker.")
 
 
+# --- Bontago-sen.7: default label and highlight baseline == what Reset restores --
+
+func test_reset_restores_shipped_tres_and_default_label_and_highlight_agree() -> void:
+	var resources: Array[Resource] = [
+		_panel.camera_tuning, _panel.ghost_tuning, _panel.physics_tuning,
+		_panel.territory_tuning, _panel.territory_visuals, _panel.block_feed_config,
+		_panel.skybox_config, _panel.sky_theme,
+	]
+	var differing: int = 0
+	for resource: Resource in resources:
+		var shipped: Resource = ResourceLoader.load(resource.resource_path, "", ResourceLoader.CACHE_MODE_IGNORE)
+		var gd_default: Resource = (resource.get_script() as Script).new() as Resource
+		for prop_name: String in _panel.shown_fields_for(resource):
+			var type: int = typeof(resource.get(prop_name))
+			if type != TYPE_FLOAT and type != TYPE_INT:
+				continue
+			if is_equal_approx(float(shipped.get(prop_name)), float(gd_default.get(prop_name))):
+				continue
+			# A field whose .tres value differs from its .gd default.
+			differing += 1
+			resource.set(prop_name, float(shipped.get(prop_name)) + 1.0 if type == TYPE_FLOAT else int(shipped.get(prop_name)) + 1)
+			_panel.reset_all()
+			assert_true(is_equal_approx(float(resource.get(prop_name)), float(shipped.get(prop_name))), "%s.%s must return to the shipped .tres value." % [resource, prop_name])
+			assert_false(_panel.is_modified(resource, prop_name), "%s.%s must not be flagged modified after Reset." % [resource, prop_name])
+			var label: String = _panel.label_text_for(resource, prop_name)
+			assert_false(label.begins_with("•"), "%s must not carry the modified marker after Reset." % label)
+			assert_true(label.contains(_panel._format_default(shipped.get(prop_name), type)), "%s must show the shipped value as its default." % label)
+	gut.p("fields whose .tres differs from .gd default: %d" % differing)
+
+
+func test_no_row_is_modified_after_reset_all() -> void:
+	_panel.reset_all()
+	for resource: Resource in [_panel.camera_tuning, _panel.ghost_tuning, _panel.physics_tuning, _panel.territory_tuning, _panel.territory_visuals, _panel.block_feed_config]:
+		for prop_name: String in _panel.shown_fields_for(resource):
+			assert_false(_panel.is_modified(resource, prop_name), "%s.%s yellow after Reset." % [resource, prop_name])
+
+
 # --- Bontago-xtq.34: M7 config resource hints completeness ----------------------
 
 ## Test that every exported numeric/bool/Color property in the M7 config resources

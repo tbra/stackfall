@@ -537,18 +537,27 @@ func _build_resource_rows(resource: Resource) -> VBoxContainer:
 	return list
 
 
-## A fresh, un-tuned instance of `resource`'s own script (outcome 2: "the
-## default comes from a fresh instance of the resource's script
-## (resource.get_script().new()) ... never from the live instance"). Built
-## once per resource per rebuild() rather than once per field, since every
-## field on one resource shares the same script. Every tuning Resource this
-## panel reflects over is a plain Resource subclass with only @export fields
-## and no _init() side effects, so Script.new() is safe here and yields the
-## same defaults the .gd file declares -- verified by this package's
-## test_tuning_panel.gd "defaults" tests, which check CameraTuning.new()/
-## GhostTuning.new() directly against the same numbers.
+## The baseline a row's "(default X)" label and yellow modified-highlight
+## compare against (outcome 2, Bontago-sen.7). It is exactly what Reset
+## restores: the shipped .tres loaded fresh (CACHE_MODE_IGNORE, never the
+## cached live instance) when `resource` has a resource_path, so the label and
+## highlight can never disagree with _reset_resource(). Only a path-less
+## resource falls back to a fresh instance of its own script (.gd @export
+## defaults). Sky tab: the active theme is whichever resource is live, and its
+## own resource_path picks sunset/night, so the baseline follows the theme.
+## DECISION: Physics presets copy values onto the live physics_tuning but the
+## baseline stays the shipped physics_tuning.tres, so after picking a
+## non-default preset modified rows legitimately show yellow; Reset returns
+## to the file and clears them.
+## Built once per resource per rebuild() rather than once per field.
 func _fresh_instance_for(resource: Resource) -> Resource:
-	if resource == null or resource.get_script() == null:
+	if resource == null:
+		return null
+	if not resource.resource_path.is_empty():
+		var shipped: Resource = ResourceLoader.load(resource.resource_path, "", ResourceLoader.CACHE_MODE_IGNORE)
+		if shipped != null:
+			return shipped
+	if resource.get_script() == null:
 		return null
 	var script: Script = resource.get_script() as Script
 	return script.new() as Resource
