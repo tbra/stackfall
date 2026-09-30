@@ -471,6 +471,9 @@ func _update_tilt(delta: float) -> void:
 		if _tilt_rest_timer >= tilt_tuning.rest_hold_s:
 			_tilt_velocity = Vector2.ZERO
 			_tilt_at_rest = true
+			# Bontago-b0w: a sync_to_physics kinematic body keeps resting blocks
+			# awake even with no transform write; drop it while latched.
+			sync_to_physics = false
 	else:
 		_tilt_rest_timer = 0.0
 	# Orchestrator fix (Bontago-keo.11 bench, 2026-09-25): once the snap above
@@ -486,6 +489,10 @@ func _update_tilt(delta: float) -> void:
 func _wake_tilt() -> void:
 	_tilt_at_rest = false
 	_tilt_rest_timer = 0.0
+	# Re-arm before the first write after waking so the moving disc carries blocks.
+	# (set_tilt_enabled(false) clears _tilt_enabled first, so this stays off there.)
+	if _tilt_enabled:
+		sync_to_physics = true
 
 
 ## Sums settled blocks' mass * disk-local lever-arm into the same 2-axis
