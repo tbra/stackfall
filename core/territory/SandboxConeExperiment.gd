@@ -1,7 +1,7 @@
 class_name SandboxConeExperiment
 extends RefCounted
-## Sandbox-only alternative to the current influence rule. Optional base radius
-## and cap let the cone be compared with the current block-radius formula.
+## Cone-projected influence used by live matches and the sandbox A/B view.
+## Optional base radius and cap allow comparison with the earlier formula.
 ## A retained cone removes another only when it completely contains it.
 ## Homes are never culled, and input circles are never mutated.
 const BASE_NONE: int = 0

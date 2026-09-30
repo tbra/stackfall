@@ -56,6 +56,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
+	Match._sandbox_territory_profile_enabled = false
 	Match.abort_match()
 	Match.set_process(true)
 	MatchTestReset.clear_world()
@@ -125,7 +126,15 @@ func test_start_match_runs_lobby_to_playing_with_countdown_ticks() -> void:
 	var collect: Callable = func(seconds_left: int) -> void: ticks.append(seconds_left)
 	Events.countdown_tick.connect(collect)
 
+	Match.set_sandbox_territory_mode(
+		MatchAutoload.SANDBOX_TERRITORY_CONE, 75.0,
+		SandboxConeExperiment.HEIGHT_CENTER, SandboxConeExperiment.BASE_NONE
+	)
 	Match.start_match(_hotseat_config())
+	assert_eq(Match.sandbox_territory_mode(), MatchAutoload.DEFAULT_TERRITORY_MODE)
+	assert_almost_eq(Match._sandbox_cone_angle, MatchAutoload.DEFAULT_CONE_ANGLE_DEGREES, 0.001)
+	assert_eq(Match._sandbox_cone_height_source, SandboxConeExperiment.HEIGHT_TOP)
+	assert_eq(Match._sandbox_cone_base_mode, SandboxConeExperiment.BASE_ADDITIVE)
 	assert_eq(Match.state(), Match.State.COUNTDOWN)
 	assert_eq(ticks, [3] as Array[int])
 
@@ -960,6 +969,129 @@ func test_run_territory_step_takes_the_v2_branch_and_never_the_legacy_hole_path(
 	assert_true(Match.slot(1).home_flag_alive)
 	assert_signal_not_emitted(Events, "hole_cells_changed", "v2 must never open a legacy hole.")
 	assert_signal_not_emitted(Events, "player_eliminated")
+
+
+func test_slow_frame_coalesces_due_territory_solves_and_keeps_fractional_time() -> void:
+	var config: MatchConfig = _hotseat_config(2)
+	config.hole_mode = MatchConfig.HoleMode.OFF
+	Match.start_match(config)
+	_run_countdown()
+	Match._territory._solve_accum = 0.0
+	Match._sandbox_territory_profile_enabled = true
+	watch_signals(Events)
+
+	var step: float = 1.0 / Match._territory_tuning.solve_hz
+	Match._territory._tick_territory(step * 3.5)
+	assert_eq(int(Match._territory.sandbox_profile()["steps"]), 2)
+	assert_eq(get_signal_emit_count(Events, "territory_updated"), 2)
+	assert_almost_eq(Match._territory._solve_accum, step * 0.5, 0.001)
+	Match._territory._tick_territory(step * 0.51)
+	assert_eq(int(Match._territory.sandbox_profile()["steps"]), 1)
+	assert_eq(get_signal_emit_count(Events, "territory_updated"), 3)
+	assert_almost_eq(Match._territory._solve_accum, step * 0.01, 0.001)
+	Match._sandbox_territory_profile_enabled = false
+
+
+## Adds a tracked block that counts as awake (unsettled) to the registry.
+func _add_awake_block() -> BlockRegistry._Entry:
+	var block: Block = autofree(Block.new())
+	add_child_autofree(block)
+	var entry: BlockRegistry._Entry = BlockRegistry._Entry.new()
+	entry.block = block
+	entry.is_settled = false
+	_registry._entries[block.get_instance_id()] = entry
+	return entry
+
+
+func test_awake_block_defers_solves_until_cap_then_forces_one() -> void:
+	var config: MatchConfig = _hotseat_config(2)
+	config.hole_mode = MatchConfig.HoleMode.OFF
+	Match.start_match(config)
+	_run_countdown()
+	Match._territory._solve_accum = 0.0
+	Match._sandbox_territory_profile_enabled = true
+	var cap: float = Match._territory_tuning.solve_defer_max_s
+	var step: float = 1.0 / Match._territory_tuning.solve_hz
+	_add_awake_block()
+	watch_signals(Events)
+
+	Match._territory._tick_territory(step * 2.0)
+	assert_eq(get_signal_emit_count(Events, "territory_updated"), 0, "No solve while a block is awake.")
+	Match._territory._tick_territory(cap - step * 2.0 - 0.01)
+	assert_eq(get_signal_emit_count(Events, "territory_updated"), 0, "Still deferred just under the cap.")
+	Match._territory._tick_territory(0.02)
+	assert_gt(get_signal_emit_count(Events, "territory_updated"), 0, "The staleness cap forces a solve.")
+	Match._sandbox_territory_profile_enabled = false
+
+
+func test_solve_runs_promptly_once_awake_block_settles() -> void:
+	var config: MatchConfig = _hotseat_config(2)
+	config.hole_mode = MatchConfig.HoleMode.OFF
+	Match.start_match(config)
+	_run_countdown()
+	Match._territory._solve_accum = 0.0
+	var step: float = 1.0 / Match._territory_tuning.solve_hz
+	var entry: BlockRegistry._Entry = _add_awake_block()
+	watch_signals(Events)
+
+	Match._territory._tick_territory(step * 2.0)
+	assert_eq(get_signal_emit_count(Events, "territory_updated"), 0)
+	entry.is_settled = true
+	Match._territory._tick_territory(0.001)
+	assert_gt(get_signal_emit_count(Events, "territory_updated"), 0, "Settling releases the deferred solve.")
+
+
+func test_zero_defer_cap_disables_deferral() -> void:
+	var config: MatchConfig = _hotseat_config(2)
+	config.hole_mode = MatchConfig.HoleMode.OFF
+	Match.start_match(config)
+	_run_countdown()
+	Match._territory._solve_accum = 0.0
+	var saved: float = Match._territory_tuning.solve_defer_max_s
+	Match._territory_tuning.solve_defer_max_s = 0.0
+	_add_awake_block()
+	watch_signals(Events)
+	Match._territory._tick_territory(1.0 / Match._territory_tuning.solve_hz * 1.01)
+	Match._territory_tuning.solve_defer_max_s = saved
+	assert_gt(get_signal_emit_count(Events, "territory_updated"), 0)
+
+
+func test_catchup_legacy_time_still_opens_contested_home_holes() -> void:
+	var config: MatchConfig = _hotseat_config(2)
+	config.hole_mode = MatchConfig.HoleMode.TEMPORARY
+	Match.start_match(config)
+	_run_countdown()
+	Match._territory._solve_accum = 0.0
+	Match.slot(1).home_position = Match.slot(0).home_position + Vector2(2.0, 0.0)
+	watch_signals(Events)
+
+	var step: float = 1.0 / Match._territory_tuning.solve_hz
+	Match._territory._tick_territory(Match._territory_tuning.hole_delay + step)
+
+	assert_false(Match.slot(0).home_flag_alive)
+	assert_false(Match.slot(1).home_flag_alive)
+	assert_signal_emitted(Events, "hole_cells_changed")
+	assert_eq(Match.state(), Match.State.END)
+	assert_eq(Match._territory._circle_xs.size(), 0, "The final solve must remove eliminated home circles.")
+	assert_eq(Match._field.overlay().circle_count(), 0, "The final overlay must not retain dead homes.")
+	assert_almost_eq(Match._territory._raster.team_share(0), 0.0, 0.001)
+	assert_almost_eq(Match._territory._raster.team_share(1), 0.0, 0.001)
+
+
+func test_long_legacy_catchup_closes_hole_after_home_elimination() -> void:
+	var config: MatchConfig = _hotseat_config(2)
+	config.hole_mode = MatchConfig.HoleMode.TEMPORARY
+	Match.start_match(config)
+	_run_countdown()
+	Match._territory._solve_accum = 0.0
+	var home_cell: Vector2i = Match.cell_grid().world_to_cell(Match.slot(0).home_position)
+	Match.slot(1).home_position = Match.slot(0).home_position + Vector2(2.0, 0.0)
+
+	var step: float = 1.0 / Match._territory_tuning.solve_hz
+	Match._territory._tick_territory(Match._territory_tuning.hole_delay + Match._territory_tuning.hole_close_delay + step * 4.0)
+
+	assert_false(Match.slot(0).home_flag_alive)
+	assert_false(Match._territory._raster.is_hole(home_cell.x, home_cell.y), "Remaining catch-up ticks must close an uncontested temporary hole.")
 
 
 ## Legacy-mode regression (docs/TERRITORY_V2_PLAN.md package B): the pre-v2

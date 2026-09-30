@@ -4,6 +4,8 @@ func test_cone_panel_measures_without_replacing_live_territory() -> void:
 	_start_sandbox(2)
 	_run_countdown()
 	var sandbox: Sandbox = _main._sandbox
+	assert_eq(Match.sandbox_territory_mode(), MatchAutoload.DEFAULT_TERRITORY_MODE)
+	assert_eq(sandbox._cone_panel._live_mode.get_selected_id(), MatchAutoload.DEFAULT_TERRITORY_MODE)
 	var live_raster: TerritoryRaster = Match.raster()
 	assert_true(Match._territory_cache_enabled, "sandbox defaults to cached unchanged territory")
 	sandbox._cone_panel._process(0.25)
@@ -36,7 +38,7 @@ func test_cone_panel_measures_without_replacing_live_territory() -> void:
 	sandbox._cone_panel._live_mode.select(MatchAutoload.SANDBOX_TERRITORY_CONE)
 	sandbox._cone_panel._on_live_mode_selected(MatchAutoload.SANDBOX_TERRITORY_CONE)
 	assert_eq(Match.sandbox_territory_mode(), MatchAutoload.SANDBOX_TERRITORY_CONE)
-	assert_true(sandbox._cone_panel._live_badge.visible)
+	assert_false(sandbox._cone_panel._live_badge.visible)
 	sandbox._cone_panel._live_mode.select(MatchAutoload.SANDBOX_TERRITORY_PAUSED)
 	sandbox._cone_panel._on_live_mode_selected(MatchAutoload.SANDBOX_TERRITORY_PAUSED)
 	assert_true(Match.sandbox_territory_paused())
@@ -47,7 +49,7 @@ func test_cone_panel_measures_without_replacing_live_territory() -> void:
 	sandbox._cone_panel._live_mode.select(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
 	sandbox._cone_panel._on_live_mode_selected(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
 	assert_false(Match.sandbox_territory_paused())
-	assert_false(sandbox._cone_panel._live_badge.visible)
+	assert_true(sandbox._cone_panel._live_badge.visible)
 	Match._process(0.1)
 	assert_not_null(Match._territory._last_groups, "unpausing resumes normal solves")
 	sandbox._cone_panel.set_open(false)
@@ -55,8 +57,8 @@ func test_cone_panel_measures_without_replacing_live_territory() -> void:
 	sandbox._cone_panel._live_mode.select(MatchAutoload.SANDBOX_TERRITORY_CONE)
 	sandbox._cone_panel._on_live_mode_selected(MatchAutoload.SANDBOX_TERRITORY_CONE)
 	sandbox._reset_field()
-	assert_eq(Match.sandbox_territory_mode(), MatchAutoload.SANDBOX_TERRITORY_CURRENT, "field reset must restore normal territory")
-	assert_eq(sandbox._cone_panel._live_mode.get_selected_id(), MatchAutoload.SANDBOX_TERRITORY_CURRENT)
+	assert_eq(Match.sandbox_territory_mode(), MatchAutoload.DEFAULT_TERRITORY_MODE, "field reset must restore normal territory")
+	assert_eq(sandbox._cone_panel._live_mode.get_selected_id(), MatchAutoload.DEFAULT_TERRITORY_MODE)
 	assert_false(sandbox._cone_panel._live_badge.visible)
 
 

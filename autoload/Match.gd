@@ -78,13 +78,15 @@ var _replicator: Variant = null
 var _field: Field = null
 var _registry: BlockRegistry = null
 var _blocks_parent: Node3D = null
-## Diagnostic switch owned by Sandbox. It freezes periodic territory work,
-## or selects the experimental cone projection. Reset at every match start.
+## Sandbox may override the live method or pause it for diagnostics. New
+## matches use the owner-approved top-height cone projection by default.
 const SANDBOX_TERRITORY_CURRENT: int = 0
 const SANDBOX_TERRITORY_CONE: int = 1
 const SANDBOX_TERRITORY_PAUSED: int = 2
-var _sandbox_territory_mode: int = SANDBOX_TERRITORY_CURRENT
-var _sandbox_cone_angle: float = 45.0
+const DEFAULT_TERRITORY_MODE: int = SANDBOX_TERRITORY_CONE
+const DEFAULT_CONE_ANGLE_DEGREES: float = 45.0
+var _sandbox_territory_mode: int = DEFAULT_TERRITORY_MODE
+var _sandbox_cone_angle: float = DEFAULT_CONE_ANGLE_DEGREES
 var _sandbox_cone_height_source: int = SandboxConeExperiment.HEIGHT_TOP
 var _sandbox_cone_base_mode: int = SandboxConeExperiment.BASE_ADDITIVE
 var _sandbox_territory_profile_enabled: bool = false
@@ -374,7 +376,10 @@ func start_match(match_config: MatchConfig) -> void:
 	if previous_cat != null:
 		end_cat(previous_cat.activation_id)
 	_cat_serial = 0
-	_sandbox_territory_mode = SANDBOX_TERRITORY_CURRENT
+	_sandbox_territory_mode = DEFAULT_TERRITORY_MODE
+	_sandbox_cone_angle = DEFAULT_CONE_ANGLE_DEGREES
+	_sandbox_cone_height_source = SandboxConeExperiment.HEIGHT_TOP
+	_sandbox_cone_base_mode = SandboxConeExperiment.BASE_ADDITIVE
 	_territory_cache_enabled = true
 	_lifecycle.start_match(match_config)
 
@@ -603,11 +608,11 @@ func set_feed_timer_enabled(enabled: bool) -> void:
 	_feed.set_feed_timer_enabled(enabled)
 
 
-## Sandbox-only A/B switch. It changes the actual host territory step only
-## while the Sandbox scene opts in. Normal matches start in CURRENT mode.
+## Sandbox A/B switch over the live host territory method. Normal matches
+## start in DEFAULT_TERRITORY_MODE; the sandbox can still select either model.
 func set_sandbox_territory_mode(
 	mode: int,
-	angle_degrees: float = 45.0,
+	angle_degrees: float = DEFAULT_CONE_ANGLE_DEGREES,
 	height_source: int = SandboxConeExperiment.HEIGHT_TOP,
 	base_mode: int = SandboxConeExperiment.BASE_ADDITIVE
 ) -> void:
@@ -625,7 +630,7 @@ func sandbox_territory_mode() -> int:
 
 ## Compatibility with the earlier sandbox pause control.
 func set_sandbox_territory_paused(paused: bool) -> void:
-	set_sandbox_territory_mode(SANDBOX_TERRITORY_PAUSED if paused else SANDBOX_TERRITORY_CURRENT)
+	set_sandbox_territory_mode(SANDBOX_TERRITORY_PAUSED if paused else DEFAULT_TERRITORY_MODE)
 
 
 func sandbox_territory_paused() -> bool:

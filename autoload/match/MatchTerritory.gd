@@ -131,13 +131,66 @@ func _tick_territory(delta: float) -> void:
 		_sandbox_tick_steps = 0
 	_solve_accum += delta
 	var step: float = 1.0 / maxf(_match._territory_tuning.solve_hz, 0.001)
-	while _solve_accum >= step:
-		_solve_accum -= step
-		if profile_enabled:
-			_sandbox_tick_steps += 1
-		_run_territory_step(step)
+	var due_steps: int = int(floorf(_solve_accum / step))
+	# Bontago-na5: awake blocks contribute no influence and keep flipping the
+	# source signature, so re-solving every 50 ms while a pile tumbles is wasted
+	# work. Hold the solve until everything settles, but never longer than
+	# solve_defer_max_s (the accumulator is exactly the time since the last
+	# solve), so claims, gift sweeps and captures stay bounded-latency.
+	if due_steps > 0 and _should_defer_solve():
+		due_steps = 0
+	if due_steps > 0:
+		var due_time: float = float(due_steps) * step
+		_solve_accum = maxf(_solve_accum - due_time, 0.0)
+		# Legacy holes can open, eliminate a home, then close again within a
+		# catch-up window. Preserve each timer transition in those modes.
+		if _match.config.hole_mode != MatchConfig.HoleMode.OFF:
+			for i: int in range(due_steps):
+				_run_territory_step(step)
+				if profile_enabled:
+					_sandbox_tick_steps += 1
+		else:
+			# V2 ownership is independent of elapsed time. An elimination can
+			# happen on the first solve, so resolve that step before coalescing
+			# the remaining identical body snapshot and advancing capture time.
+			var alive_before: int = _alive_home_count()
+			_run_territory_step(step)
+			if profile_enabled:
+				_sandbox_tick_steps += 1
+			var remaining: int = due_steps - 1
+			if remaining > 0:
+				alive_before = _alive_home_count()
+				_run_territory_step(float(remaining) * step)
+				if profile_enabled:
+					_sandbox_tick_steps += 1
+			# A source-list change on the last solve needs a zero-time redraw,
+			# even if the match entered END and will never tick again.
+			var alive_after: int = _alive_home_count()
+			while alive_after < alive_before:
+				alive_before = alive_after
+				_run_territory_step(0.0)
+				if profile_enabled:
+					_sandbox_tick_steps += 1
+				alive_after = _alive_home_count()
 	if profile_enabled:
 		_sandbox_tick_ms = float(Time.get_ticks_usec() - tick_start) / 1000.0
+
+
+## True while the solve may wait: deferral enabled, the staleness cap not yet
+## reached, and at least one tracked block is still awake (unsettled).
+func _should_defer_solve() -> bool:
+	var cap: float = _match._territory_tuning.solve_defer_max_s
+	if cap <= 0.0 or _solve_accum >= cap or _match._registry == null:
+		return false
+	return not _match._registry.all_settled()
+
+
+func _alive_home_count() -> int:
+	var count: int = 0
+	for slot_item: PlayerSlot in _match._lifecycle._slots:
+		if slot_item.home_flag_alive:
+			count += 1
+	return count
 
 
 func _run_territory_step(delta: float) -> void:

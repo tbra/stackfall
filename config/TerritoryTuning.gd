@@ -57,6 +57,12 @@ extends Resource
 ## ownership.
 @export var solve_hz: float = 20.0
 @export var raster_upload_hz: float = 5.0
+## Bontago-na5: while any block is still awake (not yet settled) the host
+## skips scheduled territory solves, then solves at once when all have settled.
+## This is the maximum staleness in seconds before a solve is forced anyway, so
+## claims, gift sweeps and captures are never delayed longer than this. 0 turns
+## deferral off (solve every 1/solve_hz).
+@export var solve_defer_max_s: float = 0.5
 
 ## -- Solver spatial hash (spec 3.3) -----------------------------------------
 ## DECISION: spec 3.3 says "cell size = influence_max". influence_max is

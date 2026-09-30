@@ -54,7 +54,7 @@ func _ready() -> void:
 	title.text = "SANDBOX TERRITORY — EXPERIMENTS"
 	list.add_child(title)
 	_explanation = Label.new()
-	_explanation.text = "Static snapshot only. Match capture, holes, placement and physics remain unchanged."
+	_explanation.text = "The side-by-side comparison is a static snapshot. The Live selector below changes sandbox territory, including capture and placement."
 	_explanation.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	list.add_child(_explanation)
 	var mode_row: HBoxContainer = HBoxContainer.new()
@@ -118,7 +118,7 @@ func _ready() -> void:
 	_live_mode.add_item("Live: current", MatchAutoload.SANDBOX_TERRITORY_CURRENT)
 	_live_mode.add_item("Live: cones", MatchAutoload.SANDBOX_TERRITORY_CONE)
 	_live_mode.add_item("Live: paused", MatchAutoload.SANDBOX_TERRITORY_PAUSED)
-	_live_mode.tooltip_text = "Current uses today's territory rule; Cones runs the selected cone settings live; Paused freezes territory CPU updates while physics continues. Sandbox only."
+	_live_mode.tooltip_text = "Cones is the normal-match default; Current restores the earlier per-block radius model for comparison. Paused freezes territory CPU updates while physics continues. Sandbox only."
 	_live_mode.item_selected.connect(_on_live_mode_selected)
 	controls.add_child(_live_mode)
 	_freeze_blocks = CheckBox.new()
@@ -236,8 +236,8 @@ func _emit_live_mode() -> void:
 
 func _update_live_badge() -> void:
 	var mode: int = _live_mode.get_selected_id()
-	_live_badge.visible = mode != MatchAutoload.SANDBOX_TERRITORY_CURRENT
-	_live_badge.text = ("LIVE CONE TERRITORY — F2 to switch" if mode == MatchAutoload.SANDBOX_TERRITORY_CONE
+	_live_badge.visible = mode != MatchAutoload.DEFAULT_TERRITORY_MODE
+	_live_badge.text = ("LIVE EARLIER CIRCLE RADII — F2 to switch" if mode == MatchAutoload.SANDBOX_TERRITORY_CURRENT
 		else "TERRITORY SOLVE PAUSED — F2 to resume")
 
 

@@ -100,6 +100,7 @@ func _ready() -> void:
 	_comparison_panel.cone_requested.connect(_open_cone_comparison)
 	_cone_panel = SandboxConePanel.new()
 	add_child(_cone_panel)
+	_cone_panel.set_live_territory_mode(Match.sandbox_territory_mode())
 	_cone_panel.measure_requested.connect(_measure_cone_comparison)
 	_cone_panel.open_changed.connect(_comparison_controls_changed)
 	_cone_panel.live_territory_mode_changed.connect(_set_live_territory_mode)
@@ -124,7 +125,7 @@ func _exit_tree() -> void:
 	_set_block_physics_frozen(false)
 	Match._sandbox_territory_profile_enabled = false
 	Match._territory_cache_enabled = true
-	Match.set_sandbox_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
+	Match.set_sandbox_territory_mode(MatchAutoload.DEFAULT_TERRITORY_MODE)
 	if _cone_panel != null and _cone_panel.opened:
 		_cone_panel.set_open(false)
 	clear_physics_comparison()
@@ -344,9 +345,9 @@ func _reset_field() -> void:
 	if _cone_panel != null:
 		_cone_panel.set_blocks_frozen(false)
 		_cone_panel.set_cache_enabled(true)
-	Match.set_sandbox_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
+	Match.set_sandbox_territory_mode(MatchAutoload.DEFAULT_TERRITORY_MODE)
 	if _cone_panel != null:
-		_cone_panel.set_live_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
+		_cone_panel.set_live_territory_mode(MatchAutoload.DEFAULT_TERRITORY_MODE)
 	if _cone_panel != null and _cone_panel.opened:
 		_cone_panel.set_open(false)
 	clear_physics_comparison()
