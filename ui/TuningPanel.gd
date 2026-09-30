@@ -257,13 +257,16 @@ var _rebuilding_tabs: bool = false
 func _ready() -> void:
 	visible = false
 	net_provider = Net
-	_build_ui()
+	# DECISION (Bontago-1pi.11.5): the ~2900-node tab UI is no longer built
+	# here. rebuild() builds it on first open (or on an explicit call, which
+	# tests use) and _free_ui() frees it again on close, so a hidden panel
+	# costs no nodes. Saved overrides apply via the static
+	# apply_saved_overrides() at boot and never needed this UI.
 	# Bontago-adt: the Sky tab's sliders edit whichever theme is active.
 	var boot_theme: SkyThemeDef = Skybox.load_theme(skybox_config.theme_name)
 	if boot_theme != null:
 		sky_theme = boot_theme
 	_selected_tab_index = _load_selected_tab_index()
-	rebuild()
 
 
 # --- Wiring (game/Main.gd / HotSeat.gd / Sandbox.gd) -------------------------
@@ -278,7 +281,7 @@ func set_controller(controller: PlayerController) -> void:
 	if controller != null:
 		ghost_tuning = controller.ghost_tuning
 		physics_tuning = controller.tuning
-	rebuild()
+	_rebuild_if_built()
 
 
 ## Called once by game/Main.gd (through HotSeat.gd/Sandbox.gd's own
@@ -288,7 +291,7 @@ func set_camera_rig(rig: CameraRig) -> void:
 	_camera_rig = rig
 	if rig != null:
 		camera_tuning = rig.tuning
-	rebuild()
+	_rebuild_if_built()
 
 
 ## Called once by game/Main.gd/Sandbox.gd with the shared Field, for the
@@ -298,7 +301,7 @@ func set_field(field: Field) -> void:
 	if field != null:
 		territory_tuning = field.territory_tuning
 		territory_visuals = field.visuals
-	rebuild()
+	_rebuild_if_built()
 
 
 # --- Toggle (F4 / gamepad Start+X) -------------------------------------------
@@ -323,6 +326,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _toggle_panel() -> void:
 	visible = not visible
+	if not visible:
+		_free_ui()
 	if _controller != null:
 		_controller.input_enabled = not visible
 	AgentProbe.set_mouse_mode(Input.MOUSE_MODE_VISIBLE if visible else Input.MOUSE_MODE_CAPTURED)
@@ -428,12 +433,34 @@ func _build_ui() -> void:
 	button_row.add_child(_status_label)
 
 
+## Wiring setters only refresh a UI that currently exists (panel open); a
+## closed panel reads the new resources when next built.
+func _rebuild_if_built() -> void:
+	if _tab_container != null:
+		rebuild()
+
+
+## Frees the whole tab UI (Bontago-1pi.11.5). _rows is cleared with it so no
+## stale control references survive; the selected tab index is already
+## persisted by _on_tab_changed().
+func _free_ui() -> void:
+	if _tab_container == null:
+		return
+	var panel: Node = get_node_or_null("Panel")
+	if panel != null:
+		remove_child(panel)
+		panel.queue_free()
+	_tab_container = null
+	_status_label = null
+	_rows.clear()
+
+
 ## Public so a test can force a rebuild after swapping camera_tuning/etc.
 ## directly (rather than through set_controller()/set_camera_rig()/
 ## set_field()).
 func rebuild() -> void:
 	if _tab_container == null:
-		return
+		_build_ui()
 	_rebuilding_tabs = true
 	for child: Node in _tab_container.get_children():
 		_tab_container.remove_child(child)
