@@ -778,3 +778,68 @@ func test_a_punched_hole_inside_a_single_teams_circle_still_closes_after_hole_op
 	assert_eq(announcements, 1, "Announced in holes_closed() exactly once.")
 	assert_eq(_raster.team_at(cell.x, cell.y), 0,
 		"Once closed, the cell reads as team 0's again -- the circle never left.")
+
+
+## Bontago-1pi.11.23: cached owner/state bytes equal a forced rebuild after
+## any mutation, and content_revision() moves exactly when bytes can change.
+func _assert_cache_matches_fresh() -> void:
+	var cached_owner: PackedByteArray = _raster.owner_bytes().duplicate()
+	var cached_state: PackedByteArray = _raster.state_bytes().duplicate()
+	_raster._bytes_cache_enabled = false
+	var fresh_owner: PackedByteArray = _raster.owner_bytes().duplicate()
+	var fresh_state: PackedByteArray = _raster.state_bytes().duplicate()
+	_raster._bytes_cache_enabled = true
+	assert_eq(cached_owner, fresh_owner, "owner_bytes cache == recompute")
+	assert_eq(cached_state, fresh_state, "state_bytes cache == recompute")
+
+
+func test_byte_cache_matches_recompute_over_random_sequences() -> void:
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 11023
+	for permanent: bool in [false, true]:
+		for holes_enabled: bool in [true, false]:
+			_raster = TerritoryRaster.new(_grid, _tuning)
+			for step_index: int in range(60):
+				var kind: int = rng.randi_range(0, 4)
+				var before: int = _raster.content_revision()
+				if kind == 0:
+					var circles: Array[InfluenceCircle] = [
+						_home(rng.randf_range(-6.0, 6.0), rng.randf_range(-6.0, 6.0), 0),
+						_home(rng.randf_range(-6.0, 6.0), rng.randf_range(-6.0, 6.0), 1),
+					]
+					var groups: TerritoryGroups = TerritoryGroups.new()
+					groups.add_group(0, PackedInt32Array([0]))
+					groups.add_group(1, PackedInt32Array([1]))
+					_raster.update(circles, groups, 0.25, holes_enabled, permanent)
+					assert_ne(_raster.content_revision(), before)
+				elif kind == 1:
+					_raster.advance_time(0.25, permanent)
+				elif kind == 2:
+					_raster.force_hole_cell(rng.randi_range(8, 30), rng.randi_range(8, 30), 1.0, permanent)
+				elif kind == 3:
+					var owners: PackedByteArray = _raster.owner_bytes().duplicate()
+					var states: PackedByteArray = _raster.state_bytes().duplicate()
+					owners[rng.randi_range(0, owners.size() - 1)] = rng.randi_range(0, 2)
+					_raster.apply_replicated_state(owners, states)
+				else:
+					var cell: int = _grid.cell_index(rng.randi_range(8, 30), rng.randi_range(8, 30))
+					_raster.apply_replicated_diff(
+						PackedInt32Array([cell]),
+						PackedByteArray([rng.randi_range(0, 2)]),
+						PackedByteArray([rng.randi_range(0, 3)])
+					)
+				_assert_cache_matches_fresh()
+
+
+func test_content_revision_is_stable_without_mutation() -> void:
+	var revision: int = _raster.content_revision()
+	_raster.owner_bytes()
+	_raster.state_bytes()
+	_raster.advance_time(0.5, TEMPORARY)
+	assert_eq(_raster.content_revision(), revision, "Idle timers do not bump the revision.")
+	_raster.set_goal_zones(PackedVector2Array([Vector2.ZERO]), 2.0)
+	assert_gt(_raster.content_revision(), revision)
+	_assert_cache_matches_fresh()
+	var after_goal: int = _raster.content_revision()
+	_raster.reset()
+	assert_gt(_raster.content_revision(), after_goal)

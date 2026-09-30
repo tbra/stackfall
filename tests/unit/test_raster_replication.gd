@@ -347,3 +347,47 @@ func test_mirror_still_receives_updates_after_host_clean_ticks_skip() -> void:
 		picked_states.append(states[index])
 	mirror.apply_replicated_diff(changed, picked_owners, picked_states)
 	_assert_mirrors(host, mirror)
+
+
+## Bontago-1pi.11.23: replicate_territory() returns before any rpc when the
+## bytes equal the last keyframe/diff sent (a real send would need a live peer).
+class FakeSession extends RefCounted:
+	func is_host() -> bool:
+		return true
+
+	func is_offline() -> bool:
+		return false
+
+
+class FakeAuthority extends RefCounted:
+	var raster_ref: TerritoryRaster = null
+
+	func raster() -> TerritoryRaster:
+		return raster_ref
+
+	func set_replicator(_net: Variant) -> void:
+		pass
+
+
+class SendableMatchNet extends "res://net/MatchNet.gd":
+	func _can_send() -> bool:
+		return true
+
+
+func test_replicate_territory_sends_nothing_when_bytes_unchanged() -> void:
+	var host: TerritoryRaster = _solved_host_raster()
+	var authority: FakeAuthority = FakeAuthority.new()
+	authority.raster_ref = host
+	var net: SendableMatchNet = SendableMatchNet.new()
+	net.set_process(false)
+	add_child_autofree(net)
+	net.set_providers(FakeSession.new(), authority)
+	net._force_full_raster = false
+	net._last_owner_bytes = host.owner_bytes().duplicate()
+	net._last_state_bytes = host.state_bytes().duplicate()
+
+	net.replicate_territory()
+	net.replicate_territory()
+
+	assert_eq(net._last_owner_bytes, host.owner_bytes(), "Unchanged bytes: nothing sent, memo intact.")
+	assert_false(net._force_full_raster)

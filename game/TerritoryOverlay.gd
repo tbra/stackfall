@@ -125,6 +125,8 @@ var _texture: ImageTexture = null
 var _cell_texture: ImageTexture = null
 var _state_texture: ImageTexture = null
 var _raster: TerritoryRaster = null
+## Bontago-1pi.11.23: raster revision last pushed to the textures; -1 = none.
+var _pushed_revision: int = -1
 var _cells_per_side: int = 0
 var _last_image: Image = null
 var _owner_cell_image: Image = null
@@ -174,6 +176,7 @@ func _process(delta: float) -> void:
 ## Builds the disk mesh and its material. Called by Field before the node
 ## enters the tree.
 func configure(map_def: MapDef, visuals: TerritoryVisuals, tuning: TerritoryTuning) -> void:
+	_pushed_revision = -1
 	_map_def = map_def
 	_visuals = visuals
 	_tuning = tuning
@@ -259,6 +262,7 @@ func cells_per_side() -> int:
 ## itself never touches (Bontago-cmc.5).
 func set_source(raster: TerritoryRaster, slot_colors: PackedColorArray) -> void:
 	_raster = raster
+	_pushed_revision = -1
 	var raster_grid: CellGrid = raster.grid() if raster != null else null
 	if raster_grid != null:
 		_cells_per_side = raster_grid.res
@@ -287,7 +291,11 @@ func set_slot_colors(slot_colors: PackedColorArray) -> void:
 func upload_now() -> void:
 	if _raster == null:
 		return
+	var revision: int = _raster.content_revision()
+	if revision == _pushed_revision:
+		return
 	push_cells(_raster.owner_bytes(), _raster.state_bytes(), _cells_per_side)
+	_pushed_revision = revision
 
 
 ## The low-level entry: one byte of owner and one of state per cell, row-major,
@@ -296,6 +304,7 @@ func upload_now() -> void:
 func push_cells(
 	owner_bytes: PackedByteArray, state_bytes: PackedByteArray, side: int
 ) -> void:
+	_pushed_revision = -1
 	if _material == null or side <= 0:
 		return
 	var cell_total: int = side * side

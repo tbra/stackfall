@@ -613,8 +613,19 @@ func replicate_territory() -> void:
 	var raster: TerritoryRaster = _authority().raster()
 	if raster == null:
 		return
-	var owners: PackedByteArray = raster.owner_bytes().duplicate()
-	var states: PackedByteArray = raster.state_bytes().duplicate()
+	var raw_owners: PackedByteArray = raster.owner_bytes()
+	var raw_states: PackedByteArray = raster.state_bytes()
+	# Bontago-1pi.11.23: unchanged bytes are exactly the changed.size() == 0
+	# return below, reached without the per-cell loop or the copies.
+	if (
+		not _force_full_raster
+		and raw_owners.size() == _last_owner_bytes.size()
+		and raw_owners == _last_owner_bytes
+		and raw_states == _last_state_bytes
+	):
+		return
+	var owners: PackedByteArray = raw_owners.duplicate()
+	var states: PackedByteArray = raw_states.duplicate()
 	var count: int = owners.size()
 	if count == 0:
 		return
