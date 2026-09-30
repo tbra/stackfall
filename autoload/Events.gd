@@ -164,6 +164,11 @@ signal glue_charges_changed(slot_id: int, charges: int, revision: int)
 ## valid, new owner change by net ID; terrain ownership uses the registry.
 signal block_owner_changed(net_id: int, owner_slot: int)
 
+## Cat is a separate transient body, never a registered Block. Host events
+## carry activation and expiry; snapshots carry its moving pose.
+signal cat_started(id: int, slot_id: int, position: Vector3, duration: float)
+signal cat_ended(id: int)
+
 # --- M3a: session and transport (spec 3.4) ----------------------------------
 
 ## Net changed between OFFLINE, HOST and CLIENT. `mode` is a Net.Mode value.

@@ -57,6 +57,14 @@ the environment supports `user://` writes. Physics benchmarks run alone.
    range and body-cap behavior as tunables. Own a Cat effect/controller, pointer
    input and preview, and network state; test authority, input ownership,
    collision, reset and late join before a visual/gamepad pass.
+   The shipped version gives each match one cat; another Cat activation
+   replaces it. A 15 s chase uses a 9 m/s physical body with a 0.8 m radius
+   and a laser target limited to 25 m from activation. The activating player's
+   existing mouse/gamepad placement cursor controls the red laser dot even
+   after the gift piece leaves the feed. The host validates the controlling
+   peer and simulates contact; clients render host poses without collisions.
+   Mid-match joins are currently refused by the shared session gate; the
+   separate late-join package must replay the active cat when enabled.
 
 ## Weather
 

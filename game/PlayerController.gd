@@ -339,6 +339,7 @@ func _process(delta: float) -> void:
 	_update_ghost_tint()
 	_handle_hover_adjust(delta)
 	_publish_cursor()
+	_publish_cat_target()
 	if _camera_rig != null and _ghost != null:
 		_camera_rig.block_held = _ghost.get_shape() != null
 		# Bontago-mv0.28 (owner test 2026-09-22): follow the rotated shape's own
@@ -431,6 +432,22 @@ func _publish_cursor() -> void:
 	membrane.submit_cursor(
 		_acting_slot(), _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion
 	)
+
+
+func _publish_cat_target() -> void:
+	var cat: CatController = _session_cat()
+	if cat == null or cat.owner_slot != _acting_slot():
+		return
+	var membrane: Variant = _intent_target()
+	if membrane != null:
+		# The placement cursor is controlled by mouse and gamepad even while
+		# the gift has moved on to the next feed. The cat input is independent
+		# of whether a ghost is currently held.
+		membrane.submit_cat_target(_acting_slot(), _cursor)
+
+
+func _session_cat() -> CatController:
+	return Match.active_cat()
 
 
 func _unhandled_input(event: InputEvent) -> void:

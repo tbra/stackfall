@@ -1383,6 +1383,42 @@ func test_paintball_owner_event_mirrors_only_valid_known_block() -> void:
 	assert_eq(get_signal_emit_count(Events, "block_owner_changed"), 1)
 
 
+func test_cat_target_accepts_only_activating_slot_peer() -> void:
+	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
+	_start_playing()
+	var effect: CatEffect = CatEffect.new()
+	assert_true(Match.start_cat(0, _field.world_from_disk_local(Match.slot(0).home_position, 1.0), effect))
+	var cat: CatController = Match.active_cat()
+	var original: Vector3 = cat.target
+	net._handle_cat_target(2, 0, original + Vector3.RIGHT * 4.0)
+	net._handle_cat_target(1, 1, original + Vector3.RIGHT * 4.0)
+	assert_eq(cat.target, original, "a different slot or peer cannot steer the cat")
+	net._handle_cat_target(1, 0, Vector3.INF)
+	assert_eq(cat.target, original, "non-finite input is refused")
+	net._handle_cat_target(1, 0, original + Vector3.RIGHT * 4.0)
+	assert_ne(cat.target, original)
+
+
+func test_cat_mirror_validates_lifecycle_and_pose() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	var net: MatchNetScript = _make_net({}, [1], true)
+	for payload: Array in [[1], ["1", 0, Vector3.ZERO, 5.0], [1, 99, Vector3.ZERO, 5.0],
+		[1, 0, Vector3.INF, 5.0], [1, 0, Vector3.ZERO, -1.0]]:
+		net.net_match_event(MatchNetScript.EVENT_CAT_STARTED, payload)
+	assert_null(Match.active_cat())
+	var point: Vector3 = _field.world_from_disk_local(Vector2.ZERO, 1.0)
+	net.net_match_event(MatchNetScript.EVENT_CAT_STARTED, [1, 0, point, 5.0])
+	assert_not_null(Match.active_cat())
+	assert_true(Match.active_cat().freeze)
+	net.net_cat_state(1, point + Vector3.RIGHT, Vector3.RIGHT, point, 4.0)
+	assert_eq(Match.active_cat().global_position, point + Vector3.RIGHT)
+	net.net_match_event(MatchNetScript.EVENT_CAT_ENDED, [2])
+	assert_not_null(Match.active_cat())
+	net.net_match_event(MatchNetScript.EVENT_CAT_ENDED, [1])
+	assert_null(Match.active_cat())
+
+
 func test_glue_charge_mirror_accepts_only_new_valid_absolute_updates() -> void:
 	Match.set_net_provider(FakeNet.host({}, [0, 1]))
 	_start_playing()

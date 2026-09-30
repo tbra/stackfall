@@ -109,6 +109,8 @@ var _stats: MatchStats = null
 
 ## Bontago-22y.10: host-scheduled weather events. See autoload/match/MatchWeather.gd.
 var _weather: MatchWeather = null
+var _cat: CatController = null
+var _cat_serial: int = 0
 
 
 func _ready() -> void:
@@ -128,6 +130,81 @@ func _ready() -> void:
 	_weather.setup(self)
 	Events.feed_block_issued.connect(_on_feed_block_issued)
 	Events.special_triggered.connect(_on_paintball_triggered)
+	Events.match_state_changed.connect(_on_cat_match_state_changed)
+
+
+func active_cat() -> CatController:
+	return _cat if is_instance_valid(_cat) else null
+
+
+func start_cat(owner_slot: int, position: Vector3, effect: CatEffect) -> bool:
+	if not _is_host() or state() != State.PLAYING or effect == null or field() == null:
+		return false
+	if owner_slot < 0 or owner_slot >= slot_count() or not position.is_finite():
+		return false
+	if blocks_parent() == null or blocks_parent().get_child_count() >= effect.max_active_blocks:
+		return false
+	var point: Vector2 = field().disk_local_from_world(position)
+	if not field().map_def.shape_contains(point):
+		return false
+	if active_cat() != null:
+		end_cat(_cat.activation_id)
+	_cat_serial += 1
+	_cat = CatController.new()
+	_cat.configure(_cat_serial, owner_slot,
+		field().world_from_disk_local(point, effect.body_radius_m),
+		effect.duration_s, effect.speed_mps, effect.target_range_m,
+		effect.body_radius_m, effect.push_impulse, true)
+	add_child(_cat)
+	Events.cat_started.emit(_cat_serial, owner_slot, _cat.global_position, effect.duration_s)
+	return true
+
+
+func set_cat_target(slot_id: int, point: Vector3) -> bool:
+	var cat: CatController = active_cat()
+	if not _is_host() or cat == null or cat.owner_slot != slot_id or not MatchLifecycle.is_live_state(state()):
+		return false
+	return cat.set_target(point)
+
+
+func apply_replicated_cat_start(id: int, slot_id: int, position: Vector3, duration: float) -> bool:
+	if _is_host() or id <= _cat_serial or slot_id < 0 or slot_id >= slot_count():
+		return false
+	if not position.is_finite() or not is_finite(duration) or duration <= 0.0:
+		return false
+	if active_cat() != null:
+		_cat.queue_free()
+	_cat_serial = id
+	var effect: CatEffect = (load("res://config/specials/cat.tres") as SpecialDef).effect as CatEffect
+	_cat = CatController.new()
+	_cat.configure(id, slot_id, position, duration, effect.speed_mps,
+		effect.target_range_m, effect.body_radius_m, effect.push_impulse, false)
+	add_child(_cat)
+	Events.cat_started.emit(id, slot_id, position, duration)
+	return true
+
+
+func apply_replicated_cat_state(id: int, position: Vector3, velocity: Vector3,
+		point: Vector3, remaining: float) -> void:
+	var cat: CatController = active_cat()
+	if not _is_host() and cat != null and cat.activation_id == id and is_finite(remaining):
+		cat.apply_snapshot(position, velocity, point, remaining)
+
+
+func end_cat(id: int) -> void:
+	var cat: CatController = active_cat()
+	if cat == null or cat.activation_id != id:
+		return
+	cat.queue_free()
+	_cat = null
+	Events.cat_ended.emit(id)
+
+
+func _on_cat_match_state_changed(_old: int, next: int) -> void:
+	if next == State.LOBBY or next == State.END or next == State.LOADING:
+		var cat: CatController = active_cat()
+		if cat != null:
+			end_cat(cat.activation_id)
 
 
 func _on_paintball_triggered(net_id: int, def_id: StringName, position: Vector3, _chain_depth: int) -> void:
@@ -293,12 +370,20 @@ func _is_host() -> bool:
 
 
 func start_match(match_config: MatchConfig) -> void:
+	var previous_cat: CatController = active_cat()
+	if previous_cat != null:
+		end_cat(previous_cat.activation_id)
+	_cat_serial = 0
 	_sandbox_territory_mode = SANDBOX_TERRITORY_CURRENT
 	_territory_cache_enabled = true
 	_lifecycle.start_match(match_config)
 
 
 func abort_match() -> void:
+	var previous_cat: CatController = active_cat()
+	if previous_cat != null:
+		end_cat(previous_cat.activation_id)
+	_cat_serial = 0
 	_lifecycle.abort_match()
 
 

@@ -81,6 +81,8 @@ const EVENT_SPECIAL_TRIGGERED: StringName = &"special_triggered"
 const EVENT_SPECIAL_CONSUMED: StringName = &"special_consumed"
 const EVENT_GLUE_CHARGES: StringName = &"glue_charges_changed"
 const EVENT_BLOCK_OWNER_CHANGED: StringName = &"block_owner_changed"
+const EVENT_CAT_STARTED: StringName = &"cat_started"
+const EVENT_CAT_ENDED: StringName = &"cat_ended"
 
 @export var config: NetConfig = preload("res://config/net_config.tres")
 
@@ -189,6 +191,8 @@ var _match_start_sent: bool = false
 
 ## Bontago-22y.10: the weather RPC surface (net/WeatherNet.gd), a child node.
 var _weather_net: WeatherNet = null
+var _cat_send_accum: float = 0.0
+var _cat_target_last_send: float = -1.0
 
 
 func _ready() -> void:
@@ -212,6 +216,8 @@ func _ready() -> void:
 	Events.special_consumed.connect(_on_special_consumed)
 	Events.glue_charges_changed.connect(_on_glue_charges_changed)
 	Events.block_owner_changed.connect(_on_block_owner_changed)
+	Events.cat_started.connect(_on_cat_started)
+	Events.cat_ended.connect(_on_cat_ended)
 	Events.block_removed.connect(_on_block_removed)
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 	Events.net_peer_left.connect(_on_net_peer_left)
@@ -283,6 +289,13 @@ func _can_send() -> bool:
 func _process(delta: float) -> void:
 	if not _is_host():
 		return
+	var cat: CatController = _authority().active_cat()
+	if cat != null and _can_send():
+		_cat_send_accum += delta
+		if _cat_send_accum >= 1.0 / maxf(config.cursor_hz, 0.001):
+			_cat_send_accum = 0.0
+			rpc(&"net_cat_state", cat.activation_id, cat.global_position,
+				cat.linear_velocity, cat.target, cat.time_left)
 	_raster_send_accum += delta
 	var step: float = 1.0 / maxf(config.raster_diff_hz, 0.001)
 	if _raster_send_accum >= step:
@@ -396,6 +409,24 @@ func submit_cursor(slot_id: int, origin: Vector3, orientation_index: int, free_q
 		rpc(&"net_cursor", slot_id, origin, orientation_index, free_quat)
 	else:
 		rpc_id(Net.HOST_PEER_ID, &"net_update_cursor", slot_id, origin, orientation_index, free_quat)
+
+
+func submit_cat_target(slot_id: int, point: Vector3) -> void:
+	if not point.is_finite():
+		return
+	if _is_host():
+		_authority().set_cat_target(slot_id, point)
+	elif _can_send():
+		var now: float = _now()
+		if now - _cat_target_last_send >= 1.0 / maxf(config.cursor_hz, 0.001):
+			_cat_target_last_send = now
+			rpc_id(Net.HOST_PEER_ID, &"net_cat_target", slot_id, point)
+
+
+func _handle_cat_target(sender_peer_id: int, slot_id: int, point: Vector3) -> void:
+	if not _is_host() or int(_session().slot_of_peer(sender_peer_id)) != slot_id:
+		return
+	_authority().set_cat_target(slot_id, point)
 
 
 ## Bontago-1pi.13 (results screen "Play again"): restarts the match that just
@@ -709,6 +740,8 @@ func invalid_spawn_refusal_count() -> int:
 
 ## Drops every counter and cursor. Called when a match starts or ends.
 func reset_counters() -> void:
+	_cat_send_accum = 0.0
+	_cat_target_last_send = -1.0
 	_gift_wire_phases.clear()
 	_gift_spawn_notified.clear()
 	_intents_sent.clear()
@@ -1290,6 +1323,16 @@ func _on_block_removed(block: RigidBody3D, reason: String) -> void:
 		replicate_despawn(typed.net_id, reason)
 
 
+func _on_cat_started(id: int, slot_id: int, position: Vector3, duration: float) -> void:
+	if _is_host():
+		replicate_match_event(EVENT_CAT_STARTED, [id, slot_id, position, duration])
+
+
+func _on_cat_ended(id: int) -> void:
+	if _is_host():
+		replicate_match_event(EVENT_CAT_ENDED, [id])
+
+
 func _on_net_peer_left(_peer_id: int, slot_id: int, _reason: int) -> void:
 	if slot_id >= 0:
 		_authority().on_peer_left(slot_id)
@@ -1304,6 +1347,12 @@ func _on_net_peer_joined(peer_id: int, slot_id: int, _player_name: String) -> vo
 	# absolute state after its prior reliable match events, including zeroes
 	# for slots whose last charge was spent while the peer was away.
 	if _is_host() and _can_send():
+		# Existing session gate currently refuses mid-match joins. Reconnects
+		# still receive the live transient cat before the next pose snapshot.
+		var cat: CatController = _authority().active_cat()
+		if cat != null:
+			rpc_id(peer_id, &"net_match_event", EVENT_CAT_STARTED,
+				[cat.activation_id, cat.owner_slot, cat.global_position, cat.time_left])
 		for payload: Array in _glue_rejoin_snapshot():
 			rpc_id(peer_id, &"net_match_event", EVENT_GLUE_CHARGES, payload)
 
@@ -1454,6 +1503,16 @@ func net_update_cursor(slot_id: int, origin: Vector3, orientation_index: int, fr
 	_handle_cursor_update(multiplayer.get_remote_sender_id(), slot_id, origin, orientation_index, free_quat)
 
 
+@rpc("any_peer", "call_remote", "unreliable", CURSOR_CHANNEL)
+func net_cat_target(slot_id: int, point: Vector3) -> void:
+	_handle_cat_target(multiplayer.get_remote_sender_id(), slot_id, point)
+
+
+@rpc("authority", "call_remote", "unreliable", CURSOR_CHANNEL)
+func net_cat_state(id: int, position: Vector3, velocity: Vector3, point: Vector3, remaining: float) -> void:
+	_authority().apply_replicated_cat_state(id, position, velocity, point, remaining)
+
+
 # Host -> clients.
 
 @rpc("authority", "call_remote", "reliable")
@@ -1483,6 +1542,25 @@ func _apply_roster(roster: Array) -> void:
 @rpc("authority", "call_remote", "reliable")
 func net_match_event(event: StringName, args: Array) -> void:
 	match event:
+		EVENT_CAT_STARTED:
+			if _is_host() or args.size() != 4 or not args[0] is int or not args[1] is int:
+				return
+			if not args[2] is Vector3 or (not args[3] is float and not args[3] is int):
+				return
+			var cat_id: int = args[0]
+			var cat_slot: int = args[1]
+			var cat_duration: float = float(args[3])
+			if not Quantize.is_wire_id(cat_id) or cat_slot < 0 or cat_slot >= _authority().slot_count():
+				return
+			if not (args[2] as Vector3).is_finite() or not is_finite(cat_duration) or cat_duration <= 0.0 or cat_duration > 60.0:
+				return
+			_authority().apply_replicated_cat_start(cat_id, cat_slot, args[2], cat_duration)
+		EVENT_CAT_ENDED:
+			if _is_host() or args.size() != 1 or not args[0] is int:
+				return
+			if not Quantize.is_wire_id(args[0]):
+				return
+			_authority().end_cat(args[0])
 		EVENT_STATE_CHANGED:
 			_authority().apply_replicated_state_change(int(args[0]))
 		EVENT_COUNTDOWN:

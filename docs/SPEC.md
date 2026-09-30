@@ -281,6 +281,7 @@ Use the [installed tutorial/menu](ORIGINAL_INSTALL_EVIDENCE.md) as the primary e
 | **Glue** | On impact, grants three future placed blocks contact fusion with the disc or any block | charges 3, break force 40 | NEW; 2026-09-30 roadmap override |
 | **Stackfall** | On activation, rains ordinary blocks in the activating player's color onto the map | 12 blocks, 6/s, 12 m area radius, 18 m height, 1.5 m spacing, 600 active-body cap by default | NEW; 2026-09-29 roadmap |
 | **Paintball** | Thrown gift splashes its owner's color and converts nearby block ownership on impact or fuse | 3.5 m splash radius, 6 s fuse | NEW; 2026-09-29 roadmap |
+| **Cat** | Spawns a physical cat that chases the activating player's mouse/gamepad laser target and knocks into stacks | 15 s, 9 m/s, 25 m pointer range, 0.8 m body radius, one per match | NEW; 2026-09-29 roadmap |
 | **Gravity well** | Flips gravity to 30% within 10 m for 5 s | | NEW |
 
 Every special is its own `SpecialDef` resource plus a script. The seven evidenced effects are the original-fidelity roster; Magnet, Freeze, Glue and Gravity well are optional remake extras, not original discoveries. Type probabilities are original menu features; per-type enable checkboxes are the remake interface. Jumping Bean's local hole is independent of opponent overlap; **[OWNER decision 2026-09-22, Bontago-z4h]** under `HoleMode.OFF` the Jumping Bean punches no hole and keeps only its hop knockback.
@@ -290,6 +291,8 @@ Every special is its own `SpecialDef` resource plus a script. The seven evidence
 **[OWNER roadmap 2026-09-29, Bontago-22y.1]** Stackfall chooses seeded positions within the configured area around the activating block, restricted to solid map surface and spaced from its other rain blocks. The host spawns them over time as ordinary owner-colored blocks through the normal block registry and snapshot path. It skips any remaining drop when the active-body cap is reached; those effect blocks do not count as player placements.
 
 **[OWNER roadmap 2026-09-29, Bontago-22y.2]** Paintball uses the thrown gift block as its glob. After arming, impact or the fuse triggers a visible color splash. The host converts each tracked block whose real collider overlaps the splash radius, regardless of previous owner or team. Conversion changes the block's owner slot, individual color material and territory attribution together; it does not move the block or change its physics. Each successful conversion is replicated by net ID, and clients ignore unknown, invalid or repeated updates.
+
+**[OWNER roadmap 2026-09-29, Bontago-22y.13]** Cat activation replaces any prior cat and creates one host-simulated physical body outside the block registry, so it cannot contribute territory or enter the block feed. The activating player's existing mouse/gamepad cursor steers a visible red laser target. The host checks peer ownership, limits target range and chase duration, and replicates cat start/end reliably plus moving poses during the chase. Client cats have no active collision body. A match reset removes the cat and its pointer.
 
 ### 2.7 Modes
 - **Free-for-all:** 2–8 players, humans and AI.
