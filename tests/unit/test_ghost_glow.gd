@@ -88,3 +88,17 @@ func test_gift_glow_overlay_follows_tint_and_level() -> void:
 	var glow: ShaderMaterial = _ghost._gift_glow_material
 	assert_not_null(glow)
 	assert_almost_eq(float(glow.get_shader_parameter(&"glow_strength")), _ghost.glow_level(), 0.0001)
+
+
+## Bontago-sen.12: a locked (greyed, interval-locked) piece is never force
+## dropped, so it must not pulse even when the timer is inside the lead.
+func test_locked_piece_never_pulses_inside_lead_time() -> void:
+	_ghost.set_drop_time_left(0.5)
+	assert_true(_ghost.is_pulse_active(), "control: unlocked piece pulses")
+	_ghost.set_locked(true)
+	assert_false(_ghost.is_pulse_active())
+	assert_eq(_ghost.pulse_frequency_hz(), 0.0)
+	_ghost.advance_glow(0.1)
+	assert_almost_eq(_strength(), _tuning.glow_strength, 0.0001)
+	_ghost.set_locked(false)
+	assert_true(_ghost.is_pulse_active())

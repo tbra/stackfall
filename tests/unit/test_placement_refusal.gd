@@ -400,3 +400,44 @@ func test_client_preview_waives_territory_for_replicated_gift_then_refuses_again
 		Match.preview_placement(0, foreign, 0, Quaternion.IDENTITY),
 		PlacementRules.Result.OUTSIDE_TERRITORY, "next plain block is refused again."
 	)
+
+
+## Bontago-sen.9: dropping a held gift delivers the gift (the spawned block
+## carries the armed SpecialBehavior) rather than a plain block.
+func _special_behavior_of(block: Block) -> SpecialBehavior:
+	for child: Node in block.get_children():
+		if child is SpecialBehavior:
+			return child as SpecialBehavior
+	return null
+
+
+func test_dropping_held_gift_spawns_block_with_its_special_and_consumes_it() -> void:
+	Match.start_match(_config())
+	_run_countdown()
+	Match._feed.set_feed_timer_enabled(true)
+	_hold_gift(0)
+	watch_signals(Events)
+	var foreign: Vector3 = _home_world_position(1)
+	assert_eq(Match.request_place(0, foreign, 0, Quaternion.IDENTITY, false), PlacementRules.REASON_OK)
+	var gift_block: Block = null
+	for child: Node in _blocks_root.get_children():
+		var block: Block = child as Block
+		if block != null and _special_behavior_of(block) != null:
+			gift_block = block
+	assert_not_null(gift_block, "the dropped gift block must carry a SpecialBehavior")
+	assert_signal_emitted_with_parameters(Events, "special_consumed", [0, &"earthquake"])
+	assert_eq(Match.held_special(0), &"", "the gift is consumed by the drop")
+
+
+func test_dropping_held_gift_via_auto_drop_also_delivers_the_special() -> void:
+	Match.start_match(_config())
+	_run_countdown()
+	Match._feed.set_feed_timer_enabled(true)
+	_hold_gift(0)
+	var foreign: Vector3 = _home_world_position(1)
+	assert_eq(Match.request_place(0, foreign, 0, Quaternion.IDENTITY, true), PlacementRules.REASON_OK)
+	var found: bool = false
+	for child: Node in _blocks_root.get_children():
+		if child is Block and _special_behavior_of(child as Block) != null:
+			found = true
+	assert_true(found, "a forced drop of a held gift must still deliver the special")

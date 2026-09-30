@@ -634,6 +634,21 @@ var _gift_visual: Node3D = null
 func set_held_gift(special_id: StringName) -> void:
 	_held_gift_id = special_id
 	_rebuild_gift_visual()
+	_apply_projection_visibility()
+
+
+## Bontago-sen.9 DECISION: a held gift is not a drop-and-stack block, so the
+## placement projection (landing footprint, light-shaft prism, block decal) is
+## hidden entirely -- no landing marker stays. Only visibility changes; the
+## footprint/span bookkeeping PlayerController reads is untouched.
+func _apply_projection_visibility() -> void:
+	var show_projection: bool = _held_gift_id == &""
+	for quad: MeshInstance3D in _footprint_quads:
+		quad.visible = show_projection
+	if _projection_mesh != null:
+		_projection_mesh.visible = show_projection
+	if _block_projection_decal != null and not show_projection:
+		_block_projection_decal.visible = false
 
 
 func held_gift_id() -> StringName:
@@ -995,6 +1010,7 @@ func _update_footprint() -> void:
 
 	_update_projection_mesh(landing_y)
 	_update_block_projection_decal(world_hull, landing_y)
+	_apply_projection_visibility()
 
 
 ## Bontago-xtq.19 attempt 3/4 (this file's own header): `_projection_span_y`
@@ -2066,7 +2082,8 @@ func set_drop_time_left(seconds: float) -> void:
 
 ## True while the forced drop is within glow_warning_lead_seconds.
 func is_pulse_active() -> bool:
-	return _drop_time_left >= 0.0 and _drop_time_left <= ghost_tuning.glow_warning_lead_seconds
+	# Bontago-sen.12: a locked (greyed, interval-locked) piece is not force-dropped.
+	return not _locked and _drop_time_left >= 0.0 and _drop_time_left <= ghost_tuning.glow_warning_lead_seconds
 
 
 ## Current warning pulse rate in Hz (0 while inactive); ramps start -> end.

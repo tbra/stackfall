@@ -153,3 +153,23 @@ func test_fallback_crate_is_tinted_too() -> void:
 	ghost.set_held_gift(&"no_such_gift")
 	var mi: MeshInstance3D = ghost.gift_visual().find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D
 	assert_not_null(mi.material_overlay)
+
+
+## Bontago-sen.9: a held gift shows no placement projection (footprint quad,
+## light-shaft prism, block decal); going back to a plain block restores it.
+func test_held_gift_hides_projection_visuals_and_plain_block_restores_them() -> void:
+	var ghost: GhostPreview = _make_ghost()
+	ghost.global_position = Vector3(0.0, 3.0, 0.0)
+	ghost._update_footprint()
+	assert_gt(ghost.footprint_quad_count(), 0, "fixture: plain block has a footprint")
+	assert_true(ghost._footprint_quads[0].visible)
+	ghost.set_held_gift(&"earthquake")
+	ghost._update_footprint()
+	for quad: MeshInstance3D in ghost._footprint_quads:
+		assert_false(quad.visible, "gift footprint hidden")
+	assert_false(ghost._projection_mesh.visible, "gift prism hidden")
+	assert_false(ghost.block_projection_decal_visible(), "gift decal hidden")
+	ghost.set_held_gift(&"")
+	ghost._update_footprint()
+	assert_true(ghost._footprint_quads[0].visible, "plain block footprint returns")
+	assert_true(ghost._projection_mesh.visible)
