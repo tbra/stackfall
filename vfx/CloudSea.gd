@@ -25,6 +25,15 @@ const RENDER_LAYER_BIT: int = 1 << 18
 const SHARED_SKY_PARAMETERS: Array[StringName] = [
 	&"panorama", &"exposure", &"seam_blend_width", &"grade_amount", &"grade_dark", &"grade_mid",
 	&"grade_light", &"grade_gamma",
+	# Bontago-59o.16 P4: procedural sea/gradient the far fade targets when
+	# procedural_sea_mix > 0 (inert at 0, so the painted look is unchanged).
+	&"procedural_sea_mix", &"noise_tex", &"sun_direction", &"proc_zenith_color", &"proc_mid_color",
+	&"proc_horizon_color", &"proc_gradient_mid_height", &"proc_gradient_power", &"proc_gradient_bands",
+	&"proc_gradient_band_edge", &"proc_horizon_glow_color", &"proc_horizon_glow_width",
+	&"proc_horizon_glow_strength", &"proc_horizon_glow_sun_bias", &"proc_sea_color_near",
+	&"proc_sea_color_far", &"proc_sea_horizon_fade", &"proc_sea_params", &"proc_sea_heights",
+	&"proc_sea_wind", &"proc_sea_coverage", &"proc_sea_softness", &"proc_sea_band_edge",
+	&"cloud_shadow_color", &"cloud_mid_color", &"cloud_lit_color", &"cloud_rim_color",
 ]
 const YAW_PARAMETER: StringName = &"sky_yaw_offset_deg"
 const PITCH_PARAMETER: StringName = &"sky_pitch_offset_deg"

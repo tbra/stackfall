@@ -50,6 +50,38 @@ uniform vec3 grade_dark : source_color = vec3(0.02, 0.03, 0.08);
 uniform vec3 grade_mid : source_color = vec3(0.12, 0.17, 0.33);
 uniform vec3 grade_light : source_color = vec3(0.55, 0.64, 0.82);
 uniform float grade_gamma = 1.2;
+
+// Bontago-59o.16 (procedural sky P4): when procedural_sea_mix > 0 the far fade
+// targets the shared procedural sky/sea (cloud_common.gdshaderinc) instead of
+// the panorama. vfx/CloudSea.gd copies every uniform below from the sky
+// material; all are inert at procedural_sea_mix == 0.
+uniform float procedural_sea_mix = 0.0;
+uniform sampler2D noise_tex : filter_linear_mipmap, repeat_enable;
+uniform vec3 sun_direction = vec3(0.963087, 0.069011, -0.260192);
+uniform vec4 proc_zenith_color : source_color = vec4(0.161, 0.2, 0.333, 1.0);
+uniform vec4 proc_mid_color : source_color = vec4(0.55, 0.36, 0.5, 1.0);
+uniform vec4 proc_horizon_color : source_color = vec4(0.98, 0.64, 0.38, 1.0);
+uniform float proc_gradient_mid_height = 0.35;
+uniform float proc_gradient_power = 1.5;
+uniform float proc_gradient_bands = 8.0;
+uniform float proc_gradient_band_edge = 0.12;
+uniform vec4 proc_horizon_glow_color : source_color = vec4(1.0, 0.62, 0.28, 1.0);
+uniform float proc_horizon_glow_width = 0.18;
+uniform float proc_horizon_glow_strength = 0.45;
+uniform float proc_horizon_glow_sun_bias = 3.0;
+uniform vec4 proc_sea_color_near : source_color = vec4(0.85, 0.5, 0.42, 1.0);
+uniform vec4 proc_sea_color_far : source_color = vec4(0.34, 0.27, 0.47, 1.0);
+uniform float proc_sea_horizon_fade = 0.12;
+uniform vec4 proc_sea_params = vec4(0.5, 0.9, 0.004, 4.0);
+uniform vec2 proc_sea_heights = vec2(1.0, 0.6);
+uniform vec2 proc_sea_wind = vec2(1.0, 0.35);
+uniform float proc_sea_coverage = 0.5;
+uniform float proc_sea_softness = 0.06;
+uniform float proc_sea_band_edge = 0.08;
+uniform vec3 cloud_shadow_color : source_color = vec3(0.34, 0.27, 0.47);
+uniform vec3 cloud_mid_color : source_color = vec3(0.86, 0.55, 0.52);
+uniform vec3 cloud_lit_color : source_color = vec3(1.0, 0.82, 0.52);
+uniform vec3 cloud_rim_color : source_color = vec3(1.0, 0.9, 0.66);
 // Copied from SkyThemeDef.cloud_flat_base: the mesh's flat base plane, in
 // unit-sphere space below each puff's centre.
 uniform float flat_base = 0.15;
@@ -273,6 +305,27 @@ void fragment() {
 	if (fade > 0.001) {
 		vec2 sky_uv = sky_panorama_uv(view_dir, sky_yaw_offset_deg, sky_pitch_offset_deg);
 		vec3 sky = panorama_lod(panorama, sky_uv, seam_blend_width) * exposure;
+		if (procedural_sea_mix > 0.0) {
+			// Same composition as sunset_clouds.gdshader's procedural branch, so
+			// the puff fades into exactly the sea/gradient drawn behind it.
+			vec3 sun_dir = normalize(sun_direction);
+			vec3 pcol = sky_gradient(view_dir.y, proc_horizon_color.rgb, proc_mid_color.rgb, proc_zenith_color.rgb,
+				proc_gradient_mid_height, proc_gradient_power, proc_gradient_bands, proc_gradient_band_edge);
+			if (view_dir.y < 0.0) {
+				float below = smoothstep(0.0, max(proc_sea_horizon_fade, 0.001), -view_dir.y);
+				pcol = mix(pcol, proc_sea_color_near.rgb, below);
+				pcol = mix(pcol, proc_sea_color_far.rgb, smoothstep(0.0, 1.0, -view_dir.y) * below);
+				pcol = procedural_sea_color(noise_tex, view_dir, sun_dir, TIME, proc_sea_params, proc_sea_heights,
+					proc_sea_wind, proc_sea_coverage, proc_sea_softness, proc_sea_band_edge, proc_sea_horizon_fade,
+					proc_sea_color_near.rgb, proc_sea_color_far.rgb, cloud_shadow_color, cloud_mid_color,
+					cloud_lit_color, cloud_rim_color, pcol);
+			}
+			float sun_side = pow(max(dot(view_dir, sun_dir), 0.0), max(proc_horizon_glow_sun_bias, 0.001));
+			float glow = (1.0 - smoothstep(0.0, max(proc_horizon_glow_width, 0.001), abs(view_dir.y)))
+				* mix(0.35, 1.0, sun_side) * proc_horizon_glow_strength;
+			pcol = mix(pcol, proc_horizon_glow_color.rgb, clamp(glow, 0.0, 1.0));
+			sky = mix(sky, pcol * exposure, clamp(procedural_sea_mix, 0.0, 1.0));
+		}
 		sky = moonlit_grade(sky, grade_amount, grade_dark, grade_mid, grade_light, grade_gamma);
 		col = mix(col, sky, fade);
 	}
