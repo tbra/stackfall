@@ -149,7 +149,27 @@ func grid() -> CellGrid:
 ## pass, no GDScript loop), so a reader that only cares whether ownership
 ## changed (ui/Minimap.gd's periodic image rebuild) can skip the work cheaply.
 func ownership_hash() -> int:
-	return hash(_team_ids)
+	return hash(_team_ids) * 31 + hash(_hole)
+
+
+## Bontago-1pi.11.11: the raster's per-cell data as RES x RES images for a GPU
+## reader (ui/Minimap.gd colours them in shaders/minimap_territory.gdshader),
+## each built with one native copy instead of a GDScript per-cell loop.
+## Team ids as RGBA8: the int32 little-endian bytes, so R = team id for 0..254
+## and every byte 255 for the unowned -1 (readers treat R >= their slot count as
+## unowned).
+func team_id_image() -> Image:
+	return Image.create_from_data(_grid.res, _grid.res, false, Image.FORMAT_RGBA8, _team_ids.to_byte_array())
+
+
+## R8: 1 where a hole punched the cell (team_at() reads it as unowned).
+func hole_image() -> Image:
+	return Image.create_from_data(_grid.res, _grid.res, false, Image.FORMAT_R8, _hole)
+
+
+## R8: 1 where the cell centre is inside the disk (static for a raster).
+func in_disk_image() -> Image:
+	return Image.create_from_data(_grid.res, _grid.res, false, Image.FORMAT_R8, _in_disk)
 
 
 func tuning() -> TerritoryTuning:
