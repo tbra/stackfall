@@ -22,6 +22,10 @@ var _field: Field = null
 var _spawned: int = 0
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _shapes: Array[BlockShape] = []
+var _players: int = 2
+var _churn: int = 0
+var _churn_arg: int = 0
+var _churn_cursor: int = 0
 
 # timing hooks
 var _t_phys_frame: int = 0
@@ -61,6 +65,12 @@ func _ready() -> void:
 				counts.append(int(part))
 		elif arg.begins_with("--weather="):
 			weather = StringName(arg.trim_prefix("--weather="))
+	for arg: String in args:
+		if arg.begins_with("--players="):
+			_players = clampi(int(arg.trim_prefix("--players=")), 2, 8)
+	for arg: String in args:
+		if arg.begins_with("--churn="):
+			_churn_arg = int(arg.trim_prefix("--churn="))
 	var toggles: bool = not args.has("--no-toggles")
 	var shot_prefix: String = ""
 	for arg: String in args:
@@ -82,7 +92,7 @@ func _ready() -> void:
 	host.add_child.call_deferred(_main)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_main.call(&"_start_sandbox_match_with_args", PackedStringArray(["sandbox", "players=2"]))
+	_main.call(&"_start_sandbox_match_with_args", PackedStringArray(["sandbox", "players=%d" % _players]))
 	while Match.state() != Match.State.PLAYING:
 		await get_tree().process_frame
 	_field = _main.get_node("Field") as Field
@@ -139,9 +149,129 @@ func _ready() -> void:
 		for item: CanvasItem in hidden:
 			item.visible = true
 		await _sample("base_again", target)
+	if args.has("--deep"):
+		await _deep_toggles(counts[counts.size() - 1])
+	if args.has("--callcost"):
+		_call_cost()
+	if args.has("--subtrees"):
+		await _subtree_toggles(counts[counts.size() - 1])
 	if args.has("--groups"):
 		await _group_toggles(counts[counts.size() - 1])
 	get_tree().quit()
+
+
+func _all_nodes() -> Array[Node]:
+	var out: Array[Node] = []
+	for node: Node in get_tree().root.find_children("*", "", true, false):
+		if node == self or node == _late_node or node is Viewport:
+			continue
+		out.append(node)
+	return out
+
+
+func _deep_toggles(target: int) -> void:
+	var sample_block: Node = Match.blocks_parent().get_child(0)
+	var kinds: Dictionary = {}
+	for node: Node in sample_block.find_children("*", "", true, false):
+		kinds[node.get_class()] = int(kinds.get(node.get_class(), 0)) + 1
+	print("ATTRIB block_children=%s" % [kinds])
+	var by_class: Dictionary = {}
+	for node: Node in get_tree().root.find_children("*", "", true, false):
+		by_class[node.get_class()] = int(by_class.get(node.get_class(), 0)) + 1
+	print("ATTRIB tree_classes=%s" % [by_class])
+	var nodes: Array[Node] = _all_nodes()
+	for node: Node in nodes:
+		node.set_process(false)
+		node.set_physics_process(false)
+	await _sample("deep_all_process_off", target)
+	for node: Node in nodes:
+		node.set_process_internal(false)
+		node.set_physics_process_internal(false)
+	await _sample("deep_all_internal_off", target)
+	for node: Node in nodes:
+		node.set_process_internal(true)
+		node.set_physics_process_internal(true)
+		node.set_process(true)
+		node.set_physics_process(true)
+	Match.blocks_parent().process_mode = Node.PROCESS_MODE_DISABLED
+	await _sample("deep_blocks_parent_disabled", target)
+	Match.blocks_parent().process_mode = Node.PROCESS_MODE_INHERIT
+	get_tree().root.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	await _sample("deep_interp_off", target)
+	get_tree().root.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_INHERIT
+	_main.process_mode = Node.PROCESS_MODE_DISABLED
+	await _sample("deep_main_disabled", target)
+	_main.process_mode = Node.PROCESS_MODE_INHERIT
+
+
+## Times node._process / _physics_process called directly (median of 15) for every
+## processing script node: cost per node independent of frame pacing noise.
+func _call_cost() -> void:
+	var rows: Array = []
+	for node: Node in get_tree().root.find_children("*", "", true, false):
+		if node.get_script() == null or node == self or node == _late_node:
+			continue
+		for kind: StringName in [&"_process", &"_physics_process"]:
+			var on: bool = node.is_processing() if kind == &"_process" else node.is_physics_processing()
+			if not on or not node.has_method(kind):
+				continue
+			var times: PackedInt32Array = PackedInt32Array()
+			for i: int in range(15):
+				var t0: int = Time.get_ticks_usec()
+				node.call(kind, 0.0166)
+				times.append(Time.get_ticks_usec() - t0)
+			times.sort()
+			var script: Script = node.get_script() as Script
+			rows.append([times[7], "%s.%s path=%s" % [script.resource_path.get_file(), kind, node.get_path()]])
+	rows.sort_custom(func(a: Array, b: Array) -> bool: return int(a[0]) > int(b[0]))
+	var total: int = 0
+	for row: Array in rows:
+		total += int(row[0])
+	print("ATTRIB callcost total_us=%d nodes=%d" % [total, rows.size()])
+	for i: int in range(mini(14, rows.size())):
+		print("ATTRIB callcost %6d us  %s" % [rows[i][0], rows[i][1]])
+
+
+func _find_by_script(global_name: String) -> Node:
+	for node: Node in get_tree().root.find_children("*", "", true, false):
+		var script: Script = node.get_script() as Script
+		if script != null and String(script.get_global_name()) == global_name:
+			return node
+	return get_tree().root
+
+
+func _set_subtree_processing(root: Node, on: bool) -> void:
+	for node: Node in [root] + root.find_children("*", "", true, false):
+		node.set_process(on)
+		node.set_physics_process(on)
+		node.set_process_internal(on)
+		node.set_physics_process_internal(on)
+
+
+## One sample per direct child of Main / the window root with all processing off in
+## that subtree, plus its node count (finds which subtree owns the flat CPU).
+func _subtree_toggles(target: int) -> void:
+	var roots: Array[Node] = []
+	var parents: Array[Node] = [_main, get_tree().root]
+	for arg: String in OS.get_cmdline_user_args():
+		if arg.begins_with("--subtree-of="):
+			var found: Node = get_tree().root.find_child(arg.trim_prefix("--subtree-of="), true, false)
+			if found != null:
+				parents = [found]
+	if OS.get_cmdline_user_args().has("--sandbox-children"):
+		parents = [_find_by_script("Sandbox")]
+	for parent: Node in parents:
+		for child: Node in parent.get_children():
+			if child == self or child == _main or child == _late_node or child == _render_vp:
+				continue
+			roots.append(child)
+	for child: Node in roots:
+		var count: int = 1 + child.find_children("*", "", true, false).size()
+		print("ATTRIB subtree %s (%s) nodes=%d" % [child.name, child.get_class(), count])
+		_set_subtree_processing(child, false)
+		await _sample("sub_off_%s_n%d" % [child.name, count], target)
+		_set_subtree_processing(child, true)
+		await _sample("sub_recheck_base", target)
 
 
 func _group_toggles(target: int) -> void:
@@ -198,6 +328,7 @@ func _on_physics_frame() -> void:
 
 
 func _on_late_physics() -> void:
+	_churn_blocks()
 	var now: int = Time.get_ticks_usec()
 	if _t_phys_frame != 0:
 		_acc_phys_scripts += now - _t_phys_frame
@@ -222,9 +353,24 @@ func _on_late_process() -> void:
 		_acc_proc_scripts += Time.get_ticks_usec() - _t_proc_frame
 
 
+## --churn=N: keep N blocks awake by nudging them each tick (owner shot had 6 awake).
+func _churn_blocks() -> void:
+	if _churn <= 0:
+		return
+	var list: Array[RigidBody3D] = _blocks()
+	if list.is_empty():
+		return
+	for i: int in range(_churn):
+		var body: RigidBody3D = list[(_churn_cursor + i) % list.size()]
+		if body.freeze:
+			continue
+		body.sleeping = false
+	_churn_cursor = (_churn_cursor + _churn) % list.size()
+
+
 func _spawn_one() -> void:
-	var slot_id: int = _spawned % 2
-	var k: int = _spawned / 2
+	var slot_id: int = _spawned % _players
+	var k: int = _spawned / _players
 	var layer: int = k / (GRID_SIDE * GRID_SIDE)
 	var cell: int = k % (GRID_SIDE * GRID_SIDE)
 	var gx: float = (float(cell % GRID_SIDE) - float(GRID_SIDE - 1) * 0.5) * GRID_SPACING_M
@@ -349,5 +495,5 @@ func _sample(label: String, target: int) -> void:
 		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME),
 		int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
 		int(Performance.get_monitor(Performance.OBJECT_COUNT)),
-		overlay.circle_count() if overlay != null else -1, probe_text,
+		overlay.circle_count() if overlay != null else -1, probe_text + " engine_proc=%.2f engine_phys=%.2f" % [Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0],
 	])
