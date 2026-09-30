@@ -83,6 +83,19 @@ func test_lands_on_the_disc_away_from_players_and_edge() -> void:
 	assert_almost_eq(bird.global_position.y, spot.y + bird.perch_height(), 0.001, "stands on the surface")
 
 
+func test_perching_birds_are_drawn_at_the_configured_scale() -> void:
+	var life: AmbientLifeConfig = _life()
+	assert_gte(life.perch_bird_scale, 1.4, "owner 2026-09-30: birds are ~1.4-1.6x")
+	assert_lte(life.perch_bird_scale, 1.6)
+	_manager = _make_manager(life)
+	var bird: PerchingBird = _run_until_perched(_manager)
+	assert_not_null(bird)
+	if bird == null:
+		return
+	assert_gte(bird.length_m, life.perch_bird_length_min_m * life.perch_bird_scale - 0.0001)
+	assert_lte(bird.length_m, life.perch_bird_length_max_m * life.perch_bird_scale + 0.0001)
+
+
 func test_flees_when_the_camera_comes_close() -> void:
 	_manager = _make_manager(_life())
 	var bird: PerchingBird = _run_until_perched(_manager)

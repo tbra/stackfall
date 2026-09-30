@@ -57,7 +57,7 @@ func test_cloud_sea_scales_clumps_with_density() -> void:
 	add_child_autofree(sea)
 	sea.configure(sunset, 1.0, sunset.sky_material)
 	var full: int = sea.puff_count()
-	assert_eq(full, sunset.cloud_clump_count * sunset.cloud_puffs_per_clump)
+	assert_eq(full, (sunset.cloud_clump_count + sunset.cloud_bank_count) * sunset.cloud_puffs_per_clump)
 	sea.configure(sunset, 0.5, sunset.sky_material)
 	assert_lt(sea.puff_count(), full)
 	assert_gt(sea.puff_count(), 0)
@@ -73,7 +73,11 @@ func test_cloud_puffs_stay_below_the_disc_and_off_the_mirror_layer() -> void:
 		add_child_autofree(sea)
 		sea.configure(theme, 1.0, theme.sky_material)
 		assert_true(theme.cloud_top_max_m < -10.0, "%s: puff ceiling well under the disc" % path)
-		assert_true(sea.highest_puff_top() <= theme.cloud_top_max_m + 0.001, "%s: no puff above the ceiling" % path)
+		# Bontago-470.5: the cloud banks stand higher than the sea but only far
+		# beyond the largest disc, so no gameplay camera can be inside one.
+		assert_true(theme.cloud_bank_ring_inner_m > MapDef.RADIUS_LARGE * 3.0, "%s: banks stay far from the play area" % path)
+		assert_true(sea.highest_puff_top() <= maxf(theme.cloud_top_max_m, theme.cloud_bank_top_max_m) + 0.001,
+			"%s: no puff above its layer ceiling" % path)
 		assert_eq(sea.puff_instance().layers, CloudSea.RENDER_LAYER_BIT)
 		assert_eq(DiscMirror.MIRROR_CULL_MASK & CloudSea.RENDER_LAYER_BIT, 0, "mirror camera must not see the puffs")
 
@@ -108,17 +112,20 @@ func test_birds_only_when_enabled_and_theme_has_flocks() -> void:
 	add_child_autofree(birds)
 	birds.configure(sunset, true)
 	assert_not_null(birds.flock_instance())
-	assert_eq(birds.flock_instance().multimesh.instance_count, sunset.bird_flock_count * sunset.birds_per_flock)
+	assert_eq(birds.flock_instance().multimesh.instance_count, sunset.bird_flock_count * sunset.bird_flock_size_max)
+	assert_eq(birds.active_flock_count(), 0, "birds are an occasional event: none in flight at start")
 	birds.configure(sunset, false)
 	assert_false(birds.visible)
 	birds.configure(load(NIGHT_PATH) as SkyThemeDef, true)
 	assert_false(birds.visible, "night has no bird flocks")
 
 
-func test_bird_flocks_stay_far_from_the_play_area() -> void:
+func test_bird_flights_stay_far_from_the_play_area() -> void:
 	var sunset: SkyThemeDef = load(SUNSET_PATH) as SkyThemeDef
-	var nearest: float = sunset.bird_distance_min_m - sunset.bird_orbit_radius_max_m
-	assert_gt(nearest, MapDef.RADIUS_LARGE * 2.0, "flocks must never orbit near the disc")
+	assert_gt(sunset.bird_distance_min_m, MapDef.RADIUS_LARGE * 2.0, "flights must never pass near the disc")
+	assert_gt(sunset.bird_gap_min_s, 30.0, "long quiet gaps between flocks")
+	assert_gte(sunset.bird_flock_size_min, 2)
+	assert_lte(sunset.bird_flock_size_max, 7)
 
 
 # --- Bontago-adt: live theme switching ------------------------------------------
@@ -159,7 +166,7 @@ func test_live_theme_switch_is_stable_and_matches_the_theme() -> void:
 	await get_tree().process_frame
 	var baseline: int = _ambient_child_count(skybox)
 	var night_puffs: int = skybox.get_cloud_sea().puff_count()
-	assert_eq(night_puffs, night.cloud_clump_count * night.cloud_puffs_per_clump
+	assert_eq(night_puffs, (night.cloud_clump_count + night.cloud_bank_count) * night.cloud_puffs_per_clump
 		if Settings.current_graphics_preset() == null
 		else skybox.get_cloud_sea().puff_count())
 	for cycle: int in range(4):

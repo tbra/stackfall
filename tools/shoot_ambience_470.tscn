@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tools/shoot_ambience_470.gd" id="1_s"]
+
+[node name="ShootAmbience470" type="Node"]
+script = ExtResource("1_s")

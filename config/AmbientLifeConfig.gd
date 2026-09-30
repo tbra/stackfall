@@ -12,9 +12,13 @@ extends Resource
 
 ## Birds alive at once; 0 disables the effect for this theme.
 @export var perch_bird_count: int = 4
-## Bird body length (m), picked per bird.
+## Bird body length (m), picked per bird, then multiplied by perch_bird_scale
+## (owner 2026-09-30: the disc birds read too small, so they are drawn ~1.5x
+## with proportions unchanged). The default clearances below are sized for
+## the scaled bird; raise them with the scale.
 @export var perch_bird_length_min_m: float = 0.25
 @export var perch_bird_length_max_m: float = 0.35
+@export var perch_bird_scale: float = 1.5
 ## Landing spots keep at least this far (horizontally) from every player's
 ## cursor / held block and every home beacon.
 @export var perch_min_player_distance_m: float = 16.0
@@ -34,9 +38,9 @@ extends Resource
 ## A block must have been motionless this long (s) before a bird may perch on it.
 @export var perch_tower_min_settle_s: float = 4.0
 ## The block's top face must be at least this wide (m) on both sides.
-@export var perch_tower_min_top_size_m: float = 0.6
+@export var perch_tower_min_top_size_m: float = 0.9
 ## Nothing (no other block) may sit within this height (m) above the top face.
-@export var perch_tower_clear_height_m: float = 1.4
+@export var perch_tower_clear_height_m: float = 2.0
 
 ## A perched bird flees when the camera comes within this (3D) distance.
 @export var flee_camera_radius_m: float = 9.0
@@ -45,7 +49,7 @@ extends Resource
 ## ... a block impact happens within this distance.
 @export var flee_impact_radius_m: float = 14.0
 ## ... a block is above the bird within this horizontal distance.
-@export var flee_overhead_radius_m: float = 3.5
+@export var flee_overhead_radius_m: float = 4.0
 ## ... an unsettled (moving or just-landed) block is within this distance.
 @export var flee_moving_block_radius_m: float = 5.5
 ## ... the block it perches on moves more than this (m) or turns.
@@ -53,7 +57,7 @@ extends Resource
 ## A block counts as unsettled (moving / just landed) until it has been still this long (s).
 @export var block_settled_window_s: float = 0.75
 ## Landing spots keep at least this far from other birds' spots.
-@export var perch_min_bird_spacing_m: float = 2.5
+@export var perch_min_bird_spacing_m: float = 3.5
 ## How often (s) the birds re-check their surroundings.
 @export var threat_poll_interval_s: float = 0.12
 
@@ -69,9 +73,9 @@ extends Resource
 ## Chance (0..1) that an idle action is a hop rather than a look or peck.
 @export var idle_hop_chance: float = 0.25
 ## Length of a hop (m).
-@export var idle_hop_distance_m: float = 0.2
+@export var idle_hop_distance_m: float = 0.3
 ## Height of a hop (m).
-@export var idle_hop_height_m: float = 0.08
+@export var idle_hop_height_m: float = 0.12
 
 ## Approach: radius (m) of the far circle a bird arrives on, its altitude
 ## range (m), how long it circles (s) before gliding in, and its speed (m/s).
