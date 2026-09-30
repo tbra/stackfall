@@ -86,7 +86,38 @@ func _ready() -> void:
 	await _sample("cones_cached_stable")
 	Match.set_sandbox_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
 	await _sample("current_cached_repeat")
+	# Isolate analytic-shader scaling from collision and territory CPU work.
+	_sandbox._set_block_physics_frozen(true)
+	Match.set_sandbox_territory_mode(MatchAutoload.SANDBOX_TERRITORY_PAUSED)
+	var all_circles: Array[InfluenceCircle] = Match._territory._collect_circles()
+	var home_circles: Array[InfluenceCircle] = []
+	for circle: InfluenceCircle in all_circles:
+		if circle.is_home:
+			home_circles.append(circle)
+	_upload_probe_circles(home_circles)
+	await _sample("shader_homes")
+	_upload_probe_circles(all_circles)
+	await _sample("shader_all")
+	_upload_probe_circles(home_circles)
+	await _sample("shader_homes_repeat")
 	get_tree().quit()
+
+
+func _upload_probe_circles(circles: Array[InfluenceCircle]) -> void:
+	var xs: PackedFloat32Array = PackedFloat32Array()
+	var zs: PackedFloat32Array = PackedFloat32Array()
+	var radii: PackedFloat32Array = PackedFloat32Array()
+	var teams: PackedInt32Array = PackedInt32Array()
+	for circle: InfluenceCircle in circles:
+		xs.append(circle.center.x)
+		zs.append(circle.center.y)
+		radii.append(circle.radius)
+		teams.append(circle.team_id)
+	Match._field.set_overlay_circles(
+		xs, zs, radii, teams,
+		Match._territory._goal_positions, Match._territory._goal_radii,
+		Match._territory._circle_argmax_mode
+	)
 
 
 func _spawn_piles() -> void:
