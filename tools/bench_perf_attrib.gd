@@ -59,6 +59,12 @@ class LateHook:
 		bench.call(&"_on_late_process")
 
 
+## --spikes=MS: print a timestamped line for every frame longer than MS (per-frame timing only).
+var _spike_ms: float = 0.0
+var _spike_last_ticks: int = 0
+var _last_proc_ms: float = 0.0
+
+
 func _ready() -> void:
 	_rng.seed = 20260930
 	var args: PackedStringArray = OS.get_cmdline_user_args()
@@ -78,6 +84,9 @@ func _ready() -> void:
 		if arg.begins_with("--churn="):
 			_churn_arg = int(arg.trim_prefix("--churn="))
 	var toggles: bool = not args.has("--no-toggles")
+	for arg: String in args:
+		if arg.begins_with("--spikes="):
+			_spike_ms = float(arg.trim_prefix("--spikes="))
 	if args.has("--defer-off"):
 		Match._territory_tuning.solve_defer_max_s = 0.0
 	var shot_prefix: String = ""
@@ -157,6 +166,12 @@ func _ready() -> void:
 		for item: CanvasItem in hidden:
 			item.visible = true
 		await _sample("base_again", target)
+	for arg: String in args:
+		if arg.begins_with("--rest="):
+			print("REST begin t=%.3f" % [float(Time.get_ticks_usec()) / 1000000.0])
+			var rest_end: int = Time.get_ticks_usec() + int(float(arg.trim_prefix("--rest=")) * 1000000.0)
+			while Time.get_ticks_usec() < rest_end:
+				await get_tree().process_frame
 	if args.has("--collapse"):
 		await _collapse_run(args)
 	for arg: String in args:
@@ -382,6 +397,9 @@ func _on_process_frame() -> void:
 		_frame_sum_ms += frame_ms
 		_frame_n += 1
 		_frame_peak_ms = maxf(_frame_peak_ms, frame_ms)
+		if _spike_ms > 0.0 and frame_ms > _spike_ms:
+			print("SPIKE t=%.3f frame_ms=%.1f ticks=%d dticks=%d proc_scripts_ms=%.1f engine_proc=%.1f engine_phys=%.1f" % [float(now) / 1000000.0, frame_ms, Engine.get_physics_frames(), Engine.get_physics_frames() - _spike_last_ticks, _last_proc_ms, Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0])
+		_spike_last_ticks = Engine.get_physics_frames()
 		_acc_frame += now - _t_last_frame
 		_frames += 1
 	_t_last_frame = now
@@ -391,6 +409,7 @@ func _on_process_frame() -> void:
 func _on_late_process() -> void:
 	if _t_proc_frame != 0:
 		_acc_proc_scripts += Time.get_ticks_usec() - _t_proc_frame
+		_last_proc_ms = float(Time.get_ticks_usec() - _t_proc_frame) / 1000.0
 
 
 ## --churn=N: keep N blocks awake by nudging them each tick (owner shot had 6 awake).

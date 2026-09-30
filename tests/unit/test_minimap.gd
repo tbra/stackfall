@@ -43,3 +43,47 @@ func test_cached_image_is_rotated_to_current_basis_between_rebuilds() -> void:
 	assert_almost_eq(up.y, center.y, 0.001)
 	minimap.render_now()
 	assert_true(minimap.image_to_current_transform(center).is_equal_approx(Transform2D.IDENTITY))
+
+
+func _make_raster(map_def: MapDef) -> TerritoryRaster:
+	var tuning: TerritoryTuning = load("res://config/territory_tuning.tres")
+	var grid: CellGrid = CellGrid.new(map_def.field_radius, map_def.cell_size)
+	return TerritoryRaster.new(grid, tuning)
+
+
+## Bontago-1pi.11.9: the refresh timer rebuilt the GDScript pixel loop at 8 Hz
+## even on a settled board (a ~60 ms hitch); it must rebuild only on change.
+func test_refresh_timer_skips_rebuild_when_inputs_unchanged() -> void:
+	var minimap: Minimap = _make_minimap()
+	var map_def: MapDef = MapDef.new()
+	var raster: TerritoryRaster = _make_raster(map_def)
+	var colors: PackedColorArray = PackedColorArray([Color.RED])
+	minimap.set_match_state(raster, colors, PackedVector2Array([Vector2.ZERO]))
+	minimap.render_now()
+	assert_false(minimap._image_inputs_changed(), "fresh build: nothing to rebuild")
+	minimap.set_camera_basis(Vector2(0.0, -1.0), Vector2(1.0, 0.0))
+	assert_false(minimap._image_inputs_changed(), "camera rotation alone is handled by the draw transform")
+	var before: int = minimap._built_raster_hash
+	minimap._on_refresh_timeout()
+	assert_eq(minimap._built_raster_hash, before)
+	assert_eq(minimap._image_right, Vector2(1.0, 0.0), "no rebuild means the image basis is untouched")
+
+
+func test_refresh_timer_rebuilds_when_ownership_or_colors_change() -> void:
+	var minimap: Minimap = _make_minimap()
+	var map_def: MapDef = MapDef.new()
+	var tuning: TerritoryTuning = load("res://config/territory_tuning.tres")
+	var raster: TerritoryRaster = _make_raster(map_def)
+	minimap.set_match_state(raster, PackedColorArray([Color.RED]), PackedVector2Array([Vector2.ZERO]))
+	minimap.render_now()
+	var circles: Array[InfluenceCircle] = [
+		InfluenceCircle.new(Vector2.ZERO, tuning.home_radius, 0, 0, true, -1)
+	]
+	raster.update(circles, TerritorySolver.new(tuning).solve(circles), 0.1, true, false)
+	assert_true(minimap._image_inputs_changed(), "owner ids changed")
+	minimap.set_camera_basis(Vector2(0.0, -1.0), Vector2(1.0, 0.0))
+	minimap._on_refresh_timeout()
+	assert_eq(minimap._image_right, Vector2(0.0, -1.0), "timer rebuilt the image in the new basis")
+	assert_false(minimap._image_inputs_changed())
+	minimap.set_match_state(raster, PackedColorArray([Color.BLUE]), PackedVector2Array([Vector2.ZERO]))
+	assert_true(minimap._image_inputs_changed(), "team colors changed")

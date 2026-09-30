@@ -84,6 +84,10 @@ const _PROCESS_PRIORITY_AFTER_CAMERA: int = 2
 
 var _image: Image = null
 var _texture: ImageTexture = null
+## Bontago-1pi.11.9: inputs of the last _rebuild_image(), so the refresh timer can skip an unchanged rebuild.
+const NO_BUILD_HASH: int = -1
+var _built_raster_hash: int = NO_BUILD_HASH
+var _built_colors: PackedColorArray = PackedColorArray()
 
 
 func _ready() -> void:
@@ -249,7 +253,26 @@ func _refresh_interval() -> float:
 func _on_refresh_timeout() -> void:
 	if _map_def == null:
 		return
+	# Bontago-1pi.11.9: the pixel loop in _rebuild_image() costs ~60 ms of
+	# GDScript; at minimap_refresh_hz that was an 8 Hz frame hitch even with a
+	# completely settled board. DECISION: rebuild only when the image inputs
+	# changed. Camera rotation alone is covered by image_to_current_transform()
+	# (the cached texture is rotated on draw), so it does not force a rebuild.
+	if not _image_inputs_changed():
+		return
 	render_now()
+
+
+## True when the raster's owner ids, the team colors or the image size differ
+## from what the cached image was last built from.
+func _image_inputs_changed() -> bool:
+	if _raster == null:
+		return _built_raster_hash != NO_BUILD_HASH
+	return (
+		_raster.ownership_hash() != _built_raster_hash
+		or _slot_colors != _built_colors
+		or _image == null or _image.get_width() != tuning.minimap_size_px
+	)
 
 
 ## World-space (disk-local x, z) -> minimap pixel, through the current
@@ -274,6 +297,8 @@ func _world_to_px(world: Vector2, px_per_m: float) -> Vector2:
 ## world point -- since that is the direction the loop actually needs (one
 ## lookup per output pixel, not one per raster cell).
 func _rebuild_image() -> void:
+	_built_raster_hash = _raster.ownership_hash() if _raster != null else NO_BUILD_HASH
+	_built_colors = _slot_colors
 	_image_right = _camera_right
 	_image_forward = _camera_forward
 	var size_px: int = tuning.minimap_size_px

@@ -145,6 +145,13 @@ func grid() -> CellGrid:
 	return _grid
 
 
+## Bontago-1pi.11.9: engine-side hash of the per-cell owner ids (one native
+## pass, no GDScript loop), so a reader that only cares whether ownership
+## changed (ui/Minimap.gd's periodic image rebuild) can skip the work cheaply.
+func ownership_hash() -> int:
+	return hash(_team_ids)
+
+
 func tuning() -> TerritoryTuning:
 	return _tuning
 
