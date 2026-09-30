@@ -148,16 +148,49 @@ func test_camera_target_y_stays_continuous_across_a_drop_that_needs_spawn_cleara
 	rig.set_follow_position(controller._camera_follow_anchor())
 	rig._process(1.0 / 60.0)
 
-	# Bontago-1pi.14: the clearance raise lifts the ghost only; the camera
-	# target must not move at all (previously it eased up by the raise).
-	assert_almost_eq(
-		rig.get_target().y, target_y_before_clearance, 0.001,
-		"a spawn-clearance raise must not move the camera follow height."
-	)
+	# Bontago-1pi.14 round 2: the camera is tied to the held block, so it
+	# eases up to the raised ghost (no permanent offset, no drift).
+	var expected_y: float = controller._camera_follow_anchor().y
+	assert_gt(expected_y, target_y_before_clearance + 0.01, "fixture: the followed anchor must include the raise.")
+	for _i: int in range(240):
+		rig.set_follow_position(controller._camera_follow_anchor())
+		rig._process(1.0 / 60.0)
+	assert_almost_eq(rig.get_target().y, expected_y, 0.01, "the camera must settle exactly on the raised ghost.")
 	assert_almost_eq(
 		rig.get_pitch(), pitch_before, 0.0001,
 		"nothing in this drop should touch the camera's pitch."
 	)
+
+
+## Repeated drops onto clear ground (cursor moved off the falling block each
+## time): no raise, so ghost height and camera follow height never change.
+func test_clear_spawns_never_move_ghost_or_camera_height() -> void:
+	Match.start_match(_config())
+	_run_countdown()
+	var slot_id: int = 0
+	var built: Dictionary = _make_controller_with_rig()
+	var controller: PlayerController = built["controller"]
+	controller.set_acting_slot(slot_id)
+	var home: Vector3 = _home_world_position(slot_id)
+	controller._ghost.set_shape(Match.held_shape(slot_id))
+	controller._cursor = home
+	controller._update_ghost_transform()
+	var ghost_y: float = controller._ghost.global_position.y
+	var anchor_y: float = controller._camera_follow_anchor().y
+	for i: int in range(3):
+		var interval: int = int(ceil((Match.config.block_timer + 0.1) * Engine.physics_ticks_per_second))
+		for _t: int in range(interval):
+			Match._process(1.0 / Engine.physics_ticks_per_second)
+		controller._cursor = home + Vector3(float(i % 2) * 2.0, 0.0, 0.0)
+		controller._update_ghost_transform()
+		controller._place_ghost_block()
+		controller._cursor = home + Vector3(float((i + 1) % 2) * 2.0, 0.0, 2.5)
+		await wait_physics_frames(1)
+		controller._update_ghost_transform()
+		controller._apply_spawn_clearance()
+		assert_almost_eq(controller._ghost.global_position.y, ghost_y, 0.001, "clear spawn %d must not raise the ghost." % i)
+		assert_almost_eq(controller._camera_follow_anchor().y, anchor_y, 0.001, "clear spawn %d must not move the camera." % i)
+		assert_almost_eq(controller._clearance_raise, 0.0, 0.0001, "clear spawn %d must not record a raise." % i)
 
 
 func test_camera_hard_snaps_as_before_when_no_drop_transition_was_begun() -> void:

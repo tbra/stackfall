@@ -168,10 +168,12 @@ var _pending_spawn_active: bool = false
 ## ended up, not just wherever this controller last aimed.
 var _pending_spawn_top_y: float = 0.0
 
-## Bontago-1pi.14: how much of _ghost.manual_hover_offset is spawn-clearance
-## raise (see _apply_spawn_clearance()) rather than player hover input. The
-## ghost rises by it, but _camera_follow_anchor() subtracts it so a release
-## never lifts the camera. Clamped to the live offset when read.
+## Bontago-1pi.14 (round 2): how much of _ghost.manual_hover_offset is
+## spawn-clearance raise (see _apply_spawn_clearance()) rather than the
+## player's own hover input. The camera follows the ghost INCLUDING this raise
+## (eased once via CameraRig.begin_follow_transition()); the split exists only
+## so the raise can be taken back off at the next spawn / decayed away, which
+## is what stops it compounding drop after drop.
 var _clearance_raise: float = 0.0
 
 ## Bontago-mv0.18 (in-game tuning panel): ui/TuningPanel.gd sets this false
@@ -354,6 +356,7 @@ func _process(delta: float) -> void:
 	# so a physics query cannot see it. Self-guards on _pending_spawn_active,
 	# so this is a no-op on every ordinary frame.
 	_apply_spawn_clearance()
+	_decay_clearance_raise(delta)
 	_update_ghost_tint()
 	_handle_hover_adjust(delta)
 	_publish_cursor()
@@ -398,9 +401,8 @@ func _process(delta: float) -> void:
 ## _apply_spawn_clearance()'s own call site) -- not for every shape swap.
 func _camera_follow_anchor() -> Vector3:
 	var center: Vector3 = _ghost.rotated_center_world()
-	# Bontago-1pi.14: the spawn-clearance raise lifts the ghost, never the camera.
-	_clearance_raise = clampf(_clearance_raise, 0.0, maxf(_ghost.manual_hover_offset, 0.0))
-	var anchor_y: float = _last_hit_point.y + tuning.hover_height + _ghost.manual_hover_offset - _clearance_raise
+	# Bontago-1pi.14 round 2: the camera is tied to the held block, raise included.
+	var anchor_y: float = _last_hit_point.y + tuning.hover_height + _ghost.manual_hover_offset
 	return Vector3(center.x, anchor_y, center.z)
 
 
@@ -676,6 +678,7 @@ func _step_hover(direction: float) -> void:
 		0.0,
 		_hover_offset_ceiling()
 	)
+	_absorb_clearance_raise()
 	_ghost.manual_hover_offset = _clamp_hover_offset(desired)
 	_refresh_ghost_pose()
 
@@ -1200,57 +1203,93 @@ func _apply_spawn_clearance() -> void:
 	if not _pending_spawn_active:
 		return
 	_pending_spawn_active = false
+	# DECISION (Bontago-1pi.14 round 2): the previous piece's raise is taken back
+	# off first, so every spawn starts from the player's own hover and a raise
+	# can never compound across drops (the 69 m ratchet).
+	_take_back_clearance_raise()
 	if not ghost_tuning.spawn_clearance_enabled:
 		return
 	if _ghost == null or _ghost.get_shape() == null:
 		return
-	if not _would_overlap_a_placed_block_at_baseline_hover():
+	_refresh_ghost_pose()
+	if not _ghost_overlaps_a_placed_block():
 		return
-	var required_bottom_y: float = _pending_spawn_top_y + ghost_tuning.spawn_clearance
-	var desired_offset: float = required_bottom_y - _last_hit_point.y - tuning.hover_height
-	var previous_offset: float = _ghost.manual_hover_offset
-	_ghost.manual_hover_offset = clampf(desired_offset, 0.0, _hover_offset_ceiling())
-	# Bontago-1pi.14: remember the raise so the camera follow ignores it.
-	_clearance_raise = maxf(_clearance_raise + _ghost.manual_hover_offset - previous_offset, 0.0)
-	# Bontago-1pi.14: no begin_follow_transition() here any more -- the camera
-	# anchor excludes _clearance_raise, so this raise does not move it at all.
-	# Bontago-mv0.33: re-applies immediately rather than waiting for next
-	# frame's own _update_ghost_transform() call -- _would_overlap_a_placed_
-	# block_at_baseline_hover() above already left global_position restored to
-	# the *old* offset (its own "restore" step), so without this the ghost
-	# would render one visible frame overlapping the block it was just raised
-	# to clear.
+	var base_offset: float = _ghost.manual_hover_offset
+	var cap: float = minf(ghost_tuning.spawn_clearance_max_raise, maxf(_hover_offset_ceiling() - base_offset, 0.0))
+	var step: float = maxf(ghost_tuning.spawn_clearance_step, 0.001)
+	# Linear search for the first clear raise, then bisect inside that last step
+	# so the raise is (nearly) the minimum that clears.
+	var low: float = 0.0
+	var high: float = -1.0
+	var raise_try: float = step
+	while raise_try <= cap + 0.0001:
+		if not _overlaps_with_offset(base_offset + minf(raise_try, cap)):
+			high = minf(raise_try, cap)
+			break
+		low = raise_try
+		raise_try += step
+	if high < 0.0:
+		high = cap
+	else:
+		for _i: int in range(ghost_tuning.spawn_clearance_bisect_steps):
+			var mid: float = (low + high) * 0.5
+			if _overlaps_with_offset(base_offset + mid):
+				low = mid
+			else:
+				high = mid
+	var raise_amount: float = minf(high + ghost_tuning.spawn_clearance, cap)
+	_ghost.manual_hover_offset = base_offset + raise_amount
+	_clearance_raise = raise_amount
 	_ghost.update_placement(_last_hit_point, _last_hit_normal)
+	if _camera_rig != null and raise_amount > 0.0:
+		# One discontinuous re-target: ease the camera onto the raised ghost.
+		_camera_rig.begin_follow_transition()
 
 
-## Bontago-mv0.33: whether the ghost's new shape, positioned at its normal
-## ("baseline") hover height -- manual_hover_offset temporarily 0, i.e.
-## exactly PhysicsTuning.hover_height above the last surface point/normal
-## _update_ghost_transform() saw (_last_hit_point/_last_hit_normal) -- would
-## intersect any already-placed block right now. _apply_spawn_clearance()
-## above only raises the offset when this is true.
-##
-## DECISION (game/PlayerController.gd, Bontago-mv0.33): reuses
-## GhostPreview.update_placement() (the same call _update_ghost_transform()
-## makes every frame) to compute that baseline pose, rather than re-deriving
-## GhostPreview's private rotated-bottom-pivot math here -- it is called
-## twice (baseline, then restore) with no frame boundary between either call
-## and the read of collision_box_local_centers()/collision_half_size() below,
-## so nothing ever renders the intermediate baseline pose; the ghost ends this
-## function exactly where it was, with only manual_hover_offset possibly
-## changed by the caller above. Tests the *baseline* height specifically --
-## not whatever manual_hover_offset the ghost already carries -- because the
-## question this answers is "would an ordinary, un-raised spawn land inside a
-## block", independent of any earlier manual raise still sitting on the ghost
-## from a previous piece.
-func _would_overlap_a_placed_block_at_baseline_hover() -> bool:
+## Removes the spawn-clearance share from the hover offset (back to the
+## player's own hover) and forgets it.
+func _take_back_clearance_raise() -> void:
+	if _ghost != null and _clearance_raise > 0.0:
+		_ghost.manual_hover_offset = maxf(_ghost.manual_hover_offset - _clearance_raise, 0.0)
+	_clearance_raise = 0.0
+
+
+## Whether the held shape would overlap a placed block with the given total
+## hover offset; leaves the ghost (and its offset) exactly as it was.
+func _overlaps_with_offset(offset: float) -> bool:
 	var saved_offset: float = _ghost.manual_hover_offset
-	_ghost.manual_hover_offset = 0.0
+	_ghost.manual_hover_offset = offset
 	_ghost.update_placement(_last_hit_point, _last_hit_normal)
 	var overlaps: bool = _ghost_overlaps_a_placed_block()
 	_ghost.manual_hover_offset = saved_offset
 	_ghost.update_placement(_last_hit_point, _last_hit_normal)
 	return overlaps
+
+
+## DECISION (Bontago-1pi.14 round 2): the raise decays back to the player's own
+## hover once it is no longer needed -- each frame, lower by
+## spawn_clearance_decay_speed * delta if the ghost would still be clear at that
+## lower pose (the falling just-released block has moved on, or the cursor moved
+## off the tower). Stops the moment lowering would overlap again. Costs nothing
+## while no raise is active. The player's own hover input absorbs the raise
+## instead (_absorb_clearance_raise()).
+func _decay_clearance_raise(delta: float) -> void:
+	if _clearance_raise <= 0.0 or _ghost == null or _ghost.get_shape() == null:
+		return
+	var step: float = minf(ghost_tuning.spawn_clearance_decay_speed * delta, _clearance_raise)
+	if step <= 0.0:
+		return
+	var lowered: float = maxf(_ghost.manual_hover_offset - step, 0.0)
+	if _overlaps_with_offset(lowered):
+		return
+	_ghost.manual_hover_offset = lowered
+	_clearance_raise -= step
+	_refresh_ghost_pose()
+
+
+## The player took over the hover height: whatever raise is left is now theirs.
+func _absorb_clearance_raise() -> void:
+	_clearance_raise = 0.0
 
 
 ## Bontago-mv0.33: a stationary (zero-motion) overlap query at the ghost's
@@ -1405,6 +1444,7 @@ func _handle_hover_adjust(delta: float) -> void:
 		0.0,
 		_hover_offset_ceiling()
 	)
+	_absorb_clearance_raise()
 	_ghost.manual_hover_offset = _clamp_hover_offset(desired)
 	_refresh_ghost_pose()
 

@@ -386,12 +386,22 @@ extends Resource
 ## placement that didn't actually spawn anything near the cursor (a refused
 ## manual release, or an auto-drop burn thrown off the map) -- see that
 ## function's own DECISION comments.
-@export var spawn_clearance: float = 0.15
+@export var spawn_clearance: float = 0.02
+## Bontago-1pi.14 round 2: the raise is searched upward in steps of this size
+## (then bisected) until the new piece no longer overlaps a placed block.
+@export var spawn_clearance_step: float = 0.25
+## Upper bound on one spawn's clearance raise, metres.
+@export var spawn_clearance_max_raise: float = 20.0
+## Bisection refinements inside the last step (precision = step / 2^n).
+@export var spawn_clearance_bisect_steps: int = 5
+## Metres per second the raise decays back to the player's own hover once the
+## lower pose is clear.
+@export var spawn_clearance_decay_speed: float = 2.0
 
 ## Owner 2026-09-27 (Bontago-1pi.4 playtest: "Camera did not stay put. Just
 ## disable the clear stack feature for now"): master switch for the raise
-## above. Re-enabled by Bontago-1pi.14 once the camera follow anchor stopped
-## including the raise (PlayerController._clearance_raise).
+## above. Re-enabled by Bontago-1pi.14 round 2: raises only when the new piece
+## really overlaps a placed block, by the minimal amount, camera follows.
 @export var spawn_clearance_enabled: bool = true
 
 ## -- Throw aim (M4 P2e, docs/M4_P2_PACKAGES.md P2e; spec 2.5 "Throw

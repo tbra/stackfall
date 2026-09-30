@@ -182,9 +182,9 @@ func test_next_ghost_does_not_overlap_the_block_just_placed() -> void:
 	)
 
 
-# --- Bontago-1pi.14: the clearance raise lifts the ghost, never the camera ---
+# --- Bontago-1pi.14 round 2: minimal raise, camera follows, no compounding ---
 
-func test_clearance_raise_does_not_lift_camera_follow_height() -> void:
+func test_raise_is_minimal_and_camera_anchor_includes_it() -> void:
 	Match.start_match(_config())
 	_run_countdown()
 	var slot_id: int = 0
@@ -196,8 +196,103 @@ func test_clearance_raise_does_not_lift_camera_follow_height() -> void:
 	var before_y: float = controller._camera_follow_anchor().y
 	controller._place_ghost_block()
 	await _resolve_pending_spawn_clearance(controller)
-	assert_gt(controller._ghost.manual_hover_offset, 0.0, "fixture: the ghost must have been raised.")
-	assert_almost_eq(controller._camera_follow_anchor().y, before_y, 0.001, "camera follow height must not rise on release.")
+	var offset: float = controller._ghost.manual_hover_offset
+	assert_gt(offset, 0.0, "fixture: the ghost must have been raised.")
+	assert_false(controller._ghost_overlaps_a_placed_block(), "after the raise the ghost must not overlap.")
+	assert_true(
+		controller._overlaps_with_offset(offset - 0.05),
+		"the raise must be (nearly) minimal: 5 cm lower would overlap again."
+	)
+	assert_almost_eq(
+		controller._camera_follow_anchor().y, before_y + offset, 0.001,
+		"camera follow height is tied to the held block, raise included."
+	)
+
+
+func test_raise_decays_when_the_overlap_is_gone() -> void:
+	Match.start_match(_config())
+	_run_countdown()
+	var slot_id: int = 0
+	var controller: PlayerController = _make_controller()
+	controller.set_acting_slot(slot_id)
+	controller._ghost.set_shape(Match.held_shape(slot_id))
+	var home: Vector3 = _home_world_position(slot_id)
+	controller._cursor = home
+	controller._update_ghost_transform()
+	controller._place_ghost_block()
+	await _resolve_pending_spawn_clearance(controller)
+	assert_gt(controller._clearance_raise, 0.0, "fixture: raised.")
+	controller._cursor = home + Vector3(3.0, 0.0, 0.0)
+	controller._update_ghost_transform()
+	for _i: int in range(600):
+		controller._decay_clearance_raise(1.0 / 60.0)
+	assert_almost_eq(controller._clearance_raise, 0.0, 0.0001, "raise must decay away once clear.")
+	assert_almost_eq(controller._ghost.manual_hover_offset, 0.0, 0.0001, "back to the player's own hover.")
+
+
+func test_hover_input_works_after_a_raise() -> void:
+	Match.start_match(_config())
+	_run_countdown()
+	var slot_id: int = 0
+	var controller: PlayerController = _make_controller()
+	controller.set_acting_slot(slot_id)
+	controller._ghost.set_shape(Match.held_shape(slot_id))
+	controller._cursor = _home_world_position(slot_id)
+	controller._update_ghost_transform()
+	controller._place_ghost_block()
+	await _resolve_pending_spawn_clearance(controller)
+	var raised: float = controller._ghost.manual_hover_offset
+	assert_gt(raised, 0.0, "fixture: raised.")
+	# Mouse wheel.
+	controller._step_hover(1.0)
+	assert_gt(controller._ghost.manual_hover_offset, raised, "wheel raise must still work.")
+	assert_almost_eq(controller._clearance_raise, 0.0, 0.0001, "player input takes over the raise.")
+	# Held hover_raise action (the gamepad bumper maps to the same action).
+	var after_wheel: float = controller._ghost.manual_hover_offset
+	Input.action_press(&"hover_raise")
+	controller._handle_hover_adjust(0.1)
+	Input.action_release(&"hover_raise")
+	assert_gt(controller._ghost.manual_hover_offset, after_wheel, "held hover_raise must still work.")
+
+
+## Ten drops onto the same spot of a growing tower: the ghost stays about one
+## hover above the tower top instead of ratcheting upward (the 69 m report).
+func test_ten_drops_on_a_growing_tower_do_not_ratchet() -> void:
+	Match.start_match(_config())
+	_run_countdown()
+	var slot_id: int = 0
+	var controller: PlayerController = _make_controller()
+	controller.set_acting_slot(slot_id)
+	var cursor: Vector3 = _home_world_position(slot_id)
+	controller._cursor = cursor
+	controller._ghost.set_shape(Match.held_shape(slot_id))
+	controller._update_ghost_transform()
+	var phys: PhysicsTuning = load("res://config/physics_tuning.tres")
+	var placed_shapes: Array[BlockShape] = []
+	for i: int in range(10):
+		_advance_past_one_release_interval()
+		placed_shapes.append(controller._ghost.get_shape())
+		controller._cursor = cursor
+		controller._update_ghost_transform()
+		controller._place_ghost_block()
+		await _resolve_pending_spawn_clearance(controller)
+		assert_false(controller._ghost_overlaps_a_placed_block(), "drop %d: fresh spawn must be clear." % i)
+		for _t: int in range(150):
+			await wait_physics_frames(1)
+			controller._update_ghost_transform()
+			controller._decay_clearance_raise(1.0 / 60.0)
+		var top_y: float = 0.0
+		for index: int in range(mini(_blocks_root.get_child_count(), placed_shapes.size())):
+			var body: Node3D = _blocks_root.get_child(index) as Node3D
+			if body != null:
+				top_y = maxf(top_y, _shape_world_aabb(placed_shapes[index], body.global_transform).end.y)
+		var bottom_y: float = controller._ghost.global_position.y
+		# DECISION: the bound allows one tallest shape (3 cells) of slack for
+		# tumbling blocks that settle unevenly; a ratchet would blow far past it.
+		assert_lt(
+			bottom_y, top_y + phys.hover_height + 3.5,
+			"drop %d: ghost bottom %.2f must stay near the tower top %.2f (no ratchet)." % [i, bottom_y, top_y]
+		)
 
 
 # --- The first piece of a match must never be pre-displaced -----------------
@@ -289,6 +384,8 @@ func test_offset_is_left_untouched_when_the_new_ghost_does_not_overlap_anything(
 	# "reset to 0" (the old, wrong behaviour the owner reported) or
 	# "recomputed to the same thing the overlap case gets" by coincidence.
 	const ARBITRARY_OFFSET: float = 7.25
+	# The player's own hover (any leftover clearance raise counts as absorbed).
+	controller._absorb_clearance_raise()
 	controller._ghost.manual_hover_offset = ARBITRARY_OFFSET
 
 	# Move to a spot with nothing anywhere near it -- still inside slot 0's own
