@@ -76,6 +76,16 @@ func _ready() -> void:
 	Match.set_sandbox_territory_mode(MatchAutoload.SANDBOX_TERRITORY_PAUSED)
 	await _sample("both_paused")
 	_sandbox._set_block_physics_frozen(false)
+	Match._territory_cache_enabled = true
+	Match.set_sandbox_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
+	await _sample("current_cached_stable")
+	Match.set_sandbox_territory_mode(
+		MatchAutoload.SANDBOX_TERRITORY_CONE, 45.0,
+		SandboxConeExperiment.HEIGHT_TOP, SandboxConeExperiment.BASE_ADDITIVE
+	)
+	await _sample("cones_cached_stable")
+	Match.set_sandbox_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
+	await _sample("current_cached_repeat")
 	get_tree().quit()
 
 
@@ -224,6 +234,19 @@ func _sample(label: String) -> void:
 	print("LIVE_BENCH mode=%s collider=%s fps=%.1f process_ms=%.2f physics_ms=%.2f territory_tick_ms=%.2f steps_per_frame=%.2f cache_hits=%d settled=%d frames=%d" % [
 		label, "box" if _simple_colliders else ("merged" if _merged_colliders else "compound"), float(frames) / elapsed, process_ms / denom, physics_ms / denom,
 		territory_tick_ms / denom, float(territory_steps) / denom, cache_hits, _settled_count(), frames
+	])
+	var overlay: TerritoryOverlay = (_main.get_node("Field") as Field).overlay()
+	var bins: Image = overlay.circle_bin_image()
+	var bin_mean: float = 0.0
+	var bin_max: int = 0
+	if bins != null and overlay.circle_bins_valid():
+		for i: int in range(TerritoryOverlay.CIRCLE_BIN_GRID * TerritoryOverlay.CIRCLE_BIN_GRID):
+			var cell: Color = bins.get_pixel(i % TerritoryOverlay.CIRCLE_BIN_TEX_WIDTH, i / TerritoryOverlay.CIRCLE_BIN_TEX_WIDTH)
+			bin_mean += cell.g
+			bin_max = maxi(bin_max, roundi(cell.g))
+		bin_mean /= float(TerritoryOverlay.CIRCLE_BIN_GRID * TerritoryOverlay.CIRCLE_BIN_GRID)
+	print("LIVE_BENCH shader mode=%s circles=%d bins_valid=%s bin_mean=%.1f bin_max=%d" % [
+		label, overlay.circle_count(), overlay.circle_bins_valid(), bin_mean, bin_max
 	])
 	if territory_steps > 0:
 		print("LIVE_BENCH stages mode=%s last_step_average_ms=%.2f collect=%.2f solve=%.2f raster=%.2f overlay=%.2f other=%.2f" % [

@@ -12,6 +12,7 @@ var MATCH_SECONDS: float = 40.0
 var MATCH_COUNT: int = 3
 
 var _main: Node = null
+var _sampler: PerfSampler = null
 var _elapsed: float = 0.0
 var _next_sample: float = 0.0
 var _match_index: int = 0
@@ -63,7 +64,13 @@ func _ready() -> void:
 		elif raw.begins_with("--probe-matches="):
 			MATCH_COUNT = int(raw.get_slice("=", 1))
 	_main = MAIN_SCENE.instantiate()
+	# Keep this diagnostic self-contained when user:// is not writable.
+	DebugMode.config().log_enabled = false
 	add_child(_main)
+	for child: Node in _main.get_children():
+		if child is PerfSampler:
+			_sampler = child as PerfSampler
+			break
 	Events.block_placed.connect(func(_b: RigidBody3D, _s: StringName) -> void: _placements += 1)
 
 
@@ -93,6 +100,15 @@ func _sample() -> void:
 	_win_us = 0
 	_win_frames = 0
 	print("PT11 wall_frame_ms=%.2f" % frame_ms)
+	if _sampler != null and not _sampler.latest.is_empty():
+		var m: Dictionary = _sampler.latest
+		print("PT11 probes frame=%.2f phys=%.2f blocks=%d awake=%d terr=%.2f weather=%.2f gifts=%.2f registry=%.2f effects=%.2f snapshot=%.2f" % [
+			float(m.get("frame_ms", 0.0)), float(m.get("physics_ms", 0.0)),
+			int(m.get("blocks_total", 0)), int(m.get("blocks_awake", 0)),
+			float(m.get("territory_ms", 0.0)), float(m.get("weather_ms", 0.0)),
+			float(m.get("gifts_ms", 0.0)), float(m.get("registry_ms", 0.0)),
+			float(m.get("block_effects_ms", 0.0)), float(m.get("snapshot_ms", 0.0)),
+		])
 	if Match._territory != null and Match._territory._solver != null and Match.state() == Match.State.PLAYING:
 		var t0: int = Time.get_ticks_usec()
 		var circles: Array[InfluenceCircle] = Match._territory._collect_circles()
