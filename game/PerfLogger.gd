@@ -31,8 +31,15 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	if config == null:
 		config = DebugConfig.new()
-	if auto_open and config.log_enabled and DebugMode.is_enabled():
+	if auto_open and config.log_enabled and DebugMode.is_enabled() and not is_automated_run():
 		open_log()
+
+
+## Bontago-1pi.11.15: headless and agent-probe runs (tests, benches, bots)
+## must not write session logs -- each open_log() prunes to log_keep_files,
+## so a burst of automated runs deleted the owner's own playtest log.
+static func is_automated_run() -> bool:
+	return DisplayServer.get_name() == "headless" or AgentProbe.is_active()
 
 
 func _process(delta: float) -> void:

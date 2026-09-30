@@ -172,6 +172,9 @@ func _ready() -> void:
 			var rest_end: int = Time.get_ticks_usec() + int(float(arg.trim_prefix("--rest=")) * 1000000.0)
 			while Time.get_ticks_usec() < rest_end:
 				await get_tree().process_frame
+	for arg: String in args:
+		if arg.begins_with("--awake-watch="):
+			await _awake_watch(float(arg.trim_prefix("--awake-watch=")))
 	if args.has("--collapse"):
 		await _collapse_run(args)
 	for arg: String in args:
@@ -561,6 +564,45 @@ func _sample(label: String, target: int) -> void:
 		int(Performance.get_monitor(Performance.OBJECT_COUNT)),
 		overlay.circle_count() if overlay != null else -1, probe_text + " engine_proc=%.2f engine_phys=%.2f" % [Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0],
 	])
+
+
+## --awake-watch=SECONDS: after the last count settles, print the awake block count every
+## 10 s (mean over samples taken each second) plus frame and physics ms (Bontago-1pi.11.15).
+func _awake_watch(seconds: float) -> void:
+	for arg: String in OS.get_cmdline_user_args():
+		if arg.begins_with("--weather-late="):
+			# Weather arrives after the pile settled, as in a real match.
+			print("ATTRIB_W late weather ok=%s" % [Match.weather().set_debug_override(StringName(arg.trim_prefix("--weather-late=")))])
+	var start: int = Time.get_ticks_msec()
+	var sum: int = 0
+	var samples: int = 0
+	var peak: int = 0
+	var next_print: int = 10
+	while float(Time.get_ticks_msec() - start) / 1000.0 < seconds:
+		await get_tree().physics_frame
+		var now_awake: int = _awake()
+		sum += now_awake
+		peak = maxi(peak, now_awake)
+		samples += 1
+		if (Time.get_ticks_msec() - start) / 1000 >= next_print:
+			next_print += 10
+			print("ATTRIB_W t=%ds live=%d awake_now=%d awake_mean=%.1f awake_peak=%d weather=%s intensity=%.2f breeze_pushed=%d gusts=%d storm_pushed=%d" % [(Time.get_ticks_msec() - start) / 1000, _blocks().size(), now_awake, float(sum) / float(samples), peak, Match.weather().active_id(), Match.weather().active_intensity(), Match.weather().breeze().last_pushed, Match.weather().breeze().gust_count(), _effect_pushed()])
+	var top: float = -1000.0
+	var frozen: int = 0
+	for body: RigidBody3D in _blocks():
+		top = maxf(top, body.global_position.y - _field.surface_y())
+		if body.freeze:
+			frozen += 1
+	print("ATTRIB_W top_height=%.2f frozen=%d surface=%.2f" % [top, frozen, _field.surface_y()])
+	await _sample("after_watch", _spawned)
+
+
+func _effect_pushed() -> int:
+	var effect: Variant = Match.weather()._effect
+	if effect == null:
+		return -1
+	var pushed: Variant = (effect as Object).get("last_pushed")
+	return int(pushed) if pushed != null else -1
 
 
 ## --growth=MINUTES [--churn=N] [--respawn=K]: holds the block count steady (the
