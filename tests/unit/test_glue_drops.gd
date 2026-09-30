@@ -188,14 +188,15 @@ func test_accepted_drop_spends_charge_but_locked_or_burned_drop_does_not() -> vo
 	assert_eq(Match.glue_drops_left(0), 2)
 
 
-func test_glue_activation_block_never_spends_a_prior_charge() -> void:
+func test_claimed_glue_refreshes_charges_and_is_never_held() -> void:
+	# Bontago-sen.3: Glue is a modifier, so a claim grants 5 charges and the
+	# next placed block is an ordinary piece that spends one.
 	assert_true(Match.grant_glue_drops(0, 2))
 	assert_true(Match.debug_queue_special(0, &"glue"))
+	assert_eq(Match.glue_drops_left(0), 5)
+	assert_eq(Match.held_special(0), &"")
 	assert_eq(_place(), PlacementRules.REASON_OK)
-	assert_eq(Match.glue_drops_left(0), 1)
-	assert_eq(Match.held_special(0), &"glue")
-	assert_eq(_place(), PlacementRules.REASON_OK)
-	assert_eq(Match.glue_drops_left(0), 1)
+	assert_eq(Match.glue_drops_left(0), 4)
 
 
 func test_valid_relocated_auto_drop_spends_a_charge() -> void:

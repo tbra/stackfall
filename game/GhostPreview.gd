@@ -1998,7 +1998,56 @@ var _pulse_phase: float = 0.0
 func _process(delta: float) -> void:
 	if is_in_group(LOCAL_HELD_GROUP):
 		set_drop_time_left(_local_feed_time_left())
+		set_glue_charges(_local_glue_charges())
 	advance_glow(delta)
+
+
+## Bontago-sen.3: Glue is a charge modifier, not a held piece. While the
+## local slot has charges the ghost's shape meshes get a glossy glue overlay.
+## DECISION: look constants live here (GhostTuning is owned elsewhere this
+## batch); remote ghosts can call set_glue_charges() once RemoteCursors
+## mirrors Match.glue_drops_left().
+const GLUE_OVERLAY_COLOR: Color = Color(0.55, 0.95, 0.25, 0.45)
+const GLUE_OVERLAY_ROUGHNESS: float = 0.08
+const GLUE_OVERLAY_METALLIC_SPECULAR: float = 1.0
+var _glue_charges: int = 0
+var _glue_overlay: StandardMaterial3D = null
+
+
+func set_glue_charges(charges: int) -> void:
+	var was_glued: bool = _glue_charges > 0
+	_glue_charges = maxi(charges, 0)
+	if was_glued != (_glue_charges > 0):
+		_apply_glue_overlay()
+
+
+func glue_charges() -> int:
+	return _glue_charges
+
+
+func is_glue_overlay_active() -> bool:
+	return _glue_charges > 0
+
+
+func _apply_glue_overlay() -> void:
+	if _shape_visual == null:
+		return
+	if _glue_overlay == null:
+		_glue_overlay = StandardMaterial3D.new()
+		_glue_overlay.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_glue_overlay.albedo_color = GLUE_OVERLAY_COLOR
+		_glue_overlay.roughness = GLUE_OVERLAY_ROUGHNESS
+		_glue_overlay.metallic_specular = GLUE_OVERLAY_METALLIC_SPECULAR
+		_glue_overlay.rim_enabled = true
+	for child: Node in _shape_visual.get_children():
+		var mesh_instance: MeshInstance3D = child as MeshInstance3D
+		if mesh_instance != null:
+			mesh_instance.material_overlay = _glue_overlay if _glue_charges > 0 else null
+
+
+func _local_glue_charges() -> int:
+	var slot: int = Match.active_slot() if Net.is_offline() else Net.local_slot()
+	return Match.glue_drops_left(slot)
 
 
 func _local_feed_time_left() -> float:
@@ -2073,6 +2122,7 @@ func _apply_material_to_visual() -> void:
 			# a shadow"): the held block is a preview, so it casts no light
 			# shadow; the projected footprint is its only ground marker.
 			mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_apply_glue_overlay()
 
 
 # --- Reject / auto-drop animation (spec 2.2, 2.5) ---------------------------

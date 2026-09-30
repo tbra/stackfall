@@ -7,7 +7,7 @@
 
 [sub_resource type="Resource" id="Resource_glue_effect"]
 script = ExtResource("2_effect")
-drop_charges = 3
+drop_charges = 5
 
 [resource]
 script = ExtResource("1_def")

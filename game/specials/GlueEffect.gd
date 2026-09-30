@@ -4,7 +4,7 @@ extends SpecialEffect
 ## drops. The shared SpecialDef resource holds tuning only; MatchGifts owns
 ## each slot's mutable charge count.
 
-@export_range(1, 100, 1) var drop_charges: int = 3
+@export_range(1, 100, 1) var drop_charges: int = 5
 
 
 func detonate(block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> void:

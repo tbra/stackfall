@@ -709,6 +709,7 @@ func _refresh_special_indicator() -> void:
 	if match_provider.has_method(&"glue_drops_left"):
 		glue_charges = int(match_provider.glue_drops_left(_active_slot))
 	_set_gift_icons(head_id, _next_gift_id_for(count, head_id))
+	_set_glue_active(glue_charges > 0)
 	_held_label.text = "HELD: %s" % _special_display_name(head_id) if head_id != &"" else "HELD"
 	_next_label.text = "NEXT GIFT" if count > (1 if head_id != &"" else 0) else "NEXT"
 	if count <= 0 and glue_charges <= 0:
@@ -955,6 +956,38 @@ func _next_gift_id_for(count: int, head_id: StringName) -> StringName:
 	return next_id if next_id != &"" else GENERIC_GIFT_ID
 
 
+## Bontago-sen.3: while Glue charges remain, the held/next previews wear a
+## glue overlay (tint plus drips) drawn over the block image.
+const GLUE_PREVIEW_COLOR: Color = Color(0.55, 0.95, 0.25, 0.4)
+const GLUE_DRIP_COLOR: Color = Color(0.55, 0.95, 0.25, 0.85)
+const GLUE_DRIP_COUNT: int = 3
+const GLUE_DRIP_WIDTH_FRACTION: float = 0.1
+const GLUE_DRIP_LENGTH_FRACTION: float = 0.22
+var _glue_active: bool = false
+
+
+func glue_preview_active() -> bool:
+	return _glue_active
+
+
+func _set_glue_active(active: bool) -> void:
+	if active == _glue_active:
+		return
+	_glue_active = active
+	_shape_preview.queue_redraw()
+	_next_shape_preview.queue_redraw()
+
+
+func _draw_glue_overlay(control: Control) -> void:
+	var rect: Rect2 = Rect2(Vector2.ZERO, control.size)
+	control.draw_rect(rect, GLUE_PREVIEW_COLOR)
+	var drip_width: float = control.size.x * GLUE_DRIP_WIDTH_FRACTION
+	var drip_length: float = control.size.y * GLUE_DRIP_LENGTH_FRACTION
+	for i: int in range(GLUE_DRIP_COUNT):
+		var x: float = control.size.x * (float(i) + 0.5) / float(GLUE_DRIP_COUNT)
+		control.draw_rect(Rect2(x - drip_width * 0.5, control.size.y - drip_length * (1.0 + 0.4 * float(i % 2)), drip_width, drip_length * (1.0 + 0.4 * float(i % 2))), GLUE_DRIP_COLOR)
+
+
 func _set_gift_icons(held_id: StringName, next_id: StringName) -> void:
 	if held_id != _held_gift_id:
 		_held_gift_id = held_id
@@ -969,6 +1002,8 @@ func _draw_static_shape(control: Control, shape: BlockShape, color: Color) -> vo
 	var texture: Texture2D = SpecialDef.preview_icon_for(gift_id) if gift_id != &"" else _preview_texture(shape)
 	if texture == null:
 		return
+	if _glue_active:
+		_draw_glue_overlay(control)
 	var texture_size: Vector2 = texture.get_size()
 	var scale: float = minf(control.size.x / texture_size.x, control.size.y / texture_size.y)
 	var draw_size: Vector2 = texture_size * scale

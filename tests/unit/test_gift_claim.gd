@@ -241,6 +241,33 @@ func test_custom_drawer_id_is_queued_and_emitted() -> void:
 	assert_signal_emitted_with_parameters(Events, "gift_claimed", [gift_id, 0, &"jumping_bean"])
 
 
+## Bontago-sen.3: a claimed Glue gift grants charges at once and never
+## becomes the held or next piece; an already queued gift survives.
+func test_claimed_glue_grants_charges_without_queueing_or_changing_held_piece() -> void:
+	_start_playing(_config_with_no_real_specials())
+	Match._gifts.set_special_drawer(func() -> StringName: return &"glue")
+	Match._gifts._ensure_capacity(0)
+	(Match._gifts._pending_queues[0] as Array).append(&"jumping_bean")
+	watch_signals(Events)
+	var gift_id: int = _inject_crate(0)
+
+	_step_territory()
+
+	assert_eq(Match.glue_drops_left(0), 5)
+	assert_eq(Match.held_special(0), &"")
+	assert_eq((Match._gifts._pending_queues[0] as Array), [&"jumping_bean"])
+	assert_signal_emitted_with_parameters(Events, "gift_claimed", [gift_id, 0, &"glue"])
+	for i: int in range(5):
+		assert_true(Match.consume_glue_drop(0))
+	assert_eq(Match.glue_drops_left(0), 0, "after five blocks glue is spent")
+
+
+func test_replicated_glue_claim_does_not_queue_on_client() -> void:
+	_start_playing(_config())
+	Match._gifts.apply_replicated_claim(1, 0, &"glue")
+	assert_eq(Match.pending_special_count(0), 0)
+
+
 ## M4 P2c: _ensure_special_drawer_installed() must leave the shipped default
 ## drawer (always PENDING_SPECIAL_ID) in place when the filtered
 ## res://config/specials/ roster is empty. See _config_with_no_real_specials()'s
