@@ -128,6 +128,19 @@ var _container: Node3D = null
 
 func setup(match_ref: MatchAutoload) -> void:
 	_match = match_ref
+	if not Events.player_eliminated.is_connected(_on_player_eliminated_clear_glue):
+		Events.player_eliminated.connect(_on_player_eliminated_clear_glue)
+
+
+## DECISION (Bontago-sen.8): an eliminated slot can never drop again, so the
+## host zeroes its Glue charges (harmless to rules) and publishes the change,
+## which hides the glue presentation everywhere. Clients ignore it: they get
+## the host's zero through glue_charges_changed.
+func _on_player_eliminated_clear_glue(slot_id: int, _team_id: int) -> void:
+	if _match == null or not _match._is_host() or glue_drops_left(slot_id) <= 0:
+		return
+	_glue_drops.erase(slot_id)
+	_publish_glue_charges(slot_id)
 
 
 ## The default drawer: always PENDING_SPECIAL_ID, until P2c installs the real
