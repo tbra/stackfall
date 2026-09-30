@@ -26,8 +26,6 @@ var _baseline_map: TextureRect
 var _cone_map: TextureRect
 var _experiment_heading: Label
 var _live: Label
-var _hud: PanelContainer
-var _hud_live: Label
 var _hud_elapsed: float = 0.0
 
 
@@ -42,26 +40,6 @@ func _ready() -> void:
 	_panel.offset_bottom = 305.0
 	_panel.visible = false
 	add_child(_panel)
-	_hud = PanelContainer.new()
-	_hud.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	_hud.offset_left = -540.0
-	_hud.offset_right = -8.0
-	_hud.offset_top = 56.0
-	_hud.offset_bottom = 180.0
-	_hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var hud_style: StyleBoxFlat = StyleBoxFlat.new()
-	hud_style.bg_color = Color(0.04, 0.05, 0.08, 0.78)
-	hud_style.content_margin_left = 8.0
-	hud_style.content_margin_right = 8.0
-	hud_style.content_margin_top = 6.0
-	hud_style.content_margin_bottom = 6.0
-	_hud.add_theme_stylebox_override("panel", hud_style)
-	_hud_live = Label.new()
-	_hud_live.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_hud_live.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_hud_live.add_theme_font_size_override("font_size", 14)
-	_hud.add_child(_hud_live)
-	add_child(_hud)
 	_live_badge = Label.new()
 	_live_badge.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
 	_live_badge.offset_left = -400.0
@@ -191,7 +169,6 @@ func _map_column(parent: HBoxContainer, heading: String) -> TextureRect:
 func set_open(open: bool) -> void:
 	opened = open
 	_panel.visible = open
-	_hud.visible = not open
 	open_changed.emit(open)
 	if open:
 		var live_raster: TerritoryRaster = Match.raster()
@@ -325,4 +302,3 @@ func _process(delta: float) -> void:
 		_live.text += "\nCollect %.2f  Solve %.2f  Raster %.2f  Overlay %.2f  Other %.2f ms" % [
 			sample["collect"], sample["solve"], sample["raster"], sample["overlay"], sample["other"]
 		]
-	_hud_live.text = _live.text
