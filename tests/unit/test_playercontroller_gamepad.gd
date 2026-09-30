@@ -245,6 +245,37 @@ func test_gamepad_hover_raise_held_continuously_raises_the_ghost() -> void:
 	Input.flush_buffered_events()
 
 
+# Bontago-59o.5: the held path already ramps (hover_hold_acceleration); pin
+# that a longer hold moves further per second than the first second.
+func test_gamepad_hover_raise_held_longer_accelerates() -> void:
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+	ghost.set_shape(load("res://config/blocks/cube.tres"))
+	var controller: PlayerController = autofree(PlayerController.new())
+	add_child_autofree(controller)
+	controller._ghost = ghost
+
+	var button_event: InputEventJoypadButton = InputEventJoypadButton.new()
+	button_event.device = -1
+	button_event.button_index = JOY_BUTTON_RIGHT_SHOULDER
+	button_event.pressed = true
+	Input.parse_input_event(button_event)
+	Input.flush_buffered_events()
+
+	controller._handle_hover_adjust(1.0)
+	var first_second: float = ghost.manual_hover_offset
+	controller._handle_hover_adjust(1.0)
+	var second_second: float = ghost.manual_hover_offset - first_second
+	assert_gt(second_second, first_second, "holding RB longer should raise faster per second.")
+
+	var release: InputEventJoypadButton = button_event.duplicate() as InputEventJoypadButton
+	release.pressed = false
+	Input.parse_input_event(release)
+	Input.flush_buffered_events()
+	controller._handle_hover_adjust(0.1)
+	assert_eq(controller._hover_hold_seconds, 0.0, "releasing resets the ramp.")
+
+
 func test_gamepad_hover_lower_held_continuously_lowers_the_ghost() -> void:
 	var ghost: GhostPreview = autofree(GhostPreview.new())
 	add_child_autofree(ghost)

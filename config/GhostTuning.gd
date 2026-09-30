@@ -17,14 +17,16 @@ extends Resource
 ## Bontago): lowered from 0.05 to 0.015 -- the original moves the held block
 ## much more slowly per pixel of mouse motion than this project's earlier
 ## default.
-@export var block_move_sensitivity: float = 0.015
+## Bontago-59o.4 (owner, 2026-09-30): default raised to 0.05 m/px.
+@export var block_move_sensitivity: float = 0.05
 ## Owner controller update (feedback/controller-update.md, re-confirmed
 ## 2026-09-28: "Left-stick cursor speed too slow"): raised from 10.0 -- a
 ## prior worker attempt at this same package independently settled on 18.0
 ## before it was abandoned mid-implementation (main's own uncommitted, never
 ## landed changes), which this package reuses as a reasonable "moderately
 ## faster" starting point rather than inventing a third number.
-@export var gamepad_cursor_base_speed: float = 18.0
+## Bontago-59o.4 (owner, 2026-09-30): default raised to 30.
+@export var gamepad_cursor_base_speed: float = 30.0
 ## The zoom (camera orbit distance) at which base_speed applies; farther out
 ## moves the cursor faster, closer in moves it slower.
 @export var gamepad_cursor_zoom_reference_distance: float = 30.0
@@ -129,6 +131,14 @@ extends Resource
 ## camera zoom. Raised from 0.4 to 0.6 (x1.5, same factor as
 ## hover_manual_adjust_speed above).
 @export var hover_wheel_step: float = 0.6
+## Bontago-59o.5: continuous wheel scrolling accelerates. The step multiplier
+## rises linearly from 1 to hover_wheel_max_multiplier over this many seconds
+## of scrolling with no pause longer than hover_wheel_gap_seconds.
+@export var hover_wheel_ramp_seconds: float = 1.5
+## Top multiplier applied to hover_wheel_step while scrolling continuously.
+@export var hover_wheel_max_multiplier: float = 4.0
+## Pause (s) between notches that ends a scroll and resets the ramp.
+@export var hover_wheel_gap_seconds: float = 0.25
 ## Bontago-mv0.17 item 5 (owner feel report: "the block's height changes ONLY
 ## via the wheel" -- original behaviour): raised from 3 m to clear a tall
 ## tower, now that the ghost's own height is the disk surface plus this

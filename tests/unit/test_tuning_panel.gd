@@ -782,7 +782,7 @@ func test_camera_tuning_default_values() -> void:
 
 func test_ghost_tuning_default_value() -> void:
 	var fresh: GhostTuning = GhostTuning.new()
-	assert_almost_eq(fresh.block_move_sensitivity, 0.015, 0.0001)
+	assert_almost_eq(fresh.block_move_sensitivity, 0.05, 0.0001)
 
 
 # --- Bontago-mv0.21: self-describing rows (default + description) -------------

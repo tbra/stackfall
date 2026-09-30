@@ -207,6 +207,13 @@ var _throw_aim_elapsed: float = 0.0
 ## hover_hold_acceleration/hover_hold_max_speed). Reset to 0 whenever no
 ## held raise/lower is active.
 var _hover_hold_seconds: float = 0.0
+## Bontago-59o.5: continuous wheel-scroll time and time since the last notch,
+## for _wheel_step_multiplier() (GhostTuning.hover_wheel_*). Idle starts past
+## any gap so the first notch is always a plain step.
+var _wheel_scroll_seconds: float = 0.0
+var _wheel_idle_seconds: float = INF
+## Sign of the last wheel notch; reversing direction restarts the ramp.
+var _wheel_last_direction: float = 0.0
 
 
 func _ready() -> void:
@@ -218,6 +225,10 @@ func _ready() -> void:
 	# GhostPreview.LOCAL_HELD_GROUP.
 	if _ghost != null:
 		_ghost.add_to_group(GhostPreview.LOCAL_HELD_GROUP)
+		# Bontago-gyy: _process() moves the local ghost every render frame and
+		# CameraRig turns interpolation off, so an interpolated ghost jitters
+		# against the camera. Remote ghosts are not touched.
+		_ghost.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_match = Match
 	_shapes_by_id = _load_shapes_by_id()
 	Events.turn_changed.connect(_on_turn_changed)
@@ -302,6 +313,7 @@ func _on_pause_menu_closed() -> void:
 func _process(delta: float) -> void:
 	if not input_enabled:
 		return
+	_tick_wheel_ramp(delta)
 	if _camera_rig != null:
 		# Bontago-b7r: kept current every frame (harmless while peeking, too)
 		# so a Focus home press right after a turn hand-off or a sandbox slot
@@ -627,11 +639,32 @@ func _zoom_camera(direction: float) -> void:
 		_camera_rig.zoom_by_orbit_step(direction)
 
 
+## Bontago-59o.5: advances the continuous-scroll clock. Scroll time only
+## accrues while notches keep arriving within hover_wheel_gap_seconds.
+func _tick_wheel_ramp(delta: float) -> void:
+	_wheel_idle_seconds += delta
+	if _wheel_idle_seconds <= ghost_tuning.hover_wheel_gap_seconds:
+		_wheel_scroll_seconds += delta
+	else:
+		_wheel_scroll_seconds = 0.0
+
+
+## Step multiplier for the notch being handled now (1.0 .. max), then marks
+## the notch so the gap timer restarts.
+func _wheel_step_multiplier(direction: float) -> float:
+	if _wheel_idle_seconds > ghost_tuning.hover_wheel_gap_seconds or signf(direction) != _wheel_last_direction:
+		_wheel_scroll_seconds = 0.0
+	_wheel_last_direction = signf(direction)
+	_wheel_idle_seconds = 0.0
+	var ramp: float = clampf(_wheel_scroll_seconds / maxf(ghost_tuning.hover_wheel_ramp_seconds, 0.001), 0.0, 1.0)
+	return lerpf(1.0, maxf(ghost_tuning.hover_wheel_max_multiplier, 1.0), ramp)
+
+
 func _step_hover(direction: float) -> void:
 	if _ghost == null:
 		return
 	var desired: float = clampf(
-		_ghost.manual_hover_offset + direction * ghost_tuning.hover_wheel_step,
+		_ghost.manual_hover_offset + direction * ghost_tuning.hover_wheel_step * _wheel_step_multiplier(direction),
 		0.0,
 		_hover_offset_ceiling()
 	)
