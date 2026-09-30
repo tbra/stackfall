@@ -1,8 +1,9 @@
-[gd_resource type="Resource" script_class="SpecialDef" load_steps=5 format=3]
+[gd_resource type="Resource" script_class="SpecialDef" load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://config/specials/SpecialDef.gd" id="1_def"]
 [ext_resource type="Script" path="res://game/specials/PropellerEffect.gd" id="2_effect"]
 [ext_resource type="PackedScene" path="res://assets/gifts/held/propeller.tscn" id="9_held"]
+[ext_resource type="Texture2D" path="res://assets/ui/gift_previews/propeller.png" id="10_icon"]
 
 [sub_resource type="Resource" id="Resource_propeller_effect"]
 script = ExtResource("2_effect")
@@ -14,6 +15,7 @@ tilt_strength = 0.3
 script = ExtResource("1_def")
 id = &"propeller"
 held_scene = ExtResource("9_held")
+preview_icon = ExtResource("10_icon")
 scene = null
 weight = 1.0
 enabled_by_default = true

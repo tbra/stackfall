@@ -66,13 +66,23 @@ func test_footprint_survives_gift_presentation() -> void:
 
 
 func test_preview_icon_falls_back_to_generic() -> void:
-	assert_eq(SpecialDef.preview_icon_for(&"rocket"), SpecialDef.GENERIC_PREVIEW_ICON)
 	assert_eq(SpecialDef.preview_icon_for(&"no_such_gift"), SpecialDef.GENERIC_PREVIEW_ICON)
 	var def: SpecialDef = SpecialDef.find_by_id(&"rocket")
+	var baked: Texture2D = def.preview_icon
+	def.preview_icon = null
+	assert_eq(SpecialDef.preview_icon_for(&"rocket"), SpecialDef.GENERIC_PREVIEW_ICON)
 	var icon: Texture2D = PlaceholderTexture2D.new()
 	def.preview_icon = icon
 	assert_eq(SpecialDef.preview_icon_for(&"rocket"), icon)
-	def.preview_icon = null
+	def.preview_icon = baked
+
+
+func test_every_gift_has_baked_preview_icon() -> void:
+	for id: StringName in GIFT_IDS:
+		var def: SpecialDef = SpecialDef.find_by_id(id)
+		assert_not_null(def.preview_icon, "%s preview_icon" % id)
+		assert_ne(def.preview_icon, SpecialDef.GENERIC_PREVIEW_ICON, String(id))
+		assert_eq(SpecialDef.preview_icon_for(id), def.preview_icon, String(id))
 
 
 func test_hud_uses_gift_icon_for_held_and_next() -> void:
@@ -87,7 +97,10 @@ func test_hud_uses_gift_icon_for_held_and_next() -> void:
 	fake.held_special_by_slot[0] = &"rocket"
 	fake.pending_special_count_by_slot[0] = 2
 	hud._refresh_special_indicator()
-	assert_eq(hud.held_gift_icon(), SpecialDef.GENERIC_PREVIEW_ICON)
+	var rocket_icon: Texture2D = SpecialDef.find_by_id(&"rocket").preview_icon
+	assert_not_null(rocket_icon)
+	assert_eq(hud.held_gift_icon(), rocket_icon)
+	# FakeMatch has no next_special, so the queued gift is the generic placeholder id.
 	assert_eq(hud.next_gift_icon(), SpecialDef.GENERIC_PREVIEW_ICON)
 	fake.held_special_by_slot.erase(0)
 	fake.pending_special_count_by_slot[0] = 0
