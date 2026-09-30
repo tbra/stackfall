@@ -279,11 +279,14 @@ Use the [installed tutorial/menu](ORIGINAL_INSTALL_EVIDENCE.md) as the primary e
 | **Magnet** | Pulls enemy blocks within 8 m toward itself for 3 s | | NEW |
 | **Freeze** | Makes your own blocks within 6 m static for 20 s | | NEW (defensive, cuts down on luck) |
 | **Glue** | On impact, grants three future placed blocks contact fusion with the disc or any block | charges 3, break force 40 | NEW; 2026-09-30 roadmap override |
+| **Stackfall** | On activation, rains ordinary blocks in the activating player's color onto the map | 12 blocks, 6/s, 12 m area radius, 18 m height, 1.5 m spacing, 600 active-body cap by default | NEW; 2026-09-29 roadmap |
 | **Gravity well** | Flips gravity to 30% within 10 m for 5 s | | NEW |
 
 Every special is its own `SpecialDef` resource plus a script. The seven evidenced effects are the original-fidelity roster; Magnet, Freeze, Glue and Gravity well are optional remake extras, not original discoveries. Type probabilities are original menu features; per-type enable checkboxes are the remake interface. Jumping Bean's local hole is independent of opponent overlap; **[OWNER decision 2026-09-22, Bontago-z4h]** under `HoleMode.OFF` the Jumping Bean punches no hole and keeps only its hop knockback.
 
 **[OWNER roadmap 2026-09-29, Bontago-22y.3]** Glue replaces its earlier one-shot radius effect. The Glue gift's ordinary impact/fuse trigger refreshes the owning slot to three future drop charges by default. The activation block itself does not consume a charge. Each later accepted placement, including a valid relocated auto-drop, spends one charge and fuses that block on actual contact with the disc or another block regardless of owner. Rejected actions, burned auto-drops, throws and effect-spawned projectiles do not spend charges. Bonds are breakable and cleaned up when either body leaves play.
+
+**[OWNER roadmap 2026-09-29, Bontago-22y.1]** Stackfall chooses seeded positions within the configured area around the activating block, restricted to solid map surface and spaced from its other rain blocks. The host spawns them over time as ordinary owner-colored blocks through the normal block registry and snapshot path. It skips any remaining drop when the active-body cap is reached; those effect blocks do not count as player placements.
 
 ### 2.7 Modes
 - **Free-for-all:** 2–8 players, humans and AI.

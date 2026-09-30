@@ -41,7 +41,10 @@ the environment supports `user://` writes. Physics benchmarks run alone.
    ordinary blocks in the activating player's color through the normal
    `BlockFactory`/registry/snapshot path. Ownership: new effect, placement
    spawn seam, SpecialDef and focused tests. Tune count, area, altitude,
-   spacing and rate; enforce the body cap. Benchmark peak snapshot load.
+   spacing and rate; enforce the body cap. The implementation reuses the
+   existing `spawn_special_projectile()` seam with no new placement or wire
+   format; each rain is a host-owned controller under Match, removed when
+   the match ends. Benchmark peak snapshot load.
 5. **Cat (`Bontago-22y.13`):** Spawn one host-simulated cat and give the
    activating player a laser-pointer aim state. The cat pursues the replicated
    target and collides with stacks through ordinary physics; all peers see its
