@@ -151,6 +151,7 @@ func _physics_process(delta: float) -> void:
 		# nothing on a client for the same reason; territory arrives as a
 		# replicated raster instead.
 		return
+	var probe_registry: int = PerfProbe.start()
 	for id: Variant in _entries.keys():
 		var entry: _Entry = _entries[id]
 		if not is_instance_valid(entry.block):
@@ -165,6 +166,7 @@ func _physics_process(delta: float) -> void:
 		else:
 			entry.settled_time = 0.0
 		entry.is_settled = entry.settled_time >= tuning.sleep_settle_time
+	PerfProbe.stop(&"registry", probe_registry)
 
 
 ## One InfluenceCircle per settled, still-owned block (spec 2.2). Home circles

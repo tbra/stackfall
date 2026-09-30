@@ -306,6 +306,9 @@ func set_field(field: Field) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed(&"tuning_panel_toggle"):
 		return
+	# Bontago-470.8: the F4 panel is debug-only (game/DebugMode.gd).
+	if not DebugMode.is_enabled():
+		return
 	# See tools/bootstrap_project.gd's DECISION: the gamepad half of this
 	# action is bound to X alone (every other button is already spoken for),
 	# which is also hover_lower, so a joypad press only counts as the toggle

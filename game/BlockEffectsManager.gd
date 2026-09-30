@@ -97,7 +97,9 @@ func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 func _physics_process(delta: float) -> void:
 	if delta <= 0.0:
 		return
+	var probe_effects: int = PerfProbe.start()
 	_update_falling_trails(delta)
+	PerfProbe.stop(&"block_effects", probe_effects)
 
 
 func _on_block_removed(block: RigidBody3D, reason: String) -> void:

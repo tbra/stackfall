@@ -66,6 +66,9 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed(&"net_debug_toggle"):
 		return
+	# Bontago-470.8: F3 is debug-only (game/DebugMode.gd).
+	if not DebugMode.is_enabled():
+		return
 	# See tools/bootstrap_project.gd's DECISION: the gamepad half of this
 	# action is bound to Y alone (every button is already spoken for), so a
 	# joypad press only counts as the toggle while camera_snap_home (Back) is

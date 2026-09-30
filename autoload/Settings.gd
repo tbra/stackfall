@@ -54,6 +54,8 @@ const SECTION_AUDIO: String = "audio"
 const SECTION_INPUT: String = "input"
 const SECTION_GAMEPAD: String = "gamepad"
 const SECTION_CONTROLS: String = "controls"
+const SECTION_DEBUG: String = "debug"
+const KEY_DEBUG_ENABLED: String = "enabled"
 
 const KEY_PRESET: String = "preset"
 ## Legacy pre-options-package key: a single dB value (-40..6). Only ever read
@@ -176,6 +178,11 @@ var _stick_move_speed_scale: float = DEFAULT_STICK_MOVE_SPEED_SCALE
 ## the full InputMap default set -- key_override_events() answers "what has
 ## the user overridden", not "what is bound").
 var _key_overrides: Dictionary[StringName, Array] = {}
+## Bontago-470.8: user-level debug-mode switch (game/DebugMode.gd's source 3).
+## -1 = never set (fall through to the other sources), 0 = off, 1 = on. Edited
+## by hand in user://settings.cfg ([debug] enabled=true) or via
+## set_debug_setting(); there is no in-game menu entry on purpose.
+var _debug_setting: int = -1
 
 
 func _ready() -> void:
@@ -656,7 +663,18 @@ func set_config_path_for_test(path: String) -> void:
 
 # --- Persistence --------------------------------------------------------------
 
+## Bontago-470.8: see _debug_setting. -1 when the user never set it.
+func debug_setting() -> int:
+	return _debug_setting
+
+
+func set_debug_setting(value: int) -> void:
+	_debug_setting = clampi(value, -1, 1)
+	_save()
+
+
 func _load() -> void:
+	_debug_setting = -1
 	_current_preset_id = DEFAULT_PRESET_ID
 	_channel_volume_percent = {
 		AudioChannel.MASTER: DEFAULT_VOLUME_PERCENT,
@@ -722,6 +740,9 @@ func _load() -> void:
 		float(cfg.get_value(SECTION_CONTROLS, KEY_STICK_MOVE_SPEED_SCALE, DEFAULT_STICK_MOVE_SPEED_SCALE)), 0.01, 10.0
 	)
 
+	if cfg.has_section_key(SECTION_DEBUG, KEY_DEBUG_ENABLED):
+		_debug_setting = 1 if bool(cfg.get_value(SECTION_DEBUG, KEY_DEBUG_ENABLED, false)) else 0
+
 	if cfg.has_section(SECTION_INPUT):
 		for action_key: String in cfg.get_section_keys(SECTION_INPUT):
 			var raw: Variant = cfg.get_value(SECTION_INPUT, action_key)
@@ -745,6 +766,8 @@ func _save() -> void:
 	cfg.set_value(SECTION_AUDIO, KEY_CUSTOM_MUSIC_DIR, _custom_music_dir)
 	cfg.set_value(SECTION_CONTROLS, KEY_MOUSE_MOVE_SPEED_SCALE, _mouse_move_speed_scale)
 	cfg.set_value(SECTION_CONTROLS, KEY_STICK_MOVE_SPEED_SCALE, _stick_move_speed_scale)
+	if _debug_setting >= 0:
+		cfg.set_value(SECTION_DEBUG, KEY_DEBUG_ENABLED, _debug_setting == 1)
 	for action: StringName in _key_overrides.keys():
 		cfg.set_value(SECTION_INPUT, String(action), _key_overrides[action])
 	var err: Error = cfg.save(_config_path)

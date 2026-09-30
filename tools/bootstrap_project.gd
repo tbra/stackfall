@@ -503,6 +503,16 @@ func _actions() -> Dictionary:
 	a["sandbox_slow_motion"] = [_key(KEY_F10), _pad(JOY_BUTTON_PADDLE1)]
 	a["sandbox_pause_physics"] = [_key(KEY_F11), _pad(JOY_BUTTON_PADDLE2)]
 
+	# DECISION (tools/bootstrap_project.gd, Bontago-470.8): perf_overlay_toggle
+	# is the debug-only F1 performance overlay (ui/PerfOverlay.gd, gated by
+	# game/DebugMode.gd). JOY_BUTTON_RIGHT_STICK is the one standard-pad button
+	# nothing else binds (hover_raise/lower moved to the shoulders long ago),
+	# but a stray stick click must not flip a debug overlay, so ui/PerfOverlay.gd
+	# only accepts the pad press while Back (camera_snap_home) is held -- the
+	# same action-built chord net_debug_toggle uses -- and avoids Start, whose
+	# press opens the pause menu.
+	a["perf_overlay_toggle"] = [_key(KEY_F1), _pad(JOY_BUTTON_RIGHT_STICK)]
+
 	return a
 
 

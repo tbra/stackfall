@@ -193,6 +193,8 @@ func _ready() -> void:
 	# the test suite and off-screen probe tools.
 	Settings.apply_window_mode()
 
+	_build_debug_tools()
+
 	if _has_cmdline_flag("hot-seat"):
 		_start_hot_seat_match()
 		return
@@ -249,8 +251,10 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	var probe_snapshot: int = PerfProbe.start()
 	SnapshotSync.host_tick(delta)
 	SnapshotSync.client_tick(delta)
+	PerfProbe.stop(&"snapshot", probe_snapshot)
 
 
 ## Bontago-xtq.26 (M7 P1): applies every field GraphicsPreset (config/
@@ -357,7 +361,8 @@ func _start_sandbox_match_with_args(args: PackedStringArray) -> void:
 	# tree by the time _start_sandbox_match_with_args() runs from its own
 	# _ready()), so its roster cache exists by the time this reaches it.
 	var forced: String = _sandbox_force_special_arg(args)
-	if forced != "":
+	# Bontago-470.8: --force-special is a debug tool; ignored unless debug mode.
+	if forced != "" and DebugMode.is_enabled():
 		_sandbox.force_special_by_id(StringName(forced))
 
 
@@ -1106,6 +1111,30 @@ func _end_match_world() -> void:
 	if _debug_overlay != null and is_instance_valid(_debug_overlay):
 		_debug_overlay.queue_free()
 	_debug_overlay = null
+
+
+# --- Debug tools (Bontago-470.8) ---------------------------------------------
+
+## Debug mode only (game/DebugMode.gd): the F1 perf overlay, its sampler and
+## the per-session CSV logger. Lives under Main for the whole session, so it
+## covers menus, lobby, matches and the sandbox alike. Not built (and PerfProbe
+## stays disabled) for players.
+func _build_debug_tools() -> void:
+	PerfProbe.enabled = DebugMode.is_enabled()
+	if not DebugMode.is_enabled():
+		return
+	var debug_config: DebugConfig = DebugMode.config()
+	var sampler: PerfSampler = PerfSampler.new()
+	sampler.config = debug_config
+	add_child(sampler)
+	var overlay: PerfOverlay = PerfOverlay.new()
+	overlay.config = debug_config
+	overlay.sampler = sampler
+	add_child(overlay)
+	var logger: PerfLogger = PerfLogger.new()
+	logger.config = debug_config
+	logger.sampler = sampler
+	add_child(logger)
 
 
 # --- Helpers -----------------------------------------------------------------
