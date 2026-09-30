@@ -63,7 +63,11 @@ func _ready() -> void:
 			weather = StringName(arg.trim_prefix("--weather="))
 	var toggles: bool = not args.has("--no-toggles")
 	_shapes = BlockShape.load_all_shapes()
-	Settings.set_graphics_preset(&"high")
+	var preset_id: StringName = &"high"
+	for arg: String in args:
+		if arg.begins_with("--preset="):
+			preset_id = StringName(arg.trim_prefix("--preset="))
+	Settings.set_graphics_preset(preset_id)
 	_main = (load("res://game/Main.tscn") as PackedScene).instantiate()
 	# Bontago-fca.1: with --render-size=WxH the game renders into a SubViewport of
 	# that size while the OS window stays tiny (AgentProbe).
@@ -98,6 +102,9 @@ func _ready() -> void:
 				await get_tree().physics_frame
 		await _settle()
 		await _sample("base", target)
+		for arg: String in args:
+			if arg.begins_with("--shot="):
+				get_viewport().get_texture().get_image().save_png(arg.trim_prefix("--shot=") + "_%d.png" % target)
 		if not toggles:
 			continue
 		PhysicsServer3D.set_active(false)

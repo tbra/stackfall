@@ -10,3 +10,6 @@ msaa_3d = 2
 shadow_atlas_size = 8192
 volumetric_fog_enabled = true
 cloud_puff_density = 1.0
+sun_shadow_mode = 2
+sun_shadow_max_distance = 100.0
+mirror_resolution_factor = 1.0

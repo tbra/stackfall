@@ -25,3 +25,12 @@ extends Resource
 @export var birds_enabled: bool = true
 ## Bontago-adt.3: cosmetic ambient life (perching birds, fireflies); off on Low.
 @export var ambient_life_enabled: bool = true
+## Bontago-1pi.11.2: sun DirectionalLight3D cascade count (DirectionalLight3D.ShadowMode;
+## 2 = 4 splits, 1 = 2 splits, 0 = one orthogonal split). Shadow pass cost grows with
+## block count, and the mirror camera pays it a second time.
+@export_enum("Orthogonal:0", "PSSM 2 Splits:1", "PSSM 4 Splits:2") var sun_shadow_mode: int = 2
+## Bontago-1pi.11.2: sun shadow max distance in metres (engine default 100).
+@export var sun_shadow_max_distance: float = 100.0
+## Bontago-1pi.11.2: multiplies TerritoryVisuals.mirror_resolution_scale for the disc
+## mirror SubViewport (1.0 = unchanged; lower renders the second scene pass smaller).
+@export_range(0.1, 1.0) var mirror_resolution_factor: float = 1.0

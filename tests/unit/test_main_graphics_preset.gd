@@ -70,3 +70,14 @@ func test_high_preset_keeps_msaa_and_ssr_and_volumetric_fog() -> void:
 	assert_eq(
 		environment.volumetric_fog_enabled, high_preset.volumetric_fog_enabled, "high preset keeps the cloud-deck fog"
 	)
+
+
+func test_low_preset_reduces_sun_shadow_cascades() -> void:
+	Settings.set_graphics_preset(&"low")
+	var low_preset: GraphicsPreset = Settings.current_graphics_preset()
+	var sun: DirectionalLight3D = _main.get_node("DirectionalLight3D") as DirectionalLight3D
+	assert_eq(int(sun.directional_shadow_mode), low_preset.sun_shadow_mode, "low preset sets cascade count")
+	assert_eq(sun.directional_shadow_max_distance, low_preset.sun_shadow_max_distance)
+	Settings.set_graphics_preset(&"high")
+	assert_eq(int(sun.directional_shadow_mode), DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS)
+	assert_lt(low_preset.mirror_resolution_factor, Settings.current_graphics_preset().mirror_resolution_factor + 0.001)
