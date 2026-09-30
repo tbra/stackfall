@@ -47,6 +47,7 @@ var _blocks_spawned: int = 0
 ## package's own file ownership, gets only a one-line forward), the same way
 ## Match.gd itself preloads _physics_tuning/_territory_tuning etc.
 var _special_tuning: SpecialTuning = preload("res://config/special_tuning.tres")
+var _glue_drop_tuning: GlueDropTuning = preload("res://config/glue_drop_tuning.tres")
 
 ## _spawn_block()'s SpecialDef-by-id cache (M4 P2c), rebuilt once per match:
 ## `_special_defs_config` is compared by *identity*, not equality, against
@@ -283,7 +284,16 @@ func request_place(
 		# The block actually landed somewhere valid -- at the caller's own
 		# spot, or (see below) relocated -- so this is the one path allowed
 		# to consume the pending special.
+		var is_glue_activation: bool = _match.held_special(slot_id) == &"glue"
 		_attach_pending_special(spawned, slot_id)
+		# A Glue impact grants charges for FUTURE successful drops. Exclude its
+		# own activation block even if an earlier Glue buff is still active.
+		# This path is never reached by a rejected click, burn, throw or
+		# spawn_special_projectile(), so those cannot spend a charge.
+		if not is_glue_activation and _match.consume_glue_drop(slot_id):
+			var bonding: GlueDrops = GlueDrops.new()
+			spawned.add_child(bonding)
+			bonding.bind(spawned, _glue_drop_tuning)
 		if outcome["use_relocation"]:
 			# Bontago-mv0.24: this auto-drop *did* find a valid point and
 			# landed there instead of at the caller's raw ghost position --

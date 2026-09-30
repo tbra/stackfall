@@ -1,7 +1,6 @@
 class_name GlueJoint
 extends Node
-## Owns one Generic6DOFJoint3D formed by GlueEffect.gd and the "breakable"
-## behaviour spec 2.6's Glue row asks for (docs/M8_PLAN.md P3-GLUE package).
+## Owns one breakable joint made by a charged GlueDrops block on contact.
 ##
 ## DECISION (game/specials/GlueJoint.gd, docs/M8_PLAN.md P3): Godot's
 ## Joint3D types have no built-in break force, so breakability is
@@ -19,8 +18,8 @@ extends Node
 ## child-then-parent free ordering.
 
 var _joint: Generic6DOFJoint3D = null
-var _body_a: RigidBody3D = null
-var _body_b: RigidBody3D = null
+var _body_a: PhysicsBody3D = null
+var _body_b: PhysicsBody3D = null
 var _break_force: float = 40.0
 var _prev_velocity_a: Vector3 = Vector3.ZERO
 var _prev_velocity_b: Vector3 = Vector3.ZERO
@@ -28,18 +27,31 @@ var _bound: bool = false
 
 
 ## Wires this node to the joint it owns and the two bodies it connects.
-## `joint` must already be a child of this node (GlueEffect._glue_pair()'s own
-## build order) so freeing this node frees the joint too.
+## `joint` must already be a child of this node (GlueDrops.try_bond()'s build
+## order) so freeing this node frees the joint too. The disc is not a rigid
+## body, so its velocity in the stress estimate is treated as zero.
 func bind(
-	joint: Generic6DOFJoint3D, body_a: RigidBody3D, body_b: RigidBody3D, break_force_value: float
+	joint: Generic6DOFJoint3D, body_a: PhysicsBody3D, body_b: PhysicsBody3D, break_force_value: float
 ) -> void:
 	_joint = joint
 	_body_a = body_a
 	_body_b = body_b
 	_break_force = break_force_value
-	_prev_velocity_a = body_a.linear_velocity
-	_prev_velocity_b = body_b.linear_velocity
+	_prev_velocity_a = _velocity(body_a)
+	_prev_velocity_b = _velocity(body_b)
 	_bound = true
+
+
+func bodies_match(a: PhysicsBody3D, b: PhysicsBody3D) -> bool:
+	return (_body_a == a and _body_b == b) or (_body_a == b and _body_b == a)
+
+
+func _velocity(body: PhysicsBody3D) -> Vector3:
+	return (body as RigidBody3D).linear_velocity if body is RigidBody3D else Vector3.ZERO
+
+
+func _mass(body: PhysicsBody3D) -> float:
+	return (body as RigidBody3D).mass if body is RigidBody3D else 0.0
 
 
 func _physics_process(delta: float) -> void:
@@ -58,12 +70,14 @@ func advance(delta: float) -> void:
 	if delta <= 0.0:
 		return
 
-	var accel_a: Vector3 = (_body_a.linear_velocity - _prev_velocity_a) / delta
-	var accel_b: Vector3 = (_body_b.linear_velocity - _prev_velocity_b) / delta
-	_prev_velocity_a = _body_a.linear_velocity
-	_prev_velocity_b = _body_b.linear_velocity
+	var velocity_a: Vector3 = _velocity(_body_a)
+	var velocity_b: Vector3 = _velocity(_body_b)
+	var accel_a: Vector3 = (velocity_a - _prev_velocity_a) / delta
+	var accel_b: Vector3 = (velocity_b - _prev_velocity_b) / delta
+	_prev_velocity_a = velocity_a
+	_prev_velocity_b = velocity_b
 
-	var combined_mass: float = _body_a.mass + _body_b.mass
+	var combined_mass: float = _mass(_body_a) + _mass(_body_b)
 	var stress: float = (accel_a - accel_b).length() * combined_mass
 	apply_stress_sample(stress)
 
@@ -81,6 +95,7 @@ func apply_stress_sample(stress: float) -> void:
 ## Frees the joint (explicitly, so it leaves the physics world this same
 ## frame) and then this node itself.
 func _break() -> void:
+	_bound = false
 	if _joint != null and is_instance_valid(_joint):
 		_joint.queue_free()
 	queue_free()

@@ -24,10 +24,13 @@ the environment supports `user://` writes. Physics benchmarks run alone.
 2. **Glue drops (`Bontago-22y.3`):** Count successful drops for a tunable
    number of charges. Bonds form on contact with the disc or another block,
    deduplicate body pairs, and clean up on break or despawn. Reuse
-   `GlueEffect`/`GlueJoint` contact and stress logic. The shipped Glue is a
-   one-shot radius joint special; the roadmap's multi-drop buff is a distinct
-   behavior. Ownership: new GlueDrops effect/state, `MatchPlacement`, joint
-   helpers and focused effect tests. Rejected clicks spend no charge.
+   `GlueJoint` stress logic. The shipped one-shot Glue radius effect is
+   replaced by an impact-triggered, per-slot buff for three future placements
+   by default; a new activation refreshes the charge count. The activation
+   block itself, rejected clicks, burns, throws and effect-spawned projectiles
+   spend no charge. A charged placed block can bond to any touched block,
+   regardless of owner. Ownership: `GlueEffect`, `MatchGifts`, `GlueDrops`,
+   `MatchPlacement`, joint helpers, replication and focused tests.
 3. **Paintball (`Bontago-22y.2`):** The host simulates the thrown glob, finds
    blocks in a tunable splash radius, and changes owner slot, registry
    attribution, material color and territory source together. Replicate each
