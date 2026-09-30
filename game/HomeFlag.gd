@@ -172,16 +172,27 @@ func _apply_pulse(_delta: float) -> void:
 	if beacon_visuals.pulse_period_s > 0.0:
 		wave = sin(TAU * _pulse_time_s / beacon_visuals.pulse_period_s)
 
-	var ring_scale: float = 1.0 + wave * beacon_visuals.pulse_scale_amplitude
+	var ring_scale: float = 1.0 + wave * beacon_visuals.pulse_scale_amplitude + _extra_ring_scale()
 	_beacon_ring.scale = Vector3(ring_scale, 1.0, ring_scale)
 
 	var energy_mult: float = 1.0 + wave * beacon_visuals.pulse_emission_amplitude
 	_beacon_ring_material.emission_energy_multiplier = (
-		beacon_visuals.ring_emission * beacon_visuals.emission_scale * energy_mult
+		beacon_visuals.ring_emission * beacon_visuals.emission_scale * energy_mult * _emission_boost()
 	)
 	_crystal_material.set_shader_parameter(
-		&"emission_energy", beacon_visuals.crystal_emission * energy_mult
+		&"emission_energy", beacon_visuals.crystal_emission * energy_mult * _emission_boost()
 	)
+
+
+## Extra emission multiplier applied on top of the pulse (GoalFlag raises it
+## when claimed/contested). 1.0 for a plain home beacon.
+func _emission_boost() -> float:
+	return 1.0
+
+
+## Extra ring scale fraction applied on top of the pulse (GoalFlag's claim flash).
+func _extra_ring_scale() -> float:
+	return 0.0
 
 
 ## A full annulus lying flat at y=0 in local space (see GoalFlag._build_arc()

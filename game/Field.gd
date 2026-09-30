@@ -199,6 +199,8 @@ func _ready() -> void:
 	_build_disc_body()
 	Events.hole_cells_changed.connect(_on_hole_cells_changed)
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
+	Events.territory_updated.connect(_on_territory_updated_for_goals)
+	Events.territory_replicated.connect(refresh_goal_control)
 
 
 func _physics_process(delta: float) -> void:
@@ -1198,6 +1200,28 @@ func set_capture_progress(team_id: int, progress: float) -> void:
 
 func _on_goal_capture_progress(team_id: int, progress: float) -> void:
 	set_capture_progress(team_id, progress)
+
+
+func _on_territory_updated_for_goals(raster: TerritoryRaster, _groups: TerritoryGroups) -> void:
+	refresh_goal_control(raster)
+
+
+## Bontago-470.7: pushes each goal's controller (GoalControl, derived from the
+## raster the host solved or the client mirrored) onto its beacon. Runs on
+## host and client from the same raster data, so they always agree.
+func refresh_goal_control(raster: TerritoryRaster) -> void:
+	for flag: GoalFlag in _goal_flags:
+		var point: Vector2 = Vector2(flag.position.x, flag.position.z)
+		var control: int = GoalControl.owner_at(raster, point)
+		var contest_colors: PackedColorArray = PackedColorArray()
+		if control == GoalControl.CONTESTED:
+			var teams: PackedInt32Array = GoalControl.nearby_teams(
+				raster, point, flag.beacon_visuals.contested_probe_radius,
+				flag.beacon_visuals.contested_probe_samples
+			)
+			for team: int in teams:
+				contest_colors.append(_color_for_index(team))
+		flag.set_control(control, _color_for_index(control) if control >= 0 else Color.WHITE, contest_colors)
 
 
 ## Slot/team colors come from MatchConfig.player_colors by way of

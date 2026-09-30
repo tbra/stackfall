@@ -153,3 +153,44 @@ extends Resource
 
 ## Bontago-adt.2: Roughness of the beacon socket base.
 @export var socket_roughness: float = 0.3
+
+## -- Goal claim display (Bontago-470.7: goal beacons must clearly show who has
+## claimed them). Neutral goals keep the look above; a claimed goal takes its
+## controller's colour with boosted emission and a tall light beam; a contested
+## goal flickers between the contesting colours with a striped beam.
+## Emission multiplier on a claimed goal's ring and crystal (times emission_scale).
+@export var claimed_emission_boost: float = 1.5
+## Emission multiplier on a contested goal's ring and crystal.
+@export var contested_emission_boost: float = 1.3
+## Height of the claim beam in meters (tall enough to read across the map).
+@export var claim_beam_height: float = 40.0
+## Radius of the claim beam in meters at GoalFlag scale.
+@export var claim_beam_radius: float = 0.45
+## Peak additive brightness of the claim beam at its base (fades to 0 at the top).
+@export var claim_beam_alpha: float = 0.7
+## Moving bands along the beam (a shape cue that does not rely on hue alone).
+@export var claim_beam_band_count: float = 8.0
+## Band scroll speed in beam heights per second (positive rises).
+@export var claim_beam_scroll_speed: float = 0.35
+## How dark the gaps between beam bands are (0 = fully dark gaps, 1 = no bands).
+@export var claim_beam_band_floor: float = 0.2
+## Seconds the claim-change flash and burst take to fade.
+@export var claim_flash_duration_s: float = 1.2
+## Extra emission multiplier at the instant a claim changes (decays to 0).
+@export var claim_flash_boost: float = 3.0
+## Extra ring scale fraction at the instant a claim changes (decays to 0).
+@export var claim_flash_ring_scale: float = 0.6
+## Sparks in the burst on a claim change.
+@export var claim_burst_count: int = 28
+## Initial speed of burst sparks in m/s.
+@export var claim_burst_speed: float = 7.0
+## Size of a burst spark in meters.
+@export var claim_burst_size: float = 0.35
+## Flicker rate in Hz between the contesting colours of a contested goal.
+@export var contested_flicker_hz: float = 3.0
+## Used as the second flicker colour when fewer than two contesting teams are found nearby.
+@export var contested_color: Color = Color(1.0, 1.0, 1.0)
+## Radius in meters around a contested goal to look for the contesting teams' colours.
+@export var contested_probe_radius: float = 3.5
+## Number of probe points on that ring.
+@export var contested_probe_samples: int = 16
