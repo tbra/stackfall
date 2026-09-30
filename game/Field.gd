@@ -131,6 +131,9 @@ var _tilt_enabled: bool = false
 ## point.
 var _tilt: Vector2 = Vector2.ZERO
 var _tilt_velocity: Vector2 = Vector2.ZERO
+## Bontago-b0w rest deadband state (see TiltTuning.rest_*).
+var _tilt_at_rest: bool = false
+var _tilt_rest_timer: float = 0.0
 ## Last _tilt written by _apply_tilt_transform(); see _update_tilt()'s
 ## change gate (Bontago-keo.11).
 var _last_applied_tilt: Vector2 = Vector2.ZERO
@@ -278,6 +281,7 @@ func set_tilt_enabled(enabled: bool) -> void:
 	if not enabled:
 		_tilt = Vector2.ZERO
 		_tilt_velocity = Vector2.ZERO
+		_wake_tilt()
 		_apply_tilt_transform()
 
 
@@ -344,6 +348,7 @@ func apply_tilt_impulse(direction: Vector2, magnitude: float) -> void:
 	if dir == Vector2.ZERO or magnitude == 0.0:
 		return
 	_tilt_velocity += Vector2(dir.y, -dir.x) * magnitude
+	_wake_tilt()
 
 
 ## The client-side entry point net/SnapshotSync.gd's client_tick() calls every
@@ -372,6 +377,7 @@ func apply_replicated_pose(offset: Vector3, tilt: Quaternion) -> void:
 	_mirrored = true
 	_tilt = _tilt_vector_from_quaternion(tilt)
 	_tilt_velocity = Vector2.ZERO
+	_wake_tilt()
 	global_transform = Transform3D(Basis(tilt), offset)
 
 
@@ -393,6 +399,15 @@ func _update_tilt(delta: float) -> void:
 	var forcing_accel: Vector2 = Vector2.ZERO
 	if _physical_balance_enabled:
 		forcing_accel = _physical_balance_torque_accel()
+	# Bontago-b0w: at rest the disc stays bit-static (no write) until the spring's
+	# target moves clear of the tilt, so balance-torque noise cannot keep it moving.
+	var rest_target: Vector2 = Vector2.ZERO
+	if stiffness > 0.0:
+		rest_target = forcing_accel / stiffness
+	if _tilt_at_rest:
+		if (rest_target - _tilt).length() < tilt_tuning.rest_wake_position_rad:
+			return
+		_wake_tilt()
 	var accel: Vector2 = (-stiffness * _tilt) - (damping * _tilt_velocity) + forcing_accel
 	_tilt_velocity += accel * delta
 	# DECISION (game/Field.gd, M6 B5, Bontago-keo.11 follow-up 2): see
@@ -448,6 +463,19 @@ func _update_tilt(delta: float) -> void:
 		_tilt_velocity = Vector2.ZERO
 	_tilt += _tilt_velocity * delta
 	_clamp_tilt()
+	if (
+		_tilt_velocity.length() < tilt_tuning.rest_velocity_rad_s
+		and (rest_target - _tilt).length() < tilt_tuning.rest_position_rad
+	):
+		_tilt_rest_timer += delta
+		if _tilt_rest_timer >= tilt_tuning.rest_hold_s:
+			_tilt_velocity = Vector2.ZERO
+			_tilt_at_rest = true
+			# Bontago-b0w: a sync_to_physics kinematic body keeps resting blocks
+			# awake even with no transform write; drop it while latched.
+			sync_to_physics = false
+	else:
+		_tilt_rest_timer = 0.0
 	# Orchestrator fix (Bontago-keo.11 bench, 2026-09-25): once the snap above
 	# has zeroed the velocity, _tilt is bit-for-bit unchanged, so re-submitting
 	# the same kinematic transform every tick only tells Jolt this body moved
@@ -455,6 +483,16 @@ func _update_tilt(delta: float) -> void:
 	if _tilt == _last_applied_tilt:
 		return
 	_apply_tilt_transform()
+
+
+## Leaves the rest deadband (impulse, replicated pose, reset, target moved).
+func _wake_tilt() -> void:
+	_tilt_at_rest = false
+	_tilt_rest_timer = 0.0
+	# Re-arm before the first write after waking so the moving disc carries blocks.
+	# (set_tilt_enabled(false) clears _tilt_enabled first, so this stays off there.)
+	if _tilt_enabled:
+		sync_to_physics = true
 
 
 ## Sums settled blocks' mass * disk-local lever-arm into the same 2-axis
@@ -1065,6 +1103,7 @@ func clear_match_state() -> void:
 	# set_tilt_enabled() alone would no-op on an enabled -> enabled transition.
 	_tilt = Vector2.ZERO
 	_tilt_velocity = Vector2.ZERO
+	_wake_tilt()
 	# Bontago-1en.27: also drops mirror mode, so a Field that mirrored a
 	# previous match's host (or is about to host a fresh one itself) starts
 	# the next match with its local spring live again until/unless

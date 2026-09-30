@@ -537,3 +537,85 @@ func test_physical_balance_is_still_clamped_at_max_tilt_deg() -> void:
 		rad_to_deg(field.tilt_vector().length()), field.tilt_tuning.max_tilt_deg + 0.001,
 		"PHYSICAL_BALANCE's continuous torque forcing still cannot exceed max_tilt_deg"
 	)
+
+
+## Bontago-b0w: a tilt that has come to rest stops writing the kinematic
+## transform (so blocks on it can sleep) and an impulse wakes it again.
+func test_rest_deadband_stops_transform_writes_and_an_impulse_wakes_it() -> void:
+	var field: Field = _make_field()
+	field.set_tilt_enabled(true)
+	field.apply_tilt_impulse(Vector2.RIGHT, 0.02)
+	for _i: int in range(60 * 40):
+		field._update_tilt(TICK)
+	assert_true(field._tilt_at_rest, "fixture: the decayed disc is at rest")
+	var resting: Transform3D = field.transform
+	for _i: int in range(60):
+		field._update_tilt(TICK)
+	assert_eq(field.transform, resting, "no writes while at rest")
+	field.apply_tilt_impulse(Vector2.RIGHT, 0.02)
+	assert_false(field._tilt_at_rest, "an impulse wakes the disc")
+	for _i: int in range(10):
+		field._update_tilt(TICK)
+	assert_ne(field.tilt_vector(), Vector2.ZERO, "the woken disc moves again")
+
+
+func test_sync_to_physics_drops_at_rest_and_returns_on_wake() -> void:
+	var field: Field = _make_field()
+	field.set_tilt_enabled(true)
+	assert_true(field.sync_to_physics, "tilt on arms the synced kinematic write")
+	field.apply_tilt_impulse(Vector2.RIGHT, 0.02)
+	for _i: int in range(60 * 40):
+		field._update_tilt(TICK)
+	assert_true(field._tilt_at_rest, "fixture: the decayed disc is at rest")
+	assert_false(field.sync_to_physics, "a latched disc stops syncing so blocks can sleep")
+	field.apply_tilt_impulse(Vector2.RIGHT, 0.02)
+	assert_true(field.sync_to_physics, "an impulse re-arms sync before the next write")
+	for _i: int in range(60 * 40):
+		field._update_tilt(TICK)
+	assert_false(field.sync_to_physics, "it latches again")
+	field.apply_replicated_pose(Vector3.ZERO, Quaternion.IDENTITY)
+	assert_true(field.sync_to_physics, "a replicated pose resumes writes with sync armed")
+	field.set_tilt_enabled(false)
+	assert_false(field.sync_to_physics, "tilt off leaves sync off")
+
+
+## Bontago-b0w: a small stack on a leaned, latched disc sleeps; a later tilt
+## impulse still carries it (sync re-armed), with no clipping through the top.
+func test_stack_on_a_latched_leaned_disc_sleeps_and_is_carried_when_woken() -> void:
+	var field: Field = _make_field()
+	field.set_tilt_enabled(true)
+	var bodies: Array[RigidBody3D] = []
+	for i: int in range(4):
+		var body: RigidBody3D = BlockFactory.build(
+			load("res://config/blocks/cube.tres"), field.tuning
+		)
+		field.get_parent().add_child(body)
+		autofree(body)
+		body.global_position = Vector3(0.5, 1.5 + 1.2 * float(i), 0.5)
+		bodies.append(body)
+	await wait_physics_frames(SETTLE_FRAMES)
+	field.apply_tilt_impulse(Vector2(1.0, 0.0), 0.02)
+	var frames: int = 0
+	while frames < 60 * 20 and not field._tilt_at_rest:
+		await wait_physics_frames(1)
+		frames += 1
+	assert_true(field._tilt_at_rest, "fixture: the leaned disc latched at rest")
+	var slept_after: int = -1
+	for f: int in range(90):
+		await wait_physics_frames(1)
+		var all_asleep: bool = true
+		for body: RigidBody3D in bodies:
+			all_asleep = all_asleep and body.sleeping
+		if all_asleep:
+			slept_after = f
+			break
+	assert_ne(slept_after, -1, "the whole stack falls asleep within 1.5 s of the latch")
+	var before: Vector2 = field.disk_local_from_world(bodies[0].global_position)
+	var before_y: float = field.to_local(bodies[0].global_position).y
+	field.apply_tilt_impulse(Vector2(0.0, 1.0), 0.04)
+	for _i: int in range(30):
+		await wait_physics_frames(1)
+	var after: Vector2 = field.disk_local_from_world(bodies[0].global_position)
+	assert_lt(before.distance_to(after), 0.3, "the moving disc carried the base block")
+	var after_y: float = field.to_local(bodies[0].global_position).y
+	assert_almost_eq(after_y, before_y, 0.1, "the base block did not sink into or lift off the disc")
