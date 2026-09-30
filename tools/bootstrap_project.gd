@@ -21,6 +21,13 @@ const BUTTON_DEADZONE: float = 0.5
 
 
 func _init() -> void:
+	# Bontago-fca.2: agent worktrees carry an untracked res://override.cfg
+	# (tools/agent_worktree_setup.py). ProjectSettings.save() would bake its
+	# window/audio overrides into project.godot, so refuse to run with it.
+	if FileAccess.file_exists("res://override.cfg"):
+		push_error("bootstrap_project: move override.cfg aside before regenerating project.godot (it would be saved into project.godot).")
+		quit(1)
+		return
 	_apply_settings()
 	_apply_input_map()
 	_apply_autoloads()
@@ -108,6 +115,20 @@ func _apply_settings() -> void:
 		"physics/jolt_physics_3d/simulation/body_pair_contact_cache_distance_threshold": 0.0001,
 		# Bodies sleep after 0.5 s below threshold (spec 3.5, "Sleep").
 		"physics/jolt_physics_3d/simulation/sleep_time_threshold": 0.5,
+		# DECISION (Bontago-1pi.11.13, 2026-09-30): kept at Jolt's 0.03 m/s
+		# after a sweep of 0.03/0.05/0.08/0.1 (tools/bench_sleep_sweep.tscn,
+		# bench_physical_balance, bench_perf_attrib --counts=300 --collapse).
+		# The key does reach Jolt (a gravity-free block drifting at 0.07 m/s
+		# sleeps at >=0.05, not at 0.03), but a dropped block (0.92 s) and a
+		# 10-block stack (0.52 s) sleep at the same time for every value, and
+		# the leaned-disc tower (Bontago-b0w; offsets 1,0 and 2,0) keeps all 15
+		# blocks awake at t=30 s with bit-identical traces at 0.03 and 0.1: the
+		# disk is still tilting (kinematic) so the blocks never get to sleep,
+		# and block speed (2.5 mm/s at 2,0) is already under 0.03. Collapse
+		# awake counts and step ms only differ by run-to-run noise. Raising it
+		# buys nothing measurable and loosens sleep for slow slides, so it
+		# stays at the default; pinned here so it is deliberate.
+		"physics/jolt_physics_3d/simulation/sleep_velocity_threshold": 0.03,
 
 		# Bontago-xtq.45 (M7 P4, owner request): a fresh launch (before the
 		# player has ever opened Options, so autoload/Settings.gd's own
