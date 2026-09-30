@@ -15,6 +15,8 @@ extends GutTest
 ## Fixture mirrors tests/unit/test_match_flow.gd's own (tiny map, real Field/
 ## Match, no live peer) rather than reusing its private helpers across files.
 
+const MatchNetScript := preload("res://net/MatchNet.gd")
+
 var _blocks_root: Node3D
 var _field: Field
 var _registry: BlockRegistry
@@ -37,6 +39,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
+	Match.set_net_provider(null)
 	Match.abort_match()
 	Match.set_process(true)
 	MatchTestReset.clear_world()
@@ -320,4 +323,80 @@ func test_playercontroller_moves_the_camera_on_its_own_slots_placement_relocated
 	assert_false(
 		rig._follow_position.is_equal_approx(Vector3.ZERO),
 		"the camera rig's follow target must actually have moved off its untouched fixture default."
+	)
+
+
+## Bontago-sen.1 (owner 2026-09-30): a held gift is exempt from the territory
+## check; the host decides from its own held state.
+func _hold_gift(slot_id: int) -> void:
+	# debug_queue_special is sandbox-only; flip the flag just for the queue
+	# call so the placement rules below run with sandbox off.
+	Match.config.sandbox = true
+	assert_true(Match.debug_queue_special(slot_id, &"earthquake"))
+	Match.config.sandbox = false
+	assert_eq(
+		Match.request_place(slot_id, _home_world_position(slot_id), 0, Quaternion.IDENTITY, false),
+		PlacementRules.REASON_OK, "fixture: ordinary piece placed so the gift is fed."
+	)
+	assert_eq(Match.held_special(slot_id), &"earthquake", "fixture: the gift is now held.")
+
+
+func test_held_gift_drops_outside_own_territory_but_plain_block_does_not() -> void:
+	Match.start_match(_config())
+	_run_countdown()
+	Match._feed.set_feed_timer_enabled(true)
+	var foreign: Vector3 = _home_world_position(1)
+	assert_eq(
+		Match.request_place(0, foreign, 0, Quaternion.IDENTITY, false),
+		PlacementRules.REASON_OUTSIDE_TERRITORY, "control: a plain block is still refused there."
+	)
+	_hold_gift(0)
+	assert_eq(Match.preview_placement(0, foreign, 0, Quaternion.IDENTITY), PlacementRules.Result.VALID)
+	var bad: Vector3 = _field.to_global(Vector3(999.0, 5.0, 999.0))
+	assert_ne(Match.request_place(0, bad, 0, Quaternion.IDENTITY, false), PlacementRules.REASON_OK, "off-disk still refused")
+	assert_eq(Match.request_place(0, Vector3(NAN, 0, 0), 0, Quaternion.IDENTITY, false), PlacementRules.REASON_NO_BLOCK)
+	assert_eq(Match.request_place(0, foreign, 0, Quaternion.IDENTITY, false), PlacementRules.REASON_OK)
+
+
+func test_held_gift_throw_outside_own_territory_is_accepted_plain_throw_refused() -> void:
+	Match.start_match(_config())
+	_run_countdown()
+	Match._feed.set_feed_timer_enabled(true)
+	var foreign: Vector3 = _home_world_position(1)
+	assert_ne(
+		Match.request_throw(0, foreign, 0, Quaternion.IDENTITY, Vector3.ZERO),
+		PlacementRules.REASON_OK, "control: a plain block throw is refused."
+	)
+	_hold_gift(0)
+	assert_eq(
+		Match.request_throw(0, foreign, 0, Quaternion.IDENTITY, Vector3.ZERO),
+		PlacementRules.REASON_OK, "a held gift may be thrown from outside own territory."
+	)
+
+
+func test_client_preview_waives_territory_for_replicated_gift_then_refuses_again() -> void:
+	Match.start_match(_config())
+	_run_countdown()
+	var fake: FakeNet = FakeNet.client(0)
+	Match.set_net_provider(fake)
+	var net: MatchNetScript = MatchNetScript.new()
+	net.set_process(false)
+	add_child_autofree(net)
+	net.set_providers(fake, Match)
+	var foreign: Vector3 = _home_world_position(1)
+	var shape_id: StringName = Match.held_shape(0).id
+	var seq: int = Match.feed_seq(0)
+	assert_eq(
+		Match.preview_placement(0, foreign, 0, Quaternion.IDENTITY),
+		PlacementRules.Result.OUTSIDE_TERRITORY, "control: plain block on a client."
+	)
+	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [11, 0, MatchGifts.PENDING_SPECIAL_ID, shape_id])
+	Match.apply_replicated_feed(0, shape_id, shape_id, seq + 1, Match.feed_time_left(0), false)
+	assert_ne(Match.held_special(0), &"", "fixture: client mirrors the held gift.")
+	assert_eq(Match.preview_placement(0, foreign, 0, Quaternion.IDENTITY), PlacementRules.Result.VALID)
+	Match.apply_replicated_feed(0, shape_id, shape_id, seq + 2, Match.feed_time_left(0), false)
+	assert_eq(Match.held_special(0), &"", "fixture: gift consumed.")
+	assert_eq(
+		Match.preview_placement(0, foreign, 0, Quaternion.IDENTITY),
+		PlacementRules.Result.OUTSIDE_TERRITORY, "next plain block is refused again."
 	)

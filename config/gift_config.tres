@@ -6,7 +6,7 @@
 script = ExtResource("1_gift")
 frequency_to_chance_max = 0.5
 max_live_crates = 1
-life_s = 10.0
+life_s = 25.0
 drop_height_m = 18.0
 fall_speed_m_s = 2.0
 sway_amplitude_m = 0.45

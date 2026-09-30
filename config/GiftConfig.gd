@@ -27,8 +27,8 @@ extends Resource
 @export var max_live_crates: int = 1
 
 ## Seconds a crate lives before it expires unclaimed (spec 2.6, "Crate life"
-## owner decision: stationary pickups, 60 s is a prototype starting value).
-@export var life_s: float = 10.0
+## owner decision: stationary pickups, 25 s per owner 2026-09-30, Bontago-sen.2).
+@export var life_s: float = 25.0
 
 ## Descent begins this many metres above the field and advances on host physics ticks.
 @export var drop_height_m: float = 18.0

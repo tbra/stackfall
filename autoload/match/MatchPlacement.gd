@@ -202,7 +202,7 @@ func request_place(
 		# zone". core/rules/PlacementRules.gd itself stays config-agnostic;
 		# this is the one call site that already knows about config.sandbox
 		# (autoload/match/MatchLifecycle.gd:121's own precedent).
-		if _match.config.sandbox and (
+		if (_match.config.sandbox or _match.held_special(slot_id) != &"") and (  # Bontago-sen.1: held gift waives territory (host state)
 			result == PlacementRules.Result.OUTSIDE_TERRITORY
 			or result == PlacementRules.Result.CONTESTED
 		):
@@ -386,7 +386,10 @@ func request_throw(
 		# DECISION (autoload/match/MatchPlacement.gd, docs/M6_PLAN.md package
 		# B1): the throw-path twin of request_place()'s own sandbox remap
 		# above -- same waived outcomes, same reasoning.
-		if _match.config.sandbox and (
+		# DECISION (Bontago-sen.1): orchestrator ruling -- owner says gifts may be
+		# "dropped anywhere", so a host-held gift (always true here, see the
+		# NOT_A_SPECIAL guard above) waives territory on the throw path too.
+		if (_match.config.sandbox or _match.held_special(slot_id) != &"") and (
 			result == PlacementRules.Result.OUTSIDE_TERRITORY
 			or result == PlacementRules.Result.CONTESTED
 		):
@@ -555,7 +558,14 @@ func preview_placement(
 	var hit: Variant = _match._field.raycast_down_disk_local(origin)
 	if hit == null:
 		return PlacementRules.Result.OFF_DISK
-	return PlacementRules.validate_point(hit as Vector2, _match.raster(), team_id)
+	var preview_result: PlacementRules.Result = PlacementRules.validate_point(hit as Vector2, _match.raster(), team_id)
+	# Bontago-sen.1: mirrors request_place(): a held gift ignores territory.
+	if _match.held_special(slot_id) != &"" and (
+		preview_result == PlacementRules.Result.OUTSIDE_TERRITORY
+		or preview_result == PlacementRules.Result.CONTESTED
+	):
+		return PlacementRules.Result.VALID
+	return preview_result
 
 
 ## Bontago-mv0.11: `slot_id`'s own colour tints every mesh of the block it
