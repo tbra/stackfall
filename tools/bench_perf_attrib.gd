@@ -26,6 +26,12 @@ var _players: int = 2
 var _churn: int = 0
 var _churn_arg: int = 0
 var _churn_cursor: int = 0
+var _collapse_active: bool = false
+var _collapse_log: Array[Vector3] = []
+var _frame_sum_ms: float = 0.0
+var _frame_n: int = 0
+var _frame_peak_ms: float = 0.0
+var _last_tick_step_ms: float = 0.0
 
 # timing hooks
 var _t_phys_frame: int = 0
@@ -72,6 +78,8 @@ func _ready() -> void:
 		if arg.begins_with("--churn="):
 			_churn_arg = int(arg.trim_prefix("--churn="))
 	var toggles: bool = not args.has("--no-toggles")
+	if args.has("--defer-off"):
+		Match._territory_tuning.solve_defer_max_s = 0.0
 	var shot_prefix: String = ""
 	for arg: String in args:
 		if arg.begins_with("--shot="):
@@ -149,6 +157,11 @@ func _ready() -> void:
 		for item: CanvasItem in hidden:
 			item.visible = true
 		await _sample("base_again", target)
+	if args.has("--collapse"):
+		await _collapse_run(args)
+	for arg: String in args:
+		if arg.begins_with("--growth="):
+			await _growth_run(float(arg.trim_prefix("--growth=")), args)
 	if args.has("--deep"):
 		await _deep_toggles(counts[counts.size() - 1])
 	if args.has("--callcost"):
@@ -208,7 +221,7 @@ func _deep_toggles(target: int) -> void:
 
 ## Times node._process / _physics_process called directly (median of 15) for every
 ## processing script node: cost per node independent of frame pacing noise.
-func _call_cost() -> void:
+func _call_cost(top: int = 14) -> void:
 	var rows: Array = []
 	for node: Node in get_tree().root.find_children("*", "", true, false):
 		if node.get_script() == null or node == self or node == _late_node:
@@ -230,7 +243,7 @@ func _call_cost() -> void:
 	for row: Array in rows:
 		total += int(row[0])
 	print("ATTRIB callcost total_us=%d nodes=%d" % [total, rows.size()])
-	for i: int in range(mini(14, rows.size())):
+	for i: int in range(mini(top, rows.size())):
 		print("ATTRIB callcost %6d us  %s" % [rows[i][0], rows[i][1]])
 
 
@@ -341,6 +354,7 @@ func _on_physics_frame() -> void:
 	var now: int = Time.get_ticks_usec()
 	if _t_late_phys != 0:
 		_acc_phys_step += now - _t_late_phys
+		_last_tick_step_ms = float(now - _t_late_phys) / 1000.0
 		_t_late_phys = 0
 	_t_phys_frame = now
 
@@ -348,6 +362,10 @@ func _on_physics_frame() -> void:
 func _on_late_physics() -> void:
 	_churn_blocks()
 	var now: int = Time.get_ticks_usec()
+	if _collapse_active and _t_phys_frame != 0:
+		var probes: Dictionary = PerfProbe.drain()
+		var terr_ms: float = float((probes.get(&"territory", {}) as Dictionary).get("usec", 0)) / 1000.0
+		_collapse_log.append(Vector3(terr_ms, _last_tick_step_ms, float(now - _t_phys_frame) / 1000.0))
 	if _t_phys_frame != 0:
 		_acc_phys_scripts += now - _t_phys_frame
 		_acc_ticks += 1
@@ -360,6 +378,10 @@ func _on_process_frame() -> void:
 		_acc_phys_step += now - _t_late_phys
 		_t_late_phys = 0
 	if _t_last_frame != 0:
+		var frame_ms: float = float(now - _t_last_frame) / 1000.0
+		_frame_sum_ms += frame_ms
+		_frame_n += 1
+		_frame_peak_ms = maxf(_frame_peak_ms, frame_ms)
 		_acc_frame += now - _t_last_frame
 		_frames += 1
 	_t_last_frame = now
@@ -383,12 +405,18 @@ func _churn_blocks() -> void:
 		if body.freeze:
 			continue
 		body.sleeping = false
-	_churn_cursor = (_churn_cursor + _churn) % list.size()
+	if OS.get_cmdline_user_args().has("--churn-rotate"):
+		_churn_cursor = (_churn_cursor + _churn) % list.size()
 
 
 func _spawn_one() -> void:
-	var slot_id: int = _spawned % _players
-	var k: int = _spawned / _players
+	_spawn_at(_spawned)
+	_spawned += 1
+
+
+func _spawn_at(index: int) -> void:
+	var slot_id: int = index % _players
+	var k: int = index / _players
 	var layer: int = k / (GRID_SIDE * GRID_SIDE)
 	var cell: int = k % (GRID_SIDE * GRID_SIDE)
 	var gx: float = (float(cell % GRID_SIDE) - float(GRID_SIDE - 1) * 0.5) * GRID_SPACING_M
@@ -401,7 +429,6 @@ func _spawn_one() -> void:
 	Match.blocks_parent().add_child(block)
 	block.global_position = _field.world_from_disk_local(local, height)
 	Events.block_placed.emit(block, shape.id)
-	_spawned += 1
 
 
 func _blocks() -> Array[RigidBody3D]:
@@ -515,3 +542,118 @@ func _sample(label: String, target: int) -> void:
 		int(Performance.get_monitor(Performance.OBJECT_COUNT)),
 		overlay.circle_count() if overlay != null else -1, probe_text + " engine_proc=%.2f engine_phys=%.2f" % [Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0],
 	])
+
+
+## --growth=MINUTES [--churn=N] [--respawn=K]: holds the block count steady (the
+## counts list's last value), nudges N blocks awake every tick and replaces K
+## blocks per minute through the normal placed/removed events, sampling once a
+## minute: node/object/orphan/resource counts, memory, render monitors,
+## per-class node counts and script call cost. Bontago-1pi.11.7.
+func _growth_run(minutes: float, args: PackedStringArray) -> void:
+	var respawn: int = 10
+	for arg: String in args:
+		if arg.begins_with("--churn="):
+			_churn = int(arg.trim_prefix("--churn="))
+		elif arg.begins_with("--respawn="):
+			respawn = int(arg.trim_prefix("--respawn="))
+	Engine.max_fps = 60
+	var steady: int = _spawned
+	var start_ms: int = Time.get_ticks_msec()
+	var minute: int = 0
+	var first_classes: Dictionary = {}
+	var last_classes: Dictionary = {}
+	while float(minute) <= minutes:
+		for i: int in range(respawn if minute > 0 else 0):
+			var list: Array[RigidBody3D] = _blocks()
+			var victim: RigidBody3D = list[_rng.randi_range(0, list.size() - 1)]
+			Events.block_removed.emit(victim, "bench")
+			victim.queue_free()
+			_spawn_at(_rng.randi_range(0, steady - 1))
+		await _sample("growth_m%d" % minute, steady)
+		var classes: Dictionary = {}
+		for node: Node in get_tree().root.find_children("*", "", true, false):
+			classes[node.get_class()] = int(classes.get(node.get_class(), 0)) + 1
+		if minute == 0:
+			first_classes = classes
+		last_classes = classes
+		print("ATTRIB_G m=%d t=%ds blocks=%d awake=%d nodes=%d objs=%d orphan=%d res=%d tex_mem=%.1fMB buf_mem=%.1fMB static_mem=%.1fMB vid_mem=%.1fMB p3d_active=%d p3d_pairs=%d p3d_islands=%d fps=%d" % [
+			minute, (Time.get_ticks_msec() - start_ms) / 1000, _blocks().size(), _awake(),
+			int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
+			int(Performance.get_monitor(Performance.OBJECT_COUNT)),
+			int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)),
+			int(Performance.get_monitor(Performance.OBJECT_RESOURCE_COUNT)),
+			Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED) / 1048576.0,
+			Performance.get_monitor(Performance.RENDER_BUFFER_MEM_USED) / 1048576.0,
+			Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0,
+			Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / 1048576.0,
+			int(Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS)),
+			int(Performance.get_monitor(Performance.PHYSICS_3D_COLLISION_PAIRS)),
+			int(Performance.get_monitor(Performance.PHYSICS_3D_ISLAND_COUNT)),
+			int(Performance.get_monitor(Performance.TIME_FPS)),
+		])
+		_call_cost(4)
+		var deadline: int = start_ms + (minute + 1) * 60000
+		while Time.get_ticks_msec() < deadline:
+			await get_tree().create_timer(1.0).timeout
+		minute += 1
+	var diffs: Array = []
+	for key: String in last_classes.keys():
+		var delta: int = int(last_classes[key]) - int(first_classes.get(key, 0))
+		if delta != 0:
+			diffs.append([delta, key])
+	diffs.sort_custom(func(a: Array, b: Array) -> bool: return absi(int(a[0])) > absi(int(b[0])))
+	print("ATTRIB_G class_growth(first->last)=%s" % [diffs.slice(0, 12)])
+	for root_child: Node in get_tree().root.get_children():
+		print("ATTRIB_G root_child %s nodes=%d" % [root_child.name, 1 + root_child.find_children("*", "", true, false).size()])
+
+
+## --collapse [--defer-off]: removes the lowest third of the settled blocks in one
+## frame and nudges the rest awake, then records per physics tick (territory
+## solve, step wall) and per frame for 10 s. Bontago-1pi.11.7.
+func _collapse_run(_args: PackedStringArray) -> void:
+	var tuning: TerritoryTuning = Match._territory_tuning
+	print("ATTRIB_C defer_max_s=%.2f" % tuning.solve_defer_max_s)
+	var list: Array[RigidBody3D] = _blocks()
+	list.sort_custom(func(a: RigidBody3D, b: RigidBody3D) -> bool: return a.global_position.y < b.global_position.y)
+	var cut: int = list.size() / 3
+	for i: int in range(cut):
+		Events.block_removed.emit(list[i], "bench")
+		list[i].queue_free()
+	for i: int in range(cut, list.size()):
+		list[i].sleeping = false
+		list[i].apply_central_impulse(Vector3(_rng.randf_range(-1.0, 1.0), 0.0, _rng.randf_range(-1.0, 1.0)) * list[i].mass)
+	PerfProbe.drain()
+	_collapse_log = []
+	_frame_sum_ms = 0.0
+	_frame_n = 0
+	_frame_peak_ms = 0.0
+	_collapse_active = true
+	var start: int = Time.get_ticks_msec()
+	var bucket: int = 0
+	while Time.get_ticks_msec() - start < 10000:
+		await get_tree().create_timer(1.0).timeout
+		bucket += 1
+		var ticks: int = _collapse_log.size()
+		var terr: float = 0.0
+		var terr_peak: float = 0.0
+		var step: float = 0.0
+		var step_peak: float = 0.0
+		var solves: int = 0
+		var scripts: float = 0.0
+		for row: Vector3 in _collapse_log:
+			terr += row.x
+			terr_peak = maxf(terr_peak, row.x)
+			if row.x > 0.0:
+				solves += 1
+			step += row.y
+			step_peak = maxf(step_peak, row.y)
+			scripts += row.z
+		print("ATTRIB_C s=%d awake=%d live=%d ticks=%d territory_sum_ms=%.1f territory_peak_ms=%.2f solves=%d step_avg_ms=%.2f step_peak_ms=%.2f scripts_avg_ms=%.2f frame_avg_ms=%.2f frame_peak_ms=%.2f cache_hits=%d" % [
+			bucket, _awake(), _blocks().size(), ticks, terr, terr_peak, solves,
+			step / maxf(float(ticks), 1.0), step_peak, scripts / maxf(float(ticks), 1.0),
+			_frame_sum_ms / maxf(float(_frame_n), 1.0), _frame_peak_ms, Match._territory._sandbox_cache_hits])
+		_collapse_log = []
+		_frame_sum_ms = 0.0
+		_frame_n = 0
+		_frame_peak_ms = 0.0
+	_collapse_active = false
