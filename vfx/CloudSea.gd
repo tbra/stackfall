@@ -39,7 +39,8 @@ const YAW_PARAMETER: StringName = &"sky_yaw_offset_deg"
 const PITCH_PARAMETER: StringName = &"sky_pitch_offset_deg"
 const FLAT_BASE_PARAMETER: StringName = &"flat_base"
 const FAR_FADE_CAP_PARAMETER: StringName = &"far_fade_cap"
-## Icosphere subdivision of the puff mesh (2 = 320 triangles). The mesh is
+## Default/maximum icosphere subdivision of the puff mesh (2 = 320 triangles;
+## 1 = 80, see GraphicsPreset.cloud_puff_subdivisions). The mesh is
 ## only a hull: the shader carves the round, lumpy silhouette per pixel
 ## (its hull_margin covers this tessellation's chord error).
 const PUFF_SUBDIVISIONS: int = 2
@@ -90,7 +91,7 @@ func refresh_weather_fog() -> void:
 ## Rebuilds the puffs from `theme`. `density` (GraphicsPreset.cloud_puff_density,
 ## 0..1) scales the theme's clump count; 0 hides the cloud sea. `sky_material`
 ## is the active sky material whose panorama/grade uniforms the puffs copy.
-func configure(theme: SkyThemeDef, density: float, sky_material: Material = null) -> void:
+func configure(theme: SkyThemeDef, density: float, sky_material: Material = null, subdivisions: int = PUFF_SUBDIVISIONS) -> void:
 	if _instance != null:
 		_instance.queue_free()
 		_instance = null
@@ -127,7 +128,7 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 	var multimesh: MultiMesh = MultiMesh.new()
 	multimesh.transform_format = MultiMesh.TRANSFORM_3D
 	multimesh.use_custom_data = true
-	multimesh.mesh = build_puff_mesh(theme.cloud_flat_base)
+	multimesh.mesh = build_puff_mesh(theme.cloud_flat_base, subdivisions)
 	multimesh.instance_count = clumps * theme.cloud_puffs_per_clump
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = theme.cloud_seed
@@ -282,7 +283,7 @@ func puff_material() -> ShaderMaterial:
 ## Unit icosphere whose part below y = -`flat_base` is squashed onto that
 ## plane (a cumulus's flat base). Smooth radial normals; base vertices face
 ## straight down.
-static func build_puff_mesh(flat_base: float) -> ArrayMesh:
+static func build_puff_mesh(flat_base: float, subdivisions: int = PUFF_SUBDIVISIONS) -> ArrayMesh:
 	var golden: float = (1.0 + sqrt(5.0)) * 0.5
 	var vertices: Array[Vector3] = [
 		Vector3(-1, golden, 0), Vector3(1, golden, 0), Vector3(-1, -golden, 0), Vector3(1, -golden, 0),
@@ -297,7 +298,7 @@ static func build_puff_mesh(flat_base: float) -> ArrayMesh:
 		3, 9, 4, 3, 4, 2, 3, 2, 6, 3, 6, 8, 3, 8, 9,
 		4, 9, 5, 2, 4, 11, 6, 2, 10, 8, 6, 7, 9, 8, 1,
 	])
-	for _level: int in range(PUFF_SUBDIVISIONS):
+	for _level: int in range(clampi(subdivisions, 1, PUFF_SUBDIVISIONS)):
 		var midpoints: Dictionary[Vector2i, int] = {}
 		var next: PackedInt32Array = PackedInt32Array()
 		for f: int in range(0, faces.size(), 3):

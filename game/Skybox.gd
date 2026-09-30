@@ -686,7 +686,8 @@ func _apply_ambient_life(preset: GraphicsPreset, applied_theme: SkyThemeDef) -> 
 	var birds: bool = preset == null or preset.birds_enabled
 	if _cloud_sea != null:
 		var sky_material: Material = applied_theme.sky_material if applied_theme != null else null
-		_cloud_sea.configure(applied_theme, density, sky_material)
+		var subdivisions: int = preset.cloud_puff_subdivisions if preset != null else CloudSea.PUFF_SUBDIVISIONS
+		_cloud_sea.configure(applied_theme, density, sky_material, subdivisions)
 	if _birds != null:
 		_birds.configure(applied_theme, birds)
 	# Bontago-adt.3: perching birds / fireflies, rebuilt (never duplicated) on

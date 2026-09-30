@@ -122,6 +122,12 @@ func test_puff_mesh_has_a_flat_base() -> void:
 	assert_eq((arrays[Mesh.ARRAY_INDEX] as PackedInt32Array).size(), 20 * int(pow(4.0, CloudSea.PUFF_SUBDIVISIONS)) * 3)
 
 
+func test_puff_mesh_subdivisions_follow_the_preset() -> void:
+	var coarse: ArrayMesh = CloudSea.build_puff_mesh(0.35, 1)
+	assert_eq((coarse.surface_get_arrays(0)[Mesh.ARRAY_INDEX] as PackedInt32Array).size(), 20 * 4 * 3)
+	assert_eq(load("res://config/graphics_presets/high.tres").cloud_puff_subdivisions, 1)
+
+
 func test_birds_only_when_enabled_and_theme_has_flocks() -> void:
 	var sunset: SkyThemeDef = load(SUNSET_PATH) as SkyThemeDef
 	var birds: DistantBirds = DistantBirds.new()
