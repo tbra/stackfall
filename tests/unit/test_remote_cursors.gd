@@ -234,3 +234,28 @@ func test_bind_local_slot_pins_the_controller() -> void:
 	hot_seat.bind_local_slot(1)
 
 	assert_eq(hot_seat.controller()._active_slot, 1)
+
+
+# --- Glue presentation (Bontago-sen.8) ---------------------------------------
+
+
+func test_a_remote_ghost_wears_glue_while_its_slot_has_charges() -> void:
+	var fake_match: FakeMatch = _fake_match_with_slots()
+	var cursors: RemoteCursors = _make_cursors(FakeNet.client(0), fake_match)
+	Events.remote_cursor_updated.emit(1, Vector3.ZERO, 0, Quaternion.IDENTITY)
+	assert_false(cursors.ghost_for_slot(1).is_glue_overlay_active())
+
+	Events.glue_charges_changed.emit(1, 5, 1)
+	assert_true(cursors.ghost_for_slot(1).is_glue_overlay_active())
+	assert_eq(cursors.ghost_for_slot(1).glue_charges(), 5)
+
+	Events.glue_charges_changed.emit(1, 0, 2)
+	assert_false(cursors.ghost_for_slot(1).is_glue_overlay_active())
+
+
+func test_a_ghost_created_after_the_grant_starts_glued() -> void:
+	var fake_match: FakeMatch = _fake_match_with_slots()
+	fake_match.glue_drops_by_slot[1] = 3
+	var cursors: RemoteCursors = _make_cursors(FakeNet.client(0), fake_match)
+	Events.remote_cursor_updated.emit(1, Vector3.ZERO, 0, Quaternion.IDENTITY)
+	assert_true(cursors.ghost_for_slot(1).is_glue_overlay_active())

@@ -402,6 +402,32 @@ func test_glue_preview_overlay_follows_charges() -> void:
 	assert_false(hud.glue_preview_active())
 
 
+func test_glue_overlay_clears_when_the_provider_goes_away() -> void:
+	var hud: HUD = _make_hud()
+	var fake_match: FakeMatch = FakeMatch.new()
+	hud.match_provider = fake_match
+	hud.set_local_slot(0)
+	fake_match.glue_drops_by_slot[0] = 5
+	hud._refresh_special_indicator()
+	assert_true(hud.glue_preview_active())
+	hud.match_provider = null
+	hud._refresh_special_indicator()
+	assert_false(hud.glue_preview_active())
+
+
+func test_glue_overlay_clears_on_match_end_and_lobby() -> void:
+	for to_state: int in [Match.State.END, Match.State.LOBBY]:
+		var hud: HUD = _make_hud()
+		var fake_match: FakeMatch = FakeMatch.new()
+		hud.match_provider = fake_match
+		hud.set_local_slot(0)
+		fake_match.glue_drops_by_slot[0] = 5
+		hud._refresh_special_indicator()
+		assert_true(hud.glue_preview_active())
+		Events.match_state_changed.emit(Match.State.PLAYING, to_state)
+		assert_false(hud.glue_preview_active())
+
+
 func test_special_indicator_shows_special_after_a_claim_for_the_local_slot() -> void:
 	var hud: HUD = _make_hud()
 	hud.set_local_slot(0)

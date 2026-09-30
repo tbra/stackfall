@@ -223,3 +223,17 @@ func test_throw_does_not_spend_a_drop_charge() -> void:
 		PlacementRules.REASON_OK
 	)
 	assert_eq(Match.glue_drops_left(0), 1)
+
+
+func test_elimination_clears_the_slots_glue_charges_and_publishes() -> void:
+	# Bontago-sen.8: an eliminated slot keeps no stale charges.
+	assert_true(Match.grant_glue_drops(0, 3))
+	assert_true(Match.grant_glue_drops(1, 4))
+	var seen: Array = []
+	var on_change: Callable = func(slot_id: int, charges: int, _rev: int) -> void: seen.append([slot_id, charges])
+	Events.glue_charges_changed.connect(on_change)
+	Events.player_eliminated.emit(0, Match.team_of(0))
+	Events.glue_charges_changed.disconnect(on_change)
+	assert_eq(Match.glue_drops_left(0), 0)
+	assert_eq(Match.glue_drops_left(1), 4)
+	assert_eq(seen, [[0, 0]])

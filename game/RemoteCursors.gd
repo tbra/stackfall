@@ -32,6 +32,7 @@ func _ready() -> void:
 	Events.feed_block_issued.connect(_on_feed_block_issued)
 	Events.player_eliminated.connect(_on_player_eliminated)
 	Events.match_state_changed.connect(_on_match_state_changed)
+	Events.glue_charges_changed.connect(_on_glue_charges_changed)
 
 
 func set_providers(session_provider: Variant, match_provider: Variant) -> void:
@@ -113,6 +114,14 @@ func _sync_gift(ghost: GhostPreview, slot_id: int) -> void:
 		ghost.set_held_gift(StringName(authority.held_special(slot_id)))
 
 
+## Bontago-sen.8: remote ghosts wear the glue look while their slot has
+## charges, from the replicated count (also applied when a ghost is created).
+func _on_glue_charges_changed(slot_id: int, charges: int, _revision: int) -> void:
+	var ghost: GhostPreview = ghost_for_slot(slot_id)
+	if ghost != null:
+		ghost.set_glue_charges(charges)
+
+
 func _on_player_eliminated(slot_id: int, _team_id: int) -> void:
 	var ghost: GhostPreview = ghost_for_slot(slot_id)
 	if ghost == null:
@@ -148,6 +157,9 @@ func _ensure_ghost(slot_id: int) -> GhostPreview:
 	# player's territory check would be both noisy and a small information
 	# leak in a game about walling people in.
 	ghost.apply_validity(PlacementRules.Result.VALID)
+	var auth: Object = _authority()
+	if auth != null and auth.has_method(&"glue_drops_left"):
+		ghost.set_glue_charges(int(auth.glue_drops_left(slot_id)))
 	return ghost
 
 

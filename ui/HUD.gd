@@ -218,6 +218,7 @@ func _ready() -> void:
 	Events.territory_share_changed.connect(_on_territory_share_changed)
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 	Events.match_won.connect(_on_match_won)
+	Events.match_state_changed.connect(_on_match_state_changed_glue)
 	Events.player_eliminated.connect(_on_player_eliminated)
 	Events.gift_claimed.connect(_on_gift_claimed)
 	Events.gift_flight_spawned.connect(_on_gift_state_changed)
@@ -724,6 +725,7 @@ func _name_for_slot(slot_id: int) -> String:
 func _refresh_special_indicator() -> void:
 	if match_provider == null or _active_slot < 0:
 		_last_special_signature = []
+		_set_glue_active(false)
 		_special_indicator.visible = false
 		_set_gift_icons(&"", &"")
 		_held_label.text = "HELD"
@@ -996,6 +998,14 @@ const GLUE_DRIP_COUNT: int = 3
 const GLUE_DRIP_WIDTH_FRACTION: float = 0.1
 const GLUE_DRIP_LENGTH_FRACTION: float = 0.22
 var _glue_active: bool = false
+
+
+## Bontago-sen.8: leaving a match (lobby/end) drops the overlay at once and
+## forces the next refresh to re-read the charges.
+func _on_match_state_changed_glue(_from_state: int, to_state: int) -> void:
+	if to_state == Match.State.LOBBY or to_state == Match.State.END:
+		_last_special_signature = []
+		_set_glue_active(false)
 
 
 func glue_preview_active() -> bool:
