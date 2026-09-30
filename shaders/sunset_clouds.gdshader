@@ -155,6 +155,22 @@ uniform vec3 cloud_mid_color : source_color = vec3(0.86, 0.55, 0.52);
 uniform vec3 cloud_lit_color : source_color = vec3(1.0, 0.82, 0.52);
 uniform vec3 cloud_rim_color : source_color = vec3(1.0, 0.9, 0.66);
 
+// Bontago-59o.16 (procedural sky P1): declarations only; the branch that
+// reads them lands in P2-P4. procedural_sea_mix 0 = painted panorama.
+uniform float procedural_sea_mix = 0.0;
+uniform vec4 proc_zenith_color : source_color = vec4(0.161, 0.2, 0.333, 1.0);
+uniform vec4 proc_mid_color : source_color = vec4(0.55, 0.36, 0.5, 1.0);
+uniform vec4 proc_horizon_color : source_color = vec4(0.98, 0.64, 0.38, 1.0);
+uniform float proc_gradient_mid_height = 0.35;
+uniform float proc_gradient_power = 1.5;
+uniform vec4 proc_horizon_glow_color : source_color = vec4(1.0, 0.62, 0.28, 1.0);
+uniform float proc_horizon_glow_width = 0.18;
+uniform float proc_sun_glow_strength = 1.0;
+uniform vec4 proc_sea_color_near : source_color = vec4(0.85, 0.5, 0.42, 1.0);
+uniform vec4 proc_sea_color_far : source_color = vec4(0.34, 0.27, 0.47, 1.0);
+uniform float proc_sea_horizon_fade = 0.12;
+uniform float proc_strata_scale = 1.0;
+
 // Panorama colour with the symmetric seam blend (imperfect authored
 // panorama edges made continuous).
 vec3 sample_panorama(vec2 uv, vec2 ddx_uv, vec2 ddy_uv) {
