@@ -241,4 +241,4 @@ func _hop(block: Block) -> void:
 	# scaled by PhysicsTuning.rebound_damping as if it were one. See
 	# Block.kick()'s own doc comment.
 	block.kick(Vector3.UP * hop_impulse + horizontal)
-	block.sleeping = false
+	block.wake()

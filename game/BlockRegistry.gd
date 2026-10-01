@@ -47,6 +47,16 @@ signal block_settled(owner_slot: int, height: float)
 var _entries: Dictionary = {}          ## instance id (int) -> _Entry
 var _net_id_to_block: Dictionary = {}  ## net_id (int) -> Block
 var _next_net_id: int = 1
+## Bontago-1pi.11.32: instance ids of entries not yet settled. Together with
+## Block's awake set (Block.awake_blocks()) this is everything the per-tick
+## settle loop must visit: an awake body, or a body still accumulating
+## settled_time (it may have gone to sleep before sleep_settle_time elapsed).
+## A settled, sleeping or statically frozen block needs no per-tick work.
+var _unsettled: Dictionary = {}
+## Settled sleepers are not visited per tick, so a freed one (no block_removed)
+## is pruned by a periodic sweep over every entry.
+const STALE_SWEEP_TICKS: int = 60
+var _sweep_ticks: int = 0
 ## Bontago-1pi.11.10: bumped by anything that can change territory influence
 ## (block placed/removed, settled flag flips, a settled block moving beyond
 ## TerritoryTuning.dirty_move_epsilon, owner change). MatchTerritory compares it
@@ -111,6 +121,7 @@ func configure(field: Node3D, map_def: MapDef) -> void:
 func reset() -> void:
 	_territory_revision += 1
 	_entries.clear()
+	_unsettled.clear()
 	_net_id_to_block.clear()
 	_next_net_id = 1
 	_ensure_dissolver().reset()
@@ -175,6 +186,7 @@ func _on_block_placed(block: RigidBody3D, _shape_id: StringName) -> void:
 	entry.block = typed
 	entry.owner_slot = typed.owner_slot
 	_entries[typed.get_instance_id()] = entry
+	_unsettled[typed.get_instance_id()] = true
 	_territory_revision += 1
 
 	if not _host_authority:
@@ -205,6 +217,7 @@ func _on_block_placed(block: RigidBody3D, _shape_id: StringName) -> void:
 
 func _on_block_removed(block: RigidBody3D, _reason: String) -> void:
 	var id: int = block.get_instance_id()
+	_unsettled.erase(id)
 	if _entries.erase(id):
 		_territory_revision += 1
 	var typed: Block = block as Block
@@ -231,43 +244,78 @@ func _physics_process(delta: float) -> void:
 	var dissolver: HoleDissolver = _ensure_dissolver()
 	var collect: bool = dissolver.wants_candidates()
 	var moving: Array[Block] = []
-	for id: Variant in _entries:
-		var entry: _Entry = _entries[id]
-		var block: Block = entry.block
-		if not is_instance_valid(block):
-			stale.append(id)
+	var visited: Dictionary = {}
+	# Awake bodies first, then unsettled ones that are not awake (asleep before
+	# settling finished, or freed): the only entries the old full scan could
+	# have changed state for.
+	for awake_block: Block in Block.awake_blocks():
+		var awake_id: int = awake_block.get_instance_id()
+		var awake_entry: _Entry = _entries.get(awake_id) as _Entry
+		if awake_entry == null:
 			continue
-		# Squared compare matches `length() < t` for the non-negative thresholds.
-		var settled_now: bool = (
-			block.linear_velocity.length_squared() < lin_sq
-			and block.angular_velocity.length_squared() < ang_sq
-		)
-		if settled_now:
-			entry.settled_time += delta
-		else:
-			entry.settled_time = 0.0
-		var was_settled: bool = entry.is_settled
-		entry.is_settled = entry.settled_time >= settle_time
-		if entry.is_settled != was_settled:
-			_territory_revision += 1
-			if entry.is_settled:
-				entry.marked_transform = block.global_transform
-				_refresh_geometry(entry, field_global_transform())
-				block_settled.emit(entry.owner_slot, entry.geom_top)
-			if collect:
-				moving.append(block)
-		elif entry.is_settled and _moved_beyond_epsilon(entry):
-			_territory_revision += 1
-			entry.marked_transform = block.global_transform
-			if collect:
-				moving.append(block)
-		elif collect and not entry.is_settled:
-			moving.append(block)
+		visited[awake_id] = true
+		_step_entry(awake_id, awake_entry, delta, lin_sq, ang_sq, settle_time, collect, moving, stale)
+	for id: Variant in _unsettled.keys():
+		if visited.has(id):
+			continue
+		var entry: _Entry = _entries.get(id) as _Entry
+		if entry == null:
+			_unsettled.erase(id)
+			continue
+		_step_entry(id, entry, delta, lin_sq, ang_sq, settle_time, collect, moving, stale)
+	_sweep_ticks += 1
+	if _sweep_ticks >= STALE_SWEEP_TICKS:
+		_sweep_ticks = 0
+		for sweep_id: Variant in _entries:
+			var swept: _Entry = _entries[sweep_id]
+			if not is_instance_valid(swept.block) and not stale.has(sweep_id):
+				stale.append(sweep_id)
 	for id: Variant in stale:
 		_entries.erase(id)
+		_unsettled.erase(id)
 		_territory_revision += 1
 	dissolver.physics_tick(delta, moving)
 	PerfProbe.stop(&"registry", probe_registry)
+
+
+## One entry's settle accounting (the former loop body, unchanged arithmetic).
+func _step_entry(
+	id: int, entry: _Entry, delta: float, lin_sq: float, ang_sq: float, settle_time: float,
+	collect: bool, moving: Array[Block], stale: Array
+) -> void:
+	var block: Block = entry.block
+	if not is_instance_valid(block):
+		stale.append(id)
+		return
+	# Squared compare matches `length() < t` for the non-negative thresholds.
+	var settled_now: bool = (
+		block.linear_velocity.length_squared() < lin_sq
+		and block.angular_velocity.length_squared() < ang_sq
+	)
+	if settled_now:
+		entry.settled_time += delta
+	else:
+		entry.settled_time = 0.0
+	var was_settled: bool = entry.is_settled
+	entry.is_settled = entry.settled_time >= settle_time
+	if entry.is_settled != was_settled:
+		_territory_revision += 1
+		if entry.is_settled:
+			_unsettled.erase(id)
+			entry.marked_transform = block.global_transform
+			_refresh_geometry(entry, field_global_transform())
+			block_settled.emit(entry.owner_slot, entry.geom_top)
+		else:
+			_unsettled[id] = true
+		if collect:
+			moving.append(block)
+	elif entry.is_settled and _moved_beyond_epsilon(entry):
+		_territory_revision += 1
+		entry.marked_transform = block.global_transform
+		if collect:
+			moving.append(block)
+	elif collect and not entry.is_settled:
+		moving.append(block)
 
 
 func _moved_beyond_epsilon(entry: _Entry) -> bool:

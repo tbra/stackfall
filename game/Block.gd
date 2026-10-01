@@ -29,6 +29,23 @@ var gift_id: StringName = &""
 ## change -- that file belongs to a different package).
 const TUNING_GROUP: StringName = &"tuning_blocks"
 
+## Bontago-1pi.11.32: the one shared awake set. Instance id (int) -> Block for
+## every Block that is in the tree and not asleep (RigidBody3D.sleeping false)
+## and not held by request_freeze_static(). Maintained here from
+## sleeping_state_changed plus tree enter/exit and the static-freeze pair
+## below, so BlockRegistry's settle loop and BlockEffectsManager's trail scan
+## iterate awake bodies instead of every block. A client's bodies are frozen
+## kinematic and never sleep for real, so they stay in the set (the old
+## "visit everything" behaviour there). Read it through awake_blocks().
+static var _awake: Dictionary = {}
+## Blocks that left the awake set recently (instance id -> Block / physics
+## frame), still reported by awake_blocks() for SLEPT_TAIL_FRAMES more physics
+## frames so a consumer sees the pose the body slept in (a settled block's last
+## sub-epsilon drift, a trail's final zero-speed tick) exactly like a full scan.
+static var _slept_blocks: Dictionary = {}
+static var _slept_frames: Dictionary = {}
+const SLEPT_TAIL_FRAMES: int = 2
+
 ## assets-audio package (revised: no contact_monitor -- an earlier revision's
 ## bench_rain.gd cost ~5-7 ms/step at 300 blocks, well over budget). Impacts
 ## are detected from the body's own motion instead: _physics_process below
@@ -120,8 +137,81 @@ const FREEZE_REASON_STABLE: StringName = &"stable"
 var _freeze_reasons: Dictionary = {}
 
 
+## Bontago-1pi.11.32: a copy of the awake set's Blocks (safe to iterate while
+## the set changes under a callback).
+static func awake_blocks() -> Array:
+	var result: Array = _awake.values()
+	if _slept_blocks.is_empty():
+		return result
+	var now: int = Engine.get_physics_frames()
+	for id: int in _slept_blocks.keys():
+		if now - int(_slept_frames[id]) >= SLEPT_TAIL_FRAMES:
+			_slept_blocks.erase(id)
+			_slept_frames.erase(id)
+		elif not _awake.has(id):
+			result.append(_slept_blocks[id])
+	return result
+
+
+static func is_awake_registered(block: Block) -> bool:
+	return block != null and _awake.has(block.get_instance_id())
+
+
+static func clear_awake_set_for_tests() -> void:
+	_awake.clear()
+	_slept_blocks.clear()
+	_slept_frames.clear()
+
+
+func _enter_tree() -> void:
+	_apply_awake(not sleeping)
+
+
+func _exit_tree() -> void:
+	var id: int = get_instance_id()
+	_awake.erase(id)
+	_slept_blocks.erase(id)
+	_slept_frames.erase(id)
+
+
+## Puts this block in (or takes it out of) the awake set and switches its
+## per-tick impact callback with it: a sleeping or statically frozen block has
+## nothing to measure (the callback only stored its velocity then), and wake
+## re-seeds the previous-speed sample exactly as that idle tick did.
+## _integrate_forces() needs no switch: Jolt already never calls it for a
+## sleeping or static body.
+func _apply_awake(awake: bool) -> void:
+	# A removed-but-not-freed block must never (re)enter the set: no _exit_tree
+	# would follow to drop it again.
+	awake = awake and is_inside_tree()
+	if awake:
+		if not _awake.has(get_instance_id()):
+			_prev_linear_velocity = linear_velocity
+		_awake[get_instance_id()] = self
+		_slept_blocks.erase(get_instance_id())
+		_slept_frames.erase(get_instance_id())
+	elif _awake.erase(get_instance_id()):
+		_slept_blocks[get_instance_id()] = self
+		_slept_frames[get_instance_id()] = Engine.get_physics_frames()
+	set_physics_process(awake)
+
+
+## Script wake: `sleeping = false` raises no sleeping_state_changed (the engine
+## already caches the new value), so every script-side wake of a Block goes
+## through here to keep the awake set and the callback switch current.
+func wake() -> void:
+	sleeping = false
+	_apply_awake(not is_freeze_static())
+
+
+func _on_sleeping_state_changed() -> void:
+	_apply_awake(not sleeping and not is_freeze_static())
+
+
 func _ready() -> void:
 	add_to_group(TUNING_GROUP)
+	if not sleeping_state_changed.is_connected(_on_sleeping_state_changed):
+		sleeping_state_changed.connect(_on_sleeping_state_changed)
 	collision_mask |= Field.BEACON_COLLISION_LAYER
 	if tuning == null:
 		# Review fix (Bontago-xtq.17 SHOULD-FIX 3): game/BlockFactory.gd's
@@ -145,7 +235,13 @@ func _ready() -> void:
 ## suddenly arrested by a landing); a block that speeds up between ticks
 ## (still falling, or getting knocked) never crosses the threshold here.
 func _physics_process(_delta: float) -> void:
-	if not impacts_enabled or sleeping:
+	if sleeping:
+		# Reached only when a wake was assumed (see release_freeze_static()) or
+		# the sleep signal was missed: leave the awake set and stop ticking.
+		_prev_linear_velocity = linear_velocity
+		_apply_awake(false)
+		return
+	if not impacts_enabled:
 		_prev_linear_velocity = linear_velocity
 		return
 	var prev_speed: float = _prev_linear_velocity.length()
@@ -410,6 +506,7 @@ func request_freeze_static(reason: StringName) -> void:
 	if _freeze_reasons.size() == 1:
 		freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
 		freeze = true
+		_apply_awake(false)
 
 
 ## Removes `reason` from the held set; a reason never held is a no-op (so a
@@ -436,6 +533,10 @@ func release_freeze_static(reason: StringName) -> void:
 	_freeze_reasons.erase(reason)
 	if _freeze_reasons.is_empty():
 		freeze = false
+		# Registered awake unconditionally: a script wake of a frozen body
+		# (`sleeping = false`) does not always raise sleeping_state_changed, and
+		# _physics_process() below deregisters a body that really is asleep.
+		_apply_awake(true)
 
 
 ## Whether any reason at all currently holds this block frozen to STATIC --

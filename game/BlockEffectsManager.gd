@@ -507,39 +507,48 @@ func _get_shrink_curve() -> CurveTexture:
 ## position) with no freeze-state branch needed here at all -- exactly the
 ## "host/client both" visual-only contract this package's brief asks for.
 func _update_falling_trails(delta: float) -> void:
-	var blocks: Array[Node] = get_tree().get_nodes_in_group(Block.TUNING_GROUP)
+	# Bontago-1pi.11.32: only awake blocks (Block.awake_blocks(), which also
+	# reports a block for a couple of frames after it sleeps) plus ids still
+	# holding a previous position, i.e. recently moving ones. A sleeping block
+	# has zero fall speed, so skipping it changes nothing; once a block is
+	# dormant and unmoved its _prev_positions entry is dropped, so the map only
+	# holds awake/recent blocks.
 	var inv_delta: float = 1.0 / delta
 	var threshold: float = config.trail_speed_threshold
 	var trails_on: bool = _trail_effects_enabled
-	var seen_count: int = 0
-	for node: Node in blocks:
-		var block: Block = node as Block
-		if block == null or not is_instance_valid(block):
+	var visited: Dictionary = {}
+	for block: Block in Block.awake_blocks():
+		if not is_instance_valid(block):
 			continue
-		seen_count += 1
 		var id: int = block.get_instance_id()
-		var position: Vector3 = block.global_position
-		var prev_position: Vector3 = _prev_positions.get(id, position)
-		var delta_vec: Vector3 = position - prev_position
-		var fall_speed: float = -delta_vec.y * inv_delta
-		_prev_positions[id] = position
-		if trails_on and fall_speed >= threshold:
-			_ensure_trail(id, block, fall_speed, delta_vec * inv_delta)
-		elif _trails.has(id):
-			_release_trail(id)
-
-	# Every seen id is in _prev_positions by now, so a size mismatch is the
-	# only case where a stale (removed block) entry exists: prune then.
-	if _prev_positions.size() == seen_count:
-		return
-	var seen_ids: Dictionary = {}
-	for node: Node in blocks:
-		if node is Block and is_instance_valid(node):
-			seen_ids[node.get_instance_id()] = true
+		visited[id] = true
+		_update_block_trail(id, block, inv_delta, threshold, trails_on)
 	for id: int in _prev_positions.keys():
-		if not seen_ids.has(id):
+		if visited.has(id):
+			continue
+		var block: Block = instance_from_id(id) as Block
+		if block == null or not is_instance_valid(block):
 			_prev_positions.erase(id)
 			_release_trail(id)
+			continue
+		_update_block_trail(id, block, inv_delta, threshold, trails_on)
+
+
+func _update_block_trail(id: int, block: Block, inv_delta: float, threshold: float, trails_on: bool) -> void:
+	var position: Vector3 = block.global_position
+	var prev_position: Vector3 = _prev_positions.get(id, position)
+	var delta_vec: Vector3 = position - prev_position
+	var fall_speed: float = -delta_vec.y * inv_delta
+	if trails_on and fall_speed >= threshold:
+		_prev_positions[id] = position
+		_ensure_trail(id, block, fall_speed, delta_vec * inv_delta)
+		return
+	if _trails.has(id):
+		_release_trail(id)
+	if delta_vec == Vector3.ZERO and not Block.is_awake_registered(block):
+		_prev_positions.erase(id)
+	else:
+		_prev_positions[id] = position
 
 
 ## Fix round (owner: the previous particle-burst trail read as "dashed/

@@ -724,7 +724,10 @@ func _wake_above(patch_world: Transform3D, edge: float, level: int, exclude: Arr
 		var block: Block = body as Block
 		if block != null:
 			block.wake_for_impulse()
-		body.sleeping = false
+		if block != null:
+			block.wake()
+		else:
+			body.sleeping = false
 
 
 func _publish() -> void:
