@@ -56,3 +56,11 @@ extends Resource
 ## 1.0 lofts every throw at 45 degrees; lower is flatter, higher is steeper.
 ## Spec 2.6 leaves the arc OPEN; PlayerController._commit_throw_aim() reads it.
 @export var throw_loft_ratio: float = 1.0
+
+## Bontago-t8x.5: seconds a gift body lingers after its effect triggered
+## (its action is done) before the host removes it.
+@export var gift_despawn_delay_s: float = 0.75
+
+## Bontago-t8x.5: hard backstop. A gift body whose action never completed
+## (e.g. never reached its fuse) is removed this many seconds after binding.
+@export var gift_max_lifetime_s: float = 60.0

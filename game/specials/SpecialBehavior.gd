@@ -31,6 +31,20 @@ const GROUP: StringName = &"specials"
 ## Events.special_triggered from there.
 signal triggered(def_id: StringName, position: Vector3, chain_depth: int)
 
+## Bontago-t8x.5: emitted once, host-side, when a gift-bound behavior's
+## action is complete (a short linger after trigger(), or the hard
+## max-lifetime backstop for an action that never completes). The owner of
+## the block (MatchPlacement) removes the body through the normal block-
+## removal path; this class never frees its own parent.
+signal completed(block: Block)
+
+## Set by MatchPlacement for a gift-drawn special only. Projectile specials
+## (Volcano orbs) and plain blocks never set it, so they are never despawned.
+var despawn_when_done: bool = false
+
+var _completed: bool = false
+var _despawn_timer: float = -1.0
+
 var _block: Block = null
 var _def: SpecialDef = null
 var _tuning: SpecialTuning = null
@@ -55,6 +69,8 @@ func bind(block: Block, def: SpecialDef, tuning: SpecialTuning) -> void:
 	_armed = false
 	_has_triggered = false
 	_chain_depth = 0
+	_completed = false
+	_despawn_timer = -1.0
 	_prev_linear_velocity = block.linear_velocity if block != null else Vector3.ZERO
 	add_to_group(GROUP)
 
@@ -84,9 +100,15 @@ func _physics_process(delta: float) -> void:
 ## physics (docs/M4_P2_PACKAGES.md P2a: "tests drive `_physics_process(delta)`
 ## /an `advance(delta)` hook").
 func advance(delta: float) -> void:
-	if _has_triggered or _block == null or _def == null:
+	if _block == null or _def == null:
+		return
+	if _has_triggered:
+		_advance_completion(delta)
 		return
 	_age += delta
+	if despawn_when_done and _tuning != null and _age >= _tuning.gift_max_lifetime_s:
+		_complete()
+		return
 	if not _armed and _age >= _def.arm_delay:
 		_armed = true
 		# Re-sample right at the arming instant so the very first post-arm
@@ -101,6 +123,30 @@ func advance(delta: float) -> void:
 			trigger(0)
 	if not _has_triggered and _age >= _def.arm_delay + _def.fuse_timeout_s:
 		trigger(0)
+
+
+## Counts the post-trigger linger down and completes once it elapses.
+func _advance_completion(delta: float) -> void:
+	if _despawn_timer < 0.0 or _completed:
+		return
+	_despawn_timer -= delta
+	if _despawn_timer <= 0.0:
+		_complete()
+
+
+## DECISION (Bontago-t8x.5): every effect's action is over when trigger()
+## returns -- instant effects (Bomb, Anvil, Rocket explosion, Cat, Glue,
+## Paintball, Stackfall) act inside detonate(), and the timed windows
+## (Propeller, Jumping Bean hops, Earthquake, Volcano, Magnet) end exactly
+## when wants_early_trigger() fires trigger(). So one hook covers all of them:
+## `gift_despawn_delay_s` after trigger the gift is complete. Anything that
+## never triggers is caught by the fuse timeout and, as a hard backstop, by
+## SpecialTuning.gift_max_lifetime_s.
+func _complete() -> void:
+	if _completed:
+		return
+	_completed = true
+	completed.emit(_block)
 
 
 ## DECISION (game/specials/SpecialBehavior.gd, docs/M4_P2_PACKAGES.md P2a
@@ -165,6 +211,8 @@ func trigger(incoming_chain_depth: int) -> void:
 		_def.effect.detonate(_block, self, _chain_depth)
 	var def_id: StringName = _def.id if _def != null else &""
 	triggered.emit(def_id, position, _chain_depth)
+	if despawn_when_done:
+		_despawn_timer = _tuning.gift_despawn_delay_s if _tuning != null else 0.0
 
 
 ## Called by a concrete SpecialEffect's own detonate() (P3-P5), not by
