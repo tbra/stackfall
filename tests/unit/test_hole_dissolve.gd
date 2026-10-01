@@ -156,6 +156,29 @@ func test_footprint_cache_rebuilds_when_collision_swaps_with_same_child_count() 
 	assert_ne(_dissolver()._footprint(block), first, "A swapped shape rebuilds the footprint.")
 
 
+func test_a_dissolve_overrides_a_freeze_hold_and_releases_the_tower_above() -> void:
+	_make_world()
+	var cell: int = _middle_cell()
+	var low: Block = _spawn(_cube, cell, 0.02)
+	var top: Block = _spawn(_cube, cell, 1.2)
+	await wait_physics_frames(SETTLE_FRAMES)
+	var low_id: int = low.get_instance_id()
+	var effect: FreezeEffect = FreezeEffect.new()
+	effect.freeze_block(low, _field)
+	effect.freeze_block(top, _field)
+	assert_true(low.is_freeze_static() and top.is_freeze_static(), "fixture: both held")
+
+	_open(PackedInt32Array([cell]))
+	await wait_physics_frames(2)
+	assert_true(_dissolver().is_dissolving(low), "the frozen block touching the void still dissolves")
+	assert_false(low.is_freeze_static(), "the dissolve overrides the Freeze hold")
+
+	await _wait_removed(low_id, DISSOLVE_FRAMES)
+	assert_true(_was_removed(low_id))
+	assert_false(top.is_freeze_static(), "the block above is released so it does not hang")
+	assert_false(top.is_frozen_visual())
+
+
 func test_a_block_bridging_a_hole_above_the_disc_is_unaffected() -> void:
 	_make_world()
 	var left: Block = _spawn(_cube, _middle_cell(-1), 0.02)
