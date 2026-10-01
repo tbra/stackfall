@@ -56,6 +56,7 @@ var set_lobby_data_calls: Array[Dictionary] = []
 var set_local_ready_calls: Array[bool] = []
 var set_simulation_calls: Array[Dictionary] = []
 var start_discovery_calls: int = 0
+var kick_peer_calls: Array[Dictionary] = []
 var stop_discovery_calls: int = 0
 
 ## What host_game()/join_game() return next; tests drive JoinError paths with it.
@@ -194,8 +195,8 @@ func set_peer_ready(_peer_id: int, _ready: bool) -> void:
 	pass
 
 
-func kick_peer(_peer_id: int, _reason: int = 0) -> void:
-	pass
+func kick_peer(peer_id: int, reason: int = 0) -> void:
+	kick_peer_calls.append({"peer_id": peer_id, "reason": reason})
 
 
 func set_local_ready(ready: bool) -> void:

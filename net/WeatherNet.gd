@@ -22,6 +22,10 @@ var states_applied: int = 0
 var states_refused: int = 0
 var last_sent_state: Dictionary = {}
 
+## Set by MatchNet: true on a client that has not yet received its world
+## (net_match_start); weather, snow and breeze traffic is dropped until then.
+var awaiting_world: Callable = Callable()
+
 var _net_provider: Variant = null
 var _match_provider: Variant = null
 
@@ -39,12 +43,18 @@ func _ready() -> void:
 	# Added after the connections above so a late joiner gets the weather
 	# state before the snow state.
 	var snow_net: SnowNet = SnowNet.new()
+	snow_net.awaiting_world = _is_awaiting_world
 	snow_net.name = "SnowNet"
 	add_child(snow_net)
 	# Bontago-470.2: Breeze gust replication and visuals (net/BreezeNet.gd).
 	var breeze_net: BreezeNet = BreezeNet.new()
+	breeze_net.awaiting_world = _is_awaiting_world
 	breeze_net.name = "BreezeNet"
 	add_child(breeze_net)
+
+func _is_awaiting_world() -> bool:
+	return awaiting_world.is_valid() and bool(awaiting_world.call())
+
 
 ## Same seam as MatchNet.set_providers(); null keeps the real autoload.
 func set_providers(net_provider: Variant, match_provider: Variant) -> void:
@@ -111,6 +121,9 @@ func net_weather_state(state: Dictionary) -> void:
 	# checks below are the second line: never on the host, never from a peer
 	# other than the server.
 	if _is_host():
+		states_refused += 1
+		return
+	if _is_awaiting_world():
 		states_refused += 1
 		return
 	var sender: int = multiplayer.get_remote_sender_id()

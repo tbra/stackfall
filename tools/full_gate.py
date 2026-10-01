@@ -204,7 +204,8 @@ def main(argv):
     if failing:
         retry = run_batch(path, out_dir, [("retry_%d" % i, [t]) for i, t in enumerate(sorted(failing))], args.timeout)
         for (name, r), t in zip(sorted(retry.items(), key=lambda kv: int(kv[0].split("_")[1])), sorted(failing)):
-            ok = r["totals"].get("Failing Tests", 1) == 0 and "Tests" in r["totals"]
+            # GUT omits the "Failing Tests" line when everything passed.
+            ok = "Tests" in r["totals"] and r["totals"].get("Failing Tests", 0) == 0 and not r["failing"]
             (flaky if ok else confirmed).append(t)
 
     verdict = "GREEN" if not confirmed and not harness else "RED"

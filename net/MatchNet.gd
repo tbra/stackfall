@@ -83,6 +83,7 @@ const EVENT_SPECIAL_TRIGGERED: StringName = &"special_triggered"
 const EVENT_SPECIAL_CONSUMED: StringName = &"special_consumed"
 const EVENT_GLUE_CHARGES: StringName = &"glue_charges_changed"
 const EVENT_BLOCK_OWNER_CHANGED: StringName = &"block_owner_changed"
+const EVENT_BLOCK_FROZEN: StringName = &"block_frozen_changed"
 const EVENT_CAT_STARTED: StringName = &"cat_started"
 const EVENT_CAT_ENDED: StringName = &"cat_ended"
 ## Bontago-1pi.11.41: [net_id] of a block the host started dissolving on a
@@ -214,6 +215,8 @@ var _match_start_sent: bool = false
 ## 3.4: the host checks every intent; a peer with no world yet cannot have
 ## formed a legitimate one), its cursors and cat targets are dropped.
 var _replay_pending: Dictionary = {}
+## peer_id -> seconds its replay has gone unacknowledged (LOW4 timeout).
+var _replay_age: Dictionary = {}
 var _next_replay_id: int = 1
 ## Client only: true from the moment this instance becomes a CLIENT until the
 ## first net_match_start lands. Every host -> client gameplay RPC that arrives
@@ -230,6 +233,7 @@ var capture_replay: bool = false
 var replay_capture: Array[Array] = []
 ## Test-only counters. Game code never reads them.
 var replays_started: int = 0
+var replays_timed_out: int = 0
 var replays_acknowledged: int = 0
 var intents_refused_before_replay_ack: int = 0
 ## Client only: the replay id this instance last acknowledged (0 = none).
@@ -263,6 +267,7 @@ func _ready() -> void:
 	Events.special_consumed.connect(_on_special_consumed)
 	Events.glue_charges_changed.connect(_on_glue_charges_changed)
 	Events.block_owner_changed.connect(_on_block_owner_changed)
+	Events.block_frozen_changed.connect(_on_block_frozen_changed)
 	Events.cat_started.connect(_on_cat_started)
 	Events.cat_ended.connect(_on_cat_ended)
 	Events.block_removed.connect(_on_block_removed)
@@ -276,6 +281,9 @@ func _ready() -> void:
 	_weather_net.name = "WeatherNet"
 	add_child(_weather_net)
 	_weather_net.set_providers(_net_provider, _match_provider)
+	# Bontago-8or.11: weather/snow/breeze broadcasts before net_match_start
+	# are dropped on the same gate as match events.
+	_weather_net.awaiting_world = _client_awaiting_world
 
 
 func _exit_tree() -> void:
@@ -338,6 +346,7 @@ func _can_send() -> bool:
 func _process(delta: float) -> void:
 	if not _is_host():
 		return
+	_tick_replay_timeouts(delta)
 	var cat: CatController = _authority().active_cat()
 	if cat != null and _can_send():
 		_cat_send_accum += delta
@@ -844,6 +853,7 @@ func reset_counters() -> void:
 	# Bontago-8or.11: a (re)start is itself a full sync for every peer (the
 	# broadcast net_match_start), so no replay is still owed an ack.
 	_replay_pending.clear()
+	_replay_age.clear()
 	# Test-only instrumentation; bounded per match (review mv0.1.13).
 	replicated_state_changes.clear()
 	match_starts_replicated = 0
@@ -1419,6 +1429,11 @@ func _on_block_owner_changed(net_id: int, owner_slot: int) -> void:
 		replicate_match_event(EVENT_BLOCK_OWNER_CHANGED, [net_id, owner_slot])
 
 
+func _on_block_frozen_changed(net_id: int, frozen: bool) -> void:
+	if _is_host():
+		replicate_match_event(EVENT_BLOCK_FROZEN, [net_id, frozen])
+
+
 func _on_goal_capture_progress(team_id: int, progress: float) -> void:
 	_capture_team = team_id
 	_capture_progress = progress
@@ -1454,6 +1469,7 @@ func _on_cat_ended(id: int) -> void:
 
 func _on_net_peer_left(peer_id: int, slot_id: int, _reason: int) -> void:
 	_replay_pending.erase(peer_id)
+	_replay_age.erase(peer_id)
 	if slot_id >= 0:
 		_authority().on_peer_left(slot_id)
 
@@ -1534,6 +1550,30 @@ func seat_reclaimable(slot_id: int) -> bool:
 	return float(authority.disconnect_grace_left(slot_id)) >= 0.0
 
 
+## Bontago-8or.11 (review LOW4): a joiner that never acks its replay would stay
+## intent-gated with its cursors dropped forever. Past
+## config.replay_ack_timeout the host drops it cleanly.
+## DECISION: drop, not retry. A second replay would re-send spawns for bodies
+## the first one may already have created; a peer that cannot ack within the
+## timeout is not going to play, and it can rejoin (its reservation applies).
+func _tick_replay_timeouts(delta: float) -> void:
+	if _replay_pending.is_empty():
+		return
+	var expired: Array[int] = []
+	for peer_id: int in _replay_pending.keys():
+		var age: float = float(_replay_age.get(peer_id, 0.0)) + delta
+		_replay_age[peer_id] = age
+		if age >= config.replay_ack_timeout:
+			expired.append(peer_id)
+	for peer_id: int in expired:
+		replays_timed_out += 1
+		_replay_pending.erase(peer_id)
+		_replay_age.erase(peer_id)
+		var session: Variant = _session()
+		if session != null and session.has_method(&"kick_peer"):
+			session.kick_peer(peer_id, Net.LeaveReason.TIMEOUT)
+
+
 ## Whether `peer_id` still owes the host an ack for its world replay.
 func replay_pending_for(peer_id: int) -> bool:
 	return _replay_pending.has(peer_id)
@@ -1572,6 +1612,7 @@ func _replay_world_to(peer_id: int) -> void:
 	var replay_id: int = _next_replay_id
 	_next_replay_id += 1
 	_replay_pending[peer_id] = replay_id
+	_replay_age[peer_id] = 0.0
 	replays_started += 1
 	for message: Array in build_world_replay():
 		_send_replay(peer_id, StringName(message[0]), message[1] as Array)
@@ -1619,6 +1660,10 @@ func build_world_replay() -> Array[Array]:
 				dissolving.append(block.net_id)
 		for net_id: int in dissolving:
 			messages.append(_event(EVENT_BLOCK_DISSOLVE_STARTED, [net_id]))
+		# Freeze gift (Bontago-8or.2): the icy overlay is an event, not part of
+		# the spawn args, so a joiner needs it after the block exists.
+		for frozen_payload: Array in _frozen_overlay_snapshot():
+			messages.append(_event(EVENT_BLOCK_FROZEN, frozen_payload))
 
 	var territory: Array = _territory_replay_args()
 	if not territory.is_empty():
@@ -1777,11 +1822,24 @@ func _handle_replay_ack(sender_peer_id: int, replay_id: int) -> void:
 	if int(_replay_pending.get(sender_peer_id, -1)) != replay_id:
 		return
 	_replay_pending.erase(sender_peer_id)
+	_replay_age.erase(sender_peer_id)
 	replays_acknowledged += 1
 	# Spec 3.4's snapshots resume: the next one carries every body, so the
 	# joiner's interpolator starts from fresh samples for sleepers too.
 	if _net_provider == null:
 		SnapshotSync.request_full_snapshot()
+
+
+## Bontago-8or.2: a rejoining peer missed the icy overlay events of an active Freeze.
+func _frozen_overlay_snapshot() -> Array[Array]:
+	var snapshot: Array[Array] = []
+	var registry: BlockRegistry = _authority().registry()
+	if registry == null:
+		return snapshot
+	for block: Block in registry.all_blocks():
+		if block.is_frozen_visual() and block.net_id > 0:
+			snapshot.append([block.net_id, true])
+	return snapshot
 
 
 func _glue_rejoin_snapshot() -> Array[Array]:
@@ -2288,6 +2346,21 @@ func net_match_event(event: StringName, args: Array) -> void:
 			if not Quantize.is_wire_id(painted_id) or painted_slot < 0 or painted_slot >= _authority().slot_count():
 				return
 			_authority().apply_replicated_block_owner(painted_id, painted_slot)
+		EVENT_BLOCK_FROZEN:
+			if _is_host() or args.size() != 2 or not args[0] is int or not args[1] is bool:
+				return
+			var frozen_id: int = args[0]
+			if not Quantize.is_wire_id(frozen_id):
+				return
+			var frozen_registry: BlockRegistry = _authority().registry()
+			if frozen_registry == null:
+				return
+			var frozen_block: Block = frozen_registry.block_for_net_id(frozen_id)
+			if frozen_block == null or not is_instance_valid(frozen_block):
+				return
+			if frozen_block.is_frozen_visual() != args[1]:
+				frozen_block.set_frozen_visual(args[1])
+				Events.block_frozen_changed.emit(frozen_id, args[1])
 		_:
 			pass
 

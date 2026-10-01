@@ -55,6 +55,10 @@ func _exit_tree() -> void:
 
 
 ## Same seam as WeatherNet.set_providers(); null keeps the real autoload.
+## Same gate as WeatherNet.awaiting_world (set by WeatherNet).
+var awaiting_world: Callable = Callable()
+
+
 func set_providers(net_provider: Variant, match_provider: Variant) -> void:
 	_net_provider = net_provider
 	_match_provider = match_provider
@@ -130,6 +134,9 @@ func _on_net_peer_joined(peer_id: int, _slot_id: int, _player_name: String) -> v
 @rpc("authority", "call_remote", "reliable")
 func net_snow_state(state: Dictionary) -> void:
 	if _is_host():
+		states_refused += 1
+		return
+	if awaiting_world.is_valid() and bool(awaiting_world.call()):
 		states_refused += 1
 		return
 	var sender: int = multiplayer.get_remote_sender_id()

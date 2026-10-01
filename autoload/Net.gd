@@ -94,13 +94,19 @@ var _pick_open_seat: Callable = Callable()
 ## returning peer may reclaim `slot_id` (still inside its disconnect grace).
 var _can_reclaim_seat: Callable = Callable()
 ## Client only: the token the host issued on our last accepted join. Survives
-## leave() on purpose, so a dropped player who joins the same host again (the
-## direct-IP field, the LAN browser or the Steam lobby) quotes it and gets its
-## slot back. DECISION (Bontago-8or.11): memory only -- a crashed and
+## a connection loss on purpose (leave(false)), so a dropped player who joins
+## the same host again (the direct-IP field, the LAN browser or the Steam
+## lobby) quotes it and gets its slot back. A deliberate leave() clears it, and
+## it is only ever sent to the host it came from (_rejoin_scope). DECISION
+## (Bontago-8or.11): memory only -- a crashed and
 ## restarted client has no token and rejoins as a new late joiner. Persisting
 ## it would write a bearer credential to disk for a window that is only
 ## NetConfig.disconnect_grace long.
 var _rejoin_token: String = ""
+## Which host issued _rejoin_token: "enet:<address>:<port>" or "steam:<lobby>".
+var _rejoin_scope: String = ""
+## Scope of the ENet connection the client is making now (join_game()).
+var _join_scope: String = ""
 
 ## Snapshot of build_version() taken when hosting started, so the version a
 ## host advertises for a session can never drift even if something else
@@ -329,6 +335,7 @@ func join_game(address: String, port: int = 0, player_name: String = "") -> Erro
 	_mode = Mode.CLIENT
 	_peers.clear()
 	_pending_join_name = player_name
+	_join_scope = "enet:%s:%d" % [address, use_port]
 	_joined_accepted = false
 	_join_deadline = _now() + config.connect_timeout + config.handshake_timeout
 	Events.net_mode_changed.emit(_mode)
@@ -337,8 +344,9 @@ func join_game(address: String, port: int = 0, player_name: String = "") -> Erro
 
 ## Leaves whatever session is running and returns to OFFLINE. Safe to call
 ## when already offline. The host disconnects everyone with
-## LeaveReason.HOST_SHUTDOWN first.
-func leave() -> void:
+## LeaveReason.HOST_SHUTDOWN first. A deliberate leave forgets the rejoin
+## token; the connection-lost and failed-join paths pass false to keep it.
+func leave(forget_rejoin: bool = true) -> void:
 	# DECISION (Bontago-mv0.2.6 finding B, generation added for Bontago-mv0.4):
 	# bumped unconditionally, before the OFFLINE early-return below, because a
 	# pending host_online()/join_lobby() attempt never moves _mode off OFFLINE
@@ -352,6 +360,9 @@ func leave() -> void:
 	# nothing is waiting for — even if a fresh host_online()/join_lobby() call
 	# started a new (current-generation) request in the meantime.
 	_steam_request_generation += 1
+	if forget_rejoin:
+		_rejoin_token = ""
+		_rejoin_scope = ""
 	if _mode == Mode.OFFLINE:
 		return
 	if _mode == Mode.HOST:
@@ -1255,7 +1266,20 @@ func _on_peer_disconnected(id: int) -> void:
 func _on_connected_to_server() -> void:
 	if _mode != Mode.CLIENT:
 		return
-	_rpc_handshake.rpc_id(HOST_PEER_ID, build_version(), _pending_join_name, _rejoin_token)
+	# Only the host that issued the token may see it.
+	_rpc_handshake.rpc_id(HOST_PEER_ID, build_version(), _pending_join_name, quoted_rejoin_token())
+
+
+## The token the handshake quotes: the stored one only when it came from the
+## host this connection is going to, otherwise "".
+func quoted_rejoin_token() -> String:
+	return _rejoin_token if _rejoin_scope == _current_join_scope() else ""
+
+
+func _current_join_scope() -> String:
+	if _steam_session:
+		return "steam:%d" % _steam_lobby_id
+	return _join_scope
 
 
 func _on_connection_failed() -> void:
@@ -1268,7 +1292,7 @@ func _on_server_disconnected() -> void:
 	if _mode != Mode.CLIENT:
 		return
 	Events.net_peer_left.emit(HOST_PEER_ID, slot_of_peer(HOST_PEER_ID), LeaveReason.HOST_SHUTDOWN)
-	leave()
+	leave(false)
 
 
 # --- Handshake & roster RPCs -------------------------------------------------
@@ -1481,6 +1505,7 @@ func _rpc_join_accepted(slot_id: int, _host_peer_id: int, rejoin_token: String =
 		return
 	if rejoin_token.length() <= REJOIN_TOKEN_MAX_CHARS:
 		_rejoin_token = rejoin_token
+		_rejoin_scope = _current_join_scope()
 	_local_slot = slot_id
 	_joined_accepted = true
 	Events.net_peer_joined.emit(local_peer_id(), slot_id, _pending_join_name)
@@ -1494,7 +1519,7 @@ func _rpc_join_refused(error: int) -> void:
 
 
 func _fail_join(error: int, detail: String = "") -> void:
-	leave()
+	leave(false)
 	Events.net_join_failed.emit(error, detail)
 
 

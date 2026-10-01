@@ -1405,6 +1405,42 @@ func test_paintball_owner_event_mirrors_only_valid_known_block() -> void:
 	assert_eq(get_signal_emit_count(Events, "block_owner_changed"), 1)
 
 
+func test_freeze_event_mirrors_visual_only_for_valid_known_block() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	var net: MatchNetScript = _make_net({}, [1], true)
+	_registry.set_host_authority(false)
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block: Block = BlockFactory.build(shape, load("res://config/physics_tuning.tres"), 1, Match.slot(1).color)
+	_blocks_root.add_child(block)
+	Events.block_placed.emit(block, shape.id)
+	_registry.bind_net_id(block, 91)
+	for payload: Array in [[92, true], [91], [91, 1], [-1, true]]:
+		net.net_match_event(MatchNetScript.EVENT_BLOCK_FROZEN, payload)
+	assert_false(block.is_frozen_visual())
+	net.net_match_event(MatchNetScript.EVENT_BLOCK_FROZEN, [91, true])
+	assert_true(block.is_frozen_visual())
+	net.net_match_event(MatchNetScript.EVENT_BLOCK_FROZEN, [91, false])
+	assert_false(block.is_frozen_visual())
+
+
+func test_rejoin_snapshot_lists_frozen_overlay_blocks() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	var net: MatchNetScript = _make_net({}, [1], true)
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var iced: Block = BlockFactory.build(shape, load("res://config/physics_tuning.tres"), 1, Match.slot(1).color)
+	var plain: Block = BlockFactory.build(shape, load("res://config/physics_tuning.tres"), 1, Match.slot(1).color)
+	_blocks_root.add_child(iced)
+	_blocks_root.add_child(plain)
+	Events.block_placed.emit(iced, shape.id)
+	Events.block_placed.emit(plain, shape.id)
+	_registry.bind_net_id(iced, 93)
+	_registry.bind_net_id(plain, 94)
+	iced.set_frozen_visual(true)
+	assert_eq(net._frozen_overlay_snapshot(), [[93, true]])
+
+
 func test_cat_target_accepts_only_activating_slot_peer() -> void:
 	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
 	_start_playing()

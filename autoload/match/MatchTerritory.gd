@@ -534,7 +534,10 @@ func _kickoff(delta: float) -> TerritorySolveJob:
 		_sandbox_cache_hits += 1
 	else:
 		job.circles = _collect_circles()
-		if _match._sandbox_territory_mode == MatchAutoload.SANDBOX_TERRITORY_CONE:
+		# Bontago-1pi.11.45: a field/registry freed by scene teardown can still be
+		# referenced here for one step; never pass a freed object to the typed call.
+		if _match._sandbox_territory_mode == MatchAutoload.SANDBOX_TERRITORY_CONE \
+				and is_instance_valid(_match._field) and is_instance_valid(_match._registry):
 			var measured: Dictionary = SandboxConeAdapter.measure_heights(
 				job.circles, _match._field, _match._registry, _match._sandbox_cone_height_source
 			)
