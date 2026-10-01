@@ -119,6 +119,11 @@ const CIRCLE_BIN_BLEND_MARGIN_FACTOR: float = 4.0
 
 var _map_def: MapDef = null
 var _visuals: TerritoryVisuals = null
+## Bontago-1pi.11.42: look of the animated void on hole cells (the disc stays
+## solid; the shader draws the hole). Pushed by _apply_hole_void_uniforms().
+@export var hole_visuals: HoleVisualTuning = preload("res://config/hole_visual_tuning.tres")
+## GraphicsPreset.hole_void_animated: false = flat void + rim (Low).
+var _void_animated: bool = true
 var _tuning: TerritoryTuning = null
 var _material: ShaderMaterial = null
 var _texture: ImageTexture = null
@@ -182,6 +187,10 @@ func configure(map_def: MapDef, visuals: TerritoryVisuals, tuning: TerritoryTuni
 	_tuning = tuning
 	_cells_per_side = map_def.cells_per_side()
 	add_to_group(WET_GROUP)
+	var preset: GraphicsPreset = Settings.current_graphics_preset()
+	_void_animated = preset == null or preset.hole_void_animated
+	if not Settings.graphics_preset_changed.is_connected(_on_graphics_preset_changed):
+		Settings.graphics_preset_changed.connect(_on_graphics_preset_changed)
 
 	rebuild_disk_mesh()
 
@@ -742,7 +751,38 @@ func _store(target: ImageTexture, image: Image) -> ImageTexture:
 ## lands in the middle of the texture — the offset is half a texture, never
 ## field_radius, which is smaller than the half extent once the grid rounds up
 ## to an odd number of cells.
+func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
+	_void_animated = preset == null or preset.hole_void_animated
+	if _material != null:
+		_material.set_shader_parameter(&"void_animated", 1.0 if _void_animated else 0.0)
+
+
+## Whether the hole void swirl is animating (graphics preset); tests read it.
+func void_animated() -> bool:
+	return _void_animated
+
+
+## Bontago-1pi.11.42: pushes HoleVisualTuning's void look onto the disc shader.
+func _apply_hole_void_uniforms() -> void:
+	var hv: HoleVisualTuning = hole_visuals
+	if hv == null:
+		return
+	_material.set_shader_parameter(&"void_deep_color", hv.void_deep_color)
+	_material.set_shader_parameter(&"void_mid_color", hv.void_mid_color)
+	_material.set_shader_parameter(&"void_rim_color", hv.void_rim_color)
+	_material.set_shader_parameter(&"void_rim_width_cells", hv.void_rim_width_cells)
+	_material.set_shader_parameter(&"void_rim_glow", hv.void_rim_glow)
+	_material.set_shader_parameter(&"void_swirl_scale", hv.void_swirl_scale)
+	_material.set_shader_parameter(&"void_swirl_speed", hv.void_swirl_speed)
+	_material.set_shader_parameter(&"void_swirl_twist", hv.void_swirl_twist)
+	_material.set_shader_parameter(&"void_band_count", hv.void_band_count)
+	_material.set_shader_parameter(&"void_band_softness", hv.void_band_softness)
+	_material.set_shader_parameter(&"void_mid_amount", hv.void_mid_amount)
+	_material.set_shader_parameter(&"void_animated", 1.0 if _void_animated else 0.0)
+
+
 func _apply_uv_uniforms(side: int) -> void:
+	_material.set_shader_parameter(&"hole_cell_uv", 1.0 / maxf(float(side), 1.0))
 	var span: float = maxf(float(side) * _map_def.cell_size, 0.001)
 	_material.set_shader_parameter(&"uv_scale", 1.0 / span)
 	_material.set_shader_parameter(&"uv_offset", UV_CENTER)
@@ -834,6 +874,7 @@ func _apply_visual_uniforms() -> void:
 	_material.set_shader_parameter(&"hole_rim_color", _visuals.hole_rim_color)
 	_material.set_shader_parameter(&"hole_rim_width", _visuals.hole_rim_width)
 	_material.set_shader_parameter(&"hole_rim_glow", _visuals.hole_rim_glow)
+	_apply_hole_void_uniforms()
 	_material.set_shader_parameter(&"mirror_center_fraction", _visuals.mirror_center_fraction)
 	_material.set_shader_parameter(&"mirror_fresnel_power", _visuals.mirror_fresnel_power)
 	# Bontago-mp0.3.2: MapDef.MapShape.OVAL's true shape is an ellipse

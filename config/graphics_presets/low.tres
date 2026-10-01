@@ -16,3 +16,5 @@ ambient_life_enabled = false
 sun_shadow_mode = 1
 sun_shadow_max_distance = 70.0
 mirror_resolution_factor = 0.5
+hole_void_animated = false
+block_dissolve_effect_enabled = false

@@ -56,6 +56,7 @@ shader_type spatial;
 //     fade to a fraction of their strength so distant towers stay clean
 //     instead of collapsing to a dark mesh; everything is screen-space.
 render_mode cull_back;
+#include "res://shaders/include/block_dissolve.gdshaderinc"
 
 uniform vec4 albedo_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
 uniform int toon_band_count = 3;
@@ -117,6 +118,16 @@ uniform vec4 rim_cool_color : source_color = vec4(0.55, 0.65, 1.0, 1.0);
 uniform float rim_cool_strength : hint_range(0.0, 1.0) = 0.16;
 
 instance uniform bool contributing = false;
+// Bontago-1pi.11.42: hole dissolve progress 0..1, driven per block by
+// game/BlockDissolveFx.gd (instance uniform: the shared per-colour material
+// is untouched). 0 costs one branch.
+instance uniform float dissolve_amount = 0.0;
+uniform float dissolve_noise_scale = 5.0;
+uniform float dissolve_edge_width : hint_range(0.01, 0.6) = 0.14;
+uniform float dissolve_rim_glow = 3.0;
+uniform vec4 dissolve_rim_color : source_color = vec4(0.65, 0.35, 1.0, 1.0);
+uniform vec4 dissolve_void_color : source_color = vec4(0.01, 0.005, 0.03, 1.0);
+varying vec3 v_obj;
 
 varying vec2 v_uv;
 varying float v_bevel_amount;
@@ -124,9 +135,19 @@ varying float v_seam;
 
 void vertex() {
 	v_uv = UV;
+	v_obj = VERTEX;
 }
 
 void fragment() {
+	float dissolve_glow = 0.0;
+	if (dissolve_amount > 0.0) {
+		float n = dissolve_noise(v_obj * dissolve_noise_scale);
+		float th = dissolve_threshold(dissolve_amount, dissolve_edge_width);
+		if (n < th) {
+			discard;
+		}
+		dissolve_glow = 1.0 - smoothstep(th, th + dissolve_edge_width, n);
+	}
 	// Distance, in UV space, from this fragment to the nearest of the quad's
 	// four edges (each visible face's own cell boundary/silhouette).
 	vec2 to_edge = min(v_uv, vec2(1.0) - v_uv);
@@ -190,6 +211,10 @@ void fragment() {
 	AO = ambient_scale;
 	AO_LIGHT_AFFECT = 0.0;
 	EMISSION = seam_target * seam_amount * glow;
+	if (dissolve_glow > 0.0) {
+		ALBEDO = mix(ALBEDO, dissolve_void_color.rgb, dissolve_glow);
+		EMISSION += dissolve_rim_color.rgb * dissolve_glow * dissolve_rim_glow;
+	}
 
 	v_bevel_amount = clamp(bevel_amount * detail, 0.0, 1.0);
 	v_seam = seam_amount;
