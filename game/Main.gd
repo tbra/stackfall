@@ -206,6 +206,10 @@ func _ready() -> void:
 
 	Events.match_state_changed.connect(_on_match_state_changed)
 	Events.net_mode_changed.connect(_on_net_mode_changed)
+	# Bontago-8or.11: the gameplay half of mid-match admission. Net must not
+	# name Match, so MatchNet (the membrane that reads both) answers which seat
+	# a late joiner may take and whether a returning peer's slot is still its.
+	Net.set_seat_policy(MatchNet.pick_open_seat, MatchNet.seat_reclaimable)
 
 	_pause_menu = PAUSE_MENU_SCENE.instantiate() as PauseMenu
 	add_child(_pause_menu)
@@ -1011,7 +1015,25 @@ func _on_match_state_changed(from_state: int, to_state: int) -> void:
 	# JoinError.MATCH_IN_PROGRESS, and abort_match()'s (old -> LOBBY) emit
 	# reopens it (Net.leave() also resets it itself). On a client this is a
 	# harmless flag write; _rpc_handshake is host-gated (Beads Bontago-mv0.1.8).
-	Net.set_accepting_joins(to_state == Match.State.LOBBY)
+	#
+	# Bontago-8or.11 (spec 3.4 "Mid-match joins can be enabled in settings"):
+	# a live match also admits new joiners when its config allows it. LOADING
+	# (synchronous on the host) and END stay closed; MatchNet replays the
+	# world to whoever is admitted. Net is told when a match world starts and
+	# when the session really returns to the lobby -- not the transient LOBBY
+	# a replay/restart passes through inside start_match() -- so it can keep
+	# and drop rejoin reservations and reseat spectators.
+	if to_state == Match.State.LOADING:
+		Net.set_match_in_progress(true)
+	elif to_state == Match.State.LOBBY and not Match._lifecycle.is_starting_match():
+		Net.set_match_in_progress(false)
+	var live_state: bool = (
+		to_state == Match.State.COUNTDOWN
+		or to_state == Match.State.PLAYING
+		or to_state == Match.State.SUDDEN_DEATH
+	)
+	var mid_match_join: bool = live_state and Match.config != null and Match.config.allow_mid_match_join
+	Net.set_accepting_joins(to_state == Match.State.LOBBY or mid_match_join)
 
 	# DECISION (game/Main.gd, Bontago-xtq.43 round 2): a sandbox reset
 	# (sandbox_reset_field, F5 -- game/Sandbox.gd's _reset_field()) re-runs
@@ -1130,7 +1152,11 @@ func _build_match_world() -> void:
 	# before: humans always fill the lowest slot ids first (MatchLifecycle.
 	# _build_slots()'s `is_bot = i >= player_count - ai_count`), so
 	# Net.local_slot() is never a bot slot on any path but this one.
-	if config.ai_count < config.player_count:
+	# Bontago-8or.11: a mid-match spectator (Net.local_slot() == -1) gets no
+	# controller at all.
+	# DECISION (Bontago-8or.11): it watches through the default camera rig
+	# with no HotSeat -- there is no slot for one to drive.
+	if config.ai_count < config.player_count and Net.local_slot() >= 0:
 		_hot_seat = HOT_SEAT_SCENE.instantiate() as HotSeat
 		add_child(_hot_seat)
 		_hot_seat.set_camera_rig(_camera_rig)

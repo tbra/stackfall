@@ -243,6 +243,14 @@ func is_running() -> bool:
 	return _running
 
 
+## Host only (Bontago-8or.11): makes the next snapshot carry every body, the
+## same thing a newly connected peer id triggers in host_tick(). net/MatchNet.gd
+## calls it once a mid-match joiner acknowledges its world replay: the joiner
+## connected (and was "new" here) before it had a world to apply snapshots to.
+func request_full_snapshot() -> void:
+	_last_sent.clear()
+
+
 ## The disk, so its tilt can ride every snapshot (spec 3.4 "Disk state"). Main
 ## hands it over when it builds the world, on the host (host_tick() reads its
 ## real global_transform via _disk_transform()) and on a client (client_tick()
