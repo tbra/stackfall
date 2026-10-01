@@ -158,6 +158,16 @@ extends Resource
 @export var kill_scale: float = 0.08
 @export var kill_color: Color = Color(0.82, 0.78, 0.68)
 
+# --- Burst pool and budget (Bontago-1pi.11.31) -------------------------------
+
+## Hard cap on simultaneously active one-shot bursts (landing + kill-plane
+## together). This is also the pool size: nodes are created lazily up to this
+## many and reused, never instantiated per impact.
+@export var burst_max_active: int = 16
+## Cap on NEW bursts started within one physics frame -- a collapse can land
+## many blocks in the same step. Excess bursts are dropped.
+@export var burst_max_new_per_frame: int = 4
+
 # --- Cleanup -----------------------------------------------------------------
 
 ## GPUParticles3D.finished may not fire in a headless run (no renderer to

@@ -87,12 +87,14 @@ func test_landing_burst_cubelet_amount_scales_with_impact_intensity() -> void:
 
 	Events.block_impacted_at.emit(manager.config.dust_impact_speed_threshold, Vector3(0.0, 0.0, 0.0))
 	var at_threshold_cubelets: GPUParticles3D = (manager.get_child(0) as Node3D).get_child(0) as GPUParticles3D
-	assert_eq(at_threshold_cubelets.amount, manager.config.cubelet_particle_amount, "an impact right at the threshold gets no intensity scale-up.")
+	assert_eq(at_threshold_cubelets.amount, manager.config.cubelet_max_particle_amount, "pooled systems are built at the maximum count.")
+	assert_almost_eq(at_threshold_cubelets.amount_ratio, float(manager.config.cubelet_particle_amount) / float(manager.config.cubelet_max_particle_amount), 0.001, "an impact right at the threshold gets no intensity scale-up.")
 
 	var manager2: BlockEffectsManager = _make_manager()
 	Events.block_impacted_at.emit(manager2.config.dust_impact_speed_threshold * 1000.0, Vector3(0.0, 0.0, 0.0))
 	var extreme_cubelets: GPUParticles3D = (manager2.get_child(0) as Node3D).get_child(0) as GPUParticles3D
-	assert_eq(extreme_cubelets.amount, manager2.config.cubelet_max_particle_amount, "an extreme impact must clamp to cubelet_max_particle_amount, not grow unbounded.")
+	assert_eq(extreme_cubelets.amount, manager2.config.cubelet_max_particle_amount, "pooled systems are built at the maximum count.")
+	assert_almost_eq(extreme_cubelets.amount_ratio, 1.0, 0.001, "an extreme impact must clamp to cubelet_max_particle_amount, not grow unbounded.")
 
 
 func test_find_block_at_resolves_the_impacting_blocks_owner() -> void:
@@ -183,3 +185,97 @@ func test_cleanup_fallback_frees_the_effect_after_its_lifetime() -> void:
 	await wait_seconds(manager.config.kill_lifetime_s + manager.config.cleanup_margin_s + 0.2)
 
 	assert_eq(manager.active_effect_count(), 0, "the cleanup fallback must free the burst node well after its own lifetime, even headless.")
+
+
+func test_simultaneous_impacts_are_capped_by_the_per_frame_budget() -> void:
+	var manager: BlockEffectsManager = _make_manager()
+	var speed: float = manager.config.dust_impact_speed_threshold * 2.0
+
+	for i: int in range(50):
+		Events.block_impacted_at.emit(speed, Vector3(float(i), 0.0, 0.0))
+
+	var cap: int = mini(manager.config.burst_max_new_per_frame, manager.config.burst_max_active)
+	assert_eq(manager.active_effect_count(), cap, "50 same-frame impacts must start no more than the per-frame budget of bursts.")
+	assert_eq(manager.pooled_burst_count(), cap, "only budgeted bursts may allocate pooled nodes.")
+
+
+func test_active_bursts_never_exceed_the_active_cap_across_frames() -> void:
+	var manager: BlockEffectsManager = _make_manager()
+	manager.config = manager.config.duplicate() as BlockEffectsConfig
+	manager.config.burst_max_active = 3
+	manager.config.burst_max_new_per_frame = 2
+	var speed: float = manager.config.dust_impact_speed_threshold * 2.0
+
+	for frame: int in range(5):
+		for i: int in range(10):
+			Events.block_impacted_at.emit(speed, Vector3(float(i), 0.0, 0.0))
+		await wait_physics_frames(1)
+
+	assert_eq(manager.active_effect_count(), 3, "active bursts must stay at burst_max_active while earlier ones are alive.")
+
+
+func test_impacts_allocate_no_new_materials_and_reuse_pooled_nodes() -> void:
+	var manager: BlockEffectsManager = _make_manager()
+	manager.config = manager.config.duplicate() as BlockEffectsConfig
+	manager.config.cleanup_margin_s = 0.0
+	manager.config.cubelet_lifetime_s = 0.1
+	manager.config.dust_lifetime_s = 0.1
+	var speed: float = manager.config.dust_impact_speed_threshold * 2.0
+
+	Events.block_impacted_at.emit(speed, Vector3.ZERO)
+	var wrapper: Node3D = manager.get_child(0) as Node3D
+	var cubelets: GPUParticles3D = wrapper.get_child(0) as GPUParticles3D
+	var dust: GPUParticles3D = wrapper.get_child(1) as GPUParticles3D
+	var mesh_id: int = cubelets.draw_pass_1.get_instance_id()
+	var cubelet_material_id: int = cubelets.process_material.get_instance_id()
+	var dust_material_id: int = dust.process_material.get_instance_id()
+	var dust_mesh_id: int = dust.draw_pass_1.get_instance_id()
+
+	await wait_seconds(0.4)
+	assert_eq(manager.active_effect_count(), 0, "fixture: the first burst must have expired back into the pool.")
+
+	Events.block_impacted_at.emit(speed, Vector3(5.0, 0.0, 0.0))
+	assert_eq(manager.pooled_burst_count(), 1, "a second impact must reuse the pooled burst, not create a new one.")
+	assert_eq(manager.get_child_count(), 1, "no new wrapper node may be instantiated.")
+	assert_eq(manager.active_effect_count(), 1, "the reused burst is active again.")
+	assert_eq(cubelets.draw_pass_1.get_instance_id(), mesh_id, "same-colour impacts share one cubelet mesh/material.")
+	assert_eq(cubelets.process_material.get_instance_id(), cubelet_material_id, "the process material is reused.")
+	assert_eq(dust.process_material.get_instance_id(), dust_material_id, "the dust process material is reused.")
+	assert_eq(dust.draw_pass_1.get_instance_id(), dust_mesh_id, "the dust mesh/material is shared.")
+	assert_true(wrapper.global_position.is_equal_approx(Vector3(5.0, 0.0, 0.0)), "the reused burst must move to the new impact position.")
+
+
+func test_reused_burst_keeps_amount_and_rescales_amount_ratio() -> void:
+	var manager: BlockEffectsManager = _make_manager()
+	manager.config = manager.config.duplicate() as BlockEffectsConfig
+	manager.config.cleanup_margin_s = 0.0
+	manager.config.cubelet_lifetime_s = 0.1
+	manager.config.dust_lifetime_s = 0.1
+	var threshold: float = manager.config.dust_impact_speed_threshold
+
+	Events.block_impacted_at.emit(threshold, Vector3.ZERO)
+	var cubelets: GPUParticles3D = (manager.get_child(0) as Node3D).get_child(0) as GPUParticles3D
+	var dust: GPUParticles3D = (manager.get_child(0) as Node3D).get_child(1) as GPUParticles3D
+	var cubelet_amount: int = cubelets.amount
+	var dust_amount: int = dust.amount
+	var soft_ratio: float = cubelets.amount_ratio
+	await wait_seconds(0.4)
+
+	Events.block_impacted_at.emit(threshold * 1000.0, Vector3(5.0, 0.0, 0.0))
+	assert_eq(manager.pooled_burst_count(), 1, "fixture: the burst was reused.")
+	assert_eq(cubelets.amount, cubelet_amount, "reuse must not change cubelet amount (buffer reallocation).")
+	assert_eq(dust.amount, dust_amount, "reuse must not change dust amount.")
+	assert_almost_eq(cubelets.amount_ratio, 1.0, 0.001, "a harder impact raises the cubelet ratio to the max.")
+	assert_gt(cubelets.amount_ratio, soft_ratio, "ratio must differ between the two impacts.")
+	assert_almost_eq(dust.amount_ratio, minf(1.0, float(int(round(float(manager.config.dust_particle_amount) * manager.config.impact_intensity_max))) / float(dust_amount)), 0.001, "dust ratio follows intensity.")
+
+
+func test_release_pool_frees_pooled_nodes() -> void:
+	var manager: BlockEffectsManager = _make_manager()
+	Events.block_impacted_at.emit(manager.config.dust_impact_speed_threshold * 2.0, Vector3.ZERO)
+	assert_eq(manager.pooled_burst_count(), 1, "fixture: one pooled burst exists.")
+
+	manager.release_pool()
+
+	assert_eq(manager.pooled_burst_count(), 0, "release_pool() must empty the pool.")
+	assert_eq(manager.active_effect_count(), 0, "release_pool() must leave no active bursts.")

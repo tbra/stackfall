@@ -86,6 +86,7 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	release_pool()
 	if Settings.graphics_preset_changed.is_connected(_on_graphics_preset_changed):
 		Settings.graphics_preset_changed.disconnect(_on_graphics_preset_changed)
 
@@ -98,6 +99,7 @@ func _physics_process(delta: float) -> void:
 	if delta <= 0.0:
 		return
 	var probe_effects: int = PerfProbe.start()
+	_release_expired_bursts()
 	_update_falling_trails(delta)
 	PerfProbe.stop(&"block_effects", probe_effects)
 
@@ -107,46 +109,54 @@ func _on_block_removed(block: RigidBody3D, reason: String) -> void:
 		return
 	if block == null:
 		return
-	var wrapper: Node3D = Node3D.new()
-	add_child(wrapper)
-	wrapper.global_position = block.global_position
-	_attach_burst(
-		wrapper,
-		config.kill_particle_amount,
-		config.kill_lifetime_s,
-		config.kill_initial_speed,
-		config.kill_spread_deg,
-		config.kill_gravity,
-		config.kill_scale,
-		config.kill_color,
-	)
-	_schedule_cleanup_fallback(wrapper, config.kill_lifetime_s)
+	var burst: PooledBurst = _acquire_burst(_kill_pool, 1, true)
+	if burst == null:
+		return
+	burst.wrapper.global_position = block.global_position
+	burst.wrapper.reset_physics_interpolation()
+	var particles: GPUParticles3D = burst.particles[0]
+	particles.lifetime = config.kill_lifetime_s
+	particles.draw_pass_1 = _kill_mesh_for(config.kill_color)
+	_restart_particles(particles, config.kill_particle_amount)
+	_start_burst(burst, config.kill_lifetime_s)
 
 
 ## Landing burst (Bontago-mp0.3.4): a team-colored cubelet shower plus the
 ## original grey-brown dust puff, both scaled by _impact_intensity() and
-## spawned under one wrapper Node3D so active_effect_count() (counting the
-## manager's own children) still reports one effect per impact, matching this
-## file's pre-existing tests/unit/test_block_effects.gd contract.
+## held by one pooled wrapper Node3D so active_effect_count() still reports
+## one effect per impact. Bontago-1pi.11.31: wrappers/particle systems come
+## from a reuse pool and are restarted, meshes/materials are shared per
+## colour/kind, and new bursts are budgeted (see _acquire_burst()).
 func _on_block_impacted_at(speed: float, position: Vector3) -> void:
 	if speed < config.dust_impact_speed_threshold:
+		return
+	# Budget check first: the owner physics query below is not free either.
+	var burst: PooledBurst = _acquire_burst(_landing_pool, 2, false)
+	if burst == null:
 		return
 	var intensity: float = _impact_intensity(speed)
 	var owner_block: Block = _find_block_at(position)
 	var owner_slot: int = owner_block.owner_slot if owner_block != null else -1
 	var cubelet_color: Color = _color_for_owner_slot(owner_slot, config.cubelet_fallback_color)
-
-	var wrapper: Node3D = Node3D.new()
-	add_child(wrapper)
-	wrapper.global_position = position
+	burst.wrapper.global_position = position
+	burst.wrapper.reset_physics_interpolation()
 
 	var cubelet_amount: int = int(round(min(
 		float(config.cubelet_max_particle_amount),
 		float(config.cubelet_particle_amount) * intensity,
 	)))
-	_attach_cubelet_burst(wrapper, cubelet_amount, cubelet_color, intensity)
-	_attach_dust_burst(wrapper, int(round(float(config.dust_particle_amount) * intensity)))
-	_schedule_cleanup_fallback(wrapper, max(config.cubelet_lifetime_s, config.dust_lifetime_s))
+	var cubelets: GPUParticles3D = burst.particles[0]
+	cubelets.lifetime = config.cubelet_lifetime_s
+	cubelets.draw_pass_1 = _cubelet_mesh_for(cubelet_color)
+	var cubelet_material: ParticleProcessMaterial = cubelets.process_material as ParticleProcessMaterial
+	cubelet_material.initial_velocity_min = config.cubelet_initial_speed * 0.5 * intensity
+	cubelet_material.initial_velocity_max = config.cubelet_initial_speed * intensity
+	_restart_particles(cubelets, cubelet_amount)
+
+	var dust: GPUParticles3D = burst.particles[1]
+	dust.lifetime = config.dust_lifetime_s
+	_restart_particles(dust, int(round(float(config.dust_particle_amount) * intensity)))
+	_start_burst(burst, maxf(config.cubelet_lifetime_s, config.dust_lifetime_s))
 
 
 ## impact speed / dust_impact_speed_threshold, clamped to [1, impact_intensity_
@@ -222,6 +232,169 @@ func _color_for_owner_slot(slot_id: int, fallback: Color) -> Color:
 	return fallback
 
 
+## Bontago-1pi.11.31 burst pool. One PooledBurst = one wrapper Node3D plus its
+## particle systems, created lazily (up to config.burst_max_active active at a
+## time), kept in the tree and restarted on reuse instead of re-instantiated.
+## Each pooled particle system owns its ParticleProcessMaterial (built once,
+## only the impact-scaled velocity is rewritten per reuse); the colour-bearing
+## draw-pass meshes (and their ShaderMaterial/StandardMaterial3D) are shared
+## per colour/kind below, so no material is allocated per impact.
+class PooledBurst:
+	extends RefCounted
+	var wrapper: Node3D = null
+	var particles: Array[GPUParticles3D] = []
+	var active: bool = false
+	var expire_msec: int = 0
+
+
+var _landing_pool: Array[PooledBurst] = []
+var _kill_pool: Array[PooledBurst] = []
+var _active_bursts: int = 0
+var _budget_frame: int = -1
+var _new_bursts_this_frame: int = 0
+## Color -> shared draw-pass mesh (carrying the shared material), per kind.
+var _cubelet_meshes: Dictionary = {}
+var _kill_meshes: Dictionary = {}
+var _dust_mesh: Mesh = null
+
+
+## Returns an idle pooled burst of `particle_count` systems, or null when the
+## burst must be skipped.
+# DECISION: over-budget bursts are DROPPED, not merged or queued -- they are
+# purely cosmetic, a collapse already shows many nearby bursts, and dropping
+# keeps the cost strictly bounded with no deferred work.
+func _acquire_burst(pool: Array[PooledBurst], particle_count: int, is_kill: bool) -> PooledBurst:
+	var frame: int = Engine.get_physics_frames()
+	if frame != _budget_frame:
+		_budget_frame = frame
+		_new_bursts_this_frame = 0
+	if _new_bursts_this_frame >= config.burst_max_new_per_frame:
+		return null
+	if _active_bursts >= config.burst_max_active:
+		return null
+	var burst: PooledBurst = null
+	for candidate: PooledBurst in pool:
+		if not candidate.active:
+			burst = candidate
+			break
+	if burst == null:
+		burst = _build_burst(particle_count, is_kill)
+		pool.append(burst)
+	_new_bursts_this_frame += 1
+	return burst
+
+
+func _build_burst(particle_count: int, is_kill: bool) -> PooledBurst:
+	var burst: PooledBurst = PooledBurst.new()
+	burst.wrapper = Node3D.new()
+	burst.wrapper.visible = false
+	add_child(burst.wrapper)
+	for i: int in range(particle_count):
+		var particles: GPUParticles3D = GPUParticles3D.new()
+		particles.emitting = false
+		particles.one_shot = true
+		particles.explosiveness = 1.0
+		# Built once at its maximum count: changing `amount` reallocates the
+		# particle buffers, so reuse only scales amount_ratio.
+		particles.amount = _max_amount_for(i, is_kill)
+		if is_kill:
+			particles.process_material = _build_process_material(
+				config.kill_spread_deg, config.kill_initial_speed, config.kill_gravity
+			)
+		elif i == 0:
+			particles.process_material = _build_cubelet_process_material(1.0)
+		else:
+			particles.draw_pass_1 = _get_dust_mesh()
+			particles.process_material = _build_dust_process_material()
+		burst.wrapper.add_child(particles)
+		burst.particles.append(particles)
+	return burst
+
+
+func _max_amount_for(index: int, is_kill: bool) -> int:
+	if is_kill:
+		return maxi(config.kill_particle_amount, 1)
+	if index == 0:
+		return maxi(config.cubelet_max_particle_amount, 1)
+	return maxi(int(ceil(float(config.dust_particle_amount) * config.impact_intensity_max)), 1)
+
+
+## Never writes `amount` (buffer reallocation); scales amount_ratio instead.
+func _restart_particles(particles: GPUParticles3D, amount: int) -> void:
+	particles.emitting = false
+	if amount <= 0:
+		return
+	particles.amount_ratio = clampf(float(amount) / float(maxi(particles.amount, 1)), 0.0, 1.0)
+	particles.restart()
+	particles.emitting = true
+
+
+func _start_burst(burst: PooledBurst, lifetime_s: float) -> void:
+	burst.active = true
+	burst.wrapper.visible = true
+	burst.expire_msec = Time.get_ticks_msec() + int((lifetime_s + config.cleanup_margin_s) * 1000.0)
+	_active_bursts += 1
+
+
+## Returns finished bursts to the pool (GPUParticles3D.finished may never fire
+## headless, so expiry is time-based, like the old cleanup-fallback timer).
+func _release_expired_bursts() -> void:
+	if _active_bursts <= 0:
+		return
+	var now: int = Time.get_ticks_msec()
+	_release_expired_in(_landing_pool, now)
+	_release_expired_in(_kill_pool, now)
+
+
+func _release_expired_in(pool: Array[PooledBurst], now: int) -> void:
+	for burst: PooledBurst in pool:
+		if burst.active and now >= burst.expire_msec:
+			burst.active = false
+			burst.wrapper.visible = false
+			for particles: GPUParticles3D in burst.particles:
+				particles.emitting = false
+			_active_bursts -= 1
+
+
+## Frees the pooled nodes and shared caches (match teardown / manager exit).
+func release_pool() -> void:
+	_free_pool(_landing_pool)
+	_free_pool(_kill_pool)
+	_active_bursts = 0
+	_cubelet_meshes.clear()
+	_kill_meshes.clear()
+	_dust_mesh = null
+
+
+func _free_pool(pool: Array[PooledBurst]) -> void:
+	for burst: PooledBurst in pool:
+		if is_instance_valid(burst.wrapper):
+			burst.wrapper.queue_free()
+	pool.clear()
+
+
+func _cubelet_mesh_for(color: Color) -> Mesh:
+	var mesh: Mesh = _cubelet_meshes.get(color) as Mesh
+	if mesh == null:
+		mesh = _build_cubelet_mesh(color)
+		_cubelet_meshes[color] = mesh
+	return mesh
+
+
+func _kill_mesh_for(color: Color) -> Mesh:
+	var mesh: Mesh = _kill_meshes.get(color) as Mesh
+	if mesh == null:
+		mesh = _build_mesh(config.kill_scale, color)
+		_kill_meshes[color] = mesh
+	return mesh
+
+
+func _get_dust_mesh() -> Mesh:
+	if _dust_mesh == null:
+		_dust_mesh = _build_dust_mesh()
+	return _dust_mesh
+
+
 ## Fix round (owner: "make them actual tiny 3D cubes... tumbling... a small
 ## bounce or just fall, shrinking/fading out"): a GPUParticles3D whose
 ## draw_pass_1 mesh/material give each cube vfx/cubelet.gdshader's cheap
@@ -232,22 +405,6 @@ func _color_for_owner_slot(slot_id: int, fallback: Color) -> Color:
 ## simulation of its own -- "a small bounce or just fall" -- falling alone
 ## already reads fine for a particle this short-lived and this is the
 ## cheaper of the two options.
-func _attach_cubelet_burst(parent: Node3D, amount: int, color: Color, intensity: float) -> void:
-	if amount <= 0:
-		return
-	var particles: GPUParticles3D = GPUParticles3D.new()
-	particles.emitting = false
-	particles.one_shot = true
-	particles.amount = amount
-	particles.lifetime = config.cubelet_lifetime_s
-	particles.explosiveness = 1.0
-	particles.draw_pass_1 = _build_cubelet_mesh(color)
-	particles.process_material = _build_cubelet_process_material(intensity)
-	parent.add_child(particles)
-	particles.finished.connect(particles.queue_free)
-	particles.emitting = true
-
-
 func _build_cubelet_mesh(color: Color) -> Mesh:
 	var mesh: BoxMesh = BoxMesh.new()
 	mesh.size = Vector3.ONE * config.cubelet_scale
@@ -273,27 +430,6 @@ func _build_cubelet_process_material(intensity: float) -> ParticleProcessMateria
 	material.color_ramp = _get_fade_ramp()
 	material.scale_curve = _get_shrink_curve()
 	return material
-
-
-## Fix round (owner: dust rendered as "huge flat hard-edged blown-out yellow
-## rectangles"): a GPUParticles3D whose draw_pass_1 mesh/material give each
-## puff vfx/dust_puff.gdshader's soft round billboarded look, emitted on a
-## ring around the impact point (dust_ring_*) so the spread reads as "along
-## the ground from the impact point" rather than one dense clump.
-func _attach_dust_burst(parent: Node3D, amount: int) -> void:
-	if amount <= 0:
-		return
-	var particles: GPUParticles3D = GPUParticles3D.new()
-	particles.emitting = false
-	particles.one_shot = true
-	particles.amount = amount
-	particles.lifetime = config.dust_lifetime_s
-	particles.explosiveness = 1.0
-	particles.draw_pass_1 = _build_dust_mesh()
-	particles.process_material = _build_dust_process_material()
-	parent.add_child(particles)
-	particles.finished.connect(particles.queue_free)
-	particles.emitting = true
 
 
 func _build_dust_mesh() -> Mesh:
@@ -513,37 +649,6 @@ func _release_trail(id: int) -> void:
 	_schedule_cleanup_fallback(wrapper, config.trail_release_fade_s)
 
 
-## Shared by every burst kind above: builds one continuous GPUParticles3D as
-## a child of `parent` (a wrapper Node3D already positioned at the effect's
-## world location, or -- for the trail's own separate pool -- `self`
-## directly). Callers are responsible for parent's own cleanup; this only
-## wires the particle node itself, matching its own pre-existing (pre-
-## Bontago-mp0.3.4) one-shot-burst behavior exactly.
-func _attach_burst(
-	parent: Node3D,
-	amount: int,
-	lifetime: float,
-	initial_speed: float,
-	spread_deg: float,
-	gravity: Vector3,
-	mesh_scale: float,
-	color: Color,
-) -> void:
-	if amount <= 0:
-		return
-	var particles: GPUParticles3D = GPUParticles3D.new()
-	particles.emitting = false
-	particles.one_shot = true
-	particles.amount = amount
-	particles.lifetime = lifetime
-	particles.explosiveness = 1.0
-	particles.draw_pass_1 = _build_mesh(mesh_scale, color)
-	particles.process_material = _build_process_material(spread_deg, initial_speed, gravity)
-	parent.add_child(particles)
-	particles.finished.connect(particles.queue_free)
-	particles.emitting = true
-
-
 ## GPUParticles3D.finished is driven by the visual particle system and may
 ## never fire in a headless run (no renderer advancing it) -- confirmed by
 ## this package's own test_block_effects.gd cleanup case, which awaits this
@@ -602,8 +707,12 @@ func _build_process_material(spread_deg: float, initial_speed: float, gravity: V
 	return material
 
 
-## Test/inspection seam: how many burst effects are currently alive (children
-## still finishing their one-shot emission, or awaiting their cleanup
-## fallback timer).
+## Test/inspection seam: how many pooled burst effects are currently active
+## (still inside their lifetime).
 func active_effect_count() -> int:
-	return get_child_count()
+	return _active_bursts
+
+
+## Test seam: total pooled burst wrappers ever created (pool reuse check).
+func pooled_burst_count() -> int:
+	return _landing_pool.size() + _kill_pool.size()
