@@ -983,13 +983,15 @@ func test_slow_frame_coalesces_due_territory_solves_and_keeps_fractional_time() 
 
 	var step: float = 1.0 / Match._territory_tuning.solve_hz
 	Match._territory._tick_territory(step * 3.5)
-	assert_eq(int(Match._territory.sandbox_profile()["steps"]), 2)
-	assert_eq(get_signal_emit_count(Events, "territory_updated"), 2)
+	# Bontago-1pi.11.29: the first step consumes the only change, so the two
+	# remaining catch-up steps advance time without a second solve/emission.
+	assert_eq(int(Match._territory.sandbox_profile()["steps"]), 1)
+	assert_eq(get_signal_emit_count(Events, "territory_updated"), 1)
 	assert_almost_eq(Match._territory._solve_accum, step * 0.5, 0.001)
 	Match._territory.mark_dirty()
 	Match._territory._tick_territory(step * 0.51)
 	assert_eq(int(Match._territory.sandbox_profile()["steps"]), 1)
-	assert_eq(get_signal_emit_count(Events, "territory_updated"), 3)
+	assert_eq(get_signal_emit_count(Events, "territory_updated"), 2)
 	assert_almost_eq(Match._territory._solve_accum, step * 0.01, 0.001)
 	Match._sandbox_territory_profile_enabled = false
 
