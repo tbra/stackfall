@@ -13,6 +13,11 @@ extends RigidBody3D
 ## this. -1 means "no owner", e.g. M1's placements before slots existed.
 @export var owner_slot: int = -1
 
+## Bontago-t8x.1: the gift this body delivers (set by BlockFactory.
+## apply_gift_visual() on the host and, from the spawn RPC, on clients), or
+## &"" for an ordinary block. Presentation only; the effect is SpecialBehavior.
+var gift_id: StringName = &""
+
 ## M3's network id, assigned by game/BlockRegistry.gd when the block is
 ## registered. -1 until then.
 @export var net_id: int = -1
