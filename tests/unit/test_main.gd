@@ -83,3 +83,21 @@ func test_on_lobby_back_requested_leaves_the_hosted_session() -> void:
 
 	assert_true(Net.is_offline())
 	assert_not_null(_main._main_menu)
+
+
+func test_play_local_bots_opens_private_lobby_with_one_bot() -> void:
+	var previous_port: int = Net.config.game_port
+	var occupied_port: int = _take_port()
+	var blocker: PacketPeerUDP = PacketPeerUDP.new()
+	assert_eq(blocker.bind(occupied_port), OK)
+	Net.config.game_port = occupied_port
+	_main._main_menu._on_bots_pressed()
+	Net.config.game_port = previous_port
+	blocker.close()
+	assert_true(Net.is_host())
+	assert_not_null(_main._lobby)
+	assert_eq(int(Net.lobby_data().get("player_count", -1)), 2)
+	assert_eq(int(Net.lobby_data().get("ai_count", -1)), 1)
+	assert_false(Net._lan.is_advertising(), "Play local must stay out of LAN discovery")
+	assert_false(Net._accepting_joins, "Local bots must reject remote peers")
+	assert_ne(Net._host_port, occupied_port, "Local bots must not depend on the standard game port")

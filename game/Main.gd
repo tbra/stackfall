@@ -767,6 +767,22 @@ func _show_main_menu() -> void:
 	add_child(_main_menu)
 	_main_menu.sandbox_requested.connect(start_sandbox_from_menu)
 	_main_menu.tutorial_requested.connect(start_tutorial_from_menu)
+	_main_menu.bots_requested.connect(start_bots_from_menu)
+
+
+## DECISION: Play local → Vs bots starts from the normal lobby with one human
+## and one bot selected. The lobby remains editable before Start, while LAN
+## discovery stays off for this local entry point.
+func start_bots_from_menu(player_name: String) -> void:
+	var err: Error = Net.host_game(0, player_name, false)
+	if err != OK:
+		if _main_menu != null:
+			_main_menu.show_status("Could not start local game: %s" % error_string(err))
+		return
+	var config: MatchConfig = match_config.duplicate(true) as MatchConfig
+	config.player_count = 2
+	config.ai_count = 1
+	Net.set_lobby_data(config.to_dict())
 
 
 func _show_lobby() -> void:

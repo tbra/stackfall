@@ -37,6 +37,7 @@ signal sandbox_requested
 ## start_tutorial_from_menu() connects to this in _show_main_menu(),
 ## mirroring its own start_sandbox_from_menu() hookup.
 signal tutorial_requested
+signal bots_requested(player_name: String)
 
 ## docs/M6_PLAN.md package C2: OptionsMenu.tscn is instanced/freed directly by
 ## this menu (ui/OptionsMenu.gd's own header: "self-contained ... MainMenu
@@ -54,6 +55,18 @@ const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
 
 @onready var _name_edit: LineEdit = %NameEdit
 @onready var _host_button: Button = %HostButton
+@onready var _join_button: Button = %JoinButton
+@onready var _play_local_button: Button = %PlayLocalButton
+@onready var _bots_button: Button = %BotsButton
+@onready var _back_button: Button = %BackButton
+@onready var _host_row: HBoxContainer = $Center/Panel/Layout/HostRow
+@onready var _join_tab_row: HBoxContainer = %JoinTabRow
+@onready var _join_lan_tab_button: Button = %JoinLanTabButton
+@onready var _join_steam_tab_button: Button = %JoinSteamTabButton
+@onready var _title_wrap: Control = $Center/Panel/Layout/TitleWrap
+@onready var _tagline: Label = $Center/Panel/Layout/Tagline
+@onready var _game_list_stack: Control = $Center/Panel/Layout/LanGamesWell/LanGamesLayout/GameListStack
+@onready var _steam_list_stack: Control = $Center/Panel/Layout/SteamSection/SteamGamesWell/SteamGamesLayout/SteamListStack
 @onready var _sandbox_button: Button = %SandboxButton
 @onready var _tutorial_button: Button = %TutorialButton
 @onready var _options_button: Button = %OptionsButton
@@ -125,6 +138,14 @@ var _steam_lobbies: Array[Dictionary] = []
 ## own extra wiring code anyway.
 var _steam_refresh_countdown_s: float = 0.0
 
+const PAGE_HOME: int = 0
+const PAGE_JOIN: int = 1
+const PAGE_LOCAL: int = 2
+var _page: int = PAGE_HOME
+var _join_steam_tab: bool = false
+var _host_dialog: ConfirmationDialog = null
+var _host_steam_choice: Button = null
+
 ## The live OptionsMenu.tscn instance while it's open, or null. Tracked here
 ## (rather than letting OptionsMenu free itself on `closed`) so
 ## _on_options_closed() can both queue_free() it and restore focus in one
@@ -136,6 +157,12 @@ var _options_menu: OptionsMenu = null
 func _ready() -> void:
 	net_provider = Net
 	_host_button.pressed.connect(_on_host_pressed)
+	_join_button.pressed.connect(_on_join_pressed)
+	_join_lan_tab_button.pressed.connect(_on_join_lan_tab_pressed)
+	_join_steam_tab_button.pressed.connect(_on_join_steam_tab_pressed)
+	_play_local_button.pressed.connect(_on_play_local_pressed)
+	_bots_button.pressed.connect(_on_bots_pressed)
+	_back_button.pressed.connect(_on_back_pressed)
 	_sandbox_button.pressed.connect(_on_sandbox_pressed)
 	_tutorial_button.pressed.connect(_on_tutorial_pressed)
 	_options_button.pressed.connect(_on_options_pressed)
@@ -152,8 +179,10 @@ func _ready() -> void:
 	Events.net_steam_lobbies_discovered.connect(_on_steam_lobbies_discovered)
 	net_provider.start_discovery()
 	_apply_visual_style()
+	_build_host_dialog()
 	_apply_steam_availability()
-	_host_button.grab_focus()
+	get_viewport().size_changed.connect(_refresh_compact_layout)
+	_set_page(PAGE_HOME)
 
 
 func _process(delta: float) -> void:
@@ -162,6 +191,21 @@ func _process(delta: float) -> void:
 	_steam_refresh_countdown_s -= delta
 	if _steam_refresh_countdown_s <= 0.0:
 		_on_refresh_steam_pressed()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if _page == PAGE_JOIN and bool(net_provider.steam_available()):
+		if event.is_action_pressed("menu_tab_next"):
+			_on_join_steam_tab_pressed()
+			get_viewport().set_input_as_handled()
+			return
+		if event.is_action_pressed("menu_tab_previous"):
+			_on_join_lan_tab_pressed()
+			get_viewport().set_input_as_handled()
+			return
+	if _page != PAGE_HOME and not _host_dialog.visible and event.is_action_pressed("ui_cancel"):
+		_on_back_pressed()
+		get_viewport().set_input_as_handled()
 
 
 func _exit_tree() -> void:
@@ -176,8 +220,9 @@ func _exit_tree() -> void:
 ## exception to "Sfx listens, nothing calls it" (autoload/Sfx.gd's header).
 func _connect_click_and_hover_sounds() -> void:
 	var buttons: Array[BaseButton] = [
-		_host_button, _sandbox_button, _tutorial_button, _options_button, _quit_button, _refresh_button,
-		_direct_join_button, _host_online_button, _refresh_steam_button,
+		_host_button, _join_button, _join_lan_tab_button, _join_steam_tab_button, _play_local_button, _sandbox_button, _tutorial_button,
+		_bots_button, _back_button, _options_button, _quit_button, _refresh_button,
+		_direct_join_button, _refresh_steam_button,
 	]
 	for button: BaseButton in buttons:
 		button.pressed.connect(_on_sound_button_pressed)
@@ -242,6 +287,12 @@ func _apply_visual_style() -> void:
 	_direct_ip_edit.add_theme_stylebox_override("focus", MenuStyleFactory.make_flat_list(tuning))
 
 	MenuStyleFactory.apply_pill(_host_button, tuning.pill_coral_color, tuning.pill_coral_hover_color, tuning.label_ink_light_color, tuning)
+	MenuStyleFactory.apply_pill(_join_button, tuning.pill_powder_blue_color, tuning.pill_powder_blue_hover_color, tuning.ink_color, tuning)
+	MenuStyleFactory.apply_pill(_join_lan_tab_button, tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning)
+	MenuStyleFactory.apply_pill(_join_steam_tab_button, tuning.pill_powder_blue_color, tuning.pill_powder_blue_hover_color, tuning.ink_color, tuning)
+	MenuStyleFactory.apply_pill(_play_local_button, tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning)
+	MenuStyleFactory.apply_pill(_bots_button, tuning.pill_coral_color, tuning.pill_coral_hover_color, tuning.label_ink_light_color, tuning)
+	MenuStyleFactory.apply_pill(_back_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
 	MenuStyleFactory.apply_pill(_host_online_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
 	MenuStyleFactory.apply_pill(_refresh_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
 	MenuStyleFactory.apply_pill(_refresh_steam_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
@@ -250,6 +301,12 @@ func _apply_visual_style() -> void:
 	MenuStyleFactory.apply_pill(_tutorial_button, tuning.pill_powder_blue_color, tuning.pill_powder_blue_hover_color, tuning.ink_color, tuning)
 	MenuStyleFactory.apply_pill(_options_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
 	MenuStyleFactory.apply_pill(_quit_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
+	# The theme's generic focused font is pale; keep focused captions readable
+	# on the pastel pills in all three menu pages.
+	for button: Button in [_join_button, _join_lan_tab_button, _join_steam_tab_button, _play_local_button, _refresh_button, _refresh_steam_button, _sandbox_button, _tutorial_button, _options_button, _quit_button, _back_button]:
+		button.add_theme_color_override("font_focus_color", tuning.ink_color)
+	for button: Button in [_host_button, _bots_button, _direct_join_button]:
+		button.add_theme_color_override("font_focus_color", tuning.label_ink_light_color)
 	_gamepad_hint_pill.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_cream_color, tuning))
 	MenuStyleFactory.apply_glyph_circle(_glyph_a, _glyph_a_label, tuning)
 	MenuStyleFactory.apply_glyph_circle(_glyph_b, _glyph_b_label, tuning)
@@ -273,10 +330,114 @@ func _sync_shadow_card_sizes() -> void:
 		style.expand_margin_bottom = -distance
 
 
+## DECISION: the front page has one Host entry. Its modal keeps local and
+## Steam transport choices in one place and leaves Join discovery off the home
+## page. Steam is disabled in the modal when the runtime lacks it.
+func _build_host_dialog() -> void:
+	_host_dialog = ConfirmationDialog.new()
+	_host_dialog.title = "Host game"
+	_host_dialog.dialog_text = "How should friends connect?"
+	_host_dialog.ok_button_text = "Host locally"
+	_host_dialog.confirmed.connect(_on_host_local_confirmed)
+	_host_steam_choice = _host_dialog.add_button("Host on Steam", false, "steam")
+	_host_dialog.custom_action.connect(_on_host_custom_action)
+	add_child(_host_dialog)
+	_host_steam_choice.disabled = not bool(net_provider.steam_available())
+
+
 func _on_host_pressed() -> void:
+	_host_dialog.popup_centered()
+	_host_dialog.get_ok_button().grab_focus()
+
+
+func _on_host_local_confirmed() -> void:
 	var err: Error = net_provider.host_game(0, _player_name())
 	if err != OK:
 		_show_status("Could not host: %s" % error_string(err))
+
+
+func _on_host_custom_action(action: StringName) -> void:
+	if action == &"steam":
+		_host_dialog.hide()
+		_on_host_online_pressed()
+
+
+func _on_join_pressed() -> void:
+	_join_steam_tab = false
+	_set_page(PAGE_JOIN)
+
+
+func _on_join_lan_tab_pressed() -> void:
+	_join_steam_tab = false
+	_set_page(PAGE_JOIN)
+	_join_lan_tab_button.grab_focus()
+
+
+func _on_join_steam_tab_pressed() -> void:
+	if not bool(net_provider.steam_available()):
+		return
+	_join_steam_tab = true
+	_set_page(PAGE_JOIN)
+	_join_steam_tab_button.grab_focus()
+
+
+func _on_play_local_pressed() -> void:
+	_set_page(PAGE_LOCAL)
+
+
+func _on_back_pressed() -> void:
+	_set_page(PAGE_HOME)
+
+
+func _on_bots_pressed() -> void:
+	bots_requested.emit(_player_name())
+
+
+## The existing discovery controls remain on a dedicated Join page. The local
+## choices stay together on Play local; the front page is a short navigation
+## screen that also fits smaller viewports.
+func _set_page(page: int) -> void:
+	_page = page
+	_host_row.visible = page == PAGE_HOME
+	_host_online_button.hide()
+	_join_tab_row.visible = page == PAGE_JOIN
+	_join_steam_tab_button.disabled = not bool(net_provider.steam_available())
+	_steam_section.visible = page == PAGE_JOIN and _join_steam_tab and bool(net_provider.steam_available())
+	_lan_games_well.visible = page == PAGE_JOIN and not _join_steam_tab
+	_refresh_compact_layout()
+	_play_local_button.visible = page == PAGE_HOME
+	_options_button.visible = page == PAGE_HOME
+	_quit_button.visible = page == PAGE_HOME
+	_sandbox_button.visible = page == PAGE_LOCAL
+	_tutorial_button.visible = page == PAGE_LOCAL
+	_bots_button.visible = page == PAGE_LOCAL
+	_back_button.visible = page != PAGE_HOME
+	var controls: Array[Control] = [_name_edit]
+	if page == PAGE_HOME:
+		controls.append_array([_host_button, _join_button, _play_local_button, _options_button, _quit_button])
+	elif page == PAGE_LOCAL:
+		controls.append_array([_sandbox_button, _tutorial_button, _bots_button, _back_button])
+	else:
+		controls.append_array([_join_lan_tab_button, _join_steam_tab_button])
+		if _steam_section.visible:
+			controls.append_array([_refresh_steam_button, _steam_lobby_list])
+		else:
+			controls.append_array([_refresh_button, _game_list, _direct_ip_edit, _direct_join_button])
+		controls.append(_back_button)
+	for i: int in range(controls.size()):
+		controls[i].focus_neighbor_top = controls[i].get_path_to(controls[(i - 1 + controls.size()) % controls.size()])
+		controls[i].focus_neighbor_bottom = controls[i].get_path_to(controls[(i + 1) % controls.size()])
+	controls[1].grab_focus()
+
+
+## Compact Join keeps its controls on screen at a small window size without
+## shrinking fonts. Home and Play local keep the wordmark at every size.
+func _refresh_compact_layout() -> void:
+	var compact: bool = get_viewport().get_visible_rect().size.y < 600.0 and _page == PAGE_JOIN
+	_title_wrap.visible = not compact
+	_tagline.visible = not compact
+	_game_list_stack.custom_minimum_size.y = 60.0 if compact else 92.0
+	_steam_list_stack.custom_minimum_size.y = 50.0 if compact else 61.0
 
 
 func _on_sandbox_pressed() -> void:
@@ -420,28 +581,17 @@ func _rebuild_steam_lobby_list() -> void:
 ## it's actually disabled, instead of a standing block of card-width text.
 func _apply_steam_availability() -> void:
 	var available: bool = net_provider != null and bool(net_provider.steam_available())
-	_steam_section.visible = available
-	_host_online_button.tooltip_text = "" if available else "Steam not available -- host/join over LAN or direct IP below."
-	# DECISION (ui/MainMenu.gd, Bontago-xtq.32 redo, gap item 4): %HostOnlineButton
-	# now stays in its %HostRow slot beside %HostButton always -- "hidden/disabled
-	# ... same layout slot kept" -- so only %SteamSection (the lobby list below
-	# Host) still changes shape when Steam is unavailable. It is disabled in
-	# place instead of hidden with its parent.
-	_host_online_button.disabled = not available
+	if not available:
+		_join_steam_tab = false
+	_join_steam_tab_button.disabled = not available
+	_steam_section.visible = available and _page == PAGE_JOIN and _join_steam_tab
+	_lan_games_well.visible = _page == PAGE_JOIN and not _join_steam_tab
+	if _host_steam_choice != null:
+		_host_steam_choice.disabled = not available
+		_host_steam_choice.tooltip_text = "" if available else "Steam is unavailable; host locally instead."
 	if available:
 		net_provider.refresh_lobby_list()
 		_steam_refresh_countdown_s = float(net_provider.config.steam_lobby_list_refresh_s)
-	# DECISION (ui/MainMenu.gd): bridge the ui_up/ui_down (incl. gamepad D-pad)
-	# chain from %HostRow straight to %GameList's well when %SteamSection is
-	# hidden, the same way the previous version bridged past a hidden
-	# %HostOnlineButton.
-	var below_host: Control = _steam_lobby_list if available else _game_list
-	_host_button.focus_neighbor_bottom = _host_button.get_path_to(below_host)
-	_host_online_button.focus_neighbor_bottom = _host_online_button.get_path_to(below_host)
-	_game_list.focus_neighbor_top = (
-		_game_list.get_path_to(_refresh_steam_button) if available
-		else _game_list.get_path_to(_host_button)
-	)
 
 
 ## Bontago-mp0.3.7 (capture-only): tools/capture_mockup08.gd's own
@@ -466,6 +616,10 @@ func debug_force_steam_ui(sample_lobby: bool = true) -> void:
 func _player_name() -> String:
 	var typed: String = _name_edit.text.strip_edges()
 	return typed if typed != "" else "Player"
+
+
+func show_status(text: String) -> void:
+	_show_status(text)
 
 
 func _show_status(text: String) -> void:
