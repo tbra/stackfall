@@ -352,6 +352,7 @@ func _raycast_support_height(local_xz: Vector2) -> Dictionary:
 	var params: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(start, end)
 	params.collide_with_bodies = true
 	params.collide_with_areas = false
+	params.collision_mask = Field.PLACEMENT_QUERY_MASK
 	var hit: Dictionary = space.intersect_ray(params)
 	if hit.is_empty():
 		return {"height": 0.0, "collider": null, "hit": false}

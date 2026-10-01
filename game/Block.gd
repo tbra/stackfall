@@ -122,6 +122,7 @@ var _freeze_reasons: Dictionary = {}
 
 func _ready() -> void:
 	add_to_group(TUNING_GROUP)
+	collision_mask |= Field.BEACON_COLLISION_LAYER
 	if tuning == null:
 		# Review fix (Bontago-xtq.17 SHOULD-FIX 3): game/BlockFactory.gd's
 		# build() now sets `block.tuning = tuning` itself (its own build()
