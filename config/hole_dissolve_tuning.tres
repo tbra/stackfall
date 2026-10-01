@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="HoleDissolveTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/HoleDissolveTuning.gd" id="1_tuning"]
+
+[resource]
+script = ExtResource("1_tuning")
+dissolve_delay_s = 0.35
+contact_height_m = 0.15
+contact_inset_m = 0.08
+contact_leave_speed = 1.0
+open_query_max_bodies = 32

@@ -16,23 +16,20 @@ extends AnimatableBody3D
 ##
 ## **Cells (spec 3.3).** The disk's collision is one ConcavePolygonShape3D on
 ## one shape owner (Bontago-ruw, docs/M4_PLAN.md P0a): a trimesh with one
-## `map_def.cell_size` quad per solid in-disk cell of the square CellGrid, plus
-## vertical walls wherever a solid cell meets a hole or the rim. One cell is
-## one CellGrid index is one pixel of the territory raster, so the rules, the
-## picture and the collision can never disagree about where a hole is. A hole
-## is that cell's quad left out of the mesh: an exact cell_size opening with
-## nothing overhanging it. The toggles are batched at
-## `TerritoryTuning.max_cell_toggles_per_frame` per physics frame through a
-## FIFO backlog, the mesh is rebuilt at most once per physics frame (only when
-## a toggle was applied), and every body above a cell that changed is woken,
-## because a sleeping tower would otherwise sit happily on collision that is
-## no longer there.
+## `map_def.cell_size` quad per in-disk cell of the square CellGrid, plus
+## vertical walls at the rim. One cell is one CellGrid index is one pixel of
+## the territory raster, so the rules and the picture never disagree about
+## where a hole is.
 ##
-## The trimesh replaced one BoxShape3D per cell, grown by MapDef.cell_overlap
-## so towers stood on the boxes' flat middles past Jolt's convex rounding.
-## That overlap left a lone hole only cell_size - cell_overlap wide, so a 1 m
-## block could not fall into it; a mesh has neither the per-cell rounding nor
-## the overhang, so Field no longer reads cell_overlap.
+## **Holes do not touch collision (Bontago-1pi.11.41, owner decision
+## Bontago-gdb option A).** The trimesh is built once per map (and never
+## rebuilt on a hole change: set_faces() cost ~13 ms per change on
+## round_medium and woke every sleeping body on the disc). Applied hole state
+## lives in _hole_applied, batched at `TerritoryTuning.max_cell_toggles_per_
+## frame` per physics frame through a FIFO backlog as before; each drained
+## batch of newly opened cells is announced on hole_cells_applied, and
+## game/HoleDissolver.gd (host) dissolves the blocks that rest or land on a
+## hole cell instead of letting them fall through.
 ##
 ## **What this node does not do.** Field decides nothing. Whether a cell is a
 ## hole is TerritoryRaster's answer (core/, pure); Field only applies it, and
@@ -61,6 +58,11 @@ const NEIGHBOUR_DIRS: Array[Vector2i] = [
 ##   godot --headless --path . res://tests/bench/bench_tower.tscn -- --trace-disk=1
 const TRACE_ARG_PREFIX: String = "--trace-disk="
 
+## Bontago-1pi.11.41: a drained batch applied these cells as holes (opened
+## only; closing a hole needs no reaction). Emitted on host and client alike;
+## game/HoleDissolver.gd ignores it off the host.
+signal hole_cells_applied(opened: PackedInt32Array)
+
 @export var map_def: MapDef = preload("res://config/maps/round_medium.tres")
 @export var tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
 @export var tilt_tuning: TiltTuning = preload("res://config/tilt_tuning.tres")
@@ -81,7 +83,8 @@ var _grid: CellGrid = null
 ## longer exist. Nothing outside Field and its tests reads the id itself.
 var _cell_owner_ids: PackedInt32Array = PackedInt32Array()
 var _in_disk_cells: PackedInt32Array = PackedInt32Array()
-## 1 where the cell's quad is currently left out of the disk trimesh.
+## 1 where the cell is currently an applied hole (dissolve contact, not
+## collision: Bontago-1pi.11.41).
 var _hole_applied: PackedByteArray = PackedByteArray()
 ## 1 where the rules want the cell to be a hole; the backlog is the difference.
 var _hole_wanted: PackedByteArray = PackedByteArray()
@@ -100,21 +103,10 @@ var _kill_plane_area: Area3D = null
 ## Grid line coordinates, disk-local meters: line i is the -x (or -z) edge of
 ## column (or row) i, so cell (cx, cy) spans lines cx..cx+1 and cy..cy+1.
 var _grid_lines: PackedFloat32Array = PackedFloat32Array()
-## Top quad of every in-disk cell, VERTS_PER_QUAD vertices each, in
-## _in_disk_cells order, built once so a rebuild copies slices of it.
-var _top_faces: PackedVector3Array = PackedVector3Array()
-## Per grid row: where the row's in-disk cells start in _in_disk_cells, how
-## many there are (the disk is convex, so they are contiguous), and how many
-## are applied holes. A row with no hole is copied as one slice.
-var _row_first_slot: PackedInt32Array = PackedInt32Array()
-var _row_slot_count: PackedInt32Array = PackedInt32Array()
-var _row_hole_count: PackedInt32Array = PackedInt32Array()
 var _applied_hole_total: int = 0
-## Rim walls (a solid cell's side facing out of the disk): the cell each one
-## belongs to, and its VERTS_PER_QUAD vertices. Left out while that cell is a hole.
-var _rim_wall_cells: PackedInt32Array = PackedInt32Array()
-var _rim_wall_faces: PackedVector3Array = PackedVector3Array()
-## --trace-disk bookkeeping.
+## --trace-disk bookkeeping. _rebuild_count counts disk trimesh builds
+## (set_faces calls); Bontago-1pi.11.41 tests pin that a hole change never
+## bumps it.
 var _trace_every: int = 0
 var _rebuild_count: int = 0
 var _max_rebuild_usec: int = 0
@@ -666,51 +658,34 @@ func _rebuild_cells() -> void:
 	for line: int in range(cell_grid.res + 1):
 		_grid_lines[line] = float(line) * cell_grid.cell_size - cell_grid.half_extent
 
-	_row_first_slot = PackedInt32Array()
-	_row_first_slot.resize(cell_grid.res)
-	_row_first_slot.fill(-1)
-	_row_slot_count = PackedInt32Array()
-	_row_slot_count.resize(cell_grid.res)
-	_row_hole_count = PackedInt32Array()
-	_row_hole_count.resize(cell_grid.res)
-
 	_disk_shape = ConcavePolygonShape3D.new()
 	# DECISION (game/Field.gd, Bontago-ruw): single-sided (backface_collision
 	# off, the default). Every face points out of the disk slab (up, or out of
-	# a cell side into a hole or past the rim), so a block that has already
-	# dropped below the surface into a hole is never pushed back up by the
-	# underside of a neighbour's top quad.
+	# a rim cell's side), so a block below the surface past the rim is never
+	# pushed back up by the underside of a top quad.
 	_disk_shape.backface_collision = false
 	_disk_owner_id = create_shape_owner(self)
 
-	_top_faces = PackedVector3Array()
-	for slot: int in range(_in_disk_cells.size()):
-		var cell: int = _in_disk_cells[slot]
+	var faces: PackedVector3Array = PackedVector3Array()
+	for cell: int in _in_disk_cells:
 		var coords: Vector2i = cell_grid.cell_coords(cell)
-		if _row_first_slot[coords.y] < 0:
-			_row_first_slot[coords.y] = slot
-		_row_slot_count[coords.y] += 1
 		_cell_owner_ids[cell] = _disk_owner_id
-		_top_faces.append_array(_top_quad(coords.x, coords.y))
+		faces.append_array(_top_quad(coords.x, coords.y))
 
-	# DECISION (game/Field.gd, Bontago-ruw): the plan names only the top quads;
-	# the mesh also carries vertical walls, disk_height deep, on every solid
-	# cell side that faces a hole or the rim, where the old boxes' sides
-	# stood. A block tipping or sliding into a hole then meets a side that
-	# pushes it off sideways, not a bare triangle edge that can pop it back up
-	# onto the surface. Walls cost boundary cells only, not the whole disk.
-	_rim_wall_cells = PackedInt32Array()
-	_rim_wall_faces = PackedVector3Array()
+	# DECISION (game/Field.gd, Bontago-ruw): the mesh also carries vertical
+	# walls, disk_height deep, on every cell side that faces the rim, where the
+	# old boxes' sides stood, so a block sliding off the edge meets a side that
+	# pushes it off sideways rather than a bare triangle edge. Bontago-1pi.11.41:
+	# holes no longer cut the mesh, so the rim is the only place walls stand.
 	for cell: int in _in_disk_cells:
 		var coords: Vector2i = cell_grid.cell_coords(cell)
 		for dir: Vector2i in NEIGHBOUR_DIRS:
 			var next: Vector2i = coords + dir
 			if not _cell_in_disk(next.x, next.y):
-				_rim_wall_cells.append(cell)
-				_rim_wall_faces.append_array(_edge_wall(coords.x, coords.y, dir))
+				faces.append_array(_edge_wall(coords.x, coords.y, dir))
 
 	# Faces first, then the shape onto the owner, so Jolt never sees an empty mesh.
-	_rebuild_disk_mesh()
+	_build_disk_mesh(faces)
 	shape_owner_add_shape(_disk_owner_id, _disk_shape)
 
 	var material: PhysicsMaterial = PhysicsMaterial.new()
@@ -764,12 +739,6 @@ func _cell_in_disk(cx: int, cy: int) -> bool:
 	return _cell_owner_ids[cell_grid.cell_index(cx, cy)] >= 0
 
 
-func _cell_solid(cx: int, cy: int) -> bool:
-	if not _cell_in_disk(cx, cy):
-		return false
-	return _hole_applied[grid().cell_index(cx, cy)] == 0
-
-
 # --- Disk trimesh (Bontago-ruw) ---------------------------------------------
 
 ## A quad as two triangles whose front faces point along `front`. Godot takes
@@ -821,59 +790,14 @@ func _edge_wall(cx: int, cy: int, dir: Vector2i) -> PackedVector3Array:
 	return _quad(a, b, b + down, a + down, Vector3(float(dir.x), 0.0, float(dir.y)))
 
 
-## Walls around one applied hole: each solid neighbour's side facing into it.
-func _append_hole_walls(faces: PackedVector3Array, hole_cell: int) -> void:
-	var coords: Vector2i = grid().cell_coords(hole_cell)
-	for dir: Vector2i in NEIGHBOUR_DIRS:
-		var next: Vector2i = coords + dir
-		if _cell_solid(next.x, next.y):
-			faces.append_array(_edge_wall(next.x, next.y, -dir))
-
-
-## Rebuilds the whole disk trimesh from _hole_applied. set_faces() takes the
-## whole face array (no partial update), so this is O(in-disk cells), but a
-## row without a hole is one native slice copy and GDScript only walks the
-## cells of rows that hold holes. Called at most once per physics frame by
-## _drain_toggles(), plus once at build and once per clear_match_state().
-func _rebuild_disk_mesh() -> void:
+## Puts the disk's faces on its one shape. set_faces() takes the whole face
+## array and wakes every body resting on the disk, so this runs only when the
+## map is built (_rebuild_cells(): _ready() and rebuild_for_map()), never on a
+## hole change (Bontago-1pi.11.41).
+func _build_disk_mesh(faces: PackedVector3Array) -> void:
 	var started_usec: int = Time.get_ticks_usec()
-	var faces: PackedVector3Array = PackedVector3Array()
-	for cy: int in range(_row_slot_count.size()):
-		var count: int = _row_slot_count[cy]
-		if count == 0:
-			continue
-		var first: int = _row_first_slot[cy]
-		var end: int = first + count
-		if _row_hole_count[cy] == 0:
-			faces.append_array(_top_faces.slice(first * VERTS_PER_QUAD, end * VERTS_PER_QUAD))
-			continue
-		var run_start: int = -1
-		for slot: int in range(first, end):
-			var cell: int = _in_disk_cells[slot]
-			if _hole_applied[cell] == 1:
-				if run_start >= 0:
-					faces.append_array(
-						_top_faces.slice(run_start * VERTS_PER_QUAD, slot * VERTS_PER_QUAD)
-					)
-					run_start = -1
-				_append_hole_walls(faces, cell)
-			elif run_start < 0:
-				run_start = slot
-		if run_start >= 0:
-			faces.append_array(_top_faces.slice(run_start * VERTS_PER_QUAD, end * VERTS_PER_QUAD))
-
-	if _applied_hole_total == 0:
-		faces.append_array(_rim_wall_faces)
-	else:
-		for wall: int in range(_rim_wall_cells.size()):
-			if _hole_applied[_rim_wall_cells[wall]] == 0:
-				faces.append_array(
-					_rim_wall_faces.slice(wall * VERTS_PER_QUAD, (wall + 1) * VERTS_PER_QUAD)
-				)
-
-	# DECISION (game/Field.gd, Bontago-ruw): a disk whose every cell is a hole
-	# has no triangles, and Jolt cannot build an empty mesh shape, so the owner
-	# is disabled instead and the last non-empty faces stay on it unused.
+	# DECISION (game/Field.gd, Bontago-ruw): Jolt cannot build an empty mesh
+	# shape, so a degenerate map with no in-disk cell disables the owner instead.
 	var empty: bool = faces.is_empty()
 	if not empty:
 		_disk_shape.set_faces(faces)
@@ -885,23 +809,32 @@ func _rebuild_disk_mesh() -> void:
 	_max_rebuild_usec = maxi(_max_rebuild_usec, elapsed_usec)
 	if _trace_every > 0 and _rebuild_count % _trace_every == 0:
 		print(
-			"FIELD_DISK_REBUILD n=%d cells=%d holes=%d triangles=%d usec=%d max_usec=%d" % [
-				_rebuild_count, _in_disk_cells.size(), _applied_hole_total,
-				faces.size() / 3, elapsed_usec, _max_rebuild_usec,
+			"FIELD_DISK_REBUILD n=%d cells=%d triangles=%d usec=%d max_usec=%d" % [
+				_rebuild_count, _in_disk_cells.size(), faces.size() / 3,
+				elapsed_usec, _max_rebuild_usec,
 			]
 		)
 
 
-## Flips one cell's applied hole state and the per-row counts the rebuild
-## reads. The caller rebuilds the mesh, once per batch.
+## How many times the disk trimesh has been built (set_faces calls) since
+## this Field was created. Read by tests and tools/bench_holes.gd.
+func disk_mesh_build_count() -> int:
+	return _rebuild_count
+
+
+## Flips one cell's applied hole state and the applied-hole count.
 func _set_hole_applied(cell: int, hole: bool) -> void:
 	var value: int = 1 if hole else 0
 	if _hole_applied[cell] == value:
 		return
 	_hole_applied[cell] = value
-	var step: int = 1 if hole else -1
-	_row_hole_count[grid().cell_coords(cell).y] += step
-	_applied_hole_total += step
+	_applied_hole_total += 1 if hole else -1
+
+
+## Applied hole cells right now. game/HoleDissolver.gd skips its per-tick
+## contact test entirely while this is zero.
+func applied_hole_count() -> int:
+	return _applied_hole_total
 
 
 # --- Holes (spec 2.2, 3.3) --------------------------------------------------
@@ -929,7 +862,8 @@ func _enqueue_toggle(cell: int, disabled: bool) -> void:
 	_toggle_disabled.append(wanted)
 
 
-## True when this cell's quad is currently left out of the disk trimesh.
+## True when this cell is currently an applied hole (dissolve contact; the
+## disk collision stays solid, Bontago-1pi.11.41).
 ##
 ## DECISION (game/Field.gd): the M2 plan does not say whether this reports the
 ## requested or the applied state. It reports the *applied* one — a cell the
@@ -952,8 +886,9 @@ func _drain_toggles() -> void:
 	if _toggle_head >= _toggle_cells.size():
 		return
 	var budget: int = maxi(territory_tuning.max_cell_toggles_per_frame, 1)
-	var applied: PackedInt32Array = PackedInt32Array()
-	while _toggle_head < _toggle_cells.size() and applied.size() < budget:
+	var applied: int = 0
+	var opened: PackedInt32Array = PackedInt32Array()
+	while _toggle_head < _toggle_cells.size() and applied < budget:
 		var cell: int = _toggle_cells[_toggle_head]
 		var disabled: bool = _toggle_disabled[_toggle_head] == 1
 		_toggle_head += 1
@@ -962,58 +897,18 @@ func _drain_toggles() -> void:
 		if (_hole_applied[cell] == 1) == disabled:
 			continue
 		_set_hole_applied(cell, disabled)
-		applied.append(cell)
+		applied += 1
+		if disabled:
+			opened.append(cell)
 	if _toggle_head >= _toggle_cells.size():
 		_toggle_cells = PackedInt32Array()
 		_toggle_disabled = PackedByteArray()
 		_toggle_head = 0
-	if not applied.is_empty():
-		# One rebuild for the whole batch, before the wake, so the woken bodies
-		# step against the new surface.
-		_rebuild_disk_mesh()
-		wake_blocks_above_cells(applied)
-
-
-## Spec 3.3: "Wake up any sleeping blocks above cells that change state."
-## Without this a settled tower keeps sleeping on a cell whose collision has
-## just been switched off and never falls through it.
-func wake_blocks_above_cells(cells: PackedInt32Array) -> void:
-	if cells.is_empty() or not is_inside_tree():
-		return
-	var world: World3D = get_world_3d()
-	if world == null:
-		return
-	var space: PhysicsDirectSpaceState3D = world.direct_space_state
-	if space == null:
-		return
-
-	var height: float = map_def.cell_wake_height
-	var column: BoxShape3D = BoxShape3D.new()
-	column.size = Vector3(map_def.cell_size, height, map_def.cell_size)
-	var query: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
-	query.shape = column
-	query.collide_with_bodies = true
-	query.collide_with_areas = false
-	query.exclude = [get_rid()]
-
-	var cell_grid: CellGrid = grid()
-	var woken: Dictionary[int, bool] = {}
-	for cell: int in cells:
-		var center: Vector2 = cell_grid.index_center(cell)
-		query.transform = Transform3D(
-			Basis(), world_from_disk_local(center, height * 0.5)
-		)
-		var hits: Array[Dictionary] = space.intersect_shape(
-			query, map_def.cell_wake_max_bodies
-		)
-		for hit: Dictionary in hits:
-			var body: RigidBody3D = hit.get("collider") as RigidBody3D
-			if body == null or woken.has(body.get_instance_id()):
-				continue
-			woken[body.get_instance_id()] = true
-			if body.freeze:
-				body.freeze = false
-			body.sleeping = false
+	# Bontago-1pi.11.41: no rebuild and no wake. The collision never changes,
+	# so nothing resting on the disk needs waking; the host's HoleDissolver
+	# finds the blocks touching the newly opened cells instead.
+	if not opened.is_empty():
+		hole_cells_applied.emit(opened)
 
 
 func _on_hole_cells_changed(opened: PackedInt32Array, closed: PackedInt32Array) -> void:
@@ -1039,7 +934,7 @@ func _on_hole_cells_changed(opened: PackedInt32Array, closed: PackedInt32Array) 
 ## world_from_disk_local() (disk-local (x, z) plus a height) rather than by
 ## building world-space points directly from `world_origin.y`, `cell_
 ## wake_height` and `kill_plane_y` as bare world Y values. That matches how
-## Field's own wake_blocks_above_cells() and _build_kill_plane() already treat
+## Field's own _build_kill_plane() already treats
 ## those two numbers — as heights along the disk's own axis, converted through
 ## the disk's transform — so this raycast keeps working unchanged once M4 lets
 ## Field tilt (disk_local_from_world()/world_from_disk_local() are documented
@@ -1092,15 +987,16 @@ func raycast_down_disk_local(world_origin: Vector3) -> Variant:
 func clear_match_state() -> void:
 	_clear_flags()
 	set_overlay_source(null, PackedColorArray())
-	var had_holes: bool = _applied_hole_total > 0
 	for cell: int in _in_disk_cells:
 		_set_hole_applied(cell, false)
 		_hole_wanted[cell] = 0
 	_toggle_cells = PackedInt32Array()
 	_toggle_disabled = PackedByteArray()
 	_toggle_head = 0
-	if had_holes:
-		_rebuild_disk_mesh()
+	# DECISION (game/Field.gd, Bontago-1pi.11.41): no mesh rebuild here any
+	# more. Holes never cut the trimesh, so the one built for this map is
+	# already the solid disk the next match needs; rebuilding would only
+	# repeat set_faces() and wake whatever rests on the disk.
 	# Bontago-1en.9 review: the Field outlives a match, so a tilt (and its
 	# velocity) left over from the previous match must not carry into the next
 	# one. Reset the spring state whether or not tilt is currently enabled;
@@ -1388,10 +1284,19 @@ func _on_kill_plane_body_entered(body: Node3D) -> void:
 	# MatchNet.net_block_despawned instead (net/MatchNet.gd), so it must not
 	# free the body itself here — doing so races the replicated despawn and
 	# can double-free or desync the registry.
+	remove_fallen_block(body as RigidBody3D)
+
+
+## The one edge-fall removal (spec 2.1): reports `body` on the bus with
+## REASON_KILL_PLANE (BlockRegistry forgets it, MatchStats counts a lost block,
+## MatchNet replicates the despawn, BlockEffectsManager plays the burst) and
+## frees it. Host only; a client learns of removals from the despawn RPC.
+## Bontago-1pi.11.41: game/HoleDissolver.gd removes a dissolved block through
+## this same call, so a hole costs exactly what falling off the edge does.
+func remove_fallen_block(body: RigidBody3D) -> void:
 	if not Net.is_host():
 		return
-	var rigid_body: RigidBody3D = body as RigidBody3D
-	if rigid_body == null:
+	if body == null or not is_instance_valid(body) or body.is_queued_for_deletion():
 		return
-	Events.block_removed.emit(rigid_body, String(Events.REASON_KILL_PLANE))
-	rigid_body.queue_free()
+	Events.block_removed.emit(body, String(Events.REASON_KILL_PLANE))
+	body.queue_free()

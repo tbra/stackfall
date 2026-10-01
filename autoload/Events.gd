@@ -14,12 +14,19 @@ signal block_placed(block: RigidBody3D, shape_id: StringName)
 ## REASON_* constants below rather than a string literal so it can't drift.
 signal block_removed(block: RigidBody3D, reason: String)
 
-## game/Field.gd: a block fell below tuning.kill_plane_y.
+## game/Field.gd: a block fell below tuning.kill_plane_y, or (Bontago-1pi.11.41)
+## dissolved on a hole, which counts exactly like an edge fall.
 const REASON_KILL_PLANE: StringName = &"kill_plane"
 
 ## Bontago-t8x.5: a gift body whose action completed was despawned. Not a
 ## kill: no edge-fall burst, no blocks_lost stat.
 const REASON_GIFT_DESPAWN: StringName = &"gift_despawn"
+
+## Bontago-1pi.11.41: `block` touched an applied hole cell at disc level and
+## will be removed (block_removed, REASON_KILL_PLANE) after `duration_s`.
+## Emitted by game/HoleDissolver.gd on the host and by net/MatchNet.gd on
+## clients; presentation only (the A2 fade), never a rule input.
+signal block_dissolve_started(block: RigidBody3D, net_id: int, duration_s: float)
 
 # --- M2: match flow (spec 3.7) ----------------------------------------------
 
