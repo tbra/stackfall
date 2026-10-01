@@ -11,6 +11,8 @@ func test_skipped_when_headless_or_cli_args() -> void:
 func test_assets_and_settings() -> void:
 	assert_true(load(SplashScreen.JINGLE_PATH) is AudioStream)
 	assert_true(load(SplashScreen.IMAGE_PATH) is Texture2D)
+	assert_true(load(SplashScreen.PIECES_PATH) is Texture2D)
+	assert_true(load(SplashScreen.WORDMARK_PATH) is Texture2D)
 	assert_eq(ProjectSettings.get_setting("application/boot_splash/image"), SplashScreen.IMAGE_PATH)
 	assert_eq(ProjectSettings.get_setting("application/config/icon"), "res://assets/ui/stackfall_mark.svg")
 
@@ -24,15 +26,22 @@ func test_finish_emits_once() -> void:
 	assert_signal_emit_count(splash, "finished", 1)
 
 
-func test_image_bounces_in_before_the_jingle_finishes() -> void:
+func test_blocks_land_separately_then_wordmark_slams_in() -> void:
 	var splash: SplashScreen = SplashScreen.new()
 	add_child_autofree(splash)
-	assert_almost_eq(splash._image.modulate.a, 0.0, 0.01)
-	assert_lt(splash._image.scale.x, 1.0)
-	assert_true(splash._entrance_tween.is_running())
-	await wait_seconds(0.3)
-	assert_gt(splash._image.modulate.a, 0.5)
-	assert_gt(splash._image.scale.x, 0.84)
+	assert_eq(splash._blocks.size(), 4)
+	for block: Sprite2D in splash._blocks:
+		assert_false(block.visible)
+	assert_false(splash._wordmark.visible)
+	await wait_seconds(0.6)
+	assert_true(splash._blocks[0].visible)
+	assert_false(splash._blocks[1].visible)
+	assert_false(splash._wordmark.visible)
+	await wait_seconds(3.5)
+	for block: Sprite2D in splash._blocks:
+		assert_true(block.visible)
+	assert_true(splash._wordmark.visible)
+	assert_almost_eq(splash._wordmark.position.y, 548.0, 1.0)
 	splash.finish()
 
 
