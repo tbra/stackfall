@@ -315,7 +315,7 @@ func _start_hot_seat_match() -> void:
 
 	var config: MatchConfig = Match.config
 	_field.rebuild_for_map(config.map_def())
-	_field.place_flags(config.player_count, config.player_colors, config.goal_flag_count)
+	_field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
 	_field.set_overlay_source(Match.raster(), config.player_colors)
 	_skybox.load_set(config.map_def().skybox_set)
 
@@ -359,7 +359,7 @@ func _start_sandbox_match_with_args(args: PackedStringArray) -> void:
 
 	var config: MatchConfig = Match.config
 	_field.rebuild_for_map(config.map_def())
-	_field.place_flags(config.player_count, config.player_colors, config.goal_flag_count)
+	_field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
 	_field.set_overlay_source(Match.raster(), config.player_colors)
 	_skybox.load_set(config.map_def().skybox_set)
 
@@ -490,7 +490,7 @@ func start_tutorial_from_menu() -> void:
 
 	var config: MatchConfig = Match.config
 	_field.rebuild_for_map(config.map_def())
-	_field.place_flags(config.player_count, config.player_colors, config.goal_flag_count)
+	_field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
 	_field.set_overlay_source(Match.raster(), config.player_colors)
 	_skybox.load_set(config.map_def().skybox_set)
 
@@ -1043,7 +1043,7 @@ func _build_match_world() -> void:
 
 	var config: MatchConfig = Match.config
 	_field.rebuild_for_map(config.map_def())
-	_field.place_flags(config.player_count, config.player_colors, config.goal_flag_count)
+	_field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
 	_field.set_overlay_source(Match.raster(), config.player_colors)
 	_skybox.load_set(config.map_def().skybox_set)
 	# Bontago-470.4: the lobby's Day/Night/Random, resolved by the host and

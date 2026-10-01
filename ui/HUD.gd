@@ -687,7 +687,7 @@ func _update_minimap() -> void:
 	for i: int in range(count):
 		var slot: PlayerSlot = match_provider.slot(i)
 		homes.append(slot.home_position if slot != null else Vector2.ZERO)
-	_minimap.set_goal_positions(map_def.goal_flag_positions(int(running_config.goal_flag_count)))
+	_minimap.set_goal_positions(PlayerSlot.goal_positions_for(running_config.effective_goal_flag_count(), map_def))
 	_minimap.set_match_state(raster, running_config.player_colors, homes)
 	_update_gift_markers()
 

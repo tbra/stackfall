@@ -44,6 +44,10 @@ func mode_id() -> int:
 	return MatchConfig.GameMode.REACH_THE_SKY
 
 
+func uses_goal_flags() -> bool:
+	return false
+
+
 func is_timed() -> bool:
 	return true
 

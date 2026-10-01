@@ -90,7 +90,7 @@ func _ready() -> void:
 
 	Match.register_world(field, main.get_node("BlockRegistry"), main.get_node("BlocksContainer"))
 	Match.start_match(config)
-	field.place_flags(config.player_count, config.player_colors, config.goal_flag_count)
+	field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
 	field.set_overlay_source(Match.raster(), config.player_colors)
 
 	await _wait(int(3.5 * Engine.physics_ticks_per_second))

@@ -42,6 +42,10 @@ func mode_id() -> int:
 
 ## Timed through round_timer_minutes; 0 minutes arms nothing, so the match runs
 ## until one team is left.
+func uses_goal_flags() -> bool:
+	return false
+
+
 func is_timed() -> bool:
 	return true
 

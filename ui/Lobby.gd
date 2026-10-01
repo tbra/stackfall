@@ -113,6 +113,15 @@ var net_provider: Variant = null
 @onready var _weather_option: OptionButton = %WeatherOption
 @onready var _game_mode_option: OptionButton = %GameModeOption
 @onready var _round_timer_spin: SpinBox = %RoundTimerSpin
+## Bontago-6fc.1: ONE timer control is shown. Classic shows the match-timer
+## column (+ sudden death); every other mode shows the round-length column.
+## Both spins stay alive and keep mapping their own MatchConfig field.
+@onready var _match_timer_col: Control = %MatchTimerCol
+@onready var _round_timer_col: Control = %RoundTimerCol
+@onready var _sudden_death_col: Control = %SuddenDeathCol
+@onready var _round_timer_caption: Label = %RoundTimerCaption
+@onready var _match_timer_hint: Label = %MatchTimerHint
+@onready var _round_timer_hint: Label = %RoundTimerHint
 ## Reach the Sky only (Bontago-22y.9): shown while that mode is selected.
 @onready var _sky_team_col: Control = %SkyTeamCol
 @onready var _sky_team_sum_check: CheckButton = %SkyTeamSumCheck
@@ -204,6 +213,10 @@ var _popup_stepper_buttons: Array[Button] = []
 ## controls, so the value-changed signals that causes fire without
 ## re-publishing what was just received (an infinite echo).
 var _applying_remote_data: bool = false
+## Game mode the timer control currently describes (Bontago-6fc.1).
+const TIMER_TIP_MATCH: String = "Optional time limit. Off: the match runs until a team holds every goal. With sudden death on, the arena shrinks when time is up."
+const TIMER_TIP_ROUND: String = "How long the round lasts; when it ends the highest score wins. Elimination can run with no limit."
+var _timer_mode: int = MatchConfig.GameMode.CLASSIC
 var _last_config: MatchConfig = null
 
 
@@ -311,9 +324,7 @@ func _populate_options() -> void:
 	# Bontago-22y.11: order must match MatchConfig.GameMode. Reserved modes are
 	# listed but disabled, so neither the mouse nor the gamepad popup can pick
 	# one; MatchConfig.resolve_game_mode() also rejects them on the wire.
-	# DECISION (Bontago-22y.7): Capture the Flag needs no extra timer control; it
-	# reuses the round timer spin, which always carries a value (default 10 min,
-	# clamped 1-40), so the timer is defaulted rather than blocked when unset.
+	# DECISION (Bontago-6fc.1): one timer control per mode (_refresh_timer_control).
 	_fill_option(_game_mode_option, Array(MatchConfig.GAME_MODE_LABELS))
 	for mode_index: int in range(_game_mode_option.item_count):
 		_game_mode_option.set_item_disabled(mode_index, not MatchConfig.is_game_mode_selectable(mode_index))
@@ -413,9 +424,14 @@ var _popup_chain: Array[Control] = []
 
 
 func _visible_chain(chain: Array[Control]) -> Array[Control]:
+	var conditional: Array[Control] = [_sky_team_col, _match_timer_col, _round_timer_col, _sudden_death_col]
 	var out: Array[Control] = []
 	for control: Control in chain:
-		if control != _sky_team_sum_check or _sky_team_col.visible:
+		var hidden: bool = false
+		for column: Control in conditional:
+			if not column.visible and column.is_ancestor_of(control):
+				hidden = true
+		if not hidden:
 			out.append(control)
 	return out
 
@@ -436,6 +452,8 @@ func _connect_control_signals() -> void:
 	_tilt_mode_option.item_selected.connect(_on_option_changed)
 	_hole_mode_option.item_selected.connect(_on_option_changed)
 	_weather_option.item_selected.connect(_on_option_changed)
+	# Bontago-6fc.1: retarget the timer control before the publish below reads it.
+	_game_mode_option.item_selected.connect(_on_game_mode_picked)
 	_game_mode_option.item_selected.connect(_on_option_changed)
 	_round_timer_spin.value_changed.connect(_on_value_changed)
 	_sky_team_sum_check.toggled.connect(_on_toggled)
@@ -790,13 +808,17 @@ func _unhandled_input(event: InputEvent) -> void:
 ## _publish_lobby_data() -> _apply_data(), or a remote update) refreshes the
 ## bar without a second signal wiring.
 func _update_advanced_rules_summary() -> void:
+	_update_timer_hints()
 	_adv_chip_tilt.text = "Tilt: %s" % (
 		"specials only" if _tilt_mode_option.selected == MatchConfig.TiltMode.SPECIALS_ONLY else "physical balance"
 	)
 	var hole_labels: Array[String] = ["temporary", "permanent", "off"]
 	_adv_chip_hole.text = "Holes: %s" % hole_labels[clampi(_hole_mode_option.selected, 0, hole_labels.size() - 1)]
-	var timer_minutes: int = int(_match_timer_spin.value)
-	_adv_chip_timer.text = "Match timer: off" if timer_minutes == 0 else "Match timer: %d min" % timer_minutes
+	var timer_minutes: int = int(_timer_spin_for(_timer_mode).value)
+	if MatchConfig.timer_is_match_timer(_timer_mode):
+		_adv_chip_timer.text = "Match timer: off" if timer_minutes == 0 else "Match timer: %d min" % timer_minutes
+	else:
+		_adv_chip_timer.text = "Round: no limit" if timer_minutes == 0 else "Round: %d min" % timer_minutes
 	_adv_chip_sudden.text = "Sudden death: %s" % ("on" if _sudden_death_check.button_pressed else "off")
 	_adv_chip_turn.text = "Turn-based: %s" % ("on" if _turn_based_check.button_pressed else "off")
 	var enabled_count: int = 0
@@ -840,7 +862,55 @@ func _on_value_changed(_value: float) -> void:
 
 
 ## The team-aggregation toggle exists only for Reach the Sky.
+## Bontago-6fc.1: a host picked a mode. Moving between timer families (classic
+## <-> timed, Elimination <-> CTF/Sky) resets the control to the new mode's
+## default; CTF <-> Reach the Sky keeps the chosen length.
+func _on_game_mode_picked(index: int) -> void:
+	var old_mode: int = _timer_mode
+	var new_mode: int = MatchConfig.resolve_game_mode(index)
+	_refresh_timer_control(new_mode)
+	if not MatchConfig.same_timer_family(old_mode, new_mode):
+		_timer_spin_for(new_mode).value = MatchConfig.timer_default_minutes(new_mode)
+	_update_timer_hints()
+
+
+func _timer_spin_for(mode: int) -> SpinBox:
+	return _match_timer_spin if MatchConfig.timer_is_match_timer(mode) else _round_timer_spin
+
+
+## Shows the one timer control `mode` uses, with its label and minimum, and
+## hides the sudden-death toggle outside classic (the only mode that has it).
+func _refresh_timer_control(mode: int) -> void:
+	_timer_mode = mode
+	var classic: bool = MatchConfig.timer_is_match_timer(mode)
+	_match_timer_col.visible = classic
+	_sudden_death_col.visible = classic
+	_round_timer_col.visible = not classic
+	var was_applying: bool = _applying_remote_data
+	_applying_remote_data = true
+	_round_timer_spin.min_value = MatchConfig.timer_min_minutes(mode) if not classic else MatchConfig.ROUND_TIMER_MIN_MINUTES
+	_applying_remote_data = was_applying
+	_round_timer_caption.text = "Round length (minutes)"
+	_match_timer_col.tooltip_text = TIMER_TIP_MATCH
+	_round_timer_col.tooltip_text = TIMER_TIP_ROUND
+	_update_timer_hints()
+	if not _popup_chain.is_empty():
+		_wire_loop(_visible_chain(_popup_chain))
+
+
+## The words under the control that explain its value (0 = Off / No limit).
+func _update_timer_hints() -> void:
+	var match_minutes: int = int(_match_timer_spin.value)
+	_match_timer_hint.text = "Off" if match_minutes == 0 else "%d min" % match_minutes
+	var round_minutes: int = int(_round_timer_spin.value)
+	if round_minutes == 0:
+		_round_timer_hint.text = "No limit"
+	else:
+		_round_timer_hint.text = "%d min" % round_minutes
+
+
 func _refresh_sky_controls(_index: int = 0) -> void:
+	_refresh_timer_control(MatchConfig.resolve_game_mode(_game_mode_option.selected))
 	_sky_team_col.visible = _game_mode_option.selected == MatchConfig.GameMode.REACH_THE_SKY
 	if not _popup_chain.is_empty():
 		_wire_loop(_visible_chain(_popup_chain))
@@ -974,8 +1044,11 @@ func _apply_data(data: Dictionary) -> void:
 	_hole_mode_option.selected = config.hole_mode
 	_weather_option.selected = config.weather_mode
 	_sky_theme_option.selected = config.sky_theme_mode
-	_match_timer_spin.value = config.match_timer_minutes
+	# Bontago-6fc.1: the timer control's minimum follows the mode, so it is
+	# retargeted before either value is written (Elimination may hold 0).
 	_game_mode_option.selected = config.game_mode
+	_refresh_timer_control(config.game_mode)
+	_match_timer_spin.value = config.match_timer_minutes
 	_round_timer_spin.value = config.round_timer_minutes
 	_sky_team_sum_check.button_pressed = config.sky_team_sum
 	_refresh_sky_controls()
