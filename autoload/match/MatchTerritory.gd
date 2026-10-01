@@ -177,7 +177,12 @@ func _tick_territory(delta: float) -> void:
 			if profile_enabled:
 				_sandbox_tick_steps += 1
 			var remaining: int = due_steps - 1
-			if remaining > 0:
+			if remaining > 0 and _is_clean():
+				# The first step consumed every change, so the rest of the
+				# catch-up window is time only: no second raster pass, overlay
+				# rebuild or territory_updated emission (Bontago-1pi.11.29).
+				_advance_clean(float(remaining) * step)
+			elif remaining > 0:
 				alive_before = _alive_home_count()
 				_run_territory_step(float(remaining) * step)
 				if profile_enabled:
