@@ -10,6 +10,12 @@ extends GutTest
 ## in after_each so this file never leaks a changed active device into
 ## another test file sharing the process.
 
+# Bontago-1pi.11.45: other files sharing a gate shard can leave the device on
+# gamepad, so start every test from the default too, not just restore after.
+func before_each() -> void:
+	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+
+
 func after_each() -> void:
 	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
 
