@@ -116,6 +116,11 @@ static func format_metrics(m: Dictionary, mode_value: Mode) -> String:
 		float(m.get("fps", 0.0)), float(m.get("frame_ms", 0.0)), float(m.get("frame_ms_max", 0.0)), window])
 	lines.append("physics tick %.2f ms avg / %.2f worst (%s)" % [
 		float(m.get("physics_ms", 0.0)), float(m.get("physics_ms_max", 0.0)), window])
+	lines.append("physics steps/frame %d now / %d peak, %.0f%% frames >1 (max %d)" % [
+		int(m.get("steps_current", 0)), int(m.get("steps_peak", 0)),
+		float(m.get("steps_multi_pct", 0.0)), int(m.get("steps_max_setting", 0))])
+	lines.append("effects nodes %d now / %d peak" % [
+		int(m.get("effects_current", 0)), int(m.get("effects_peak", 0))])
 	lines.append("blocks %d  (awake %d / asleep %d)" % [
 		int(m.get("blocks_total", 0)), int(m.get("blocks_awake", 0)), int(m.get("blocks_sleeping", 0))])
 	if mode_value != Mode.DETAILED:

@@ -34,6 +34,17 @@ var _bucket_s: float = 0.0
 var _bucket_frame_max_ms: float = 0.0
 var _bucket_physics_max_ms: float = 0.0
 var _last_blocks: int = 0
+## Bontago-1pi.11.36: physics catch-up and effects-burst tracking.
+var _last_physics_frames: int = -1
+var _steps_current: int = 0
+var _steps_peak: int = 0
+var _steps_multi_frames: int = 0
+var _effects_current: int = 0
+var _effects_peak: int = 0
+var _effects_manager: Node = null
+## True once the manager lookup ran in the current stats window, so a missing
+## manager (menus, effects off) costs one tree walk per window, not per frame.
+var _effects_searched_this_window: bool = false
 var _session_start_msec: int = 0
 
 
@@ -48,6 +59,11 @@ func _process(delta: float) -> void:
 	# Real (unscaled) delta so sandbox slow motion does not flatter the numbers.
 	var real: float = delta / maxf(Engine.time_scale, 0.0001)
 	record_frame(real)
+	var physics_frames: int = Engine.get_physics_frames()
+	if _last_physics_frames >= 0:
+		record_physics_steps(physics_frames - _last_physics_frames)
+	_last_physics_frames = physics_frames
+	record_effect_count(_effect_child_count())
 	if _window_s >= config.stats_window_s:
 		sample_now()
 
@@ -83,8 +99,42 @@ func record_physics_tick(physics_ms: float) -> void:
 	_bucket_physics_max_ms = maxf(_bucket_physics_max_ms, physics_ms)
 
 
+## Physics steps that ran since the previous rendered frame (test seam).
+## More than 1 means Godot's catch-up loop ran.
+func record_physics_steps(steps: int) -> void:
+	_steps_current = maxi(steps, 0)
+	_steps_peak = maxi(_steps_peak, _steps_current)
+	if _steps_current > 1:
+		_steps_multi_frames += 1
+
+
+## Live BlockEffectsManager child count for this frame (test seam).
+func record_effect_count(count: int) -> void:
+	_effects_current = count
+	_effects_peak = maxi(_effects_peak, count)
+
+
+## BlockEffectsManager has no group or registry (another package owns it), so it
+## is found once by its scene node name and cached; -1 hides the "not found" case.
+func _effect_child_count() -> int:
+	if _effects_manager == null or not is_instance_valid(_effects_manager):
+		_effects_manager = null
+		if _effects_searched_this_window:
+			return 0
+		_effects_searched_this_window = true
+		var tree: SceneTree = get_tree()
+		if tree == null or tree.root == null:
+			return 0
+		var found: Array[Node] = tree.root.find_children("BlockEffectsManager", "Node3D", true, false)
+		if found.is_empty():
+			return 0
+		_effects_manager = found[0]
+	return _effects_manager.get_child_count()
+
+
 ## Closes the current window into `latest` (also the test seam).
 func sample_now() -> Dictionary:
+	_effects_searched_this_window = false
 	var frames: int = maxi(_frames, 1)
 	var ticks: int = maxi(_ticks, 1)
 	var stats: Dictionary = {
@@ -94,6 +144,12 @@ func sample_now() -> Dictionary:
 		"frame_ms_max": _frame_max_ms,
 		"physics_ms": _physics_sum_ms / float(ticks),
 		"physics_ms_max": _physics_max_ms,
+		"steps_current": _steps_current,
+		"steps_peak": _steps_peak,
+		"steps_multi_pct": float(_steps_multi_frames) / float(frames) * 100.0,
+		"steps_max_setting": int(ProjectSettings.get_setting("physics/common/max_physics_steps_per_frame", 8)),
+		"effects_current": _effects_current,
+		"effects_peak": _effects_peak,
 	}
 	var window: float = _window_s
 	_window_s = 0.0
@@ -103,6 +159,9 @@ func sample_now() -> Dictionary:
 	_ticks = 0
 	_physics_sum_ms = 0.0
 	_physics_max_ms = 0.0
+	_steps_peak = 0
+	_steps_multi_frames = 0
+	_effects_peak = _effects_current
 	latest = collect(stats, window)
 	latest["time_s"] = float(Time.get_ticks_msec() - _session_start_msec) / 1000.0
 	_last_blocks = int(latest["blocks_total"])
