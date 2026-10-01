@@ -153,7 +153,6 @@ var net_provider: Variant = null
 @onready var _adv_rules_bar: Button = %AdvRulesBar
 @onready var _adv_chip_tilt: Label = %AdvChipTilt
 @onready var _adv_chip_hole: Label = %AdvChipHole
-@onready var _adv_chip_timer: Label = %AdvChipTimer
 @onready var _adv_chip_sudden: Label = %AdvChipSudden
 @onready var _adv_chip_turn: Label = %AdvChipTurn
 @onready var _adv_chip_specials: Label = %AdvChipSpecials
@@ -203,11 +202,8 @@ var _special_ids: Array[StringName] = []
 ## _add_stepper_buttons() builds around each stepper SpinBox, in insertion
 ## order (minus, plus, minus, plus, ...) -- read by _wire_focus_chain() so
 ## they're gamepad-focusable, same as every other settings control.
-## Split in two (review r3, problem 2) because Players/AI/Goal-flags stay in
-## the always-visible main chain but Match-timer's stepper moved into the
-## popup's own separate closed loop along with it.
+## All visible steppers belong to the main settings card's focus loop.
 var _main_stepper_buttons: Array[Button] = []
-var _popup_stepper_buttons: Array[Button] = []
 
 ## True while _apply_data() is writing sanitized values back into the
 ## controls, so the value-changed signals that causes fire without
@@ -380,7 +376,7 @@ func _build_specials_checklist() -> void:
 ## HBoxContainer(ColorRect, Label) with no focusable child, so they never
 ## enter the chain and a later roster change can't invalidate it.
 ## Bontago-mp0.3.5 (review r3, problem 2): the specials checklist and the
-## five advanced-rule controls now live inside %AdvancedPopup, only reachable
+## optional rule controls now live inside %AdvancedPopup, only reachable
 ## once it's open -- they get their *own* closed loop (_wire_loop() again,
 ## just called a second time) instead of sharing the main card's loop, so a
 ## Tab press on the main screen can never land on a control the popup hasn't
@@ -393,6 +389,7 @@ func _wire_focus_chain() -> void:
 		_map_combo_option, _player_count_spin, _ai_count_spin, _ai_difficulty_option,
 	]
 	chain.insert(1, _sky_theme_option)
+	chain.append_array([_game_mode_option, _match_timer_spin, _round_timer_spin])
 	chain.append_array(_team_buttons)
 	chain.append_array([_block_timer_slider, _gravity_slider, _goal_flag_spin, _gifts_check, _special_freq_slider])
 	# Bontago-mp0.3.5 (review r2, item 2): the round "-"/"+" stepper buttons
@@ -401,16 +398,16 @@ func _wire_focus_chain() -> void:
 	# sides, same as every other control this chain covers.
 	chain.append_array(_main_stepper_buttons)
 	chain.append_array([_adv_rules_bar, _back_button, _invite_friends_button, _ready_check, _start_button])
-	_wire_loop(chain)
+	_main_chain = chain
+	_wire_loop(_visible_chain(_main_chain))
 
 	var popup_chain: Array[Control] = _popup_chain
 	popup_chain.clear()
 	for box: CheckBox in _special_checkboxes:
 		popup_chain.append(box)
-	popup_chain.append_array([_tilt_mode_option, _hole_mode_option, _game_mode_option, _match_timer_spin, _round_timer_spin])
+	popup_chain.append_array([_tilt_mode_option, _hole_mode_option])
 	popup_chain.append(_sky_team_sum_check)
 	popup_chain.append(_weather_option)
-	popup_chain.append_array(_popup_stepper_buttons)
 	popup_chain.append_array([_sudden_death_check, _turn_based_check, _advanced_popup_close])
 	_wire_loop(_visible_chain(popup_chain))
 
@@ -421,6 +418,7 @@ func _wire_focus_chain() -> void:
 ## The advanced-popup focus chain; hidden controls (the Reach the Sky toggle
 ## outside its mode) are skipped so gamepad focus can never land on them.
 var _popup_chain: Array[Control] = []
+var _main_chain: Array[Control] = []
 
 
 func _visible_chain(chain: Array[Control]) -> Array[Control]:
@@ -639,10 +637,10 @@ func _apply_visual_style() -> void:
 	_add_stepper_buttons(_player_count_spin, _main_stepper_buttons, _players_sub_label)
 	_add_stepper_buttons(_ai_count_spin, _main_stepper_buttons, _ai_sub_label)
 	_add_stepper_buttons(_goal_flag_spin, _main_stepper_buttons)
-	# Match timer moved into %AdvancedPopup (review r3, problem 2) -- its
-	# stepper buttons join the popup's own separate focus loop instead.
-	_add_stepper_buttons(_match_timer_spin, _popup_stepper_buttons)
-	_add_stepper_buttons(_round_timer_spin, _popup_stepper_buttons)
+	# DECISION (Bontago-mp0.8): mode and its timer are primary round choices,
+	# so their stepper buttons join the main card's focus loop.
+	_add_stepper_buttons(_match_timer_spin, _main_stepper_buttons)
+	_add_stepper_buttons(_round_timer_spin, _main_stepper_buttons)
 
 	# Bontago-mp0.3.5 (review r2, item 1): a small round disc icon (dark
 	# slate fill, light rim) beside %MapComboOption -- the same two-tone
@@ -752,7 +750,7 @@ func _apply_advanced_rules_popup_style() -> void:
 	_adv_rules_bar_panel.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_cream_color, tuning))
 	MenuStyleFactory.apply_flat_stepper_button(_adv_rules_bar, tuning)
 	for chip_label: Label in [
-		_adv_chip_tilt, _adv_chip_hole, _adv_chip_timer,
+		_adv_chip_tilt, _adv_chip_hole,
 		_adv_chip_sudden, _adv_chip_turn, _adv_chip_specials,
 	]:
 		var chip_panel: PanelContainer = chip_label.get_parent() as PanelContainer
@@ -826,11 +824,6 @@ func _update_advanced_rules_summary() -> void:
 	)
 	var hole_labels: Array[String] = ["temporary", "permanent", "off"]
 	_adv_chip_hole.text = "Holes: %s" % hole_labels[clampi(_hole_mode_option.selected, 0, hole_labels.size() - 1)]
-	var timer_minutes: int = int(_timer_spin_for(_timer_mode).value)
-	if MatchConfig.timer_is_match_timer(_timer_mode):
-		_adv_chip_timer.text = "Match timer: off" if timer_minutes == 0 else "Match timer: %d min" % timer_minutes
-	else:
-		_adv_chip_timer.text = "Round: no limit" if timer_minutes == 0 else "Round: %d min" % timer_minutes
 	_adv_chip_sudden.text = "Sudden death: %s" % ("on" if _sudden_death_check.button_pressed else "off")
 	_adv_chip_turn.text = "Turn-based: %s" % ("on" if _turn_based_check.button_pressed else "off")
 	var enabled_count: int = 0
@@ -906,6 +899,8 @@ func _refresh_timer_control(mode: int) -> void:
 	_match_timer_col.tooltip_text = TIMER_TIP_MATCH
 	_round_timer_col.tooltip_text = TIMER_TIP_ROUND
 	_update_timer_hints()
+	if not _main_chain.is_empty():
+		_wire_loop(_visible_chain(_main_chain))
 	if not _popup_chain.is_empty():
 		_wire_loop(_visible_chain(_popup_chain))
 

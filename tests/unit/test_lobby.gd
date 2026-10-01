@@ -797,7 +797,6 @@ func test_advanced_rules_summary_chips_reflect_current_settings() -> void:
 		lobby._special_checkboxes[0].button_pressed = false
 	lobby._update_advanced_rules_summary()
 	assert_eq((lobby.get_node("%AdvChipTilt") as Label).text, "Tilt: physical balance")
-	assert_eq((lobby.get_node("%AdvChipTimer") as Label).text, "Match timer: 15 min")
 	assert_eq((lobby.get_node("%AdvChipSudden") as Label).text, "Sudden death: on")
 	assert_eq((lobby.get_node("%AdvChipTurn") as Label).text, "Turn-based: on")
 	if not lobby._special_checkboxes.is_empty():
@@ -812,7 +811,7 @@ func test_advanced_popup_focus_chain_is_its_own_closed_loop() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var close_button: Control = lobby.get_node("%AdvancedPopupClose") as Control
 	var tilt_option: Control = lobby.get_node("%TiltModeOption") as Control
-	for unique_name: String in ["%TiltModeOption", "%HoleModeOption", "%MatchTimerSpin", "%SuddenDeathCheck", "%TurnBasedCheck", "%AdvancedPopupClose"]:
+	for unique_name: String in ["%TiltModeOption", "%HoleModeOption", "%SuddenDeathCheck", "%TurnBasedCheck", "%AdvancedPopupClose"]:
 		var control: Control = lobby.get_node(unique_name) as Control
 		assert_ne(control.focus_neighbor_top, NodePath(""), "%s must have an up neighbor" % unique_name)
 		assert_ne(control.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor" % unique_name)
@@ -823,7 +822,7 @@ func test_advanced_popup_focus_chain_is_its_own_closed_loop() -> void:
 	var visited_close: bool = false
 	# The popup adds one focusable checkbox per installed special, so the
 	# closed-loop bound must grow with the roster.
-	while steps < lobby._special_checkboxes.size() + lobby._popup_stepper_buttons.size() + 10:
+	while steps < lobby._special_checkboxes.size() + 10:
 		current = current.get_node(current.focus_neighbor_bottom) as Control
 		if current == close_button:
 			visited_close = true
@@ -859,10 +858,10 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	# %MapSizeOption in the chain.
 	var chain_unique_names: Array[String] = [
 		"%MapComboOption", "%PlayerCountSpin", "%AiCountSpin",
-		"%AiDifficultyOption", "%TeamOffButton", "%Team2Button", "%Team3Button", "%Team4Button",
+		"%AiDifficultyOption", "%GameModeOption", "%MatchTimerSpin", "%TeamOffButton", "%Team2Button", "%Team3Button", "%Team4Button",
 		"%BlockTimerSlider", "%GravitySlider",
 		"%GoalFlagSpin", "%GiftsCheck", "%SpecialFreqSlider",
-		"%TiltModeOption", "%HoleModeOption", "%MatchTimerSpin", "%SuddenDeathCheck",
+		"%TiltModeOption", "%HoleModeOption", "%SuddenDeathCheck",
 		"%TurnBasedCheck", "%ReadyCheck", "%InviteFriendsButton", "%StartButton",
 	]
 	for unique_name: String in chain_unique_names:
@@ -878,6 +877,21 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 		for box: CheckBox in lobby._special_checkboxes:
 			assert_ne(box.focus_neighbor_top, NodePath(""), "a specials checkbox must have an up neighbor")
 			assert_ne(box.focus_neighbor_bottom, NodePath(""), "a specials checkbox must have a down neighbor")
+
+
+func test_round_mode_and_timer_are_primary_settings() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var round_section: Control = lobby.get_node("%GameModeOption").get_parent().get_parent().get_parent() as Control
+	assert_eq(round_section.name, "RoundSection")
+	assert_true((lobby.get_node("%MatchTimerCol") as Control).visible)
+	assert_false((lobby.get_node("%RoundTimerCol") as Control).visible)
+	var mode_control: Control = lobby.get_node("%GameModeOption") as Control
+	var timer_control: Control = lobby.get_node("%MatchTimerSpin") as Control
+	assert_eq(mode_control.get_node(mode_control.focus_neighbor_bottom), timer_control)
+	lobby._refresh_timer_control(MatchConfig.GameMode.ELIMINATION)
+	assert_false((lobby.get_node("%MatchTimerCol") as Control).visible)
+	assert_true((lobby.get_node("%RoundTimerCol") as Control).visible)
+	assert_eq(mode_control.get_node(mode_control.focus_neighbor_bottom), lobby.get_node("%RoundTimerSpin"))
 
 
 func test_lobby_quick_y_opens_and_closes_advanced_rules() -> void:
