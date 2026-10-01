@@ -147,6 +147,9 @@ extends Resource
 ## feed_block_issued for its slot arrives. Stops a double click from spending
 ## two blocks; see docs/M3a_PLAN.md "Never duplicated, never lost".
 @export var intent_ack_timeout: float = 1.0
+## Host: seconds a mid-match joiner may take to acknowledge its world replay
+## before it is dropped (Bontago-8or.11).
+@export var replay_ack_timeout: float = 15.0
 
 # --- Territory replication --------------------------------------------------
 
@@ -206,6 +209,7 @@ func sanitize() -> void:
 	raster_diff_hz = clampf(raster_diff_hz, 1.0, 30.0)
 	cursor_hz = clampf(cursor_hz, 1.0, 60.0)
 	max_packet_bytes = clampi(max_packet_bytes, 256, 1400)
+	replay_ack_timeout = maxf(replay_ack_timeout, 1.0)
 	peer_timeout_limit = maxi(peer_timeout_limit, 1)
 	peer_timeout_min_ms = maxi(peer_timeout_min_ms, peer_timeout_limit)
 	peer_timeout_max_ms = maxi(peer_timeout_max_ms, peer_timeout_min_ms)

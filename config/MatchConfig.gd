@@ -132,6 +132,13 @@ const ROUND_TIMER_OFF_MINUTES: int = 0
 ## The concrete theme id the host resolved at match start ("" = not resolved
 ## yet). Rides in to_dict() so clients never roll their own.
 @export var sky_theme_resolved: String = ""
+## Spec 3.4 "Mid-match joins can be enabled in settings" (Bontago-8or.11): when
+## true the host admits a new peer while a match runs (an open human seat, else
+## a spectator) and replays the world to it. Off by default, so a match stays
+## lobby-only exactly as before. Reconnects inside NetConfig.disconnect_grace
+## are honoured either way (autoload/Net.gd). Lobby-replicated through
+## to_dict(); from_dict() accepts only a real bool off the wire.
+@export var allow_mid_match_join: bool = false
 
 ## -- Beyond the 2.8 table ---------------------------------------------------
 ## Spec "Still open" 1: was the block timer shared or per player? The spec's
@@ -422,6 +429,7 @@ func to_dict() -> Dictionary:
 		"weather_mode": weather_mode,
 		"sky_theme_mode": sky_theme_mode,
 		"sky_theme_resolved": sky_theme_resolved,
+		"allow_mid_match_join": allow_mid_match_join,
 		"per_player_timer": per_player_timer,
 		"hot_seat": hot_seat,
 		"player_colors": player_colors.duplicate(),
@@ -465,6 +473,11 @@ static func from_dict(data: Dictionary) -> MatchConfig:
 	config.weather_mode = int(data.get("weather_mode", config.weather_mode)) as WeatherMode
 	config.sky_theme_mode = int(data.get("sky_theme_mode", config.sky_theme_mode)) as SkyThemeMode
 	config.sky_theme_resolved = String(data.get("sky_theme_resolved", config.sky_theme_resolved))
+	# Host-validated (Bontago-8or.11): bool("false") is true, so a String or
+	# any other type from Steam lobby data or an old build keeps the default.
+	var mid_match_join: Variant = data.get("allow_mid_match_join", config.allow_mid_match_join)
+	if mid_match_join is bool:
+		config.allow_mid_match_join = mid_match_join
 	config.per_player_timer = bool(data.get("per_player_timer", config.per_player_timer))
 	config.hot_seat = bool(data.get("hot_seat", config.hot_seat))
 	if data.has("player_colors"):

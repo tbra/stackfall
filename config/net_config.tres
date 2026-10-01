@@ -39,6 +39,7 @@ max_extrapolation_ms = 100.0
 interp_buffer_samples = 16
 clock_correction_rate = 0.15
 intent_ack_timeout = 1.0
+replay_ack_timeout = 15.0
 raster_full_threshold_fraction = 0.35
 raster_compress = true
 sim_lag_ms = 0.0

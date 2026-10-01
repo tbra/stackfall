@@ -14,6 +14,8 @@ extends Node
 
 const WIRE_KEYS: PackedStringArray = ["id", "x", "y", "z", "a", "r", "d", "s"]
 
+## Same gate as WeatherNet.awaiting_world (set by WeatherNet).
+var awaiting_world: Callable = Callable()
 var gusts_sent: int = 0
 var gusts_applied: int = 0
 var gusts_refused: int = 0
@@ -86,6 +88,9 @@ func net_breeze_gust(gust: Dictionary) -> void:
 		return
 	var sender: int = multiplayer.get_remote_sender_id()
 	if sender != 0 and sender != MultiplayerPeer.TARGET_PEER_SERVER:
+		gusts_refused += 1
+		return
+	if awaiting_world.is_valid() and bool(awaiting_world.call()):
 		gusts_refused += 1
 		return
 	if not MatchWeather.accepts_replication_in(int(_authority().state())):

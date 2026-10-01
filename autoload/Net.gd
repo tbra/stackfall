@@ -43,6 +43,12 @@ const DISCOVERY_MAGIC: StringName = &"stackfall"
 ## net/SteamClient.gd, per docs/M3b_PLAN.md's tunables table.
 const STEAM_APP_ID_EXPECTED: int = 480
 
+## Bontago-8or.11: size of a rejoin token (random bytes; hex doubles it) and
+## the longest token string the handshake will even look up. Architecture,
+## not tunables, like HOST_PEER_ID.
+const REJOIN_TOKEN_BYTES: int = 16
+const REJOIN_TOKEN_MAX_CHARS: int = 64
+
 @export var config: NetConfig = preload("res://config/net_config.tres")
 
 var _mode: Mode = Mode.OFFLINE
@@ -63,6 +69,44 @@ var _next_slot_id: int = 1
 ## Host only: whether _rpc_handshake may still seat a new peer. True in the
 ## lobby, false once the match flow leaves it (see set_accepting_joins()).
 var _accepting_joins: bool = true
+
+## -- Mid-match join and reconnect (Bontago-8or.11, spec 3.4 "Late join /
+## reconnect") ------------------------------------------------------------
+## Host only: true while the match flow is past the lobby (game/Main.gd sets
+## it next to set_accepting_joins()). Decides which seat a handshake gets: the
+## next lobby slot, or a seat-policy choice / spectator seat mid-match.
+var _match_in_progress: bool = false
+## Host only: peer_id -> the rejoin token issued to it in _rpc_join_accepted.
+## Never part of the roster (that is broadcast to every client): a token is a
+## bearer credential for its slot.
+var _tokens: Dictionary = {}
+## Host only: rejoin token -> slot_id held by a peer that dropped while a
+## match was running. A handshake quoting the token reclaims that slot if the
+## seat policy still calls it reclaimable (inside its NetConfig.
+## disconnect_grace). Cleared whenever a match (re)starts or ends.
+var _reservations: Dictionary = {}
+## Host only (installed by game/Main.gd): () -> int. The open human seat a new
+## mid-match joiner may take, or -1 to seat it as a spectator. Net never
+## decides this itself: "open" is a gameplay question (a living human slot no
+## peer holds and no departed peer has reserved).
+var _pick_open_seat: Callable = Callable()
+## Host only (installed by game/Main.gd): (slot_id: int) -> bool. Whether a
+## returning peer may reclaim `slot_id` (still inside its disconnect grace).
+var _can_reclaim_seat: Callable = Callable()
+## Client only: the token the host issued on our last accepted join. Survives
+## a connection loss on purpose (leave(false)), so a dropped player who joins
+## the same host again (the direct-IP field, the LAN browser or the Steam
+## lobby) quotes it and gets its slot back. A deliberate leave() clears it, and
+## it is only ever sent to the host it came from (_rejoin_scope). DECISION
+## (Bontago-8or.11): memory only -- a crashed and
+## restarted client has no token and rejoins as a new late joiner. Persisting
+## it would write a bearer credential to disk for a window that is only
+## NetConfig.disconnect_grace long.
+var _rejoin_token: String = ""
+## Which host issued _rejoin_token: "enet:<address>:<port>" or "steam:<lobby>".
+var _rejoin_scope: String = ""
+## Scope of the ENet connection the client is making now (join_game()).
+var _join_scope: String = ""
 
 ## Snapshot of build_version() taken when hosting started, so the version a
 ## host advertises for a session can never drift even if something else
@@ -268,6 +312,7 @@ func host_game(port: int = 0, player_name: String = "", advertise: bool = true) 
 	}
 	_next_slot_id = 1
 	_accepting_joins = advertise
+	_reset_rejoin_state()
 	Events.net_mode_changed.emit(_mode)
 	# Agent runs must not appear in the owner's LAN browser.
 	if advertise and not AgentProbe.is_active():
@@ -290,6 +335,7 @@ func join_game(address: String, port: int = 0, player_name: String = "") -> Erro
 	_mode = Mode.CLIENT
 	_peers.clear()
 	_pending_join_name = player_name
+	_join_scope = "enet:%s:%d" % [address, use_port]
 	_joined_accepted = false
 	_join_deadline = _now() + config.connect_timeout + config.handshake_timeout
 	Events.net_mode_changed.emit(_mode)
@@ -298,8 +344,9 @@ func join_game(address: String, port: int = 0, player_name: String = "") -> Erro
 
 ## Leaves whatever session is running and returns to OFFLINE. Safe to call
 ## when already offline. The host disconnects everyone with
-## LeaveReason.HOST_SHUTDOWN first.
-func leave() -> void:
+## LeaveReason.HOST_SHUTDOWN first. A deliberate leave forgets the rejoin
+## token; the connection-lost and failed-join paths pass false to keep it.
+func leave(forget_rejoin: bool = true) -> void:
 	# DECISION (Bontago-mv0.2.6 finding B, generation added for Bontago-mv0.4):
 	# bumped unconditionally, before the OFFLINE early-return below, because a
 	# pending host_online()/join_lobby() attempt never moves _mode off OFFLINE
@@ -313,6 +360,9 @@ func leave() -> void:
 	# nothing is waiting for — even if a fresh host_online()/join_lobby() call
 	# started a new (current-generation) request in the meantime.
 	_steam_request_generation += 1
+	if forget_rejoin:
+		_rejoin_token = ""
+		_rejoin_scope = ""
 	if _mode == Mode.OFFLINE:
 		return
 	if _mode == Mode.HOST:
@@ -338,6 +388,7 @@ func leave() -> void:
 	_own_ping_ms = 0.0
 	_lobby_data = {}
 	_accepting_joins = true
+	_reset_rejoin_state()
 	_steam_session = false
 	_steam_lobby_id = 0
 	_steam_pending_name = ""
@@ -409,8 +460,11 @@ func slot_of_peer(peer_id: int) -> int:
 
 
 ## Inverse of slot_of_peer(). -1 for an unclaimed slot (an empty seat, or a
-## bot's from M5).
+## bot's from M5). A negative slot_id is never a seat: spectators (Bontago-
+## 8or.11) all hold -1, so it must not match the first of them.
 func peer_of_slot(slot_id: int) -> int:
+	if slot_id < 0:
+		return -1
 	for peer_id: int in _peers.keys():
 		if int(_peers[peer_id].get("slot_id", -1)) == slot_id:
 			return peer_id
@@ -434,7 +488,8 @@ func local_slot() -> int:
 func is_local_slot(slot_id: int) -> bool:
 	if _mode == Mode.OFFLINE:
 		return true
-	return slot_id == local_slot()
+	# A spectator's local_slot() is -1 (Bontago-8or.11); no real slot is -1.
+	return slot_id >= 0 and slot_id == local_slot()
 
 
 ## Host only: marks a peer ready in the lobby, or drops it from the session.
@@ -452,6 +507,8 @@ func kick_peer(peer_id: int, reason: LeaveReason = LeaveReason.KICKED) -> void:
 	_peers.erase(peer_id)
 	_ping_samples.erase(peer_id)
 	_pending_handshake.erase(peer_id)
+	# A kicked peer forfeits its rejoin token: no reservation is made for it.
+	_tokens.erase(peer_id)
 	if multiplayer.multiplayer_peer:
 		multiplayer.multiplayer_peer.disconnect_peer(peer_id)
 	Events.net_peer_left.emit(peer_id, slot_id, reason)
@@ -746,6 +803,7 @@ func _on_steam_lobby_created(result: int, lobby_id: int) -> void:
 	}
 	_next_slot_id = 1
 	_accepting_joins = true
+	_reset_rejoin_state()
 	Events.net_mode_changed.emit(_mode)
 
 
@@ -1189,6 +1247,13 @@ func _on_peer_disconnected(id: int) -> void:
 	var slot_id: int = int(_peers[id].get("slot_id", -1))
 	_peers.erase(id)
 	_ping_samples.erase(id)
+	# Bontago-8or.11: a seated peer dropping mid-match keeps a reservation on
+	# its slot for as long as the seat policy calls it reclaimable (its
+	# disconnect grace); quoting the token on the next handshake gets it back.
+	var token: String = String(_tokens.get(id, ""))
+	_tokens.erase(id)
+	if _match_in_progress and slot_id >= 0 and token != "":
+		_reservations[token] = slot_id
 	_broadcast_roster()
 	# DECISION: ENet's peer_disconnected carries no reason, and distinguishing
 	# a graceful client leave() from a dropped connection would need its own
@@ -1201,7 +1266,20 @@ func _on_peer_disconnected(id: int) -> void:
 func _on_connected_to_server() -> void:
 	if _mode != Mode.CLIENT:
 		return
-	_rpc_handshake.rpc_id(HOST_PEER_ID, build_version(), _pending_join_name)
+	# Only the host that issued the token may see it.
+	_rpc_handshake.rpc_id(HOST_PEER_ID, build_version(), _pending_join_name, quoted_rejoin_token())
+
+
+## The token the handshake quotes: the stored one only when it came from the
+## host this connection is going to, otherwise "".
+func quoted_rejoin_token() -> String:
+	return _rejoin_token if _rejoin_scope == _current_join_scope() else ""
+
+
+func _current_join_scope() -> String:
+	if _steam_session:
+		return "steam:%d" % _steam_lobby_id
+	return _join_scope
 
 
 func _on_connection_failed() -> void:
@@ -1214,13 +1292,17 @@ func _on_server_disconnected() -> void:
 	if _mode != Mode.CLIENT:
 		return
 	Events.net_peer_left.emit(HOST_PEER_ID, slot_of_peer(HOST_PEER_ID), LeaveReason.HOST_SHUTDOWN)
-	leave()
+	leave(false)
 
 
 # --- Handshake & roster RPCs -------------------------------------------------
 
+## `rejoin_token` (Bontago-8or.11) is what _rpc_join_accepted handed this
+## player on an earlier join, or "". It has a default so the parameter list
+## still binds for a sender that omits it; the build check refuses any real
+## older build first anyway.
 @rpc("any_peer", "call_remote", "reliable")
-func _rpc_handshake(build: String, player_name: String) -> void:
+func _rpc_handshake(build: String, player_name: String, rejoin_token: String = "") -> void:
 	if not is_host():
 		return
 	var sender: int = multiplayer.get_remote_sender_id()
@@ -1228,6 +1310,9 @@ func _rpc_handshake(build: String, player_name: String) -> void:
 		return
 	if build != _host_build_version:
 		_reject_peer(sender, JoinError.VERSION_MISMATCH)
+		return
+	if _match_in_progress:
+		_handshake_mid_match(sender, build, player_name, rejoin_token)
 		return
 	# Spec 3.4: joining is lobby-only in M3a. Checked before capacity so a
 	# late joiner learns the real reason — a full lobby is a different message.
@@ -1237,12 +1322,84 @@ func _rpc_handshake(build: String, player_name: String) -> void:
 	if _peers.size() >= config.max_peers:
 		_reject_peer(sender, JoinError.SERVER_FULL)
 		return
-	_accept_peer(sender, build, player_name)
+	_accept_peer(sender, build, player_name, _take_next_lobby_slot())
 
 
-func _accept_peer(peer_id: int, build: String, player_name: String) -> void:
+## Bontago-8or.11: the handshake while a match runs. A token naming a slot
+## that is still reclaimable wins first and skips _accepting_joins and the
+## capacity check (its own departure freed the room): spec 3.4 lists
+## reconnect separately from "Mid-match joins can be enabled in settings", and
+## the disconnect grace exists precisely so a dropped player can come back.
+## Anyone else is a new late joiner: refused unless the match allows
+## mid-match joins, then seated in an open human slot or, failing that, as a
+## spectator (slot -1).
+##
+## DECISION (Bontago-8or.11): a returning player whose grace already ran out
+## (its slot was eliminated) is treated as a brand-new late joiner, not
+## refused -- the eliminated slot is no longer theirs to reclaim, and the
+## ordinary mid-match-join rules decide whether they may watch or take a seat.
+func _handshake_mid_match(sender: int, build: String, player_name: String, rejoin_token: String) -> void:
+	var reclaimed: int = _reclaimable_slot_for(rejoin_token)
+	if reclaimed >= 0:
+		_reservations.erase(rejoin_token)
+		_accept_peer(sender, build, player_name, reclaimed, rejoin_token)
+		return
+	if not _accepting_joins:
+		_reject_peer(sender, JoinError.MATCH_IN_PROGRESS)
+		return
+	# DECISION (Bontago-8or.11): spectators count against config.max_peers --
+	# it is the transport's connection budget, not a player count.
+	if _peers.size() >= config.max_peers:
+		_reject_peer(sender, JoinError.SERVER_FULL)
+		return
+	var seat: int = -1
+	if _pick_open_seat.is_valid():
+		seat = int(_pick_open_seat.call())
+	if seat >= 0 and (peer_of_slot(seat) != -1 or _reservations.values().has(seat)):
+		# Defensive: a policy must never hand out a seat a live peer holds or a
+		# departed peer has reserved.
+		seat = -1
+	_accept_peer(sender, build, player_name, seat)
+
+
+## The slot `rejoin_token` reserves, if the seat policy still lets it be
+## reclaimed and no live peer holds it; -1 otherwise (including an unknown or
+## oversized token -- a new joiner's empty string in practice).
+func _reclaimable_slot_for(rejoin_token: String) -> int:
+	if rejoin_token.is_empty() or rejoin_token.length() > REJOIN_TOKEN_MAX_CHARS:
+		return -1
+	if not _reservations.has(rejoin_token):
+		return -1
+	var slot_id: int = int(_reservations[rejoin_token])
+	if slot_id < 0 or peer_of_slot(slot_id) != -1:
+		return -1
+	if not _can_reclaim_seat.is_valid() or not bool(_can_reclaim_seat.call(slot_id)):
+		return -1
+	return slot_id
+
+
+## The next lobby slot id (M3a's monotonic allocation, unchanged).
+func _take_next_lobby_slot() -> int:
 	var slot_id: int = _next_slot_id
 	_next_slot_id += 1
+	return slot_id
+
+
+## Seats `peer_id` in `slot_id` (-1 = spectator, Bontago-8or.11). `token` is a
+## reconnecting peer's existing rejoin token, reused so a second drop also
+## works; a new peer gets a fresh one.
+##
+## Bontago-8or.11 ordering: the joiner hears _rpc_join_accepted and the
+## roster *before* Events.net_peer_joined fires, because net/MatchNet.gd
+## answers that event with a mid-match world replay (rpc_id, reliable, the
+## same ordered channel), and the replay's net_match_start builds the
+## joiner's world against Net.local_slot() -- which must already be the seat
+## assigned here.
+func _accept_peer(peer_id: int, build: String, player_name: String, slot_id: int, token: String = "") -> void:
+	if slot_id >= _next_slot_id:
+		_next_slot_id = slot_id + 1
+	var issued: String = token if token != "" else _new_rejoin_token()
+	_tokens[peer_id] = issued
 	_peers[peer_id] = {
 		"peer_id": peer_id,
 		"slot_id": slot_id,
@@ -1253,9 +1410,14 @@ func _accept_peer(peer_id: int, build: String, player_name: String) -> void:
 	}
 	_ping_samples[peer_id] = []
 	_pending_handshake.erase(peer_id)
-	Events.net_peer_joined.emit(peer_id, slot_id, player_name)
-	_rpc_join_accepted.rpc_id(peer_id, slot_id, HOST_PEER_ID)
+	_rpc_join_accepted.rpc_id(peer_id, slot_id, HOST_PEER_ID, issued)
 	_broadcast_roster()
+	Events.net_peer_joined.emit(peer_id, slot_id, player_name)
+
+
+## Unguessable, so a token is worth exactly one slot.
+func _new_rejoin_token() -> String:
+	return Crypto.new().generate_random_bytes(REJOIN_TOKEN_BYTES).hex_encode()
 
 
 func _reject_peer(peer_id: int, error: int) -> void:
@@ -1338,9 +1500,12 @@ func _rpc_roster_update(roster: Array) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func _rpc_join_accepted(slot_id: int, _host_peer_id: int) -> void:
+func _rpc_join_accepted(slot_id: int, _host_peer_id: int, rejoin_token: String = "") -> void:
 	if is_host():
 		return
+	if rejoin_token.length() <= REJOIN_TOKEN_MAX_CHARS:
+		_rejoin_token = rejoin_token
+		_rejoin_scope = _current_join_scope()
 	_local_slot = slot_id
 	_joined_accepted = true
 	Events.net_peer_joined.emit(local_peer_id(), slot_id, _pending_join_name)
@@ -1354,7 +1519,7 @@ func _rpc_join_refused(error: int) -> void:
 
 
 func _fail_join(error: int, detail: String = "") -> void:
-	leave()
+	leave(false)
 	Events.net_join_failed.emit(error, detail)
 
 
@@ -1368,6 +1533,11 @@ func _fail_join(error: int, detail: String = "") -> void:
 ## slot, and the existing roster is not touched or re-broadcast.
 ##
 ## host_game() and leave() reset it to true, so a fresh session always accepts.
+##
+## Bontago-8or.11: mid-match, game/Main.gd keeps it true while the running
+## MatchConfig.allow_mid_match_join is on; set_match_in_progress() then routes
+## the handshake through _handshake_mid_match() (open seat, spectator, or a
+## rejoin token's reserved slot -- the last ignores this flag).
 ##
 ## DECISION (autoload/Net.gd, Bontago-mv0.1.8): a flag the match flow flips,
 ## not a subscription to Events.match_state_changed. That signal carries
@@ -1390,6 +1560,54 @@ func set_accepting_joins(accepting: bool) -> void:
 
 func accepting_joins() -> bool:
 	return _accepting_joins
+
+
+## Host only (Bontago-8or.11). game/Main.gd calls this with true when a match
+## world is (re)built (LOBBY -> LOADING) and with false on a real return to
+## the lobby. Every call drops the rejoin reservations, so a slot reserved in
+## one match can never be reclaimed in the next. Going back to the lobby also
+## gives each spectator a real lobby slot again, so the next Start counts it
+## as a player.
+##
+## Like set_accepting_joins(), a flag the match flow flips rather than a
+## subscription to a gameplay signal: this file must not name Match.
+func set_match_in_progress(active: bool) -> void:
+	_reservations.clear()
+	var was_active: bool = _match_in_progress
+	_match_in_progress = active
+	if active or not was_active or not is_host():
+		return
+	var reseated: bool = false
+	for peer_id: int in peer_ids():
+		if int(_peers[peer_id].get("slot_id", -1)) < 0:
+			_peers[peer_id]["slot_id"] = _take_next_lobby_slot()
+			reseated = true
+	if reseated:
+		_broadcast_roster()
+
+
+func match_in_progress() -> bool:
+	return _match_in_progress
+
+
+## Host only (Bontago-8or.11): installs the gameplay side of mid-match
+## admission (see _pick_open_seat / _can_reclaim_seat). Either Callable may be
+## invalid: then every late joiner spectates and no slot can be reclaimed.
+func set_seat_policy(pick_open_seat: Callable, can_reclaim_seat: Callable) -> void:
+	_pick_open_seat = pick_open_seat
+	_can_reclaim_seat = can_reclaim_seat
+
+
+## Client only: the rejoin token the host issued on the last accepted join
+## ("" before any). Test and debug read-out; nothing gameplay reads it.
+func rejoin_token() -> String:
+	return _rejoin_token
+
+
+func _reset_rejoin_state() -> void:
+	_match_in_progress = false
+	_tokens.clear()
+	_reservations.clear()
 
 
 # --- Ready state --------------------------------------------------------

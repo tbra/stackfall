@@ -89,6 +89,13 @@ const EVENT_CAT_ENDED: StringName = &"cat_ended"
 ## Bontago-1pi.11.41: [net_id] of a block the host started dissolving on a
 ## hole. Its removal follows through the ordinary net_block_despawned.
 const EVENT_BLOCK_DISSOLVE_STARTED: StringName = &"block_dissolve_started"
+## Bontago-8or.11 (mid-match join replay only): one slot's absolute feed and
+## gift state -- [slot_id, held_shape_id, next_shape_id, feed_seq, time_left,
+## release_locked, held_special_id, next_special_id]. See
+## _apply_slot_replay().
+const EVENT_SLOT_REPLAY: StringName = &"slot_replay"
+## Bontago-8or.11 (mid-match join replay only): [match_timer_left].
+const EVENT_MATCH_CLOCK: StringName = &"match_clock"
 
 @export var config: NetConfig = preload("res://config/net_config.tres")
 
@@ -202,6 +209,36 @@ var _capture_progress: float = 0.0
 ## fire.
 var _match_start_sent: bool = false
 
+## -- Mid-match join / reconnect replay (Bontago-8or.11) -----------------------
+## Host only: peer_id -> replay id of a world replay sent to that peer and not
+## yet acknowledged. Gameplay intents from a peer in here are refused (spec
+## 3.4: the host checks every intent; a peer with no world yet cannot have
+## formed a legitimate one), its cursors and cat targets are dropped.
+var _replay_pending: Dictionary = {}
+## peer_id -> seconds its replay has gone unacknowledged (LOW4 timeout).
+var _replay_age: Dictionary = {}
+var _next_replay_id: int = 1
+## Client only: true from the moment this instance becomes a CLIENT until the
+## first net_match_start lands. Every host -> client gameplay RPC that arrives
+## in that window was broadcast before this peer's replay was built, so the
+## replay already contains its effect; applying it to a world that does not
+## exist yet could only corrupt the mirror (a stray LOBBY -> PLAYING emit, a
+## feed event for slots that are not built).
+var _awaiting_match_start: bool = false
+## Test seam: when true, replay messages are appended to `replay_capture` as
+## [peer_id, method, args] instead of going out by rpc_id(). There is no peer
+## in a unit test, and this is what lets a test apply the exact ordered
+## replay to a client-mode MatchNet.
+var capture_replay: bool = false
+var replay_capture: Array[Array] = []
+## Test-only counters. Game code never reads them.
+var replays_started: int = 0
+var replays_timed_out: int = 0
+var replays_acknowledged: int = 0
+var intents_refused_before_replay_ack: int = 0
+## Client only: the replay id this instance last acknowledged (0 = none).
+var last_replay_acknowledged: int = 0
+
 ## Bontago-22y.10: the weather RPC surface (net/WeatherNet.gd), a child node.
 var _weather_net: WeatherNet = null
 var _cat_send_accum: float = 0.0
@@ -238,11 +275,15 @@ func _ready() -> void:
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 	Events.net_peer_left.connect(_on_net_peer_left)
 	Events.net_peer_joined.connect(_on_net_peer_joined)
+	Events.net_mode_changed.connect(_on_net_mode_changed)
 	# Bontago-22y.10: weather replication lives in its own child node.
 	_weather_net = WeatherNet.new()
 	_weather_net.name = "WeatherNet"
 	add_child(_weather_net)
 	_weather_net.set_providers(_net_provider, _match_provider)
+	# Bontago-8or.11: weather/snow/breeze broadcasts before net_match_start
+	# are dropped on the same gate as match events.
+	_weather_net.awaiting_world = _client_awaiting_world
 
 
 func _exit_tree() -> void:
@@ -305,6 +346,7 @@ func _can_send() -> bool:
 func _process(delta: float) -> void:
 	if not _is_host():
 		return
+	_tick_replay_timeouts(delta)
 	var cat: CatController = _authority().active_cat()
 	if cat != null and _can_send():
 		_cat_send_accum += delta
@@ -442,6 +484,8 @@ func submit_cat_target(slot_id: int, point: Vector3) -> void:
 func _handle_cat_target(sender_peer_id: int, slot_id: int, point: Vector3) -> void:
 	if not _is_host() or int(_session().slot_of_peer(sender_peer_id)) != slot_id:
 		return
+	if _replay_pending.has(sender_peer_id):
+		return
 	_authority().set_cat_target(slot_id, point)
 
 
@@ -524,6 +568,8 @@ func _match_flow_state_allows() -> bool:
 func _remote_may_request_match_flow(sender_peer_id: int) -> bool:
 	if int(_session().slot_of_peer(sender_peer_id)) < 0:
 		return false
+	if _replay_pending.has(sender_peer_id):
+		return false
 	return _match_flow_state_allows()
 
 
@@ -592,16 +638,24 @@ func replicate_spawn(block: Block, net_id: int) -> void:
 	_note_spawn(net_id)
 	if not _can_send():
 		return
+	var args: Array = _spawn_args(block, net_id)
+	rpc(&"net_block_spawned", args[0], args[1], args[2], args[3], args[4], args[5])
+
+
+## net_block_spawned's argument list for `block`: the one wire shape both a
+## live spawn and a mid-match join replay use (Bontago-8or.11). owner_slot is
+## the block's *current* owner, so a Paintball conversion (Bontago-22y.2)
+## replays as the converted colour.
+func _spawn_args(block: Block, net_id: int) -> Array:
 	var basis: Basis = block.global_transform.basis.orthonormalized()
-	rpc(
-		&"net_block_spawned",
+	return [
 		net_id,
 		block.shape_id,
 		block.owner_slot,
 		block.global_position,
 		basis.get_rotation_quaternion(),
-		block.gift_id
-	)
+		block.gift_id,
+	]
 
 
 func replicate_despawn(net_id: int, reason: String) -> void:
@@ -796,6 +850,10 @@ func reset_counters() -> void:
 	_force_full_raster = true
 	_capture_team = -1
 	_capture_progress = 0.0
+	# Bontago-8or.11: a (re)start is itself a full sync for every peer (the
+	# broadcast net_match_start), so no replay is still owed an ack.
+	_replay_pending.clear()
+	_replay_age.clear()
 	# Test-only instrumentation; bounded per match (review mv0.1.13).
 	replicated_state_changes.clear()
 	match_starts_replicated = 0
@@ -889,6 +947,14 @@ func _handle_place_intent(
 		# slot to count against.
 		return
 	_bump(_intents_sent, sender_slot)
+	if _replay_pending.has(sender_peer_id):
+		# Bontago-8or.11: a mid-match joiner's world is not built until it has
+		# acknowledged its replay. Refused (counted and echoed, like every
+		# other refusal, so the harness identities hold and its ghost unlocks)
+		# rather than acted on.
+		intents_refused_before_replay_ack += 1
+		_refuse_intent(sender_peer_id, sender_slot, PlacementRules.REASON_NO_BLOCK)
+		return
 	if sender_slot != slot_id:
 		# Spec 3.4: the host checks "that the slot matches". A peer may only
 		# ever act for its own slot; the claimed slot_id is never trusted.
@@ -942,6 +1008,10 @@ func _handle_throw_intent(
 	if sender_slot < 0:
 		return
 	_bump(_intents_sent, sender_slot)
+	if _replay_pending.has(sender_peer_id):
+		intents_refused_before_replay_ack += 1
+		_refuse_intent(sender_peer_id, sender_slot, PlacementRules.REASON_NO_BLOCK)
+		return
 	if sender_slot != slot_id:
 		_refuse_intent(sender_peer_id, sender_slot, PlacementRules.REASON_NOT_YOUR_TURN)
 		return
@@ -980,6 +1050,10 @@ func _handle_cursor_update(
 		return
 	var sender_slot: int = int(_session().slot_of_peer(sender_peer_id))
 	if sender_slot < 0 or sender_slot != slot_id:
+		return
+	if _replay_pending.has(sender_peer_id):
+		# Bontago-8or.11: a cursor is what the host auto-drops from, so an
+		# unreplayed peer's pose (formed against no world) is not stored.
 		return
 	if not _pose_is_acceptable(origin, orientation_index, free_quat):
 		# DECISION (net/MatchNet.gd): a malformed cursor is dropped, not
@@ -1393,33 +1467,367 @@ func _on_cat_ended(id: int) -> void:
 		replicate_match_event(EVENT_CAT_ENDED, [id])
 
 
-func _on_net_peer_left(_peer_id: int, slot_id: int, _reason: int) -> void:
+func _on_net_peer_left(peer_id: int, slot_id: int, _reason: int) -> void:
+	_replay_pending.erase(peer_id)
+	_replay_age.erase(peer_id)
 	if slot_id >= 0:
 		_authority().on_peer_left(slot_id)
 
 
+## Bontago-8or.11: a peer was seated (Net emits this after it has already sent
+## the joiner its join-accepted and the roster). In the lobby that is all:
+## the broadcast net_match_start will carry the world. Mid-match the host
+## owes this peer the whole world, as one ordered replay -- see
+## _replay_world_to().
 func _on_net_peer_joined(peer_id: int, slot_id: int, _player_name: String) -> void:
-	# A fresh client has nothing to diff a territory packet against.
-	_force_full_raster = true
+	if not _is_host():
+		return
 	if slot_id >= 0:
+		# Inside the disconnect grace: resume the slot's feed with a full
+		# timer (MatchLifecycle.on_peer_rejoined; a no-op otherwise).
 		_authority().on_peer_rejoined(slot_id)
-	# A reconnecting client may have missed an activation or a spend. Ship
-	# absolute state after its prior reliable match events, including zeroes
-	# for slots whose last charge was spent while the peer was away.
-	if _is_host() and _can_send():
-		# Existing session gate currently refuses mid-match joins. Reconnects
-		# still receive the live transient cat before the next pose snapshot.
-		var cat: CatController = _authority().active_cat()
-		if cat != null:
-			rpc_id(peer_id, &"net_match_event", EVENT_CAT_STARTED,
-				[cat.activation_id, cat.owner_slot, cat.global_position, cat.time_left])
-		for payload: Array in _glue_rejoin_snapshot():
-			rpc_id(peer_id, &"net_match_event", EVENT_GLUE_CHARGES, payload)
+		# Whoever sat here before (or this peer's own old connection) left a
+		# ghost the host would auto-drop from; the joiner has no pose yet.
+		_cursors.erase(slot_id)
+	if bool(_session().is_offline()) or not is_match_live() or _replay_pending.has(peer_id):
+		return
+	_replay_world_to(peer_id)
+
+
+func _on_net_mode_changed(mode: int) -> void:
+	_awaiting_match_start = mode == Net.Mode.CLIENT
+
+
+## True while a match is past its start and not over: the states a mid-match
+## joiner is admitted into and gets a replay for (spec 3.7).
+func is_match_live() -> bool:
+	var state: int = int(_authority().state())
+	return (
+		state == Match.State.COUNTDOWN
+		or state == Match.State.PLAYING
+		or state == Match.State.SUDDEN_DEATH
+	)
+
+
+# --- Mid-match join and reconnect (Bontago-8or.11, spec 3.4) -----------------
+
+## Host only, installed into Net's seat policy by game/Main.gd: the lowest open
+## human seat for a new mid-match joiner, or -1 (spectate). Open means a human
+## (not bot) slot that is still alive, held by no peer, and not reserved by a
+## departed peer inside its disconnect grace.
+##
+## DECISION (Bontago-8or.11): a joiner never takes over a bot seat -- the bot
+## would have to be torn down mid-match and spec 2.9 does not ask for it;
+## with every human seat filled or reserved the joiner spectates.
+func pick_open_seat() -> int:
+	if not _is_host() or not is_match_live():
+		return -1
+	var authority: Variant = _authority()
+	for slot_id: int in range(int(authority.slot_count())):
+		var seat: PlayerSlot = authority.slot(slot_id)
+		if seat == null or seat.is_bot or not seat.home_flag_alive:
+			continue
+		if int(_session().peer_of_slot(slot_id)) != -1:
+			continue
+		if float(authority.disconnect_grace_left(slot_id)) >= 0.0:
+			continue
+		return slot_id
+	return -1
+
+
+## Host only, installed into Net's seat policy by game/Main.gd: whether a
+## returning peer may have `slot_id` back -- the match is live, the slot is
+## alive and its disconnect grace is still running.
+func seat_reclaimable(slot_id: int) -> bool:
+	if not _is_host() or not is_match_live():
+		return false
+	var authority: Variant = _authority()
+	if slot_id < 0 or slot_id >= int(authority.slot_count()):
+		return false
+	var seat: PlayerSlot = authority.slot(slot_id)
+	if seat == null or not seat.home_flag_alive:
+		return false
+	return float(authority.disconnect_grace_left(slot_id)) >= 0.0
+
+
+## Bontago-8or.11 (review LOW4): a joiner that never acks its replay would stay
+## intent-gated with its cursors dropped forever. Past
+## config.replay_ack_timeout the host drops it cleanly.
+## DECISION: drop, not retry. A second replay would re-send spawns for bodies
+## the first one may already have created; a peer that cannot ack within the
+## timeout is not going to play, and it can rejoin (its reservation applies).
+func _tick_replay_timeouts(delta: float) -> void:
+	if _replay_pending.is_empty():
+		return
+	var expired: Array[int] = []
+	for peer_id: int in _replay_pending.keys():
+		var age: float = float(_replay_age.get(peer_id, 0.0)) + delta
+		_replay_age[peer_id] = age
+		if age >= config.replay_ack_timeout:
+			expired.append(peer_id)
+	for peer_id: int in expired:
+		replays_timed_out += 1
+		_replay_pending.erase(peer_id)
+		_replay_age.erase(peer_id)
+		var session: Variant = _session()
+		if session != null and session.has_method(&"kick_peer"):
+			session.kick_peer(peer_id, Net.LeaveReason.TIMEOUT)
+
+
+## Whether `peer_id` still owes the host an ack for its world replay.
+func replay_pending_for(peer_id: int) -> bool:
+	return _replay_pending.has(peer_id)
+
+
+## Host only. Spec 3.4 "Late join / reconnect: Send the full world state in
+## chunks: all bodies, the territory raster, and match state." Every message
+## is a reliable rpc_id() on the default channel, so the joiner receives them
+## in exactly this order, after the join-accepted and roster Net already
+## sent, and before any later broadcast:
+##
+##   1. config + roster      net_match_start (the joiner builds its world)
+##   2. world                one net_block_spawned per body -- the same wire
+##                           shape as replicate_spawn() -- then any hole
+##                           dissolves in progress
+##   3. territory            one full keyframe (see _territory_replay_args())
+##   4. derived state        match state, clock, mode objective, eliminations,
+##                           turn, every slot's feed and gifts, glue charges,
+##                           gift crates, the cat
+##   (WeatherNet/SnowNet answer the same Events.net_peer_joined after this
+##   node, so the weather state follows.)
+##   5. net_replay_end       deferred to the end of the frame; the joiner
+##                           answers net_replay_ack, which lifts the intent
+##                           gate and asks SnapshotSync for a full snapshot.
+##
+## Each piece is the state *at this instant*, built synchronously, so every
+## broadcast the joiner dropped before net_match_start (see
+## _awaiting_match_start) is already folded in, and every broadcast after it
+## applies on top in order.
+##
+## DECISION (Bontago-8or.11, owner decision Bontago-ahr.3 still open): the
+## match clock does NOT pause while a player joins mid-match. Spec 3.4 only
+## pauses it for lobby-mode joins; the open decision can add a pause later in
+## MatchLifecycle without changing this protocol.
+func _replay_world_to(peer_id: int) -> void:
+	var replay_id: int = _next_replay_id
+	_next_replay_id += 1
+	_replay_pending[peer_id] = replay_id
+	_replay_age[peer_id] = 0.0
+	replays_started += 1
+	for message: Array in build_world_replay():
+		_send_replay(peer_id, StringName(message[0]), message[1] as Array)
+	call_deferred(&"_finish_replay", peer_id, replay_id)
+
+
+## Sends the end marker unless the peer left (or a restart cleared the
+## pending replay) in the meantime.
+func _finish_replay(peer_id: int, replay_id: int) -> void:
+	if int(_replay_pending.get(peer_id, -1)) != replay_id:
+		return
+	_send_replay(peer_id, &"net_replay_end", [replay_id])
+
+
+func _send_replay(peer_id: int, method: StringName, args: Array) -> void:
+	if capture_replay:
+		replay_capture.append([peer_id, method, args])
+		return
+	if not _can_send() or not multiplayer.get_peers().has(peer_id):
+		return
+	callv(&"rpc_id", [peer_id, method] + args)
+
+
+## The ordered replay body (steps 1-4 of _replay_world_to()), as
+## [method: StringName, args: Array] pairs. Public so a test can apply it to
+## a client mirror without a peer.
+func build_world_replay() -> Array[Array]:
+	var authority: Variant = _authority()
+	var messages: Array[Array] = []
+	var running: MatchConfig = authority.config
+	if running == null:
+		return messages
+	messages.append([&"net_match_start", [running.to_dict(), _roster()]])
+
+	var registry: BlockRegistry = authority.registry()
+	if registry != null:
+		var blocks: Array[Block] = registry.all_blocks()
+		blocks.sort_custom(func(a: Block, b: Block) -> bool: return a.net_id < b.net_id)
+		var dissolving: Array[int] = []
+		for block: Block in blocks:
+			if not Quantize.is_wire_id(block.net_id):
+				continue
+			messages.append([&"net_block_spawned", _spawn_args(block, block.net_id)])
+			if registry.hole_dissolver().is_dissolving(block):
+				dissolving.append(block.net_id)
+		for net_id: int in dissolving:
+			messages.append(_event(EVENT_BLOCK_DISSOLVE_STARTED, [net_id]))
+		# Freeze gift (Bontago-8or.2): the icy overlay is an event, not part of
+		# the spawn args, so a joiner needs it after the block exists.
 		for frozen_payload: Array in _frozen_overlay_snapshot():
-			rpc_id(peer_id, &"net_match_event", EVENT_BLOCK_FROZEN, frozen_payload)
-		var mode_snapshot: Dictionary = _authority().mode_state_snapshot()
-		if not mode_snapshot.is_empty():
-			rpc_id(peer_id, &"net_match_event", EVENT_MODE_STATE, [mode_snapshot])
+			messages.append(_event(EVENT_BLOCK_FROZEN, frozen_payload))
+
+	var territory: Array = _territory_replay_args()
+	if not territory.is_empty():
+		messages.append([&"net_territory", territory])
+
+	var state: int = int(authority.state())
+	if state == Match.State.COUNTDOWN:
+		messages.append(_event(EVENT_COUNTDOWN, [int(ceil(float(authority.countdown_remaining())))]))
+	elif state == Match.State.PLAYING or state == Match.State.SUDDEN_DEATH:
+		# A client's own start_match() leaves it in COUNTDOWN; PLAYING is
+		# replayed before SUDDEN_DEATH so its consumers see the order a
+		# seated client saw.
+		messages.append(_event(EVENT_STATE_CHANGED, [Match.State.PLAYING]))
+		if state == Match.State.SUDDEN_DEATH:
+			messages.append(_event(EVENT_STATE_CHANGED, [Match.State.SUDDEN_DEATH]))
+	messages.append(_event(EVENT_MATCH_CLOCK, [float(authority.match_timer_left())]))
+
+	var mode_snapshot: Dictionary = authority.mode_state_snapshot()
+	if not mode_snapshot.is_empty():
+		messages.append(_event(EVENT_MODE_STATE, [mode_snapshot]))
+
+	var slot_count: int = int(authority.slot_count())
+	for slot_id: int in range(slot_count):
+		var seat: PlayerSlot = authority.slot(slot_id)
+		if seat != null and not seat.home_flag_alive:
+			messages.append(_event(EVENT_PLAYER_ELIMINATED, [slot_id, seat.team_id]))
+	if int(authority.active_slot()) >= 0:
+		messages.append(_event(EVENT_TURN_CHANGED, [int(authority.active_slot())]))
+	for slot_id: int in range(slot_count):
+		var slot_args: Array = _slot_replay_args(slot_id)
+		if not slot_args.is_empty():
+			messages.append(_event(EVENT_SLOT_REPLAY, slot_args))
+	for payload: Array in _glue_rejoin_snapshot():
+		messages.append(_event(EVENT_GLUE_CHARGES, payload))
+
+	for gift: Dictionary in authority.gift_states():
+		var gift_id: int = int(gift["id"])
+		if int(gift["phase"]) == MatchGifts.FALLING:
+			messages.append(_event(EVENT_GIFT_FLIGHT, [gift_id, gift["origin"], gift["landing"]]))
+		else:
+			messages.append(_event(EVENT_GIFT_SPAWNED, [gift_id, gift["position"]]))
+
+	var cat: CatController = authority.active_cat()
+	if cat != null:
+		messages.append(_event(EVENT_CAT_STARTED,
+			[cat.activation_id, cat.owner_slot, cat.global_position, cat.time_left]))
+	return messages
+
+
+func _event(event: StringName, args: Array) -> Array:
+	return [&"net_match_event", [event, args]]
+
+
+## net_territory's arguments for one full keyframe, or [] with no raster.
+## Diffs to every other peer are computed against _last_owner_bytes/
+## _last_state_bytes, so that baseline is what the joiner must hold; when no
+## baseline exists yet (nothing sent this match) the current raster goes out
+## and the next broadcast is forced to a full keyframe for everyone, so all
+## peers converge on the same baseline either way.
+func _territory_replay_args() -> Array:
+	var raster: TerritoryRaster = _authority().raster()
+	if raster == null:
+		return []
+	var owners: PackedByteArray = _last_owner_bytes
+	var states: PackedByteArray = _last_state_bytes
+	if _force_full_raster or owners.is_empty() or owners.size() != raster.owner_bytes().size():
+		owners = raster.owner_bytes().duplicate()
+		states = raster.state_bytes().duplicate()
+		_force_full_raster = true
+	if owners.is_empty():
+		return []
+	return [
+		_encode_raster_full(owners, states),
+		true,
+		_team_shares(),
+		_capture_team,
+		_capture_progress,
+		_encode_circles(),
+	]
+
+
+## EVENT_SLOT_REPLAY's payload for `slot_id`, or [] for a slot with nothing
+## held (eliminated, or between blocks).
+func _slot_replay_args(slot_id: int) -> Array:
+	var authority: Variant = _authority()
+	var held: BlockShape = authority.held_shape(slot_id)
+	if held == null:
+		return []
+	var next: BlockShape = authority.next_shape(slot_id)
+	return [
+		slot_id,
+		held.id,
+		next.id if next != null else &"",
+		int(authority.feed_seq(slot_id)),
+		float(authority.feed_time_left(slot_id)),
+		bool(authority.is_release_locked(slot_id)),
+		StringName(authority.held_special(slot_id)),
+		StringName(authority.next_special(slot_id)),
+	]
+
+
+## Client side of EVENT_SLOT_REPLAY. The wire is validated in full before any
+## of it is applied (the same "drop, never default" rule as every other
+## dispatch case): a malformed slot replay changes nothing.
+##
+## Gifts are rebuilt through the same client mirror calls a live claim uses,
+## in the order a seated client would have seen them: the held gift is queued
+## and marked as the next carrier, the feed event activates it, then the
+## queued next gift is queued behind it.
+func _apply_slot_replay(args: Array) -> void:
+	if args.size() != 8 or not args[0] is int or not args[3] is int or not args[5] is bool:
+		return
+	for index: int in [1, 2, 6, 7]:
+		if not (args[index] is StringName or args[index] is String):
+			return
+	if not (args[4] is float or args[4] is int):
+		return
+	var slot_id: int = args[0]
+	var held_id: StringName = StringName(args[1])
+	var next_id: StringName = StringName(args[2])
+	var feed_seq: int = args[3]
+	var time_left: float = float(args[4])
+	var locked: bool = args[5]
+	var held_special: StringName = StringName(args[6])
+	var next_special: StringName = StringName(args[7])
+	var authority: Variant = _authority()
+	var running: MatchConfig = authority.config
+	if running == null or slot_id < 0 or slot_id >= int(authority.slot_count()):
+		return
+	if feed_seq < 0 or not is_finite(time_left) or time_left < 0.0 or time_left > MatchConfig.BLOCK_TIMER_MAX:
+		return
+	if authority._feed._shape_by_id(held_id) == null:
+		return
+	if next_id != &"" and authority._feed._shape_by_id(next_id) == null:
+		return
+	if held_special != &"" and not _gift_special_id_wire_ok(String(held_special)):
+		return
+	if next_special != &"" and (next_id == &"" or not _gift_special_id_wire_ok(String(next_special))):
+		return
+	if held_special != &"":
+		authority.apply_replicated_gift_claimed(-1, slot_id, held_special)
+		authority._feed.apply_replicated_next_gift(slot_id, held_id)
+	authority.apply_replicated_feed(slot_id, held_id, next_id, feed_seq, time_left, locked)
+	if next_special != &"":
+		authority.apply_replicated_gift_claimed(-1, slot_id, next_special)
+		authority._feed.apply_replicated_next_gift(slot_id, next_id)
+	Events.feed_block_issued.emit(slot_id, held_id, next_id)
+
+
+## Host side of net_replay_ack, split out (like _handle_place_intent) so a
+## test can drive it with a manufactured sender id. Only the id the host
+## actually sent this peer counts; a stale or forged ack is ignored.
+func _handle_replay_ack(sender_peer_id: int, replay_id: int) -> void:
+	if not _is_host():
+		return
+	if int(_replay_pending.get(sender_peer_id, -1)) != replay_id:
+		return
+	_replay_pending.erase(sender_peer_id)
+	_replay_age.erase(sender_peer_id)
+	replays_acknowledged += 1
+	# Spec 3.4's snapshots resume: the next one carries every body, so the
+	# joiner's interpolator starts from fresh samples for sleepers too.
+	if _net_provider == null:
+		SnapshotSync.request_full_snapshot()
 
 
 ## Bontago-8or.2: a rejoining peer missed the icy overlay events of an active Freeze.
@@ -1587,6 +1995,8 @@ func net_cat_target(slot_id: int, point: Vector3) -> void:
 
 @rpc("authority", "call_remote", "unreliable", CURSOR_CHANNEL)
 func net_cat_state(id: int, position: Vector3, velocity: Vector3, point: Vector3, remaining: float) -> void:
+	if _client_awaiting_world():
+		return
 	_authority().apply_replicated_cat_state(id, position, velocity, point, remaining)
 
 
@@ -1599,6 +2009,7 @@ func net_match_loading() -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func net_match_start(config_data: Dictionary, roster: Array) -> void:
+	_awaiting_match_start = false
 	var match_config: MatchConfig = MatchConfig.from_dict(config_data)
 	match_config.sanitize()
 	reset_counters()
@@ -1621,8 +2032,32 @@ func _apply_roster(roster: Array) -> void:
 		target.is_local = bool(_session().is_local_slot(target.slot_id))
 
 
+## Bontago-8or.11: the client half of the replay handshake. Lands after every
+## replay message (reliable, ordered), so the world is built by now.
+@rpc("authority", "call_remote", "reliable")
+func net_replay_end(replay_id: int) -> void:
+	if _is_host() or _client_awaiting_world() or replay_id <= 0:
+		return
+	last_replay_acknowledged = replay_id
+	if _can_send():
+		rpc_id(Net.HOST_PEER_ID, &"net_replay_ack", replay_id)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func net_replay_ack(replay_id: int) -> void:
+	_handle_replay_ack(multiplayer.get_remote_sender_id(), replay_id)
+
+
+## True on a client that has not received net_match_start since it joined
+## (see _awaiting_match_start).
+func _client_awaiting_world() -> bool:
+	return _awaiting_match_start and not _is_host()
+
+
 @rpc("authority", "call_remote", "reliable")
 func net_match_event(event: StringName, args: Array) -> void:
+	if _client_awaiting_world():
+		return
 	match event:
 		EVENT_CAT_STARTED:
 			if _is_host() or args.size() != 4 or not args[0] is int or not args[1] is int:
@@ -1887,6 +2322,22 @@ func net_match_event(event: StringName, args: Array) -> void:
 			if dissolving == null or not is_instance_valid(dissolving):
 				return
 			Events.block_dissolve_started.emit(dissolving, dissolving_id, _hole_dissolve_tuning.dissolve_delay_s)
+		EVENT_SLOT_REPLAY:
+			if _is_host():
+				return
+			_apply_slot_replay(args)
+		EVENT_MATCH_CLOCK:
+			if _is_host() or args.size() != 1 or not (args[0] is float or args[0] is int):
+				return
+			var clock: float = float(args[0])
+			if not is_finite(clock) or clock < 0.0:
+				return
+			# DECISION (Bontago-8or.11): the client's read model of the match
+			# timer is written directly, the way this file already reaches
+			# _lifecycle/_feed elsewhere -- autoload/Match.gd and
+			# MatchLifecycle.gd are outside this package. A client never
+			# ticks it; timed modes keep it current through EVENT_MODE_STATE.
+			_authority()._lifecycle._match_timer_left = clock
 		EVENT_BLOCK_OWNER_CHANGED:
 			if _is_host() or args.size() != 2 or not args[0] is int or not args[1] is int:
 				return
@@ -1923,6 +2374,8 @@ func net_block_spawned(
 	rotation: Quaternion,
 	gift_id: StringName = &""
 ) -> void:
+	if _client_awaiting_world():
+		return
 	if not Quantize.is_wire_id(net_id):
 		# Defensive: a well-behaved host never sends this (replicate_spawn()'s
 		# own guard above), but this is the client's own boundary and must not
@@ -1972,6 +2425,8 @@ func net_block_spawned(
 
 @rpc("authority", "call_remote", "reliable")
 func net_block_despawned(net_id: int, reason: String) -> void:
+	if _client_awaiting_world():
+		return
 	_spawned_net_ids.erase(net_id)
 	var registry: BlockRegistry = _authority().registry()
 	if registry == null:
@@ -2002,6 +2457,8 @@ func net_territory(
 	capture_progress: float,
 	circle_payload: PackedByteArray = PackedByteArray()
 ) -> void:
+	if _client_awaiting_world():
+		return
 	var decoded: Dictionary = decode_raster_payload(payload, full)
 	if decoded.is_empty():
 		return
@@ -2035,7 +2492,7 @@ func net_territory(
 
 @rpc("authority", "call_remote", "unreliable", CURSOR_CHANNEL)
 func net_cursor(slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion) -> void:
-	if bool(_session().is_local_slot(slot_id)):
+	if _client_awaiting_world() or bool(_session().is_local_slot(slot_id)):
 		return
 	_store_cursor(slot_id, origin, orientation_index, free_quat)
 	Events.remote_cursor_updated.emit(slot_id, origin, orientation_index, free_quat)
