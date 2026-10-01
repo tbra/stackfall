@@ -68,7 +68,7 @@ Use it for an independent review, a hard bug, or an isolated implementation pack
 - Run the editor: `godot --editor --path .`
 - Run the game: `godot --path .`
 - Steam-online dev run: `godot --path . -- --steam-online` (test AppID 480's Steam Input intercepts controller events on this Windows setup, so the ordinary local run skips Steam init; `--host-online` also initializes Steam). A real AppID restores automatic Steam init.
-- Headless unit tests: `godot --headless --path . -s addons/gut/gut_cmdln.gd -gdir=res://tests -gexit`
+- Full gate (owner 2026-10-02): `python tools/full_gate.py [--path <checkout>]` runs the whole GUT suite sharded across parallel headless Godot processes, re-runs failing scripts alone once (pass-alone = reported `parallel_flaky`, not a failure) and prints one `FULL GATE GREEN|RED` line. The orchestrator launches it in the background and keeps working; it never blocks on the full suite. Plain serial run: `godot --headless --path . -s addons/gut/gut_cmdln.gd -gdir=res://tests -gexit`
 - Targeted unit tests while iterating (seconds, not 20 min; `.gutconfig.json` makes `-gselect` run everything): `powershell -NoProfile -File tools/run_gut.ps1 test_net_session,test_steam_client` (`-Unit <substring>` for one test, `-Path <checkout>` for a worktree). The full suite now takes ~2 min (fixtures use a tiny map); the orchestrator still runs it once per merged batch, workers use the targeted runner.
 - Regenerate settings + Input Map: `godot --headless --path . -s tools/bootstrap_project.gd`
 - Open-the-project check (must print no errors or warnings): `godot --headless --editor --path . --quit`
