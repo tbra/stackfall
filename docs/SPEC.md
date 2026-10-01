@@ -137,7 +137,7 @@ Audit date: 2026-09-20. DigiPen, the interview, release thread, description mirr
   - Circles disconnected from home provide no usable territory. For capture, a route must survive in the **final owned area**, not merely in a pre-contest circle graph. Enemy territory or a hole cutting the only route must break capture. The propagation/cut-off algorithm needs review (§3.3).
 - **Height credit [RECONSTRUCTED]:** permanent placer ownership and influence from a block on an opponent's tower are provisional remake choices. Do not infer support-chain ownership, a whole-stack transfer, or original permission to place there regardless of territory.
 - **Overlap holes [ORIGINAL target; mechanics RECONSTRUCTED]:** use the historical evidence in §1.2 rather than the earlier assertion that holes meant only goal zones. Opposing candidate influence creates a contested region that neither player may use for placement. The old cell-collision implementation is one approximation, not verified original geometry.
-  - Retained prototype tuning: `hole_delay = 0.75 s`; opened cells remove floor support. A wide body can bridge a small opening; do not promise that any overlap with a hole destroys the entire body. Exact original activation/collision behavior is **[OPEN]**.
+  - Retained prototype tuning: `hole_delay = 0.75 s`. **[OWNER decision 2026-10-01, Bontago-gdb option A]** holes are a visual void, not a physical opening: the disc collision stays solid, and a block whose footprint touches an applied hole cell at disc level dissolves (short fade, `HoleDissolveTuning`) and is removed like an edge fall; blocks stacked above then land on the void and dissolve too. A block merely above a hole, or rising away from it, is unaffected. Hole lifetime modes, home elimination (a hole opening under a home flag) and Jumping Bean holes are unchanged. This supersedes the earlier floor-removal/bridging note; the original's exact collision behavior remains unrecovered.
   - `hole_mode` values:
     - `TEMPORARY` — **provisional default** toward original overlap-hole behavior; closes 2 s after contest ends. These delays and closure semantics are **[NEW]**, not historical facts.
     - `PERMANENT` — **[NEW]** erosion variant.
@@ -566,7 +566,7 @@ Each milestone ends with a playable build and passes its acceptance criteria.
 
 ### M2 — Rules & territory (historical prototype; revised acceptance below)
 - `TerritorySolver` with unit tests covering overlap, connectivity, being cut off, and teams.
-- Territory raster and shader, contested zones, holes (visuals and collision), placement validation, block feed and timer with auto-drop, next-block preview, goal flag, win check, basic HUD.
+- Territory raster and shader, contested zones, holes (visuals and dissolve-on-contact), placement validation, block feed and timer with auto-drop, next-block preview, goal flag, win check, basic HUD.
 - The original hot-seat build was a test harness, not evidence of original player turn-taking. Its closed milestone does not certify the corrected rules.
 - **Current rule acceptance:** use concurrent players (local multi-instance or bots), validate §2.4 cadence, overlap holes under the provisional default, no-build goal zones and point-based placement, continuous collapse updates, and home-connected capture. See the scenarios below. A separate hot-seat/turn-based test mode must not become normal play.
 
