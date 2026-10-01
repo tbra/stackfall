@@ -422,6 +422,11 @@ func apply_replicated_mode_state(state: Dictionary) -> void:
 	if objective.mode_id() != int(state.get("mode_id", -1)):
 		return
 	objective.apply_mode_state(state)
+	if objective is EliminationObjective:
+		# A rejoining or late client learns who is out from the state itself.
+		for slot_item: PlayerSlot in _slots:
+			if (objective as EliminationObjective).is_slot_out(slot_item.slot_id):
+				slot_item.home_flag_alive = false
 	_match_timer_left = float(state.get("round_left", _match_timer_left))
 	Events.mode_state_changed.emit(state)
 
@@ -684,6 +689,7 @@ func disconnect_grace_left(slot_id: int) -> float:
 
 
 func _tick_disconnect_grace(delta: float) -> void:
+	var eliminated_any: bool = false
 	for i: int in range(_disconnect_grace_left.size()):
 		if _disconnect_grace_left[i] < 0.0:
 			continue
@@ -692,6 +698,9 @@ func _tick_disconnect_grace(delta: float) -> void:
 			continue
 		_disconnect_grace_left[i] = -1.0
 		_eliminate_slot(i)
+		eliminated_any = true
+	if eliminated_any and _match._territory._objective is EliminationObjective:
+		_check_last_team_standing()
 
 
 ## The one elimination path, shared by a home flag lost to a hole (spec 2.2)
@@ -702,6 +711,13 @@ func _eliminate_slot(slot_id: int) -> void:
 	if not target.home_flag_alive:
 		return
 	target.home_flag_alive = false
+	var objective: ModeObjective = _match._territory._objective
+	if objective is EliminationObjective:
+		# Elimination judges a whole batch together (simultaneous home losses),
+		# so the caller's _check_last_team_standing() runs after its loop.
+		(objective as EliminationObjective).slot_eliminated(slot_id)
+		Events.player_eliminated.emit(target.slot_id, target.team_id)
+		return
 	Events.player_eliminated.emit(target.slot_id, target.team_id)
 	_check_last_team_standing()
 
@@ -724,12 +740,29 @@ static func is_live_state(state: MatchAutoload.State) -> bool:
 func _check_last_team_standing() -> void:
 	if not MatchLifecycle.is_live_state(_state):
 		return
+	var elimination: ModeObjective = _match._territory._objective
+	if elimination is EliminationObjective:
+		_resolve_elimination(elimination as EliminationObjective)
+		return
 	var alive_teams: Dictionary = {}
 	for slot_item: PlayerSlot in _slots:
 		if slot_item.home_flag_alive:
 			alive_teams[slot_item.team_id] = true
 	if alive_teams.size() == 1:
 		_finish_match(alive_teams.keys()[0])
+
+
+## Elimination (Bontago-22y.8): the objective decides the outcome of the
+## eliminations since the last call (last team standing, or the same-batch
+## larger-share tiebreak) and the final state is published before the END.
+func _resolve_elimination(objective: EliminationObjective) -> void:
+	var shares: PackedFloat32Array = PackedFloat32Array()
+	for team: int in range(_match.config.team_count()):
+		shares.append(_match._territory.territory_share(team))
+	var winning_team: int = objective.resolve(shares)
+	publish_mode_state_if_changed()
+	if winning_team != ModeObjective.NO_TEAM:
+		_finish_match(winning_team)
 
 
 func _finish_match(winning_team: int) -> void:

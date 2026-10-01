@@ -778,13 +778,13 @@ theme_override_constants/separation = 4
 layout_mode = 2
 theme_type_variation = &"CaptionLabel"
 theme_override_font_sizes/font_size = 10
-text = "Round timer (timed modes)"
+text = "Round timer (0=off: Elimination)"
 
 [node name="RoundTimerSpin" type="SpinBox" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules/RoundTimerCol"]
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(110, 0)
-min_value = 1
+min_value = 0
 max_value = 40
 value = 10
 

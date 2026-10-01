@@ -43,6 +43,8 @@ static func create(
 	match MatchConfig.resolve_game_mode(mode):
 		MatchConfig.GameMode.CAPTURE_THE_FLAG:
 			objective = CaptureFlagObjective.new(goal_positions, beacon_score_rate, beacon_replicate_interval)
+		MatchConfig.GameMode.ELIMINATION:
+			objective = EliminationObjective.new(slot_teams)
 		MatchConfig.GameMode.REACH_THE_SKY:
 			objective = ReachSkyObjective.new(slot_teams, sky_sum_members, sky_replicate_interval)
 		_:

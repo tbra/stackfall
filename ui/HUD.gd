@@ -543,8 +543,12 @@ static func mode_score_text(state: Dictionary) -> String:
 	var parts: PackedStringArray = PackedStringArray()
 	# Reach the Sky scores are record heights in meters (Bontago-22y.9).
 	var unit: String = " m" if int(state.get("mode_id", -1)) == MatchConfig.GameMode.REACH_THE_SKY else ""
+	var elimination: bool = int(state.get("mode_id", -1)) == MatchConfig.GameMode.ELIMINATION
 	for team: int in range(scores.size()):
-		parts.append("%d: %s%s" % [team + 1, String.num(float(scores[team]), 1), unit])
+		if elimination:
+			parts.append("%d: %s" % [team + 1, ResultsScreen.survivor_text(int(scores[team]))])
+		else:
+			parts.append("%d: %s%s" % [team + 1, String.num(float(scores[team]), 1), unit])
 	var text: String = "  ".join(parts)
 	var left: int = int(ceil(float(state.get("round_left", 0.0))))
 	if left > 0:

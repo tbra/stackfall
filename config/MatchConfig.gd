@@ -64,12 +64,17 @@ const SKY_THEME_IDS: PackedStringArray = ["sunset", "night"]
 ## fall back to CLASSIC. A mode package makes its id selectable by adding it
 ## to SELECTABLE_GAME_MODES and giving ModeObjective.create() a branch.
 enum GameMode { CLASSIC, CAPTURE_THE_FLAG, ELIMINATION, REACH_THE_SKY }
-const SELECTABLE_GAME_MODES: Array[int] = [GameMode.CLASSIC, GameMode.CAPTURE_THE_FLAG, GameMode.REACH_THE_SKY]
+const SELECTABLE_GAME_MODES: Array[int] = [
+	GameMode.CLASSIC, GameMode.CAPTURE_THE_FLAG, GameMode.ELIMINATION, GameMode.REACH_THE_SKY
+]
 ## Lobby labels, indexed by GameMode.
 const GAME_MODE_LABELS: PackedStringArray = ["Classic", "Capture the Flag", "Elimination", "Reach the Sky"]
 ## Round timer (timed modes only), minutes. Classic keeps match_timer_minutes.
 const ROUND_TIMER_MIN_MINUTES: int = 1
 const ROUND_TIMER_MAX_MINUTES: int = 40
+## Elimination alone may switch its round timer off (0): it then runs until one
+## team is left. Every other timed mode needs a timer to end.
+const ROUND_TIMER_OFF_MINUTES: int = 0
 
 ## -- Spec 2.8 table, in order -----------------------------------------------
 @export var map_variant: MapVariant = MapVariant.ROUND
@@ -204,6 +209,12 @@ static func is_game_mode_selectable(mode: int) -> bool:
 	return SELECTABLE_GAME_MODES.has(mode)
 
 
+## Round timer minutes clamped for `mode`: 0 (off) survives only for Elimination.
+static func clamp_round_timer(minutes: int, mode: int) -> int:
+	var lowest: int = ROUND_TIMER_OFF_MINUTES if mode == GameMode.ELIMINATION else ROUND_TIMER_MIN_MINUTES
+	return clampi(minutes, lowest, ROUND_TIMER_MAX_MINUTES)
+
+
 ## `mode` itself when selectable, otherwise CLASSIC (the reserved/unknown
 ## fallback documented at GameMode).
 static func resolve_game_mode(mode: int) -> GameMode:
@@ -301,7 +312,7 @@ func sanitize() -> void:
 	hole_mode = clampi(hole_mode, HoleMode.TEMPORARY, HoleMode.OFF) as HoleMode
 	match_timer_minutes = maxi(match_timer_minutes, 0)
 	game_mode = resolve_game_mode(game_mode)
-	round_timer_minutes = clampi(round_timer_minutes, ROUND_TIMER_MIN_MINUTES, ROUND_TIMER_MAX_MINUTES)
+	round_timer_minutes = clamp_round_timer(round_timer_minutes, game_mode)
 	# turn_based is a plain bool -- no range to clamp.
 	weather_mode = clampi(weather_mode, WeatherMode.OFF, WeatherMode.CHANGING) as WeatherMode
 	sky_theme_mode = clampi(sky_theme_mode, SkyThemeMode.DAY, SkyThemeMode.RANDOM) as SkyThemeMode
@@ -400,9 +411,8 @@ static func from_dict(data: Dictionary) -> MatchConfig:
 	config.sudden_death = bool(data.get("sudden_death", config.sudden_death))
 	config.turn_based = bool(data.get("turn_based", config.turn_based))
 	config.game_mode = resolve_game_mode(int(data.get("game_mode", config.game_mode)))
-	config.round_timer_minutes = clampi(
-		int(data.get("round_timer_minutes", config.round_timer_minutes)),
-		ROUND_TIMER_MIN_MINUTES, ROUND_TIMER_MAX_MINUTES
+	config.round_timer_minutes = clamp_round_timer(
+		int(data.get("round_timer_minutes", config.round_timer_minutes)), config.game_mode
 	)
 	config.sky_team_sum = bool(data.get("sky_team_sum", config.sky_team_sum))
 	config.weather_mode = int(data.get("weather_mode", config.weather_mode)) as WeatherMode
