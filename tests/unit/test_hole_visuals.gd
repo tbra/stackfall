@@ -97,6 +97,102 @@ func test_minimap_shader_has_a_hole_colour() -> void:
 	assert_true(code.contains("uniform vec4 hole_color"))
 
 
+# --- Smooth void territory (Bontago-1pi.11.44) --------------------------------
+
+func _state_bytes(holes: Array[Vector2i]) -> PackedByteArray:
+	var bytes: PackedByteArray = PackedByteArray()
+	bytes.resize(CELLS_PER_SIDE * CELLS_PER_SIDE)
+	for cell: Vector2i in holes:
+		bytes[cell.y * CELLS_PER_SIDE + cell.x] = TerritoryRaster.STATE_CONTESTED | TerritoryRaster.STATE_HOLE
+	return bytes
+
+
+## Mirror of territory.gdshader's linear-filtered territory_hole read at a
+## continuous cell-space point (texel centres at cell centres).
+func _mask_at(image: Image, cell_point: Vector2, channel: int = 0) -> float:
+	var f: Vector2 = cell_point - Vector2(0.5, 0.5)
+	var base: Vector2i = Vector2i(floori(f.x), floori(f.y))
+	var w: Vector2 = f - Vector2(base)
+	var total: float = 0.0
+	for dy: int in range(2):
+		for dx: int in range(2):
+			var tx: int = clampi(base.x + dx, 0, CELLS_PER_SIDE - 1)
+			var ty: int = clampi(base.y + dy, 0, CELLS_PER_SIDE - 1)
+			var weight: float = (w.x if dx == 1 else 1.0 - w.x) * (w.y if dy == 1 else 1.0 - w.y)
+			total += image.get_pixel(tx, ty)[channel] * weight
+	return total
+
+
+## Mirror of void_signed_distance() with a 1 m cell: g is the smooth overlap field.
+func _void_d(image: Image, p: Vector2, g: float) -> float:
+	var mask: float = _mask_at(image, p)
+	var contested: float = _mask_at(image, p, 1)
+	var blob: float = mask - 0.5 if contested < 0.05 else -1000000.0
+	return maxf(minf(g, mask - 0.2), blob)
+
+
+func test_hole_mask_texture_follows_open_and_close() -> void:
+	var overlay: TerritoryOverlay = _overlay()
+	var cell: Vector2i = Vector2i(5, 6)
+	overlay.push_cells(PackedByteArray(), _state_bytes([cell]), CELLS_PER_SIDE)
+	var image: Image = overlay.hole_mask_image()
+	assert_almost_eq(image.get_pixel(cell.x, cell.y).r, 1.0, 0.01)
+	assert_almost_eq(image.get_pixel(cell.x + 1, cell.y).r, 0.0, 0.01)
+	assert_eq(overlay.material().get_shader_parameter(&"territory_hole"), overlay.hole_mask_texture())
+	overlay.push_cells(PackedByteArray(), _state_bytes([]), CELLS_PER_SIDE)
+	assert_almost_eq(overlay.hole_mask_image().get_pixel(cell.x, cell.y).r, 0.0, 0.01, "A closed hole clears.")
+
+
+func test_contested_only_cell_is_not_a_void() -> void:
+	var overlay: TerritoryOverlay = _overlay()
+	var bytes: PackedByteArray = _state_bytes([])
+	bytes[3] = TerritoryRaster.STATE_CONTESTED
+	overlay.push_cells(PackedByteArray(), bytes, CELLS_PER_SIDE)
+	assert_almost_eq(overlay.hole_mask_image().get_pixel(3, 0).r, 0.0, 0.01, "Contested before hole_delay stays hidden.")
+
+
+func test_void_edge_follows_a_curved_boundary_not_cell_squares() -> void:
+	var overlay: TerritoryOverlay = _overlay()
+	var holes: Array[Vector2i] = []
+	for y: int in range(3, 10):
+		for x: int in range(3, 10):
+			holes.append(Vector2i(x, y))
+	overlay.push_cells(PackedByteArray(), _state_bytes(holes), CELLS_PER_SIDE)
+	var image: Image = overlay.hole_mask_image()
+	# A circle of radius 3.3 cells about (6.5, 6.5): g = radius - distance.
+	var centre: Vector2 = Vector2(6.5, 6.5)
+	var seen_in: bool = false
+	var seen_out: bool = false
+	for step: int in range(0, 20):
+		var p: Vector2 = Vector2(9.0 + float(step) / 20.0, 6.5)
+		var inside: bool = _void_d(image, p, 3.3 - p.distance_to(centre)) > 0.0
+		seen_in = seen_in or inside
+		seen_out = seen_out or not inside
+	assert_true(seen_in and seen_out, "One hole cell is partly void, partly floor: the edge is the circle, not the cell.")
+	var far_corner: Vector2 = Vector2(9.95, 6.95)
+	var cell_centre: Vector2 = Vector2(9.5, 6.5)
+	assert_lt(_void_d(image, far_corner, 3.3 - far_corner.distance_to(centre)), 0.0)
+	assert_gt(_void_d(image, cell_centre, 3.3 - cell_centre.distance_to(centre)), 0.0)
+
+
+func test_isolated_hole_without_overlap_is_a_rounded_blob() -> void:
+	var overlay: TerritoryOverlay = _overlay()
+	var bytes: PackedByteArray = _state_bytes([])
+	bytes[6 * CELLS_PER_SIDE + 6] = TerritoryRaster.STATE_HOLE
+	overlay.push_cells(PackedByteArray(), bytes, CELLS_PER_SIDE)
+	var image: Image = overlay.hole_mask_image()
+	var no_overlap: float = -1000000.0
+	assert_gt(_void_d(image, Vector2(6.5, 6.5), no_overlap), 0.0, "Centre of a forced hole is void.")
+	assert_lt(_void_d(image, Vector2(6.02, 6.02), no_overlap), 0.0, "The cell corner is rounded off.")
+
+
+func test_shader_wires_the_overlap_void_layer() -> void:
+	var code: String = (load("res://shaders/territory.gdshader") as Shader).code
+	assert_true(code.contains("uniform sampler2D territory_hole"))
+	assert_true(code.contains("void_g = argmax_mode"), "circle_path publishes the smooth overlap field.")
+	assert_true(code.contains("void_signed_distance("))
+
+
 # --- Block dissolve ----------------------------------------------------------
 
 func test_dissolve_start_fades_only_the_right_block() -> void:

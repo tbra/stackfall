@@ -129,6 +129,10 @@ var _material: ShaderMaterial = null
 var _texture: ImageTexture = null
 var _cell_texture: ImageTexture = null
 var _state_texture: ImageTexture = null
+## Bontago-1pi.11.44: hole + contested bits as an RG8 mask (0/255), bound
+## linear-filtered so the void shader reads a smooth hole field.
+var _hole_texture: ImageTexture = null
+var _hole_cell_image: Image = null
 var _raster: TerritoryRaster = null
 ## Bontago-1pi.11.23: raster revision last pushed to the textures; -1 = none.
 var _pushed_revision: int = -1
@@ -327,11 +331,38 @@ func push_cells(
 	_state_cell_image = state_image
 	_cell_texture = _store(_cell_texture, owner_image)
 	_state_texture = _store(_state_texture, state_image)
+	_hole_cell_image = _hole_mask_image(state_image.get_data(), side)
+	_hole_texture = _store(_hole_texture, _hole_cell_image)
+	_material.set_shader_parameter(&"territory_hole", _hole_texture)
 	_material.set_shader_parameter(&"territory_cells", _cell_texture)
 	_material.set_shader_parameter(&"territory_state", _state_texture)
 	_material.set_shader_parameter(&"territory_state_soft", _state_texture)
 	_set_image(_upscaled(owner_image, side))
 	_apply_uv_uniforms(side)
+
+
+## Bontago-1pi.11.44: R = STATE_HOLE, G = STATE_CONTESTED of each state byte
+## (0/255), the texture shaders/territory.gdshader's void samples with a
+## linear filter (G tells a hole inside an overlap from one outside any).
+func _hole_mask_image(state_bytes: PackedByteArray, side: int) -> Image:
+	var mask: PackedByteArray = PackedByteArray()
+	mask.resize(state_bytes.size() * 2)
+	for i: int in range(state_bytes.size()):
+		if (state_bytes[i] & STATE_HOLE) != 0:
+			mask[i * 2] = 255
+		if (state_bytes[i] & STATE_CONTESTED) != 0:
+			mask[i * 2 + 1] = 255
+	return Image.create_from_data(side, side, false, Image.FORMAT_RG8, mask)
+
+
+## The smoothed hole mask texture (tests read it).
+func hole_mask_texture() -> ImageTexture:
+	return _hole_texture
+
+
+## CPU copy of the hole mask (ImageTexture.get_image() is empty headless).
+func hole_mask_image() -> Image:
+	return _hole_cell_image
 
 
 ## Bontago-cmc.5: the analytic circle list a solve step just produced —
