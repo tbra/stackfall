@@ -1033,8 +1033,14 @@ func test_height_record_is_monotone_and_resets_on_sandbox_reset_field() -> void:
 	# reach PhysicsTuning.sleep_settle_time.
 	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres")
 	var settle_ticks: int = int(ceil(tuning.sleep_settle_time * Engine.physics_ticks_per_second)) + 5
-	for _i: int in range(settle_ticks):
+	# Bontago-1pi.11.40: the block falls, may land on the home beacon and rock
+	# before sleeping, so a fixed tick count was flaky. Wait on the settle
+	# condition itself, with a bounded ceiling (10 s of physics).
+	var max_ticks: int = settle_ticks + 10 * Engine.physics_ticks_per_second
+	var waited: int = 0
+	while waited < max_ticks and Match.registry().max_height_for_slot(0) <= 0.0:
 		await get_tree().physics_frame
+		waited += 1
 	panel._refresh()
 	var after_one: float = Match.registry().max_height_for_slot(0)
 	assert_gt(after_one, 0.0, "fixture: a settled block has positive height")
