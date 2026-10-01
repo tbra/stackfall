@@ -59,6 +59,33 @@ foreach ($dll in @("libgodotsteam.windows.template_release.x86_64.dll", "libgodo
 # build that was not started by the Steam client itself.
 Set-Content -Path (Join-Path $outDir "steam_appid.txt") -Value "480" -Encoding ascii -NoNewline
 
+# Playtest share (owner 2026-10-01): with the 480 test AppID a plain launch
+# skips Steam init (game/Main.gd), so testers get a launcher that opts in.
+$launcher = "@echo off`r`nstart `"`" `"%~dp0Stackfall.exe`" -- --steam-online`r`n"
+Set-Content -Path (Join-Path $outDir "Play Online (Steam).bat") -Value $launcher -Encoding ascii -NoNewline
+$readme = @"
+Stackfall playtest build
+
+ONLINE OVER STEAM
+1. Make sure Steam is running and you are logged in.
+2. Start the game with "Play Online (Steam).bat" (not Stackfall.exe directly).
+3. Host: click "Host online (Steam)" in the main menu, then invite friends
+   with the Steam overlay (Shift+Tab). Friends accept the invite, or press
+   Refresh under STEAM LOBBIES and pick the host's lobby.
+   The build uses Steam's shared test app (Spacewar, AppID 480), so Steam
+   may show you as playing "Spacewar". That is expected.
+
+LOCAL / LAN
+Run Stackfall.exe directly for local play, bots, LAN or direct IP.
+
+CONTROLLERS
+In online mode Steam Input (test AppID) can capture gamepads; if a pad does
+not respond, use keyboard and mouse or disable Steam Input for Spacewar.
+
+Windows may warn about an unknown publisher: More info > Run anyway.
+"@
+Set-Content -Path (Join-Path $outDir "README-PLAYTEST.txt") -Value $readme -Encoding ascii
+
 # Sfx loads effect files directly from <exe dir>/assets/effects in exports,
 # not from the PCK. Mirror that folder beside the exe or the editor's working
 # hover sound (and all other effects) becomes silent in a packaged build.
