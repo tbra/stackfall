@@ -177,6 +177,8 @@ var _overlay: TerritoryOverlay = null
 ## game/DiscBody.gd's own class doc.
 var _disc_body: DiscBody = null
 var _home_flags: Array[HomeFlag] = []
+## slot id -> PackedInt32Array of shape owners holding that beacon's collision.
+var _flag_owner_ids: Dictionary = {}
 var _goal_flags: Array[GoalFlag] = []
 var _slot_colors: PackedColorArray = PackedColorArray()
 
@@ -201,6 +203,7 @@ func _ready() -> void:
 	_build_overlay()
 	_build_disc_body()
 	Events.hole_cells_changed.connect(_on_hole_cells_changed)
+	Events.player_eliminated.connect(_on_player_eliminated_for_flags)
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 	Events.territory_updated.connect(_on_territory_updated_for_goals)
 	Events.territory_replicated.connect(refresh_goal_control)
@@ -1203,6 +1206,7 @@ func place_flags(slot_count: int, slot_colors: PackedColorArray, goal_count: int
 		add_child(flag)
 		flag.set_slot(slot_id, _color_for_index(slot_id))
 		_home_flags.append(flag)
+		_add_flag_collision(slot_id, flag)
 	for local: Vector2 in goal_flag_positions(goal_count):
 		var flag: GoalFlag = goal_flag_scene.instantiate() as GoalFlag
 		flag.visuals = visuals
@@ -1212,12 +1216,52 @@ func place_flags(slot_count: int, slot_colors: PackedColorArray, goal_count: int
 
 
 func _clear_flags() -> void:
+	for slot_id: int in _flag_owner_ids.keys():
+		_remove_flag_collision(slot_id)
 	for flag: HomeFlag in _home_flags:
 		flag.queue_free()
 	for flag: GoalFlag in _goal_flags:
 		flag.queue_free()
 	_home_flags = []
 	_goal_flags = []
+
+
+## Bontago-6fc.4: a home beacon collides as extra shapes on this body, so it
+## follows the tilting disc exactly like the disc's own collision and uses its
+## physics material. DECISION: no collision layer split. Everything stays on
+## layer 1, so the placement point-ray (which reads only the hit's x/z) and
+## the ghost's surface ray simply hit the beacon top: a block over a beacon is
+## placed normally, falls and lands on it, and the ghost hovers at its top.
+func _add_flag_collision(slot_id: int, flag: HomeFlag) -> void:
+	# A shape owner has one transform for all its shapes, so each part of the
+	# compound gets its own owner.
+	var owners: PackedInt32Array = PackedInt32Array()
+	var shapes: Array[Shape3D] = flag.collision_shapes()
+	var transforms: Array[Transform3D] = flag.collision_transforms()
+	for i: int in range(shapes.size()):
+		var owner_id: int = create_shape_owner(self)
+		shape_owner_add_shape(owner_id, shapes[i])
+		shape_owner_set_transform(owner_id, Transform3D(Basis.IDENTITY, flag.position) * transforms[i])
+		owners.append(owner_id)
+	_flag_owner_ids[slot_id] = owners
+
+
+func _remove_flag_collision(slot_id: int) -> void:
+	if not _flag_owner_ids.has(slot_id):
+		return
+	for owner_id: int in (_flag_owner_ids[slot_id] as PackedInt32Array):
+		remove_shape_owner(owner_id)
+	_flag_owner_ids.erase(slot_id)
+
+
+## An eliminated slot's beacon stops colliding (its home cell opens as a hole).
+func _on_player_eliminated_for_flags(slot_id: int, _team_id: int) -> void:
+	_remove_flag_collision(slot_id)
+
+
+## Shape owner ids holding a slot's beacon collision (empty when none).
+func flag_collision_owners(slot_id: int) -> PackedInt32Array:
+	return _flag_owner_ids.get(slot_id, PackedInt32Array()) as PackedInt32Array
 
 
 func home_flags() -> Array[HomeFlag]:
