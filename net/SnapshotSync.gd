@@ -109,6 +109,9 @@ var _host_clock_ms: float = 0.0
 var _last_snapshot_bytes: int = 0
 var _keyframe_cursor: int = 0
 var _known_peer_count: int = 0
+## Peer ids seen last tick (sorted); a new id forces a full snapshot even
+## when another peer left in the same tick (review of Bontago-1pi.11.27).
+var _known_peers: PackedInt32Array = PackedInt32Array()
 var _disk: Node3D = null
 
 # --- Client state -----------------------------------------------------------
@@ -264,20 +267,28 @@ func host_tick(delta: float) -> void:
 	if not _running or not Net.is_host() or Net.is_offline():
 		return
 	_host_clock_ms += delta * 1000.0
-	var peer_count: int = _remote_peer_count()
+	var peers: PackedInt32Array = _remote_peers()
+	var peer_count: int = peers.size()
 	if peer_count == 0:
 		# Nobody to send to: skip selection, quantization and packing. Forget
 		# what was "sent" so the first snapshot after a peer connects (join,
 		# mid-match join, reconnect) carries every body, not just movers.
 		_known_peer_count = 0
+		_known_peers = PackedInt32Array()
 		_last_sent.clear()
 		_last_snapshot_bytes = 0
 		_send_accumulator = 0.0
 		return
-	if peer_count > _known_peer_count:
+	var has_new_peer: bool = false
+	for peer_id: int in peers:
+		if _known_peers.bsearch(peer_id) >= _known_peers.size() or _known_peers[_known_peers.bsearch(peer_id)] != peer_id:
+			has_new_peer = true
+			break
+	if has_new_peer:
 		_last_sent.clear()
 		_send_accumulator = 1.0 / maxf(config.snapshot_hz, 1.0)
 	_known_peer_count = peer_count
+	_known_peers = peers
 	_send_accumulator += delta
 	var interval: float = 1.0 / maxf(config.snapshot_hz, 1.0)
 	if _send_accumulator < interval:
@@ -671,9 +682,16 @@ func _is_spawned(net_id: int) -> bool:
 
 
 func _remote_peer_count() -> int:
+	return _remote_peers().size()
+
+
+## Sorted remote peer ids (empty without a multiplayer peer).
+func _remote_peers() -> PackedInt32Array:
 	if not multiplayer.has_multiplayer_peer():
-		return 0
-	return multiplayer.get_peers().size()
+		return PackedInt32Array()
+	var peers: PackedInt32Array = multiplayer.get_peers()
+	peers.sort()
+	return peers
 
 
 ## {"bodies": Array, "keyframe": bool} for this tick.
