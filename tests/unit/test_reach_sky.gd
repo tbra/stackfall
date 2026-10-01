@@ -335,3 +335,22 @@ func test_client_mirrors_host_records_for_display_only() -> void:
 	assert_eq(Match.state(), Match.State.PLAYING)
 	assert_eq(shown.size(), 1)
 	assert_eq(HUD.mode_score_text(shown[0]), "1: 7.5 m  2: 2.0 m   1:01")
+
+
+## Bontago-1t5.3: the bot goal reports the owner's tallest settled block, none before one settles.
+func test_bot_mode_goal_reports_the_tallest_settled_tower() -> void:
+	_setup_world()
+	Match.start_match(_sky_config(false, false))
+	_tick(Match.COUNTDOWN_SECONDS + 0.1)
+	var goal: BotModeGoal = Match.bot_mode_goal(0)
+	assert_eq(goal.mode, MatchConfig.GameMode.REACH_THE_SKY)
+	assert_false(goal.has_tower)
+	_place("res://config/blocks/cube.tres", 0, Vector3(4.0, 0.5, 2.0))
+	var ticks: int = int(ceil(_tuning.sleep_settle_time * Engine.physics_ticks_per_second)) + 5
+	for _i: int in range(ticks):
+		await get_tree().physics_frame
+	goal = Match.bot_mode_goal(0)
+	assert_true(goal.has_tower)
+	assert_almost_eq(goal.tower_origin.x, 4.0, 0.1)
+	assert_gt(goal.tower_height, 0.0)
+	assert_false(Match.bot_mode_goal(1).has_tower)

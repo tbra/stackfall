@@ -346,6 +346,44 @@ func _finish_objective_step() -> void:
 		_match._lifecycle._finish_match(_objective.winner())
 
 
+## Bontago-1t5.3: the mode goal context bots score against (null in Classic,
+## so classic scoring is untouched). Host-side; reads the live
+## objective, raster and registry only.
+func bot_mode_goal(slot_id: int) -> BotModeGoal:
+	if _objective == null:
+		return null
+	var goal: BotModeGoal = BotModeGoal.new()
+	goal.mode = _objective.mode_id()
+	if _objective is CaptureFlagObjective:
+		var own_team: int = _match.team_of(slot_id)
+		goal.beacon_score_rate = _match._territory_tuning.ctf_score_per_beacon_second
+		goal.beacon_positions = PlayerSlot.goal_positions_for(
+			_match.config.effective_goal_flag_count(), _match.config.map_def()
+		)
+		for point: Vector2 in goal.beacon_positions:
+			goal.beacon_held_by_own.append(_raster != null and WinChecker.goal_holder(_raster, point) == own_team)
+	elif _objective is EliminationObjective:
+		var own_team_e: int = _match.team_of(slot_id)
+		for slot_item: PlayerSlot in _match._lifecycle._slots:
+			if not slot_item.home_flag_alive:
+				continue
+			if slot_item.slot_id == slot_id:
+				goal.has_own_home = true
+				goal.own_home_position = slot_item.home_position
+			elif slot_item.team_id != own_team_e:
+				goal.enemy_home_positions.append(slot_item.home_position)
+				goal.enemy_home_shares.append(_raster.team_share(slot_item.team_id) if _raster != null else 0.0)
+	elif _objective is ReachSkyObjective:
+		var registry: BlockRegistry = _match.registry()
+		if registry != null:
+			var tallest: Dictionary = registry.tallest_settled_for_slot(slot_id)
+			if not tallest.is_empty():
+				goal.has_tower = true
+				goal.tower_origin = tallest["xz"] as Vector2
+				goal.tower_height = float(tallest["height"])
+	return goal
+
+
 ## Reach the Sky (Bontago-22y.9): team of every slot, index = slot id.
 func _sky_slot_teams() -> PackedInt32Array:
 	var teams: PackedInt32Array = PackedInt32Array()

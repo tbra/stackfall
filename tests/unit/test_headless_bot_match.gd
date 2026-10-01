@@ -217,11 +217,11 @@ func test_headless_bots_diagnostics_counts_placements_and_formats_lines() -> voi
 	var periodic: String = _main._headless_bots_periodic_line()
 	assert_true(periodic.begins_with("HEADLESS_BOTS t="), "periodic line: %s" % periodic)
 	assert_true(periodic.contains(" state=%s " % _main._headless_bots_state_name()), "carries Match's own state name: %s" % periodic)
-	assert_true(periodic.ends_with("placements=2"), "periodic line: %s" % periodic)
+	assert_true(periodic.contains(" placements=2 mode="), "periodic line: %s" % periodic)
 
 	var done: String = _main._headless_bots_done_line()
 	assert_true(done.begins_with("HEADLESS_BOTS done t="), "done line: %s" % done)
-	assert_true(done.ends_with("placements=2"), "done line: %s" % done)
+	assert_true(done.contains(" placements=2 mode="), "done line: %s" % done)
 
 
 func test_end_match_world_stops_headless_bots_diagnostics() -> void:

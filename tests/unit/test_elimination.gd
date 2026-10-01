@@ -372,3 +372,26 @@ func test_classic_elimination_and_last_team_standing_are_unchanged() -> void:
 	assert_false(Match.slot(0).home_flag_alive)
 	assert_eq(Match.state(), Match.State.END, "classic still ends at the last team standing")
 	assert_eq(Match._territory.winner_team(), -1, "classic reports its winner through match_won, not an objective latch")
+
+
+## Bontago-1t5.3: the bot goal lists living enemy homes and the bot's own home;
+## a lost home drops out of the list.
+func test_bot_mode_goal_lists_living_enemy_homes_and_the_own_home() -> void:
+	_start(3)
+	var goal: BotModeGoal = Match.bot_mode_goal(0)
+	assert_eq(goal.mode, MatchConfig.GameMode.ELIMINATION)
+	assert_false(goal.is_neutral())
+	assert_true(goal.has_own_home)
+	assert_eq(goal.own_home_position, Match.slot(0).home_position)
+	assert_eq(goal.enemy_home_positions.size(), 2)
+	assert_eq(goal.enemy_home_shares.size(), 2)
+	_lose_homes([2] as Array[int])
+	goal = Match.bot_mode_goal(0)
+	assert_eq(goal.enemy_home_positions.size(), 1)
+	assert_eq(goal.enemy_home_positions[0], Match.slot(1).home_position)
+
+
+func test_bot_mode_goal_in_classic_is_neutral() -> void:
+	_start(2, MatchConfig.TeamMode.OFF, MatchConfig.GameMode.CLASSIC)
+	var goal: BotModeGoal = Match.bot_mode_goal(0)
+	assert_true(goal == null or goal.is_neutral())

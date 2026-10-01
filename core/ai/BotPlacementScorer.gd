@@ -144,6 +144,120 @@ static func _stability_term(candidate: BotCandidate, grid: CellGrid, tuning: Bot
 	return contact_cells * balance_factor + stack_bonus
 
 
+## Bontago-1t5.3 phase A: the per-mode extra score (0.0 for modes without one).
+static func _mode_term(
+	candidate: BotCandidate,
+	raster: TerritoryRaster,
+	grid: CellGrid,
+	mode_goal: BotModeGoal,
+	enemy_circle_centers: PackedVector2Array,
+	territory_tuning: TerritoryTuning,
+	tuning: BotTuning,
+	field_radius: float
+) -> float:
+	match mode_goal.mode:
+		MatchConfig.GameMode.CAPTURE_THE_FLAG:
+			return _ctf_term(candidate, raster, mode_goal, territory_tuning, tuning, field_radius)
+		MatchConfig.GameMode.REACH_THE_SKY:
+			return _sky_term(candidate, grid, mode_goal, tuning)
+		MatchConfig.GameMode.ELIMINATION:
+			return _elimination_term(candidate, mode_goal, enemy_circle_centers, territory_tuning, tuning, field_radius)
+	return 0.0
+
+
+## Elimination (Bontago-1t5.3 phase B). DECISION: a home falls when an enemy
+## hole opens under its flag (or an enemy area takes it), so the bot pushes its
+## influence over the best living enemy home and keeps its own home covered.
+## Attack: the goal-progress metric (distance minus the candidate's future
+## radius, smaller is better) against each living enemy home, with the distance
+## inflated by the enemy's territory share (the weaker/closer home wins); only
+## the best home counts. Defend: a bonus for the candidate's future radius near
+## its own home (fading to 0 at elim_defend_radius_m), multiplied by
+## (1 + weight_elim_threat) per enemy circle centre within elim_threat_radius_m
+## of that home.
+static func _elimination_term(
+	candidate: BotCandidate,
+	mode_goal: BotModeGoal,
+	enemy_circle_centers: PackedVector2Array,
+	territory_tuning: TerritoryTuning,
+	tuning: BotTuning,
+	field_radius: float
+) -> float:
+	var estimated_height: float = candidate.support_height + candidate.shape_height
+	var radius: float = 0.0
+	if territory_tuning != null:
+		radius = InfluenceCircle.radius_for_height(estimated_height, territory_tuning, field_radius)
+	var term: float = 0.0
+	var best_metric: float = INF
+	for i: int in range(mode_goal.enemy_home_positions.size()):
+		var share: float = mode_goal.enemy_home_shares[i] if i < mode_goal.enemy_home_shares.size() else 0.0
+		var distance: float = candidate.origin.distance_to(mode_goal.enemy_home_positions[i])
+		best_metric = minf(best_metric, distance * (1.0 + tuning.elim_weak_target_bias * share) - radius)
+	if best_metric < INF:
+		term -= tuning.weight_elim_attack * best_metric
+	if mode_goal.has_own_home and tuning.elim_defend_radius_m > 0.0:
+		var home_distance: float = candidate.origin.distance_to(mode_goal.own_home_position)
+		if home_distance < tuning.elim_defend_radius_m:
+			var threats: int = 0
+			for center: Vector2 in enemy_circle_centers:
+				if center.distance_to(mode_goal.own_home_position) < tuning.elim_threat_radius_m:
+					threats += 1
+			var closeness: float = 1.0 - home_distance / tuning.elim_defend_radius_m
+			term += tuning.weight_elim_defend * closeness * (1.0 + tuning.weight_elim_threat * float(threats)) * (1.0 + radius)
+	return term
+
+
+## Capture the Flag. DECISION (Bontago-1t5.3): a beacon only scores while its
+## base is in a group connected to a living home (WinChecker.goal_holder), so
+## the whole term applies only to a candidate standing in such a group
+## (raster.group_at_point >= 0); a disconnected spot gets nothing and falls
+## back to the ordinary factors. Two parts, both scaled by the beacon score
+## rate: extend (nearest UNHELD beacon, the goal-progress metric) and
+## reinforce (a linear bonus near a beacon the team already holds).
+static func _ctf_term(
+	candidate: BotCandidate,
+	raster: TerritoryRaster,
+	mode_goal: BotModeGoal,
+	territory_tuning: TerritoryTuning,
+	tuning: BotTuning,
+	field_radius: float
+) -> float:
+	if raster != null and raster.group_at_point(candidate.origin) < 0:
+		return 0.0
+	var rate: float = mode_goal.beacon_score_rate
+	var unheld: PackedVector2Array = PackedVector2Array()
+	var term: float = 0.0
+	for i: int in range(mode_goal.beacon_positions.size()):
+		var held: bool = i < mode_goal.beacon_held_by_own.size() and mode_goal.beacon_held_by_own[i]
+		var position: Vector2 = mode_goal.beacon_positions[i]
+		if not held:
+			unheld.append(position)
+		elif tuning.ctf_reinforce_radius_m > 0.0:
+			var distance: float = candidate.origin.distance_to(position)
+			if distance < tuning.ctf_reinforce_radius_m:
+				term += tuning.weight_ctf_reinforce * rate * (1.0 - distance / tuning.ctf_reinforce_radius_m)
+	term -= tuning.weight_ctf_extend * rate * _goal_progress_metric(candidate, unheld, territory_tuning, field_radius)
+	return term
+
+
+## Reach the Sky. DECISION (Bontago-1t5.3): reward total top height and a
+## contact fraction (0..1, halved-by-tuning when off-centre) so overhangs lose,
+## and penalise distance from the bot's own tallest settled tower beyond a
+## small reach. The ordinary goal-progress term already adds nothing here (no
+## goal flags), so the bot does not spread for territory.
+static func _sky_term(candidate: BotCandidate, grid: CellGrid, mode_goal: BotModeGoal, tuning: BotTuning) -> float:
+	var term: float = tuning.weight_sky_top * (candidate.support_height + candidate.shape_height)
+	var cell_count: int = candidate.footprint_cells.size()
+	if cell_count > 0:
+		var contact: float = float(cell_count) if candidate.corner_support_hits < 0 else float(mini(candidate.corner_support_hits, cell_count))
+		var balance: float = 1.0 if _origin_within_footprint_bounds(candidate, grid) else tuning.stability_off_centre_factor
+		term += tuning.weight_sky_stability * (contact / float(cell_count)) * balance
+	if mode_goal.has_tower:
+		var gap: float = maxf(candidate.origin.distance_to(mode_goal.tower_origin) - tuning.sky_tower_reach_m, 0.0)
+		term -= tuning.weight_sky_tower_distance * gap
+	return term
+
+
 ## Weighted sum of the four spec 2.9 factors. `team_id` names whose territory
 ## `candidate` was sampled inside (BotController already only ever samples a
 ## point inside its own team's area -- see _sample_territory_point()), kept in
@@ -160,18 +274,29 @@ static func score(
 	enemy_circle_centers: PackedVector2Array,
 	active_special_positions: PackedVector2Array,
 	tuning: BotTuning,
-	field_radius: float
+	field_radius: float,
+	mode_goal: BotModeGoal = null
 ) -> float:
 	var territory_tuning: TerritoryTuning = raster.tuning() if raster != null else null
-	var goal_metric: float = _goal_progress_metric(candidate, goal_positions, territory_tuning, field_radius)
+	# DECISION (Bontago-1t5.3): Capture the Flag replaces the ordinary goal-progress
+	# term with its own beacon extend/reinforce term, so unheld beacons are not
+	# weighted twice (weight_goal_progress + weight_ctf_extend).
+	var own_goal_term: bool = mode_goal != null and mode_goal.mode == MatchConfig.GameMode.CAPTURE_THE_FLAG
+	var goal_metric: float = 0.0
+	if not own_goal_term:
+		goal_metric = _goal_progress_metric(candidate, goal_positions, territory_tuning, field_radius)
 	var stability_term: float = _stability_term(candidate, grid, tuning)
 	var risk_term: float = _risk_term(candidate, enemy_circle_centers, active_special_positions, tuning)
-	return (
+	var base: float = (
 		tuning.weight_height * candidate.support_height
 		- tuning.weight_goal_progress * goal_metric
 		+ tuning.weight_stability * stability_term
 		- tuning.weight_risk * risk_term
 	)
+	# Classic/Elimination/null add nothing, so their scores stay byte-identical.
+	if mode_goal == null or mode_goal.is_neutral():
+		return base
+	return base + _mode_term(candidate, raster, grid, mode_goal, enemy_circle_centers, territory_tuning, tuning, field_radius)
 
 
 ## How many of `cells` (rotated by `basis`) sit at the lowest transformed
@@ -240,7 +365,8 @@ static func pick_best(
 	enemy_circle_centers: PackedVector2Array,
 	active_special_positions: PackedVector2Array,
 	tuning: BotTuning,
-	field_radius: float
+	field_radius: float,
+	mode_goal: BotModeGoal = null
 ) -> BotCandidate:
 	if candidates.is_empty():
 		return null
@@ -249,7 +375,7 @@ static func pick_best(
 	for candidate: BotCandidate in candidates:
 		var candidate_score: float = score(
 			candidate, raster, grid, team_id, goal_positions, enemy_circle_centers,
-			active_special_positions, tuning, field_radius
+			active_special_positions, tuning, field_radius, mode_goal
 		)
 		if best == null or candidate_score > best_score:
 			best = candidate

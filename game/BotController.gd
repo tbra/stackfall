@@ -493,7 +493,8 @@ func _send_best_placement(place_target_override: Variant = null) -> StringName:
 			_enemy_circle_centers(),
 			_active_special_positions(),
 			tuning,
-			_field_radius()
+			_field_radius(),
+			_mode_goal(match_ref)
 		)
 	if best == null:
 		return PlacementRules.REASON_OK
@@ -565,6 +566,14 @@ func _aim_noise_offset() -> Vector2:
 	var angle: float = _rng.randf() * TAU
 	var radius: float = _rng.randf() * _profile.aim_noise_m
 	return Vector2(cos(angle), sin(angle)) * radius
+
+
+## Bontago-1t5.3: the active mode's goal context, or null when the match
+## provider has none (test fakes, Classic).
+func _mode_goal(match_ref: Variant) -> BotModeGoal:
+	if not match_ref.has_method("bot_mode_goal"):
+		return null
+	return match_ref.bot_mode_goal(_slot_id) as BotModeGoal
 
 
 func _goal_positions() -> PackedVector2Array:
