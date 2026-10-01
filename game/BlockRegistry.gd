@@ -23,6 +23,13 @@ class _Entry:
 	var is_settled: bool = false
 	## Transform last reported to the territory dirty state (settled only).
 	var marked_transform: Transform3D = Transform3D.IDENTITY
+	## Bontago-1pi.11.22: cached pure geometry, keyed on exact inputs.
+	var geom_valid: bool = false
+	var geom_block_xform: Transform3D = Transform3D.IDENTITY
+	var geom_field_xform: Transform3D = Transform3D.IDENTITY
+	var geom_child_count: int = -1
+	var geom_com_xz: Vector2 = Vector2.ZERO
+	var geom_top: float = 0.0
 
 @export var tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
 
@@ -41,6 +48,8 @@ var _move_epsilon: float = 0.005
 ## Field's not-yet-landed M2 API — see docs/M2_PLAN.md's Field contract) and
 ## for bodies_over_cells()'s cell lookup.
 var _field: Node3D = null
+## Test seam: false recomputes every block's geometry (the oracle path).
+var _geometry_cache_enabled: bool = true
 var _grid: CellGrid = null
 
 ## M3a. True on the host **and offline** (Net.is_host()'s contract), so M2's
@@ -230,6 +239,7 @@ func influence_circles(
 	for slot: PlayerSlot in slots:
 		team_of_slot[slot.slot_id] = slot.team_id
 
+	var field_xform: Transform3D = field_global_transform()
 	var circles: Array[InfluenceCircle] = []
 	for id: Variant in _entries.keys():
 		var entry: _Entry = _entries[id]
@@ -237,11 +247,10 @@ func influence_circles(
 			continue
 		if not team_of_slot.has(entry.owner_slot):
 			continue
-		var local_com: Vector3 = _local_center_of_mass(entry.block)
-		var top: float = _top_height_local(entry.block)
+		_refresh_geometry(entry, field_xform)
 		circles.append(InfluenceCircle.for_block(
-			Vector2(local_com.x, local_com.z),
-			top,
+			entry.geom_com_xz,
+			entry.geom_top,
 			team_of_slot[entry.owner_slot],
 			entry.owner_slot,
 			int(id),
@@ -255,11 +264,13 @@ func influence_circles(
 ## surface, in meters, or 0.0 with none.
 func max_height_for_slot(slot_id: int) -> float:
 	var highest: float = 0.0
+	var field_xform: Transform3D = field_global_transform()
 	for id: Variant in _entries.keys():
 		var entry: _Entry = _entries[id]
 		if not entry.is_settled or entry.owner_slot != slot_id or not is_instance_valid(entry.block):
 			continue
-		highest = maxf(highest, _top_height_local(entry.block))
+		_refresh_geometry(entry, field_xform)
+		highest = maxf(highest, entry.geom_top)
 	return highest
 
 
@@ -382,13 +393,47 @@ func settled_torque_samples() -> PackedVector3Array:
 	var samples: PackedVector3Array = PackedVector3Array()
 	if not _host_authority:
 		return samples
+	var field_xform: Transform3D = field_global_transform()
 	for id: Variant in _entries.keys():
 		var entry: _Entry = _entries[id]
 		if not entry.is_settled or not is_instance_valid(entry.block):
 			continue
-		var local_com: Vector3 = _local_center_of_mass(entry.block)
-		samples.append(Vector3(local_com.x, entry.block.mass, local_com.z))
+		_refresh_geometry(entry, field_xform)
+		samples.append(Vector3(entry.geom_com_xz.x, entry.block.mass, entry.geom_com_xz.y))
 	return samples
+
+
+## Drops the cached geometry of `block` (call after swapping a live block's
+## mesh in place; nothing does today).
+func invalidate_geometry(block: Block) -> void:
+	if block == null:
+		return
+	var entry: _Entry = _entries.get(block.get_instance_id()) as _Entry
+	if entry != null:
+		entry.geom_valid = false
+
+
+## Recomputes entry.geom_* unless the exact inputs (block transform, field
+## transform, child count) are unchanged; Transform3D == is componentwise, so a
+## hit is bit-identical to a recompute.
+func _refresh_geometry(entry: _Entry, field_xform: Transform3D) -> void:
+	var block: Block = entry.block
+	var block_xform: Transform3D = block.global_transform
+	var child_count: int = block.get_child_count()
+	if (
+		_geometry_cache_enabled and entry.geom_valid
+		and block_xform == entry.geom_block_xform
+		and field_xform == entry.geom_field_xform
+		and child_count == entry.geom_child_count
+	):
+		return
+	var local_com: Vector3 = _local_center_of_mass(block)
+	entry.geom_com_xz = Vector2(local_com.x, local_com.z)
+	entry.geom_top = _top_height_local(block)
+	entry.geom_block_xform = block_xform
+	entry.geom_field_xform = field_xform
+	entry.geom_child_count = child_count
+	entry.geom_valid = true
 
 
 func _local_center_of_mass(block: Block) -> Vector3:

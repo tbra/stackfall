@@ -39,34 +39,54 @@ static func build(
 		projected_radii.append(radius)
 		candidates.append(i)
 	# Largest projected radius first; original index breaks ties deterministically.
-	candidates.sort_custom(func(a: int, b: int) -> bool:
-		if projected_radii[a] == projected_radii[b]:
-			return a < b
-		return projected_radii[a] > projected_radii[b]
-	)
+	# Native lexicographic Array sort on [-radius, index] (64-bit, no rounding)
+	# replaces a GDScript lambda comparator (Bontago-1pi.11.22).
+	var sort_keys: Array = []
+	sort_keys.resize(candidates.size())
+	for k: int in range(candidates.size()):
+		sort_keys[k] = [-projected_radii[candidates[k]], candidates[k]]
+	sort_keys.sort()
 
 	var kept_block_indices: Array[int] = []
 	var culled: PackedByteArray = PackedByteArray()
 	culled.resize(count)
 	var comparisons: int = 0
-	for candidate_index: int in candidates:
+	# Per-team kept cones in flat parallel arrays (stride = candidate count per
+	# team lane), so the containment loop only visits same-team cones and no
+	# packed array is copied per candidate.
+	var lane_of_team: Dictionary = {}  ## team_id -> lane
+	var lane_count: PackedInt32Array = PackedInt32Array()
+	var stride: int = candidates.size()
+	var kept_centers: PackedVector2Array = PackedVector2Array()
+	var kept_radii: PackedFloat64Array = PackedFloat64Array()
+	for key: Array in sort_keys:
+		var candidate_index: int = key[1]
 		var candidate: InfluenceCircle = circles[candidate_index]
+		var candidate_radius: float = projected_radii[candidate_index]
+		var lane: int = lane_of_team.get(candidate.team_id, -1)
+		if lane < 0:
+			lane = lane_count.size()
+			lane_of_team[candidate.team_id] = lane
+			lane_count.append(0)
+			kept_centers.resize((lane + 1) * stride)
+			kept_radii.resize((lane + 1) * stride)
+		var base: int = lane * stride
 		var is_covered: bool = false
-		for kept_index: int in kept_block_indices:
-			var higher: InfluenceCircle = circles[kept_index]
-			if higher.team_id != candidate.team_id:
-				continue
-			var radius_difference: float = projected_radii[kept_index] - projected_radii[candidate_index]
+		for n: int in range(base, base + lane_count[lane]):
+			var radius_difference: float = kept_radii[n] - candidate_radius
 			if radius_difference <= 0.0:
 				continue
 			comparisons += 1
-			if higher.center.distance_squared_to(candidate.center) <= radius_difference * radius_difference:
+			if kept_centers[n].distance_squared_to(candidate.center) <= radius_difference * radius_difference:
 				is_covered = true
 				break
 		if is_covered:
 			culled[candidate_index] = 1
 		else:
 			kept_block_indices.append(candidate_index)
+			kept_centers[base + lane_count[lane]] = candidate.center
+			kept_radii[base + lane_count[lane]] = candidate_radius
+			lane_count[lane] += 1
 
 	var projected: Array[InfluenceCircle] = []
 	var kept_indices: PackedInt32Array = PackedInt32Array()
