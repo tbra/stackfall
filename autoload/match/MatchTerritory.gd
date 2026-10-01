@@ -358,6 +358,8 @@ func bot_mode_goal(slot_id: int) -> BotModeGoal:
 		return null
 	var goal: BotModeGoal = BotModeGoal.new()
 	goal.mode = _objective.mode_id()
+	if _objective is ClassicObjective:
+		_fill_classic_goals(goal, slot_id)
 	if _objective is CaptureFlagObjective:
 		var own_team: int = _match.team_of(slot_id)
 		goal.beacon_score_rate = _match._territory_tuning.ctf_score_per_beacon_second
@@ -389,6 +391,36 @@ func bot_mode_goal(slot_id: int) -> BotModeGoal:
 				goal.tower_origin = tallest["xz"] as Vector2
 				goal.tower_height = float(tallest["height"])
 	return goal
+
+
+## Bontago-1t5.1: classic multi-goal context (left empty for a single goal so
+## classic scoring stays exactly as before).
+func _fill_classic_goals(goal: BotModeGoal, slot_id: int) -> void:
+	if _raster == null:
+		return
+	var positions: PackedVector2Array = PlayerSlot.goal_positions_for(
+		_match.config.effective_goal_flag_count(), _match.config.map_def()
+	)
+	if positions.size() < 2:
+		return
+	var home: Vector2 = Vector2.ZERO
+	var has_home: bool = false
+	for slot_item: PlayerSlot in _match._lifecycle._slots:
+		if slot_item.slot_id == slot_id and slot_item.home_flag_alive:
+			home = slot_item.home_position
+			has_home = true
+	goal.goal_positions = positions
+	if has_home:
+		goal.home_group = _raster.group_at_point(home)
+	var grid: CellGrid = _raster.grid()
+	if goal.home_group >= 0:
+		for index: int in grid.in_disk_cells():
+			var cell: Vector2i = grid.cell_coords(index)
+			if _raster.group_at(cell.x, cell.y) == goal.home_group:
+				goal.component_points.append(grid.index_center(index))
+	for point: Vector2 in positions:
+		goal.goal_in_home_group.append(goal.home_group >= 0 and _raster.group_at_point(point) == goal.home_group)
+	goal.target_goal_index = BotPlacementScorer.next_goal_index(positions, goal.goal_in_home_group, goal.component_points, home)
 
 
 ## Reach the Sky (Bontago-22y.9): team of every slot, index = slot id.

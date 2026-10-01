@@ -315,6 +315,85 @@ func test_ctf_reinforces_a_held_beacon_when_all_are_held() -> void:
 	assert_eq(_pick(candidates, _ctf_goal(held)), near_held)
 
 
+## -- Bontago-1t5.1: classic with several goals ------------------------------------
+
+func _classic_goal(held: Array[bool], goals: PackedVector2Array) -> BotModeGoal:
+	var goal: BotModeGoal = BotModeGoal.new()
+	goal.mode = MatchConfig.GameMode.CLASSIC
+	goal.goal_positions = goals
+	goal.goal_in_home_group = held
+	goal.home_group = _raster.group_at_point(Vector2.ZERO)
+	var component: PackedVector2Array = PackedVector2Array([Vector2.ZERO])
+	for i: int in range(goals.size()):
+		if held[i]:
+			component.append(goals[i])
+	goal.component_points = component
+	goal.target_goal_index = BotPlacementScorer.next_goal_index(goals, held, component, Vector2.ZERO)
+	return goal
+
+
+func test_next_goal_index_picks_the_unheld_goal_nearest_the_component() -> void:
+	var goals: PackedVector2Array = PackedVector2Array([Vector2(3.0, 0.0), Vector2(-9.0, 0.0), Vector2(0.0, 12.0)])
+	var held: Array[bool] = [true, false, false]
+	var component: PackedVector2Array = PackedVector2Array([Vector2.ZERO, Vector2(3.0, 0.0)])
+	assert_eq(BotPlacementScorer.next_goal_index(goals, held, component, Vector2.ZERO), 1)
+	var all_held: Array[bool] = [true, true, true]
+	assert_eq(BotPlacementScorer.next_goal_index(goals, all_held, component, Vector2.ZERO), -1)
+
+
+func test_classic_multi_goal_extends_towards_the_next_unheld_goal() -> void:
+	_connect_home_territory()
+	var goals: PackedVector2Array = PackedVector2Array([Vector2(6.0, 0.0), Vector2(-9.0, 0.0), Vector2(0.0, 11.0)])
+	var held: Array[bool] = [true, false, false]
+	var goal: BotModeGoal = _classic_goal(held, goals)
+	assert_eq(goal.target_goal_index, 1)
+	# Legacy nearest-goal scoring would favour (5,0) (next to held goal 0).
+	var towards: BotCandidate = _candidate(Vector2(-7.0, 0.0))
+	var near_held: BotCandidate = _candidate(Vector2(4.0, 1.0))
+	var candidates: Array[BotCandidate] = [near_held, towards]
+	assert_eq(_pick(candidates, goal), towards)
+
+
+func test_classic_multi_goal_keeps_held_goals_reinforced_once_all_are_held() -> void:
+	_connect_home_territory()
+	var goals: PackedVector2Array = PackedVector2Array([Vector2(7.0, 0.0), Vector2(-7.0, 0.0)])
+	var held: Array[bool] = [true, true]
+	var goal: BotModeGoal = _classic_goal(held, goals)
+	assert_eq(goal.target_goal_index, -1)
+	var near_held: BotCandidate = _candidate(Vector2(-6.0, 1.0))
+	var far: BotCandidate = _candidate(Vector2(0.0, 8.0))
+	var candidates: Array[BotCandidate] = [far, near_held]
+	assert_eq(_pick(candidates, goal), near_held)
+
+
+func test_classic_multi_goal_penalises_a_spot_outside_the_home_component() -> void:
+	_connect_home_territory()
+	var goals: PackedVector2Array = PackedVector2Array([Vector2(6.0, 0.0), Vector2(-9.0, 0.0)])
+	var held: Array[bool] = [true, false]
+	var goal: BotModeGoal = _classic_goal(held, goals)
+	var inside: BotCandidate = _candidate(Vector2(-3.0, 0.0))
+	var outside: BotCandidate = _candidate(Vector2(-19.0, 0.0))
+	assert_lt(_raster.group_at_point(outside.origin), 0, "Setup: the far point is outside the home group.")
+	var inside_score: float = BotPlacementScorer.score(inside, _raster, _grid, 0, PackedVector2Array(), PackedVector2Array(), PackedVector2Array(), _bot_tuning, MAP_RADIUS, goal)
+	var legacy_outside: float = BotPlacementScorer.score(outside, _raster, _grid, 0, PackedVector2Array(), PackedVector2Array(), PackedVector2Array(), _bot_tuning, MAP_RADIUS, null)
+	var outside_score: float = BotPlacementScorer.score(outside, _raster, _grid, 0, PackedVector2Array(), PackedVector2Array(), PackedVector2Array(), _bot_tuning, MAP_RADIUS, goal)
+	assert_lt(outside_score, legacy_outside + 1.0, "Outside the component the extra term only subtracts the penalty (plus goal pull).")
+	assert_gt(inside_score, outside_score)
+
+
+func test_classic_single_goal_scoring_is_unchanged() -> void:
+	_connect_home_territory()
+	var goal: BotModeGoal = BotModeGoal.new()
+	goal.mode = MatchConfig.GameMode.CLASSIC
+	goal.goal_positions = PackedVector2Array([Vector2(6.0, 0.0)])
+	assert_true(goal.is_neutral())
+	var spot: BotCandidate = _candidate(Vector2(3.0, 0.0), 1.0)
+	var goals: PackedVector2Array = PackedVector2Array([Vector2(6.0, 0.0)])
+	var with_goal: float = BotPlacementScorer.score(spot, _raster, _grid, 0, goals, PackedVector2Array(), PackedVector2Array(), _bot_tuning, MAP_RADIUS, goal)
+	var without: float = BotPlacementScorer.score(spot, _raster, _grid, 0, goals, PackedVector2Array(), PackedVector2Array(), _bot_tuning, MAP_RADIUS, null)
+	assert_eq(with_goal, without)
+
+
 func test_ctf_term_needs_a_home_connected_spot() -> void:
 	# Raster left empty: nothing is connected, so the CTF term is zero.
 	var held: Array[bool] = [false, true]

@@ -149,6 +149,14 @@ extends Resource
 ## candidate's own circle covers at the home point (0..1).
 @export var elim_off_defend_gain: float = 2.0
 
+## Bontago-1t5.1 (append-only): Classic with several goal flags. Penalty for a
+## candidate outside the bot's home-connected component (it cannot help the
+## all-goals-in-one-component win), a bonus (fading to 0 at the radius) for
+## reinforcing a goal the component already holds, and the radius itself.
+@export var weight_goal_disconnected: float = 6.0
+@export var weight_goal_hold_reinforce: float = 3.0
+@export var goal_hold_reinforce_radius_m: float = 5.0
+
 ## Returns the profile for `difficulty`; NORMAL (and any out-of-range value)
 ## falls back to `normal` rather than failing, so a stale/corrupt wire value
 ## never leaves a bot with a null profile.
