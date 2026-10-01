@@ -86,7 +86,7 @@ func test_sea_and_second_strata_skip_the_radiance_pass() -> void:
 	var call_at: int = source.find("pcol = procedural_sea_color(")
 	var before: String = source.substr(maxi(call_at - 80, 0), mini(80, call_at))
 	assert_true(call_at > 0 and before.contains("!AT_CUBEMAP_PASS"), "sea noise taps must be background-pass only.")
-	assert_true(source.contains("procedural_sea_mix > 0.0 && proc_cards_mix <= 0.0)"), "second strata layer must be background-pass only.")
+	assert_true(source.contains("procedural_sea_mix > 0.0 && proc_cards_mix <= 0.0 && proc_overhead_mix > 0.0)"), "second strata layer must be background-pass only.")
 	assert_true(source.contains("u2.rgb * exposure") and source.contains("u1.rgb * exposure"), "procedural strata must be multiplied by exposure.")
 
 

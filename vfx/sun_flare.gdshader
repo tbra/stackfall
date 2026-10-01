@@ -42,6 +42,7 @@ uniform vec4 ghost_positions; // up to 4 fractions along the sun->center axis; u
 uniform float ghost_base_size;
 uniform float ghost_size_falloff;
 uniform float ghost_alpha;
+uniform float ghost_ring_width; // fraction of a ghost's radius that is ring; 0 = solid disc.
 uniform vec4 ghost_color_b : source_color;
 uniform float aspect_ratio;
 uniform float max_intensity;
@@ -99,7 +100,11 @@ void fragment() {
 			if (i < count && positions[i] >= 0.0) {
 				vec2 ghost_center = sun_p + axis * positions[i];
 				float size = ghost_base_size * pow(ghost_size_falloff, float(i));
-				float ghost = soft_disc(p, ghost_center, size) * ghost_alpha;
+				// DECISION (Bontago-t8x.3): a hollow ring, not a solid disc. A solid warm
+				// disc a third of the way toward screen centre read as a second sun
+				// whenever the real sun sat off-axis (owner 2026-10-01).
+				float ghost = soft_disc(p, ghost_center, size);
+				ghost = max(ghost - soft_disc(p, ghost_center, size * (1.0 - clamp(ghost_ring_width, 0.0, 1.0))), 0.0) * ghost_alpha;
 				vec3 tint = mix(sun_color.rgb, ghost_color_b.rgb, mod(float(i), 2.0));
 				accum += tint * ghost;
 				alpha_accum += ghost;
