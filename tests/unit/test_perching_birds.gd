@@ -339,3 +339,24 @@ func test_low_preset_disables_ambient_life() -> void:
 	assert_false(skybox.get_perching_birds().is_enabled())
 	skybox._apply_ambient_life(high, night)
 	assert_not_null(skybox.get_fireflies().mote_instance())
+
+
+func test_freed_block_never_reaches_typed_calls_during_polls() -> void:
+	var life: AmbientLifeConfig = _life()
+	life.perch_tower_fraction = 1.0
+	_manager = _make_manager(life)
+	var tower: RigidBody3D = _make_block(Vector3(-10.0, 0.5, 8.0))
+	var other: RigidBody3D = _make_block(Vector3(10.0, 0.5, -8.0))
+	_manager.blocks = [tower, other]
+	_force_poll(_manager)
+	var bird: PerchingBird = _run_until_perched(_manager)
+	assert_not_null(bird)
+	if bird == null:
+		return
+	tower.free()
+	other.free()
+	_manager._refresh_sources()
+	assert_eq(_manager.blocks.size(), 0, "freed blocks are pruned")
+	_force_poll(_manager)
+	assert_eq(_manager._block_positions(tower).size(), 0)
+	assert_ne(bird.state, PerchingBird.State.PERCHED, "bird leaves its freed block")
