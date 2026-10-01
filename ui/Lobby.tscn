@@ -755,6 +755,39 @@ unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(150, 0)
 
+[node name="GameModeCol" type="VBoxContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="GameModeCaption" type="Label" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules/GameModeCol"]
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+theme_override_font_sizes/font_size = 10
+text = "Game mode"
+
+[node name="GameModeOption" type="OptionButton" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules/GameModeCol"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+
+[node name="RoundTimerCol" type="VBoxContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="RoundTimerCaption" type="Label" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules/RoundTimerCol"]
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+theme_override_font_sizes/font_size = 10
+text = "Round timer (timed modes)"
+
+[node name="RoundTimerSpin" type="SpinBox" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules/RoundTimerCol"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(110, 0)
+min_value = 1
+max_value = 40
+value = 10
+
 [node name="MatchTimerCol" type="VBoxContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules"]
 layout_mode = 2
 theme_override_constants/separation = 4

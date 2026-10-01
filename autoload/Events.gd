@@ -30,6 +30,10 @@ signal turn_changed(slot_id: int)
 
 ## A team met the win condition (spec 2.3). The match state goes to End.
 signal match_won(team_id: int)
+## Bontago-22y.11: the active mode objective's replicated state ({"mode_id",
+## "scores", "extra", "round_left"}). Host: emitted when it changes (MatchNet
+## replicates it); client: emitted after the validated host state is applied.
+signal mode_state_changed(state: Dictionary)
 
 ## Bontago-1pi.13: the full results-screen payload is ready -- fired once per
 ## match end, on the host directly from MatchLifecycle._finish_match() (right

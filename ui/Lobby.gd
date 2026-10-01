@@ -111,6 +111,8 @@ var net_provider: Variant = null
 @onready var _hole_mode_option: OptionButton = %HoleModeOption
 @onready var _match_timer_spin: SpinBox = %MatchTimerSpin
 @onready var _weather_option: OptionButton = %WeatherOption
+@onready var _game_mode_option: OptionButton = %GameModeOption
+@onready var _round_timer_spin: SpinBox = %RoundTimerSpin
 ## Bontago-470.4: the "Map" time-of-day dropdown (MatchConfig.SkyThemeMode).
 @onready var _sky_theme_option: OptionButton = %SkyThemeOption
 @onready var _sudden_death_check: CheckButton = %SuddenDeathCheck
@@ -213,6 +215,8 @@ func _ready() -> void:
 	]
 	_settings_controls.append(_weather_option)
 	_settings_controls.append(_sky_theme_option)
+	_settings_controls.append(_game_mode_option)
+	_settings_controls.append(_round_timer_spin)
 	_settings_controls.append_array(_special_checkboxes)
 	_settings_controls.append_array(_team_buttons)
 	_connect_control_signals()
@@ -300,6 +304,12 @@ func _populate_options() -> void:
 	_fill_option(_weather_option, MatchWeather.mode_labels())
 	# Bontago-470.4: order must match MatchConfig.SkyThemeMode.
 	_fill_option(_sky_theme_option, ["Day", "Night", "Random"])
+	# Bontago-22y.11: order must match MatchConfig.GameMode. Reserved modes are
+	# listed but disabled, so neither the mouse nor the gamepad popup can pick
+	# one; MatchConfig.resolve_game_mode() also rejects them on the wire.
+	_fill_option(_game_mode_option, Array(MatchConfig.GAME_MODE_LABELS))
+	for mode_index: int in range(_game_mode_option.item_count):
+		_game_mode_option.set_item_disabled(mode_index, not MatchConfig.is_game_mode_selectable(mode_index))
 	_build_specials_checklist()
 
 
@@ -378,7 +388,7 @@ func _wire_focus_chain() -> void:
 	var popup_chain: Array[Control] = []
 	for box: CheckBox in _special_checkboxes:
 		popup_chain.append(box)
-	popup_chain.append_array([_tilt_mode_option, _hole_mode_option, _match_timer_spin])
+	popup_chain.append_array([_tilt_mode_option, _hole_mode_option, _game_mode_option, _match_timer_spin, _round_timer_spin])
 	popup_chain.append(_weather_option)
 	popup_chain.append_array(_popup_stepper_buttons)
 	popup_chain.append_array([_sudden_death_check, _turn_based_check, _advanced_popup_close])
@@ -404,6 +414,8 @@ func _connect_control_signals() -> void:
 	_tilt_mode_option.item_selected.connect(_on_option_changed)
 	_hole_mode_option.item_selected.connect(_on_option_changed)
 	_weather_option.item_selected.connect(_on_option_changed)
+	_game_mode_option.item_selected.connect(_on_option_changed)
+	_round_timer_spin.value_changed.connect(_on_value_changed)
 	_sky_theme_option.item_selected.connect(_on_option_changed)
 	_player_count_spin.value_changed.connect(_on_value_changed)
 	# Bontago-1pi.9b: a seat-count edit can shrink the room left for bots, so
@@ -588,6 +600,7 @@ func _apply_visual_style() -> void:
 	# Match timer moved into %AdvancedPopup (review r3, problem 2) -- its
 	# stepper buttons join the popup's own separate focus loop instead.
 	_add_stepper_buttons(_match_timer_spin, _popup_stepper_buttons)
+	_add_stepper_buttons(_round_timer_spin, _popup_stepper_buttons)
 
 	# Bontago-mp0.3.5 (review r2, item 1): a small round disc icon (dark
 	# slate fill, light rim) beside %MapComboOption -- the same two-tone
@@ -850,6 +863,8 @@ func _config_from_controls() -> MatchConfig:
 	config.weather_mode = _weather_option.selected as MatchConfig.WeatherMode
 	config.sky_theme_mode = _sky_theme_option.selected as MatchConfig.SkyThemeMode
 	config.match_timer_minutes = int(_match_timer_spin.value)
+	config.game_mode = MatchConfig.resolve_game_mode(_game_mode_option.selected)
+	config.round_timer_minutes = int(_round_timer_spin.value)
 	config.sudden_death = _sudden_death_check.button_pressed
 	config.turn_based = _turn_based_check.button_pressed
 	config.enabled_specials = _enabled_specials_from_checkboxes()
@@ -928,6 +943,8 @@ func _apply_data(data: Dictionary) -> void:
 	_weather_option.selected = config.weather_mode
 	_sky_theme_option.selected = config.sky_theme_mode
 	_match_timer_spin.value = config.match_timer_minutes
+	_game_mode_option.selected = config.game_mode
+	_round_timer_spin.value = config.round_timer_minutes
 	_sudden_death_check.button_pressed = config.sudden_death
 	_turn_based_check.button_pressed = config.turn_based
 	_apply_enabled_specials_to_checkboxes(config.enabled_specials)

@@ -856,6 +856,16 @@ func apply_replicated_elimination(slot_id: int) -> void:
 	_lifecycle.apply_replicated_elimination(slot_id)
 
 
+## Bontago-22y.11: client mirror of the host's mode-objective state, and the
+## host's snapshot of it for a reconnecting peer ({} when there is none).
+func apply_replicated_mode_state(state: Dictionary) -> void:
+	_lifecycle.apply_replicated_mode_state(state)
+
+
+func mode_state_snapshot() -> Dictionary:
+	return _lifecycle.mode_state_snapshot()
+
+
 ## M4 P1b/P2b: net/MatchNet.gd's net_match_event() mirrors for the three gift
 ## events. A client only ever builds/frees the crate visual and (for a claim)
 ## keeps held_special()/pending_special_count() accurate -- it never spawns,

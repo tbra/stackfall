@@ -55,6 +55,22 @@ enum SkyThemeMode { DAY, NIGHT, RANDOM }
 ## Theme ids (config/sky_themes/<id>.tres) per concrete mode, DAY then NIGHT.
 const SKY_THEME_IDS: PackedStringArray = ["sunset", "night"]
 
+## Game mode (Bontago-22y.11). Appended-only like the other enums: ints ride
+## in to_dict() and in saved lobbies. Only the ids in SELECTABLE_GAME_MODES
+## may be played; CAPTURE_THE_FLAG, ELIMINATION and REACH_THE_SKY are
+## RESERVED ids for Bontago-22y.7/.8/.9. A reserved or out-of-range id is
+## never an error: sanitize() (host, on every config it adopts) and
+## from_dict() (so a wire value can never start a mode with no objective)
+## fall back to CLASSIC. A mode package makes its id selectable by adding it
+## to SELECTABLE_GAME_MODES and giving ModeObjective.create() a branch.
+enum GameMode { CLASSIC, CAPTURE_THE_FLAG, ELIMINATION, REACH_THE_SKY }
+const SELECTABLE_GAME_MODES: Array[int] = [GameMode.CLASSIC]
+## Lobby labels, indexed by GameMode.
+const GAME_MODE_LABELS: PackedStringArray = ["Classic", "Capture the Flag", "Elimination", "Reach the Sky"]
+## Round timer (timed modes only), minutes. Classic keeps match_timer_minutes.
+const ROUND_TIMER_MIN_MINUTES: int = 1
+const ROUND_TIMER_MAX_MINUTES: int = 40
+
 ## -- Spec 2.8 table, in order -----------------------------------------------
 @export var map_variant: MapVariant = MapVariant.ROUND
 ## Spec 2.8's map size; the enum lives on MapDef (see the note there).
@@ -92,6 +108,12 @@ const SKY_THEME_IDS: PackedStringArray = ["sunset", "night"]
 ## advance_turn(), the same machinery hot_seat already uses for its own,
 ## different (instant hand-off) trigger.
 @export var turn_based: bool = false
+## Which objective decides the match (see GameMode). Default CLASSIC.
+@export var game_mode: GameMode = GameMode.CLASSIC
+## Round length for timed modes (the objective's timer-end path finishes the
+## match when it reaches zero). Ignored by CLASSIC, which keeps using
+## match_timer_minutes + sudden_death exactly as before.
+@export var round_timer_minutes: int = 10
 ## Weather event schedule (Bontago-22y.10); see WeatherMode.
 @export var weather_mode: WeatherMode = WeatherMode.CHANGING
 ## Lobby "Map" time of day (see SkyThemeMode). DECISION: default DAY.
@@ -171,6 +193,17 @@ const GOAL_FLAG_MIN: int = 1
 const GOAL_FLAG_MAX: int = 5
 const SPECIAL_FREQUENCY_MIN: int = 0
 const SPECIAL_FREQUENCY_MAX: int = 100
+
+
+## True when `mode` may be chosen in the lobby and played.
+static func is_game_mode_selectable(mode: int) -> bool:
+	return SELECTABLE_GAME_MODES.has(mode)
+
+
+## `mode` itself when selectable, otherwise CLASSIC (the reserved/unknown
+## fallback documented at GameMode).
+static func resolve_game_mode(mode: int) -> GameMode:
+	return mode as GameMode if is_game_mode_selectable(mode) else GameMode.CLASSIC
 
 
 ## The MapDef this config's map_variant + map_size select.
@@ -263,6 +296,8 @@ func sanitize() -> void:
 	tilt_mode = clampi(tilt_mode, TiltMode.SPECIALS_ONLY, TiltMode.PHYSICAL_BALANCE)
 	hole_mode = clampi(hole_mode, HoleMode.TEMPORARY, HoleMode.OFF) as HoleMode
 	match_timer_minutes = maxi(match_timer_minutes, 0)
+	game_mode = resolve_game_mode(game_mode)
+	round_timer_minutes = clampi(round_timer_minutes, ROUND_TIMER_MIN_MINUTES, ROUND_TIMER_MAX_MINUTES)
 	# turn_based is a plain bool -- no range to clamp.
 	weather_mode = clampi(weather_mode, WeatherMode.OFF, WeatherMode.CHANGING) as WeatherMode
 	sky_theme_mode = clampi(sky_theme_mode, SkyThemeMode.DAY, SkyThemeMode.RANDOM) as SkyThemeMode
@@ -319,6 +354,8 @@ func to_dict() -> Dictionary:
 		"match_timer_minutes": match_timer_minutes,
 		"sudden_death": sudden_death,
 		"turn_based": turn_based,
+		"game_mode": game_mode,
+		"round_timer_minutes": round_timer_minutes,
 		"weather_mode": weather_mode,
 		"sky_theme_mode": sky_theme_mode,
 		"sky_theme_resolved": sky_theme_resolved,
@@ -357,6 +394,11 @@ static func from_dict(data: Dictionary) -> MatchConfig:
 	config.match_timer_minutes = int(data.get("match_timer_minutes", config.match_timer_minutes))
 	config.sudden_death = bool(data.get("sudden_death", config.sudden_death))
 	config.turn_based = bool(data.get("turn_based", config.turn_based))
+	config.game_mode = resolve_game_mode(int(data.get("game_mode", config.game_mode)))
+	config.round_timer_minutes = clampi(
+		int(data.get("round_timer_minutes", config.round_timer_minutes)),
+		ROUND_TIMER_MIN_MINUTES, ROUND_TIMER_MAX_MINUTES
+	)
 	config.weather_mode = int(data.get("weather_mode", config.weather_mode)) as WeatherMode
 	config.sky_theme_mode = int(data.get("sky_theme_mode", config.sky_theme_mode)) as SkyThemeMode
 	config.sky_theme_resolved = String(data.get("sky_theme_resolved", config.sky_theme_resolved))

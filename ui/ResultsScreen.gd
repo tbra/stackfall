@@ -170,9 +170,33 @@ func show_results(results: Dictionary) -> void:
 func _headline_text(results: Dictionary) -> String:
 	var winner_id: int = int(results.get("winner_id", -1))
 	var winner_name: String = String(results.get("winner_name", ""))
-	if winner_id < 0 or winner_name.is_empty():
-		return "It's a draw!"
-	return "%s wins!" % winner_name
+	var headline: String = "It's a draw!" if winner_id < 0 or winner_name.is_empty() else "%s wins!" % winner_name
+	return headline + mode_outcome_text(results)
+
+
+## Bontago-22y.11: a non-classic results payload carries a "mode" block (mode
+## id + per-team scores); this renders it as extra headline lines. Classic has
+## no block, so this returns "" and its headline is unchanged.
+## DECISION: the outcome shares the headline Label (no new scene node) so the
+## classic layout cannot move.
+static func mode_outcome_text(results: Dictionary) -> String:
+	var mode: Variant = results.get("mode")
+	if not (mode is Dictionary):
+		return ""
+	var block: Dictionary = mode
+	var mode_id: int = int(block.get("mode_id", MatchConfig.GameMode.CLASSIC))
+	if mode_id < 0 or mode_id >= MatchConfig.GAME_MODE_LABELS.size():
+		return ""
+	var parts: PackedStringArray = PackedStringArray()
+	var scores: Array = block.get("scores", []) as Array
+	var ffa: bool = String(results.get("winner_kind", MatchStats.WINNER_KIND_SLOT)) == MatchStats.WINNER_KIND_SLOT
+	for team: int in range(scores.size()):
+		parts.append("%s %d: %s" % ["Player" if ffa else "Team", team + 1, String.num(float(scores[team]), 1)])
+	var text: String = "
+%s" % MatchConfig.GAME_MODE_LABELS[mode_id]
+	if not parts.is_empty():
+		text += " - " + ", ".join(parts)
+	return text
 
 
 # --- Stats table -------------------------------------------------------------

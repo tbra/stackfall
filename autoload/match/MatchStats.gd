@@ -208,7 +208,7 @@ func eliminated_at(slot_id: int) -> float:
 ## either way). Called exactly once per match, from
 ## MatchLifecycle._finish_match(), after _elapsed has stopped advancing (the
 ## state has already left PLAYING/SUDDEN_DEATH by the time this runs).
-func build_results_payload(winning_team: int) -> Dictionary:
+func build_results_payload(winning_team: int, mode_fields: Dictionary = {}) -> Dictionary:
 	var config: MatchConfig = _match.config
 	var ffa: bool = config == null or config.team_mode == MatchConfig.TeamMode.OFF
 
@@ -231,13 +231,18 @@ func build_results_payload(winning_team: int) -> Dictionary:
 			"eliminated_at": eliminated_at(slot_id),
 		})
 
-	return {
+	var payload: Dictionary = {
 		"winner_kind": WINNER_KIND_SLOT if ffa else WINNER_KIND_TEAM,
 		"winner_id": winning_team,
 		"winner_name": _winner_name(winning_team, ffa),
 		"match_duration": _elapsed,
 		"rows": rows,
 	}
+	# Bontago-22y.11: the mode outcome rides in an optional "mode" block, absent
+	# for classic so its payload is unchanged.
+	if not mode_fields.is_empty():
+		payload["mode"] = mode_fields
+	return payload
 
 
 func _winner_name(winning_team: int, ffa: bool) -> String:
@@ -285,13 +290,19 @@ static func validate_results_payload(raw: Variant) -> Dictionary:
 			return {}
 		rows.append(row)
 
-	return {
+	var validated: Dictionary = {
 		"winner_kind": String(winner_kind),
 		"winner_id": int(winner_id),
 		"winner_name": String(winner_name),
 		"match_duration": float(duration),
 		"rows": rows,
 	}
+	if data.has("mode"):
+		var mode_block: Dictionary = ModeObjective.validate_results_block(data["mode"])
+		if mode_block.is_empty():
+			return {}
+		validated["mode"] = mode_block
+	return validated
 
 
 static func _validate_row(raw_row: Variant) -> Dictionary:
