@@ -123,6 +123,15 @@ extends Resource
 ## Defend multiplier added per enemy circle centre within the threat radius of home.
 @export var weight_elim_threat: float = 1.0
 @export var elim_threat_radius_m: float = 8.0
+## Bontago-1t5.4: flat bonus (in attack-metric meters) for a candidate whose
+## future circle covers an enemy home beyond the flip margin (the elimination
+## condition), plus a diminishing gain per meter of overshoot capped below.
+@export var elim_achieve_bonus_m: float = 6.0
+@export var elim_overshoot_gain: float = 0.25
+@export var elim_overshoot_cap_m: float = 2.0
+## OFF mode defend: extra defend weight scaled by how much of the home radius the
+## candidate's own circle covers at the home point (0..1).
+@export var elim_off_defend_gain: float = 2.0
 
 ## Returns the profile for `difficulty`; NORMAL (and any out-of-range value)
 ## falls back to `normal` rather than failing, so a stale/corrupt wire value

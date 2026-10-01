@@ -27,6 +27,10 @@ var enemy_home_positions: PackedVector2Array = PackedVector2Array()
 var enemy_home_shares: PackedFloat32Array = PackedFloat32Array()
 var has_own_home: bool = false
 var own_home_position: Vector2 = Vector2.ZERO
+## Bontago-1t5.4: true under HoleMode.OFF, where a home only falls when an enemy
+## radius at the home point exceeds `home_radius` (else an overlap opens a hole).
+var no_overlap_mode: bool = false
+var home_radius: float = 0.0
 
 
 func is_neutral() -> bool:
