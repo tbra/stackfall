@@ -771,22 +771,31 @@ layout_mode = 2
 custom_minimum_size = Vector2(150, 0)
 
 [node name="RoundTimerCol" type="VBoxContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 4
 
 [node name="RoundTimerCaption" type="Label" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules/RoundTimerCol"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"CaptionLabel"
 theme_override_font_sizes/font_size = 10
-text = "Round timer (0=off: Elimination)"
+text = "Round length (minutes)"
 
 [node name="RoundTimerSpin" type="SpinBox" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules/RoundTimerCol"]
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(110, 0)
-min_value = 0
+min_value = 1
 max_value = 40
 value = 10
+
+[node name="RoundTimerHint" type="Label" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules/RoundTimerCol"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+theme_override_font_sizes/font_size = 10
+text = ""
 
 [node name="SkyTeamCol" type="VBoxContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules"]
 unique_name_in_owner = true
@@ -800,14 +809,16 @@ layout_mode = 2
 text = "Team height: sum"
 
 [node name="MatchTimerCol" type="VBoxContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 4
 
 [node name="MatchTimerCaption" type="Label" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules/MatchTimerCol"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"CaptionLabel"
 theme_override_font_sizes/font_size = 10
-text = "Match timer (0=off)"
+text = "Match timer (minutes)"
 
 [node name="MatchTimerSpin" type="SpinBox" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules/MatchTimerCol"]
 unique_name_in_owner = true
@@ -815,7 +826,15 @@ layout_mode = 2
 custom_minimum_size = Vector2(110, 0)
 max_value = 40
 
+[node name="MatchTimerHint" type="Label" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules/MatchTimerCol"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+theme_override_font_sizes/font_size = 10
+text = ""
+
 [node name="SuddenDeathCol" type="VBoxContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 4
 

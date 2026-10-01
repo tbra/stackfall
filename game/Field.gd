@@ -1203,7 +1203,8 @@ func place_flags(slot_count: int, slot_colors: PackedColorArray, goal_count: int
 		add_child(flag)
 		flag.set_slot(slot_id, _color_for_index(slot_id))
 		_home_flags.append(flag)
-	for local: Vector2 in goal_flag_positions(goal_count):
+	# Bontago-6fc.2: goal_count 0 (Reach the Sky / Elimination) spawns no flag.
+	for local: Vector2 in PlayerSlot.goal_positions_for(goal_count, map_def):
 		var flag: GoalFlag = goal_flag_scene.instantiate() as GoalFlag
 		flag.visuals = visuals
 		flag.position = Vector3(local.x, 0.0, local.y)

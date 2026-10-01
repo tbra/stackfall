@@ -571,7 +571,7 @@ func _goal_positions() -> PackedVector2Array:
 	var config: MatchConfig = match_ref.config
 	if config == null:
 		return PackedVector2Array()
-	return PlayerSlot.goal_positions_for(config.goal_flag_count, config.map_def())
+	return PlayerSlot.goal_positions_for(config.effective_goal_flag_count(), config.map_def())
 
 
 ## Bontago-d5c.10 (item F): "where the enemy is" -- every other team's home

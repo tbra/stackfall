@@ -905,3 +905,17 @@ func test_active_special_positions_converts_ticking_specials_to_disk_local() -> 
 	assert_eq(positions.size(), 1, "exactly the one ticking special found in the group")
 	assert_almost_eq(positions[0].x, 4.0, 0.001, "disk-local x off a level, origin-centered Field")
 	assert_almost_eq(positions[0].y, -2.0, 0.001, "disk-local y (Field's local z) off a level, origin-centered Field")
+
+
+## Bontago-6fc.2: Reach the Sky / Elimination spawn no goal flag, so bots have
+## no goal to target; classic still has its goal.
+func test_bots_have_no_goal_targets_without_goal_flags() -> void:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	var controller: BotController = _make_controller(field, match_ref, BotControllerFakeNet.new())
+	match_ref.config.game_mode = MatchConfig.GameMode.REACH_THE_SKY
+	assert_true(controller._goal_positions().is_empty())
+	match_ref.config.game_mode = MatchConfig.GameMode.ELIMINATION
+	assert_true(controller._goal_positions().is_empty())
+	match_ref.config.game_mode = MatchConfig.GameMode.CLASSIC
+	assert_eq(controller._goal_positions().size(), 1)

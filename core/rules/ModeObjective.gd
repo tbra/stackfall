@@ -58,6 +58,14 @@ func mode_id() -> int:
 	return MatchConfig.GameMode.CLASSIC
 
 
+## Bontago-6fc.2: whether the match spawns goal flags (nodes, no-build zones,
+## HUD/minimap markers, bot targets) for this mode. Classic (the goal hold) and
+## CTF (beacons are the goal flags) say true; Reach the Sky and Elimination
+## override to false. Mirrors MatchConfig.mode_uses_goal_flags().
+func uses_goal_flags() -> bool:
+	return MatchConfig.mode_uses_goal_flags(mode_id())
+
+
 ## True for a timed mode: MatchLifecycle then arms config.round_timer_minutes
 ## and finishes the match through on_round_timer_end() when it hits zero (no
 ## sudden death). False (classic) keeps match_timer_minutes + sudden_death.

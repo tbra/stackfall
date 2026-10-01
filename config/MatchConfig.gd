@@ -72,6 +72,8 @@ const GAME_MODE_LABELS: PackedStringArray = ["Classic", "Capture the Flag", "Eli
 ## Round timer (timed modes only), minutes. Classic keeps match_timer_minutes.
 const ROUND_TIMER_MIN_MINUTES: int = 1
 const ROUND_TIMER_MAX_MINUTES: int = 40
+## Round length a CTF / Reach the Sky match starts from (matches round_timer_minutes).
+const ROUND_TIMER_DEFAULT_MINUTES: int = 10
 ## Elimination alone may switch its round timer off (0): it then runs until one
 ## team is left. Every other timed mode needs a timer to end.
 const ROUND_TIMER_OFF_MINUTES: int = 0
@@ -118,7 +120,7 @@ const ROUND_TIMER_OFF_MINUTES: int = 0
 ## Round length for timed modes (the objective's timer-end path finishes the
 ## match when it reaches zero). Ignored by CLASSIC, which keeps using
 ## match_timer_minutes + sudden_death exactly as before.
-@export var round_timer_minutes: int = 10
+@export var round_timer_minutes: int = ROUND_TIMER_DEFAULT_MINUTES
 ## Reach the Sky only (Bontago-22y.9): false = a team's record is its best
 ## member's, true = the sum of its members' records. A plain bool, so it needs
 ## no clamp; the host still re-types it from the wire in from_dict().
@@ -204,6 +206,35 @@ const SPECIAL_FREQUENCY_MIN: int = 0
 const SPECIAL_FREQUENCY_MAX: int = 100
 
 
+## Bontago-6fc.1: the lobby shows ONE timer control whose range follows the
+## mode. Classic edits match_timer_minutes (0 = off); CTF and Reach the Sky edit
+## round_timer_minutes (minimum 1); Elimination edits round_timer_minutes with 0
+## meaning "no limit".
+static func timer_is_match_timer(mode: int) -> bool:
+	return resolve_game_mode(mode) == GameMode.CLASSIC
+
+
+## Lowest value of the mode's timer control, minutes.
+static func timer_min_minutes(mode: int) -> int:
+	if resolve_game_mode(mode) == GameMode.CLASSIC:
+		return 0
+	return clamp_round_timer(0, mode)
+
+
+## Value the timer control takes when the mode changes family: classic off,
+## Elimination no limit, CTF/Sky the shipped round length.
+static func timer_default_minutes(mode: int) -> int:
+	match resolve_game_mode(mode):
+		GameMode.CLASSIC, GameMode.ELIMINATION:
+			return 0
+	return ROUND_TIMER_DEFAULT_MINUTES
+
+
+## True when two modes share one timer meaning (so a mode switch keeps the value).
+static func same_timer_family(a: int, b: int) -> bool:
+	return timer_is_match_timer(a) == timer_is_match_timer(b) and timer_min_minutes(a) == timer_min_minutes(b)
+
+
 ## True when `mode` may be chosen in the lobby and played.
 static func is_game_mode_selectable(mode: int) -> bool:
 	return SELECTABLE_GAME_MODES.has(mode)
@@ -219,6 +250,22 @@ static func clamp_round_timer(minutes: int, mode: int) -> int:
 ## fallback documented at GameMode).
 static func resolve_game_mode(mode: int) -> GameMode:
 	return mode as GameMode if is_game_mode_selectable(mode) else GameMode.CLASSIC
+
+
+## Bontago-6fc.2: true when `mode` plays with goal flags (Classic, CTF).
+## Reach the Sky and Elimination have no goal flag at all.
+static func mode_uses_goal_flags(mode: int) -> bool:
+	var resolved: GameMode = resolve_game_mode(mode)
+	return resolved != GameMode.REACH_THE_SKY and resolved != GameMode.ELIMINATION
+
+
+## Goal flags this match actually spawns: goal_flag_count, or 0 when the mode
+## has none. The sandbox keeps its beacon in every mode (it never wins on it,
+## see MatchTerritory._finish_objective_step).
+func effective_goal_flag_count() -> int:
+	if sandbox or mode_uses_goal_flags(game_mode):
+		return goal_flag_count
+	return 0
 
 
 ## The MapDef this config's map_variant + map_size select.

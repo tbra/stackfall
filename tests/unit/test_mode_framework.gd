@@ -330,7 +330,8 @@ func test_lobby_mode_controls_are_in_the_popup_focus_loop_and_host_gated() -> vo
 	var host: Lobby = _make_lobby(true)
 	var client: Lobby = _make_lobby(false)
 	var mode: OptionButton = host.get_node("%GameModeOption")
-	var timer: SpinBox = host.get_node("%RoundTimerSpin")
+	# Bontago-6fc.1: only the selected mode's timer control is in the focus loop.
+	var timer: SpinBox = host.get_node("%MatchTimerSpin")
 	assert_false(mode.disabled)
 	assert_true(timer.editable)
 	assert_ne(mode.focus_neighbor_bottom, NodePath(), "gamepad/keyboard focus reaches the mode option")
