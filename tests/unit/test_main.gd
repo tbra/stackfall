@@ -49,9 +49,9 @@ func after_each() -> void:
 
 
 func _take_port() -> int:
-	var port: int = _next_port
-	_next_port += 1
-	return port
+	# Parallel gate shards (tools/full_gate.py) run several Godot processes at
+	# once; a fixed port sequence collided, so ask the OS for a free port.
+	return AgentProbe.free_udp_port()
 
 
 func test_lobby_back_button_leaves_the_hosted_session_and_returns_to_the_main_menu() -> void:
