@@ -110,6 +110,20 @@ extends Resource
 @export var weight_sky_tower_distance: float = 1.0
 @export var sky_tower_reach_m: float = 2.0
 
+## Bontago-1t5.3 phase B (append-only): Elimination weights, inert elsewhere.
+## Pull towards the best living enemy home (goal-progress metric: distance minus
+## the candidate's future influence radius).
+@export var weight_elim_attack: float = 1.5
+## Distance inflation per unit of the enemy team's territory share (0..1): a
+## larger value steers the bot to weaker enemies over nearer strong ones.
+@export var elim_weak_target_bias: float = 1.0
+## Bonus for building up influence near the bot's own home, fading to 0 at the radius.
+@export var weight_elim_defend: float = 2.0
+@export var elim_defend_radius_m: float = 5.0
+## Defend multiplier added per enemy circle centre within the threat radius of home.
+@export var weight_elim_threat: float = 1.0
+@export var elim_threat_radius_m: float = 8.0
+
 ## Returns the profile for `difficulty`; NORMAL (and any out-of-range value)
 ## falls back to `normal` rather than failing, so a stale/corrupt wire value
 ## never leaves a bot with a null profile.

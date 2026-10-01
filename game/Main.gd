@@ -693,7 +693,13 @@ func _mode_arg(args: PackedStringArray) -> int:
 				return MatchConfig.GameMode.ELIMINATION
 			"sky", "reach_the_sky":
 				return MatchConfig.GameMode.REACH_THE_SKY
-		return int(value) if value.is_valid_int() else -1
+		if value.is_valid_int():
+			var id: int = int(value)
+			if MatchConfig.resolve_game_mode(id) != id:
+				push_warning("--mode=%s is reserved or unselectable; falling back to %d" % [value, MatchConfig.resolve_game_mode(id)])
+			return id
+		push_warning("--mode=%s is not a known mode id; keeping the configured mode" % value)
+		return -1
 	return -1
 
 
@@ -755,15 +761,28 @@ func _on_headless_bots_seconds_elapsed() -> void:
 
 
 func _headless_bots_periodic_line() -> String:
-	return "HEADLESS_BOTS t=%.1f state=%s placements=%d" % [
+	return "HEADLESS_BOTS t=%.1f state=%s placements=%d mode=%d homes_alive=%d" % [
 		_headless_bots_elapsed_s(), _headless_bots_state_name(), _headless_bots_placements,
+		Match.config.game_mode if Match.config != null else 0, _headless_bots_homes_alive(),
 	]
 
 
 func _headless_bots_done_line() -> String:
-	return "HEADLESS_BOTS done t=%.1f placements=%d" % [
+	return "HEADLESS_BOTS done t=%.1f placements=%d mode=%d homes_alive=%d" % [
 		_headless_bots_elapsed_s(), _headless_bots_placements,
+		Match.config.game_mode if Match.config != null else 0, _headless_bots_homes_alive(),
 	]
+
+
+## Living home flags (diagnostics: shows whether an Elimination bot match
+## eliminated anyone).
+func _headless_bots_homes_alive() -> int:
+	var alive: int = 0
+	for i: int in range(Match.slot_count()):
+		var slot: PlayerSlot = Match.slot(i)
+		if slot != null and slot.home_flag_alive:
+			alive += 1
+	return alive
 
 
 func _headless_bots_elapsed_s() -> float:

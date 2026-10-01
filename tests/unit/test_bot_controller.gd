@@ -80,6 +80,16 @@ class BotControllerFakeMatch:
 	func circle_render_arrays() -> Dictionary:
 		return circle_arrays_value
 
+	## Bontago-1t5.3: optional mode goal provider (a Callable slot -> BotModeGoal).
+	var mode_goal_calls: Array[int] = []
+	var mode_goal_factory: Callable = Callable()
+
+	func bot_mode_goal(slot_id: int) -> BotModeGoal:
+		mode_goal_calls.append(slot_id)
+		if mode_goal_factory.is_valid():
+			return mode_goal_factory.call(slot_id) as BotModeGoal
+		return null
+
 	func request_place(
 		slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion, auto_drop: bool, feed_seq_arg: int = -1
 	) -> StringName:
@@ -919,3 +929,34 @@ func test_bots_have_no_goal_targets_without_goal_flags() -> void:
 	assert_true(controller._goal_positions().is_empty())
 	match_ref.config.game_mode = MatchConfig.GameMode.CLASSIC
 	assert_eq(controller._goal_positions().size(), 1)
+
+
+## Bontago-1t5.3 review fix: the match's bot_mode_goal(slot) is asked for once
+## per placement for the bot's own slot (not per candidate).
+func test_send_best_placement_asks_the_match_for_the_mode_goal_once() -> void:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	var goal: BotModeGoal = BotModeGoal.new()
+	goal.mode = MatchConfig.GameMode.ELIMINATION
+	goal.enemy_home_positions = PackedVector2Array([Vector2(6.0, 0.0)])
+	goal.enemy_home_shares = PackedFloat32Array([0.2])
+	match_ref.mode_goal_factory = func(_slot: int) -> BotModeGoal: return goal
+	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
+	var controller: BotController = _make_controller(field, match_ref, net_ref)
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+	Events.feed_block_issued.emit(0, &"cube", &"")
+	_tick(controller, 72)
+	assert_eq(match_ref.request_place_calls.size(), 1)
+	assert_eq(match_ref.mode_goal_calls, [0] as Array[int])
+
+
+func test_send_best_placement_tolerates_a_null_mode_goal() -> void:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
+	var controller: BotController = _make_controller(field, match_ref, net_ref)
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+	Events.feed_block_issued.emit(0, &"cube", &"")
+	_tick(controller, 72)
+	assert_eq(match_ref.request_place_calls.size(), 1)
+	assert_eq(match_ref.mode_goal_calls.size(), 1)

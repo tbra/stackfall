@@ -150,6 +150,7 @@ static func _mode_term(
 	raster: TerritoryRaster,
 	grid: CellGrid,
 	mode_goal: BotModeGoal,
+	enemy_circle_centers: PackedVector2Array,
 	territory_tuning: TerritoryTuning,
 	tuning: BotTuning,
 	field_radius: float
@@ -159,7 +160,51 @@ static func _mode_term(
 			return _ctf_term(candidate, raster, mode_goal, territory_tuning, tuning, field_radius)
 		MatchConfig.GameMode.REACH_THE_SKY:
 			return _sky_term(candidate, grid, mode_goal, tuning)
+		MatchConfig.GameMode.ELIMINATION:
+			return _elimination_term(candidate, mode_goal, enemy_circle_centers, territory_tuning, tuning, field_radius)
 	return 0.0
+
+
+## Elimination (Bontago-1t5.3 phase B). DECISION: a home falls when an enemy
+## hole opens under its flag (or an enemy area takes it), so the bot pushes its
+## influence over the best living enemy home and keeps its own home covered.
+## Attack: the goal-progress metric (distance minus the candidate's future
+## radius, smaller is better) against each living enemy home, with the distance
+## inflated by the enemy's territory share (the weaker/closer home wins); only
+## the best home counts. Defend: a bonus for the candidate's future radius near
+## its own home (fading to 0 at elim_defend_radius_m), multiplied by
+## (1 + weight_elim_threat) per enemy circle centre within elim_threat_radius_m
+## of that home.
+static func _elimination_term(
+	candidate: BotCandidate,
+	mode_goal: BotModeGoal,
+	enemy_circle_centers: PackedVector2Array,
+	territory_tuning: TerritoryTuning,
+	tuning: BotTuning,
+	field_radius: float
+) -> float:
+	var estimated_height: float = candidate.support_height + candidate.shape_height
+	var radius: float = 0.0
+	if territory_tuning != null:
+		radius = InfluenceCircle.radius_for_height(estimated_height, territory_tuning, field_radius)
+	var term: float = 0.0
+	var best_metric: float = INF
+	for i: int in range(mode_goal.enemy_home_positions.size()):
+		var share: float = mode_goal.enemy_home_shares[i] if i < mode_goal.enemy_home_shares.size() else 0.0
+		var distance: float = candidate.origin.distance_to(mode_goal.enemy_home_positions[i])
+		best_metric = minf(best_metric, distance * (1.0 + tuning.elim_weak_target_bias * share) - radius)
+	if best_metric < INF:
+		term -= tuning.weight_elim_attack * best_metric
+	if mode_goal.has_own_home and tuning.elim_defend_radius_m > 0.0:
+		var home_distance: float = candidate.origin.distance_to(mode_goal.own_home_position)
+		if home_distance < tuning.elim_defend_radius_m:
+			var threats: int = 0
+			for center: Vector2 in enemy_circle_centers:
+				if center.distance_to(mode_goal.own_home_position) < tuning.elim_threat_radius_m:
+					threats += 1
+			var closeness: float = 1.0 - home_distance / tuning.elim_defend_radius_m
+			term += tuning.weight_elim_defend * closeness * (1.0 + tuning.weight_elim_threat * float(threats)) * (1.0 + radius)
+	return term
 
 
 ## Capture the Flag. DECISION (Bontago-1t5.3): a beacon only scores while its
@@ -233,7 +278,13 @@ static func score(
 	mode_goal: BotModeGoal = null
 ) -> float:
 	var territory_tuning: TerritoryTuning = raster.tuning() if raster != null else null
-	var goal_metric: float = _goal_progress_metric(candidate, goal_positions, territory_tuning, field_radius)
+	# DECISION (Bontago-1t5.3): Capture the Flag replaces the ordinary goal-progress
+	# term with its own beacon extend/reinforce term, so unheld beacons are not
+	# weighted twice (weight_goal_progress + weight_ctf_extend).
+	var own_goal_term: bool = mode_goal != null and mode_goal.mode == MatchConfig.GameMode.CAPTURE_THE_FLAG
+	var goal_metric: float = 0.0
+	if not own_goal_term:
+		goal_metric = _goal_progress_metric(candidate, goal_positions, territory_tuning, field_radius)
 	var stability_term: float = _stability_term(candidate, grid, tuning)
 	var risk_term: float = _risk_term(candidate, enemy_circle_centers, active_special_positions, tuning)
 	var base: float = (
@@ -245,7 +296,7 @@ static func score(
 	# Classic/Elimination/null add nothing, so their scores stay byte-identical.
 	if mode_goal == null or mode_goal.is_neutral():
 		return base
-	return base + _mode_term(candidate, raster, grid, mode_goal, territory_tuning, tuning, field_radius)
+	return base + _mode_term(candidate, raster, grid, mode_goal, enemy_circle_centers, territory_tuning, tuning, field_radius)
 
 
 ## How many of `cells` (rotated by `basis`) sit at the lowest transformed

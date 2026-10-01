@@ -21,6 +21,13 @@ var has_tower: bool = false
 var tower_origin: Vector2 = Vector2.ZERO
 var tower_height: float = 0.0
 
+## Elimination (phase B): living opponent homes (disk-local) with their team's
+## territory share (parallel array; larger = stronger), and the bot's own home.
+var enemy_home_positions: PackedVector2Array = PackedVector2Array()
+var enemy_home_shares: PackedFloat32Array = PackedFloat32Array()
+var has_own_home: bool = false
+var own_home_position: Vector2 = Vector2.ZERO
+
 
 func is_neutral() -> bool:
-	return mode == MatchConfig.GameMode.CLASSIC or mode == MatchConfig.GameMode.ELIMINATION
+	return mode == MatchConfig.GameMode.CLASSIC

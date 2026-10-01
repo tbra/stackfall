@@ -347,7 +347,7 @@ func test_sky_prefers_the_stable_candidate_on_its_own_tower() -> void:
 func test_classic_and_neutral_modes_score_identically_to_no_goal() -> void:
 	var candidate: BotCandidate = _candidate(Vector2(3.0, 1.0), 2.0, PackedInt32Array([0, 1]), true, 1)
 	var plain: float = _score(candidate)
-	for mode: int in [MatchConfig.GameMode.CLASSIC, MatchConfig.GameMode.ELIMINATION]:
+	for mode: int in [MatchConfig.GameMode.CLASSIC]:
 		var goal: BotModeGoal = BotModeGoal.new()
 		goal.mode = mode
 		assert_eq(BotPlacementScorer.score(
@@ -358,3 +358,75 @@ func test_classic_and_neutral_modes_score_identically_to_no_goal() -> void:
 		candidate, _raster, _grid, 0, PackedVector2Array(), PackedVector2Array(), PackedVector2Array(),
 		_bot_tuning, MAP_RADIUS, null
 	), plain)
+
+
+func test_ctf_does_not_double_weight_unheld_beacons() -> void:
+	_connect_home_territory()
+	var held: Array[bool] = [false, false]
+	var goal: BotModeGoal = _ctf_goal(held)
+	var spot: BotCandidate = _candidate(Vector2(7.0, 0.0))
+	var with_goal: float = BotPlacementScorer.score(
+		spot, _raster, _grid, 0, goal.beacon_positions, PackedVector2Array(), PackedVector2Array(),
+		_bot_tuning, MAP_RADIUS, goal
+	)
+	var ctf_only: float = BotPlacementScorer.score(
+		spot, _raster, _grid, 0, PackedVector2Array(), PackedVector2Array(), PackedVector2Array(),
+		_bot_tuning, MAP_RADIUS, goal
+	)
+	assert_eq(with_goal, ctf_only, "the classic goal term is replaced, not added, in CTF")
+
+
+## -- Bontago-1t5.3 phase B: Elimination ---------------------------------------------
+
+func _elim_goal(enemy_homes: PackedVector2Array, shares: PackedFloat32Array, own_home: Vector2) -> BotModeGoal:
+	var goal: BotModeGoal = BotModeGoal.new()
+	goal.mode = MatchConfig.GameMode.ELIMINATION
+	goal.enemy_home_positions = enemy_homes
+	goal.enemy_home_shares = shares
+	goal.has_own_home = true
+	goal.own_home_position = own_home
+	return goal
+
+
+func _score_with(candidate: BotCandidate, goal: BotModeGoal, enemy_centers: PackedVector2Array) -> float:
+	return BotPlacementScorer.score(
+		candidate, _raster, _grid, 0, PackedVector2Array(), enemy_centers, PackedVector2Array(),
+		_bot_tuning, MAP_RADIUS, goal
+	)
+
+
+func test_elimination_attacks_towards_a_living_enemy_home() -> void:
+	var goal: BotModeGoal = _elim_goal(PackedVector2Array([Vector2(12.0, 0.0)]), PackedFloat32Array([0.2]), Vector2(-15.0, 0.0))
+	var towards: BotCandidate = _candidate(Vector2(6.0, 0.0), 1.0)
+	var away: BotCandidate = _candidate(Vector2(-6.0, 0.0), 1.0)
+	var candidates: Array[BotCandidate] = [away, towards]
+	assert_eq(_pick(candidates, goal), towards)
+
+
+func test_elimination_prefers_the_weaker_of_two_equidistant_enemies() -> void:
+	var goal: BotModeGoal = _elim_goal(
+		PackedVector2Array([Vector2(12.0, 0.0), Vector2(-12.0, 0.0)]), PackedFloat32Array([0.6, 0.05]), Vector2(0.0, 18.0)
+	)
+	var at_strong: BotCandidate = _candidate(Vector2(7.0, 0.0), 1.0)
+	var at_weak: BotCandidate = _candidate(Vector2(-7.0, 0.0), 1.0)
+	var candidates: Array[BotCandidate] = [at_strong, at_weak]
+	assert_eq(_pick(candidates, goal), at_weak)
+
+
+func test_elimination_defends_the_own_home_when_an_enemy_circle_is_close() -> void:
+	var home: Vector2 = Vector2(-15.0, 0.0)
+	var goal: BotModeGoal = _elim_goal(PackedVector2Array([Vector2(15.0, 0.0)]), PackedFloat32Array([0.2]), home)
+	var threats: PackedVector2Array = PackedVector2Array([Vector2(-10.0, 3.0), Vector2(-9.0, -3.0)])
+	var near_home: BotCandidate = _candidate(Vector2(-14.0, 0.0), 1.0)
+	var attacking: BotCandidate = _candidate(Vector2(-6.0, 0.0), 1.0)
+	assert_gt(_score_with(near_home, goal, threats), _score_with(attacking, goal, threats),
+		"with enemy circles at the gate the bot builds up its own home")
+	assert_gt(_score_with(near_home, goal, threats), _score_with(near_home, goal, PackedVector2Array()),
+		"the defend bonus grows with the threat")
+
+
+func test_elimination_with_no_enemy_homes_or_own_home_adds_nothing() -> void:
+	var goal: BotModeGoal = BotModeGoal.new()
+	goal.mode = MatchConfig.GameMode.ELIMINATION
+	var candidate: BotCandidate = _candidate(Vector2(3.0, 1.0), 2.0)
+	assert_eq(_score_with(candidate, goal, PackedVector2Array()), _score(candidate))

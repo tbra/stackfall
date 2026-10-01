@@ -422,3 +422,27 @@ func test_paintball_owner_conversion_bumps_revision_host_and_client() -> void:
 	var client_before: int = client_registry.territory_revision()
 	assert_true(client_registry.apply_replicated_owner(81, 0, Color.RED))
 	assert_eq(client_registry.territory_revision(), client_before + 1, "Client mirror conversion bumps.")
+
+
+func test_tallest_settled_for_slot_returns_the_owners_highest_settled_block() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	assert_true(registry.tallest_settled_for_slot(0).is_empty(), "nothing tracked -> {}")
+	var specs: Array = [[0, Vector3(2.0, 0.5, 0.0)], [0, Vector3(-3.0, 2.5, 1.0)], [1, Vector3(0.0, 6.5, 0.0)]]
+	for spec: Array in specs:
+		var block: Block = BlockFactory.build(shape, _tuning, int(spec[0]))
+		field.add_child(block)
+		block.freeze = true
+		block.global_position = spec[1] as Vector3
+		Events.block_placed.emit(block, shape.id)
+	var ticks: int = int(ceil(_tuning.sleep_settle_time * Engine.physics_ticks_per_second)) + 5
+	for _i: int in range(ticks):
+		await get_tree().physics_frame
+	var tallest: Dictionary = registry.tallest_settled_for_slot(0)
+	assert_false(tallest.is_empty())
+	assert_almost_eq((tallest["xz"] as Vector2).x, -3.0, 0.05)
+	assert_almost_eq((tallest["xz"] as Vector2).y, 1.0, 0.05)
+	assert_gt(float(tallest["height"]), 2.5, "top of slot 0's high cube")
+	assert_lt(float(tallest["height"]), 6.0, "not the other slot's cube")
+	assert_true(registry.tallest_settled_for_slot(5).is_empty(), "no blocks for that slot")
