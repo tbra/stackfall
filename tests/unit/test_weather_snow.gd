@@ -200,6 +200,23 @@ func test_snow_grows_in_steps_to_the_cap_and_stays_bounded() -> void:
 		assert_false(cube.is_freeze_static(), "rebuild freeze released")
 
 
+func test_drift_rebuild_survives_a_block_freed_mid_queue() -> void:
+	# Bontago-1pi.11.26: a block freed (burned / kill plane) after the drift queue
+	# was captured used to error on the typed cast every frame it was reached.
+	var cubes: Array[Block] = [_cube(Vector3(-2.0, 0.01, 0.0)), _cube(Vector3(2.0, 0.01, 0.0))]
+	await _frames(SETTLE_FRAMES)
+	var effect: SnowEffect = _make_effect()
+	await _frames(GROW_FRAMES)
+	var cover: SnowDiscCover = SnowCaps.disc_cover(_field)
+	assert_not_null(cover)
+	cover.call(&"_start_drift")
+	assert_true(cover.is_drift_building())
+	cubes[0].free()
+	cover.finish_drift()
+	assert_false(cover.is_drift_building(), "queue drained past the freed block")
+	assert_not_null(effect)
+
+
 func test_block_patch_budget_is_global() -> void:
 	_snow.max_block_patches = 2
 	_snow.max_disc_patches = 0

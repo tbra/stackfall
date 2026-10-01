@@ -40,6 +40,52 @@ var _ft_prev_frozen: Dictionary = {}
 var _ft_prev_sleep: Dictionary = {}
 var _ft_prev_field: Transform3D = Transform3D.IDENTITY
 var _ft: Dictionary = {}
+## Bontago-1pi.11.26 --spike-ms=N: per-frame breakdown for every frame over N ms.
+var _spike_ms: float = 0.0
+var _spike_count: int = 0
+var _spike_worst_us: int = 0
+var _f_ticks: int = 0
+var _f_step_us: int = 0
+var _f_phys_us: int = 0
+var _f_events: Dictionary = {}
+var _probe_acc: Dictionary = {}
+var _wrapped: Dictionary = {}
+var _wrap_us: Dictionary = {}
+var _logger: SpikeLogger = null
+var _last_proc_us: int = 0
+
+
+class SpikeLogger:
+	extends Logger
+	var lines: Array[String] = []
+	var mutex: Mutex = Mutex.new()
+
+	func _log_error(_function: String, file: String, line: int, code: String, rationale: String, _editor_notify: bool, error_type: int, _script_backtraces: Array[ScriptBacktrace]) -> void:
+		mutex.lock()
+		lines.append("%s %s:%d %s %s" % ["warn" if error_type == 1 else "err", file.get_file(), line, code, rationale])
+		mutex.unlock()
+
+	func take() -> Array[String]:
+		mutex.lock()
+		var out: Array[String] = lines.duplicate()
+		lines.clear()
+		mutex.unlock()
+		return out
+
+
+## Runs a node's _physics_process from a timed wrapper (the node's own is disabled).
+class Wrap:
+	extends Node
+	var bench: Node = null
+	var target: Node = null
+	var label: String = ""
+
+	func _physics_process(delta: float) -> void:
+		if not is_instance_valid(target):
+			return
+		var t0: int = Time.get_ticks_usec()
+		target.call(&"_physics_process", delta)
+		bench.call(&"_wrap_add", label, Time.get_ticks_usec() - t0)
 
 
 class LateHook:
@@ -64,6 +110,8 @@ func _ready() -> void:
 			_cycle_s = float(arg.trim_prefix("--weather-cycle="))
 		elif arg == "--freeze-trace":
 			_freeze_trace = true
+		elif arg.begins_with("--spike-ms="):
+			_spike_ms = float(arg.trim_prefix("--spike-ms="))
 		elif arg == "--sim-clock":
 			_sim_clock = true
 		elif arg == "--no-win":
@@ -94,8 +142,105 @@ func _ready() -> void:
 	(_early_node as LateHook).early = true
 	_early_node.process_priority = -LATE_PRIORITY
 	add_child(_early_node)
+	if _spike_ms > 0.0:
+		_logger = SpikeLogger.new()
+		OS.add_logger(_logger)
+		_connect_events()
 	await _run()
+	print("BM spikes>%.0fms count=%d worst_ms=%.1f" % [_spike_ms, _spike_count, float(_spike_worst_us) / 1000.0])
 	get_tree().quit()
+
+
+func _wrap_add(label: String, us: int) -> void:
+	_wrap_us[label] = int(_wrap_us.get(label, 0)) + us
+
+
+func _ev(key: String) -> void:
+	_f_events[key] = int(_f_events.get(key, 0)) + 1
+
+
+func _connect_events() -> void:
+	Events.block_placed.connect(func(_b: RigidBody3D, _s: StringName) -> void: _ev("placed"))
+	Events.block_removed.connect(func(_b: RigidBody3D, reason: String) -> void: _ev("removed:" + reason))
+	Events.territory_updated.connect(func(_r: TerritoryRaster, _g: TerritoryGroups) -> void: _ev("territory_updated"))
+	Events.gift_spawned.connect(func(_i: int, _p: Vector2) -> void: _ev("gift_spawned"))
+	Events.gift_landed.connect(func(_i: int, _p: Vector3) -> void: _ev("gift_landed"))
+	Events.gift_claimed.connect(func(_i: int, _s: int, _sp: StringName) -> void: _ev("gift_claimed"))
+	Events.gift_expired.connect(func(_i: int) -> void: _ev("gift_expired"))
+	Events.special_triggered.connect(func(_n: int, d: StringName, _p: Vector3, _c: int) -> void: _ev("special:" + String(d)))
+	Events.weather_started.connect(func(w: StringName) -> void: _ev("weather_started:" + String(w)))
+	Events.weather_stopped.connect(func(w: StringName) -> void: _ev("weather_stopped:" + String(w)))
+	Events.feed_block_issued.connect(func(_s: int, _a: StringName, _n: StringName) -> void: _ev("feed"))
+	Events.block_impacted.connect(func(_s: float) -> void: _ev("impact"))
+
+
+func _wrap_new_targets() -> void:
+	var targets: Array[Node] = []
+	var mgr: Node = _manager()
+	if mgr != null:
+		targets.append(mgr)
+	for node: Node in get_tree().root.find_children("*", "BotController", true, false):
+		targets.append(node)
+	for node: Node in targets:
+		var id: int = node.get_instance_id()
+		if _wrapped.has(id):
+			continue
+		_wrapped[id] = true
+		node.set_physics_process(false)
+		var w: Wrap = Wrap.new()
+		w.bench = self
+		w.target = node
+		w.label = "bot" if node is BotController else "stable_mgr"
+		add_child(w)
+
+
+func _merge_probes() -> void:
+	_merge_into(PerfProbe.drain())
+
+
+func _merge_into(fresh: Dictionary) -> void:
+	for key: StringName in fresh.keys():
+		var e: Dictionary = fresh[key]
+		if not _probe_acc.has(key):
+			_probe_acc[key] = {"usec": 0, "calls": 0, "peak_usec": 0}
+		var a: Dictionary = _probe_acc[key]
+		a["usec"] = int(a["usec"]) + int(e["usec"])
+		a["calls"] = int(a["calls"]) + int(e["calls"])
+		a["peak_usec"] = maxi(int(a["peak_usec"]), int(e["peak_usec"]))
+
+
+func _spike_report(dt: int) -> void:
+	_spike_count += 1
+	_spike_worst_us = maxi(_spike_worst_us, dt)
+	var probes: Dictionary = PerfProbe.drain()
+	var text: String = ""
+	for key: StringName in probes.keys():
+		var e: Dictionary = probes[key]
+		text += " %s=%.1f/%d" % [key, float(e["usec"]) / 1000.0, int(e["calls"])]
+	var wraps: String = ""
+	for key: String in _wrap_us.keys():
+		wraps += " %s=%.1f" % [key, float(int(_wrap_us[key])) / 1000.0]
+	var blocks: Array[RigidBody3D] = _blocks()
+	var awake: int = 0
+	var frozen: int = 0
+	for body: RigidBody3D in blocks:
+		if body.freeze:
+			frozen += 1
+		elif not body.sleeping:
+			awake += 1
+	var errs: Array[String] = _logger.take() if _logger != null else []
+	print("SPIKE frame_ms=%.1f ticks=%d step_ms=%.1f phys_scripts_ms=%.1f proc_scripts_ms=%.1f other_ms=%.1f blocks=%d awake=%d frozen=%d probes(ms/calls):%s wraps(ms):%s events=%s errors=%s" % [
+		float(dt) / 1000.0, _f_ticks, float(_f_step_us) / 1000.0, float(_f_phys_us) / 1000.0, float(_last_proc_us) / 1000.0,
+		float(dt - _f_step_us - _f_phys_us - _last_proc_us) / 1000.0, blocks.size(), awake, frozen, text, wraps, _f_events, errs])
+	_merge_into(probes)
+
+
+func _frame_reset() -> void:
+	_f_ticks = 0
+	_f_step_us = 0
+	_f_phys_us = 0
+	_f_events = {}
+	_wrap_us = {}
 
 
 func _run() -> void:
@@ -113,6 +258,8 @@ func _run() -> void:
 		if _no_win and Match._territory._win_checker != null:
 			# Keeps the match alive (goal capture would end it): hold never completes.
 			Match._territory._win_checker._capture_hold = 1.0e9
+		if _spike_ms > 0.0:
+			_wrap_new_targets()
 		_report(t, t - last_sec)
 		if _freeze_trace:
 			_ft_report(t)
@@ -151,7 +298,8 @@ func _awake() -> int:
 func _report(t: int, dt: int) -> void:
 	var f: float = maxf(float(_frames), 1.0)
 	var ticks: float = maxf(float(_acc_ticks), 1.0)
-	var probes: Dictionary = PerfProbe.drain()
+	_merge_probes()
+	var probes: Dictionary = _probe_acc
 	var text: String = ""
 	for key: StringName in probes.keys():
 		var e: Dictionary = probes[key]
@@ -181,6 +329,7 @@ func _report(t: int, dt: int) -> void:
 		Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
 		int(Performance.get_monitor(Performance.TIME_FPS)), text,
 	])
+	_probe_acc = {}
 	_acc_phys_scripts = 0
 	_acc_phys_step = 0
 	_acc_proc_scripts = 0
@@ -196,6 +345,7 @@ func _on_physics_frame() -> void:
 	var now: int = Time.get_ticks_usec()
 	if _t_late_phys != 0:
 		_acc_phys_step += now - _t_late_phys
+		_f_step_us += now - _t_late_phys
 		_t_late_phys = 0
 	_t_phys_frame = now
 
@@ -283,6 +433,8 @@ func _on_late_physics() -> void:
 	var now: int = Time.get_ticks_usec()
 	if _t_phys_frame != 0:
 		_acc_phys_scripts += now - _t_phys_frame
+		_f_phys_us += now - _t_phys_frame
+		_f_ticks += 1
 		_acc_ticks += 1
 	_t_late_phys = now
 
@@ -291,7 +443,14 @@ func _on_process_frame() -> void:
 	var now: int = Time.get_ticks_usec()
 	if _t_late_phys != 0:
 		_acc_phys_step += now - _t_late_phys
+		_f_step_us += now - _t_late_phys
 		_t_late_phys = 0
+	if _spike_ms > 0.0 and _t_last_frame != 0:
+		if float(now - _t_last_frame) / 1000.0 > _spike_ms:
+			_spike_report(now - _t_last_frame)
+		else:
+			_merge_probes()
+		_frame_reset()
 	if _t_last_frame != 0:
 		_acc_frame += now - _t_last_frame
 		_peak_frame_us = maxi(_peak_frame_us, now - _t_last_frame)
@@ -309,6 +468,7 @@ func _on_early_process() -> void:
 func _on_late_process() -> void:
 	var now: int = Time.get_ticks_usec()
 	if _t_proc_frame != 0:
+		_last_proc_us = now - _t_proc_frame
 		_acc_proc_scripts += now - _t_proc_frame
 	if _t_early != 0:
 		_acc_proc_body += now - _t_early

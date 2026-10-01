@@ -148,10 +148,16 @@ func _advance_drift(budget: int) -> void:
 	var span: int = ceili(reach)
 	var left: int = maxi(budget, 1)
 	while left > 0 and _drift_head < _drift_queue.size():
-		var block: Node3D = _drift_queue[_drift_head] as Node3D
+		var entry: Variant = _drift_queue[_drift_head]
 		_drift_head += 1
 		left -= 1
-		if block == null or not is_instance_valid(block) or not block.is_inside_tree():
+		# Bontago-1pi.11.26: a block freed since the queue was captured (burned,
+		# kill plane) must be rejected BEFORE the typed cast, which errors on a
+		# freed object every frame it is hit.
+		if not is_instance_valid(entry):
+			continue
+		var block: Node3D = entry as Node3D
+		if block == null or not block.is_inside_tree():
 			continue
 		var center: Vector2i = _grid.world_to_cell(_field.disk_local_from_world(block.global_position))
 		for dy: int in range(-span, span + 1):
