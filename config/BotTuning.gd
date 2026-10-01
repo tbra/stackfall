@@ -90,6 +90,26 @@ extends Resource
 ## flat surface without both raycasts reporting bit-identical heights.
 @export var stability_contact_tolerance_m: float = 0.15
 
+## Bontago-1t5.3 phase A (append-only): mode-aware scoring weights read by
+## core/ai/BotPlacementScorer.gd through a BotModeGoal. All are inert in Classic.
+## Capture the Flag: pull towards the nearest beacon the team does not hold
+## (multiplied by the beacon score rate), same distance-minus-future-radius
+## metric as goal progress.
+@export var weight_ctf_extend: float = 1.0
+## Capture the Flag: bonus for a connected placement near an already-held
+## beacon (scaled by the score rate), fading to 0 at the radius below.
+@export var weight_ctf_reinforce: float = 1.0
+@export var ctf_reinforce_radius_m: float = 6.0
+## Reach the Sky: reward for the candidate's total top height (support + shape).
+@export var weight_sky_top: float = 1.5
+## Reach the Sky: reward for contact fraction (0..1, off-centre scaled), the
+## anti-overhang term, on top of the ordinary stability weight.
+@export var weight_sky_stability: float = 4.0
+## Reach the Sky: per-meter penalty for sitting farther from the bot's own
+## tallest tower than the reach below.
+@export var weight_sky_tower_distance: float = 1.0
+@export var sky_tower_reach_m: float = 2.0
+
 ## Returns the profile for `difficulty`; NORMAL (and any out-of-range value)
 ## falls back to `normal` rather than failing, so a stale/corrupt wire value
 ## never leaves a bot with a null profile.

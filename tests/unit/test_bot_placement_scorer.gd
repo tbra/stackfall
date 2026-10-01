@@ -269,3 +269,92 @@ func test_pick_best_returns_the_highest_scoring_candidate() -> void:
 		_bot_tuning, MAP_RADIUS
 	)
 	assert_eq(best, high)
+
+
+## -- Bontago-1t5.3 phase A: mode-aware scoring ------------------------------------
+
+## A home circle (team 0) covering the middle of the field so candidates there
+## stand in a home-connected group.
+func _connect_home_territory() -> void:
+	var circles: Array[InfluenceCircle] = [InfluenceCircle.new(Vector2.ZERO, 12.0, 0, 0, true, 0)]
+	var solver: TerritorySolver = TerritorySolver.new(_territory_tuning)
+	_raster.update(circles, solver.solve(circles), 0.1, false, false)
+
+
+func _ctf_goal(held: Array[bool]) -> BotModeGoal:
+	var goal: BotModeGoal = BotModeGoal.new()
+	goal.mode = MatchConfig.GameMode.CAPTURE_THE_FLAG
+	goal.beacon_positions = PackedVector2Array([Vector2(8.0, 0.0), Vector2(-8.0, 0.0)])
+	goal.beacon_held_by_own = held
+	goal.beacon_score_rate = 1.0
+	return goal
+
+
+func _pick(candidates: Array[BotCandidate], goal: BotModeGoal) -> BotCandidate:
+	return BotPlacementScorer.pick_best(
+		candidates, _raster, _grid, 0, PackedVector2Array(), PackedVector2Array(), PackedVector2Array(),
+		_bot_tuning, MAP_RADIUS, goal
+	)
+
+
+func test_ctf_extends_towards_an_unheld_beacon() -> void:
+	_connect_home_territory()
+	var towards: BotCandidate = _candidate(Vector2(7.0, 0.0))
+	var away: BotCandidate = _candidate(Vector2(-7.0, 0.0))
+	var held: Array[bool] = [false, true]
+	var candidates: Array[BotCandidate] = [away, towards]
+	assert_eq(_pick(candidates, _ctf_goal(held)), towards)
+
+
+func test_ctf_reinforces_a_held_beacon_when_all_are_held() -> void:
+	_connect_home_territory()
+	var near_held: BotCandidate = _candidate(Vector2(-7.0, 0.0))
+	var far: BotCandidate = _candidate(Vector2(0.0, 7.0))
+	var held: Array[bool] = [true, true]
+	var candidates: Array[BotCandidate] = [far, near_held]
+	assert_eq(_pick(candidates, _ctf_goal(held)), near_held)
+
+
+func test_ctf_term_needs_a_home_connected_spot() -> void:
+	# Raster left empty: nothing is connected, so the CTF term is zero.
+	var held: Array[bool] = [false, true]
+	var goal: BotModeGoal = _ctf_goal(held)
+	var spot: BotCandidate = _candidate(Vector2(7.0, 0.0))
+	var with_goal: float = BotPlacementScorer.score(
+		spot, _raster, _grid, 0, PackedVector2Array(), PackedVector2Array(), PackedVector2Array(),
+		_bot_tuning, MAP_RADIUS, goal
+	)
+	assert_eq(with_goal, _score(spot))
+
+
+func test_sky_prefers_the_stable_candidate_on_its_own_tower() -> void:
+	var cells: PackedInt32Array = PackedInt32Array([0, 1, 2, 3])
+	var goal: BotModeGoal = BotModeGoal.new()
+	goal.mode = MatchConfig.GameMode.REACH_THE_SKY
+	goal.has_tower = true
+	goal.tower_origin = Vector2(2.0, 2.0)
+	goal.tower_height = 4.0
+	var on_tower: BotCandidate = _candidate(Vector2(2.0, 2.0), 4.0, cells, true, 4)
+	on_tower.shape_height = 1.0
+	var overhang: BotCandidate = _candidate(Vector2(2.0, 2.0), 4.0, cells, true, 1)
+	overhang.shape_height = 1.0
+	var spread: BotCandidate = _candidate(Vector2(-10.0, 5.0), 0.0, cells, false, 4)
+	spread.shape_height = 1.0
+	var candidates: Array[BotCandidate] = [spread, overhang, on_tower]
+	assert_eq(_pick(candidates, goal), on_tower)
+
+
+func test_classic_and_neutral_modes_score_identically_to_no_goal() -> void:
+	var candidate: BotCandidate = _candidate(Vector2(3.0, 1.0), 2.0, PackedInt32Array([0, 1]), true, 1)
+	var plain: float = _score(candidate)
+	for mode: int in [MatchConfig.GameMode.CLASSIC, MatchConfig.GameMode.ELIMINATION]:
+		var goal: BotModeGoal = BotModeGoal.new()
+		goal.mode = mode
+		assert_eq(BotPlacementScorer.score(
+			candidate, _raster, _grid, 0, PackedVector2Array(), PackedVector2Array(), PackedVector2Array(),
+			_bot_tuning, MAP_RADIUS, goal
+		), plain)
+	assert_eq(BotPlacementScorer.score(
+		candidate, _raster, _grid, 0, PackedVector2Array(), PackedVector2Array(), PackedVector2Array(),
+		_bot_tuning, MAP_RADIUS, null
+	), plain)

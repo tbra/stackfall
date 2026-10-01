@@ -664,7 +664,37 @@ func _build_headless_bot_config(bots: int, args: PackedStringArray) -> MatchConf
 	config.player_count = maxi(bots, _headless_bot_players_arg(args))
 	config.hot_seat = false
 	config.sandbox = false
+	# DECISION (Bontago-1t5.3): `--mode=<classic|ctf|elimination|sky>` (or the
+	# GameMode integer) picks the headless bot match's mode; absent keeps the
+	# config's own mode. resolve_game_mode() still falls back for unselectable ids.
+	var mode_override: int = _mode_arg(args)
+	if mode_override >= 0:
+		config.game_mode = MatchConfig.resolve_game_mode(mode_override)
+		config.round_timer_minutes = MatchConfig.clamp_round_timer(config.round_timer_minutes, config.game_mode)
 	return config
+
+
+## `--mode=<name|id>`, -1 when absent or unrecognised.
+func _mode_arg(args: PackedStringArray) -> int:
+	const PREFIX: String = "mode="
+	for raw: String in args:
+		var text: String = raw
+		while text.begins_with("-"):
+			text = text.substr(1)
+		if not text.begins_with(PREFIX):
+			continue
+		var value: String = text.substr(PREFIX.length()).to_lower()
+		match value:
+			"classic":
+				return MatchConfig.GameMode.CLASSIC
+			"ctf", "capture_the_flag":
+				return MatchConfig.GameMode.CAPTURE_THE_FLAG
+			"elimination":
+				return MatchConfig.GameMode.ELIMINATION
+			"sky", "reach_the_sky":
+				return MatchConfig.GameMode.REACH_THE_SKY
+		return int(value) if value.is_valid_int() else -1
+	return -1
 
 
 # --- Headless bot match diagnostics (Bontago-d5c.6 review finding 2) ---------

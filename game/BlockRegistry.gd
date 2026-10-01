@@ -303,6 +303,24 @@ func max_height_for_slot(slot_id: int) -> float:
 	return highest
 
 
+## Bontago-1t5.3: `slot_id`'s tallest settled block as {"height": top above the
+## disk, "xz": disk-local centre of mass}, or {} with none (the bot's Reach the
+## Sky tower target). Read-only; same geometry as max_height_for_slot().
+func tallest_settled_for_slot(slot_id: int) -> Dictionary:
+	var best: Dictionary = {}
+	var highest: float = -INF
+	var field_xform: Transform3D = field_global_transform()
+	for id: Variant in _entries.keys():
+		var entry: _Entry = _entries[id]
+		if not entry.is_settled or entry.owner_slot != slot_id or not is_instance_valid(entry.block):
+			continue
+		_refresh_geometry(entry, field_xform)
+		if entry.geom_top > highest:
+			highest = entry.geom_top
+			best = {"height": entry.geom_top, "xz": entry.geom_com_xz}
+	return best
+
+
 ## Every live body (settled or not) whose disk-local projection falls in one
 ## of `cells` (CellGrid row-major indices). Field uses this to wake bodies
 ## above a cell that just changed hole state (spec 3.3).

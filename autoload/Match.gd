@@ -752,6 +752,11 @@ func groups() -> TerritoryGroups:
 	return _territory.groups()
 
 
+## Bontago-1t5.3: mode goal context for a bot slot (see MatchTerritory.bot_mode_goal()).
+func bot_mode_goal(slot_id: int) -> BotModeGoal:
+	return _territory.bot_mode_goal(slot_id)
+
+
 func cell_grid() -> CellGrid:
 	return _territory.cell_grid()
 
