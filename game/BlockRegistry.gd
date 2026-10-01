@@ -38,6 +38,12 @@ class _Entry:
 
 @export var tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
 
+## Host: a block just became settled (the sleep rule above); `height` is its top
+## above the disk along the disk normal, the HUD's tower measure. Reach the Sky
+## (Bontago-22y.9) records its players' heights from this, so a block that is
+## still falling or balancing never counts.
+signal block_settled(owner_slot: int, height: float)
+
 var _entries: Dictionary = {}          ## instance id (int) -> _Entry
 var _net_id_to_block: Dictionary = {}  ## net_id (int) -> Block
 var _next_net_id: int = 1
@@ -218,6 +224,8 @@ func _physics_process(delta: float) -> void:
 			_territory_revision += 1
 			if entry.is_settled:
 				entry.marked_transform = block.global_transform
+				_refresh_geometry(entry, field_global_transform())
+				block_settled.emit(entry.owner_slot, entry.geom_top)
 		elif entry.is_settled and _moved_beyond_epsilon(entry):
 			_territory_revision += 1
 			entry.marked_transform = block.global_transform

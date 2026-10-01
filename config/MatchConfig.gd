@@ -64,7 +64,7 @@ const SKY_THEME_IDS: PackedStringArray = ["sunset", "night"]
 ## fall back to CLASSIC. A mode package makes its id selectable by adding it
 ## to SELECTABLE_GAME_MODES and giving ModeObjective.create() a branch.
 enum GameMode { CLASSIC, CAPTURE_THE_FLAG, ELIMINATION, REACH_THE_SKY }
-const SELECTABLE_GAME_MODES: Array[int] = [GameMode.CLASSIC, GameMode.CAPTURE_THE_FLAG]
+const SELECTABLE_GAME_MODES: Array[int] = [GameMode.CLASSIC, GameMode.CAPTURE_THE_FLAG, GameMode.REACH_THE_SKY]
 ## Lobby labels, indexed by GameMode.
 const GAME_MODE_LABELS: PackedStringArray = ["Classic", "Capture the Flag", "Elimination", "Reach the Sky"]
 ## Round timer (timed modes only), minutes. Classic keeps match_timer_minutes.
@@ -114,6 +114,10 @@ const ROUND_TIMER_MAX_MINUTES: int = 40
 ## match when it reaches zero). Ignored by CLASSIC, which keeps using
 ## match_timer_minutes + sudden_death exactly as before.
 @export var round_timer_minutes: int = 10
+## Reach the Sky only (Bontago-22y.9): false = a team's record is its best
+## member's, true = the sum of its members' records. A plain bool, so it needs
+## no clamp; the host still re-types it from the wire in from_dict().
+@export var sky_team_sum: bool = false
 ## Weather event schedule (Bontago-22y.10); see WeatherMode.
 @export var weather_mode: WeatherMode = WeatherMode.CHANGING
 ## Lobby "Map" time of day (see SkyThemeMode). DECISION: default DAY.
@@ -356,6 +360,7 @@ func to_dict() -> Dictionary:
 		"turn_based": turn_based,
 		"game_mode": game_mode,
 		"round_timer_minutes": round_timer_minutes,
+		"sky_team_sum": sky_team_sum,
 		"weather_mode": weather_mode,
 		"sky_theme_mode": sky_theme_mode,
 		"sky_theme_resolved": sky_theme_resolved,
@@ -399,6 +404,7 @@ static func from_dict(data: Dictionary) -> MatchConfig:
 		int(data.get("round_timer_minutes", config.round_timer_minutes)),
 		ROUND_TIMER_MIN_MINUTES, ROUND_TIMER_MAX_MINUTES
 	)
+	config.sky_team_sum = bool(data.get("sky_team_sum", config.sky_team_sum))
 	config.weather_mode = int(data.get("weather_mode", config.weather_mode)) as WeatherMode
 	config.sky_theme_mode = int(data.get("sky_theme_mode", config.sky_theme_mode)) as SkyThemeMode
 	config.sky_theme_resolved = String(data.get("sky_theme_resolved", config.sky_theme_resolved))

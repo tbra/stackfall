@@ -113,6 +113,9 @@ var net_provider: Variant = null
 @onready var _weather_option: OptionButton = %WeatherOption
 @onready var _game_mode_option: OptionButton = %GameModeOption
 @onready var _round_timer_spin: SpinBox = %RoundTimerSpin
+## Reach the Sky only (Bontago-22y.9): shown while that mode is selected.
+@onready var _sky_team_col: Control = %SkyTeamCol
+@onready var _sky_team_sum_check: CheckButton = %SkyTeamSumCheck
 ## Bontago-470.4: the "Map" time-of-day dropdown (MatchConfig.SkyThemeMode).
 @onready var _sky_theme_option: OptionButton = %SkyThemeOption
 @onready var _sudden_death_check: CheckButton = %SuddenDeathCheck
@@ -217,6 +220,7 @@ func _ready() -> void:
 	_settings_controls.append(_sky_theme_option)
 	_settings_controls.append(_game_mode_option)
 	_settings_controls.append(_round_timer_spin)
+	_settings_controls.append(_sky_team_sum_check)
 	_settings_controls.append_array(_special_checkboxes)
 	_settings_controls.append_array(_team_buttons)
 	_connect_control_signals()
@@ -388,19 +392,34 @@ func _wire_focus_chain() -> void:
 	chain.append_array([_adv_rules_bar, _back_button, _invite_friends_button, _ready_check, _start_button])
 	_wire_loop(chain)
 
-	var popup_chain: Array[Control] = []
+	var popup_chain: Array[Control] = _popup_chain
+	popup_chain.clear()
 	for box: CheckBox in _special_checkboxes:
 		popup_chain.append(box)
 	popup_chain.append_array([_tilt_mode_option, _hole_mode_option, _game_mode_option, _match_timer_spin, _round_timer_spin])
+	popup_chain.append(_sky_team_sum_check)
 	popup_chain.append(_weather_option)
 	popup_chain.append_array(_popup_stepper_buttons)
 	popup_chain.append_array([_sudden_death_check, _turn_based_check, _advanced_popup_close])
-	_wire_loop(popup_chain)
+	_wire_loop(_visible_chain(popup_chain))
 
 
 ## Assigns focus_neighbor_top/bottom so [param chain] forms one closed loop,
 ## wrapping from its last entry back to its first. Shared by the main card's
 ## loop and the advanced-rules popup's own separate loop (_wire_focus_chain()).
+## The advanced-popup focus chain; hidden controls (the Reach the Sky toggle
+## outside its mode) are skipped so gamepad focus can never land on them.
+var _popup_chain: Array[Control] = []
+
+
+func _visible_chain(chain: Array[Control]) -> Array[Control]:
+	var out: Array[Control] = []
+	for control: Control in chain:
+		if control != _sky_team_sum_check or _sky_team_col.visible:
+			out.append(control)
+	return out
+
+
 func _wire_loop(chain: Array[Control]) -> void:
 	for i: int in range(chain.size()):
 		var current: Control = chain[i]
@@ -419,6 +438,8 @@ func _connect_control_signals() -> void:
 	_weather_option.item_selected.connect(_on_option_changed)
 	_game_mode_option.item_selected.connect(_on_option_changed)
 	_round_timer_spin.value_changed.connect(_on_value_changed)
+	_sky_team_sum_check.toggled.connect(_on_toggled)
+	_game_mode_option.item_selected.connect(_refresh_sky_controls)
 	_sky_theme_option.item_selected.connect(_on_option_changed)
 	_player_count_spin.value_changed.connect(_on_value_changed)
 	# Bontago-1pi.9b: a seat-count edit can shrink the room left for bots, so
@@ -818,6 +839,13 @@ func _on_value_changed(_value: float) -> void:
 	_on_setting_changed()
 
 
+## The team-aggregation toggle exists only for Reach the Sky.
+func _refresh_sky_controls(_index: int = 0) -> void:
+	_sky_team_col.visible = _game_mode_option.selected == MatchConfig.GameMode.REACH_THE_SKY
+	if not _popup_chain.is_empty():
+		_wire_loop(_visible_chain(_popup_chain))
+
+
 func _on_toggled(_pressed: bool) -> void:
 	_on_setting_changed()
 
@@ -868,6 +896,7 @@ func _config_from_controls() -> MatchConfig:
 	config.match_timer_minutes = int(_match_timer_spin.value)
 	config.game_mode = MatchConfig.resolve_game_mode(_game_mode_option.selected)
 	config.round_timer_minutes = int(_round_timer_spin.value)
+	config.sky_team_sum = _sky_team_sum_check.button_pressed
 	config.sudden_death = _sudden_death_check.button_pressed
 	config.turn_based = _turn_based_check.button_pressed
 	config.enabled_specials = _enabled_specials_from_checkboxes()
@@ -948,6 +977,8 @@ func _apply_data(data: Dictionary) -> void:
 	_match_timer_spin.value = config.match_timer_minutes
 	_game_mode_option.selected = config.game_mode
 	_round_timer_spin.value = config.round_timer_minutes
+	_sky_team_sum_check.button_pressed = config.sky_team_sum
+	_refresh_sky_controls()
 	_sudden_death_check.button_pressed = config.sudden_death
 	_turn_based_check.button_pressed = config.turn_based
 	_apply_enabled_specials_to_checkboxes(config.enabled_specials)

@@ -222,8 +222,9 @@ static func mode_outcome_text(results: Dictionary) -> String:
 	var parts: PackedStringArray = PackedStringArray()
 	var scores: Array = block.get("scores", []) as Array
 	var ffa: bool = String(results.get("winner_kind", MatchStats.WINNER_KIND_SLOT)) == MatchStats.WINNER_KIND_SLOT
+	var unit: String = " m" if mode_id == MatchConfig.GameMode.REACH_THE_SKY else ""
 	for team: int in range(scores.size()):
-		parts.append("%s %d: %s" % ["Player" if ffa else "Team", team + 1, String.num(float(scores[team]), 1)])
+		parts.append("%s %d: %s%s" % ["Player" if ffa else "Team", team + 1, String.num(float(scores[team]), 1), unit])
 	var text: String = "
 %s" % MatchConfig.GAME_MODE_LABELS[mode_id]
 	if not parts.is_empty():

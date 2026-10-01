@@ -112,7 +112,7 @@ func test_default_mode_is_classic() -> void:
 func test_reserved_and_unknown_mode_ids_fall_back_to_classic() -> void:
 	for mode: int in [
 		MatchConfig.GameMode.ELIMINATION,
-		MatchConfig.GameMode.REACH_THE_SKY, 99, -3,
+		99, -3,
 	]:
 		assert_false(MatchConfig.is_game_mode_selectable(mode))
 		assert_eq(MatchConfig.from_dict({"game_mode": mode}).game_mode, MatchConfig.GameMode.CLASSIC)

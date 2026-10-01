@@ -118,8 +118,10 @@ func _build_territory() -> void:
 	_objective = ModeObjective.create(
 		_match.config.game_mode, goal_positions, _match._territory_tuning.capture_hold, _match.config.team_count(),
 		_match._territory_tuning.ctf_score_per_beacon_second,
-		_match._territory_tuning.ctf_replicate_interval_s
+		_match._territory_tuning.ctf_replicate_interval_s,
+		_sky_slot_teams(), _match.config.sky_team_sum, _match._territory_tuning.sky_replicate_interval_s
 	)
+	_connect_sky_records()
 	_win_checker = (_objective as ClassicObjective).checker() if _objective is ClassicObjective else null
 	_match._lifecycle.flush_pending_mode_state()
 	_last_groups = null
@@ -287,6 +289,26 @@ func _finish_objective_step() -> void:
 	_match._lifecycle.publish_mode_state_if_changed()
 	if MatchLifecycle.is_live_state(_match.state()) and _objective.winner() != ModeObjective.NO_TEAM:
 		_match._lifecycle._finish_match(_objective.winner())
+
+
+## Reach the Sky (Bontago-22y.9): team of every slot, index = slot id.
+func _sky_slot_teams() -> PackedInt32Array:
+	var teams: PackedInt32Array = PackedInt32Array()
+	for slot: int in range(_match.config.player_count):
+		teams.append(_match.config.team_of_slot(slot))
+	return teams
+
+
+## Host only: feeds each settled block's height to the Reach the Sky objective.
+func _connect_sky_records() -> void:
+	var registry: BlockRegistry = _match.registry()
+	if registry != null and not registry.block_settled.is_connected(_on_block_settled):
+		registry.block_settled.connect(_on_block_settled)
+
+
+func _on_block_settled(owner_slot: int, height: float) -> void:
+	if _objective is ReachSkyObjective and MatchLifecycle.is_live_state(_match.state()):
+		(_objective as ReachSkyObjective).record_height(owner_slot, height)
 
 
 func _alive_home_count() -> int:
