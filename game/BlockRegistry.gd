@@ -30,6 +30,11 @@ class _Entry:
 	var geom_child_count: int = -1
 	var geom_com_xz: Vector2 = Vector2.ZERO
 	var geom_top: float = 0.0
+	var geom_com_y: float = 0.0
+	## Bontago-1pi.11.25: the last circle handed out. Circles are never mutated
+	## after creation, so an identical one is reused (same object) instead of
+	## allocating; any changed field allocates a fresh circle.
+	var circle: InfluenceCircle = null
 
 @export var tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
 
@@ -249,22 +254,30 @@ func influence_circles(
 
 	var field_xform: Transform3D = field_global_transform()
 	var circles: Array[InfluenceCircle] = []
-	for id: Variant in _entries.keys():
+	var base: float = territory_tuning.influence_base
+	var k: float = territory_tuning.influence_k
+	var cap: float = territory_tuning.influence_max_fraction * map_def.field_radius
+	for id: Variant in _entries:
 		var entry: _Entry = _entries[id]
 		if not entry.is_settled or not is_instance_valid(entry.block):
 			continue
-		if not team_of_slot.has(entry.owner_slot):
+		var team_id: Variant = team_of_slot.get(entry.owner_slot)
+		if team_id == null:
 			continue
 		_refresh_geometry(entry, field_xform)
-		circles.append(InfluenceCircle.for_block(
-			entry.geom_com_xz,
-			entry.geom_top,
-			team_of_slot[entry.owner_slot],
-			entry.owner_slot,
-			int(id),
-			territory_tuning,
-			map_def.field_radius
-		))
+		# Same arithmetic as InfluenceCircle.radius_for_height.
+		var radius: float = minf(base + k * maxf(entry.geom_top, 0.0), cap)
+		var circle: InfluenceCircle = entry.circle
+		if (
+			circle == null or circle.center != entry.geom_com_xz or circle.radius != radius
+			or circle.team_id != team_id or circle.slot_id != entry.owner_slot
+			or circle.top_height != entry.geom_top or circle.body_id != id
+		):
+			circle = InfluenceCircle.new(
+				entry.geom_com_xz, radius, team_id, entry.owner_slot, false, id, entry.geom_top
+			)
+			entry.circle = circle
+		circles.append(circle)
 	return circles
 
 
@@ -411,6 +424,22 @@ func settled_torque_samples() -> PackedVector3Array:
 	return samples
 
 
+## True when `node` is the field this registry projects into.
+func uses_field(node: Node3D) -> bool:
+	return node != null and node == _field
+
+
+## Field-local center-of-mass height (>= 0) of the live block with `body_id`,
+## or -1.0 when the registry does not track it. Bit-identical to
+## `maxf(field.to_local(b.global_transform * b.center_of_mass).y, 0.0)`.
+func center_height_for_body_id(body_id: int, field_xform: Transform3D) -> float:
+	var entry: _Entry = _entries.get(body_id) as _Entry
+	if entry == null or not is_instance_valid(entry.block):
+		return -1.0
+	_refresh_geometry(entry, field_xform)
+	return maxf(entry.geom_com_y, 0.0)
+
+
 ## Drops the cached geometry of `block` (call after swapping a live block's
 ## mesh in place; nothing does today).
 func invalidate_geometry(block: Block) -> void:
@@ -437,6 +466,7 @@ func _refresh_geometry(entry: _Entry, field_xform: Transform3D) -> void:
 		return
 	var local_com: Vector3 = _local_center_of_mass(block)
 	entry.geom_com_xz = Vector2(local_com.x, local_com.z)
+	entry.geom_com_y = local_com.y
 	entry.geom_top = _top_height_local(block)
 	entry.geom_block_xform = block_xform
 	entry.geom_field_xform = field_xform
