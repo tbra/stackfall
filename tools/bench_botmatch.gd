@@ -125,6 +125,7 @@ func _ready() -> void:
 		elif arg.begins_with("--callcost-awake="):
 			for part: String in arg.trim_prefix("--callcost-awake=").split(","):
 				_callcost_marks.append(int(part))
+	BenchPort.claim_free_port(Net)
 	_main = (load("res://game/Main.tscn") as PackedScene).instantiate()
 	get_tree().root.add_child.call_deferred(_main)
 	await get_tree().process_frame
