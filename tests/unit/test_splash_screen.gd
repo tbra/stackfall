@@ -24,6 +24,18 @@ func test_finish_emits_once() -> void:
 	assert_signal_emit_count(splash, "finished", 1)
 
 
+func test_image_bounces_in_before_the_jingle_finishes() -> void:
+	var splash: SplashScreen = SplashScreen.new()
+	add_child_autofree(splash)
+	assert_almost_eq(splash._image.modulate.a, 0.0, 0.01)
+	assert_lt(splash._image.scale.x, 1.0)
+	assert_true(splash._entrance_tween.is_running())
+	await wait_seconds(0.3)
+	assert_gt(splash._image.modulate.a, 0.5)
+	assert_gt(splash._image.scale.x, 0.84)
+	splash.finish()
+
+
 func test_ui_accept_skips() -> void:
 	var splash: SplashScreen = SplashScreen.new()
 	add_child_autofree(splash)
