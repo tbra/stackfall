@@ -64,6 +64,7 @@ func _same(a: InfluenceCircle, b: InfluenceCircle) -> bool:
 	return (
 		a.center == b.center and a.radius == b.radius and a.team_id == b.team_id
 		and a.slot_id == b.slot_id and a.body_id == b.body_id and a.is_home == b.is_home
+		and a.top_height == b.top_height
 	)
 
 
@@ -88,6 +89,39 @@ func _assert_equal(registry: BlockRegistry, slots: Array[PlayerSlot], label: Str
 	if torque_cached != torque_oracle or height_cached != height_oracle:
 		fail_test("%s: torque or height differs" % label)
 		return false
+	return _assert_adapter_equal(registry, cached, label)
+
+
+## Bontago-1pi.11.25: the adapter's registry-cached heights must equal heights
+## measured straight from each body (the pre-pooling instance_from_id path).
+func _assert_adapter_equal(registry: BlockRegistry, circles: Array[InfluenceCircle], label: String) -> bool:
+	var field: Field = registry._field as Field
+	var field_radius: float = _map_def.field_radius
+	for source: int in [SandboxConeExperiment.HEIGHT_CENTER, SandboxConeExperiment.HEIGHT_TOP]:
+		for base_mode: int in [SandboxConeExperiment.BASE_NONE, SandboxConeExperiment.BASE_FLOOR]:
+			var heights: PackedFloat32Array = PackedFloat32Array()
+			for circle: InfluenceCircle in circles:
+				var body: Block = instance_from_id(circle.body_id) as Block
+				if source == SandboxConeExperiment.HEIGHT_TOP:
+					heights.append(circle.top_height)
+				else:
+					heights.append(maxf(field.to_local(body.global_transform * body.center_of_mass).y, 0.0))
+			var expected: Dictionary = SandboxConeExperiment.build(
+				circles, heights, 40.0, base_mode, _territory_tuning.influence_base,
+				_territory_tuning.influence_max_fraction * field_radius
+			)
+			var actual: Dictionary = SandboxConeAdapter.project(
+				circles, field, registry, 40.0, source, base_mode, _territory_tuning, field_radius
+			)
+			var a: Array[InfluenceCircle] = expected["circles"]
+			var b: Array[InfluenceCircle] = actual["circles"]
+			if a.size() != b.size() or int(expected["comparison_count"]) != int(actual["comparison_count"]):
+				fail_test("%s: adapter size differs (source %d)" % [label, source])
+				return false
+			for i: int in range(a.size()):
+				if not _same(a[i], b[i]):
+					fail_test("%s: adapter circle %d differs (source %d)" % [label, i, source])
+					return false
 	return true
 
 
@@ -148,3 +182,24 @@ func test_invalidate_geometry_forces_a_recompute() -> void:
 	assert_false(entry.geom_valid)
 	registry.influence_circles(_slots(), _territory_tuning, _map_def)
 	assert_true(entry.geom_valid)
+
+
+func test_unchanged_board_reuses_circle_objects() -> void:
+	var rig: Array = _make_rig()
+	var registry: BlockRegistry = rig[1]
+	var shapes: Array[BlockShape] = _shapes()
+	for i: int in range(5):
+		_spawn(registry, rig[0], shapes)
+	var first: Array[InfluenceCircle] = registry.influence_circles(_slots(), _territory_tuning, _map_def)
+	var second: Array[InfluenceCircle] = registry.influence_circles(_slots(), _territory_tuning, _map_def)
+	assert_eq(first.size(), second.size())
+	for i: int in range(first.size()):
+		assert_same(first[i], second[i])
+	var entry: Variant = registry._entries[first[0].body_id]
+	entry.owner_slot = (entry.owner_slot + 1) % SLOT_COUNT
+	var third: Array[InfluenceCircle] = registry.influence_circles(_slots(), _territory_tuning, _map_def)
+	var changed: int = 0
+	for i: int in range(third.size()):
+		if third[i] != first[i]:
+			changed += 1
+	assert_eq(changed, 1, "only the re-owned block gets a new circle; the old one is unchanged")
