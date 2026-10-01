@@ -865,3 +865,52 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 		for box: CheckBox in lobby._special_checkboxes:
 			assert_ne(box.focus_neighbor_top, NodePath(""), "a specials checkbox must have an up neighbor")
 			assert_ne(box.focus_neighbor_bottom, NodePath(""), "a specials checkbox must have a down neighbor")
+
+
+func test_lobby_quick_y_opens_and_closes_advanced_rules() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var event: InputEventAction = InputEventAction.new()
+	event.action = "lobby_quick_advanced"
+	event.pressed = true
+	lobby._unhandled_input(event)
+	assert_true((lobby.get_node("%AdvancedPopup") as Control).visible)
+	lobby._unhandled_input(event)
+	assert_false((lobby.get_node("%AdvancedPopup") as Control).visible)
+
+
+func test_lobby_quick_x_obeys_ready_host_and_popup_gates() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var fake: FakeNet = _fake_of(lobby)
+	var event: InputEventAction = InputEventAction.new()
+	event.action = "lobby_quick_start"
+	event.pressed = true
+	watch_signals(lobby)
+	fake.all_peers_ready_value = false
+	lobby._update_host_only_state()
+	lobby._unhandled_input(event)
+	assert_signal_not_emitted(lobby, "start_requested")
+	fake.all_peers_ready_value = true
+	lobby._update_host_only_state()
+	lobby._open_advanced_popup()
+	lobby._unhandled_input(event)
+	assert_signal_not_emitted(lobby, "start_requested")
+	lobby._close_advanced_popup()
+	lobby._unhandled_input(event)
+	assert_signal_emitted(lobby, "start_requested")
+
+
+func test_real_gamepad_x_y_trigger_lobby_shortcuts() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var fake: FakeNet = _fake_of(lobby)
+	fake.all_peers_ready_value = true
+	lobby._update_host_only_state()
+	watch_signals(lobby)
+	var y_event: InputEventJoypadButton = _pad_press_release_action_event(JOY_BUTTON_Y)
+	assert_true(y_event.is_action_pressed(&"lobby_quick_advanced"))
+	lobby._unhandled_input(y_event)
+	assert_true((lobby.get_node("%AdvancedPopup") as Control).visible)
+	lobby._unhandled_input(y_event)
+	var x_event: InputEventJoypadButton = _pad_press_release_action_event(JOY_BUTTON_X)
+	assert_true(x_event.is_action_pressed(&"lobby_quick_start"))
+	lobby._unhandled_input(x_event)
+	assert_signal_emitted(lobby, "start_requested")

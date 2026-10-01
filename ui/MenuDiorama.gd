@@ -243,6 +243,9 @@ func _build_block_stack(flag_position: Vector3, color: Color) -> void:
 
 func _build_camera() -> void:
 	_camera = Camera3D.new()
+	# DECISION: this decorative camera moves in _process(), so physics interpolation
+	# would both lag its orbit and warn about transforms outside physics ticks.
+	_camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_camera.fov = tuning.camera_fov_deg
 	_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
 	_camera.size = tuning.disk_radius_m * tuning.camera_span_radii

@@ -230,12 +230,17 @@ func _process(delta: float) -> void:
 
 # --- Session lifecycle ------------------------------------------------------
 
-## Starts a listen server on `port` (0 means config.game_port) and begins LAN
-## advertising. The host takes slot 0. Returns OK or a transport error.
-func host_game(port: int = 0, player_name: String = "") -> Error:
+## Starts a listen server on `port` (0 means config.game_port). A private
+## local bot host uses a free loopback port, refuses remote joins, and does not
+## advertise; ordinary hosts keep the existing LAN behavior. The host is slot 0.
+func host_game(port: int = 0, player_name: String = "", advertise: bool = true) -> Error:
 	if _mode != Mode.OFFLINE:
 		leave()
 	var use_port: int = port if port > 0 else config.game_port
+	if not advertise and port <= 0:
+		use_port = AgentProbe.free_udp_port()
+		if use_port == 0:
+			return ERR_CANT_CREATE
 	# Agent runs (AgentProbe: tool/bench scenes, --agent-probe) host on a random
 	# free port unless one was given, so parallel benches and the ENet harness
 	# never fight over the default port (session debrief 2026-10-01).
@@ -243,7 +248,7 @@ func host_game(port: int = 0, player_name: String = "") -> Error:
 		var free_port: int = AgentProbe.free_udp_port()
 		if free_port > 0:
 			use_port = free_port
-	var peer: MultiplayerPeer = _make_host_peer(use_port)
+	var peer: MultiplayerPeer = _make_host_peer(use_port, "*" if advertise else "127.0.0.1")
 	if peer == null:
 		return ERR_CANT_CREATE
 
@@ -262,10 +267,10 @@ func host_game(port: int = 0, player_name: String = "") -> Error:
 		"build": _host_build_version,
 	}
 	_next_slot_id = 1
-	_accepting_joins = true
+	_accepting_joins = advertise
 	Events.net_mode_changed.emit(_mode)
 	# Agent runs must not appear in the owner's LAN browser.
-	if not AgentProbe.is_active():
+	if advertise and not AgentProbe.is_active():
 		_start_lan_advertising(player_name)
 	return OK
 
@@ -1077,8 +1082,9 @@ func _apply_connect_lobby_args(args: PackedStringArray) -> bool:
 
 # --- Transport (the only place ENetMultiplayerPeer/SteamMultiplayerPeer may be named) --
 
-func _make_host_peer(port: int) -> MultiplayerPeer:
+func _make_host_peer(port: int, bind_ip: String = "*") -> MultiplayerPeer:
 	var enet_peer: ENetMultiplayerPeer = ENetMultiplayerPeer.new()
+	enet_peer.set_bind_ip(bind_ip)
 	# DECISION: ENet's own max_clients counts remote clients only, one fewer
 	# than config.max_peers (which includes the host). Passed through
 	# unreduced on purpose: this only widens ENet's own raw cap, giving a

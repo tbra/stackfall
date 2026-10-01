@@ -148,7 +148,7 @@ const KEY_REBIND_ROW_SCENE: PackedScene = preload("res://ui/KeyRebindRow.tscn")
 ## display-only strings, not gameplay/physics tuning (CLAUDE.md's
 ## no-magic-numbers rule targets those).
 const FOOTER_HINT_KEYBOARD_MOUSE: String = "Enter · Esc"
-const FOOTER_HINT_GAMEPAD: String = "A Select   B Back"
+const FOOTER_HINT_GAMEPAD: String = "A Select   B Back   LB / RB Tabs"
 const CONTROLS_LABEL_KEYBOARD_MOUSE: String = "Showing keyboard & mouse bindings"
 const CONTROLS_LABEL_GAMEPAD: String = "Showing gamepad bindings"
 
@@ -325,6 +325,17 @@ func _refresh_move_speed_row() -> void:
 ## (Godot delivers _unhandled_input to the deepest node in a branch before its
 ## ancestors), so this only ever fires while no row is actively capturing.
 func _unhandled_input(event: InputEvent) -> void:
+	# KeyRebindRow captures raw input first; this guard also protects direct
+	# synthetic action events from changing tabs while a bind is listening.
+	for row: KeyRebindRow in _rows:
+		if row.is_listening():
+			return
+	if event.is_action_pressed(&"menu_tab_next") or event.is_action_pressed(&"menu_tab_previous"):
+		var target: Button = _controls_tab_button if _settings_tab_button.button_pressed else _settings_tab_button
+		target.button_pressed = true
+		target.grab_focus()
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed(&"ui_cancel"):
 		_on_back_pressed()
 		get_viewport().set_input_as_handled()
