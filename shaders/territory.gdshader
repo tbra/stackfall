@@ -207,6 +207,16 @@ uniform float void_mid_amount : hint_range(0.0, 1.0) = 0.6;
 uniform float void_animated : hint_range(0.0, 1.0) = 1.0;
 // One grid cell in territory UV units (1 / cells per side).
 uniform float hole_cell_uv = 0.05;
+// Bontago-1pi.11.44: the hole raster (R = 1 on hole cells, G = 1 on contested cells) at cell resolution,
+// sampled with a linear filter so the void follows a smooth field, not cell
+// squares. Bound by game/TerritoryOverlay.gd's push_cells().
+uniform sampler2D territory_hole : filter_linear, repeat_disable;
+// Smoothed hole mask level a pixel needs inside the overlap region (every
+// pixel of an activated cell clears it; reaches at most ~0.3 cell past one).
+uniform float void_overlap_mask_min = 0.2;
+// Mask level for a hole outside any overlap (Jumping Bean, or a permanent
+// hole whose contest ended): the bilinear 0.5 iso-line, a rounded blob.
+uniform float void_blob_mask_min = 0.5;
 
 // -- Analytic circle path uniforms (Bontago-cmc.5) ---------------------------
 // False when circle_count is 0 (no solve yet, or a match just ended) or
@@ -881,7 +891,9 @@ uniform sampler2D circle_bake_near : filter_nearest, repeat_disable;
 // index per team, not just a sort) for no measured win at 400 texels, so it
 // was not built. Revisit with real profiling numbers if max_shader_circles
 // is ever raised well past 400.
-void circle_path(vec2 point, vec3 base, out vec3 albedo, out vec3 emission) {
+// void_g (Bontago-1pi.11.44): min(best, second-best team value) in metres, > 0
+// where two teams' influence circles overlap (the smooth contested field).
+void circle_path(vec2 point, vec3 base, out vec3 albedo, out vec3 emission, out float void_g) {
 	float best_overall = -1000000.0;
 	float second_best = -1000000.0;
 	int owner_team = -1;
@@ -898,6 +910,7 @@ void circle_path(vec2 point, vec3 base, out vec3 albedo, out vec3 emission) {
 		circle_field(point, best_overall, second_best, owner_team);
 	}
 	bool two_teams_inside = best_overall >= 0.0 && second_best >= 0.0;
+	void_g = argmax_mode ? -1000000.0 : min(best_overall, second_best);
 
 	// Default (overlap) mode: two or more teams' circles covering the same
 	// point is a contest (spec 2.2), drawn with no team tint at all, same as
@@ -982,41 +995,39 @@ float void_noise(vec2 p) {
 		mix(void_hash(i + vec2(0.0, 1.0)), void_hash(i + vec2(1.0, 1.0)), f.x), f.y);
 }
 
-// Bontago-1pi.11.42: the hole pixel's colour. A dark, gently swirling,
-// cel-banded void (domain-warped value noise, twisted by distance from the
-// hole cell's centre) with a lit rim along every cell edge that borders solid
-// floor. Pure texture reads of the existing hole raster (4 neighbour taps
-// per hole pixel only), no CPU work.
-void hole_void(vec2 uv, vec2 world_xz, out vec3 albedo, out vec3 emission) {
-	vec2 cell_f = uv / hole_cell_uv;
-	vec2 local = fract(cell_f);
-	// Distance (in cells) to each side that borders a non-hole cell.
-	float edge = 1.0;
-	vec2 step_uv = vec2(hole_cell_uv, 0.0);
-	if ((int(round(texture(territory_state, uv - step_uv).r * 255.0)) & STATE_HOLE) == 0) {
-		edge = min(edge, local.x);
-	}
-	if ((int(round(texture(territory_state, uv + step_uv).r * 255.0)) & STATE_HOLE) == 0) {
-		edge = min(edge, 1.0 - local.x);
-	}
-	step_uv = vec2(0.0, hole_cell_uv);
-	if ((int(round(texture(territory_state, uv - step_uv).r * 255.0)) & STATE_HOLE) == 0) {
-		edge = min(edge, local.y);
-	}
-	if ((int(round(texture(territory_state, uv + step_uv).r * 255.0)) & STATE_HOLE) == 0) {
-		edge = min(edge, 1.0 - local.y);
-	}
-	float rim = 1.0 - smoothstep(0.0, void_rim_width_cells, edge);
+// Bontago-1pi.11.44 (owner: "i was picturing it more as its own territory"):
+// the void's signed distance (metres, > 0 inside) is the smooth overlap field
+// of opposing teams' circles (void_g, the same union boundary the territory
+// tints use), cut to the hole cells the raster has actually activated
+// (hole_delay, TEMPORARY/PERMANENT/OFF, closing holes all live in that mask),
+// so no cell square shows: the edge is the circle boundary wherever it is
+// inside an activated cell.
+// DECISION (1pi.11.44): a pixel of a non-hole cell within ~0.3 cell of a hole
+// cell may show void where the circles overlap (the smoothed mask threshold),
+// and a hole outside any overlap (Jumping Bean, or a permanent hole whose
+// contest ended) draws as the rounded bilinear blob of the mask; both stay
+// under one cell from the cells the dissolve rule uses.
+float void_signed_distance(vec2 uv, float void_g, out float cell_m) {
+	cell_m = hole_cell_uv / max(uv_scale, 0.000001);
+	vec2 masks = texture(territory_hole, uv).rg;
+	float overlap_d = min(void_g, (masks.r - void_overlap_mask_min) * cell_m);
+	// The blob only where no contested cell is near: inside a contest the
+	// circle boundary alone shapes the edge.
+	float blob_d = masks.g < 0.05 ? (masks.r - void_blob_mask_min) * cell_m : -1000000.0;
+	return max(overlap_d, blob_d);
+}
+
+// The hole pixel's colour: a dark, gently swirling, cel-banded void
+// (domain-warped value noise, twisted by depth inside the boundary) with a lit
+// rim along the smooth boundary. `depth` is the signed distance in metres.
+void hole_void(float depth, float cell_m, vec2 world_xz, out vec3 albedo, out vec3 emission) {
+	float rim = 1.0 - smoothstep(0.0, void_rim_width_cells * cell_m, depth);
 
 	float depth_t = 0.0;
 	if (void_animated > 0.5) {
 		vec2 p = world_xz * void_swirl_scale;
 		float t = TIME * void_swirl_speed;
-		// Twist: rotate the sample point by an angle growing toward the cell
-		// centre, so the pattern reads as a slow whirl.
-		vec2 centre = (floor(cell_f) + vec2(0.5)) * hole_cell_uv;
-		vec2 off = (uv - centre) / hole_cell_uv;
-		float ang = void_swirl_twist * (1.0 - clamp(length(off) * 1.4, 0.0, 1.0)) + t;
+		float ang = void_swirl_twist * (1.0 - clamp(depth / (cell_m * 1.5), 0.0, 1.0)) + t;
 		mat2 rot = mat2(vec2(cos(ang), -sin(ang)), vec2(sin(ang), cos(ang)));
 		vec2 q = rot * p;
 		float warp = void_noise(q + vec2(t, -t));
@@ -1042,8 +1053,7 @@ void fragment() {
 	// Bontago-1pi.11.42 (owner decision Bontago-gdb): the disc collision is
 	// solid under a hole now, so the pixel is no longer discarded; it is drawn
 	// as an animated void at the very end of fragment() (see hole_void()).
-	float state_near = round(texture(territory_state, uv).r * 255.0);
-	bool is_hole = (int(state_near) & STATE_HOLE) != 0;
+	float void_g = -1000000.0;
 
 	vec3 albedo;
 	vec3 emission;
@@ -1060,7 +1070,7 @@ void fragment() {
 		smoothstep(snow_tone_lit_at - snow_tone_width, snow_tone_lit_at + snow_tone_width, snow_depth));
 	vec3 path_base = mix(base_color.rgb, snow_tone, snow);
 	if (circles_valid) {
-		circle_path(v_local.xz, path_base, albedo, emission);
+		circle_path(v_local.xz, path_base, albedo, emission, void_g);
 	} else {
 		raster_path(uv, path_base, albedo, emission);
 	}
@@ -1292,14 +1302,18 @@ void fragment() {
 		AO = mix(AO, AO * snow_ambient_factor, snow);
 		NORMAL = normalize(mix(NORMAL, snow_flat_normal, snow));
 	}
-	if (is_hole) {
-		// Bontago-1pi.11.42: the void replaces everything the bare disc
+	float void_cell_m;
+	float void_d = void_signed_distance(uv, void_g, void_cell_m);
+	// Anti-aliased edge: one pixel of the distance field's own gradient.
+	float void_cover = smoothstep(0.0, max(fwidth(void_d), 0.0001), void_d);
+	if (void_cover > 0.0) {
+		// Bontago-1pi.11.42/44: the void replaces everything the bare disc
 		// shows (plating, mirror, snow, tint): it must read as a gap.
 		vec3 void_albedo;
 		vec3 void_emission;
-		hole_void(uv, v_local.xz, void_albedo, void_emission);
-		ALBEDO = void_albedo;
-		EMISSION = void_emission;
+		hole_void(void_d, void_cell_m, v_local.xz, void_albedo, void_emission);
+		ALBEDO = mix(ALBEDO, void_albedo, void_cover);
+		EMISSION = mix(EMISSION, void_emission, void_cover);
 		METALLIC = 0.0;
 		ROUGHNESS = 1.0;
 		SPECULAR = 0.0;
