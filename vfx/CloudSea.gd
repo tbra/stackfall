@@ -81,6 +81,13 @@ var _material: ShaderMaterial = null
 ## Highest puff top written by the last configure() (tracked here because a
 ## headless RenderingServer does not keep MultiMesh instance data).
 var _highest_top: float = -INF
+## Bontago-t8x.2: set by configure() -- the shader's radius inflation (lumps +
+## billow + hull margin, fraction of radius) and the disc exclusion volume.
+var _inflate: float = 0.0
+## Highest inflated puff top among puffs whose footprint enters the exclusion cylinder.
+var _highest_top_near_disc: float = -INF
+var _exclusion_radius_m: float = 0.0
+var _disc_ceiling_m: float = 0.0
 
 
 ## Weather fog changed (vfx/weather/WeatherFogShader.gd).
@@ -97,6 +104,7 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 		_instance = null
 	_material = null
 	_highest_top = -INF
+	_highest_top_near_disc = -INF
 	var layers: Array[_Layer] = _layers_for(theme, density)
 	var clumps: int = 0
 	for layer: _Layer in layers:
@@ -108,6 +116,9 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 	if _material == null:
 		visible = false
 		return
+	_inflate = hull_inflate(_material)
+	_exclusion_radius_m = exclusion_radius_m(theme)
+	_disc_ceiling_m = disc_ceiling_m(theme)
 	visible = true
 	add_to_group(WeatherFogShader.GROUP)
 	WeatherFogShader.apply(_material)
@@ -157,6 +168,37 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 	add_child(_instance)
 
 
+## Largest silhouette the puff shader can carve beyond a puff's radius, as a
+## fraction of it (the same sum shaders/cloud_puffs.gdshader inflates its hull by).
+static func hull_inflate(material: ShaderMaterial) -> float:
+	var lump_height: float = _float_param(material, &"lump_height", 0.35)
+	var lump_bias: float = _float_param(material, &"lump_bias", 0.6)
+	return lump_height * (1.0 - lump_bias) + _float_param(material, &"billow_amount", 0.03) + _float_param(material, &"hull_margin", 0.04)
+
+
+static func _float_param(material: ShaderMaterial, name: StringName, fallback: float) -> float:
+	var value: Variant = material.get_shader_parameter(name)
+	return float(value) if value is float else fallback
+
+
+## Clearance (m) kept around the disc: cloud_disc_clearance_ratio of the largest
+## field radius.
+static func disc_clearance_m(theme: SkyThemeDef) -> float:
+	return MapDef.RADIUS_LARGE * theme.cloud_disc_clearance_ratio
+
+
+## Radius (m) of the cylinder around the disc axis no puff may rise out of the
+## under-disc ceiling inside: the largest field plus the clearance.
+static func exclusion_radius_m(theme: SkyThemeDef) -> float:
+	return MapDef.RADIUS_LARGE + disc_clearance_m(theme)
+
+
+## World Y no puff top inside the exclusion cylinder may exceed: the disc's
+## underside (MapDef.disk_height below y 0) minus the clearance.
+static func disc_ceiling_m(theme: SkyThemeDef) -> float:
+	return -MapDef.new().disk_height - disc_clearance_m(theme)
+
+
 ## The sea layer and (when the theme has any) the cloud-bank layer, with the
 ## density preset applied to both clump counts.
 static func _layers_for(theme: SkyThemeDef, density: float) -> Array[_Layer]:
@@ -171,7 +213,11 @@ static func _layers_for(theme: SkyThemeDef, density: float) -> Array[_Layer]:
 	sea.radial_bias = theme.cloud_radial_bias
 	sea.base_min_m = theme.cloud_base_min_m
 	sea.base_max_m = theme.cloud_base_max_m
-	sea.top_max_m = theme.cloud_top_max_m
+	# Bontago-t8x.2: the sea layer rides cloud_puff_raise_m higher; the disc
+	# clearance clamp in _write_puff() keeps it clear of the disc and play volume.
+	sea.base_min_m += theme.cloud_puff_raise_m
+	sea.base_max_m += theme.cloud_puff_raise_m
+	sea.top_max_m = theme.cloud_top_max_m + theme.cloud_puff_raise_m
 	sea.radius_min_m = theme.cloud_clump_radius_min_m
 	sea.radius_max_m = theme.cloud_clump_radius_max_m
 	layers.append(sea)
@@ -199,7 +245,9 @@ static func _layers_for(theme: SkyThemeDef, density: float) -> Array[_Layer]:
 		far.radial_bias = theme.proc_far_radial_bias
 		far.base_min_m = theme.proc_far_base_min_m
 		far.base_max_m = theme.proc_far_base_max_m
-		far.top_max_m = theme.proc_far_top_max_m
+		far.top_max_m = theme.proc_far_top_max_m + theme.cloud_puff_raise_m
+		far.base_min_m += theme.cloud_puff_raise_m
+		far.base_max_m += theme.cloud_puff_raise_m
 		far.radius_min_m = theme.proc_far_radius_min_m
 		far.radius_max_m = theme.proc_far_radius_max_m
 		layers.append(far)
@@ -253,10 +301,20 @@ func _add_clump(multimesh: MultiMesh, index: int, theme: SkyThemeDef, layer: _La
 
 func _write_puff(multimesh: MultiMesh, index: int, at: Vector3, radius: float, layer: _Layer,
 		rng: RandomNumberGenerator, angular_speed: float, base_y: float, clump_height: float) -> int:
-	# Never let a puff top rise above the ceiling under the disc.
+	# Never let a puff top rise above its layer ceiling.
 	at.y = minf(at.y, layer.top_max_m - radius)
-	_highest_top = maxf(_highest_top, at.y + radius)
 	var stretch: float = rng.randf_range(1.0, STRETCH_MAX)
+	# Bontago-t8x.2: a puff that could reach the disc or the play volume (its
+	# footprint, inflated by the shader's lumps/billow, enters the exclusion
+	# cylinder) is held under the disc by the clearance. The shader orbits puffs
+	# around the disc axis, so the horizontal distance from it is constant and
+	# this holds at every drift phase, tilt and camera orbit.
+	var inflated: float = radius * (1.0 + _inflate)
+	var footprint: float = Vector2(at.x, at.z).length() - inflated * stretch
+	if footprint < _exclusion_radius_m:
+		at.y = minf(at.y, _disc_ceiling_m - inflated)
+		_highest_top_near_disc = maxf(_highest_top_near_disc, at.y + inflated)
+	_highest_top = maxf(_highest_top, at.y + radius)
 	var basis: Basis = Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(radius * stretch, radius, radius * stretch))
 	multimesh.set_instance_transform(index, Transform3D(basis, at))
 	multimesh.set_instance_custom_data(index, Color(angular_speed, rng.randf() * TAU, base_y, clump_height))
@@ -266,6 +324,11 @@ func _write_puff(multimesh: MultiMesh, index: int, at: Vector3, radius: float, l
 ## Highest world Y any puff reaches (before billow), for tests and checks.
 func highest_puff_top() -> float:
 	return _highest_top
+
+
+## Highest inflated top of any puff that could reach the disc's exclusion volume.
+func highest_top_near_disc() -> float:
+	return _highest_top_near_disc
 
 
 func puff_count() -> int:

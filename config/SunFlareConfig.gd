@@ -70,7 +70,16 @@ extends Resource
 @export var ghost_positions: PackedFloat32Array = PackedFloat32Array([0.35, 0.65, 1.0, 1.35])
 @export var ghost_base_size: float = 0.03
 @export var ghost_size_falloff: float = 0.72
-@export var ghost_alpha: float = 0.32
+@export var ghost_alpha: float = 0.22
+## Bontago-t8x.3 (owner 2026-10-01: "from an angle it looks like there are 2
+## suns"): ROOT CAUSE -- the first ghost sits ghost_positions[0] of the way from
+## the sun to screen centre as a solid sun-coloured disc. Straight on the sun is
+## at centre so every ghost collapses onto it; from the side the ghost separates
+## and reads as a second sun. Ghosts are now hollow rings (this fraction of the
+## ghost's radius is ring; 0 restores solid discs) and dimmer, so they read as
+## lens artifacts. The sky-shader sun, the scene light and this flare's
+## sun_direction all agree (tests/unit/test_sky_themes.gd asserts it).
+@export var ghost_ring_width: float = 0.3
 @export var ghost_color_b: Color = Color(0.35, 0.78, 0.72)
 
 ## Screen-space (0..1, with margin allowed to go slightly negative/above 1)

@@ -132,6 +132,18 @@ extends Resource
 @export var cloud_clump_radius_max_m: float = 36.0
 @export var cloud_clump_height_ratio: float = 0.65
 @export var cloud_flat_base: float = 0.15
+## Bontago-t8x.2 (owner 2026-10-01: "try moving the puff layer up a bit"): metres
+## the sea puff layer and the procedural far ring are raised (bases and tops
+## together). vfx/CloudSea.gd then clamps every puff that could reach the disc
+## or the play volume back under the disc: the exclusion cylinder is the largest
+## field radius (MapDef.RADIUS_LARGE) plus cloud_disc_clearance_ratio of it, and
+## inside it no puff top may rise above the disc's underside minus that same
+## clearance (disc height from MapDef.disk_height). So a raise can never put a
+## cloud through, or in front of, the disc at any tilt or orbit.
+@export var cloud_puff_raise_m: float = 0.0
+## Clearance around the disc, as a fraction of the largest field radius (see
+## cloud_puff_raise_m). 0.25 of the 60 m large field is 15 m.
+@export var cloud_disc_clearance_ratio: float = 0.25
 @export var cloud_drift_speed_min_mps: float = 0.8
 @export var cloud_drift_speed_max_mps: float = 1.8
 
@@ -224,6 +236,12 @@ extends Resource
 @export var proc_far_radius_min_m: float = 60.0
 @export var proc_far_radius_max_m: float = 130.0
 @export var proc_far_fade_cap: float = 0.7
+
+## Bontago-t8x.2 (owner: "I'm not a huge fan of the above clouds"): master toggle
+## for the procedural look's overhead cloud layers (the card atlas below or the
+## noise strata it replaces). Off by default; the layers are kept, not deleted.
+## Skybox writes it to the sky shader's proc_overhead_mix.
+@export var proc_overhead_clouds_enabled: bool = false
 
 ## Bontago-59o.20: authored cloud-card overhead layer (procedural look only).
 ## proc_cards_enabled swaps the noise overhead layers for the Blender card

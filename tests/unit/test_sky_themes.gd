@@ -76,7 +76,7 @@ func test_cloud_puffs_stay_below_the_disc_and_off_the_mirror_layer() -> void:
 		# Bontago-470.5: the cloud banks stand higher than the sea but only far
 		# beyond the largest disc, so no gameplay camera can be inside one.
 		assert_true(theme.cloud_bank_ring_inner_m > MapDef.RADIUS_LARGE * 3.0, "%s: banks stay far from the play area" % path)
-		assert_true(sea.highest_puff_top() <= maxf(theme.cloud_top_max_m, theme.cloud_bank_top_max_m) + 0.001,
+		assert_true(sea.highest_puff_top() <= maxf(theme.cloud_top_max_m + theme.cloud_puff_raise_m, theme.cloud_bank_top_max_m) + 0.001,
 			"%s: no puff above its layer ceiling" % path)
 		assert_eq(sea.puff_instance().layers, CloudSea.RENDER_LAYER_BIT)
 		assert_eq(DiscMirror.MIRROR_CULL_MASK & CloudSea.RENDER_LAYER_BIT, 0, "mirror camera must not see the puffs")
@@ -240,3 +240,43 @@ func test_bird_mesh_has_a_body_and_two_flapping_swept_wings() -> void:
 	assert_almost_eq(min_z, -DistantBirds.HALF_SPAN, 0.001)
 	assert_almost_eq(tip_flap, 1.0, 0.001)
 	assert_gt(body_vertices, 8, "body vertices stay put (flap weight 0)")
+
+
+## Bontago-t8x.2: the overhead cloud layers are off by default (kept, not deleted)
+## and the puff layer is raised, but no puff that could reach the disc or the
+## play volume rises above the disc's underside minus the derived clearance.
+func test_overhead_clouds_off_by_default_and_puffs_stay_clear_of_the_disc() -> void:
+	var theme: SkyThemeDef = load(SUNSET_PATH) as SkyThemeDef
+	assert_false(theme.proc_overhead_clouds_enabled, "overhead layer off by default")
+	assert_gt(theme.cloud_puff_raise_m, 0.0, "puff layer raised")
+	var sky: ShaderMaterial = theme.sky_material as ShaderMaterial
+	var skybox: Skybox = autofree(Skybox.new())
+	skybox._apply_procedural_params(sky, theme)
+	assert_eq(float(sky.get_shader_parameter("proc_overhead_mix")), 0.0)
+	theme = theme.duplicate() as SkyThemeDef
+	theme.proc_overhead_clouds_enabled = true
+	skybox._apply_procedural_params(sky, theme)
+	assert_eq(float(sky.get_shader_parameter("proc_overhead_mix")), 1.0)
+	for look: bool in [false, true]:
+		theme.sky_look_procedural = look
+		for raise: float in [0.0, theme.cloud_puff_raise_m, 80.0]:
+			theme.cloud_puff_raise_m = raise
+			var sea: CloudSea = CloudSea.new()
+			add_child_autofree(sea)
+			sea.configure(theme, 1.0, theme.sky_material)
+			assert_true(sea.highest_top_near_disc() <= CloudSea.disc_ceiling_m(theme) + 0.001,
+				"raise %s procedural %s: puffs near the disc stay under it" % [raise, look])
+	assert_almost_eq(CloudSea.exclusion_radius_m(theme), MapDef.RADIUS_LARGE * (1.0 + theme.cloud_disc_clearance_ratio), 0.001)
+
+
+## Bontago-t8x.3: the flare, the sky-shader sun and the light's sun direction
+## agree, so there is one sun from every angle.
+func test_flare_sky_and_light_agree_on_the_sun_direction() -> void:
+	var theme: SkyThemeDef = load(SUNSET_PATH) as SkyThemeDef
+	var flare: SunFlareConfig = load("res://config/sun_flare.tres") as SunFlareConfig
+	var sky: ShaderMaterial = theme.sky_material as ShaderMaterial
+	var sky_dir: Vector3 = sky.get_shader_parameter("sun_direction") as Vector3
+	assert_gt(flare.sun_direction.normalized().dot(sky_dir.normalized()), 0.9999)
+	var puffs: ShaderMaterial = theme.cloud_puff_material as ShaderMaterial
+	assert_gt((puffs.get_shader_parameter("light_direction") as Vector3).normalized().dot(sky_dir.normalized()), 0.9999)
+	assert_gt(flare.ghost_ring_width, 0.0, "ghosts are rings, not solid sun-like discs")

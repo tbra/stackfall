@@ -205,6 +205,8 @@ uniform float proc_upper_rot2 = 0.6;
 // z density, w card half-size in cells. proc_cards_light: x openness floor,
 // y skylight up-bias, z rim power, w rim strength. proc_cards_wind: layer 1 xy, layer 2 zw.
 uniform sampler2D cloud_cards : filter_linear_mipmap, repeat_disable;
+// Bontago-t8x.2: master switch for both procedural overhead layers (cards and noise strata).
+uniform float proc_overhead_mix = 1.0;
 uniform float proc_cards_mix = 0.0;
 uniform float proc_cards_opacity = 0.95;
 uniform vec4 proc_cards_layout = vec4(1.5, 0.35, 0.85, 0.9);
@@ -351,7 +353,7 @@ void sky() {
 	// Procedural upper clouds (Bontago-59o.19): two isotropic broken-cumulus
 	// layers on rotated high planes (see cloud_common procedural_upper_clouds),
 	// background pass only.
-	if (!AT_CUBEMAP_PASS && eyedir.y > 0.0 && procedural_sea_mix > 0.0 && proc_cards_mix > 0.0) {
+	if (!AT_CUBEMAP_PASS && eyedir.y > 0.0 && procedural_sea_mix > 0.0 && proc_cards_mix > 0.0 && proc_overhead_mix > 0.0) {
 		float cmix = clamp(procedural_sea_mix, 0.0, 1.0) * clamp(proc_cards_mix, 0.0, 1.0);
 		float csun = smoothstep(sun_core_angular_radius_deg, cloud_sun_clear_deg * 0.5, angle_deg);
 		float cfade = smoothstep(proc_cards_fade_start, proc_cards_fade_height, eyedir.y) * csun * proc_cards_opacity * cmix;
@@ -362,7 +364,7 @@ void sky() {
 			proc_cards_bands, cloud_cel_edge, proc_cards_light, proc_cards_contrast, cloud_shadow_color, cloud_mid_color, cloud_lit_color, cloud_rim_color);
 		COLOR = mix(COLOR, k1.rgb * exposure, k1.a * cfade);
 	}
-	if (!AT_CUBEMAP_PASS && eyedir.y > 0.0 && procedural_sea_mix > 0.0 && proc_cards_mix <= 0.0) {
+	if (!AT_CUBEMAP_PASS && eyedir.y > 0.0 && procedural_sea_mix > 0.0 && proc_cards_mix <= 0.0 && proc_overhead_mix > 0.0) {
 		vec2 to_sun_xz = normalize(sun_dir.xz + vec2(0.0001));
 		float sun_clear = smoothstep(sun_core_angular_radius_deg, cloud_sun_clear_deg, angle_deg);
 		float mixv = clamp(procedural_sea_mix, 0.0, 1.0);

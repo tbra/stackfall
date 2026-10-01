@@ -153,6 +153,7 @@ func _process(delta: float) -> void:
 	_material.set_shader_parameter(&"ghost_base_size", config.ghost_base_size)
 	_material.set_shader_parameter(&"ghost_size_falloff", config.ghost_size_falloff)
 	_material.set_shader_parameter(&"ghost_alpha", config.ghost_alpha)
+	_material.set_shader_parameter(&"ghost_ring_width", config.ghost_ring_width)
 	_material.set_shader_parameter(&"ghost_color_b", config.ghost_color_b)
 	_material.set_shader_parameter(&"aspect_ratio", aspect)
 	_material.set_shader_parameter(&"max_intensity", config.max_intensity)
