@@ -22,6 +22,11 @@ const REASON_KILL_PLANE: StringName = &"kill_plane"
 ## The host's state machine moved. Both arguments are Match.State values.
 signal match_state_changed(from_state: int, to_state: int)
 
+## Bontago-t8x.4: the host pressed Start. Emitted on a client by
+## net/MatchNet.gd's net_match_loading, one message ahead of net_match_start, so
+## game/Main.gd can raise the loading overlay before the match world builds.
+signal match_loading_announced
+
 ## One second of the 3 s pre-match countdown elapsed; 0 means "go".
 signal countdown_tick(seconds_left: int)
 

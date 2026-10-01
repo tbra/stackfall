@@ -127,6 +127,7 @@ var _results_screen: ResultsScreen = null
 ## out of _ready() before Events.match_state_changed is even connected below,
 ## same reason _debug_overlay is skipped there too).
 var _loading_screen: LoadingScreen = null
+var _start_pending: bool = false
 ## Bontago-d5c.6 (M5 P5): one instance per bot slot in the match currently
 ## built, built in _build_match_world() (or _start_headless_bot_match_with_
 ## args()'s own reuse of it) and freed in _end_match_world() -- see
@@ -222,6 +223,7 @@ func _ready() -> void:
 	# first time _on_match_state_changed() below can possibly fire.
 	_loading_screen = LOADING_SCREEN_SCENE.instantiate() as LoadingScreen
 	add_child(_loading_screen)
+	Events.match_loading_announced.connect(_on_match_loading_announced)
 
 	# docs/M3b_PLAN.md integration order step 4: Steam init is synchronous by
 	# this point, so MainMenu._ready() can immediately read steam_available().
@@ -777,7 +779,7 @@ func _show_lobby() -> void:
 	_pause_menu.suppressed = true
 	_lobby = LOBBY_SCENE.instantiate() as Lobby
 	add_child(_lobby)
-	_lobby.start_requested.connect(_on_lobby_start_requested)
+	_lobby.start_requested.connect(_on_lobby_start_pressed)
 	_lobby.back_requested.connect(_on_lobby_back_requested)
 	# Must happen only once Net.is_host()/is_client() reflects the real mode
 	# (register_world() reads it immediately, to set BlockRegistry's host
@@ -823,10 +825,39 @@ func _on_net_mode_changed(mode: int) -> void:
 		_show_lobby()
 
 
+## Bontago-t8x.4: Match.start_match() runs the whole world build synchronously
+## in one frame, so an overlay shown inside it is never presented before the
+## freeze. The Lobby's Start button therefore lands here first: the overlay (and
+## the clients' net_match_loading) goes up, tuning.pre_start_frames rendered
+## frames pass, and only then _on_lobby_start_requested() starts the match.
+## There is no separate match scene to thread-load: Main already hosts the
+## world, and the skybox jpgs are decoded from raw files, not ResourceLoader
+## resources.
+func _on_lobby_start_pressed(config: MatchConfig) -> void:
+	if not Net.is_host() or _start_pending:
+		return
+	_start_pending = true
+	_loading_screen.show_pending(config)
+	MatchNet.replicate_match_loading()
+	for _i: int in range(_loading_screen.tuning.pre_start_frames):
+		await get_tree().process_frame
+	_start_pending = false
+	if not Net.is_host() or not _loading_screen.is_pending():
+		return
+	_on_lobby_start_requested(config)
+
+
 func _on_lobby_start_requested(config: MatchConfig) -> void:
 	if not Net.is_host():
 		return
 	Match.start_match(config)
+
+
+## Client side of the above: raise the overlay as soon as the host announces.
+func _on_match_loading_announced() -> void:
+	if Match.state() != Match.State.LOBBY:
+		return
+	_loading_screen.show_pending(null)
 
 
 ## ui/Lobby.gd's %BackButton (Bontago-xtq.32 redo #3, review finding #1):

@@ -703,6 +703,16 @@ func replicate_match_start(match_config: MatchConfig) -> void:
 	rpc(&"net_match_start", match_config.to_dict(), _roster())
 
 
+## Host only (Bontago-t8x.4). Tells every client the host just pressed Start,
+## one reliable message ahead of net_match_start, so a client can raise its
+## loading overlay and have it drawn before the synchronous world build that
+## net_match_start triggers. Reliable RPCs are ordered, so it always lands first.
+func replicate_match_loading() -> void:
+	if not _is_host() or not _can_send():
+		return
+	rpc(&"net_match_loading")
+
+
 # --- Counters the acceptance harness asserts on -----------------------------
 
 ## Deliberate placement intents this instance sent (as a client, for its own
@@ -1539,6 +1549,11 @@ func net_cat_state(id: int, position: Vector3, velocity: Vector3, point: Vector3
 
 
 # Host -> clients.
+
+@rpc("authority", "call_remote", "reliable")
+func net_match_loading() -> void:
+	Events.match_loading_announced.emit()
+
 
 @rpc("authority", "call_remote", "reliable")
 func net_match_start(config_data: Dictionary, roster: Array) -> void:
