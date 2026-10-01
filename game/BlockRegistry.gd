@@ -71,10 +71,30 @@ var _grid: CellGrid = null
 ## kinds of asleep").
 var _host_authority: bool = true
 
+## Bontago-1pi.11.41: host-side hole contact and dissolve (game/
+## HoleDissolver.gd). Built by _ensure_dissolver(); fed this registry's moving
+## blocks every physics tick.
+var _dissolver: HoleDissolver = null
+
 
 func _ready() -> void:
 	Events.block_placed.connect(_on_block_placed)
 	Events.block_removed.connect(_on_block_removed)
+	_ensure_dissolver()
+
+
+func _ensure_dissolver() -> HoleDissolver:
+	if _dissolver == null:
+		_dissolver = HoleDissolver.new()
+		_dissolver.name = &"HoleDissolver"
+		_dissolver.setup(self)
+		add_child(_dissolver)
+	return _dissolver
+
+
+## The host's hole dissolver (Bontago-1pi.11.41); never null.
+func hole_dissolver() -> HoleDissolver:
+	return _ensure_dissolver()
 
 
 ## Called once by Match.start_match() once the map is known. `field` supplies
@@ -83,6 +103,7 @@ func _ready() -> void:
 func configure(field: Node3D, map_def: MapDef) -> void:
 	_field = field
 	_grid = CellGrid.new(map_def.field_radius, map_def.cell_size, map_def.shape_test())
+	_ensure_dissolver().set_field(field)
 
 
 ## Drops every tracked block (but does not free the bodies themselves — the
@@ -92,6 +113,7 @@ func reset() -> void:
 	_entries.clear()
 	_net_id_to_block.clear()
 	_next_net_id = 1
+	_ensure_dissolver().reset()
 
 
 ## Monotonic counter of territory-relevant changes (see _territory_revision).
@@ -203,6 +225,12 @@ func _physics_process(delta: float) -> void:
 	var ang_sq: float = tuning.sleep_angular_threshold * tuning.sleep_angular_threshold
 	var settle_time: float = tuning.sleep_settle_time
 	var stale: Array = []
+	# Bontago-1pi.11.41: blocks that moved this tick (unsettled, just settled or
+	# settled-but-shifted), collected only while the field has a hole, so the
+	# dissolver tests just those instead of every block.
+	var dissolver: HoleDissolver = _ensure_dissolver()
+	var collect: bool = dissolver.wants_candidates()
+	var moving: Array[Block] = []
 	for id: Variant in _entries:
 		var entry: _Entry = _entries[id]
 		var block: Block = entry.block
@@ -226,12 +254,19 @@ func _physics_process(delta: float) -> void:
 				entry.marked_transform = block.global_transform
 				_refresh_geometry(entry, field_global_transform())
 				block_settled.emit(entry.owner_slot, entry.geom_top)
+			if collect:
+				moving.append(block)
 		elif entry.is_settled and _moved_beyond_epsilon(entry):
 			_territory_revision += 1
 			entry.marked_transform = block.global_transform
+			if collect:
+				moving.append(block)
+		elif collect and not entry.is_settled:
+			moving.append(block)
 	for id: Variant in stale:
 		_entries.erase(id)
 		_territory_revision += 1
+	dissolver.physics_tick(delta, moving)
 	PerfProbe.stop(&"registry", probe_registry)
 
 
@@ -384,6 +419,11 @@ func _set_owner(block: Block, new_slot: int, color: Color) -> bool:
 
 func tracked_block_count() -> int:
 	return _entries.size()
+
+
+## Whether `block` is a live block this registry tracks.
+func is_tracked(block: Block) -> bool:
+	return block != null and _entries.has(block.get_instance_id())
 
 
 ## Every live tracked Block, host or client alike (M8 P5,

@@ -7,9 +7,8 @@ extends GutTest
 
 ## Frames to let a dropped cube come to rest on the disk.
 const SETTLE_FRAMES: int = 90
-## Frames to let a woken cube fall clear of the disk once its cell opens. At
-## 60 Hz this is 1.5 s, roughly 11 m of free fall, well short of the kill
-## plane at -40.
+## Frames to watch a cube after its cell opens (1.5 s at 60 Hz): long enough
+## that it would have fallen well clear of the disk if holes still cut it.
 const FALL_FRAMES: int = 90
 ## Upper bound on frames for a 60 m drop to land and sleep (10 s at 60 Hz).
 const FALL_TIMEOUT_FRAMES: int = 600
@@ -94,11 +93,11 @@ func _cells_near_center(grid: CellGrid, reach: float) -> PackedInt32Array:
 
 # --- The grid ---------------------------------------------------------------
 
-func test_the_disk_is_one_owner_and_collides_exactly_off_holes() -> void:
-	# Bontago-ruw: the disk is one trimesh on one shape owner. What the old
-	# one-owner-per-cell assertion protected is that collision and the logical
-	# hole state agree cell by cell, so check that directly, with a lone hole,
-	# a small patch and a hole on the rim.
+func test_the_disk_is_one_owner_and_stays_solid_under_holes() -> void:
+	# Bontago-ruw: the disk is one trimesh on one shape owner. Bontago-1pi.11.41
+	# (owner decision Bontago-gdb, option A): holes no longer cut it, so every
+	# in-disk cell collides at the surface, hole or not -- a lone hole, a small
+	# patch and a hole on the rim included.
 	var field: Field = _make_field()
 	var grid: CellGrid = field.grid()
 	var expected: int = _expected_in_disk_cells(grid)
@@ -120,10 +119,7 @@ func test_the_disk_is_one_owner_and_collides_exactly_off_holes() -> void:
 
 	for cell: int in grid.in_disk_cells():
 		var hit: Dictionary = _ray_at_cell(field, cell)
-		if field.is_hole_cell(cell):
-			assert_true(hit.is_empty(), "Hole cell %d must have no collision." % cell)
-			continue
-		assert_false(hit.is_empty(), "Solid cell %d must have collision." % cell)
+		assert_false(hit.is_empty(), "Cell %d must have collision, hole or not." % cell)
 		if not hit.is_empty():
 			assert_eq(hit["collider"], field, "Cell %d is the disk's own collision." % cell)
 			assert_almost_eq(
@@ -199,7 +195,7 @@ func test_set_hole_cells_opens_the_named_cells() -> void:
 
 	for cell: int in opened:
 		assert_true(field.is_hole_cell(cell), "Cell %d should be a hole." % cell)
-		assert_true(_ray_at_cell(field, cell).is_empty(), "Cell %d lost its collision." % cell)
+		assert_false(_ray_at_cell(field, cell).is_empty(), "Cell %d keeps its collision." % cell)
 	assert_eq(_hole_cell_count(field), opened.size())
 
 
@@ -269,9 +265,13 @@ func test_repeating_a_hole_request_does_not_queue_twice() -> void:
 	)
 
 
-# --- Waking and falling through (spec 3.3) ----------------------------------
+# --- Holes leave the disk alone (Bontago-1pi.11.41) -------------------------
 
-func test_a_sleeping_body_over_a_changed_cell_wakes() -> void:
+## Holes do not change collision, so Field wakes nothing: a sleeping block on
+## an opened cell keeps sleeping on solid ground. Dissolving it is the host
+## BlockRegistry's HoleDissolver's job (tests/unit/test_hole_dissolve.gd);
+## this bare Field has no registry.
+func test_a_sleeping_body_over_an_opened_cell_stays_asleep_on_the_surface() -> void:
 	var field: Field = _make_field()
 	var grid: CellGrid = field.grid()
 	var body: RigidBody3D = _make_cube(field, Vector3(0.0, 2.0, 0.0))
@@ -282,63 +282,9 @@ func test_a_sleeping_body_over_a_changed_cell_wakes() -> void:
 	assert_true(body.sleeping, "The cube should be asleep before the hole opens.")
 
 	field.set_hole_cells(_cells_near_center(grid, 1.5), PackedInt32Array())
-	await wait_physics_frames(2)
-	assert_false(body.sleeping, "Opening the cell under a body must wake it.")
-
-
-func test_a_block_falls_through_an_opened_cell() -> void:
-	var field: Field = _make_field()
-	var grid: CellGrid = field.grid()
-	var body: RigidBody3D = _make_cube(field, Vector3(0.0, 2.0, 0.0))
-	await wait_physics_frames(SETTLE_FRAMES)
-	assert_almost_eq(
-		body.global_position.y, 0.5, 0.1, "The cube rests on the disk surface."
-	)
-
-	body.sleeping = true
-	field.set_hole_cells(_cells_near_center(grid, 1.5), PackedInt32Array())
 	await wait_physics_frames(FALL_FRAMES)
-
-	assert_true(is_instance_valid(body), "The kill plane is far below; the cube lives.")
-	assert_lt(
-		body.global_position.y,
-		-field.map_def.disk_height,
-		"A block on an opened cell falls clear through the disk."
-	)
-
-
-## Bontago-ruw: spec 2.2, "blocks resting on holes fall through", for a *lone*
-## hole cell with every neighbour still solid. The old per-cell boxes were
-## grown by MapDef.cell_overlap, so a lone hole was only 0.8 m of clear
-## opening under a 1 m block and the block caught on its neighbours' rims
-## (this test was pending for that). The disk trimesh leaves an exact
-## cell_size opening, so the block now drops through.
-func test_a_block_over_a_lone_hole_cell_falls_through() -> void:
-	var field: Field = _make_field()
-	var grid: CellGrid = field.grid()
-	var middle: int = floori(float(grid.res) * 0.5)
-	var lone_cell: int = grid.cell_index(middle, middle)
-	var center: Vector2 = grid.index_center(lone_cell)
-	# DECISION (tests/unit/test_field_cells.gd, Bontago-ruw): a real cube block
-	# from BlockFactory (cube_size - cube_margin = 0.98 m), not _make_cube()'s
-	# bare 1.0 m box. A box exactly as wide as the hole has zero clearance and
-	# wedges on the opening's edges, which is not a block the game can place.
-	var body: RigidBody3D = BlockFactory.build(load("res://config/blocks/cube.tres"), field.tuning)
-	field.get_parent().add_child(body)
-	autofree(body)
-	body.global_position = Vector3(center.x, 2.0, center.y)
-	await wait_physics_frames(SETTLE_FRAMES)
-
-	body.sleeping = true
-	field.set_hole_cells(PackedInt32Array([lone_cell]), PackedInt32Array())
-	await wait_physics_frames(FALL_FRAMES)
-
-	assert_true(is_instance_valid(body), "The kill plane is far below; the cube lives.")
-	assert_lt(
-		body.global_position.y,
-		-field.map_def.disk_height,
-		"A block on a lone hole cell falls clear through the disk."
-	)
+	assert_true(body.sleeping, "Opening a cell wakes nothing.")
+	assert_almost_eq(body.global_position.y, 0.5, 0.1, "The cube still rests on the disk surface.")
 
 
 ## The trimesh is a surface, not a 1 m thick box, so check it still stops a
@@ -357,27 +303,38 @@ func test_a_block_dropped_from_the_wake_height_lands_on_the_surface() -> void:
 	)
 
 
-## Spec 3.3 via docs/M4_PLAN.md P0a: the mesh is rebuilt at most once per
-## drain, and only when a toggle was actually applied.
-func test_the_disk_mesh_rebuilds_once_per_applied_batch() -> void:
+## Bontago-1pi.11.41: the trimesh is built once per map; no hole toggle, open
+## or close, ever calls set_faces() again (it cost ~13 ms per change on
+## round_medium and woke every body on the disk).
+func test_hole_toggles_never_rebuild_the_disk_mesh() -> void:
 	var field: Field = _make_field()
 	var grid: CellGrid = field.grid()
-	var built: int = field._rebuild_count
-	field._drain_toggles()
-	assert_eq(field._rebuild_count, built, "Nothing queued, nothing rebuilt.")
+	var built: int = field.disk_mesh_build_count()
+	assert_eq(built, 1, "The map build is the one set_faces().")
 
 	var all_cells: PackedInt32Array = _cells_near_center(grid, field.map_def.field_radius)
 	field.set_hole_cells(all_cells, PackedInt32Array())
-	field._drain_toggles()
-	assert_eq(field._rebuild_count, built + 1, "One rebuild for a whole budget of toggles.")
 	while field.pending_toggle_count() > 0:
 		field._drain_toggles()
-	var drained: int = field._rebuild_count
-	# Every cell is a hole now: the mesh is empty and the owner disabled.
-	assert_true(field.is_shape_owner_disabled(field.get_shape_owners()[0]))
-
-	field._drain_toggles()
-	assert_eq(field._rebuild_count, drained, "An empty backlog does not rebuild.")
+	assert_eq(field.applied_hole_count(), all_cells.size(), "fixture: every cell is a hole")
+	assert_false(field.is_shape_owner_disabled(field.get_shape_owners()[0]), "The disk keeps colliding.")
 	field.set_hole_cells(PackedInt32Array(), all_cells)
+	while field.pending_toggle_count() > 0:
+		field._drain_toggles()
+	field.clear_match_state()
+
+	assert_eq(field.disk_mesh_build_count(), built, "No rebuild for opening, closing or clearing holes.")
+	assert_eq(field.applied_hole_count(), 0)
+
+
+## The drained batch announces exactly the cells it opened, once.
+func test_a_drained_batch_announces_its_opened_cells() -> void:
+	var field: Field = _make_field()
+	var cells: PackedInt32Array = _cells_near_center(field.grid(), 1.5)
+	watch_signals(field)
+	field.set_hole_cells(cells, PackedInt32Array())
 	field._drain_toggles()
-	assert_false(field.is_shape_owner_disabled(field.get_shape_owners()[0]))
+	assert_signal_emitted_with_parameters(field, "hole_cells_applied", [cells])
+	field.set_hole_cells(PackedInt32Array(), cells)
+	field._drain_toggles()
+	assert_signal_emit_count(field, "hole_cells_applied", 1, "Closing announces nothing.")

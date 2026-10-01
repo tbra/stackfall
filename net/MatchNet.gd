@@ -85,6 +85,9 @@ const EVENT_GLUE_CHARGES: StringName = &"glue_charges_changed"
 const EVENT_BLOCK_OWNER_CHANGED: StringName = &"block_owner_changed"
 const EVENT_CAT_STARTED: StringName = &"cat_started"
 const EVENT_CAT_ENDED: StringName = &"cat_ended"
+## Bontago-1pi.11.41: [net_id] of a block the host started dissolving on a
+## hole. Its removal follows through the ordinary net_block_despawned.
+const EVENT_BLOCK_DISSOLVE_STARTED: StringName = &"block_dissolve_started"
 
 @export var config: NetConfig = preload("res://config/net_config.tres")
 
@@ -102,6 +105,13 @@ var _shapes_by_id: Dictionary = {}
 ## the same reason _physics_tuning above is preloaded rather than read from
 ## Match's own running MatchConfig.
 var _special_tuning: SpecialTuning = preload("res://config/special_tuning.tres")
+## Bontago-1pi.11.41: the fade length a client reports with a replicated
+## dissolve start (same shipped resource the host's HoleDissolver reads).
+var _hole_dissolve_tuning: HoleDissolveTuning = preload("res://config/hole_dissolve_tuning.tres")
+## Test-only (Bontago-1pi.11.41): net_ids _on_block_dissolve_started() decided
+## to replicate, in order -- _can_send() is false without a live peer, so this
+## is what proves the host would have sent them. Game code never reads it.
+var replicated_dissolve_starts: Array[int] = []
 
 ## _known_special_ids()'s cache: String(SpecialDef.id) -> true, built once
 ## from SpecialDef.load_all_specials() (a directory scan). This node is
@@ -222,6 +232,7 @@ func _ready() -> void:
 	Events.cat_started.connect(_on_cat_started)
 	Events.cat_ended.connect(_on_cat_ended)
 	Events.block_removed.connect(_on_block_removed)
+	Events.block_dissolve_started.connect(_on_block_dissolve_started)
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 	Events.net_peer_left.connect(_on_net_peer_left)
 	Events.net_peer_joined.connect(_on_net_peer_joined)
@@ -786,6 +797,7 @@ func reset_counters() -> void:
 	# Test-only instrumentation; bounded per match (review mv0.1.13).
 	replicated_state_changes.clear()
 	match_starts_replicated = 0
+	replicated_dissolve_starts.clear()
 
 
 # --- Host-side intent handling ----------------------------------------------
@@ -1355,6 +1367,15 @@ func _on_block_removed(block: RigidBody3D, reason: String) -> void:
 		replicate_despawn(typed.net_id, reason)
 
 
+## Host: mirrors a dissolve start so clients can play the same fade. A body
+## without a wire id (net_id allocation failed) never reached a client.
+func _on_block_dissolve_started(_block: RigidBody3D, net_id: int, _duration_s: float) -> void:
+	if not _is_host() or not Quantize.is_wire_id(net_id):
+		return
+	replicated_dissolve_starts.append(net_id)
+	replicate_match_event(EVENT_BLOCK_DISSOLVE_STARTED, [net_id])
+
+
 func _on_cat_started(id: int, slot_id: int, position: Vector3, duration: float) -> void:
 	if _is_host():
 		replicate_match_event(EVENT_CAT_STARTED, [id, slot_id, position, duration])
@@ -1830,6 +1851,21 @@ func net_match_event(event: StringName, args: Array) -> void:
 			if charges < 0 or charges > 100 or revision <= 0:
 				return
 			_authority().apply_replicated_glue_charges(glue_slot, charges, revision)
+		EVENT_BLOCK_DISSOLVE_STARTED:
+			# Bontago-1pi.11.41: presentation only. An unknown id (a spawn the
+			# client never built) or a malformed payload is dropped.
+			if _is_host() or args.size() != 1 or not args[0] is int:
+				return
+			var dissolving_id: int = args[0]
+			if not Quantize.is_wire_id(dissolving_id):
+				return
+			var dissolve_registry: BlockRegistry = _authority().registry()
+			if dissolve_registry == null:
+				return
+			var dissolving: Block = dissolve_registry.block_for_net_id(dissolving_id)
+			if dissolving == null or not is_instance_valid(dissolving):
+				return
+			Events.block_dissolve_started.emit(dissolving, dissolving_id, _hole_dissolve_tuning.dissolve_delay_s)
 		EVENT_BLOCK_OWNER_CHANGED:
 			if _is_host() or args.size() != 2 or not args[0] is int or not args[1] is int:
 				return
