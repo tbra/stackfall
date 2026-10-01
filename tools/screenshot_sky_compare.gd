@@ -10,6 +10,7 @@ extends Node
 const SETTLE_S: float = 1.5
 const PERF_FRAMES: int = 120
 const PERF_WARMUP_FRAMES: int = 30
+const DEFAULT_RENDER_SIZE: Vector2i = Vector2i(1920, 1080)
 const PANEL_WIDTH: int = 800
 const OUTPUT_PATH: String = "res://docs/sky_compare_sunset.png"
 const POSE_NAMES: Array[String] = ["default", "low orbit", "sun"]
@@ -21,16 +22,22 @@ const SUN_PITCH: float = 0.15
 const LOW_PITCH: float = -0.05
 
 
+var _vp: SubViewport
+var _camera: Camera3D
+var _direction: Vector3
+
+
 func _ready() -> void:
 	call_deferred("_capture")
 
 
-func _grab() -> Image:
+func _grab(index: int) -> Image:
+	_pose(_camera, index, _direction)
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	await get_tree().create_timer(0.3).timeout
 	await RenderingServer.frame_post_draw
-	var image: Image = get_viewport().get_texture().get_image()
+	var image: Image = _vp.get_texture().get_image()
 	var scale: float = float(PANEL_WIDTH) / float(image.get_width())
 	image.resize(PANEL_WIDTH, int(round(image.get_height() * scale)), Image.INTERPOLATE_LANCZOS)
 	return image
@@ -54,11 +61,11 @@ func _pose(camera: Camera3D, index: int, direction: Vector3) -> void:
 func _set_procedural(skybox: Skybox, on: bool) -> void:
 	skybox.theme.sky_look_procedural = on
 	skybox.apply_theme(skybox.theme)
-	await get_tree().create_timer(0.5).timeout
+	await get_tree().create_timer(SETTLE_S).timeout
 
 
 func _perf() -> Dictionary:
-	var viewport_rid: RID = get_viewport().get_viewport_rid()
+	var viewport_rid: RID = _vp.get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(viewport_rid, true)
 	for _i: int in range(PERF_WARMUP_FRAMES):
 		await get_tree().process_frame
@@ -75,7 +82,8 @@ func _perf() -> Dictionary:
 
 func _capture() -> void:
 	var main: Node = (load("res://game/Main.tscn") as PackedScene).instantiate()
-	get_tree().root.add_child.call_deferred(main)
+	_vp = AgentProbe.make_render_viewport(self, DEFAULT_RENDER_SIZE)
+	_vp.add_child.call_deferred(main)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await get_tree().create_timer(SETTLE_S).timeout
@@ -86,17 +94,20 @@ func _capture() -> void:
 	var flare: SunFlare = main.get_node("SunFlare") as SunFlare
 	var rig: Node = main.get_node("CameraRig")
 	rig.set_process(false)
+	rig.set_physics_process(false)
 	var camera: Camera3D = rig.get_node("Camera3D") as Camera3D
 	var skybox: Skybox = main.get_node("Skybox") as Skybox
+	_camera = camera
 	var direction: Vector3 = flare.config.sun_direction.normalized()
+	_direction = direction
 	var painted: Array[Image] = []
 	var procedural: Array[Image] = []
 	for index: int in range(POSE_NAMES.size()):
 		_pose(camera, index, direction)
 		await _set_procedural(skybox, false)
-		painted.append(await _grab())
+		painted.append(await _grab(index))
 		await _set_procedural(skybox, true)
-		procedural.append(await _grab())
+		procedural.append(await _grab(index))
 	# Perf sample at the default pose (indicative: windowed dev GPU, vsync may cap wall time).
 	_pose(camera, 0, direction)
 	await _set_procedural(skybox, false)
