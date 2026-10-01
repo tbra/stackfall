@@ -39,7 +39,7 @@ func _shoot(path: String) -> void:
 	var image: Image = _shot_viewport.get_texture().get_image()
 	var globalized: String = ProjectSettings.globalize_path(path)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://feedback"))
-	image.save_png(globalized)
+	ContactSheet.save_capture(image, globalized)
 	print("SCREENSHOT saved=%s size=%dx%d" % [globalized, image.get_width(), image.get_height()])
 
 

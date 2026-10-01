@@ -59,7 +59,7 @@ func _shoot(file_name: String) -> void:
 	await RenderingServer.frame_post_draw
 	var image: Image = await _render_large_shot()
 	var path: String = OUTPUT_DIR + file_name
-	image.save_png(path)
+	ContactSheet.save_capture(image, path)
 	print("SCREENSHOT rain saved=%s size=%s" % [ProjectSettings.globalize_path(path), image.get_size()])
 
 
