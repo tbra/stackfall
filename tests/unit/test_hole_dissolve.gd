@@ -137,6 +137,25 @@ func test_a_block_resting_on_a_newly_opened_hole_dissolves_then_is_removed_as_an
 	assert_eq(_field.disk_mesh_build_count(), builds, "No disc rebuild on the hole change.")
 
 
+func test_footprint_cache_rebuilds_when_collision_swaps_with_same_child_count() -> void:
+	_make_world()
+	var block: Block = _spawn(_cube, _middle_cell(), 0.02)
+	var first: Variant = _dissolver()._footprint(block)
+	assert_eq(_dissolver()._footprint(block), first, "Unchanged collision reuses the cache.")
+	var collision: CollisionShape3D = null
+	for child: Node in block.get_children():
+		if child is CollisionShape3D:
+			collision = child as CollisionShape3D
+			break
+	assert_not_null(collision)
+	var count: int = block.get_child_count()
+	var bigger: BoxShape3D = BoxShape3D.new()
+	bigger.size = Vector3.ONE * 3.0
+	collision.shape = bigger
+	assert_eq(block.get_child_count(), count, "Child count is unchanged.")
+	assert_ne(_dissolver()._footprint(block), first, "A swapped shape rebuilds the footprint.")
+
+
 func test_a_block_bridging_a_hole_above_the_disc_is_unaffected() -> void:
 	_make_world()
 	var left: Block = _spawn(_cube, _middle_cell(-1), 0.02)

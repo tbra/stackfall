@@ -579,6 +579,39 @@ func test_fire_stability_raycasts_excludes_a_hole_corner_even_at_a_matching_fall
 	)
 
 
+## Bontago-1pi.11.43: the disc stays solid under a hole, so the ray reports a
+## real hit there; an applied hole cell must still earn no support credit.
+func test_fire_stability_raycasts_gives_no_support_over_an_applied_hole_cell() -> void:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	match_ref.cell_grid_value = CellGrid.new(field.map_def.field_radius, field.map_def.cell_size)
+	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
+	var controller: BotControllerForcedRaycasts = BotControllerForcedRaycasts.new()
+	add_child_autofree(controller)
+	controller.set_match_provider(match_ref)
+	controller.set_net_provider(net_ref)
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+
+	var grid: CellGrid = match_ref.cell_grid_value
+	var shape: BlockShape = BlockShape.new()
+	shape.cells = [Vector3i(0, 0, 0), Vector3i(1, 0, 0)]
+	var footprint: PackedInt32Array = PlacementRules.footprint_cells(
+		shape.cells, BlockOrientations.get_basis(0), Vector2.ZERO, field.tuning.cube_size, grid
+	)
+	assert_eq(footprint.size(), 2, "fixture: two footprint cells")
+	for index: int in footprint:
+		controller.canned[grid.index_center(index)] = {"height": 0.0, "collider": null, "hit": true}
+	var candidate: BotCandidate = BotCandidate.new()
+	candidate.support_height = 0.0
+	controller._fire_stability_raycasts(candidate, footprint, grid)
+	assert_eq(candidate.corner_support_hits, 2, "fixture: both corners are flush without a hole")
+
+	field.set_hole_cells(PackedInt32Array([footprint[0]]), PackedInt32Array())
+	field._drain_toggles()
+	controller._fire_stability_raycasts(candidate, footprint, grid)
+	assert_eq(candidate.corner_support_hits, 1, "a corner on an applied hole cell earns no support")
+
+
 # --- Bontago-d5c.11 items 2/3: skip triggered specials, sort output ---------
 
 ## Bontago-d5c.11 item 2 (review fix): a spent special's SpecialBehavior node
