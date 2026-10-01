@@ -116,7 +116,7 @@ func _build_territory() -> void:
 	_shadow_raster = null
 	if _match._territory_tuning.async_solve_min_circles > 0:
 		_shadow_raster = TerritoryRaster.new(_cell_grid, _match._territory_tuning)
-	var goal_positions: PackedVector2Array = PlayerSlot.goal_positions_for(_match.config.goal_flag_count, map_def)
+	var goal_positions: PackedVector2Array = PlayerSlot.goal_positions_for(_match.config.effective_goal_flag_count(), map_def)
 	# DECISION (autoload/Match.gd, Bontago-cmc.7): goal-flag no-build zones now
 	# stamp under every hole_mode, not just OFF. SPEC.md's 2026-09-20 audit,
 	# 2.2 "Goal no-build zones [OWNER, original unverified]": "keep the earlier
@@ -339,6 +339,9 @@ func _run_clean_legacy_step(delta: float) -> void:
 func _finish_objective_step() -> void:
 	Events.goal_capture_progress.emit(_objective.capturing_team(), _objective.capture_progress())
 	_match._lifecycle.publish_mode_state_if_changed()
+	# Bontago-6fc.2: a sandbox never ends on the goal hold.
+	if _match.config.sandbox and _objective is ClassicObjective:
+		return
 	if MatchLifecycle.is_live_state(_match.state()) and _objective.winner() != ModeObjective.NO_TEAM:
 		_match._lifecycle._finish_match(_objective.winner())
 

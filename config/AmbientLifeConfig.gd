@@ -10,8 +10,9 @@ extends Resource
 
 # --- Perching birds ----------------------------------------------------------
 
-## Birds alive at once; 0 disables the effect for this theme.
-@export var perch_bird_count: int = 4
+## Total cap on birds alive at once, across every flock; 0 disables the effect
+## for this theme.
+@export var perch_bird_count: int = 8
 ## Bird body length (m), picked per bird, then multiplied by perch_bird_scale
 ## (owner 2026-09-30: the disc birds read too small, so they are drawn ~1.5x
 ## with proportions unchanged). The default clearances below are sized for
@@ -61,10 +62,46 @@ extends Resource
 ## How often (s) the birds re-check their surroundings.
 @export var threat_poll_interval_s: float = 0.12
 
-## Time a bird stays perched before leaving on its own (s).
+# --- Flocks (Bontago-6fc.3) ----------------------------------------------------
+
+## Birds arrive in flocks of a random size in this range (clamped by the total
+## cap, perch_bird_count, and by the free slots).
+@export var flock_size_min: int = 1
+@export var flock_size_max: int = 6
+## Flocks present at once.
+@export var flock_count_max: int = 2
+## Members join the arrival circle this far apart in time (s), and at this
+## angular spread (deg) with this radius / altitude jitter (m): loose cohesion.
+@export var flock_arrival_stagger_s: float = 0.35
+@export var flock_arrival_spread_deg: float = 9.0
+@export var flock_circle_radius_jitter_m: float = 4.0
+@export var flock_circle_altitude_jitter_m: float = 2.5
+## Extra random delay (s) before a member leaves the circle to land.
+@export var flock_landing_stagger_s: float = 1.5
+## Members perch within this radius (m) of the flock's first landing spot, at
+## least this far (m) apart, and, when the first landing was on a block, on
+## other block tops within flock_tower_radius_m of it.
+@export var flock_perch_radius_m: float = 2.2
+@export var flock_member_spacing_m: float = 0.7
+@export var flock_tower_radius_m: float = 6.0
+## Social play while perched: seconds between attempts, and the chance per
+## attempt of a perch swap and of a short chase flight around each other.
+@export var flock_social_interval_min_s: float = 3.0
+@export var flock_social_interval_max_s: float = 9.0
+@export var flock_swap_chance: float = 0.35
+@export var flock_chase_chance: float = 0.3
+## Chase flight: duration (s), orbit radius (m) and peak lift (m).
+@export var flock_chase_duration_s: float = 2.4
+@export var flock_chase_radius_m: float = 1.4
+@export var flock_chase_height_m: float = 0.9
+## When one bird is spooked (or the flock's stay ends) the others follow after
+## a random delay up to this long (s).
+@export var flock_takeoff_stagger_max_s: float = 0.45
+
+## Time a flock stays perched before leaving together (s).
 @export var perch_stay_min_s: float = 14.0
 @export var perch_stay_max_s: float = 34.0
-## Delay before a bird's first appearance and before each replacement (s).
+## Delay (s) before the first flock arrives and between flock arrivals.
 @export var spawn_delay_min_s: float = 2.0
 @export var spawn_delay_max_s: float = 14.0
 ## Idle behaviour: seconds between actions (look/peck/hop) while perched.

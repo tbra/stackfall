@@ -352,6 +352,7 @@ func _raycast_support_height(local_xz: Vector2) -> Dictionary:
 	var params: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(start, end)
 	params.collide_with_bodies = true
 	params.collide_with_areas = false
+	params.collision_mask = Field.PLACEMENT_QUERY_MASK
 	var hit: Dictionary = space.intersect_ray(params)
 	if hit.is_empty():
 		return {"height": 0.0, "collider": null, "hit": false}
@@ -571,7 +572,7 @@ func _goal_positions() -> PackedVector2Array:
 	var config: MatchConfig = match_ref.config
 	if config == null:
 		return PackedVector2Array()
-	return PlayerSlot.goal_positions_for(config.goal_flag_count, config.map_def())
+	return PlayerSlot.goal_positions_for(config.effective_goal_flag_count(), config.map_def())
 
 
 ## Bontago-d5c.10 (item F): "where the enemy is" -- every other team's home

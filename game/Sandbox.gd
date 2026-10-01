@@ -356,7 +356,7 @@ func _reset_field() -> void:
 	Match.start_match(Match.config)
 	var config: MatchConfig = Match.config
 	if _field != null:
-		_field.place_flags(config.player_count, config.player_colors, config.goal_flag_count)
+		_field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
 		_field.set_overlay_source(Match.raster(), config.player_colors)
 	_set_active_slot(0)
 	# M6 B2: a reset starts a brand new match, which must not silently

@@ -177,6 +177,8 @@ var _overlay: TerritoryOverlay = null
 ## game/DiscBody.gd's own class doc.
 var _disc_body: DiscBody = null
 var _home_flags: Array[HomeFlag] = []
+## slot id -> PackedInt32Array of shape owners holding that beacon's collision.
+var _flag_owner_ids: Dictionary = {}
 var _goal_flags: Array[GoalFlag] = []
 var _slot_colors: PackedColorArray = PackedColorArray()
 
@@ -201,6 +203,7 @@ func _ready() -> void:
 	_build_overlay()
 	_build_disc_body()
 	Events.hole_cells_changed.connect(_on_hole_cells_changed)
+	Events.player_eliminated.connect(_on_player_eliminated_for_flags)
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 	Events.territory_updated.connect(_on_territory_updated_for_goals)
 	Events.territory_replicated.connect(refresh_goal_control)
@@ -277,7 +280,7 @@ func set_tilt_enabled(enabled: bool) -> void:
 	if _tilt_enabled == enabled:
 		return
 	_tilt_enabled = enabled
-	sync_to_physics = enabled
+	_set_sync(enabled)
 	if not enabled:
 		_tilt = Vector2.ZERO
 		_tilt_velocity = Vector2.ZERO
@@ -473,7 +476,7 @@ func _update_tilt(delta: float) -> void:
 			_tilt_at_rest = true
 			# Bontago-b0w: a sync_to_physics kinematic body keeps resting blocks
 			# awake even with no transform write; drop it while latched.
-			sync_to_physics = false
+			_set_sync(false)
 	else:
 		_tilt_rest_timer = 0.0
 	# Orchestrator fix (Bontago-keo.11 bench, 2026-09-25): once the snap above
@@ -492,7 +495,7 @@ func _wake_tilt() -> void:
 	# Re-arm before the first write after waking so the moving disc carries blocks.
 	# (set_tilt_enabled(false) clears _tilt_enabled first, so this stays off there.)
 	if _tilt_enabled:
-		sync_to_physics = true
+		_set_sync(true)
 
 
 ## Sums settled blocks' mass * disk-local lever-arm into the same 2-axis
@@ -1058,6 +1061,7 @@ func raycast_down_disk_local(world_origin: Vector3) -> Variant:
 	var params: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(start, end)
 	params.collide_with_bodies = true
 	params.collide_with_areas = false
+	params.collision_mask = PLACEMENT_QUERY_MASK
 	params.exclude = []
 
 	var hit: Dictionary = space.intersect_ray(params)
@@ -1203,7 +1207,9 @@ func place_flags(slot_count: int, slot_colors: PackedColorArray, goal_count: int
 		add_child(flag)
 		flag.set_slot(slot_id, _color_for_index(slot_id))
 		_home_flags.append(flag)
-	for local: Vector2 in goal_flag_positions(goal_count):
+		_add_flag_collision(slot_id, flag)
+	# Bontago-6fc.2: goal_count 0 (Reach the Sky / Elimination) spawns no flag.
+	for local: Vector2 in PlayerSlot.goal_positions_for(goal_count, map_def):
 		var flag: GoalFlag = goal_flag_scene.instantiate() as GoalFlag
 		flag.visuals = visuals
 		flag.position = Vector3(local.x, 0.0, local.y)
@@ -1212,12 +1218,89 @@ func place_flags(slot_count: int, slot_colors: PackedColorArray, goal_count: int
 
 
 func _clear_flags() -> void:
+	for slot_id: int in _flag_owner_ids.keys():
+		_remove_flag_collision(slot_id)
 	for flag: HomeFlag in _home_flags:
 		flag.queue_free()
 	for flag: GoalFlag in _goal_flags:
 		flag.queue_free()
 	_home_flags = []
 	_goal_flags = []
+
+
+## Layer constants (Bontago-6fc.4). Everything else lives on layer 1. Beacon
+## collision sits on its own bit so blocks (mask includes it) rest on beacons
+## while placement/ghost queries (PLACEMENT_QUERY_MASK) never see them.
+const BEACON_COLLISION_LAYER: int = 1 << 1
+const PLACEMENT_QUERY_MASK: int = 1
+
+## Child body carrying every beacon's shapes; follows this field's tilt.
+var _beacon_body: AnimatableBody3D = null
+
+
+## Bontago-6fc.4: a home beacon collides as extra shapes on a child
+## AnimatableBody3D of this field. DECISION: separate body on its own layer
+## (BEACON_COLLISION_LAYER) rather than shape-index filtering: blocks collide
+## with it via their mask, while the placement point-ray, ghost raise/shape
+## casts, drop projection and host validation query PLACEMENT_QUERY_MASK and
+## behave exactly as before beacons had collision. The body mirrors this
+## field's sync_to_physics (_set_sync) so it follows tilt like the disc.
+func _ensure_beacon_body() -> AnimatableBody3D:
+	if _beacon_body == null:
+		_beacon_body = AnimatableBody3D.new()
+		_beacon_body.name = &"BeaconBody"
+		_beacon_body.collision_layer = BEACON_COLLISION_LAYER
+		_beacon_body.collision_mask = 0
+		_beacon_body.sync_to_physics = sync_to_physics
+		var material: PhysicsMaterial = PhysicsMaterial.new()
+		material.friction = tuning.disk_friction
+		_beacon_body.physics_material_override = material
+		add_child(_beacon_body)
+	return _beacon_body
+
+
+func beacon_body() -> AnimatableBody3D:
+	return _beacon_body
+
+
+## Sets sync_to_physics on the disc and the beacon body together.
+func _set_sync(enabled: bool) -> void:
+	sync_to_physics = enabled
+	if _beacon_body != null:
+		_beacon_body.sync_to_physics = enabled
+
+
+func _add_flag_collision(slot_id: int, flag: HomeFlag) -> void:
+	var body: AnimatableBody3D = _ensure_beacon_body()
+	# A shape owner has one transform for all its shapes, so each part of the
+	# compound gets its own owner.
+	var owners: PackedInt32Array = PackedInt32Array()
+	var shapes: Array[Shape3D] = flag.collision_shapes()
+	var transforms: Array[Transform3D] = flag.collision_transforms()
+	for i: int in range(shapes.size()):
+		var owner_id: int = body.create_shape_owner(body)
+		body.shape_owner_add_shape(owner_id, shapes[i])
+		body.shape_owner_set_transform(owner_id, Transform3D(Basis.IDENTITY, flag.position) * transforms[i])
+		owners.append(owner_id)
+	_flag_owner_ids[slot_id] = owners
+
+
+func _remove_flag_collision(slot_id: int) -> void:
+	if not _flag_owner_ids.has(slot_id):
+		return
+	for owner_id: int in (_flag_owner_ids[slot_id] as PackedInt32Array):
+		_beacon_body.remove_shape_owner(owner_id)
+	_flag_owner_ids.erase(slot_id)
+
+
+## An eliminated slot's beacon stops colliding (its home cell opens as a hole).
+func _on_player_eliminated_for_flags(slot_id: int, _team_id: int) -> void:
+	_remove_flag_collision(slot_id)
+
+
+## Shape owner ids holding a slot's beacon collision (empty when none).
+func flag_collision_owners(slot_id: int) -> PackedInt32Array:
+	return _flag_owner_ids.get(slot_id, PackedInt32Array()) as PackedInt32Array
 
 
 func home_flags() -> Array[HomeFlag]:

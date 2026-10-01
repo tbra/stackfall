@@ -127,6 +127,44 @@ func banner_scale() -> float:
 	return 1.0
 
 
+## Static collision approximating the beacon model (Bontago-6fc.4, owner:
+## "proper collision to the home beacons"): the socket cylinder plus the
+## crystal's convex hull (the same bipyramid the mesh draws), sized from
+## BeaconVisualTuning only. The ring is a flat decoration and adds none.
+## Shapes and their transforms are in this flag's local space; Field adds them
+## to its own AnimatableBody3D so they tilt with the disc exactly (a child
+## CollisionShape3D cannot, this node is not a physics body).
+func collision_shapes() -> Array[Shape3D]:
+	var socket: CylinderShape3D = CylinderShape3D.new()
+	socket.radius = beacon_visuals.socket_radius
+	socket.height = beacon_visuals.socket_height
+	var radius: float = beacon_visuals.crystal_radius * banner_scale()
+	var half_height: float = beacon_visuals.crystal_height * banner_scale() * 0.5
+	var points: PackedVector3Array = PackedVector3Array()
+	points.append(Vector3(0.0, half_height, 0.0))
+	points.append(Vector3(0.0, -half_height, 0.0))
+	for i: int in range(maxi(beacon_visuals.crystal_facets, 3)):
+		var angle: float = TAU * float(i) / float(maxi(beacon_visuals.crystal_facets, 3))
+		points.append(Vector3(cos(angle) * radius, 0.0, sin(angle) * radius))
+	var crystal: ConvexPolygonShape3D = ConvexPolygonShape3D.new()
+	crystal.points = points
+	var shapes: Array[Shape3D] = []
+	shapes.append(socket)
+	shapes.append(crystal)
+	return shapes
+
+
+## Local transforms matching collision_shapes(), same order.
+func collision_transforms() -> Array[Transform3D]:
+	var transforms: Array[Transform3D] = []
+	transforms.append(Transform3D(Basis.IDENTITY, Vector3(0.0, beacon_visuals.socket_height * 0.5, 0.0)))
+	transforms.append(Transform3D(
+		Basis.IDENTITY,
+		Vector3(0.0, beacon_visuals.socket_height + beacon_visuals.crystal_height * banner_scale() * 0.5, 0.0)
+	))
+	return transforms
+
+
 ## Which slot this flag belongs to, and the color it flies. The color comes
 ## from MatchConfig.player_colors by way of Field.place_flags().
 func set_slot(slot_id: int, color: Color) -> void:

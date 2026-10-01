@@ -1609,6 +1609,7 @@ func _raycast_disk_surface(origin: Vector3) -> Dictionary:
 			origin, origin + Vector3.DOWN * ghost_tuning.placement_ray_length
 		)
 		params.exclude = exclude
+		params.collision_mask = Field.PLACEMENT_QUERY_MASK
 		var hit: Dictionary = space_state.intersect_ray(params)
 		if hit.is_empty():
 			return {}

@@ -4,5 +4,5 @@
 
 [resource]
 script = ExtResource("1_life")
-perch_bird_count = 4
+perch_bird_count = 8
 fireflies_count = 0
