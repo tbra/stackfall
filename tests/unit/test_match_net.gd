@@ -808,6 +808,28 @@ func test_a_despawn_for_an_unknown_net_id_is_a_safe_no_op() -> void:
 	assert_eq(_block_count(), 0)
 
 
+## Bontago-t8x.5: a host-side gift despawn is replicated by net id (the host
+## forgets it) and a client mirror removes the body via the despawn RPC.
+func test_host_gift_despawn_is_replicated_and_clients_remove_the_body() -> void:
+	var host_net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
+	_start_playing()
+	var gift: Block = Match.spawn_special_projectile(
+		Match.held_shape(0), _home_world_position(0), Basis.IDENTITY, 0, Vector3.ZERO, null, null
+	)
+	host_net.replicate_spawn(gift, gift.net_id)
+	assert_true(host_net._spawned_net_ids.has(gift.net_id))
+
+	Match._placement._on_gift_completed(gift)
+
+	assert_false(host_net._spawned_net_ids.has(gift.net_id), "host replicated the despawn")
+	assert_true(gift.is_queued_for_deletion())
+	var client: MatchNetScript = _make_net({}, [1], true)
+	client.net_block_spawned(77, &"cube", 1, Vector3.ZERO, Quaternion.IDENTITY, &"")
+	assert_eq(client.replicated_block_count(), 1)
+	client.net_block_despawned(77, String(Events.REASON_GIFT_DESPAWN))
+	assert_eq(client.replicated_block_count(), 0)
+
+
 func test_a_replicated_despawn_removes_the_body() -> void:
 	Match.set_net_provider(FakeNet.host({}, [0, 1]))
 	_start_playing()

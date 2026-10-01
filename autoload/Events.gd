@@ -17,6 +17,10 @@ signal block_removed(block: RigidBody3D, reason: String)
 ## game/Field.gd: a block fell below tuning.kill_plane_y.
 const REASON_KILL_PLANE: StringName = &"kill_plane"
 
+## Bontago-t8x.5: a gift body whose action completed was despawned. Not a
+## kill: no edge-fall burst, no blocks_lost stat.
+const REASON_GIFT_DESPAWN: StringName = &"gift_despawn"
+
 # --- M2: match flow (spec 3.7) ----------------------------------------------
 
 ## The host's state machine moved. Both arguments are Match.State values.

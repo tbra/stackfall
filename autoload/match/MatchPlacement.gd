@@ -657,7 +657,21 @@ func _attach_pending_special(block: Block, slot_id: int) -> void:
 	var def: SpecialDef = _resolve_deliverable_special(special_id)
 	if def == null:
 		return
-	_arm_special_behavior(block, def, _special_tuning)
+	var behavior: SpecialBehavior = _arm_special_behavior(block, def, _special_tuning)
+	behavior.despawn_when_done = true
+	behavior.completed.connect(_on_gift_completed)
+
+
+## Bontago-t8x.5: host-only (behaviors only exist host-side). Removes a
+## completed gift body through the normal block-removal bus: BlockRegistry
+## drops it and bumps the territory revision, MatchNet replicates the despawn.
+## DECISION: uses Events.REASON_GIFT_DESPAWN, which neither the kill-plane
+## burst (BlockEffectsManager) nor blocks_lost (MatchStats) react to.
+func _on_gift_completed(block: Block) -> void:
+	if block == null or not is_instance_valid(block) or block.is_queued_for_deletion():
+		return
+	Events.block_removed.emit(block, String(Events.REASON_GIFT_DESPAWN))
+	block.queue_free()
 
 
 ## Bontago-t8x.1: the held gift id `slot_id` would deliver if it spawned
