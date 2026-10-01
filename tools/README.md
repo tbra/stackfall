@@ -89,3 +89,14 @@ crashes and never blocks the deterministic half on the network.
 Useful flags: `--no-classify` (skip TypeSafe even if a key is set),
 `--max-classify N` (cap how many distinct signatures get sent, default 40),
 `--chunk-size N` (groups batched per TypeSafe request, default 6).
+
+## `contact_sheet.py` and `ContactSheet.gd`
+
+One small labelled grid PNG instead of several full-size screenshots.
+`python tools/contact_sheet.py a.png dir/ "shots/*.png" -o sheet.png [--max-width 1280] [--columns N]`
+prints the output path and size; `--self-test` builds a sheet from generated
+images. `ContactSheet.save_capture(image, path)` (GDScript) replaces
+`image.save_png(path)` in screenshot scripts and, in agent-probe mode, also
+writes `<scene>_sheet.png` next to the captures (unlabelled cells, row-major
+capture order, names printed). Retrofitted: screenshot_fog, screenshot_rain,
+screenshot_pt7_pause.
