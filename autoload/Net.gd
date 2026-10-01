@@ -236,6 +236,13 @@ func host_game(port: int = 0, player_name: String = "") -> Error:
 	if _mode != Mode.OFFLINE:
 		leave()
 	var use_port: int = port if port > 0 else config.game_port
+	# Agent runs (AgentProbe: tool/bench scenes, --agent-probe) host on a random
+	# free port unless one was given, so parallel benches and the ENet harness
+	# never fight over the default port (session debrief 2026-10-01).
+	if port <= 0 and AgentProbe.is_active() and not AgentProbe.has_cli_port(OS.get_cmdline_user_args()):
+		var free_port: int = AgentProbe.free_udp_port()
+		if free_port > 0:
+			use_port = free_port
 	var peer: MultiplayerPeer = _make_host_peer(use_port)
 	if peer == null:
 		return ERR_CANT_CREATE
@@ -257,7 +264,9 @@ func host_game(port: int = 0, player_name: String = "") -> Error:
 	_next_slot_id = 1
 	_accepting_joins = true
 	Events.net_mode_changed.emit(_mode)
-	_start_lan_advertising(player_name)
+	# Agent runs must not appear in the owner's LAN browser.
+	if not AgentProbe.is_active():
+		_start_lan_advertising(player_name)
 	return OK
 
 

@@ -10,6 +10,14 @@ extends RefCounted
 const FLAG: String = "--agent-probe"
 const RENDER_SIZE_PREFIX: String = "--render-size="
 const TOOLS_SCENE_PREFIX: String = "res://tools/"
+## Benchmarks under tests/bench are agent runs too (session debrief 2026-10-01).
+const BENCH_SCENE_PREFIX: String = "res://tests/bench/"
+const PORT_ARG_PREFIX: String = "--port="
+## DECISION: random free UDP port range for agent-run hosts, kept clear of the
+## default game port so benches never block tools/run_m3a_local.ps1.
+const FREE_PORT_MIN: int = 48000
+const FREE_PORT_SPAN: int = 10000
+const FREE_PORT_TRIES: int = 50
 ## DECISION: probe window size; tools needing a real render resolution use
 ## make_render_viewport() instead of a big window.
 const WINDOW_SIZE: Vector2i = Vector2i(320, 180)
@@ -25,7 +33,8 @@ static func detect(cmdline_args: PackedStringArray, user_args: PackedStringArray
 		return true
 	for arg: String in cmdline_args:
 		if (arg.ends_with(".tscn") or arg.ends_with(".scn")) \
-				and (arg.begins_with(TOOLS_SCENE_PREFIX) or arg.begins_with("tools/")):
+				and (arg.begins_with(TOOLS_SCENE_PREFIX) or arg.begins_with("tools/")
+					or arg.begins_with(BENCH_SCENE_PREFIX) or arg.begins_with("tests/bench/")):
 			return true
 	return false
 
@@ -87,3 +96,27 @@ static func make_render_viewport(parent: Node, fallback: Vector2i) -> SubViewpor
 	vp.world_3d = parent.get_viewport().world_3d
 	parent.add_child(vp)
 	return vp
+
+
+## True when the command line names an explicit --port=<n>.
+static func has_cli_port(user_args: PackedStringArray) -> bool:
+	for arg: String in user_args:
+		if arg.begins_with(PORT_ARG_PREFIX):
+			return true
+	return false
+
+
+## A currently bindable UDP port in [FREE_PORT_MIN, FREE_PORT_MIN + SPAN), or 0.
+## Net.host_game() uses it in probe mode so agent-run hosts (benches, tool
+## scenes) never collide with each other or with the ENet acceptance harness.
+static func free_udp_port() -> int:
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.randomize()
+	for _try: int in FREE_PORT_TRIES:
+		var port: int = FREE_PORT_MIN + rng.randi() % FREE_PORT_SPAN
+		var probe: PacketPeerUDP = PacketPeerUDP.new()
+		var err: Error = probe.bind(port)
+		probe.close()
+		if err == OK:
+			return port
+	return 0

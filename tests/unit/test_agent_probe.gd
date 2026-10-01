@@ -41,3 +41,21 @@ func test_capture_allowed_outside_probe_mode() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	# Headless mouse mode may not stick; only assert when the platform honoured it.
 	assert_true(captured or DisplayServer.get_name() == "headless")
+
+
+func test_detects_bench_scene_path() -> void:
+	assert_true(AgentProbe.detect(PackedStringArray(["res://tests/bench/bench_snapshot.tscn"]), PackedStringArray()))
+	assert_true(AgentProbe.detect(PackedStringArray(["tests/bench/bench_snapshot.tscn"]), PackedStringArray()))
+
+
+func test_has_cli_port() -> void:
+	assert_true(AgentProbe.has_cli_port(PackedStringArray(["--headless-host", "--port=48123"])))
+	assert_false(AgentProbe.has_cli_port(PackedStringArray(["--headless-host"])))
+
+
+func test_free_udp_port_is_in_range_and_bindable() -> void:
+	var port: int = AgentProbe.free_udp_port()
+	assert_between(port, AgentProbe.FREE_PORT_MIN, AgentProbe.FREE_PORT_MIN + AgentProbe.FREE_PORT_SPAN - 1)
+	var probe: PacketPeerUDP = PacketPeerUDP.new()
+	assert_eq(probe.bind(port), OK, "the returned port should still be free")
+	probe.close()

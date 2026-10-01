@@ -41,7 +41,6 @@ func _ready() -> void:
 			_live_seconds = float(arg.trim_prefix("--live-seconds="))
 	_rng.seed = 1121
 	_shape = load("res://config/blocks/cube.tres") as BlockShape
-	BenchPort.claim_free_port(Net)
 	var main: Node = (load("res://game/Main.tscn") as PackedScene).instantiate()
 	get_tree().root.add_child.call_deferred(main)
 	while Match.state() != Match.State.PLAYING:

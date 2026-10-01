@@ -83,6 +83,29 @@ class HandbackTests(unittest.TestCase):
         for command in ("git status", 'bd -C M:/Bontago close Bontago-123 --actor stackfall-reviewer', 'bd -C M:/Bontago comments add Bontago-123 --actor stackfall-reviewer "ok"; git push'):
             self.assertEqual(run_hook("guard_reviewer_bash.py", {"tool_input": {"command": command}})["hookSpecificOutput"]["permissionDecision"], "deny")
 
+    def test_reviewer_shell_allows_read_only_bd_and_git(self):
+        for command in (
+            'bd -C M:/Bontago show Bontago-1pi.11 --json --brief-deps',
+            'bd -C M:/Bontago comments Bontago-sen.9 --json',
+            'bd -C M:/Bontago children Bontago-59o',
+            'git -C M:/Bontago-worktrees/x log --oneline -20',
+            'git -C M:/Bontago show --stat abc123',
+            'git -C M:/Bontago diff a1b2c3..HEAD -- game/Field.gd',
+            'bd -C M:/Bontago comments add Bontago-1 --actor stackfall-reviewer "HIGH a.gd:3 x<y; a|b & c"',
+        ):
+            self.assertIsNone(run_hook("guard_reviewer_bash.py", {"tool_input": {"command": command}}), command)
+        for command in (
+            'git -C M:/Bontago diff --output=M:/Bontago/x.txt',
+            'git -C M:/Bontago log | head',
+            'git -C M:/Bontago diff > out.txt',
+            'git -C M:/Bontago commit -m x',
+            'git -C M:/Bontago diff --ext-diff',
+            'bd -C M:/Bontago update Bontago-1 --status closed',
+            'bd -C M:/Bontago show Bontago-1 && rm -rf x',
+            'bd -C M:/Bontago comments add Bontago-1 --actor stackfall-reviewer "$(whoami)"',
+        ):
+            self.assertEqual(run_hook("guard_reviewer_bash.py", {"tool_input": {"command": command}})["hookSpecificOutput"]["permissionDecision"], "deny", command)
+
 
 if __name__ == "__main__":
     unittest.main()
