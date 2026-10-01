@@ -188,29 +188,37 @@ func _physics_process(delta: float) -> void:
 		# replicated raster instead.
 		return
 	var probe_registry: int = PerfProbe.start()
-	for id: Variant in _entries.keys():
+	var lin_sq: float = tuning.sleep_linear_threshold * tuning.sleep_linear_threshold
+	var ang_sq: float = tuning.sleep_angular_threshold * tuning.sleep_angular_threshold
+	var settle_time: float = tuning.sleep_settle_time
+	var stale: Array = []
+	for id: Variant in _entries:
 		var entry: _Entry = _entries[id]
-		if not is_instance_valid(entry.block):
-			_entries.erase(id)
-			_territory_revision += 1
+		var block: Block = entry.block
+		if not is_instance_valid(block):
+			stale.append(id)
 			continue
+		# Squared compare matches `length() < t` for the non-negative thresholds.
 		var settled_now: bool = (
-			entry.block.linear_velocity.length() < tuning.sleep_linear_threshold
-			and entry.block.angular_velocity.length() < tuning.sleep_angular_threshold
+			block.linear_velocity.length_squared() < lin_sq
+			and block.angular_velocity.length_squared() < ang_sq
 		)
 		if settled_now:
 			entry.settled_time += delta
 		else:
 			entry.settled_time = 0.0
 		var was_settled: bool = entry.is_settled
-		entry.is_settled = entry.settled_time >= tuning.sleep_settle_time
+		entry.is_settled = entry.settled_time >= settle_time
 		if entry.is_settled != was_settled:
 			_territory_revision += 1
 			if entry.is_settled:
-				entry.marked_transform = entry.block.global_transform
+				entry.marked_transform = block.global_transform
 		elif entry.is_settled and _moved_beyond_epsilon(entry):
 			_territory_revision += 1
-			entry.marked_transform = entry.block.global_transform
+			entry.marked_transform = block.global_transform
+	for id: Variant in stale:
+		_entries.erase(id)
+		_territory_revision += 1
 	PerfProbe.stop(&"registry", probe_registry)
 
 

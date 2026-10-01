@@ -108,6 +108,7 @@ var _sequence: int = 0
 var _host_clock_ms: float = 0.0
 var _last_snapshot_bytes: int = 0
 var _keyframe_cursor: int = 0
+var _known_peer_count: int = 0
 var _disk: Node3D = null
 
 # --- Client state -----------------------------------------------------------
@@ -188,6 +189,7 @@ func begin_match(registry: BlockRegistry, map_def: MapDef) -> void:
 	_last_noted_sequence = -1
 	_last_snapshot_bytes = 0
 	_keyframe_cursor = 0
+	_known_peer_count = 0
 	_disk_prev_time_ms = -1
 	_disk_next_time_ms = -1
 	_disk_error_position = Vector3.ZERO
@@ -262,6 +264,20 @@ func host_tick(delta: float) -> void:
 	if not _running or not Net.is_host() or Net.is_offline():
 		return
 	_host_clock_ms += delta * 1000.0
+	var peer_count: int = _remote_peer_count()
+	if peer_count == 0:
+		# Nobody to send to: skip selection, quantization and packing. Forget
+		# what was "sent" so the first snapshot after a peer connects (join,
+		# mid-match join, reconnect) carries every body, not just movers.
+		_known_peer_count = 0
+		_last_sent.clear()
+		_last_snapshot_bytes = 0
+		_send_accumulator = 0.0
+		return
+	if peer_count > _known_peer_count:
+		_last_sent.clear()
+		_send_accumulator = 1.0 / maxf(config.snapshot_hz, 1.0)
+	_known_peer_count = peer_count
 	_send_accumulator += delta
 	var interval: float = 1.0 / maxf(config.snapshot_hz, 1.0)
 	if _send_accumulator < interval:
@@ -285,9 +301,8 @@ func host_tick(delta: float) -> void:
 		_last_snapshot_bytes += packet.size()
 	_remember_sent(bodies)
 
-	if multiplayer.has_multiplayer_peer() and not multiplayer.get_peers().is_empty():
-		for packet: PackedByteArray in packets:
-			net_snapshot.rpc(packet)
+	for packet: PackedByteArray in packets:
+		net_snapshot.rpc(packet)
 
 	Net.report_stats(&"snapshot", {
 		"snapshot_last_bytes": _last_snapshot_bytes,
@@ -653,6 +668,12 @@ func _is_spawned(net_id: int) -> bool:
 	if _registry == null:
 		return true
 	return _registry.block_for_net_id(net_id) != null
+
+
+func _remote_peer_count() -> int:
+	if not multiplayer.has_multiplayer_peer():
+		return 0
+	return multiplayer.get_peers().size()
 
 
 ## {"bodies": Array, "keyframe": bool} for this tick.

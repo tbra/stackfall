@@ -371,23 +371,36 @@ func _get_shrink_curve() -> CurveTexture:
 ## position) with no freeze-state branch needed here at all -- exactly the
 ## "host/client both" visual-only contract this package's brief asks for.
 func _update_falling_trails(delta: float) -> void:
-	var seen_ids: Dictionary = {}
-	for node: Node in get_tree().get_nodes_in_group(Block.TUNING_GROUP):
+	var blocks: Array[Node] = get_tree().get_nodes_in_group(Block.TUNING_GROUP)
+	var inv_delta: float = 1.0 / delta
+	var threshold: float = config.trail_speed_threshold
+	var trails_on: bool = _trail_effects_enabled
+	var seen_count: int = 0
+	for node: Node in blocks:
 		var block: Block = node as Block
 		if block == null or not is_instance_valid(block):
 			continue
+		seen_count += 1
 		var id: int = block.get_instance_id()
-		seen_ids[id] = true
-		var prev_position: Vector3 = _prev_positions.get(id, block.global_position)
-		var delta_vec: Vector3 = block.global_position - prev_position
-		var fall_speed: float = -delta_vec.y / delta
-		_prev_positions[id] = block.global_position
-		if _trail_effects_enabled and fall_speed >= config.trail_speed_threshold:
-			_ensure_trail(id, block, fall_speed, delta_vec / delta)
-		else:
+		var position: Vector3 = block.global_position
+		var prev_position: Vector3 = _prev_positions.get(id, position)
+		var delta_vec: Vector3 = position - prev_position
+		var fall_speed: float = -delta_vec.y * inv_delta
+		_prev_positions[id] = position
+		if trails_on and fall_speed >= threshold:
+			_ensure_trail(id, block, fall_speed, delta_vec * inv_delta)
+		elif _trails.has(id):
 			_release_trail(id)
 
-	for id: int in _prev_positions.keys().duplicate():
+	# Every seen id is in _prev_positions by now, so a size mismatch is the
+	# only case where a stale (removed block) entry exists: prune then.
+	if _prev_positions.size() == seen_count:
+		return
+	var seen_ids: Dictionary = {}
+	for node: Node in blocks:
+		if node is Block and is_instance_valid(node):
+			seen_ids[node.get_instance_id()] = true
+	for id: int in _prev_positions.keys():
 		if not seen_ids.has(id):
 			_prev_positions.erase(id)
 			_release_trail(id)
