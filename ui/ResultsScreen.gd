@@ -223,13 +223,30 @@ static func mode_outcome_text(results: Dictionary) -> String:
 	var scores: Array = block.get("scores", []) as Array
 	var ffa: bool = String(results.get("winner_kind", MatchStats.WINNER_KIND_SLOT)) == MatchStats.WINNER_KIND_SLOT
 	var unit: String = " m" if mode_id == MatchConfig.GameMode.REACH_THE_SKY else ""
+	var elimination: bool = mode_id == MatchConfig.GameMode.ELIMINATION
 	for team: int in range(scores.size()):
-		parts.append("%s %d: %s%s" % ["Player" if ffa else "Team", team + 1, String.num(float(scores[team]), 1), unit])
+		var value_text: String = survivor_text(int(scores[team])) if elimination else "%s%s" % [String.num(float(scores[team]), 1), unit]
+		parts.append("%s %d: %s" % ["Player" if ffa else "Team", team + 1, value_text])
 	var text: String = "
 %s" % MatchConfig.GAME_MODE_LABELS[mode_id]
 	if not parts.is_empty():
 		text += " - " + ", ".join(parts)
+	if elimination:
+		var order: PackedStringArray = String(block.get("order", "")).split(",", false)
+		if not order.is_empty():
+			var names: PackedStringArray = PackedStringArray()
+			for slot_text: String in order:
+				names.append(str(int(slot_text) + 1))
+			text += "
+Out, first to last: Player " + ", ".join(names)
 	return text
+
+
+## Elimination: a team's living players as HUD/Results text.
+static func survivor_text(alive: int) -> String:
+	if alive <= 0:
+		return "out"
+	return "alive" if alive == 1 else "%d alive" % alive
 
 
 # --- Stats table -------------------------------------------------------------

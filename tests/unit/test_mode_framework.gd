@@ -110,10 +110,7 @@ func test_default_mode_is_classic() -> void:
 
 
 func test_reserved_and_unknown_mode_ids_fall_back_to_classic() -> void:
-	for mode: int in [
-		MatchConfig.GameMode.ELIMINATION,
-		99, -3,
-	]:
+	for mode: int in [99, -3]:
 		assert_false(MatchConfig.is_game_mode_selectable(mode))
 		assert_eq(MatchConfig.from_dict({"game_mode": mode}).game_mode, MatchConfig.GameMode.CLASSIC)
 		var config: MatchConfig = MatchConfig.new()
@@ -319,8 +316,8 @@ func test_lobby_timer_round_trips_through_published_lobby_data_to_a_client() -> 
 	var published: Dictionary = calls[-1]
 	assert_eq(published["game_mode"], MatchConfig.GameMode.CLASSIC)
 	assert_eq(published["round_timer_minutes"], 15)
-	# A reserved mode on the wire is coerced, then the client shows the result.
-	published["game_mode"] = MatchConfig.GameMode.ELIMINATION
+	# An unknown mode on the wire is coerced, then the client shows the result.
+	published["game_mode"] = 99
 	var client: Lobby = _make_lobby(false)
 	client._apply_data(published)
 	assert_eq((client.get_node("%RoundTimerSpin") as SpinBox).value, 15.0)
