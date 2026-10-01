@@ -83,6 +83,7 @@ const EVENT_SPECIAL_TRIGGERED: StringName = &"special_triggered"
 const EVENT_SPECIAL_CONSUMED: StringName = &"special_consumed"
 const EVENT_GLUE_CHARGES: StringName = &"glue_charges_changed"
 const EVENT_BLOCK_OWNER_CHANGED: StringName = &"block_owner_changed"
+const EVENT_BLOCK_FROZEN: StringName = &"block_frozen_changed"
 const EVENT_CAT_STARTED: StringName = &"cat_started"
 const EVENT_CAT_ENDED: StringName = &"cat_ended"
 ## Bontago-1pi.11.41: [net_id] of a block the host started dissolving on a
@@ -229,6 +230,7 @@ func _ready() -> void:
 	Events.special_consumed.connect(_on_special_consumed)
 	Events.glue_charges_changed.connect(_on_glue_charges_changed)
 	Events.block_owner_changed.connect(_on_block_owner_changed)
+	Events.block_frozen_changed.connect(_on_block_frozen_changed)
 	Events.cat_started.connect(_on_cat_started)
 	Events.cat_ended.connect(_on_cat_ended)
 	Events.block_removed.connect(_on_block_removed)
@@ -1353,6 +1355,11 @@ func _on_block_owner_changed(net_id: int, owner_slot: int) -> void:
 		replicate_match_event(EVENT_BLOCK_OWNER_CHANGED, [net_id, owner_slot])
 
 
+func _on_block_frozen_changed(net_id: int, frozen: bool) -> void:
+	if _is_host():
+		replicate_match_event(EVENT_BLOCK_FROZEN, [net_id, frozen])
+
+
 func _on_goal_capture_progress(team_id: int, progress: float) -> void:
 	_capture_team = team_id
 	_capture_progress = progress
@@ -1408,9 +1415,23 @@ func _on_net_peer_joined(peer_id: int, slot_id: int, _player_name: String) -> vo
 				[cat.activation_id, cat.owner_slot, cat.global_position, cat.time_left])
 		for payload: Array in _glue_rejoin_snapshot():
 			rpc_id(peer_id, &"net_match_event", EVENT_GLUE_CHARGES, payload)
+		for frozen_payload: Array in _frozen_overlay_snapshot():
+			rpc_id(peer_id, &"net_match_event", EVENT_BLOCK_FROZEN, frozen_payload)
 		var mode_snapshot: Dictionary = _authority().mode_state_snapshot()
 		if not mode_snapshot.is_empty():
 			rpc_id(peer_id, &"net_match_event", EVENT_MODE_STATE, [mode_snapshot])
+
+
+## Bontago-8or.2: a rejoining peer missed the icy overlay events of an active Freeze.
+func _frozen_overlay_snapshot() -> Array[Array]:
+	var snapshot: Array[Array] = []
+	var registry: BlockRegistry = _authority().registry()
+	if registry == null:
+		return snapshot
+	for block: Block in registry.all_blocks():
+		if block.is_frozen_visual() and block.net_id > 0:
+			snapshot.append([block.net_id, true])
+	return snapshot
 
 
 func _glue_rejoin_snapshot() -> Array[Array]:
@@ -1874,6 +1895,21 @@ func net_match_event(event: StringName, args: Array) -> void:
 			if not Quantize.is_wire_id(painted_id) or painted_slot < 0 or painted_slot >= _authority().slot_count():
 				return
 			_authority().apply_replicated_block_owner(painted_id, painted_slot)
+		EVENT_BLOCK_FROZEN:
+			if _is_host() or args.size() != 2 or not args[0] is int or not args[1] is bool:
+				return
+			var frozen_id: int = args[0]
+			if not Quantize.is_wire_id(frozen_id):
+				return
+			var frozen_registry: BlockRegistry = _authority().registry()
+			if frozen_registry == null:
+				return
+			var frozen_block: Block = frozen_registry.block_for_net_id(frozen_id)
+			if frozen_block == null or not is_instance_valid(frozen_block):
+				return
+			if frozen_block.is_frozen_visual() != args[1]:
+				frozen_block.set_frozen_visual(args[1])
+				Events.block_frozen_changed.emit(frozen_id, args[1])
 		_:
 			pass
 

@@ -96,6 +96,15 @@ static func plan(
 			)
 		&"earthquake", &"anvil", &"propeller":
 			return _plan_tilt(own_home_position, own_territory_sample_points)
+		&"freeze":
+			# Bontago-8or.2 DECISION: defensive only; placed on the bot's own
+			# home so most of its own blocks fall inside the 6 m freeze radius.
+			if not defensive:
+				return BotSpecialAction.new()
+			var freeze_action: BotSpecialAction = BotSpecialAction.new()
+			freeze_action.place_target = _nearest(own_territory_sample_points, own_home_position, own_home_position)
+			freeze_action.has_place_target = true
+			return freeze_action
 		&"jumping_bean":
 			return _plan_jumping_bean(own_home_position, own_territory_sample_points, enemy_circle_centers, offensive)
 		_:

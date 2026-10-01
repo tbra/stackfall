@@ -138,6 +138,10 @@ static func wake_and_impulse(body: RigidBody3D, impulse: Vector3) -> void:
 	var kicked_block: Block = body as Block
 	if kicked_block != null:
 		kicked_block.wake_for_impulse()
+		# Bontago-8or.2: a block still held by the Freeze special ignores the
+		# impulse entirely (no pending kick left behind for after release).
+		if kicked_block.is_freeze_static():
+			return
 	if kicked_block != null:
 		kicked_block.wake()
 	else:

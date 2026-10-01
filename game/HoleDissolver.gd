@@ -152,6 +152,9 @@ func start_dissolve(block: Block) -> void:
 		return
 	_pending[id] = tuning.dissolve_delay_s
 	_pending_blocks[id] = block
+	# Bontago-8or.2: a hole dissolve overrides a Freeze hold on the block
+	# touching the void.
+	FreezeEffect.release_hold(block)
 	dissolves_started += 1
 	Events.block_dissolve_started.emit(block, block.net_id, tuning.dissolve_delay_s)
 	if tuning.dissolve_delay_s <= 0.0:
@@ -372,6 +375,8 @@ func _wake_supported(block: Block) -> void:
 			continue
 		var other: Block = body as Block
 		if other != null:
+			# A tower over the void must not hang for the Freeze duration.
+			FreezeEffect.release_hold(other)
 			other.wake_for_impulse()
 			other.wake()
 		else:

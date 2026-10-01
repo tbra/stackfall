@@ -479,6 +479,26 @@ func is_contributing_visual() -> bool:
 	return _contributing_visual
 
 
+## Bontago-8or.2 (Freeze special): icy overlay on the block mesh while the
+## Freeze special holds this block. Cosmetic only, host and client alike (a
+## client drives it from Events.block_frozen_changed's replicated event).
+## A material_override swap would fight BlockFactory.recolor(), so this uses
+## the separate `material_overlay` slot with a shared preloaded material.
+const FROZEN_OVERLAY: Material = preload("res://vfx/freeze_overlay.tres")
+var _frozen_visual: bool = false
+
+
+func set_frozen_visual(frozen: bool) -> void:
+	_frozen_visual = frozen
+	var mesh_instance: MeshInstance3D = _block_mesh()
+	if mesh_instance != null:
+		mesh_instance.material_overlay = FROZEN_OVERLAY if frozen else null
+
+
+func is_frozen_visual() -> bool:
+	return _frozen_visual
+
+
 ## Cached BlockMesh lookup (looked up at most once per block, not on every
 ## sleeping_state_changed/snapshot tick): a ghost built through
 ## BlockFactory.build_visual_only() has no node named "BlockMesh" at all, so

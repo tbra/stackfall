@@ -184,6 +184,11 @@ signal glue_charges_changed(slot_id: int, charges: int, revision: int)
 ## valid, new owner change by net ID; terrain ownership uses the registry.
 signal block_owner_changed(net_id: int, owner_slot: int)
 
+## Freeze special (Bontago-8or.2): a block started/stopped being held frozen by
+## the special. Host emits it (net_id is the host's); clients re-emit on the
+## replicated event after applying the icy visual.
+signal block_frozen_changed(net_id: int, frozen: bool)
+
 ## Cat is a separate transient body, never a registered Block. Host events
 ## carry activation and expiry; snapshots carry its moving pose.
 signal cat_started(id: int, slot_id: int, position: Vector3, duration: float)
