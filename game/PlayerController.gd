@@ -1317,6 +1317,7 @@ func _ghost_overlaps_a_placed_block() -> bool:
 		params.transform = Transform3D(_ghost.basis, world_center)
 		params.collide_with_bodies = true
 		params.collide_with_areas = false
+		params.collision_mask = Field.PLACEMENT_QUERY_MASK
 		var overlaps: Array[Dictionary] = space_state.intersect_shape(params, ghost_tuning.collision_probe_max_bodies)
 		for overlap: Dictionary in overlaps:
 			if overlap.get("collider") is RigidBody3D:
@@ -1609,6 +1610,7 @@ func _raycast_disk_surface(origin: Vector3) -> Dictionary:
 			origin, origin + Vector3.DOWN * ghost_tuning.placement_ray_length
 		)
 		params.exclude = exclude
+		params.collision_mask = Field.PLACEMENT_QUERY_MASK
 		var hit: Dictionary = space_state.intersect_ray(params)
 		if hit.is_empty():
 			return {}
@@ -1813,6 +1815,7 @@ func _cast_one_box(
 	start_probe.transform = Transform3D(_ghost.basis, world_center)
 	start_probe.collide_with_bodies = true
 	start_probe.collide_with_areas = false
+	start_probe.collision_mask = Field.PLACEMENT_QUERY_MASK
 	for start_overlap: Dictionary in space_state.intersect_shape(start_probe, 8):
 		if start_overlap.get("collider") is RigidBody3D:
 			return 1.0
@@ -1823,6 +1826,7 @@ func _cast_one_box(
 	params.motion = motion
 	params.collide_with_bodies = true
 	params.collide_with_areas = false
+	params.collision_mask = Field.PLACEMENT_QUERY_MASK
 	var exclude: Array[RID] = []
 	var attempts: int = 0
 	while attempts <= ghost_tuning.collision_probe_max_bodies:
@@ -1844,6 +1848,7 @@ func _cast_one_box(
 		probe.transform = Transform3D(_ghost.basis, world_center + motion * unsafe_fraction)
 		probe.collide_with_bodies = true
 		probe.collide_with_areas = false
+		probe.collision_mask = Field.PLACEMENT_QUERY_MASK
 		probe.exclude = exclude
 		var overlaps: Array[Dictionary] = space_state.intersect_shape(probe, 8)
 		var non_block_rids: Array[RID] = []
