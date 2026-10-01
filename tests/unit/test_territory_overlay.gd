@@ -29,6 +29,7 @@ class ScriptedRaster extends TerritoryRaster:
 	func set_cell(index: int, owner_byte: int, state_byte: int) -> void:
 		owners[index] = owner_byte
 		states[index] = state_byte
+		_mark_changed()
 
 	func owner_bytes() -> PackedByteArray:
 		return owners
@@ -1018,3 +1019,36 @@ func test_bake_is_off_without_a_renderer_and_the_shaders_declare_it() -> void:
 	assert_true(code.contains("uniform bool bake_valid"), "Bake enable uniform.")
 	var bake: String = (load("res://shaders/territory_circle_bake.gdshader") as Shader).code
 	assert_true(bake.contains("circle_field("), "The bake runs the shared circle field.")
+
+
+## Bontago-1pi.11.23: an unchanged revision skips the texture upload.
+class CountingOverlay extends TerritoryOverlay:
+	var pushes: int = 0
+
+	func push_cells(owner_bytes: PackedByteArray, state_bytes: PackedByteArray, side: int) -> void:
+		pushes += 1
+		super(owner_bytes, state_bytes, side)
+
+
+func test_upload_now_skips_push_cells_until_the_raster_changes() -> void:
+	var map_def: MapDef = _map()
+	var overlay: CountingOverlay = CountingOverlay.new()
+	overlay.configure(map_def, load("res://config/territory_visuals.tres"), load("res://config/territory_tuning.tres"))
+	add_child_autofree(overlay)
+	var raster: ScriptedRaster = _make_raster(map_def)
+	overlay.set_source(raster, PackedColorArray())
+	var after_source: int = overlay.pushes
+	assert_gt(after_source, 0, "set_source always uploads.")
+
+	overlay.upload_now()
+	overlay.upload_now()
+	assert_eq(overlay.pushes, after_source, "Unchanged revision: no push.")
+
+	raster.set_cell(3, 2, 0)
+	overlay.upload_now()
+	assert_eq(overlay.pushes, after_source + 1, "A mutation uploads once.")
+	overlay.upload_now()
+	assert_eq(overlay.pushes, after_source + 1)
+
+	overlay.set_source(raster, PackedColorArray())
+	assert_eq(overlay.pushes, after_source + 2, "A re-set source always uploads.")

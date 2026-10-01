@@ -114,6 +114,12 @@ var _team_counts: Dictionary[int, int] = {}
 
 var _owner_bytes: PackedByteArray = PackedByteArray()
 var _state_bytes: PackedByteArray = PackedByteArray()
+## Bontago-1pi.11.23: owner_bytes()/state_bytes() rebuild only after a mutation.
+var _owner_dirty: bool = true
+var _state_dirty: bool = true
+var _content_revision: int = 0
+## Test seam: false forces a rebuild on every call (the oracle).
+var _bytes_cache_enabled: bool = true
 
 
 func _init(grid: CellGrid, tuning: TerritoryTuning) -> void:
@@ -195,6 +201,7 @@ func update(
 	holes_enabled: bool = true,
 	permanent_holes: bool = false
 ) -> void:
+	_mark_changed()
 	_opened.resize(0)
 	_closed.resize(0)
 	_group_ids.fill(TerritoryGroups.NO_GROUP)
@@ -215,6 +222,21 @@ func advance_time(delta: float, permanent_holes: bool) -> void:
 	_opened.resize(0)
 	_closed.resize(0)
 	_advance_timers(delta, permanent_holes)
+	# Timers alone never change the bytes; only a hole flip does.
+	if not _opened.is_empty() or not _closed.is_empty():
+		_mark_changed()
+
+
+## Bumps on every change that can alter owner_bytes()/state_bytes().
+## TerritoryOverlay and MatchNet use it to skip unchanged work.
+func content_revision() -> int:
+	return _content_revision
+
+
+func _mark_changed() -> void:
+	_owner_dirty = true
+	_state_dirty = true
+	_content_revision += 1
 
 
 ## Stamps the goal flags' no-build zones, replacing any previous layout. Goal
@@ -222,6 +244,7 @@ func advance_time(delta: float, permanent_holes: bool) -> void:
 ## The zones are placement-only: they never touch ownership or influence
 ## (docs/TERRITORY_V2_PLAN.md, "Owner questions").
 func set_goal_zones(positions: PackedVector2Array, radius: float) -> void:
+	_mark_changed()
 	_goal_zone.fill(0)
 	if radius <= 0.0:
 		return
@@ -345,11 +368,14 @@ func team_share(team_id: int) -> float:
 ## team's own circle draws unowned (no floor) instead of that team's tint --
 ## see team_at()'s own DECISION for why the write side is left alone.
 func owner_bytes() -> PackedByteArray:
+	if _bytes_cache_enabled and not _owner_dirty and _owner_bytes.size() == _team_ids.size():
+		return _owner_bytes
 	var count: int = _team_ids.size()
 	_owner_bytes.resize(count)
 	for index: int in range(count):
 		var team: int = _team_ids[index]
 		_owner_bytes[index] = 0 if (team < 0 or _hole[index] == 1) else team + 1
+	_owner_dirty = false
 	return _owner_bytes
 
 
@@ -357,6 +383,8 @@ func owner_bytes() -> PackedByteArray:
 ## STATE_CONTESTED | STATE_HOLE | STATE_GOAL_ZONE. Under the v2 ruleset the
 ## first two are always 0 and only the goal-zone bit is ever set.
 func state_bytes() -> PackedByteArray:
+	if _bytes_cache_enabled and not _state_dirty and _state_bytes.size() == _group_ids.size():
+		return _state_bytes
 	var count: int = _group_ids.size()
 	_state_bytes.resize(count)
 	for index: int in range(count):
@@ -368,12 +396,14 @@ func state_bytes() -> PackedByteArray:
 		if _goal_zone[index] == 1:
 			state |= STATE_GOAL_ZONE
 		_state_bytes[index] = state
+	_state_dirty = false
 	return _state_bytes
 
 
 ## Drops every circle, hole, timer and goal zone. Called when a match starts,
 ## so the caller re-stamps its own goal layout with set_goal_zones() after it.
 func reset() -> void:
+	_mark_changed()
 	_group_ids.fill(TerritoryGroups.NO_GROUP)
 	_team_ids.fill(-1)
 	_contested_time.fill(0.0)
@@ -409,6 +439,7 @@ func apply_replicated_state(owners: PackedByteArray, states: PackedByteArray) ->
 	var count: int = _team_ids.size()
 	if owners.size() != count or states.size() != count:
 		return
+	_mark_changed()
 	_opened.resize(0)
 	_closed.resize(0)
 	_team_counts.clear()
@@ -428,6 +459,7 @@ func apply_replicated_diff(
 	var count: int = cells.size()
 	if owners.size() != count or states.size() != count:
 		return
+	_mark_changed()
 	_opened.resize(0)
 	_closed.resize(0)
 	for i: int in range(count):
@@ -767,6 +799,7 @@ func force_hole_cell(cx: int, cy: int, hole_open_s: float, permanent_holes: bool
 	if _in_disk[index] == 0:
 		return
 
+	_mark_changed()
 	var was_hole: bool = _hole[index] == 1
 	_contested_time[index] = 0.0
 	if permanent_holes:
