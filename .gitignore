@@ -85,3 +85,6 @@ tests/.gut_targeted/
 
 # Agent-only window override (tools/agent_worktree_setup.py)
 /override.cfg
+
+# Owner-reply hook state (tools/owner_replies.py)
+/.claude/owner_replies_state.json

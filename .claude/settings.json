@@ -6,9 +6,25 @@
           {
             "command": "python tools/session_brief.py",
             "type": "command"
+          },
+          {
+            "type": "command",
+            "command": "python tools/owner_replies.py"
           }
         ],
         "matcher": ""
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python tools/owner_replies.py",
+            "timeout": 45
+          }
+        ]
       }
     ]
   }

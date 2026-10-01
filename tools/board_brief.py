@@ -36,6 +36,9 @@ def main():
             print("  " + brief(issue))
         if len(issues) > limit:
             print(f"  ... {len(issues) - limit} more; query a specific bead if needed")
+    # Owner 2026-10-01: surface new owner replies on Beads at every board scan.
+    import owner_replies
+    owner_replies.main([])
 
 
 if __name__ == "__main__":
