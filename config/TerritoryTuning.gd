@@ -63,6 +63,12 @@ extends Resource
 ## claims, gift sweeps and captures are never delayed longer than this. 0 turns
 ## deferral off (solve every 1/solve_hz).
 @export var solve_defer_max_s: float = 0.5
+## Bontago-1pi.11.28: a solve step whose collected circle count (homes + blocks,
+## before the cone) is at least this runs on a WorkerThreadPool thread and is
+## applied on a later frame (one frame late). Smaller boards, and 0, stay
+## synchronous. DECISION: 48 keeps small boards and unit-test fixtures on the
+## exact old single-frame path while the 150+ circle collapse boards go async.
+@export var async_solve_min_circles: int = 48
 ## Bontago-1pi.11.10: a settled block that moves (or turns) less than this many
 ## metres since it was last counted does not mark the territory dirty; an
 ## unchanged board skips collect/solve/raster/overlay entirely.

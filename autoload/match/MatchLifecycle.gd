@@ -215,6 +215,8 @@ func _reset_match_state() -> void:
 	_sudden_death_elapsed = 0.0
 	_last_shrink_radius = INF
 	_turn_settle_wait_left = -1.0
+	# Bontago-1pi.11.28: no async solve outlives the territory it would apply to.
+	_match._territory.cancel_pending()
 	_match._territory._cell_grid = null
 	_match._territory._raster = null
 	_match._territory._solver = null
@@ -368,6 +370,11 @@ func _tick_match_timer(delta: float) -> void:
 		# Timed modes: the timer ends the round through the objective, with no
 		# sudden death (Bontago-22y.11). Clients get the time left once a second.
 		if _match_timer_left <= 0.0:
+			# Bontago-1pi.11.28: an in-flight async solve applies before the
+			# round-end outcome is read, so it equals the synchronous result.
+			_match._territory.flush_pending()
+			if _state != MatchAutoload.State.PLAYING:
+				return
 			_finish_match(objective.on_round_timer_end())
 		else:
 			var whole: int = int(ceil(_match_timer_left))
@@ -501,6 +508,9 @@ func _tick_sudden_death(delta: float) -> void:
 ## makes that deterministic: iterating team ids in ascending order, the first
 ## team to reach the current best share is the one that stays best on a tie.
 func _resolve_sudden_death_tiebreak() -> void:
+	if _state != MatchAutoload.State.SUDDEN_DEATH:
+		return
+	_match._territory.flush_pending()
 	if _state != MatchAutoload.State.SUDDEN_DEATH:
 		return
 	var best_team: int = 0
@@ -756,6 +766,7 @@ func _check_last_team_standing() -> void:
 ## eliminations since the last call (last team standing, or the same-batch
 ## larger-share tiebreak) and the final state is published before the END.
 func _resolve_elimination(objective: EliminationObjective) -> void:
+	_match._territory.flush_pending()
 	var shares: PackedFloat32Array = PackedFloat32Array()
 	for team: int in range(_match.config.team_count()):
 		shares.append(_match._territory.territory_share(team))
@@ -766,6 +777,12 @@ func _resolve_elimination(objective: EliminationObjective) -> void:
 
 
 func _finish_match(winning_team: int) -> void:
+	var already_ended: bool = _state == MatchAutoload.State.END
+	# Bontago-1pi.11.28: apply any in-flight solve before the results are built;
+	# if that apply itself ended the match, it already published the outcome.
+	_match._territory.flush_pending()
+	if _state == MatchAutoload.State.END and not already_ended:
+		return
 	_set_state(MatchAutoload.State.END)
 	Events.match_won.emit(winning_team)
 	# Bontago-1pi.13: built after match_won so a listener that reacts to the

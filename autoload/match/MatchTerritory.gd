@@ -43,6 +43,17 @@ var _force_dirty: bool = true
 var _clean_skips: int = 0
 var _solve_steps: int = 0
 
+## Bontago-1pi.11.28 (P-ASYNC): the in-flight WorkerThreadPool solve, if any.
+## DECISION: one job at a time, applied on the first frame it is seen complete
+## (one frame after kickoff at the earliest). While pending the main thread only
+## accumulates _solve_accum, so no elapsed time is lost or applied twice.
+var _pending: TerritorySolveJob = null
+## Solve steps still owed after the pending job's step, and their length.
+var _pending_remaining: int = 0
+var _pending_step: float = 0.0
+## DECISION: private raster the worker fills; adopt_fill() swaps it in (O(1)).
+var _shadow_raster: TerritoryRaster = null
+
 ## Bontago-cmc.5: goal no-build discs, cached at _build_territory() (goal
 ## flags never move) so _run_territory_step() does not rebuild them every
 ## solve, and so net/MatchNet.gd's replicate_territory() can ship the exact
@@ -53,7 +64,7 @@ var _goal_positions: PackedVector2Array = PackedVector2Array()
 var _goal_radii: PackedFloat32Array = PackedFloat32Array()
 
 ## The analytic circle list the last _run_territory_step() built for
-## game/TerritoryOverlay.gd (see _update_circle_render()), cached so
+## game/TerritoryOverlay.gd (see _apply_circle_render()), cached so
 ## net/MatchNet.gd's replicate_territory() can ship the identical list to
 ## clients without re-deriving it from raw circles a client never has (every
 ## body is frozen there). Host only; a client's copy lives only in the
@@ -96,11 +107,15 @@ func winner_team() -> int:
 
 
 func _build_territory() -> void:
+	cancel_pending()
 	var map_def: MapDef = _match.config.map_def()
 	_cell_grid = CellGrid.new(map_def.field_radius, map_def.cell_size, map_def.shape_test())
 	_raster = TerritoryRaster.new(_cell_grid, _match._territory_tuning)
 	_raster.reset()
 	_solver = TerritorySolver.new(_match._territory_tuning)
+	_shadow_raster = null
+	if _match._territory_tuning.async_solve_min_circles > 0:
+		_shadow_raster = TerritoryRaster.new(_cell_grid, _match._territory_tuning)
 	var goal_positions: PackedVector2Array = PlayerSlot.goal_positions_for(_match.config.effective_goal_flag_count(), map_def)
 	# DECISION (autoload/Match.gd, Bontago-cmc.7): goal-flag no-build zones now
 	# stamp under every hole_mode, not just OFF. SPEC.md's 2026-09-20 audit,
@@ -148,6 +163,9 @@ func _tick_territory(delta: float) -> void:
 	# disagrees with the host's. The mirror raster arrives over the wire
 	# instead (see apply_replicated_territory).
 	if not _match._is_host():
+		# A job pending across a loss of authority must never be applied to a
+		# mirror raster later (Bontago-1pi.11.28).
+		cancel_pending()
 		return
 	if _raster == null or _solver == null:
 		return
@@ -156,6 +174,14 @@ func _tick_territory(delta: float) -> void:
 	if profile_enabled:
 		_sandbox_tick_steps = 0
 	_solve_accum += delta
+	if _pending != null:
+		# DECISION (Bontago-1pi.11.28): apply one frame after kickoff at the
+		# earliest, and never kick off again on the apply frame.
+		if WorkerThreadPool.is_task_completed(_pending.task_id):
+			_complete_pending()
+		if profile_enabled:
+			_sandbox_tick_ms = float(Time.get_ticks_usec() - tick_start) / 1000.0
+		return
 	var step: float = 1.0 / maxf(_match._territory_tuning.solve_hz, 0.001)
 	var due_steps: int = int(floorf(_solve_accum / step))
 	var legacy: bool = _match.config.hole_mode != MatchConfig.HoleMode.OFF
@@ -181,8 +207,10 @@ func _tick_territory(delta: float) -> void:
 			for i: int in range(due_steps):
 				if _is_clean():
 					_run_clean_legacy_step(step)
-				else:
-					_run_territory_step(step)
+				elif _step_maybe_async(step, due_steps - i - 1, step, 0):
+					if profile_enabled:
+						_sandbox_tick_steps += 1
+					break
 				if profile_enabled:
 					_sandbox_tick_steps += 1
 		else:
@@ -190,31 +218,55 @@ func _tick_territory(delta: float) -> void:
 			# happen on the first solve, so resolve that step before coalescing
 			# the remaining identical body snapshot and advancing capture time.
 			var alive_before: int = _alive_home_count()
-			_run_territory_step(step)
+			var went_async: bool = _step_maybe_async(step, due_steps - 1, step, alive_before)
 			if profile_enabled:
 				_sandbox_tick_steps += 1
-			var remaining: int = due_steps - 1
-			if remaining > 0 and _is_clean():
-				# The first step consumed every change, so the rest of the
-				# catch-up window is time only: no second raster pass, overlay
-				# rebuild or territory_updated emission (Bontago-1pi.11.29).
-				_advance_clean(float(remaining) * step)
-			elif remaining > 0:
-				alive_before = _alive_home_count()
-				_run_territory_step(float(remaining) * step)
-				if profile_enabled:
-					_sandbox_tick_steps += 1
-			# A source-list change on the last solve needs a zero-time redraw,
-			# even if the match entered END and will never tick again.
-			var alive_after: int = _alive_home_count()
-			while alive_after < alive_before:
-				alive_before = alive_after
-				_run_territory_step(0.0)
-				if profile_enabled:
-					_sandbox_tick_steps += 1
-				alive_after = _alive_home_count()
+			if not went_async:
+				_continue_v2(due_steps - 1, step, alive_before, _seen_config, false)
 	if profile_enabled:
 		_sandbox_tick_ms = float(Time.get_ticks_usec() - tick_start) / 1000.0
+
+
+## Remaining v2 catch-up after the first step of a tick was applied. `config`
+## is the config signature the first step solved against: the rest of the window
+## is time-only when nothing but body revisions changed (Bontago-1pi.11.29).
+## When the config moved (an elimination during apply) the sync step runs.
+func _continue_v2(
+	remaining: int, step: float, alive_before: int, config: Dictionary, from_async: bool
+) -> void:
+	if remaining > 0 and _raster != null:
+		# After an async apply the registry revision may have advanced during
+		# the worker frame; that must not count as dirty for the kickoff snapshot
+		# (the next tick re-solves anyway: _seen_revision is the kickoff value).
+		var clean: bool = (
+			(not _force_dirty and _territory_config_signature() == config) if from_async else _is_clean()
+		)
+		if clean:
+			# The first step consumed every change, so the rest of the
+			# catch-up window is time only: no second raster pass, overlay
+			# rebuild or territory_updated emission (Bontago-1pi.11.29).
+			_advance_clean(float(remaining) * step)
+		else:
+			alive_before = _alive_home_count()
+			if from_async:
+				# A forced-dirty (punch/shrink) or config-changed re-solve goes
+				# back through the worker so the apply frame never runs a full
+				# solve; the new job's continuation finishes the loop below.
+				if _step_maybe_async(float(remaining) * step, 0, step, alive_before):
+					return
+			else:
+				_run_territory_step(float(remaining) * step)
+			if _match._sandbox_territory_profile_enabled:
+				_sandbox_tick_steps += 1
+	# A source-list change on the last solve needs a zero-time redraw,
+	# even if the match entered END and will never tick again.
+	var alive_after: int = _alive_home_count()
+	while alive_after < alive_before:
+		alive_before = alive_after
+		_run_territory_step(0.0)
+		if _match._sandbox_territory_profile_enabled:
+			_sandbox_tick_steps += 1
+		alive_after = _alive_home_count()
 
 
 ## True while the solve may wait: deferral enabled, the staleness cap not yet
@@ -322,7 +374,101 @@ func _alive_home_count() -> int:
 	return count
 
 
+## The synchronous entry point (lifecycle seed, tests, bench): kickoff, solve
+## inline on this thread, apply. Finishes any in-flight async job first so two
+## steps never interleave.
 func _run_territory_step(delta: float) -> void:
+	flush_pending()
+	var job: TerritorySolveJob = _kickoff(delta)
+	job.fill_raster = _raster
+	job.solver = _solver
+	job.run()
+	_apply(job)
+
+
+## True when an async solve is in flight (no result applied yet).
+func solve_pending() -> bool:
+	return _pending != null
+
+
+## Waits for the in-flight solve and applies it (plus its owed catch-up steps)
+## now. No-op when idle. Re-entrant-safe: the pending slot is cleared first.
+func flush_pending() -> void:
+	if _pending != null:
+		_complete_pending()
+
+
+## Waits for the in-flight solve and discards it (match build/reset/abort).
+func cancel_pending() -> void:
+	if _pending == null:
+		return
+	var job: TerritorySolveJob = _pending
+	_pending = null
+	_pending_remaining = 0
+	WorkerThreadPool.wait_for_task_completion(job.task_id)
+
+
+## Kicks off one step: async when the board is large enough, otherwise inline.
+## Returns true when the step went async (the caller stops; _complete_pending()
+## runs the continuation), false when it was already applied here.
+func _step_maybe_async(delta: float, remaining: int, step: float, alive_before: int) -> bool:
+	var threshold: int = _match._territory_tuning.async_solve_min_circles
+	var job: TerritorySolveJob = _kickoff(delta)
+	if threshold > 0 and job.circles.size() >= threshold:
+		if _shadow_raster == null:
+			_shadow_raster = TerritoryRaster.new(_cell_grid, _match._territory_tuning)
+		job.alive_before = alive_before
+		job.fill_raster = _shadow_raster
+		# DECISION: the worker gets a tuning snapshot so a live tuning-panel
+		# edit never races the solver; the main thread does not touch the job
+		# or the shadow raster until the task is complete.
+		job.solver_tuning = _match._territory_tuning.duplicate() as TerritoryTuning
+		job.task_id = WorkerThreadPool.add_task(job.run, false, "territory_solve")
+		_pending = job
+		_pending_remaining = remaining
+		_pending_step = step
+		return true
+	job.fill_raster = _raster
+	job.solver = _solver
+	job.run()
+	_apply(job)
+	return false
+
+
+func _complete_pending() -> void:
+	var job: TerritorySolveJob = _pending
+	var remaining: int = _pending_remaining
+	var step: float = _pending_step
+	_pending = null
+	_pending_remaining = 0
+	WorkerThreadPool.wait_for_task_completion(job.task_id)
+	if _raster == null:
+		return
+	_apply(job)
+	if _raster == null:
+		return
+	if _match.config.hole_mode != MatchConfig.HoleMode.OFF:
+		# The remaining catch-up steps replay the same unchanged snapshot. A
+		# config change (an elimination during apply) hands the unconsumed time
+		# back to the accumulator. Registry revisions after kickoff are ignored
+		# on purpose: _seen_revision is the kickoff value, so the next tick
+		# re-solves.
+		var left: int = remaining
+		while left > 0 and _raster != null:
+			if _force_dirty or _territory_config_signature() != job.kickoff_config:
+				_solve_accum += float(left) * step
+				break
+			_run_clean_legacy_step(step)
+			if _match._sandbox_territory_profile_enabled:
+				_sandbox_tick_steps += 1
+			left -= 1
+	else:
+		_continue_v2(remaining, step, job.alive_before, job.kickoff_config, true)
+
+
+## Main-thread half of a solve step: every scene read (source signature,
+## collect, cone heights) happens here, so the job is pure data.
+func _kickoff(delta: float) -> TerritorySolveJob:
 	_solve_steps += 1
 	if _match._registry != null:
 		_seen_revision = _match._registry.territory_revision()
@@ -331,37 +477,56 @@ func _run_territory_step(delta: float) -> void:
 	var profile_enabled: bool = _match._sandbox_territory_profile_enabled
 	var t0: int = Time.get_ticks_usec() if profile_enabled else 0
 	var cache_enabled: bool = _match._territory_cache_enabled
-	var sources: Dictionary = _territory_source_signature() if cache_enabled else {}
-	var cache_hit: bool = cache_enabled and _cached_groups != null and sources == _cached_sources
-	var circles: Array[InfluenceCircle]
-	if cache_hit:
-		circles = _cached_circles
+	var job: TerritorySolveJob = TerritorySolveJob.new()
+	job.delta = delta
+	job.kickoff_config = _seen_config
+	job.holes_enabled = _match.config.hole_mode != MatchConfig.HoleMode.OFF
+	job.sources = _territory_source_signature() if cache_enabled else {}
+	job.cache_hit = cache_enabled and _cached_groups != null and job.sources == _cached_sources
+	if job.cache_hit:
+		job.circles = _cached_circles
+		job.cached_groups = _cached_groups
 		_sandbox_cache_hits += 1
 	else:
-		circles = _collect_circles()
+		job.circles = _collect_circles()
 		if _match._sandbox_territory_mode == MatchAutoload.SANDBOX_TERRITORY_CONE:
-			var projected: Dictionary = SandboxConeAdapter.project(
-				circles, _match._field, _match._registry, _match._sandbox_cone_angle,
-				_match._sandbox_cone_height_source, _match._sandbox_cone_base_mode,
-				_match._territory_tuning, _match.config.map_def().field_radius
+			var measured: Dictionary = SandboxConeAdapter.measure_heights(
+				job.circles, _match._field, _match._registry, _match._sandbox_cone_height_source
 			)
-			if not projected.has("error"):
-				circles = projected["circles"]
-	var t1: int = Time.get_ticks_usec() if profile_enabled else 0
-	var groups: TerritoryGroups = _cached_groups if cache_hit else _solver.solve(circles)
-	if cache_enabled and not cache_hit:
-		_cached_sources = sources
+			if not measured.has("error"):
+				job.cone_enabled = true
+				job.heights = measured["heights"]
+				job.cone_angle = _match._sandbox_cone_angle
+				job.cone_base_mode = _match._sandbox_cone_base_mode
+				job.cone_base_radius = _match._territory_tuning.influence_base
+				job.cone_max_radius = (
+					_match._territory_tuning.influence_max_fraction * _match.config.map_def().field_radius
+				)
+	if profile_enabled:
+		job.step_ms = {"t0": t0, "t1": Time.get_ticks_usec()}
+	return job
+
+
+## Main-thread half of a solve step, in the exact order the old single-pass
+## step used: cache store, groups, raster, objective, overlay, events.
+func _apply(job: TerritorySolveJob) -> void:
+	var profile_enabled: bool = _match._sandbox_territory_profile_enabled
+	var t2: int = Time.get_ticks_usec() if profile_enabled else 0
+	var groups: TerritoryGroups = job.groups
+	var circles: Array[InfluenceCircle] = job.out_circles
+	var cache_hit: bool = job.cache_hit
+	if _match._territory_cache_enabled and not cache_hit:
+		_cached_sources = job.sources
 		_cached_circles = circles
 		_cached_groups = groups
-	var t2: int = Time.get_ticks_usec() if profile_enabled else 0
 	_last_groups = groups
-	var holes_enabled: bool = _match.config.hole_mode != MatchConfig.HoleMode.OFF
+	var holes_enabled: bool = job.holes_enabled
 	var permanent_holes: bool = _match.config.hole_mode == MatchConfig.HoleMode.PERMANENT
-	_raster.update(circles, groups, delta, holes_enabled, permanent_holes)
+	_raster.adopt_fill(job.fill_raster, job.delta, holes_enabled, permanent_holes)
 	var t3: int = Time.get_ticks_usec() if profile_enabled else 0
-	_objective.update(_raster, delta)
+	_objective.update(_raster, job.delta)
 	if not cache_hit:
-		_update_circle_render(circles, groups)
+		_apply_circle_render(job.render)
 	var t4: int = Time.get_ticks_usec() if profile_enabled else 0
 
 	Events.territory_updated.emit(_raster, groups)
@@ -380,7 +545,7 @@ func _run_territory_step(delta: float) -> void:
 	# guess, and it is what shipped before this ticket. It is NOT claimed to
 	# be the original's actual rule -- that stays unverified -- only the
 	# least-invented option available until real evidence settles it.
-	if holes_enabled:
+	if job.holes_enabled:
 		var opened: PackedInt32Array = _raster.holes_opened()
 		var closed: PackedInt32Array = _raster.holes_closed()
 		if opened.size() > 0 or closed.size() > 0:
@@ -401,12 +566,15 @@ func _run_territory_step(delta: float) -> void:
 	_finish_objective_step()
 	if profile_enabled:
 		var t5: int = Time.get_ticks_usec()
+		var t0: int = int(job.step_ms.get("t0", t2))
+		var t1: int = int(job.step_ms.get("t1", t2))
 		_sandbox_step_ms = {
 			"collect": float(t1 - t0) / 1000.0,
-			"solve": float(t2 - t1) / 1000.0,
+			"solve": float(job.worker_usec) / 1000.0,
 			"raster": float(t3 - t2) / 1000.0,
 			"overlay": float(t4 - t3) / 1000.0,
 			"other": float(t5 - t4) / 1000.0,
+			"worker": float(job.worker_usec) / 1000.0,
 			"total": float(t5 - t0) / 1000.0,
 		}
 
@@ -487,36 +655,11 @@ func _collect_circles() -> Array[InfluenceCircle]:
 ## its coverage value once that team has visibly saturated a pixel) sees
 ## each team's biggest, most-covering circles first, so it skips the most
 ## circles for the least visual risk.
-func _update_circle_render(circles: Array[InfluenceCircle], groups: TerritoryGroups) -> void:
-	var entries: Array = []
-	for group: int in range(groups.group_count()):
-		var team: int = groups.team_of(group)
-		for circle_index: int in groups.circles_of(group):
-			var circle: InfluenceCircle = circles[circle_index]
-			entries.append([team, circle.radius, circle.center.x, circle.center.y])
-	entries.sort_custom(
-		func(a: Array, b: Array) -> bool:
-			if a[0] != b[0]:
-				return a[0] < b[0]
-			return a[1] > b[1]
-	)
-
-	var count: int = entries.size()
-	var xs: PackedFloat32Array = PackedFloat32Array()
-	var zs: PackedFloat32Array = PackedFloat32Array()
-	var radii: PackedFloat32Array = PackedFloat32Array()
-	var teams: PackedInt32Array = PackedInt32Array()
-	xs.resize(count)
-	zs.resize(count)
-	radii.resize(count)
-	teams.resize(count)
-	for i: int in range(count):
-		var entry: Array = entries[i]
-		teams[i] = entry[0]
-		radii[i] = entry[1]
-		xs[i] = entry[2]
-		zs[i] = entry[3]
-
+func _apply_circle_render(render: Dictionary) -> void:
+	var xs: PackedFloat32Array = render["xs"]
+	var zs: PackedFloat32Array = render["zs"]
+	var radii: PackedFloat32Array = render["radii"]
+	var teams: PackedInt32Array = render["teams"]
 	var argmax_mode: bool = _match.config.hole_mode == MatchConfig.HoleMode.OFF
 	_circle_xs = xs
 	_circle_zs = zs
@@ -531,7 +674,7 @@ func _update_circle_render(circles: Array[InfluenceCircle], groups: TerritoryGro
 ## The analytic circle list the last _run_territory_step() built (host
 ## only), cached so net/MatchNet.gd's replicate_territory() can ship the
 ## identical list to clients rather than re-deriving it from raw circles a
-## client never has (every body there is frozen). See _update_circle_render().
+## client never has (every body there is frozen). See _apply_circle_render().
 func circle_render_arrays() -> Dictionary:
 	return {
 		"xs": _circle_xs,
