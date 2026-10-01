@@ -118,7 +118,9 @@ def suite_times(out_dir, name):
         return times
     for suite in root.iter("testsuite"):
         try:
-            times[suite.get("name")] = float(suite.get("time") or 0.0)
+            name_attr = suite.get("name") or ""
+            key = name_attr if name_attr.startswith("res://") else "res://" + name_attr.lstrip("/")
+            times[key] = float(suite.get("time") or 0.0)
         except ValueError:
             pass
     return times
@@ -126,18 +128,26 @@ def suite_times(out_dir, name):
 
 def run_batch(path, out_dir, batches, timeout_s):
     started = time.time()
-    procs = [(name,) + start(path, out_dir, name, tests) for name, tests in batches]
+    procs = {name: start(path, out_dir, name, tests) for name, tests in batches}
+    finished = {}
+    while len(finished) < len(procs):
+        for name, (proc, log, log_path) in procs.items():
+            if name in finished:
+                continue
+            code = proc.poll()
+            if code is None and time.time() - started > timeout_s:
+                proc.kill()
+                code = "timeout"
+            if code is not None:
+                finished[name] = (code, round(time.time() - started, 1))
+        time.sleep(0.5)
     results = {}
-    for name, proc, log, log_path in procs:
-        try:
-            code = proc.wait(timeout=max(1, timeout_s - (time.time() - started)))
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            code = "timeout"
+    for name, (proc, log, log_path) in procs.items():
         log.close()
         totals, failing = parse(log_path)
+        code, seconds = finished[name]
         results[name] = {"exit": code, "totals": totals, "failing": sorted(failing),
-                         "log": log_path, "seconds": round(time.time() - started, 1)}
+                         "log": log_path, "seconds": seconds}
     return results
 
 
