@@ -55,6 +55,8 @@ const EVENT_PLACEMENT_REJECTED: StringName = &"placement_rejected"
 const EVENT_PLACEMENT_RELOCATED: StringName = &"placement_relocated"
 const EVENT_PLAYER_ELIMINATED: StringName = &"player_eliminated"
 const EVENT_MATCH_WON: StringName = &"match_won"
+## Bontago-22y.11: the active mode objective's score/state, host -> clients.
+const EVENT_MODE_STATE: StringName = &"mode_state"
 ## Bontago-1pi.13: mirrors Events.match_results_ready (autoload/match/
 ## MatchStats.gd's own header documents the payload shape). See
 ## _on_match_results_ready() below and net_match_event's own dispatch case.
@@ -206,6 +208,7 @@ func _ready() -> void:
 	Events.placement_relocated.connect(_on_placement_relocated)
 	Events.player_eliminated.connect(_on_player_eliminated)
 	Events.match_won.connect(_on_match_won)
+	Events.mode_state_changed.connect(_on_mode_state_changed)
 	Events.match_results_ready.connect(_on_match_results_ready)
 	Events.gift_flight_spawned.connect(_on_gift_flight)
 	Events.gift_landed.connect(_on_gift_landed)
@@ -1248,6 +1251,13 @@ func _on_player_eliminated(slot_id: int, team_id: int) -> void:
 		replicate_match_event(EVENT_PLAYER_ELIMINATED, [slot_id, team_id])
 
 
+## Host only: the objective's state changed. A client's own apply re-emits the
+## same signal, hence the host guard (no echo, and a client never replicates).
+func _on_mode_state_changed(state: Dictionary) -> void:
+	if _is_host():
+		replicate_match_event(EVENT_MODE_STATE, [state])
+
+
 func _on_match_won(team_id: int) -> void:
 	if _is_host():
 		replicate_match_event(EVENT_MATCH_WON, [team_id])
@@ -1366,6 +1376,9 @@ func _on_net_peer_joined(peer_id: int, slot_id: int, _player_name: String) -> vo
 				[cat.activation_id, cat.owner_slot, cat.global_position, cat.time_left])
 		for payload: Array in _glue_rejoin_snapshot():
 			rpc_id(peer_id, &"net_match_event", EVENT_GLUE_CHARGES, payload)
+		var mode_snapshot: Dictionary = _authority().mode_state_snapshot()
+		if not mode_snapshot.is_empty():
+			rpc_id(peer_id, &"net_match_event", EVENT_MODE_STATE, [mode_snapshot])
 
 
 func _glue_rejoin_snapshot() -> Array[Array]:
@@ -1621,6 +1634,15 @@ func net_match_event(event: StringName, args: Array) -> void:
 			Events.player_eliminated.emit(int(args[0]), int(args[1]))
 		EVENT_MATCH_WON:
 			Events.match_won.emit(int(args[0]))
+		EVENT_MODE_STATE:
+			# Bontago-22y.11: display-only mirror; a client never derives an
+			# outcome from it. Malformed payloads are dropped, not defaulted.
+			if args.size() < 1:
+				return
+			var mode_state: Dictionary = ModeObjective.validate_state(args[0])
+			if mode_state.is_empty():
+				return
+			_authority().apply_replicated_mode_state(mode_state)
 		EVENT_MATCH_RESULTS:
 			# Bontago-1pi.13: an input boundary exactly like every other wire
 			# payload in this dispatch -- a malformed or truncated args array

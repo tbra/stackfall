@@ -49,6 +49,11 @@ var _disconnect_grace_left: Array[float] = []
 ## for the rest of the match -- config.match_timer_minutes == 0 must never
 ## start sudden death, timer or no.
 var _match_timer_left: float = 0.0
+## Whole seconds of _match_timer_left at the last timed-mode state publish, so
+## clients get a once-per-second timer update; -1 = none yet this match.
+var _last_published_second: int = -1
+## Latest mode snapshot received before the objective was built (client).
+var _pending_mode_state: Dictionary = {}
 
 ## Seconds since State.SUDDEN_DEATH was entered. Drives both the gift-chance
 ## ramp (MatchGifts._effective_special_frequency()) and the disk shrink
@@ -214,6 +219,9 @@ func _reset_match_state() -> void:
 	_match._territory._raster = null
 	_match._territory._solver = null
 	_match._territory._win_checker = null
+	_match._territory._objective = null
+	_last_published_second = -1
+	_pending_mode_state = {}
 	_match._territory._last_groups = null
 	_match._territory._solve_accum = 0.0
 	_match._feed._feed_timer_enabled = true
@@ -306,7 +314,7 @@ func _begin_playing() -> void:
 	# at start_match(), which runs during LOADING/COUNTDOWN) so config changes
 	# made while still counting down are picked up, and so a match aborted
 	# before ever reaching PLAYING never arms a timer it will not tick.
-	_match_timer_left = _match.config.match_timer_minutes * 60.0 if _match.config.match_timer_minutes > 0 else 0.0
+	_match_timer_left = _armed_timer_seconds()
 	_active_slot = _next_alive_slot(-1)
 	for i: int in range(_slots.size()):
 		# Bontago-mv0.10 follow-up: set the interval before issuing, not
@@ -350,7 +358,23 @@ func sudden_death_active() -> bool:
 func _tick_match_timer(delta: float) -> void:
 	if _match_timer_left <= 0.0:
 		return
+	# The territory tick that runs just before this one in the same frame may
+	# already have ended the round; never finish (or tick) a second time.
+	if _state != MatchAutoload.State.PLAYING:
+		return
 	_match_timer_left = maxf(_match_timer_left - delta, 0.0)
+	var objective: ModeObjective = _match._territory._objective
+	if objective != null and objective.is_timed():
+		# Timed modes: the timer ends the round through the objective, with no
+		# sudden death (Bontago-22y.11). Clients get the time left once a second.
+		if _match_timer_left <= 0.0:
+			_finish_match(objective.on_round_timer_end())
+		else:
+			var whole: int = int(ceil(_match_timer_left))
+			if whole != _last_published_second and objective.replicates_state():
+				_last_published_second = whole
+				Events.mode_state_changed.emit(_build_mode_state(objective))
+		return
 	if _match_timer_left <= 0.0 and _match.config != null and _match.config.sudden_death:
 		_begin_sudden_death()
 	# Spec 2.8: "Sudden death: Off/On ... on if match timer is set" by
@@ -359,6 +383,65 @@ func _tick_match_timer(delta: float) -> void:
 	# (this function's own doc header comment; also this package's plan
 	# doc). Falling through here (no transition) is exactly that: the match
 	# keeps running PLAYING under normal rules with no more timer.
+
+
+## Seconds the match timer starts with: a timed mode's round_timer_minutes, else
+## classic's match_timer_minutes (0 = off). Host-side, read at PLAYING start.
+func _armed_timer_seconds() -> float:
+	var objective: ModeObjective = _match._territory._objective
+	if objective != null and objective.is_timed():
+		return _match.config.round_timer_minutes * 60.0
+	return _match.config.match_timer_minutes * 60.0 if _match.config.match_timer_minutes > 0 else 0.0
+
+
+func _build_mode_state(objective: ModeObjective) -> Dictionary:
+	var state: Dictionary = objective.mode_state()
+	state["round_left"] = _match_timer_left
+	return state
+
+
+## Host: emits Events.mode_state_changed when the objective's state changed
+## since the last publish (MatchNet replicates it). No-op for classic.
+func publish_mode_state_if_changed() -> void:
+	var objective: ModeObjective = _match._territory._objective
+	if objective == null or not objective.replicates_state():
+		return
+	if objective.consume_state_dirty():
+		Events.mode_state_changed.emit(_build_mode_state(objective))
+
+
+## Client: mirrors the host's validated mode state for display; never decides
+## an outcome (the match ends only via the replicated state/win events).
+func apply_replicated_mode_state(state: Dictionary) -> void:
+	var objective: ModeObjective = _match._territory._objective
+	if objective == null:
+		# Rejoin snapshot can arrive before the objective is built: keep the
+		# latest and apply it once it exists (flush_pending_mode_state()).
+		_pending_mode_state = state
+		return
+	if objective.mode_id() != int(state.get("mode_id", -1)):
+		return
+	objective.apply_mode_state(state)
+	_match_timer_left = float(state.get("round_left", _match_timer_left))
+	Events.mode_state_changed.emit(state)
+
+
+## Client: applies a mode snapshot that arrived before the objective existed.
+func flush_pending_mode_state() -> void:
+	if _pending_mode_state.is_empty() or _match._territory._objective == null:
+		return
+	var pending: Dictionary = _pending_mode_state
+	_pending_mode_state = {}
+	apply_replicated_mode_state(pending)
+
+
+## Current mode state for a late joiner/reconnect snapshot, or {} (classic or
+## no objective).
+func mode_state_snapshot() -> Dictionary:
+	var objective: ModeObjective = _match._territory._objective
+	if objective == null or not objective.replicates_state():
+		return {}
+	return _build_mode_state(objective)
 
 
 func _begin_sudden_death() -> void:
@@ -662,7 +745,13 @@ func _finish_match(winning_team: int) -> void:
 	# calls this, and instead reaches State.END and its results payload
 	# through EVENT_STATE_CHANGED and EVENT_MATCH_RESULTS respectively
 	# (net/MatchNet.gd).
-	var results: Dictionary = _match._stats.build_results_payload(winning_team)
+	var objective: ModeObjective = _match._territory._objective
+	var mode_fields: Dictionary = {}
+	if objective != null and objective.mode_id() != MatchConfig.GameMode.CLASSIC:
+		mode_fields = objective.results_fields()
+		mode_fields["mode_id"] = objective.mode_id()
+		mode_fields["scores"] = Array(objective.scores())
+	var results: Dictionary = _match._stats.build_results_payload(winning_team, mode_fields)
 	Events.match_results_ready.emit(results)
 
 

@@ -13,7 +13,16 @@ var _match: MatchAutoload = null
 var _cell_grid: CellGrid = null
 var _raster: TerritoryRaster = null
 var _solver: TerritorySolver = null
-var _win_checker: WinChecker = null
+## The CLASSIC objective's WinChecker (null in other modes). A setter keeps
+## the active ClassicObjective pointing at whatever is assigned, so tests and
+## bench tools that swap the checker in place still drive the win path.
+var _win_checker: WinChecker = null:
+	set(value):
+		_win_checker = value
+		if _objective is ClassicObjective:
+			(_objective as ClassicObjective).set_checker(value)
+## The active mode objective (Bontago-22y.11): fed every solve, owns the win.
+var _objective: ModeObjective = null
 var _last_groups: TerritoryGroups = null
 var _solve_accum: float = 0.0
 ## Sandbox diagnostics: measured on the real live path, not the one-shot
@@ -83,7 +92,7 @@ func territory_share(team_id: int) -> float:
 
 ## The winning team, or -1.
 func winner_team() -> int:
-	return _win_checker.winner() if _win_checker != null else WinChecker.NO_TEAM
+	return _objective.winner() if _objective != null else WinChecker.NO_TEAM
 
 
 func _build_territory() -> void:
@@ -106,7 +115,11 @@ func _build_territory() -> void:
 	# Bontago-cmc.6, not this ticket, owns rewriting that scenario to march to
 	# the zone's rim instead of the flag's centre point.
 	_raster.set_goal_zones(goal_positions, _match._territory_tuning.goal_zone_radius)
-	_win_checker = WinChecker.new(goal_positions, _match._territory_tuning.capture_hold)
+	_objective = ModeObjective.create(
+		_match.config.game_mode, goal_positions, _match._territory_tuning.capture_hold, _match.config.team_count()
+	)
+	_win_checker = (_objective as ClassicObjective).checker() if _objective is ClassicObjective else null
+	_match._lifecycle.flush_pending_mode_state()
 	_last_groups = null
 	_solve_accum = 0.0
 	_cached_sources.clear()
@@ -238,10 +251,8 @@ func _is_clean() -> bool:
 ## capture-progress event still advance; ownership, overlay and events are as before.
 func _advance_clean(delta: float) -> void:
 	_clean_skips += 1
-	_win_checker.update(_raster, delta)
-	Events.goal_capture_progress.emit(_win_checker.capturing_team(), _win_checker.capture_progress())
-	if MatchLifecycle.is_live_state(_match.state()) and _win_checker.winner() != WinChecker.NO_TEAM:
-		_match._lifecycle._finish_match(_win_checker.winner())
+	_objective.update(_raster, delta)
+	_finish_objective_step()
 
 
 ## Legacy hole modes on an unchanged board: the stamp would reproduce the same
@@ -250,7 +261,7 @@ func _advance_clean(delta: float) -> void:
 func _run_clean_legacy_step(delta: float) -> void:
 	_clean_skips += 1
 	_raster.advance_time(delta, _match.config.hole_mode == MatchConfig.HoleMode.PERMANENT)
-	_win_checker.update(_raster, delta)
+	_objective.update(_raster, delta)
 	var opened: PackedInt32Array = _raster.holes_opened()
 	var closed: PackedInt32Array = _raster.holes_closed()
 	if opened.size() > 0 or closed.size() > 0:
@@ -262,9 +273,18 @@ func _run_clean_legacy_step(delta: float) -> void:
 		for t: int in range(_match.config.team_count()):
 			shares.append(_raster.team_share(t))
 		Events.territory_share_changed.emit(shares)
-	Events.goal_capture_progress.emit(_win_checker.capturing_team(), _win_checker.capture_progress())
-	if MatchLifecycle.is_live_state(_match.state()) and _win_checker.winner() != WinChecker.NO_TEAM:
-		_match._lifecycle._finish_match(_win_checker.winner())
+	_finish_objective_step()
+
+
+## After every objective update: capture-ring event, replicated mode state when
+## it changed, and the objective's own win (live states only). Only a
+## ClassicObjective can win here for now; other modes win through the same
+## winner() latch or the round timer (MatchLifecycle._tick_match_timer).
+func _finish_objective_step() -> void:
+	Events.goal_capture_progress.emit(_objective.capturing_team(), _objective.capture_progress())
+	_match._lifecycle.publish_mode_state_if_changed()
+	if MatchLifecycle.is_live_state(_match.state()) and _objective.winner() != ModeObjective.NO_TEAM:
+		_match._lifecycle._finish_match(_objective.winner())
 
 
 func _alive_home_count() -> int:
@@ -312,7 +332,7 @@ func _run_territory_step(delta: float) -> void:
 	var permanent_holes: bool = _match.config.hole_mode == MatchConfig.HoleMode.PERMANENT
 	_raster.update(circles, groups, delta, holes_enabled, permanent_holes)
 	var t3: int = Time.get_ticks_usec() if profile_enabled else 0
-	_win_checker.update(_raster, delta)
+	_objective.update(_raster, delta)
 	if not cache_hit:
 		_update_circle_render(circles, groups)
 	var t4: int = Time.get_ticks_usec() if profile_enabled else 0
@@ -351,10 +371,7 @@ func _run_territory_step(delta: float) -> void:
 		shares.append(_raster.team_share(t))
 	Events.territory_share_changed.emit(shares)
 
-	Events.goal_capture_progress.emit(_win_checker.capturing_team(), _win_checker.capture_progress())
-
-	if MatchLifecycle.is_live_state(_match.state()) and _win_checker.winner() != WinChecker.NO_TEAM:
-		_match._lifecycle._finish_match(_win_checker.winner())
+	_finish_objective_step()
 	if profile_enabled:
 		var t5: int = Time.get_ticks_usec()
 		_sandbox_step_ms = {
