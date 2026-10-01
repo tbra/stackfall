@@ -47,12 +47,16 @@ var _fade_tween: Tween = null
 ## instead of hiding -- or later re-hiding -- a screen it no longer owns. See
 ## fade_out()'s own doc.
 var _fade_token: int = 0
+## Bontago-t8x.4: true between show_pending() and show_for_match()/cancel().
+var _is_pending: bool = false
+var _pending_elapsed_s: float = 0.0
 
 
 func _ready() -> void:
 	visible = false
 	modulate.a = 1.0
 	set_process(false)
+	z_index = tuning.overlay_z_index
 	_background.color = tuning.background_color
 	_card.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(menu_visual_tuning.pill_cream_color, menu_visual_tuning))
 
@@ -64,6 +68,7 @@ func _ready() -> void:
 ## that file's start_match() doc), so every slot's display_name/is_bot is
 ## already final for this match.
 func show_for_match(config: MatchConfig, slots: Array[PlayerSlot]) -> void:
+	_is_pending = false
 	_fade_token += 1
 	if _fade_tween != null and _fade_tween.is_valid():
 		_fade_tween.kill()
@@ -79,7 +84,25 @@ func show_for_match(config: MatchConfig, slots: Array[PlayerSlot]) -> void:
 	set_process(true)
 
 
+## Bontago-t8x.4: the overlay before the match exists yet (host: Start was just
+## pressed; client: net_match_loading arrived). `config` may be null (client).
+## Hides itself after tuning.pending_timeout_s if no start follows.
+func show_pending(config: MatchConfig) -> void:
+	show_for_match(config, [] as Array[PlayerSlot])
+	_is_pending = true
+	_pending_elapsed_s = 0.0
+
+
+func is_pending() -> bool:
+	return _is_pending
+
+
 func _process(delta: float) -> void:
+	if _is_pending:
+		_pending_elapsed_s += delta
+		if _pending_elapsed_s >= tuning.pending_timeout_s:
+			cancel()
+			return
 	_spin_elapsed_s += delta
 	if _spin_elapsed_s < tuning.spinner_interval_s:
 		return
@@ -128,6 +151,7 @@ func fade_out() -> void:
 ## later hide -- or re-show -- a *different* match's overlay out from under
 ## it (see _fade_token's own doc).
 func cancel() -> void:
+	_is_pending = false
 	_fade_token += 1
 	if _fade_tween != null and _fade_tween.is_valid():
 		_fade_tween.kill()

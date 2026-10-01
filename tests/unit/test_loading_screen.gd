@@ -108,3 +108,89 @@ func test_cancel_stops_a_pending_fade_from_later_hiding_a_new_match() -> void:
 
 	await wait_seconds(0.3, "the stale fade_out() coroutine should have resumed and bailed out by now.")
 	assert_true(_screen.visible, "the stale fade_out() must not have hidden the new match's loading screen.")
+
+
+# --- Bontago-t8x.4: overlay ahead of the match start --------------------------
+
+func test_show_pending_is_visible_and_pending() -> void:
+	_screen.show_pending(null)
+	assert_true(_screen.visible)
+	assert_true(_screen.is_pending())
+
+
+func test_show_for_match_clears_pending() -> void:
+	_screen.show_pending(null)
+	_screen.show_for_match(_config(), _slots(2))
+	assert_false(_screen.is_pending())
+
+
+func test_pending_times_out_when_no_start_follows() -> void:
+	_screen.tuning.pending_timeout_s = 0.05
+	_screen.show_pending(null)
+	await wait_seconds(0.3)
+	assert_false(_screen.visible)
+	assert_false(_screen.is_pending())
+
+
+func test_overlay_draws_above_siblings_and_ignores_mouse() -> void:
+	assert_eq(_screen.z_index, _screen.tuning.overlay_z_index)
+	assert_eq(_screen.mouse_filter, Control.MOUSE_FILTER_IGNORE)
+
+
+## Flow tests against the real Main (same fixture shape as
+## test_match_lifecycle.gd): the overlay is up and un-started Match is still in
+## LOBBY when the Start press returns; the match only starts later.
+func _real_main() -> Node:
+	var main: Node = (load("res://game/Main.tscn") as PackedScene).instantiate()
+	var tiny: MapDef = (load("res://config/maps/round_medium.tres") as MapDef).duplicate(true)
+	tiny.field_radius = 20.0
+	(main.get_node("Field") as Field).map_def = tiny
+	add_child_autofree(main)
+	return main
+
+
+func _flow_config(main: Node) -> MatchConfig:
+	var config: MatchConfig = load("res://config/match_defaults.tres").duplicate(true) as MatchConfig
+	config.set_script(load("res://tests/unit/support/TinyMapMatchConfig.gd"))
+	(config as TinyMapMatchConfig).set_tiny_map((main.get_node("Field") as Field).map_def)
+	config.player_count = 2
+	config.hot_seat = false
+	config.rng_seed = 777
+	return config
+
+
+func test_host_start_shows_overlay_before_the_match_starts() -> void:
+	Match.set_process(false)
+	Match.abort_match()
+	var main: Node = _real_main()
+	assert_eq(Net.host_game(47990, "Hostie"), OK)
+	var states: Array[int] = []
+	var on_state: Callable = func(_from: int, to: int) -> void: states.append(to)
+	Events.match_state_changed.connect(on_state)
+	main._on_lobby_start_pressed(_flow_config(main))
+	var overlay: LoadingScreen = main._loading_screen
+	assert_true(overlay.visible, "overlay up the moment Start returns")
+	assert_true(overlay.is_pending())
+	assert_eq(Match.state(), Match.State.LOBBY, "world build has not started yet")
+	assert_true(states.is_empty())
+	await wait_process_frames(overlay.tuning.pre_start_frames + 2)
+	assert_true(states.has(Match.State.LOADING), "match handed off after the pre-roll")
+	assert_false(overlay.is_pending())
+	assert_true(overlay.visible, "overlay stays up through the build until fade_out")
+	Events.match_state_changed.disconnect(on_state)
+	Net.leave()
+	Match.abort_match()
+	Match.set_process(true)
+	await wait_process_frames(2)
+
+
+func test_client_overlay_appears_on_loading_announcement() -> void:
+	Match.set_process(false)
+	Match.abort_match()
+	var main: Node = _real_main()
+	var overlay: LoadingScreen = main._loading_screen
+	assert_false(overlay.visible)
+	Events.match_loading_announced.emit()
+	assert_true(overlay.visible)
+	assert_true(overlay.is_pending())
+	Match.set_process(true)

@@ -26,3 +26,16 @@ extends Resource
 ## Rendered frames LoadingScreen.fade_out() holds the overlay up once called,
 ## before starting the actual fade -- see that function's own DECISION doc.
 @export var warmup_frames: int = 3
+
+## Bontago-t8x.4: rendered frames the host holds the overlay up after Start is
+## pressed, before Match.start_match() runs its synchronous world build, so the
+## overlay is actually presented first.
+@export var pre_start_frames: int = 2
+
+## Bontago-t8x.4: a "pending" overlay (shown ahead of the match start) that no
+## start ever follows (host left, start refused) hides itself after this long.
+@export var pending_timeout_s: float = 10.0
+
+## Draw order of the overlay; above the lobby/menu controls that are still
+## children of Main until the match world clears them.
+@export var overlay_z_index: int = 100
