@@ -156,6 +156,63 @@ static func build(shape: BlockShape, tuning: PhysicsTuning, owner_slot: int = -1
 	return block
 
 
+## Bontago-t8x.1: a used gift appears as its gift model, not a plain block.
+## Hides the block mesh/outline, swaps the collision for one cube, and adds the
+## gift's held model (SpecialDef.held_scene, else the generic crate) centred on
+## the shape's bounds in the body's own frame. Same on host and client.
+const GIFT_VISUAL_NODE: StringName = &"GiftVisual"
+
+
+static func apply_gift_visual(block: Block, shape: BlockShape, tuning: PhysicsTuning, gift_id: StringName) -> void:
+	if block == null or shape == null or gift_id == &"":
+		return
+	block.gift_id = gift_id
+	for child: Node in block.get_children():
+		var mesh_instance: MeshInstance3D = child as MeshInstance3D
+		if mesh_instance != null:
+			mesh_instance.visible = false
+	var visual: Node3D = null
+	var def: SpecialDef = SpecialDef.find_by_id(gift_id)
+	if def != null and def.held_scene != null:
+		visual = def.held_scene.instantiate() as Node3D
+	if visual == null:
+		visual = GhostPreview.build_fallback_gift_visual(tuning.cube_size)
+	visual.name = GIFT_VISUAL_NODE
+	var centre: Vector3 = gift_cell_center(shape, tuning)
+	visual.position = centre
+	block.add_child(visual)
+	# DECISION (Bontago-t8x.1): the gift body's collision is ONE cube cell
+	# (tuning.cube_size) centred where the gift visual sits, replacing the
+	# carrier tetromino's cells, so nothing rests on invisible collision and a
+	# used gift does not behave like a plain block. Mass follows (one cube).
+	# The shape's bottom-face pivot is untouched (the centre is expressed in
+	# that frame). The owner may override (e.g. keep the full carrier collider).
+	for child: Node in block.get_children():
+		if child is CollisionShape3D:
+			block.remove_child(child)
+			child.queue_free()
+	var collision: CollisionShape3D = CollisionShape3D.new()
+	collision.shape = _make_collision_shape((tuning.cube_size - tuning.cube_margin) * 0.5, false)
+	collision.position = centre
+	block.add_child(collision)
+	block.cube_count = 1
+	block.mass = tuning.cube_mass
+
+
+## Bontago-t8x.1: where a gift's single cell sits, in the carrier shape's own
+## (unrotated, bottom-face-pivot) frame: the centre of the shape's bounds. The
+## visual, the collider and the held-gift touch test all use this one point.
+static func gift_cell_center(shape: BlockShape, tuning: PhysicsTuning) -> Vector3:
+	var pivot: Vector3 = shape.bottom_center()
+	var min_local: Vector3 = Vector3(INF, INF, INF)
+	var max_local: Vector3 = Vector3(-INF, -INF, -INF)
+	for cell: Vector3i in shape.cells:
+		var local: Vector3 = (Vector3(cell) - pivot) * tuning.cube_size
+		min_local = min_local.min(local)
+		max_local = max_local.max(local)
+	return (min_local + max_local) * 0.5
+
+
 ## Builds just the visuals for a shape (no RigidBody3D, no collision) as a
 ## plain Node3D with one MeshInstance3D for the whole shape (Bontago-xtq.3).
 ## Used by GhostPreview so the held block's look matches the real one without

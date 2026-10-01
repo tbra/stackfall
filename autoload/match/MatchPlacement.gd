@@ -250,7 +250,9 @@ func request_place(
 	var final_world_origin: Vector3 = _match._field.to_global(Vector3(
 		final_disk_origin.x, local_origin.y, final_disk_origin.y
 	))
-	var spawned: Block = _spawn_block(shape, final_world_origin, basis, slot_id)
+	# Bontago-t8x.1: only a non-burn spawn delivers the gift (a burn keeps it queued).
+	var gift_id: StringName = _held_deliverable_gift(slot_id) if reason == PlacementRules.REASON_OK else &""
+	var spawned: Block = _spawn_block(shape, final_world_origin, basis, slot_id, true, gift_id)
 	if reason != PlacementRules.REASON_OK:
 		# Owner decision (docs/M2_PLAN.md, "Invalid release — burn the block"),
 		# narrowed by Bontago-mv0.24 to auto-drop only (see above): a forced
@@ -405,7 +407,9 @@ func request_throw(
 
 	var clamped_velocity: Vector3 = velocity.limit_length(_special_tuning.throw_max_speed)
 	var world_origin: Vector3 = _match._field.to_global(Vector3(disk_origin.x, local_origin.y, disk_origin.y))
-	var spawned: Block = _spawn_block(shape, world_origin, basis, slot_id)
+	var spawned: Block = _spawn_block(
+		shape, world_origin, basis, slot_id, true, _held_deliverable_gift(slot_id)
+	)
 	spawned.linear_velocity = clamped_velocity
 	# DECISION (autoload/match/MatchPlacement.gd, M4 P2c): spec 3.5 names
 	# "thrown specials" as their own continuous_cd case in the same sentence
@@ -587,13 +591,23 @@ func preview_placement(
 ## comment for why blocks_placed cannot simply listen on Events.block_placed
 ## the way every other counter listens on its own Events signal.
 func _spawn_block(
-	shape: BlockShape, world_origin: Vector3, basis: Basis, slot_id: int, is_player_placement: bool = true
+	shape: BlockShape,
+	world_origin: Vector3,
+	basis: Basis,
+	slot_id: int,
+	is_player_placement: bool = true,
+	gift_id: StringName = &""
 ) -> Block:
 	var acting_slot: PlayerSlot = _match.slot(slot_id)
 	var color: Color = acting_slot.color if acting_slot != null else Color.WHITE
 	var block: Block = BlockFactory.build(shape, _match._physics_tuning, slot_id, color)
 	_match._blocks_parent.add_child(block)
 	block.global_transform = Transform3D(basis, world_origin)
+	# Bontago-t8x.1: a used gift is delivered as its gift model, not as a
+	# plain block. The body keeps the held piece's collision (it is the
+	# gift's physical carrier) but shows the gift; the id rides the spawn RPC.
+	if gift_id != &"":
+		BlockFactory.apply_gift_visual(block, shape, _match._physics_tuning, gift_id)
 	# block_placed is what makes BlockRegistry allocate the net_id, so the
 	# replication below has to come after it: the reliable spawn RPC must
 	# carry the same id the (unreliable) snapshots will address the body by.
@@ -640,21 +654,39 @@ func _attach_pending_special(block: Block, slot_id: int) -> void:
 	var special_id: StringName = _match.pop_pending_special(slot_id)
 	if special_id == &"":
 		return
+	var def: SpecialDef = _resolve_deliverable_special(special_id)
+	if def == null:
+		return
+	_arm_special_behavior(block, def, _special_tuning)
+
+
+## Bontago-t8x.1: the held gift id `slot_id` would deliver if it spawned
+## now, or &"" for an ordinary piece or a gift that resolves to no real
+## SpecialDef (those spawn as plain blocks, exactly as before). Read before
+## the spawn so the visual and the spawn RPC carry the gift id.
+func _held_deliverable_gift(slot_id: int) -> StringName:
+	var special_id: StringName = _match.held_special(slot_id)
+	if special_id == &"" or _resolve_deliverable_special(special_id) == null:
+		return &""
+	return special_id
+
+
+func _resolve_deliverable_special(special_id: StringName) -> SpecialDef:
 	if special_id == MatchGifts.PENDING_SPECIAL_ID:
 		# The default drawer's placeholder -- MatchGifts has not installed its
 		# real weighted drawer yet (an empty config/specials/ roster; P3-P5 not
 		# landed). Safe default: spawn exactly as an ordinary block.
 		_warn_unresolved_special_once(special_id, "no roster installed yet")
-		return
+		return null
 	var def: SpecialDef = _special_def_for_id(special_id)
 	var enabled: Array[StringName] = _match.config.enabled_specials if _match.config != null else []
 	if def == null:
 		_warn_unresolved_special_once(special_id, "unknown special id")
-		return
+		return null
 	if not enabled.is_empty() and not enabled.has(def.id):
 		_warn_unresolved_special_once(special_id, "not in this match's enabled_specials")
-		return
-	_arm_special_behavior(block, def, _special_tuning)
+		return null
+	return def
 
 
 ## M4 P4-SPAWN: the actual bind+arm mechanics _attach_pending_special() above

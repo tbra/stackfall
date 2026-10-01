@@ -680,14 +680,7 @@ func _rebuild_gift_visual() -> void:
 	_gift_visual.name = GIFT_VISUAL_NAME
 	# Centre on the shape's bounds, in the ghost's unrotated frame (the ghost
 	# basis rotates it together with the block).
-	var pivot: Vector3 = _shape.bottom_center()
-	var min_local: Vector3 = Vector3(INF, INF, INF)
-	var max_local: Vector3 = Vector3(-INF, -INF, -INF)
-	for cell: Vector3i in _shape.cells:
-		var local: Vector3 = (Vector3(cell) - pivot) * tuning.cube_size
-		min_local = min_local.min(local)
-		max_local = max_local.max(local)
-	_gift_visual.position = (min_local + max_local) * 0.5
+	_gift_visual.position = BlockFactory.gift_cell_center(_shape, tuning)
 	add_child(_gift_visual)
 	_apply_gift_tint()
 

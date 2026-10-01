@@ -1602,3 +1602,58 @@ func test_gift_legacy_spawn_upgrades_once_without_duplicate_visual_or_signal() -
 	net.net_match_event(MatchNetScript.EVENT_GIFT_LANDED, [104, Vector3.ZERO])
 	net.net_match_event(MatchNetScript.EVENT_GIFT_LANDED, [104, Vector3.ZERO])
 	assert_eq(get_signal_emit_count(Events, "gift_landed"), 1)
+
+
+## Bontago-t8x.1: the spawn RPC carries the delivered gift so a client shows
+## the gift model, not a plain block; an unknown wire id leaves a plain block.
+func test_a_client_shows_the_gift_model_for_a_replicated_gift_spawn() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	var net: MatchNetScript = _make_net({}, [1], true)
+	net.set_special_roster_for_test([&"cat"])
+
+	net.net_block_spawned(31, &"cube", 1, Vector3.ZERO, Quaternion.IDENTITY, &"cat")
+	net.net_block_spawned(32, &"cube", 1, Vector3(5.0, 0.0, 0.0), Quaternion.IDENTITY, &"not_a_gift")
+
+	var gift: Block = _blocks_root.get_child(0) as Block
+	assert_eq(gift.gift_id, &"cat")
+	assert_not_null(gift.get_node_or_null(^"GiftVisual"))
+	assert_false((gift.get_node(^"BlockMesh") as MeshInstance3D).visible)
+	var plain: Block = _blocks_root.get_child(1) as Block
+	assert_eq(plain.gift_id, &"")
+	assert_null(plain.get_node_or_null(^"GiftVisual"))
+
+
+## Bontago-t8x.1: host-built and client-spawned gift bodies collide as the same
+## single cube-size cell; a plain block keeps its full carrier collision.
+func test_client_gift_collider_matches_host_single_cube_and_plain_is_unchanged() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	var net: MatchNetScript = _make_net({}, [1], true)
+	net.set_special_roster_for_test([&"cat"])
+	var tuning: PhysicsTuning = Match._physics_tuning
+	var shape: BlockShape = Match.held_shape(0)
+	var host_gift: Block = BlockFactory.build(shape, tuning, 0)
+	BlockFactory.apply_gift_visual(host_gift, shape, tuning, &"cat")
+	add_child_autofree(host_gift)
+
+	net.net_block_spawned(41, shape.id, 1, Vector3.ZERO, Quaternion.IDENTITY, &"cat")
+	net.net_block_spawned(42, shape.id, 1, Vector3(5.0, 0.0, 0.0), Quaternion.IDENTITY)
+	var client_gift: Block = _blocks_root.get_child(0) as Block
+	var plain: Block = _blocks_root.get_child(1) as Block
+
+	for gift: Block in [host_gift, client_gift]:
+		var colliders: Array[CollisionShape3D] = []
+		for child: Node in gift.get_children():
+			if child is CollisionShape3D:
+				colliders.append(child as CollisionShape3D)
+		assert_eq(colliders.size(), 1, "one collision shape")
+		assert_almost_eq((colliders[0].shape as BoxShape3D).size.x, tuning.cube_size - tuning.cube_margin, 0.0001)
+		assert_eq(colliders[0].position, BlockFactory.gift_cell_center(shape, tuning))
+		assert_eq(gift.mass, tuning.cube_mass)
+	var plain_colliders: int = 0
+	for child: Node in plain.get_children():
+		if child is CollisionShape3D:
+			plain_colliders += 1
+	assert_eq(plain_colliders, shape.cells.size())
+	assert_eq(plain.mass, tuning.cube_mass * shape.cells.size())

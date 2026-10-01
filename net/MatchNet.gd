@@ -586,7 +586,8 @@ func replicate_spawn(block: Block, net_id: int) -> void:
 		block.shape_id,
 		block.owner_slot,
 		block.global_position,
-		basis.get_rotation_quaternion()
+		basis.get_rotation_quaternion(),
+		block.gift_id
 	)
 
 
@@ -1828,7 +1829,12 @@ func net_match_event(event: StringName, args: Array) -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func net_block_spawned(
-	net_id: int, shape_id: StringName, owner_slot: int, origin: Vector3, rotation: Quaternion
+	net_id: int,
+	shape_id: StringName,
+	owner_slot: int,
+	origin: Vector3,
+	rotation: Quaternion,
+	gift_id: StringName = &""
 ) -> void:
 	if not Quantize.is_wire_id(net_id):
 		# Defensive: a well-behaved host never sends this (replicate_spawn()'s
@@ -1865,6 +1871,9 @@ func net_block_spawned(
 	block.freeze = true
 	parent.add_child(block)
 	block.global_transform = Transform3D(Basis(rotation), origin)
+	# Bontago-t8x.1: untrusted wire id; only a known roster gift swaps the look.
+	if gift_id != &"" and _gift_special_id_wire_ok(String(gift_id)):
+		BlockFactory.apply_gift_visual(block, shape, _physics_tuning, gift_id)
 
 	# block_placed is what BlockRegistry tracks bodies on; with
 	# set_host_authority(false) it allocates no id of its own, so the host's

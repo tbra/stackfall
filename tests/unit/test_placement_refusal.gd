@@ -441,3 +441,47 @@ func test_dropping_held_gift_via_auto_drop_also_delivers_the_special() -> void:
 		if child is Block and _special_behavior_of(child as Block) != null:
 			found = true
 	assert_true(found, "a forced drop of a held gift must still deliver the special")
+
+
+## Bontago-t8x.1 (owner screenshots 2026-10-01): a used gift is delivered as
+## its gift model, never a plain-looking block, and exactly one body spawns.
+func test_used_gift_spawns_exactly_one_body_that_shows_the_gift_model_not_a_block() -> void:
+	Match.start_match(_config())
+	_run_countdown()
+	Match._feed.set_feed_timer_enabled(true)
+	_hold_gift(0)
+	var before: int = _blocks_root.get_child_count()
+	assert_eq(
+		Match.request_place(0, _home_world_position(1), 0, Quaternion.IDENTITY, false),
+		PlacementRules.REASON_OK
+	)
+	assert_eq(_blocks_root.get_child_count(), before + 1, "a gift use spawns exactly one body")
+	var gift_block: Block = _blocks_root.get_child(_blocks_root.get_child_count() - 1) as Block
+	assert_eq(gift_block.gift_id, &"earthquake")
+	assert_not_null(gift_block.get_node_or_null(^"GiftVisual"), "the gift model is attached")
+	for child: Node in gift_block.get_children():
+		if child is MeshInstance3D:
+			assert_false((child as MeshInstance3D).visible, "no visible plain block mesh on a gift")
+	assert_false(Match._feed.is_held_gift(0), "the next held piece is an ordinary block again")
+	var colliders: int = 0
+	for child: Node in gift_block.get_children():
+		if child is CollisionShape3D:
+			colliders += 1
+			var box: BoxShape3D = (child as CollisionShape3D).shape as BoxShape3D
+			assert_almost_eq(box.size.x, Match._physics_tuning.cube_size - Match._physics_tuning.cube_margin, 0.0001)
+	assert_eq(colliders, 1, "a gift body collides as one cube cell, not the carrier piece")
+
+
+func test_ordinary_drop_keeps_its_plain_block_look_and_no_gift_id() -> void:
+	Match.start_match(_config())
+	_run_countdown()
+	var before: int = _blocks_root.get_child_count()
+	assert_eq(
+		Match.request_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false),
+		PlacementRules.REASON_OK
+	)
+	var block: Block = _blocks_root.get_child(_blocks_root.get_child_count() - 1) as Block
+	assert_eq(_blocks_root.get_child_count(), before + 1)
+	assert_eq(block.gift_id, &"")
+	assert_null(block.get_node_or_null(^"GiftVisual"))
+	assert_true((block.get_node(^"BlockMesh") as MeshInstance3D).visible)

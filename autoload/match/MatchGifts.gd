@@ -720,6 +720,11 @@ func _held_block_touches(slot_id: int, crate_world: Vector3) -> bool:
 	var half: float = _match._physics_tuning.cube_size * 0.5 + _gift_config.air_touch_margin_m
 	var crate_half: Vector3 = GiftCrate.CRATE_SIZE * 0.5
 	var pivot: Vector3 = shape.bottom_center()
+	# Bontago-t8x.1: a held gift is one cell where its model sits, matching the
+	# collider it will be delivered with, not the whole carrier piece.
+	if _match.held_special(slot_id) != &"":
+		var gift_center: Vector3 = origin + basis * BlockFactory.gift_cell_center(shape, _match._physics_tuning)
+		return _oriented_cube_overlaps_crate(gift_center, basis, half, crate_world, crate_half)
 	for cell: Vector3i in shape.cells:
 		var center: Vector3 = origin + basis * ((Vector3(cell) - pivot) * _match._physics_tuning.cube_size)
 		if _oriented_cube_overlaps_crate(center, basis, half, crate_world, crate_half):
