@@ -36,9 +36,39 @@ def main():
             print("  " + brief(issue))
         if len(issues) > limit:
             print(f"  ... {len(issues) - limit} more; query a specific bead if needed")
+    epic_hygiene()
     # Owner 2026-10-01: surface new owner replies on Beads at every board scan.
     import owner_replies
     owner_replies.main([])
+
+
+def epic_hygiene():
+    """Owner 2026-10-02: epics stay high-level; an open epic with no open
+    child means it is done (close it) or its remaining reason needs a bead;
+    no dated per-round epics (e.g. 'Playtest feedback <date>')."""
+    import re
+    import owner_replies
+    rows = owner_replies._export()
+    open_children = {}
+    for row in rows:
+        for dep in row.get("dependencies") or []:
+            if (dep.get("type") or dep.get("dependency_type")) == "parent-child":
+                parent = dep.get("depends_on_id")
+                open_children.setdefault(parent, 0)
+                if row.get("status") != "closed":
+                    open_children[parent] += 1
+    problems = []
+    for row in rows:
+        if row.get("issue_type") != "epic" or row.get("status") == "closed":
+            continue
+        if open_children.get(row["id"], 0) == 0:
+            problems.append(f"{row['id']} open with no open child: close it or file the remaining bead")
+        if re.search(r"20\d\d-\d\d-\d\d|round \d+", row.get("title", ""), re.IGNORECASE):
+            problems.append(f"{row['id']} is a dated/round epic: move children to the subject epic and close it")
+    if problems:
+        print("EPIC HYGIENE (fix before new work):")
+        for line in problems:
+            print("  " + line)
 
 
 if __name__ == "__main__":

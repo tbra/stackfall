@@ -126,6 +126,13 @@ Iterate with only the targeted runner scripts and run count named in the brief. 
 
 The orchestrator commits and integrates accepted candidate files only after checking ownership, diff, targeted evidence and required review. It runs integrated gates, pushes `main` promptly when green, verifies the remote revision, records evidence and closes the package issue. Milestones need integrated validation and independent review. A push or permission failure leaves the issue open with the exact failed step; never bypass the sandbox. Do not stop or delete unrelated processes/worktrees; re-check process identity before any authorized cleanup.
 
+## Board structure (owner 2026-10-02)
+
+- Epics are high-level and conceptual (e.g. Playtest feedback, Performance, Bots, Graphics & presentation, Tooling, M8). Never create an epic per feedback round, date or batch: new playtest notes become children of **Playtest feedback** (`Bontago-1pi`) or of their subject epic.
+- An open epic must have at least one open child. When the last child closes, close the epic; if something still keeps it open, that reason is its own bead.
+- File work under the subject epic it belongs to; avoid grab-bag "follow-ups" or "decisions" epics. Decision issues live under the epic of the work they gate.
+- Close stale or superseded beads with a reason that names what replaced them, instead of letting them age. `python tools/board_brief.py` prints an `EPIC HYGIENE` block for violations and the owner-reply block (`tools/owner_replies.py`); fix both before new work.
+
 ## Skills and references
 
 Use `.agents/skills/beads/SKILL.md` for task tracking. For TypeSafe/Jev features or log-triage changes, read `.agents/skills/typesafe-ai/SKILL.md` and its current live API/SDK guidance. Keep credentials in environment variables and out of logs, issue bodies and commits. TypeSafe is not required for ordinary deterministic GDScript changes.
