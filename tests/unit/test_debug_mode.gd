@@ -298,3 +298,32 @@ func test_summary_tool_reports_percentiles_and_spikes() -> void:
 	assert_eq(int(summary["spike_count"]), 1)
 	assert_almost_eq(float(summary["metrics"]["frame_ms_max"]["max"]), 50.0, 0.01)
 	assert_true(bool(summary["trends"]["node_count"]["warn"]), "growing node count flagged")
+
+
+# --- Bontago-1pi.11.36: physics steps per frame and effects child count -----------
+
+func test_physics_step_and_effect_figures_reach_snapshot_overlay_and_columns() -> void:
+	var sampler: PerfSampler = PerfSampler.new()
+	sampler.config = _config
+	add_child_autofree(sampler)
+	for steps: int in [1, 1, 3, 1]:
+		sampler.record_physics_steps(steps)
+	sampler.record_effect_count(12)
+	sampler.record_effect_count(4)
+	var snapshot: Dictionary = sampler.sample_now()
+	sampler.record_frame(0.01)
+	assert_eq(int(snapshot["steps_current"]), 1)
+	assert_eq(int(snapshot["steps_peak"]), 3)
+	assert_eq(int(snapshot["effects_current"]), 4)
+	assert_eq(int(snapshot["effects_peak"]), 12)
+	assert_eq(int(snapshot["steps_max_setting"]),
+		int(ProjectSettings.get_setting("physics/common/max_physics_steps_per_frame", 8)))
+	for column: String in ["steps_current", "steps_peak", "steps_multi_pct", "steps_max_setting", "effects_current", "effects_peak"]:
+		assert_true(PerfLogger.COLUMNS.has(column), column)
+	var text: String = PerfOverlay.format_metrics(snapshot, PerfOverlay.Mode.BASIC)
+	assert_string_contains(text, "3 peak")
+	assert_string_contains(text, "12 peak")
+	# The window reset: peaks restart, current effects carry over.
+	var next: Dictionary = sampler.sample_now()
+	assert_eq(int(next["steps_peak"]), 0)
+	assert_eq(int(next["effects_peak"]), 4)
