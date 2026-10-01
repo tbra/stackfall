@@ -106,6 +106,8 @@ var _axis: PackedFloat32Array = PackedFloat32Array()
 var _active: PackedInt32Array = PackedInt32Array()
 var _is_active: PackedByteArray = PackedByteArray()
 
+## Cells that turned CONTESTED during the last fill_ownership(), in order.
+var _newly_contested: PackedInt32Array = PackedInt32Array()
 var _opened: PackedInt32Array = PackedInt32Array()
 var _closed: PackedInt32Array = PackedInt32Array()
 ## team_id -> owned cell count, rebuilt during each fill so team_share() never
@@ -201,18 +203,55 @@ func update(
 	holes_enabled: bool = true,
 	permanent_holes: bool = false
 ) -> void:
-	_mark_changed()
-	_opened.resize(0)
-	_closed.resize(0)
+	fill_ownership(circles, groups, holes_enabled)
+	adopt_fill(self, delta, holes_enabled, permanent_holes)
+
+
+## Bontago-1pi.11.28 (P-ASYNC): the pure half of update(). Rewrites only
+## _group_ids/_team_ids/_team_counts/_best_value/_newly_contested, so it is safe
+## on a private "shadow" raster inside a WorkerThreadPool task. It never touches
+## timers, the active list, hole lists or the content revision.
+func fill_ownership(
+	circles: Array[InfluenceCircle], groups: TerritoryGroups, holes_enabled: bool
+) -> void:
 	_group_ids.fill(TerritoryGroups.NO_GROUP)
 	_team_ids.fill(-1)
 	_team_counts.clear()
-
+	_newly_contested.resize(0)
 	if holes_enabled:
 		_fill_legacy(circles, groups)
-		_advance_timers(delta, permanent_holes)
 	else:
 		_fill_v2(circles, groups)
+
+
+## Main-thread half of update(): marks the content changed, resets the per-step
+## hole lists, takes `source`'s fill (an O(1) array swap when it is a different
+## raster), registers newly contested cells for the timers and advances them.
+## DECISION (Bontago-1pi.11.28): swapping instead of copying keeps the apply
+## frame cheap; the shadow ends up holding this raster's previous arrays, which
+## the next fill_ownership() overwrites in full.
+func adopt_fill(
+	source: TerritoryRaster, delta: float, holes_enabled: bool, permanent_holes: bool
+) -> void:
+	_mark_changed()
+	_opened.resize(0)
+	_closed.resize(0)
+	if source != self:
+		var group_ids: PackedInt32Array = _group_ids
+		_group_ids = source._group_ids
+		source._group_ids = group_ids
+		var team_ids: PackedInt32Array = _team_ids
+		_team_ids = source._team_ids
+		source._team_ids = team_ids
+		var counts: Dictionary[int, int] = _team_counts
+		_team_counts = source._team_counts
+		source._team_counts = counts
+	if holes_enabled:
+		for index: int in source._newly_contested:
+			if _is_active[index] == 0:
+				_is_active[index] = 1
+				_active.append(index)
+		_advance_timers(delta, permanent_holes)
 
 
 ## Bontago-1pi.11.10: advances only the contest/hole timers on an unchanged
@@ -693,9 +732,7 @@ func _stamp(circle: InfluenceCircle, group: int, team: int) -> void:
 				_team_counts[_team_ids[index]] = _team_counts[_team_ids[index]] - 1
 				_group_ids[index] = TerritoryGroups.CONTESTED
 				_team_ids[index] = -1
-				if _is_active[index] == 0:
-					_is_active[index] = 1
-					_active.append(index)
+				_newly_contested.append(index)
 
 
 ## -- Contested time and the hole state machine -------------------------------

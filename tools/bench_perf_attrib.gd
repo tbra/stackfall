@@ -89,6 +89,9 @@ func _ready() -> void:
 			_spike_ms = float(arg.trim_prefix("--spikes="))
 	if args.has("--defer-off"):
 		Match._territory_tuning.solve_defer_max_s = 0.0
+	if args.has("--territory-sync"):
+		# Bontago-1pi.11.28 A/B: force the old single-frame territory solve.
+		Match._territory_tuning.async_solve_min_circles = 0
 	var shot_prefix: String = ""
 	for arg: String in args:
 		if arg.begins_with("--shot="):
