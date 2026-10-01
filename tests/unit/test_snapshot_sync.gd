@@ -553,3 +553,79 @@ func test_disk_pose_does_not_fully_snap_after_a_capped_stall_and_converges() -> 
 		converged_rotation.angle_to(held_rotation), raw_jump * 0.5,
 		"and has genuinely moved away from the stall's held tilt, not stuck there"
 	)
+
+
+# --- Host peer gating (Bontago-1pi.11.30) ------------------------------------
+
+## Test seam: overriding _remote_peers() replaces the live multiplayer peer
+## list; _select_bodies() is counted so "no selection/build" is observable.
+class PeerStubSync:
+	extends "res://net/SnapshotSync.gd"
+	var peers: PackedInt32Array = PackedInt32Array()
+	var selections: int = 0
+
+	func _remote_peers() -> PackedInt32Array:
+		return peers
+
+	func _select_bodies() -> Dictionary:
+		selections += 1
+		return super._select_bodies()
+
+
+func _host_stub() -> PeerStubSync:
+	Net._mode = Net.Mode.HOST
+	var stub: PeerStubSync = PeerStubSync.new()
+	add_child_autofree(stub)
+	stub.begin_match(_client_registry, _map)
+	return stub
+
+
+func _tick_for(stub: PeerStubSync, seconds: float) -> void:
+	for _i: int in int(seconds / TICK):
+		stub.host_tick(TICK)
+
+
+func test_gating_zero_peers_skips_selection_and_clears_sent_state() -> void:
+	var stub: PeerStubSync = _host_stub()
+	stub._last_sent[1] = [Vector3.ZERO, Quaternion.IDENTITY]
+	_tick_for(stub, 1.0)
+	assert_eq(stub.selections, 0, "no selection with nobody to send to")
+	assert_eq(stub.last_sequence(), 0, "no snapshot built")
+	assert_true(stub._last_sent.is_empty(), "sent memory forgotten")
+
+
+func test_gating_new_peer_clears_sent_and_sends_immediately() -> void:
+	var stub: PeerStubSync = _host_stub()
+	stub.peers = PackedInt32Array([2])
+	stub.host_tick(TICK)
+	assert_eq(stub.selections, 1, "first tick with a new peer sends at once")
+	stub._last_sent[1] = [Vector3.ZERO, Quaternion.IDENTITY]
+	stub.peers = PackedInt32Array([2, 3])
+	stub.host_tick(TICK)
+	assert_eq(stub.selections, 2, "a joiner triggers an immediate snapshot")
+	assert_true(stub._last_sent.is_empty() or not stub._last_sent.has(1), "sent memory cleared for the joiner")
+
+
+func test_gating_leave_plus_join_same_count_still_counts_as_new() -> void:
+	var stub: PeerStubSync = _host_stub()
+	stub.peers = PackedInt32Array([2, 3])
+	stub.host_tick(TICK)
+	var before: int = stub.selections
+	stub._last_sent[1] = [Vector3.ZERO, Quaternion.IDENTITY]
+	stub.peers = PackedInt32Array([2, 4])
+	stub.host_tick(TICK)
+	assert_eq(stub.selections, before + 1, "same count, new id: immediate full snapshot")
+	assert_false(stub._last_sent.has(1), "stale sent memory dropped")
+
+
+func test_gating_unchanged_peers_follow_normal_cadence() -> void:
+	var stub: PeerStubSync = _host_stub()
+	stub.peers = PackedInt32Array([2, 3])
+	stub.host_tick(TICK)
+	var before: int = stub.selections
+	stub._last_sent[1] = [Vector3.ZERO, Quaternion.IDENTITY]
+	stub.host_tick(TICK)
+	assert_true(stub._last_sent.has(1), "unchanged ids keep the sent memory")
+	_tick_for(stub, 1.0)
+	var per_second: int = stub.selections - before
+	assert_between(per_second, 1, int(ceil(stub.config.snapshot_hz)) + 1, "sends at snapshot_hz cadence")
