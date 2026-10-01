@@ -373,4 +373,6 @@ func _wake_supported(block: Block) -> void:
 		var other: Block = body as Block
 		if other != null:
 			other.wake_for_impulse()
-		body.sleeping = false
+			other.wake()
+		else:
+			body.sleeping = false

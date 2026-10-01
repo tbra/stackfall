@@ -138,7 +138,10 @@ static func wake_and_impulse(body: RigidBody3D, impulse: Vector3) -> void:
 	var kicked_block: Block = body as Block
 	if kicked_block != null:
 		kicked_block.wake_for_impulse()
-	body.sleeping = false
+	if kicked_block != null:
+		kicked_block.wake()
+	else:
+		body.sleeping = false
 	body.apply_impulse(impulse)
 	# Review fix (Bontago-xtq.17 SHOULD-FIX 1): an airborne block's knockback
 	# can flip its vertical velocity from falling to rising exactly like a

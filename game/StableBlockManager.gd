@@ -86,7 +86,7 @@ func check_field_motion() -> void:
 		_rest_anchor.erase(id)
 		if _frozen_by_this.get(id, false):
 			block.release_freeze_static(Block.FREEZE_REASON_STABLE)
-			block.sleeping = false
+			block.wake()
 			_frozen_by_this[id] = false
 
 
