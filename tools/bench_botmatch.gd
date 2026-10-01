@@ -29,6 +29,13 @@ var _acc_ticks: int = 0
 var _frames: int = 0
 var _peak_frame_us: int = 0
 var _late_node: Node = null
+## Bontago-1pi.11.24 --freeze-trace: per-tick StableBlockManager release causes.
+var _freeze_trace: bool = false
+var _sim_clock: bool = false
+var _ft_prev_frozen: Dictionary = {}
+var _ft_prev_sleep: Dictionary = {}
+var _ft_prev_field: Transform3D = Transform3D.IDENTITY
+var _ft: Dictionary = {}
 
 
 class LateHook:
@@ -49,6 +56,10 @@ func _ready() -> void:
 			_seconds = float(arg.trim_prefix("--probe-seconds="))
 		elif arg.begins_with("--weather-cycle="):
 			_cycle_s = float(arg.trim_prefix("--weather-cycle="))
+		elif arg == "--freeze-trace":
+			_freeze_trace = true
+		elif arg == "--sim-clock":
+			_sim_clock = true
 		elif arg == "--no-win":
 			_no_win = true
 		elif arg.begins_with("--weather-seq="):
@@ -79,9 +90,11 @@ func _ready() -> void:
 func _run() -> void:
 	var start: int = Time.get_ticks_msec()
 	var last_sec: int = 0
-	while float(Time.get_ticks_msec() - start) / 1000.0 < _seconds:
+	var sim_t: int = 0
+	while (float(sim_t) if _sim_clock else float(Time.get_ticks_msec() - start) / 1000.0) < _seconds:
 		await get_tree().create_timer(1.0).timeout
-		var t: int = (Time.get_ticks_msec() - start) / 1000
+		sim_t += 1
+		var t: int = sim_t if _sim_clock else (Time.get_ticks_msec() - start) / 1000
 		if _cycle_s > 0.0 and int(float(t) / _cycle_s) != _weather_i:
 			_weather_i = int(float(t) / _cycle_s)
 			var id: StringName = _sequence[_weather_i % _sequence.size()]
@@ -90,6 +103,8 @@ func _run() -> void:
 			# Keeps the match alive (goal capture would end it): hold never completes.
 			Match._territory._win_checker._capture_hold = 1.0e9
 		_report(t, t - last_sec)
+		if _freeze_trace:
+			_ft_report(t)
 		last_sec = t
 		var awake: int = _awake()
 		for i: int in range(_callcost_marks.size() - 1, -1, -1):
@@ -171,7 +186,81 @@ func _on_physics_frame() -> void:
 	_t_phys_frame = now
 
 
+func _manager() -> Node:
+	return _main.get(&"_stable_block_manager") as Node if _main != null else null
+
+
+func _ft_add(key: String, n: int = 1) -> void:
+	_ft[key] = int(_ft.get(key, 0)) + n
+
+
+func _ft_tick() -> void:
+	var mgr: Node = _manager()
+	if mgr == null or mgr.get(&"_registry") == null:
+		return
+	var registry: BlockRegistry = mgr.get(&"_registry") as BlockRegistry
+	var field_now: Transform3D = registry.field_global_transform()
+	var field_moved: bool = field_now != _ft_prev_field
+	if field_moved:
+		_ft_add("pose_ticks")
+		_ft["tilt_deg"] = maxf(float(_ft.get("tilt_deg", 0.0)), rad_to_deg(field_now.basis.y.angle_to(Vector3.UP)))
+	_ft_prev_field = field_now
+	var scanned: bool = float(mgr.get(&"_scan_accumulator")) == 0.0
+	for block: Block in registry.all_blocks():
+		var id: int = block.get_instance_id()
+		var frozen: bool = block.freeze
+		var was_frozen: bool = bool(_ft_prev_frozen.get(id, false))
+		if was_frozen and not frozen:
+			if field_moved:
+				_ft_add("rel_field")
+			elif scanned:
+				_ft_add("rel_scan")
+			else:
+				_ft_add("rel_other")
+		elif frozen and not was_frozen:
+			_ft_add("freeze")
+		_ft_prev_frozen[id] = frozen
+		if not frozen:
+			var was_sleep: bool = bool(_ft_prev_sleep.get(id, false))
+			if was_sleep and not block.sleeping:
+				_ft_add("wake")
+				var elapsed: float = float((mgr.get(&"_asleep_elapsed") as Dictionary).get(id, 0.0))
+				if elapsed >= 5.0:
+					_ft_add("wake_after5s")
+			elif block.sleeping and not was_sleep:
+				_ft_add("sleep")
+		_ft_prev_sleep[id] = block.sleeping and not frozen
+
+
+func _ft_report(t: int) -> void:
+	var mgr: Node = _manager()
+	if mgr == null:
+		return
+	var elapsed_map: Dictionary = mgr.get(&"_asleep_elapsed") as Dictionary
+	var frozen: int = 0
+	var asleep: int = 0
+	var awake: int = 0
+	var bins: PackedInt32Array = PackedInt32Array([0, 0, 0, 0])
+	for body: RigidBody3D in _blocks():
+		if body.freeze:
+			frozen += 1
+		elif body.sleeping:
+			asleep += 1
+			var e: float = float(elapsed_map.get(body.get_instance_id(), 0.0))
+			bins[0 if e < 2.0 else (1 if e < 10.0 else (2 if e < 20.0 else 3))] += 1
+		else:
+			awake += 1
+	print("FT t=%d frozen=%d asleep=%d awake=%d asleep_age[<2,<10,<20,>=20]=%s pose_ticks=%d tilt_deg=%.2f rel_field=%d rel_scan=%d rel_other=%d freeze=%d wake=%d wake_after5s=%d sleep=%d" % [
+		t, frozen, asleep, awake, bins, int(_ft.get("pose_ticks", 0)), float(_ft.get("tilt_deg", 0.0)),
+		int(_ft.get("rel_field", 0)), int(_ft.get("rel_scan", 0)), int(_ft.get("rel_other", 0)),
+		int(_ft.get("freeze", 0)), int(_ft.get("wake", 0)), int(_ft.get("wake_after5s", 0)), int(_ft.get("sleep", 0)),
+	])
+	_ft.clear()
+
+
 func _on_late_physics() -> void:
+	if _freeze_trace:
+		_ft_tick()
 	if _churn > 0:
 		var list: Array[RigidBody3D] = _blocks()
 		for i: int in range(mini(_churn, list.size())):

@@ -35,6 +35,10 @@ var _registry: BlockRegistry = null
 ## instance id (int) -> continuous seconds this block has read as sleeping
 ## across consecutive scans. Reset to 0 the moment a scan finds it awake.
 var _asleep_elapsed: Dictionary = {}
+## instance id (int) -> Transform3D the block had when its current rest run
+## started (Bontago-1pi.11.24). A wake that leaves the block within
+## tuning.stable_freeze_rest_epsilon_m of this pose keeps the run's timer.
+var _rest_anchor: Dictionary = {}
 ## instance id (int) -> true while this manager itself holds
 ## Block.FREEZE_REASON_STABLE on that block (so release only ever targets a
 ## block this manager actually froze).
@@ -79,6 +83,7 @@ func check_field_motion() -> void:
 	for block: Block in _registry.all_blocks():
 		var id: int = block.get_instance_id()
 		_asleep_elapsed[id] = 0.0
+		_rest_anchor.erase(id)
 		if _frozen_by_this.get(id, false):
 			block.release_freeze_static(Block.FREEZE_REASON_STABLE)
 			block.sleeping = false
@@ -111,6 +116,8 @@ func _scan(scan_delta: float) -> void:
 		var id: int = block.get_instance_id()
 		live_ids[id] = true
 		if block.sleeping:
+			if not _rest_anchor.has(id):
+				_rest_anchor[id] = block.global_transform
 			var elapsed: float = float(_asleep_elapsed.get(id, 0.0)) + scan_delta
 			_asleep_elapsed[id] = elapsed
 			if elapsed >= tuning.stable_freeze_delay_s and not _frozen_by_this.get(id, false):
@@ -123,10 +130,23 @@ func _scan(scan_delta: float) -> void:
 			# scan), so releasing here on the plain wake-read covers all
 			# three cases without this class needing to know which one
 			# happened.
-			_asleep_elapsed[id] = 0.0
 			if _frozen_by_this.get(id, false):
 				block.release_freeze_static(Block.FREEZE_REASON_STABLE)
 				_frozen_by_this[id] = false
+			# DECISION (game/StableBlockManager.gd, Bontago-1pi.11.24): Jolt
+			# wakes a whole contact island when one member is touched, so in a
+			# bot match the unfrozen top layer (~65 blocks, one island) woke
+			# on every landing, never slept 20 s in a row, and freezing capped
+			# near 100 blocks (all of them again after a tilt released every
+			# frozen block). A wake that did not move this block beyond
+			# tuning.stable_freeze_rest_epsilon_m of the pose it fell asleep
+			# in pauses its timer instead of resetting it, so the 20 s counts
+			# cumulative time asleep at rest. It still freezes only on a scan
+			# that reads it asleep, i.e. with its whole island asleep and so
+			# not touching an awake body.
+			if not _rest_anchor.has(id) or _moved_from_anchor(block, _rest_anchor[id]):
+				_asleep_elapsed[id] = 0.0
+				_rest_anchor.erase(id)
 
 	# A block BlockRegistry no longer tracks (removed/freed) can't be scanned
 	# again to release it properly -- but Events.block_removed/queue_free()
@@ -138,3 +158,15 @@ func _scan(scan_delta: float) -> void:
 		if not live_ids.has(id):
 			_asleep_elapsed.erase(id)
 			_frozen_by_this.erase(id)
+			_rest_anchor.erase(id)
+
+
+func _moved_from_anchor(block: Block, anchor: Transform3D) -> bool:
+	var current: Transform3D = block.global_transform
+	var eps_sq: float = tuning.stable_freeze_rest_epsilon_m * tuning.stable_freeze_rest_epsilon_m
+	return (
+		current.origin.distance_squared_to(anchor.origin) > eps_sq
+		or current.basis.x.distance_squared_to(anchor.basis.x) > eps_sq
+		or current.basis.y.distance_squared_to(anchor.basis.y) > eps_sq
+		or current.basis.z.distance_squared_to(anchor.basis.z) > eps_sq
+	)

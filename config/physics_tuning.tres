@@ -21,3 +21,4 @@ gravity_multiplier = 1.4
 rebound_damping = 0.3
 stable_freeze_delay_s = 20.0
 stable_freeze_scan_interval_s = 0.5
+stable_freeze_rest_epsilon_m = 0.005
