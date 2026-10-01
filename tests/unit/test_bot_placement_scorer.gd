@@ -430,3 +430,56 @@ func test_elimination_with_no_enemy_homes_or_own_home_adds_nothing() -> void:
 	goal.mode = MatchConfig.GameMode.ELIMINATION
 	var candidate: BotCandidate = _candidate(Vector2(3.0, 1.0), 2.0)
 	assert_eq(_score_with(candidate, goal, PackedVector2Array()), _score(candidate))
+
+
+## -- Bontago-1t5.4: coverage of the enemy home beats a near miss -------------------
+
+func _tall_radius() -> float:
+	return InfluenceCircle.radius_for_height(8.0, _territory_tuning, MAP_RADIUS)
+
+
+func test_elimination_overlap_mode_covering_the_home_beats_a_near_miss() -> void:
+	var radius: float = _tall_radius()
+	var goal: BotModeGoal = _elim_goal(PackedVector2Array([Vector2(12.0, 0.0)]), PackedFloat32Array([0.2]), Vector2(-15.0, 0.0))
+	var covers: BotCandidate = _candidate(Vector2(12.0 - (radius - 0.5), 0.0), 8.0)
+	var misses: BotCandidate = _candidate(Vector2(12.0 - (radius + 0.5), 0.0), 8.0)
+	assert_gt(_score_with(covers, goal, PackedVector2Array()), _score_with(misses, goal, PackedVector2Array()))
+
+
+func test_elimination_off_mode_beating_the_home_circle_beats_a_near_miss() -> void:
+	var radius: float = _tall_radius()
+	var goal: BotModeGoal = _elim_goal(PackedVector2Array([Vector2(12.0, 0.0)]), PackedFloat32Array([0.2]), Vector2(-15.0, 0.0))
+	goal.no_overlap_mode = true
+	goal.home_radius = 6.0
+	var flips: BotCandidate = _candidate(Vector2(12.0 - (radius - 6.0 - 0.5), 0.0), 8.0)
+	var misses: BotCandidate = _candidate(Vector2(12.0 - (radius - 6.0 + 0.5), 0.0), 8.0)
+	assert_gt(_score_with(flips, goal, PackedVector2Array()), _score_with(misses, goal, PackedVector2Array()))
+	# Merely overlapping the home (enough in overlap modes) is not enough in OFF mode.
+	var overlap_only: BotCandidate = _candidate(Vector2(12.0 - (radius - 0.5), 0.0), 8.0)
+	assert_gt(_score_with(flips, goal, PackedVector2Array()), _score_with(overlap_only, goal, PackedVector2Array()))
+
+
+func test_elimination_overshoot_has_diminishing_returns() -> void:
+	var radius: float = _tall_radius()
+	var goal: BotModeGoal = _elim_goal(PackedVector2Array([Vector2(12.0, 0.0)]), PackedFloat32Array([0.0]), Vector2(-15.0, 0.0))
+	var neutral: BotModeGoal = BotModeGoal.new()
+	var gains: Array[float] = []
+	for margin: float in [0.5, 3.5, 6.5]:
+		var candidate: BotCandidate = _candidate(Vector2(12.0 - (radius - margin), 0.0), 8.0)
+		gains.append(_score_with(candidate, goal, PackedVector2Array()) - _score_with(candidate, neutral, PackedVector2Array()))
+	assert_gt(gains[1], gains[0])
+	assert_almost_eq(gains[2], gains[1], 0.001, "past the cap extra overshoot adds nothing")
+
+
+func test_elimination_off_mode_defend_rewards_covering_the_home_circle() -> void:
+	var radius: float = _tall_radius()
+	var home: Vector2 = Vector2(-15.0, 0.0)
+	var goal: BotModeGoal = _elim_goal(PackedVector2Array([Vector2(15.0, 0.0)]), PackedFloat32Array([0.2]), home)
+	var threats: PackedVector2Array = PackedVector2Array([Vector2(-10.0, 3.0)])
+	var on_home: BotCandidate = _candidate(home + Vector2(1.0, 0.0), 8.0)
+	var weaker: BotCandidate = _candidate(home + Vector2(radius + 1.0, 0.0), 8.0)
+	var overlap_gap: float = _score_with(on_home, goal, threats) - _score_with(weaker, goal, threats)
+	goal.no_overlap_mode = true
+	goal.home_radius = 6.0
+	var off_gap: float = _score_with(on_home, goal, threats) - _score_with(weaker, goal, threats)
+	assert_gt(off_gap, overlap_gap, "OFF mode adds a home-coverage defend bonus")

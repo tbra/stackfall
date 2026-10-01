@@ -368,6 +368,9 @@ func bot_mode_goal(slot_id: int) -> BotModeGoal:
 			goal.beacon_held_by_own.append(_raster != null and WinChecker.goal_holder(_raster, point) == own_team)
 	elif _objective is EliminationObjective:
 		var own_team_e: int = _match.team_of(slot_id)
+		# Bontago-1t5.4: OFF mode flips a home only when an enemy radius beats the home circle.
+		goal.no_overlap_mode = _match.config.hole_mode == MatchConfig.HoleMode.OFF
+		goal.home_radius = _match._territory_tuning.home_radius
 		for slot_item: PlayerSlot in _match._lifecycle._slots:
 			if not slot_item.home_flag_alive:
 				continue

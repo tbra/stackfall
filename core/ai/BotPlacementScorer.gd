@@ -189,21 +189,37 @@ static func _elimination_term(
 		radius = InfluenceCircle.radius_for_height(estimated_height, territory_tuning, field_radius)
 	var term: float = 0.0
 	var best_metric: float = INF
+	# Bontago-1t5.4: coverage of the home point beyond the flip margin is the real
+	# elimination condition (OFF: radius - d > home_radius; overlap modes: any
+	# overlap at the home opens a hole, radius - d > 0). Shortfall stays linear
+	# (weak-target bias adds a distance penalty), achieving it earns a flat bonus
+	# plus a small capped overshoot gain.
+	var required: float = mode_goal.home_radius if mode_goal.no_overlap_mode else 0.0
 	for i: int in range(mode_goal.enemy_home_positions.size()):
 		var share: float = mode_goal.enemy_home_shares[i] if i < mode_goal.enemy_home_shares.size() else 0.0
 		var distance: float = candidate.origin.distance_to(mode_goal.enemy_home_positions[i])
-		best_metric = minf(best_metric, distance * (1.0 + tuning.elim_weak_target_bias * share) - radius)
-	if best_metric < INF:
-		term -= tuning.weight_elim_attack * best_metric
+		var margin: float = radius - distance - required
+		var metric: float = minf(margin, 0.0) - tuning.elim_weak_target_bias * share * distance
+		if margin > 0.0:
+			metric += tuning.elim_achieve_bonus_m + tuning.elim_overshoot_gain * minf(margin, tuning.elim_overshoot_cap_m)
+		best_metric = metric if best_metric == INF else maxf(best_metric, metric)
+	if best_metric != INF:
+		term += tuning.weight_elim_attack * best_metric
 	if mode_goal.has_own_home and tuning.elim_defend_radius_m > 0.0:
 		var home_distance: float = candidate.origin.distance_to(mode_goal.own_home_position)
+		var threats: int = 0
+		for center: Vector2 in enemy_circle_centers:
+			if center.distance_to(mode_goal.own_home_position) < tuning.elim_threat_radius_m:
+				threats += 1
+		var threat_factor: float = 1.0 + tuning.weight_elim_threat * float(threats)
 		if home_distance < tuning.elim_defend_radius_m:
-			var threats: int = 0
-			for center: Vector2 in enemy_circle_centers:
-				if center.distance_to(mode_goal.own_home_position) < tuning.elim_threat_radius_m:
-					threats += 1
 			var closeness: float = 1.0 - home_distance / tuning.elim_defend_radius_m
-			term += tuning.weight_elim_defend * closeness * (1.0 + tuning.weight_elim_threat * float(threats)) * (1.0 + radius)
+			term += tuning.weight_elim_defend * closeness * threat_factor * (1.0 + radius)
+		if mode_goal.no_overlap_mode and mode_goal.home_radius > 0.0:
+			# The home circle only holds the flag while nothing out-radiuses it:
+			# reward own coverage of the home point relative to home_radius.
+			var coverage: float = clampf((radius - home_distance) / mode_goal.home_radius, 0.0, 1.0)
+			term += tuning.weight_elim_defend * tuning.elim_off_defend_gain * coverage * threat_factor
 	return term
 
 
