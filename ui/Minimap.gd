@@ -91,6 +91,7 @@ const _PROCESS_PRIORITY_AFTER_CAMERA: int = 2
 
 ## Bontago-1pi.11.11: the territory is coloured on the GPU from the raster's
 ## per-cell textures (shaders/minimap_territory.gdshader); no CPU image.
+const HOLE_VISUALS: HoleVisualTuning = preload("res://config/hole_visual_tuning.tres")
 const MAX_SLOTS: int = 16
 var _territory_layer: Control = null
 var _territory_material: ShaderMaterial = null
@@ -396,6 +397,7 @@ func _rebuild_image() -> void:
 	_territory_material.set_shader_parameter("slot_colors", colors)
 	_territory_material.set_shader_parameter("slot_count", slot_count)
 	_territory_material.set_shader_parameter("unowned_color", _color_to_vec4(tuning.minimap_backdrop_color))
+	_territory_material.set_shader_parameter("hole_color", _color_to_vec4(HOLE_VISUALS.void_mid_color))
 	_territory_material.set_shader_parameter("half_extent", _half_extent)
 	_territory_material.set_shader_parameter("image_right", _image_right)
 	_territory_material.set_shader_parameter("image_forward", _image_forward)

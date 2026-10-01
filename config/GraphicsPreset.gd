@@ -38,3 +38,10 @@ extends Resource
 ## Bontago-1pi.11.2: multiplies TerritoryVisuals.mirror_resolution_scale for the disc
 ## mirror SubViewport (1.0 = unchanged; lower renders the second scene pass smaller).
 @export_range(0.1, 1.0) var mirror_resolution_factor: float = 1.0
+
+## Bontago-1pi.11.42: the swirl animation (noise, per-pixel) of the hole void
+## on the disc. Off on Low: the void is then a flat deep colour with its rim.
+@export var hole_void_animated: bool = true
+## Bontago-1pi.11.42: the noise dissolve + rim glow on a block eaten by a hole
+## (game/BlockDissolveFx.gd). Off on Low: the block simply vanishes on time.
+@export var block_dissolve_effect_enabled: bool = true

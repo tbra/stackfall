@@ -19,6 +19,7 @@ shader_type spatial;
 // colour) so the material stays one shared instance; outline_color mixes with
 // the darkened tint by outline_tint_amount.
 render_mode cull_front, unshaded;
+#include "res://shaders/include/block_dissolve.gdshaderinc"
 
 uniform float outline_width_px : hint_range(0.0, 8.0) = 1.6;
 uniform float outline_far_width_px : hint_range(0.0, 8.0) = 0.9;
@@ -29,8 +30,15 @@ uniform float outline_tint_amount : hint_range(0.0, 1.0) = 0.65;
 uniform float outline_tint_darken : hint_range(0.0, 1.0) = 0.35;
 
 instance uniform vec4 tint_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
+// Bontago-1pi.11.42: same progress as the cell-grid pass (shared noise), the
+// outline vanishes with the surface it inks.
+instance uniform float dissolve_amount = 0.0;
+uniform float dissolve_noise_scale = 5.0;
+uniform float dissolve_edge_width : hint_range(0.01, 0.6) = 0.14;
+varying vec3 v_obj;
 
 void vertex() {
+	v_obj = VERTEX;
 	vec4 view_pos = MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
 	vec4 clip = PROJECTION_MATRIX * view_pos;
 	vec3 view_normal = normalize((MODELVIEW_NORMAL_MATRIX * NORMAL));
@@ -48,6 +56,10 @@ void vertex() {
 }
 
 void fragment() {
+	if (dissolve_amount > 0.0
+		&& dissolve_noise(v_obj * dissolve_noise_scale) < dissolve_threshold(dissolve_amount, dissolve_edge_width)) {
+		discard;
+	}
 	vec3 darkened_tint = tint_color.rgb * outline_tint_darken;
 	ALBEDO = mix(outline_color.rgb, darkened_tint, outline_tint_amount);
 }

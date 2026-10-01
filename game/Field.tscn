@@ -1,10 +1,14 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://game/Field.gd" id="1_field"]
 [ext_resource type="Script" path="res://game/BlockEffectsManager.gd" id="2_effects"]
+[ext_resource type="Script" path="res://game/BlockDissolveFx.gd" id="3_dissolve"]
 
 [node name="Field" type="AnimatableBody3D"]
 script = ExtResource("1_field")
 
 [node name="BlockEffectsManager" type="Node3D" parent="."]
 script = ExtResource("2_effects")
+
+[node name="BlockDissolveFx" type="Node" parent="."]
+script = ExtResource("3_dissolve")

@@ -14,6 +14,8 @@ uniform sampler2D disk_tex : filter_nearest, repeat_disable;
 uniform vec4 slot_colors[MAX_SLOTS];
 uniform int slot_count = 0;
 uniform vec4 unowned_color = vec4(0.0);
+// Bontago-1pi.11.42: holes read as the disc's void colour (HoleVisualTuning).
+uniform vec4 hole_color = vec4(0.0, 0.0, 0.0, 1.0);
 uniform float half_extent = 1.0;
 uniform vec2 image_right = vec2(1.0, 0.0);
 uniform vec2 image_forward = vec2(0.0, 1.0);
@@ -34,7 +36,9 @@ void fragment() {
 	} else {
 		int team = int(texelFetch(team_tex, cell, 0).r * 255.0 + 0.5);
 		bool hole = texelFetch(hole_tex, cell, 0).r > 0.001;
-		if (hole || team >= slot_count || team >= MAX_SLOTS) {
+		if (hole) {
+			COLOR = hole_color;
+		} else if (team >= slot_count || team >= MAX_SLOTS) {
 			COLOR = unowned_color;
 		} else {
 			COLOR = slot_colors[team];

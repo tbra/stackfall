@@ -190,6 +190,24 @@ uniform vec4 hole_rim_color : source_color = vec4(1.0, 0.45, 0.12, 1.0);
 uniform float hole_rim_width : hint_range(0.001, 1.0) = 0.35;
 uniform float hole_rim_glow = 2.5;
 
+// Bontago-1pi.11.42: animated void drawn on hole cells (config/
+// HoleVisualTuning.gd feeds every value; game/TerritoryOverlay.gd uploads).
+uniform vec4 void_deep_color : source_color = vec4(0.01, 0.005, 0.03, 1.0);
+uniform vec4 void_mid_color : source_color = vec4(0.12, 0.04, 0.3, 1.0);
+uniform vec4 void_rim_color : source_color = vec4(0.65, 0.35, 1.0, 1.0);
+uniform float void_rim_width_cells : hint_range(0.01, 0.5) = 0.18;
+uniform float void_rim_glow = 1.8;
+uniform float void_swirl_scale = 0.8;
+uniform float void_swirl_speed = 0.35;
+uniform float void_swirl_twist = 1.4;
+uniform int void_band_count = 3;
+uniform float void_band_softness : hint_range(0.0, 0.5) = 0.08;
+uniform float void_mid_amount : hint_range(0.0, 1.0) = 0.6;
+// 1 = swirl animates and bands from noise; 0 = flat deep colour + rim (Low).
+uniform float void_animated : hint_range(0.0, 1.0) = 1.0;
+// One grid cell in territory UV units (1 / cells per side).
+uniform float hole_cell_uv = 0.05;
+
 // -- Analytic circle path uniforms (Bontago-cmc.5) ---------------------------
 // False when circle_count is 0 (no solve yet, or a match just ended) or
 // exceeds max_shader_circles (spec 3.3, "Bounded cost"): the raster path
@@ -949,6 +967,71 @@ void circle_path(vec2 point, vec3 base, out vec3 albedo, out vec3 emission) {
 	// needed.
 }
 
+
+float void_hash(vec2 p) {
+	p = fract(p * vec2(123.34, 456.21));
+	p += dot(p, p + 45.32);
+	return fract(p.x * p.y);
+}
+
+float void_noise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(void_hash(i), void_hash(i + vec2(1.0, 0.0)), f.x),
+		mix(void_hash(i + vec2(0.0, 1.0)), void_hash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+
+// Bontago-1pi.11.42: the hole pixel's colour. A dark, gently swirling,
+// cel-banded void (domain-warped value noise, twisted by distance from the
+// hole cell's centre) with a lit rim along every cell edge that borders solid
+// floor. Pure texture reads of the existing hole raster (4 neighbour taps
+// per hole pixel only), no CPU work.
+void hole_void(vec2 uv, vec2 world_xz, out vec3 albedo, out vec3 emission) {
+	vec2 cell_f = uv / hole_cell_uv;
+	vec2 local = fract(cell_f);
+	// Distance (in cells) to each side that borders a non-hole cell.
+	float edge = 1.0;
+	vec2 step_uv = vec2(hole_cell_uv, 0.0);
+	if ((int(round(texture(territory_state, uv - step_uv).r * 255.0)) & STATE_HOLE) == 0) {
+		edge = min(edge, local.x);
+	}
+	if ((int(round(texture(territory_state, uv + step_uv).r * 255.0)) & STATE_HOLE) == 0) {
+		edge = min(edge, 1.0 - local.x);
+	}
+	step_uv = vec2(0.0, hole_cell_uv);
+	if ((int(round(texture(territory_state, uv - step_uv).r * 255.0)) & STATE_HOLE) == 0) {
+		edge = min(edge, local.y);
+	}
+	if ((int(round(texture(territory_state, uv + step_uv).r * 255.0)) & STATE_HOLE) == 0) {
+		edge = min(edge, 1.0 - local.y);
+	}
+	float rim = 1.0 - smoothstep(0.0, void_rim_width_cells, edge);
+
+	float depth_t = 0.0;
+	if (void_animated > 0.5) {
+		vec2 p = world_xz * void_swirl_scale;
+		float t = TIME * void_swirl_speed;
+		// Twist: rotate the sample point by an angle growing toward the cell
+		// centre, so the pattern reads as a slow whirl.
+		vec2 centre = (floor(cell_f) + vec2(0.5)) * hole_cell_uv;
+		vec2 off = (uv - centre) / hole_cell_uv;
+		float ang = void_swirl_twist * (1.0 - clamp(length(off) * 1.4, 0.0, 1.0)) + t;
+		mat2 rot = mat2(vec2(cos(ang), -sin(ang)), vec2(sin(ang), cos(ang)));
+		vec2 q = rot * p;
+		float warp = void_noise(q + vec2(t, -t));
+		float n = void_noise(q * 1.7 + vec2(warp * 2.0, t));
+		float bands = max(float(void_band_count), 1.0);
+		float scaled = n * bands;
+		float band = floor(scaled);
+		band += smoothstep(1.0 - void_band_softness * bands, 1.0, scaled - band);
+		depth_t = clamp(band / bands, 0.0, 1.0);
+	}
+	albedo = void_deep_color.rgb;
+	emission = mix(void_deep_color.rgb, void_mid_color.rgb, depth_t * void_mid_amount);
+	emission += void_rim_color.rgb * rim * void_rim_glow;
+}
+
 void fragment() {
 	vec2 uv = v_local.xz * uv_scale + vec2(uv_offset);
 
@@ -956,10 +1039,11 @@ void fragment() {
 	// gap is exactly the cell whose collision Field switched off. Holes stay
 	// the raster's authority for physical floor in *both* paths — a hole is
 	// never an analytic quantity (design note above).
+	// Bontago-1pi.11.42 (owner decision Bontago-gdb): the disc collision is
+	// solid under a hole now, so the pixel is no longer discarded; it is drawn
+	// as an animated void at the very end of fragment() (see hole_void()).
 	float state_near = round(texture(territory_state, uv).r * 255.0);
-	if ((int(state_near) & STATE_HOLE) != 0) {
-		discard;
-	}
+	bool is_hole = (int(state_near) & STATE_HOLE) != 0;
 
 	vec3 albedo;
 	vec3 emission;
@@ -1207,6 +1291,21 @@ void fragment() {
 		SPECULAR = mix(SPECULAR, 0.0, snow);
 		AO = mix(AO, AO * snow_ambient_factor, snow);
 		NORMAL = normalize(mix(NORMAL, snow_flat_normal, snow));
+	}
+	if (is_hole) {
+		// Bontago-1pi.11.42: the void replaces everything the bare disc
+		// shows (plating, mirror, snow, tint): it must read as a gap.
+		vec3 void_albedo;
+		vec3 void_emission;
+		hole_void(uv, v_local.xz, void_albedo, void_emission);
+		ALBEDO = void_albedo;
+		EMISSION = void_emission;
+		METALLIC = 0.0;
+		ROUGHNESS = 1.0;
+		SPECULAR = 0.0;
+		AO = 1.0;
+		NORMAL = snow_flat_normal;
+		v_snow = 0.0;
 	}
 	if (wfog_strength > 0.0) {
 		float wfog = clamp((length(VERTEX) - wfog_begin) / max(wfog_end - wfog_begin, 0.001), 0.0, 1.0) * wfog_strength;

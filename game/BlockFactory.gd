@@ -54,6 +54,8 @@ const BLOCK_SCENE: PackedScene = preload("res://game/Block.tscn")
 const CELL_GRID_SHADER: Shader = preload("res://shaders/block_cell_grid.gdshader")
 const OUTLINE_SHADER: Shader = preload("res://shaders/block_outline.gdshader")
 const VISUAL_TUNING: BlockVisualTuning = preload("res://config/block_visual_tuning.tres")
+## Bontago-1pi.11.42: hole void colours and dissolve look (shared with the disc).
+const HOLE_VISUALS: HoleVisualTuning = preload("res://config/hole_visual_tuning.tres")
 
 ## Bontago-mv0.11 (owner-reported playability), extended by Bontago-xtq.27:
 ## one ShaderMaterial (shaders/block_cell_grid.gdshader) per owner colour,
@@ -341,6 +343,11 @@ static func _material_for_color(color: Color) -> ShaderMaterial:
 	material.set_shader_parameter(&"bevel_shadow_side_fraction", VISUAL_TUNING.bevel_shadow_side_fraction)
 	material.set_shader_parameter(&"rim_cool_color", VISUAL_TUNING.rim_cool_color)
 	material.set_shader_parameter(&"rim_cool_strength", VISUAL_TUNING.rim_cool_strength)
+	material.set_shader_parameter(&"dissolve_noise_scale", HOLE_VISUALS.dissolve_noise_scale)
+	material.set_shader_parameter(&"dissolve_edge_width", HOLE_VISUALS.dissolve_edge_width)
+	material.set_shader_parameter(&"dissolve_rim_glow", HOLE_VISUALS.dissolve_rim_glow)
+	material.set_shader_parameter(&"dissolve_rim_color", HOLE_VISUALS.void_rim_color)
+	material.set_shader_parameter(&"dissolve_void_color", HOLE_VISUALS.void_deep_color)
 	_materials_by_color[color] = material
 	return material
 
@@ -369,6 +376,8 @@ static func _outline_material_singleton() -> ShaderMaterial:
 		material.set_shader_parameter(&"outline_color", VISUAL_TUNING.outline_color)
 		material.set_shader_parameter(&"outline_tint_amount", VISUAL_TUNING.outline_tint_amount)
 		material.set_shader_parameter(&"outline_tint_darken", VISUAL_TUNING.outline_tint_darken)
+		material.set_shader_parameter(&"dissolve_noise_scale", HOLE_VISUALS.dissolve_noise_scale)
+		material.set_shader_parameter(&"dissolve_edge_width", HOLE_VISUALS.dissolve_edge_width)
 		_outline_material = material
 	return _outline_material
 
