@@ -33,5 +33,23 @@ var no_overlap_mode: bool = false
 var home_radius: float = 0.0
 
 
+## Bontago-1t5.1 (Classic with several goal flags): every goal flag, whether it
+## sits in the bot's own home-connected component (parallel array), that
+## component's group id (-1 when the bot's home has none) and sample points of
+## its cells (disk-local). `target_goal_index` is the unheld goal nearest to the
+## component (-1 when every goal is already held). Only filled when the match
+## has more than one goal; a single goal keeps the legacy nearest-goal scoring.
+var goal_positions: PackedVector2Array = PackedVector2Array()
+var goal_in_home_group: Array[bool] = []
+var home_group: int = -1
+var component_points: PackedVector2Array = PackedVector2Array()
+var target_goal_index: int = -1
+
+
+## True when the classic multi-goal scoring applies.
+func is_multi_goal() -> bool:
+	return mode == MatchConfig.GameMode.CLASSIC and goal_positions.size() > 1
+
+
 func is_neutral() -> bool:
-	return mode == MatchConfig.GameMode.CLASSIC
+	return mode == MatchConfig.GameMode.CLASSIC and not is_multi_goal()

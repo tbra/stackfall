@@ -671,11 +671,50 @@ func _build_headless_bot_config(bots: int, args: PackedStringArray) -> MatchConf
 	# DECISION (Bontago-1t5.3): `--mode=<classic|ctf|elimination|sky>` (or the
 	# GameMode integer) picks the headless bot match's mode; absent keeps the
 	# config's own mode. resolve_game_mode() still falls back for unselectable ids.
+	# DECISION (Bontago-1t5.1): `--goals=<1..5>` overrides goal_flag_count for headless bot matches.
+	var goals_override: int = _goals_arg(args)
+	if goals_override > 0:
+		config.goal_flag_count = clampi(goals_override, MatchConfig.GOAL_FLAG_MIN, MatchConfig.GOAL_FLAG_MAX)
 	var mode_override: int = _mode_arg(args)
 	if mode_override >= 0:
 		config.game_mode = MatchConfig.resolve_game_mode(mode_override)
 		config.round_timer_minutes = MatchConfig.clamp_round_timer(config.round_timer_minutes, config.game_mode)
 	return config
+
+
+## `--goals=<n>`, 0 when absent.
+func _goals_arg(args: PackedStringArray) -> int:
+	const PREFIX: String = "goals="
+	for raw: String in args:
+		var text: String = raw
+		while text.begins_with("-"):
+			text = text.substr(1)
+		if text.begins_with(PREFIX):
+			return int(text.substr(PREFIX.length()))
+	return 0
+
+
+## Bontago-1t5.1 diagnostics: per team, the most goals it holds in one group, "tN:k/total".
+func _headless_bots_goal_coverage() -> String:
+	var raster: TerritoryRaster = Match.raster()
+	if raster == null or Match.config == null:
+		return "n/a"
+	var goals: PackedVector2Array = PlayerSlot.goal_positions_for(Match.config.effective_goal_flag_count(), Match.config.map_def())
+	var by_group: Dictionary = {}
+	for point: Vector2 in goals:
+		var team: int = WinChecker.goal_holder(raster, point)
+		if team < 0:
+			continue
+		var key: String = "%d/%d" % [team, raster.group_at_point(point)]
+		by_group[key] = int(by_group.get(key, 0)) + 1
+	var best_per_team: Dictionary = {}
+	for key: String in by_group:
+		var team_id: int = int(key.split("/")[0])
+		best_per_team[team_id] = maxi(int(best_per_team.get(team_id, 0)), int(by_group[key]))
+	var parts: PackedStringArray = PackedStringArray()
+	for team_id: int in best_per_team:
+		parts.append("t%d:%d/%d" % [team_id, int(best_per_team[team_id]), goals.size()])
+	return "[%s]" % ",".join(parts)
 
 
 ## `--mode=<name|id>`, -1 when absent or unrecognised.
@@ -765,10 +804,10 @@ func _on_headless_bots_seconds_elapsed() -> void:
 
 
 func _headless_bots_periodic_line() -> String:
-	return "HEADLESS_BOTS t=%.1f state=%s placements=%d mode=%d homes_alive=%d frontier_gap=%.2f" % [
+	return "HEADLESS_BOTS t=%.1f state=%s placements=%d mode=%d homes_alive=%d frontier_gap=%.2f goals=%s" % [
 		_headless_bots_elapsed_s(), _headless_bots_state_name(), _headless_bots_placements,
 		Match.config.game_mode if Match.config != null else 0, _headless_bots_homes_alive(),
-		_headless_bots_frontier_gap(),
+		_headless_bots_frontier_gap(), _headless_bots_goal_coverage(),
 	]
 
 

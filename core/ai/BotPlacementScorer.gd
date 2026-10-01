@@ -144,6 +144,64 @@ static func _stability_term(candidate: BotCandidate, grid: CellGrid, tuning: Bot
 	return contact_cells * balance_factor + stack_bonus
 
 
+## Bontago-1t5.1: index of the unheld goal nearest to the home-connected
+## component (`component_points`); -1 when every goal is held or no goals.
+## The anchor falls back to `fallback` when the component has no sample points.
+static func next_goal_index(
+	goal_positions: PackedVector2Array,
+	held: Array[bool],
+	component_points: PackedVector2Array,
+	fallback: Vector2
+) -> int:
+	var best: int = -1
+	var best_distance: float = INF
+	for i: int in range(goal_positions.size()):
+		if i < held.size() and held[i]:
+			continue
+		var distance: float = INF
+		for point: Vector2 in component_points:
+			distance = minf(distance, point.distance_squared_to(goal_positions[i]))
+		if component_points.is_empty():
+			distance = fallback.distance_squared_to(goal_positions[i])
+		if distance < best_distance:
+			best_distance = distance
+			best = i
+	return best
+
+
+## Bontago-1t5.1: classic goal term for a match with several goal flags (the win
+## needs every goal in ONE component with the home). Pull towards the single
+## target goal (unheld, nearest to the component), a penalty for a candidate
+## outside the home component, and a reinforce bonus near goals already held.
+## Returns the weighted score contribution, replacing the legacy
+## weight_goal_progress * nearest-goal term.
+static func _multi_goal_term(
+	candidate: BotCandidate,
+	raster: TerritoryRaster,
+	mode_goal: BotModeGoal,
+	territory_tuning: TerritoryTuning,
+	tuning: BotTuning,
+	field_radius: float
+) -> float:
+	var term: float = 0.0
+	if mode_goal.target_goal_index >= 0 and mode_goal.target_goal_index < mode_goal.goal_positions.size():
+		var target: PackedVector2Array = PackedVector2Array([mode_goal.goal_positions[mode_goal.target_goal_index]])
+		term -= tuning.weight_goal_progress * _goal_progress_metric(candidate, target, territory_tuning, field_radius)
+	var connected: bool = true
+	if raster != null and mode_goal.home_group >= 0:
+		connected = raster.group_at_point(candidate.origin) == mode_goal.home_group
+	if not connected:
+		term -= tuning.weight_goal_disconnected
+	elif tuning.goal_hold_reinforce_radius_m > 0.0:
+		for i: int in range(mode_goal.goal_positions.size()):
+			if i >= mode_goal.goal_in_home_group.size() or not mode_goal.goal_in_home_group[i]:
+				continue
+			var distance: float = candidate.origin.distance_to(mode_goal.goal_positions[i])
+			if distance < tuning.goal_hold_reinforce_radius_m:
+				term += tuning.weight_goal_hold_reinforce * (1.0 - distance / tuning.goal_hold_reinforce_radius_m)
+	return term
+
+
 ## Bontago-1t5.3 phase A: the per-mode extra score (0.0 for modes without one).
 static func _mode_term(
 	candidate: BotCandidate,
@@ -344,8 +402,9 @@ static func score(
 	# term with its own beacon extend/reinforce term, so unheld beacons are not
 	# weighted twice (weight_goal_progress + weight_ctf_extend).
 	var own_goal_term: bool = mode_goal != null and mode_goal.mode == MatchConfig.GameMode.CAPTURE_THE_FLAG
+	var multi_goal: bool = mode_goal != null and mode_goal.is_multi_goal()
 	var goal_metric: float = 0.0
-	if not own_goal_term:
+	if not own_goal_term and not multi_goal:
 		goal_metric = _goal_progress_metric(candidate, goal_positions, territory_tuning, field_radius)
 	var stability_term: float = _stability_term(candidate, grid, tuning)
 	var risk_term: float = _risk_term(candidate, enemy_circle_centers, active_special_positions, tuning)
@@ -355,6 +414,8 @@ static func score(
 		+ tuning.weight_stability * stability_term
 		- tuning.weight_risk * risk_term
 	)
+	if multi_goal:
+		return base + _multi_goal_term(candidate, raster, mode_goal, territory_tuning, tuning, field_radius)
 	# Classic/Elimination/null add nothing, so their scores stay byte-identical.
 	if mode_goal == null or mode_goal.is_neutral():
 		return base
