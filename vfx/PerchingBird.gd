@@ -9,7 +9,9 @@ extends Node3D
 ## The model points along local +X with +Y up; its origin is the body centre,
 ## `perch_height()` above whatever surface it stands on.
 
-enum State { CIRCLE, GLIDE, PERCHED, FLEE }
+## ORBIT: a short playful loop around a point just above the perch (a chase
+## between flockmates), ending in a glide back to the bird's own perch.
+enum State { CIRCLE, GLIDE, PERCHED, FLEE, ORBIT }
 
 ## Emitted when a glide ends with the bird standing at its spot.
 signal landed
@@ -35,6 +37,10 @@ const GLIDE_END_LIFT: float = 0.1
 const FLEE_MAX_LIFETIME_S: float = 40.0
 const FLEE_PITCH_LERP: float = 6.0
 const FLEE_MAX_ALTITUDE_M: float = 260.0
+const ORBIT_SPEED_FACTOR: float = 0.5
+const ORBIT_BLEND_S: float = 0.3
+const ORBIT_LEGS_LIFT_M: float = 0.05
+const ORBIT_BANK_RAD: float = 0.35
 
 # Perched animation.
 const HEAD_TURN_MAX_DEG: float = 75.0
@@ -87,6 +93,16 @@ var _flee_centre: Vector3 = Vector3.ZERO
 var _prev_yaw: float = 0.0
 var _turn_rate: float = 0.0
 var _pitch_smoothed: float = 0.0
+
+# Orbit (chase) state.
+var _orbit_centre: Vector3 = Vector3.ZERO
+var _orbit_radius: float = 1.0
+var _orbit_angle: float = 0.0
+var _orbit_dir: float = 1.0
+var _orbit_total: float = 1.0
+var _orbit_left: float = 0.0
+var _orbit_lift: float = 0.0
+var _orbit_start: Vector3 = Vector3.ZERO
 
 # Perched state.
 var _heading: Vector3 = Vector3.RIGHT
@@ -184,6 +200,33 @@ func begin_glide(surface: Vector3, hop_check: Callable, hop_allowed: bool) -> vo
 	_glide_heading = flat_dir
 
 
+## Glides to `surface` keeping this bird's hop rules (a perch swap, or the way
+## home after a chase).
+func begin_hop_flight(surface: Vector3) -> void:
+	begin_glide(surface, _hop_valid, allow_hop)
+
+
+## The angle (rad) on its arrival circle the bird is at.
+func circle_angle() -> float:
+	return _circle_angle
+
+
+## Chase: loops `radius` around `centre` (world, surface level) from `angle`,
+## lifting up to `lift` over `duration` seconds, then glides back to its perch.
+func begin_orbit(centre: Vector3, radius: float, angle: float, direction: float, duration: float, lift: float) -> void:
+	state = State.ORBIT
+	_orbit_centre = centre
+	_orbit_radius = maxf(radius, 0.2)
+	_orbit_angle = angle
+	_orbit_dir = 1.0 if direction >= 0.0 else -1.0
+	_orbit_total = maxf(duration, 0.2)
+	_orbit_left = _orbit_total
+	_orbit_lift = lift
+	_orbit_start = global_position
+	_idle = Idle.NONE
+	_set_legs_visible(true)
+
+
 ## Escape: climbs away from `threat` (world point) along a curved path.
 func begin_flee(threat: Vector3, curve_centre: Vector3) -> void:
 	var was_perched: bool = state == State.PERCHED
@@ -214,6 +257,8 @@ func update(delta: float) -> void:
 			_update_perched(delta)
 		State.FLEE:
 			_update_flee(delta)
+		State.ORBIT:
+			_update_orbit(delta)
 
 
 # --- Circle ----------------------------------------------------------------------
@@ -366,6 +411,28 @@ func _end_idle_action() -> void:
 	_idle = Idle.NONE
 	_head_yaw_target = 0.0
 	_idle_timer = _rng.randf_range(config.idle_action_min_s, config.idle_action_max_s)
+
+
+# --- Orbit (chase) -----------------------------------------------------------------
+
+func _update_orbit(delta: float) -> void:
+	_orbit_left -= delta
+	var elapsed: float = _orbit_total - _orbit_left
+	var progress: float = clampf(elapsed / _orbit_total, 0.0, 1.0)
+	var speed: float = config.flight_speed_mps * ORBIT_SPEED_FACTOR
+	_orbit_angle += _orbit_dir * speed / _orbit_radius * delta
+	var radial: Vector3 = Vector3(cos(_orbit_angle), 0.0, sin(_orbit_angle))
+	var lift: float = sin(progress * PI) * _orbit_lift
+	var on_circle: Vector3 = _orbit_centre + radial * _orbit_radius
+	on_circle.y = perch_surface.y + perch_height() + lift
+	var blend: float = smoothstep(0.0, 1.0, clampf(elapsed / ORBIT_BLEND_S, 0.0, 1.0))
+	global_position = _orbit_start.lerp(on_circle, blend)
+	var tangent: Vector3 = Vector3(-radial.z, 0.0, radial.x) * _orbit_dir
+	_orient(tangent, 0.0, -_orbit_dir * ORBIT_BANK_RAD)
+	_animate_flight(delta, 1.2, false)
+	_set_legs_visible(lift < ORBIT_LEGS_LIFT_M)
+	if _orbit_left <= 0.0:
+		begin_glide(perch_surface, _hop_valid, allow_hop)
 
 
 # --- Flee ------------------------------------------------------------------------

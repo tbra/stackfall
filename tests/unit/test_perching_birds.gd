@@ -360,3 +360,183 @@ func test_freed_block_never_reaches_typed_calls_during_polls() -> void:
 	_force_poll(_manager)
 	assert_eq(_manager._block_positions(tower).size(), 0)
 	assert_ne(bird.state, PerchingBird.State.PERCHED, "bird leaves its freed block")
+
+
+# --- Flocks (Bontago-6fc.3) ------------------------------------------------------------
+
+func _flock_life(cap: int, size_min: int, size_max: int) -> AmbientLifeConfig:
+	var life: AmbientLifeConfig = _life(cap)
+	life.flock_size_min = size_min
+	life.flock_size_max = size_max
+	life.flock_count_max = 1
+	life.flock_social_interval_min_s = 1000.0
+	life.flock_social_interval_max_s = 1000.0
+	return life
+
+
+## Steps until `count` birds are perched; returns how many are.
+func _run_until_n_perched(manager: PerchingBirds, count: int) -> int:
+	var perched: int = 0
+	for _i: int in range(MAX_STEPS * 3):
+		manager._process(STEP_S)
+		perched = _perched_birds(manager).size()
+		if perched >= count:
+			break
+	return perched
+
+
+func _perched_birds(manager: PerchingBirds) -> Array[PerchingBird]:
+	var result: Array[PerchingBird] = []
+	for index: int in range(manager.slot_count()):
+		var bird: PerchingBird = manager.bird_at(index)
+		if bird != null and bird.is_perched():
+			result.append(bird)
+	return result
+
+
+func _states(manager: PerchingBirds) -> Array[PerchingBird.State]:
+	var result: Array[PerchingBird.State] = []
+	for index: int in range(manager.slot_count()):
+		var bird: PerchingBird = manager.bird_at(index)
+		if bird != null:
+			result.append(bird.state)
+	return result
+
+
+func _all_fleeing(manager: PerchingBirds) -> bool:
+	for state: PerchingBird.State in _states(manager):
+		if state != PerchingBird.State.FLEE:
+			return false
+	return true
+
+
+func test_flock_size_stays_within_the_configured_range() -> void:
+	var seen: Dictionary = {}
+	for _round: int in range(24):
+		var manager: PerchingBirds = _make_manager(_flock_life(12, 2, 4))
+		manager._process(0.0)
+		var size: int = manager.flock_slot_indices(0).size()
+		assert_between(size, 2, 4, "flock size within flock_size_min..max")
+		seen[size] = true
+		manager.free()
+	assert_gt(seen.size(), 1, "the size varies between flocks")
+
+
+func test_flock_members_perch_near_each_other() -> void:
+	var life: AmbientLifeConfig = _flock_life(6, 6, 6)
+	_manager = _make_manager(life)
+	var perched: int = _run_until_n_perched(_manager, 6)
+	assert_eq(perched, 6, "all six members land")
+	var birds: Array[PerchingBird] = _perched_birds(_manager)
+	for first: PerchingBird in birds:
+		for second: PerchingBird in birds:
+			if first == second:
+				continue
+			var gap: float = Vector2(first.perch_surface.x - second.perch_surface.x, first.perch_surface.z - second.perch_surface.z).length()
+			assert_lte(gap, life.flock_perch_radius_m * 2.0 + 0.01, "within one flock radius of the anchor")
+			assert_gte(gap, life.flock_member_spacing_m - 0.01, "members keep their spacing")
+
+
+func test_flock_members_share_a_block_top() -> void:
+	var life: AmbientLifeConfig = _flock_life(4, 4, 4)
+	life.perch_tower_fraction = 1.0
+	_manager = _make_manager(life)
+	var tower: RigidBody3D = _make_block(Vector3(10.0, 0.5, 10.0), Vector3(3.0, 1.0, 3.0))
+	_manager.blocks = [tower]
+	_force_poll(_manager)
+	var perched: int = _run_until_n_perched(_manager, 3)
+	assert_gte(perched, 3, "several members fit on the same top")
+	for bird: PerchingBird in _perched_birds(_manager):
+		assert_almost_eq(bird.perch_surface.y, 1.0, 0.001, "on the block top")
+		assert_lte(Vector2(bird.perch_surface.x - 10.0, bird.perch_surface.z - 10.0).length(), 1.5 * 1.42)
+	tower.free()
+	for _i: int in range(8):
+		_manager._process(STEP_S)
+	assert_true(_all_fleeing(_manager), "the whole flock leaves when its block goes")
+
+
+func test_group_takeoff_when_one_bird_is_spooked() -> void:
+	var life: AmbientLifeConfig = _flock_life(5, 5, 5)
+	life.flee_impact_radius_m = 0.2
+	life.flock_takeoff_stagger_max_s = 0.45
+	_manager = _make_manager(life)
+	assert_eq(_run_until_n_perched(_manager, 5), 5)
+	var victim: PerchingBird = _perched_birds(_manager)[0]
+	Events.block_impacted_at.emit(6.0, victim.global_position)
+	assert_eq(victim.state, PerchingBird.State.FLEE, "the spooked bird leaves at once")
+	assert_false(_all_fleeing(_manager), "the others are staggered, not simultaneous")
+	for _i: int in range(int(ceil(life.flock_takeoff_stagger_max_s / STEP_S)) + 3):
+		_manager._process(STEP_S)
+	assert_true(_all_fleeing(_manager), "the rest follow within the stagger window")
+
+
+func test_flock_leaves_together_when_its_stay_ends() -> void:
+	var life: AmbientLifeConfig = _flock_life(4, 4, 4)
+	life.perch_stay_min_s = 6.0
+	life.perch_stay_max_s = 6.0
+	life.flock_landing_stagger_s = 0.3
+	life.flock_arrival_stagger_s = 0.1
+	life.spawn_delay_min_s = 900.0
+	life.spawn_delay_max_s = 900.0
+	_manager = _make_manager(life)
+	_manager.spawn_now()
+	assert_eq(_run_until_n_perched(_manager, 4), 4)
+	var left: bool = false
+	for _i: int in range(100):
+		_manager._process(STEP_S)
+		if _perched_birds(_manager).size() < 4:
+			left = true
+			break
+	assert_true(left, "the flock takes off once its stay ends")
+	for _i: int in range(int(ceil(life.flock_takeoff_stagger_max_s / STEP_S)) + 3):
+		_manager._process(STEP_S)
+	assert_true(_all_fleeing(_manager))
+
+
+func test_total_bird_cap_is_respected() -> void:
+	var life: AmbientLifeConfig = _flock_life(3, 6, 6)
+	life.flock_count_max = 4
+	life.perch_stay_min_s = 3.0
+	life.perch_stay_max_s = 4.0
+	life.despawn_distance_m = 70.0
+	_manager = _make_manager(life)
+	var peak: int = 0
+	for _i: int in range(900):
+		_manager._process(STEP_S)
+		peak = maxi(peak, _manager.active_bird_count())
+		assert_lte(_manager.get_child_count(), life.perch_bird_count, "never more birds than the cap")
+	assert_eq(peak, 3, "the cap is reached but not exceeded")
+
+
+func test_perched_flockmates_swap_perches() -> void:
+	var life: AmbientLifeConfig = _flock_life(3, 3, 3)
+	life.flock_swap_chance = 1.0
+	life.flock_chase_chance = 0.0
+	life.flock_social_interval_min_s = 0.5
+	life.flock_social_interval_max_s = 0.5
+	_manager = _make_manager(life)
+	assert_eq(_run_until_n_perched(_manager, 3), 3)
+	var flew: bool = false
+	for _i: int in range(100):
+		_manager._process(STEP_S)
+		for state: PerchingBird.State in _states(_manager):
+			flew = flew or state == PerchingBird.State.GLIDE
+	assert_true(flew, "a swap is a short flight")
+	assert_eq(_manager.active_bird_count(), 3, "nobody is lost")
+
+
+func test_perched_flockmates_chase_and_come_back() -> void:
+	var life: AmbientLifeConfig = _flock_life(2, 2, 2)
+	life.flock_chase_chance = 1.0
+	life.flock_swap_chance = 0.0
+	life.flock_social_interval_min_s = 0.5
+	life.flock_social_interval_max_s = 0.5
+	_manager = _make_manager(life)
+	assert_eq(_run_until_n_perched(_manager, 2), 2)
+	var orbited: bool = false
+	for _i: int in range(60):
+		_manager._process(STEP_S)
+		for state: PerchingBird.State in _states(_manager):
+			orbited = orbited or state == PerchingBird.State.ORBIT
+	assert_true(orbited, "the pair takes a short chase flight")
+	assert_eq(_manager.active_bird_count(), 2, "both come back and keep perching")
