@@ -173,6 +173,9 @@ var _last_map_def: MapDef = null
 var _last_gift_states: Array[Dictionary] = []
 var _last_height_text: String = ""
 var _last_special_signature: Array = []
+## Bontago-22y.7: live per-team score line for timed modes (Capture the Flag),
+## built in code under the status pill so HUD.tscn and classic stay unchanged.
+var _mode_score_label: Label = null
 
 
 func _ready() -> void:
@@ -217,6 +220,8 @@ func _ready() -> void:
 	Events.placement_relocated.connect(_on_placement_relocated)
 	Events.territory_share_changed.connect(_on_territory_share_changed)
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
+	Events.mode_state_changed.connect(_on_mode_state_changed)
+	Events.match_results_ready.connect(_on_match_results_ready)
 	Events.match_won.connect(_on_match_won)
 	Events.match_state_changed.connect(_on_match_state_changed_glue)
 	Events.player_eliminated.connect(_on_player_eliminated)
@@ -529,9 +534,47 @@ func _on_territory_share_changed(shares: PackedFloat32Array) -> void:
 	_update_minimap()
 
 
+## Pure formatting of a replicated mode state: "1: 3.5  2: 1.0   2:05", or ""
+## when the state has no scores. Static so tests need no scene.
+static func mode_score_text(state: Dictionary) -> String:
+	var scores: Array = state.get("scores", []) as Array
+	if scores.is_empty():
+		return ""
+	var parts: PackedStringArray = PackedStringArray()
+	for team: int in range(scores.size()):
+		parts.append("%d: %s" % [team + 1, String.num(float(scores[team]), 1)])
+	var text: String = "  ".join(parts)
+	var left: int = int(ceil(float(state.get("round_left", 0.0))))
+	if left > 0:
+		text += "   %d:%02d" % [left / 60, left % 60]
+	return text
+
+
+func _on_mode_state_changed(state: Dictionary) -> void:
+	var text: String = mode_score_text(state)
+	if _mode_score_label == null:
+		if text.is_empty():
+			return
+		_mode_score_label = Label.new()
+		_mode_score_label.add_theme_font_size_override("font_size", 14)
+		_mode_score_label.add_theme_color_override("font_color", hud_visual_tuning.panel_text_color)
+		_apply_text_outline(_mode_score_label)
+		_height_label.get_parent().add_child(_mode_score_label)
+	_mode_score_label.text = text
+	_mode_score_label.visible = not text.is_empty()
+
+
 func _on_goal_capture_progress(team_id: int, progress: float) -> void:
 	_minimap.set_capture(team_id, progress)
 	set_capture(team_id, progress, _color_for_slot(team_id) if team_id >= 0 else Color.WHITE)
+
+
+## A shared win (CTF tie) replaces the sole-winner text, from the payload's
+## winners list. Single-winner payloads leave show_winner()'s text untouched.
+func _on_match_results_ready(results: Dictionary) -> void:
+	var shared: String = ResultsScreen.shared_winners_text(results)
+	if not shared.is_empty():
+		_winner_label.text = shared
 
 
 func _on_match_won(team_id: int) -> void:

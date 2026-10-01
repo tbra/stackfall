@@ -27,13 +27,21 @@ var _state_dirty: bool = false
 ## resolve to CLASSIC exactly as MatchConfig.resolve_game_mode() does, so a
 ## caller cannot get null.
 static func create(
-	mode: int, goal_positions: PackedVector2Array, capture_hold: float, team_count: int
+	mode: int,
+	goal_positions: PackedVector2Array,
+	capture_hold: float,
+	team_count: int,
+	beacon_score_rate: float = 1.0,
+	beacon_replicate_interval: float = 1.0
 ) -> ModeObjective:
 	# DECISION: every id resolves to CLASSIC until a mode package (22y.7/.8/.9)
 	# adds its `match` branch here and its id to SELECTABLE_GAME_MODES.
 	var objective: ModeObjective = null
-	if MatchConfig.resolve_game_mode(mode) == MatchConfig.GameMode.CLASSIC:
-		objective = ClassicObjective.new(goal_positions, capture_hold)
+	match MatchConfig.resolve_game_mode(mode):
+		MatchConfig.GameMode.CAPTURE_THE_FLAG:
+			objective = CaptureFlagObjective.new(goal_positions, beacon_score_rate, beacon_replicate_interval)
+		_:
+			objective = ClassicObjective.new(goal_positions, capture_hold)
 	objective.reset(team_count)
 	return objective
 

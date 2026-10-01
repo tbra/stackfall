@@ -142,6 +142,11 @@ extends Resource
 ## -- Win check (spec 2.3) ---------------------------------------------------
 ## One connected territory must contain every goal flag for this long.
 @export var capture_hold: float = 3.0
+## Capture the Flag: score each held beacon adds per second (Bontago-22y.7).
+@export var ctf_score_per_beacon_second: float = 1.0
+## Capture the Flag: seconds between score-progress replications (a change in
+## held beacons replicates immediately).
+@export var ctf_replicate_interval_s: float = 1.0
 
 ## -- Auto-drop (spec 2.5: "If that spot isn't valid, it drops at the closest
 ## valid point") -------------------------------------------------------------

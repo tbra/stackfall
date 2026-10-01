@@ -258,6 +258,17 @@ func test_match_won_event_no_longer_shows_the_hud_winner_label() -> void:
 	assert_false(hud._winner_label.visible)
 
 
+func test_a_tied_results_payload_announces_a_shared_win() -> void:
+	var hud: HUD = _make_hud()
+	Events.match_won.emit(0)
+	assert_eq(hud._winner_label.text, "Team 1 wins!")
+	Events.match_results_ready.emit({
+		"winner_kind": MatchStats.WINNER_KIND_TEAM, "winner_id": 0,
+		"mode": {"winners": "0,1"},
+	})
+	assert_eq(hud._winner_label.text, "Teams 1 & 2 share the win!")
+
+
 func test_placement_rejected_event_shows_reject_only_for_the_active_slot() -> void:
 	var hud: HUD = _make_hud()
 	Events.turn_changed.emit(0)
