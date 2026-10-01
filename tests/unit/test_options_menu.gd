@@ -703,3 +703,47 @@ func _make_joy_event(button_index: JoyButton) -> InputEventJoypadButton:
 func _delete_if_exists(path: String) -> void:
 	if FileAccess.file_exists(path):
 		DirAccess.remove_absolute(path)
+
+
+func test_shoulder_actions_cycle_options_tabs() -> void:
+	var menu: OptionsMenu = _make_menu()
+	var next_tab: InputEventAction = InputEventAction.new()
+	next_tab.action = "menu_tab_next"
+	next_tab.pressed = true
+	menu._unhandled_input(next_tab)
+	assert_true((menu.get_node("%ControlsTabButton") as Button).button_pressed)
+	assert_true((menu.get_node("%ControlsTabButton") as Button).has_focus())
+	var previous_tab: InputEventAction = InputEventAction.new()
+	previous_tab.action = "menu_tab_previous"
+	previous_tab.pressed = true
+	menu._unhandled_input(previous_tab)
+	assert_true((menu.get_node("%SettingsTabButton") as Button).button_pressed)
+
+
+func test_shoulder_action_does_not_change_tabs_during_key_capture() -> void:
+	var menu: OptionsMenu = _make_menu()
+	assert_gt(menu._rows.size(), 0)
+	menu._rows[0]._on_pressed()
+	var next_tab: InputEventAction = InputEventAction.new()
+	next_tab.action = "menu_tab_next"
+	next_tab.pressed = true
+	menu._unhandled_input(next_tab)
+	assert_true((menu.get_node("%SettingsTabButton") as Button).button_pressed)
+
+
+func test_real_gamepad_shoulders_switch_options_tabs() -> void:
+	var menu: OptionsMenu = _make_menu()
+	var right: InputEventJoypadButton = InputEventJoypadButton.new()
+	right.device = -1
+	right.button_index = JOY_BUTTON_RIGHT_SHOULDER
+	right.pressed = true
+	assert_true(right.is_action_pressed(&"menu_tab_next"))
+	menu._unhandled_input(right)
+	assert_true((menu.get_node("%ControlsTabButton") as Button).button_pressed)
+	var left: InputEventJoypadButton = InputEventJoypadButton.new()
+	left.device = -1
+	left.button_index = JOY_BUTTON_LEFT_SHOULDER
+	left.pressed = true
+	assert_true(left.is_action_pressed(&"menu_tab_previous"))
+	menu._unhandled_input(left)
+	assert_true((menu.get_node("%SettingsTabButton") as Button).button_pressed)

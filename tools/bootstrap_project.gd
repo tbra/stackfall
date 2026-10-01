@@ -438,6 +438,9 @@ func _actions() -> Dictionary:
 	# Menu-only transport/page tabs; gameplay shoulder actions stay unchanged.
 	a["menu_tab_previous"] = [_key(KEY_BRACKETLEFT), _pad(JOY_BUTTON_LEFT_SHOULDER)]
 	a["menu_tab_next"] = [_key(KEY_BRACKETRIGHT), _pad(JOY_BUTTON_RIGHT_SHOULDER)]
+	# Lobby face-button shortcuts; only the lobby consumes these actions.
+	a["lobby_quick_start"] = [_key(KEY_X), _pad(JOY_BUTTON_X)]
+	a["lobby_quick_advanced"] = [_key(KEY_Y), _pad(JOY_BUTTON_Y)]
 
 	# --- Shell --------------------------------------------------------------
 	a["pause_menu"] = [_key(KEY_ESCAPE), _pad(JOY_BUTTON_START)]

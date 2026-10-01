@@ -792,6 +792,18 @@ func _close_advanced_popup() -> void:
 ## advanced-rules popup happened to be open, the reported "B never goes back
 ## in any menu" gap.
 func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed(&"lobby_quick_advanced"):
+		if _advanced_popup.visible:
+			_close_advanced_popup()
+		else:
+			_open_advanced_popup()
+		get_viewport().set_input_as_handled()
+		return
+	if event.is_action_pressed(&"lobby_quick_start"):
+		if not _advanced_popup.visible and _start_button.visible and not _start_button.disabled:
+			_on_start_pressed()
+		get_viewport().set_input_as_handled()
+		return
 	if not event.is_action_pressed(&"ui_cancel"):
 		return
 	if _advanced_popup.visible:
