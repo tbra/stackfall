@@ -50,6 +50,12 @@ func run() -> void:
 				circles, heights, cone_angle, cone_base_mode, cone_base_radius, cone_max_radius
 			)
 			out_circles = projected["circles"]
+		elif not holes_enabled:
+			# Bontago-1pi.11.33: circle mode (HoleMode.OFF) drops same-team circles
+			# fully inside a larger one BEFORE the solver's max_circles budget, so
+			# redundant circles never spend budget. Exact: raster, shader and
+			# connectivity are unchanged (the cone path already culls its own).
+			out_circles = SandboxContainmentExperiment.build(circles)["circles"]
 		var active_solver: TerritorySolver = solver if solver != null else TerritorySolver.new(solver_tuning)
 		groups = active_solver.solve(out_circles)
 	fill_raster.fill_ownership(out_circles, groups, holes_enabled)
@@ -60,21 +66,21 @@ func run() -> void:
 
 ## The analytic circle list the overlay and the replication wire use: only the
 ## home-anchored circles a group kept, sorted by team then largest radius first.
-## Moved verbatim from MatchTerritory._update_circle_render (the unstable
-## sort_custom is kept, so the replicated tie order does not change).
+## Moved from MatchTerritory._update_circle_render.
 static func build_render_list(circles: Array[InfluenceCircle], groups: TerritoryGroups) -> Dictionary:
+	# Bontago-1pi.11.33: native lexicographic sort on [team, -radius, sequence]
+	# replaces the GDScript lambda comparator. The sequence tiebreak makes equal
+	# (team, radius) entries keep insertion order (the old unstable sort left
+	# that unspecified; every distinct-key order is identical).
 	var entries: Array = []
+	var sequence: int = 0
 	for group: int in range(groups.group_count()):
 		var team: int = groups.team_of(group)
 		for circle_index: int in groups.circles_of(group):
 			var circle: InfluenceCircle = circles[circle_index]
-			entries.append([team, circle.radius, circle.center.x, circle.center.y])
-	entries.sort_custom(
-		func(a: Array, b: Array) -> bool:
-			if a[0] != b[0]:
-				return a[0] < b[0]
-			return a[1] > b[1]
-	)
+			entries.append([team, -circle.radius, sequence, circle.radius, circle.center.x, circle.center.y])
+			sequence += 1
+	entries.sort()
 
 	var count: int = entries.size()
 	var xs: PackedFloat32Array = PackedFloat32Array()
@@ -88,7 +94,7 @@ static func build_render_list(circles: Array[InfluenceCircle], groups: Territory
 	for i: int in range(count):
 		var entry: Array = entries[i]
 		teams[i] = entry[0]
-		radii[i] = entry[1]
-		xs[i] = entry[2]
-		zs[i] = entry[3]
+		radii[i] = entry[3]
+		xs[i] = entry[4]
+		zs[i] = entry[5]
 	return {"xs": xs, "zs": zs, "radii": radii, "teams": teams}

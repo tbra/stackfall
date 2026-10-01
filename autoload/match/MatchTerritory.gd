@@ -25,6 +25,9 @@ var _win_checker: WinChecker = null:
 var _objective: ModeObjective = null
 var _last_groups: TerritoryGroups = null
 var _solve_accum: float = 0.0
+## Time the solve being applied waited since the previous one (F4: the overlay
+## bake shares the staleness cap with it).
+var _solve_waited_s: float = 0.0
 ## Sandbox diagnostics: measured on the real live path, not the one-shot
 ## comparison. The most recent process tick may contain multiple solve steps.
 var _sandbox_tick_ms: float = 0.0
@@ -199,6 +202,7 @@ func _tick_territory(delta: float) -> void:
 	if due_steps > 0 and _should_defer_solve():
 		due_steps = 0
 	if due_steps > 0:
+		_solve_waited_s = _solve_accum
 		var due_time: float = float(due_steps) * step
 		_solve_accum = maxf(_solve_accum - due_time, 0.0)
 		# Legacy holes can open, eliminate a home, then close again within a
@@ -706,6 +710,10 @@ func _apply_circle_render(render: Dictionary) -> void:
 	_circle_argmax_mode = argmax_mode
 
 	if _match._field != null:
+		_match._field.set_overlay_churning(
+			_match._registry != null and not _match._registry.all_settled(), _solve_waited_s
+		)
+		_solve_waited_s = 0.0
 		_match._field.set_overlay_circles(xs, zs, radii, teams, _goal_positions, _goal_radii, argmax_mode)
 
 

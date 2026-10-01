@@ -1061,6 +1061,13 @@ func set_overlay_source(raster: TerritoryRaster, slot_colors: PackedColorArray) 
 		_overlay.set_source(raster, slot_colors)
 
 
+## Bontago-1pi.11.33: host-only "blocks are churning" flag; the overlay parks
+## its bake until settle (or the staleness cap). Clients never call it.
+func set_overlay_churning(churning: bool, solve_waited_s: float = 0.0) -> void:
+	if _overlay != null:
+		_overlay.set_churning(churning, solve_waited_s)
+
+
 ## Routes the post-solve analytic circle list to the overlay (Bontago-cmc.5).
 ## Field decides nothing here, same contract as set_overlay_source() above:
 ## autoload/Match.gd builds the list (host) or net/MatchNet.gd decodes it
