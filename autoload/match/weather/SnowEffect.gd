@@ -416,9 +416,13 @@ func _discover() -> void:
 			_prune_blocks()
 			if _sweep.is_empty():
 				return
-		var block: Block = _sweep[_sweep_pos]
+		var raw: Variant = _sweep[_sweep_pos]
 		_sweep_pos += 1
 		budget -= 1
+		# A block freed since the sweep list was built cannot go into a typed Block.
+		if not is_instance_valid(raw):
+			continue
+		var block: Block = raw as Block
 		if not _block_alive(block):
 			continue
 		var id: int = block.get_instance_id()
