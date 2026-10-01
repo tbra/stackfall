@@ -303,6 +303,7 @@ func _refresh_sources() -> void:
 		blocks = []
 		for block: Block in _registry.all_blocks():
 			blocks.append(block)
+	_prune_freed_blocks()
 	if not on_disc.is_valid():
 		on_disc = Callable(self, "_circle_contains")
 	if not surface_point.is_valid():
@@ -406,6 +407,17 @@ func _block_still_for(block: Node3D) -> float:
 	return _clock - float(entry["still"])
 
 
+## Drops freed blocks (collapse, edge fall, gift despawn) so no typed loop
+## variable or parameter ever receives a freed object.
+func _prune_freed_blocks() -> void:
+	var live: Array[Node3D] = []
+	for entry: Variant in blocks:
+		if is_instance_valid(entry):
+			live.append(entry as Node3D)
+	if live.size() != blocks.size():
+		blocks = live
+
+
 func _anchor_broken(slot: _Slot) -> bool:
 	if slot.block == null or not is_instance_valid(slot.block) or not slot.block.is_inside_tree():
 		return true
@@ -430,10 +442,11 @@ func _poll() -> void:
 				_poll_gliding(slot, cursors, camera)
 
 
-func _block_positions(exclude: Node3D) -> PackedVector3Array:
+func _block_positions(exclude: Variant) -> PackedVector3Array:
 	var points: PackedVector3Array = PackedVector3Array()
+	var skip: Node3D = exclude as Node3D if is_instance_valid(exclude) else null
 	for block: Node3D in blocks:
-		if is_instance_valid(block) and block != exclude:
+		if is_instance_valid(block) and block != skip:
 			points.append(block.global_position)
 	return points
 
