@@ -378,6 +378,12 @@ func _fire_stability_raycasts(candidate: BotCandidate, cells: PackedInt32Array, 
 		return
 	var hits: int = 0
 	for i: int in range(count):
+		# Holes are a visual void (the disc collision stays solid and
+		# HoleDissolver dissolves whatever touches an applied hole cell), so the
+		# ray below would hit the solid disc and score a hole corner as flush
+		# support. A corner over a hole cell gets no support credit.
+		if _field != null and _field.is_hole_cell(cells[i]):
+			continue
 		var hit: Dictionary = _raycast_support_height(grid.index_center(cells[i]))
 		# Bontago-d5c.11 item 1: a corner with nothing directly below it (a
 		# hole, the rim, open air) must never count as support, no matter how

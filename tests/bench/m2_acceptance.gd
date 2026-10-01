@@ -27,7 +27,8 @@ extends Node3D
 ## The eight criteria, lettered as in the acceptance brief:
 ##   (a) both players' territory shares grow as they build.
 ##   (b) where two territories overlap, the contested cells become holes after
-##       hole_delay, and a block dropped on a hole cell falls below the disk.
+##       hole_delay, and a block dropped on a hole cell dissolves and is removed
+##       (the disc stays solid; game/HoleDissolver.gd, Bontago-1pi.11.41).
 ##   (c) a tower whose base is cut off loses its influence: removing a link in
 ##       the chain drops the owner's territory share.
 ##   (d) a player whose connected territory holds the goal flag's base for
@@ -186,7 +187,7 @@ func _scenario_growth_holes_cutoff_and_topple() -> void:
 	var chain_1: Array[Block] = []
 	await _march_pair(home_0, home_1, meeting, chain_0, chain_1)
 
-	# Snapshotted now, before anything can fall through a hole: the base of
+	# Snapshotted now, before anything can dissolve on a hole: the base of
 	# each chain sits exactly at the contested meeting point (see below), so
 	# `chain_N[-1]` itself is exactly the block at risk of losing its own
 	# floor once (b) opens a hole there. Every later position check reads
@@ -233,7 +234,7 @@ func _scenario_growth_holes_cutoff_and_topple() -> void:
 	await _drain_field_backlog()
 	# The two towers' own footprints (points_0/points_1's last entry) are
 	# exactly where a hole is most likely, but they are occupied by real
-	# blocks -- excluded so the dropped test block actually falls through open
+	# blocks -- excluded so the dropped test block actually lands on open
 	# ground rather than resting on (or crashing on a freed reference to) a
 	# tower that is still standing, or that fell through moments earlier.
 	var occupied: Array[Vector2] = [points_0[points_0.size() - 1], points_1[points_1.size() - 1]]
@@ -241,7 +242,7 @@ func _scenario_growth_holes_cutoff_and_topple() -> void:
 	if holes.size() > 0:
 		fell_through = await _drop_through_hole(holes, occupied)
 	_check("b2", fell_through,
-		"a block dropped on a hole cell must end up below the disk surface")
+		"a block dropped on a hole cell must dissolve and be removed (disc stays solid)")
 
 	# (c) Cut the middle out of player 0's chain: everything past the cut is no
 	# longer connected to the home circle, so it stops granting territory. The
@@ -1037,7 +1038,9 @@ func _drain_field_backlog() -> void:
 
 
 ## Drops a bare block (not a placement -- placing on a hole is refused) over a
-## hole cell and reports whether it ended up below the disk surface. Skips any
+## hole cell and reports whether it was dissolved and removed (HoleDissolver:
+## the disc stays solid, so merely falling below the surface never happens; a
+## block that just rests on the hole counts as a failure). Skips any
 ## candidate cell within a cube's width of `occupied` (the two towers' own
 ## footprints), which may still have a real block resting on it -- or may not,
 ## if that tower's own floor gave way first, but either way it is not the open
@@ -1060,12 +1063,8 @@ func _drop_through_hole(holes: PackedInt32Array, occupied: Array[Vector2]) -> bo
 		_blocks.add_child(block)
 		block.global_position = _world_point(center, PLACE_HEIGHT)
 		var block_id: int = block.get_instance_id()
-		var floor_y: float = _field.surface_y() - _physics.cube_size
 		var fell: bool = await _step_until(_frames_for_seconds(4.0), func() -> bool:
-			if not _alive(block_id):
-				return true
-			var body: Node3D = instance_from_id(block_id) as Node3D
-			return body.global_position.y < floor_y
+			return not _alive(block_id)
 		)
 		if _alive(block_id):
 			(instance_from_id(block_id) as Node).queue_free()

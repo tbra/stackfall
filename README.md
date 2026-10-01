@@ -116,7 +116,7 @@ own home flag, with the camera already looking from there toward the disk's cent
 8. Let the timer ring in the top-left run out to watch the auto-drop relocate the block to
    the nearest valid spot, or burn it if there isn't one.
 9. Build toward the other player. Where your territories overlap, the cells shimmer, then
-   open into holes after about a second; drop a block on one and it falls through the disk.
+   open into holes after about a second; a block that touches a hole dissolves away and is removed (the disk itself stays solid).
 10. Cut a tower off from your home flag — knock out the blocks between — and watch its
     patch of territory disappear from the overlay and from the share bars.
 11. Surround the goal flag in the middle with one connected territory. Its ring fills over

@@ -38,6 +38,9 @@ extends Node
 class _Footprint:
 	## Child count the points were built from (gift visuals swap collision).
 	var child_count: int = -1
+	## Fingerprint of the collision children's shape resources and local
+	## transforms; a swap that keeps the child count still invalidates.
+	var signature: int = 0
 	## Block-local sample points: every collision corner, inset.
 	var points: PackedVector3Array = PackedVector3Array()
 	## Largest distance of any point from the block origin.
@@ -209,14 +212,30 @@ func touches_hole(block: Block) -> bool:
 	return false
 
 
+## Hash of every collision child's shape instance id, local transform and
+## disabled flag: changes whenever the shape or collision does, even with an
+## unchanged child count.
+static func _collision_signature(block: Block) -> int:
+	var signature: int = 17
+	for child: Node in block.get_children():
+		var collision: CollisionShape3D = child as CollisionShape3D
+		if collision == null:
+			continue
+		var shape_id: int = collision.shape.get_instance_id() if collision.shape != null else 0
+		signature = hash([signature, child.get_instance_id(), shape_id, collision.transform, collision.disabled])
+	return signature
+
+
 func _footprint(block: Block) -> _Footprint:
 	var id: int = block.get_instance_id()
 	var child_count: int = block.get_child_count()
 	var cached: _Footprint = _footprints.get(id) as _Footprint
-	if cached != null and cached.child_count == child_count:
+	var signature: int = _collision_signature(block)
+	if cached != null and cached.child_count == child_count and cached.signature == signature:
 		return cached
 	var footprint: _Footprint = _Footprint.new()
 	footprint.child_count = child_count
+	footprint.signature = signature
 	var inset: float = tuning.contact_inset_m
 	for child: Node in block.get_children():
 		var collision: CollisionShape3D = child as CollisionShape3D
