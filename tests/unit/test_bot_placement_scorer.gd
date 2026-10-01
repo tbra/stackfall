@@ -483,3 +483,40 @@ func test_elimination_off_mode_defend_rewards_covering_the_home_circle() -> void
 	goal.home_radius = 6.0
 	var off_gap: float = _score_with(on_home, goal, threats) - _score_with(weaker, goal, threats)
 	assert_gt(off_gap, overlap_gap, "OFF mode adds a home-coverage defend bonus")
+
+
+## -- Bontago-1t5.4 part 2: approach / reach ------------------------------------------
+
+func test_elimination_approach_candidate_beats_equal_height_inward_candidate() -> void:
+	var goal: BotModeGoal = _elim_goal(PackedVector2Array([Vector2(15.0, 0.0)]), PackedFloat32Array([0.2]), Vector2(-15.0, 0.0))
+	var inward: BotCandidate = _candidate(Vector2(-12.0, 0.0), 1.0)
+	var frontier: BotCandidate = _candidate(Vector2(-2.0, 0.0), 1.0)
+	assert_gt(_score_with(frontier, goal, PackedVector2Array()), _score_with(inward, goal, PackedVector2Array()))
+	var saved: float = _bot_tuning.weight_elim_approach
+	_bot_tuning.weight_elim_approach = 0.0
+	var without: float = _score_with(frontier, goal, PackedVector2Array())
+	_bot_tuning.weight_elim_approach = saved
+	assert_gt(_score_with(frontier, goal, PackedVector2Array()), without, "the approach term itself adds reward")
+
+
+func test_elimination_approach_is_damped_when_home_is_threatened() -> void:
+	var home: Vector2 = Vector2(-15.0, 0.0)
+	var goal: BotModeGoal = _elim_goal(PackedVector2Array([Vector2(15.0, 0.0)]), PackedFloat32Array([0.2]), home)
+	var threats: PackedVector2Array = PackedVector2Array([Vector2(-10.0, 3.0), Vector2(-9.0, -3.0)])
+	var frontier: BotCandidate = _candidate(Vector2(-2.0, 0.0), 1.0)
+	var calm: float = BotPlacementScorer._elimination_approach_term(frontier, goal, PackedVector2Array(), 1.0, _bot_tuning)
+	var threatened: float = BotPlacementScorer._elimination_approach_term(frontier, goal, threats, 1.0, _bot_tuning)
+	assert_gt(calm, threatened * 2.0)
+
+
+func test_target_home_index_picks_weakest_then_nearest() -> void:
+	var weak_goal: BotModeGoal = _elim_goal(
+		PackedVector2Array([Vector2(12.0, 0.0), Vector2(-12.0, 0.0)]), PackedFloat32Array([0.9, 0.0]), Vector2(0.0, 18.0)
+	)
+	assert_eq(BotPlacementScorer.target_home_index(weak_goal, _bot_tuning), 1, "weaker of equidistant homes")
+	var near_goal: BotModeGoal = _elim_goal(
+		PackedVector2Array([Vector2(20.0, 0.0), Vector2(-5.0, 0.0)]), PackedFloat32Array([0.2, 0.2]), Vector2(-10.0, 0.0)
+	)
+	assert_eq(BotPlacementScorer.target_home_index(near_goal, _bot_tuning), 1, "nearer of equal-share homes")
+	var none: BotModeGoal = _elim_goal(PackedVector2Array(), PackedFloat32Array(), Vector2.ZERO)
+	assert_eq(BotPlacementScorer.target_home_index(none, _bot_tuning), -1)

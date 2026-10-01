@@ -296,6 +296,16 @@ func _sample_territory_point(team_id: int) -> Vector2:
 	if raster != null:
 		var radius: float = _field_radius()
 		if radius > 0.0:
+			# Bontago-1t5.4 part 2: Elimination samples a share of candidates
+			# along the own-home -> target-home line (skewed to the far end).
+			var line: PackedVector2Array = _frontier_line(match_ref)
+			if line.size() == 2 and _rng.randf() < tuning.elim_frontier_sample_fraction:
+				for _attempt: int in range(tuning.max_territory_sample_attempts):
+					var t: float = 1.0 - _rng.randf() * _rng.randf()
+					var jitter: Vector2 = Vector2.from_angle(_rng.randf() * TAU) * (_rng.randf() * tuning.elim_frontier_jitter_m)
+					var biased_xz: Vector2 = line[0].lerp(line[1], t) + jitter
+					if biased_xz.length() <= radius and PlacementRules.validate_point(biased_xz, raster, team_id) == PlacementRules.Result.VALID:
+						return biased_xz
 			for _attempt: int in range(tuning.max_territory_sample_attempts):
 				var angle: float = _rng.randf() * TAU
 				var dist: float = sqrt(_rng.randf()) * radius
@@ -303,6 +313,18 @@ func _sample_territory_point(team_id: int) -> Vector2:
 				if PlacementRules.validate_point(candidate_xz, raster, team_id) == PlacementRules.Result.VALID:
 					return candidate_xz
 	return _home_position()
+
+
+## [own home, target enemy home] in Elimination (empty otherwise), the line
+## frontier-biased sampling follows.
+func _frontier_line(match_ref: Variant) -> PackedVector2Array:
+	var goal: BotModeGoal = _mode_goal(match_ref)
+	if goal == null or goal.mode != MatchConfig.GameMode.ELIMINATION or not goal.has_own_home:
+		return PackedVector2Array()
+	var index: int = BotPlacementScorer.target_home_index(goal, tuning)
+	if index < 0:
+		return PackedVector2Array()
+	return PackedVector2Array([goal.own_home_position, goal.enemy_home_positions[index]])
 
 
 func _field_radius() -> float:

@@ -129,6 +129,22 @@ extends Resource
 @export var elim_achieve_bonus_m: float = 6.0
 @export var elim_overshoot_gain: float = 0.25
 @export var elim_overshoot_cap_m: float = 2.0
+## Bontago-1t5.4 part 2 (approach/reach): weight of the approach term, which pays
+## for each meter a candidate's influence frontier (distance to the target home
+## minus its future radius) sits closer than the bot's own home does, scaled by
+## (1 + elim_approach_reach_gain * future radius) so taller (bigger-influence)
+## placements extend further.
+@export var weight_elim_approach: float = 1.5
+@export var elim_approach_reach_gain: float = 0.5
+## Future radius (m) beyond which a taller placement earns no extra reach multiplier.
+@export var elim_approach_reach_cap_m: float = 3.0
+## Approach fades by 1 / (1 + this * enemy circles near own home): defend wins when threatened.
+@export var elim_approach_threat_damp: float = 8.0
+## Fraction of Elimination candidates sampled along the own-home -> target line
+## (skewed to the far end, so the frontier) instead of uniformly in the disk,
+## and the random lateral jitter (m) applied to those samples.
+@export_range(0.0, 1.0) var elim_frontier_sample_fraction: float = 0.6
+@export var elim_frontier_jitter_m: float = 3.0
 ## OFF mode defend: extra defend weight scaled by how much of the home radius the
 ## candidate's own circle covers at the home point (0..1).
 @export var elim_off_defend_gain: float = 2.0

@@ -205,6 +205,7 @@ static func _elimination_term(
 		best_metric = metric if best_metric == INF else maxf(best_metric, metric)
 	if best_metric != INF:
 		term += tuning.weight_elim_attack * best_metric
+	term += _elimination_approach_term(candidate, mode_goal, enemy_circle_centers, radius, tuning)
 	if mode_goal.has_own_home and tuning.elim_defend_radius_m > 0.0:
 		var home_distance: float = candidate.origin.distance_to(mode_goal.own_home_position)
 		var threats: int = 0
@@ -221,6 +222,51 @@ static func _elimination_term(
 			var coverage: float = clampf((radius - home_distance) / mode_goal.home_radius, 0.0, 1.0)
 			term += tuning.weight_elim_defend * tuning.elim_off_defend_gain * coverage * threat_factor
 	return term
+
+
+## Bontago-1t5.4 part 2: index into `mode_goal.enemy_home_positions` of the home
+## the bot is working towards (the weakest/nearest one: distance from the bot's
+## own home, inflated by the team's territory share); -1 when none lives.
+static func target_home_index(mode_goal: BotModeGoal, tuning: BotTuning) -> int:
+	var origin: Vector2 = mode_goal.own_home_position if mode_goal.has_own_home else Vector2.ZERO
+	var best: int = -1
+	var best_cost: float = INF
+	for i: int in range(mode_goal.enemy_home_positions.size()):
+		var share: float = mode_goal.enemy_home_shares[i] if i < mode_goal.enemy_home_shares.size() else 0.0
+		var cost: float = origin.distance_to(mode_goal.enemy_home_positions[i]) * (1.0 + tuning.elim_weak_target_bias * share)
+		if cost < best_cost:
+			best_cost = cost
+			best = i
+	return best
+
+
+## Bontago-1t5.4 part 2: reach towards the target home. Progress is how much
+## nearer the candidate's influence frontier (distance to target minus future
+## radius) is than the bot's own home is to it; floored at 0, scaled up by the
+## future radius and damped when enemy circles threaten the bot's own home.
+static func _elimination_approach_term(
+	candidate: BotCandidate,
+	mode_goal: BotModeGoal,
+	enemy_circle_centers: PackedVector2Array,
+	radius: float,
+	tuning: BotTuning
+) -> float:
+	if tuning.weight_elim_approach <= 0.0 or not mode_goal.has_own_home:
+		return 0.0
+	var index: int = target_home_index(mode_goal, tuning)
+	if index < 0:
+		return 0.0
+	var target: Vector2 = mode_goal.enemy_home_positions[index]
+	var baseline: float = mode_goal.own_home_position.distance_to(target)
+	var distance: float = candidate.origin.distance_to(target)
+	# Past the target the frontier cannot get any closer (no extra reward for overshoot).
+	var progress: float = clampf(baseline - maxf(distance - radius, 0.0), 0.0, baseline)
+	var threats: int = 0
+	for center: Vector2 in enemy_circle_centers:
+		if center.distance_to(mode_goal.own_home_position) < tuning.elim_threat_radius_m:
+			threats += 1
+	var damp: float = 1.0 + tuning.elim_approach_threat_damp * float(threats)
+	return tuning.weight_elim_approach * progress * (1.0 + tuning.elim_approach_reach_gain * minf(radius, tuning.elim_approach_reach_cap_m)) / damp
 
 
 ## Capture the Flag. DECISION (Bontago-1t5.3): a beacon only scores while its
