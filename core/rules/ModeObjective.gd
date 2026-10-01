@@ -32,7 +32,10 @@ static func create(
 	capture_hold: float,
 	team_count: int,
 	beacon_score_rate: float = 1.0,
-	beacon_replicate_interval: float = 1.0
+	beacon_replicate_interval: float = 1.0,
+	slot_teams: PackedInt32Array = PackedInt32Array(),
+	sky_sum_members: bool = false,
+	sky_replicate_interval: float = 0.5
 ) -> ModeObjective:
 	# DECISION: every id resolves to CLASSIC until a mode package (22y.7/.8/.9)
 	# adds its `match` branch here and its id to SELECTABLE_GAME_MODES.
@@ -40,6 +43,8 @@ static func create(
 	match MatchConfig.resolve_game_mode(mode):
 		MatchConfig.GameMode.CAPTURE_THE_FLAG:
 			objective = CaptureFlagObjective.new(goal_positions, beacon_score_rate, beacon_replicate_interval)
+		MatchConfig.GameMode.REACH_THE_SKY:
+			objective = ReachSkyObjective.new(slot_teams, sky_sum_members, sky_replicate_interval)
 		_:
 			objective = ClassicObjective.new(goal_positions, capture_hold)
 	objective.reset(team_count)
