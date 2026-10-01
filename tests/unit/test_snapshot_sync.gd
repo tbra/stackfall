@@ -571,6 +571,11 @@ class PeerStubSync:
 		selections += 1
 		return super._select_bodies()
 
+	var sends: int = 0
+
+	func _send_packet(_packet: PackedByteArray) -> void:
+		sends += 1
+
 
 func _host_stub() -> PeerStubSync:
 	Net._mode = Net.Mode.HOST

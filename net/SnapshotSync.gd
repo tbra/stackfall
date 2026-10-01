@@ -313,7 +313,7 @@ func host_tick(delta: float) -> void:
 	_remember_sent(bodies)
 
 	for packet: PackedByteArray in packets:
-		net_snapshot.rpc(packet)
+		_send_packet(packet)
 
 	Net.report_stats(&"snapshot", {
 		"snapshot_last_bytes": _last_snapshot_bytes,
@@ -679,6 +679,11 @@ func _is_spawned(net_id: int) -> bool:
 	if _registry == null:
 		return true
 	return _registry.block_for_net_id(net_id) != null
+
+
+## The one network send (a seam so tests can count sends without a peer).
+func _send_packet(packet: PackedByteArray) -> void:
+	net_snapshot.rpc(packet)
 
 
 func _remote_peer_count() -> int:
