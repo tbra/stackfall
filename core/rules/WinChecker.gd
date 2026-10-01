@@ -142,6 +142,19 @@ func _group_holding_every_goal(raster: TerritoryRaster) -> int:
 	return group
 
 
+## The per-goal test of spec 2.3, shared with other objectives (Capture the
+## Flag scores each beacon with it): the team holding the goal at `point`, or
+## NO_TEAM. A goal is held only when its cell is in a real solver group (the
+## solver only forms groups anchored to a living home, so this is the "unbroken
+## path to a living allied home" rule) and is owned in the final raster;
+## unowned, contested, hole and off-disk reads hold for nobody.
+static func goal_holder(raster: TerritoryRaster, point: Vector2) -> int:
+	if raster.group_at_point(point) < 0:
+		return NO_TEAM
+	var cell: Vector2i = raster.grid().world_to_cell(point)
+	return raster.team_at(cell.x, cell.y)
+
+
 func _team_at(raster: TerritoryRaster, point: Vector2) -> int:
 	var cell: Vector2i = raster.grid().world_to_cell(point)
 	return raster.team_at(cell.x, cell.y)

@@ -64,7 +64,7 @@ const SKY_THEME_IDS: PackedStringArray = ["sunset", "night"]
 ## fall back to CLASSIC. A mode package makes its id selectable by adding it
 ## to SELECTABLE_GAME_MODES and giving ModeObjective.create() a branch.
 enum GameMode { CLASSIC, CAPTURE_THE_FLAG, ELIMINATION, REACH_THE_SKY }
-const SELECTABLE_GAME_MODES: Array[int] = [GameMode.CLASSIC]
+const SELECTABLE_GAME_MODES: Array[int] = [GameMode.CLASSIC, GameMode.CAPTURE_THE_FLAG]
 ## Lobby labels, indexed by GameMode.
 const GAME_MODE_LABELS: PackedStringArray = ["Classic", "Capture the Flag", "Elimination", "Reach the Sky"]
 ## Round timer (timed modes only), minutes. Classic keeps match_timer_minutes.

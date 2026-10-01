@@ -116,7 +116,9 @@ func _build_territory() -> void:
 	# the zone's rim instead of the flag's centre point.
 	_raster.set_goal_zones(goal_positions, _match._territory_tuning.goal_zone_radius)
 	_objective = ModeObjective.create(
-		_match.config.game_mode, goal_positions, _match._territory_tuning.capture_hold, _match.config.team_count()
+		_match.config.game_mode, goal_positions, _match._territory_tuning.capture_hold, _match.config.team_count(),
+		_match._territory_tuning.ctf_score_per_beacon_second,
+		_match._territory_tuning.ctf_replicate_interval_s
 	)
 	_win_checker = (_objective as ClassicObjective).checker() if _objective is ClassicObjective else null
 	_match._lifecycle.flush_pending_mode_state()

@@ -111,7 +111,7 @@ func test_default_mode_is_classic() -> void:
 
 func test_reserved_and_unknown_mode_ids_fall_back_to_classic() -> void:
 	for mode: int in [
-		MatchConfig.GameMode.CAPTURE_THE_FLAG, MatchConfig.GameMode.ELIMINATION,
+		MatchConfig.GameMode.ELIMINATION,
 		MatchConfig.GameMode.REACH_THE_SKY, 99, -3,
 	]:
 		assert_false(MatchConfig.is_game_mode_selectable(mode))
@@ -301,13 +301,14 @@ func _make_lobby(is_host: bool) -> Lobby:
 	return lobby
 
 
-func test_lobby_lists_all_modes_but_only_classic_is_selectable() -> void:
+func test_lobby_lists_all_modes_but_only_implemented_ones_are_selectable() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var option: OptionButton = lobby.get_node("%GameModeOption")
 	assert_eq(option.item_count, MatchConfig.GAME_MODE_LABELS.size())
 	assert_eq(option.selected, MatchConfig.GameMode.CLASSIC)
 	for i: int in range(option.item_count):
-		assert_eq(option.is_item_disabled(i), i != MatchConfig.GameMode.CLASSIC)
+		assert_eq(option.is_item_disabled(i), not MatchConfig.is_game_mode_selectable(i))
+	assert_false(option.is_item_disabled(MatchConfig.GameMode.CAPTURE_THE_FLAG), "Bontago-22y.7")
 
 
 func test_lobby_timer_round_trips_through_published_lobby_data_to_a_client() -> void:

@@ -171,7 +171,39 @@ func _headline_text(results: Dictionary) -> String:
 	var winner_id: int = int(results.get("winner_id", -1))
 	var winner_name: String = String(results.get("winner_name", ""))
 	var headline: String = "It's a draw!" if winner_id < 0 or winner_name.is_empty() else "%s wins!" % winner_name
+	var shared: String = shared_winners_text(results)
+	if not shared.is_empty():
+		headline = shared
 	return headline + mode_outcome_text(results)
+
+
+## Every winning id: mode.winners when a mode payload lists it (a CTF tie is a
+## shared win), else just winner_id. Empty when nobody won.
+static func winner_ids(results: Dictionary) -> PackedInt32Array:
+	var out: PackedInt32Array = PackedInt32Array()
+	var mode: Variant = results.get("mode")
+	if mode is Dictionary:
+		for id_text: String in String((mode as Dictionary).get("winners", "")).split(",", false):
+			out.append(int(id_text))
+	if out.is_empty() and int(results.get("winner_id", -1)) >= 0:
+		out.append(int(results.get("winner_id", -1)))
+	return out
+
+
+## Bontago-22y.7: a tied timed mode lists every top team in mode.winners
+## ("0,2"); returns "Teams 1 & 3 share the win!" for two or more, else "".
+static func shared_winners_text(results: Dictionary) -> String:
+	var mode: Variant = results.get("mode")
+	if not (mode is Dictionary):
+		return ""
+	var ids: PackedStringArray = String((mode as Dictionary).get("winners", "")).split(",", false)
+	if ids.size() < 2:
+		return ""
+	var ffa: bool = String(results.get("winner_kind", MatchStats.WINNER_KIND_SLOT)) == MatchStats.WINNER_KIND_SLOT
+	var names: PackedStringArray = PackedStringArray()
+	for id_text: String in ids:
+		names.append(str(int(id_text) + 1))
+	return "%s %s share the win!" % ["Players" if ffa else "Teams", " & ".join(names)]
 
 
 ## Bontago-22y.11: a non-classic results payload carries a "mode" block (mode
@@ -210,14 +242,14 @@ static func mode_outcome_text(results: Dictionary) -> String:
 ## and stable, not spec-mandated.
 static func sorted_rows(results: Dictionary) -> Array[Dictionary]:
 	var winner_kind: String = String(results.get("winner_kind", MatchStats.WINNER_KIND_SLOT))
-	var winner_id: int = int(results.get("winner_id", -1))
+	var winners: PackedInt32Array = winner_ids(results)
 	var raw_rows: Array = results.get("rows", [])
 	var rows: Array[Dictionary] = []
 	for raw_row: Variant in raw_rows:
 		var row: Dictionary = (raw_row as Dictionary).duplicate()
-		var is_winner: bool = winner_id >= 0 and (
-			(winner_kind == MatchStats.WINNER_KIND_TEAM and int(row.get("team_id", -1)) == winner_id)
-			or (winner_kind == MatchStats.WINNER_KIND_SLOT and int(row.get("slot_id", -1)) == winner_id)
+		var is_winner: bool = (
+			(winner_kind == MatchStats.WINNER_KIND_TEAM and winners.has(int(row.get("team_id", -1))))
+			or (winner_kind == MatchStats.WINNER_KIND_SLOT and winners.has(int(row.get("slot_id", -1))))
 		)
 		row["is_winner"] = is_winner
 		rows.append(row)

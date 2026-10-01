@@ -307,6 +307,9 @@ func _populate_options() -> void:
 	# Bontago-22y.11: order must match MatchConfig.GameMode. Reserved modes are
 	# listed but disabled, so neither the mouse nor the gamepad popup can pick
 	# one; MatchConfig.resolve_game_mode() also rejects them on the wire.
+	# DECISION (Bontago-22y.7): Capture the Flag needs no extra timer control; it
+	# reuses the round timer spin, which always carries a value (default 10 min,
+	# clamped 1-40), so the timer is defaulted rather than blocked when unset.
 	_fill_option(_game_mode_option, Array(MatchConfig.GAME_MODE_LABELS))
 	for mode_index: int in range(_game_mode_option.item_count):
 		_game_mode_option.set_item_disabled(mode_index, not MatchConfig.is_game_mode_selectable(mode_index))

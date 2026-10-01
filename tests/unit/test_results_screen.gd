@@ -100,6 +100,26 @@ func _team_results() -> Dictionary:
 	}
 
 
+# --- CTF tie: every tied team is a winner -----------------------------------
+
+func test_a_tie_highlights_every_tied_team_row() -> void:
+	var results: Dictionary = _team_results()
+	results["winner_id"] = 0
+	results["winner_name"] = "Team 1"
+	results["mode"] = {"mode_id": MatchConfig.GameMode.CAPTURE_THE_FLAG, "scores": [5.0, 5.0], "winners": "0,1"}
+	var rows: Array[Dictionary] = ResultsScreen.sorted_rows(results)
+	assert_true(bool(rows[0].get("is_winner")))
+	assert_true(bool(rows[1].get("is_winner")), "the second tied team is a winner too")
+	assert_eq(ResultsScreen.shared_winners_text(results), "Teams 1 & 2 share the win!")
+
+
+func test_single_winner_rows_unchanged_without_a_winners_list() -> void:
+	var rows: Array[Dictionary] = ResultsScreen.sorted_rows(_team_results())
+	assert_true(bool(rows[0].get("is_winner")))
+	assert_eq(int(rows[0].get("team_id")), 1)
+	assert_false(bool(rows[1].get("is_winner")))
+
+
 # --- Headline: the reported defect ------------------------------------------
 
 func test_ffa_headline_uses_the_winning_players_own_name() -> void:
