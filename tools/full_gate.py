@@ -23,6 +23,7 @@ import shutil
 import subprocess
 import sys
 import time
+import xml.etree.ElementTree as ET
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TIMINGS = os.path.join(ROOT, "tests", ".gut_targeted", "gate_timings.json")
@@ -70,7 +71,8 @@ def make_shards(path, tests, count, timings):
 
 def write_config(out_dir, name, tests):
     cfg = {"dirs": [], "tests": tests, "log_level": 1, "should_exit": True,
-           "should_exit_on_success": True, "prefix": "test_", "suffix": ".gd"}
+           "should_exit_on_success": True, "prefix": "test_", "suffix": ".gd",
+           "junit_xml_file": os.path.join(out_dir, name + ".xml").replace("\\", "/")}
     cfg_path = os.path.join(out_dir, name + ".json")
     with open(cfg_path, "w", encoding="ascii") as fh:
         json.dump(cfg, fh)
@@ -105,6 +107,21 @@ def parse(log_path):
         elif current and FAILED_RE.search(line):
             failing.add(current)
     return totals, failing
+
+
+def suite_times(out_dir, name):
+    """Per-script seconds from GUT's JUnit export (testsuite name = res path)."""
+    times = {}
+    try:
+        root = ET.parse(os.path.join(out_dir, name + ".xml")).getroot()
+    except (OSError, ET.ParseError):
+        return times
+    for suite in root.iter("testsuite"):
+        try:
+            times[suite.get("name")] = float(suite.get("time") or 0.0)
+        except ValueError:
+            pass
+    return times
 
 
 def run_batch(path, out_dir, batches, timeout_s):
@@ -158,11 +175,17 @@ def main(argv):
         failing.update(r["failing"])
         if "Tests" not in r["totals"]:
             harness.append("%s exit=%s (no Totals; see %s)" % (name, r["exit"], r["log"]))
-    # Record per-script cost estimates from shard wall times for better balance next run.
+    # Per-script durations (JUnit) balance the next run; fall back to the
+    # shard average for scripts the export missed.
     for (name, r), shard in zip(sorted(results.items()), shards):
+        measured = suite_times(out_dir, name)
         per = r["seconds"] / max(1, len(shard))
         for t in shard:
-            timings[t] = round(0.5 * timings.get(t, per) + 0.5 * per, 2)
+            if t in measured:
+                timings[t] = round(measured[t], 2)
+            else:
+                timings[t] = round(0.5 * timings.get(t, per) + 0.5 * per, 2)
+        r["shard_seconds"] = r["seconds"]
     os.makedirs(os.path.dirname(TIMINGS), exist_ok=True)
     with open(TIMINGS, "w", encoding="utf-8") as fh:
         json.dump(timings, fh)
@@ -177,12 +200,13 @@ def main(argv):
     verdict = "GREEN" if not confirmed and not harness else "RED"
     result = {"verdict": verdict, "path": path, "shards": len(shards), "seconds": round(time.time() - t0, 1),
               "totals": sums, "failing": confirmed, "parallel_flaky": flaky, "harness_errors": harness,
-              "out": out_dir}
+              "shard_seconds": {n: r["seconds"] for n, r in sorted(results.items())}, "out": out_dir}
     with open(os.path.join(out_dir, "result.json"), "w", encoding="utf-8") as fh:
         json.dump(result, fh, indent=1)
+    sys.stdout.flush()
     print("FULL GATE %s: %s/%s passing, %d shards, %.0fs; failing=%s parallel_flaky=%s harness=%s; out=%s" % (
         verdict, sums.get("Passing Tests", 0), sums.get("Tests", 0), len(shards), result["seconds"],
-        confirmed or "none", flaky or "none", harness or "none", out_dir))
+        confirmed or "none", flaky or "none", harness or "none", out_dir), flush=True)
     if harness:
         return 2
     return 0 if verdict == "GREEN" else 1
