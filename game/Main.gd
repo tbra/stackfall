@@ -761,9 +761,10 @@ func _on_headless_bots_seconds_elapsed() -> void:
 
 
 func _headless_bots_periodic_line() -> String:
-	return "HEADLESS_BOTS t=%.1f state=%s placements=%d mode=%d homes_alive=%d" % [
+	return "HEADLESS_BOTS t=%.1f state=%s placements=%d mode=%d homes_alive=%d frontier_gap=%.2f" % [
 		_headless_bots_elapsed_s(), _headless_bots_state_name(), _headless_bots_placements,
 		Match.config.game_mode if Match.config != null else 0, _headless_bots_homes_alive(),
+		_headless_bots_frontier_gap(),
 	]
 
 
@@ -772,6 +773,25 @@ func _headless_bots_done_line() -> String:
 		_headless_bots_elapsed_s(), _headless_bots_placements,
 		Match.config.game_mode if Match.config != null else 0, _headless_bots_homes_alive(),
 	]
+
+
+## Bontago-1t5.4 diagnostics: smallest (distance to a living enemy home minus
+## the circle's radius) over every circle, i.e. how close any team's influence
+## frontier is to an enemy home (<= 0 means a circle covers one). -1 when n/a.
+func _headless_bots_frontier_gap() -> float:
+	var arrays: Dictionary = Match.circle_render_arrays()
+	var xs: PackedFloat32Array = arrays.get("xs", PackedFloat32Array()) as PackedFloat32Array
+	var zs: PackedFloat32Array = arrays.get("zs", PackedFloat32Array()) as PackedFloat32Array
+	var radii: PackedFloat32Array = arrays.get("radii", PackedFloat32Array()) as PackedFloat32Array
+	var teams: PackedInt32Array = arrays.get("teams", PackedInt32Array()) as PackedInt32Array
+	var best: float = INF
+	for i: int in range(mini(teams.size(), radii.size())):
+		for slot_index: int in range(Match.slot_count()):
+			var slot: PlayerSlot = Match.slot(slot_index)
+			if slot == null or not slot.home_flag_alive or Match.team_of(slot_index) == teams[i]:
+				continue
+			best = minf(best, Vector2(xs[i], zs[i]).distance_to(slot.home_position) - radii[i])
+	return best if best != INF else -1.0
 
 
 ## Living home flags (diagnostics: shows whether an Elimination bot match
