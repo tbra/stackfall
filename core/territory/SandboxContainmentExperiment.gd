@@ -13,13 +13,16 @@ static func build(circles: Array[InfluenceCircle]) -> Dictionary:
 		order.append(i)
 	# Largest first, so a discarded block cannot be needed to contain another.
 	# Prefer a home at equal radius; homes themselves are never removed.
-	order.sort_custom(func(a: int, b: int) -> bool:
-		if circles[a].radius == circles[b].radius:
-			if circles[a].is_home != circles[b].is_home:
-				return circles[a].is_home
-			return a < b
-		return circles[a].radius > circles[b].radius
-	)
+	# Native lexicographic sort on [-radius, not-home, index] (same order as the
+	# former lambda comparator; Bontago-1pi.11.33).
+	var keys: Array = []
+	keys.resize(circles.size())
+	for i: int in range(circles.size()):
+		keys[i] = [-circles[i].radius, 0 if circles[i].is_home else 1, i]
+	keys.sort()
+	for k: int in range(keys.size()):
+		var key: Array = keys[k]
+		order[k] = key[2]
 	var kept: Array[int] = []
 	var removed: PackedByteArray = PackedByteArray()
 	removed.resize(circles.size())

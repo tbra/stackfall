@@ -168,9 +168,25 @@ var _bake_material: ShaderMaterial = null
 var _bake_key: Array = []
 var _bake_settle_left: int = 0
 var _bake_wanted: bool = false
+## Bontago-1pi.11.33: bake-on-settle. While blocks churn, a changed circle field
+## is parked (_bake_pending) and baked once on settle, or at a deadline shared
+## with the solve deferral: solve wait + bake wait never exceeds
+## TerritoryTuning.solve_defer_max_s, whichever comes first.
+var _churning: bool = false
+var _bake_pending: bool = false
+var _last_bake_msec: int = 0
+## How long the solve behind the current upload already waited (set by the host
+## with the churn flag); the bake only gets what is left of the shared cap.
+var _solve_waited_msec: int = 0
+var _bake_deadline_msec: int = 0
+var _bake_count: int = 0
+var _bake_deferred_count: int = 0
+## Tests/bench only: treat a headless run as bake-capable so the gating counts.
+var _bake_headless_ok: bool = false
 
 
 func _process(delta: float) -> void:
+	_flush_pending_bake(false)
 	if _raster == null or _tuning == null:
 		return
 	var interval: float = 1.0 / maxf(_tuning.raster_upload_hz, 0.001)
@@ -598,6 +614,41 @@ func set_bake_enabled_for_bench(enabled: bool) -> void:
 	_request_bake(_bake_wanted)
 
 
+## Host-side signal (autoload/match/MatchTerritory.gd): true while any tracked
+## block is awake. Leaving churn flushes a parked bake at once.
+func set_churning(churning: bool, solve_waited_s: float = 0.0) -> void:
+	_churning = churning
+	_solve_waited_msec = int(maxf(solve_waited_s, 0.0) * 1000.0)
+	_flush_pending_bake(false)
+
+
+func bake_count() -> int:
+	return _bake_count
+
+
+func bake_deferred_count() -> int:
+	return _bake_deferred_count
+
+
+func bake_pending() -> bool:
+	return _bake_pending
+
+
+func _bake_age_cap_msec() -> int:
+	if _tuning == null:
+		return 0
+	return int(maxf(_tuning.solve_defer_max_s, 0.0) * 1000.0)
+
+
+func _flush_pending_bake(force: bool) -> void:
+	if not _bake_pending:
+		return
+	if not force and _churning and Time.get_ticks_msec() < _bake_deadline_msec:
+		return
+	_bake_pending = false
+	_request_bake(_bake_wanted, true)
+
+
 func bake_valid() -> bool:
 	return _bake_viewport != null and bool(_material.get_shader_parameter(&"bake_valid"))
 
@@ -612,13 +663,14 @@ func _bake_extent() -> Vector2:
 ## Re-renders the bake if the circle field it would hold changed (or the
 ## visuals that shape it did); otherwise a no-op, so a steady 5 Hz re-upload of
 ## an unchanged set costs nothing.
-func _request_bake(circles_ok: bool) -> void:
+func _request_bake(circles_ok: bool, flushing: bool = false) -> void:
 	_bake_wanted = circles_ok
 	var usable: bool = (
 		circles_ok and _bake_viewport != null and _visuals.circle_bake_enabled
-		and DisplayServer.get_name() != "headless"
+		and (DisplayServer.get_name() != "headless" or _bake_headless_ok)
 	)
 	if not usable:
+		_bake_pending = false
 		_bake_key = []
 		_bake_settle_left = 0
 		_material.set_shader_parameter(&"bake_valid", false)
@@ -630,7 +682,26 @@ func _request_bake(circles_ok: bool) -> void:
 		extent, _visuals.circle_bake_texels_per_m, _circle_count,
 	]
 	if key == _bake_key:
+		_bake_pending = false
 		return
+	# DECISION (Bontago-1pi.11.33): skip the re-bake while blocks churn and bake
+	# once on settle. The previous bake stays visible meanwhile, never longer
+	# than solve_defer_max_s (0.5 s), so the visible cadence is unchanged in the
+	# worst case. The very first bake (nothing valid yet) is never deferred.
+	# DECISION (Bontago-1pi.11.33 review F4): the bake shares the solve's 0.5 s
+	# cap. A solve applied after waiting W seconds may park the bake for at most
+	# cap - W, so the visible territory delay stays <= solve_defer_max_s; a solve
+	# that already waited the full cap bakes right away.
+	var budget_msec: int = _bake_age_cap_msec() - _solve_waited_msec
+	if not flushing and _churning and budget_msec > 0 and not _bake_key.is_empty():
+		var deadline: int = Time.get_ticks_msec() + budget_msec
+		_bake_deadline_msec = mini(_bake_deadline_msec, deadline) if _bake_pending else deadline
+		_bake_pending = true
+		_bake_deferred_count += 1
+		return
+	_bake_pending = false
+	_bake_count += 1
+	_last_bake_msec = Time.get_ticks_msec()
 	var first: bool = _bake_key.is_empty() or not bool(_material.get_shader_parameter(&"bake_valid"))
 	_bake_key = key
 	var edge_x: int = clampi(ceili(extent.x * 2.0 * _visuals.circle_bake_texels_per_m), BAKE_SIZE_MIN, BAKE_SIZE_MAX)
