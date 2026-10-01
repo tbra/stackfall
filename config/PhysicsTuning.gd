@@ -132,3 +132,9 @@ extends Resource
 ## damping section above already documents) and coarse enough that the
 ## 20 s freeze delay's own precision doesn't need anything tighter.
 @export var stable_freeze_scan_interval_s: float = 0.5
+## Bontago-1pi.11.24: a sleeping block's freeze timer survives a wake (Jolt
+## wakes whole contact islands on any landing) as long as the block stays
+## within this distance (m; also applied to each unit basis axis) of the pose
+## it fell asleep in; moving further restarts the timer. See
+## game/StableBlockManager.gd's own DECISION.
+@export var stable_freeze_rest_epsilon_m: float = 0.005

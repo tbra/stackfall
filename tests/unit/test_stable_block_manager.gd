@@ -172,3 +172,76 @@ func test_tilting_field_releases_frozen_blocks_and_restarts_the_timer() -> void:
 	manager.check_field_motion()
 	manager._tick(2.0)
 	assert_true(block.is_freeze_static(), "disc still: re-freezes after the normal delay")
+
+
+func test_a_wake_that_does_not_move_the_block_keeps_its_freeze_timer() -> void:
+	# Bontago-1pi.11.24: Jolt wakes a whole contact island on any landing; a
+	# block that did not move must not lose its accumulated rest time.
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	var manager: StableBlockManager = _make_manager(registry)
+	var block: Block = _place(field, 0)
+	block.sleeping = true
+	manager._tick(_tuning.stable_freeze_delay_s - 2.0)
+	block.sleeping = false
+	manager._tick(_tuning.stable_freeze_scan_interval_s)
+	assert_false(block.is_freeze_static(), "awake: never frozen while awake")
+	block.sleeping = true
+	manager._tick(3.0)
+	assert_true(block.is_freeze_static(), "cumulative rest time across a still wake freezes it")
+
+
+func test_a_wake_that_moves_the_block_restarts_its_freeze_timer() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	var manager: StableBlockManager = _make_manager(registry)
+	var block: Block = _place(field, 0)
+	block.sleeping = true
+	manager._tick(_tuning.stable_freeze_delay_s - 2.0)
+	block.sleeping = false
+	block.global_position += Vector3(_tuning.stable_freeze_rest_epsilon_m * 4.0, 0.0, 0.0)
+	manager._tick(_tuning.stable_freeze_scan_interval_s)
+	block.sleeping = true
+	manager._tick(3.0)
+	assert_false(block.is_freeze_static(), "moved beyond the epsilon: timer restarted")
+	manager._tick(_tuning.stable_freeze_delay_s)
+	assert_true(block.is_freeze_static(), "re-freezes after a full delay at the new pose")
+
+
+func test_real_physics_island_wakes_still_freeze_and_a_tilt_carries_the_released_pile() -> void:
+	# Real frames: a 3-cube tower (one Jolt island) is woken every 0.75 s, so it
+	# never sleeps a whole delay in a row, yet still freezes; a tilt impulse
+	# then releases every frozen block and the base rides the disc (sen.11).
+	var tuning: PhysicsTuning = _tuning.duplicate() as PhysicsTuning
+	tuning.stable_freeze_delay_s = 1.5
+	tuning.stable_freeze_scan_interval_s = 0.25
+	var field: Field = _make_field()
+	field.set_tilt_enabled(true)
+	var registry: BlockRegistry = _make_registry(field)
+	var manager: StableBlockManager = autofree(StableBlockManager.new())
+	manager.tuning = tuning
+	add_child_autofree(manager)
+	manager.setup(registry)
+	var blocks: Array[Block] = []
+	for i: int in range(3):
+		var block: Block = _place(field, 0)
+		block.global_position = Vector3(0.5, field.surface_y() + 0.5 + 1.0 * float(i), 0.5)
+		blocks.append(block)
+	var frozen_all: bool = false
+	for f: int in range(60 * 12):
+		await wait_physics_frames(1)
+		if f % 45 == 0:
+			blocks[2].sleeping = false
+		frozen_all = true
+		for block: Block in blocks:
+			frozen_all = frozen_all and block.freeze
+		if frozen_all:
+			break
+	assert_true(frozen_all, "the periodically woken tower still froze")
+	var before_y: float = field.to_local(blocks[0].global_position).y
+	field.apply_tilt_impulse(Vector2(0.0, 1.0), 0.04)
+	await wait_physics_frames(30)
+	for block: Block in blocks:
+		assert_false(block.freeze, "a tilting disc released every frozen block")
+	var after_y: float = field.to_local(blocks[0].global_position).y
+	assert_almost_eq(after_y, before_y, 0.1, "the base block rode the disc, no clipping")
