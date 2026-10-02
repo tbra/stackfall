@@ -42,6 +42,28 @@ extends Resource
 @export_range(0.0, 1.0, 0.01) var overcast_snow: float = 0.8
 @export_range(0.0, 1.0, 0.01) var overcast_storm: float = 1.0
 
+@export_group("Night and storm floor")
+## Bontago-mp0.34: the combined weather darkening never exceeds this.
+@export_range(0.0, 1.0, 0.01) var max_combined_dim: float = 0.5
+## Share of the weather darkening removed at full night (the night palette is already dark).
+@export_range(0.0, 1.0, 0.01) var night_dim_relief: float = 0.7
+## Minimum luminance of the lit puff tone after the weather grade; the shadow and
+## mid tones keep these ratios of it so the cel bands stay readable.
+@export_range(0.0, 1.0, 0.01) var puff_min_brightness: float = 0.34
+@export_range(0.0, 1.0, 0.01) var puff_floor_shadow_ratio: float = 0.55
+@export_range(0.0, 1.0, 0.01) var puff_floor_mid_ratio: float = 0.8
+## Hue of the floor (deep slate blue); only its colour direction matters.
+@export var puff_floor_tint: Color = Color(0.42, 0.5, 0.68)
+## Soft silhouette width (pixels) of the upper puffs (0 = hard cut).
+@export_range(0.0, 8.0, 0.1) var upper_edge_softness_px: float = 1.5
+
+@export_group("Sun effects")
+## Share of the sun flare, god rays and sun glow removed at full overcast / storm.
+@export_range(0.0, 1.0, 0.01) var sun_overcast_attenuation: float = 0.6
+@export_range(0.0, 1.0, 0.01) var sun_storm_attenuation: float = 0.97
+## Night mix at which the sun effects are fully off (they fade in dusk).
+@export_range(0.01, 1.0, 0.01) var sun_night_fade_end: float = 0.35
+
 @export_group("Fades")
 @export var fade_in_s: float = 5.0
 @export var fade_out_s: float = 7.0

@@ -179,6 +179,9 @@ func apply_lighting(state: CloudLighting) -> void:
 		return
 	_material.set_shader_parameter(&"weather_dim", state.dim)
 	_material.set_shader_parameter(&"weather_desaturate", state.desaturate)
+	_material.set_shader_parameter(&"weather_floor", state.floor_color)
+	_material.set_shader_parameter(&"floor_shadow_ratio", state.floor_shadow_ratio)
+	_material.set_shader_parameter(&"floor_mid_ratio", state.floor_mid_ratio)
 
 
 ## Weather fog changed (vfx/weather/WeatherFogShader.gd).
@@ -289,6 +292,8 @@ func set_upper_presence(presence: float) -> void:
 	if _upper != null:
 		_upper.visible = _upper_presence > 0.0
 		_upper.set_instance_shader_parameter(&"presence", _upper_presence)
+		_upper.set_instance_shader_parameter(&"floor_on", 1.0)
+		_upper.set_instance_shader_parameter(&"edge_soft_px", upper_tuning.upper_edge_softness_px if upper_tuning != null else 0.0)
 
 
 func upper_presence() -> float:

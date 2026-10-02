@@ -165,6 +165,17 @@ uniform float weather_desaturate : hint_range(0.0, 1.0) = 0.0;
 // fade in with the weather intensity and are 0 in clear weather.
 instance uniform float presence : hint_range(0.0, 1.0) = 1.0;
 
+// Bontago-mp0.34: per-tone brightness floor after the weather grade (lit tone
+// colour; the shadow / mid tones use these shares of it) so night and storm
+// puffs fade to deep slate, never black. (0,0,0) = off.
+uniform vec3 weather_floor : source_color = vec3(0.0);
+uniform float floor_shadow_ratio = 0.55;
+uniform float floor_mid_ratio = 0.8;
+// Soft silhouette width in pixels (upper puffs); 0 keeps the hard cut.
+instance uniform float edge_soft_px : hint_range(0.0, 8.0) = 0.0;
+// 1 on the upper puff layer (the floor above applies there only), 0 on the sea.
+instance uniform float floor_on : hint_range(0.0, 1.0) = 0.0;
+
 varying vec3 world_pos;
 varying vec3 world_normal;
 varying vec3 puff_centre;
@@ -245,6 +256,7 @@ void fragment() {
 	float t_boil = TIME * lump_speed;
 	vec3 mesh_n = normalize(world_normal);
 	bool on_base = mesh_n.y < -0.7;
+	float edge_alpha = 1.0;
 
 	// Ray against the lumpy ellipsoid, in the puff's unit-sphere space.
 	vec3 o = (cam - puff_centre) / axes;
@@ -266,10 +278,14 @@ void fragment() {
 		float wave = sin(TIME * billow_speed + puff_seed + dot(dir, vec3(1.0, 0.7, 1.3)) * billow_frequency);
 		float radius = 1.0 + (coarse - lump_bias) * lump_height + wave * billow_amount;
 		float miss = closest_sq - radius * radius;
-		if (miss > 0.0) {
+		float soft = fwidth(miss) * edge_soft_px;
+		if (miss > soft) {
 			discard;
 		}
-		vec3 entry = o + v * (t_close - sqrt(-miss / vv));
+		if (soft > 0.0) {
+			edge_alpha = 1.0 - smoothstep(0.0, soft, miss);
+		}
+		vec3 entry = o + v * (t_close - sqrt(max(-miss, 0.0) / vv));
 		// The part of the ellipsoid below the flat base does not exist.
 		if (entry.y < -flat_base) {
 			discard;
@@ -300,8 +316,10 @@ void fragment() {
 	float shade = wrap * light_weight + height_rel * height_weight + ambient_shade + (lump - lump_bias) * lump_shade;
 	shade -= underside_shade * clamp(-n.y, 0.0, 1.0);
 	float edge = max(fwidth(shade) * band_edge_px, 0.0001);
-	vec3 col = mix(shadow_color, mid_color, smoothstep(mid_threshold - edge, mid_threshold + edge, shade));
-	col = mix(col, lit_color, smoothstep(lit_threshold - edge, lit_threshold + edge, shade));
+	float to_mid = smoothstep(mid_threshold - edge, mid_threshold + edge, shade);
+	float to_lit = smoothstep(lit_threshold - edge, lit_threshold + edge, shade);
+	vec3 col = mix(shadow_color, mid_color, to_mid);
+	col = mix(col, lit_color, to_lit);
 
 	// Rim: silhouette edges facing the sun, much stronger looking toward it.
 	float fresnel = pow(1.0 - clamp(dot(n, -view_dir), 0.0, 1.0), rim_power);
@@ -315,6 +333,8 @@ void fragment() {
 	col = mix(col, rim_color, smoothstep(rim_threshold, rim_threshold + rim_softness, rim));
 	float weather_luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
 	col = mix(col, vec3(weather_luma), weather_desaturate) * (1.0 - weather_dim);
+	vec3 tone_floor = weather_floor * mix(mix(floor_shadow_ratio, floor_mid_ratio, to_mid), 1.0, to_lit);
+	col = max(col, tone_floor * floor_on);
 	// Same exposure as the sky, so theme colours can be picked straight from
 	// the painted panorama.
 	col *= exposure;
@@ -351,5 +371,5 @@ void fragment() {
 	}
 	col = mix(col, wfog_color.rgb, clamp((dist - wfog_begin) / max(wfog_end - wfog_begin, 0.001), 0.0, 1.0) * wfog_strength);
 	ALBEDO = col;
-	ALPHA = 1.0;
+	ALPHA = edge_alpha;
 }

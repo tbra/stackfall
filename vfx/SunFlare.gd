@@ -80,6 +80,9 @@ var _enabled: bool = true
 var _theme_enabled: bool = true
 
 const GROUP: StringName = &"sun_flare"
+## Bontago-mp0.34: weather + night share of the flare that survives (set by
+## Skybox); 0 hides it, so a storm or night cannot show the sun flare.
+var _weather_scale: float = 1.0
 
 
 func _ready() -> void:
@@ -138,6 +141,14 @@ func set_cycle_sun(direction: Vector3, daylight: float) -> void:
 	_theme_enabled = daylight > 0.01
 
 
+func set_weather_scale(value: float) -> void:
+	_weather_scale = clampf(value, 0.0, 1.0)
+
+
+func weather_scale() -> float:
+	return _weather_scale
+
+
 func is_theme_enabled() -> bool:
 	return _theme_enabled
 
@@ -153,7 +164,7 @@ func _process(delta: float) -> void:
 	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
 	var aspect: float = viewport_size.x / maxf(viewport_size.y, 1.0)
 
-	var target_visibility: float = _compute_visibility()
+	var target_visibility: float = _compute_visibility() * _weather_scale
 	var lerp_amount: float = clampf(config.visibility_lerp_speed * delta, 0.0, 1.0)
 	_current_visibility = lerpf(_current_visibility, target_visibility, lerp_amount)
 

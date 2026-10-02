@@ -938,6 +938,7 @@ func _apply_sun_flare(applied_theme: SkyThemeDef) -> void:
 		var flare: SunFlare = node as SunFlare
 		if flare != null:
 			flare.set_theme_enabled(applied_theme.sun_flare_enabled)
+			flare.set_weather_scale(_cloud_lighting.sun_scale)
 
 
 ## Bontago-adt.1: cloud puffs and birds follow the graphics preset (Low:
@@ -1014,7 +1015,8 @@ func _publish_cloud_lighting() -> void:
 		light_color = _storm_blend.light_color
 	var cloud_overcast: float = cloud_overcast_amount()
 	var weather: float = maxf(cloud_overcast, _storm_amount)
-	var dim: float = clampf(CEILING_TUNING.cloud_overcast_dim * cloud_overcast + CEILING_TUNING.storm_darkness_add * _storm_amount, 0.0, 1.0)
+	var dim: float = CloudLighting.combined_dim(CEILING_TUNING.cloud_overcast_dim, CEILING_TUNING.storm_darkness_add,
+		cloud_overcast, _storm_amount, night, CEILING_TUNING.night_dim_relief, CEILING_TUNING.max_combined_dim)
 	var changed: bool = _cloud_lighting.publish(
 		_puff_color(puff, &"shadow_color", _cloud_lighting.shadow_color),
 		_puff_color(puff, &"mid_color", _cloud_lighting.mid_color),
@@ -1022,8 +1024,30 @@ func _publish_cloud_lighting() -> void:
 		_puff_color(puff, &"rim_color", _cloud_lighting.rim_color),
 		direction, light_color, night, cloud_overcast, _storm_amount, dim,
 		CEILING_TUNING.cloud_overcast_desaturate * weather)
-	if changed and _cloud_sea != null:
-		_cloud_sea.apply_lighting(_cloud_lighting)
+	var sun_effects: float = CloudLighting.sun_effect_scale(night, CEILING_TUNING.sun_night_fade_end, cloud_overcast,
+		CEILING_TUNING.sun_overcast_attenuation, _storm_amount, CEILING_TUNING.sun_storm_attenuation)
+	var floor_changed: bool = _cloud_lighting.publish_floor(
+		CloudLighting.floor_for_tone(CEILING_TUNING.puff_floor_tint, CEILING_TUNING.puff_min_brightness, 1.0),
+		CEILING_TUNING.puff_floor_shadow_ratio, CEILING_TUNING.puff_floor_mid_ratio, sun_effects)
+	if changed or floor_changed:
+		if _cloud_sea != null:
+			_cloud_sea.apply_lighting(_cloud_lighting)
+		_apply_sun_effect_scale(sun_effects)
+
+
+## Bontago-mp0.34: scales the sky shader's god rays / sun glow and the screen
+## flare by the weather + night sun scale (host and client compute it the same).
+func _apply_sun_effect_scale(sun_effects: float) -> void:
+	var active: SkyThemeDef = _cycle_theme if _cycle_theme != null else theme
+	var sky: ShaderMaterial = active.sky_material as ShaderMaterial if active != null else null
+	if sky != null:
+		sky.set_shader_parameter(&"sun_effect_scale", sun_effects)
+	if not is_inside_tree():
+		return
+	for node: Node in get_tree().get_nodes_in_group(SunFlare.GROUP):
+		var flare: SunFlare = node as SunFlare
+		if flare != null:
+			flare.set_weather_scale(sun_effects)
 
 
 static func _puff_color(material: ShaderMaterial, parameter: StringName, fallback: Color) -> Color:

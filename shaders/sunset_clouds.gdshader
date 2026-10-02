@@ -100,6 +100,9 @@ uniform float ray_intensity = 0.35;
 // atmospheric drift, not a flicker.
 uniform float ray_shimmer_speed = 0.15;
 uniform float ray_shimmer_amount = 0.08;
+// Bontago-mp0.34: share of the sun glow and god rays that survives weather and
+// night (game/Skybox.gd via CloudLighting.sun_effect_scale); 1 = clear daylight.
+uniform float sun_effect_scale : hint_range(0.0, 1.0) = 1.0;
 
 
 // Bontago-adt.1 (graphics pass, animated sky): the painted panorama is kept
@@ -415,8 +418,8 @@ void sky() {
 	float core = 1.0 - smoothstep(0.0, sun_core_angular_radius_deg, angle_deg);
 	float halo = 1.0 - smoothstep(sun_halo_angular_radius_deg - sun_halo_softness_deg, sun_halo_angular_radius_deg, angle_deg);
 	halo = clamp(halo, 0.0, 1.0);
-	COLOR += sun_core_color.rgb * core * sun_core_intensity;
-	COLOR += sun_halo_color.rgb * halo * sun_halo_intensity;
+	COLOR += sun_core_color.rgb * core * sun_core_intensity * sun_effect_scale;
+	COLOR += sun_halo_color.rgb * halo * sun_halo_intensity * sun_effect_scale;
 
 	// God rays: an angular position around the sun axis (tangent/bitangent
 	// basis), two overlaid ray-comb frequencies, faded out by angular
@@ -431,7 +434,7 @@ void sky() {
 		float shimmer = 1.0 + sin(TIME * ray_shimmer_speed + ray_angle * 3.0) * ray_shimmer_amount;
 		float rays_thin = pow(abs(cos(ray_angle * ray_count * 0.5)), ray_sharpness);
 		float rays_wide = pow(abs(cos(ray_angle * ray_wide_count * 0.5)), ray_wide_sharpness);
-		float rays = (rays_thin * 0.65 + rays_wide * 0.35) * ray_fade * ray_intensity * shimmer * (1.0 - cycle_night_mix);
+		float rays = (rays_thin * 0.65 + rays_wide * 0.35) * ray_fade * ray_intensity * shimmer * (1.0 - cycle_night_mix) * sun_effect_scale;
 		COLOR += sun_ray_color.rgb * rays;
 	}
 }
