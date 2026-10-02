@@ -154,6 +154,17 @@ uniform float far_fade_cap = 1.0;
 uniform float near_fade_start_m = 5.0;
 uniform float near_fade_end_m = 16.0;
 
+// Bontago-mp0.29: weather grade shared with the weather cloud ceiling
+// (CloudLighting.grade): desaturate toward luminance, then darken.
+uniform float weather_dim : hint_range(0.0, 1.0) = 0.0;
+uniform float weather_desaturate : hint_range(0.0, 1.0) = 0.0;
+
+// Bontago-mp0.29: per-instance presence of the weather-driven upper puff layer
+// (vfx/CloudSea.gd). 1 = the whole field (every sea puff); lower values grow
+// the puffs in one by one (each from its own hash), so coverage and density
+// fade in with the weather intensity and are 0 in clear weather.
+instance uniform float presence : hint_range(0.0, 1.0) = 1.0;
+
 varying vec3 world_pos;
 varying vec3 world_normal;
 varying vec3 puff_centre;
@@ -189,6 +200,10 @@ void vertex() {
 	// world_vertex_coords: VERTEX and NORMAL arrive in world space.
 	vec3 centre = MODEL_MATRIX[3].xyz;
 	vec2 axes = vec2(length(MODEL_MATRIX[0].xyz), length(MODEL_MATRIX[1].xyz));
+	float threshold = fract(INSTANCE_CUSTOM.y * 0.7371 + 0.31) * 0.7;
+	float grow = smoothstep(threshold, threshold + 0.3, presence);
+	VERTEX = centre + (VERTEX - centre) * grow;
+	axes *= grow;
 	// Inflate the hull to the largest silhouette the fragment stage can carve
 	// (the flat base stays put).
 	float inflate = lump_height * (1.0 - lump_bias) + billow_amount + hull_margin;
@@ -298,6 +313,8 @@ void fragment() {
 	float fade = smoothstep(fade_start_m, fade_end_m, dist);
 	rim *= (1.0 - fade) * (1.0 - fade);
 	col = mix(col, rim_color, smoothstep(rim_threshold, rim_threshold + rim_softness, rim));
+	float weather_luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
+	col = mix(col, vec3(weather_luma), weather_desaturate) * (1.0 - weather_dim);
 	// Same exposure as the sky, so theme colours can be picked straight from
 	// the painted panorama.
 	col *= exposure;

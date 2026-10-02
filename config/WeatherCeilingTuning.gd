@@ -1,59 +1,46 @@
 class_name WeatherCeilingTuning
 extends Resource
-## Bontago-mp0.19: the overhead cloud ceiling that rain, snow and storm fall
+## Bontago-mp0.19: the overhead puff layer that rain, snow and storm fall
 ## from, and the storm sky blend. One instance: config/weather/ceiling.tres
 ## (not a WeatherTuning: it is never scheduled, only fed by the active weather
 ## intensities). Presentation only, identical on host and client.
 
 @export_group("Placement")
-## World height (m) of the lowest ceiling layer. The play volume is 0..72 m.
+## World height (m) of the upper puff layer's flat bases. The play volume is 0..72 m.
+## Rain and snow spawn just below it.
 @export var height_m: float = 96.0
-## The ceiling never sits closer than this above the active camera.
+## Rain and snow never start closer than this above the active camera.
 @export var min_clearance_above_camera_m: float = 30.0
-## Side (m) of each square layer; it follows the camera horizontally.
-@export var size_m: float = 1400.0
-## Extra layers stacked above the lowest one, and their vertical spacing.
-@export var layer_count: int = 3
-@export var layer_count_low: int = 1
-@export var layer_spacing_m: float = 7.0
-## Upper layers get up to this much less alpha (drop at the top layer).
-@export_range(0.0, 1.0, 0.01) var upper_layer_alpha_drop: float = 0.25
+
+@export_group("Upper puffs")
+## Bontago-mp0.29: the overcast layer is the cloud sea's own puff field (same
+## mesh, shader, noise and CloudLighting) duplicated above the disc. Clump count
+## (before GraphicsPreset.cloud_puff_density) on Medium/High and on Low.
+@export var upper_clump_count: int = 70
+@export var upper_clump_count_low: int = 22
+## Clumps are spread over a disc of this radius (m) around the disc axis.
+@export var upper_ring_outer_m: float = 800.0
+## Clump radius range (m); they are wider than the sea's so they read overhead.
+@export var upper_clump_radius_min_m: float = 50.0
+@export var upper_clump_radius_max_m: float = 110.0
+## Bases are spread this far above height_m.
+@export var upper_base_spread_m: float = 24.0
+## Added to the theme's cloud_seed so the upper field differs from the sea.
+@export var upper_seed_offset: int = 7919
 
 @export_group("Look")
-## Share of the sky covered at full weather intensity.
-@export_range(0.0, 1.0, 0.01) var coverage: float = 0.62
-## Cel edge softness of the cloud silhouette (0 = hard).
-@export_range(0.0, 0.5, 0.01) var edge_softness: float = 0.06
-## Noise texture cycles per metre, drift speed (m/s) and octaves.
-@export var noise_scale: float = 0.0025
-@export var drift_speed_mps: float = 3.0
-## Horizontal drift direction (normalised when used).
-@export var drift_direction: Vector2 = Vector2(1.0, 0.35)
-@export_range(1, 5) var noise_octaves: int = 4
-@export_range(1, 5) var noise_octaves_low: int = 2
-## Cel colours of the underside (shadow = thickest part) and 0..1 darkening.
-@export var shadow_color: Color = Color(0.17, 0.2, 0.25, 1.0)
-@export var mid_color: Color = Color(0.34, 0.39, 0.45, 1.0)
-@export var lit_color: Color = Color(0.55, 0.6, 0.66, 1.0)
-@export_range(0.0, 1.0, 0.01) var darkness: float = 0.15
-## Extra darkness at full storm intensity.
+## Extra darkness at full storm intensity (shared with the puffs through CloudLighting.dim).
 @export_range(0.0, 1.0, 0.01) var storm_darkness_add: float = 0.35
-## Cel band thresholds on the cloud thickness (0..1).
-@export_range(0.0, 1.0, 0.01) var mid_threshold: float = 0.45
-@export_range(0.0, 1.0, 0.01) var shadow_threshold: float = 0.72
-## Camera distance (m) over which the layer edge fades into the horizon.
-@export var fade_far_start_m: float = 350.0
-@export var fade_far_end_m: float = 650.0
-## Share of the noise-height blended with the round cumulus lobes (3+ octaves),
-## the lobe field's scale relative to the broad field, and the cel band edge
-## softness (thickness units).
-@export_range(0.0, 1.0, 0.01) var lobe_mix: float = 0.45
-@export var lobe_scale: float = 1.7
-@export_range(0.0, 0.2, 0.005) var band_softness: float = 0.03
-## View elevation (sine) below which the layer fades out near the horizon.
-@export_range(0.0, 1.0, 0.01) var horizon_fade: float = 0.25
-## Fade amount (0..1) at which the layers reach full opacity.
-@export_range(0.05, 1.0, 0.01) var full_opacity_amount: float = 0.25
+## Bontago-mp0.29 shared weather grade (CloudLighting): overcast 1 darkens the
+## puffs by this share and moves their colours this far toward grey
+## (storm counts as overcast for the desaturation).
+@export_range(0.0, 1.0, 0.01) var cloud_overcast_dim: float = 0.2
+@export_range(0.0, 1.0, 0.01) var cloud_overcast_desaturate: float = 0.5
+## Shared overcast (CloudLighting.overcast) each weather drives at full intensity,
+## so rain, snow and storm all dim and grey every cloud layer; the strongest wins.
+@export_range(0.0, 1.0, 0.01) var overcast_rain: float = 1.0
+@export_range(0.0, 1.0, 0.01) var overcast_snow: float = 0.8
+@export_range(0.0, 1.0, 0.01) var overcast_storm: float = 1.0
 
 @export_group("Fades")
 @export var fade_in_s: float = 5.0
@@ -86,3 +73,15 @@ extends Resource
 ## World height of the lowest layer for a camera at `camera_y`.
 func ceiling_y(camera_y: float) -> float:
 	return maxf(height_m, camera_y + min_clearance_above_camera_m)
+
+
+## Shared overcast amount a weather at `intensity` drives (0 for ids without one).
+func overcast_for(weather_id: StringName, intensity: float) -> float:
+	var weight: float = 0.0
+	if weather_id == &"rain":
+		weight = overcast_rain
+	elif weather_id == &"snow":
+		weight = overcast_snow
+	elif weather_id == storm_id:
+		weight = overcast_storm
+	return clampf(intensity, 0.0, 1.0) * weight
