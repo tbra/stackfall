@@ -58,6 +58,7 @@ func tick(delta: float, intensity: float) -> void:
 	var rain: RainTuning = tuning as RainTuning
 	if rain == null:
 		return
+	_apply_slide(rain, intensity)
 	_scan_left -= delta
 	if _scan_left > 0.0:
 		return
@@ -66,6 +67,39 @@ func tick(delta: float, intensity: float) -> void:
 	_scan()
 	if _wet.size() != before:
 		_write_all(intensity, rain)
+
+
+## DECISION (Bontago-mp0.21, round 2): the "negative friction" feel. Each awake
+## block already sliding faster than RainTuning.wet_slide_min_speed_mps gets a
+## force along its own horizontal velocity, scaled by the ramped intensity, and
+## none once it is past wet_slide_max_speed_mps (the cap). Direction follows the
+## block, not the disc centre, so RING and TWIN maps are not biased toward a hole
+## or a far rim; resting and settling blocks sit under the threshold and are not
+## nudged. Nothing to restore (Jolt clears applied forces each step). Iterates
+## Block.awake_blocks() (awake set only; sleeping blocks are never touched).
+func _apply_slide(rain: RainTuning, intensity: float) -> void:
+	if rain.wet_slide_accel_mps2 <= 0.0 or intensity <= 0.0:
+		return
+	var level: float = clampf(intensity, 0.0, 1.0)
+	var min_sq: float = rain.wet_slide_min_speed_mps * rain.wet_slide_min_speed_mps
+	var max_sq: float = rain.wet_slide_max_speed_mps * rain.wet_slide_max_speed_mps
+	var awake: Array = _slide_candidates()
+	for item: Variant in awake:
+		var body: RigidBody3D = item as RigidBody3D
+		if body == null or not is_instance_valid(body) or body.freeze or body.sleeping or not body.is_inside_tree():
+			continue
+		var velocity: Vector3 = body.linear_velocity
+		velocity.y = 0.0
+		var speed_sq: float = velocity.length_squared()
+		if speed_sq < min_sq or speed_sq >= max_sq:
+			continue
+		body.apply_central_force(velocity / sqrt(speed_sq) * body.mass * rain.wet_slide_accel_mps2 * level)
+
+
+func _slide_candidates() -> Array:
+	if _blocks_provider.is_valid():
+		return _blocks_provider.call() as Array
+	return Block.awake_blocks()
 
 
 func restore() -> void:
