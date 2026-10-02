@@ -80,9 +80,18 @@ var _enabled: bool = true
 var _theme_enabled: bool = true
 
 const GROUP: StringName = &"sun_flare"
+## Bontago-mp0.33: the flare is an additive full-viewport rect, so it must sit
+## below every UI CanvasLayer (HUD is layer 1, pause 100, splash 128, perf 100)
+## and below the layer-0 default canvas that hosts ResultsScreen. Negative
+## layers draw under layer 0.
+const FLARE_LAYER: int = -1
+## Full-screen UI panels (results, pause) join this group; while any is
+## visible the flare is hidden.
+const FULLSCREEN_UI_GROUP: StringName = &"fullscreen_ui"
 
 
 func _ready() -> void:
+	layer = FLARE_LAYER
 	add_to_group(GROUP)
 	_rect = ColorRect.new()
 	_rect.name = &"FlareRect"
@@ -138,6 +147,18 @@ func set_cycle_sun(direction: Vector3, daylight: float) -> void:
 	_theme_enabled = daylight > 0.01
 
 
+## True while any node in FULLSCREEN_UI_GROUP (results, pause) is showing.
+func is_fullscreen_ui_open() -> bool:
+	for node: Node in get_tree().get_nodes_in_group(FULLSCREEN_UI_GROUP):
+		var control: CanvasItem = node as CanvasItem
+		if control != null and control.is_visible_in_tree():
+			return true
+		var canvas_layer: CanvasLayer = node as CanvasLayer
+		if canvas_layer != null and canvas_layer.visible:
+			return true
+	return false
+
+
 func is_theme_enabled() -> bool:
 	return _theme_enabled
 
@@ -146,6 +167,10 @@ func _process(delta: float) -> void:
 	if _rect == null or _material == null:
 		return
 	if not _enabled or not _theme_enabled or _camera == null or config == null or not is_instance_valid(_camera):
+		_rect.visible = false
+		return
+	if is_fullscreen_ui_open():
+		_current_visibility = 0.0
 		_rect.visible = false
 		return
 	_rect.visible = true
