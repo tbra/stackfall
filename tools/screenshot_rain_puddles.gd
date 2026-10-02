@@ -2,11 +2,11 @@ extends Node
 ## Bontago-mp0.21: puddle capture (fast-forwards the wetness). User arg `weather=rain|storm|snow`
 ## (after --): starts it, waits for the fades, shoots one wide up-tilted view.
 ##   godot --path . --windowed --position 10000,10000 --resolution 320x180 --audio-driver Dummy res://tools/screenshot_weather_ceiling.tscn -- --agent-probe --render-size=1280x720 weather=rain
-const CAPTURE_SIZE: Vector2i = Vector2i(1280, 720)
+const CAPTURE_SIZE: Vector2i = Vector2i(3440, 1440)
 const WAIT_FRAMES: int = 720
 ## Gameplay camera framing, tipped up so the disc stays low in frame with the
 ## ceiling above it.
-const PITCH_UP_DEG: float = -10.0
+const PITCH_UP_DEG: float = 0.0
 const FOV_DEG: float = 80.0
 
 
@@ -29,14 +29,14 @@ func _ready() -> void:
 	var puddles: RainPuddles = Match.field().get_node_or_null(RainPuddles.NODE_NAME) as RainPuddles
 	print("PUDL puddles=%s" % puddles)
 	if puddles != null:
-		puddles.advance(40.0)
+		puddles.advance(200.0)
 	var source: Camera3D = get_viewport().get_camera_3d()
 	var sub: SubViewport = SubViewport.new()
 	sub.size = CAPTURE_SIZE
 	sub.world_3d = get_viewport().world_3d
 	sub.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	var camera: Camera3D = Camera3D.new()
-	camera.fov = FOV_DEG
+	camera.fov = source.fov
 	camera.near = source.near
 	camera.far = source.far
 	camera.environment = source.environment

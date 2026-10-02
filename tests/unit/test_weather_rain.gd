@@ -398,3 +398,26 @@ func test_puddles_stay_on_the_disc_and_low_preset_has_fewer() -> void:
 	add_child_autofree(low_holder)
 	var low: RainPuddles = RainPuddles.ensure_on(low_holder, map_def, _rain, _rain.puddle_low_preset_scale)
 	assert_lt(low.patch_count(), puddles.patch_count())
+
+
+func _big_patches() -> MultiMesh:
+	var holder: Node3D = Node3D.new()
+	add_child_autofree(holder)
+	var map_def: MapDef = MapDef.new()
+	map_def.field_radius = 40.0
+	return RainPuddles.ensure_on(holder, map_def, _rain, 1.0).get_node("Patches").multimesh
+
+
+func test_puddles_are_seeded_identically() -> void:
+	# (The headless dummy renderer returns identity instance transforms, so only the
+	# seeded patch count is comparable here; the layout is checked in the capture.)
+	var first: MultiMesh = _big_patches()
+	var second: MultiMesh = _big_patches()
+	assert_gt(first.instance_count, 20)
+	assert_eq(first.instance_count, second.instance_count)
+
+
+func test_puddle_shader_has_no_centre_streak_or_global_pulse() -> void:
+	var code: String = RainPuddles.SHADER.code
+	assert_false(code.contains("float band"), "no diagonal glint band across the puddle")
+	assert_false(code.contains("t * (edge"), "no ring expanding to the rim")
