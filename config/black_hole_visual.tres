@@ -1,0 +1,6 @@
+[gd_resource type="Resource" script_class="BlackHoleVisualTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/BlackHoleVisualTuning.gd" id="1_tuning"]
+
+[resource]
+script = ExtResource("1_tuning")

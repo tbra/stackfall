@@ -1,0 +1,61 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Material" path="res://assets/gifts/gift_outline.tres" id="outline"]
+
+[sub_resource type="StandardMaterial3D" id="c0"]
+diffuse_mode = 2
+specular_mode = 2
+albedo_color = Color(0.04, 0.0, 0.09, 1)
+roughness = 0.78
+next_pass = ExtResource("outline")
+
+[sub_resource type="StandardMaterial3D" id="c1"]
+diffuse_mode = 2
+specular_mode = 2
+albedo_color = Color(0.62, 0.25, 0.95, 1)
+roughness = 0.78
+next_pass = ExtResource("outline")
+
+[sub_resource type="StandardMaterial3D" id="c2"]
+diffuse_mode = 2
+specular_mode = 2
+albedo_color = Color(0.95, 0.55, 0.25, 1)
+roughness = 0.78
+next_pass = ExtResource("outline")
+
+[sub_resource type="SphereMesh" id="mesh_0"]
+radius = 0.26
+height = 0.52
+radial_segments = 16
+rings = 8
+
+[sub_resource type="TorusMesh" id="mesh_1"]
+inner_radius = 0.36
+outer_radius = 0.5
+rings = 20
+ring_segments = 8
+
+[sub_resource type="TorusMesh" id="mesh_2"]
+inner_radius = 0.29
+outer_radius = 0.35
+rings = 20
+ring_segments = 8
+
+[node name="BlackHole" type="Node3D"]
+
+[node name="Core" type="MeshInstance3D" parent="."]
+mesh = SubResource("mesh_0")
+surface_material_override/0 = SubResource("c0")
+cast_shadow = 0
+
+[node name="OuterRing" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.9, -0.2, 0, 0.2, 0.9, 0, 0, 0)
+mesh = SubResource("mesh_1")
+surface_material_override/0 = SubResource("c1")
+cast_shadow = 0
+
+[node name="InnerRing" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.9, -0.2, 0, 0.2, 0.9, 0, 0, 0)
+mesh = SubResource("mesh_2")
+surface_material_override/0 = SubResource("c2")
+cast_shadow = 0

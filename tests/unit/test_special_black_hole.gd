@@ -191,3 +191,28 @@ func test_detonate_parents_the_field_under_the_match_world() -> void:
 	assert_true((fields[0] as BlackHoleField).bind_to_match)
 	blocks_root.free()
 	assert_eq(find_children("*", "BlackHoleField", true, false).size(), 0, "freed with the match world")
+
+
+func test_vortex_growth_envelope_eases_in_and_collapses_out() -> void:
+	assert_almost_eq(BlackHoleVisual.growth(0.0, 5.0, 0.4, 0.6), 0.0, 0.0001)
+	assert_almost_eq(BlackHoleVisual.growth(1.0, 4.0, 0.4, 0.6), 1.0, 0.0001)
+	assert_lt(BlackHoleVisual.growth(4.9, 0.1, 0.4, 0.6), 0.1, "nearly collapsed near the end")
+	assert_almost_eq(BlackHoleVisual.growth(10.0, 0.0, 0.4, 0.6), 0.0, 0.0001)
+
+
+func test_vortex_disc_matches_pull_radius_and_low_preset_drops_streaks() -> void:
+	var def: SpecialDef = SpecialDef.find_by_id(&"black_hole")
+	var effect: BlackHoleEffect = def.effect as BlackHoleEffect
+	assert_not_null(def.held_scene, "black hole has a held gift model")
+	assert_not_null(def.preview_icon, "black hole has a gift preview")
+	var visual: BlackHoleVisual = BlackHoleVisual.new()
+	add_child_autofree(visual)
+	visual.setup(effect.visual_radius_m, effect.lifetime_s)
+	var disc: MeshInstance3D = visual.get_child(0) as MeshInstance3D
+	assert_eq((disc.mesh as PlaneMesh).size, Vector2.ONE * effect.pull_radius_m * 2.0, "disc covers the pull area")
+	var material: ShaderMaterial = disc.material_override as ShaderMaterial
+	var low: bool = not Settings.current_graphics_preset().ambient_life_enabled
+	assert_eq(material.get_shader_parameter(&"streaks_on"), 0.0 if low else 1.0)
+	var built: ShaderMaterial = visual._build_material(true)
+	assert_eq(built.get_shader_parameter(&"streaks_on"), 0.0, "Low preset has no streaks")
+	assert_lt(float(built.get_shader_parameter(&"arm_count")), float(visual._build_material(false).get_shader_parameter(&"arm_count")))
