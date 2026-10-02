@@ -1,82 +1,62 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=9 format=3]
 
-[sub_resource type="BoxMesh" id="m0"]
-size = Vector3(0.5, 0.3, 0.7)
+[ext_resource type="Material" path="res://assets/gifts/gift_outline.tres" id="outline"]
 
 [sub_resource type="StandardMaterial3D" id="c0"]
-albedo_color = Color(0.42, 0.27, 0.15, 1)
-roughness = 0.7
-
-[sub_resource type="BoxMesh" id="m1"]
-size = Vector3(0.5, 0.3, 0.7)
+diffuse_mode = 2
+specular_mode = 2
+albedo_color = Color(0.055, 0.065, 0.095, 1)
+roughness = 0.78
+next_pass = ExtResource("outline")
 
 [sub_resource type="StandardMaterial3D" id="c1"]
-albedo_color = Color(0.35, 0.22, 0.12, 1)
-roughness = 0.7
-
-[sub_resource type="BoxMesh" id="m2"]
-size = Vector3(0.06, 0.05, 0.72)
+diffuse_mode = 2
+specular_mode = 2
+albedo_color = Color(1.0, 0.68, 0.21, 1)
+roughness = 0.78
+next_pass = ExtResource("outline")
 
 [sub_resource type="StandardMaterial3D" id="c2"]
-albedo_color = Color(0.05, 0.03, 0.02, 1)
-roughness = 0.7
+diffuse_mode = 2
+specular_mode = 2
+albedo_color = Color(0.95, 0.29, 0.24, 1)
+roughness = 0.78
+next_pass = ExtResource("outline")
 
-[sub_resource type="BoxMesh" id="m3"]
-size = Vector3(0.14, 0.14, 0.14)
+[sub_resource type="BoxMesh" id="mesh_0"]
+size = Vector3(0.78, 0.13, 0.65)
 
-[sub_resource type="StandardMaterial3D" id="c3"]
-albedo_color = Color(0.5, 0.35, 0.22, 1)
-roughness = 0.7
+[sub_resource type="BoxMesh" id="mesh_1"]
+size = Vector3(0.31, 0.12, 0.54)
 
-[sub_resource type="BoxMesh" id="m4"]
-size = Vector3(0.1, 0.1, 0.1)
+[sub_resource type="BoxMesh" id="mesh_2"]
+size = Vector3(0.31, 0.12, 0.54)
 
-[sub_resource type="StandardMaterial3D" id="c4"]
-albedo_color = Color(0.5, 0.35, 0.22, 1)
-roughness = 0.7
-
-[sub_resource type="BoxMesh" id="m5"]
-size = Vector3(0.34, 0.04, 0.04)
-
-[sub_resource type="StandardMaterial3D" id="c5"]
-albedo_color = Color(1, 0.85, 0.2, 1)
-roughness = 0.7
+[sub_resource type="PrismMesh" id="mesh_3"]
+size = Vector3(0.17, 0.61, 0.15)
 
 [node name="Earthquake" type="Node3D"]
-transform = Transform3D(0.9, 0, 0, 0, 0.9, 0, 0, 0, 0.9, 0, 0, 0)
 
-[node name="ChunkL" type="MeshInstance3D" parent="."]
-transform = Transform3D(0.990268, 0.139173, 0, -0.139173, 0.990268, 0, 0, 0, 1, -0.22, -0.02, 0)
-mesh = SubResource("m0")
+[node name="Ground" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.27, 0)
+mesh = SubResource("mesh_0")
 surface_material_override/0 = SubResource("c0")
 cast_shadow = 0
 
-[node name="ChunkR" type="MeshInstance3D" parent="."]
-transform = Transform3D(0.984808, -0.173648, 0, 0.173648, 0.984808, 0, 0, 0, 1, 0.26, -0.12, 0)
-mesh = SubResource("m1")
+[node name="LeftPlate" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.23, -0.15, 0)
+mesh = SubResource("mesh_1")
 surface_material_override/0 = SubResource("c1")
 cast_shadow = 0
 
-[node name="Crack" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.02, -0.2, 0)
-mesh = SubResource("m2")
+[node name="RightPlate" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.23, -0.15, 0)
+mesh = SubResource("mesh_2")
+surface_material_override/0 = SubResource("c1")
+cast_shadow = 0
+
+[node name="Rift" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.01, 0.05)
+mesh = SubResource("mesh_3")
 surface_material_override/0 = SubResource("c2")
-cast_shadow = 0
-
-[node name="Rock1" type="MeshInstance3D" parent="."]
-transform = Transform3D(0.852869, 0.150384, -0.5, 0.00523613, 0.955112, 0.296198, 0.522099, -0.255236, 0.813798, -0.3, 0.25, 0.1)
-mesh = SubResource("m3")
-surface_material_override/0 = SubResource("c3")
-cast_shadow = 0
-
-[node name="Rock2" type="MeshInstance3D" parent="."]
-transform = Transform3D(0.55667, 0.321394, -0.766044, -0.377203, 0.91938, 0.111619, 0.740159, 0.22682, 0.633022, 0.3, 0.15, -0.2)
-mesh = SubResource("m4")
-surface_material_override/0 = SubResource("c4")
-cast_shadow = 0
-
-[node name="Zig" type="MeshInstance3D" parent="."]
-transform = Transform3D(0.939693, 0.34202, 0, -0.34202, 0.939693, 0, 0, 0, 1, 0, 0.22, -0.3)
-mesh = SubResource("m5")
-surface_material_override/0 = SubResource("c5")
 cast_shadow = 0

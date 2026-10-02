@@ -1,17 +1,80 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=11 format=3]
 
-[sub_resource type="BoxMesh" id="m0"]
-size = Vector3(0.5, 0.5, 0.5)
+[ext_resource type="Material" path="res://assets/gifts/gift_outline.tres" id="outline"]
 
 [sub_resource type="StandardMaterial3D" id="c0"]
-transparency = 1
-albedo_color = Color(0.6, 0.85, 1, 0.7)
-emission_enabled = true
-emission = Color(0.35, 0.65, 1, 1)
-roughness = 0.1
+diffuse_mode = 2
+specular_mode = 2
+albedo_color = Color(0.27, 0.56, 0.91, 1)
+roughness = 0.78
+next_pass = ExtResource("outline")
+
+[sub_resource type="StandardMaterial3D" id="c1"]
+diffuse_mode = 2
+specular_mode = 2
+albedo_color = Color(0.71, 0.82, 0.86, 1)
+roughness = 0.78
+next_pass = ExtResource("outline")
+
+[sub_resource type="StandardMaterial3D" id="c2"]
+diffuse_mode = 2
+specular_mode = 2
+albedo_color = Color(0.96, 0.88, 0.69, 1)
+roughness = 0.78
+next_pass = ExtResource("outline")
+
+[sub_resource type="BoxMesh" id="mesh_0"]
+size = Vector3(0.59, 0.59, 0.59)
+
+[sub_resource type="PrismMesh" id="mesh_1"]
+size = Vector3(0.35, 0.23, 0.35)
+
+[sub_resource type="PrismMesh" id="mesh_2"]
+size = Vector3(0.23, 0.5, 0.23)
+
+[sub_resource type="PrismMesh" id="mesh_3"]
+size = Vector3(0.23, 0.5, 0.23)
+
+[sub_resource type="BoxMesh" id="mesh_4"]
+size = Vector3(0.09, 0.42, 0.025)
+
+[sub_resource type="BoxMesh" id="mesh_5"]
+size = Vector3(0.37, 0.08, 0.025)
 
 [node name="Freeze" type="Node3D"]
 
-[node name="IceCube" type="MeshInstance3D" parent="."]
-mesh = SubResource("m0")
+[node name="IceCore" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+mesh = SubResource("mesh_0")
 surface_material_override/0 = SubResource("c0")
+cast_shadow = 0
+
+[node name="Crown" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.37, 0)
+mesh = SubResource("mesh_1")
+surface_material_override/0 = SubResource("c1")
+cast_shadow = 0
+
+[node name="LeftCrystal" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.33, 0.05, 0)
+mesh = SubResource("mesh_2")
+surface_material_override/0 = SubResource("c1")
+cast_shadow = 0
+
+[node name="RightCrystal" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.33, 0.05, 0)
+mesh = SubResource("mesh_3")
+surface_material_override/0 = SubResource("c1")
+cast_shadow = 0
+
+[node name="FrostMark" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.305)
+mesh = SubResource("mesh_4")
+surface_material_override/0 = SubResource("c2")
+cast_shadow = 0
+
+[node name="CrossMark" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.32)
+mesh = SubResource("mesh_5")
+surface_material_override/0 = SubResource("c2")
+cast_shadow = 0
