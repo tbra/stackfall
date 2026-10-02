@@ -445,10 +445,15 @@ varying vec3 v_local;
 // a faint frosting (snow_strength well below 1), heavy snow soft drifts with
 // dark bare disc between them.
 uniform float snow_strength = 0.0;
+// snow_threshold is the even base depth (0..1) of the cover at the current level;
+// snow_variation scales the gentle noise around it.
 uniform float snow_threshold = 0.5;
-uniform float snow_softness = 0.14;
+uniform float snow_variation = 0.3;
 uniform float snow_scale = 0.12;
-uniform float snow_warp = 0.9;
+// Wind: unit direction on the disc and how many times longer drifts run along
+// it than across, so coverage forms streaks and tails rather than round blobs.
+uniform vec2 snow_wind_dir = vec2(1.0, 0.0);
+uniform float snow_wind_stretch = 4.0;
 uniform vec2 snow_offset = vec2(0.0);
 uniform float snow_seam_bias = 0.12;
 uniform float snow_seam_width = 0.08;
@@ -504,18 +509,21 @@ float snow_noise(vec2 p) {
 
 // Raw snow depth 0..1 at disc-local `point` (before snow_strength).
 float snow_coverage(vec2 point) {
+	// Bontago-mp0.32: partial, wind-stretched coverage. The base amount rises
+	// with the snow level (gradual build-up); streak noise stretched along the
+	// wind leaves thinner patches, and the biases deepen it at seams, the rim
+	// and block bases. snow_strength is capped on the CPU so territory shows.
 	vec2 p = point * snow_scale + snow_offset;
-	vec2 warp = vec2(snow_noise(p * 0.6 + 5.2), snow_noise(p * 0.6 + 1.3)) - 0.5;
-	p += warp * snow_warp;
-	float field = snow_noise(p) * 0.65 + snow_noise(p * 2.1 + 17.1) * 0.35;
+	vec2 wind_p = vec2(dot(p, snow_wind_dir) / max(snow_wind_stretch, 1.0),
+		dot(p, vec2(-snow_wind_dir.y, snow_wind_dir.x)));
+	float streaks = snow_noise(wind_p) * 0.65 + snow_noise(wind_p * vec2(1.7, 3.1) + 9.7) * 0.35;
+	float depth = snow_threshold + snow_variation * (streaks - 0.5);
 	vec2 panel = fract(point / max(panel_size_m, 0.01));
 	vec2 seam_d = min(panel, vec2(1.0) - panel);
-	// Seams only gather snow next to a drift (not as a grid over bare disc).
-	float near_drift = smoothstep(snow_threshold - 2.0 * snow_softness, snow_threshold, field);
-	field += snow_seam_bias * near_drift * (1.0 - smoothstep(0.0, snow_seam_width, min(seam_d.x, seam_d.y)));
-	field += snow_rim_bias * smoothstep(snow_rim_start, 1.0, length(point) / max(snow_field_radius, 0.001));
-	field += snow_base_bias * texture(snow_drift_tex, point / max(snow_drift_span, 0.001) + 0.5).r;
-	return smoothstep(snow_threshold - snow_softness, snow_threshold + snow_softness, field);
+	depth += snow_seam_bias * (1.0 - smoothstep(0.0, snow_seam_width, min(seam_d.x, seam_d.y)));
+	depth += snow_rim_bias * smoothstep(snow_rim_start, 1.0, length(point) / max(snow_field_radius, 0.001));
+	depth += snow_base_bias * texture(snow_drift_tex, point / max(snow_drift_span, 0.001) + 0.5).r;
+	return clamp(depth, 0.0, 1.0);
 }
 
 void vertex() {
@@ -1265,6 +1273,8 @@ void fragment() {
 	}
 
 	if (snow > 0.0) {
+		// snow <= snow_strength <= 1 - cover_territory_min, so the bare disc
+		// (plates, rivets, territory tint) always keeps at least that share.
 		albedo = mix(albedo, path_albedo, snow);
 		emission = mix(emission, path_emission, snow);
 	}

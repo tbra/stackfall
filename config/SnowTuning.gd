@@ -70,18 +70,36 @@ const MELT_ROUNDING: float = 0.0001
 @export var cap_rim_width_m: float = 0.12
 ## Base lift above the surface (metres), to avoid z-fighting with the face.
 @export var cap_lift_m: float = 0.002
+## Touching snowy tops of different blocks at the same height draw as one
+## surface (no rim at the shared edge); visual only, colliders stay per block.
+@export var cross_merge_enabled: bool = true
+## Tops count as the same height within this many metres.
+@export var cross_merge_height_tol_m: float = 0.03
+## Largest gap (metres) between two blocks' top faces that still merges.
+@export var cross_merge_gap_m: float = 0.08
+## Fraction of a cell two faces must overlap sideways to merge.
+@export_range(0.0, 1.0, 0.01) var cross_merge_overlap: float = 0.5
+## Block owners re-examined for moved neighbours per frame.
+@export var cross_merge_checks_per_frame: int = 2
 
 @export_group("Disc cover")
 ## Visual-only snow layer drawn by the disc's own shader (no collider):
-## coverage is a soft low-frequency noise field (cover_noise_scale per
-## metre, so drifts are several metres across) compared with a threshold
-## over a wide smoothstep (cover_softness). Light snow is a faint frosting
-## (low strength, high threshold); heavy snow soft drifts over roughly
-## 55-65% of the disc with dark bare disc between them.
-@export var cover_noise_scale: float = 0.12
-@export var cover_softness: float = 0.14
-@export var cover_threshold_light: float = 0.5
-@export var cover_threshold_heavy: float = 0.52
+## depth is an even base amount (cover_amount_light -> cover_amount_heavy as
+## the cover level rises, so it builds up gradually) plus a gentle low-
+## frequency variation (cover_variation across the noise range, noise at
+## cover_noise_scale per metre) and the drift biases below: deeper near block
+## bases, plate seams and the rim. No threshold, so no separate blobs.
+@export var cover_noise_scale: float = 0.2
+@export_range(0.0, 1.0, 0.01) var cover_amount_light: float = 0.12
+@export_range(0.0, 1.0, 0.01) var cover_amount_heavy: float = 0.32
+@export_range(0.0, 2.0, 0.01) var cover_variation: float = 1.9
+## Disc snow lightens the surface but never replaces it: at least this share of
+## the bare disc (territory colour, plate and rivet detail) always shows.
+@export_range(0.0, 1.0, 0.01) var cover_territory_min: float = 0.45
+## Drifts run this many times longer along the wind than across it.
+@export_range(1.0, 12.0, 0.1) var cover_wind_stretch: float = 4.0
+## Wind direction of the streaks on the disc (degrees).
+@export_range(0.0, 360.0, 1.0) var cover_wind_angle_deg: float = 25.0
 @export_range(0.0, 1.0, 0.01) var cover_strength_light: float = 0.35
 @export_range(0.0, 1.0, 0.01) var cover_strength_heavy: float = 1.0
 ## Snow gathers first along plate seams, near the rim (outer fraction of
@@ -90,8 +108,8 @@ const MELT_ROUNDING: float = 0.0001
 ## Seam band width as a fraction of a plate.
 @export var cover_seam_width: float = 0.04
 @export_range(0.0, 1.0, 0.01) var cover_rim_start: float = 0.8
-@export var cover_rim_bias: float = 0.15
-@export var cover_base_bias: float = 0.25
+@export var cover_rim_bias: float = 0.2
+@export var cover_base_bias: float = 0.35
 @export var cover_base_radius_cells: float = 2.5
 ## Blocks stamped into the block-base drift map per frame (rebuilt once per
 ## level change, over several frames).
@@ -151,7 +169,7 @@ const MELT_ROUNDING: float = 0.0001
 @export var snow_color: Color = Color(0.8, 0.82, 0.9, 1.0)
 ## Direct-light gain of snow on the disc (its lighting replaces the metal's
 ## damped response); keeps the lit band under the glow threshold.
-@export var cover_light_gain: float = 0.42
+@export var cover_light_gain: float = 0.7
 ## Cel tone steps inside a disc drift, by snow depth 0..1: shadow tone below
 ## the first, pale lavender up to the second, lit off-white above; each step
 ## is cover_tone_width wide. The outer cover_edge_soft of depth fades softly.

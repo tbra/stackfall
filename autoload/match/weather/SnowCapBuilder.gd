@@ -20,6 +20,8 @@ const FREEZE_REASON: StringName = &"snow_rebuild"
 const THAW_FRAMES: int = 1
 ## Fraction of the cell pitch within which two patches count as edge-adjacent.
 const ADJACENT_TOLERANCE: float = 0.05
+## Minimum dot of two patch normals / yaw axes for a cross-block merge.
+const CROSS_ALIGN_DOT: float = 0.98
 
 
 class Patch:
@@ -28,6 +30,11 @@ class Patch:
 	var seed_value: int = 0
 	var level: int = 0
 	var built_level: int = -1
+	## Levels of same-height snowy tops of OTHER blocks touching each side
+	## (SnowGeometry.SIDE_*), visual only. cross_valid: computed for the
+	## current level, so a build need not recompute it.
+	var cross: PackedInt32Array = PackedInt32Array([0, 0, 0, 0])
+	var cross_valid: bool = false
 	var hull: PackedVector3Array = PackedVector3Array()
 	var vertices: PackedVector3Array = PackedVector3Array()
 	var normals: PackedVector3Array = PackedVector3Array()
@@ -41,6 +48,9 @@ class CapOwner:
 	var patches: Dictionary = {}
 	var dirty: Array[int] = []
 	var queued: bool = false
+	## A patch hull changed since the last commit (a mesh-only rebuild from a
+	## moved neighbour block must not swap colliders or wake anything).
+	var hull_changed: bool = false
 
 
 var tuning: SnowTuning = null
@@ -53,6 +63,12 @@ var _queue: Array[String] = []
 ## Blocks held frozen (Variant: one may be freed while held).
 var _thaw: Array = []
 var _thaw_frames: PackedInt32Array = PackedInt32Array()
+## Round-robin list of owner keys for the cross-block neighbour refresh;
+## rebuilt only when the owner set changes (no per-frame allocation).
+var _refresh_keys: Array[String] = []
+var _refresh_dirty: bool = true
+var _refresh_cursor: int = 0
+var _scratch: PackedInt32Array = PackedInt32Array([0, 0, 0, 0])
 
 
 func _init(snow_tuning: SnowTuning, colliders: bool) -> void:
@@ -71,6 +87,7 @@ func set_patch(key: String, node: Node3D, region: int, patch_key: int, xform: Tr
 		owner.node = node
 		owner.region = region
 		_owners[key] = owner
+		_refresh_dirty = true
 	var patch: Patch = owner.patches.get(patch_key) as Patch
 	if patch == null:
 		if level <= 0:
@@ -83,6 +100,7 @@ func set_patch(key: String, node: Node3D, region: int, patch_key: int, xform: Tr
 	if patch.level == level and patch.built_level == level:
 		return
 	patch.level = level
+	patch.cross_valid = false
 	if not owner.dirty.has(patch_key):
 		owner.dirty.append(patch_key)
 	if region < 0:
@@ -114,6 +132,7 @@ func drop_owner(key: String) -> void:
 	if owner == null:
 		return
 	_owners.erase(key)
+	_refresh_dirty = true
 	_queue.erase(key)
 	_clear_owner(owner)
 
@@ -122,6 +141,7 @@ func clear_all() -> void:
 	for key: Variant in _owners.keys():
 		_clear_owner(_owners[key] as CapOwner)
 	_owners.clear()
+	_refresh_dirty = true
 	_queue.clear()
 	_release_all_thaws()
 
@@ -133,6 +153,7 @@ func is_idle() -> bool:
 ## Builds up to `budget` domes; commits every owner that became complete.
 func step(budget: int) -> void:
 	_advance_thaws()
+	_refresh_cross(tuning.cross_merge_checks_per_frame)
 	var left: int = maxi(budget, 1)
 	while left > 0 and not _queue.is_empty():
 		var owner: CapOwner = _owners.get(_queue[0]) as CapOwner
@@ -153,15 +174,18 @@ func step(budget: int) -> void:
 
 func _build_patch(patch: Patch, owner: CapOwner) -> void:
 	patch.built_level = patch.level
+	var old_hull: PackedVector3Array = patch.hull
 	patch.hull = PackedVector3Array()
 	patch.vertices = PackedVector3Array()
 	patch.normals = PackedVector3Array()
 	if patch.level <= 0:
+		owner.hull_changed = owner.hull_changed or not old_hull.is_empty()
 		return
 	var params: PackedFloat32Array = SnowGeometry.dome_params(patch.seed_value, tuning)
 	var points: PackedVector3Array
 	if owner.region >= 0:
 		points = SnowGeometry.dome_points(params, patch.edge, patch.level, tuning, tuning.disc_cap_squareness)
+		patch.hull = patch.xform * points
 	else:
 		# DECISION (Bontago-mp0.31): a per-patch geometry (not a world-space
 		# shader term) so the host collider is the same convex hull of the
@@ -174,10 +198,107 @@ func _build_patch(patch: Patch, owner: CapOwner) -> void:
 				var side: int = _side_of(patch, other)
 				if side >= 0:
 					levels[side] = other.level
-		points = SnowGeometry.cap_points(params, patch.edge, patch.edge / maxf(tuning.block_patch_fill, SnowGeometry.EPS), patch.level, levels, tuning)
-	patch.hull = patch.xform * points
+		var pitch: float = patch.edge / maxf(tuning.block_patch_fill, SnowGeometry.EPS)
+		if not patch.cross_valid:
+			_compute_cross(owner, patch)
+		var cross_any: bool = patch.cross[0] > 0 or patch.cross[1] > 0 or patch.cross[2] > 0 or patch.cross[3] > 0
+		# DECISION (Bontago-mp0.32): touching same-height tops of DIFFERENT
+		# blocks merge in the drawn mesh only (no rim at the shared edge). The
+		# collider hull is built from this block's own cells alone: blocks move
+		# independently, so a hull that followed a neighbour would swap (and
+		# wake bodies) whenever that neighbour shifted, and clients have no
+		# hulls to agree on anyway. The hull keeps its small rim shoulder at
+		# such an edge; the mesh stays within one rim width of it there.
+		if with_colliders:
+			var hull_points: PackedVector3Array = SnowGeometry.cap_points(params, patch.edge, pitch, patch.level, levels, tuning)
+			patch.hull = patch.xform * hull_points
+			points = SnowGeometry.cap_points(params, patch.edge, pitch, patch.level, levels, tuning, patch.cross) if cross_any else hull_points
+		else:
+			points = SnowGeometry.cap_points(params, patch.edge, pitch, patch.level, levels, tuning, patch.cross)
+	if patch.hull != old_hull:
+		owner.hull_changed = true
 	SnowGeometry.append_dome_triangles(points, tuning, patch.xform, patch.vertices, patch.normals)
 	patches_built += 1
+
+
+## Fills patch.cross with the levels of touching same-height tops of other
+## blocks (see the DECISION in _build_patch); returns true when it changed.
+## Matches in the patch's own frame: coplanar within cross_merge_height_tol_m,
+## yaw-aligned to a quarter turn, across a gap within cross_merge_gap_m and
+## overlapping laterally by cross_merge_overlap of a cell.
+func _compute_cross(owner: CapOwner, patch: Patch) -> bool:
+	patch.cross_valid = true
+	_scratch[0] = 0
+	_scratch[1] = 0
+	_scratch[2] = 0
+	_scratch[3] = 0
+	if tuning.cross_merge_enabled and patch.level > 0 and owner.region < 0 and is_instance_valid(owner.node) and owner.node.is_inside_tree():
+		var a: Transform3D = owner.node.global_transform * patch.xform
+		var pitch: float = patch.edge / maxf(tuning.block_patch_fill, SnowGeometry.EPS)
+		var reach: float = pitch * (1.0 + tuning.cross_merge_overlap) + tuning.cross_merge_gap_m
+		for key: Variant in _owners:
+			var other_owner: CapOwner = _owners[key] as CapOwner
+			if other_owner == owner or other_owner.region >= 0 or not is_instance_valid(other_owner.node) or not other_owner.node.is_inside_tree():
+				continue
+			var other_xform: Transform3D = other_owner.node.global_transform
+			for patch_key: Variant in other_owner.patches:
+				var other: Patch = other_owner.patches[patch_key] as Patch
+				if other.level <= 0:
+					continue
+				var delta: Vector3 = other_xform * other.xform.origin - a.origin
+				if absf(delta.dot(a.basis.y)) > tuning.cross_merge_height_tol_m or delta.length_squared() > reach * reach:
+					continue
+				var b: Basis = other_xform.basis * other.xform.basis
+				if a.basis.y.dot(b.y) < CROSS_ALIGN_DOT:
+					continue
+				if maxf(absf(a.basis.x.dot(b.x)), absf(a.basis.x.dot(b.z))) < CROSS_ALIGN_DOT:
+					continue
+				var side: int = _cross_side(delta.dot(a.basis.x), delta.dot(a.basis.z), pitch)
+				if side >= 0:
+					_scratch[side] = maxi(_scratch[side], other.level)
+	var changed: bool = false
+	for side: int in range(SnowGeometry.SIDE_COUNT):
+		if patch.cross[side] != _scratch[side]:
+			patch.cross[side] = _scratch[side]
+			changed = true
+	return changed
+
+
+func _cross_side(along_x: float, along_z: float, pitch: float) -> int:
+	var overlap: float = pitch * tuning.cross_merge_overlap
+	var gap: float = tuning.cross_merge_gap_m
+	if absf(along_z) <= overlap and absf(absf(along_x) - pitch) <= gap:
+		return SnowGeometry.SIDE_PX if along_x > 0.0 else SnowGeometry.SIDE_NX
+	if absf(along_x) <= overlap and absf(absf(along_z) - pitch) <= gap:
+		return SnowGeometry.SIDE_PZ if along_z > 0.0 else SnowGeometry.SIDE_NZ
+	return -1
+
+
+## Re-examines the cross-block neighbours of up to `count` block owners per
+## call (round robin) and queues a mesh-only rebuild where they changed, so a
+## seam opens again when a neighbour moves away.
+func _refresh_cross(count: int) -> void:
+	if not tuning.cross_merge_enabled:
+		return
+	if _refresh_dirty:
+		_refresh_dirty = false
+		_refresh_keys.clear()
+		for key: Variant in _owners:
+			_refresh_keys.append(str(key))
+	if _refresh_keys.is_empty():
+		return
+	for _i: int in range(mini(count, _refresh_keys.size())):
+		_refresh_cursor = (_refresh_cursor + 1) % _refresh_keys.size()
+		var owner: CapOwner = _owners.get(_refresh_keys[_refresh_cursor]) as CapOwner
+		if owner == null or owner.region >= 0 or owner.queued:
+			continue
+		for patch_key: Variant in owner.patches:
+			var patch: Patch = owner.patches[patch_key] as Patch
+			if patch.level > 0 and _compute_cross(owner, patch):
+				owner.dirty.append(int(patch_key))
+		if not owner.dirty.is_empty():
+			owner.queued = true
+			_queue.append(owner.key)
 
 
 ## Side (SnowGeometry.SIDE_*) of `patch` on which `other` is the edge-adjacent
@@ -221,17 +342,20 @@ func _commit(owner: CapOwner) -> void:
 	SnowCaps.apply_mesh(owner.node, cap_name, vertices, normals, tuning, owner.region >= 0)
 	if with_colliders:
 		if owner.region < 0:
-			_hold_frozen(owner.node as Block)
-			SnowCaps.apply_colliders(owner.node, hulls, tuning.collider_margin_m)
+			if owner.hull_changed:
+				_hold_frozen(owner.node as Block)
+				SnowCaps.apply_colliders(owner.node, hulls, tuning.collider_margin_m)
 		else:
 			var body: StaticBody3D = SnowCaps.disc_region_body(owner.node, owner.region, not hulls.is_empty())
 			if body != null:
 				SnowCaps.apply_colliders(body, hulls, tuning.collider_margin_m)
 				if hulls.is_empty():
 					SnowCaps.remove_node(owner.node, body.name)
+	owner.hull_changed = false
 	commits += 1
 	if owner.patches.is_empty():
 		_owners.erase(owner.key)
+		_refresh_dirty = true
 
 
 func _clear_owner(owner: CapOwner) -> void:

@@ -6,12 +6,13 @@ extends Node3D
 ## disc -> snow -> territory tint/contour, holes stay open, and territory
 ## reads on snow with the same smooth contour as on bare disc.
 ##
-## The shader's coverage is a soft low-frequency field biased along plate
-## seams, near the rim and around block bases. The block-base bias is a
-## one-byte-per-cell drift map this node rebuilds, a few blocks per frame,
-## at each level change. Light snow is a faint frosting (low strength), heavy
-## snow soft drifts over roughly 55-65% of the disc with dark bare disc
-## between them. Leaving the tree (snow cleared, match over) switches the
+## The shader's depth is an even base amount that rises with the level, plus
+## a gentle low-frequency variation, deepened along plate seams, near the rim
+## and around block bases (Bontago-mp0.32: no threshold, so no separate white
+## blobs). The block-base bias is a one-byte-per-cell drift map this node
+## rebuilds, a few blocks per frame, at each level change, and is filtered
+## smooth so drifts fade out gently. Light snow is a faint frosting (low
+## strength), heavy snow wind-streaked partial cover, capped so territory shows. Leaving the tree (snow cleared, match over) switches the
 ## layer off again. The colliding drifts are SnowCapBuilder's domes.
 
 ## Hash salts for the seed-based noise offset.
@@ -46,7 +47,10 @@ func configure(field: Field, seed_value: int, tuning: SnowTuning) -> void:
 	if _material == null:
 		return
 	_material.set_shader_parameter(&"snow_scale", tuning.cover_noise_scale)
-	_material.set_shader_parameter(&"snow_softness", tuning.cover_softness)
+	_material.set_shader_parameter(&"snow_variation", tuning.cover_variation)
+	var wind: float = deg_to_rad(tuning.cover_wind_angle_deg)
+	_material.set_shader_parameter(&"snow_wind_dir", Vector2(cos(wind), sin(wind)))
+	_material.set_shader_parameter(&"snow_wind_stretch", tuning.cover_wind_stretch)
 	_material.set_shader_parameter(&"snow_seam_bias", tuning.cover_seam_bias)
 	_material.set_shader_parameter(&"snow_seam_width", tuning.cover_seam_width)
 	_material.set_shader_parameter(&"snow_light_gain", tuning.cover_light_gain)
@@ -106,21 +110,31 @@ func _level_t() -> float:
 func strength() -> float:
 	if _tuning == null or _level <= 0:
 		return 0.0
-	return lerpf(_tuning.cover_strength_light, _tuning.cover_strength_heavy, _level_t())
+	var wanted: float = lerpf(_tuning.cover_strength_light, _tuning.cover_strength_heavy, _level_t())
+	return minf(wanted, max_opacity())
 
 
-## Shader threshold at the current level (lower = more of the disc covered).
-func threshold() -> float:
+## Highest snow opacity: snow lightens the disc but at least cover_territory_min
+## of the bare surface (territory colour, plate detail) always shows through.
+func max_opacity() -> float:
 	if _tuning == null:
-		return 1.0
-	return lerpf(_tuning.cover_threshold_light, _tuning.cover_threshold_heavy, _level_t())
+		return 0.0
+	return 1.0 - _tuning.cover_territory_min
+
+
+## Even base depth of the cover at the current level (0..1); the shader adds
+## gentle variation and the drift biases on top.
+func amount() -> float:
+	if _tuning == null:
+		return 0.0
+	return lerpf(_tuning.cover_amount_light, _tuning.cover_amount_heavy, _level_t())
 
 
 func _apply_uniforms() -> void:
 	if _material == null:
 		return
 	_material.set_shader_parameter(&"snow_strength", strength())
-	_material.set_shader_parameter(&"snow_threshold", threshold())
+	_material.set_shader_parameter(&"snow_threshold", amount())
 
 
 func _process(_delta: float) -> void:
