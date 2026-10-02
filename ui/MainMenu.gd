@@ -266,6 +266,7 @@ func _apply_visual_style() -> void:
 	]
 	_title_shadow.position = tuning.title_shadow_offset_px
 	_title_shadow.modulate.a = 0.9
+	_title_wrap.custom_minimum_size.y = tuning.menu_title_height_px
 	_title_accent.color = tuning.pill_coral_color
 	_title_accent.hide()
 	_name_label.add_theme_color_override("font_color", tuning.label_muted_color)
@@ -458,7 +459,34 @@ func _set_page(page: int) -> void:
 	for i: int in range(controls.size()):
 		controls[i].focus_neighbor_top = controls[i].get_path_to(controls[(i - 1 + controls.size()) % controls.size()])
 		controls[i].focus_neighbor_bottom = controls[i].get_path_to(controls[(i + 1) % controls.size()])
+	if page == PAGE_HOME:
+		_wire_home_grid_focus()
 	controls[1].grab_focus()
+
+
+## Bontago-1pi.23: the home page is a 2-column grid (Host | Join over Play
+## local | Options | Quit), so up/down/left/right follow what is drawn instead
+## of stepping sideways through a single linear chain.
+func _wire_home_grid_focus() -> void:
+	var top_row: Array[Control] = [_host_button, _join_button]
+	var bottom_row: Array[Control] = [_play_local_button, _options_button, _quit_button]
+	for control: Control in top_row:
+		control.focus_neighbor_top = control.get_path_to(_name_edit)
+	for index: int in range(bottom_row.size()):
+		var control: Control = bottom_row[index]
+		var above: Control = top_row[mini(index * top_row.size() / bottom_row.size(), top_row.size() - 1)]
+		control.focus_neighbor_top = control.get_path_to(above)
+		control.focus_neighbor_bottom = control.get_path_to(_name_edit)
+		control.focus_neighbor_left = control.get_path_to(bottom_row[maxi(index - 1, 0)])
+		control.focus_neighbor_right = control.get_path_to(bottom_row[mini(index + 1, bottom_row.size() - 1)])
+	_host_button.focus_neighbor_bottom = _host_button.get_path_to(_play_local_button)
+	_join_button.focus_neighbor_bottom = _join_button.get_path_to(_options_button)
+	_host_button.focus_neighbor_left = _host_button.get_path_to(_host_button)
+	_host_button.focus_neighbor_right = _host_button.get_path_to(_join_button)
+	_join_button.focus_neighbor_left = _join_button.get_path_to(_host_button)
+	_join_button.focus_neighbor_right = _join_button.get_path_to(_join_button)
+	_name_edit.focus_neighbor_top = _name_edit.get_path_to(_play_local_button)
+	_name_edit.focus_neighbor_bottom = _name_edit.get_path_to(_host_button)
 
 
 ## Compact Join keeps its controls on screen at a small window size without

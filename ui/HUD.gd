@@ -237,6 +237,8 @@ func _ready() -> void:
 	_height_label.add_theme_color_override("font_color", hud_visual_tuning.muted_ink_color)
 	_held_label.add_theme_color_override("font_color", hud_visual_tuning.muted_ink_color)
 	_next_label.add_theme_color_override("font_color", hud_visual_tuning.muted_ink_color)
+	for outlined: Label in [_turn_label, _height_label, _locked_label, _special_indicator, _gift_toast_label, _held_label, _next_label]:
+		_apply_text_outline(outlined)
 	# Bontago-mp0.3.3 (owner review 2026-09-26: "row gap ~12 px"). The status
 	# labels above sit in %StatusPill, a VBoxContainer nested right under
 	# %SharesBox inside their shared %TopLeftCluster (ui/HUD.tscn) -- both
@@ -246,8 +248,6 @@ func _ready() -> void:
 	_shares_box.add_theme_constant_override("separation", 12)
 	_top_left_cluster.resized.connect(_resize_top_left_backplate)
 	_resize_top_left_backplate()
-	get_viewport().size_changed.connect(_update_hud_scale)
-	_update_hud_scale()
 
 	_build_countdown_label()
 	Events.turn_changed.connect(_on_turn_changed)
@@ -276,7 +276,7 @@ func _build_countdown_label() -> void:
 	_countdown_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_countdown_label.add_theme_font_size_override("font_size", hud_visual_tuning.countdown_font_size)
 	_countdown_label.add_theme_color_override("font_color", Color.WHITE)
-	_countdown_label.add_theme_color_override("font_outline_color", hud_visual_tuning.ink_color)
+	_countdown_label.add_theme_color_override("font_outline_color", hud_visual_tuning.countdown_outline_color)
 	_countdown_label.add_theme_constant_override("outline_size", hud_visual_tuning.countdown_font_size / maxi(hud_visual_tuning.countdown_outline_divisor, 1))
 	_countdown_label.visible = false
 	add_child(_countdown_label)
@@ -667,6 +667,10 @@ func _on_goal_capture_progress(team_id: int, progress: float) -> void:
 ## A shared win (CTF tie) replaces the sole-winner text, from the payload's
 ## winners list. Single-winner payloads leave show_winner()'s text untouched.
 func _on_match_results_ready(results: Dictionary) -> void:
+	# Bontago-1pi.23: the results screen owns the end of a match; the whole HUD
+	# (previews, stats, timer ring, countdown, minimap) steps aside so nothing
+	# draws over its card.
+	visible = false
 	var shared: String = ResultsScreen.shared_winners_text(results)
 	if not shared.is_empty():
 		_winner_label.text = shared
@@ -802,19 +806,6 @@ func _resize_top_left_backplate() -> void:
 		maxf(_top_left_cluster.size.x, _top_left_cluster.get_combined_minimum_size().x) + padding * 2.0,
 		_top_left_cluster.get_combined_minimum_size().y + padding * 2.0
 	)
-
-
-func _update_hud_scale() -> void:
-	# DECISION: anchor positions stay native to the viewport; scale each
-	# persistent cluster around its screen edge so ultrawide framing remains usable.
-	var factor: float = clampf(
-		get_viewport().get_visible_rect().size.y / hud_visual_tuning.reference_viewport_height_px,
-		1.0, hud_visual_tuning.maximum_hud_scale
-	)
-	for control: Control in [_top_left_backplate, _top_left_cluster, _held_next_panel, _timer_ring, _minimap, _capture_ring]:
-		control.scale = Vector2.ONE * factor
-	_timer_ring.pivot_offset = _timer_ring.size * 0.5
-	_minimap.pivot_offset = _minimap.size
 
 
 ## Bontago-mp0.3.3 (mockup 08 restyle; Bontago-mp0.2 "top-left HUD
@@ -1164,6 +1155,8 @@ var _glue_active: bool = false
 ## Bontago-sen.8: leaving a match (lobby/end) drops the overlay at once and
 ## forces the next refresh to re-read the charges.
 func _on_match_state_changed_glue(_from_state: int, to_state: int) -> void:
+	if to_state != Match.State.END:
+		visible = true
 	if to_state == Match.State.LOBBY or to_state == Match.State.END:
 		_last_special_signature = []
 		_set_glue_active(false)

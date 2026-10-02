@@ -45,6 +45,15 @@ theme_override_font_sizes/font_size = 28
 horizontal_alignment = 1
 text = "Player wins!"
 
+[node name="ModeOutcome" type="Label" parent="Center/Card/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+horizontal_alignment = 1
+autowrap_mode = 3
+custom_minimum_size = Vector2(0, 0)
+visible = false
+
 [node name="TableScroll" type="ScrollContainer" parent="Center/Card/Layout"]
 layout_mode = 2
 size_flags_horizontal = 3
