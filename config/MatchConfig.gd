@@ -51,7 +51,7 @@ enum WeatherMode { OFF, STORM, RAIN, SNOW, FOG, RANDOM, CHANGING }
 ## sky theme, NIGHT = the night theme, RANDOM = the host picks one at match
 ## start (autoload/match/MatchLifecycle.gd) and replicates the concrete id in
 ## sky_theme_resolved, so every client shows the same sky.
-enum SkyThemeMode { DAY, NIGHT, RANDOM }
+enum SkyThemeMode { DAY, NIGHT, RANDOM, CYCLE }
 ## Theme ids (config/sky_themes/<id>.tres) per concrete mode, DAY then NIGHT.
 const SKY_THEME_IDS: PackedStringArray = ["sunset", "night"]
 
@@ -369,7 +369,7 @@ func sanitize() -> void:
 	round_timer_minutes = clamp_round_timer(round_timer_minutes, game_mode)
 	# turn_based is a plain bool -- no range to clamp.
 	weather_mode = clampi(weather_mode, WeatherMode.OFF, WeatherMode.CHANGING) as WeatherMode
-	sky_theme_mode = clampi(sky_theme_mode, SkyThemeMode.DAY, SkyThemeMode.RANDOM) as SkyThemeMode
+	sky_theme_mode = clampi(sky_theme_mode, SkyThemeMode.DAY, SkyThemeMode.CYCLE) as SkyThemeMode
 	if not SKY_THEME_IDS.has(sky_theme_resolved):
 		sky_theme_resolved = ""
 	if player_colors.size() < PLAYER_COUNT_MAX:

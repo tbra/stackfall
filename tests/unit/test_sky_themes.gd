@@ -280,3 +280,28 @@ func test_flare_sky_and_light_agree_on_the_sun_direction() -> void:
 	var puffs: ShaderMaterial = theme.cloud_puff_material as ShaderMaterial
 	assert_gt((puffs.get_shader_parameter("light_direction") as Vector3).normalized().dot(sky_dir.normalized()), 0.9999)
 	assert_gt(flare.ghost_ring_width, 0.0, "ghosts are rings, not solid sun-like discs")
+func test_cycle_reuses_material_and_aligns_sun_with_flare() -> void:
+	var parts: Array = _make_skybox(load(SUNSET_PATH) as SkyThemeDef)
+	var skybox: Skybox = parts[0] as Skybox
+	var environment: Environment = parts[1] as Environment
+	var flare: SunFlare = SunFlare.new()
+	add_child_autofree(flare)
+	var config: MatchConfig = MatchConfig.new()
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
+	skybox.configure_match_sky(config)
+	var material: ShaderMaterial = environment.sky.sky_material as ShaderMaterial
+	assert_almost_eq(float(material.get_shader_parameter(&"procedural_sea_mix")), 1.0, 0.001)
+	var dawn: Vector3 = material.get_shader_parameter(&"sun_direction") as Vector3
+	skybox.set_cycle_phase(0.25)
+	assert_same(environment.sky.sky_material, material, "cycle must update one material")
+	var day: Vector3 = material.get_shader_parameter(&"sun_direction") as Vector3
+	assert_gt(day.y, dawn.y, "sun rises between dawn and day")
+	assert_eq(flare.config.sun_direction, day, "flare projects the same sun as the sky")
+	assert_true(flare.is_theme_enabled())
+	skybox.set_cycle_phase(0.75)
+	assert_gt(float(material.get_shader_parameter(&"cycle_night_mix")), 0.99)
+	assert_lt((material.get_shader_parameter(&"sun_direction") as Vector3).y, 0.0)
+	assert_false(flare.is_theme_enabled())
+	skybox.set_theme_by_id("sunset")
+	assert_eq(flare.config.sun_direction, (load("res://config/sun_flare.tres") as SunFlareConfig).sun_direction,
+		"leaving cycle restores the authored flare direction")

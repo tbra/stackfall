@@ -17,6 +17,20 @@ extends GutTest
 
 const TICK: float = 1.0 / 60.0
 
+
+func test_cycle_clock_advances_during_offline_match() -> void:
+	var previous_mode: int = Net._mode
+	Net._mode = Net.Mode.OFFLINE
+	var sync: Node = (load("res://net/SnapshotSync.gd") as GDScript).new() as Node
+	add_child_autofree(sync)
+	var registry: BlockRegistry = BlockRegistry.new()
+	add_child_autofree(registry)
+	sync.call("begin_match", registry, _small_map())
+	sync.call("host_tick", 1.25)
+	assert_almost_eq(sync.call("sky_cycle_seconds"), 1.25, 0.001)
+	sync.call("end_match")
+	Net._mode = previous_mode
+
 ## PhysicsCallDriver (tests/unit/support/PhysicsCallDriver.gd) gets a call
 ## into a genuine physics step. Needed both for tilting the host (Field's own
 ## _physics_process(), driven for real via wait_physics_frames() below,

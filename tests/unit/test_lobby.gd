@@ -22,6 +22,19 @@ func _fake_of(lobby: Lobby) -> FakeNet:
 	return lobby.net_provider as FakeNet
 
 
+func test_cycle_option_round_trips_through_lobby_data() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var option: OptionButton = lobby.get_node("%SkyThemeOption") as OptionButton
+	assert_eq(option.item_count, MatchConfig.SkyThemeMode.size())
+	assert_eq(option.get_item_text(MatchConfig.SkyThemeMode.CYCLE), "Cycle")
+	option.select(MatchConfig.SkyThemeMode.CYCLE)
+	lobby._on_option_changed(MatchConfig.SkyThemeMode.CYCLE)
+	var published: MatchConfig = MatchConfig.from_dict(_fake_of(lobby).lobby_data_value)
+	assert_eq(published.sky_theme_mode, MatchConfig.SkyThemeMode.CYCLE)
+	Events.net_lobby_data_changed.emit(published.to_dict())
+	assert_eq(option.selected, MatchConfig.SkyThemeMode.CYCLE)
+
+
 ## Bontago-1pi.15.1: this file's own real-gamepad-B tests below route real
 ## InputEventJoypadButton events through Input.parse_input_event(), which
 ## flips the Settings autoload's own active_input_device() to DEVICE_GAMEPAD

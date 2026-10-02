@@ -78,6 +78,33 @@ class _Layer:
 
 var _instance: MultiMeshInstance3D = null
 var _material: ShaderMaterial = null
+
+## A cycle changes the existing puff material's palette and direction in place.
+func set_cycle_appearance(day: SkyThemeDef, night_theme: SkyThemeDef, weight: float, direction: Vector3) -> void:
+	if _material == null:
+		return
+	var day_material: ShaderMaterial = day.cloud_puff_material as ShaderMaterial
+	var night_material: ShaderMaterial = night_theme.cloud_puff_material as ShaderMaterial
+	if day_material == null or night_material == null:
+		return
+	for parameter: StringName in [&"shadow_color", &"mid_color", &"lit_color", &"rim_color"]:
+		var a: Color = day_material.get_shader_parameter(parameter) as Color
+		var b: Color = night_material.get_shader_parameter(parameter) as Color
+		_material.set_shader_parameter(parameter, a.lerp(b, weight))
+	var day_sky: ShaderMaterial = day.sky_material as ShaderMaterial
+	var night_sky: ShaderMaterial = night_theme.sky_material as ShaderMaterial
+	if day_sky != null and night_sky != null:
+		for parameter: StringName in [&"cloud_shadow_color", &"cloud_mid_color", &"cloud_lit_color", &"cloud_rim_color"]:
+			var day_color: Color = day_sky.get_shader_parameter(parameter) as Color
+			var night_color: Color = night_sky.get_shader_parameter(parameter) as Color
+			_material.set_shader_parameter(parameter, day_color.lerp(night_color, weight))
+		for parameter: StringName in [&"grade_dark", &"grade_mid", &"grade_light"]:
+			_material.set_shader_parameter(parameter, night_sky.get_shader_parameter(parameter))
+		_material.set_shader_parameter(&"grade_amount", weight)
+		_material.set_shader_parameter(&"proc_sea_color_near", day.proc_sea_color_near.lerp(night_theme.proc_sea_color_near, weight))
+		_material.set_shader_parameter(&"proc_sea_color_far", day.proc_sea_color_far.lerp(night_theme.proc_sea_color_far, weight))
+	_material.set_shader_parameter(&"light_direction", direction)
+	_material.set_shader_parameter(&"sun_direction", direction)
 ## Highest puff top written by the last configure() (tracked here because a
 ## headless RenderingServer does not keep MultiMesh instance data).
 var _highest_top: float = -INF

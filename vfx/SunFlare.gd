@@ -33,6 +33,8 @@ extends CanvasLayer
 ## change contract.
 
 @export var config: SunFlareConfig = preload("res://config/sun_flare.tres")
+var _cycle_config_local: bool = false
+var _cycle_base_config: SunFlareConfig = null
 ## Wired in Main.tscn to the live gameplay camera (game/CameraRig.tscn's own
 ## Camera3D), the same NodePath convention game/DiscMirror.gd's own
 ## camera_path/field_path already use for a sibling-node reference resolved
@@ -114,9 +116,26 @@ func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 ## Bontago-adt: theme gate (see _theme_enabled). Fades out via the hidden rect
 ## immediately; the smoothed visibility restarts from 0 on re-enable.
 func set_theme_enabled(value: bool) -> void:
+	if _cycle_config_local:
+		config = _cycle_base_config
+		_cycle_base_config = null
+		_cycle_config_local = false
 	_theme_enabled = value
 	if not value:
 		_current_visibility = 0.0
+
+
+## Called by the cycle after it moves the sky sun; the same direction drives
+## projection and the DirectionalLight, so flare and disc cannot split apart.
+func set_cycle_sun(direction: Vector3, daylight: float) -> void:
+	if config == null:
+		return
+	if not _cycle_config_local:
+		_cycle_base_config = config
+		config = config.duplicate() as SunFlareConfig
+		_cycle_config_local = true
+	config.sun_direction = direction
+	_theme_enabled = daylight > 0.01
 
 
 func is_theme_enabled() -> bool:

@@ -1,5 +1,15 @@
 class_name SkyThemeDef
 extends Resource
+## DECISION (Bontago-mp0.13): the cycle length belongs to the theme resource,
+## so every peer receives the same authored duration with the shipped content.
+@export_range(30.0, 3600.0, 1.0) var cycle_length_seconds: float = 600.0
+@export_range(5.0, 85.0, 1.0) var cycle_sun_peak_degrees: float = 65.0
+@export_range(0.01, 0.5, 0.01) var cycle_twilight_width: float = 0.2
+@export_range(1.0, 10.0, 0.1) var cycle_star_brightness: float = 2.0
+@export_range(8.0, 200.0, 1.0) var cycle_star_cells: float = 105.0
+@export_range(0.0, 1.0, 0.01) var cycle_star_threshold: float = 0.92
+@export_range(0.01, 0.3, 0.01) var cycle_star_radius: float = 0.12
+@export_range(0.01, 0.5, 0.01) var cycle_star_horizon_fade: float = 0.22
 ## Bontago-59o.16: opt-in procedural sky look (docs/SKY_PROCEDURAL_PLAN.md),
 ## declared first so it is the first row of the F4 Sky tab for the owner's
 ## painted-vs-procedural comparison. Skybox.apply_theme() writes

@@ -143,6 +143,120 @@ const PROBE_GROUND_CLEARANCE_M: float = 4.0
 ## ProceduralSkyMaterial, captured once in _ready()) -- restored whenever
 ## load_set() falls back, the same moment the box itself is hidden.
 var _fallback_sky_material: Material = null
+var _cycle_theme: SkyThemeDef = null
+var _cycle_day: SkyThemeDef = null
+var _cycle_night: SkyThemeDef = null
+var _cycle_phase_last: float = -1.0
+var _cycle_life_is_night: bool = false
+
+
+## The host-resolved mode is included in MatchConfig's normal match-start RPC.
+## SnapshotSync supplies the shared clock; no peer's wall time enters the sky.
+func configure_match_sky(match_config: MatchConfig) -> void:
+	_cycle_theme = null
+	if match_config.sky_theme_mode != MatchConfig.SkyThemeMode.CYCLE:
+		set_theme_by_id(match_config.effective_sky_theme())
+		return
+	_cycle_day = load_theme(MatchConfig.SKY_THEME_IDS[MatchConfig.SkyThemeMode.DAY])
+	_cycle_night = load_theme(MatchConfig.SKY_THEME_IDS[MatchConfig.SkyThemeMode.NIGHT])
+	if _cycle_day == null or _cycle_night == null:
+		return
+	# DECISION (Bontago-mp0.13): duplicate the authored resources once. Each
+	# frame changes only shader uniforms and Environment/light properties.
+	_cycle_theme = _cycle_day.duplicate(true) as SkyThemeDef
+	_cycle_theme.sky_material = _cycle_day.sky_material.duplicate() as Material
+	_cycle_theme.cloud_puff_material = _cycle_day.cloud_puff_material.duplicate() as Material
+	_cycle_theme.sky_look_procedural = true
+	_cycle_theme.procedural_sea_mix = 1.0
+	theme = _cycle_theme
+	apply_theme(theme)
+	environment.sky.process_mode = Sky.PROCESS_MODE_INCREMENTAL
+	_cycle_phase_last = -1.0
+	_cycle_life_is_night = true
+	set_cycle_phase(0.0)
+
+
+func _process(_delta: float) -> void:
+	if _cycle_theme == null:
+		return
+	var length: float = maxf(_cycle_theme.cycle_length_seconds, 1.0)
+	set_cycle_phase(fposmod(SnapshotSync.sky_cycle_seconds(), length) / length)
+
+
+## Public phase seam also used by deterministic tests and visual probes.
+func set_cycle_phase(phase: float) -> void:
+	if _cycle_theme == null or environment == null:
+		return
+	phase = fposmod(phase, 1.0)
+	if is_equal_approx(phase, _cycle_phase_last):
+		return
+	_cycle_phase_last = phase
+	var daylight: float = smoothstep(-_cycle_theme.cycle_twilight_width, _cycle_theme.cycle_twilight_width, sin(TAU * phase))
+	var night: float = 1.0 - daylight
+	var sun_base: Vector3 = (_cycle_day.sky_material as ShaderMaterial).get_shader_parameter(&"sun_direction") as Vector3
+	var horizontal: Vector3 = Vector3(sun_base.x, 0.0, sun_base.z).normalized()
+	var azimuth: float = TAU * phase
+	var elevation: float = deg_to_rad(_cycle_theme.cycle_sun_peak_degrees) * sin(azimuth)
+	var direction: Vector3 = Vector3(
+		horizontal.x * cos(azimuth) - horizontal.z * sin(azimuth), 0.0,
+		horizontal.x * sin(azimuth) + horizontal.z * cos(azimuth)) * cos(elevation)
+	direction.y = sin(elevation)
+	var material: ShaderMaterial = _cycle_theme.sky_material as ShaderMaterial
+	material.set_shader_parameter(&"sun_direction", direction)
+	material.set_shader_parameter(&"cycle_night_mix", night)
+	material.set_shader_parameter(&"cycle_night_zenith", _cycle_night.sky_top_color)
+	material.set_shader_parameter(&"cycle_night_horizon", _cycle_night.sky_horizon_color)
+	material.set_shader_parameter(&"cycle_night_below", _cycle_night.ground_bottom_color)
+	material.set_shader_parameter(&"cycle_star_brightness", _cycle_theme.cycle_star_brightness)
+	material.set_shader_parameter(&"cycle_star_cells", _cycle_theme.cycle_star_cells)
+	material.set_shader_parameter(&"cycle_star_threshold", _cycle_theme.cycle_star_threshold)
+	material.set_shader_parameter(&"cycle_star_radius", _cycle_theme.cycle_star_radius)
+	material.set_shader_parameter(&"cycle_star_horizon_fade", _cycle_theme.cycle_star_horizon_fade)
+	_cycle_theme.fog_color = _cycle_day.fog_color.lerp(_cycle_night.fog_color, night)
+	_cycle_theme.fog_density = lerpf(_cycle_day.fog_density, _cycle_night.fog_density, night)
+	_cycle_theme.volumetric_fog_density = lerpf(_cycle_day.volumetric_fog_density, _cycle_night.volumetric_fog_density, night)
+	_cycle_theme.volumetric_fog_albedo = _cycle_day.volumetric_fog_albedo.lerp(_cycle_night.volumetric_fog_albedo, night)
+	_cycle_theme.ambient_energy = lerpf(_cycle_day.ambient_energy, _cycle_night.ambient_energy, night)
+	# DECISION (Bontago-mp0.13): one key light serves sun by day and a dim
+	# authored night direction after sunset. Both fade to zero at the horizon.
+	var sun_key: float = smoothstep(0.0, 0.2, direction.y)
+	var moon_key: float = smoothstep(0.0, 0.2, -direction.y)
+	_cycle_theme.light_energy = _cycle_day.light_energy * sun_key + _cycle_night.light_energy * 0.2 * moon_key
+	_cycle_theme.light_color = _cycle_day.light_color if direction.y >= 0.0 else _cycle_night.light_color
+	environment.volumetric_fog_density = _cycle_theme.volumetric_fog_density
+	environment.volumetric_fog_albedo = _cycle_theme.volumetric_fog_albedo
+	var light: DirectionalLight3D = get_node_or_null(light_path) as DirectionalLight3D if not light_path.is_empty() else null
+	if light != null:
+		light.light_color = _cycle_theme.light_color
+		if direction.y >= 0.0:
+			light.global_basis = Basis.looking_at(-direction, Vector3.UP)
+		else:
+			light.rotation_degrees = _cycle_night.light_rotation_deg
+	_apply_overcast(_cycle_theme)
+	if _fog_volume != null:
+		var fog_material: FogMaterial = _fog_volume.material as FogMaterial
+		if fog_material != null:
+			fog_material.density = _cycle_theme.fog_density
+	# DECISION (Bontago-mp0.13): stagger the ambient-life swap so its
+	# discrete configure calls happen in the dark, with hysteresis at twilight.
+	var life_is_night: bool = night > 0.85 if not _cycle_life_is_night else night > 0.15
+	if life_is_night != _cycle_life_is_night:
+		_cycle_life_is_night = life_is_night
+		var preset: GraphicsPreset = Settings.current_graphics_preset()
+		var life_enabled: bool = preset == null or preset.ambient_life_enabled
+		if _birds != null:
+			_birds.configure(_cycle_day, not life_is_night and (preset == null or preset.birds_enabled))
+		if _perching != null:
+			_perching.configure(_cycle_night.ambient_life if life_is_night else _cycle_day.ambient_life, life_enabled)
+		if _fireflies != null:
+			_fireflies.configure(_cycle_night.ambient_life if life_is_night else _cycle_day.ambient_life,
+				life_enabled, _disc_radius_for_ambient_life())
+	if _cloud_sea != null:
+		_cloud_sea.set_cycle_appearance(_cycle_day, _cycle_night, night, direction)
+	for node: Node in get_tree().get_nodes_in_group(SunFlare.GROUP):
+		var flare: SunFlare = node as SunFlare
+		if flare != null:
+			flare.set_cycle_sun(direction, daylight)
 
 ## True whenever no textured box is showing (initial state, a missing
 ## set/face, or config.enabled == false) -- the existing ProceduralSkyMaterial
@@ -627,6 +741,9 @@ func set_theme_by_id(theme_id: String) -> bool:
 	if chosen == null:
 		return false
 	theme = chosen
+	_cycle_theme = null
+	if environment != null and environment.sky != null:
+		environment.sky.process_mode = Sky.PROCESS_MODE_QUALITY
 	config.theme_name = theme_id
 	apply_theme(theme)
 	refresh_reflection_capture()
