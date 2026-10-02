@@ -326,8 +326,9 @@ func test_presentation_density_follows_intensity_and_never_touches_physics() -> 
 	var breeze: BreezeTuning = load("res://config/breeze.tres") as BreezeTuning
 	assert_almost_eq(float(material.get_shader_parameter(&"density")), 0.7, 0.0001)
 	assert_eq(streaks.layers, RainPresentation.RENDER_LAYER_BIT)
-	assert_gt(_tuning.streak_length_m, breeze.gust_streak_length_m)
-	assert_lt(_tuning.streak_width_m, breeze.gust_streak_width_m)
+	assert_gte(_tuning.streak_length_min_m, 4.0, "wisps run about 4-12 m")
+	assert_lte(_tuning.streak_length_m, 12.0)
+	assert_lt(_tuning.streak_count, breeze.gust_streak_count * 4, "few streaks at once")
 	assert_false(presentation.is_class("PhysicsBody3D"))
 
 
@@ -348,6 +349,42 @@ func test_presentation_streaks_travel_along_the_field_heading() -> void:
 	var streaks: MultiMeshInstance3D = presentation.get_node("Streaks") as MultiMeshInstance3D
 	var drawn: Vector3 = (streaks.material_override as ShaderMaterial).get_shader_parameter(&"wind_dir") as Vector3
 	assert_lt(drawn.distance_to(Vector3(field.x, 0.0, field.y)), 0.001, "shader wind_dir is the host's (x, z) heading")
+
+
+func test_streak_spawns_keep_their_distance_from_the_camera() -> void:
+	var presentation: StormPresentation = StormPresentation.new()
+	add_child_autofree(presentation)
+	presentation.configure(SEED_A)
+	var material: ShaderMaterial = presentation.streak_material()
+	var fade: Vector2 = material.get_shader_parameter(&"near_fade_m") as Vector2
+	assert_eq(fade, Vector2(_tuning.streak_near_fade_start_m, _tuning.streak_near_fade_end_m))
+	assert_gte(fade.x, 10.0, "min camera distance is well beyond the screen-spanning range")
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 77
+	var visible_count: int = 0
+	for n: int in range(4000):
+		var spawn: Vector3 = StormPresentation.streak_spawn(rng.randf(), rng.randi_range(0, 50), _tuning)
+		var camera: Vector3 = Vector3(rng.randf_range(-60.0, 60.0), rng.randf_range(0.0, 30.0), rng.randf_range(-60.0, 60.0))
+		var weight: float = StormPresentation.streak_near_weight(spawn.distance_to(camera), _tuning)
+		if spawn.distance_to(camera) <= _tuning.streak_near_fade_start_m:
+			assert_eq(weight, 0.0, "invisible inside the minimum camera distance")
+		if weight > 0.0:
+			visible_count += 1
+			assert_gt(spawn.distance_to(camera), _tuning.streak_near_fade_start_m)
+	assert_gt(visible_count, 0, "most spawns are visible away from the camera")
+	assert_eq(StormPresentation.streak_near_weight(_tuning.streak_near_fade_end_m, _tuning), 1.0)
+
+
+func test_streak_heading_matches_wind_field_over_time() -> void:
+	var presentation: StormPresentation = StormPresentation.new()
+	add_child_autofree(presentation)
+	presentation.configure(SEED_B)
+	presentation.set_intensity(1.0)
+	for _i: int in range(30):
+		presentation._process(1.0)
+		var field: Vector2 = WindField.direction(SEED_B, presentation._elapsed, _tuning)
+		var drawn: Vector3 = presentation.streak_material().get_shader_parameter(&"wind_dir") as Vector3
+		assert_lt(drawn.distance_to(Vector3(field.x, 0.0, field.y)), 0.001)
 
 
 func test_active_presentation_rebuilds_for_graphics_preset() -> void:

@@ -11,6 +11,8 @@ const SHADER: Shader = preload("res://shaders/wind_streak.gdshader")
 const TUNING: StormTuning = preload("res://config/weather/storm.tres")
 const KIND_STREAK: int = 0
 const KIND_MOTE: int = 1
+## Segments along a streak ribbon (enough for a smooth bow and waver).
+const RIBBON_SEGMENTS: int = 14
 
 var tuning: StormTuning = TUNING
 var _seed: int = 0
@@ -43,6 +45,35 @@ func configure(seed_value: int, wind_tuning: StormTuning = null) -> void:
 	if wind_tuning != null:
 		tuning = wind_tuning
 	_build()
+
+
+## CPU mirror of the shader's hash (used for the spawn-position test).
+static func _hash11(n: float) -> float:
+	return fposmod(sin(n * 127.1 + 311.7) * 43758.5453, 1.0)
+
+
+## World position where streak `seed_rank` starts its life number `cycle_index`
+## (mirrors the shader's respawn scatter, before the wind drift is added).
+static func streak_spawn(seed_rank: float, cycle_index: int, wind_tuning: StormTuning) -> Vector3:
+	var key: float = seed_rank * 91.7 + float(cycle_index) * 13.3
+	var size_xz: float = wind_tuning.area_half_extent_m * 2.0
+	var size_y: float = wind_tuning.area_max_height_m - wind_tuning.area_min_height_m
+	return Vector3(
+		(_hash11(key + 1.0) - 0.5) * size_xz,
+		wind_tuning.area_min_height_m + _hash11(key + 3.0) * size_y,
+		(_hash11(key + 2.0) - 0.5) * size_xz)
+
+
+## Opacity multiplier (0..1) of a streak `distance_m` from the camera: zero
+## inside the near-fade start, rising to one at its end.
+static func streak_near_weight(distance_m: float, wind_tuning: StormTuning) -> float:
+	return smoothstep(wind_tuning.streak_near_fade_start_m, wind_tuning.streak_near_fade_end_m, distance_m)
+
+
+func streak_material() -> ShaderMaterial:
+	if _materials.size() <= KIND_STREAK or _instances.is_empty() or _instances[0].name != &"Streaks":
+		return null
+	return _materials[KIND_STREAK]
 
 
 func heading() -> Vector2:
@@ -106,12 +137,11 @@ func _build() -> void:
 func _add_kind(kind: int, count: int) -> void:
 	if count <= 0:
 		return
-	var quad: QuadMesh = QuadMesh.new()
-	quad.size = Vector2.ONE
+	var mesh: Mesh = _ribbon_mesh() if kind == KIND_STREAK else _quad_mesh()
 	var multimesh: MultiMesh = MultiMesh.new()
 	multimesh.transform_format = MultiMesh.TRANSFORM_3D
 	multimesh.use_custom_data = true
-	multimesh.mesh = quad
+	multimesh.mesh = mesh
 	multimesh.instance_count = count
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = tuning.scatter_seed + kind
@@ -127,6 +157,14 @@ func _add_kind(kind: int, count: int) -> void:
 	material.set_shader_parameter(&"box_half", Vector3(half, half_y, half))
 	material.set_shader_parameter(&"box_base_y", tuning.area_min_height_m)
 	material.set_shader_parameter(&"length_m", tuning.streak_length_m if kind == KIND_STREAK else tuning.mote_size_m)
+	material.set_shader_parameter(&"length_min_m", tuning.streak_length_min_m if kind == KIND_STREAK else tuning.mote_size_m)
+	material.set_shader_parameter(&"life_m", tuning.streak_life_m)
+	material.set_shader_parameter(&"draw_frac", tuning.streak_draw_frac)
+	material.set_shader_parameter(&"erase_frac", tuning.streak_erase_frac)
+	material.set_shader_parameter(&"tip_taper", tuning.streak_tip_taper)
+	material.set_shader_parameter(&"bow_m", tuning.streak_bow_m)
+	material.set_shader_parameter(&"wobble_m", tuning.streak_wobble_m)
+	material.set_shader_parameter(&"opacity_min", tuning.streak_opacity_min)
 	material.set_shader_parameter(&"width_m", tuning.streak_width_m if kind == KIND_STREAK else tuning.mote_size_m)
 	material.set_shader_parameter(&"mote_mix", 0.0 if kind == KIND_STREAK else 1.0)
 	material.set_shader_parameter(&"tint", tuning.streak_color if kind == KIND_STREAK else tuning.mote_color)
@@ -134,7 +172,10 @@ func _add_kind(kind: int, count: int) -> void:
 	material.set_shader_parameter(&"band_width", tuning.streak_band_width)
 	material.set_shader_parameter(&"edge_softness", tuning.streak_edge_softness)
 	material.set_shader_parameter(&"fade_far_m", tuning.fade_far_m)
-	material.set_shader_parameter(&"near_fade_m", Vector2(tuning.mote_near_fade_start_m, tuning.mote_near_fade_end_m))
+	if kind == KIND_STREAK:
+		material.set_shader_parameter(&"near_fade_m", Vector2(tuning.streak_near_fade_start_m, tuning.streak_near_fade_end_m))
+	else:
+		material.set_shader_parameter(&"near_fade_m", Vector2(tuning.mote_near_fade_start_m, tuning.mote_near_fade_end_m))
 	material.set_shader_parameter(&"density", intensity)
 	var instance: MultiMeshInstance3D = MultiMeshInstance3D.new()
 	instance.name = "Streaks" if kind == KIND_STREAK else "Motes"
@@ -150,3 +191,34 @@ func _add_kind(kind: int, count: int) -> void:
 	add_child(instance)
 	_instances.append(instance)
 	_materials.append(material)
+
+
+func _quad_mesh() -> QuadMesh:
+	var quad: QuadMesh = QuadMesh.new()
+	quad.size = Vector2.ONE
+	return quad
+
+
+## A flat strip along x (-0.5..0.5) with UV.x = fraction along it, so the shader
+## can taper, bow and draw it on. VERTEX.y = +-0.5 marks the two edges.
+func _ribbon_mesh() -> ArrayMesh:
+	var vertices: PackedVector3Array = PackedVector3Array()
+	var uvs: PackedVector2Array = PackedVector2Array()
+	var indices: PackedInt32Array = PackedInt32Array()
+	for i: int in range(RIBBON_SEGMENTS + 1):
+		var t: float = float(i) / float(RIBBON_SEGMENTS)
+		vertices.append(Vector3(t - 0.5, -0.5, 0.0))
+		uvs.append(Vector2(t, 0.0))
+		vertices.append(Vector3(t - 0.5, 0.5, 0.0))
+		uvs.append(Vector2(t, 1.0))
+	for i: int in range(RIBBON_SEGMENTS):
+		var a: int = i * 2
+		indices.append_array(PackedInt32Array([a, a + 1, a + 2, a + 1, a + 3, a + 2]))
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh: ArrayMesh = ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
