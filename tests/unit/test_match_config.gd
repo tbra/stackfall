@@ -367,6 +367,22 @@ func test_resolve_sky_theme_maps_modes_and_sanitize_drops_unknown_ids() -> void:
 	assert_eq(config.sky_theme_resolved, "")
 
 
+func test_dawn_mode_resolves_and_survives_lobby_wire_data() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	assert_eq(MatchConfig.SkyThemeMode.DAWN, 4, "Existing network mode ids stay stable")
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.DAWN
+	assert_eq(config.effective_sky_theme(), "dawn")
+	config.resolve_sky_theme(0)
+	assert_eq(config.sky_theme_resolved, "dawn")
+	var restored: MatchConfig = MatchConfig.from_dict(config.to_dict())
+	assert_eq(restored.sky_theme_mode, MatchConfig.SkyThemeMode.DAWN)
+	assert_eq(restored.effective_sky_theme(), "dawn")
+	assert_true(ResourceLoader.exists("res://config/sky_themes/dawn.tres"))
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.RANDOM
+	config.resolve_sky_theme(2)
+	assert_eq(config.sky_theme_resolved, "dawn", "Random includes the new concrete theme")
+
+
 func test_default_lobby_gravity_reads_one_and_effective_gravity_is_unchanged() -> void:
 	var config: MatchConfig = MatchConfig.new()
 	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres") as PhysicsTuning

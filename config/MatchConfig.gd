@@ -51,9 +51,11 @@ enum WeatherMode { OFF, STORM, RAIN, SNOW, FOG, RANDOM, CHANGING }
 ## sky theme, NIGHT = the night theme, RANDOM = the host picks one at match
 ## start (autoload/match/MatchLifecycle.gd) and replicates the concrete id in
 ## sky_theme_resolved, so every client shows the same sky.
-enum SkyThemeMode { DAY, NIGHT, RANDOM, CYCLE }
-## Theme ids (config/sky_themes/<id>.tres) per concrete mode, DAY then NIGHT.
-const SKY_THEME_IDS: PackedStringArray = ["sunset", "night"]
+## Append-only: these integer values ride in lobby data and network messages.
+enum SkyThemeMode { DAY, NIGHT, RANDOM, CYCLE, DAWN }
+## Concrete theme ids for host RANDOM rolls and resolved-id validation. The
+## enum has non-concrete RANDOM/CYCLE entries, so its indices are not used here.
+const SKY_THEME_IDS: PackedStringArray = ["sunset", "night", "dawn"]
 
 ## Game mode (Bontago-22y.11). Appended-only like the other enums: ints ride
 ## in to_dict() and in saved lobbies. Only the ids in SELECTABLE_GAME_MODES
@@ -375,7 +377,7 @@ func sanitize() -> void:
 	round_timer_minutes = clamp_round_timer(round_timer_minutes, game_mode)
 	# turn_based is a plain bool -- no range to clamp.
 	weather_mode = clampi(weather_mode, WeatherMode.OFF, WeatherMode.CHANGING) as WeatherMode
-	sky_theme_mode = clampi(sky_theme_mode, SkyThemeMode.DAY, SkyThemeMode.CYCLE) as SkyThemeMode
+	sky_theme_mode = clampi(sky_theme_mode, SkyThemeMode.DAY, SkyThemeMode.DAWN) as SkyThemeMode
 	if not SKY_THEME_IDS.has(sky_theme_resolved):
 		sky_theme_resolved = ""
 	if player_colors.size() < PLAYER_COUNT_MAX:
@@ -387,15 +389,17 @@ func sanitize() -> void:
 
 
 ## Host only, at match start: turns sky_theme_mode into a concrete theme id.
-## `roll` (0 or 1) picks the theme for RANDOM; callers pass randi() % size.
+## `roll` picks one of the concrete themes for RANDOM; callers pass randi() % size.
 func resolve_sky_theme(roll: int) -> void:
 	match sky_theme_mode:
 		SkyThemeMode.NIGHT:
-			sky_theme_resolved = SKY_THEME_IDS[SkyThemeMode.NIGHT]
+			sky_theme_resolved = "night"
+		SkyThemeMode.DAWN:
+			sky_theme_resolved = "dawn"
 		SkyThemeMode.RANDOM:
 			sky_theme_resolved = SKY_THEME_IDS[posmod(roll, SKY_THEME_IDS.size())]
 		_:
-			sky_theme_resolved = SKY_THEME_IDS[SkyThemeMode.DAY]
+			sky_theme_resolved = "sunset"
 
 
 ## The theme id a match should show: the host's resolved id when present, else
@@ -404,8 +408,10 @@ func effective_sky_theme() -> String:
 	if sky_theme_resolved != "":
 		return sky_theme_resolved
 	if sky_theme_mode == SkyThemeMode.NIGHT:
-		return SKY_THEME_IDS[SkyThemeMode.NIGHT]
-	return SKY_THEME_IDS[SkyThemeMode.DAY]
+		return "night"
+	if sky_theme_mode == SkyThemeMode.DAWN:
+		return "dawn"
+	return "sunset"
 
 
 ## Serializes to a plain Dictionary for RPCs and Steam lobby data.

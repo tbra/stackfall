@@ -35,6 +35,19 @@ func test_cycle_option_round_trips_through_lobby_data() -> void:
 	assert_eq(option.selected, MatchConfig.SkyThemeMode.CYCLE)
 
 
+func test_dawn_option_round_trips_through_lobby_data() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var option: OptionButton = lobby.get_node("%SkyThemeOption") as OptionButton
+	assert_eq(option.item_count, MatchConfig.SkyThemeMode.size())
+	assert_eq(option.get_item_text(MatchConfig.SkyThemeMode.DAWN), "Dawn")
+	option.select(MatchConfig.SkyThemeMode.DAWN)
+	lobby._on_option_changed(MatchConfig.SkyThemeMode.DAWN)
+	var published: MatchConfig = MatchConfig.from_dict(_fake_of(lobby).lobby_data_value)
+	assert_eq(published.sky_theme_mode, MatchConfig.SkyThemeMode.DAWN)
+	Events.net_lobby_data_changed.emit(published.to_dict())
+	assert_eq(option.selected, MatchConfig.SkyThemeMode.DAWN)
+
+
 ## Bontago-1pi.15.1: this file's own real-gamepad-B tests below route real
 ## InputEventJoypadButton events through Input.parse_input_event(), which
 ## flips the Settings autoload's own active_input_device() to DEVICE_GAMEPAD
@@ -797,7 +810,6 @@ func test_advanced_rules_summary_chips_reflect_current_settings() -> void:
 		lobby._special_checkboxes[0].button_pressed = false
 	lobby._update_advanced_rules_summary()
 	assert_eq((lobby.get_node("%AdvChipTilt") as Label).text, "Tilt: physical balance")
-	assert_eq((lobby.get_node("%AdvChipTimer") as Label).text, "Match timer: 15 min")
 	assert_eq((lobby.get_node("%AdvChipSudden") as Label).text, "Sudden death: on")
 	assert_eq((lobby.get_node("%AdvChipTurn") as Label).text, "Turn-based: on")
 	if not lobby._special_checkboxes.is_empty():
@@ -812,7 +824,7 @@ func test_advanced_popup_focus_chain_is_its_own_closed_loop() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var close_button: Control = lobby.get_node("%AdvancedPopupClose") as Control
 	var tilt_option: Control = lobby.get_node("%TiltModeOption") as Control
-	for unique_name: String in ["%TiltModeOption", "%HoleModeOption", "%MatchTimerSpin", "%SuddenDeathCheck", "%TurnBasedCheck", "%AdvancedPopupClose"]:
+	for unique_name: String in ["%TiltModeOption", "%HoleModeOption", "%SuddenDeathCheck", "%TurnBasedCheck", "%AdvancedPopupClose"]:
 		var control: Control = lobby.get_node(unique_name) as Control
 		assert_ne(control.focus_neighbor_top, NodePath(""), "%s must have an up neighbor" % unique_name)
 		assert_ne(control.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor" % unique_name)
@@ -823,7 +835,7 @@ func test_advanced_popup_focus_chain_is_its_own_closed_loop() -> void:
 	var visited_close: bool = false
 	# The popup adds one focusable checkbox per installed special, so the
 	# closed-loop bound must grow with the roster.
-	while steps < lobby._special_checkboxes.size() + lobby._popup_stepper_buttons.size() + 10:
+	while steps < lobby._special_checkboxes.size() + 10:
 		current = current.get_node(current.focus_neighbor_bottom) as Control
 		if current == close_button:
 			visited_close = true
@@ -842,12 +854,13 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	var lobby: Lobby = _make_lobby(true)
 
 	var start_button: Control = lobby.get_node("%StartButton") as Control
-	var map_combo_option: Control = lobby.get_node("%MapComboOption") as Control
+	# The Round section renders first, so the loop starts at the game mode.
+	var first_option: Control = lobby.get_node("%GameModeOption") as Control
 	var start_bottom: Node = start_button.get_node(start_button.focus_neighbor_bottom)
-	assert_eq(start_bottom, map_combo_option, "the chain must wrap from StartButton back to MapComboOption")
+	assert_eq(start_bottom, first_option, "the chain must wrap from StartButton back to GameModeOption")
 
-	var top_neighbor: Node = map_combo_option.get_node(map_combo_option.focus_neighbor_top)
-	assert_eq(top_neighbor, start_button, "MapComboOption's up neighbor must close the loop back to StartButton")
+	var top_neighbor: Node = first_option.get_node(first_option.focus_neighbor_top)
+	assert_eq(top_neighbor, start_button, "GameModeOption's up neighbor must close the loop back to StartButton")
 
 	# Bontago-mp0.3.5 (mockup 11's TEAMS segmented control): %TeamModeOption is
 	# now hidden -- %TeamOffButton/%Team2Button/%Team3Button/%Team4Button are
@@ -859,10 +872,10 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	# %MapSizeOption in the chain.
 	var chain_unique_names: Array[String] = [
 		"%MapComboOption", "%PlayerCountSpin", "%AiCountSpin",
-		"%AiDifficultyOption", "%TeamOffButton", "%Team2Button", "%Team3Button", "%Team4Button",
+		"%AiDifficultyOption", "%GameModeOption", "%MatchTimerSpin", "%TeamOffButton", "%Team2Button", "%Team3Button", "%Team4Button",
 		"%BlockTimerSlider", "%GravitySlider",
 		"%GoalFlagSpin", "%GiftsCheck", "%SpecialFreqSlider",
-		"%TiltModeOption", "%HoleModeOption", "%MatchTimerSpin", "%SuddenDeathCheck",
+		"%TiltModeOption", "%HoleModeOption", "%SuddenDeathCheck",
 		"%TurnBasedCheck", "%ReadyCheck", "%InviteFriendsButton", "%StartButton",
 	]
 	for unique_name: String in chain_unique_names:
@@ -878,6 +891,21 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 		for box: CheckBox in lobby._special_checkboxes:
 			assert_ne(box.focus_neighbor_top, NodePath(""), "a specials checkbox must have an up neighbor")
 			assert_ne(box.focus_neighbor_bottom, NodePath(""), "a specials checkbox must have a down neighbor")
+
+
+func test_round_mode_and_timer_are_primary_settings() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var round_section: Control = lobby.get_node("%GameModeOption").get_parent().get_parent().get_parent() as Control
+	assert_eq(round_section.name, "RoundSection")
+	assert_true((lobby.get_node("%MatchTimerCol") as Control).visible)
+	assert_false((lobby.get_node("%RoundTimerCol") as Control).visible)
+	var mode_control: Control = lobby.get_node("%GameModeOption") as Control
+	var timer_control: Control = lobby.get_node("%MatchTimerSpin") as Control
+	assert_eq(mode_control.get_node(mode_control.focus_neighbor_bottom), timer_control)
+	lobby._refresh_timer_control(MatchConfig.GameMode.ELIMINATION)
+	assert_false((lobby.get_node("%MatchTimerCol") as Control).visible)
+	assert_true((lobby.get_node("%RoundTimerCol") as Control).visible)
+	assert_eq(mode_control.get_node(mode_control.focus_neighbor_bottom), lobby.get_node("%RoundTimerSpin"))
 
 
 func test_lobby_quick_y_opens_and_closes_advanced_rules() -> void:
