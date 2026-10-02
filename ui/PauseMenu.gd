@@ -81,6 +81,7 @@ var _options_menu: OptionsMenu = null
 
 
 func _ready() -> void:
+	add_to_group(SunFlare.FULLSCREEN_UI_GROUP)
 	layer = OVERLAY_LAYER
 	visible = false
 	_resume_button.pressed.connect(_on_resume_pressed)

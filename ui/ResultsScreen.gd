@@ -101,6 +101,7 @@ func _refresh_layout() -> void:
 
 
 func _ready() -> void:
+	add_to_group(SunFlare.FULLSCREEN_UI_GROUP)
 	visible = false
 	_refresh_layout()
 	get_viewport().size_changed.connect(_refresh_layout)
