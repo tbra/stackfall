@@ -18,9 +18,15 @@ func _ready() -> void:
 
 func _capture() -> void:
 	var night: bool = true
+	var clear: bool = false
+	var pitch: float = PITCH_UP_DEG
 	for arg: String in OS.get_cmdline_user_args():
 		if arg == "time=day":
 			night = false
+		elif arg == "weather=clear":
+			clear = true
+		elif arg.begins_with("pitch="):
+			pitch = float(arg.trim_prefix("pitch="))
 	var viewport: SubViewport = AgentProbe.make_render_viewport(self, CAPTURE_SIZE)
 	var main: Node = (load("res://game/Main.tscn") as PackedScene).instantiate()
 	viewport.add_child.call_deferred(main)
@@ -36,7 +42,8 @@ func _capture() -> void:
 	skybox.configure_match_sky(config)
 	skybox.set_process(false)
 	skybox.set_cycle_phase(NIGHT_PHASE if night else DAY_PHASE)
-	print("PROBE storm started=%s" % Match.weather().start_event(&"storm"))
+	if not clear:
+		print("PROBE storm started=%s" % Match.weather().start_event(&"storm"))
 	for _i: int in range(STORM_WAIT_FRAMES):
 		await get_tree().physics_frame
 	skybox.set_cycle_phase(NIGHT_PHASE if night else DAY_PHASE)
@@ -50,14 +57,14 @@ func _capture() -> void:
 	var flat: Vector3 = Vector3(sun.x, 0.0, sun.z).normalized()
 	camera.global_position = -flat * CAMERA_DISTANCE_M + Vector3.UP * CAMERA_HEIGHT_M
 	camera.look_at(camera.global_position + flat * CAMERA_DISTANCE_M, Vector3.UP)
-	camera.rotate_object_local(Vector3.RIGHT, deg_to_rad(PITCH_UP_DEG))
+	camera.rotate_object_local(Vector3.RIGHT, deg_to_rad(pitch))
 	var lighting: CloudLighting = skybox.cloud_lighting()
 	print("PROBE night=%.2f storm=%.2f dim=%.2f sun_scale=%.3f" % [lighting.night_mix, lighting.storm, lighting.dim, lighting.sun_scale])
 	await get_tree().create_timer(0.5).timeout
 	for _i: int in range(4):
 		await RenderingServer.frame_post_draw
 	var image: Image = viewport.get_texture().get_image()
-	var path: String = "user://storm_clouds_%s.png" % ("night" if night else "day")
+	var path: String = "user://storm_clouds_%s.png" % ("clear" if clear else ("night" if night else "storm"))
 	image.save_png(path)
 	print("PROBE saved=%s size=%s" % [ProjectSettings.globalize_path(path), image.get_size()])
 	get_tree().quit()

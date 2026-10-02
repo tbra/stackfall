@@ -1276,13 +1276,6 @@ func set_weather_cloud_overcast(amount: float) -> void:
 	_publish_cloud_lighting()
 
 
-## Bontago-mp0.29: fades the upper puff layer (the cloud sea's own puffs, high
-## above the disc) in with the weather; 0 in clear weather hides it.
-func set_upper_cloud_presence(amount: float) -> void:
-	if _cloud_sea != null:
-		_cloud_sea.set_upper_presence(amount)
-
-
 ## The overcast the cloud layers are graded by (strongest of the sources).
 func cloud_overcast_amount() -> float:
 	return maxf(_overcast_amount, _weather_cloud_overcast)

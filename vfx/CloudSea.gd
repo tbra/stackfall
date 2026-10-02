@@ -94,8 +94,6 @@ var lighting: CloudLighting = null
 var upper_tuning: WeatherCeilingTuning = null
 var upper_low: bool = false
 var _upper: MultiMeshInstance3D = null
-## Last presence (0..1) set by set_upper_presence(); survives configure().
-var _upper_presence: float = 0.0
 
 ## A cycle changes the existing puff material's palette and direction in place.
 func set_cycle_appearance(day: SkyThemeDef, night_theme: SkyThemeDef, weight: float, direction: Vector3) -> void:
@@ -240,13 +238,13 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 	_instance = _build_instance("Puffs", layers, theme, subdivisions, rng)
 	add_child(_instance)
 	# Bontago-mp0.29: the same puffs, shader, material and lighting again above
-	# the disc, fading in with the weather (set_upper_presence).
+	# the disc, always present (weather only changes its lighting).
 	var upper_layers: Array[_Layer] = _upper_layers_for(theme, density)
 	if not upper_layers.is_empty():
 		rng.seed = theme.cloud_seed + upper_tuning.upper_seed_offset
 		_upper = _build_instance("UpperPuffs", upper_layers, theme, subdivisions, rng)
 		add_child(_upper)
-		set_upper_presence(_upper_presence)
+		_apply_upper_parameters()
 
 
 ## One MultiMeshInstance3D of `layers`' clumps drawn with the shared puff material.
@@ -285,19 +283,10 @@ func _build_instance(node_name: String, layers: Array[_Layer], theme: SkyThemeDe
 	return instance
 
 
-## Fades the upper puff layer: 0 hides it (clear weather), 1 is the full field.
-## Sets one per-instance shader parameter; no allocation.
-func set_upper_presence(presence: float) -> void:
-	_upper_presence = clampf(presence, 0.0, 1.0)
-	if _upper != null:
-		_upper.visible = _upper_presence > 0.0
-		_upper.set_instance_shader_parameter(&"presence", _upper_presence)
-		_upper.set_instance_shader_parameter(&"floor_on", 1.0)
-		_upper.set_instance_shader_parameter(&"edge_soft_px", upper_tuning.upper_edge_softness_px if upper_tuning != null else 0.0)
-
-
-func upper_presence() -> float:
-	return _upper_presence
+## Per-instance shader parameters of the always-present upper puff layer.
+func _apply_upper_parameters() -> void:
+	_upper.set_instance_shader_parameter(&"floor_on", 1.0)
+	_upper.set_instance_shader_parameter(&"edge_soft_px", upper_tuning.upper_edge_softness_px if upper_tuning != null else 0.0)
 
 
 func upper_instance() -> MultiMeshInstance3D:
