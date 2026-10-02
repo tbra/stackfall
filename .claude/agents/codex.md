@@ -56,7 +56,9 @@ project's binding context:
 > Read `AGENTS.md`, `CLAUDE.md`, `docs/AGENT_WORKFLOW.md` and the relevant sections of `docs/SPEC.md` first. GDScript
 > with static typing everywhere (untyped declarations are compile errors); no
 > magic numbers outside `res://config/` resources; all input through the Input
-> Map. Godot is on PATH: run `godot --headless --editor --path . --quit` (must
+> Map. Every new numeric/bool/Color `@export` on an F4 tuning Resource needs a
+> one-sentence entry in `config/tuning_panel_hints.tres` `descriptions` (plus a
+> slider range when needed) and a passing `test_tuning_panel` run. Godot is on PATH: run `godot --headless --editor --path . --quit` (must
 > print no errors or warnings) and
 > `godot --headless --path . -s addons/gut/gut_cmdln.gd -gdir=res://tests -gexit`.
 
