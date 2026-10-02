@@ -232,6 +232,17 @@ static func _plan_volcano(
 ## score`; otherwise the special is spent like an ordinary block. When the
 ## caller supplies no `block_samples`, enemy circle centres stand in as
 ## ground-level enemy blocks and the bot's home as one own block.
+## Pull radius (m) read from the shipped Black hole SpecialDef so the bot's
+## scoring cannot drift from the real effect (Bontago-8or.28). 0.0 if the
+## def or its effect is missing, which makes the planner skip the special.
+static func black_hole_pull_radius_m() -> float:
+	var def: SpecialDef = SpecialDef.find_by_id(&"black_hole")
+	if def == null:
+		return 0.0
+	var effect: BlackHoleEffect = def.effect as BlackHoleEffect
+	return effect.pull_radius_m if effect != null else 0.0
+
+
 static func _plan_black_hole(
 	own_home_position: Vector2,
 	own_territory_sample_points: PackedVector2Array,
@@ -246,7 +257,8 @@ static func _plan_black_hole(
 		for center: Vector2 in enemy_circle_centers:
 			samples.append(BotBlockSample.make(center, 0.0, false))
 		samples.append(BotBlockSample.make(own_home_position, 0.0, true))
-	var radius_sq: float = tuning.black_hole_pull_radius_m * tuning.black_hole_pull_radius_m
+	var radius: float = black_hole_pull_radius_m()
+	var radius_sq: float = radius * radius
 	var best_point: Vector2 = own_home_position
 	var best_score: float = -INF
 	for point: Vector2 in own_territory_sample_points:
