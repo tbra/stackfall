@@ -184,6 +184,12 @@ var _last_special_signature: Array = []
 ## Bontago-22y.7: live per-team score line for timed modes (Capture the Flag),
 ## built in code under the status pill so HUD.tscn and classic stay unchanged.
 var _mode_score_label: Label = null
+## Bontago-mp0.27: big centred 3-2-1 label, built in code (no scene edit).
+## Driven by the host's replicated countdown (Match.countdown_remaining()),
+## never by a local timer, so clients stay in step with the host.
+var _countdown_label: Label = null
+var _countdown_was_active: bool = false
+var _go_left_s: float = 0.0
 
 ## Bontago-1pi.18.2 (QoL gift slot): a third card beside HELD/NEXT, built in
 ## code and shown only while the experiment has a gift waiting. Styled with the
@@ -243,6 +249,7 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_update_hud_scale)
 	_update_hud_scale()
 
+	_build_countdown_label()
 	Events.turn_changed.connect(_on_turn_changed)
 	Events.feed_block_issued.connect(_on_feed_block_issued)
 	Events.placement_rejected.connect(_on_placement_rejected)
@@ -260,7 +267,55 @@ func _ready() -> void:
 	Events.gift_expired.connect(_on_gift_state_changed)
 
 
-func _process(_delta: float) -> void:
+func _build_countdown_label() -> void:
+	_countdown_label = Label.new()
+	_countdown_label.name = "CountdownLabel"
+	_countdown_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_countdown_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_countdown_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_countdown_label.add_theme_font_size_override("font_size", hud_visual_tuning.countdown_font_size)
+	_countdown_label.add_theme_color_override("font_color", Color.WHITE)
+	_countdown_label.add_theme_color_override("font_outline_color", hud_visual_tuning.ink_color)
+	_countdown_label.add_theme_constant_override("outline_size", hud_visual_tuning.countdown_font_size / 6)
+	_countdown_label.visible = false
+	add_child(_countdown_label)
+
+
+## Whole seconds of the host's countdown left, or 0 outside it. A provider
+## without the method (tests' FakeMatch) means no countdown.
+func _countdown_seconds_left() -> int:
+	if match_provider == null or not match_provider.has_method(&"countdown_remaining"):
+		return 0
+	return int(ceil(float(match_provider.countdown_remaining())))
+
+
+func _update_countdown_label(delta: float) -> void:
+	var left: int = _countdown_seconds_left()
+	if left > 0:
+		_countdown_was_active = true
+		_go_left_s = 0.0
+		_countdown_label.text = str(left)
+		_countdown_label.visible = true
+		return
+	if _countdown_was_active:
+		_countdown_was_active = false
+		# Only a countdown that ran into PLAYING says Go; an abort just hides.
+		if match_provider.has_method(&"state") and int(match_provider.state()) != MatchAutoload.State.PLAYING:
+			_countdown_label.visible = false
+			return
+		_go_left_s = hud_visual_tuning.countdown_go_hold_s
+		_countdown_label.text = hud_visual_tuning.countdown_go_text
+		_countdown_label.visible = true
+		return
+	if _go_left_s > 0.0:
+		_go_left_s -= delta
+	if _go_left_s <= 0.0:
+		_countdown_label.visible = false
+
+
+func _process(delta: float) -> void:
+	_update_countdown_label(delta)
 	# Bontago-mp0.3.3 (owner review 2026-09-26: "the minimap must match what
 	# the player sees -- rotate it with the camera yaw"). DECISION (ui/HUD.gd):
 	# reads Viewport.get_camera_3d() (whichever Camera3D currently has

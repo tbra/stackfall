@@ -50,7 +50,7 @@ enum State { LOBBY, LOADING, COUNTDOWN, PLAYING, SUDDEN_DEATH, END }
 ## here rather than in a Resource for the same reason
 ## BlockOrientations.ORIENTATION_COUNT is a const: it isn't tunable, it's the
 ## architecture (CLAUDE.md's "no magic numbers" targets tunables).
-const COUNTDOWN_SECONDS: float = 3.0
+const COUNTDOWN_SECONDS: float = MatchConfig.COUNTDOWN_SECONDS_DEFAULT
 
 ## The config the running match was started with. A duplicate of whatever was
 ## handed to start_match(), never the shared config/match_defaults.tres.
@@ -417,6 +417,11 @@ func countdown_remaining() -> float:
 	return _lifecycle.countdown_remaining()
 
 
+## Bontago-mp0.27: pause/resume the countdown's run-down (loading hand-off).
+func set_countdown_held(held: bool) -> void:
+	_lifecycle.set_countdown_held(held)
+
+
 ## Seconds left on the match timer (spec 2.8), 0.0 when off or run out.
 func match_timer_left() -> float:
 	return _lifecycle.match_timer_left()
@@ -441,6 +446,13 @@ func _process(delta: float) -> void:
 	match _lifecycle._state:
 		State.COUNTDOWN:
 			_lifecycle._tick_countdown(delta)
+			# Bontago-mp0.27. # DECISION: while Main holds the countdown for the
+			# loading screen, the loading readiness gate still needs its first
+			# applied territory result, which is otherwise only solved in PLAYING
+			# (it used to arrive during the old unconditional 3 s). Solve the
+			# empty field then; with no hold nothing changes.
+			if _lifecycle.is_countdown_held():
+				_territory._tick_territory(delta)
 		State.PLAYING:
 			_lifecycle._tick_disconnect_grace(delta)
 			_feed._tick_feed(delta)

@@ -147,6 +147,12 @@ const ROUND_TIMER_OFF_MINUTES: int = 0
 @export var allow_mid_match_join: bool = false
 
 ## -- Beyond the 2.8 table ---------------------------------------------------
+## Bontago-mp0.27: seconds of pre-match 3-2-1 countdown (spec 3.7). 0 disables it.
+## Host-only knob, deliberately not in to_dict(): clients mirror the host's
+## replicated countdown ticks. Sandbox matches always skip it, see
+## effective_countdown_seconds(). Match.COUNTDOWN_SECONDS is this default.
+const COUNTDOWN_SECONDS_DEFAULT: float = 3.0
+@export var countdown_seconds: float = COUNTDOWN_SECONDS_DEFAULT
 ## Spec "Still open" 1: was the block timer shared or per player? The spec's
 ## stated default is per player, which is what true means here.
 @export var per_player_timer: bool = true
@@ -501,3 +507,12 @@ static func from_dict(data: Dictionary) -> MatchConfig:
 	if data.get("qol") is Dictionary:
 		config.qol = QolExperiments.from_dict(data["qol"] as Dictionary)
 	return config
+
+
+## Bontago-mp0.27. # DECISION: sandbox (and the tutorial, which is a sandbox
+## config) skip the countdown: a lone tester wants to place immediately.
+## Headless bot matches set countdown_seconds = 0 in Main.
+func effective_countdown_seconds() -> float:
+	if sandbox:
+		return 0.0
+	return maxf(countdown_seconds, 0.0)

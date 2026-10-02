@@ -113,3 +113,8 @@ extends Resource
 ## Reference height for proportional HUD scaling on high resolution screens.
 @export var reference_viewport_height_px: float = 720.0
 @export var maximum_hud_scale: float = 2.0
+
+## Bontago-mp0.27: pre-match 3-2-1 label. "Go" stays this long after PLAYING starts.
+@export var countdown_font_size: int = 120
+@export var countdown_go_text: String = "Go!"
+@export var countdown_go_hold_s: float = 0.8

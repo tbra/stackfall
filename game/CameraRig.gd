@@ -412,6 +412,18 @@ func set_home_view(home_position: Vector3, look_at_position: Vector3 = Vector3.Z
 	_update_transform()
 
 
+## Bontago-mp0.27: match-start entry point. Puts the camera at `slot_id`'s own
+## home beacon looking at the disc centre (set_home_view's framing). Returns
+## false, leaving the camera alone, when that slot has no beacon in the Field.
+func place_at_home_beacon(slot_id: int) -> bool:
+	_local_slot = slot_id
+	var home: Vector3 = _resolve_home_target()
+	if home == Vector3.ZERO:
+		return false
+	set_home_view(home, Vector3.ZERO)
+	return true
+
+
 ## Bontago-b7r: pushed every frame by game/PlayerController.gd's own
 ## _acting_slot() (the same "local/acting slot" HotSeat.bind_local_slot()/
 ## Sandbox's own active-slot cycling already resolve) so Focus home can find
