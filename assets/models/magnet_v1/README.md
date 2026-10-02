@@ -6,4 +6,4 @@ The model is about one block wide and one block tall, centered at the held-objec
 
 Review the model at the normal held-gift scale and against bright sky and dark storm before considering a replacement. Check the GLB orientation in Godot; no gameplay collision or activation behavior is included in this art asset.
 
-Review (Claude, 2026-10-02, Bontago-mp0.43/45 batch): the back now carries the same coral enamel and pole seams as the front; the first export showed a solid ink U from behind, which a held, turning gift would expose.
+Review (Claude, 2026-10-02, Bontago-mp0.45): the back now carries the same coral enamel and pole seams as the front; the first export showed a solid ink U from behind, which a held, turning gift would expose.
