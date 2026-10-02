@@ -89,6 +89,8 @@ def u_mesh(name, material, scale, thickness, front_offset):
 
 u_mesh("Magnet / ink rim and sidewalls", ink, 1.0, 0.15, 0.0)
 u_mesh("Magnet / coral enamel face", coral, 0.948, 0.011, -0.165)
+# Held gifts turn in hand: the back needs the same enamel or it reads as a black U.
+u_mesh("Magnet / coral enamel back", coral, 0.948, 0.011, 0.165)
 
 
 def box(name, location, dimensions, material, bevel=0.0, export=True):
@@ -111,7 +113,8 @@ def box(name, location, dimensions, material, bevel=0.0, export=True):
 for sign, label in ((-1, "left"), (1, "right")):
     x = sign * 0.385
     box(f"Magnet / {label} pole tip", (x, 0, 0.54), (0.235, 0.37, 0.19), silver, 0.017)
-    box(f"Magnet / {label} pole ink seam", (x, -0.193, 0.455), (0.225, 0.025, 0.018), ink, 0.003)
+    for side, y in (("front", -0.193), ("back", 0.193)):
+        box(f"Magnet / {label} pole ink seam {side}", (x, y, 0.455), (0.225, 0.025, 0.018), ink, 0.003)
 
 
 def field_arc():
