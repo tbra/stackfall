@@ -34,6 +34,7 @@ BD_ACTOR = "stackfall-orchestrator"
 MAX_ISSUE_LINES = 8
 VERDICT_RE = re.compile(r"^FULL GATE (GREEN|RED|ERROR)\b", re.M)
 ISSUE_RE = re.compile(r"(ERROR|WARNING|Parse Error)", re.I)
+OUT_PATH_RE = re.compile(r"; out=(\S+)(?:\s|$)")
 
 
 class StepFailed(Exception):
@@ -93,6 +94,12 @@ def parse_verdict(text):
 def verdict_line(text):
     lines = [l for l in text.splitlines() if l.startswith("FULL GATE ")]
     return lines[-1][:300] if lines else "FULL GATE (no verdict line) -> RED"
+
+
+def extract_out_path(text):
+    """Extract the out= directory path from the verdict line, if present."""
+    m = OUT_PATH_RE.search(text)
+    return m.group(1) if m else None
 
 
 def issue_lines(text):
@@ -159,10 +166,23 @@ def integrate(args, ctx, say, res):
     say("import    ok   no errors/warnings")
     # 4 gate
     verdict = "skipped"
+    gate_output_path = None
     if args.game_code:
         code, text, log = run_cmd(ctx, "gate", [sys.executable, os.path.join(ROOT, "tools", "full_gate.py"), "--path", wt], wt, GATE_TIMEOUT_S + 120)
         verdict = parse_verdict(text)
-        say("gate      %s %s" % ("ok  " if verdict == "GREEN" else "FAIL", verdict_line(text)))
+        # Preserve gate output directory before worktree cleanup
+        out_path = extract_out_path(text)
+        if out_path and os.path.isdir(out_path):
+            gate_output_path = os.path.join(args.log_dir, "gate_output")
+            try:
+                shutil.copytree(out_path, gate_output_path, dirs_exist_ok=True)
+                vline = verdict_line(text) + "; preserved in " + gate_output_path
+            except Exception as e:
+                say("  warning: could not copy gate output: %s" % str(e)[:200])
+                vline = verdict_line(text)
+        else:
+            vline = verdict_line(text)
+        say("gate      %s %s" % ("ok  " if verdict == "GREEN" else "FAIL", vline))
         if verdict != "GREEN":
             raise StepFailed("gate", "verdict %s; log %s" % (verdict, log))
     else:
