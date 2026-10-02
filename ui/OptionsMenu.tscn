@@ -28,23 +28,16 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.14, 0.1, 0.08, 0.88)
 
-[node name="Frame" type="Control" parent="."]
-layout_mode = 1
-anchor_left = 0.12
-anchor_top = 0.1
-anchor_right = 0.88
-anchor_bottom = 0.9
-grow_horizontal = 2
-grow_vertical = 2
-
-[node name="Panel" type="PanelContainer" parent="Frame"]
+[node name="Frame" type="CenterContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-custom_minimum_size = Vector2(760, 460)
+
+[node name="Panel" type="PanelContainer" parent="Frame"]
+layout_mode = 2
 
 [node name="Layout" type="VBoxContainer" parent="Frame/Panel"]
 layout_mode = 2
@@ -90,75 +83,81 @@ size_flags_horizontal = 3
 size_flags_vertical = 3
 theme_override_constants/separation = 10
 
-[node name="SettingsPage" type="VBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn"]
+[node name="SettingsPage" type="ScrollContainer" parent="Frame/Panel/Layout/Body/ContentColumn"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 3
 size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="SettingsFields" type="VBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 16
 
-[node name="PresetRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
+[node name="PresetRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields"]
 layout_mode = 2
 
-[node name="PresetLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/PresetRow"]
+[node name="PresetLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/PresetRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(180, 0)
 text = "Graphics preset"
 
-[node name="PresetOption" type="OptionButton" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/PresetRow"]
+[node name="PresetOption" type="OptionButton" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/PresetRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="DisplaySectionHeader" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
+[node name="DisplaySectionHeader" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Display"
 
-[node name="WindowRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
+[node name="WindowRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields"]
 layout_mode = 2
 
-[node name="WindowLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/WindowRow"]
+[node name="WindowLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/WindowRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(180, 0)
 text = "Window"
 
-[node name="WindowModeOption" type="OptionButton" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/WindowRow"]
+[node name="WindowModeOption" type="OptionButton" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/WindowRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="CameraShakeRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
+[node name="CameraShakeRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields"]
 layout_mode = 2
 
-[node name="CameraShakeLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/CameraShakeRow"]
+[node name="CameraShakeLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/CameraShakeRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(180, 0)
 text = "Camera shake"
 
-[node name="CameraShakeCheck" type="CheckButton" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/CameraShakeRow"]
+[node name="CameraShakeCheck" type="CheckButton" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/CameraShakeRow"]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="AudioSectionHeader" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
+[node name="AudioSectionHeader" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Audio"
 
-[node name="MasterVolumeRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
+[node name="MasterVolumeRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields"]
 layout_mode = 2
 
-[node name="MasterVolumeLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/MasterVolumeRow"]
+[node name="MasterVolumeLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/MasterVolumeRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(150, 0)
 text = "Master volume"
 
-[node name="MasterMuteButton" type="Button" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/MasterVolumeRow"]
+[node name="MasterMuteButton" type="Button" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/MasterVolumeRow"]
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(28, 28)
 flat = true
 
-[node name="Icon" type="TextureRect" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/MasterVolumeRow/MasterMuteButton"]
+[node name="Icon" type="TextureRect" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/MasterVolumeRow/MasterMuteButton"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -168,33 +167,33 @@ texture = ExtResource("5_speaker_mid")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="MasterVolumeSlider" type="HSlider" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/MasterVolumeRow"]
+[node name="MasterVolumeSlider" type="HSlider" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/MasterVolumeRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="MasterVolumeValueLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/MasterVolumeRow"]
+[node name="MasterVolumeValueLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/MasterVolumeRow"]
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(50, 0)
 horizontal_alignment = 2
 text = "100%"
 
-[node name="MusicVolumeRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
+[node name="MusicVolumeRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields"]
 layout_mode = 2
 
-[node name="MusicVolumeLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/MusicVolumeRow"]
+[node name="MusicVolumeLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/MusicVolumeRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(150, 0)
 text = "Music volume"
 
-[node name="MusicMuteButton" type="Button" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/MusicVolumeRow"]
+[node name="MusicMuteButton" type="Button" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/MusicVolumeRow"]
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(28, 28)
 flat = true
 
-[node name="Icon" type="TextureRect" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/MusicVolumeRow/MusicMuteButton"]
+[node name="Icon" type="TextureRect" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/MusicVolumeRow/MusicMuteButton"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -204,33 +203,33 @@ texture = ExtResource("5_speaker_mid")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="MusicVolumeSlider" type="HSlider" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/MusicVolumeRow"]
+[node name="MusicVolumeSlider" type="HSlider" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/MusicVolumeRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="MusicVolumeValueLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/MusicVolumeRow"]
+[node name="MusicVolumeValueLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/MusicVolumeRow"]
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(50, 0)
 horizontal_alignment = 2
 text = "100%"
 
-[node name="SfxVolumeRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
+[node name="SfxVolumeRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields"]
 layout_mode = 2
 
-[node name="SfxVolumeLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SfxVolumeRow"]
+[node name="SfxVolumeLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/SfxVolumeRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(150, 0)
 text = "SFX volume"
 
-[node name="SfxMuteButton" type="Button" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SfxVolumeRow"]
+[node name="SfxMuteButton" type="Button" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/SfxVolumeRow"]
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(28, 28)
 flat = true
 
-[node name="Icon" type="TextureRect" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SfxVolumeRow/SfxMuteButton"]
+[node name="Icon" type="TextureRect" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/SfxVolumeRow/SfxMuteButton"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -240,68 +239,68 @@ texture = ExtResource("5_speaker_mid")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="SfxVolumeSlider" type="HSlider" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SfxVolumeRow"]
+[node name="SfxVolumeSlider" type="HSlider" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/SfxVolumeRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="SfxVolumeValueLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SfxVolumeRow"]
+[node name="SfxVolumeValueLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/SfxVolumeRow"]
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(50, 0)
 horizontal_alignment = 2
 text = "100%"
 
-[node name="MusicDirRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
+[node name="MusicDirRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields"]
 layout_mode = 2
 
-[node name="MusicDirLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/MusicDirRow"]
+[node name="MusicDirLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/MusicDirRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(180, 0)
 text = "Music folder"
 
-[node name="MusicDirEdit" type="LineEdit" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/MusicDirRow"]
+[node name="MusicDirEdit" type="LineEdit" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/MusicDirRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 placeholder_text = "(bundled music)"
 
-[node name="BrowseButton" type="Button" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/MusicDirRow"]
+[node name="BrowseButton" type="Button" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/MusicDirRow"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Browse..."
 
-[node name="RumbleSectionHeader" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
+[node name="RumbleSectionHeader" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Rumble"
 
-[node name="RumbleEnabledRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
+[node name="RumbleEnabledRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields"]
 layout_mode = 2
 
-[node name="RumbleEnabledLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/RumbleEnabledRow"]
+[node name="RumbleEnabledLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/RumbleEnabledRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(180, 0)
 text = "Rumble"
 
-[node name="RumbleEnabledCheck" type="CheckButton" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/RumbleEnabledRow"]
+[node name="RumbleEnabledCheck" type="CheckButton" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/RumbleEnabledRow"]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="RumbleStrengthRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
+[node name="RumbleStrengthRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields"]
 layout_mode = 2
 
-[node name="RumbleStrengthLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/RumbleStrengthRow"]
+[node name="RumbleStrengthLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/RumbleStrengthRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(180, 0)
 text = "Rumble intensity"
 
-[node name="RumbleStrengthSlider" type="HSlider" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/RumbleStrengthRow"]
+[node name="RumbleStrengthSlider" type="HSlider" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/RumbleStrengthRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="RumbleStrengthValueLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/RumbleStrengthRow"]
+[node name="RumbleStrengthValueLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/RumbleStrengthRow"]
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(50, 0)

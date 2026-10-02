@@ -122,6 +122,24 @@ extends Resource
 ## around its content without touching per-screen layout code.
 @export var card_content_margin_px: float = 26.0
 
+## DECISION (Bontago-mp0.11): viewport limits keep menu cards inside short
+## windows while preserving readable type and the same control focus chain.
+@export var menu_edge_margin_px: float = 18.0
+@export var menu_max_width_px: float = 960.0
+@export var menu_card_width_px: float = 420.0
+@export var menu_separation_px: int = 13
+@export var menu_lan_list_height_px: float = 92.0
+@export var menu_steam_list_height_px: float = 61.0
+@export var menu_compact_height_px: float = 600.0
+@export var menu_compact_card_margin_px: float = 12.0
+@export var menu_compact_list_height_px: float = 50.0
+@export var menu_compact_separation_px: int = 7
+@export var menu_compact_button_height_px: float = 42.0
+@export var menu_wide_width_px: float = 2400.0
+@export var menu_wide_card_width_px: float = 540.0
+@export var menu_wide_anchor_left: float = 0.22
+@export var menu_wide_anchor_right: float = 0.68
+
 ## -- Varied pastel pill buttons + sunken wells (gap items 4, 5, 6) -----------
 @export var pill_coral_color: Color = Color(0.92, 0.42, 0.36, 1.0)
 @export var pill_coral_hover_color: Color = Color(0.95, 0.55, 0.48, 1.0)

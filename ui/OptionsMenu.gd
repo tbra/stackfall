@@ -211,7 +211,7 @@ const MOVE_SPEED_LABEL_STICK: String = "Stick speed"
 @onready var _reset_button: Button = %ResetButton
 @onready var _settings_tab_button: Button = %SettingsTabButton
 @onready var _controls_tab_button: Button = %ControlsTabButton
-@onready var _settings_page: VBoxContainer = %SettingsPage
+@onready var _settings_page: ScrollContainer = %SettingsPage
 @onready var _controls_page: VBoxContainer = %ControlsPage
 @onready var _controls_device_label: Label = %ControlsDeviceLabel
 @onready var _footer_hint_label: Label = %FooterHintLabel
@@ -250,6 +250,8 @@ func _ready() -> void:
 	# Owner-disabled temporarily; retain saved paths for a future re-enable.
 	_music_dir_edit.get_parent().hide()
 	_build_rebind_rows()
+	_refresh_layout()
+	get_viewport().size_changed.connect(_refresh_layout)
 	_wire_focus_chain()
 	_refresh_device_dependent_ui()
 
@@ -277,6 +279,14 @@ func _ready() -> void:
 	Events.input_device_changed.connect(_on_input_device_changed)
 
 	_preset_option.grab_focus()
+
+
+## DECISION (Bontago-mp0.11): the panel follows the usable viewport instead
+## of demanding a desktop sized minimum; the settings page scrolls vertically.
+func _refresh_layout() -> void:
+	var available: Vector2 = get_viewport_rect().size - Vector2.ONE * tuning.menu_edge_margin_px * 2.0
+	var panel: PanelContainer = $Frame/Panel
+	panel.custom_minimum_size = Vector2(minf(available.x, tuning.menu_max_width_px), available.y)
 
 
 ## Owner: "switch to only gamepad options on gamepad input and switch back on

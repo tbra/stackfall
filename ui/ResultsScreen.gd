@@ -88,8 +88,19 @@ var last_results: Dictionary = {}
 @onready var _settings_close_button: Button = %SettingsCloseButton
 
 
+## DECISION (Bontago-mp0.11): keep the stats table scrollable within the
+## viewport so eight player columns and the quick settings remain reachable.
+func _refresh_layout() -> void:
+	var available: Vector2 = get_viewport_rect().size - Vector2.ONE * tuning.menu_edge_margin_px * 2.0
+	$Center/Card.custom_minimum_size.x = minf(available.x, tuning.menu_max_width_px)
+	$Center/Card/Layout/TableScroll.custom_minimum_size.y = maxf(0.0, available.y * 0.4)
+	$SettingsPanel/SettingsCenter/SettingsCard.custom_minimum_size.x = minf(available.x, 420.0)
+
+
 func _ready() -> void:
 	visible = false
+	_refresh_layout()
+	get_viewport().size_changed.connect(_refresh_layout)
 	if match_provider == null:
 		match_provider = Match
 	if net_provider == null:
