@@ -191,6 +191,35 @@ func test_apply_data_with_turn_based_true_checks_the_box() -> void:
 	assert_true((lobby.get_node("%TurnBasedCheck") as CheckButton).button_pressed)
 
 
+func test_mid_join_toggle_defaults_to_the_config_default() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var check: CheckButton = lobby.get_node("%MidJoinCheck") as CheckButton
+	assert_eq(check.button_pressed, MatchConfig.new().allow_mid_match_join)
+
+
+func test_toggling_mid_join_check_writes_and_publishes_the_config_field() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var check: CheckButton = lobby.get_node("%MidJoinCheck") as CheckButton
+	assert_false(check.disabled, "the host can change it")
+	check.button_pressed = true
+	assert_true(lobby._config_from_controls().allow_mid_match_join)
+	var calls: Array[Dictionary] = _fake_of(lobby).set_lobby_data_calls
+	assert_eq(calls.size(), 1)
+	assert_true(bool(calls[0].get("allow_mid_match_join")))
+
+
+func test_client_sees_the_hosts_mid_join_value_read_only() -> void:
+	var lobby: Lobby = _make_lobby(false)
+	var data: Dictionary = MatchConfig.new().to_dict()
+	data["allow_mid_match_join"] = true
+	Events.net_lobby_data_changed.emit(data)
+	var check: CheckButton = lobby.get_node("%MidJoinCheck") as CheckButton
+	assert_true(check.button_pressed)
+	assert_true(check.disabled, "a client cannot change it")
+	check.button_pressed = false
+	assert_eq(_fake_of(lobby).set_lobby_data_calls.size(), 0, "a client edit never publishes")
+
+
 func test_out_of_range_value_arriving_over_the_wire_is_clamped() -> void:
 	var lobby: Lobby = _make_lobby(false)
 	var bad_data: Dictionary = {
@@ -824,7 +853,7 @@ func test_advanced_popup_focus_chain_is_its_own_closed_loop() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var close_button: Control = lobby.get_node("%AdvancedPopupClose") as Control
 	var tilt_option: Control = lobby.get_node("%TiltModeOption") as Control
-	for unique_name: String in ["%TiltModeOption", "%HoleModeOption", "%SuddenDeathCheck", "%TurnBasedCheck", "%AdvancedPopupClose"]:
+	for unique_name: String in ["%TiltModeOption", "%HoleModeOption", "%SuddenDeathCheck", "%TurnBasedCheck", "%MidJoinCheck", "%AdvancedPopupClose"]:
 		var control: Control = lobby.get_node(unique_name) as Control
 		assert_ne(control.focus_neighbor_top, NodePath(""), "%s must have an up neighbor" % unique_name)
 		assert_ne(control.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor" % unique_name)
