@@ -747,6 +747,9 @@ func _build_headless_bot_config(bots: int, args: PackedStringArray) -> MatchConf
 	config.player_count = maxi(bots, _headless_bot_players_arg(args))
 	config.hot_seat = false
 	config.sandbox = false
+	# DECISION (Bontago-mp0.27): headless bot matches have no human to wait for,
+	# so they skip the 3-2-1 countdown (harnesses and loops stay fast).
+	config.countdown_seconds = 0.0
 	# DECISION (Bontago-1t5.3): `--mode=<classic|ctf|elimination|sky>` (or the
 	# GameMode integer) picks the headless bot match's mode; absent keeps the
 	# config's own mode. resolve_game_mode() still falls back for unselectable ids.
@@ -1082,6 +1085,7 @@ func _on_loading_territory_replicated(_raster: TerritoryRaster) -> void:
 
 
 func _on_loading_readiness_timed_out() -> void:
+	_release_countdown_hold(_loading_generation)
 	_loading_generation += 1
 	if Net.is_host():
 		Match.abort_match()
@@ -1257,6 +1261,13 @@ func _on_match_state_changed(from_state: int, to_state: int) -> void:
 		# overlay is already queued to composite over this same frame's draw
 		# pass -- see ui/LoadingScreen.gd's own header doc.
 		_loading_screen.show_for_match(Match.config, _loading_screen_slots())
+		# Bontago-mp0.27. # DECISION: the 3-2-1 must start once the loading screen
+		# is gone, not run down behind it. Held from here until
+		# _finish_loading_when_ready() releases it (a reset/abort also clears it).
+		# Skipped headless: no loading screen is ever rendered there, and tests
+		# and bot harnesses drive Match by hand.
+		if DisplayServer.get_name() != "headless":
+			Match.set_countdown_held(true)
 		_build_match_world()
 	elif to_state == Match.State.COUNTDOWN:
 		_finish_loading_when_ready(_loading_generation)
@@ -1266,26 +1277,45 @@ func _finish_loading_when_ready(generation: int) -> void:
 	while not _world_built:
 		await get_tree().process_frame
 		if generation != _loading_generation or not _loading_screen.visible:
+			_release_countdown_hold(generation)
 			return
 	if not _loading_screen.visible:
+		_release_countdown_hold(generation)
 		return
 	_loading_screen.set_stage("Solving territory", _loading_screen.tuning.solve_progress)
 	while not _first_territory_ready:
 		await get_tree().process_frame
 		if generation != _loading_generation or not _loading_screen.visible:
+			_release_countdown_hold(generation)
 			return
 	_loading_screen.set_stage("Warming materials", _loading_screen.tuning.materials_progress)
 	_loading_screen.warm_common_materials()
 	for frame: int in range(_loading_screen.tuning.stable_frames):
 		await get_tree().process_frame
 		if generation != _loading_generation or not _loading_screen.visible:
+			_release_countdown_hold(generation)
 			return
 		_loading_screen.set_stage("Stabilizing view", lerpf(_loading_screen.tuning.stabilize_start_progress, _loading_screen.tuning.stabilize_end_progress, float(frame + 1) / maxf(float(_loading_screen.tuning.stable_frames), 1.0)))
 	_loading_screen.set_stage("Ready", _loading_screen.tuning.complete_progress)
+	# Bontago-mp0.27: the camera starts at the local player's own beacon, looking
+	# at the centre, whatever the loading frames did to it.
+	if _hot_seat != null and _camera_rig != null:
+		_camera_rig.place_at_home_beacon(Net.local_slot())
 	if _hot_seat != null:
 		_hot_seat.controller().set_process(_controller_was_processing)
 		_hot_seat.controller().set_process_unhandled_input(_controller_was_handling_input)
-	_loading_screen.fade_out()
+	await _loading_screen.fade_out()
+	# Bontago-mp0.27: the screen is gone; now the 3-2-1 starts running down.
+	_release_countdown_hold(generation)
+
+
+## Bontago-mp0.27 review: every exit of the loading hand-off (overlay already
+## hidden, cancelled, timed out, superseded) must free the countdown hold, or a
+## match could sit held. A stale generation belongs to a newer load, which owns
+## the hold now, so only the current generation releases.
+func _release_countdown_hold(generation: int) -> void:
+	if generation == _loading_generation:
+		Match.set_countdown_held(false)
 
 
 ## Bontago-1pi.8: MatchLifecycle._build_slots() (autoload/match/

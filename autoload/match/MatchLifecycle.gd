@@ -14,6 +14,10 @@ var _match: MatchAutoload = null
 var _state: MatchAutoload.State = MatchAutoload.State.LOBBY
 var _countdown_remaining: float = 0.0
 var _countdown_last_whole: int = 0
+## Bontago-mp0.27: while true the countdown does not run down. Game/Main.gd
+## holds it from LOADING until the fullscreen loading screen is done, so the
+## 3-2-1 is actually seen. Cleared by every match reset.
+var _countdown_held: bool = false
 
 var _slots: Array[PlayerSlot] = []
 var _active_slot: int = -1
@@ -184,7 +188,7 @@ func start_match(match_config: MatchConfig) -> void:
 	_set_state(MatchAutoload.State.LOADING)
 
 	_set_state(MatchAutoload.State.COUNTDOWN)
-	_countdown_remaining = MatchAutoload.COUNTDOWN_SECONDS
+	_countdown_remaining = _match.config.effective_countdown_seconds()
 	_countdown_last_whole = int(ceil(_countdown_remaining))
 	Events.countdown_tick.emit(_countdown_last_whole)
 	_starting = false
@@ -220,6 +224,7 @@ func _reset_match_state() -> void:
 	_active_slot = -1
 	_countdown_remaining = 0.0
 	_countdown_last_whole = 0
+	_countdown_held = false
 	_match_timer_left = 0.0
 	_sudden_death_elapsed = 0.0
 	_last_shrink_radius = INF
@@ -309,7 +314,17 @@ func countdown_remaining() -> float:
 	return _countdown_remaining if _state == MatchAutoload.State.COUNTDOWN else 0.0
 
 
+func set_countdown_held(held: bool) -> void:
+	_countdown_held = held
+
+
+func is_countdown_held() -> bool:
+	return _countdown_held
+
+
 func _tick_countdown(delta: float) -> void:
+	if _countdown_held:
+		return
 	_countdown_remaining = maxf(_countdown_remaining - delta, 0.0)
 	var whole: int = int(ceil(_countdown_remaining))
 	if whole < _countdown_last_whole:

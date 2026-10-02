@@ -321,8 +321,16 @@ func _on_pause_menu_closed() -> void:
 		AgentProbe.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
 
+## Bontago-mp0.27. # DECISION: during the pre-match 3-2-1 this controller
+## ignores all gameplay input (cursor, rotate, place, throw); camera look is
+## CameraRig's own separate listener and keeps working. The host also refuses
+## every intent outside PLAYING, so this is feedback, not the rule.
+func _countdown_blocks_input() -> bool:
+	return Match.state() == Match.State.COUNTDOWN
+
+
 func _process(delta: float) -> void:
-	if not input_enabled:
+	if not input_enabled or _countdown_blocks_input():
 		return
 	_tick_wheel_ramp(delta)
 	if _camera_rig != null:
@@ -476,7 +484,7 @@ func _session_cat() -> CatController:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not input_enabled:
+	if not input_enabled or _countdown_blocks_input():
 		return
 	if _camera_rig != null and _camera_rig.is_peeking():
 		# Bontago-b7r: same PEEK gate _process() applies above -- mouse/gamepad
