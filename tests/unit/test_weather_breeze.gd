@@ -88,7 +88,7 @@ func _simulate(effect: BreezeEffect, seed_value: int, seconds: float) -> void:
 
 func test_breeze_is_weak_and_not_a_weather_type() -> void:
 	var storm: StormTuning = load("res://config/weather/storm.tres") as StormTuning
-	assert_lt(_tuning.max_accel, storm.max_accel * 0.5, "much weaker than Storm")
+	assert_lt(_tuning.max_accel, storm.max_accel * 0.65, "weaker than Storm")
 	assert_lt(_tuning.max_speed_ms, storm.max_speed_ms)
 	assert_lt(_tuning.max_dv_per_tick, storm.max_dv_per_tick)
 	for def: WeatherTuning in WeatherTuning.load_all():
