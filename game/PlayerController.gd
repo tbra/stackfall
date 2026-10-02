@@ -1296,14 +1296,19 @@ func _apply_spawn_clearance(delta: float = 0.0, wait_for_settle: bool = false) -
 	_raise_ghost_until_clear()
 
 
+var _settle_samples: Dictionary = {}
+
+
 ## Bontago-1pi.24: a new placement request restarts the settle wait.
 func _begin_pending_spawn() -> void:
+	_settle_samples.clear()
 	_spawn_settle_waiting = false
 	_spawn_settle_elapsed = 0.0
 	_pending_spawn_fed = false
 
 
 func _end_pending_spawn() -> void:
+	_settle_samples.clear()
 	_pending_spawn_active = false
 	_spawn_settle_waiting = false
 	_pending_spawn_fed = false
@@ -1321,8 +1326,30 @@ func _is_settled_body(body: RigidBody3D) -> bool:
 	if block.is_freeze_static():
 		return true
 	if block.freeze:
-		return block.is_contributing_visual()
+		return block.is_contributing_visual() or _frozen_body_is_still(block)
 	return block.sleeping
+
+
+## Bontago-1pi.27: a client's mirrored block is frozen kinematic and
+## is_contributing_visual() is only written when a BlockMesh exists, so it can
+## stay false forever.
+## DECISION: also treat a frozen block as settled once its replicated pose has
+## moved no more than tuning.sleep_linear_threshold * elapsed since the previous
+## process frame it was sampled on (position only, one entry per body; the first
+## sample is "not settled"). Works from the interpolated snapshot pose alone,
+## with or without a mesh. A freed body leaves the overlap query by itself.
+func _frozen_body_is_still(block: Block) -> bool:
+	var id: int = block.get_instance_id()
+	var frame: int = Engine.get_process_frames()
+	var prev: Array = _settle_samples.get(id, [])
+	if not prev.is_empty() and int(prev[0]) == frame:
+		return bool(prev[2])
+	var still: bool = false
+	if not prev.is_empty():
+		var dt: float = maxf(_spawn_settle_elapsed - float(prev[3]), 0.0001)
+		still = block.global_position.distance_to(prev[1] as Vector3) <= tuning.sleep_linear_threshold * dt
+	_settle_samples[id] = [frame, block.global_position, still, _spawn_settle_elapsed]
+	return still
 
 
 ## Raises the held ghost by the minimum hover amount that leaves it clear of

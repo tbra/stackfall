@@ -413,3 +413,82 @@ func test_offset_is_left_untouched_when_the_new_ghost_does_not_overlap_anything(
 		controller._ghost.manual_hover_offset, ARBITRARY_OFFSET, 0.0001,
 		"a ghost that would not overlap anything at its baseline hover height must be left exactly where it was -- not reset, not recomputed."
 	)
+
+
+# --- Bontago-1pi.27: settle-wait edge paths ---------------------------------
+
+func _placed_controller() -> PlayerController:
+	Match.start_match(_config())
+	_run_countdown()
+	var controller: PlayerController = _make_controller()
+	controller.set_acting_slot(0)
+	controller._ghost.set_shape(Match.held_shape(0))
+	controller._cursor = _home_world_position(0)
+	controller._update_ghost_transform()
+	controller._place_ghost_block()
+	await wait_physics_frames(1)
+	controller._update_ghost_transform()
+	return controller
+
+
+func test_settle_wait_times_out_on_a_block_that_never_settles() -> void:
+	var controller: PlayerController = await _placed_controller()
+	var timeout: float = controller.ghost_tuning.spawn_clearance_settle_timeout_s
+	var block: Block = _blocks_root.get_child(0) as Block
+	assert_false(block.sleeping, "fixture: the dropped block is still awake")
+	controller._apply_spawn_clearance(timeout * 0.25, true)
+	assert_true(controller._pending_spawn_active, "still waiting before the timeout")
+	assert_eq(controller._ghost.manual_hover_offset, 0.0, "and nothing is raised meanwhile")
+	controller._apply_spawn_clearance(timeout, true)
+	assert_false(controller._pending_spawn_active, "the wait ends at the timeout")
+	assert_gt(controller._ghost.manual_hover_offset, 0.0, "and the ghost is raised clear of the block inside it")
+
+
+func test_settle_wait_times_out_when_no_block_is_ever_fed() -> void:
+	Match.start_match(_config())
+	_run_countdown()
+	var controller: PlayerController = _make_controller()
+	controller.set_acting_slot(0)
+	controller._ghost.set_shape(Match.held_shape(0))
+	controller._cursor = _home_world_position(0)
+	controller._update_ghost_transform()
+	controller._pending_spawn_active = true
+	controller._begin_pending_spawn()
+	var timeout: float = controller.ghost_tuning.spawn_clearance_settle_timeout_s
+	controller._apply_spawn_clearance(timeout * 0.25, true)
+	assert_true(controller._pending_spawn_active, "never fed: keeps waiting for the next piece")
+	controller._apply_spawn_clearance(timeout, true)
+	assert_false(controller._pending_spawn_active, "never fed: gives up at the timeout")
+	assert_eq(controller._ghost.manual_hover_offset, 0.0, "and raises nothing (nothing overlaps)")
+
+
+func test_settle_wait_ends_without_a_raise_when_the_block_is_destroyed() -> void:
+	var controller: PlayerController = await _placed_controller()
+	var block: Block = _blocks_root.get_child(0) as Block
+	controller._apply_spawn_clearance(0.05, true)
+	assert_true(controller._pending_spawn_active, "fixture: waiting on the unsettled block")
+	block.free()
+	await wait_physics_frames(1)
+	controller._update_ghost_transform()
+	controller._apply_spawn_clearance(0.05, true)
+	assert_false(controller._pending_spawn_active, "a freed block no longer holds the wait")
+	assert_eq(controller._ghost.manual_hover_offset, 0.0, "and nothing is raised for it")
+
+
+func test_frozen_mirrored_block_counts_as_settled_once_its_pose_is_still() -> void:
+	var controller: PlayerController = await _placed_controller()
+	var block: Block = _blocks_root.get_child(0) as Block
+	# Sample by hand: the controller's own _process() would also consume the samples.
+	controller.set_process(false)
+	# A client's mirror: frozen kinematic, no sleeping flag, no glow written.
+	block.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+	block.freeze = true
+	block.linear_velocity = Vector3.ZERO
+	block.angular_velocity = Vector3.ZERO
+	await wait_physics_frames(2)
+	assert_false(block.is_contributing_visual(), "fixture: the visual flag is unavailable")
+	assert_false(controller._is_settled_body(block), "the first sample cannot prove rest")
+	controller._spawn_settle_elapsed += 0.1
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_true(controller._is_settled_body(block), "an unmoved frozen block is settled without the visual flag")
