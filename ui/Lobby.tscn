@@ -109,10 +109,12 @@ layout_mode = 2
 theme_override_constants/separation = 13
 
 [node name="SettingsScroll" type="ScrollContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
+follow_focus = true
 
 [node name="Settings" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll"]
 layout_mode = 2
@@ -124,87 +126,6 @@ layout_mode = 2
 theme_type_variation = &"TitleLabel"
 text = "Match settings"
 
-[node name="RoundSection" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings"]
-layout_mode = 2
-theme_override_constants/separation = 4
-
-[node name="RoundCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection"]
-layout_mode = 2
-theme_type_variation = &"CaptionLabel"
-text = "ROUND"
-
-[node name="RoundRow" type="HFlowContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection"]
-layout_mode = 2
-theme_override_constants/h_separation = 14
-theme_override_constants/v_separation = 6
-
-[node name="GameModeCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/RoundRow"]
-layout_mode = 2
-theme_override_constants/separation = 4
-
-[node name="GameModeCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/RoundRow/GameModeCol"]
-layout_mode = 2
-theme_type_variation = &"CaptionLabel"
-theme_override_font_sizes/font_size = 10
-text = "Game mode"
-
-[node name="GameModeOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/RoundRow/GameModeCol"]
-unique_name_in_owner = true
-layout_mode = 2
-custom_minimum_size = Vector2(150, 0)
-
-[node name="RoundTimerCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/RoundRow"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_constants/separation = 4
-
-[node name="RoundTimerCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/RoundRow/RoundTimerCol"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"CaptionLabel"
-theme_override_font_sizes/font_size = 10
-text = "Round length (minutes)"
-
-[node name="RoundTimerSpin" type="SpinBox" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/RoundRow/RoundTimerCol"]
-unique_name_in_owner = true
-layout_mode = 2
-custom_minimum_size = Vector2(110, 0)
-min_value = 1
-max_value = 40
-value = 10
-
-[node name="RoundTimerHint" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/RoundRow/RoundTimerCol"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"CaptionLabel"
-theme_override_font_sizes/font_size = 10
-text = ""
-
-[node name="MatchTimerCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/RoundRow"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_constants/separation = 4
-
-[node name="MatchTimerCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/RoundRow/MatchTimerCol"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"CaptionLabel"
-theme_override_font_sizes/font_size = 10
-text = "Match timer (minutes)"
-
-[node name="MatchTimerSpin" type="SpinBox" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/RoundRow/MatchTimerCol"]
-unique_name_in_owner = true
-layout_mode = 2
-custom_minimum_size = Vector2(110, 0)
-max_value = 40
-
-[node name="MatchTimerHint" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/RoundRow/MatchTimerCol"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"CaptionLabel"
-theme_override_font_sizes/font_size = 10
-text = ""
-
 [node name="SettingsColumns" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings"]
 layout_mode = 2
 theme_override_constants/separation = 31
@@ -213,6 +134,87 @@ theme_override_constants/separation = 31
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 13
+
+[node name="RoundSection" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="RoundCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/RoundSection"]
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+text = "ROUND"
+
+[node name="RoundRow" type="HFlowContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/RoundSection"]
+layout_mode = 2
+theme_override_constants/h_separation = 14
+theme_override_constants/v_separation = 6
+
+[node name="GameModeCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/RoundSection/RoundRow"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="GameModeCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/RoundSection/RoundRow/GameModeCol"]
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+theme_override_font_sizes/font_size = 10
+text = "Game mode"
+
+[node name="GameModeOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/RoundSection/RoundRow/GameModeCol"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+
+[node name="RoundTimerCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/RoundSection/RoundRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="RoundTimerCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/RoundSection/RoundRow/RoundTimerCol"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+theme_override_font_sizes/font_size = 10
+text = "Round length (minutes)"
+
+[node name="RoundTimerSpin" type="SpinBox" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/RoundSection/RoundRow/RoundTimerCol"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(110, 0)
+min_value = 1
+max_value = 40
+value = 10
+
+[node name="RoundTimerHint" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/RoundSection/RoundRow/RoundTimerCol"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+theme_override_font_sizes/font_size = 10
+text = ""
+
+[node name="MatchTimerCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/RoundSection/RoundRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="MatchTimerCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/RoundSection/RoundRow/MatchTimerCol"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+theme_override_font_sizes/font_size = 10
+text = "Match timer (minutes)"
+
+[node name="MatchTimerSpin" type="SpinBox" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/RoundSection/RoundRow/MatchTimerCol"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(110, 0)
+max_value = 40
+
+[node name="MatchTimerHint" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/RoundSection/RoundRow/MatchTimerCol"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+theme_override_font_sizes/font_size = 10
+text = ""
 
 [node name="MapSection" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft"]
 layout_mode = 2
