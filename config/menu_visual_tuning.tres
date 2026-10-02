@@ -4,7 +4,7 @@
 
 [resource]
 script = ExtResource("1_menuvis")
-diorama_anchor_left = 0.40
+diorama_anchor_left = 0.54
 diorama_anchor_top = 0.20
 diorama_anchor_right = 0.995
 diorama_anchor_bottom = 0.98
@@ -23,12 +23,18 @@ ambient_energy = 0.9
 camera_height_m = 7.0
 camera_radius_m = 10.0
 camera_orbit_period_s = 120.0
+camera_orbit_drift_fraction = 0.38
+camera_orbit_drift_period_s = 9.0
 camera_fov_deg = 42.0
 home_flag_a_color = Color(0.92, 0.42, 0.36, 1)
 home_flag_b_color = Color(0.55, 0.72, 0.86, 1)
 block_color = Color(0.62, 0.82, 0.66, 1)
 stack_block_count = 2
 stack_block_spacing_m = 1.0
+falling_block_interval_s = 7.0
+falling_block_duration_s = 1.4
+falling_block_height_m = 2.0
+falling_block_bounce_m = 0.16
 territory_patch_color_a = Color(0.92, 0.42, 0.36, 0.35)
 territory_patch_color_b = Color(0.55, 0.72, 0.86, 0.35)
 territory_patch_radius_m = 0.85
