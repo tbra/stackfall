@@ -161,3 +161,29 @@ func test_held_countdown_does_not_run_down_but_still_solves_territory() -> void:
 	Match.abort_match()
 	Match.start_match(_config())
 	assert_false(Match._lifecycle.is_countdown_held(), "a new match starts un-held")
+
+
+func test_gift_slot_is_refused_during_the_countdown() -> void:
+	Match.start_match(_config())
+	assert_eq(Match.state(), Match.State.COUNTDOWN)
+	assert_false(Match.request_use_gift_slot(0), "the host refuses a gift-slot use before PLAYING")
+
+
+func test_hold_is_released_when_loading_screen_is_hidden_or_never_shown() -> void:
+	var main: Node = (load("res://game/Main.tscn") as PackedScene).instantiate()
+	add_child_autofree(main)
+	Match.start_match(_config())
+	Match.set_countdown_held(true)
+	main._world_built = true
+	main._loading_screen.visible = false
+	assert_false(main._loading_screen.visible, "the overlay is not shown")
+	main._finish_loading_when_ready(main._loading_generation)
+	assert_false(Match._lifecycle.is_countdown_held(), "early return frees the hold")
+	_step(3.1)
+	assert_eq(Match.state(), Match.State.PLAYING, "the countdown proceeds")
+	Match.abort_match()
+	Match.start_match(_config())
+	Match.set_countdown_held(true)
+	main._on_loading_readiness_timed_out()
+	assert_false(Match._lifecycle.is_countdown_held(), "the ready timeout frees the hold")
+	main._world_built = false

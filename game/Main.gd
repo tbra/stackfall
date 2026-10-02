@@ -1085,6 +1085,7 @@ func _on_loading_territory_replicated(_raster: TerritoryRaster) -> void:
 
 
 func _on_loading_readiness_timed_out() -> void:
+	_release_countdown_hold(_loading_generation)
 	_loading_generation += 1
 	if Net.is_host():
 		Match.abort_match()
@@ -1276,19 +1277,23 @@ func _finish_loading_when_ready(generation: int) -> void:
 	while not _world_built:
 		await get_tree().process_frame
 		if generation != _loading_generation or not _loading_screen.visible:
+			_release_countdown_hold(generation)
 			return
 	if not _loading_screen.visible:
+		_release_countdown_hold(generation)
 		return
 	_loading_screen.set_stage("Solving territory", _loading_screen.tuning.solve_progress)
 	while not _first_territory_ready:
 		await get_tree().process_frame
 		if generation != _loading_generation or not _loading_screen.visible:
+			_release_countdown_hold(generation)
 			return
 	_loading_screen.set_stage("Warming materials", _loading_screen.tuning.materials_progress)
 	_loading_screen.warm_common_materials()
 	for frame: int in range(_loading_screen.tuning.stable_frames):
 		await get_tree().process_frame
 		if generation != _loading_generation or not _loading_screen.visible:
+			_release_countdown_hold(generation)
 			return
 		_loading_screen.set_stage("Stabilizing view", lerpf(_loading_screen.tuning.stabilize_start_progress, _loading_screen.tuning.stabilize_end_progress, float(frame + 1) / maxf(float(_loading_screen.tuning.stable_frames), 1.0)))
 	_loading_screen.set_stage("Ready", _loading_screen.tuning.complete_progress)
@@ -1301,6 +1306,14 @@ func _finish_loading_when_ready(generation: int) -> void:
 		_hot_seat.controller().set_process_unhandled_input(_controller_was_handling_input)
 	await _loading_screen.fade_out()
 	# Bontago-mp0.27: the screen is gone; now the 3-2-1 starts running down.
+	_release_countdown_hold(generation)
+
+
+## Bontago-mp0.27 review: every exit of the loading hand-off (overlay already
+## hidden, cancelled, timed out, superseded) must free the countdown hold, or a
+## match could sit held. A stale generation belongs to a newer load, which owns
+## the hold now, so only the current generation releases.
+func _release_countdown_hold(generation: int) -> void:
 	if generation == _loading_generation:
 		Match.set_countdown_held(false)
 

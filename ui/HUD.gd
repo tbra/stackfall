@@ -277,7 +277,7 @@ func _build_countdown_label() -> void:
 	_countdown_label.add_theme_font_size_override("font_size", hud_visual_tuning.countdown_font_size)
 	_countdown_label.add_theme_color_override("font_color", Color.WHITE)
 	_countdown_label.add_theme_color_override("font_outline_color", hud_visual_tuning.ink_color)
-	_countdown_label.add_theme_constant_override("outline_size", hud_visual_tuning.countdown_font_size / 6)
+	_countdown_label.add_theme_constant_override("outline_size", hud_visual_tuning.countdown_font_size / maxi(hud_visual_tuning.countdown_outline_divisor, 1))
 	_countdown_label.visible = false
 	add_child(_countdown_label)
 

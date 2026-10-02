@@ -116,5 +116,7 @@ extends Resource
 
 ## Bontago-mp0.27: pre-match 3-2-1 label. "Go" stays this long after PLAYING starts.
 @export var countdown_font_size: int = 120
+## Countdown label outline width = countdown_font_size / this.
+@export var countdown_outline_divisor: int = 6
 @export var countdown_go_text: String = "Go!"
 @export var countdown_go_hold_s: float = 0.8
