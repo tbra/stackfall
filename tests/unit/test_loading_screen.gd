@@ -132,6 +132,27 @@ func test_pending_times_out_when_no_start_follows() -> void:
 	assert_false(_screen.is_pending())
 
 
+func test_progress_stages_are_clamped_and_visible() -> void:
+	_screen.show_pending(null)
+	assert_gt(_screen.progress(), 0.0)
+	_screen.set_stage("Solving territory", 0.7)
+	assert_eq(_screen._stage_label.text, "Solving territory")
+	assert_almost_eq(_screen.progress(), 0.7, 0.001)
+	_screen.set_stage("Ready", 2.0)
+	assert_almost_eq(_screen.progress(), 1.0, 0.001)
+
+
+func test_ready_timeout_hides_a_stalled_match() -> void:
+	_screen.tuning.ready_timeout_s = 0.05
+	var timeout_count: Array[int] = []
+	_screen.readiness_timed_out.connect(func() -> void: timeout_count.append(1))
+	_screen.show_for_match(_config(), _slots(2))
+	await wait_seconds(0.3)
+	assert_true(_screen.timed_out())
+	assert_false(_screen.visible)
+	assert_eq(timeout_count.size(), 1)
+
+
 func test_overlay_draws_above_siblings_and_ignores_mouse() -> void:
 	assert_eq(_screen.z_index, _screen.tuning.overlay_z_index)
 	assert_eq(_screen.mouse_filter, Control.MOUSE_FILTER_IGNORE)
@@ -173,14 +194,52 @@ func test_host_start_shows_overlay_before_the_match_starts() -> void:
 	assert_true(overlay.is_pending())
 	assert_eq(Match.state(), Match.State.LOBBY, "world build has not started yet")
 	assert_true(states.is_empty())
-	await wait_process_frames(overlay.tuning.pre_start_frames + 2)
+	await wait_process_frames(overlay.tuning.pre_start_frames + 5)
 	assert_true(states.has(Match.State.LOADING), "match handed off after the pre-roll")
 	assert_false(overlay.is_pending())
 	assert_true(overlay.visible, "overlay stays up through the build until fade_out")
+	assert_eq(overlay._stage_label.text, "Solving territory")
+	await wait_process_frames(overlay.tuning.stable_frames + overlay.tuning.warmup_frames + 2)
+	assert_true(overlay.visible, "host waits for the first applied territory result")
+	Events.territory_updated.emit(Match.raster(), Match.groups())
+	await wait_process_frames(overlay.tuning.stable_frames + 2)
+	assert_almost_eq(overlay.progress(), 1.0, 0.001)
 	Events.match_state_changed.disconnect(on_state)
 	Net.leave()
 	Match.abort_match()
 	Match.set_process(true)
+
+
+func test_early_client_territory_completes_readiness_after_build() -> void:
+	Match.set_process(false)
+	Match.abort_match()
+	var main: Node = _real_main()
+	Net._mode = Net.Mode.CLIENT
+	Net._joined_accepted = true
+	var overlay: LoadingScreen = main._loading_screen
+	overlay.show_for_match(_flow_config(main), _slots(2))
+	Events.territory_replicated.emit(null)
+	assert_true(main._first_territory_ready, "late join keyframe is latched before world build")
+	main._finish_loading_when_ready(main._loading_generation)
+	await wait_process_frames(2)
+	assert_lt(overlay.progress(), overlay.tuning.complete_progress)
+	main._world_built = true
+	await wait_process_frames(overlay.tuning.stable_frames + 2)
+	assert_almost_eq(overlay.progress(), overlay.tuning.complete_progress, 0.001)
+	assert_false(overlay.timed_out())
+	overlay.cancel()
+	main._world_built = false
+	Net.leave()
+	Match.set_process(true)
+
+
+func test_material_warmup_uses_private_world_and_is_freed() -> void:
+	_screen.show_for_match(_config(), _slots(2))
+	_screen.warm_common_materials()
+	assert_true(_screen._warm_viewport.own_world_3d)
+	assert_ne(_screen._warm_viewport.world_3d, get_viewport().world_3d)
+	_screen.cancel()
+	assert_null(_screen._warm_viewport)
 	await wait_process_frames(2)
 
 
@@ -193,4 +252,29 @@ func test_client_overlay_appears_on_loading_announcement() -> void:
 	Events.match_loading_announced.emit()
 	assert_true(overlay.visible)
 	assert_true(overlay.is_pending())
+	assert_lt(overlay.progress(), 0.1)
+	Match.set_process(true)
+
+
+func test_client_waits_for_replicated_territory_before_ready() -> void:
+	Match.set_process(false)
+	Match.abort_match()
+	var main: Node = _real_main()
+	Net._mode = Net.Mode.CLIENT
+	Net._joined_accepted = true
+	var overlay: LoadingScreen = main._loading_screen
+	Events.match_loading_announced.emit()
+	overlay.show_for_match(_flow_config(main), _slots(2))
+	main._world_built = true
+	main._finish_loading_when_ready(main._loading_generation)
+	await wait_process_frames(overlay.tuning.stable_frames + 2)
+	assert_true(overlay.visible)
+	assert_lt(overlay.progress(), 1.0)
+	Events.territory_replicated.emit(null)
+	await wait_process_frames(overlay.tuning.stable_frames + 2)
+	assert_almost_eq(overlay.progress(), 1.0, 0.001)
+	overlay.cancel()
+	await wait_process_frames(overlay.tuning.warmup_frames + 2)
+	main._world_built = false
+	Net.leave()
 	Match.set_process(true)
