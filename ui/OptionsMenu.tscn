@@ -138,6 +138,19 @@ text = "Camera shake"
 unique_name_in_owner = true
 layout_mode = 2
 
+[node name="AdaptiveQualityRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields"]
+layout_mode = 2
+
+[node name="AdaptiveQualityLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/AdaptiveQualityRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(180, 0)
+text = "Adaptive quality"
+
+[node name="AdaptiveQualityCheck" type="CheckButton" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/AdaptiveQualityRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Temporarily lowers effects when the frame rate drops. Never changes your saved preset."
+
 [node name="AudioSectionHeader" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields"]
 unique_name_in_owner = true
 layout_mode = 2

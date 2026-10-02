@@ -14,6 +14,8 @@ const FLAKE_SHADER: Shader = preload("res://shaders/weather/snow_flake.gdshader"
 
 var tuning: SnowTuning = preload("res://config/weather/snow.tres") as SnowTuning
 var _particles: GPUParticles3D = null
+## Bontago-1pi.11.37: GraphicsPreset.weather_density_scale, applied through amount_ratio.
+var _density_scale: float = 1.0
 
 
 func _ready() -> void:
@@ -40,7 +42,7 @@ func amount_for(preset: GraphicsPreset) -> int:
 func set_intensity(value: float) -> void:
 	super.set_intensity(value)
 	if _particles != null:
-		_particles.amount_ratio = clampf(value, 0.0, 1.0)
+		_particles.amount_ratio = clampf(value, 0.0, 1.0) * _density_scale
 		_particles.emitting = value > 0.0
 
 
@@ -52,8 +54,12 @@ func _process(_delta: float) -> void:
 
 
 func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
+	_density_scale = preset.weather_density_scale if preset != null else 1.0
 	if _particles != null:
-		_particles.amount = amount_for(preset)
+		var amount: int = amount_for(preset)
+		if _particles.amount != amount:
+			_particles.amount = amount
+		_particles.amount_ratio = clampf(intensity, 0.0, 1.0) * _density_scale
 
 
 func _build() -> void:
@@ -82,7 +88,9 @@ func _build() -> void:
 
 	_particles = GPUParticles3D.new()
 	_particles.name = "Flakes"
-	_particles.amount = amount_for(Settings.current_graphics_preset())
+	var build_preset: GraphicsPreset = Settings.current_graphics_preset()
+	_particles.amount = amount_for(build_preset)
+	_density_scale = build_preset.weather_density_scale if build_preset != null else 1.0
 	_particles.lifetime = tuning.flake_lifetime_s
 	_particles.local_coords = false
 	_particles.process_material = process

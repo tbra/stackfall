@@ -194,6 +194,9 @@ func _process(_delta: float) -> void:
 	if _source_camera == null or _viewport == null or _camera == null:
 		return
 
+	_ensure_preset()
+	# Bontago-1pi.11.37: the governor can switch the mirror off through the preset.
+	var mirror_on: bool = visuals.mirror_enabled and (_preset == null or _preset.mirror_enabled)
 	# visuals.mirror_enabled off (F4, or a screenshot tool's --mirror-mode=):
 	# stop paying for the second scene render entirely, not just skip
 	# blending its result in shaders/territory.gdshader -- UPDATE_DISABLED
@@ -202,17 +205,17 @@ func _process(_delta: float) -> void:
 	# Bontago-1pi.11.6: every push below is change-gated (a live F4 edit still
 	# lands the next frame, since the inputs are compared by value).
 	var update_mode: SubViewport.UpdateMode = (
-		SubViewport.UPDATE_ALWAYS if visuals.mirror_enabled else SubViewport.UPDATE_DISABLED
+		SubViewport.UPDATE_ALWAYS if mirror_on else SubViewport.UPDATE_DISABLED
 	)
 	if _viewport.render_target_update_mode != update_mode:
 		_viewport.render_target_update_mode = update_mode
 	var shader_key: Array = [
-		_overlay, visuals.mirror_enabled, visuals.mirror_strength, visuals.mirror_max_luminance
+		_overlay, mirror_on, visuals.mirror_strength, visuals.mirror_max_luminance
 	]
 	if _overlay != null and shader_key != _last_shader_key:
 		_last_shader_key = shader_key
 		_overlay.set_mirror_texture(
-			_viewport.get_texture(), visuals.mirror_enabled, visuals.mirror_strength
+			_viewport.get_texture(), mirror_on, visuals.mirror_strength
 		)
 		# Bontago-xtq.20: mirror_max_luminance has no dedicated push method on
 		# TerritoryOverlay (out of this package's ownership) -- material() is
@@ -230,7 +233,7 @@ func _process(_delta: float) -> void:
 		var sky_scale: float = clampf(visuals.mirror_sky_energy_scale, 0.0, 1.0)
 		if not is_equal_approx(_mirror_environment.background_energy_multiplier, sky_scale):
 			_mirror_environment.background_energy_multiplier = sky_scale
-	if not visuals.mirror_enabled:
+	if not mirror_on:
 		return
 
 	_resize_viewport()
@@ -257,6 +260,15 @@ func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 	_preset = preset
 
 
+func _ensure_preset() -> void:
+	if _settings == null:
+		_settings = get_node_or_null(^"/root/Settings")
+		if _settings != null and _settings.has_signal(&"graphics_preset_changed"):
+			_settings.connect(&"graphics_preset_changed", _on_graphics_preset_changed)
+	if _preset == null and _settings != null:
+		_preset = _settings.call(&"current_graphics_preset") as GraphicsPreset
+
+
 ## Sizes the SubViewport to the main viewport's own size, scaled by
 ## visuals.mirror_resolution_scale -- keeping the exact same aspect ratio is
 ## what lets the shader sample it at SCREEN_UV directly (see class doc).
@@ -267,12 +279,7 @@ func _resize_viewport() -> void:
 	var main_size: Vector2i = get_viewport().size
 	# Bontago-1pi.11.2: the active graphics preset scales the mirror further.
 	var preset_factor: float = 1.0
-	if _settings == null:
-		_settings = get_node_or_null(^"/root/Settings")
-		if _settings != null and _settings.has_signal(&"graphics_preset_changed"):
-			_settings.connect(&"graphics_preset_changed", _on_graphics_preset_changed)
-	if _preset == null and _settings != null:
-		_preset = _settings.call(&"current_graphics_preset") as GraphicsPreset
+	_ensure_preset()
 	if _preset != null:
 		preset_factor = _preset.mirror_resolution_factor
 	var scale: float = clampf(

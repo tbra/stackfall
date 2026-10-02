@@ -23,6 +23,8 @@ var _density_scale: float = 1.0
 
 func _ready() -> void:
 	_build()
+	# Bontago-1pi.11.37: the adaptive governor thins the rain without a rebuild.
+	Settings.graphics_preset_changed.connect(_on_graphics_preset_changed)
 
 
 ## Test seam.
@@ -30,6 +32,12 @@ func configure(tuning: RainTuning, density_scale: float) -> void:
 	_tuning = tuning
 	_density_scale = density_scale
 	_build()
+
+
+func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
+	if _instance != null:
+		var total: int = _instance.multimesh.instance_count
+		_instance.multimesh.visible_instance_count = int(roundf(float(total) * preset.weather_density_scale))
 
 
 func streak_instance() -> MultiMeshInstance3D:
@@ -43,8 +51,8 @@ func shader_density() -> float:
 func _preset_scale() -> float:
 	var preset: GraphicsPreset = Settings.current_graphics_preset() if Engine.get_main_loop() != null else null
 	if preset != null and not preset.ambient_life_enabled:
-		return _tuning.low_preset_density
-	return 1.0
+		return _tuning.low_preset_density * preset.weather_density_scale
+	return preset.weather_density_scale if preset != null else 1.0
 
 
 func _build() -> void:

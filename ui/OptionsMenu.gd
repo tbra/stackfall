@@ -202,6 +202,7 @@ const MOVE_SPEED_LABEL_STICK: String = "Stick speed"
 @onready var _browse_button: Button = %BrowseButton
 @onready var _music_dir_dialog: FileDialog = %MusicDirDialog
 @onready var _camera_shake_check: CheckButton = %CameraShakeCheck
+@onready var _adaptive_quality_check: CheckButton = %AdaptiveQualityCheck
 @onready var _window_mode_option: OptionButton = %WindowModeOption
 @onready var _rumble_enabled_check: CheckButton = %RumbleEnabledCheck
 @onready var _rumble_strength_slider: HSlider = %RumbleStrengthSlider
@@ -267,6 +268,7 @@ func _ready() -> void:
 	_browse_button.pressed.connect(_on_browse_pressed)
 	_music_dir_dialog.dir_selected.connect(_on_music_dir_selected)
 	_camera_shake_check.toggled.connect(_on_camera_shake_toggled)
+	_adaptive_quality_check.toggled.connect(_on_adaptive_quality_toggled)
 	_window_mode_option.item_selected.connect(_on_window_mode_selected)
 	_rumble_enabled_check.toggled.connect(_on_rumble_enabled_toggled)
 	_rumble_strength_slider.value_changed.connect(_on_rumble_strength_changed)
@@ -379,6 +381,7 @@ func _load_current_values() -> void:
 	_music_dir_edit.text = String(settings_provider.custom_music_dir())
 
 	_camera_shake_check.set_pressed_no_signal(bool(settings_provider.camera_shake_enabled()))
+	_adaptive_quality_check.set_pressed_no_signal(bool(settings_provider.adaptive_quality_enabled()))
 
 	var window_mode_id: StringName = settings_provider.window_mode()
 	var window_mode_index: int = Settings.WINDOW_MODE_IDS.find(window_mode_id)
@@ -466,6 +469,11 @@ func _on_browse_pressed() -> void:
 
 func _on_music_dir_selected(_dir: String) -> void:
 	pass
+
+
+## Bontago-1pi.11.37: opt-in governor; the stored preset is never touched.
+func _on_adaptive_quality_toggled(enabled: bool) -> void:
+	settings_provider.set_adaptive_quality_enabled(enabled)
 
 
 func _on_camera_shake_toggled(enabled: bool) -> void:
@@ -633,7 +641,7 @@ func _build_rebind_rows() -> void:
 func _wire_focus_chain() -> void:
 	var chain: Array[Control] = [
 		_preset_option,
-		_window_mode_option, _camera_shake_check,
+		_window_mode_option, _camera_shake_check, _adaptive_quality_check,
 		_master_mute_button, _master_volume_slider,
 		_music_mute_button, _music_volume_slider,
 		_sfx_mute_button, _sfx_volume_slider,
