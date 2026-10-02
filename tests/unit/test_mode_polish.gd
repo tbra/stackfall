@@ -218,3 +218,13 @@ func test_non_sandbox_classic_still_wins_on_the_hold() -> void:
 	checker._winner = 0
 	Match._territory._finish_objective_step()
 	assert_eq(Match.state(), Match.State.END)
+
+
+func test_mid_join_toggle_sits_after_turn_based_in_the_popup_focus_loop() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var popup_shown: Array[Control] = lobby._visible_chain(lobby._popup_chain)
+	var turn: int = popup_shown.find(lobby.get_node("%TurnBasedCheck"))
+	var mid: int = popup_shown.find(lobby.get_node("%MidJoinCheck"))
+	assert_gt(turn, -1)
+	assert_eq(mid, turn + 1)
+	assert_eq(popup_shown.find(lobby.get_node("%AdvancedPopupClose")), mid + 1)

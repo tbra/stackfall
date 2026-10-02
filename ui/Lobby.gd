@@ -129,6 +129,8 @@ var net_provider: Variant = null
 @onready var _sky_theme_option: OptionButton = %SkyThemeOption
 @onready var _sudden_death_check: CheckButton = %SuddenDeathCheck
 @onready var _turn_based_check: CheckButton = %TurnBasedCheck
+## Bontago-8or.20: host-only toggle for MatchConfig.allow_mid_match_join.
+@onready var _mid_join_check: CheckButton = %MidJoinCheck
 ## Bontago-xtq.32 redo #3: a compact wrap grid of small toggle chips
 ## (mockup 11), not the round-1 full-width red bars -- HFlowContainer (a
 ## Container sibling of VBoxContainer, not a subclass) wraps children onto as
@@ -224,6 +226,7 @@ func _ready() -> void:
 		_ai_difficulty_option, _team_mode_option, _block_timer_slider, _gravity_slider,
 		_goal_flag_spin, _gifts_check, _special_freq_slider, _tilt_mode_option,
 		_hole_mode_option, _match_timer_spin, _sudden_death_check, _turn_based_check,
+		_mid_join_check,
 	]
 	_settings_controls.append(_weather_option)
 	_settings_controls.append(_sky_theme_option)
@@ -409,7 +412,7 @@ func _wire_focus_chain() -> void:
 	popup_chain.append_array([_tilt_mode_option, _hole_mode_option])
 	popup_chain.append(_sky_team_sum_check)
 	popup_chain.append(_weather_option)
-	popup_chain.append_array([_sudden_death_check, _turn_based_check, _advanced_popup_close])
+	popup_chain.append_array([_sudden_death_check, _turn_based_check, _mid_join_check, _advanced_popup_close])
 	_wire_loop(_visible_chain(popup_chain))
 
 
@@ -473,6 +476,7 @@ func _connect_control_signals() -> void:
 	_gifts_check.toggled.connect(_on_toggled)
 	_sudden_death_check.toggled.connect(_on_toggled)
 	_turn_based_check.toggled.connect(_on_toggled)
+	_mid_join_check.toggled.connect(_on_toggled)
 	for i: int in range(_team_buttons.size()):
 		_team_buttons[i].pressed.connect(_on_team_button_pressed.bind(i))
 
@@ -695,7 +699,7 @@ func _apply_visual_style() -> void:
 		# secondary control, not body text, so a slightly denser size reads
 		# fine here without touching the shared pill font size anywhere else.
 		team_button.add_theme_font_size_override("font_size", 13)
-	var chips: Array[Button] = [_gifts_check, _sudden_death_check, _turn_based_check, _ready_check]
+	var chips: Array[Button] = [_gifts_check, _sudden_death_check, _turn_based_check, _mid_join_check, _ready_check]
 	for chip: Button in chips:
 		MenuStyleFactory.apply_toggle_chip(
 			chip, tuning.pill_cream_color, tuning.pill_cream_hover_color,
@@ -977,6 +981,7 @@ func _config_from_controls() -> MatchConfig:
 	config.sky_team_sum = _sky_team_sum_check.button_pressed
 	config.sudden_death = _sudden_death_check.button_pressed
 	config.turn_based = _turn_based_check.button_pressed
+	config.allow_mid_match_join = _mid_join_check.button_pressed
 	config.enabled_specials = _enabled_specials_from_checkboxes()
 	return config
 
@@ -1062,6 +1067,7 @@ func _apply_data(data: Dictionary) -> void:
 	_refresh_sky_controls()
 	_sudden_death_check.button_pressed = config.sudden_death
 	_turn_based_check.button_pressed = config.turn_based
+	_mid_join_check.button_pressed = config.allow_mid_match_join
 	_apply_enabled_specials_to_checkboxes(config.enabled_specials)
 	_applying_remote_data = false
 	_update_advanced_rules_summary()

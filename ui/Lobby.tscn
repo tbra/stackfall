@@ -854,3 +854,12 @@ theme_override_constants/separation = 4
 unique_name_in_owner = true
 layout_mode = 2
 text = "Turn-based"
+
+[node name="MidJoinCol" type="VBoxContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="MidJoinCheck" type="CheckButton" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedRulesGridSection/AdvancedRules/MidJoinCol"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Allow joining mid-match"
