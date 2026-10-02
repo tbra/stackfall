@@ -6,10 +6,18 @@ extends GutTest
 const DELTA: float = 1.0 / 60.0
 const SEED_A: int = 4242
 const SEED_B: int = 777
-const HIGH_M: float = 14.0
+const HIGH_M: float = 20.0
 const LOW_M: float = 0.4
 const SIM_SECONDS: float = 1200.0
 const SIM_STEP: float = 0.1
+const TALL_TOWER_CUBES: int = 32
+const TALL_SETTLE_TICKS: int = 120
+const GUST_CENTER_HEIGHT_M: float = 24.0
+const TOWER_FOOTPRINT: Array[Vector2] = [Vector2(0.0, 0.0), Vector2(1.0, 0.0), Vector2(0.0, 1.0), Vector2(1.0, 1.0)]
+const TOWER_GAP_M: float = 0.03
+const MIN_SWAY_M: float = 1.5
+const SHORT_TOWER_CUBES: int = 4
+const MAX_SHORT_SWAY_M: float = 0.15
 
 var _tuning: BreezeTuning = null
 var _blocks: Array[Block] = []
@@ -129,6 +137,91 @@ func test_gust_accel_is_local_clamped_and_swirls_to_both_sides() -> void:
 	var strong: BreezeTuning = _tuning.duplicate() as BreezeTuning
 	strong.strength = 100.0
 	assert_lte(BreezeField.gust_accel(gust, 2.0, Vector3(0.0, HIGH_M, 1.0), 0.0, DELTA, strong).length() * DELTA, strong.max_dv_per_tick + 0.0001, "global strength cannot break the clamp")
+
+
+# --- Tower sway (Bontago-mp0.28) ------------------------------------------------------
+
+func _tall_field() -> Field:
+	var field: Field = Field.new()
+	field.map_def = (load("res://config/maps/round_medium.tres") as MapDef).duplicate(true)
+	field.map_def.field_radius = 8.0
+	_root.add_child(field)
+	return field
+
+
+func _real_tower(count: int) -> Array[Block]:
+	var shape: BlockShape = load("res://config/blocks/cube.tres") as BlockShape
+	var physics: PhysicsTuning = load("res://config/physics_tuning.tres") as PhysicsTuning
+	var edge: float = physics.cube_size - physics.cube_margin
+	var built: Array[Block] = []
+	for i: int in range(count):
+		for column: Vector2 in TOWER_FOOTPRINT:
+			var block: Block = BlockFactory.build(shape, physics)
+			_root.add_child(block)
+			block.global_position = Vector3(column.x * (edge + TOWER_GAP_M), edge * 0.5 + edge * float(i), column.y * (edge + TOWER_GAP_M))
+			_blocks.append(block)
+			if column == TOWER_FOOTPRINT[0]:
+				built.append(block)
+	return built
+
+
+## Largest horizontal displacement of the tower's top over one gust (or none).
+func _top_sway(count: int, with_gust: bool, center_height: float) -> float:
+	_tall_field()
+	var tower: Array[Block] = _real_tower(count)
+	for _i: int in range(TALL_SETTLE_TICKS):
+		await get_tree().physics_frame
+	var top: Block = tower[count - 1]
+	var start: Vector3 = top.global_position
+	var effect: BreezeEffect = _effect(_quiet_tuning())
+	effect.begin(SEED_A)
+	if with_gust:
+		var duration: float = (_tuning.duration_min_s + _tuning.duration_max_s) * 0.5
+		var radius: float = (_tuning.radius_min_m + _tuning.radius_max_m) * 0.5
+		effect.gusts().append({"id": 1, "x": 0.0, "y": center_height, "z": 0.0, "a": 0.0, "r": radius, "d": duration, "s": 1.0, "age": 0.0})
+	var moved: float = 0.0
+	for _i: int in range(int((_tuning.duration_max_s + 3.0) * 60.0)):
+		effect.tick(DELTA)
+		await get_tree().physics_frame
+		if not is_instance_valid(top):
+			return INF
+		moved = maxf(moved, Vector2(top.global_position.x - start.x, top.global_position.z - start.z).length())
+	return moved
+
+
+func test_a_gust_visibly_sways_a_tall_tower() -> void:
+	var quiet: float = await _top_sway(TALL_TOWER_CUBES, false, GUST_CENTER_HEIGHT_M)
+	for block: Block in _blocks:
+		block.free()
+	_blocks.clear()
+	var gusted: float = await _top_sway(TALL_TOWER_CUBES, true, GUST_CENTER_HEIGHT_M)
+	gut.p("tall tower top sway: quiet %.2f m, gusted %.2f m" % [quiet, gusted])
+	assert_gt(gusted, quiet + MIN_SWAY_M, "a gust moves a 48 m tower's top")
+
+
+func test_gust_visual_travels_along_the_physics_heading() -> void:
+	var straight: BreezeTuning = _tuning.duplicate() as BreezeTuning
+	straight.swirl_deg = 0.0
+	for angle: float in [0.0, 1.0, 2.5, -2.0, 4.0]:
+		var gust: Dictionary = {"id": 3, "x": 0.0, "y": HIGH_M, "z": 0.0, "a": angle, "r": 6.0, "d": 4.0, "s": 1.0}
+		var visual: GustPresentation = GustPresentation.new()
+		visual.configure(gust, straight)
+		add_child_autofree(visual)
+		var drawn: Vector3 = visual.material().get_shader_parameter(&"heading") as Vector3
+		var pushed: Vector3 = BreezeField.gust_accel(gust, 2.0, Vector3(0.0, HIGH_M, 0.0), 0.0, DELTA, straight)
+		assert_gt(pushed.length(), 0.0)
+		assert_lt(drawn.distance_to(pushed.normalized()), 0.001, "visual heading equals the push at angle %.1f" % angle)
+		var field: Vector2 = BreezeField.heading(angle)
+		assert_lt(drawn.distance_to(Vector3(field.x, 0.0, field.y)), 0.001)
+
+
+func test_shipped_swirl_keeps_the_push_near_the_visual_heading() -> void:
+	assert_lte(_tuning.swirl_deg, 15.0, "swirl may only nudge blocks off the drawn heading")
+
+
+func test_a_short_stack_barely_notices_a_gust() -> void:
+	var sway: float = await _top_sway(SHORT_TOWER_CUBES, true, float(SHORT_TOWER_CUBES) * 0.5)
+	assert_lt(sway, MAX_SHORT_SWAY_M, "a 4 m stack stays put (%.3f m)" % sway)
 
 
 # --- Spawning ------------------------------------------------------------------------

@@ -30,6 +30,17 @@ func configure(gust: Dictionary, tuning: BreezeTuning) -> void:
 	_tuning = tuning
 
 
+## World-space unit vector the strokes travel along: the gust's wire heading,
+## the same vector BreezeField.push_direction turns (by swirl_deg) for physics.
+static func travel_direction(gust: Dictionary) -> Vector3:
+	var heading: Vector2 = BreezeField.heading(float(gust["a"]))
+	return Vector3(heading.x, 0.0, heading.y)
+
+
+func material() -> ShaderMaterial:
+	return _material
+
+
 func streak_count() -> int:
 	return _instance.multimesh.instance_count if _instance != null else 0
 
@@ -123,9 +134,8 @@ func _ready() -> void:
 			index += 1
 	_material = ShaderMaterial.new()
 	_material.shader = SHADER
-	var angle: float = float(_gust["a"])
 	_material.set_shader_parameter(&"center", Vector3(float(_gust["x"]), float(_gust["y"]), float(_gust["z"])))
-	_material.set_shader_parameter(&"heading", Vector3(cos(angle), 0.0, sin(angle)))
+	_material.set_shader_parameter(&"heading", travel_direction(_gust))
 	_material.set_shader_parameter(&"radius", float(_gust["r"]))
 	_material.set_shader_parameter(&"length_m", _tuning.gust_streak_length_m)
 	_material.set_shader_parameter(&"width_m", _tuning.gust_streak_width_m)
