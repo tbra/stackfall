@@ -1,0 +1,1 @@
+# Editable Blender source stays in Git but outside Godot's asset import scan.
