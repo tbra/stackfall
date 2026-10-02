@@ -397,6 +397,11 @@ extends Resource
 ## Metres per second the raise decays back to the player's own hover once the
 ## lower pose is clear.
 @export var spawn_clearance_decay_speed: float = 2.0
+## Bontago-1pi.24 (owner: "don't count the dropped block until it's settled
+## ... small delay"): longest wait, seconds, for the block a new piece loads
+## inside to come to rest before the spawn clearance decides whether to raise
+## it. A block that falls clear of the new piece never raises it.
+@export var spawn_clearance_settle_timeout_s: float = 2.5
 
 ## Owner 2026-09-27 (Bontago-1pi.4 playtest: "Camera did not stay put. Just
 ## disable the clear stack feature for now"): master switch for the raise
