@@ -10,7 +10,7 @@ from unittest import mock
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import integrate_batch as ib  # noqa: E402
 
-GREEN = "FULL GATE GREEN: 10/10 passing\n"
+GREEN = "FULL GATE GREEN: 10/10 passing, 1 shards, 5s; failing=none parallel_flaky=none harness=none; out=/tmp/gate_output\n"
 
 
 class Fake:
@@ -71,6 +71,12 @@ class Tests(unittest.TestCase):
         self.assertEqual(ib.parse_verdict("FULL GATE ERROR: no tests\n"), "RED")
         self.assertEqual(ib.parse_verdict("FULL GATE RED\nFULL GATE GREEN\n"), "RED")
         self.assertEqual(ib.parse_verdict("all tests passed, no verdict"), "RED")
+
+    def test_extract_out_path(self):
+        self.assertEqual(ib.extract_out_path("FULL GATE GREEN: 10/10 passing, 1 shards, 5s; failing=none parallel_flaky=none harness=none; out=/tmp/test"), "/tmp/test")
+        self.assertEqual(ib.extract_out_path("FULL GATE GREEN: 10/10 passing, 1 shards, 5s; failing=none parallel_flaky=none harness=none; out=/tmp/test\n"), "/tmp/test")
+        self.assertEqual(ib.extract_out_path("FULL GATE GREEN: no out field"), None)
+        self.assertEqual(ib.extract_out_path(""), None)
 
     def test_missing_verdict_is_red_and_stops_before_ff(self):
         fake = Fake({"gate": (0, "Totals ... exit 0 but no verdict line")})
@@ -146,6 +152,51 @@ class Tests(unittest.TestCase):
                 return Fake.__call__(s, ctx, name, args, cwd, timeout)
         err, _, _ = run(Imp())
         self.assertEqual(err.step, "import")
+
+    def test_gate_output_copied_before_cleanup(self):
+        """Test that gate output directory is copied to log_dir before worktree removal."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a fake gate output directory
+            gate_src = os.path.join(tmpdir, "src_gate_output")
+            os.makedirs(gate_src)
+            with open(os.path.join(gate_src, "test.log"), "w") as f:
+                f.write("test output")
+
+            gate_output_txt = (
+                "FULL GATE GREEN: 10/10 passing, 1 shards, 5s; "
+                "failing=none parallel_flaky=none harness=none; out=%s\n" % gate_src
+            )
+
+            log_dir = os.path.join(tmpdir, "logs")
+            os.makedirs(log_dir)
+
+            fake = Fake({"gate": (0, gate_output_txt)})
+            err, out, _ = run(fake, log_dir=log_dir)
+
+            self.assertIsNone(err)
+            # Verify the gate output was copied to log_dir/gate_output/
+            copied_path = os.path.join(log_dir, "gate_output")
+            self.assertTrue(os.path.isdir(copied_path))
+            self.assertTrue(os.path.isfile(os.path.join(copied_path, "test.log")))
+            # Verify the status line mentions the new location
+            status_lines = [l for l in out if "gate" in l.lower()]
+            self.assertTrue(any("preserved in" in l for l in status_lines))
+
+    def test_gate_output_copy_failure_warns_but_succeeds(self):
+        """Test that gate output copy failure doesn't fail the integration."""
+        gate_output_txt = (
+            "FULL GATE GREEN: 10/10 passing, 1 shards, 5s; "
+            "failing=none parallel_flaky=none harness=none; out=/nonexistent/path\n"
+        )
+
+        fake = Fake({"gate": (0, gate_output_txt)})
+        err, out, _ = run(fake)
+
+        # Should succeed despite copy failure
+        self.assertIsNone(err)
+        # Should print a warning
+        warning_lines = [l for l in out if "warning" in l.lower()]
+        self.assertTrue(warning_lines)
 
     def test_merge_message_and_trailer(self):
         self.assertEqual(ib.merge_subject("wt/fca.7-x", ["Bontago-fca.11", "Bontago-fca.7"]), "Merge wt/fca.7-x (Bontago-fca.7)")
