@@ -44,12 +44,16 @@ def cap(title: str, label: str, trigger: bool = False) -> str:
                if trigger else '<rect x="4" y="11" width="56" height="43" rx="13" ')
     profile += f'fill="{PAPER}" stroke="{INK}" stroke-width="3"/>'
     baseline = f'<path d="M7 43h50" fill="none" stroke="{INK}" stroke-width="3" stroke-linecap="round"/>'
-    if label == "RB":
-        text = '<path d="M16 42V22h9q8 0 8 6 0 5-6 6l7 8M16 33h10M40 22v20h8q7 0 7-5 0-4-6-5 5-1 5-5 0-5-7-5Z" fill="none" stroke="#26323A" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>'
-    elif label == "LT":
-        text = '<path d="M15 22v20h17M35 22h19M44 22v20" fill="none" stroke="#26323A" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>'
-    else:
-        text = '<path d="M12 42V22h9q8 0 8 6 0 5-6 6l7 8M12 33h10M34 22h19M43 22v20" fill="none" stroke="#26323A" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>'
+    # Filled letterforms inside y 20-38, matching the hand-drawn gamepad_lb.svg
+    # (stroked letters crossed the y=43 lip and read as a different family).
+    letters = {
+        "L": "M16 20v18h12v-4h-7V20Z",
+        "R": "M14 20v18h5v-7h2.5l5 7h5.5l-5.6-7.7q4.6-1.3 4.6-5.3 0-5-7-5Zm5 4h3q3 0 3 2.5 0 2.5-3 2.5h-3Z",
+        "B": "M35 20v18h9q7 0 7-5 0-3-3-4 2-1 2-4 0-5-7-5Zm5 4h3q2 0 2 2 0 1-2 1h-3Zm0 7h3q3 0 3 2 0 2-3 2h-3Z",
+        "T": "M35 20h16v4.5h-5.5V38h-5V24.5H35Z",
+    }
+    shift = {"LT": " transform=\"translate(-1 0)\""}.get(label, "")
+    text = f'<path d="{letters[label[0]]}{letters[label[1]]}" fill="{INK}"{shift}/>'
     return wrap(title, profile + baseline + text)
 
 
