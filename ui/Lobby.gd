@@ -214,6 +214,16 @@ var _applying_remote_data: bool = false
 ## Game mode the timer control currently describes (Bontago-6fc.1).
 const TIMER_TIP_MATCH: String = "Optional time limit. Off: the match runs until a team holds every goal. With sudden death on, the arena shrinks when time is up."
 const TIMER_TIP_ROUND: String = "How long the round lasts; when it ends the highest score wins. Elimination can run with no limit."
+## Bontago-1pi.25.1: one-line description per mode (tooltip on the mode picker),
+## indexed by MatchConfig.GameMode.
+const MODE_TIPS: PackedStringArray = [
+	"Hold every goal flag to win.",
+	"Hold beacons to score; the highest score wins when the round ends.",
+	"Knock out every other team's home flag; the last team standing wins.",
+	"Build the tallest tower; the highest block wins when the round ends.",
+	"Control the biggest territory when the round timer ends; a timer is always on.",
+]
+const TIMER_TIP_DOMINATION: String = "How long the round lasts; when it ends the largest territory share wins. Domination always has a timer."
 var _timer_mode: int = MatchConfig.GameMode.CLASSIC
 var _last_config: MatchConfig = null
 
@@ -902,7 +912,8 @@ func _refresh_timer_control(mode: int) -> void:
 	_applying_remote_data = was_applying
 	_round_timer_caption.text = "Round length (minutes)"
 	_match_timer_col.tooltip_text = TIMER_TIP_MATCH
-	_round_timer_col.tooltip_text = TIMER_TIP_ROUND
+	_round_timer_col.tooltip_text = TIMER_TIP_DOMINATION if mode == MatchConfig.GameMode.DOMINATION else TIMER_TIP_ROUND
+	_game_mode_option.tooltip_text = MODE_TIPS[mode] if mode >= 0 and mode < MODE_TIPS.size() else ""
 	_update_timer_hints()
 	if not _main_chain.is_empty():
 		_wire_loop(_visible_chain(_main_chain))
@@ -917,6 +928,8 @@ func _update_timer_hints() -> void:
 	var round_minutes: int = int(_round_timer_spin.value)
 	if round_minutes == 0:
 		_round_timer_hint.text = "No limit"
+	elif _timer_mode == MatchConfig.GameMode.DOMINATION:
+		_round_timer_hint.text = "%d min (required)" % round_minutes
 	else:
 		_round_timer_hint.text = "%d min" % round_minutes
 

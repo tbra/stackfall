@@ -306,3 +306,22 @@ func test_gamepad_b_closes_the_settings_panel_via_real_binding() -> void:
 	_screen._unhandled_input(event)
 
 	assert_false(_screen._settings_panel.visible, "gamepad B must close the settings panel.")
+
+
+# --- Bontago-1pi.25.1 Domination ---------------------------------------------
+
+func test_domination_results_show_shares_and_winners() -> void:
+	var results: Dictionary = _team_results()
+	results["mode"] = {"mode_id": MatchConfig.GameMode.DOMINATION, "scores": [0.4, 0.6], "winners": "1"}
+	var text: String = ResultsScreen.mode_outcome_text(results)
+	assert_true(text.find("Domination") >= 0 and text.find("60%") >= 0 and text.find("40%") >= 0)
+	assert_eq(ResultsScreen.winner_ids(results), PackedInt32Array([1]))
+
+
+func test_domination_early_end_falls_back_to_the_finish_winner() -> void:
+	var results: Dictionary = _team_results()
+	results["mode"] = {"mode_id": MatchConfig.GameMode.DOMINATION, "scores": [0.4, 0.6], "winners": ""}
+	assert_eq(ResultsScreen.winner_ids(results), PackedInt32Array([1]), "empty winners -> winner_id")
+	var rows: Array[Dictionary] = ResultsScreen.sorted_rows(results)
+	assert_eq(int(rows[0].get("team_id")), 1)
+	assert_true(bool(rows[0].get("is_winner")))

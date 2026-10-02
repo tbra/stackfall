@@ -228,3 +228,30 @@ func test_mid_join_toggle_sits_after_turn_based_in_the_popup_focus_loop() -> voi
 	assert_gt(turn, -1)
 	assert_eq(mid, turn + 1)
 	assert_eq(popup_shown.find(lobby.get_node("%AdvancedPopupClose")), mid + 1)
+
+
+# --- Bontago-1pi.25.1 Domination --------------------------------------------
+
+func test_lobby_forces_a_timer_for_domination() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var spin: SpinBox = lobby.get_node("%RoundTimerSpin")
+	_pick_mode(lobby, MatchConfig.GameMode.ELIMINATION)
+	assert_eq(spin.value, 0.0)
+	_pick_mode(lobby, MatchConfig.GameMode.DOMINATION)
+	assert_true((lobby.get_node("%RoundTimerCol") as Control).visible)
+	assert_eq(spin.min_value, float(MatchConfig.ROUND_TIMER_MIN_MINUTES), "cannot be set to off")
+	assert_eq(spin.value, float(MatchConfig.DOMINATION_ROUND_MINUTES_DEFAULT))
+	spin.value = 0
+	assert_gte(spin.value, 1.0)
+	var fake: FakeNet = lobby.net_provider as FakeNet
+	assert_gte(int(fake.set_lobby_data_calls[-1]["round_timer_minutes"]), 1)
+	assert_true((lobby.get_node("%RoundTimerHint") as Label).text.find("required") >= 0)
+	assert_false((lobby.get_node("%GameModeOption") as OptionButton).tooltip_text.is_empty(), "mode description")
+
+
+func test_bot_goal_is_a_territory_objective_in_domination() -> void:
+	Match.start_match(_config(MatchConfig.GameMode.DOMINATION))
+	var goal: BotModeGoal = Match.bot_mode_goal(0)
+	assert_not_null(goal)
+	assert_eq(goal.mode, MatchConfig.GameMode.DOMINATION)
+	assert_true(goal.own_team_leads, "no territory yet: nobody to contest")

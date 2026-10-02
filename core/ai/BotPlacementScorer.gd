@@ -220,7 +220,34 @@ static func _mode_term(
 			return _sky_term(candidate, grid, mode_goal, tuning)
 		MatchConfig.GameMode.ELIMINATION:
 			return _elimination_term(candidate, mode_goal, enemy_circle_centers, territory_tuning, tuning, field_radius)
+		MatchConfig.GameMode.DOMINATION:
+			return _domination_term(candidate, mode_goal, territory_tuning, tuning, field_radius)
 	return 0.0
+
+
+## Domination (Bontago-1pi.25.1). DECISION: the largest territory share wins, so
+## the bot rewards the candidate's future influence radius (own territory growth,
+## the same estimate Elimination uses) and, while its team is not leading,
+## pulls towards the leader's territory: distance to the nearest leader sample
+## point minus that radius, floored at 0 (an overlapping circle already contests).
+static func _domination_term(
+	candidate: BotCandidate,
+	mode_goal: BotModeGoal,
+	territory_tuning: TerritoryTuning,
+	tuning: BotTuning,
+	field_radius: float
+) -> float:
+	if territory_tuning == null:
+		return 0.0
+	var estimated_height: float = candidate.support_height + candidate.shape_height
+	var radius: float = InfluenceCircle.radius_for_height(estimated_height, territory_tuning, field_radius)
+	var term: float = tuning.weight_dom_grow * radius
+	if not mode_goal.own_team_leads and not mode_goal.leader_points.is_empty():
+		var nearest: float = INF
+		for point: Vector2 in mode_goal.leader_points:
+			nearest = minf(nearest, candidate.origin.distance_to(point))
+		term -= tuning.weight_dom_contest * maxf(nearest - radius, 0.0)
+	return term
 
 
 ## Elimination (Bontago-1t5.3 phase B). DECISION: a home falls when an enemy
