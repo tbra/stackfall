@@ -142,6 +142,8 @@ const PAGE_HOME: int = 0
 const PAGE_JOIN: int = 1
 const PAGE_LOCAL: int = 2
 var _page: int = PAGE_HOME
+var _regular_card_style: StyleBoxFlat
+var _join_card_style: StyleBoxFlat
 var _join_steam_tab: bool = false
 var _host_dialog: ConfirmationDialog = null
 var _host_steam_choice: Button = null
@@ -181,7 +183,7 @@ func _ready() -> void:
 	_apply_visual_style()
 	_build_host_dialog()
 	_apply_steam_availability()
-	get_viewport().size_changed.connect(_refresh_compact_layout)
+	get_viewport().size_changed.connect(_refresh_layout)
 	_set_page(PAGE_HOME)
 
 
@@ -268,7 +270,14 @@ func _apply_visual_style() -> void:
 	_name_label.add_theme_color_override("font_color", tuning.label_muted_color)
 	_join_label.add_theme_color_override("font_color", tuning.label_muted_color)
 
-	_front_card.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(tuning.card_cream_color, tuning))
+	_regular_card_style = MenuStyleFactory.make_card(tuning.card_cream_color, tuning)
+	_join_card_style = _regular_card_style.duplicate() as StyleBoxFlat
+	_join_card_style.set_content_margin_all(tuning.menu_compact_card_margin_px)
+	_front_card.add_theme_stylebox_override("panel", _regular_card_style)
+	_front_card.custom_minimum_size.x = tuning.menu_card_width_px
+	$Center/Panel/Layout.add_theme_constant_override("separation", tuning.menu_separation_px)
+	_game_list_stack.custom_minimum_size.y = tuning.menu_lan_list_height_px
+	_steam_list_stack.custom_minimum_size.y = tuning.menu_steam_list_height_px
 	_shadow_apricot.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(tuning.card_shadow_apricot_color, tuning))
 	_shadow_mint.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(tuning.card_shadow_mint_color, tuning))
 	_front_card.resized.connect(_sync_shadow_card_sizes)
@@ -301,6 +310,12 @@ func _apply_visual_style() -> void:
 	MenuStyleFactory.apply_pill(_tutorial_button, tuning.pill_powder_blue_color, tuning.pill_powder_blue_hover_color, tuning.ink_color, tuning)
 	MenuStyleFactory.apply_pill(_options_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
 	MenuStyleFactory.apply_pill(_quit_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
+	# SVG icons import at a large intrinsic size. Let Join controls scale the
+	# icon into a tuned row height so the full page fits the visible canvas.
+	for button: Button in [_join_lan_tab_button, _join_steam_tab_button,
+			_refresh_button, _refresh_steam_button, _direct_join_button, _back_button]:
+		button.expand_icon = true
+		button.custom_minimum_size.y = tuning.menu_compact_button_height_px
 	# DECISION: monochrome SVGs take the same ink as their button label, so
 	# cream and pastel pills retain contrast without a second asset set.
 	for button: Button in [_join_button, _join_lan_tab_button, _join_steam_tab_button,
@@ -406,13 +421,20 @@ func _on_bots_pressed() -> void:
 ## screen that also fits smaller viewports.
 func _set_page(page: int) -> void:
 	_page = page
+	var join_page: bool = page == PAGE_JOIN
+	_front_card.add_theme_stylebox_override("panel", _join_card_style if join_page else _regular_card_style)
+	$Center/Panel/Layout.add_theme_constant_override("separation", tuning.menu_compact_separation_px if join_page else tuning.menu_separation_px)
+	_game_list_stack.custom_minimum_size.y = tuning.menu_compact_list_height_px if join_page else tuning.menu_lan_list_height_px
+	_steam_list_stack.custom_minimum_size.y = tuning.menu_compact_list_height_px if join_page else tuning.menu_steam_list_height_px
+	_title_wrap.visible = not join_page
+	_tagline.visible = not join_page
 	_host_row.visible = page == PAGE_HOME
 	_host_online_button.hide()
 	_join_tab_row.visible = page == PAGE_JOIN
 	_join_steam_tab_button.disabled = not bool(net_provider.steam_available())
 	_steam_section.visible = page == PAGE_JOIN and _join_steam_tab and bool(net_provider.steam_available())
 	_lan_games_well.visible = page == PAGE_JOIN and not _join_steam_tab
-	_refresh_compact_layout()
+	_refresh_layout()
 	_play_local_button.visible = page == PAGE_HOME
 	_options_button.visible = page == PAGE_HOME
 	_quit_button.visible = page == PAGE_HOME
@@ -440,12 +462,13 @@ func _set_page(page: int) -> void:
 
 ## Compact Join keeps its controls on screen at a small window size without
 ## shrinking fonts. Home and Play local keep the wordmark at every size.
-func _refresh_compact_layout() -> void:
-	var compact: bool = get_viewport().get_visible_rect().size.y < 600.0 and _page == PAGE_JOIN
-	_title_wrap.visible = not compact
-	_tagline.visible = not compact
-	_game_list_stack.custom_minimum_size.y = 60.0 if compact else 92.0
-	_steam_list_stack.custom_minimum_size.y = 50.0 if compact else 61.0
+func _refresh_layout() -> void:
+	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+	# DECISION (Bontago-mp0.11): ultrawide composition centers the card;
+	# regular aspect ratios leave space for the diorama on the right.
+	var wide: bool = viewport_size.x / viewport_size.y > 2.0
+	_center.anchor_left = tuning.menu_wide_anchor_left if wide else 0.0
+	_center.anchor_right = tuning.menu_wide_anchor_right if wide else 0.51
 
 
 func _on_sandbox_pressed() -> void:

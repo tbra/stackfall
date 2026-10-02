@@ -90,6 +90,15 @@ static func make_render_viewport(parent: Node, fallback: Vector2i) -> SubViewpor
 		size = fallback
 	var vp: SubViewport = SubViewport.new()
 	vp.size = size
+	# Match project.godot canvas_items/expand: height sets the UI scale, while
+	# wider or taller windows expose more logical canvas on the other axis.
+	var base: Vector2i = Vector2i(
+		int(ProjectSettings.get_setting("display/window/size/viewport_width", 1280)),
+		int(ProjectSettings.get_setting("display/window/size/viewport_height", 720)))
+	if size.x > 0 and size.y > 0 and base.x > 0 and base.y > 0:
+		var scale_factor: float = minf(float(size.x) / base.x, float(size.y) / base.y)
+		vp.size_2d_override = Vector2i(roundi(size.x / scale_factor), roundi(size.y / scale_factor))
+		vp.size_2d_override_stretch = true
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	# Share the root world: a bare SubViewport has no World3D, which breaks
 	# get_viewport().world_3d users (raycasts, DiscMirror).

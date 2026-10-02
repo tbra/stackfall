@@ -33,7 +33,6 @@ grow_vertical = 2
 [node name="Card" type="PanelContainer" parent="Center"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(760, 0)
 
 [node name="Layout" type="VBoxContainer" parent="Center/Card"]
 layout_mode = 2
@@ -48,8 +47,9 @@ text = "Player wins!"
 
 [node name="TableScroll" type="ScrollContainer" parent="Center/Card/Layout"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 260)
 size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 1
 
 [node name="RowsList" type="VBoxContainer" parent="Center/Card/Layout/TableScroll"]
 unique_name_in_owner = true
