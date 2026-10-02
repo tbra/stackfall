@@ -184,6 +184,7 @@ func _ready() -> void:
 	_build_host_dialog()
 	_apply_steam_availability()
 	get_viewport().size_changed.connect(_refresh_layout)
+	_front_card.minimum_size_changed.connect(_refresh_layout)
 	_set_page(PAGE_HOME)
 
 
@@ -469,6 +470,14 @@ func _refresh_layout() -> void:
 	var wide: bool = viewport_size.x / viewport_size.y > 2.0
 	_center.anchor_left = tuning.menu_wide_anchor_left if wide else 0.0
 	_center.anchor_right = tuning.menu_wide_anchor_right if wide else 0.51
+	# DECISION (Bontago-mp0.18): the card's minimum width (icon buttons) can
+	# exceed the anchored column, and a CenterContainer then pushes it off the
+	# left edge. Keep a tunable left margin and widen the column to fit.
+	var margin: float = tuning.menu_card_left_margin_px
+	var card_width: float = _front_card.get_combined_minimum_size().x
+	var column_right: float = _center.anchor_right * viewport_size.x
+	_center.offset_left = margin
+	_center.offset_right = maxf(0.0, margin + card_width - column_right)
 
 
 func _on_sandbox_pressed() -> void:

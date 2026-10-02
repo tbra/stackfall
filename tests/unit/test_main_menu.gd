@@ -286,3 +286,19 @@ func test_gamepad_a_activates_the_focused_host_button() -> void:
 	await get_tree().process_frame
 	assert_true(menu._host_dialog.visible, "gamepad A on Host must open its transport choices.")
 	assert_eq(_fake_of(menu).host_game_calls.size(), 0, "hosting needs an explicit transport choice.")
+
+
+## Bontago-mp0.18: the card's minimum width exceeds the anchored column at
+## 16:9, which used to push it off the left edge.
+func test_front_card_keeps_left_margin_at_1280x720() -> void:
+	var viewport: SubViewport = SubViewport.new()
+	viewport.size = Vector2i(1280, 720)
+	add_child_autofree(viewport)
+	var scene: PackedScene = load("res://ui/MainMenu.tscn")
+	var menu: MainMenu = scene.instantiate()
+	menu.net_provider = FakeNet.new()
+	viewport.add_child(menu)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_gte(menu._front_card.get_global_rect().position.x, menu.tuning.menu_card_left_margin_px - 0.5)
