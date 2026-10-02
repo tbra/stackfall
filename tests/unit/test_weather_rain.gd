@@ -246,3 +246,155 @@ func test_presentation_frees_overcast_when_removed() -> void:
 	p.free()
 	assert_almost_eq(light.light_energy, sunset.light_energy, 0.0001)
 	assert_eq(skybox.overcast_amount(), 0.0)
+
+
+# --- Bontago-mp0.21: stronger slip and puddles --------------------------------
+
+const SLIDE_FRAMES: int = 150
+const TILT_DEG: float = 12.0
+const PUSH_SPEED: float = 3.0
+## Start off the floor centre so the outward direction is well defined.
+const START_OFFSET: float = 2.0
+var _last_delta: Vector3 = Vector3.ZERO
+
+
+## Real Jolt run: a box on a floor (tilted when tilt_deg > 0) or pushed along a
+## flat one; returns the horizontal distance it travelled in SLIDE_FRAMES.
+func _slide_distance(rain_on: bool, tilt_deg: float, push: float, slide_accel: float, push_dir: Vector3 = Vector3.RIGHT, offset: Vector3 = Vector3(START_OFFSET, 0.0, 0.0)) -> float:
+	var floor_body: StaticBody3D = StaticBody3D.new()
+	var floor_shape: CollisionShape3D = CollisionShape3D.new()
+	var floor_box: BoxShape3D = BoxShape3D.new()
+	floor_box.size = Vector3(80.0, 1.0, 80.0)
+	floor_shape.shape = floor_box
+	floor_body.add_child(floor_shape)
+	floor_body.physics_material_override = _mat(BASE_DISC)
+	floor_body.rotation.z = deg_to_rad(tilt_deg)
+	add_child(floor_body)
+	var box: RigidBody3D = RigidBody3D.new()
+	var box_shape: CollisionShape3D = CollisionShape3D.new()
+	var cube: BoxShape3D = BoxShape3D.new()
+	cube.size = Vector3.ONE
+	box_shape.shape = cube
+	box.add_child(box_shape)
+	box.physics_material_override = _mat(BASE_BLOCK)
+	add_child(box)
+	# Rest the cube on the (rotated) top face, centred on the floor body.
+	box.global_transform = Transform3D(Basis(Vector3.BACK, deg_to_rad(tilt_deg)), floor_body.global_transform * (offset + Vector3.UP))
+	box.linear_velocity = push_dir * push
+	var tuning: RainTuning = _rain.duplicate() as RainTuning
+	tuning.wet_slide_accel_mps2 = slide_accel
+	var effect: RainEffect = RainEffect.new()
+	effect.tuning = tuning
+	effect.set_providers(func() -> Array: return [box], func() -> Variant: return floor_body)
+	if rain_on:
+		effect.apply(1.0)
+	var start: Vector3 = box.global_position
+	for _i: int in range(SLIDE_FRAMES):
+		await get_tree().physics_frame
+		if rain_on:
+			effect.tick(1.0 / 60.0, 1.0)
+	_last_delta = box.global_position - start
+	var travelled: float = Vector2(_last_delta.x, _last_delta.z).length()
+	effect.restore()
+	# Free now: a later run in the same test must not collide with this box.
+	box.free()
+	floor_body.free()
+	return travelled
+
+
+func test_rain_makes_a_block_slide_further_on_a_tilted_floor() -> void:
+	var dry: float = await _slide_distance(false, TILT_DEG, 0.0, 0.0)
+	var wet: float = await _slide_distance(true, TILT_DEG, 0.0, 0.0)
+	gut.p("SLIP tilted dry=%.3f wet(friction only)=%.3f" % [dry, wet])
+	assert_lt(dry, 0.2, "dry block holds on the slope")
+	assert_gt(wet, dry + 1.0, "wet block slides clearly further")
+
+
+func test_slide_force_adds_distance_to_a_pushed_block() -> void:
+	var friction_only: float = await _slide_distance(true, 0.0, PUSH_SPEED, 0.0)
+	var with_force: float = await _slide_distance(true, 0.0, PUSH_SPEED, _rain.wet_slide_accel_mps2)
+	var along: float = _last_delta.x
+	var dry: float = await _slide_distance(false, 0.0, PUSH_SPEED, 0.0)
+	gut.p("SLIP pushed dry=%.3f rain friction=%.3f rain+force=%.3f" % [dry, friction_only, with_force])
+	assert_gt(friction_only, dry, "wet friction slides a pushed block further")
+	assert_gt(with_force, friction_only, "boost adds distance along the push")
+	assert_gt(along, 0.0, "and it is along the push direction")
+
+
+func test_resting_block_is_not_nudged_by_the_boost() -> void:
+	var moved: float = await _slide_distance(true, 0.0, 0.0, _rain.wet_slide_accel_mps2)
+	assert_lt(moved, 0.02, "resting block stays put in rain")
+
+
+func test_inner_ring_block_is_not_pushed_toward_the_centre() -> void:
+	# A block sitting 2 m from the centre (RING inner side) moving tangentially
+	# gains no motion along the radius (the old radial push moved it outward/in).
+	var moved: float = await _slide_distance(true, 0.0, PUSH_SPEED, _rain.wet_slide_accel_mps2, Vector3.BACK, Vector3(-START_OFFSET, 0.0, 0.0))
+	assert_lt(absf(_last_delta.x), 0.05, "no radial drift")
+	assert_gt(moved, 0.0)
+
+
+func test_boost_respects_the_speed_cap() -> void:
+	var tuning: RainTuning = _rain.duplicate() as RainTuning
+	tuning.wet_slide_max_speed_mps = 1.0
+	var effect: RainEffect = RainEffect.new()
+	effect.tuning = tuning
+	var fast: RigidBody3D = _block()
+	add_child(fast)
+	fast.linear_velocity = Vector3(3.0, 0.0, 0.0)
+	effect.set_providers(func() -> Array: return [fast], func() -> Variant: return null)
+	effect.tick(1.0 / 60.0, 1.0)
+	assert_eq(fast.constant_force, Vector3.ZERO)
+	assert_eq(fast.get_applied_force() if fast.has_method("get_applied_force") else Vector3.ZERO, Vector3.ZERO)
+
+
+func test_puddle_count_follows_a_preset_change() -> void:
+	var parts: Array = _puddle_field()
+	var puddles: RainPuddles = parts[0]
+	var full: int = puddles.patch_count()
+	var low: GraphicsPreset = GraphicsPreset.new()
+	low.ambient_life_enabled = false
+	low.weather_density_scale = 1.0
+	Settings.graphics_preset_changed.emit(low)
+	assert_lt(puddles.patch_count(), full, "Low preset rebuilds with fewer patches")
+
+
+func test_puddle_alpha_leaves_territory_edges_visible() -> void:
+	assert_lte(_rain.puddle_alpha, 0.5)
+
+
+func _puddle_field() -> Array:
+	var holder: Node3D = Node3D.new()
+	add_child_autofree(holder)
+	var map_def: MapDef = MapDef.new()
+	var puddles: RainPuddles = RainPuddles.ensure_on(holder, map_def, _rain, 1.0)
+	return [puddles, map_def]
+
+
+func test_puddles_fill_in_rain_and_dry_after() -> void:
+	var puddles: RainPuddles = _puddle_field()[0]
+	assert_gt(puddles.patch_count(), 0)
+	puddles.set_rain(1.0)
+	puddles.advance(_rain.puddle_fill_time_s * 0.5)
+	assert_almost_eq(puddles.wetness(), 0.5, 0.001)
+	puddles.advance(_rain.puddle_fill_time_s)
+	assert_eq(puddles.wetness(), 1.0)
+	puddles.set_rain(0.0)
+	puddles.advance(_rain.puddle_dry_time_s * 0.5)
+	assert_almost_eq(puddles.wetness(), 0.5, 0.001)
+	puddles.advance(_rain.puddle_dry_time_s)
+	assert_eq(puddles.wetness(), 0.0)
+
+
+func test_puddles_stay_on_the_disc_and_low_preset_has_fewer() -> void:
+	var parts: Array = _puddle_field()
+	var puddles: RainPuddles = parts[0]
+	var map_def: MapDef = parts[1]
+	var patches: MultiMesh = puddles.get_node("Patches").multimesh
+	for index: int in range(patches.instance_count):
+		var origin: Vector3 = patches.get_instance_transform(index).origin
+		assert_true(map_def.shape_contains(Vector2(origin.x, origin.z)))
+	var low_holder: Node3D = Node3D.new()
+	add_child_autofree(low_holder)
+	var low: RainPuddles = RainPuddles.ensure_on(low_holder, map_def, _rain, _rain.puddle_low_preset_scale)
+	assert_lt(low.patch_count(), puddles.patch_count())

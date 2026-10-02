@@ -8,17 +8,50 @@ extends WeatherTuning
 @export_group("Physics")
 ## Friction multiplier on every block at full intensity (1.0 = no change).
 ## friction = baseline * lerp(1, wet_block_friction_factor, intensity).
-@export_range(0.0, 1.0, 0.01) var wet_block_friction_factor: float = 0.35
+@export_range(0.0, 1.0, 0.01) var wet_block_friction_factor: float = 0.18
 ## Same for the disc's top surface.
-@export_range(0.0, 1.0, 0.01) var wet_disc_friction_factor: float = 0.4
+@export_range(0.0, 1.0, 0.01) var wet_disc_friction_factor: float = 0.22
 ## Friction never drops below this (a body must never become a perfect ice).
-@export_range(0.0, 1.0, 0.01) var min_friction: float = 0.05
+@export_range(0.0, 1.0, 0.01) var min_friction: float = 0.03
 ## Skip a friction rewrite when the intensity moved less than this since the
 ## last write (the framework also gates by weather_schedule.intensity_epsilon).
 @export_range(0.0, 0.2, 0.001) var apply_epsilon: float = 0.01
 ## Seconds between scans for blocks spawned while it rains (they get wet
 ## within this delay; no per-block signal or contact monitor is used).
 @export_range(0.05, 5.0, 0.05) var rescan_interval_s: float = 0.25
+
+## DECISION (Bontago-mp0.21): Jolt cannot do negative friction, so while it
+## rains every awake block already sliding also gets a force along its own
+## horizontal velocity (never radial, so RING/TWIN maps are not biased).
+## Acceleration in m/s^2 at full intensity; 0 turns it off.
+@export_range(0.0, 4.0, 0.05) var wet_slide_accel_mps2: float = 0.5
+## Horizontal speed (m/s) a block must exceed to be boosted: resting and
+## settling blocks stay put.
+@export_range(0.0, 2.0, 0.05) var wet_slide_min_speed_mps: float = 0.4
+## No boost once the horizontal speed reaches this (m/s): the cap.
+@export_range(0.5, 20.0, 0.1) var wet_slide_max_speed_mps: float = 6.0
+
+@export_group("Puddles (client presentation only)")
+## Puddle patches on the disc top at full wetness (High/Medium preset).
+@export var puddle_count: int = 70
+## Fraction of the patches drawn when ambient life is off (Low preset).
+@export_range(0.0, 1.0, 0.05) var puddle_low_preset_scale: float = 0.4
+## Patch radius range (m).
+@export var puddle_radius_min_m: float = 0.7
+@export var puddle_radius_max_m: float = 2.2
+## Seconds of full-strength rain until the disc is fully wet, and seconds to
+## dry completely once the rain stops.
+@export var puddle_fill_time_s: float = 25.0
+@export var puddle_dry_time_s: float = 45.0
+## Height of the patches above the disc top (m), against z-fighting.
+@export var puddle_lift_m: float = 0.03
+## Dark water colour, lighter rim and the cel sky-glint colour.
+@export var puddle_color: Color = Color(0.14, 0.26, 0.42, 1.0)
+@export var puddle_rim_color: Color = Color(0.5, 0.68, 0.85, 1.0)
+@export var puddle_glint_color: Color = Color(0.8, 0.9, 1.0, 1.0)
+@export_range(0.0, 1.0, 0.01) var puddle_alpha: float = 0.4
+## Raindrop ripple rings drawn on the patches.
+@export var puddle_ripples_enabled: bool = true
 
 @export_group("Presentation")
 ## Streak instances at full density on a High/Medium preset.

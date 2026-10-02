@@ -21,6 +21,8 @@ var _tuning: RainTuning = TUNING
 var _density_scale: float = 1.0
 ## Governor share (GraphicsPreset.weather_density_scale) of the visible streaks.
 var _governor_scale: float = 1.0
+## Bontago-mp0.21: puddle layer living under the Field; outlives this node.
+var _puddles: RainPuddles = null
 
 
 func _ready() -> void:
@@ -147,10 +149,25 @@ func set_intensity(value: float) -> void:
 	if _material != null:
 		_material.set_shader_parameter(&"density", value)
 	_apply_mood(value)
+	if value > 0.0 and _puddles == null and is_inside_tree():
+		_puddles = _make_puddles()
+	if _puddles != null and is_instance_valid(_puddles):
+		_puddles.set_rain(value)
 
 
 func _exit_tree() -> void:
 	_apply_mood(0.0)
+	# The puddles stay (and dry on their own) after the rain presentation goes.
+	if _puddles != null and is_instance_valid(_puddles):
+		_puddles.set_rain(0.0)
+
+
+func _make_puddles() -> RainPuddles:
+	var field_node: Field = Match.field() as Field
+	if field_node == null or field_node.map_definition() == null:
+		return null
+	var count_scale: float = RainPuddles.count_scale_for(Settings.current_graphics_preset(), _tuning)
+	return RainPuddles.ensure_on(field_node, field_node.map_definition(), _tuning, count_scale)
 
 
 ## Overcast and wet disc: presentation only, owned by Skybox/TerritoryOverlay
