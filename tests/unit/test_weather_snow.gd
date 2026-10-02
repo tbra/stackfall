@@ -43,6 +43,8 @@ func before_each() -> void:
 	_snow.discover_blocks_per_frame = 64
 	_snow.max_disc_patches = 6
 	_snow.disc_flag_clear_radius_m = 0.0
+	# The fixture disc is only 12 m wide: a full-length drift would not fit.
+	_snow.disc_drift_stretch = 1.5
 	_effect = null
 
 
@@ -185,9 +187,11 @@ func test_snow_grows_in_steps_to_the_cap_and_stays_bounded() -> void:
 	assert_eq(cover.level(), _snow.depth_levels)
 	var disc_material: ShaderMaterial = _field.overlay().material()
 	assert_eq(cover.material(), disc_material, "snow is a layer of the disc (territory) shader itself")
-	assert_almost_eq(float(disc_material.get_shader_parameter(&"snow_strength")), _snow.cover_strength_heavy, 0.001)
-	assert_almost_eq(float(disc_material.get_shader_parameter(&"snow_threshold")), _snow.cover_threshold_heavy, 0.001)
-	assert_gt(cover.threshold(), 0.3, "heavy cover still leaves bare disc between drifts")
+	assert_almost_eq(float(disc_material.get_shader_parameter(&"snow_strength")), minf(_snow.cover_strength_heavy, 1.0 - _snow.cover_territory_min), 0.001)
+	assert_almost_eq(float(disc_material.get_shader_parameter(&"snow_threshold")), _snow.cover_amount_heavy, 0.001)
+	assert_gt(cover.amount(), _snow.cover_amount_light, "the cover builds up with its level")
+	assert_gte(1.0 - cover.strength() + 0.0001, _snow.cover_territory_min, "territory colour keeps its minimum share at full snow")
+	assert_gt(_snow.cover_territory_min, 0.2, "the minimum is a real share, not zero")
 	cover.finish_drift()
 	assert_false(cover.is_drift_building())
 	var grid: CellGrid = _field.grid()
@@ -215,6 +219,17 @@ func test_drift_rebuild_survives_a_block_freed_mid_queue() -> void:
 	cover.finish_drift()
 	assert_false(cover.is_drift_building(), "queue drained past the freed block")
 	assert_not_null(effect)
+
+
+func test_disc_drift_frame_follows_the_wind_and_drifts_are_low() -> void:
+	var grid: CellGrid = _field.grid()
+	var frame: Transform3D = SnowCaps.disc_patch_frame(grid, grid.cell_index(grid.res / 2, grid.res / 2), _snow)
+	var wind: Vector2 = Vector2.from_angle(deg_to_rad(_snow.cover_wind_angle_deg))
+	assert_almost_eq(frame.basis.x.x, wind.x, 0.001, "drift length axis is the wind")
+	assert_almost_eq(frame.basis.x.z, wind.y, 0.001)
+	assert_almost_eq(frame.basis.determinant(), 1.0, 0.001, "a proper rotation")
+	assert_gt(_snow.disc_drift_stretch, 1.0, "drifts are elongated")
+	assert_lt(_snow.disc_drift_height_scale, 1.0, "drifts are lower than a block cap")
 
 
 func test_block_patch_budget_is_global() -> void:
@@ -258,7 +273,7 @@ func test_colliders_and_meshes_are_the_same_geometry() -> void:
 	var cube: Block = _cube(Vector3(0.0, 0.01, 0.0))
 	var domino: Block = BlockFactory.build(load("res://config/blocks/domino.tres") as BlockShape, _physics)
 	_root.add_child(domino)
-	domino.global_position = Vector3(2.5, 0.01, 1.5)
+	domino.global_position = Vector3(-2.5, 0.01, 1.5)
 	domino.net_id = _next_net_id
 	_next_net_id += 1
 	_blocks.append(domino)
@@ -527,3 +542,51 @@ func test_adjacent_cells_form_one_continuous_layer_with_rim_only_at_the_outside(
 				rim_at_seam += 1
 	assert_gt(flat_at_seam, 0, "the shared edge carries full-depth snow")
 	assert_eq(rim_at_seam, 0, "no rim dips at the seam between two cells")
+
+
+func _seam_counts(mesh: MeshInstance3D, seam_x: float, cube: float, level: int) -> Vector2i:
+	var top: float = _snow.cap_lift_m + SnowGeometry.dome_height(level, _snow)
+	var flat: int = 0
+	var rim: int = 0
+	for v: Vector3 in (mesh.mesh as ArrayMesh).surface_get_arrays(0)[Mesh.ARRAY_VERTEX]:
+		if absf(v.x - seam_x) < 0.001 and absf(v.z) < cube * 0.3:
+			if absf(v.y - (cube + top)) < 0.002:
+				flat += 1
+			elif v.y < cube + _snow.cap_lift_m + 0.001:
+				rim += 1
+	return Vector2i(flat, rim)
+
+
+func test_touching_same_height_tops_of_two_blocks_merge_visually_and_reopen_when_one_moves() -> void:
+	var cube: float = _physics.cube_size
+	var shape: BlockShape = load("res://config/blocks/cube.tres") as BlockShape
+	var a: Block = BlockFactory.build(shape, _physics)
+	var b: Block = BlockFactory.build(shape, _physics)
+	_root.add_child(a)
+	_root.add_child(b)
+	a.global_position = Vector3.ZERO
+	b.global_position = Vector3(cube, 0.0, 0.0)
+	var builder: SnowCapBuilder = SnowCapBuilder.new(_snow, true)
+	var edge: float = SnowCaps.block_patch_edge(cube, _snow)
+	var level: int = _snow.depth_levels
+	var frame: Transform3D = SnowGeometry.block_patch_transform(Vector3(0.0, cube * 0.5, 0.0), SnowGeometry.AXIS_UP, cube)
+	builder.set_patch("a", a, -1, 0, frame, edge, 5, level)
+	builder.set_patch("b", b, -1, 0, frame, edge, 6, level)
+	builder.step(10)
+	builder.step(10)
+	var mesh_a: MeshInstance3D = SnowCaps.cap_mesh(a, SnowCaps.CAP_NAME)
+	assert_not_null(mesh_a)
+	var seam: Vector2i = _seam_counts(mesh_a, cube * 0.5, cube, level)
+	assert_gt(seam.x, 0, "full-depth snow reaches the shared edge between blocks")
+	assert_eq(seam.y, 0, "no rim dips where two block tops meet")
+	assert_eq(SnowCaps.lump_colliders(a).size(), 1, "hulls stay one per block patch")
+	var hull_before: PackedVector3Array = ((SnowCaps.lump_colliders(a)[0] as CollisionShape3D).shape as ConvexPolygonShape3D).points
+	# A block at another height does not merge; moving b away reopens the rim.
+	b.global_position = Vector3(cube * 3.0, 0.0, 0.0)
+	for _i: int in range(6):
+		builder.step(10)
+	mesh_a = SnowCaps.cap_mesh(a, SnowCaps.CAP_NAME)
+	seam = _seam_counts(mesh_a, cube * 0.5, cube, level)
+	assert_eq(seam, Vector2i.ZERO, "the cap pulls back from the edge once the neighbour is gone")
+	var hull_after: PackedVector3Array = ((SnowCaps.lump_colliders(a)[0] as CollisionShape3D).shape as ConvexPolygonShape3D).points
+	assert_eq(hull_after, hull_before, "the collider hull does not depend on the neighbour block")

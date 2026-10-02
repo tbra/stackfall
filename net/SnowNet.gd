@@ -290,7 +290,7 @@ func _set_block_record(block: Block, net_id: int, record: Array, previous: Array
 func _set_disc_cell(field: Field, grid: CellGrid, edge: float, cell: int, level: int, seed_value: int) -> void:
 	var region: int = SnowCaps.disc_region(grid, cell, _tuning)
 	_builder.set_patch(
-		"d%d" % region, field, region, cell, SnowCaps.disc_patch_frame(grid, cell), edge,
+		"d%d" % region, field, region, cell, SnowCaps.disc_patch_frame(grid, cell, _tuning), edge,
 		SnowGeometry.patch_seed(seed_value, SnowGeometry.DISC_OWNER, cell, SnowGeometry.AXIS_UP), level
 	)
 

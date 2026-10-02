@@ -176,7 +176,14 @@ static func dome_points(params: PackedFloat32Array, patch_edge: float, level: in
 ## no snowy neighbour keeps the seeded tilt (a block set on it rests crooked);
 ## bumps are not used. Grid points are clustered toward the edges (sine warp)
 ## so the shoulder is resolved. Concave like the dome, so hull == drawn surface.
-static func cap_points(params: PackedFloat32Array, patch_edge: float, pitch: float, level: int, neighbor_levels: PackedInt32Array, tuning: SnowTuning) -> PackedVector3Array:
+##
+## `cross_levels` (Bontago-mp0.32, visual only; same SIDE_* layout) names sides
+## that touch a same-height snowy top of ANOTHER block: they merge exactly like
+## `neighbor_levels` sides (flush to the cell boundary, no rim, height blended
+## to the mean) but the seeded tilt is kept and faded out toward that side
+## instead of dropped, so the interior still follows the host hull. The host
+## hull is always built without `cross_levels`.
+static func cap_points(params: PackedFloat32Array, patch_edge: float, pitch: float, level: int, neighbor_levels: PackedInt32Array, tuning: SnowTuning, cross_levels: PackedInt32Array = PackedInt32Array()) -> PackedVector3Array:
 	var points: PackedVector3Array = PackedVector3Array()
 	if level <= 0:
 		return points
@@ -187,12 +194,18 @@ static func cap_points(params: PackedFloat32Array, patch_edge: float, pitch: flo
 	var merged: PackedByteArray = PackedByteArray([0, 0, 0, 0])
 	var npeak: PackedFloat32Array = PackedFloat32Array([peak, peak, peak, peak])
 	var any_merged: bool = false
+	var cross: PackedByteArray = PackedByteArray([0, 0, 0, 0])
 	for side: int in range(SIDE_COUNT):
 		if side < neighbor_levels.size() and neighbor_levels[side] > 0:
 			merged[side] = 1
 			ext[side] = pitch * 0.5
 			npeak[side] = (peak + dome_height(neighbor_levels[side], tuning)) * 0.5
 			any_merged = true
+		elif side < cross_levels.size() and cross_levels[side] > 0:
+			merged[side] = 1
+			cross[side] = 1
+			ext[side] = pitch * 0.5
+			npeak[side] = (peak + dome_height(cross_levels[side], tuning)) * 0.5
 	var rim_w: float = maxf(tuning.cap_rim_width_m, EPS)
 	var tilt_x: float = 0.0 if any_merged else params[D_TX]
 	var tilt_z: float = 0.0 if any_merged else params[D_TZ]
@@ -207,6 +220,7 @@ static func cap_points(params: PackedFloat32Array, patch_edge: float, pitch: flo
 			var inv_sum: float = 0.0
 			var open_sides: int = 0
 			var height: float = peak
+			var taper: float = 1.0
 			for side: int in range(SIDE_COUNT):
 				var coord: float = x if side < SIDE_PZ else z
 				var positive: bool = (side == SIDE_PX or side == SIDE_PZ)
@@ -215,6 +229,8 @@ static func cap_points(params: PackedFloat32Array, patch_edge: float, pitch: flo
 				if merged[side] == 1:
 					var w: float = clampf(toward / maxf(extent, EPS), 0.0, 1.0)
 					height += w * w * (npeak[side] - peak)
+					if cross[side] == 1:
+						taper *= 1.0 - w * w
 				else:
 					inv_sum += 1.0 / maxf(extent - toward, EPS)
 					open_sides += 1
@@ -222,7 +238,7 @@ static func cap_points(params: PackedFloat32Array, patch_edge: float, pitch: flo
 			if open_sides > 0:
 				var edge_dist: float = float(open_sides) / inv_sum
 				profile = sin(clampf(edge_dist / rim_w, 0.0, 1.0) * PI * 0.5)
-			var tilt: float = 1.0 + tilt_x * u + tilt_z * v
+			var tilt: float = 1.0 + (tilt_x * u + tilt_z * v) * taper
 			points[j * row + i] = Vector3(x, tuning.cap_lift_m + height * profile * tilt, z)
 	_concavify(points, row)
 	return points

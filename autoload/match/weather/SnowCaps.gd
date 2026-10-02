@@ -43,6 +43,7 @@ static func disc_cap_material(tuning: SnowTuning) -> ShaderMaterial:
 		material.set_shader_parameter(&"rim_fade_height", tuning.disc_drift_rim_fade_m)
 		material.set_shader_parameter(&"rim_fade_base", tuning.cap_lift_m)
 		material.set_shader_parameter(&"light_gain", tuning.cover_light_gain)
+		material.set_shader_parameter(&"dim", tuning.disc_drift_dim)
 		# A drift reads as the pale-lavender middle tone of the disc snow.
 		material.set_shader_parameter(&"snow_color", tuning.cover_tone_mid_color)
 		material.set_shader_parameter(&"shade_color", tuning.snow_shade_color)
@@ -91,9 +92,15 @@ static func disc_patch_edge(grid: CellGrid, tuning: SnowTuning) -> float:
 
 
 ## Field-local frame of the disc drift centred on `cell`.
-static func disc_patch_frame(grid: CellGrid, cell: int) -> Transform3D:
+## With `tuning` the frame's X axis points along the wind, so drifts lie
+## downwind of what shelters them.
+static func disc_patch_frame(grid: CellGrid, cell: int, tuning: SnowTuning = null) -> Transform3D:
 	var center: Vector2 = grid.index_center(cell)
-	return Transform3D(Basis.IDENTITY, Vector3(center.x, 0.0, center.y))
+	var basis: Basis = Basis.IDENTITY
+	if tuning != null:
+		var wind: Vector2 = Vector2.from_angle(deg_to_rad(tuning.cover_wind_angle_deg))
+		basis = Basis(Vector3(wind.x, 0.0, wind.y), Vector3.UP, Vector3(-wind.y, 0.0, wind.x))
+	return Transform3D(basis, Vector3(center.x, 0.0, center.y))
 
 
 static func disc_region(grid: CellGrid, cell: int, tuning: SnowTuning) -> int:
