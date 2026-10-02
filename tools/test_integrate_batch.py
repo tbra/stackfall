@@ -147,6 +147,44 @@ class Tests(unittest.TestCase):
         err, _, _ = run(Imp())
         self.assertEqual(err.step, "import")
 
+    def test_merge_message_and_trailer(self):
+        self.assertEqual(ib.merge_subject("wt/fca.7-x", ["Bontago-fca.11", "Bontago-fca.7"]), "Merge wt/fca.7-x (Bontago-fca.7)")
+        self.assertEqual(ib.merge_subject("wt/x", ["B-1", "B-2"]), "Merge wt/x (B-1, B-2)")
+        self.assertEqual(ib.merge_subject("wt/x", []), "Merge wt/x")
+        fake = Fake()
+        run(fake, branches=["wt/b-1"])
+        a = [c[1] for c in fake.calls if c[0] == "merge_wt_b-1"][0]
+        self.assertIn("--no-ff", a)
+        self.assertNotIn("--no-edit", a)
+        i = a.index("-m")
+        self.assertEqual(a[i + 1], "Merge wt/b-1 (B-1)")
+        self.assertEqual(a[i + 2:i + 4], ["-m", ib.MERGE_TRAILER])
+        self.assertIn("Claude Opus 5.5", ib.MERGE_TRAILER)
+
+    def _main(self, extra, fail=False):
+        fake = Fake()
+
+        def fake_integrate(args, ctx, say, res):
+            res["worktree"], res["branch"] = "W/integrate-tmp-1", "integrate/tmp-1"
+            if fail:
+                raise ib.StepFailed("gate", "RED")
+        with mock.patch.object(ib, "run_cmd", fake), mock.patch.object(ib, "integrate", fake_integrate):
+            code = ib.main(["--branches", "wt/a", "--log-dir", tempfile.gettempdir()] + extra)
+        return code, fake.names()
+
+    def test_cleanup_after_success_even_no_push(self):
+        for extra in (["--no-push"], [], ["--dry-run"]):
+            code, names = self._main(extra)
+            self.assertEqual(code, 0)
+            self.assertIn("wt_remove", names)
+            self.assertIn("br_delete", names)
+
+    def test_failure_keeps_worktree(self):
+        code, names = self._main(["--no-push"], fail=True)
+        self.assertEqual(code, 1)
+        self.assertNotIn("wt_remove", names)
+        self.assertNotIn("br_delete", names)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

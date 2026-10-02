@@ -12,7 +12,7 @@ Steps (each step's full output goes to <log-dir>/NN_name.log; stdout stays compa
   6 push      git push origin main (separate step), git fetch, verify HEAD == origin/main
   7 close     bd close for each bead, only after remote verification
   8 postimport  godot import check in the main checkout
-The temp worktree is removed only on success. --dry-run stops after step 4 (no ff/push/close),
+The temp worktree and branch are removed on every success (incl. --no-push) and kept on failure. --dry-run stops after step 4 (no ff/push/close),
 then removes the temp worktree and branch. Exit 0 = success, 1 = failed step (named).
 """
 
@@ -99,6 +99,18 @@ def issue_lines(text):
     return [l.strip()[:200] for l in text.splitlines() if ISSUE_RE.search(l)][:MAX_ISSUE_LINES]
 
 
+MERGE_TRAILER = "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+
+
+def merge_subject(branch, beads):
+    """'Merge <branch> (<bead ids>)': the bead whose id (or its suffix) appears in the branch name,
+    else every --beads id, else no parenthesis."""
+    low = branch.lower()
+    hit = [b for b in beads if re.search(r"(?<![a-z0-9])%s(?![a-z0-9])" % re.escape(b.lower().split("-", 1)[-1]), low)]
+    ids = hit[:1] or list(beads)
+    return "Merge %s (%s)" % (branch, ", ".join(ids)) if ids else "Merge " + branch
+
+
 def import_check(ctx, name, path):
     cmd = [godot_exe(), "--headless", "--editor", "--path", path, "--quit"]
     run_cmd(ctx, name + "_warm", cmd, path, STEP_TIMEOUT_S)  # first run builds .godot
@@ -129,7 +141,8 @@ def integrate(args, ctx, say, res):
     say("worktree  ok   %s @ %s" % (wt, base[:9]))
     # 2 merge
     for b in args.branches:
-        code, text, _ = git(ctx, "merge_" + b.replace("/", "_"), wt, "merge", "--no-ff", "--no-edit", b)
+        code, text, _ = git(ctx, "merge_" + b.replace("/", "_"), wt, "merge", "--no-ff",
+                            "-m", merge_subject(b, args.beads), "-m", MERGE_TRAILER, b)
         if code != 0:
             files = git(ctx, "conflicts", wt, "diff", "--name-only", "--diff-filter=U")[1].split()
             git(ctx, "merge_abort", wt, "merge", "--abort")
@@ -235,8 +248,7 @@ def main(argv):
         say("FAILED step=%s: %s" % (e.step, e.detail[:500]))
         say("INTEGRATE FAILED at %s; worktree kept: %s; logs: %s" % (e.step, res.get("worktree"), log_dir))
         return 1
-    if args.dry_run or not args.no_push:
-        cleanup(args, ctx, res)
+    cleanup(args, ctx, res)  # success (dry-run, --no-push or full): drop temp worktree + branch
     say("INTEGRATE OK%s commit=%s gate=%s logs=%s" % (
         " (dry-run)" if args.dry_run else (" (no-push, main ff only)" if args.no_push else ""),
         res.get("result", "?")[:9], res.get("verdict"), log_dir))
