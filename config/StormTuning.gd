@@ -50,6 +50,10 @@ extends WeatherTuning
 @export var streak_width_m: float = 0.13
 @export var streak_speed_ms: float = 16.0
 @export var streak_color: Color = Color(1.0, 1.0, 1.0, 0.7)
+## A narrow, flat inner band gives the long strips the same cel language as gusts.
+@export var streak_band_color: Color = Color(0.75, 0.88, 1.0, 1.0)
+@export_range(0.0, 1.0, 0.01) var streak_band_width: float = 0.34
+@export_range(0.0, 0.5, 0.01) var streak_edge_softness: float = 0.12
 @export var mote_count: int = 36
 @export var mote_size_m: float = 0.4
 @export var mote_speed_ms: float = 10.0

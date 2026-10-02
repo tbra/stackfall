@@ -25,6 +25,15 @@ var _instances: Array[MultiMeshInstance3D] = []
 
 func _ready() -> void:
 	_build()
+	Settings.graphics_preset_changed.connect(_on_graphics_preset_changed)
+
+
+func _exit_tree() -> void:
+	Settings.graphics_preset_changed.disconnect(_on_graphics_preset_changed)
+
+
+func _on_graphics_preset_changed(_preset: GraphicsPreset) -> void:
+	_build()
 
 
 ## Rebuilds for `seed_value`; tests and the screenshot probe call it directly.
@@ -118,6 +127,9 @@ func _add_kind(kind: int, count: int) -> void:
 	material.set_shader_parameter(&"width_m", tuning.streak_width_m if kind == KIND_STREAK else tuning.mote_size_m)
 	material.set_shader_parameter(&"mote_mix", 0.0 if kind == KIND_STREAK else 1.0)
 	material.set_shader_parameter(&"tint", tuning.streak_color if kind == KIND_STREAK else tuning.mote_color)
+	material.set_shader_parameter(&"band_tint", tuning.streak_band_color)
+	material.set_shader_parameter(&"band_width", tuning.streak_band_width)
+	material.set_shader_parameter(&"edge_softness", tuning.streak_edge_softness)
 	material.set_shader_parameter(&"fade_far_m", tuning.fade_far_m)
 	material.set_shader_parameter(&"near_fade_m", Vector2(tuning.mote_near_fade_start_m, tuning.mote_near_fade_end_m))
 	material.set_shader_parameter(&"density", intensity)
