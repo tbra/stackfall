@@ -781,7 +781,7 @@ func _headless_bots_goal_coverage() -> String:
 	var goals: PackedVector2Array = PlayerSlot.goal_positions_for(Match.config.effective_goal_flag_count(), Match.config.map_def())
 	var by_group: Dictionary = {}
 	for point: Vector2 in goals:
-		var team: int = WinChecker.goal_holder(raster, point)
+		var team: int = WinChecker.goal_holder(raster, point, Match._territory._claim_radius())
 		if team < 0:
 			continue
 		var key: String = "%d/%d" % [team, raster.group_at_point(point)]
