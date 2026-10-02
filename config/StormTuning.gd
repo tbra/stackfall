@@ -38,6 +38,13 @@ extends WeatherTuning
 ## big settled field costs a fraction of a scan per tick. Awake blocks are
 ## pushed every tick.
 @export var sleeper_stride_ticks: int = 8
+## At most this many stable-frozen blocks are woken per physics tick, so a
+## storm over a huge settled field cannot wake thousands at once.
+@export var max_wakes_per_tick: int = 4
+## A frozen block only wakes when it is exposed: a probe of this length (m)
+## along some world axis from its centre reaches open air. Buried and
+## leeward blocks of a big structure stay frozen.
+@export var exposure_probe_m: float = 1.5
 
 @export_group("Presentation")
 ## Half-width of the square of sky the streaks and motes fill, centred on the

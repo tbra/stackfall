@@ -32,6 +32,10 @@ extends Node
 
 var _registry: BlockRegistry = null
 
+## The live manager (the match builds one). Weather effects reach it through
+## this instead of touching Block's private freeze bookkeeping (Bontago-1pi.11.46).
+static var active: StableBlockManager = null
+
 ## instance id (int) -> continuous seconds this block has read as sleeping
 ## across consecutive scans. Reset to 0 the moment a scan finds it awake.
 var _asleep_elapsed: Dictionary = {}
@@ -56,6 +60,33 @@ var _last_field_transform: Transform3D = Transform3D.IDENTITY
 ## game/BotController.gd already uses for the same registry reference.
 func setup(registry: BlockRegistry) -> void:
 	_registry = registry
+	active = self
+
+
+func _exit_tree() -> void:
+	if active == self:
+		active = null
+
+
+## True while this manager holds the stable freeze on `block`.
+func is_stable_frozen(block: Block) -> bool:
+	return block.is_freeze_static() and _frozen_by_this.get(block.get_instance_id(), false)
+
+
+## Wakes a stable-frozen block so an external force (wind) can move it, and
+## puts it back into the normal sleep -> 20 s -> freeze cycle: the frozen flag
+## and rest timer are cleared here so the next scan that reads it asleep counts
+## from zero and re-freezes it. Returns true when a freeze was released.
+func wake_for_external_force(block: Block) -> bool:
+	var id: int = block.get_instance_id()
+	if not _frozen_by_this.get(id, false):
+		return false
+	_frozen_by_this[id] = false
+	_asleep_elapsed[id] = 0.0
+	_rest_anchor.erase(id)
+	block.release_freeze_static(Block.FREEZE_REASON_STABLE)
+	block.wake()
+	return true
 
 
 func _physics_process(delta: float) -> void:
