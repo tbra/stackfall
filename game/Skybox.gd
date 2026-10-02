@@ -257,6 +257,10 @@ func set_cycle_phase(phase: float) -> void:
 		var flare: SunFlare = node as SunFlare
 		if flare != null:
 			flare.set_cycle_sun(direction, daylight)
+	# Bontago-mp0.19: the rewrites above are un-stormed; compose the storm blend
+	# on top so a running cycle never overwrites the storm sky.
+	if _storm_amount > 0.0:
+		_apply_storm_blend()
 
 ## True whenever no textured box is showing (initial state, a missing
 ## set/face, or config.enabled == false) -- the existing ProceduralSkyMaterial
@@ -289,6 +293,12 @@ const OVERCAST_GROUP: StringName = &"weather_skybox"
 ## the theme's own values (no stale multipliers). Weather code never writes the
 ## Environment or the light directly.
 var _overcast_amount: float = 0.0
+## Bontago-mp0.19 storm sky blend state (see set_storm_sky()).
+const CEILING_TUNING: WeatherCeilingTuning = preload("res://config/weather/ceiling.tres")
+var _storm_amount: float = 0.0
+var _storm_target: SkyThemeDef = null
+var _storm_blend: SkyThemeDef = null
+var _storm_blend_base: SkyThemeDef = null
 var _overcast_light_scale: float = 1.0
 var _overcast_ambient_scale: float = 1.0
 var _overcast_exposure_scale: float = 1.0
@@ -615,6 +625,18 @@ func _build_faces() -> void:
 func apply_theme(applied_theme: SkyThemeDef) -> void:
 	if applied_theme == null or environment == null or environment.sky == null:
 		return
+	_apply_theme_parameters(applied_theme)
+	# Bontago-adt.1: the cloud puffs and birds are rebuilt from the applied
+	# theme too, so a live F4 edit or theme switch reaches them.
+	_apply_ambient_life(Settings.current_graphics_preset(), applied_theme)
+	# Bontago-mp0.19: a live theme switch during a storm re-bases the blend.
+	if _storm_amount > 0.0 and applied_theme != _storm_blend:
+		_apply_storm_blend()
+
+
+## Everything apply_theme() writes except the ambient-life rebuild (birds,
+## puffs): sky, fog, light, ambient, overcast, fog volume, sun flare.
+func _apply_theme_parameters(applied_theme: SkyThemeDef) -> void:
 	if applied_theme.sky_material != null:
 		_fallback_sky_material = applied_theme.sky_material
 		var panorama: ShaderMaterial = _fallback_sky_material as ShaderMaterial
@@ -658,9 +680,114 @@ func apply_theme(applied_theme: SkyThemeDef) -> void:
 	_apply_overcast(applied_theme)
 	_sync_fog_volume(applied_theme)
 	_apply_sun_flare(applied_theme)
-	# Bontago-adt.1: the cloud puffs and birds are rebuilt from the applied
-	# theme too, so a live F4 edit or theme switch reaches them.
-	_apply_ambient_life(Settings.current_graphics_preset(), applied_theme)
+
+
+## Bontago-mp0.19 (storm sky, owner decision Bontago-048 option C): blends the
+## active theme toward `storm_theme` by `amount` 0..1 through the same writers
+## apply_theme() uses (procedural sky uniforms, fog, light, ambient, overcast).
+## DECISION: the two themes own different sky materials, so the blend lerps the
+## colour/scalar fields onto the ACTIVE theme's material instead of swapping
+## materials; the cloud sea and birds are not rebuilt per frame. Amount 0
+## restores through the full apply_theme(theme), i.e. the match's own theme.
+func set_storm_sky(amount: float, storm_theme: SkyThemeDef) -> void:
+	var clamped: float = clampf(amount, 0.0, 1.0)
+	if is_equal_approx(clamped, _storm_amount) and storm_theme == _storm_target:
+		return
+	var was_active: bool = _storm_amount > 0.0
+	var previous_target: SkyThemeDef = _storm_target
+	_storm_amount = clamped
+	_storm_target = storm_theme
+	if clamped <= 0.0 or storm_theme == null:
+		_storm_amount = 0.0
+		if was_active:
+			_restore_after_storm(previous_target if storm_theme == null else storm_theme)
+		return
+	_apply_storm_blend()
+
+
+## Storm over: re-applies only the blended parameters (sky, fog incl. the fog
+## volume, light, ambient, overcast, flare) and the cloud tint, without the
+## birds/puff rebuild apply_theme() does. In CYCLE mode the cycle writers are
+## re-run for the current phase afterwards.
+func _restore_after_storm(storm_theme: SkyThemeDef) -> void:
+	if theme == null or environment == null or environment.sky == null:
+		return
+	_apply_theme_parameters(theme)
+	if _cloud_sea != null and storm_theme != null:
+		_cloud_sea.apply_storm_tint(theme, storm_theme, 0.0, theme.sky_material)
+	if _cycle_theme != null and _cycle_phase_last >= 0.0:
+		var phase: float = _cycle_phase_last
+		_cycle_phase_last = -1.0
+		set_cycle_phase(phase)
+
+
+func storm_sky_amount() -> float:
+	return _storm_amount
+
+
+func _apply_storm_blend() -> void:
+	var base: SkyThemeDef = theme
+	if base == null or _storm_target == null or environment == null or environment.sky == null:
+		return
+	var storm: SkyThemeDef = _storm_target
+	var t: float = _storm_amount
+	if _storm_blend == null or _storm_blend_base != base:
+		_storm_blend = base.duplicate(false) as SkyThemeDef
+		_storm_blend_base = base
+	var b: SkyThemeDef = _storm_blend
+	b.sky_top_color = base.sky_top_color.lerp(storm.sky_top_color, t)
+	b.sky_horizon_color = base.sky_horizon_color.lerp(storm.sky_horizon_color, t)
+	b.ground_bottom_color = base.ground_bottom_color.lerp(storm.ground_bottom_color, t)
+	b.ground_horizon_color = base.ground_horizon_color.lerp(storm.ground_horizon_color, t)
+	b.fog_color = base.fog_color.lerp(storm.fog_color, t)
+	b.fog_density = lerpf(base.fog_density, storm.fog_density, t)
+	b.fog_sky_affect = lerpf(base.fog_sky_affect, storm.fog_sky_affect, t)
+	b.volumetric_fog_density = lerpf(base.volumetric_fog_density, storm.volumetric_fog_density, t)
+	b.volumetric_fog_albedo = base.volumetric_fog_albedo.lerp(storm.volumetric_fog_albedo, t)
+	b.light_color = base.light_color.lerp(storm.light_color, t)
+	b.light_energy = lerpf(base.light_energy, storm.light_energy, t)
+	b.light_rotation_deg = base.light_rotation_deg.lerp(storm.light_rotation_deg, t)
+	b.ambient_energy = lerpf(base.ambient_energy, storm.ambient_energy, t)
+	b.glow_intensity = lerpf(base.glow_intensity, storm.glow_intensity, t)
+	b.sun_flare_enabled = base.sun_flare_enabled and t < CEILING_TUNING.storm_flare_off_amount
+	var base_mix: float = base.procedural_sea_mix if base.sky_look_procedural else 0.0
+	var storm_mix: float = storm.procedural_sea_mix if storm.sky_look_procedural else 0.0
+	b.sky_look_procedural = true
+	b.procedural_sea_mix = lerpf(base_mix, storm_mix, t)
+	b.proc_zenith_color = base.proc_zenith_color.lerp(storm.proc_zenith_color, t)
+	b.proc_mid_color = base.proc_mid_color.lerp(storm.proc_mid_color, t)
+	b.proc_horizon_color = base.proc_horizon_color.lerp(storm.proc_horizon_color, t)
+	b.proc_gradient_mid_height = lerpf(base.proc_gradient_mid_height, storm.proc_gradient_mid_height, t)
+	b.proc_gradient_power = lerpf(base.proc_gradient_power, storm.proc_gradient_power, t)
+	b.proc_horizon_glow_color = base.proc_horizon_glow_color.lerp(storm.proc_horizon_glow_color, t)
+	b.proc_horizon_glow_width = lerpf(base.proc_horizon_glow_width, storm.proc_horizon_glow_width, t)
+	b.proc_sun_glow_strength = lerpf(base.proc_sun_glow_strength, storm.proc_sun_glow_strength, t)
+	b.proc_sea_color_near = base.proc_sea_color_near.lerp(storm.proc_sea_color_near, t)
+	b.proc_sea_color_far = base.proc_sea_color_far.lerp(storm.proc_sea_color_far, t)
+	var panorama: ShaderMaterial = base.sky_material as ShaderMaterial
+	if panorama != null:
+		_apply_procedural_params(panorama, b)
+	var procedural: ProceduralSkyMaterial = base.sky_material as ProceduralSkyMaterial
+	if procedural != null:
+		procedural.sky_top_color = b.sky_top_color
+		procedural.sky_horizon_color = b.sky_horizon_color
+		procedural.ground_bottom_color = b.ground_bottom_color
+		procedural.ground_horizon_color = b.ground_horizon_color
+	environment.fog_light_color = b.fog_color
+	environment.fog_density = b.fog_density
+	environment.fog_sky_affect = b.fog_sky_affect
+	environment.volumetric_fog_density = b.volumetric_fog_density
+	environment.volumetric_fog_albedo = b.volumetric_fog_albedo
+	# CYCLE mode owns the light direction (sun path): never blend it.
+	_apply_light_and_environment(b, _cycle_theme == null or base != _cycle_theme)
+	_apply_overcast(b)
+	_apply_sun_flare(b)
+	if _fog_volume != null:
+		var fog_material: FogMaterial = _fog_volume.material as FogMaterial
+		if fog_material != null:
+			fog_material.density = b.fog_density
+	if _cloud_sea != null:
+		_cloud_sea.apply_storm_tint(base, storm, t, base.sky_material)
 
 
 ## Bontago-59o.16 (procedural sky P1): writes the opt-in procedural-look uniforms
@@ -813,6 +940,9 @@ func _apply_ambient_life(preset: GraphicsPreset, applied_theme: SkyThemeDef) -> 
 		var sky_material: Material = applied_theme.sky_material if applied_theme != null else null
 		var subdivisions: int = preset.cloud_puff_subdivisions if preset != null else CloudSea.PUFF_SUBDIVISIONS
 		_cloud_sea.configure(applied_theme, density, sky_material, subdivisions)
+		# Bontago-mp0.19: configure() resets the puff palette; keep the storm tint.
+		if _storm_amount > 0.0 and _storm_target != null and applied_theme != null and applied_theme == theme:
+			_cloud_sea.apply_storm_tint(applied_theme, _storm_target, _storm_amount, applied_theme.sky_material)
 	if _birds != null:
 		_birds.configure(applied_theme, birds)
 	# Bontago-adt.3: perching birds / fireflies, rebuilt (never duplicated) on
@@ -827,7 +957,7 @@ func _apply_ambient_life(preset: GraphicsPreset, applied_theme: SkyThemeDef) -> 
 
 ## Bontago-adt.1: writes the theme's light and glow/ambient values onto the
 ## wired DirectionalLight3D and Environment.
-func _apply_light_and_environment(applied_theme: SkyThemeDef) -> void:
+func _apply_light_and_environment(applied_theme: SkyThemeDef, write_rotation: bool = true) -> void:
 	environment.ambient_light_energy = applied_theme.ambient_energy
 	environment.glow_intensity = applied_theme.glow_intensity
 	environment.glow_hdr_threshold = applied_theme.glow_hdr_threshold
@@ -838,7 +968,8 @@ func _apply_light_and_environment(applied_theme: SkyThemeDef) -> void:
 		return
 	light.light_color = applied_theme.light_color
 	light.light_energy = applied_theme.light_energy
-	light.rotation_degrees = applied_theme.light_rotation_deg
+	if write_rotation:
+		light.rotation_degrees = applied_theme.light_rotation_deg
 
 
 func get_cloud_sea() -> CloudSea:

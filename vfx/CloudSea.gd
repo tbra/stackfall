@@ -117,6 +117,37 @@ var _exclusion_radius_m: float = 0.0
 var _disc_ceiling_m: float = 0.0
 
 
+## Bontago-mp0.19: storm tint. Re-bases the live puff material on `base` (the
+## match theme) blended toward `storm` by `amount` 0..1: puff cel colours and
+## the sky cloud colours lerp between the two themes, then the shared sky
+## uniforms (procedural sea colours the far fade targets) are re-copied from
+## `blended_sky`, which Skybox has already tinted. Amount 0 changes nothing:
+## configure() restores the theme's own look.
+func apply_storm_tint(base: SkyThemeDef, storm: SkyThemeDef, amount: float, blended_sky: Material) -> void:
+	if _material == null or base == null or storm == null:
+		return
+	var sky: ShaderMaterial = blended_sky as ShaderMaterial
+	if sky != null:
+		for parameter: StringName in SHARED_SKY_PARAMETERS:
+			var value: Variant = sky.get_shader_parameter(parameter)
+			if value != null:
+				_material.set_shader_parameter(parameter, value)
+	_lerp_colors(base.cloud_puff_material as ShaderMaterial, storm.cloud_puff_material as ShaderMaterial,
+			[&"shadow_color", &"mid_color", &"lit_color", &"rim_color"], amount)
+	_lerp_colors(base.sky_material as ShaderMaterial, storm.sky_material as ShaderMaterial,
+			[&"cloud_shadow_color", &"cloud_mid_color", &"cloud_lit_color", &"cloud_rim_color"], amount)
+
+
+func _lerp_colors(from: ShaderMaterial, to: ShaderMaterial, parameters: Array[StringName], weight: float) -> void:
+	if from == null or to == null:
+		return
+	for parameter: StringName in parameters:
+		var a: Variant = from.get_shader_parameter(parameter)
+		var b: Variant = to.get_shader_parameter(parameter)
+		if a is Color and b is Color:
+			_material.set_shader_parameter(parameter, (a as Color).lerp(b as Color, weight))
+
+
 ## Weather fog changed (vfx/weather/WeatherFogShader.gd).
 func refresh_weather_fog() -> void:
 	WeatherFogShader.apply(_material)

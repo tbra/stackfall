@@ -11,11 +11,20 @@ extends WeatherPresentation
 
 const LOW_PRESET_ID: StringName = &"low"
 const FLAKE_SHADER: Shader = preload("res://shaders/weather/snow_flake.gdshader")
+## DECISION: guards the fall quantisation against a zero/negative tuned step
+## (pure math, not a tunable).
+const MIN_FALL_STEP_M: float = 0.1
 
 var tuning: SnowTuning = preload("res://config/weather/snow.tres") as SnowTuning
+
 var _particles: GPUParticles3D = null
 ## Bontago-1pi.11.37: GraphicsPreset.weather_density_scale, applied through amount_ratio.
 var _density_scale: float = 1.0
+## Bontago-mp0.19: fall distance now emitted (quantised) and its ratio to the
+## tuned fall; the flake lifetime and amount scale with it so the snow starts
+## at the cloud ceiling at unchanged density.
+var _fall_m: float = 0.0
+var _fall_ratio: float = 1.0
 
 
 func _ready() -> void:
@@ -50,13 +59,38 @@ func _process(_delta: float) -> void:
 	var viewport: Viewport = get_viewport()
 	var camera: Camera3D = viewport.get_camera_3d() if viewport != null else null
 	if camera != null:
-		global_position = camera.global_position + Vector3(0.0, tuning.flake_height_above_camera_m, 0.0)
+		var ceiling: WeatherCeilingTuning = CloudCeiling.TUNING
+		var camera_pos: Vector3 = camera.global_position
+		var bottom: float = camera_pos.y - ceiling.snow_below_camera_m
+		var top: float = minf(ceiling.ceiling_y(camera_pos.y) - ceiling.spawn_below_ceiling_m, bottom + ceiling.snow_max_fall_m)
+		top = maxf(top, camera_pos.y + tuning.flake_height_above_camera_m)
+		global_position = Vector3(camera_pos.x, top, camera_pos.z)
+		_apply_fall(top - bottom, ceiling.snow_fall_step_m)
+
+
+## Resizes the flake lifetime/amount/culling box for a `fall_m` fall (rounded
+## up to `step_m`); a no-op while the rounded value is unchanged.
+func _apply_fall(fall_m: float, step_m: float) -> void:
+	if _particles == null:
+		return
+	var step: float = maxf(step_m, MIN_FALL_STEP_M)
+	var rounded: float = ceilf(fall_m / step) * step
+	if is_equal_approx(rounded, _fall_m):
+		return
+	_fall_m = rounded
+	var base_fall: float = tuning.flake_fall_speed * tuning.flake_lifetime_s
+	_fall_ratio = maxf(rounded / maxf(base_fall, 0.001), 1.0)
+	_particles.lifetime = tuning.flake_lifetime_s * _fall_ratio
+	_particles.amount = int(roundf(float(amount_for(Settings.current_graphics_preset())) * _fall_ratio))
+	var fall: float = tuning.flake_fall_speed * (1.0 + tuning.flake_jitter) * _particles.lifetime
+	var extent: Vector3 = tuning.flake_box_half_extent
+	_particles.visibility_aabb = AABB(Vector3(-extent.x, -fall - extent.y, -extent.z), Vector3(extent.x * 2.0, fall + extent.y * 2.0, extent.z * 2.0))
 
 
 func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 	_density_scale = preset.weather_density_scale if preset != null else 1.0
 	if _particles != null:
-		var amount: int = amount_for(preset)
+		var amount: int = int(roundf(float(amount_for(preset)) * _fall_ratio))
 		if _particles.amount != amount:
 			_particles.amount = amount
 		_particles.amount_ratio = clampf(intensity, 0.0, 1.0) * _density_scale
