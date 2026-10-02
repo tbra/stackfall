@@ -612,6 +612,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _ghost != null:
 			_ghost.reset_rotation()
 		_rotation_drag = Vector2.ZERO
+	elif event.is_action_pressed(&"use_gift_slot"):
+		# DECISION (Bontago-1pi.18.2): R3 is shared with the debug perf_overlay_toggle
+		# chord (Back held + R3, ui/PerfOverlay.gd); every other pad button is taken,
+		# so the pad press is ignored while Back is held and the chord never spends a gift.
+		if event is InputEventJoypadButton and Input.is_action_pressed(&"camera_snap_home"):
+			return
+		_use_gift_slot()
 	elif event.is_action_pressed(&"ghost_place"):
 		# Bontago-1en.14 (M4 P2d, owner decision Bontago-mvl (a)): on mouse,
 		# throw_aim is bound to the same left-mouse button as ghost_place
@@ -629,6 +636,22 @@ func _unhandled_input(event: InputEvent) -> void:
 		# independent "Place (drop): A" / "Throw: Hold LT" gamepad rows.
 		if not (event.is_action_pressed(&"throw_aim") and _can_begin_throw_aim()):
 			_place_ghost_block()
+
+
+## Bontago-1pi.18.2 (QoL gift slot): asks the host to spend this slot's
+## slotted gift. A no-op unless the toggle is on and a gift is waiting; the host
+## validates everything again (MatchGifts.request_use_gift_slot).
+func _use_gift_slot() -> void:
+	if _match == null or not _match.has_method(&"gift_slot_head"):
+		return
+	var slot_id: int = _acting_slot()
+	if StringName(_match.gift_slot_head(slot_id)) == &"":
+		return
+	var membrane: Variant = _intent_target()
+	if membrane == null:
+		_match.request_use_gift_slot(slot_id)
+	else:
+		membrane.submit_use_gift_slot(slot_id)
 
 
 func _orientation_index() -> int:

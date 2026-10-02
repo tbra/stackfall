@@ -44,7 +44,20 @@ extends Resource
 ## Factor applied to the goal zone radius while the toggle is on.
 @export var goal_radius_multiplier: float = 2.0
 
+## -- Toggle B: gift slot instead of the block queue (Bontago-1pi.18.2) ------
+## A claimed gift waits in a per-player slot instead of replacing the next
+## block; the player spends it with the use_gift_slot action. No timer runs on
+## a slotted gift.
+@export var gift_slot_enabled: bool = false
+## Gifts a slot holds. DECISION: when full, a new claim drops the OLDEST slotted gift.
+@export var gift_slot_capacity: int = 1
+## Minimum seconds left on the block timer right after a slotted gift is
+## activated, so it cannot be auto-dropped the instant it appears.
+@export var gift_slot_min_window_s: float = 2.0
+
 const BACKLOG_MAX_CEILING: int = 3
+const GIFT_SLOT_CAPACITY_CEILING: int = 3
+const GIFT_MIN_WINDOW_MAX_S: float = 10.0
 const GOAL_RADIUS_MULTIPLIER_MAX: float = 4.0
 
 
@@ -62,6 +75,18 @@ func effective_backlog_max() -> int:
 	return clampi(backlog_max, 1, BACKLOG_MAX_CEILING)
 
 
+## Gift slot capacity in force (0 when the toggle is off).
+func effective_gift_slot_capacity() -> int:
+	if not gift_slot_enabled:
+		return 0
+	return clampi(gift_slot_capacity, 1, GIFT_SLOT_CAPACITY_CEILING)
+
+
+## Minimum post-activation window in force (seconds).
+func effective_gift_min_window_s() -> float:
+	return clampf(gift_slot_min_window_s, 0.0, GIFT_MIN_WINDOW_MAX_S)
+
+
 ## Clamps every value into a sane range; the host calls it on a received dict.
 func sanitize() -> void:
 	pause_event_s = clampf(pause_event_s, 0.0, 30.0)
@@ -71,6 +96,8 @@ func sanitize() -> void:
 	topple_scan_interval_s = clampf(topple_scan_interval_s, 0.05, 2.0)
 	backlog_max = clampi(backlog_max, 1, BACKLOG_MAX_CEILING)
 	goal_radius_multiplier = clampf(goal_radius_multiplier, 1.0, GOAL_RADIUS_MULTIPLIER_MAX)
+	gift_slot_capacity = clampi(gift_slot_capacity, 1, GIFT_SLOT_CAPACITY_CEILING)
+	gift_slot_min_window_s = clampf(gift_slot_min_window_s, 0.0, GIFT_MIN_WINDOW_MAX_S)
 
 
 func to_dict() -> Dictionary:
@@ -86,6 +113,9 @@ func to_dict() -> Dictionary:
 		"backlog_max": backlog_max,
 		"goal_radius_enabled": goal_radius_enabled,
 		"goal_radius_multiplier": goal_radius_multiplier,
+		"gift_slot_enabled": gift_slot_enabled,
+		"gift_slot_capacity": gift_slot_capacity,
+		"gift_slot_min_window_s": gift_slot_min_window_s,
 	}
 
 
@@ -103,6 +133,9 @@ static func from_dict(data: Dictionary) -> QolExperiments:
 	qol.backlog_max = int(_num(data, "backlog_max", float(qol.backlog_max)))
 	qol.goal_radius_enabled = _bool(data, "goal_radius_enabled", qol.goal_radius_enabled)
 	qol.goal_radius_multiplier = _num(data, "goal_radius_multiplier", qol.goal_radius_multiplier)
+	qol.gift_slot_enabled = _bool(data, "gift_slot_enabled", qol.gift_slot_enabled)
+	qol.gift_slot_capacity = int(_num(data, "gift_slot_capacity", float(qol.gift_slot_capacity)))
+	qol.gift_slot_min_window_s = _num(data, "gift_slot_min_window_s", qol.gift_slot_min_window_s)
 	qol.sanitize()
 	return qol
 

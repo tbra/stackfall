@@ -74,6 +74,8 @@ signal feed_timer_expired(slot_id: int)
 ## Bontago-1pi.18.1 (QoL experiments): a slot's queued-block count or its
 ## timer-paused flag changed. Host emits it; clients re-emit the replicated copy.
 signal qol_feed_changed(slot_id: int, backlog: int, paused: bool)
+## Bontago-1pi.18.2: a slot's gift-slot contents changed; activated/carrier are set when the slot was just spent.
+signal gift_slot_changed(slot_id: int, contents: Array, activated: StringName, carrier_id: StringName)
 
 ## The host refused a placement intent. `reason` is one of the
 ## PlacementRules.REASON_* constants.
