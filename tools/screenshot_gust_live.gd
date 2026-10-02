@@ -11,9 +11,9 @@ const GUST_HEIGHT_M: float = 24.0
 const GUST_RADIUS_M: float = 10.0
 const GUST_ANGLE_RAD: float = 1.1
 const GUST_WAIT_S: float = 1.4
-const CAMERA_DISTANCE_M: float = 55.0
-const CAMERA_PITCH_DEG: float = -12.0
-const CAMERA_TARGET_HEIGHT_M: float = 20.0
+const CAMERA_DISTANCE_M: float = 75.0
+const CAMERA_PITCH_DEG: float = -8.0
+const CAMERA_TARGET_HEIGHT_M: float = 27.0
 const STORM_SEED: int = 11
 
 

@@ -49,35 +49,35 @@ extends StormTuning
 @export var max_presented_gusts: int = 12
 ## Swoosh strokes per gust (Bontago-59o.6): each is a tapered white ribbon that
 ## draws on, drifts along the gust heading, then erases from its tail.
-@export var gust_streak_count: int = 10
+@export var gust_streak_count: int = 24
 ## Arc length in meters of one swoosh stroke, tail to curl tip.
-@export var gust_streak_length_m: float = 11.0
+@export var gust_streak_length_m: float = 12.0
 ## Peak ribbon width in meters (the thickest part, just before the curl).
-@export var gust_streak_width_m: float = 0.75
+@export var gust_streak_width_m: float = 0.3
 ## Drift speed in meters per second of a stroke along the gust heading.
-@export var gust_streak_speed_ms: float = 24.0
+@export var gust_streak_speed_ms: float = 45.0
 ## Largest number of parallel strokes drawn together as one cluster (1 = singles only).
-@export var gust_group_max: int = 3
+@export var gust_group_max: int = 2
 ## Sideways spacing in meters between parallel strokes of one cluster.
-@export var gust_parallel_spacing_m: float = 1.1
+@export var gust_parallel_spacing_m: float = 0.6
 ## Seconds one stroke takes to draw on, hold and erase before it respawns elsewhere.
-@export var gust_stroke_cycle_s: float = 1.3
+@export var gust_stroke_cycle_s: float = 1.0
 ## Fraction of the stroke cycle spent drawing the stroke on (tail to head).
-@export var gust_draw_on_frac: float = 0.4
+@export var gust_draw_on_frac: float = 0.35
 ## Fraction of the stroke cycle spent erasing it from the tail.
-@export var gust_erase_frac: float = 0.35
+@export var gust_erase_frac: float = 0.4
 ## Curl radius at the start of the hook, as a fraction of the stroke arc length; the rest of the arc is the lead-in.
-@export var gust_curl_radius_frac: float = 0.09
+@export var gust_curl_radius_frac: float = 0.06
 ## How many full turns the head curls through (0.75 is a hook, 1.0 a loop).
 @export var gust_curl_turns: float = 0.7
 ## How much the curl tightens towards its tip (0 = constant radius, 1 = closes to a point).
 @export var gust_curl_tighten: float = 0.55
 ## Peak heading swing in radians of the lead-in's S wave.
-@export var gust_body_swing_rad: float = 0.22
+@export var gust_body_swing_rad: float = 0.1
 ## Ribbon mesh vertex pairs along the stroke; more is smoother.
 @export var gust_ribbon_segments: int = 56
 ## Fraction of the stroke over which the ribbon tapers to a point at each visible end.
-@export var gust_tip_taper_frac: float = 0.12
+@export var gust_tip_taper_frac: float = 0.3
 ## Exponent shaping the width profile: above 1 pushes the thickest part toward the curl.
 @export var gust_width_peak_bias: float = 0.8
 ## Fraction of the gust radius a stroke may start ahead or behind the centre along the heading.
@@ -85,17 +85,23 @@ extends StormTuning
 ## Fraction of the gust radius strokes scatter sideways across the heading.
 @export var gust_spread_side_frac: float = 1.0
 ## Fraction of the gust radius strokes scatter vertically.
-@export var gust_spread_up_frac: float = 0.8
+@export var gust_spread_up_frac: float = 1.0
 ## Smallest on-screen length share kept when a gust points straight at the camera (stops strokes collapsing).
 @export var gust_min_foreshorten: float = 0.25
 ## Random stroke length variation (0.4 = each stroke is 0.8x to 1.2x the base length).
-@export var gust_length_variation: float = 0.4
+@export var gust_length_variation: float = 0.6
 ## How much shorter each outer parallel stroke is than the cluster centre (0.2 = 20 percent per step).
 @export var gust_parallel_shrink: float = 0.2
 ## Backward lag of each parallel stroke along the heading, as a fraction of stroke length.
 @export var gust_parallel_lag_frac: float = 0.15
 ## Where the stroke's tail sits relative to its anchor, as a fraction of stroke length behind the lead-in start.
 @export var gust_anchor_frac: float = 0.4
+## Share of the strokes that are leaders: only these carry the curl at the head, the rest are straight or gently curved lines.
+@export_range(0.0, 1.0, 0.05) var gust_curl_lead_frac: float = 0.2
+## Pushes strokes toward the top of the gust volume (1 = even, above 1 = more high up), matching the height-weighted force.
+@export var gust_height_bias: float = 1.8
+## How much longer high strokes run than low ones (0.8 = top is 0.8 of the base length longer than the bottom is shorter).
+@export var gust_height_length_gain: float = 0.8
 @export var gust_color: Color = Color(1.0, 1.0, 1.0, 1.0)
 ## Fraction of streaks on the Low graphics preset.
 @export_range(0.0, 1.0, 0.05) var gust_low_preset_density: float = 0.4

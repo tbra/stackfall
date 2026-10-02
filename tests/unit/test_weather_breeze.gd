@@ -470,6 +470,25 @@ func test_gust_ribbon_is_a_tapered_curling_strip() -> void:
 	assert_lt(verts[verts.size() - 1].x, max_x - 0.01, "the hook curls back over itself")
 
 
+func test_only_leading_strokes_curl_and_the_band_is_broad() -> void:
+	var straight: ArrayMesh = GustPresentation.build_ribbon(_tuning, false)
+	var verts: PackedVector3Array = straight.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var prev_x: float = -1.0
+	for v: Vector3 in verts:
+		assert_gte(v.x, prev_x - 0.0001, "a non-leader never curls back over itself")
+		prev_x = maxf(prev_x, v.x)
+	assert_gte(_tuning.gust_streak_count, 15, "a gust is a band of many streaks")
+	assert_lt(_tuning.gust_curl_lead_frac, 0.5, "most streaks are straight")
+	assert_gt(_tuning.gust_height_bias, 1.0, "more streaks high up")
+	assert_gt(_tuning.gust_height_length_gain, 0.0, "longer streaks high up")
+	var presenter: BreezePresenter = BreezePresenter.new()
+	presenter.tuning = _tuning
+	add_child_autofree(presenter)
+	Events.breeze_gust_started.emit(_wire(1))
+	var gust: GustPresentation = presenter.get_child(0) as GustPresentation
+	assert_eq(gust.get_child_count(), 2, "one curled and one straight MultiMesh")
+
+
 func _drawn_strokes(preset_id: StringName) -> int:
 	Settings.set_graphics_preset(preset_id)
 	var presenter: BreezePresenter = BreezePresenter.new()

@@ -34,6 +34,8 @@ uniform float length_variation = 0.4;
 uniform float parallel_shrink = 0.2;
 uniform float parallel_lag = 0.15;
 uniform float anchor_frac = 0.4;
+uniform float height_bias = 1.8;
+uniform float height_length_gain = 0.8;
 
 const float PI_C = 3.14159265;
 
@@ -53,9 +55,12 @@ void vertex() {
 	vec3 side = normalize(cross(heading, vec3(0.0, 1.0, 0.0)));
 	vec3 up = cross(side, heading);
 	float along = (hash(key + 1.0) * 2.0 - 1.0) * radius * spread_along + c * cycle_s * speed;
+	// Bontago-mp0.28 round 2: height_bias > 1 pushes strokes toward the top of the
+	// gust volume (matching the height-weighted force); higher strokes run longer.
+	float high = pow(hash(key + 3.0), 1.0 / max(height_bias, 0.1));
 	vec3 p = center + heading * along
 		+ side * ((hash(key + 2.0) * 2.0 - 1.0) * radius * spread_side)
-		+ up * ((hash(key + 3.0) * 2.0 - 1.0) * radius * spread_up);
+		+ up * ((high * 2.0 - 1.0) * radius * spread_up);
 	vec4 view_pos = VIEW_MATRIX * vec4(p, 1.0);
 	// Bontago-mp0.28: the screen direction of the world heading must follow the
 	// perspective projection (strokes converge on the heading's vanishing
@@ -76,7 +81,7 @@ void vertex() {
 	vec2 perp = vec2(-d2.y, d2.x);
 	float foreshorten = max(d2_len, min_foreshorten);
 	float flip = hash(key + 4.0) < 0.5 ? 1.0 : -1.0;
-	float len = length_m * (1.0 - 0.5 * length_variation + length_variation * INSTANCE_CUSTOM.w) * (1.0 - parallel_shrink * abs(INSTANCE_CUSTOM.z));
+	float len = length_m * (1.0 - 0.5 * length_variation + length_variation * INSTANCE_CUSTOM.w) * (1.0 - parallel_shrink * abs(INSTANCE_CUSTOM.z)) * (1.0 + height_length_gain * (high - 0.5));
 
 	float t = UV.x;
 	float head = smoothstep(0.0, 1.0, clamp(c / draw_frac, 0.0, 1.0));
