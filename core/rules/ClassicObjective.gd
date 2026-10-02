@@ -40,6 +40,11 @@ func update(raster: TerritoryRaster, delta: float) -> void:
 	_checker.update(raster, delta)
 
 
+func set_claim_radius(radius: float) -> void:
+	if _checker != null:
+		_checker.set_claim_radius(radius)
+
+
 func winner() -> int:
 	return _checker.winner() if _checker != null else NO_TEAM
 

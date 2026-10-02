@@ -51,6 +51,8 @@ const EVENT_COUNTDOWN: StringName = &"countdown"
 const EVENT_TURN_CHANGED: StringName = &"turn_changed"
 const EVENT_FEED_ISSUED: StringName = &"feed_issued"
 const EVENT_FEED_EXPIRED: StringName = &"feed_expired"
+## Bontago-1pi.18.1: [slot_id, backlog_count, timer_paused] for the QoL experiments.
+const EVENT_QOL_FEED: StringName = &"qol_feed"
 const EVENT_PLACEMENT_REJECTED: StringName = &"placement_rejected"
 const EVENT_PLACEMENT_RELOCATED: StringName = &"placement_relocated"
 const EVENT_PLAYER_ELIMINATED: StringName = &"player_eliminated"
@@ -252,6 +254,7 @@ func _ready() -> void:
 	Events.turn_changed.connect(_on_turn_changed)
 	Events.feed_block_issued.connect(_on_feed_block_issued)
 	Events.feed_timer_expired.connect(_on_feed_timer_expired)
+	Events.qol_feed_changed.connect(_on_qol_feed_changed)
 	Events.placement_rejected.connect(_on_placement_rejected)
 	Events.placement_relocated.connect(_on_placement_relocated)
 	Events.player_eliminated.connect(_on_player_eliminated)
@@ -1330,6 +1333,11 @@ func _on_feed_timer_expired(slot_id: int) -> void:
 	_apply_intent(slot_id, origin, orientation_index, free_quat, true, _authority().feed_seq(slot_id))
 
 
+func _on_qol_feed_changed(slot_id: int, backlog: int, paused: bool) -> void:
+	if _is_host():
+		replicate_match_event(EVENT_QOL_FEED, [slot_id, backlog, paused])
+
+
 func _on_placement_rejected(slot_id: int, reason: StringName) -> void:
 	if _is_host():
 		replicate_match_event(EVENT_PLACEMENT_REJECTED, [slot_id, reason])
@@ -1407,6 +1415,10 @@ func _on_gift_expired(gift_id: int) -> void:
 ## like _on_gift_spawned above.
 func _on_special_triggered(net_id: int, def_id: StringName, position: Vector3, chain_depth: int) -> void:
 	if _is_host():
+		# Bontago-1pi.18.1 (QoL 1): a special freezes block timers for a while.
+		var feed: Variant = _authority().get("_feed")
+		if feed != null:
+			feed.note_special_triggered()
 		replicate_match_event(EVENT_SPECIAL_TRIGGERED, [net_id, def_id, position, chain_depth])
 
 
@@ -1698,6 +1710,13 @@ func build_world_replay() -> Array[Array]:
 			messages.append(_event(EVENT_SLOT_REPLAY, slot_args))
 	for payload: Array in _glue_rejoin_snapshot():
 		messages.append(_event(EVENT_GLUE_CHARGES, payload))
+	# Bontago-1pi.18.1: a late joiner's HUD mirror starts at zero/unpaused, so
+	# replay each slot's non-default QoL state (nothing is sent with the toggles off).
+	for slot_id: int in range(slot_count):
+		var backlog: int = int(authority.qol_backlog_count(slot_id))
+		var paused: bool = bool(authority.qol_timer_paused(slot_id))
+		if backlog > 0 or paused:
+			messages.append(_event(EVENT_QOL_FEED, [slot_id, backlog, paused]))
 
 	for gift: Dictionary in authority.gift_states():
 		var gift_id: int = int(gift["id"])
@@ -2118,6 +2137,13 @@ func net_match_event(event: StringName, args: Array) -> void:
 			Events.feed_block_issued.emit(int(args[0]), StringName(args[1]), StringName(args[2]))
 		EVENT_FEED_EXPIRED:
 			Events.feed_timer_expired.emit(int(args[0]))
+		EVENT_QOL_FEED:
+			if _is_host() or args.size() != 3 or not args[0] is int or not args[1] is int or not args[2] is bool:
+				return
+			if args[0] < 0 or args[0] >= _authority().slot_count():
+				return
+			_authority().apply_replicated_qol(args[0], args[1], args[2])
+			Events.qol_feed_changed.emit(args[0], args[1], args[2])
 		EVENT_PLACEMENT_REJECTED:
 			Events.placement_rejected.emit(int(args[0]), StringName(args[1]))
 		EVENT_PLACEMENT_RELOCATED:

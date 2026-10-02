@@ -19,6 +19,9 @@ const NO_TEAM: int = -1
 
 var _goal_positions: PackedVector2Array = PackedVector2Array()
 var _capture_hold: float = 3.0
+## Bontago-1pi.18.1: 0 = sample the flag's own cell (the rule). > 0 = decide each
+## goal over the cells within this radius (see claim_at).
+var _claim_radius: float = 0.0
 
 ## The group every goal currently sits in, or NO_GROUP. Held across updates so
 ## that a capture passing from one group to another restarts the hold instead
@@ -38,6 +41,10 @@ func _init(
 
 func goal_positions() -> PackedVector2Array:
 	return _goal_positions
+
+
+func set_claim_radius(radius: float) -> void:
+	_claim_radius = maxf(radius, 0.0)
 
 
 func capture_hold() -> float:
@@ -67,7 +74,7 @@ func update(raster: TerritoryRaster, delta: float) -> void:
 	# *same* team whose indices happen to coincide, which would need the solver
 	# to carry stable group identities across solves. That team held the goal
 	# throughout either way, so it is not worth the bookkeeping.
-	var team: int = _team_at(raster, _goal_positions[0])
+	var team: int = claim_at(raster, _goal_positions[0], _claim_radius).y
 	if group != _capturing_group or team != _capturing_team:
 		_capturing_group = group
 		_capturing_team = team
@@ -132,12 +139,12 @@ func _group_holding_every_goal(raster: TerritoryRaster) -> int:
 	if count == 0:
 		return TerritoryGroups.NO_GROUP
 
-	var group: int = raster.group_at_point(_goal_positions[0])
+	var group: int = claim_at(raster, _goal_positions[0], _claim_radius).x
 	# Catches NO_GROUP and CONTESTED, which are both negative.
 	if group < 0:
 		return TerritoryGroups.NO_GROUP
 	for i: int in range(1, count):
-		if raster.group_at_point(_goal_positions[i]) != group:
+		if claim_at(raster, _goal_positions[i], _claim_radius).x != group:
 			return TerritoryGroups.NO_GROUP
 	return group
 
@@ -148,13 +155,64 @@ func _group_holding_every_goal(raster: TerritoryRaster) -> int:
 ## solver only forms groups anchored to a living home, so this is the "unbroken
 ## path to a living allied home" rule) and is owned in the final raster;
 ## unowned, contested, hole and off-disk reads hold for nobody.
-static func goal_holder(raster: TerritoryRaster, point: Vector2) -> int:
-	if raster.group_at_point(point) < 0:
-		return NO_TEAM
-	var cell: Vector2i = raster.grid().world_to_cell(point)
-	return raster.team_at(cell.x, cell.y)
+static func goal_holder(raster: TerritoryRaster, point: Vector2, claim_radius: float = 0.0) -> int:
+	var claim: Vector2i = claim_at(raster, point, claim_radius)
+	return NO_TEAM if claim.x < 0 else claim.y
 
 
-func _team_at(raster: TerritoryRaster, point: Vector2) -> int:
-	var cell: Vector2i = raster.grid().world_to_cell(point)
-	return raster.team_at(cell.x, cell.y)
+## Who claims the goal at `point`: x = group index (negative = none), y = team
+## (NO_TEAM when none). claim_radius <= 0 reads the single flag cell, exactly the
+## original rule.
+##
+## DECISION (Bontago-1pi.18.1, QoL "bigger claim radius"): with a radius, every
+## cell whose centre lies within it votes if it is in a real group and owned;
+## the team owning the most such cells claims the goal (group = that team's most
+## common group, lowest index on a tie). A tie between teams, or no owned cell,
+## claims nothing -- the same as contested/unowned today.
+static func claim_at(raster: TerritoryRaster, point: Vector2, claim_radius: float) -> Vector2i:
+	var grid: CellGrid = raster.grid()
+	var center: Vector2i = grid.world_to_cell(point)
+	if claim_radius <= 0.0:
+		return Vector2i(raster.group_at(center.x, center.y), raster.team_at(center.x, center.y))
+	var reach: int = ceili(claim_radius / grid.cell_size) + 1
+	var team_cells: Dictionary = {}
+	var group_cells: Dictionary = {}
+	var radius_sq: float = claim_radius * claim_radius
+	for cy: int in range(center.y - reach, center.y + reach + 1):
+		for cx: int in range(center.x - reach, center.x + reach + 1):
+			if not grid.in_bounds(cx, cy):
+				continue
+			if grid.cell_center(cx, cy).distance_squared_to(point) > radius_sq:
+				continue
+			var group: int = raster.group_at(cx, cy)
+			var team: int = raster.team_at(cx, cy)
+			if group < 0 or team < 0:
+				continue
+			team_cells[team] = int(team_cells.get(team, 0)) + 1
+			var key: int = team * 1000000 + group
+			group_cells[key] = int(group_cells.get(key, 0)) + 1
+	var best_team: int = NO_TEAM
+	var best_count: int = 0
+	var tied: bool = false
+	for team: int in team_cells:
+		var count: int = team_cells[team]
+		if count > best_count:
+			best_team = team
+			best_count = count
+			tied = false
+		elif count == best_count:
+			tied = true
+	if best_team == NO_TEAM or tied:
+		return Vector2i(TerritoryGroups.NO_GROUP, NO_TEAM)
+	var best_group: int = TerritoryGroups.NO_GROUP
+	var best_group_count: int = 0
+	for key: int in group_cells:
+		if key / 1000000 != best_team:
+			continue
+		var group_count: int = group_cells[key]
+		var group_id: int = key % 1000000
+		if group_count > best_group_count or (group_count == best_group_count and group_id < best_group):
+			best_group = group_id
+			best_group_count = group_count
+	return Vector2i(best_group, best_team)
+

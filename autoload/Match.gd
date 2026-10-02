@@ -592,6 +592,21 @@ func feed_progress(slot_id: int) -> float:
 	return _feed.feed_progress(slot_id)
 
 
+## Bontago-1pi.18.1 (QoL experiments): blocks queued for `slot_id` (0 when the
+## backlog toggle is off), and whether its block timer is paused by the pause toggle.
+func qol_backlog_count(slot_id: int) -> int:
+	return _feed.backlog_count(slot_id)
+
+
+func qol_timer_paused(slot_id: int) -> bool:
+	return _feed.timer_paused(slot_id)
+
+
+## Client side of Events.qol_feed_changed (net/MatchNet.gd).
+func apply_replicated_qol(slot_id: int, backlog: int, paused: bool) -> void:
+	_feed.apply_replicated_qol(slot_id, backlog, paused)
+
+
 ## Whether _tick_feed() is currently decrementing timers (Bontago-mv0.8:
 ## true for every real match). ui/SandboxPanel.gd shows this as the timer's
 ## "running"/"paused" state.

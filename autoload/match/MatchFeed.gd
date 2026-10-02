@@ -17,6 +17,22 @@ var _held_shapes: Array[BlockShape] = []
 var _feed_time_left: Array[float] = []
 var _feed_expired: Array[bool] = []
 
+## Bontago-1pi.18.1 (QoL experiments 1 and 2; see config/QolExperiments.gd).
+## _backlog[slot] holds blocks queued instead of force-dropped (host only);
+## _backlog_mirror/_paused_mirror are what a client displays, kept by
+## apply_replicated_qol(). _timer_pause is null unless the toggle is on.
+var _backlog: Array[Array] = []
+var _backlog_mirror: Array[int] = []
+var _paused_mirror: Array[bool] = []
+var _timer_pause: TimerPause = null
+var _qol_scan_left: float = 0.0
+## Reused by the topple scan / pause tick so the 0.25 s scan does not allocate.
+var _qol_counts: PackedInt32Array = PackedInt32Array()
+var _qol_no_counts: PackedInt32Array = PackedInt32Array()
+var _qol_paused_before: Array[bool] = []
+## Test seam: Callable() -> PackedInt32Array replaces the block-velocity scan.
+var _qol_moving_counts_source: Callable = Callable()
+
 ## Spec 3.4 / docs/M3a_PLAN.md, "Never duplicated, never lost": one counter
 ## per slot, advanced every time the slot's held block is consumed. An intent
 ## carries the value its sender last saw; the host refuses one that is no
@@ -77,6 +93,8 @@ func held_shape(slot_id: int) -> BlockShape:
 
 ## What the HUD's next-block preview shows for `slot_id`.
 func next_shape(slot_id: int) -> BlockShape:
+	if slot_id >= 0 and slot_id < _backlog.size() and not _backlog[slot_id].is_empty():
+		return _backlog[slot_id][0] as BlockShape
 	if _next_gift_shapes.has(slot_id):
 		return _next_gift_shapes[slot_id] as BlockShape
 	if slot_id < 0 or slot_id >= _bags.size():
@@ -115,11 +133,50 @@ func set_feed_timer_enabled(enabled: bool) -> void:
 	_feed_timer_enabled = enabled
 
 
-func _issue_next_block(slot_id: int) -> void:
+## Bontago-1pi.18.1: blocks the slot has queued (host: the real backlog; client:
+## the replicated mirror). Always 0 with the backlog toggle off.
+func backlog_count(slot_id: int) -> int:
+	if _match._is_host():
+		if slot_id < 0 or slot_id >= _backlog.size():
+			return 0
+		return _backlog[slot_id].size()
+	if slot_id < 0 or slot_id >= _backlog_mirror.size():
+		return 0
+	return _backlog_mirror[slot_id]
+
+
+## Bontago-1pi.18.1: whether the slot's block timer is frozen by the pause toggle.
+func timer_paused(slot_id: int) -> bool:
+	if _match._is_host():
+		return _timer_pause != null and _timer_pause.is_paused(slot_id)
+	if slot_id < 0 or slot_id >= _paused_mirror.size():
+		return false
+	return _paused_mirror[slot_id]
+
+
+## Client: applies the host's QoL feed event (backlog count + paused flag).
+func apply_replicated_qol(slot_id: int, backlog: int, paused: bool) -> void:
+	if slot_id < 0 or slot_id >= _backlog_mirror.size():
+		return
+	_backlog_mirror[slot_id] = clampi(backlog, 0, QolExperiments.BACKLOG_MAX_CEILING)
+	_paused_mirror[slot_id] = paused
+
+
+func _issue_next_block(slot_id: int, from_backlog: bool = true) -> void:
 	var bag: BlockBag = _bags[slot_id]
-	var shape: BlockShape = bag.next()
-	var is_gift: bool = _next_gift_shapes.has(slot_id)
-	_next_gift_shapes.erase(slot_id)
+	var shape: BlockShape = null
+	var is_gift: bool = false
+	var popped: bool = false
+	if from_backlog and slot_id < _backlog.size() and not _backlog[slot_id].is_empty():
+		# DECISION (Bontago-1pi.18.1): a queued block is handed out before the
+		# bag is touched, so placing "takes from the backlog first"; a pending
+		# gift carrier stays pending for the first bag draw after the backlog.
+		shape = _backlog[slot_id].pop_front() as BlockShape
+		popped = true
+	else:
+		shape = bag.next()
+		is_gift = _next_gift_shapes.has(slot_id)
+		_next_gift_shapes.erase(slot_id)
 	_held_is_gift[slot_id] = is_gift
 	if is_gift:
 		_match._gifts.activate_next_special(slot_id)
@@ -128,10 +185,14 @@ func _issue_next_block(slot_id: int) -> void:
 	_held_shapes[slot_id] = shape
 	var preview: Array[BlockShape] = bag.peek(1)
 	var next_id: StringName = preview[0].id if preview.size() > 0 else &""
+	if slot_id < _backlog.size() and not _backlog[slot_id].is_empty():
+		next_id = (_backlog[slot_id][0] as BlockShape).id
 	var was_suppressed: bool = _suppress_gift_roll
 	_suppress_gift_roll = was_suppressed or is_gift
 	Events.feed_block_issued.emit(slot_id, shape.id if shape != null else &"", next_id)
 	_suppress_gift_roll = was_suppressed
+	if popped:
+		_emit_qol_state(slot_id)
 
 
 func _tick_feed(delta: float) -> void:
@@ -147,6 +208,7 @@ func _tick_feed(delta: float) -> void:
 		# gets no lock either, by the same reasoning _consume_and_refeed()'s
 		# matching DECISION explains.
 		return
+	_tick_qol_pause(delta)
 	if _match.config.hot_seat or _match.config.turn_based:
 		# stackfall-reviewer finding (Bontago-keo.10, M6 B4 turn-based review):
 		# turn_based used to fall into the concurrent `else` branch below,
@@ -184,6 +246,8 @@ func _tick_feed(delta: float) -> void:
 			# this call is exactly the hot-seat recovery it mirrors.
 			_match.advance_turn()
 			return
+		if timer_paused(active_slot):
+			return
 		_feed_time_left[active_slot] = maxf(_feed_time_left[active_slot] - delta, 0.0)
 		if _feed_time_left[active_slot] <= 0.0 and not _feed_expired[active_slot]:
 			_feed_expired[active_slot] = true
@@ -203,6 +267,9 @@ func _tick_feed(delta: float) -> void:
 				# block") so a player who reconnects inside the grace period
 				# has not been auto-dropped a tower's worth of blocks.
 				continue
+			if timer_paused(i):
+				# Bontago-1pi.18.1 (QoL 1): frozen by an event or a topple.
+				continue
 			_feed_time_left[i] = maxf(_feed_time_left[i] - delta, 0.0)
 			if _feed_time_left[i] > 0.0 or _feed_expired[i]:
 				continue
@@ -215,6 +282,9 @@ func _tick_feed(delta: float) -> void:
 				# latch true for this crossing.
 				_release_locked[i] = false
 				_feed_time_left[i] = _match.config.block_timer
+			elif _try_backlog_push(i):
+				# Bontago-1pi.18.1 (QoL 2): queued instead of forced.
+				pass
 			else:
 				# This interval's piece is still unspent: force it, exactly
 				# as spec 2.5's [ORIGINAL] auto-drop always has. _feed_expired
@@ -238,11 +308,104 @@ func _tick_client_display(delta: float) -> void:
 	for i: int in range(_feed_time_left.size()):
 		if not _match.slot(i).home_flag_alive:
 			continue
+		if _paused_mirror.size() > i and _paused_mirror[i]:
+			continue
 		_feed_time_left[i] = maxf(_feed_time_left[i] - delta, 0.0)
+
+
+## Bontago-1pi.18.1 (QoL 2): at expiry, if the backlog toggle is on and has room,
+## queue the held block and hand the slot a fresh one with a new interval
+## instead of force-dropping. Returns false (caller force-drops) when the toggle
+## is off, the backlog is full, or the held block is a gift.
+func _try_backlog_push(slot_id: int) -> bool:
+	var qol: QolExperiments = _match.config.qol
+	if qol == null or qol.effective_backlog_max() <= 0 or slot_id >= _backlog.size():
+		return false
+	if is_held_gift(slot_id) or _backlog[slot_id].size() >= qol.effective_backlog_max():
+		return false
+	var held: BlockShape = _held_shapes[slot_id]
+	if held == null:
+		return false
+	# The fresh block comes from the bag, so the queued one is not handed
+	# straight back; _issue_next_block() pops the backlog only AFTER this draw.
+	var fresh: Array[BlockShape] = _bags[slot_id].peek(1)
+	if fresh.is_empty():
+		return false
+	_feed_seq[slot_id] += 1
+	_feed_time_left[slot_id] = _match.config.block_timer
+	_feed_expired[slot_id] = false
+	_backlog[slot_id].append(held)
+	_issue_from_bag(slot_id)
+	_emit_qol_state(slot_id)
+	return true
+
+
+## Like _issue_next_block() but always draws the bag (skips the backlog head).
+func _issue_from_bag(slot_id: int) -> void:
+	_issue_next_block(slot_id, false)
+
+
+func _emit_qol_state(slot_id: int) -> void:
+	Events.qol_feed_changed.emit(slot_id, backlog_count(slot_id), timer_paused(slot_id))
+
+
+## Bontago-1pi.18.1 (QoL 1): feeds the pause rule (topple scan on an interval)
+## and announces per-slot pause changes.
+func _tick_qol_pause(delta: float) -> void:
+	if _timer_pause == null:
+		return
+	var counts: PackedInt32Array = _qol_no_counts
+	_qol_scan_left -= delta
+	if _qol_scan_left <= 0.0:
+		_qol_scan_left = _match.config.qol.topple_scan_interval_s
+		counts = _qol_moving_counts()
+	_qol_paused_before.resize(_feed_time_left.size())
+	for i: int in range(_qol_paused_before.size()):
+		_qol_paused_before[i] = _timer_pause.is_paused(i)
+	_timer_pause.update(delta, counts)
+	for i: int in range(_qol_paused_before.size()):
+		if _qol_paused_before[i] != _timer_pause.is_paused(i):
+			_emit_qol_state(i)
+
+
+## Per-slot count of own placed blocks above the topple speed threshold.
+func _qol_moving_counts() -> PackedInt32Array:
+	if _qol_moving_counts_source.is_valid():
+		return _qol_moving_counts_source.call() as PackedInt32Array
+	var counts: PackedInt32Array = _qol_counts
+	counts.resize(_feed_time_left.size())
+	counts.fill(0)
+	var registry: BlockRegistry = _match.registry()
+	if registry == null:
+		return counts
+	var limit_sq: float = _match.config.qol.topple_speed_threshold_mps
+	limit_sq *= limit_sq
+	registry.count_fast_blocks_by_owner(limit_sq, counts)
+	return counts
+
+
+## A special triggered: pauses timers per QolExperiments.pause_event_s.
+func note_special_triggered() -> void:
+	if _timer_pause == null:
+		return
+	var before: Array[bool] = []
+	for i: int in range(_feed_time_left.size()):
+		before.append(_timer_pause.is_paused(i))
+	_timer_pause.note_special()
+	for i: int in range(before.size()):
+		if before[i] != _timer_pause.is_paused(i):
+			_emit_qol_state(i)
 
 
 func _build_bags() -> void:
 	_bags.clear()
+	_backlog.clear()
+	_backlog_mirror.clear()
+	_paused_mirror.clear()
+	_timer_pause = null
+	_qol_scan_left = 0.0
+	if _match.config.qol != null and _match.config.qol.timer_pause_enabled:
+		_timer_pause = TimerPause.new(_match.config.qol, _match.slot_count())
 	_next_gift_shapes.clear()
 	_held_is_gift.clear()
 	for i: int in range(_match.slot_count()):
@@ -255,6 +418,9 @@ func _build_bags() -> void:
 		if _match.config.rng_seed >= 0:
 			seed = _match.config.rng_seed + i * 1000003
 		_bags.append(BlockBag.new(_match._block_feed_config, seed))
+		_backlog.append([])
+		_backlog_mirror.append(0)
+		_paused_mirror.append(false)
 
 
 ## Bontago-mv0.10 (spec 2.4 "[ORIGINAL target]" placement cadence): "Each

@@ -489,6 +489,17 @@ func field_global_transform() -> Transform3D:
 	return _field.global_transform
 
 
+## Bontago-1pi.18.1: adds, per owner slot, the blocks faster than sqrt(limit_sq)
+## into `counts` (pre-sized by the caller). Allocation-free, unlike all_blocks().
+func count_fast_blocks_by_owner(limit_sq: float, counts: PackedInt32Array) -> void:
+	for id: Variant in _entries:
+		var block: Block = (_entries[id] as _Entry).block
+		if not is_instance_valid(block):
+			continue
+		if block.owner_slot >= 0 and block.owner_slot < counts.size() and block.linear_velocity.length_squared() > limit_sq:
+			counts[block.owner_slot] += 1
+
+
 func all_blocks() -> Array[Block]:
 	var result: Array[Block] = []
 	for id: Variant in _entries.keys():

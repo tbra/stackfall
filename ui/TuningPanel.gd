@@ -215,6 +215,8 @@ var block_effects_config: BlockEffectsConfig = preload("res://config/block_effec
 var beacon_visual_tuning: BeaconVisualTuning = preload("res://config/beacon_visual_tuning.tres")
 var camera_shake_config: CameraShakeConfig = preload("res://config/camera_shake.tres")
 var hud_visual_tuning: HUDVisualTuning = preload("res://config/hud_visual_tuning.tres")
+## Bontago-1pi.18.1: opt-in QoL experiments (host snapshots them at match start).
+var qol_experiments: QolExperiments = preload("res://config/qol_experiments.tres")
 var sky_theme: SkyThemeDef = preload("res://config/sky_themes/sunset.tres")
 
 ## DECISION (ui/TuningPanel.gd): same `Variant` test seam as
@@ -483,6 +485,7 @@ func rebuild() -> void:
 	_add_tab("Physics", [physics_tuning])
 	_add_tab("Territory", [territory_tuning, territory_visuals])
 	_add_tab("Feed", [block_feed_config])
+	_add_tab("QoL", [qol_experiments])
 
 	_apply_availability()
 
