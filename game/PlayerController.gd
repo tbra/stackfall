@@ -167,6 +167,15 @@ var _pending_spawn_active: bool = false
 ## auto-drop the host moved, so this always reflects where the block actually
 ## ended up, not just wherever this controller last aimed.
 var _pending_spawn_top_y: float = 0.0
+## Bontago-1pi.24: seconds since the pending spawn clearance started waiting
+## for the block it would overlap to settle (see _apply_spawn_clearance()).
+var _spawn_settle_elapsed: float = 0.0
+## Bontago-1pi.24: whether the pending clearance already took back the previous
+## piece's raise and started its settle wait (done once per placement).
+var _spawn_settle_waiting: bool = false
+## Bontago-1pi.24: whether the host has issued the piece that follows the
+## pending placement (on a client this can lag the request by a round trip).
+var _pending_spawn_fed: bool = false
 
 ## Bontago-1pi.14 (round 2): how much of _ghost.manual_hover_offset is
 ## spawn-clearance raise (see _apply_spawn_clearance()) rather than the
@@ -366,7 +375,7 @@ func _process(delta: float) -> void:
 	# was just spawned has not been through a physics step yet at that point,
 	# so a physics query cannot see it. Self-guards on _pending_spawn_active,
 	# so this is a no-op on every ordinary frame.
-	_apply_spawn_clearance()
+	_apply_spawn_clearance(delta, true)
 	_decay_clearance_raise(delta)
 	_update_ghost_tint()
 	_handle_hover_adjust(delta)
@@ -864,6 +873,7 @@ func _request_place(auto_drop: bool) -> StringName:
 	# first or _on_feed_block_issued() below would see a stale flag.
 	_pending_spawn_active = true
 	_pending_spawn_top_y = _ghost.projection_span_y().x
+	_begin_pending_spawn()
 	if membrane == null:
 		return _match.request_place(
 			slot_id, _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion, auto_drop
@@ -899,6 +909,7 @@ func _request_throw(velocity: Vector3) -> StringName:
 	_clear_ghost_before_release()
 	_pending_spawn_active = true
 	_pending_spawn_top_y = _ghost.projection_span_y().x
+	_begin_pending_spawn()
 	if membrane == null:
 		return _match.request_throw(
 			slot_id, _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion, velocity
@@ -1195,6 +1206,8 @@ func _on_feed_block_issued(slot_id: int, shape_id: StringName, _next_shape_id: S
 	if shape != null:
 		_ghost.set_shape(shape)
 		_sync_ghost_gift(slot_id)
+	if _pending_spawn_active:
+		_pending_spawn_fed = true
 	# Bontago-mv0.33: does NOT call _apply_spawn_clearance() here anymore --
 	# see that function's own header DECISION. This handler runs synchronously
 	# inside the placement request that spawned the block (Events dispatch is
@@ -1235,20 +1248,81 @@ func _on_feed_block_issued(slot_id: int, shape_id: StringName, _next_shape_id: S
 ## the only thing wrong with today's spawn point is its Y, and reusing that
 ## same, already-tested hover path keeps this a one-field change with no new
 ## footprint/geometry math.
-func _apply_spawn_clearance() -> void:
+##
+## Bontago-1pi.24 (owner playtest 2026-10-02, "the next block loads instantly
+## which means it's always inside a block when spawning ... Don't count the
+## dropped block until it's settled? Only count settled blocks? Small
+## delay?"). ROOT CAUSE, measured in the real Main scene
+## (tests/unit/test_drop_displacement_real_flow.gd): the next piece is issued
+## in the same call that spawns the dropped block, at the very same pose, so
+## the one-shot overlap query below always found the dropped block -- still
+## falling from where the ghost had been -- and raised the new ghost by a
+## whole block height (2.98 m in that trace, the camera following it 2.90 m),
+## after which the decay sank it back over ~0.8 s. That jump-and-sink on every
+## drop is the "block displacement".
+## DECISION: implements the owner's "don't count the dropped block until it's
+## settled" + "small delay": while the new ghost overlaps a block that has not
+## settled yet (_is_settled_body()), the check waits -- bounded by
+## GhostTuning.spawn_clearance_settle_timeout_s -- and only then raises, by
+## the minimal amount, if the ghost really is inside a settled block. A block
+## that falls clear of the ghost never raises it. "Don't run for disabled
+## ghost blocks" needs nothing further: the ghost has no physics body
+## (GhostPreview.tscn is a bare Node3D, its mesh is visual-only), so it never
+## pushes anything; the only thing that "ran" against the dropped block was
+## this query. The release-time guard and the host's own lift still count
+## every block, unsettled or not: those protect the real spawn.
+## DECISION: `wait_for_settle` is true from _process() (the real game); the
+## default false resolves at once, for callers that drive the raise itself
+## (minimal raise, camera follow) after one physics step.
+func _apply_spawn_clearance(delta: float = 0.0, wait_for_settle: bool = false) -> void:
 	if not _pending_spawn_active:
 		return
-	_pending_spawn_active = false
-	# DECISION (Bontago-1pi.14 round 2): the previous piece's raise is taken back
-	# off first, so every spawn starts from the player's own hover and a raise
-	# can never compound across drops (the 69 m ratchet).
-	_take_back_clearance_raise()
-	if not ghost_tuning.spawn_clearance_enabled:
-		return
-	if _ghost == null or _ghost.get_shape() == null:
+	if not _spawn_settle_waiting:
+		_spawn_settle_waiting = true
+		# DECISION (Bontago-1pi.14 round 2): the previous piece's raise is taken
+		# back off first, so every spawn starts from the player's own hover and a
+		# raise can never compound across drops (the 69 m ratchet).
+		_take_back_clearance_raise()
+	if not ghost_tuning.spawn_clearance_enabled or _ghost == null or _ghost.get_shape() == null:
+		_end_pending_spawn()
 		return
 	_refresh_ghost_pose()
+	_spawn_settle_elapsed += delta
+	if wait_for_settle and _spawn_settle_elapsed < ghost_tuning.spawn_clearance_settle_timeout_s and (
+		not _pending_spawn_fed or _ghost_overlaps_a_placed_block(true)
+	):
+		return
+	_end_pending_spawn()
 	_raise_ghost_until_clear()
+
+
+## Bontago-1pi.24: a new placement request restarts the settle wait.
+func _begin_pending_spawn() -> void:
+	_spawn_settle_waiting = false
+	_spawn_settle_elapsed = 0.0
+	_pending_spawn_fed = false
+
+
+func _end_pending_spawn() -> void:
+	_pending_spawn_active = false
+	_spawn_settle_waiting = false
+	_pending_spawn_fed = false
+
+
+## Bontago-1pi.24: whether a placed body has come to rest. On the physics
+## authority that is Jolt's own sleep (or a static freeze: stable-block
+## freeze, Freeze special); a client's mirrored blocks are always frozen
+## kinematic, so there it is the replicated sleeping flag the snapshot drives
+## into Block.is_contributing_visual().
+func _is_settled_body(body: RigidBody3D) -> bool:
+	var block: Block = body as Block
+	if block == null:
+		return body.sleeping
+	if block.is_freeze_static():
+		return true
+	if block.freeze:
+		return block.is_contributing_visual()
+	return block.sleeping
 
 
 ## Raises the held ghost by the minimum hover amount that leaves it clear of
@@ -1373,7 +1447,9 @@ func _absorb_clearance_raise() -> void:
 ## ghost_collision_skin inflation here (unlike _sweep_motion()'s clearance
 ## gap): this asks "does it overlap right now", not "how much gap should be
 ## kept while sliding", so the boxes are used at their true size.
-func _ghost_overlaps_a_placed_block() -> bool:
+## Bontago-1pi.24: `unsettled_only` counts only bodies that have not come to
+## rest yet (_is_settled_body()), for the spawn clearance's settle wait.
+func _ghost_overlaps_a_placed_block(unsettled_only: bool = false) -> bool:
 	var boxes: Array[Vector3] = _ghost.collision_box_local_centers()
 	if boxes.is_empty():
 		return false
@@ -1393,7 +1469,8 @@ func _ghost_overlaps_a_placed_block() -> bool:
 		params.collision_mask = Field.PLACEMENT_QUERY_MASK
 		var overlaps: Array[Dictionary] = space_state.intersect_shape(params, ghost_tuning.collision_probe_max_bodies)
 		for overlap: Dictionary in overlaps:
-			if overlap.get("collider") is RigidBody3D:
+			var body: RigidBody3D = overlap.get("collider") as RigidBody3D
+			if body != null and (not unsettled_only or not _is_settled_body(body)):
 				return true
 	return false
 
@@ -1429,7 +1506,7 @@ func _on_placement_rejected(slot_id: int, _reason: StringName) -> void:
 	# (a manual refusal spawns nothing at all; an auto-drop burn spawns
 	# something, but throws it off the map) -- see _pending_spawn_active's own
 	# field comment.
-	_pending_spawn_active = false
+	_end_pending_spawn()
 	_ghost.play_reject_animation()
 
 

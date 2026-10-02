@@ -54,6 +54,7 @@ spawn_clearance_step = 0.25
 spawn_clearance_max_raise = 20.0
 spawn_clearance_bisect_steps = 5
 spawn_clearance_decay_speed = 2.0
+spawn_clearance_settle_timeout_s = 2.5
 throw_aim_tint_color = Color(1.0, 0.55, 0.15, 0.75)
 throw_arc_sample_count = 64
 throw_arc_max_time_s = 4.0
