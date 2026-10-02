@@ -1242,26 +1242,25 @@ void fragment() {
 	float sky_fresnel = pow(1.0 - clamp(dot(sheen_normal, sheen_view), 0.0, 1.0), disk_sky_sheen_power);
 	emission += disk_sky_sheen_color * disk_sky_sheen_strength * sky_fresnel;
 	if (disc_procedural) {
-		// Bontago-adt.2: cel sheen -- a broad sun lobe off each plate's own
-		// slightly tilted normal, quantised into flat bands, so neighbouring
-		// plates catch the sun in different steps; brushed streaks modulate it.
+		// DECISION (Bontago-ual): keep the warm sun lobe continuous across
+		// plates. Quantising a sun reflection using each plate's tilted normal
+		// paints large tan stair steps at grazing angles. The cool sky lobe still
+		// uses those normals and cel bands, preserving the machined facets.
 		vec3 plate_view_n = normalize(mat3(VIEW_MATRIX) * mat3(MODEL_MATRIX) * proc_plate_n);
-		float plate_align = clamp(dot(reflect(-sheen_view, plate_view_n), sun_view_dir), 0.0, 1.0);
-		float sun_lobe = pow(plate_align, disc_proc_sheen_exponent);
-		// Sky part: the plate's own fresnel toward grazing angles, so the
-		// banded facets show in every view, not only when facing the sun.
+		float sun_lobe = pow(alignment, disc_proc_sheen_exponent);
 		float sky_lobe = pow(1.0 - clamp(dot(plate_view_n, sheen_view), 0.0, 1.0), disc_proc_sky_sheen_power)
 			* disc_proc_sky_sheen_weight;
-		float lobe = clamp(max(sun_lobe, sky_lobe), 0.0, 1.0);
-		vec3 sheen_col = mix(disk_sky_sheen_color, disc_proc_highlight_color,
-			sun_lobe / max(sun_lobe + sky_lobe, 0.0001));
 		float bands = max(float(disc_proc_sheen_bands), 1.0);
-		float q = lobe * bands;
+		float q = clamp(sky_lobe, 0.0, 1.0) * bands;
 		float band = floor(q);
 		float band_aa = max(disc_proc_sheen_band_softness, fwidth(q));
 		band += smoothstep(1.0 - band_aa, 1.0, q - band);
-		float banded = band / bands;
-		emission += sheen_col * disc_proc_sheen_strength * banded * (1.0 + proc_brush);
+		float banded_sky = band / bands;
+		float sun_weight = sun_lobe / max(sun_lobe + sky_fresnel, 0.0001);
+		emission += disc_proc_sheen_strength * (
+			mix(disk_sky_sheen_color * banded_sky * (1.0 + proc_brush),
+				disc_proc_highlight_color * sun_lobe, sun_weight)
+		);
 		emission += disc_proc_highlight_color * proc_highlight;
 	}
 
