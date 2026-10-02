@@ -83,9 +83,8 @@ func after_each() -> void:
 
 	Input.action_release(&"pause_menu")
 
-	var dir: DirAccess = DirAccess.open("user://")
-	if dir != null and dir.file_exists("tuning_overrides.cfg"):
-		dir.remove("tuning_overrides.cfg")
+	if FileAccess.file_exists(TuningPanel.save_path()):
+		DirAccess.remove_absolute(TuningPanel.save_path())
 
 
 # --- Reflection: one control per exported field ------------------------------
@@ -492,7 +491,7 @@ func test_save_and_apply_saved_overrides_round_trip_via_user_dir() -> void:
 func test_apply_saved_overrides_ignores_a_stale_unknown_key() -> void:
 	var config: ConfigFile = ConfigFile.new()
 	config.set_value("PhysicsTuning", "no_longer_a_real_field", 999.0)
-	assert_eq(config.save("user://tuning_overrides.cfg"), OK)
+	assert_eq(config.save(TuningPanel.save_path()), OK)
 
 	# Must not error (Object.set() on an unknown property is otherwise silently
 	# ignored by Godot itself, but the explicit valid-key filter is what this
@@ -971,3 +970,16 @@ func test_ui_is_lazy_and_freed_on_close() -> void:
 	fresh._toggle_panel()
 	assert_eq(fresh.get_child_count(), 0, "Closing frees the UI.")
 	assert_eq(fresh.row_count_for(fresh.physics_tuning), 0, "Closing drops the row references.")
+
+
+## Bontago-1pi.21: a GUT run must never touch the owner's real overrides file.
+func test_gut_run_save_overrides_never_touches_real_file() -> void:
+	var real: String = TuningPanel.SAVE_PATH
+	var existed: bool = FileAccess.file_exists(real)
+	var mtime: int = FileAccess.get_modified_time(real) if existed else 0
+	assert_ne(TuningPanel.save_path(), real, "GUT run maps to a per-PID file")
+	assert_eq(_panel.save_overrides(), OK)
+	assert_true(FileAccess.file_exists(TuningPanel.save_path()), "wrote the GUT file")
+	assert_eq(FileAccess.file_exists(real), existed, "real file existence unchanged")
+	if existed:
+		assert_eq(FileAccess.get_modified_time(real), mtime, "real file mtime unchanged")

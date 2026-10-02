@@ -152,10 +152,6 @@ const DEFAULT_STICK_MOVE_SPEED_SCALE: float = 1.0
 const REAL_CONFIG_PATH: String = "user://settings.cfg"
 var _config_path: String = REAL_CONFIG_PATH
 var _gut_run: bool = false
-const GUT_CMDLN_SCRIPT: String = "gut_cmdln.gd"
-const GUT_CONFIG_PATH_FORMAT: String = "user://settings_gut_%d.cfg"
-const GUT_CONFIG_PREFIX: String = "settings_gut_"
-const GUT_CONFIG_STALE_SECONDS: float = 3600.0
 var _current_preset_id: StringName = DEFAULT_PRESET_ID
 ## Bontago-1pi.11.37: opt-in adaptive quality. Default OFF (owner decides). The level is
 ## runtime-only (never saved) and only ever layered over the stored preset.
@@ -204,31 +200,12 @@ func _ready() -> void:
 	AgentProbe.apply()
 	# Sharded GUT gates run several Godot processes at once; they must not share
 	# (or clobber) the player's user://settings.cfg (Bontago-1pi.20).
-	_gut_run = _is_gut_run()
+	_gut_run = UserPaths.is_gut_run()
 	if _gut_run:
-		_config_path = GUT_CONFIG_PATH_FORMAT % OS.get_process_id()
-		_sweep_stale_gut_configs()
+		_config_path = UserPaths.gut_path(REAL_CONFIG_PATH)
+		UserPaths.sweep_stale()
 	_load()
 	_apply_key_overrides()
-
-
-func _is_gut_run() -> bool:
-	for arg: String in OS.get_cmdline_args():
-		if arg.ends_with(GUT_CMDLN_SCRIPT):
-			return true
-	return false
-
-
-func _sweep_stale_gut_configs() -> void:
-	var dir: DirAccess = DirAccess.open("user://")
-	if dir == null:
-		return
-	for file_name: String in dir.get_files():
-		if not file_name.begins_with(GUT_CONFIG_PREFIX):
-			continue
-		var path: String = "user://" + file_name
-		if Time.get_unix_time_from_system() - FileAccess.get_modified_time(path) > GUT_CONFIG_STALE_SECONDS:
-			dir.remove(file_name)
 
 
 ## The player's last-used input device family (Bontago-1pi.10): real keyboard/
@@ -737,14 +714,14 @@ func _is_gamepad_event(event: InputEvent) -> bool:
 ## The one path every settings read/write/delete uses. In a GUT run the real
 ## player file is unreachable: REAL_CONFIG_PATH maps to the per-PID GUT file.
 func effective_path() -> String:
-	if _gut_run and (_config_path == REAL_CONFIG_PATH or _config_path == ProjectSettings.globalize_path(REAL_CONFIG_PATH)):
-		return GUT_CONFIG_PATH_FORMAT % OS.get_process_id()
+	if _gut_run and UserPaths.is_real_path(REAL_CONFIG_PATH, _config_path):
+		return UserPaths.gut_path(REAL_CONFIG_PATH)
 	return _config_path
 
 
 ## What tests restore after a temp-path override (per-PID file in a GUT run).
 func default_config_path() -> String:
-	return GUT_CONFIG_PATH_FORMAT % OS.get_process_id() if _gut_run else REAL_CONFIG_PATH
+	return UserPaths.gut_path(REAL_CONFIG_PATH) if _gut_run else REAL_CONFIG_PATH
 
 
 func set_config_path_for_test(path: String) -> void:
