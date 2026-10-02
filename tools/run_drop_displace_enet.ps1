@@ -1,0 +1,11 @@
+# Bontago-1pi.14: host + one lagged client on loopback, hard 180 s deadline.
+param([string]$Path = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path, [int]$Port = 47791, [int]$Lag = 150, [string]$BPose = "-26.6,0.99,-0.1", [string]$Out = $env:TEMP)
+$scene = "res://tests/bench/drop_displace_enet.tscn"
+$h = Start-Process godot -ArgumentList @("--headless","--path",$Path,$scene,"--","--headless-host","--port=$Port","--expect-peers=2") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\dd_host.log" -RedirectStandardError "$Out\dd_host.err"
+Start-Sleep 3
+$c = Start-Process godot -ArgumentList @("--headless","--path",$Path,$scene,"--","--join=127.0.0.1:$Port","--sim-lag=$Lag","--b-pose=$BPose") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\dd_client.log" -RedirectStandardError "$Out\dd_client.err"
+$null = $h.Handle; $null = $c.Handle
+$deadline = (Get-Date).AddSeconds(180)
+while (((Get-Date) -lt $deadline) -and (-not ($h.HasExited -and $c.HasExited))) { Start-Sleep 1 }
+foreach ($p in @($h, $c)) { if (-not $p.HasExited) { Write-Host "deadline: killing $($p.Id)"; Stop-Process -Id $p.Id -Force } }
+Get-Content "$Out\dd_host.log" | Select-String "DROPDISP"
