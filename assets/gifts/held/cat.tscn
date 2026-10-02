@@ -1,118 +1,116 @@
-[gd_scene load_steps=15 format=3]
+[gd_scene load_steps=13 format=3]
 
-[sub_resource type="SphereMesh" id="m0"]
-radius = 0.3
-height = 0.6
-radial_segments = 16
-rings = 8
+[ext_resource type="Material" path="res://assets/gifts/gift_outline.tres" id="outline"]
 
 [sub_resource type="StandardMaterial3D" id="c0"]
-albedo_color = Color(1, 0.55, 0.1, 1)
-roughness = 0.7
-
-[sub_resource type="SphereMesh" id="m1"]
-radius = 0.22
-height = 0.44
-radial_segments = 16
-rings = 8
+diffuse_mode = 2
+specular_mode = 2
+albedo_color = Color(0.62, 0.43, 0.85, 1)
+roughness = 0.78
+next_pass = ExtResource("outline")
 
 [sub_resource type="StandardMaterial3D" id="c1"]
-albedo_color = Color(1, 0.55, 0.1, 1)
-roughness = 0.7
-
-[sub_resource type="CylinderMesh" id="m2"]
-top_radius = 0
-bottom_radius = 0.08
-height = 0.16
-radial_segments = 16
-rings = 1
+diffuse_mode = 2
+specular_mode = 2
+albedo_color = Color(1.0, 0.68, 0.21, 1)
+roughness = 0.78
+next_pass = ExtResource("outline")
 
 [sub_resource type="StandardMaterial3D" id="c2"]
-albedo_color = Color(1, 0.55, 0.1, 1)
-roughness = 0.7
+diffuse_mode = 2
+specular_mode = 2
+albedo_color = Color(0.95, 0.29, 0.24, 1)
+roughness = 0.78
+next_pass = ExtResource("outline")
 
-[sub_resource type="CylinderMesh" id="m3"]
-top_radius = 0
-bottom_radius = 0.08
-height = 0.16
-radial_segments = 16
-rings = 1
+[sub_resource type="CapsuleMesh" id="mesh_0"]
+radius = 0.235
+height = 0.53
+radial_segments = 10
+rings = 3
 
-[sub_resource type="StandardMaterial3D" id="c3"]
-albedo_color = Color(1, 0.55, 0.1, 1)
-roughness = 0.7
+[sub_resource type="SphereMesh" id="mesh_1"]
+radius = 0.255
+height = 0.43
+radial_segments = 12
+rings = 6
 
-[sub_resource type="SphereMesh" id="m4"]
-radius = 0.04
+[sub_resource type="PrismMesh" id="mesh_2"]
+size = Vector3(0.16, 0.21, 0.18)
+
+[sub_resource type="PrismMesh" id="mesh_3"]
+size = Vector3(0.16, 0.21, 0.18)
+
+[sub_resource type="SphereMesh" id="mesh_4"]
+radius = 0.035
 height = 0.08
-radial_segments = 16
-rings = 8
+radial_segments = 12
+rings = 6
 
-[sub_resource type="StandardMaterial3D" id="c4"]
-albedo_color = Color(0.05, 0.05, 0.05, 1)
-roughness = 0.7
-
-[sub_resource type="SphereMesh" id="m5"]
-radius = 0.04
+[sub_resource type="SphereMesh" id="mesh_5"]
+radius = 0.035
 height = 0.08
-radial_segments = 16
-rings = 8
+radial_segments = 12
+rings = 6
 
-[sub_resource type="StandardMaterial3D" id="c5"]
-albedo_color = Color(0.05, 0.05, 0.05, 1)
-roughness = 0.7
+[sub_resource type="SphereMesh" id="mesh_6"]
+radius = 0.035
+height = 0.05
+radial_segments = 12
+rings = 6
 
-[sub_resource type="CapsuleMesh" id="m6"]
-radius = 0.05
-height = 0.5
-radial_segments = 16
-rings = 4
-
-[sub_resource type="StandardMaterial3D" id="c6"]
-albedo_color = Color(0.85, 0.45, 0.08, 1)
-roughness = 0.7
+[sub_resource type="CapsuleMesh" id="mesh_7"]
+radius = 0.06
+height = 0.46
+radial_segments = 10
+rings = 3
 
 [node name="Cat" type="Node3D"]
-transform = Transform3D(0.9, 0, 0, 0, 0.9, 0, 0, 0, 0.9, 0, 0, 0)
 
-[node name="Body" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.2, 0)
-mesh = SubResource("m0")
+[node name="SittingBody" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 0.914894, 0, -0.2, 0)
+mesh = SubResource("mesh_0")
 surface_material_override/0 = SubResource("c0")
 cast_shadow = 0
 
 [node name="Head" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.22, 0.05)
-mesh = SubResource("m1")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 0.843137, 0, 0.15, 0.04)
+mesh = SubResource("mesh_1")
+surface_material_override/0 = SubResource("c0")
+cast_shadow = 0
+
+[node name="LeftEar" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.18, 0.38, 0.04)
+mesh = SubResource("mesh_2")
+surface_material_override/0 = SubResource("c0")
+cast_shadow = 0
+
+[node name="RightEar" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.18, 0.38, 0.04)
+mesh = SubResource("mesh_3")
+surface_material_override/0 = SubResource("c0")
+cast_shadow = 0
+
+[node name="LeftEye" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 0.5, -0.1, 0.18, 0.245)
+mesh = SubResource("mesh_4")
 surface_material_override/0 = SubResource("c1")
 cast_shadow = 0
 
-[node name="EarL" type="MeshInstance3D" parent="."]
-transform = Transform3D(0.978148, 0.207912, 0, -0.207912, 0.978148, 0, 0, 0, 1, -0.14, 0.42, 0.05)
-mesh = SubResource("m2")
+[node name="RightEye" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 0.5, 0.1, 0.18, 0.245)
+mesh = SubResource("mesh_5")
+surface_material_override/0 = SubResource("c1")
+cast_shadow = 0
+
+[node name="Nose" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 0.428571, 0, 0.065, 0.27)
+mesh = SubResource("mesh_6")
 surface_material_override/0 = SubResource("c2")
 cast_shadow = 0
 
-[node name="EarR" type="MeshInstance3D" parent="."]
-transform = Transform3D(0.978148, -0.207912, 0, 0.207912, 0.978148, 0, 0, 0, 1, 0.14, 0.42, 0.05)
-mesh = SubResource("m3")
-surface_material_override/0 = SubResource("c3")
-cast_shadow = 0
-
-[node name="EyeL" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.08, 0.26, 0.25)
-mesh = SubResource("m4")
-surface_material_override/0 = SubResource("c4")
-cast_shadow = 0
-
-[node name="EyeR" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.08, 0.26, 0.25)
-mesh = SubResource("m5")
-surface_material_override/0 = SubResource("c5")
-cast_shadow = 0
-
 [node name="Tail" type="MeshInstance3D" parent="."]
-transform = Transform3D(0.819152, -0.573576, 0, 0.573576, 0.819152, 0, 0, 0, 1, 0.3, -0.2, -0.15)
-mesh = SubResource("m6")
-surface_material_override/0 = SubResource("c6")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.25, -0.26, -0.1)
+mesh = SubResource("mesh_7")
+surface_material_override/0 = SubResource("c0")
 cast_shadow = 0

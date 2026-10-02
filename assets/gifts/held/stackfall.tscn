@@ -1,69 +1,69 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=10 format=3]
 
-[sub_resource type="BoxMesh" id="m0"]
-size = Vector3(0.36, 0.36, 0.36)
+[ext_resource type="Material" path="res://assets/gifts/gift_outline.tres" id="outline"]
 
 [sub_resource type="StandardMaterial3D" id="c0"]
-albedo_color = Color(0.25, 0.5, 0.9, 1)
-roughness = 0.7
-
-[sub_resource type="BoxMesh" id="m1"]
-size = Vector3(0.38, 0.38, 0.38)
+diffuse_mode = 2
+specular_mode = 2
+albedo_color = Color(0.27, 0.56, 0.91, 1)
+roughness = 0.78
+next_pass = ExtResource("outline")
 
 [sub_resource type="StandardMaterial3D" id="c1"]
-albedo_color = Color(0.9, 0.3, 0.25, 1)
-roughness = 0.7
-
-[sub_resource type="BoxMesh" id="m2"]
-size = Vector3(0.28, 0.28, 0.28)
+diffuse_mode = 2
+specular_mode = 2
+albedo_color = Color(1.0, 0.68, 0.21, 1)
+roughness = 0.78
+next_pass = ExtResource("outline")
 
 [sub_resource type="StandardMaterial3D" id="c2"]
-albedo_color = Color(0.3, 0.8, 0.35, 1)
-roughness = 0.7
-
-[sub_resource type="BoxMesh" id="m3"]
-size = Vector3(0.04, 0.3, 0.04)
+diffuse_mode = 2
+specular_mode = 2
+albedo_color = Color(0.95, 0.29, 0.24, 1)
+roughness = 0.78
+next_pass = ExtResource("outline")
 
 [sub_resource type="StandardMaterial3D" id="c3"]
-albedo_color = Color(0.93, 0.93, 0.9, 1)
-roughness = 0.7
+diffuse_mode = 2
+specular_mode = 2
+albedo_color = Color(0.96, 0.88, 0.69, 1)
+roughness = 0.78
+next_pass = ExtResource("outline")
 
-[sub_resource type="BoxMesh" id="m4"]
-size = Vector3(0.04, 0.25, 0.04)
+[sub_resource type="BoxMesh" id="mesh_0"]
+size = Vector3(0.38, 0.31, 0.43)
 
-[sub_resource type="StandardMaterial3D" id="c4"]
-albedo_color = Color(0.93, 0.93, 0.9, 1)
-roughness = 0.7
+[sub_resource type="BoxMesh" id="mesh_1"]
+size = Vector3(0.43, 0.31, 0.43)
+
+[sub_resource type="BoxMesh" id="mesh_2"]
+size = Vector3(0.4, 0.31, 0.43)
+
+[sub_resource type="BoxMesh" id="mesh_3"]
+size = Vector3(0.16, 0.035, 0.22)
 
 [node name="Stackfall" type="Node3D"]
-transform = Transform3D(0.9, 0, 0, 0, 0.9, 0, 0, 0, 0.9, 0, 0, 0)
 
-[node name="CubeA" type="MeshInstance3D" parent="."]
-transform = Transform3D(0.939693, 0, -0.34202, 0, 1, 0, 0.34202, 0, 0.939693, 0, -0.3, 0)
-mesh = SubResource("m0")
+[node name="Lower" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.19, -0.29, 0)
+mesh = SubResource("mesh_0")
 surface_material_override/0 = SubResource("c0")
 cast_shadow = 0
 
-[node name="CubeB" type="MeshInstance3D" parent="."]
-transform = Transform3D(0.567994, 0.0798264, -0.819152, 0.0038012, 0.99502, 0.0996005, 0.823024, -0.0596863, 0.564863, 0.05, 0.12, 0)
-mesh = SubResource("m1")
+[node name="Middle" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.14, -0.04, 0)
+mesh = SubResource("mesh_1")
 surface_material_override/0 = SubResource("c1")
 cast_shadow = 0
 
-[node name="CubeC" type="MeshInstance3D" parent="."]
-transform = Transform3D(0.852869, 0.492404, -0.173648, -0.389599, 0.821579, 0.416198, 0.347603, -0.287309, 0.892539, -0.1, 0.39, 0.05)
-mesh = SubResource("m2")
+[node name="Upper" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.07, 0.24, 0)
+mesh = SubResource("mesh_2")
 surface_material_override/0 = SubResource("c2")
 cast_shadow = 0
 
-[node name="Trail" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, 0.3, 0)
-mesh = SubResource("m3")
+[node name="TopMark" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.07, 0.405, 0.03)
+mesh = SubResource("mesh_3")
 surface_material_override/0 = SubResource("c3")
-cast_shadow = 0
-
-[node name="Trail2" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.32, 0.2, 0.1)
-mesh = SubResource("m4")
-surface_material_override/0 = SubResource("c4")
 cast_shadow = 0

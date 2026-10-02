@@ -7,7 +7,7 @@ const OUTPUT: String = "res://assets/ui/gift_previews/"
 const RESOLUTION: int = 384
 const FRAME_FRACTION: float = 0.80
 const GIFT_IDS: Array[StringName] = [
-	&"anvil", &"bomb", &"cat", &"earthquake", &"glue", &"jumping_bean",
+	&"anvil", &"bomb", &"cat", &"earthquake", &"freeze", &"glue", &"jumping_bean",
 	&"magnet", &"paintball", &"propeller", &"rocket", &"stackfall", &"volcano",
 ]
 const LIGHT_ENERGY: float = 1.0
