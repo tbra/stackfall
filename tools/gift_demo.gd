@@ -87,16 +87,16 @@ func _build_panel() -> void:
 func _input(event: InputEvent) -> void:
 	if not event is InputEventKey or not event.pressed or event.echo:
 		return
-	if event.keycode == KEY_F6:
+	if event.is_action("gift_demo_cursor_toggle"):
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED else Input.MOUSE_MODE_CAPTURED
 		get_viewport().set_input_as_handled()
-	elif event.keycode == KEY_R:
+	elif event.is_action("gift_demo_reset"):
 		reset_demo()
 		get_viewport().set_input_as_handled()
-	elif _demo_ready and event.keycode == KEY_LEFT:
+	elif _demo_ready and event.is_action("gift_demo_cycle_prev"):
 		cycle_gift(-1)
 		get_viewport().set_input_as_handled()
-	elif _demo_ready and event.keycode == KEY_RIGHT:
+	elif _demo_ready and event.is_action("gift_demo_cycle_next"):
 		cycle_gift(1)
 		get_viewport().set_input_as_handled()
 
