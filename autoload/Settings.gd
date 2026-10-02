@@ -843,6 +843,8 @@ func _save() -> void:
 		cfg.set_value(SECTION_DEBUG, KEY_DEBUG_ENABLED, _debug_setting == 1)
 	for action: StringName in _key_overrides.keys():
 		cfg.set_value(SECTION_INPUT, String(action), _key_overrides[action])
+	if not UserPaths.persistence_allowed():
+		return
 	var err: Error = cfg.save(effective_path())
 	if err != OK:
 		push_warning("Settings: failed to save %s (error %d)" % [effective_path(), err])

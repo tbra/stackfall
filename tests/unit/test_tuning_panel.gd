@@ -742,6 +742,7 @@ func test_f4_remembers_selected_tab_across_close_and_reopen() -> void:
 	var target_tab: int = _panel._tab_container.get_tab_count() - 1
 	_panel._tab_container.current_tab = target_tab
 	_panel._tab_container.emit_signal("tab_changed", target_tab)
+	_panel._tab_container.emit_signal("tab_clicked", target_tab)
 
 	_panel._unhandled_input(_key_press(KEY_F4))  # close
 	assert_false(_panel.visible)
@@ -763,6 +764,7 @@ func test_selected_tab_index_persists_across_a_fresh_panel_instance() -> void:
 	var target_tab: int = _panel._tab_container.get_tab_count() - 1
 	_panel._tab_container.current_tab = target_tab
 	_panel._tab_container.emit_signal("tab_changed", target_tab)
+	_panel._tab_container.emit_signal("tab_clicked", target_tab)
 	assert_eq(_panel._selected_tab_index, target_tab, "fixture: tab_changed must update the panel's own bookkeeping.")
 
 	var fresh_panel: TuningPanel = autofree(load("res://ui/TuningPanel.tscn").instantiate())
@@ -773,6 +775,36 @@ func test_selected_tab_index_persists_across_a_fresh_panel_instance() -> void:
 		fresh_panel._tab_container.current_tab, target_tab,
 		"a brand-new panel instance must read the persisted tab straight from disk in its own _ready()."
 	)
+
+
+# --- Bontago-1pi.22: tab memory only writes on user interaction -------------
+
+func test_programmatic_tab_selection_does_not_write() -> void:
+	DirAccess.remove_absolute(_panel.save_path())
+	assert_false(FileAccess.file_exists(_panel.save_path()), "fixture: file removed.")
+	var target_tab: int = _panel._tab_container.get_tab_count() - 1
+	_panel._tab_container.current_tab = target_tab
+	_panel._tab_container.emit_signal("tab_changed", target_tab)
+	_panel.rebuild()
+	assert_false(FileAccess.file_exists(_panel.save_path()), "programmatic tab sets and rebuilds must not persist.")
+
+
+func test_user_tab_selection_writes_to_per_pid_file() -> void:
+	DirAccess.remove_absolute(_panel.save_path())
+	assert_false(FileAccess.file_exists(_panel.save_path()), "fixture: file removed.")
+	var target_tab: int = _panel._tab_container.get_tab_count() - 1
+	_panel._tab_container.current_tab = target_tab
+	_panel._tab_container.emit_signal("tab_clicked", target_tab)
+	assert_true(FileAccess.file_exists(_panel.save_path()))
+	assert_true(_panel.save_path().contains("_gut_"), "GUT writes go to the per-PID file.")
+	assert_eq(_panel._load_selected_tab_index(), target_tab)
+
+
+func test_persistence_disallowed_for_headless_non_gut_run() -> void:
+	assert_false(UserPaths.persistence_allowed_for(false, "headless"))
+	assert_true(UserPaths.persistence_allowed_for(false, "windows"))
+	assert_true(UserPaths.persistence_allowed_for(true, "headless"))
+	assert_true(UserPaths.persistence_allowed(), "GUT runs keep writing to the per-PID files.")
 
 
 # --- Bontago-mv0.21: owner-tuned defaults --------------------------------------
