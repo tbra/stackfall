@@ -21,6 +21,9 @@ uniform float width_m = 0.09;
 // 0 = streak (tapered line), 1 = mote (soft tumbling dot).
 uniform float mote_mix : hint_range(0.0, 1.0) = 0.0;
 uniform vec4 tint : source_color = vec4(1.0);
+uniform vec4 band_tint : source_color = vec4(1.0);
+uniform float band_width : hint_range(0.0, 1.0) = 0.28;
+uniform float edge_softness : hint_range(0.0, 0.5) = 0.14;
 uniform float fade_far_m = 120.0;
 uniform float bob_m = 0.4;
 // Motes fade out this close to the camera (start, fully visible).
@@ -67,14 +70,18 @@ void vertex() {
 }
 
 void fragment() {
-	// Streak: thin cel line, tapered at both ends. Mote: round dot with a hard cel edge.
+	// DECISION: two flat colour bands and only an alpha feather keep the
+	// storm's longer, straighter strips cel shaded instead of blurred.
 	vec2 c = UV - vec2(0.5);
 	float taper = 1.0 - abs(c.x) * 2.0;
-	float line = step(abs(c.y), 0.5 * taper * taper) * smoothstep(0.0, 0.25, taper);
+	float half_width = 0.5 * taper * taper;
+	float line = 1.0 - smoothstep(max(0.0, half_width - edge_softness), half_width, abs(c.y));
+	line *= smoothstep(0.0, 0.25, taper);
+	float band = step(abs(c.y), half_width * band_width);
 	float r = clamp(length(c) * 2.0, 0.0, 1.0);
 	float dot_alpha = smoothstep(0.0, 0.6, 1.0 - r);
 	vec3 core = mix(tint.rgb, vec3(1.0, 0.8, 0.4), 0.35 * (1.0 - r) * shape_mix);
 	float a = mix(line, dot_alpha, shape_mix);
-	ALBEDO = mix(tint.rgb, core, shape_mix);
+	ALBEDO = mix(mix(tint.rgb, band_tint.rgb, band), core, shape_mix);
 	ALPHA = a * tint.a * shown;
 }

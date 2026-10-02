@@ -323,7 +323,11 @@ func test_presentation_density_follows_intensity_and_never_touches_physics() -> 
 	assert_true(presentation.visible)
 	var streaks: MultiMeshInstance3D = presentation.get_node("Streaks") as MultiMeshInstance3D
 	var material: ShaderMaterial = streaks.material_override as ShaderMaterial
+	var breeze: BreezeTuning = load("res://config/breeze.tres") as BreezeTuning
 	assert_almost_eq(float(material.get_shader_parameter(&"density")), 0.7, 0.0001)
+	assert_eq(streaks.layers, RainPresentation.RENDER_LAYER_BIT)
+	assert_gt(_tuning.streak_length_m, breeze.gust_streak_length_m)
+	assert_lt(_tuning.streak_width_m, breeze.gust_streak_width_m)
 	assert_false(presentation.is_class("PhysicsBody3D"))
 
 
@@ -332,3 +336,15 @@ func test_presentation_heading_matches_the_host_field() -> void:
 	add_child_autofree(presentation)
 	presentation.configure(SEED_A)
 	assert_eq(presentation.heading(), WindField.direction(SEED_A, 0.0, _tuning))
+
+
+func test_active_presentation_rebuilds_for_graphics_preset() -> void:
+	var original: GraphicsPreset = Settings.current_graphics_preset()
+	Settings.set_graphics_preset(&"high")
+	var presentation: StormPresentation = StormPresentation.new()
+	add_child_autofree(presentation)
+	assert_eq(presentation.total_instances(), _tuning.streak_count + _tuning.mote_count)
+	Settings.set_graphics_preset(&"low")
+	assert_eq(presentation.total_instances(), int(round(float(_tuning.streak_count) * _tuning.low_preset_density))
+			+ int(round(float(_tuning.mote_count) * _tuning.low_preset_density)))
+	Settings.set_graphics_preset(original.id)
