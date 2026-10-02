@@ -41,8 +41,8 @@ extends WeatherTuning
 @export var puddle_radius_max_m: float = 2.2
 ## Seconds of full-strength rain until the disc is fully wet, and seconds to
 ## dry completely once the rain stops.
-@export var puddle_fill_time_s: float = 25.0
-@export var puddle_dry_time_s: float = 45.0
+@export var puddle_fill_time_s: float = 80.0
+@export var puddle_dry_time_s: float = 150.0
 ## Height of the patches above the disc top (m), against z-fighting.
 @export var puddle_lift_m: float = 0.03
 ## Dark water colour, lighter rim and the cel sky-glint colour.
@@ -50,8 +50,23 @@ extends WeatherTuning
 @export var puddle_rim_color: Color = Color(0.5, 0.68, 0.85, 1.0)
 @export var puddle_glint_color: Color = Color(0.8, 0.9, 1.0, 1.0)
 @export_range(0.0, 1.0, 0.01) var puddle_alpha: float = 0.4
-## Raindrop ripple rings drawn on the patches.
+## Small, sparse raindrop rings drawn on the patches.
 @export var puddle_ripples_enabled: bool = true
+## Shortest/longest seconds between drops on one puddle (per-puddle seeded), and the
+## ring's largest radius as a fraction of the puddle.
+@export var puddle_ripple_period_min_s: float = 3.0
+@export var puddle_ripple_period_max_s: float = 7.0
+@export_range(0.02, 0.5, 0.01) var puddle_ripple_radius: float = 0.16
+## Narrowest z/x squash of a puddle (1 = round; lower = more elongated).
+@export_range(0.2, 1.0, 0.05) var puddle_aspect_min: float = 0.45
+## Outline irregularity (0 = smooth oval) and per-puddle darkness spread (0 = uniform).
+@export_range(0.0, 0.5, 0.01) var puddle_outline_irregularity: float = 0.18
+@export_range(0.0, 0.5, 0.01) var puddle_tint_variation: float = 0.18
+## Seeded collection spots (low points): share of puddles drawn around them, how
+## many spots, and the spread around a spot (m).
+@export_range(0.0, 1.0, 0.05) var puddle_cluster_share: float = 0.6
+@export var puddle_cluster_count: int = 6
+@export var puddle_cluster_spread_m: float = 5.0
 
 @export_group("Presentation")
 ## Streak instances at full density on a High/Medium preset.

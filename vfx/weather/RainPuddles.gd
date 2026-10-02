@@ -16,8 +16,8 @@ const SEED: int = 21021
 ## (fraction of its radius probed along each axis).
 const PLACE_TRIES: int = 24
 const EDGE_PROBE: float = 0.8
-## Patch squash range (z radius / x radius).
-const ASPECT_MIN: float = 0.6
+## Basin-centre placement tries; cluster pull keeps the same RNG draw order on
+## every peer.
 const CULL_EXTENT_M: float = 2000.0
 
 var _tuning: RainTuning = TUNING
@@ -106,12 +106,15 @@ func build(map_def: MapDef, tuning: RainTuning, count_scale: float) -> void:
 	var wanted: int = int(roundf(float(tuning.puddle_count) * count_scale))
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = SEED
+	var basins: Array[Vector2] = []
+	for _basin: int in range(tuning.puddle_cluster_count):
+		basins.append(Vector2.from_angle(rng.randf() * TAU) * map_def.field_radius * sqrt(rng.randf()) * 0.85)
 	var transforms: Array[Transform3D] = []
 	var customs: Array[Color] = []
 	for _index: int in range(wanted):
 		var radius: float = rng.randf_range(tuning.puddle_radius_min_m, maxf(tuning.puddle_radius_max_m, tuning.puddle_radius_min_m))
 		var spin: float = rng.randf() * TAU
-		var aspect: float = rng.randf_range(ASPECT_MIN, 1.0)
+		var aspect: float = rng.randf_range(tuning.puddle_aspect_min, 1.0)
 		var centre: Vector2 = Vector2.INF
 		for _try: int in range(PLACE_TRIES):
 			var candidate: Vector2 = Vector2.from_angle(rng.randf() * TAU) * map_def.field_radius * sqrt(rng.randf())
@@ -122,6 +125,7 @@ func build(map_def: MapDef, tuning: RainTuning, count_scale: float) -> void:
 			continue
 		var basis: Basis = Basis(Vector3.UP, spin) * Basis.from_scale(Vector3(radius, 1.0, radius * aspect))
 		transforms.append(Transform3D(basis, Vector3(centre.x, tuning.puddle_lift_m, centre.y)))
+		# x appear threshold (fill timing), y seed, z darkness tint, w spare.
 		customs.append(Color(rng.randf(), rng.randf(), rng.randf(), rng.randf()))
 	var quad: QuadMesh = QuadMesh.new()
 	quad.size = Vector2(2.0, 2.0)
@@ -142,6 +146,11 @@ func build(map_def: MapDef, tuning: RainTuning, count_scale: float) -> void:
 	_material.set_shader_parameter(&"alpha_scale", tuning.puddle_alpha)
 	_material.set_shader_parameter(&"ripples", 1.0 if tuning.puddle_ripples_enabled else 0.0)
 	_material.set_shader_parameter(&"wetness", _wetness)
+	_material.set_shader_parameter(&"ripple_period_min", tuning.puddle_ripple_period_min_s)
+	_material.set_shader_parameter(&"ripple_period_max", maxf(tuning.puddle_ripple_period_max_s, tuning.puddle_ripple_period_min_s))
+	_material.set_shader_parameter(&"ripple_radius", tuning.puddle_ripple_radius)
+	_material.set_shader_parameter(&"outline_irregularity", tuning.puddle_outline_irregularity)
+	_material.set_shader_parameter(&"tint_variation", tuning.puddle_tint_variation)
 	_material.set_shader_parameter(&"rain_density", _rain)
 	_instance = MultiMeshInstance3D.new()
 	_instance.name = "Patches"
