@@ -301,6 +301,14 @@ func _apply_visual_style() -> void:
 	MenuStyleFactory.apply_pill(_tutorial_button, tuning.pill_powder_blue_color, tuning.pill_powder_blue_hover_color, tuning.ink_color, tuning)
 	MenuStyleFactory.apply_pill(_options_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
 	MenuStyleFactory.apply_pill(_quit_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
+	# DECISION: monochrome SVGs take the same ink as their button label, so
+	# cream and pastel pills retain contrast without a second asset set.
+	for button: Button in [_join_button, _join_lan_tab_button, _join_steam_tab_button,
+			_play_local_button, _back_button, _host_online_button, _refresh_button,
+			_refresh_steam_button, _sandbox_button, _tutorial_button, _options_button,
+			_quit_button]:
+		button.add_theme_color_override("icon_normal_color", tuning.ink_color)
+		button.add_theme_color_override("icon_hover_color", tuning.ink_color)
 	# The theme's generic focused font is pale; keep focused captions readable
 	# on the pastel pills in all three menu pages.
 	for button: Button in [_join_button, _join_lan_tab_button, _join_steam_tab_button, _play_local_button, _refresh_button, _refresh_steam_button, _sandbox_button, _tutorial_button, _options_button, _quit_button, _back_button]:
