@@ -93,9 +93,12 @@ func playlist_for_context(context: StringName) -> Array[AudioStream]:
 ## filename here keeps the "no new binary assets" rule (see this file's own
 ## header) while giving the claim its own event/field so it can get its own
 ## sound and tuning later without touching EVENT_BOUNCE.
-## Original three-note chime bundled with the game, heard when a new crate descends.
-@export var gift_spawn_file: String = "gift_spawn_jingle.wav"
 @export var gift_claimed_file: String = "boing.wav"
+## Original three-note chime bundled with the game, heard when a new crate
+## descends (see assets/effects/README.md for provenance).
+@export var gift_spawn_file: String = "gift_spawn_jingle.wav"
+## Minimum seconds between gift-spawn jingles (spam limit).
+@export var gift_spawn_min_interval_s: float = 2.0
 
 ## M4 specials (spec 2.6): registered now so the event map is complete, no
 ## hooks call these yet -- the specials themselves aren't implemented.

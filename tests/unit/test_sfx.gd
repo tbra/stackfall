@@ -150,6 +150,19 @@ func test_gift_flight_start_plays_spawn_jingle() -> void:
 	assert_true(_any_player_playing(), "A new gift flight must cue the spawn chime")
 
 
+func test_gift_spawn_jingle_is_rate_limited() -> void:
+	_sfx.set_root_dir_for_test(_tmp_dir)
+	_sfx._on_gift_flight_spawned(1, Vector3.ZERO, Vector3.ZERO)
+	assert_true(_any_player_playing())
+	for player: AudioStreamPlayer in _sfx._sfx_players:
+		player.stop()
+	_sfx._on_gift_flight_spawned(2, Vector3.ZERO, Vector3.ZERO)
+	assert_false(_any_player_playing(), "A second spawn inside the interval stays silent")
+	_sfx._last_gift_spawn_msec -= int(_config.gift_spawn_min_interval_s * 1000.0) + 1
+	_sfx._on_gift_flight_spawned(3, Vector3.ZERO, Vector3.ZERO)
+	assert_true(_any_player_playing(), "After the interval the jingle plays again")
+
+
 # --- Events.gift_claimed (Bontago-6y2) ----------------------------------------
 
 func test_gift_claimed_for_the_local_slot_plays_the_claim_sound() -> void:

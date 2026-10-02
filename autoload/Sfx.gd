@@ -80,6 +80,7 @@ var _music_envelope: float = 0.0
 var _switch_start_envelope: float = 0.0
 var _switch_elapsed: float = 0.0
 var _last_track_by_context: Dictionary = {}
+var _last_gift_spawn_msec: int = -1
 var _last_music_tick_usec: int = Time.get_ticks_usec()
 
 
@@ -589,6 +590,17 @@ func _on_player_eliminated(_slot_id: int, _team_id: int) -> void:
 	play(AudioConfig.EVENT_BREAKAGE)
 
 
+## The flight event is emitted locally on the host and on each client when
+## the reliable spawn arrives. Late claim or landing events do not retrigger
+## it, and gift_spawn_min_interval_s rate-limits the jingle.
+func _on_gift_flight_spawned(_gift_id: int, _origin: Vector3, _landing: Vector3) -> void:
+	var now_msec: int = Time.get_ticks_msec()
+	if _last_gift_spawn_msec >= 0 and float(now_msec - _last_gift_spawn_msec) < config.gift_spawn_min_interval_s * 1000.0:
+		return
+	if play(AudioConfig.EVENT_GIFT_SPAWNED):
+		_last_gift_spawn_msec = now_msec
+
+
 ## DECISION (autoload/Sfx.gd, Bontago-6y2): unlike the hooks above (a block
 ## drop/thud/rejection/breakage is a physical event any nearby player would
 ## actually hear happen, so every hook above plays for every slot, no
@@ -626,12 +638,6 @@ func _on_player_eliminated(_slot_id: int, _team_id: int) -> void:
 ## with no config (see _team_of_slot() below), so this bound keeps checking
 ## at least slot recipient_slot itself in that case, reproducing the exact
 ## single-slot check this handler used before real teams existed.
-## The flight event is emitted locally on the host and on each client when
-## the reliable spawn arrives. Late claim or landing events do not retrigger it.
-func _on_gift_flight_spawned(_gift_id: int, _origin: Vector3, _landing: Vector3) -> void:
-	play(AudioConfig.EVENT_GIFT_SPAWNED)
-
-
 func _on_gift_claimed(_gift_id: int, recipient_slot: int, _special_id: StringName) -> void:
 	for slot_id: int in range(maxi(Match.slot_count(), recipient_slot + 1)):
 		if not Net.is_local_slot(slot_id):
