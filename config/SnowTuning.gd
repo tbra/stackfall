@@ -44,7 +44,7 @@ const MELT_ROUNDING: float = 0.0001
 
 @export_group("Dome shape")
 ## Grid segments per dome edge (collider points = (segments + 1)^2).
-@export_range(2, 10, 1) var cap_segments: int = 6
+@export_range(2, 10, 1) var cap_segments: int = 8
 ## Footprint edge fraction at the first level (dusting) and the top level.
 @export_range(0.1, 1.0, 0.01) var cap_fill_light: float = 0.78
 @export_range(0.1, 1.0, 0.01) var cap_fill_heavy: float = 1.0
@@ -65,6 +65,9 @@ const MELT_ROUNDING: float = 0.0001
 ## Collision margin (convex radius) of a snow collider: small, so the rounded
 ## hull edge stays within a few mm of the drawn rim.
 @export var collider_margin_m: float = 0.004
+## Width (metres) of the soft shoulder along a block snow layer's outer rim;
+## sides shared with a snowy neighbour cell have none (one continuous layer).
+@export var cap_rim_width_m: float = 0.12
 ## Base lift above the surface (metres), to avoid z-fighting with the face.
 @export var cap_lift_m: float = 0.002
 

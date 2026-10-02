@@ -500,3 +500,30 @@ func _drop_tilt(with_snow: bool) -> float:
 		_effect.restore()
 		_effect = null
 	return tilt
+
+
+func test_adjacent_cells_form_one_continuous_layer_with_rim_only_at_the_outside() -> void:
+	_snow.max_disc_patches = 0
+	var block: Block = BlockFactory.build(load("res://config/blocks/cube.tres") as BlockShape, _physics)
+	_root.add_child(block)
+	var cube: float = _physics.cube_size
+	var builder: SnowCapBuilder = SnowCapBuilder.new(_snow, false)
+	var edge: float = SnowCaps.block_patch_edge(cube, _snow)
+	var level: int = _snow.depth_levels
+	for k: int in range(2):
+		var frame: Transform3D = SnowGeometry.block_patch_transform(Vector3(cube * float(k), cube * 0.5, 0.0), SnowGeometry.AXIS_UP, cube)
+		builder.set_patch("b", block, -1, k, frame, edge, 11 + k, level)
+	builder.step(10)
+	var mesh: MeshInstance3D = SnowCaps.cap_mesh(block, SnowCaps.CAP_NAME)
+	assert_not_null(mesh)
+	var top: float = _snow.cap_lift_m + SnowGeometry.dome_height(level, _snow)
+	var flat_at_seam: int = 0
+	var rim_at_seam: int = 0
+	for v: Vector3 in (mesh.mesh as ArrayMesh).surface_get_arrays(0)[Mesh.ARRAY_VERTEX]:
+		if absf(v.x - cube * 0.5) < 0.001 and absf(v.z) < cube * 0.3:
+			if absf(v.y - (cube + top)) < 0.001:
+				flat_at_seam += 1
+			elif v.y < cube + _snow.cap_lift_m + 0.001:
+				rim_at_seam += 1
+	assert_gt(flat_at_seam, 0, "the shared edge carries full-depth snow")
+	assert_eq(rim_at_seam, 0, "no rim dips at the seam between two cells")
