@@ -24,6 +24,8 @@ extends WeatherEffect
 ## velocity) or a GlueJoint child (glue owner, joints under stress) is skipped
 ## so wind cannot break those rules; no other special leaves a marker.
 
+const EXPOSURE_AXES: Array[Vector3] = [Vector3.UP, Vector3.RIGHT, Vector3.LEFT, Vector3.FORWARD, Vector3.BACK, Vector3.DOWN]
+
 var _elapsed: float = 0.0
 var _tick_index: int = 0
 var _seed: int = 0
@@ -32,6 +34,8 @@ var _blocks_source: Callable = Callable()
 var _surface_source: Callable = Callable()
 var _force_host: bool = false
 var last_pushed: int = 0
+## Stable-frozen blocks woken on the most recent tick (capped by tuning).
+var last_woken: int = 0
 var last_dir: Vector2 = Vector2.ZERO
 var last_gust: float = 1.0
 
@@ -54,6 +58,7 @@ func set_seed(seed_value: int) -> void:
 
 func tick(delta: float, intensity: float) -> void:
 	last_pushed = 0
+	last_woken = 0
 	var wt: StormTuning = tuning as StormTuning
 	if wt == null or intensity <= 0.0 or not _is_host():
 		return
@@ -86,25 +91,51 @@ func tick(delta: float, intensity: float) -> void:
 		if accel <= 0.0 or (asleep and accel < wt.wake_accel):
 			continue
 		if stable_frozen:
-			wake_stable_frozen(block)
+			if last_woken >= wt.max_wakes_per_tick or not is_exposed(block, wt.exposure_probe_m):
+				continue
+			if not wake_stable_frozen(block):
+				continue
+			last_woken += 1
 		if block.linear_velocity.dot(dir) >= wt.max_speed_ms:
 			continue
 		block.apply_central_force(dir * accel * block.mass)
 		last_pushed += 1
 
 
-## True when the ONLY thing holding `block` still is the stable-block auto-freeze
-## (StableBlockManager, 20 s asleep). A settled tower is in this state in real
-## play; wind used to skip it (Bontago-mp0.36).
+## True when StableBlockManager's auto-freeze (20 s asleep) holds `block`. A
+## settled tower is in this state in real play; wind used to skip it
+## (Bontago-mp0.36).
 static func is_stable_frozen(block: Block) -> bool:
-	return block.is_freeze_static() and block._freeze_reasons.size() == 1 		and block._freeze_reasons.has(Block.FREEZE_REASON_STABLE)
+	var manager: StableBlockManager = StableBlockManager.active
+	return manager != null and is_instance_valid(manager) and manager.is_stable_frozen(block)
 
 
-## Releases the stable freeze and wakes the body so a force can move it. The
-## manager re-freezes it after the normal 20 s of rest.
-static func wake_stable_frozen(block: Block) -> void:
-	block.release_freeze_static(Block.FREEZE_REASON_STABLE)
-	block.wake()
+## Releases the stable freeze through the manager (which also restarts the
+## sleep -> freeze cycle) and wakes the body. False when nothing was frozen.
+static func wake_stable_frozen(block: Block) -> bool:
+	var manager: StableBlockManager = StableBlockManager.active
+	return manager != null and is_instance_valid(manager) and manager.wake_for_external_force(block)
+
+
+## Cheap exposure test: a block is exposed when a short probe from its centre
+## along any of the six world axes reaches open air (an open top or side face).
+## A block enclosed on all sides, e.g. the core of a big stack, stays frozen.
+## The six rays only run for frozen blocks that already passed the stride,
+## accel and per-tick cap checks.
+static func is_exposed(block: Block, probe_m: float) -> bool:
+	var world: World3D = block.get_world_3d()
+	if world == null:
+		return true
+	var space: PhysicsDirectSpaceState3D = world.direct_space_state
+	if space == null:
+		return true
+	var origin: Vector3 = block.global_position
+	for axis: Vector3 in EXPOSURE_AXES:
+		var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(origin, origin + axis * probe_m, block.collision_layer)
+		query.exclude = [block.get_rid()]
+		if space.intersect_ray(query).is_empty():
+			return true
+	return false
 
 
 static func _owns_physics(block: Block) -> bool:

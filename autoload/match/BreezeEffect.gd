@@ -27,6 +27,8 @@ extends RefCounted
 var tuning: BreezeTuning = preload("res://config/breeze.tres")
 var match_ref: MatchAutoload = null
 var last_pushed: int = 0
+## Stable-frozen blocks woken on the most recent tick (capped by tuning).
+var last_woken: int = 0
 
 var _enabled: bool = true
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -96,6 +98,7 @@ func gusts() -> Array[Dictionary]:
 
 func tick(delta: float) -> void:
 	last_pushed = 0
+	last_woken = 0
 	if not _running or not _enabled or not _is_host():
 		return
 	_tick_index += 1
@@ -196,9 +199,13 @@ func _push(delta: float) -> void:
 		var asleep: bool = block.sleeping or stable_frozen
 		if asleep and ((index + _tick_index) % stride != 0 or accel < tuning.wake_accel):
 			continue
-		if stable_frozen:
-			StormEffect.wake_stable_frozen(block)
 		var dir: Vector3 = total / accel
+		if stable_frozen:
+			if last_woken >= tuning.max_wakes_per_tick or not StormEffect.is_exposed(block, tuning.exposure_probe_m):
+				continue
+			if not StormEffect.wake_stable_frozen(block):
+				continue
+			last_woken += 1
 		if block.linear_velocity.dot(dir) >= tuning.max_speed_ms:
 			continue
 		accel = minf(accel, tuning.max_dv_per_tick / maxf(delta, 0.0001))

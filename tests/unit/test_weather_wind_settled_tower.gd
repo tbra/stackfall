@@ -160,3 +160,145 @@ func test_low_wide_stack_is_unmoved_by_storm() -> void:
 	await _settle_and_freeze()
 	var moved: float = await _storm_sway(tower, STORM_SECONDS)
 	assert_lt(moved, SHORT_MAX_M, "a low stack stays put")
+
+
+# --- Bontago-1pi.11.46: wake API, exposure test and per-tick cap ---------------
+
+const CUBE_EDGE_CELLS: int = 5
+const CORE_MIN: int = 1
+const CORE_MAX: int = 3
+const GRID_COLUMNS: int = 10
+const GRID_LAYERS: int = 3
+const WIND_TICKS: int = 12
+const SUBMERGE_M: float = 5.0
+const REFREEZE_LAYERS: int = 6
+
+
+func _raised_surface() -> float:
+	return _surface() - SUBMERGE_M
+
+
+func _wind_tuning(max_wakes: int) -> StormTuning:
+	var tuning: StormTuning = (load("res://config/weather/storm.tres") as StormTuning).duplicate() as StormTuning
+	tuning.threshold_height_m = 0.5
+	tuning.cap_height_m = 1.0
+	tuning.wake_accel = 0.1
+	tuning.sleeper_stride_ticks = 1
+	tuning.max_wakes_per_tick = max_wakes
+	return tuning
+
+
+func _wind_effect(tuning: StormTuning) -> StormEffect:
+	var effect: StormEffect = StormEffect.new()
+	effect.tuning = tuning
+	effect.set_seed(11)
+	effect.set_test_world(func() -> Array: return _registry.all_blocks(), _raised_surface)
+	return effect
+
+
+## Builds blocks at the given integer cells, through the placement path.
+func _build_cells(cells: Array[Vector3i]) -> Dictionary:
+	var map_def: MapDef = (load("res://config/maps/round_medium.tres") as MapDef).duplicate(true)
+	map_def.field_radius = FIELD_RADIUS_M
+	_field = autofree(Field.new())
+	_field.map_def = map_def
+	add_child_autofree(_field)
+	_registry = autofree(BlockRegistry.new())
+	add_child_autofree(_registry)
+	_registry.configure(_field, map_def)
+	_manager = autofree(StableBlockManager.new())
+	_manager.tuning = _physics
+	add_child_autofree(_manager)
+	_manager.setup(_registry)
+	var shape: BlockShape = load("res://config/blocks/cube.tres") as BlockShape
+	var edge: float = _physics.cube_size - _physics.cube_margin
+	var pitch: float = edge + TOWER_GAP_M
+	var by_cell: Dictionary = {}
+	for cell: Vector3i in cells:
+		var block: Block = BlockFactory.build(shape, _physics, 0)
+		_field.add_child(block)
+		block.position = Vector3(float(cell.x) * pitch, edge * 0.5 + edge * float(cell.y), float(cell.z) * pitch)
+		Events.block_placed.emit(block, shape.id)
+		by_cell[cell] = block
+	return by_cell
+
+
+func test_wind_woken_block_refreezes_after_wind_stops() -> void:
+	var cells: Array[Vector3i] = []
+	for i: int in range(REFREEZE_LAYERS):
+		cells.append(Vector3i(0, i, 0))
+	var by_cell: Dictionary = _build_cells(cells)
+	await _settle_and_freeze()
+	var effect: StormEffect = _wind_effect(_wind_tuning(1))
+	var woken: int = 0
+	for _i: int in range(WIND_TICKS):
+		effect.tick(DELTA, 1.0)
+		woken += effect.last_woken
+		await get_tree().physics_frame
+	assert_gt(woken, 0, "the storm woke at least one frozen block")
+	var unfrozen: Array[Block] = []
+	for block: Block in _registry.all_blocks():
+		if not block.is_freeze_static():
+			unfrozen.append(block)
+	assert_gt(unfrozen.size(), 0, "woken blocks are no longer frozen")
+	# The wind stops and the woken blocks fall asleep again before the next scan.
+	for block: Block in unfrozen:
+		block.linear_velocity = Vector3.ZERO
+		block.angular_velocity = Vector3.ZERO
+		block.sleeping = true
+	_manager._tick(_physics.stable_freeze_delay_s + _physics.stable_freeze_scan_interval_s)
+	for block: Block in unfrozen:
+		assert_true(block.is_freeze_static(), "a woken block that settled re-froze within the normal delay")
+	assert_eq(by_cell.size(), REFREEZE_LAYERS)
+
+
+func test_buried_cube_core_stays_frozen_while_surface_wakes() -> void:
+	var cells: Array[Vector3i] = []
+	for x: int in range(CUBE_EDGE_CELLS):
+		for y: int in range(CUBE_EDGE_CELLS):
+			for z: int in range(CUBE_EDGE_CELLS):
+				cells.append(Vector3i(x, y, z))
+	var by_cell: Dictionary = _build_cells(cells)
+	await _settle_and_freeze()
+	assert_eq(_frozen_count(), cells.size(), "the whole cube froze")
+	var effect: StormEffect = _wind_effect(_wind_tuning(1000))
+	var woken_total: int = 0
+	for _i: int in range(WIND_TICKS):
+		effect.tick(DELTA, 1.0)
+		woken_total += effect.last_woken
+	var core_woken: int = 0
+	for cell: Vector3i in by_cell.keys():
+		var in_core: bool = (
+			cell.x >= CORE_MIN and cell.x <= CORE_MAX and cell.y >= CORE_MIN and cell.y <= CORE_MAX
+			and cell.z >= CORE_MIN and cell.z <= CORE_MAX
+		)
+		if in_core and not (by_cell[cell] as Block).is_freeze_static():
+			core_woken += 1
+	gut.p("cube: woken %d of %d, core woken %d" % [woken_total, cells.size(), core_woken])
+	assert_eq(core_woken, 0, "buried interior blocks stay frozen")
+	assert_gt(woken_total, 0, "exposed surface blocks wake")
+
+
+func test_wake_count_is_bounded_by_the_cap() -> void:
+	var cells: Array[Vector3i] = []
+	for y: int in range(GRID_LAYERS):
+		for x: int in range(GRID_COLUMNS):
+			for z: int in range(GRID_COLUMNS):
+				# Spread the columns so every block is exposed: the cap, not the
+				# exposure test, is what bounds the count here.
+				cells.append(Vector3i(x * 2 - GRID_COLUMNS, y, z * 2 - GRID_COLUMNS))
+	_build_cells(cells)
+	await _settle_and_freeze()
+	var cap: int = 4
+	var effect: StormEffect = _wind_effect(_wind_tuning(cap))
+	var total: int = 0
+	var worst: int = 0
+	for _i: int in range(WIND_TICKS):
+		effect.tick(DELTA, 1.0)
+		total += effect.last_woken
+		worst = maxi(worst, effect.last_woken)
+	gut.p("cap %d: %d blocks, worst tick %d, total over %d ticks %d" % [cap, cells.size(), worst, WIND_TICKS, total])
+	assert_eq(cells.size(), GRID_COLUMNS * GRID_COLUMNS * GRID_LAYERS)
+	assert_lte(worst, cap, "no tick wakes more than the cap")
+	assert_lte(total, cap * WIND_TICKS)
+	assert_gt(total, 0)
