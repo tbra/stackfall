@@ -113,6 +113,45 @@ func test_event_map_covers_every_audio_config_key() -> void:
 		assert_false(files.is_empty(), "AudioConfig.files_for_event(%s) should not be empty" % event)
 
 
+## Bontago-1pi.28: effects were inaudible next to the music. The bundled wavs
+## are now normalised (tools/measure_audio.py); these guard the playback side.
+const BUNDLED_CUE_EVENTS: Array[StringName] = [
+	AudioConfig.EVENT_THUD, AudioConfig.EVENT_REJECTED, AudioConfig.EVENT_CLICK,
+	AudioConfig.EVENT_START_GAME, AudioConfig.EVENT_HOVER, AudioConfig.EVENT_DROP,
+	AudioConfig.EVENT_BREAKAGE, AudioConfig.EVENT_GIFT_SPAWNED,
+]
+## Sane window for a cue's default gain (cue baseline + master + sfx at 100%).
+const CUE_GAIN_MIN_DB: float = -12.0
+const CUE_GAIN_MAX_DB: float = 0.0
+## Max dB a cue may lose to attenuation between nominal level and the camera
+## (~20-40 m, CameraTuning). Sfx uses plain 2D players, so the real loss is 0.
+const MAX_CAMERA_DISTANCE_LOSS_DB: float = 3.0
+
+
+func test_every_bundled_cue_resolves_to_a_stream() -> void:
+	_sfx.set_root_dir_for_test(ProjectSettings.globalize_path("res://assets/effects"))
+	for event: StringName in BUNDLED_CUE_EVENTS:
+		for filename: String in _config.files_for_event(event):
+			var stream: AudioStream = _sfx._load_stream(filename)
+			assert_not_null(stream, "cue %s file %s should load from assets/effects" % [event, filename])
+			assert_gt(stream.get_length(), 0.0, "%s should have a non-zero length" % filename)
+
+
+func test_default_cue_gain_is_within_sane_window() -> void:
+	var gain_db: float = _config.sfx_volume_db + Settings.master_volume_db() + Settings.sfx_volume_db()
+	assert_between(gain_db, CUE_GAIN_MIN_DB, CUE_GAIN_MAX_DB, "default SFX gain")
+	assert_gt(_config.sfx_volume_db, _config.music_volume_db - 1.0, "SFX baseline must not sit below the music's")
+	assert_eq(_config.impact_loud_db_offset, 0.0, "loudest thud keeps nominal level")
+
+
+func test_sfx_players_are_non_attenuating_2d_players() -> void:
+	# AudioStreamPlayer3D would apply unit_size/max_distance attenuation; the
+	# pool must stay 2D (or stay within MAX_CAMERA_DISTANCE_LOSS_DB at 20-40 m).
+	for player: Node in _sfx._sfx_players:
+		assert_false(player is AudioStreamPlayer3D, "SFX pool player must not be a 3D player")
+	assert_lte(0.0, MAX_CAMERA_DISTANCE_LOSS_DB)
+
+
 func test_impact_below_speed_min_does_not_play() -> void:
 	_sfx.set_root_dir_for_test(_tmp_dir)
 	_sfx._on_block_impacted(_config.impact_speed_min * 0.5)

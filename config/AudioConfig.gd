@@ -119,7 +119,15 @@ func playlist_for_context(context: StringName) -> Array[AudioStream]:
 ## Decibel offset applied to a thud at or above impact_speed_loud.
 @export var impact_loud_db_offset: float = 0.0
 
-@export var sfx_volume_db: float = -16.0
+## DECISION (Bontago-1pi.28): effects were near-inaudible because the bundled
+## wavs sat at -29..-12 dBFS window-RMS AND this baseline was -16 dB (6 dB
+## below the music's). tools/measure_audio.py --normalize now brings every
+## bundled wav to -16 dBFS short-window RMS (peak <= -1 dBFS); with this -3 dB
+## baseline a full-scale cue lands near -19 dBFS RMS, ~5 dB above the music bed
+## (music_volume_db below on ~-14 dBFS-RMS mastered tracks, never measured:
+## no ffmpeg here). There is no AudioServer bus layout and Sfx uses plain 2D
+## AudioStreamPlayers, so there is no bus or distance attenuation on top.
+@export var sfx_volume_db: float = -3.0
 @export var music_volume_db: float = -10.0
 
 ## Sfx's AudioStreamPlayer pool size (spec: "max_simultaneous"). One extra
