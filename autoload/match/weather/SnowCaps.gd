@@ -43,6 +43,7 @@ static func disc_cap_material(tuning: SnowTuning) -> ShaderMaterial:
 		material.set_shader_parameter(&"rim_fade_height", tuning.disc_drift_rim_fade_m)
 		material.set_shader_parameter(&"rim_fade_base", tuning.cap_lift_m)
 		material.set_shader_parameter(&"light_gain", tuning.cover_light_gain)
+		material.set_shader_parameter(&"dim", tuning.disc_drift_dim)
 		# A drift reads as the pale-lavender middle tone of the disc snow.
 		material.set_shader_parameter(&"snow_color", tuning.cover_tone_mid_color)
 		material.set_shader_parameter(&"shade_color", tuning.snow_shade_color)

@@ -53,7 +53,7 @@ const MELT_ROUNDING: float = 0.0001
 ## Disc drifts are stretched this many times along the wind (soft streaks, not dots).
 @export_range(1.0, 8.0, 0.1) var disc_drift_stretch: float = 3.0
 ## Disc drift height as a fraction of the level height (low drifts).
-@export_range(0.2, 1.0, 0.01) var disc_drift_height_scale: float = 0.6
+@export_range(0.2, 1.0, 0.01) var disc_drift_height_scale: float = 0.45
 ## Disc drift footprint roundness (2 = round: drifts, not squares).
 @export var disc_cap_squareness: float = 2.0
 ## Profile: 1 = cone-ish, 2 = soft dome, higher = flatter plateau.
@@ -120,7 +120,9 @@ const MELT_ROUNDING: float = 0.0001
 @export var cover_drift_blocks_per_frame: int = 24
 ## Height (metres) over which a disc drift dome fades in from its rim, so
 ## it blends into the cover instead of showing a circle outline.
-@export var disc_drift_rim_fade_m: float = 0.08
+@export var disc_drift_rim_fade_m: float = 0.09
+## Brightness of colliding disc drifts relative to the cover tone (soft mounds, not bright blobs).
+@export_range(0.3, 1.0, 0.01) var disc_drift_dim: float = 0.5
 ## Colliding disc drifts start growing only once the visual cover has
 ## reached this level (light snow is a frosting with no mounds).
 @export var disc_drift_min_cover: int = 2
@@ -131,7 +133,7 @@ const MELT_ROUNDING: float = 0.0001
 ## Snowy block patches in the whole match (one collider each).
 @export var max_block_patches: int = 160
 ## Colliding disc drifts in the whole match (one collider each).
-@export var max_disc_patches: int = 40
+@export var max_disc_patches: int = 24
 ## Disc drifts keep this far from home and goal flags (metres).
 @export var disc_flag_clear_radius_m: float = 2.5
 ## Coverage checks (one shape query each) per physics frame.

@@ -17,6 +17,10 @@ uniform float shadow_band = 0.2;
 uniform float band_softness = 0.1;
 uniform float rim_fade_height = 0.08;
 uniform float rim_fade_base = 0.002;
+// Brightness of the drift albedo and how far its lit band lifts off the
+// shadow tone: a drift reads as a soft mound of the cover, not a bright blob.
+uniform float dim = 0.8;
+uniform float lit_floor = 0.35;
 
 varying float v_height;
 
@@ -25,11 +29,12 @@ void vertex() {
 }
 
 void fragment() {
-	ALBEDO = snow_color.rgb;
+	ALBEDO = snow_color.rgb * dim;
 	ROUGHNESS = 1.0;
 	AO = ambient_ao;
 	AO_LIGHT_AFFECT = 0.0;
-	ALPHA = smoothstep(rim_fade_base, rim_fade_base + max(rim_fade_height, 0.0001), v_height);
+	float fade = smoothstep(rim_fade_base, rim_fade_base + max(rim_fade_height, 0.0001), v_height);
+	ALPHA = fade * fade;
 }
 
 void light() {
@@ -37,5 +42,5 @@ void light() {
 	vec3 cool_light = mix(LIGHT_COLOR.rgb, vec3(luma), diffuse_desaturate);
 	float facing = step(0.0, dot(NORMAL, LIGHT));
 	float lit = facing * smoothstep(shadow_band - band_softness, shadow_band + band_softness, ATTENUATION);
-	DIFFUSE_LIGHT += ALBEDO * mix(shade_color.rgb, vec3(1.0), lit) * cool_light * light_gain;
+	DIFFUSE_LIGHT += ALBEDO * mix(shade_color.rgb, vec3(1.0), lit * (1.0 - lit_floor) + lit_floor * 0.5 * lit) * cool_light * light_gain;
 }
