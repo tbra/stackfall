@@ -167,6 +167,11 @@ var _headless_bots_placements: int = 0
 ## defensive about it) cannot double-instance HotSeat/RemoteCursors, and
 ## _end_match_world() is a no-op when there is nothing to tear down.
 var _world_built: bool = false
+var _first_territory_ready: bool = false
+var _loading_generation: int = 0
+var _world_building: bool = false
+var _controller_was_processing: bool = false
+var _controller_was_handling_input: bool = false
 
 
 func _ready() -> void:
@@ -228,6 +233,9 @@ func _ready() -> void:
 	_loading_screen = LOADING_SCREEN_SCENE.instantiate() as LoadingScreen
 	add_child(_loading_screen)
 	Events.match_loading_announced.connect(_on_match_loading_announced)
+	_loading_screen.readiness_timed_out.connect(_on_loading_readiness_timed_out)
+	Events.territory_updated.connect(_on_loading_territory_updated)
+	Events.territory_replicated.connect(_on_loading_territory_replicated)
 
 	# docs/M3b_PLAN.md integration order step 4: Steam init is synchronous by
 	# this point, so MainMenu._ready() can immediately read steam_available().
@@ -988,6 +996,25 @@ func _on_match_loading_announced() -> void:
 	_loading_screen.show_pending(null)
 
 
+func _on_loading_territory_updated(_raster: TerritoryRaster, _groups: TerritoryGroups) -> void:
+	# DECISION: an applied result can arrive while the staged world is building.
+	if Net.is_host() and _loading_screen.visible and not _loading_screen.is_pending():
+		_first_territory_ready = true
+
+
+func _on_loading_territory_replicated(_raster: TerritoryRaster) -> void:
+	if Net.is_client() and _loading_screen.visible and not _loading_screen.is_pending():
+		_first_territory_ready = true
+
+
+func _on_loading_readiness_timed_out() -> void:
+	_loading_generation += 1
+	if Net.is_host():
+		Match.abort_match()
+	else:
+		Net.leave()
+
+
 ## ui/Lobby.gd's %BackButton (Bontago-xtq.32 redo #3, review finding #1):
 ## _show_lobby() above is only ever entered from _on_net_mode_changed() once
 ## Net is already HOST or CLIENT, so this needs no host/client branch --
@@ -1138,6 +1165,7 @@ func _on_match_state_changed(from_state: int, to_state: int) -> void:
 		return
 
 	if to_state == Match.State.LOBBY:
+		_loading_generation += 1
 		_end_match_world()
 		# Bontago-1pi.8: safety net for a match aborted mid-load -- see
 		# LoadingScreen.cancel()'s own doc.
@@ -1149,15 +1177,41 @@ func _on_match_state_changed(from_state: int, to_state: int) -> void:
 		if not Match._lifecycle.is_starting_match() and not Net.is_offline():
 			_show_lobby()
 	elif from_state == Match.State.LOBBY and to_state == Match.State.LOADING:
+		_loading_generation += 1
+		_first_territory_ready = false
 		# Bontago-1pi.8: shown before _build_match_world() below runs, so the
 		# overlay is already queued to composite over this same frame's draw
 		# pass -- see ui/LoadingScreen.gd's own header doc.
 		_loading_screen.show_for_match(Match.config, _loading_screen_slots())
 		_build_match_world()
 	elif to_state == Match.State.COUNTDOWN:
-		# Bontago-1pi.8: see LoadingScreen.fade_out()'s own doc for why this is
-		# not instantaneous.
-		_loading_screen.fade_out()
+		_finish_loading_when_ready(_loading_generation)
+
+
+func _finish_loading_when_ready(generation: int) -> void:
+	while not _world_built:
+		await get_tree().process_frame
+		if generation != _loading_generation or not _loading_screen.visible:
+			return
+	if not _loading_screen.visible:
+		return
+	_loading_screen.set_stage("Solving territory", _loading_screen.tuning.solve_progress)
+	while not _first_territory_ready:
+		await get_tree().process_frame
+		if generation != _loading_generation or not _loading_screen.visible:
+			return
+	_loading_screen.set_stage("Warming materials", _loading_screen.tuning.materials_progress)
+	_loading_screen.warm_common_materials()
+	for frame: int in range(_loading_screen.tuning.stable_frames):
+		await get_tree().process_frame
+		if generation != _loading_generation or not _loading_screen.visible:
+			return
+		_loading_screen.set_stage("Stabilizing view", lerpf(_loading_screen.tuning.stabilize_start_progress, _loading_screen.tuning.stabilize_end_progress, float(frame + 1) / maxf(float(_loading_screen.tuning.stable_frames), 1.0)))
+	_loading_screen.set_stage("Ready", _loading_screen.tuning.complete_progress)
+	if _hot_seat != null:
+		_hot_seat.controller().set_process(_controller_was_processing)
+		_hot_seat.controller().set_process_unhandled_input(_controller_was_handling_input)
+	_loading_screen.fade_out()
 
 
 ## Bontago-1pi.8: MatchLifecycle._build_slots() (autoload/match/
@@ -1177,9 +1231,10 @@ func _loading_screen_slots() -> Array[PlayerSlot]:
 
 
 func _build_match_world() -> void:
-	if _world_built:
+	if _world_built or _world_building:
 		return
-	_world_built = true
+	_world_building = true
+	var generation: int = _loading_generation
 	_clear_menu_and_lobby()
 	# Bontago-xtq.42 fix round 2: every real (host/client/headless-bot) match
 	# reaches this one guarded builder -- start_sandbox_from_menu() above is
@@ -1189,7 +1244,17 @@ func _build_match_world() -> void:
 
 	var config: MatchConfig = Match.config
 	_field.rebuild_for_map(config.map_def())
+	_loading_screen.set_stage("Placing flags", _loading_screen.tuning.flags_progress)
+	await get_tree().process_frame
+	if generation != _loading_generation or not _loading_screen.visible:
+		_world_building = false
+		return
 	_field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
+	_loading_screen.set_stage("Preparing territory", _loading_screen.tuning.territory_progress)
+	await get_tree().process_frame
+	if generation != _loading_generation or not _loading_screen.visible:
+		_world_building = false
+		return
 	_field.set_overlay_source(Match.raster(), config.player_colors)
 	_skybox.load_set(config.map_def().skybox_set)
 	# Bontago-470.4: the lobby's Day/Night/Random, resolved by the host and
@@ -1198,6 +1263,11 @@ func _build_match_world() -> void:
 
 	SnapshotSync.set_disk(_field)
 	SnapshotSync.begin_match(Match.registry(), config.map_def())
+	_loading_screen.set_stage("Preparing players", _loading_screen.tuning.players_progress)
+	await get_tree().process_frame
+	if generation != _loading_generation or not _loading_screen.visible:
+		_world_building = false
+		return
 
 	_remote_cursors = REMOTE_CURSORS_SCENE.instantiate() as RemoteCursors
 	add_child(_remote_cursors)
@@ -1233,6 +1303,10 @@ func _build_match_world() -> void:
 		# re-sets Input.mouse_mode) and a no-op headless, so it changes nothing
 		# for --headless-host or the test suite.
 		_hot_seat.controller().enable_mouse_capture()
+		_controller_was_processing = _hot_seat.controller().is_processing()
+		_controller_was_handling_input = _hot_seat.controller().is_processing_unhandled_input()
+		_hot_seat.controller().set_process(false)
+		_hot_seat.controller().set_process_unhandled_input(false)
 
 	_spawn_bot_controllers(config)
 
@@ -1258,6 +1332,8 @@ func _build_match_world() -> void:
 	# the current preset without this package having to guess at that
 	# not-yet-built structure.
 	_apply_graphics_preset(Settings.current_graphics_preset())
+	_world_built = true
+	_world_building = false
 
 
 ## docs/M5_PLAN.md P5 item 3: one BotController per bot slot, for the

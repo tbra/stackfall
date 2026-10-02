@@ -1,5 +1,6 @@
 class_name LoadingScreen
 extends Control
+signal readiness_timed_out
 ## Bontago-1pi.8 (owner playtest 2026-09-27: "When a game round starts it
 ## centers around the center goal beacon for a little while before actually
 ## starting, let's add a proper loading screen instead.").
@@ -20,11 +21,9 @@ extends Control
 ## PlayerController claims it) stayed on screen, frozen, for however long that
 ## took: the "idle centre beacon" the owner describes.
 ##
-## Shown by game/Main.gd's _on_match_state_changed() at the LOBBY -> LOADING
-## transition, before _build_match_world() runs (so the overlay is already
-## queued to composite over this same frame's draw pass), and faded out once
-## COUNTDOWN begins -- see fade_out()'s own doc for why that fade does not
-## start on the very same synchronous call.
+## Shown at the pending announcement, then given match details at LOADING.
+## Main releases it after world build, the first applied territory result,
+## material warmup and stable rendered frames.
 
 @export var tuning: LoadingScreenTuning = preload("res://config/loading_screen_tuning.tres")
 @export var menu_visual_tuning: MenuVisualTuning = preload("res://config/menu_visual_tuning.tres")
@@ -34,6 +33,8 @@ extends Control
 @onready var _map_label: Label = %MapLabel
 @onready var _info_label: Label = %InfoLabel
 @onready var _spinner_label: Label = %SpinnerLabel
+@onready var _stage_label: Label = %StageLabel
+@onready var _progress_bar: ProgressBar = %ProgressBar
 
 const _SPIN_FRAMES: Array[String] = ["Loading", "Loading.", "Loading..", "Loading..."]
 
@@ -50,6 +51,16 @@ var _fade_token: int = 0
 ## Bontago-t8x.4: true between show_pending() and show_for_match()/cancel().
 var _is_pending: bool = false
 var _pending_elapsed_s: float = 0.0
+var _loading_elapsed_s: float = 0.0
+var _timed_out: bool = false
+var _warm_viewport: SubViewport = null
+
+const WARM_SHADERS: Array[String] = [
+	"res://shaders/block_cell_grid.gdshader",
+	"res://shaders/territory.gdshader",
+	"res://shaders/disc_rim.gdshader",
+	"res://shaders/weather/snow_flake.gdshader",
+]
 
 
 func _ready() -> void:
@@ -69,6 +80,8 @@ func _ready() -> void:
 ## already final for this match.
 func show_for_match(config: MatchConfig, slots: Array[PlayerSlot]) -> void:
 	_is_pending = false
+	_loading_elapsed_s = 0.0
+	_timed_out = false
 	_fade_token += 1
 	if _fade_tween != null and _fade_tween.is_valid():
 		_fade_tween.kill()
@@ -79,6 +92,7 @@ func show_for_match(config: MatchConfig, slots: Array[PlayerSlot]) -> void:
 	_spin_index = 0
 	_spin_elapsed_s = 0.0
 	_spinner_label.text = _SPIN_FRAMES[0]
+	set_stage("Building world", tuning.world_progress)
 	modulate.a = 1.0
 	visible = true
 	set_process(true)
@@ -91,6 +105,54 @@ func show_pending(config: MatchConfig) -> void:
 	show_for_match(config, [] as Array[PlayerSlot])
 	_is_pending = true
 	_pending_elapsed_s = 0.0
+	set_stage("Preparing match", tuning.preparing_progress)
+
+
+func set_stage(stage: String, fraction: float) -> void:
+	_stage_label.text = stage
+	_progress_bar.value = clampf(fraction, 0.0, 1.0) * _progress_bar.max_value
+
+
+func progress() -> float:
+	return _progress_bar.value / _progress_bar.max_value
+
+
+func timed_out() -> bool:
+	return _timed_out
+
+
+## DECISION: draw representative materials in a private viewport for one frame.
+## The real field remains covered while its map-specific variants also render.
+func warm_common_materials() -> void:
+	if _warm_viewport != null:
+		_warm_viewport.queue_free()
+	_warm_viewport = SubViewport.new()
+	_warm_viewport.size = tuning.warm_viewport_size
+	# DECISION: warmup renders in a private World3D, never in the match world.
+	_warm_viewport.own_world_3d = true
+	_warm_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(_warm_viewport)
+	var root: Node3D = Node3D.new()
+	_warm_viewport.add_child(root)
+	var camera: Camera3D = Camera3D.new()
+	camera.position = Vector3(0.0, 0.0, tuning.warm_camera_distance)
+	camera.current = true
+	root.add_child(camera)
+	var index: int = 0
+	for shader_path: String in WARM_SHADERS:
+		var mesh: MeshInstance3D = MeshInstance3D.new()
+		mesh.mesh = BoxMesh.new()
+		mesh.position = Vector3(float(index) - tuning.warm_mesh_offset, 0.0, 0.0)
+		var material: ShaderMaterial = ShaderMaterial.new()
+		material.shader = load(shader_path) as Shader
+		mesh.material_override = material
+		root.add_child(mesh)
+		index += 1
+	var gift_mesh: MeshInstance3D = MeshInstance3D.new()
+	gift_mesh.mesh = BoxMesh.new()
+	gift_mesh.position = Vector3(0.0, tuning.warm_mesh_offset, 0.0)
+	gift_mesh.material_override = StandardMaterial3D.new()
+	root.add_child(gift_mesh)
 
 
 func is_pending() -> bool:
@@ -103,6 +165,14 @@ func _process(delta: float) -> void:
 		if _pending_elapsed_s >= tuning.pending_timeout_s:
 			cancel()
 			return
+	elif not _is_fading:
+		_loading_elapsed_s += delta
+		if _loading_elapsed_s >= tuning.ready_timeout_s:
+			_timed_out = true
+			set_stage("Loading timed out", progress())
+			cancel()
+			readiness_timed_out.emit()
+			return
 	_spin_elapsed_s += delta
 	if _spin_elapsed_s < tuning.spinner_interval_s:
 		return
@@ -111,7 +181,7 @@ func _process(delta: float) -> void:
 	_spinner_label.text = _SPIN_FRAMES[_spin_index]
 
 
-## Called once COUNTDOWN begins (game/Main.gd's _on_match_state_changed()).
+## Called once game/Main.gd has passed every readiness stage.
 ##
 ## DECISION (ui/LoadingScreen.gd, Bontago-1pi.8): holds the overlay up for
 ## `tuning.warmup_frames` more rendered frames before starting the actual
@@ -143,6 +213,9 @@ func fade_out() -> void:
 	visible = false
 	set_process(false)
 	_is_fading = false
+	if _warm_viewport != null:
+		_warm_viewport.queue_free()
+		_warm_viewport = null
 
 
 ## Safety net for a match aborted mid-load (game/Main.gd's `to_state ==
@@ -160,6 +233,9 @@ func cancel() -> void:
 	visible = false
 	modulate.a = 1.0
 	set_process(false)
+	if _warm_viewport != null:
+		_warm_viewport.queue_free()
+		_warm_viewport = null
 
 
 func _map_display_name(config: MatchConfig) -> String:
