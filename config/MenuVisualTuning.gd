@@ -125,6 +125,8 @@ extends Resource
 ## DECISION (Bontago-mp0.11): viewport limits keep menu cards inside short
 ## windows while preserving readable type and the same control focus chain.
 @export var menu_edge_margin_px: float = 18.0
+## Bontago-mp0.18: minimum gap between the left window edge and the main card.
+@export var menu_card_left_margin_px: float = 48.0
 @export var menu_max_width_px: float = 960.0
 @export var menu_card_width_px: float = 420.0
 @export var menu_separation_px: int = 13
