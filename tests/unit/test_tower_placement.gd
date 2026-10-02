@@ -33,6 +33,37 @@ const TICKS_BETWEEN_PLACEMENTS: int = 30
 ## next physics_frame await expected) rather than just changing timing, so it
 ## is not used here. The map-size fix below is the safe win for this file.
 
+## DECISION (Bontago-1pi.21): pin the shared physics_tuning.tres instance to its
+## on-disk values for this test. Sharded gate processes share user://, and
+## test_tuning_panel writes user://tuning_overrides.cfg (gravity +0.6 etc.)
+## while another shard's Main boot (TuningPanel.apply_saved_overrides) can read
+## it into the process-wide tuning singleton; a stronger-gravity tower is a
+## plausible, load-timing-dependent failure of this test. Restored in after_all.
+var _saved_tuning_values: Dictionary = {}
+
+
+func before_all() -> void:
+	var shared: PhysicsTuning = load("res://config/physics_tuning.tres") as PhysicsTuning
+	var pristine: PhysicsTuning = ResourceLoader.load(
+		"res://config/physics_tuning.tres", "", ResourceLoader.CACHE_MODE_IGNORE
+	) as PhysicsTuning
+	for prop: Dictionary in shared.get_property_list():
+		if int(prop.get("usage", 0)) & PROPERTY_USAGE_STORAGE == 0:
+			continue
+		var prop_name: String = str(prop.get("name", ""))
+		if prop_name == "script" or prop_name.begins_with("resource_"):
+			continue
+		_saved_tuning_values[prop_name] = shared.get(prop_name)
+		shared.set(prop_name, pristine.get(prop_name))
+
+
+func after_all() -> void:
+	var shared: PhysicsTuning = load("res://config/physics_tuning.tres") as PhysicsTuning
+	for prop_name: String in _saved_tuning_values:
+		shared.set(prop_name, _saved_tuning_values[prop_name])
+	_saved_tuning_values.clear()
+
+
 func test_thirty_cube_tower_stands_and_sleeps() -> void:
 	var field: Field = autofree(Field.new())
 	# DECISION (Bontago-mv0.3): Field.new()'s default map_def is

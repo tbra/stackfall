@@ -115,6 +115,13 @@ extends CanvasLayer
 ## moved by net/SnapshotSync.gd), not just hidden for tidiness.
 
 const SAVE_PATH: String = "user://tuning_overrides.cfg"
+
+
+## The file actually read/written: SAVE_PATH, or a per-PID file in a GUT run so
+## tests never touch the owner's real F4 overrides (Bontago-1pi.21).
+static func save_path() -> String:
+	return UserPaths.resolve(SAVE_PATH)
+
 const VALUE_WIDTH: float = 74.0
 
 ## Bontago-xtq.13: the selected-tab memory shares SAVE_PATH with every tuning
@@ -364,7 +371,7 @@ func _on_tab_changed(index: int) -> void:
 ## stale/missing-key tolerance below.
 func _load_selected_tab_index() -> int:
 	var config: ConfigFile = ConfigFile.new()
-	if config.load(SAVE_PATH) != OK:
+	if config.load(save_path()) != OK:
 		return 0
 	if not config.has_section_key(SELECTED_TAB_SECTION, SELECTED_TAB_KEY):
 		return 0
@@ -379,9 +386,9 @@ func _load_selected_tab_index() -> int:
 ## resource under its own section.
 func _save_selected_tab_index() -> void:
 	var config: ConfigFile = ConfigFile.new()
-	config.load(SAVE_PATH)
+	config.load(save_path())
 	config.set_value(SELECTED_TAB_SECTION, SELECTED_TAB_KEY, _selected_tab_index)
-	config.save(SAVE_PATH)
+	config.save(save_path())
 
 
 # --- Tab construction (reflection) -------------------------------------------
@@ -1343,7 +1350,7 @@ func _reset_resource(resource: Resource) -> void:
 
 func _on_save_pressed() -> void:
 	var err: Error = save_overrides()
-	_status_label.text = "Saved to %s." % SAVE_PATH if err == OK else "Save failed (%d)." % err
+	_status_label.text = "Saved to %s." % save_path() if err == OK else "Save failed (%d)." % err
 
 
 ## Writes every exported float/int/bool/Color field of every tuning resource
@@ -1354,7 +1361,7 @@ func _on_save_pressed() -> void:
 ## _save_selected_tab_index() writes on its own, independent schedule.
 func save_overrides() -> Error:
 	var config: ConfigFile = ConfigFile.new()
-	config.load(SAVE_PATH)
+	config.load(save_path())
 	_write_overrides(config, "CameraTuning", camera_tuning)
 	_write_overrides(config, "GhostTuning", ghost_tuning)
 	_write_overrides(config, "PhysicsTuning", physics_tuning)
@@ -1362,7 +1369,7 @@ func save_overrides() -> Error:
 	_write_overrides(config, "TerritoryVisuals", territory_visuals)
 	_write_overrides(config, "BlockFeedConfig", block_feed_config)
 	_write_overrides(config, "SkyboxConfig", skybox_config)
-	return config.save(SAVE_PATH)
+	return config.save(save_path())
 
 
 ## Bontago-xtq.22: TYPE_STRING joins the allowed set here (and in
@@ -1395,7 +1402,7 @@ func _write_overrides(config: ConfigFile, section: String, resource: Resource) -
 ## TuningPanel -- or even a Field/CameraRig/PlayerController -- exists.
 static func apply_saved_overrides() -> void:
 	var config: ConfigFile = ConfigFile.new()
-	if config.load(SAVE_PATH) != OK:
+	if config.load(save_path()) != OK:
 		return
 	_apply_saved_section(config, "CameraTuning", load("res://config/camera_tuning.tres"))
 	_apply_saved_section(config, "GhostTuning", load("res://config/ghost_tuning.tres"))
