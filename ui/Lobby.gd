@@ -385,11 +385,12 @@ func _build_specials_checklist() -> void:
 ## every_row() only asserts every one of these unique names has *a* neighbor
 ## on both sides, not that they share one loop with %StartButton).
 func _wire_focus_chain() -> void:
+	# Focus order follows the visual order: Round section (mode, timers), then
+	# map, players, AI, teams, then the right-hand column.
 	var chain: Array[Control] = [
-		_map_combo_option, _player_count_spin, _ai_count_spin, _ai_difficulty_option,
+		_game_mode_option, _round_timer_spin, _match_timer_spin,
+		_map_combo_option, _sky_theme_option, _player_count_spin, _ai_count_spin, _ai_difficulty_option,
 	]
-	chain.insert(1, _sky_theme_option)
-	chain.append_array([_game_mode_option, _match_timer_spin, _round_timer_spin])
 	chain.append_array(_team_buttons)
 	chain.append_array([_block_timer_slider, _gravity_slider, _goal_flag_spin, _gifts_check, _special_freq_slider])
 	# Bontago-mp0.3.5 (review r2, item 2): the round "-"/"+" stepper buttons

@@ -132,24 +132,38 @@ func test_elimination_no_limit_round_trips_to_a_client() -> void:
 	assert_eq((client.get_node("%RoundTimerSpin") as SpinBox).min_value, 1.0)
 
 
-func test_popup_focus_loop_skips_the_hidden_timer_column() -> void:
+func test_focus_loops_skip_the_hidden_timer_column() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var match_spin: SpinBox = lobby.get_node("%MatchTimerSpin")
 	var round_spin: SpinBox = lobby.get_node("%RoundTimerSpin")
 	var sudden: Control = lobby.get_node("%SuddenDeathCheck")
 	_pick_mode(lobby, MatchConfig.GameMode.CAPTURE_THE_FLAG)
-	var shown: Array[Control] = lobby._visible_chain(lobby._popup_chain)
+	var shown: Array[Control] = lobby._visible_chain(lobby._main_chain)
+	var popup_shown: Array[Control] = lobby._visible_chain(lobby._popup_chain)
 	assert_true(shown.has(round_spin))
 	assert_false(shown.has(match_spin))
-	assert_false(shown.has(sudden))
+	assert_false(popup_shown.has(sudden))
+	_assert_closed_loop(shown)
+	_assert_closed_loop(popup_shown)
+	_pick_mode(lobby, MatchConfig.GameMode.CLASSIC)
+	shown = lobby._visible_chain(lobby._main_chain)
+	popup_shown = lobby._visible_chain(lobby._popup_chain)
+	assert_true(shown.has(match_spin))
+	assert_true(popup_shown.has(sudden))
+	assert_false(shown.has(round_spin))
+	_assert_closed_loop(shown)
+	_assert_closed_loop(popup_shown)
+	# Focus order follows the visual order: mode, then the timer, then the map.
+	assert_lt(shown.find(lobby.get_node("%GameModeOption")), shown.find(match_spin))
+	assert_lt(shown.find(match_spin), shown.find(lobby.get_node("%MapComboOption")))
+	assert_lt(shown.find(lobby.get_node("%AiCountSpin")), shown.find(lobby.get_node("%AiDifficultyOption")))
+
+
+func _assert_closed_loop(shown: Array[Control]) -> void:
 	for control: Control in shown:
 		var up: Control = control.get_node_or_null(control.focus_neighbor_top) as Control
 		var down: Control = control.get_node_or_null(control.focus_neighbor_bottom) as Control
 		assert_true(shown.has(up) and shown.has(down), "no orphaned neighbour on %s" % control.name)
-	_pick_mode(lobby, MatchConfig.GameMode.CLASSIC)
-	shown = lobby._visible_chain(lobby._popup_chain)
-	assert_true(shown.has(match_spin) and shown.has(sudden))
-	assert_false(shown.has(round_spin))
 
 
 # --- 6fc.2 -------------------------------------------------------------------

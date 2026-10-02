@@ -854,12 +854,13 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	var lobby: Lobby = _make_lobby(true)
 
 	var start_button: Control = lobby.get_node("%StartButton") as Control
-	var map_combo_option: Control = lobby.get_node("%MapComboOption") as Control
+	# The Round section renders first, so the loop starts at the game mode.
+	var first_option: Control = lobby.get_node("%GameModeOption") as Control
 	var start_bottom: Node = start_button.get_node(start_button.focus_neighbor_bottom)
-	assert_eq(start_bottom, map_combo_option, "the chain must wrap from StartButton back to MapComboOption")
+	assert_eq(start_bottom, first_option, "the chain must wrap from StartButton back to GameModeOption")
 
-	var top_neighbor: Node = map_combo_option.get_node(map_combo_option.focus_neighbor_top)
-	assert_eq(top_neighbor, start_button, "MapComboOption's up neighbor must close the loop back to StartButton")
+	var top_neighbor: Node = first_option.get_node(first_option.focus_neighbor_top)
+	assert_eq(top_neighbor, start_button, "GameModeOption's up neighbor must close the loop back to StartButton")
 
 	# Bontago-mp0.3.5 (mockup 11's TEAMS segmented control): %TeamModeOption is
 	# now hidden -- %TeamOffButton/%Team2Button/%Team3Button/%Team4Button are
