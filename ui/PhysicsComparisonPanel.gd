@@ -15,14 +15,32 @@ var _drop: Button
 var _stack: Button
 var _last_mode: String = "drop"
 var opened: bool = false
+## Bontago-1pi.23: hint label geometry (logical px under the project stretch rule).
+const HINT_HALF_WIDTH_PX: float = 260.0
+const HINT_HEIGHT_PX: float = 18.0
+const HINT_BOTTOM_MARGIN_PX: float = 6.0
+const HINT_FONT_SIZE: int = 11
+const HINT_ALPHA: float = 0.55
 
 func _ready() -> void:
 	layer = 10
 	var hint: Label = Label.new()
 	hint.text = "F2 / Back+X: physics or territory comparison   F4: tuning/presets"
-	hint.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-	hint.offset_left = 16.0
-	hint.offset_top = -30.0
+	# Bontago-1pi.23: bottom-centre, dim and small, so it never overlaps the
+	# bottom-left held/next cards or the bottom-right minimap.
+	hint.anchor_left = 0.5
+	hint.anchor_right = 0.5
+	hint.anchor_top = 1.0
+	hint.anchor_bottom = 1.0
+	hint.offset_left = -HINT_HALF_WIDTH_PX
+	hint.offset_right = HINT_HALF_WIDTH_PX
+	hint.offset_top = -HINT_HEIGHT_PX - HINT_BOTTOM_MARGIN_PX
+	hint.offset_bottom = -HINT_BOTTOM_MARGIN_PX
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.modulate = Color(1.0, 1.0, 1.0, HINT_ALPHA)
+	hint.add_theme_font_size_override("font_size", HINT_FONT_SIZE)
+	hint.add_theme_constant_override("outline_size", 3)
+	hint.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.8))
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(hint)
 	_panel = PanelContainer.new()

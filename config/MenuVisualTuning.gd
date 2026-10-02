@@ -134,6 +134,8 @@ extends Resource
 ## Bontago-mp0.18: minimum gap between the left window edge and the main card.
 @export var menu_card_left_margin_px: float = 48.0
 @export var menu_max_width_px: float = 960.0
+## Bontago-1pi.23: height reserved for the wordmark row (44pt title + 48px mark), so the tagline below never overlaps it.
+@export var menu_title_height_px: float = 60.0
 @export var menu_card_width_px: float = 420.0
 @export var menu_separation_px: int = 13
 @export var menu_lan_list_height_px: float = 92.0

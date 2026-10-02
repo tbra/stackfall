@@ -71,6 +71,9 @@ const _COLUMN_RATIOS: Array[float] = [3.0, 1.4, 1.0, 1.0, 1.0, 1.0, 1.2, 1.6]
 var last_results: Dictionary = {}
 
 @onready var _headline: Label = %Headline
+## Bontago-1pi.23: mode scores sit in their own small label; they used to be
+## appended to the 28pt headline and spilled over the table header.
+@onready var _mode_outcome: Label = %ModeOutcome
 @onready var _rows_list: VBoxContainer = %RowsList
 @onready var _waiting_hint: Label = %WaitingHint
 @onready var _replay_button: Button = %ReplayButton
@@ -159,6 +162,9 @@ func _unhandled_input(event: InputEvent) -> void:
 func show_results(results: Dictionary) -> void:
 	last_results = results
 	_headline.text = _headline_text(results)
+	var outcome: String = mode_outcome_text(results).strip_edges()
+	_mode_outcome.text = outcome
+	_mode_outcome.visible = not outcome.is_empty()
 	_populate_rows(results)
 	_update_host_gate()
 	visible = true
@@ -185,7 +191,7 @@ func _headline_text(results: Dictionary) -> String:
 	var shared: String = shared_winners_text(results)
 	if not shared.is_empty():
 		headline = shared
-	return headline + mode_outcome_text(results)
+	return headline
 
 
 ## Every winning id: mode.winners when a mode payload lists it (a CTF tie is a

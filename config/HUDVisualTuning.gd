@@ -101,18 +101,17 @@ extends Resource
 ## review 2026-09-26: "thin light inner border").
 @export var hud_share_bar_border_color: Color = Color(1.0, 1.0, 1.0, 0.22)
 
-## Cream surface and ink type shared by the match HUD cards and menu panels.
-@export var surface_color: Color = Color(0.96, 0.92, 0.84, 0.96)
-@export var surface_border_color: Color = Color(0.20, 0.25, 0.27, 0.95)
-@export var ink_color: Color = Color(0.12, 0.18, 0.21)
-@export var muted_ink_color: Color = Color(0.32, 0.37, 0.38)
-@export var inner_surface_color: Color = Color(0.90, 0.85, 0.75, 0.95)
+## Bontago-1pi.23: subdued, low-contrast dark-glass cards with light ink, so
+## the persistent HUD never competes with the 3D scene (owner: the bright
+## backgrounds behind previews and stats were distracting).
+@export var surface_color: Color = Color(0.04, 0.06, 0.09, 0.42)
+@export var surface_border_color: Color = Color(1.0, 1.0, 1.0, 0.12)
+@export var ink_color: Color = Color(0.96, 0.95, 0.90)
+@export var muted_ink_color: Color = Color(0.80, 0.82, 0.84, 0.90)
+@export var inner_surface_color: Color = Color(1.0, 1.0, 1.0, 0.05)
 @export var card_padding_px: float = 16.0
 @export var share_bar_width_px: float = 300.0
 @export var share_bar_height_px: float = 14.0
-## Reference height for proportional HUD scaling on high resolution screens.
-@export var reference_viewport_height_px: float = 720.0
-@export var maximum_hud_scale: float = 2.0
 
 ## Bontago-mp0.27: pre-match 3-2-1 label. "Go" stays this long after PLAYING starts.
 @export var countdown_font_size: int = 120
@@ -120,3 +119,4 @@ extends Resource
 @export var countdown_outline_divisor: int = 6
 @export var countdown_go_text: String = "Go!"
 @export var countdown_go_hold_s: float = 0.8
+@export var countdown_outline_color: Color = Color(0.05, 0.07, 0.10, 0.85)
