@@ -305,3 +305,20 @@ func test_cycle_reuses_material_and_aligns_sun_with_flare() -> void:
 	skybox.set_theme_by_id("sunset")
 	assert_eq(flare.config.sun_direction, (load("res://config/sun_flare.tres") as SunFlareConfig).sun_direction,
 		"leaving cycle restores the authored flare direction")
+
+
+func test_dawn_and_storm_themes_load_with_their_character() -> void:
+	var dawn: SkyThemeDef = Skybox.load_theme("dawn")
+	var storm: SkyThemeDef = Skybox.load_theme("storm")
+	assert_not_null(dawn, "dawn.tres must load through Skybox.load_theme")
+	assert_not_null(storm, "storm.tres must load through Skybox.load_theme")
+	for theme: SkyThemeDef in [dawn, storm]:
+		assert_not_null(theme.sky_material)
+		assert_not_null(theme.cloud_puff_material)
+		assert_true(theme.cloud_top_max_m < -10.0, "puff ceiling well under the disc")
+		assert_true(theme.cloud_bank_ring_inner_m > MapDef.RADIUS_LARGE * 3.0, "banks stay far from the play area")
+	assert_gt(dawn.sky_top_color.b, dawn.sky_top_color.r, "dawn zenith is cool")
+	assert_gt(dawn.sky_horizon_color.r, dawn.sky_horizon_color.b, "dawn horizon is warm")
+	assert_gt(dawn.sky_top_color.v, storm.sky_top_color.v, "storm is darker than dawn")
+	assert_lt(storm.light_energy, dawn.light_energy, "storm sun is muted")
+	assert_false(storm.sun_flare_enabled)
