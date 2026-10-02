@@ -1,6 +1,9 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://ui/PauseMenu.gd" id="1_pause"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/leave.svg" id="glyph_leave"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/play.svg" id="glyph_play"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/settings.svg" id="glyph_settings"]
 [ext_resource type="Theme" path="res://ui/theme/stackfall_theme.tres" id="2_theme"]
 
 [node name="PauseMenu" type="CanvasLayer"]
@@ -51,18 +54,21 @@ horizontal_alignment = 1
 text = "Paused"
 
 [node name="ResumeButton" type="Button" parent="Root/Center/Panel/Layout"]
+icon = ExtResource("glyph_play")
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(0, 41)
 text = "Resume"
 
 [node name="OptionsButton" type="Button" parent="Root/Center/Panel/Layout"]
+icon = ExtResource("glyph_settings")
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(0, 41)
 text = "Options"
 
 [node name="LeaveButton" type="Button" parent="Root/Center/Panel/Layout"]
+icon = ExtResource("glyph_leave")
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(0, 41)

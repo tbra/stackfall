@@ -1,6 +1,15 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://ui/MainMenu.gd" id="1_menu"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/back.svg" id="glyph_back"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/blocks.svg" id="glyph_blocks"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/guide.svg" id="glyph_guide"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/host.svg" id="glyph_host"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/join.svg" id="glyph_join"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/play.svg" id="glyph_play"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/quit.svg" id="glyph_quit"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/refresh.svg" id="glyph_refresh"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/settings.svg" id="glyph_settings"]
 [ext_resource type="Theme" path="res://ui/theme/stackfall_theme.tres" id="2_theme"]
 [ext_resource type="Script" path="res://ui/MenuDiorama.gd" id="3_diorama"]
 [ext_resource type="Script" path="res://ui/MenuBackdrop.gd" id="4_backdrop"]
@@ -123,6 +132,7 @@ layout_mode = 2
 theme_override_constants/separation = 10
 
 [node name="HostButton" type="Button" parent="Center/Panel/Layout/HostRow"]
+icon = ExtResource("glyph_host")
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -132,6 +142,7 @@ focus_neighbor_right = NodePath("../JoinButton")
 text = "Host"
 
 [node name="JoinButton" type="Button" parent="Center/Panel/Layout/HostRow"]
+icon = ExtResource("glyph_join")
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -140,6 +151,7 @@ focus_neighbor_left = NodePath("../HostButton")
 text = "Join"
 
 [node name="HostOnlineButton" type="Button" parent="Center/Panel/Layout/HostRow"]
+icon = ExtResource("glyph_host")
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -154,12 +166,14 @@ layout_mode = 2
 theme_override_constants/separation = 10
 
 [node name="JoinLanTabButton" type="Button" parent="Center/Panel/Layout/JoinTabRow"]
+icon = ExtResource("glyph_join")
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "LAN / IP"
 
 [node name="JoinSteamTabButton" type="Button" parent="Center/Panel/Layout/JoinTabRow"]
+icon = ExtResource("glyph_join")
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -192,10 +206,11 @@ layout_mode = 2
 size_flags_horizontal = 3
 
 [node name="RefreshSteamButton" type="Button" parent="Center/Panel/Layout/SteamSection/SteamGamesWell/SteamGamesLayout/SteamHeaderRow"]
+icon = ExtResource("glyph_refresh")
 unique_name_in_owner = true
 layout_mode = 2
 focus_neighbor_bottom = NodePath("../../SteamListStack/SteamLobbyList")
-text = "⟳ Refresh"
+text = "Refresh"
 
 [node name="SteamListStack" type="Control" parent="Center/Panel/Layout/SteamSection/SteamGamesWell/SteamGamesLayout"]
 layout_mode = 2
@@ -251,11 +266,12 @@ layout_mode = 2
 size_flags_horizontal = 3
 
 [node name="RefreshButton" type="Button" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout/LanHeaderRow"]
+icon = ExtResource("glyph_refresh")
 unique_name_in_owner = true
 layout_mode = 2
 focus_neighbor_top = NodePath("../../../../SteamSection/SteamGamesWell/SteamGamesLayout/SteamHeaderRow/RefreshSteamButton")
 focus_neighbor_bottom = NodePath("../../GameListStack/GameList")
-text = "⟳ Refresh"
+text = "Refresh"
 
 [node name="GameListStack" type="Control" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout"]
 layout_mode = 2
@@ -300,6 +316,7 @@ focus_neighbor_top = NodePath("../../GameListStack/GameList")
 focus_neighbor_bottom = NodePath("../DirectJoinButton")
 
 [node name="DirectJoinButton" type="Button" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout/DirectRow"]
+icon = ExtResource("glyph_join")
 unique_name_in_owner = true
 layout_mode = 2
 focus_neighbor_top = NodePath("../DirectIpEdit")
@@ -311,12 +328,14 @@ layout_mode = 2
 theme_override_constants/separation = 10
 
 [node name="PlayLocalButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
+icon = ExtResource("glyph_play")
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Play local"
 
 [node name="SandboxButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
+icon = ExtResource("glyph_blocks")
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -325,6 +344,7 @@ focus_neighbor_right = NodePath("../TutorialButton")
 text = "Sandbox"
 
 [node name="TutorialButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
+icon = ExtResource("glyph_guide")
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -334,12 +354,14 @@ focus_neighbor_right = NodePath("../OptionsButton")
 text = "Tutorial"
 
 [node name="BotsButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
+icon = ExtResource("glyph_blocks")
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Vs bots"
 
 [node name="OptionsButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
+icon = ExtResource("glyph_settings")
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -349,6 +371,7 @@ focus_neighbor_right = NodePath("../QuitButton")
 text = "Options"
 
 [node name="QuitButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
+icon = ExtResource("glyph_quit")
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -357,6 +380,7 @@ focus_neighbor_left = NodePath("../OptionsButton")
 text = "Quit"
 
 [node name="BackButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
+icon = ExtResource("glyph_back")
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
