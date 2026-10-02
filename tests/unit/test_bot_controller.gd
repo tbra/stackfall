@@ -39,6 +39,12 @@ class BotControllerFakeMatch:
 		"teams": PackedInt32Array(),
 	}
 
+	## Bontago-1t5.2: Match.gift_states()'s shape (id/phase/position).
+	var gift_states_value: Array[Dictionary] = []
+
+	func gift_states() -> Array[Dictionary]:
+		return gift_states_value
+
 	var request_place_calls: Array[Dictionary] = []
 	var request_throw_calls: Array[Dictionary] = []
 	## Bontago-d5c.2 (review fix regression): lets a test make every
@@ -993,3 +999,47 @@ func test_send_best_placement_tolerates_a_null_mode_goal() -> void:
 	_tick(controller, 72)
 	assert_eq(match_ref.request_place_calls.size(), 1)
 	assert_eq(match_ref.mode_goal_calls.size(), 1)
+
+
+# --- Bontago-1t5.2: claim landed gifts, use held gifts promptly -------------
+
+func _candidate_at(origin: Vector2) -> BotCandidate:
+	var candidate: BotCandidate = BotCandidate.new()
+	candidate.origin = origin
+	return candidate
+
+
+func test_gift_claim_target_picks_nearest_landed_gift_in_reach() -> void:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	var controller: BotController = _make_controller(field, match_ref, BotControllerFakeNet.new())
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+	controller._candidates = [_candidate_at(Vector2(0.0, 0.0))]
+	match_ref.gift_states_value = [
+		{"id": 1, "phase": MatchGifts.LANDED, "position": Vector2(30.0, 0.0)},
+		{"id": 2, "phase": MatchGifts.FALLING, "position": Vector2(1.0, 0.0)},
+		{"id": 3, "phase": MatchGifts.LANDED, "position": Vector2(4.0, 0.0)},
+	]
+	assert_eq(controller._gift_claim_target(), Vector2(4.0, 0.0), "nearest landed gift in reach; falling and far ones ignored")
+
+
+func test_gift_claim_target_null_when_no_gift_in_reach() -> void:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	var controller: BotController = _make_controller(field, match_ref, BotControllerFakeNet.new())
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+	controller._candidates = [_candidate_at(Vector2(0.0, 0.0))]
+	match_ref.gift_states_value = [{"id": 1, "phase": MatchGifts.LANDED, "position": Vector2(30.0, 0.0)}]
+	assert_null(controller._gift_claim_target())
+
+
+func test_held_special_is_spent_after_the_short_gift_use_delay() -> void:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	match_ref.held_specials[0] = &"anvil"
+	var controller: BotController = _make_controller(field, match_ref, BotControllerFakeNet.new())
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+	Events.feed_block_issued.emit(0, &"cube", &"")
+	# gift_use_delay_s 0.25 s = 15 frames + <= 9 generating + 1 acting.
+	_tick(controller, 30)
+	assert_eq(match_ref.request_place_calls.size(), 1, "a held special is placed after the short use delay, not the full reaction delay")

@@ -156,6 +156,12 @@ func _on_feed_block_issued(slot_id: int, _shape_id: StringName, _next_shape_id: 
 	# an unrelated auto-drop) -- any candidates already gathered were scored
 	# against the old shape and must not carry over.
 	_countdown = _think_delay_s
+	# DECISION (Bontago-1t5.2): a freshly fed gift piece is spent after the
+	# short gift_use_delay_s, not the full reaction delay -- a queued gift may
+	# be released before the next ordinary boundary (spec 2.4 gift exception).
+	var match_ref: Variant = _match()
+	if match_ref.has_method("held_special") and StringName(match_ref.held_special(_slot_id)) != &"":
+		_countdown = minf(_think_delay_s, tuning.gift_use_delay_s)
 	_state = State.IDLE
 	_candidates.clear()
 
@@ -465,7 +471,38 @@ func _tick_acting() -> void:
 			# chosen differs.
 			_apply_rejection_backoff(_send_best_placement(action.place_target))
 			return
+	# Bontago-1t5.2: claim a landed, unclaimed gift by growing territory over it.
+	var gift_target: Variant = _gift_claim_target()
+	if gift_target != null:
+		_apply_rejection_backoff(_send_best_placement(gift_target))
+		return
 	_apply_rejection_backoff(_send_best_placement())
+
+
+## Bontago-1t5.2: claiming is host-side and territory-only (spec 2.6: a landed
+## gift goes to whoever owns its cell), so a bot "claims" by placing its piece
+## through the normal request_place() path on the generated candidate nearest
+## the nearest landed gift, provided one is within tuning.gift_claim_reach_m.
+## Returns that gift's disk-local position, or null (no landed gift in reach,
+## or already inside this team's own territory, which claims automatically).
+## DECISION: nearest-gift-first, ties by lowest gift id (gift_states() is
+## id-sorted) -- deterministic, no extra RNG draws.
+func _gift_claim_target() -> Variant:
+	var match_ref: Variant = _match()
+	if _candidates.is_empty() or not match_ref.has_method("gift_states"):
+		return null
+	var best: Variant = null
+	var best_dist: float = tuning.gift_claim_reach_m
+	for state: Dictionary in match_ref.gift_states():
+		if int(state.get("phase", -1)) != MatchGifts.LANDED:
+			continue
+		var pos: Vector2 = state.get("position", Vector2.ZERO)
+		var near: BotCandidate = _pick_candidate_nearest_to(pos)
+		var dist: float = near.origin.distance_to(pos)
+		if dist < best_dist:
+			best_dist = dist
+			best = pos
+	return best
 
 
 ## Review fix (Bontago-d5c.2, MINOR): an outright-rejected request_place()/
