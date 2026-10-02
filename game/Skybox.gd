@@ -368,6 +368,7 @@ func _ready() -> void:
 	_cloud_sea = CloudSea.new()
 	_cloud_sea.name = "CloudSea"
 	_cloud_sea.lighting = _cloud_lighting
+	_cloud_sea.upper_tuning = CEILING_TUNING
 	add_child(_cloud_sea)
 	_birds = DistantBirds.new()
 	_birds.name = "DistantBirds"
@@ -948,6 +949,7 @@ func _apply_ambient_life(preset: GraphicsPreset, applied_theme: SkyThemeDef) -> 
 	if _cloud_sea != null:
 		var sky_material: Material = applied_theme.sky_material if applied_theme != null else null
 		var subdivisions: int = preset.cloud_puff_subdivisions if preset != null else CloudSea.PUFF_SUBDIVISIONS
+		_cloud_sea.upper_low = preset != null and not preset.ambient_life_enabled
 		_cloud_sea.configure(applied_theme, density, sky_material, subdivisions)
 		# Bontago-mp0.19: configure() resets the puff palette; keep the storm tint.
 		if _storm_amount > 0.0 and _storm_target != null and applied_theme != null and applied_theme == theme:
@@ -1248,6 +1250,13 @@ func set_weather_cloud_overcast(amount: float) -> void:
 		return
 	_weather_cloud_overcast = clamped
 	_publish_cloud_lighting()
+
+
+## Bontago-mp0.29: fades the upper puff layer (the cloud sea's own puffs, high
+## above the disc) in with the weather; 0 in clear weather hides it.
+func set_upper_cloud_presence(amount: float) -> void:
+	if _cloud_sea != null:
+		_cloud_sea.set_upper_presence(amount)
 
 
 ## The overcast the cloud layers are graded by (strongest of the sources).

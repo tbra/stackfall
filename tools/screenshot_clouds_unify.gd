@@ -1,17 +1,17 @@
 extends Node
-## Bontago-mp0.29: sea + puffs + ceiling together under one lighting model.
+## Bontago-mp0.29: sea + upper puff layer together under one lighting model.
 ## User arg `shot=day|night|rain`:
 ##   godot --path . --windowed --position 10000,10000 --resolution 320x180 --audio-driver Dummy res://tools/screenshot_clouds_unify.tscn -- --agent-probe --render-size=3440x1440 shot=day
 const SETTLE_SECONDS: float = 1.5
 const WEATHER_FRAMES: int = 720
 const CAMERA_POSITION: Vector3 = Vector3(0.0, 14.0, 70.0)
-const LOOK_PITCH_DEG: float = 9.0
+const LOOK_PITCH_DEG: float = 35.0
 const FOV_DEG: float = 85.0
-## shot -> [cycle phase, weather id, intensity]
+## shot -> [cycle phase, weather id, intensity]; all pitched up to see the upper puffs.
 const SHOTS: Dictionary = {
 	"day": [0.25, &"", 0.0],
 	"night": [0.75, &"snow", 1.0],
-	"rain": [0.47, &"storm", 1.0],
+	"rain": [0.47, &"rain", 1.0],
 }
 
 

@@ -74,6 +74,9 @@ class _Layer:
 	var top_max_m: float = 0.0
 	var radius_min_m: float = 1.0
 	var radius_max_m: float = 1.0
+	## Bontago-mp0.29: the weather-driven layer above the disc; it skips the
+	## under-disc exclusion clamp and the sea's highest-top bookkeeping.
+	var is_upper: bool = false
 
 
 var _instance: MultiMeshInstance3D = null
@@ -86,6 +89,13 @@ var _cycle_base: Dictionary[StringName, Color] = {}
 ## Bontago-mp0.29: the shared cloud lighting (owned by Skybox). configure()
 ## re-applies its weather grade to the fresh puff material.
 var lighting: CloudLighting = null
+## Bontago-mp0.29: tuning of the upper (overcast) puff layer and whether the Low
+## preset is active; Skybox sets both before configure().
+var upper_tuning: WeatherCeilingTuning = null
+var upper_low: bool = false
+var _upper: MultiMeshInstance3D = null
+## Last presence (0..1) set by set_upper_presence(); survives configure().
+var _upper_presence: float = 0.0
 
 ## A cycle changes the existing puff material's palette and direction in place.
 func set_cycle_appearance(day: SkyThemeDef, night_theme: SkyThemeDef, weight: float, direction: Vector3) -> void:
@@ -183,6 +193,9 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 	if _instance != null:
 		_instance.queue_free()
 		_instance = null
+	if _upper != null:
+		_upper.queue_free()
+		_upper = null
 	_material = null
 	_cycle_base.clear()
 	_highest_top = -INF
@@ -219,23 +232,41 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 			if value != null:
 				_material.set_shader_parameter(parameter, value)
 
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = theme.cloud_seed
+	_instance = _build_instance("Puffs", layers, theme, subdivisions, rng)
+	add_child(_instance)
+	# Bontago-mp0.29: the same puffs, shader, material and lighting again above
+	# the disc, fading in with the weather (set_upper_presence).
+	var upper_layers: Array[_Layer] = _upper_layers_for(theme, density)
+	if not upper_layers.is_empty():
+		rng.seed = theme.cloud_seed + upper_tuning.upper_seed_offset
+		_upper = _build_instance("UpperPuffs", upper_layers, theme, subdivisions, rng)
+		add_child(_upper)
+		set_upper_presence(_upper_presence)
+
+
+## One MultiMeshInstance3D of `layers`' clumps drawn with the shared puff material.
+func _build_instance(node_name: String, layers: Array[_Layer], theme: SkyThemeDef, subdivisions: int,
+		rng: RandomNumberGenerator) -> MultiMeshInstance3D:
+	var clumps: int = 0
+	for layer: _Layer in layers:
+		clumps += layer.clumps
 	var multimesh: MultiMesh = MultiMesh.new()
 	multimesh.transform_format = MultiMesh.TRANSFORM_3D
 	multimesh.use_custom_data = true
 	multimesh.mesh = build_puff_mesh(theme.cloud_flat_base, subdivisions)
 	multimesh.instance_count = clumps * theme.cloud_puffs_per_clump
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.seed = theme.cloud_seed
 	var index: int = 0
 	for layer: _Layer in layers:
 		for _clump: int in range(layer.clumps):
 			index = _add_clump(multimesh, index, theme, layer, rng)
-	_instance = MultiMeshInstance3D.new()
-	_instance.name = "Puffs"
-	_instance.multimesh = multimesh
-	_instance.material_override = _material
-	_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_instance.layers = RENDER_LAYER_BIT
+	var instance: MultiMeshInstance3D = MultiMeshInstance3D.new()
+	instance.name = node_name
+	instance.multimesh = multimesh
+	instance.material_override = _material
+	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	instance.layers = RENDER_LAYER_BIT
 	# The shader orbits puffs around the disc axis, so the culling box must
 	# cover the whole ring at every angle.
 	var extent: float = 0.0
@@ -247,8 +278,29 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 		extent = maxf(extent, layer.ring_outer_m + layer.radius_max_m * 2.0)
 		low = minf(low, layer.base_min_m - layer.radius_max_m)
 		high = maxf(high, layer.top_max_m)
-	_instance.custom_aabb = AABB(Vector3(-extent, low, -extent), Vector3(extent * 2.0, high - low, extent * 2.0))
-	add_child(_instance)
+	instance.custom_aabb = AABB(Vector3(-extent, low, -extent), Vector3(extent * 2.0, high - low, extent * 2.0))
+	return instance
+
+
+## Fades the upper puff layer: 0 hides it (clear weather), 1 is the full field.
+## Sets one per-instance shader parameter; no allocation.
+func set_upper_presence(presence: float) -> void:
+	_upper_presence = clampf(presence, 0.0, 1.0)
+	if _upper != null:
+		_upper.visible = _upper_presence > 0.0
+		_upper.set_instance_shader_parameter(&"presence", _upper_presence)
+
+
+func upper_presence() -> float:
+	return _upper_presence
+
+
+func upper_instance() -> MultiMeshInstance3D:
+	return _upper
+
+
+func upper_puff_count() -> int:
+	return _upper.multimesh.instance_count if _upper != null else 0
 
 
 ## Largest silhouette the puff shader can carve beyond a puff's radius, as a
@@ -280,6 +332,31 @@ static func exclusion_radius_m(theme: SkyThemeDef) -> float:
 ## underside (MapDef.disk_height below y 0) minus the clearance.
 static func disc_ceiling_m(theme: SkyThemeDef) -> float:
 	return -MapDef.new().disk_height - disc_clearance_m(theme)
+
+
+## Bontago-mp0.29: the overcast layer above the disc -- clumps over a disc of
+## upper_ring_outer_m around the axis, flat bases from height_m up, scaled by the
+## density preset like the sea (Low also uses upper_clump_count_low).
+func _upper_layers_for(theme: SkyThemeDef, density: float) -> Array[_Layer]:
+	var layers: Array[_Layer] = []
+	if upper_tuning == null or theme == null:
+		return layers
+	var upper: _Layer = _Layer.new()
+	var count: int = upper_tuning.upper_clump_count_low if upper_low else upper_tuning.upper_clump_count
+	upper.clumps = int(round(float(count) * clampf(density, 0.0, 1.0)))
+	if upper.clumps <= 0:
+		return layers
+	upper.is_upper = true
+	upper.ring_inner_m = 0.0
+	upper.ring_outer_m = upper_tuning.upper_ring_outer_m
+	upper.radial_bias = 1.0
+	upper.base_min_m = upper_tuning.height_m
+	upper.base_max_m = upper_tuning.height_m + upper_tuning.upper_base_spread_m
+	upper.radius_min_m = upper_tuning.upper_clump_radius_min_m
+	upper.radius_max_m = upper_tuning.upper_clump_radius_max_m
+	upper.top_max_m = upper.base_max_m + upper.radius_max_m * (theme.cloud_clump_height_ratio * (1.0 + SIZE_JITTER) + 1.0)
+	layers.append(upper)
+	return layers
 
 
 ## The sea layer and (when the theme has any) the cloud-bank layer, with the
@@ -394,10 +471,11 @@ func _write_puff(multimesh: MultiMesh, index: int, at: Vector3, radius: float, l
 	# this holds at every drift phase, tilt and camera orbit.
 	var inflated: float = radius * (1.0 + _inflate)
 	var footprint: float = Vector2(at.x, at.z).length() - inflated * stretch
-	if footprint < _exclusion_radius_m:
-		at.y = minf(at.y, _disc_ceiling_m - inflated)
-		_highest_top_near_disc = maxf(_highest_top_near_disc, at.y + inflated)
-	_highest_top = maxf(_highest_top, at.y + radius)
+	if not layer.is_upper:
+		if footprint < _exclusion_radius_m:
+			at.y = minf(at.y, _disc_ceiling_m - inflated)
+			_highest_top_near_disc = maxf(_highest_top_near_disc, at.y + inflated)
+		_highest_top = maxf(_highest_top, at.y + radius)
 	var basis: Basis = Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(radius * stretch, radius, radius * stretch))
 	multimesh.set_instance_transform(index, Transform3D(basis, at))
 	multimesh.set_instance_custom_data(index, Color(angular_speed, rng.randf() * TAU, base_y, clump_height))

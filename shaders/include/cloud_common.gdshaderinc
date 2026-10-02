@@ -117,7 +117,7 @@ vec2 sun_disc(float cos_angle, float core_deg, float edge_deg, float halo_deg, f
 }
 
 // Bontago-mp0.29: the one cel cloud body shared by the far sea stratum and the
-// weather cloud ceiling (shaders/weather_cloud_ceiling.gdshader), so every
+// upper puff layer (the same puff shader), so every
 // layer has the same noise character, banding and shade/highlight relation.
 // `q` is the noise coordinate. Shade = thickness blended with how much the
 // local noise faces the light (a one-tap sun probe), snapped to `bands` cel

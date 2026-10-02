@@ -159,6 +159,12 @@ uniform float near_fade_end_m = 16.0;
 uniform float weather_dim : hint_range(0.0, 1.0) = 0.0;
 uniform float weather_desaturate : hint_range(0.0, 1.0) = 0.0;
 
+// Bontago-mp0.29: per-instance presence of the weather-driven upper puff layer
+// (vfx/CloudSea.gd). 1 = the whole field (every sea puff); lower values grow
+// the puffs in one by one (each from its own hash), so coverage and density
+// fade in with the weather intensity and are 0 in clear weather.
+instance uniform float presence : hint_range(0.0, 1.0) = 1.0;
+
 varying vec3 world_pos;
 varying vec3 world_normal;
 varying vec3 puff_centre;
@@ -194,6 +200,10 @@ void vertex() {
 	// world_vertex_coords: VERTEX and NORMAL arrive in world space.
 	vec3 centre = MODEL_MATRIX[3].xyz;
 	vec2 axes = vec2(length(MODEL_MATRIX[0].xyz), length(MODEL_MATRIX[1].xyz));
+	float threshold = fract(INSTANCE_CUSTOM.y * 0.7371 + 0.31) * 0.7;
+	float grow = smoothstep(threshold, threshold + 0.3, presence);
+	VERTEX = centre + (VERTEX - centre) * grow;
+	axes *= grow;
 	// Inflate the hull to the largest silhouette the fragment stage can carve
 	// (the flat base stays put).
 	float inflate = lump_height * (1.0 - lump_bias) + billow_amount + hull_margin;

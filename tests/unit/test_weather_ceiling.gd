@@ -1,6 +1,6 @@
 extends GutTest
-## Bontago-mp0.19: cloud ceiling fades with rain/snow/storm intensity, the
-## Low preset is cheaper, rain/snow start at the ceiling and the storm sky
+## Bontago-mp0.19/mp0.29: the upper puff layer (the cloud sea's own puffs) fades
+## with rain/snow/storm intensity, the Low preset is cheaper, rain/snow start at the ceiling and the storm sky
 ## blends in and restores the match theme.
 
 var _presenter: WeatherPresenter = null
@@ -22,16 +22,14 @@ func _fade(ceiling: CloudCeiling, seconds: float) -> void:
 
 func test_fades_in_with_rain_and_out_when_it_clears() -> void:
 	var ceiling: CloudCeiling = _presenter.cloud_ceiling()
-	assert_false(ceiling.visible)
+	assert_eq(ceiling.amount(), 0.0)
 	Events.weather_intensity_changed.emit(&"rain", 0.6)
 	_fade(ceiling, ceiling.tuning.fade_in_s + 1.0)
 	assert_almost_eq(ceiling.amount(), 0.6, 0.001)
-	assert_true(ceiling.visible)
 	assert_eq(ceiling.storm_amount(), 0.0, "rain never touches the sky theme")
 	Events.weather_stopped.emit(&"rain")
 	_fade(ceiling, ceiling.tuning.fade_out_s + 1.0)
 	assert_eq(ceiling.amount(), 0.0)
-	assert_false(ceiling.visible)
 
 
 func test_changing_transition_follows_the_strongest_weather() -> void:
@@ -55,19 +53,47 @@ func test_storm_drives_the_storm_sky_blend() -> void:
 	assert_eq(ceiling.storm_amount(), 0.0)
 
 
-func test_low_preset_uses_fewer_layers() -> void:
+func _upper_count(preset: StringName) -> int:
+	Settings.set_graphics_preset(preset)
+	var skybox: Skybox = _wired_skybox()["skybox"] as Skybox
+	skybox.apply_theme(skybox.theme)
+	return skybox.get_cloud_sea().upper_puff_count()
+
+
+func test_low_preset_uses_fewer_upper_puffs() -> void:
+	var high: int = _upper_count(&"high")
+	var low: int = _upper_count(&"low")
+	assert_gt(low, 0)
+	assert_gt(high, low)
+
+
+func test_upper_layer_is_the_sea_puff_field_and_absent_in_clear_weather() -> void:
 	Settings.set_graphics_preset(&"high")
-	var high: CloudCeiling = CloudCeiling.new()
-	add_child_autofree(high)
-	var high_count: int = high.layer_count()
-	Settings.set_graphics_preset(&"low")
-	var low: CloudCeiling = CloudCeiling.new()
-	add_child_autofree(low)
-	assert_gt(high_count, low.layer_count())
-	assert_eq(high.layer_count(), low.layer_count(), "a live preset change rebuilds")
-	assert_eq(low.layer_count(), low.tuning.layer_count_low)
-	for layer: Node in high.get_children():
-		assert_eq((layer as MeshInstance3D).layers, RainPresentation.RENDER_LAYER_BIT)
+	var skybox: Skybox = _wired_skybox()["skybox"] as Skybox
+	skybox.apply_theme(skybox.theme)
+	var sea: CloudSea = skybox.get_cloud_sea()
+	var upper: MultiMeshInstance3D = sea.upper_instance()
+	assert_not_null(upper)
+	assert_false(upper.visible, "clear weather: no upper layer")
+	assert_same(upper.material_override, sea.puff_instance().material_override, "same shader material")
+	assert_same(upper.multimesh.mesh.get_class(), sea.puff_instance().multimesh.mesh.get_class())
+	assert_eq(upper.layers, sea.puff_instance().layers)
+	var ceiling: CloudCeiling = _presenter.cloud_ceiling()
+	Events.weather_intensity_changed.emit(&"rain", 0.5)
+	_fade(ceiling, ceiling.tuning.fade_in_s + 1.0)
+	assert_true(upper.visible)
+	assert_almost_eq(sea.upper_presence(), 0.5, 0.001, "presence follows the weather intensity")
+	assert_almost_eq(float(upper.get_instance_shader_parameter(&"presence")), 0.5, 0.001)
+	assert_null(sea.puff_instance().get_instance_shader_parameter(&"presence"), "sea puffs keep the shader default (1)")
+	# The layer sits above the play volume and the rain starts beneath it.
+	var tuning: WeatherCeilingTuning = ceiling.tuning
+	assert_gte(upper.custom_aabb.position.y, tuning.height_m - tuning.upper_clump_radius_max_m - 0.01)
+	assert_gt(tuning.height_m - tuning.spawn_below_ceiling_m, 72.0, "rain spawns above the play volume, below the cloud bases")
+	Events.weather_stopped.emit(&"rain")
+	_fade(ceiling, ceiling.tuning.fade_out_s + 1.0)
+	assert_false(upper.visible)
+	sea.configure(skybox.theme, 1.0, skybox.theme.sky_material)
+	assert_false(sea.upper_instance().visible, "a rebuild keeps the clear state")
 
 
 func test_ceiling_clears_the_camera_and_rain_reaches_it() -> void:
@@ -235,18 +261,9 @@ func test_rain_density_per_volume_is_unchanged_by_the_taller_volume() -> void:
 func test_idle_ceiling_skips_the_per_frame_work() -> void:
 	var ceiling: CloudCeiling = CloudCeiling.new()
 	add_child_autofree(ceiling)
-	ceiling.global_position = Vector3(1.0, 2.0, 3.0)
 	ceiling._process(0.1)
-	assert_eq(ceiling.global_position, Vector3(1.0, 2.0, 3.0), "idle: no placement work")
-	assert_false(ceiling.visible)
-
-
-func test_ceiling_is_invisible_in_clear_weather() -> void:
-	var ceiling: CloudCeiling = _presenter.cloud_ceiling()
-	_fade(ceiling, 10.0)
-	assert_false(ceiling.visible)
 	assert_eq(ceiling.amount(), 0.0)
-	assert_eq(float(ceiling.layer_material(0).get_shader_parameter(&"amount")), 0.0, "alpha is amount-scaled")
+	assert_eq(ceiling.overcast(), 0.0)
 
 
 func test_changing_weather_fades_the_ceiling_with_the_new_intensity() -> void:
@@ -259,7 +276,7 @@ func test_changing_weather_fades_the_ceiling_with_the_new_intensity() -> void:
 	assert_almost_eq(ceiling.amount(), 0.4, 0.001, "settles on the incoming weather, never full")
 	Events.weather_stopped.emit(&"snow")
 	_fade(ceiling, ceiling.tuning.fade_out_s + 1.0)
-	assert_false(ceiling.visible)
+	assert_eq(ceiling.amount(), 0.0)
 
 
 func test_rain_snow_and_storm_all_drive_the_shared_overcast() -> void:
