@@ -383,7 +383,7 @@ func bot_mode_goal(slot_id: int) -> BotModeGoal:
 			_match.config.effective_goal_flag_count(), _match.config.map_def()
 		)
 		for point: Vector2 in goal.beacon_positions:
-			goal.beacon_held_by_own.append(_raster != null and WinChecker.goal_holder(_raster, point) == own_team)
+			goal.beacon_held_by_own.append(_raster != null and WinChecker.goal_holder(_raster, point, _claim_radius()) == own_team)
 	elif _objective is EliminationObjective:
 		var own_team_e: int = _match.team_of(slot_id)
 		# Bontago-1t5.4: OFF mode flips a home only when an enemy radius beats the home circle.

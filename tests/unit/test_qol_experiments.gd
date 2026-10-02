@@ -288,3 +288,36 @@ func _qol_replay_events(net: Node) -> Array:
 		if args.size() >= 2 and args[0] == net.get("EVENT_QOL_FEED"):
 			out.append(args[1])
 	return out
+
+
+## Bontago-1pi.18.3: bot beacon_held_by_own (and the diagnostics) use the capture radius.
+## Returns beacon_held_by_own[0] for team 0 with a home whose edge stops short of
+## the flag cell but reaches inside the claim radius.
+func _bot_beacon_held(enabled: bool) -> bool:
+	var qol: QolExperiments = QolExperiments.new()
+	qol.goal_radius_enabled = enabled
+	qol.goal_radius_multiplier = 4.0
+	var config: MatchConfig = _config(qol)
+	config.game_mode = MatchConfig.GameMode.CAPTURE_THE_FLAG
+	Match.start_match(config)
+	for _i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * 60.0)) + 2):
+		Match._process(1.0 / 60.0)
+	var tuning: TerritoryTuning = Match._territory_tuning
+	var beacons: PackedVector2Array = PlayerSlot.goal_positions_for(Match.config.effective_goal_flag_count(), Match.config.map_def())
+	var raster: TerritoryRaster = TerritoryRaster.new(CellGrid.new(60.0, 1.0), tuning)
+	var circles: Array[InfluenceCircle] = [
+		InfluenceCircle.new(beacons[0] + Vector2(tuning.home_radius + 2.0, 0.0), tuning.home_radius, 0, 0, true, -1)
+	]
+	raster.update(circles, TerritorySolver.new(tuning).solve(circles), 0.1, true, false)
+	var cell: Vector2i = raster.grid().world_to_cell(beacons[0])
+	assert_eq(raster.team_at(cell.x, cell.y), -1, "fixture: flag cell not owned")
+	Match._territory._raster = raster
+	var goal: BotModeGoal = Match.bot_mode_goal(0)
+	var held: bool = goal != null and goal.beacon_held_by_own.size() > 0 and goal.beacon_held_by_own[0]
+	Match.abort_match()
+	return held
+
+
+func test_bot_beacon_held_follows_claim_radius_toggle() -> void:
+	assert_false(_bot_beacon_held(false), "OFF: flag cell only")
+	assert_true(_bot_beacon_held(true), "ON: radius majority counts")
