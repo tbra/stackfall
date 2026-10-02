@@ -160,6 +160,14 @@ const HEADLESS_BOTS_REPORT_INTERVAL_S: float = 5.0
 var _headless_bots_report_timer: Timer = null
 var _headless_bots_start_msec: int = 0
 var _headless_bots_placements: int = 0
+## Bontago-8or.21: `--loop-matches` state. Index 0 = no bot match started yet;
+## _headless_loop_args is the command line the loop restarts from. Only ever
+## armed by _start_headless_bot_match_with_args() with the flag present.
+var _headless_loop_enabled: bool = false
+var _headless_loop_index: int = 0
+var _headless_loop_args: PackedStringArray = PackedStringArray()
+var _headless_loop_seed: int = -1
+var _headless_loop_restart_pending: bool = false
 
 ## True once _build_match_world() has run for the match currently in
 ## progress, so a repeated match_state_changed(LOBBY, LOADING) firing twice
@@ -590,8 +598,12 @@ func _start_headless_bot_match_with_args(args: PackedStringArray) -> void:
 		)
 		return
 	Match.register_world(_field, _registry, _blocks_container)
-	Match.start_match(_build_headless_bot_config(bots, args))
-	_start_headless_bots_diagnostics()
+	_headless_loop_enabled = _has_loop_matches_arg(args)
+	_headless_loop_args = args
+	_headless_loop_index = 0
+	if _headless_loop_enabled:
+		Events.match_state_changed.connect(_on_headless_loop_state_changed)
+	_start_headless_loop_match(bots, args)
 
 	# `--seconds=<n>` bounds the run with a hard wall-clock quit: the
 	# acceptance command has no real win condition to end on within a CI
@@ -599,6 +611,60 @@ func _start_headless_bot_match_with_args(args: PackedStringArray) -> void:
 	var seconds: float = _seconds_arg(args)
 	if seconds > 0.0:
 		get_tree().create_timer(seconds).timeout.connect(_on_headless_bots_seconds_elapsed)
+
+
+## Builds and starts one headless bot match. Without --loop-matches this is
+## exactly the previous Match.start_match + diagnostics pair; with it, each
+## match after the first gets a fresh rng_seed.
+func _start_headless_loop_match(bots: int, args: PackedStringArray) -> void:
+	var config: MatchConfig = _build_headless_bot_config(bots, args)
+	_headless_loop_index += 1
+	if _headless_loop_enabled:
+		# DECISION (Bontago-8or.21): match 1 keeps the configured seed when one is
+		# set; every later match draws a fresh positive seed so repeats differ.
+		if _headless_loop_index > 1 or config.rng_seed < 0:
+			config.rng_seed = randi_range(1, 2147483647)
+		_headless_loop_seed = config.rng_seed
+	Match.start_match(config)
+	_start_headless_bots_diagnostics()
+
+
+## `--loop-matches`, same "-"-stripping convention as the other flags.
+func _has_loop_matches_arg(args: PackedStringArray) -> bool:
+	for raw: String in args:
+		var text: String = raw
+		while text.begins_with("-"):
+			text = text.substr(1)
+		if text == "loop-matches":
+			return true
+	return false
+
+
+## Bontago-8or.21: on END print one compact `HEADLESS_MATCH` summary line and
+## restart on the next frame (deferred, so the END emit finishes first; the
+## restart goes END -> LOBBY -> LOADING, which tears the old world down).
+func _on_headless_loop_state_changed(_from_state: int, to_state: int) -> void:
+	if to_state != Match.State.END or _headless_loop_restart_pending:
+		return
+	print(_headless_match_summary_line())
+	_headless_loop_restart_pending = true
+	_restart_headless_loop_match.call_deferred()
+
+
+func _restart_headless_loop_match() -> void:
+	_headless_loop_restart_pending = false
+	if not _headless_loop_enabled or not _net_is_hosting() or Match.state() != Match.State.END:
+		return
+	_start_headless_loop_match(_bots_arg(_headless_loop_args), _headless_loop_args)
+
+
+func _headless_match_summary_line() -> String:
+	return "HEADLESS_MATCH index=%d mode=%d seed=%d duration=%.1f winner_team=%d placements=%d homes_alive=%d" % [
+		_headless_loop_index,
+		Match.config.game_mode if Match.config != null else 0,
+		_headless_loop_seed, _headless_bots_elapsed_s(), Match.winner_team(),
+		_headless_bots_placements, _headless_bots_homes_alive(),
+	]
 
 
 ## Bontago-d5c.6 review finding 1: true only when Net actually became the
@@ -776,6 +842,9 @@ func _mode_arg(args: PackedStringArray) -> int:
 # file outside this package's ownership.
 
 func _start_headless_bots_diagnostics() -> void:
+	# Idempotent (Bontago-8or.21): a --loop-matches restart must not double-connect
+	# block_placed or leak a second report Timer.
+	_stop_headless_bots_diagnostics()
 	_headless_bots_start_msec = Time.get_ticks_msec()
 	_headless_bots_placements = 0
 	Events.block_placed.connect(_on_headless_bots_block_placed)
