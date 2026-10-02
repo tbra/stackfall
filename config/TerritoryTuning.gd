@@ -156,6 +156,9 @@ extends Resource
 ## Reach the Sky: a changed record replicates at once unless one went out within
 ## this many seconds, then it waits for the interval (Bontago-22y.9).
 @export var sky_replicate_interval_s: float = 0.5
+## Domination: minimum seconds between territory-share replications to clients
+## (Bontago-1pi.25); the final state always goes out at the round end.
+@export var domination_replicate_interval_s: float = 1.0
 
 ## -- Auto-drop (spec 2.5: "If that spot isn't valid, it drops at the closest
 ## valid point") -------------------------------------------------------------

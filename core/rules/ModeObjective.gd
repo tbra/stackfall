@@ -35,7 +35,8 @@ static func create(
 	beacon_replicate_interval: float = 1.0,
 	slot_teams: PackedInt32Array = PackedInt32Array(),
 	sky_sum_members: bool = false,
-	sky_replicate_interval: float = 0.5
+	sky_replicate_interval: float = 0.5,
+	domination_replicate_interval: float = 1.0
 ) -> ModeObjective:
 	# DECISION: every id resolves to CLASSIC until a mode package (22y.7/.8/.9)
 	# adds its `match` branch here and its id to SELECTABLE_GAME_MODES.
@@ -47,6 +48,8 @@ static func create(
 			objective = EliminationObjective.new(slot_teams)
 		MatchConfig.GameMode.REACH_THE_SKY:
 			objective = ReachSkyObjective.new(slot_teams, sky_sum_members, sky_replicate_interval)
+		MatchConfig.GameMode.DOMINATION:
+			objective = DominationObjective.new(domination_replicate_interval)
 		_:
 			objective = ClassicObjective.new(goal_positions, capture_hold)
 	objective.reset(team_count)
@@ -242,7 +245,7 @@ static func validate_results_block(raw: Variant) -> Dictionary:
 
 
 static func _is_known_mode(mode: int) -> bool:
-	return mode >= MatchConfig.GameMode.CLASSIC and mode <= MatchConfig.GameMode.REACH_THE_SKY
+	return mode >= MatchConfig.GameMode.CLASSIC and mode <= MatchConfig.GameMode.DOMINATION
 
 
 ## Array of floats, or [null] as the malformed sentinel.
