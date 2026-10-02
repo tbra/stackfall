@@ -113,6 +113,8 @@ When a worker hits a limit, retain its checkout and last checkpoint. Resume it i
 
 ## Completion and validation
 
+Orchestrator integration is one command: `python tools/integrate_batch.py --branches wt/a wt/b --beads id1 id2 [--no-game-code] [--dry-run] [--no-push]` (temp worktree, `--no-ff` merges, import check, full gate verdict, ff main, push, remote verify, then `bd close`; compact output, logs in a temp dir, non-zero exit names the failed step).
+
 Implementation workers must implement their assigned changes, not return only advice. They report failure honestly and preserve partial work. Use open-project import before tests in a fresh worktree; the generated `.godot/` cache is not shared. Relevant gates:
 
 ```powershell
