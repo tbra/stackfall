@@ -66,7 +66,7 @@ func test_settings_debug_value_round_trips() -> void:
 	Settings.set_config_path_for_test(path)
 	assert_eq(Settings.debug_setting(), 1, "reloaded from disk")
 	DirAccess.remove_absolute(path)
-	Settings.set_config_path_for_test("user://settings.cfg")
+	Settings.set_config_path_for_test(Settings.default_config_path())
 
 
 # --- Gated hotkeys --------------------------------------------------------------

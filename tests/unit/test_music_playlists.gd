@@ -40,7 +40,7 @@ func before_each() -> void:
 
 func after_each() -> void:
 	_sfx.set_music_enabled(false)
-	Settings.set_config_path_for_test("user://settings.cfg")
+	Settings.set_config_path_for_test(Settings.default_config_path())
 	DirAccess.remove_absolute(_settings_path)
 
 

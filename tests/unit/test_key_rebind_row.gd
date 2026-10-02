@@ -18,7 +18,7 @@ extends GutTest
 ## Control/Button layout with neither artifact, fully headlessly.
 
 const KEY_REBIND_ROW_SCENE: PackedScene = preload("res://ui/KeyRebindRow.tscn")
-const DEFAULT_SETTINGS_CFG_PATH: String = "user://settings.cfg"
+var DEFAULT_SETTINGS_CFG_PATH: String = Settings.default_config_path()
 const VIEWPORT_SIZE: Vector2i = Vector2i(1280, 720)
 
 var _test_action: StringName = &"key_rebind_row_test_action"
