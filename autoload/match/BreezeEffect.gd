@@ -118,7 +118,13 @@ func _age_and_expire(delta: float) -> void:
 
 
 func _eligible(block: Block) -> bool:
-	return is_instance_valid(block) and block.is_inside_tree() and not block.freeze and not block.is_freeze_static()
+	if not is_instance_valid(block) or not block.is_inside_tree():
+		return false
+	# A settled tower is stable-frozen STATIC after 20 s asleep; gusts wake it
+	# (Bontago-mp0.36). Any other freeze (Freeze special) still blocks the push.
+	if StormEffect.is_stable_frozen(block):
+		return true
+	return not block.freeze and not block.is_freeze_static()
 
 
 ## One seeded attempt. The random draws are always consumed in the same order so
@@ -186,9 +192,12 @@ func _push(delta: float) -> void:
 			continue
 		if StormEffect._owns_physics(block):
 			continue
-		var asleep: bool = block.sleeping
+		var stable_frozen: bool = StormEffect.is_stable_frozen(block)
+		var asleep: bool = block.sleeping or stable_frozen
 		if asleep and ((index + _tick_index) % stride != 0 or accel < tuning.wake_accel):
 			continue
+		if stable_frozen:
+			StormEffect.wake_stable_frozen(block)
 		var dir: Vector3 = total / accel
 		if block.linear_velocity.dot(dir) >= tuning.max_speed_ms:
 			continue

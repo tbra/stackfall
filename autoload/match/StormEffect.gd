@@ -69,23 +69,42 @@ func tick(delta: float, intensity: float) -> void:
 	var index: int = 0
 	for block: Block in _blocks():
 		index += 1
-		if not is_instance_valid(block) or not block.is_inside_tree() or block.freeze or block.is_freeze_static():
+		if not is_instance_valid(block) or not block.is_inside_tree():
+			continue
+		var stable_frozen: bool = is_stable_frozen(block)
+		if not stable_frozen and (block.freeze or block.is_freeze_static()):
 			continue
 		var height: float = block.global_position.y - surface
 		if height <= wt.threshold_height_m:
 			continue
 		if _owns_physics(block):
 			continue
-		var asleep: bool = block.sleeping
+		var asleep: bool = block.sleeping or stable_frozen
 		if asleep and (index + _tick_index) % stride != 0:
 			continue
 		var accel: float = WindField.accel_at(height, intensity, gust_mult, delta, wt)
 		if accel <= 0.0 or (asleep and accel < wt.wake_accel):
 			continue
+		if stable_frozen:
+			wake_stable_frozen(block)
 		if block.linear_velocity.dot(dir) >= wt.max_speed_ms:
 			continue
 		block.apply_central_force(dir * accel * block.mass)
 		last_pushed += 1
+
+
+## True when the ONLY thing holding `block` still is the stable-block auto-freeze
+## (StableBlockManager, 20 s asleep). A settled tower is in this state in real
+## play; wind used to skip it (Bontago-mp0.36).
+static func is_stable_frozen(block: Block) -> bool:
+	return block.is_freeze_static() and block._freeze_reasons.size() == 1 		and block._freeze_reasons.has(Block.FREEZE_REASON_STABLE)
+
+
+## Releases the stable freeze and wakes the body so a force can move it. The
+## manager re-freezes it after the normal 20 s of rest.
+static func wake_stable_frozen(block: Block) -> void:
+	block.release_freeze_static(Block.FREEZE_REASON_STABLE)
+	block.wake()
 
 
 static func _owns_physics(block: Block) -> bool:

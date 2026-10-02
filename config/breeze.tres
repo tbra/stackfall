@@ -6,9 +6,9 @@
 script = ExtResource("1_bt")
 id = &"breeze"
 display_name = "Breeze"
-max_accel = 0.9
+max_accel = 3.0
 threshold_height_m = 2.0
 cap_height_m = 18.0
 max_speed_ms = 5.0
-max_dv_per_tick = 0.03
+max_dv_per_tick = 0.06
 wake_accel = 0.3
