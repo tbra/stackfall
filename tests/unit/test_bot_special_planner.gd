@@ -7,7 +7,7 @@ const HOME: Vector2 = Vector2.ZERO
 
 
 ## Mirrors the shipped config/bot_tuning.tres flag combination (easy
-## false/false, normal true/false, hard true/true) so a test can exercise
+## false/false, normal true/true, hard true/true) so a test can exercise
 ## `plan()`'s own difficulty-gated branch without loading the real .tres.
 func _real_shaped_tuning() -> BotTuning:
 	var tuning: BotTuning = BotTuning.new()
@@ -16,7 +16,7 @@ func _real_shaped_tuning() -> BotTuning:
 	easy.uses_offensive_specials = false
 	var normal: BotDifficultyProfile = BotDifficultyProfile.new()
 	normal.uses_defensive_specials = true
-	normal.uses_offensive_specials = false
+	normal.uses_offensive_specials = true
 	var hard: BotDifficultyProfile = BotDifficultyProfile.new()
 	hard.uses_defensive_specials = true
 	hard.uses_offensive_specials = true
@@ -293,3 +293,25 @@ func test_jumping_bean_falls_back_to_ordinary_without_offensive_specials() -> vo
 	assert_false(action.should_throw)
 	assert_true(action.should_place_ordinarily)
 	assert_false(action.has_place_target, "the untouched default action -- no offensive targeting applied")
+
+
+## Bontago-1t5.7 (owner 1t5.5 = B): the shipped NORMAL profile throws a Bomb
+## like Hard, but with a larger aim error and a longer reaction delay.
+func test_shipped_normal_throws_bomb_with_worse_aim_and_delay_than_hard() -> void:
+	var tuning: BotTuning = load("res://config/bot_tuning.tres") as BotTuning
+	var points: PackedVector2Array = PackedVector2Array([Vector2(1.0, 0.0), Vector2(-1.0, 0.0)])
+	var enemies: PackedVector2Array = PackedVector2Array([Vector2(10.0, 0.0)])
+	var normal_action: BotSpecialPlanner.BotSpecialAction = BotSpecialPlanner.plan(
+		&"bomb", HOME, points, enemies, PackedVector2Array(), MatchConfig.AiDifficulty.NORMAL, tuning
+	)
+	var hard_action: BotSpecialPlanner.BotSpecialAction = BotSpecialPlanner.plan(
+		&"bomb", HOME, points, enemies, PackedVector2Array(), MatchConfig.AiDifficulty.HARD, tuning
+	)
+	assert_true(normal_action.should_throw, "NORMAL throws offensive specials")
+	assert_true(hard_action.should_throw)
+	assert_gt(tuning.normal.aim_noise_m, tuning.hard.aim_noise_m)
+	assert_gt(tuning.normal.reaction_delay_s, tuning.hard.reaction_delay_s)
+	var easy_action: BotSpecialPlanner.BotSpecialAction = BotSpecialPlanner.plan(
+		&"bomb", HOME, points, enemies, PackedVector2Array(), MatchConfig.AiDifficulty.EASY, tuning
+	)
+	assert_false(easy_action.should_throw, "EASY still uses no specials")

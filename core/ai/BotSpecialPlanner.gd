@@ -77,9 +77,10 @@ static func plan(
 		&"rocket":
 			# DECISION (Bontago-d5c.9): spec 2.9's difficulty axis is defensive
 			# special use; offensive use (aiming/targeting a special with
-			# intent, even a placed one like Rocket) is gated on the Hard
-			# tier's uses_offensive_specials -- a defensive-only (NORMAL)
-			# profile places a held Rocket like an ordinary block instead of
+			# intent, even a placed one like Rocket) is gated on the tier's
+			# uses_offensive_specials (Hard and, per Bontago-1t5.7, Normal;
+			# Normal's worse aim_noise_m/reaction_delay_s come from its
+			# profile) -- a defensive-only profile places a held Rocket like an ordinary block instead of
 			# aiming it at a cluster.
 			if not offensive:
 				return BotSpecialAction.new()

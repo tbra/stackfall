@@ -23,6 +23,11 @@ uses_offensive_specials = true
 script = ExtResource("2_bot_profile")
 candidate_count = 70
 uses_defensive_specials = true
+; DECISION (Bontago-1t5.7, owner 1t5.5 = B): NORMAL now uses offensive specials
+; (Rocket/Bomb). No new fields: the existing per-tier aim_noise_m (0.3 m vs
+; Hard 0.05 m, applied to throws by BotController) and reaction_delay_s
+; (0.6 s vs Hard 0.2 s) already make it slower and less accurate than Hard.
+uses_offensive_specials = true
 
 [resource]
 script = ExtResource("1_bot_tuning")
