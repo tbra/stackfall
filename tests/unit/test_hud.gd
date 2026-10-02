@@ -760,3 +760,20 @@ func test_null_shape_has_no_static_preview() -> void:
 	var hud: HUD = _make_hud()
 	assert_null(hud._preview_texture(null))
 	assert_eq(hud._preview_textures.size(), 0)
+
+
+func test_gift_slot_card_shows_only_while_a_gift_is_slotted() -> void:
+	var hud: HUD = _make_hud()
+	hud.set_active_slot(0, Color.RED)
+	hud._refresh_gift_slot()
+	assert_false(hud._gift_slot_column.visible)
+	var base_right: float = hud._held_next_panel.offset_right
+	Match._gifts._gift_slots[0] = [&"anvil"]
+	hud._refresh_gift_slot()
+	assert_true(hud._gift_slot_column.visible)
+	assert_gt(hud._held_next_panel.offset_right, base_right, "panel widens for the card")
+	assert_true(hud._gift_slot_label.text.begins_with("GIFT"))
+	Match._gifts._gift_slots.clear()
+	hud._refresh_gift_slot()
+	assert_false(hud._gift_slot_column.visible)
+	assert_eq(hud._held_next_panel.offset_right, base_right)

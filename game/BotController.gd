@@ -185,6 +185,11 @@ func _tick_idle(delta: float) -> void:
 		return
 	if match_ref.held_shape(_slot_id) == null:
 		return
+	# Bontago-1pi.18.2 (QoL gift slot): a bot spends a slotted gift as soon as
+	# it can; the resulting feed event restarts the (short) gift think delay.
+	if match_ref.has_method("gift_slot_head") and StringName(match_ref.gift_slot_head(_slot_id)) != &"":
+		if bool(match_ref.request_use_gift_slot(_slot_id)):
+			return
 	_candidates.clear()
 	_generation_frames_used = 0
 	_state = State.GENERATING

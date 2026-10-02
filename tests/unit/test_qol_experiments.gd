@@ -321,3 +321,128 @@ func _bot_beacon_held(enabled: bool) -> bool:
 func test_bot_beacon_held_follows_claim_radius_toggle() -> void:
 	assert_false(_bot_beacon_held(false), "OFF: flag cell only")
 	assert_true(_bot_beacon_held(true), "ON: radius majority counts")
+
+
+# --- Toggle B: gift slot (Bontago-1pi.18.2) -----------------------------------
+
+func _slot_qol(enabled: bool, capacity: int = 1) -> QolExperiments:
+	var qol: QolExperiments = QolExperiments.new()
+	qol.gift_slot_enabled = enabled
+	qol.gift_slot_capacity = capacity
+	return qol
+
+
+func test_gift_slot_defaults_off_and_round_trips() -> void:
+	var qol: QolExperiments = load("res://config/qol_experiments.tres") as QolExperiments
+	assert_false(qol.gift_slot_enabled)
+	assert_eq(qol.effective_gift_slot_capacity(), 0)
+	var back: QolExperiments = QolExperiments.from_dict(_slot_qol(true, 2).to_dict())
+	assert_true(back.gift_slot_enabled)
+	assert_eq(back.effective_gift_slot_capacity(), 2)
+	assert_eq(QolExperiments.from_dict(_slot_qol(true, 99).to_dict()).gift_slot_capacity, QolExperiments.GIFT_SLOT_CAPACITY_CEILING)
+
+
+func test_gift_slot_off_queues_the_gift_as_before() -> void:
+	_start(_slot_qol(false))
+	Match._gifts._queue_claimed_special(0, &"anvil")
+	assert_eq(Match.next_special(0), &"anvil")
+	assert_eq(Match.gift_slot_head(0), &"")
+	assert_false(Match.request_use_gift_slot(0), "nothing to use with the toggle off")
+
+
+func test_gift_slot_on_holds_the_gift_without_touching_the_queue_or_block() -> void:
+	_start(_slot_qol(true))
+	var held_before: BlockShape = Match.held_shape(0)
+	var next_before: BlockShape = Match.next_shape(0)
+	Match._gifts._queue_claimed_special(0, &"anvil")
+	assert_eq(Match.gift_slot_head(0), &"anvil")
+	assert_eq(Match.next_special(0), &"")
+	assert_eq(Match.held_special(0), &"")
+	assert_eq(Match.held_shape(0), held_before)
+	assert_eq(Match.next_shape(0), next_before, "the next block is untouched")
+
+
+func test_gift_slot_full_replaces_the_old_gift() -> void:
+	_start(_slot_qol(true, 1))
+	Match._gifts._queue_claimed_special(0, &"anvil")
+	Match._gifts._queue_claimed_special(0, &"bomb")
+	assert_eq(Match.gift_slot_count(0), 1)
+	assert_eq(Match.gift_slot_head(0), &"bomb")
+
+
+func test_gift_slot_use_makes_the_gift_the_held_piece_and_keeps_the_timer() -> void:
+	_start(_slot_qol(true))
+	Match._gifts._queue_claimed_special(0, &"anvil")
+	for _i: int in range(30):
+		Match._process(1.0 / 60.0)
+	var left_before: float = Match.feed_time_left(0)
+	var seq_before: int = Match.feed_seq(0)
+	assert_true(Match.request_use_gift_slot(0))
+	assert_eq(Match.held_special(0), &"anvil")
+	assert_true(Match._feed.is_held_gift(0))
+	assert_eq(Match.gift_slot_head(0), &"")
+	assert_eq(Match.feed_time_left(0), left_before, "no timer restart")
+	assert_gt(Match.feed_seq(0), seq_before)
+	assert_false(Match.request_use_gift_slot(0), "slot is empty now")
+
+
+func test_gift_slot_use_is_refused_while_a_gift_is_in_hand_or_for_a_bad_slot() -> void:
+	_start(_slot_qol(true, 2))
+	Match._gifts._queue_claimed_special(0, &"anvil")
+	Match._gifts._queue_claimed_special(0, &"bomb")
+	assert_true(Match.request_use_gift_slot(0))
+	assert_false(Match.request_use_gift_slot(0), "first gift still in hand")
+	assert_eq(Match.gift_slot_count(0), 1, "refusal keeps the slotted gift")
+	assert_false(Match.request_use_gift_slot(-1))
+	assert_false(Match.request_use_gift_slot(99))
+	assert_false(Match.request_use_gift_slot(1), "slot 1 has nothing")
+
+
+func test_gift_slot_use_is_refused_for_an_off_turn_seat_in_turn_based() -> void:
+	var config: MatchConfig = _config(_slot_qol(true))
+	config.turn_based = true
+	Match.start_match(config)
+	for _i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * 60.0)) + 2):
+		Match._process(1.0 / 60.0)
+	assert_eq(Match.state(), Match.State.PLAYING)
+	var on_turn: int = Match.active_slot()
+	var off_turn: int = 1 - on_turn
+	Match._gifts._queue_claimed_special(on_turn, &"anvil")
+	Match._gifts._queue_claimed_special(off_turn, &"bomb")
+	assert_false(Match.request_use_gift_slot(off_turn), "off-turn seat is rejected")
+	assert_eq(Match.gift_slot_head(off_turn), &"bomb", "rejection keeps the slotted gift")
+	assert_true(Match.request_use_gift_slot(on_turn), "on-turn seat is accepted")
+
+
+func test_gift_slot_activation_guarantees_a_minimum_window() -> void:
+	var qol: QolExperiments = _slot_qol(true)
+	qol.gift_slot_min_window_s = 2.0
+	_start(qol)
+	Match._gifts._queue_claimed_special(0, &"anvil")
+	for _i: int in range(int(ceil((MatchConfig.BLOCK_TIMER_MIN - 0.5) * 60.0))):
+		Match._process(1.0 / 60.0)
+	assert_lt(Match.feed_time_left(0), 1.0, "timer nearly out before activation")
+	assert_true(Match.request_use_gift_slot(0))
+	assert_almost_eq(Match.feed_time_left(0), 2.0, 0.001, "window raised to the minimum")
+	assert_eq(QolExperiments.from_dict(qol.to_dict()).gift_slot_min_window_s, 2.0)
+
+
+func test_gift_slot_replicates_to_a_client_mirror() -> void:
+	_start(_slot_qol(true))
+	var seen: Array = []
+	var on_change: Callable = func(slot_id: int, contents: Array, activated: StringName, carrier: StringName) -> void:
+		seen.append([slot_id, contents, activated, carrier])
+	Events.gift_slot_changed.connect(on_change)
+	Match._gifts._queue_claimed_special(0, &"anvil")
+	assert_true(Match.request_use_gift_slot(0))
+	Events.gift_slot_changed.disconnect(on_change)
+	assert_eq(seen.size(), 2)
+	assert_eq(seen[0][1], [&"anvil"])
+	assert_eq(seen[1][1], [])
+	assert_eq(seen[1][2], &"anvil")
+	assert_ne(seen[1][3], &"")
+	Match.apply_replicated_gift_slot(1, seen[0][1], &"", &"")
+	assert_eq(Match.gift_slot_head(1), &"anvil", "mirror applies slot contents")
+	Match.apply_replicated_gift_slot(1, seen[1][1], seen[1][2], seen[1][3])
+	assert_eq(Match.gift_slot_head(1), &"")
+	assert_eq(Match.next_special(1), &"anvil", "activation queues the carrier before the feed event")

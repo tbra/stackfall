@@ -618,6 +618,31 @@ func qol_timer_paused(slot_id: int) -> bool:
 	return _feed.timer_paused(slot_id)
 
 
+## Bontago-1pi.18.2 (QoL gift slot): the gift `slot_id` could spend now (&"" if none), how many wait, and the host-validated use.
+func gift_slot_head(slot_id: int) -> StringName:
+	return _gifts.gift_slot_head(slot_id)
+
+
+func gift_slot_count(slot_id: int) -> int:
+	return _gifts.gift_slot_count(slot_id)
+
+
+func gift_slot_contents(slot_id: int) -> Array[StringName]:
+	return _gifts.gift_slot_contents(slot_id)
+
+
+func gift_slot_enabled() -> bool:
+	return _gifts.gift_slot_capacity() > 0
+
+
+func request_use_gift_slot(slot_id: int) -> bool:
+	return _gifts.request_use_gift_slot(slot_id)
+
+
+func apply_replicated_gift_slot(slot_id: int, contents: Array, activated: StringName, carrier_id: StringName) -> void:
+	_gifts.apply_replicated_gift_slot(slot_id, contents, activated, carrier_id)
+
+
 ## Client side of Events.qol_feed_changed (net/MatchNet.gd).
 func apply_replicated_qol(slot_id: int, backlog: int, paused: bool) -> void:
 	_feed.apply_replicated_qol(slot_id, backlog, paused)

@@ -53,6 +53,8 @@ const EVENT_FEED_ISSUED: StringName = &"feed_issued"
 const EVENT_FEED_EXPIRED: StringName = &"feed_expired"
 ## Bontago-1pi.18.1: [slot_id, backlog_count, timer_paused] for the QoL experiments.
 const EVENT_QOL_FEED: StringName = &"qol_feed"
+## Bontago-1pi.18.2: [slot_id, contents, activated_special, carrier_shape_id] for the QoL gift slot.
+const EVENT_GIFT_SLOT: StringName = &"gift_slot"
 const EVENT_PLACEMENT_REJECTED: StringName = &"placement_rejected"
 const EVENT_PLACEMENT_RELOCATED: StringName = &"placement_relocated"
 const EVENT_PLAYER_ELIMINATED: StringName = &"player_eliminated"
@@ -255,6 +257,7 @@ func _ready() -> void:
 	Events.feed_block_issued.connect(_on_feed_block_issued)
 	Events.feed_timer_expired.connect(_on_feed_timer_expired)
 	Events.qol_feed_changed.connect(_on_qol_feed_changed)
+	Events.gift_slot_changed.connect(_on_gift_slot_changed)
 	Events.placement_rejected.connect(_on_placement_rejected)
 	Events.placement_relocated.connect(_on_placement_relocated)
 	Events.player_eliminated.connect(_on_player_eliminated)
@@ -931,6 +934,30 @@ static func _consumed_a_block(reason: StringName, auto_drop: bool) -> bool:
 	return auto_drop or reason == PlacementRules.REASON_OK
 
 
+## Bontago-1pi.18.2: the use_gift_slot intent, host or client. The client only
+## sends the request; the host validates it (sender owns the slot, slot holds a
+## gift, state, no gift already in hand) and the result arrives as the normal
+## feed event. Returns whether the request was applied (host) or sent (client).
+func submit_use_gift_slot(slot_id: int) -> bool:
+	if _is_host():
+		return bool(_authority().request_use_gift_slot(slot_id))
+	if not _can_send():
+		return false
+	rpc_id(Net.HOST_PEER_ID, &"net_request_use_gift_slot", slot_id)
+	return true
+
+
+## Host side of net_request_use_gift_slot, split out so a test can drive it
+## with a manufactured sender id.
+func _handle_use_gift_slot_intent(sender_peer_id: int, slot_id: int) -> bool:
+	if not _is_host():
+		return false
+	var sender_slot: int = int(_session().slot_of_peer(sender_peer_id))
+	if sender_slot < 0 or sender_slot != slot_id or _replay_pending.has(sender_peer_id):
+		return false
+	return bool(_authority().request_use_gift_slot(slot_id))
+
+
 ## Host side of net_request_place, split out so a test can drive it with a
 ## manufactured sender id and no peer at all.
 func _handle_place_intent(
@@ -1338,6 +1365,11 @@ func _on_qol_feed_changed(slot_id: int, backlog: int, paused: bool) -> void:
 		replicate_match_event(EVENT_QOL_FEED, [slot_id, backlog, paused])
 
 
+func _on_gift_slot_changed(slot_id: int, contents: Array, activated: StringName, carrier_id: StringName) -> void:
+	if _is_host():
+		replicate_match_event(EVENT_GIFT_SLOT, [slot_id, contents, activated, carrier_id])
+
+
 func _on_placement_rejected(slot_id: int, reason: StringName) -> void:
 	if _is_host():
 		replicate_match_event(EVENT_PLACEMENT_REJECTED, [slot_id, reason])
@@ -1718,6 +1750,11 @@ func build_world_replay() -> Array[Array]:
 		if backlog > 0 or paused:
 			messages.append(_event(EVENT_QOL_FEED, [slot_id, backlog, paused]))
 
+	for slot_id: int in range(slot_count):
+		var slotted: Array[StringName] = authority.gift_slot_contents(slot_id)
+		if not slotted.is_empty():
+			messages.append(_event(EVENT_GIFT_SLOT, [slot_id, slotted, &"", &""]))
+
 	for gift: Dictionary in authority.gift_states():
 		var gift_id: int = int(gift["id"])
 		if int(gift["phase"]) == MatchGifts.FALLING:
@@ -2002,6 +2039,11 @@ func net_request_throw(
 	)
 
 
+@rpc("any_peer", "call_remote", "reliable")
+func net_request_use_gift_slot(slot_id: int) -> void:
+	_handle_use_gift_slot_intent(multiplayer.get_remote_sender_id(), slot_id)
+
+
 @rpc("any_peer", "call_remote", "unreliable", CURSOR_CHANNEL)
 func net_update_cursor(slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion) -> void:
 	_handle_cursor_update(multiplayer.get_remote_sender_id(), slot_id, origin, orientation_index, free_quat)
@@ -2137,6 +2179,23 @@ func net_match_event(event: StringName, args: Array) -> void:
 			Events.feed_block_issued.emit(int(args[0]), StringName(args[1]), StringName(args[2]))
 		EVENT_FEED_EXPIRED:
 			Events.feed_timer_expired.emit(int(args[0]))
+		EVENT_GIFT_SLOT:
+			if _is_host() or args.size() != 4 or not args[0] is int or not args[1] is Array:
+				return
+			if not (args[2] is String or args[2] is StringName) or not (args[3] is String or args[3] is StringName):
+				return
+			if args[0] < 0 or args[0] >= _authority().slot_count() or (args[1] as Array).size() > QolExperiments.GIFT_SLOT_CAPACITY_CEILING:
+				return
+			var slot_contents: Array = []
+			for entry: Variant in args[1]:
+				if not (entry is String or entry is StringName) or not _gift_special_id_wire_ok(String(entry)):
+					return
+				slot_contents.append(StringName(entry))
+			var activated_special: StringName = StringName(args[2])
+			var carrier_id: StringName = StringName(args[3])
+			if activated_special != &"" and (not _gift_special_id_wire_ok(String(activated_special)) or _authority()._feed._shape_by_id(carrier_id) == null):
+				return
+			_authority().apply_replicated_gift_slot(args[0], slot_contents, activated_special, carrier_id)
 		EVENT_QOL_FEED:
 			if _is_host() or args.size() != 3 or not args[0] is int or not args[1] is int or not args[2] is bool:
 				return
@@ -2242,8 +2301,13 @@ func net_match_event(event: StringName, args: Array) -> void:
 			if _authority()._feed._shape_by_id(gift_shape_id) == null:
 				return
 			_gift_wire_phases[claimed_gift_id] = GiftWirePhase.REMOVED
-			_authority().apply_replicated_gift_claimed(claimed_gift_id, slot_id, special_id)
-			_authority()._feed.apply_replicated_next_gift(slot_id, gift_shape_id)
+			if _authority().gift_slot_enabled():
+				# Bontago-1pi.18.2: the gift went to the slot (EVENT_GIFT_SLOT),
+				# not the block queue; only the crate visual is retired here.
+				_authority().apply_replicated_gift_expired(claimed_gift_id)
+			else:
+				_authority().apply_replicated_gift_claimed(claimed_gift_id, slot_id, special_id)
+				_authority()._feed.apply_replicated_next_gift(slot_id, gift_shape_id)
 			Events.gift_claimed.emit(claimed_gift_id, slot_id, special_id)
 		EVENT_GIFT_EXPIRED:
 			if args.size() != 1 or not args[0] is int:

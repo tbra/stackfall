@@ -558,6 +558,18 @@ func replace_next_with_gift(slot_id: int) -> StringName:
 	return preview[0].id
 
 
+## Bontago-1pi.18.2: hands `slot_id` its pending gift carrier right now (the
+## gift slot's use), in place of the piece in hand. The block timer keeps
+## running its current window, but never below `min_window_s` so a gift
+## activated just before the boundary is not auto-dropped at once; the sequence
+## bump retires any in-flight intent for the piece that was swapped out.
+func issue_gift_now(slot_id: int, min_window_s: float = 0.0) -> void:
+	_feed_seq[slot_id] += 1
+	_issue_next_block(slot_id, false)
+	if not _feed_expired[slot_id]:
+		_feed_time_left[slot_id] = maxf(_feed_time_left[slot_id], min_window_s)
+
+
 func apply_replicated_next_gift(slot_id: int, shape_id: StringName) -> void:
 	var shape: BlockShape = _shape_by_id(shape_id)
 	if shape != null:

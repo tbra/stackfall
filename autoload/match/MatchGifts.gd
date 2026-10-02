@@ -214,11 +214,112 @@ func _queue_claimed_special(slot_id: int, special_id: StringName) -> void:
 		if effect != null:
 			grant_glue_drops(slot_id, effect.drop_charges)
 		return
+	if gift_slot_capacity() > 0:
+		_store_in_gift_slot(slot_id, special_id)
+		return
 	_ensure_capacity(slot_id)
 	var queue: Array = _pending_queues[slot_id]
 	queue.clear()
 	queue.append(special_id)
 	_match._feed.replace_next_with_gift(slot_id)
+
+
+## Bontago-1pi.18.2 (QoL gift slot): per-slot gifts waiting to be spent with
+## use_gift_slot, oldest first. Empty (and never touched) with the toggle off.
+var _gift_slots: Dictionary = {}
+
+
+## Slots in force (0 = toggle off, so every claim queues as before).
+func gift_slot_capacity() -> int:
+	if _match == null or _match.config == null or _match.config.qol == null:
+		return 0
+	return _match.config.qol.effective_gift_slot_capacity()
+
+
+func gift_slot_contents(slot_id: int) -> Array[StringName]:
+	var out: Array[StringName] = []
+	for id: Variant in _gift_slots.get(slot_id, []):
+		out.append(StringName(id))
+	return out
+
+
+## The gift the next use_gift_slot would spend, or &"" for an empty slot.
+func gift_slot_head(slot_id: int) -> StringName:
+	var contents: Array = _gift_slots.get(slot_id, [])
+	return StringName(contents[0]) if not contents.is_empty() else &""
+
+
+func gift_slot_count(slot_id: int) -> int:
+	return (_gift_slots.get(slot_id, []) as Array).size()
+
+
+func _store_in_gift_slot(slot_id: int, special_id: StringName) -> void:
+	var contents: Array = _gift_slots.get(slot_id, [])
+	# DECISION (Bontago-1pi.18.2): a claim into a full slot drops the OLDEST
+	# slotted gift (with capacity 1: the new gift replaces the old one), the
+	# same "latest claim wins" rule the block queue already uses.
+	while contents.size() >= gift_slot_capacity():
+		contents.pop_front()
+	contents.append(special_id)
+	_gift_slots[slot_id] = contents
+	Events.gift_slot_changed.emit(slot_id, gift_slot_contents(slot_id), &"", &"")
+
+
+## Host-validated activation of `slot_id`'s slotted gift: exactly what a gift
+## arriving in the block queue does (it becomes the held piece, or triggers if
+## instant), without waiting for the next block and without a timer reset.
+## Refused (false, nothing changes) off-host, outside PLAYING, for an
+## eliminated slot, with an empty slot, with no held piece, or while a gift is
+## already held or queued for this slot.
+func request_use_gift_slot(slot_id: int) -> bool:
+	if _match == null or not _match._is_host() or gift_slot_capacity() <= 0:
+		return false
+	if _match.state() != MatchAutoload.State.PLAYING and _match.state() != MatchAutoload.State.SUDDEN_DEATH:
+		return false
+	if slot_id < 0 or slot_id >= _match.slot_count():
+		return false
+	# Same one-actor-at-a-time gate request_place uses: off-turn seats cannot spend.
+	if (_match.config.hot_seat or _match.config.turn_based) and slot_id != _match.active_slot():
+		return false
+	var seat: PlayerSlot = _match.slot(slot_id)
+	if seat == null or not seat.home_flag_alive:
+		return false
+	var special_id: StringName = gift_slot_head(slot_id)
+	if special_id == &"" or _match._feed.held_shape(slot_id) == null:
+		return false
+	if held_special(slot_id) != &"" or next_special(slot_id) != &"":
+		return false
+	var contents: Array = _gift_slots[slot_id]
+	contents.pop_front()
+	_ensure_capacity(slot_id)
+	var queue: Array = _pending_queues[slot_id]
+	queue.clear()
+	queue.append(special_id)
+	var carrier_id: StringName = _match._feed.replace_next_with_gift(slot_id)
+	if carrier_id == &"":
+		queue.clear()
+		contents.push_front(special_id)
+		return false
+	# Clients mirror the queue and carrier before the feed event that follows.
+	Events.gift_slot_changed.emit(slot_id, gift_slot_contents(slot_id), special_id, carrier_id)
+	_match._feed.issue_gift_now(slot_id, _match.config.qol.effective_gift_min_window_s())
+	return true
+
+
+## Client mirror of Events.gift_slot_changed (net/MatchNet.gd).
+func apply_replicated_gift_slot(slot_id: int, contents: Array, activated: StringName, carrier_id: StringName) -> void:
+	if slot_id < 0 or slot_id >= _match.slot_count():
+		return
+	if contents.is_empty():
+		_gift_slots.erase(slot_id)
+	else:
+		_gift_slots[slot_id] = contents.duplicate()
+	if activated != &"":
+		_ensure_capacity(slot_id)
+		var queue: Array = _pending_queues[slot_id]
+		queue.clear()
+		queue.append(activated)
+		_match._feed.apply_replicated_next_gift(slot_id, carrier_id)
 
 
 func glue_drops_left(slot_id: int) -> int:
@@ -1117,6 +1218,7 @@ func apply_replicated_special_consumed(slot_id: int, special_id: StringName) -> 
 ## dependency (set_special_drawer()), not per-match state, the same way
 ## _gift_config is never reset here either.
 func reset() -> void:
+	_gift_slots.clear()
 	_held_specials.clear()
 	_glue_drops.clear()
 	_glue_revisions.clear()

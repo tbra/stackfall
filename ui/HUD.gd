@@ -185,6 +185,17 @@ var _last_special_signature: Array = []
 ## built in code under the status pill so HUD.tscn and classic stay unchanged.
 var _mode_score_label: Label = null
 
+## Bontago-1pi.18.2 (QoL gift slot): a third card beside HELD/NEXT, built in
+## code and shown only while the experiment has a gift waiting. Styled with the
+## same helpers as the HELD/NEXT cards.
+var _gift_slot_column: VBoxContainer = null
+var _gift_slot_label: Label = null
+var _gift_slot_preview: Control = null
+var _gift_slot_id: StringName = &""
+var _gift_slot_panel_base_right: float = 0.0
+## Space the extra column adds to the HELD/NEXT panel (card width plus row separation).
+var _gift_slot_extra_width: float = 0.0
+
 
 func _ready() -> void:
 	match_provider = Match
@@ -211,6 +222,7 @@ func _ready() -> void:
 	_style_panel(_held_next_panel)
 	_style_panel(_next_shape_card, true)
 	_style_panel(_held_shape_card, true)
+	_build_gift_slot_column()
 	for label: Label in [
 		_turn_label, _height_label, _locked_label, _special_indicator,
 		_gift_toast_label, _reject_label,
@@ -815,6 +827,7 @@ func _name_for_slot(slot_id: int) -> String:
 ## set_locked above, _process() polls it every frame; _on_gift_claimed()
 ## above only shortcuts the wait for the specific claim case.
 func _refresh_special_indicator() -> void:
+	_refresh_gift_slot()
 	if match_provider == null or _active_slot < 0:
 		_last_special_signature = []
 		_set_glue_active(false)
@@ -1130,6 +1143,67 @@ func _set_gift_icons(held_id: StringName, next_id: StringName) -> void:
 	if next_id != _next_gift_id:
 		_next_gift_id = next_id
 		_next_shape_preview.queue_redraw()
+
+
+func _build_gift_slot_column() -> void:
+	var row: HBoxContainer = _held_next_panel.get_node("HeldNextRow") as HBoxContainer
+	_gift_slot_column = VBoxContainer.new()
+	_gift_slot_column.add_theme_constant_override("separation", _next_shape_card.get_parent().get_theme_constant("separation"))
+	_gift_slot_label = Label.new()
+	_gift_slot_label.text = "GIFT"
+	_gift_slot_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_gift_slot_label.add_theme_font_size_override("font_size", _held_label.get_theme_font_size("font_size"))
+	_gift_slot_label.add_theme_color_override("font_color", hud_visual_tuning.muted_ink_color)
+	var card: Panel = Panel.new()
+	card.custom_minimum_size = _held_shape_card.custom_minimum_size
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_style_panel(card, true)
+	_gift_slot_preview = Control.new()
+	_gift_slot_preview.position = _shape_preview.position
+	_gift_slot_preview.size = _shape_preview.size
+	_gift_slot_preview.draw.connect(_on_gift_slot_preview_draw)
+	card.add_child(_gift_slot_preview)
+	_gift_slot_column.add_child(_gift_slot_label)
+	_gift_slot_column.add_child(card)
+	_gift_slot_column.visible = false
+	row.add_child(_gift_slot_column)
+	_gift_slot_panel_base_right = _held_next_panel.offset_right
+	_gift_slot_extra_width = card.custom_minimum_size.x + float(row.get_theme_constant("separation"))
+
+
+## Shows the gift slot card only while the experiment is on and the active
+## slot has a gift waiting; widens the HELD/NEXT panel to make room.
+func _refresh_gift_slot() -> void:
+	if _gift_slot_column == null:
+		return
+	var head_id: StringName = &""
+	var count: int = 0
+	if match_provider != null and _active_slot >= 0 and match_provider.has_method(&"gift_slot_head"):
+		head_id = match_provider.gift_slot_head(_active_slot)
+		count = int(match_provider.gift_slot_count(_active_slot))
+	var show_card: bool = head_id != &""
+	if _gift_slot_column.visible != show_card:
+		_gift_slot_column.visible = show_card
+		_held_next_panel.offset_right = _gift_slot_panel_base_right + (_gift_slot_extra_width if show_card else 0.0)
+	if show_card:
+		_gift_slot_label.text = "GIFT: %s" % _special_display_name(head_id)
+		if count > 1:
+			_gift_slot_label.text += " x%d" % count
+	if head_id != _gift_slot_id:
+		_gift_slot_id = head_id
+		_gift_slot_preview.queue_redraw()
+
+
+func _on_gift_slot_preview_draw() -> void:
+	if _gift_slot_id == &"":
+		return
+	var texture: Texture2D = SpecialDef.preview_icon_for(_gift_slot_id)
+	if texture == null:
+		return
+	var texture_size: Vector2 = texture.get_size()
+	var fit: float = minf(_gift_slot_preview.size.x / texture_size.x, _gift_slot_preview.size.y / texture_size.y)
+	var draw_size: Vector2 = texture_size * fit
+	_gift_slot_preview.draw_texture_rect(texture, Rect2((_gift_slot_preview.size - draw_size) * 0.5, draw_size), false, _active_color)
 
 
 func _draw_static_shape(control: Control, shape: BlockShape, color: Color) -> void:
