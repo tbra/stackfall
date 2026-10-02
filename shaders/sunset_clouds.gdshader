@@ -40,6 +40,23 @@ uniform float sky_pitch_offset_deg = 0.0;
 // directly on the sun disc, and the ghost discs along the sun->center
 // axis) -- see that file's own class doc.
 uniform vec3 sun_direction = vec3(0.963087, 0.069011, -0.260192);
+// Bontago-mp0.13: the cycle uses this same sky pass and uniforms; its
+// procedural branch hides the panorama's painted sun before the sun moves.
+uniform float cycle_night_mix = 0.0;
+uniform vec3 cycle_night_zenith : source_color = vec3(0.008, 0.018, 0.06);
+uniform vec3 cycle_night_horizon : source_color = vec3(0.07, 0.11, 0.24);
+uniform vec3 cycle_night_below : source_color = vec3(0.02, 0.035, 0.09);
+uniform float cycle_star_brightness = 2.0;
+uniform float cycle_star_cells = 105.0;
+uniform float cycle_star_threshold = 0.92;
+uniform float cycle_star_radius = 0.12;
+uniform float cycle_star_horizon_fade = 0.22;
+
+float cycle_star_hash(vec3 p) {
+	p = fract(p * 0.1031);
+	p += dot(p, p.zyx + 31.32);
+	return fract((p.x + p.y) * p.z);
+}
 uniform vec4 sun_core_color : source_color = vec4(1.0, 0.94, 0.82, 1.0);
 uniform vec4 sun_halo_color : source_color = vec4(1.0, 0.62, 0.28, 1.0);
 uniform vec4 sun_ray_color : source_color = vec4(1.0, 0.72, 0.38, 1.0);
@@ -380,6 +397,19 @@ void sky() {
 		COLOR = mix(COLOR, u2.rgb * exposure, u2.a * proc_strata2_opacity * mixv
 			* smoothstep(proc_strata2_fade_start, proc_strata2_fade_height, eyedir.y) * sun_clear);
 	}
+	if (cycle_night_mix > 0.0) {
+		vec3 night = mix(cycle_night_horizon, cycle_night_zenith, pow(max(eyedir.y, 0.0), 0.55));
+		night = mix(night, cycle_night_below, smoothstep(0.0, 0.35, -eyedir.y));
+		if (!AT_CUBEMAP_PASS && eyedir.y > 0.0) {
+			vec3 cell = floor(eyedir * cycle_star_cells);
+			vec3 local = fract(eyedir * cycle_star_cells) - 0.5;
+			float present = step(cycle_star_threshold, cycle_star_hash(cell));
+			float point = 1.0 - smoothstep(cycle_star_radius * 0.17, cycle_star_radius, length(local));
+			night += vec3(0.72, 0.82, 1.0) * present * point * cycle_star_brightness
+				* smoothstep(0.0, cycle_star_horizon_fade, eyedir.y);
+		}
+		COLOR = mix(COLOR, night * exposure, clamp(cycle_night_mix, 0.0, 1.0));
+	}
 
 	// Bright core + soft halo, both angular falloffs around the sun direction.
 	float core = 1.0 - smoothstep(0.0, sun_core_angular_radius_deg, angle_deg);
@@ -401,7 +431,7 @@ void sky() {
 		float shimmer = 1.0 + sin(TIME * ray_shimmer_speed + ray_angle * 3.0) * ray_shimmer_amount;
 		float rays_thin = pow(abs(cos(ray_angle * ray_count * 0.5)), ray_sharpness);
 		float rays_wide = pow(abs(cos(ray_angle * ray_wide_count * 0.5)), ray_wide_sharpness);
-		float rays = (rays_thin * 0.65 + rays_wide * 0.35) * ray_fade * ray_intensity * shimmer;
+		float rays = (rays_thin * 0.65 + rays_wide * 0.35) * ray_fade * ray_intensity * shimmer * (1.0 - cycle_night_mix);
 		COLOR += sun_ray_color.rgb * rays;
 	}
 }

@@ -383,3 +383,10 @@ func test_legacy_dict_gravity_is_rescaled_but_versioned_dict_is_not() -> void:
 	assert_almost_eq(legacy.gravity_multiplier, 1.0, 0.0001)
 	var current: MatchConfig = MatchConfig.from_dict(MatchConfig.new().to_dict())
 	assert_eq(current.gravity_multiplier, 1.0)
+func test_cycle_mode_survives_wire_round_trip() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
+	config.resolve_sky_theme(0)
+	var restored: MatchConfig = MatchConfig.from_dict(config.to_dict())
+	assert_eq(restored.sky_theme_mode, MatchConfig.SkyThemeMode.CYCLE)
+	assert_eq(restored.effective_sky_theme(), "sunset")

@@ -118,6 +118,30 @@ func _make_wired_skybox() -> Dictionary:
 	return {"skybox": skybox, "environment": environment, "procedural": procedural}
 
 
+func test_cycle_key_light_and_flare_follow_the_sun() -> void:
+	var wired: Dictionary = _make_wired_skybox()
+	var skybox: Skybox = wired["skybox"] as Skybox
+	var light: DirectionalLight3D = DirectionalLight3D.new()
+	light.name = "CycleKey"
+	skybox.add_child(light)
+	skybox.light_path = NodePath("CycleKey")
+	var flare: SunFlare = SunFlare.new()
+	add_child_autofree(flare)
+	var config: MatchConfig = MatchConfig.new()
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
+	skybox.configure_match_sky(config)
+	for phase: float in [0.0, 0.25, 0.5, 0.75]:
+		skybox.set_cycle_phase(phase)
+		var material: ShaderMaterial = skybox.theme.sky_material as ShaderMaterial
+		var sun: Vector3 = material.get_shader_parameter(&"sun_direction") as Vector3
+		assert_true(light.light_energy >= 0.0)
+		assert_true(light.global_basis.z.y >= -0.001, "key light must never shine from below")
+		assert_true(flare.config.sun_direction.is_equal_approx(sun), "flare must track the sky disc")
+		if sun.y < -0.01:
+			assert_true(light.light_energy < 0.5, "night key must stay dim")
+			assert_false(flare.is_theme_enabled())
+
+
 func test_authored_theme_returns_after_switching_back_from_legacy_skybox() -> void:
 	var wired: Dictionary = _make_wired_skybox()
 	var skybox: Skybox = wired["skybox"] as Skybox

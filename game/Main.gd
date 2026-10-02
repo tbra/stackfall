@@ -1264,7 +1264,7 @@ func _build_match_world(force_staging_for_test: bool = false) -> void:
 	_skybox.load_set(config.map_def().skybox_set)
 	# Bontago-470.4: the lobby's Day/Night/Random, resolved by the host and
 	# replicated; the F4 Theme dropdown still overrides live afterwards.
-	_skybox.set_theme_by_id(config.effective_sky_theme())
+	_skybox.configure_match_sky(config)
 
 	SnapshotSync.set_disk(_field)
 	SnapshotSync.begin_match(Match.registry(), config.map_def())

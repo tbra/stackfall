@@ -320,7 +320,7 @@ func _populate_options() -> void:
 	# Labels come from the enum names, so a new weather type needs no edit here.
 	_fill_option(_weather_option, MatchWeather.mode_labels())
 	# Bontago-470.4: order must match MatchConfig.SkyThemeMode.
-	_fill_option(_sky_theme_option, ["Day", "Night", "Random"])
+	_fill_option(_sky_theme_option, ["Day", "Night", "Random", "Cycle"])
 	# Bontago-22y.11: order must match MatchConfig.GameMode. Reserved modes are
 	# listed but disabled, so neither the mouse nor the gamepad popup can pick
 	# one; MatchConfig.resolve_game_mode() also rejects them on the wire.

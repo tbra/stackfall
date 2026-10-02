@@ -106,6 +106,15 @@ var _last_sent: Dictionary = {}
 var _send_accumulator: float = 0.0
 var _sequence: int = 0
 var _host_clock_ms: float = 0.0
+
+## The host's snapshot clock is the shared presentation time base. Clients use
+## the same interpolated host timestamp as the disc, including join-in-progress.
+func sky_cycle_seconds() -> float:
+	if not _running:
+		return 0.0
+	if Net.is_client():
+		return maxf(_interpolator.render_time_ms(), 0.0) / 1000.0
+	return _host_clock_ms / 1000.0
 var _last_snapshot_bytes: int = 0
 var _keyframe_cursor: int = 0
 var _known_peer_count: int = 0
@@ -272,9 +281,13 @@ func set_disk(disk: Node3D) -> void:
 ## deliberately looser and feed territory influence; confusing the two makes
 ## towers stutter or influence flicker.
 func host_tick(delta: float) -> void:
-	if not _running or not Net.is_host() or Net.is_offline():
+	if not _running or Net.is_client():
 		return
+	# DECISION (Bontago-mp0.13): the snapshot clock also ticks in offline play;
+	# only packet selection and sending require a network host.
 	_host_clock_ms += delta * 1000.0
+	if not Net.is_host() or Net.is_offline():
+		return
 	var peers: PackedInt32Array = _remote_peers()
 	var peer_count: int = peers.size()
 	if peer_count == 0:
