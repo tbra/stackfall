@@ -239,3 +239,49 @@ func test_idle_ceiling_skips_the_per_frame_work() -> void:
 	ceiling._process(0.1)
 	assert_eq(ceiling.global_position, Vector3(1.0, 2.0, 3.0), "idle: no placement work")
 	assert_false(ceiling.visible)
+
+
+func test_ceiling_is_invisible_in_clear_weather() -> void:
+	var ceiling: CloudCeiling = _presenter.cloud_ceiling()
+	_fade(ceiling, 10.0)
+	assert_false(ceiling.visible)
+	assert_eq(ceiling.amount(), 0.0)
+	assert_eq(float(ceiling.layer_material(0).get_shader_parameter(&"amount")), 0.0, "alpha is amount-scaled")
+
+
+func test_changing_weather_fades_the_ceiling_with_the_new_intensity() -> void:
+	var ceiling: CloudCeiling = _presenter.cloud_ceiling()
+	Events.weather_intensity_changed.emit(&"rain", 0.8)
+	_fade(ceiling, ceiling.tuning.fade_in_s + 1.0)
+	Events.weather_stopped.emit(&"rain")
+	Events.weather_intensity_changed.emit(&"snow", 0.4)
+	_fade(ceiling, ceiling.tuning.fade_out_s + 1.0)
+	assert_almost_eq(ceiling.amount(), 0.4, 0.001, "settles on the incoming weather, never full")
+	Events.weather_stopped.emit(&"snow")
+	_fade(ceiling, ceiling.tuning.fade_out_s + 1.0)
+	assert_false(ceiling.visible)
+
+
+func test_rain_snow_and_storm_all_drive_the_shared_overcast() -> void:
+	var skybox: Skybox = Skybox.new()
+	skybox.config = SkyboxConfig.new()
+	skybox.environment = Environment.new()
+	skybox.environment.sky = Sky.new()
+	skybox.environment.sky.sky_material = ProceduralSkyMaterial.new()
+	skybox.theme = Skybox.load_theme("sunset")
+	add_child_autofree(skybox)
+	var ceiling: CloudCeiling = _presenter.cloud_ceiling()
+	var seen: Dictionary = {}
+	for weather_id: StringName in [&"rain", &"snow", &"storm"]:
+		Events.weather_intensity_changed.emit(weather_id, 1.0)
+		_fade(ceiling, ceiling.tuning.fade_in_s + 1.0)
+		var expected: float = ceiling.tuning.overcast_for(weather_id, 1.0)
+		assert_gt(expected, 0.0, "%s sets overcast" % weather_id)
+		assert_almost_eq(ceiling.overcast(), expected, 0.001)
+		assert_almost_eq(skybox.cloud_lighting().overcast, expected, 0.001, "%s reaches the shared lighting" % weather_id)
+		seen[weather_id] = skybox.cloud_lighting().dim
+		Events.weather_stopped.emit(weather_id)
+		_fade(ceiling, ceiling.tuning.fade_out_s + 1.0)
+		assert_eq(skybox.cloud_lighting().overcast, 0.0, "clear again")
+	assert_gt(float(seen[&"snow"]), 0.0)
+

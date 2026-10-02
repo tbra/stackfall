@@ -25,33 +25,41 @@ extends Resource
 ## Cel edge softness of the cloud silhouette (0 = hard).
 @export_range(0.0, 0.5, 0.01) var edge_softness: float = 0.06
 ## Noise texture cycles per metre, drift speed (m/s) and octaves.
-@export var noise_scale: float = 0.0025
+@export var noise_scale: float = 0.005
 @export var drift_speed_mps: float = 3.0
 ## Horizontal drift direction (normalised when used).
 @export var drift_direction: Vector2 = Vector2(1.0, 0.35)
-@export_range(1, 5) var noise_octaves: int = 4
-@export_range(1, 5) var noise_octaves_low: int = 2
-## Cel colours of the underside (shadow = thickest part) and 0..1 darkening.
-@export var shadow_color: Color = Color(0.17, 0.2, 0.25, 1.0)
-@export var mid_color: Color = Color(0.34, 0.39, 0.45, 1.0)
-@export var lit_color: Color = Color(0.55, 0.6, 0.66, 1.0)
+## Extra 0..1 darkening of the underside on top of the shared weather grade.
 @export_range(0.0, 1.0, 0.01) var darkness: float = 0.15
-## Extra darkness at full storm intensity.
+## Extra darkness at full storm intensity (shared with the puffs through CloudLighting.dim).
 @export_range(0.0, 1.0, 0.01) var storm_darkness_add: float = 0.35
-## Cel band thresholds on the cloud thickness (0..1).
-@export_range(0.0, 1.0, 0.01) var mid_threshold: float = 0.45
-@export_range(0.0, 1.0, 0.01) var shadow_threshold: float = 0.72
+## Bontago-mp0.29 shared weather grade (CloudLighting): overcast 1 darkens the
+## puffs and ceiling by this share and moves their colours this far toward grey
+## (storm counts as overcast for the desaturation).
+@export_range(0.0, 1.0, 0.01) var cloud_overcast_dim: float = 0.2
+@export_range(0.0, 1.0, 0.01) var cloud_overcast_desaturate: float = 0.5
+## The ceiling is always at least this grey (weather cloud is never sunset-saturated).
+@export_range(0.0, 1.0, 0.01) var min_desaturate: float = 0.25
+## Light response: cloud on the sun/moon side of the sky is lit up by this much
+## (body-thickness shift and rim glow), scaled down toward night by
+## night_light_scale (0 = no moonlight response, 1 = same as the sun).
+@export_range(0.0, 1.0, 0.01) var sun_side_bias: float = 0.22
+@export_range(0.0, 1.0, 0.01) var night_light_scale: float = 0.35
+## Shared overcast (CloudLighting.overcast) each weather drives at full intensity,
+## so rain, snow and storm all dim and grey every cloud layer; the strongest wins.
+@export_range(0.0, 1.0, 0.01) var overcast_rain: float = 1.0
+@export_range(0.0, 1.0, 0.01) var overcast_snow: float = 0.8
+@export_range(0.0, 1.0, 0.01) var overcast_storm: float = 1.0
 ## Camera distance (m) over which the layer edge fades into the horizon.
 @export var fade_far_start_m: float = 350.0
 @export var fade_far_end_m: float = 650.0
-## Share of the noise-height blended with the round cumulus lobes (3+ octaves),
-## the lobe field's scale relative to the broad field, and the cel band edge
-## softness (thickness units).
-@export_range(0.0, 1.0, 0.01) var lobe_mix: float = 0.45
-@export var lobe_scale: float = 1.7
-@export_range(0.0, 0.2, 0.005) var band_softness: float = 0.03
+## Cel look shared with the cloud sea: flat shade steps, their edge softness (in
+## step units) and how strongly lobes facing the sun/moon are lit.
+@export_range(2, 8) var cel_bands: int = 4
+@export_range(0.0, 0.5, 0.005) var band_softness: float = 0.1
+@export_range(0.0, 20.0, 0.1) var light_contrast: float = 6.0
 ## View elevation (sine) below which the layer fades out near the horizon.
-@export_range(0.0, 1.0, 0.01) var horizon_fade: float = 0.25
+@export_range(0.0, 1.0, 0.01) var horizon_fade: float = 0.5
 ## Fade amount (0..1) at which the layers reach full opacity.
 @export_range(0.05, 1.0, 0.01) var full_opacity_amount: float = 0.25
 
@@ -86,3 +94,15 @@ extends Resource
 ## World height of the lowest layer for a camera at `camera_y`.
 func ceiling_y(camera_y: float) -> float:
 	return maxf(height_m, camera_y + min_clearance_above_camera_m)
+
+
+## Shared overcast amount a weather at `intensity` drives (0 for ids without one).
+func overcast_for(weather_id: StringName, intensity: float) -> float:
+	var weight: float = 0.0
+	if weather_id == &"rain":
+		weight = overcast_rain
+	elif weather_id == &"snow":
+		weight = overcast_snow
+	elif weather_id == storm_id:
+		weight = overcast_storm
+	return clampf(intensity, 0.0, 1.0) * weight

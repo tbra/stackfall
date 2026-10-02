@@ -83,6 +83,9 @@ var _material: ShaderMaterial = null
 ## from these (the colours in effect) instead of the DAY theme. Empty outside
 ## CYCLE (configure() clears it); keys are reused so no per-frame allocation.
 var _cycle_base: Dictionary[StringName, Color] = {}
+## Bontago-mp0.29: the shared cloud lighting (owned by Skybox). configure()
+## re-applies its weather grade to the fresh puff material.
+var lighting: CloudLighting = null
 
 ## A cycle changes the existing puff material's palette and direction in place.
 func set_cycle_appearance(day: SkyThemeDef, night_theme: SkyThemeDef, weight: float, direction: Vector3) -> void:
@@ -157,6 +160,17 @@ func _lerp_colors(from: ShaderMaterial, to: ShaderMaterial, parameters: Array[St
 			_material.set_shader_parameter(parameter, (a as Color).lerp(b as Color, weight))
 
 
+## Bontago-mp0.29: the weather grade (overcast dim + desaturate) of the shared
+## CloudLighting reaches the puffs as shader uniforms; their palette and light
+## direction already arrive through set_cycle_appearance()/apply_storm_tint().
+func apply_lighting(state: CloudLighting) -> void:
+	lighting = state
+	if _material == null or state == null:
+		return
+	_material.set_shader_parameter(&"weather_dim", state.dim)
+	_material.set_shader_parameter(&"weather_desaturate", state.desaturate)
+
+
 ## Weather fog changed (vfx/weather/WeatherFogShader.gd).
 func refresh_weather_fog() -> void:
 	WeatherFogShader.apply(_material)
@@ -197,6 +211,7 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 	# Transparent-pass draw (see the shader's DECISION): first among
 	# transparents, so ghosts, particles and birds blend over the clouds.
 	_material.render_priority = RenderingServer.MATERIAL_RENDER_PRIORITY_MIN
+	apply_lighting(lighting)
 	var sky: ShaderMaterial = sky_material as ShaderMaterial
 	if sky != null:
 		for parameter: StringName in SHARED_SKY_PARAMETERS:

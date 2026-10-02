@@ -116,6 +116,28 @@ vec2 sun_disc(float cos_angle, float core_deg, float edge_deg, float halo_deg, f
 	return vec2(disc, halo);
 }
 
+// Bontago-mp0.29: the one cel cloud body shared by the far sea stratum and the
+// weather cloud ceiling (shaders/weather_cloud_ceiling.gdshader), so every
+// layer has the same noise character, banding and shade/highlight relation.
+// `q` is the noise coordinate. Shade = thickness blended with how much the
+// local noise faces the light (a one-tap sun probe), snapped to `bands` cel
+// steps. `underside` flips the thickness term (seen from below the thick middle
+// is the dark part and the thin sun-facing edge the lit one). Returns rgb + coverage.
+vec4 cloud_cel_layer(sampler2D noise_tex, vec2 q, vec2 to_sun, float coverage, float softness, float bands,
+		float band_edge, float probe, float contrast, vec3 shadow, vec3 mid, vec3 lit, vec3 rim_color,
+		bool lumpy, bool underside) {
+	float d = lumpy ? cumulus_height(noise_tex, q) : cloud_fbm(noise_tex, q);
+	float d_sun = texture(noise_tex, q + to_sun * probe).r;
+	float d_here = texture(noise_tex, q).r;
+	float body = smoothstep(coverage, coverage + softness, d);
+	float height01 = clamp((d - coverage) / max(1.0 - coverage, 0.001), 0.0, 1.0);
+	float facing = clamp(0.5 + (d_here - d_sun) * contrast, 0.0, 1.0);
+	float shade = clamp((underside ? 1.0 - height01 : height01) * 0.55 + facing * 0.45, 0.0, 1.0);
+	vec3 col = cel_ramp(shadow, mid, lit, cel_quantize(shade, bands, band_edge));
+	float rim = (1.0 - smoothstep(0.0, 0.2, height01)) * smoothstep(0.55, 0.85, facing);
+	return vec4(mix(col, rim_color, rim * 0.6), body);
+}
+
 // Bontago-59o.16 (procedural sky P3): one plane-projected cel cloud stratum
 // seen from above (dir.y < 0). `height` is the camera height above the stratum
 // plane, so a smaller height is a nearer, faster-parallaxing sheet. Four noise
@@ -125,16 +147,8 @@ vec4 procedural_sea_stratum(sampler2D noise_tex, vec3 dir, vec2 to_sun, float de
 		float scale, vec2 drift_dir, float drift_speed, float coverage, float softness, float bands, float band_edge,
 		float probe, float contrast, vec3 shadow, vec3 mid, vec3 lit, vec3 rim_color, bool lumpy) {
 	vec2 q = dir.xz / depth * height * scale + drift_dir * drift_speed * time;
-	float d = lumpy ? cumulus_height(noise_tex, q) : cloud_fbm(noise_tex, q);
-	float d_sun = texture(noise_tex, q + to_sun * probe).r;
-	float d_here = texture(noise_tex, q).r;
-	float body = smoothstep(coverage, coverage + softness, d);
-	float height01 = clamp((d - coverage) / max(1.0 - coverage, 0.001), 0.0, 1.0);
-	float facing = clamp(0.5 + (d_here - d_sun) * contrast, 0.0, 1.0);
-	float shade = clamp(height01 * 0.55 + facing * 0.45, 0.0, 1.0);
-	vec3 col = cel_ramp(shadow, mid, lit, cel_quantize(shade, bands, band_edge));
-	float rim = (1.0 - smoothstep(0.0, 0.2, height01)) * smoothstep(0.55, 0.85, facing);
-	return vec4(mix(col, rim_color, rim * 0.6), body);
+	return cloud_cel_layer(noise_tex, q, to_sun, coverage, softness, bands, band_edge, probe, contrast,
+		shadow, mid, lit, rim_color, lumpy, false);
 }
 
 // Far cloud sea below the horizon for procedural_sea_mix: warm sun-lit tops,

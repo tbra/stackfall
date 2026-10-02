@@ -93,6 +93,8 @@ extends Node3D
 const THEME_DIR: String = "res://config/sky_themes"
 const DEFAULT_THEME_ID: String = "sunset"
 var _cloud_sea: CloudSea = null
+## Bontago-mp0.29: the one lighting/weather/cycle state all cloud layers read.
+var _cloud_lighting: CloudLighting = CloudLighting.new()
 var _birds: DistantBirds = null
 ## Bontago-adt.3: cosmetic local ambient life, gated by the theme's
 ## AmbientLifeConfig (perching birds on sunset, fireflies on night) and the
@@ -261,6 +263,7 @@ func set_cycle_phase(phase: float) -> void:
 	# on top so a running cycle never overwrites the storm sky.
 	if _storm_amount > 0.0:
 		_apply_storm_blend()
+	_publish_cloud_lighting()
 
 ## True whenever no textured box is showing (initial state, a missing
 ## set/face, or config.enabled == false) -- the existing ProceduralSkyMaterial
@@ -293,6 +296,7 @@ const OVERCAST_GROUP: StringName = &"weather_skybox"
 ## the theme's own values (no stale multipliers). Weather code never writes the
 ## Environment or the light directly.
 var _overcast_amount: float = 0.0
+var _weather_cloud_overcast: float = 0.0
 ## Bontago-mp0.19 storm sky blend state (see set_storm_sky()).
 const CEILING_TUNING: WeatherCeilingTuning = preload("res://config/weather/ceiling.tres")
 var _storm_amount: float = 0.0
@@ -363,6 +367,7 @@ func _ready() -> void:
 			theme = chosen
 	_cloud_sea = CloudSea.new()
 	_cloud_sea.name = "CloudSea"
+	_cloud_sea.lighting = _cloud_lighting
 	add_child(_cloud_sea)
 	_birds = DistantBirds.new()
 	_birds.name = "DistantBirds"
@@ -632,6 +637,7 @@ func apply_theme(applied_theme: SkyThemeDef) -> void:
 	# Bontago-mp0.19: a live theme switch during a storm re-bases the blend.
 	if _storm_amount > 0.0 and applied_theme != _storm_blend:
 		_apply_storm_blend()
+	_publish_cloud_lighting()
 
 
 ## Everything apply_theme() writes except the ambient-life rebuild (birds,
@@ -719,6 +725,7 @@ func _restore_after_storm(storm_theme: SkyThemeDef) -> void:
 		var phase: float = _cycle_phase_last
 		_cycle_phase_last = -1.0
 		set_cycle_phase(phase)
+	_publish_cloud_lighting()
 
 
 func storm_sky_amount() -> float:
@@ -788,6 +795,7 @@ func _apply_storm_blend() -> void:
 			fog_material.density = b.fog_density
 	if _cloud_sea != null:
 		_cloud_sea.apply_storm_tint(base, storm, t, base.sky_material)
+	_publish_cloud_lighting()
 
 
 ## Bontago-59o.16 (procedural sky P1): writes the opt-in procedural-look uniforms
@@ -851,6 +859,7 @@ func _spawn_fog_volume() -> void:
 func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 	_apply_fog_volume_visibility(preset)
 	_apply_ambient_life(preset, theme)
+	_publish_cloud_lighting()
 
 
 ## Bontago-adt.1: loads res://config/sky_themes/<id>.tres, or null if missing.
@@ -970,6 +979,54 @@ func _apply_light_and_environment(applied_theme: SkyThemeDef, write_rotation: bo
 	light.light_energy = applied_theme.light_energy
 	if write_rotation:
 		light.rotation_degrees = applied_theme.light_rotation_deg
+
+
+## Bontago-mp0.29: the shared cloud lighting (never null; layers connect to
+## its `changed` signal and read it).
+func cloud_lighting() -> CloudLighting:
+	return _cloud_lighting
+
+
+## Gathers the inputs the cloud layers share from what this Skybox has already
+## resolved (theme / cycle / storm palette on the puff material, the key light,
+## overcast, storm) and publishes them once. The sea below the disc draws from
+## the same sky cloud_* colours (they are mixed/tinted by the same writers); the
+## puffs and the weather ceiling take the published palette and weather grade.
+func _publish_cloud_lighting() -> void:
+	var puff: ShaderMaterial = _cloud_sea.puff_material() if _cloud_sea != null else null
+	if puff == null and theme != null:
+		puff = theme.cloud_puff_material as ShaderMaterial
+	if puff == null:
+		return
+	var sky: ShaderMaterial = theme.sky_material as ShaderMaterial if theme != null else null
+	var night: float = 0.0
+	if sky != null and _cycle_theme != null:
+		var mixed: Variant = sky.get_shader_parameter(&"cycle_night_mix")
+		night = float(mixed) if mixed is float else 0.0
+	var direction: Vector3 = _cloud_lighting.light_direction
+	var raw_direction: Variant = puff.get_shader_parameter(&"light_direction")
+	if raw_direction is Vector3:
+		direction = (raw_direction as Vector3).normalized()
+	var light_color: Color = (_cycle_theme if _cycle_theme != null else theme).light_color if theme != null else Color.WHITE
+	if _storm_amount > 0.0 and _storm_blend != null:
+		light_color = _storm_blend.light_color
+	var cloud_overcast: float = cloud_overcast_amount()
+	var weather: float = maxf(cloud_overcast, _storm_amount)
+	var dim: float = clampf(CEILING_TUNING.cloud_overcast_dim * cloud_overcast + CEILING_TUNING.storm_darkness_add * _storm_amount, 0.0, 1.0)
+	var changed: bool = _cloud_lighting.publish(
+		_puff_color(puff, &"shadow_color", _cloud_lighting.shadow_color),
+		_puff_color(puff, &"mid_color", _cloud_lighting.mid_color),
+		_puff_color(puff, &"lit_color", _cloud_lighting.lit_color),
+		_puff_color(puff, &"rim_color", _cloud_lighting.rim_color),
+		direction, light_color, night, cloud_overcast, _storm_amount, dim,
+		CEILING_TUNING.cloud_overcast_desaturate * weather)
+	if changed and _cloud_sea != null:
+		_cloud_sea.apply_lighting(_cloud_lighting)
+
+
+static func _puff_color(material: ShaderMaterial, parameter: StringName, fallback: Color) -> Color:
+	var value: Variant = material.get_shader_parameter(parameter)
+	return value as Color if value is Color else fallback
 
 
 func get_cloud_sea() -> CloudSea:
@@ -1175,10 +1232,27 @@ func set_overcast(amount: float, light_scale: float, ambient_scale: float, expos
 	_overcast_fog_tint = fog_tint
 	_overcast_fog_tint_strength = fog_tint_strength
 	_apply_overcast(_overcast_theme if _overcast_theme != null else theme)
+	_publish_cloud_lighting()
 
 
 func overcast_amount() -> float:
 	return _overcast_amount
+
+
+## Bontago-mp0.29: the overcast every weather (rain, snow, storm; CloudCeiling) asks
+## of the cloud layers. Grades the shared CloudLighting only; the light, ambient
+## and fog overcast above stay RainPresentation's.
+func set_weather_cloud_overcast(amount: float) -> void:
+	var clamped: float = clampf(amount, 0.0, 1.0)
+	if clamped == _weather_cloud_overcast:
+		return
+	_weather_cloud_overcast = clamped
+	_publish_cloud_lighting()
+
+
+## The overcast the cloud layers are graded by (strongest of the sources).
+func cloud_overcast_amount() -> float:
+	return maxf(_overcast_amount, _weather_cloud_overcast)
 
 
 ## Weather fog (Bontago-470.3): `amount` 0..1 switches the Environment to DEPTH
