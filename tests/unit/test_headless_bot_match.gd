@@ -166,6 +166,23 @@ func test_all_bot_match_reaches_playing_with_n_bot_slots_and_no_hot_seat() -> vo
 	assert_eq(Match.state(), Match.State.PLAYING)
 
 
+func test_staged_and_synchronous_world_builds_have_matching_nodes() -> void:
+	_host()
+	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=4"]))
+	assert_true(_main._world_built, "headless start builds synchronously")
+	var synchronous_counts: Array[int] = [_main._field._home_flags.size() + _main._field._goal_flags.size(), _bot_controller_count(), int(_main._remote_cursors != null), int(_main._hot_seat != null), int(_main._debug_overlay != null)]
+	_main._end_match_world()
+	await _settle()
+	_main._loading_screen.show_for_match(Match.config, _main._loading_screen_slots())
+	_main._build_match_world(true)
+	assert_false(_main._world_built, "staged build waits for a frame")
+	for _i: int in range(4):
+		await get_tree().process_frame
+	assert_true(_main._world_built)
+	var staged_counts: Array[int] = [_main._field._home_flags.size() + _main._field._goal_flags.size(), _bot_controller_count(), int(_main._remote_cursors != null), int(_main._hot_seat != null), int(_main._debug_overlay != null)]
+	assert_eq(staged_counts, synchronous_counts)
+
+
 func test_players_override_leaves_idle_human_seats_and_still_builds_a_hot_seat() -> void:
 	_host()
 	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=2", "--players=3"]))
