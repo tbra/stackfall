@@ -107,6 +107,9 @@ func test_spawn_glow_flashes_then_settles_without_hiding_the_crate() -> void:
 	var parent: Node3D = autofree(Node3D.new())
 	add_child_autofree(parent)
 	var crate: GiftCrate = _make_crate(5, Vector2.ZERO, parent)
+	# Pin a preset with the idle glow on: the default follows the saved
+	# user setting, and Low turns the idle light off (Bontago-mp0.23).
+	crate._on_graphics_preset_changed(load("res://config/graphics_presets/medium.tres") as GraphicsPreset)
 	var glow: OmniLight3D = crate.get_node("GiftGlow") as OmniLight3D
 	var halo: MeshInstance3D = crate.get_node("SpawnHalo") as MeshInstance3D
 	assert_not_null(glow)
