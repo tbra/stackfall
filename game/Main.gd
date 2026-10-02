@@ -1230,11 +1230,14 @@ func _loading_screen_slots() -> Array[PlayerSlot]:
 	return slots
 
 
-func _build_match_world() -> void:
+func _build_match_world(force_staging_for_test: bool = false) -> void:
 	if _world_built or _world_building:
 		return
 	_world_building = true
 	var generation: int = _loading_generation
+	# DECISION: only a visible interactive overlay needs frame-separated stages.
+	# Headless hosts and test/probe runs retain the synchronous start contract.
+	var stage_build: bool = force_staging_for_test or (_loading_screen != null and _loading_screen.visible and DisplayServer.get_name() != "headless" and not AgentProbe.is_active())
 	_clear_menu_and_lobby()
 	# Bontago-xtq.42 fix round 2: every real (host/client/headless-bot) match
 	# reaches this one guarded builder -- start_sandbox_from_menu() above is
@@ -1245,16 +1248,18 @@ func _build_match_world() -> void:
 	var config: MatchConfig = Match.config
 	_field.rebuild_for_map(config.map_def())
 	_loading_screen.set_stage("Placing flags", _loading_screen.tuning.flags_progress)
-	await get_tree().process_frame
-	if generation != _loading_generation or not _loading_screen.visible:
-		_world_building = false
-		return
+	if stage_build:
+		await get_tree().process_frame
+		if generation != _loading_generation or not _loading_screen.visible:
+			_world_building = false
+			return
 	_field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
 	_loading_screen.set_stage("Preparing territory", _loading_screen.tuning.territory_progress)
-	await get_tree().process_frame
-	if generation != _loading_generation or not _loading_screen.visible:
-		_world_building = false
-		return
+	if stage_build:
+		await get_tree().process_frame
+		if generation != _loading_generation or not _loading_screen.visible:
+			_world_building = false
+			return
 	_field.set_overlay_source(Match.raster(), config.player_colors)
 	_skybox.load_set(config.map_def().skybox_set)
 	# Bontago-470.4: the lobby's Day/Night/Random, resolved by the host and
@@ -1264,10 +1269,11 @@ func _build_match_world() -> void:
 	SnapshotSync.set_disk(_field)
 	SnapshotSync.begin_match(Match.registry(), config.map_def())
 	_loading_screen.set_stage("Preparing players", _loading_screen.tuning.players_progress)
-	await get_tree().process_frame
-	if generation != _loading_generation or not _loading_screen.visible:
-		_world_building = false
-		return
+	if stage_build:
+		await get_tree().process_frame
+		if generation != _loading_generation or not _loading_screen.visible:
+			_world_building = false
+			return
 
 	_remote_cursors = REMOTE_CURSORS_SCENE.instantiate() as RemoteCursors
 	add_child(_remote_cursors)
@@ -1305,8 +1311,9 @@ func _build_match_world() -> void:
 		_hot_seat.controller().enable_mouse_capture()
 		_controller_was_processing = _hot_seat.controller().is_processing()
 		_controller_was_handling_input = _hot_seat.controller().is_processing_unhandled_input()
-		_hot_seat.controller().set_process(false)
-		_hot_seat.controller().set_process_unhandled_input(false)
+		if stage_build:
+			_hot_seat.controller().set_process(false)
+			_hot_seat.controller().set_process_unhandled_input(false)
 
 	_spawn_bot_controllers(config)
 
