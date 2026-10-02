@@ -19,6 +19,8 @@ var _instance: MultiMeshInstance3D = null
 var _material: ShaderMaterial = null
 var _tuning: RainTuning = TUNING
 var _density_scale: float = 1.0
+## Governor share (GraphicsPreset.weather_density_scale) of the visible streaks.
+var _governor_scale: float = 1.0
 
 
 func _ready() -> void:
@@ -36,8 +38,8 @@ func configure(tuning: RainTuning, density_scale: float) -> void:
 
 func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 	if _instance != null:
-		var total: int = _instance.multimesh.instance_count
-		_instance.multimesh.visible_instance_count = int(roundf(float(total) * preset.weather_density_scale))
+		_governor_scale = preset.weather_density_scale
+		_apply_visible(float(_material.get_shader_parameter(&"box_height")))
 
 
 func streak_instance() -> MultiMeshInstance3D:
@@ -60,7 +62,11 @@ func _build() -> void:
 		remove_child(_instance)
 		_instance.free()
 		_instance = null
-	var count: int = int(roundf(float(_tuning.streak_count) * _density_scale * _preset_scale()))
+	# DECISION (Bontago-mp0.19 fix round 3): the volume can grow up to
+	# _max_height() to reach the cloud ceiling, so allocate streaks for that
+	# height and show only the share matching the current height (_apply_visible)
+	# to keep streaks per cubic metre equal to the unlifted volume.
+	var count: int = int(roundf(float(_tuning.streak_count) * _density_scale * _preset_scale() * _height_ratio()))
 	if count <= 0:
 		set_process(false)
 		return
@@ -99,7 +105,41 @@ func _build() -> void:
 	_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_instance.custom_aabb = AABB(Vector3.ONE * -CULL_EXTENT_M, Vector3.ONE * CULL_EXTENT_M * 2.0)
 	add_child(_instance)
+	_apply_visible(_tuning.area_height_m)
 	set_process(true)
+
+
+func _max_height() -> float:
+	return maxf(CloudCeiling.TUNING.rain_max_height_m, _tuning.area_height_m)
+
+
+## Tallest volume over the tuned base height (allocation multiplier).
+func _height_ratio() -> float:
+	return _max_height() / maxf(_tuning.area_height_m, 0.001)
+
+
+## Shows the share of allocated streaks that keeps the base density at `height`.
+func _apply_visible(height: float) -> void:
+	if _instance == null:
+		return
+	var multimesh: MultiMesh = _instance.multimesh
+	var share: float = clampf(height / _max_height(), 0.0, 1.0) * _governor_scale
+	var visible_count: int = int(roundf(float(multimesh.instance_count) * share))
+	if multimesh.visible_instance_count != visible_count:
+		multimesh.visible_instance_count = visible_count
+
+
+## Bontago-mp0.19: the rain volume reaches up to the cloud ceiling. The box
+## stays anchored below the camera and grows upward (capped), so the streaks
+## visibly start at the cloud layer; the shader's height follows.
+func _volume_center(camera_pos: Vector3) -> Vector3:
+	var ceiling: WeatherCeilingTuning = CloudCeiling.TUNING
+	var top: float = ceiling.ceiling_y(camera_pos.y) - ceiling.spawn_below_ceiling_m
+	var bottom: float = camera_pos.y - ceiling.rain_below_camera_m
+	var height: float = clampf(top - bottom, _tuning.area_height_m, maxf(ceiling.rain_max_height_m, _tuning.area_height_m))
+	_material.set_shader_parameter(&"box_height", height)
+	_apply_visible(height)
+	return Vector3(camera_pos.x, bottom + height * 0.5, camera_pos.z)
 
 
 func set_intensity(value: float) -> void:
@@ -133,4 +173,4 @@ func _process(_delta: float) -> void:
 		return
 	var camera: Camera3D = get_viewport().get_camera_3d()
 	if camera != null:
-		_material.set_shader_parameter(&"center", camera.global_position)
+		_material.set_shader_parameter(&"center", _volume_center(camera.global_position))

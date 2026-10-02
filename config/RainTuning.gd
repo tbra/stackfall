@@ -28,11 +28,11 @@ extends WeatherTuning
 @export var area_height_m: float = 40.0
 @export var fall_speed_mps: float = 38.0
 @export var streak_length_m: float = 1.6
-@export var streak_width_m: float = 0.05
+@export var streak_width_m: float = 0.06
 ## Sideways drift (m/s) so streaks slant slightly.
 @export var slant_mps: float = 3.0
 @export var streak_color: Color = Color(0.78, 0.88, 1.0, 1.0)
-@export_range(0.0, 1.0, 0.01) var streak_alpha: float = 0.55
+@export_range(0.0, 1.0, 0.01) var streak_alpha: float = 0.75
 ## Camera-distance fade (m): streaks vanish smoothly toward the volume edge.
 @export var fade_far_m: float = 30.0
 ## Fraction of streaks drawn when the graphics preset has ambient life off (Low).

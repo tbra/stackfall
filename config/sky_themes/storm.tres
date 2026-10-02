@@ -1,0 +1,206 @@
+[gd_resource type="Resource" script_class="SkyThemeDef" format=3]
+
+[ext_resource type="Script" uid="uid://ddeais67gdwvk" path="res://config/SkyThemeDef.gd" id="1_theme"]
+[ext_resource type="Shader" uid="uid://l03n1dbfi36o" path="res://shaders/sunset_clouds.gdshader" id="2_clouds"]
+[ext_resource type="Texture2D" uid="uid://ca3slscpuorvc" path="res://assets/sky/sunset-clouds-v1.png" id="3_panorama"]
+[ext_resource type="Texture2D" uid="uid://rqwcqno83yfq" path="res://config/sky_themes/cloud_noise.tres" id="4_noise"]
+[ext_resource type="Shader" uid="uid://blyom2f2plyld" path="res://shaders/cloud_puffs.gdshader" id="5_puffs"]
+[ext_resource type="Shader" uid="uid://cw83snuvx3c6r" path="res://shaders/distant_birds.gdshader" id="6_birds"]
+[ext_resource type="Texture2D" uid="uid://bh10x4wuue4oc" path="res://config/sky_themes/puff_noise.tres" id="7_cells"]
+[ext_resource type="Resource" path="res://config/ambient_life_sunset.tres" id="ambient_life"]
+[ext_resource type="Texture2D" path="res://assets/sky/cloud_cards/cloud_cards_atlas.png" id="8_cards"]
+
+[sub_resource type="ShaderMaterial" id="Birds"]
+render_priority = 0
+shader = ExtResource("6_birds")
+shader_parameter/bird_color = Color(0.16, 0.1, 0.2, 1)
+shader_parameter/haze_color = Color(0.16, 0.24, 0.27, 1)
+shader_parameter/haze_start_m = 400.0
+shader_parameter/haze_end_m = 1200.0
+
+[sub_resource type="ShaderMaterial" id="CloudPuffs"]
+render_priority = 0
+shader = ExtResource("5_puffs")
+shader_parameter/exposure = 0.6
+shader_parameter/seam_blend_width = 0.025
+shader_parameter/sky_yaw_offset_deg = 0.0
+shader_parameter/sky_pitch_offset_deg = 0.0
+shader_parameter/grade_amount = 0.0
+shader_parameter/grade_dark = Color(0.02, 0.03, 0.08, 1)
+shader_parameter/grade_mid = Color(0.12, 0.17, 0.33, 1)
+shader_parameter/grade_light = Color(0.55, 0.64, 0.82, 1)
+shader_parameter/grade_gamma = 1.2
+shader_parameter/flat_base = 0.15
+shader_parameter/light_direction = Vector3(0.963087, 0.069011, -0.260192)
+shader_parameter/min_light_elevation = 0.3
+shader_parameter/shadow_color = Color(0.1, 0.15, 0.18, 1)
+shader_parameter/mid_color = Color(0.22, 0.3, 0.33, 1)
+shader_parameter/lit_color = Color(0.4, 0.5, 0.52, 1)
+shader_parameter/rim_color = Color(0.55, 0.66, 0.66, 1)
+shader_parameter/mid_threshold = 0.38
+shader_parameter/lit_threshold = 0.64
+shader_parameter/band_edge_px = 1.0
+shader_parameter/light_weight = 0.7
+shader_parameter/height_weight = 0.2
+shader_parameter/ambient_shade = -0.05
+shader_parameter/underside_shade = 0.25
+shader_parameter/rim_power = 4.0
+shader_parameter/rim_sun_side = 0.9
+shader_parameter/rim_backlight = 1.4
+shader_parameter/rim_threshold = 0.5
+shader_parameter/rim_softness = 0.08
+shader_parameter/puff_noise = ExtResource("7_cells")
+shader_parameter/lump_frequency = 0.4
+shader_parameter/lump_cell_radius = 1.0
+shader_parameter/lump_height = 0.35
+shader_parameter/lump_vertex_scale = 0.7
+shader_parameter/lump_detail_scale = 2.3
+shader_parameter/lump_detail_weight = 0.4
+shader_parameter/lump_shade = 0.35
+shader_parameter/lump_bias = 0.6
+shader_parameter/lump_speed = 0.004
+shader_parameter/detail_lod_m = 260.0
+shader_parameter/billow_amount = 0.03
+shader_parameter/billow_speed = 0.35
+shader_parameter/billow_frequency = 2.0
+shader_parameter/hull_margin = 0.04
+shader_parameter/fade_start_m = 160.0
+shader_parameter/fade_end_m = 650.0
+shader_parameter/depth_fade_start_m = 40.0
+shader_parameter/depth_fade_end_m = 140.0
+shader_parameter/depth_fade_amount = 0.45
+shader_parameter/near_fade_start_m = 5.0
+shader_parameter/near_fade_end_m = 16.0
+
+[sub_resource type="ShaderMaterial" id="SunsetClouds"]
+shader = ExtResource("2_clouds")
+shader_parameter/panorama = ExtResource("3_panorama")
+shader_parameter/seam_blend_width = 0.025
+shader_parameter/pole_blend_width = 0.06
+shader_parameter/exposure = 0.6
+shader_parameter/sky_yaw_offset_deg = 0.0
+shader_parameter/sky_pitch_offset_deg = 0.0
+shader_parameter/sun_direction = Vector3(0.963087, 0.069011, -0.260192)
+shader_parameter/sun_core_color = Color(1, 0.94, 0.82, 1)
+shader_parameter/sun_halo_color = Color(0.5, 0.6, 0.6, 1)
+shader_parameter/sun_ray_color = Color(0.5, 0.6, 0.6, 1)
+shader_parameter/sun_core_angular_radius_deg = 1.6
+shader_parameter/sun_halo_angular_radius_deg = 9.0
+shader_parameter/sun_halo_softness_deg = 10.0
+shader_parameter/sun_core_intensity = 0.0
+shader_parameter/sun_halo_intensity = 0.0
+shader_parameter/ray_count = 14.0
+shader_parameter/ray_sharpness = 5.0
+shader_parameter/ray_wide_count = 4.0
+shader_parameter/ray_wide_sharpness = 2.0
+shader_parameter/ray_length_deg = 55.0
+shader_parameter/ray_intensity = 0.0
+shader_parameter/ray_shimmer_speed = 0.15
+shader_parameter/ray_shimmer_amount = 0.08
+shader_parameter/noise_tex = ExtResource("4_noise")
+shader_parameter/sway_amount = 0.0
+shader_parameter/sway_speed = 0.05
+shader_parameter/sway_latitude_frequency = 3.0
+shader_parameter/warp_amount = 0.0
+shader_parameter/warp_speed = 0.006
+shader_parameter/warp_scale = 2.5
+shader_parameter/sun_motion_protect_deg = 6.0
+shader_parameter/sun_motion_fade_deg = 26.0
+shader_parameter/sea_flow = Vector2(-1, 0)
+shader_parameter/sea_flow_span = 0.006
+shader_parameter/sea_flow_period = 16.0
+shader_parameter/sea_flow_jitter_scale = 1.5
+shader_parameter/sea_flow_fade_start = 0.0
+shader_parameter/sea_flow_fade_end = -0.06
+shader_parameter/cloud_layer_opacity = 0.0
+shader_parameter/cloud_layer_scale = 1.1
+shader_parameter/cloud_horizon_lift = 0.5
+shader_parameter/cloud_fade_start = 0.25
+shader_parameter/cloud_fade_height = 0.6
+shader_parameter/cloud_wind = Vector2(1, 0.35)
+shader_parameter/cloud_wind_speed = 0.004
+shader_parameter/cloud_coverage = 0.9
+shader_parameter/cloud_edge_softness = 0.03
+shader_parameter/cloud_warp_amount = 0.12
+shader_parameter/cloud_bands = 4.0
+shader_parameter/cloud_cel_edge = 0.08
+shader_parameter/cloud_light_probe = 0.05
+shader_parameter/cloud_light_contrast = 6.0
+shader_parameter/cloud_rim_width = 0.15
+shader_parameter/cloud_sun_clear_deg = 12.0
+shader_parameter/cloud_shadow_color = Color(0.12, 0.17, 0.2, 1)
+shader_parameter/cloud_mid_color = Color(0.24, 0.32, 0.35, 1)
+shader_parameter/cloud_lit_color = Color(0.44, 0.54, 0.56, 1)
+shader_parameter/cloud_rim_color = Color(0.6, 0.7, 0.7, 1)
+shader_parameter/proc_sea_params = Vector4(0.9, 1.5, 0.004, 5)
+shader_parameter/proc_sea_heights = Vector2(1, 0.6)
+shader_parameter/proc_sea_wind = Vector2(1, 0.35)
+shader_parameter/proc_sea_coverage = 0.75
+shader_parameter/proc_sea_softness = 0.04
+shader_parameter/proc_sea_band_edge = 0.08
+shader_parameter/proc_strata_opacity = 0.95
+shader_parameter/proc_strata2_opacity = 0.95
+shader_parameter/proc_strata2_scale = 0.7
+shader_parameter/proc_strata2_stretch = Vector2(3.6, 1)
+shader_parameter/proc_strata2_wind = Vector2(-0.6, 0.2)
+shader_parameter/proc_strata2_lift = 0.9
+shader_parameter/proc_strata2_coverage = 0.8
+shader_parameter/proc_strata2_bands = 4.0
+shader_parameter/proc_strata2_fade_start = 0.08
+shader_parameter/proc_strata2_fade_height = 0.4
+shader_parameter/cloud_cards = ExtResource("8_cards")
+
+[resource]
+script = ExtResource("1_theme")
+sun_flare_enabled = false
+glow_intensity = 0.4
+ambient_energy = 0.55
+light_rotation_deg = Vector3(-55, -30, 0)
+light_energy = 0.45
+light_color = Color(0.6, 0.72, 0.78, 1)
+volumetric_fog_albedo = Color(0.16, 0.24, 0.27, 1)
+fog_color = Color(0.16, 0.24, 0.27, 1)
+ground_horizon_color = Color(0.13, 0.2, 0.22, 1)
+ground_bottom_color = Color(0.04, 0.06, 0.08, 1)
+sky_horizon_color = Color(0.2, 0.3, 0.33, 1)
+sky_top_color = Color(0.08, 0.11, 0.14, 1)
+sky_look_procedural = true
+proc_sea_color_far = Color(0.09, 0.13, 0.16, 1)
+proc_sea_color_near = Color(0.2, 0.28, 0.31, 1)
+sky_material = SubResource("SunsetClouds")
+sky_yaw_offset_deg = 184.058612
+fog_density = 0.0003
+volumetric_fog_density = 0.00015
+cloud_puff_material = SubResource("CloudPuffs")
+bird_material = SubResource("Birds")
+bird_flock_count = 0
+bird_size_min_m = 3.5
+bird_size_max_m = 5.0
+cloud_clump_count = 260
+cloud_puff_raise_m = 14.0
+proc_overhead_clouds_enabled = false
+cloud_ring_outer_m = 640.0
+cloud_base_min_m = -120.0
+cloud_base_max_m = -35.0
+cloud_radial_bias = 1.0
+cloud_bank_count = 50
+cloud_bank_ring_inner_m = 300.0
+cloud_bank_ring_outer_m = 760.0
+cloud_bank_base_min_m = -85.0
+cloud_bank_base_max_m = -5.0
+cloud_bank_top_max_m = 60.0
+cloud_bank_radius_min_m = 32.0
+cloud_bank_radius_max_m = 62.0
+proc_far_count = 450
+proc_far_ring_inner_m = 150.0
+proc_far_radial_bias = 1.5
+proc_far_radius_min_m = 40.0
+ambient_life = ExtResource("ambient_life")
+proc_zenith_color = Color(0.07, 0.1, 0.13, 1)
+proc_mid_color = Color(0.14, 0.2, 0.23, 1)
+proc_horizon_color = Color(0.22, 0.32, 0.34, 1)
+proc_gradient_mid_height = 0.55
+proc_gradient_power = 1.2
+proc_horizon_glow_color = Color(0.3, 0.45, 0.45, 1)
+proc_horizon_glow_width = 0.2
+proc_sun_glow_strength = 0.0

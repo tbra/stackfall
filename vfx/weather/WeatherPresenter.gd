@@ -8,9 +8,15 @@ extends Node3D
 var _instances: Dictionary = {}
 var _defs: Dictionary = {}
 var _scene_cache: Dictionary = {}
+## Bontago-mp0.19: overhead cloud layer (and storm sky) driven by the same
+## replicated intensities as the per-weather presentations.
+var _ceiling: CloudCeiling = null
 
 
 func _ready() -> void:
+	_ceiling = CloudCeiling.new()
+	_ceiling.name = "CloudCeiling"
+	add_child(_ceiling)
 	for def: WeatherTuning in WeatherTuning.load_all():
 		_defs[def.id] = def
 	Events.weather_started.connect(_on_started)
@@ -30,11 +36,17 @@ func presentation_for(weather_id: StringName) -> WeatherPresentation:
 	return node as WeatherPresentation if is_instance_valid(node) else null
 
 
+func cloud_ceiling() -> CloudCeiling:
+	return _ceiling
+
+
 func active_count() -> int:
 	return _instances.size()
 
 
 func _on_started(weather_id: StringName) -> void:
+	if _ceiling != null:
+		_ceiling.set_weather_intensity(weather_id, 0.0)
 	if _instances.has(weather_id):
 		return
 	var def: WeatherTuning = _defs.get(weather_id) as WeatherTuning
@@ -55,6 +67,8 @@ func _on_started(weather_id: StringName) -> void:
 
 
 func _on_stopped(weather_id: StringName) -> void:
+	if _ceiling != null:
+		_ceiling.set_weather_intensity(weather_id, 0.0)
 	var node: Variant = _instances.get(weather_id)
 	_instances.erase(weather_id)
 	if is_instance_valid(node):
@@ -62,6 +76,8 @@ func _on_stopped(weather_id: StringName) -> void:
 
 
 func _on_intensity_changed(weather_id: StringName, intensity: float) -> void:
+	if _ceiling != null:
+		_ceiling.set_weather_intensity(weather_id, intensity)
 	var presentation: WeatherPresentation = presentation_for(weather_id)
 	if presentation != null:
 		presentation.set_intensity(intensity)
