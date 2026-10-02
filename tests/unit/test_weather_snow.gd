@@ -43,6 +43,8 @@ func before_each() -> void:
 	_snow.discover_blocks_per_frame = 64
 	_snow.max_disc_patches = 6
 	_snow.disc_flag_clear_radius_m = 0.0
+	# The fixture disc is only 12 m wide: a full-length drift would not fit.
+	_snow.disc_drift_stretch = 1.5
 	_effect = null
 
 
@@ -219,6 +221,17 @@ func test_drift_rebuild_survives_a_block_freed_mid_queue() -> void:
 	assert_not_null(effect)
 
 
+func test_disc_drift_frame_follows_the_wind_and_drifts_are_low() -> void:
+	var grid: CellGrid = _field.grid()
+	var frame: Transform3D = SnowCaps.disc_patch_frame(grid, grid.cell_index(grid.res / 2, grid.res / 2), _snow)
+	var wind: Vector2 = Vector2.from_angle(deg_to_rad(_snow.cover_wind_angle_deg))
+	assert_almost_eq(frame.basis.x.x, wind.x, 0.001, "drift length axis is the wind")
+	assert_almost_eq(frame.basis.x.z, wind.y, 0.001)
+	assert_almost_eq(frame.basis.determinant(), 1.0, 0.001, "a proper rotation")
+	assert_gt(_snow.disc_drift_stretch, 1.0, "drifts are elongated")
+	assert_lt(_snow.disc_drift_height_scale, 1.0, "drifts are lower than a block cap")
+
+
 func test_block_patch_budget_is_global() -> void:
 	_snow.max_block_patches = 2
 	_snow.max_disc_patches = 0
@@ -260,7 +273,7 @@ func test_colliders_and_meshes_are_the_same_geometry() -> void:
 	var cube: Block = _cube(Vector3(0.0, 0.01, 0.0))
 	var domino: Block = BlockFactory.build(load("res://config/blocks/domino.tres") as BlockShape, _physics)
 	_root.add_child(domino)
-	domino.global_position = Vector3(2.5, 0.01, 1.5)
+	domino.global_position = Vector3(-2.5, 0.01, 1.5)
 	domino.net_id = _next_net_id
 	_next_net_id += 1
 	_blocks.append(domino)

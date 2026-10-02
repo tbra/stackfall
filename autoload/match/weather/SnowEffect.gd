@@ -40,7 +40,9 @@ const DISC_ITEM: int = -1
 const WORK_STRIDE: int = 3
 ## Disc drift placement: tries per wanted drift, and the share of tries
 ## taken on the rim band (the rest around block bases).
-const DRIFT_SAMPLE_ATTEMPTS: int = 6
+const DRIFT_SAMPLE_ATTEMPTS: int = 24
+## Drifts keep this share of their stretched length between centres.
+const DRIFT_SPACING_SHARE: float = 0.7
 const DRIFT_RIM_SHARE: float = 0.5
 ## Lift of a coverage query above the snow base, so the owner's own surface
 ## is never touched. Geometry epsilon, not a tunable.
@@ -157,7 +159,7 @@ func restore() -> void:
 		Events.block_removed.disconnect(_on_block_removed)
 	for key: Variant in _blocks.keys():
 		var entry: BlockSnow = _blocks[key]
-		if _block_alive(entry.block):
+		if is_instance_valid(entry.block) and _block_alive(entry.block):
 			for k: int in range(entry.cells.size()):
 				if entry.levels[k] > 0:
 					_wake_above(_block_patch_world(entry, k), _block_edge(entry), entry.levels[k], _rids(entry.block))
@@ -165,11 +167,13 @@ func restore() -> void:
 		for key: Variant in _disc.keys():
 			var level: int = int(_disc[key])
 			if level > 0:
-				_wake_above(_disc_patch_world(int(key)), _disc_edge(), level, _disc_exclude())
+				_wake_above(_disc_patch_world(int(key)), _disc_edge(), level, _disc_exclude(), _snow.disc_drift_stretch)
 	if _builder != null:
 		_builder.clear_all()
 	for key: Variant in _blocks.keys():
-		SnowCaps.clear_block((_blocks[key] as BlockSnow).block)
+		var snow_block: Block = (_blocks[key] as BlockSnow).block if is_instance_valid((_blocks[key] as BlockSnow).block) else null
+		if snow_block != null:
+			SnowCaps.clear_block(snow_block)
 	_blocks.clear()
 	_active_block_patches = 0
 	if is_instance_valid(_field):
@@ -492,7 +496,7 @@ func _prepare_disc() -> void:
 	var clear_radius: float = _snow.disc_flag_clear_radius_m + _disc_edge() * 0.5
 	# Drifts never overlap (one per spacing bucket, checked against the 3x3
 	# neighbouring buckets): overlapping hulls would hide each other's rims.
-	var spacing: float = _disc_edge()
+	var spacing: float = _disc_query_edge() * DRIFT_SPACING_SHARE
 	var buckets: Dictionary = {}
 	while _disc.size() < wanted and attempts > 0:
 		attempts -= 1
@@ -536,8 +540,15 @@ func _sample_drift_cell(grid: CellGrid, blocks: Array[Block], rng: RandomNumberG
 	if not _block_alive(block):
 		return -1
 	var reach: int = maxi(ceili(_snow.cover_base_radius_cells), 1)
-	var dx: int = rng.randi_range(-reach, reach)
-	var dy: int = rng.randi_range(-reach, reach)
+	# Lee side: the offset is sampled on the downwind half of the block's
+	# surroundings, with a small cross-wind spread.
+	var wind: Vector2 = Vector2.from_angle(deg_to_rad(_snow.cover_wind_angle_deg))
+	var lee_start: float = _disc_query_edge() * 0.5 + 1.0
+	var along: float = rng.randf_range(lee_start, lee_start + float(reach))
+	var across: float = rng.randf_range(-1.0, 1.0)
+	var offset: Vector2 = wind * along + Vector2(-wind.y, wind.x) * across
+	var dx: int = roundi(offset.x)
+	var dy: int = roundi(offset.y)
 	if dx == 0 and dy == 0:
 		return -1
 	var center: Vector2i = grid.world_to_cell(_field.disk_local_from_world(block.global_position))
@@ -549,16 +560,23 @@ func _sample_drift_cell(grid: CellGrid, blocks: Array[Block], rng: RandomNumberG
 ## True when any cell under a drift's footprint is a hole or off the disc.
 func _disc_over_hole(cell: int) -> bool:
 	var grid: CellGrid = _field.grid()
-	var coords: Vector2i = grid.cell_coords(cell)
-	var reach: int = ceili(_snow.disc_patch_cells * 0.5 - 0.5)
-	for dy: int in range(-reach, reach + 1):
-		for dx: int in range(-reach, reach + 1):
-			var cx: int = coords.x + dx
-			var cy: int = coords.y + dy
-			if not grid.in_bounds(cx, cy) or not grid.is_in_disk(cx, cy):
+	var center: Vector2 = grid.index_center(cell)
+	var wind: Vector2 = Vector2.from_angle(deg_to_rad(_snow.cover_wind_angle_deg))
+	var side: Vector2 = Vector2(-wind.y, wind.x)
+	var half_edge: float = _disc_edge() * 0.5
+	var half_len: float = half_edge * maxf(_snow.disc_drift_stretch, 1.0)
+	var step: float = grid.cell_size
+	var t: float = -half_len
+	while t <= half_len + 0.0001:
+		var w: float = -half_edge
+		while w <= half_edge + 0.0001:
+			var at: Vector2i = grid.world_to_cell(center + wind * t + side * w)
+			if not grid.in_bounds(at.x, at.y) or not grid.is_in_disk(at.x, at.y):
 				return true
-			if _field.is_hole_cell(grid.cell_index(cx, cy)):
+			if _field.is_hole_cell(grid.cell_index(at.x, at.y)):
 				return true
+			w += step
+		t += step
 	return false
 
 
@@ -595,12 +613,12 @@ func _grow(owner_id: int, index: int) -> void:
 		var level: int = int(_disc[index])
 		if _disc_over_hole(index):
 			if level > 0:
-				_wake_above(_disc_patch_world(index), _disc_edge(), level, _disc_exclude())
+				_wake_above(_disc_patch_world(index), _disc_edge(), level, _disc_exclude(), _snow.disc_drift_stretch)
 				_set_disc_level(index, 0)
 			return
 		if level >= ceiling or _cover < _snow.disc_drift_min_cover:
 			return
-		if _occupied(_disc_patch_world(index), _disc_edge(), level + 1, _disc_exclude()):
+		if _occupied(_disc_patch_world(index), _disc_edge(), level + 1, _disc_exclude(), _snow.disc_drift_stretch):
 			return
 		_set_disc_level(index, level + 1)
 		return
@@ -629,7 +647,7 @@ func _melt(owner_id: int, index: int) -> void:
 		if level <= _cap:
 			return
 		if is_instance_valid(_field):
-			_wake_above(_disc_patch_world(index), _disc_edge(), level, _disc_exclude())
+			_wake_above(_disc_patch_world(index), _disc_edge(), level, _disc_exclude(), _snow.disc_drift_stretch)
 		_set_disc_level(index, _cap)
 		return
 	var entry: BlockSnow = _blocks.get(owner_id) as BlockSnow
@@ -659,7 +677,7 @@ func _set_disc_level(cell: int, level: int) -> void:
 	var grid: CellGrid = _field.grid()
 	var region: int = SnowCaps.disc_region(grid, cell, _snow)
 	var seed_value: int = SnowGeometry.patch_seed(_seed, SnowGeometry.DISC_OWNER, cell, SnowGeometry.AXIS_UP)
-	_builder.set_patch("d%d" % region, _field, region, cell, SnowCaps.disc_patch_frame(grid, cell), _disc_edge(), seed_value, level)
+	_builder.set_patch("d%d" % region, _field, region, cell, SnowCaps.disc_patch_frame(grid, cell, _snow), _disc_edge(), seed_value, level)
 	_state_dirty = true
 
 
@@ -675,7 +693,12 @@ func _block_edge(entry: BlockSnow) -> float:
 
 
 func _disc_patch_world(cell: int) -> Transform3D:
-	return _field.global_transform * SnowCaps.disc_patch_frame(_field.grid(), cell)
+	return _field.global_transform * SnowCaps.disc_patch_frame(_field.grid(), cell, _snow)
+
+
+## Edge of the box that covers a stretched drift (queries and wake-ups).
+func _disc_query_edge() -> float:
+	return _disc_edge() * maxf(_snow.disc_drift_stretch, 1.0)
 
 
 func _disc_edge() -> float:
@@ -691,19 +714,19 @@ func _disc_exclude() -> Array[RID]:
 	return exclude
 
 
-func _prepare_query(patch_world: Transform3D, edge: float, height: float, exclude: Array[RID]) -> void:
+func _prepare_query(patch_world: Transform3D, edge: float, height: float, exclude: Array[RID], stretch: float = 1.0) -> void:
 	var tall: float = height + _snow.cover_clearance_m
-	_query_box.size = Vector3(edge, tall, edge)
+	_query_box.size = Vector3(edge * maxf(stretch, 1.0), tall, edge)
 	_query.transform = patch_world * Transform3D(Basis.IDENTITY, Vector3(0.0, QUERY_BASE_LIFT_M + tall * 0.5, 0.0))
 	_query.exclude = exclude
 
 
 ## True when any body sits in the space a dome of `level` would take.
-func _occupied(patch_world: Transform3D, edge: float, level: int, exclude: Array[RID]) -> bool:
+func _occupied(patch_world: Transform3D, edge: float, level: int, exclude: Array[RID], stretch: float = 1.0) -> bool:
 	var space: PhysicsDirectSpaceState3D = _space()
 	if space == null:
 		return true
-	_prepare_query(patch_world, edge, SnowGeometry.dome_max_height(level, _snow), exclude)
+	_prepare_query(patch_world, edge, SnowGeometry.dome_max_height(level, _snow), exclude, stretch)
 	queries_run += 1
 	return not space.intersect_shape(_query, COVER_QUERY_RESULTS).is_empty()
 
@@ -711,11 +734,11 @@ func _occupied(patch_world: Transform3D, edge: float, level: int, exclude: Array
 ## Wakes every rigid body resting on or above a patch that is about to shrink
 ## or vanish (a sleeping body would otherwise hover on removed snow). A block
 ## held by the stable-block auto-freeze is released for the same reason.
-func _wake_above(patch_world: Transform3D, edge: float, level: int, exclude: Array[RID]) -> void:
+func _wake_above(patch_world: Transform3D, edge: float, level: int, exclude: Array[RID], stretch: float = 1.0) -> void:
 	var space: PhysicsDirectSpaceState3D = _space()
 	if space == null:
 		return
-	_prepare_query(patch_world, edge, SnowGeometry.dome_max_height(level, _snow), exclude)
+	_prepare_query(patch_world, edge, SnowGeometry.dome_max_height(level, _snow), exclude, stretch)
 	queries_run += 1
 	for hit: Dictionary in space.intersect_shape(_query, WAKE_QUERY_RESULTS):
 		var body: RigidBody3D = hit.get("collider") as RigidBody3D

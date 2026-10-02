@@ -185,6 +185,11 @@ func _build_patch(patch: Patch, owner: CapOwner) -> void:
 	var points: PackedVector3Array
 	if owner.region >= 0:
 		points = SnowGeometry.dome_points(params, patch.edge, patch.level, tuning, tuning.disc_cap_squareness)
+		# Low, elongated drift: stretched along the frame's X (the wind) and
+		# flattened; hull and mesh share these points.
+		for k: int in range(points.size()):
+			var pt: Vector3 = points[k]
+			points[k] = Vector3(pt.x * tuning.disc_drift_stretch, tuning.cap_lift_m + (pt.y - tuning.cap_lift_m) * tuning.disc_drift_height_scale, pt.z)
 		patch.hull = patch.xform * points
 	else:
 		# DECISION (Bontago-mp0.31): a per-patch geometry (not a world-space

@@ -50,6 +50,10 @@ const MELT_ROUNDING: float = 0.0001
 @export_range(0.1, 1.0, 0.01) var cap_fill_heavy: float = 1.0
 ## Footprint roundness: 2 = round, higher = squarer with rounded corners.
 @export var cap_squareness: float = 4.0
+## Disc drifts are stretched this many times along the wind (soft streaks, not dots).
+@export_range(1.0, 8.0, 0.1) var disc_drift_stretch: float = 3.0
+## Disc drift height as a fraction of the level height (low drifts).
+@export_range(0.2, 1.0, 0.01) var disc_drift_height_scale: float = 0.6
 ## Disc drift footprint roundness (2 = round: drifts, not squares).
 @export var disc_cap_squareness: float = 2.0
 ## Profile: 1 = cone-ish, 2 = soft dome, higher = flatter plateau.
@@ -127,7 +131,7 @@ const MELT_ROUNDING: float = 0.0001
 ## Snowy block patches in the whole match (one collider each).
 @export var max_block_patches: int = 160
 ## Colliding disc drifts in the whole match (one collider each).
-@export var max_disc_patches: int = 90
+@export var max_disc_patches: int = 40
 ## Disc drifts keep this far from home and goal flags (metres).
 @export var disc_flag_clear_radius_m: float = 2.5
 ## Coverage checks (one shape query each) per physics frame.

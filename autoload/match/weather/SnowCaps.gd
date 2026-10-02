@@ -91,9 +91,15 @@ static func disc_patch_edge(grid: CellGrid, tuning: SnowTuning) -> float:
 
 
 ## Field-local frame of the disc drift centred on `cell`.
-static func disc_patch_frame(grid: CellGrid, cell: int) -> Transform3D:
+## With `tuning` the frame's X axis points along the wind, so drifts lie
+## downwind of what shelters them.
+static func disc_patch_frame(grid: CellGrid, cell: int, tuning: SnowTuning = null) -> Transform3D:
 	var center: Vector2 = grid.index_center(cell)
-	return Transform3D(Basis.IDENTITY, Vector3(center.x, 0.0, center.y))
+	var basis: Basis = Basis.IDENTITY
+	if tuning != null:
+		var wind: Vector2 = Vector2.from_angle(deg_to_rad(tuning.cover_wind_angle_deg))
+		basis = Basis(Vector3(wind.x, 0.0, wind.y), Vector3.UP, Vector3(-wind.y, 0.0, wind.x))
+	return Transform3D(basis, Vector3(center.x, 0.0, center.y))
 
 
 static func disc_region(grid: CellGrid, cell: int, tuning: SnowTuning) -> int:
