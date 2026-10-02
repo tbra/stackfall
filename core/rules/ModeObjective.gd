@@ -53,6 +53,12 @@ static func create(
 	return objective
 
 
+## Bontago-1pi.18.1: QoL claim radius (0 = the flag cell only). Objectives that
+## read goal cells override this.
+func set_claim_radius(_radius: float) -> void:
+	pass
+
+
 ## The MatchConfig.GameMode this objective implements.
 func mode_id() -> int:
 	return MatchConfig.GameMode.CLASSIC

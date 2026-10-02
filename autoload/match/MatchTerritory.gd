@@ -139,6 +139,7 @@ func _build_territory() -> void:
 		_match._territory_tuning.ctf_replicate_interval_s,
 		_sky_slot_teams(), _match.config.sky_team_sum, _match._territory_tuning.sky_replicate_interval_s
 	)
+	_objective.set_claim_radius(_claim_radius())
 	_connect_sky_records()
 	_win_checker = (_objective as ClassicObjective).checker() if _objective is ClassicObjective else null
 	_match._lifecycle.flush_pending_mode_state()
@@ -157,6 +158,21 @@ func _build_territory() -> void:
 	_goal_radii = PackedFloat32Array()
 	_goal_radii.resize(goal_positions.size())
 	_goal_radii.fill(_match._territory_tuning.goal_zone_radius)
+
+
+## Bontago-1pi.18.1 (QoL experiment 3): the capture claim radius -- 0 (flag cell
+## only, the rule) unless the toggle is on, then goal_zone_radius times the
+## multiplier. The no-build disc and its drawn circle keep the base radius.
+##
+## DECISION: capture is decided over the cells within this radius around each
+## beacon (WinChecker.claim_at): the team owning the most cells claims it, a tie
+## or no owner leaves it contested/unclaimed. No claim-radius ring is drawn: the
+## overlay circle API has no cheap second ring.
+func _claim_radius() -> float:
+	var qol: QolExperiments = _match.config.qol
+	if qol == null or not qol.goal_radius_enabled:
+		return 0.0
+	return qol.effective_goal_radius(_match._territory_tuning.goal_zone_radius)
 
 
 func _tick_territory(delta: float) -> void:

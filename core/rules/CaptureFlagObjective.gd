@@ -19,6 +19,7 @@ const TIE_EPSILON: float = 0.001
 
 var _goal_positions: PackedVector2Array = PackedVector2Array()
 var _score_rate: float = 1.0
+var _claim_radius: float = 0.0
 ## Beacons held per team at the last update (also replicated, for the HUD).
 var _held_counts: PackedInt32Array = PackedInt32Array()
 ## Float accumulators kept at full precision; _scores only mirrors them.
@@ -36,6 +37,10 @@ func _init(
 	_goal_positions = goal_positions
 	_replicate_interval = maxf(replicate_interval, 0.0)
 	_score_rate = maxf(score_rate, 0.0)
+
+
+func set_claim_radius(radius: float) -> void:
+	_claim_radius = maxf(radius, 0.0)
 
 
 func mode_id() -> int:
@@ -65,7 +70,7 @@ func update(raster: TerritoryRaster, delta: float) -> void:
 	var counts: PackedInt32Array = PackedInt32Array()
 	counts.resize(_scores.size())
 	for point: Vector2 in _goal_positions:
-		var team: int = WinChecker.goal_holder(raster, point)
+		var team: int = WinChecker.goal_holder(raster, point, _claim_radius)
 		if team >= 0 and team < counts.size():
 			counts[team] += 1
 	for team: int in range(counts.size()):

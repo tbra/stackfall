@@ -142,7 +142,13 @@ var _preview_textures: Dictionary[StringName, Texture2D] = {}
 ## doc comment above.
 var _active_slot: int = -1
 var _active_color: Color = Color.WHITE
+## Timer numeral shown while a QoL experiment has the block timer paused.
+const QOL_PAUSED_TEXT: String = "||"
 var _feed_progress: float = 1.0
+## Bontago-1pi.18.1 (QoL experiments): queued-block count and "timer paused"
+## flag for the active slot; both stay 0/false unless an experiment is on.
+var _qol_backlog: int = 0
+var _qol_paused: bool = false
 ## What `_active_slot` is holding right now — drawn inside the timer ring,
 ## since the ring counts down toward that block's placement deadline.
 var _held_shape: BlockShape = null
@@ -266,6 +272,12 @@ func _process(_delta: float) -> void:
 	if match_provider == null or _active_slot < 0:
 		return
 	set_feed_progress(match_provider.feed_progress(_active_slot))
+	if match_provider.has_method(&"qol_backlog_count"):
+		var paused_now: bool = bool(match_provider.qol_timer_paused(_active_slot))
+		if paused_now != _qol_paused:
+			_qol_paused = paused_now
+			_timer_ring.queue_redraw()
+		_qol_backlog = int(match_provider.qol_backlog_count(_active_slot))
 	# Bontago-mp0.3.3: the timer ring's numeral (mockup 08's "6"). Guarded by
 	# has_method() the same way _update_minimap()'s raster() read is --
 	# tests/unit/support/FakeMatch.gd (and any other Variant double) has no
@@ -818,7 +830,7 @@ func _refresh_special_indicator() -> void:
 		glue_charges = int(match_provider.glue_drops_left(_active_slot))
 	# Bontago-1pi.11.6: nothing below depends on anything but these inputs.
 	var next_id: StringName = _next_gift_id_for(count, head_id)
-	var signature: Array = [_active_slot, _active_color, count, head_id, next_id, glue_charges]
+	var signature: Array = [_active_slot, _active_color, count, head_id, next_id, glue_charges, _qol_backlog]
 	if signature == _last_special_signature:
 		return
 	_last_special_signature = signature
@@ -826,6 +838,8 @@ func _refresh_special_indicator() -> void:
 	_set_glue_active(glue_charges > 0)
 	_held_label.text = "HELD: %s" % _special_display_name(head_id) if head_id != &"" else "HELD"
 	_next_label.text = "NEXT GIFT" if count > (1 if head_id != &"" else 0) else "NEXT"
+	if _qol_backlog > 0:
+		_next_label.text += " +%d" % _qol_backlog
 	if count <= 0 and glue_charges <= 0:
 		_special_indicator.visible = false
 		return
@@ -1000,7 +1014,7 @@ func _on_timer_ring_draw() -> void:
 		# The remaining-time arc stays that one active player's own colour
 		# over the dark RING_BACKGROUND_COLOR track -- the direct one-player
 		# equivalent of the mockup's two-tone idea.
-		var ring_color: Color = LOCKED_COLOR if _locked else _active_color
+		var ring_color: Color = LOCKED_COLOR if (_locked or _qol_paused) else _active_color
 		_timer_ring.draw_arc(
 			center, radius, -PI * 0.5, -PI * 0.5 + TAU * _feed_progress, 48, ring_color, RING_LINE_WIDTH
 		)
@@ -1012,7 +1026,7 @@ func _on_timer_ring_draw() -> void:
 ## ceil()'d the same way a countdown reads to a player (still shows "1" for
 ## the last fraction of a second, not "0").
 func _draw_timer_numeral(center: Vector2) -> void:
-	var text: String = str(int(ceil(_feed_seconds_left)))
+	var text: String = QOL_PAUSED_TEXT if _qol_paused else str(int(ceil(_feed_seconds_left)))
 	var font: Font = _timer_ring.get_theme_default_font()
 	var text_width: float = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, TIMER_NUMERAL_FONT_SIZE).x
 	var baseline: Vector2 = center + Vector2(-text_width * 0.5, TIMER_NUMERAL_FONT_SIZE * 0.35)

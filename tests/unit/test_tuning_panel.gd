@@ -618,7 +618,7 @@ func test_client_hides_physics_territory_and_feed_but_not_the_visual_tabs() -> v
 func test_tab_roster_names_and_count() -> void:
 	var expected: PackedStringArray = [
 		"Camera", "Controls", "Blocks FX", "Beacons", "Camera FX", "HUD", "Sky",
-		"Physics", "Territory", "Feed",
+		"Physics", "Territory", "Feed", "QoL",
 	]
 	assert_eq(_panel._tab_container.get_tab_count(), expected.size())
 	for index: int in range(expected.size()):

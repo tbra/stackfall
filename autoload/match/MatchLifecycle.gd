@@ -6,6 +6,9 @@ extends RefCounted
 ## Split out of autoload/Match.gd (pure refactor: no behaviour change). See
 ## that file's own header comment for the full state-machine contract.
 
+## Bontago-1pi.18.1: the shared (F4-editable) QoL experiment toggles.
+const QOL_EXPERIMENTS: QolExperiments = preload("res://config/qol_experiments.tres")
+
 var _match: MatchAutoload = null
 
 var _state: MatchAutoload.State = MatchAutoload.State.LOBBY
@@ -126,6 +129,12 @@ func start_match(match_config: MatchConfig) -> void:
 		_reset_match_state()
 
 	_match.config = match_config.duplicate(true) as MatchConfig
+	# Bontago-1pi.18.1 DECISION: the host snapshots the shared QoL experiment
+	# toggles once here (unless the caller already supplied some, e.g. a test);
+	# a client keeps whatever net_match_start's dict carried, so both ends run
+	# the same values for the whole match even if the F4 panel is edited later.
+	if _match._is_host() and _match.config.qol == null:
+		_match.config.qol = QOL_EXPERIMENTS.duplicate() as QolExperiments
 	_match.config.sanitize()
 	# Bontago-470.4: the host resolves Random once; a client keeps the id it
 	# was sent (net_match_start carries sky_theme_resolved).

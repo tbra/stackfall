@@ -90,6 +90,10 @@ const ROUND_TIMER_OFF_MINUTES: int = 0
 @export var team_mode: TeamMode = TeamMode.OFF
 ## Block timer in seconds, 3-12.
 @export var block_timer: float = 5.0
+## Bontago-1pi.18.1: snapshot of the host's QolExperiments (all OFF by default)
+## taken at start_match() and carried to clients in to_dict() (last key). Null
+## means "no experiments", the default for every config built outside a match.
+@export var qol: QolExperiments = null
 ## Lobby gravity multiplier, GRAVITY_MIN-GRAVITY_MAX, 1.0 = the shipped feel.
 ## DECISION (Bontago-59o.11): this is relative to PhysicsTuning.lobby_gravity_baseline
 ## (the old 1.4 Heavy & Bouncy factor); start_match() writes
@@ -365,6 +369,8 @@ func sanitize() -> void:
 	tilt_mode = clampi(tilt_mode, TiltMode.SPECIALS_ONLY, TiltMode.PHYSICAL_BALANCE)
 	hole_mode = clampi(hole_mode, HoleMode.TEMPORARY, HoleMode.OFF) as HoleMode
 	match_timer_minutes = maxi(match_timer_minutes, 0)
+	if qol != null:
+		qol.sanitize()
 	game_mode = resolve_game_mode(game_mode)
 	round_timer_minutes = clamp_round_timer(round_timer_minutes, game_mode)
 	# turn_based is a plain bool -- no range to clamp.
@@ -404,7 +410,7 @@ func effective_sky_theme() -> String:
 
 ## Serializes to a plain Dictionary for RPCs and Steam lobby data.
 func to_dict() -> Dictionary:
-	return {
+	var data: Dictionary = {
 		"map_variant": map_variant,
 		"map_size": map_size,
 		"player_count": player_count,
@@ -435,6 +441,9 @@ func to_dict() -> Dictionary:
 		"player_colors": player_colors.duplicate(),
 		"rng_seed": rng_seed,
 	}
+	if qol != null:
+		data["qol"] = qol.to_dict()
+	return data
 
 
 ## Rebuilds a config from to_dict() output. Unknown keys keep their defaults.
@@ -483,4 +492,6 @@ static func from_dict(data: Dictionary) -> MatchConfig:
 	if data.has("player_colors"):
 		config.player_colors = PackedColorArray(data["player_colors"])
 	config.rng_seed = int(data.get("rng_seed", config.rng_seed))
+	if data.get("qol") is Dictionary:
+		config.qol = QolExperiments.from_dict(data["qol"] as Dictionary)
 	return config
