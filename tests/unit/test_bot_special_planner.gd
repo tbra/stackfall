@@ -315,3 +315,56 @@ func test_shipped_normal_throws_bomb_with_worse_aim_and_delay_than_hard() -> voi
 		&"bomb", HOME, points, enemies, PackedVector2Array(), MatchConfig.AiDifficulty.EASY, tuning
 	)
 	assert_false(easy_action.should_throw, "EASY still uses no specials")
+
+
+# --- Black hole (Bontago-8or.27) --------------------------------------------
+
+func _bh_plan(
+	points: PackedVector2Array,
+	samples: Array[BotSpecialPlanner.BotBlockSample],
+	difficulty: MatchConfig.AiDifficulty,
+	tuning: BotTuning
+) -> BotSpecialPlanner.BotSpecialAction:
+	return BotSpecialPlanner.plan(
+		&"black_hole", HOME, points, PackedVector2Array(), PackedVector2Array(), difficulty, tuning, samples
+	)
+
+
+func test_black_hole_targets_near_enemy_tower_away_from_own_blocks() -> void:
+	var tuning: BotTuning = _real_shaped_tuning()
+	var tower: Vector2 = Vector2(12.0, 0.0)
+	var points: PackedVector2Array = PackedVector2Array([Vector2(-10.0, 0.0), Vector2(0.0, 0.0), Vector2(9.0, 0.0)])
+	var samples: Array[BotSpecialPlanner.BotBlockSample] = [
+		BotSpecialPlanner.BotBlockSample.make(tower, 4.0, false),
+		BotSpecialPlanner.BotBlockSample.make(tower + Vector2(1.0, 0.0), 3.0, false),
+		BotSpecialPlanner.BotBlockSample.make(Vector2(-10.0, 0.0), 1.0, true),
+	]
+	var action: BotSpecialPlanner.BotSpecialAction = _bh_plan(points, samples, MatchConfig.AiDifficulty.HARD, tuning)
+	assert_true(action.has_place_target)
+	assert_false(action.should_throw)
+	assert_lt(action.place_target.distance_to(tower), tuning.black_hole_pull_radius_m)
+
+
+func test_black_hole_skipped_when_own_blocks_dominate_every_spot() -> void:
+	var tuning: BotTuning = _real_shaped_tuning()
+	var points: PackedVector2Array = PackedVector2Array([Vector2(0.0, 0.0), Vector2(8.0, 0.0)])
+	var samples: Array[BotSpecialPlanner.BotBlockSample] = [
+		BotSpecialPlanner.BotBlockSample.make(Vector2(0.5, 0.0), 1.0, true),
+		BotSpecialPlanner.BotBlockSample.make(Vector2(1.0, 0.0), 1.0, true),
+		BotSpecialPlanner.BotBlockSample.make(Vector2(8.5, 0.0), 1.0, true),
+		BotSpecialPlanner.BotBlockSample.make(Vector2(9.0, 0.0), 1.0, true),
+		BotSpecialPlanner.BotBlockSample.make(Vector2(4.0, 0.0), 0.0, false),
+	]
+	var action: BotSpecialPlanner.BotSpecialAction = _bh_plan(points, samples, MatchConfig.AiDifficulty.NORMAL, tuning)
+	assert_false(action.has_place_target)
+	assert_true(action.should_place_ordinarily)
+
+
+func test_black_hole_easy_never_uses_it() -> void:
+	var tuning: BotTuning = _real_shaped_tuning()
+	var points: PackedVector2Array = PackedVector2Array([Vector2(9.0, 0.0)])
+	var samples: Array[BotSpecialPlanner.BotBlockSample] = [
+		BotSpecialPlanner.BotBlockSample.make(Vector2(12.0, 0.0), 4.0, false),
+	]
+	var action: BotSpecialPlanner.BotSpecialAction = _bh_plan(points, samples, MatchConfig.AiDifficulty.EASY, tuning)
+	assert_false(action.has_place_target)

@@ -53,6 +53,22 @@ class BotSpecialAction:
 	var place_target: Vector2 = Vector2.ZERO
 
 
+## One placed block as the Black hole heuristic sees it (Bontago-8or.27):
+## disk-local position, top height above the field, and whether it belongs to
+## the acting bot's own team.
+class BotBlockSample:
+	var position: Vector2 = Vector2.ZERO
+	var height_m: float = 0.0
+	var is_own: bool = false
+
+	static func make(at: Vector2, height: float, own: bool) -> BotBlockSample:
+		var sample: BotBlockSample = BotBlockSample.new()
+		sample.position = at
+		sample.height_m = height
+		sample.is_own = own
+		return sample
+
+
 ## Per-type heuristics (spec 2.9: "do not aim a Rocket as if it homes or a
 ## Propeller as if it blows sideways"; spec 2.6's own effect table). An EASY
 ## bot (both flags false on `tuning.profile_for(difficulty)`) never uses any
@@ -65,7 +81,8 @@ static func plan(
 	enemy_circle_centers: PackedVector2Array,
 	active_special_positions: PackedVector2Array,
 	difficulty: MatchConfig.AiDifficulty,
-	tuning: BotTuning
+	tuning: BotTuning,
+	block_samples: Array[BotBlockSample] = []
 ) -> BotSpecialAction:
 	var profile: BotDifficultyProfile = tuning.profile_for(difficulty)
 	var offensive: bool = profile != null and profile.uses_offensive_specials
@@ -106,6 +123,13 @@ static func plan(
 			freeze_action.place_target = _nearest(own_territory_sample_points, own_home_position, own_home_position)
 			freeze_action.has_place_target = true
 			return freeze_action
+		&"black_hole":
+			# Bontago-8or.27: offensive, gated like Rocket and Bomb.
+			if not offensive:
+				return BotSpecialAction.new()
+			return _plan_black_hole(
+				own_home_position, own_territory_sample_points, enemy_circle_centers, block_samples, tuning
+			)
 		&"jumping_bean":
 			return _plan_jumping_bean(own_home_position, own_territory_sample_points, enemy_circle_centers, offensive)
 		_:
@@ -196,6 +220,52 @@ static func _plan_volcano(
 		action.has_place_target = true
 		action.should_place_ordinarily = true
 		return action
+	return action
+
+
+## Black hole (spec 2.6: pulls nearby blocks of ALL teams): scores every own
+## territory sample point by the enemy block mass inside the pull radius (each
+## enemy block counts `black_hole_enemy_weight` plus `black_hole_enemy_height_
+## weight` per metre of height, so tall stacks win) minus
+## `black_hole_own_penalty` per own block caught the same way. The best point
+## becomes `place_target` only if its net score reaches `black_hole_min_net_
+## score`; otherwise the special is spent like an ordinary block. When the
+## caller supplies no `block_samples`, enemy circle centres stand in as
+## ground-level enemy blocks and the bot's home as one own block.
+static func _plan_black_hole(
+	own_home_position: Vector2,
+	own_territory_sample_points: PackedVector2Array,
+	enemy_circle_centers: PackedVector2Array,
+	block_samples: Array[BotBlockSample],
+	tuning: BotTuning
+) -> BotSpecialAction:
+	var action: BotSpecialAction = BotSpecialAction.new()
+	var samples: Array[BotBlockSample] = block_samples
+	if samples.is_empty():
+		samples = []
+		for center: Vector2 in enemy_circle_centers:
+			samples.append(BotBlockSample.make(center, 0.0, false))
+		samples.append(BotBlockSample.make(own_home_position, 0.0, true))
+	var radius_sq: float = tuning.black_hole_pull_radius_m * tuning.black_hole_pull_radius_m
+	var best_point: Vector2 = own_home_position
+	var best_score: float = -INF
+	for point: Vector2 in own_territory_sample_points:
+		var score: float = 0.0
+		for sample: BotBlockSample in samples:
+			if sample.position.distance_squared_to(point) > radius_sq:
+				continue
+			if sample.is_own:
+				score -= tuning.black_hole_own_penalty
+			else:
+				score += tuning.black_hole_enemy_weight + tuning.black_hole_enemy_height_weight * sample.height_m
+		if score > best_score:
+			best_score = score
+			best_point = point
+	if best_score < tuning.black_hole_min_net_score:
+		return action
+	action.place_target = best_point
+	action.has_place_target = true
+	action.should_place_ordinarily = true
 	return action
 
 
