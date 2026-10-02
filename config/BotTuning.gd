@@ -47,6 +47,12 @@ extends Resource
 ## rejected request.
 @export var rejection_backoff_s: float = 0.5
 
+## Bontago-1t5.2: furthest a landed gift may be from the nearest sampled
+## placement candidate (m) for the bot to aim its piece at it to claim it.
+@export var gift_claim_reach_m: float = 8.0
+## Bontago-1t5.2: reaction delay (s) for a piece carrying a held special.
+@export var gift_use_delay_s: float = 0.25
+
 
 ## P3 (Bontago-d5c.4, append-only per docs/M5_PLAN.md's "if you need a new
 ## numeric... add it as an @export on BotTuning, append-only"): core/ai/
