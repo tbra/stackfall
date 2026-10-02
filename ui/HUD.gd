@@ -130,6 +130,8 @@ var match_provider: Variant = null
 ## slightly nested double border in the same palette.
 @onready var _held_next_panel: Panel = %HeldNextPanel
 @onready var _minimap: Minimap = %Minimap
+@onready var _top_left_backplate: Panel = %TopLeftBackplate
+@onready var _top_left_cluster: VBoxContainer = $TopLeftCluster
 
 var _shapes_by_id: Dictionary = {}
 ## Placeholder id for a queued gift whose def id is unknown (icon falls back).
@@ -197,15 +199,20 @@ func _ready() -> void:
 	# there gets a soft outline instead, so it stays legible directly over a
 	# bright sky. The next-shape and held-shape cards are the readouts that
 	# do keep a backing panel (see _style_panel()'s own doc).
+	# DECISION: persistent readouts share one cream/ink card family;
+	# team color is reserved for the share fill, glyph and countdown arc.
+	_style_panel(_top_left_backplate)
 	_style_panel(_held_next_panel)
-	_style_panel(_next_shape_card)
-	_style_panel(_held_shape_card)
+	_style_panel(_next_shape_card, true)
+	_style_panel(_held_shape_card, true)
 	for label: Label in [
 		_turn_label, _height_label, _locked_label, _special_indicator,
 		_gift_toast_label, _reject_label,
 	]:
-		label.add_theme_color_override("font_color", hud_visual_tuning.panel_text_color)
-		_apply_text_outline(label)
+		label.add_theme_color_override("font_color", hud_visual_tuning.ink_color)
+	_height_label.add_theme_color_override("font_color", hud_visual_tuning.muted_ink_color)
+	_held_label.add_theme_color_override("font_color", hud_visual_tuning.muted_ink_color)
+	_next_label.add_theme_color_override("font_color", hud_visual_tuning.muted_ink_color)
 	# Bontago-mp0.3.3 (owner review 2026-09-26: "row gap ~12 px"). The status
 	# labels above sit in %StatusPill, a VBoxContainer nested right under
 	# %SharesBox inside their shared %TopLeftCluster (ui/HUD.tscn) -- both
@@ -213,6 +220,10 @@ func _ready() -> void:
 	# nothing here floats independent of row count (the earlier "orphaned
 	# mid-left text" bug).
 	_shares_box.add_theme_constant_override("separation", 12)
+	_top_left_cluster.resized.connect(_resize_top_left_backplate)
+	_resize_top_left_backplate()
+	get_viewport().size_changed.connect(_update_hud_scale)
+	_update_hud_scale()
 
 	Events.turn_changed.connect(_on_turn_changed)
 	Events.feed_block_issued.connect(_on_feed_block_issued)
@@ -563,8 +574,7 @@ func _on_mode_state_changed(state: Dictionary) -> void:
 			return
 		_mode_score_label = Label.new()
 		_mode_score_label.add_theme_font_size_override("font_size", 14)
-		_mode_score_label.add_theme_color_override("font_color", hud_visual_tuning.panel_text_color)
-		_apply_text_outline(_mode_score_label)
+		_mode_score_label.add_theme_color_override("font_color", hud_visual_tuning.ink_color)
 		_height_label.get_parent().add_child(_mode_score_label)
 	_mode_score_label.text = text
 	_mode_score_label.visible = not text.is_empty()
@@ -698,13 +708,34 @@ func _update_minimap() -> void:
 ## frame/backdrop). Only the next-shape and held-shape cards use this now --
 ## mockup 08's top-left readouts are plain outlined text
 ## (_apply_text_outline() below), not a panel.
-func _style_panel(panel: Panel) -> void:
+func _style_panel(panel: Panel, inner: bool = false) -> void:
 	var style: StyleBoxFlat = StyleBoxFlat.new()
-	style.bg_color = hud_visual_tuning.panel_background_color
-	style.border_color = hud_visual_tuning.panel_border_color
+	style.bg_color = hud_visual_tuning.inner_surface_color if inner else hud_visual_tuning.surface_color
+	style.border_color = hud_visual_tuning.surface_border_color
 	style.set_border_width_all(int(hud_visual_tuning.panel_border_width_px))
 	style.set_corner_radius_all(int(hud_visual_tuning.panel_corner_radius_px))
 	panel.add_theme_stylebox_override("panel", style)
+
+
+func _resize_top_left_backplate() -> void:
+	var padding: float = hud_visual_tuning.card_padding_px
+	_top_left_backplate.size = Vector2(
+		maxf(_top_left_cluster.size.x, _top_left_cluster.get_combined_minimum_size().x) + padding * 2.0,
+		_top_left_cluster.get_combined_minimum_size().y + padding * 2.0
+	)
+
+
+func _update_hud_scale() -> void:
+	# DECISION: anchor positions stay native to the viewport; scale each
+	# persistent cluster around its screen edge so ultrawide framing remains usable.
+	var factor: float = clampf(
+		get_viewport().get_visible_rect().size.y / hud_visual_tuning.reference_viewport_height_px,
+		1.0, hud_visual_tuning.maximum_hud_scale
+	)
+	for control: Control in [_top_left_backplate, _top_left_cluster, _held_next_panel, _timer_ring, _minimap, _capture_ring]:
+		control.scale = Vector2.ONE * factor
+	_timer_ring.pivot_offset = _timer_ring.size * 0.5
+	_minimap.pivot_offset = _minimap.size
 
 
 ## Bontago-mp0.3.3 (mockup 08 restyle; Bontago-mp0.2 "top-left HUD
@@ -848,24 +879,24 @@ func _ensure_share_row_count(count: int) -> void:
 		glyph.draw.connect(_on_row_glyph_draw.bind(glyph))
 
 		var bar_track: Panel = Panel.new()
-		bar_track.custom_minimum_size = Vector2(SHARE_BAR_MAX_WIDTH, SHARE_BAR_HEIGHT)
+		bar_track.custom_minimum_size = Vector2(hud_visual_tuning.share_bar_width_px, hud_visual_tuning.share_bar_height_px)
 		var track_style: StyleBoxFlat = StyleBoxFlat.new()
 		track_style.bg_color = hud_visual_tuning.hud_share_bar_track_color
-		track_style.set_corner_radius_all(int(SHARE_BAR_HEIGHT * 0.5))
+		track_style.set_corner_radius_all(int(hud_visual_tuning.share_bar_height_px * 0.5))
 		# Bontago-mp0.3.3 (owner review 2026-09-26: "thin light inner border").
 		track_style.border_color = hud_visual_tuning.hud_share_bar_border_color
 		track_style.set_border_width_all(1)
 		bar_track.add_theme_stylebox_override("panel", track_style)
 
 		var bar_fill: ColorRect = ColorRect.new()
-		bar_fill.custom_minimum_size = Vector2(0.0, SHARE_BAR_HEIGHT)
-		bar_fill.size = Vector2(0.0, SHARE_BAR_HEIGHT)
+		bar_fill.custom_minimum_size = Vector2(0.0, hud_visual_tuning.share_bar_height_px)
+		bar_fill.size = Vector2(0.0, hud_visual_tuning.share_bar_height_px)
 		bar_track.add_child(bar_fill)
 
 		var highlight: ColorRect = ColorRect.new()
 		highlight.color = hud_visual_tuning.hud_share_bar_highlight_color
 		highlight.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		highlight.size = Vector2(SHARE_BAR_MAX_WIDTH, SHARE_BAR_HEIGHT * 0.35)
+		highlight.size = Vector2(hud_visual_tuning.share_bar_width_px, hud_visual_tuning.share_bar_height_px * 0.35)
 		highlight.position = Vector2(0.0, 1.0)
 		bar_track.add_child(highlight)
 
@@ -873,8 +904,7 @@ func _ensure_share_row_count(count: int) -> void:
 		# Bontago-mp0.3.3 (owner review 2026-09-26: "percent label optional/
 		# small ... with a text shadow").
 		label.add_theme_font_size_override("font_size", 12)
-		label.add_theme_color_override("font_color", hud_visual_tuning.panel_text_color)
-		_apply_text_outline(label)
+		label.add_theme_color_override("font_color", hud_visual_tuning.ink_color)
 
 		row.add_child(glyph)
 		row.add_child(bar_track)
@@ -898,9 +928,9 @@ func _update_share_row(i: int, share: float) -> void:
 	var color: Color = ELIMINATED_COLOR if eliminated else _color_for_slot(i)
 	var bar: ColorRect = _share_bars[i]
 	bar.color = color
-	var width: float = SHARE_BAR_MAX_WIDTH * clampf(share, 0.0, 1.0)
-	bar.custom_minimum_size = Vector2(width, SHARE_BAR_HEIGHT)
-	bar.size = Vector2(width, SHARE_BAR_HEIGHT)
+	var width: float = hud_visual_tuning.share_bar_width_px * clampf(share, 0.0, 1.0)
+	bar.custom_minimum_size = Vector2(width, hud_visual_tuning.share_bar_height_px)
+	bar.size = Vector2(width, hud_visual_tuning.share_bar_height_px)
 	var label: Label = _share_labels[i]
 	label.text = "P%d: %.0f%%%s" % [i + 1, share * 100.0, "  (out)" if eliminated else ""]
 	var glyph: Control = _share_glyphs[i]

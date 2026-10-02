@@ -100,3 +100,16 @@ extends Resource
 ## Thin light inner border stroke around each share bar's track (owner
 ## review 2026-09-26: "thin light inner border").
 @export var hud_share_bar_border_color: Color = Color(1.0, 1.0, 1.0, 0.22)
+
+## Cream surface and ink type shared by the match HUD cards and menu panels.
+@export var surface_color: Color = Color(0.96, 0.92, 0.84, 0.96)
+@export var surface_border_color: Color = Color(0.20, 0.25, 0.27, 0.95)
+@export var ink_color: Color = Color(0.12, 0.18, 0.21)
+@export var muted_ink_color: Color = Color(0.32, 0.37, 0.38)
+@export var inner_surface_color: Color = Color(0.90, 0.85, 0.75, 0.95)
+@export var card_padding_px: float = 16.0
+@export var share_bar_width_px: float = 300.0
+@export var share_bar_height_px: float = 14.0
+## Reference height for proportional HUD scaling on high resolution screens.
+@export var reference_viewport_height_px: float = 720.0
+@export var maximum_hud_scale: float = 2.0
