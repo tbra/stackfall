@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1120" role="img" aria-labelledby="title desc">
+  <title id="title">Stackfall asset design system specimen</title>
+  <desc id="desc">A visual reference for the warm paper, coral, ink, teal and brass Stackfall asset language, with typography, input glyph, HUD, 3D and sound examples.</desc>
+  <defs>
+    <style>
+      .ink{fill:#26323A}.muted{fill:#697276}.paper{fill:#F5EBD6}.field{fill:#FFFAF0}.coral{fill:#EB6B5C}.teal{fill:#75CBD1}.brass{fill:#E8B85D}.violet{fill:#51445F}
+      .line{stroke:#26323A;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.label{font:700 16px Manrope,Arial,sans-serif;letter-spacing:2px}.body{font:600 18px Manrope,Arial,sans-serif}.small{font:600 14px Manrope,Arial,sans-serif}.heading{font:800 29px Manrope,Arial,sans-serif}.display{font:800 62px Manrope,Arial,sans-serif}.white{fill:#FFFAF0}
+    </style>
+    <linearGradient id="block" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#F7D48A"/><stop offset="1" stop-color="#DA9754"/></linearGradient>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#648FA1"/><stop offset="1" stop-color="#B8DAD3"/></linearGradient>
+  </defs>
+  <rect width="1600" height="1120" fill="#E7DEC9"/>
+  <rect width="1600" height="194" fill="#26323A"/>
+  <path d="M0 194H1600" stroke="#C7AD85" stroke-width="4"/>
+  <g transform="translate(70 48)">
+    <path d="M6 43 44 4 82 43 44 82Z" fill="#E8B85D" stroke="#FFFAF0" stroke-width="4"/>
+    <path d="M44 4v78M6 43h76" stroke="#26323A" stroke-width="4"/>
+    <path d="m26 25 18 18 18-18" fill="none" stroke="#26323A" stroke-width="4"/>
+  </g>
+  <text x="182" y="91" class="display white">STACKFALL</text>
+  <text x="185" y="132" class="label" fill="#E8B85D">ASSET DESIGN SYSTEM / CANDIDATE V1</text>
+  <text x="185" y="163" class="body" fill="#D0D9D8">A playful tabletop contest above a huge sky.</text>
+  <text x="1490" y="148" text-anchor="end" class="small" fill="#D0D9D8">02 OCT 2026</text>
+
+  <text x="70" y="246" class="label ink">01 / COLOR</text>
+  <g transform="translate(70 267)">
+    <rect width="1460" height="140" rx="20" fill="#FFFAF0" stroke="#C7AD85" stroke-width="2"/>
+    <g transform="translate(18 16)">
+      <rect width="198" height="68" rx="12" fill="#26323A"/><text x="12" y="100" class="small ink">INK  #26323A</text>
+      <rect x="204" width="198" height="68" rx="12" fill="#F5EBD6" stroke="#C7AD85"/><text x="216" y="100" class="small ink">PAPER  #F5EBD6</text>
+      <rect x="408" width="198" height="68" rx="12" fill="#EB6B5C"/><text x="420" y="100" class="small ink">CORAL  #EB6B5C</text>
+      <rect x="612" width="198" height="68" rx="12" fill="#75CBD1"/><text x="624" y="100" class="small ink">SKY TEAL  #75CBD1</text>
+      <rect x="816" width="198" height="68" rx="12" fill="#E8B85D"/><text x="828" y="100" class="small ink">BRASS  #E8B85D</text>
+      <rect x="1020" width="198" height="68" rx="12" fill="#51445F"/><text x="1032" y="100" class="small ink">VIOLET  #51445F</text>
+      <rect x="1224" width="198" height="68" rx="12" fill="#C7AD85"/><text x="1236" y="100" class="small ink">BORDER  #C7AD85</text>
+    </g>
+  </g>
+
+  <text x="70" y="459" class="label ink">02 / TYPE &amp; CONTROLS</text>
+  <rect x="70" y="480" width="700" height="266" rx="20" fill="#F5EBD6" stroke="#C7AD85" stroke-width="2"/>
+  <text x="99" y="530" class="small muted">MANROPE / 11 · 14 · 24 · 44</text>
+  <text x="99" y="587" class="heading ink">Build higher. Stay balanced.</text>
+  <text x="99" y="624" class="body ink">Readable shapes and calm hierarchy.</text>
+  <g transform="translate(99 654)">
+    <rect width="200" height="57" rx="16" fill="#EB6B5C"/><text x="100" y="37" text-anchor="middle" class="body white">Start match</text>
+    <rect x="215" width="177" height="57" rx="10" fill="#FFFAF0" stroke="#C7AD85" stroke-width="2"/><text x="303" y="37" text-anchor="middle" class="body ink">Match settings</text>
+    <circle cx="436" cy="29" r="21" fill="none" stroke="#26323A" stroke-width="3"/><path d="m428 29 7 7 11-14" fill="none" class="line"/>
+    <text x="468" y="35" class="small ink">Visible focus</text>
+  </g>
+
+  <rect x="790" y="480" width="740" height="266" rx="20" fill="#FFFAF0" stroke="#C7AD85" stroke-width="2"/>
+  <text x="820" y="530" class="small muted">INPUT GLYPH GRAMMAR / 32 PX TARGET</text>
+  <g transform="translate(824 560)">
+    <g class="line"><rect width="64" height="64" rx="12" fill="#F5EBD6"/><path d="M5 51h54" fill="none"/></g><text x="32" y="42" text-anchor="middle" class="heading ink">E</text><text x="32" y="92" text-anchor="middle" class="small ink">KEY</text>
+    <g transform="translate(108)"><path d="M7 27a25 25 0 0 1 50 0v12a25 25 0 0 1-50 0Z" fill="#F5EBD6" class="line"/><path d="M32 2v28M7 29h50" fill="none" class="line"/><path d="M7 28V27a25 25 0 0 1 25-25v27Z" fill="#EB6B5C" stroke="#26323A" stroke-width="3"/><text x="32" y="92" text-anchor="middle" class="small ink">MOUSE</text></g>
+    <g transform="translate(220)"><circle cx="32" cy="32" r="31" fill="#65B862" class="line"/><circle cx="32" cy="32" r="23" fill="none" stroke="#FFFAF0" stroke-width="2"/><text x="32" y="43" text-anchor="middle" class="heading white">A</text><text x="32" y="92" text-anchor="middle" class="small ink">FACE</text></g>
+    <g transform="translate(330)"><path d="M23 2h18v20h21v20H41v20H23V42H2V22h21Z" fill="#F5EBD6" class="line"/><path d="M23 2h18v21H23Z" fill="#EB6B5C"/><path d="M23 22h18" fill="none" class="line"/><text x="32" y="92" text-anchor="middle" class="small ink">D-PAD</text></g>
+    <g transform="translate(445)"><rect x="1" y="7" width="77" height="49" rx="14" fill="#F5EBD6" class="line"/><path d="M7 44h65" fill="none" class="line"/><text x="40" y="40" text-anchor="middle" class="body ink">LB</text><text x="40" y="92" text-anchor="middle" class="small ink">SHOULDER</text></g>
+    <g transform="translate(580)"><circle cx="32" cy="32" r="30" fill="#F5EBD6" class="line"/><circle cx="32" cy="32" r="13" fill="#75CBD1" class="line"/><circle cx="32" cy="32" r="4" fill="#26323A"/><text x="32" y="92" text-anchor="middle" class="small ink">STICK</text></g>
+  </g>
+
+  <text x="70" y="798" class="label ink">03 / HUD, OBJECT &amp; SOUND</text>
+  <rect x="70" y="819" width="480" height="236" rx="20" fill="#F5EBD6" stroke="#C7AD85" stroke-width="2"/>
+  <text x="99" y="855" class="small muted">HUD CARD / ONE CLEAR STATE</text>
+  <rect x="99" y="879" width="422" height="142" rx="12" fill="#FFFAF0" stroke="#C7AD85" stroke-width="2"/>
+  <circle cx="151" cy="935" r="31" fill="#E8B85D" class="line"/><path d="m151 911 7 17 17 7-17 7-7 17-7-17-17-7 17-7Z" fill="#FFFAF0" stroke="#26323A" stroke-width="2"/>
+  <text x="202" y="924" class="small muted">HELD GIFT</text><text x="202" y="953" class="heading ink">Magnet</text>
+  <rect x="202" y="975" width="270" height="12" rx="6" fill="#D9CBB2"/><rect x="202" y="975" width="177" height="12" rx="6" fill="#EB6B5C"/>
+
+  <rect x="570" y="819" width="480" height="236" rx="20" fill="url(#sky)" stroke="#C7AD85" stroke-width="2"/>
+  <text x="599" y="855" class="small" fill="#26323A">3D / BROAD PLANES, BOLD SILHOUETTE</text>
+  <ellipse cx="810" cy="1010" rx="155" ry="22" fill="#26323A" opacity=".22"/>
+  <path d="m707 914 96-46 103 48-97 46Z" fill="#F7D48A" class="line"/>
+  <path d="m707 914 102 48v67l-102-47Z" fill="#E8B85D" class="line"/>
+  <path d="m809 962 97-46v66l-97 47Z" fill="#DA9754" class="line"/>
+  <path d="m735 921 68-33 72 33" fill="none" stroke="#FFFAF0" stroke-width="5" stroke-linecap="round"/>
+
+  <rect x="1070" y="819" width="460" height="236" rx="20" fill="#26323A"/>
+  <text x="1099" y="855" class="small" fill="#D0D9D8">SOUND / TACTILE ATTACK, AIRY TAIL</text>
+  <path d="M1100 943h22l8-16 11 35 13-61 13 89 13-65 12 31 12-21 13 15 15-12 14 8 14-5 16 3 16-2 16 1h78" fill="none" stroke="#E8B85D" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="1099" y="1010" class="body" fill="#FFFAF0">Click · thud · three-note glint</text>
+  <text x="70" y="1093" class="small muted">Asset reference only. Live UI theme and runtime glyphs are unchanged.</text>
+  <text x="1530" y="1093" text-anchor="end" class="small muted">Bontago-mp0.38</text>
+</svg>
