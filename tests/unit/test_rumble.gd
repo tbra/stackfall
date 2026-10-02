@@ -35,7 +35,7 @@ func after_each() -> void:
 	Rumble.start_vibration_fn = Callable(Rumble, "_start_vibration_real")
 	Rumble.stop_vibration_fn = Callable(Rumble, "_stop_vibration_real")
 	Rumble.set_last_device_for_test(Rumble.DEVICE_NONE, &"")
-	Settings.set_config_path_for_test("user://settings.cfg")
+	Settings.set_config_path_for_test(Settings.default_config_path())
 	_delete_if_exists(_settings_cfg_path)
 
 

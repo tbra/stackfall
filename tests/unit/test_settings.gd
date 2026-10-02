@@ -401,3 +401,23 @@ func _events_contain_joy(events: Array[InputEvent], button_index: JoyButton) -> 
 		if event is InputEventJoypadButton and (event as InputEventJoypadButton).button_index == button_index:
 			return true
 	return false
+
+
+## Bontago-1pi.20: in a GUT run, restoring the "default" (real) path then saving
+## must never touch the owner's user://settings.cfg.
+func test_gut_run_never_touches_real_settings_file() -> void:
+	var real: String = Settings.REAL_CONFIG_PATH
+	var existed: bool = FileAccess.file_exists(real)
+	var mtime: int = FileAccess.get_modified_time(real) if existed else 0
+	var content: String = FileAccess.get_file_as_string(real) if existed else ""
+	var other: Node = autofree(SETTINGS_SCRIPT.new())
+	add_child_autofree(other)
+	other.set_config_path_for_test(real)
+	assert_ne(other.effective_path(), real, "real path maps to the per-PID GUT path")
+	other.set_master_volume_percent(0.5)
+	assert_eq(FileAccess.file_exists(real), existed, "real file existence unchanged")
+	if existed:
+		assert_eq(FileAccess.get_modified_time(real), mtime, "mtime unchanged")
+		assert_eq(FileAccess.get_file_as_string(real), content, "content unchanged")
+	assert_true(FileAccess.file_exists(other.effective_path()), "saved to the GUT file instead")
+	DirAccess.remove_absolute(other.effective_path())

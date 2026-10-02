@@ -17,7 +17,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	Settings.set_config_path_for_test("user://settings.cfg")
+	Settings.set_config_path_for_test(Settings.default_config_path())
 	_delete_if_exists(_settings_cfg_path)
 
 

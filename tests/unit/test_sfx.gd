@@ -71,7 +71,7 @@ func after_each() -> void:
 	# Restore the real Settings singleton to its own persisted file so later
 	# tests (and the owner's real user://settings.cfg) never see this test
 	# file's temp custom_music_dir/master_volume_db values.
-	Settings.set_config_path_for_test("user://settings.cfg")
+	Settings.set_config_path_for_test(Settings.default_config_path())
 	_delete_if_exists(_settings_cfg_path)
 
 

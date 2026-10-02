@@ -24,7 +24,7 @@ extends GutTest
 const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
 const KEY_REBIND_ROW_SCENE: PackedScene = preload("res://ui/KeyRebindRow.tscn")
 const SETTINGS_SCRIPT: GDScript = preload("res://autoload/Settings.gd")
-const DEFAULT_SETTINGS_CFG_PATH: String = "user://settings.cfg"
+var DEFAULT_SETTINGS_CFG_PATH: String = Settings.default_config_path()
 
 var _test_action: StringName = &"options_menu_test_action"
 
