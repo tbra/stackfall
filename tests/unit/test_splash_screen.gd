@@ -13,7 +13,8 @@ func test_assets_and_settings() -> void:
 	assert_true(load(SplashScreen.IMAGE_PATH) is Texture2D)
 	assert_true(load(SplashScreen.PIECES_PATH) is Texture2D)
 	assert_true(load(SplashScreen.WORDMARK_PATH) is Texture2D)
-	assert_eq(ProjectSettings.get_setting("application/boot_splash/image"), SplashScreen.IMAGE_PATH)
+	assert_eq(ProjectSettings.get_setting("application/boot_splash/bg_color"), Color.BLACK)
+	assert_false(ProjectSettings.get_setting("application/boot_splash/show_image") as bool)
 	assert_eq(ProjectSettings.get_setting("application/config/icon"), "res://assets/ui/stackfall_mark.svg")
 
 
@@ -24,6 +25,24 @@ func test_finish_emits_once() -> void:
 	splash.finish()
 	splash.finish()
 	assert_signal_emit_count(splash, "finished", 1)
+
+
+func test_black_frames_hold_visuals_and_jingle_until_start() -> void:
+	var splash: SplashScreen = SplashScreen.new()
+	add_child_autofree(splash)
+	splash.set_process(false)
+	assert_true(splash._black_cover.visible)
+	assert_eq(splash._black_cover.color, Color.BLACK)
+	assert_false(splash._player.playing)
+	for frame: int in range(SplashScreen.TUNING.black_frames):
+		splash._process(0.0)
+		assert_true(splash._black_cover.visible, "black frame %d" % frame)
+		assert_false(splash._player.playing)
+	splash._process(0.0)
+	assert_false(splash._black_cover.visible)
+	assert_true(splash._started)
+	assert_true(splash._player.playing)
+	splash.finish()
 
 
 func test_blocks_land_separately_then_wordmark_slams_in() -> void:
