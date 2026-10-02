@@ -175,6 +175,9 @@ var _pending_spawn_top_y: float = 0.0
 ## so the raise can be taken back off at the next spawn / decayed away, which
 ## is what stops it compounding drop after drop.
 var _clearance_raise: float = 0.0
+## Part of the hover offset/_clearance_raise added by the release-time lift
+## (_clear_ghost_before_release()); undone if the host refuses the release.
+var _release_raise: float = 0.0
 
 ## Bontago-mv0.18 (in-game tuning panel): ui/TuningPanel.gd sets this false
 ## while it is open, so dragging a slider or clicking Reset/Save/Copy can't
@@ -822,6 +825,7 @@ func _intent_target() -> Variant:
 func _request_place(auto_drop: bool) -> StringName:
 	var slot_id: int = _acting_slot()
 	var membrane: Variant = _intent_target()
+	_clear_ghost_before_release()
 	# Bontago-mv0.30: record what this request is about to occupy *before*
 	# sending it -- on the host this resolves synchronously inside the call
 	# below (Events.placement_rejected/placement_relocated/feed_block_issued
@@ -861,6 +865,7 @@ func _request_place(auto_drop: bool) -> StringName:
 func _request_throw(velocity: Vector3) -> StringName:
 	var slot_id: int = _acting_slot()
 	var membrane: Variant = _intent_target()
+	_clear_ghost_before_release()
 	_pending_spawn_active = true
 	_pending_spawn_top_y = _ghost.projection_span_y().x
 	if membrane == null:
@@ -1212,6 +1217,13 @@ func _apply_spawn_clearance() -> void:
 	if _ghost == null or _ghost.get_shape() == null:
 		return
 	_refresh_ghost_pose()
+	_raise_ghost_until_clear()
+
+
+## Raises the held ghost by the minimum hover amount that leaves it clear of
+## every placed block; a no-op when it already is. Shared by the post-placement
+## spawn clearance and the release-time guard (_clear_ghost_before_release()).
+func _raise_ghost_until_clear() -> void:
 	if not _ghost_overlaps_a_placed_block():
 		return
 	var base_offset: float = _ghost.manual_hover_offset
@@ -1239,11 +1251,41 @@ func _apply_spawn_clearance() -> void:
 				high = mid
 	var raise_amount: float = minf(high + ghost_tuning.spawn_clearance, cap)
 	_ghost.manual_hover_offset = base_offset + raise_amount
-	_clearance_raise = raise_amount
+	_clearance_raise += raise_amount
 	_ghost.update_placement(_last_hit_point, _last_hit_normal)
 	if _camera_rig != null and raise_amount > 0.0:
 		# One discontinuous re-target: ease the camera onto the raised ghost.
 		_camera_rig.begin_follow_transition()
+
+
+## Bontago-1pi.14 round 3 (owner playtest 2026-10-02: the dropped block gets
+## displaced): the host spawns a released block exactly where the ghost
+## stands and never checks it for overlap, so a pose that interpenetrates a
+## placed block makes Jolt shove the older body out of the way. The
+## post-placement clearance only looks once, before the previous block has
+## replicated/settled (always, on a client), and a rotation is not swept at
+## all. So every release re-checks the pose and lifts it just clear first.
+##
+## DECISION: shares spawn_clearance_enabled with the post-placement raise
+## (the toggle gates only this client-side prediction; the host's overlap
+## validation is unconditional), and runs on the pose that is about to be
+## sent, so what the player sees is what the host spawns.
+func _clear_ghost_before_release() -> void:
+	_release_raise = 0.0
+	if not ghost_tuning.spawn_clearance_enabled or _ghost == null or _ghost.get_shape() == null:
+		return
+	var offset_before: float = _ghost.manual_hover_offset
+	_raise_ghost_until_clear()
+	_release_raise = _ghost.manual_hover_offset - offset_before
+
+
+## Bontago-1pi.14 round 3: a refused release spawned nothing, so the
+## predictive lift made for it must not linger on the held ghost.
+func _undo_release_raise() -> void:
+	if _release_raise > 0.0 and _ghost != null:
+		_ghost.manual_hover_offset = maxf(_ghost.manual_hover_offset - _release_raise, 0.0)
+		_clearance_raise = maxf(_clearance_raise - _release_raise, 0.0)
+	_release_raise = 0.0
 
 
 ## Removes the spawn-clearance share from the hover offset (back to the
@@ -1344,6 +1386,7 @@ func _on_placement_rejected(slot_id: int, _reason: StringName) -> void:
 	if slot_id != _acting_slot() or _ghost == null:
 		return
 	_intent_lock_left = 0.0
+	_undo_release_raise()
 	# Bontago-1en.14 (M4 P2d): a refused throw/place leaves the same piece in
 	# hand (spec 2.5 "an invalid manual click does not drop and does not
 	# consume the piece"), but this controller's own in-flight aim (if any)

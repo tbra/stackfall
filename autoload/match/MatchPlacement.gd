@@ -48,6 +48,12 @@ var _blocks_spawned: int = 0
 ## Match.gd itself preloads _physics_tuning/_territory_tuning etc.
 var _special_tuning: SpecialTuning = preload("res://config/special_tuning.tres")
 var _glue_drop_tuning: GlueDropTuning = preload("res://config/glue_drop_tuning.tres")
+var _ghost_tuning: GhostTuning = preload("res://config/ghost_tuning.tres")
+# DECISION (Bontago-1pi.14 round 3): numeric guards, not gameplay tunables --
+# a floor so a zero/negative step cannot loop forever, and float slack so the
+# final step landing on the cap is still tried.
+const MIN_CLEARANCE_STEP: float = 0.001
+const CLEARANCE_CAP_EPSILON: float = 0.0001
 
 ## _spawn_block()'s SpecialDef-by-id cache (M4 P2c), rebuilt once per match:
 ## `_special_defs_config` is compared by *identity*, not equality, against
@@ -250,6 +256,13 @@ func request_place(
 	var final_world_origin: Vector3 = _match._field.to_global(Vector3(
 		final_disk_origin.x, local_origin.y, final_disk_origin.y
 	))
+	if reason == PlacementRules.REASON_OK:
+		# Bontago-1pi.14 round 3: host-side spawn validation (see _lift_pose_clear()).
+		var lifted: Variant = _lift_pose_clear(shape, final_world_origin, basis, auto_drop)
+		if lifted == null:
+			Events.placement_rejected.emit(slot_id, PlacementRules.REASON_NO_BLOCK)
+			return PlacementRules.REASON_NO_BLOCK
+		final_world_origin = lifted as Vector3
 	# Bontago-t8x.1: only a non-burn spawn delivers the gift (a burn keeps it queued).
 	var gift_id: StringName = _held_deliverable_gift(slot_id) if reason == PlacementRules.REASON_OK else &""
 	var spawned: Block = _spawn_block(shape, final_world_origin, basis, slot_id, true, gift_id)
@@ -407,6 +420,14 @@ func request_throw(
 
 	var clamped_velocity: Vector3 = velocity.limit_length(_special_tuning.throw_max_speed)
 	var world_origin: Vector3 = _match._field.to_global(Vector3(disk_origin.x, local_origin.y, disk_origin.y))
+	# Bontago-1pi.14 round 3: the throw spawns at the client-sent pose too, so
+	# it gets the same host overlap validation (a manual intent: refused, the
+	# special stays in hand, when no lift clears it).
+	var lifted: Variant = _lift_pose_clear(shape, world_origin, basis, false)
+	if lifted == null:
+		Events.placement_rejected.emit(slot_id, PlacementRules.REASON_NO_BLOCK)
+		return PlacementRules.REASON_NO_BLOCK
+	world_origin = lifted as Vector3
 	var spawned: Block = _spawn_block(
 		shape, world_origin, basis, slot_id, true, _held_deliverable_gift(slot_id)
 	)
@@ -495,6 +516,72 @@ func spawn_special_projectile(
 	spawned.linear_velocity = initial_velocity
 	spawned.continuous_cd = initial_velocity.length() > effective_tuning.ccd_speed_threshold_mps
 	return spawned
+
+
+## Bontago-1pi.14 round 3 (owner playtest: dropped blocks get shoved): the
+## client lifts its ghost clear of placed blocks as a prediction, but a late
+## replication, a rotation or a hostile client can still send a pose that
+## interpenetrates a placed block, and Jolt then ejects the older body. The
+## host never trusts the pose: it tests the block's collision boxes at that
+## transform against every placed body and, if they overlap, lifts the pose
+## straight up by the minimum clearance (same rule/tunables as
+## PlayerController._raise_ghost_until_clear(), so host and client agree).
+## Returns the (possibly lifted) origin, or null when no lift within
+## GhostTuning.spawn_clearance_max_raise clears it.
+##
+## DECISION: an unresolvable manual release is refused like any invalid intent
+## (nothing spent); an unresolvable auto-drop still spawns at the maximum lift
+## because the forced release must never lose the block.
+func _lift_pose_clear(shape: BlockShape, origin: Vector3, basis: Basis, auto_drop: bool) -> Variant:
+	var tuning: GhostTuning = _ghost_tuning
+	# DECISION: unconditional -- this is intent validation, not the client's
+	# predictive lift, so GhostTuning.spawn_clearance_enabled does not gate it.
+	if _match._blocks_parent == null:
+		return origin
+	var world: World3D = _match._blocks_parent.get_viewport().world_3d if _match._blocks_parent.is_inside_tree() else null
+	if world == null:
+		return origin
+	if not _pose_overlaps(world.direct_space_state, shape, origin, basis, tuning):
+		return origin
+	var step: float = maxf(tuning.spawn_clearance_step, MIN_CLEARANCE_STEP)
+	var cap: float = tuning.spawn_clearance_max_raise
+	var low: float = 0.0
+	var high: float = -1.0
+	var raise_try: float = step
+	while raise_try <= cap + CLEARANCE_CAP_EPSILON:
+		var r: float = minf(raise_try, cap)
+		if not _pose_overlaps(world.direct_space_state, shape, origin + Vector3.UP * r, basis, tuning):
+			high = r
+			break
+		low = raise_try
+		raise_try += step
+	if high < 0.0:
+		return origin + Vector3.UP * cap if auto_drop else null
+	for _i: int in range(tuning.spawn_clearance_bisect_steps):
+		var mid: float = (low + high) * 0.5
+		if _pose_overlaps(world.direct_space_state, shape, origin + Vector3.UP * mid, basis, tuning):
+			low = mid
+		else:
+			high = mid
+	return origin + Vector3.UP * minf(high + tuning.spawn_clearance, cap)
+
+
+func _pose_overlaps(space: PhysicsDirectSpaceState3D, shape: BlockShape, origin: Vector3, basis: Basis, tuning: GhostTuning) -> bool:
+	var physics: PhysicsTuning = _match._physics_tuning
+	var box: BoxShape3D = BoxShape3D.new()
+	box.size = Vector3.ONE * (physics.cube_size - physics.cube_margin)
+	var pivot: Vector3 = shape.bottom_center()
+	for cell: Vector3i in shape.cells:
+		var params: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
+		params.shape = box
+		params.transform = Transform3D(basis, origin + basis * ((Vector3(cell) - pivot) * physics.cube_size))
+		params.collide_with_bodies = true
+		params.collide_with_areas = false
+		params.collision_mask = Field.PLACEMENT_QUERY_MASK
+		for overlap: Dictionary in space.intersect_shape(params, tuning.collision_probe_max_bodies):
+			if overlap.get("collider") is RigidBody3D:
+				return true
+	return false
 
 
 ## Whether a pose can be evaluated at all: a finite origin, a free quaternion
