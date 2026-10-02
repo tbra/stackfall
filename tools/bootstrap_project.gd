@@ -141,11 +141,13 @@ func _apply_settings() -> void:
 		# WINDOW_MODE_BORDERLESS_FULLSCREEN case makes at runtime. Does not
 		# UI uses a 720p logical canvas so fullscreen/high-DPI displays keep
 		# readable controls; expand preserves additional ultrawide space.
-		# Bontago-59o.1/.2: engine boot splash (ui/SplashScreen.gd shows the
-		# same image in-engine with the jingle) and the game icon.
+		# Bontago-mp0.9: engine boot splash stays black until
+		# ui/SplashScreen.gd reveals the image with the jingle.
 		"application/config/icon": "res://assets/ui/stackfall_mark.svg",
-		"application/boot_splash/bg_color": Color(0.035, 0.05, 0.16, 1),
-		"application/boot_splash/image": "res://assets/ui/slopshop_intro_bg.png",
+		# DECISION: the engine's loading image is suppressed so launch stays
+		# black until the in-engine splash can start visuals and audio together.
+		"application/boot_splash/bg_color": Color.BLACK,
+		"application/boot_splash/show_image": false,
 		"application/boot_splash/minimum_display_time": 0,
 		"application/boot_splash/stretch_mode": 1,
 		"application/boot_splash/use_filter": true,

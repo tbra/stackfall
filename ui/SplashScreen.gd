@@ -1,7 +1,7 @@
 class_name SplashScreen
 extends CanvasLayer
-## In-engine SlopShop intro. The engine shows the matching empty background
-## during loading; then four blocks land on successive jingle beats, the
+## In-engine SlopShop intro. The engine holds black during loading; then four
+## blocks land on successive jingle beats, the
 ## wordmark slams in, and the complete mark keeps punching with later beats.
 ## Keyboard, gamepad, and mouse can skip at any time.
 
@@ -12,6 +12,7 @@ const PIECES_PATH: String = "res://assets/ui/slopshop_intro_pieces.png"
 const WORDMARK_PATH: String = "res://assets/ui/slopshop_intro_wordmark.png"
 const JINGLE_PATH: String = "res://assets/ui/slopshop_jingle.mp3"
 const SETTING_BG_COLOR: String = "application/boot_splash/bg_color"
+const TUNING: SplashTuning = preload("res://config/splash_tuning.tres")
 const SPLASH_LAYER: int = 128
 const DESIGN_SIZE: Vector2 = Vector2(1280.0, 720.0)
 const BLOCK_SCALE: float = 0.45
@@ -44,6 +45,9 @@ var _blocks: Array[Sprite2D] = []
 var _wordmark: Sprite2D
 var _flash: ColorRect
 var _flash_tween: Tween
+var _black_cover: ColorRect
+var _black_frames: int = 0
+var _started: bool = false
 var _done: bool = false
 
 
@@ -80,6 +84,11 @@ func _ready() -> void:
 	_flash.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_flash)
+	_black_cover = ColorRect.new()
+	_black_cover.color = Color.BLACK
+	_black_cover.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_black_cover.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_black_cover)
 
 	var stream: AudioStream = load(JINGLE_PATH) as AudioStream
 	if stream == null:
@@ -90,6 +99,26 @@ func _ready() -> void:
 	_player.volume_db = Settings.master_volume_db() + Settings.music_volume_db()
 	_player.finished.connect(finish)
 	add_child(_player)
+	# DECISION: count full process frames behind an opaque cover. The first
+	# visible splash frame and the jingle share one start point after the hold.
+	set_process(true)
+
+
+func _process(_delta: float) -> void:
+	if _done or _started:
+		return
+	if _black_frames < TUNING.black_frames:
+		_black_frames += 1
+		return
+	_start_splash()
+
+
+func _start_splash() -> void:
+	if _done or _started:
+		return
+	_started = true
+	set_process(false)
+	_black_cover.visible = false
 	_player.play()
 	_schedule_sequence()
 
