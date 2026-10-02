@@ -1328,11 +1328,21 @@ func _is_settled_body(body: RigidBody3D) -> bool:
 ## Raises the held ghost by the minimum hover amount that leaves it clear of
 ## every placed block; a no-op when it already is. Shared by the post-placement
 ## spawn clearance and the release-time guard (_clear_ghost_before_release()).
-func _raise_ghost_until_clear() -> void:
+##
+## Bontago-1pi.24 (regression found by test_tower_placement): `for_release`
+## lifts are limited only by the hover ceiling, not by spawn_clearance_max_raise.
+## DECISION: the settle wait keeps the held ghost unraised until the previous
+## block rests, so the release-time lift (which protects the real spawn from
+## interpenetrating a placed block) can no longer lean on a raise carried over
+## from the post-placement clearance; capped at max_raise it could not clear a
+## tower taller than that and the host spawned the block inside it.
+func _raise_ghost_until_clear(for_release: bool = false) -> void:
 	if not _ghost_overlaps_a_placed_block():
 		return
 	var base_offset: float = _ghost.manual_hover_offset
-	var cap: float = minf(ghost_tuning.spawn_clearance_max_raise, maxf(_hover_offset_ceiling() - base_offset, 0.0))
+	var cap: float = maxf(_hover_offset_ceiling() - base_offset, 0.0)
+	if not for_release:
+		cap = minf(ghost_tuning.spawn_clearance_max_raise, cap)
 	var step: float = maxf(ghost_tuning.spawn_clearance_step, 0.001)
 	# Linear search for the first clear raise, then bisect inside that last step
 	# so the raise is (nearly) the minimum that clears.
@@ -1380,7 +1390,7 @@ func _clear_ghost_before_release() -> void:
 	if not ghost_tuning.spawn_clearance_enabled or _ghost == null or _ghost.get_shape() == null:
 		return
 	var offset_before: float = _ghost.manual_hover_offset
-	_raise_ghost_until_clear()
+	_raise_ghost_until_clear(true)
 	_release_raise = _ghost.manual_hover_offset - offset_before
 
 
