@@ -65,17 +65,21 @@ const SKY_THEME_IDS: PackedStringArray = ["sunset", "night", "dawn"]
 ## from_dict() (so a wire value can never start a mode with no objective)
 ## fall back to CLASSIC. A mode package makes its id selectable by adding it
 ## to SELECTABLE_GAME_MODES and giving ModeObjective.create() a branch.
-enum GameMode { CLASSIC, CAPTURE_THE_FLAG, ELIMINATION, REACH_THE_SKY }
+enum GameMode { CLASSIC, CAPTURE_THE_FLAG, ELIMINATION, REACH_THE_SKY, DOMINATION }
 const SELECTABLE_GAME_MODES: Array[int] = [
-	GameMode.CLASSIC, GameMode.CAPTURE_THE_FLAG, GameMode.ELIMINATION, GameMode.REACH_THE_SKY
+	GameMode.CLASSIC, GameMode.CAPTURE_THE_FLAG, GameMode.ELIMINATION, GameMode.REACH_THE_SKY,
+	GameMode.DOMINATION
 ]
 ## Lobby labels, indexed by GameMode.
-const GAME_MODE_LABELS: PackedStringArray = ["Classic", "Capture the Flag", "Elimination", "Reach the Sky"]
+const GAME_MODE_LABELS: PackedStringArray = ["Classic", "Capture the Flag", "Elimination", "Reach the Sky", "Domination"]
 ## Round timer (timed modes only), minutes. Classic keeps match_timer_minutes.
 const ROUND_TIMER_MIN_MINUTES: int = 1
 const ROUND_TIMER_MAX_MINUTES: int = 40
 ## Round length a CTF / Reach the Sky match starts from (matches round_timer_minutes).
 const ROUND_TIMER_DEFAULT_MINUTES: int = 10
+## Domination (Bontago-1pi.25) always needs a timer (it has no early win); this is
+## the round length it starts from when the lobby has none to carry over.
+const DOMINATION_ROUND_MINUTES_DEFAULT: int = 10
 ## Elimination alone may switch its round timer off (0): it then runs until one
 ## team is left. Every other timed mode needs a timer to end.
 const ROUND_TIMER_OFF_MINUTES: int = 0
@@ -246,6 +250,8 @@ static func timer_default_minutes(mode: int) -> int:
 	match resolve_game_mode(mode):
 		GameMode.CLASSIC, GameMode.ELIMINATION:
 			return 0
+		GameMode.DOMINATION:
+			return DOMINATION_ROUND_MINUTES_DEFAULT
 	return ROUND_TIMER_DEFAULT_MINUTES
 
 
@@ -275,7 +281,7 @@ static func resolve_game_mode(mode: int) -> GameMode:
 ## Reach the Sky and Elimination have no goal flag at all.
 static func mode_uses_goal_flags(mode: int) -> bool:
 	var resolved: GameMode = resolve_game_mode(mode)
-	return resolved != GameMode.REACH_THE_SKY and resolved != GameMode.ELIMINATION
+	return resolved != GameMode.REACH_THE_SKY and resolved != GameMode.ELIMINATION and resolved != GameMode.DOMINATION
 
 
 ## Goal flags this match actually spawns: goal_flag_count, or 0 when the mode

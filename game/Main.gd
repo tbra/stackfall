@@ -818,6 +818,8 @@ func _mode_arg(args: PackedStringArray) -> int:
 				return MatchConfig.GameMode.ELIMINATION
 			"sky", "reach_the_sky":
 				return MatchConfig.GameMode.REACH_THE_SKY
+			"domination":
+				return MatchConfig.GameMode.DOMINATION
 		if value.is_valid_int():
 			var id: int = int(value)
 			if MatchConfig.resolve_game_mode(id) != id:

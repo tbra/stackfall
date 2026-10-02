@@ -137,7 +137,8 @@ func _build_territory() -> void:
 		_match.config.game_mode, goal_positions, _match._territory_tuning.capture_hold, _match.config.team_count(),
 		_match._territory_tuning.ctf_score_per_beacon_second,
 		_match._territory_tuning.ctf_replicate_interval_s,
-		_sky_slot_teams(), _match.config.sky_team_sum, _match._territory_tuning.sky_replicate_interval_s
+		_sky_slot_teams(), _match.config.sky_team_sum, _match._territory_tuning.sky_replicate_interval_s,
+		_match._territory_tuning.domination_replicate_interval_s
 	)
 	_objective.set_claim_radius(_claim_radius())
 	_connect_sky_records()
