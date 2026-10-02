@@ -78,6 +78,14 @@ func _make_row() -> KeyRebindRow:
 
 # --- Graphics preset ----------------------------------------------------------
 
+func test_adaptive_quality_check_defaults_off_and_toggles_the_setting() -> void:
+	var menu: OptionsMenu = _make_menu()
+	var check: CheckButton = menu.get_node("%AdaptiveQualityCheck") as CheckButton
+	assert_false(check.button_pressed, "Adaptive quality defaults to OFF")
+	menu._on_adaptive_quality_toggled(true)
+	assert_true(_settings_of(menu).adaptive_quality_enabled())
+
+
 func test_preset_selection_calls_set_graphics_preset_with_matching_id() -> void:
 	var menu: OptionsMenu = _make_menu()
 	menu._on_preset_selected(OptionsMenu.PRESET_IDS.find(&"high"))
@@ -466,7 +474,9 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	var rumble_check: Control = menu.get_node("%RumbleEnabledCheck") as Control
 	var rumble_slider: Control = menu.get_node("%RumbleStrengthSlider") as Control
 	var move_speed_slider: Control = menu.get_node("%MoveSpeedSlider") as Control
-	assert_eq(camera_shake_check.get_node(camera_shake_check.focus_neighbor_bottom), master_mute, "CameraShakeCheck must move focus down to MasterMuteButton")
+	var adaptive_check: Control = menu.get_node("%AdaptiveQualityCheck") as Control
+	assert_eq(camera_shake_check.get_node(camera_shake_check.focus_neighbor_bottom), adaptive_check, "CameraShakeCheck must move focus down to AdaptiveQualityCheck")
+	assert_eq(adaptive_check.get_node(adaptive_check.focus_neighbor_bottom), master_mute, "AdaptiveQualityCheck must move focus down to MasterMuteButton")
 	assert_eq(rumble_check.get_node(rumble_check.focus_neighbor_bottom), rumble_slider, "RumbleEnabledCheck must move focus down to RumbleStrengthSlider")
 	assert_eq(rumble_slider.get_node(rumble_slider.focus_neighbor_bottom), move_speed_slider, "RumbleStrengthSlider must move focus down to MoveSpeedSlider")
 	assert_eq(move_speed_slider.get_node(move_speed_slider.focus_neighbor_bottom), rows[0].rebind_button(), "MoveSpeedSlider must move focus down to the first rebind row")

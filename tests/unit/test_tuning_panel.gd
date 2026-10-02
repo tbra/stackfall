@@ -890,6 +890,7 @@ func test_m7_config_resources_have_complete_hints() -> void:
 		# Bontago-adt.2: the disc-top surface sets (texture and procedural).
 		DiscSurfaceDef.new(),
 		AmbientLifeConfig.new(),
+		QualityGovernorConfig.new(),
 	]
 
 	var hints: TuningPanelHints = _panel.hints

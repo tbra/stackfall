@@ -13,6 +13,8 @@ extends Node
 
 signal graphics_preset_changed(preset: GraphicsPreset)
 signal audio_settings_changed()
+## Bontago-1pi.11.37: the "Adaptive quality" option flipped.
+signal adaptive_quality_setting_changed(enabled: bool)
 signal camera_shake_setting_changed(enabled: bool)
 signal window_mode_changed(id: StringName)
 
@@ -58,6 +60,7 @@ const SECTION_DEBUG: String = "debug"
 const KEY_DEBUG_ENABLED: String = "enabled"
 
 const KEY_PRESET: String = "preset"
+const KEY_ADAPTIVE_QUALITY: String = "adaptive_quality"
 ## Legacy pre-options-package key: a single dB value (-40..6). Only ever read
 ## now, as a one-time migration source for KEY_MASTER_VOLUME_PERCENT below
 ## (see _load()'s own DECISION) -- never written again.
@@ -148,6 +151,12 @@ const DEFAULT_STICK_MOVE_SPEED_SCALE: float = 1.0
 
 var _config_path: String = "user://settings.cfg"
 var _current_preset_id: StringName = DEFAULT_PRESET_ID
+## Bontago-1pi.11.37: opt-in adaptive quality. Default OFF (owner decides). The level is
+## runtime-only (never saved) and only ever layered over the stored preset.
+const DEFAULT_ADAPTIVE_QUALITY: bool = false
+var _adaptive_quality: bool = DEFAULT_ADAPTIVE_QUALITY
+var _governor_level: int = 0
+var _governor_config: QualityGovernorConfig = preload("res://config/quality_governor.tres")
 
 ## Keyed by AudioChannel; see the enum's own doc above. Muting never touches
 ## the stored percent -- toggling mute back off simply reveals whatever
@@ -238,8 +247,44 @@ func set_active_input_device_for_test(family: StringName) -> void:
 	Events.input_device_changed.emit(_active_device)
 
 
+## The preset consumers should apply: the stored one, with the governor's temporary
+## overrides on a duplicate while it has shed steps.
 func current_graphics_preset() -> GraphicsPreset:
+	return QualityGovernor.apply(stored_graphics_preset(), _governor_level, _governor_config)
+
+
+## The user's chosen preset exactly as stored (never carries governor overrides).
+func stored_graphics_preset() -> GraphicsPreset:
 	return _load_preset_resource(_current_preset_id)
+
+
+func adaptive_quality_enabled() -> bool:
+	return _adaptive_quality
+
+
+func set_adaptive_quality_enabled(enabled: bool) -> void:
+	if enabled == _adaptive_quality:
+		return
+	_adaptive_quality = enabled
+	_save()
+	if not enabled:
+		set_governor_level(0)
+	adaptive_quality_setting_changed.emit(enabled)
+
+
+func governor_level() -> int:
+	return _governor_level
+
+
+## Runtime-only; ignored (forced to 0) while the option is off.
+func set_governor_level(level: int) -> void:
+	var clamped: int = clampi(level, 0, QualityGovernor.LEVEL_RENDER_SCALE) if _adaptive_quality else 0
+	if clamped == _governor_level:
+		return
+	_governor_level = clamped
+	var preset: GraphicsPreset = current_graphics_preset()
+	if preset != null:
+		graphics_preset_changed.emit(preset)
 
 
 func set_graphics_preset(id: StringName) -> void:
@@ -249,7 +294,7 @@ func set_graphics_preset(id: StringName) -> void:
 		return
 	_current_preset_id = id
 	_save()
-	graphics_preset_changed.emit(preset)
+	graphics_preset_changed.emit(current_graphics_preset())
 
 
 # --- Audio channels (options package) ----------------------------------------
@@ -679,6 +724,8 @@ func set_debug_setting(value: int) -> void:
 func _load() -> void:
 	_debug_setting = -1
 	_current_preset_id = DEFAULT_PRESET_ID
+	_adaptive_quality = DEFAULT_ADAPTIVE_QUALITY
+	_governor_level = 0
 	_channel_volume_percent = {
 		AudioChannel.MASTER: DEFAULT_VOLUME_PERCENT,
 		AudioChannel.MUSIC: DEFAULT_VOLUME_PERCENT,
@@ -704,6 +751,7 @@ func _load() -> void:
 		return  # No file yet (or unreadable): every default above stands.
 
 	_current_preset_id = StringName(cfg.get_value(SECTION_GRAPHICS, KEY_PRESET, DEFAULT_PRESET_ID))
+	_adaptive_quality = bool(cfg.get_value(SECTION_GRAPHICS, KEY_ADAPTIVE_QUALITY, DEFAULT_ADAPTIVE_QUALITY))
 
 	if cfg.has_section_key(SECTION_AUDIO, KEY_MASTER_VOLUME_PERCENT):
 		_channel_volume_percent[AudioChannel.MASTER] = clampf(
@@ -756,6 +804,7 @@ func _load() -> void:
 func _save() -> void:
 	var cfg: ConfigFile = ConfigFile.new()
 	cfg.set_value(SECTION_GRAPHICS, KEY_PRESET, String(_current_preset_id))
+	cfg.set_value(SECTION_GRAPHICS, KEY_ADAPTIVE_QUALITY, _adaptive_quality)
 	cfg.set_value(SECTION_GRAPHICS, KEY_CAMERA_SHAKE_ENABLED, _camera_shake_enabled)
 	cfg.set_value(SECTION_GRAPHICS, KEY_WINDOW_MODE, String(_window_mode_id))
 	cfg.set_value(SECTION_GAMEPAD, KEY_RUMBLE_ENABLED, _rumble_enabled)

@@ -96,6 +96,9 @@ func _clear() -> void:
 func _build() -> void:
 	_clear()
 	var scale_factor: float = tuning.low_preset_density if _reduced() else 1.0
+	var preset: GraphicsPreset = Settings.current_graphics_preset() if is_inside_tree() else null
+	if preset != null:
+		scale_factor *= preset.weather_density_scale
 	_add_kind(KIND_STREAK, int(round(float(tuning.streak_count) * scale_factor)))
 	_add_kind(KIND_MOTE, int(round(float(tuning.mote_count) * scale_factor)))
 

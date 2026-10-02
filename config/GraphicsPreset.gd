@@ -45,3 +45,15 @@ extends Resource
 ## Bontago-1pi.11.42: the noise dissolve + rim glow on a block eaten by a hole
 ## (game/BlockDissolveFx.gd). Off on Low: the block simply vanishes on time.
 @export var block_dissolve_effect_enabled: bool = true
+
+## Bontago-1pi.11.37: the fields below are all-default on every shipped preset; only
+## the adaptive quality governor (core/QualityGovernor.gd) lowers them, on a duplicate
+## handed out by Settings.current_graphics_preset(). The stored .tres never changes.
+## Multiplies the block-effect burst caps and particle amounts (1 = unchanged).
+@export_range(0.0, 1.0) var particle_budget_scale: float = 1.0
+## Multiplies the rain / snow / storm-mote density (1 = unchanged).
+@export_range(0.0, 1.0) var weather_density_scale: float = 1.0
+## False stops the disc mirror's second scene render (visuals.mirror_enabled still applies).
+@export var mirror_enabled: bool = true
+## Viewport.scaling_3d_scale (1 = native resolution).
+@export_range(0.25, 1.0) var render_scale_3d: float = 1.0

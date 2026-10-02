@@ -75,6 +75,8 @@ var _trails: Dictionary = {}
 ## before this package and are bounded, one-shot costs, not a new continuous
 ## per-frame one.
 var _trail_effects_enabled: bool = true
+## Bontago-1pi.11.37: GraphicsPreset.particle_budget_scale (adaptive quality governor).
+var _particle_budget_scale: float = 1.0
 
 
 func _ready() -> void:
@@ -82,6 +84,7 @@ func _ready() -> void:
 	Events.block_impacted_at.connect(_on_block_impacted_at)
 	var preset: GraphicsPreset = Settings.current_graphics_preset()
 	_trail_effects_enabled = preset == null or preset.volumetric_fog_enabled
+	_particle_budget_scale = preset.particle_budget_scale if preset != null else 1.0
 	Settings.graphics_preset_changed.connect(_on_graphics_preset_changed)
 
 
@@ -93,6 +96,7 @@ func _exit_tree() -> void:
 
 func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 	_trail_effects_enabled = preset == null or preset.volumetric_fog_enabled
+	_particle_budget_scale = preset.particle_budget_scale if preset != null else 1.0
 
 
 func _physics_process(delta: float) -> void:
@@ -268,9 +272,9 @@ func _acquire_burst(pool: Array[PooledBurst], particle_count: int, is_kill: bool
 	if frame != _budget_frame:
 		_budget_frame = frame
 		_new_bursts_this_frame = 0
-	if _new_bursts_this_frame >= config.burst_max_new_per_frame:
+	if _new_bursts_this_frame >= int(ceilf(float(config.burst_max_new_per_frame) * _particle_budget_scale)):
 		return null
-	if _active_bursts >= config.burst_max_active:
+	if _active_bursts >= int(ceilf(float(config.burst_max_active) * _particle_budget_scale)):
 		return null
 	var burst: PooledBurst = null
 	for candidate: PooledBurst in pool:
@@ -322,6 +326,7 @@ func _max_amount_for(index: int, is_kill: bool) -> int:
 ## Never writes `amount` (buffer reallocation); scales amount_ratio instead.
 func _restart_particles(particles: GPUParticles3D, amount: int) -> void:
 	particles.emitting = false
+	amount = int(roundf(float(amount) * _particle_budget_scale))
 	if amount <= 0:
 		return
 	particles.amount_ratio = clampf(float(amount) / float(maxi(particles.amount, 1)), 0.0, 1.0)

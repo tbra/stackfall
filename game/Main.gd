@@ -191,6 +191,8 @@ func _ready() -> void:
 	# to apply.
 	Settings.graphics_preset_changed.connect(_apply_graphics_preset)
 	_apply_graphics_preset(Settings.current_graphics_preset())
+	# Bontago-1pi.11.37: opt-in adaptive quality (idle unless the Options toggle is on).
+	add_child(QualityGovernorDriver.new())
 
 	# Bontago-xtq.45 (M7 P4): applies the persisted window mode (borderless
 	# fullscreen by default) over whatever project.godot's own boot-time
@@ -287,6 +289,9 @@ func _apply_graphics_preset(preset: GraphicsPreset) -> void:
 	var viewport: Viewport = get_viewport()
 	if viewport != null:
 		viewport.msaa_3d = preset.msaa_3d
+		# Bontago-1pi.11.37: only written on change; 1.0 on every shipped preset.
+		if not is_equal_approx(viewport.scaling_3d_scale, preset.render_scale_3d):
+			viewport.scaling_3d_scale = preset.render_scale_3d
 
 	# DECISION (Bontago-xtq.26): Godot 4 has no per-Viewport or per-light
 	# directional-shadow-atlas size -- RenderingServer.
