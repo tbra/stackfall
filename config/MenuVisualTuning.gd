@@ -46,6 +46,8 @@ extends Resource
 @export var camera_height_m: float = 2.6
 @export var camera_radius_m: float = 5.0
 @export var camera_orbit_period_s: float = 24.0
+@export var camera_orbit_drift_fraction: float = 0.38
+@export var camera_orbit_drift_period_s: float = 9.0
 @export var camera_fov_deg: float = 42.0
 ## Orthographic span relative to island radius and miniature prop proportions.
 @export var camera_span_radii: float = 2.5
@@ -61,6 +63,10 @@ extends Resource
 @export var block_color: Color = Color(0.62, 0.82, 0.66, 1.0)
 @export var stack_block_count: int = 3
 @export var stack_block_spacing_m: float = 0.34
+@export var falling_block_interval_s: float = 7.0
+@export var falling_block_duration_s: float = 1.4
+@export var falling_block_height_m: float = 2.0
+@export var falling_block_bounce_m: float = 0.16
 @export var territory_patch_color_a: Color = Color(0.92, 0.42, 0.36, 0.35)
 @export var territory_patch_color_b: Color = Color(0.55, 0.72, 0.86, 0.35)
 @export var territory_patch_radius_m: float = 0.85

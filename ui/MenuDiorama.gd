@@ -29,6 +29,9 @@ const PHYSICS_TUNING: PhysicsTuning = preload("res://config/physics_tuning.tres"
 var _viewport: SubViewport = null
 var _camera: Camera3D = null
 var _orbit_angle_rad: float = 0.0
+var _elapsed_s: float = 0.0
+var _falling_block: Node3D = null
+var _falling_base: Vector3 = Vector3.ZERO
 
 
 func _ready() -> void:
@@ -53,17 +56,43 @@ func _ready() -> void:
 	_build_disk()
 	_build_props()
 	_build_camera()
+	visibility_changed.connect(_on_visibility_changed)
+	_on_visibility_changed()
 
 
 func _process(delta: float) -> void:
-	if _camera == null or tuning.camera_orbit_period_s <= 0.0:
+	if not is_visible_in_tree() or _camera == null or tuning.camera_orbit_period_s <= 0.0:
 		return
+	_elapsed_s += delta
 	var angular_speed: float = TAU / tuning.camera_orbit_period_s
-	_orbit_angle_rad = fmod(_orbit_angle_rad + angular_speed * delta, TAU)
+	# DECISION: a sine-modulated speed eases the orbit without reversing it.
+	var drift: float = sin(TAU * _elapsed_s / maxf(tuning.camera_orbit_drift_period_s, 0.01))
+	_orbit_angle_rad = fmod(_orbit_angle_rad + angular_speed * (1.0 + tuning.camera_orbit_drift_fraction * drift) * delta, TAU)
 	var height: float = tuning.camera_height_m
 	var radius: float = tuning.camera_radius_m
 	_camera.position = Vector3(cos(_orbit_angle_rad) * radius, height, sin(_orbit_angle_rad) * radius)
 	_camera.look_at(Vector3.ZERO, Vector3.UP)
+	_animate_falling_block()
+
+
+func _on_visibility_changed() -> void:
+	if _viewport == null:
+		return
+	var active: bool = is_visible_in_tree()
+	set_process(active)
+	_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS if active else SubViewport.UPDATE_DISABLED
+
+
+func _animate_falling_block() -> void:
+	if _falling_block == null or tuning.falling_block_interval_s <= 0.0:
+		return
+	var phase: float = fmod(_elapsed_s, tuning.falling_block_interval_s)
+	var progress: float = clampf(phase / maxf(tuning.falling_block_duration_s, 0.01), 0.0, 1.0)
+	# DECISION: one visual-only block follows a damped scripted bounce; no physics bodies.
+	var fall: float = pow(1.0 - progress, 2.0) * tuning.falling_block_height_m
+	var bounce: float = absf(sin(progress * TAU)) * (1.0 - progress) * tuning.falling_block_bounce_m
+	_falling_block.position = _falling_base + Vector3.UP * (fall + bounce)
+	_falling_block.visible = phase <= tuning.falling_block_duration_s
 
 
 func _build_environment() -> void:
@@ -201,6 +230,16 @@ func _build_props() -> void:
 	_build_territory_patch(pos_b, tuning.territory_patch_color_b)
 	_build_block_stack(pos_a, tuning.home_flag_a_color)
 	_build_block_stack(pos_b, tuning.home_flag_b_color)
+	_falling_block = BlockFactory.build_visual_only(BLOCK_SHAPE, PHYSICS_TUNING)
+	_falling_block.scale = Vector3.ONE * tuning.miniature_block_scale
+	for child: Node in _falling_block.get_children():
+		if child is MeshInstance3D:
+			var falling_material: StandardMaterial3D = StandardMaterial3D.new()
+			falling_material.albedo_color = tuning.home_flag_a_color
+			(child as MeshInstance3D).material_override = falling_material
+	_falling_base = pos_a + Vector3(tuning.stack_beacon_offset_m, PHYSICS_TUNING.cube_size * tuning.miniature_block_scale * float(tuning.stack_block_count + 1), 0.0)
+	_viewport.add_child(_falling_block)
+	_animate_falling_block()
 
 
 ## A flat, low-opacity colored disc on the island's top surface under a
