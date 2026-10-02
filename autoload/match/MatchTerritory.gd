@@ -399,6 +399,8 @@ func bot_mode_goal(slot_id: int) -> BotModeGoal:
 			elif slot_item.team_id != own_team_e:
 				goal.enemy_home_positions.append(slot_item.home_position)
 				goal.enemy_home_shares.append(_raster.team_share(slot_item.team_id) if _raster != null else 0.0)
+	elif _objective is DominationObjective:
+		_fill_domination_goal(goal, _match.team_of(slot_id))
 	elif _objective is ReachSkyObjective:
 		var registry: BlockRegistry = _match.registry()
 		if registry != null:
@@ -408,6 +410,30 @@ func bot_mode_goal(slot_id: int) -> BotModeGoal:
 				goal.tower_origin = tallest["xz"] as Vector2
 				goal.tower_height = float(tallest["height"])
 	return goal
+
+
+## Shipped bot tuning, read for the Domination leader sample cap only.
+const BOT_TUNING: BotTuning = preload("res://config/bot_tuning.tres")
+
+
+## Domination (Bontago-1pi.25.1): flags whether `own_team` already leads and, when
+## it does not, samples (capped) cells of the first leading team for the scorer.
+func _fill_domination_goal(goal: BotModeGoal, own_team: int) -> void:
+	var leaders: PackedInt32Array = (_objective as DominationObjective).leading_teams()
+	goal.own_team_leads = leaders.has(own_team) or leaders.is_empty()
+	if goal.own_team_leads or _raster == null:
+		return
+	var leader: int = leaders[0]
+	var grid: CellGrid = _raster.grid()
+	var cells: PackedInt32Array = PackedInt32Array()
+	for index: int in grid.in_disk_cells():
+		var cell: Vector2i = grid.cell_coords(index)
+		if _raster.team_at(cell.x, cell.y) == leader:
+			cells.append(index)
+	var cap: int = maxi(BOT_TUNING.dom_leader_sample_cap, 1)
+	var stride: int = maxi(int(ceil(float(cells.size()) / float(cap))), 1)
+	for i: int in range(0, cells.size(), stride):
+		goal.leader_points.append(grid.index_center(cells[i]))
 
 
 ## Bontago-1t5.1: classic multi-goal context (left empty for a single goal so

@@ -777,3 +777,19 @@ func test_gift_slot_card_shows_only_while_a_gift_is_slotted() -> void:
 	hud._refresh_gift_slot()
 	assert_false(hud._gift_slot_column.visible)
 	assert_eq(hud._held_next_panel.offset_right, base_right)
+
+
+# --- Bontago-1pi.25.1 Domination readout ------------------------------------
+
+func test_domination_readout_only_in_domination() -> void:
+	var hud: HUD = _make_hud()
+	var dom: Dictionary = {"mode_id": MatchConfig.GameMode.DOMINATION, "scores": [0.25, 0.41], "extra": {}, "round_left": 125.0}
+	hud._on_mode_state_changed(dom)
+	assert_not_null(hud._mode_score_label)
+	assert_eq(hud._mode_score_label.text, "Leading: 2 (41%)   2:05")
+	var tied: Dictionary = {"mode_id": MatchConfig.GameMode.DOMINATION, "scores": [0.3, 0.3], "extra": {}, "round_left": 0.0}
+	assert_eq(HUD.mode_score_text(tied), "Leading: 1 & 2 (30%)")
+	var ctf: Dictionary = {"mode_id": MatchConfig.GameMode.CAPTURE_THE_FLAG, "scores": [1.0, 2.0], "extra": {}, "round_left": 0.0}
+	assert_eq(HUD.mode_score_text(ctf).find("Leading"), -1)
+	var hud2: HUD = _make_hud()
+	assert_null(hud2._mode_score_label, "no readout without a mode state (Classic)")

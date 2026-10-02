@@ -599,3 +599,42 @@ func test_target_home_index_picks_weakest_then_nearest() -> void:
 	assert_eq(BotPlacementScorer.target_home_index(near_goal, _bot_tuning), 1, "nearer of equal-share homes")
 	var none: BotModeGoal = _elim_goal(PackedVector2Array(), PackedFloat32Array(), Vector2.ZERO)
 	assert_eq(BotPlacementScorer.target_home_index(none, _bot_tuning), -1)
+
+
+## -- Bontago-1pi.25.1: Domination ---------------------------------------------
+
+func _dom_goal(leading: bool, leader_points: PackedVector2Array) -> BotModeGoal:
+	var goal: BotModeGoal = BotModeGoal.new()
+	goal.mode = MatchConfig.GameMode.DOMINATION
+	goal.own_team_leads = leading
+	goal.leader_points = leader_points
+	return goal
+
+
+func test_domination_contests_the_leader_when_behind() -> void:
+	var goal: BotModeGoal = _dom_goal(false, PackedVector2Array([Vector2(12.0, 0.0)]))
+	var towards: BotCandidate = _candidate(Vector2(7.0, 0.0), 1.0)
+	var away: BotCandidate = _candidate(Vector2(-7.0, 0.0), 1.0)
+	var candidates: Array[BotCandidate] = [away, towards]
+	assert_eq(_pick(candidates, goal), towards)
+
+
+func test_domination_leader_does_not_pull_when_the_bot_leads() -> void:
+	var points: PackedVector2Array = PackedVector2Array([Vector2(12.0, 0.0)])
+	var near: BotCandidate = _candidate(Vector2(7.0, 0.0), 1.0)
+	var behind: float = _score_with(near, _dom_goal(false, points), PackedVector2Array())
+	var leading: float = _score_with(near, _dom_goal(true, points), PackedVector2Array())
+	assert_gte(leading, behind - 0.0001)
+	var far: BotCandidate = _candidate(Vector2(-7.0, 0.0), 1.0)
+	assert_almost_eq(
+		_score_with(far, _dom_goal(true, points), PackedVector2Array()),
+		_score_with(far, _dom_goal(true, PackedVector2Array()), PackedVector2Array()), 0.0001
+	)
+
+
+func test_domination_rewards_taller_territory_growth() -> void:
+	var goal: BotModeGoal = _dom_goal(true, PackedVector2Array())
+	var low: BotCandidate = _candidate(Vector2(0.0, 5.0), 0.0)
+	var high: BotCandidate = _candidate(Vector2(0.0, -5.0), 4.0)
+	var candidates: Array[BotCandidate] = [low, high]
+	assert_eq(_pick(candidates, goal), high)

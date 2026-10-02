@@ -630,6 +630,8 @@ static func mode_score_text(state: Dictionary) -> String:
 	var scores: Array = state.get("scores", []) as Array
 	if scores.is_empty():
 		return ""
+	if int(state.get("mode_id", -1)) == MatchConfig.GameMode.DOMINATION:
+		return domination_text(state)
 	var parts: PackedStringArray = PackedStringArray()
 	# Reach the Sky scores are record heights in meters (Bontago-22y.9).
 	var unit: String = " m" if int(state.get("mode_id", -1)) == MatchConfig.GameMode.REACH_THE_SKY else ""
@@ -640,6 +642,27 @@ static func mode_score_text(state: Dictionary) -> String:
 		else:
 			parts.append("%d: %s%s" % [team + 1, String.num(float(scores[team]), 1), unit])
 	var text: String = "  ".join(parts)
+	var left: int = int(ceil(float(state.get("round_left", 0.0))))
+	if left > 0:
+		text += "   %d:%02d" % [left / 60, left % 60]
+	return text
+
+
+## Bontago-1pi.25.1: Domination territory race, "Leading: 2 (41%)   9:32" (ties
+## list every leader). The per-team bars above already show each share, so this
+## only adds the leader and the time left. Pure.
+static func domination_text(state: Dictionary) -> String:
+	var scores: Array = state.get("scores", []) as Array
+	if scores.is_empty():
+		return ""
+	var best: float = -INF
+	for value: Variant in scores:
+		best = maxf(best, float(value))
+	var leaders: PackedStringArray = PackedStringArray()
+	for team: int in range(scores.size()):
+		if float(scores[team]) >= best - DominationObjective.TIE_EPSILON:
+			leaders.append(str(team + 1))
+	var text: String = "Leading: %s (%.0f%%)" % [" & ".join(leaders), maxf(best, 0.0) * 100.0]
 	var left: int = int(ceil(float(state.get("round_left", 0.0))))
 	if left > 0:
 		text += "   %d:%02d" % [left / 60, left % 60]

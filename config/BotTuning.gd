@@ -155,6 +155,15 @@ extends Resource
 ## candidate's own circle covers at the home point (0..1).
 @export var elim_off_defend_gain: float = 2.0
 
+## Bontago-1pi.25.1 (append-only): Domination. Reward per meter of the candidate's
+## future influence radius (own territory growth), pull towards the leading
+## enemy team's territory while the bot's team is not leading (distance minus
+## the future radius, floored at 0), and how many leader territory sample points
+## the host hands the scorer (the leader's cells are subsampled to this cap).
+@export var weight_dom_grow: float = 1.0
+@export var weight_dom_contest: float = 1.0
+@export var dom_leader_sample_cap: int = 48
+
 ## Bontago-1t5.1 (append-only): Classic with several goal flags. Penalty for a
 ## candidate outside the bot's home-connected component (it cannot help the
 ## all-goals-in-one-component win), a bonus (fading to 0 at the radius) for

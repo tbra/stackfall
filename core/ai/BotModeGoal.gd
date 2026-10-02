@@ -33,6 +33,12 @@ var no_overlap_mode: bool = false
 var home_radius: float = 0.0
 
 
+## Domination (Bontago-1pi.25.1): sample points (disk-local) of the leading
+## enemy team's territory, and whether the bot's own team already holds (or
+## shares) the largest share. Empty / true means "just grow own territory".
+var leader_points: PackedVector2Array = PackedVector2Array()
+var own_team_leads: bool = true
+
 ## Bontago-1t5.1 (Classic with several goal flags): every goal flag, whether it
 ## sits in the bot's own home-connected component (parallel array), that
 ## component's group id (-1 when the bot's home has none) and sample points of

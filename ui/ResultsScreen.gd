@@ -196,7 +196,9 @@ func _headline_text(results: Dictionary) -> String:
 
 
 ## Every winning id: mode.winners when a mode payload lists it (a CTF tie is a
-## shared win), else just winner_id. Empty when nobody won.
+## shared win), else just winner_id. Empty when nobody won. Bontago-1pi.25.1:
+## a Domination match that ended early (home elimination) has an empty
+## winners list, so it falls back to the finish winner_id the same way.
 static func winner_ids(results: Dictionary) -> PackedInt32Array:
 	var out: PackedInt32Array = PackedInt32Array()
 	var mode: Variant = results.get("mode")
@@ -242,8 +244,14 @@ static func mode_outcome_text(results: Dictionary) -> String:
 	var ffa: bool = String(results.get("winner_kind", MatchStats.WINNER_KIND_SLOT)) == MatchStats.WINNER_KIND_SLOT
 	var unit: String = " m" if mode_id == MatchConfig.GameMode.REACH_THE_SKY else ""
 	var elimination: bool = mode_id == MatchConfig.GameMode.ELIMINATION
+	# Domination scores are territory shares (0..1), shown as percentages.
+	var domination: bool = mode_id == MatchConfig.GameMode.DOMINATION
 	for team: int in range(scores.size()):
-		var value_text: String = survivor_text(int(scores[team])) if elimination else "%s%s" % [String.num(float(scores[team]), 1), unit]
+		var value_text: String = "%s%s" % [String.num(float(scores[team]), 1), unit]
+		if elimination:
+			value_text = survivor_text(int(scores[team]))
+		elif domination:
+			value_text = "%d%%" % int(round(float(scores[team]) * 100.0))
 		parts.append("%s %d: %s" % ["Player" if ffa else "Team", team + 1, value_text])
 	var text: String = "
 %s" % MatchConfig.GAME_MODE_LABELS[mode_id]
