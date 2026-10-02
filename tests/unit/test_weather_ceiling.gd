@@ -151,6 +151,36 @@ func test_storm_persists_while_the_cycle_advances() -> void:
 	assert_false(environment.fog_light_color.is_equal_approx(storm.fog_color), "storm gone after it ends")
 
 
+## Bontago-mp0.26: in CYCLE a partial storm tints from the cycle-mixed colours.
+func test_partial_storm_tints_from_the_night_mixed_puffs_in_cycle() -> void:
+	var wired: Dictionary = _wired_skybox()
+	var skybox: Skybox = wired["skybox"] as Skybox
+	var storm: SkyThemeDef = Skybox.load_theme("storm")
+	var day: SkyThemeDef = Skybox.load_theme(MatchConfig.SKY_THEME_IDS[MatchConfig.SkyThemeMode.DAY])
+	var night: SkyThemeDef = Skybox.load_theme("night")
+	var config: MatchConfig = MatchConfig.new()
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
+	skybox.configure_match_sky(config)
+	var amount: float = 0.5
+	var day_base: Color = (day.cloud_puff_material as ShaderMaterial).get_shader_parameter(&"mid_color") as Color
+	var night_base: Color = (night.cloud_puff_material as ShaderMaterial).get_shader_parameter(&"mid_color") as Color
+	var storm_color: Color = (storm.cloud_puff_material as ShaderMaterial).get_shader_parameter(&"mid_color") as Color
+	skybox.set_storm_sky(amount, storm)
+	skybox.set_cycle_phase(0.75)
+	var material: ShaderMaterial = skybox.get_cloud_sea().puff_material()
+	assert_not_null(material)
+	var night_tint: Color = material.get_shader_parameter(&"mid_color") as Color
+	assert_true(night_tint.is_equal_approx(night_base.lerp(storm_color, amount)), "night tint lerps from the night colours")
+	assert_lt(_color_distance(night_tint, night_base), _color_distance(night_tint, day_base), "closer to night than day")
+	skybox.set_cycle_phase(0.25)
+	var day_tint: Color = material.get_shader_parameter(&"mid_color") as Color
+	assert_true(day_tint.is_equal_approx(day_base.lerp(storm_color, amount)), "day phase unchanged")
+
+
+func _color_distance(a: Color, b: Color) -> float:
+	return Vector3(a.r - b.r, a.g - b.g, a.b - b.b).length()
+
+
 ## Review finding 2: a preset change during a storm keeps the puff tint.
 func test_preset_change_keeps_the_storm_puff_tint() -> void:
 	var wired: Dictionary = _wired_skybox()
