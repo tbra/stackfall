@@ -9,6 +9,7 @@ const GUT_CMDLN_SCRIPT: String = "gut_cmdln.gd"
 const GUT_INFIX: String = "_gut_"
 const GUT_STALE_SECONDS: float = 3600.0
 const USER_ROOT: String = "user://"
+const HEADLESS_DRIVER: String = "headless"
 const CONFIG_EXTENSION: String = ".cfg"
 
 
@@ -17,6 +18,17 @@ static func is_gut_run() -> bool:
 		if arg.ends_with(GUT_CMDLN_SCRIPT):
 			return true
 	return false
+
+
+## Bontago-1pi.22: true when a run may write user:// config. GUT runs always
+## may (they use per-PID files); any other headless run (editor import, smoke,
+## --headless-host bots) must never touch the owner's real files.
+static func persistence_allowed() -> bool:
+	return persistence_allowed_for(is_gut_run(), DisplayServer.get_name())
+
+
+static func persistence_allowed_for(gut_run: bool, display_driver: String) -> bool:
+	return gut_run or display_driver != HEADLESS_DRIVER
 
 
 ## "user://settings.cfg" -> "user://settings_gut_<pid>.cfg" in a GUT run; the

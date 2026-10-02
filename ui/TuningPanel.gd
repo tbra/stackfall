@@ -361,6 +361,15 @@ func _on_tab_changed(index: int) -> void:
 	if _rebuilding_tabs:
 		return
 	_selected_tab_index = index
+
+
+## Bontago-1pi.22: TabContainer.tab_clicked fires only for a user click
+## on the tab bar, never for programmatic current_tab sets or
+## child add/remove, so this is the only place the tab index is persisted.
+func _on_tab_selected(index: int) -> void:
+	if _rebuilding_tabs:
+		return
+	_selected_tab_index = index
 	_save_selected_tab_index()
 
 
@@ -385,6 +394,8 @@ func _load_selected_tab_index() -> int:
 ## sections, the same way save_overrides() already groups every tuning
 ## resource under its own section.
 func _save_selected_tab_index() -> void:
+	if not UserPaths.persistence_allowed():
+		return
 	var config: ConfigFile = ConfigFile.new()
 	config.load(save_path())
 	config.set_value(SELECTED_TAB_SECTION, SELECTED_TAB_KEY, _selected_tab_index)
@@ -417,6 +428,7 @@ func _build_ui() -> void:
 	# programmatic restore below -- either way, "whatever tab is now showing"
 	# is exactly what the next close/reopen (or app restart) should return to.
 	_tab_container.tab_changed.connect(_on_tab_changed)
+	_tab_container.tab_clicked.connect(_on_tab_selected)
 	layout.add_child(_tab_container)
 
 	var button_row: HBoxContainer = HBoxContainer.new()
@@ -1360,6 +1372,8 @@ func _on_save_pressed() -> void:
 ## ConfigFile here would silently drop the selected-tab section
 ## _save_selected_tab_index() writes on its own, independent schedule.
 func save_overrides() -> Error:
+	if not UserPaths.persistence_allowed():
+		return ERR_UNAVAILABLE
 	var config: ConfigFile = ConfigFile.new()
 	config.load(save_path())
 	_write_overrides(config, "CameraTuning", camera_tuning)
