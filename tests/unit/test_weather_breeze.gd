@@ -360,6 +360,43 @@ func test_presenter_draws_gusts_bounded_and_frees_them() -> void:
 	assert_eq(presenter.live_count(), 0)
 
 
+func test_gust_ribbon_is_a_tapered_curling_strip() -> void:
+	var mesh: ArrayMesh = GustPresentation.build_ribbon(_tuning)
+	var arrays: Array = mesh.surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
+	assert_eq(verts.size(), (_tuning.gust_ribbon_segments + 1) * 2)
+	assert_almost_eq(uvs[0].x, 0.0, 0.0001)
+	assert_almost_eq(uvs[uvs.size() - 1].x, 1.0, 0.0001)
+	var max_y: float = 0.0
+	var max_x: float = 0.0
+	for v: Vector3 in verts:
+		max_y = maxf(max_y, v.y)
+		max_x = maxf(max_x, v.x)
+	assert_gt(max_y, 0.05, "the head curls up out of the lead-in")
+	assert_lt(verts[verts.size() - 1].x, max_x - 0.01, "the hook curls back over itself")
+
+
+func _drawn_strokes(preset_id: StringName) -> int:
+	Settings.set_graphics_preset(preset_id)
+	var presenter: BreezePresenter = BreezePresenter.new()
+	presenter.tuning = _tuning
+	add_child_autofree(presenter)
+	Events.breeze_gust_started.emit(_wire(1))
+	var gust: GustPresentation = presenter.get_child(0) as GustPresentation
+	return gust.streak_count()
+
+
+func test_gust_stroke_count_and_low_preset_density() -> void:
+	var original: StringName = Settings.current_graphics_preset().id
+	var high: int = _drawn_strokes(&"high")
+	var low: int = _drawn_strokes(&"low")
+	Settings.set_graphics_preset(original)
+	assert_eq(high, _tuning.gust_streak_count, "High draws every stroke")
+	assert_lt(low, high, "Low draws fewer strokes than High")
+	assert_eq(low, int(round(float(high) * _tuning.gust_low_preset_density)), "Low draws the tuned fraction")
+
+
 func test_a_gust_visual_frees_itself_when_the_gust_ends() -> void:
 	var presenter: BreezePresenter = BreezePresenter.new()
 	presenter.tuning = _tuning
