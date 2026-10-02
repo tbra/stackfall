@@ -45,6 +45,9 @@ extends Resource
 ## Bontago-1pi.11.42: the noise dissolve + rim glow on a block eaten by a hole
 ## (game/BlockDissolveFx.gd). Off on Low: the block simply vanishes on time.
 @export var block_dissolve_effect_enabled: bool = true
+## Bontago-mp0.23: the persistent per-crate OmniLight3D on a landed gift
+## (game/GiftCrate.gd). Off on Low: only the brief spawn flash remains.
+@export var gift_idle_glow_enabled: bool = true
 
 ## Bontago-1pi.11.37: the fields below are all-default on every shipped preset; only
 ## the adaptive quality governor (core/QualityGovernor.gd) lowers them, on a duplicate

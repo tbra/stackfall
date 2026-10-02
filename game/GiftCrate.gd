@@ -37,6 +37,12 @@ var _mesh: MeshInstance3D = null
 var _material: StandardMaterial3D = null
 var _beacon: Node3D = null
 var _visual_time: float = 0.0
+var _glow_light: OmniLight3D = null
+var _spawn_halo: MeshInstance3D = null
+var _spawn_halo_material: StandardMaterial3D = null
+## GraphicsPreset.gift_idle_glow_enabled: false (Low) keeps only the spawn
+## flash; the OmniLight3D is hidden once the flash ends.
+var _idle_glow_enabled: bool = true
 
 ## Bontago-d04 (owner report "I grabbed a yellow cube but nothing seemed to
 ## happen"): a successful claim needs visible feedback whether a held block
@@ -63,6 +69,9 @@ var _canopy: Node3D = null
 
 
 func _ready() -> void:
+	var preset: GraphicsPreset = Settings.current_graphics_preset()
+	_idle_glow_enabled = preset == null or preset.gift_idle_glow_enabled
+	Settings.graphics_preset_changed.connect(_on_graphics_preset_changed)
 	_build()
 	body_entered.connect(_on_body_entered)
 	Events.gift_claimed.connect(_on_gift_claimed)
@@ -75,6 +84,7 @@ func _process(delta: float) -> void:
 	if _beacon != null:
 		_beacon.position.y = BEACON_HEIGHT + sin(_visual_time * BEACON_SPEED) * BEACON_BOB
 		_beacon.rotation.y += delta * BEACON_SPEED
+	_update_spawn_glow()
 	_update_hint(delta)
 
 
@@ -117,6 +127,30 @@ func _build() -> void:
 	ring.material_override = _flat_material(BEACON_COLOR, true)
 	add_child(ring)
 
+	# The spawn halo expands once, then the small light continues to mark a
+	# landed gift against both pale and dark territory without covering blocks.
+	_glow_light = OmniLight3D.new()
+	_glow_light.name = &"GiftGlow"
+	_glow_light.position.y = gift_config.glow_light_height_m
+	_glow_light.light_color = BEACON_COLOR
+	_glow_light.light_energy = gift_config.spawn_glow_start_energy
+	_glow_light.omni_range = gift_config.glow_light_range_m
+	_glow_light.shadow_enabled = false
+	add_child(_glow_light)
+
+	_spawn_halo = MeshInstance3D.new()
+	_spawn_halo.name = &"SpawnHalo"
+	var halo_mesh: TorusMesh = TorusMesh.new()
+	halo_mesh.inner_radius = gift_config.spawn_halo_inner_radius_m
+	halo_mesh.outer_radius = gift_config.spawn_halo_outer_radius_m
+	_spawn_halo.mesh = halo_mesh
+	_spawn_halo.position.y = gift_config.spawn_halo_height_m
+	_spawn_halo_material = _flat_material(BEACON_COLOR, true)
+	_spawn_halo_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_spawn_halo_material.albedo_color.a = gift_config.spawn_halo_alpha
+	_spawn_halo.material_override = _spawn_halo_material
+	add_child(_spawn_halo)
+
 	_beacon = Node3D.new()
 	_beacon.name = &"GiftBeacon"
 	_beacon.position.y = BEACON_HEIGHT
@@ -141,6 +175,29 @@ func _build() -> void:
 			var cord: MeshInstance3D = _add_box(_canopy, &"Cord", Vector3(0.025, 1.0, 0.025),
 				Vector3(float(x_sign) * 0.4, -0.63, float(z_sign) * 0.4), cord_material)
 			cord.rotation.z = float(x_sign) * 0.17
+
+
+func _update_spawn_glow() -> void:
+	var progress: float = clampf(_visual_time / gift_config.spawn_glow_duration_s, 0.0, 1.0)
+	var idle_energy: float = gift_config.spawn_glow_idle_energy if _idle_glow_enabled else 0.0
+	_glow_light.light_energy = lerpf(gift_config.spawn_glow_start_energy, idle_energy, progress)
+	# Low: no idle light at all once the flash is over.
+	_glow_light.visible = _idle_glow_enabled or progress < 1.0
+	_spawn_halo.visible = progress < 1.0
+	if _spawn_halo.visible:
+		_spawn_halo.scale = Vector3.ONE * lerpf(gift_config.spawn_halo_start_scale, gift_config.spawn_halo_end_scale, progress)
+		var halo_color: Color = _spawn_halo_material.albedo_color
+		halo_color.a = gift_config.spawn_halo_alpha * (1.0 - progress)
+		_spawn_halo_material.albedo_color = halo_color
+
+
+func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
+	_idle_glow_enabled = preset == null or preset.gift_idle_glow_enabled
+
+
+## Whether the persistent glow light is allowed (graphics preset); tests read it.
+func idle_glow_enabled() -> bool:
+	return _idle_glow_enabled
 
 
 func set_falling(falling: bool) -> void:

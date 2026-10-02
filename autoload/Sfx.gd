@@ -80,6 +80,7 @@ var _music_envelope: float = 0.0
 var _switch_start_envelope: float = 0.0
 var _switch_elapsed: float = 0.0
 var _last_track_by_context: Dictionary = {}
+var _last_gift_spawn_msec: int = -1
 var _last_music_tick_usec: int = Time.get_ticks_usec()
 
 
@@ -100,6 +101,7 @@ func _ready() -> void:
 	Events.placement_rejected.connect(_on_placement_rejected)
 	Events.block_placed.connect(_on_block_placed)
 	Events.player_eliminated.connect(_on_player_eliminated)
+	Events.gift_flight_spawned.connect(_on_gift_flight_spawned)
 	Events.gift_claimed.connect(_on_gift_claimed)
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 	Settings.audio_settings_changed.connect(_on_audio_settings_changed)
@@ -586,6 +588,17 @@ func _on_block_placed(_block: RigidBody3D, _shape_id: StringName) -> void:
 
 func _on_player_eliminated(_slot_id: int, _team_id: int) -> void:
 	play(AudioConfig.EVENT_BREAKAGE)
+
+
+## The flight event is emitted locally on the host and on each client when
+## the reliable spawn arrives. Late claim or landing events do not retrigger
+## it, and gift_spawn_min_interval_s rate-limits the jingle.
+func _on_gift_flight_spawned(_gift_id: int, _origin: Vector3, _landing: Vector3) -> void:
+	var now_msec: int = Time.get_ticks_msec()
+	if _last_gift_spawn_msec >= 0 and float(now_msec - _last_gift_spawn_msec) < config.gift_spawn_min_interval_s * 1000.0:
+		return
+	if play(AudioConfig.EVENT_GIFT_SPAWNED):
+		_last_gift_spawn_msec = now_msec
 
 
 ## DECISION (autoload/Sfx.gd, Bontago-6y2): unlike the hooks above (a block

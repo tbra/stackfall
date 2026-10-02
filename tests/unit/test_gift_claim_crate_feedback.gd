@@ -103,6 +103,39 @@ func test_pickup_has_a_readable_wrapped_silhouette() -> void:
 	assert_not_null(crate.get_node_or_null("GiftBeacon/BeaconDiamond"))
 
 
+func test_spawn_glow_flashes_then_settles_without_hiding_the_crate() -> void:
+	var parent: Node3D = autofree(Node3D.new())
+	add_child_autofree(parent)
+	var crate: GiftCrate = _make_crate(5, Vector2.ZERO, parent)
+	var glow: OmniLight3D = crate.get_node("GiftGlow") as OmniLight3D
+	var halo: MeshInstance3D = crate.get_node("SpawnHalo") as MeshInstance3D
+	assert_not_null(glow)
+	assert_not_null(halo)
+	assert_true(halo.visible)
+	assert_gt(glow.light_energy, crate.gift_config.spawn_glow_idle_energy)
+	crate._process(crate.gift_config.spawn_glow_duration_s + 0.01)
+	assert_false(halo.visible, "The large flash should end before gameplay continues")
+	assert_almost_eq(glow.light_energy, crate.gift_config.spawn_glow_idle_energy, 0.001)
+	assert_true(crate.get_node("Mesh").visible, "The pickup itself remains readable")
+
+
+func test_low_preset_keeps_only_the_flash_and_no_idle_light() -> void:
+	var parent: Node3D = autofree(Node3D.new())
+	add_child_autofree(parent)
+	var crate: GiftCrate = _make_crate(6, Vector2.ZERO, parent)
+	var glow: OmniLight3D = crate.get_node("GiftGlow") as OmniLight3D
+	crate._on_graphics_preset_changed(load("res://config/graphics_presets/low.tres") as GraphicsPreset)
+	assert_false(crate.idle_glow_enabled())
+	crate._process(0.0)
+	assert_true(glow.visible, "The spawn flash still shows on Low")
+	crate._process(crate.gift_config.spawn_glow_duration_s + 0.01)
+	assert_false(glow.visible, "No idle light on Low once the flash ends")
+	assert_almost_eq(glow.light_energy, 0.0, 0.001)
+	crate._on_graphics_preset_changed(load("res://config/graphics_presets/medium.tres") as GraphicsPreset)
+	crate._process(0.0)
+	assert_true(glow.visible, "Medium keeps the idle light")
+
+
 func test_a_claim_spawns_a_separate_pop_effect_node_and_marks_the_crate_claimed() -> void:
 	_start_playing(_config())
 	var parent: Node3D = autofree(Node3D.new())

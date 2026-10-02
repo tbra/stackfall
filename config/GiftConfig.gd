@@ -139,3 +139,20 @@ extends Resource
 ## _update_hint()), so an unclaimable crate visibly shimmers instead of
 ## sitting static and reading exactly like a claimable one.
 @export var hint_pulse_color: Color = Color(1.0, 1.0, 1.0, 1.0)
+
+## -- Spawn glow (Bontago-mp0.23): a brief flash settles into a soft idle light
+## around the pickup. GiftConfig is not on the F4 roster, so no hints entry.
+## Seconds the flash takes to settle (and the halo to expand and fade).
+@export var spawn_glow_duration_s: float = 0.7
+@export var spawn_glow_start_energy: float = 2.4
+## Persistent light energy once settled; GraphicsPreset.gift_idle_glow_enabled
+## = false (Low) drops this to zero and hides the light.
+@export var spawn_glow_idle_energy: float = 0.55
+@export var glow_light_height_m: float = 0.45
+@export var glow_light_range_m: float = 3.0
+@export var spawn_halo_inner_radius_m: float = 0.53
+@export var spawn_halo_outer_radius_m: float = 0.6
+@export var spawn_halo_height_m: float = -0.2
+@export var spawn_halo_alpha: float = 0.65
+@export var spawn_halo_start_scale: float = 0.75
+@export var spawn_halo_end_scale: float = 2.0
