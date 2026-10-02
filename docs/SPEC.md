@@ -282,9 +282,9 @@ Use the [installed tutorial/menu](ORIGINAL_INSTALL_EVIDENCE.md) as the primary e
 | **Stackfall** | On activation, rains ordinary blocks in the activating player's color onto the map | 12 blocks, 6/s, 12 m area radius, 18 m height, 1.5 m spacing, 600 active-body cap by default | NEW; 2026-09-29 roadmap |
 | **Paintball** | Thrown gift splashes its owner's color and converts nearby block ownership on impact or fuse | 3.5 m splash radius, 6 s fuse | NEW; 2026-09-29 roadmap |
 | **Cat** | Spawns a physical cat that chases the activating player's mouse/gamepad laser target and knocks into stacks | 15 s, 9 m/s, 25 m pointer range, 0.8 m body radius, one per match | NEW; 2026-09-29 roadmap |
-| **Gravity well** | Flips gravity to 30% within 10 m for 5 s | | NEW |
+| **Black hole** | Spawns a black hole that pulls in nearby blocks (all teams). **[OWNER decision 2026-10-02]** replaces the earlier Gravity well; radius, pull and lifetime are tunables | | NEW |
 
-Every special is its own `SpecialDef` resource plus a script. The seven evidenced effects are the original-fidelity roster; Magnet, Freeze, Glue and Gravity well are optional remake extras, not original discoveries. Type probabilities are original menu features; per-type enable checkboxes are the remake interface. Jumping Bean's local hole is independent of opponent overlap; **[OWNER decision 2026-09-22, Bontago-z4h]** under `HoleMode.OFF` the Jumping Bean punches no hole and keeps only its hop knockback.
+Every special is its own `SpecialDef` resource plus a script. The seven evidenced effects are the original-fidelity roster; Magnet, Freeze, Glue and Black hole are optional remake extras, not original discoveries. Type probabilities are original menu features; per-type enable checkboxes are the remake interface. Jumping Bean's local hole is independent of opponent overlap; **[OWNER decision 2026-09-22, Bontago-z4h]** under `HoleMode.OFF` the Jumping Bean punches no hole and keeps only its hop knockback.
 
 **[OWNER roadmap 2026-09-29, Bontago-22y.3]** Glue replaces its earlier one-shot radius effect. The Glue gift's ordinary impact/fuse trigger refreshes the owning slot to three future drop charges by default. The activation block itself does not consume a charge. Each later accepted placement, including a valid relocated auto-drop, spends one charge and fuses that block on actual contact with the disc or another block regardless of owner. Rejected actions, burned auto-drops, throws and effect-spawned projectiles do not spend charges. Bonds are breakable and cleaned up when either body leaves play.
 
@@ -601,7 +601,7 @@ Each milestone ends with a playable build and passes its acceptance criteria.
 - **Accept:** Looks and feels good. Holds 144 fps at 1440p with 300 blocks on the High preset on a mid-range GPU (tune as needed).
 
 ### M8 — Extra specials & hardening
-- Magnet, freeze, glue, gravity well.
+- Magnet, freeze, glue, black hole (replaces gravity well, owner 2026-10-02).
 - Stable-block freezing, body cap and removal, reconnect and late join, 2-hour soak test with bots, crash-free exports for Windows, Linux, and macOS.
 
 ---
