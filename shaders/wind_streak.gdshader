@@ -48,9 +48,21 @@ void vertex() {
 	p.y = box_base_y + INSTANCE_CUSTOM.y * (box_half.y * 2.0)
 		+ bob_m * sin(travel * 0.15 + seed * 40.0);
 	vec4 view_pos = VIEW_MATRIX * vec4(p, 1.0);
+	// Bontago-mp0.28: the screen direction of the world heading must follow the
+	// perspective projection (strokes converge on the heading's vanishing
+	// point), not the camera-plane projection of the direction vector, or
+	// off-centre strokes visibly disagree with the way the wind moves.
 	vec3 dir_view = (VIEW_MATRIX * vec4(wind_dir, 0.0)).xyz;
+	vec3 end_view = (VIEW_MATRIX * vec4(p + wind_dir * length_m, 1.0)).xyz;
 	vec2 d2 = dir_view.xy;
 	float d2_len = length(d2);
+	if (view_pos.z < -0.5 && end_view.z < -0.5) {
+		vec2 projected = end_view.xy / -end_view.z - view_pos.xy / -view_pos.z;
+		d2 = projected * -view_pos.z;
+		float projected_len = length(d2);
+		d2_len = min(projected_len / max(length_m, 0.001), 1.0);
+		d2 = projected_len > 0.0001 ? d2 / projected_len * d2_len : d2;
+	}
 	d2 = d2_len > 0.0001 ? d2 / d2_len : vec2(1.0, 0.0);
 	vec2 perp = vec2(-d2.y, d2.x);
 	// Foreshorten a streak that points at the camera; motes keep a fixed size.

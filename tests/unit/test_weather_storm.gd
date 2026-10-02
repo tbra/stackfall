@@ -338,6 +338,18 @@ func test_presentation_heading_matches_the_host_field() -> void:
 	assert_eq(presentation.heading(), WindField.direction(SEED_A, 0.0, _tuning))
 
 
+func test_presentation_streaks_travel_along_the_field_heading() -> void:
+	var presentation: StormPresentation = StormPresentation.new()
+	add_child_autofree(presentation)
+	presentation.configure(SEED_A)
+	presentation.set_intensity(1.0)
+	presentation._process(0.0)
+	var field: Vector2 = WindField.direction(SEED_A, 0.0, _tuning)
+	var streaks: MultiMeshInstance3D = presentation.get_node("Streaks") as MultiMeshInstance3D
+	var drawn: Vector3 = (streaks.material_override as ShaderMaterial).get_shader_parameter(&"wind_dir") as Vector3
+	assert_lt(drawn.distance_to(Vector3(field.x, 0.0, field.y)), 0.001, "shader wind_dir is the host's (x, z) heading")
+
+
 func test_active_presentation_rebuilds_for_graphics_preset() -> void:
 	var original: GraphicsPreset = Settings.current_graphics_preset()
 	Settings.set_graphics_preset(&"high")

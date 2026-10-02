@@ -22,7 +22,7 @@ var _gust: Dictionary = {}
 var _tuning: BreezeTuning = null
 var _age: float = 0.0
 var _material: ShaderMaterial = null
-var _instance: MultiMeshInstance3D = null
+var _instances: Array[MultiMeshInstance3D] = []
 
 
 func configure(gust: Dictionary, tuning: BreezeTuning) -> void:
@@ -30,23 +30,38 @@ func configure(gust: Dictionary, tuning: BreezeTuning) -> void:
 	_tuning = tuning
 
 
+## World-space unit vector the strokes travel along: the gust's wire heading,
+## the same vector BreezeField.push_direction turns (by swirl_deg) for physics.
+static func travel_direction(gust: Dictionary) -> Vector3:
+	var heading: Vector2 = BreezeField.heading(float(gust["a"]))
+	return Vector3(heading.x, 0.0, heading.y)
+
+
+func material() -> ShaderMaterial:
+	return _material
+
+
 func streak_count() -> int:
-	return _instance.multimesh.instance_count if _instance != null else 0
+	var total: int = 0
+	for instance: MultiMeshInstance3D in _instances:
+		total += instance.multimesh.instance_count
+	return total
+
 
 
 ## Builds the unit-arc-length swoosh ribbon: a gently waving lead-in then a
 ## curling hook. VERTEX = centerline (x, y, 0), NORMAL = (nx, ny, 0), UV = (arc
 ## fraction, side -1/+1). Static so tests can inspect the shape.
-static func build_ribbon(tuning: BreezeTuning) -> ArrayMesh:
+static func build_ribbon(tuning: BreezeTuning, curled: bool = true) -> ArrayMesh:
 	var segments: int = maxi(tuning.gust_ribbon_segments, MIN_RIBBON_SEGMENTS)
 	var radius: float = maxf(tuning.gust_curl_radius_frac, 0.01)
 	var tighten: float = clampf(tuning.gust_curl_tighten, 0.0, MAX_CURL_TIGHTEN)
 	var total_angle: float = maxf(tuning.gust_curl_turns, 0.05) * TAU
 	# DECISION: the curl arc is analytic (R * angle * (1 - tighten / 2)); the
 	# lead-in takes whatever arc remains of the unit length (at least a fifth).
-	var curl_arc: float = minf(radius * total_angle * (1.0 - tighten * 0.5), MAX_CURL_ARC_FRAC)
+	var curl_arc: float = minf(radius * total_angle * (1.0 - tighten * 0.5), MAX_CURL_ARC_FRAC) if curled else 0.0
 	var body_arc: float = 1.0 - curl_arc
-	var body_count: int = clampi(int(round(float(segments) * body_arc)), 2, segments - 2)
+	var body_count: int = clampi(int(round(float(segments) * body_arc)), 2, segments - 2) if curled else segments
 	var curl_count: int = segments - body_count
 	var points: Array[Vector2] = [Vector2.ZERO]
 	var pos: Vector2 = Vector2.ZERO
@@ -56,7 +71,7 @@ static func build_ribbon(tuning: BreezeTuning) -> ArrayMesh:
 		var theta: float = tuning.gust_body_swing_rad * sin(TAU * u)
 		pos += Vector2(cos(theta), sin(theta)) * step
 		points.append(pos)
-	var d_phi: float = total_angle / float(curl_count)
+	var d_phi: float = total_angle / float(maxi(curl_count, 1))
 	for i: int in range(curl_count):
 		var phi_mid: float = (float(i) + 0.5) * d_phi
 		var r: float = radius * (1.0 - tighten * phi_mid / total_angle)
@@ -103,29 +118,16 @@ func _ready() -> void:
 	if count <= 0:
 		queue_free()
 		return
-	var multimesh: MultiMesh = MultiMesh.new()
-	multimesh.transform_format = MultiMesh.TRANSFORM_3D
-	multimesh.use_custom_data = true
-	multimesh.mesh = build_ribbon(_tuning)
-	multimesh.instance_count = count
+	var leaders: int = clampi(int(round(float(count) * _tuning.gust_curl_lead_frac)), 0, count)
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = int(_gust["id"]) * 7919 + 17
-	var index: int = 0
-	while index < count:
-		# A cluster of 1..gust_group_max parallel strokes sharing a spot and phase.
-		var size: int = mini(rng.randi_range(1, maxi(_tuning.gust_group_max, 1)), count - index)
-		var seed_value: float = rng.randf()
-		var phase: float = rng.randf()
-		for k: int in range(size):
-			var parallel: float = float(k) - float(size - 1) * 0.5
-			multimesh.set_instance_transform(index, Transform3D.IDENTITY)
-			multimesh.set_instance_custom_data(index, Color(seed_value, phase, parallel, rng.randf()))
-			index += 1
+	var curled_mesh: ArrayMesh = build_ribbon(_tuning, true)
+	var straight_mesh: ArrayMesh = build_ribbon(_tuning, false)
+	var multimeshes: Array[MultiMesh] = [_build_multimesh(curled_mesh, leaders, rng), _build_multimesh(straight_mesh, count - leaders, rng)]
 	_material = ShaderMaterial.new()
 	_material.shader = SHADER
-	var angle: float = float(_gust["a"])
 	_material.set_shader_parameter(&"center", Vector3(float(_gust["x"]), float(_gust["y"]), float(_gust["z"])))
-	_material.set_shader_parameter(&"heading", Vector3(cos(angle), 0.0, sin(angle)))
+	_material.set_shader_parameter(&"heading", travel_direction(_gust))
 	_material.set_shader_parameter(&"radius", float(_gust["r"]))
 	_material.set_shader_parameter(&"length_m", _tuning.gust_streak_length_m)
 	_material.set_shader_parameter(&"width_m", _tuning.gust_streak_width_m)
@@ -145,15 +147,41 @@ func _ready() -> void:
 	_material.set_shader_parameter(&"parallel_shrink", _tuning.gust_parallel_shrink)
 	_material.set_shader_parameter(&"parallel_lag", _tuning.gust_parallel_lag_frac)
 	_material.set_shader_parameter(&"anchor_frac", _tuning.gust_anchor_frac)
+	_material.set_shader_parameter(&"height_bias", _tuning.gust_height_bias)
+	_material.set_shader_parameter(&"height_length_gain", _tuning.gust_height_length_gain)
 	_material.set_shader_parameter(&"life", 0.0)
-	_instance = MultiMeshInstance3D.new()
-	_instance.multimesh = multimesh
-	_instance.material_override = _material
-	_instance.layers = RENDER_LAYER_BIT
-	_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var extent: float = float(_gust["r"]) * 4.0 + 1000.0
-	_instance.custom_aabb = AABB(Vector3.ONE * -extent, Vector3.ONE * extent * 2.0)
-	add_child(_instance)
+	for multimesh: MultiMesh in multimeshes:
+		if multimesh.instance_count <= 0:
+			continue
+		var instance: MultiMeshInstance3D = MultiMeshInstance3D.new()
+		instance.multimesh = multimesh
+		instance.material_override = _material
+		instance.layers = RENDER_LAYER_BIT
+		instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		instance.custom_aabb = AABB(Vector3.ONE * -extent, Vector3.ONE * extent * 2.0)
+		add_child(instance)
+		_instances.append(instance)
+
+
+func _build_multimesh(mesh: ArrayMesh, count: int, rng: RandomNumberGenerator) -> MultiMesh:
+	var multimesh: MultiMesh = MultiMesh.new()
+	multimesh.transform_format = MultiMesh.TRANSFORM_3D
+	multimesh.use_custom_data = true
+	multimesh.mesh = mesh
+	multimesh.instance_count = count
+	var index: int = 0
+	while index < count:
+		# A cluster of 1..gust_group_max parallel strokes sharing a spot and phase.
+		var size: int = mini(rng.randi_range(1, maxi(_tuning.gust_group_max, 1)), count - index)
+		var seed_value: float = rng.randf()
+		var phase: float = rng.randf()
+		for k: int in range(size):
+			var parallel: float = float(k) - float(size - 1) * 0.5
+			multimesh.set_instance_transform(index, Transform3D.IDENTITY)
+			multimesh.set_instance_custom_data(index, Color(seed_value, phase, parallel, rng.randf()))
+			index += 1
+	return multimesh
 
 
 func _process(delta: float) -> void:
