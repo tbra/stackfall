@@ -44,10 +44,14 @@ func _render_all() -> void:
 	camera.look_at(Vector3.ZERO)
 	for id: StringName in GIFT_IDS:
 		var def: SpecialDef = SpecialDef.find_by_id(id)
-		if def == null or def.held_scene == null:
-			push_error("No held_scene for %s" % id)
+		if def == null:
+			push_error("No SpecialDef for %s" % id)
 			quit(1)
 			return
+		if def.held_scene == null:
+			# Gifts without a held model (black_hole until Bontago-8or.26) use the generic crate in play.
+			print("Skipping %s: no held_scene" % id)
+			continue
 		var visual: Node3D = def.held_scene.instantiate() as Node3D
 		viewport.add_child(visual)
 		var minimum: Vector2 = Vector2.INF

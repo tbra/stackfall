@@ -132,6 +132,7 @@ func _ready() -> void:
 	_weather.setup(self)
 	Events.feed_block_issued.connect(_on_feed_block_issued)
 	Events.special_triggered.connect(_on_paintball_triggered)
+	Events.special_triggered.connect(_on_black_hole_triggered)
 	Events.match_state_changed.connect(_on_cat_match_state_changed)
 
 
@@ -219,6 +220,21 @@ func _on_paintball_triggered(net_id: int, def_id: StringName, position: Vector3,
 	_blocks_parent.add_child(splash)
 	splash.global_position = position
 	splash.setup(slot(glob.owner_slot).color)
+
+
+## Black hole (Bontago-8or.25): every peer draws the placeholder sphere from
+## the replicated special_triggered; the pull itself is host-only physics.
+func _on_black_hole_triggered(_net_id: int, def_id: StringName, position: Vector3, _chain_depth: int) -> void:
+	if def_id != &"black_hole" or blocks_parent() == null:
+		return
+	var def: SpecialDef = SpecialDef.find_by_id(def_id)
+	var effect: BlackHoleEffect = def.effect as BlackHoleEffect if def != null else null
+	if effect == null or not position.is_finite():
+		return
+	var visual: BlackHoleVisual = BlackHoleVisual.new()
+	_blocks_parent.add_child(visual)
+	visual.global_position = position
+	visual.setup(effect.visual_radius_m, effect.lifetime_s)
 
 
 # --- Test/debug seams (Bontago-split.1) --------------------------------------
