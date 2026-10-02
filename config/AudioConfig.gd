@@ -93,6 +93,8 @@ func playlist_for_context(context: StringName) -> Array[AudioStream]:
 ## filename here keeps the "no new binary assets" rule (see this file's own
 ## header) while giving the claim its own event/field so it can get its own
 ## sound and tuning later without touching EVENT_BOUNCE.
+## Original three-note chime bundled with the game, heard when a new crate descends.
+@export var gift_spawn_file: String = "gift_spawn_jingle.wav"
 @export var gift_claimed_file: String = "boing.wav"
 
 ## M4 specials (spec 2.6): registered now so the event map is complete, no
@@ -146,11 +148,12 @@ const EVENT_PROPELLER: StringName = &"propeller"
 const EVENT_BREAKAGE: StringName = &"breakage"
 const EVENT_CREAK: StringName = &"creak"
 const EVENT_GIFT_CLAIMED: StringName = &"gift_claimed"
+const EVENT_GIFT_SPAWNED: StringName = &"gift_spawned"
 
 const ALL_EVENTS: Array[StringName] = [
 	EVENT_THUD, EVENT_REJECTED, EVENT_CLICK, EVENT_START_GAME, EVENT_HOVER, EVENT_DROP, EVENT_BOUNCE,
 	EVENT_MUSIC, EVENT_BOMB, EVENT_ROCKET, EVENT_VOLCANO, EVENT_QUAKE, EVENT_PROPELLER,
-	EVENT_BREAKAGE, EVENT_CREAK, EVENT_GIFT_CLAIMED,
+	EVENT_BREAKAGE, EVENT_CREAK, EVENT_GIFT_CLAIMED, EVENT_GIFT_SPAWNED,
 ]
 
 
@@ -190,6 +193,8 @@ func files_for_event(event: StringName) -> Array[String]:
 			return [creak_file]
 		EVENT_GIFT_CLAIMED:
 			return [gift_claimed_file]
+		EVENT_GIFT_SPAWNED:
+			return [gift_spawn_file]
 		_:
 			return []
 

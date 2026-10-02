@@ -47,6 +47,7 @@ func before_each() -> void:
 	DirAccess.make_dir_recursive_absolute(_tmp_dir)
 	_write_tiny_wav(_tmp_dir.path_join(_config.click_file))
 	_write_tiny_wav(_tmp_dir.path_join(_config.gift_claimed_file))
+	_write_tiny_wav(_tmp_dir.path_join(_config.gift_spawn_file))
 	for filename: String in _config.thud_files:
 		_write_tiny_wav(_tmp_dir.path_join(filename))
 
@@ -141,6 +142,12 @@ func test_volume_scaling_clamps_to_configured_range() -> void:
 	assert_almost_eq(at_min_db, _config.impact_quiet_db_offset, 0.0001)
 	assert_almost_eq(at_loud_db, _config.impact_loud_db_offset, 0.0001)
 	assert_almost_eq(far_above_loud_db, _config.impact_loud_db_offset, 0.0001)
+
+
+func test_gift_flight_start_plays_spawn_jingle() -> void:
+	_sfx.set_root_dir_for_test(_tmp_dir)
+	_sfx._on_gift_flight_spawned(7, Vector3.UP * 18.0, Vector3.ZERO)
+	assert_true(_any_player_playing(), "A new gift flight must cue the spawn chime")
 
 
 # --- Events.gift_claimed (Bontago-6y2) ----------------------------------------

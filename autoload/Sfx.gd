@@ -100,6 +100,7 @@ func _ready() -> void:
 	Events.placement_rejected.connect(_on_placement_rejected)
 	Events.block_placed.connect(_on_block_placed)
 	Events.player_eliminated.connect(_on_player_eliminated)
+	Events.gift_flight_spawned.connect(_on_gift_flight_spawned)
 	Events.gift_claimed.connect(_on_gift_claimed)
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 	Settings.audio_settings_changed.connect(_on_audio_settings_changed)
@@ -625,6 +626,12 @@ func _on_player_eliminated(_slot_id: int, _team_id: int) -> void:
 ## with no config (see _team_of_slot() below), so this bound keeps checking
 ## at least slot recipient_slot itself in that case, reproducing the exact
 ## single-slot check this handler used before real teams existed.
+## The flight event is emitted locally on the host and on each client when
+## the reliable spawn arrives. Late claim or landing events do not retrigger it.
+func _on_gift_flight_spawned(_gift_id: int, _origin: Vector3, _landing: Vector3) -> void:
+	play(AudioConfig.EVENT_GIFT_SPAWNED)
+
+
 func _on_gift_claimed(_gift_id: int, recipient_slot: int, _special_id: StringName) -> void:
 	for slot_id: int in range(maxi(Match.slot_count(), recipient_slot + 1)):
 		if not Net.is_local_slot(slot_id):

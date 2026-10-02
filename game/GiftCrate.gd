@@ -27,6 +27,10 @@ const RIBBON_WIDTH: float = 0.13
 const BEACON_HEIGHT: float = 0.78
 const BEACON_BOB: float = 0.07
 const BEACON_SPEED: float = 2.2
+## Brief spawn flash settles into a soft persistent light around the pickup.
+const SPAWN_GLOW_DURATION_S: float = 0.7
+const SPAWN_GLOW_START_ENERGY: float = 2.4
+const SPAWN_GLOW_IDLE_ENERGY: float = 0.55
 
 ## Set by MatchGifts right after instancing. -1 (this crate is not tracked by
 ## anything) is never a real id (MatchGifts._next_gift_id starts at 0).
@@ -37,6 +41,9 @@ var _mesh: MeshInstance3D = null
 var _material: StandardMaterial3D = null
 var _beacon: Node3D = null
 var _visual_time: float = 0.0
+var _glow_light: OmniLight3D = null
+var _spawn_halo: MeshInstance3D = null
+var _spawn_halo_material: StandardMaterial3D = null
 
 ## Bontago-d04 (owner report "I grabbed a yellow cube but nothing seemed to
 ## happen"): a successful claim needs visible feedback whether a held block
@@ -75,6 +82,7 @@ func _process(delta: float) -> void:
 	if _beacon != null:
 		_beacon.position.y = BEACON_HEIGHT + sin(_visual_time * BEACON_SPEED) * BEACON_BOB
 		_beacon.rotation.y += delta * BEACON_SPEED
+	_update_spawn_glow()
 	_update_hint(delta)
 
 
@@ -117,6 +125,30 @@ func _build() -> void:
 	ring.material_override = _flat_material(BEACON_COLOR, true)
 	add_child(ring)
 
+	# The spawn halo expands once, then the small light continues to mark a
+	# landed gift against both pale and dark territory without covering blocks.
+	_glow_light = OmniLight3D.new()
+	_glow_light.name = &"GiftGlow"
+	_glow_light.position.y = 0.45
+	_glow_light.light_color = BEACON_COLOR
+	_glow_light.light_energy = SPAWN_GLOW_START_ENERGY
+	_glow_light.omni_range = 3.0
+	_glow_light.shadow_enabled = false
+	add_child(_glow_light)
+
+	_spawn_halo = MeshInstance3D.new()
+	_spawn_halo.name = &"SpawnHalo"
+	var halo_mesh: TorusMesh = TorusMesh.new()
+	halo_mesh.inner_radius = 0.53
+	halo_mesh.outer_radius = 0.6
+	_spawn_halo.mesh = halo_mesh
+	_spawn_halo.position.y = -0.2
+	_spawn_halo_material = _flat_material(BEACON_COLOR, true)
+	_spawn_halo_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_spawn_halo_material.albedo_color.a = 0.65
+	_spawn_halo.material_override = _spawn_halo_material
+	add_child(_spawn_halo)
+
 	_beacon = Node3D.new()
 	_beacon.name = &"GiftBeacon"
 	_beacon.position.y = BEACON_HEIGHT
@@ -141,6 +173,17 @@ func _build() -> void:
 			var cord: MeshInstance3D = _add_box(_canopy, &"Cord", Vector3(0.025, 1.0, 0.025),
 				Vector3(float(x_sign) * 0.4, -0.63, float(z_sign) * 0.4), cord_material)
 			cord.rotation.z = float(x_sign) * 0.17
+
+
+func _update_spawn_glow() -> void:
+	var progress: float = clampf(_visual_time / SPAWN_GLOW_DURATION_S, 0.0, 1.0)
+	_glow_light.light_energy = lerpf(SPAWN_GLOW_START_ENERGY, SPAWN_GLOW_IDLE_ENERGY, progress)
+	_spawn_halo.visible = progress < 1.0
+	if _spawn_halo.visible:
+		_spawn_halo.scale = Vector3.ONE * lerpf(0.75, 2.0, progress)
+		var halo_color: Color = _spawn_halo_material.albedo_color
+		halo_color.a = 0.65 * (1.0 - progress)
+		_spawn_halo_material.albedo_color = halo_color
 
 
 func set_falling(falling: bool) -> void:
