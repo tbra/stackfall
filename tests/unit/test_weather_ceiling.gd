@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.19/mp0.29: the upper puff layer (the cloud sea's own puffs) fades
+## Bontago-mp0.19/mp0.29: the upper puff layer (the cloud sea's own puffs) stays on; the weather fades
 ## with rain/snow/storm intensity, the Low preset is cheaper, rain/snow start at the ceiling and the storm sky
 ## blends in and restores the match theme.
 
@@ -67,33 +67,34 @@ func test_low_preset_uses_fewer_upper_puffs() -> void:
 	assert_gt(high, low)
 
 
-func test_upper_layer_is_the_sea_puff_field_and_absent_in_clear_weather() -> void:
+func test_upper_layer_is_the_sea_puff_field_and_always_present() -> void:
 	Settings.set_graphics_preset(&"high")
 	var skybox: Skybox = _wired_skybox()["skybox"] as Skybox
 	skybox.apply_theme(skybox.theme)
 	var sea: CloudSea = skybox.get_cloud_sea()
 	var upper: MultiMeshInstance3D = sea.upper_instance()
 	assert_not_null(upper)
-	assert_false(upper.visible, "clear weather: no upper layer")
+	assert_true(upper.visible, "clear weather: the upper layer is already there")
+	var clear_count: int = upper.multimesh.instance_count
 	assert_same(upper.material_override, sea.puff_instance().material_override, "same shader material")
 	assert_same(upper.multimesh.mesh.get_class(), sea.puff_instance().multimesh.mesh.get_class())
 	assert_eq(upper.layers, sea.puff_instance().layers)
 	var ceiling: CloudCeiling = _presenter.cloud_ceiling()
 	Events.weather_intensity_changed.emit(&"rain", 0.5)
 	_fade(ceiling, ceiling.tuning.fade_in_s + 1.0)
-	assert_true(upper.visible)
-	assert_almost_eq(sea.upper_presence(), 0.5, 0.001, "presence follows the weather intensity")
-	assert_almost_eq(float(upper.get_instance_shader_parameter(&"presence")), 0.5, 0.001)
-	assert_null(sea.puff_instance().get_instance_shader_parameter(&"presence"), "sea puffs keep the shader default (1)")
+	assert_true(upper.visible, "weather never changes presence")
+	assert_eq(upper.multimesh.instance_count, clear_count, "constant coverage")
+	assert_almost_eq(float(upper.get_instance_shader_parameter(&"floor_on")), 1.0, 0.001)
+	assert_null(sea.puff_instance().get_instance_shader_parameter(&"floor_on"), "sea puffs keep the shader default (0)")
 	# The layer sits above the play volume and the rain starts beneath it.
 	var tuning: WeatherCeilingTuning = ceiling.tuning
 	assert_gte(upper.custom_aabb.position.y, tuning.height_m - tuning.upper_clump_radius_max_m - 0.01)
 	assert_gt(tuning.height_m - tuning.spawn_below_ceiling_m, 72.0, "rain spawns above the play volume, below the cloud bases")
 	Events.weather_stopped.emit(&"rain")
 	_fade(ceiling, ceiling.tuning.fade_out_s + 1.0)
-	assert_false(upper.visible)
+	assert_true(upper.visible)
 	sea.configure(skybox.theme, 1.0, skybox.theme.sky_material)
-	assert_false(sea.upper_instance().visible, "a rebuild keeps the clear state")
+	assert_true(sea.upper_instance().visible, "a rebuild keeps the layer")
 
 
 func test_ceiling_clears_the_camera_and_rain_reaches_it() -> void:

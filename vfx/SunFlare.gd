@@ -89,6 +89,10 @@ const FLARE_LAYER: int = -1
 ## visible the flare is hidden.
 const FULLSCREEN_UI_GROUP: StringName = &"fullscreen_ui"
 
+## Bontago-mp0.34: weather + night share of the flare that survives (set by
+## Skybox); 0 hides it, so a storm or night cannot show the sun flare.
+var _weather_scale: float = 1.0
+
 
 func _ready() -> void:
 	layer = FLARE_LAYER
@@ -158,6 +162,13 @@ func is_fullscreen_ui_open() -> bool:
 			return true
 	return false
 
+func set_weather_scale(value: float) -> void:
+	_weather_scale = clampf(value, 0.0, 1.0)
+
+
+func weather_scale() -> float:
+	return _weather_scale
+
 
 func is_theme_enabled() -> bool:
 	return _theme_enabled
@@ -178,7 +189,7 @@ func _process(delta: float) -> void:
 	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
 	var aspect: float = viewport_size.x / maxf(viewport_size.y, 1.0)
 
-	var target_visibility: float = _compute_visibility()
+	var target_visibility: float = _compute_visibility() * _weather_scale
 	var lerp_amount: float = clampf(config.visibility_lerp_speed * delta, 0.0, 1.0)
 	_current_visibility = lerpf(_current_visibility, target_visibility, lerp_amount)
 

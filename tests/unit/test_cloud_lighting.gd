@@ -104,3 +104,56 @@ func test_publish_is_quiet_when_nothing_changed() -> void:
 	assert_true(l.publish(l.shadow_color, l.mid_color, l.lit_color, l.rim_color, l.light_direction, l.light_color,
 		0.5, l.overcast, l.storm, l.dim, l.desaturate))
 	assert_eq(count[0], 1)
+
+
+const CEILING: WeatherCeilingTuning = preload("res://config/weather/ceiling.tres")
+const NIGHT_SHADOW: Color = Color(0.04, 0.06, 0.14)
+const NIGHT_LIT: Color = Color(0.4, 0.5, 0.7)
+
+
+func _floor(ratio: float) -> Color:
+	return CloudLighting.floor_for_tone(CEILING.puff_floor_tint, CEILING.puff_min_brightness, ratio)
+
+
+func test_night_storm_dim_is_capped_and_relieved() -> void:
+	var stacked: float = CloudLighting.combined_dim(CEILING.cloud_overcast_dim, CEILING.storm_darkness_add, 1.0, 1.0,
+		1.0, CEILING.night_dim_relief, CEILING.max_combined_dim)
+	var day_storm: float = CloudLighting.combined_dim(CEILING.cloud_overcast_dim, CEILING.storm_darkness_add, 1.0, 1.0,
+		0.0, CEILING.night_dim_relief, CEILING.max_combined_dim)
+	assert_lt(stacked, day_storm, "night relieves the weather dim instead of stacking")
+	assert_lte(CloudLighting.combined_dim(1.0, 1.0, 1.0, 1.0, 0.0, 0.0, CEILING.max_combined_dim), CEILING.max_combined_dim)
+
+
+func test_night_storm_puff_base_never_below_minimum() -> void:
+	var dim: float = CloudLighting.combined_dim(CEILING.cloud_overcast_dim, CEILING.storm_darkness_add, 1.0, 1.0,
+		1.0, CEILING.night_dim_relief, CEILING.max_combined_dim)
+	var desaturate: float = CEILING.cloud_overcast_desaturate
+	var shadow: Color = CloudLighting.graded_floored(NIGHT_SHADOW, dim, desaturate, _floor(CEILING.puff_floor_shadow_ratio))
+	var lit: Color = CloudLighting.graded_floored(NIGHT_LIT, dim, desaturate, _floor(1.0))
+	assert_gte(shadow.get_luminance(), CEILING.puff_min_brightness * CEILING.puff_floor_shadow_ratio - EPS, "shadow tone keeps its floor")
+	assert_gte(lit.get_luminance(), CEILING.puff_min_brightness - EPS, "lit tone keeps the minimum brightness")
+	assert_gt(lit.get_luminance(), shadow.get_luminance(), "cel tones stay distinct")
+	# Even an absurd worst case (black palette, full dim) is lifted to the floor.
+	var black: Color = CloudLighting.graded_floored(Color.BLACK, 1.0, 1.0, _floor(1.0))
+	assert_gte(black.get_luminance(), CEILING.puff_min_brightness - EPS)
+
+
+func test_sun_effects_off_at_night_reduced_by_overcast() -> void:
+	var clear: float = CloudLighting.sun_effect_scale(0.0, CEILING.sun_night_fade_end, 0.0, CEILING.sun_overcast_attenuation, 0.0, CEILING.sun_storm_attenuation)
+	var overcast: float = CloudLighting.sun_effect_scale(0.0, CEILING.sun_night_fade_end, 1.0, CEILING.sun_overcast_attenuation, 0.0, CEILING.sun_storm_attenuation)
+	var storm: float = CloudLighting.sun_effect_scale(0.0, CEILING.sun_night_fade_end, 1.0, CEILING.sun_overcast_attenuation, 1.0, CEILING.sun_storm_attenuation)
+	var night: float = CloudLighting.sun_effect_scale(1.0, CEILING.sun_night_fade_end, 0.0, CEILING.sun_overcast_attenuation, 0.0, CEILING.sun_storm_attenuation)
+	assert_almost_eq(clear, 1.0, EPS)
+	assert_lt(overcast, clear, "overcast reduces the sun effects")
+	assert_lt(storm, 0.05, "a heavy storm hides them")
+	assert_almost_eq(night, 0.0, EPS, "night turns them off")
+
+
+func test_skybox_publishes_sun_scale_to_sky_and_flare() -> void:
+	var skybox: Skybox = _wired_skybox()
+	skybox.apply_theme(skybox.theme)
+	skybox.set_overcast(1.0, 1.0, 1.0, 1.0, Color.WHITE, 1.0)
+	var scale: float = skybox.cloud_lighting().sun_scale
+	assert_lt(scale, 1.0, "overcast attenuates the published sun scale")
+	var sky: ShaderMaterial = skybox.theme.sky_material as ShaderMaterial
+	assert_almost_eq(float(sky.get_shader_parameter(&"sun_effect_scale")), scale, EPS)

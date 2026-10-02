@@ -4,8 +4,8 @@ extends Node
 ## it rains, snows or storms (the disc floats above a cloud sea, so precipitation
 ## needs clouds overhead). The layer itself is the cloud sea's own puff field
 ## (vfx/CloudSea.gd: same mesh, shader, noise and CloudLighting), duplicated high
-## above the disc; this node only fades its presence with the replicated weather
-## intensities WeatherPresenter feeds in, so every peer renders the same, and
+## above the disc and always present; this node only fades the shared overcast
+## (its lighting) with the replicated weather intensities WeatherPresenter feeds in, so every peer renders the same, and
 ## publishes the shared overcast and the storm sky blend (Skybox.set_storm_sky).
 ## Tunables: config/weather/ceiling.tres (WeatherCeilingTuning).
 
@@ -19,7 +19,6 @@ var _storm_amount: float = 0.0
 ## the puff layer and published to every Skybox so all cloud layers grade together.
 var _overcast: float = 0.0
 var _pushed_overcast: float = -1.0
-var _pushed_amount: float = -1.0
 var _storm_theme: SkyThemeDef = null
 ## Cached Skybox lookups (refreshed whenever the storm value changes).
 var _skyboxes: Array[Skybox] = []
@@ -65,7 +64,7 @@ func overcast() -> float:
 	return _overcast
 
 
-## Presence (0..1) of the upper puff layer: 0 in clear weather.
+## Weather intensity fade (0..1): 0 in clear weather. Drives precipitation, not cloud presence.
 func amount() -> float:
 	return _amount
 
@@ -96,8 +95,7 @@ func _process(delta: float) -> void:
 
 
 func _push_storm(value: float) -> void:
-	var settled: bool = is_equal_approx(value, _pushed_storm) and _overcast == _pushed_overcast \
-			and _amount == _pushed_amount
+	var settled: bool = is_equal_approx(value, _pushed_storm) and _overcast == _pushed_overcast
 	if settled and not _skyboxes.is_empty():
 		return
 	var tree: SceneTree = get_tree() if is_inside_tree() else (Engine.get_main_loop() as SceneTree)
@@ -110,12 +108,10 @@ func _push_storm(value: float) -> void:
 		for node: Node in tree.get_nodes_in_group(Skybox.OVERCAST_GROUP):
 			_skyboxes.append(node as Skybox)
 	_pushed_storm = value
-	var cloud_changed: bool = _overcast != _pushed_overcast or _amount != _pushed_amount
+	var cloud_changed: bool = _overcast != _pushed_overcast
 	_pushed_overcast = _overcast
-	_pushed_amount = _amount
 	for skybox: Skybox in _skyboxes:
 		if is_instance_valid(skybox):
 			skybox.set_storm_sky(value, _storm_theme)
 			if cloud_changed:
 				skybox.set_weather_cloud_overcast(_overcast)
-				skybox.set_upper_cloud_presence(_amount)
