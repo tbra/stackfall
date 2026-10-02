@@ -21,6 +21,13 @@ const AXES: Array[Vector3i] = [
 ]
 const AXIS_UP: int = 2
 
+## Sides of a patch in its own frame (+X, -X, +Z, -Z) for neighbour queries.
+const SIDE_PX: int = 0
+const SIDE_NX: int = 1
+const SIDE_PZ: int = 2
+const SIDE_NZ: int = 3
+const SIDE_COUNT: int = 4
+
 ## Dome parameter layout: tilt x/z, bump amplitude, bump phases u/v.
 const D_TX: int = 0
 const D_TZ: int = 1
@@ -156,6 +163,68 @@ static func dome_points(params: PackedFloat32Array, patch_edge: float, level: in
 			var bump: float = 1.0 + params[D_BUMP] * sin(freq * u + params[D_PU]) * sin(freq * v + params[D_PV])
 			points[j * (n + 1) + i] = Vector3(u * half, tuning.cap_lift_m + peak * base * tilt * bump, v * half)
 	_concavify(points, n + 1)
+	return points
+
+
+## Block top-face snow (Bontago-mp0.31). Unlike dome_points() this is a flat
+## plateau at the level's depth over the whole face, with a soft quarter-sine
+## shoulder along the OUTER rims only: a side whose neighbour cell carries
+## snow (`neighbor_levels`, one entry per SIDE_* in the patch frame, 0 = none)
+## is extended flush to the cell boundary with no shoulder, and its height
+## blends toward the mean of both levels so two cell patches meet without a
+## seam. A run of cells therefore reads as one continuous layer. A patch with
+## no snowy neighbour keeps the seeded tilt (a block set on it rests crooked);
+## bumps are not used. Grid points are clustered toward the edges (sine warp)
+## so the shoulder is resolved. Concave like the dome, so hull == drawn surface.
+static func cap_points(params: PackedFloat32Array, patch_edge: float, pitch: float, level: int, neighbor_levels: PackedInt32Array, tuning: SnowTuning) -> PackedVector3Array:
+	var points: PackedVector3Array = PackedVector3Array()
+	if level <= 0:
+		return points
+	var n: int = maxi(tuning.cap_segments, 2)
+	var fill_half: float = patch_edge * fill_for_level(level, tuning) * 0.5
+	var peak: float = dome_height(level, tuning)
+	var ext: PackedFloat32Array = PackedFloat32Array([fill_half, fill_half, fill_half, fill_half])
+	var merged: PackedByteArray = PackedByteArray([0, 0, 0, 0])
+	var npeak: PackedFloat32Array = PackedFloat32Array([peak, peak, peak, peak])
+	var any_merged: bool = false
+	for side: int in range(SIDE_COUNT):
+		if side < neighbor_levels.size() and neighbor_levels[side] > 0:
+			merged[side] = 1
+			ext[side] = pitch * 0.5
+			npeak[side] = (peak + dome_height(neighbor_levels[side], tuning)) * 0.5
+			any_merged = true
+	var rim_w: float = maxf(tuning.cap_rim_width_m, EPS)
+	var tilt_x: float = 0.0 if any_merged else params[D_TX]
+	var tilt_z: float = 0.0 if any_merged else params[D_TZ]
+	var row: int = n + 1
+	points.resize(row * row)
+	for j: int in range(row):
+		var v: float = sin(float(j) / float(n) * PI - PI * 0.5)
+		var z: float = v * (ext[SIDE_PZ] if v >= 0.0 else ext[SIDE_NZ])
+		for i: int in range(row):
+			var u: float = sin(float(i) / float(n) * PI - PI * 0.5)
+			var x: float = u * (ext[SIDE_PX] if u >= 0.0 else ext[SIDE_NX])
+			var inv_sum: float = 0.0
+			var open_sides: int = 0
+			var height: float = peak
+			for side: int in range(SIDE_COUNT):
+				var coord: float = x if side < SIDE_PZ else z
+				var positive: bool = (side == SIDE_PX or side == SIDE_PZ)
+				var extent: float = ext[side]
+				var toward: float = coord if positive else -coord
+				if merged[side] == 1:
+					var w: float = clampf(toward / maxf(extent, EPS), 0.0, 1.0)
+					height += w * w * (npeak[side] - peak)
+				else:
+					inv_sum += 1.0 / maxf(extent - toward, EPS)
+					open_sides += 1
+			var profile: float = 1.0
+			if open_sides > 0:
+				var edge_dist: float = float(open_sides) / inv_sum
+				profile = sin(clampf(edge_dist / rim_w, 0.0, 1.0) * PI * 0.5)
+			var tilt: float = 1.0 + tilt_x * u + tilt_z * v
+			points[j * row + i] = Vector3(x, tuning.cap_lift_m + height * profile * tilt, z)
+	_concavify(points, row)
 	return points
 
 

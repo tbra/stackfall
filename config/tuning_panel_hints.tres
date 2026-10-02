@@ -6,6 +6,7 @@
 script = ExtResource("1_hints")
 ranges = {
 "WeatherCeilingTuning.height_m": Vector2(20.0, 300.0),
+"SnowTuning.cap_rim_width_m": Vector2(0.02, 0.5),
 "WeatherCeilingTuning.min_clearance_above_camera_m": Vector2(5.0, 120.0),
 "WeatherCeilingTuning.upper_clump_count": Vector2(0.0, 400.0),
 "WeatherCeilingTuning.upper_clump_count_low": Vector2(0.0, 200.0),
@@ -643,6 +644,7 @@ ranges = {
 }
 descriptions = {
 "WeatherCeilingTuning.height_m": "World height of the upper puff layer's bases above the disc; rain and snow start just below.",
+"SnowTuning.cap_rim_width_m": "Width of the soft rounded shoulder along the outer rim of a block's snow layer; sides shared with snowy neighbour cells have none.",
 "WeatherCeilingTuning.min_clearance_above_camera_m": "Rain and snow never start closer than this above the camera.",
 "WeatherCeilingTuning.upper_clump_count": "Upper puff clumps on Medium and High (before the preset's puff density).",
 "WeatherCeilingTuning.upper_clump_count_low": "Upper puff clumps on the Low preset (before the preset's puff density).",

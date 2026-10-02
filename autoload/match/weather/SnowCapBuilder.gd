@@ -18,6 +18,8 @@ const FREEZE_REASON: StringName = &"snow_rebuild"
 ## rebuilds the shape inside the next step, so the hold is exactly that one
 ## step and is released at the start of the following tick.
 const THAW_FRAMES: int = 1
+## Fraction of the cell pitch within which two patches count as edge-adjacent.
+const ADJACENT_TOLERANCE: float = 0.05
 
 
 class Patch:
@@ -83,6 +85,12 @@ func set_patch(key: String, node: Node3D, region: int, patch_key: int, xform: Tr
 	patch.level = level
 	if not owner.dirty.has(patch_key):
 		owner.dirty.append(patch_key)
+	if region < 0:
+		# Flush neighbours reshape their shared edge with this patch.
+		for other_key: Variant in owner.patches.keys():
+			var other: Patch = owner.patches[other_key] as Patch
+			if other != patch and other.level > 0 and _side_of(patch, other) >= 0 and not owner.dirty.has(other_key):
+				owner.dirty.append(int(other_key))
 	if not owner.queued:
 		owner.queued = true
 		_queue.append(key)
@@ -135,7 +143,7 @@ func step(budget: int) -> void:
 			continue
 		while left > 0 and not owner.dirty.is_empty():
 			var patch_key: int = owner.dirty.pop_back()
-			_build_patch(owner.patches[patch_key] as Patch, owner.region >= 0)
+			_build_patch(owner.patches[patch_key] as Patch, owner)
 			left -= 1
 		if owner.dirty.is_empty():
 			_queue.pop_front()
@@ -143,7 +151,7 @@ func step(budget: int) -> void:
 			_commit(owner)
 
 
-func _build_patch(patch: Patch, disc: bool) -> void:
+func _build_patch(patch: Patch, owner: CapOwner) -> void:
 	patch.built_level = patch.level
 	patch.hull = PackedVector3Array()
 	patch.vertices = PackedVector3Array()
@@ -151,11 +159,48 @@ func _build_patch(patch: Patch, disc: bool) -> void:
 	if patch.level <= 0:
 		return
 	var params: PackedFloat32Array = SnowGeometry.dome_params(patch.seed_value, tuning)
-	var squareness: float = tuning.disc_cap_squareness if disc else 0.0
-	var points: PackedVector3Array = SnowGeometry.dome_points(params, patch.edge, patch.level, tuning, squareness)
+	var points: PackedVector3Array
+	if owner.region >= 0:
+		points = SnowGeometry.dome_points(params, patch.edge, patch.level, tuning, tuning.disc_cap_squareness)
+	else:
+		# DECISION (Bontago-mp0.31): a per-patch geometry (not a world-space
+		# shader term) so the host collider is the same convex hull of the
+		# same points the client draws; the patch treats its top face and
+		# snowy neighbour cells as one plateau with rounded rims only.
+		var levels: PackedInt32Array = PackedInt32Array([0, 0, 0, 0])
+		for other_key: Variant in owner.patches.keys():
+			var other: Patch = owner.patches[other_key] as Patch
+			if other != patch and other.level > 0:
+				var side: int = _side_of(patch, other)
+				if side >= 0:
+					levels[side] = other.level
+		points = SnowGeometry.cap_points(params, patch.edge, patch.edge / maxf(tuning.block_patch_fill, SnowGeometry.EPS), patch.level, levels, tuning)
 	patch.hull = patch.xform * points
 	SnowGeometry.append_dome_triangles(points, tuning, patch.xform, patch.vertices, patch.normals)
 	patches_built += 1
+
+
+## Side (SnowGeometry.SIDE_*) of `patch` on which `other` is the edge-adjacent
+## coplanar cell patch, or -1.
+func _side_of(patch: Patch, other: Patch) -> int:
+	var pitch: float = patch.edge / maxf(tuning.block_patch_fill, SnowGeometry.EPS)
+	var tol: float = pitch * ADJACENT_TOLERANCE
+	var delta: Vector3 = other.xform.origin - patch.xform.origin
+	var along_x: float = delta.dot(patch.xform.basis.x)
+	var along_z: float = delta.dot(patch.xform.basis.z)
+	if absf(delta.dot(patch.xform.basis.y)) > tol:
+		return -1
+	if absf(along_z) <= tol:
+		if absf(along_x - pitch) <= tol:
+			return SnowGeometry.SIDE_PX
+		if absf(along_x + pitch) <= tol:
+			return SnowGeometry.SIDE_NX
+	if absf(along_x) <= tol:
+		if absf(along_z - pitch) <= tol:
+			return SnowGeometry.SIDE_PZ
+		if absf(along_z + pitch) <= tol:
+			return SnowGeometry.SIDE_NZ
+	return -1
 
 
 func _commit(owner: CapOwner) -> void:
