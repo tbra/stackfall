@@ -342,7 +342,7 @@ func test_black_hole_targets_near_enemy_tower_away_from_own_blocks() -> void:
 	var action: BotSpecialPlanner.BotSpecialAction = _bh_plan(points, samples, MatchConfig.AiDifficulty.HARD, tuning)
 	assert_true(action.has_place_target)
 	assert_false(action.should_throw)
-	assert_lt(action.place_target.distance_to(tower), tuning.black_hole_pull_radius_m)
+	assert_lt(action.place_target.distance_to(tower), BotSpecialPlanner.black_hole_pull_radius_m())
 
 
 func test_black_hole_skipped_when_own_blocks_dominate_every_spot() -> void:
@@ -358,6 +358,40 @@ func test_black_hole_skipped_when_own_blocks_dominate_every_spot() -> void:
 	var action: BotSpecialPlanner.BotSpecialAction = _bh_plan(points, samples, MatchConfig.AiDifficulty.NORMAL, tuning)
 	assert_false(action.has_place_target)
 	assert_true(action.should_place_ordinarily)
+
+
+func test_black_hole_radius_equals_special_def_radius() -> void:
+	var def: SpecialDef = SpecialDef.find_by_id(&"black_hole")
+	var effect: BlackHoleEffect = def.effect as BlackHoleEffect
+	assert_gt(effect.pull_radius_m, 0.0)
+	assert_eq(BotSpecialPlanner.black_hole_pull_radius_m(), effect.pull_radius_m)
+
+
+func test_black_hole_own_tower_in_best_enemy_spot_is_penalised() -> void:
+	var tuning: BotTuning = _real_shaped_tuning()
+	var radius: float = BotSpecialPlanner.black_hole_pull_radius_m()
+	# Spot A sits on the tall enemy mass but also on a big own tower; spot B is
+	# far from both and catches a smaller enemy group.
+	var spot_a: Vector2 = Vector2(0.0, 0.0)
+	var spot_b: Vector2 = Vector2(radius * 4.0, 0.0)
+	var points: PackedVector2Array = PackedVector2Array([spot_a, spot_b])
+	var samples: Array[BotSpecialPlanner.BotBlockSample] = []
+	for i: int in range(3):
+		samples.append(BotSpecialPlanner.BotBlockSample.make(spot_a + Vector2(0.5 * i, 0.0), 2.0, false))
+	for i: int in range(4):
+		samples.append(BotSpecialPlanner.BotBlockSample.make(spot_a + Vector2(0.0, 0.5 * i), 1.0, true))
+	for i: int in range(3):
+		samples.append(BotSpecialPlanner.BotBlockSample.make(spot_b + Vector2(0.5 * i, 0.0), 0.0, false))
+	var action: BotSpecialPlanner.BotSpecialAction = _bh_plan(points, samples, MatchConfig.AiDifficulty.HARD, tuning)
+	assert_true(action.has_place_target)
+	assert_eq(action.place_target, spot_b, "own tower makes spot A a net loss")
+	# Without the own blocks, spot A wins.
+	var enemy_only: Array[BotSpecialPlanner.BotBlockSample] = []
+	for sample: BotSpecialPlanner.BotBlockSample in samples:
+		if not sample.is_own:
+			enemy_only.append(sample)
+	var clean: BotSpecialPlanner.BotSpecialAction = _bh_plan(points, enemy_only, MatchConfig.AiDifficulty.HARD, tuning)
+	assert_eq(clean.place_target, spot_a)
 
 
 func test_black_hole_easy_never_uses_it() -> void:

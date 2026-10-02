@@ -163,11 +163,12 @@ extends Resource
 @export var weight_goal_hold_reinforce: float = 3.0
 @export var goal_hold_reinforce_radius_m: float = 5.0
 
-## Bontago-8or.27 (append-only): Black hole heuristic. Pull radius (m) the bot
-## assumes for scoring (mirrors the Black hole effect's pull_radius_m), score per
+## Bontago-8or.27 (append-only): Black hole heuristic. Pull radius comes from the
+## Black hole SpecialDef (Bontago-8or.28). Cap on block samples fed to the
+## planner, score per
 ## enemy block caught, extra score per metre of that block's height, penalty per
 ## own block caught, and the least net score worth spending the special on.
-@export var black_hole_pull_radius_m: float = 6.0
+@export var black_hole_max_samples: int = 96
 @export var black_hole_enemy_weight: float = 1.0
 @export var black_hole_enemy_height_weight: float = 0.5
 @export var black_hole_own_penalty: float = 1.5

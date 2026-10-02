@@ -41,6 +41,8 @@ var _difficulty: MatchConfig.AiDifficulty = MatchConfig.AiDifficulty.NORMAL
 var _profile: BotDifficultyProfile = null
 var _field: Field = null
 var _registry: BlockRegistry = null
+var _bh_samples: Array[BotSpecialPlanner.BotBlockSample] = []
+var _bh_pool: Array[BotSpecialPlanner.BotBlockSample] = []
 
 ## DECISION (game/BotController.gd): Match/Net are plain autoloads, and GUT
 ## cannot double one (see game/PlayerController.gd's matching DECISION), so
@@ -735,6 +737,33 @@ func _active_special_positions() -> PackedVector2Array:
 		positions.append(_field.disk_local_from_world(owner_node.global_position))
 	positions.sort()
 	return positions
+
+
+## Bontago-8or.28: compact block samples (disk-local position, height, own
+## team) for the Black hole planner. Empty for any other special. The pooled
+## BotBlockSample objects are reused across calls; `tuning.black_hole_max_samples`
+## caps the list by striding evenly over the registry's blocks.
+func _black_hole_block_samples(held_special_id: StringName) -> Array[BotSpecialPlanner.BotBlockSample]:
+	_bh_samples.clear()
+	if held_special_id != &"black_hole" or _registry == null or _field == null:
+		return _bh_samples
+	var blocks: Array[Block] = _registry.all_blocks()
+	var cap: int = maxi(tuning.black_hole_max_samples, 1)
+	var stride: int = maxi(ceili(float(blocks.size()) / float(cap)), 1)
+	var own_team: int = int(_match().team_of(_slot_id))
+	var i: int = 0
+	while i < blocks.size() and _bh_samples.size() < cap:
+		var block: Block = blocks[i]
+		i += stride
+		var used: int = _bh_samples.size()
+		if used >= _bh_pool.size():
+			_bh_pool.append(BotSpecialPlanner.BotBlockSample.new())
+		var sample: BotSpecialPlanner.BotBlockSample = _bh_pool[used]
+		sample.position = _field.disk_local_from_world(block.global_position)
+		sample.height_m = maxf(block.global_position.y, 0.0)
+		sample.is_own = int(_match().team_of(block.owner_slot)) == own_team
+		_bh_samples.append(sample)
+	return _bh_samples
 
 
 func _territory_sample_points() -> PackedVector2Array:
