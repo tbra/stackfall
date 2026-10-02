@@ -78,6 +78,11 @@ class _Layer:
 
 var _instance: MultiMeshInstance3D = null
 var _material: ShaderMaterial = null
+## Bontago-mp0.26: the cycle-mixed cloud colours last written by
+## set_cycle_appearance(), keyed by shader parameter. apply_storm_tint() lerps
+## from these (the colours in effect) instead of the DAY theme. Empty outside
+## CYCLE (configure() clears it); keys are reused so no per-frame allocation.
+var _cycle_base: Dictionary[StringName, Color] = {}
 
 ## A cycle changes the existing puff material's palette and direction in place.
 func set_cycle_appearance(day: SkyThemeDef, night_theme: SkyThemeDef, weight: float, direction: Vector3) -> void:
@@ -90,14 +95,18 @@ func set_cycle_appearance(day: SkyThemeDef, night_theme: SkyThemeDef, weight: fl
 	for parameter: StringName in [&"shadow_color", &"mid_color", &"lit_color", &"rim_color"]:
 		var a: Color = day_material.get_shader_parameter(parameter) as Color
 		var b: Color = night_material.get_shader_parameter(parameter) as Color
-		_material.set_shader_parameter(parameter, a.lerp(b, weight))
+		var mixed: Color = a.lerp(b, weight)
+		_material.set_shader_parameter(parameter, mixed)
+		_cycle_base[parameter] = mixed
 	var day_sky: ShaderMaterial = day.sky_material as ShaderMaterial
 	var night_sky: ShaderMaterial = night_theme.sky_material as ShaderMaterial
 	if day_sky != null and night_sky != null:
 		for parameter: StringName in [&"cloud_shadow_color", &"cloud_mid_color", &"cloud_lit_color", &"cloud_rim_color"]:
 			var day_color: Color = day_sky.get_shader_parameter(parameter) as Color
 			var night_color: Color = night_sky.get_shader_parameter(parameter) as Color
-			_material.set_shader_parameter(parameter, day_color.lerp(night_color, weight))
+			var mixed_sky: Color = day_color.lerp(night_color, weight)
+			_material.set_shader_parameter(parameter, mixed_sky)
+			_cycle_base[parameter] = mixed_sky
 		for parameter: StringName in [&"grade_dark", &"grade_mid", &"grade_light"]:
 			_material.set_shader_parameter(parameter, night_sky.get_shader_parameter(parameter))
 		_material.set_shader_parameter(&"grade_amount", weight)
@@ -142,7 +151,7 @@ func _lerp_colors(from: ShaderMaterial, to: ShaderMaterial, parameters: Array[St
 	if from == null or to == null:
 		return
 	for parameter: StringName in parameters:
-		var a: Variant = from.get_shader_parameter(parameter)
+		var a: Variant = _cycle_base[parameter] if _cycle_base.has(parameter) else from.get_shader_parameter(parameter)
 		var b: Variant = to.get_shader_parameter(parameter)
 		if a is Color and b is Color:
 			_material.set_shader_parameter(parameter, (a as Color).lerp(b as Color, weight))
@@ -161,6 +170,7 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 		_instance.queue_free()
 		_instance = null
 	_material = null
+	_cycle_base.clear()
 	_highest_top = -INF
 	_highest_top_near_disc = -INF
 	var layers: Array[_Layer] = _layers_for(theme, density)
