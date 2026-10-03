@@ -1,7 +1,9 @@
 extends GutTest
 ## Bontago-1pi.18.5 (docs/QOL_EXPERIMENTS_PLAN.md, Q1): the lobby's
-## "Experiments" section -- four opt-in QoL toggles in the Advanced rules popup,
-## host-editable and read-only for a client. The checkboxes are the single
+## "Experiments" section -- four opt-in QoL toggles. Bontago-1pi.53 (S1b): they are the
+## EXPERIMENTS section's Advanced block of the lobby's settings column (the Advanced rules
+## popup is gone); the header summary reads "n on". Host-editable and read-only for a
+## client. The checkboxes are the single
 ## source of the four enable flags on the published MatchConfig.qol; the
 ## numeric parameters stay in the shared config/qol_experiments.tres (F4).
 
@@ -56,6 +58,11 @@ func _flags(lobby: Lobby) -> Array:
 	return flags
 
 
+## The EXPERIMENTS section header's one-line summary ("n on").
+func _experiments_summary(lobby: Lobby) -> String:
+	return (lobby.get_node("%ExperimentsSection") as LobbySection).summary()
+
+
 func _qol_flags(qol: QolExperiments) -> Array:
 	return [qol.timer_pause_enabled, qol.backlog_enabled, qol.goal_radius_enabled, qol.gift_slot_enabled]
 
@@ -75,7 +82,7 @@ func test_every_experiment_checkbox_exists_and_defaults_off() -> void:
 		assert_not_null(check, "%s must exist" % unique_name)
 		assert_false(check.button_pressed, "%s defaults off" % unique_name)
 		assert_ne(check.tooltip_text, "", "%s explains itself" % unique_name)
-	assert_eq((lobby.get_node("%AdvChipExperiments") as Label).text, "Experiments: 0 on")
+	assert_eq(_experiments_summary(lobby), "0 on")
 
 
 func test_default_controls_build_an_explicit_all_off_qol() -> void:
@@ -107,7 +114,7 @@ func test_each_toggle_publishes_exactly_its_own_flag() -> void:
 		assert_eq(published.qol.active_ids().size(), 1)
 
 
-func test_all_four_on_round_trips_and_updates_the_summary_chip() -> void:
+func test_all_four_on_round_trips_and_updates_the_section_summary() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	for unique_name: String in CHECK_NAMES:
 		_check(lobby, unique_name).button_pressed = true
@@ -115,9 +122,9 @@ func test_all_four_on_round_trips_and_updates_the_summary_chip() -> void:
 		_fake_of(lobby).set_lobby_data_calls[_fake_of(lobby).set_lobby_data_calls.size() - 1]
 	)
 	assert_eq(_qol_flags(published.qol), [true, true, true, true])
-	assert_eq((lobby.get_node("%AdvChipExperiments") as Label).text, "Experiments: 4 on")
+	assert_eq(_experiments_summary(lobby), "4 on")
 	_check(lobby, CHECK_NAMES[1]).button_pressed = false
-	assert_eq((lobby.get_node("%AdvChipExperiments") as Label).text, "Experiments: 3 on")
+	assert_eq(_experiments_summary(lobby), "3 on")
 
 
 func test_all_off_still_publishes_an_explicit_all_off_qol_even_if_f4_left_one_on() -> void:
@@ -180,7 +187,7 @@ func test_client_mirrors_the_host_toggles_without_publishing() -> void:
 	assert_eq(_flags(client_lobby), [true, false, false, true])
 	for unique_name: String in CHECK_NAMES:
 		assert_true(_check(client_lobby, unique_name).disabled, "still read-only after the update")
-	assert_eq((client_lobby.get_node("%AdvChipExperiments") as Label).text, "Experiments: 2 on")
+	assert_eq(_experiments_summary(client_lobby), "2 on")
 	assert_eq(_fake_of(client_lobby).set_lobby_data_calls.size(), 0, "mirroring never re-publishes")
 	# Even a direct write to a disabled box (bypassing the UI) must not publish.
 	_check(client_lobby, CHECK_NAMES[1]).button_pressed = true
@@ -273,50 +280,56 @@ func test_start_picks_up_an_f4_numeric_edit_made_while_the_lobby_was_open() -> v
 
 # --- Focus (keyboard / gamepad) -----------------------------------------------
 
-func test_experiment_checkboxes_are_in_the_popup_focus_loop_and_visible_when_open() -> void:
+func test_experiment_checkboxes_join_the_main_loop_once_the_section_opens() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	lobby.debug_open_advanced_rules_popup()
-	var close_button: Control = lobby.get_node("%AdvancedPopupClose") as Control
-	var mid_join: Control = lobby.get_node("%MidJoinCheck") as Control
+	var section: LobbySection = lobby.get_node("%ExperimentsSection") as LobbySection
+	section.header_button.pressed.emit()
+	assert_true(section.is_advanced_open(), "the header of the Experiments section opens its checks")
 	for unique_name: String in CHECK_NAMES:
 		var check: CheckBox = _check(lobby, unique_name)
-		assert_true(check.is_visible_in_tree(), "%s is visible once the popup is open" % unique_name)
+		assert_true(check.is_visible_in_tree(), "%s is visible once the section is open" % unique_name)
 		assert_eq(check.focus_mode, Control.FOCUS_ALL, "%s is focusable" % unique_name)
 		assert_ne(check.focus_neighbor_top, NodePath(""), "%s must have an up neighbor" % unique_name)
 		assert_ne(check.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor" % unique_name)
-	# Forward order: Mid-join -> the four experiments (in order) -> Done.
-	var current: Control = mid_join
+	# Forward order: the header -> the four experiments (in order) -> the next stop.
+	var current: Control = section.header_button
 	for unique_name: String in CHECK_NAMES:
 		current = current.get_node(current.focus_neighbor_bottom) as Control
 		assert_eq(current, _check(lobby, unique_name), "next stop after the previous one is %s" % unique_name)
-	assert_eq(current.get_node(current.focus_neighbor_bottom), close_button, "the last experiment leads to Done")
+	var after: Control = current.get_node(current.focus_neighbor_bottom) as Control
+	assert_false(CHECK_NAMES.has("%" + String(after.name)), "the loop leaves the experiments after the last one")
 	# Backward order mirrors it.
-	assert_eq(close_button.get_node(close_button.focus_neighbor_top), _check(lobby, CHECK_NAMES[3]))
-	assert_eq(_check(lobby, CHECK_NAMES[0]).get_node(_check(lobby, CHECK_NAMES[0]).focus_neighbor_top), mid_join)
+	var first: CheckBox = _check(lobby, CHECK_NAMES[0])
+	assert_eq(first.get_node(first.focus_neighbor_top), section.header_button)
+	assert_eq(after.get_node(after.focus_neighbor_top), _check(lobby, CHECK_NAMES[3]))
 
 
-func test_experiment_checkboxes_stay_out_of_the_main_screen_loop() -> void:
-	# They live in the popup, so a Tab on the main screen must never land on a
-	# control the popup has not opened yet (no invisible focus stops).
+func test_experiment_checkboxes_are_not_focus_stops_while_the_section_is_collapsed() -> void:
+	# A collapsed block must never leave an invisible stop on the loop (no invisible focus).
 	var lobby: Lobby = _make_lobby(true)
+	var section: LobbySection = lobby.get_node("%ExperimentsSection") as LobbySection
+	assert_false(section.is_advanced_open(), "the experiments start collapsed")
+	var shown: Array[Control] = lobby._visible_chain(lobby._main_chain)
+	assert_true(shown.has(section.header_button), "the header is a stop")
 	for unique_name: String in CHECK_NAMES:
-		assert_false(lobby._main_chain.has(_check(lobby, unique_name)), "%s is not in the main loop" % unique_name)
-		assert_true(lobby._popup_chain.has(_check(lobby, unique_name)), "%s is in the popup loop" % unique_name)
-	assert_false((lobby.get_node("%AdvancedPopup") as Control).visible, "the popup starts closed")
+		assert_true(lobby._main_chain.has(_check(lobby, unique_name)), "%s is a candidate stop" % unique_name)
+		assert_false(shown.has(_check(lobby, unique_name)), "%s is not a stop while collapsed" % unique_name)
+		assert_false(_check(lobby, unique_name).is_visible_in_tree())
 
 
-func test_popup_loop_stays_closed_with_the_experiments_added() -> void:
+func test_loop_stays_closed_with_the_experiments_open() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var start: Control = lobby.get_node("%TiltModeOption") as Control
+	(lobby.get_node("%ExperimentsSection") as LobbySection).set_advanced_open(true)
+	var start: Control = _check(lobby, CHECK_NAMES[0])
 	var current: Control = start
 	var steps: int = 0
 	var visited: Array[Control] = []
-	while steps < lobby._popup_chain.size() + 2:
+	while steps < lobby._main_chain.size() + 2:
 		current = current.get_node(current.focus_neighbor_bottom) as Control
 		visited.append(current)
 		steps += 1
 		if current == start:
 			break
-	assert_eq(current, start, "the popup chain wraps back to its own start")
+	assert_eq(current, start, "the main loop wraps back to its own start")
 	for unique_name: String in CHECK_NAMES:
 		assert_true(visited.has(_check(lobby, unique_name)), "%s is on the loop" % unique_name)

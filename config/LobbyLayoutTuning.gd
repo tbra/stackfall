@@ -39,3 +39,18 @@ extends Resource
 
 ## Font size of a seat's name.
 @export var seat_name_font_size: int = 16
+
+## Seat-row controls (PL1a, ui/lobby/LobbySeatRow.gd). Smallest size of the team
+## number button (visible with teams on): width, height in px.
+@export var seat_team_button_min_size_px: Vector2 = Vector2(36.0, 28.0)
+
+## Smallest width of a bot's difficulty dropdown, in px.
+@export var seat_difficulty_min_width_px: int = 96
+
+## Smallest size of a bot row's remove ("x") button: width, height in px.
+@export var seat_remove_button_min_size_px: Vector2 = Vector2(28.0, 28.0)
+
+## Width of the focus ring drawn round the colour box while it holds gamepad/keyboard
+## focus, in px (the box is a flat colour, so the shared theme's ring would vanish
+## into it).
+@export var seat_color_focus_border_px: int = 3

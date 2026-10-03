@@ -330,6 +330,13 @@ func test_lobby_settings_all_visible_or_reachable_at_every_size() -> void:
 		var vp: SubViewport = _host(window)
 		var lobby: Lobby = _build_lobby(vp) as Lobby
 		await _settle()
+		# Lobby rework (Bontago-1pi.53): advanced options live in collapsible blocks;
+		# open every section and Advanced block so they are checked for reachability too.
+		for section: LobbySection in lobby._sections():
+			section.set_expanded(true)
+			if section.has_advanced():
+				section.set_advanced_open(true)
+		await _settle()
 		var scroll: ScrollContainer = lobby.get_node("%SettingsScroll") as ScrollContainer
 		assert_true(scroll.follow_focus, "settings scroll follows focus at %s" % window)
 		var controls: Array[Control] = _focusable_settings_controls(scroll)

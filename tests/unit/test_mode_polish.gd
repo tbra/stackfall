@@ -142,25 +142,30 @@ func test_focus_loops_skip_the_hidden_timer_column() -> void:
 	var round_slider: HSlider = lobby.get_node("%RoundTimerSlider")
 	var sudden: Control = lobby.get_node("%SuddenDeathCheck")
 	_pick_mode(lobby, MatchConfig.GameMode.CAPTURE_THE_FLAG)
+	# Bontago-1pi.53 (S1a): sudden death moved from the popup into ROUND main, so it is
+	# part of the main loop only while Classic shows it (the popup has no conditional
+	# column left).
 	var shown: Array[Control] = lobby._visible_chain(lobby._main_chain)
-	var popup_shown: Array[Control] = lobby._visible_chain(lobby._popup_chain)
 	assert_true(shown.has(round_slider))
 	assert_false(shown.has(match_slider))
-	assert_false(popup_shown.has(sudden))
+	assert_false(shown.has(sudden))
 	_assert_closed_loop(shown)
-	_assert_closed_loop(popup_shown)
 	_pick_mode(lobby, MatchConfig.GameMode.CLASSIC)
 	shown = lobby._visible_chain(lobby._main_chain)
-	popup_shown = lobby._visible_chain(lobby._popup_chain)
 	assert_true(shown.has(match_slider))
-	assert_true(popup_shown.has(sudden))
+	assert_true(shown.has(sudden))
 	assert_false(shown.has(round_slider))
 	_assert_closed_loop(shown)
-	_assert_closed_loop(popup_shown)
-	# Focus order follows the visual order: mode, then the timer, then the map.
+	# Focus order follows the visual order: the game mode (GAME), then the ROUND timer,
+	# then sudden death, then the GIFTS and EXPERIMENTS sections (Bontago-1pi.53 S1b: the
+	# players/AI controls and the AI difficulty left the settings card).
 	assert_lt(shown.find(lobby.get_node("%GameModeOption")), shown.find(match_slider))
-	assert_lt(shown.find(match_slider), shown.find(lobby.get_node("%MapComboOption")))
-	assert_lt(shown.find(lobby.get_node("%AiCountSpin")), shown.find(lobby.get_node("%AiDifficultyOption")))
+	assert_lt(shown.find(match_slider), shown.find(sudden))
+	var gifts_header: Control = (lobby.get_node("%GiftsSection") as LobbySection).header_button
+	var experiments_header: Control = (lobby.get_node("%ExperimentsSection") as LobbySection).header_button
+	assert_lt(shown.find(sudden), shown.find(gifts_header))
+	assert_lt(shown.find(gifts_header), shown.find(experiments_header))
+	assert_lt(shown.find(experiments_header), shown.find(lobby.get_node("%BackButton")))
 
 
 func _assert_closed_loop(shown: Array[Control]) -> void:
@@ -224,18 +229,24 @@ func test_non_sandbox_classic_still_wins_on_the_hold() -> void:
 	assert_eq(Match.state(), Match.State.END)
 
 
-func test_mid_join_toggle_sits_after_turn_based_in_the_popup_focus_loop() -> void:
+func test_mid_join_toggle_sits_after_turn_based_in_the_game_advanced_focus_loop() -> void:
+	# Bontago-1pi.53 (S1a/S1b): Turn-based and Mid-join moved from the popup into the GAME
+	# section's Advanced block, so they are in the main loop once it is opened.
 	var lobby: Lobby = _make_lobby(true)
-	var popup_shown: Array[Control] = lobby._visible_chain(lobby._popup_chain)
-	var turn: int = popup_shown.find(lobby.get_node("%TurnBasedCheck"))
-	var mid: int = popup_shown.find(lobby.get_node("%MidJoinCheck"))
+	(lobby.get_node("%GameSection") as LobbySection).set_advanced_open(true)
+	var shown: Array[Control] = lobby._visible_chain(lobby._main_chain)
+	var turn: int = shown.find(lobby.get_node("%TurnBasedCheck"))
+	var mid: int = shown.find(lobby.get_node("%MidJoinCheck"))
 	assert_gt(turn, -1)
 	assert_eq(mid, turn + 1)
-	# QoL Q1 (Bontago-1pi.18.5) appends the Experiments toggles after Mid-join;
-	# Done/Close stays the last stop of the popup loop.
-	var close: int = popup_shown.find(lobby.get_node("%AdvancedPopupClose"))
-	assert_gt(close, mid)
-	assert_eq(close, popup_shown.size() - 1)
+	# QoL Q1 (Bontago-1pi.18.5) / S1b: the Experiments toggles (their section's Advanced block)
+	# come after the GAME block and before the footer (Back) once opened.
+	(lobby.get_node("%ExperimentsSection") as LobbySection).set_advanced_open(true)
+	shown = lobby._visible_chain(lobby._main_chain)
+	var gift_slot: int = shown.find(lobby.get_node("%QolGiftSlotCheck"))
+	assert_gt(gift_slot, shown.find(lobby.get_node("%QolTimerPauseCheck")))
+	assert_gt(shown.find(lobby.get_node("%QolTimerPauseCheck")), mid)
+	assert_lt(gift_slot, shown.find(lobby.get_node("%BackButton")))
 
 
 # --- Bontago-1pi.25.1 Domination --------------------------------------------
