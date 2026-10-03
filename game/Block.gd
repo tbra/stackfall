@@ -241,6 +241,15 @@ func _physics_process(_delta: float) -> void:
 		_prev_linear_velocity = linear_velocity
 		_apply_awake(false)
 		return
+	if freeze:
+		# Bontago-1pi.55: a frozen body is not simulated here -- a client's
+		# synced replica (SnapshotSync.freeze_body()) or a held/static body --
+		# so its linear_velocity is either zero or derived from script
+		# transform writes (the client's first interpolated move off the spawn
+		# teleport read as a ~588 m/s "impact"). Only real physics detects
+		# impacts; a client hears the host's via MatchNet.net_block_impacts().
+		_prev_linear_velocity = Vector3.ZERO
+		return
 	if not impacts_enabled:
 		_prev_linear_velocity = linear_velocity
 		return
