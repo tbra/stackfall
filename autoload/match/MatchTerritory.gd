@@ -111,6 +111,9 @@ func winner_team() -> int:
 
 func _build_territory() -> void:
 	cancel_pending()
+	# Bontago-1pi.46 (G3): the previous match's influence circles must not be encoded to
+	# clients (net/MatchNet.gd _encode_circles) while this one loads and counts down.
+	clear_circles()
 	var map_def: MapDef = _match.config.map_def()
 	_cell_grid = CellGrid.new(map_def.field_radius, map_def.cell_size, map_def.shape_test())
 	# Bontago-1pi.18.11: a new match (map / goal layout) starts with no cached claim
@@ -800,6 +803,18 @@ func _apply_circle_render(render: Dictionary) -> void:
 		)
 		_solve_waited_s = 0.0
 		_match._field.set_overlay_circles(xs, zs, radii, teams, _goal_positions, _goal_radii, argmax_mode)
+
+
+## Bontago-1pi.46 (G3): drops the cached influence-circle list (only that list; goal
+## positions/radii are rebuilt by the next _build_territory()). Called from MatchLifecycle._reset_match_state() (every
+## abort/start, host and client) and at the top of _build_territory(); idempotent.
+## Does not touch Field's overlay (Main's clear_match_state owns that).
+func clear_circles() -> void:
+	_circle_xs = PackedFloat32Array()
+	_circle_zs = PackedFloat32Array()
+	_circle_radii = PackedFloat32Array()
+	_circle_teams = PackedInt32Array()
+	_circle_argmax_mode = false
 
 
 ## The analytic circle list the last _run_territory_step() built (host

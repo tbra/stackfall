@@ -51,6 +51,8 @@ func _ready() -> void:
 	Events.player_eliminated.connect(_on_player_eliminated)
 	Events.match_won.connect(_on_match_won)
 	Events.pause_menu_opened.connect(_on_pause_menu_opened)
+	# Bontago-1pi.46: a world build/teardown never leaves a pad buzzing into the next match.
+	Events.match_scope_reset.connect(stop_all)
 
 
 ## Runs for every node in the tree (plain autoload Node, same as

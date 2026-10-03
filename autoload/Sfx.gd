@@ -104,6 +104,8 @@ func _ready() -> void:
 	Events.gift_flight_spawned.connect(_on_gift_flight_spawned)
 	Events.gift_claimed.connect(_on_gift_claimed)
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
+	# Bontago-1pi.46 (G6): a new match must not inherit the previous match's tense stem.
+	Events.match_scope_reset.connect(reset_match_audio)
 	Settings.audio_settings_changed.connect(_on_audio_settings_changed)
 	play_music()
 
@@ -445,6 +447,26 @@ func _on_goal_capture_progress(_team_id: int, progress: float) -> void:
 	_music_crossfade_tween.tween_property(
 		_tense_music_player, "volume_db", tense_stem_target_volume_db(), config.music_crossfade_seconds
 	)
+
+
+## Bontago-1pi.46 (G6): Events.match_scope_reset. A match left while the tense stem
+## was up (contextual music off: only a later goal_capture_progress clears it) must
+## not start the next match tense. Returns the stems to calm exactly as _ready() leaves
+## them: tense flag off, an in-flight crossfade killed, each stem at its calm target.
+## Idempotent. Playlist position and context are NOT touched (audit D2: they continue
+## across matches); with contextual music on the tense stem never activates and the
+## playlist envelope owns the volume, so only the flag and tween are cleared.
+func reset_match_audio() -> void:
+	if _music_crossfade_tween != null and _music_crossfade_tween.is_valid():
+		_music_crossfade_tween.kill()
+	_music_crossfade_tween = null
+	_tense_stem_is_active = false
+	if config.contextual_music_enabled:
+		return
+	if _music_player != null:
+		_music_player.volume_db = calm_stem_target_volume_db()
+	if _tense_stem_available and _tense_music_player != null:
+		_tense_music_player.volume_db = tense_stem_target_volume_db()
 
 
 # --- Contextual intermittent music -------------------------------------------
