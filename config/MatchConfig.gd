@@ -47,11 +47,15 @@ enum HoleMode { TEMPORARY, PERMANENT, OFF }
 ## lower-casing its name.
 enum WeatherMode { OFF, STORM, RAIN, SNOW, FOG, RANDOM, CHANGING }
 
-## Lobby "Map" time of day (Bontago-470.4, owner 2026-09-30). DAY = the sunset
-## sky theme, NIGHT = the night theme, RANDOM = the host picks one at match
-## start (autoload/match/MatchLifecycle.gd) and replicates the concrete id in
-## sky_theme_resolved, so every client shows the same sky.
-## Append-only: these integer values ride in lobby data and network messages.
+## Lobby "Map" time of day (Bontago-470.4, owner 2026-09-30; reworked by
+## Bontago-59o.18, docs/SKY_CYCLE_DEFAULT_PLAN.md). CYCLE = the running
+## day/night cycle, the DEFAULT. DAY ("Sunset"), NIGHT and DAWN are that same
+## cycle locked at a fixed phase (SkyThemeDef.locked_phase_for). RANDOM = the
+## host picks one of the three locked ones at match start
+## (autoload/match/MatchLifecycle.gd), never the running cycle, and replicates
+## the concrete id in sky_theme_resolved, so every client shows the same sky.
+## Append-only: these integer values ride in lobby data and network messages;
+## an old DAY (0) now reads as the locked Sunset.
 enum SkyThemeMode { DAY, NIGHT, RANDOM, CYCLE, DAWN }
 ## Concrete theme ids for host RANDOM rolls and resolved-id validation. The
 ## enum has non-concrete RANDOM/CYCLE entries, so its indices are not used here.
@@ -145,10 +149,12 @@ const ROUND_TIMER_OFF_MINUTES: int = 0
 @export var sky_team_sum: bool = false
 ## Weather event schedule (Bontago-22y.10); see WeatherMode.
 @export var weather_mode: WeatherMode = WeatherMode.CHANGING
-## Lobby "Map" time of day (see SkyThemeMode). DECISION: default DAY.
-@export var sky_theme_mode: SkyThemeMode = SkyThemeMode.DAY
+## Lobby "Map" time of day (see SkyThemeMode). DECISION (owner 2026-10-03,
+## Bontago-59o.18): default CYCLE.
+@export var sky_theme_mode: SkyThemeMode = SkyThemeMode.CYCLE
 ## The concrete theme id the host resolved at match start ("" = not resolved
-## yet). Rides in to_dict() so clients never roll their own.
+## yet, and "" for CYCLE, which is not a concrete theme). Rides in to_dict() so
+## clients never roll their own.
 @export var sky_theme_resolved: String = ""
 ## Spec 3.4 "Mid-match joins can be enabled in settings" (Bontago-8or.11): when
 ## true the host admits a new peer while a match runs (an open human seat, else
@@ -410,6 +416,7 @@ func sanitize() -> void:
 
 ## Host only, at match start: turns sky_theme_mode into a concrete theme id.
 ## `roll` picks one of the concrete themes for RANDOM; callers pass randi() % size.
+## CYCLE has no concrete id: it resolves to "" (the running cycle).
 func resolve_sky_theme(roll: int) -> void:
 	match sky_theme_mode:
 		SkyThemeMode.NIGHT:
@@ -418,12 +425,17 @@ func resolve_sky_theme(roll: int) -> void:
 			sky_theme_resolved = "dawn"
 		SkyThemeMode.RANDOM:
 			sky_theme_resolved = SKY_THEME_IDS[posmod(roll, SKY_THEME_IDS.size())]
+		SkyThemeMode.CYCLE:
+			sky_theme_resolved = ""
 		_:
 			sky_theme_resolved = "sunset"
 
 
 ## The theme id a match should show: the host's resolved id when present, else
-## the mode's own (an unresolved RANDOM falls back to DAY).
+## the mode's own (an unresolved RANDOM falls back to DAY, i.e. "sunset"). A
+## running CYCLE has no theme of its own and also reads "sunset" here (the
+## structural theme the cycle is built from); use is_sky_cycle_running() /
+## locked_sky_id() to tell the cycle apart.
 func effective_sky_theme() -> String:
 	if sky_theme_resolved != "":
 		return sky_theme_resolved
@@ -432,6 +444,20 @@ func effective_sky_theme() -> String:
 	if sky_theme_mode == SkyThemeMode.DAWN:
 		return "dawn"
 	return "sunset"
+
+
+## True while the sky is the running day/night cycle (the default).
+func is_sky_cycle_running() -> bool:
+	return sky_theme_mode == SkyThemeMode.CYCLE
+
+
+## The concrete id ("sunset", "night" or "dawn") the cycle is locked at, or ""
+## while the cycle is running. Derived only from replicated fields, so every
+## peer agrees; feed it to SkyThemeDef.locked_phase_for().
+func locked_sky_id() -> String:
+	if is_sky_cycle_running():
+		return ""
+	return effective_sky_theme()
 
 
 ## Serializes to a plain Dictionary for RPCs and Steam lobby data.

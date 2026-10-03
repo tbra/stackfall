@@ -342,16 +342,21 @@ func test_sanitize_clamps_hole_mode_to_the_three_modes() -> void:
 		assert_eq(config.hole_mode, mode, "sanitize() leaves a legal mode alone.")
 
 
-func test_sky_theme_mode_round_trips_and_defaults_to_day() -> void:
+func test_sky_theme_mode_round_trips_and_defaults_to_cycle() -> void:
 	var config: MatchConfig = MatchConfig.new()
-	assert_eq(config.sky_theme_mode, MatchConfig.SkyThemeMode.DAY)
-	assert_eq(config.effective_sky_theme(), "sunset")
+	assert_eq(config.sky_theme_mode, MatchConfig.SkyThemeMode.CYCLE, "Bontago-59o.18: Cycle is the default sky")
+	assert_true(config.is_sky_cycle_running())
+	assert_eq(config.locked_sky_id(), "", "a running cycle has no locked id")
+	assert_eq(config.sky_theme_resolved, "", "nothing resolved before match start")
+	assert_eq(config.effective_sky_theme(), "sunset", "the structural theme the cycle is built from")
+	assert_eq(config.to_dict()["sky_theme_mode"], MatchConfig.SkyThemeMode.CYCLE, "the wire default is Cycle")
+	assert_eq((load("res://config/match_defaults.tres") as MatchConfig).sky_theme_mode, MatchConfig.SkyThemeMode.CYCLE)
 	config.sky_theme_mode = MatchConfig.SkyThemeMode.RANDOM
 	config.resolve_sky_theme(1)
 	var restored: MatchConfig = MatchConfig.from_dict(config.to_dict())
 	assert_eq(restored.sky_theme_mode, MatchConfig.SkyThemeMode.RANDOM)
 	assert_eq(restored.effective_sky_theme(), "night", "clients use the host's resolved theme")
-	assert_eq(MatchConfig.from_dict({}).sky_theme_mode, MatchConfig.SkyThemeMode.DAY, "old wire data means Day")
+	assert_eq(MatchConfig.from_dict({}).sky_theme_mode, MatchConfig.SkyThemeMode.CYCLE, "old wire data without the key means Cycle")
 
 
 func test_resolve_sky_theme_maps_modes_and_sanitize_drops_unknown_ids() -> void:
@@ -359,12 +364,60 @@ func test_resolve_sky_theme_maps_modes_and_sanitize_drops_unknown_ids() -> void:
 	config.sky_theme_mode = MatchConfig.SkyThemeMode.NIGHT
 	config.resolve_sky_theme(0)
 	assert_eq(config.sky_theme_resolved, "night")
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.DAY
+	config.resolve_sky_theme(0)
+	assert_eq(config.sky_theme_resolved, "sunset", "Day is the locked Sunset")
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
+	config.resolve_sky_theme(0)
+	assert_eq(config.sky_theme_resolved, "", "the running cycle has no concrete id")
 	config.sky_theme_mode = MatchConfig.SkyThemeMode.RANDOM
 	config.resolve_sky_theme(0)
 	assert_eq(config.sky_theme_resolved, "sunset")
 	config.sky_theme_resolved = "../evil"
 	config.sanitize()
 	assert_eq(config.sky_theme_resolved, "")
+
+
+## Bontago-59o.18: RANDOM picks one of the three locked skies for every roll
+## (negative included) and never the running cycle; the result round-trips and
+## every peer derives the same locked id from the replicated fields.
+func test_random_sky_resolves_to_a_locked_id_never_the_running_cycle() -> void:
+	var seen: Dictionary = {}
+	for roll: int in range(-3, MatchConfig.SKY_THEME_IDS.size() * 2):
+		var config: MatchConfig = MatchConfig.new()
+		config.sky_theme_mode = MatchConfig.SkyThemeMode.RANDOM
+		config.resolve_sky_theme(roll)
+		assert_true(MatchConfig.SKY_THEME_IDS.has(config.sky_theme_resolved), "roll %d" % roll)
+		assert_false(config.is_sky_cycle_running())
+		var restored: MatchConfig = MatchConfig.from_dict(config.to_dict())
+		assert_eq(restored.locked_sky_id(), config.sky_theme_resolved, "the client derives the host's locked id")
+		seen[config.sky_theme_resolved] = true
+	assert_eq(seen.size(), MatchConfig.SKY_THEME_IDS.size(), "every locked sky is reachable by a roll")
+
+
+## Bontago-59o.18: locked_sky_id() is "" only for the running cycle; every other
+## mode names the concrete id (resolved or the mode's own), and old saved/wire
+## values (Day = 0 and the like) still deserialize to a locked sky.
+func test_locked_sky_id_per_mode_and_old_values_still_deserialize() -> void:
+	var expected: Dictionary = {
+		MatchConfig.SkyThemeMode.CYCLE: "",
+		MatchConfig.SkyThemeMode.DAY: "sunset",
+		MatchConfig.SkyThemeMode.NIGHT: "night",
+		MatchConfig.SkyThemeMode.DAWN: "dawn",
+		MatchConfig.SkyThemeMode.RANDOM: "sunset",
+	}
+	for mode: int in expected:
+		var config: MatchConfig = MatchConfig.new()
+		config.sky_theme_mode = mode as MatchConfig.SkyThemeMode
+		assert_eq(config.locked_sky_id(), String(expected[mode]), "unresolved mode %d" % mode)
+		config.resolve_sky_theme(0)
+		assert_eq(config.locked_sky_id(), String(expected[mode]), "resolved mode %d" % mode)
+		assert_eq(config.is_sky_cycle_running(), mode == MatchConfig.SkyThemeMode.CYCLE)
+	for mode: int in [0, 1, 2, 3, 4]:
+		var restored: MatchConfig = MatchConfig.from_dict({"sky_theme_mode": mode})
+		assert_eq(restored.sky_theme_mode, mode, "mode int %d keeps its meaning on the wire" % mode)
+	assert_eq(MatchConfig.from_dict({"sky_theme_mode": 0}).locked_sky_id(), "sunset", "an old Day is the locked Sunset")
+	assert_eq(MatchConfig.from_dict({"sky_theme_mode": 3}).locked_sky_id(), "", "an old Cycle still runs")
 
 
 func test_dawn_mode_resolves_and_survives_lobby_wire_data() -> void:
@@ -399,12 +452,17 @@ func test_legacy_dict_gravity_is_rescaled_but_versioned_dict_is_not() -> void:
 	assert_almost_eq(legacy.gravity_multiplier, 1.0, 0.0001)
 	var current: MatchConfig = MatchConfig.from_dict(MatchConfig.new().to_dict())
 	assert_eq(current.gravity_multiplier, 1.0)
+
+
 func test_cycle_mode_survives_wire_round_trip() -> void:
 	var config: MatchConfig = MatchConfig.new()
 	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
 	config.resolve_sky_theme(0)
+	assert_eq(config.sky_theme_resolved, "", "the host resolves the running cycle to no concrete id")
 	var restored: MatchConfig = MatchConfig.from_dict(config.to_dict())
 	assert_eq(restored.sky_theme_mode, MatchConfig.SkyThemeMode.CYCLE)
+	assert_true(restored.is_sky_cycle_running())
+	assert_eq(restored.locked_sky_id(), "")
 	assert_eq(restored.effective_sky_theme(), "sunset")
 
 

@@ -13,6 +13,25 @@ extends Resource
 @export_range(0.0, 1.0, 0.01) var cycle_star_threshold: float = 0.92
 @export_range(0.01, 0.3, 0.01) var cycle_star_radius: float = 0.12
 @export_range(0.01, 0.5, 0.01) var cycle_star_horizon_fade: float = 0.22
+## Bontago-59o.18 (docs/SKY_CYCLE_DEFAULT_PLAN.md): Cycle is the default sky and
+## the lobby's Sunset / Dawn / Night options become the same cycle locked at a
+## fixed phase. Phase 0 = dawn horizon, 0.25 = noon, 0.5 = sunset horizon,
+## 0.75 = midnight (Skybox.set_cycle_phase). All five values below are
+## shipped content, so every peer derives the same look from the replicated
+## sky_theme_mode / sky_theme_resolved with no new wire field.
+## Phase a running Cycle match opens at (0.10 = morning, sun ~38 degrees, full day).
+@export_range(0.0, 1.0, 0.01) var cycle_start_phase: float = 0.10
+## Phase the lobby's "Sunset" option (id "sunset") is locked at: sun low on the setting side.
+@export_range(0.0, 1.0, 0.005) var cycle_locked_phase_sunset: float = 0.47
+## Phase the lobby's "Dawn" option (id "dawn") is locked at: just after sunrise.
+@export_range(0.0, 1.0, 0.005) var cycle_locked_phase_dawn: float = 0.03
+## Phase the lobby's "Night" option (id "night") is locked at: midnight.
+@export_range(0.0, 1.0, 0.005) var cycle_locked_phase_night: float = 0.75
+## Day palette blend phases (a, b, c, d): the dawn palette is used by day and
+## fades into the sunset palette on the setting side with
+## smoothstep(a, b, phase) * (1 - smoothstep(c, d, phase)). Read by the palette
+## blend package (C1b); not a slider row (the F4 panel builds no Vector4 rows).
+@export var cycle_dusk_weight_phases: Vector4 = Vector4(0.30, 0.46, 0.90, 0.98)
 ## Bontago-59o.16: opt-in procedural sky look (docs/SKY_PROCEDURAL_PLAN.md),
 ## declared first so it is the first row of the F4 Sky tab for the owner's
 ## painted-vs-procedural comparison. Skybox.apply_theme() writes
@@ -265,3 +284,20 @@ extends Resource
 @export var proc_cards_density: float = 0.85
 @export var proc_cards_scale: float = 1.5
 @export var proc_cards_opacity: float = 0.95
+
+
+## Locked cycle phase (0..1) for a concrete sky id as MatchConfig resolves it
+## ("sunset", "night" or "dawn"), or -1.0 for any other id (including "" = the
+## running cycle), so callers can tell "locked" from "running" without a flag.
+func locked_phase_for(sky_id: String) -> float:
+	# DECISION: literal ids, matching MatchConfig.SKY_THEME_IDS; the enum has
+	# non-concrete RANDOM/CYCLE entries, so its indices cannot key this.
+	match sky_id:
+		"sunset":
+			return cycle_locked_phase_sunset
+		"dawn":
+			return cycle_locked_phase_dawn
+		"night":
+			return cycle_locked_phase_night
+		_:
+			return -1.0

@@ -688,6 +688,10 @@ ranges = {
 "RainTuning.puddle_cluster_share": Vector2(0.0, 1.0),
 "RainTuning.puddle_cluster_count": Vector2(0.0, 20.0),
 "RainTuning.puddle_cluster_spread_m": Vector2(0.5, 20.0),
+"SkyThemeDef.cycle_start_phase": Vector2(0.0, 1.0),
+"SkyThemeDef.cycle_locked_phase_sunset": Vector2(0.0, 1.0),
+"SkyThemeDef.cycle_locked_phase_dawn": Vector2(0.0, 1.0),
+"SkyThemeDef.cycle_locked_phase_night": Vector2(0.0, 1.0),
 }
 descriptions = {
 "WeatherCeilingTuning.height_m": "World height of the upper puff layer's bases above the disc; rain and snow start just below.",
@@ -1618,4 +1622,9 @@ descriptions = {
 "RainTuning.puddle_cluster_share": "Share of puddles collected around low spots.",
 "RainTuning.puddle_cluster_count": "Number of low spots puddles collect around.",
 "RainTuning.puddle_cluster_spread_m": "Spread of puddles around a low spot in metres.",
+"SkyThemeDef.cycle_start_phase": "Time of day a running Cycle match opens at (0 dawn, 0.25 noon, 0.5 sunset, 0.75 midnight); default 0.10 is morning. Read at match start.",
+"SkyThemeDef.cycle_locked_phase_sunset": "Time of day the lobby Sunset option is frozen at; 0.5 is the sunset horizon, the 0.47 default leaves the sun a little above it.",
+"SkyThemeDef.cycle_locked_phase_dawn": "Time of day the lobby Dawn option is frozen at; 0 is the dawn horizon, the 0.03 default has the sun just risen.",
+"SkyThemeDef.cycle_locked_phase_night": "Time of day the lobby Night option is frozen at; 0.75 is midnight.",
+"SkyThemeDef.cycle_dusk_weight_phases": "Day palette blend phases (a, b, c, d): the dawn palette fades into the sunset palette between a and b and back out between c and d. Not a slider row.",
 }
