@@ -1026,9 +1026,12 @@ func test_sky_tab_theme_dropdown_lists_themes_and_switches_live() -> void:
 	var option: OptionButton = _find_option_named(_panel, "ThemeOption")
 	assert_not_null(option, "expected a Theme OptionButton on the Sky tab")
 	var ids: PackedStringArray = Skybox.list_available_themes()
-	assert_eq(option.item_count, ids.size())
+	# Bontago-59o.18 (U1): the leading entry is the day/night cycle; every
+	# static theme follows it in list_available_themes() order.
+	assert_eq(option.item_count, ids.size() + 1)
+	assert_eq(option.get_item_text(0), TuningPanel.CYCLE_THEME_ID, "cycle leads the list")
 	assert_eq(option.focus_mode, Control.FOCUS_ALL, "gamepad/keyboard focusable")
-	var night_index: int = ids.find("night")
+	var night_index: int = ids.find("night") + 1
 	option.select(night_index)
 	option.item_selected.emit(night_index)
 	assert_eq(_panel.skybox_config.theme_name, "night", "persists on SkyboxConfig like the Skybox row")
@@ -1039,6 +1042,220 @@ func test_sky_tab_theme_dropdown_lists_themes_and_switches_live() -> void:
 	assert_false(_panel.apply_sky_theme_id("no_such_theme"))
 	_panel.skybox_config.theme_name = saved_name
 	_panel.sky_theme = Skybox.load_theme("sunset")
+
+
+# --- Bontago-59o.18 (U1): cycle entry, Time-of-day row, live-edit routing --------
+
+## Records every Skybox API call the Sky tab makes, without the real Skybox's
+## scene build (its _ready() only joins the tuning group). Behaviour lands with
+## package C1a; U1 only has to route through the API.
+class SpySkybox extends Skybox:
+	var cycle_active: bool = false
+	var locked: float = -1.0
+	var phase_now: float = 0.4
+	var start_calls: Array[Vector2] = []
+	var lock_calls: Array[float] = []
+	var refresh_calls: int = 0
+	var applied_themes: Array[SkyThemeDef] = []
+	var theme_id_calls: Array[String] = []
+
+	func _ready() -> void:
+		add_to_group(Skybox.TUNING_GROUP)
+
+	func start_cycle(lock_at: float = -1.0, open_at: float = -1.0) -> void:
+		start_calls.append(Vector2(lock_at, open_at))
+		cycle_active = true
+		locked = lock_at
+
+	func set_locked_phase(phase: float) -> void:
+		lock_calls.append(phase)
+		locked = phase
+
+	func locked_phase() -> float:
+		return locked
+
+	func is_cycle_active() -> bool:
+		return cycle_active
+
+	func current_cycle_phase() -> float:
+		return phase_now if cycle_active else -1.0
+
+	func refresh_cycle_sources() -> void:
+		refresh_calls += 1
+
+	func apply_theme(applied_theme: SkyThemeDef) -> void:
+		applied_themes.append(applied_theme)
+
+	func set_theme_by_id(theme_id: String) -> bool:
+		theme_id_calls.append(theme_id)
+		cycle_active = false
+		return true
+
+	# Reset also re-applies the six-face set and the reflection probe; the spy has
+	# built no faces or probe, so those two are inert.
+	func apply_set(_set_name: String, _root_override: String = "") -> bool:
+		return true
+
+	func refresh_from_visuals() -> void:
+		pass
+
+
+func _make_spy_skybox(cycle_active: bool) -> SpySkybox:
+	var spy: SpySkybox = SpySkybox.new()
+	spy.cycle_active = cycle_active
+	add_child_autofree(spy)
+	return spy
+
+
+func _find_control_named(node: Node, control_name: String) -> Control:
+	if node is Control and node.name == control_name:
+		return node as Control
+	for child: Node in node.get_children():
+		var found: Control = _find_control_named(child, control_name)
+		if found != null:
+			return found
+	return null
+
+
+func test_theme_dropdown_cycle_entry_starts_the_cycle_and_persists_theme_name() -> void:
+	var saved_name: String = _panel.skybox_config.theme_name
+	var saved_theme: SkyThemeDef = _panel.sky_theme
+	var spy: SpySkybox = _make_spy_skybox(false)
+	_panel.rebuild()
+	var option: OptionButton = _find_option_named(_panel, "ThemeOption")
+	assert_eq(option.get_item_text(0), "cycle")
+	option.select(0)
+	option.item_selected.emit(0)
+	assert_eq(spy.start_calls.size(), 1, "the cycle entry calls Skybox.start_cycle() on the live Skybox")
+	assert_eq(spy.start_calls[0], Vector2(-1.0, -1.0), "defaults: running, from the start phase")
+	assert_eq(spy.theme_id_calls.size(), 0, "not routed through the static set_theme_by_id")
+	assert_eq(_panel.skybox_config.theme_name, "cycle", "persisted as theme_name per the plan")
+	assert_eq(_panel.sky_theme, Skybox.load_theme("sunset"), "sliders edit the cycle's source theme")
+	option = _find_option_named(_panel, "ThemeOption")
+	assert_eq(option.selected, 0, "the rebuilt dropdown shows cycle")
+
+	# Save override round trip: "cycle" survives a restart through the F4 file.
+	assert_eq(_panel.save_overrides(), OK)
+	assert_true(_panel.build_copy_text().contains("theme_name = \"cycle\""))
+	_panel.skybox_config.theme_name = "sunset"
+	TuningPanel.apply_saved_overrides()
+	assert_eq(_panel.skybox_config.theme_name, "cycle", "theme_name = cycle round-trips through Save override")
+
+	_panel.skybox_config.theme_name = saved_name
+	_panel.sky_theme = saved_theme
+
+
+func test_theme_dropdown_shows_cycle_while_a_live_skybox_runs_it() -> void:
+	var spy: SpySkybox = _make_spy_skybox(true)
+	assert_eq(_panel.skybox_config.theme_name, "sunset", "fixture: the persisted name is still the static default")
+	assert_eq(_panel.theme_choice(), "cycle", "a match's running cycle is what F4 must show")
+	_panel.rebuild()
+	assert_eq(_find_option_named(_panel, "ThemeOption").selected, 0)
+	spy.cycle_active = false
+	assert_eq(_panel.theme_choice(), "sunset")
+
+
+func test_time_of_day_row_routes_every_choice_through_set_locked_phase() -> void:
+	var spy: SpySkybox = _make_spy_skybox(true)
+	_panel.rebuild()
+	var option: OptionButton = _find_option_named(_panel, "TimeOfDayOption")
+	var slider: HSlider = _find_control_named(_panel, "TimeOfDaySlider") as HSlider
+	assert_not_null(option, "expected a Time of day OptionButton on the Sky tab")
+	assert_not_null(slider, "expected a Time of day slider on the Sky tab")
+	var labels: Array[String] = []
+	for index: int in range(option.item_count):
+		labels.append(option.get_item_text(index))
+	assert_eq(labels, ["Running", "Sunset", "Dawn", "Night", "Custom"])
+	assert_eq(option.focus_mode, Control.FOCUS_ALL, "gamepad/keyboard focusable")
+	assert_eq(slider.focus_mode, Control.FOCUS_ALL, "gamepad/keyboard focusable")
+	assert_eq(option.selected, 0, "a running cycle shows Running")
+	assert_false(option.disabled)
+	assert_false(slider.editable, "the slider is for Custom only")
+
+	var source: SkyThemeDef = Skybox.load_theme("sunset")
+	var expected: Array[float] = [
+		-1.0, source.locked_phase_for("sunset"), source.locked_phase_for("dawn"), source.locked_phase_for("night"),
+	]
+	for index: int in range(1, 4):
+		assert_gt(expected[index], -0.5, "fixture: SkyThemeDef locks a phase for %s" % labels[index])
+	for index: int in [1, 2, 3, 0]:
+		option.select(index)
+		option.item_selected.emit(index)
+		assert_almost_eq(spy.lock_calls[-1], expected[index], 0.0001, "%s locks the cycle at its phase" % labels[index])
+		assert_false(slider.editable)
+
+	option.select(4)
+	option.item_selected.emit(4)
+	assert_almost_eq(spy.lock_calls[-1], spy.phase_now, 0.0001, "Custom locks where the cycle is now (no jump)")
+	assert_true(slider.editable)
+	assert_almost_eq(slider.value, spy.phase_now, 0.0001)
+	slider.value_changed.emit(0.6)
+	assert_almost_eq(spy.lock_calls[-1], 0.6, 0.0001, "the slider moves the lock")
+	assert_eq(_panel.time_of_day_choice(), "custom")
+	option.select(0)
+	option.item_selected.emit(0)
+	assert_almost_eq(spy.lock_calls[-1], -1.0, 0.0001, "Running unlocks")
+	assert_false(_panel.apply_time_of_day("midnight"), "an unknown choice is rejected")
+
+
+func test_time_of_day_row_reflects_a_cycle_locked_by_the_lobby() -> void:
+	var spy: SpySkybox = _make_spy_skybox(true)
+	var source: SkyThemeDef = Skybox.load_theme("sunset")
+	spy.locked = source.locked_phase_for("night")
+	spy.phase_now = spy.locked
+	_panel.rebuild()
+	var option: OptionButton = _find_option_named(_panel, "TimeOfDayOption")
+	assert_eq(option.selected, TuningPanel.TIME_OF_DAY_CHOICES.find("night"), "a lobby-locked night shows Night")
+	spy.locked = 0.333
+	spy.phase_now = 0.333
+	_panel.rebuild()
+	option = _find_option_named(_panel, "TimeOfDayOption")
+	assert_eq(option.selected, TuningPanel.TIME_OF_DAY_CHOICES.find("custom"))
+	assert_almost_eq((_find_control_named(_panel, "TimeOfDaySlider") as HSlider).value, 0.333, 0.006)
+
+
+func test_time_of_day_row_is_disabled_while_a_static_theme_is_shown() -> void:
+	var spy: SpySkybox = _make_spy_skybox(false)
+	_panel.rebuild()
+	assert_true(_find_option_named(_panel, "TimeOfDayOption").disabled)
+	assert_false((_find_control_named(_panel, "TimeOfDaySlider") as HSlider).editable)
+	_panel.apply_time_of_day("night")
+	assert_eq(spy.lock_calls.size(), 0, "nothing to lock without a running cycle")
+
+
+func test_live_sky_edit_refreshes_cycle_sources_instead_of_applying_the_static_theme() -> void:
+	var spy: SpySkybox = _make_spy_skybox(true)
+	_panel.rebuild()
+	var slider: HSlider = _panel.control_for(_panel.sky_theme, "fog_density") as HSlider
+	slider.emit_signal("value_changed", _saved_sky_fog_density + 0.01)
+	assert_eq(spy.refresh_calls, 1, "a cycle Skybox re-copies the source themes")
+	assert_eq(spy.applied_themes.size(), 0, "apply_theme would swap the live cycle for the static material")
+	spy.cycle_active = false
+	slider.emit_signal("value_changed", _saved_sky_fog_density + 0.02)
+	assert_eq(spy.refresh_calls, 1)
+	assert_eq(spy.applied_themes.size(), 1, "a static Skybox still gets apply_theme")
+	assert_eq(spy.applied_themes[0], _panel.sky_theme)
+
+
+func test_editing_a_locked_phase_export_moves_the_selected_preset() -> void:
+	var spy: SpySkybox = _make_spy_skybox(true)
+	_panel.rebuild()
+	var source: SkyThemeDef = Skybox.load_theme("sunset")
+	var saved_phase: float = source.cycle_locked_phase_sunset
+	_panel.apply_time_of_day("sunset")
+	var slider: HSlider = _panel.control_for(_panel.sky_theme, "cycle_locked_phase_sunset") as HSlider
+	assert_not_null(slider, "the locked phase is tunable on the Sky tab")
+	slider.emit_signal("value_changed", 0.5)
+	assert_almost_eq(spy.lock_calls[-1], 0.5, 0.0001, "the new phase is applied to the locked sky now")
+	source.cycle_locked_phase_sunset = saved_phase
+
+
+func test_reset_keeps_a_running_cycle_instead_of_switching_to_the_static_theme() -> void:
+	var spy: SpySkybox = _make_spy_skybox(true)
+	_panel.reset_all()
+	assert_true(spy.cycle_active, "reset must not replace the cycle with a static theme")
+	assert_eq(spy.theme_id_calls.size(), 0)
+	assert_gt(spy.refresh_calls, 0, "the reset values are re-copied into the cycle")
 
 
 func test_ui_is_lazy_and_freed_on_close() -> void:

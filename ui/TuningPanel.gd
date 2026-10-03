@@ -84,7 +84,14 @@ extends CanvasLayer
 ##     changing a Resource field nothing re-reads on its own.
 ##   - SkyThemeDef: apply_sky_theme_live() calls Skybox.apply_theme() on every
 ##     rig in Skybox.TUNING_GROUP (see that function's own doc for a known
-##     partial-live gap around the FogVolume child).
+##     partial-live gap around the FogVolume child). Bontago-59o.18 (U1): a rig
+##     running the day/night cycle gets refresh_cycle_sources() instead, so an
+##     edit never swaps the live cycle for the static theme material.
+##   - Cycle sky (Bontago-59o.18, U1): the Sky tab's Theme dropdown leads with a
+##     "cycle" entry (Skybox.start_cycle(), persisted as
+##     skybox_config.theme_name = "cycle") and a Time-of-day row (Running /
+##     Sunset / Dawn / Night / Custom + a 0..1 phase slider) locks it through
+##     Skybox.set_locked_phase(). Local dev tuning: nothing is replicated.
 ##
 ## BlockVisualTuning, BlockEffectsConfig, BeaconVisualTuning, CameraShakeConfig
 ## and HUDVisualTuning need no such hook: CameraShakeConfig/BlockEffectsConfig
@@ -194,6 +201,25 @@ const PHYSICS_PRESETS: Array[Dictionary] = [
 	{"id": "original_feel", "label": "Original feel (experimental)", "path": "res://config/physics_presets/original_feel.tres"},
 ]
 
+## Bontago-59o.18 (U1): the Theme dropdown's leading entry. It is not a file under
+## config/sky_themes/; it is persisted on skybox_config.theme_name and handled by
+## game/Skybox.gd (start_cycle()). The cycle's day half is the sunset.tres
+## duplicate (Skybox.configure_match_sky), so the Sky tab's sliders edit that one.
+const CYCLE_THEME_ID: String = "cycle"
+## Time-of-day row choices, index-parallel to TIME_OF_DAY_LABELS. The three
+## concrete ids are SkyThemeDef.locked_phase_for() keys (MatchConfig.SKY_THEME_IDS).
+const TIME_RUNNING: String = "running"
+const TIME_CUSTOM: String = "custom"
+const TIME_OF_DAY_CHOICES: PackedStringArray = ["running", "sunset", "dawn", "night", "custom"]
+const TIME_OF_DAY_LABELS: PackedStringArray = ["Running", "Sunset", "Dawn", "Night", "Custom"]
+## A live locked phase within this of a preset's phase reads as that preset.
+const TIME_OF_DAY_PHASE_EPSILON: float = 0.001
+const TIME_OF_DAY_SLIDER_STEP: float = 0.005
+## Custom slider seed when no live cycle can report its phase (0.25 = noon).
+const TIME_OF_DAY_DEFAULT_CUSTOM_PHASE: float = 0.25
+const TIME_OF_DAY_SLIDER_MIN_WIDTH: float = 160.0
+const TIME_OF_DAY_VALUE_FORMAT: String = "%.3f"
+
 @export var hints: TuningPanelHints = preload("res://config/tuning_panel_hints.tres")
 
 var camera_tuning: CameraTuning = preload("res://config/camera_tuning.tres")
@@ -261,6 +287,12 @@ var _selected_tab_index: int = 0
 ## reached _on_tab_changed() and clobbered _selected_tab_index back to 0
 ## before rebuild()'s own explicit restore below even ran.
 var _rebuilding_tabs: bool = false
+
+## Bontago-59o.18 (U1): the Sky tab's Time-of-day row state (TIME_OF_DAY_CHOICES
+## entry, and the phase the Custom slider holds). Session-local: only
+## skybox_config.theme_name = "cycle" persists.
+var _time_of_day_choice: String = TIME_RUNNING
+var _time_of_day_custom_phase: float = TIME_OF_DAY_DEFAULT_CUSTOM_PHASE
 
 
 func _ready() -> void:
@@ -490,6 +522,7 @@ func rebuild() -> void:
 		# emitter mid-emission is a Godot error / potential crash.
 		child.queue_free()
 	_rows.clear()
+	_bind_sky_theme_to_live_cycle()
 
 	_add_tab("Camera", [camera_tuning])
 	_add_tab("Controls", [ghost_tuning])
@@ -539,6 +572,7 @@ func _add_tab(tab_name: String, resources: Array) -> void:
 		# (the disc's mirror/reflection) is judged against TerritoryVisuals'
 		# own reflection fields, still on the Territory tab.
 		list.add_child(_build_theme_row())
+		list.add_child(_build_time_of_day_row())
 		list.add_child(_build_skybox_row())
 		list.add_child(_build_weather_row())
 		list.add_child(_build_breeze_row())
@@ -944,6 +978,10 @@ func _on_field_changed(resource: Resource, _prop_name: String) -> void:
 			apply_cycle_length_live()
 		else:
 			apply_sky_theme_live()
+			# Bontago-59o.18 (U1): editing a preset's locked phase moves the
+			# sky now when that preset is the selected time of day.
+			if _prop_name.begins_with("cycle_locked_phase") and _time_of_day_choice != TIME_CUSTOM:
+				_push_locked_phase(_phase_for_time_choice(_time_of_day_choice))
 	# ghost_tuning / territory_tuning / block_feed_config are already read
 	# live by whatever consumes them each frame/tick -- see this file's class
 	# doc for the live-apply hooks the other resources need. Bontago-xtq.36:
@@ -1019,7 +1057,9 @@ func apply_physics_preset(preset_id: String) -> void:
 
 ## Bontago-adt: the Sky tab's "Theme" dropdown (sunset / night / any future
 ## config/sky_themes/*.tres SkyThemeDef, discovered by
-## Skybox.list_available_themes()). DECISION: a sibling row directly above the
+## Skybox.list_available_themes()), led by Bontago-59o.18's "cycle" entry (the
+## default match sky: Skybox.start_cycle(); the Time-of-day row below locks it).
+## DECISION: a sibling row directly above the
 ## Skybox row rather than extra Skybox entries -- the Skybox row picks a
 ## six-face texture set (or procedural), a different axis from the whole-look
 ## theme (light, fog, clouds, birds), and mixing them would make "night" and
@@ -1038,12 +1078,14 @@ func _build_theme_row() -> Control:
 	option.name = "ThemeOption"
 	option.tooltip_text = (
 		"Switches the whole sky theme live (sky, light, fog, clouds, birds, sun " +
-		"flare, reflections). The sliders below then edit the chosen theme."
+		"flare, reflections). The sliders below then edit the chosen theme. " +
+		"cycle = the running day/night cycle (the default match sky; lock a time " +
+		"with Time of day); every other entry is a static theme."
 	)
-	var ids: PackedStringArray = Skybox.list_available_themes()
+	var ids: PackedStringArray = theme_ids()
 	for theme_id: String in ids:
 		option.add_item(theme_id)
-	var selected_index: int = ids.find(skybox_config.theme_name)
+	var selected_index: int = ids.find(theme_choice())
 	option.selected = selected_index if selected_index >= 0 else 0
 	option.item_selected.connect(func(index: int) -> void:
 		apply_sky_theme_id(ids[index])
@@ -1164,6 +1206,8 @@ func _weather_display_name(weather_id: StringName) -> String:
 ## everything theme-driven on every live Skybox. False for an unknown id.
 ## The Sky tab rows are rebuilt by the caller (rebuild()).
 func apply_sky_theme_id(theme_id: String) -> bool:
+	if theme_id == CYCLE_THEME_ID:
+		return _apply_cycle_theme()
 	var chosen: SkyThemeDef = Skybox.load_theme(theme_id)
 	if chosen == null:
 		return false
@@ -1174,6 +1218,219 @@ func apply_sky_theme_id(theme_id: String) -> bool:
 		if skybox != null:
 			skybox.set_theme_by_id(theme_id)
 	return true
+
+
+## Bontago-59o.18 (U1): the Theme dropdown's ids: the leading "cycle" entry,
+## then every static theme file (Skybox.list_available_themes()).
+func theme_ids() -> PackedStringArray:
+	var ids: PackedStringArray = PackedStringArray([CYCLE_THEME_ID])
+	ids.append_array(Skybox.list_available_themes())
+	return ids
+
+
+## The theme the Theme dropdown shows: "cycle" while skybox_config.theme_name says
+## so or any live Skybox runs the day/night cycle (a match starts one by default,
+## whatever theme_name was persisted), else skybox_config.theme_name.
+func theme_choice() -> String:
+	if skybox_config.theme_name == CYCLE_THEME_ID or _any_cycle_active():
+		return CYCLE_THEME_ID
+	return skybox_config.theme_name
+
+
+## The theme the day/night cycle copies (Skybox.configure_match_sky: the DAY
+## entry, sunset.tres). Its sliders and locked-phase exports drive the cycle.
+func _cycle_source_theme() -> SkyThemeDef:
+	return Skybox.load_theme(MatchConfig.SKY_THEME_IDS[MatchConfig.SkyThemeMode.DAY])
+
+
+func _live_skyboxes() -> Array[Skybox]:
+	var found: Array[Skybox] = []
+	if not is_inside_tree():
+		return found
+	for node: Node in get_tree().get_nodes_in_group(Skybox.TUNING_GROUP):
+		var skybox: Skybox = node as Skybox
+		if skybox != null:
+			found.append(skybox)
+	return found
+
+
+func _any_cycle_active() -> bool:
+	for skybox: Skybox in _live_skyboxes():
+		if skybox.is_cycle_active():
+			return true
+	return false
+
+
+## While a cycle is the shown theme the Sky tab's sliders must edit the cycle's
+## source theme, not whichever static theme the panel was last bound to.
+func _bind_sky_theme_to_live_cycle() -> void:
+	if theme_choice() != CYCLE_THEME_ID:
+		return
+	var source: SkyThemeDef = _cycle_source_theme()
+	if source != null:
+		sky_theme = source
+
+
+## "cycle" theme pick: persists theme_name, rebinds the sliders to the cycle's
+## source theme and (re)starts the running cycle on every live Skybox.
+func _apply_cycle_theme() -> bool:
+	var source: SkyThemeDef = _cycle_source_theme()
+	if source == null:
+		return false
+	skybox_config.theme_name = CYCLE_THEME_ID
+	sky_theme = source
+	_time_of_day_choice = TIME_RUNNING
+	for skybox: Skybox in _live_skyboxes():
+		skybox.start_cycle()
+	return true
+
+
+## Bontago-59o.18 (U1): the Sky tab's "Time of day" row. Running / Sunset / Dawn /
+## Night / Custom (a 0..1 phase slider, editable for Custom only) drive the
+## cycle through Skybox.set_locked_phase(); the row is disabled while a static
+## theme is shown (nothing to lock). Local dev tuning like the cycle length:
+## nothing is replicated and nothing but theme_name = "cycle" persists.
+func _build_time_of_day_row() -> Control:
+	_sync_time_of_day_from_live()
+	var active: bool = theme_choice() == CYCLE_THEME_ID
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+
+	var label: Label = Label.new()
+	label.text = "Time of day"
+	label.custom_minimum_size = Vector2(NAME_COLUMN_WIDTH, 0.0)
+	row.add_child(label)
+
+	var option: OptionButton = OptionButton.new()
+	option.name = "TimeOfDayOption"
+	option.tooltip_text = (
+		"Running keeps the day/night cycle moving. Sunset, Dawn and Night lock the " +
+		"cycle at that time (the lobby's fixed options); Custom locks it where the " +
+		"slider is. Only applies while the cycle theme is selected."
+	)
+	for choice_label: String in TIME_OF_DAY_LABELS:
+		option.add_item(choice_label)
+	option.selected = maxi(TIME_OF_DAY_CHOICES.find(_time_of_day_choice), 0)
+	option.disabled = not active
+	row.add_child(option)
+
+	var slider: HSlider = HSlider.new()
+	slider.name = "TimeOfDaySlider"
+	slider.min_value = 0.0
+	slider.max_value = 1.0
+	slider.step = TIME_OF_DAY_SLIDER_STEP
+	slider.value = _displayed_time_phase()
+	slider.editable = active and _time_of_day_choice == TIME_CUSTOM
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slider.custom_minimum_size = Vector2(TIME_OF_DAY_SLIDER_MIN_WIDTH, 0.0)
+	slider.tooltip_text = "Cycle phase: 0 dawn, 0.25 noon, 0.5 sunset, 0.75 midnight. Editable with Custom."
+	row.add_child(slider)
+
+	var value_label: Label = Label.new()
+	value_label.name = "TimeOfDayValue"
+	value_label.custom_minimum_size = Vector2(VALUE_WIDTH, 0.0)
+	value_label.text = TIME_OF_DAY_VALUE_FORMAT % slider.value
+	row.add_child(value_label)
+
+	option.item_selected.connect(func(index: int) -> void:
+		var choice: String = TIME_OF_DAY_CHOICES[index]
+		apply_time_of_day(choice)
+		slider.set_value_no_signal(_displayed_time_phase())
+		slider.editable = choice == TIME_CUSTOM
+		value_label.text = TIME_OF_DAY_VALUE_FORMAT % slider.value
+	)
+	slider.value_changed.connect(func(value: float) -> void:
+		apply_custom_time_of_day(value)
+		value_label.text = TIME_OF_DAY_VALUE_FORMAT % value
+	)
+	return row
+
+
+## Selects a Time-of-day `choice` (a TIME_OF_DAY_CHOICES entry) on every live
+## cycle Skybox: running -> set_locked_phase(-1), sunset/dawn/night -> the source
+## theme's locked phase, custom -> locks where the cycle is now. False for an
+## unknown choice. Public so a test can drive it without a real OptionButton.
+func apply_time_of_day(choice: String) -> bool:
+	if not TIME_OF_DAY_CHOICES.has(choice):
+		return false
+	_time_of_day_choice = choice
+	if choice == TIME_CUSTOM:
+		var live: float = _live_cycle_phase()
+		if live >= 0.0:
+			_time_of_day_custom_phase = live
+	_push_locked_phase(_phase_for_time_choice(choice))
+	return true
+
+
+## The Custom slider: locks every live cycle Skybox at `phase` (clamped 0..1).
+func apply_custom_time_of_day(phase: float) -> void:
+	_time_of_day_choice = TIME_CUSTOM
+	_time_of_day_custom_phase = clampf(phase, 0.0, 1.0)
+	_push_locked_phase(_time_of_day_custom_phase)
+
+
+## The Time-of-day choice currently selected (a TIME_OF_DAY_CHOICES entry).
+func time_of_day_choice() -> String:
+	return _time_of_day_choice
+
+
+## The phase `choice` locks the cycle at; -1.0 for running (and for an
+## unresolvable preset, which then leaves the cycle running).
+func _phase_for_time_choice(choice: String) -> float:
+	if choice == TIME_RUNNING:
+		return -1.0
+	if choice == TIME_CUSTOM:
+		return _time_of_day_custom_phase
+	var source: SkyThemeDef = _cycle_source_theme()
+	return source.locked_phase_for(choice) if source != null else -1.0
+
+
+## The phase the Custom slider shows for the current choice.
+func _displayed_time_phase() -> float:
+	var phase: float = _phase_for_time_choice(_time_of_day_choice)
+	return phase if phase >= 0.0 else _time_of_day_custom_phase
+
+
+func _push_locked_phase(phase: float) -> void:
+	for skybox: Skybox in _live_skyboxes():
+		if skybox.is_cycle_active():
+			skybox.set_locked_phase(phase)
+
+
+## The phase of the first live cycle Skybox (-1.0 when none runs one).
+func _live_cycle_phase() -> float:
+	for skybox: Skybox in _live_skyboxes():
+		if skybox.is_cycle_active():
+			return skybox.current_cycle_phase()
+	return -1.0
+
+
+## Seeds the row's state from the first live cycle Skybox (a match may have
+## locked it from the lobby): running, a preset whose phase matches, or custom.
+func _sync_time_of_day_from_live() -> void:
+	for skybox: Skybox in _live_skyboxes():
+		if not skybox.is_cycle_active():
+			continue
+		var locked: float = skybox.locked_phase()
+		var current: float = skybox.current_cycle_phase()
+		if current >= 0.0:
+			_time_of_day_custom_phase = current
+		if locked < 0.0:
+			_time_of_day_choice = TIME_RUNNING
+			return
+		_time_of_day_custom_phase = locked
+		_time_of_day_choice = _time_choice_for_phase(locked)
+		return
+
+
+func _time_choice_for_phase(phase: float) -> String:
+	var source: SkyThemeDef = _cycle_source_theme()
+	if source != null:
+		for choice: String in TIME_OF_DAY_CHOICES:
+			var preset: float = source.locked_phase_for(choice)
+			if preset >= 0.0 and absf(preset - phase) <= TIME_OF_DAY_PHASE_EPSILON:
+				return choice
+	return TIME_CUSTOM
 
 
 ## Bontago-xtq.22: the Sky tab's own Skybox row (Bontago-1pi.1: moved here
@@ -1310,9 +1567,13 @@ func refresh_territory_visuals_live() -> void:
 ## apply_theme() doesn't resync those, so an edit to one of those four fields
 ## only affects a Skybox that hasn't spawned its FogVolume yet.
 func apply_sky_theme_live() -> void:
-	for node: Node in get_tree().get_nodes_in_group(Skybox.TUNING_GROUP):
-		var skybox: Skybox = node as Skybox
-		if skybox != null:
+	for skybox: Skybox in _live_skyboxes():
+		# Bontago-59o.18 (U1): a running cycle owns a live duplicate of the
+		# source themes; apply_theme(sky_theme) would swap it for the static
+		# material, so the edit is re-copied into the duplicate instead.
+		if skybox.is_cycle_active():
+			skybox.refresh_cycle_sources()
+		else:
 			skybox.apply_theme(sky_theme)
 
 
@@ -1339,6 +1600,9 @@ func _on_reset_pressed() -> void:
 ## already holds -- see ResourceLoader.CACHE_MODE_IGNORE's use in
 ## _reset_resource()). Public so a test can call it without a real Button.
 func reset_all() -> void:
+	# Bontago-59o.18 (U1): the shipped theme_name is the static "sunset"; applying
+	# it would turn a running cycle (the default sky) into the static theme.
+	var cycle_was_active: bool = _any_cycle_active()
 	_reset_resource(camera_tuning)
 	_reset_resource(ghost_tuning)
 	_reset_resource(physics_tuning)
@@ -1359,7 +1623,9 @@ func reset_all() -> void:
 	apply_physics_live()
 	refresh_territory_visuals_live()
 	apply_skybox_set(skybox_config.default_set if skybox_config.enabled else Skybox.PROCEDURAL_SET_ID)
-	if not apply_sky_theme_id(skybox_config.theme_name):
+	if cycle_was_active:
+		apply_sky_theme_live()
+	elif not apply_sky_theme_id(skybox_config.theme_name):
 		apply_sky_theme_live()
 	rebuild()
 
