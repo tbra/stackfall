@@ -113,6 +113,12 @@ extends Resource
 ## children of Main until the match world clears them.
 @export var overlay_z_index: int = 100
 
+## Bontago-1pi.32 L3: the overlay lives on its own CanvasLayer so it covers the HUD
+## (CanvasLayer 1: player bars, held/next, minimap, timer ring, the big countdown
+## digit), which a Control z_index can never beat. Above the HUD and the sandbox
+## and tuning panels (1-11), below the pause menu and perf overlay (100).
+@export var overlay_canvas_layer: int = 50
+
 ## Progress milestones, expressed as fractions of the complete load.
 @export var preparing_progress: float = 0.02
 @export var world_progress: float = 0.15

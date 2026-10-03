@@ -30,12 +30,15 @@ var _countdown_held: bool = false
 ##
 ## DECISION: the gate is *armed* by ui/LoadingScreen.gd when it shows for a
 ## match (arm_loading_ready_gate()), and only when a window exists (not
-## headless) -- the same condition game/Main.gd uses to hold the countdown for
-## the loading screen. Sandbox never raises the overlay so it is never gated;
-## the tutorial, hot-seat, vs-bots and online matches all are. Headless tests
-## and bot harnesses drive Match by hand and see no gate (set_loading_gate_
-## forced() is the test/harness seam that arms it anyway). An unarmed gate
-## opens immediately, so a client of a headless host is never left waiting.
+## headless) and the run is not an agent probe -- the same conditions game/Main.gd
+## uses to run the staged build behind the loading screen (headless or
+## AgentProbe.is_active() keep the synchronous start contract). Sandbox never
+## raises the overlay so it is never gated; the tutorial, hot-seat, vs-bots and
+## online matches all are. Headless tests, bot harnesses and windowed
+## --agent-probe tools (screenshots, benches) drive Match by hand and see no gate
+## (set_loading_gate_forced() is the test/harness seam that arms it anyway; the
+## ready-prompt probe tools/screenshot_loading_ready.gd forces it). An unarmed
+## gate opens immediately, so a client of an ungated host is never left waiting.
 var _loading_tuning: LoadingScreenTuning = LOADING_TUNING
 var _ready_gate: LoadingReadyGate = LoadingReadyGate.new()
 var _gate_armed: bool = false
@@ -433,13 +436,21 @@ func arm_loading_ready_gate() -> bool:
 		return true
 	if _state != MatchAutoload.State.LOADING:
 		return false
-	if not _gate_forced and DisplayServer.get_name() == "headless":
+	if not _gate_forced and gate_suppressed_for_environment(DisplayServer.get_name(), AgentProbe.is_active()):
 		return false
 	if not _gate_armed:
 		_gate_armed = true
 		_gate_open_mirror = false
 		_ready_gate.begin(_loading_tuning.min_display_s, _loading_tuning.ready_wait_max_s)
 	return true
+
+
+## Pure: a headless display or an agent-probe run never arms the gate on its own
+## (nobody is there to press ready, and a probe tool would otherwise sit 5-60 s on
+## the overlay). Bontago-1pi.32 review: the probe half mirrors game/Main.gd's
+## staged-build condition.
+static func gate_suppressed_for_environment(display_name: String, probe_active: bool) -> bool:
+	return display_name == "headless" or probe_active
 
 
 func is_loading_gate_armed() -> bool:

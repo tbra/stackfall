@@ -52,6 +52,9 @@ func _main_overlay() -> LoadingScreen:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	main.start_bots_from_menu("Tester")
+	# Bontago-1pi.32 L3: a probe run never arms the ready gate on its own (review,
+	# MatchLifecycle.arm_loading_ready_gate), so this tool forces it.
+	Match._lifecycle.set_loading_gate_forced(true)
 	var config: MatchConfig = (load("res://config/match_defaults.tres") as MatchConfig).duplicate(true) as MatchConfig
 	config.player_count = MAIN_PLAYERS
 	config.ai_count = MAIN_BOTS

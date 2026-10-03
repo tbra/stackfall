@@ -34,6 +34,14 @@ signal ready_prompt_opened
 @export var tuning: LoadingScreenTuning = preload("res://config/loading_screen_tuning.tres")
 @export var menu_visual_tuning: MenuVisualTuning = preload("res://config/menu_visual_tuning.tres")
 
+## Bontago-1pi.32 L3: the overlay's content sits on its own CanvasLayer so it covers
+## the HUD (CanvasLayer 1) and its countdown digit. DECISION: layer, not hiding the
+## HUD -- ui/HUD.gd and game/Main.gd stay untouched and the countdown simply is not
+## visible until the fade starts, which only happens once the gate has opened. A
+## CanvasLayer neither follows this Control's visibility nor its modulate, so the
+## root's visibility is mirrored onto the layer and the fade tweens Content.
+@onready var _layer: CanvasLayer = %Layer
+@onready var _content: Control = %Content
 @onready var _background: ColorRect = %Background
 @onready var _card: PanelContainer = %Card
 @onready var _map_label: Label = %MapLabel
@@ -85,6 +93,8 @@ var _displayed_s: float = 0.0
 ## Bontago-1pi.32 L2: the local player pressed ready on this overlay (the host's
 ## echo can lag behind by a round trip). One press is ever sent.
 var _local_pressed: bool = false
+## ready_prompt_opened fired for this match (it fires when the prompt first shows).
+var _prompt_announced: bool = false
 ## One entry per player-list row: {slot_id: int, is_bot: bool, mark: Control}.
 var _ready_rows: Array[Dictionary] = []
 
@@ -97,10 +107,13 @@ const WARM_SHADERS: Array[String] = [
 
 
 func _ready() -> void:
+	visibility_changed.connect(_sync_layer_visibility)
 	visible = false
-	modulate.a = 1.0
+	_set_opacity(1.0)
+	_sync_layer_visibility()
 	set_process(false)
 	z_index = tuning.overlay_z_index
+	_layer.layer = tuning.overlay_canvas_layer
 	_background.color = tuning.background_color
 	_card.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(menu_visual_tuning.pill_cream_color, menu_visual_tuning))
 	_apply_ready_styles()
@@ -126,6 +139,7 @@ func show_for_match(config: MatchConfig, slots: Array[PlayerSlot]) -> void:
 	_displayed_s = 0.0
 	_ready_input_enabled = false
 	_local_pressed = false
+	_prompt_announced = false
 	_fade_token += 1
 	if _fade_tween != null and _fade_tween.is_valid():
 		_fade_tween.kill()
@@ -145,7 +159,7 @@ func show_for_match(config: MatchConfig, slots: Array[PlayerSlot]) -> void:
 	_spin_elapsed_s = 0.0
 	_spinner_label.text = _SPIN_FRAMES[0]
 	set_stage("Building world", tuning.world_progress)
-	modulate.a = 1.0
+	_set_opacity(1.0)
 	visible = true
 	set_process(true)
 	_refresh_prompt_glyph()
@@ -214,10 +228,21 @@ func is_pending() -> bool:
 
 
 ## Bontago-1pi.32 (ready gate, L1 API for the L2 prompt). True from the moment
-## loading finished on this instance until the overlay is fading: ui_accept is
-## then a ready press. The press goes through press_ready() / Net.
+## loading finished on this instance until the overlay is fading, but only while the
+## gate is actually blocking AND the host waits for the local peer (L3, review: a
+## spectator, a mid-match joiner or a client of an ungated host has nothing to
+## press, so no prompt and no ready input): ui_accept is then a ready press. The
+## press goes through press_ready() / Net.
 func accepts_ready_input() -> bool:
-	return _ready_input_enabled
+	return _ready_input_enabled and _gate_waits_for_local_peer()
+
+
+## The gate is armed and not open yet, and the host's required set (a client: its
+## mirror) holds the local peer.
+func _gate_waits_for_local_peer() -> bool:
+	if not _ready_gate_armed:
+		return false
+	return Match._lifecycle.loading_gate_blocking() and Match._lifecycle.loading_required_peers().has(Net.local_peer_id())
 
 
 func ready_gate_armed() -> bool:
@@ -242,7 +267,7 @@ func local_ready() -> bool:
 ## first press is sent (a held A, Enter then a click, ... never re-sends the RPC);
 ## returns whether this call sent the intent.
 func press_ready() -> bool:
-	if not _ready_input_enabled or _local_pressed:
+	if not accepts_ready_input() or _local_pressed:
 		return false
 	_local_pressed = true
 	Net.request_loading_ready()
@@ -259,7 +284,7 @@ func local_pressed() -> bool:
 ## _input, not _unhandled_input: a lobby control still focused behind the overlay
 ## must not eat the press.
 func _input(event: InputEvent) -> void:
-	if not _ready_input_enabled or not visible:
+	if not visible or not accepts_ready_input():
 		return
 	if event.is_action_pressed(READY_ACTION):
 		press_ready()
@@ -320,7 +345,7 @@ func fade_out() -> void:
 		if token != _fade_token:
 			return
 	_fade_tween = create_tween()
-	_fade_tween.tween_property(self, ^"modulate:a", 0.0, tuning.fade_out_duration_s)
+	_fade_tween.tween_property(_content, ^"modulate:a", 0.0, tuning.fade_out_duration_s)
 	await _fade_tween.finished
 	if token != _fade_token:
 		return
@@ -341,8 +366,9 @@ func _wait_for_ready_gate(token: int) -> void:
 	if not _ready_gate_armed:
 		return
 	_ready_input_enabled = true
+	# _refresh_ready_ui() announces the prompt once accepts_ready_input() holds (at
+	# once for a required human; a client when the host's mirror arrives).
 	_refresh_ready_ui()
-	ready_prompt_opened.emit()
 	var waited_s: float = 0.0
 	while Match._lifecycle.loading_gate_blocking() or _displayed_s < tuning.min_display_s:
 		if waited_s >= tuning.ready_wait_max_s:
@@ -365,13 +391,14 @@ func cancel() -> void:
 	_ready_input_enabled = false
 	_ready_gate_armed = false
 	_local_pressed = false
+	_prompt_announced = false
 	_fade_token += 1
 	if _fade_tween != null and _fade_tween.is_valid():
 		_fade_tween.kill()
 	_fade_tween = null
 	_is_fading = false
 	visible = false
-	modulate.a = 1.0
+	_set_opacity(1.0)
 	set_process(false)
 	_refresh_ready_ui()
 	if _warm_viewport != null:
@@ -398,6 +425,36 @@ func _player_list_text(slots: Array[PlayerSlot]) -> String:
 
 func _slot_label_text(slot_item: PlayerSlot) -> String:
 	return "%s%s" % [slot_item.display_name, tuning.bot_suffix if slot_item.is_bot else ""]
+
+
+# --- Bontago-1pi.32 L3: the overlay's own CanvasLayer ------------------------------
+
+## The layer follows this node's visibility in the tree (a hidden parent, cancel(),
+## a test or Main setting `visible` directly).
+func _sync_layer_visibility() -> void:
+	_layer.visible = is_visible_in_tree()
+
+
+## The overlay's opacity. The root's own modulate does not reach a CanvasLayer's
+## children, so the visible fade runs on Content; the root is kept in step.
+func _set_opacity(alpha: float) -> void:
+	modulate.a = alpha
+	_content.modulate.a = alpha
+
+
+## Test seam: the overlay's current opacity as drawn.
+func overlay_opacity() -> float:
+	return _content.modulate.a
+
+
+## Test seam: the CanvasLayer index the overlay draws on (the HUD is 1).
+func overlay_canvas_layer() -> int:
+	return _layer.layer
+
+
+## Test seam: whether the overlay's CanvasLayer is shown.
+func overlay_layer_visible() -> bool:
+	return _layer.visible
 
 
 # --- Bontago-1pi.32 L2: ready prompt, status line, player ready list ------------
@@ -567,8 +624,13 @@ func _refresh_ready_ui() -> void:
 	var pressed: bool = _local_pressed or ready_ids.has(local_peer)
 	var waiting: int = maxi(required.size() - ready_ids.size(), 0)
 	# The prompt: this instance finished loading, the gate is still closed, and the
-	# host waits for this peer (spectators and an all-bot match have nothing to press).
-	_ready_button.visible = _ready_input_enabled and blocking and is_required
+	# host waits for this peer (spectators, late joiners, clients of an ungated host
+	# and an all-bot match have nothing to press).
+	var prompt_open: bool = accepts_ready_input()
+	if prompt_open and not _prompt_announced:
+		_prompt_announced = true
+		ready_prompt_opened.emit()
+	_ready_button.visible = prompt_open
 	_ready_button.disabled = pressed
 	_ready_button.modulate.a = tuning.ready_prompt_disabled_alpha if pressed else 1.0
 	if (pressed or not is_required) and waiting > 0 and _ready_input_enabled and blocking:

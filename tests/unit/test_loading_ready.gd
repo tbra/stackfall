@@ -43,6 +43,7 @@ func before_each() -> void:
 
 func after_each() -> void:
 	_stop_counting()
+	AgentProbe.set_forced_for_test(-1)
 	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
 	Events.loading_ready_changed.disconnect(_on_changed)
 	Events.loading_gate_opened.disconnect(_on_opened)
@@ -157,6 +158,44 @@ func test_headless_default_has_no_gate_and_opens_at_once() -> void:
 	assert_eq(_opened_count, 1, "an unarmed host still announces the open gate (a client of a headless host must not wait)")
 	_step(Match.config.effective_countdown_seconds() + 0.5)
 	assert_eq(Match.state(), Match.State.PLAYING, "the countdown ran with no ready presses")
+
+
+## Bontago-1pi.32 L3 (review): an agent-probe run (windowed screenshot/bench tools
+## that boot Main and call start_match) must not sit on the ready gate.
+func test_gate_is_suppressed_for_headless_and_agent_probe_environments() -> void:
+	assert_true(MatchLifecycle.gate_suppressed_for_environment("headless", false))
+	assert_true(MatchLifecycle.gate_suppressed_for_environment("windows", true), "a windowed agent probe is not a player")
+	assert_true(MatchLifecycle.gate_suppressed_for_environment("headless", true))
+	assert_false(MatchLifecycle.gate_suppressed_for_environment("windows", false), "a real window arms the gate")
+
+
+## What the LoadingScreen does at LOADING: ask the lifecycle to arm the gate.
+func _arm_at_loading(results: Array[bool]) -> Callable:
+	var on_state: Callable = func(_from: int, to: int) -> void:
+		if to == Match.State.LOADING:
+			results.append(Match._lifecycle.arm_loading_ready_gate())
+	Events.match_state_changed.connect(on_state)
+	return on_state
+
+
+func test_agent_probe_run_leaves_the_gate_unarmed_unless_forced() -> void:
+	AgentProbe.set_forced_for_test(1)
+	var results: Array[bool] = []
+	var on_state: Callable = _arm_at_loading(results)
+	Match.start_match(_config(2, 0))
+	assert_eq(results, [false] as Array[bool], "the overlay's arm request is refused in a probe run")
+	assert_false(Match._lifecycle.is_loading_gate_armed())
+	assert_false(Match._lifecycle.loading_gate_blocking())
+	assert_eq(_opened_count, 1, "unarmed: the gate announces open at once, nothing waits")
+	_step(Match.config.effective_countdown_seconds() + 0.5)
+	assert_eq(Match.state(), Match.State.PLAYING, "no ready press needed in a probe run")
+	Match.abort_match()
+	Match._lifecycle.set_loading_gate_forced(true)
+	results.clear()
+	Match.start_match(_config(2, 0))
+	assert_eq(results, [true] as Array[bool], "the explicit force seam still arms it (tools/screenshot_loading_ready.gd)")
+	assert_true(Match._lifecycle.loading_gate_blocking())
+	Events.match_state_changed.disconnect(on_state)
 
 
 func test_countdown_waits_for_min_display_and_all_humans() -> void:
@@ -687,6 +726,125 @@ func test_unarmed_overlay_keeps_the_plain_name_list_and_no_prompt() -> void:
 	assert_true(screen._info_label.text.findn("Player 1") >= 0)
 
 
+func _opened_counter(screen: LoadingScreen) -> Array[int]:
+	var opened: Array[int] = [0]
+	screen.ready_prompt_opened.connect(func() -> void: opened[0] += 1)
+	return opened
+
+
+## Bontago-1pi.32 L3 (review): the prompt and the ready input exist only while the
+## gate blocks AND the host waits for the local peer.
+func test_spectator_is_never_prompted_and_cannot_press_ready() -> void:
+	var counter: Array[int] = _count_intents()
+	var net: FakeNet = FakeNet.host({2: 0, 3: -1}, [0] as Array[int])
+	var screen: LoadingScreen = _open_screen(net, 1, 0)
+	var opened: Array[int] = _opened_counter(screen)
+	screen.fade_out()
+	assert_false(screen.accepts_ready_input(), "the local peer holds no human seat")
+	assert_false(screen._ready_button.visible)
+	screen._input(_accept_key())
+	screen._input(_accept_pad())
+	Input.parse_input_event(_accept_key())
+	Input.flush_buffered_events()
+	screen._ready_button.pressed.emit()
+	assert_false(screen.press_ready())
+	assert_false(screen.local_pressed())
+	assert_eq(counter[0], 0, "no intent leaves a spectator")
+	assert_eq(opened[0], 0, "ready_prompt_opened never fires for a spectator")
+	await _close(screen)
+	_stop_counting()
+
+
+func test_client_of_an_ungated_host_is_never_prompted() -> void:
+	var counter: Array[int] = _count_intents()
+	var net: FakeNet = FakeNet.client(1)
+	net.slots_by_peer = {1: 0, 2: 1}
+	var screen: LoadingScreen = _open_screen(net, 2, 0)
+	var opened: Array[int] = _opened_counter(screen)
+	screen.fade_out()
+	Events.loading_gate_opened.emit()
+	Events.loading_ready_changed.emit(PackedInt32Array(), PackedInt32Array([1, 2]))
+	assert_false(Match._lifecycle.loading_gate_blocking(), "the host announced the gate open (it never armed one)")
+	assert_false(screen.accepts_ready_input())
+	assert_false(screen._ready_button.visible)
+	screen._input(_accept_key())
+	assert_false(screen.press_ready())
+	assert_eq(counter[0], 0)
+	assert_eq(opened[0], 0)
+	await _close(screen)
+	_stop_counting()
+
+
+func test_late_joiner_after_the_countdown_loses_the_prompt() -> void:
+	var counter: Array[int] = _count_intents()
+	var net: FakeNet = FakeNet.client(1)
+	net.slots_by_peer = {1: 0, 2: 1}
+	var screen: LoadingScreen = _open_screen(net, 2, 0)
+	screen.fade_out()
+	Events.loading_ready_changed.emit(PackedInt32Array(), PackedInt32Array([1, 2]))
+	assert_true(screen.accepts_ready_input(), "fixture: a waiting client is prompted")
+	Match._lifecycle.apply_replicated_state_change(Match.State.PLAYING)
+	screen._refresh_ready_ui()
+	assert_false(screen.accepts_ready_input(), "the host's match moved on: nothing left to press for")
+	assert_false(screen._ready_button.visible)
+	screen._input(_accept_key())
+	assert_eq(counter[0], 0)
+	await _close(screen)
+	_stop_counting()
+
+
+func test_client_prompt_opens_once_when_the_host_requires_the_local_peer() -> void:
+	var counter: Array[int] = _count_intents()
+	var net: FakeNet = FakeNet.client(1)
+	net.slots_by_peer = {1: 0, 2: 1}
+	var screen: LoadingScreen = _open_screen(net, 2, 0)
+	var opened: Array[int] = _opened_counter(screen)
+	screen.fade_out()
+	assert_eq(opened[0], 0, "no host mirror yet")
+	Events.loading_ready_changed.emit(PackedInt32Array(), PackedInt32Array([2]))
+	assert_false(screen.accepts_ready_input(), "the host waits for peer 2 only")
+	assert_eq(opened[0], 0)
+	Events.loading_ready_changed.emit(PackedInt32Array(), PackedInt32Array([1, 2]))
+	assert_true(screen.accepts_ready_input())
+	assert_eq(opened[0], 1)
+	Events.loading_ready_changed.emit(PackedInt32Array([2]), PackedInt32Array([1, 2]))
+	assert_eq(opened[0], 1, "announced once per match")
+	assert_true(screen.press_ready())
+	assert_eq(counter[0], 1)
+	await _close(screen)
+	_stop_counting()
+
+
+func test_required_human_is_prompted_and_the_signal_fires_once() -> void:
+	var screen: LoadingScreen = _open_screen(FakeNet.offline(), 1, 0)
+	var opened: Array[int] = _opened_counter(screen)
+	assert_eq(opened[0], 0, "still loading")
+	screen.fade_out()
+	assert_eq(opened[0], 1)
+	screen._refresh_ready_ui()
+	assert_eq(opened[0], 1)
+	await _close(screen)
+
+
+## Bontago-1pi.32 L3: the loading overlay sits above the HUD's CanvasLayer (player
+## bars, held/next, minimap, timer ring and the big countdown digit), fully opaque
+## until the fade starts -- which only happens once the gate has opened.
+func test_overlay_covers_the_hud_and_stays_opaque_while_the_gate_blocks() -> void:
+	var screen: LoadingScreen = _open_screen(FakeNet.offline(), 1, 0)
+	var hud: HUD = autofree(load("res://ui/HUD.tscn").instantiate()) as HUD
+	add_child_autofree(hud)
+	assert_gt(screen.overlay_canvas_layer(), hud.layer, "the overlay draws above the HUD layer")
+	assert_lt(screen.overlay_canvas_layer(), PauseMenu.OVERLAY_LAYER, "the pause menu still draws above the overlay")
+	screen.fade_out()
+	await wait_seconds(0.3, "past the warmup frames; nobody pressed ready")
+	assert_true(screen.visible)
+	assert_true(screen.overlay_layer_visible())
+	assert_almost_eq(screen.overlay_opacity(), 1.0, 0.0001, "no fade (and so no countdown peeking through) while the gate blocks")
+	assert_almost_eq(screen.tuning.background_color.a, 1.0, 0.0001, "the backdrop is opaque")
+	assert_true(Match._lifecycle.loading_gate_blocking())
+	await _close(screen)
+
+
 ## The overlay laid out in a SubViewport that scales like a real window of that
 ## size (ui/UiScale.gd): the card must stay inside the logical canvas and nothing
 ## in it may overlap, with the worst-case 8-player list.
@@ -695,6 +853,11 @@ func _layout_in(window_size: Vector2i) -> void:
 	_start_gated(net, 8, 3)
 	var viewport: SubViewport = autofree(UiScale.make_viewport(window_size))
 	add_child_autofree(viewport)
+	# The live HUD is part of the real scene: its top-centre timer ring lands on the
+	# title of the 8-player card at both sizes, which is why the overlay must draw on
+	# a higher CanvasLayer than the HUD.
+	var hud: HUD = autofree(load("res://ui/HUD.tscn").instantiate()) as HUD
+	viewport.add_child(hud)
 	var screen: LoadingScreen = autofree(load("res://ui/LoadingScreen.tscn").instantiate()) as LoadingScreen
 	viewport.add_child(screen)
 	screen.show_for_match(_config(8, 3), _match_slots())
@@ -703,6 +866,11 @@ func _layout_in(window_size: Vector2i) -> void:
 	var canvas: Rect2 = Rect2(Vector2.ZERO, viewport.get_visible_rect().size)
 	var card: Rect2 = screen._card.get_global_rect()
 	assert_true(canvas.encloses(card), "%s: card %s inside canvas %s" % [window_size, card, canvas])
+	var ring: Rect2 = (hud.get_node("%TimerRing") as Control).get_global_rect()
+	assert_gt(screen.overlay_canvas_layer(), hud.layer, "%s: HUD timer ring %s vs card %s: the overlay covers the HUD" % [window_size, ring, card])
+	var title_rect: Rect2 = screen._map_label.get_global_rect()
+	assert_true(card.encloses(title_rect), "%s: the title is inside the card" % window_size)
+	assert_false(title_rect.intersects(screen._player_list.get_global_rect()), "%s: title and player list do not overlap" % window_size)
 	var list_rect: Rect2 = screen._player_list.get_global_rect()
 	var bar_rect: Rect2 = screen._progress_bar.get_global_rect()
 	var ready_rect: Rect2 = screen._ready_box.get_global_rect()

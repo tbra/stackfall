@@ -14,7 +14,22 @@ mouse_filter = 2
 theme = ExtResource("2_theme")
 script = ExtResource("1_loading")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="Layer" type="CanvasLayer" parent="."]
+unique_name_in_owner = true
+layer = 50
+
+[node name="Content" type="Control" parent="Layer"]
+unique_name_in_owner = true
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme = ExtResource("2_theme")
+
+[node name="Background" type="ColorRect" parent="Layer/Content"]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
@@ -25,7 +40,7 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(0.06, 0.07, 0.09, 0.96)
 
-[node name="Center" type="CenterContainer" parent="."]
+[node name="Center" type="CenterContainer" parent="Layer/Content"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -34,69 +49,69 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="Card" type="PanelContainer" parent="Center"]
+[node name="Card" type="PanelContainer" parent="Layer/Content/Center"]
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(360, 0)
 mouse_filter = 2
 
-[node name="Layout" type="VBoxContainer" parent="Center/Card"]
+[node name="Layout" type="VBoxContainer" parent="Layer/Content/Center/Card"]
 layout_mode = 2
 theme_override_constants/separation = 14
 
-[node name="MapLabel" type="Label" parent="Center/Card/Layout"]
+[node name="MapLabel" type="Label" parent="Layer/Content/Center/Card/Layout"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 28
 horizontal_alignment = 1
 text = "Loading match..."
 
-[node name="InfoLabel" type="Label" parent="Center/Card/Layout"]
+[node name="InfoLabel" type="Label" parent="Layer/Content/Center/Card/Layout"]
 unique_name_in_owner = true
 layout_mode = 2
 horizontal_alignment = 1
 autowrap_mode = 2
 text = "Get ready..."
 
-[node name="PlayerList" type="VBoxContainer" parent="Center/Card/Layout"]
+[node name="PlayerList" type="VBoxContainer" parent="Layer/Content/Center/Card/Layout"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 mouse_filter = 2
 
-[node name="SpinnerLabel" type="Label" parent="Center/Card/Layout"]
+[node name="SpinnerLabel" type="Label" parent="Layer/Content/Center/Card/Layout"]
 unique_name_in_owner = true
 layout_mode = 2
 horizontal_alignment = 1
 text = "Loading"
 
-[node name="StageLabel" type="Label" parent="Center/Card/Layout"]
+[node name="StageLabel" type="Label" parent="Layer/Content/Center/Card/Layout"]
 unique_name_in_owner = true
 layout_mode = 2
 horizontal_alignment = 1
 text = "Preparing match"
 
-[node name="ProgressBar" type="ProgressBar" parent="Center/Card/Layout"]
+[node name="ProgressBar" type="ProgressBar" parent="Layer/Content/Center/Card/Layout"]
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(320, 18)
 max_value = 100.0
 show_percentage = false
 
-[node name="ReadyBox" type="VBoxContainer" parent="Center/Card/Layout"]
+[node name="ReadyBox" type="VBoxContainer" parent="Layer/Content/Center/Card/Layout"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 mouse_filter = 2
 alignment = 1
 
-[node name="StatusLabel" type="Label" parent="Center/Card/Layout/ReadyBox"]
+[node name="StatusLabel" type="Label" parent="Layer/Content/Center/Card/Layout/ReadyBox"]
 unique_name_in_owner = true
 layout_mode = 2
 horizontal_alignment = 1
 text = "Get ready..."
 
-[node name="ReadyButton" type="Button" parent="Center/Card/Layout/ReadyBox"]
+[node name="ReadyButton" type="Button" parent="Layer/Content/Center/Card/Layout/ReadyBox"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
@@ -104,7 +119,7 @@ size_flags_horizontal = 4
 focus_mode = 0
 mouse_default_cursor_shape = 2
 
-[node name="PromptContent" type="HBoxContainer" parent="Center/Card/Layout/ReadyBox/ReadyButton"]
+[node name="PromptContent" type="HBoxContainer" parent="Layer/Content/Center/Card/Layout/ReadyBox/ReadyButton"]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
@@ -115,27 +130,27 @@ grow_vertical = 2
 mouse_filter = 2
 alignment = 1
 
-[node name="PromptPrefix" type="Label" parent="Center/Card/Layout/ReadyBox/ReadyButton/PromptContent"]
+[node name="PromptPrefix" type="Label" parent="Layer/Content/Center/Card/Layout/ReadyBox/ReadyButton/PromptContent"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 4
 mouse_filter = 2
 text = "Press"
 
-[node name="GlyphSlot" type="HBoxContainer" parent="Center/Card/Layout/ReadyBox/ReadyButton/PromptContent"]
+[node name="GlyphSlot" type="HBoxContainer" parent="Layer/Content/Center/Card/Layout/ReadyBox/ReadyButton/PromptContent"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 4
 mouse_filter = 2
 
-[node name="PromptSuffix" type="Label" parent="Center/Card/Layout/ReadyBox/ReadyButton/PromptContent"]
+[node name="PromptSuffix" type="Label" parent="Layer/Content/Center/Card/Layout/ReadyBox/ReadyButton/PromptContent"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 4
 mouse_filter = 2
 text = "to ready"
 
-[node name="CapLabel" type="Label" parent="Center/Card/Layout/ReadyBox"]
+[node name="CapLabel" type="Label" parent="Layer/Content/Center/Card/Layout/ReadyBox"]
 unique_name_in_owner = true
 layout_mode = 2
 horizontal_alignment = 1
