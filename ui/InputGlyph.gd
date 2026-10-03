@@ -1,19 +1,27 @@
 class_name InputGlyph
 extends Control
-## Real, in-repo-drawn icon glyphs for a single InputEvent (Bontago-1pi.10
-## polish pass, owner: "real icon glyphs, drawn in-repo (no downloads)").
-## Everything renders via _draw() with plain Control primitives
-## (draw_style_box/draw_circle/draw_rect/draw_polygon/draw_string) -- no
-## textures, no third-party assets, nothing binary added to the repo.
-## ui/KeyRebindRow.gd builds one of these per bound event of the active
-## device family (autoload/Settings.gd's own active_input_device()).
+## Icon glyph for a single InputEvent (Bontago-1pi.10 polish pass; Bontago-1pi.35
+## adopts the new art in assets/ui/input_glyphs/). ui/KeyRebindRow.gd builds one
+## of these per bound event of the active device family (autoload/Settings.gd's
+## own active_input_device()); set_event() is the single seam every consumer uses.
 ##
-## Keyboard keys still read as a "key cap" (a rounded rect with the key's own
-## short label); mouse and gamepad events get a real pictogram instead of
-## text: a mouse silhouette with the pressed button/wheel direction
-## highlighted, colored circles for the four Xbox-style face buttons,
-## rounded "tabs" for shoulders/triggers, a cross with the pressed arm filled
-## for the D-pad, and a plain circle for a stick click.
+## Texture path (preferred): keyboard keys resolve through
+## assets/ui/input_glyphs/key_atlas/catalog.json (Godot keycode -> keycap PNG);
+## mouse buttons/wheel resolve to mouse_*.svg; gamepad buttons and trigger/stick
+## axes resolve to the base gamepad_*.svg files. A key the catalog does not
+## cover (or one bound with modifiers) draws the label-free blank keycap with
+## the real key name as a runtime text label; an unnamed gamepad button does the
+## same on gamepad_button_blank.svg. The source art is paper-and-ink coloured
+## (not meant for theme tinting), so it stays readable on light and dark buttons.
+##
+## Fallback path (kept): when the texture for an event cannot be loaded, the
+## original in-repo _draw() primitives render it exactly as before -- Control
+## primitives only (draw_style_box/draw_circle/draw_rect/draw_polygon/
+## draw_string): a "key cap" rounded rect with the key's short label, a mouse
+## silhouette with the pressed button/wheel highlighted, colored circles for the
+## four Xbox-style face buttons, rounded "tabs" for shoulders/triggers, a cross
+## with the pressed arm filled for the D-pad, and a plain circle for a stick
+## click.
 
 @export var tuning: MenuVisualTuning = preload("res://config/menu_visual_tuning.tres")
 
@@ -118,15 +126,110 @@ const JOYPAD_AXIS_LABELS: Dictionary[int, String] = {
 	JOY_AXIS_RIGHT_Y: "R Stick",
 }
 
+# --- Texture art (Bontago-1pi.35) ------------------------------------------------
+# DECISION: the glyph art locations are pure asset paths, kept as consts here
+# (they are binary art references, not tunable values); the layout numbers
+# below are measurements of that art's own SVG geometry, documented per const.
+const GLYPH_ASSET_ROOT: String = "res://assets/ui/input_glyphs/"
+const KEY_ATLAS_SUBDIR: String = "key_atlas/"
+const KEY_CATALOG_FILE: String = "key_atlas/catalog.json"
+const BLANK_KEYCAP_FILE: String = "key_atlas/keycap_blank.svg"
+const BLANK_GAMEPAD_BUTTON_FILE: String = "gamepad_button_blank.svg"
+
+## DECISION: the base gamepad_*.svg / mouse_*.svg files are used; the
+## *_VARIANTS.md alternatives are not wired in. Mouse buttons beyond these
+## (extra side buttons) keep the _draw() silhouette.
+const MOUSE_GLYPH_FILES: Dictionary[int, String] = {
+	MOUSE_BUTTON_LEFT: "mouse_left.svg",
+	MOUSE_BUTTON_RIGHT: "mouse_right.svg",
+	MOUSE_BUTTON_MIDDLE: "mouse_middle.svg",
+	MOUSE_BUTTON_WHEEL_UP: "mouse_wheel_up.svg",
+	MOUSE_BUTTON_WHEEL_DOWN: "mouse_wheel_down.svg",
+	MOUSE_BUTTON_WHEEL_LEFT: "mouse_wheel_left.svg",
+	MOUSE_BUTTON_WHEEL_RIGHT: "mouse_wheel_right.svg",
+	MOUSE_BUTTON_XBUTTON1: "mouse_button_4.svg",
+	MOUSE_BUTTON_XBUTTON2: "mouse_button_5.svg",
+}
+
+const JOYPAD_BUTTON_GLYPH_FILES: Dictionary[int, String] = {
+	JOY_BUTTON_A: "gamepad_a.svg",
+	JOY_BUTTON_B: "gamepad_b.svg",
+	JOY_BUTTON_X: "gamepad_x.svg",
+	JOY_BUTTON_Y: "gamepad_y.svg",
+	JOY_BUTTON_LEFT_SHOULDER: "gamepad_lb.svg",
+	JOY_BUTTON_RIGHT_SHOULDER: "gamepad_rb.svg",
+	JOY_BUTTON_LEFT_STICK: "gamepad_stick_left.svg",
+	JOY_BUTTON_RIGHT_STICK: "gamepad_stick_right.svg",
+	JOY_BUTTON_START: "gamepad_start.svg",
+	JOY_BUTTON_BACK: "gamepad_back.svg",
+	JOY_BUTTON_GUIDE: "gamepad_guide.svg",
+	JOY_BUTTON_MISC1: "gamepad_misc.svg",
+	JOY_BUTTON_DPAD_UP: "gamepad_dpad_up.svg",
+	JOY_BUTTON_DPAD_DOWN: "gamepad_dpad_down.svg",
+	JOY_BUTTON_DPAD_LEFT: "gamepad_dpad_left.svg",
+	JOY_BUTTON_DPAD_RIGHT: "gamepad_dpad_right.svg",
+}
+
+const JOYPAD_AXIS_GLYPH_FILES: Dictionary[int, String] = {
+	JOY_AXIS_TRIGGER_LEFT: "gamepad_lt.svg",
+	JOY_AXIS_TRIGGER_RIGHT: "gamepad_rt.svg",
+	JOY_AXIS_LEFT_X: "gamepad_stick_left.svg",
+	JOY_AXIS_LEFT_Y: "gamepad_stick_left.svg",
+	JOY_AXIS_RIGHT_X: "gamepad_stick_right.svg",
+	JOY_AXIS_RIGHT_Y: "gamepad_stick_right.svg",
+}
+
+## A modifier key's own event carries its own modifier bit; only an *extra*
+## modifier (Ctrl+E) makes the atlas keycap for the base key misleading.
+const KEY_OWN_MODIFIER_MASKS: Dictionary[int, int] = {
+	KEY_SHIFT: KEY_MASK_SHIFT,
+	KEY_CTRL: KEY_MASK_CTRL,
+	KEY_ALT: KEY_MASK_ALT,
+	KEY_META: KEY_MASK_META,
+}
+
+## keycap_blank.svg is 128 source px square; its rounded corner plus stroke
+## occupy the outer 40 px (0.3125) on each side, so a wider keycap stretches
+## only the centre slice and keeps both caps undistorted.
+const KEYCAP_CAP_FRACTION: float = 0.3125
+## The keycap face spans y 9..100 of 128 (above the lower lip); the label sits
+## on the middle of that band.
+const KEYCAP_FACE_CENTER_Y_FRACTION: float = 0.43
+const KEYCAP_LABEL_FONT_SIZE: int = 13
+## gamepad_button_blank.svg's face spans y 15..42 of 64 and x 6..58 (the pill).
+const PAD_BUTTON_FACE_CENTER_Y_FRACTION: float = 0.445
+const PAD_BUTTON_FACE_WIDTH_FRACTION: float = 0.7
+const PAD_BUTTON_LABEL_FONT_SIZE: int = 12
+const LABEL_MIN_FONT_SIZE: int = 7
+
+enum Shell { NONE, KEYCAP, PAD_BUTTON }
+
+## Test seam: where the glyph art is read from. Pointing it at a missing
+## folder proves the _draw() fallback path.
+var asset_root: String = GLYPH_ASSET_ROOT
+
+# Parsed key_atlas/catalog.json per asset root: Dictionary[int, String] of
+# Godot keycode -> PNG file name. Loaded once, shared by every glyph.
+static var _key_atlas_cache: Dictionary[String, Dictionary] = {}
+# Imported textures by path; a missing asset is cached as null so a bad path
+# is probed once, not on every set_event().
+static var _texture_cache: Dictionary[String, Texture2D] = {}
+
 var _kind: Kind = Kind.GENERIC
 var _text: String = "?"
 var _mouse_button: int = -1
 var _dpad_dir: StringName = &""
 var _face_color: Color = Color.WHITE
+var _texture: Texture2D = null
+var _shell: Shell = Shell.NONE
 
 
 func _ready() -> void:
-	custom_minimum_size = Vector2(SHAPE_WIDTH_PX, GLYPH_HEIGHT_PX)
+	# The atlas art is rasterised at 4x its on-screen size with mipmaps (see the
+	# asset README); sample them so the downscale stays crisp.
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	if custom_minimum_size == Vector2.ZERO:
+		custom_minimum_size = Vector2(SHAPE_WIDTH_PX, GLYPH_HEIGHT_PX)
 
 
 ## Configures this badge for `event`. Safe to call repeatedly (KeyRebindRow
@@ -134,6 +237,7 @@ func _ready() -> void:
 ## changes) -- each call fully replaces this glyph's state and redraws
 ## rather than layering onto a previous call's state.
 func set_event(event: InputEvent) -> void:
+	_clear_texture()
 	if event is InputEventKey:
 		_configure_key(event as InputEventKey)
 	elif event is InputEventMouseButton:
@@ -152,6 +256,7 @@ func set_event(event: InputEvent) -> void:
 ## Renders a plain "+N" overflow badge instead of a real event -- Owner: "max
 ## two glyphs per row, extra bindings hidden behind '+1'".
 func set_overflow_count(count: int) -> void:
+	_clear_texture()
 	_kind = Kind.GENERIC
 	_text = "+%d" % count
 	custom_minimum_size = Vector2(SHAPE_WIDTH_PX, GLYPH_HEIGHT_PX)
@@ -161,6 +266,7 @@ func set_overflow_count(count: int) -> void:
 ## Renders the row's own "listening" placeholder (owner: "activating it
 ## enters 'press a key/button…' state shown in the glyph slot").
 func set_listening() -> void:
+	_clear_texture()
 	_kind = Kind.GENERIC
 	_text = "…"
 	custom_minimum_size = Vector2(SHAPE_WIDTH_PX * 2.0, GLYPH_HEIGHT_PX)
@@ -174,6 +280,24 @@ func label_text() -> String:
 	return _text
 
 
+## Test seam: the art this glyph draws, or null while it renders through the
+## _draw() fallback primitives (missing asset, "+N" badge, listening dots).
+func glyph_texture() -> Texture2D:
+	return _texture
+
+
+## Test seam: true when the texture is a label-free blank shell and the real
+## name is drawn on top as runtime text (unmapped/modified key, unnamed button).
+func uses_blank_shell() -> bool:
+	return _shell != Shell.NONE
+
+
+## Drops the cached catalog and textures (tests that swap asset_root).
+static func clear_asset_caches() -> void:
+	_key_atlas_cache.clear()
+	_texture_cache.clear()
+
+
 func _configure_key(key_event: InputEventKey) -> void:
 	_kind = Kind.KEY
 	var code: Key = key_event.keycode if key_event.keycode != KEY_NONE else key_event.physical_keycode
@@ -184,6 +308,7 @@ func _configure_key(key_event: InputEventKey) -> void:
 		if _text.is_empty():
 			_text = "Key"
 	custom_minimum_size = Vector2(maxf(KEY_MIN_WIDTH_PX, _text.length() * 11.0 + KEY_PADDING_PX), GLYPH_HEIGHT_PX)
+	_apply_key_texture(key_event, code)
 
 
 func _configure_mouse(mouse_event: InputEventMouseButton) -> void:
@@ -191,6 +316,8 @@ func _configure_mouse(mouse_event: InputEventMouseButton) -> void:
 	_mouse_button = mouse_event.button_index
 	_text = MOUSE_BUTTON_LABELS.get(_mouse_button, "MB%d" % _mouse_button)
 	custom_minimum_size = Vector2(MOUSE_WIDTH_PX, GLYPH_HEIGHT_PX)
+	if MOUSE_GLYPH_FILES.has(_mouse_button):
+		_apply_square_texture(asset_root + MOUSE_GLYPH_FILES[_mouse_button])
 
 
 func _configure_joypad_button(joy_event: InputEventJoypadButton) -> void:
@@ -213,6 +340,7 @@ func _configure_joypad_button(joy_event: InputEventJoypadButton) -> void:
 	else:
 		_kind = Kind.GENERIC
 		custom_minimum_size = Vector2(SHAPE_WIDTH_PX, GLYPH_HEIGHT_PX)
+	_apply_pad_texture(JOYPAD_BUTTON_GLYPH_FILES.get(index, ""))
 
 
 func _configure_joypad_motion(motion_event: InputEventJoypadMotion) -> void:
@@ -224,9 +352,109 @@ func _configure_joypad_motion(motion_event: InputEventJoypadMotion) -> void:
 	else:
 		_kind = Kind.STICK
 		custom_minimum_size = Vector2(SHAPE_WIDTH_PX, GLYPH_HEIGHT_PX)
+	_apply_pad_texture(JOYPAD_AXIS_GLYPH_FILES.get(axis, ""))
+
+
+# --- Texture resolution ----------------------------------------------------------
+
+
+func _clear_texture() -> void:
+	_texture = null
+	_shell = Shell.NONE
+
+
+## Keyboard: the catalog's keycap for this keycode; a key the catalog does not
+## list (international/future remaps), or one bound with an extra modifier,
+## gets the blank keycap with the key name as a runtime label instead.
+func _apply_key_texture(key_event: InputEventKey, code: Key) -> void:
+	if not _has_extra_modifier(key_event, code):
+		var atlas_file: String = _key_atlas_file(code)
+		if not atlas_file.is_empty():
+			if _apply_square_texture(asset_root + KEY_ATLAS_SUBDIR + atlas_file):
+				return
+	var shell: Texture2D = _load_texture(asset_root + BLANK_KEYCAP_FILE)
+	if shell == null:
+		return
+	_texture = shell
+	_shell = Shell.KEYCAP
+	var label_width: float = _label_width(_text, KEYCAP_LABEL_FONT_SIZE)
+	custom_minimum_size = Vector2(maxf(GLYPH_HEIGHT_PX, label_width + KEY_PADDING_PX), GLYPH_HEIGHT_PX)
+
+
+## Gamepad: the named SVG, else the blank button shell with the runtime label
+## (an unnamed button such as a paddle keeps its "BtnN" text).
+func _apply_pad_texture(file: String) -> void:
+	if not file.is_empty() and _apply_square_texture(asset_root + file):
+		return
+	var shell: Texture2D = _load_texture(asset_root + BLANK_GAMEPAD_BUTTON_FILE)
+	if shell == null:
+		return
+	_texture = shell
+	_shell = Shell.PAD_BUTTON
+	custom_minimum_size = Vector2(GLYPH_HEIGHT_PX, GLYPH_HEIGHT_PX)
+
+
+## Square art drawn at the ~32 px glyph height; false when the asset is missing
+## so the caller keeps the _draw() fallback.
+func _apply_square_texture(path: String) -> bool:
+	var texture: Texture2D = _load_texture(path)
+	if texture == null:
+		return false
+	_texture = texture
+	_shell = Shell.NONE
+	custom_minimum_size = Vector2(GLYPH_HEIGHT_PX, GLYPH_HEIGHT_PX)
+	return true
+
+
+func _has_extra_modifier(key_event: InputEventKey, code: Key) -> bool:
+	var mask: int = key_event.get_modifiers_mask()
+	mask &= ~int(KEY_OWN_MODIFIER_MASKS.get(code, 0))
+	return mask != 0
+
+
+func _key_atlas_file(code: Key) -> String:
+	var files: Dictionary = _key_atlas_files(asset_root)
+	return str(files.get(int(code), ""))
+
+
+func _label_width(text: String, font_size: int) -> float:
+	return get_theme_default_font().get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size).x
+
+
+## Parses key_atlas/catalog.json once per asset root (keys[].code/file).
+static func _key_atlas_files(root: String) -> Dictionary:
+	if _key_atlas_cache.has(root):
+		return _key_atlas_cache[root]
+	var files: Dictionary[int, String] = {}
+	var catalog_path: String = root + KEY_CATALOG_FILE
+	if ResourceLoader.exists(catalog_path):
+		var catalog: JSON = ResourceLoader.load(catalog_path) as JSON
+		if catalog != null and catalog.data is Dictionary:
+			var entries: Variant = (catalog.data as Dictionary).get("keys", [])
+			if entries is Array:
+				for entry: Variant in entries as Array:
+					if entry is Dictionary:
+						var record: Dictionary = entry as Dictionary
+						if record.has("code") and record.has("file"):
+							files[int(record["code"])] = str(record["file"])
+	_key_atlas_cache[root] = files
+	return files
+
+
+static func _load_texture(path: String) -> Texture2D:
+	if _texture_cache.has(path):
+		return _texture_cache[path]
+	var texture: Texture2D = null
+	if ResourceLoader.exists(path):
+		texture = ResourceLoader.load(path) as Texture2D
+	_texture_cache[path] = texture
+	return texture
 
 
 func _draw() -> void:
+	if _texture != null:
+		_draw_texture_glyph()
+		return
 	match _kind:
 		Kind.KEY:
 			_draw_key_cap()
@@ -242,6 +470,68 @@ func _draw() -> void:
 			_draw_stick()
 		_:
 			_draw_generic()
+
+
+func _draw_texture_glyph() -> void:
+	match _shell:
+		Shell.KEYCAP:
+			_draw_keycap_shell()
+		Shell.PAD_BUTTON:
+			var rect: Rect2 = _fitted_rect()
+			draw_texture_rect(_texture, rect, false)
+			var face_center: Vector2 = rect.position + Vector2(
+				rect.size.x * 0.5, rect.size.y * PAD_BUTTON_FACE_CENTER_Y_FRACTION)
+			var face_width: float = rect.size.x * PAD_BUTTON_FACE_WIDTH_FRACTION
+			var font_size: int = _fit_font_size(_text, PAD_BUTTON_LABEL_FONT_SIZE, face_width)
+			_draw_text_at(_text, tuning.ink_color, font_size, face_center)
+		_:
+			draw_texture_rect(_texture, _fitted_rect(), false)
+
+
+## The blank keycap, widened to the label: both rounded caps keep their shape
+## and only the centre slice stretches; narrower than two caps it is drawn whole.
+func _draw_keycap_shell() -> void:
+	var source: Vector2 = _texture.get_size()
+	var cap_scale: float = size.y / source.y
+	var cap_source_width: float = source.x * KEYCAP_CAP_FRACTION
+	var cap_width: float = cap_source_width * cap_scale
+	if size.x <= cap_width * 2.0:
+		draw_texture_rect(_texture, Rect2(Vector2.ZERO, size), false)
+	else:
+		draw_texture_rect_region(_texture, Rect2(0.0, 0.0, cap_width, size.y),
+			Rect2(0.0, 0.0, cap_source_width, source.y))
+		draw_texture_rect_region(_texture, Rect2(cap_width, 0.0, size.x - cap_width * 2.0, size.y),
+			Rect2(cap_source_width, 0.0, source.x - cap_source_width * 2.0, source.y))
+		draw_texture_rect_region(_texture, Rect2(size.x - cap_width, 0.0, cap_width, size.y),
+			Rect2(source.x - cap_source_width, 0.0, cap_source_width, source.y))
+	var face_center: Vector2 = Vector2(size.x * 0.5, size.y * KEYCAP_FACE_CENTER_Y_FRACTION)
+	var font_size: int = _fit_font_size(_text, KEYCAP_LABEL_FONT_SIZE, size.x - KEY_PADDING_PX)
+	_draw_text_at(_text, tuning.ink_color, font_size, face_center)
+
+
+## Aspect-preserving, centred fit of the texture inside this control.
+func _fitted_rect() -> Rect2:
+	var source: Vector2 = _texture.get_size()
+	var fit: float = minf(size.x / source.x, size.y / source.y)
+	var fitted: Vector2 = source * fit
+	return Rect2((size - fitted) * 0.5, fitted)
+
+
+## Largest font size <= `base` whose `text` fits `max_width`, never below
+## LABEL_MIN_FONT_SIZE.
+func _fit_font_size(text: String, base: int, max_width: float) -> int:
+	var font_size: int = base
+	while font_size > LABEL_MIN_FONT_SIZE and _label_width(text, font_size) > max_width:
+		font_size -= 1
+	return font_size
+
+
+func _draw_text_at(text: String, color: Color, font_size: int, center: Vector2) -> void:
+	var font: Font = get_theme_default_font()
+	var text_size: Vector2 = font.get_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, -1.0, font_size)
+	var pos: Vector2 = center - text_size * 0.5
+	pos.y += font.get_ascent(font_size)
+	draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, color)
 
 
 func _key_box(color: Color) -> StyleBoxFlat:
