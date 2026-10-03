@@ -24,6 +24,9 @@ func before_each() -> void:
 
 
 func after_each() -> void:
+	# The topple-scan test seam lives on the Match autoload's feed and outlives the
+	# test that set it; clear it so a later test does not start already paused.
+	Match._feed._qol_moving_counts_source = Callable()
 	Match.abort_match()
 	Match.set_process(true)
 	MatchTestReset.clear_world()
@@ -95,6 +98,108 @@ func test_host_snapshots_shared_resource_at_match_start() -> void:
 	assert_false(Match.config.qol == load("res://config/qol_experiments.tres"), "a copy, not the shared instance")
 
 
+# --- Q0 interface stub: pause_max_s, any_enabled, active_ids, with_toggles --------
+
+func test_pause_max_s_defaults_and_round_trips() -> void:
+	var qol: QolExperiments = QolExperiments.new()
+	assert_eq(qol.pause_max_s, 10.0)
+	assert_true(qol.to_dict().has("pause_max_s"))
+	qol.pause_max_s = 25.0
+	var wire: Dictionary = bytes_to_var(var_to_bytes(qol.to_dict())) as Dictionary
+	assert_eq(QolExperiments.from_dict(wire).pause_max_s, 25.0)
+	var config: MatchConfig = MatchConfig.new()
+	config.qol = qol
+	var back: MatchConfig = MatchConfig.from_dict(bytes_to_var(var_to_bytes(config.to_dict())) as Dictionary)
+	assert_eq(back.qol.pause_max_s, 25.0, "carried inside the MatchConfig snapshot")
+
+
+func test_pause_max_s_missing_wrong_typed_or_non_finite_keeps_the_default() -> void:
+	assert_eq(QolExperiments.from_dict({}).pause_max_s, 10.0, "older snapshot without the key")
+	assert_eq(QolExperiments.from_dict({"pause_max_s": "soon"}).pause_max_s, 10.0)
+	assert_eq(QolExperiments.from_dict({"pause_max_s": NAN}).pause_max_s, 10.0)
+	assert_eq(QolExperiments.from_dict({"pause_max_s": INF}).pause_max_s, 10.0)
+	assert_eq(QolExperiments.from_dict({"pause_max_s": null}).pause_max_s, 10.0)
+	assert_eq(QolExperiments.from_dict({"pause_max_s": 12}).pause_max_s, 12.0, "an int is a number")
+
+
+func test_pause_max_s_is_clamped_to_one_to_sixty() -> void:
+	assert_eq(QolExperiments.from_dict({"pause_max_s": 0.0}).pause_max_s, 1.0)
+	assert_eq(QolExperiments.from_dict({"pause_max_s": -5.0}).pause_max_s, 1.0)
+	assert_eq(QolExperiments.from_dict({"pause_max_s": 900.0}).pause_max_s, 60.0)
+	var qol: QolExperiments = QolExperiments.new()
+	qol.pause_max_s = NAN
+	qol.sanitize()
+	assert_eq(qol.pause_max_s, 10.0, "sanitize() repairs a non-finite value to the default")
+	qol.pause_max_s = 0.25
+	qol.sanitize()
+	assert_eq(qol.pause_max_s, 1.0)
+
+
+func test_any_enabled_and_active_ids_follow_the_four_toggles_in_fixed_order() -> void:
+	var qol: QolExperiments = QolExperiments.new()
+	assert_false(qol.any_enabled())
+	assert_eq(qol.active_ids(), PackedStringArray())
+	qol.gift_slot_enabled = true
+	assert_true(qol.any_enabled())
+	assert_eq(qol.active_ids(), PackedStringArray(["gift_slot"]))
+	qol.timer_pause_enabled = true
+	qol.goal_radius_enabled = true
+	assert_eq(qol.active_ids(), PackedStringArray(["timer_pause", "goal_radius", "gift_slot"]), "fixed order, not set order")
+	qol.backlog_enabled = true
+	assert_eq(qol.active_ids(), PackedStringArray(["timer_pause", "backlog", "goal_radius", "gift_slot"]))
+	assert_eq(String(QolExperiments.ID_TIMER_PAUSE), "timer_pause")
+	assert_eq(String(QolExperiments.ID_BACKLOG), "backlog")
+	assert_eq(String(QolExperiments.ID_GOAL_RADIUS), "goal_radius")
+	assert_eq(String(QolExperiments.ID_GIFT_SLOT), "gift_slot")
+
+
+func test_other_parameters_do_not_count_as_enabled() -> void:
+	var qol: QolExperiments = QolExperiments.new()
+	qol.pause_event_s = 9.0
+	qol.backlog_max = 3
+	qol.goal_radius_multiplier = 3.0
+	qol.timer_pause_on_special = false
+	assert_false(qol.any_enabled(), "only the four enable flags decide")
+	var shared: QolExperiments = load("res://config/qol_experiments.tres") as QolExperiments
+	assert_false(shared.any_enabled(), "the shipped shared resource has every toggle off")
+	assert_eq(shared.active_ids().size(), 0)
+
+
+func test_with_toggles_copies_parameters_and_sets_only_the_four_flags() -> void:
+	var base: QolExperiments = QolExperiments.new()
+	base.timer_pause_enabled = true
+	base.pause_event_s = 7.5
+	base.pause_max_s = 20.0
+	base.backlog_max = 3
+	base.goal_radius_multiplier = 3.0
+	base.gift_slot_capacity = 2
+	base.timer_pause_on_special = false
+	var out: QolExperiments = QolExperiments.with_toggles(base, false, true, true, false)
+	assert_false(out == base, "a distinct copy")
+	assert_false(out.timer_pause_enabled, "flag taken from the argument, not the base")
+	assert_true(out.backlog_enabled)
+	assert_true(out.goal_radius_enabled)
+	assert_false(out.gift_slot_enabled)
+	assert_eq(out.pause_event_s, 7.5)
+	assert_eq(out.pause_max_s, 20.0)
+	assert_eq(out.backlog_max, 3)
+	assert_eq(out.goal_radius_multiplier, 3.0)
+	assert_eq(out.gift_slot_capacity, 2)
+	assert_false(out.timer_pause_on_special, "non-flag booleans are kept")
+	assert_true(base.timer_pause_enabled, "base is not modified")
+	assert_false(base.backlog_enabled)
+	assert_eq(out.active_ids(), PackedStringArray(["backlog", "goal_radius"]))
+
+
+func test_with_toggles_accepts_a_null_base_and_all_on() -> void:
+	var out: QolExperiments = QolExperiments.with_toggles(null, true, true, true, true)
+	assert_eq(out.active_ids().size(), 4)
+	assert_eq(out.pause_max_s, 10.0, "defaults when no base is given")
+	var all_off: QolExperiments = QolExperiments.with_toggles(out, false, false, false, false)
+	assert_false(all_off.any_enabled())
+	assert_true(out.any_enabled(), "the source copy stays untouched")
+
+
 # --- 1: timer pause -----------------------------------------------------------
 
 func test_timer_pause_rule_special_and_topple() -> void:
@@ -149,6 +254,35 @@ func test_special_event_pauses_timers_when_on() -> void:
 	_start(on)
 	Match._feed.note_special_triggered()
 	assert_true(Match.qol_timer_paused(0) and Match.qol_timer_paused(1))
+
+
+func test_stall_guard_runs_a_capped_pause_through_the_real_feed() -> void:
+	var qol: QolExperiments = QolExperiments.new()
+	qol.timer_pause_enabled = true
+	qol.pause_event_s = 30.0
+	qol.pause_max_s = 1.0
+	_start(qol)
+	var changes: Array = []
+	var collect: Callable = func(slot_id: int, backlog: int, paused: bool) -> void:
+		changes.append([slot_id, backlog, paused])
+	Events.qol_feed_changed.connect(collect)
+	Match._feed.note_special_triggered()
+	assert_true(Match.qol_timer_paused(0))
+	var frozen_at: float = Match.feed_time_left(0)
+	for _i: int in range(30):
+		Match._process(1.0 / 60.0)
+	assert_true(Match.qol_timer_paused(0), "inside the cap the timer is frozen")
+	assert_almost_eq(Match.feed_time_left(0), frozen_at, 0.05)
+	for _i: int in range(42):
+		Match._process(1.0 / 60.0)
+	assert_false(Match.qol_timer_paused(0), "past pause_max_s the guard lets the timer run")
+	var running_from: float = Match.feed_time_left(0)
+	for _i: int in range(30):
+		Match._process(1.0 / 60.0)
+	Events.qol_feed_changed.disconnect(collect)
+	assert_lt(Match.feed_time_left(0), running_from - 0.4, "the block timer counts down again")
+	assert_true(changes.has([0, 0, true]), "pause start announced")
+	assert_true(changes.has([0, 0, false]), "guard exhaustion announced as unpaused")
 
 
 # --- 2: backlog ---------------------------------------------------------------
