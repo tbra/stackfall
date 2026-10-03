@@ -130,16 +130,60 @@ func test_exposed_cells_and_up_axis() -> void:
 	assert_almost_eq(frame.basis.determinant(), 1.0, EPS, "right-handed")
 
 
-func test_melt_cap_steps_down_to_zero() -> void:
+func test_melt_cap_steps_down_to_zero_within_the_melt_time() -> void:
 	var t: SnowTuning = _tuning()
-	assert_eq(t.melt_cap(1.0, 1.0), t.depth_levels)
-	assert_eq(t.melt_cap(0.0, 1.0), 0)
+	var total: float = t.melt_time_s()
+	assert_gt(total, 0.0, "the shipped snow melts over a real duration")
+	assert_eq(t.melt_cap_after(0.0), t.depth_levels, "nothing melts at the first instant")
+	assert_eq(t.melt_cap_after(total), 0, "all gone when the melt clock ends")
+	assert_eq(t.melt_cap_after(total * 2.0), 0)
 	var previous: int = t.depth_levels
-	for i: int in range(100, -1, -1):
-		var cap: int = t.melt_cap(float(i) / 100.0, 1.0)
+	var steps: int = 200
+	for i: int in range(steps + 1):
+		var cap: int = t.melt_cap_after(total * float(i) / float(steps))
 		assert_lte(cap, previous, "monotone")
 		previous = cap
-	assert_gt(t.melt_cap(0.01, 1.0), 0, "last level goes only at zero")
+	assert_gt(t.melt_cap_after(total * 0.99), 0, "the last level goes only at the end")
+	assert_eq(t.melt_cap_after(total * 0.51), t.depth_levels / 2, "levels go evenly across the melt")
+
+
+func test_melt_time_never_outlasts_the_ramp_out() -> void:
+	var t: SnowTuning = _tuning()
+	t.ramp_out_s = 10.0
+	t.melt_duration_s = 25.0
+	assert_eq(t.melt_time_s(), 10.0, "the event end clears what is left, so the melt must be done by then")
+	t.melt_duration_s = 4.0
+	assert_eq(t.melt_time_s(), 4.0)
+	t.melt_duration_s = -3.0
+	assert_eq(t.melt_time_s(), 0.0, "a negative duration means an instant melt")
+	assert_eq(t.melt_cap_after(0.0), 0)
+
+
+func test_shipped_melt_fits_the_ramp_out_and_flakes_stop_before_it_ends() -> void:
+	var t: SnowTuning = load("res://config/weather/snow.tres") as SnowTuning
+	assert_lte(t.melt_duration_s, t.ramp_out_s, "melt_duration_s fits the ramp-out as shipped")
+	assert_gt(t.melt_duration_s, 0.0)
+	assert_gt(t.cover_ease_s, 0.0, "the disc cover eases instead of stepping")
+	assert_gt(t.flake_stop_intensity, 0.0, "flakes stop before the intensity reaches zero")
+	assert_eq(t.flake_density(1.0, 1.0, true), 1.0)
+	assert_eq(t.flake_density(t.flake_stop_intensity, 1.0, true), 0.0, "snowfall is over while melting continues")
+	assert_eq(t.flake_density(0.0, 1.0, true), 0.0)
+	assert_almost_eq(t.flake_density(0.5, 1.0, false), 0.5, EPS, "building up: density follows the intensity")
+	assert_eq(t.flake_density(1.0, 0.0, false), 1.0, "a zero peak cannot divide by zero")
+
+
+## Bontago-mp0.97 (playtest: snow particles too subtle): the visibility
+## numbers were raised from the 22y.6 values and must stay above them.
+func test_shipped_flakes_are_more_visible_than_the_original() -> void:
+	var t: SnowTuning = load("res://config/weather/snow.tres") as SnowTuning
+	assert_gt(t.flake_amount, 1600, "denser than the original 1600")
+	assert_gt(t.flake_amount_low, 450, "Low is denser than the original 450 too")
+	assert_gt(t.flake_size_m, 0.1, "larger than the original 0.1 m")
+	assert_eq(t.flake_color.a, 1.0, "fully opaque flakes")
+	assert_gt(t.flake_min_angle, 0.0, "far flakes keep a minimum on-screen size")
+	assert_lt(t.flake_min_angle, t.flake_max_angle)
+	assert_ne(t.flake_edge_color, t.flake_color, "an outline separates the flake from the sky")
+	assert_lt(t.flake_amount_low, t.flake_amount)
 
 
 func test_wire_round_trip_and_refusals() -> void:

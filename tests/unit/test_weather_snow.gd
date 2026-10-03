@@ -13,11 +13,16 @@ const SEED: int = 424242
 const FIELD_RADIUS_M: float = 6.0
 const MIN_SNOWY_TILT_DEG: float = 2.0
 const MAX_FLAT_TILT_DEG: float = 0.5
+## The next block is released this share of PhysicsTuning.hover_height above the snow's apex.
+const DROP_HOVER_SHARE: float = 0.5
 const HULL_TOLERANCE_M: float = 0.008
 const RAY_REACH_M: float = 0.5
 ## Only snow at least this fraction of max depth bears weight (rims do not).
 const BEARING_FRACTION: float = 0.3
 const MELT_SETTLE_FRAMES: int = 6
+## Melt time of the fixture snow (the shipped 20 s would make every test wait).
+const FIXTURE_MELT_S: float = 1.0
+const EASE_TEST_S: float = 1.0
 
 var _field: Field = null
 var _root: Node3D = null
@@ -45,6 +50,9 @@ func before_each() -> void:
 	_snow.disc_flag_clear_radius_m = 0.0
 	# The fixture disc is only 12 m wide: a full-length drift would not fit.
 	_snow.disc_drift_stretch = 1.5
+	_snow.melt_duration_s = FIXTURE_MELT_S
+	# The disc cover snaps between levels unless a test is about its easing.
+	_snow.cover_ease_s = 0.0
 	_effect = null
 
 
@@ -386,10 +394,10 @@ func test_ramp_out_melts_in_steps_to_nothing() -> void:
 	await _frames(GROW_FRAMES)
 	assert_eq(effect.block_levels(cube)[0], _snow.depth_levels)
 	var seen: Array[int] = []
-	var steps: int = 40
-	for i: int in range(steps + 1):
-		var value: float = 1.0 - float(i) / float(steps)
-		await _frames(1, value)
+	var melt_frames: int = ceili(_snow.melt_time_s() / DT)
+	for i: int in range(melt_frames + 1):
+		# The intensity falls linearly (a real ramp-out); the melt clock decides.
+		await _frames(1, 1.0 - float(i) / float(melt_frames))
 		var level: int = effect.block_levels(cube)[0]
 		if seen.is_empty() or seen[seen.size() - 1] != level:
 			seen.append(level)
@@ -402,6 +410,155 @@ func test_ramp_out_melts_in_steps_to_nothing() -> void:
 	assert_eq(effect.cover_level(), 0)
 	assert_null(SnowCaps.disc_cover(_field), "cover melted")
 	assert_eq(float(_field.overlay().material().get_shader_parameter(&"snow_strength")), 0.0, "disc snow layer off after the melt")
+
+
+## Bontago-mp0.97: snowfall that stops dead (intensity straight to 0) used to
+## drop every level at once; the melt clock now spreads it over the melt time.
+func test_snow_melts_gradually_within_the_melt_time_after_snowfall_stops() -> void:
+	var cube: Block = _cube(Vector3(0.0, 0.01, 0.0))
+	await _frames(SETTLE_FRAMES)
+	var effect: SnowEffect = _make_effect()
+	await _frames(GROW_FRAMES)
+	assert_eq(effect.block_levels(cube)[0], _snow.depth_levels)
+	assert_eq(effect.cover_level(), _snow.depth_levels)
+	var disc_snowy_before: int = 0
+	for key: Variant in effect.disc_levels().keys():
+		if int(effect.disc_levels()[key]) > 0:
+			disc_snowy_before += 1
+	assert_gt(disc_snowy_before, 0, "fixture: the disc has colliding drifts to melt")
+	var melt_frames: int = ceili(_snow.melt_time_s() / DT)
+	assert_gt(melt_frames, 8, "fixture: a melt long enough to sample")
+	var block_seen: Array[int] = []
+	var cover_seen: Array[int] = []
+	var middle_block: int = -1
+	var middle_cover: int = -1
+	var middle_colliders: int = -1
+	for i: int in range(melt_frames + 1):
+		await _frames(1, 0.0)
+		var level: int = effect.block_levels(cube)[0]
+		if block_seen.is_empty() or block_seen[block_seen.size() - 1] != level:
+			block_seen.append(level)
+		var cover: int = effect.cover_level()
+		if cover_seen.is_empty() or cover_seen[cover_seen.size() - 1] != cover:
+			cover_seen.append(cover)
+		if i == melt_frames / 2:
+			middle_block = level
+			middle_cover = cover
+			middle_colliders = effect.collider_count()
+	assert_true(effect.is_melting())
+	assert_gt(effect.melt_elapsed(), 0.0)
+	assert_gt(middle_block, 0, "half way through the melt there is still snow on the block")
+	assert_lt(middle_block, _snow.depth_levels, "and it has already shrunk")
+	assert_gt(middle_cover, 0, "the disc cover is only half melted too")
+	assert_lt(middle_cover, _snow.depth_levels)
+	assert_gt(middle_colliders, 0)
+	assert_eq(block_seen, [4, 3, 2, 1, 0], "the block's cap shrinks one level at a time down to nothing")
+	assert_eq(cover_seen, [4, 3, 2, 1, 0], "so does the disc cover")
+	await _frames(MELT_SETTLE_FRAMES, 0.0)
+	assert_eq(effect.collider_count(), 0, "all colliders gone once the melt time has run")
+	assert_true(SnowCaps.disc_cap_meshes(_field).is_empty(), "disc drifts melted")
+	assert_null(cube.get_node_or_null(NodePath(String(SnowCaps.CAP_NAME))), "block cap melted")
+	assert_null(SnowCaps.disc_cover(_field))
+	assert_true(SnowRelay.is_empty_state(SnowRelay.instance().last_state), "the host replicated the empty state")
+
+
+## The states the host replicates during the melt are valid and only ever
+## shrink, so a client that applies each one follows the melt step for step.
+func test_host_melt_replicates_shrinking_valid_states() -> void:
+	_snow.max_disc_patches = 0
+	var cube: Block = _cube(Vector3(0.0, 0.01, 0.0))
+	await _frames(SETTLE_FRAMES)
+	var effect: SnowEffect = _make_effect()
+	await _frames(GROW_FRAMES)
+	var grid_cells: int = _field.grid().cell_count() - 1
+	var previous_total: int = 1 << 20
+	var states_seen: int = 0
+	for i: int in range(ceili(_snow.melt_time_s() / DT) + MELT_SETTLE_FRAMES):
+		await _frames(1, 0.0)
+		var wire: Dictionary = SnowRelay.instance().last_state
+		var data: Dictionary = SnowGeometry.sanitize_state(wire, _snow, grid_cells)
+		assert_false(data.is_empty(), "every published state is valid")
+		var total: int = int(data["cover"])
+		for key: Variant in (data["blocks"] as Dictionary).keys():
+			for level: int in ((data["blocks"] as Dictionary)[key] as Array)[2]:
+				total += level
+		assert_lte(total, previous_total, "published snow only shrinks while melting")
+		if total < previous_total:
+			states_seen += 1
+		previous_total = total
+	assert_eq(previous_total, 0, "the last published state is empty")
+	assert_gte(states_seen, _snow.depth_levels, "clients saw every melt step")
+	assert_null(cube.get_node_or_null(NodePath(String(SnowCaps.CAP_NAME))))
+	assert_not_null(effect)
+
+
+## Resuming snowfall while the snow is still melting stops the melt and the
+## snow grows back from where it was.
+func test_snow_resuming_mid_melt_accumulates_again() -> void:
+	var cube: Block = _cube(Vector3(0.0, 0.01, 0.0))
+	await _frames(SETTLE_FRAMES)
+	var effect: SnowEffect = _make_effect()
+	await _frames(GROW_FRAMES)
+	var melt_frames: int = ceili(_snow.melt_time_s() / DT)
+	await _frames(melt_frames * 6 / 10, 0.0)
+	assert_true(effect.is_melting())
+	var melted_to: int = effect.block_levels(cube)[0]
+	assert_lt(melted_to, _snow.depth_levels, "fixture: the melt got going")
+	assert_gt(melted_to, 0, "fixture: but did not finish")
+	await _frames(GROW_FRAMES, 1.0)
+	assert_false(effect.is_melting(), "snowfall resumed")
+	assert_eq(effect.block_levels(cube)[0], _snow.depth_levels, "the block's snow built back up")
+	assert_eq(effect.cover_level(), _snow.depth_levels, "and the disc cover")
+	# A second stop melts it again from the top.
+	await _frames(melt_frames + MELT_SETTLE_FRAMES, 0.0)
+	assert_eq(effect.block_levels(cube)[0], 0)
+	assert_eq(effect.collider_count(), 0)
+
+
+## The visual disc cover eases between its levels (cover_ease_s per level),
+## fades out when melted to 0 instead of popping, and a new level revives it.
+func test_disc_cover_eases_and_fades_out_instead_of_popping() -> void:
+	_snow.cover_ease_s = EASE_TEST_S
+	SnowCaps.set_disc_cover(_field, SEED, 2, _snow)
+	var cover: SnowDiscCover = SnowCaps.disc_cover(_field)
+	assert_not_null(cover)
+	cover.set_process(false)
+	var material: ShaderMaterial = _field.overlay().material()
+	assert_eq(cover.level(), 2)
+	assert_eq(cover.shown_level(), 0.0, "a new cover starts invisible")
+	assert_eq(float(material.get_shader_parameter(&"snow_strength")), 0.0)
+	cover.ease_step(EASE_TEST_S * 0.5)
+	assert_almost_eq(cover.shown_level(), 0.5, 0.001, "one level per cover_ease_s")
+	var half_strength: float = float(material.get_shader_parameter(&"snow_strength"))
+	assert_gt(half_strength, 0.0)
+	assert_lt(half_strength, cover.strength(), "still fading in")
+	cover.ease_step(EASE_TEST_S * 10.0)
+	assert_eq(cover.shown_level(), 2.0)
+	assert_almost_eq(float(material.get_shader_parameter(&"snow_strength")), cover.strength(), 0.0001)
+	# Melted to 0: the cover keeps drawing while it fades out.
+	SnowCaps.set_disc_cover(_field, SEED, 0, _snow)
+	assert_null(SnowCaps.disc_cover(_field), "no live cover once melted")
+	var fading: SnowDiscCover = SnowCaps.fading_disc_cover(_field)
+	assert_not_null(fading, "but it has not popped")
+	assert_true(fading.is_retiring())
+	assert_eq(fading.amount(), 0.0, "its target depth is zero")
+	var before_fade: float = float(material.get_shader_parameter(&"snow_strength"))
+	fading.ease_step(EASE_TEST_S * 0.5)
+	var fading_strength: float = float(material.get_shader_parameter(&"snow_strength"))
+	assert_gt(fading_strength, 0.0, "still visible mid-fade")
+	assert_lt(fading_strength, before_fade, "and thinning")
+	# Snow resumes before it is gone: the same cover comes back.
+	SnowCaps.set_disc_cover(_field, SEED, 3, _snow)
+	assert_eq(SnowCaps.disc_cover(_field), fading, "revived, not rebuilt")
+	assert_null(SnowCaps.fading_disc_cover(_field))
+	assert_false(fading.is_retiring())
+	# Melt out completely.
+	SnowCaps.set_disc_cover(_field, SEED, 0, _snow)
+	fading.ease_step(EASE_TEST_S * 10.0)
+	await get_tree().process_frame
+	assert_null(SnowCaps.fading_disc_cover(_field), "freed once faded out")
+	assert_null(SnowCaps.disc_cover(_field))
+	assert_eq(float(material.get_shader_parameter(&"snow_strength")), 0.0, "disc snow layer off")
 
 
 func test_a_covered_top_stops_growing() -> void:
@@ -507,7 +664,14 @@ func _drop_tilt(with_snow: bool) -> float:
 		_make_effect()
 		await _frames(GROW_FRAMES)
 		assert_eq(_effect.block_levels(base)[0], _snow.depth_levels)
-	var dropped: Block = _cube(Vector3(0.0, _physics.cube_size + _snow.max_depth_m * 2.0 + _physics.hover_height, 0.0))
+	# DECISION (Bontago-mp0.97 fix pass): released DROP_HOVER_SHARE of the hover
+	# height above the snow's apex. From the old 2 x max_depth + hover_height
+	# (a 0.45 m fall onto the apex) the block was kicked sideways by the sloped
+	# dome and, depending only on the physics history of the process (the same
+	# test failed standalone on main, and after any test that was inserted before
+	# it), either rested tilted or slid off the 1 m base; a sweep over 4
+	# histories passed 3/4 there and 4/4 from the lower release.
+	var dropped: Block = _cube(Vector3(0.0, _physics.cube_size + _snow.max_depth_m + _physics.hover_height * DROP_HOVER_SHARE, 0.0))
 	await _frames(SETTLE_FRAMES * 2)
 	var tilt: float = _tilt_deg(dropped)
 	assert_gt(dropped.global_position.y, _physics.cube_size * 0.9, "still on the base block")
