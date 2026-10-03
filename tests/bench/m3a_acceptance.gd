@@ -1064,7 +1064,7 @@ func _run_host_late_join_and_reconnect(initial_player_count: int) -> void:
 		if Net.peer_ids().size() > initial_remote_peer_count:
 			late_joiner_arrived = true
 			# The late joiner is the highest peer ID
-			var peer_ids: Array[int] = Net.peer_ids()
+			var peer_ids: PackedInt32Array = Net.peer_ids()
 			late_joiner_peer_id = peer_ids[peer_ids.size() - 1] if not peer_ids.is_empty() else -1
 			break
 		await get_tree().create_timer(0.1).timeout
@@ -1112,7 +1112,7 @@ func _run_host_reconnect_test(test_slot: int, initial_player_count: int) -> void
 	print("M3A_ACCEPT (reconnect) testing mid-match reconnect for slot %d..." % test_slot)
 
 	# Record peer IDs before disconnect.
-	var peers_before: Array[int] = Net.peer_ids().duplicate()
+	var peers_before: PackedInt32Array = Net.peer_ids().duplicate()
 	var peer_count_before: int = peers_before.size()
 
 	# Simulate a client disconnect by waiting a bit (in a real test, the client
