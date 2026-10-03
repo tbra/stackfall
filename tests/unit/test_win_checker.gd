@@ -1,6 +1,6 @@
 extends GutTest
 ## Spec 2.3: "A player or team wins when one connected territory contains every
-## goal flag continuously for capture_hold = 3 s."
+## goal flag continuously for capture_hold = 5 s."
 ##
 ## Spec 3.3 says to check it against the raster. The decisive detail
 ## (docs/M2_PLAN.md, "Solver -> raster -> win check") is that every goal must
@@ -73,26 +73,26 @@ func test_progress_ramps_towards_capture_hold() -> void:
 	var checker: WinChecker = _checker(PackedVector2Array([CENTRE_GOAL]))
 	var circles: Array[InfluenceCircle] = [_home(0.0, 0.0, 0)]
 	_run(checker, circles, 10)
-	assert_almost_eq(checker.capture_progress(), 1.0 / 3.0, 0.02,
-		"1.0 s of a 3.0 s hold is a third of the way.")
+	assert_almost_eq(checker.capture_progress(), 1.0 / 5.0, 0.02,
+		"1.0 s of a 5.0 s hold is a fifth of the way.")
 	_run(checker, circles, 10)
-	assert_almost_eq(checker.capture_progress(), 2.0 / 3.0, 0.02)
+	assert_almost_eq(checker.capture_progress(), 2.0 / 5.0, 0.02)
 
 
 func test_the_capture_completes_at_capture_hold() -> void:
 	var checker: WinChecker = _checker(PackedVector2Array([CENTRE_GOAL]))
 	var circles: Array[InfluenceCircle] = [_home(0.0, 0.0, 0)]
-	_run(checker, circles, 29)
-	assert_eq(checker.winner(), WinChecker.NO_TEAM, "2.9 s is not yet a win.")
+	_run(checker, circles, 49)
+	assert_eq(checker.winner(), WinChecker.NO_TEAM, "4.9 s is not yet a win.")
 	_run(checker, circles, 1)
-	assert_eq(checker.winner(), 0, "3.0 s of unbroken hold wins the match.")
+	assert_eq(checker.winner(), 0, "5.0 s of unbroken hold wins the match.")
 	assert_almost_eq(checker.capture_progress(), 1.0, 0.0001)
 
 
-func test_breaking_the_hold_at_29_seconds_resets_progress() -> void:
+func test_breaking_the_hold_at_49_seconds_resets_progress() -> void:
 	var checker: WinChecker = _checker(PackedVector2Array([CENTRE_GOAL]))
 	var holding: Array[InfluenceCircle] = [_home(0.0, 0.0, 0)]
-	_run(checker, holding, 29)
+	_run(checker, holding, 49)
 	assert_gt(checker.capture_progress(), 0.9, "Setup: nearly there.")
 
 	## The tower falls: the home circle is now nowhere near the goal.
@@ -107,18 +107,18 @@ func test_breaking_the_hold_at_29_seconds_resets_progress() -> void:
 func test_a_broken_capture_starts_over_rather_than_resuming() -> void:
 	var checker: WinChecker = _checker(PackedVector2Array([CENTRE_GOAL]))
 	var holding: Array[InfluenceCircle] = [_home(0.0, 0.0, 0)]
-	_run(checker, holding, 29)
+	_run(checker, holding, 49)
 	_run(checker, [_home(15.0, 15.0, 0)] as Array[InfluenceCircle], 1)
 	_run(checker, holding, 5)
 	assert_eq(checker.winner(), WinChecker.NO_TEAM)
-	assert_almost_eq(checker.capture_progress(), 0.5 / 3.0, 0.02,
+	assert_almost_eq(checker.capture_progress(), 0.5 / 5.0, 0.02,
 		"Only the 0.5 s since the break counts.")
 
 
 func test_the_winner_latches() -> void:
 	var checker: WinChecker = _checker(PackedVector2Array([CENTRE_GOAL]))
 	var holding: Array[InfluenceCircle] = [_home(0.0, 0.0, 0)]
-	_run(checker, holding, 30)
+	_run(checker, holding, 50)
 	assert_eq(checker.winner(), 0, "Setup.")
 
 	_run(checker, [_home(15.0, 15.0, 0)] as Array[InfluenceCircle], 20)
@@ -132,7 +132,7 @@ func test_every_goal_must_sit_in_the_same_group() -> void:
 	var goals: PackedVector2Array = PackedVector2Array([Vector2(-4.0, 0.0), Vector2(4.0, 0.0)])
 	var checker: WinChecker = _checker(goals)
 	var circles: Array[InfluenceCircle] = [_home(0.0, 0.0, 0)]
-	_run(checker, circles, 30)
+	_run(checker, circles, 50)
 	assert_eq(checker.winner(), 0, "One circle covering both goals is one territory.")
 
 
@@ -186,7 +186,7 @@ func test_the_capture_restarts_when_the_holder_changes() -> void:
 
 	_run(checker, [_home(0.0, 0.0, 1)] as Array[InfluenceCircle], 5)
 	assert_eq(checker.capturing_team(), 1, "Team 1 took the goal.")
-	assert_almost_eq(checker.capture_progress(), 0.5 / 3.0, 0.02,
+	assert_almost_eq(checker.capture_progress(), 0.5 / 5.0, 0.02,
 		"Team 1 starts its own hold from zero, not from team 0's progress.")
 
 
@@ -209,7 +209,7 @@ func test_set_goal_positions_replaces_the_layout_and_stops_the_capture() -> void
 
 func test_reset_clears_the_latched_winner() -> void:
 	var checker: WinChecker = _checker(PackedVector2Array([CENTRE_GOAL]))
-	_run(checker, [_home(0.0, 0.0, 0)] as Array[InfluenceCircle], 30)
+	_run(checker, [_home(0.0, 0.0, 0)] as Array[InfluenceCircle], 50)
 	assert_eq(checker.winner(), 0, "Setup.")
 
 	checker.reset()

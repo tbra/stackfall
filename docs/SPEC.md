@@ -10,7 +10,7 @@
 > - **[NEW]** is a design decision for the remake.
 > - **[OPEN]** requires a decision or verification; existing code is not proof of the intended rule.
 >
-> **Precedence (owner, 2026-09-20): prioritize original rules where concrete evidence exists.** Such evidence supersedes earlier recollections/reconstructions. Explicit retained remake exceptions (including the owner's confirmed 3-second capture hold) remain exceptions. Otherwise use owner clarifications, then provisional Part 2 designs. Part 3, older plans and completed tests cannot override this rule. Record the source and the displaced assumption whenever applying it.
+> **Precedence (owner, 2026-09-20): prioritize original rules where concrete evidence exists.** Such evidence supersedes earlier recollections/reconstructions. Explicit retained remake exceptions (including the owner's capture hold, 3 s confirmed 2026-09-20 and lengthened to 5 s on 2026-10-03) remain exceptions. Otherwise use owner clarifications, then provisional Part 2 designs. Part 3, older plans and completed tests cannot override this rule. Record the source and the displaced assumption whenever applying it.
 >
 > **Instructions for Claude Code:** Work milestone by milestone (Part 4). Every milestone must be runnable and playable before you start the next one. Put tunable numbers in config resources and never hard-code them. Ask before changing approved gameplay, including [ORIGINAL] rules adopted by the remake. This audit changes documentation, not game code; it does not assert that the working build already conforms.
 
@@ -32,7 +32,7 @@
 
 **[ORIGINAL, developer explanation]** On March 15, 2004, developer Vulcan/Eric described fixed placement intervals: an early drop gives the next piece for preparation, but it cannot be released until the next interval. Expiry forces release. This is simultaneous real-time play, not players taking alternate turns. The post does not establish network clock synchronization. [Release thread](https://gamedev.net/forums/topic/177069-bontago/).
 
-**Fidelity decision:** the owner's later instruction to prioritize concrete original evidence adopts the documented timer in §2.4 and restores overlap holes as the default target in §2.2. Earlier immediate-timer/no-overlap proposals remain documented alternatives, not the original rules. The 3-second capture hold is an explicitly retained remake exception.
+**Fidelity decision:** the owner's later instruction to prioritize concrete original evidence adopts the documented timer in §2.4 and restores overlap holes as the default target in §2.2. Earlier immediate-timer/no-overlap proposals remain documented alternatives, not the original rules. The capture hold (5 s since owner playtest 2026-10-03; previously 3 s) is an explicitly retained remake exception.
 
 **[ORIGINAL, installed tutorial]** The owner-installed executable advertises version 1.1. Its embedded tutorial confirms timer locking, overlap sinking, height-based influence, allied placement and the all-white-flags objective. Its menu documents a configurable requirement to connect influence to the home flag for dropping. See [installed-file evidence, offsets and hash](ORIGINAL_INSTALL_EVIDENCE.md). This is direct textual inspection, not a gameplay test.
 
@@ -146,7 +146,7 @@ Audit date: 2026-09-20. DigiPen, the interview, release thread, description mirr
 - **Teams:** allied placement is **[ORIGINAL]**, explicitly documented in the installed tutorial. Teammates do not contest each other in the remake; goals still need one continuous allied component, not disconnected patches merely sharing a team ID. Exact original team-win/home-anchor semantics remain unverified.
 
 ### 2.3 Win condition
-- Every goal flag's **base** must be in the same final controlled component with an unbroken path to a living allied home. All goals must satisfy this **simultaneously** for `capture_hold = 3 s`. The owner explicitly retained this hold on 2026-09-20; it is not claimed as original timing.
+- Every goal flag's **base** must be in the same final controlled component with an unbroken path to a living allied home. All goals must satisfy this **simultaneously** for `capture_hold = 5 s`. The owner explicitly retained this hold on 2026-09-20 (3 s) and asked for a longer goal claim on 2026-10-03 (playtest; 5 s chosen, F4-tunable, Bontago-1pi.31); it is not claimed as original timing.
 - There is one shared hold condition, not independent permanent flag captures. Losing any goal or the connecting path resets the hold. Internal solver group renumbering alone must not reset a continuously valid capture. The exact base footprint (point versus finite base) remains **[OPEN]**; current code samples the flag position.
 - **Home elimination [OWNER intent, original unverified; default interaction OPEN]:** retain the intent that an engulfed home eliminates its player and the last surviving team wins. However, in the default overlap-hole model an always-active home circle makes invasion contested rather than enemy-owned. The v2 "enemy owns the home point" trigger therefore cannot simply be reused. Decide whether home loss depends on invading influence, loss of physical support or another explicit condition; none is established here as original behavior. Unowned ground alone is not proof of enemy capture. Until resolved, do not claim default-mode elimination complies merely because v2 elimination tests pass; also specify simultaneous elimination/goal-capture precedence.
 - **Capture display [NEW]:** radial rings communicate the shared hold. A goal no-build zone remains no-build even while influence/capture passes across it.
@@ -611,7 +611,7 @@ Each milestone ends with a playable build and passes its acceptance criteria.
 - **Fidelity policy [OWNER, latest]:** prioritize original rules when concrete evidence exists. This supersedes conflicting earlier recollections, but not explicitly retained remake exceptions.
 - **Cadence:** adopt the developer-described fixed-window placement lock, not immediate reset and not alternating players (§2.4).
 - **Holes:** restore overlap holes as the fidelity target. Temporary cell holes remain a provisional approximation; exact original timing/physics are unverified. The no-overlap v2 mode is optional, not the default.
-- **Capture hold [OWNER, explicitly confirmed during this audit]:** keep **3 seconds**. Original all-goal objective and this remake hold must not be conflated.
+- **Capture hold [OWNER, explicitly confirmed during this audit]:** **5 seconds** (owner playtest 2026-10-03 asked to extend the 3 s confirmed here; Bontago-1pi.31). Original all-goal objective and this remake hold must not be conflated.
 - **Other retained owner requirements:** point-ray placement, continuous influence updates, smooth presentation, goal no-build zones and home elimination remain where not contradicted by concrete evidence. Their exact original status is not asserted.
 - **Online/controls [NEW]:** Steam plus ENet, and equal gamepad priority remain remake requirements.
 
