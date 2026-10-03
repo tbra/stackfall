@@ -49,6 +49,17 @@ const STEAM_APP_ID_EXPECTED: int = 480
 const REJOIN_TOKEN_BYTES: int = 16
 const REJOIN_TOKEN_MAX_CHARS: int = 64
 
+## Bontago-1pi.53: per-peer flood limit on request_seat_pref (a token bucket: a
+## burst of SEAT_PREF_BURST requests, refilled at SEAT_PREF_REFILL_PER_S). Every
+## accepted request makes the lobby republish its data to everyone, so an
+## unthrottled client could turn one peer's input into 8x the traffic. Protocol
+## limits like REJOIN_TOKEN_MAX_CHARS, not gameplay tunables: a human cycling
+## colours/teams never gets near them. DECISION: kept here rather than in
+## NetConfig because this package does not own config/NetConfig.gd; moving them
+## there is a mechanical follow-up.
+const SEAT_PREF_BURST: int = 6
+const SEAT_PREF_REFILL_PER_S: float = 3.0
+
 @export var config: NetConfig = preload("res://config/net_config.tres")
 
 var _mode: Mode = Mode.OFFLINE
@@ -65,6 +76,10 @@ var _ping_samples: Dictionary = {}
 ## Host only: peer_id -> deadline (seconds, _now()) by which the peer must
 ## have sent its handshake, or it is dropped.
 var _pending_handshake: Dictionary = {}
+## Host only (Bontago-1pi.53): peer_id -> {"tokens": float, "at": float}, the
+## request_seat_pref flood bucket of each peer that sent one. Dropped with the
+## peer (_on_peer_disconnected) and with the session (_reset_rejoin_state).
+var _seat_pref_buckets: Dictionary = {}
 var _next_slot_id: int = 1
 ## Host only: whether _rpc_handshake may still seat a new peer. True in the
 ## lobby, false once the match flow leaves it (see set_accepting_joins()).
@@ -1276,6 +1291,7 @@ func _on_peer_connected(id: int) -> void:
 
 func _on_peer_disconnected(id: int) -> void:
 	_pending_handshake.erase(id)
+	_seat_pref_buckets.erase(id)
 	if _mode != Mode.HOST:
 		return
 	if not _peers.has(id):
@@ -1414,10 +1430,30 @@ func _reclaimable_slot_for(rejoin_token: String) -> int:
 	return slot_id
 
 
-## The next lobby slot id (M3a's monotonic allocation, unchanged).
+## The slot a lobby joiner (or a spectator returning to the lobby) is seated in.
+##
+## Bontago-1pi.53 (docs/LOBBY_REWORK_PLAN.md R4): the LOWEST free slot, not the next
+## monotonic id. Slots never compact, so after a peer leaves the lobby the old
+## allocation left a hole below the highest slot, and at Start the bot seats (the
+## trailing `ai_count` slots) could land on a human's slot. "Free" = no roster
+## entry holds it and no rejoin reservation names it. Mid-match the monotonic
+## counter still applies (a slot a dropped player may reclaim, or one the match
+## already built a PlayerSlot for, is never handed to someone else).
 func _take_next_lobby_slot() -> int:
-	var slot_id: int = _next_slot_id
-	_next_slot_id += 1
+	if _match_in_progress:
+		var next_id: int = _next_slot_id
+		_next_slot_id += 1
+		return next_id
+	var taken: Dictionary = {}
+	for peer_id: int in _peers.keys():
+		var held: int = int(_peers[peer_id].get("slot_id", -1))
+		if held >= 0:
+			taken[held] = true
+	for reserved: Variant in _reservations.values():
+		taken[int(reserved)] = true
+	var slot_id: int = 0
+	while taken.has(slot_id):
+		slot_id += 1
 	return slot_id
 
 
@@ -1652,6 +1688,9 @@ func _reset_rejoin_state() -> void:
 	_match_in_progress = false
 	_tokens.clear()
 	_reservations.clear()
+	# Per-session host state that must not outlive its peers (called wherever a
+	# session starts or ends: host_game, the Steam lobby host, leave).
+	_seat_pref_buckets.clear()
 
 
 # --- Ready state --------------------------------------------------------
@@ -1739,6 +1778,99 @@ func _rpc_loading_gate_open() -> void:
 	if _mode != Mode.CLIENT:
 		return
 	Events.loading_gate_opened.emit()
+
+
+# --- Lobby seat preferences (Bontago-1pi.53) ---------------------------------
+#
+# docs/LOBBY_REWORK_PLAN.md section 3: the host owns every seat's picks; a client
+# may change only its OWN colour and team, and does so by sending this intent. Net
+# is transport only: it takes the peer id from the connection, refuses anything
+# that is not a plain in-range request from a seated peer in the lobby, and hands
+# the survivor to the lobby over Events.net_seat_pref_requested. The lobby (the
+# host-side players panel, through LobbySeats.apply_human_pref) applies it with the
+# real team cap, resolves colour swaps and republishes; Net mutates no lobby or
+# match state itself, and the client UI follows the next lobby-data echo instead
+# of updating optimistically.
+
+## Local player asks to change its own seat: `color_index` is a palette index
+## (0..LobbySeats.palette_size() - 1), `team_pick` is MatchConfig.TEAM_PICK_RANDOM
+## (0) or a lobby team number (1..MatchConfig.TEAM_PICK_MAX); LobbySeats.UNCHANGED
+## (-1) leaves that field as it is. Client: sends the intent to the host. Host and
+## offline: runs the same checks locally under local_peer_id() (offline that is
+## HOST_PEER_ID, the one local human), without the flood limit.
+func request_seat_pref(color_index: int = LobbySeats.UNCHANGED, team_pick: int = LobbySeats.UNCHANGED) -> void:
+	if is_client():
+		if not _seat_pref_in_range(color_index, team_pick):
+			return
+		var peer: MultiplayerPeer = multiplayer.multiplayer_peer
+		if peer == null or peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
+			return
+		_rpc_request_seat_pref.rpc_id(HOST_PEER_ID, color_index, team_pick)
+		return
+	_handle_seat_pref(local_peer_id(), color_index, team_pick, false)
+
+
+## `Variant` parameters on purpose: this is an any_peer RPC, so the arguments are
+## whatever the sender put on the wire, and a typed signature would let the engine
+## coerce (a float becomes an int, a bool a 0/1) before the host could refuse it.
+## The sender is get_remote_sender_id(); the payload names no peer, so there is
+## nothing to spoof.
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_seat_pref(color_index: Variant, team_pick: Variant) -> void:
+	_handle_seat_pref(multiplayer.get_remote_sender_id(), color_index, team_pick, true)
+
+
+## Host only. A seat-preference intent from `sender` (the transport's peer id, or
+## local_peer_id() for `remote` = false). Refused, in this order: not the host; a
+## remote sender that is not a seated peer (an unknown id, a peer still in the
+## handshake, a spectator at slot -1, a peer that already left); a match in
+## progress; the sender's flood bucket is empty (every request from a seated peer
+## drains it, valid or not); a non-int, out-of-range or no-op payload (nothing is
+## clamped). Returns whether the event was emitted. `now` (seconds) is the clock
+## for the bucket, a seam for tests; < 0 reads _now().
+func _handle_seat_pref(sender: int, color_index: Variant, team_pick: Variant, remote: bool = true, now: float = -1.0) -> bool:
+	if _mode == Mode.CLIENT:
+		return false
+	if remote and (_mode != Mode.HOST or not _peers.has(sender) or slot_of_peer(sender) < 0):
+		return false
+	if _match_in_progress:
+		return false
+	if remote and not _seat_pref_take_token(sender, now if now >= 0.0 else _now()):
+		return false
+	if typeof(color_index) != TYPE_INT or typeof(team_pick) != TYPE_INT:
+		return false
+	if not _seat_pref_in_range(int(color_index), int(team_pick)):
+		return false
+	Events.net_seat_pref_requested.emit(sender, int(color_index), int(team_pick))
+	return true
+
+
+## Wire sanity, not lobby rules: each field is UNCHANGED or inside the largest range
+## it can ever take, and at least one field asks for something. The lobby applies
+## the exact team cap (LobbySeats.apply_human_pref).
+func _seat_pref_in_range(color_index: int, team_pick: int) -> bool:
+	if color_index == LobbySeats.UNCHANGED and team_pick == LobbySeats.UNCHANGED:
+		return false
+	if color_index != LobbySeats.UNCHANGED and (color_index < 0 or color_index >= LobbySeats.palette_size()):
+		return false
+	if team_pick != LobbySeats.UNCHANGED and (team_pick < MatchConfig.TEAM_PICK_RANDOM or team_pick > MatchConfig.TEAM_PICK_MAX):
+		return false
+	return true
+
+
+## Spends one token of `peer_id`'s bucket (a new peer starts full). False = empty.
+func _seat_pref_take_token(peer_id: int, now: float) -> bool:
+	var burst: float = float(SEAT_PREF_BURST)
+	var tokens: float = burst
+	if _seat_pref_buckets.has(peer_id):
+		var bucket: Dictionary = _seat_pref_buckets[peer_id]
+		var elapsed: float = maxf(now - float(bucket["at"]), 0.0)
+		tokens = minf(burst, float(bucket["tokens"]) + elapsed * SEAT_PREF_REFILL_PER_S)
+	var allowed: bool = tokens >= 1.0
+	if allowed:
+		tokens -= 1.0
+	_seat_pref_buckets[peer_id] = {"tokens": tokens, "at": now}
+	return allowed
 
 
 # --- Lobby data RPC ----------------------------------------------------------

@@ -997,3 +997,302 @@ func test_process_never_pumps_steam_callbacks_before_steam_is_ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	assert_eq(fake.run_callbacks_calls, 0, "must not pump a provider that never answered init_result")
+
+
+# --- Lobby seat preferences (Bontago-1pi.53) ------------------------------------
+#
+# Net.request_seat_pref -> any_peer RPC -> host checks -> Events.net_seat_pref_requested.
+# Most cases drive the host-side handler directly (the transport-given sender id is
+# its first argument, exactly what _rpc_request_seat_pref passes it), seeding the
+# host's roster instead of connecting ENet peers; the ENet cases below prove the
+# RPC itself.
+
+## Hosts on a free port and seats fake peers: {peer_id: slot_id} (-1 = spectator).
+func _host_with_peers(slots: Dictionary) -> void:
+	assert_eq(_host.host_game(_take_port(), "Hostie"), OK)
+	for peer_id: int in slots.keys():
+		_host._peers[peer_id] = {
+			"peer_id": peer_id, "slot_id": int(slots[peer_id]), "name": "P%d" % peer_id,
+			"ready": false, "ping_ms": 0.0, "build": "",
+		}
+
+
+func _seat_pref_count() -> int:
+	return get_signal_emit_count(Events, "net_seat_pref_requested")
+
+
+func test_seat_pref_valid_request_emits_with_the_senders_peer_id() -> void:
+	_host_with_peers({2: 1})
+	watch_signals(Events)
+	assert_true(_host._handle_seat_pref(2, 3, 2), "a seated peer's in-range request goes through")
+	assert_eq(_seat_pref_count(), 1)
+	assert_eq(get_signal_parameters(Events, "net_seat_pref_requested", 0), [2, 3, 2])
+
+
+func test_seat_pref_one_field_unchanged_and_the_range_edges_are_accepted() -> void:
+	_host_with_peers({2: 1})
+	watch_signals(Events)
+	assert_true(_host._handle_seat_pref(2, -1, 4), "team only, the highest lobby team number")
+	assert_true(_host._handle_seat_pref(2, 7, -1), "colour only, the last palette index")
+	assert_true(_host._handle_seat_pref(2, 0, 0), "colour 0 and team 0 (Random) are real values, not 'unchanged'")
+	assert_eq(_seat_pref_count(), 3)
+	assert_eq(get_signal_parameters(Events, "net_seat_pref_requested", 0), [2, -1, 4])
+	assert_eq(get_signal_parameters(Events, "net_seat_pref_requested", 1), [2, 7, -1])
+	assert_eq(get_signal_parameters(Events, "net_seat_pref_requested", 2), [2, 0, 0])
+
+
+## Spoofed seat: a sender that does not hold a lobby seat never reaches the lobby,
+## whatever it claims. The id is the transport's; the payload names nobody.
+func test_seat_pref_from_a_peer_without_a_seat_is_refused() -> void:
+	_host_with_peers({2: 1, 3: -1})
+	watch_signals(Events)
+	assert_false(_host._handle_seat_pref(99, 1, 1), "an id that is not connected at all")
+	assert_false(_host._handle_seat_pref(3, 1, 1), "a spectator (slot -1)")
+	_host._peers.erase(2)
+	assert_false(_host._handle_seat_pref(2, 1, 1), "a late packet from a peer that already left")
+	assert_eq(_seat_pref_count(), 0)
+
+
+func test_seat_pref_from_a_client_instance_is_ignored() -> void:
+	# A hostile peer can aim the RPC at another client: only the host acts on it.
+	var port: int = _take_port()
+	_connect_host_and_client(port)
+	watch_signals(Events)
+	assert_false(_client._handle_seat_pref(Net.HOST_PEER_ID, 1, 1, true))
+	assert_false(_client._handle_seat_pref(Net.HOST_PEER_ID, 1, 1, false))
+	assert_eq(_seat_pref_count(), 0)
+
+
+func test_seat_pref_out_of_range_values_are_refused_not_clamped() -> void:
+	_host_with_peers({2: 1})
+	watch_signals(Events)
+	# A fresh minute per call: a full bucket every time, so only the range check can refuse.
+	var tick: float = 0.0
+	var bad_colors: Array[int] = [-2, LobbySeats.palette_size(), 9, 1000000, 2147483647, -2147483648]
+	for bad: int in bad_colors:
+		tick += 60.0
+		assert_false(_host._handle_seat_pref(2, bad, -1, true, tick), "colour %d" % bad)
+	var bad_teams: Array[int] = [-2, MatchConfig.TEAM_PICK_MAX + 1, 99, 2147483647, -2147483648]
+	for bad: int in bad_teams:
+		tick += 60.0
+		assert_false(_host._handle_seat_pref(2, -1, bad, true, tick), "team %d" % bad)
+	tick += 60.0
+	assert_false(_host._handle_seat_pref(2, 1, 99, true, tick), "one bad field refuses the whole request")
+	tick += 60.0
+	assert_false(_host._handle_seat_pref(2, 99, 1, true, tick), "in either order")
+	tick += 60.0
+	assert_false(_host._handle_seat_pref(2, -1, -1, true, tick), "asking for nothing is refused")
+	assert_eq(_seat_pref_count(), 0)
+
+
+func test_seat_pref_malformed_payload_types_are_refused() -> void:
+	_host_with_peers({2: 1})
+	watch_signals(Events)
+	var junk: Array = [1.0, 1.5, NAN, INF, "1", true, null, [1], {"color": 1}, Vector2i(1, 1), StringName("1")]
+	var tick: float = 0.0
+	for value: Variant in junk:
+		tick += 100.0
+		assert_false(_host._handle_seat_pref(2, value, 1, true, tick), "colour %s" % str(value))
+		tick += 100.0
+		assert_false(_host._handle_seat_pref(2, 1, value, true, tick), "team %s" % str(value))
+	assert_eq(_seat_pref_count(), 0)
+
+
+func test_seat_pref_is_refused_while_a_match_runs_and_resumes_in_the_lobby() -> void:
+	_host_with_peers({2: 1})
+	watch_signals(Events)
+	_host.set_match_in_progress(true)
+	assert_false(_host._handle_seat_pref(2, 1, 1, true, 10.0), "remote request mid-match")
+	_host.request_seat_pref(1, 1)
+	assert_eq(_seat_pref_count(), 0, "the host's own request mid-match too")
+	_host.set_match_in_progress(false)
+	assert_true(_host._handle_seat_pref(2, 1, 1, true, 20.0), "back in the lobby it is accepted again")
+	assert_eq(_seat_pref_count(), 1)
+
+
+func test_seat_pref_flood_is_rate_limited_per_peer() -> void:
+	_host_with_peers({2: 1, 3: 2})
+	watch_signals(Events)
+	var burst: int = Net.SEAT_PREF_BURST
+	for i: int in range(burst):
+		assert_true(_host._handle_seat_pref(2, i % 8, -1, true, 50.0), "request %d is inside the burst" % i)
+	for i: int in range(20):
+		assert_false(_host._handle_seat_pref(2, 1, 1, true, 50.0), "request %d beyond the burst is dropped" % i)
+	assert_eq(_seat_pref_count(), burst)
+	assert_true(_host._handle_seat_pref(3, 1, 1, true, 50.0), "another peer has its own bucket")
+	assert_false(_host._handle_seat_pref(2, 1, 1, true, 50.1), "a fraction of a second refills less than one request")
+	# One second later the bucket has refilled by SEAT_PREF_REFILL_PER_S requests.
+	var refilled: int = int(Net.SEAT_PREF_REFILL_PER_S)
+	for i: int in range(refilled):
+		assert_true(_host._handle_seat_pref(2, 1, 1, true, 51.1), "refilled request %d" % i)
+	assert_false(_host._handle_seat_pref(2, 1, 1, true, 51.1), "and no more than that")
+	assert_true(_host._handle_seat_pref(2, 1, 1, true, 1000.0), "a long pause refills to the burst, no further")
+	assert_true(_host._seat_pref_buckets.has(2))
+	_host._on_peer_disconnected(2)
+	assert_false(_host._seat_pref_buckets.has(2), "a departed peer's bucket is dropped")
+
+
+func test_seat_pref_malformed_flood_drains_the_bucket_too() -> void:
+	_host_with_peers({2: 1})
+	watch_signals(Events)
+	for i: int in range(Net.SEAT_PREF_BURST):
+		assert_false(_host._handle_seat_pref(2, "x", 99, true, 10.0))
+	assert_false(_host._handle_seat_pref(2, 1, 1, true, 10.0), "garbage cannot be used to keep a free bucket")
+	assert_eq(_seat_pref_count(), 0)
+
+
+func test_seat_pref_host_local_request_emits_under_the_local_peer_id_without_the_flood_limit() -> void:
+	_host_with_peers({})
+	watch_signals(Events)
+	_host.request_seat_pref(2, 1)
+	assert_eq(get_signal_parameters(Events, "net_seat_pref_requested", 0), [Net.HOST_PEER_ID, 2, 1])
+	for i: int in range(Net.SEAT_PREF_BURST * 3):
+		_host.request_seat_pref(i % 8, -1)
+	assert_eq(_seat_pref_count(), 1 + Net.SEAT_PREF_BURST * 3, "the host's own UI is not throttled")
+	_host.request_seat_pref(99, -1)
+	_host.request_seat_pref(-1, 99)
+	_host.request_seat_pref()
+	assert_eq(_seat_pref_count(), 1 + Net.SEAT_PREF_BURST * 3, "out-of-range and empty requests are refused locally too")
+
+
+func test_seat_pref_offline_request_emits_under_the_local_peer_id() -> void:
+	assert_true(_host.is_offline())
+	watch_signals(Events)
+	_host.request_seat_pref(-1, 3)
+	assert_eq(get_signal_parameters(Events, "net_seat_pref_requested", 0), [Net.HOST_PEER_ID, -1, 3])
+	_host.request_seat_pref(8, 1)
+	assert_eq(_seat_pref_count(), 1, "offline is validated like everywhere else")
+
+
+func test_seat_pref_before_the_client_is_connected_sends_nothing() -> void:
+	assert_eq(_client.join_game("127.0.0.1", _take_port(), "Clienty"), OK)
+	watch_signals(Events)
+	_client.request_seat_pref(1, 1)
+	assert_eq(_seat_pref_count(), 0)
+	assert_eq(_client.mode(), Net.Mode.CLIENT, "and nothing broke")
+
+
+func test_seat_pref_over_enet_reaches_the_host_under_the_senders_transport_id() -> void:
+	var port: int = _take_port()
+	_connect_host_and_client(port)
+	var joined: bool = await _wait_until(func() -> bool:
+		return _host.peer_ids().size() == 2 and _client.local_slot() == 1
+	)
+	assert_true(joined, "the client is seated first")
+	var client_id: int = _client.local_peer_id()
+	watch_signals(Events)
+
+	_client.request_seat_pref(3, 2)
+	var landed: bool = await _wait_until(func() -> bool: return _seat_pref_count() >= 1)
+	assert_true(landed, "the RPC must reach the host")
+	assert_eq(get_signal_parameters(Events, "net_seat_pref_requested", 0), [client_id, 3, 2])
+
+	# Raw packets a modified client could send (the RPC has no peer-id field to
+	# forge; wrong types and ranges are the only thing left). The reliable channel
+	# is ordered, so the marker request landing proves the ones before it were seen.
+	_client._rpc_request_seat_pref.rpc_id(Net.HOST_PEER_ID, 1.0, "x")
+	_client._rpc_request_seat_pref.rpc_id(Net.HOST_PEER_ID, 99, 1)
+	_client._rpc_request_seat_pref.rpc_id(Net.HOST_PEER_ID, -1, -1)
+	_client.request_seat_pref(99, 1) # refused on the client before it is sent
+	_client._rpc_request_seat_pref.rpc_id(Net.HOST_PEER_ID, 5, -1)
+	var marker: bool = await _wait_until(func() -> bool: return _seat_pref_count() >= 2)
+	assert_true(marker, "the final valid request lands")
+	assert_eq(_seat_pref_count(), 2, "only the two valid requests got through")
+	assert_eq(get_signal_parameters(Events, "net_seat_pref_requested", 1), [client_id, 5, -1])
+
+	# The seat is the client's own and the host did not change anything itself.
+	assert_eq(_host.slot_of_peer(client_id), 1)
+	assert_eq(_host.peer_ids().size(), 2)
+
+
+func test_seat_pref_from_a_client_still_in_the_handshake_is_refused() -> void:
+	# The connection exists (peer_connected fired) but no roster entry yet: the host
+	# must not act on it. Model it by dropping the client's roster entry.
+	var port: int = _take_port()
+	_connect_host_and_client(port)
+	var joined: bool = await _wait_until(func() -> bool:
+		return _host.peer_ids().size() == 2 and _client.local_slot() == 1
+	)
+	assert_true(joined)
+	_host._peers.erase(_client.local_peer_id())
+	watch_signals(Events)
+	_client.request_seat_pref(1, 1)
+	# A request the host honours would arrive within a few frames; none must.
+	for _i: int in range(20):
+		await get_tree().process_frame
+	assert_eq(_seat_pref_count(), 0)
+
+
+# --- Lowest free lobby slot (plan R4) --------------------------------------------
+
+func test_take_next_lobby_slot_reuses_the_lowest_free_slot_in_the_lobby() -> void:
+	_host_with_peers({5: 1, 6: 2, 7: 3, 8: -1})
+	assert_eq(_host._take_next_lobby_slot(), 4, "no hole: the next slot up; a spectator holds nothing")
+	_host._peers.erase(6)
+	assert_eq(_host._take_next_lobby_slot(), 2, "a hole below the top is filled first")
+	_host._peers.erase(5)
+	assert_eq(_host._take_next_lobby_slot(), 1, "the lowest hole wins")
+	_host._reservations["token"] = 1
+	assert_eq(_host._take_next_lobby_slot(), 2, "a slot a rejoin reservation names is not free")
+	_host._peers.erase(Net.HOST_PEER_ID)
+	assert_eq(_host._take_next_lobby_slot(), 0, "slot 0 comes back too once nobody holds it (the host never leaves in practice)")
+
+
+func test_take_next_lobby_slot_stays_monotonic_mid_match() -> void:
+	_host_with_peers({5: 1, 6: 2})
+	_host._next_slot_id = 3
+	_host.set_match_in_progress(true)
+	_host._peers.erase(5)
+	assert_eq(_host._take_next_lobby_slot(), 3, "a vacated seat is not handed to someone new mid-match")
+	assert_eq(_host._take_next_lobby_slot(), 4)
+
+
+func test_spectators_returning_to_the_lobby_take_the_lowest_free_slots() -> void:
+	_host_with_peers({5: 1, 7: 3, 8: -1, 9: -1})
+	_host.set_match_in_progress(true)
+	_host.set_match_in_progress(false)
+	var reseated: Array[int] = [_host.slot_of_peer(8), _host.slot_of_peer(9)]
+	reseated.sort() # which spectator comes first is not specified
+	assert_eq(reseated, [2, 4] as Array[int], "one fills the hole, the next goes above the top")
+	assert_eq(_host.slot_of_peer(5), 1)
+	assert_eq(_host.slot_of_peer(7), 3)
+
+
+func test_a_joiner_takes_the_slot_a_departed_lobby_peer_left_behind() -> void:
+	var port: int = _take_port()
+	_connect_host_and_client(port)
+	var second: Variant = _make_side("SecondNet")
+	assert_eq(second.join_game("127.0.0.1", port, "Seconds"), OK)
+	var seated: bool = await _wait_until(func() -> bool:
+		return _host.peer_ids().size() == 3 and second.local_slot() == 2 and _client.local_slot() == 1
+	)
+	assert_true(seated, "first joiner holds slot 1, the second slot 2")
+
+	_client.leave()
+	var gone: bool = await _wait_until(func() -> bool: return _host.peer_ids().size() == 2)
+	assert_true(gone, "the host drops the first joiner")
+
+	var third: Variant = _make_side("ThirdNet")
+	assert_eq(third.join_game("127.0.0.1", port, "Thirds"), OK)
+	var refilled: bool = await _wait_until(func() -> bool:
+		return _host.peer_ids().size() == 3 and third.local_slot() >= 0 and third.mode() == Net.Mode.CLIENT
+	)
+	assert_true(refilled, "the third client joins")
+	assert_eq(_host.slot_of_peer(third.local_peer_id()), 1, "it gets the hole, not slot 3")
+	assert_eq(_host.slot_of_peer(second.local_peer_id()), 2, "the second client keeps its slot")
+	third.leave()
+	second.leave()
+
+
+# --- FakeNet stub ---------------------------------------------------------------
+
+func test_fakenet_records_seat_pref_requests() -> void:
+	var fake: FakeNet = FakeNet.client(1)
+	assert_eq(fake.request_seat_pref_calls.size(), 0)
+	fake.request_seat_pref(2, -1)
+	fake.request_seat_pref(-1, 3)
+	fake.request_seat_pref()
+	assert_eq(fake.request_seat_pref_calls.size(), 3)
+	assert_eq(fake.request_seat_pref_calls[0], {"color_index": 2, "team_pick": -1})
+	assert_eq(fake.request_seat_pref_calls[1], {"color_index": -1, "team_pick": 3})
+	assert_eq(fake.request_seat_pref_calls[2], {"color_index": -1, "team_pick": -1})
