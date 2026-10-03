@@ -167,6 +167,20 @@ var _cycle_clock_s: float = 0.0
 ## mode data and shipped SkyThemeDef content, never from the clock.
 var _cycle_locked_phase: float = -1.0
 
+## Bontago-1pi.46 (match reset, docs/MATCH_RESET_AUDIT.md G1): what _ready() left
+## behind, captured once, so reset_to_launch() can put this long-lived Skybox back
+## exactly where a fresh launch starts (the next match's configure_match_sky() then
+## sets its own mode). `_launch_theme` is the static theme _ready() applied and
+## `_launch_cycle` says whether the launch config ("cycle" theme_name) started the
+## cycle; the set fields are SkyboxConfig's textured-set override (F4).
+var _launch_captured: bool = false
+var _launch_theme: SkyThemeDef = null
+var _launch_theme_name: String = ""
+var _launch_cycle: bool = false
+var _launch_process_mode: Sky.ProcessMode = Sky.PROCESS_MODE_AUTOMATIC
+var _launch_set_enabled: bool = false
+var _launch_default_set: String = ""
+
 
 ## The host-resolved mode is included in MatchConfig's normal match-start RPC.
 ## SnapshotSync supplies the shared clock; no peer's wall time enters the sky.
@@ -186,6 +200,103 @@ func configure_match_sky(match_config: MatchConfig) -> void:
 	# SnapshotSync.begin_match() resets the clock right after this call, and a
 	# stale clock read here would make the start phase differ between peers.
 	_start_cycle_at(0.0, locked, -1.0)
+
+
+## Bontago-1pi.46 (docs/MATCH_RESET_AUDIT.md G1/G2; Events.match_scope_reset runs this
+## at every world build and teardown): returns this long-lived Skybox to what a fresh
+## launch looks like, so a match never inherits the previous one's sky. That is the
+## launch theme and SkyboxConfig.theme_name, the cycle only if the launch config
+## started it, no storm / overcast / weather-fog request, hidden textured faces, the
+## scene's own Sky process mode and (via apply_theme) the theme's light, fog and
+## ambient. The next match's configure_match_sky() then picks its own mode.
+## Idempotent and cheap when the sky is already at launch (the build-time call after
+## a teardown reset); only a dirty sky pays the cloud / ambient-life rebuild.
+## DECISION (Bontago-1pi.46): SkyboxConfig.enabled / default_set (F4's textured-set
+## override) revert to their launch values too, like the F4 Theme pick (audit D1).
+func reset_to_launch() -> void:
+	if not _launch_captured:
+		return
+	var weather_active: bool = _storm_amount > 0.0 or _overcast_amount > 0.0 \
+		or _weather_cloud_overcast > 0.0 or _wfog_amount > 0.0
+	var at_launch: bool = not _launch_cycle and _cycle_theme == null and theme == _launch_theme \
+		and config.theme_name == _launch_theme_name and fallback_active \
+		and config.enabled == _launch_set_enabled and config.default_set == _launch_default_set \
+		and (environment == null or environment.sky == null or environment.sky.process_mode == _launch_process_mode)
+	var stormed: SkyThemeDef = theme if _storm_amount > 0.0 else null
+	_clear_weather_state()
+	if at_launch and not weather_active:
+		return
+	if stormed != null and environment != null and environment.sky != null:
+		# The storm blend wrote its colours onto the stormed theme's own sky material
+		# (a shared resource for a static theme); put that material back before the
+		# theme changes, as a storm ending normally would.
+		_apply_theme_parameters(stormed)
+	_clear_cycle_state()
+	theme = _launch_theme
+	config.theme_name = _launch_theme_name
+	config.enabled = _launch_set_enabled
+	config.default_set = _launch_default_set
+	if not fallback_active:
+		_face_textures.clear()
+		fallback_active = true
+		_hide_faces()
+	_set_sky_process_mode(_launch_process_mode)
+	# Re-bases sky material, fog, light, ambient, overcast / weather-fog baselines at
+	# amount 0, the cloud sea, birds, perching birds, fireflies and the sun flare.
+	apply_theme(theme)
+	_prune_overcast_sky_bases()
+	if _launch_cycle:
+		start_cycle()
+	else:
+		refresh_reflection_capture()
+
+
+## The weather requests and the storm blend back to a fresh Skybox's values (amount 0,
+## identity scales); apply_theme() / _apply_overcast() then re-derive the visuals.
+func _clear_weather_state() -> void:
+	_storm_amount = 0.0
+	_storm_target = null
+	_storm_blend = null
+	_storm_blend_base = null
+	_overcast_amount = 0.0
+	_weather_cloud_overcast = 0.0
+	_overcast_light_scale = 1.0
+	_overcast_ambient_scale = 1.0
+	_overcast_exposure_scale = 1.0
+	_overcast_fog_tint = Color.WHITE
+	_overcast_fog_tint_strength = 0.0
+	_wfog_amount = 0.0
+	_wfog_max_opacity = 0.0
+	_wfog_depth_begin_m = 0.0
+	_wfog_depth_end_m = 0.0
+	_wfog_tint = Color.WHITE
+	_wfog_tint_strength = 0.0
+	_wfog_sky_affect_add = 0.0
+
+
+## No cycle of any kind (running or locked) and no pending phase state: what a Skybox
+## that never started one holds.
+func _clear_cycle_state() -> void:
+	_cycle_theme = null
+	_cycle_day = null
+	_cycle_night = null
+	_cycle_phase_last = -1.0
+	_cycle_life_is_night = false
+	_cycle_length_s = 1.0
+	_cycle_phase_offset = 0.0
+	_cycle_clock_s = 0.0
+	_cycle_locked_phase = -1.0
+
+
+## Drops the baseline-exposure entries of sky materials that are no longer the live
+## one (each cycle start duplicates the sky material and would otherwise stay
+## referenced here for the rest of the session). Call after the exposure has been
+## written back at amount 0.
+func _prune_overcast_sky_bases() -> void:
+	var active: Material = environment.sky.sky_material if environment != null and environment.sky != null else null
+	for key: Variant in _overcast_sky_bases.keys():
+		if key != active:
+			_overcast_sky_bases.erase(key)
 
 
 func _process(_delta: float) -> void:
@@ -560,6 +671,7 @@ func _ready() -> void:
 	add_to_group(OVERCAST_GROUP)
 	if environment != null and environment.sky != null:
 		_fallback_sky_material = environment.sky.sky_material
+		_launch_process_mode = environment.sky.process_mode
 	for face_name: String in config.face_names:
 		var mesh_instance: MeshInstance3D = MeshInstance3D.new()
 		mesh_instance.name = face_name.capitalize()
@@ -577,6 +689,12 @@ func _ready() -> void:
 		var chosen: SkyThemeDef = load_theme(config.theme_name)
 		if chosen != null:
 			theme = chosen
+	_launch_theme = theme
+	_launch_theme_name = config.theme_name
+	_launch_cycle = config.theme_name == CYCLE_THEME_ID
+	_launch_set_enabled = config.enabled
+	_launch_default_set = config.default_set
+	_launch_captured = true
 	_cloud_sea = CloudSea.new()
 	_cloud_sea.name = "CloudSea"
 	_cloud_sea.lighting = _cloud_lighting
@@ -599,6 +717,7 @@ func _ready() -> void:
 	_spawn_fog_volume()
 	_apply_fog_volume_visibility(Settings.current_graphics_preset())
 	Settings.graphics_preset_changed.connect(_on_graphics_preset_changed)
+	Events.match_scope_reset.connect(reset_to_launch)
 	# Bontago-59o.18: F4's persisted "cycle" Theme entry runs the cycle from boot
 	# (after the cloud sea, fog volume and ambient life it drives exist).
 	if config.theme_name == CYCLE_THEME_ID:
@@ -608,6 +727,8 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	if Settings.graphics_preset_changed.is_connected(_on_graphics_preset_changed):
 		Settings.graphics_preset_changed.disconnect(_on_graphics_preset_changed)
+	if Events.match_scope_reset.is_connected(reset_to_launch):
+		Events.match_scope_reset.disconnect(reset_to_launch)
 
 
 ## Public re-apply seam ui/TuningPanel.gd calls (via TUNING_GROUP above)

@@ -25,9 +25,33 @@ var _skyboxes: Array[Skybox] = []
 var _pushed_storm: float = -1.0
 
 
+func _ready() -> void:
+	Events.match_scope_reset.connect(snap_clear)
+
+
 func _exit_tree() -> void:
+	if Events.match_scope_reset.is_connected(snap_clear):
+		Events.match_scope_reset.disconnect(snap_clear)
 	_amount = 0.0
 	_overcast = 0.0
+	_push_storm(0.0)
+
+
+## Bontago-1pi.46 (docs/MATCH_RESET_AUDIT.md G2; Events.match_scope_reset runs this at
+## every world build and teardown): drops every active weather request and the
+## fades in flight, and pushes "clear" to the skyboxes now. Without it a match that
+## starts right after a storm / rain one (Replay, quick re-host, sandbox) opens
+## overcast and storm-tinted and fades out over `fade_out_s`. Idempotent.
+func snap_clear() -> void:
+	_targets.clear()
+	_amount = 0.0
+	_storm_amount = 0.0
+	_overcast = 0.0
+	# Forget what was pushed so _push_storm() cannot treat "0 again" as settled and
+	# skip a skybox that was dirtied meanwhile; it also refreshes the group lookup.
+	_pushed_storm = -1.0
+	_pushed_overcast = -1.0
+	_skyboxes.clear()
 	_push_storm(0.0)
 
 
