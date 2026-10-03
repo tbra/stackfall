@@ -436,6 +436,94 @@ func test_dawn_mode_resolves_and_survives_lobby_wire_data() -> void:
 	assert_eq(config.sky_theme_resolved, "dawn", "Random includes the new concrete theme")
 
 
+## Bontago-59o.18 (C1b follow-up): the per-match sky variation seed defaults unresolved,
+## an old or mistyped wire value stays safe, and a stray number is clamped into range.
+func test_sky_variation_seed_defaults_unresolved_and_old_or_bad_wire_data_is_safe() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	assert_eq(config.sky_variation_seed, MatchConfig.SKY_VARIATION_SEED_UNRESOLVED, "unresolved until the host rolls it")
+	assert_eq(config.to_dict()["sky_variation_seed"], -1)
+	assert_eq(MatchConfig.from_dict({}).sky_variation_seed, -1, "an old config without the key stays unresolved")
+	assert_eq((load("res://config/match_defaults.tres") as MatchConfig).sky_variation_seed, -1)
+	for bad: Variant in ["abc", null, [1, 2], {"a": 1}, true]:
+		assert_eq(MatchConfig.from_dict({"sky_variation_seed": bad}).sky_variation_seed, -1, "mistyped value %s" % [bad])
+	assert_eq(MatchConfig.from_dict({"sky_variation_seed": 1234.0}).sky_variation_seed, 1234, "a JSON float (Steam lobby) is accepted")
+	assert_eq(MatchConfig.from_dict({"sky_variation_seed": -77}).sky_variation_seed, -1, "negative reads as unresolved")
+	assert_eq(MatchConfig.from_dict({"sky_variation_seed": 9999999999}).sky_variation_seed, MatchConfig.SKY_VARIATION_SEED_MAX)
+	config.sky_variation_seed = -5
+	config.sanitize()
+	assert_eq(config.sky_variation_seed, -1, "sanitize() maps a negative seed to unresolved")
+	config.sky_variation_seed = MatchConfig.SKY_VARIATION_SEED_MAX + 10
+	config.sanitize()
+	assert_eq(config.sky_variation_seed, MatchConfig.SKY_VARIATION_SEED_MAX, "sanitize() caps an oversized seed")
+
+
+## The host resolves an unresolved seed once (any int roll folds into range), keeps it on
+## a second call, and a client gets the same value through to_dict()/from_dict().
+func test_host_resolves_an_unresolved_sky_variation_seed_once_and_it_round_trips() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	assert_eq(config.effective_sky_variation_seed(), -1, "no seed source: the sky falls back to its default curve")
+	config.resolve_sky_variation_seed(123456)
+	assert_eq(config.sky_variation_seed, 123456)
+	config.resolve_sky_variation_seed(999)
+	assert_eq(config.sky_variation_seed, 123456, "resolved once: a second call keeps the host's seed")
+	var restored: MatchConfig = MatchConfig.from_dict(config.to_dict())
+	assert_eq(restored.sky_variation_seed, 123456, "the client receives the host's seed")
+	assert_eq(restored.effective_sky_variation_seed(), config.effective_sky_variation_seed())
+	for roll: int in [0, -1, 4294967295, 4294967303, -9999999999, 1 << 40]:
+		var rolled: MatchConfig = MatchConfig.new()
+		rolled.resolve_sky_variation_seed(roll)
+		assert_between(rolled.sky_variation_seed, 0, MatchConfig.SKY_VARIATION_SEED_MAX, "roll %d folds into range" % roll)
+	var negative: MatchConfig = MatchConfig.new()
+	negative.resolve_sky_variation_seed(-1)
+	assert_eq(negative.sky_variation_seed, MatchConfig.SKY_VARIATION_SEED_MAX, "negative rolls wrap (posmod)")
+	var first: MatchConfig = MatchConfig.new()
+	var second: MatchConfig = MatchConfig.new()
+	first.resolve_sky_variation_seed(11)
+	second.resolve_sky_variation_seed(12)
+	assert_ne(first.sky_variation_seed, second.sky_variation_seed, "different rolls (matches) draw different seeds")
+
+
+## A deterministic rng_seed (>= 0) is the sky's seed too: nothing is rolled, and the
+## effective seed is exactly rng_seed (the pre-follow-up behaviour). An explicit
+## sky_variation_seed still wins.
+func test_a_seeded_match_keeps_its_rng_seed_as_the_sky_variation_seed() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	config.rng_seed = 77
+	config.resolve_sky_variation_seed(5)
+	assert_eq(config.sky_variation_seed, -1, "a seeded match needs no roll")
+	assert_eq(config.effective_sky_variation_seed(), 77)
+	assert_eq(MatchConfig.from_dict(config.to_dict()).effective_sky_variation_seed(), 77, "clients agree")
+	config.rng_seed = 0
+	assert_eq(config.effective_sky_variation_seed(), 0, "seed 0 is a real seed")
+	config.sky_variation_seed = 5
+	config.rng_seed = 77
+	assert_eq(config.effective_sky_variation_seed(), 5, "an explicit / resolved variation seed wins")
+
+
+## The host's match start is the call site: it rolls the seed on the match's own copy
+## of the config (never the lobby's), so each match gets a fresh one, and a seeded
+## match is left alone.
+func test_match_start_resolves_a_fresh_sky_variation_seed_per_match_on_the_host() -> void:
+	Match.set_process(false)
+	var lobby: MatchConfig = MatchConfig.new()
+	lobby.hot_seat = false
+	lobby.player_count = 2
+	var seeds: Dictionary = {}
+	for _i: int in range(3):
+		Match.start_match(lobby)
+		assert_gte(Match.config.sky_variation_seed, 0, "the host resolved the seed at match start")
+		assert_eq(MatchConfig.from_dict(Match.config.to_dict()).sky_variation_seed, Match.config.sky_variation_seed, "and it rides the replicated config")
+		seeds[Match.config.sky_variation_seed] = true
+		assert_eq(lobby.sky_variation_seed, -1, "the lobby's own config stays unresolved")
+	assert_gt(seeds.size(), 1, "different matches draw different seeds")
+	lobby.rng_seed = 31
+	Match.start_match(lobby)
+	assert_eq(Match.config.sky_variation_seed, -1, "a seeded match is not rolled")
+	assert_eq(Match.config.effective_sky_variation_seed(), 31)
+	Match.abort_match()
+	Match.set_process(true)
+
+
 func test_default_lobby_gravity_reads_one_and_effective_gravity_is_unchanged() -> void:
 	var config: MatchConfig = MatchConfig.new()
 	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres") as PhysicsTuning

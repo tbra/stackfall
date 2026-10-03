@@ -175,8 +175,9 @@ var _cycle_clock_s: float = 0.0
 var _cycle_locked_phase: float = -1.0
 ## Bontago-59o.18 (C1b variation): the seed of the cycle's exposure / cloud-coverage
 ## variation (SkyVariation). configure_match_sky() takes it from the replicated
-## MatchConfig.rng_seed, so every peer draws the same sky; a cycle started outside a
-## match (F4, boot) keeps the last one.
+## MatchConfig (the host-rolled sky_variation_seed, else a deterministic rng_seed),
+## so every peer draws the same sky and each match its own; a cycle started outside
+## a match (F4, boot) keeps the last one.
 var _variation_seed: int = SkyVariation.DEFAULT_SEED
 
 ## Bontago-1pi.46 (match reset, docs/MATCH_RESET_AUDIT.md G1): what _ready() left
@@ -209,8 +210,9 @@ func configure_match_sky(match_config: MatchConfig) -> void:
 		if source != null:
 			locked = source.locked_phase_for(match_config.locked_sky_id())
 	# DECISION (Bontago-59o.18, C1b variation): the replicated match seed drives the sky
-	# variation (-1, "randomise", is not resolved for clients, so it shares one curve).
-	_variation_seed = SkyVariation.seed_for(match_config.rng_seed)
+	# variation. The host rolls MatchConfig.sky_variation_seed once per match (an
+	# unresolved config with no rng_seed shares SkyVariation's default curve).
+	_variation_seed = SkyVariation.seed_for(match_config.effective_sky_variation_seed())
 	# DECISION (Bontago-59o.18): a match opens its sky at shared clock 0:
 	# SnapshotSync.begin_match() resets the clock right after this call, and a
 	# stale clock read here would make the start phase differ between peers.
@@ -413,6 +415,13 @@ func is_cycle_active() -> bool:
 ## active.
 func current_cycle_phase() -> float:
 	return _cycle_phase_last if _cycle_theme != null else -1.0
+
+
+## The seed the cycle's exposure / cloud-coverage variation currently draws from
+## (Bontago-59o.18, C1b follow-up): what configure_match_sky() took from the match
+## config, or SkyVariation.DEFAULT_SEED outside a match.
+func variation_seed() -> int:
+	return _variation_seed
 
 
 ## Re-copies the F4-edited source themes into the live cycle duplicate (F4
