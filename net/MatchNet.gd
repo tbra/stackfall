@@ -1378,8 +1378,9 @@ func _on_feed_timer_expired(slot_id: int) -> void:
 ## is never touched. Orientation 0 / identity (the fallback's) is what the
 ## pivot height assumes.
 ## DECISION: world UP, not field-local up, matching PlayerController's own
-## hover (Field is never rotated) and Match.default_ghost_origin()'s own
-## world-space result.
+## hover and Match.default_ghost_origin()'s own world-space result. Tilt modes
+## rotate the Field by at most a few degrees, which still leaves the block well
+## clear of the beacon (review 1pi.40).
 func _afk_fallback_origin(slot_id: int) -> Vector3:
 	var home: Vector3 = _authority().default_ghost_origin(slot_id)
 	return home + Vector3.UP * _ghost_tuning.home_spawn_pivot_height(_beacon_visuals, _physics_tuning)
