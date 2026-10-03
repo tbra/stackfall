@@ -66,6 +66,25 @@ const SIZE_JITTER: float = 0.15
 const TOP_JITTER_MIN: float = 0.82
 const STRETCH_MAX: float = 1.2
 
+## Bontago-mp0.95: group the live CloudSea joins so vfx/SunFlare.gd can ask it whether the
+## puffs hide the sun without a node path.
+const GROUP: StringName = &"cloud_sea"
+## Sun-occlusion records (see sun_ray_cloud_occlusion()): one row per puff in _occ_puffs.
+## Row layout: centre x, y, z, horizontal radius, vertical radius (both inflated like the
+## shader's hull), and the world Y of the flat-base cut (NO_BASE_CUT when round).
+const OCC_PUFF_STRIDE: int = 6
+const NO_BASE_CUT: float = -1.0e30
+## The shader's `round_base_from` default: a base plane at or above it means whole ellipsoids.
+const ROUND_BASE_FROM: float = 0.9
+## Passed as `time_s` to read the live shader clock instead of a fixed test time.
+const OCC_LIVE_TIME: float = -1.0
+const SHADER_TIME_ROLLOVER_SETTING: String = "rendering/limits/time/time_rollover_secs"
+## Engine default of the setting above (the shader's TIME wraps here).
+const SHADER_TIME_ROLLOVER_DEFAULT_S: float = 3600.0
+## Rays flatter than this are treated as horizontal by the clump height-slab prefilter.
+const OCC_FLAT_RAY: float = 1.0e-6
+const OCC_DEFAULT_TUNING: SunFlareConfig = preload("res://config/sun_flare.tres")
+
 ## One placement layer: the sea below the disc, or the cloud banks past its
 ## edge. Both draw through the same MultiMesh.
 class _Layer:
@@ -155,6 +174,23 @@ var _inflate: float = 0.0
 var _highest_top_near_disc: float = -INF
 var _exclusion_radius_m: float = 0.0
 var _disc_ceiling_m: float = 0.0
+## Bontago-mp0.95 sun-occlusion bounds, recorded by configure() for every clump of both
+## instances (bounds only; no physics body exists for the puffs). Clump arrays share one
+## index; a clump's puffs are rows first..first+count of _occ_puffs. Positions are in the
+## clump's rest frame: the shader orbits each clump around the world Y axis by
+## TIME * angular speed, so queries rotate the ray back instead of every clump forward.
+var _occ_puffs: PackedFloat32Array = PackedFloat32Array()
+var _occ_centre: PackedVector3Array = PackedVector3Array()
+var _occ_radius: PackedFloat32Array = PackedFloat32Array()
+var _occ_speed: PackedFloat32Array = PackedFloat32Array()
+var _occ_y_low: PackedFloat32Array = PackedFloat32Array()
+var _occ_y_high: PackedFloat32Array = PackedFloat32Array()
+var _occ_first: PackedInt32Array = PackedInt32Array()
+var _occ_count: PackedInt32Array = PackedInt32Array()
+## 1 for clumps of the upper layer, which the shader dithers away near the camera.
+var _occ_upper: PackedByteArray = PackedByteArray()
+var _occ_clear_start_m: float = 0.0
+var _occ_clear_end_m: float = 0.0
 
 
 ## Bontago-mp0.19: storm tint. Re-bases the live puff material on `base` (the
@@ -222,6 +258,7 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 	_highest_top = -INF
 	_highest_top_near_disc = -INF
 	_upper_lowest_bottom = INF
+	_clear_occlusion_bounds()
 	var layers: Array[_Layer] = _layers_for(theme, density)
 	var clumps: int = 0
 	for layer: _Layer in layers:
@@ -238,6 +275,7 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 	_disc_ceiling_m = disc_ceiling_m(theme)
 	visible = true
 	add_to_group(WeatherFogShader.GROUP)
+	add_to_group(GROUP)
 	WeatherFogShader.apply(_material)
 	_material.set_shader_parameter(YAW_PARAMETER, theme.sky_yaw_offset_deg)
 	_material.set_shader_parameter(PITCH_PARAMETER, theme.sky_pitch_offset_deg)
@@ -316,6 +354,8 @@ func _apply_upper_parameters() -> void:
 	_upper.set_instance_shader_parameter(FLAT_BASE_OVERRIDE_PARAMETER, upper_tuning.upper_flat_base)
 	_material.set_shader_parameter(CLEAR_FADE_START_PARAMETER, upper_tuning.upper_clear_fade_start_m)
 	_material.set_shader_parameter(CLEAR_FADE_END_PARAMETER, upper_tuning.upper_clear_fade_end_m)
+	_occ_clear_start_m = upper_tuning.upper_clear_fade_start_m
+	_occ_clear_end_m = upper_tuning.upper_clear_fade_end_m
 
 
 func upper_instance() -> MultiMeshInstance3D:
@@ -464,6 +504,7 @@ func _add_clump(multimesh: MultiMesh, index: int, theme: SkyThemeDef, layer: _La
 	var body_count: int = total - detail_count
 	var body_centres: Array[Vector3] = []
 	var body_radii: Array[float] = []
+	var first_puff: int = _occ_puffs.size() / OCC_PUFF_STRIDE
 	for puff: int in range(body_count):
 		var spread: float = 0.0 if puff == 0 else sqrt(rng.randf()) * SPREAD_FRACTION
 		var angle: float = rng.randf() * TAU
@@ -473,7 +514,7 @@ func _add_clump(multimesh: MultiMesh, index: int, theme: SkyThemeDef, layer: _La
 		var top: float = base_y + clump_height * (1.0 - DOME_FALLOFF * spread * spread) * rng.randf_range(TOP_JITTER_MIN, 1.0)
 		var y: float = puff_centre_y(top, radius * layer.vertical_scale, base_y, flat, layer.sink_m * rng.randf() if layer.is_upper else 0.0)
 		var at: Vector3 = centre + offset + Vector3(0.0, y, 0.0)
-		index = _write_puff(multimesh, index, at, radius, layer, rng, angular_speed, base_y, clump_height)
+		index = _write_puff(multimesh, index, at, radius, layer, rng, angular_speed, base_y, clump_height, flat)
 		body_centres.append(at)
 		body_radii.append(radius)
 	for _detail: int in range(detail_count):
@@ -485,12 +526,13 @@ func _add_clump(multimesh: MultiMesh, index: int, theme: SkyThemeDef, layer: _La
 		var radius: float = body_radii[host] * rng.randf_range(DETAIL_RADIUS_MIN_FRACTION, DETAIL_RADIUS_MAX_FRACTION)
 		direction.y *= layer.vertical_scale
 		var at: Vector3 = body_centres[host] + direction * body_radii[host] * DETAIL_SURFACE_OFFSET
-		index = _write_puff(multimesh, index, at, radius, layer, rng, angular_speed, base_y, clump_height)
+		index = _write_puff(multimesh, index, at, radius, layer, rng, angular_speed, base_y, clump_height, flat)
+	_record_clump_bounds(first_puff, angular_speed, layer.is_upper)
 	return index
 
 
 func _write_puff(multimesh: MultiMesh, index: int, at: Vector3, radius: float, layer: _Layer,
-		rng: RandomNumberGenerator, angular_speed: float, base_y: float, clump_height: float) -> int:
+		rng: RandomNumberGenerator, angular_speed: float, base_y: float, clump_height: float, flat: float) -> int:
 	# Never let a puff top rise above its layer ceiling.
 	var height: float = radius * layer.vertical_scale
 	at.y = minf(at.y, layer.top_max_m - height)
@@ -511,9 +553,157 @@ func _write_puff(multimesh: MultiMesh, index: int, at: Vector3, radius: float, l
 		# The mesh's lowest point is its base plane (flat_base of the height under the centre, 1 = round).
 		_upper_lowest_bottom = minf(_upper_lowest_bottom, at.y - height * layer.flat_base)
 	var basis: Basis = Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(radius * stretch, height, radius * stretch))
+	_record_puff(at, radius * stretch, height, flat)
 	multimesh.set_instance_transform(index, Transform3D(basis, at))
 	multimesh.set_instance_custom_data(index, Color(angular_speed, rng.randf() * TAU, base_y, clump_height))
 	return index + 1
+
+
+## Bontago-mp0.95: appends one puff's occlusion row (a spheroid: horizontal radius
+## `horizontal`, vertical radius `vertical`, both grown by the shader's hull inflation).
+func _record_puff(at: Vector3, horizontal: float, vertical: float, flat: float) -> void:
+	var grow: float = 1.0 + _inflate
+	var cut: float = NO_BASE_CUT if flat >= ROUND_BASE_FROM else at.y - vertical * flat
+	_occ_puffs.append_array(PackedFloat32Array([at.x, at.y, at.z, horizontal * grow, vertical * grow, cut]))
+
+
+## Bontago-mp0.95: closes the clump whose puffs start at row `first_puff`: its bounding sphere
+## (rest frame), height slab and orbit speed.
+func _record_clump_bounds(first_puff: int, angular_speed: float, is_upper: bool) -> void:
+	var rows: int = _occ_puffs.size() / OCC_PUFF_STRIDE
+	var low: Vector3 = Vector3(INF, INF, INF)
+	var high: Vector3 = Vector3(-INF, -INF, -INF)
+	for row: int in range(first_puff, rows):
+		var base: int = row * OCC_PUFF_STRIDE
+		var reach: Vector3 = Vector3(_occ_puffs[base + 3], _occ_puffs[base + 4], _occ_puffs[base + 3])
+		var at: Vector3 = Vector3(_occ_puffs[base], _occ_puffs[base + 1], _occ_puffs[base + 2])
+		low = low.min(at - reach)
+		high = high.max(at + reach)
+	var centre: Vector3 = (low + high) * 0.5
+	var radius: float = 0.0
+	for row: int in range(first_puff, rows):
+		var base: int = row * OCC_PUFF_STRIDE
+		var at: Vector3 = Vector3(_occ_puffs[base], _occ_puffs[base + 1], _occ_puffs[base + 2])
+		radius = maxf(radius, at.distance_to(centre) + maxf(_occ_puffs[base + 3], _occ_puffs[base + 4]))
+	_occ_centre.append(centre)
+	_occ_radius.append(radius)
+	_occ_speed.append(angular_speed)
+	_occ_y_low.append(low.y)
+	_occ_y_high.append(high.y)
+	_occ_first.append(first_puff)
+	_occ_count.append(rows - first_puff)
+	_occ_upper.append(1 if is_upper else 0)
+
+
+func _clear_occlusion_bounds() -> void:
+	_occ_puffs.clear()
+	_occ_centre.clear()
+	_occ_radius.clear()
+	_occ_speed.clear()
+	_occ_y_low.clear()
+	_occ_y_high.clear()
+	_occ_first.clear()
+	_occ_count.clear()
+	_occ_upper.clear()
+	_occ_clear_start_m = 0.0
+	_occ_clear_end_m = 0.0
+
+
+## Number of clumps / puffs with recorded sun-occlusion bounds (tests, diagnostics).
+func occlusion_clump_count() -> int:
+	return _occ_speed.size()
+
+
+func occlusion_puff_count() -> int:
+	return _occ_puffs.size() / OCC_PUFF_STRIDE
+
+
+## Bontago-mp0.95: how much the puffs hide the sun seen along the ray from `from` toward the
+## unit-ish `dir`, 0 (clear sky) .. 1 (fully hidden). The sun is at infinity, so the ray is a
+## half-line. Cheap bounds test, no physics: clumps first by a height slab and a bounding
+## sphere (each clump's own orbit angle undone on the ray, the shader moves clumps by
+## TIME * angular speed around the world Y axis), then only the few puffs of a clump the ray
+## enters, as spheroids with a soft silhouette (`tuning.cloud_edge_softness`) and the
+## shader's camera-clearance fade for the upper layer. Transmittances multiply, so several
+## thin puffs add up. `time_s` is the shader TIME to evaluate at (live clock by default).
+## The CloudSea node is assumed to sit at the world origin, as Skybox places it.
+func sun_ray_cloud_occlusion(from: Vector3, dir: Vector3, tuning: SunFlareConfig = null, time_s: float = OCC_LIVE_TIME) -> float:
+	var clumps: int = _occ_speed.size()
+	if clumps == 0 or not visible or dir.length_squared() <= 0.0:
+		return 0.0
+	var settings: SunFlareConfig = tuning if tuning != null else OCC_DEFAULT_TUNING
+	var ray: Vector3 = dir.normalized()
+	var now: float = time_s if time_s >= 0.0 else shader_time_s()
+	var flat_ray: bool = absf(ray.y) < OCC_FLAT_RAY
+	var transmittance: float = 1.0
+	for clump: int in range(clumps):
+		# Height slab: the half-line must reach this clump's height range at all.
+		if flat_ray:
+			if from.y < _occ_y_low[clump] or from.y > _occ_y_high[clump]:
+				continue
+		elif maxf((_occ_y_low[clump] - from.y) / ray.y, (_occ_y_high[clump] - from.y) / ray.y) < 0.0:
+			continue
+		var angle: float = now * _occ_speed[clump]
+		var c: float = cos(angle)
+		var s: float = sin(angle)
+		var origin: Vector3 = Vector3(c * from.x + s * from.z, from.y, c * from.z - s * from.x)
+		var heading: Vector3 = Vector3(c * ray.x + s * ray.z, ray.y, c * ray.z - s * ray.x)
+		var to_centre: Vector3 = _occ_centre[clump] - origin
+		var along: float = to_centre.dot(heading)
+		var radius: float = _occ_radius[clump]
+		if along < -radius or to_centre.length_squared() - along * along > radius * radius:
+			continue
+		var first: int = _occ_first[clump]
+		var upper: bool = _occ_upper[clump] != 0
+		for row: int in range(first, first + _occ_count[clump]):
+			transmittance *= 1.0 - _puff_cover(origin, heading, row, upper, settings)
+		if transmittance <= 0.0:
+			return 1.0
+	return clampf(1.0 - transmittance, 0.0, 1.0)
+
+
+## One puff's share (0..1) of hiding the ray `origin` + t * `heading` (rest frame): the ray
+## through the spheroid, soft toward its silhouette, clipped to the flat base and, for the
+## upper layer, faded by the shader's camera-clearance dither.
+func _puff_cover(origin: Vector3, heading: Vector3, row: int, upper: bool, settings: SunFlareConfig) -> float:
+	var base: int = row * OCC_PUFF_STRIDE
+	var horizontal: float = _occ_puffs[base + 3]
+	var vertical: float = _occ_puffs[base + 4]
+	var local: Vector3 = Vector3((origin.x - _occ_puffs[base]) / horizontal, (origin.y - _occ_puffs[base + 1]) / vertical,
+			(origin.z - _occ_puffs[base + 2]) / horizontal)
+	var local_heading: Vector3 = Vector3(heading.x / horizontal, heading.y / vertical, heading.z / horizontal)
+	var speed_sq: float = local_heading.length_squared()
+	var along: float = local.dot(local_heading)
+	var miss_sq: float = maxf(local.length_squared() - along * along / speed_sq, 0.0)
+	if miss_sq >= 1.0:
+		return 0.0
+	var closest: float = -along / speed_sq
+	var half_chord: float = sqrt((1.0 - miss_sq) / speed_sq)
+	var t_in: float = closest - half_chord
+	var t_out: float = closest + half_chord
+	var cut: float = _occ_puffs[base + 5]
+	if cut > NO_BASE_CUT:
+		if heading.y > OCC_FLAT_RAY:
+			t_in = maxf(t_in, (cut - origin.y) / heading.y)
+		elif heading.y < -OCC_FLAT_RAY:
+			t_out = minf(t_out, (cut - origin.y) / heading.y)
+		elif origin.y < cut:
+			return 0.0
+	if t_out <= maxf(t_in, 0.0):
+		return 0.0
+	var softness: float = clampf(settings.cloud_edge_softness, 0.0, 1.0)
+	var cover: float = 1.0 - smoothstep(1.0 - softness, 1.0, sqrt(miss_sq))
+	if upper and _occ_clear_end_m > 0.0:
+		var entry_y: float = origin.y + maxf(t_in, 0.0) * heading.y
+		cover *= smoothstep(_occ_clear_start_m, maxf(_occ_clear_end_m, _occ_clear_start_m + OCC_FLAT_RAY), entry_y - origin.y)
+	return cover
+
+
+## The puff shader's TIME as GDScript can read it: seconds since start wrapped at the
+## project's time rollover (the engine default is 3600 s).
+static func shader_time_s() -> float:
+	var rollover: float = float(ProjectSettings.get_setting(SHADER_TIME_ROLLOVER_SETTING, SHADER_TIME_ROLLOVER_DEFAULT_S))
+	return fmod(float(Time.get_ticks_msec()) * 0.001, maxf(rollover, 1.0))
 
 
 ## Bontago-mp0.93: centre height of a body puff whose top would be `top`: its bottom plane (at

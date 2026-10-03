@@ -104,3 +104,27 @@ extends Resource
 ## without touching any other field (used by vfx/SunFlare.gd to gate the
 ## effect off on the Low graphics preset).
 @export var max_intensity: float = 1.0
+
+@export_group("Occlusion (Bontago-mp0.95)")
+## Owner playtest 2026-10-03: "sun is visible through the clouds and arena". ROOT CAUSE 1:
+## the disc collider is a single-sided trimesh (game/Field.gd: faces only up and out of the
+## rim), so the one camera-to-sun ray of vfx/SunFlare.gd passes unhit through the disc seen
+## from below or edge-on. With this on, a second ray from the sun back to the camera is cast
+## too (it meets the faces from outside) and either hit hides the flare. Off restores the
+## single forward ray (for A/B captures).
+@export var reverse_ray_enabled: bool = true
+## How far from the camera (m, along the sun direction) the reverse ray starts: past the arena and the
+## whole play volume, but short enough that a long float-precision ray does not leak between the disc
+## quads. Never longer than the forward ray.
+@export var reverse_ray_length_m: float = 800.0
+## ROOT CAUSE 2: the puffs are shader-drawn instances, not physics bodies, and the flare is
+## an additive layer over all 3D, so clouds never hid it. vfx/CloudSea.gd answers
+## sun_ray_cloud_occlusion() from the bounds recorded at build; this scales how much of that
+## answer hides the flare (0 = clouds never hide it, 1 = a fully covered sun hides it).
+@export_range(0.0, 1.0, 0.01) var cloud_occlusion_strength: float = 1.0
+## Seconds between cloud queries (a few hundred bounds tests, no physics); the result feeds
+## visibility_lerp_speed's smoothing, so a longer interval never pops. 0 = every frame.
+@export var cloud_occlusion_refresh_s: float = 0.1
+## Share of a puff's radius, inward from its silhouette, over which its cover fades from full
+## to none, so a sun at a cloud's edge dims gradually rather than switching.
+@export_range(0.0, 1.0, 0.01) var cloud_edge_softness: float = 0.3
