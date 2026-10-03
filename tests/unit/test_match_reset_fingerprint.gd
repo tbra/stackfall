@@ -306,6 +306,25 @@ func test_fingerprint_diff_reports_changed_missing_and_float_noise() -> void:
 	assert_true(MatchFingerprint.diff(a, a).is_empty())
 
 
+func test_fingerprint_diff_respects_key_prefix_tolerances() -> void:
+	# DECISION: client camera keys permit larger tolerance (1e-3) than the default rounding tolerance (5e-5).
+	# Use values with diffs clearly outside the default tolerance but inside the camera tolerance.
+	var a: Dictionary = {"camera.yaw": 1.0, "camera.pitch": 2.0, "field.tilt": 0.0}
+	var b: Dictionary = {"camera.yaw": 1.0006, "camera.pitch": 2.0005, "field.tilt": 0.0001}
+	# Exact comparison (default 5e-5 tolerance): camera and field all differ.
+	var found_exact: PackedStringArray = MatchFingerprint.diff(a, b)
+	assert_eq(found_exact.size(), 3, "without tolerance, diffs > 5e-5 show up: %s" % [found_exact])
+	# With camera tolerance (1e-3): camera keys pass (diffs < 1e-3), but field.tilt fails (1e-4 > 5e-5).
+	var tolerances: Dictionary = {"camera.": 0.001}
+	var found_tolerant: PackedStringArray = MatchFingerprint.diff(a, b, tolerances)
+	assert_eq(found_tolerant.size(), 1, "with camera tolerance, camera diffs are hidden but field diffs remain: %s" % [found_tolerant])
+	assert_true(found_tolerant[0].begins_with("field.tilt"))
+	# Verify tolerance comparison directly.
+	assert_true(MatchFingerprint.values_equal(1.0, 1.0006, 0.001), "diff 6e-4 < 1e-3 tolerance")
+	assert_true(MatchFingerprint.values_equal(2.0, 2.0005, 0.001), "diff 5e-4 < 1e-3 tolerance")
+	assert_false(MatchFingerprint.values_equal(0.0, 0.0001), "diff 1e-4 > default 5e-5 tolerance")
+
+
 func test_a_capture_is_stable_and_covers_every_section() -> void:
 	var main: Node = _new_main(_map)
 	var first: Dictionary = MatchFingerprint.capture(main)

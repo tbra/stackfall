@@ -65,8 +65,10 @@ static func without_volatile(fingerprint: Dictionary) -> Dictionary:
 
 
 ## Key paths whose values differ between `a` and `b` ("key: a != b"), sorted. A key present
-## in only one side differs too.
-static func diff(a: Dictionary, b: Dictionary) -> PackedStringArray:
+## in only one side differs too. `tolerances` is a Dictionary mapping key prefixes to absolute
+## tolerance values for numeric comparison; if a key starts with a tolerance entry, that tolerance
+## overrides the exact comparison for numbers and number arrays.
+static func diff(a: Dictionary, b: Dictionary, tolerances: Dictionary = {}) -> PackedStringArray:
 	var keys: Dictionary = {}
 	for key: Variant in a.keys():
 		keys[key] = true
@@ -78,7 +80,13 @@ static func diff(a: Dictionary, b: Dictionary) -> PackedStringArray:
 	for key: Variant in sorted_keys:
 		var in_a: bool = a.has(key)
 		var in_b: bool = b.has(key)
-		if in_a and in_b and values_equal(a[key], b[key]):
+		var key_str: String = String(key)
+		var tolerance: float = 0.0
+		for prefix: String in tolerances.keys():
+			if key_str.begins_with(prefix):
+				tolerance = float(tolerances[prefix])
+				break
+		if in_a and in_b and values_equal(a[key], b[key], tolerance):
 			continue
 		out.append("%s: %s != %s" % [key, _show(a, key), _show(b, key)])
 	return out
@@ -86,19 +94,21 @@ static func diff(a: Dictionary, b: Dictionary) -> PackedStringArray:
 
 ## Same type-tolerant equality the diff uses: ints and floats compare by value (a
 ## fingerprint round-tripped through var_to_str/JSON turns ints into floats), arrays
-## element-wise.
-static func values_equal(a: Variant, b: Variant) -> bool:
+## element-wise. When `tolerance` > 0, numeric comparisons use that absolute tolerance
+## instead of the default rounding tolerance.
+static func values_equal(a: Variant, b: Variant, tolerance: float = 0.0) -> bool:
 	var a_num: bool = a is int or a is float
 	var b_num: bool = b is int or b is float
 	if a_num and b_num:
-		return absf(float(a) - float(b)) <= ROUND_STEP * 0.5
+		var effective_tolerance: float = tolerance if tolerance > 0.0 else (ROUND_STEP * 0.5)
+		return absf(float(a) - float(b)) <= effective_tolerance
 	if a is Array and b is Array:
 		var left: Array = a as Array
 		var right: Array = b as Array
 		if left.size() != right.size():
 			return false
 		for i: int in range(left.size()):
-			if not values_equal(left[i], right[i]):
+			if not values_equal(left[i], right[i], tolerance):
 				return false
 		return true
 	return typeof(a) == typeof(b) and a == b

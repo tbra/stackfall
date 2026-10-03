@@ -29,6 +29,11 @@ const DIRTY_ZOOM: float = 40.0
 const BLACK_HOLE_POSITION: Vector3 = Vector3(0.0, 1.0, 0.0)
 const CRATE_POINT: Vector2 = Vector2(2.0, 2.0)
 const FILE_NAME: String = "fp_%s.var"
+## DECISION: Client camera derives from interpolated replicated positions; tiny float diffs
+## (1e-4 to 7e-4) are expected on camera keys. Host comparison uses exact tolerance (1e-4).
+const CLIENT_CAMERA_TOLERANCE: Dictionary = {
+	"camera.": 0.001,
+}
 
 var _main: Node
 var _mode: String = "fresh"
@@ -236,11 +241,12 @@ func _finish() -> void:
 		reference = file.get_var() as Dictionary
 		file.close()
 	var found: PackedStringArray = PackedStringArray()
+	var tolerance: Dictionary = CLIENT_CAMERA_TOLERANCE if _role_name == "client" else {}
 	for checkpoint: String in ["countdown", "playing"]:
 		if not reference.has(checkpoint) or not _captured.has(checkpoint):
 			found.append("%s missing_fingerprint reference=%s test=%s" % [checkpoint, reference.has(checkpoint), _captured.has(checkpoint)])
 			continue
-		for line: String in MatchFingerprint.diff(reference[checkpoint] as Dictionary, _captured[checkpoint] as Dictionary):
+		for line: String in MatchFingerprint.diff(reference[checkpoint] as Dictionary, _captured[checkpoint] as Dictionary, tolerance):
 			found.append("%s %s" % [checkpoint, line])
 	# KNOWN GAP (found by this bench, not a presentation reset): a client that leaves and
 	# re-joins the lobby comes back as slot 2 instead of its old slot 1 (Net does not recycle
