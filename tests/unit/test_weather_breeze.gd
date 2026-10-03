@@ -207,7 +207,7 @@ func test_gust_visual_travels_along_the_physics_heading() -> void:
 		var visual: GustPresentation = GustPresentation.new()
 		visual.configure(gust, straight)
 		add_child_autofree(visual)
-		var drawn: Vector3 = visual.material().get_shader_parameter(&"heading") as Vector3
+		var drawn: Vector3 = visual.material().get_shader_parameter(&"wind_dir") as Vector3
 		var pushed: Vector3 = BreezeField.gust_accel(gust, 2.0, Vector3(0.0, HIGH_M, 0.0), 0.0, DELTA, straight)
 		assert_gt(pushed.length(), 0.0)
 		assert_lt(drawn.distance_to(pushed.normalized()), 0.001, "visual heading equals the push at angle %.1f" % angle)
@@ -453,40 +453,41 @@ func test_presenter_draws_gusts_bounded_and_frees_them() -> void:
 	assert_eq(presenter.live_count(), 0)
 
 
-func test_gust_ribbon_is_a_tapered_curling_strip() -> void:
-	var mesh: ArrayMesh = GustPresentation.build_ribbon(_tuning)
+func test_gust_ribbon_is_a_flat_wisp_strip() -> void:
+	# Bontago-mp0.81: a gust draws the soft wisp look (the curled swoosh moved to the ambient wind).
+	var mesh: ArrayMesh = GustPresentation.build_wisp_ribbon()
 	var arrays: Array = mesh.surface_get_arrays(0)
 	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 	var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
-	assert_eq(verts.size(), (_tuning.gust_ribbon_segments + 1) * 2)
+	assert_eq(verts.size(), (GustPresentation.RIBBON_SEGMENTS + 1) * 2)
 	assert_almost_eq(uvs[0].x, 0.0, 0.0001)
 	assert_almost_eq(uvs[uvs.size() - 1].x, 1.0, 0.0001)
-	var max_y: float = 0.0
-	var max_x: float = 0.0
 	for v: Vector3 in verts:
-		max_y = maxf(max_y, v.y)
-		max_x = maxf(max_x, v.x)
-	assert_gt(max_y, 0.05, "the head curls up out of the lead-in")
-	assert_lt(verts[verts.size() - 1].x, max_x - 0.01, "the hook curls back over itself")
+		assert_almost_eq(absf(v.y), 0.5, 0.0001, "two straight edges: the shader bows and tapers the strip")
 
 
-func test_only_leading_strokes_curl_and_the_band_is_broad() -> void:
-	var straight: ArrayMesh = GustPresentation.build_ribbon(_tuning, false)
-	var verts: PackedVector3Array = straight.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-	var prev_x: float = -1.0
-	for v: Vector3 in verts:
-		assert_gte(v.x, prev_x - 0.0001, "a non-leader never curls back over itself")
-		prev_x = maxf(prev_x, v.x)
-	assert_gte(_tuning.gust_streak_count, 15, "a gust is a band of many streaks")
-	assert_lt(_tuning.gust_curl_lead_frac, 0.5, "most streaks are straight")
-	assert_gt(_tuning.gust_height_bias, 1.0, "more streaks high up")
-	assert_gt(_tuning.gust_height_length_gain, 0.0, "longer streaks high up")
+func test_a_gust_draws_wisps_in_a_box_around_itself() -> void:
+	var gust: Dictionary = _wire(1)
 	var presenter: BreezePresenter = BreezePresenter.new()
 	presenter.tuning = _tuning
 	add_child_autofree(presenter)
-	Events.breeze_gust_started.emit(_wire(1))
-	var gust: GustPresentation = presenter.get_child(0) as GustPresentation
-	assert_eq(gust.get_child_count(), 2, "one curled and one straight MultiMesh")
+	Events.breeze_gust_started.emit(gust)
+	var visual: GustPresentation = presenter.get_child(0) as GustPresentation
+	assert_eq(visual.get_child_count(), 1, "one MultiMesh of wisps")
+	var material: ShaderMaterial = visual.material()
+	assert_eq(material.shader.resource_path, "res://shaders/wind_streak.gdshader", "the wisp shader")
+	assert_eq(float(material.get_shader_parameter(&"mote_mix")), 0.0, "wisps, not motes")
+	assert_true(bool(material.get_shader_parameter(&"box_align")), "scattered along and across the heading")
+	assert_eq(material.get_shader_parameter(&"box_center") as Vector3, Vector3(float(gust["x"]), float(gust["y"]), float(gust["z"])))
+	var half: Vector3 = material.get_shader_parameter(&"box_half") as Vector3
+	assert_almost_eq(half.x, float(gust["r"]) * _tuning.gust_spread_along_frac, 0.0001)
+	assert_almost_eq(half.y, float(gust["r"]) * _tuning.gust_spread_up_frac, 0.0001)
+	assert_almost_eq(half.z, float(gust["r"]) * _tuning.gust_spread_side_frac, 0.0001)
+	assert_almost_eq(float(material.get_shader_parameter(&"box_base_y")), -half.y, 0.0001)
+	assert_gte(_tuning.gust_streak_count, 15, "a gust is a band of many wisps")
+	assert_gt(_tuning.gust_height_bias, 1.0, "more wisps high up")
+	assert_gt(_tuning.gust_height_length_gain, 0.0, "longer wisps high up")
+	assert_almost_eq(GustPresentation.wisp_life_m(_tuning) / _tuning.gust_streak_speed_ms, _tuning.gust_stroke_cycle_s, 0.0001, "a wisp cycles in the gust stroke cycle")
 
 
 func _drawn_strokes(preset_id: StringName) -> int:

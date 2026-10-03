@@ -1,11 +1,14 @@
 shader_type spatial;
 render_mode unshaded, blend_mix, cull_disabled, depth_draw_never, skip_vertex_transform, shadows_disabled, fog_disabled;
 
-// Bontago-22y.4: wind streaks and drifting motes (vfx/weather/WindPresentation.gd
-// builds one MultiMesh per kind). The script feeds `travel` (metres advanced
-// along the wind, integrated from the gusting speed) and `wind_dir`; all
-// per-instance scatter and wrapping happens here, so there is no per-frame
-// per-instance CPU cost.
+// Bontago-22y.4: soft wind wisps and drifting motes. Bontago-mp0.81 swapped the
+// two wind looks: this WISP look (bowed, feathered, banded ribbons) is now a Breeze
+// GUST's look (vfx/weather/GustPresentation.gd, scattered in a heading-aligned box
+// around the gust via box_center/box_align); the ambient Storm wind uses the curled
+// swoosh look (gust_swoosh.gdshader) and only draws its motes with this shader
+// (vfx/weather/StormPresentation.gd). The script feeds `travel` (metres advanced
+// along the wind) and `wind_dir`; all per-instance scatter and wrapping happens
+// here, so there is no per-frame per-instance CPU cost.
 //
 // Per-instance data:
 //   INSTANCE_CUSTOM.xyz = scatter in 0..1 across the box (x, height, z)
@@ -23,6 +26,15 @@ uniform float travel = 0.0;
 uniform float density : hint_range(0.0, 1.0) = 1.0;
 uniform vec3 box_half = vec3(55.0, 20.0, 55.0);
 uniform float box_base_y = -6.0;
+// Wisps: the box is centred here (a gust's centre) and, when box_align is on, its
+// x axis follows wind_dir and z the sideways axis (box_half = along, up, side).
+uniform vec3 box_center = vec3(0.0);
+uniform bool box_align = false;
+// Wisps: height_bias > 1 pushes spawns toward the top of the box; strokes there
+// run height_length_gain longer (0 = none). life fades the whole set (a gust's envelope).
+uniform float height_bias = 1.0;
+uniform float height_length_gain = 0.0;
+uniform float life : hint_range(0.0, 1.0) = 1.0;
 // Streak: longest length; length_min_m the shortest. Mote: both are its size.
 uniform float length_m = 12.0;
 uniform float length_min_m = 4.0;
@@ -64,6 +76,7 @@ void vertex() {
 	vec3 p;
 	float c = 0.5;
 	float key = 0.0;
+	float high = 0.5;
 	if (mote_mix > 0.5) {
 		vec3 home = vec3(INSTANCE_CUSTOM.x, 0.0, INSTANCE_CUSTOM.z) * size;
 		vec3 along = wind_dir * travel * (0.7 + 0.6 * hash11(seed * 13.0));
@@ -77,11 +90,17 @@ void vertex() {
 		float idx = floor(cycle);
 		c = cycle - idx;
 		key = seed * 91.7 + idx * 13.3;
-		vec3 home = vec3(hash11(key + 1.0) - 0.5, hash11(key + 3.0), hash11(key + 2.0) - 0.5);
-		p = vec3(home.x * size.x, box_base_y + home.y * size.y, home.z * size.z)
-			+ wind_dir * (c - 0.5) * life_m;
+		high = pow(hash11(key + 3.0), 1.0 / max(height_bias, 0.1));
+		vec3 home = vec3(hash11(key + 1.0) - 0.5, high, hash11(key + 2.0) - 0.5);
+		vec3 local = vec3(home.x * size.x, box_base_y + home.y * size.y, home.z * size.z);
+		if (box_align) {
+			vec3 side_axis = normalize(cross(wind_dir, vec3(0.0, 1.0, 0.0)));
+			local = vec3(0.0, local.y, 0.0) + wind_dir * local.x + side_axis * local.z;
+		}
+		p = box_center + local + wind_dir * (c - 0.5) * life_m;
 	}
 	float len = mix(length_min_m, length_m, hash11(key + 5.0));
+	len *= 1.0 + height_length_gain * (high - 0.5);
 	len = mix(len, length_m, mote_mix);
 	vec4 view_pos = VIEW_MATRIX * vec4(p, 1.0);
 	// Bontago-mp0.28: the screen direction of the world heading must follow the
@@ -126,7 +145,8 @@ void vertex() {
 	float dist = length(view_pos.xyz);
 	float streak_alpha = mix(opacity_min, 1.0, hash11(key + 8.0))
 		* smoothstep(near_fade_m.x, near_fade_m.y, dist);
-	shown = (1.0 - smoothstep(density - 0.06, density, seed))
+	// density 1.0 shows everything (the soft edge only thins a partial density).
+	shown = life * (density >= 1.0 ? 1.0 : 1.0 - smoothstep(density - 0.06, density, seed))
 		* (1.0 - smoothstep(fade_far_m * 0.5, fade_far_m, dist))
 		* mix(streak_alpha * smoothstep(0.12, 0.45, d2_len), smoothstep(near_fade_m.x, near_fade_m.y, dist), mote_mix);
 	shape_mix = mote_mix;
