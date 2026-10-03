@@ -149,7 +149,9 @@ func set_intensity(value: float) -> void:
 	if _material != null:
 		_material.set_shader_parameter(&"density", value)
 	_apply_mood(value)
-	if value > 0.0 and _puddles == null and is_inside_tree():
+	# Bontago-1pi.46: Main drops the puddle layer between matches, so a layer
+	# freed under a live presentation is rebuilt rather than kept as a stale ref.
+	if value > 0.0 and (_puddles == null or not is_instance_valid(_puddles)) and is_inside_tree():
 		_puddles = _make_puddles()
 	if _puddles != null and is_instance_valid(_puddles):
 		_puddles.set_rain(value)

@@ -161,6 +161,10 @@ var _peek_returning: bool = false
 ## once per fresh camera_snap_goal press by _resolve_goal_target() below, not
 ## every frame -- so holding through a PEEK doesn't itself keep cycling.
 var _goal_cycle_index: int = 0
+## Bontago-1pi.46: the in-flight _snap_to()/_turn_to_face() tweens, so reset_view()
+## can stop one before it keeps writing _yaw/_target/_distance/_pitch into the
+## next match.
+var _view_tweens: Array[Tween] = []
 
 @onready var _camera: Camera3D = $Camera3D
 
@@ -184,6 +188,12 @@ func _ready() -> void:
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_camera.fov = tuning.fov_deg
+	_apply_default_view()
+
+
+## The launch framing: _ready() and reset_view() both end here, so a rig that
+## was reset is the same as a freshly instanced one by construction.
+func _apply_default_view() -> void:
 	# DECISION (game/CameraRig.gd): the initial view scales with the map's
 	# field_radius (a close-in fixed default looked fine on a small map but
 	# was nose-to-the-glass on a medium/large one, since the disk fills most
@@ -412,6 +422,37 @@ func set_home_view(home_position: Vector3, look_at_position: Vector3 = Vector3.Z
 	_update_transform()
 
 
+## Bontago-1pi.46 (owner playtest: "leaving match and starting a new match
+## doesn't reset properly ... my camera and zoom level were the same as when i
+## left the old match"). ROOT CAUSE: this rig is a static child of game/Main.tscn
+## that outlives every match, and a match start only re-aimed yaw/target
+## (place_at_home_beacon()/set_home_view()), so the previous match's zoom
+## distance, pitch, peek/focus state, shake and queued snap/turn tweens carried
+## over. game/Main.gd calls this when a match world is built and torn down; it
+## puts every field back to what _ready() leaves on a fresh launch.
+func reset_view() -> void:
+	for tween: Tween in _view_tweens:
+		if tween != null and tween.is_valid():
+			tween.kill()
+	_view_tweens.clear()
+	_yaw = 0.0
+	_target = Vector3.ZERO
+	_follow_position = Vector3.ZERO
+	_local_slot = -1
+	block_held = false
+	_drop_recovering = false
+	_peek_active = false
+	_peek_returning = false
+	_focus_action = &""
+	_focus_target_point = Vector3.ZERO
+	_focus_hold_elapsed_s = 0.0
+	_goal_cycle_index = 0
+	_shake_amplitude_m = 0.0
+	_shake_elapsed_s = 0.0
+	_camera.fov = tuning.fov_deg
+	_apply_default_view()
+
+
 ## Bontago-mp0.27: match-start entry point. Puts the camera at `slot_id`'s own
 ## home beacon looking at the disc centre (set_home_view's framing). Returns
 ## false, leaving the camera alone, when that slot has no beacon in the Field.
@@ -588,8 +629,17 @@ func _pan_offset(input_2d: Vector2) -> Vector3:
 	return right * input_2d.x + forward * input_2d.y
 
 
+## Remembers `tween` for reset_view() (finished ones are dropped on the way).
+func _track_view_tween(tween: Tween) -> void:
+	for index: int in range(_view_tweens.size() - 1, -1, -1):
+		if not _view_tweens[index].is_valid():
+			_view_tweens.remove_at(index)
+	_view_tweens.append(tween)
+
+
 func _snap_to(point: Vector3) -> void:
 	var tween: Tween = create_tween()
+	_track_view_tween(tween)
 	tween.set_parallel(true)
 	tween.tween_property(self, ^"_target", point, tuning.snap_duration)
 	tween.tween_property(self, ^"_distance", tuning.snap_distance, tuning.snap_duration)
@@ -692,6 +742,7 @@ func _turn_to_face(target: Vector3) -> void:
 	var new_yaw: float = atan2(away.x, away.y)
 	var target_yaw: float = _yaw + wrapf(new_yaw - _yaw, -PI, PI)
 	var tween: Tween = create_tween()
+	_track_view_tween(tween)
 	tween.tween_property(self, ^"_yaw", target_yaw, tuning.focus_turn_duration_s)
 
 

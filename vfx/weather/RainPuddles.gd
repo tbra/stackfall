@@ -40,6 +40,25 @@ static func ensure_on(field_node: Node3D, map_def: MapDef, tuning: RainTuning, c
 	return puddles
 
 
+## Bontago-1pi.46 (owner playtest: "the arena still had rain puddles" in a new
+## match after leaving one): this layer lives on the persistent Field and dries
+## over RainTuning.puddle_dry_time_s, so a match left mid-rain and a new one
+## started inside that window began wet -- and a new map kept the old map's patch
+## layout. game/Main.gd calls this when a match world is built and torn down: the
+## layer is dropped at once, and the next rain builds a dry one for the map in
+## play. Freed immediately (not queue_free) so ensure_on() cannot find the dying
+## node in the same frame. Returns true when a layer was removed.
+static func clear_on(field_node: Node3D) -> bool:
+	if field_node == null:
+		return false
+	var existing: RainPuddles = field_node.get_node_or_null(NODE_NAME) as RainPuddles
+	if existing == null:
+		return false
+	field_node.remove_child(existing)
+	existing.free()
+	return true
+
+
 ## Patch-count scale for a graphics preset (Low presets draw fewer).
 static func count_scale_for(preset: GraphicsPreset, tuning: RainTuning) -> float:
 	if preset == null:

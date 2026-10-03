@@ -1265,6 +1265,9 @@ func _on_match_state_changed(from_state: int, to_state: int) -> void:
 	if _sandbox != null and is_instance_valid(_sandbox):
 		if to_state == Match.State.LOBBY:
 			_field.clear_match_state()
+			# Bontago-1pi.46: a sandbox reset is a new match too -- dry arena;
+			# the camera stays where the player put it.
+			_reset_match_presentation(false)
 		return
 
 	if to_state == Match.State.LOBBY:
@@ -1364,6 +1367,10 @@ func _build_match_world(force_staging_for_test: bool = false) -> void:
 		return
 	_world_building = true
 	var generation: int = _loading_generation
+	# Bontago-1pi.46: the single new-match entry (host, client and headless
+	# alike) -- starts from the launch camera and a dry arena whatever the
+	# previous match left behind.
+	_reset_match_presentation()
 	# DECISION: only a visible interactive overlay needs frame-separated stages.
 	# Headless hosts and test/probe runs retain the synchronous start contract.
 	var stage_build: bool = force_staging_for_test or (_loading_screen != null and _loading_screen.visible and DisplayServer.get_name() != "headless" and not AgentProbe.is_active())
@@ -1490,6 +1497,21 @@ func _spawn_bot_controllers(config: MatchConfig) -> void:
 		_bot_controllers.append(bot)
 
 
+## Bontago-1pi.46 (owner playtest: "leaving match and starting a new match
+## doesn't reset properly ... my camera and zoom level were the same as when i
+## left the old match and the arena still had rain puddles"). ROOT CAUSE: the
+## CameraRig and the Field's RainPuddles layer are persistent children of this
+## scene, outliving every match; a match start re-aimed only the camera's yaw/
+## target, and puddles dry over RainTuning.puddle_dry_time_s. Run when a match
+## world is built and when it is torn down (both idempotent), so the next match
+## starts like a fresh launch: launch zoom/pitch/yaw, no puddles unless the new
+## match's own weather brings rain.
+func _reset_match_presentation(reset_camera: bool = true) -> void:
+	RainPuddles.clear_on(_field)
+	if reset_camera and _camera_rig != null:
+		_camera_rig.reset_view()
+
+
 func _end_match_world() -> void:
 	if not _world_built:
 		return
@@ -1501,6 +1523,8 @@ func _end_match_world() -> void:
 	# and open holes would otherwise still belong to the match that just ended
 	# (Beads Bontago-mv0.1.9).
 	_field.clear_match_state()
+	# Bontago-1pi.46: and the menu/lobby behind it looks like a fresh launch too.
+	_reset_match_presentation()
 	if _remote_cursors != null and is_instance_valid(_remote_cursors):
 		_remote_cursors.queue_free()
 	_remote_cursors = null
