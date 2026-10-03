@@ -396,3 +396,63 @@ func test_dawn_and_storm_themes_load_with_their_character() -> void:
 	assert_gt(dawn.sky_top_color.v, storm.sky_top_color.v, "storm is darker than dawn")
 	assert_lt(storm.light_energy, dawn.light_energy, "storm sun is muted")
 	assert_false(storm.sun_flare_enabled)
+
+
+## Bontago-59o.18 (S0): the locked phases the lobby's Sunset / Dawn / Night options
+## use. Each concrete id maps to its authored phase, anything else (including the
+## "" of a running cycle) is -1.0, and the shipped defaults put the sun where the
+## option's name says (phase 0 dawn, 0.25 noon, 0.5 sunset, 0.75 midnight).
+func test_locked_phase_for_maps_concrete_ids_and_rejects_the_rest() -> void:
+	var theme: SkyThemeDef = SkyThemeDef.new()
+	assert_eq(theme.locked_phase_for("sunset"), theme.cycle_locked_phase_sunset)
+	assert_eq(theme.locked_phase_for("dawn"), theme.cycle_locked_phase_dawn)
+	assert_eq(theme.locked_phase_for("night"), theme.cycle_locked_phase_night)
+	for unknown: String in ["", "cycle", "storm", "../evil", "Sunset"]:
+		assert_eq(theme.locked_phase_for(unknown), -1.0, "'%s' is not a lockable sky id" % unknown)
+	for sky_id: String in MatchConfig.SKY_THEME_IDS:
+		var phase: float = theme.locked_phase_for(sky_id)
+		assert_between(phase, 0.0, 1.0, "%s has a lock phase in the 0..1 cycle" % sky_id)
+	theme.cycle_locked_phase_night = 0.8
+	assert_eq(theme.locked_phase_for("night"), 0.8, "the lock phase is tunable content")
+
+
+func test_cycle_lock_and_start_defaults_match_the_option_names() -> void:
+	var theme: SkyThemeDef = SkyThemeDef.new()
+	var sun_height: Callable = func(phase: float) -> float:
+		return sin(TAU * phase) * theme.cycle_sun_peak_degrees
+	assert_gt(sun_height.call(theme.cycle_start_phase), 30.0, "a Cycle match opens in full daylight")
+	assert_gt(sun_height.call(theme.cycle_locked_phase_sunset), 0.0, "locked Sunset: sun still above the horizon")
+	assert_lt(theme.cycle_locked_phase_sunset, 0.5, "locked Sunset: on the setting side")
+	assert_gt(sun_height.call(theme.cycle_locked_phase_dawn), 0.0, "locked Dawn: sun just risen")
+	assert_lt(theme.cycle_locked_phase_dawn, 0.25, "locked Dawn: in the morning half")
+	assert_lt(sun_height.call(theme.cycle_locked_phase_night), 0.0, "locked Night: sun below the horizon")
+	assert_eq(theme.cycle_dusk_weight_phases, Vector4(0.30, 0.46, 0.90, 0.98))
+	var phases: Vector4 = theme.cycle_dusk_weight_phases
+	assert_true(phases.x < phases.y and phases.y < phases.z and phases.z < phases.w, "dusk weight phases ascend")
+	# Shipped themes keep the script defaults: nothing overrides the lock content.
+	for theme_id: String in ["sunset", "dawn", "night", "storm"]:
+		var shipped: SkyThemeDef = Skybox.load_theme(theme_id)
+		assert_eq(shipped.cycle_start_phase, theme.cycle_start_phase, theme_id)
+		assert_eq(shipped.locked_phase_for("dawn"), theme.cycle_locked_phase_dawn, theme_id)
+
+
+## S0 stubs (docs/SKY_CYCLE_DEFAULT_PLAN.md s3): the new Skybox API exists with
+## its final signatures; until C1a the mutators change nothing and the queries
+## read today's cycle state.
+func test_cycle_api_stubs_exist_and_are_inert() -> void:
+	var parts: Array = _make_skybox(load(SUNSET_PATH) as SkyThemeDef)
+	var skybox: Skybox = parts[0]
+	assert_false(skybox.is_cycle_active(), "no cycle before a match configures one")
+	assert_eq(skybox.locked_phase(), -1.0)
+	assert_eq(skybox.current_cycle_phase(), -1.0)
+	skybox.start_cycle(0.5, 0.1)
+	skybox.set_locked_phase(0.5)
+	skybox.refresh_cycle_sources()
+	assert_false(skybox.is_cycle_active(), "the S0 stubs do not start a cycle")
+	assert_eq(skybox.locked_phase(), -1.0)
+	var config: MatchConfig = MatchConfig.new()
+	assert_true(config.is_sky_cycle_running(), "the default match is a Cycle match")
+	skybox.configure_match_sky(config)
+	assert_true(skybox.is_cycle_active(), "the existing CYCLE path is what the default now runs")
+	assert_between(skybox.current_cycle_phase(), 0.0, 1.0)
+	assert_eq(skybox.locked_phase(), -1.0)

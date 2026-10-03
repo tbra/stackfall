@@ -230,6 +230,51 @@ func cycle_length_seconds() -> float:
 	return _cycle_length_s if _cycle_theme != null else 0.0
 
 
+## --- Bontago-59o.18 cycle-default API (docs/SKY_CYCLE_DEFAULT_PLAN.md s3) -----
+## S0 STUBS: the signatures are the contract consumers (TuningPanel, Lobby,
+## tools, tests) compile against. The mutators are documented no-ops until
+## package C1a gives them bodies; the two queries read today's state.
+
+## Starts the day/night cycle (extracted from configure_match_sky by C1a).
+## `locked_phase` >= 0 freezes the sky at that phase (0 dawn, 0.25 noon, 0.5
+## sunset, 0.75 midnight); < 0 runs the cycle. `start_phase` >= 0 is the phase
+## a running cycle opens at (the SkyThemeDef.cycle_start_phase default when < 0).
+## S0: no-op (configure_match_sky still builds the cycle itself).
+@warning_ignore("unused_parameter")
+func start_cycle(locked_phase: float = -1.0, start_phase: float = -1.0) -> void:
+	pass
+
+
+## Locks the active cycle at `phase` (0..1) or, when `phase` < 0, unlocks it
+## so it runs again from the current phase (continuous, no jump). S0: no-op.
+@warning_ignore("unused_parameter")
+func set_locked_phase(phase: float) -> void:
+	pass
+
+
+## The phase the cycle is locked at, or -1.0 while it is running (or not
+## active). S0: always -1.0, as nothing can lock yet.
+func locked_phase() -> float:
+	return -1.0
+
+
+## True while the day/night cycle (running or locked) drives the sky.
+func is_cycle_active() -> bool:
+	return _cycle_theme != null
+
+
+## The cycle phase (0..1) last applied to the sky; -1.0 when the cycle is not
+## active.
+func current_cycle_phase() -> float:
+	return _cycle_phase_last if _cycle_theme != null else -1.0
+
+
+## Re-copies the F4-edited source themes into the live cycle duplicate (F4
+## edits during a cycle match must not swap in the static material). S0: no-op.
+func refresh_cycle_sources() -> void:
+	pass
+
+
 ## DECISION (Bontago-mp0.83): when the authored length changes mid-match, the
 ## offset is chosen so the phase at the last clock equals the old phase (no
 ## jump in the time of day); only the rate changes afterwards.
