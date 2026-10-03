@@ -158,6 +158,40 @@ func test_overlay_draws_above_siblings_and_ignores_mouse() -> void:
 	assert_eq(_screen.mouse_filter, Control.MOUSE_FILTER_IGNORE)
 
 
+# --- Bontago-1pi.32 L3: the overlay's own CanvasLayer, above the HUD ----------
+
+func test_overlay_layer_is_above_the_hud_and_below_the_pause_menu() -> void:
+	var hud: HUD = autofree(load("res://ui/HUD.tscn").instantiate()) as HUD
+	add_child_autofree(hud)
+	assert_eq(_screen.overlay_canvas_layer(), _screen.tuning.overlay_canvas_layer)
+	assert_gt(_screen.overlay_canvas_layer(), hud.layer, "a Control z_index can never beat a CanvasLayer: the overlay needs its own")
+	assert_lt(_screen.overlay_canvas_layer(), PauseMenu.OVERLAY_LAYER)
+
+
+func test_overlay_layer_follows_every_visibility_change() -> void:
+	assert_false(_screen.overlay_layer_visible(), "fixture: hidden until shown")
+	_screen.show_for_match(_config(), _slots(2))
+	assert_true(_screen.overlay_layer_visible())
+	_screen.visible = false
+	assert_false(_screen.overlay_layer_visible(), "a direct visible = false (Main, tests) hides the layer too")
+	_screen.visible = true
+	assert_true(_screen.overlay_layer_visible())
+	_screen.cancel()
+	assert_false(_screen.overlay_layer_visible())
+
+
+func test_fade_runs_on_the_layer_content_and_the_next_show_is_opaque_again() -> void:
+	_screen.show_for_match(_config(), _slots(2))
+	assert_almost_eq(_screen.overlay_opacity(), 1.0, 0.001, "opaque while held: nothing behind it shows through")
+	_screen.fade_out()
+	await wait_seconds(0.3, "warmup frames + fade duration")
+	assert_false(_screen.overlay_layer_visible())
+	assert_almost_eq(_screen.overlay_opacity(), 0.0, 0.01, "the layer's content faded (the root modulate cannot reach a CanvasLayer)")
+	_screen.show_for_match(_config(), _slots(2))
+	assert_almost_eq(_screen.overlay_opacity(), 1.0, 0.001)
+	_screen.cancel()
+
+
 ## Flow tests against the real Main (same fixture shape as
 ## test_match_lifecycle.gd): the overlay is up and un-started Match is still in
 ## LOBBY when the Start press returns; the match only starts later.

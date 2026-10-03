@@ -42,9 +42,82 @@ extends Resource
 ## Presented frames after the first result, while the new world renders covered.
 @export var stable_frames: int = 4
 
+## Bontago-1pi.32 (owner playtest 2026-10-03): the loading screen is shown for at
+## least this long, even when the world is built sooner. Enforced by the host's
+## ready gate (core/LoadingReadyGate.gd), measured from LOADING, and locally by
+## ui/LoadingScreen.gd's fade-out so every instance displays it that long.
+@export var min_display_s: float = 5.0
+
+## Bontago-1pi.32 safety cap on the wait for every human player to press ready.
+## Measured from LOADING (asset loading still has its own ready_timeout_s above);
+## once it passes the host starts the countdown anyway. # DECISION: an AFK or
+## frozen player must not block everyone forever.
+@export var ready_wait_max_s: float = 60.0
+
+## --- Bontago-1pi.32 L2: the ready prompt and player ready list (presentation) ---
+## Colours reuse config/menu_visual_tuning.tres (ink, muted, mint) so the overlay
+## stays on the menu palette; only sizes and wording live here.
+
+## Subtle line shown while the minimum display time remains (or this instance is
+## still loading).
+@export var get_ready_text: String = "Get ready..."
+
+## "<prefix> [glyph] <suffix>" -- the glyph is the bound ui_accept key/button of
+## the player's active device (ui/InputGlyph.gd).
+@export var ready_prompt_prefix: String = "Press"
+@export var ready_prompt_suffix: String = "to ready"
+
+## After the local press: how many required players have not pressed yet. %d is
+## that count; one text per grammatical number.
+@export var waiting_one_text: String = "Waiting for %d player..."
+@export var waiting_many_text: String = "Waiting for %d players..."
+
+## Safety-cap countdown while the host would start without a laggard; %d is whole
+## seconds left (rounded up).
+@export var cap_countdown_format: String = "Starting in %ds"
+
+## Appended to a bot's name in the player list (a bot is always ready).
+@export var bot_suffix: String = " (bot)"
+
+## How many bindings of the active device the prompt shows ("Press [Enter]").
+@export var ready_prompt_glyph_count: int = 1
+
+@export var ready_prompt_font_size: int = 20
+@export var ready_status_font_size: int = 16
+@export var ready_cap_font_size: int = 14
+@export var ready_row_font_size: int = 18
+
+## Opacity of the prompt once the local player has pressed it (it stays visible but
+## disabled while the others catch up).
+@export var ready_prompt_disabled_alpha: float = 0.55
+
+## Vertical gap between the ready box's status line, prompt and cap countdown, and
+## the horizontal gap inside the prompt (prefix, glyph, suffix).
+@export var ready_box_separation_px: int = 8
+@export var ready_prompt_separation_px: int = 10
+
+## Space reserved for the ready box (status + prompt + cap line) once the gate is
+## armed, so the card does not jump when the prompt appears.
+@export var ready_box_min_height_px: float = 128.0
+
+## Player ready list: gap between rows, between a row's cells, the colour swatch
+## and the tick/ring mark (diameters), plus the tick's stroke width.
+@export var ready_list_separation_px: int = 6
+@export var ready_row_separation_px: int = 10
+@export var ready_swatch_size_px: float = 16.0
+@export var ready_mark_size_px: float = 22.0
+@export var ready_mark_stroke_px: float = 2.5
+@export var ready_mark_arc_points: int = 24
+
 ## Draw order of the overlay; above the lobby/menu controls that are still
 ## children of Main until the match world clears them.
 @export var overlay_z_index: int = 100
+
+## Bontago-1pi.32 L3: the overlay lives on its own CanvasLayer so it covers the HUD
+## (CanvasLayer 1: player bars, held/next, minimap, timer ring, the big countdown
+## digit), which a Control z_index can never beat. Above the HUD and the sandbox
+## and tuning panels (1-11), below the pause menu and perf overlay (100).
+@export var overlay_canvas_layer: int = 50
 
 ## Progress milestones, expressed as fractions of the complete load.
 @export var preparing_progress: float = 0.02

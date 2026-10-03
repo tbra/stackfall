@@ -244,6 +244,9 @@ func _ready() -> void:
 	_lan.game_seen.connect(_on_lan_advert_changed)
 	_lan.game_expired.connect(_on_lan_advert_expired)
 	steam_provider = SteamClient.new()
+	# Bontago-1pi.32: the host mirrors the loading-screen ready gate to clients.
+	Events.loading_ready_changed.connect(_on_loading_ready_changed)
+	Events.loading_gate_opened.connect(_on_loading_gate_opened)
 
 
 func _process(delta: float) -> void:
@@ -1617,6 +1620,84 @@ func _rpc_set_ready(ready: bool) -> void:
 	if not is_host():
 		return
 	set_peer_ready(multiplayer.get_remote_sender_id(), ready)
+
+
+# --- Loading-screen ready gate (Bontago-1pi.32) -------------------------------
+#
+# Owner playtest 2026-10-03: every human player presses ready (ui_accept: Enter,
+# Space or the gamepad's A) on the loading screen and the host starts the
+# countdown once all of them have (core/LoadingReadyGate.gd holds the rule,
+# autoload/match/MatchLifecycle.gd the per-match state). Net is only the
+# transport: it never names Match, so the host-side handoff and the mirror both
+# go over the Events bus (net_loading_ready_received / loading_ready_changed /
+# loading_gate_opened), the way net_peer_joined already does.
+
+## Local player pressed ready. Client: sends the intent to the host (which takes
+## the peer id from the transport, never from the payload, so there is nothing
+## to spoof). Host and offline: hands it to the lifecycle directly under the
+## local peer id (offline that is Net.HOST_PEER_ID, which stands for every
+## local human -- one press on the shared device readies all of them).
+func request_loading_ready() -> void:
+	if is_client():
+		var peer: MultiplayerPeer = multiplayer.multiplayer_peer
+		if peer == null or peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
+			return
+		_rpc_loading_ready.rpc_id(HOST_PEER_ID)
+		return
+	Events.net_loading_ready_received.emit(local_peer_id())
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_loading_ready() -> void:
+	_handle_loading_ready(multiplayer.get_remote_sender_id())
+
+
+## Host only. A ready intent from `sender` (the transport's peer id): refused
+## unless it is a seated peer -- an unknown id, a peer still in the handshake and
+## a spectator (slot -1) never reach the lifecycle. Phase, the required set and
+## idempotence are the lifecycle's checks. Returns whether it was forwarded.
+func _handle_loading_ready(sender: int) -> bool:
+	if _mode != Mode.HOST or not _peers.has(sender) or slot_of_peer(sender) < 0:
+		return false
+	Events.net_loading_ready_received.emit(sender)
+	return true
+
+
+## Host: mirrors the lifecycle's ready sets to every client.
+func _on_loading_ready_changed(ready_ids: PackedInt32Array, required_ids: PackedInt32Array) -> void:
+	if _mode != Mode.HOST or not _can_send():
+		return
+	_rpc_loading_ready_state.rpc(ready_ids, required_ids)
+
+
+## Host: tells every client the gate opened.
+func _on_loading_gate_opened() -> void:
+	if _mode != Mode.HOST or not _can_send():
+		return
+	_rpc_loading_gate_open.rpc()
+
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_loading_ready_state(ready_ids: PackedInt32Array, required_ids: PackedInt32Array) -> void:
+	if _mode != Mode.CLIENT:
+		return
+	# Wire limit: a seated peer list can never be longer than the session itself.
+	if ready_ids.size() > config.max_peers or required_ids.size() > config.max_peers:
+		return
+	for peer_id: int in ready_ids:
+		if peer_id < HOST_PEER_ID:
+			return
+	for peer_id: int in required_ids:
+		if peer_id < HOST_PEER_ID:
+			return
+	Events.loading_ready_changed.emit(ready_ids, required_ids)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_loading_gate_open() -> void:
+	if _mode != Mode.CLIENT:
+		return
+	Events.loading_gate_opened.emit()
 
 
 # --- Lobby data RPC ----------------------------------------------------------
