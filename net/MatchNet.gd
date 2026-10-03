@@ -146,6 +146,10 @@ var replicated_event_counts: Dictionary = {}
 ## reason]. Game code never reads either.
 var reject_replies_by_peer: Dictionary = {}
 var last_reject_reply: Array = []
+## Test-only (Bontago-1pi.52): the same pair for placement_relocated, the other
+## per-player cursor message. Game code never reads either.
+var relocate_replies_by_peer: Dictionary = {}
+var last_relocate_reply: Array = []
 
 ## _known_special_ids()'s cache: String(SpecialDef.id) -> true, built once
 ## from SpecialDef.load_all_specials() (a directory scan). This node is
@@ -781,7 +785,9 @@ func _encode_circles() -> PackedByteArray:
 
 
 ## Host only. Mirrors a match-flow event to every client: state changes, the
-## countdown, feed issues, rejections, eliminations and the win.
+## countdown, feed issues, eliminations and the win. A per-player cue (a
+## refusal, a relocation) is not one of these: it goes to its owning peer alone
+## (_on_placement_rejected, _on_placement_relocated; Bontago-1pi.52).
 func replicate_match_event(event: StringName, args: Array) -> void:
 	if not _is_host():
 		return
@@ -1464,14 +1470,25 @@ func _remote_peer_of_slot(slot_id: int) -> int:
 	return peer_id
 
 
-## Bontago-mv0.24: mirrors an auto-drop's relocation the same way
-## _on_placement_rejected mirrors a refusal -- every instance gets it over the
-## reliable match-event channel, and PlayerController._on_placement_relocated
-## already ignores any slot that isn't its own, so nothing further needs to be
-## targeted at just the owning peer here.
+## Bontago-mv0.24: mirrors an auto-drop's relocation to the owning client so its
+## cursor and camera can jump to where the block landed.
+##
+## Bontago-1pi.52 (audit after the refusal fix): that jump is the owning seat's
+## own feedback, so it goes to that peer alone, exactly like a refusal, instead
+## of to every client that would only ignore it (PlayerController and the HUD
+## drop a slot that is not theirs). Never the host's own seat (it reacts to
+## Match's local emit), a bot's, or a vacated one: no remote peer to tell.
 func _on_placement_relocated(slot_id: int, point: Vector2) -> void:
-	if _is_host():
-		replicate_match_event(EVENT_PLACEMENT_RELOCATED, [slot_id, point])
+	if not _is_host():
+		return
+	var owner_peer: int = _remote_peer_of_slot(slot_id)
+	if owner_peer < 0:
+		return
+	relocate_replies_by_peer[owner_peer] = int(relocate_replies_by_peer.get(owner_peer, 0)) + 1
+	last_relocate_reply = [owner_peer, slot_id, point]
+	if not _can_send() or not multiplayer.get_peers().has(owner_peer):
+		return
+	rpc_id(owner_peer, &"net_match_event", EVENT_PLACEMENT_RELOCATED, [slot_id, point])
 
 
 func _on_player_eliminated(slot_id: int, team_id: int) -> void:
@@ -2343,7 +2360,23 @@ func net_match_event(event: StringName, args: Array) -> void:
 				return
 			Events.placement_rejected.emit(rejected_slot, StringName(args[1]))
 		EVENT_PLACEMENT_RELOCATED:
-			Events.placement_relocated.emit(int(args[0]), args[1] as Vector2)
+			# Bontago-1pi.52: an input boundary like the refusal above, with
+			# the same own-seat-only rule: the host sends this to the owning
+			# peer alone, so another seat's relocation (an older host's
+			# broadcast) or a malformed or out-of-disk point never reaches
+			# the cursor/camera jump.
+			if _is_host() or args.size() != 2 or not args[0] is int or not args[1] is Vector2:
+				return
+			var relocated_slot: int = args[0]
+			var relocated_point: Vector2 = args[1]
+			if _authority().config == null or relocated_slot < 0 or relocated_slot >= _authority().slot_count():
+				return
+			var point_bound: float = float(_authority().circle_wire_xz_bound())
+			if not relocated_point.is_finite() or absf(relocated_point.x) > point_bound or absf(relocated_point.y) > point_bound:
+				return
+			if not bool(_session().is_local_slot(relocated_slot)):
+				return
+			Events.placement_relocated.emit(relocated_slot, relocated_point)
 		EVENT_PLAYER_ELIMINATED:
 			_authority().apply_replicated_elimination(int(args[0]))
 			Events.player_eliminated.emit(int(args[0]), int(args[1]))

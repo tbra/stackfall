@@ -669,7 +669,10 @@ func _on_gift_flight_spawned(_gift_id: int, _origin: Vector3, _landing: Vector3)
 ## single-slot check this handler used before real teams existed.
 func _on_gift_claimed(_gift_id: int, recipient_slot: int, _special_id: StringName) -> void:
 	for slot_id: int in range(maxi(Match.slot_count(), recipient_slot + 1)):
-		if not Net.is_local_slot(slot_id):
+		# Bontago-1pi.52: a human seat on this machine only -- offline every slot
+		# is local, so a bot claiming on its own team (or a bot teammate) would
+		# otherwise chime for a player who has nothing to do with it.
+		if not LocalFeedback.is_own_human_slot(slot_id):
 			continue
 		if _team_of_slot(slot_id) != _team_of_slot(recipient_slot):
 			continue

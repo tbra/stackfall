@@ -122,8 +122,12 @@ func _on_placement_rejected(slot_id: int, _reason: StringName) -> void:
 ## very first block issued to a slot ticks too -- accepted as the simplest
 ## reasonable option per CLAUDE.md's minor-ambiguity rule (a "new block
 ## ready" light tick reads fine even at match start).
+##
+## Bontago-1pi.52: personal feedback, so only a human seat driven from this
+## machine (autoload/match/LocalFeedback.gd) -- offline Net.is_local_slot() is
+## true for every slot, so without the bot check each bot's feed buzzed the pad.
 func _on_feed_block_issued(slot_id: int, _shape_id: StringName, _next_shape_id: StringName) -> void:
-	if not Net.is_local_slot(slot_id):
+	if not LocalFeedback.is_own_human_slot(slot_id):
 		return
 	_trigger(
 		config.block_placed_weak_magnitude,
@@ -143,8 +147,10 @@ func _on_special_triggered(_net_id: int, _def_id: StringName, _position: Vector3
 	)
 
 
+## Bontago-1pi.52: only the eliminated player's own pad (a human seat on this
+## machine), never a bot's or another peer's elimination.
 func _on_player_eliminated(slot_id: int, _team_id: int) -> void:
-	if not Net.is_local_slot(slot_id):
+	if not LocalFeedback.is_own_human_slot(slot_id):
 		return
 	_trigger(
 		config.player_eliminated_weak_magnitude,
@@ -165,7 +171,9 @@ func _on_match_won(team_id: int) -> void:
 	stop_all()
 	var slot_count: int = maxi(Match.slot_count(), team_id + 1)
 	for slot_id: int in range(slot_count):
-		if not Net.is_local_slot(slot_id):
+		# Bontago-1pi.52: the first HUMAN seat on this machine decides win or
+		# loss; a bot seat (every slot is local offline) never does.
+		if not LocalFeedback.is_own_human_slot(slot_id):
 			continue
 		if _team_of_slot(slot_id) == team_id:
 			_trigger(config.match_won_weak_magnitude, config.match_won_strong_magnitude, config.match_won_duration_s)
