@@ -239,12 +239,12 @@ func cycle_length_seconds() -> float:
 
 ## Starts the day/night cycle now (F4's Theme "cycle" entry, boot theme_name
 ## "cycle"; configure_match_sky() uses the same builder at match start).
-## `locked_phase` >= 0 freezes the sky at that phase (0 dawn, 0.25 noon, 0.5
+## `lock_phase` >= 0 freezes the sky at that phase (0 dawn, 0.25 noon, 0.5
 ## sunset, 0.75 midnight); < 0 runs the cycle. `start_phase` >= 0 is the phase a
 ## running cycle shows at the shared clock now (SkyThemeDef.cycle_start_phase
 ## when < 0); it is ignored while locked.
-func start_cycle(locked_phase: float = -1.0, start_phase: float = -1.0) -> void:
-	_start_cycle_at(SnapshotSync.sky_cycle_seconds(), locked_phase, start_phase)
+func start_cycle(lock_phase: float = -1.0, start_phase: float = -1.0) -> void:
+	_start_cycle_at(SnapshotSync.sky_cycle_seconds(), lock_phase, start_phase)
 
 
 ## Locks the active cycle at `phase` (0..1) or, when `phase` < 0, unlocks it
@@ -295,7 +295,6 @@ func current_cycle_phase() -> float:
 func refresh_cycle_sources() -> void:
 	if _cycle_theme == null or _cycle_day == null:
 		return
-	var phase: float = _cycle_phase_last
 	for property: Dictionary in _cycle_day.get_property_list():
 		var usage: int = int(property["usage"])
 		if (usage & PROPERTY_USAGE_SCRIPT_VARIABLE) == 0 or (usage & PROPERTY_USAGE_STORAGE) == 0:
@@ -310,18 +309,36 @@ func refresh_cycle_sources() -> void:
 	_cycle_theme.sky_look_procedural = true
 	_cycle_theme.procedural_sea_mix = 1.0
 	apply_theme(_cycle_theme)
-	# apply_theme() rebuilt the ambient life from the day config: re-run the
-	# night swap decision for the current phase.
-	_cycle_life_is_night = false
+	# apply_theme() rebuilt the puffs and ambient life from the day config:
+	# re-run the cycle writers and the night swap decision for the current phase.
+	_reapply_cycle_phase(true)
+
+
+## Forces the cycle writers to run again for the phase last applied, running or
+## locked, even though it has not changed (set_cycle_phase() returns early on an
+## unchanged phase). Whatever rebuilds the cloud puffs / ambient life from
+## the day-config `theme` (apply_theme(), the graphics-preset handler, so the
+## settings menu and the adaptive governor mid-match) resets their cycle palette,
+## light direction and ambient life; a running cycle heals on its next frame
+## but a locked one never would, so those callers re-apply here.
+## `ambient_life_rebuilt` also re-runs the birds / perching / fireflies night swap
+## decision (the rebuild reconfigured them from the day config); the storm-end
+## restore does not rebuild them and passes false. No-op while no cycle is
+## active or before its first phase write.
+func _reapply_cycle_phase(ambient_life_rebuilt: bool) -> void:
+	if _cycle_theme == null or environment == null or _cycle_phase_last < 0.0:
+		return
+	var phase: float = _cycle_phase_last
+	if ambient_life_rebuilt:
+		_cycle_life_is_night = false
 	_cycle_phase_last = -1.0
-	if phase >= 0.0:
-		set_cycle_phase(phase)
+	set_cycle_phase(phase)
 
 
 ## Builds the cycle (the one place that does) as of shared clock `clock_seconds`.
 ## Duplicates the authored sunset (day structure and palette) resource once; each
 ## frame afterwards changes only shader uniforms and Environment/light properties.
-func _start_cycle_at(clock_seconds: float, locked_phase: float, start_phase: float) -> void:
+func _start_cycle_at(clock_seconds: float, lock_phase: float, start_phase: float) -> void:
 	_cycle_theme = null
 	_cycle_day = load_theme(DEFAULT_THEME_ID)
 	_cycle_night = load_theme(CYCLE_NIGHT_THEME_ID)
@@ -340,7 +357,7 @@ func _start_cycle_at(clock_seconds: float, locked_phase: float, start_phase: flo
 	# apply_theme() configured the ambient life from the day config.
 	_cycle_life_is_night = false
 	_cycle_length_s = maxf(_cycle_theme.cycle_length_seconds, 1.0)
-	_cycle_locked_phase = fposmod(locked_phase, 1.0) if locked_phase >= 0.0 else -1.0
+	_cycle_locked_phase = fposmod(lock_phase, 1.0) if lock_phase >= 0.0 else -1.0
 	var opening: float = start_phase if start_phase >= 0.0 else _cycle_theme.cycle_start_phase
 	# DECISION (Bontago-59o.18): the running phase is fposmod(clock / length +
 	# offset, 1); the offset puts `opening` at the start clock, so every peer
@@ -927,10 +944,7 @@ func _restore_after_storm(storm_theme: SkyThemeDef) -> void:
 	_apply_theme_parameters(theme)
 	if _cloud_sea != null and storm_theme != null:
 		_cloud_sea.apply_storm_tint(theme, storm_theme, 0.0, theme.sky_material)
-	if _cycle_theme != null and _cycle_phase_last >= 0.0:
-		var phase: float = _cycle_phase_last
-		_cycle_phase_last = -1.0
-		set_cycle_phase(phase)
+	_reapply_cycle_phase(false)
 	_publish_cloud_lighting()
 
 
@@ -1065,6 +1079,10 @@ func _spawn_fog_volume() -> void:
 func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 	_apply_fog_volume_visibility(preset)
 	_apply_ambient_life(preset, theme)
+	# Bontago-59o.18: the rebuild above is day-configured (puff palette, light
+	# direction, birds, perching, fireflies); put the cycle's current phase back on
+	# top. A locked Night / Dawn / Sunset match never self-heals otherwise.
+	_reapply_cycle_phase(true)
 	_publish_cloud_lighting()
 
 

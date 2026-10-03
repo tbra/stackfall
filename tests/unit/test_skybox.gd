@@ -423,6 +423,75 @@ func test_fog_volume_visibility_reacts_live_to_graphics_preset_changed() -> void
 	)
 
 
+## Bontago-59o.18 (C1a review fix): a graphics-preset change (the settings menu or the
+## adaptive governor) rebuilds the cloud puffs and ambient life from the DAY
+## palette. A running cycle heals on its next frame, but a locked cycle never
+## re-runs set_cycle_phase() on its own, so the match stayed dressed as day inside
+## a locked Night until the lock changed.
+func _make_locked_night_skybox() -> Skybox:
+	Settings.set_graphics_preset(&"high")
+	var skybox: Skybox = _make_wired_skybox()["skybox"] as Skybox
+	var config: MatchConfig = MatchConfig.new()
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.NIGHT
+	config.resolve_sky_theme(0)
+	skybox.configure_match_sky(config)
+	return skybox
+
+
+## Asserts the cloud puffs and ambient life of a sky locked at full night.
+func _assert_locked_night_dressing(skybox: Skybox, label: String) -> void:
+	var night: SkyThemeDef = Skybox.load_theme(Skybox.CYCLE_NIGHT_THEME_ID)
+	var night_puffs: ShaderMaterial = night.cloud_puff_material as ShaderMaterial
+	var puffs: ShaderMaterial = skybox.get_cloud_sea().puff_material()
+	assert_not_null(puffs, "%s: the cloud sea has puffs" % label)
+	if puffs == null:
+		return
+	assert_true(skybox.locked_phase() >= 0.0, "%s: the sky stays locked" % label)
+	var grade: Variant = puffs.get_shader_parameter(&"grade_amount")
+	assert_true(grade is float and is_equal_approx(grade as float, 1.0), "%s: puff grade is the night value (got %s)" % [label, grade])
+	for parameter: StringName in [&"shadow_color", &"mid_color", &"lit_color", &"rim_color"]:
+		var colour: Color = puffs.get_shader_parameter(parameter) as Color
+		assert_true(colour.is_equal_approx(night_puffs.get_shader_parameter(parameter) as Color), "%s: puff %s is the night mix" % [label, parameter])
+	var sun: Vector3 = (skybox.theme.sky_material as ShaderMaterial).get_shader_parameter(&"sun_direction") as Vector3
+	assert_true((puffs.get_shader_parameter(&"light_direction") as Vector3).is_equal_approx(sun), "%s: puffs are lit from the cycle sun, not the authored one" % label)
+	assert_false(skybox.get_birds().visible, "%s: no distant day birds at night" % label)
+	assert_false(skybox.get_perching_birds().is_enabled(), "%s: the night life config has no perching birds" % label)
+	assert_true(skybox.get_fireflies().visible, "%s: fireflies swarm at night" % label)
+
+
+func test_graphics_preset_change_keeps_a_locked_night_dressed_as_night() -> void:
+	var skybox: Skybox = _make_locked_night_skybox()
+	_assert_locked_night_dressing(skybox, "before the change")
+
+	# The real signal path: Settings emits graphics_preset_changed to the live Skybox.
+	Settings.set_graphics_preset(&"medium")
+	_assert_locked_night_dressing(skybox, "after the preset change")
+
+	# The handler itself (what the adaptive governor's level change ends up calling).
+	skybox._on_graphics_preset_changed(Settings.current_graphics_preset())
+	_assert_locked_night_dressing(skybox, "after the handler")
+
+
+## The re-apply is a no-op for the clock: a locked sky keeps its phase, and a
+## running cycle keeps following the clock after the same rebuild.
+func test_graphics_preset_change_keeps_the_phase_locked_or_running() -> void:
+	var locked: Skybox = _make_locked_night_skybox()
+	var held: float = locked.locked_phase()
+	Settings.set_graphics_preset(&"medium")
+	assert_almost_eq(locked.locked_phase(), held, 0.0001, "the lock survives a preset change")
+	assert_almost_eq(locked.current_cycle_phase(), held, 0.0001, "and the phase written is still the locked one")
+
+	var running: Skybox = _make_wired_skybox()["skybox"] as Skybox
+	var config: MatchConfig = MatchConfig.new()
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
+	running.configure_match_sky(config)
+	running.update_cycle_clock(40.0)
+	var phase: float = running.current_cycle_phase()
+	Settings.set_graphics_preset(&"high")
+	assert_eq(running.locked_phase(), -1.0, "a running cycle stays running")
+	assert_almost_eq(running.current_cycle_phase(), phase, 0.0001, "the phase is re-applied unchanged")
+
+
 # --- Fixture helpers ---------------------------------------------------------
 
 func _write_fixture_set(set_name: String, faces: PackedStringArray) -> void:
