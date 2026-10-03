@@ -1,7 +1,8 @@
 class_name BreezeTuning
 extends StormTuning
 ## Breeze's tunables (Bontago-470.2): an always-on, weak wind layered on top of
-## whatever weather is active. It is NOT a weather type (it lives at
+## whatever weather is active (but no new gusts spawn during a Storm, Bontago-mp0.91).
+## It is NOT a weather type (it lives at
 ## config/breeze.tres, not under config/weather/), so the schedule and the
 ## lobby never see it. It reuses Storm's rules (core/WindField.gd) through
 ## StormTuning: max_accel, threshold_height_m, cap_height_m, height_exponent,
