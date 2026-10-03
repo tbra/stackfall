@@ -72,6 +72,16 @@ func _controller() -> PlayerController:
 	return _main._hot_seat.controller()
 
 
+## Bontago-1pi.33: the match's first piece now starts raised clear of the home
+## beacon (PlayerController.set_home_position()). These tests exercise the
+## ordinary hover, so the player first wheels it back down to the floor -- the
+## same input that makes any raise their own -- which restores the geometry
+## they were written against.
+func _player_lowers_first_piece_to_the_floor() -> void:
+	_controller()._ghost.manual_hover_offset = 0.0
+	_controller()._absorb_clearance_raise()
+
+
 ## One engine frame: a physics tick and the controller's own _process.
 func _frame() -> void:
 	await wait_physics_frames(1)
@@ -119,6 +129,7 @@ func _drift(a: Transform3D, b: Transform3D) -> Array[float]:
 ## {ghost_rise, camera_rise, a_drift, a_rot, b_rot}.
 func _stack_drop_trace() -> Dictionary:
 	await _start_hosted_match()
+	_player_lowers_first_piece_to_the_floor()
 	var controller: PlayerController = _controller()
 	var ghost: GhostPreview = controller._ghost
 	var rig: CameraRig = _main._camera_rig
@@ -188,6 +199,7 @@ func test_next_piece_is_not_displaced_by_the_block_just_dropped_under_it() -> vo
 ## while it is still falling) and then lift the ghost clear of it.
 func test_a_raise_waits_for_the_dropped_block_to_settle_then_clears_it() -> void:
 	await _start_hosted_match()
+	_player_lowers_first_piece_to_the_floor()
 	var controller: PlayerController = _controller()
 	var ghost: GhostPreview = controller._ghost
 	var home: Vector3 = controller._cursor
@@ -214,3 +226,21 @@ func test_a_raise_waits_for_the_dropped_block_to_settle_then_clears_it() -> void
 	assert_lte(rise_while_unsettled, MAX_GHOST_RISE_M, "no raise while the dropped block is still moving")
 	assert_gt(ghost.manual_hover_offset, player_offset, "once it rests inside the next piece, the piece is raised")
 	assert_false(controller._ghost_overlaps_a_placed_block(), "and clears it")
+
+
+## Bontago-1pi.33 (owner playtest 2026-10-03: "Start the first block higher up,
+## it loads inside the home beacon currently"): through the real Main wiring
+## (Main -> HotSeat.bind_local_slot() -> set_home_position()), the first held
+## piece hangs above the home beacon's top by the tuned margin.
+func test_first_piece_in_the_real_match_starts_clear_of_the_home_beacon() -> void:
+	await _start_hosted_match()
+	for _i: int in range(5):
+		await _frame()
+	var controller: PlayerController = _controller()
+	assert_not_null(controller._ghost.get_shape(), "fixture: the first piece is held")
+	var beacon_top: float = Match.field().global_position.y + controller.beacon_visuals.beacon_top_height()
+	var lowest: float = controller._ghost.height_above_surface() + controller._last_hit_point.y
+	assert_gte(
+		lowest, beacon_top + controller.ghost_tuning.home_spawn_beacon_margin - 0.0001,
+		"the first held piece's lowest point (%.3f) must clear the home beacon top (%.3f) plus margin" % [lowest, beacon_top]
+	)

@@ -51,6 +51,9 @@ extends Node
 @export var ghost_tuning: GhostTuning = preload("res://config/ghost_tuning.tres")
 @export var camera_tuning: CameraTuning = preload("res://config/camera_tuning.tres")
 @export var net_config: NetConfig = preload("res://config/net_config.tres")
+## Bontago-1pi.33: the home beacon's own extents, read only to clear its top
+## with the match's first held piece (set_home_position()).
+@export var beacon_visuals: BeaconVisualTuning = preload("res://config/beacon_visual_tuning.tres")
 ## M4 P2d (spec 2.5 "Throw (specials only)"): throw_drag_min_distance_m/
 ## throw_drag_min_speed_mps gate a release between an ordinary place and a
 ## throw; throw_speed_per_meter/throw_max_speed turn the drag into a launch
@@ -187,6 +190,11 @@ var _clearance_raise: float = 0.0
 ## Part of the hover offset/_clearance_raise added by the release-time lift
 ## (_clear_ghost_before_release()); undone if the host refuses the release.
 var _release_raise: float = 0.0
+## Bontago-1pi.33: part of _ghost.manual_hover_offset that is the first piece's
+## raise above the home beacon (set_home_position()). Taken back off by the next
+## accepted placement's spawn (_take_back_clearance_raise()) or absorbed by the
+## player's own hover input, so only the very first piece ever carries it.
+var _home_spawn_raise: float = 0.0
 
 ## Bontago-mv0.18 (in-game tuning panel): ui/TuningPanel.gd sets this false
 ## while it is open, so dragging a slider or clicking Reset/Save/Copy can't
@@ -285,8 +293,39 @@ func set_home_position(home_position: Vector3) -> void:
 	_cursor = home_position
 	_last_safe_cursor = home_position
 	_collision_cursor_seeded = true
+	_seed_home_spawn_raise()
 	if _camera_rig != null:
 		_camera_rig.set_home_view(home_position)
+
+
+## Bontago-1pi.33 (owner playtest 2026-10-03, "Start the first block higher up,
+## it loads inside the home beacon currently"). The first held piece is seeded
+## on the home flag, but the ghost anchors at the bare disc surface plus
+## tuning.hover_height, and neither the placement ray nor the spawn-clearance
+## query sees the beacon (Field.PLACEMENT_QUERY_MASK; the clearance never runs
+## for the first piece), so the piece sat inside the beacon's socket and
+## crystal. Raises the hover offset so the shape's lowest point clears the
+## beacon top by GhostTuning.home_spawn_beacon_margin; a no-op if the hover
+## already clears it. The ghost is placed from this offset on its next
+## _update_ghost_transform(), and the host spawns a released block at the pose
+## the ghost sends, so no host-side rule changes.
+## DECISION: tracked apart from the player's own hover (_home_spawn_raise) so it
+## is dropped at the next spawn / when the player scrolls, and later pieces
+## hover exactly as before.
+func _seed_home_spawn_raise() -> void:
+	if _ghost == null:
+		return
+	_take_back_home_spawn_raise()
+	var clear_hover: float = beacon_visuals.beacon_top_height() + ghost_tuning.home_spawn_beacon_margin
+	var raise: float = maxf(clear_hover - tuning.hover_height - _ghost.manual_hover_offset, 0.0)
+	_ghost.manual_hover_offset += raise
+	_home_spawn_raise = raise
+
+
+func _take_back_home_spawn_raise() -> void:
+	if _ghost != null and _home_spawn_raise > 0.0:
+		_ghost.manual_hover_offset = maxf(_ghost.manual_hover_offset - _home_spawn_raise, 0.0)
+	_home_spawn_raise = 0.0
 
 
 ## Bontago-mv0.14: called once by HotSeat.gd/Sandbox.gd (never by a bare unit
@@ -1436,6 +1475,7 @@ func _take_back_clearance_raise() -> void:
 	if _ghost != null and _clearance_raise > 0.0:
 		_ghost.manual_hover_offset = maxf(_ghost.manual_hover_offset - _clearance_raise, 0.0)
 	_clearance_raise = 0.0
+	_take_back_home_spawn_raise()
 
 
 ## Whether the held shape would overlap a placed block with the given total
@@ -1474,6 +1514,7 @@ func _decay_clearance_raise(delta: float) -> void:
 ## The player took over the hover height: whatever raise is left is now theirs.
 func _absorb_clearance_raise() -> void:
 	_clearance_raise = 0.0
+	_home_spawn_raise = 0.0
 
 
 ## Bontago-mv0.33: a stationary (zero-motion) overlap query at the ghost's
