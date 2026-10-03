@@ -1113,7 +1113,7 @@ func test_seat_pref_is_refused_while_a_match_runs_and_resumes_in_the_lobby() -> 
 func test_seat_pref_flood_is_rate_limited_per_peer() -> void:
 	_host_with_peers({2: 1, 3: 2})
 	watch_signals(Events)
-	var burst: int = Net.SEAT_PREF_BURST
+	var burst: int = _host.config.seat_pref_burst
 	for i: int in range(burst):
 		assert_true(_host._handle_seat_pref(2, i % 8, -1, true, 50.0), "request %d is inside the burst" % i)
 	for i: int in range(20):
@@ -1121,8 +1121,8 @@ func test_seat_pref_flood_is_rate_limited_per_peer() -> void:
 	assert_eq(_seat_pref_count(), burst)
 	assert_true(_host._handle_seat_pref(3, 1, 1, true, 50.0), "another peer has its own bucket")
 	assert_false(_host._handle_seat_pref(2, 1, 1, true, 50.1), "a fraction of a second refills less than one request")
-	# One second later the bucket has refilled by SEAT_PREF_REFILL_PER_S requests.
-	var refilled: int = int(Net.SEAT_PREF_REFILL_PER_S)
+	# One second later the bucket has refilled by seat_pref_refill_per_s requests.
+	var refilled: int = int(_host.config.seat_pref_refill_per_s)
 	for i: int in range(refilled):
 		assert_true(_host._handle_seat_pref(2, 1, 1, true, 51.1), "refilled request %d" % i)
 	assert_false(_host._handle_seat_pref(2, 1, 1, true, 51.1), "and no more than that")
@@ -1135,10 +1135,40 @@ func test_seat_pref_flood_is_rate_limited_per_peer() -> void:
 func test_seat_pref_malformed_flood_drains_the_bucket_too() -> void:
 	_host_with_peers({2: 1})
 	watch_signals(Events)
-	for i: int in range(Net.SEAT_PREF_BURST):
+	for i: int in range(_host.config.seat_pref_burst):
 		assert_false(_host._handle_seat_pref(2, "x", 99, true, 10.0))
 	assert_false(_host._handle_seat_pref(2, 1, 1, true, 10.0), "garbage cannot be used to keep a free bucket")
 	assert_eq(_seat_pref_count(), 0)
+
+
+func test_seat_pref_flood_limit_follows_the_net_config_values() -> void:
+	var tuned: NetConfig = load("res://config/net_config.tres").duplicate() as NetConfig
+	assert_eq(tuned.seat_pref_burst, 6, "the shipped burst")
+	assert_eq(tuned.seat_pref_refill_per_s, 3.0, "the shipped refill")
+	tuned.seat_pref_burst = 2
+	tuned.seat_pref_refill_per_s = 1.0
+	_host.config = tuned
+	_host_with_peers({2: 1})
+	assert_true(_host._handle_seat_pref(2, 1, -1, true, 10.0))
+	assert_true(_host._handle_seat_pref(2, 2, -1, true, 10.0))
+	assert_false(_host._handle_seat_pref(2, 3, -1, true, 10.0), "a burst of 2 allows two requests")
+	assert_false(_host._handle_seat_pref(2, 3, -1, true, 10.5), "half a second at 1/s is not a whole token")
+	assert_true(_host._handle_seat_pref(2, 3, -1, true, 11.0), "one second at 1/s refills one request")
+	assert_false(_host._handle_seat_pref(2, 4, -1, true, 11.0))
+
+
+func test_net_config_sanitize_keeps_the_seat_pref_limiter_usable() -> void:
+	var tuned: NetConfig = NetConfig.new()
+	tuned.seat_pref_burst = 0
+	tuned.seat_pref_refill_per_s = -4.0
+	tuned.sanitize()
+	assert_eq(tuned.seat_pref_burst, 1, "a zero burst would lock every client out")
+	assert_gt(tuned.seat_pref_refill_per_s, 0.0, "a bucket that never refills would lock them out for good")
+	tuned.seat_pref_burst = 6
+	tuned.seat_pref_refill_per_s = 3.0
+	tuned.sanitize()
+	assert_eq(tuned.seat_pref_burst, 6)
+	assert_eq(tuned.seat_pref_refill_per_s, 3.0)
 
 
 func test_seat_pref_host_local_request_emits_under_the_local_peer_id_without_the_flood_limit() -> void:
@@ -1146,13 +1176,13 @@ func test_seat_pref_host_local_request_emits_under_the_local_peer_id_without_the
 	watch_signals(Events)
 	_host.request_seat_pref(2, 1)
 	assert_eq(get_signal_parameters(Events, "net_seat_pref_requested", 0), [Net.HOST_PEER_ID, 2, 1])
-	for i: int in range(Net.SEAT_PREF_BURST * 3):
+	for i: int in range(_host.config.seat_pref_burst * 3):
 		_host.request_seat_pref(i % 8, -1)
-	assert_eq(_seat_pref_count(), 1 + Net.SEAT_PREF_BURST * 3, "the host's own UI is not throttled")
+	assert_eq(_seat_pref_count(), 1 + _host.config.seat_pref_burst * 3, "the host's own UI is not throttled")
 	_host.request_seat_pref(99, -1)
 	_host.request_seat_pref(-1, 99)
 	_host.request_seat_pref()
-	assert_eq(_seat_pref_count(), 1 + Net.SEAT_PREF_BURST * 3, "out-of-range and empty requests are refused locally too")
+	assert_eq(_seat_pref_count(), 1 + _host.config.seat_pref_burst * 3, "out-of-range and empty requests are refused locally too")
 
 
 func test_seat_pref_offline_request_emits_under_the_local_peer_id() -> void:
@@ -1258,7 +1288,9 @@ func test_spectators_returning_to_the_lobby_take_the_lowest_free_slots() -> void
 	assert_eq(_host.slot_of_peer(7), 3)
 
 
-func test_a_joiner_takes_the_slot_a_departed_lobby_peer_left_behind() -> void:
+## A lobby leaver's seat is closed up (compaction), so the next joiner lands on top
+## of the table, not in a hole; the end-to-end version over real ENet is below.
+func test_a_joiner_takes_the_next_slot_after_a_departed_lobby_peer_was_compacted() -> void:
 	var port: int = _take_port()
 	_connect_host_and_client(port)
 	var second: Variant = _make_side("SecondNet")
@@ -1269,8 +1301,10 @@ func test_a_joiner_takes_the_slot_a_departed_lobby_peer_left_behind() -> void:
 	assert_true(seated, "first joiner holds slot 1, the second slot 2")
 
 	_client.leave()
-	var gone: bool = await _wait_until(func() -> bool: return _host.peer_ids().size() == 2)
-	assert_true(gone, "the host drops the first joiner")
+	var gone: bool = await _wait_until(func() -> bool:
+		return _host.peer_ids().size() == 2 and second.local_slot() == 1
+	)
+	assert_true(gone, "the host drops the first joiner and the second moves down to slot 1")
 
 	var third: Variant = _make_side("ThirdNet")
 	assert_eq(third.join_game("127.0.0.1", port, "Thirds"), OK)
@@ -1278,9 +1312,157 @@ func test_a_joiner_takes_the_slot_a_departed_lobby_peer_left_behind() -> void:
 		return _host.peer_ids().size() == 3 and third.local_slot() >= 0 and third.mode() == Net.Mode.CLIENT
 	)
 	assert_true(refilled, "the third client joins")
-	assert_eq(_host.slot_of_peer(third.local_peer_id()), 1, "it gets the hole, not slot 3")
-	assert_eq(_host.slot_of_peer(second.local_peer_id()), 2, "the second client keeps its slot")
+	assert_eq(_host.slot_of_peer(third.local_peer_id()), 2, "it takes the slot above the compacted table")
+	assert_eq(_host.slot_of_peer(second.local_peer_id()), 1, "the second client kept the slot it was compacted into")
 	third.leave()
+	second.leave()
+
+
+# --- Lobby slot compaction (P2 review finding 1) -----------------------------------
+
+## What the lobby would decide about Start for the roster's seated peers: the seats
+## it reconciles and the peer -> slot map it derives from the roster.
+func _lobby_start_blocker(host: Variant, ai_count: int = 0) -> String:
+	var seated: PackedInt32Array = PackedInt32Array()
+	var slot_of_peer: Dictionary = {}
+	for peer_id: int in host.peer_ids():
+		if host.slot_of_peer(peer_id) >= 0:
+			seated.append(peer_id)
+			slot_of_peer[peer_id] = host.slot_of_peer(peer_id)
+	var seats: Dictionary = LobbySeats.reconcile(LobbySeats.empty(), seated, ai_count, MatchConfig.AiDifficulty.NORMAL, 0)
+	return LobbySeats.start_blocker(seats, slot_of_peer, 0)
+
+
+func _slots_of(host: Variant, peers: Array[int]) -> Array[int]:
+	var slots: Array[int] = []
+	for peer_id: int in peers:
+		slots.append(host.slot_of_peer(peer_id))
+	return slots
+
+
+func test_a_lobby_leave_compacts_the_slots_and_start_is_not_blocked() -> void:
+	_host_with_peers({5: 1, 6: 2, 7: 3})
+	assert_eq(_lobby_start_blocker(_host), "", "a full table starts")
+	# What the old allocation left behind: the hole below the top human slot blocks
+	# Start even with no bots (LobbySeats.BLOCKER_SLOT_CONFLICT), until someone rejoined.
+	var seats: Dictionary = LobbySeats.reconcile(
+		LobbySeats.empty(), PackedInt32Array([1, 5, 7]), 0, MatchConfig.AiDifficulty.NORMAL, 0
+	)
+	assert_ne(LobbySeats.start_blocker(seats, {1: 0, 5: 1, 7: 3}, 0), "", "the uncompacted table is blocked")
+
+	_host._on_peer_disconnected(6)
+	assert_eq(_slots_of(_host, [Net.HOST_PEER_ID, 5, 7] as Array[int]), [0, 1, 2] as Array[int], "7 moved down into the hole")
+	assert_eq(_lobby_start_blocker(_host), "", "Start is no longer blocked after the leave")
+	assert_eq(_host.peer_of_slot(2), 7)
+	assert_eq(_host.peer_of_slot(3), -1, "nothing is left above the table")
+
+
+func test_a_lobby_leave_with_bots_does_not_collide_with_the_trailing_bot_slots() -> void:
+	_host_with_peers({5: 1, 6: 2})
+	_host._on_peer_disconnected(5)
+	assert_eq(_host.slot_of_peer(6), 1)
+	assert_eq(_lobby_start_blocker(_host, 2), "", "2 humans + 2 bots: humans 0 and 1, bots 2 and 3")
+
+
+func test_compaction_keeps_the_seat_order_and_is_deterministic() -> void:
+	# Peer ids deliberately not in slot order; holes at 2, 4 and 5.
+	_host_with_peers({9: 1, 8: 2, 4: 3, 7: 6, 3: 7})
+	_host._on_peer_disconnected(8)
+	assert_eq(_slots_of(_host, [Net.HOST_PEER_ID, 9, 4, 7, 3] as Array[int]), [0, 1, 2, 3, 4] as Array[int])
+	# A second leave compacts again from the already-compacted table.
+	_host._on_peer_disconnected(9)
+	assert_eq(_slots_of(_host, [Net.HOST_PEER_ID, 4, 7, 3] as Array[int]), [0, 1, 2, 3] as Array[int])
+	# Nothing to close up: nothing moves.
+	assert_eq(_host._compact_lobby_slots(), 0)
+
+
+func test_compaction_never_moves_the_host_or_a_spectator() -> void:
+	_host_with_peers({5: 1, 6: 2, 8: -1})
+	_host._on_peer_disconnected(5)
+	assert_eq(_host.slot_of_peer(Net.HOST_PEER_ID), 0)
+	assert_eq(_host.slot_of_peer(6), 1)
+	assert_eq(_host.slot_of_peer(8), -1, "a spectator holds no seat and keeps holding none")
+
+
+func test_a_lobby_leave_publishes_the_compacted_roster_and_reports_the_old_slot() -> void:
+	_host_with_peers({5: 1, 6: 2, 7: 3})
+	watch_signals(Events)
+	_host._on_peer_disconnected(6)
+	assert_eq(get_signal_emit_count(Events, "net_roster_changed"), 1, "one broadcast carries the whole change")
+	var roster: Array = get_signal_parameters(Events, "net_roster_changed", 0)[0]
+	var published: Dictionary = {}
+	for entry: Dictionary in roster:
+		published[int(entry["peer_id"])] = int(entry["slot_id"])
+	assert_eq(published, {Net.HOST_PEER_ID: 0, 5: 1, 7: 2}, "the roster already shows the compacted slots")
+	assert_eq(get_signal_parameters(Events, "net_peer_left", 0), [6, 2, Net.LeaveReason.TIMEOUT], "the leaver is reported at the slot it held")
+
+
+func test_a_mid_match_leave_does_not_compact_and_keeps_the_rejoin_reservation() -> void:
+	_host_with_peers({5: 1, 6: 2, 7: 3})
+	_host._tokens[6] = "tok6"
+	_host.set_match_in_progress(true)
+	watch_signals(Events)
+	_host._on_peer_disconnected(6)
+	assert_eq(_slots_of(_host, [5, 7] as Array[int]), [1, 3] as Array[int], "slot ids are PlayerSlot indices mid-match: nothing moves")
+	assert_eq(_host._reservations.get("tok6"), 2, "the leaver's seat is still reserved for its rejoin")
+	assert_eq(_host._compact_lobby_slots(), 0, "and a direct call mid-match is refused too")
+	assert_eq(get_signal_parameters(Events, "net_peer_left", 0), [6, 2, Net.LeaveReason.TIMEOUT])
+
+
+func test_the_hole_a_mid_match_leave_left_closes_when_the_lobby_returns() -> void:
+	_host_with_peers({5: 1, 6: 2, 7: 3})
+	_host.set_match_in_progress(true)
+	_host._on_peer_disconnected(6)
+	assert_eq(_host.slot_of_peer(7), 3, "the hole stays for the whole match")
+	watch_signals(Events)
+	_host.set_match_in_progress(false)
+	assert_eq(_slots_of(_host, [5, 7] as Array[int]), [1, 2] as Array[int], "back in the lobby the table closes up")
+	assert_eq(get_signal_emit_count(Events, "net_roster_changed"), 1, "and is published once")
+	assert_eq(_lobby_start_blocker(_host), "")
+	# Returning with nothing to change publishes nothing.
+	_host.set_match_in_progress(true)
+	_host.set_match_in_progress(false)
+	assert_eq(get_signal_emit_count(Events, "net_roster_changed"), 1)
+
+
+func test_a_lobby_kick_compacts_too() -> void:
+	_host_with_peers({5: 1, 6: 2, 7: 3})
+	# No transport behind the fake peers: kick_peer would otherwise ask ENet to
+	# disconnect (and broadcast to) ids it does not hold.
+	_host.multiplayer.multiplayer_peer.close()
+	_host.multiplayer.multiplayer_peer = null
+	watch_signals(Events)
+	_host.kick_peer(5)
+	assert_eq(_slots_of(_host, [6, 7] as Array[int]), [1, 2] as Array[int])
+	assert_eq(_lobby_start_blocker(_host), "")
+	assert_eq(get_signal_parameters(Events, "net_peer_left", 0), [5, 1, Net.LeaveReason.KICKED], "reported at the slot it held")
+	var roster: Array = get_signal_parameters(Events, "net_roster_changed", 0)[0]
+	var published: Dictionary = {}
+	for entry: Dictionary in roster:
+		published[int(entry["peer_id"])] = int(entry["slot_id"])
+	assert_eq(published, {Net.HOST_PEER_ID: 0, 6: 1, 7: 2}, "and the roster it publishes is already compacted")
+
+
+func test_a_lobby_leave_over_enet_moves_the_remaining_client_down_on_every_peer() -> void:
+	var port: int = _take_port()
+	_connect_host_and_client(port)
+	var second: Variant = _make_side("SecondNet")
+	assert_eq(second.join_game("127.0.0.1", port, "Seconds"), OK)
+	var seated: bool = await _wait_until(func() -> bool:
+		return _host.peer_ids().size() == 3 and second.local_slot() == 2 and second.peer_ids().size() == 3
+	)
+	assert_true(seated, "slots 1 and 2 are taken")
+	var second_id: int = second.local_peer_id()
+
+	_client.leave()
+	var agreed: bool = await _wait_until(func() -> bool:
+		return second.local_slot() == 1 and second.slot_of_peer(second_id) == 1 and _host.slot_of_peer(second_id) == 1
+	)
+	assert_true(agreed, "the host and the client agree on the compacted slot")
+	assert_eq(_host.peer_of_slot(1), second_id)
+	assert_eq(second.peer_of_slot(1), second_id, "the client's own roster mirror agrees")
+	assert_eq(second.peer_of_slot(2), -1)
+	assert_eq(_lobby_start_blocker(_host), "", "Start is not blocked on the host")
 	second.leave()
 
 

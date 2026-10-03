@@ -49,17 +49,6 @@ const STEAM_APP_ID_EXPECTED: int = 480
 const REJOIN_TOKEN_BYTES: int = 16
 const REJOIN_TOKEN_MAX_CHARS: int = 64
 
-## Bontago-1pi.53: per-peer flood limit on request_seat_pref (a token bucket: a
-## burst of SEAT_PREF_BURST requests, refilled at SEAT_PREF_REFILL_PER_S). Every
-## accepted request makes the lobby republish its data to everyone, so an
-## unthrottled client could turn one peer's input into 8x the traffic. Protocol
-## limits like REJOIN_TOKEN_MAX_CHARS, not gameplay tunables: a human cycling
-## colours/teams never gets near them. DECISION: kept here rather than in
-## NetConfig because this package does not own config/NetConfig.gd; moving them
-## there is a mechanical follow-up.
-const SEAT_PREF_BURST: int = 6
-const SEAT_PREF_REFILL_PER_S: float = 3.0
-
 @export var config: NetConfig = preload("res://config/net_config.tres")
 
 var _mode: Mode = Mode.OFFLINE
@@ -77,7 +66,8 @@ var _ping_samples: Dictionary = {}
 ## have sent its handshake, or it is dropped.
 var _pending_handshake: Dictionary = {}
 ## Host only (Bontago-1pi.53): peer_id -> {"tokens": float, "at": float}, the
-## request_seat_pref flood bucket of each peer that sent one. Dropped with the
+## request_seat_pref flood bucket of each peer that sent one (size and refill:
+## NetConfig.seat_pref_burst / seat_pref_refill_per_s). Dropped with the
 ## peer (_on_peer_disconnected) and with the session (_reset_rejoin_state).
 var _seat_pref_buckets: Dictionary = {}
 var _next_slot_id: int = 1
@@ -547,6 +537,7 @@ func kick_peer(peer_id: int, reason: LeaveReason = LeaveReason.KICKED) -> void:
 	if multiplayer.multiplayer_peer:
 		multiplayer.multiplayer_peer.disconnect_peer(peer_id)
 	Events.net_peer_left.emit(peer_id, slot_id, reason)
+	_compact_lobby_slots()
 	_broadcast_roster()
 
 
@@ -1306,6 +1297,9 @@ func _on_peer_disconnected(id: int) -> void:
 	_tokens.erase(id)
 	if _match_in_progress and slot_id >= 0 and token != "":
 		_reservations[token] = slot_id
+	# Bontago-1pi.53: in the lobby the seats close up behind the leaver, in the
+	# same roster broadcast (a no-op mid-match).
+	_compact_lobby_slots()
 	_broadcast_roster()
 	# DECISION: ENet's peer_disconnected carries no reason, and distinguishing
 	# a graceful client leave() from a dropped connection would need its own
@@ -1433,12 +1427,11 @@ func _reclaimable_slot_for(rejoin_token: String) -> int:
 ## The slot a lobby joiner (or a spectator returning to the lobby) is seated in.
 ##
 ## Bontago-1pi.53 (docs/LOBBY_REWORK_PLAN.md R4): the LOWEST free slot, not the next
-## monotonic id. Slots never compact, so after a peer leaves the lobby the old
-## allocation left a hole below the highest slot, and at Start the bot seats (the
-## trailing `ai_count` slots) could land on a human's slot. "Free" = no roster
-## entry holds it and no rejoin reservation names it. Mid-match the monotonic
-## counter still applies (a slot a dropped player may reclaim, or one the match
-## already built a PlayerSlot for, is never handed to someone else).
+## monotonic id, so a joiner never lands above a hole. (_compact_lobby_slots closes
+## the holes a leaver makes; this keeps the invariant for every seating path.)
+## "Free" = no roster entry holds it and no rejoin reservation names it. Mid-match
+## the monotonic counter still applies (a slot a dropped player may reclaim, or
+## one the match already built a PlayerSlot for, is never handed to someone else).
 func _take_next_lobby_slot() -> int:
 	if _match_in_progress:
 		var next_id: int = _next_slot_id
@@ -1455,6 +1448,39 @@ func _take_next_lobby_slot() -> int:
 	while taken.has(slot_id):
 		slot_id += 1
 	return slot_id
+
+
+## Host only. Lobby phase only: moves every seated peer down so the slot ids run
+## 0..n-1 with no hole, keeping their order (ascending old slot, peer id as the
+## tie-break, so every run agrees). Spectators (slot -1) hold no seat and are left
+## alone. Returns how many peers changed slot; the CALLER publishes the roster
+## (_broadcast_roster), which is what carries the new peer -> slot map to every
+## client (and to the host's own lobby through net_roster_changed).
+##
+## Bontago-1pi.53, P2 review finding 1: slot ids were never compacted, so after a
+## player left the lobby the table had a hole below the highest human slot, and
+## LobbySeats.start_blocker reported a slot conflict that blocked Start even with
+## zero bots until someone rejoined. Never during a match: there a slot id is a
+## PlayerSlot index the match already built, and a dropped player's rejoin token
+## reserves it, so a mid-match leave keeps its hole (see _handshake_mid_match).
+## The host never moves: it holds slot 0, the lowest, and local_slot() relies on it.
+func _compact_lobby_slots() -> int:
+	if _mode != Mode.HOST or _match_in_progress:
+		return 0
+	var seated: Array[Vector2i] = []
+	for peer_id: int in _peers.keys():
+		var held: int = int(_peers[peer_id].get("slot_id", -1))
+		if held >= 0:
+			seated.append(Vector2i(held, peer_id))
+	seated.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		return a.x < b.x if a.x != b.x else a.y < b.y
+	)
+	var moved: int = 0
+	for index: int in range(seated.size()):
+		if seated[index].x != index:
+			_peers[seated[index].y]["slot_id"] = index
+			moved += 1
+	return moved
 
 
 ## Seats `peer_id` in `slot_id` (-1 = spectator, Bontago-8or.11). `token` is a
@@ -1662,7 +1688,11 @@ func set_match_in_progress(active: bool) -> void:
 		if int(_peers[peer_id].get("slot_id", -1)) < 0:
 			_peers[peer_id]["slot_id"] = _take_next_lobby_slot()
 			reseated = true
-	if reseated:
+	# Bontago-1pi.53: a player who left for good during the match left a hole too
+	# (nothing compacts mid-match); close it now the lobby is back, so Start is not
+	# blocked on a seat nobody can fill.
+	var compacted: bool = _compact_lobby_slots() > 0
+	if reseated or compacted:
 		_broadcast_roster()
 
 
@@ -1860,12 +1890,12 @@ func _seat_pref_in_range(color_index: int, team_pick: int) -> bool:
 
 ## Spends one token of `peer_id`'s bucket (a new peer starts full). False = empty.
 func _seat_pref_take_token(peer_id: int, now: float) -> bool:
-	var burst: float = float(SEAT_PREF_BURST)
+	var burst: float = float(config.seat_pref_burst)
 	var tokens: float = burst
 	if _seat_pref_buckets.has(peer_id):
 		var bucket: Dictionary = _seat_pref_buckets[peer_id]
 		var elapsed: float = maxf(now - float(bucket["at"]), 0.0)
-		tokens = minf(burst, float(bucket["tokens"]) + elapsed * SEAT_PREF_REFILL_PER_S)
+		tokens = minf(burst, float(bucket["tokens"]) + elapsed * config.seat_pref_refill_per_s)
 	var allowed: bool = tokens >= 1.0
 	if allowed:
 		tokens -= 1.0
