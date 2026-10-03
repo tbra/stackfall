@@ -35,6 +35,47 @@ func test_cycle_option_round_trips_through_lobby_data() -> void:
 	assert_eq(option.selected, MatchConfig.SkyThemeMode.CYCLE)
 
 
+## Bontago-59o.18 (U1): DAY is the cycle locked at sunset, so it reads "Sunset";
+## the list keeps the enum index order (stored ints and the wire format are
+## unchanged) and Cycle is preselected through MatchConfig's new default.
+func test_sky_options_are_relabelled_and_cycle_is_the_default() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var option: OptionButton = lobby.get_node("%SkyThemeOption") as OptionButton
+	assert_eq(option.item_count, MatchConfig.SkyThemeMode.size())
+	assert_eq(option.get_item_text(MatchConfig.SkyThemeMode.DAY), "Sunset")
+	assert_eq(option.get_item_text(MatchConfig.SkyThemeMode.NIGHT), "Night")
+	assert_eq(option.get_item_text(MatchConfig.SkyThemeMode.RANDOM), "Random")
+	assert_eq(option.get_item_text(MatchConfig.SkyThemeMode.CYCLE), "Cycle")
+	assert_eq(option.get_item_text(MatchConfig.SkyThemeMode.DAWN), "Dawn")
+	assert_eq(option.selected, int(MatchConfig.SkyThemeMode.CYCLE), "a fresh lobby opens on Cycle")
+	assert_eq(lobby.default_config.sky_theme_mode, MatchConfig.SkyThemeMode.CYCLE)
+	lobby._on_option_changed(option.selected)
+	var published: MatchConfig = MatchConfig.from_dict(_fake_of(lobby).lobby_data_value)
+	assert_eq(published.sky_theme_mode, MatchConfig.SkyThemeMode.CYCLE, "the default is what the host publishes")
+
+
+func test_sky_option_tooltips_explain_locked_time_versus_running_cycle() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var option: OptionButton = lobby.get_node("%SkyThemeOption") as OptionButton
+	assert_true(option.tooltip_text.contains("fixed time"), "the dropdown says the non-cycle options hold one time")
+	assert_true(option.tooltip_text.contains("Cycle runs"))
+	for mode: int in [MatchConfig.SkyThemeMode.DAY, MatchConfig.SkyThemeMode.NIGHT, MatchConfig.SkyThemeMode.DAWN, MatchConfig.SkyThemeMode.RANDOM]:
+		assert_true(option.get_item_tooltip(mode).begins_with("Locked time"), "%s is a locked time" % option.get_item_text(mode))
+	assert_true(option.get_item_tooltip(MatchConfig.SkyThemeMode.CYCLE).begins_with("Running cycle"))
+
+
+func test_sunset_option_keeps_the_day_enum_value_through_lobby_data() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var option: OptionButton = lobby.get_node("%SkyThemeOption") as OptionButton
+	option.select(MatchConfig.SkyThemeMode.DAY)
+	lobby._on_option_changed(MatchConfig.SkyThemeMode.DAY)
+	var published: MatchConfig = MatchConfig.from_dict(_fake_of(lobby).lobby_data_value)
+	assert_eq(published.sky_theme_mode, MatchConfig.SkyThemeMode.DAY, "Sunset is still enum DAY (0)")
+	Events.net_lobby_data_changed.emit(published.to_dict())
+	assert_eq(option.selected, MatchConfig.SkyThemeMode.DAY)
+	assert_eq(option.get_item_text(option.selected), "Sunset")
+
+
 func test_dawn_option_round_trips_through_lobby_data() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var option: OptionButton = lobby.get_node("%SkyThemeOption") as OptionButton

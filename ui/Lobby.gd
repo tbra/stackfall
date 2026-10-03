@@ -242,6 +242,19 @@ const MODE_TIPS: PackedStringArray = [
 	"Build the tallest tower; the highest block wins when the round ends.",
 	"Control the biggest territory when the round timer ends; a timer is always on.",
 ]
+## Bontago-59o.18 (U1): the time-of-day dropdown. Index == MatchConfig.SkyThemeMode
+## (DAY, NIGHT, RANDOM, CYCLE, DAWN), so the stored ints and the wire format are
+## unchanged; DAY is relabelled "Sunset" because it is now the day/night cycle
+## locked at a sunset time, not a separate painted sky.
+const SKY_THEME_LABELS: PackedStringArray = ["Sunset", "Night", "Random", "Cycle", "Dawn"]
+const SKY_THEME_TIP: String = "Time of day for the match sky. Cycle runs through dawn, day, sunset and night; the other options hold the cycle at one fixed time."
+const SKY_THEME_ITEM_TIPS: PackedStringArray = [
+	"Locked time: the sky stays at sunset for the whole match.",
+	"Locked time: the sky stays at night for the whole match.",
+	"Locked time: the host picks sunset, night or dawn at random when the match starts.",
+	"Running cycle: the sky moves through dawn, day, sunset and night as the match goes on.",
+	"Locked time: the sky stays at dawn for the whole match.",
+]
 const TIMER_TIP_DOMINATION: String = "How long the round lasts; when it ends the largest territory share wins. Domination always has a timer."
 ## Bontago-1pi.30: the timer sliders' value text. DECISION: the leftmost stop of a
 ## slider whose mode may switch its timer off (Classic, Elimination) reads "Off"
@@ -378,7 +391,12 @@ func _populate_options() -> void:
 	# Labels come from the enum names, so a new weather type needs no edit here.
 	_fill_option(_weather_option, MatchWeather.mode_labels())
 	# Bontago-470.4: order must match MatchConfig.SkyThemeMode.
-	_fill_option(_sky_theme_option, ["Day", "Night", "Random", "Cycle", "Dawn"])
+	# Bontago-59o.18 (U1): the DAY entry is the cycle locked at sunset, so it
+	# reads "Sunset"; Cycle is the default through MatchConfig.sky_theme_mode.
+	_fill_option(_sky_theme_option, Array(SKY_THEME_LABELS))
+	_sky_theme_option.tooltip_text = SKY_THEME_TIP
+	for sky_index: int in range(SKY_THEME_ITEM_TIPS.size()):
+		_sky_theme_option.set_item_tooltip(sky_index, SKY_THEME_ITEM_TIPS[sky_index])
 	# Bontago-22y.11: order must match MatchConfig.GameMode. Reserved modes are
 	# listed but disabled, so neither the mouse nor the gamepad popup can pick
 	# one; MatchConfig.resolve_game_mode() also rejects them on the wire.
