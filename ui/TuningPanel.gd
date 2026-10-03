@@ -1117,7 +1117,7 @@ func _build_breeze_row() -> Control:
 	var host: bool = _has_full_access()
 	box.button_pressed = weather != null and weather.breeze_enabled()
 	box.disabled = not host or weather == null
-	box.tooltip_text = "Always-on weak local gusts (host only). Turn off to test a weather alone." if host else "Host only."
+	box.tooltip_text = "Always-on weak local gusts (host only; paused during storms). Turn off to test a weather alone." if host else "Host only."
 	box.toggled.connect(func(pressed: bool) -> void:
 		apply_breeze_enabled(pressed)
 	)

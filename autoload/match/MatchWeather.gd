@@ -80,7 +80,8 @@ var _phase_t: float = 0.0
 var _hold_total: float = 0.0
 var _intensity: float = 0.0
 var _effect: WeatherEffect = null
-## Bontago-470.2: the always-on gust layer, independent of the weather mode.
+## Bontago-470.2: the always-on gust layer; it spawns no gusts while a Storm is
+## active (Bontago-mp0.91).
 ## DECISION: it lives here because MatchWeather already owns the host check,
 ## the per-frame tick and the PLAYING/teardown lifecycle; it never touches the
 ## schedule or the epoch.

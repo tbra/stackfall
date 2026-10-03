@@ -18,8 +18,9 @@ extends RefCounted
 ## DECISION (BreezeEffect): forces are applied per tick with
 ## apply_central_force, exactly like StormEffect, so they SUM with a Storm's
 ## push in the physics step. Each is clamped on its own (per-tick dv and an
-## along-heading speed cap: Breeze's is small), so the worst case under Storm
-## is Storm's cap plus Breeze's small one; stopping the tick is a complete undo.
+## along-heading speed cap: Breeze's is small). Since Bontago-mp0.91 no new
+## gust spawns while a Storm is active, so the overlap is limited to a gust
+## already in flight at storm start; stopping the tick is a complete undo.
 ## DECISION (BreezeEffect): sleeping blocks are scanned on a rotating stride and
 ## woken only when the summed push reaches wake_accel, blocks that own their
 ## physics (Freeze, SpecialBehavior, GlueJoint) are skipped, as in Storm.
@@ -163,7 +164,8 @@ func _eligible(block: Block) -> bool:
 
 
 ## One seeded attempt. The random draws are always consumed in the same order so
-## the sequence depends only on the seed and the block list.
+## the sequence depends only on the seed and the block list (no draws are made
+## while a Storm suppresses spawning, Bontago-mp0.91).
 func _try_spawn() -> void:
 	var blocks: Array[Block] = _blocks()
 	var pick: float = _rng.randf()
