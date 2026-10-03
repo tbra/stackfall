@@ -59,6 +59,11 @@ var _field_radius: float = 1.0
 ## Live match state, refreshed by HUD.gd every territory_share_changed tick
 ## (see set_match_state()); read back only by the throttled rebuild below.
 var _raster: TerritoryRaster = null
+## Colour per TEAM id (territory, goal markers, capture arc): ui/HUD.gd passes
+## MatchConfig.territory_colors().
+var _team_colors: PackedColorArray = PackedColorArray()
+## Colour per SLOT id (home beacons only). Empty = the beacons use _team_colors
+## (the pre-lobby-rework behaviour, where team ids equal slot ids).
 var _slot_colors: PackedColorArray = PackedColorArray()
 var _home_positions: PackedVector2Array = PackedVector2Array()
 ## Host and client both expose disk-local gift positions through Match.gift_states().
@@ -185,15 +190,22 @@ func set_map_def(map_def: MapDef) -> void:
 ## references only (a TerritoryRaster is mutated in place by Match's own
 ## solve loop, the same live object every other territory reader -- e.g.
 ## game/TerritoryOverlay.gd -- re-reads each tick), so calling this often is
-## exactly as costly as calling it once. `slot_colors`, indexed by team id,
-## is `MatchConfig.player_colors` -- the identical array/convention
+## exactly as costly as calling it once. `team_colors`, indexed by team id,
+## is `MatchConfig.territory_colors()` -- the identical array/convention
 ## game/Main.gd already hands TerritoryOverlay.set_source() and
 ## game/Field.gd's own shader upload use, so the minimap and the disk itself
 ## can never disagree about which color a team is.
+##
+## Lobby rework (Bontago-1pi.53, review F3): team ids no longer equal slot ids
+## once the lobby resolved its teams, so the home beacons (one per SLOT) take
+## their own `slot_colors` (MatchConfig.player_colors, indexed by slot id).
+## Omitted/empty keeps the old single-array behaviour: beacons use `team_colors`.
 func set_match_state(
-	raster: TerritoryRaster, slot_colors: PackedColorArray, home_positions: PackedVector2Array
+	raster: TerritoryRaster, team_colors: PackedColorArray, home_positions: PackedVector2Array,
+	slot_colors: PackedColorArray = PackedColorArray()
 ) -> void:
 	_raster = raster
+	_team_colors = team_colors
 	_slot_colors = slot_colors
 	_home_positions = home_positions
 	_refresh_goal_controls()
@@ -337,7 +349,7 @@ func _image_inputs_changed() -> bool:
 		return _built_raster_hash != NO_BUILD_HASH
 	return (
 		_raster.ownership_hash() != _built_raster_hash
-		or _slot_colors != _built_colors
+		or _team_colors != _built_colors
 		or _built_size_px != tuning.minimap_size_px
 	)
 
@@ -361,7 +373,7 @@ func _world_to_px(world: Vector2, px_per_m: float) -> Vector2:
 ## backdrop (see _ready()) shows through.
 func _rebuild_image() -> void:
 	_built_raster_hash = _raster.ownership_hash() if _raster != null else NO_BUILD_HASH
-	_built_colors = _slot_colors
+	_built_colors = _team_colors
 	_image_right = _camera_right
 	_image_forward = _camera_forward
 	_built_size_px = tuning.minimap_size_px
@@ -386,8 +398,8 @@ func _rebuild_image() -> void:
 		_disk_raster = _raster
 		_disk_tex = ImageTexture.create_from_image(_raster.in_disk_image())
 	var colors: PackedVector4Array = PackedVector4Array()
-	for team: int in range(mini(_slot_colors.size(), MAX_SLOTS)):
-		var color: Color = _territory_color(_slot_colors[team])
+	for team: int in range(mini(_team_colors.size(), MAX_SLOTS)):
+		var color: Color = _territory_color(_team_colors[team])
 		colors.append(Vector4(color.r, color.g, color.b, color.a))
 	var slot_count: int = colors.size()
 	colors.resize(MAX_SLOTS)
@@ -442,8 +454,8 @@ func goal_marker_color(index: int) -> Color:
 	var control: int = _goal_controls[index] if index < _goal_controls.size() else GoalControl.NEUTRAL
 	if control == GoalControl.CONTESTED:
 		return tuning.minimap_goal_contested_color
-	if control >= 0 and control < _slot_colors.size():
-		return _slot_colors[control]
+	if control >= 0 and control < _team_colors.size():
+		return _team_colors[control]
 	return tuning.minimap_goal_neutral_color
 
 
@@ -476,8 +488,8 @@ func _draw_goals() -> void:
 		_canvas.draw_circle(point, radius, marker["color"])
 		if _capture_team >= 0 and _capture_progress > 0.0:
 			var color: Color = Color.WHITE
-			if _capture_team < _slot_colors.size():
-				color = _slot_colors[_capture_team]
+			if _capture_team < _team_colors.size():
+				color = _team_colors[_capture_team]
 			# Clockwise from "up", like a clock hand.
 			_canvas.draw_arc(point, radius + 3.0, -PI * 0.5, -PI * 0.5 + TAU * _capture_progress, 24,
 				color, tuning.minimap_goal_capture_width_px)
@@ -538,6 +550,13 @@ func _draw_disc_outline() -> void:
 	)
 
 
+## Home beacon colour of slot `slot_id`: its player colour when HUD passed the
+## per-slot array, else (older callers/tests) the team array read as before.
+func _beacon_color(slot_id: int) -> Color:
+	var colors: PackedColorArray = _slot_colors if not _slot_colors.is_empty() else _team_colors
+	return colors[slot_id] if slot_id >= 0 and slot_id < colors.size() else Color.WHITE
+
+
 ## Small team-colored diamond at each slot's home-flag position, echoing
 ## mockup 08's beacon glyphs (owner review 2026-09-26: diamonds, not circles).
 func _draw_beacons() -> void:
@@ -550,7 +569,7 @@ func _draw_beacons() -> void:
 	var half: float = tuning.minimap_beacon_radius_px
 	for i: int in range(_home_positions.size()):
 		var point: Vector2 = _world_to_px(_home_positions[i], px_per_m)
-		var color: Color = _slot_colors[i] if i < _slot_colors.size() else Color.WHITE
+		var color: Color = _beacon_color(i)
 		var diamond: PackedVector2Array = PackedVector2Array([
 			point + Vector2(0.0, -half),
 			point + Vector2(half, 0.0),
@@ -585,7 +604,7 @@ func debug_image() -> Image:
 				continue
 			var team: int = _raster.team_at(cell.x, cell.y)
 			var color: Color = tuning.minimap_backdrop_color
-			if team >= 0 and team < mini(_slot_colors.size(), MAX_SLOTS):
-				color = _territory_color(_slot_colors[team])
+			if team >= 0 and team < mini(_team_colors.size(), MAX_SLOTS):
+				color = _territory_color(_team_colors[team])
 			image.set_pixel(px, py, color)
 	return image
