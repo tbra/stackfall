@@ -4,3 +4,5 @@
 
 [resource]
 script = ExtResource("1_loading")
+min_display_s = 5.0
+ready_wait_max_s = 60.0

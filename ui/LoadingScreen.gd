@@ -1,6 +1,11 @@
 class_name LoadingScreen
 extends Control
 signal readiness_timed_out
+## Bontago-1pi.32: loading finished on this instance and the ready prompt may be
+## shown (ui_accept now sends the ready intent). The visual prompt is the L2
+## package's; see accepts_ready_input(), min_display_remaining_s() and the
+## Events.loading_ready_changed / loading_gate_opened signals.
+signal ready_prompt_opened
 ## Bontago-1pi.8 (owner playtest 2026-09-27: "When a game round starts it
 ## centers around the center goal beacon for a little while before actually
 ## starting, let's add a proper loading screen instead.").
@@ -54,6 +59,12 @@ var _pending_elapsed_s: float = 0.0
 var _loading_elapsed_s: float = 0.0
 var _timed_out: bool = false
 var _warm_viewport: SubViewport = null
+## Bontago-1pi.32: the ready gate is armed for this match (see
+## MatchLifecycle.arm_loading_ready_gate()), the ready input is live, and how
+## long this overlay has been up for the minimum display time.
+var _ready_gate_armed: bool = false
+var _ready_input_enabled: bool = false
+var _displayed_s: float = 0.0
 
 const WARM_SHADERS: Array[String] = [
 	"res://shaders/block_cell_grid.gdshader",
@@ -82,11 +93,20 @@ func show_for_match(config: MatchConfig, slots: Array[PlayerSlot]) -> void:
 	_is_pending = false
 	_loading_elapsed_s = 0.0
 	_timed_out = false
+	_displayed_s = 0.0
+	_ready_input_enabled = false
 	_fade_token += 1
 	if _fade_tween != null and _fade_tween.is_valid():
 		_fade_tween.kill()
 	_fade_tween = null
 	_is_fading = false
+	# Bontago-1pi.32: only the LOADING-state call arms (show_pending() runs in the
+	# lobby state and is a no-op here), and never headless.
+	# DECISION: reaches Match._lifecycle directly (like net/MatchNet.gd's own
+	# _authority()._lifecycle) because autoload/Match.gd is not in this package's
+	# files; a Match.arm_loading_ready_gate()/loading_gate_blocking() forward is a
+	# trivial follow-up.
+	_ready_gate_armed = Match._lifecycle.arm_loading_ready_gate()
 	_map_label.text = _map_display_name(config)
 	_info_label.text = _player_list_text(slots)
 	_spin_index = 0
@@ -159,7 +179,53 @@ func is_pending() -> bool:
 	return _is_pending
 
 
+## Bontago-1pi.32 (ready gate, L1 API for the L2 prompt). True from the moment
+## loading finished on this instance until the overlay is fading: ui_accept is
+## then a ready press. The press goes through press_ready() / Net.
+func accepts_ready_input() -> bool:
+	return _ready_input_enabled
+
+
+func ready_gate_armed() -> bool:
+	return _ready_gate_armed
+
+
+## Local clock of the minimum display time (0.0 when no gate is armed or it has
+## elapsed). The host's authoritative clock is MatchLifecycle's.
+func min_display_remaining_s() -> float:
+	if not _ready_gate_armed:
+		return 0.0
+	return maxf(tuning.min_display_s - _displayed_s, 0.0)
+
+
+## True once the host reports this instance's peer as ready.
+func local_ready() -> bool:
+	return Match._lifecycle.loading_ready_peers().has(Net.local_peer_id())
+
+
+## Sends the ready intent (host-validated, idempotent). A no-op until loading has
+## finished here, so nobody can ready before their own world is built.
+func press_ready() -> bool:
+	if not _ready_input_enabled:
+		return false
+	Net.request_loading_ready()
+	return true
+
+
+## ui_accept (Enter/Space/gamepad A through the Input Map) is the ready button.
+## _input, not _unhandled_input: a lobby control still focused behind the overlay
+## must not eat the press.
+func _input(event: InputEvent) -> void:
+	if not _ready_input_enabled or not visible:
+		return
+	if event.is_action_pressed(&"ui_accept"):
+		press_ready()
+		get_viewport().set_input_as_handled()
+
+
 func _process(delta: float) -> void:
+	if not _is_pending:
+		_displayed_s += delta
 	if _is_pending:
 		_pending_elapsed_s += delta
 		if _pending_elapsed_s >= tuning.pending_timeout_s:
@@ -201,6 +267,9 @@ func fade_out() -> void:
 		return
 	_is_fading = true
 	var token: int = _fade_token
+	await _wait_for_ready_gate(token)
+	if token != _fade_token:
+		return
 	for _i: int in range(tuning.warmup_frames):
 		await get_tree().process_frame
 		if token != _fade_token:
@@ -218,6 +287,27 @@ func fade_out() -> void:
 		_warm_viewport = null
 
 
+## Bontago-1pi.32: loading is done here; hold the overlay (and accept ready
+## presses) until the host's gate opens and the minimum display time has elapsed
+## locally. The wait is capped by tuning.ready_wait_max_s so a lost message can
+## never freeze a client; the host's own cap lives in MatchLifecycle. Returns
+## immediately when no gate is armed (headless, sandbox).
+func _wait_for_ready_gate(token: int) -> void:
+	if not _ready_gate_armed:
+		return
+	_ready_input_enabled = true
+	ready_prompt_opened.emit()
+	var waited_s: float = 0.0
+	while Match._lifecycle.loading_gate_blocking() or _displayed_s < tuning.min_display_s:
+		if waited_s >= tuning.ready_wait_max_s:
+			break
+		await get_tree().process_frame
+		if token != _fade_token:
+			return
+		waited_s += get_process_delta_time()
+	_ready_input_enabled = false
+
+
 ## Safety net for a match aborted mid-load (game/Main.gd's `to_state ==
 ## Match.State.LOBBY` branch): hides instantly, no fade, and invalidates
 ## whatever fade_out() coroutine might already be mid-flight so it cannot
@@ -225,6 +315,8 @@ func fade_out() -> void:
 ## it (see _fade_token's own doc).
 func cancel() -> void:
 	_is_pending = false
+	_ready_input_enabled = false
+	_ready_gate_armed = false
 	_fade_token += 1
 	if _fade_tween != null and _fade_tween.is_valid():
 		_fade_tween.kill()

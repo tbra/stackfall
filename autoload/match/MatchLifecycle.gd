@@ -8,6 +8,8 @@ extends RefCounted
 
 ## Bontago-1pi.18.1: the shared (F4-editable) QoL experiment toggles.
 const QOL_EXPERIMENTS: QolExperiments = preload("res://config/qol_experiments.tres")
+## Bontago-1pi.32: min display time and ready-wait cap of the loading-screen gate.
+const LOADING_TUNING: LoadingScreenTuning = preload("res://config/loading_screen_tuning.tres")
 
 var _match: MatchAutoload = null
 
@@ -18,6 +20,37 @@ var _countdown_last_whole: int = 0
 ## holds it from LOADING until the fullscreen loading screen is done, so the
 ## 3-2-1 is actually seen. Cleared by every match reset.
 var _countdown_held: bool = false
+
+## -- Loading-screen ready gate (Bontago-1pi.32) ---------------------------------
+## Owner playtest 2026-10-03: the loading screen is shown at least
+## min_display_s and every human presses ready (ui_accept / gamepad A) before the
+## countdown runs. The rule is core/LoadingReadyGate.gd; this file owns the
+## per-match state and the host's hooks. Net (autoload/Net.gd) is the transport:
+## it validates the sender and hands the intent over on the Events bus.
+##
+## DECISION: the gate is *armed* by ui/LoadingScreen.gd when it shows for a
+## match (arm_loading_ready_gate()), and only when a window exists (not
+## headless) -- the same condition game/Main.gd uses to hold the countdown for
+## the loading screen. Sandbox never raises the overlay so it is never gated;
+## the tutorial, hot-seat, vs-bots and online matches all are. Headless tests
+## and bot harnesses drive Match by hand and see no gate (set_loading_gate_
+## forced() is the test/harness seam that arms it anyway). An unarmed gate
+## opens immediately, so a client of a headless host is never left waiting.
+var _loading_tuning: LoadingScreenTuning = LOADING_TUNING
+var _ready_gate: LoadingReadyGate = LoadingReadyGate.new()
+var _gate_armed: bool = false
+var _gate_forced: bool = false
+## Client mirror of the host's gate (loading_ready_changed / loading_gate_opened).
+var _gate_open_mirror: bool = false
+var _ready_mirror: PackedInt32Array = PackedInt32Array()
+var _required_mirror: PackedInt32Array = PackedInt32Array()
+## Host: the sets last published, so only a real change goes out.
+var _published_ready: PackedInt32Array = PackedInt32Array()
+var _published_required: PackedInt32Array = PackedInt32Array()
+var _published_any: bool = false
+## Test-only: ready intents refused since the match started (wrong phase, a peer
+## that is not required). Repeats of an accepted intent are not counted.
+var loading_ready_refused: int = 0
 
 var _slots: Array[PlayerSlot] = []
 var _active_slot: int = -1
@@ -89,6 +122,13 @@ var _turn_settle_wait_left: float = -1.0
 
 func setup(match_ref: MatchAutoload) -> void:
 	_match = match_ref
+	# Bontago-1pi.32: Net hands over validated intents and the host's mirror on the
+	# bus (it never names Match); a roster change re-evaluates the required set.
+	Events.net_loading_ready_received.connect(_on_loading_ready_intent)
+	Events.loading_ready_changed.connect(_on_loading_ready_changed)
+	Events.loading_gate_opened.connect(_on_loading_gate_opened)
+	Events.net_peer_left.connect(_on_loading_roster_changed)
+	Events.net_peer_joined.connect(_on_loading_roster_changed)
 
 
 # --- Lifecycle --------------------------------------------------------------
@@ -186,12 +226,20 @@ func start_match(match_config: MatchConfig) -> void:
 		_match._registry.reset()
 
 	_set_state(MatchAutoload.State.LOADING)
+	# Bontago-1pi.32: the real arm happens in ui/LoadingScreen.gd's LOADING handler
+	# above; the test/harness seam arms here for runs with no overlay.
+	if _gate_forced:
+		arm_loading_ready_gate()
 
 	_set_state(MatchAutoload.State.COUNTDOWN)
 	_countdown_remaining = _match.config.effective_countdown_seconds()
 	_countdown_last_whole = int(ceil(_countdown_remaining))
 	Events.countdown_tick.emit(_countdown_last_whole)
 	_starting = false
+	# Bontago-1pi.32: after net_match_start went out (it is queued by the
+	# LOADING -> COUNTDOWN emit above), so a client's reliable channel delivers
+	# the gate state to a match it has already built.
+	_publish_loading_gate_start()
 
 
 ## Back to Lobby from anywhere, clearing the field. Emits (old -> LOBBY) even
@@ -225,6 +273,7 @@ func _reset_match_state() -> void:
 	_countdown_remaining = 0.0
 	_countdown_last_whole = 0
 	_countdown_held = false
+	_reset_loading_gate()
 	_match_timer_left = 0.0
 	_sudden_death_elapsed = 0.0
 	_last_shrink_radius = INF
@@ -318,11 +367,17 @@ func set_countdown_held(held: bool) -> void:
 	_countdown_held = held
 
 
+## True while the countdown cannot run down: Main's loading-screen hold, or the
+## ready gate still waiting for the minimum display time / the players. Match's
+## _process() keeps solving territory while this is true (the loading screen's
+## readiness needs the first applied result).
 func is_countdown_held() -> bool:
-	return _countdown_held
+	return _countdown_held or loading_gate_blocking()
 
 
 func _tick_countdown(delta: float) -> void:
+	if _tick_loading_gate(delta):
+		return
 	if _countdown_held:
 		return
 	_countdown_remaining = maxf(_countdown_remaining - delta, 0.0)
@@ -360,6 +415,184 @@ func _begin_playing() -> void:
 	# contested time accrues and no hole can open on the seeding step.
 	if _match._territory._raster != null and _match._territory._solver != null:
 		_match._territory._run_territory_step(0.0)
+
+
+# --- Loading-screen ready gate (Bontago-1pi.32) -----------------------------
+
+## Test/harness seam: arm the gate at every start_match() even headless. Production
+## code never calls it; ui/LoadingScreen.gd arms through arm_loading_ready_gate().
+func set_loading_gate_forced(forced: bool) -> void:
+	_gate_forced = forced
+
+
+## Called by ui/LoadingScreen.gd while it shows for a match (LOADING). Starts the
+## host's min-display/ready clock; a client just starts waiting for the host's
+## open message. Returns whether the gate is armed. See the DECISION above.
+func arm_loading_ready_gate() -> bool:
+	if _gate_armed:
+		return true
+	if _state != MatchAutoload.State.LOADING:
+		return false
+	if not _gate_forced and DisplayServer.get_name() == "headless":
+		return false
+	if not _gate_armed:
+		_gate_armed = true
+		_gate_open_mirror = false
+		_ready_gate.begin(_loading_tuning.min_display_s, _loading_tuning.ready_wait_max_s)
+	return true
+
+
+func is_loading_gate_armed() -> bool:
+	return _gate_armed
+
+
+## True while an armed gate has not opened yet -- on the host from its own rule,
+## on a client from the host's open message. A client also stops waiting once the
+## host's match has moved past the countdown (a missed message, a late join).
+func loading_gate_blocking() -> bool:
+	if not _gate_armed:
+		return false
+	if _state != MatchAutoload.State.LOADING and _state != MatchAutoload.State.COUNTDOWN:
+		return false
+	return not (_ready_gate.is_open() if _match._is_host() else _gate_open_mirror)
+
+
+## The peers the host waits for: connected peers holding a human slot (bots are
+## auto-ready and never listed); offline/hot-seat the single local peer id, which
+## stands for every local human. A client returns the host's last mirror.
+func loading_required_peers() -> PackedInt32Array:
+	if not _match._is_host():
+		return _required_mirror
+	var session: Variant = _loading_session()
+	var result: PackedInt32Array = PackedInt32Array()
+	if bool(session.is_offline()):
+		for slot_item: PlayerSlot in _slots:
+			if not slot_item.is_bot:
+				result.append(int(session.local_peer_id()))
+				break
+		return result
+	for peer_id: int in session.peer_ids():
+		var slot_id: int = int(session.slot_of_peer(peer_id))
+		if slot_id >= 0 and slot_id < _slots.size() and not _slots[slot_id].is_bot:
+			result.append(peer_id)
+	return result
+
+
+## Required peers that already pressed ready (a client: the host's mirror).
+func loading_ready_peers() -> PackedInt32Array:
+	if not _match._is_host():
+		return _ready_mirror
+	return _ready_gate.ready_ids(loading_required_peers())
+
+
+## Ready state of one slot for a player list: a bot is always ready; a human is
+## ready once the peer holding it is.
+func loading_slot_ready(slot_id: int) -> bool:
+	var target: PlayerSlot = slot(slot_id)
+	if target == null:
+		return false
+	if target.is_bot:
+		return true
+	var session: Variant = _loading_session()
+	var peer_id: int = int(session.local_peer_id()) if bool(session.is_offline()) else int(session.peer_of_slot(slot_id))
+	return peer_id >= 0 and loading_ready_peers().has(peer_id)
+
+
+## Seconds left of the host's minimum display time (0.0 on a client, which has no
+## gate clock; ui/LoadingScreen.gd's min_display_remaining_s() is the local one).
+func loading_min_display_remaining_s() -> float:
+	if not _gate_armed or not _match._is_host():
+		return 0.0
+	return _ready_gate.min_display_remaining_s()
+
+
+func _loading_session() -> Variant:
+	return _match._net_provider if _match._net_provider != null else Net
+
+
+func _reset_loading_gate() -> void:
+	_gate_armed = false
+	_gate_open_mirror = false
+	_ready_mirror = PackedInt32Array()
+	_required_mirror = PackedInt32Array()
+	_published_ready = PackedInt32Array()
+	_published_required = PackedInt32Array()
+	_published_any = false
+	loading_ready_refused = 0
+	_ready_gate.begin(0.0, 0.0)
+
+
+## Host. Net already checked the sender is a seated peer; this checks the phase
+## (an armed gate that has not opened), that the peer is one the gate waits for
+## (a human slot's owner, not a spectator or a bot's seat) and ignores repeats.
+func _on_loading_ready_intent(peer_id: int) -> void:
+	if not _match._is_host():
+		return
+	if not loading_gate_blocking():
+		loading_ready_refused += 1
+		return
+	if _ready_gate.is_ready(peer_id):
+		return
+	if not _ready_gate.mark_ready(peer_id, loading_required_peers()):
+		loading_ready_refused += 1
+		return
+	_publish_loading_ready()
+
+
+## Client: mirrors the host's sets. The host's own emit is ignored (it is the source).
+func _on_loading_ready_changed(ready_ids: PackedInt32Array, required_ids: PackedInt32Array) -> void:
+	if _match._is_host():
+		return
+	_ready_mirror = ready_ids
+	_required_mirror = required_ids
+
+
+func _on_loading_gate_opened() -> void:
+	if _match._is_host():
+		return
+	_gate_open_mirror = true
+
+
+## A peer joined or left: re-evaluate the required set (a leaver drops out at
+## once; a joiner is waited for) and let the clients know.
+func _on_loading_roster_changed(_peer_id: int, _slot_id: int, _extra: Variant) -> void:
+	if _match._is_host() and loading_gate_blocking():
+		_publish_loading_ready()
+
+
+## Host. Ticks the gate from the countdown tick; true while it still blocks.
+func _tick_loading_gate(delta: float) -> bool:
+	if not _gate_armed or not _match._is_host() or _ready_gate.is_open():
+		return false
+	var required: PackedInt32Array = loading_required_peers()
+	if _ready_gate.tick(delta, required):
+		_publish_loading_ready()
+		Events.loading_gate_opened.emit()
+		return false
+	_publish_loading_ready()
+	return true
+
+
+## Host. Publishes the current sets when they changed (the Net transport mirrors
+## the signal to clients).
+func _publish_loading_ready(force: bool = false) -> void:
+	var required: PackedInt32Array = loading_required_peers()
+	var ready_ids: PackedInt32Array = _ready_gate.ready_ids(required)
+	if not force and _published_any and ready_ids == _published_ready and required == _published_required:
+		return
+	_published_any = true
+	_published_ready = ready_ids
+	_published_required = required
+	Events.loading_ready_changed.emit(ready_ids, required)
+
+
+func _publish_loading_gate_start() -> void:
+	if not _match._is_host():
+		return
+	if _gate_armed:
+		_publish_loading_ready(true)
+	else:
+		Events.loading_gate_opened.emit()
 
 
 # --- Match timer + sudden death (spec 2.8, M6 A3) ---------------------------

@@ -38,6 +38,27 @@ signal match_state_changed(from_state: int, to_state: int)
 ## game/Main.gd can raise the loading overlay before the match world builds.
 signal match_loading_announced
 
+## Bontago-1pi.32: loading-screen ready gate (core/LoadingReadyGate.gd, owned per
+## match by autoload/match/MatchLifecycle.gd). `ready_peer_ids` are the required
+## peers that pressed ready, `required_peer_ids` every peer the host waits for
+## (peers holding a human slot; bots never appear, they are auto-ready; offline
+## and hot-seat the single local peer id Net.HOST_PEER_ID stands for every local
+## human). Emitted on the host whenever either set changes and once at match
+## start, and on a client when the host's mirror (Net._rpc_loading_ready_state)
+## arrives. Presentation reads this; it never decides anything.
+signal loading_ready_changed(ready_peer_ids: PackedInt32Array, required_peer_ids: PackedInt32Array)
+
+## Bontago-1pi.32: the host's gate opened (min display elapsed AND everyone ready,
+## or the safety cap) -- the countdown may now run. Host: emitted by the
+## lifecycle; client: re-emitted when Net._rpc_loading_gate_open arrives. Always
+## fires once per match, also when no gate was armed (headless/sandbox).
+signal loading_gate_opened
+
+## Bontago-1pi.32: Net validated that a seated peer pressed ready (host side
+## only; offline/host-local presses come through Net.request_loading_ready()).
+## MatchLifecycle owns the remaining checks (phase, required set, idempotence).
+signal net_loading_ready_received(peer_id: int)
+
 ## One second of the 3 s pre-match countdown elapsed; 0 means "go".
 signal countdown_tick(seconds_left: int)
 

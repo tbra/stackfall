@@ -42,6 +42,18 @@ extends Resource
 ## Presented frames after the first result, while the new world renders covered.
 @export var stable_frames: int = 4
 
+## Bontago-1pi.32 (owner playtest 2026-10-03): the loading screen is shown for at
+## least this long, even when the world is built sooner. Enforced by the host's
+## ready gate (core/LoadingReadyGate.gd), measured from LOADING, and locally by
+## ui/LoadingScreen.gd's fade-out so every instance displays it that long.
+@export var min_display_s: float = 5.0
+
+## Bontago-1pi.32 safety cap on the wait for every human player to press ready.
+## Measured from LOADING (asset loading still has its own ready_timeout_s above);
+## once it passes the host starts the countdown anyway. # DECISION: an AFK or
+## frozen player must not block everyone forever.
+@export var ready_wait_max_s: float = 60.0
+
 ## Draw order of the overlay; above the lobby/menu controls that are still
 ## children of Main until the match world clears them.
 @export var overlay_z_index: int = 100
