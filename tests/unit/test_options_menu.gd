@@ -487,6 +487,46 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 		assert_ne(button.focus_neighbor_bottom, NodePath(""), "%s's rebind button must have a down neighbor" % row.action_name())
 
 
+## Bontago-1pi.41: Lock height has no gamepad function, so its row is hidden on
+## the gamepad page (ui/KeyRebindRow.gd PAD_NOT_APPLICABLE); the focus chain
+## must skip it there and pick it up again on keyboard/mouse.
+func test_focus_chain_skips_rows_hidden_on_the_gamepad_page() -> void:
+	var menu: OptionsMenu = _make_menu()
+	var lock_button: Control = null
+	for row: KeyRebindRow in menu.rebind_rows():
+		if row.action_name() == &"lock_vertical":
+			lock_button = row.rebind_button()
+	assert_not_null(lock_button, "lock_vertical must have a row")
+	var preset: Control = menu.get_node("%PresetOption") as Control
+	var chain_before: Array[Control] = _chain_from(preset)
+	assert_true(chain_before.has(lock_button), "keyboard/mouse chain includes Lock height")
+
+	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+	assert_false(lock_button.visible, "Lock height row is hidden on the gamepad page")
+	var chain_pad: Array[Control] = _chain_from(preset)
+	assert_false(chain_pad.has(lock_button), "no focus-chain stop may point at the hidden row")
+	assert_eq(chain_pad.size(), chain_before.size() - 1, "only the hidden row drops out of the chain")
+
+	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
+	assert_true(lock_button.visible)
+	assert_true(_chain_from(preset).has(lock_button), "chain restored on keyboard/mouse")
+
+
+## Walks focus_neighbor_bottom from `start` until the loop closes; the visited
+## controls are the chain's stops.
+func _chain_from(start: Control) -> Array[Control]:
+	var stops: Array[Control] = []
+	var current: Control = start
+	for _i: int in range(512):
+		if stops.has(current):
+			break
+		stops.append(current)
+		if current.focus_neighbor_bottom == NodePath(""):
+			break
+		current = current.get_node(current.focus_neighbor_bottom) as Control
+	return stops
+
+
 # --- OptionsMenu: back button / ui_cancel ------------------------------------------
 
 func test_back_button_emits_closed() -> void:

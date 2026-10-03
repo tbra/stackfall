@@ -69,10 +69,12 @@ const PRESET_LABELS: Array[String] = ["Low", "Medium", "High"]
 ## binding changes); the gamepad bindings themselves are untouched.
 ##
 ## Same reasoning excludes rotate_snap: tools/bootstrap_project.gd's own
-## comment on that action already documents it as gamepad-RB-only *because*
-## rotate_yaw_cw (KEY_S / RB) gives a K+M player the identical single-tap
+## comment on that action already documents it as gamepad-only (B) *because*
+## rotate_yaw_cw (KEY_S) gives a K+M player the identical single-tap
 ## 90-degree yaw already -- a real, listed row -- so rotate_snap's own row
-## would be a second, K+M-unmappable control for the same function.
+## would be a second, K+M-unmappable control for the same function. The
+## gamepad page's "Rotate right" row shows rotate_snap's B instead
+## (ui/KeyRebindRow.gd PAD_STAND_INS, Bontago-1pi.41).
 const REBINDABLE_ACTIONS: Array[StringName] = [
 	&"ghost_place",
 	&"rotate_yaw_ccw", &"rotate_yaw_cw", &"rotate_pitch_fwd", &"rotate_pitch_back",
@@ -313,6 +315,9 @@ func _refresh_device_dependent_ui() -> void:
 	_footer_hint_label.text = FOOTER_HINT_GAMEPAD if gamepad else FOOTER_HINT_KEYBOARD_MOUSE
 	_controls_device_label.text = CONTROLS_LABEL_GAMEPAD if gamepad else CONTROLS_LABEL_KEYBOARD_MOUSE
 	_refresh_move_speed_row()
+	# Bontago-1pi.41: which rows exist on the page depends on the device (rows
+	# with no gamepad function hide), so the focus chain follows it.
+	_wire_focus_chain()
 
 
 ## Owner correction (options package, mid-review): one device-aware row on
@@ -649,7 +654,10 @@ func _wire_focus_chain() -> void:
 		_move_speed_slider,
 	]
 	for row: KeyRebindRow in _rows:
-		chain.append(row.rebind_button())
+		# Bontago-1pi.41: a row hidden on the gamepad page (no pad function,
+		# KeyRebindRow.PAD_NOT_APPLICABLE) must not be a focus-chain stop.
+		if row.is_available_on_active_device():
+			chain.append(row.rebind_button())
 	chain.append(_reset_button)
 	chain.append(_back_button)
 

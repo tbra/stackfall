@@ -229,6 +229,11 @@ func _actions() -> Dictionary:
 	# Yaw keeps the original game's A/S (spec 1.5, ORIGINAL). Bontago-mv0.14:
 	# the wheel used to double as yaw too; it is now block height only (see
 	# hover_raise/hover_lower below), so it comes off every other action.
+	# DECISION: keyboard-only (DEVICE_EXCEPTIONS). On the pad B (rotate_snap) is
+	# the clockwise 90 degree tap and RT + left stick (rotate_drag_pad) free-rotates
+	# both ways; there is no free button for a counter-clockwise tap. The Options
+	# gamepad page shows those stand-ins (ui/KeyRebindRow.gd PAD_STAND_INS,
+	# Bontago-1pi.41).
 	a["rotate_yaw_ccw"] = [_key(KEY_A)]
 	a["rotate_yaw_cw"] = [_key(KEY_S)]
 
@@ -289,11 +294,11 @@ func _actions() -> Dictionary:
 	# alone now (see rotate_snap's fix above): a bare press with no drag does
 	# nothing here (free_quaternion only changes with actual mouse motion),
 	# so it no longer also fires rotate_snap's old single tap.
-	# DECISION: no gamepad binding. rotate_yaw_cw (RB) already gives a 90
-	# degree yaw tap on gamepad, and the right stick is already the gamepad's
-	# own always-on orbit (see camera_orbit below), so there is no spare
-	# gamepad gesture to spend on a drag-rotate -- a documented "pad"
-	# DEVICE_EXCEPTION (tests/unit/test_project_setup.gd).
+	# DECISION: no gamepad binding on this action itself. The gamepad's own
+	# drag-rotate is rotate_snap (B tap) + rotate_drag_pad (RT + left stick,
+	# above) -- a documented "pad" DEVICE_EXCEPTION
+	# (tests/unit/test_project_setup.gd); the Options gamepad page shows those
+	# two controls on this row (ui/KeyRebindRow.gd PAD_STAND_INS, Bontago-1pi.41).
 	a["rotate_drag"] = [_mouse(MOUSE_BUTTON_MIDDLE)]
 
 	# Bontago-mv0.14 (original tutorial: "the mouse wheel raises and lowers
@@ -325,8 +330,9 @@ func _actions() -> Dictionary:
 	# held, mouse XZ motion is ignored so only the wheel changes height
 	# (PlayerController._unhandled_input). DECISION: no gamepad binding
 	# (DEVICE_EXCEPTIONS) -- the gamepad already keeps ghost movement (left
-	# stick) and height (RS click/X) on separate physical inputs, so there is
-	# nothing to lock there.
+	# stick) and height (LB/RB) on separate physical inputs, so there is
+	# nothing to lock there; the Options gamepad page hides this row instead of
+	# showing it blank (ui/KeyRebindRow.gd PAD_NOT_APPLICABLE, Bontago-1pi.41).
 	a["lock_vertical"] = [_key(KEY_CTRL)]
 
 	# Bontago-1en.14 (M4 P2d, owner decision 2026-09-22 Bontago-mvl (a): "hold
