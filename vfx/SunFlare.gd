@@ -75,6 +75,12 @@ var _material: ShaderMaterial = null
 var _camera: Camera3D = null
 var _current_visibility: float = 0.0
 var _enabled: bool = true
+## Bontago-mp0.95: the cloud puffs' share of hiding the sun (0..1) from the last CloudSea
+## query, the seconds since that query, and the CloudSea it came from (found by group).
+var _cloud_block: float = 0.0
+var _cloud_age_s: float = 0.0
+var _cloud_queried: bool = false
+var _cloud_sea: CloudSea = null
 ## Bontago-adt: the active SkyThemeDef's sun_flare_enabled (Skybox.apply_theme()
 ## pushes it through set_theme_enabled(); night turns the sunset-aimed flare off).
 var _theme_enabled: bool = true
@@ -185,6 +191,7 @@ func _process(delta: float) -> void:
 		_rect.visible = false
 		return
 	_rect.visible = true
+	_cloud_age_s += delta
 
 	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
 	var aspect: float = viewport_size.x / maxf(viewport_size.y, 1.0)
@@ -236,7 +243,8 @@ func _ghost_positions_vector4() -> Vector4:
 
 ## 0 (fully hidden) to 1 (fully shown): the sun must be roughly ahead of the
 ## camera (min_facing_dot), inside the screen rect plus a fade margin
-## (_edge_fade()), and not blocked by scene geometry (_occlusion_factor()).
+## (_edge_fade()), not blocked by scene geometry (_occlusion_factor(): forward and reverse
+## ray, Bontago-mp0.95) and not hidden by cloud puffs (_cloud_block_factor()).
 ## The caller smooths the result over time; this function itself is a plain
 ## per-frame snapshot with no memory of its own.
 func _compute_visibility() -> float:
@@ -249,7 +257,7 @@ func _compute_visibility() -> float:
 	var edge_fade: float = _edge_fade(uv)
 	if edge_fade <= 0.0:
 		return 0.0
-	return edge_fade * _occlusion_factor(direction)
+	return edge_fade * _occlusion_factor(direction) * (1.0 - _cloud_block_factor(direction))
 
 
 ## Projects a point far along config.sun_direction from the camera into
@@ -287,13 +295,16 @@ func _edge_fade(uv: Vector2) -> float:
 	return clampf(fade_x, 0.0, 1.0) * clampf(fade_y, 0.0, 1.0)
 
 
-## One raycast from the camera toward the sun direction -- cheap (a single
-## PhysicsDirectSpaceState3D.intersect_ray() call per frame), matching this
-## package's brief ("check with a raycast or depth, cheap"). Any hit at all
-## fades the flare fully out for this frame; _compute_visibility()'s caller
-## (_process()) is what actually smooths that binary result over
-## config.visibility_lerp_speed so a single frame's occlusion does not pop
-## the flare off instantly.
+## Bontago-mp0.95: two physics rays, either hit hides the flare. The forward ray (camera toward
+## the sun) is what blocks, but game/Field.gd's disc collider is a single-sided trimesh -- faces
+## only up and out of the rim -- so seen from below or edge-on the forward ray crosses the disc
+## without a hit and the starburst drew over the disc's underside (owner playtest 2026-10-03,
+## feedback/screenshot_20261003_183854.png). The reverse ray (sun point back to the camera)
+## meets the very same faces from outside, so together the rays find every crossing of a
+## one-sided surface; convex blocks answer to both. Two intersect_ray() calls per refresh,
+## cheap enough for the brief ("check with a raycast or depth, cheap"). Any hit fades the
+## flare fully out for this frame; _process() smooths that binary result over
+## config.visibility_lerp_speed so a single frame's occlusion does not pop the flare off.
 func _occlusion_factor(direction: Vector3) -> float:
 	var world: World3D = _camera.get_world_3d()
 	if world == null:
@@ -303,9 +314,42 @@ func _occlusion_factor(direction: Vector3) -> float:
 		return 1.0
 	var from: Vector3 = _camera.global_position
 	var to: Vector3 = from + direction * _sun_projection_distance()
-	var params: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(from, to)
-	var result: Dictionary = space_state.intersect_ray(params)
-	return 0.0 if not result.is_empty() else 1.0
+	var forward: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(from, to)
+	if not space_state.intersect_ray(forward).is_empty():
+		return 0.0
+	if config.reverse_ray_enabled:
+		var start: Vector3 = from + direction * minf(config.reverse_ray_length_m, _sun_projection_distance())
+		var reverse: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(start, from)
+		if not space_state.intersect_ray(reverse).is_empty():
+			return 0.0
+	return 1.0
+
+
+## Bontago-mp0.95: how much of the flare the cloud puffs hide (0..1), from CloudSea's bounds
+## query (the puffs are shader instances, not physics bodies). Re-queried every
+## config.cloud_occlusion_refresh_s; between queries the last answer stands, and the visibility
+## lerp in _process() smooths the steps. A scene without a CloudSea hides nothing.
+func _cloud_block_factor(direction: Vector3) -> float:
+	if config.cloud_occlusion_strength <= 0.0:
+		return 0.0
+	if not _cloud_queried or _cloud_age_s >= config.cloud_occlusion_refresh_s:
+		_cloud_age_s = 0.0
+		_cloud_queried = true
+		_cloud_block = _query_cloud_block(direction)
+	return _cloud_block * config.cloud_occlusion_strength
+
+
+func _query_cloud_block(direction: Vector3) -> float:
+	if _cloud_sea == null or not is_instance_valid(_cloud_sea):
+		_cloud_sea = get_tree().get_first_node_in_group(CloudSea.GROUP) as CloudSea
+	if _cloud_sea == null:
+		return 0.0
+	return _cloud_sea.sun_ray_cloud_occlusion(_camera.global_position, direction, config)
+
+
+## Test/inspection seam: forces the next visibility computation to re-query the clouds.
+func invalidate_cloud_query() -> void:
+	_cloud_queried = false
 
 
 ## Test/inspection seam: the visibility _process() last smoothed toward, so a
