@@ -173,6 +173,11 @@ var _cycle_clock_s: float = 0.0
 ## Night options and F4's Time of day); -1 = running. Derived from replicated
 ## mode data and shipped SkyThemeDef content, never from the clock.
 var _cycle_locked_phase: float = -1.0
+## Bontago-59o.18 (C1b variation): the seed of the cycle's exposure / cloud-coverage
+## variation (SkyVariation). configure_match_sky() takes it from the replicated
+## MatchConfig.rng_seed, so every peer draws the same sky; a cycle started outside a
+## match (F4, boot) keeps the last one.
+var _variation_seed: int = SkyVariation.DEFAULT_SEED
 
 ## Bontago-1pi.46 (match reset, docs/MATCH_RESET_AUDIT.md G1): what _ready() left
 ## behind, captured once, so reset_to_launch() can put this long-lived Skybox back
@@ -203,6 +208,9 @@ func configure_match_sky(match_config: MatchConfig) -> void:
 		var source: SkyThemeDef = load_theme(DEFAULT_THEME_ID)
 		if source != null:
 			locked = source.locked_phase_for(match_config.locked_sky_id())
+	# DECISION (Bontago-59o.18, C1b variation): the replicated match seed drives the sky
+	# variation (-1, "randomise", is not resolved for clients, so it shares one curve).
+	_variation_seed = SkyVariation.seed_for(match_config.rng_seed)
 	# DECISION (Bontago-59o.18): a match opens its sky at shared clock 0:
 	# SnapshotSync.begin_match() resets the clock right after this call, and a
 	# stale clock read here would make the start phase differ between peers.
@@ -294,6 +302,7 @@ func _clear_cycle_state() -> void:
 	_cycle_phase_offset = 0.0
 	_cycle_clock_s = 0.0
 	_cycle_locked_phase = -1.0
+	_variation_seed = SkyVariation.DEFAULT_SEED
 
 
 ## Drops the baseline-exposure entries of sky materials that are no longer the live
@@ -547,6 +556,7 @@ func set_cycle_phase(phase: float) -> void:
 	var material: ShaderMaterial = _cycle_theme.sky_material as ShaderMaterial
 	material.set_shader_parameter(&"sun_direction", direction)
 	_apply_procedural_params(material, _cycle_theme)
+	_apply_cycle_variation(material, phase)
 	material.set_shader_parameter(&"cycle_night_mix", night)
 	material.set_shader_parameter(&"cycle_night_zenith", _cycle_night.sky_top_color)
 	material.set_shader_parameter(&"cycle_night_horizon", _cycle_night.sky_horizon_color)
@@ -610,6 +620,51 @@ func set_cycle_phase(phase: float) -> void:
 		_apply_storm_blend()
 	_publish_cloud_lighting()
 
+
+## Bontago-59o.18 (C1b variation): writes the cycle's sky exposure, cloud coverage and
+## cloud-floor (sea) coverage for `phase` onto the live sky material and the cloud
+## puffs. The values are SkyVariation's pure function of (match seed, phase) inside the
+## SkyThemeDef.variation_* ranges, or, with variation off, the day theme's own fixed
+## uniforms. The exposure is recorded as the weather overcast's baseline
+## (_overcast_sky_bases), so _apply_overcast() scales it from today's value instead
+## of resetting it; the puffs take the same baseline (not the overcast scale: the
+## weather dims them through CloudLighting) and the same sea coverage, so their far
+## fade targets exactly the sky drawn behind them.
+func _apply_cycle_variation(material: ShaderMaterial, phase: float) -> void:
+	var exposure: float = NAN
+	var cloud_coverage: float = NAN
+	var sea_coverage: float = NAN
+	if _cycle_theme.variation_enabled:
+		exposure = SkyVariation.exposure_at(_cycle_theme, phase, _variation_seed)
+		cloud_coverage = SkyVariation.cloud_coverage_at(_cycle_theme, phase, _variation_seed)
+		sea_coverage = SkyVariation.sea_coverage_at(_cycle_theme, phase, _variation_seed)
+	else:
+		var source: ShaderMaterial = _cycle_day.sky_material as ShaderMaterial
+		exposure = _fixed_uniform(source, SKY_EXPOSURE_UNIFORM)
+		cloud_coverage = _fixed_uniform(source, CLOUD_COVERAGE_UNIFORM)
+		sea_coverage = _fixed_uniform(source, SEA_COVERAGE_UNIFORM)
+	var puffs: ShaderMaterial = _cloud_sea.puff_material() if _cloud_sea != null else null
+	if not is_nan(exposure):
+		# set_cycle_phase() runs _apply_overcast() next, which writes baseline x overcast.
+		_overcast_sky_bases[material] = exposure
+		if puffs != null:
+			puffs.set_shader_parameter(SKY_EXPOSURE_UNIFORM, exposure)
+	if not is_nan(cloud_coverage):
+		material.set_shader_parameter(CLOUD_COVERAGE_UNIFORM, cloud_coverage)
+	if not is_nan(sea_coverage):
+		material.set_shader_parameter(SEA_COVERAGE_UNIFORM, sea_coverage)
+		if puffs != null:
+			puffs.set_shader_parameter(SEA_COVERAGE_UNIFORM, sea_coverage)
+
+
+## The float `uniform` of `material`, or NAN when the shader leaves it unset.
+func _fixed_uniform(material: ShaderMaterial, uniform: StringName) -> float:
+	if material == null:
+		return NAN
+	var value: Variant = material.get_shader_parameter(uniform)
+	return float(value) if value is float else NAN
+
+
 ## True whenever no textured box is showing (initial state, a missing
 ## set/face, or config.enabled == false) -- the existing ProceduralSkyMaterial
 ## is what's visible in every one of those cases. Read by tests and by a
@@ -659,6 +714,9 @@ var _overcast_theme: SkyThemeDef = null
 ## dimming lever, since Environment.background_energy_multiplier barely reads on
 ## them. material -> its baseline exposure, so amount 0 restores exactly.
 const SKY_EXPOSURE_UNIFORM: StringName = &"exposure"
+## The other sky-shader uniforms the cycle variation drives (_apply_cycle_variation).
+const CLOUD_COVERAGE_UNIFORM: StringName = &"cloud_coverage"
+const SEA_COVERAGE_UNIFORM: StringName = &"proc_sea_coverage"
 var _overcast_sky_bases: Dictionary = {}
 ## Weather fog (Bontago-470.3), presentation only. DECISION (Skybox.gd): same
 ## ownership pattern as the overcast above -- set_weather_fog() stores the

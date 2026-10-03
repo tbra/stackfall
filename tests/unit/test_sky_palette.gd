@@ -268,3 +268,130 @@ func test_shipped_dawn_and_sunset_blend_to_their_own_palettes_at_the_ends() -> v
 	SkyPalette.blend(into, dawn, sunset, 0.5)
 	assert_true(into.proc_zenith_color.is_equal_approx(dawn.proc_zenith_color.lerp(sunset.proc_zenith_color, 0.5)))
 	assert_eq(sunset.proc_zenith_color, Skybox.load_theme("sunset").proc_zenith_color, "the shipped resource was not written")
+
+
+# --- SkyVariation (C1b variation: exposure / cloud coverage ranges) ----------------
+
+const VARIATION_SWEEP_STEPS: int = 500
+const VARIATION_SEEDS: Array[int] = [0, 1, 7, 42, 1234, 99999, 2147483647]
+
+
+func test_variation_weight_stays_in_unit_range_for_any_seed_channel_and_phase() -> void:
+	for seed_value: int in VARIATION_SEEDS:
+		for channel: int in [SkyVariation.CHANNEL_EXPOSURE, SkyVariation.CHANNEL_CLOUD_COVERAGE, SkyVariation.CHANNEL_SEA_COVERAGE]:
+			for step: int in range(VARIATION_SWEEP_STEPS + 1):
+				var value: float = SkyVariation.weight(float(step) / float(VARIATION_SWEEP_STEPS), 3, seed_value, channel)
+				assert_between(value, 0.0, 1.0, "seed %s channel %s step %s" % [seed_value, channel, step])
+
+
+func test_variation_is_a_pure_function_of_seed_and_phase() -> void:
+	for step: int in range(0, VARIATION_SWEEP_STEPS, 7):
+		var phase: float = float(step) / float(VARIATION_SWEEP_STEPS)
+		assert_eq(SkyVariation.weight(phase, 3, 1234, SkyVariation.CHANNEL_EXPOSURE),
+			SkyVariation.weight(phase, 3, 1234, SkyVariation.CHANNEL_EXPOSURE), "repeatable at %s" % phase)
+
+
+func test_variation_wraps_without_a_step_at_the_cycle_boundary() -> void:
+	for seed_value: int in VARIATION_SEEDS:
+		assert_eq(SkyVariation.weight(1.0, 3, seed_value, SkyVariation.CHANNEL_EXPOSURE),
+			SkyVariation.weight(0.0, 3, seed_value, SkyVariation.CHANNEL_EXPOSURE), "phase 1 is phase 0")
+		assert_almost_eq(SkyVariation.weight(0.999999, 3, seed_value, SkyVariation.CHANNEL_EXPOSURE),
+			SkyVariation.weight(0.0, 3, seed_value, SkyVariation.CHANNEL_EXPOSURE), 0.0001, "no step across the wrap")
+		assert_almost_eq(SkyVariation.weight(-0.25, 3, seed_value, SkyVariation.CHANNEL_CLOUD_COVERAGE),
+			SkyVariation.weight(0.75, 3, seed_value, SkyVariation.CHANNEL_CLOUD_COVERAGE), 0.000001, "a negative phase wraps")
+
+
+func test_variation_is_smooth_between_neighbouring_phases() -> void:
+	# A smoothstep between lattice values in 0..1 has slope <= 1.5 per lattice cell.
+	for knots: int in [2, 3, 8, 12]:
+		var step: float = 1.0 / float(VARIATION_SWEEP_STEPS)
+		var bound: float = 1.5 * float(knots) * step + 0.0001
+		for seed_value: int in VARIATION_SEEDS:
+			var previous: float = SkyVariation.weight(0.0, knots, seed_value, SkyVariation.CHANNEL_EXPOSURE)
+			for index: int in range(1, VARIATION_SWEEP_STEPS + 1):
+				var value: float = SkyVariation.weight(float(index) * step, knots, seed_value, SkyVariation.CHANNEL_EXPOSURE)
+				assert_lte(absf(value - previous), bound, "knots %s seed %s step %s" % [knots, seed_value, index])
+				previous = value
+
+
+func test_variation_differs_by_seed_and_by_channel() -> void:
+	var seeds_differ: bool = false
+	var channels_differ: bool = false
+	for step: int in range(VARIATION_SWEEP_STEPS):
+		var phase: float = float(step) / float(VARIATION_SWEEP_STEPS)
+		if absf(SkyVariation.weight(phase, 3, 1, SkyVariation.CHANNEL_EXPOSURE) - SkyVariation.weight(phase, 3, 2, SkyVariation.CHANNEL_EXPOSURE)) > 0.05:
+			seeds_differ = true
+		if absf(SkyVariation.weight(phase, 3, 1, SkyVariation.CHANNEL_EXPOSURE) - SkyVariation.weight(phase, 3, 1, SkyVariation.CHANNEL_CLOUD_COVERAGE)) > 0.05:
+			channels_differ = true
+	assert_true(seeds_differ, "another match seed gives another sky")
+	assert_true(channels_differ, "exposure and cloud coverage do not move in lockstep")
+
+
+func test_variation_uses_most_of_its_range_not_just_the_midpoint() -> void:
+	var total_spread: float = 0.0
+	var seed_count: int = 40
+	for seed_value: int in range(seed_count):
+		var low: float = 1.0
+		var high: float = 0.0
+		for step: int in range(VARIATION_SWEEP_STEPS):
+			var value: float = SkyVariation.weight(float(step) / float(VARIATION_SWEEP_STEPS), 3, seed_value, SkyVariation.CHANNEL_EXPOSURE)
+			low = minf(low, value)
+			high = maxf(high, value)
+		total_spread += high - low
+	assert_gt(total_spread / float(seed_count), 0.45, "the average day swings across about half of the range or more")
+
+
+func test_variation_knots_below_the_minimum_read_as_the_minimum() -> void:
+	for knots: int in [-3, 0, 1]:
+		assert_eq(SkyVariation.weight(0.37, knots, 5, SkyVariation.CHANNEL_EXPOSURE),
+			SkyVariation.weight(0.37, SkyVariation.MIN_KNOTS, 5, SkyVariation.CHANNEL_EXPOSURE), "knots %s" % knots)
+
+
+func test_variation_in_range_maps_the_ends_and_reads_a_swapped_pair_as_min_max() -> void:
+	assert_eq(SkyVariation.in_range(0.8, 0.95, 0.0), 0.8)
+	assert_eq(SkyVariation.in_range(0.8, 0.95, 1.0), 0.95)
+	assert_almost_eq(SkyVariation.in_range(0.8, 0.95, 0.5), 0.875, 0.000001)
+	assert_eq(SkyVariation.in_range(0.95, 0.8, 0.0), 0.8, "a swapped pair is still a range")
+	assert_eq(SkyVariation.in_range(0.95, 0.8, 1.0), 0.95)
+	assert_eq(SkyVariation.in_range(0.8, 0.95, -4.0), 0.8, "out-of-range weights are clamped")
+	assert_eq(SkyVariation.in_range(0.8, 0.95, 4.0), 0.95)
+	assert_eq(SkyVariation.in_range(0.6, 0.6, 0.37), 0.6, "min == max is a fixed value")
+
+
+func test_variation_seed_for_uses_the_match_seed_and_a_default_for_random() -> void:
+	assert_eq(SkyVariation.seed_for(1234), 1234)
+	assert_eq(SkyVariation.seed_for(0), 0)
+	assert_eq(SkyVariation.seed_for(-1), SkyVariation.DEFAULT_SEED)
+
+
+func test_variation_values_stay_inside_the_theme_ranges_whatever_the_seed() -> void:
+	var theme: SkyThemeDef = SkyThemeDef.new()
+	for seed_value: int in VARIATION_SEEDS:
+		for step: int in range(VARIATION_SWEEP_STEPS + 1):
+			var phase: float = float(step) / float(VARIATION_SWEEP_STEPS)
+			assert_between(SkyVariation.exposure_at(theme, phase, seed_value), theme.variation_exposure_min, theme.variation_exposure_max)
+			assert_between(SkyVariation.cloud_coverage_at(theme, phase, seed_value), theme.variation_cloud_coverage_min, theme.variation_cloud_coverage_max)
+			assert_between(SkyVariation.sea_coverage_at(theme, phase, seed_value), theme.variation_sea_coverage_min, theme.variation_sea_coverage_max)
+	theme.variation_exposure_min = 1.2
+	theme.variation_exposure_max = 1.2
+	assert_eq(SkyVariation.exposure_at(theme, 0.3, 5), 1.2, "a collapsed range is a fixed exposure")
+
+
+func test_variation_default_ranges_span_the_shipped_dawn_and_sunset_values() -> void:
+	var theme: SkyThemeDef = SkyThemeDef.new()
+	var dawn: ShaderMaterial = Skybox.load_theme("dawn").sky_material as ShaderMaterial
+	var sunset: ShaderMaterial = Skybox.load_theme("sunset").sky_material as ShaderMaterial
+	assert_almost_eq(theme.variation_exposure_min, minf(float(dawn.get_shader_parameter(&"exposure")), float(sunset.get_shader_parameter(&"exposure"))), 0.0001)
+	assert_almost_eq(theme.variation_exposure_max, maxf(float(dawn.get_shader_parameter(&"exposure")), float(sunset.get_shader_parameter(&"exposure"))), 0.0001)
+	assert_almost_eq(theme.variation_cloud_coverage_min, minf(float(dawn.get_shader_parameter(&"cloud_coverage")), float(sunset.get_shader_parameter(&"cloud_coverage"))), 0.0001)
+	assert_almost_eq(theme.variation_cloud_coverage_max, maxf(float(dawn.get_shader_parameter(&"cloud_coverage")), float(sunset.get_shader_parameter(&"cloud_coverage"))), 0.0001)
+	assert_true(theme.variation_enabled, "the variation is on by default")
+
+
+func test_variation_uniforms_exist_in_the_sky_and_puff_shaders() -> void:
+	var sky_source: String = FileAccess.get_file_as_string(CYCLE_SHADER)
+	for uniform: String in ["exposure", "cloud_coverage", "proc_sea_coverage"]:
+		assert_true(sky_source.contains("uniform float %s " % uniform), "%s is a float uniform of the cycle sky shader" % uniform)
+	var puff_source: String = FileAccess.get_file_as_string("res://shaders/cloud_puffs.gdshader")
+	for uniform: String in ["exposure", "proc_sea_coverage"]:
+		assert_true(puff_source.contains("uniform float %s " % uniform), "%s is a float uniform of the puff shader" % uniform)

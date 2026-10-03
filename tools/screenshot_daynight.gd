@@ -13,7 +13,8 @@ extends Node
 ## palette blend): the running cycle at the strip phases below (locked at each, so
 ## the radiance map is built as in a locked match) followed by the OLD static
 ## Dawn (dawn.tres) and Sunset (sunset.tres) themes for comparison, one run, one
-## contact sheet in capture order.
+## contact sheet in capture order. `--seed=<n>` (C1b variation) sets the match seed
+## the sky variation draws from (default -1 = SkyVariation.DEFAULT_SEED).
 
 const SETTLE_SECONDS: float = 1.5
 const SHOT_SETTLE_SECONDS: float = 0.4
@@ -26,6 +27,7 @@ const LOCK_ARG: String = "--lock="
 const LOCK_ALL: String = "all"
 const STRIP_ARG: String = "--strip="
 const STRIP_BLEND: String = "blend"
+const SEED_ARG: String = "--seed="
 ## Palette strip (--strip=blend): file name, cycle phase. 0.03 / 0.47 / 0.75 are the
 ## Dawn / Sunset / Night lock phases, 0.10 the opening phase of a Cycle match, 0.25
 ## noon and 0.38 the middle of the dusk blend window (SkyThemeDef.cycle_dusk_weight_phases).
@@ -102,8 +104,10 @@ func _strip_requested(user_args: PackedStringArray) -> bool:
 ## --strip=blend: the cycle at each strip phase (locked there), then the old static themes.
 func _shoot_strip(skybox: Skybox, camera: Camera3D, config: MatchConfig) -> void:
 	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
+	config.rng_seed = _seed_option(OS.get_cmdline_user_args())
 	skybox.configure_match_sky(config)
 	skybox.set_process(false)
+	print("daynight strip: match seed %s" % config.rng_seed)
 	for shot: Dictionary in STRIP_SHOTS:
 		skybox.set_locked_phase(float(shot["phase"]))
 		print("daynight strip: %s phase=%s" % [shot["name"], skybox.current_cycle_phase()])
@@ -112,6 +116,14 @@ func _shoot_strip(skybox: Skybox, camera: Camera3D, config: MatchConfig) -> void
 		skybox.set_theme_by_id(str(shot["theme"]))
 		print("daynight strip: %s (static %s, cycle active=%s)" % [shot["name"], shot["theme"], skybox.is_cycle_active()])
 		await _shoot(skybox, camera, "daynight_strip_%s.png" % shot["name"])
+
+
+## The match seed named by `--seed=`, -1 (the sky's default curve) when absent.
+func _seed_option(user_args: PackedStringArray) -> int:
+	for arg: String in user_args:
+		if arg.begins_with(SEED_ARG):
+			return arg.trim_prefix(SEED_ARG).to_int()
+	return -1
 
 
 ## The option named by `--lock=`, "" when the argument is absent or unknown.

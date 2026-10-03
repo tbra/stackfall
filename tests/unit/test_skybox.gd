@@ -171,6 +171,37 @@ func test_ready_starts_the_cycle_for_theme_name_cycle() -> void:
 	assert_eq(static_skybox.theme.resource_path, "res://config/sky_themes/night.tres")
 
 
+## Bontago-59o.18 (C1b variation): a cycle started outside a match (boot theme "cycle",
+## F4's Theme entry) varies inside the configured ranges from the default seed, and the
+## varying exposure is the baseline weather overcast scales (never a fixed 0.8).
+func test_a_boot_cycle_varies_inside_the_ranges_from_the_default_seed() -> void:
+	var sky: Sky = Sky.new()
+	sky.sky_material = ProceduralSkyMaterial.new()
+	var environment: Environment = Environment.new()
+	environment.sky = sky
+	var skybox: Skybox = Skybox.new()
+	skybox.config = SkyboxConfig.new()
+	skybox.config.theme_name = Skybox.CYCLE_THEME_ID
+	skybox.environment = environment
+	add_child_autofree(skybox)
+	var theme: SkyThemeDef = skybox.theme
+	var seen: Dictionary = {}
+	for phase: float in [0.0, 0.1, 0.2, 0.3, 0.45, 0.6, 0.75, 0.9]:
+		skybox.set_cycle_phase(phase)
+		var material: ShaderMaterial = skybox.theme.sky_material as ShaderMaterial
+		var exposure: float = float(material.get_shader_parameter(&"exposure"))
+		assert_between(exposure, theme.variation_exposure_min, theme.variation_exposure_max, "exposure at phase %s" % phase)
+		assert_eq(exposure, SkyVariation.exposure_at(theme, phase, SkyVariation.DEFAULT_SEED), "default seed at phase %s" % phase)
+		assert_between(float(material.get_shader_parameter(&"cloud_coverage")), theme.variation_cloud_coverage_min, theme.variation_cloud_coverage_max)
+		assert_between(float(material.get_shader_parameter(&"proc_sea_coverage")), theme.variation_sea_coverage_min, theme.variation_sea_coverage_max)
+		seen[snappedf(exposure, 0.0001)] = true
+	assert_gt(seen.size(), 3, "the boot cycle's exposure changes over the day")
+	skybox.set_overcast(1.0, 0.5, 0.6, 0.4, Color(0.4, 0.4, 0.5), 0.5)
+	skybox.set_cycle_phase(0.33)
+	var dimmed: float = float((skybox.theme.sky_material as ShaderMaterial).get_shader_parameter(&"exposure"))
+	assert_almost_eq(dimmed, SkyVariation.exposure_at(theme, 0.33, SkyVariation.DEFAULT_SEED) * 0.4, 0.00001, "overcast scales the varying baseline")
+
+
 func test_authored_theme_returns_after_switching_back_from_legacy_skybox() -> void:
 	var wired: Dictionary = _make_wired_skybox()
 	var skybox: Skybox = wired["skybox"] as Skybox
