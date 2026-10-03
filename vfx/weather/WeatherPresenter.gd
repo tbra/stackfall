@@ -22,6 +22,12 @@ func _ready() -> void:
 	Events.weather_started.connect(_on_started)
 	Events.weather_stopped.connect(_on_stopped)
 	Events.weather_intensity_changed.connect(_on_intensity_changed)
+	Events.match_scope_reset.connect(clear_now)
+
+
+func _exit_tree() -> void:
+	if Events.match_scope_reset.is_connected(clear_now):
+		Events.match_scope_reset.disconnect(clear_now)
 
 
 ## Test seam: replace the registry the presenter resolves scenes from.
@@ -81,3 +87,19 @@ func _on_intensity_changed(weather_id: StringName, intensity: float) -> void:
 	var presentation: WeatherPresentation = presentation_for(weather_id)
 	if presentation != null:
 		presentation.set_intensity(intensity)
+
+
+## Bontago-1pi.46 (docs/MATCH_RESET_AUDIT.md G2 and weather-fog parity; also run by
+## Events.match_scope_reset at every world build and teardown): back to a freshly
+## launched presenter. The cloud ceiling snaps clear (no fade into the next match)
+## and the shared weather-fog statics return to their launch defaults. Idempotent.
+## DECISION (Bontago-1pi.46): live presentations are left alone. MatchWeather.reset()
+## ends the event on every state change that precedes a reset, and weather_stopped
+## (_on_stopped) releases it; a weather the authority still runs at a reset (the
+## tests/unit/test_match_restart.gd rain case) keeps presenting instead of vanishing
+## from under a running effect; only its ceiling target comes back with the next
+## intensity change.
+func clear_now() -> void:
+	if _ceiling != null:
+		_ceiling.snap_clear()
+	WeatherFogShader.reset_to_launch(get_tree() if is_inside_tree() else null)
