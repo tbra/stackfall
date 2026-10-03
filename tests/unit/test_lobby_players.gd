@@ -1,11 +1,14 @@
 extends GutTest
-## Bontago-1pi.53 package E1 (docs/LOBBY_REWORK_PLAN.md "Right panel" + the E1 row):
+## Bontago-1pi.53 packages E1 + PL1a (docs/LOBBY_REWORK_PLAN.md "Right panel"):
 ## the roster extracted from ui/Lobby.gd into ui/lobby/LobbyPlayersPanel behaves
-## exactly as it did inside the Lobby, and the narrow Lobby <-> panel hooks the seat
-## package (PL1) builds on are installed and no-op safe: seats_data() merged into a
-## host publish, apply(config, roster, seats) from _apply_data, on_roster_changed,
-## finalize_start_config() after the peer clamp, start_blocker() in Start and the
-## button gate, the four request signals, focus entries.
+## exactly as it did inside the Lobby, the narrow Lobby <-> panel hooks are installed
+## (seats_data() merged into a host publish, apply(config, roster, seats) from
+## _apply_data, on_roster_changed, finalize_start_config() after the peer clamp,
+## start_blocker() in Start and the button gate, the request signals, focus entries),
+## and (PL1a) the rows are ui/lobby/LobbySeatRow views over the panel's seat table:
+## the host cycles a colour (swap on a clash) / team pick (1..cap, Random) with a
+## click, a right click or ui_left / ui_right / ui_accept, picks a bot's difficulty and
+## removes bots; a client's rows are read-only.
 
 
 ## A panel whose Start hooks can be scripted: stands in for what PL1 will do
@@ -73,8 +76,9 @@ func _last_published(lobby: Lobby) -> Dictionary:
 	return calls[calls.size() - 1]
 
 
-## A row's pieces, in the order the panel builds them: layout child 0 is the colour
-## box, child 1 the name/subtitle column, child 2 the Ready badge.
+## A row's pieces: layout child 0 is the colour box, child 1 the name/subtitle column;
+## the Ready badge is the layout's last child (team / difficulty / remove controls sit
+## between them when a row has any).
 func _row_layout(row: Node) -> HBoxContainer:
 	return row.get_child(0) as HBoxContainer
 
@@ -88,7 +92,15 @@ func _row_subtitle(row: Node) -> String:
 
 
 func _row_badge(row: Node) -> String:
-	return ((_row_layout(row).get_child(2) as PanelContainer).get_child(0) as Label).text
+	var layout: HBoxContainer = _row_layout(row)
+	return ((layout.get_child(layout.get_child_count() - 1) as PanelContainer).get_child(0) as Label).text
+
+
+func _rows_of(lobby: Lobby) -> Array[LobbySeatRow]:
+	var rows: Array[LobbySeatRow] = []
+	for node: Node in _panel_of(lobby)._player_rows:
+		rows.append(node as LobbySeatRow)
+	return rows
 
 
 func _two_humans_data(ready_guest: bool) -> Dictionary:
@@ -186,7 +198,8 @@ func test_bot_rows_are_rebuilt_from_the_config_and_split_into_name_and_difficult
 	var rows: Array[Node] = _panel_of(lobby)._player_rows
 	assert_eq(rows.size(), 3, "one human + two bots")
 	assert_eq(_row_name(rows[1]), "Bot 1")
-	assert_eq(_row_subtitle(rows[1]), "AI · Hard")
+	assert_eq(_row_subtitle(rows[1]), "AI", "the difficulty is the dropdown beside the name now")
+	assert_eq(_rows_of(lobby)[1].difficulty_option.selected, MatchConfig.AiDifficulty.HARD, "the old default dropdown sets every bot")
 	assert_eq(_row_name(rows[2]), "Bot 2")
 	assert_eq(_row_badge(rows[2]), "%s Ready" % char(0x2713), "bots are always ready")
 
@@ -214,9 +227,9 @@ func test_the_colour_box_uses_the_slot_colour_and_the_layout_tuning_size() -> vo
 	var tuning: LobbyLayoutTuning = lobby.layout_tuning
 	var rows: Array[Node] = _panel_of(lobby)._player_rows
 	for slot: int in range(2):
-		var icon: PanelContainer = _row_layout(rows[slot]).get_child(0) as PanelContainer
-		var box: StyleBoxFlat = icon.get_theme_stylebox("panel") as StyleBoxFlat
-		assert_eq(box.bg_color, palette[slot], "slot %d shows its palette colour" % slot)
+		var icon: Button = _row_layout(rows[slot]).get_child(0) as Button
+		var box: StyleBoxFlat = icon.get_theme_stylebox("normal") as StyleBoxFlat
+		assert_eq(box.bg_color, palette[slot], "seat %d shows its palette colour (new seats take the lowest free)" % slot)
 		assert_eq(icon.custom_minimum_size, tuning.color_box_size_px)
 		assert_eq(box.corner_radius_top_left, tuning.color_box_corner_radius_px)
 
@@ -228,20 +241,28 @@ func test_the_header_and_row_styling_is_the_lobbys_menu_look() -> void:
 	var row: PanelContainer = _panel_of(lobby)._player_rows[0] as PanelContainer
 	var pill: StyleBoxFlat = row.get_theme_stylebox("panel") as StyleBoxFlat
 	assert_eq(pill.bg_color, lobby.tuning.pill_white_color, "rows stay the raised white pill")
-	var badge: PanelContainer = _row_layout(row).get_child(2) as PanelContainer
+	var badge: PanelContainer = (row as LobbySeatRow).badge
 	assert_eq((badge.get_theme_stylebox("panel") as StyleBoxFlat).bg_color, lobby.tuning.pill_mint_color, "ready = mint")
 	Events.net_lobby_data_changed.emit(_two_humans_data(false))
-	var guest_badge: PanelContainer = _row_layout(_panel_of(lobby)._player_rows[1]).get_child(2) as PanelContainer
+	var guest_badge: PanelContainer = _rows_of(lobby)[1].badge
 	assert_eq((guest_badge.get_theme_stylebox("panel") as StyleBoxFlat).bg_color, lobby.tuning.ground_band_apricot_color, "not ready = apricot")
 
 
-func test_a_slot_past_the_palette_reads_gray() -> void:
+func test_a_colour_past_the_palette_and_a_seatless_row_read_gray() -> void:
 	var lobby: Lobby = _make_lobby(false)
+	_panel_of(lobby).palette = PackedColorArray([Color.RED])
 	var data: Dictionary = MatchConfig.new().to_dict()
-	data["roster"] = [{"peer_id": 5, "slot_id": 99, "name": "Far", "ready": true}]
+	data["roster"] = [
+		{"peer_id": 5, "slot_id": 0, "name": "Near", "ready": true},
+		{"peer_id": 6, "slot_id": 1, "name": "Far", "ready": true},
+		{"peer_id": 7, "slot_id": -1, "name": "Watcher", "ready": true},
+	]
 	Events.net_lobby_data_changed.emit(data)
-	var icon: PanelContainer = _row_layout(_panel_of(lobby)._player_rows[0]).get_child(0) as PanelContainer
-	assert_eq((icon.get_theme_stylebox("panel") as StyleBoxFlat).bg_color, Color.GRAY)
+	var rows: Array[LobbySeatRow] = _rows_of(lobby)
+	assert_eq((rows[0].color_button.get_theme_stylebox("normal") as StyleBoxFlat).bg_color, Color.RED, "colour index 0 is inside the palette")
+	assert_eq((rows[1].color_button.get_theme_stylebox("normal") as StyleBoxFlat).bg_color, Color.GRAY, "index 1 is past the one-colour palette")
+	assert_eq((rows[2].color_button.get_theme_stylebox("normal") as StyleBoxFlat).bg_color, Color.GRAY, "a spectator holds no seat")
+	assert_eq(rows[2].seat_key, LobbySeats.KEY_NONE)
 
 
 func test_row_layout_values_come_from_the_layout_tuning() -> void:
@@ -322,14 +343,16 @@ func test_the_default_hooks_change_nothing() -> void:
 	var panel: LobbyPlayersPanel = _panel_of(lobby)
 	assert_eq(panel.start_blocker(), "", "nothing blocks Start in E1")
 	assert_true(panel.focus_entries().is_empty())
-	assert_true(panel.seats_data().is_empty())
+	assert_eq(LobbySeats.seat_count(panel.seats_data()), 0, "no seats before anyone is in the lobby")
 	var config: MatchConfig = MatchConfig.new()
 	config.player_count = 5
 	var before: Dictionary = config.to_dict()
 	panel.finalize_start_config(config)
 	assert_eq(config.to_dict(), before, "finalize_start_config is a no-op until the seat package fills it")
 	lobby._on_setting_changed()
-	assert_false(_last_published(lobby).has("seats"), "a lobby with no seat table publishes the dict it always did")
+	var published: Dictionary = _last_published(lobby)
+	assert_true(published.has("seats"), "PL1a: the first host publish carries the (here empty) reconciled table")
+	assert_eq(LobbySeats.seat_count(published["seats"] as Dictionary), 0)
 
 
 func test_set_editable_follows_the_host_state_every_update() -> void:
@@ -346,27 +369,40 @@ func test_set_editable_follows_the_host_state_every_update() -> void:
 
 func test_the_seat_table_round_trips_through_lobby_data() -> void:
 	var lobby: Lobby = _make_lobby(true)
+	_fake_of(lobby).slots_by_peer = {1: 0}
 	var seats: Dictionary = {
 		"humans": [{"peer_id": 1, "color": 3, "team": 2}],
 		"bots": [{"color": 5, "team": 0, "difficulty": 2}],
 	}
 	var data: Dictionary = MatchConfig.new().to_dict()
 	data["seats"] = seats
+	data["player_count"] = 2
+	data["ai_count"] = 1
+	data["roster"] = [{"peer_id": 1, "slot_id": 0, "name": "Host", "ready": true}]
 	Events.net_lobby_data_changed.emit(data)
-	assert_eq(_panel_of(lobby).seats_data(), seats, "apply() stores the dict's seat table")
+	# The table matches the live roster (peer 1 + one bot), so the reconcile keeps
+	# every pick.
+	var kept: Dictionary = _panel_of(lobby).seats_data()
+	assert_eq(kept, seats, "apply() keeps a consistent table as it is")
+	assert_eq(LobbySeats.color_of(kept, LobbySeats.human_key(1)), 3)
+	assert_eq(LobbySeats.team_of(kept, LobbySeats.human_key(1)), 2)
+	assert_eq(LobbySeats.color_of(kept, LobbySeats.bot_key(0)), 5)
+	assert_eq(LobbySeats.difficulty_of(kept, LobbySeats.bot_key(0)), 2)
 	# Any later host publish carries it, so a settings edit never drops it.
 	lobby._on_setting_changed()
-	assert_eq(_last_published(lobby).get("seats"), seats)
+	assert_eq(LobbySeats.color_of(_last_published(lobby)["seats"] as Dictionary, LobbySeats.human_key(1)), 3)
 
 
 func test_a_seats_value_that_is_not_a_dictionary_is_ignored() -> void:
 	var lobby: Lobby = _make_lobby(true)
+	_fake_of(lobby).slots_by_peer = {1: 0}
 	var data: Dictionary = MatchConfig.new().to_dict()
 	data["seats"] = [1, 2, 3]
+	data["roster"] = [{"peer_id": 1, "slot_id": 0, "name": "Host", "ready": true}]
 	Events.net_lobby_data_changed.emit(data)
-	assert_true(_panel_of(lobby).seats_data().is_empty())
-	lobby._on_setting_changed()
-	assert_false(_last_published(lobby).has("seats"))
+	var table: Dictionary = _panel_of(lobby).seats_data()
+	assert_eq(LobbySeats.seat_count(table), 1, "garbage is dropped: the table is rebuilt from the roster")
+	assert_eq(LobbySeats.color_of(table, LobbySeats.human_key(1)), 0)
 
 
 func test_seats_data_returns_a_copy() -> void:
@@ -603,3 +639,369 @@ func _assert_main_loop_is_closed(lobby: Lobby) -> void:
 	assert_eq(current, start, "walking down from Start returns to Start")
 	for control: Control in lobby._visible_chain(lobby._main_chain):
 		assert_true(control == start or visited.has(control), "%s is part of the loop" % control.name)
+
+
+# --- PL1a: seat rows (colour box, team button, bot difficulty, remove) -----------------
+
+## A host lobby with `humans` peers (peer n holds slot n - 1), `bots` bots and, optionally,
+## teams on, published once so the rows and the seat table exist.
+func _host_lobby(humans: int, bots: int = 0, teams_on: bool = false) -> Lobby:
+	var lobby: Lobby = _make_lobby(true)
+	var fake: FakeNet = _fake_of(lobby)
+	for index: int in range(humans):
+		fake.slots_by_peer[index + 1] = index
+	(lobby.get_node("%PlayerCountSpin") as SpinBox).value = clampi(humans + bots, MatchConfig.PLAYER_COUNT_MIN, MatchConfig.PLAYER_COUNT_MAX)
+	(lobby.get_node("%AiCountSpin") as SpinBox).value = bots
+	if teams_on:
+		_panel_of(lobby).teams_toggled.emit(true)
+	lobby._on_setting_changed()
+	return lobby
+
+
+## The seat table of the last host publish.
+func _seat_table(lobby: Lobby) -> Dictionary:
+	return _last_published(lobby)["seats"] as Dictionary
+
+
+func _human_color(lobby: Lobby, peer_id: int) -> int:
+	return LobbySeats.color_of(_seat_table(lobby), LobbySeats.human_key(peer_id))
+
+
+func _human_team(lobby: Lobby, peer_id: int) -> int:
+	return LobbySeats.team_of(_seat_table(lobby), LobbySeats.human_key(peer_id))
+
+
+func _box_color(button: Button) -> Color:
+	return (button.get_theme_stylebox("normal") as StyleBoxFlat).bg_color
+
+
+func _right_click() -> InputEventMouseButton:
+	var click: InputEventMouseButton = InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_RIGHT
+	click.pressed = true
+	return click
+
+
+func _pad(button: JoyButton) -> InputEventJoypadButton:
+	var event: InputEventJoypadButton = InputEventJoypadButton.new()
+	event.button_index = button
+	event.pressed = true
+	return event
+
+
+func test_the_host_colour_click_cycles_the_colour_and_swaps_on_a_clash() -> void:
+	var lobby: Lobby = _host_lobby(2)
+	var panel: LobbyPlayersPanel = _panel_of(lobby)
+	assert_eq(_human_color(lobby, 1), 0, "new seats take the lowest free colour")
+	assert_eq(_human_color(lobby, 2), 1)
+	var published: int = _fake_of(lobby).set_lobby_data_calls.size()
+	watch_signals(panel)
+	_rows_of(lobby)[0].color_button.pressed.emit()
+	assert_signal_emitted(panel, "seats_changed")
+	assert_eq(_fake_of(lobby).set_lobby_data_calls.size(), published + 1, "one republish per edit")
+	assert_eq(_human_color(lobby, 1), 1, "the click takes the next colour")
+	assert_eq(_human_color(lobby, 2), 0, "the seat that held it swaps into the old colour")
+	var palette: PackedColorArray = lobby.default_config.player_colors
+	var rows: Array[LobbySeatRow] = _rows_of(lobby)
+	assert_eq(_box_color(rows[0].color_button), palette[1], "the rows are redrawn from the table")
+	assert_eq(_box_color(rows[1].color_button), palette[0])
+
+
+func test_a_right_click_cycles_the_colour_backwards_and_a_left_press_in_gui_input_does_nothing() -> void:
+	var lobby: Lobby = _host_lobby(2)
+	var published: int = _fake_of(lobby).set_lobby_data_calls.size()
+	var left: InputEventMouseButton = InputEventMouseButton.new()
+	left.button_index = MOUSE_BUTTON_LEFT
+	left.pressed = true
+	_rows_of(lobby)[0].color_button.gui_input.emit(left)
+	var release: InputEventMouseButton = _right_click()
+	release.pressed = false
+	_rows_of(lobby)[0].color_button.gui_input.emit(release)
+	assert_eq(_fake_of(lobby).set_lobby_data_calls.size(), published, "only a right-button PRESS cycles")
+	_rows_of(lobby)[0].color_button.gui_input.emit(_right_click())
+	assert_eq(_human_color(lobby, 1), LobbySeats.palette_size() - 1, "0 wraps backwards to the last colour (nobody holds it)")
+	assert_eq(_human_color(lobby, 2), 1, "no clash, no swap")
+	assert_eq(_fake_of(lobby).set_lobby_data_calls.size(), published + 1)
+
+
+func test_ui_right_and_ui_left_on_the_colour_box_cycle_forwards_and_backwards() -> void:
+	var lobby: Lobby = _host_lobby(2)
+	_rows_of(lobby)[0].color_button.gui_input.emit(_pad(JOY_BUTTON_DPAD_RIGHT))
+	assert_eq(_human_color(lobby, 1), 1, "ui_right = next colour")
+	assert_eq(_human_color(lobby, 2), 0, "swapped")
+	_rows_of(lobby)[0].color_button.gui_input.emit(_pad(JOY_BUTTON_DPAD_LEFT))
+	assert_eq(_human_color(lobby, 1), 0, "ui_left = previous colour")
+	assert_eq(_human_color(lobby, 2), 1)
+	var other: InputEventJoypadButton = _pad(JOY_BUTTON_DPAD_UP)
+	var published: int = _fake_of(lobby).set_lobby_data_calls.size()
+	_rows_of(lobby)[0].color_button.gui_input.emit(other)
+	assert_eq(_fake_of(lobby).set_lobby_data_calls.size(), published, "ui_up is focus navigation, not a cycle")
+
+
+func test_a_pad_can_reach_and_activate_the_colour_box() -> void:
+	# BaseButton turns ui_accept into `pressed` (the click path every test above drives
+	# with pressed.emit()); what this row owes the pad is: focusable, enabled, and an
+	# Input Map whose ui_accept has a gamepad button.
+	var lobby: Lobby = _host_lobby(2)
+	var box: Button = _rows_of(lobby)[0].color_button
+	assert_eq(box.focus_mode, Control.FOCUS_ALL)
+	assert_false(box.disabled)
+	box.grab_focus()
+	assert_true(box.has_focus(), "the colour box takes focus")
+	assert_true(_panel_of(lobby).focus_entries().has(box), "and is in the Lobby's focus loop")
+	var a_button: InputEventJoypadButton = _pad(JOY_BUTTON_A)
+	assert_true(a_button.is_action_pressed(&"ui_accept"), "the pad's A button is ui_accept")
+	assert_true(_pad(JOY_BUTTON_DPAD_LEFT).is_action_pressed(&"ui_left"))
+	assert_true(_pad(JOY_BUTTON_DPAD_RIGHT).is_action_pressed(&"ui_right"))
+
+
+func test_the_team_button_cycles_one_to_four_then_random_then_one() -> void:
+	var lobby: Lobby = _host_lobby(2, 0, true)
+	assert_eq(_human_team(lobby, 1), 1, "teams on seed 1, 2, 1, 2...")
+	assert_eq(_human_team(lobby, 2), 2)
+	var expected: Array[int] = [2, 3, 4, MatchConfig.TEAM_PICK_RANDOM, 1]
+	for pick: int in expected:
+		_rows_of(lobby)[0].team_button.pressed.emit()
+		assert_eq(_human_team(lobby, 1), pick)
+		assert_eq(_rows_of(lobby)[0].team_button.text, LobbySeatRow.team_text(pick))
+	assert_eq(LobbySeatRow.team_text(MatchConfig.TEAM_PICK_RANDOM), "?", "Random shows as ?")
+	assert_eq(_human_team(lobby, 2), 2, "other seats are untouched")
+
+
+func test_the_team_button_cycles_backwards_on_right_click_and_ui_left() -> void:
+	var lobby: Lobby = _host_lobby(2, 0, true)
+	_rows_of(lobby)[0].team_button.gui_input.emit(_right_click())
+	assert_eq(_human_team(lobby, 1), MatchConfig.TEAM_PICK_RANDOM, "1 steps back to Random")
+	_rows_of(lobby)[0].team_button.gui_input.emit(_pad(JOY_BUTTON_DPAD_LEFT))
+	assert_eq(_human_team(lobby, 1), 4, "Random steps back to the last team")
+	_rows_of(lobby)[0].team_button.gui_input.emit(_pad(JOY_BUTTON_DPAD_RIGHT))
+	assert_eq(_human_team(lobby, 1), MatchConfig.TEAM_PICK_RANDOM, "ui_right steps forward again")
+
+
+func test_the_team_cycle_follows_a_legacy_two_team_lobby_and_teams_off_has_no_button() -> void:
+	var lobby: Lobby = _host_lobby(2)
+	for row: LobbySeatRow in _rows_of(lobby):
+		assert_null(row.team_button, "no team button with teams off")
+	assert_eq(_panel_of(lobby).focus_entries().size(), 2, "just the two colour boxes")
+	(lobby.get_node("%TeamModeOption") as OptionButton).select(MatchConfig.TeamMode.TEAMS_2)
+	lobby._on_option_changed(MatchConfig.TeamMode.TEAMS_2)
+	var seen: Array[int] = []
+	for _step: int in range(3):
+		_rows_of(lobby)[0].team_button.pressed.emit()
+		seen.append(_human_team(lobby, 1))
+	assert_eq(seen, [2, MatchConfig.TEAM_PICK_RANDOM, 1], "cap 2: 1, 2, Random")
+
+
+func test_a_bots_dropdown_sets_only_that_bots_difficulty() -> void:
+	var lobby: Lobby = _host_lobby(1, 2)
+	var panel: LobbyPlayersPanel = _panel_of(lobby)
+	var rows: Array[LobbySeatRow] = _rows_of(lobby)
+	assert_null(rows[0].difficulty_option, "a human has no difficulty")
+	assert_eq(rows[1].difficulty_option.get_item_count(), 3, "Easy / Normal / Hard")
+	assert_eq(rows[1].difficulty_option.get_item_text(2), "Hard")
+	watch_signals(panel)
+	rows[1].difficulty_option.item_selected.emit(MatchConfig.AiDifficulty.HARD)
+	assert_signal_emitted(panel, "seats_changed")
+	var seats: Dictionary = _seat_table(lobby)
+	assert_eq(LobbySeats.difficulty_of(seats, LobbySeats.bot_key(0)), MatchConfig.AiDifficulty.HARD)
+	assert_eq(LobbySeats.difficulty_of(seats, LobbySeats.bot_key(1)), MatchConfig.AiDifficulty.NORMAL)
+	assert_eq(_rows_of(lobby)[1].difficulty_option.selected, MatchConfig.AiDifficulty.HARD, "the row shows it")
+	var roster: Array = _last_published(lobby)["roster"] as Array
+	assert_eq(str((roster[1] as Dictionary)["name"]), "Bot 1 (Hard)", "the published roster entry carries the bot's own difficulty")
+	assert_eq(str((roster[2] as Dictionary)["name"]), "Bot 2 (Normal)")
+
+
+func test_changing_the_lobby_default_difficulty_sets_every_bot_but_other_edits_keep_each_bot() -> void:
+	var lobby: Lobby = _host_lobby(1, 2)
+	(lobby.get_node("%AiDifficultyOption") as OptionButton).select(MatchConfig.AiDifficulty.HARD)
+	lobby._on_option_changed(MatchConfig.AiDifficulty.HARD)
+	for ordinal: int in range(2):
+		assert_eq(LobbySeats.difficulty_of(_seat_table(lobby), LobbySeats.bot_key(ordinal)), MatchConfig.AiDifficulty.HARD)
+	_rows_of(lobby)[1].difficulty_option.item_selected.emit(MatchConfig.AiDifficulty.EASY)
+	lobby._on_setting_changed()
+	assert_eq(LobbySeats.difficulty_of(_seat_table(lobby), LobbySeats.bot_key(0)), MatchConfig.AiDifficulty.EASY, "an unrelated publish keeps the bot's own pick")
+	assert_eq(LobbySeats.difficulty_of(_seat_table(lobby), LobbySeats.bot_key(1)), MatchConfig.AiDifficulty.HARD)
+
+
+func test_remove_bot_drops_the_seat_compacts_the_rest_and_asks_the_lobby_for_one_fewer() -> void:
+	var lobby: Lobby = _host_lobby(1, 2)
+	var panel: LobbyPlayersPanel = _panel_of(lobby)
+	var second_color: int = LobbySeats.color_of(_seat_table(lobby), LobbySeats.bot_key(1))
+	watch_signals(panel)
+	var rows: Array[LobbySeatRow] = _rows_of(lobby)
+	assert_not_null(rows[1].remove_button)
+	assert_null(rows[0].remove_button, "a human cannot be removed")
+	rows[1].remove_button.pressed.emit()
+	assert_signal_emitted_with_parameters(panel, "remove_bot_requested", [0])
+	assert_eq(int(_last_published(lobby).get("ai_count")), 1)
+	var seats: Dictionary = _seat_table(lobby)
+	assert_eq(LobbySeats.bot_count(seats), 1)
+	assert_eq(LobbySeats.color_of(seats, LobbySeats.bot_key(0)), second_color, "the later bot moved down with its picks")
+	assert_eq(_panel_of(lobby)._player_rows.size(), 2, "one human + one bot row left")
+	assert_eq(_header_of(lobby).text, "1 player · 1 bot · 2/2 seats")
+
+
+func test_a_clients_rows_are_read_only() -> void:
+	var lobby: Lobby = _make_lobby(false)
+	var panel: LobbyPlayersPanel = _panel_of(lobby)
+	var data: Dictionary = _two_humans_data(true)
+	data["team_mode"] = MatchConfig.TeamMode.TEAMS_4
+	data["player_count"] = 3
+	data["ai_count"] = 1
+	Events.net_lobby_data_changed.emit(data)
+	var rows: Array[LobbySeatRow] = _rows_of(lobby)
+	assert_eq(rows.size(), 3)
+	for row: LobbySeatRow in rows:
+		assert_true(row.color_button.disabled)
+		assert_eq(row.color_button.focus_mode, Control.FOCUS_NONE)
+		assert_not_null(row.team_button, "the numbers are shown...")
+		assert_true(row.team_button.disabled, "...but not editable")
+		assert_null(row.remove_button, "no remove button for a client")
+	assert_true(rows[2].difficulty_option.disabled)
+	assert_eq(rows[2].difficulty_option.selected, MatchConfig.AiDifficulty.NORMAL, "a client still sees the bot's difficulty")
+	assert_true(panel.focus_entries().is_empty(), "nothing of a client's rows joins the focus loop")
+	var before: Dictionary = panel.seats_data()
+	watch_signals(panel)
+	rows[0].color_button.pressed.emit()
+	rows[0].color_button.gui_input.emit(_right_click())
+	rows[0].team_button.pressed.emit()
+	rows[2].difficulty_option.item_selected.emit(MatchConfig.AiDifficulty.HARD)
+	panel._on_color_cycle_requested(rows[0].seat_key, false)
+	panel._on_team_cycle_requested(rows[0].seat_key, false)
+	panel._on_difficulty_chosen(rows[2].seat_key, MatchConfig.AiDifficulty.HARD)
+	panel._on_remove_requested(rows[2].seat_key)
+	assert_signal_not_emitted(panel, "seats_changed")
+	assert_signal_not_emitted(panel, "remove_bot_requested")
+	assert_eq(panel.seats_data(), before, "the table did not move")
+	assert_eq(_fake_of(lobby).set_lobby_data_calls.size(), 0)
+
+
+func test_the_host_gets_live_rows_when_editable_flips_and_the_loop_is_told() -> void:
+	var lobby: Lobby = _make_lobby(false)
+	var panel: LobbyPlayersPanel = _panel_of(lobby)
+	Events.net_lobby_data_changed.emit(_two_humans_data(true))
+	assert_true(panel.focus_entries().is_empty())
+	_fake_of(lobby).is_host_value = true
+	watch_signals(panel)
+	lobby._update_host_only_state()
+	assert_signal_emitted(panel, "focus_entries_changed")
+	assert_eq(panel.focus_entries().size(), 2, "two colour boxes")
+	assert_false(_rows_of(lobby)[0].color_button.disabled)
+	var drawn: Array[Node] = panel._player_rows.duplicate()
+	lobby._update_host_only_state()
+	assert_eq(panel._player_rows, drawn, "the per-frame push redraws nothing while the state is unchanged")
+
+
+func test_the_host_focus_entries_run_colour_team_difficulty_remove_row_by_row() -> void:
+	var lobby: Lobby = _host_lobby(1, 1, true)
+	var rows: Array[LobbySeatRow] = _rows_of(lobby)
+	var entries: Array[Control] = _panel_of(lobby).focus_entries()
+	assert_eq(entries, [
+		rows[0].color_button, rows[0].team_button,
+		rows[1].color_button, rows[1].team_button, rows[1].difficulty_option, rows[1].remove_button,
+	] as Array[Control])
+	var bot: LobbySeatRow = rows[1]
+	assert_eq(bot.difficulty_option.get_node(bot.difficulty_option.focus_neighbor_right), bot.remove_button)
+	assert_eq(bot.remove_button.get_node(bot.remove_button.focus_neighbor_left), bot.difficulty_option)
+	assert_eq(bot.difficulty_option.get_node(bot.difficulty_option.focus_neighbor_left), bot.team_button)
+	var back: Control = lobby.get_node("%BackButton") as Control
+	assert_eq(entries[0].get_node(entries[0].focus_neighbor_top), lobby.get_node("%AdvRulesBar"), "the rows follow the settings in the loop")
+	assert_eq(entries[entries.size() - 1].get_node(entries[entries.size() - 1].focus_neighbor_bottom), back, "and precede the footer")
+	_assert_main_loop_is_closed(lobby)
+
+
+func test_focus_stays_on_the_same_control_after_an_edit_redraws_the_rows() -> void:
+	var lobby: Lobby = _host_lobby(2, 0, true)
+	var old_team: Button = _rows_of(lobby)[1].team_button
+	old_team.grab_focus()
+	assert_true(old_team.has_focus())
+	old_team.pressed.emit()
+	var new_team: Button = _rows_of(lobby)[1].team_button
+	assert_ne(new_team, old_team, "the rows were redrawn")
+	assert_true(new_team.has_focus(), "focus follows the same seat and control")
+	assert_eq(new_team.text, "3", "and the pick moved on")
+
+
+func test_focus_moves_to_the_next_bot_when_the_focused_bot_is_removed() -> void:
+	var lobby: Lobby = _host_lobby(1, 2)
+	_rows_of(lobby)[1].remove_button.grab_focus()
+	_rows_of(lobby)[1].remove_button.pressed.emit()
+	var rows: Array[LobbySeatRow] = _rows_of(lobby)
+	assert_eq(rows.size(), 2)
+	assert_true(rows[1].remove_button.has_focus(), "the remaining bot's remove button takes the focus")
+	rows[1].remove_button.pressed.emit()
+	assert_eq(_rows_of(lobby).size(), 1)
+	assert_true(_rows_of(lobby)[0].color_button.has_focus(), "no bot left: the nearest row's colour box")
+
+
+func test_a_roster_join_and_leave_reconcile_the_table_colours() -> void:
+	var lobby: Lobby = _host_lobby(2)
+	var fake: FakeNet = _fake_of(lobby)
+	var roster: Array[Dictionary] = []
+	for peer_id: int in [1, 2, 3]:
+		roster.append({"peer_id": peer_id, "slot_id": peer_id - 1, "name": "P%d" % peer_id, "ready": true})
+	fake.slots_by_peer[3] = 2
+	Events.net_roster_changed.emit(roster)
+	assert_eq(LobbySeats.color_of(_panel_of(lobby).seats_data(), LobbySeats.human_key(3)), 2, "a joiner takes the lowest free colour")
+	roster.remove_at(1)
+	fake.slots_by_peer.erase(2)
+	Events.net_roster_changed.emit(roster)
+	var seats: Dictionary = _panel_of(lobby).seats_data()
+	assert_false(LobbySeats.has_seat(seats, LobbySeats.human_key(2)), "a leaver's seat is gone")
+	assert_eq(LobbySeats.color_of(seats, LobbySeats.human_key(3)), 2, "the others keep their picks")
+	fake.slots_by_peer[4] = 3
+	roster.append({"peer_id": 4, "slot_id": 3, "name": "P4", "ready": true})
+	Events.net_roster_changed.emit(roster)
+	assert_eq(LobbySeats.color_of(_panel_of(lobby).seats_data(), LobbySeats.human_key(4)), 1, "the leaver's colour is free again")
+
+
+func test_a_spectator_row_has_no_seat_controls() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var roster: Array[Dictionary] = [
+		{"peer_id": 1, "slot_id": 0, "name": "Host", "ready": true},
+		{"peer_id": 9, "slot_id": -1, "name": "Watcher", "ready": true},
+	]
+	_fake_of(lobby).slots_by_peer = {1: 0}
+	Events.net_roster_changed.emit(roster)
+	var rows: Array[LobbySeatRow] = _rows_of(lobby)
+	assert_eq(rows.size(), 2)
+	assert_eq(rows[1].seat_key, LobbySeats.KEY_NONE)
+	assert_true(rows[1].focusable_controls().is_empty())
+	assert_true(rows[1].color_button.disabled)
+	assert_eq(LobbySeats.seat_count(_panel_of(lobby).seats_data()), 1, "only the seated human has a seat")
+
+
+func test_rows_are_ordered_by_slot_not_by_roster_order() -> void:
+	var lobby: Lobby = _make_lobby(false)
+	var data: Dictionary = MatchConfig.new().to_dict()
+	data["roster"] = [
+		{"peer_id": 7, "slot_id": 1, "name": "Second", "ready": true},
+		{"peer_id": 1, "slot_id": 0, "name": "First", "ready": true},
+	]
+	Events.net_lobby_data_changed.emit(data)
+	var rows: Array[Node] = _panel_of(lobby)._player_rows
+	assert_eq(_row_name(rows[0]), "First")
+	assert_eq(_row_name(rows[1]), "Second")
+
+
+func test_seat_row_sizes_come_from_the_layout_tuning() -> void:
+	var lobby: Lobby = _host_lobby(1, 1, true)
+	var custom: LobbyLayoutTuning = LobbyLayoutTuning.new()
+	custom.seat_team_button_min_size_px = Vector2(40.0, 33.0)
+	custom.seat_difficulty_min_width_px = 111
+	custom.seat_remove_button_min_size_px = Vector2(26.0, 27.0)
+	custom.seat_color_focus_border_px = 5
+	_panel_of(lobby).layout_tuning = custom
+	_panel_of(lobby).set_editable(false)
+	_panel_of(lobby).set_editable(true)
+	var bot: LobbySeatRow = _rows_of(lobby)[1]
+	assert_eq(bot.team_button.custom_minimum_size, Vector2(40.0, 33.0))
+	assert_eq(bot.difficulty_option.custom_minimum_size.x, 111.0)
+	assert_eq(bot.remove_button.custom_minimum_size, Vector2(26.0, 27.0))
+	assert_eq((bot.color_button.get_theme_stylebox("focus") as StyleBoxFlat).border_width_left, 5)
+	var fresh: LobbyLayoutTuning = LobbyLayoutTuning.new()
+	var shipped: LobbyLayoutTuning = load("res://config/lobby_layout_tuning.tres") as LobbyLayoutTuning
+	assert_eq(shipped.seat_team_button_min_size_px, fresh.seat_team_button_min_size_px, ".tres and .gd defaults agree")
+	assert_eq(shipped.seat_difficulty_min_width_px, fresh.seat_difficulty_min_width_px)
+	assert_eq(shipped.seat_remove_button_min_size_px, fresh.seat_remove_button_min_size_px)
+	assert_eq(shipped.seat_color_focus_border_px, fresh.seat_color_focus_border_px)
