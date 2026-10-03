@@ -18,7 +18,7 @@ func _initialize() -> void:
 	var hop := false
 	var roll := false
 	var squash := false
-	for track in animation.get_track_count():
+	for track: int in animation.get_track_count():
 		match animation.track_get_type(track):
 			Animation.TYPE_POSITION_3D:
 				hop = animation.position_track_interpolate(track, 0.0).distance_to(animation.position_track_interpolate(track, 0.375)) > 0.1
@@ -39,7 +39,7 @@ func _initialize() -> void:
 func _find_player(node: Node) -> AnimationPlayer:
 	if node is AnimationPlayer:
 		return node
-	for child in node.get_children():
+	for child: Node in node.get_children():
 		var found := _find_player(child)
 		if found != null:
 			return found

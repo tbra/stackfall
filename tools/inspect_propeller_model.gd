@@ -17,7 +17,7 @@ func _initialize() -> void:
 	var animation := player.get_animation("spin_1s")
 	print("Imported propeller loop: %.2fs, %d tracks" % [animation.length, animation.get_track_count()])
 	var rotated := false
-	for track in animation.get_track_count():
+	for track: int in animation.get_track_count():
 		if animation.track_get_type(track) == Animation.TYPE_ROTATION_3D:
 			var start := animation.rotation_track_interpolate(track, 0.0)
 			var quarter := animation.rotation_track_interpolate(track, 0.25)
@@ -36,7 +36,7 @@ func _initialize() -> void:
 func _find_player(node: Node) -> AnimationPlayer:
 	if node is AnimationPlayer:
 		return node
-	for child in node.get_children():
+	for child: Node in node.get_children():
 		var found := _find_player(child)
 		if found != null:
 			return found

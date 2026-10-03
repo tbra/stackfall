@@ -16,7 +16,7 @@ func _initialize() -> void:
 		return
 	var animation := player.get_animation("tail_sway_2s")
 	var moving := false
-	for track in animation.get_track_count():
+	for track: int in animation.get_track_count():
 		if animation.track_get_type(track) == Animation.TYPE_ROTATION_3D:
 			moving = animation.rotation_track_interpolate(track, 0.0).angle_to(animation.rotation_track_interpolate(track, 0.5)) > 0.1
 	print("Imported tail loop: %.2fs, %d tracks, moving=%s" % [animation.length, animation.get_track_count(), moving])
@@ -32,7 +32,7 @@ func _initialize() -> void:
 func _find_player(node: Node) -> AnimationPlayer:
 	if node is AnimationPlayer:
 		return node
-	for child in node.get_children():
+	for child: Node in node.get_children():
 		var found := _find_player(child)
 		if found != null:
 			return found
