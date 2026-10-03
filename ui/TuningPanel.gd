@@ -937,7 +937,13 @@ func _on_field_changed(resource: Resource, _prop_name: String) -> void:
 	elif resource == camera_tuning:
 		apply_camera_tuning_live()
 	elif resource == sky_theme:
-		apply_sky_theme_live()
+		# Bontago-mp0.83: the day/night cycle length is a rate, not a look; it
+		# goes through its own seam so the time of day stays put and the theme
+		# is not re-applied over a running cycle.
+		if _prop_name == "cycle_length_seconds":
+			apply_cycle_length_live()
+		else:
+			apply_sky_theme_live()
 	# ghost_tuning / territory_tuning / block_feed_config are already read
 	# live by whatever consumes them each frame/tick -- see this file's class
 	# doc for the live-apply hooks the other resources need. Bontago-xtq.36:
@@ -1308,6 +1314,17 @@ func apply_sky_theme_live() -> void:
 		var skybox: Skybox = node as Skybox
 		if skybox != null:
 			skybox.apply_theme(sky_theme)
+
+
+## Bontago-mp0.83 (owner playtest 2026-10-03: "control day/night length in F4"):
+## pushes the Sky tab's cycle_length_seconds onto every live Skybox running a
+## CYCLE match. Skybox re-bases its phase so the time of day does not jump.
+## Local dev tuning only: nothing is replicated.
+func apply_cycle_length_live() -> void:
+	for node: Node in get_tree().get_nodes_in_group(Skybox.TUNING_GROUP):
+		var skybox: Skybox = node as Skybox
+		if skybox != null:
+			skybox.set_cycle_length_seconds(sky_theme.cycle_length_seconds)
 
 
 # --- Reset / Save / Copy -----------------------------------------------------

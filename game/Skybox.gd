@@ -150,6 +150,13 @@ var _cycle_day: SkyThemeDef = null
 var _cycle_night: SkyThemeDef = null
 var _cycle_phase_last: float = -1.0
 var _cycle_life_is_night: bool = false
+## Bontago-mp0.83: the phase mapping is phase = fposmod(clock / length + offset,
+## 1). `_cycle_length_s` is the length it is currently based on and
+## `_cycle_phase_offset` is re-based whenever the live length changes (F4), so
+## the time of day never jumps. `_cycle_clock_s` is the last shared clock seen.
+var _cycle_length_s: float = 1.0
+var _cycle_phase_offset: float = 0.0
+var _cycle_clock_s: float = 0.0
 
 
 ## The host-resolved mode is included in MatchConfig's normal match-start RPC.
@@ -175,14 +182,64 @@ func configure_match_sky(match_config: MatchConfig) -> void:
 	environment.sky.process_mode = Sky.PROCESS_MODE_INCREMENTAL
 	_cycle_phase_last = -1.0
 	_cycle_life_is_night = true
+	_cycle_length_s = maxf(_cycle_theme.cycle_length_seconds, 1.0)
+	_cycle_phase_offset = 0.0
+	_cycle_clock_s = 0.0
 	set_cycle_phase(0.0)
 
 
 func _process(_delta: float) -> void:
 	if _cycle_theme == null:
 		return
+	update_cycle_clock(SnapshotSync.sky_cycle_seconds())
+
+
+## Advances the cycle to the shared clock `clock_seconds` (SnapshotSync's host
+## clock in a match; tests and probes pass their own). A cycle-length edit that
+## landed since the last call is folded in first, keeping the phase continuous.
+func update_cycle_clock(clock_seconds: float) -> void:
+	if _cycle_theme == null:
+		return
+	_cycle_clock_s = clock_seconds
+	_sync_cycle_length()
+	set_cycle_phase(cycle_phase_at(clock_seconds))
+
+
+## The cycle phase (0..1, 0 = dawn, 0.25 = noon) at shared clock `clock_seconds`
+## under the length and offset currently in force.
+func cycle_phase_at(clock_seconds: float) -> float:
+	return fposmod(clock_seconds / _cycle_length_s + _cycle_phase_offset, 1.0)
+
+
+## Live cycle length (F4 Sky tab, Bontago-mp0.83): applies `seconds` to the
+## running cycle and to the day theme the next match copies from. The time of
+## day does not move; only its speed changes from now on. Local dev tuning: the
+## length is not replicated, shipped content gives every peer the same default.
+func set_cycle_length_seconds(seconds: float) -> void:
+	if _cycle_theme == null:
+		return
+	var length: float = maxf(seconds, 1.0)
+	_cycle_theme.cycle_length_seconds = length
+	if _cycle_day != null:
+		_cycle_day.cycle_length_seconds = length
+	_sync_cycle_length()
+
+
+## Seconds per full cycle the running cycle uses; 0 outside CYCLE mode.
+func cycle_length_seconds() -> float:
+	return _cycle_length_s if _cycle_theme != null else 0.0
+
+
+## DECISION (Bontago-mp0.83): when the authored length changes mid-match, the
+## offset is chosen so the phase at the last clock equals the old phase (no
+## jump in the time of day); only the rate changes afterwards.
+func _sync_cycle_length() -> void:
 	var length: float = maxf(_cycle_theme.cycle_length_seconds, 1.0)
-	set_cycle_phase(fposmod(SnapshotSync.sky_cycle_seconds(), length) / length)
+	if is_equal_approx(length, _cycle_length_s):
+		return
+	var phase: float = cycle_phase_at(_cycle_clock_s)
+	_cycle_length_s = length
+	_cycle_phase_offset = phase - _cycle_clock_s / length
 
 
 ## Public phase seam also used by deterministic tests and visual probes.
