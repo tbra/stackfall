@@ -8,7 +8,10 @@ extends GutTest
 ## whatever wetness had not dried yet. These drive the real Main scene, Net and
 ## Match autoloads (same fixture as test_match_lifecycle.gd) through
 ## play -> leave -> start a new match, and pin the unit seams under it:
-## CameraRig.reset_view() and RainPuddles.clear_on().
+## CameraRig.reset_view() and RainPuddles.clear_on(). R0 of the full match-reset
+## plan (docs/MATCH_RESET_AUDIT.md) adds the Events.match_scope_reset hub: once per
+## world build and once per teardown, also for a cancelled staged build and a menu
+## sandbox/tutorial start, and reset_view() clears suppress_pad_home_focus.
 
 const MAIN_SCENE: PackedScene = preload("res://game/Main.tscn")
 const CAMERA_RIG_SCENE: PackedScene = preload("res://game/CameraRig.tscn")
@@ -281,10 +284,132 @@ func test_a_live_rain_presentation_rebuilds_a_dry_layer_after_the_reset() -> voi
 	var old_layer: RainPuddles = _puddles()
 	assert_not_null(old_layer)
 
-	_main._reset_match_presentation(false)
+	_main._reset_match_scope(false)
 	assert_false(is_instance_valid(old_layer))
 	presentation.set_intensity(1.0)
 
 	var new_layer: RainPuddles = _puddles()
 	assert_not_null(new_layer, "rain that is still falling builds a fresh layer instead of keeping a dead reference")
 	assert_eq(new_layer.wetness(), 0.0, "which starts dry and fills from zero")
+
+
+# --- Events.match_scope_reset hub (Bontago-1pi.46 R0) ---------------------------
+
+const SCOPE_SIGNAL: String = "match_scope_reset"
+
+
+func test_the_scope_reset_signal_fires_once_per_build_and_once_per_teardown() -> void:
+	_host()
+	watch_signals(Events)
+
+	_start(MatchConfig.WeatherMode.OFF)
+	assert_true(_main._world_built, "fixture: the world was built")
+	assert_signal_emit_count(Events, SCOPE_SIGNAL, 1, "one world build, one reset")
+
+	Match.abort_match()
+	assert_false(_main._world_built, "fixture: the world came down")
+	assert_signal_emit_count(Events, SCOPE_SIGNAL, 2, "the teardown adds exactly one")
+
+
+func test_a_replay_is_one_teardown_and_one_build() -> void:
+	_host()
+	_start(MatchConfig.WeatherMode.OFF)
+	watch_signals(Events)
+
+	Match.start_match(_config(MatchConfig.WeatherMode.OFF))
+
+	assert_true(_main._world_built)
+	assert_signal_emit_count(Events, SCOPE_SIGNAL, 2, "start_match goes (X -> LOBBY) then (LOBBY -> LOADING): one reset each")
+
+
+func test_the_scope_reset_runs_on_a_cancelled_staged_build_too() -> void:
+	var fresh: CameraRig = _fresh_rig()
+	_host()
+	_start(MatchConfig.WeatherMode.OFF)
+	var rig: CameraRig = _rig()
+	_main._end_match_world()
+	assert_false(_main._world_built, "fixture: no world is up, so a staged build may start")
+	watch_signals(Events)
+
+	_main._build_match_world(true)
+	# What a LOBBY transition does to a build that is waiting on a frame: it bumps the
+	# generation, and the build bails out at its first checkpoint.
+	_main._loading_generation += 1
+	await _settle()
+	assert_false(_main._world_built, "fixture: the staged build was cancelled before it finished")
+	assert_false(_main._world_building)
+	assert_signal_emit_count(Events, SCOPE_SIGNAL, 1, "the cancelled build still opened its scope")
+	var config: MatchConfig = Match.config
+	_field().place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
+	assert_gt(_field().home_flags().size(), 0, "fixture: the half-built world put flags on the Field")
+	_dirty(rig)
+
+	Match.abort_match()
+
+	assert_signal_emit_count(Events, SCOPE_SIGNAL, 2, "the teardown resets although _world_built was false")
+	_assert_launch_view(rig, fresh, "after the cancelled build")
+	assert_eq(_field().home_flags().size(), 0, "the half-built world's flags are cleared too")
+
+
+func test_a_menu_sandbox_start_emits_the_scope_reset_once() -> void:
+	watch_signals(Events)
+
+	_main.start_sandbox_from_menu()
+
+	assert_not_null(_main._sandbox, "fixture: the sandbox is live")
+	assert_signal_emit_count(Events, SCOPE_SIGNAL, 1, "start_sandbox_from_menu bypasses _build_match_world and resets itself")
+
+
+func test_a_menu_tutorial_start_emits_the_scope_reset_once() -> void:
+	watch_signals(Events)
+
+	_main.start_tutorial_from_menu()
+
+	assert_not_null(_main._tutorial, "fixture: the tutorial is live")
+	assert_signal_emit_count(Events, SCOPE_SIGNAL, 1, "start_tutorial_from_menu bypasses _build_match_world and resets itself")
+
+
+func test_a_sandbox_reset_emits_once_and_keeps_the_players_view() -> void:
+	_main.start_sandbox_from_menu()
+	var rig: CameraRig = _rig()
+	_dirty(rig)
+	var zoomed: float = rig.get_distance()
+	watch_signals(Events)
+
+	_main._sandbox._reset_field()
+
+	assert_signal_emit_count(Events, SCOPE_SIGNAL, 1, "the (X -> LOBBY) half of a sandbox reset; the (LOBBY -> LOADING) half is diverted")
+	assert_eq(rig.get_distance(), zoomed, "F5 does not move the camera")
+	assert_true(rig.suppress_pad_home_focus, "and the sandbox keeps its own pad Back = next slot")
+
+
+func test_a_lobby_match_after_a_menu_sandbox_has_gamepad_home_focus_again() -> void:
+	var rig: CameraRig = _rig()
+	assert_false(rig.suppress_pad_home_focus, "fixture: a fresh launch lets pad Back focus home")
+	_main.start_sandbox_from_menu()
+	assert_true(rig.suppress_pad_home_focus, "fixture: the sandbox owns pad Back for next-slot")
+
+	_main._on_pause_leave_requested()
+	await _settle()
+	assert_not_null(_main._main_menu, "fixture: back on the main menu")
+	assert_false(rig.suppress_pad_home_focus, "leaving the sandbox hands pad Back back to the camera")
+
+	_host()
+	_start(MatchConfig.WeatherMode.OFF)
+
+	assert_false(rig.suppress_pad_home_focus, "the lobby match starts with it released")
+	var pad_back: InputEventJoypadButton = InputEventJoypadButton.new()
+	pad_back.button_index = JOY_BUTTON_BACK
+	pad_back.pressed = true
+	assert_true(pad_back.is_action_pressed(&"camera_snap_home"), "fixture: Back is camera_snap_home")
+	rig._unhandled_input(pad_back)
+	assert_eq(rig._focus_action, &"camera_snap_home", "pad Back focuses home in the lobby match")
+
+
+func test_reset_view_clears_suppress_pad_home_focus() -> void:
+	var rig: CameraRig = _fresh_rig()
+	rig.suppress_pad_home_focus = true
+
+	rig.reset_view()
+
+	assert_false(rig.suppress_pad_home_focus)
