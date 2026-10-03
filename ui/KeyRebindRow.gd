@@ -59,6 +59,44 @@ const DISPLAY_NAMES: Dictionary[StringName, String] = {
 	&"pause_menu": "Pause",
 }
 
+## Bontago-1pi.41 (owner capture of the Options gamepad Controls page: blank
+## rows for Rotate left/right, Lock height, ...). Several gameplay actions have
+## no Input Map *gamepad event of their own* because the pad performs the same
+## job through a different, pad-only action -- tools/bootstrap_project.gd's
+## DEVICE_EXCEPTIONS (tests/unit/test_project_setup.gd) and spec 2.5's control
+## table document each one. On the gamepad page such a row shows those real
+## stand-in controls (read live from the InputMap, never a raw button literal):
+##   rotate_yaw_cw      -> rotate_snap (B, 90 degree yaw tap)
+##   rotate_yaw_ccw     -> rotate_drag_pad (RT held + left stick, free rotation;
+##                         the pad has no counter-clockwise tap)
+##   rotation_mode      -> rotate_drag_pad (the pad's own free-rotation gesture)
+##   rotate_drag        -> rotate_snap + rotate_drag_pad (B taps, RT drags)
+##   camera_mode,
+##   camera_orbit       -> camera_look_right (right stick orbits unconditionally)
+##   camera_zoom_in/out -> camera_zoom_modifier + ghost_move_forward/back
+##                         (LT held + left stick; InputGlyph has no stick
+##                         direction, so both rows read "LT + L Stick")
+## An action's own gamepad binding always wins: once a player rebinds it on the
+## pad page the row shows that binding instead (KeyRebindRow's normal capture
+## path is unchanged -- it adds a real gamepad event to the action itself).
+const PAD_STAND_INS: Dictionary[StringName, Array] = {
+	&"rotate_yaw_cw": [&"rotate_snap"],
+	&"rotate_yaw_ccw": [&"rotate_drag_pad"],
+	&"rotation_mode": [&"rotate_drag_pad"],
+	&"rotate_drag": [&"rotate_snap", &"rotate_drag_pad"],
+	&"camera_mode": [&"camera_look_right"],
+	&"camera_orbit": [&"camera_look_right"],
+	&"camera_zoom_in": [&"camera_zoom_modifier", &"ghost_move_forward"],
+	&"camera_zoom_out": [&"camera_zoom_modifier", &"ghost_move_back"],
+}
+
+## DECISION (Bontago-1pi.41): actions with no gamepad function at all are hidden
+## from the gamepad page instead of showing a blank row. lock_vertical: spec
+## 2.5 "Lock to vertical" gamepad cell is "(stick and height are already
+## separate)" -- left stick moves X/Z, LB/RB move height, so there is nothing to
+## lock. They stay listed (and rebindable) on the keyboard/mouse page.
+const PAD_NOT_APPLICABLE: Array[StringName] = [&"lock_vertical"]
+
 ## Reused only for the row's own subtle hover/pressed highlight -- a calm
 ## list row, not another coral pill button (ui/theme/MenuStyleFactory.gd's
 ## own pill/chip styles are for actual buttons; this row keeps the shared
@@ -237,15 +275,16 @@ func _clear_glyphs() -> void:
 ## Bontago-1pi.10: rebuilds %GlyphRow from only the events of the active
 ## device family (autoload/Settings.gd's own active_input_device()) -- the
 ## "only showing mouse/keyboard, switch to showing only gamepad" behavior the
-## owner asked for. A row with no binding at all for the active family (the
-## K+M-only rows tools/bootstrap_project.gd never gave a gamepad binding,
-## e.g. rotate_drag/lock_vertical/camera_mode/camera_orbit -- see
-## ui/OptionsMenu.gd's own REBINDABLE_ACTIONS doc) is left visible with an
+## owner asked for. Bontago-1pi.41: on the gamepad page an action without its
+## own pad event shows its documented stand-in controls (PAD_STAND_INS) and an
+## action with no pad function at all (PAD_NOT_APPLICABLE) hides the row. Any
+## other row with no binding for the active family is left visible with an
 ## empty glyph row -- still a real, rebindable row for that device.
 ## Owner: "max two glyphs per row, extra bindings hidden behind '+1'" -- a
 ## third InputGlyph shows "+N" instead of a third real icon.
 func _refresh_glyphs() -> void:
 	_clear_glyphs()
+	visible = is_available_on_active_device()
 
 	var events: Array[InputEvent] = _events_for_active_device()
 	var shown_count: int = mini(events.size(), MAX_GLYPHS)
@@ -260,14 +299,45 @@ func _refresh_glyphs() -> void:
 		overflow.set_overflow_count(events.size() - MAX_GLYPHS)
 
 
+## Whether this row belongs on the page of the player's active device family:
+## false only for a PAD_NOT_APPLICABLE action while the gamepad page shows.
+## Computed from Settings (not from `visible`) so ui/OptionsMenu.gd can ask it
+## when rebuilding the focus chain without depending on signal order.
+func is_available_on_active_device() -> bool:
+	if Settings.active_input_device() != Settings.DEVICE_GAMEPAD:
+		return true
+	return not PAD_NOT_APPLICABLE.has(_action)
+
+
 func _events_for_active_device() -> Array[InputEvent]:
-	var want_gamepad: bool = Settings.active_input_device() == Settings.DEVICE_GAMEPAD
+	if Settings.active_input_device() == Settings.DEVICE_GAMEPAD:
+		return gamepad_events_for(_action)
+	return events_of_family(_action, false)
+
+
+## The gamepad controls the Options page shows for `action`: its own pad events
+## when it has any, otherwise the first pad event of each PAD_STAND_INS source
+## action (empty when the action has neither). Public static so tests can assert
+## the resolution without building a row.
+static func gamepad_events_for(action: StringName) -> Array[InputEvent]:
+	var own: Array[InputEvent] = events_of_family(action, true)
+	if not own.is_empty():
+		return own
+	var stand_ins: Array[InputEvent] = []
+	for source: StringName in (PAD_STAND_INS.get(action, []) as Array):
+		var source_events: Array[InputEvent] = events_of_family(source, true)
+		if not source_events.is_empty():
+			stand_ins.append(source_events[0])
+	return stand_ins
+
+
+static func events_of_family(action: StringName, gamepad: bool) -> Array[InputEvent]:
 	var matched: Array[InputEvent] = []
-	if not InputMap.has_action(_action):
+	if not InputMap.has_action(action):
 		return matched
-	for event: InputEvent in InputMap.action_get_events(_action):
+	for event: InputEvent in InputMap.action_get_events(action):
 		var is_gamepad: bool = event is InputEventJoypadButton or event is InputEventJoypadMotion
-		if is_gamepad == want_gamepad:
+		if is_gamepad == gamepad:
 			matched.append(event)
 	return matched
 
