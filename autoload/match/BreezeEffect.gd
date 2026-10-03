@@ -2,8 +2,10 @@ class_name BreezeEffect
 extends RefCounted
 ## Host-side Breeze (Bontago-470.2): an always-on weak wind made of short
 ## local GUSTS, layered independently of the weather mode and of any active
-## weather (including Storm). Rules: core/BreezeField.gd; numbers:
-## config/breeze.tres (BreezeTuning).
+## weather, except Storm: no NEW gust spawns while a Storm event is active
+## (Bontago-mp0.91, owner playtest "gust shouldn't occur during storm"); they
+## resume when it ends. Rules: core/BreezeField.gd; numbers: config/breeze.tres
+## (BreezeTuning).
 ##
 ## Every spawn_interval_s the host picks one live block from its seeded RNG and
 ## accepts it with a chance that rises with the block's height above the disc
@@ -23,6 +25,21 @@ extends RefCounted
 ## physics (Freeze, SpecialBehavior, GlueJoint) are skipped, as in Storm.
 ## DECISION (BreezeEffect): the gust list is authoritative host state; a peer
 ## joining mid-gust simply misses that gust's visual (transient, seconds).
+## DECISION (BreezeEffect, Bontago-mp0.91): the host scheduler skips the spawn
+## attempt while the active weather id is Storm (any phase: ramp-in, hold,
+## ramp-out; the F4 forced storm too). Clients need no logic: they only draw the
+## gusts the host announces, so no announcement means no gust. A gust already in
+## flight when a Storm starts is left to finish: the host has no "gust ended
+## early" wire message (net/BreezeNet.gd announces each gust once, with its
+## duration), so cancelling only the host list would leave clients drawing a
+## gust that no longer pushes. The overlap is at most one gust life
+## (duration_max_s, mostly inside the Storm's ramp-in, where its wind is still
+## weak). Suppressed attempts consume no seeded random draws, so a seed's gust
+## sequence still depends only on the seed, the block list and the weather
+## schedule. The Storm's own wind is untouched.
+
+## The weather id (config/weather/storm.tres) that quiets the Breeze.
+const QUIET_WEATHER_ID: StringName = &"storm"
 
 var tuning: BreezeTuning = preload("res://config/breeze.tres")
 var match_ref: MatchAutoload = null
@@ -42,6 +59,9 @@ var _host_check: Callable = Callable()
 var _blocks_source: Callable = Callable()
 var _surface_source: Callable = Callable()
 var _force_host: bool = false
+## Optional override for the active weather id (returns a StringName/String);
+## unset = ask match_ref.weather().
+var _weather_id_source: Callable = Callable()
 
 
 func bind(match_owner: MatchAutoload, host_check: Callable = Callable()) -> void:
@@ -53,6 +73,11 @@ func set_test_world(blocks: Callable, surface_y: Callable) -> void:
 	_blocks_source = blocks
 	_surface_source = surface_y
 	_force_host = true
+
+
+## Test seam: replaces the lookup of the active weather id.
+func set_weather_source(source: Callable) -> void:
+	_weather_id_source = source
 
 
 func begin(seed_value: int) -> void:
@@ -88,6 +113,12 @@ func set_enabled(value: bool) -> void:
 		_gusts.clear()
 
 
+## True while a Storm event is active (host weather state), i.e. while no new
+## gust may spawn. Resolved on demand: it is only asked once per spawn attempt.
+func is_quieted_by_weather() -> bool:
+	return _active_weather_id() == QUIET_WEATHER_ID
+
+
 func gust_count() -> int:
 	return _gusts.size()
 
@@ -106,7 +137,8 @@ func tick(delta: float) -> void:
 	_spawn_left -= delta
 	if _spawn_left <= 0.0:
 		_spawn_left += maxf(tuning.spawn_interval_s, delta)
-		_try_spawn()
+		if not is_quieted_by_weather():
+			_try_spawn()
 	if not _gusts.is_empty():
 		_push(delta)
 
@@ -231,6 +263,13 @@ func _blocks() -> Array[Block]:
 		var none: Array[Block] = []
 		return none
 	return registry.all_blocks()
+
+
+func _active_weather_id() -> StringName:
+	if _weather_id_source.is_valid():
+		return StringName(String(_weather_id_source.call()))
+	var weather: MatchWeather = match_ref.weather() if match_ref != null else null
+	return weather.active_id() if weather != null else &""
 
 
 func _surface_y() -> float:
