@@ -2,9 +2,11 @@ extends Node
 ## Bontago-1pi.18.8 (QoL Q4, docs/QOL_EXPERIMENTS_PLAN.md section 6 and risk
 ## "claim_at cost at multiplier 4, five goals, 20 Hz solve"): what the bigger goal
 ## claim radius costs. WinChecker.update() runs once per territory solve and calls
-## claim_at() once per goal (plus once more for the capturing team), each visiting
-## every cell within `goal_zone_radius * multiplier`: (2 * reach + 1)^2 cells, so the
-## worst case is the toggle's ceiling multiplier with the most goals.
+## claim_at() once per goal (plus once more for the capturing team). Since
+## Bontago-1pi.18.11 each goal's in-radius cell indices are cached (ClaimCells) and
+## tallied in one pass (TerritoryRaster.tally_owned_cells), so an update reads only
+## those cells; the cold first solve that builds the cache is not timed here. The
+## worst case is still the toggle's ceiling multiplier with the most goals.
 ## Run headless (pure logic, no physics, nothing to render):
 ##   godot --headless --path . res://tests/bench/bench_claim_radius.tscn
 ## Prints one machine-readable row per (goal count, multiplier), then a result line
