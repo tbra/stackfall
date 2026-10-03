@@ -191,6 +191,15 @@ func peer_info(peer_id: int) -> Dictionary:
 	}
 
 
+## Bontago-1pi.49: Net.name_for_slot(). Only names a test set in names_by_peer
+## count; "" otherwise, exactly like a slot no peer holds.
+func name_for_slot(slot_id: int) -> String:
+	var peer_id: int = peer_of_slot(slot_id)
+	if peer_id == -1:
+		return ""
+	return String(names_by_peer.get(peer_id, ""))
+
+
 func set_peer_ready(_peer_id: int, _ready: bool) -> void:
 	pass
 

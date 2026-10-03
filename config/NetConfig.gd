@@ -16,6 +16,9 @@ extends Resource
 @export var game_port: int = 47778
 ## Spec 2.8: 2-8 players, so at most 7 remote peers plus the listen-server host.
 @export var max_peers: int = 8
+## Longest player name, in characters, the host accepts (Bontago-1pi.49). The
+## menu's name field, Settings and the host's handshake check all use it.
+@export var max_player_name_length: int = 16
 ## How often the host sends its LAN advert, in Hz (spec 3.4: "once per second").
 @export var discovery_broadcast_hz: float = 1.0
 ## Seconds a discovered game stays in the browser list after its last advert.
@@ -211,6 +214,7 @@ func sanitize() -> void:
 	discovery_port = clampi(discovery_port, 1024, 65535)
 	game_port = clampi(game_port, 1024, 65535)
 	max_peers = clampi(max_peers, MatchConfig.PLAYER_COUNT_MIN, MatchConfig.PLAYER_COUNT_MAX)
+	max_player_name_length = clampi(max_player_name_length, 1, 64)
 	snapshot_hz = clampf(snapshot_hz, 1.0, 60.0)
 	raster_diff_hz = clampf(raster_diff_hz, 1.0, 30.0)
 	cursor_hz = clampf(cursor_hz, 1.0, 60.0)

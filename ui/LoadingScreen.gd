@@ -33,6 +33,9 @@ signal ready_prompt_opened
 
 @export var tuning: LoadingScreenTuning = preload("res://config/loading_screen_tuning.tres")
 @export var menu_visual_tuning: MenuVisualTuning = preload("res://config/menu_visual_tuning.tres")
+## Bontago-1pi.49 test seam: anything answering name_for_slot(slot_id) -> String
+## (Net does). Null means the real Net autoload.
+var name_provider: Variant = null
 
 ## Bontago-1pi.32 L3: the overlay's content sits on its own CanvasLayer so it covers
 ## the HUD (CanvasLayer 1) and its countdown digit. DECISION: layer, not hiding the
@@ -423,8 +426,19 @@ func _player_list_text(slots: Array[PlayerSlot]) -> String:
 	return "\n".join(lines)
 
 
+## Bontago-1pi.49: a human seat shows the name its player typed (the host's
+## replicated roster, which both ends hold by the time LOADING starts); a bot
+## keeps its slot label plus tuning.bot_suffix; an unnamed seat stays "Player N".
 func _slot_label_text(slot_item: PlayerSlot) -> String:
-	return "%s%s" % [slot_item.display_name, tuning.bot_suffix if slot_item.is_bot else ""]
+	var shown: String = PlayerNames.label_for_slot(
+		slot_item.slot_id, slot_item.display_name, slot_item.is_bot, String(_names().name_for_slot(slot_item.slot_id))
+	)
+	return "%s%s" % [shown, tuning.bot_suffix if slot_item.is_bot else ""]
+
+
+## The roster's name lookup: the real Net unless a test installed a double.
+func _names() -> Variant:
+	return name_provider if name_provider != null else Net
 
 
 # --- Bontago-1pi.32 L3: the overlay's own CanvasLayer ------------------------------
