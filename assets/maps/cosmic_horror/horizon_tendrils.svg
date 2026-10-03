@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 520" width="1600" height="520" role="img" aria-label="Long left and right tendrils of the distant creature">
+  <title>Horizon watcher tendrils</title>
+  <g fill="none" stroke="#101224" stroke-linecap="round">
+    <path stroke-width="38" d="M699 329C560 235 482 246 371 264S181 345 40 293"/>
+    <path stroke-width="28" d="M684 362C536 300 445 333 314 384S130 402 16 442"/>
+    <path stroke-width="18" d="M673 394C550 373 465 424 379 463S192 477 105 498"/>
+    <path stroke-width="38" d="M901 329c139-94 217-83 328-65s190 81 331 29"/>
+    <path stroke-width="28" d="M916 362c148-62 239-29 370 22s184 18 298 58"/>
+    <path stroke-width="18" d="M927 394c123-21 208 30 294 69s187 14 274 35"/>
+  </g>
+  <g fill="none" stroke="#343050" stroke-linecap="round" opacity=".75">
+    <path stroke-width="5" d="M663 313C543 253 467 263 371 280S178 347 46 302"/>
+    <path stroke-width="4" d="M937 313c120-60 196-50 292-33s193 67 325 22"/>
+  </g>
+</svg>

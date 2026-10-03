@@ -1,0 +1,1295 @@
+{
+  "godot_version": "4.7.2-stable (official)",
+  "keys": [
+    {
+      "code": 32,
+      "godot_name": "Space",
+      "label": "Space",
+      "file": "keycode_32.png"
+    },
+    {
+      "code": 33,
+      "godot_name": "Exclam",
+      "label": "!",
+      "file": "keycode_33.png"
+    },
+    {
+      "code": 34,
+      "godot_name": "QuoteDbl",
+      "label": "\"",
+      "file": "keycode_34.png"
+    },
+    {
+      "code": 35,
+      "godot_name": "NumberSign",
+      "label": "#",
+      "file": "keycode_35.png"
+    },
+    {
+      "code": 36,
+      "godot_name": "Dollar",
+      "label": "$",
+      "file": "keycode_36.png"
+    },
+    {
+      "code": 37,
+      "godot_name": "Percent",
+      "label": "%",
+      "file": "keycode_37.png"
+    },
+    {
+      "code": 38,
+      "godot_name": "Ampersand",
+      "label": "&",
+      "file": "keycode_38.png"
+    },
+    {
+      "code": 39,
+      "godot_name": "Apostrophe",
+      "label": "'",
+      "file": "keycode_39.png"
+    },
+    {
+      "code": 40,
+      "godot_name": "ParenLeft",
+      "label": "(",
+      "file": "keycode_40.png"
+    },
+    {
+      "code": 41,
+      "godot_name": "ParenRight",
+      "label": ")",
+      "file": "keycode_41.png"
+    },
+    {
+      "code": 42,
+      "godot_name": "Asterisk",
+      "label": "*",
+      "file": "keycode_42.png"
+    },
+    {
+      "code": 43,
+      "godot_name": "Plus",
+      "label": "+",
+      "file": "keycode_43.png"
+    },
+    {
+      "code": 44,
+      "godot_name": "Comma",
+      "label": ",",
+      "file": "keycode_44.png"
+    },
+    {
+      "code": 45,
+      "godot_name": "Minus",
+      "label": "-",
+      "file": "keycode_45.png"
+    },
+    {
+      "code": 46,
+      "godot_name": "Period",
+      "label": ".",
+      "file": "keycode_46.png"
+    },
+    {
+      "code": 47,
+      "godot_name": "Slash",
+      "label": "/",
+      "file": "keycode_47.png"
+    },
+    {
+      "code": 48,
+      "godot_name": "0",
+      "label": "0",
+      "file": "keycode_48.png"
+    },
+    {
+      "code": 49,
+      "godot_name": "1",
+      "label": "1",
+      "file": "keycode_49.png"
+    },
+    {
+      "code": 50,
+      "godot_name": "2",
+      "label": "2",
+      "file": "keycode_50.png"
+    },
+    {
+      "code": 51,
+      "godot_name": "3",
+      "label": "3",
+      "file": "keycode_51.png"
+    },
+    {
+      "code": 52,
+      "godot_name": "4",
+      "label": "4",
+      "file": "keycode_52.png"
+    },
+    {
+      "code": 53,
+      "godot_name": "5",
+      "label": "5",
+      "file": "keycode_53.png"
+    },
+    {
+      "code": 54,
+      "godot_name": "6",
+      "label": "6",
+      "file": "keycode_54.png"
+    },
+    {
+      "code": 55,
+      "godot_name": "7",
+      "label": "7",
+      "file": "keycode_55.png"
+    },
+    {
+      "code": 56,
+      "godot_name": "8",
+      "label": "8",
+      "file": "keycode_56.png"
+    },
+    {
+      "code": 57,
+      "godot_name": "9",
+      "label": "9",
+      "file": "keycode_57.png"
+    },
+    {
+      "code": 58,
+      "godot_name": "Colon",
+      "label": ":",
+      "file": "keycode_58.png"
+    },
+    {
+      "code": 59,
+      "godot_name": "Semicolon",
+      "label": ";",
+      "file": "keycode_59.png"
+    },
+    {
+      "code": 60,
+      "godot_name": "Less",
+      "label": "<",
+      "file": "keycode_60.png"
+    },
+    {
+      "code": 61,
+      "godot_name": "Equal",
+      "label": "=",
+      "file": "keycode_61.png"
+    },
+    {
+      "code": 62,
+      "godot_name": "Greater",
+      "label": ">",
+      "file": "keycode_62.png"
+    },
+    {
+      "code": 63,
+      "godot_name": "Question",
+      "label": "?",
+      "file": "keycode_63.png"
+    },
+    {
+      "code": 64,
+      "godot_name": "At",
+      "label": "@",
+      "file": "keycode_64.png"
+    },
+    {
+      "code": 65,
+      "godot_name": "A",
+      "label": "A",
+      "file": "keycode_65.png"
+    },
+    {
+      "code": 66,
+      "godot_name": "B",
+      "label": "B",
+      "file": "keycode_66.png"
+    },
+    {
+      "code": 67,
+      "godot_name": "C",
+      "label": "C",
+      "file": "keycode_67.png"
+    },
+    {
+      "code": 68,
+      "godot_name": "D",
+      "label": "D",
+      "file": "keycode_68.png"
+    },
+    {
+      "code": 69,
+      "godot_name": "E",
+      "label": "E",
+      "file": "keycode_69.png"
+    },
+    {
+      "code": 70,
+      "godot_name": "F",
+      "label": "F",
+      "file": "keycode_70.png"
+    },
+    {
+      "code": 71,
+      "godot_name": "G",
+      "label": "G",
+      "file": "keycode_71.png"
+    },
+    {
+      "code": 72,
+      "godot_name": "H",
+      "label": "H",
+      "file": "keycode_72.png"
+    },
+    {
+      "code": 73,
+      "godot_name": "I",
+      "label": "I",
+      "file": "keycode_73.png"
+    },
+    {
+      "code": 74,
+      "godot_name": "J",
+      "label": "J",
+      "file": "keycode_74.png"
+    },
+    {
+      "code": 75,
+      "godot_name": "K",
+      "label": "K",
+      "file": "keycode_75.png"
+    },
+    {
+      "code": 76,
+      "godot_name": "L",
+      "label": "L",
+      "file": "keycode_76.png"
+    },
+    {
+      "code": 77,
+      "godot_name": "M",
+      "label": "M",
+      "file": "keycode_77.png"
+    },
+    {
+      "code": 78,
+      "godot_name": "N",
+      "label": "N",
+      "file": "keycode_78.png"
+    },
+    {
+      "code": 79,
+      "godot_name": "O",
+      "label": "O",
+      "file": "keycode_79.png"
+    },
+    {
+      "code": 80,
+      "godot_name": "P",
+      "label": "P",
+      "file": "keycode_80.png"
+    },
+    {
+      "code": 81,
+      "godot_name": "Q",
+      "label": "Q",
+      "file": "keycode_81.png"
+    },
+    {
+      "code": 82,
+      "godot_name": "R",
+      "label": "R",
+      "file": "keycode_82.png"
+    },
+    {
+      "code": 83,
+      "godot_name": "S",
+      "label": "S",
+      "file": "keycode_83.png"
+    },
+    {
+      "code": 84,
+      "godot_name": "T",
+      "label": "T",
+      "file": "keycode_84.png"
+    },
+    {
+      "code": 85,
+      "godot_name": "U",
+      "label": "U",
+      "file": "keycode_85.png"
+    },
+    {
+      "code": 86,
+      "godot_name": "V",
+      "label": "V",
+      "file": "keycode_86.png"
+    },
+    {
+      "code": 87,
+      "godot_name": "W",
+      "label": "W",
+      "file": "keycode_87.png"
+    },
+    {
+      "code": 88,
+      "godot_name": "X",
+      "label": "X",
+      "file": "keycode_88.png"
+    },
+    {
+      "code": 89,
+      "godot_name": "Y",
+      "label": "Y",
+      "file": "keycode_89.png"
+    },
+    {
+      "code": 90,
+      "godot_name": "Z",
+      "label": "Z",
+      "file": "keycode_90.png"
+    },
+    {
+      "code": 91,
+      "godot_name": "BracketLeft",
+      "label": "[",
+      "file": "keycode_91.png"
+    },
+    {
+      "code": 92,
+      "godot_name": "BackSlash",
+      "label": "\\",
+      "file": "keycode_92.png"
+    },
+    {
+      "code": 93,
+      "godot_name": "BracketRight",
+      "label": "]",
+      "file": "keycode_93.png"
+    },
+    {
+      "code": 94,
+      "godot_name": "AsciiCircum",
+      "label": "^",
+      "file": "keycode_94.png"
+    },
+    {
+      "code": 95,
+      "godot_name": "UnderScore",
+      "label": "_",
+      "file": "keycode_95.png"
+    },
+    {
+      "code": 96,
+      "godot_name": "QuoteLeft",
+      "label": "`",
+      "file": "keycode_96.png"
+    },
+    {
+      "code": 97,
+      "godot_name": "a",
+      "label": "a",
+      "file": "keycode_97.png"
+    },
+    {
+      "code": 98,
+      "godot_name": "b",
+      "label": "b",
+      "file": "keycode_98.png"
+    },
+    {
+      "code": 99,
+      "godot_name": "c",
+      "label": "c",
+      "file": "keycode_99.png"
+    },
+    {
+      "code": 100,
+      "godot_name": "d",
+      "label": "d",
+      "file": "keycode_100.png"
+    },
+    {
+      "code": 101,
+      "godot_name": "e",
+      "label": "e",
+      "file": "keycode_101.png"
+    },
+    {
+      "code": 102,
+      "godot_name": "f",
+      "label": "f",
+      "file": "keycode_102.png"
+    },
+    {
+      "code": 103,
+      "godot_name": "g",
+      "label": "g",
+      "file": "keycode_103.png"
+    },
+    {
+      "code": 104,
+      "godot_name": "h",
+      "label": "h",
+      "file": "keycode_104.png"
+    },
+    {
+      "code": 105,
+      "godot_name": "i",
+      "label": "i",
+      "file": "keycode_105.png"
+    },
+    {
+      "code": 106,
+      "godot_name": "j",
+      "label": "j",
+      "file": "keycode_106.png"
+    },
+    {
+      "code": 107,
+      "godot_name": "k",
+      "label": "k",
+      "file": "keycode_107.png"
+    },
+    {
+      "code": 108,
+      "godot_name": "l",
+      "label": "l",
+      "file": "keycode_108.png"
+    },
+    {
+      "code": 109,
+      "godot_name": "m",
+      "label": "m",
+      "file": "keycode_109.png"
+    },
+    {
+      "code": 110,
+      "godot_name": "n",
+      "label": "n",
+      "file": "keycode_110.png"
+    },
+    {
+      "code": 111,
+      "godot_name": "o",
+      "label": "o",
+      "file": "keycode_111.png"
+    },
+    {
+      "code": 112,
+      "godot_name": "p",
+      "label": "p",
+      "file": "keycode_112.png"
+    },
+    {
+      "code": 113,
+      "godot_name": "q",
+      "label": "q",
+      "file": "keycode_113.png"
+    },
+    {
+      "code": 114,
+      "godot_name": "r",
+      "label": "r",
+      "file": "keycode_114.png"
+    },
+    {
+      "code": 115,
+      "godot_name": "s",
+      "label": "s",
+      "file": "keycode_115.png"
+    },
+    {
+      "code": 116,
+      "godot_name": "t",
+      "label": "t",
+      "file": "keycode_116.png"
+    },
+    {
+      "code": 117,
+      "godot_name": "u",
+      "label": "u",
+      "file": "keycode_117.png"
+    },
+    {
+      "code": 118,
+      "godot_name": "v",
+      "label": "v",
+      "file": "keycode_118.png"
+    },
+    {
+      "code": 119,
+      "godot_name": "w",
+      "label": "w",
+      "file": "keycode_119.png"
+    },
+    {
+      "code": 120,
+      "godot_name": "x",
+      "label": "x",
+      "file": "keycode_120.png"
+    },
+    {
+      "code": 121,
+      "godot_name": "y",
+      "label": "y",
+      "file": "keycode_121.png"
+    },
+    {
+      "code": 122,
+      "godot_name": "z",
+      "label": "z",
+      "file": "keycode_122.png"
+    },
+    {
+      "code": 123,
+      "godot_name": "BraceLeft",
+      "label": "{",
+      "file": "keycode_123.png"
+    },
+    {
+      "code": 124,
+      "godot_name": "Bar",
+      "label": "|",
+      "file": "keycode_124.png"
+    },
+    {
+      "code": 125,
+      "godot_name": "BraceRight",
+      "label": "}",
+      "file": "keycode_125.png"
+    },
+    {
+      "code": 126,
+      "godot_name": "AsciiTilde",
+      "label": "~",
+      "file": "keycode_126.png"
+    },
+    {
+      "code": 4194305,
+      "godot_name": "Escape",
+      "label": "Esc",
+      "file": "keycode_4194305.png"
+    },
+    {
+      "code": 4194306,
+      "godot_name": "Tab",
+      "label": "Tab",
+      "file": "keycode_4194306.png"
+    },
+    {
+      "code": 4194307,
+      "godot_name": "Backtab",
+      "label": "BTab",
+      "file": "keycode_4194307.png"
+    },
+    {
+      "code": 4194308,
+      "godot_name": "Backspace",
+      "label": "Bksp",
+      "file": "keycode_4194308.png"
+    },
+    {
+      "code": 4194309,
+      "godot_name": "Enter",
+      "label": "Enter",
+      "file": "keycode_4194309.png"
+    },
+    {
+      "code": 4194310,
+      "godot_name": "Kp Enter",
+      "label": "Num Ent",
+      "file": "keycode_4194310.png"
+    },
+    {
+      "code": 4194311,
+      "godot_name": "Insert",
+      "label": "Ins",
+      "file": "keycode_4194311.png"
+    },
+    {
+      "code": 4194312,
+      "godot_name": "Delete",
+      "label": "Del",
+      "file": "keycode_4194312.png"
+    },
+    {
+      "code": 4194313,
+      "godot_name": "Pause",
+      "label": "Pause",
+      "file": "keycode_4194313.png"
+    },
+    {
+      "code": 4194314,
+      "godot_name": "Print",
+      "label": "PrtSc",
+      "file": "keycode_4194314.png"
+    },
+    {
+      "code": 4194315,
+      "godot_name": "SysReq",
+      "label": "SysRq",
+      "file": "keycode_4194315.png"
+    },
+    {
+      "code": 4194316,
+      "godot_name": "Clear",
+      "label": "Clear",
+      "file": "keycode_4194316.png"
+    },
+    {
+      "code": 4194317,
+      "godot_name": "Home",
+      "label": "Home",
+      "file": "keycode_4194317.png"
+    },
+    {
+      "code": 4194318,
+      "godot_name": "End",
+      "label": "End",
+      "file": "keycode_4194318.png"
+    },
+    {
+      "code": 4194319,
+      "godot_name": "Left",
+      "label": "Left",
+      "file": "keycode_4194319.png"
+    },
+    {
+      "code": 4194320,
+      "godot_name": "Up",
+      "label": "Up",
+      "file": "keycode_4194320.png"
+    },
+    {
+      "code": 4194321,
+      "godot_name": "Right",
+      "label": "Right",
+      "file": "keycode_4194321.png"
+    },
+    {
+      "code": 4194322,
+      "godot_name": "Down",
+      "label": "Down",
+      "file": "keycode_4194322.png"
+    },
+    {
+      "code": 4194323,
+      "godot_name": "PageUp",
+      "label": "PgUp",
+      "file": "keycode_4194323.png"
+    },
+    {
+      "code": 4194324,
+      "godot_name": "PageDown",
+      "label": "PgDn",
+      "file": "keycode_4194324.png"
+    },
+    {
+      "code": 4194325,
+      "godot_name": "Shift",
+      "label": "Shift",
+      "file": "keycode_4194325.png"
+    },
+    {
+      "code": 4194326,
+      "godot_name": "Ctrl",
+      "label": "Ctrl",
+      "file": "keycode_4194326.png"
+    },
+    {
+      "code": 4194327,
+      "godot_name": "Windows",
+      "label": "Win",
+      "file": "keycode_4194327.png"
+    },
+    {
+      "code": 4194328,
+      "godot_name": "Alt",
+      "label": "Alt",
+      "file": "keycode_4194328.png"
+    },
+    {
+      "code": 4194329,
+      "godot_name": "CapsLock",
+      "label": "Caps",
+      "file": "keycode_4194329.png"
+    },
+    {
+      "code": 4194330,
+      "godot_name": "NumLock",
+      "label": "NumL",
+      "file": "keycode_4194330.png"
+    },
+    {
+      "code": 4194331,
+      "godot_name": "ScrollLock",
+      "label": "ScrL",
+      "file": "keycode_4194331.png"
+    },
+    {
+      "code": 4194332,
+      "godot_name": "F1",
+      "label": "F1",
+      "file": "keycode_4194332.png"
+    },
+    {
+      "code": 4194333,
+      "godot_name": "F2",
+      "label": "F2",
+      "file": "keycode_4194333.png"
+    },
+    {
+      "code": 4194334,
+      "godot_name": "F3",
+      "label": "F3",
+      "file": "keycode_4194334.png"
+    },
+    {
+      "code": 4194335,
+      "godot_name": "F4",
+      "label": "F4",
+      "file": "keycode_4194335.png"
+    },
+    {
+      "code": 4194336,
+      "godot_name": "F5",
+      "label": "F5",
+      "file": "keycode_4194336.png"
+    },
+    {
+      "code": 4194337,
+      "godot_name": "F6",
+      "label": "F6",
+      "file": "keycode_4194337.png"
+    },
+    {
+      "code": 4194338,
+      "godot_name": "F7",
+      "label": "F7",
+      "file": "keycode_4194338.png"
+    },
+    {
+      "code": 4194339,
+      "godot_name": "F8",
+      "label": "F8",
+      "file": "keycode_4194339.png"
+    },
+    {
+      "code": 4194340,
+      "godot_name": "F9",
+      "label": "F9",
+      "file": "keycode_4194340.png"
+    },
+    {
+      "code": 4194341,
+      "godot_name": "F10",
+      "label": "F10",
+      "file": "keycode_4194341.png"
+    },
+    {
+      "code": 4194342,
+      "godot_name": "F11",
+      "label": "F11",
+      "file": "keycode_4194342.png"
+    },
+    {
+      "code": 4194343,
+      "godot_name": "F12",
+      "label": "F12",
+      "file": "keycode_4194343.png"
+    },
+    {
+      "code": 4194344,
+      "godot_name": "F13",
+      "label": "F13",
+      "file": "keycode_4194344.png"
+    },
+    {
+      "code": 4194345,
+      "godot_name": "F14",
+      "label": "F14",
+      "file": "keycode_4194345.png"
+    },
+    {
+      "code": 4194346,
+      "godot_name": "F15",
+      "label": "F15",
+      "file": "keycode_4194346.png"
+    },
+    {
+      "code": 4194347,
+      "godot_name": "F16",
+      "label": "F16",
+      "file": "keycode_4194347.png"
+    },
+    {
+      "code": 4194348,
+      "godot_name": "F17",
+      "label": "F17",
+      "file": "keycode_4194348.png"
+    },
+    {
+      "code": 4194349,
+      "godot_name": "F18",
+      "label": "F18",
+      "file": "keycode_4194349.png"
+    },
+    {
+      "code": 4194350,
+      "godot_name": "F19",
+      "label": "F19",
+      "file": "keycode_4194350.png"
+    },
+    {
+      "code": 4194351,
+      "godot_name": "F20",
+      "label": "F20",
+      "file": "keycode_4194351.png"
+    },
+    {
+      "code": 4194352,
+      "godot_name": "F21",
+      "label": "F21",
+      "file": "keycode_4194352.png"
+    },
+    {
+      "code": 4194353,
+      "godot_name": "F22",
+      "label": "F22",
+      "file": "keycode_4194353.png"
+    },
+    {
+      "code": 4194354,
+      "godot_name": "F23",
+      "label": "F23",
+      "file": "keycode_4194354.png"
+    },
+    {
+      "code": 4194355,
+      "godot_name": "F24",
+      "label": "F24",
+      "file": "keycode_4194355.png"
+    },
+    {
+      "code": 4194356,
+      "godot_name": "F25",
+      "label": "F25",
+      "file": "keycode_4194356.png"
+    },
+    {
+      "code": 4194357,
+      "godot_name": "F26",
+      "label": "F26",
+      "file": "keycode_4194357.png"
+    },
+    {
+      "code": 4194358,
+      "godot_name": "F27",
+      "label": "F27",
+      "file": "keycode_4194358.png"
+    },
+    {
+      "code": 4194359,
+      "godot_name": "F28",
+      "label": "F28",
+      "file": "keycode_4194359.png"
+    },
+    {
+      "code": 4194360,
+      "godot_name": "F29",
+      "label": "F29",
+      "file": "keycode_4194360.png"
+    },
+    {
+      "code": 4194361,
+      "godot_name": "F30",
+      "label": "F30",
+      "file": "keycode_4194361.png"
+    },
+    {
+      "code": 4194362,
+      "godot_name": "F31",
+      "label": "F31",
+      "file": "keycode_4194362.png"
+    },
+    {
+      "code": 4194363,
+      "godot_name": "F32",
+      "label": "F32",
+      "file": "keycode_4194363.png"
+    },
+    {
+      "code": 4194364,
+      "godot_name": "F33",
+      "label": "F33",
+      "file": "keycode_4194364.png"
+    },
+    {
+      "code": 4194365,
+      "godot_name": "F34",
+      "label": "F34",
+      "file": "keycode_4194365.png"
+    },
+    {
+      "code": 4194366,
+      "godot_name": "F35",
+      "label": "F35",
+      "file": "keycode_4194366.png"
+    },
+    {
+      "code": 4194370,
+      "godot_name": "Menu",
+      "label": "Menu",
+      "file": "keycode_4194370.png"
+    },
+    {
+      "code": 4194371,
+      "godot_name": "Hyper",
+      "label": "Hyper",
+      "file": "keycode_4194371.png"
+    },
+    {
+      "code": 4194373,
+      "godot_name": "Help",
+      "label": "Help",
+      "file": "keycode_4194373.png"
+    },
+    {
+      "code": 4194376,
+      "godot_name": "Back",
+      "label": "Back",
+      "file": "keycode_4194376.png"
+    },
+    {
+      "code": 4194377,
+      "godot_name": "Forward",
+      "label": "Forward",
+      "file": "keycode_4194377.png"
+    },
+    {
+      "code": 4194378,
+      "godot_name": "Stop",
+      "label": "Stop",
+      "file": "keycode_4194378.png"
+    },
+    {
+      "code": 4194379,
+      "godot_name": "Refresh",
+      "label": "Refresh",
+      "file": "keycode_4194379.png"
+    },
+    {
+      "code": 4194380,
+      "godot_name": "VolumeDown",
+      "label": "Vol-",
+      "file": "keycode_4194380.png"
+    },
+    {
+      "code": 4194381,
+      "godot_name": "VolumeMute",
+      "label": "Mute",
+      "file": "keycode_4194381.png"
+    },
+    {
+      "code": 4194382,
+      "godot_name": "VolumeUp",
+      "label": "Vol+",
+      "file": "keycode_4194382.png"
+    },
+    {
+      "code": 4194388,
+      "godot_name": "MediaPlay",
+      "label": "Play",
+      "file": "keycode_4194388.png"
+    },
+    {
+      "code": 4194389,
+      "godot_name": "MediaStop",
+      "label": "Stop",
+      "file": "keycode_4194389.png"
+    },
+    {
+      "code": 4194390,
+      "godot_name": "MediaPrevious",
+      "label": "Prev",
+      "file": "keycode_4194390.png"
+    },
+    {
+      "code": 4194391,
+      "godot_name": "MediaNext",
+      "label": "Next",
+      "file": "keycode_4194391.png"
+    },
+    {
+      "code": 4194392,
+      "godot_name": "MediaRecord",
+      "label": "Rec",
+      "file": "keycode_4194392.png"
+    },
+    {
+      "code": 4194393,
+      "godot_name": "HomePage",
+      "label": "HomePg",
+      "file": "keycode_4194393.png"
+    },
+    {
+      "code": 4194394,
+      "godot_name": "Favorites",
+      "label": "Faves",
+      "file": "keycode_4194394.png"
+    },
+    {
+      "code": 4194395,
+      "godot_name": "Search",
+      "label": "Search",
+      "file": "keycode_4194395.png"
+    },
+    {
+      "code": 4194396,
+      "godot_name": "StandBy",
+      "label": "Standby",
+      "file": "keycode_4194396.png"
+    },
+    {
+      "code": 4194397,
+      "godot_name": "OpenURL",
+      "label": "URL",
+      "file": "keycode_4194397.png"
+    },
+    {
+      "code": 4194398,
+      "godot_name": "LaunchMail",
+      "label": "Mail",
+      "file": "keycode_4194398.png"
+    },
+    {
+      "code": 4194399,
+      "godot_name": "LaunchMedia",
+      "label": "Media",
+      "file": "keycode_4194399.png"
+    },
+    {
+      "code": 4194400,
+      "godot_name": "Launch0",
+      "label": "L0",
+      "file": "keycode_4194400.png"
+    },
+    {
+      "code": 4194401,
+      "godot_name": "Launch1",
+      "label": "L1",
+      "file": "keycode_4194401.png"
+    },
+    {
+      "code": 4194402,
+      "godot_name": "Launch2",
+      "label": "L2",
+      "file": "keycode_4194402.png"
+    },
+    {
+      "code": 4194403,
+      "godot_name": "Launch3",
+      "label": "L3",
+      "file": "keycode_4194403.png"
+    },
+    {
+      "code": 4194404,
+      "godot_name": "Launch4",
+      "label": "L4",
+      "file": "keycode_4194404.png"
+    },
+    {
+      "code": 4194405,
+      "godot_name": "Launch5",
+      "label": "L5",
+      "file": "keycode_4194405.png"
+    },
+    {
+      "code": 4194406,
+      "godot_name": "Launch6",
+      "label": "L6",
+      "file": "keycode_4194406.png"
+    },
+    {
+      "code": 4194407,
+      "godot_name": "Launch7",
+      "label": "L7",
+      "file": "keycode_4194407.png"
+    },
+    {
+      "code": 4194408,
+      "godot_name": "Launch8",
+      "label": "L8",
+      "file": "keycode_4194408.png"
+    },
+    {
+      "code": 4194409,
+      "godot_name": "Launch9",
+      "label": "L9",
+      "file": "keycode_4194409.png"
+    },
+    {
+      "code": 4194410,
+      "godot_name": "LaunchA",
+      "label": "LA",
+      "file": "keycode_4194410.png"
+    },
+    {
+      "code": 4194411,
+      "godot_name": "LaunchB",
+      "label": "LB",
+      "file": "keycode_4194411.png"
+    },
+    {
+      "code": 4194412,
+      "godot_name": "LaunchC",
+      "label": "LC",
+      "file": "keycode_4194412.png"
+    },
+    {
+      "code": 4194413,
+      "godot_name": "LaunchD",
+      "label": "LD",
+      "file": "keycode_4194413.png"
+    },
+    {
+      "code": 4194414,
+      "godot_name": "LaunchE",
+      "label": "LE",
+      "file": "keycode_4194414.png"
+    },
+    {
+      "code": 4194415,
+      "godot_name": "LaunchF",
+      "label": "LF",
+      "file": "keycode_4194415.png"
+    },
+    {
+      "code": 4194416,
+      "godot_name": "Globe",
+      "label": "Globe",
+      "file": "keycode_4194416.png"
+    },
+    {
+      "code": 4194417,
+      "godot_name": "On-screen keyboard",
+      "label": "OSK",
+      "file": "keycode_4194417.png"
+    },
+    {
+      "code": 4194418,
+      "godot_name": "JIS Eisu",
+      "label": "Eisu",
+      "file": "keycode_4194418.png"
+    },
+    {
+      "code": 4194419,
+      "godot_name": "JIS Kana",
+      "label": "Kana",
+      "file": "keycode_4194419.png"
+    },
+    {
+      "code": 4194433,
+      "godot_name": "Kp Multiply",
+      "label": "Num ×",
+      "file": "keycode_4194433.png"
+    },
+    {
+      "code": 4194434,
+      "godot_name": "Kp Divide",
+      "label": "Num ÷",
+      "file": "keycode_4194434.png"
+    },
+    {
+      "code": 4194435,
+      "godot_name": "Kp Subtract",
+      "label": "Num -",
+      "file": "keycode_4194435.png"
+    },
+    {
+      "code": 4194436,
+      "godot_name": "Kp Period",
+      "label": "Num .",
+      "file": "keycode_4194436.png"
+    },
+    {
+      "code": 4194437,
+      "godot_name": "Kp Add",
+      "label": "Num +",
+      "file": "keycode_4194437.png"
+    },
+    {
+      "code": 4194438,
+      "godot_name": "Kp 0",
+      "label": "Num 0",
+      "file": "keycode_4194438.png"
+    },
+    {
+      "code": 4194439,
+      "godot_name": "Kp 1",
+      "label": "Num 1",
+      "file": "keycode_4194439.png"
+    },
+    {
+      "code": 4194440,
+      "godot_name": "Kp 2",
+      "label": "Num 2",
+      "file": "keycode_4194440.png"
+    },
+    {
+      "code": 4194441,
+      "godot_name": "Kp 3",
+      "label": "Num 3",
+      "file": "keycode_4194441.png"
+    },
+    {
+      "code": 4194442,
+      "godot_name": "Kp 4",
+      "label": "Num 4",
+      "file": "keycode_4194442.png"
+    },
+    {
+      "code": 4194443,
+      "godot_name": "Kp 5",
+      "label": "Num 5",
+      "file": "keycode_4194443.png"
+    },
+    {
+      "code": 4194444,
+      "godot_name": "Kp 6",
+      "label": "Num 6",
+      "file": "keycode_4194444.png"
+    },
+    {
+      "code": 4194445,
+      "godot_name": "Kp 7",
+      "label": "Num 7",
+      "file": "keycode_4194445.png"
+    },
+    {
+      "code": 4194446,
+      "godot_name": "Kp 8",
+      "label": "Num 8",
+      "file": "keycode_4194446.png"
+    },
+    {
+      "code": 4194447,
+      "godot_name": "Kp 9",
+      "label": "Num 9",
+      "file": "keycode_4194447.png"
+    },
+    {
+      "code": 8388607,
+      "godot_name": "Unknown",
+      "label": "?",
+      "file": "keycode_8388607.png"
+    }
+  ]
+}

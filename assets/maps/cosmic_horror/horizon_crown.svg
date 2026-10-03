@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 520" width="1600" height="520" role="img" aria-label="Crown and long spines of the distant creature">
+  <title>Horizon watcher crown</title>
+  <g fill="#0B0E20">
+    <path d="m751 191-39-167 65 124 23 42-49 1Z"/>
+    <path d="m849 191 39-167-65 124-23 42 49 1Z"/>
+    <path d="m775 156 25-156 25 156-25 38-25-38Z"/>
+    <path d="m736 205-113-162 132 113 20 42-39 7Z"/>
+    <path d="m864 205 113-162-132 113-20 42 39 7Z"/>
+    <path d="m715 226-165-111 163 56 43 38-41 17Z"/>
+    <path d="m885 226 165-111-163 56-43 38 41 17Z"/>
+    <path d="m701 246-191-45 180 3 59 21-48 21Z"/>
+    <path d="m899 246 191-45-180 3-59 21 48 21Z"/>
+  </g>
+  <path fill="#312746" d="m751 189 49-54 49 54-26-9-23-19-23 19-26 9Z"/>
+  <path fill="#6A4A7D" d="m791 175 9-14 9 14-9 17-9-17Z"/>
+</svg>
