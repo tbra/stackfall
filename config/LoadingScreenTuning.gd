@@ -54,6 +54,61 @@ extends Resource
 ## frozen player must not block everyone forever.
 @export var ready_wait_max_s: float = 60.0
 
+## --- Bontago-1pi.32 L2: the ready prompt and player ready list (presentation) ---
+## Colours reuse config/menu_visual_tuning.tres (ink, muted, mint) so the overlay
+## stays on the menu palette; only sizes and wording live here.
+
+## Subtle line shown while the minimum display time remains (or this instance is
+## still loading).
+@export var get_ready_text: String = "Get ready..."
+
+## "<prefix> [glyph] <suffix>" -- the glyph is the bound ui_accept key/button of
+## the player's active device (ui/InputGlyph.gd).
+@export var ready_prompt_prefix: String = "Press"
+@export var ready_prompt_suffix: String = "to ready"
+
+## After the local press: how many required players have not pressed yet. %d is
+## that count; one text per grammatical number.
+@export var waiting_one_text: String = "Waiting for %d player..."
+@export var waiting_many_text: String = "Waiting for %d players..."
+
+## Safety-cap countdown while the host would start without a laggard; %d is whole
+## seconds left (rounded up).
+@export var cap_countdown_format: String = "Starting in %ds"
+
+## Appended to a bot's name in the player list (a bot is always ready).
+@export var bot_suffix: String = " (bot)"
+
+## How many bindings of the active device the prompt shows ("Press [Enter]").
+@export var ready_prompt_glyph_count: int = 1
+
+@export var ready_prompt_font_size: int = 20
+@export var ready_status_font_size: int = 16
+@export var ready_cap_font_size: int = 14
+@export var ready_row_font_size: int = 18
+
+## Opacity of the prompt once the local player has pressed it (it stays visible but
+## disabled while the others catch up).
+@export var ready_prompt_disabled_alpha: float = 0.55
+
+## Vertical gap between the ready box's status line, prompt and cap countdown, and
+## the horizontal gap inside the prompt (prefix, glyph, suffix).
+@export var ready_box_separation_px: int = 8
+@export var ready_prompt_separation_px: int = 10
+
+## Space reserved for the ready box (status + prompt + cap line) once the gate is
+## armed, so the card does not jump when the prompt appears.
+@export var ready_box_min_height_px: float = 128.0
+
+## Player ready list: gap between rows, between a row's cells, the colour swatch
+## and the tick/ring mark (diameters), plus the tick's stroke width.
+@export var ready_list_separation_px: int = 6
+@export var ready_row_separation_px: int = 10
+@export var ready_swatch_size_px: float = 16.0
+@export var ready_mark_size_px: float = 22.0
+@export var ready_mark_stroke_px: float = 2.5
+@export var ready_mark_arc_points: int = 24
+
 ## Draw order of the overlay; above the lobby/menu controls that are still
 ## children of Main until the match world clears them.
 @export var overlay_z_index: int = 100

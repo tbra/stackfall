@@ -42,6 +42,8 @@ func before_each() -> void:
 
 
 func after_each() -> void:
+	_stop_counting()
+	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
 	Events.loading_ready_changed.disconnect(_on_changed)
 	Events.loading_gate_opened.disconnect(_on_opened)
 	Match._lifecycle.set_loading_gate_forced(false)
@@ -426,7 +428,7 @@ func test_screen_gamepad_a_is_the_same_ready_action() -> void:
 	released.button_index = JOY_BUTTON_A
 	released.pressed = false
 	screen._input(released)
-	screen.cancel()
+	await _close(screen)
 
 
 func test_screen_client_gives_up_after_the_wait_cap() -> void:
@@ -450,3 +452,276 @@ func test_screen_unarmed_fade_is_unchanged() -> void:
 	assert_false(screen.accepts_ready_input())
 	await wait_seconds(0.3)
 	assert_false(screen.visible)
+
+
+# --- L2: the ready prompt, status line and player list (presentation) ----------
+
+var _intent_probe: Callable
+
+
+func _match_slots() -> Array[PlayerSlot]:
+	var result: Array[PlayerSlot] = []
+	for slot_id: int in range(Match.slot_count()):
+		result.append(Match.slot(slot_id))
+	return result
+
+
+## A gated match plus a shown overlay (loading not finished until fade_out()).
+func _open_screen(net: Variant, players: int, ai: int, hot_seat: bool = false) -> LoadingScreen:
+	_start_gated(net, players, ai, hot_seat)
+	var screen: LoadingScreen = _screen()
+	screen.tuning.min_display_s = MIN_S
+	screen.tuning.ready_wait_max_s = MAX_S
+	screen.show_for_match(_config(players, ai, hot_seat), _match_slots())
+	return screen
+
+
+## Ends an overlay and lets its fade_out() coroutine resume (and bail on the bumped
+## token) while the node still exists, so the run logs no freed-instance resume.
+func _close(screen: LoadingScreen) -> void:
+	screen.cancel()
+	await wait_process_frames(2)
+
+
+func _accept_pad() -> InputEventJoypadButton:
+	var event: InputEventJoypadButton = InputEventJoypadButton.new()
+	event.button_index = JOY_BUTTON_A
+	event.pressed = true
+	return event
+
+
+## Counts the ready intents that reach the bus (one per accepted press).
+func _count_intents() -> Array[int]:
+	var counter: Array[int] = [0]
+	_intent_probe = func(_peer_id: int) -> void: counter[0] += 1
+	Events.net_loading_ready_received.connect(_intent_probe)
+	return counter
+
+
+func _stop_counting() -> void:
+	if _intent_probe.is_valid() and Events.net_loading_ready_received.is_connected(_intent_probe):
+		Events.net_loading_ready_received.disconnect(_intent_probe)
+
+
+func _slots_for_layout(count: int, bots: int) -> Array[PlayerSlot]:
+	var result: Array[PlayerSlot] = []
+	for i: int in range(count):
+		var slot_item: PlayerSlot = PlayerSlot.new(i, i, "Player %d" % (i + 1), Color.from_hsv(float(i) / 8.0, 0.6, 0.9))
+		slot_item.is_bot = i >= count - bots
+		result.append(slot_item)
+	return result
+
+
+func test_prompt_is_hidden_until_loading_finished_and_shows_the_bound_glyph() -> void:
+	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
+	var screen: LoadingScreen = _open_screen(FakeNet.offline(), 1, 0)
+	assert_true(screen.ready_gate_armed())
+	assert_false(screen._ready_button.visible, "no prompt while this instance is still loading")
+	assert_true(screen._ready_box.visible)
+	assert_eq(screen._status_label.text, screen.tuning.get_ready_text, "subtle 'Get ready...' while it loads")
+	assert_true(screen._player_list.visible, "the ready list replaces the plain name list")
+	assert_false(screen._info_label.visible)
+	screen.fade_out()
+	assert_true(screen.accepts_ready_input())
+	assert_true(screen._ready_button.visible, "the prompt opens with the ready input")
+	assert_eq(screen._prompt_prefix.text, "Press")
+	assert_eq(screen._prompt_suffix.text, "to ready")
+	assert_eq(screen.prompt_glyph_texts(), PackedStringArray(["Enter"]), "keyboard glyph of ui_accept")
+	assert_eq(screen._status_label.text, screen.tuning.get_ready_text, "min display still remains")
+	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+	assert_eq(screen.prompt_glyph_texts(), PackedStringArray(["A"]), "a gamepad user sees the A button")
+	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
+	assert_eq(screen.prompt_glyph_texts(), PackedStringArray(["Enter"]))
+	await _close(screen)
+
+
+func test_synthetic_ui_accept_presses_once_for_key_and_gamepad_a() -> void:
+	var counter: Array[int] = _count_intents()
+	var screen: LoadingScreen = _open_screen(FakeNet.offline(), 1, 0)
+	Input.parse_input_event(_accept_key())
+	Input.flush_buffered_events()
+	assert_eq(counter[0], 0, "ui_accept before loading finished is not a ready press")
+	screen.fade_out()
+	Input.parse_input_event(_accept_key())
+	Input.flush_buffered_events()
+	assert_eq(counter[0], 1, "the Enter key readies through the Input Map")
+	assert_true(screen.local_pressed())
+	Input.parse_input_event(_accept_pad())
+	Input.flush_buffered_events()
+	screen._input(_accept_pad())
+	assert_eq(counter[0], 1, "idempotent: A afterwards (and a repeat) never re-sends")
+	assert_false(screen.press_ready(), "an explicit second call reports it sent nothing")
+	assert_true(screen._ready_button.disabled, "the prompt is disabled after the press")
+	await _close(screen)
+	_stop_counting()
+
+
+func test_gamepad_a_alone_readies_once() -> void:
+	var counter: Array[int] = _count_intents()
+	var screen: LoadingScreen = _open_screen(FakeNet.offline(), 1, 0)
+	screen.fade_out()
+	Input.parse_input_event(_accept_pad())
+	Input.flush_buffered_events()
+	assert_eq(counter[0], 1)
+	assert_true(screen.local_ready(), "the host (offline) accepted it")
+	await _close(screen)
+	_stop_counting()
+
+
+func test_clicking_the_prompt_readies_once() -> void:
+	var counter: Array[int] = _count_intents()
+	var screen: LoadingScreen = _open_screen(FakeNet.offline(), 1, 0)
+	screen._ready_button.pressed.emit()
+	assert_eq(counter[0], 0, "a click before loading finished does nothing")
+	screen.fade_out()
+	screen._ready_button.pressed.emit()
+	screen._ready_button.pressed.emit()
+	assert_eq(counter[0], 1)
+	assert_true(screen.local_pressed())
+	await _close(screen)
+	_stop_counting()
+
+
+func test_player_list_follows_loading_ready_changed_and_bots_are_ready() -> void:
+	var net: FakeNet = FakeNet.host({1: 0, 2: 1}, [0] as Array[int])
+	var screen: LoadingScreen = _open_screen(net, 3, 1)
+	assert_eq(screen._ready_rows.size(), 3)
+	assert_false(screen.player_row_ready(0), "human, not pressed")
+	assert_false(screen.player_row_ready(1), "human, not pressed")
+	assert_true(screen.player_row_ready(2), "bots are shown ready")
+	screen.fade_out()
+	screen.press_ready()
+	assert_true(screen.player_row_ready(0), "local press ticks the row at once")
+	assert_false(screen.player_row_ready(1))
+	assert_eq(screen._status_label.text, "Waiting for 1 player...")
+	_press(2)
+	assert_true(screen.player_row_ready(1), "the other peer's ready reaches the list")
+	await _close(screen)
+
+
+func test_player_list_names_colours_and_bot_marks() -> void:
+	var screen: LoadingScreen = _open_screen(FakeNet.offline(), 3, 1)
+	var rows: Array[Node] = screen._player_list.get_children()
+	assert_eq(rows.size(), 3)
+	for slot_id: int in range(3):
+		var slot_item: PlayerSlot = Match.slot(slot_id)
+		var swatch: Panel = rows[slot_id].get_child(0) as Panel
+		var box: StyleBoxFlat = swatch.get_theme_stylebox("panel") as StyleBoxFlat
+		assert_eq(box.bg_color, slot_item.color, "swatch is the player's colour")
+		var label: Label = rows[slot_id].get_child(1) as Label
+		assert_true(label.text.begins_with(slot_item.display_name))
+		assert_eq(label.text.ends_with(screen.tuning.bot_suffix), slot_item.is_bot)
+	await _close(screen)
+
+
+func test_waiting_status_counts_the_others_and_the_cap_counts_down() -> void:
+	var net: FakeNet = FakeNet.host({1: 0, 2: 1, 3: 2}, [0] as Array[int])
+	var screen: LoadingScreen = _open_screen(net, 3, 0)
+	screen.fade_out()
+	assert_eq(screen._cap_label.text, "Starting in 60s", "the safety cap is running while someone is not ready")
+	screen.press_ready()
+	assert_eq(screen._status_label.text, "Waiting for 2 players...")
+	assert_true(screen._ready_button.visible, "the prompt stays, disabled")
+	assert_almost_eq(screen._ready_button.modulate.a, screen.tuning.ready_prompt_disabled_alpha, 0.001)
+	screen._displayed_s = MAX_S - 12.4
+	screen._refresh_ready_ui()
+	assert_eq(screen._cap_label.text, "Starting in 13s", "rounded up to whole seconds")
+	_press(2)
+	assert_eq(screen._status_label.text, "Waiting for 1 player...")
+	_press(3)
+	assert_eq(screen._cap_label.text, "", "everyone is ready: the cap no longer matters")
+	await _close(screen)
+
+
+func test_all_ready_before_min_display_shows_get_ready_not_waiting() -> void:
+	var screen: LoadingScreen = _open_screen(FakeNet.offline(), 1, 0)
+	screen.fade_out()
+	screen.press_ready()
+	assert_eq(screen._status_label.text, screen.tuning.get_ready_text, "everyone ready but the minimum display time remains")
+	_step(MIN_S + 0.2)
+	screen._displayed_s = MIN_S + 0.1
+	screen._refresh_ready_ui()
+	assert_false(screen._ready_button.visible, "the gate opened: prompt gone")
+	assert_eq(screen._status_label.text, "")
+	await _close(screen)
+
+
+func test_all_bot_match_and_spectator_get_no_prompt() -> void:
+	var screen: LoadingScreen = _open_screen(FakeNet.offline(), 2, 2)
+	screen.fade_out()
+	assert_false(screen._ready_button.visible, "nobody to press: the minimum display alone holds the screen")
+	assert_eq(screen._status_label.text, screen.tuning.get_ready_text)
+	await _close(screen)
+	var net: FakeNet = FakeNet.host({2: 0, 3: -1}, [0] as Array[int])
+	var spectator_screen: LoadingScreen = _open_screen(net, 1, 0)
+	spectator_screen.fade_out()
+	assert_false(spectator_screen._ready_button.visible, "the local peer holds no seat in this roster")
+	await _close(spectator_screen)
+
+
+func test_client_list_mirrors_the_hosts_sets() -> void:
+	var net: FakeNet = FakeNet.client(1)
+	net.slots_by_peer = {1: 0, 2: 1}
+	var screen: LoadingScreen = _open_screen(net, 2, 0)
+	screen.fade_out()
+	assert_false(screen._ready_button.visible, "no host message yet: nothing to press for")
+	Events.loading_ready_changed.emit(PackedInt32Array(), PackedInt32Array([1, 2]))
+	assert_true(screen._ready_button.visible)
+	assert_false(screen.player_row_ready(0))
+	Events.loading_ready_changed.emit(PackedInt32Array([2]), PackedInt32Array([1, 2]))
+	assert_true(screen.player_row_ready(1), "the host's mirror ticks peer 2's row")
+	assert_false(screen.player_row_ready(0))
+	assert_false(screen._ready_button.disabled)
+	Events.loading_gate_opened.emit()
+	assert_false(screen._ready_button.visible, "the gate opened")
+	await _close(screen)
+
+
+func test_unarmed_overlay_keeps_the_plain_name_list_and_no_prompt() -> void:
+	var screen: LoadingScreen = _screen()
+	screen.show_for_match(_config(2, 0), _slots_for_layout(2, 0))
+	assert_false(screen.ready_gate_armed())
+	assert_true(screen._info_label.visible)
+	assert_false(screen._player_list.visible)
+	assert_false(screen._ready_box.visible)
+	assert_true(screen._info_label.text.findn("Player 1") >= 0)
+
+
+## The overlay laid out in a SubViewport that scales like a real window of that
+## size (ui/UiScale.gd): the card must stay inside the logical canvas and nothing
+## in it may overlap, with the worst-case 8-player list.
+func _layout_in(window_size: Vector2i) -> void:
+	var net: FakeNet = FakeNet.offline()
+	_start_gated(net, 8, 3)
+	var viewport: SubViewport = autofree(UiScale.make_viewport(window_size))
+	add_child_autofree(viewport)
+	var screen: LoadingScreen = autofree(load("res://ui/LoadingScreen.tscn").instantiate()) as LoadingScreen
+	viewport.add_child(screen)
+	screen.show_for_match(_config(8, 3), _match_slots())
+	screen.fade_out()
+	await wait_process_frames(3)
+	var canvas: Rect2 = Rect2(Vector2.ZERO, viewport.get_visible_rect().size)
+	var card: Rect2 = screen._card.get_global_rect()
+	assert_true(canvas.encloses(card), "%s: card %s inside canvas %s" % [window_size, card, canvas])
+	var list_rect: Rect2 = screen._player_list.get_global_rect()
+	var bar_rect: Rect2 = screen._progress_bar.get_global_rect()
+	var ready_rect: Rect2 = screen._ready_box.get_global_rect()
+	assert_false(list_rect.intersects(bar_rect), "list and progress bar do not overlap")
+	assert_false(list_rect.intersects(ready_rect), "list and ready box do not overlap")
+	assert_false(bar_rect.intersects(ready_rect), "progress bar and ready box do not overlap")
+	assert_true(screen._ready_button.visible)
+	assert_true(ready_rect.encloses(screen._ready_button.get_global_rect()), "the prompt sits inside the reserved ready box")
+	assert_gte(screen._ready_button.size.x, screen._prompt_content.get_combined_minimum_size().x, "the pill is wide enough for its content")
+	assert_true(card.encloses(ready_rect), "the ready box is inside the card")
+	assert_ne(screen._status_label.text, "")
+	assert_ne(screen._cap_label.text, "")
+	assert_almost_eq(ready_rect.size.y, screen.tuning.ready_box_min_height_px, 0.5, "status + prompt + cap fit the reserved height, so the card never jumps")
+	await _close(screen)
+
+
+func test_eight_player_card_fits_1280x720_without_overlap() -> void:
+	await _layout_in(Vector2i(1280, 720))
+
+
+func test_eight_player_card_fits_ultrawide_without_overlap() -> void:
+	await _layout_in(Vector2i(3440, 1440))
