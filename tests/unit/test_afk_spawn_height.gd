@@ -55,6 +55,9 @@ func after_each() -> void:
 func _teardown_world() -> void:
 	if _net != null and is_instance_valid(_net):
 		_net.set_providers(null, null)
+		# Free it now: a MatchNet left in the tree keeps handling Match signals in
+		# the next script, where _can_send() finds no multiplayer (gate flake).
+		_net.free()
 	_net = null
 	Match.set_net_provider(null)
 	Match.set_replicator(null)
