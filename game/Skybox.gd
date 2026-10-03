@@ -92,6 +92,11 @@ extends Node3D
 
 const THEME_DIR: String = "res://config/sky_themes"
 const DEFAULT_THEME_ID: String = "sunset"
+## Bontago-59o.18: SkyboxConfig.theme_name value that means "the day/night cycle"
+## (F4's leading Theme entry); not a file under THEME_DIR. _ready() starts the cycle for it.
+const CYCLE_THEME_ID: String = "cycle"
+## The night palette the cycle fades toward (config/sky_themes/night.tres).
+const CYCLE_NIGHT_THEME_ID: String = "night"
 var _cloud_sea: CloudSea = null
 ## Bontago-mp0.29: the one lighting/weather/cycle state all cloud layers read.
 var _cloud_lighting: CloudLighting = CloudLighting.new()
@@ -157,35 +162,30 @@ var _cycle_life_is_night: bool = false
 var _cycle_length_s: float = 1.0
 var _cycle_phase_offset: float = 0.0
 var _cycle_clock_s: float = 0.0
+## Bontago-59o.18: >= 0 freezes the cycle at that phase (the lobby's Sunset / Dawn /
+## Night options and F4's Time of day); -1 = running. Derived from replicated
+## mode data and shipped SkyThemeDef content, never from the clock.
+var _cycle_locked_phase: float = -1.0
 
 
 ## The host-resolved mode is included in MatchConfig's normal match-start RPC.
 ## SnapshotSync supplies the shared clock; no peer's wall time enters the sky.
+## Bontago-59o.18 (owner decision: Cycle is the default sky): every mode is the
+## day/night cycle. CYCLE runs it from SkyThemeDef.cycle_start_phase; Sunset,
+## Night, Dawn (and the host's RANDOM roll of those) are the same cycle locked at
+## SkyThemeDef.locked_phase_for(id). Nothing here reads a peer-local clock: the
+## phase comes from the replicated mode/resolved id (locked) or from
+## SnapshotSync's shared clock (running), so host and clients agree.
 func configure_match_sky(match_config: MatchConfig) -> void:
-	_cycle_theme = null
-	if match_config.sky_theme_mode != MatchConfig.SkyThemeMode.CYCLE:
-		set_theme_by_id(match_config.effective_sky_theme())
-		return
-	_cycle_day = load_theme(MatchConfig.SKY_THEME_IDS[MatchConfig.SkyThemeMode.DAY])
-	_cycle_night = load_theme(MatchConfig.SKY_THEME_IDS[MatchConfig.SkyThemeMode.NIGHT])
-	if _cycle_day == null or _cycle_night == null:
-		return
-	# DECISION (Bontago-mp0.13): duplicate the authored resources once. Each
-	# frame changes only shader uniforms and Environment/light properties.
-	_cycle_theme = _cycle_day.duplicate(true) as SkyThemeDef
-	_cycle_theme.sky_material = _cycle_day.sky_material.duplicate() as Material
-	_cycle_theme.cloud_puff_material = _cycle_day.cloud_puff_material.duplicate() as Material
-	_cycle_theme.sky_look_procedural = true
-	_cycle_theme.procedural_sea_mix = 1.0
-	theme = _cycle_theme
-	apply_theme(theme)
-	environment.sky.process_mode = Sky.PROCESS_MODE_INCREMENTAL
-	_cycle_phase_last = -1.0
-	_cycle_life_is_night = true
-	_cycle_length_s = maxf(_cycle_theme.cycle_length_seconds, 1.0)
-	_cycle_phase_offset = 0.0
-	_cycle_clock_s = 0.0
-	set_cycle_phase(0.0)
+	var locked: float = -1.0
+	if not match_config.is_sky_cycle_running():
+		var source: SkyThemeDef = load_theme(DEFAULT_THEME_ID)
+		if source != null:
+			locked = source.locked_phase_for(match_config.locked_sky_id())
+	# DECISION (Bontago-59o.18): a match opens its sky at shared clock 0:
+	# SnapshotSync.begin_match() resets the clock right after this call, and a
+	# stale clock read here would make the start phase differ between peers.
+	_start_cycle_at(0.0, locked, -1.0)
 
 
 func _process(_delta: float) -> void:
@@ -197,6 +197,8 @@ func _process(_delta: float) -> void:
 ## Advances the cycle to the shared clock `clock_seconds` (SnapshotSync's host
 ## clock in a match; tests and probes pass their own). A cycle-length edit that
 ## landed since the last call is folded in first, keeping the phase continuous.
+## A locked cycle ignores the clock for its phase (it only remembers it, so an
+## unlock continues from the locked phase) and rewrites nothing.
 func update_cycle_clock(clock_seconds: float) -> void:
 	if _cycle_theme == null:
 		return
@@ -206,14 +208,17 @@ func update_cycle_clock(clock_seconds: float) -> void:
 
 
 ## The cycle phase (0..1, 0 = dawn, 0.25 = noon) at shared clock `clock_seconds`
-## under the length and offset currently in force.
+## under the length and offset currently in force; the locked phase while locked.
 func cycle_phase_at(clock_seconds: float) -> float:
+	if _cycle_locked_phase >= 0.0:
+		return _cycle_locked_phase
 	return fposmod(clock_seconds / _cycle_length_s + _cycle_phase_offset, 1.0)
 
 
 ## Live cycle length (F4 Sky tab, Bontago-mp0.83): applies `seconds` to the
 ## running cycle and to the day theme the next match copies from. The time of
-## day does not move; only its speed changes from now on. Local dev tuning: the
+## day does not move; only its speed changes from now on (a locked cycle keeps
+## its phase and runs at the new length once unlocked). Local dev tuning: the
 ## length is not replicated, shipped content gives every peer the same default.
 func set_cycle_length_seconds(seconds: float) -> void:
 	if _cycle_theme == null:
@@ -231,31 +236,44 @@ func cycle_length_seconds() -> float:
 
 
 ## --- Bontago-59o.18 cycle-default API (docs/SKY_CYCLE_DEFAULT_PLAN.md s3) -----
-## S0 STUBS: the signatures are the contract consumers (TuningPanel, Lobby,
-## tools, tests) compile against. The mutators are documented no-ops until
-## package C1a gives them bodies; the two queries read today's state.
 
-## Starts the day/night cycle (extracted from configure_match_sky by C1a).
+## Starts the day/night cycle now (F4's Theme "cycle" entry, boot theme_name
+## "cycle"; configure_match_sky() uses the same builder at match start).
 ## `locked_phase` >= 0 freezes the sky at that phase (0 dawn, 0.25 noon, 0.5
-## sunset, 0.75 midnight); < 0 runs the cycle. `start_phase` >= 0 is the phase
-## a running cycle opens at (the SkyThemeDef.cycle_start_phase default when < 0).
-## S0: no-op (configure_match_sky still builds the cycle itself).
-@warning_ignore("unused_parameter")
+## sunset, 0.75 midnight); < 0 runs the cycle. `start_phase` >= 0 is the phase a
+## running cycle shows at the shared clock now (SkyThemeDef.cycle_start_phase
+## when < 0); it is ignored while locked.
 func start_cycle(locked_phase: float = -1.0, start_phase: float = -1.0) -> void:
-	pass
+	_start_cycle_at(SnapshotSync.sky_cycle_seconds(), locked_phase, start_phase)
 
 
 ## Locks the active cycle at `phase` (0..1) or, when `phase` < 0, unlocks it
-## so it runs again from the current phase (continuous, no jump). S0: no-op.
-@warning_ignore("unused_parameter")
+## so it runs again from the locked phase (continuous, no jump). A lock writes
+## the sky once and stops the incremental radiance updates; an unlock resumes
+## them. No-op while no cycle is active (call start_cycle() first).
 func set_locked_phase(phase: float) -> void:
-	pass
+	if _cycle_theme == null:
+		return
+	if phase < 0.0:
+		if _cycle_locked_phase < 0.0:
+			return
+		var held: float = _cycle_locked_phase
+		_cycle_locked_phase = -1.0
+		# DECISION: the running phase continues from the held phase at the last
+		# shared clock seen, so unlocking never jumps the time of day.
+		_cycle_phase_offset = held - _cycle_clock_s / _cycle_length_s
+		_set_sky_process_mode(Sky.PROCESS_MODE_INCREMENTAL)
+		return
+	_cycle_locked_phase = fposmod(phase, 1.0)
+	set_cycle_phase(_cycle_locked_phase)
+	_set_sky_process_mode(Sky.PROCESS_MODE_QUALITY)
+	refresh_reflection_capture()
 
 
 ## The phase the cycle is locked at, or -1.0 while it is running (or not
-## active). S0: always -1.0, as nothing can lock yet.
+## active).
 func locked_phase() -> float:
-	return -1.0
+	return _cycle_locked_phase if _cycle_theme != null else -1.0
 
 
 ## True while the day/night cycle (running or locked) drives the sky.
@@ -270,9 +288,79 @@ func current_cycle_phase() -> float:
 
 
 ## Re-copies the F4-edited source themes into the live cycle duplicate (F4
-## edits during a cycle match must not swap in the static material). S0: no-op.
+## edits during a cycle match must not swap in the static material): the day
+## source's fields land on the live duplicate (its own materials are kept), the
+## sky/puffs/ambient life are rebuilt from it and the current phase is re-applied,
+## so a lock or a running clock is untouched. No-op while no cycle is active.
 func refresh_cycle_sources() -> void:
-	pass
+	if _cycle_theme == null or _cycle_day == null:
+		return
+	var phase: float = _cycle_phase_last
+	for property: Dictionary in _cycle_day.get_property_list():
+		var usage: int = int(property["usage"])
+		if (usage & PROPERTY_USAGE_SCRIPT_VARIABLE) == 0 or (usage & PROPERTY_USAGE_STORAGE) == 0:
+			continue
+		var property_name: StringName = StringName(property["name"])
+		if property_name == &"sky_material" or property_name == &"cloud_puff_material":
+			continue
+		var value: Variant = _cycle_day.get(property_name)
+		if value is Resource:
+			value = (value as Resource).duplicate(true)
+		_cycle_theme.set(property_name, value)
+	_cycle_theme.sky_look_procedural = true
+	_cycle_theme.procedural_sea_mix = 1.0
+	apply_theme(_cycle_theme)
+	# apply_theme() rebuilt the ambient life from the day config: re-run the
+	# night swap decision for the current phase.
+	_cycle_life_is_night = false
+	_cycle_phase_last = -1.0
+	if phase >= 0.0:
+		set_cycle_phase(phase)
+
+
+## Builds the cycle (the one place that does) as of shared clock `clock_seconds`.
+## Duplicates the authored sunset (day structure and palette) resource once; each
+## frame afterwards changes only shader uniforms and Environment/light properties.
+func _start_cycle_at(clock_seconds: float, locked_phase: float, start_phase: float) -> void:
+	_cycle_theme = null
+	_cycle_day = load_theme(DEFAULT_THEME_ID)
+	_cycle_night = load_theme(CYCLE_NIGHT_THEME_ID)
+	if _cycle_day == null or _cycle_night == null:
+		return
+	# DECISION (Bontago-mp0.13): duplicate the authored resources once. Each
+	# frame changes only shader uniforms and Environment/light properties.
+	_cycle_theme = _cycle_day.duplicate(true) as SkyThemeDef
+	_cycle_theme.sky_material = _cycle_day.sky_material.duplicate() as Material
+	_cycle_theme.cloud_puff_material = _cycle_day.cloud_puff_material.duplicate() as Material
+	_cycle_theme.sky_look_procedural = true
+	_cycle_theme.procedural_sea_mix = 1.0
+	theme = _cycle_theme
+	apply_theme(theme)
+	_cycle_phase_last = -1.0
+	# apply_theme() configured the ambient life from the day config.
+	_cycle_life_is_night = false
+	_cycle_length_s = maxf(_cycle_theme.cycle_length_seconds, 1.0)
+	_cycle_locked_phase = fposmod(locked_phase, 1.0) if locked_phase >= 0.0 else -1.0
+	var opening: float = start_phase if start_phase >= 0.0 else _cycle_theme.cycle_start_phase
+	# DECISION (Bontago-59o.18): the running phase is fposmod(clock / length +
+	# offset, 1); the offset puts `opening` at the start clock, so every peer
+	# opens identically and the shared clock alone then carries them forward.
+	_cycle_phase_offset = opening - clock_seconds / _cycle_length_s
+	_cycle_clock_s = clock_seconds
+	set_cycle_phase(cycle_phase_at(clock_seconds))
+	if _cycle_locked_phase >= 0.0:
+		# DECISION (Bontago-59o.18): a locked sky is written once, so the radiance
+		# map is built to full quality after that write and then left alone
+		# (default matches must not pay incremental sky updates every frame).
+		_set_sky_process_mode(Sky.PROCESS_MODE_QUALITY)
+		refresh_reflection_capture()
+	else:
+		_set_sky_process_mode(Sky.PROCESS_MODE_INCREMENTAL)
+
+
+func _set_sky_process_mode(mode: Sky.ProcessMode) -> void:
+	if environment != null and environment.sky != null:
+		environment.sky.process_mode = mode
 
 
 ## DECISION (Bontago-mp0.83): when the authored length changes mid-match, the
@@ -281,6 +369,11 @@ func refresh_cycle_sources() -> void:
 func _sync_cycle_length() -> void:
 	var length: float = maxf(_cycle_theme.cycle_length_seconds, 1.0)
 	if is_equal_approx(length, _cycle_length_s):
+		return
+	if _cycle_locked_phase >= 0.0:
+		# Locked: the phase is fixed and set_locked_phase(-1) re-bases the offset
+		# on unlock, so only the length the running cycle will use changes.
+		_cycle_length_s = length
 		return
 	var phase: float = cycle_phase_at(_cycle_clock_s)
 	_cycle_length_s = length
@@ -463,7 +556,7 @@ func _ready() -> void:
 	configure_reflection_probe()
 	configure_ssr()
 	# Bontago-adt.1: SkyboxConfig.theme_name picks a non-default theme.
-	if config.theme_name != "" and config.theme_name != DEFAULT_THEME_ID:
+	if config.theme_name != "" and config.theme_name != DEFAULT_THEME_ID and config.theme_name != CYCLE_THEME_ID:
 		var chosen: SkyThemeDef = load_theme(config.theme_name)
 		if chosen != null:
 			theme = chosen
@@ -489,6 +582,10 @@ func _ready() -> void:
 	_spawn_fog_volume()
 	_apply_fog_volume_visibility(Settings.current_graphics_preset())
 	Settings.graphics_preset_changed.connect(_on_graphics_preset_changed)
+	# Bontago-59o.18: F4's persisted "cycle" Theme entry runs the cycle from boot
+	# (after the cloud sea, fog volume and ambient life it drives exist).
+	if config.theme_name == CYCLE_THEME_ID:
+		start_cycle()
 
 
 func _exit_tree() -> void:
@@ -733,6 +830,12 @@ func _build_faces() -> void:
 func apply_theme(applied_theme: SkyThemeDef) -> void:
 	if applied_theme == null or environment == null or environment.sky == null:
 		return
+	# Bontago-59o.18: while the cycle runs, a source theme it was built from
+	# (F4's live edit of sunset.tres / night.tres) must reach the live duplicate,
+	# never swap its own static sky material in.
+	if _cycle_theme != null and (applied_theme == _cycle_day or applied_theme == _cycle_night):
+		refresh_cycle_sources()
+		return
 	_apply_theme_parameters(applied_theme)
 	# Bontago-adt.1: the cloud puffs and birds are rebuilt from the applied
 	# theme too, so a live F4 edit or theme switch reaches them.
@@ -976,13 +1079,23 @@ static func load_theme(theme_id: String) -> SkyThemeDef:
 ## Bontago-adt.1: live theme switch (sky, light, environment, cloud sea, birds,
 ## cloud-deck fog volume, sun flare, reflection probe re-capture).
 func set_theme_by_id(theme_id: String) -> bool:
+	# Bontago-59o.18: "cycle" is not a theme file; it (re)starts the running cycle
+	# and is remembered like any theme pick (re-applied by _ready()).
+	if theme_id == CYCLE_THEME_ID:
+		start_cycle()
+		if not is_cycle_active():
+			return false
+		config.theme_name = theme_id
+		refresh_reflection_capture()
+		return true
 	var chosen: SkyThemeDef = load_theme(theme_id)
 	if chosen == null:
 		return false
 	theme = chosen
 	_cycle_theme = null
-	if environment != null and environment.sky != null:
-		environment.sky.process_mode = Sky.PROCESS_MODE_QUALITY
+	_cycle_locked_phase = -1.0
+	_cycle_phase_last = -1.0
+	_set_sky_process_mode(Sky.PROCESS_MODE_QUALITY)
 	config.theme_name = theme_id
 	apply_theme(theme)
 	refresh_reflection_capture()

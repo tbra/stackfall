@@ -142,6 +142,35 @@ func test_cycle_key_light_and_flare_follow_the_sun() -> void:
 			assert_false(flare.is_theme_enabled())
 
 
+## Bontago-59o.18: F4's "cycle" Theme entry persists as theme_name "cycle" and
+## _ready() runs the cycle from boot (it is not a theme file); any other name
+## still loads its static theme.
+func test_ready_starts_the_cycle_for_theme_name_cycle() -> void:
+	var sky: Sky = Sky.new()
+	sky.sky_material = ProceduralSkyMaterial.new()
+	var environment: Environment = Environment.new()
+	environment.sky = sky
+	var skybox: Skybox = Skybox.new()
+	skybox.config = SkyboxConfig.new()
+	skybox.config.theme_name = Skybox.CYCLE_THEME_ID
+	skybox.environment = environment
+	add_child_autofree(skybox)
+	assert_true(skybox.is_cycle_active(), "the persisted cycle entry runs at boot")
+	assert_eq(skybox.locked_phase(), -1.0)
+	assert_almost_eq(skybox.current_cycle_phase(), (Skybox.load_theme("sunset") as SkyThemeDef).cycle_start_phase, 0.0001)
+	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_INCREMENTAL)
+	assert_not_null(skybox.get_cloud_sea(), "the layers the cycle drives exist")
+
+	var static_skybox: Skybox = Skybox.new()
+	static_skybox.config = SkyboxConfig.new()
+	static_skybox.config.theme_name = "night"
+	static_skybox.environment = Environment.new()
+	static_skybox.environment.sky = Sky.new()
+	add_child_autofree(static_skybox)
+	assert_false(static_skybox.is_cycle_active(), "a named theme stays a static theme")
+	assert_eq(static_skybox.theme.resource_path, "res://config/sky_themes/night.tres")
+
+
 func test_authored_theme_returns_after_switching_back_from_legacy_skybox() -> void:
 	var wired: Dictionary = _make_wired_skybox()
 	var skybox: Skybox = wired["skybox"] as Skybox

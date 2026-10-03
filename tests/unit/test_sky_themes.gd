@@ -335,11 +335,13 @@ func test_cycle_runs_a_full_loop_in_the_authored_length() -> void:
 	sunset.cycle_length_seconds = 300.0
 	var skybox: Skybox = _cycle_skybox()
 	assert_almost_eq(skybox.cycle_length_seconds(), 300.0, 0.001)
+	# Bontago-59o.18: the cycle opens at SkyThemeDef.cycle_start_phase, not at dawn.
+	var start: float = sunset.cycle_start_phase
 	skybox.update_cycle_clock(75.0)
-	assert_almost_eq(skybox.cycle_phase_at(75.0), 0.25, 0.0001, "noon after a quarter of 5 min")
+	assert_almost_eq(skybox.cycle_phase_at(75.0), fposmod(start + 0.25, 1.0), 0.0001, "a quarter of 5 min on")
 	skybox.update_cycle_clock(150.0)
-	assert_almost_eq(skybox.cycle_phase_at(150.0), 0.5, 0.0001)
-	assert_almost_eq(skybox.cycle_phase_at(300.0), 0.0, 0.0001, "a full cycle takes 300 s")
+	assert_almost_eq(skybox.cycle_phase_at(150.0), fposmod(start + 0.5, 1.0), 0.0001)
+	assert_almost_eq(skybox.cycle_phase_at(300.0), start, 0.0001, "a full cycle takes 300 s")
 	sunset.cycle_length_seconds = saved_length
 
 
@@ -436,23 +438,259 @@ func test_cycle_lock_and_start_defaults_match_the_option_names() -> void:
 		assert_eq(shipped.locked_phase_for("dawn"), theme.cycle_locked_phase_dawn, theme_id)
 
 
-## S0 stubs (docs/SKY_CYCLE_DEFAULT_PLAN.md s3): the new Skybox API exists with
-## its final signatures; until C1a the mutators change nothing and the queries
-## read today's cycle state.
-func test_cycle_api_stubs_exist_and_are_inert() -> void:
+## Bontago-59o.18 (C1a, docs/SKY_CYCLE_DEFAULT_PLAN.md s3): Cycle is the default sky
+## and Sunset / Night / Dawn / Random are the same cycle locked at a phase.
+func _configured_skybox(config: MatchConfig) -> Array:
+	var parts: Array = _make_skybox(load(SUNSET_PATH) as SkyThemeDef)
+	(parts[0] as Skybox).configure_match_sky(config)
+	return parts
+
+
+func _sun_elevation(skybox: Skybox) -> float:
+	return ((skybox.theme.sky_material as ShaderMaterial).get_shader_parameter(&"sun_direction") as Vector3).y
+
+
+func _night_mix(skybox: Skybox) -> float:
+	return float((skybox.theme.sky_material as ShaderMaterial).get_shader_parameter(&"cycle_night_mix"))
+
+
+func test_no_cycle_before_a_match_and_the_mutators_are_inert() -> void:
 	var parts: Array = _make_skybox(load(SUNSET_PATH) as SkyThemeDef)
 	var skybox: Skybox = parts[0]
 	assert_false(skybox.is_cycle_active(), "no cycle before a match configures one")
 	assert_eq(skybox.locked_phase(), -1.0)
 	assert_eq(skybox.current_cycle_phase(), -1.0)
-	skybox.start_cycle(0.5, 0.1)
 	skybox.set_locked_phase(0.5)
 	skybox.refresh_cycle_sources()
-	assert_false(skybox.is_cycle_active(), "the S0 stubs do not start a cycle")
+	assert_false(skybox.is_cycle_active(), "locking or refreshing never starts a cycle")
 	assert_eq(skybox.locked_phase(), -1.0)
+
+
+func test_default_match_runs_the_cycle_from_the_start_phase() -> void:
 	var config: MatchConfig = MatchConfig.new()
 	assert_true(config.is_sky_cycle_running(), "the default match is a Cycle match")
-	skybox.configure_match_sky(config)
-	assert_true(skybox.is_cycle_active(), "the existing CYCLE path is what the default now runs")
-	assert_between(skybox.current_cycle_phase(), 0.0, 1.0)
+	var parts: Array = _configured_skybox(config)
+	var skybox: Skybox = parts[0]
+	var environment: Environment = parts[1]
+	var start: float = (load(SUNSET_PATH) as SkyThemeDef).cycle_start_phase
+	assert_true(skybox.is_cycle_active())
+	assert_eq(skybox.locked_phase(), -1.0, "the default cycle runs")
+	assert_almost_eq(skybox.current_cycle_phase(), start, 0.0001, "opens at the start phase")
+	assert_almost_eq(skybox.cycle_phase_at(0.0), start, 0.0001, "the shared clock starts at 0")
+	assert_gt(_sun_elevation(skybox), 0.5, "morning: the sun is well up")
+	assert_lt(_night_mix(skybox), 0.01, "the start phase is full day")
+	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_INCREMENTAL, "a running cycle keeps updating the radiance")
+	skybox.update_cycle_clock(30.0)
+	assert_almost_eq(skybox.current_cycle_phase(), fposmod(start + 30.0 / 300.0, 1.0), 0.0001, "the clock carries it on")
+
+
+func test_each_sky_mode_locks_the_right_phase() -> void:
+	var source: SkyThemeDef = load(SUNSET_PATH) as SkyThemeDef
+	var cases: Array[Array] = [
+		[MatchConfig.SkyThemeMode.DAY, "sunset", source.cycle_locked_phase_sunset],
+		[MatchConfig.SkyThemeMode.NIGHT, "night", source.cycle_locked_phase_night],
+		[MatchConfig.SkyThemeMode.DAWN, "dawn", source.cycle_locked_phase_dawn],
+	]
+	for roll: int in range(MatchConfig.SKY_THEME_IDS.size()):
+		var random_config: MatchConfig = MatchConfig.new()
+		random_config.sky_theme_mode = MatchConfig.SkyThemeMode.RANDOM
+		random_config.resolve_sky_theme(roll)
+		cases.append([MatchConfig.SkyThemeMode.RANDOM, random_config.sky_theme_resolved, source.locked_phase_for(random_config.sky_theme_resolved)])
+	for entry: Array in cases:
+		var config: MatchConfig = MatchConfig.new()
+		config.sky_theme_mode = entry[0] as MatchConfig.SkyThemeMode
+		config.resolve_sky_theme(MatchConfig.SKY_THEME_IDS.find(entry[1] as String))
+		var label: String = "mode %s -> %s" % [entry[0], entry[1]]
+		var expected: float = entry[2] as float
+		var parts: Array = _configured_skybox(config)
+		var skybox: Skybox = parts[0]
+		var environment: Environment = parts[1]
+		assert_true(skybox.is_cycle_active(), label)
+		assert_almost_eq(skybox.locked_phase(), expected, 0.0001, "%s: locked phase" % label)
+		assert_almost_eq(skybox.current_cycle_phase(), expected, 0.0001, "%s: applied phase" % label)
+		for clock: float in [0.0, 41.0, 987654.0]:
+			skybox.update_cycle_clock(clock)
+			assert_almost_eq(skybox.current_cycle_phase(), expected, 0.0001, "%s: the clock is ignored at %s s" % [label, clock])
+		assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_QUALITY, "%s: a locked sky stops incremental updates" % label)
+		if entry[1] == "night":
+			assert_gt(_night_mix(skybox), 0.99, "%s: midnight" % label)
+			assert_lt(_sun_elevation(skybox), 0.0, "%s: sun below the horizon" % label)
+		else:
+			assert_lt(_night_mix(skybox), 0.05, "%s: still daylight" % label)
+			assert_gt(_sun_elevation(skybox), 0.0, "%s: sun above the horizon" % label)
+
+
+func test_host_and_client_configs_give_the_same_phase_at_the_same_clock() -> void:
+	var modes: Array[MatchConfig.SkyThemeMode] = [
+		MatchConfig.SkyThemeMode.CYCLE, MatchConfig.SkyThemeMode.DAY, MatchConfig.SkyThemeMode.NIGHT,
+		MatchConfig.SkyThemeMode.DAWN, MatchConfig.SkyThemeMode.RANDOM]
+	for mode: MatchConfig.SkyThemeMode in modes:
+		var host_config: MatchConfig = MatchConfig.new()
+		host_config.sky_theme_mode = mode
+		host_config.resolve_sky_theme(2)
+		# The client only ever sees the wire form of the host's resolved config.
+		var client_config: MatchConfig = MatchConfig.from_dict(host_config.to_dict())
+		var host: Skybox = _configured_skybox(host_config)[0] as Skybox
+		var client: Skybox = _configured_skybox(client_config)[0] as Skybox
+		assert_eq(client.locked_phase(), host.locked_phase(), "mode %s: same lock" % mode)
+		for clock: float in [0.0, 37.5, 123.4, 299.0, 301.0, 12345.6]:
+			host.update_cycle_clock(clock)
+			client.update_cycle_clock(clock)
+			assert_almost_eq(client.current_cycle_phase(), host.current_cycle_phase(), 0.00001,
+				"mode %s at clock %s" % [mode, clock])
+			assert_eq(client.cycle_phase_at(clock), host.cycle_phase_at(clock), "mode %s pure phase at %s" % [mode, clock])
+
+
+func test_storm_blend_composes_while_locked() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.NIGHT
+	config.resolve_sky_theme(0)
+	var parts: Array = _configured_skybox(config)
+	var skybox: Skybox = parts[0]
+	var environment: Environment = parts[1]
+	var storm: SkyThemeDef = Skybox.load_theme("storm")
+	var locked: float = skybox.locked_phase()
+	skybox.set_storm_sky(1.0, storm)
+	assert_true(environment.fog_light_color.is_equal_approx(storm.fog_color), "storm fog over the locked night")
+	assert_almost_eq(environment.ambient_light_energy, storm.ambient_energy, 0.001, "storm ambient")
+	skybox.update_cycle_clock(500.0)
+	assert_true(environment.fog_light_color.is_equal_approx(storm.fog_color), "a clock update keeps the storm")
+	assert_eq(skybox.locked_phase(), locked, "the storm does not move the lock")
+	skybox.set_locked_phase(0.03)
+	assert_true(environment.fog_light_color.is_equal_approx(storm.fog_color), "moving the lock keeps the storm")
+	skybox.set_storm_sky(0.0, storm)
+	assert_false(environment.fog_light_color.is_equal_approx(storm.fog_color), "the storm clears")
+	assert_almost_eq(skybox.current_cycle_phase(), 0.03, 0.0001, "and the lock is still in force")
+
+
+func test_cycle_length_edit_is_inert_while_locked_and_unlock_is_continuous() -> void:
+	var sunset: SkyThemeDef = load(SUNSET_PATH) as SkyThemeDef
+	var saved_length: float = sunset.cycle_length_seconds
+	sunset.cycle_length_seconds = 300.0
+	var config: MatchConfig = MatchConfig.new()
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.DAY
+	config.resolve_sky_theme(0)
+	var skybox: Skybox = _configured_skybox(config)[0] as Skybox
+	var locked: float = skybox.locked_phase()
+	skybox.update_cycle_clock(100.0)
+	skybox.set_cycle_length_seconds(900.0)
+	assert_almost_eq(skybox.cycle_length_seconds(), 900.0, 0.001, "the length is stored")
+	skybox.update_cycle_clock(190.0)
+	assert_almost_eq(skybox.current_cycle_phase(), locked, 0.0001, "the locked phase ignores the edit")
+	skybox.set_locked_phase(-1.0)
 	assert_eq(skybox.locked_phase(), -1.0)
+	assert_almost_eq(skybox.cycle_phase_at(190.0), locked, 0.0001, "unlock continues from the locked phase")
+	skybox.update_cycle_clock(280.0)
+	assert_almost_eq(skybox.current_cycle_phase(), fposmod(locked + 90.0 / 900.0, 1.0), 0.0001, "then runs at the new length")
+	sunset.cycle_length_seconds = saved_length
+
+
+func test_lock_and_unlock_a_running_cycle_keep_the_phase_continuous() -> void:
+	var sunset: SkyThemeDef = load(SUNSET_PATH) as SkyThemeDef
+	var saved_length: float = sunset.cycle_length_seconds
+	sunset.cycle_length_seconds = 300.0
+	var parts: Array = _configured_skybox(MatchConfig.new())
+	var skybox: Skybox = parts[0]
+	var environment: Environment = parts[1]
+	skybox.update_cycle_clock(30.0)
+	skybox.set_locked_phase(0.75)
+	assert_almost_eq(skybox.locked_phase(), 0.75, 0.0001)
+	assert_almost_eq(skybox.current_cycle_phase(), 0.75, 0.0001, "the lock applies at once")
+	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_QUALITY)
+	assert_gt(_night_mix(skybox), 0.99)
+	skybox.update_cycle_clock(60.0)
+	assert_almost_eq(skybox.current_cycle_phase(), 0.75, 0.0001, "the clock does not move a locked sky")
+	skybox.set_locked_phase(1.25)
+	assert_almost_eq(skybox.locked_phase(), 0.25, 0.0001, "a lock wraps into 0..1")
+	skybox.set_locked_phase(-1.0)
+	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_INCREMENTAL, "running again")
+	assert_almost_eq(skybox.cycle_phase_at(60.0), 0.25, 0.0001, "no jump at the unlock")
+	skybox.update_cycle_clock(90.0)
+	assert_almost_eq(skybox.current_cycle_phase(), 0.35, 0.0001, "and it carries on at the cycle rate")
+	skybox.set_locked_phase(-1.0)
+	assert_almost_eq(skybox.current_cycle_phase(), 0.35, 0.0001, "unlocking a running cycle is a no-op")
+	sunset.cycle_length_seconds = saved_length
+
+
+func test_start_cycle_restarts_with_the_given_lock_or_start_phase() -> void:
+	var parts: Array = _make_skybox(load(SUNSET_PATH) as SkyThemeDef)
+	var skybox: Skybox = parts[0]
+	var environment: Environment = parts[1]
+	skybox.start_cycle()
+	assert_true(skybox.is_cycle_active())
+	assert_almost_eq(skybox.current_cycle_phase(), (load(SUNSET_PATH) as SkyThemeDef).cycle_start_phase, 0.0001, "default start phase")
+	assert_eq(skybox.locked_phase(), -1.0)
+	skybox.start_cycle(-1.0, 0.6)
+	assert_almost_eq(skybox.current_cycle_phase(), 0.6, 0.0001, "explicit start phase")
+	assert_eq(skybox.locked_phase(), -1.0)
+	skybox.start_cycle(0.75)
+	assert_almost_eq(skybox.locked_phase(), 0.75, 0.0001, "explicit lock")
+	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_QUALITY)
+	skybox.start_cycle()
+	assert_eq(skybox.locked_phase(), -1.0, "a restart without a lock runs")
+	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_INCREMENTAL)
+
+
+func test_a_static_theme_ends_the_cycle_and_its_lock() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.NIGHT
+	config.resolve_sky_theme(0)
+	var parts: Array = _configured_skybox(config)
+	var skybox: Skybox = parts[0]
+	assert_gt(skybox.locked_phase(), 0.0)
+	assert_true(skybox.set_theme_by_id("dawn"))
+	assert_false(skybox.is_cycle_active())
+	assert_eq(skybox.locked_phase(), -1.0)
+	assert_eq(skybox.current_cycle_phase(), -1.0)
+	assert_true(skybox.set_theme_by_id(Skybox.CYCLE_THEME_ID), "the F4 'cycle' entry restarts it")
+	assert_true(skybox.is_cycle_active())
+	assert_eq(skybox.locked_phase(), -1.0, "as a running cycle")
+	assert_eq(skybox.config.theme_name, Skybox.CYCLE_THEME_ID, "and is remembered like a theme pick")
+
+
+func test_apply_theme_of_a_cycle_source_does_not_swap_the_live_material() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.DAWN
+	config.resolve_sky_theme(0)
+	var parts: Array = _configured_skybox(config)
+	var skybox: Skybox = parts[0]
+	var environment: Environment = parts[1]
+	var live: Material = environment.sky.sky_material
+	var duplicate: SkyThemeDef = skybox.theme
+	var sunset: SkyThemeDef = Skybox.load_theme("sunset")
+	assert_ne(live, sunset.sky_material, "fixture: the live sky is the duplicate's own material")
+	skybox.apply_theme(sunset)
+	assert_same(environment.sky.sky_material, live, "an F4 edit of the source theme keeps the live material")
+	assert_same(skybox.theme, duplicate, "and the live duplicate")
+	assert_true(skybox.is_cycle_active())
+	skybox.apply_theme(Skybox.load_theme("night"))
+	assert_same(environment.sky.sky_material, live, "the night source is a cycle source too")
+
+
+func test_refresh_cycle_sources_copies_source_edits_to_the_live_duplicate() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.NIGHT
+	config.resolve_sky_theme(0)
+	var parts: Array = _configured_skybox(config)
+	var skybox: Skybox = parts[0]
+	var environment: Environment = parts[1]
+	var source: SkyThemeDef = Skybox.load_theme("sunset")
+	var live: Material = environment.sky.sky_material
+	var saved_width: float = source.proc_horizon_glow_width
+	var saved_start: float = source.cycle_start_phase
+	var locked: float = skybox.locked_phase()
+	var edited: float = saved_width + 0.07
+	source.proc_horizon_glow_width = edited
+	source.cycle_start_phase = 0.4
+	assert_false(is_equal_approx(skybox.theme.proc_horizon_glow_width, edited), "fixture: the duplicate is independent")
+	skybox.refresh_cycle_sources()
+	assert_almost_eq(skybox.theme.proc_horizon_glow_width, edited, 0.0001, "the edit reached the duplicate")
+	assert_almost_eq(float((live as ShaderMaterial).get_shader_parameter("proc_horizon_glow_width")), edited, 0.0001, "and the live sky shader")
+	assert_same(environment.sky.sky_material, live, "one material throughout")
+	assert_eq(skybox.theme.sky_look_procedural, true, "the cycle stays procedural")
+	assert_eq(skybox.theme.procedural_sea_mix, 1.0)
+	assert_almost_eq(skybox.locked_phase(), locked, 0.0001, "the lock survives the refresh")
+	assert_almost_eq(skybox.current_cycle_phase(), locked, 0.0001, "and the phase is re-applied")
+	assert_gt(_night_mix(skybox), 0.99, "still midnight")
+	source.proc_horizon_glow_width = saved_width
+	source.cycle_start_phase = saved_start
