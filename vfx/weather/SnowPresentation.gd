@@ -4,6 +4,12 @@ extends WeatherPresentation
 ## camera, flakes falling in world space, density scaled by the ramped
 ## intensity. Presentation only; the colliding snow is SnowEffect/SnowCaps.
 ##
+## Bontago-mp0.97 (playtest: too subtle): flakes are bigger and denser, never
+## smaller than flake_min_angle on screen (shader), drawn white with a cool
+## outline so they read against the bright sky, and they thin out and stop
+## early in the ramp-out (SnowTuning.flake_density) so the melt that follows
+## is seen with the snowfall already over.
+##
 ## DECISION (vfx/weather/SnowPresentation.gd): the Low graphics preset is read
 ## by its id (GraphicsPreset has no weather field and is shared by other
 ## packages); Low only lowers the flake count, never the colliding snow, so
@@ -14,6 +20,9 @@ const FLAKE_SHADER: Shader = preload("res://shaders/weather/snow_flake.gdshader"
 ## DECISION: guards the fall quantisation against a zero/negative tuned step
 ## (pure math, not a tunable).
 const MIN_FALL_STEP_M: float = 0.1
+## Horizontal part of a look direction below which the camera counts as looking
+## straight up or down (numerics, not tuning).
+const HORIZONTAL_EPS: float = 0.0001
 
 var tuning: SnowTuning = preload("res://config/weather/snow.tres") as SnowTuning
 
@@ -25,6 +34,9 @@ var _density_scale: float = 1.0
 ## at the cloud ceiling at unchanged density.
 var _fall_m: float = 0.0
 var _fall_ratio: float = 1.0
+## True while the intensity is falling (the ramp-out): flakes then thin out
+## faster than the intensity (SnowTuning.flake_stop_intensity).
+var _falling: bool = false
 
 
 func _ready() -> void:
@@ -49,10 +61,26 @@ func amount_for(preset: GraphicsPreset) -> int:
 
 
 func set_intensity(value: float) -> void:
+	var previous: float = intensity
 	super.set_intensity(value)
-	if _particles != null:
-		_particles.amount_ratio = clampf(value, 0.0, 1.0) * _density_scale
-		_particles.emitting = value > 0.0
+	if value < previous:
+		_falling = true
+	elif value > previous:
+		_falling = false
+	_apply_density()
+
+
+## Flake density 0..1 for the current intensity (before the preset scale).
+func density() -> float:
+	return tuning.flake_density(intensity, tuning.intensity, _falling)
+
+
+func _apply_density() -> void:
+	if _particles == null:
+		return
+	var share: float = density()
+	_particles.amount_ratio = share * _density_scale
+	_particles.emitting = share > 0.0
 
 
 func _process(_delta: float) -> void:
@@ -61,11 +89,33 @@ func _process(_delta: float) -> void:
 	if camera != null:
 		var ceiling: WeatherCeilingTuning = CloudCeiling.TUNING
 		var camera_pos: Vector3 = camera.global_position
-		var bottom: float = camera_pos.y - ceiling.snow_below_camera_m
-		var top: float = minf(ceiling.ceiling_y(camera_pos.y) - ceiling.spawn_below_ceiling_m, bottom + ceiling.snow_max_fall_m)
-		top = maxf(top, camera_pos.y + tuning.flake_height_above_camera_m)
-		global_position = Vector3(camera_pos.x, top, camera_pos.z)
-		_apply_fall(top - bottom, ceiling.snow_fall_step_m)
+		var top: float = column_top(camera_pos.y, ceiling)
+		var centre: Vector3 = box_centre(camera_pos, -camera.global_basis.z)
+		global_position = Vector3(centre.x, top, centre.z)
+		_apply_fall(top - (camera_pos.y - tuning.flake_below_camera_m), ceiling.snow_fall_step_m)
+
+
+## Ground-plane centre of the flake box for a camera at `camera_pos` looking
+## along `forward`: flake_forward_shift_m ahead of the camera on the horizontal
+## look direction, so the flakes fill the view across the play area (a box on
+## the camera would leave the far part of the view empty). Straight up/down
+## gives no shift.
+func box_centre(camera_pos: Vector3, forward: Vector3) -> Vector3:
+	var flat: Vector3 = Vector3(forward.x, 0.0, forward.z)
+	if flat.length_squared() <= HORIZONTAL_EPS:
+		return camera_pos
+	return camera_pos + flat.normalized() * tuning.flake_forward_shift_m
+
+
+## World height the flakes start at for a camera at `camera_y`: the cloud
+## ceiling's limits, but never taller a column than flake_max_column_m (the
+## flakes are then packed near the view, not spread up to the far clouds) and
+## never closer than flake_height_above_camera_m above the camera.
+func column_top(camera_y: float, ceiling: WeatherCeilingTuning) -> float:
+	var bottom: float = camera_y - tuning.flake_below_camera_m
+	var top: float = minf(ceiling.ceiling_y(camera_y) - ceiling.spawn_below_ceiling_m, bottom + ceiling.snow_max_fall_m)
+	top = minf(top, bottom + tuning.flake_max_column_m)
+	return maxf(top, camera_y + tuning.flake_height_above_camera_m)
 
 
 ## Resizes the flake lifetime/amount/culling box for a `fall_m` fall (rounded
@@ -81,10 +131,17 @@ func _apply_fall(fall_m: float, step_m: float) -> void:
 	var base_fall: float = tuning.flake_fall_speed * tuning.flake_lifetime_s
 	_fall_ratio = maxf(rounded / maxf(base_fall, 0.001), 1.0)
 	_particles.lifetime = tuning.flake_lifetime_s * _fall_ratio
+	_particles.preprocess = _prefill_s(_particles.lifetime)
 	_particles.amount = int(roundf(float(amount_for(Settings.current_graphics_preset())) * _fall_ratio))
 	var fall: float = tuning.flake_fall_speed * (1.0 + tuning.flake_jitter) * _particles.lifetime
 	var extent: Vector3 = tuning.flake_box_half_extent
 	_particles.visibility_aabb = AABB(Vector3(-extent.x, -fall - extent.y, -extent.z), Vector3(extent.x * 2.0, fall + extent.y * 2.0, extent.z * 2.0))
+
+
+## Seconds of flake simulation run when the particles (re)start: a whole
+## lifetime, so the column is already full instead of filling from the clouds.
+func _prefill_s(lifetime: float) -> float:
+	return lifetime if tuning.flake_prefill else 0.0
 
 
 func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
@@ -93,7 +150,7 @@ func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 		var amount: int = int(roundf(float(amount_for(preset)) * _fall_ratio))
 		if _particles.amount != amount:
 			_particles.amount = amount
-		_particles.amount_ratio = clampf(intensity, 0.0, 1.0) * _density_scale
+		_particles.amount_ratio = density() * _density_scale
 
 
 func _build() -> void:
@@ -115,6 +172,11 @@ func _build() -> void:
 	var material: ShaderMaterial = ShaderMaterial.new()
 	material.shader = FLAKE_SHADER
 	material.set_shader_parameter(&"flake_color", tuning.flake_color)
+	material.set_shader_parameter(&"edge_color", tuning.flake_edge_color)
+	material.set_shader_parameter(&"edge_start", tuning.flake_edge_start)
+	material.set_shader_parameter(&"flake_size", tuning.flake_size_m)
+	material.set_shader_parameter(&"min_angle", tuning.flake_min_angle)
+	material.set_shader_parameter(&"max_angle", tuning.flake_max_angle)
 
 	var quad: QuadMesh = QuadMesh.new()
 	quad.size = Vector2.ONE * tuning.flake_size_m
@@ -126,6 +188,8 @@ func _build() -> void:
 	_particles.amount = amount_for(build_preset)
 	_density_scale = build_preset.weather_density_scale if build_preset != null else 1.0
 	_particles.lifetime = tuning.flake_lifetime_s
+	_particles.preprocess = _prefill_s(_particles.lifetime)
+	_particles.fixed_fps = tuning.flake_sim_fps
 	_particles.local_coords = false
 	_particles.process_material = process
 	_particles.draw_pass_1 = quad

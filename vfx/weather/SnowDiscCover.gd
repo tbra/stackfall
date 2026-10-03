@@ -14,6 +14,11 @@ extends Node3D
 ## smooth so drifts fade out gently. Light snow is a faint frosting (low
 ## strength), heavy snow wind-streaked partial cover, capped so territory shows. Leaving the tree (snow cleared, match over) switches the
 ## layer off again. The colliding drifts are SnowCapBuilder's domes.
+##
+## Bontago-mp0.97: the displayed level eases toward the target level at one
+## level per SnowTuning.cover_ease_s, so growth and melt read as the snow
+## spreading and retreating instead of stepping. A cover set to level 0 retires
+## (SnowCaps renames it) and frees itself once it has faded out.
 
 ## Hash salts for the seed-based noise offset.
 const NOISE_SALT_X: int = 0x68e31da4
@@ -28,6 +33,9 @@ var _tuning: SnowTuning = null
 var _seed: int = 0
 var _material: ShaderMaterial = null
 var _level: int = 0
+## Displayed level (float): eases toward _level.
+var _shown: float = 0.0
+var _retiring: bool = false
 var _blocks_source: Callable = Callable()
 var _drift_image: Image = null
 var _drift_texture: ImageTexture = null
@@ -87,7 +95,10 @@ func set_blocks_source(source: Callable) -> void:
 func set_level(level: int) -> void:
 	if level != _level:
 		_level = level
-		_start_drift()
+		if level > 0:
+			_start_drift()
+	if _tuning != null and _tuning.cover_ease_s <= 0.0:
+		_shown = float(_level)
 	_apply_uniforms()
 
 
@@ -99,18 +110,44 @@ func material() -> ShaderMaterial:
 	return _material
 
 
+## The level the shader currently shows (eases toward level()).
+func shown_level() -> float:
+	return _shown
+
+
+## True once the cover was told to melt away (level 0) and has faded out.
+func is_faded_out() -> bool:
+	return _level <= 0 and _shown <= 0.0
+
+
+## Marks the cover as melting away (it frees itself once faded out) or, with
+## false, as live again.
+func set_retiring(value: bool) -> void:
+	_retiring = value
+
+
+func is_retiring() -> bool:
+	return _retiring
+
+
 ## 0..1 progress from the first level (frosting) to the top level (drifts).
-func _level_t() -> float:
+func _level_t(level: float) -> float:
 	if _tuning.depth_levels <= 1:
 		return 1.0
-	return float(clampi(_level, 1, _tuning.depth_levels) - 1) / float(_tuning.depth_levels - 1)
+	return (clampf(level, 1.0, float(_tuning.depth_levels)) - 1.0) / float(_tuning.depth_levels - 1)
 
 
 ## Shader strength at the current level (0 = no snow drawn).
 func strength() -> float:
-	if _tuning == null or _level <= 0:
+	return _strength_at(float(_level))
+
+
+## Strength at a (possibly fractional) level; below the first level the
+## frosting fades in/out proportionally.
+func _strength_at(level: float) -> float:
+	if _tuning == null or level <= 0.0:
 		return 0.0
-	var wanted: float = lerpf(_tuning.cover_strength_light, _tuning.cover_strength_heavy, _level_t())
+	var wanted: float = lerpf(_tuning.cover_strength_light, _tuning.cover_strength_heavy, _level_t(level)) * minf(level, 1.0)
 	return minf(wanted, max_opacity())
 
 
@@ -125,21 +162,47 @@ func max_opacity() -> float:
 ## Even base depth of the cover at the current level (0..1); the shader adds
 ## gentle variation and the drift biases on top.
 func amount() -> float:
-	if _tuning == null:
+	return _amount_at(float(_level))
+
+
+func _amount_at(level: float) -> float:
+	if _tuning == null or level <= 0.0:
 		return 0.0
-	return lerpf(_tuning.cover_amount_light, _tuning.cover_amount_heavy, _level_t())
+	return lerpf(_tuning.cover_amount_light, _tuning.cover_amount_heavy, _level_t(level)) * minf(level, 1.0)
 
 
 func _apply_uniforms() -> void:
 	if _material == null:
 		return
-	_material.set_shader_parameter(&"snow_strength", strength())
-	_material.set_shader_parameter(&"snow_threshold", amount())
+	_material.set_shader_parameter(&"snow_strength", _strength_at(_shown))
+	_material.set_shader_parameter(&"snow_threshold", _amount_at(_shown))
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if _grid != null:
 		_advance_drift(_tuning.cover_drift_blocks_per_frame)
+	ease_step(delta)
+
+
+## Moves the displayed level toward the target and refreshes the shader; a
+## retiring cover that has faded out removes itself. Called every frame (also a
+## test seam).
+func ease_step(delta: float) -> void:
+	if _tuning == null:
+		return
+	var target: float = float(_level)
+	if not is_equal_approx(_shown, target):
+		if _tuning.cover_ease_s <= 0.0:
+			_shown = target
+		else:
+			_shown = move_toward(_shown, target, delta / _tuning.cover_ease_s)
+		_apply_uniforms()
+	if _retiring and is_faded_out():
+		_retiring = false
+		var parent: Node = get_parent()
+		if parent != null:
+			parent.remove_child(self)
+		queue_free()
 
 
 ## Starts rebuilding the block-base drift map from the live blocks.

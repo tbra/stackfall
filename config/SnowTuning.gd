@@ -17,12 +17,19 @@ extends WeatherTuning
 ## drawn by the disc shader) that spreads from a frosting to soft drifts
 ## with the cover level. It has no collider and no height, so it cannot mislead.
 ##
-## Melting is the event's ramp-out: while intensity falls, every patch is
-## capped at ceil(depth_levels * intensity / peak) levels, so all snow is gone
-## when the event ends. ramp_out_s is therefore the melt duration.
+## Melting (Bontago-mp0.97): once snowfall stops (the intensity first falls
+## below its peak: the event's ramp-out) a melt clock runs for melt_time_s().
+## Every patch, and the disc cover level, is capped at
+## ceil(depth_levels * remaining melt fraction), so all snow is gone when the
+## clock ends, which is never later than the ramp-out: the host's restore()
+## then has nothing left to pop. The disc cover eases between its levels
+## (cover_ease_s) so the melt reads as snow retreating, not as steps.
 
 ## Float slack when rounding a melt fraction to a level. Numerics, not tuning.
 const MELT_ROUNDING: float = 0.0001
+## Guards a zero peak / a stop share of 1 in flake_density(). Numerics, not tuning.
+const MIN_PEAK: float = 0.001
+const MAX_STOP: float = 0.99
 
 @export_group("Accumulation")
 ## Deepest a patch's dome gets at its peak (metres, at the top level).
@@ -41,6 +48,14 @@ const MELT_ROUNDING: float = 0.0001
 ## Free space kept above a patch's next level: anything within it (another
 ## block resting or hovering there) stops that patch growing.
 @export var cover_clearance_m: float = 0.06
+
+@export_group("Melt")
+## Seconds the snow takes to melt away once snowfall stops (the ramp-out
+## begins); capped at ramp_out_s so nothing is left for the event end to pop.
+@export var melt_duration_s: float = 20.0
+## Seconds the visual disc cover takes to move one level (growth and melt);
+## 0 snaps between levels.
+@export var cover_ease_s: float = 2.0
 
 @export_group("Dome shape")
 ## Grid segments per dome edge (collider points = (segments + 1)^2).
@@ -155,20 +170,53 @@ const MELT_ROUNDING: float = 0.0001
 
 @export_group("Presentation")
 ## Falling flakes at full intensity (the Low graphics preset uses the second).
-@export var flake_amount: int = 1600
-@export var flake_amount_low: int = 450
-## Half extent of the camera-centred box flakes spawn in (metres).
-@export var flake_box_half_extent: Vector3 = Vector3(24.0, 1.0, 24.0)
+@export var flake_amount: int = 5000
+@export var flake_amount_low: int = 1500
+## Half extent of the box flakes spawn in (metres), centred flake_forward_shift_m
+## ahead of the camera (see below).
+@export var flake_box_half_extent: Vector3 = Vector3(18.0, 1.0, 18.0)
+## How far the flake box is moved from the camera along the camera's horizontal
+## look direction (metres): the camera looks across the play area, so a box
+## centred on the camera itself would leave the far half of the view without
+## flakes. A camera looking straight down gets no shift.
+@export var flake_forward_shift_m: float = 14.0
+## How far below the camera the flakes keep falling (metres), so the lower part
+## of the view (the disc) has flakes too, not only the sky above the camera.
+@export var flake_below_camera_m: float = 12.0
+## Tallest column of falling flakes (metres): they start at most this far above
+## the bottom of the fall (the camera) rather than at the far cloud ceiling, so
+## the same flake count is packed close to the view.
+@export var flake_max_column_m: float = 30.0
 ## Spawn box height above the camera (metres).
 @export var flake_height_above_camera_m: float = 12.0
 @export var flake_fall_speed: float = 1.8
 @export var flake_lifetime_s: float = 9.0
-@export var flake_size_m: float = 0.1
+## Fill the whole fall column the moment snowfall starts. Without it the
+## flakes start at the cloud ceiling and the first ones take a full lifetime
+## (about 44 s at the default fall) to reach the camera.
+@export var flake_prefill: bool = true
+## Flake simulation steps per second (movement is interpolated); a pre-fill
+## costs lifetime * this many steps, so lower is cheaper.
+@export_range(1, 60, 1) var flake_sim_fps: int = 15
+@export var flake_size_m: float = 0.18
+## Smallest and largest apparent flake size as an angle in radians (about
+## 4.7 px and 23 px at 720p): far flakes never shrink to sub-pixel specks
+## against the bright sky and near ones never become blobs.
+@export var flake_min_angle: float = 0.008
+@export var flake_max_angle: float = 0.04
+## While snowfall ends (intensity falling) the flakes thin out and are gone
+## once the intensity, as a fraction of the weather's peak, reaches this: the
+## rest of the ramp-out is only melting.
+@export_range(0.0, 0.95, 0.01) var flake_stop_intensity: float = 0.5
 ## Turbulence strength (sideways wander).
 @export var flake_drift: float = 0.35
 ## Flake size and fall speed vary by +/- this fraction.
 @export_range(0.0, 0.9, 0.01) var flake_jitter: float = 0.35
-@export var flake_color: Color = Color(0.96, 0.98, 1.0, 0.9)
+@export var flake_color: Color = Color(1.0, 1.0, 1.0, 1.0)
+## Cool outline of a flake: keeps it readable against the bright sky.
+@export var flake_edge_color: Color = Color(0.5, 0.64, 0.9, 1.0)
+## Where the outline starts across the flake (0 = centre, 1 = rim).
+@export_range(0.0, 1.0, 0.01) var flake_edge_start: float = 0.4
 ## Cel-styled snow colours: lit, shaded band, cool rim.
 ## Off-white, never pure white: with the three light bands it stays below
 ## the glow threshold under the brightest sky theme.
@@ -207,10 +255,29 @@ func level_interval(current_intensity: float) -> float:
 	return seconds_per_level / current_intensity
 
 
-## Highest level allowed while melting: the ramp-out's remaining fraction of
-## the peak the event reached, rounded up so the last level goes only at 0.
-func melt_cap(current_intensity: float, peak: float) -> int:
-	if peak <= 0.0 or current_intensity <= 0.0:
+## Seconds a melt takes: melt_duration_s, never longer than the ramp-out (the
+## event end clears whatever is left, so it must have melted by then).
+func melt_time_s() -> float:
+	return maxf(minf(melt_duration_s, ramp_out_s), 0.0)
+
+
+## Highest level allowed `elapsed_s` seconds into a melt: the remaining share
+## of melt_time_s() times depth_levels, rounded up so the last level goes only
+## when the clock ends.
+func melt_cap_after(elapsed_s: float) -> int:
+	var total: float = melt_time_s()
+	if total <= 0.0 or elapsed_s >= total:
 		return 0
-	var fraction: float = clampf(current_intensity / peak, 0.0, 1.0)
+	var fraction: float = clampf(1.0 - maxf(elapsed_s, 0.0) / total, 0.0, 1.0)
 	return clampi(ceili(float(depth_levels) * fraction - MELT_ROUNDING), 0, depth_levels)
+
+
+## Flake density (0..1) at `current_intensity` of a weather peaking at
+## `peak`: follows the intensity while snow builds up, and (falling) is gone
+## once the intensity reaches flake_stop_intensity of the peak.
+func flake_density(current_intensity: float, peak: float, falling: bool) -> float:
+	var share: float = clampf(current_intensity / maxf(peak, MIN_PEAK), 0.0, 1.0)
+	if not falling:
+		return share
+	var stop: float = clampf(flake_stop_intensity, 0.0, MAX_STOP)
+	return clampf((share - stop) / (1.0 - stop), 0.0, 1.0)
