@@ -292,6 +292,8 @@ func _reset_match_state() -> void:
 	_pending_mode_state = {}
 	_match._territory._last_groups = null
 	_match._territory._solve_accum = 0.0
+	# Bontago-1pi.46 (G3): no stale influence circles into the next match's replication.
+	_match._territory.clear_circles()
 	_match._feed._feed_timer_enabled = true
 	_match._gifts.reset()
 	# Bontago-1pi.13: shared by abort_match() and start_match()'s own leading
