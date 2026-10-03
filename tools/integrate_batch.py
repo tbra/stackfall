@@ -10,7 +10,8 @@ Steps (each step's full output goes to <log-dir>/NN_name.log; stdout stays compa
               line passes (missing verdict line = RED)
   5 ff        fast-forward the main checkout (refuses on dirty touched files or a moved main)
   6 push      git push origin main (separate step), git fetch, verify HEAD == origin/main
-  7 close     bd close for each bead, only after remote verification
+  7 close     bd close for each bead, only after remote verification (--force-close adds
+              --force for reviewed handoffs whose claim another agent such as codex holds)
   8 postimport  godot import check in the main checkout
 The temp worktree and branch are removed on every success (incl. --no-push) and kept on failure. --dry-run stops after step 4 (no ff/push/close),
 then removes the temp worktree and branch. Exit 0 = success, 1 = failed step (named).
@@ -83,6 +84,20 @@ def git_out(ctx, name, repo, *a):
 
 def godot_exe():
     return shutil.which("godot") or shutil.which("godot.exe") or "godot"
+
+
+def bd_exe():
+    # npm installs bd as bd.CMD on Windows; CreateProcess (no shell) cannot find it by
+    # bare name, so resolve it the way the shell would (Bontago-fca.13).
+    return shutil.which("bd") or "bd"
+
+
+def close_args(repo, bead, reason, force):
+    """bd close argv. --force only for reviewed handoffs whose claim another agent holds."""
+    argv = [bd_exe(), "-C", repo, "close", bead, "--actor", BD_ACTOR, "--reason", reason]
+    if force:
+        argv.append("--force")
+    return argv
 
 
 def parse_verdict(text):
@@ -223,7 +238,8 @@ def integrate(args, ctx, say, res):
     # 7 close beads, only after remote verification
     for bead in args.beads:
         reason = "%s pushed+verified; gate %s" % (head[:9], verdict)
-        code, text, log = run_cmd(ctx, "close_" + bead, ["bd", "-C", repo, "close", bead, "--actor", BD_ACTOR, "--reason", reason], repo, GIT_TIMEOUT_S)
+        argv = close_args(repo, bead, reason, getattr(args, "force_close", False))
+        code, text, log = run_cmd(ctx, "close_" + bead, argv, repo, GIT_TIMEOUT_S)
         if code != 0:
             raise StepFailed("close", "bd close %s failed; log %s" % (bead, log))
     say("close     ok   %s" % (", ".join(args.beads) or "(none)"))
@@ -253,6 +269,10 @@ def main(argv):
     ap.add_argument("--no-game-code", dest="game_code", action="store_false")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--no-push", action="store_true")
+    # DECISION (Bontago-fca.13): opt-in rather than automatic, so a bead held by a live
+    # worker is never force-closed by default; pass it only for reviewed Codex handoffs.
+    ap.add_argument("--force-close", action="store_true",
+                    help="pass --force to bd close (reviewed handoffs whose claim another agent holds, e.g. codex)")
     args = ap.parse_args(argv)
     log_dir = args.log_dir or tempfile.mkdtemp(prefix="integrate_batch_")
     os.makedirs(log_dir, exist_ok=True)

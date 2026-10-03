@@ -48,7 +48,7 @@ class Fake:
 
 def args_for(**kw):
     ns = dict(branches=["wt/a", "wt/b"], beads=["B-1", "B-2"], repo="R", worktree_root="W",
-              log_dir="", game_code=True, dry_run=False, no_push=False)
+              log_dir="", game_code=True, dry_run=False, no_push=False, force_close=False)
     ns.update(kw)
     return type("A", (), ns)()
 
@@ -103,6 +103,18 @@ class Tests(unittest.TestCase):
         self.assertLess(n.index("remote"), n.index("close_B-1"))
         self.assertLess(n.index("close_B-1"), n.index("close_B-2"))
         self.assertLess(n.index("close_B-2"), n.index("postimport"))
+
+    def test_close_uses_resolved_bd_and_force_only_on_request(self):
+        with mock.patch.object(ib.shutil, "which", lambda n: "C:/npm/bd.CMD" if n == "bd" else None):
+            fake = Fake()
+            run(fake)
+            closes = [a for name, a in fake.calls if name.startswith("close_")]
+            self.assertEqual(closes[0][0], "C:/npm/bd.CMD")
+            self.assertNotIn("--force", closes[0])
+            fake = Fake()
+            run(fake, force_close=True)
+            closes = [a for name, a in fake.calls if name.startswith("close_")]
+            self.assertTrue(all("--force" in a for a in closes))
 
     def test_remote_mismatch_never_closes(self):
         fake = Fake({"remote": (0, "other999\n")})
