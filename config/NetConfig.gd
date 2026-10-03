@@ -46,6 +46,16 @@ extends Resource
 ## Seconds a slot whose peer vanished keeps its territory before Match
 ## eliminates it. See docs/M3a_PLAN.md "Questions for the owner" 3.
 @export var disconnect_grace: float = 10.0
+## Host: per-peer flood limit on Net.request_seat_pref (Bontago-1pi.53), a token
+## bucket. This is its size: how many colour/team requests a seated peer may send
+## back to back (every request drains a token, valid or not). Each accepted
+## request makes the lobby republish its data to every peer, so an unthrottled
+## client could turn one peer's clicks into 8x the traffic; a human cycling
+## colours and teams never gets near the limit. DECISION: burst 6, refill 3/s (a
+## quick six-click flurry passes, a sustained 3 Hz is the ceiling).
+@export var seat_pref_burst: int = 6
+## Requests per second the seat-preference bucket refills (see seat_pref_burst).
+@export var seat_pref_refill_per_s: float = 3.0
 
 # --- Steam lobby (spec 3.4, docs/M3b_PLAN.md P1) ----------------------------
 
@@ -209,7 +219,9 @@ func bodies_per_fragment(header_bytes: int, record_bytes: int) -> int:
 
 
 ## Clamps every field into a sane range. Called on any NetConfig that came from
-## a slider or the command line, exactly as MatchConfig.sanitize() is.
+## a slider or the command line, exactly as MatchConfig.sanitize() is, and by
+## Net._ready() on the shipped net_config.tres (a hand-edited file gets the same
+## clamps; on the unedited one it changes nothing).
 func sanitize() -> void:
 	discovery_port = clampi(discovery_port, 1024, 65535)
 	game_port = clampi(game_port, 1024, 65535)
@@ -234,3 +246,5 @@ func sanitize() -> void:
 	steam_lobby_type = clampi(steam_lobby_type, 0, 4)
 	steam_lobby_data_max_bytes = clampi(steam_lobby_data_max_bytes, 256, 8192)
 	steam_lobby_list_refresh_s = maxf(steam_lobby_list_refresh_s, 1.0)
+	seat_pref_burst = maxi(seat_pref_burst, 1)
+	seat_pref_refill_per_s = maxf(seat_pref_refill_per_s, 0.1)

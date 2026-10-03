@@ -59,8 +59,10 @@ extends RefCounted
 ##       also the winning slot_id (MatchConfig.team_of_slot() is the
 ##       identity in FFA).
 ##   "winner_name": String,            # a slot's own display_name in FFA, or
-##       "Team %d" % (winner_id + 1) in team mode -- 1-based, matching
-##       ui/HUD.gd's existing "Team %d wins!" numbering.
+##       "Team %d" % MatchConfig.team_number_for(winner_id) in team mode --
+##       1-based (winner_id + 1 unless the lobby's teams were host-resolved, then
+##       the number the team had in the lobby), matching ui/HUD.gd's
+##       "Team %d wins!" numbering.
 ##   "match_duration": float,          # seconds spent in State.PLAYING or
 ##       State.SUDDEN_DEATH (the two "live" states, MatchLifecycle.
 ##       is_live_state()) over the whole match, ticked by _tick() below.
@@ -249,7 +251,11 @@ func _winner_name(winning_team: int, ffa: bool) -> String:
 	if ffa:
 		var slot: PlayerSlot = _match.slot(winning_team)
 		return slot.display_name if slot != null else "Player %d" % (winning_team + 1)
-	return "Team %d" % (winning_team + 1)
+	# Lobby rework (Bontago-1pi.53): the number the team had in the lobby once the
+	# host resolved the picks (MatchConfig.team_number_for()), else team id + 1.
+	var config: MatchConfig = _match.config
+	var team_number: int = config.team_number_for(winning_team) if config != null else winning_team + 1
+	return "Team %d" % team_number
 
 
 # --- Wire validation (net/MatchNet.gd EVENT_MATCH_RESULTS dispatch) ---------

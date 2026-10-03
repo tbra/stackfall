@@ -240,6 +240,28 @@ func test_team_mode_winner_is_reported_as_a_team() -> void:
 	assert_eq((results["rows"] as Array).size(), 4)
 
 
+## Lobby rework (Bontago-1pi.53): with host-resolved lobby teams the winner label
+## carries the number the team had in the lobby, not dense id + 1.
+func test_team_winner_name_uses_the_resolved_lobby_team_number() -> void:
+	var captured: Array[Dictionary] = []
+	var collect: Callable = func(results: Dictionary) -> void: captured.append(results)
+	Events.match_results_ready.connect(collect)
+
+	var config: MatchConfig = _team_config(4, MatchConfig.TeamMode.TEAMS_4)
+	config.slot_team_ids = PackedInt32Array([1, 0, 0, 1])
+	config.team_numbers = PackedInt32Array([1, 3])
+	Match.start_match(config)
+	assert_true(Match.config.teams_resolved(), "fixture: start_match() keeps the consistent resolved arrays")
+	_run_countdown()
+	Match._finish_match(1)
+	Events.match_results_ready.disconnect(collect)
+
+	var results: Dictionary = captured[0]
+	assert_eq(int(results["winner_id"]), 1)
+	assert_eq(String(results["winner_name"]), "Team 3", "dense team 1 was lobby team 3")
+	assert_eq(int((results["rows"] as Array)[0]["team_id"]), 1, "rows keep the dense team id (slot 0 is on team id 1)")
+
+
 # --- Wire validation (net/MatchNet.gd EVENT_MATCH_RESULTS) ------------------
 
 func _sample_valid_payload() -> Dictionary:

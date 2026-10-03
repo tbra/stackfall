@@ -384,7 +384,9 @@ static func apply_human_pref(seats: Dictionary, peer_id: int, color_index: int, 
 ## MatchConfig.PLAYER_COUNT_MIN (the spec 2.8 floor): a lobby with fewer seats keeps
 ## a vacant slot, exactly as the legacy lobby did. Reports an error instead of a
 ## layout when there are more than 8 seats or a human's real slot is not below the
-## trailing bot slots (two seats in one slot; Net slots never compact, plan R4).
+## trailing bot slots (two seats in one slot: Net reuses the lowest free slot for a
+## joiner and compacts the lobby's slots after every leave/kick, plan R4, so this
+## guards a stale or hand-built table).
 static func layout(seats: Dictionary, slot_of_peer: Dictionary = {}) -> Layout:
 	var plan: Layout = Layout.new()
 	var data: Dictionary = normalize(seats)
