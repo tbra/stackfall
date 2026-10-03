@@ -120,6 +120,11 @@ var _special_tuning: SpecialTuning = preload("res://config/special_tuning.tres")
 ## Bontago-1pi.11.41: the fade length a client reports with a replicated
 ## dissolve start (same shipped resource the host's HoleDissolver reads).
 var _hole_dissolve_tuning: HoleDissolveTuning = preload("res://config/hole_dissolve_tuning.tres")
+## Bontago-1pi.40: the same shipped resources PlayerController reads for the
+## player's first-block hover, so the AFK auto-drop's no-cursor fallback origin
+## clears the home beacon by the identical rule (_afk_fallback_origin()).
+var _ghost_tuning: GhostTuning = preload("res://config/ghost_tuning.tres")
+var _beacon_visuals: BeaconVisualTuning = preload("res://config/beacon_visual_tuning.tres")
 ## Test-only (Bontago-1pi.11.41): net_ids _on_block_dissolve_started() decided
 ## to replicate, in order -- _can_send() is false without a live peer, so this
 ## is what proves the host would have sent them. Game code never reads it.
@@ -1354,10 +1359,30 @@ func _on_feed_timer_expired(slot_id: int) -> void:
 	if bool(_session().is_local_slot(slot_id)):
 		return
 	var cursor: Dictionary = cursor_for_slot(slot_id)
-	var origin: Vector3 = cursor.get("origin", _authority().default_ghost_origin(slot_id))
+	var origin: Vector3 = cursor["origin"] if cursor.has("origin") else _afk_fallback_origin(slot_id)
 	var orientation_index: int = int(cursor.get("orientation_index", 0))
 	var free_quat: Quaternion = cursor.get("free_quat", Quaternion.IDENTITY)
 	_apply_intent(slot_id, origin, orientation_index, free_quat, true, _authority().feed_seq(slot_id))
+
+
+## Bontago-1pi.40 (follow-up to 1pi.33, owner playtest 2026-10-03: the first
+## block "loads inside the home beacon"): where the host auto-drops a slot it
+## has never heard a cursor from. Match.default_ghost_origin() is the home flag
+## at disc level, which is inside the beacon's socket and crystal (the beacon is
+## invisible to the placement ray and the spawn-clearance query), so the origin
+## is raised until the unrotated block's lowest point clears the beacon top by
+## GhostTuning.home_spawn_beacon_margin -- GhostTuning.home_spawn_pivot_height(),
+## built on the same home_spawn_clear_hover() PlayerController raises the
+## player's first block with. Only this no-cursor fallback is raised: a stored
+## cursor is already a pose the peer's own ghost produced, and a client intent
+## is never touched. Orientation 0 / identity (the fallback's) is what the
+## pivot height assumes.
+## DECISION: world UP, not field-local up, matching PlayerController's own
+## hover (Field is never rotated) and Match.default_ghost_origin()'s own
+## world-space result.
+func _afk_fallback_origin(slot_id: int) -> Vector3:
+	var home: Vector3 = _authority().default_ghost_origin(slot_id)
+	return home + Vector3.UP * _ghost_tuning.home_spawn_pivot_height(_beacon_visuals, _physics_tuning)
 
 
 func _on_qol_feed_changed(slot_id: int, backlog: int, paused: bool) -> void:
