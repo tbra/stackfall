@@ -169,6 +169,31 @@ const STEAM_LOBBY_TYPE_PUBLIC: int = 2
 ## raster diffs (sent compressed at 5 Hz)").
 @export var raster_compress: bool = true
 
+# --- Replicated block impacts (Bontago-1pi.55) ------------------------------
+#
+# Only the host runs physics, so only the host's Block detects landings;
+# net/MatchNet.gd batches them to clients (core/net/ImpactWire.gd). Cosmetic
+# only: an unreliable stream, lost batches are simply not heard.
+
+## Impact batches per second, host -> clients. Matches snapshot_hz so a batch
+## never waits longer than one snapshot interval; each batch is only sent when
+## it has at least one event.
+@export var impact_batch_hz: float = 30.0
+## Most impact events one batch may carry; the strongest are kept.
+@export var impact_max_per_batch: int = 8
+## Sustained impact events per second (token-bucket refill rate). The bucket
+## holds impact_max_per_batch, so any one-second window carries at most
+## impact_max_per_second + impact_max_per_batch events.
+@export var impact_max_per_second: int = 48
+## Impacts inside the same cube of this size (meters) within one batch window
+## collapse to the strongest (a pile settling produces one thud per spot, not
+## one per touching body). 0 disables spatial merging.
+@export var impact_coalesce_cell_m: float = 0.5
+## Fastest impact the wire carries, in m/s: the host clamps to it and a client
+## drops a batch claiming more. Far above any real landing (a fall from
+## pos_max_y to the kill plane is ~55 m/s).
+@export var impact_speed_max: float = 120.0
+
 # --- Lag / loss simulation (no netem in ENetConnection; see docs/M3a_PLAN.md)
 
 ## Extra one-way delay applied to simulated traffic, in milliseconds. 0 is off.
@@ -234,3 +259,8 @@ func sanitize() -> void:
 	steam_lobby_type = clampi(steam_lobby_type, 0, 4)
 	steam_lobby_data_max_bytes = clampi(steam_lobby_data_max_bytes, 256, 8192)
 	steam_lobby_list_refresh_s = maxf(steam_lobby_list_refresh_s, 1.0)
+	impact_batch_hz = clampf(impact_batch_hz, 1.0, 60.0)
+	impact_max_per_batch = clampi(impact_max_per_batch, 1, ImpactWire.MAX_EVENTS)
+	impact_max_per_second = maxi(impact_max_per_second, 1)
+	impact_coalesce_cell_m = maxf(impact_coalesce_cell_m, 0.0)
+	impact_speed_max = clampf(impact_speed_max, 1.0, float(ImpactWire.SPEED_RAW_MAX) * ImpactWire.SPEED_QUANTUM)

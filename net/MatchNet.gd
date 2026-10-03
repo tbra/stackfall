@@ -151,6 +151,30 @@ var last_reject_reply: Array = []
 var relocate_replies_by_peer: Dictionary = {}
 var last_relocate_reply: Array = []
 
+## Bontago-1pi.55: replicated block impacts (core/net/ImpactWire.gd).
+## Host: coalesce bucket (ImpactWire.coalesce_key) -> strongest event this
+## batch window, as {speed, position, time_ms}. Cleared on every flush, so it
+## never holds more than one window and is never replayed to a late joiner.
+var _impact_pending: Dictionary = {}
+var _impact_send_accum: float = 0.0
+## Token bucket behind NetConfig.impact_max_per_second; starts full.
+var _impact_tokens: float = -1.0
+var _impact_refill_ms: int = -1
+## Client: [due_ms, speed, position] rows waiting for the interpolated view to
+## reach the moment they happened (receive_impacts()).
+var _impact_queue: Array[Array] = []
+## Test-only (Bontago-1pi.55): when true the host collects impacts and records
+## every batch flush_impacts() builds even without a live peer (_can_send() is
+## false in a unit test). Game code never sets it.
+var capture_impacts: bool = false
+var impact_batches: Array[PackedByteArray] = []
+## Test-only: >= 0 replaces SnapshotSync's interpolation delay as the client's
+## impact playback delay.
+var impact_delay_override_ms: float = -1.0
+## Diagnostics: batches a client dropped as malformed, events it re-emitted.
+var impact_batches_rejected: int = 0
+var impacts_emitted: int = 0
+
 ## _known_special_ids()'s cache: String(SpecialDef.id) -> true, built once
 ## from SpecialDef.load_all_specials() (a directory scan). This node is
 ## recreated per match/session (a fresh autoload on every process start; a
@@ -310,6 +334,7 @@ func _ready() -> void:
 	Events.block_removed.connect(_on_block_removed)
 	Events.block_dissolve_started.connect(_on_block_dissolve_started)
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
+	Events.block_impacted_at.connect(_on_block_impacted_at)
 	Events.net_peer_left.connect(_on_net_peer_left)
 	Events.net_peer_joined.connect(_on_net_peer_joined)
 	Events.net_mode_changed.connect(_on_net_mode_changed)
@@ -382,8 +407,15 @@ func _can_send() -> bool:
 
 func _process(delta: float) -> void:
 	if not _is_host():
+		if not _impact_queue.is_empty():
+			drain_impacts(Time.get_ticks_msec())
 		return
 	_tick_replay_timeouts(delta)
+	if not _impact_pending.is_empty():
+		_impact_send_accum += delta
+		if _impact_send_accum >= 1.0 / maxf(config.impact_batch_hz, 0.001):
+			_impact_send_accum = 0.0
+			flush_impacts(Time.get_ticks_msec())
 	var cat: CatController = _authority().active_cat()
 	if cat != null and _can_send():
 		_cat_send_accum += delta
@@ -1321,6 +1353,9 @@ func _roster() -> Array:
 # --- Events the host mirrors to its clients ---------------------------------
 
 func _on_match_state_changed(_from_state: int, to_state: int) -> void:
+	if to_state == Match.State.LOBBY or to_state == Match.State.LOADING:
+		# World teardown / rebuild: nothing still waiting may play into it.
+		_reset_impacts()
 	if not _is_host():
 		return
 	if to_state == Match.State.LOADING:
@@ -1617,6 +1652,157 @@ func _on_cat_ended(id: int) -> void:
 		replicate_match_event(EVENT_CAT_ENDED, [id])
 
 
+# --- Replicated block impacts (Bontago-1pi.55) ------------------------------
+#
+# Host: Block._physics_process emits Events.block_impacted_at for a real
+# landing (host physics only; frozen client replicas emit nothing). The host's
+# own Sfx/camera/rumble/dust react to that emit directly, exactly as before;
+# this node only queues a copy for clients. Clients re-emit both impact
+# signals from the wire, so every consumer works unchanged (the host never
+# receives its own call_remote batch, so nothing plays twice there).
+
+## Host: one detected impact. Only collected while someone can hear it.
+func _on_block_impacted_at(speed: float, position: Vector3) -> void:
+	if not _is_host():
+		return
+	if not capture_impacts and not _impact_audience():
+		return
+	collect_impact(speed, position, Time.get_ticks_msec())
+
+
+func _impact_audience() -> bool:
+	return _can_send() and not multiplayer.get_peers().is_empty()
+
+
+## Host: folds one impact into the current batch window -- same
+## NetConfig.impact_coalesce_cell_m cell keeps only the strongest. Game/Block
+## already throttles each body to one impact per IMPACT_EMIT_INTERVAL_MS, so
+## one body never contributes twice to a window either.
+func collect_impact(speed: float, position: Vector3, now_ms: int) -> void:
+	if not is_finite(speed) or speed <= 0.0 or not ImpactWire.position_fits(position):
+		return
+	var clamped: float = minf(speed, config.impact_speed_max)
+	var key: Vector3i = ImpactWire.coalesce_key(position, config.impact_coalesce_cell_m)
+	var existing: Variant = _impact_pending.get(key)
+	if existing != null:
+		if float((existing as Dictionary)[ImpactWire.KEY_SPEED]) >= clamped:
+			return
+	elif _impact_pending.size() >= ImpactWire.MAX_EVENTS:
+		# A pathological window; the cap below would drop these anyway.
+		return
+	_impact_pending[key] = {
+		ImpactWire.KEY_SPEED: clamped, ImpactWire.KEY_POSITION: position, "time_ms": now_ms,
+	}
+
+
+## Host: turns the current window into one batch (strongest first, at most
+## impact_max_per_batch and whatever the per-second token bucket allows),
+## sends it and clears the window. Events over the cap are dropped, not
+## carried: a late thud is worse than a missing one. Returns the packet (empty
+## when nothing went out).
+func flush_impacts(now_ms: int) -> PackedByteArray:
+	var rate: float = float(maxi(config.impact_max_per_second, 1))
+	var capacity: float = float(maxi(config.impact_max_per_batch, 1))
+	if _impact_tokens < 0.0 or _impact_refill_ms < 0:
+		_impact_tokens = capacity
+	else:
+		var elapsed_s: float = float(maxi(now_ms - _impact_refill_ms, 0)) / 1000.0
+		_impact_tokens = minf(capacity, _impact_tokens + elapsed_s * rate)
+	_impact_refill_ms = now_ms
+	var empty: PackedByteArray = PackedByteArray()
+	if _impact_pending.is_empty():
+		return empty
+	var pending: Array[Dictionary] = []
+	for event: Variant in _impact_pending.values():
+		pending.append(event as Dictionary)
+	_impact_pending.clear()
+	var allowed: int = mini(int(floor(_impact_tokens)), config.impact_max_per_batch)
+	if allowed <= 0:
+		return empty
+	var chosen: Array[Dictionary] = ImpactWire.strongest(pending, allowed)
+	for event: Dictionary in chosen:
+		event[ImpactWire.KEY_AGE_MS] = now_ms - int(event["time_ms"])
+	_impact_tokens -= float(chosen.size())
+	var packet: PackedByteArray = ImpactWire.encode(chosen)
+	if capture_impacts:
+		impact_batches.append(packet)
+	if _can_send():
+		for peer_id: int in multiplayer.get_peers():
+			# A mid-match joiner still loading its world replay hears nothing
+			# yet; impacts are never part of that replay either.
+			if not _replay_pending.has(peer_id):
+				rpc_id(peer_id, &"net_block_impacts", packet)
+	return packet
+
+
+## Client: validates a batch and schedules each event for when the
+## interpolated view (SnapshotSync renders interpolation_delay_ms behind the
+## host) shows it: due = arrival + delay - age. A malformed batch is dropped
+## whole.
+func receive_impacts(packet: PackedByteArray, now_ms: int) -> void:
+	if _is_host() or _client_awaiting_world():
+		return
+	var events: Array[Dictionary] = ImpactWire.decode(
+		packet, config.impact_speed_max, config.pos_min_y, config.pos_max_y
+	)
+	if events.is_empty():
+		impact_batches_rejected += 1
+		return
+	var delay_ms: float = _impact_playback_delay_ms()
+	var queue_cap: int = config.impact_max_per_second + config.impact_max_per_batch
+	for event: Dictionary in events:
+		var due_ms: float = float(now_ms) + delay_ms - float(event[ImpactWire.KEY_AGE_MS])
+		if due_ms <= float(now_ms):
+			_emit_impact(float(event[ImpactWire.KEY_SPEED]), event[ImpactWire.KEY_POSITION] as Vector3)
+		elif _impact_queue.size() < queue_cap:
+			_impact_queue.append([due_ms, event[ImpactWire.KEY_SPEED], event[ImpactWire.KEY_POSITION]])
+
+
+## Client: plays every queued impact whose moment has come, in arrival order.
+func drain_impacts(now_ms: int) -> void:
+	if _impact_queue.is_empty():
+		return
+	var keep: Array[Array] = []
+	var due: Array[Array] = []
+	for row: Array in _impact_queue:
+		if float(row[0]) <= float(now_ms):
+			due.append(row)
+		else:
+			keep.append(row)
+	_impact_queue = keep
+	for row: Array in due:
+		_emit_impact(float(row[1]), row[2] as Vector3)
+
+
+func pending_impact_count() -> int:
+	return _impact_queue.size()
+
+
+func _impact_playback_delay_ms() -> float:
+	if impact_delay_override_ms >= 0.0:
+		return impact_delay_override_ms
+	if SnapshotSync.is_running():
+		return SnapshotSync.interpolation_delay_ms()
+	return 0.0
+
+
+## The same pair game/Block.gd emits on the host, so Sfx (thud), CameraRig
+## (shake), Rumble, BlockEffectsManager (dust) and PerchingBirds need nothing
+## network-aware.
+func _emit_impact(speed: float, position: Vector3) -> void:
+	impacts_emitted += 1
+	Events.block_impacted.emit(speed)
+	Events.block_impacted_at.emit(speed, position)
+
+
+func _reset_impacts() -> void:
+	_impact_pending.clear()
+	_impact_queue.clear()
+	_impact_send_accum = 0.0
+	_impact_tokens = -1.0
+	_impact_refill_ms = -1
+
+
 func _on_net_peer_left(peer_id: int, slot_id: int, _reason: int) -> void:
 	_replay_pending.erase(peer_id)
 	_replay_age.erase(peer_id)
@@ -1646,6 +1832,7 @@ func _on_net_peer_joined(peer_id: int, slot_id: int, _player_name: String) -> vo
 
 func _on_net_mode_changed(mode: int) -> void:
 	_awaiting_match_start = mode == Net.Mode.CLIENT
+	_reset_impacts()
 
 
 ## True while a match is past its start and not over: the states a mid-match
@@ -2174,6 +2361,16 @@ func net_cat_state(id: int, position: Vector3, velocity: Vector3, point: Vector3
 
 
 # Host -> clients.
+
+## Bontago-1pi.55: one batch of host-detected block impacts. Unreliable on the
+## cosmetic CURSOR_CHANNEL: a lost batch is a missed thud, never worth a
+## retransmit or head-of-line blocking a spawn on channel 0. Events are
+## position-keyed (ImpactWire's DECISION), so arrival order relative to the
+## reliable spawn/despawn stream does not matter.
+@rpc("authority", "call_remote", "unreliable", CURSOR_CHANNEL)
+func net_block_impacts(packet: PackedByteArray) -> void:
+	receive_impacts(packet, Time.get_ticks_msec())
+
 
 @rpc("authority", "call_remote", "reliable")
 func net_match_loading() -> void:
