@@ -258,7 +258,9 @@ func _ready() -> void:
 		Net.init_steam()
 	# Bontago-59o.1: interactive launches show the SlopShop splash (with its
 	# jingle) first; headless/CLI entry points go straight to the menu.
-	if SplashScreen.should_show_now():
+	# Bontago-1pi.34: coming back from a debug demo scene skips the splash.
+	var returning_from_demo: bool = DemoReturn.consume_returning()
+	if SplashScreen.should_show_now() and not returning_from_demo:
 		var splash: SplashScreen = SplashScreen.new()
 		add_child(splash)
 		splash.finished.connect(_show_main_menu)
@@ -967,6 +969,27 @@ func _show_main_menu() -> void:
 	_main_menu.sandbox_requested.connect(start_sandbox_from_menu)
 	_main_menu.tutorial_requested.connect(start_tutorial_from_menu)
 	_main_menu.bots_requested.connect(start_bots_from_menu)
+	_main_menu.debug_scene_requested.connect(open_debug_scene)
+
+
+## Bontago-1pi.34: the main menu's Debug page opens the visual demo / gift demo
+## scenes as the running scene (debug mode only -- DebugMode is the same gate
+## the menu entry uses, so a stray signal in a player build does nothing).
+## This does not touch AgentProbe: its tiny-window/mute mode is decided once
+## at startup from the command line (Settings._ready() -> AgentProbe.apply(),
+## "res://tools/..." named on the command line or `-- --agent-probe`), and a
+## scene change from here changes neither, so the owner's window stays as is.
+## game/DemoReturn.gd brings the player back (Esc / B, or the gift demo's own
+## pause-menu Leave). A scene that does not exist (the visual demo is baked
+## per checkout, see tools/bake_visual_demo.gd) is reported on the status line.
+func open_debug_scene(scene_path: String) -> void:
+	if not DebugMode.is_enabled():
+		return
+	var err: Error = DemoReturn.launch(get_tree(), scene_path)
+	if err != OK and _main_menu != null and is_instance_valid(_main_menu):
+		_main_menu.show_status("Could not open %s (%s). The visual demo is made by tools/bake_visual_demo.tscn." % [
+			scene_path, error_string(err),
+		])
 
 
 ## DECISION: Play local → Vs bots starts from the normal lobby with one human

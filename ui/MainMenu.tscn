@@ -36,6 +36,7 @@ script = ExtResource("4_backdrop")
 
 [node name="Diorama" type="SubViewportContainer" parent="."]
 layout_mode = 1
+focus_mode = 0
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -78,6 +79,7 @@ custom_minimum_size = Vector2(0, 37)
 [node name="TitleShadow" type="RichTextLabel" parent="Center/Panel/Layout/TitleWrap"]
 unique_name_in_owner = true
 layout_mode = 0
+focus_mode = 0
 offset_right = 240.0
 offset_bottom = 40.0
 mouse_filter = 2
@@ -90,6 +92,7 @@ theme_override_font_sizes/normal_font_size = 26
 [node name="Title" type="RichTextLabel" parent="Center/Panel/Layout/TitleWrap"]
 unique_name_in_owner = true
 layout_mode = 0
+focus_mode = 0
 offset_right = 240.0
 offset_bottom = 40.0
 mouse_filter = 2
@@ -138,7 +141,6 @@ layout_mode = 2
 size_flags_horizontal = 3
 custom_minimum_size = Vector2(0, 41)
 
-focus_neighbor_right = NodePath("../JoinButton")
 text = "Host"
 
 [node name="JoinButton" type="Button" parent="Center/Panel/Layout/HostRow"]
@@ -147,7 +149,6 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 custom_minimum_size = Vector2(0, 41)
-focus_neighbor_left = NodePath("../HostButton")
 text = "Join"
 
 [node name="HostOnlineButton" type="Button" parent="Center/Panel/Layout/HostRow"]
@@ -157,7 +158,6 @@ layout_mode = 2
 size_flags_horizontal = 3
 custom_minimum_size = Vector2(0, 41)
 
-focus_neighbor_left = NodePath("../HostButton")
 text = "Host online (Steam)"
 
 [node name="JoinTabRow" type="HBoxContainer" parent="Center/Panel/Layout"]
@@ -209,7 +209,6 @@ size_flags_horizontal = 3
 icon = ExtResource("glyph_refresh")
 unique_name_in_owner = true
 layout_mode = 2
-focus_neighbor_bottom = NodePath("../../SteamListStack/SteamLobbyList")
 text = "Refresh"
 
 [node name="SteamListStack" type="Control" parent="Center/Panel/Layout/SteamSection/SteamGamesWell/SteamGamesLayout"]
@@ -226,8 +225,6 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-focus_neighbor_top = NodePath("../../SteamHeaderRow/RefreshSteamButton")
-focus_neighbor_bottom = NodePath("../../../../../LanGamesWell/LanGamesLayout/LanHeaderRow/RefreshButton")
 
 [node name="SteamEmptyStateLabel" type="Label" parent="Center/Panel/Layout/SteamSection/SteamGamesWell/SteamGamesLayout/SteamListStack"]
 unique_name_in_owner = true
@@ -269,8 +266,6 @@ size_flags_horizontal = 3
 icon = ExtResource("glyph_refresh")
 unique_name_in_owner = true
 layout_mode = 2
-focus_neighbor_top = NodePath("../../../../SteamSection/SteamGamesWell/SteamGamesLayout/SteamHeaderRow/RefreshSteamButton")
-focus_neighbor_bottom = NodePath("../../GameListStack/GameList")
 text = "Refresh"
 
 [node name="GameListStack" type="Control" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout"]
@@ -287,7 +282,6 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-focus_neighbor_bottom = NodePath("../../DirectRow/DirectIpEdit")
 
 [node name="EmptyStateLabel" type="Label" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout/GameListStack"]
 unique_name_in_owner = true
@@ -312,15 +306,11 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 placeholder_text = "1.2.3.4:47999"
-focus_neighbor_top = NodePath("../../GameListStack/GameList")
-focus_neighbor_bottom = NodePath("../DirectJoinButton")
 
 [node name="DirectJoinButton" type="Button" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout/DirectRow"]
 icon = ExtResource("glyph_join")
 unique_name_in_owner = true
 layout_mode = 2
-focus_neighbor_top = NodePath("../DirectIpEdit")
-focus_neighbor_bottom = NodePath("../../../../BottomRow/SandboxButton")
 text = "Join IP"
 
 [node name="BottomRow" type="HBoxContainer" parent="Center/Panel/Layout"]
@@ -334,25 +324,6 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "Play local"
 
-[node name="SandboxButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
-icon = ExtResource("glyph_blocks")
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-focus_neighbor_top = NodePath("../../LanGamesWell/LanGamesLayout/DirectRow/DirectJoinButton")
-focus_neighbor_right = NodePath("../TutorialButton")
-text = "Sandbox"
-
-[node name="TutorialButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
-icon = ExtResource("glyph_guide")
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-focus_neighbor_top = NodePath("../../LanGamesWell/LanGamesLayout/DirectRow/DirectJoinButton")
-focus_neighbor_left = NodePath("../SandboxButton")
-focus_neighbor_right = NodePath("../OptionsButton")
-text = "Tutorial"
-
 [node name="BotsButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
 icon = ExtResource("glyph_blocks")
 unique_name_in_owner = true
@@ -360,14 +331,25 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "Vs bots"
 
+[node name="SandboxButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
+icon = ExtResource("glyph_blocks")
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Sandbox"
+
+[node name="TutorialButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
+icon = ExtResource("glyph_guide")
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Tutorial"
+
 [node name="OptionsButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
 icon = ExtResource("glyph_settings")
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-focus_neighbor_top = NodePath("../../LanGamesWell/LanGamesLayout/DirectRow/DirectJoinButton")
-focus_neighbor_left = NodePath("../TutorialButton")
-focus_neighbor_right = NodePath("../QuitButton")
 text = "Options"
 
 [node name="QuitButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
@@ -375,9 +357,19 @@ icon = ExtResource("glyph_quit")
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-focus_neighbor_top = NodePath("../../LanGamesWell/LanGamesLayout/DirectRow/DirectJoinButton")
-focus_neighbor_left = NodePath("../OptionsButton")
 text = "Quit"
+
+[node name="VisualDemoButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Visual demo"
+
+[node name="GiftDemoButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Gift demo"
 
 [node name="BackButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
 icon = ExtResource("glyph_back")
@@ -392,6 +384,21 @@ layout_mode = 2
 autowrap_mode = 2
 modulate = Color(1, 0.6, 0.6, 1)
 text = ""
+
+[node name="DebugButton" type="Button" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = -52.0
+offset_right = 104.0
+offset_bottom = -16.0
+grow_vertical = 0
+tooltip_text = "Developer tools: demo scenes (debug mode only)"
+text = "Debug"
 
 [node name="GamepadHintPill" type="PanelContainer" parent="."]
 unique_name_in_owner = true
