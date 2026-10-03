@@ -4,6 +4,8 @@ extends Node
 ## sends the use_gift_slot intent, and the host validates it. Run via
 ## tools/run_gift_slot_enet.ps1. Host: --headless-host --expect-peers=2.
 
+## Net.peer_ids() counts the host too: one host + one client (Bontago-1pi.18.8).
+const HOST_AND_CLIENT_PEERS: int = 2
 const CONNECT_TIMEOUT: float = 20.0
 const GIFT_ID: StringName = &"anvil"
 
@@ -33,7 +35,7 @@ func _until(condition: Callable, seconds: float) -> bool:
 
 
 func _run_host() -> void:
-	await _until(func() -> bool: return Net.peer_ids().size() >= 1, CONNECT_TIMEOUT)
+	await _until(func() -> bool: return Net.peer_ids().size() >= HOST_AND_CLIENT_PEERS, CONNECT_TIMEOUT)
 	var config: MatchConfig = (load("res://config/match_defaults.tres") as MatchConfig).duplicate(true) as MatchConfig
 	config.map_size = MapDef.MapSize.SMALL
 	config.player_count = 2

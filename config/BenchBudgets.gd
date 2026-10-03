@@ -28,6 +28,25 @@ extends Resource
 @export var block_material_cost_draw_call_budget: int = 30
 @export var block_material_cost_object_budget: int = 540
 
+## -- tests/bench/bench_claim_radius.gd (Bontago-1pi.18.8, QoL Q4): CPU cost, not
+## render cost. Ceiling in milliseconds for ONE WinChecker.update() (the win check
+## a territory solve runs, one claim_at() per goal) at the QoL goal-radius toggle's
+## worst case: MatchConfig.GOAL_FLAG_MAX goals at QolExperiments.GOAL_RADIUS_MULTIPLIER_MAX
+## times the goal zone radius, on the fully owned raster the bench builds.
+##
+## DECISION (Bontago-1pi.18.8, stackfall-netcode): 2.0 ms is PROVISIONAL. The
+## first bench run was only a smoke test (Codex was loading the machine), so it
+## was not used to set this. It is a quarter of the 8 ms territory solve budget
+## (spec 3.3, tests/bench/bench_territory.gd BUDGET_MS) and 4% of the 50 ms solve
+## interval at solve_hz = 20. The orchestrator replaces it with 1.25x the average
+## measured by one run of bench_claim_radius.tscn alone on an idle machine, per this
+## file's convention above (and records the baseline on Bontago-1pi.18.8). If that
+## baseline is over this figure, the plan's remedy is to cache per-goal cell lists
+## in WinChecker rather than raise the budget.
+## NOTE: config/bench_budgets.tres does not list this property (it was not an owned
+## file of this package), so the script default below is what the bench reads.
+@export var claim_radius_update_budget_ms: float = 2.0
+
 ## Camera setup for windowed render sampling (bench_block_material_cost.tscn):
 ## horizontal distance from field center to camera position, in units.
 @export var bench_camera_distance: float = 50.0
