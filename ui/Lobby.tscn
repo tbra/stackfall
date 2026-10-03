@@ -591,6 +591,17 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 9
 text = "Specials: 9/9"
 
+[node name="ChipExperiments" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel/AdvRulesBarContent/AdvRulesChips"]
+mouse_filter = 2
+layout_mode = 2
+
+[node name="AdvChipExperiments" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel/AdvRulesBarContent/AdvRulesChips/ChipExperiments"]
+unique_name_in_owner = true
+mouse_filter = 2
+layout_mode = 2
+theme_override_font_sizes/font_size = 9
+text = "Experiments: 0 on"
+
 [node name="PlayersCard" type="PanelContainer" parent="Margin/Layout/Columns"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -865,3 +876,43 @@ theme_override_constants/separation = 4
 unique_name_in_owner = true
 layout_mode = 2
 text = "Allow joining mid-match"
+
+[node name="ExperimentsSection" type="VBoxContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="ExperimentsLabel" type="Label" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/ExperimentsSection"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+text = "Experiments (off by default)"
+
+[node name="ExperimentsChecklist" type="HFlowContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/ExperimentsSection"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 10
+theme_override_constants/v_separation = 10
+
+[node name="QolTimerPauseCheck" type="CheckBox" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/ExperimentsSection/ExperimentsChecklist"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Experiment: the block timer pauses while a special is active or a tower is toppling, so a forced drop cannot land mid-chaos."
+text = "Pause timer on events"
+
+[node name="QolBacklogCheck" type="CheckBox" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/ExperimentsSection/ExperimentsChecklist"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Experiment: when the block timer runs out the held piece is queued and you get a fresh one, instead of being dropped."
+text = "Queue expired blocks"
+
+[node name="QolGoalRadiusCheck" type="CheckBox" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/ExperimentsSection/ExperimentsChecklist"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Experiment: a goal can be claimed by territory around the flag, not only on the flag cell itself."
+text = "Bigger goal claim radius"
+
+[node name="QolGiftSlotCheck" type="CheckBox" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/ExperimentsSection/ExperimentsChecklist"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Experiment: a claimed gift waits in a slot and is spent with the use-gift action, instead of replacing your next block."
+text = "Gift slot"
