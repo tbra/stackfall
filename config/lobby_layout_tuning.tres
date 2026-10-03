@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="LobbyLayoutTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/LobbyLayoutTuning.gd" id="1_lobbylayout"]
+
+[resource]
+script = ExtResource("1_lobbylayout")
+section_spacing_px = 10
+advanced_indent_px = 12
+color_box_size_px = Vector2(24, 24)
+color_box_corner_radius_px = 6
+seat_row_min_height_px = 0
+seat_row_separation_px = 10
+seat_text_separation_px = 0
+seat_name_font_size = 16

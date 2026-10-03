@@ -1,0 +1,41 @@
+class_name LobbyLayoutTuning
+extends Resource
+## Layout tunables for the lobby rework (Bontago-1pi.53, docs/LOBBY_REWORK_PLAN.md,
+## D9): sizes and spacings that are new to the rework live here, so
+## config/menu_visual_tuning.tres (colours, pill shapes) is never touched. Read by
+## ui/Lobby.gd and ui/lobby/LobbyPlayersPanel.gd.
+##
+## Not one of the F4 tuning panel's six resource classes (CameraTuning,
+## GhostTuning, PhysicsTuning, TerritoryTuning, TerritoryVisuals,
+## BlockFeedConfig -- same note as config/LoadingScreenTuning.gd), so these
+## exports do not need a config/tuning_panel_hints.tres entry.
+##
+## E1 (the lobby extraction) keeps today's look: every default below equals the
+## literal it replaced, so moving the roster rows into LobbyPlayersPanel changes
+## no pixel. The section/advanced fields are consumed by the S1 packages.
+
+## Vertical gap between two LobbySection blocks in the settings column (S1a).
+@export var section_spacing_px: int = 10
+
+## Left indent of an Advanced block under its section header (S1b).
+@export var advanced_indent_px: int = 12
+
+## Edge of a seat row's colour box, in px (width, height). Replaces the 24 x 24
+## clay-cube icon the roster rows drew before the rework.
+@export var color_box_size_px: Vector2 = Vector2(24.0, 24.0)
+
+## Corner radius of the colour box.
+@export var color_box_corner_radius_px: int = 6
+
+## Smallest height of a seat row, in px. 0 = natural content height (today's
+## look); the seat-row package raises it once rows carry buttons.
+@export var seat_row_min_height_px: int = 0
+
+## Gap between the controls of one seat row (colour box, name column, badge).
+@export var seat_row_separation_px: int = 10
+
+## Gap between a seat's name and its subtitle line.
+@export var seat_text_separation_px: int = 0
+
+## Font size of a seat's name.
+@export var seat_name_font_size: int = 16

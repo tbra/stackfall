@@ -42,6 +42,11 @@ signal back_requested
 ## numbers").
 @export var tuning: MenuVisualTuning = preload("res://config/menu_visual_tuning.tres")
 
+## Bontago-1pi.53 (E1): sizes and spacings new to the lobby rework (section
+## spacing, seat colour box, row height, advanced indent); also handed to the
+## players panel. Never touches the MenuVisualTuning look above.
+@export var layout_tuning: LobbyLayoutTuning = preload("res://config/lobby_layout_tuning.tres")
+
 ## DECISION (ui/Lobby.gd, M6 A4): MatchConfig.enabled_specials already means
 ## "empty = every special enabled" (config/MatchConfig.gd's own doc comment),
 ## so unchecking every %SpecialsChecklist box can't publish an empty array --
@@ -70,8 +75,14 @@ const MAP_VARIANT_LABELS: Array[String] = ["Round", "Oval", "Ring", "Twin", "Cro
 const MAP_SIZE_LABELS: Array[String] = ["Small", "Medium", "Large"]
 
 ## DECISION (ui/Lobby.gd): same `Variant` test seam as ui/MainMenu.gd and
-## ui/HUD.gd's match_provider.
-var net_provider: Variant = null
+## ui/HUD.gd's match_provider. Bontago-1pi.53 (E1): the players panel reads the
+## same seam (peer ids/info for the roster, local peer id for the "you" subtitle),
+## so a swap here is forwarded to it -- tests assign this after _ready().
+var net_provider: Variant = null:
+	set(value):
+		net_provider = value
+		if _players_panel != null:
+			_players_panel.net_provider = value
 
 ## Bontago-mp0.3.5 (review r2, item 1): %MapVariantOption/%MapSizeOption stay
 ## the hidden source of truth (same pattern as _team_buttons over the hidden
@@ -181,11 +192,15 @@ var net_provider: Variant = null
 @onready var _advanced_popup_card: PanelContainer = %AdvancedPopupCard
 @onready var _advanced_popup_close: Button = %AdvancedPopupClose
 
-@onready var _player_list: VBoxContainer = %PlayerList
+## Bontago-1pi.53 (E1): the right-hand roster (title row, header text, seat rows)
+## lives in ui/lobby/LobbyPlayersPanel.gd; this script keeps only the hooks
+## (_publish_lobby_data/_apply_data/_on_roster_changed/_on_start_pressed/
+## _update_host_only_state) that feed it. %PlayerList and %PlayerCountLabel are
+## its own unique names now, so they resolve through %PlayersPanel.
+@onready var _players_panel: LobbyPlayersPanel = %PlayersPanel
 @onready var _ready_check: CheckButton = %ReadyCheck
 @onready var _start_button: Button = %StartButton
 @onready var _invite_friends_button: Button = %InviteFriendsButton
-@onready var _player_count_label: Label = %PlayerCountLabel
 
 @onready var _settings_card: PanelContainer = %SettingsCard
 @onready var _players_card: PanelContainer = %PlayersCard
@@ -199,7 +214,7 @@ var net_provider: Variant = null
 ## spot on this screen now, unlike ui/MainMenu.gd where the hint still owns it.
 @onready var _gamepad_hint_pill: PanelContainer = %GamepadHintPill
 ## Bontago-mp0.3.5 (review r1, item 13): mockup 11's bottom-left "Waiting for
-## players * X of Y ready" pill, updated every _apply_roster() call.
+## players * X of Y ready" pill, updated every time the players panel rebuilds its rows (_on_roster_rendered()).
 @onready var _waiting_status_pill: PanelContainer = %WaitingStatusPill
 @onready var _waiting_status_label: Label = %WaitingStatusLabel
 ## Bontago-mp0.3.5 (review r1, item 10): the sunken pill track %TeamsTrack
@@ -210,10 +225,9 @@ var net_provider: Variant = null
 ## Every control the round trip governs, so enabling/disabling them for a
 ## non-host is one loop instead of fourteen repeated lines.
 var _settings_controls: Array[Control] = []
-var _player_rows: Array[Node] = []
 
 ## Built once by _build_specials_checklist(), in SpecialDef.load_all_specials()
-## order -- parallel arrays (the same convention _player_rows pairs with
+## order -- parallel arrays (the same convention the panel's rows pair with
 ## roster entries by index) so _config_from_controls()/_apply_data() can walk
 ## both together without a per-frame dictionary lookup.
 var _special_checkboxes: Array[CheckBox] = []
@@ -273,6 +287,7 @@ var _last_config: MatchConfig = null
 
 func _ready() -> void:
 	net_provider = Net
+	_configure_players_panel()
 	_populate_options()
 	_settings_controls = [
 		_map_combo_option, _player_count_spin, _ai_count_spin,
@@ -342,6 +357,24 @@ func _process(_delta: float) -> void:
 	# Cheap: two method calls and a bool compare on a screen with a handful
 	# of controls.
 	_update_host_only_state()
+
+
+## Bontago-1pi.53 (E1): hands the players panel everything it renders from (the
+## Lobby's own tunables, the per-slot palette, the net seam) and connects its
+## signals -- the narrow Lobby <-> panel contract documented in
+## ui/lobby/LobbyPlayersPanel.gd. Runs before the first _apply_data() so even the
+## first rows are built from the Lobby's own resources.
+func _configure_players_panel() -> void:
+	_players_panel.net_provider = net_provider
+	_players_panel.tuning = tuning
+	_players_panel.layout_tuning = layout_tuning
+	_players_panel.palette = default_config.player_colors
+	_players_panel.seats_changed.connect(_on_seats_changed)
+	_players_panel.teams_toggled.connect(_on_teams_toggled)
+	_players_panel.add_bot_requested.connect(_on_add_bot_requested)
+	_players_panel.remove_bot_requested.connect(_on_remove_bot_requested)
+	_players_panel.roster_rendered.connect(_on_roster_rendered)
+	_players_panel.focus_entries_changed.connect(_on_players_focus_entries_changed)
 
 
 # --- Building settings controls ----------------------------------------------
@@ -422,7 +455,7 @@ func _fill_option(option: OptionButton, labels: Array) -> void:
 ## place that can later uncheck one, from a published config). Called once
 ## from _populate_options(), before _ready() builds _settings_controls, the
 ## same "every row already exists before the host/client gate runs" ordering
-## _build_roster()/_apply_roster() (player rows) also depends on.
+## the players panel's row rebuild also depends on.
 func _build_specials_checklist() -> void:
 	for child: Node in _specials_checklist.get_children():
 		_specials_checklist.remove_child(child)
@@ -452,7 +485,7 @@ func _build_specials_checklist() -> void:
 ## covering it has to be computed at runtime. Mirrors ui/OptionsMenu.gd's own
 ## _wire_focus_chain() (get_path_to()-based circular top/bottom wiring,
 ## called once from _ready() after every dynamic row exists). Player rows
-## (_player_rows, rebuilt on every roster change) are plain
+## (rebuilt by the players panel on every roster change) are plain
 ## HBoxContainer(ColorRect, Label) with no focusable child, so they never
 ## enter the chain and a later roster change can't invalidate it.
 ## Bontago-mp0.3.5 (review r3, problem 2): the specials checklist and the
@@ -478,7 +511,12 @@ func _wire_focus_chain() -> void:
 	# of them is somewhere in the closed loop with a focus neighbor on both
 	# sides, same as every other control this chain covers.
 	chain.append_array(_main_stepper_buttons)
-	chain.append_array([_adv_rules_bar, _back_button, _invite_friends_button, _ready_check, _start_button])
+	chain.append(_adv_rules_bar)
+	# Bontago-1pi.53 (E1): the players panel's own focusable controls (none yet --
+	# its rows are plain labels) sit between the settings and the footer, in visual
+	# order; the panel asks for a rewire through focus_entries_changed.
+	chain.append_array(_players_panel.focus_entries())
+	chain.append_array([_back_button, _invite_friends_button, _ready_check, _start_button])
 	_main_chain = chain
 	_wire_loop(_visible_chain(_main_chain))
 
@@ -825,7 +863,7 @@ func _apply_visual_style() -> void:
 	# as %HeaderTitle, just a smaller font_size (set in the tscn); only the
 	# color needs to flip from muted grey to the shared ink color here.
 	_header_eyebrow.add_theme_color_override("font_color", tuning.ink_color)
-	_player_count_label.add_theme_color_override("font_color", tuning.ink_color)
+	_players_panel.apply_visual_style()
 	_update_status_badge()
 
 
@@ -1083,7 +1121,13 @@ func _on_setting_changed() -> void:
 func _publish_lobby_data(config: MatchConfig) -> void:
 	config.sanitize()
 	var data: Dictionary = config.to_dict()
-	data["roster"] = _build_roster(config)
+	data["roster"] = _players_panel.build_roster(config)
+	# Bontago-1pi.53 (E1): the seat table (per-seat colour/team/difficulty) is
+	# lobby data next to the roster, not a MatchConfig field; an empty table writes no
+	# key, so a lobby without one publishes the exact dict it always did.
+	var seats: Dictionary = _players_panel.seats_data()
+	if not seats.is_empty():
+		data["seats"] = seats
 	net_provider.set_lobby_data(data)
 	_apply_data(data)
 
@@ -1237,8 +1281,12 @@ func _apply_data(data: Dictionary) -> void:
 	# header for why this can't just live in _mirror_player_count_to_peers().
 	_clamp_ai_count_to_seats()
 
-	if data.has("roster"):
-		_apply_roster(data["roster"])
+	# Bontago-1pi.53 (E1): the panel gets the applied config, the dict's roster (null
+	# when it carried none: the rows stay) and its seat table ({} when absent or not a
+	# Dictionary off the wire).
+	var seats_variant: Variant = data.get("seats", {})
+	var seats: Dictionary = seats_variant as Dictionary if seats_variant is Dictionary else {}
+	_players_panel.apply(config, data["roster"] if data.has("roster") else null, seats)
 
 
 ## _apply_data()'s round trip for the specials checklist: empty -> every box
@@ -1263,220 +1311,85 @@ func _on_lobby_data_changed(data: Dictionary) -> void:
 	_apply_data(data)
 
 
-# --- Player list / ready / start --------------------------------------------
-
-## Difficulty labels for the synthetic bot rows _build_roster() appends
-## below, in MatchConfig.AiDifficulty enum order (EASY, NORMAL, HARD) -- the
-## same order _populate_options() fills %AiDifficultyOption with, so
-## config.ai_difficulty indexes both consistently (P4, Bontago-d5c.5).
-const _AI_DIFFICULTY_LABELS: Array[String] = ["Easy", "Normal", "Hard"]
+## Bontago-1pi.53 (E1): the panel's seat table changed (colour, team pick, bot
+## difficulty). Republishes like any other host edit, so the dict carries
+## _players_panel.seats_data(); a client's edit travels as an intent instead.
+func _on_seats_changed() -> void:
+	_on_setting_changed()
 
 
-func _build_roster(config: MatchConfig) -> Array[Dictionary]:
-	var roster: Array[Dictionary] = []
-	if net_provider == null:
-		return roster
-	for peer_id: int in net_provider.peer_ids():
-		var info: Dictionary = net_provider.peer_info(peer_id)
-		roster.append({
-			"peer_id": peer_id,
-			"slot_id": int(info.get("slot_id", -1)),
-			"name": str(info.get("name", "")),
-			"ready": bool(info.get("ready", false)),
-		})
-	roster.append_array(_bot_roster_entries(config))
-	return roster
+## The Teams toggle. DECISION (ui/Lobby.gd, E1, plan D8): the toggle writes only
+## OFF or TEAMS_4 ("on, up to 4 teams") into the hidden %TeamModeOption, the
+## source of truth the segmented buttons also write; legacy TEAMS_2/3 data stays
+## valid when it arrives. Host only: a client's controls are read-only.
+func _on_teams_toggled(enabled: bool) -> void:
+	if not _is_host_session():
+		return
+	_team_mode_option.selected = MatchConfig.TeamMode.TEAMS_4 if enabled else MatchConfig.TeamMode.OFF
+	_on_setting_changed()
 
 
-## M5 P4 (docs/M5_PLAN.md): one synthetic row per bot seat, slot_id running
-## from player_count - ai_count to player_count - 1 -- the same formula
-## autoload/match/MatchLifecycle.gd's _build_slots() uses for
-## PlayerSlot.is_bot, so the lobby preview and the real match slots never
-## disagree about which ids are bots. A bot has no connected peer behind it
-## to ready up, so ready is always true; Net.all_peers_ready() only ever
-## iterates real peers (its own header), so this can never let an unready
-## human's Start gate open.
-##
-## Split out of _build_roster() (Bontago-1pi.9b) so _apply_roster() can
-## re-derive "how many bots exist right now" from [param config] alone,
-## instead of trusting an incoming roster's own bot rows -- a live
-## Events.net_roster_changed payload (autoload/Net.gd's _broadcast_roster())
-## never includes them, only _build_roster()'s own outbound publish does, so
-## the two payload shapes used to disagree about whether bots were "in" the
-## roster at all (see _apply_roster()'s own header for the confusion that
-## caused).
-func _bot_roster_entries(config: MatchConfig) -> Array[Dictionary]:
-	var bots: Array[Dictionary] = []
-	var difficulty: String = _AI_DIFFICULTY_LABELS[
-		clampi(config.ai_difficulty, 0, _AI_DIFFICULTY_LABELS.size() - 1)
-	]
-	var bot_start: int = config.player_count - config.ai_count
-	for slot_id: int in range(bot_start, config.player_count):
-		var bot_index: int = slot_id - bot_start + 1
-		bots.append({
-			"peer_id": -1,
-			"slot_id": slot_id,
-			"name": "Bot %d (%s)" % [bot_index, difficulty],
-			"ready": true,
-		})
-	return bots
+func _on_add_bot_requested() -> void:
+	_set_bot_count(int(_ai_count_spin.value) + 1)
 
 
-## Bontago-mp0.3.5 (review r2, item 4): one white pill row per roster entry --
-## a clay-cube icon in the slot's colour (a flat rounded square standing in
-## for mockup 11's iso cube glyph, given the time budget), bold name, a small
-## muted subtitle ("Host · you" / "LAN · <ping> ms" / "AI · <difficulty>"),
-## and a Ready (mint)/Not ready (peach) badge on the right, replacing the
-## previous plain "Mira  (ready)" Label row.
-func _build_player_row(entry: Dictionary, ready: bool) -> PanelContainer:
-	var slot_id: int = int(entry.get("slot_id", -1))
-	var peer_id: int = int(entry.get("peer_id", -1))
-	var raw_name: String = str(entry.get("name", "?"))
-	var display_name: String = raw_name
-	var subtitle: String = ""
-	if peer_id == -1:
-		# Bot rows: _build_roster() packs the difficulty into the name as
-		# "Bot 1 (Normal)" -- split it back into a name + subtitle pair.
-		var open_paren: int = raw_name.find("(")
-		if open_paren != -1:
-			display_name = raw_name.substr(0, open_paren).strip_edges()
-			subtitle = "AI · %s" % raw_name.substr(open_paren + 1, raw_name.length() - open_paren - 2)
-		else:
-			subtitle = "AI"
+func _on_remove_bot_requested(_ordinal: int) -> void:
+	_set_bot_count(maxi(0, int(_ai_count_spin.value) - 1))
+
+
+## Add/remove bot through the hidden spins, so the existing clamps and the one
+## publish path stay the only rules. DECISION (ui/Lobby.gd, E1, plan D6): the seat
+## count follows humans + bots (never below the 2-seat minimum), the same rule
+## _mirror_player_count_to_peers() applies on every roster event; a request that
+## would exceed the seat cap does nothing. The seat spin moves first when growing
+## (so the bot spin's max rises before it is set) and last when shrinking.
+func _set_bot_count(new_ai_count: int) -> void:
+	if not _is_host_session():
+		return
+	var humans: int = net_provider.peer_ids().size()
+	var seats: int = clampi(humans + new_ai_count, MatchConfig.PLAYER_COUNT_MIN, MatchConfig.PLAYER_COUNT_MAX)
+	if humans + new_ai_count > seats:
+		return
+	if seats >= int(_player_count_spin.value):
+		_player_count_spin.value = seats
+		_ai_count_spin.value = new_ai_count
 	else:
-		var is_local: bool = net_provider != null and peer_id == int(net_provider.local_peer_id())
-		# Net.HOST_PEER_ID's own value (ENet convention: the host is always
-		# peer id 1) -- autoload/Net.gd's own const, read directly off the
-		# real autoload class since net_provider is a Variant test seam here.
-		if peer_id == Net.HOST_PEER_ID:
-			subtitle = "Host · you" if is_local else "Host"
-		elif is_local:
-			subtitle = "you"
-		else:
-			var transport: String = "Steam" if (net_provider != null and bool(net_provider.is_steam_session())) else "LAN"
-			subtitle = "%s · %d ms" % [transport, int(entry.get("ping_ms", 0.0))]
-
-	var palette: PackedColorArray = default_config.player_colors
-	var slot_color: Color = palette[slot_id] if slot_id >= 0 and slot_id < palette.size() else Color.GRAY
-
-	var row: PanelContainer = PanelContainer.new()
-	# Bontago-mp0.3.5 (review r3, problem 5): make_flat_list() draws
-	# pill_cream_hover_color, which is the *exact same* Color as
-	# card_cream_color (config/MenuVisualTuning.gd) -- the row was blending
-	# invisibly into %PlayersCard's own background instead of reading as a
-	# raised white pill (mockup 11). tuning.pill_white_color is a real near-
-	# white the card can never match.
-	row.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_white_color, tuning))
-	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var layout: HBoxContainer = HBoxContainer.new()
-	layout.add_theme_constant_override("separation", 10)
-	row.add_child(layout)
-
-	var icon: PanelContainer = PanelContainer.new()
-	icon.custom_minimum_size = Vector2(24.0, 24.0)
-	var icon_box: StyleBoxFlat = StyleBoxFlat.new()
-	icon_box.bg_color = slot_color
-	icon_box.set_corner_radius_all(6)
-	icon.add_theme_stylebox_override("panel", icon_box)
-	layout.add_child(icon)
-
-	var text_column: VBoxContainer = VBoxContainer.new()
-	text_column.add_theme_constant_override("separation", 0)
-	text_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var name_label: Label = Label.new()
-	name_label.theme_type_variation = &"TitleLabel"
-	name_label.add_theme_font_size_override("font_size", 16)
-	name_label.text = display_name
-	var subtitle_label: Label = Label.new()
-	subtitle_label.theme_type_variation = &"CaptionLabel"
-	subtitle_label.text = subtitle
-	text_column.add_child(name_label)
-	text_column.add_child(subtitle_label)
-	layout.add_child(text_column)
-
-	var badge: PanelContainer = PanelContainer.new()
-	var badge_color: Color = tuning.pill_mint_color if ready else tuning.ground_band_apricot_color
-	badge.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(badge_color, tuning))
-	var badge_label: Label = Label.new()
-	badge_label.text = ("%s Ready" % char(0x2713)) if ready else ("%s Not ready" % char(0x231A))
-	badge_label.add_theme_color_override("font_color", tuning.ink_color)
-	badge.add_child(badge_label)
-	layout.add_child(badge)
-	return row
+		_ai_count_spin.value = new_ai_count
+		_player_count_spin.value = seats
 
 
-## DECISION (ui/Lobby.gd, Bontago-1pi.9b): owner playtest -- "the right panel
-## lists 'players+bots'/'players', I can add bots up to the player limit" --
-## traced to two different roster payload shapes landing here: Net's own
-## live roster events (autoload/Net.gd's _broadcast_roster(), reached via
-## _on_roster_changed) never include bot rows (Net has no concept of
-## ai_count), while a full lobby-data apply's own _build_roster() roster
-## does. Whichever happened to run last decided whether the header (and the
-## row list) showed bots at all, even though ai_count itself hadn't changed
-## -- read by the owner as an inconsistent, confusing count. [param
-## roster_data] now only ever supplies the human rows (bot rows inside it,
-## if any, are dropped and rebuilt); _bot_roster_entries(_last_config) is the
-## single source of truth for the bot rows actually drawn, on every call
-## path alike.
-func _apply_roster(roster_data: Variant) -> void:
-	var incoming: Array = roster_data as Array
-	var humans: Array[Dictionary] = []
-	for entry_variant: Variant in incoming:
-		var entry: Dictionary = entry_variant as Dictionary
-		if int(entry.get("peer_id", -1)) != -1:
-			humans.append(entry)
-	var bots: Array[Dictionary] = (
-		_bot_roster_entries(_last_config) if _last_config != null else []
-	)
-	var display_roster: Array[Dictionary] = humans.duplicate()
-	display_roster.append_array(bots)
-
-	# "3 players * 2 bots * 5/8 seats" (or, with no bots, "3 players * 3/8
-	# seats") -- unambiguous about how many of each are seated, unlike the
-	# old bare "roster.size() / seats" this replaces.
-	var seats: int = int(_player_count_spin.value)
-	_player_count_label.text = _format_roster_header(humans.size(), bots.size(), seats)
-
-	for row: Node in _player_rows:
-		row.queue_free()
-	_player_rows.clear()
-	var ready_count: int = 0
-	for entry: Dictionary in display_roster:
-		var ready: bool = bool(entry.get("ready", false))
-		if ready:
-			ready_count += 1
-		var row: PanelContainer = _build_player_row(entry, ready)
-		_player_list.add_child(row)
-		_player_rows.append(row)
-	# Bontago-mp0.3.5 (review r1, item 13): mockup 11's bottom-left status
-	# pill ("Waiting for players * 3 of 4 ready"), derived from the exact
-	# roster rows just drawn above rather than a second net_provider query.
+## The panel rebuilt its rows: feeds mockup 11's bottom-left "Waiting for players *
+## 3 of 4 ready" pill, derived from the exact rows just drawn rather than a second
+## net_provider query.
+func _on_roster_rendered(ready_count: int, row_count: int) -> void:
 	_waiting_status_label.text = "%s Waiting for players %s %d of %d ready" % [
-		char(0x25CF), char(0xB7), ready_count, display_roster.size(),
+		char(0x25CF), char(0xB7), ready_count, row_count,
 	]
 
 
-## DECISION (ui/Lobby.gd, Bontago-1pi.9b): "3 players" (plural handled),
-## "2 bots" only appended when there are any (a 0-bot lobby doesn't need to
-## announce that), then the seat fraction against [param seats] -- the
-## player_count spin's own current value, i.e. how many seats this lobby is
-## configured for, not a hardcoded MatchConfig.PLAYER_COUNT_MAX.
-func _format_roster_header(humans: int, bots: int, seats: int) -> String:
-	var human_word: String = "player" if humans == 1 else "players"
-	if bots <= 0:
-		return "%d %s · %d/%d seats" % [humans, human_word, humans, seats]
-	var bot_word: String = "bot" if bots == 1 else "bots"
-	return "%d %s · %d %s · %d/%d seats" % [humans, human_word, bots, bot_word, humans + bots, seats]
+## The panel's focusable controls changed: rewire the loop (only once the first
+## wiring exists -- _ready() builds it after every dynamic row).
+func _on_players_focus_entries_changed() -> void:
+	if not _main_chain.is_empty():
+		_wire_focus_chain()
 
+
+func _is_host_session() -> bool:
+	return net_provider != null and bool(net_provider.is_host())
+
+
+# --- Player list / ready / start --------------------------------------------
 
 ## DECISION (ui/Lobby.gd, Bontago-mv0.6): Events.net_roster_changed's payload
 ## is the roster Net just built (autoload/Net.gd's _broadcast_roster() /
 ## _rpc_roster_update()), so this applies it straight to the rows rather than
 ## re-deriving one from net_provider.peer_ids()/peer_info() the way
-## _build_roster() does for the host's own outbound publish — one less round
+## LobbyPlayersPanel.build_roster() does for the host's own outbound publish — one less round
 ## trip, and it is the single source of truth for "what does the list show
 ## right now" (net_lobby_data_changed's own embedded roster only matters for
 ## the late-joiner snapshot _apply_data() already handles).
+## Bontago-1pi.53 (E1): the rows themselves are the players panel's
+## (on_roster_changed); the spin mirror and the bot clamp stay here.
 func _on_roster_changed(roster: Array[Dictionary]) -> void:
 	_mirror_player_count_to_peers(roster.size())
 	# Bontago-1pi.9b: a human joining/leaving changes how many seats are left
@@ -1486,7 +1399,7 @@ func _on_roster_changed(roster: Array[Dictionary]) -> void:
 	# spin when the seat count itself needs to move, so this clamp call is
 	# not redundant with it.
 	_clamp_ai_count_to_seats()
-	_apply_roster(roster)
+	_players_panel.on_roster_changed(roster)
 
 
 func _on_peer_joined(_peer_id: int, _slot_id: int, _player_name: String) -> void:
@@ -1558,6 +1471,11 @@ func _on_ready_toggled(pressed: bool) -> void:
 func _on_start_pressed() -> void:
 	if net_provider == null or not bool(net_provider.is_host()) or not bool(net_provider.all_peers_ready()):
 		return
+	# Bontago-1pi.53 (E1, P1 review F4): the Start button is already disabled while
+	# the panel names a blocker, but the X shortcut and a direct call skip the
+	# button -- so the gate is rechecked here.
+	if _players_panel.start_blocker() != "":
+		return
 	Sfx.play(AudioConfig.EVENT_START_GAME)
 	var config: MatchConfig = (
 		_last_config if _last_config != null else _config_from_controls()
@@ -1582,6 +1500,11 @@ func _on_start_pressed() -> void:
 	# how many peers are actually connected, so the clamp runs here and
 	# Match.start_match() is left exactly as it was.
 	config.clamp_to_connected_peers(net_provider.peer_ids().size())
+	# Bontago-1pi.53 (E1, P1 review F1): the panel resolves/flattens its seat picks
+	# into the start config only AFTER the clamp above -- MatchConfig.sanitize()
+	# silently drops team arrays whose length differs from player_count, and the
+	# clamp is what settles player_count/ai_count.
+	_players_panel.finalize_start_config(config)
 	start_requested.emit(config)
 
 
@@ -1602,8 +1525,16 @@ func _update_host_only_state() -> void:
 			control.set("editable", is_host)
 		elif control is BaseButton:
 			(control as BaseButton).disabled = not is_host
+	_players_panel.set_editable(is_host)
+	# Bontago-1pi.53 (E1, P1 review F4): a start blocker (e.g. teams on and every
+	# seat on one team) disables Start and is explained in its tooltip; "" when
+	# nothing blocks, which is also the tooltip's default.
+	var start_blocker: String = _players_panel.start_blocker() if is_host else ""
 	_start_button.visible = is_host
-	_start_button.disabled = not is_host or not (net_provider != null and bool(net_provider.all_peers_ready()))
+	_start_button.disabled = (
+		not is_host or not (net_provider != null and bool(net_provider.all_peers_ready())) or start_blocker != ""
+	)
+	_start_button.tooltip_text = start_blocker
 	_invite_friends_button.visible = is_host and net_provider != null and bool(net_provider.is_steam_session())
 	_update_status_badge()
 

@@ -22,6 +22,21 @@ func _fake_of(lobby: Lobby) -> FakeNet:
 	return lobby.net_provider as FakeNet
 
 
+## Bontago-1pi.53 (E1): the roster title row and rows live in the instanced
+## ui/lobby/LobbyPlayersPanel.tscn, so %PlayerList and %PlayerCountLabel resolve
+## through %PlayersPanel (unique names are scoped to their own scene).
+func _panel_of(lobby: Lobby) -> LobbyPlayersPanel:
+	return lobby.get_node("%PlayersPanel") as LobbyPlayersPanel
+
+
+func _player_list(lobby: Lobby) -> VBoxContainer:
+	return _panel_of(lobby).get_node("%PlayerList") as VBoxContainer
+
+
+func _count_label(lobby: Lobby) -> Label:
+	return _panel_of(lobby).get_node("%PlayerCountLabel") as Label
+
+
 func test_cycle_option_round_trips_through_lobby_data() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var option: OptionButton = lobby.get_node("%SkyThemeOption") as OptionButton
@@ -100,7 +115,7 @@ func after_each() -> void:
 
 
 ## Bontago-mp0.3.5 (review r2, item 4): walks a player-row PanelContainer
-## (ui/Lobby.gd's _build_player_row()) down to its Ready/Not ready badge
+## (ui/lobby/LobbyPlayersPanel.gd's _build_player_row()) down to its Ready/Not ready badge
 ## Label -- layout is the row's only child, the badge is layout's 3rd child
 ## (icon, text_column, badge), and the Label is the badge's own only child.
 func _row_badge_label(row: PanelContainer) -> Label:
@@ -161,11 +176,11 @@ func test_republish_roster_if_host_draws_the_hosts_own_row_with_no_other_peers()
 	fake.slots_by_peer = {1: 0}
 	fake.names_by_peer = {1: "Mira"}
 	lobby._republish_roster_if_host()
-	var list: VBoxContainer = lobby.get_node("%PlayerList")
+	var list: VBoxContainer = _player_list(lobby)
 	assert_eq(list.get_child_count(), 1, "the host's own row must appear without waiting for a second peer")
-	var count_label: Label = lobby.get_node("%PlayerCountLabel")
+	var count_label: Label = _count_label(lobby)
 	# Bontago-1pi.9b: the roster header's new "N players * H/S seats" format
-	# (ui/Lobby.gd's _format_roster_header()) replaces the old bare "N / S".
+	# (LobbyPlayersPanel.format_roster_header()) replaces the old bare "N / S".
 	assert_true(count_label.text.begins_with("1 player "), count_label.text)
 
 
@@ -466,12 +481,12 @@ func test_roster_in_lobby_data_builds_player_rows() -> void:
 		{"peer_id": 2, "slot_id": 1, "name": "Guest", "ready": false},
 	]
 	Events.net_lobby_data_changed.emit(data)
-	var list: VBoxContainer = lobby.get_node("%PlayerList")
+	var list: VBoxContainer = _player_list(lobby)
 	assert_eq(list.get_child_count(), 2)
 
 
 ## M5 P4 (docs/M5_PLAN.md, Bontago-d5c.5): the host's own outbound
-## _build_roster() must append one synthetic row per bot seat -- slot_id
+## LobbyPlayersPanel.build_roster() must append one synthetic row per bot seat -- slot_id
 ## running from player_count - ai_count up, matching autoload/match/
 ## MatchLifecycle.gd's _build_slots() formula for PlayerSlot.is_bot -- so the
 ## lobby preview and the eventual real match slots never disagree about
@@ -532,7 +547,7 @@ func test_roster_header_shows_players_bots_and_seats_separately() -> void:
 	(lobby.get_node("%PlayerCountSpin") as SpinBox).value = 8
 	(lobby.get_node("%AiCountSpin") as SpinBox).value = 2
 
-	var count_label: Label = lobby.get_node("%PlayerCountLabel")
+	var count_label: Label = _count_label(lobby)
 	assert_eq(count_label.text, "3 players · 2 bots · 5/8 seats")
 
 
@@ -546,7 +561,7 @@ func test_roster_header_omits_bots_when_ai_count_is_zero() -> void:
 	fake.slots_by_peer = {1: 0, 2: 1}
 	(lobby.get_node("%PlayerCountSpin") as SpinBox).value = 5
 
-	var count_label: Label = lobby.get_node("%PlayerCountLabel")
+	var count_label: Label = _count_label(lobby)
 	assert_eq(count_label.text, "2 players · 2/5 seats")
 
 
@@ -619,18 +634,18 @@ func test_roster_changed_signal_updates_ready_label_without_a_lobby_data_round_t
 		{"peer_id": 2, "slot_id": 1, "name": "Guest", "ready": false},
 	]
 	Events.net_roster_changed.emit(roster)
-	var list: VBoxContainer = lobby.get_node("%PlayerList")
+	var list: VBoxContainer = _player_list(lobby)
 	assert_eq(list.get_child_count(), 2)
-	# lobby._player_rows rather than list.get_child(): _apply_roster()
+	# the panel's _player_rows rather than list.get_child(): the render
 	# queue_free()s the old rows, which stay in the tree (just pending
 	# deletion) until the next idle frame, so querying the container
 	# directly a second time in the same frame would still see them.
 	# Bontago-mp0.3.5 (review r2, item 4): each row is now a PanelContainer
-	# pill (ui/Lobby.gd's _build_player_row()) -- layout/badge/badge_label
+	# pill (ui/lobby/LobbyPlayersPanel.gd's _build_player_row()) -- layout/badge/badge_label
 	# walk to the Ready/Not ready badge Label the same way that function
 	# builds it (layout child 0, badge child 2 of layout, label child 0 of
 	# badge), instead of the old row.get_child(1) plain trailing-text Label.
-	var guest_row: PanelContainer = lobby._player_rows[1] as PanelContainer
+	var guest_row: PanelContainer = _panel_of(lobby)._player_rows[1] as PanelContainer
 	var guest_badge_label: Label = _row_badge_label(guest_row)
 	assert_true(guest_badge_label.text.containsn("not ready"))
 
@@ -639,7 +654,7 @@ func test_roster_changed_signal_updates_ready_label_without_a_lobby_data_round_t
 		{"peer_id": 2, "slot_id": 1, "name": "Guest", "ready": true},
 	]
 	Events.net_roster_changed.emit(roster)
-	guest_row = lobby._player_rows[1] as PanelContainer
+	guest_row = _panel_of(lobby)._player_rows[1] as PanelContainer
 	guest_badge_label = _row_badge_label(guest_row)
 	assert_true(guest_badge_label.text.containsn("ready") and not guest_badge_label.text.containsn("not"), "the ready flag flip must reach the row's badge")
 
@@ -761,7 +776,7 @@ func test_specials_checkboxes_are_disabled_for_a_client() -> void:
 
 func test_roster_entry_with_a_steam_persona_name_renders_unchanged() -> void:
 	# docs/M3b_PLAN.md P3: once host_online()/join_lobby() default an empty
-	# player_name to the Steam persona name, _apply_roster() needs zero
+	# player_name to the Steam persona name, the panel's roster render needs zero
 	# special-casing to display it — pin that down rather than just assert it.
 	var lobby: Lobby = _make_lobby(false)
 	var data: Dictionary = MatchConfig.new().to_dict()
@@ -769,10 +784,10 @@ func test_roster_entry_with_a_steam_persona_name_renders_unchanged() -> void:
 		{"peer_id": 1, "slot_id": 0, "name": "SteamFriend#1234", "ready": true},
 	]
 	Events.net_lobby_data_changed.emit(data)
-	var list: VBoxContainer = lobby.get_node("%PlayerList")
+	var list: VBoxContainer = _player_list(lobby)
 	assert_eq(list.get_child_count(), 1)
 	# Bontago-mp0.3.5 (review r2, item 4): row is now the PanelContainer pill
-	# ui/Lobby.gd's _build_player_row() builds -- layout child 0, name Label
+	# ui/lobby/LobbyPlayersPanel.gd's _build_player_row() builds -- layout child 0, name Label
 	# is text_column (layout child 1)'s own child 0.
 	var row: PanelContainer = list.get_child(0) as PanelContainer
 	var layout: HBoxContainer = row.get_child(0) as HBoxContainer

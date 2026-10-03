@@ -1,9 +1,10 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://ui/Lobby.gd" id="1_lobby"]
 [ext_resource type="Theme" path="res://ui/theme/stackfall_theme.tres" id="2_theme"]
 [ext_resource type="Script" path="res://ui/MenuDiorama.gd" id="3_diorama"]
 [ext_resource type="Script" path="res://ui/MenuBackdrop.gd" id="4_backdrop"]
+[ext_resource type="PackedScene" path="res://ui/lobby/LobbyPlayersPanel.tscn" id="5_playerspanel"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_teams"]
 
@@ -612,29 +613,9 @@ layout_mode = 2
 custom_minimum_size = Vector2(260, 0)
 theme_override_constants/separation = 8
 
-[node name="TitleRow" type="HBoxContainer" parent="Margin/Layout/Columns/PlayersCard/Players"]
-layout_mode = 2
-
-[node name="Title" type="Label" parent="Margin/Layout/Columns/PlayersCard/Players/TitleRow"]
-layout_mode = 2
-theme_type_variation = &"TitleLabel"
-text = "Players"
-
-[node name="PlayersTitleSpacer" type="Control" parent="Margin/Layout/Columns/PlayersCard/Players/TitleRow"]
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="PlayerCountLabel" type="Label" parent="Margin/Layout/Columns/PlayersCard/Players/TitleRow"]
+[node name="PlayersPanel" parent="Margin/Layout/Columns/PlayersCard/Players" instance=ExtResource("5_playerspanel")]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "0 / 8"
-
-[node name="PlayerList" type="VBoxContainer" parent="Margin/Layout/Columns/PlayersCard/Players"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_vertical = 3
-theme_override_constants/separation = 10
 
 [node name="Footer" type="HBoxContainer" parent="Margin/Layout/Columns/PlayersCard/Players"]
 layout_mode = 2
