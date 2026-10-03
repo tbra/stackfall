@@ -1,6 +1,7 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://ui/PauseMenu.gd" id="1_pause"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/back.svg" id="glyph_back"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/leave.svg" id="glyph_leave"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/play.svg" id="glyph_play"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/settings.svg" id="glyph_settings"]
@@ -66,6 +67,14 @@ unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(0, 41)
 text = "Options"
+
+[node name="ReturnLobbyButton" type="Button" parent="Root/Center/Panel/Layout"]
+icon = ExtResource("glyph_back")
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+custom_minimum_size = Vector2(0, 41)
+text = "Return to lobby"
 
 [node name="LeaveButton" type="Button" parent="Root/Center/Panel/Layout"]
 icon = ExtResource("glyph_leave")

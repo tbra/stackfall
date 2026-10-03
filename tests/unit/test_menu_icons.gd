@@ -27,7 +27,7 @@ const TUNING: MenuVisualTuning = preload("res://config/menu_visual_tuning.tres")
 ## Icon-bearing Buttons counted in the shipped scenes; a lower count means the
 ## walk silently missed some, so the contrast assertions would be vacuous.
 const MAIN_MENU_ICON_BUTTONS: int = 15
-const PAUSE_MENU_ICON_BUTTONS: int = 3
+const PAUSE_MENU_ICON_BUTTONS: int = 4
 const OPTIONS_MENU_MUTE_BUTTONS: int = 3
 
 ## [state label, stylebox the state is drawn on, icon colour theme item]. A
