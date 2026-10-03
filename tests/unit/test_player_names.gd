@@ -68,6 +68,67 @@ func test_clean_truncates_to_the_max_length_and_trims_the_cut() -> void:
 	assert_eq(PlayerNames.clean("ABC", 0), "A", "a non-positive limit is one character, never unlimited")
 
 
+func test_clean_strips_the_remaining_invisible_characters() -> void:
+	# Bontago-1pi.49 review F2: each of these prints nothing (or flips text) and
+	# used to pass as a "name" that looked blank or like someone else's.
+	var invisible: Array[int] = [0x061C, 0x206A, 0x206B, 0x206C, 0x206D, 0x206E, 0x206F, 0x3164, 0x2800, 0x00AD]
+	for code: int in invisible:
+		var hidden: String = String.chr(code)
+		assert_eq(PlayerNames.clean(hidden, 16), "", "U+%04X alone is blank" % code)
+		assert_eq(PlayerNames.clean("A" + hidden + "B", 16), "AB", "U+%04X is removed from inside a name" % code)
+		assert_eq(PlayerNames.sanitize(hidden + hidden, 16, 1), "Player 2", "U+%04X only: the Player N fallback" % code)
+	assert_eq(PlayerNames.sanitize("\u3164\u2800\u00AD\u200B", 16, 2), "Player 3", "a mix of invisible characters only")
+
+
+func test_clean_keeps_joiners_between_visible_characters_only() -> void:
+	# Bontago-1pi.49 review F3: ZWNJ/ZWJ hold emoji sequences and several scripts
+	# together; they are noise only when nothing visible sits on both sides.
+	var family: String = "\U01F468\u200D\U01F469\u200D\U01F467"
+	assert_eq(PlayerNames.clean(family, 16), family, "an emoji ZWJ sequence stays whole")
+	var persian: String = "\u0645\u06CC\u200C\u062E\u0648\u0627\u0647\u0645"
+	assert_eq(PlayerNames.clean(persian, 16), persian, "a Persian ZWNJ between letters stays")
+	assert_eq(PlayerNames.clean("\u200DAnn\u200C", 16), "Ann", "joiners at the ends join nothing")
+	assert_eq(PlayerNames.clean("A\u200D B", 16), "A B", "a joiner beside a space joins nothing")
+	assert_eq(PlayerNames.clean("A\u200D\u200CB", 16), "AB", "stacked joiners are dropped")
+	assert_eq(PlayerNames.clean("A\u200B\u200DB", 16), "A\u200DB", "the zero-width space goes, the joiner it hid between letters stays")
+	assert_eq(PlayerNames.clean("\u200C\u200D\u200C", 16), "", "only joiners: blank")
+	assert_eq(PlayerNames.sanitize("\u200D\u200C\u200D", 16, 0), "Player 1", "only joiners: the fallback")
+	# A cut must not leave a joiner dangling off the end.
+	assert_eq(PlayerNames.clean("AB\u200DCD", 3), "AB", "cut after the joiner: the joiner is dropped with it")
+	assert_eq(PlayerNames.clean("AB\u200DCD", 4), "AB\u200DC", "cut after the joined letter keeps the joiner")
+
+
+func test_clean_scans_only_a_bounded_window_of_a_huge_name() -> void:
+	# Bontago-1pi.49 review F1: the host cleans whatever a joiner's handshake
+	# carries, so the cost must not grow with the string.
+	var limit: int = _max_len()
+	var window: int = PlayerNames.scan_limit(limit)
+	assert_eq(window, limit * PlayerNames.SCAN_FACTOR, "the window derives from the maximum name length")
+	assert_gt(window, limit, "and leaves room for stripped characters")
+	assert_eq(PlayerNames.scan_limit(0), PlayerNames.SCAN_FACTOR, "a non-positive limit is one character")
+	# Seam: a visible character just past the window is never looked at, so it
+	# cannot appear; one just inside it is.
+	assert_eq(PlayerNames.clean("A" + "\u200B".repeat(window - 2) + "B", limit), "AB", "last character inside the window: scanned")
+	assert_eq(PlayerNames.clean("A" + "\u200B".repeat(window - 1) + "B", limit), "A", "first character past the window: ignored, not scanned")
+	assert_eq(PlayerNames.clean("Q".repeat(1000000), limit), "Q".repeat(limit), "a million characters: cut to the maximum")
+	assert_lte(PlayerNames.clean("\u200B".repeat(1000000) + "Z", limit).length(), limit, "a million invisible characters")
+	assert_eq(PlayerNames.sanitize("\u200B".repeat(1000000) + "Z", limit, 1), "Player 2", "all of the window invisible: fallback")
+
+
+func test_clean_of_a_million_character_name_is_fast() -> void:
+	var limit: int = _max_len()
+	var hostile: String = "ab\u200B".repeat(333334)
+	assert_gte(hostile.length(), 1000000, "fixture: a megabyte-class name")
+	var started_us: int = Time.get_ticks_usec()
+	var cleaned: String = PlayerNames.clean(hostile, limit)
+	var elapsed_ms: float = float(Time.get_ticks_usec() - started_us) / 1000.0
+	assert_lte(cleaned.length(), limit)
+	assert_true(cleaned.begins_with("abab"), "still the cleaned head of the name: %s" % cleaned)
+	# Scanning every character in GDScript takes seconds; the bounded window is
+	# well under a millisecond. The bound is generous so a loaded CI box is safe.
+	assert_lt(elapsed_ms, 100.0, "bounded work, not a whole-string scan (%.2f ms)" % elapsed_ms)
+
+
 func test_sanitize_falls_back_to_player_n_and_spectator() -> void:
 	assert_eq(PlayerNames.sanitize("", 16, 0), "Player 1")
 	assert_eq(PlayerNames.sanitize("  \t ", 16, 2), "Player 3")
@@ -300,6 +361,21 @@ func test_host_sanitises_a_hostile_handshake_name() -> void:
 	assert_eq(client.peer_info(client.local_peer_id())["name"], stored, "replicated to the client unchanged")
 
 
+func test_host_seats_a_joiner_whose_name_is_huge_without_a_stall() -> void:
+	var host: Variant = _make_side("HostNet")
+	var client: Variant = _make_side("ClientNet")
+	var port: int = AgentProbe.free_udp_port()
+	assert_eq(host.host_game(port, "Hostie", false), OK)
+	host.set_accepting_joins(true)
+	assert_eq(client.join_game("127.0.0.1", port, "Clienty"), OK)
+	client._pending_join_name = "Y".repeat(200000)
+	var seated: bool = await _wait_until(func() -> bool:
+		return client.local_slot() == 1 and client.peer_ids().size() == 2
+	)
+	assert_true(seated, "an oversized name is cut, not refused")
+	assert_eq(host.peer_info(client.local_peer_id())["name"], "Y".repeat(_max_len()))
+
+
 func test_empty_names_fall_back_to_player_n_per_seat() -> void:
 	var sides: Array[Variant] = await _lobby_with_client("", "")
 	var host: Variant = sides[0]
@@ -506,7 +582,31 @@ func test_hot_seat_offline_keeps_player_n() -> void:
 	Match.set_net_provider(null)
 	assert_true(Net.is_offline(), "fixture: the real Net is offline")
 	Match.start_match(_tiny_config(3, 0, true))
-	assert_eq(_slot_names(), ["Player 1", "Player 2", "Player 3"] as Array[String])
+	assert_eq(_slot_names(), ["Player 1", "Player 2", "Player 3"] as Array[String], "no saved name: Player N")
+
+
+func test_offline_local_human_uses_the_saved_settings_name() -> void:
+	# Bontago-1pi.49 review F5: sandbox / hot-seat have no peers, so the roster
+	# cannot name the local player; the name typed in the menu does.
+	_register_world()
+	Match.set_net_provider(null)
+	assert_true(Net.is_offline(), "fixture: the real Net is offline")
+	Settings.set_player_name("  Mira ")
+	Match.start_match(_tiny_config(3, 1))
+	assert_eq(_slot_names(), ["Mira", "Player 2", "Player 3"] as Array[String], "the local human is named, others and bots keep Player N")
+	Match.abort_match()
+	Match.start_match(_tiny_config(2, 0, true))
+	assert_eq(_slot_names(), ["Mira", "Player 2"] as Array[String], "hot-seat: seat 1 is the local player")
+
+
+func test_hosted_match_ignores_the_saved_settings_name() -> void:
+	_register_world()
+	Settings.set_player_name("Mira")
+	var fake: FakeNet = _named_fake({0: "Hostie"})
+	fake.is_offline_value = false
+	Match.set_net_provider(fake)
+	Match.start_match(_tiny_config(2))
+	assert_eq(_slot_names()[0], "Hostie", "a hosted match shows the replicated name, not the local Settings one")
 
 
 func test_real_host_session_names_its_own_slot_and_checks_the_name() -> void:

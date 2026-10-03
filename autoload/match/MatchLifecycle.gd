@@ -950,12 +950,20 @@ func _build_slots() -> void:
 
 ## Bontago-1pi.49: the replicated name of the human peer seated at `slot_id`, or ""
 ## when nobody holds it (a bot, an empty or hot-seat seat, a departed player) or
-## the session double has no name roster.
+## the session double has no name roster. Offline (sandbox / hot-seat) there are no
+## peers, so the local human on slot 0 goes by the name saved in Settings.
+# DECISION: offline, only slot 0 (the local player; Net.local_slot() is 0) takes the
+# saved name; further hot-seat humans share the keyboard and stay "Player N".
 func _peer_name_for_slot(slot_id: int) -> String:
 	var session: Variant = _loading_session()
-	if session == null or not session.has_method(&"name_for_slot"):
+	if session == null:
 		return ""
-	return String(session.name_for_slot(slot_id))
+	var peer_name: String = ""
+	if session.has_method(&"name_for_slot"):
+		peer_name = String(session.name_for_slot(slot_id))
+	if peer_name == "" and slot_id == 0 and session.has_method(&"is_offline") and bool(session.is_offline()):
+		return Settings.player_name()
+	return peer_name
 
 
 ## Bontago-1pi.49: copies each human seat's current roster name onto its slot. A
