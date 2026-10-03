@@ -277,22 +277,25 @@ func test_experiment_checkboxes_are_in_the_popup_focus_loop_and_visible_when_ope
 	var lobby: Lobby = _make_lobby(true)
 	lobby.debug_open_advanced_rules_popup()
 	var close_button: Control = lobby.get_node("%AdvancedPopupClose") as Control
-	var mid_join: Control = lobby.get_node("%MidJoinCheck") as Control
+	# Bontago-1pi.53 (S1a): the rules grid left the popup, so the stop before the first
+	# experiment is the last specials checkbox (or Done when no special is installed).
+	var first_index: int = lobby._popup_chain.find(_check(lobby, CHECK_NAMES[0]))
+	var before_experiments: Control = lobby._popup_chain[(first_index - 1 + lobby._popup_chain.size()) % lobby._popup_chain.size()]
 	for unique_name: String in CHECK_NAMES:
 		var check: CheckBox = _check(lobby, unique_name)
 		assert_true(check.is_visible_in_tree(), "%s is visible once the popup is open" % unique_name)
 		assert_eq(check.focus_mode, Control.FOCUS_ALL, "%s is focusable" % unique_name)
 		assert_ne(check.focus_neighbor_top, NodePath(""), "%s must have an up neighbor" % unique_name)
 		assert_ne(check.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor" % unique_name)
-	# Forward order: Mid-join -> the four experiments (in order) -> Done.
-	var current: Control = mid_join
+	# Forward order: the stop before them -> the four experiments (in order) -> Done.
+	var current: Control = before_experiments
 	for unique_name: String in CHECK_NAMES:
 		current = current.get_node(current.focus_neighbor_bottom) as Control
 		assert_eq(current, _check(lobby, unique_name), "next stop after the previous one is %s" % unique_name)
 	assert_eq(current.get_node(current.focus_neighbor_bottom), close_button, "the last experiment leads to Done")
 	# Backward order mirrors it.
 	assert_eq(close_button.get_node(close_button.focus_neighbor_top), _check(lobby, CHECK_NAMES[3]))
-	assert_eq(_check(lobby, CHECK_NAMES[0]).get_node(_check(lobby, CHECK_NAMES[0]).focus_neighbor_top), mid_join)
+	assert_eq(_check(lobby, CHECK_NAMES[0]).get_node(_check(lobby, CHECK_NAMES[0]).focus_neighbor_top), before_experiments)
 
 
 func test_experiment_checkboxes_stay_out_of_the_main_screen_loop() -> void:
@@ -307,7 +310,7 @@ func test_experiment_checkboxes_stay_out_of_the_main_screen_loop() -> void:
 
 func test_popup_loop_stays_closed_with_the_experiments_added() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var start: Control = lobby.get_node("%TiltModeOption") as Control
+	var start: Control = lobby.get_node("%QolTimerPauseCheck") as Control
 	var current: Control = start
 	var steps: int = 0
 	var visited: Array[Control] = []

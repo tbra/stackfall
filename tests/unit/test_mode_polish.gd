@@ -142,25 +142,25 @@ func test_focus_loops_skip_the_hidden_timer_column() -> void:
 	var round_slider: HSlider = lobby.get_node("%RoundTimerSlider")
 	var sudden: Control = lobby.get_node("%SuddenDeathCheck")
 	_pick_mode(lobby, MatchConfig.GameMode.CAPTURE_THE_FLAG)
+	# Bontago-1pi.53 (S1a): sudden death moved from the popup into ROUND main, so it is
+	# part of the main loop only while Classic shows it (the popup has no conditional
+	# column left).
 	var shown: Array[Control] = lobby._visible_chain(lobby._main_chain)
-	var popup_shown: Array[Control] = lobby._visible_chain(lobby._popup_chain)
 	assert_true(shown.has(round_slider))
 	assert_false(shown.has(match_slider))
-	assert_false(popup_shown.has(sudden))
+	assert_false(shown.has(sudden))
 	_assert_closed_loop(shown)
-	_assert_closed_loop(popup_shown)
 	_pick_mode(lobby, MatchConfig.GameMode.CLASSIC)
 	shown = lobby._visible_chain(lobby._main_chain)
-	popup_shown = lobby._visible_chain(lobby._popup_chain)
 	assert_true(shown.has(match_slider))
-	assert_true(popup_shown.has(sudden))
+	assert_true(shown.has(sudden))
 	assert_false(shown.has(round_slider))
 	_assert_closed_loop(shown)
-	_assert_closed_loop(popup_shown)
-	# Focus order follows the visual order: mode, then the timer, then the map.
+	# Focus order follows the visual order: the game mode (GAME), then the ROUND timer,
+	# then sudden death, then the players/AI controls and the AI difficulty.
 	assert_lt(shown.find(lobby.get_node("%GameModeOption")), shown.find(match_slider))
-	assert_lt(shown.find(match_slider), shown.find(lobby.get_node("%MapComboOption")))
-	assert_lt(shown.find(lobby.get_node("%AiCountSpin")), shown.find(lobby.get_node("%AiDifficultyOption")))
+	assert_lt(shown.find(match_slider), shown.find(sudden))
+	assert_lt(shown.find(lobby._main_stepper_buttons.back()), shown.find(lobby.get_node("%AiDifficultyOption")))
 
 
 func _assert_closed_loop(shown: Array[Control]) -> void:
@@ -224,18 +224,22 @@ func test_non_sandbox_classic_still_wins_on_the_hold() -> void:
 	assert_eq(Match.state(), Match.State.END)
 
 
-func test_mid_join_toggle_sits_after_turn_based_in_the_popup_focus_loop() -> void:
+func test_mid_join_toggle_sits_after_turn_based_in_the_game_advanced_focus_loop() -> void:
+	# Bontago-1pi.53 (S1a): Turn-based and Mid-join moved from the popup into the GAME
+	# section's Advanced block, so they are in the main loop once it is opened.
 	var lobby: Lobby = _make_lobby(true)
-	var popup_shown: Array[Control] = lobby._visible_chain(lobby._popup_chain)
-	var turn: int = popup_shown.find(lobby.get_node("%TurnBasedCheck"))
-	var mid: int = popup_shown.find(lobby.get_node("%MidJoinCheck"))
+	(lobby.get_node("%GameSection") as LobbySection).set_advanced_open(true)
+	var shown: Array[Control] = lobby._visible_chain(lobby._main_chain)
+	var turn: int = shown.find(lobby.get_node("%TurnBasedCheck"))
+	var mid: int = shown.find(lobby.get_node("%MidJoinCheck"))
 	assert_gt(turn, -1)
 	assert_eq(mid, turn + 1)
-	# QoL Q1 (Bontago-1pi.18.5) appends the Experiments toggles after Mid-join;
-	# Done/Close stays the last stop of the popup loop.
-	var close: int = popup_shown.find(lobby.get_node("%AdvancedPopupClose"))
-	assert_gt(close, mid)
-	assert_eq(close, popup_shown.size() - 1)
+	# QoL Q1 (Bontago-1pi.18.5): Done/Close stays the last stop of the popup loop,
+	# after the Experiments toggles.
+	var popup_chain: Array[Control] = lobby._popup_chain
+	var close: int = popup_chain.find(lobby.get_node("%AdvancedPopupClose"))
+	assert_gt(close, popup_chain.find(lobby.get_node("%QolGiftSlotCheck")))
+	assert_eq(close, popup_chain.size() - 1)
 
 
 # --- Bontago-1pi.25.1 Domination --------------------------------------------
