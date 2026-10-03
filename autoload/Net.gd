@@ -1564,6 +1564,9 @@ func _new_rejoin_token() -> String:
 
 func _reject_peer(peer_id: int, error: int) -> void:
 	_pending_handshake.erase(peer_id)
+	# Bontago-1pi.59 review: a refused peer lingers for the grace frames below;
+	# mark it so NetFanout broadcasts skip it like a kicked peer.
+	_disconnecting_peers[peer_id] = true
 	_rpc_join_refused.rpc_id(peer_id, error)
 	# Two frames' grace before closing the connection: rpc_id() only queues
 	# the packet, and disconnect_peer(force=false)'s own flush-then-close
