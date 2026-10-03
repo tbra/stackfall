@@ -57,6 +57,12 @@ extends Resource
 ## into the Steam singleton via a duck-typed .call(), which cannot accept a
 ## GDScript enum type either way.
 @export var steam_lobby_type: int = 1
+## Valve's LOBBY_TYPE_PUBLIC ordinal (see the list above). Bontago-1pi.48: Steam's
+## RequestLobbyList() never returns FriendsOnly lobbies (they are for friends and
+## invitees, not the lobby list), so the Join > Steam list could not find a
+## friend's lobby; `--steam-public-lobby` (passed by the playtest Steam launcher)
+## hosts Public instead. The list stays filtered to this game + exact version.
+const STEAM_LOBBY_TYPE_PUBLIC: int = 2
 ## Largest UTF-8 byte length SteamClient.encode_match_config()'s output may
 ## be before decode_match_config() refuses it. Steamworks' own
 ## ISteamMatchmaking::SetLobbyData documents a 255-char key / 8192-byte value

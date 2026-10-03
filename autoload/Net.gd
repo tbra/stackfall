@@ -1044,6 +1044,13 @@ func _apply_command_line_args(args: PackedStringArray) -> bool:
 		var loss: float = float(options.get("sim-loss", 0.0))
 		set_simulation(lag, 0.0, loss)
 
+	# Bontago-1pi.48: host a Public Steam lobby so the Join > Steam list can find
+	# it (FriendsOnly lobbies never appear in Steam's lobby search). Duplicated so
+	# the shared net_config.tres resource is not mutated.
+	if flags.has("steam-public-lobby"):
+		config = config.duplicate() as NetConfig
+		config.steam_lobby_type = NetConfig.STEAM_LOBBY_TYPE_PUBLIC
+
 	var port: int = int(options.get("port", 0))
 	var player_name: String = String(options.get("player-name", ""))
 
