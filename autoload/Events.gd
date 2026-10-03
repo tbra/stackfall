@@ -48,6 +48,17 @@ signal match_scope_reset
 ## game/Main.gd can raise the loading overlay before the match world builds.
 signal match_loading_announced
 
+## Bontago-1pi.56: a client is applying (`active` true) or has finished applying
+## the host's late-join / reconnect world replay (net/MatchNet.gd, from the
+## net_match_start that carries the replay id to its net_replay_end). The replay
+## restores state through the same Events a live match uses (every body goes out
+## through block_placed, every eliminated slot through player_eliminated, ...), so
+## the one-shot feedback reacting to those -- the drop and breakage sounds, the
+## gift jingle -- must stay silent for this span or the joiner hears the whole
+## match history at once. Listeners that only restore state ignore it; live events
+## after `false` are unaffected.
+signal world_replay_changed(active: bool)
+
 ## Bontago-1pi.32: loading-screen ready gate (core/LoadingReadyGate.gd, owned per
 ## match by autoload/match/MatchLifecycle.gd). `ready_peer_ids` are the required
 ## peers that pressed ready, `required_peer_ids` every peer the host waits for
