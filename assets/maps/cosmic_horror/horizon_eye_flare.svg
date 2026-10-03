@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 520" width="1600" height="520" role="img" aria-label="Horizon watcher eye, flare state">
+  <title>Horizon watcher eye — flare</title>
+  <path fill="#8C527F" opacity=".5" d="m800 220 17 43 43-17-25 34 38 27-49-8-24 49-24-49-49 8 38-27-25-34 43 17 17-43Z"/>
+  <path fill="#C070A3" d="m716 280 84-27 84 27-84 27-84-27Z"/>
+  <path fill="#FFD5D4" d="m738 280 62-18 62 18-62 18-62-18Z"/>
+  <path fill="#FFF7E8" d="m777 280 23-12 23 12-23 12-23-12Z"/>
+  <path fill="#40314A" d="m796 268 8 0 9 12-13 13-13-13 9-12Z"/>
+  <path fill="none" stroke="#E8AED0" stroke-width="4" stroke-linecap="round" d="M704 280h-26m218 0h26M800 239v-24m0 130v-24"/>
+</svg>

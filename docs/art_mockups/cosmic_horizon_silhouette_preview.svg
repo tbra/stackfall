@@ -1,0 +1,43 @@
+<?xml version='1.0' encoding='cp1252'?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 600" width="1600" height="600" role="img" aria-label="Preview of layered cosmic horizon creature against a violet sky">
+  <title>Horizon watcher asset preview</title>
+  <defs><linearGradient id="sky" x2="0" y2="1"><stop stop-color="#201D3F" /><stop offset=".7" stop-color="#665073" /><stop offset="1" stop-color="#D3829B" /></linearGradient></defs>
+  <path fill="url(#sky)" d="M0 0h1600v600H0z" />
+  <circle cx="1090" cy="200" r="130" fill="#D98DA5" opacity=".5" />
+  <circle cx="1090" cy="200" r="104" fill="#17152C" />
+  <g id="asset-layers" transform="translate(0 40)"><g id="horizon_tendrils"><title>Horizon watcher tendrils</title>
+  <g fill="none" stroke="#101224" stroke-linecap="round">
+    <path stroke-width="38" d="M699 329C560 235 482 246 371 264S181 345 40 293" />
+    <path stroke-width="28" d="M684 362C536 300 445 333 314 384S130 402 16 442" />
+    <path stroke-width="18" d="M673 394C550 373 465 424 379 463S192 477 105 498" />
+    <path stroke-width="38" d="M901 329c139-94 217-83 328-65s190 81 331 29" />
+    <path stroke-width="28" d="M916 362c148-62 239-29 370 22s184 18 298 58" />
+    <path stroke-width="18" d="M927 394c123-21 208 30 294 69s187 14 274 35" />
+  </g>
+  <g fill="none" stroke="#343050" stroke-linecap="round" opacity=".75">
+    <path stroke-width="5" d="M663 313C543 253 467 263 371 280S178 347 46 302" />
+    <path stroke-width="4" d="M937 313c120-60 196-50 292-33s193 67 325 22" />
+  </g>
+</g><g id="horizon_body"><title>Horizon watcher body</title>
+  <path fill="#111326" d="M241 520c97-50 187-110 296-119 66-6 91-21 123-65 20-29 34-63 48-94l22-71 25-34 45-21 45 21 25 34 22 71c14 31 28 65 48 94 32 44 57 59 123 65 109 9 199 69 296 119H241Z" />
+  <path fill="#202039" d="M513 414c78-13 128-13 177-66 29-32 44-78 58-119l20-52 32-20 32 20 20 52c14 41 29 87 58 119 49 53 99 53 177 66-126 23-198 46-287 85-89-39-161-62-287-85Z" />
+  <path fill="#0A0D1C" d="M725 244c-17 49-24 85-49 120-34 49-62 59-112 75 91 2 172 36 236 66 64-30 145-64 236-66-50-16-78-26-112-75-25-35-32-71-49-120l-29-58-46-31-46 31-29 58Z" />
+  <path fill="#121127" d="m725 237 75 29 75-29-18 81-57 44-57-44-18-81Z" />
+  <path fill="#453153" d="m771 283 29-5 29 5-29 7-29-7Z" />
+  <path fill="#CB8AC7" d="M772 285h56l-28 4-28-4Z" />
+</g><g id="horizon_crown"><title>Horizon watcher crown</title>
+  <g fill="#0B0E20">
+    <path d="m751 191-39-167 65 124 23 42-49 1Z" />
+    <path d="m849 191 39-167-65 124-23 42 49 1Z" />
+    <path d="m775 156 25-156 25 156-25 38-25-38Z" />
+    <path d="m736 205-113-162 132 113 20 42-39 7Z" />
+    <path d="m864 205 113-162-132 113-20 42 39 7Z" />
+    <path d="m715 226-165-111 163 56 43 38-41 17Z" />
+    <path d="m885 226 165-111-163 56-43 38 41 17Z" />
+    <path d="m701 246-191-45 180 3 59 21-48 21Z" />
+    <path d="m899 246 191-45-180 3-59 21 48 21Z" />
+  </g>
+  <path fill="#312746" d="m751 189 49-54 49 54-26-9-23-19-23 19-26 9Z" />
+  <path fill="#6A4A7D" d="m791 175 9-14 9 14-9 17-9-17Z" />
+</g></g><path fill="#36314C" d="M0 550c160-53 228-22 353-46 102-19 195-26 305 1 146-47 239-50 382-16 145-35 282-26 560 55v56H0Z" />
+</svg>
