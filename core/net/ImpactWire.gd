@@ -50,6 +50,9 @@ const AGE_MAX_MS: int = 255
 const KEY_SPEED: String = "speed"
 const KEY_POSITION: String = "position"
 const KEY_AGE_MS: String = "age_ms"
+## Host-side only (never encoded): when the impact was detected, in
+## Time.get_ticks_msec(), so flush_impacts() can turn it into KEY_AGE_MS.
+const KEY_TIME_MS: String = "time_ms"
 
 
 ## True when `position` survives the s16 axis encoding without clamping.
@@ -76,8 +79,30 @@ static func coalesce_key(position: Vector3, cell_m: float) -> Vector3i:
 	)
 
 
+## Most events that fit in one packet of `payload_bytes` (the NetConfig
+## max_packet_bytes snapshot budget, which already leaves room under the
+## ~1500 B Ethernet MTU for the RPC, ENet and UDP/IP headers): the count whose
+## HEADER_BYTES + n * EVENT_BYTES stays inside it, at least 1 and at most
+## MAX_EVENTS. Both host (batch cap) and client (accept cap) derive their
+## MTU-safe bound from this one function, so an oversized batch can never be
+## built or believed.
+static func max_events_for_payload(payload_bytes: int) -> int:
+	return clampi((payload_bytes - HEADER_BYTES) / EVENT_BYTES, 1, MAX_EVENTS)
+
+
+## True when `position` is an impact the client would accept: it survives the
+## s16 axis encoding (position_fits) and its height lies in [min_y, max_y]
+## (the quantized volume, NetConfig.pos_min_y/pos_max_y). The host filters with
+## this before encoding so an out-of-volume impact (a block launched past the
+## tallest tower, one falling below the kill plane) is skipped on its own
+## instead of reaching a client that would have to drop it.
+static func position_in_range(position: Vector3, min_y: float, max_y: float) -> bool:
+	return position_fits(position) and position.y >= min_y and position.y <= max_y
+
+
 ## The `count` strongest events of `events` (Dictionaries with KEY_SPEED),
-## strongest first. Ties keep their input order.
+## strongest first. The order of equal-speed events is unspecified (Godot's
+## sort_custom is not stable).
 static func strongest(events: Array[Dictionary], count: int) -> Array[Dictionary]:
 	var sorted: Array[Dictionary] = events.duplicate()
 	sorted.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
@@ -89,7 +114,7 @@ static func strongest(events: Array[Dictionary], count: int) -> Array[Dictionary
 
 
 ## Packs `events` (KEY_SPEED float m/s, KEY_POSITION Vector3, KEY_AGE_MS int).
-## Callers pass at most MAX_EVENTS events that already passed position_fits();
+## Callers pass at most MAX_EVENTS events that already passed position_in_range();
 ## speed and age are clamped into their fields here. Empty input -> empty
 ## packet (nothing to send).
 static func encode(events: Array[Dictionary]) -> PackedByteArray:
@@ -114,12 +139,19 @@ static func encode(events: Array[Dictionary]) -> PackedByteArray:
 	return out
 
 
-## Unpacks a batch. Any malformed packet -- wrong version, a count that does
-## not match the byte length, a zero count, a speed outside
-## (0, speed_max], a height outside [min_y, max_y] -- yields an empty array, so
-## a client never plays part of a corrupt or hostile batch.
+## Unpacks a batch. A malformed *packet* -- wrong version, a count that does
+## not match the byte length, a zero count -- yields an empty array. A bad
+## *event* inside an otherwise well-formed packet -- a speed outside
+## (0, speed_max], a height outside [min_y, max_y] -- is skipped on its own and
+## the rest of the batch survives (one legitimate out-of-volume impact must not
+## silence its neighbours). At most `max_events` valid events are returned
+## (strongest-first on the wire, so the tail is what is dropped).
+##
+## `speed_max` is compared with one SPEED_QUANTUM of slack: encode() rounds to
+## the nearest SPEED_QUANTUM, so a host clamp that is not a multiple of it can
+## round a hair above itself and must still decode.
 static func decode(
-	packet: PackedByteArray, speed_max: float, min_y: float, max_y: float
+	packet: PackedByteArray, speed_max: float, min_y: float, max_y: float, max_events: int = MAX_EVENTS
 ) -> Array[Dictionary]:
 	var events: Array[Dictionary] = []
 	if packet.size() < HEADER_BYTES or packet.size() > MAX_PACKET_BYTES:
@@ -129,8 +161,11 @@ static func decode(
 	var count: int = packet.decode_u8(1)
 	if count == 0 or packet.size() != HEADER_BYTES + count * EVENT_BYTES:
 		return events
+	var event_cap: int = clampi(max_events, 1, MAX_EVENTS)
 	var offset: int = HEADER_BYTES
 	for _i: int in range(count):
+		if events.size() >= event_cap:
+			break
 		var position: Vector3 = Vector3(
 			float(packet.decode_s16(offset)) * POSITION_QUANTUM_M,
 			float(packet.decode_s16(offset + 2)) * POSITION_QUANTUM_M,
@@ -138,11 +173,12 @@ static func decode(
 		)
 		var speed: float = float(packet.decode_u16(offset + 6)) * SPEED_QUANTUM
 		var age_ms: int = packet.decode_u8(offset + 8)
-		if speed <= 0.0 or speed > speed_max or position.y < min_y or position.y > max_y:
-			events.clear()
-			return events
-		events.append({KEY_SPEED: speed, KEY_POSITION: position, KEY_AGE_MS: age_ms})
 		offset += EVENT_BYTES
+		if speed <= 0.0 or speed > speed_max + SPEED_QUANTUM:
+			continue
+		if position.y < min_y or position.y > max_y:
+			continue
+		events.append({KEY_SPEED: speed, KEY_POSITION: position, KEY_AGE_MS: age_ms})
 	return events
 
 

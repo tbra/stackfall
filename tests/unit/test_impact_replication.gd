@@ -38,6 +38,9 @@ func after_each() -> void:
 func _make_net(fake: FakeNet) -> MatchNetScript:
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
+	# A private copy: the shipped net_config.tres is a shared preload, and some
+	# tests below edit caps.
+	node.config = node.config.duplicate() as NetConfig
 	add_child_autofree(node)
 	node.set_providers(fake, null)
 	_nodes.append(node)
@@ -184,12 +187,11 @@ func test_malformed_batches_are_ignored() -> void:
 	var too_fast: PackedByteArray = good.duplicate()
 	too_fast.encode_u16(ImpactWire.HEADER_BYTES + 6, ImpactWire.SPEED_RAW_MAX)
 	var too_low: PackedByteArray = _batch([_event(3.0, Vector3(0.0, client.config.pos_min_y - 5.0, 0.0))])
-	var mixed: PackedByteArray = _batch([_event(3.0, Vector3.ZERO), _event(3.0, Vector3(0.0, 300.0, 0.0))])
 	var oversized: PackedByteArray = PackedByteArray()
 	oversized.resize(ImpactWire.MAX_PACKET_BYTES + ImpactWire.EVENT_BYTES)
 	var packets: Array[PackedByteArray] = [
 		PackedByteArray(), bad_version, bad_count, zero_count, truncated, zero_speed, too_fast, too_low,
-		mixed, oversized,
+		oversized,
 	]
 	for packet: PackedByteArray in packets:
 		client.receive_impacts(packet, 100)
@@ -197,6 +199,57 @@ func test_malformed_batches_are_ignored() -> void:
 	assert_eq(client.impact_batches_rejected, packets.size())
 	client.receive_impacts(good, 100)
 	assert_eq(_speeds.size(), 1, "the well-formed control still plays")
+
+
+## Bontago-1pi.55 review fix: one bad event inside a well-formed batch is
+## skipped on its own; its neighbours still play.
+func test_one_bad_event_does_not_silence_the_rest_of_the_batch() -> void:
+	var client: MatchNetScript = _client()
+	var high: float = client.config.pos_max_y + 20.0
+	var low: float = client.config.pos_min_y - 20.0
+	client.receive_impacts(_batch([
+		_event(3.0, Vector3(0.0, 1.0, 0.0)),
+		_event(4.0, Vector3(0.0, high, 0.0)),
+		_event(5.0, Vector3(2.0, 1.0, 0.0)),
+		_event(6.0, Vector3(0.0, low, 0.0)),
+		_event(7.0, Vector3(4.0, 1.0, 0.0)),
+	]), 100)
+	assert_eq(_speeds.size(), 3, "the three in-range events play (got %s)" % [_speeds])
+	assert_almost_eq(_speeds[0], 3.0, ImpactWire.SPEED_QUANTUM)
+	assert_almost_eq(_speeds[1], 5.0, ImpactWire.SPEED_QUANTUM)
+	assert_almost_eq(_speeds[2], 7.0, ImpactWire.SPEED_QUANTUM)
+	assert_eq(client.impact_batches_rejected, 0, "the batch itself was fine")
+	assert_eq(client.impact_events_dropped, 2, "the two out-of-volume events are counted")
+	# A bad speed is per-event too.
+	_speeds.clear()
+	var bad_speed: PackedByteArray = _batch([_event(3.0, Vector3.ZERO), _event(3.0, Vector3(1.0, 1.0, 1.0))])
+	bad_speed.encode_u16(ImpactWire.HEADER_BYTES + 6, 0)
+	client.receive_impacts(bad_speed, 100)
+	assert_eq(_speeds.size(), 1, "only the zero-speed event is skipped")
+
+
+func test_host_skips_out_of_range_impacts_before_encoding() -> void:
+	var host: MatchNetScript = _host()
+	host.collect_impact(5.0, Vector3(0.0, host.config.pos_max_y + 1.0, 0.0), 0)
+	host.collect_impact(5.0, Vector3(10.0, host.config.pos_min_y - 1.0, 0.0), 0)
+	host.collect_impact(5.0, Vector3(20.0, 1.0, 0.0), 0)
+	var events: Array[Dictionary] = _decode(host, host.flush_impacts(10))
+	assert_eq(events.size(), 1, "only the in-volume impact is shipped")
+	assert_almost_eq((events[0][ImpactWire.KEY_POSITION] as Vector3).x, 20.0, ImpactWire.POSITION_QUANTUM_M)
+	host.collect_impact(5.0, Vector3(0.0, host.config.pos_min_y - 30.0, 0.0), 20)
+	assert_true(host.flush_impacts(30).is_empty(), "a window of only out-of-volume impacts sends nothing")
+
+
+func test_speed_cap_that_is_not_a_quantum_multiple_still_round_trips() -> void:
+	var host: MatchNetScript = _host()
+	host.config.impact_speed_max = 120.006
+	host.collect_impact(500.0, Vector3(1.0, 1.0, 1.0), 0)
+	var packet: PackedByteArray = host.flush_impacts(10)
+	var client: MatchNetScript = _client()
+	client.config.impact_speed_max = 120.006
+	client.receive_impacts(packet, 100)
+	assert_eq(_speeds.size(), 1, "clamped speed rounds up by under one quantum and is still accepted")
+	assert_eq(client.impact_batches_rejected, 0)
 
 
 func test_client_waiting_for_its_world_drops_impacts() -> void:
@@ -228,6 +281,73 @@ func test_world_teardown_discards_queued_impacts() -> void:
 	assert_eq(_speeds.size(), 0, "nothing plays into a torn-down world")
 
 
+# --- Client caps and MTU bound ------------------------------------------------
+
+func _spread_events(count: int) -> Array[Dictionary]:
+	var events: Array[Dictionary] = []
+	for i: int in range(count):
+		events.append(_event(2.0 + float(i) * 0.1, Vector3(float(i) * 2.0, 1.0, 0.0)))
+	return events
+
+
+func test_client_plays_at_most_the_batch_cap_per_batch() -> void:
+	var client: MatchNetScript = _client()
+	var cap: int = client.config.impact_max_per_batch
+	client.receive_impacts(_batch(_spread_events(cap + 12)), 100)
+	assert_eq(_speeds.size(), cap, "a batch bigger than the host would ever send is truncated")
+	assert_eq(client.impact_events_dropped, 12)
+
+
+func test_client_caps_events_played_per_second() -> void:
+	var client: MatchNetScript = _client()
+	client.config.impact_client_max_per_second = 12
+	client.config.impact_max_per_batch = 8
+	client.receive_impacts(_batch(_spread_events(8)), 1000)
+	client.receive_impacts(_batch(_spread_events(8)), 1100)
+	assert_eq(_speeds.size(), 12, "8 plus the 4 the second's budget still allows")
+	assert_eq(client.impact_events_dropped, 4)
+	client.receive_impacts(_batch(_spread_events(8)), 1900)
+	assert_eq(_speeds.size(), 12, "the window has not slid yet")
+	client.receive_impacts(_batch(_spread_events(8)), 2001)
+	assert_eq(_speeds.size(), 20, "events from t=1000 aged out; a full batch plays again")
+
+
+func test_default_client_cap_clears_the_hosts_worst_case() -> void:
+	var cfg: NetConfig = NetConfig.new()
+	var worst: int = cfg.impact_max_per_second + cfg.impact_max_per_batch
+	assert_true(cfg.impact_client_max_per_second >= worst, "a conforming host's worst second (%d) is never throttled" % worst)
+
+
+func test_sanitize_bounds_batch_cap_to_one_packet() -> void:
+	var cfg: NetConfig = NetConfig.new()
+	cfg.impact_max_per_batch = 255
+	cfg.sanitize()
+	var fit: int = (cfg.max_packet_bytes - ImpactWire.HEADER_BYTES) / ImpactWire.EVENT_BYTES
+	assert_eq(cfg.impact_max_per_batch, fit, "one batch fits max_packet_bytes")
+	assert_true(ImpactWire.HEADER_BYTES + cfg.impact_max_per_batch * ImpactWire.EVENT_BYTES <= cfg.max_packet_bytes)
+	# A smaller packet budget shrinks the bound: it follows max_packet_bytes.
+	cfg.max_packet_bytes = 256
+	cfg.impact_max_per_batch = 255
+	cfg.sanitize()
+	assert_true(ImpactWire.HEADER_BYTES + cfg.impact_max_per_batch * ImpactWire.EVENT_BYTES <= 256)
+	cfg.impact_max_per_batch = 0
+	cfg.impact_client_max_per_second = 0
+	cfg.sanitize()
+	assert_eq(cfg.impact_max_per_batch, 1, "never below one event")
+	assert_true(cfg.impact_client_max_per_second >= cfg.impact_max_per_batch, "a full batch always plays")
+
+
+func test_host_batch_never_exceeds_one_packet_even_unsanitized() -> void:
+	var host: MatchNetScript = _host()
+	host.config.impact_max_per_batch = 255
+	host.config.impact_max_per_second = 1000
+	for i: int in range(200):
+		host.collect_impact(2.0 + float(i) * 0.05, Vector3(float(i % 20) * 2.0, 1.0, floorf(float(i) / 20.0) * 2.0), 0)
+	var packet: PackedByteArray = host.flush_impacts(0)
+	assert_true(packet.size() <= host.config.max_packet_bytes, "batch of %d B fits max_packet_bytes" % packet.size())
+	assert_eq(_decode(host, packet).size(), ImpactWire.max_events_for_payload(host.config.max_packet_bytes))
+
+
 # --- No client-side detection -------------------------------------------------
 
 ## The 1pi.52 probe: a frozen kinematic replica moved by transform writes (the
@@ -247,3 +367,57 @@ func test_client_kinematic_replica_emits_no_impact() -> void:
 	await wait_physics_frames(6)
 	assert_eq(_speeds.size(), 0, "a frozen replica never detects an impact (got %s)" % [_speeds])
 	assert_eq(_at.size(), 0)
+
+
+## Positive controls for the frozen early-return in Block._physics_process: the
+## suppression is keyed on `freeze`, not on being a Block, so a dynamic
+## (host-simulated) block that really lands still emits its impact.
+func _floor_and_block(frozen: bool) -> Block:
+	var floor_body: StaticBody3D = StaticBody3D.new()
+	var floor_shape: CollisionShape3D = CollisionShape3D.new()
+	var floor_box: BoxShape3D = BoxShape3D.new()
+	floor_box.size = Vector3(20.0, 1.0, 20.0)
+	floor_shape.shape = floor_box
+	floor_body.add_child(floor_shape)
+	add_child_autofree(floor_body)
+	floor_body.global_position = Vector3(0.0, -0.5, 0.0)
+	var block: Block = Block.new()
+	var block_shape: CollisionShape3D = CollisionShape3D.new()
+	var block_box: BoxShape3D = BoxShape3D.new()
+	block_box.size = Vector3.ONE
+	block_shape.shape = block_box
+	block.add_child(block_shape)
+	if frozen:
+		block.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+		block.freeze = true
+	add_child_autofree(block)
+	block.global_position = Vector3(0.0, 4.0, 0.0)
+	return block
+
+
+func _wait_for_impact(max_frames: int) -> void:
+	for _i: int in range(max_frames):
+		if not _speeds.is_empty():
+			return
+		await wait_physics_frames(1)
+
+
+func test_unfrozen_host_block_still_emits_an_impact_on_landing() -> void:
+	var block: Block = _floor_and_block(false)
+	await _wait_for_impact(150)
+	await wait_physics_frames(20)
+	assert_eq(_speeds.size(), 1, "a landing dynamic block emits exactly one impact (got %s)" % [_speeds])
+	assert_eq(_at.size(), 1)
+	assert_true(_speeds[0] >= Block.impact_speed_min, "above the audible threshold (%f)" % _speeds[0])
+	assert_true((_at[0][1] as Vector3).y < 4.0, "reported where it landed, not where it spawned")
+	assert_true(is_instance_valid(block))
+
+
+func test_block_released_from_a_freeze_detects_impacts_again() -> void:
+	var block: Block = _floor_and_block(true)
+	await wait_physics_frames(20)
+	assert_eq(_speeds.size(), 0, "a frozen block hovering at 4 m detects nothing")
+	block.freeze = false
+	await _wait_for_impact(150)
+	await wait_physics_frames(20)
+	assert_eq(_speeds.size(), 1, "released, it falls and its landing is heard (got %s)" % [_speeds])

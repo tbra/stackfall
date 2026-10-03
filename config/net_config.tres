@@ -47,6 +47,7 @@ impact_max_per_batch = 8
 impact_max_per_second = 48
 impact_coalesce_cell_m = 0.5
 impact_speed_max = 120.0
+impact_client_max_per_second = 64
 sim_lag_ms = 0.0
 sim_jitter_ms = 0.0
 sim_loss = 0.0

@@ -174,6 +174,14 @@ var impact_delay_override_ms: float = -1.0
 ## Diagnostics: batches a client dropped as malformed, events it re-emitted.
 var impact_batches_rejected: int = 0
 var impacts_emitted: int = 0
+## Client: events a well-formed batch carried that were not played (a bad event
+## skipped by ImpactWire.decode, or past the per-batch / per-second cap).
+var impact_events_dropped: int = 0
+## The "per second" of impact_client_max_per_second, in milliseconds.
+const IMPACT_RATE_WINDOW_MS: int = 1000
+## Client: Time.get_ticks_msec() of each event played within the last second,
+## the sliding window behind NetConfig.impact_client_max_per_second.
+var _impact_accept_ms: Array[int] = []
 
 ## _known_special_ids()'s cache: String(SpecialDef.id) -> true, built once
 ## from SpecialDef.load_all_specials() (a directory scan). This node is
@@ -1679,7 +1687,12 @@ func _impact_audience() -> bool:
 ## already throttles each body to one impact per IMPACT_EMIT_INTERVAL_MS, so
 ## one body never contributes twice to a window either.
 func collect_impact(speed: float, position: Vector3, now_ms: int) -> void:
-	if not is_finite(speed) or speed <= 0.0 or not ImpactWire.position_fits(position):
+	if not is_finite(speed) or speed <= 0.0:
+		return
+	# An impact outside the quantized volume (a block launched past the tallest
+	# tower, one falling below the kill plane) is skipped here, on its own: the
+	# client would reject it, and it must not cost its neighbours anything.
+	if not ImpactWire.position_in_range(position, config.pos_min_y, config.pos_max_y):
 		return
 	var clamped: float = minf(speed, config.impact_speed_max)
 	var key: Vector3i = ImpactWire.coalesce_key(position, config.impact_coalesce_cell_m)
@@ -1691,7 +1704,8 @@ func collect_impact(speed: float, position: Vector3, now_ms: int) -> void:
 		# A pathological window; the cap below would drop these anyway.
 		return
 	_impact_pending[key] = {
-		ImpactWire.KEY_SPEED: clamped, ImpactWire.KEY_POSITION: position, "time_ms": now_ms,
+		ImpactWire.KEY_SPEED: clamped, ImpactWire.KEY_POSITION: position,
+		ImpactWire.KEY_TIME_MS: now_ms,
 	}
 
 
@@ -1702,7 +1716,8 @@ func collect_impact(speed: float, position: Vector3, now_ms: int) -> void:
 ## when nothing went out).
 func flush_impacts(now_ms: int) -> PackedByteArray:
 	var rate: float = float(maxi(config.impact_max_per_second, 1))
-	var capacity: float = float(maxi(config.impact_max_per_batch, 1))
+	var batch_cap: int = _impact_batch_cap()
+	var capacity: float = float(batch_cap)
 	if _impact_tokens < 0.0 or _impact_refill_ms < 0:
 		_impact_tokens = capacity
 	else:
@@ -1716,12 +1731,12 @@ func flush_impacts(now_ms: int) -> PackedByteArray:
 	for event: Variant in _impact_pending.values():
 		pending.append(event as Dictionary)
 	_impact_pending.clear()
-	var allowed: int = mini(int(floor(_impact_tokens)), config.impact_max_per_batch)
+	var allowed: int = mini(int(floor(_impact_tokens)), batch_cap)
 	if allowed <= 0:
 		return empty
 	var chosen: Array[Dictionary] = ImpactWire.strongest(pending, allowed)
 	for event: Dictionary in chosen:
-		event[ImpactWire.KEY_AGE_MS] = now_ms - int(event["time_ms"])
+		event[ImpactWire.KEY_AGE_MS] = now_ms - int(event[ImpactWire.KEY_TIME_MS])
 	_impact_tokens -= float(chosen.size())
 	var packet: PackedByteArray = ImpactWire.encode(chosen)
 	if capture_impacts:
@@ -1743,13 +1758,22 @@ func receive_impacts(packet: PackedByteArray, now_ms: int) -> void:
 	if _is_host() or _client_awaiting_world():
 		return
 	var events: Array[Dictionary] = ImpactWire.decode(
-		packet, config.impact_speed_max, config.pos_min_y, config.pos_max_y
+		packet, config.impact_speed_max, config.pos_min_y, config.pos_max_y, _impact_batch_cap()
 	)
 	if events.is_empty():
 		impact_batches_rejected += 1
 		return
+	# The wire's event_count byte: how many the host claimed, so events decode
+	# skipped (bad speed/height, past the per-batch cap) show up in the counter.
+	impact_events_dropped += maxi(packet.decode_u8(1) - events.size(), 0)
 	var delay_ms: float = _impact_playback_delay_ms()
 	var queue_cap: int = config.impact_max_per_second + config.impact_max_per_batch
+	var budget: int = _impact_client_budget(now_ms)
+	if events.size() > budget:
+		impact_events_dropped += events.size() - budget
+		events.resize(budget)
+	for _i: int in range(events.size()):
+		_impact_accept_ms.append(now_ms)
 	for event: Dictionary in events:
 		var due_ms: float = float(now_ms) + delay_ms - float(event[ImpactWire.KEY_AGE_MS])
 		if due_ms <= float(now_ms):
@@ -1772,6 +1796,24 @@ func drain_impacts(now_ms: int) -> void:
 	_impact_queue = keep
 	for row: Array in due:
 		_emit_impact(float(row[1]), row[2] as Vector3)
+
+
+## The per-batch event bound both ends share: NetConfig.impact_max_per_batch,
+## held to what one max_packet_bytes packet carries (sanitize() does the same,
+## this guards a config that skipped it).
+func _impact_batch_cap() -> int:
+	return mini(
+		maxi(config.impact_max_per_batch, 1), ImpactWire.max_events_for_payload(config.max_packet_bytes)
+	)
+
+
+## Client: how many more events the sliding one-second window
+## (NetConfig.impact_client_max_per_second) lets through at `now_ms`. Entries
+## older than a second fall out of the window first.
+func _impact_client_budget(now_ms: int) -> int:
+	while not _impact_accept_ms.is_empty() and now_ms - _impact_accept_ms[0] >= IMPACT_RATE_WINDOW_MS:
+		_impact_accept_ms.pop_front()
+	return maxi(config.impact_client_max_per_second - _impact_accept_ms.size(), 0)
 
 
 func pending_impact_count() -> int:
@@ -1798,6 +1840,7 @@ func _emit_impact(speed: float, position: Vector3) -> void:
 func _reset_impacts() -> void:
 	_impact_pending.clear()
 	_impact_queue.clear()
+	_impact_accept_ms.clear()
 	_impact_send_accum = 0.0
 	_impact_tokens = -1.0
 	_impact_refill_ms = -1
