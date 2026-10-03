@@ -496,3 +496,304 @@ func test_old_saved_timer_values_clamp_into_the_new_range() -> void:
 	config.sanitize()
 	assert_eq(config.round_timer_minutes, 2, "Domination is never off")
 	assert_eq(MatchConfig.from_dict(config.to_dict()).round_timer_minutes, 2, "serialize -> deserialize")
+
+# --- Lobby rework: per-slot teams, per-bot difficulty (Bontago-1pi.53, P1) ----
+
+## A resolved three-team, six-seat config (lobby numbers 1/3/4): the shape the
+## host's TeamAssigner writes at Start.
+func _resolved_config() -> MatchConfig:
+	var config: MatchConfig = MatchConfig.new()
+	config.team_mode = MatchConfig.TeamMode.TEAMS_4
+	config.player_count = 6
+	config.slot_team_ids = PackedInt32Array([0, 1, 0, 2, 1, 2])
+	config.team_numbers = PackedInt32Array([1, 3, 4])
+	return config
+
+
+func test_team_pick_constants() -> void:
+	assert_eq(MatchConfig.TEAM_PICK_RANDOM, 0, "Random is 0 so explicit numbers are 1..TEAM_PICK_MAX")
+	assert_eq(MatchConfig.TEAM_PICK_MAX, 4)
+	assert_eq(MatchConfig.TEAM_PICK_MAX, MatchConfig.new().team_mode_team_count(MatchConfig.TeamMode.TEAMS_4),
+		"the pick ceiling is the largest TeamMode's team count")
+
+
+func test_team_pick_cap_and_teams_enabled_follow_team_mode() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	assert_false(config.teams_enabled())
+	assert_eq(config.team_pick_cap(), 0, "teams off: no picks")
+	config.team_mode = MatchConfig.TeamMode.TEAMS_2
+	assert_true(config.teams_enabled())
+	assert_eq(config.team_pick_cap(), 2)
+	config.team_mode = MatchConfig.TeamMode.TEAMS_3
+	assert_eq(config.team_pick_cap(), 3)
+	config.team_mode = MatchConfig.TeamMode.TEAMS_4
+	assert_eq(config.team_pick_cap(), 4)
+
+
+func test_new_fields_default_empty_and_keep_legacy_behaviour() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	assert_true(config.slot_team_ids.is_empty())
+	assert_true(config.team_numbers.is_empty())
+	assert_true(config.slot_ai_difficulties.is_empty())
+	assert_false(config.teams_resolved())
+	var dict: Dictionary = config.to_dict()
+	assert_false(dict.has("slot_team_ids"), "a legacy config's dict is unchanged")
+	assert_false(dict.has("team_numbers"))
+	assert_false(dict.has("slot_ai_difficulties"))
+
+
+func test_new_fields_round_trip_through_to_dict_from_dict() -> void:
+	var config: MatchConfig = _resolved_config()
+	config.ai_count = 3
+	config.ai_difficulty = MatchConfig.AiDifficulty.NORMAL
+	config.slot_ai_difficulties = PackedInt32Array([
+		MatchConfig.AiDifficulty.NORMAL, MatchConfig.AiDifficulty.NORMAL, MatchConfig.AiDifficulty.NORMAL,
+		MatchConfig.AiDifficulty.HARD, MatchConfig.AiDifficulty.EASY, MatchConfig.AiDifficulty.HARD,
+	])
+	var restored: MatchConfig = MatchConfig.from_dict(config.to_dict())
+	assert_eq(restored.slot_team_ids, config.slot_team_ids)
+	assert_eq(restored.team_numbers, config.team_numbers)
+	assert_eq(restored.slot_ai_difficulties, config.slot_ai_difficulties)
+	for slot: int in range(config.player_count):
+		assert_eq(restored.team_of_slot(slot), config.team_of_slot(slot), "slot %d team" % slot)
+		assert_eq(restored.ai_difficulty_for_slot(slot), config.ai_difficulty_for_slot(slot), "slot %d difficulty" % slot)
+	assert_eq(restored.team_count(), 3)
+	# The dict carries copies, not the live arrays.
+	var dict: Dictionary = config.to_dict()
+	var in_dict: PackedInt32Array = dict["slot_team_ids"]
+	in_dict[0] = 7
+	assert_eq(config.slot_team_ids[0], 0, "to_dict() duplicates the arrays")
+
+
+func test_old_dict_without_the_new_keys_keeps_the_interleave() -> void:
+	# What a saved lobby / peer from before this change sends: no new keys at all.
+	var old_dict: Dictionary = {
+		"player_count": 6, "ai_count": 2, "ai_difficulty": MatchConfig.AiDifficulty.HARD,
+		"team_mode": MatchConfig.TeamMode.TEAMS_2,
+	}
+	var config: MatchConfig = MatchConfig.from_dict(old_dict)
+	config.sanitize()
+	assert_false(config.teams_resolved())
+	assert_eq(config.team_count(), 2)
+	for slot: int in range(6):
+		assert_eq(config.team_of_slot(slot), slot % 2, "slot %d keeps the legacy interleave" % slot)
+		assert_eq(config.team_number_for(config.team_of_slot(slot)), slot % 2 + 1, "legacy label is id + 1")
+	for slot: int in range(6):
+		assert_eq(config.ai_difficulty_for_slot(slot), MatchConfig.AiDifficulty.HARD, "one difficulty for every bot")
+	assert_eq(config.territory_colors(), config.player_colors, "legacy territory colour is player_colors[team]")
+
+
+func test_resolved_teams_drive_team_of_slot_and_team_count() -> void:
+	var config: MatchConfig = _resolved_config()
+	assert_true(config.teams_resolved())
+	assert_eq(config.team_count(), 3, "team_count follows the resolved teams, not min(mode count, players)")
+	var expected: Array[int] = [0, 1, 0, 2, 1, 2]
+	for slot: int in range(6):
+		assert_eq(config.team_of_slot(slot), expected[slot], "slot %d" % slot)
+	assert_eq(config.team_of_slot(6), posmod(6, 3), "a slot the array does not cover falls back to the interleave")
+	for team_id: int in range(config.team_count()):
+		assert_eq(config.team_number_for(team_id), config.team_numbers[team_id], "label = the lobby number")
+	assert_eq(config.team_number_for(9), 10, "out of range label degrades to id + 1")
+	assert_eq(config.team_number_for(-1), 0)
+
+
+func test_teams_off_ignores_resolved_arrays() -> void:
+	var config: MatchConfig = _resolved_config()
+	config.team_mode = MatchConfig.TeamMode.OFF
+	assert_false(config.teams_resolved())
+	assert_eq(config.team_count(), config.player_count)
+	for slot: int in range(config.player_count):
+		assert_eq(config.team_of_slot(slot), slot, "free-for-all: every slot its own team")
+	assert_eq(config.team_number_for(2), 3)
+	assert_eq(config.territory_colors(), config.player_colors)
+
+
+func test_territory_colors_takes_each_teams_lowest_slot_colour() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	config.team_mode = MatchConfig.TeamMode.TEAMS_2
+	config.player_count = 4
+	# Teams {0,1} / {2,3}: block assignment.
+	config.slot_team_ids = PackedInt32Array([0, 0, 1, 1])
+	config.team_numbers = PackedInt32Array([1, 2])
+	var colors: PackedColorArray = config.territory_colors()
+	assert_eq(colors.size(), 2)
+	assert_eq(colors[0], config.player_colors[0], "team 0 -> slot 0")
+	assert_eq(colors[1], config.player_colors[2], "team 1 -> slot 2")
+	# Interleaved: the legacy shape, so the legacy colours.
+	config.slot_team_ids = PackedInt32Array([0, 1, 0, 1])
+	colors = config.territory_colors()
+	assert_eq(colors[0], config.player_colors[0])
+	assert_eq(colors[1], config.player_colors[1])
+	# Team 0 does not own slot 0: colours follow the lowest slot of each team.
+	config.slot_team_ids = PackedInt32Array([1, 0, 1, 0])
+	colors = config.territory_colors()
+	assert_eq(colors[0], config.player_colors[1], "team 0's lowest slot is 1")
+	assert_eq(colors[1], config.player_colors[0], "team 1's lowest slot is 0")
+
+
+func test_territory_colors_survives_a_short_palette() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	config.team_mode = MatchConfig.TeamMode.TEAMS_2
+	config.player_count = 4
+	config.slot_team_ids = PackedInt32Array([0, 0, 1, 1])
+	config.team_numbers = PackedInt32Array([1, 2])
+	config.player_colors = PackedColorArray([Color.RED])
+	var colors: PackedColorArray = config.territory_colors()
+	assert_eq(colors.size(), 2)
+	assert_eq(colors[0], Color.RED)
+	assert_eq(colors[1], MatchConfig.default_player_colors()[2], "missing palette entry falls back to the default colour")
+
+
+func test_ai_difficulty_for_slot_uses_the_per_slot_entry_else_the_default() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	config.ai_difficulty = MatchConfig.AiDifficulty.NORMAL
+	config.slot_ai_difficulties = PackedInt32Array([
+		MatchConfig.AiDifficulty.EASY, MatchConfig.AiDifficulty.NORMAL, MatchConfig.AiDifficulty.HARD
+	])
+	assert_eq(config.ai_difficulty_for_slot(0), MatchConfig.AiDifficulty.EASY)
+	assert_eq(config.ai_difficulty_for_slot(2), MatchConfig.AiDifficulty.HARD)
+	assert_eq(config.ai_difficulty_for_slot(3), MatchConfig.AiDifficulty.NORMAL, "uncovered slot: lobby default")
+	assert_eq(config.ai_difficulty_for_slot(-1), MatchConfig.AiDifficulty.NORMAL, "negative slot: lobby default")
+	config.slot_ai_difficulties = PackedInt32Array([99, -4])
+	assert_eq(config.ai_difficulty_for_slot(0), MatchConfig.AiDifficulty.HARD, "unsanitized garbage clamps, never an invalid enum")
+	assert_eq(config.ai_difficulty_for_slot(1), MatchConfig.AiDifficulty.EASY)
+
+
+func test_sanitize_keeps_a_consistent_resolution() -> void:
+	var config: MatchConfig = _resolved_config()
+	config.sanitize()
+	assert_eq(config.slot_team_ids, PackedInt32Array([0, 1, 0, 2, 1, 2]))
+	assert_eq(config.team_numbers, PackedInt32Array([1, 3, 4]))
+	# TEAMS_2 with a single resolved team (everything on 1) is structurally fine.
+	var one_team: MatchConfig = MatchConfig.new()
+	one_team.team_mode = MatchConfig.TeamMode.TEAMS_2
+	one_team.player_count = 2
+	one_team.slot_team_ids = PackedInt32Array([0, 0])
+	one_team.team_numbers = PackedInt32Array([2])
+	one_team.sanitize()
+	assert_eq(one_team.team_numbers, PackedInt32Array([2]))
+
+
+func _assert_team_arrays_dropped(config: MatchConfig, label: String) -> void:
+	config.sanitize()
+	assert_true(config.slot_team_ids.is_empty(), "%s: slot_team_ids dropped" % label)
+	assert_true(config.team_numbers.is_empty(), "%s: team_numbers dropped" % label)
+	assert_false(config.teams_resolved(), label)
+	# ...and the config is back on the legacy interleave.
+	assert_eq(config.team_count(), mini(config.team_pick_cap(), config.player_count) if config.teams_enabled() else config.player_count, label)
+
+
+func test_sanitize_drops_inconsistent_team_arrays() -> void:
+	var config: MatchConfig = _resolved_config()
+	config.player_count = 5  # array covers 6 slots
+	_assert_team_arrays_dropped(config, "size != player_count")
+
+	config = _resolved_config()
+	config.slot_team_ids = PackedInt32Array([0, 1, 0, 3, 1, 2])  # id 3 has no number
+	_assert_team_arrays_dropped(config, "id out of range")
+
+	config = _resolved_config()
+	config.slot_team_ids = PackedInt32Array([0, 1, 0, -1, 1, 2])
+	_assert_team_arrays_dropped(config, "negative id")
+
+	config = _resolved_config()
+	config.slot_team_ids = PackedInt32Array([0, 1, 0, 1, 1, 0])  # team 2 unused: ids not dense
+	_assert_team_arrays_dropped(config, "unused team id")
+
+	config = _resolved_config()
+	config.team_numbers = PackedInt32Array([3, 1, 4])
+	_assert_team_arrays_dropped(config, "numbers not ascending")
+
+	config = _resolved_config()
+	config.team_numbers = PackedInt32Array([1, 1, 4])
+	_assert_team_arrays_dropped(config, "duplicate numbers")
+
+	config = _resolved_config()
+	config.team_numbers = PackedInt32Array([1, 3, 5])
+	_assert_team_arrays_dropped(config, "number above TEAM_PICK_MAX")
+
+	config = _resolved_config()
+	config.team_numbers = PackedInt32Array([0, 3, 4])
+	_assert_team_arrays_dropped(config, "number below 1")
+
+	config = _resolved_config()
+	config.team_mode = MatchConfig.TeamMode.TEAMS_3  # cap 3, but number 4 is used
+	_assert_team_arrays_dropped(config, "number above the mode's cap")
+
+	config = _resolved_config()
+	config.team_mode = MatchConfig.TeamMode.OFF
+	_assert_team_arrays_dropped(config, "teams off")
+
+	config = _resolved_config()
+	config.team_numbers = PackedInt32Array()
+	_assert_team_arrays_dropped(config, "ids without numbers")
+
+	config = _resolved_config()
+	config.slot_team_ids = PackedInt32Array()
+	_assert_team_arrays_dropped(config, "numbers without ids")
+
+
+func test_sanitize_clamps_per_slot_difficulties_and_drops_oversized_ones() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	config.slot_ai_difficulties = PackedInt32Array([-5, 1, 99])
+	config.sanitize()
+	assert_eq(config.slot_ai_difficulties, PackedInt32Array([
+		MatchConfig.AiDifficulty.EASY, MatchConfig.AiDifficulty.NORMAL, MatchConfig.AiDifficulty.HARD
+	]))
+	config.slot_ai_difficulties = PackedInt32Array([0, 0, 0, 0, 0, 0, 0, 0, 0])  # 9 > PLAYER_COUNT_MAX
+	config.sanitize()
+	assert_true(config.slot_ai_difficulties.is_empty(), "oversized falls back to the lobby-wide difficulty")
+
+
+func test_from_dict_accepts_json_style_arrays() -> void:
+	# The Steam lobby tee is JSON: arrays come back as Arrays of floats.
+	var json: JSON = JSON.new()
+	var text: String = JSON.stringify({
+		"team_mode": MatchConfig.TeamMode.TEAMS_4, "player_count": 4,
+		"slot_team_ids": PackedInt32Array([0, 1, 0, 1]), "team_numbers": PackedInt32Array([2, 4]),
+		"slot_ai_difficulties": PackedInt32Array([1, 1, 2, 0]),
+	})
+	assert_eq(json.parse(text), OK)
+	var parsed: Variant = json.data
+	assert_true(parsed is Dictionary)
+	var config: MatchConfig = MatchConfig.from_dict(parsed as Dictionary)
+	config.sanitize()
+	assert_eq(config.slot_team_ids, PackedInt32Array([0, 1, 0, 1]))
+	assert_eq(config.team_numbers, PackedInt32Array([2, 4]))
+	assert_eq(config.slot_ai_difficulties, PackedInt32Array([1, 1, 2, 0]))
+	assert_eq(config.team_number_for(1), 4)
+	# Plain Arrays and 64-bit packed arrays (RPC) read the same.
+	var from_array: MatchConfig = MatchConfig.from_dict({"slot_team_ids": [0, 1.0, 1]})
+	assert_eq(from_array.slot_team_ids, PackedInt32Array([0, 1, 1]))
+	var from_int64: MatchConfig = MatchConfig.from_dict({"team_numbers": PackedInt64Array([1, 2])})
+	assert_eq(from_int64.team_numbers, PackedInt32Array([1, 2]))
+
+
+func test_from_dict_degrades_foreign_values_to_the_legacy_behaviour() -> void:
+	var bad_values: Array[Variant] = [
+		"0,1,0,1", 7, 1.5, true, {"a": 1}, [0, "1", 1], [0, null], [0, 1, 0, 1, 0, 1, 0, 1, 0], PackedStringArray(["0"]),
+	]
+	for bad: Variant in bad_values:
+		var config: MatchConfig = MatchConfig.from_dict({
+			"team_mode": MatchConfig.TeamMode.TEAMS_2, "player_count": 4,
+			"slot_team_ids": bad, "team_numbers": bad, "slot_ai_difficulties": bad,
+		})
+		config.sanitize()
+		assert_true(config.slot_team_ids.is_empty(), "slot_team_ids from %s" % str(bad))
+		assert_true(config.team_numbers.is_empty(), "team_numbers from %s" % str(bad))
+		assert_true(config.slot_ai_difficulties.is_empty(), "slot_ai_difficulties from %s" % str(bad))
+		assert_eq(config.team_of_slot(3), 1, "still the legacy interleave")
+
+
+func test_an_eight_seat_resolved_dict_fits_the_steam_lobby_data_budget() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	config.team_mode = MatchConfig.TeamMode.TEAMS_4
+	config.player_count = 8
+	config.ai_count = 4
+	config.slot_team_ids = PackedInt32Array([0, 1, 2, 3, 0, 1, 2, 3])
+	config.team_numbers = PackedInt32Array([1, 2, 3, 4])
+	config.slot_ai_difficulties = PackedInt32Array([0, 0, 0, 0, 2, 1, 0, 2])
+	var net_config: NetConfig = load("res://config/net_config.tres") as NetConfig
+	var text: String = JSON.stringify(config.to_dict())
+	assert_lt(text.to_utf8_buffer().size(), net_config.steam_lobby_data_max_bytes,
+		"the replicated config stays under steam_lobby_data_max_bytes with the new arrays")

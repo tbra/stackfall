@@ -94,6 +94,13 @@ const DOMINATION_ROUND_MINUTES_DEFAULT: int = 5
 ## team is left. Every other timed mode needs a timer to end.
 const ROUND_TIMER_OFF_MINUTES: int = 0
 
+## Lobby team picks (Bontago-1pi.53): 1..TEAM_PICK_MAX are explicit lobby team
+## numbers (same number = same team), TEAM_PICK_RANDOM is resolved by the host at
+## match start (core/rules/TeamAssigner.gd). TEAM_PICK_MAX is the largest
+## TeamMode's team count.
+const TEAM_PICK_RANDOM: int = 0
+const TEAM_PICK_MAX: int = 4
+
 ## -- Spec 2.8 table, in order -----------------------------------------------
 @export var map_variant: MapVariant = MapVariant.ROUND
 ## Spec 2.8's map size; the enum lives on MapDef (see the note there).
@@ -102,8 +109,28 @@ const ROUND_TIMER_OFF_MINUTES: int = 0
 @export var player_count: int = 4
 ## How many of `player_count` are bots. M2 is hot-seat only, so 0.
 @export var ai_count: int = 0
+## Default difficulty for every bot; slot_ai_difficulties overrides it per slot.
 @export var ai_difficulty: AiDifficulty = AiDifficulty.NORMAL
 @export var team_mode: TeamMode = TeamMode.OFF
+## Lobby rework (Bontago-1pi.53, docs/LOBBY_REWORK_PLAN.md section 3). Per-seat
+## team picks live in the lobby seat table; at Start the host resolves them
+## (core/rules/TeamAssigner.gd) and writes the result here. All three arrays are
+## OPTIONAL and empty by default, which is exactly the legacy behaviour (teams
+## interleave by slot, one bot difficulty), so an old saved lobby, a dict from
+## another build, `--bots=N` and the sandbox all keep working untouched.
+## DECISION (config/MatchConfig.gd): `team_mode` stays the on/off switch and the
+## pick cap (OFF, or 2/3/4 teams offered); the arrays are only honoured while it
+## is not OFF, and sanitize() drops them when they are not self-consistent, so a
+## bad wire value degrades to the legacy interleave instead of crashing a match.
+## Dense team id (0..team_numbers.size()-1) of each slot, host-resolved at Start;
+## one entry per slot (size == player_count) or empty.
+@export var slot_team_ids: PackedInt32Array = PackedInt32Array()
+## Lobby team number (1..TEAM_PICK_MAX, strictly ascending) of each dense team
+## id, so labels read "Team 3" as the lobby showed it. Empty = unresolved.
+@export var team_numbers: PackedInt32Array = PackedInt32Array()
+## Difficulty (AiDifficulty int) of the bot in each slot, indexed by slot id
+## (entries for human slots are ignored); empty or short = ai_difficulty.
+@export var slot_ai_difficulties: PackedInt32Array = PackedInt32Array()
 ## Block timer in seconds, 3-12.
 @export var block_timer: float = 5.0
 ## Bontago-1pi.18.1: snapshot of the host's QolExperiments (all OFF by default)
@@ -327,10 +354,14 @@ func team_mode_team_count(mode: TeamMode) -> int:
 
 
 ## How many teams this config has. TeamMode.OFF is free-for-all, which is
-## modelled as one team per player so the rest of the code never branches.
+## modelled as one team per player so the rest of the code never branches. With
+## host-resolved lobby teams (see teams_resolved()) it is how many distinct teams
+## the seats actually formed; ids are dense, so range(team_count()) stays valid.
 func team_count() -> int:
 	if team_mode == TeamMode.OFF:
 		return player_count
+	if teams_resolved():
+		return team_numbers.size()
 	return mini(team_mode_team_count(team_mode), player_count)
 
 
@@ -346,10 +377,77 @@ func team_count() -> int:
 ## 2.2). `mini(..., player_count)` in team_count() guards the degenerate case
 ## (TEAMS_4 with player_count == 2: team_count() returns 2, not 4, so no team
 ## is ever empty).
+##
+## Lobby rework (Bontago-1pi.53): once the host has resolved the lobby team picks
+## (slot_team_ids) a slot the array covers uses its resolved id; the interleave
+## stays the fallback for everything else, so a lobby with no picks, an old
+## config and `--bots=N` behave exactly as before.
 func team_of_slot(slot_id: int) -> int:
 	if team_mode == TeamMode.OFF:
 		return slot_id
+	if teams_resolved() and slot_id >= 0 and slot_id < slot_team_ids.size():
+		return slot_team_ids[slot_id]
 	return posmod(slot_id, team_count())
+
+
+## True when teams are on (any TeamMode but OFF).
+func teams_enabled() -> bool:
+	return team_mode != TeamMode.OFF
+
+
+## True when the host has resolved the lobby team picks into slot_team_ids /
+## team_numbers (teams on and both arrays present). False means "legacy
+## interleave".
+func teams_resolved() -> bool:
+	return team_mode != TeamMode.OFF and not slot_team_ids.is_empty() and not team_numbers.is_empty()
+
+
+## The highest explicit team number a seat may pick: 0 while teams are off, else
+## the team count the mode offers (2/3/4). The lobby's team button cycles
+## 1..team_pick_cap() then Random (TeamAssigner.next_pick()).
+func team_pick_cap() -> int:
+	if team_mode == TeamMode.OFF:
+		return 0
+	return team_mode_team_count(team_mode)
+
+
+## Lobby number (1-based) of the dense team `team_id`, for labels: the number the
+## team had in the lobby when resolved, else team_id + 1 (the legacy label).
+func team_number_for(team_id: int) -> int:
+	if teams_resolved() and team_id >= 0 and team_id < team_numbers.size():
+		return team_numbers[team_id]
+	return team_id + 1
+
+
+## Difficulty of the bot in `slot_id`: its slot_ai_difficulties entry when the
+## array covers the slot, else the lobby-wide ai_difficulty.
+func ai_difficulty_for_slot(slot_id: int) -> AiDifficulty:
+	if slot_id >= 0 and slot_id < slot_ai_difficulties.size():
+		return clampi(slot_ai_difficulties[slot_id], AiDifficulty.EASY, AiDifficulty.HARD) as AiDifficulty
+	return clampi(ai_difficulty, AiDifficulty.EASY, AiDifficulty.HARD) as AiDifficulty
+
+
+## Colour of each TEAM, indexed by team id, for the territory overlay and minimap.
+## Legacy and FFA (OFF or unresolved) return player_colors untouched: there team id
+## t is slot t (slot_id % count == t for t < count), so player_colors[t] is already
+## the right colour. With resolved teams a team shows the colour of its lowest
+## slot; per-player colours (block tints, flags) stay independent of this.
+## DECISION (plan D4, config/MatchConfig.gd): lowest slot, not an extra palette
+## pick, so a team's colour is always one its members actually own.
+func territory_colors() -> PackedColorArray:
+	if not teams_resolved():
+		return player_colors
+	var fallback: PackedColorArray = default_player_colors()
+	var colors: PackedColorArray = PackedColorArray()
+	for team_id: int in range(team_numbers.size()):
+		var lowest_slot: int = slot_team_ids.find(team_id)
+		if lowest_slot < 0:
+			lowest_slot = team_id
+		if lowest_slot < player_colors.size():
+			colors.append(player_colors[lowest_slot])
+		else:
+			colors.append(fallback[lowest_slot % fallback.size()])
+	return colors
 
 
 ## Bontago-mv0.7: networked play only has as many real players as connected
@@ -412,6 +510,44 @@ func sanitize() -> void:
 		for i: int in range(padded.size(), PLAYER_COUNT_MAX):
 			padded.append(defaults[i])
 		player_colors = padded
+	_sanitize_team_data()
+
+
+## Lobby rework arrays (see slot_team_ids). slot_ai_difficulties is clamped per
+## entry (an oversized array is dropped: it falls back to ai_difficulty). The two
+## team arrays are all-or-nothing: they survive only while teams are on and they
+## agree (one id per slot, ids dense 0..n-1 each used, numbers strictly ascending
+## within 1..team_pick_cap()); otherwise both are cleared and the legacy interleave
+## applies. Runs last in sanitize(), after team_mode and player_count are clamped.
+func _sanitize_team_data() -> void:
+	if slot_ai_difficulties.size() > PLAYER_COUNT_MAX:
+		slot_ai_difficulties = PackedInt32Array()
+	for i: int in range(slot_ai_difficulties.size()):
+		slot_ai_difficulties[i] = clampi(slot_ai_difficulties[i], AiDifficulty.EASY, AiDifficulty.HARD)
+	if not _team_data_is_consistent():
+		slot_team_ids = PackedInt32Array()
+		team_numbers = PackedInt32Array()
+
+
+func _team_data_is_consistent() -> bool:
+	if slot_team_ids.is_empty() and team_numbers.is_empty():
+		return true
+	if team_mode == TeamMode.OFF or slot_team_ids.is_empty() or team_numbers.is_empty():
+		return false
+	if slot_team_ids.size() != player_count or team_numbers.size() > team_pick_cap():
+		return false
+	var previous_number: int = TEAM_PICK_RANDOM
+	for number: int in team_numbers:
+		if number <= previous_number or number > team_pick_cap():
+			return false
+		previous_number = number
+	var used: PackedInt32Array = PackedInt32Array()
+	used.resize(team_numbers.size())
+	for team_id: int in slot_team_ids:
+		if team_id < 0 or team_id >= team_numbers.size():
+			return false
+		used[team_id] += 1
+	return not used.has(0)
 
 
 ## Host only, at match start: turns sky_theme_mode into a concrete theme id.
@@ -493,6 +629,13 @@ func to_dict() -> Dictionary:
 		"player_colors": player_colors.duplicate(),
 		"rng_seed": rng_seed,
 	}
+	# Lobby rework arrays ride only when set, so a legacy config's dict is unchanged.
+	if not slot_team_ids.is_empty():
+		data["slot_team_ids"] = slot_team_ids.duplicate()
+	if not team_numbers.is_empty():
+		data["team_numbers"] = team_numbers.duplicate()
+	if not slot_ai_difficulties.is_empty():
+		data["slot_ai_difficulties"] = slot_ai_difficulties.duplicate()
 	if qol != null:
 		data["qol"] = qol.to_dict()
 	return data
@@ -544,9 +687,31 @@ static func from_dict(data: Dictionary) -> MatchConfig:
 	if data.has("player_colors"):
 		config.player_colors = PackedColorArray(data["player_colors"])
 	config.rng_seed = int(data.get("rng_seed", config.rng_seed))
+	config.slot_team_ids = _int_array_from(data.get("slot_team_ids"))
+	config.team_numbers = _int_array_from(data.get("team_numbers"))
+	config.slot_ai_difficulties = _int_array_from(data.get("slot_ai_difficulties"))
 	if data.get("qol") is Dictionary:
 		config.qol = QolExperiments.from_dict(data["qol"] as Dictionary)
 	return config
+
+
+## A PackedInt32Array from whatever the wire delivered: a PackedInt32Array/
+## PackedInt64Array (RPC) or an Array of numbers (JSON through the Steam lobby
+## tee, where ints come back as floats). Missing, mistyped, non-numeric or longer
+## than PLAYER_COUNT_MAX gives an empty array, i.e. the legacy behaviour; this
+## never errors on foreign data.
+static func _int_array_from(value: Variant) -> PackedInt32Array:
+	var parsed: PackedInt32Array = PackedInt32Array()
+	if not (value is Array or value is PackedInt32Array or value is PackedInt64Array):
+		return parsed
+	var items: Array = Array(value)
+	if items.size() > PLAYER_COUNT_MAX:
+		return parsed
+	for item: Variant in items:
+		if not (item is int or item is float):
+			return PackedInt32Array()
+		parsed.append(int(item))
+	return parsed
 
 
 ## Bontago-mp0.27. # DECISION: sandbox (and the tutorial, which is a sandbox
