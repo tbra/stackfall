@@ -39,6 +39,23 @@ signal sandbox_requested
 signal tutorial_requested
 signal bots_requested(player_name: String)
 
+## Bontago-1pi.34: the Debug page's two demo buttons ask game/Main.gd to open a
+## demo scene (same direct child-signal convention as the signals above).
+## Only ever emitted while debug mode is on: the entry is not even visible
+## otherwise.
+signal debug_scene_requested(scene_path: String)
+
+## Bontago-1pi.34: the two dev demo scenes the Debug page opens. The visual
+## demo is the baked res://visual_demo/VisualDemo.tscn (tools/bake_visual_demo.
+## gd; the folder is gitignored, so it may not exist on a given checkout --
+## game/Main.gd reports that on the status line instead of failing); the gift
+## demo is tools/gift_demo.tscn (excluded from exports, so these are plain
+## paths here, never preloads).
+const VISUAL_DEMO_SCENE: String = "res://visual_demo/VisualDemo.tscn"
+const GIFT_DEMO_SCENE: String = "res://tools/gift_demo.tscn"
+## Tagline shown on the Debug page in place of the wordmark's own tagline.
+const DEBUG_TAGLINE: String = "DEBUG · DEMO SCENES"
+
 ## docs/M6_PLAN.md package C2: OptionsMenu.tscn is instanced/freed directly by
 ## this menu (ui/OptionsMenu.gd's own header: "self-contained ... MainMenu
 ## instances this scene directly"), not routed through game/Main.gd -- the
@@ -53,12 +70,19 @@ const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
 ## the styling below is a magic number (CLAUDE.md "No magic numbers").
 @export var tuning: MenuVisualTuning = preload("res://config/menu_visual_tuning.tres")
 
+@onready var _name_row: HBoxContainer = $Center/Panel/Layout/NameRow
 @onready var _name_edit: LineEdit = %NameEdit
 @onready var _host_button: Button = %HostButton
 @onready var _join_button: Button = %JoinButton
 @onready var _play_local_button: Button = %PlayLocalButton
 @onready var _bots_button: Button = %BotsButton
 @onready var _back_button: Button = %BackButton
+## Bontago-1pi.34: the debug-only entry. A corner overlay on the menu root (not
+## a child of the card's containers), so showing or hiding it can never move
+## any other control; %VisualDemoButton/%GiftDemoButton live on the Debug page.
+@onready var _debug_button: Button = %DebugButton
+@onready var _visual_demo_button: Button = %VisualDemoButton
+@onready var _gift_demo_button: Button = %GiftDemoButton
 @onready var _host_row: HBoxContainer = $Center/Panel/Layout/HostRow
 @onready var _join_tab_row: HBoxContainer = %JoinTabRow
 @onready var _join_lan_tab_button: Button = %JoinLanTabButton
@@ -141,7 +165,15 @@ var _steam_refresh_countdown_s: float = 0.0
 const PAGE_HOME: int = 0
 const PAGE_JOIN: int = 1
 const PAGE_LOCAL: int = 2
+const PAGE_DEBUG: int = 3
 var _page: int = PAGE_HOME
+## DECISION (Bontago-1pi.34): "debug mode" is the project's single switch,
+## DebugMode.is_enabled() (game/DebugMode.gd: F1-F4 overlays, sandbox hotkeys),
+## not a bare OS.is_debug_build(): the owner's `godot --path .` runs are debug
+## runs automatically, `-- --no-debug` previews the player build, and an
+## exported build never shows the entry. Read once per menu instance.
+var _debug_entry_enabled: bool = false
+var _home_tagline: String = ""
 var _regular_card_style: StyleBoxFlat
 var _join_card_style: StyleBoxFlat
 var _join_steam_tab: bool = false
@@ -158,12 +190,17 @@ var _options_menu: OptionsMenu = null
 
 func _ready() -> void:
 	net_provider = Net
+	_debug_entry_enabled = DebugMode.is_enabled()
+	_home_tagline = _tagline.text
 	_host_button.pressed.connect(_on_host_pressed)
 	_join_button.pressed.connect(_on_join_pressed)
 	_join_lan_tab_button.pressed.connect(_on_join_lan_tab_pressed)
 	_join_steam_tab_button.pressed.connect(_on_join_steam_tab_pressed)
 	_play_local_button.pressed.connect(_on_play_local_pressed)
 	_bots_button.pressed.connect(_on_bots_pressed)
+	_debug_button.pressed.connect(_on_debug_pressed)
+	_visual_demo_button.pressed.connect(_on_visual_demo_pressed)
+	_gift_demo_button.pressed.connect(_on_gift_demo_pressed)
 	_back_button.pressed.connect(_on_back_pressed)
 	_sandbox_button.pressed.connect(_on_sandbox_pressed)
 	_tutorial_button.pressed.connect(_on_tutorial_pressed)
@@ -225,7 +262,8 @@ func _connect_click_and_hover_sounds() -> void:
 	var buttons: Array[BaseButton] = [
 		_host_button, _join_button, _join_lan_tab_button, _join_steam_tab_button, _play_local_button, _sandbox_button, _tutorial_button,
 		_bots_button, _back_button, _options_button, _quit_button, _refresh_button,
-		_direct_join_button, _refresh_steam_button,
+		_direct_join_button, _refresh_steam_button, _debug_button, _visual_demo_button,
+		_gift_demo_button,
 	]
 	for button: BaseButton in buttons:
 		button.pressed.connect(_on_sound_button_pressed)
@@ -312,6 +350,15 @@ func _apply_visual_style() -> void:
 	MenuStyleFactory.apply_pill(_tutorial_button, tuning.pill_powder_blue_color, tuning.pill_powder_blue_hover_color, tuning.ink_color, tuning)
 	MenuStyleFactory.apply_pill(_options_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
 	MenuStyleFactory.apply_pill(_quit_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
+	# Bontago-1pi.34: dev-only pills reuse the existing palette (dark slate for
+	# the corner entry so it reads as a tool, not a game mode); no icons, so
+	# they stay clear of the shared icon-colour overrides below.
+	MenuStyleFactory.apply_pill(_debug_button, tuning.pill_dark_slate_color, tuning.pill_dark_slate_hover_color, tuning.label_ink_light_color, tuning)
+	MenuStyleFactory.apply_pill(_visual_demo_button, tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning)
+	MenuStyleFactory.apply_pill(_gift_demo_button, tuning.pill_powder_blue_color, tuning.pill_powder_blue_hover_color, tuning.ink_color, tuning)
+	_debug_button.add_theme_color_override("font_focus_color", tuning.label_ink_light_color)
+	_visual_demo_button.add_theme_color_override("font_focus_color", tuning.ink_color)
+	_gift_demo_button.add_theme_color_override("font_focus_color", tuning.ink_color)
 	# SVG icons import at a large intrinsic size. Let Join controls scale the
 	# icon into a tuned row height so the full page fits the visible canvas.
 	for button: Button in [_join_lan_tab_button, _join_steam_tab_button,
@@ -410,18 +457,57 @@ func _on_play_local_pressed() -> void:
 	_set_page(PAGE_LOCAL)
 
 
+func _on_debug_pressed() -> void:
+	if _debug_entry_enabled:
+		_set_page(PAGE_DEBUG)
+
+
+func _on_visual_demo_pressed() -> void:
+	if _debug_entry_enabled:
+		debug_scene_requested.emit(VISUAL_DEMO_SCENE)
+
+
+func _on_gift_demo_pressed() -> void:
+	if _debug_entry_enabled:
+		debug_scene_requested.emit(GIFT_DEMO_SCENE)
+
+
+## Back (button, Esc or gamepad B) returns to the home page with focus on the
+## button that opened the page just left, so the controller never loses its
+## place.
 func _on_back_pressed() -> void:
-	_set_page(PAGE_HOME)
+	var opener: Control = _host_button
+	match _page:
+		PAGE_JOIN:
+			opener = _join_button
+		PAGE_LOCAL:
+			opener = _play_local_button
+		PAGE_DEBUG:
+			opener = _debug_button
+	_set_page(PAGE_HOME, opener)
 
 
 func _on_bots_pressed() -> void:
 	bots_requested.emit(_player_name())
 
 
+## Bontago-1pi.34 seam: shows/hides the debug entry on a live menu (the answer
+## is otherwise read once from DebugMode.is_enabled() in _ready()). Turning it
+## off while the Debug page is open returns to the home page.
+func set_debug_entry_enabled(enabled: bool) -> void:
+	_debug_entry_enabled = enabled
+	_set_page(PAGE_HOME if _page == PAGE_DEBUG and not enabled else _page)
+
+
 ## The existing discovery controls remain on a dedicated Join page. The local
 ## choices stay together on Play local; the front page is a short navigation
 ## screen that also fits smaller viewports.
-func _set_page(page: int) -> void:
+##
+## Bontago-1pi.34/36: the name field only belongs to the pages that host or
+## join (Home, Join) -- Play local and Debug hide it, so Vs bots (the first
+## Play local option) is what takes focus there. The debug corner pill is an
+## overlay outside every container, so toggling it moves nothing else.
+func _set_page(page: int, focus_target: Control = null) -> void:
 	_page = page
 	var join_page: bool = page == PAGE_JOIN
 	_front_card.add_theme_stylebox_override("panel", _join_card_style if join_page else _regular_card_style)
@@ -430,63 +516,191 @@ func _set_page(page: int) -> void:
 	_steam_list_stack.custom_minimum_size.y = tuning.menu_compact_list_height_px if join_page else tuning.menu_steam_list_height_px
 	_title_wrap.visible = not join_page
 	_tagline.visible = not join_page
+	_tagline.text = DEBUG_TAGLINE if page == PAGE_DEBUG else _home_tagline
+	_name_row.visible = page == PAGE_HOME or join_page
+	_name_edit.visible = page == PAGE_HOME or join_page
 	_host_row.visible = page == PAGE_HOME
 	_host_online_button.hide()
 	_join_tab_row.visible = page == PAGE_JOIN
-	_join_steam_tab_button.disabled = not bool(net_provider.steam_available())
-	_steam_section.visible = page == PAGE_JOIN and _join_steam_tab and bool(net_provider.steam_available())
+	_join_steam_tab_button.disabled = not _steam_available()
+	_steam_section.visible = page == PAGE_JOIN and _join_steam_tab and _steam_available()
 	_lan_games_well.visible = page == PAGE_JOIN and not _join_steam_tab
 	_refresh_layout()
 	_play_local_button.visible = page == PAGE_HOME
 	_options_button.visible = page == PAGE_HOME
 	_quit_button.visible = page == PAGE_HOME
+	_bots_button.visible = page == PAGE_LOCAL
 	_sandbox_button.visible = page == PAGE_LOCAL
 	_tutorial_button.visible = page == PAGE_LOCAL
-	_bots_button.visible = page == PAGE_LOCAL
+	_visual_demo_button.visible = page == PAGE_DEBUG
+	_gift_demo_button.visible = page == PAGE_DEBUG
 	_back_button.visible = page != PAGE_HOME
-	var controls: Array[Control] = [_name_edit]
-	if page == PAGE_HOME:
-		controls.append_array([_host_button, _join_button, _play_local_button, _options_button, _quit_button])
-	elif page == PAGE_LOCAL:
-		controls.append_array([_sandbox_button, _tutorial_button, _bots_button, _back_button])
+	_debug_button.visible = _debug_entry_enabled and page == PAGE_HOME
+	_wire_focus()
+	var target: Control = focus_target if focus_target != null else _default_focus(page)
+	if target.focus_mode != Control.FOCUS_NONE:
+		target.grab_focus()
+
+
+## The control that takes focus when a page opens (its first/primary action).
+func _default_focus(page: int) -> Control:
+	match page:
+		PAGE_JOIN:
+			return _join_lan_tab_button
+		PAGE_LOCAL:
+			return _bots_button
+		PAGE_DEBUG:
+			return _visual_demo_button
+	return _host_button
+
+
+func _steam_available() -> bool:
+	return net_provider != null and bool(net_provider.steam_available())
+
+
+# --- Controller / keyboard focus ----------------------------------------------
+#
+# Bontago-1pi.38/39: every neighbour is wired here, per page, from the controls
+# that are actually usable right now. The scene file carries no focus_neighbor_*
+# paths any more (the stale ones pointed at controls that are hidden on the
+# page in question, and Godot then hops through them to nowhere -- Tutorial's
+# "right" went to the hidden Options button). Controls that can do nothing
+# (a disabled Steam button, an empty list) are made FOCUS_NONE and left out of
+# the chain, so the pad can no longer land on a control that does nothing.
+
+## Every control this menu wires, so a page change can clear stale neighbours.
+func _wired_controls() -> Array[Control]:
+	return [
+		_name_edit, _host_button, _join_button, _play_local_button, _options_button, _quit_button,
+		_debug_button, _bots_button, _sandbox_button, _tutorial_button, _visual_demo_button,
+		_gift_demo_button, _back_button, _join_lan_tab_button, _join_steam_tab_button,
+		_refresh_button, _game_list, _direct_ip_edit, _direct_join_button, _refresh_steam_button,
+		_steam_lobby_list,
+	]
+
+
+func _wire_focus() -> void:
+	_sync_focus_modes()
+	var sides: Array[Side] = [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]
+	for control: Control in _wired_controls():
+		for side: Side in sides:
+			control.set_focus_neighbor(side, NodePath())
+	match _page:
+		PAGE_HOME:
+			_wire_home_grid_focus()
+		PAGE_LOCAL:
+			_wire_cycle_row([_bots_button, _sandbox_button, _tutorial_button, _back_button])
+		PAGE_DEBUG:
+			_wire_cycle_row([_visual_demo_button, _gift_demo_button, _back_button])
+		_:
+			_wire_join_focus()
+
+
+## Disabled Steam buttons and empty lists cannot do anything, so they must not
+## take focus. A control that loses focus this way hands it to its fallback.
+func _sync_focus_modes() -> void:
+	var steam_ready: bool = _steam_available()
+	_set_focusable(_join_steam_tab_button, steam_ready, _join_lan_tab_button)
+	if _host_steam_choice != null:
+		_set_focusable(_host_steam_choice, steam_ready, null)
+	_set_focusable(_game_list, _game_list.item_count > 0, _refresh_button)
+	_set_focusable(_steam_lobby_list, _steam_lobby_list.item_count > 0, _refresh_steam_button)
+
+
+func _set_focusable(control: Control, focusable: bool, fallback: Control) -> void:
+	var wanted: Control.FocusMode = Control.FOCUS_ALL if focusable else Control.FOCUS_NONE
+	if control.focus_mode == wanted:
+		return
+	var had_focus: bool = control.has_focus()
+	control.focus_mode = wanted
+	if had_focus and not focusable and fallback != null and fallback.is_visible_in_tree():
+		fallback.grab_focus()
+
+
+func _link(from: Control, side: Side, to: Control) -> void:
+	from.set_focus_neighbor(side, from.get_path_to(to))
+
+
+## One row of buttons where left/right and up/down both step through the row
+## and wrap, so every direction reaches every option (Play local, Debug).
+func _wire_cycle_row(row: Array[Control]) -> void:
+	var count: int = row.size()
+	for index: int in range(count):
+		var control: Control = row[index]
+		_link(control, SIDE_LEFT, row[(index - 1 + count) % count])
+		_link(control, SIDE_RIGHT, row[(index + 1) % count])
+		_link(control, SIDE_TOP, row[(index - 1 + count) % count])
+		_link(control, SIDE_BOTTOM, row[(index + 1) % count])
+
+
+## Rows drawn top to bottom: left/right clamp inside a row, up/down wrap around
+## the page and keep the column where the next row is that wide.
+func _wire_grid(rows: Array[Array]) -> void:
+	var row_count: int = rows.size()
+	for row_index: int in range(row_count):
+		var row: Array = rows[row_index]
+		var above: Array = rows[(row_index - 1 + row_count) % row_count]
+		var below: Array = rows[(row_index + 1) % row_count]
+		for column: int in range(row.size()):
+			var control: Control = row[column] as Control
+			_link(control, SIDE_LEFT, row[maxi(column - 1, 0)] as Control)
+			_link(control, SIDE_RIGHT, row[mini(column + 1, row.size() - 1)] as Control)
+			_link(control, SIDE_TOP, above[mini(column, above.size() - 1)] as Control)
+			_link(control, SIDE_BOTTOM, below[mini(column, below.size() - 1)] as Control)
+
+
+func _wire_join_focus() -> void:
+	var tabs: Array[Control] = [_join_lan_tab_button]
+	if _join_steam_tab_button.focus_mode != Control.FOCUS_NONE:
+		tabs.append(_join_steam_tab_button)
+	var rows: Array[Array] = [[_name_edit], tabs]
+	if _steam_section.visible:
+		rows.append([_refresh_steam_button])
+		if _steam_lobby_list.focus_mode != Control.FOCUS_NONE:
+			rows.append([_steam_lobby_list])
 	else:
-		controls.append_array([_join_lan_tab_button, _join_steam_tab_button])
-		if _steam_section.visible:
-			controls.append_array([_refresh_steam_button, _steam_lobby_list])
-		else:
-			controls.append_array([_refresh_button, _game_list, _direct_ip_edit, _direct_join_button])
-		controls.append(_back_button)
-	for i: int in range(controls.size()):
-		controls[i].focus_neighbor_top = controls[i].get_path_to(controls[(i - 1 + controls.size()) % controls.size()])
-		controls[i].focus_neighbor_bottom = controls[i].get_path_to(controls[(i + 1) % controls.size()])
-	if page == PAGE_HOME:
-		_wire_home_grid_focus()
-	controls[1].grab_focus()
+		rows.append([_refresh_button])
+		if _game_list.focus_mode != Control.FOCUS_NONE:
+			rows.append([_game_list])
+		rows.append([_direct_ip_edit, _direct_join_button])
+	rows.append([_back_button])
+	_wire_grid(rows)
 
 
 ## Bontago-1pi.23: the home page is a 2-column grid (Host | Join over Play
 ## local | Options | Quit), so up/down/left/right follow what is drawn instead
-## of stepping sideways through a single linear chain.
+## of stepping sideways through a single linear chain. With the debug entry on,
+## its corner pill sits between the bottom row and the name field in the
+## up/down wrap (it is drawn at the bottom-left of the screen).
 func _wire_home_grid_focus() -> void:
 	var top_row: Array[Control] = [_host_button, _join_button]
 	var bottom_row: Array[Control] = [_play_local_button, _options_button, _quit_button]
+	var below_bottom_row: Control = _debug_button if _debug_entry_enabled else _name_edit
+	var above_name: Control = _debug_button if _debug_entry_enabled else _play_local_button
 	for control: Control in top_row:
-		control.focus_neighbor_top = control.get_path_to(_name_edit)
+		_link(control, SIDE_TOP, _name_edit)
 	for index: int in range(bottom_row.size()):
 		var control: Control = bottom_row[index]
 		var above: Control = top_row[mini(index * top_row.size() / bottom_row.size(), top_row.size() - 1)]
-		control.focus_neighbor_top = control.get_path_to(above)
-		control.focus_neighbor_bottom = control.get_path_to(_name_edit)
-		control.focus_neighbor_left = control.get_path_to(bottom_row[maxi(index - 1, 0)])
-		control.focus_neighbor_right = control.get_path_to(bottom_row[mini(index + 1, bottom_row.size() - 1)])
-	_host_button.focus_neighbor_bottom = _host_button.get_path_to(_play_local_button)
-	_join_button.focus_neighbor_bottom = _join_button.get_path_to(_options_button)
-	_host_button.focus_neighbor_left = _host_button.get_path_to(_host_button)
-	_host_button.focus_neighbor_right = _host_button.get_path_to(_join_button)
-	_join_button.focus_neighbor_left = _join_button.get_path_to(_host_button)
-	_join_button.focus_neighbor_right = _join_button.get_path_to(_join_button)
-	_name_edit.focus_neighbor_top = _name_edit.get_path_to(_play_local_button)
-	_name_edit.focus_neighbor_bottom = _name_edit.get_path_to(_host_button)
+		_link(control, SIDE_TOP, above)
+		_link(control, SIDE_BOTTOM, below_bottom_row)
+		_link(control, SIDE_LEFT, bottom_row[maxi(index - 1, 0)])
+		_link(control, SIDE_RIGHT, bottom_row[mini(index + 1, bottom_row.size() - 1)])
+	_link(_host_button, SIDE_BOTTOM, _play_local_button)
+	_link(_join_button, SIDE_BOTTOM, _options_button)
+	_link(_host_button, SIDE_LEFT, _host_button)
+	_link(_host_button, SIDE_RIGHT, _join_button)
+	_link(_join_button, SIDE_LEFT, _host_button)
+	_link(_join_button, SIDE_RIGHT, _join_button)
+	_link(_name_edit, SIDE_TOP, above_name)
+	_link(_name_edit, SIDE_BOTTOM, _host_button)
+	_link(_name_edit, SIDE_LEFT, _name_edit)
+	_link(_name_edit, SIDE_RIGHT, _name_edit)
+	if _debug_entry_enabled:
+		_link(_debug_button, SIDE_TOP, _play_local_button)
+		_link(_debug_button, SIDE_BOTTOM, _name_edit)
+		_link(_debug_button, SIDE_LEFT, _debug_button)
+		_link(_debug_button, SIDE_RIGHT, _debug_button)
 
 
 ## Compact Join keeps its controls on screen at a small window size without
@@ -620,6 +834,8 @@ func _rebuild_game_list() -> void:
 	# well instead of a blank white box while LAN discovery has found nothing
 	# yet.
 	_empty_state_label.visible = _games.is_empty()
+	# Bontago-1pi.38: an empty list does nothing, so it leaves the focus chain.
+	_wire_focus()
 
 
 func _rebuild_steam_lobby_list() -> void:
@@ -635,6 +851,7 @@ func _rebuild_steam_lobby_list() -> void:
 	# Bontago-mp0.3.7: "No lobbies yet" inside the well instead of a blank
 	# white box, the same _rebuild_game_list() fix for %GameList.
 	_steam_empty_state_label.visible = _steam_lobbies.is_empty()
+	_wire_focus()
 
 
 ## Toggles the Steam section vs. a disabled Host Online pill (spec 3.4: "Hide
@@ -657,6 +874,7 @@ func _apply_steam_availability() -> void:
 	if _host_steam_choice != null:
 		_host_steam_choice.disabled = not available
 		_host_steam_choice.tooltip_text = "" if available else "Steam is unavailable; host locally instead."
+	_wire_focus()
 	if available:
 		net_provider.refresh_lobby_list()
 		_steam_refresh_countdown_s = float(net_provider.config.steam_lobby_list_refresh_s)

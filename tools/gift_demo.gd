@@ -35,6 +35,12 @@ func _ready() -> void:
 	match_settings.special_frequency = 0 # Demo selects gifts; no random crates.
 	_main.set("match_config", match_settings)
 	add_child(_main)
+	# Bontago-1pi.34: the sandbox's pause menu "Leave match" goes back to the
+	# real main menu scene (Main's own handler would only show a nested menu
+	# under this demo's panel). Esc is that pause menu here.
+	var pause: PauseMenu = _main.get("_pause_menu") as PauseMenu
+	if pause != null:
+		pause.leave_match_requested.connect(_on_leave_requested)
 	_main.call("start_sandbox_from_menu")
 	_sandbox = _main.get("_sandbox") as Sandbox
 	_field = _main.get("_field") as Field
@@ -42,6 +48,10 @@ func _ready() -> void:
 	_sandbox.ghost().visible = false
 	Events.feed_block_issued.connect(_on_feed_block_issued)
 	_start_population()
+
+
+func _on_leave_requested() -> void:
+	DemoReturn.return_to_menu(get_tree())
 
 
 func _build_panel() -> void:
