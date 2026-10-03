@@ -37,6 +37,7 @@ def main():
         if len(issues) > limit:
             print(f"  ... {len(issues) - limit} more; query a specific bead if needed")
     epic_hygiene()
+    parent_hygiene(limit)
     # Owner 2026-10-01: surface new owner replies on Beads at every board scan.
     import owner_replies
     owner_replies.main([])
@@ -69,6 +70,42 @@ def epic_hygiene():
         print("EPIC HYGIENE (fix before new work):")
         for line in problems:
             print("  " + line)
+
+
+def parent_hygiene(limit):
+    """Non-epic issues with open/in_progress status where all children are closed
+    should either be closed or have remaining work filed as a separate child issue."""
+    import owner_replies
+    rows = owner_replies._export()
+    # Build a map: parent_id -> (open_child_count, total_child_count)
+    parent_info = {}
+    for row in rows:
+        for dep in row.get("dependencies") or []:
+            if (dep.get("type") or dep.get("dependency_type")) == "parent-child":
+                parent = dep.get("depends_on_id")
+                if parent not in parent_info:
+                    parent_info[parent] = [0, 0]
+                parent_info[parent][1] += 1  # increment total children count
+                if row.get("status") != "closed":
+                    parent_info[parent][0] += 1  # increment open children count
+    # Find non-epic, open/in_progress issues with children, all of which are closed
+    problems = []
+    for row in rows:
+        row_id = row["id"]
+        if row.get("issue_type") == "epic" or row.get("status") == "closed":
+            continue
+        if row.get("status") not in ("open", "in_progress"):
+            continue
+        if row_id not in parent_info:
+            continue
+        open_count, total_count = parent_info[row_id]
+        if total_count > 0 and open_count == 0:
+            problems.append((row_id, row.get("status", "?"), total_count))
+    if not problems:
+        return
+    print(f"parent hygiene: {len(problems)}")
+    for row_id, status, child_count in problems[:limit]:
+        print(f"  {row_id} {status} all {child_count} children closed - close or file remaining work")
 
 
 if __name__ == "__main__":

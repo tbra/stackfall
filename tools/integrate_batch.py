@@ -6,14 +6,15 @@ Steps (each step's full output goes to <log-dir>/NN_name.log; stdout stays compa
   1 worktree  temp integration worktree + branch from local main (origin/main must be an ancestor)
   2 merge     git merge --no-ff each branch; on conflict stop and list conflicting files
   3 import    godot --headless --editor --path <wt> --quit (bounded error/warning lines)
-  4 gate      --game-code (default): tools/full_gate.py --path <wt>; ONLY a `FULL GATE GREEN`
+  4 check-only (always): godot --check-only -s for each added/modified tools/*.gd (120s timeout)
+  5 gate      --game-code (default): tools/full_gate.py --path <wt>; ONLY a `FULL GATE GREEN`
               line passes (missing verdict line = RED)
-  5 ff        fast-forward the main checkout (refuses on dirty touched files or a moved main)
-  6 push      git push origin main (separate step), git fetch, verify HEAD == origin/main
-  7 close     bd close for each bead, only after remote verification (--force-close adds
+  6 ff        fast-forward the main checkout (refuses on dirty touched files or a moved main)
+  7 push      git push origin main (separate step), git fetch, verify HEAD == origin/main
+  8 close     bd close for each bead, only after remote verification (--force-close adds
               --force for reviewed handoffs whose claim another agent such as codex holds)
-  8 postimport  godot import check in the main checkout
-The temp worktree and branch are removed on every success (incl. --no-push) and kept on failure. --dry-run stops after step 4 (no ff/push/close),
+  9 postimport  godot import check in the main checkout
+The temp worktree and branch are removed on every success (incl. --no-push) and kept on failure. --dry-run stops after step 5 (no ff/push/close),
 then removes the temp worktree and branch. Exit 0 = success, 1 = failed step (named).
 """
 
@@ -140,6 +141,37 @@ def import_check(ctx, name, path):
     return code, issue_lines(text), log
 
 
+def check_tools_scripts(ctx, base, wt):
+    """Check all added/modified tools/*.gd scripts with godot --check-only.
+    Returns (code, errors_list, num_files, log_path). code=0 is success, any other code or SCRIPT ERROR/Parse Error is failure."""
+    # Get list of added/modified tools/*.gd files
+    code, text, _ = git(ctx, "diff_tools", wt, "diff", "--name-only", "--diff-filter=AM", base + "..HEAD", "--", "tools/*.gd")
+    if code != 0:
+        return code, ["git diff failed"], 0, _
+    files = [f.strip() for f in text.split('\n') if f.strip()]
+    if not files:
+        return 0, [], 0, ctx.log_path("check_tools_empty")
+
+    all_errors = []
+    path = ctx.log_path("check_tools")
+    with open(path, "w", encoding="utf-8") as log_fh:
+        log_fh.write(f"$ godot --check-only -s for {len(files)} files\n")
+        for file in files:
+            res_path = "res://" + file
+            cmd = [godot_exe(), "--headless", "--path", wt, "--check-only", "-s", res_path]
+            code, text, _ = run_cmd(ctx, "check_" + file.replace("/", "_").replace(".", "_"), cmd, wt, 120)
+            log_fh.write(f"\n{res_path}:\n{text}\n")
+            if code != 0:
+                all_errors.append(f"{file}: exit {code}")
+            if "SCRIPT ERROR" in text or "Parse Error" in text:
+                # Extract the first error line
+                for line in text.split('\n'):
+                    if "SCRIPT ERROR" in line or "Parse Error" in line:
+                        all_errors.append(f"{file}: {line.strip()[:200]}")
+                        break
+    return 1 if all_errors else 0, all_errors, len(files), path
+
+
 def integrate(args, ctx, say, res):
     repo = args.repo
     # 1 worktree
@@ -179,7 +211,15 @@ def integrate(args, ctx, say, res):
             say("  import: " + l)
         raise StepFailed("import", "exit %d, %d error/warning line(s); log %s" % (code, len(issues), log))
     say("import    ok   no errors/warnings")
-    # 4 gate
+    # 4 check-only (tools scripts; also for --no-game-code tooling batches)
+    code, errors, num_files, log = check_tools_scripts(ctx, base, wt)
+    if code != 0 or errors:
+        for e in errors[:MAX_ISSUE_LINES]:
+            say("  check-only: " + e)
+        raise StepFailed("check-only", "tools scripts have errors; log %s" % log)
+    if num_files > 0:
+        say("check-only ok   %d tools script(s) OK" % num_files)
+    # 5 gate
     verdict = "skipped"
     gate_output_path = None
     if args.game_code:
@@ -206,7 +246,7 @@ def integrate(args, ctx, say, res):
     if args.dry_run:
         say("dry-run   stop before ff/push/close")
         return
-    # 5 ff main
+    # 6 ff main
     if git_out(ctx, "rev_main2", repo, "rev-parse", "main") != base:
         raise StepFailed("ff", "main moved during integration")
     touched = set(git_out(ctx, "touched", repo, "diff", "--name-only", base, result).split())
@@ -222,7 +262,7 @@ def integrate(args, ctx, say, res):
     if code != 0:
         raise StepFailed("ff", "fast-forward failed: " + text.strip()[:200])
     say("ff        ok   main -> %s" % result[:9])
-    # 6 push (separate step), then verify the remote
+    # 7 push (separate step), then verify the remote
     if args.no_push:
         say("push      skip --no-push (beads not closed)")
         return
@@ -235,7 +275,7 @@ def integrate(args, ctx, say, res):
     if head != remote or head != result:
         raise StepFailed("push", "verify mismatch HEAD %s origin/main %s expected %s" % (head[:9], remote[:9], result[:9]))
     say("push      ok   origin/main == HEAD == %s" % head[:9])
-    # 7 close beads, only after remote verification
+    # 8 close beads, only after remote verification
     for bead in args.beads:
         reason = "%s pushed+verified; gate %s" % (head[:9], verdict)
         argv = close_args(repo, bead, reason, getattr(args, "force_close", False))
@@ -243,7 +283,7 @@ def integrate(args, ctx, say, res):
         if code != 0:
             raise StepFailed("close", "bd close %s failed; log %s" % (bead, log))
     say("close     ok   %s" % (", ".join(args.beads) or "(none)"))
-    # 8 post-pull import check in the main checkout
+    # 9 post-pull import check in the main checkout
     code, issues, log = import_check(ctx, "postimport", repo)
     for l in issues:
         say("  postimport: " + l)
