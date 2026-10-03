@@ -118,7 +118,10 @@ func test_event_map_covers_every_audio_config_key() -> void:
 const BUNDLED_CUE_EVENTS: Array[StringName] = [
 	AudioConfig.EVENT_THUD, AudioConfig.EVENT_REJECTED, AudioConfig.EVENT_CLICK,
 	AudioConfig.EVENT_START_GAME, AudioConfig.EVENT_HOVER, AudioConfig.EVENT_DROP,
-	AudioConfig.EVENT_BREAKAGE, AudioConfig.EVENT_GIFT_SPAWNED,
+	AudioConfig.EVENT_BOUNCE, AudioConfig.EVENT_CREAK, AudioConfig.EVENT_ROCKET,
+	AudioConfig.EVENT_BOMB, AudioConfig.EVENT_VOLCANO, AudioConfig.EVENT_QUAKE,
+	AudioConfig.EVENT_PROPELLER, AudioConfig.EVENT_BREAKAGE, AudioConfig.EVENT_GIFT_CLAIMED,
+	AudioConfig.EVENT_GIFT_SPAWNED,
 ]
 ## Sane window for a cue's default gain (cue baseline + master + sfx at 100%).
 const CUE_GAIN_MIN_DB: float = -12.0
