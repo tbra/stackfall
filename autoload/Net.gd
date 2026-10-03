@@ -875,12 +875,15 @@ func _on_steam_lobby_match_list(lobby_ids: Array) -> void:
 		})
 	_discovered_lobbies = result
 	Events.net_steam_lobbies_discovered.emit(result)
+	# Bontago-1pi.48: one line per search so a failed Steam join can be diagnosed from godot.log.
+	print("STEAM lobby search: %d lobbies returned, %d match game+version %s" % [lobby_ids.size(), result.size(), build_version()])
 
 
 ## The overlay's "Join Game" / invite-accept path when this game is already
 ## running (spec 3.4/research: "Invites arrive two ways and both must be
 ## handled"). The other way, `+connect_lobby` on a freshly launched process's
 ## command line, is handled by _apply_connect_lobby_args() below.
+
 func _on_steam_lobby_join_requested(lobby_id: int, _friend_id: int) -> void:
 	join_lobby(lobby_id, "")
 
@@ -1043,6 +1046,13 @@ func _apply_command_line_args(args: PackedStringArray) -> bool:
 		var lag: float = float(options.get("sim-lag", 0.0))
 		var loss: float = float(options.get("sim-loss", 0.0))
 		set_simulation(lag, 0.0, loss)
+
+	# Bontago-1pi.48: host a Public Steam lobby so the Join > Steam list can find
+	# it (FriendsOnly lobbies never appear in Steam's lobby search). Duplicated so
+	# the shared net_config.tres resource is not mutated.
+	if flags.has("steam-public-lobby"):
+		config = config.duplicate() as NetConfig
+		config.steam_lobby_type = NetConfig.STEAM_LOBBY_TYPE_PUBLIC
 
 	var port: int = int(options.get("port", 0))
 	var player_name: String = String(options.get("player-name", ""))

@@ -139,3 +139,19 @@ func test_match_config_flag_absent_leaves_override_null() -> void:
 		"--port=%d" % _take_port(),
 	]))
 	assert_null(_node.match_config_override())
+
+
+## Bontago-1pi.48: the playtest Steam launcher's --steam-public-lobby makes the
+## host's Steam lobby Public on a private copy of the config.
+func test_steam_public_lobby_flag_sets_public_lobby_type_on_a_copy() -> void:
+	var shared: NetConfig = _node.config
+	var started: bool = _node._apply_command_line_args(PackedStringArray(["--steam-public-lobby"]))
+	assert_false(started, "the flag alone starts no session")
+	assert_eq(_node.config.steam_lobby_type, NetConfig.STEAM_LOBBY_TYPE_PUBLIC)
+	assert_ne(_node.config, shared, "the shared net_config.tres must not be mutated")
+	assert_eq(shared.steam_lobby_type, 1, "shared default stays FriendsOnly")
+
+
+func test_no_public_lobby_flag_keeps_friends_only_default() -> void:
+	_node._apply_command_line_args(PackedStringArray())
+	assert_eq(_node.config.steam_lobby_type, 1)

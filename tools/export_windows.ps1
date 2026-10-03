@@ -61,7 +61,7 @@ Set-Content -Path (Join-Path $outDir "steam_appid.txt") -Value "480" -Encoding a
 
 # Playtest share (owner 2026-10-01): with the 480 test AppID a plain launch
 # skips Steam init (game/Main.gd), so testers get a launcher that opts in.
-$launcher = "@echo off`r`nstart `"`" `"%~dp0Stackfall.exe`" -- --steam-online`r`n"
+$launcher = "@echo off`r`nstart `"`" `"%~dp0Stackfall.exe`" -- --steam-online --steam-public-lobby`r`n"
 Set-Content -Path (Join-Path $outDir "Play Online (Steam).bat") -Value $launcher -Encoding ascii -NoNewline
 $readme = @"
 Stackfall playtest build
@@ -69,9 +69,11 @@ Stackfall playtest build
 ONLINE OVER STEAM
 1. Make sure Steam is running and you are logged in.
 2. Start the game with "Play Online (Steam).bat" (not Stackfall.exe directly).
-3. Host: click "Host online (Steam)" in the main menu, then invite friends
-   with the Steam overlay (Shift+Tab). Friends accept the invite, or press
-   Refresh under STEAM LOBBIES and pick the host's lobby.
+3. Host: main menu > Host > "Host on Steam".
+4. Friends: main menu > Join > Steam tab > Refresh, then pick the host's lobby
+   (everyone must run this same build). The in-lobby "Invite friends" button
+   only works if the game was launched from Steam (add Stackfall.exe as a
+   Non-Steam Game with launch options: -- --steam-online --steam-public-lobby).
    The build uses Steam's shared test app (Spacewar, AppID 480), so Steam
    may show you as playing "Spacewar". That is expected.
 

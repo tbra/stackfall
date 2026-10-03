@@ -183,9 +183,17 @@ func leave_lobby(lobby_id: int) -> void:
 ## `string_filters` is `[{"key": String, "value": String}, ...]`, ANDed by
 ## Steam's own request_lobby_list(); applied fresh before every call since
 ## Steamworks does not persist filters between requests.
+## Valve ELobbyDistanceFilter ordinal (Close=0, Default=1, Far=2, Worldwide=3).
+## Bontago-1pi.48: Steam's default distance filter only returns lobbies in the
+## searcher's own/nearby region, so a friend elsewhere never saw the host's
+## lobby; search worldwide (results stay filtered to this game + version).
+const LOBBY_DISTANCE_FILTER_WORLDWIDE: int = 3
+
+
 func request_lobby_list(string_filters: Array[Dictionary]) -> void:
 	if _steam == null:
 		return
+	_steam.call("addRequestLobbyListDistanceFilter", LOBBY_DISTANCE_FILTER_WORLDWIDE)
 	for filter: Dictionary in string_filters:
 		_steam.call(
 			"addRequestLobbyListStringFilter",
