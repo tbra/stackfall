@@ -60,6 +60,10 @@ enum SkyThemeMode { DAY, NIGHT, RANDOM, CYCLE, DAWN }
 ## Concrete theme ids for host RANDOM rolls and resolved-id validation. The
 ## enum has non-concrete RANDOM/CYCLE entries, so its indices are not used here.
 const SKY_THEME_IDS: PackedStringArray = ["sunset", "night", "dawn"]
+## Bontago-59o.18 (C1b follow-up): sky_variation_seed's "not resolved" value, and the
+## largest seed (a 31-bit int, so core/SkyVariation's integer hash never overflows).
+const SKY_VARIATION_SEED_UNRESOLVED: int = -1
+const SKY_VARIATION_SEED_MAX: int = 2147483647
 
 ## Game mode (Bontago-22y.11). Appended-only like the other enums: ints ride
 ## in to_dict() and in saved lobbies. Only the ids in SELECTABLE_GAME_MODES
@@ -183,6 +187,13 @@ const TEAM_PICK_MAX: int = 4
 ## yet, and "" for CYCLE, which is not a concrete theme). Rides in to_dict() so
 ## clients never roll their own.
 @export var sky_theme_resolved: String = ""
+## Bontago-59o.18 (C1b follow-up): the seed of the cycle sky's exposure / cloud
+## coverage variation (core/SkyVariation.gd). -1 = not resolved yet. The host rolls it
+## once per match start (resolve_sky_variation_seed) and it rides in to_dict(), so the
+## host and every client draw the same sky and each match gets its own curve. A match
+## with a deterministic rng_seed (>= 0) needs no roll: effective_sky_variation_seed()
+## falls back to it, keeping seeded tests and bot loops reproducible.
+@export var sky_variation_seed: int = SKY_VARIATION_SEED_UNRESOLVED
 ## Spec 3.4 "Mid-match joins can be enabled in settings" (Bontago-8or.11): when
 ## true the host admits a new peer while a match runs (an open human seat, else
 ## a spectator) and replays the world to it. Off by default, so a match stays
@@ -504,6 +515,7 @@ func sanitize() -> void:
 	sky_theme_mode = clampi(sky_theme_mode, SkyThemeMode.DAY, SkyThemeMode.DAWN) as SkyThemeMode
 	if not SKY_THEME_IDS.has(sky_theme_resolved):
 		sky_theme_resolved = ""
+	sky_variation_seed = clampi(sky_variation_seed, SKY_VARIATION_SEED_UNRESOLVED, SKY_VARIATION_SEED_MAX)
 	if player_colors.size() < PLAYER_COUNT_MAX:
 		var defaults: PackedColorArray = default_player_colors()
 		var padded: PackedColorArray = player_colors.duplicate()
@@ -567,6 +579,31 @@ func resolve_sky_theme(roll: int) -> void:
 			sky_theme_resolved = "sunset"
 
 
+## Host only, at match start (next to resolve_sky_theme): gives the cycle sky's
+## variation a seed of its own when the match has none. `roll` is any int (callers
+## pass randi()); it is folded into 0..SKY_VARIATION_SEED_MAX. A seed that is already
+## resolved is kept (resolving is once per match), and a match with a deterministic
+## rng_seed (>= 0) is left unresolved on purpose: it already has a reproducible seed
+## (effective_sky_variation_seed).
+func resolve_sky_variation_seed(roll: int) -> void:
+	if sky_variation_seed >= 0 or rng_seed >= 0:
+		return
+	sky_variation_seed = posmod(roll, SKY_VARIATION_SEED_MAX + 1)
+
+
+## The seed the cycle sky's variation should use, or SKY_VARIATION_SEED_UNRESOLVED
+## (-1) when this config has none (the sky then falls back to SkyVariation's shared
+## default curve). The host's resolved sky_variation_seed wins; otherwise the match's
+## deterministic rng_seed (>= 0). Derived only from replicated fields, so every peer
+## agrees.
+func effective_sky_variation_seed() -> int:
+	if sky_variation_seed >= 0:
+		return sky_variation_seed
+	if rng_seed >= 0:
+		return rng_seed
+	return SKY_VARIATION_SEED_UNRESOLVED
+
+
 ## The theme id a match should show: the host's resolved id when present, else
 ## the mode's own (an unresolved RANDOM falls back to DAY, i.e. "sunset"). A
 ## running CYCLE has no theme of its own and also reads "sunset" here (the
@@ -623,6 +660,7 @@ func to_dict() -> Dictionary:
 		"weather_mode": weather_mode,
 		"sky_theme_mode": sky_theme_mode,
 		"sky_theme_resolved": sky_theme_resolved,
+		"sky_variation_seed": sky_variation_seed,
 		"allow_mid_match_join": allow_mid_match_join,
 		"per_player_timer": per_player_timer,
 		"hot_seat": hot_seat,
@@ -677,6 +715,11 @@ static func from_dict(data: Dictionary) -> MatchConfig:
 	config.weather_mode = int(data.get("weather_mode", config.weather_mode)) as WeatherMode
 	config.sky_theme_mode = int(data.get("sky_theme_mode", config.sky_theme_mode)) as SkyThemeMode
 	config.sky_theme_resolved = String(data.get("sky_theme_resolved", config.sky_theme_resolved))
+	# An old config without the key (or a mistyped value) stays unresolved; sanitize()
+	# clamps a stray number into range.
+	var variation_seed: Variant = data.get("sky_variation_seed", config.sky_variation_seed)
+	if variation_seed is int or variation_seed is float:
+		config.sky_variation_seed = clampi(int(variation_seed), SKY_VARIATION_SEED_UNRESOLVED, SKY_VARIATION_SEED_MAX)
 	# Host-validated (Bontago-8or.11): bool("false") is true, so a String or
 	# any other type from Steam lobby data or an old build keeps the default.
 	var mid_match_join: Variant = data.get("allow_mid_match_join", config.allow_mid_match_join)

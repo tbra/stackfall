@@ -8,6 +8,13 @@ extends Node
 ## `all` (all four in one run, one contact-sheet strip). Windowed runs follow
 ## docs/AGENT_WORKFLOW.md (--windowed --position 10000,10000 --resolution 320x180
 ## --audio-driver Dummy ... -- --agent-probe --render-size=1280x720).
+##
+## `-- --strip=blend` (Bontago-59o.18 C1b, for the owner's sign-off of the day
+## palette blend): the running cycle at the strip phases below (locked at each, so
+## the radiance map is built as in a locked match) followed by the OLD static
+## Dawn (dawn.tres) and Sunset (sunset.tres) themes for comparison, one run, one
+## contact sheet in capture order. `--seed=<n>` (C1b variation) sets the match seed
+## the sky variation draws from (default -1 = SkyVariation.DEFAULT_SEED).
 
 const SETTLE_SECONDS: float = 1.5
 const SHOT_SETTLE_SECONDS: float = 0.4
@@ -18,6 +25,25 @@ const PHASES: Array[float] = [0.0, 0.25, 0.5, 0.75]
 const NAMES: PackedStringArray = ["dawn", "day", "dusk", "night"]
 const LOCK_ARG: String = "--lock="
 const LOCK_ALL: String = "all"
+const STRIP_ARG: String = "--strip="
+const STRIP_BLEND: String = "blend"
+const SEED_ARG: String = "--seed="
+## Palette strip (--strip=blend): file name, cycle phase. 0.03 / 0.47 / 0.75 are the
+## Dawn / Sunset / Night lock phases, 0.10 the opening phase of a Cycle match, 0.25
+## noon and 0.38 the middle of the dusk blend window (SkyThemeDef.cycle_dusk_weight_phases).
+const STRIP_SHOTS: Array[Dictionary] = [
+	{"name": "dawn", "phase": 0.03},
+	{"name": "morning", "phase": 0.10},
+	{"name": "noon", "phase": 0.25},
+	{"name": "blend_mid", "phase": 0.38},
+	{"name": "sunset", "phase": 0.47},
+	{"name": "midnight", "phase": 0.75},
+]
+## Old static themes shot after the strip: theme id -> file name.
+const STRIP_STATIC: Array[Dictionary] = [
+	{"name": "old_static_dawn", "theme": "dawn"},
+	{"name": "old_static_sunset", "theme": "sunset"},
+]
 ## Lobby option id -> the sky mode it selects (RANDOM rolls one of the locked three).
 const OPTION_MODES: Dictionary = {
 	"cycle": MatchConfig.SkyThemeMode.CYCLE,
@@ -51,7 +77,9 @@ func _capture() -> void:
 	rig.set_physics_process(false)
 	var camera: Camera3D = rig.get_node("Camera3D") as Camera3D
 	var lock: String = _lock_option(OS.get_cmdline_user_args())
-	if lock.is_empty():
+	if _strip_requested(OS.get_cmdline_user_args()):
+		await _shoot_strip(skybox, camera, config)
+	elif lock.is_empty():
 		skybox.configure_match_sky(config)
 		skybox.set_process(false)
 		for index: int in range(PHASES.size()):
@@ -67,6 +95,35 @@ func _capture() -> void:
 			print("daynight: option=%s locked_phase=%s phase=%s" % [option, skybox.locked_phase(), skybox.current_cycle_phase()])
 			await _shoot(skybox, camera, "daynight_lock_%s.png" % option)
 	get_tree().quit()
+
+
+func _strip_requested(user_args: PackedStringArray) -> bool:
+	return user_args.has(STRIP_ARG + STRIP_BLEND)
+
+
+## --strip=blend: the cycle at each strip phase (locked there), then the old static themes.
+func _shoot_strip(skybox: Skybox, camera: Camera3D, config: MatchConfig) -> void:
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
+	config.rng_seed = _seed_option(OS.get_cmdline_user_args())
+	skybox.configure_match_sky(config)
+	skybox.set_process(false)
+	print("daynight strip: match seed %s" % config.rng_seed)
+	for shot: Dictionary in STRIP_SHOTS:
+		skybox.set_locked_phase(float(shot["phase"]))
+		print("daynight strip: %s phase=%s" % [shot["name"], skybox.current_cycle_phase()])
+		await _shoot(skybox, camera, "daynight_strip_%s.png" % shot["name"])
+	for shot: Dictionary in STRIP_STATIC:
+		skybox.set_theme_by_id(str(shot["theme"]))
+		print("daynight strip: %s (static %s, cycle active=%s)" % [shot["name"], shot["theme"], skybox.is_cycle_active()])
+		await _shoot(skybox, camera, "daynight_strip_%s.png" % shot["name"])
+
+
+## The match seed named by `--seed=`, -1 (the sky's default curve) when absent.
+func _seed_option(user_args: PackedStringArray) -> int:
+	for arg: String in user_args:
+		if arg.begins_with(SEED_ARG):
+			return arg.trim_prefix(SEED_ARG).to_int()
+	return -1
 
 
 ## The option named by `--lock=`, "" when the argument is absent or unknown.

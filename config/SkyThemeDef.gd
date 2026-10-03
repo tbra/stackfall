@@ -32,6 +32,30 @@ extends Resource
 ## smoothstep(a, b, phase) * (1 - smoothstep(c, d, phase)). Read by the palette
 ## blend package (C1b); not a slider row (the F4 panel builds no Vector4 rows).
 @export var cycle_dusk_weight_phases: Vector4 = Vector4(0.30, 0.46, 0.90, 0.98)
+## Bontago-59o.18 (C1b variation, owner 2026-10-03: "lets add some variation and just
+## set a range so it can vary"): the cycle's sky exposure and cloud coverage are not
+## fixed at one theme's values (Dawn 0.95 / 0.5, Sunset 0.8 / 0.68); each wanders
+## between the min and max below as a smooth, low-frequency function of the match
+## seed and the cycle phase (core/SkyVariation.gd), so the host and every client
+## show the same sky with no new wire field. A locked Sunset / Dawn / Night sits at
+## the value that function has at its locked phase. Storm and overcast scale the
+## varying exposure (they never replace it). Off = the theme's own fixed values.
+@export var variation_enabled: bool = true
+## Sky shader `exposure` range (the overcast weather multiplies whatever it is now).
+@export_range(0.0, 2.0, 0.01) var variation_exposure_min: float = 0.8
+@export_range(0.0, 2.0, 0.01) var variation_exposure_max: float = 0.95
+## Sky shader `cloud_coverage` range: the noise threshold of the overhead cloud layers
+## (higher = fewer clouds). Only visible while proc_overhead_clouds_enabled is on.
+@export_range(0.0, 1.0, 0.01) var variation_cloud_coverage_min: float = 0.5
+@export_range(0.0, 1.0, 0.01) var variation_cloud_coverage_max: float = 0.68
+## Sky shader `proc_sea_coverage` range: the same threshold for the cloud floor under
+## the horizon (also written to the puff material so the far puffs fade into it).
+@export_range(0.0, 1.0, 0.01) var variation_sea_coverage_min: float = 0.3
+@export_range(0.0, 1.0, 0.01) var variation_sea_coverage_max: float = 0.48
+## Lattice points of the variation per full cycle: the values swing about this many
+## times a day (the average swing lasts cycle_length_seconds / this; 3 = 100 s of a
+## 300 s day). Fewer is slower and calmer, more is busier; always smooth.
+@export_range(2, 12, 1) var variation_knots_per_cycle: int = 3
 ## Bontago-59o.16: opt-in procedural sky look (docs/SKY_PROCEDURAL_PLAN.md),
 ## declared first so it is the first row of the F4 Sky tab for the owner's
 ## painted-vs-procedural comparison. Skybox.apply_theme() writes

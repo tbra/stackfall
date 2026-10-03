@@ -201,7 +201,13 @@ func test_partial_storm_tints_from_the_night_mixed_puffs_in_cycle() -> void:
 	assert_lt(_color_distance(night_tint, night_base), _color_distance(night_tint, day_base), "closer to night than day")
 	skybox.set_cycle_phase(0.25)
 	var day_tint: Color = material.get_shader_parameter(&"mid_color") as Color
-	assert_true(day_tint.is_equal_approx(day_base.lerp(storm_color, amount)), "day phase unchanged")
+	# Sky C1b (Bontago-59o.18): the cycle's day half blends the Dawn palette into
+	# Sunset by SkyPalette.dusk_weight, so noon's base colour is that blend.
+	var dawn: SkyThemeDef = Skybox.load_theme("dawn")
+	var dawn_base: Color = (dawn.cloud_puff_material as ShaderMaterial).get_shader_parameter(&"mid_color") as Color
+	var noon_weight: float = SkyPalette.dusk_weight(0.25, day.cycle_dusk_weight_phases)
+	var noon_base: Color = SkyPalette.mix_color(dawn_base, day_base, noon_weight)
+	assert_true(day_tint.is_equal_approx(noon_base.lerp(storm_color, amount)), "day phase tints from the cycle's day palette")
 
 
 func _color_distance(a: Color, b: Color) -> float:

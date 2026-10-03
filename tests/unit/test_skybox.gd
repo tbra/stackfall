@@ -171,6 +171,102 @@ func test_ready_starts_the_cycle_for_theme_name_cycle() -> void:
 	assert_eq(static_skybox.theme.resource_path, "res://config/sky_themes/night.tres")
 
 
+## Bontago-59o.18 (C1b variation): a cycle started outside a match (boot theme "cycle",
+## F4's Theme entry) varies inside the configured ranges from the default seed, and the
+## varying exposure is the baseline weather overcast scales (never a fixed 0.8).
+func test_a_boot_cycle_varies_inside_the_ranges_from_the_default_seed() -> void:
+	var sky: Sky = Sky.new()
+	sky.sky_material = ProceduralSkyMaterial.new()
+	var environment: Environment = Environment.new()
+	environment.sky = sky
+	var skybox: Skybox = Skybox.new()
+	skybox.config = SkyboxConfig.new()
+	skybox.config.theme_name = Skybox.CYCLE_THEME_ID
+	skybox.environment = environment
+	add_child_autofree(skybox)
+	var theme: SkyThemeDef = skybox.theme
+	var seen: Dictionary = {}
+	for phase: float in [0.0, 0.1, 0.2, 0.3, 0.45, 0.6, 0.75, 0.9]:
+		skybox.set_cycle_phase(phase)
+		var material: ShaderMaterial = skybox.theme.sky_material as ShaderMaterial
+		var exposure: float = float(material.get_shader_parameter(&"exposure"))
+		assert_between(exposure, theme.variation_exposure_min, theme.variation_exposure_max, "exposure at phase %s" % phase)
+		assert_eq(exposure, SkyVariation.exposure_at(theme, phase, SkyVariation.DEFAULT_SEED), "default seed at phase %s" % phase)
+		assert_between(float(material.get_shader_parameter(&"cloud_coverage")), theme.variation_cloud_coverage_min, theme.variation_cloud_coverage_max)
+		assert_between(float(material.get_shader_parameter(&"proc_sea_coverage")), theme.variation_sea_coverage_min, theme.variation_sea_coverage_max)
+		seen[snappedf(exposure, 0.0001)] = true
+	assert_gt(seen.size(), 3, "the boot cycle's exposure changes over the day")
+	skybox.set_overcast(1.0, 0.5, 0.6, 0.4, Color(0.4, 0.4, 0.5), 0.5)
+	skybox.set_cycle_phase(0.33)
+	var dimmed: float = float((skybox.theme.sky_material as ShaderMaterial).get_shader_parameter(&"exposure"))
+	assert_almost_eq(dimmed, SkyVariation.exposure_at(theme, 0.33, SkyVariation.DEFAULT_SEED) * 0.4, 0.00001, "overcast scales the varying baseline")
+
+
+## Bontago-59o.18 (C1b follow-up): a running cycle sky configured from `config`, with
+## the clock at `clock`; returns [exposure, cloud coverage, sea coverage] of its live
+## sky material.
+func _cycle_look(config: MatchConfig, clock: float) -> Array[float]:
+	var skybox: Skybox = _make_wired_skybox()["skybox"] as Skybox
+	skybox.configure_match_sky(config)
+	skybox.update_cycle_clock(clock)
+	var material: ShaderMaterial = skybox.theme.sky_material as ShaderMaterial
+	return [
+		float(material.get_shader_parameter(&"exposure")),
+		float(material.get_shader_parameter(&"cloud_coverage")),
+		float(material.get_shader_parameter(&"proc_sea_coverage")),
+	]
+
+
+func _resolved_config(variation_seed: int) -> MatchConfig:
+	var config: MatchConfig = MatchConfig.new()
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
+	config.resolve_sky_variation_seed(variation_seed)
+	return config
+
+
+## Bontago-59o.18 (C1b follow-up): the host-rolled MatchConfig.sky_variation_seed drives
+## the sky. Two skyboxes with the same resolved seed (the host's, and a client built from
+## its wire dict) draw the same sky; a different seed draws a different one; the seed the
+## skybox reports is the config's.
+func test_skyboxes_with_the_same_resolved_sky_variation_seed_match_and_different_seeds_differ() -> void:
+	var host_config: MatchConfig = _resolved_config(5551)
+	var client_config: MatchConfig = MatchConfig.from_dict(host_config.to_dict())
+	var other_config: MatchConfig = _resolved_config(5552)
+	var host: Skybox = _make_wired_skybox()["skybox"] as Skybox
+	host.configure_match_sky(host_config)
+	assert_eq(host.variation_seed(), 5551, "the skybox draws from the host's resolved seed")
+	var differs: bool = false
+	for clock: float in [0.0, 40.0, 95.0, 150.0, 210.0, 280.0]:
+		var host_look: Array[float] = _cycle_look(host_config, clock)
+		assert_eq(_cycle_look(client_config, clock), host_look, "same seed, same sky at clock %s" % clock)
+		if not is_equal_approx(_cycle_look(other_config, clock)[0], host_look[0]):
+			differs = true
+	assert_true(differs, "a different resolved seed draws a different curve")
+	var theme: SkyThemeDef = Skybox.load_theme(Skybox.DEFAULT_THEME_ID)
+	assert_eq(host_config.effective_sky_variation_seed(), 5551)
+	assert_eq(_cycle_look(host_config, 0.0)[0], SkyVariation.exposure_at(theme, host.cycle_phase_at(0.0), 5551), "it is SkyVariation's function of that seed")
+
+
+## The rng_seed >= 0 path is unchanged (the match seed is the sky seed, no roll), an
+## explicit sky_variation_seed wins, and a config with neither shares the default curve.
+func test_the_rng_seed_path_is_unchanged_and_an_unresolved_config_uses_the_default_seed() -> void:
+	var seeded: MatchConfig = MatchConfig.new()
+	seeded.rng_seed = 4242
+	seeded.resolve_sky_variation_seed(99)
+	var skybox: Skybox = _make_wired_skybox()["skybox"] as Skybox
+	skybox.configure_match_sky(seeded)
+	assert_eq(skybox.variation_seed(), 4242, "a seeded match still draws from rng_seed")
+	var explicit: MatchConfig = MatchConfig.new()
+	explicit.rng_seed = 4242
+	explicit.sky_variation_seed = 7
+	skybox.configure_match_sky(explicit)
+	assert_eq(skybox.variation_seed(), 7, "the host-resolved variation seed wins over rng_seed")
+	var unresolved: MatchConfig = MatchConfig.new()
+	skybox.configure_match_sky(unresolved)
+	assert_eq(skybox.variation_seed(), SkyVariation.DEFAULT_SEED, "nothing resolved: the shared default curve")
+	assert_eq(_cycle_look(unresolved, 60.0), _cycle_look(MatchConfig.new(), 60.0), "unresolved peers still agree")
+
+
 func test_authored_theme_returns_after_switching_back_from_legacy_skybox() -> void:
 	var wired: Dictionary = _make_wired_skybox()
 	var skybox: Skybox = wired["skybox"] as Skybox

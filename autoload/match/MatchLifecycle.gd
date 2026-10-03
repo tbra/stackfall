@@ -190,6 +190,9 @@ func start_match(match_config: MatchConfig) -> void:
 	# was sent (net_match_start carries sky_theme_resolved).
 	if _match._is_host():
 		_match.config.resolve_sky_theme(randi())
+		# Bontago-59o.18 (C1b follow-up): and the cycle sky's variation seed, so every
+		# match (not just seeded ones) draws its own curve; it rides in to_dict().
+		_match.config.resolve_sky_variation_seed(randi())
 
 	# Bontago-1en.23 (M4 P5-TILT): register_world() itself runs before
 	# start_match() on every path (hot-seat, sandbox and the lobby -- see
