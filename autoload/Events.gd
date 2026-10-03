@@ -69,6 +69,16 @@ signal loading_gate_opened
 ## MatchLifecycle owns the remaining checks (phase, required set, idempotence).
 signal net_loading_ready_received(peer_id: int)
 
+## Bontago-1pi.53: Net (host side only; offline and the host's own request come
+## through Net.request_seat_pref() locally) validated a peer's request to change
+## ITS OWN lobby seat. `peer_id` is the transport's id of the seated sender, never
+## a payload field. `color_index` is LobbySeats.UNCHANGED (-1) or a palette index in
+## range; `team_pick` is LobbySeats.UNCHANGED or 0 (Random) .. MatchConfig.TEAM_PICK_MAX,
+## and at least one of them is not UNCHANGED. Net checks only that wire sanity
+## (type, range, seated sender, lobby phase, flood limit): the lobby applies it with
+## LobbySeats.apply_human_pref (exact team cap, colour swap) and republishes.
+signal net_seat_pref_requested(peer_id: int, color_index: int, team_pick: int)
+
 ## One second of the 3 s pre-match countdown elapsed; 0 means "go".
 signal countdown_tick(seconds_left: int)
 
