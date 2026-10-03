@@ -74,6 +74,21 @@ const LOCKED_COLOR: Color = Color(0.75, 0.75, 0.75, 0.9)
 ## (see config/GiftConfig.gd's own "-- Claim feedback --" section for why
 ## these live there rather than in ghost_tuning above).
 @export var gift_config: GiftConfig = preload("res://config/gift_config.tres")
+## Bontago-1pi.18.7: the compact names the experiments line uses, keyed by
+## QolExperiments.active_ids(). Kept short so all four still fit the 344 px status column.
+const EXPERIMENT_SHORT_NAMES: Dictionary[StringName, String] = {
+	QolExperiments.ID_TIMER_PAUSE: "Timer pause",
+	QolExperiments.ID_BACKLOG: "Backlog",
+	QolExperiments.ID_GOAL_RADIUS: "Radius",
+	QolExperiments.ID_GIFT_SLOT: "Gift slot",
+}
+const EXPERIMENTS_LINE_PREFIX: String = "Experiments: "
+## The action whose bound glyph the gift slot card shows (PlayerController spends the slot on it).
+const GIFT_SLOT_ACTION: StringName = &"use_gift_slot"
+const INPUT_GLYPH_SCENE: PackedScene = preload("res://ui/InputGlyph.tscn")
+## Gap between the gift card's border and its icon/glyph (screen-space geometry, see the DECISION above).
+const GIFT_CARD_INSET_PX: float = 6.0
+const GIFT_CARD_ICON_GLYPH_GAP_PX: float = 2.0
 ## Fallback player colours for a slot Match cannot name — before a match
 ## starts, or in a HUD-only test with no Match behind it. An @export var
 ## rather than a const: a const's value has to resolve while the script is
@@ -201,6 +216,16 @@ var _gift_slot_id: StringName = &""
 var _gift_slot_panel_base_right: float = 0.0
 ## Space the extra column adds to the HELD/NEXT panel (card width plus row separation).
 var _gift_slot_extra_width: float = 0.0
+## Bontago-1pi.18.7: the use_gift_slot binding drawn along the card's bottom edge
+## (one InputGlyph for the active device family) and what it was built from.
+var _gift_slot_glyph_row: HBoxContainer = null
+var _gift_slot_glyph: InputGlyph = null
+var _gift_slot_glyph_signature: String = ""
+
+## Bontago-1pi.18.7 (QoL experiments): one muted line under the height readout that
+## names every enabled experiment. Built in code; hidden (no layout space) while none is on.
+var _experiments_label: Label = null
+var _experiments_shown: PackedStringArray = PackedStringArray()
 
 
 func _ready() -> void:
@@ -229,6 +254,7 @@ func _ready() -> void:
 	_style_panel(_next_shape_card, true)
 	_style_panel(_held_shape_card, true)
 	_build_gift_slot_column()
+	_build_experiments_label()
 	for label: Label in [
 		_turn_label, _height_label, _locked_label, _special_indicator,
 		_gift_toast_label, _reject_label,
@@ -265,6 +291,7 @@ func _ready() -> void:
 	Events.gift_flight_spawned.connect(_on_gift_state_changed)
 	Events.gift_landed.connect(_on_gift_state_changed)
 	Events.gift_expired.connect(_on_gift_state_changed)
+	Events.input_device_changed.connect(_on_input_device_changed)
 
 
 func _build_countdown_label() -> void:
@@ -336,6 +363,7 @@ func _process(delta: float) -> void:
 		var right: Vector3 = basis.x
 		_minimap.set_camera_basis(Vector2(right.x, right.z), Vector2(forward.x, forward.z))
 	_update_gift_markers()
+	_refresh_experiments_line()
 	if match_provider == null or _active_slot < 0:
 		return
 	set_feed_progress(match_provider.feed_progress(_active_slot))
@@ -1229,11 +1257,29 @@ func _build_gift_slot_column() -> void:
 	card.custom_minimum_size = _held_shape_card.custom_minimum_size
 	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_style_panel(card, true)
+	# Bontago-1pi.18.7: the icon sits above a strip reserved for the bound-key glyph, so
+	# the badge never covers the gift art. Same left inset/width as the HELD/NEXT icons.
+	var glyph_strip_px: float = InputGlyph.GLYPH_HEIGHT_PX
 	_gift_slot_preview = Control.new()
-	_gift_slot_preview.position = _shape_preview.position
-	_gift_slot_preview.size = _shape_preview.size
+	_gift_slot_preview.position = Vector2(_shape_preview.position.x, GIFT_CARD_INSET_PX)
+	_gift_slot_preview.size = Vector2(
+		_shape_preview.size.x,
+		card.custom_minimum_size.y - GIFT_CARD_INSET_PX * 2.0 - glyph_strip_px - GIFT_CARD_ICON_GLYPH_GAP_PX
+	)
+	_gift_slot_preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_gift_slot_preview.draw.connect(_on_gift_slot_preview_draw)
 	card.add_child(_gift_slot_preview)
+	_gift_slot_glyph_row = HBoxContainer.new()
+	_gift_slot_glyph_row.name = "GlyphRow"
+	_gift_slot_glyph_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	_gift_slot_glyph_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_gift_slot_glyph_row.anchor_left = 0.0
+	_gift_slot_glyph_row.anchor_right = 1.0
+	_gift_slot_glyph_row.anchor_top = 1.0
+	_gift_slot_glyph_row.anchor_bottom = 1.0
+	_gift_slot_glyph_row.offset_top = -(GIFT_CARD_INSET_PX + glyph_strip_px)
+	_gift_slot_glyph_row.offset_bottom = -GIFT_CARD_INSET_PX
+	card.add_child(_gift_slot_glyph_row)
 	_gift_slot_column.add_child(_gift_slot_label)
 	_gift_slot_column.add_child(card)
 	_gift_slot_column.visible = false
@@ -1260,9 +1306,104 @@ func _refresh_gift_slot() -> void:
 		_gift_slot_label.text = "GIFT: %s" % _special_display_name(head_id)
 		if count > 1:
 			_gift_slot_label.text += " x%d" % count
+		_refresh_gift_slot_glyph()
 	if head_id != _gift_slot_id:
 		_gift_slot_id = head_id
 		_gift_slot_preview.queue_redraw()
+
+
+## Bontago-1pi.18.7: the use_gift_slot binding for the player's current device
+## family, drawn by the shared InputGlyph (keycap/pad art, or its fallback). Rebuilt
+## only when the device or the bound events changed, so a rebind in the pause
+## menu shows up on the card without any signal of its own.
+func _refresh_gift_slot_glyph(force: bool = false) -> void:
+	if _gift_slot_glyph_row == null:
+		return
+	var event: InputEvent = gift_slot_binding()
+	var signature: String = "%s|%s" % [Settings.active_input_device(), event.as_text() if event != null else ""]
+	if signature == _gift_slot_glyph_signature and not force:
+		return
+	_gift_slot_glyph_signature = signature
+	if _gift_slot_glyph != null:
+		_gift_slot_glyph_row.remove_child(_gift_slot_glyph)
+		_gift_slot_glyph.queue_free()
+		_gift_slot_glyph = null
+	if event == null:
+		return
+	_gift_slot_glyph = INPUT_GLYPH_SCENE.instantiate() as InputGlyph
+	_gift_slot_glyph_row.add_child(_gift_slot_glyph)
+	_gift_slot_glyph.set_event(event)
+
+
+## The first InputMap event of GIFT_SLOT_ACTION that belongs to the active input
+## device family (gamepad vs keyboard/mouse, the same split the Controls page
+## uses), or null when that family has none.
+func gift_slot_binding() -> InputEvent:
+	if not InputMap.has_action(GIFT_SLOT_ACTION):
+		return null
+	var want_gamepad: bool = Settings.active_input_device() == Settings.DEVICE_GAMEPAD
+	for event: InputEvent in InputMap.action_get_events(GIFT_SLOT_ACTION):
+		var is_gamepad: bool = event is InputEventJoypadButton or event is InputEventJoypadMotion
+		if is_gamepad == want_gamepad:
+			return event
+	return null
+
+
+func _on_input_device_changed(_device: StringName) -> void:
+	if _gift_slot_column != null and _gift_slot_column.visible:
+		_refresh_gift_slot_glyph()
+
+
+## Bontago-1pi.18.7: "Experiments: Timer pause, Backlog, ..." from the running
+## match's QolExperiments.active_ids(); hidden (taking no layout space) when no
+## experiment is on. Polled from _process like the other readouts; the line only
+## rebuilds when the set of enabled ids changes.
+func _build_experiments_label() -> void:
+	var status_pill: Control = _height_label.get_parent() as Control
+	_experiments_label = Label.new()
+	_experiments_label.name = "ExperimentsLabel"
+	_experiments_label.add_theme_font_size_override("font_size", _height_label.get_theme_font_size("font_size"))
+	_experiments_label.add_theme_color_override("font_color", hud_visual_tuning.muted_ink_color)
+	_apply_text_outline(_experiments_label)
+	# clip_text drops the label's minimum width so a long list can never widen the
+	# status column (and with it the backplate).
+	_experiments_label.clip_text = true
+	_experiments_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_experiments_label.visible = false
+	status_pill.add_child(_experiments_label)
+	status_pill.move_child(_experiments_label, _height_label.get_index() + 1)
+
+
+func _refresh_experiments_line() -> void:
+	var ids: PackedStringArray = _active_experiment_ids()
+	if ids == _experiments_shown:
+		return
+	_experiments_shown = ids
+	_experiments_label.visible = not ids.is_empty()
+	_experiments_label.text = experiments_line_text(ids)
+
+
+## The experiments enabled on the running match's config (empty with no match,
+## no config or no QolExperiments on it).
+func _active_experiment_ids() -> PackedStringArray:
+	var provider: Object = match_provider as Object
+	if provider == null:
+		return PackedStringArray()
+	var running_config: MatchConfig = provider.get(&"config") as MatchConfig
+	if running_config == null or running_config.qol == null:
+		return PackedStringArray()
+	return running_config.qol.active_ids()
+
+
+## Pure: the line's text for `ids` (QolExperiments.active_ids()), "" when none.
+static func experiments_line_text(ids: PackedStringArray) -> String:
+	if ids.is_empty():
+		return ""
+	var names: PackedStringArray = PackedStringArray()
+	for id: String in ids:
+		var short_name: String = EXPERIMENT_SHORT_NAMES.get(StringName(id), id)
+		names.append(short_name)
+	return EXPERIMENTS_LINE_PREFIX + ", ".join(names)
 
 
 func _on_gift_slot_preview_draw() -> void:

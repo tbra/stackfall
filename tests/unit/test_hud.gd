@@ -26,6 +26,7 @@ func before_each() -> void:
 
 func after_each() -> void:
 	Match.abort_match()
+	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
 
 
 func test_set_active_slot_updates_the_turn_label() -> void:
@@ -793,3 +794,266 @@ func test_domination_readout_only_in_domination() -> void:
 	assert_eq(HUD.mode_score_text(ctf).find("Leading"), -1)
 	var hud2: HUD = _make_hud()
 	assert_null(hud2._mode_score_label, "no readout without a mode state (Classic)")
+
+
+# --- Bontago-1pi.18.7: experiments line + gift-slot card glyph ----------------
+
+const INPUT_GLYPH_SCENE: PackedScene = preload("res://ui/InputGlyph.tscn")
+const LAYOUT_SIZES: Array[Vector2i] = [Vector2i(1280, 720), Vector2i(3440, 1440)]
+const LAYOUT_SETTLE_FRAMES: int = 4
+const LAYOUT_PLAYER_COUNT: int = 8
+const EDGE_EPS: float = 1.0
+
+
+## FakeMatch plus the two gift-slot reads the HUD polls (the real Match has them).
+class GiftFakeMatch:
+	extends FakeMatch
+
+	var gift_head: StringName = &""
+	var gift_count: int = 0
+
+	func gift_slot_head(_slot_id: int) -> StringName:
+		return gift_head
+
+	func gift_slot_count(_slot_id: int) -> int:
+		return gift_count
+
+
+func _qol_config(timer_pause: bool, backlog: bool, goal_radius: bool, gift_slot: bool) -> MatchConfig:
+	var config: MatchConfig = MatchConfig.new()
+	config.hot_seat = false
+	config.qol = QolExperiments.with_toggles(null, timer_pause, backlog, goal_radius, gift_slot)
+	return config
+
+
+## A HUD reading `config` through a GiftFakeMatch (gift slot holding an anvil when `gift`).
+func _qol_hud(config: MatchConfig, gift: bool, parent: Node = null) -> HUD:
+	var scene: PackedScene = load("res://ui/HUD.tscn")
+	var hud: HUD = scene.instantiate() as HUD
+	if parent == null:
+		add_child_autofree(hud)
+	else:
+		parent.add_child(hud)
+	var provider: GiftFakeMatch = GiftFakeMatch.new()
+	provider.config = config
+	provider.gift_head = &"anvil" if gift else &""
+	provider.gift_count = 1 if gift else 0
+	hud.match_provider = provider
+	hud.set_local_slot(0)
+	return hud
+
+
+func _first_binding(action: StringName, gamepad: bool) -> InputEvent:
+	for event: InputEvent in InputMap.action_get_events(action):
+		var is_pad: bool = event is InputEventJoypadButton or event is InputEventJoypadMotion
+		if is_pad == gamepad:
+			return event
+	return null
+
+
+func _reference_glyph(event: InputEvent) -> InputGlyph:
+	var glyph: InputGlyph = INPUT_GLYPH_SCENE.instantiate() as InputGlyph
+	add_child_autofree(glyph)
+	glyph.set_event(event)
+	return glyph
+
+
+func test_experiments_line_is_hidden_when_no_experiment_is_enabled() -> void:
+	var hud: HUD = _make_hud()
+	assert_false(hud._experiments_label.visible, "no match at all")
+	hud._process(0.0)
+	assert_false(hud._experiments_label.visible)
+	var configs: Array[MatchConfig] = [null, _qol_config(false, false, false, false)]
+	for config: MatchConfig in configs:
+		var provider: GiftFakeMatch = GiftFakeMatch.new()
+		provider.config = config
+		hud.match_provider = provider
+		hud.set_local_slot(0)
+		hud._process(0.0)
+		assert_false(hud._experiments_label.visible, "config %s: nothing enabled" % config)
+		assert_eq(hud._experiments_label.text, "")
+	var bare: MatchConfig = MatchConfig.new()
+	bare.qol = null
+	var no_qol: GiftFakeMatch = GiftFakeMatch.new()
+	no_qol.config = bare
+	hud.match_provider = no_qol
+	hud._process(0.0)
+	assert_false(hud._experiments_label.visible, "a config without a QolExperiments shows nothing")
+
+
+func test_experiments_line_names_the_enabled_experiments_in_order() -> void:
+	var hud: HUD = _qol_hud(_qol_config(true, false, false, true), false)
+	hud._process(0.0)
+	assert_true(hud._experiments_label.visible)
+	assert_eq(hud._experiments_label.text, "Experiments: Timer pause, Gift slot")
+	assert_eq(hud._experiments_label.get_theme_color("font_color"), hud.hud_visual_tuning.muted_ink_color, "muted line")
+	var all_on: HUD = _qol_hud(_qol_config(true, true, true, true), false)
+	all_on._process(0.0)
+	assert_eq(all_on._experiments_label.text, "Experiments: Timer pause, Backlog, Radius, Gift slot")
+	assert_eq(HUD.experiments_line_text(PackedStringArray()), "")
+	assert_eq(HUD.experiments_line_text(PackedStringArray(["backlog"])), "Experiments: Backlog")
+
+
+func test_experiments_line_follows_the_config_and_hides_again() -> void:
+	var config: MatchConfig = _qol_config(false, true, false, false)
+	var hud: HUD = _qol_hud(config, false)
+	hud._process(0.0)
+	assert_eq(hud._experiments_label.text, "Experiments: Backlog")
+	config.qol.goal_radius_enabled = true
+	hud._process(0.0)
+	assert_eq(hud._experiments_label.text, "Experiments: Backlog, Radius")
+	config.qol.backlog_enabled = false
+	config.qol.goal_radius_enabled = false
+	hud._process(0.0)
+	assert_false(hud._experiments_label.visible, "all off again hides the line")
+	assert_eq(hud._experiments_label.text, "")
+
+
+func test_gift_slot_card_shows_the_keyboard_binding_glyph() -> void:
+	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
+	var hud: HUD = _qol_hud(_qol_config(false, false, false, true), true)
+	hud._process(0.0)
+	assert_true(hud._gift_slot_column.visible)
+	assert_not_null(hud._gift_slot_glyph, "the card carries a glyph")
+	assert_eq(hud._gift_slot_glyph.get_parent(), hud._gift_slot_glyph_row)
+	var event: InputEvent = _first_binding(HUD.GIFT_SLOT_ACTION, false)
+	assert_true(event is InputEventKey, "use_gift_slot has a keyboard binding")
+	var reference: InputGlyph = _reference_glyph(event)
+	assert_eq(hud._gift_slot_glyph.label_text(), reference.label_text())
+	assert_not_null(hud._gift_slot_glyph.glyph_texture(), "keycap art is drawn")
+	assert_eq(hud._gift_slot_glyph_row.get_child_count(), 1)
+	hud._process(0.0)
+	assert_eq(hud._gift_slot_glyph_row.get_child_count(), 1, "an unchanged binding is not rebuilt")
+
+
+func test_gift_slot_card_glyph_follows_a_synthetic_joypad_button() -> void:
+	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
+	var hud: HUD = _qol_hud(_qol_config(false, false, false, true), true)
+	hud._process(0.0)
+	var key_label: String = hud._gift_slot_glyph.label_text()
+
+	var press: InputEventJoypadButton = InputEventJoypadButton.new()
+	press.device = -1
+	press.button_index = JOY_BUTTON_A
+	press.pressed = true
+	Input.parse_input_event(press)
+	Input.flush_buffered_events()
+	assert_eq(Settings.active_input_device(), Settings.DEVICE_GAMEPAD, "the joypad event flips the device")
+	assert_not_null(hud._gift_slot_glyph, "refreshed on input_device_changed, no frame needed")
+	var pad_event: InputEvent = _first_binding(HUD.GIFT_SLOT_ACTION, true)
+	assert_true(pad_event is InputEventJoypadButton, "use_gift_slot has a gamepad binding")
+	var reference: InputGlyph = _reference_glyph(pad_event)
+	assert_eq(hud._gift_slot_glyph.label_text(), reference.label_text())
+	assert_ne(hud._gift_slot_glyph.label_text(), key_label, "pad glyph replaces the keycap")
+	assert_not_null(hud._gift_slot_glyph.glyph_texture(), "pad art is drawn")
+	assert_eq(hud._gift_slot_glyph_row.get_child_count(), 1)
+
+	var release: InputEventJoypadButton = InputEventJoypadButton.new()
+	release.device = -1
+	release.button_index = JOY_BUTTON_A
+	release.pressed = false
+	Input.parse_input_event(release)
+	Input.flush_buffered_events()
+	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
+	assert_eq(hud._gift_slot_glyph.label_text(), key_label, "back on keyboard/mouse")
+
+
+func test_gift_slot_card_glyph_follows_a_rebind_and_a_missing_binding() -> void:
+	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
+	var hud: HUD = _qol_hud(_qol_config(false, false, false, true), true)
+	hud._process(0.0)
+	var original: Array[InputEvent] = InputMap.action_get_events(HUD.GIFT_SLOT_ACTION)
+
+	var rebound: InputEventKey = InputEventKey.new()
+	rebound.physical_keycode = KEY_H
+	rebound.keycode = KEY_H
+	InputMap.action_erase_events(HUD.GIFT_SLOT_ACTION)
+	InputMap.action_add_event(HUD.GIFT_SLOT_ACTION, rebound)
+	hud._process(0.0)
+	var after_rebind: String = hud._gift_slot_glyph.label_text() if hud._gift_slot_glyph != null else "<none>"
+	# The rebound action has no gamepad binding now: the pad family shows nothing.
+	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+	var pad_glyph_present: bool = hud._gift_slot_glyph != null
+
+	InputMap.action_erase_events(HUD.GIFT_SLOT_ACTION)
+	for event: InputEvent in original:
+		InputMap.action_add_event(HUD.GIFT_SLOT_ACTION, event)
+	assert_eq(after_rebind, "H", "the card shows the new key")
+	assert_false(pad_glyph_present, "no binding for the active device shows no glyph")
+	hud._process(0.0)
+	assert_not_null(hud._gift_slot_glyph, "the restored gamepad binding shows again")
+
+
+func _layout_hud(vp: SubViewport, config: MatchConfig) -> HUD:
+	var hud: HUD = _qol_hud(config, true, vp)
+	var shares: PackedFloat32Array = PackedFloat32Array()
+	for _i: int in LAYOUT_PLAYER_COUNT:
+		shares.append(1.0 / float(LAYOUT_PLAYER_COUNT))
+	hud.set_territory_shares(shares)
+	return hud
+
+
+func _settle_layout() -> void:
+	for _i: int in LAYOUT_SETTLE_FRAMES:
+		await get_tree().process_frame
+
+
+func test_experiments_line_and_gift_glyph_fit_at_1280x720_and_3440x1440() -> void:
+	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
+	for window: Vector2i in LAYOUT_SIZES:
+		var vp: SubViewport = UiScale.make_viewport(window)
+		vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		add_child_autofree(vp)
+		var config: MatchConfig = _qol_config(true, true, true, true)
+		config.player_count = LAYOUT_PLAYER_COUNT
+		var hud: HUD = _layout_hud(vp, config)
+		await _settle_layout()
+		var screen: Rect2 = Rect2(Vector2.ZERO, Vector2(vp.get_visible_rect().size))
+		var label: Label = hud._experiments_label
+		var backplate: Rect2 = hud._top_left_backplate.get_global_rect()
+		var where: String = "at %s" % window
+		assert_true(label.visible, "line shown with every experiment on %s" % where)
+		assert_true(backplate.grow(EDGE_EPS).encloses(label.get_global_rect()), "line stays inside the stats backplate %s" % where)
+		var font: Font = label.get_theme_font("font")
+		var text_width: float = font.get_string_size(label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, label.get_theme_font_size("font_size")).x
+		assert_lte(text_width, label.size.x, "the longest line (all four) is not clipped %s" % where)
+		assert_true(screen.encloses(backplate), "backplate on screen %s" % where)
+		var panel: Rect2 = hud._held_next_panel.get_global_rect()
+		assert_false(backplate.intersects(hud._timer_ring.get_global_rect()), "stats vs timer ring %s" % where)
+		assert_false(backplate.intersects(hud._minimap.get_global_rect()), "stats vs minimap %s" % where)
+		assert_false(backplate.intersects(panel), "stats (8 players + line) vs held/next/gift panel %s: %s vs %s" % [where, backplate, panel])
+		assert_false(panel.intersects(hud._minimap.get_global_rect()), "held/next/gift panel vs minimap %s" % where)
+		assert_false(panel.intersects(hud._timer_ring.get_global_rect()), "held/next/gift panel vs timer ring %s" % where)
+		assert_true(screen.encloses(panel), "panel on screen %s" % where)
+		# Gift card: glyph sits inside the card, below (not over) the gift icon.
+		assert_true(hud._gift_slot_column.visible, "gift card shown %s" % where)
+		assert_not_null(hud._gift_slot_glyph, "glyph on the card %s" % where)
+		var card: Rect2 = (hud._gift_slot_preview.get_parent() as Control).get_global_rect()
+		var glyph_rect: Rect2 = hud._gift_slot_glyph.get_global_rect()
+		assert_true(card.grow(EDGE_EPS).encloses(glyph_rect), "glyph inside the card %s: %s vs %s" % [where, glyph_rect, card])
+		assert_false(glyph_rect.intersects(hud._gift_slot_preview.get_global_rect()), "glyph does not cover the gift icon %s" % where)
+		assert_true(card.grow(EDGE_EPS).encloses(hud._gift_slot_preview.get_global_rect()), "icon inside the card %s" % where)
+		vp.queue_free()
+		await get_tree().process_frame
+
+
+func test_a_hidden_experiments_line_takes_no_space() -> void:
+	var vp: SubViewport = UiScale.make_viewport(LAYOUT_SIZES[0])
+	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child_autofree(vp)
+	var config: MatchConfig = _qol_config(false, false, false, false)
+	var hud: HUD = _layout_hud(vp, config)
+	await _settle_layout()
+	var toast_hidden: float = hud._gift_toast_label.get_global_rect().position.y
+	var backplate_hidden: Vector2 = hud._top_left_backplate.size
+	var pill: Node = hud._experiments_label.get_parent()
+	pill.remove_child(hud._experiments_label)
+	await _settle_layout()
+	assert_almost_eq(hud._gift_toast_label.get_global_rect().position.y, toast_hidden, 0.01, "same layout as if the line did not exist")
+	assert_eq(hud._top_left_backplate.size, backplate_hidden)
+	pill.add_child(hud._experiments_label)
+	pill.move_child(hud._experiments_label, hud._height_label.get_index() + 1)
+	config.qol.backlog_enabled = true
+	await _settle_layout()
+	assert_gt(hud._gift_toast_label.get_global_rect().position.y, toast_hidden, "an enabled experiment adds its line")
+	assert_gt(hud._top_left_backplate.size.y, backplate_hidden.y)
