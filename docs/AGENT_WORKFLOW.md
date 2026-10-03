@@ -115,6 +115,8 @@ When a worker hits a limit, retain its checkout and last checkpoint. Resume it i
 
 Orchestrator integration is one command: `python tools/integrate_batch.py --branches wt/a wt/b --beads id1 id2 [--no-game-code] [--dry-run] [--no-push]` (temp worktree, `--no-ff` merges, import check, full gate verdict, ff main, push, remote verify, then `bd close`; compact output, logs in a temp dir, non-zero exit names the failed step).
 
+Codex leaves asset packages uncommitted in its own `.claude/worktrees/codex-*` checkouts; stage them with `python tools/stage_codex_handoffs.py --beads id1 id2 --branch wt/name [--dry-run] [--min-age-min 30]` (reads each bead's last codex-named worktree path, refuses modified-tracked, overlapping, base-colliding or too-recent candidates, then one commit per bead on a new branch; never touches the Codex worktrees), and integrate that branch with `integrate_batch.py`.
+
 Implementation workers must implement their assigned changes, not return only advice. They report failure honestly and preserve partial work. Use open-project import before tests in a fresh worktree; the generated `.godot/` cache is not shared. Relevant gates:
 
 ```powershell
