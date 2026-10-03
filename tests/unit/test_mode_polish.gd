@@ -65,8 +65,8 @@ func _pick_mode(lobby: Lobby, mode: int) -> void:
 
 func test_timer_min_and_default_per_mode() -> void:
 	assert_eq(MatchConfig.timer_min_minutes(MatchConfig.GameMode.CLASSIC), 0)
-	assert_eq(MatchConfig.timer_min_minutes(MatchConfig.GameMode.CAPTURE_THE_FLAG), 1)
-	assert_eq(MatchConfig.timer_min_minutes(MatchConfig.GameMode.REACH_THE_SKY), 1)
+	assert_eq(MatchConfig.timer_min_minutes(MatchConfig.GameMode.CAPTURE_THE_FLAG), MatchConfig.ROUND_TIMER_MIN_MINUTES)
+	assert_eq(MatchConfig.timer_min_minutes(MatchConfig.GameMode.REACH_THE_SKY), 2)
 	assert_eq(MatchConfig.timer_min_minutes(MatchConfig.GameMode.ELIMINATION), 0)
 	assert_eq(MatchConfig.timer_default_minutes(MatchConfig.GameMode.CLASSIC), 0)
 	assert_eq(MatchConfig.timer_default_minutes(MatchConfig.GameMode.ELIMINATION), 0)
@@ -87,30 +87,33 @@ func test_one_timer_column_visible_per_mode() -> void:
 	assert_true(match_col.visible and not round_col.visible)
 
 
-func test_round_spin_minimum_and_defaults_follow_the_mode() -> void:
+func test_round_slider_minimum_and_defaults_follow_the_mode() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var spin: SpinBox = lobby.get_node("%RoundTimerSpin")
+	var slider: HSlider = lobby.get_node("%RoundTimerSlider")
 	_pick_mode(lobby, MatchConfig.GameMode.ELIMINATION)
-	assert_eq(spin.min_value, 0.0)
-	assert_eq(spin.value, 0.0, "Elimination starts with no limit")
-	assert_eq((lobby.get_node("%RoundTimerHint") as Label).text, "No limit")
+	assert_eq(slider.min_value, 0.0)
+	assert_eq(slider.value, 0.0, "Elimination starts with its timer off")
+	assert_eq((lobby.get_node("%RoundTimerValue") as Label).text, "Off", "leftmost stop reads Off")
 	_pick_mode(lobby, MatchConfig.GameMode.CAPTURE_THE_FLAG)
-	assert_eq(spin.min_value, 1.0)
-	assert_eq(spin.value, float(MatchConfig.ROUND_TIMER_DEFAULT_MINUTES))
-	spin.value = 15
+	assert_eq(slider.min_value, 2.0)
+	assert_eq(slider.max_value, 30.0)
+	assert_eq(slider.value, 5.0, "owner playtest 2026-10-03: the default round is 5 minutes")
+	assert_eq(slider.value, float(MatchConfig.ROUND_TIMER_DEFAULT_MINUTES))
+	assert_eq((lobby.get_node("%RoundTimerValue") as Label).text, "5 min")
+	slider.value = 15
 	_pick_mode(lobby, MatchConfig.GameMode.REACH_THE_SKY)
-	assert_eq(spin.value, 15.0, "CTF and Sky share a timer meaning, so the length is kept")
-	assert_eq((lobby.get_node("%RoundTimerCaption") as Label).text.find("0=off"), -1)
+	assert_eq(slider.value, 15.0, "CTF and Sky share a timer meaning, so the length is kept")
+	assert_eq((lobby.get_node("%RoundTimerValue") as Label).text, "15 min")
 
 
 func test_timer_control_writes_the_matching_config_field() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var fake: FakeNet = lobby.net_provider as FakeNet
-	(lobby.get_node("%MatchTimerSpin") as SpinBox).value = 12
+	(lobby.get_node("%MatchTimerSlider") as HSlider).value = 12
 	assert_eq(fake.set_lobby_data_calls[-1]["match_timer_minutes"], 12)
 	_pick_mode(lobby, MatchConfig.GameMode.ELIMINATION)
 	assert_eq(fake.set_lobby_data_calls[-1]["round_timer_minutes"], 0)
-	(lobby.get_node("%RoundTimerSpin") as SpinBox).value = 7
+	(lobby.get_node("%RoundTimerSlider") as HSlider).value = 7
 	assert_eq(fake.set_lobby_data_calls[-1]["round_timer_minutes"], 7)
 	assert_eq(fake.set_lobby_data_calls[-1]["match_timer_minutes"], 12, "classic value kept")
 
@@ -121,41 +124,42 @@ func test_elimination_no_limit_round_trips_to_a_client() -> void:
 	var published: Dictionary = (host.net_provider as FakeNet).set_lobby_data_calls[-1]
 	var client: Lobby = _make_lobby(false)
 	client._apply_data(published)
-	assert_eq((client.get_node("%RoundTimerSpin") as SpinBox).value, 0.0)
+	assert_eq((client.get_node("%RoundTimerSlider") as HSlider).value, 0.0)
+	assert_eq((client.get_node("%RoundTimerValue") as Label).text, "Off")
 	assert_eq((client.get_node("%GameModeOption") as OptionButton).selected, MatchConfig.GameMode.ELIMINATION)
 	assert_true((client.get_node("%RoundTimerCol") as Control).visible)
 	var ctf: Dictionary = published.duplicate()
 	ctf["game_mode"] = MatchConfig.GameMode.CAPTURE_THE_FLAG
 	ctf["round_timer_minutes"] = 20
 	client._apply_data(ctf)
-	assert_eq((client.get_node("%RoundTimerSpin") as SpinBox).value, 20.0)
-	assert_eq((client.get_node("%RoundTimerSpin") as SpinBox).min_value, 1.0)
+	assert_eq((client.get_node("%RoundTimerSlider") as HSlider).value, 20.0)
+	assert_eq((client.get_node("%RoundTimerSlider") as HSlider).min_value, 2.0)
 
 
 func test_focus_loops_skip_the_hidden_timer_column() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var match_spin: SpinBox = lobby.get_node("%MatchTimerSpin")
-	var round_spin: SpinBox = lobby.get_node("%RoundTimerSpin")
+	var match_slider: HSlider = lobby.get_node("%MatchTimerSlider")
+	var round_slider: HSlider = lobby.get_node("%RoundTimerSlider")
 	var sudden: Control = lobby.get_node("%SuddenDeathCheck")
 	_pick_mode(lobby, MatchConfig.GameMode.CAPTURE_THE_FLAG)
 	var shown: Array[Control] = lobby._visible_chain(lobby._main_chain)
 	var popup_shown: Array[Control] = lobby._visible_chain(lobby._popup_chain)
-	assert_true(shown.has(round_spin))
-	assert_false(shown.has(match_spin))
+	assert_true(shown.has(round_slider))
+	assert_false(shown.has(match_slider))
 	assert_false(popup_shown.has(sudden))
 	_assert_closed_loop(shown)
 	_assert_closed_loop(popup_shown)
 	_pick_mode(lobby, MatchConfig.GameMode.CLASSIC)
 	shown = lobby._visible_chain(lobby._main_chain)
 	popup_shown = lobby._visible_chain(lobby._popup_chain)
-	assert_true(shown.has(match_spin))
+	assert_true(shown.has(match_slider))
 	assert_true(popup_shown.has(sudden))
-	assert_false(shown.has(round_spin))
+	assert_false(shown.has(round_slider))
 	_assert_closed_loop(shown)
 	_assert_closed_loop(popup_shown)
 	# Focus order follows the visual order: mode, then the timer, then the map.
-	assert_lt(shown.find(lobby.get_node("%GameModeOption")), shown.find(match_spin))
-	assert_lt(shown.find(match_spin), shown.find(lobby.get_node("%MapComboOption")))
+	assert_lt(shown.find(lobby.get_node("%GameModeOption")), shown.find(match_slider))
+	assert_lt(shown.find(match_slider), shown.find(lobby.get_node("%MapComboOption")))
 	assert_lt(shown.find(lobby.get_node("%AiCountSpin")), shown.find(lobby.get_node("%AiDifficultyOption")))
 
 
@@ -238,18 +242,18 @@ func test_mid_join_toggle_sits_after_turn_based_in_the_popup_focus_loop() -> voi
 
 func test_lobby_forces_a_timer_for_domination() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var spin: SpinBox = lobby.get_node("%RoundTimerSpin")
+	var slider: HSlider = lobby.get_node("%RoundTimerSlider")
 	_pick_mode(lobby, MatchConfig.GameMode.ELIMINATION)
-	assert_eq(spin.value, 0.0)
+	assert_eq(slider.value, 0.0)
 	_pick_mode(lobby, MatchConfig.GameMode.DOMINATION)
 	assert_true((lobby.get_node("%RoundTimerCol") as Control).visible)
-	assert_eq(spin.min_value, float(MatchConfig.ROUND_TIMER_MIN_MINUTES), "cannot be set to off")
-	assert_eq(spin.value, float(MatchConfig.DOMINATION_ROUND_MINUTES_DEFAULT))
-	spin.value = 0
-	assert_gte(spin.value, 1.0)
+	assert_eq(slider.min_value, float(MatchConfig.ROUND_TIMER_MIN_MINUTES), "cannot be set to off")
+	assert_eq(slider.value, float(MatchConfig.DOMINATION_ROUND_MINUTES_DEFAULT))
+	slider.value = 0
+	assert_gte(slider.value, float(MatchConfig.ROUND_TIMER_MIN_MINUTES))
 	var fake: FakeNet = lobby.net_provider as FakeNet
-	assert_gte(int(fake.set_lobby_data_calls[-1]["round_timer_minutes"]), 1)
-	assert_true((lobby.get_node("%RoundTimerHint") as Label).text.find("required") >= 0)
+	assert_gte(int(fake.set_lobby_data_calls[-1]["round_timer_minutes"]), MatchConfig.ROUND_TIMER_MIN_MINUTES)
+	assert_true((lobby.get_node("%RoundTimerValue") as Label).text.find("required") >= 0)
 	assert_false((lobby.get_node("%GameModeOption") as OptionButton).tooltip_text.is_empty(), "mode description")
 
 
@@ -259,3 +263,120 @@ func test_bot_goal_is_a_territory_objective_in_domination() -> void:
 	assert_not_null(goal)
 	assert_eq(goal.mode, MatchConfig.GameMode.DOMINATION)
 	assert_true(goal.own_team_leads, "no territory yet: nobody to contest")
+
+
+
+# --- Bontago-1pi.30 round timer slider (owner playtest 2026-10-03) ------------------
+
+func _dpad_event(button: JoyButton) -> InputEventJoypadButton:
+	var event: InputEventJoypadButton = InputEventJoypadButton.new()
+	event.device = -1
+	event.button_index = button
+	event.pressed = true
+	return event
+
+
+## Feeds [param slider] a real D-pad press the way a focused control receives it: its
+## gui_input signal (GUT cannot route key/pad events through the viewport to a focus
+## owner here). The event is matched against the real InputMap's ui_left/ui_right.
+func _dpad_step(slider: HSlider, button: JoyButton) -> void:
+	var event: InputEventJoypadButton = _dpad_event(button)
+	assert_true(event.is_action_pressed(&"ui_left", true) or event.is_action_pressed(&"ui_right", true),
+		"fixture: the D-pad maps to ui_left/ui_right")
+	slider.gui_input.emit(event)
+
+
+func test_timer_defaults_are_five_minutes_and_two_to_thirty() -> void:
+	assert_eq(MatchConfig.ROUND_TIMER_DEFAULT_MINUTES, 5)
+	assert_eq(MatchConfig.ROUND_TIMER_MIN_MINUTES, 2)
+	assert_eq(MatchConfig.ROUND_TIMER_MAX_MINUTES, 30)
+	var fresh: MatchConfig = MatchConfig.new()
+	assert_eq(fresh.round_timer_minutes, 5)
+	assert_eq(fresh.match_timer_minutes, 0, "Classic's match timer stays Off by default")
+	assert_eq(MatchConfig.timer_default_minutes(MatchConfig.GameMode.CAPTURE_THE_FLAG), 5)
+	var lobby: Lobby = _make_lobby(true)
+	var match_slider: HSlider = lobby.get_node("%MatchTimerSlider")
+	var round_slider: HSlider = lobby.get_node("%RoundTimerSlider")
+	assert_eq([match_slider.min_value, match_slider.max_value, match_slider.step], [0.0, 30.0, 1.0])
+	assert_eq([round_slider.min_value, round_slider.max_value, round_slider.step], [2.0, 30.0, 1.0])
+	assert_eq(match_slider.value, 0.0)
+	assert_eq((lobby.get_node("%MatchTimerValue") as Label).text, "Off")
+	assert_eq(round_slider.value, 5.0, "the lobby's default round length")
+	assert_eq((lobby.get_node("%RoundTimerValue") as Label).text, "5 min")
+	var config: MatchConfig = lobby._config_from_controls()
+	assert_eq([config.match_timer_minutes, config.round_timer_minutes], [0, 5])
+
+
+func test_round_slider_round_trips_through_config_serialize_and_a_client() -> void:
+	var host: Lobby = _make_lobby(true)
+	_pick_mode(host, MatchConfig.GameMode.CAPTURE_THE_FLAG)
+	var slider: HSlider = host.get_node("%RoundTimerSlider")
+	var fake: FakeNet = host.net_provider as FakeNet
+	for minutes: int in [2, 17, 30]:
+		slider.value = minutes
+		var published: Dictionary = fake.set_lobby_data_calls[-1]
+		assert_eq(published["round_timer_minutes"], minutes)
+		assert_eq(MatchConfig.from_dict(published).round_timer_minutes, minutes, "serialize -> deserialize")
+		var client: Lobby = _make_lobby(false)
+		client._apply_data(published)
+		assert_eq((client.get_node("%RoundTimerSlider") as HSlider).value, float(minutes))
+		assert_eq((client.get_node("%RoundTimerValue") as Label).text, "%d min" % minutes)
+	slider.value = 99
+	assert_eq(slider.value, 30.0, "the slider cannot pass the maximum")
+	slider.value = 0
+	assert_eq(slider.value, 2.0, "CTF's slider cannot reach Off")
+
+
+func test_match_timer_slider_runs_off_to_thirty_and_skips_one_minute() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var slider: HSlider = lobby.get_node("%MatchTimerSlider")
+	var fake: FakeNet = lobby.net_provider as FakeNet
+	slider.value = 30
+	assert_eq(fake.set_lobby_data_calls[-1]["match_timer_minutes"], 30)
+	assert_eq((lobby.get_node("%MatchTimerValue") as Label).text, "30 min")
+	slider.value = 0
+	assert_eq(fake.set_lobby_data_calls[-1]["match_timer_minutes"], 0)
+	assert_eq((lobby.get_node("%MatchTimerValue") as Label).text, "Off")
+	slider.value = 1
+	assert_eq(slider.value, 2.0, "stepping up from Off lands on 2 minutes")
+	assert_eq(fake.set_lobby_data_calls[-1]["match_timer_minutes"], 2)
+	slider.value = 1
+	assert_eq(slider.value, 0.0, "stepping down from 2 minutes lands on Off")
+	assert_eq(fake.set_lobby_data_calls[-1]["match_timer_minutes"], 0)
+
+
+func test_gamepad_left_right_changes_the_focused_timer_slider() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var fake: FakeNet = lobby.net_provider as FakeNet
+	var match_slider: HSlider = lobby.get_node("%MatchTimerSlider")
+	_dpad_step(match_slider, JOY_BUTTON_DPAD_RIGHT)
+	assert_eq(match_slider.value, 2.0, "right from Off skips the 1-minute gap")
+	_dpad_step(match_slider, JOY_BUTTON_DPAD_RIGHT)
+	assert_eq(match_slider.value, 3.0)
+	assert_eq(fake.set_lobby_data_calls[-1]["match_timer_minutes"], 3, "a gamepad edit is published")
+	_dpad_step(match_slider, JOY_BUTTON_DPAD_LEFT)
+	_dpad_step(match_slider, JOY_BUTTON_DPAD_LEFT)
+	assert_eq(match_slider.value, 0.0, "left from 2 minutes reaches Off")
+	_pick_mode(lobby, MatchConfig.GameMode.CAPTURE_THE_FLAG)
+	var round_slider: HSlider = lobby.get_node("%RoundTimerSlider")
+	_dpad_step(round_slider, JOY_BUTTON_DPAD_RIGHT)
+	assert_eq(round_slider.value, 6.0)
+	_dpad_step(round_slider, JOY_BUTTON_DPAD_LEFT)
+	_dpad_step(round_slider, JOY_BUTTON_DPAD_LEFT)
+	assert_eq(round_slider.value, 4.0)
+	assert_eq(fake.set_lobby_data_calls[-1]["round_timer_minutes"], 4)
+	# Up/down is not a slider axis: the focus chain owns it (closed-loop tests above).
+	assert_ne(round_slider.focus_neighbor_top, NodePath(""))
+	assert_ne(round_slider.focus_neighbor_bottom, NodePath(""))
+
+
+func test_clients_see_the_timer_sliders_read_only() -> void:
+	var host: Lobby = _make_lobby(true)
+	var client: Lobby = _make_lobby(false)
+	for unique_name: String in ["%MatchTimerSlider", "%RoundTimerSlider"]:
+		assert_true((host.get_node(unique_name) as HSlider).editable, "host edits %s" % unique_name)
+		assert_false((client.get_node(unique_name) as HSlider).editable, "client reads %s" % unique_name)
+	var slider: HSlider = client.get_node("%MatchTimerSlider")
+	_dpad_step(slider, JOY_BUTTON_DPAD_RIGHT)
+	assert_eq(slider.value, 0.0, "a client's gamepad cannot move the host's setting")
+	assert_eq((client.net_provider as FakeNet).set_lobby_data_calls.size(), 0)

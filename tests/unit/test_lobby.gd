@@ -167,7 +167,7 @@ func test_every_2_8_setting_round_trips_through_to_dict_and_from_dict() -> void:
 	assert_eq(int((lobby.get_node("%SpecialFreqSlider") as HSlider).value), 80)
 	assert_eq((lobby.get_node("%TiltModeOption") as OptionButton).selected, MatchConfig.TiltMode.PHYSICAL_BALANCE)
 	assert_eq((lobby.get_node("%HoleModeOption") as OptionButton).selected, MatchConfig.HoleMode.PERMANENT)
-	assert_eq(int((lobby.get_node("%MatchTimerSpin") as SpinBox).value), 20)
+	assert_eq(int((lobby.get_node("%MatchTimerSlider") as HSlider).value), 20)
 	assert_true((lobby.get_node("%SuddenDeathCheck") as CheckButton).button_pressed)
 	assert_true((lobby.get_node("%TurnBasedCheck") as CheckButton).button_pressed)
 
@@ -832,7 +832,7 @@ func test_advanced_rules_summary_chips_reflect_current_settings() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	(lobby.get_node("%TiltModeOption") as OptionButton).selected = MatchConfig.TiltMode.PHYSICAL_BALANCE
 	(lobby.get_node("%HoleModeOption") as OptionButton).item_selected.emit(MatchConfig.HoleMode.OFF)
-	(lobby.get_node("%MatchTimerSpin") as SpinBox).value = 15
+	(lobby.get_node("%MatchTimerSlider") as HSlider).value = 15
 	(lobby.get_node("%SuddenDeathCheck") as CheckButton).button_pressed = true
 	(lobby.get_node("%TurnBasedCheck") as CheckButton).button_pressed = true
 	if not lobby._special_checkboxes.is_empty():
@@ -901,7 +901,7 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	# %MapSizeOption in the chain.
 	var chain_unique_names: Array[String] = [
 		"%MapComboOption", "%PlayerCountSpin", "%AiCountSpin",
-		"%AiDifficultyOption", "%GameModeOption", "%MatchTimerSpin", "%TeamOffButton", "%Team2Button", "%Team3Button", "%Team4Button",
+		"%AiDifficultyOption", "%GameModeOption", "%MatchTimerSlider", "%TeamOffButton", "%Team2Button", "%Team3Button", "%Team4Button",
 		"%BlockTimerSlider", "%GravitySlider",
 		"%GoalFlagSpin", "%GiftsCheck", "%SpecialFreqSlider",
 		"%TiltModeOption", "%HoleModeOption", "%SuddenDeathCheck",
@@ -929,12 +929,12 @@ func test_round_mode_and_timer_are_primary_settings() -> void:
 	assert_true((lobby.get_node("%MatchTimerCol") as Control).visible)
 	assert_false((lobby.get_node("%RoundTimerCol") as Control).visible)
 	var mode_control: Control = lobby.get_node("%GameModeOption") as Control
-	var timer_control: Control = lobby.get_node("%MatchTimerSpin") as Control
+	var timer_control: Control = lobby.get_node("%MatchTimerSlider") as Control
 	assert_eq(mode_control.get_node(mode_control.focus_neighbor_bottom), timer_control)
 	lobby._refresh_timer_control(MatchConfig.GameMode.ELIMINATION)
 	assert_false((lobby.get_node("%MatchTimerCol") as Control).visible)
 	assert_true((lobby.get_node("%RoundTimerCol") as Control).visible)
-	assert_eq(mode_control.get_node(mode_control.focus_neighbor_bottom), lobby.get_node("%RoundTimerSpin"))
+	assert_eq(mode_control.get_node(mode_control.focus_neighbor_bottom), lobby.get_node("%RoundTimerSlider"))
 
 
 func test_lobby_quick_y_opens_and_closes_advanced_rules() -> void:

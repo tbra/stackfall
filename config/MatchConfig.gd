@@ -73,13 +73,19 @@ const SELECTABLE_GAME_MODES: Array[int] = [
 ## Lobby labels, indexed by GameMode.
 const GAME_MODE_LABELS: PackedStringArray = ["Classic", "Capture the Flag", "Elimination", "Reach the Sky", "Domination"]
 ## Round timer (timed modes only), minutes. Classic keeps match_timer_minutes.
-const ROUND_TIMER_MIN_MINUTES: int = 1
-const ROUND_TIMER_MAX_MINUTES: int = 40
+## DECISION (Bontago-1pi.30, owner playtest 2026-10-03): the lobby timer is a
+## 2-30 minute slider defaulting to 5 (was 1-40, default 10). Classic's
+## match_timer_minutes shares ROUND_TIMER_MAX_MINUTES as its ceiling, so an old
+## saved/remote 40 is clamped to 30 by sanitize() like any other out-of-range value.
+const ROUND_TIMER_MIN_MINUTES: int = 2
+const ROUND_TIMER_MAX_MINUTES: int = 30
 ## Round length a CTF / Reach the Sky match starts from (matches round_timer_minutes).
-const ROUND_TIMER_DEFAULT_MINUTES: int = 10
+const ROUND_TIMER_DEFAULT_MINUTES: int = 5
 ## Domination (Bontago-1pi.25) always needs a timer (it has no early win); this is
 ## the round length it starts from when the lobby has none to carry over.
-const DOMINATION_ROUND_MINUTES_DEFAULT: int = 10
+## DECISION (Bontago-1pi.30): follows the owner's 5-minute default round timer
+## (playtest 2026-10-03) like every other timed mode.
+const DOMINATION_ROUND_MINUTES_DEFAULT: int = 5
 ## Elimination alone may switch its round timer off (0): it then runs until one
 ## team is left. Every other timed mode needs a timer to end.
 const ROUND_TIMER_OFF_MINUTES: int = 0
@@ -115,7 +121,9 @@ const ROUND_TIMER_OFF_MINUTES: int = 0
 @export var enabled_specials: Array[StringName] = []
 @export var tilt_mode: TiltMode = TiltMode.SPECIALS_ONLY
 @export var hole_mode: HoleMode = HoleMode.TEMPORARY
-## Match timer in minutes; 0 is off, otherwise 10-40 (spec 2.8).
+## Match timer in minutes; 0 is off, otherwise up to ROUND_TIMER_MAX_MINUTES
+## (the lobby slider skips 1 so on is 2-30; spec 2.8's 10-40 was superseded by
+## the owner's 2026-10-03 playtest note, Bontago-1pi.30).
 @export var match_timer_minutes: int = 0
 @export var sudden_death: bool = false
 ## Spec 2.7 "Turn-based [NEW]": physics settles completely before the next
@@ -382,7 +390,7 @@ func sanitize() -> void:
 	special_frequency = clampi(special_frequency, SPECIAL_FREQUENCY_MIN, SPECIAL_FREQUENCY_MAX)
 	tilt_mode = clampi(tilt_mode, TiltMode.SPECIALS_ONLY, TiltMode.PHYSICAL_BALANCE)
 	hole_mode = clampi(hole_mode, HoleMode.TEMPORARY, HoleMode.OFF) as HoleMode
-	match_timer_minutes = maxi(match_timer_minutes, 0)
+	match_timer_minutes = clampi(match_timer_minutes, ROUND_TIMER_OFF_MINUTES, ROUND_TIMER_MAX_MINUTES)
 	if qol != null:
 		qol.sanitize()
 	game_mode = resolve_game_mode(game_mode)

@@ -406,3 +406,35 @@ func test_cycle_mode_survives_wire_round_trip() -> void:
 	var restored: MatchConfig = MatchConfig.from_dict(config.to_dict())
 	assert_eq(restored.sky_theme_mode, MatchConfig.SkyThemeMode.CYCLE)
 	assert_eq(restored.effective_sky_theme(), "sunset")
+
+
+## Bontago-1pi.30 (owner playtest 2026-10-03): the round timer defaults to 5 and the
+## lobby slider spans 2-30; an old saved/remote value from the 1-40 era is clamped into
+## the new range by the host's own sanitize()/from_dict(), Off surviving where allowed.
+func test_round_timer_range_and_default() -> void:
+	assert_eq(MatchConfig.ROUND_TIMER_DEFAULT_MINUTES, 5)
+	assert_eq(MatchConfig.ROUND_TIMER_MIN_MINUTES, 2)
+	assert_eq(MatchConfig.ROUND_TIMER_MAX_MINUTES, 30)
+	assert_eq(MatchConfig.new().round_timer_minutes, 5)
+	assert_eq(MatchConfig.new().match_timer_minutes, 0, "Classic stays Off")
+
+
+func test_old_saved_timer_values_clamp_into_the_new_range() -> void:
+	var ctf: int = MatchConfig.GameMode.CAPTURE_THE_FLAG
+	assert_eq(MatchConfig.from_dict({"game_mode": ctf, "round_timer_minutes": 40}).round_timer_minutes, 30)
+	assert_eq(MatchConfig.from_dict({"game_mode": ctf, "round_timer_minutes": 1}).round_timer_minutes, 2)
+	assert_eq(MatchConfig.from_dict({"game_mode": ctf, "round_timer_minutes": 10}).round_timer_minutes, 10, "in range: kept")
+	var elimination: Dictionary = {"game_mode": MatchConfig.GameMode.ELIMINATION, "round_timer_minutes": 0}
+	assert_eq(MatchConfig.from_dict(elimination).round_timer_minutes, 0, "Elimination keeps Off")
+	var config: MatchConfig = MatchConfig.new()
+	config.match_timer_minutes = 40
+	config.sanitize()
+	assert_eq(config.match_timer_minutes, 30, "Classic's old 40 is clamped to the new maximum")
+	config.match_timer_minutes = 0
+	config.sanitize()
+	assert_eq(config.match_timer_minutes, 0, "Off survives")
+	config.game_mode = MatchConfig.GameMode.DOMINATION
+	config.round_timer_minutes = 0
+	config.sanitize()
+	assert_eq(config.round_timer_minutes, 2, "Domination is never off")
+	assert_eq(MatchConfig.from_dict(config.to_dict()).round_timer_minutes, 2, "serialize -> deserialize")
