@@ -305,6 +305,13 @@ var replays_acknowledged: int = 0
 var intents_refused_before_replay_ack: int = 0
 ## Client only: the replay id this instance last acknowledged (0 = none).
 var last_replay_acknowledged: int = 0
+## Client only (Bontago-1pi.56): the id of the late-join world replay being
+## applied right now (0 = none). Set by the net_match_start that carries it,
+## cleared by the matching net_replay_end -- or by anything that ends the replay
+## early (a new match start, leaving the session, teardown, the ack timeout), so
+## a replay that never completes cannot mute live feedback for the rest of a match.
+var _replaying_id: int = 0
+var _replaying_since_ms: int = 0
 
 ## Bontago-22y.10: the weather RPC surface (net/WeatherNet.gd), a child node.
 var _weather_net: WeatherNet = null
@@ -357,6 +364,7 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	_end_world_replay()
 	var authority: Variant = _authority()
 	if authority != null and authority.get("_replicator") == self:
 		authority.set_replicator(null)
@@ -415,6 +423,7 @@ func _can_send() -> bool:
 
 func _process(delta: float) -> void:
 	if not _is_host():
+		_tick_world_replay_expiry()
 		if not _impact_queue.is_empty():
 			drain_impacts(Time.get_ticks_msec())
 		return
@@ -849,7 +858,7 @@ func replicate_match_start(match_config: MatchConfig) -> void:
 	_force_full_raster = true
 	if not _can_send():
 		return
-	rpc(&"net_match_start", match_config.to_dict(), _roster())
+	rpc(&"net_match_start", match_config.to_dict(), _roster(), 0)
 
 
 ## Host only (Bontago-t8x.4). Tells every client the host just pressed Start,
@@ -1745,7 +1754,7 @@ func flush_impacts(now_ms: int) -> PackedByteArray:
 		for peer_id: int in multiplayer.get_peers():
 			# A mid-match joiner still loading its world replay hears nothing
 			# yet; impacts are never part of that replay either.
-			if not _replay_pending.has(peer_id):
+			if not _replay_pending.has(peer_id) and not _peer_is_disconnecting(peer_id):
 				rpc_id(peer_id, &"net_block_impacts", packet)
 	return packet
 
@@ -1873,8 +1882,40 @@ func _on_net_peer_joined(peer_id: int, slot_id: int, _player_name: String) -> vo
 	_replay_world_to(peer_id)
 
 
+## Whether a late-join world replay is being applied here (client only). While
+## true, Events.world_replay_changed(true) has been emitted and not yet undone.
+func is_replaying_world() -> bool:
+	return _replaying_id > 0
+
+
+func _begin_world_replay(replay_id: int) -> void:
+	_replaying_id = replay_id
+	_replaying_since_ms = Time.get_ticks_msec()
+	Events.world_replay_changed.emit(true)
+
+
+## Idempotent; emits only on a real true -> false transition.
+func _end_world_replay() -> void:
+	if _replaying_id == 0:
+		return
+	_replaying_id = 0
+	Events.world_replay_changed.emit(false)
+
+
+## A replay's messages all land in one network poll, so one that has not
+## finished by the host's own ack timeout never will (the host drops the peer at
+## that point): stop muting.
+func _tick_world_replay_expiry() -> void:
+	if _replaying_id == 0:
+		return
+	var elapsed_s: float = float(Time.get_ticks_msec() - _replaying_since_ms) / 1000.0
+	if elapsed_s >= config.replay_ack_timeout:
+		_end_world_replay()
+
+
 func _on_net_mode_changed(mode: int) -> void:
 	_awaiting_match_start = mode == Net.Mode.CLIENT
+	_end_world_replay()
 	_reset_impacts()
 
 
@@ -1959,6 +2000,14 @@ func replay_pending_for(peer_id: int) -> bool:
 	return _replay_pending.has(peer_id)
 
 
+## Bontago-1pi.57: a peer the host is kicking stays in get_peers() until its
+## disconnect completes, and a send to it logs an engine error (see
+## Net._disconnecting_peers). A test session without the query never has one.
+func _peer_is_disconnecting(peer_id: int) -> bool:
+	var session: Variant = _session()
+	return session.has_method(&"is_peer_disconnecting") and bool(session.is_peer_disconnecting(peer_id))
+
+
 ## Host only. Spec 3.4 "Late join / reconnect: Send the full world state in
 ## chunks: all bodies, the territory raster, and match state." Every message
 ## is a reliable rpc_id() on the default channel, so the joiner receives them
@@ -1994,7 +2043,7 @@ func _replay_world_to(peer_id: int) -> void:
 	_replay_pending[peer_id] = replay_id
 	_replay_age[peer_id] = 0.0
 	replays_started += 1
-	for message: Array in build_world_replay():
+	for message: Array in build_world_replay(replay_id):
 		_send_replay(peer_id, StringName(message[0]), message[1] as Array)
 	call_deferred(&"_finish_replay", peer_id, replay_id)
 
@@ -2011,7 +2060,7 @@ func _send_replay(peer_id: int, method: StringName, args: Array) -> void:
 	if capture_replay:
 		replay_capture.append([peer_id, method, args])
 		return
-	if not _can_send() or not multiplayer.get_peers().has(peer_id):
+	if not _can_send() or not multiplayer.get_peers().has(peer_id) or _peer_is_disconnecting(peer_id):
 		return
 	callv(&"rpc_id", [peer_id, method] + args)
 
@@ -2019,13 +2068,20 @@ func _send_replay(peer_id: int, method: StringName, args: Array) -> void:
 ## The ordered replay body (steps 1-4 of _replay_world_to()), as
 ## [method: StringName, args: Array] pairs. Public so a test can apply it to
 ## a client mirror without a peer.
-func build_world_replay() -> Array[Array]:
+##
+## `replay_id` > 0 (the real send) marks the opening net_match_start as a replay
+## so the joiner mutes one-shot feedback until the matching net_replay_end; 0
+## builds the body without the marker.
+func build_world_replay(replay_id: int = 0) -> Array[Array]:
 	var authority: Variant = _authority()
 	var messages: Array[Array] = []
 	var running: MatchConfig = authority.config
 	if running == null:
 		return messages
-	messages.append([&"net_match_start", [running.to_dict(), _roster()]])
+	var start_args: Array = [running.to_dict(), _roster()]
+	if replay_id > 0:
+		start_args.append(replay_id)
+	messages.append([&"net_match_start", start_args])
 
 	var registry: BlockRegistry = authority.registry()
 	if registry != null:
@@ -2420,12 +2476,20 @@ func net_match_loading() -> void:
 	Events.match_loading_announced.emit()
 
 
+## `replay_id` is 0 for the broadcast every client gets at match start, and the
+## replay's own id (> 0) when this is the first message of a late-join /
+## reconnect world replay (see _replay_world_to). The replay span is silent for
+## one-shot feedback: see Events.world_replay_changed.
 @rpc("authority", "call_remote", "reliable")
-func net_match_start(config_data: Dictionary, roster: Array) -> void:
+func net_match_start(config_data: Dictionary, roster: Array, replay_id: int = 0) -> void:
 	_awaiting_match_start = false
 	var match_config: MatchConfig = MatchConfig.from_dict(config_data)
 	match_config.sanitize()
 	reset_counters()
+	# Before start_match(): its own state events belong to the replay too.
+	_end_world_replay()
+	if replay_id > 0 and not _is_host():
+		_begin_world_replay(replay_id)
 	_authority().start_match(match_config)
 	_apply_roster(roster)
 
@@ -2476,6 +2540,9 @@ func net_replay_end(replay_id: int) -> void:
 	if _is_host() or _client_awaiting_world() or replay_id <= 0:
 		return
 	last_replay_acknowledged = replay_id
+	# The replay's last message: live events from here on are news again.
+	if replay_id == _replaying_id:
+		_end_world_replay()
 	if _can_send():
 		rpc_id(Net.HOST_PEER_ID, &"net_replay_ack", replay_id)
 

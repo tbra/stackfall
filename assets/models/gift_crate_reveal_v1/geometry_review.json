@@ -1,0 +1,25 @@
+{
+  "closed_bounds_blender_min": [
+    -0.5550000071525574,
+    -0.609499990940094,
+    0.0
+  ],
+  "closed_bounds_blender_max": [
+    0.5550000071525574,
+    0.5550000071525574,
+    1.09250009059906
+  ],
+  "origin": "bottom center",
+  "mesh_groups": [
+    "Crate body / hollow",
+    "Crate lid / hinged"
+  ],
+  "hinge_blender_xyz": [
+    0,
+    0.555,
+    0.92
+  ],
+  "clip_seconds": 1,
+  "final_lid_degrees": -110,
+  "playback": "one shot, hold final pose"
+}

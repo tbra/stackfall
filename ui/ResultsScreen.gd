@@ -56,9 +56,9 @@ const _AI_DIFFICULTY_LABELS: Array[String] = ["Easy", "Normal", "Hard"]
 ## Lobby-data key of the lobby rework's seat table (LobbySeats: humans + bots with
 ## colour/team/difficulty). Republishing the config for the next lobby visit must
 ## carry it across like "roster", or the lobby falls back to default seats.
-## DECISION (ui/ResultsScreen.gd, Bontago-1pi.53): spelled here until the lobby
-## package (E1/PL1) owns a shared constant; the literal is the plan's wire key.
-const LOBBY_SEATS_KEY: String = "seats"
+## Bontago-1pi.53 (PL1b): the key's single definition is Lobby.SEATS_KEY; this alias keeps
+## the results screen's own name (and tests/unit/test_team_slots.gd) working.
+const LOBBY_SEATS_KEY: String = Lobby.SEATS_KEY
 
 ## Column header labels, in the same order _build_row_cells() below emits
 ## per-row text -- kept next to each other so a column can never drift out of
@@ -125,6 +125,7 @@ func _ready() -> void:
 
 	Events.match_results_ready.connect(_on_match_results_ready)
 	Events.match_state_changed.connect(_on_match_state_changed)
+	Events.match_scope_reset.connect(clear_results)
 
 	_replay_button.pressed.connect(_on_replay_pressed)
 	_lobby_button.pressed.connect(_on_lobby_pressed)
@@ -149,6 +150,19 @@ func _on_match_state_changed(_from_state: int, to_state: int) -> void:
 	if to_state != Match.State.END:
 		hide()
 		_settings_panel.visible = false
+
+
+## Bontago-1pi.46 (G9; Events.match_scope_reset runs this). ROOT CAUSE: the screen is a
+## persistent Main child that only ever replaced its stats rows when the NEXT results
+## arrived, so after Replay / Back to lobby / Leave the previous match's table (header
+## row, one row per player) stayed in the hidden tree and `last_results` kept its
+## payload -- a new match did not look like a fresh launch. Drops the rows and the
+## payload; the overlay itself is hidden by _on_match_state_changed() already.
+func clear_results() -> void:
+	last_results = {}
+	for child: Node in _rows_list.get_children():
+		_rows_list.remove_child(child)
+		child.queue_free()
 
 
 ## Bontago-1pi.15.1: ui_cancel closes the quick-settings sub-panel the same

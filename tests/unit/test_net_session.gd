@@ -1599,6 +1599,69 @@ func test_a_lobby_kick_compacts_before_net_peer_left_is_emitted() -> void:
 	assert_eq(seen.get("peer_at_3"), -1)
 
 
+## Bontago-1pi.57: kick_peer announced the new roster with a plain broadcast while
+## the kicked peer was still in get_peers() (ENet only drops it once its disconnect
+## completes), which the engine reports as an error ("Unable to send packet on
+## channel 0, max channels: 0"). Over a real ENet connection; GUT fails a test on an
+## unexpected engine error.
+func test_kicking_a_connected_peer_over_enet_raises_no_engine_error() -> void:
+	var port: int = _take_port()
+	_connect_host_and_client(port)
+	var joined: bool = await _wait_until(func() -> bool:
+		return _host.peer_ids().size() == 2 and _client.peer_ids().size() == 2
+	)
+	assert_true(joined, "host and client settle on a 2-peer roster first")
+	var client_id: int = _client.local_peer_id()
+	assert_true(_host.multiplayer.get_peers().has(client_id), "the client is a live ENet peer")
+	watch_signals(Events)
+	_host.kick_peer(client_id)
+	assert_false(_host.peer_ids().has(client_id), "the kicked peer is out of the host's roster")
+	assert_eq(get_signal_parameters(Events, "net_peer_left", 0), [client_id, 1, Net.LeaveReason.KICKED])
+	var published: Array = get_signal_parameters(Events, "net_roster_changed", 0)[0]
+	assert_eq(published.size(), 1, "the roster the host publishes is the host alone")
+	assert_true(_host.multiplayer.get_peers().has(client_id), "ENet still lists the peer until its disconnect completes")
+	assert_false(_host._broadcast_targets().has(client_id), "but no broadcast addresses it")
+	# A republish by a net_peer_left listener (the lobby does) is a broadcast too.
+	_host.set_lobby_data({"map_variant": 1})
+	# Let the disconnect complete and a few frames pass.
+	await _wait_until(func() -> bool: return _host.multiplayer.get_peers().is_empty(), 120)
+	assert_true(_host.multiplayer.get_peers().is_empty(), "the disconnect completes")
+	assert_eq(get_signal_emit_count(Events, "net_roster_changed"), 1, "the kicked client was sent no roster either")
+
+
+func test_kicking_one_of_two_connected_peers_still_tells_the_other_over_enet() -> void:
+	var port: int = _take_port()
+	assert_eq(_host.host_game(port, "Hostie"), OK)
+	var second: Variant = _make_side("SecondNet")
+	assert_eq(_client.join_game("127.0.0.1", port, "Clienty"), OK)
+	assert_eq(second.join_game("127.0.0.1", port, "Seconda"), OK)
+	var seated: bool = await _wait_until(func() -> bool:
+		return _host.peer_ids().size() == 3 and _client.peer_ids().size() == 3 and second.peer_ids().size() == 3
+	)
+	assert_true(seated, "all three settle on a 3-peer roster")
+	var kicked_id: int = _client.local_peer_id()
+	var kept_id: int = second.local_peer_id()
+	_host.kick_peer(kicked_id)
+	var told: bool = await _wait_until(func() -> bool:
+		return second.peer_ids().size() == 2 and not second.peer_ids().has(kicked_id)
+	)
+	assert_true(told, "the peer that stays hears the roster without the kicked one")
+	assert_eq(second.local_slot(), 1, "and its seat closed up behind the kicked peer")
+	assert_eq(_host.slot_of_peer(kept_id), 1)
+	second.leave()
+
+
+## kick_peer for an id the transport does not hold (a fake peer, or one that already
+## dropped) has nothing to disconnect: no engine error, and nothing left marked.
+func test_kicking_a_peer_the_transport_does_not_hold_raises_no_engine_error() -> void:
+	_host_with_peers({5: 1, 6: 2})
+	watch_signals(Events)
+	_host.kick_peer(5)
+	assert_false(_host.peer_ids().has(5))
+	assert_eq(get_signal_emit_count(Events, "net_peer_left"), 1)
+	assert_true(_host._disconnecting_peers.is_empty(), "nothing is waiting on a disconnect that never started")
+
+
 func test_a_lobby_disconnect_compacts_before_net_peer_left_is_emitted() -> void:
 	_host_with_named_peers({5: [1, ""], 6: [2, ""], 7: [3, ""]})
 	var seen: Dictionary = {}

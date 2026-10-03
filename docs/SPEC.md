@@ -306,8 +306,8 @@ Every special is its own `SpecialDef` resource plus a script. The seven evidence
 |---|---|---|
 | Map | Round / Oval / Ring / Twin / Cross | Round |
 | Map size | S/M/L | M |
-| Players / AI count & difficulty | 2–8, Easy/Normal/Hard | 4 |
-| Teams | Off / 2 / 3 / 4 | Off |
+| Players / AI count & difficulty | 2–8 seats; bots added with the players panel's Add bot button, each bot has its own Easy/Normal/Hard dropdown (lobby rework, Bontago-1pi.53) | 4 |
+| Teams | Teams toggle in the players panel; each seat picks team 1–4 or Random (balanced fill at match start); same number = same team (Bontago-1pi.53) | Off |
 | Block timer | 3–12 s | 6 s |
 | Gravity | 0.5×–2× | 1× |
 | Goal flags | 1–5 | 1 |

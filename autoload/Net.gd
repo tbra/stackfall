@@ -65,6 +65,12 @@ var _ping_samples: Dictionary = {}
 ## Host only: peer_id -> deadline (seconds, _now()) by which the peer must
 ## have sent its handshake, or it is dropped.
 var _pending_handshake: Dictionary = {}
+## Host only: peer ids kick_peer() has asked the transport to disconnect that
+## are still listed in multiplayer.get_peers() (ENet drops them only once the
+## disconnect completes, a poll later). Sending to one logs the engine error
+## "Unable to send packet on channel 0, max channels: 0" (Bontago-1pi.57), so
+## every host-side fan-out goes through _broadcast_targets(), which skips them.
+var _disconnecting_peers: Dictionary = {}
 ## Host only (Bontago-1pi.53): peer_id -> {"tokens": float, "at": float}, the
 ## request_seat_pref flood bucket of each peer that sent one (size and refill:
 ## NetConfig.seat_pref_burst / seat_pref_refill_per_s). Dropped with the
@@ -539,8 +545,15 @@ func kick_peer(peer_id: int, reason: LeaveReason = LeaveReason.KICKED) -> void:
 	_pending_handshake.erase(peer_id)
 	# A kicked peer forfeits its rejoin token: no reservation is made for it.
 	_tokens.erase(peer_id)
-	if multiplayer.multiplayer_peer:
-		multiplayer.multiplayer_peer.disconnect_peer(peer_id)
+	# Bontago-1pi.57: ENet keeps a disconnecting peer in get_peers() until the
+	# disconnect completes a poll later, and a send to it logs an engine error.
+	# Mark it before anything below can broadcast (the roster, and whatever a
+	# net_peer_left listener republishes), so it is never addressed again. A peer
+	# the transport does not hold (nothing to disconnect) needs no mark.
+	var transport: MultiplayerPeer = multiplayer.multiplayer_peer
+	if transport != null and multiplayer.get_peers().has(peer_id):
+		_disconnecting_peers[peer_id] = true
+		transport.disconnect_peer(peer_id)
 	# Bontago-1pi.53 review F2: compact BEFORE announcing the departure, as the
 	# disconnect path does, so a listener of net_peer_left (the lobby republishing
 	# its data) already reads the closed-up slot ids.
@@ -591,8 +604,8 @@ func set_lobby_data(data: Dictionary) -> void:
 	_lobby_data = data.duplicate(true)
 	Events.net_lobby_data_changed.emit(_lobby_data)
 	# Bontago-mv0.1.10 review: same teardown hazard as _broadcast_roster().
-	if _can_send():
-		_rpc_lobby_data.rpc(_lobby_data)
+	for peer_id: int in _broadcast_targets():
+		_rpc_lobby_data.rpc_id(peer_id, _lobby_data)
 	if _lan.is_advertising():
 		_lan.update_advert({"map": str(_lobby_data.get("map_variant", 0))})
 	# docs/M3b_PLAN.md "Design notes": tee the same Dictionary into Steam
@@ -1289,6 +1302,7 @@ func _on_peer_connected(id: int) -> void:
 
 
 func _on_peer_disconnected(id: int) -> void:
+	_disconnecting_peers.erase(id)
 	_pending_handshake.erase(id)
 	_seat_pref_buckets.erase(id)
 	if _mode != Mode.HOST:
@@ -1581,14 +1595,32 @@ func _reject_peer(peer_id: int, error: int) -> void:
 ## a remote peer whose ENetPeer object already reports itself disconnected
 ## before Godot's own peer_disconnected signal/roster bookkeeping catches up.
 func _can_send() -> bool:
+	return not _broadcast_targets().is_empty()
+
+
+## True while kick_peer() has asked the transport to disconnect `peer_id` and it
+## has not dropped out of get_peers() yet. A send to it logs an engine error, so
+## per-peer senders outside this file (net/MatchNet.gd) skip it.
+func is_peer_disconnecting(peer_id: int) -> bool:
+	return _disconnecting_peers.has(peer_id)
+
+
+## Host only: the connected peers a broadcast may address -- every entry of
+## multiplayer.get_peers() except one kick_peer() is disconnecting (see
+## _disconnecting_peers). Empty while the transport is down, not connected, or
+## has no remote peer left. Fan-out sites send with rpc_id() to each of these
+## rather than a plain rpc(), which would also address the disconnecting peer.
+func _broadcast_targets() -> Array[int]:
+	var targets: Array[int] = []
 	if not is_host():
-		return false
+		return targets
 	var peer: MultiplayerPeer = multiplayer.multiplayer_peer
-	if peer == null:
-		return false
-	if peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
-		return false
-	return not multiplayer.get_peers().is_empty()
+	if peer == null or peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
+		return targets
+	for peer_id: int in multiplayer.get_peers():
+		if not _disconnecting_peers.has(peer_id):
+			targets.append(peer_id)
+	return targets
 
 
 func _broadcast_roster() -> void:
@@ -1601,8 +1633,8 @@ func _broadcast_roster() -> void:
 	# leaves, kicks — every caller of _broadcast_roster()) changed right here;
 	# tell ui/Lobby.gd directly rather than waiting on a lobby-data republish.
 	Events.net_roster_changed.emit(roster)
-	if _can_send():
-		_rpc_roster_update.rpc(roster)
+	for peer_id: int in _broadcast_targets():
+		_rpc_roster_update.rpc_id(peer_id, roster)
 	if _lan.is_advertising():
 		_lan.update_advert({"players": _peers.size()})
 
@@ -1747,6 +1779,7 @@ func _reset_rejoin_state() -> void:
 	# Per-session host state that must not outlive its peers (called wherever a
 	# session starts or ends: host_game, the Steam lobby host, leave).
 	_seat_pref_buckets.clear()
+	_disconnecting_peers.clear()
 
 
 # --- Ready state --------------------------------------------------------
@@ -1801,16 +1834,18 @@ func _handle_loading_ready(sender: int) -> bool:
 
 ## Host: mirrors the lifecycle's ready sets to every client.
 func _on_loading_ready_changed(ready_ids: PackedInt32Array, required_ids: PackedInt32Array) -> void:
-	if _mode != Mode.HOST or not _can_send():
+	if _mode != Mode.HOST:
 		return
-	_rpc_loading_ready_state.rpc(ready_ids, required_ids)
+	for peer_id: int in _broadcast_targets():
+		_rpc_loading_ready_state.rpc_id(peer_id, ready_ids, required_ids)
 
 
 ## Host: tells every client the gate opened.
 func _on_loading_gate_opened() -> void:
-	if _mode != Mode.HOST or not _can_send():
+	if _mode != Mode.HOST:
 		return
-	_rpc_loading_gate_open.rpc()
+	for peer_id: int in _broadcast_targets():
+		_rpc_loading_gate_open.rpc_id(peer_id)
 
 
 @rpc("authority", "call_remote", "reliable")

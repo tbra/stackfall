@@ -619,3 +619,25 @@ func test_stack_on_a_latched_leaned_disc_sleeps_and_is_carried_when_woken() -> v
 	assert_lt(before.distance_to(after), 0.3, "the moving disc carried the base block")
 	var after_y: float = field.to_local(bodies[0].global_position).y
 	assert_almost_eq(after_y, before_y, 0.1, "the base block did not sink into or lift off the disc")
+
+
+## Bontago-1pi.46 (G7): a Replay runs set_tilt_enabled(false) -> clear_match_state() ->
+## set_tilt_enabled(true) inside one frame, before any physics step. The disc must come
+## out level in the physics server too, not re-synced to the old match's tilted pose.
+func test_a_same_frame_disable_clear_enable_leaves_the_disc_level() -> void:
+	var field: Field = _make_field()
+	await wait_physics_frames(2)
+	field.set_tilt_enabled(true)
+	field.apply_tilt_impulse(Vector2.RIGHT, 5.0)
+	for _i: int in range(20):
+		field._update_tilt(0.05)
+	await wait_physics_frames(2)
+	assert_gt(field.tilt_vector().length(), 0.1, "fixture: the disc is tilted")
+	assert_gt(absf(field.global_transform.basis.x.y), 0.1, "fixture: and the node shows it")
+	field.set_tilt_enabled(false)
+	field.clear_match_state()
+	field.set_tilt_enabled(true)
+	await wait_physics_frames(3)
+	assert_eq(field.tilt_vector(), Vector2.ZERO, "the spring state is level")
+	assert_almost_eq(field.global_transform.basis.x.y, 0.0, 0.001, "and so is the disc itself")
+	assert_almost_eq(field.global_transform.basis.x.x, 1.0, 0.001)

@@ -124,6 +124,7 @@ func _ready() -> void:
 	_ready_button.pressed.connect(_on_ready_button_pressed)
 	Events.loading_ready_changed.connect(_on_loading_ready_changed)
 	Events.loading_gate_opened.connect(_on_loading_gate_opened)
+	Events.match_scope_reset.connect(_on_match_scope_reset)
 	Events.input_device_changed.connect(_on_input_device_changed)
 	_refresh_prompt_glyph()
 	_refresh_ready_ui()
@@ -403,10 +404,30 @@ func cancel() -> void:
 	visible = false
 	_set_opacity(1.0)
 	set_process(false)
+	clear_player_rows()
 	_refresh_ready_ui()
 	if _warm_viewport != null:
 		_warm_viewport.queue_free()
 		_warm_viewport = null
+
+
+## Bontago-1pi.46 (G10; Events.match_scope_reset). ROOT CAUSE: show_for_match() rebuilds
+## the player rows, but nothing took them down when the overlay faded out, so every
+## finished match left its swatch/name/mark rows in the hidden PlayerList until the next
+## show. Main emits the reset while the overlay is UP for the new match too (LOADING
+## shows it, then builds the world, which resets), and those rows must survive that
+## one, so only a hidden overlay is cleared (a cancelled load clears in cancel()).
+func _on_match_scope_reset() -> void:
+	if not visible:
+		clear_player_rows()
+
+
+## Drops every player-list row and its ready-mark bookkeeping.
+func clear_player_rows() -> void:
+	for child: Node in _player_list.get_children():
+		_player_list.remove_child(child)
+		child.free()
+	_ready_rows.clear()
 
 
 func _map_display_name(config: MatchConfig) -> String:
