@@ -14,6 +14,24 @@ extends Resource
 ## persisted value wins on every later boot; this file is never re-read for
 ## that after the first run.
 
+## DECISION (config/RumbleConfig.gd, Bontago-1pi.29): owner playtest "Rumble
+## at 100 is still pretty weak". The Options slider is already 0..1 and
+## Rumble._trigger() multiplies by it, so 100% was never capped by Settings;
+## the weakness was the per-event magnitudes below. The loudest event
+## (player_eliminated strong = 1.0) already reached full power, but the events
+## a player actually feels all session -- block impacts (also the Options
+## "test pulse") topped out at 0.35 weak / 0.55 strong, a light tick at 0.2,
+## a refusal at 0.5. Those were re-scaled by ~x1.8 so the strongest motor of
+## each reaches (or nears) 1.0 at 100%, keeping each event's weak:strong shape
+## (impact 0.35:0.55 -> 0.65:1.0, placed/refused ticks x1.8, special
+## 0.6:0.9 -> 0.67:1.0). Match won/lost only got x1.3 so the end-of-match
+## pulses stay below the special/eliminated tier. Net effect: 50% now feels
+## about like the old 100% for impacts and ticks. Pulses under ~0.08 s do not
+## give a pad's motors time to spin up, so the two tick durations that were at
+## or below that (placed 0.06 s, refused 0.08 s) are now 0.1 s. Every
+## *_magnitude stays within 0..1 and at least one reaches exactly 1.0
+## (tests/unit/test_rumble.gd guards both, plus a duration floor).
+
 ## Whether a fresh install starts with rumble on.
 @export var enabled_by_default: bool = true
 
@@ -34,28 +52,28 @@ extends Resource
 @export var impact_speed_max: float = 10.0
 
 ## Weak (low-frequency) motor magnitude, 0..1, at impact_speed_max.
-@export var impact_weak_magnitude: float = 0.35
+@export var impact_weak_magnitude: float = 0.65
 ## Strong (high-frequency) motor magnitude, 0..1, at impact_speed_max.
-@export var impact_strong_magnitude: float = 0.55
+@export var impact_strong_magnitude: float = 1.0
 @export var impact_duration_s: float = 0.12
 
 # --- Local block placed/dropped: a light tick ------------------------------
 
-@export var block_placed_weak_magnitude: float = 0.2
+@export var block_placed_weak_magnitude: float = 0.36
 @export var block_placed_strong_magnitude: float = 0.0
-@export var block_placed_duration_s: float = 0.06
+@export var block_placed_duration_s: float = 0.1
 
 # --- Local placement refused: a short single tap ---------------------------
 
 @export var placement_refused_weak_magnitude: float = 0.0
-@export var placement_refused_strong_magnitude: float = 0.5
-@export var placement_refused_duration_s: float = 0.08
+@export var placement_refused_strong_magnitude: float = 0.9
+@export var placement_refused_duration_s: float = 0.1
 
 # --- A special triggered/exploded (global, like camera shake: the event
 # carries a world position but no owning slot) ------------------------------
 
-@export var special_triggered_weak_magnitude: float = 0.6
-@export var special_triggered_strong_magnitude: float = 0.9
+@export var special_triggered_weak_magnitude: float = 0.67
+@export var special_triggered_strong_magnitude: float = 1.0
 @export var special_triggered_duration_s: float = 0.35
 
 # --- Local home beacon lost/eliminated: strong and long --------------------
@@ -66,10 +84,10 @@ extends Resource
 
 # --- Match end: medium, distinguished by win vs. loss for the local slot ---
 
-@export var match_won_weak_magnitude: float = 0.5
-@export var match_won_strong_magnitude: float = 0.5
+@export var match_won_weak_magnitude: float = 0.65
+@export var match_won_strong_magnitude: float = 0.65
 @export var match_won_duration_s: float = 0.5
 
-@export var match_lost_weak_magnitude: float = 0.4
-@export var match_lost_strong_magnitude: float = 0.3
+@export var match_lost_weak_magnitude: float = 0.52
+@export var match_lost_strong_magnitude: float = 0.39
 @export var match_lost_duration_s: float = 0.4
