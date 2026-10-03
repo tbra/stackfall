@@ -597,6 +597,22 @@ func _publish_loading_ready(force: bool = false) -> void:
 	Events.loading_ready_changed.emit(ready_ids, required)
 
 
+## Host. The gate as a peer joining mid-countdown must see it: [ready peer ids,
+## required peer ids, open] (Bontago-1pi.42). net/MatchNet.gd sends it inside the
+## world replay, i.e. after the joiner's own start_match() -- the net_peer_joined
+## handler above runs before MatchNet's replay, so its roster broadcast lands on the
+## joiner ahead of net_match_start and is wiped by the reset. An unarmed gate (a
+## headless host) counts as open, like _publish_loading_gate_start(). Who is
+## required is unchanged: a joiner without a human seat never is.
+func loading_gate_replay_args() -> Array:
+	if not _match._is_host():
+		return []
+	if not _gate_armed:
+		return [PackedInt32Array(), PackedInt32Array(), true]
+	var required: PackedInt32Array = loading_required_peers()
+	return [_ready_gate.ready_ids(required), required, _ready_gate.is_open()]
+
+
 func _publish_loading_gate_start() -> void:
 	if not _match._is_host():
 		return

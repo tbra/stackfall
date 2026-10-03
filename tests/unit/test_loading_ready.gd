@@ -5,6 +5,7 @@ extends GutTest
 ## the host's authoritative gate in autoload/match/MatchLifecycle.gd, Net's
 ## intent validation, and ui/LoadingScreen.gd's input glue.
 
+const MatchNetScript := preload("res://net/MatchNet.gd")
 const MIN_S: float = 5.0
 const MAX_S: float = 60.0
 const STEP_S: float = 0.1
@@ -17,6 +18,7 @@ var _published: Array[Dictionary] = []
 var _opened_count: int = 0
 var _on_changed: Callable
 var _on_opened: Callable
+var _wire_nets: Array[MatchNetScript] = []
 
 
 func before_each() -> void:
@@ -43,6 +45,11 @@ func before_each() -> void:
 
 func after_each() -> void:
 	_stop_counting()
+	for wire_net: MatchNetScript in _wire_nets:
+		if wire_net != null and is_instance_valid(wire_net):
+			wire_net.set_providers(null, null)
+	_wire_nets.clear()
+	Match.set_replicator(null)
 	AgentProbe.set_forced_for_test(-1)
 	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
 	Events.loading_ready_changed.disconnect(_on_changed)
@@ -345,6 +352,186 @@ func test_client_stops_waiting_when_the_host_match_moved_on() -> void:
 	assert_true(Match._lifecycle.loading_gate_blocking())
 	Match._lifecycle.apply_replicated_state_change(Match.State.PLAYING)
 	assert_false(Match._lifecycle.loading_gate_blocking(), "a missed open message cannot strand a client")
+
+
+# --- a peer that joins while the gate is closed (Bontago-1pi.42) ---------------
+#
+# Real wire shape: the host's replay is captured (MatchNet.capture_replay) and then
+# played into a client-mode MatchNet, the way test_late_join.gd does. On the host
+# the lifecycle's net_peer_joined handler runs BEFORE MatchNet's (autoload order),
+# so Net's roster broadcast of the sets reaches the joiner ahead of the replay's
+# net_match_start, whose start_match() resets the gate mirror.
+
+func _wire_world() -> void:
+	var map: MapDef = load("res://config/maps/round_small.tres") as MapDef
+	var wire_field: Field = Field.new()
+	wire_field.map_def = map
+	add_child_autofree(wire_field)
+	var wire_root: Node3D = Node3D.new()
+	add_child_autofree(wire_root)
+	var wire_registry: BlockRegistry = BlockRegistry.new()
+	add_child_autofree(wire_registry)
+	Match.register_world(wire_field, wire_registry, wire_root)
+
+
+## A config the wire can carry (a preset map, not TinyMapMatchConfig's seam).
+func _wire_config(players: int) -> MatchConfig:
+	var config: MatchConfig = load("res://config/match_defaults.tres").duplicate(true) as MatchConfig
+	config.map_variant = MatchConfig.MapVariant.ROUND
+	config.map_size = MapDef.MapSize.SMALL
+	config.player_count = players
+	config.ai_count = 0
+	config.team_mode = MatchConfig.TeamMode.OFF
+	config.hot_seat = false
+	config.gifts_enabled = false
+	config.block_timer = 6.0
+	config.rng_seed = 4242
+	config.allow_mid_match_join = true
+	return config
+
+
+func _make_wire_net(session: FakeNet) -> MatchNetScript:
+	Match.set_net_provider(session)
+	var node: MatchNetScript = MatchNetScript.new()
+	node.set_process(false)
+	add_child_autofree(node)
+	node.set_providers(session, Match)
+	_wire_nets.append(node)
+	return node
+
+
+## Host with a gated 3-player match (peers 1 and 2 seated, slot 2 still open) and a
+## capturing MatchNet; peer 1 has pressed ready.
+func _gated_host_for_joiner() -> Array:
+	_wire_world()
+	var host_session: FakeNet = FakeNet.host({1: 0, 2: 1}, [0] as Array[int])
+	var host_net: MatchNetScript = _make_wire_net(host_session)
+	host_net.capture_replay = true
+	Match._lifecycle.set_loading_gate_forced(true)
+	Match.start_match(_wire_config(3))
+	_press(1)
+	_step(1.0)
+	return [host_session, host_net]
+
+
+## The joiner is seated (`slot_id`, -1 = spectator) and the host's handlers run in
+## production order. Returns what the joiner receives, in order: [the roster-change
+## sets broadcast (or {}), the replay messages].
+func _host_admits(host_session: FakeNet, joiner_peer: int, slot_id: int) -> Array:
+	host_session.slots_by_peer[joiner_peer] = slot_id
+	_published.clear()
+	Events.net_peer_joined.emit(joiner_peer, slot_id, "Latey")
+	var pre: Dictionary = {}
+	if not _published.is_empty():
+		pre = _published.back()
+	return [pre, (_wire_nets[0] as MatchNetScript).replay_capture.duplicate()]
+
+
+## Match turns into the joiner: first the roster-change broadcast, then the replay.
+func _become_joiner(joiner_peer: int, joiner_slot: int, received: Array) -> MatchNetScript:
+	_wire_nets[0].queue_free()
+	await get_tree().process_frame
+	var session: FakeNet = FakeNet.client(joiner_slot)
+	session.local_peer_id_value = joiner_peer
+	var client_net: MatchNetScript = _make_wire_net(session)
+	client_net._on_net_mode_changed(Net.Mode.CLIENT)
+	var pre: Dictionary = received[0]
+	if not pre.is_empty():
+		Events.loading_ready_changed.emit(pre["ready"], pre["required"])
+	for entry: Array in received[1]:
+		client_net.callv(StringName(entry[1]), entry[2] as Array)
+	return client_net
+
+
+func test_late_joiner_mirrors_the_hosts_ready_sets_after_the_replay() -> void:
+	var fixture: Array = _gated_host_for_joiner()
+	assert_true(Match._lifecycle.loading_gate_blocking())
+	var received: Array = _host_admits(fixture[0] as FakeNet, 3, 2)
+	assert_eq((received[0] as Dictionary).get("required"), PackedInt32Array([1, 2, 3]), "the roster change reaches the joiner before the replay")
+	await _become_joiner(3, 2, received)
+	assert_eq(Match._lifecycle.loading_ready_peers(), PackedInt32Array([1]), "the joiner sees who already pressed")
+	assert_eq(Match._lifecycle.loading_required_peers(), PackedInt32Array([1, 2, 3]), "and who the host waits for")
+	assert_true(Match._lifecycle.loading_gate_blocking(), "the gate is still closed on the host, so on the joiner")
+
+
+func test_late_spectator_gets_the_sets_but_is_not_required() -> void:
+	var fixture: Array = _gated_host_for_joiner()
+	var received: Array = _host_admits(fixture[0] as FakeNet, 3, -1)
+	await _become_joiner(3, -1, received)
+	assert_eq(Match._lifecycle.loading_ready_peers(), PackedInt32Array([1]))
+	assert_eq(Match._lifecycle.loading_required_peers(), PackedInt32Array([1, 2]), "a spectator never becomes required")
+
+
+func test_late_joiner_after_the_gate_opened_does_not_wait() -> void:
+	var fixture: Array = _gated_host_for_joiner()
+	_press(2)
+	_step(MIN_S + 0.2)
+	assert_false(Match._lifecycle.loading_gate_blocking(), "the host's gate is open")
+	assert_eq(Match.state(), Match.State.COUNTDOWN, "the countdown is still running")
+	var received: Array = _host_admits(fixture[0] as FakeNet, 3, 2)
+	await _become_joiner(3, 2, received)
+	assert_false(Match._lifecycle.loading_gate_blocking(), "the open message is replayed to the joiner, not left to a missed broadcast")
+
+
+func test_replay_carries_the_gate_only_while_the_countdown_runs() -> void:
+	var fixture: Array = _gated_host_for_joiner()
+	var host_net: MatchNetScript = fixture[1] as MatchNetScript
+	var gate_events: int = 0
+	for message: Array in host_net.build_world_replay():
+		if message[0] == &"net_match_event" and (message[1] as Array)[0] == MatchNetScript.EVENT_LOADING_GATE:
+			gate_events += 1
+	assert_eq(gate_events, 1, "one gate snapshot in a COUNTDOWN replay")
+	Match._lifecycle._set_state(Match.State.PLAYING)
+	for message: Array in host_net.build_world_replay():
+		if message[0] == &"net_match_event":
+			assert_ne((message[1] as Array)[0], MatchNetScript.EVENT_LOADING_GATE, "no gate state once the match is playing")
+
+
+func test_joiner_that_leaves_again_does_not_hold_the_host_gate() -> void:
+	var fixture: Array = _gated_host_for_joiner()
+	var host_session: FakeNet = fixture[0] as FakeNet
+	var host_net: MatchNetScript = fixture[1] as MatchNetScript
+	host_session.slots_by_peer[3] = 2
+	Events.net_peer_joined.emit(3, 2, "Latey")
+	assert_true(host_net.replay_pending_for(3))
+	_press(2)
+	_step(MIN_S + 1.0)
+	assert_true(Match._lifecycle.loading_gate_blocking(), "the joiner holds a human seat and never pressed")
+	host_session.slots_by_peer.erase(3)
+	Events.net_peer_left.emit(3, 2, Net.LeaveReason.TIMEOUT)
+	assert_false(host_net.replay_pending_for(3), "no replay ack is owed any more")
+	assert_eq(_published.back()["required"], PackedInt32Array([1, 2]), "the leaver is no longer waited for")
+	_step(STEP_S * 2.0)
+	assert_false(Match._lifecycle.loading_gate_blocking(), "the gate opens without the joiner")
+	assert_eq(_opened_count, 1)
+
+
+func test_client_ignores_malformed_or_host_side_gate_snapshots() -> void:
+	var count: Array[int] = [0]
+	var on_set: Callable = func(_r: PackedInt32Array, _q: PackedInt32Array) -> void: count[0] += 1
+	Events.loading_ready_changed.connect(on_set)
+	var session: FakeNet = FakeNet.client(1)
+	var client_net: MatchNetScript = _make_wire_net(session)
+	client_net._on_net_mode_changed(Net.Mode.CLIENT)
+	client_net._awaiting_match_start = false
+	var event: StringName = MatchNetScript.EVENT_LOADING_GATE
+	client_net.net_match_event(event, [])
+	client_net.net_match_event(event, [PackedInt32Array([1]), PackedInt32Array([1, 2])])
+	client_net.net_match_event(event, ["x", PackedInt32Array([1]), true])
+	client_net.net_match_event(event, [PackedInt32Array([1]), PackedInt32Array([1, 2]), 1])
+	client_net.net_match_event(event, [PackedInt32Array([-3]), PackedInt32Array([1]), false])
+	var too_many: PackedInt32Array = PackedInt32Array()
+	for i: int in range(client_net.config.max_peers + 1):
+		too_many.append(i + 1)
+	client_net.net_match_event(event, [PackedInt32Array(), too_many, false])
+	assert_eq(count[0], 0, "malformed, negative and oversized snapshots are dropped")
+	client_net.net_match_event(event, [PackedInt32Array([1]), PackedInt32Array([1, 2]), false])
+	assert_eq(count[0], 1, "a well-formed one is applied")
+	client_net.set_providers(FakeNet.host({1: 0}, [0] as Array[int]), Match)
+	client_net.net_match_event(event, [PackedInt32Array([1]), PackedInt32Array([1]), true])
+	assert_eq(count[0], 1, "a host never applies a snapshot")
+	assert_eq(_opened_count, 0)
+	Events.loading_ready_changed.disconnect(on_set)
 
 
 # --- Net validates the sender --------------------------------------------------
