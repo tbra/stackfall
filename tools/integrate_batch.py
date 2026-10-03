@@ -6,7 +6,7 @@ Steps (each step's full output goes to <log-dir>/NN_name.log; stdout stays compa
   1 worktree  temp integration worktree + branch from local main (origin/main must be an ancestor)
   2 merge     git merge --no-ff each branch; on conflict stop and list conflicting files
   3 import    godot --headless --editor --path <wt> --quit (bounded error/warning lines)
-  4 check-only (always): godot --check-only -s for each added/modified tools/*.gd (120s timeout)
+  4 check-only (always): tools/check_scripts.gd compiles each added/modified tools/*.gd with autoloads loaded
   5 gate      --game-code (default): tools/full_gate.py --path <wt>; ONLY a `FULL GATE GREEN`
               line passes (missing verdict line = RED)
   6 ff        fast-forward the main checkout (refuses on dirty touched files or a moved main)
@@ -142,34 +142,27 @@ def import_check(ctx, name, path):
 
 
 def check_tools_scripts(ctx, base, wt):
-    """Check all added/modified tools/*.gd scripts with godot --check-only.
-    Returns (code, errors_list, num_files, log_path). code=0 is success, any other code or SCRIPT ERROR/Parse Error is failure."""
-    # Get list of added/modified tools/*.gd files
+    """Compile-check every added/modified tools/*.gd with tools/check_scripts.gd (one
+    headless Godot run, 180 s timeout). `godot --check-only -s` cannot be used: it
+    parses before autoloads are registered, so any script naming one (Events, Match)
+    fails with "Identifier not found" (false positive found 2026-10-03).
+    Returns (code, errors_list, num_files, log_path); code 0 = all scripts compile."""
     code, text, _ = git(ctx, "diff_tools", wt, "diff", "--name-only", "--diff-filter=AM", base + "..HEAD", "--", "tools/*.gd")
     if code != 0:
         return code, ["git diff failed"], 0, _
-    files = [f.strip() for f in text.split('\n') if f.strip()]
+    files = [f.strip() for f in text.split("\n") if f.strip()]
     if not files:
         return 0, [], 0, ctx.log_path("check_tools_empty")
-
-    all_errors = []
-    path = ctx.log_path("check_tools")
-    with open(path, "w", encoding="utf-8") as log_fh:
-        log_fh.write(f"$ godot --check-only -s for {len(files)} files\n")
-        for file in files:
-            res_path = "res://" + file
-            cmd = [godot_exe(), "--headless", "--path", wt, "--check-only", "-s", res_path]
-            code, text, _ = run_cmd(ctx, "check_" + file.replace("/", "_").replace(".", "_"), cmd, wt, 120)
-            log_fh.write(f"\n{res_path}:\n{text}\n")
-            if code != 0:
-                all_errors.append(f"{file}: exit {code}")
-            if "SCRIPT ERROR" in text or "Parse Error" in text:
-                # Extract the first error line
-                for line in text.split('\n'):
-                    if "SCRIPT ERROR" in line or "Parse Error" in line:
-                        all_errors.append(f"{file}: {line.strip()[:200]}")
-                        break
-    return 1 if all_errors else 0, all_errors, len(files), path
+    cmd = [godot_exe(), "--headless", "--path", wt, "-s", "res://tools/check_scripts.gd", "--"]
+    cmd += ["res://" + f for f in files]
+    code, text, log = run_cmd(ctx, "check_tools", cmd, wt, 180)
+    errors = []
+    for line in text.split("\n"):
+        if "CHECK FAIL" in line or "SCRIPT ERROR" in line or "Parse Error" in line:
+            errors.append(line.strip()[:200])
+    if code != 0 and not errors:
+        errors.append("check_scripts exit %d" % code)
+    return 1 if errors else 0, errors[:MAX_ISSUE_LINES * 2], len(files), log
 
 
 def integrate(args, ctx, say, res):
