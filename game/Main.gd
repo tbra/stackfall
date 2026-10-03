@@ -229,6 +229,9 @@ func _ready() -> void:
 	_pause_menu = PAUSE_MENU_SCENE.instantiate() as PauseMenu
 	add_child(_pause_menu)
 	_pause_menu.leave_match_requested.connect(_on_pause_leave_requested)
+	# Bontago-1pi.50: Return to lobby (host ends the match for everyone).
+	_pause_menu.return_to_lobby_requested.connect(_on_pause_return_to_lobby_requested)
+	_pause_menu.context_provider = _pause_menu_context
 	# Bontago-xtq.42 fix round 2 (orchestrator review): inert until a match/
 	# sandbox world actually exists -- _show_main_menu() below sets this too,
 	# but set it explicitly here as well so it's never even momentarily false
@@ -1198,6 +1201,56 @@ func _on_pause_leave_requested() -> void:
 	if Match.state() != Match.State.LOBBY:
 		Match.abort_match()
 	_show_main_menu()
+
+
+## Bontago-1pi.50 (owner playtest 2026-10-03: "return to lobby option from pause
+## menu"): what ui/PauseMenu.gd's Return to lobby entry shows, answered here
+## because only Main may name Net and Match for it (the menu's own header).
+## HOST: enabled -- every hosted session has a lobby to go back to, a local
+## "Vs bots" game included (Net.host_game() without advertising). CLIENT: shown
+## disabled (DECISION: only the host can end a match for everyone; a client's
+## own exit stays Leave match). OFFLINE (sandbox, --hot-seat): hidden --
+## DECISION: no lobby exists there, and Leave match already goes to the main
+## menu, so a second button doing the same would only confuse. "In progress"
+## is a match the host is about to throw away (loading, countdown, play, sudden
+## death); on the results screen (END) the result is already shown, so no
+## confirmation is asked.
+func _pause_menu_context() -> Dictionary:
+	var entry: int = PauseMenu.ReturnEntry.HIDDEN
+	match Net.mode():
+		Net.Mode.HOST:
+			entry = PauseMenu.ReturnEntry.ENABLED
+		Net.Mode.CLIENT:
+			entry = PauseMenu.ReturnEntry.DISABLED
+	var state: int = int(Match.state())
+	var in_progress: bool = state != Match.State.LOBBY and state != Match.State.END
+	return {"return_entry": entry, "match_in_progress": in_progress}
+
+
+## ui/PauseMenu.gd's return_to_lobby_requested (Return to lobby, confirmed).
+## Host: ends the match for every peer and puts them back in the session lobby,
+## through the same path the results screen's Back to lobby takes
+## (MatchNet.request_return_to_lobby() -> Match.abort_match(); called directly
+## because that request is only honoured on State.END, and this one also works
+## mid-match, which is the point). abort_match() fires (old -> LOBBY), which
+## _on_match_state_changed() answers on the host with the world teardown, the
+## match scope reset (Events.match_scope_reset, once) and the lobby; MatchNet
+## replicates that same LOBBY change to every client, whose Main does likewise.
+## Lobby settings (Net's cached lobby data) and the seats (Net's peer slots) are
+## never touched by a match, so they come back as they were; Net.
+## set_match_in_progress(false) reseats spectators and drops rejoin reservations
+## like any return. DECISION (stats/results): the match is abandoned, so there
+## is no winner, no results screen and no stats row -- abort_match() resets the
+## stats and never emits the match-finished event.
+## A client (disabled entry, so this should never arrive) and a lobby already
+## showing are ignored. OFFLINE has no lobby: DECISION, it is Leave match.
+func _on_pause_return_to_lobby_requested() -> void:
+	if Net.mode() == Net.Mode.OFFLINE:
+		_on_pause_leave_requested()
+		return
+	if not Net.is_host() or Match.state() == Match.State.LOBBY:
+		return
+	Match.abort_match()
 
 
 # --- Building the match world (host and client alike) ------------------------

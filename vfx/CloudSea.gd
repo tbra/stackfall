@@ -38,6 +38,11 @@ const SHARED_SKY_PARAMETERS: Array[StringName] = [
 const YAW_PARAMETER: StringName = &"sky_yaw_offset_deg"
 const PITCH_PARAMETER: StringName = &"sky_pitch_offset_deg"
 const FLAT_BASE_PARAMETER: StringName = &"flat_base"
+## Bontago-mp0.93 per-instance / material parameters of the upper layer (see
+## shaders/cloud_puffs.gdshader): its own base plane height, and the camera-clearance fade.
+const FLAT_BASE_OVERRIDE_PARAMETER: StringName = &"flat_base_override"
+const CLEAR_FADE_START_PARAMETER: StringName = &"base_clear_start_m"
+const CLEAR_FADE_END_PARAMETER: StringName = &"base_clear_end_m"
 const FAR_FADE_CAP_PARAMETER: StringName = &"far_fade_cap"
 ## Default/maximum icosphere subdivision of the puff mesh (2 = 320 triangles;
 ## 1 = 80, see GraphicsPreset.cloud_puff_subdivisions). The mesh is
@@ -77,6 +82,17 @@ class _Layer:
 	## Bontago-mp0.29: the weather-driven layer above the disc; it skips the
 	## under-disc exclusion clamp and the sea's highest-top bookkeeping.
 	var is_upper: bool = false
+	## Bontago-mp0.93 (upper layer, seen from below): the puffs' base plane in unit-sphere
+	## space (1 = round bottoms), how far a puff may hang below its clump's base level,
+	## and how far down the small detail puffs may sit on the big ones. Left at the
+	## sea's behaviour (the theme's flat base, no sink, upper half only) elsewhere.
+	var flat_base: float = 0.0
+	var sink_m: float = 0.0
+	var detail_min_up: float = DETAIL_MIN_UP
+	## Vertical size of a puff as a share of its horizontal radius (1 = round). The upper
+	## layer's round-bottomed puffs are oblate, so they stay as low as the cut flat-bottomed
+	## ones were instead of growing into tall balls.
+	var vertical_scale: float = 1.0
 
 
 var _instance: MultiMeshInstance3D = null
@@ -94,6 +110,10 @@ var lighting: CloudLighting = null
 var upper_tuning: WeatherCeilingTuning = null
 var upper_low: bool = false
 var _upper: MultiMeshInstance3D = null
+## Lowest world Y any upper puff's nominal bottom (its base plane, or the sphere's bottom when round,
+## before the shader's lumps) reaches, written by the last configure(); tracked here like _highest_top because a
+## headless RenderingServer does not keep MultiMesh instance data.
+var _upper_lowest_bottom: float = INF
 
 ## A cycle changes the existing puff material's palette and direction in place.
 func set_cycle_appearance(day: SkyThemeDef, night_theme: SkyThemeDef, weight: float, direction: Vector3) -> void:
@@ -201,6 +221,7 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 	_cycle_base.clear()
 	_highest_top = -INF
 	_highest_top_near_disc = -INF
+	_upper_lowest_bottom = INF
 	var layers: Array[_Layer] = _layers_for(theme, density)
 	var clumps: int = 0
 	for layer: _Layer in layers:
@@ -235,28 +256,28 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = theme.cloud_seed
-	_instance = _build_instance("Puffs", layers, theme, subdivisions, rng)
+	_instance = _build_instance("Puffs", layers, theme, subdivisions, rng, theme.cloud_flat_base)
 	add_child(_instance)
 	# Bontago-mp0.29: the same puffs, shader, material and lighting again above
 	# the disc, always present (weather only changes its lighting).
 	var upper_layers: Array[_Layer] = _upper_layers_for(theme, density)
 	if not upper_layers.is_empty():
 		rng.seed = theme.cloud_seed + upper_tuning.upper_seed_offset
-		_upper = _build_instance("UpperPuffs", upper_layers, theme, subdivisions, rng)
+		_upper = _build_instance("UpperPuffs", upper_layers, theme, subdivisions, rng, upper_layers[0].flat_base)
 		add_child(_upper)
 		_apply_upper_parameters()
 
 
 ## One MultiMeshInstance3D of `layers`' clumps drawn with the shared puff material.
 func _build_instance(node_name: String, layers: Array[_Layer], theme: SkyThemeDef, subdivisions: int,
-		rng: RandomNumberGenerator) -> MultiMeshInstance3D:
+		rng: RandomNumberGenerator, flat_base: float) -> MultiMeshInstance3D:
 	var clumps: int = 0
 	for layer: _Layer in layers:
 		clumps += layer.clumps
 	var multimesh: MultiMesh = MultiMesh.new()
 	multimesh.transform_format = MultiMesh.TRANSFORM_3D
 	multimesh.use_custom_data = true
-	multimesh.mesh = build_puff_mesh(theme.cloud_flat_base, subdivisions)
+	multimesh.mesh = build_puff_mesh(flat_base, subdivisions)
 	multimesh.instance_count = clumps * theme.cloud_puffs_per_clump
 	var index: int = 0
 	for layer: _Layer in layers:
@@ -287,6 +308,14 @@ func _build_instance(node_name: String, layers: Array[_Layer], theme: SkyThemeDe
 func _apply_upper_parameters() -> void:
 	_upper.set_instance_shader_parameter(&"floor_on", 1.0)
 	_upper.set_instance_shader_parameter(&"edge_soft_px", upper_tuning.upper_edge_softness_px if upper_tuning != null else 0.0)
+	if upper_tuning == null:
+		return
+	# Bontago-mp0.93: the layer's own base plane (the shader reads it per instance, the
+	# sea keeps the material's flat_base), and the camera-clearance dither fade. The
+	# fade uniforms live on the shared material but only the floor_on layer applies them.
+	_upper.set_instance_shader_parameter(FLAT_BASE_OVERRIDE_PARAMETER, upper_tuning.upper_flat_base)
+	_material.set_shader_parameter(CLEAR_FADE_START_PARAMETER, upper_tuning.upper_clear_fade_start_m)
+	_material.set_shader_parameter(CLEAR_FADE_END_PARAMETER, upper_tuning.upper_clear_fade_end_m)
 
 
 func upper_instance() -> MultiMeshInstance3D:
@@ -344,8 +373,14 @@ func _upper_layers_for(theme: SkyThemeDef, density: float) -> Array[_Layer]:
 	upper.ring_inner_m = 0.0
 	upper.ring_outer_m = upper_tuning.upper_ring_outer_m
 	upper.radial_bias = 1.0
-	upper.base_min_m = upper_tuning.height_m
-	upper.base_max_m = upper_tuning.height_m + upper_tuning.upper_base_spread_m
+	# Bontago-mp0.93: round bottoms hang up to upper_base_sink_m under their clump's
+	# base level, so the clumps start that much higher and nothing hangs below height_m.
+	upper.flat_base = upper_tuning.upper_flat_base
+	upper.sink_m = upper_tuning.upper_base_sink_m
+	upper.detail_min_up = -upper_tuning.upper_belly_depth
+	upper.vertical_scale = upper_tuning.upper_puff_squash
+	upper.base_min_m = upper_tuning.height_m + upper.sink_m
+	upper.base_max_m = upper.base_min_m + upper_tuning.upper_base_spread_m
 	upper.radius_min_m = upper_tuning.upper_clump_radius_min_m
 	upper.radius_max_m = upper_tuning.upper_clump_radius_max_m
 	upper.top_max_m = upper.base_max_m + upper.radius_max_m * (theme.cloud_clump_height_ratio * (1.0 + SIZE_JITTER) + 1.0)
@@ -423,7 +458,7 @@ func _add_clump(multimesh: MultiMesh, index: int, theme: SkyThemeDef, layer: _La
 	base_y = minf(base_y, layer.top_max_m - clump_height)
 	var speed: float = rng.randf_range(theme.cloud_drift_speed_min_mps, theme.cloud_drift_speed_max_mps)
 	var angular_speed: float = speed / maxf(ring_radius, 1.0)
-	var flat: float = theme.cloud_flat_base
+	var flat: float = layer.flat_base if layer.is_upper else theme.cloud_flat_base
 	var total: int = theme.cloud_puffs_per_clump
 	var detail_count: int = int(float(total) * DETAIL_SHARE) if total > 2 else 0
 	var body_count: int = total - detail_count
@@ -436,18 +471,19 @@ func _add_clump(multimesh: MultiMesh, index: int, theme: SkyThemeDef, layer: _La
 		var radius: float = clump_radius * lerpf(CORE_RADIUS_FRACTION, RIM_RADIUS_FRACTION, spread)
 		radius *= rng.randf_range(1.0 - SIZE_JITTER, 1.0 + SIZE_JITTER)
 		var top: float = base_y + clump_height * (1.0 - DOME_FALLOFF * spread * spread) * rng.randf_range(TOP_JITTER_MIN, 1.0)
-		var y: float = maxf(top - radius, base_y + radius * flat)
+		var y: float = puff_centre_y(top, radius * layer.vertical_scale, base_y, flat, layer.sink_m * rng.randf() if layer.is_upper else 0.0)
 		var at: Vector3 = centre + offset + Vector3(0.0, y, 0.0)
 		index = _write_puff(multimesh, index, at, radius, layer, rng, angular_speed, base_y, clump_height)
 		body_centres.append(at)
 		body_radii.append(radius)
 	for _detail: int in range(detail_count):
 		var host: int = rng.randi_range(0, body_centres.size() - 1)
-		var up: float = rng.randf_range(DETAIL_MIN_UP, 1.0)
+		var up: float = rng.randf_range(layer.detail_min_up, 1.0)
 		var around: float = rng.randf() * TAU
 		var side: float = sqrt(maxf(1.0 - up * up, 0.0))
 		var direction: Vector3 = Vector3(cos(around) * side, up, sin(around) * side)
 		var radius: float = body_radii[host] * rng.randf_range(DETAIL_RADIUS_MIN_FRACTION, DETAIL_RADIUS_MAX_FRACTION)
+		direction.y *= layer.vertical_scale
 		var at: Vector3 = body_centres[host] + direction * body_radii[host] * DETAIL_SURFACE_OFFSET
 		index = _write_puff(multimesh, index, at, radius, layer, rng, angular_speed, base_y, clump_height)
 	return index
@@ -456,7 +492,8 @@ func _add_clump(multimesh: MultiMesh, index: int, theme: SkyThemeDef, layer: _La
 func _write_puff(multimesh: MultiMesh, index: int, at: Vector3, radius: float, layer: _Layer,
 		rng: RandomNumberGenerator, angular_speed: float, base_y: float, clump_height: float) -> int:
 	# Never let a puff top rise above its layer ceiling.
-	at.y = minf(at.y, layer.top_max_m - radius)
+	var height: float = radius * layer.vertical_scale
+	at.y = minf(at.y, layer.top_max_m - height)
 	var stretch: float = rng.randf_range(1.0, STRETCH_MAX)
 	# Bontago-t8x.2: a puff that could reach the disc or the play volume (its
 	# footprint, inflated by the shader's lumps/billow, enters the exclusion
@@ -470,10 +507,26 @@ func _write_puff(multimesh: MultiMesh, index: int, at: Vector3, radius: float, l
 			at.y = minf(at.y, _disc_ceiling_m - inflated)
 			_highest_top_near_disc = maxf(_highest_top_near_disc, at.y + inflated)
 		_highest_top = maxf(_highest_top, at.y + radius)
-	var basis: Basis = Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(radius * stretch, radius, radius * stretch))
+	if layer.is_upper:
+		# The mesh's lowest point is its base plane (flat_base of the height under the centre, 1 = round).
+		_upper_lowest_bottom = minf(_upper_lowest_bottom, at.y - height * layer.flat_base)
+	var basis: Basis = Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(radius * stretch, height, radius * stretch))
 	multimesh.set_instance_transform(index, Transform3D(basis, at))
 	multimesh.set_instance_custom_data(index, Color(angular_speed, rng.randf() * TAU, base_y, clump_height))
 	return index + 1
+
+
+## Bontago-mp0.93: centre height of a body puff whose top would be `top`: its bottom plane (at
+## `flat` of its radius below the centre) never goes under `base_y`, less `sink_m` (the upper
+## layer lets round bottoms hang a little below the clump's level so they share no plane).
+## With flat = 1 the puff just rests on base_y.
+static func puff_centre_y(top: float, radius: float, base_y: float, flat: float, sink_m: float = 0.0) -> float:
+	return maxf(top - radius, base_y + radius * flat - sink_m)
+
+
+## Lowest nominal bottom of any upper puff written by the last configure() (INF without one).
+func upper_lowest_bottom() -> float:
+	return _upper_lowest_bottom
 
 
 ## Highest world Y any puff reaches (before billow), for tests and checks.
