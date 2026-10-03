@@ -81,8 +81,13 @@ extends Resource
 
 @export_group("Sun effects")
 ## Share of the sun flare, god rays and sun glow removed at full overcast / storm.
+## Bontago-mp0.94: the storm share is 1.0 (nothing left at full storm) because the
+## sky shader's sun disc glow fades to exactly 0 at full storm (Skybox storm blend); a
+## residue here (0.97 left a faint ray fan under the dark clouds) outlives the hidden disc.
+## Below 1 the storm keeps (1 - attenuation * storm) of the rays/halo/flare, which can
+## never be less than the disc's own (1 - storm) fade.
 @export_range(0.0, 1.0, 0.01) var sun_overcast_attenuation: float = 0.6
-@export_range(0.0, 1.0, 0.01) var sun_storm_attenuation: float = 0.97
+@export_range(0.0, 1.0, 0.01) var sun_storm_attenuation: float = 1.0
 ## Night mix at which the sun effects are fully off (they fade in dusk).
 @export_range(0.01, 1.0, 0.01) var sun_night_fade_end: float = 0.35
 

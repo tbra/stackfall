@@ -96,3 +96,19 @@ func test_card_layer_is_background_only_and_exposed() -> void:
 	assert_true(include_src.contains("vec4 sky_cloud_cards("), "card layer function must exist.")
 	assert_true(source.contains("!AT_CUBEMAP_PASS && eyedir.y > 0.0 && procedural_sea_mix > 0.0 && proc_cards_mix > 0.0"), "cards must be background-pass only and gated by the procedural look.")
 	assert_true(source.contains("k1.rgb * exposure") and source.contains("k2.rgb * exposure"), "card layers must be multiplied by exposure.")
+
+
+## Bontago-mp0.94: the additive sun terms (core, halo, god rays) all multiply
+## sun_effect_scale, which Skybox drives to exactly 0 at full storm; a term that skips it
+## is the "sun hidden but rays still visible" bug. The ray loop also skips outright at 0.
+func test_every_additive_sun_term_multiplies_the_weather_scale() -> void:
+	var source: String = _shader_source_without_comments()
+	for token: String in ["sun_core_intensity", "sun_halo_intensity", "ray_intensity"]:
+		var found: int = 0
+		for line: String in source.split("
+"):
+			if line.contains(token) and not line.strip_edges().begins_with("uniform"):
+				found += 1
+				assert_true(line.contains("sun_effect_scale"), "%s must be scaled by sun_effect_scale: %s" % [token, line.strip_edges()])
+		assert_gt(found, 0, "%s is used by the sky pass" % token)
+	assert_true(source.contains("ray_fade > 0.0 && sun_effect_scale > 0.0"), "the god-ray loop is skipped when the weather scale is 0.")
