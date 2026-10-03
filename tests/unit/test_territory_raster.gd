@@ -843,3 +843,192 @@ func test_content_revision_is_stable_without_mutation() -> void:
 	var after_goal: int = _raster.content_revision()
 	_raster.reset()
 	assert_gt(_raster.content_revision(), after_goal)
+
+
+## -- tally_owned_cells (Bontago-1pi.18.11) ------------------------------------
+##
+## The one-pass, by-index vote WinChecker.claim_at() reads over its cached claim
+## cells. It must count exactly the cells the per-cell coordinate readers count
+## (group_at() >= 0 and team_at() >= 0), key them team * stride + group, ignore
+## off-grid indices, and never write into the raster.
+
+const TALLY_STRIDE: int = 1000000
+
+
+func _all_indices() -> PackedInt32Array:
+	var indices: PackedInt32Array = PackedInt32Array()
+	for index: int in range(_grid.cell_count()):
+		indices.append(index)
+	return indices
+
+
+## The per-cell oracle: the coordinate readers, one call each per cell.
+func _reference_tally(indices: PackedInt32Array, stride: int) -> Dictionary:
+	var out: Dictionary = {}
+	for index: int in indices:
+		if index < 0 or index >= _grid.cell_count():
+			continue
+		var cell: Vector2i = _grid.cell_coords(index)
+		var group: int = _raster.group_at(cell.x, cell.y)
+		var team: int = _raster.team_at(cell.x, cell.y)
+		if group < 0 or team < 0:
+			continue
+		var key: int = team * stride + group
+		out[key] = int(out.get(key, 0)) + 1
+	return out
+
+
+func _assert_tally_matches(indices: PackedInt32Array, label: String, stride: int = TALLY_STRIDE) -> Dictionary:
+	var got: Dictionary[int, int] = _raster.tally_owned_cells(indices, stride)
+	var want: Dictionary = _reference_tally(indices, stride)
+	assert_eq(got.size(), want.size(), label + ": same (team, group) keys")
+	for key: int in want:
+		assert_eq(got.get(key, -1), want[key], "%s: count for key %d" % [label, key])
+	return got
+
+
+func _tally_total(tally: Dictionary) -> int:
+	var total: int = 0
+	for key: int in tally:
+		total += int(tally[key])
+	return total
+
+
+func test_tally_of_a_fresh_raster_and_of_no_indices_is_empty() -> void:
+	assert_eq(_raster.tally_owned_cells(_all_indices(), TALLY_STRIDE).size(), 0)
+	assert_eq(_raster.tally_owned_cells(PackedInt32Array(), TALLY_STRIDE).size(), 0)
+
+
+func test_tally_matches_the_coordinate_readers_after_a_solve() -> void:
+	var circles: Array[InfluenceCircle] = [_home(-8.0, 0.0, 0), _home(8.0, 0.0, 1), _block(-4.0, 3.0, 3.0, 0)]
+	_step(circles, 0.1, TEMPORARY)
+	var tally: Dictionary = _assert_tally_matches(_all_indices(), "whole grid")
+	assert_gt(tally.size(), 1, "Setup: more than one (team, group) key.")
+	var owned: int = 0
+	for cy: int in range(_grid.res):
+		for cx: int in range(_grid.res):
+			if _raster.team_at(cx, cy) >= 0 and _raster.group_at(cx, cy) >= 0:
+				owned += 1
+	assert_gt(owned, 0, "Setup: something is owned.")
+	assert_eq(_tally_total(tally), owned, "The tally counts every owned cell once.")
+
+
+func test_tally_skips_contested_cells_and_opened_holes() -> void:
+	# Two overlapping homes of different teams: the legacy fill contests the seam
+	# and, after hole_delay, opens it into holes.
+	var circles: Array[InfluenceCircle] = [_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)]
+	var contested_seen: bool = false
+	for i: int in range(40):
+		_step(circles, 0.1, PERMANENT)
+	var cells_in_a_hole: int = 0
+	for cy: int in range(_grid.res):
+		for cx: int in range(_grid.res):
+			if _raster.is_contested(cx, cy):
+				contested_seen = true
+			if _raster.is_hole(cx, cy):
+				cells_in_a_hole += 1
+	assert_true(contested_seen, "Setup: a contested seam.")
+	assert_gt(cells_in_a_hole, 0, "Setup: the seam opened into holes.")
+	_assert_tally_matches(_all_indices(), "contested + holes")
+
+
+func test_tally_does_not_count_a_punched_hole_inside_a_teams_own_circle() -> void:
+	var circles: Array[InfluenceCircle] = [_home(0.0, 0.0, 0)]
+	_step(circles, 0.1)
+	var before: Dictionary = _assert_tally_matches(_all_indices(), "before the punch")
+	var cell: Vector2i = _cell_of(Vector2(0.5, 0.5))
+	_raster.force_hole_cell(cell.x, cell.y, HOLE_OPEN_S, TEMPORARY)
+	var after: Dictionary = _assert_tally_matches(_all_indices(), "after the punch")
+	assert_eq(_tally_total(after), _tally_total(before) - 1,
+		"Exactly the punched cell leaves the tally: team_at() reads a hole as unowned.")
+
+
+func test_tally_ignores_indices_off_the_grid() -> void:
+	var circles: Array[InfluenceCircle] = [_home(0.0, 0.0, 0)]
+	_step(circles, 0.1)
+	var centre: Vector2i = _cell_of(Vector2.ZERO)
+	var valid: PackedInt32Array = PackedInt32Array([_grid.cell_index(centre.x, centre.y), _grid.cell_index(centre.x + 1, centre.y)])
+	var with_junk: PackedInt32Array = PackedInt32Array([-7, -1])
+	with_junk.append_array(valid)
+	with_junk.append_array(PackedInt32Array([_grid.cell_count(), _grid.cell_count() + 99, 2147483647]))
+	var clean: Dictionary[int, int] = _raster.tally_owned_cells(valid, TALLY_STRIDE)
+	var junk: Dictionary[int, int] = _raster.tally_owned_cells(with_junk, TALLY_STRIDE)
+	assert_eq(_tally_total(clean), 2, "Setup: both valid cells are owned.")
+	assert_eq(_tally_total(junk), 2, "Off-grid indices vote for nobody, like group_at()'s off-grid answer.")
+	assert_eq(junk.size(), clean.size())
+
+
+func test_tally_counts_interleaved_teams_and_repeated_indices_like_the_oracle() -> void:
+	# Alternating owners break the run-length counting every cell and bring a key
+	# back after another one; duplicates count once per occurrence.
+	var circles: Array[InfluenceCircle] = [_home(-8.0, 0.0, 0), _home(8.0, 0.0, 1)]
+	_step(circles, 0.1, TEMPORARY)
+	var left: Vector2i = _cell_of(Vector2(-8.0, 0.0))
+	var right: Vector2i = _cell_of(Vector2(8.0, 0.0))
+	var indices: PackedInt32Array = PackedInt32Array()
+	for step: int in range(6):
+		indices.append(_grid.cell_index(left.x + step, left.y))
+		indices.append(_grid.cell_index(right.x - step, right.y))
+	indices.append(_grid.cell_index(left.x, left.y))
+	indices.append(_grid.cell_index(left.x, left.y))
+	var tally: Dictionary = _assert_tally_matches(indices, "interleaved")
+	assert_eq(tally.size(), 2, "Setup: both teams vote.")
+	assert_eq(_tally_total(tally), indices.size(), "Setup: every listed cell is owned, duplicates included.")
+
+
+func test_tally_keys_follow_the_stride_argument() -> void:
+	var circles: Array[InfluenceCircle] = [_home(-8.0, 0.0, 0), _home(8.0, 0.0, 1)]
+	_step(circles, 0.1, TEMPORARY)
+	var right: Vector2i = _cell_of(Vector2(8.0, 0.0))
+	var group: int = _raster.group_at(right.x, right.y)
+	var one: PackedInt32Array = PackedInt32Array([_grid.cell_index(right.x, right.y)])
+	for stride: int in [1000, 50, TALLY_STRIDE]:
+		var tally: Dictionary[int, int] = _raster.tally_owned_cells(one, stride)
+		assert_eq(tally.size(), 1)
+		assert_eq(tally.get(1 * stride + group, 0), 1, "key = team * stride + group at stride %d" % stride)
+
+
+func test_tally_is_read_only_and_returns_a_fresh_result() -> void:
+	var circles: Array[InfluenceCircle] = [_home(-8.0, 0.0, 0), _home(8.0, 0.0, 1)]
+	_step(circles, 0.1, TEMPORARY)
+	var revision: int = _raster.content_revision()
+	var owners: PackedByteArray = _raster.owner_bytes().duplicate()
+	var states: PackedByteArray = _raster.state_bytes().duplicate()
+	var first: Dictionary[int, int] = _raster.tally_owned_cells(_all_indices(), TALLY_STRIDE)
+	var total: int = _tally_total(first)
+	first.clear()
+	var second: Dictionary[int, int] = _raster.tally_owned_cells(_all_indices(), TALLY_STRIDE)
+	assert_eq(_tally_total(second), total, "Clearing one result never reaches the next: it is not the raster's own state.")
+	assert_eq(_raster.content_revision(), revision, "A read does not bump the content revision.")
+	assert_eq(_raster.owner_bytes(), owners)
+	assert_eq(_raster.state_bytes(), states)
+
+
+func test_tally_matches_on_a_replicated_mirror() -> void:
+	var circles: Array[InfluenceCircle] = [_home(-6.0, 0.0, 0), _home(6.0, 0.0, 1)]
+	_step(circles, 0.1, TEMPORARY)
+	var mirror: TerritoryRaster = TerritoryRaster.new(CellGrid.new(MAP_RADIUS, CELL), _tuning)
+	mirror.apply_replicated_state(_raster.owner_bytes(), _raster.state_bytes())
+	var host_tally: Dictionary[int, int] = _raster.tally_owned_cells(_all_indices(), TALLY_STRIDE)
+	var mirror_tally: Dictionary[int, int] = mirror.tally_owned_cells(_all_indices(), TALLY_STRIDE)
+	# A mirror has one placeholder group (REPLICATED_GROUP), so compare per team.
+	for team: int in range(2):
+		var host_cells: int = 0
+		for key: int in host_tally:
+			if key / TALLY_STRIDE == team:
+				host_cells += host_tally[key]
+		assert_gt(host_cells, 0, "Setup: team %d owns cells." % team)
+		assert_eq(mirror_tally.get(team * TALLY_STRIDE + TerritoryRaster.REPLICATED_GROUP, 0), host_cells,
+			"team %d owns the same cells on the mirror" % team)
+
+
+func test_tally_follows_an_adopted_shadow_fill() -> void:
+	# P-ASYNC: the shadow's fill is swapped in; the tally must read the adopted
+	# arrays, not the ones the raster had before.
+	var circles: Array[InfluenceCircle] = [_home(0.0, 0.0, 0)]
+	var groups: TerritoryGroups = _solver.solve(circles)
+	var shadow: TerritoryRaster = TerritoryRaster.new(CellGrid.new(MAP_RADIUS, CELL), _tuning)
+	shadow.fill_ownership(circles, groups, true)
+	_raster.adopt_fill(shadow, 0.1, true, TEMPORARY)
+	var tally: Dictionary = _assert_tally_matches(_all_indices(), "after adopt_fill")
+	assert_gt(_tally_total(tally), 0, "Setup: the adopted fill owns cells.")

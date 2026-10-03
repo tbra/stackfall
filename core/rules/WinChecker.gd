@@ -16,6 +16,9 @@ extends RefCounted
 ## Pure logic: no scene tree (CLAUDE.md).
 
 const NO_TEAM: int = -1
+## claim_at() tallies cells under team * GROUP_KEY_STRIDE + group; groups are indices
+## into one solve's circle array, far below this.
+const GROUP_KEY_STRIDE: int = 1000000
 
 var _goal_positions: PackedVector2Array = PackedVector2Array()
 var _capture_hold: float = 3.0
@@ -58,7 +61,10 @@ func update(raster: TerritoryRaster, delta: float) -> void:
 	if _winner != NO_TEAM:
 		return
 
-	var group: int = _group_holding_every_goal(raster)
+	# x = the group every goal shares (NO_GROUP when they disagree), y = the team
+	# claiming goal 0 -- read from the same claim_at() as the group, not a second one.
+	var claim: Vector2i = _claim_holding_every_goal(raster)
+	var group: int = claim.x
 	if group == TerritoryGroups.NO_GROUP:
 		_clear_capture()
 		return
@@ -74,7 +80,7 @@ func update(raster: TerritoryRaster, delta: float) -> void:
 	# *same* team whose indices happen to coincide, which would need the solver
 	# to carry stable group identities across solves. That team held the goal
 	# throughout either way, so it is not worth the bookkeeping.
-	var team: int = claim_at(raster, _goal_positions[0], _claim_radius).y
+	var team: int = claim.y
 	if group != _capturing_group or team != _capturing_team:
 		_capturing_group = group
 		_capturing_team = team
@@ -128,25 +134,30 @@ func _clear_capture() -> void:
 	_held = 0.0
 
 
-## The group index shared by every goal flag, or NO_GROUP when they disagree,
-## when any goal is unowned or contested, or when there are no goals at all.
+## The group index shared by every goal flag (x), or NO_GROUP when they disagree,
+## when any goal is unowned or contested, or when there are no goals at all; and
+## the team claiming the first goal (y, NO_TEAM alongside NO_GROUP).
 ##
 ## Comparing group indices rather than teams is the whole point (spec 2.3, "one
 ## connected territory"): two towers of the same team holding a goal each are
 ## two groups, and must not win.
-func _group_holding_every_goal(raster: TerritoryRaster) -> int:
+##
+## Bontago-1pi.18.11: goal 0 is evaluated once and its team returned with its
+## group, so update() no longer repeats the (radius-sized) claim_at() for it.
+func _claim_holding_every_goal(raster: TerritoryRaster) -> Vector2i:
+	var none: Vector2i = Vector2i(TerritoryGroups.NO_GROUP, NO_TEAM)
 	var count: int = _goal_positions.size()
 	if count == 0:
-		return TerritoryGroups.NO_GROUP
+		return none
 
-	var group: int = claim_at(raster, _goal_positions[0], _claim_radius).x
+	var first: Vector2i = claim_at(raster, _goal_positions[0], _claim_radius)
 	# Catches NO_GROUP and CONTESTED, which are both negative.
-	if group < 0:
-		return TerritoryGroups.NO_GROUP
+	if first.x < 0:
+		return none
 	for i: int in range(1, count):
-		if claim_at(raster, _goal_positions[i], _claim_radius).x != group:
-			return TerritoryGroups.NO_GROUP
-	return group
+		if claim_at(raster, _goal_positions[i], _claim_radius).x != first.x:
+			return none
+	return first
 
 
 ## The per-goal test of spec 2.3, shared with other objectives (Capture the
@@ -171,26 +182,21 @@ static func goal_holder(raster: TerritoryRaster, point: Vector2, claim_radius: f
 ## claims nothing -- the same as contested/unowned today.
 static func claim_at(raster: TerritoryRaster, point: Vector2, claim_radius: float) -> Vector2i:
 	var grid: CellGrid = raster.grid()
-	var center: Vector2i = grid.world_to_cell(point)
 	if claim_radius <= 0.0:
+		var center: Vector2i = grid.world_to_cell(point)
 		return Vector2i(raster.group_at(center.x, center.y), raster.team_at(center.x, center.y))
-	var reach: int = ceili(claim_radius / grid.cell_size) + 1
+	# Bontago-1pi.18.11: which cells are in range depends only on the grid, the
+	# point and the radius, so their indices are cached (ClaimCells) and each solve
+	# only tallies the raster over them in one pass, with exactly the votes
+	# group_at()/team_at() would give cell by cell (see TerritoryRaster.
+	# tally_owned_cells). One tally per (team, group); the team totals are summed
+	# from it below.
+	var indices: PackedInt32Array = ClaimCells.indices_for(grid, point, claim_radius)
+	var group_cells: Dictionary[int, int] = raster.tally_owned_cells(indices, GROUP_KEY_STRIDE)
 	var team_cells: Dictionary = {}
-	var group_cells: Dictionary = {}
-	var radius_sq: float = claim_radius * claim_radius
-	for cy: int in range(center.y - reach, center.y + reach + 1):
-		for cx: int in range(center.x - reach, center.x + reach + 1):
-			if not grid.in_bounds(cx, cy):
-				continue
-			if grid.cell_center(cx, cy).distance_squared_to(point) > radius_sq:
-				continue
-			var group: int = raster.group_at(cx, cy)
-			var team: int = raster.team_at(cx, cy)
-			if group < 0 or team < 0:
-				continue
-			team_cells[team] = int(team_cells.get(team, 0)) + 1
-			var key: int = team * 1000000 + group
-			group_cells[key] = int(group_cells.get(key, 0)) + 1
+	for key: int in group_cells:
+		var key_team: int = key / GROUP_KEY_STRIDE
+		team_cells[key_team] = int(team_cells.get(key_team, 0)) + int(group_cells[key])
 	var best_team: int = NO_TEAM
 	var best_count: int = 0
 	var tied: bool = false
@@ -207,12 +213,11 @@ static func claim_at(raster: TerritoryRaster, point: Vector2, claim_radius: floa
 	var best_group: int = TerritoryGroups.NO_GROUP
 	var best_group_count: int = 0
 	for key: int in group_cells:
-		if key / 1000000 != best_team:
+		if key / GROUP_KEY_STRIDE != best_team:
 			continue
 		var group_count: int = group_cells[key]
-		var group_id: int = key % 1000000
+		var group_id: int = key % GROUP_KEY_STRIDE
 		if group_count > best_group_count or (group_count == best_group_count and group_id < best_group):
 			best_group = group_id
 			best_group_count = group_count
 	return Vector2i(best_group, best_team)
-

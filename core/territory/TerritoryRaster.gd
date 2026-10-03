@@ -327,6 +327,55 @@ func team_at(cx: int, cy: int) -> int:
 	return _team_ids[index]
 
 
+## Bontago-1pi.18.11: how many of the cells at `indices` each (team, group) owns,
+## for a reader that votes over hundreds of cells per call (WinChecker.claim_at()
+## over a claim radius). `indices` are row-major cell indices (CellGrid.
+## cell_index()); the result maps team * key_stride + group to a cell count.
+##
+## Per cell this is exactly what the coordinate readers answer: a cell counts when
+## group_at() is a real group (>= 0, so not NO_GROUP and not CONTESTED) AND
+## team_at() is a team (>= 0, so not unowned and not a hole -- team_at()'s own
+## DECISION). An index outside 0..cell_count()-1 is off the grid and counts for
+## nobody, like group_at()'s off-grid answer. Going through group_at()/team_at()
+## per cell costs a call, a bounds check and the coordinate math each (~1.9 us a
+## cell, most of claim_at()'s cost); this reads the arrays by index in one pass.
+##
+## Read-only: it returns a fresh dictionary and writes nothing here. (The per-cell
+## arrays are deliberately not exposed: GDScript passes packed arrays by
+## reference, so a returned view would be a way to write into the raster.)
+## `key_stride` must exceed every group index (they index one solve's circle
+## array); a team's cells arrive in long row-major runs, so a run is counted in a
+## local and written to the dictionary once.
+func tally_owned_cells(indices: PackedInt32Array, key_stride: int) -> Dictionary[int, int]:
+	var tally: Dictionary[int, int] = {}
+	var groups: PackedInt32Array = _group_ids
+	var teams: PackedInt32Array = _team_ids
+	var holes: PackedByteArray = _hole
+	var cell_total: int = groups.size()
+	var run_key: int = -1
+	var run_count: int = 0
+	for index: int in indices:
+		if index < 0 or index >= cell_total:
+			continue
+		var group: int = groups[index]
+		if group < 0:
+			continue
+		var team: int = teams[index]
+		if team < 0 or holes[index] == 1:
+			continue
+		var key: int = team * key_stride + group
+		if key == run_key:
+			run_count += 1
+			continue
+		if run_count > 0:
+			tally[run_key] = tally.get(run_key, 0) + run_count
+		run_key = key
+		run_count = 1
+	if run_count > 0:
+		tally[run_key] = tally.get(run_key, 0) + run_count
+	return tally
+
+
 func is_contested(cx: int, cy: int) -> bool:
 	return group_at(cx, cy) == TerritoryGroups.CONTESTED
 
