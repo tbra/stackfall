@@ -1,0 +1,15 @@
+{
+  "glb_bytes": 69968,
+  "mesh_count": 2,
+  "material_count": 5,
+  "triangles": 836,
+  "clip_name": "open_reveal_1s",
+  "clip_time_range_seconds": [
+    0.0416666679084301,
+    1.0416666269302368
+  ],
+  "rotation_samples": 25,
+  "start_to_end_angle_degrees": 109.99998970385188,
+  "gif_frames": 25,
+  "gif_preview_has_endpoint_holds": true
+}

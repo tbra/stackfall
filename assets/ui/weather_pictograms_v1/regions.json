@@ -1,0 +1,61 @@
+{
+  "atlas": "atlas.svg",
+  "atlas_size": [
+    256,
+    128
+  ],
+  "tile_size": 64,
+  "modes": [
+    "OFF",
+    "STORM",
+    "RAIN",
+    "SNOW",
+    "FOG",
+    "RANDOM",
+    "CHANGING"
+  ],
+  "regions_xywh": {
+    "OFF": [
+      0,
+      0,
+      64,
+      64
+    ],
+    "STORM": [
+      64,
+      0,
+      64,
+      64
+    ],
+    "RAIN": [
+      128,
+      0,
+      64,
+      64
+    ],
+    "SNOW": [
+      192,
+      0,
+      64,
+      64
+    ],
+    "FOG": [
+      0,
+      64,
+      64,
+      64
+    ],
+    "RANDOM": [
+      64,
+      64,
+      64,
+      64
+    ],
+    "CHANGING": [
+      128,
+      64,
+      64,
+      64
+    ]
+  }
+}

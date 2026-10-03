@@ -1,0 +1,110 @@
+{
+  "atlas": "atlas.svg",
+  "atlas_size": [
+    256,
+    256
+  ],
+  "tile_size": 64,
+  "gift_ids": [
+    "anvil",
+    "black_hole",
+    "bomb",
+    "cat",
+    "earthquake",
+    "freeze",
+    "glue",
+    "jumping_bean",
+    "magnet",
+    "paintball",
+    "propeller",
+    "rocket",
+    "stackfall",
+    "volcano"
+  ],
+  "regions_xywh": {
+    "anvil": [
+      0,
+      0,
+      64,
+      64
+    ],
+    "black_hole": [
+      64,
+      0,
+      64,
+      64
+    ],
+    "bomb": [
+      128,
+      0,
+      64,
+      64
+    ],
+    "cat": [
+      192,
+      0,
+      64,
+      64
+    ],
+    "earthquake": [
+      0,
+      64,
+      64,
+      64
+    ],
+    "freeze": [
+      64,
+      64,
+      64,
+      64
+    ],
+    "glue": [
+      128,
+      64,
+      64,
+      64
+    ],
+    "jumping_bean": [
+      192,
+      64,
+      64,
+      64
+    ],
+    "magnet": [
+      0,
+      128,
+      64,
+      64
+    ],
+    "paintball": [
+      64,
+      128,
+      64,
+      64
+    ],
+    "propeller": [
+      128,
+      128,
+      64,
+      64
+    ],
+    "rocket": [
+      192,
+      128,
+      64,
+      64
+    ],
+    "stackfall": [
+      0,
+      192,
+      64,
+      64
+    ],
+    "volcano": [
+      64,
+      192,
+      64,
+      64
+    ]
+  }
+}
