@@ -33,6 +33,16 @@ signal block_dissolve_started(block: RigidBody3D, net_id: int, duration_s: float
 ## The host's state machine moved. Both arguments are Match.State values.
 signal match_state_changed(from_state: int, to_state: int)
 
+## Bontago-1pi.46 (docs/MATCH_RESET_AUDIT.md section 4): a match world is about to
+## be built, or was just torn down (host, client, sandbox and tutorial alike;
+## game/Main.gd's _reset_match_scope() is the only emitter). Persistent owners
+## that Main cannot name (sky, weather ceiling, audio, rumble) connect here and
+## return to the state their own _ready() leaves on a fresh launch. Every
+## listener must be idempotent: it fires once per world build and once per
+## teardown, and a few teardown paths (e.g. a net leave that also aborts the
+## match) fire it a second time with nothing left to reset.
+signal match_scope_reset
+
 ## Bontago-t8x.4: the host pressed Start. Emitted on a client by
 ## net/MatchNet.gd's net_match_loading, one message ahead of net_match_start, so
 ## game/Main.gd can raise the loading overlay before the match world builds.

@@ -430,6 +430,10 @@ func _start_sandbox_match_with_args(args: PackedStringArray) -> void:
 ## to the CLI path: default player count, no forced special.
 func start_sandbox_from_menu() -> void:
 	_clear_menu_and_lobby()
+	# Bontago-1pi.46 (G5): this path bypasses _build_match_world(), so it needs
+	# its own new-match reset -- before Sandbox.set_camera_rig() below, which
+	# re-sets CameraRig.suppress_pad_home_focus that reset_view() clears.
+	_reset_match_scope()
 	_world_built = true
 	# Bontago-xtq.42 fix round 2: _build_match_world() (which owns this same
 	# line for every other match-start path) never runs for sandbox-from-menu
@@ -502,6 +506,9 @@ func _sandbox_force_special_arg(args: PackedStringArray) -> String:
 
 func start_tutorial_from_menu() -> void:
 	_clear_menu_and_lobby()
+	# Bontago-1pi.46 (G5): same bypass of _build_match_world() as the sandbox
+	# start above, so the same new-match reset.
+	_reset_match_scope()
 	_world_built = true
 	# Bontago-xtq.42: see ui/PauseMenu.gd's own `suppressed` doc comment --
 	# Tutorial already owns ui_cancel/Escape for its own quit gesture, and the
@@ -1266,8 +1273,9 @@ func _on_match_state_changed(from_state: int, to_state: int) -> void:
 		if to_state == Match.State.LOBBY:
 			_field.clear_match_state()
 			# Bontago-1pi.46: a sandbox reset is a new match too -- dry arena;
-			# the camera stays where the player put it.
-			_reset_match_presentation(false)
+			# the camera stays where the player put it, and so does the sandbox's
+			# own CameraRig.suppress_pad_home_focus (only a camera reset clears it).
+			_reset_match_scope(false)
 		return
 
 	if to_state == Match.State.LOBBY:
@@ -1369,8 +1377,9 @@ func _build_match_world(force_staging_for_test: bool = false) -> void:
 	var generation: int = _loading_generation
 	# Bontago-1pi.46: the single new-match entry (host, client and headless
 	# alike) -- starts from the launch camera and a dry arena whatever the
-	# previous match left behind.
-	_reset_match_presentation()
+	# previous match left behind, and tells the persistent owners (Events.
+	# match_scope_reset) to do the same. Runs before configure_match_sky() below.
+	_reset_match_scope()
 	# DECISION: only a visible interactive overlay needs frame-separated stages.
 	# Headless hosts and test/probe runs retain the synchronous start contract.
 	var stage_build: bool = force_staging_for_test or (_loading_screen != null and _loading_screen.visible and DisplayServer.get_name() != "headless" and not AgentProbe.is_active())
@@ -1499,21 +1508,37 @@ func _spawn_bot_controllers(config: MatchConfig) -> void:
 
 ## Bontago-1pi.46 (owner playtest: "leaving match and starting a new match
 ## doesn't reset properly ... my camera and zoom level were the same as when i
-## left the old match and the arena still had rain puddles"). ROOT CAUSE: the
-## CameraRig and the Field's RainPuddles layer are persistent children of this
-## scene, outliving every match; a match start re-aimed only the camera's yaw/
-## target, and puddles dry over RainTuning.puddle_dry_time_s. Run when a match
-## world is built and when it is torn down (both idempotent), so the next match
-## starts like a fresh launch: launch zoom/pitch/yaw, no puddles unless the new
-## match's own weather brings rain.
-func _reset_match_presentation(reset_camera: bool = true) -> void:
+## left the old match and the arena still had rain puddles"; owner requirement:
+## after leaving a match and starting another, everything is as if freshly
+## launched). ROOT CAUSE: the CameraRig, the Field's RainPuddles layer and a
+## number of autoloads/presentation nodes are persistent, so they outlived every
+## match; a match start re-aimed only the camera's yaw/target, and puddles dry
+## over RainTuning.puddle_dry_time_s. This is the one presentation-reset entry
+## (docs/MATCH_RESET_AUDIT.md section 4): Main resets the children it owns
+## directly, then emits Events.match_scope_reset for every persistent owner it
+## cannot name. Run when a match world is built, when one is torn down (also a
+## cancelled staged build and a menu sandbox/tutorial) and on a sandbox reset;
+## synchronous and idempotent, so the next match starts like a fresh launch.
+## `reset_camera` is false only for a sandbox reset (F5), where the player keeps
+## their view.
+func _reset_match_scope(reset_camera: bool = true) -> void:
 	RainPuddles.clear_on(_field)
 	if reset_camera and _camera_rig != null:
 		_camera_rig.reset_view()
+	Events.match_scope_reset.emit()
 
 
 func _end_match_world() -> void:
+	# Bontago-1pi.46 (G5). DECISION: the scope reset runs before the _world_built
+	# early return, so every (-> LOBBY) -- including a staged build that was
+	# cancelled before it finished (_world_built still false), and a CLI
+	# --sandbox, which never sets it -- leaves a launch-state camera, dry arena
+	# and reset persistent owners. Such a half-built world still touched the
+	# Field (flags, rebuild, overlay), so it is cleared here too. Idempotent: a
+	# net leave reaches this twice (mode change, then the abort's -> LOBBY).
 	if not _world_built:
+		_field.clear_match_state()
+		_reset_match_scope()
 		return
 	_world_built = false
 	_stop_headless_bots_diagnostics()
@@ -1524,7 +1549,7 @@ func _end_match_world() -> void:
 	# (Beads Bontago-mv0.1.9).
 	_field.clear_match_state()
 	# Bontago-1pi.46: and the menu/lobby behind it looks like a fresh launch too.
-	_reset_match_presentation()
+	_reset_match_scope()
 	if _remote_cursors != null and is_instance_valid(_remote_cursors):
 		_remote_cursors.queue_free()
 	_remote_cursors = null

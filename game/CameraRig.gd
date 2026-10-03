@@ -430,7 +430,12 @@ func set_home_view(home_position: Vector3, look_at_position: Vector3 = Vector3.Z
 ## distance, pitch, peek/focus state, shake and queued snap/turn tweens carried
 ## over. game/Main.gd calls this when a match world is built and torn down; it
 ## puts every field back to what _ready() leaves on a fresh launch.
+## Bontago-1pi.46 (G4): that includes suppress_pad_home_focus, which only
+## game/Sandbox.gd sets (and re-sets in its own set_camera_rig() on the next
+## sandbox start), so a lobby match after a sandbox session has gamepad Back =
+## focus home again.
 func reset_view() -> void:
+	suppress_pad_home_focus = false
 	for tween: Tween in _view_tweens:
 		if tween != null and tween.is_valid():
 			tween.kill()
