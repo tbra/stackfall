@@ -33,6 +33,23 @@ const TICKS_BETWEEN_PLACEMENTS: int = 30
 ## next physics_frame await expected) rather than just changing timing, so it
 ## is not used here. The map-size fix below is the safe win for this file.
 
+## DECISION (Bontago-1pi.45): the sharded-gate failure ("30 of 30 still awake
+## after 10 s", passes alone) is NOT leaked resource/Engine state; do not chase it
+## there again. In the failing shard order (test_playercontroller_spawn_clearance
+## -> test_weather_breeze -> this) the world at this test's start was identical
+## on every run (same PhysicsTuning hash, 0 active bodies/islands, no Blocks,
+## time_scale 1, 60 tps), yet the tower's outcome varied: standalone and idle it
+## is bit-identical and asleep within 1 s; after those scripts, with 3 copies of
+## the order running at once, the built tower differed run to run (top block y
+## 28.382 .. 28.395 m) and stayed awake 0 s, 6 s, 8 s, and 10 s+ (the original
+## failure). Working explanation: the earlier scripts leave run-varying history
+## inside the default physics space (Jolt body ids/broadphase), which nothing
+## here can reset. So the tower is built in a private World3D (SubViewport with
+## its own World3D = a fresh physics space every run); with that, 3 of 3
+## loaded shard-order runs slept at 0.00 s. The asleep-onset time is printed
+## and added to the failure message so a future failure shows how far past
+## the budget it was.
+##
 ## DECISION (Bontago-1pi.21): pin the shared physics_tuning.tres instance to its
 ## on-disk values for this test. Sharded gate processes share user://, and
 ## test_tuning_panel writes user://tuning_overrides.cfg (gravity +0.6 etc.)
@@ -65,6 +82,14 @@ func after_all() -> void:
 
 
 func test_thirty_cube_tower_stands_and_sleeps() -> void:
+	# Bontago-1pi.45: a private World3D, i.e. a fresh physics space, so the tower
+	# never inherits body-id/broadphase history from scripts that ran before it.
+	var world_holder: SubViewport = SubViewport.new()
+	world_holder.world_3d = World3D.new()
+	world_holder.own_world_3d = true
+	world_holder.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	add_child_autofree(world_holder)
+
 	var field: Field = autofree(Field.new())
 	# DECISION (Bontago-mv0.3): Field.new()'s default map_def is
 	# round_medium.tres (45 m, ~6300 in-disk 1 m cells); building that
@@ -76,18 +101,18 @@ func test_thirty_cube_tower_stands_and_sleeps() -> void:
 	# 1 m per block).
 	field.map_def = (load("res://config/maps/round_medium.tres") as MapDef).duplicate(true)
 	field.map_def.field_radius = 6.0
-	add_child_autofree(field)
+	world_holder.add_child(field)
 
 	var blocks_root: Node3D = autofree(Node3D.new())
-	add_child_autofree(blocks_root)
+	world_holder.add_child(blocks_root)
 
 	var cube_shape: BlockShape = load("res://config/blocks/cube.tres")
 	var ghost: GhostPreview = autofree(GhostPreview.new())
-	add_child_autofree(ghost)
+	world_holder.add_child(ghost)
 	ghost.set_shape(cube_shape)
 
 	var controller: PlayerController = autofree(PlayerController.new())
-	add_child_autofree(controller)
+	world_holder.add_child(controller)
 	controller._ghost = ghost
 	controller._active_slot = 0
 
@@ -125,19 +150,34 @@ func test_thirty_cube_tower_stands_and_sleeps() -> void:
 	var start_top_y: float = top_block.global_position.y
 
 	var ticks: int = int(round(SETTLE_SECONDS * Engine.physics_ticks_per_second))
-	for _tick: int in range(ticks):
+	var asleep_at_tick: int = -1
+	for tick: int in range(ticks):
 		await get_tree().physics_frame
+		if asleep_at_tick < 0 and _awake_indices(blocks_root).is_empty():
+			asleep_at_tick = tick
+	var asleep_text: String = "never"
+	if asleep_at_tick >= 0:
+		asleep_text = "%.2f s" % (float(asleep_at_tick) / float(Engine.physics_ticks_per_second))
+	gut.p("tower: all asleep %s after the last placement (budget %.0f s)" % [asleep_text, SETTLE_SECONDS])
 
 	var end_top_y: float = top_block.global_position.y
 	var drift: float = absf(end_top_y - start_top_y)
 	assert_lt(drift, MAX_TOP_DRIFT, "The 30-cube tower should not collapse; top block drifted %.3f m." % drift)
 
-	var awake_indices: Array[int] = []
-	for i: int in range(blocks_root.get_child_count()):
-		var body: RigidBody3D = blocks_root.get_child(i) as RigidBody3D
-		if body != null and not body.sleeping:
-			awake_indices.append(i)
+	var awake_indices: Array[int] = _awake_indices(blocks_root)
 	assert_eq(
 		awake_indices, [] as Array[int],
-		"All 30 blocks should be asleep after %.0f s of settling; still awake: %s" % [SETTLE_SECONDS, awake_indices]
+		"All 30 blocks should be asleep after %.0f s of settling; still awake: %s (first all-asleep tick: %d)" % [
+			SETTLE_SECONDS, awake_indices, asleep_at_tick
+		]
 	)
+
+
+## Child indices of every body under `root` that is not asleep.
+func _awake_indices(root: Node3D) -> Array[int]:
+	var awake: Array[int] = []
+	for i: int in range(root.get_child_count()):
+		var body: RigidBody3D = root.get_child(i) as RigidBody3D
+		if body != null and not body.sleeping:
+			awake.append(i)
+	return awake
