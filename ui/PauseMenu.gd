@@ -28,6 +28,12 @@ extends CanvasLayer
 ## is pending" selector this class used to need (one ConfirmationDialog fed
 ## by a Leave-or-Quit choice) collapses to a single path, so the dialog now
 ## exists solely to confirm Leave match.
+##
+## Bontago-1pi.50 (owner playtest: "return to lobby option from pause menu"):
+## that one dialog now serves two destructive entries, Leave match and Return to
+## lobby (host only, between Options and Leave); `_pending_action` says which one
+## a confirm answers. Which entries a session gets is decided by game/Main.gd
+## through `context_provider`, so this menu still never names Net or Match.
 
 const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
 
@@ -68,7 +74,44 @@ const OVERLAY_LAYER: int = 100
 ## there, not here.
 signal leave_match_requested
 
+## Bontago-1pi.50 (owner playtest 2026-10-03: "return to lobby option from
+## pause menu"): emitted once Return to lobby is confirmed (or at once when no
+## match is in progress, so nothing is lost). game/Main.gd is the one listener;
+## it re-checks that this peer is the host before ending the match for everyone.
+signal return_to_lobby_requested
+
+## Bontago-1pi.50. What the Return to lobby entry shows, decided by whoever owns
+## the session (game/Main.gd), never by this menu: HIDDEN where no lobby exists
+## to return to (offline sandbox/hot-seat -- Leave match already goes to the main
+## menu there), ENABLED for the host (a hosted session always has a lobby, local
+## vs-bots included), DISABLED for a client.
+enum ReturnEntry { HIDDEN, ENABLED, DISABLED }
+
+## Which destructive action the shared confirmation dialog is currently asking
+## about; NONE while it is closed.
+enum PendingAction { NONE, LEAVE, RETURN_TO_LOBBY }
+
+## DECISION (Bontago-1pi.50): a client sees the entry disabled rather than a
+## "leave to the host's lobby" variant (keep it simple; a client's own way out
+## stays Leave match). The tooltip is the one place that explains why.
+const RETURN_CLIENT_TOOLTIP: String = "Only the host can return everyone to the lobby"
+const RETURN_CONFIRM_TEXT: String = "End this match for everyone and return to the lobby?"
+const RETURN_CONFIRM_OK_TEXT: String = "End match"
+const LEAVE_CONFIRM_TEXT: String = "Leave this match and return to the main menu?"
+const LEAVE_CONFIRM_OK_TEXT: String = "OK"
+
+## Bontago-1pi.50: () -> Dictionary, read each time the menu opens (and by the
+## confirm step). {"return_entry": ReturnEntry, "match_in_progress": bool}.
+## game/Main.gd assigns it; with none set the entry stays hidden (the scene's
+## default, so the pre-existing 3-button focus ring is untouched) and a press
+## never asks for confirmation, so a bare menu (every pre-existing test) behaves
+## exactly as before. A seam rather than reading Net/Match here: this menu stays
+## decoupled from both (see the header).
+var context_provider: Callable = Callable()
+
 var _options_menu: OptionsMenu = null
+var _pending_action: PendingAction = PendingAction.NONE
+var _confirm_origin: Button = null
 
 @onready var _root: Control = %Root
 @onready var _center: CenterContainer = %Center
@@ -76,6 +119,7 @@ var _options_menu: OptionsMenu = null
 @onready var _title_label: Label = %Title
 @onready var _resume_button: Button = %ResumeButton
 @onready var _options_button: Button = %OptionsButton
+@onready var _return_button: Button = %ReturnLobbyButton
 @onready var _leave_button: Button = %LeaveButton
 @onready var _confirm_dialog: ConfirmationDialog = %ConfirmDialog
 
@@ -86,8 +130,10 @@ func _ready() -> void:
 	visible = false
 	_resume_button.pressed.connect(_on_resume_pressed)
 	_options_button.pressed.connect(_on_options_pressed)
+	_return_button.pressed.connect(_on_return_lobby_pressed)
 	_leave_button.pressed.connect(_on_leave_pressed)
 	_confirm_dialog.confirmed.connect(_on_confirm_dialog_confirmed)
+	_confirm_dialog.canceled.connect(_on_confirm_dialog_canceled)
 	_apply_visual_style()
 	_wire_focus_chain()
 
@@ -108,6 +154,9 @@ func _apply_visual_style() -> void:
 	_title_label.add_theme_color_override("font_color", tuning.ink_color)
 	MenuStyleFactory.apply_pill(_resume_button, tuning.pill_coral_color, tuning.pill_coral_hover_color, tuning.label_ink_light_color, tuning)
 	MenuStyleFactory.apply_pill(_options_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
+	# Bontago-1pi.50: Return to lobby is a second cream pill (an exit, but not the
+	# destructive slate of Leave match, which stays the heaviest button).
+	MenuStyleFactory.apply_pill(_return_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
 	MenuStyleFactory.apply_pill(_leave_button, tuning.pill_dark_slate_color, tuning.pill_dark_slate_hover_color, tuning.label_ink_light_color, tuning)
 	# DECISION (Bontago-1pi.37): every pill's icon follows its label ink in all
 	# draw states via MenuStyleFactory.apply_pill() -- the cream Options pill's
@@ -144,11 +193,16 @@ func _toggle_menu() -> void:
 
 func _open() -> void:
 	visible = true
+	refresh_return_entry()
 	Events.pause_menu_opened.emit()
 	_resume_button.grab_focus()
 
 
 func _close() -> void:
+	# Bontago-1pi.50: a confirmation left up behind a closed menu (the match ended
+	# some other way while it was asked) must not outlive it.
+	_pending_action = PendingAction.NONE
+	_confirm_dialog.hide()
 	visible = false
 	Events.pause_menu_closed.emit()
 
@@ -194,13 +248,68 @@ func _on_options_closed() -> void:
 
 
 func _on_leave_pressed() -> void:
-	_confirm_dialog.dialog_text = "Leave this match and return to the main menu?"
+	_ask_confirmation(PendingAction.LEAVE, LEAVE_CONFIRM_TEXT, LEAVE_CONFIRM_OK_TEXT, _leave_button)
+
+
+## Bontago-1pi.50. A match in progress asks first (it ends for everyone); with
+## none running (the results screen is up) there is nothing to lose, so it goes
+## straight through. A disabled entry (client) is inert even if something calls
+## this directly.
+func _on_return_lobby_pressed() -> void:
+	if _return_button.disabled or not _return_button.visible:
+		return
+	if bool(_context().get("match_in_progress", false)):
+		_ask_confirmation(PendingAction.RETURN_TO_LOBBY, RETURN_CONFIRM_TEXT, RETURN_CONFIRM_OK_TEXT, _return_button)
+		return
+	_close()
+	return_to_lobby_requested.emit()
+
+
+func _ask_confirmation(action: PendingAction, text: String, ok_text: String, origin: Button) -> void:
+	if _confirm_dialog.visible:
+		return
+	_pending_action = action
+	_confirm_origin = origin
+	_confirm_dialog.dialog_text = text
+	_confirm_dialog.ok_button_text = ok_text
 	_confirm_dialog.popup_centered()
 
 
 func _on_confirm_dialog_confirmed() -> void:
+	var action: PendingAction = _pending_action
 	_close()
-	leave_match_requested.emit()
+	match action:
+		PendingAction.LEAVE:
+			leave_match_requested.emit()
+		PendingAction.RETURN_TO_LOBBY:
+			return_to_lobby_requested.emit()
+
+
+## Cancel/close of the dialog: focus goes back to the button that asked, so a
+## gamepad or keyboard player is not left with nothing focused.
+func _on_confirm_dialog_canceled() -> void:
+	_pending_action = PendingAction.NONE
+	_confirm_dialog.hide()
+	if _confirm_origin != null and is_instance_valid(_confirm_origin) and visible:
+		_confirm_origin.grab_focus()
+
+
+func _context() -> Dictionary:
+	if context_provider.is_valid():
+		return context_provider.call() as Dictionary
+	return {}
+
+
+## Bontago-1pi.50: applies the session context to the Return to lobby entry and
+## rebuilds the focus ring around the entries a player can actually reach (a
+## hidden or disabled entry is skipped, so neither stick nor Tab lands on it).
+## Called on every open, so the entry always reflects the session as it is now.
+func refresh_return_entry() -> void:
+	var entry: int = int(_context().get("return_entry", ReturnEntry.HIDDEN))
+	_return_button.visible = entry != ReturnEntry.HIDDEN
+	_return_button.disabled = entry != ReturnEntry.ENABLED
+	_return_button.tooltip_text = RETURN_CLIENT_TOOLTIP if entry == ReturnEntry.DISABLED else ""
+	_wire_focus_chain()
 
 
 ## Gamepad/keyboard navigability, the same runtime get_path_to() chaining
@@ -209,7 +318,10 @@ func _on_confirm_dialog_confirmed() -> void:
 ## computation style for "chain every focusable control top to bottom, wrap
 ## around" rather than authoring focus_neighbor_* by hand in the .tscn).
 func _wire_focus_chain() -> void:
-	var chain: Array[Control] = [_resume_button, _options_button, _leave_button]
+	var chain: Array[Control] = [_resume_button, _options_button]
+	if _return_button.visible and not _return_button.disabled:
+		chain.append(_return_button)
+	chain.append(_leave_button)
 	for i: int in range(chain.size()):
 		var current: Control = chain[i]
 		var prev: Control = chain[(i - 1 + chain.size()) % chain.size()]
@@ -217,3 +329,5 @@ func _wire_focus_chain() -> void:
 		current.focus_neighbor_top = current.get_path_to(prev)
 		current.focus_neighbor_bottom = current.get_path_to(next)
 		current.focus_mode = Control.FOCUS_ALL
+	if not chain.has(_return_button):
+		_return_button.focus_mode = Control.FOCUS_NONE
