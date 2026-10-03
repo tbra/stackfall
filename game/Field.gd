@@ -1117,6 +1117,7 @@ func place_flags(slot_count: int, slot_colors: PackedColorArray, goal_count: int
 		flag.visuals = visuals
 		flag.position = Vector3(local.x, 0.0, local.y)
 		add_child(flag)
+		flag.set_claim_ring(Match.qol_claim_radius())  # Bontago-1pi.18.6: no-op (0.0) unless the toggle is on
 		_goal_flags.append(flag)
 
 

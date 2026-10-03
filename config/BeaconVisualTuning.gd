@@ -194,3 +194,18 @@ extends Resource
 @export var contested_probe_radius: float = 3.5
 ## Number of probe points on that ring.
 @export var contested_probe_samples: int = 16
+
+## -- Claim-radius ring (Bontago-1pi.18.6, QoL experiment 4). Drawn on the ground
+## around each goal beacon ONLY while the "bigger goal claim radius" toggle is on
+## (see GoalFlag.set_claim_ring()); with the toggle off nothing is built.
+## Tint of the ring (alpha is claim_ring_alpha); neutral so it reads as "the area
+## where claiming counts" without implying a team.
+@export var claim_ring_color: Color = Color(1.0, 0.95, 0.8)
+## Opacity of the claim-radius ring, kept low so it stays a subtle ground cue.
+@export var claim_ring_alpha: float = 0.2
+## Width of the ring band in meters, centred on the claim radius.
+@export var claim_ring_width: float = 0.25
+## Height above the ground the ring floats at, so it never z-fights the disc.
+@export var claim_ring_lift: float = 0.05
+## Segments in the ring's full circle (built once per match).
+@export var claim_ring_segments: int = 96

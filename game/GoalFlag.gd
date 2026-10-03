@@ -19,6 +19,11 @@ extends HomeFlag
 ## a striped beam. The shared-hold capture ring below is unchanged and reads
 ## on top of this.
 ##
+## Bontago-1pi.18.6 (QoL experiment 4): while the bigger-claim-radius toggle is on,
+## set_claim_ring() draws one flat translucent ring on the ground at the radius the
+## host uses for capture, so players can see where claiming counts. With the
+## toggle off the ring node is never created.
+##
 ## Visual only: who is capturing and how far along they are is WinChecker's
 ## answer, arriving through Events.goal_capture_progress and
 ## Field.set_capture_progress().
@@ -48,6 +53,9 @@ var _clock_s: float = 0.0
 var _beam: MeshInstance3D = null
 var _beam_material: ShaderMaterial = null
 var _burst: CPUParticles3D = null
+
+var _claim_ring: MeshInstance3D = null
+var _claim_ring_radius: float = 0.0
 
 
 func _ready() -> void:
@@ -305,6 +313,97 @@ func _build_arc(progress: float) -> ArrayMesh:
 	for _v: int in range(vertices.size()):
 		normals.append(Vector3.UP)
 
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	var mesh_out: ArrayMesh = ArrayMesh.new()
+	mesh_out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh_out
+
+
+## Bontago-1pi.18.6: shows (radius > 0) or removes (radius <= 0 or non-finite) the
+## ground ring marking the goal claim radius. Field passes Match.qol_claim_radius(),
+## the exact value capture uses, once when the flags are placed. Builds one
+## MeshInstance3D + one mesh + one material on first use, rebuilds the mesh only if
+## the radius changes, and does nothing at all while the toggle is off.
+##
+## DECISION: the band is centred on the claim radius (a cell votes when its centre is
+## within that radius) rather than hanging outside it, so the drawn line is the rule's
+## edge. It is shown for any radius > 0, including a multiplier of exactly 1.0 where it
+## simply coincides with the (separately drawn) no-build circle.
+func set_claim_ring(radius: float) -> void:
+	var wanted: float = radius if is_finite(radius) and radius > 0.0 else 0.0
+	if wanted <= 0.0:
+		if _claim_ring != null:
+			remove_child(_claim_ring)
+			_claim_ring.queue_free()
+			_claim_ring = null
+		_claim_ring_radius = 0.0
+		return
+	if _claim_ring == null:
+		_claim_ring = _build_claim_ring_node()
+		add_child(_claim_ring)
+	elif is_equal_approx(wanted, _claim_ring_radius):
+		return
+	_claim_ring_radius = wanted
+	_claim_ring.mesh = _build_claim_ring_mesh(wanted)
+
+
+func claim_ring_visible() -> bool:
+	return _claim_ring != null and _claim_ring.visible
+
+
+## The radius the ring currently marks (0.0 when none is drawn).
+func claim_ring_radius() -> float:
+	return _claim_ring_radius
+
+
+func claim_ring_node() -> MeshInstance3D:
+	return _claim_ring
+
+
+func _build_claim_ring_node() -> MeshInstance3D:
+	var node: MeshInstance3D = MeshInstance3D.new()
+	node.name = &"ClaimRadiusRing"
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var material: StandardMaterial3D = StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.albedo_color = Color(
+		beacon_visuals.claim_ring_color.r, beacon_visuals.claim_ring_color.g,
+		beacon_visuals.claim_ring_color.b, clampf(beacon_visuals.claim_ring_alpha, 0.0, 1.0)
+	)
+	node.material_override = material
+	node.position = Vector3(0.0, beacon_visuals.claim_ring_lift, 0.0)
+	return node
+
+
+## A flat full-circle annulus in the XZ plane: a band claim_ring_width wide centred on
+## `radius`, built once (not per frame).
+func _build_claim_ring_mesh(radius: float) -> ArrayMesh:
+	var segments: int = maxi(beacon_visuals.claim_ring_segments, 3)
+	var half: float = maxf(beacon_visuals.claim_ring_width, 0.001) * 0.5
+	var outer: float = radius + half
+	var inner: float = maxf(radius - half, 0.0)
+	var vertices: PackedVector3Array = PackedVector3Array()
+	var normals: PackedVector3Array = PackedVector3Array()
+	vertices.resize(segments * 6)
+	normals.resize(segments * 6)
+	for i: int in range(segments):
+		var a0: float = TAU * float(i) / float(segments)
+		var a1: float = TAU * float(i + 1) / float(segments)
+		var d0: Vector3 = Vector3(sin(a0), 0.0, cos(a0))
+		var d1: Vector3 = Vector3(sin(a1), 0.0, cos(a1))
+		var base: int = i * 6
+		vertices[base] = d0 * inner
+		vertices[base + 1] = d0 * outer
+		vertices[base + 2] = d1 * outer
+		vertices[base + 3] = d0 * inner
+		vertices[base + 4] = d1 * outer
+		vertices[base + 5] = d1 * inner
+	normals.fill(Vector3.UP)
 	var arrays: Array = []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = vertices
