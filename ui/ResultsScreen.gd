@@ -53,6 +53,13 @@ var match_net_provider: Variant = null
 
 const _AI_DIFFICULTY_LABELS: Array[String] = ["Easy", "Normal", "Hard"]
 
+## Lobby-data key of the lobby rework's seat table (LobbySeats: humans + bots with
+## colour/team/difficulty). Republishing the config for the next lobby visit must
+## carry it across like "roster", or the lobby falls back to default seats.
+## DECISION (ui/ResultsScreen.gd, Bontago-1pi.53): spelled here until the lobby
+## package (E1/PL1) owns a shared constant; the literal is the plan's wire key.
+const LOBBY_SEATS_KEY: String = "seats"
+
 ## Column header labels, in the same order _build_row_cells() below emits
 ## per-row text -- kept next to each other so a column can never drift out of
 ## sync between the header and the data rows.
@@ -163,7 +170,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func show_results(results: Dictionary) -> void:
 	last_results = results
 	_headline.text = _headline_text(results)
-	var outcome: String = mode_outcome_text(results).strip_edges()
+	var outcome: String = mode_outcome_text(results, _resolved_team_numbers()).strip_edges()
 	_mode_outcome.text = outcome
 	_mode_outcome.visible = not outcome.is_empty()
 	_populate_rows(results)
@@ -189,7 +196,7 @@ func _headline_text(results: Dictionary) -> String:
 	var winner_id: int = int(results.get("winner_id", -1))
 	var winner_name: String = String(results.get("winner_name", ""))
 	var headline: String = "It's a draw!" if winner_id < 0 or winner_name.is_empty() else "%s wins!" % winner_name
-	var shared: String = shared_winners_text(results)
+	var shared: String = shared_winners_text(results, _resolved_team_numbers())
 	if not shared.is_empty():
 		headline = shared
 	return headline
@@ -212,7 +219,7 @@ static func winner_ids(results: Dictionary) -> PackedInt32Array:
 
 ## Bontago-22y.7: a tied timed mode lists every top team in mode.winners
 ## ("0,2"); returns "Teams 1 & 3 share the win!" for two or more, else "".
-static func shared_winners_text(results: Dictionary) -> String:
+static func shared_winners_text(results: Dictionary, team_numbers: PackedInt32Array = PackedInt32Array()) -> String:
 	var mode: Variant = results.get("mode")
 	if not (mode is Dictionary):
 		return ""
@@ -222,7 +229,7 @@ static func shared_winners_text(results: Dictionary) -> String:
 	var ffa: bool = String(results.get("winner_kind", MatchStats.WINNER_KIND_SLOT)) == MatchStats.WINNER_KIND_SLOT
 	var names: PackedStringArray = PackedStringArray()
 	for id_text: String in ids:
-		names.append(str(int(id_text) + 1))
+		names.append(str(int(id_text) + 1) if ffa else str(team_number_in(team_numbers, int(id_text))))
 	return "%s %s share the win!" % ["Players" if ffa else "Teams", " & ".join(names)]
 
 
@@ -231,7 +238,7 @@ static func shared_winners_text(results: Dictionary) -> String:
 ## no block, so this returns "" and its headline is unchanged.
 ## DECISION: the outcome shares the headline Label (no new scene node) so the
 ## classic layout cannot move.
-static func mode_outcome_text(results: Dictionary) -> String:
+static func mode_outcome_text(results: Dictionary, team_numbers: PackedInt32Array = PackedInt32Array()) -> String:
 	var mode: Variant = results.get("mode")
 	if not (mode is Dictionary):
 		return ""
@@ -252,7 +259,7 @@ static func mode_outcome_text(results: Dictionary) -> String:
 			value_text = survivor_text(int(scores[team]))
 		elif domination:
 			value_text = "%d%%" % int(round(float(scores[team]) * 100.0))
-		parts.append("%s %d: %s" % ["Player" if ffa else "Team", team + 1, value_text])
+		parts.append("%s %d: %s" % ["Player" if ffa else "Team", team + 1 if ffa else team_number_in(team_numbers, team), value_text])
 	var text: String = "
 %s" % MatchConfig.GAME_MODE_LABELS[mode_id]
 	if not parts.is_empty():
@@ -266,6 +273,26 @@ static func mode_outcome_text(results: Dictionary) -> String:
 			text += "
 Out, first to last: Player " + ", ".join(names)
 	return text
+
+
+## Lobby rework (Bontago-1pi.53): the label number of dense team `team_id` --
+## `team_numbers` (MatchConfig.team_numbers of a host-resolved lobby) maps it to
+## the number the team had in the lobby; empty or short (legacy configs, FFA, an
+## unresolved TEAMS_N) falls back to team id + 1, the old numbering.
+static func team_number_in(team_numbers: PackedInt32Array, team_id: int) -> int:
+	if team_id >= 0 and team_id < team_numbers.size():
+		return team_numbers[team_id]
+	return team_id + 1
+
+
+## MatchConfig.team_numbers of the running match when its lobby teams are
+## host-resolved, else empty. On a client Match.config is the replicated config,
+## so host and clients label the same teams the same way.
+func _resolved_team_numbers() -> PackedInt32Array:
+	var config: MatchConfig = _current_config()
+	if config == null or not config.teams_resolved():
+		return PackedInt32Array()
+	return config.team_numbers
 
 
 ## Elimination: a team's living players as HUD/Results text.
@@ -322,8 +349,9 @@ func _populate_rows(results: Dictionary) -> void:
 
 	var winner_kind: String = String(results.get("winner_kind", MatchStats.WINNER_KIND_SLOT))
 	_rows_list.add_child(_build_header_row())
+	var team_numbers: PackedInt32Array = _resolved_team_numbers()
 	for row: Dictionary in sorted_rows(results):
-		_rows_list.add_child(_build_data_row(row, winner_kind))
+		_rows_list.add_child(_build_data_row(row, winner_kind, team_numbers))
 
 
 func _build_header_row() -> HBoxContainer:
@@ -336,7 +364,7 @@ func _build_header_row() -> HBoxContainer:
 	return header
 
 
-func _build_data_row(row: Dictionary, winner_kind: String) -> PanelContainer:
+func _build_data_row(row: Dictionary, winner_kind: String, team_numbers: PackedInt32Array = PackedInt32Array()) -> PanelContainer:
 	var panel: PanelContainer = PanelContainer.new()
 	var is_winner: bool = bool(row.get("is_winner", false))
 	var is_bot: bool = bool(row.get("is_bot", false))
@@ -353,7 +381,7 @@ func _build_data_row(row: Dictionary, winner_kind: String) -> PanelContainer:
 	var name_text: String = String(row.get("name", ""))
 	if is_bot:
 		name_text += " (Bot)"
-	var team_text: String = "-" if winner_kind == MatchStats.WINNER_KIND_SLOT else "Team %d" % (int(row.get("team_id", 0)) + 1)
+	var team_text: String = "-" if winner_kind == MatchStats.WINNER_KIND_SLOT else "Team %d" % team_number_in(team_numbers, int(row.get("team_id", 0)))
 	var eliminated_at: float = float(row.get("eliminated_at", MatchStats.NOT_ELIMINATED))
 	var status_text: String = "Survived" if eliminated_at < 0.0 else "Out @ %ds" % int(round(eliminated_at))
 	var territory_text: String = "%d%%" % int(round(float(row.get("territory_share", 0.0)) * 100.0))
@@ -436,6 +464,12 @@ func _on_settings_close_pressed() -> void:
 func _on_settings_apply_pressed() -> void:
 	var config: MatchConfig = _current_config()
 	if config != null:
+		# Lobby rework (Bontago-1pi.53, review F2): the dropdown is "difficulty of
+		# the bots". Compared against the value it was opened with
+		# (config.ai_difficulty, untouched while the panel is open) so an
+		# untouched dropdown never overwrites per-seat difficulties.
+		var previous_first_bot_slot: int = config.player_count - config.ai_count
+		var difficulty_changed: bool = _ai_difficulty_option.selected != int(config.ai_difficulty)
 		config.block_timer = float(_block_timer_spin.value)
 		config.gravity_multiplier = float(_gravity_spin.value)
 		config.special_frequency = int(_special_freq_spin.value)
@@ -443,17 +477,59 @@ func _on_settings_apply_pressed() -> void:
 		config.ai_count = int(_ai_count_spin.value)
 		config.ai_difficulty = _ai_difficulty_option.selected
 		config.sanitize()
+		_sync_per_slot_difficulties(config, previous_first_bot_slot, difficulty_changed)
 		# The Lobby is recreated after Back to lobby and reads Net's cached
-		# lobby data. Publish the edited config now, preserving its roster until
-		# the new Lobby refreshes that roster on entry.
+		# lobby data. Publish the edited config now, preserving its roster and
+		# seat table until the new Lobby refreshes them on entry.
 		if net_provider != null and bool(net_provider.is_host()):
 			var data: Dictionary = config.to_dict()
 			var previous: Dictionary = net_provider.lobby_data()
 			if previous.has("roster"):
 				data["roster"] = previous["roster"]
+			var seats: Dictionary = _seats_for_republish(previous.get(LOBBY_SEATS_KEY), difficulty_changed, config.ai_difficulty)
+			if not seats.is_empty():
+				data[LOBBY_SEATS_KEY] = seats
 			net_provider.set_lobby_data(data)
 	_settings_panel.visible = false
 	_settings_button.grab_focus()
+
+
+## Lobby rework (Bontago-1pi.53, review F2): once the lobby set per-seat bot
+## difficulties (config.slot_ai_difficulties, which ai_difficulty_for_slot()
+## prefers), editing config.ai_difficulty alone would change nothing for them --
+## the quick-settings dropdown would be dead. This keeps the per-slot array
+## coherent with the panel: the dropdown value goes to every bot when it was
+## changed, and to every seat that just BECAME a bot (a larger bot count
+## converts the human seats nearest the bots); an untouched dropdown leaves the
+## per-seat values alone. Legacy configs (no per-slot array) are not touched --
+## ai_difficulty already drives every bot there. This panel never changes
+## player_count, so the team arrays stay valid as they are.
+func _sync_per_slot_difficulties(config: MatchConfig, previous_first_bot_slot: int, difficulty_changed: bool) -> void:
+	if config.slot_ai_difficulties.is_empty():
+		return
+	var difficulties: PackedInt32Array = config.slot_ai_difficulties.duplicate()
+	while difficulties.size() < config.player_count:
+		difficulties.append(int(config.ai_difficulty))
+	var first_bot_slot: int = config.player_count - config.ai_count
+	for slot_id: int in range(first_bot_slot, config.player_count):
+		if difficulty_changed or slot_id < previous_first_bot_slot:
+			difficulties[slot_id] = int(config.ai_difficulty)
+	config.slot_ai_difficulties = difficulties
+
+
+## The lobby seat table to republish next to the config: the lobby's own
+## "seats" entry (humans' and bots' colour/team/difficulty), re-normalised, with
+## every bot seat moved to `difficulty` when the quick-settings dropdown changed
+## it. Empty when no table was published (a legacy lobby). A bot count that no
+## longer matches ai_count is left for the lobby's reconcile on re-entry.
+func _seats_for_republish(raw: Variant, difficulty_changed: bool, difficulty: int) -> Dictionary:
+	if typeof(raw) != TYPE_DICTIONARY:
+		return {}
+	var seats: Dictionary = LobbySeats.normalize(raw)
+	if difficulty_changed:
+		for ordinal: int in range(LobbySeats.bot_count(seats)):
+			LobbySeats.set_difficulty(seats, LobbySeats.bot_key(ordinal), difficulty)
+	return seats
 
 
 # --- Visual style + focus chain -------------------------------------------------

@@ -1,7 +1,8 @@
 class_name SnowEffect
 extends WeatherEffect
 ## Snow's host physics (Bontago-22y.6): bounded, colliding accumulation on the
-## tops of settled blocks and on the disc, melted away by the event's ramp-out.
+## tops of settled blocks and on the disc, melted away by a melt clock that
+## starts when snowfall stops (Bontago-mp0.97).
 ## Named by config/weather/snow.tres `effect_script`; MatchWeather creates one
 ## per snow event on the host only. Clients never run this: they draw the
 ## replicated patch list (net/SnowNet.gd) with the same SnowCapBuilder code,
@@ -9,8 +10,10 @@ extends WeatherEffect
 ##
 ## Per physics frame (tick), all bounded by SnowTuning:
 ##   1. while snowing, a growth clock (seconds_per_level / intensity) queues a
-##      growth pass over every patch; while the ramp-out runs, a melt pass
-##      caps every patch at the remaining fraction of the peak;
+##      growth pass over every patch; once the intensity falls below its peak
+##      (snowfall stops) a melt clock runs for SnowTuning.melt_time_s() and a
+##      melt pass caps every patch (and the disc cover) at its remaining share;
+##      snow that resumes before the melt ends grows back from where it is;
 ##   2. discover newly settled blocks' exposed cell tops (a few blocks/frame);
 ##   3. work the queue: at most patch_checks_per_frame patches, each one shape
 ##      query (is anything resting on or hovering just above it?); a level
@@ -53,6 +56,9 @@ const COVER_QUERY_RESULTS: int = 1
 const WAKE_QUERY_RESULTS: int = 8
 ## Intensity drop below the peak that counts as the ramp-out having begun.
 const MELT_DETECT_EPS: float = 0.0005
+## Intensity rise above the lowest value seen while melting that counts as
+## snowfall having resumed.
+const MELT_RESUME_RISE: float = 0.02
 
 
 class BlockSnow:
@@ -88,6 +94,8 @@ var _growth_acc: float = 0.0
 var _growth_owed: bool = false
 var _peak: float = 0.0
 var _melting: bool = false
+var _melt_t: float = 0.0
+var _melt_low: float = 0.0
 var _cap: int = 0
 var _cover: int = 0
 var _active_block_patches: int = 0
@@ -136,7 +144,7 @@ func tick(delta: float, current_intensity: float) -> void:
 	if _restored or _snow == null:
 		return
 	_resolve_world()
-	_update_melt(current_intensity)
+	_update_melt(delta, current_intensity)
 	if not _melting:
 		_prepare_disc()
 		_advance_growth_clock(delta, current_intensity)
@@ -189,6 +197,11 @@ func restore() -> void:
 
 func is_melting() -> bool:
 	return _melting
+
+
+## Seconds the current melt has run (0 when not melting).
+func melt_elapsed() -> float:
+	return _melt_t if _melting else 0.0
 
 
 func active_block_patches() -> int:
@@ -334,18 +347,24 @@ func _on_block_removed(block: RigidBody3D, _reason: String) -> void:
 
 # --- Growth and melt clocks ---------------------------------------------------------
 
-func _update_melt(current_intensity: float) -> void:
+func _update_melt(delta: float, current_intensity: float) -> void:
+	if _melting and current_intensity > _melt_low + MELT_RESUME_RISE:
+		_resume_growth(current_intensity)
 	if current_intensity > _peak:
 		_peak = current_intensity
 	if not _melting and _peak > 0.0 and current_intensity < _peak - MELT_DETECT_EPS:
 		_melting = true
+		_melt_t = 0.0
+		_melt_low = current_intensity
 		# Pending growth work is void once the ramp-out begins.
 		_queue.clear()
 		_queue_head = 0
 		_growth_owed = false
 	if not _melting:
 		return
-	var cap: int = _snow.melt_cap(current_intensity, _peak)
+	_melt_low = minf(_melt_low, current_intensity)
+	_melt_t += delta
+	var cap: int = _snow.melt_cap_after(_melt_t)
 	if cap >= _cap:
 		return
 	_cap = cap
@@ -361,6 +380,20 @@ func _update_melt(current_intensity: float) -> void:
 	for key: Variant in _disc.keys():
 		if int(_disc[key]) > _cap:
 			_enqueue(Work.MELT, DISC_ITEM, int(key))
+
+
+## Snowfall resumed while melting: the melt is dropped, the level ceiling is
+## back to full and growth continues from whatever has not melted yet.
+func _resume_growth(current_intensity: float) -> void:
+	_melting = false
+	_melt_t = 0.0
+	_cap = _snow.depth_levels
+	_peak = current_intensity
+	# Melt work still queued is void; growth restarts at the next pass.
+	_queue.clear()
+	_queue_head = 0
+	_growth_acc = 0.0
+	_growth_owed = true
 
 
 func _advance_growth_clock(delta: float, current_intensity: float) -> void:

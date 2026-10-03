@@ -585,7 +585,7 @@ func show_relocated() -> void:
 ## deleted so a future revert or the results-screen work doesn't need to
 ## re-add the node.
 func show_winner(team_id: int, color: Color) -> void:
-	_winner_label.text = "Team %d wins!" % (team_id + 1)
+	_winner_label.text = "Team %d wins!" % _team_number(team_id)
 	_winner_label.modulate = color
 	_winner_label.visible = false
 
@@ -657,21 +657,25 @@ func _on_territory_share_changed(shares: PackedFloat32Array) -> void:
 
 ## Pure formatting of a replicated mode state: "1: 3.5  2: 1.0   2:05", or ""
 ## when the state has no scores. Static so tests need no scene.
-static func mode_score_text(state: Dictionary) -> String:
+##
+## Lobby rework (Bontago-1pi.53): `team_numbers` is MatchConfig.team_numbers of a
+## match whose lobby teams were host-resolved (dense team id -> the number the
+## team had in the lobby); empty = the legacy "team id + 1" label.
+static func mode_score_text(state: Dictionary, team_numbers: PackedInt32Array = PackedInt32Array()) -> String:
 	var scores: Array = state.get("scores", []) as Array
 	if scores.is_empty():
 		return ""
 	if int(state.get("mode_id", -1)) == MatchConfig.GameMode.DOMINATION:
-		return domination_text(state)
+		return domination_text(state, team_numbers)
 	var parts: PackedStringArray = PackedStringArray()
 	# Reach the Sky scores are record heights in meters (Bontago-22y.9).
 	var unit: String = " m" if int(state.get("mode_id", -1)) == MatchConfig.GameMode.REACH_THE_SKY else ""
 	var elimination: bool = int(state.get("mode_id", -1)) == MatchConfig.GameMode.ELIMINATION
 	for team: int in range(scores.size()):
 		if elimination:
-			parts.append("%d: %s" % [team + 1, ResultsScreen.survivor_text(int(scores[team]))])
+			parts.append("%d: %s" % [ResultsScreen.team_number_in(team_numbers, team), ResultsScreen.survivor_text(int(scores[team]))])
 		else:
-			parts.append("%d: %s%s" % [team + 1, String.num(float(scores[team]), 1), unit])
+			parts.append("%d: %s%s" % [ResultsScreen.team_number_in(team_numbers, team), String.num(float(scores[team]), 1), unit])
 	var text: String = "  ".join(parts)
 	var left: int = int(ceil(float(state.get("round_left", 0.0))))
 	if left > 0:
@@ -682,7 +686,7 @@ static func mode_score_text(state: Dictionary) -> String:
 ## Bontago-1pi.25.1: Domination territory race, "Leading: 2 (41%)   9:32" (ties
 ## list every leader). The per-team bars above already show each share, so this
 ## only adds the leader and the time left. Pure.
-static func domination_text(state: Dictionary) -> String:
+static func domination_text(state: Dictionary, team_numbers: PackedInt32Array = PackedInt32Array()) -> String:
 	var scores: Array = state.get("scores", []) as Array
 	if scores.is_empty():
 		return ""
@@ -692,7 +696,7 @@ static func domination_text(state: Dictionary) -> String:
 	var leaders: PackedStringArray = PackedStringArray()
 	for team: int in range(scores.size()):
 		if float(scores[team]) >= best - DominationObjective.TIE_EPSILON:
-			leaders.append(str(team + 1))
+			leaders.append(str(ResultsScreen.team_number_in(team_numbers, team)))
 	var text: String = "Leading: %s (%.0f%%)" % [" & ".join(leaders), maxf(best, 0.0) * 100.0]
 	var left: int = int(ceil(float(state.get("round_left", 0.0))))
 	if left > 0:
@@ -701,7 +705,7 @@ static func domination_text(state: Dictionary) -> String:
 
 
 func _on_mode_state_changed(state: Dictionary) -> void:
-	var text: String = mode_score_text(state)
+	var text: String = mode_score_text(state, _resolved_team_numbers())
 	if _mode_score_label == null:
 		if text.is_empty():
 			return
@@ -715,7 +719,7 @@ func _on_mode_state_changed(state: Dictionary) -> void:
 
 func _on_goal_capture_progress(team_id: int, progress: float) -> void:
 	_minimap.set_capture(team_id, progress)
-	set_capture(team_id, progress, _color_for_slot(team_id) if team_id >= 0 else Color.WHITE)
+	set_capture(team_id, progress, _color_for_team(team_id) if team_id >= 0 else Color.WHITE)
 
 
 ## A shared win (CTF tie) replaces the sole-winner text, from the payload's
@@ -725,13 +729,13 @@ func _on_match_results_ready(results: Dictionary) -> void:
 	# (previews, stats, timer ring, countdown, minimap) steps aside so nothing
 	# draws over its card.
 	visible = false
-	var shared: String = ResultsScreen.shared_winners_text(results)
+	var shared: String = ResultsScreen.shared_winners_text(results, _resolved_team_numbers())
 	if not shared.is_empty():
 		_winner_label.text = shared
 
 
 func _on_match_won(team_id: int) -> void:
-	show_winner(team_id, _color_for_slot(team_id))
+	show_winner(team_id, _color_for_team(team_id))
 
 
 ## The status label already reads home_flag_alive, but it is only rebuilt on
@@ -835,7 +839,9 @@ func _update_minimap() -> void:
 		var slot: PlayerSlot = match_provider.slot(i)
 		homes.append(slot.home_position if slot != null else Vector2.ZERO)
 	_minimap.set_goal_positions(PlayerSlot.goal_positions_for(running_config.effective_goal_flag_count(), map_def))
-	_minimap.set_match_state(raster, running_config.player_colors, homes)
+	# Lobby rework (Bontago-1pi.53): territory and goal colours are per TEAM
+	# (territory_colors()); the home beacons stay per SLOT (player_colors).
+	_minimap.set_match_state(raster, running_config.territory_colors(), homes, running_config.player_colors)
 	_update_gift_markers()
 
 
@@ -893,6 +899,62 @@ func _team_of_slot(slot_id: int) -> int:
 	if running_config == null:
 		return slot_id
 	return int(running_config.team_of_slot(slot_id))
+
+
+## Lobby rework (Bontago-1pi.53): the number a team shows in labels -- the one it
+## had in the lobby once the host resolved the picks, else team id + 1 (the legacy
+## "Team 1/Team 2" numbering). Null-safe like _team_of_slot() above.
+func _team_number(team_id: int) -> int:
+	if match_provider == null:
+		return team_id + 1
+	var running_config: Variant = match_provider.config
+	if running_config == null:
+		return team_id + 1
+	return int(running_config.team_number_for(team_id))
+
+
+## MatchConfig.team_numbers when the lobby teams are host-resolved, else empty
+## (labels fall back to team id + 1). For the static score formatters above.
+func _resolved_team_numbers() -> PackedInt32Array:
+	if match_provider == null:
+		return PackedInt32Array()
+	var running_config: Variant = match_provider.config
+	if running_config == null or not bool(running_config.teams_resolved()):
+		return PackedInt32Array()
+	return running_config.team_numbers
+
+
+## Colour of TEAM `team_id` (goal capture ring, winner banner, share bars). With
+## host-resolved lobby teams a team shows territory_colors()[team] (its lowest
+## slot's colour); otherwise team id t is slot t, exactly the old
+## _color_for_slot(team_id) read.
+func _color_for_team(team_id: int) -> Color:
+	if match_provider != null:
+		var running_config: Variant = match_provider.config
+		if running_config != null and bool(running_config.teams_resolved()):
+			var colors: PackedColorArray = running_config.territory_colors()
+			if team_id >= 0 and team_id < colors.size():
+				return colors[team_id]
+	return _color_for_slot(team_id)
+
+
+## Whether team `team_id` is out. Resolved lobby teams: every slot of the team has
+## lost its home flag (team ids no longer equal slot ids); otherwise the old
+## "slot t is team t" read.
+func _is_team_eliminated(team_id: int) -> bool:
+	if match_provider == null:
+		return false
+	var running_config: Variant = match_provider.config
+	if running_config == null or not bool(running_config.teams_resolved()):
+		return _is_slot_eliminated(team_id)
+	var found: bool = false
+	for slot_id: int in range(int(running_config.player_count)):
+		if int(running_config.team_of_slot(slot_id)) != team_id:
+			continue
+		found = true
+		if not _is_slot_eliminated(slot_id):
+			return false
+	return found
 
 
 func _color_for_slot(slot_id: int) -> Color:
@@ -1060,15 +1122,15 @@ func _ensure_share_row_count(count: int) -> void:
 
 
 func _update_share_row(i: int, share: float) -> void:
-	var eliminated: bool = _is_slot_eliminated(i)
-	var color: Color = ELIMINATED_COLOR if eliminated else _color_for_slot(i)
+	var eliminated: bool = _is_team_eliminated(i)
+	var color: Color = ELIMINATED_COLOR if eliminated else _color_for_team(i)
 	var bar: ColorRect = _share_bars[i]
 	bar.color = color
 	var width: float = hud_visual_tuning.share_bar_width_px * clampf(share, 0.0, 1.0)
 	bar.custom_minimum_size = Vector2(width, hud_visual_tuning.share_bar_height_px)
 	bar.size = Vector2(width, hud_visual_tuning.share_bar_height_px)
 	var label: Label = _share_labels[i]
-	label.text = "P%d: %.0f%%%s" % [i + 1, share * 100.0, "  (out)" if eliminated else ""]
+	label.text = "P%d: %.0f%%%s" % [_team_number(i), share * 100.0, "  (out)" if eliminated else ""]
 	var glyph: Control = _share_glyphs[i]
 	glyph.set_meta(&"glyph_color", color)
 	glyph.queue_redraw()

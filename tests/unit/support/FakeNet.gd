@@ -58,6 +58,8 @@ var set_simulation_calls: Array[Dictionary] = []
 var start_discovery_calls: int = 0
 var kick_peer_calls: Array[Dictionary] = []
 var stop_discovery_calls: int = 0
+## Bontago-1pi.53: Net.request_seat_pref() calls, {"color_index", "team_pick"}.
+var request_seat_pref_calls: Array[Dictionary] = []
 
 ## What host_game()/join_game() return next; tests drive JoinError paths with it.
 var next_host_result: Error = OK
@@ -210,6 +212,12 @@ func kick_peer(peer_id: int, reason: int = 0) -> void:
 
 func set_local_ready(ready: bool) -> void:
 	set_local_ready_calls.append(ready)
+
+
+## Bontago-1pi.53: records the call and does nothing else (no event, no seat table),
+## so a lobby UI test asserts what the script ASKED for. -1 = unchanged, as in Net.
+func request_seat_pref(color_index: int = -1, team_pick: int = -1) -> void:
+	request_seat_pref_calls.append({"color_index": color_index, "team_pick": team_pick})
 
 
 func all_peers_ready() -> bool:
