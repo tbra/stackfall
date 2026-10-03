@@ -8,6 +8,9 @@ func _make_menu() -> MainMenu:
 	var scene: PackedScene = load("res://ui/MainMenu.tscn")
 	var menu: MainMenu = autofree(scene.instantiate())
 	add_child_autofree(menu)
+	# MainMenu._ready() opens the real LAN listener; close it so another shard's
+	# live host cannot fill this test's game list (Bontago-1pi.44).
+	Net.stop_discovery()
 	var fake: FakeNet = FakeNet.new()
 	menu.net_provider = fake
 	return menu
@@ -25,6 +28,7 @@ func _fake_of(menu: MainMenu) -> FakeNet:
 ## after_each() already does this for its own gamepad tests).
 func after_each() -> void:
 	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+	Net.stop_discovery()
 
 
 # --- parse_address (static, no scene tree needed) ---------------------------
@@ -298,6 +302,7 @@ func test_front_card_keeps_left_margin_at_1280x720() -> void:
 	var menu: MainMenu = scene.instantiate()
 	menu.net_provider = FakeNet.new()
 	viewport.add_child(menu)
+	Net.stop_discovery() # _ready() reopened the real LAN listener (Bontago-1pi.44)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await get_tree().process_frame

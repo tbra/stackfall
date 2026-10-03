@@ -4,6 +4,24 @@ extends GutTest
 ## control, and left/right navigation on Play local. Navigation is driven with
 ## real InputEventJoypadButton events through Input.parse_input_event (the
 ## route a physical pad takes), the same technique test_main_menu.gd uses.
+##
+## Bontago-1pi.44 (flaky in the sharded gate): two things made the "no dead
+## focus" checks depend on what else the machine was doing.
+## 1. MainMenu._ready() starts the REAL Net autoload's LAN browser (UDP 47777)
+##    before a test swaps in FakeNet, and nothing ever stopped it. In a sharded
+##    run another shard's real host advertises on that shared port, the listener
+##    re-emits it as Events.net_games_discovered, and the menu's game list
+##    filled with a game nobody asked for. A non-empty list is focusable, so it
+##    was checked, and
+## 2. a page switch is not laid out until the frame ends (Container sorting is
+##    deferred), so a freshly shown list still has no size when asserted
+##    synchronously. Alone the list stayed empty (focus-skipped) and hid this.
+## Fix: _make_menu() closes the real listener (hermetic), and every page switch
+## is followed by _settle_layout() before sizes are asserted.
+
+## Upper bound on frames _settle_layout() waits; a real layout bug still fails
+## the size assertion that follows instead of hanging the test.
+const LAYOUT_SETTLE_FRAME_CAP: int = 8
 
 
 func _make_menu(debug_enabled: bool = false, steam_available: bool = false) -> MainMenu:
@@ -11,6 +29,9 @@ func _make_menu(debug_enabled: bool = false, steam_available: bool = false) -> M
 	var scene: PackedScene = load("res://ui/MainMenu.tscn")
 	var menu: MainMenu = autofree(scene.instantiate())
 	add_child_autofree(menu)
+	# _ready() opened the real Net's LAN listener; close it so only this test's
+	# own Events emissions can reach the menu (see the header, point 1).
+	Net.stop_discovery()
 	var fake: FakeNet = FakeNet.new()
 	fake.steam_available_value = steam_available
 	menu.net_provider = fake
@@ -55,19 +76,41 @@ func _walk(button: JoyButton, limit: int) -> Array[String]:
 	return visited
 
 
-## Every focus-capable control that is visible in the tree must be one the pad
-## can actually use: non-zero size, opaque, enabled, and not an empty list.
-func _assert_no_dead_focus(menu: MainMenu, label: String) -> void:
+## Every visible control the pad can focus, in no particular order.
+func _visible_focusable(menu: MainMenu) -> Array[Control]:
+	var found: Array[Control] = []
 	var stack: Array[Node] = [menu]
 	while not stack.is_empty():
 		var node: Node = stack.pop_back()
 		for child: Node in node.get_children():
 			stack.append(child)
 		var control: Control = node as Control
-		if control == null or not control.is_visible_in_tree():
+		if control == null or not control.is_visible_in_tree() or control.focus_mode == Control.FOCUS_NONE:
 			continue
-		if control.focus_mode == Control.FOCUS_NONE:
-			continue
+		found.append(control)
+	return found
+
+
+## Waits for the layout a page switch / list rebuild queued. Container sorts are
+## deferred to the end of the frame (and cascade within that flush), so one
+## frame always settles it; the loop only keeps going while some focusable
+## control is still unsized, bounded by LAYOUT_SETTLE_FRAME_CAP.
+func _settle_layout(menu: MainMenu) -> void:
+	for _i: int in range(LAYOUT_SETTLE_FRAME_CAP):
+		await get_tree().process_frame
+		var unsized: int = 0
+		for control: Control in _visible_focusable(menu):
+			if control.size.x * control.size.y <= 0.0:
+				unsized += 1
+		if unsized == 0:
+			return
+
+
+## Every focus-capable control that is visible in the tree must be one the pad
+## can actually use: non-zero size, opaque, enabled, and not an empty list.
+## Callers `await _settle_layout(menu)` after changing the page first.
+func _assert_no_dead_focus(menu: MainMenu, label: String) -> void:
+	for control: Control in _visible_focusable(menu):
 		var where: String = "%s: %s" % [label, menu.get_path_to(control)]
 		assert_gt(control.size.x * control.size.y, 0.0, "%s has no size" % where)
 		assert_gt(control.modulate.a * control.self_modulate.a, 0.0, "%s is transparent" % where)
@@ -117,6 +160,7 @@ func test_debug_entry_does_not_move_any_other_control() -> void:
 	var menu: MainMenu = scene.instantiate()
 	menu.net_provider = FakeNet.new()
 	viewport.add_child(menu)
+	Net.stop_discovery() # _ready() reopened the real LAN listener (header, point 1)
 	for _i: int in range(3):
 		await get_tree().process_frame
 	var names: Array[String] = ["NameEdit", "HostButton", "JoinButton", "PlayLocalButton", "OptionsButton", "QuitButton", "Panel", "Title", "Tagline"]
@@ -299,34 +343,65 @@ func test_play_local_pad_actions_still_work() -> void:
 
 func test_no_dead_focus_on_any_page_without_steam() -> void:
 	var menu: MainMenu = _make_menu(true, false)
-	await get_tree().process_frame
+	await _settle_layout(menu)
 	_assert_no_dead_focus(menu, "home")
 	_assert_neighbours_usable(menu, "home")
 	menu._on_play_local_pressed()
+	await _settle_layout(menu)
 	_assert_no_dead_focus(menu, "local")
 	_assert_neighbours_usable(menu, "local")
 	menu._on_back_pressed()
 	menu._on_debug_pressed()
+	await _settle_layout(menu)
 	_assert_no_dead_focus(menu, "debug")
 	_assert_neighbours_usable(menu, "debug")
 	menu._on_back_pressed()
 	menu._on_join_pressed()
+	await _settle_layout(menu)
 	_assert_no_dead_focus(menu, "join (LAN, no Steam)")
 	_assert_neighbours_usable(menu, "join (LAN, no Steam)")
 
 
+## Bontago-1pi.44: the case the sharded gate hit by accident -- a LAN game in the
+## list makes it focusable, so it must have a real size once the page is laid
+## out. Driven deterministically through the Events bus instead of a stray
+## real advert.
+func test_no_dead_focus_on_the_join_page_with_a_lan_game_listed() -> void:
+	var menu: MainMenu = _make_menu(false, false)
+	await _settle_layout(menu)
+	menu._on_join_pressed()
+	var games: Array[Dictionary] = [{"name": "Alice's game", "address": "192.168.1.10", "port": 47778, "players": 2, "max": 8}]
+	Events.net_games_discovered.emit(games)
+	await _settle_layout(menu)
+	var list: ItemList = _node(menu, "GameList") as ItemList
+	assert_eq(list.item_count, 1)
+	assert_ne(list.focus_mode, Control.FOCUS_NONE, "a list with a game is focusable")
+	assert_gt(list.size.x * list.size.y, 0.0, "and laid out once the frame has passed")
+	_assert_no_dead_focus(menu, "join (LAN, one game)")
+	_assert_neighbours_usable(menu, "join (LAN, one game)")
+
+
+## Bontago-1pi.44: a menu under test must not be listening on the real LAN
+## discovery port, or another process's host advert lands in its game list.
+func test_menu_under_test_does_not_listen_on_the_real_lan_port() -> void:
+	var _menu: MainMenu = _make_menu(false, false)
+	assert_false(Net._lan.is_listening(), "the real Net LAN browser is closed after _make_menu")
+
+
 func test_no_dead_focus_on_the_steam_pages() -> void:
 	var menu: MainMenu = _make_menu(false, true)
-	await get_tree().process_frame
+	await _settle_layout(menu)
 	menu._on_join_pressed()
+	await _settle_layout(menu)
 	_assert_no_dead_focus(menu, "join (LAN, Steam on)")
 	_assert_neighbours_usable(menu, "join (LAN, Steam on)")
 	menu._on_join_steam_tab_pressed()
+	await _settle_layout(menu)
 	_assert_no_dead_focus(menu, "join (Steam tab, no lobbies)")
 	_assert_neighbours_usable(menu, "join (Steam tab, no lobbies)")
 	var lobbies: Array[Dictionary] = [{"lobby_id": 1, "name": "A", "players": 1, "max": 8, "map": "Round"}]
 	Events.net_steam_lobbies_discovered.emit(lobbies)
-	await get_tree().process_frame
+	await _settle_layout(menu)
 	assert_ne(_node(menu, "SteamLobbyList").focus_mode, Control.FOCUS_NONE, "a list with a lobby is focusable")
 	_assert_no_dead_focus(menu, "join (Steam tab, one lobby)")
 	_assert_neighbours_usable(menu, "join (Steam tab, one lobby)")
