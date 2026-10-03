@@ -41,16 +41,14 @@ const TILT_STEPS: int = 20
 const TILT_STEP_S: float = 0.05
 const CHECKPOINTS: PackedStringArray = ["menu", "countdown", "playing"]
 
-## Real gaps found by this test, for the orchestrator to file: "<label substring>|<key prefix>"
-## -> what / likely owner. A scenario whose only diffs match an entry ends pending instead of
-## failing; any other diff fails it.
+## Real gaps this test found and that are still open: "<label substring>|<key prefix>" -> what /
+## who owns the fix. A scenario whose only diffs match an entry ends pending instead of failing;
+## any other diff fails it. R4 (Bontago-1pi.46) fixed G7 (Field tilt after Replay), G8 (camera
+## after a sandbox Leave), G9 (ResultsScreen rows) and G10 (LoadingScreen rows), so those
+## entries are gone and assert now. The one remaining gap, G11 (a client that leaves and
+## re-joins gets seat 2, not 1), lives in the ENet harness (tests/bench/reset_enet.gd) and
+## is fixed by the lobby slot-compaction work, so it has no in-process entry here.
 const KNOWN_GAPS: Dictionary = {
-	"replay|field.basis": "after Replay from END the Field's global basis is tilted (about 0.2 rad) at B COUNTDOWN/PLAYING while Field.tilt reads 0 (Leave path is clean) -> game/Field.gd tilt apply or MatchLifecycle teardown order",
-	"@ menu|camera.follow_position": "after a sandbox Leave the rig's follow position is (0, 0.3, 0) at the menu: the Sandbox's PlayerController runs _process once more after Main's reset in the same frame -> game/Main.gd _on_pause_leave_requested (queue_free vs reset order); B itself is clean",
-	"@ menu|camera.target": "same cause as camera.follow_position",
-	"@ menu|camera.origin": "same cause as camera.follow_position",
-	"|wiring.node.ResultsScreen": "ResultsScreen keeps the last match's result rows (hidden) until the next results -> ui/ResultsScreen.gd",
-	"|wiring.node.LoadingScreen": "LoadingScreen keeps the last match's player rows (hidden) until the next show -> ui/LoadingScreen.gd",
 }
 
 var _mains: Array[Node] = []

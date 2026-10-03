@@ -87,6 +87,30 @@ func test_fade_out_is_a_noop_when_already_hidden() -> void:
 	assert_false(_screen.visible)
 
 
+# --- Bontago-1pi.46 (G10): the player rows do not outlive the overlay ---------
+
+func test_a_scope_reset_clears_the_rows_of_a_hidden_overlay() -> void:
+	_screen.show_for_match(_config(), _slots(3))
+	assert_eq(_screen._player_list.get_child_count(), 3, "fixture: one row per slot.")
+	_screen.visible = false
+	Events.match_scope_reset.emit()
+	assert_eq(_screen._player_list.get_child_count(), 0, "a finished match leaves no rows behind.")
+	assert_eq(_screen._ready_rows.size(), 0, "nor ready-mark bookkeeping.")
+
+
+func test_a_scope_reset_keeps_the_rows_while_the_overlay_is_up_for_the_new_match() -> void:
+	# Main shows the overlay (LOADING) and then builds the world, which emits the reset.
+	_screen.show_for_match(_config(), _slots(2))
+	Events.match_scope_reset.emit()
+	assert_eq(_screen._player_list.get_child_count(), 2, "the loading list survives the world build's reset.")
+
+
+func test_cancel_clears_the_rows_too() -> void:
+	_screen.show_for_match(_config(), _slots(2))
+	_screen.cancel()
+	assert_eq(_screen._player_list.get_child_count(), 0, "a cancelled load leaves no rows behind.")
+
+
 # --- cancel(): the abort-mid-load safety net ---------------------------------
 
 func test_cancel_hides_immediately() -> void:

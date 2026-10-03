@@ -125,6 +125,7 @@ func _ready() -> void:
 
 	Events.match_results_ready.connect(_on_match_results_ready)
 	Events.match_state_changed.connect(_on_match_state_changed)
+	Events.match_scope_reset.connect(clear_results)
 
 	_replay_button.pressed.connect(_on_replay_pressed)
 	_lobby_button.pressed.connect(_on_lobby_pressed)
@@ -149,6 +150,19 @@ func _on_match_state_changed(_from_state: int, to_state: int) -> void:
 	if to_state != Match.State.END:
 		hide()
 		_settings_panel.visible = false
+
+
+## Bontago-1pi.46 (G9; Events.match_scope_reset runs this). ROOT CAUSE: the screen is a
+## persistent Main child that only ever replaced its stats rows when the NEXT results
+## arrived, so after Replay / Back to lobby / Leave the previous match's table (header
+## row, one row per player) stayed in the hidden tree and `last_results` kept its
+## payload -- a new match did not look like a fresh launch. Drops the rows and the
+## payload; the overlay itself is hidden by _on_match_state_changed() already.
+func clear_results() -> void:
+	last_results = {}
+	for child: Node in _rows_list.get_children():
+		_rows_list.remove_child(child)
+		child.queue_free()
 
 
 ## Bontago-1pi.15.1: ui_cancel closes the quick-settings sub-panel the same

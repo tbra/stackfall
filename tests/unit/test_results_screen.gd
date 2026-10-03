@@ -201,6 +201,17 @@ func test_a_new_match_state_hides_the_screen() -> void:
 	assert_false(_screen.visible, "a Back-to-lobby/Replay restart must take this overlay down.")
 
 
+## Bontago-1pi.46 (G9): the rows and the payload of a finished match must not outlive it.
+func test_a_match_scope_reset_clears_the_rows_and_the_payload() -> void:
+	_screen.show_results(_ffa_results())
+	assert_gt(_screen._rows_list.get_child_count(), 0, "fixture: results rows exist.")
+	Events.match_scope_reset.emit()
+	assert_eq(_screen._rows_list.get_child_count(), 0, "the next match starts with an empty table.")
+	assert_true(_screen.last_results.is_empty(), "and no stale payload.")
+	_screen.show_results(_ffa_results())
+	assert_eq(_screen._rows_list.get_child_count(), 4, "a later results screen still fills the table.")
+
+
 # --- Quick settings: edits MatchConfig, sanitized ---------------------------
 
 func test_settings_apply_writes_sanitized_fields_onto_the_running_config() -> void:
