@@ -235,6 +235,93 @@ func test_strength_scale_applies_to_every_magnitude() -> void:
 	assert_almost_eq(_calls[0]["strong"], Rumble.config.impact_strong_magnitude * 0.5, 0.001)
 
 
+# --- Bontago-1pi.29: 100% must reach full motor power ------------------------
+
+## Pulses shorter than this do not let a pad's motors spin up (owner brief).
+const MIN_PULSE_DURATION_S: float = 0.08
+
+
+## Every `*_magnitude`/`*_duration_s` float on the shipped RumbleConfig, by
+## property-name suffix, so a future event added to the config is covered
+## without touching this test.
+func _config_floats_with_suffix(suffix: String) -> Dictionary:
+	var out: Dictionary = {}
+	for prop: Dictionary in Rumble.config.get_property_list():
+		var prop_name: String = prop["name"]
+		if prop_name.ends_with(suffix):
+			out[prop_name] = float(Rumble.config.get(prop_name))
+	return out
+
+
+func test_strongest_configured_event_reaches_full_motor_power_at_full_strength() -> void:
+	_use_gamepad()
+	var magnitudes: Dictionary = _config_floats_with_suffix("_magnitude")
+	assert_gt(magnitudes.size(), 0, "the config must expose per-event magnitudes.")
+	var highest: float = 0.0
+	for key: String in magnitudes:
+		var value: float = magnitudes[key]
+		assert_between(value, 0.0, 1.0, "%s must stay within 0..1." % key)
+		highest = maxf(highest, value)
+	assert_almost_eq(highest, 1.0, 0.0001, "at least one configured motor magnitude must be 1.0 so 100% drives a motor flat out.")
+
+	# Strength 1.0 (set in before_each) must pass that magnitude through unclamped-down.
+	Events.player_eliminated.emit(0, 0)
+
+	assert_eq(_calls.size(), 1)
+	assert_almost_eq(_calls[0]["strong"], 1.0, 0.0001, "the strongest event at 100% must hit the strong motor at 1.0.")
+
+
+func test_half_strength_scales_the_strongest_event_proportionally() -> void:
+	_use_gamepad()
+	Settings.set_rumble_strength(0.5)
+
+	Events.player_eliminated.emit(0, 0)
+
+	assert_eq(_calls.size(), 1)
+	assert_almost_eq(_calls[0]["strong"], 0.5, 0.0001, "50% of a 1.0 magnitude must be 0.5.")
+	assert_almost_eq(_calls[0]["weak"], Rumble.config.player_eliminated_weak_magnitude * 0.5, 0.0001)
+
+
+func test_full_speed_impact_and_test_pulse_drive_the_strong_motor_flat_out() -> void:
+	# The pulse the owner feels at 100% (Options slider test pulse) and the
+	# most frequent in-match event were the ones topping out at 0.55.
+	_use_gamepad()
+
+	Events.block_impacted.emit(Rumble.config.impact_speed_max)
+	Rumble.trigger_test_pulse()
+
+	assert_eq(_calls.size(), 2)
+	for pulse: Dictionary in _calls:
+		assert_almost_eq(pulse["strong"], 1.0, 0.0001, "a max-speed impact / test pulse at 100% must reach 1.0.")
+		assert_gt(pulse["weak"], 0.5, "the weak motor must be clearly driven too, not left near the old 0.35.")
+		assert_lt(pulse["weak"], pulse["strong"], "the weak:strong shape (strong motor dominates) must be kept.")
+
+
+func test_impact_beyond_max_speed_never_exceeds_one() -> void:
+	_use_gamepad()
+
+	Events.block_impacted.emit(Rumble.config.impact_speed_max * 5.0)
+
+	assert_eq(_calls.size(), 1)
+	assert_lte(_calls[0]["weak"], 1.0)
+	assert_lte(_calls[0]["strong"], 1.0)
+
+
+func test_every_configured_pulse_is_long_enough_for_the_motors_to_spin_up() -> void:
+	var durations: Dictionary = _config_floats_with_suffix("_duration_s")
+	assert_gt(durations.size(), 0)
+	for key: String in durations:
+		assert_gte(float(durations[key]), MIN_PULSE_DURATION_S, "%s is below the motor spin-up floor." % key)
+
+
+func test_event_weights_keep_their_relative_order() -> void:
+	var config: RumbleConfig = Rumble.config
+	assert_gte(config.player_eliminated_strong_magnitude, config.special_triggered_strong_magnitude)
+	assert_gte(config.special_triggered_strong_magnitude, config.match_won_strong_magnitude)
+	assert_gt(config.match_won_strong_magnitude, config.match_lost_strong_magnitude, "winning pulse stays stronger than losing.")
+	assert_gt(config.impact_strong_magnitude, config.block_placed_strong_magnitude + config.block_placed_weak_magnitude, "the placement tick stays lighter than a hard impact.")
+
+
 # --- trigger_test_pulse() (options package: rumble intensity slider nudge) ---
 
 func test_trigger_test_pulse_rumbles_the_last_gamepad() -> void:
