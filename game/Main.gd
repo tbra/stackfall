@@ -1185,6 +1185,14 @@ func _on_pause_leave_requested() -> void:
 		Net.leave()
 		return
 	if _sandbox != null and is_instance_valid(_sandbox):
+		# Bontago-1pi.46 (G8). ROOT CAUSE: queue_free() only frees at the end of the
+		# frame, so the sandbox's PlayerController still ran _process once more after
+		# the abort below had reset the camera (-> _end_match_world() ->
+		# _reset_match_scope() -> CameraRig.reset_view()) and wrote its follow position
+		# (0, 0.3, 0) back over the launch view; the menu then showed a stale camera.
+		# Disabling the subtree stops every _process/_input at once, so the reset
+		# below is the last word.
+		_sandbox.process_mode = Node.PROCESS_MODE_DISABLED
 		_sandbox.queue_free()
 		_sandbox = null
 	if Match.state() != Match.State.LOBBY:

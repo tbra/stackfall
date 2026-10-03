@@ -278,6 +278,7 @@ func set_tilt_enabled(enabled: bool) -> void:
 		_tilt_velocity = Vector2.ZERO
 		_wake_tilt()
 		_apply_tilt_transform()
+		_push_level_pose_to_physics()
 
 
 func tilt_enabled() -> bool:
@@ -618,6 +619,26 @@ func _tilt_vector_from_quaternion(tilt: Quaternion) -> Vector2:
 func _apply_tilt_transform() -> void:
 	_last_applied_tilt = _tilt
 	transform = Transform3D(_tilt_basis(_tilt), transform.origin)
+
+
+## Bontago-1pi.46 (G7, owner requirement "a new match is indistinguishable from a
+## freshly launched one"). ROOT CAUSE (reproduced on a bare Field, tilt applied through
+## real physics steps): levelling the node with sync_to_physics off does not reach the
+## server body before the next step. A Replay (END -> LOBBY -> LOADING, all in one frame)
+## runs set_tilt_enabled(false) (sync off, node levelled), clear_match_state() and then
+## set_tilt_enabled(true) (sync on) before any physics step, so the server body still
+## held the previous match's tilted pose and the first step of the new match re-synced
+## the node to it: the disc sat ~0.2 rad tilted while `_tilt` read zero. (A Leave left
+## enough physics ticks behind the menu for the server to catch up, which is why only
+## Replay showed it.) So a reset that levels the disc also writes that pose straight
+## into the server body, superseding the stale one. Only while sync_to_physics is off:
+## with it on, the node write itself is forwarded as the body's new target (and the node
+## still reads the previous physics pose, which must not be pushed back). No-op out of
+## the tree.
+func _push_level_pose_to_physics() -> void:
+	if sync_to_physics or not is_inside_tree():
+		return
+	PhysicsServer3D.body_set_state(get_rid(), PhysicsServer3D.BODY_STATE_TRANSFORM, global_transform)
 
 
 ## Builds (or rebuilds) the disk's cell grid, collision trimesh and shape
@@ -1020,6 +1041,7 @@ func clear_match_state() -> void:
 	_registry = null
 	_physical_balance_torque = Vector2.ZERO
 	_apply_tilt_transform()
+	_push_level_pose_to_physics()
 
 
 # --- Territory overlay (spec 2.10, 3.3) -------------------------------------
