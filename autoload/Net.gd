@@ -56,7 +56,7 @@ var _mode: Mode = Mode.OFFLINE
 ## or cast to ENetMultiplayerPeer outside _make_host_peer()/_make_client_peer().
 var _peer: MultiplayerPeer = null
 
-## peer_id -> {"peer_id", "slot_id", "name", "ready", "ping_ms", "build"}. On
+## peer_id -> {"peer_id", "slot_id", "name", "name_auto", "ready", "ping_ms", "build"}. On
 ## the host this is the source of truth; on a client it is a mirror kept in
 ## sync by _rpc_roster_update.
 var _peers: Dictionary = {}
@@ -237,6 +237,10 @@ var _stats_accum: float = 0.0
 
 
 func _ready() -> void:
+	# Bontago-1pi.53 review F3: the shipped resource goes through the same clamps
+	# every other config does, so a hand-edited net_config.tres (a zero
+	# seat_pref_burst, a tiny packet cap) cannot lock clients out or break the wire.
+	config.sanitize()
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	multiplayer.connected_to_server.connect(_on_connected_to_server)
@@ -456,7 +460,8 @@ func peer_ids() -> PackedInt32Array:
 	return result
 
 
-## {"peer_id": int, "slot_id": int, "name": String, "ready": bool,
+## {"peer_id": int, "slot_id": int, "name": String, "name_auto": bool (joiners
+## only: the name is the host's "Player N" for the seat), "ready": bool,
 ## "ping_ms": float, "build": String}. Empty for an unknown peer.
 func peer_info(peer_id: int) -> Dictionary:
 	if not _peers.has(peer_id):
@@ -536,8 +541,11 @@ func kick_peer(peer_id: int, reason: LeaveReason = LeaveReason.KICKED) -> void:
 	_tokens.erase(peer_id)
 	if multiplayer.multiplayer_peer:
 		multiplayer.multiplayer_peer.disconnect_peer(peer_id)
-	Events.net_peer_left.emit(peer_id, slot_id, reason)
+	# Bontago-1pi.53 review F2: compact BEFORE announcing the departure, as the
+	# disconnect path does, so a listener of net_peer_left (the lobby republishing
+	# its data) already reads the closed-up slot ids.
 	_compact_lobby_slots()
+	Events.net_peer_left.emit(peer_id, slot_id, reason)
 	_broadcast_roster()
 
 
@@ -1478,9 +1486,22 @@ func _compact_lobby_slots() -> int:
 	var moved: int = 0
 	for index: int in range(seated.size()):
 		if seated[index].x != index:
-			_peers[seated[index].y]["slot_id"] = index
+			_set_peer_slot(seated[index].y, index)
 			moved += 1
 	return moved
+
+
+## Host only. Moves `peer_id` to `slot_id` (-1 = spectator). A name the host
+## derived itself (the joiner sent none, so it holds the "Player N" fallback of
+## the slot it was accepted into: "name_auto") is derived again for the new slot,
+## so the label never goes stale and never collides with the next joiner's or a
+## bot's "Player N" for the slot this peer vacated (Bontago-1pi.53 review F1). A
+## name the player chose is never touched, even when it reads "Player 3".
+func _set_peer_slot(peer_id: int, slot_id: int) -> void:
+	var entry: Dictionary = _peers[peer_id]
+	entry["slot_id"] = slot_id
+	if bool(entry.get("name_auto", false)):
+		entry["name"] = PlayerNames.fallback_for_slot(slot_id)
 
 
 ## Seats `peer_id` in `slot_id` (-1 = spectator, Bontago-8or.11). `token` is a
@@ -1501,11 +1522,16 @@ func _accept_peer(peer_id: int, build: String, player_name: String, slot_id: int
 	# Bontago-1pi.49: the host owns the roster, so it validates the name a peer
 	# claims (control characters, trim, max length, "Player N" if empty) before
 	# anyone else sees it. Everything below uses the checked name.
-	var checked_name: String = PlayerNames.sanitize(player_name, config.max_player_name_length, slot_id)
+	var typed_name: String = PlayerNames.clean(player_name, config.max_player_name_length)
+	var name_auto: bool = typed_name == ""
+	var checked_name: String = PlayerNames.fallback_for_slot(slot_id) if name_auto else typed_name
 	_peers[peer_id] = {
 		"peer_id": peer_id,
 		"slot_id": slot_id,
 		"name": checked_name,
+		# Bontago-1pi.53 review F1: true when the joiner sent no usable name and
+		# "name" is the host's own "Player N" for the seat (see _set_peer_slot).
+		"name_auto": name_auto,
 		"ready": false,
 		"ping_ms": 0.0,
 		"build": build,
@@ -1686,7 +1712,7 @@ func set_match_in_progress(active: bool) -> void:
 	var reseated: bool = false
 	for peer_id: int in peer_ids():
 		if int(_peers[peer_id].get("slot_id", -1)) < 0:
-			_peers[peer_id]["slot_id"] = _take_next_lobby_slot()
+			_set_peer_slot(peer_id, _take_next_lobby_slot())
 			reseated = true
 	# Bontago-1pi.53: a player who left for good during the match left a hole too
 	# (nothing compacts mid-match); close it now the lobby is back, so Start is not

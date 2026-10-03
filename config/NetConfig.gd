@@ -219,7 +219,9 @@ func bodies_per_fragment(header_bytes: int, record_bytes: int) -> int:
 
 
 ## Clamps every field into a sane range. Called on any NetConfig that came from
-## a slider or the command line, exactly as MatchConfig.sanitize() is.
+## a slider or the command line, exactly as MatchConfig.sanitize() is, and by
+## Net._ready() on the shipped net_config.tres (a hand-edited file gets the same
+## clamps; on the unedited one it changes nothing).
 func sanitize() -> void:
 	discovery_port = clampi(discovery_port, 1024, 65535)
 	game_port = clampi(game_port, 1024, 65535)
