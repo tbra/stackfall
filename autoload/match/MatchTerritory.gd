@@ -805,8 +805,8 @@ func _apply_circle_render(render: Dictionary) -> void:
 		_match._field.set_overlay_circles(xs, zs, radii, teams, _goal_positions, _goal_radii, argmax_mode)
 
 
-## Bontago-1pi.46 (G3): drops the cached influence-circle list, leaving it exactly as a
-## fresh MatchTerritory has it. Called from MatchLifecycle._reset_match_state() (every
+## Bontago-1pi.46 (G3): drops the cached influence-circle list (only that list; goal
+## positions/radii are rebuilt by the next _build_territory()). Called from MatchLifecycle._reset_match_state() (every
 ## abort/start, host and client) and at the top of _build_territory(); idempotent.
 ## Does not touch Field's overlay (Main's clear_match_state owns that).
 func clear_circles() -> void:
