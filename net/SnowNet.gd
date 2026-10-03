@@ -115,7 +115,7 @@ func _send(state: Dictionary) -> void:
 	last_sent_state = state
 	states_sent += 1
 	if _can_send():
-		rpc(&"net_snow_state", state)
+		NetFanout.broadcast(self, _session(), &"net_snow_state", [state])
 
 
 func _on_net_peer_joined(peer_id: int, _slot_id: int, _player_name: String) -> void:

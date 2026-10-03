@@ -421,6 +421,13 @@ func _can_send() -> bool:
 	return peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
 
 
+## Bontago-1pi.59: every host -> clients broadcast goes through here, so a peer the
+## host is kicking (still listed by the transport until its disconnect completes)
+## is never addressed. See net/NetFanout.gd.
+func _broadcast(method: StringName, args: Array = []) -> void:
+	NetFanout.broadcast(self, _session(), method, args)
+
+
 func _process(delta: float) -> void:
 	if not _is_host():
 		_tick_world_replay_expiry()
@@ -438,8 +445,8 @@ func _process(delta: float) -> void:
 		_cat_send_accum += delta
 		if _cat_send_accum >= 1.0 / maxf(config.cursor_hz, 0.001):
 			_cat_send_accum = 0.0
-			rpc(&"net_cat_state", cat.activation_id, cat.global_position,
-				cat.linear_velocity, cat.target, cat.time_left)
+			_broadcast(&"net_cat_state", [cat.activation_id, cat.global_position,
+				cat.linear_velocity, cat.target, cat.time_left])
 	_raster_send_accum += delta
 	var step: float = 1.0 / maxf(config.raster_diff_hz, 0.001)
 	if _raster_send_accum >= step:
@@ -550,7 +557,7 @@ func submit_cursor(slot_id: int, origin: Vector3, orientation_index: int, free_q
 		return
 	_cursor_send_accum = now
 	if _is_host():
-		rpc(&"net_cursor", slot_id, origin, orientation_index, free_quat)
+		_broadcast(&"net_cursor", [slot_id, origin, orientation_index, free_quat])
 	else:
 		rpc_id(Net.HOST_PEER_ID, &"net_update_cursor", slot_id, origin, orientation_index, free_quat)
 
@@ -725,7 +732,7 @@ func replicate_spawn(block: Block, net_id: int) -> void:
 	if not _can_send():
 		return
 	var args: Array = _spawn_args(block, net_id)
-	rpc(&"net_block_spawned", args[0], args[1], args[2], args[3], args[4], args[5])
+	_broadcast(&"net_block_spawned", args)
 
 
 ## net_block_spawned's argument list for `block`: the one wire shape both a
@@ -750,7 +757,7 @@ func replicate_despawn(net_id: int, reason: String) -> void:
 	_spawned_net_ids.erase(net_id)
 	if not _can_send():
 		return
-	rpc(&"net_block_despawned", net_id, reason)
+	_broadcast(&"net_block_despawned", [net_id, reason])
 
 
 ## Host only, at NetConfig.raster_diff_hz. Sends the cells whose owner or
@@ -804,15 +811,14 @@ func replicate_territory() -> void:
 	_last_state_bytes = states
 	_force_full_raster = false
 
-	rpc(
-		&"net_territory",
+	_broadcast(&"net_territory", [
 		payload,
 		full,
 		_team_shares(),
 		_capture_team,
 		_capture_progress,
-		_encode_circles()
-	)
+		_encode_circles(),
+	])
 
 
 ## The host's last-built circle list (autoload/Match.gd's
@@ -843,7 +849,7 @@ func replicate_match_event(event: StringName, args: Array) -> void:
 	replicated_event_counts[event] = int(replicated_event_counts.get(event, 0)) + 1
 	if not _can_send():
 		return
-	rpc(&"net_match_event", event, args)
+	_broadcast(&"net_match_event", [event, args])
 
 
 ## Host only. Ships the whole match start: the sanitized MatchConfig, the slot
@@ -858,7 +864,7 @@ func replicate_match_start(match_config: MatchConfig) -> void:
 	_force_full_raster = true
 	if not _can_send():
 		return
-	rpc(&"net_match_start", match_config.to_dict(), _roster(), 0)
+	_broadcast(&"net_match_start", [match_config.to_dict(), _roster(), 0])
 
 
 ## Host only (Bontago-t8x.4). Tells every client the host just pressed Start,
@@ -868,7 +874,7 @@ func replicate_match_start(match_config: MatchConfig) -> void:
 func replicate_match_loading() -> void:
 	if not _is_host() or not _can_send():
 		return
-	rpc(&"net_match_loading")
+	_broadcast(&"net_match_loading")
 
 
 # --- Counters the acceptance harness asserts on -----------------------------
@@ -1186,7 +1192,7 @@ func _handle_cursor_update(
 	_store_cursor(slot_id, origin, orientation_index, free_quat)
 	Events.remote_cursor_updated.emit(slot_id, origin, orientation_index, free_quat)
 	if _can_send():
-		rpc(&"net_cursor", slot_id, origin, orientation_index, free_quat)
+		_broadcast(&"net_cursor", [slot_id, origin, orientation_index, free_quat])
 
 
 ## Every check the wire gets that Match does not: the pose must be one the
