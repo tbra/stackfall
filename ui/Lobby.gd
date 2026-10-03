@@ -53,6 +53,13 @@ signal back_requested
 ## matching DECISION comment pointing back here.
 const ALL_DISABLED_SENTINEL: StringName = &"__none__"
 
+## Bontago-1pi.18.5 (docs/QOL_EXPERIMENTS_PLAN.md, Q1): the shared experiments
+## resource the F4 panel edits. The four enable flags come from the lobby's
+## "Experiments" checkboxes; every numeric parameter (pause_event_s,
+## backlog_max, goal_radius_multiplier, ...) is copied from here, so those stay
+## F4-tunable. Never modified: QolExperiments.with_toggles() works on a copy.
+const QOL_SHARED: QolExperiments = preload("res://config/qol_experiments.tres")
+
 ## Bontago-mp0.3.5 (review r2, item 1): the hidden %MapVariantOption/
 ## %MapSizeOption labels, reused to build %MapComboOption's own "Round ·
 ## Medium" style combined list in MatchConfig.MapVariant * MapDef.MapSize
@@ -138,6 +145,17 @@ var net_provider: Variant = null
 @onready var _specials_checklist: HFlowContainer = %SpecialsChecklist
 @onready var _specials_label: Label = %SpecialsLabel
 @onready var _advanced_rules_label: Label = %AdvancedRulesLabel
+## Bontago-1pi.18.5: the "Experiments" section of the Advanced rules popup, in
+## QolExperiments.with_toggles() argument order (timer pause, backlog, goal
+## radius, gift slot). Host-editable, read-only for a client (_settings_controls).
+@onready var _experiments_label: Label = %ExperimentsLabel
+@onready var _qol_timer_pause_check: CheckBox = %QolTimerPauseCheck
+@onready var _qol_backlog_check: CheckBox = %QolBacklogCheck
+@onready var _qol_goal_radius_check: CheckBox = %QolGoalRadiusCheck
+@onready var _qol_gift_slot_check: CheckBox = %QolGiftSlotCheck
+@onready var _qol_checks: Array[CheckBox] = [
+	_qol_timer_pause_check, _qol_backlog_check, _qol_goal_radius_check, _qol_gift_slot_check,
+]
 
 ## Bontago-mp0.3.5 (review r3, problem 2): the specials checklist + the five
 ## rule controls above moved out of the always-visible card into this modal
@@ -158,6 +176,7 @@ var net_provider: Variant = null
 @onready var _adv_chip_sudden: Label = %AdvChipSudden
 @onready var _adv_chip_turn: Label = %AdvChipTurn
 @onready var _adv_chip_specials: Label = %AdvChipSpecials
+@onready var _adv_chip_experiments: Label = %AdvChipExperiments
 @onready var _advanced_popup: Control = %AdvancedPopup
 @onready var _advanced_popup_card: PanelContainer = %AdvancedPopupCard
 @onready var _advanced_popup_close: Button = %AdvancedPopupClose
@@ -244,6 +263,7 @@ func _ready() -> void:
 	_settings_controls.append(_round_timer_spin)
 	_settings_controls.append(_sky_team_sum_check)
 	_settings_controls.append_array(_special_checkboxes)
+	_settings_controls.append_array(_qol_checks)
 	_settings_controls.append_array(_team_buttons)
 	_connect_control_signals()
 	_start_button.pressed.connect(_on_start_pressed)
@@ -422,7 +442,11 @@ func _wire_focus_chain() -> void:
 	popup_chain.append_array([_tilt_mode_option, _hole_mode_option])
 	popup_chain.append(_sky_team_sum_check)
 	popup_chain.append(_weather_option)
-	popup_chain.append_array([_sudden_death_check, _turn_based_check, _mid_join_check, _advanced_popup_close])
+	popup_chain.append_array([_sudden_death_check, _turn_based_check, _mid_join_check])
+	# Bontago-1pi.18.5: the Experiments checkboxes sit below the rules grid in the
+	# popup, so they come after it and before Done (visual order = focus order).
+	popup_chain.append_array(_qol_checks)
+	popup_chain.append(_advanced_popup_close)
 	_wire_loop(_visible_chain(popup_chain))
 
 
@@ -487,6 +511,8 @@ func _connect_control_signals() -> void:
 	_sudden_death_check.toggled.connect(_on_toggled)
 	_turn_based_check.toggled.connect(_on_toggled)
 	_mid_join_check.toggled.connect(_on_toggled)
+	for qol_check: CheckBox in _qol_checks:
+		qol_check.toggled.connect(_on_toggled)
 	for i: int in range(_team_buttons.size()):
 		_team_buttons[i].pressed.connect(_on_team_button_pressed.bind(i))
 
@@ -709,6 +735,13 @@ func _apply_visual_style() -> void:
 		# secondary control, not body text, so a slightly denser size reads
 		# fine here without touching the shared pill font size anywhere else.
 		team_button.add_theme_font_size_override("font_size", 13)
+	# Bontago-1pi.18.5: the Experiments checkboxes are the same chip family as the
+	# specials grid above (no new colours, no new tunables).
+	for qol_check: CheckBox in _qol_checks:
+		MenuStyleFactory.apply_toggle_chip(
+			qol_check, tuning.pill_cream_color, tuning.pill_cream_hover_color,
+			tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning
+		)
 	var chips: Array[Button] = [_gifts_check, _sudden_death_check, _turn_based_check, _mid_join_check, _ready_check]
 	for chip: Button in chips:
 		MenuStyleFactory.apply_toggle_chip(
@@ -716,7 +749,7 @@ func _apply_visual_style() -> void:
 			tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning
 		)
 
-	var captions: Array[Label] = [_specials_label, _advanced_rules_label]
+	var captions: Array[Label] = [_specials_label, _advanced_rules_label, _experiments_label]
 	for caption: Label in captions:
 		caption.add_theme_color_override("font_color", tuning.label_muted_color)
 
@@ -766,7 +799,7 @@ func _apply_advanced_rules_popup_style() -> void:
 	MenuStyleFactory.apply_flat_stepper_button(_adv_rules_bar, tuning)
 	for chip_label: Label in [
 		_adv_chip_tilt, _adv_chip_hole,
-		_adv_chip_sudden, _adv_chip_turn, _adv_chip_specials,
+		_adv_chip_sudden, _adv_chip_turn, _adv_chip_specials, _adv_chip_experiments,
 	]:
 		var chip_panel: PanelContainer = chip_label.get_parent() as PanelContainer
 		chip_panel.add_theme_stylebox_override("panel", MenuStyleFactory.make_flat_chip(tuning.pill_cream_hover_color, tuning))
@@ -846,6 +879,12 @@ func _update_advanced_rules_summary() -> void:
 		if box.button_pressed:
 			enabled_count += 1
 	_adv_chip_specials.text = "Specials: %d/%d" % [enabled_count, _special_checkboxes.size()]
+	# Bontago-1pi.18.5: how many of the four opt-in experiments are on.
+	var experiments_on: int = 0
+	for qol_check: CheckBox in _qol_checks:
+		if qol_check.button_pressed:
+			experiments_on += 1
+	_adv_chip_experiments.text = "Experiments: %d on" % experiments_on
 
 
 ## Bontago-mp0.3.5: tools/capture_mockup08.gd's own `--lobby-advanced` frame
@@ -996,7 +1035,21 @@ func _config_from_controls() -> MatchConfig:
 	config.turn_based = _turn_based_check.button_pressed
 	config.allow_mid_match_join = _mid_join_check.button_pressed
 	config.enabled_specials = _enabled_specials_from_checkboxes()
+	# DECISION (ui/Lobby.gd, Bontago-1pi.18.5): always publish an explicit qol
+	# (never null) so the four checkboxes are the single source of the enable
+	# flags -- a toggle left on in the F4 panel cannot leak into a lobby match
+	# the host sees as "all off". Numeric parameters stay in the shared resource.
+	config.qol = _qol_from_controls()
 	return config
+
+
+## The four Experiments checkboxes folded onto a copy of the shared F4 resource
+## (QolExperiments.with_toggles() never modifies QOL_SHARED).
+func _qol_from_controls() -> QolExperiments:
+	return QolExperiments.with_toggles(
+		QOL_SHARED, _qol_timer_pause_check.button_pressed, _qol_backlog_check.button_pressed,
+		_qol_goal_radius_check.button_pressed, _qol_gift_slot_check.button_pressed
+	)
 
 
 ## MatchConfig.enabled_specials's own doc: "Empty means every special enabled
@@ -1082,6 +1135,14 @@ func _apply_data(data: Dictionary) -> void:
 	_turn_based_check.button_pressed = config.turn_based
 	_mid_join_check.button_pressed = config.allow_mid_match_join
 	_apply_enabled_specials_to_checkboxes(config.enabled_specials)
+	# Bontago-1pi.18.5: a null qol (an older host, or config/match_defaults.tres)
+	# reads as every experiment off. Inside the guard, so a client mirrors the
+	# host without re-publishing.
+	var qol: QolExperiments = config.qol
+	_qol_timer_pause_check.button_pressed = qol != null and qol.timer_pause_enabled
+	_qol_backlog_check.button_pressed = qol != null and qol.backlog_enabled
+	_qol_goal_radius_check.button_pressed = qol != null and qol.goal_radius_enabled
+	_qol_gift_slot_check.button_pressed = qol != null and qol.gift_slot_enabled
 	_applying_remote_data = false
 	_update_advanced_rules_summary()
 	# Bontago-1pi.9b: re-bound %AiCountSpin's max after every value assignment
@@ -1415,6 +1476,12 @@ func _on_start_pressed() -> void:
 	var config: MatchConfig = (
 		_last_config if _last_config != null else _config_from_controls()
 	).duplicate(true) as MatchConfig
+	# DECISION (ui/Lobby.gd, Bontago-1pi.18.5): the numeric experiment parameters
+	# in _last_config.qol were copied at the last publish; re-fold the toggles onto
+	# the shared resource now so an F4 edit made while the lobby was open takes
+	# effect. The start config always carries a non-null qol, so
+	# MatchLifecycle keeps the lobby's choice instead of snapshotting F4.
+	config.qol = _qol_from_controls()
 	# DECISION (ui/Lobby.gd, Bontago-mv0.7): the authoritative peer-count
 	# clamp lives here rather than in autoload/Match.gd's start_match() (the
 	# spec/plan's stated preference) because Match.start_match() is also the

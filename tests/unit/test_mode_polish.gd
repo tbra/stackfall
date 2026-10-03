@@ -227,7 +227,11 @@ func test_mid_join_toggle_sits_after_turn_based_in_the_popup_focus_loop() -> voi
 	var mid: int = popup_shown.find(lobby.get_node("%MidJoinCheck"))
 	assert_gt(turn, -1)
 	assert_eq(mid, turn + 1)
-	assert_eq(popup_shown.find(lobby.get_node("%AdvancedPopupClose")), mid + 1)
+	# QoL Q1 (Bontago-1pi.18.5) appends the Experiments toggles after Mid-join;
+	# Done/Close stays the last stop of the popup loop.
+	var close: int = popup_shown.find(lobby.get_node("%AdvancedPopupClose"))
+	assert_gt(close, mid)
+	assert_eq(close, popup_shown.size() - 1)
 
 
 # --- Bontago-1pi.25.1 Domination --------------------------------------------
