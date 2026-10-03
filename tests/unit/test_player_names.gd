@@ -13,6 +13,7 @@ const SETTINGS_SCRIPT: GDScript = preload("res://autoload/Settings.gd")
 
 var _cfg_path: String
 var _nodes: Array[Node] = []
+var _tiny_map: MapDef
 
 
 func before_each() -> void:
@@ -26,6 +27,12 @@ func before_each() -> void:
 
 func after_each() -> void:
 	Settings.set_player_name("")
+	# The slot-name tests below start real matches on the Match autoload.
+	Net.leave()
+	Match.set_net_provider(null)
+	Match.abort_match()
+	Match.set_process(true)
+	MatchTestReset.clear_world()
 	_delete_if_exists(_cfg_path)
 	for node: Node in _nodes:
 		if node != null and is_instance_valid(node):
@@ -425,3 +432,151 @@ func test_hud_bot_slot_keeps_its_label() -> void:
 	hud.name_provider = _named_fake({1: "ShouldNotShow"})
 	hud.set_local_slot(1)
 	assert_eq(hud._turn_label.text, "Bot 1")
+
+
+# --- Slot display names: what Results and every PlayerSlot reader show -----------
+# Follow-up of Bontago-1pi.49: MatchLifecycle._build_slots() used to seed every
+# slot "Player N", so the host's results (MatchStats reads PlayerSlot.display_name)
+# ignored the names the loading screen and HUD already showed.
+
+func _register_world() -> void:
+	Match.set_process(false)
+	Match.abort_match()
+	_tiny_map = (load("res://config/maps/round_medium.tres") as MapDef).duplicate(true)
+	_tiny_map.field_radius = 20.0
+	var field: Field = autofree(Field.new())
+	field.map_def = _tiny_map
+	add_child_autofree(field)
+	var blocks_root: Node3D = autofree(Node3D.new())
+	add_child_autofree(blocks_root)
+	var registry: BlockRegistry = autofree(BlockRegistry.new())
+	add_child_autofree(registry)
+	Match.register_world(field, registry, blocks_root)
+
+
+func _tiny_config(player_count: int, ai_count: int = 0, hot_seat: bool = false) -> MatchConfig:
+	var config: MatchConfig = load("res://config/match_defaults.tres").duplicate(true) as MatchConfig
+	config.set_script(load("res://tests/unit/support/TinyMapMatchConfig.gd"))
+	(config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
+	config.player_count = player_count
+	config.ai_count = ai_count
+	config.hot_seat = hot_seat
+	config.rng_seed = 24680
+	return config
+
+
+func _slot_names() -> Array[String]:
+	var names: Array[String] = []
+	for slot_id: int in range(Match.slot_count()):
+		names.append(Match.slot(slot_id).display_name)
+	return names
+
+
+func test_host_slots_are_seeded_from_the_roster_and_bots_keep_their_label() -> void:
+	_register_world()
+	var fake: FakeNet = _named_fake({0: "Mira", 1: "Zed", 3: "ShouldNotShow"})
+	Match.set_net_provider(fake)
+	Match.start_match(_tiny_config(4, 1))
+	assert_eq(Match.slot_count(), 4)
+	assert_true(Match.slot(3).is_bot, "fixture: the trailing slot is the bot")
+	assert_eq(_slot_names(), ["Mira", "Zed", "Player 3", "Player 4"] as Array[String], "named humans, an unheld human seat and a bot")
+
+
+func test_client_builds_the_same_slot_names_from_its_replicated_roster() -> void:
+	_register_world()
+	var names: Dictionary = {0: "Mira", 1: "Zed"}
+	var client_net: FakeNet = _named_fake(names)
+	client_net.is_host_value = false
+	client_net.is_client_value = true
+	client_net.is_offline_value = false
+	client_net.mode_value = 2
+	client_net.local_slot_value = 1
+	Match.set_net_provider(client_net)
+	Match.start_match(_tiny_config(3))
+	var client_names: Array[String] = _slot_names()
+	Match.abort_match()
+	Match.set_net_provider(_named_fake(names))
+	Match.start_match(_tiny_config(3))
+	assert_eq(client_names, _slot_names(), "host and client agree slot by slot")
+	assert_eq(client_names, ["Mira", "Zed", "Player 3"] as Array[String])
+
+
+func test_hot_seat_offline_keeps_player_n() -> void:
+	_register_world()
+	Match.set_net_provider(null)
+	assert_true(Net.is_offline(), "fixture: the real Net is offline")
+	Match.start_match(_tiny_config(3, 0, true))
+	assert_eq(_slot_names(), ["Player 1", "Player 2", "Player 3"] as Array[String])
+
+
+func test_real_host_session_names_its_own_slot_and_checks_the_name() -> void:
+	_register_world()
+	assert_eq(Net.host_game(AgentProbe.free_udp_port(), "  Hostie	", false), OK)
+	Match.set_net_provider(null)
+	Match.start_match(_tiny_config(3, 2))
+	assert_eq(_slot_names(), ["Hostie", "Player 2", "Player 3"] as Array[String], "the host's sanitised name on slot 0, bots keep Player N")
+
+
+func test_unnamed_real_host_is_player_one() -> void:
+	_register_world()
+	assert_eq(Net.host_game(AgentProbe.free_udp_port(), "", false), OK)
+	Match.start_match(_tiny_config(2, 1))
+	assert_eq(_slot_names(), ["Player 1", "Player 2"] as Array[String])
+
+
+func test_session_double_without_a_name_roster_leaves_the_default_labels() -> void:
+	_register_world()
+	var bare: BareHost = BareHost.new()
+	Match.set_net_provider(bare)
+	assert_eq(Match._lifecycle._peer_name_for_slot(0), "", "a double with no name_for_slot is not an error")
+
+
+## A session double that only knows is_host(): the shape several older tests give Match.
+class BareHost:
+	extends RefCounted
+
+	func is_host() -> bool:
+		return true
+
+
+func test_roster_change_mid_match_names_a_new_seat_holder_and_keeps_a_departed_name() -> void:
+	_register_world()
+	var fake: FakeNet = _named_fake({0: "Mira", 1: "Zed"})
+	Match.set_net_provider(fake)
+	Match.start_match(_tiny_config(4, 1))
+	assert_eq(_slot_names(), ["Mira", "Zed", "Player 3", "Player 4"] as Array[String])
+	# A late joiner takes seat 2; Zed leaves; a roster entry for the bot's seat is ignored.
+	fake.slots_by_peer[9] = 2
+	fake.names_by_peer[9] = "Latey"
+	fake.slots_by_peer.erase(2)
+	fake.names_by_peer.erase(2)
+	fake.slots_by_peer[10] = 3
+	fake.names_by_peer[10] = "ShouldNotShow"
+	var roster: Array[Dictionary] = []
+	Events.net_roster_changed.emit(roster)
+	assert_eq(_slot_names(), ["Mira", "Zed", "Latey", "Player 4"] as Array[String], "new holder named, departed player keeps the name, bot untouched")
+
+
+func test_results_payload_and_screen_show_the_real_names() -> void:
+	_register_world()
+	Match.set_net_provider(_named_fake({0: "Mira", 1: "Zed"}))
+	Match.start_match(_tiny_config(2))
+	var payload: Dictionary = Match.stats().build_results_payload(1)
+	assert_eq(String(payload["winner_name"]), "Zed", "FFA winner is named, not Player 2")
+	var rows: Array = payload["rows"]
+	assert_eq(String((rows[0] as Dictionary)["name"]), "Mira")
+	assert_eq(String((rows[1] as Dictionary)["name"]), "Zed")
+	var screen: ResultsScreen = autofree(load("res://ui/ResultsScreen.tscn").instantiate())
+	screen.net_provider = FakeNet.host()
+	screen.match_net_provider = null
+	var fake_match: FakeMatch = FakeMatch.new()
+	fake_match.config = MatchConfig.new()
+	screen.match_provider = fake_match
+	add_child_autofree(screen)
+	screen.show_results(payload)
+	assert_eq(screen._headline.text, "Zed wins!")
+	var names_in_table: Array[String] = []
+	for row_node: Node in screen._rows_list.get_children():
+		for cell: Node in row_node.find_children("*", "Label", true, false):
+			names_in_table.append((cell as Label).text)
+	assert_true(names_in_table.has("Mira") and names_in_table.has("Zed"), "the stats table rows carry the real names: %s" % [names_in_table])
