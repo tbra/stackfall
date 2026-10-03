@@ -22,6 +22,8 @@ signal window_mode_changed(id: StringName)
 ## same camera_shake_enabled() precedent); this fires so a future
 ## ui/OptionsMenu.gd row can live-update without polling.
 signal rumble_setting_changed(enabled: bool, strength: float)
+## Bontago-1pi.49: the local player's typed name changed (already cleaned).
+signal player_name_changed(player_name: String)
 
 const DEFAULT_PRESET_ID: StringName = &"medium"
 const PRESETS_DIR: String = "res://config/graphics_presets/"
@@ -57,6 +59,8 @@ const SECTION_INPUT: String = "input"
 const SECTION_GAMEPAD: String = "gamepad"
 const SECTION_CONTROLS: String = "controls"
 const SECTION_DEBUG: String = "debug"
+const SECTION_PLAYER: String = "player"
+const KEY_PLAYER_NAME: String = "name"
 const KEY_DEBUG_ENABLED: String = "enabled"
 
 const KEY_PRESET: String = "preset"
@@ -178,6 +182,10 @@ var _channel_muted: Dictionary[int, bool] = {
 }
 
 var _custom_music_dir: String = ""
+## Bontago-1pi.49: the name the local player typed, "" until they type one (the
+## host then seats them as "Player N"). Length cap: NetConfig.max_player_name_length.
+var _player_name: String = ""
+var _net_config: NetConfig = preload("res://config/net_config.tres")
 var _camera_shake_enabled: bool = DEFAULT_CAMERA_SHAKE_ENABLED
 var _window_mode_id: StringName = DEFAULT_WINDOW_MODE_ID
 var _rumble_enabled: bool = true
@@ -435,6 +443,23 @@ func set_custom_music_dir(path: String) -> void:
 	_custom_music_dir = path
 	_save()
 	audio_settings_changed.emit()
+
+
+## Bontago-1pi.49: the local player's saved display name, "" when never set.
+## ui/MainMenu.gd prefills its name field from this and writes every edit back,
+## so the name survives page changes, a rebuilt menu and a restart.
+func player_name() -> String:
+	return _player_name
+
+
+## Cleans (control characters, trim, max length) and persists `typed`.
+func set_player_name(typed: String) -> void:
+	var cleaned: String = PlayerNames.clean(typed, _net_config.max_player_name_length)
+	if cleaned == _player_name:
+		return
+	_player_name = cleaned
+	_save()
+	player_name_changed.emit(_player_name)
 
 
 ## Bontago-xtq.29 (M7 P4, spec 2.10 "camera shake"): read directly by
@@ -758,6 +783,7 @@ func _load() -> void:
 		AudioChannel.SFX: false,
 	}
 	_custom_music_dir = ""
+	_player_name = ""
 	_camera_shake_enabled = DEFAULT_CAMERA_SHAKE_ENABLED
 	_window_mode_id = DEFAULT_WINDOW_MODE_ID
 	_rumble_enabled = _rumble_defaults.enabled_by_default
@@ -797,6 +823,9 @@ func _load() -> void:
 	_channel_muted[AudioChannel.SFX] = bool(cfg.get_value(SECTION_AUDIO, KEY_SFX_MUTED, false))
 
 	_custom_music_dir = String(cfg.get_value(SECTION_AUDIO, KEY_CUSTOM_MUSIC_DIR, ""))
+	_player_name = PlayerNames.clean(
+		String(cfg.get_value(SECTION_PLAYER, KEY_PLAYER_NAME, "")), _net_config.max_player_name_length
+	)
 	_camera_shake_enabled = bool(cfg.get_value(SECTION_GRAPHICS, KEY_CAMERA_SHAKE_ENABLED, DEFAULT_CAMERA_SHAKE_ENABLED))
 	var loaded_window_mode_id: StringName = StringName(cfg.get_value(SECTION_GRAPHICS, KEY_WINDOW_MODE, DEFAULT_WINDOW_MODE_ID))
 	if WINDOW_MODE_IDS.has(loaded_window_mode_id):
@@ -837,6 +866,7 @@ func _save() -> void:
 	cfg.set_value(SECTION_AUDIO, KEY_SFX_VOLUME_PERCENT, _channel_volume_percent[AudioChannel.SFX])
 	cfg.set_value(SECTION_AUDIO, KEY_SFX_MUTED, _channel_muted[AudioChannel.SFX])
 	cfg.set_value(SECTION_AUDIO, KEY_CUSTOM_MUSIC_DIR, _custom_music_dir)
+	cfg.set_value(SECTION_PLAYER, KEY_PLAYER_NAME, _player_name)
 	cfg.set_value(SECTION_CONTROLS, KEY_MOUSE_MOVE_SPEED_SCALE, _mouse_move_speed_scale)
 	cfg.set_value(SECTION_CONTROLS, KEY_STICK_MOVE_SPEED_SCALE, _stick_move_speed_scale)
 	if _debug_setting >= 0:

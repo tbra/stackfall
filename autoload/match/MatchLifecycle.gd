@@ -132,6 +132,9 @@ func setup(match_ref: MatchAutoload) -> void:
 	Events.loading_gate_opened.connect(_on_loading_gate_opened)
 	Events.net_peer_left.connect(_on_loading_roster_changed)
 	Events.net_peer_joined.connect(_on_loading_roster_changed)
+	# Bontago-1pi.49: a roster change mid-match (a late joiner taking a seat, a rejoin)
+	# carries the new player's name onto the slot the results are read from.
+	Events.net_roster_changed.connect(_on_roster_names_changed)
 
 
 # --- Lifecycle --------------------------------------------------------------
@@ -912,11 +915,20 @@ func _build_slots() -> void:
 	for i: int in range(_match.config.player_count):
 		var color: Color = _match.config.player_colors[i % _match.config.player_colors.size()]
 		var home: Vector2 = PlayerSlot.home_position_for(i, _match.config.player_count, map_def)
-		var new_slot: PlayerSlot = PlayerSlot.new(i, _match.config.team_of_slot(i), "Player %d" % (i + 1), color, home)
 		# Bontago-d5c (M5 P1): the trailing ai_count slots become bots; every
 		# slot before that stays a human seat exactly as today. See
 		# docs/M5_PLAN.md P1's own doc for why this is a one-line append.
-		new_slot.is_bot = i >= _match.config.player_count - _match.config.ai_count
+		var is_bot: bool = i >= _match.config.player_count - _match.config.ai_count
+		# Bontago-1pi.49: a human seat carries the name the host replicated for its
+		# peer (Net.name_for_slot, already sanitised by the host); a bot, an
+		# offline hot-seat seat or an empty seat keeps "Player N". Host and client
+		# both build from the same roster, so MatchStats' results (host-built,
+		# read from PlayerSlot.display_name) and every slot reader agree.
+		var seat_name: String = PlayerNames.label_for_slot(
+			i, PlayerNames.fallback_for_slot(i), is_bot, _peer_name_for_slot(i)
+		)
+		var new_slot: PlayerSlot = PlayerSlot.new(i, _match.config.team_of_slot(i), seat_name, color, home)
+		new_slot.is_bot = is_bot
 		_slots.append(new_slot)
 
 	_match._feed._held_shapes.resize(_slots.size())
@@ -936,6 +948,40 @@ func _build_slots() -> void:
 		_match._feed._feed_seq[i] = 0
 		_match._feed._release_locked[i] = false
 		_disconnect_grace_left[i] = -1.0
+
+
+## Bontago-1pi.49: the replicated name of the human peer seated at `slot_id`, or ""
+## when nobody holds it (a bot, an empty or hot-seat seat, a departed player) or
+## the session double has no name roster. Offline (sandbox / hot-seat) there are no
+## peers, so the local human on slot 0 goes by the name saved in Settings.
+# DECISION: offline, only slot 0 (the local player; Net.local_slot() is 0) takes the
+# saved name; further hot-seat humans share the keyboard and stay "Player N".
+func _peer_name_for_slot(slot_id: int) -> String:
+	var session: Variant = _loading_session()
+	if session == null:
+		return ""
+	var peer_name: String = ""
+	if session.has_method(&"name_for_slot"):
+		peer_name = String(session.name_for_slot(slot_id))
+	if peer_name == "" and slot_id == 0 and session.has_method(&"is_offline") and bool(session.is_offline()):
+		return Settings.player_name()
+	return peer_name
+
+
+## Bontago-1pi.49: copies each human seat's current roster name onto its slot. A
+## seat nobody holds keeps the last name it had (a player who left mid-match is
+## still named in the results); bots are never touched.
+func refresh_slot_names() -> void:
+	for slot_item: PlayerSlot in _slots:
+		if slot_item.is_bot:
+			continue
+		var peer_name: String = _peer_name_for_slot(slot_item.slot_id)
+		if peer_name != "":
+			slot_item.display_name = peer_name
+
+
+func _on_roster_names_changed(_roster: Array[Dictionary]) -> void:
+	refresh_slot_names()
 
 
 # --- Disconnects (docs/M3a_PLAN.md question 2) ------------------------------

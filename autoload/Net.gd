@@ -305,10 +305,13 @@ func host_game(port: int = 0, player_name: String = "", advertise: bool = true) 
 	_host_port = use_port
 	_host_build_version = build_version()
 	_peers.clear()
+	# Bontago-1pi.49: the host's own name goes through the same check a joiner's
+	# does, so an empty or oversized typed name is "Player 1" or cut, everywhere.
+	var host_name: String = PlayerNames.sanitize(player_name, config.max_player_name_length, 0)
 	_peers[HOST_PEER_ID] = {
 		"peer_id": HOST_PEER_ID,
 		"slot_id": 0,
-		"name": player_name,
+		"name": host_name,
 		"ready": true,
 		"ping_ms": 0.0,
 		"build": _host_build_version,
@@ -319,7 +322,7 @@ func host_game(port: int = 0, player_name: String = "", advertise: bool = true) 
 	Events.net_mode_changed.emit(_mode)
 	# Agent runs must not appear in the owner's LAN browser.
 	if advertise and not AgentProbe.is_active():
-		_start_lan_advertising(player_name)
+		_start_lan_advertising(host_name)
 	return OK
 
 
@@ -337,7 +340,9 @@ func join_game(address: String, port: int = 0, player_name: String = "") -> Erro
 	_peer = peer
 	_mode = Mode.CLIENT
 	_peers.clear()
-	_pending_join_name = player_name
+	# Bontago-1pi.49: cleaned here so a bad name is never sent; "" stays "" (the
+	# host seats the joiner as "Player N"). The host re-checks it regardless.
+	_pending_join_name = PlayerNames.clean(player_name, config.max_player_name_length)
 	_join_scope = "enet:%s:%d" % [address, use_port]
 	_joined_accepted = false
 	_join_deadline = _now() + config.connect_timeout + config.handshake_timeout
@@ -472,6 +477,18 @@ func peer_of_slot(slot_id: int) -> int:
 		if int(_peers[peer_id].get("slot_id", -1)) == slot_id:
 			return peer_id
 	return -1
+
+
+## Bontago-1pi.49: the replicated name of the human peer seated at `slot_id`, or
+## "" when no peer holds it (a bot, an empty seat, a departed player). Host and
+## client read the same roster, so the loading screen and HUD show one name per
+## slot on both sides; late joiners and rejoiners get theirs from the roster
+## RPC the host already sends on every change.
+func name_for_slot(slot_id: int) -> String:
+	var peer_id: int = peer_of_slot(slot_id)
+	if peer_id == -1 or not _peers.has(peer_id):
+		return ""
+	return String(_peers[peer_id].get("name", ""))
 
 
 ## The slot this instance's local player controls. Offline this is
@@ -767,7 +784,10 @@ func _on_steam_lobby_created(result: int, lobby_id: int) -> void:
 		Events.net_join_failed.emit(JoinError.TRANSPORT, "Steam lobby creation failed (result %d)" % result)
 		return
 
-	var host_name: String = _steam_pending_name if _steam_pending_name != "" else steam_provider.local_persona_name()
+	var host_name: String = PlayerNames.sanitize(
+		_steam_pending_name if _steam_pending_name != "" else String(steam_provider.local_persona_name()),
+		config.max_player_name_length, 0
+	)
 	# Tag the lobby *before* attempting to instantiate the transport peer.
 	# ClassDB.instantiate(&"SteamMultiplayerPeer") succeeding is explicitly
 	# unverifiable by GUT (docs/M3b_PLAN.md "Testing without Steam" /"Known
@@ -849,7 +869,10 @@ func _on_steam_lobby_joined(lobby_id: int, response: int) -> void:
 	_steam_session = true
 	_steam_lobby_id = lobby_id
 	_peers.clear()
-	_pending_join_name = _steam_pending_name if _steam_pending_name != "" else steam_provider.local_persona_name()
+	_pending_join_name = PlayerNames.clean(
+		_steam_pending_name if _steam_pending_name != "" else String(steam_provider.local_persona_name()),
+		config.max_player_name_length
+	)
 	_joined_accepted = false
 	_join_deadline = _now() + config.connect_timeout + config.handshake_timeout
 	Events.net_mode_changed.emit(_mode)
@@ -1413,10 +1436,14 @@ func _accept_peer(peer_id: int, build: String, player_name: String, slot_id: int
 		_next_slot_id = slot_id + 1
 	var issued: String = token if token != "" else _new_rejoin_token()
 	_tokens[peer_id] = issued
+	# Bontago-1pi.49: the host owns the roster, so it validates the name a peer
+	# claims (control characters, trim, max length, "Player N" if empty) before
+	# anyone else sees it. Everything below uses the checked name.
+	var checked_name: String = PlayerNames.sanitize(player_name, config.max_player_name_length, slot_id)
 	_peers[peer_id] = {
 		"peer_id": peer_id,
 		"slot_id": slot_id,
-		"name": player_name,
+		"name": checked_name,
 		"ready": false,
 		"ping_ms": 0.0,
 		"build": build,
@@ -1425,7 +1452,7 @@ func _accept_peer(peer_id: int, build: String, player_name: String, slot_id: int
 	_pending_handshake.erase(peer_id)
 	_rpc_join_accepted.rpc_id(peer_id, slot_id, HOST_PEER_ID, issued)
 	_broadcast_roster()
-	Events.net_peer_joined.emit(peer_id, slot_id, player_name)
+	Events.net_peer_joined.emit(peer_id, slot_id, checked_name)
 
 
 ## Unguessable, so a token is worth exactly one slot.
@@ -1521,7 +1548,11 @@ func _rpc_join_accepted(slot_id: int, _host_peer_id: int, rejoin_token: String =
 		_rejoin_scope = _current_join_scope()
 	_local_slot = slot_id
 	_joined_accepted = true
-	Events.net_peer_joined.emit(local_peer_id(), slot_id, _pending_join_name)
+	# Same check the host ran on the name it was sent, so this event carries the
+	# very string the roster will show (Bontago-1pi.49).
+	Events.net_peer_joined.emit(
+		local_peer_id(), slot_id, PlayerNames.sanitize(_pending_join_name, config.max_player_name_length, slot_id)
+	)
 
 
 @rpc("authority", "call_remote", "reliable")

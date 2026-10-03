@@ -106,6 +106,9 @@ const GIFT_CARD_ICON_GLYPH_GAP_PX: float = 2.0
 ## real Match hasn't landed on this branch yet. Defaults to the real
 ## autoload; tests overwrite it with a fake after add_child().
 var match_provider: Variant = null
+## Bontago-1pi.49: where a human seat's replicated name comes from, anything
+## answering name_for_slot(slot_id) -> String. Null means the real Net autoload.
+var name_provider: Variant = null
 
 @onready var _turn_label: Label = %TurnLabel
 @onready var _timer_ring: Control = %TimerRing
@@ -906,12 +909,21 @@ func _color_for_slot(slot_id: int) -> Color:
 ## the same "Player N" fallback set_active_slot always used — pre-match (no
 ## slots exist yet) and in a bare HUD-only test with no FakeMatch.slots_by_id
 ## entry.
+##
+## Bontago-1pi.49: a human seat's replicated roster name wins over the slot's own
+## label (the host never copies roster names onto its PlayerSlots, so its slots
+## still read "Player N"); bots keep their slot label.
 func _name_for_slot(slot_id: int) -> String:
+	var peer_name: String = String(_names().name_for_slot(slot_id))
 	if match_provider != null:
 		var slot: PlayerSlot = match_provider.slot(slot_id)
-		if slot != null and not slot.display_name.is_empty():
-			return slot.display_name
-	return "Player %d" % (slot_id + 1)
+		if slot != null:
+			return PlayerNames.label_for_slot(slot_id, slot.display_name, slot.is_bot, peer_name)
+	return PlayerNames.label_for_slot(slot_id, "", false, peer_name)
+
+
+func _names() -> Variant:
+	return name_provider if name_provider != null else Net
 
 
 ## Bontago-1en.16 (docs/M4_P2_PACKAGES.md P2b-ii): the pending-special queue

@@ -202,6 +202,7 @@ func _ready() -> void:
 	_visual_demo_button.pressed.connect(_on_visual_demo_pressed)
 	_gift_demo_button.pressed.connect(_on_gift_demo_pressed)
 	_back_button.pressed.connect(_on_back_pressed)
+	_init_name_field()
 	_sandbox_button.pressed.connect(_on_sandbox_pressed)
 	_tutorial_button.pressed.connect(_on_tutorial_pressed)
 	_options_button.pressed.connect(_on_options_pressed)
@@ -887,9 +888,38 @@ func debug_force_steam_ui(sample_lobby: bool = true) -> void:
 		_on_steam_lobbies_discovered([])
 
 
+## Bontago-1pi.49: the name field shows the saved name every time a menu is
+## built (a rebuilt menu used to reset it to "Player"), and every edit is saved
+## straight away, so it also survives restarts and the Host/Join page switches.
+func _init_name_field() -> void:
+	_name_edit.max_length = int(net_provider.config.max_player_name_length)
+	_name_edit.text = Settings.player_name()
+	_name_edit.text_changed.connect(_on_name_text_changed)
+	Settings.player_name_changed.connect(_on_saved_name_changed)
+
+
+func _on_name_text_changed(typed: String) -> void:
+	Settings.set_player_name(typed)
+
+
+## Settings changed the name from somewhere other than this field: follow it,
+## unless the field already reads the same once cleaned (typing a trailing space
+## must not be rewritten under the player's cursor).
+func _on_saved_name_changed(saved: String) -> void:
+	if _clean_typed_name() != saved:
+		_name_edit.text = saved
+		_name_edit.caret_column = saved.length()
+
+
+func _clean_typed_name() -> String:
+	return PlayerNames.clean(_name_edit.text, int(net_provider.config.max_player_name_length))
+
+
+## The typed name, cleaned. "" when nothing is typed: the host then seats this
+## player as "Player N" (Net._accept_peer, host_game), and over Steam a joiner
+## with no typed name uses the persona name.
 func _player_name() -> String:
-	var typed: String = _name_edit.text.strip_edges()
-	return typed if typed != "" else "Player"
+	return _clean_typed_name()
 
 
 func show_status(text: String) -> void:

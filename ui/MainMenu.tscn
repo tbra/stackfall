@@ -128,7 +128,6 @@ custom_minimum_size = Vector2(0, 37)
 
 size_flags_horizontal = 3
 placeholder_text = "Player"
-text = "Player"
 
 [node name="HostRow" type="HBoxContainer" parent="Center/Panel/Layout"]
 layout_mode = 2
