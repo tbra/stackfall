@@ -1,7 +1,10 @@
 shader_type spatial;
 render_mode unshaded, blend_mix, cull_disabled, depth_draw_never, skip_vertex_transform, shadows_disabled, fog_disabled;
 
-// Bontago-59o.6: one Breeze gust's cartoon wind swooshes (vfx/weather/GustPresentation.gd).
+// Bontago-59o.6: cartoon wind swooshes. Bontago-mp0.81 swapped the two wind looks: this
+// curled SWOOSH look is now the ambient Storm wind's (vfx/weather/StormPresentation.gd
+// scatters the strokes through its weather box: `center`/`radius`/spread_* describe that
+// volume); a Breeze gust now draws the soft wisp look (wind_streak.gdshader).
 // Each instance is a tapered ribbon (mesh built in GDScript: VERTEX = centerline point
 // in stroke space, NORMAL.xy = ribbon normal, UV = (arc fraction t, side -1..1)).
 // A stroke draws on from its tail to its curled head, holds, then erases from the tail,
@@ -10,15 +13,22 @@ render_mode unshaded, blend_mix, cull_disabled, depth_draw_never, skip_vertex_tr
 //
 // Per-instance data: INSTANCE_CUSTOM.x = cluster seed, .y = cycle phase,
 // .z = parallel index within the cluster (-1, 0, 1 ...), .w = per-stroke variation.
+// .x doubles as the stratified rank 0..1 that `density` thins by (clusters fade together).
 
 uniform vec3 center = vec3(0.0);
-uniform vec3 heading = vec3(1.0, 0.0, 0.0);
+uniform vec3 wind_dir = vec3(1.0, 0.0, 0.0);
 uniform float radius = 4.0;
 uniform float length_m = 3.0;
 uniform float width_m = 0.22;
 uniform float speed = 3.0;
 uniform float travel = 0.0;
-uniform float life : hint_range(0.0, 1.0) = 0.0;
+uniform float life : hint_range(0.0, 1.0) = 1.0;
+// Fraction of the stroke set drawn (clusters thin by seed), plus fades by camera distance:
+// strokes closer than near_fade_m.x vanish and are whole by .y (a near stroke would span the
+// screen); beyond fade_far_m / 2 they fade out. Zero = off.
+uniform float density : hint_range(0.0, 1.0) = 1.0;
+uniform vec2 near_fade_m = vec2(0.0);
+uniform float fade_far_m = 0.0;
 uniform vec4 tint : source_color = vec4(1.0);
 uniform float spacing_m = 0.35;
 uniform float cycle_s = 1.8;
@@ -52,22 +62,22 @@ void vertex() {
 	float idx = floor(cycle);
 	float c = cycle - idx;
 	float key = seed * 91.7 + idx * 13.3;
-	vec3 side = normalize(cross(heading, vec3(0.0, 1.0, 0.0)));
-	vec3 up = cross(side, heading);
+	vec3 side = normalize(cross(wind_dir, vec3(0.0, 1.0, 0.0)));
+	vec3 up = cross(side, wind_dir);
 	float along = (hash(key + 1.0) * 2.0 - 1.0) * radius * spread_along + c * cycle_s * speed;
 	// Bontago-mp0.28 round 2: height_bias > 1 pushes strokes toward the top of the
 	// gust volume (matching the height-weighted force); higher strokes run longer.
 	float high = pow(hash(key + 3.0), 1.0 / max(height_bias, 0.1));
-	vec3 p = center + heading * along
+	vec3 p = center + wind_dir * along
 		+ side * ((hash(key + 2.0) * 2.0 - 1.0) * radius * spread_side)
 		+ up * ((high * 2.0 - 1.0) * radius * spread_up);
 	vec4 view_pos = VIEW_MATRIX * vec4(p, 1.0);
-	// Bontago-mp0.28: the screen direction of the world heading must follow the
+	// Bontago-mp0.28: the screen direction of the world heading (wind_dir) must follow the
 	// perspective projection (strokes converge on the heading's vanishing
 	// point), not the camera-plane projection of the direction vector, or
 	// off-centre strokes visibly disagree with the way the wind moves.
-	vec3 dir_view = (VIEW_MATRIX * vec4(heading, 0.0)).xyz;
-	vec3 end_view = (VIEW_MATRIX * vec4(p + heading * length_m, 1.0)).xyz;
+	vec3 dir_view = (VIEW_MATRIX * vec4(wind_dir, 0.0)).xyz;
+	vec3 end_view = (VIEW_MATRIX * vec4(p + wind_dir * length_m, 1.0)).xyz;
 	vec2 d2 = dir_view.xy;
 	float d2_len = length(d2);
 	if (view_pos.z < -0.5 && end_view.z < -0.5) {
@@ -99,7 +109,11 @@ void vertex() {
 	vec2 off = centre2 + n2 * half_w * UV.y;
 	VERTEX = view_pos.xyz + vec3(d2 * off.x + perp * off.y, 0.0);
 	side_v = UV.y;
-	shown = life;
+	float dist = length(view_pos.xyz);
+	float near_w = near_fade_m.y > near_fade_m.x ? smoothstep(near_fade_m.x, near_fade_m.y, dist) : 1.0;
+	float far_w = fade_far_m > 0.0 ? 1.0 - smoothstep(fade_far_m * 0.5, fade_far_m, dist) : 1.0;
+	float thin = density >= 1.0 ? 1.0 : 1.0 - smoothstep(density - 0.06, density, seed);
+	shown = life * near_w * far_w * thin;
 }
 
 void fragment() {

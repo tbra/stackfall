@@ -326,10 +326,50 @@ func test_presentation_density_follows_intensity_and_never_touches_physics() -> 
 	var breeze: BreezeTuning = load("res://config/breeze.tres") as BreezeTuning
 	assert_almost_eq(float(material.get_shader_parameter(&"density")), 0.7, 0.0001)
 	assert_eq(streaks.layers, RainPresentation.RENDER_LAYER_BIT)
-	assert_gte(_tuning.streak_length_min_m, 4.0, "wisps run about 4-12 m")
 	assert_lte(_tuning.streak_length_m, 12.0)
 	assert_lt(_tuning.streak_count, breeze.gust_streak_count * 4, "few streaks at once")
 	assert_false(presentation.is_class("PhysicsBody3D"))
+
+
+func test_ambient_wind_draws_curled_swoosh_strokes() -> void:
+	# Bontago-mp0.81: the ambient wind takes the swoosh look a gust used to have; the motes keep the wisp shader.
+	var presentation: StormPresentation = StormPresentation.new()
+	add_child_autofree(presentation)
+	presentation.configure(SEED_A)
+	var material: ShaderMaterial = presentation.streak_material()
+	assert_eq(material.shader.resource_path, "res://shaders/gust_swoosh.gdshader")
+	assert_not_null(presentation.get_node_or_null("StreakLeaders"), "curl-headed leaders are their own MultiMesh")
+	var motes: MultiMeshInstance3D = presentation.get_node("Motes") as MultiMeshInstance3D
+	assert_eq((motes.material_override as ShaderMaterial).shader.resource_path, "res://shaders/wind_streak.gdshader")
+	assert_almost_eq(float(material.get_shader_parameter(&"cycle_s")) * float(material.get_shader_parameter(&"speed")), _tuning.streak_life_m, 0.001, "drifts a life per cycle")
+	assert_almost_eq(float(material.get_shader_parameter(&"radius")), _tuning.area_half_extent_m, 0.0001, "the weather box is the stroke volume")
+
+
+func test_swoosh_ribbon_is_a_tapered_curling_strip() -> void:
+	var mesh: ArrayMesh = StormPresentation.build_swoosh_ribbon(_tuning)
+	var arrays: Array = mesh.surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
+	assert_eq(verts.size(), (_tuning.swoosh_ribbon_segments + 1) * 2)
+	assert_almost_eq(uvs[0].x, 0.0, 0.0001)
+	assert_almost_eq(uvs[uvs.size() - 1].x, 1.0, 0.0001)
+	var max_y: float = 0.0
+	var max_x: float = 0.0
+	for v: Vector3 in verts:
+		max_y = maxf(max_y, v.y)
+		max_x = maxf(max_x, v.x)
+	assert_gt(max_y, 0.05, "the head curls up out of the lead-in")
+	assert_lt(verts[verts.size() - 1].x, max_x - 0.01, "the hook curls back over itself")
+
+
+func test_only_leading_swoosh_strokes_curl() -> void:
+	var straight: ArrayMesh = StormPresentation.build_swoosh_ribbon(_tuning, false)
+	var verts: PackedVector3Array = straight.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var prev_x: float = -1.0
+	for v: Vector3 in verts:
+		assert_gte(v.x, prev_x - 0.0001, "a non-leader never curls back over itself")
+		prev_x = maxf(prev_x, v.x)
+	assert_lt(_tuning.swoosh_curl_lead_frac, 0.5, "most strokes are straight")
 
 
 func test_presentation_heading_matches_the_host_field() -> void:

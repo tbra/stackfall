@@ -1,21 +1,19 @@
 class_name GustPresentation
 extends Node3D
-## Bontago-59o.6: one gust's visual, a handful of cartoon wind-swoosh ribbons
-## (white, flat, tapered, ending in a curl) around the gust's centre drifting
-## along its heading (shaders/gust_swoosh.gdshader does all per-stroke motion:
-## draw-on, hold, erase from the tail, respawn). Frees itself when the gust
-## ends. The Low graphics preset draws a fraction of the strokes. Presentation only.
+## Bontago-59o.6 / mp0.81: one gust's visual, a handful of soft wind wisps (bowed,
+## feathered, banded ribbons) scattered in a heading-aligned box around the gust's
+## centre, drifting along its heading (shaders/wind_streak.gdshader does all per-wisp
+## motion: draw-on, hold, erase from the tail, respawn). Frees itself when the gust
+## ends. The Low graphics preset draws a fraction of the wisps. Presentation only.
+## Bontago-mp0.81 swapped the looks: a gust used to draw the curled swoosh strokes
+## that now belong to the ambient Storm wind (StormPresentation.build_swoosh_ribbon).
 
-const SHADER: Shader = preload("res://shaders/gust_swoosh.gdshader")
+const SHADER: Shader = preload("res://shaders/wind_streak.gdshader")
 const RENDER_LAYER_BIT: int = 1 << 17
-# DECISION: these are degenerate-mesh guards, not look tunables: a curl tightening
-# of 1.0 would close to zero radius, the curl may not eat more than this share of
-# the arc (the lead-in keeps the rest), and fewer than this many segments cannot bend.
-const MAX_CURL_TIGHTEN: float = 0.95
-const MAX_CURL_ARC_FRAC: float = 0.8
-const MIN_RIBBON_SEGMENTS: int = 8
-# DECISION: shader divides by these, so keep them off zero.
-const MIN_CYCLE_S: float = 0.1
+## Segments along a wisp ribbon (enough for a smooth bow and waver).
+const RIBBON_SEGMENTS: int = 14
+# DECISION: the shader divides by the metres a wisp drifts over one life, so keep it off zero.
+const MIN_LIFE_M: float = 0.1
 const MIN_PHASE_FRAC: float = 0.01
 
 var _gust: Dictionary = {}
@@ -30,7 +28,7 @@ func configure(gust: Dictionary, tuning: BreezeTuning) -> void:
 	_tuning = tuning
 
 
-## World-space unit vector the strokes travel along: the gust's wire heading,
+## World-space unit vector the wisps travel along: the gust's wire heading,
 ## the same vector BreezeField.push_direction turns (by swirl_deg) for physics.
 static func travel_direction(gust: Dictionary) -> Vector3:
 	var heading: Vector2 = BreezeField.heading(float(gust["a"]))
@@ -48,58 +46,25 @@ func streak_count() -> int:
 	return total
 
 
-
-## Builds the unit-arc-length swoosh ribbon: a gently waving lead-in then a
-## curling hook. VERTEX = centerline (x, y, 0), NORMAL = (nx, ny, 0), UV = (arc
-## fraction, side -1/+1). Static so tests can inspect the shape.
-static func build_ribbon(tuning: BreezeTuning, curled: bool = true) -> ArrayMesh:
-	var segments: int = maxi(tuning.gust_ribbon_segments, MIN_RIBBON_SEGMENTS)
-	var radius: float = maxf(tuning.gust_curl_radius_frac, 0.01)
-	var tighten: float = clampf(tuning.gust_curl_tighten, 0.0, MAX_CURL_TIGHTEN)
-	var total_angle: float = maxf(tuning.gust_curl_turns, 0.05) * TAU
-	# DECISION: the curl arc is analytic (R * angle * (1 - tighten / 2)); the
-	# lead-in takes whatever arc remains of the unit length (at least a fifth).
-	var curl_arc: float = minf(radius * total_angle * (1.0 - tighten * 0.5), MAX_CURL_ARC_FRAC) if curled else 0.0
-	var body_arc: float = 1.0 - curl_arc
-	var body_count: int = clampi(int(round(float(segments) * body_arc)), 2, segments - 2) if curled else segments
-	var curl_count: int = segments - body_count
-	var points: Array[Vector2] = [Vector2.ZERO]
-	var pos: Vector2 = Vector2.ZERO
-	var step: float = body_arc / float(body_count)
-	for i: int in range(body_count):
-		var u: float = (float(i) + 0.5) / float(body_count)
-		var theta: float = tuning.gust_body_swing_rad * sin(TAU * u)
-		pos += Vector2(cos(theta), sin(theta)) * step
-		points.append(pos)
-	var d_phi: float = total_angle / float(maxi(curl_count, 1))
-	for i: int in range(curl_count):
-		var phi_mid: float = (float(i) + 0.5) * d_phi
-		var r: float = radius * (1.0 - tighten * phi_mid / total_angle)
-		pos += Vector2(cos(phi_mid), sin(phi_mid)) * r * d_phi
-		points.append(pos)
-	var lengths: PackedFloat32Array = PackedFloat32Array([0.0])
-	for i: int in range(1, points.size()):
-		lengths.append(lengths[i - 1] + points[i].distance_to(points[i - 1]))
-	var verts: PackedVector3Array = PackedVector3Array()
-	var normals: PackedVector3Array = PackedVector3Array()
+## A flat strip along x (-0.5..0.5) with UV.x = fraction along it, so the shader
+## can taper, bow and draw it on. VERTEX.y = +-0.5 marks the two edges. Static so
+## tests can inspect the shape.
+static func build_wisp_ribbon() -> ArrayMesh:
+	var vertices: PackedVector3Array = PackedVector3Array()
 	var uvs: PackedVector2Array = PackedVector2Array()
 	var indices: PackedInt32Array = PackedInt32Array()
-	var last: int = points.size() - 1
-	for i: int in range(points.size()):
-		var tangent: Vector2 = (points[mini(i + 1, last)] - points[maxi(i - 1, 0)]).normalized()
-		var normal: Vector2 = Vector2(-tangent.y, tangent.x)
-		var t: float = lengths[i] / lengths[last]
-		for side: float in [-1.0, 1.0]:
-			verts.append(Vector3(points[i].x, points[i].y, 0.0))
-			normals.append(Vector3(normal.x, normal.y, 0.0))
-			uvs.append(Vector2(t, side))
-		if i < last:
-			var a: int = i * 2
-			indices.append_array(PackedInt32Array([a, a + 1, a + 2, a + 1, a + 3, a + 2]))
+	for i: int in range(RIBBON_SEGMENTS + 1):
+		var t: float = float(i) / float(RIBBON_SEGMENTS)
+		vertices.append(Vector3(t - 0.5, -0.5, 0.0))
+		uvs.append(Vector2(t, 0.0))
+		vertices.append(Vector3(t - 0.5, 0.5, 0.0))
+		uvs.append(Vector2(t, 1.0))
+	for i: int in range(RIBBON_SEGMENTS):
+		var a: int = i * 2
+		indices.append_array(PackedInt32Array([a, a + 1, a + 2, a + 1, a + 3, a + 2]))
 	var arrays: Array = []
 	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = verts
-	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_VERTEX] = vertices
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
 	arrays[Mesh.ARRAY_INDEX] = indices
 	var mesh: ArrayMesh = ArrayMesh.new()
@@ -118,69 +83,67 @@ func _ready() -> void:
 	if count <= 0:
 		queue_free()
 		return
-	var leaders: int = clampi(int(round(float(count) * _tuning.gust_curl_lead_frac)), 0, count)
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = int(_gust["id"]) * 7919 + 17
-	var curled_mesh: ArrayMesh = build_ribbon(_tuning, true)
-	var straight_mesh: ArrayMesh = build_ribbon(_tuning, false)
-	var multimeshes: Array[MultiMesh] = [_build_multimesh(curled_mesh, leaders, rng), _build_multimesh(straight_mesh, count - leaders, rng)]
+	var radius: float = float(_gust["r"])
+	var half: Vector3 = Vector3(radius * _tuning.gust_spread_along_frac, radius * _tuning.gust_spread_up_frac, radius * _tuning.gust_spread_side_frac)
 	_material = ShaderMaterial.new()
 	_material.shader = SHADER
-	_material.set_shader_parameter(&"center", Vector3(float(_gust["x"]), float(_gust["y"]), float(_gust["z"])))
-	_material.set_shader_parameter(&"heading", travel_direction(_gust))
-	_material.set_shader_parameter(&"radius", float(_gust["r"]))
+	_material.set_shader_parameter(&"wind_dir", travel_direction(_gust))
+	_material.set_shader_parameter(&"box_center", Vector3(float(_gust["x"]), float(_gust["y"]), float(_gust["z"])))
+	_material.set_shader_parameter(&"box_align", true)
+	_material.set_shader_parameter(&"box_half", half)
+	_material.set_shader_parameter(&"box_base_y", -half.y)
+	_material.set_shader_parameter(&"height_bias", _tuning.gust_height_bias)
+	_material.set_shader_parameter(&"height_length_gain", _tuning.gust_height_length_gain)
 	_material.set_shader_parameter(&"length_m", _tuning.gust_streak_length_m)
+	_material.set_shader_parameter(&"length_min_m", _tuning.gust_streak_length_min_m)
 	_material.set_shader_parameter(&"width_m", _tuning.gust_streak_width_m)
-	_material.set_shader_parameter(&"speed", _tuning.gust_streak_speed_ms)
+	_material.set_shader_parameter(&"mote_mix", 0.0)
 	_material.set_shader_parameter(&"tint", _tuning.gust_color)
-	_material.set_shader_parameter(&"spacing_m", _tuning.gust_parallel_spacing_m)
-	_material.set_shader_parameter(&"cycle_s", maxf(_tuning.gust_stroke_cycle_s, 0.1))
+	_material.set_shader_parameter(&"band_tint", _tuning.gust_band_color)
+	_material.set_shader_parameter(&"band_width", _tuning.gust_band_width)
+	_material.set_shader_parameter(&"edge_softness", _tuning.gust_edge_softness)
+	_material.set_shader_parameter(&"fade_far_m", _tuning.fade_far_m)
+	_material.set_shader_parameter(&"near_fade_m", Vector2(_tuning.streak_near_fade_start_m, _tuning.streak_near_fade_end_m))
+	_material.set_shader_parameter(&"life_m", wisp_life_m(_tuning))
 	_material.set_shader_parameter(&"draw_frac", maxf(_tuning.gust_draw_on_frac, MIN_PHASE_FRAC))
 	_material.set_shader_parameter(&"erase_frac", maxf(_tuning.gust_erase_frac, MIN_PHASE_FRAC))
 	_material.set_shader_parameter(&"tip_taper", _tuning.gust_tip_taper_frac)
-	_material.set_shader_parameter(&"peak_bias", _tuning.gust_width_peak_bias)
-	_material.set_shader_parameter(&"spread_along", _tuning.gust_spread_along_frac)
-	_material.set_shader_parameter(&"spread_side", _tuning.gust_spread_side_frac)
-	_material.set_shader_parameter(&"spread_up", _tuning.gust_spread_up_frac)
-	_material.set_shader_parameter(&"min_foreshorten", _tuning.gust_min_foreshorten)
-	_material.set_shader_parameter(&"length_variation", _tuning.gust_length_variation)
-	_material.set_shader_parameter(&"parallel_shrink", _tuning.gust_parallel_shrink)
-	_material.set_shader_parameter(&"parallel_lag", _tuning.gust_parallel_lag_frac)
-	_material.set_shader_parameter(&"anchor_frac", _tuning.gust_anchor_frac)
-	_material.set_shader_parameter(&"height_bias", _tuning.gust_height_bias)
-	_material.set_shader_parameter(&"height_length_gain", _tuning.gust_height_length_gain)
+	_material.set_shader_parameter(&"bow_m", _tuning.gust_bow_m)
+	_material.set_shader_parameter(&"wobble_m", _tuning.gust_wobble_m)
+	_material.set_shader_parameter(&"opacity_min", _tuning.gust_opacity_min)
+	_material.set_shader_parameter(&"density", 1.0)
 	_material.set_shader_parameter(&"life", 0.0)
-	var extent: float = float(_gust["r"]) * 4.0 + 1000.0
-	for multimesh: MultiMesh in multimeshes:
-		if multimesh.instance_count <= 0:
-			continue
-		var instance: MultiMeshInstance3D = MultiMeshInstance3D.new()
-		instance.multimesh = multimesh
-		instance.material_override = _material
-		instance.layers = RENDER_LAYER_BIT
-		instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		instance.custom_aabb = AABB(Vector3.ONE * -extent, Vector3.ONE * extent * 2.0)
-		add_child(instance)
-		_instances.append(instance)
+	_material.set_shader_parameter(&"travel", 0.0)
+	var extent: float = radius * 4.0 + _tuning.gust_streak_speed_ms * _tuning.gust_stroke_cycle_s + _tuning.wire_max_coord_m
+	var instance: MultiMeshInstance3D = MultiMeshInstance3D.new()
+	instance.multimesh = _build_multimesh(build_wisp_ribbon(), count, rng)
+	instance.material_override = _material
+	instance.layers = RENDER_LAYER_BIT
+	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	instance.custom_aabb = AABB(Vector3.ONE * -extent, Vector3.ONE * extent * 2.0)
+	add_child(instance)
+	_instances.append(instance)
 
 
+## Metres a wisp drifts over one life: the gust's drift speed over its stroke cycle,
+## so each wisp cycles in gust_stroke_cycle_s as the swoosh strokes did.
+static func wisp_life_m(tuning: BreezeTuning) -> float:
+	return maxf(tuning.gust_streak_speed_ms * tuning.gust_stroke_cycle_s, MIN_LIFE_M)
+
+
+## INSTANCE_CUSTOM = (cycle offset, unused, unused, stratified rank 0..1).
 func _build_multimesh(mesh: ArrayMesh, count: int, rng: RandomNumberGenerator) -> MultiMesh:
 	var multimesh: MultiMesh = MultiMesh.new()
 	multimesh.transform_format = MultiMesh.TRANSFORM_3D
 	multimesh.use_custom_data = true
 	multimesh.mesh = mesh
 	multimesh.instance_count = count
-	var index: int = 0
-	while index < count:
-		# A cluster of 1..gust_group_max parallel strokes sharing a spot and phase.
-		var size: int = mini(rng.randi_range(1, maxi(_tuning.gust_group_max, 1)), count - index)
-		var seed_value: float = rng.randf()
-		var phase: float = rng.randf()
-		for k: int in range(size):
-			var parallel: float = float(k) - float(size - 1) * 0.5
-			multimesh.set_instance_transform(index, Transform3D.IDENTITY)
-			multimesh.set_instance_custom_data(index, Color(seed_value, phase, parallel, rng.randf()))
-			index += 1
+	for index: int in range(count):
+		multimesh.set_instance_transform(index, Transform3D.IDENTITY)
+		var rank: float = (float(index) + rng.randf()) / float(count)
+		multimesh.set_instance_custom_data(index, Color(rng.randf(), rng.randf(), rng.randf(), rank))
 	return multimesh
 
 
@@ -192,4 +155,4 @@ func _process(delta: float) -> void:
 		return
 	if _material != null:
 		_material.set_shader_parameter(&"life", BreezeField.envelope(_age, duration))
-		_material.set_shader_parameter(&"travel", _age)
+		_material.set_shader_parameter(&"travel", _age * _tuning.gust_streak_speed_ms)

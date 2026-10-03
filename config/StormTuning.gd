@@ -47,16 +47,17 @@ extends WeatherTuning
 @export var exposure_probe_m: float = 1.5
 
 @export_group("Presentation")
+## Bontago-mp0.81: the ambient wind draws curled swoosh strokes (swoosh_* below);
+## the soft bowed wisp look belongs to a Breeze gust now (BreezeTuning gust_*).
 ## Half-width of the square of sky the streaks and motes fill, centred on the
 ## disc (metres).
 @export var area_half_extent_m: float = 55.0
 @export var area_min_height_m: float = -6.0
 @export var area_max_height_m: float = 34.0
+## Swoosh strokes alive at once at full intensity.
 @export var streak_count: int = 36
-## Longest streak (m, world space); each streak is a hashed length up to this.
+## Arc length (m, world space) of a swoosh stroke before the per-stroke length variation.
 @export var streak_length_m: float = 12.0
-## Shortest streak (m, world space).
-@export var streak_length_min_m: float = 4.0
 ## Ribbon width at its thickest (m).
 @export var streak_width_m: float = 0.16
 ## Metres a streak drifts along the wind over one life (draw on, hold, erase, respawn).
@@ -67,22 +68,13 @@ extends WeatherTuning
 @export_range(0.05, 0.9, 0.01) var streak_erase_frac: float = 0.35
 ## Fraction of the length over which each end tapers to a point.
 @export_range(0.01, 0.5, 0.01) var streak_tip_taper: float = 0.3
-## Sideways bow of a streak at its middle (m).
-@export var streak_bow_m: float = 0.6
-## Amplitude (m) of the gentle waver along a streak.
-@export var streak_wobble_m: float = 0.25
-## Dimmest streak's opacity as a fraction of the full colour alpha.
-@export_range(0.0, 1.0, 0.01) var streak_opacity_min: float = 0.35
 ## Streaks fully vanish closer than this to the camera (m) and fade in by
 ## the end distance: a near streak would otherwise span the whole screen.
 @export var streak_near_fade_start_m: float = 14.0
 @export var streak_near_fade_end_m: float = 32.0
+## Drift speed (m/s) of a stroke along the wind; with streak_life_m it sets the stroke cycle time.
 @export var streak_speed_ms: float = 16.0
 @export var streak_color: Color = Color(1.0, 1.0, 1.0, 0.7)
-## A narrow, flat inner band gives the long strips the same cel language as gusts.
-@export var streak_band_color: Color = Color(0.75, 0.88, 1.0, 1.0)
-@export_range(0.0, 1.0, 0.01) var streak_band_width: float = 0.34
-@export_range(0.0, 0.5, 0.01) var streak_edge_softness: float = 0.12
 @export var mote_count: int = 36
 @export var mote_size_m: float = 0.4
 @export var mote_speed_ms: float = 10.0
@@ -96,3 +88,33 @@ extends WeatherTuning
 @export var mote_near_fade_start_m: float = 8.0
 @export var mote_near_fade_end_m: float = 26.0
 @export var scatter_seed: int = 4404
+
+@export_group("Swoosh look")
+## Largest number of parallel strokes drawn together as one cluster (1 = singles only).
+@export var swoosh_group_max: int = 2
+## Sideways spacing in meters between parallel strokes of one cluster.
+@export var swoosh_parallel_spacing_m: float = 0.6
+## Curl radius at the start of the hook, as a fraction of the stroke arc length; the rest of the arc is the lead-in.
+@export var swoosh_curl_radius_frac: float = 0.06
+## How many full turns the head curls through (0.75 is a hook, 1.0 a loop).
+@export var swoosh_curl_turns: float = 0.7
+## How much the curl tightens towards its tip (0 = constant radius, 1 = closes to a point).
+@export var swoosh_curl_tighten: float = 0.55
+## Peak heading swing in radians of the lead-in's S wave.
+@export var swoosh_body_swing_rad: float = 0.1
+## Ribbon mesh vertex pairs along the stroke; more is smoother.
+@export var swoosh_ribbon_segments: int = 56
+## Exponent shaping the width profile: above 1 pushes the thickest part toward the curl.
+@export var swoosh_width_peak_bias: float = 0.8
+## Smallest on-screen length share kept when the wind points straight at the camera (stops strokes collapsing).
+@export var swoosh_min_foreshorten: float = 0.25
+## Random stroke length variation (0.6 = each stroke is 0.7x to 1.3x the base length).
+@export var swoosh_length_variation: float = 0.6
+## How much shorter each outer parallel stroke is than the cluster centre (0.2 = 20 percent per step).
+@export var swoosh_parallel_shrink: float = 0.2
+## Backward lag of each parallel stroke along the wind, as a fraction of stroke length.
+@export var swoosh_parallel_lag_frac: float = 0.15
+## Where the stroke's tail sits relative to its anchor, as a fraction of stroke length behind the lead-in start.
+@export var swoosh_anchor_frac: float = 0.4
+## Share of the strokes that are leaders: only these carry the curl at the head, the rest are straight or gently curved lines.
+@export_range(0.0, 1.0, 0.05) var swoosh_curl_lead_frac: float = 0.2

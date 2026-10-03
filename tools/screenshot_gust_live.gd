@@ -43,6 +43,7 @@ func _ready() -> void:
 	Events.breeze_gust_started.emit({"id": 9, "x": base.x, "y": base.y + GUST_HEIGHT_M, "z": base.z, "a": GUST_ANGLE_RAD, "r": GUST_RADIUS_M, "d": 6.0, "s": 1.0})
 	await get_tree().create_timer(GUST_WAIT_S).timeout
 	await _shoot("gust_live_gust.png")
+	presenter.clear()
 	var storm: StormPresentation = StormPresentation.new()
 	main.add_child(storm)
 	storm.configure(STORM_SEED)

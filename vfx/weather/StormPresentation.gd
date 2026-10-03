@@ -1,18 +1,35 @@
 class_name StormPresentation
 extends WeatherPresentation
-## Bontago-22y.4: client-side wind visuals -- cel wind streaks and drifting
+## Bontago-22y.4: client-side wind visuals -- cartoon wind swooshes and drifting
 ## dust/leaf motes flowing along the seeded wind heading (core/WindField.gd,
-## the same direction the host pushes blocks). Two MultiMeshes share
-## shaders/wind_streak.gdshader; the script only integrates the gusting
+## the same direction the host pushes blocks). Bontago-mp0.81 swapped the looks:
+## the streaks are the curled swoosh strokes (shaders/gust_swoosh.gdshader, strokes
+## scattered through the weather box) that a Breeze gust used to draw; the motes
+## stay on shaders/wind_streak.gdshader. The script only integrates the gusting
 ## travel distance and feeds uniforms. Presentation only: no physics.
 ## Density follows the ramped intensity; the Low graphics preset thins both.
 
-const SHADER: Shader = preload("res://shaders/wind_streak.gdshader")
+const MOTE_SHADER: Shader = preload("res://shaders/wind_streak.gdshader")
+const SWOOSH_SHADER: Shader = preload("res://shaders/gust_swoosh.gdshader")
 const TUNING: StormTuning = preload("res://config/weather/storm.tres")
 const KIND_STREAK: int = 0
 const KIND_MOTE: int = 1
-## Segments along a streak ribbon (enough for a smooth bow and waver).
-const RIBBON_SEGMENTS: int = 14
+# DECISION: these are degenerate-mesh guards, not look tunables: a curl tightening
+# of 1.0 would close to zero radius, the curl may not eat more than this share of
+# the arc (the lead-in keeps the rest), and fewer than this many segments cannot bend.
+const MAX_CURL_TIGHTEN: float = 0.95
+const MAX_CURL_ARC_FRAC: float = 0.8
+const MIN_RIBBON_SEGMENTS: int = 8
+# DECISION: the swoosh shader divides by these, so keep them off zero.
+const MIN_CYCLE_S: float = 0.1
+const MIN_PHASE_FRAC: float = 0.01
+const MIN_SPEED_MS: float = 0.01
+# DECISION: the weather box is scattered evenly (the swoosh shader's gust volume
+# maps onto it one to one), so the height bias and height-dependent length of a
+# gust volume are switched off with their neutral values.
+const FULL_SPREAD: float = 1.0
+const NEUTRAL_HEIGHT_BIAS: float = 1.0
+const NO_HEIGHT_LENGTH_GAIN: float = 0.0
 
 var tuning: StormTuning = TUNING
 var _seed: int = 0
@@ -52,16 +69,30 @@ static func _hash11(n: float) -> float:
 	return fposmod(sin(n * 127.1 + 311.7) * 43758.5453, 1.0)
 
 
-## World position where streak `seed_rank` starts its life number `cycle_index`
-## (mirrors the shader's respawn scatter, before the wind drift is added).
-static func streak_spawn(seed_rank: float, cycle_index: int, wind_tuning: StormTuning) -> Vector3:
+## Cycle time of one swoosh stroke: the metres it drifts over a life at the drift speed.
+static func stroke_cycle_s(wind_tuning: StormTuning) -> float:
+	return maxf(wind_tuning.streak_life_m / maxf(wind_tuning.streak_speed_ms, MIN_SPEED_MS), MIN_CYCLE_S)
+
+
+## Centre of the weather box the swoosh strokes are scattered through (before the
+## per-frame shift that keeps the downwind drift centred on the disc).
+static func box_center(wind_tuning: StormTuning) -> Vector3:
+	return Vector3(0.0, (wind_tuning.area_min_height_m + wind_tuning.area_max_height_m) * 0.5, 0.0)
+
+
+## World position where stroke `seed_rank` starts its life number `cycle_index`
+## for a wind blowing along `heading` (mirrors the shader's respawn scatter, before
+## the wind drift is added).
+static func streak_spawn(seed_rank: float, cycle_index: int, wind_tuning: StormTuning, heading: Vector2 = Vector2.RIGHT) -> Vector3:
 	var key: float = seed_rank * 91.7 + float(cycle_index) * 13.3
-	var size_xz: float = wind_tuning.area_half_extent_m * 2.0
-	var size_y: float = wind_tuning.area_max_height_m - wind_tuning.area_min_height_m
-	return Vector3(
-		(_hash11(key + 1.0) - 0.5) * size_xz,
-		wind_tuning.area_min_height_m + _hash11(key + 3.0) * size_y,
-		(_hash11(key + 2.0) - 0.5) * size_xz)
+	var half: float = wind_tuning.area_half_extent_m
+	var half_y: float = (wind_tuning.area_max_height_m - wind_tuning.area_min_height_m) * 0.5
+	var along_dir: Vector3 = Vector3(heading.x, 0.0, heading.y)
+	var side_dir: Vector3 = Vector3(-heading.y, 0.0, heading.x)
+	return box_center(wind_tuning) \
+		+ along_dir * ((_hash11(key + 1.0) * 2.0 - 1.0) * half) \
+		+ side_dir * ((_hash11(key + 2.0) * 2.0 - 1.0) * half) \
+		+ Vector3.UP * ((_hash11(key + 3.0) * 2.0 - 1.0) * half_y)
 
 
 ## Opacity multiplier (0..1) of a streak `distance_m` from the camera: zero
@@ -106,9 +137,14 @@ func _process(delta: float) -> void:
 	_travel += delta * gust_mult * lerpf(0.5, 1.0, intensity)
 	var dir: Vector3 = Vector3(dir2.x, 0.0, dir2.y)
 	for i: int in range(_materials.size()):
-		var speed: float = tuning.streak_speed_ms if i == KIND_STREAK else tuning.mote_speed_ms
 		_materials[i].set_shader_parameter(&"wind_dir", dir)
-		_materials[i].set_shader_parameter(&"travel", _travel * speed)
+		if i == KIND_STREAK:
+			# Swoosh strokes take the travel as time (cycle = travel / cycle_s); the box is
+			# shifted upwind by half a life so the downwind drift stays centred on the disc.
+			_materials[i].set_shader_parameter(&"travel", _travel)
+			_materials[i].set_shader_parameter(&"center", box_center(tuning) - dir * (tuning.streak_life_m * 0.5))
+		else:
+			_materials[i].set_shader_parameter(&"travel", _travel * tuning.mote_speed_ms)
 
 
 func _reduced() -> bool:
@@ -137,11 +173,13 @@ func _build() -> void:
 func _add_kind(kind: int, count: int) -> void:
 	if count <= 0:
 		return
-	var mesh: Mesh = _ribbon_mesh() if kind == KIND_STREAK else _quad_mesh()
+	if kind == KIND_STREAK:
+		_add_streaks(count)
+		return
 	var multimesh: MultiMesh = MultiMesh.new()
 	multimesh.transform_format = MultiMesh.TRANSFORM_3D
 	multimesh.use_custom_data = true
-	multimesh.mesh = mesh
+	multimesh.mesh = _quad_mesh()
 	multimesh.instance_count = count
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = tuning.scatter_seed + kind
@@ -151,34 +189,107 @@ func _add_kind(kind: int, count: int) -> void:
 		var rank: float = (float(index) + rng.randf()) / float(count)
 		multimesh.set_instance_custom_data(index, Color(rng.randf(), rng.randf(), rng.randf(), rank))
 	var material: ShaderMaterial = ShaderMaterial.new()
-	material.shader = SHADER
+	material.shader = MOTE_SHADER
 	var half: float = tuning.area_half_extent_m
 	var half_y: float = (tuning.area_max_height_m - tuning.area_min_height_m) * 0.5
 	material.set_shader_parameter(&"box_half", Vector3(half, half_y, half))
 	material.set_shader_parameter(&"box_base_y", tuning.area_min_height_m)
-	material.set_shader_parameter(&"length_m", tuning.streak_length_m if kind == KIND_STREAK else tuning.mote_size_m)
-	material.set_shader_parameter(&"length_min_m", tuning.streak_length_min_m if kind == KIND_STREAK else tuning.mote_size_m)
-	material.set_shader_parameter(&"life_m", tuning.streak_life_m)
-	material.set_shader_parameter(&"draw_frac", tuning.streak_draw_frac)
-	material.set_shader_parameter(&"erase_frac", tuning.streak_erase_frac)
-	material.set_shader_parameter(&"tip_taper", tuning.streak_tip_taper)
-	material.set_shader_parameter(&"bow_m", tuning.streak_bow_m)
-	material.set_shader_parameter(&"wobble_m", tuning.streak_wobble_m)
-	material.set_shader_parameter(&"opacity_min", tuning.streak_opacity_min)
-	material.set_shader_parameter(&"width_m", tuning.streak_width_m if kind == KIND_STREAK else tuning.mote_size_m)
-	material.set_shader_parameter(&"mote_mix", 0.0 if kind == KIND_STREAK else 1.0)
-	material.set_shader_parameter(&"tint", tuning.streak_color if kind == KIND_STREAK else tuning.mote_color)
-	material.set_shader_parameter(&"band_tint", tuning.streak_band_color)
-	material.set_shader_parameter(&"band_width", tuning.streak_band_width)
-	material.set_shader_parameter(&"edge_softness", tuning.streak_edge_softness)
+	material.set_shader_parameter(&"length_m", tuning.mote_size_m)
+	material.set_shader_parameter(&"length_min_m", tuning.mote_size_m)
+	material.set_shader_parameter(&"width_m", tuning.mote_size_m)
+	material.set_shader_parameter(&"mote_mix", 1.0)
+	material.set_shader_parameter(&"tint", tuning.mote_color)
 	material.set_shader_parameter(&"fade_far_m", tuning.fade_far_m)
-	if kind == KIND_STREAK:
-		material.set_shader_parameter(&"near_fade_m", Vector2(tuning.streak_near_fade_start_m, tuning.streak_near_fade_end_m))
-	else:
-		material.set_shader_parameter(&"near_fade_m", Vector2(tuning.mote_near_fade_start_m, tuning.mote_near_fade_end_m))
+	material.set_shader_parameter(&"near_fade_m", Vector2(tuning.mote_near_fade_start_m, tuning.mote_near_fade_end_m))
 	material.set_shader_parameter(&"density", intensity)
+	_add_instance("Motes", multimesh, material)
+	_materials.append(material)
+
+
+## The curled swoosh strokes: leaders (the curl at the head) and plain lines are two
+## MultiMeshes sharing one material, scattered in clusters of parallel strokes.
+func _add_streaks(count: int) -> void:
+	var leaders: int = clampi(int(round(float(count) * tuning.swoosh_curl_lead_frac)), 0, count)
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = tuning.scatter_seed + KIND_STREAK
+	var material: ShaderMaterial = _swoosh_material()
+	var meshes: Array[ArrayMesh] = [build_swoosh_ribbon(tuning, false), build_swoosh_ribbon(tuning, true)]
+	var counts: Array[int] = [count - leaders, leaders]
+	for i: int in range(meshes.size()):
+		if counts[i] <= 0:
+			continue
+		var instance_name: String = "Streaks" if _instances.is_empty() else "StreakLeaders"
+		_add_instance(instance_name, _build_swoosh_multimesh(meshes[i], counts[i], rng), material)
+	_materials.append(material)
+
+
+func _swoosh_material() -> ShaderMaterial:
+	var half: float = maxf(tuning.area_half_extent_m, 0.01)
+	var half_y: float = (tuning.area_max_height_m - tuning.area_min_height_m) * 0.5
+	var material: ShaderMaterial = ShaderMaterial.new()
+	material.shader = SWOOSH_SHADER
+	# The shader's gust volume (centre, radius, per-axis spread) is the weather box.
+	material.set_shader_parameter(&"center", box_center(tuning))
+	material.set_shader_parameter(&"radius", half)
+	material.set_shader_parameter(&"spread_along", FULL_SPREAD)
+	material.set_shader_parameter(&"spread_side", FULL_SPREAD)
+	material.set_shader_parameter(&"spread_up", half_y / half)
+	material.set_shader_parameter(&"height_bias", NEUTRAL_HEIGHT_BIAS)
+	material.set_shader_parameter(&"height_length_gain", NO_HEIGHT_LENGTH_GAIN)
+	material.set_shader_parameter(&"length_m", tuning.streak_length_m)
+	material.set_shader_parameter(&"width_m", tuning.streak_width_m)
+	material.set_shader_parameter(&"speed", tuning.streak_speed_ms)
+	material.set_shader_parameter(&"tint", tuning.streak_color)
+	material.set_shader_parameter(&"spacing_m", tuning.swoosh_parallel_spacing_m)
+	material.set_shader_parameter(&"cycle_s", stroke_cycle_s(tuning))
+	material.set_shader_parameter(&"draw_frac", maxf(tuning.streak_draw_frac, MIN_PHASE_FRAC))
+	material.set_shader_parameter(&"erase_frac", maxf(tuning.streak_erase_frac, MIN_PHASE_FRAC))
+	material.set_shader_parameter(&"tip_taper", tuning.streak_tip_taper)
+	material.set_shader_parameter(&"peak_bias", tuning.swoosh_width_peak_bias)
+	material.set_shader_parameter(&"min_foreshorten", tuning.swoosh_min_foreshorten)
+	material.set_shader_parameter(&"length_variation", tuning.swoosh_length_variation)
+	material.set_shader_parameter(&"parallel_shrink", tuning.swoosh_parallel_shrink)
+	material.set_shader_parameter(&"parallel_lag", tuning.swoosh_parallel_lag_frac)
+	material.set_shader_parameter(&"anchor_frac", tuning.swoosh_anchor_frac)
+	material.set_shader_parameter(&"life", 1.0)
+	material.set_shader_parameter(&"density", intensity)
+	material.set_shader_parameter(&"near_fade_m", Vector2(tuning.streak_near_fade_start_m, tuning.streak_near_fade_end_m))
+	material.set_shader_parameter(&"fade_far_m", tuning.fade_far_m)
+	return material
+
+
+## INSTANCE_CUSTOM = (stratified cluster rank 0..1, cycle phase, parallel index in the
+## cluster (-1, 0, 1 ...), per-stroke variation). A cluster of 1..swoosh_group_max
+## parallel strokes shares a spot, a rank and a phase.
+func _build_swoosh_multimesh(mesh: ArrayMesh, count: int, rng: RandomNumberGenerator) -> MultiMesh:
+	var multimesh: MultiMesh = MultiMesh.new()
+	multimesh.transform_format = MultiMesh.TRANSFORM_3D
+	multimesh.use_custom_data = true
+	multimesh.mesh = mesh
+	multimesh.instance_count = count
+	var sizes: Array[int] = []
+	var placed: int = 0
+	while placed < count:
+		var size: int = mini(rng.randi_range(1, maxi(tuning.swoosh_group_max, 1)), count - placed)
+		sizes.append(size)
+		placed += size
+	var index: int = 0
+	for group: int in range(sizes.size()):
+		var rank: float = (float(group) + rng.randf()) / float(sizes.size())
+		var phase: float = rng.randf()
+		for k: int in range(sizes[group]):
+			var parallel: float = float(k) - float(sizes[group] - 1) * 0.5
+			multimesh.set_instance_transform(index, Transform3D.IDENTITY)
+			multimesh.set_instance_custom_data(index, Color(rank, phase, parallel, rng.randf()))
+			index += 1
+	return multimesh
+
+
+func _add_instance(instance_name: String, multimesh: MultiMesh, material: ShaderMaterial) -> void:
+	var half: float = tuning.area_half_extent_m
+	var half_y: float = (tuning.area_max_height_m - tuning.area_min_height_m) * 0.5
 	var instance: MultiMeshInstance3D = MultiMeshInstance3D.new()
-	instance.name = "Streaks" if kind == KIND_STREAK else "Motes"
+	instance.name = instance_name
 	instance.multimesh = multimesh
 	instance.material_override = material
 	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -186,11 +297,11 @@ func _add_kind(kind: int, count: int) -> void:
 	# DiscMirror's cull mask excludes; mirrored streaks aimed at the camera
 	# read as grey squares on the disc.
 	instance.layers = RainPresentation.RENDER_LAYER_BIT
-	var extent: float = maxf(half, half_y) * 2.0
+	# The swoosh strokes drift up to a life downwind of the box.
+	var extent: float = (maxf(half, half_y) + tuning.streak_life_m) * 2.0
 	instance.custom_aabb = AABB(Vector3.ONE * -extent, Vector3.ONE * extent * 2.0)
 	add_child(instance)
 	_instances.append(instance)
-	_materials.append(material)
 
 
 func _quad_mesh() -> QuadMesh:
@@ -199,24 +310,57 @@ func _quad_mesh() -> QuadMesh:
 	return quad
 
 
-## A flat strip along x (-0.5..0.5) with UV.x = fraction along it, so the shader
-## can taper, bow and draw it on. VERTEX.y = +-0.5 marks the two edges.
-func _ribbon_mesh() -> ArrayMesh:
-	var vertices: PackedVector3Array = PackedVector3Array()
+## Builds the unit-arc-length swoosh ribbon: a gently waving lead-in then a
+## curling hook. VERTEX = centerline (x, y, 0), NORMAL = (nx, ny, 0), UV = (arc
+## fraction, side -1/+1). Static so tests can inspect the shape.
+static func build_swoosh_ribbon(wind_tuning: StormTuning, curled: bool = true) -> ArrayMesh:
+	var segments: int = maxi(wind_tuning.swoosh_ribbon_segments, MIN_RIBBON_SEGMENTS)
+	var radius: float = maxf(wind_tuning.swoosh_curl_radius_frac, 0.01)
+	var tighten: float = clampf(wind_tuning.swoosh_curl_tighten, 0.0, MAX_CURL_TIGHTEN)
+	var total_angle: float = maxf(wind_tuning.swoosh_curl_turns, 0.05) * TAU
+	# DECISION: the curl arc is analytic (R * angle * (1 - tighten / 2)); the
+	# lead-in takes whatever arc remains of the unit length (at least a fifth).
+	var curl_arc: float = minf(radius * total_angle * (1.0 - tighten * 0.5), MAX_CURL_ARC_FRAC) if curled else 0.0
+	var body_arc: float = 1.0 - curl_arc
+	var body_count: int = clampi(int(round(float(segments) * body_arc)), 2, segments - 2) if curled else segments
+	var curl_count: int = segments - body_count
+	var points: Array[Vector2] = [Vector2.ZERO]
+	var pos: Vector2 = Vector2.ZERO
+	var step: float = body_arc / float(body_count)
+	for i: int in range(body_count):
+		var u: float = (float(i) + 0.5) / float(body_count)
+		var theta: float = wind_tuning.swoosh_body_swing_rad * sin(TAU * u)
+		pos += Vector2(cos(theta), sin(theta)) * step
+		points.append(pos)
+	var d_phi: float = total_angle / float(maxi(curl_count, 1))
+	for i: int in range(curl_count):
+		var phi_mid: float = (float(i) + 0.5) * d_phi
+		var r: float = radius * (1.0 - tighten * phi_mid / total_angle)
+		pos += Vector2(cos(phi_mid), sin(phi_mid)) * r * d_phi
+		points.append(pos)
+	var lengths: PackedFloat32Array = PackedFloat32Array([0.0])
+	for i: int in range(1, points.size()):
+		lengths.append(lengths[i - 1] + points[i].distance_to(points[i - 1]))
+	var verts: PackedVector3Array = PackedVector3Array()
+	var normals: PackedVector3Array = PackedVector3Array()
 	var uvs: PackedVector2Array = PackedVector2Array()
 	var indices: PackedInt32Array = PackedInt32Array()
-	for i: int in range(RIBBON_SEGMENTS + 1):
-		var t: float = float(i) / float(RIBBON_SEGMENTS)
-		vertices.append(Vector3(t - 0.5, -0.5, 0.0))
-		uvs.append(Vector2(t, 0.0))
-		vertices.append(Vector3(t - 0.5, 0.5, 0.0))
-		uvs.append(Vector2(t, 1.0))
-	for i: int in range(RIBBON_SEGMENTS):
-		var a: int = i * 2
-		indices.append_array(PackedInt32Array([a, a + 1, a + 2, a + 1, a + 3, a + 2]))
+	var last: int = points.size() - 1
+	for i: int in range(points.size()):
+		var tangent: Vector2 = (points[mini(i + 1, last)] - points[maxi(i - 1, 0)]).normalized()
+		var normal: Vector2 = Vector2(-tangent.y, tangent.x)
+		var t: float = lengths[i] / lengths[last]
+		for side: float in [-1.0, 1.0]:
+			verts.append(Vector3(points[i].x, points[i].y, 0.0))
+			normals.append(Vector3(normal.x, normal.y, 0.0))
+			uvs.append(Vector2(t, side))
+		if i < last:
+			var a: int = i * 2
+			indices.append_array(PackedInt32Array([a, a + 1, a + 2, a + 1, a + 3, a + 2]))
 	var arrays: Array = []
 	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = normals
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
 	arrays[Mesh.ARRAY_INDEX] = indices
 	var mesh: ArrayMesh = ArrayMesh.new()
