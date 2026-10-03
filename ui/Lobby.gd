@@ -47,6 +47,12 @@ signal back_requested
 ## players panel. Never touches the MenuVisualTuning look above.
 @export var layout_tuning: LobbyLayoutTuning = preload("res://config/lobby_layout_tuning.tres")
 
+## Bontago-1pi.53 (PL1b): the lobby-data key of the seat table (LobbySeats: humans + bots
+## with colour / team / difficulty), next to "roster". Published by _publish_lobby_data,
+## read by _apply_data, and carried across the results screen's republish
+## (ResultsScreen.LOBBY_SEATS_KEY points here).
+const SEATS_KEY: String = "seats"
+
 ## DECISION (ui/Lobby.gd, M6 A4): MatchConfig.enabled_specials already means
 ## "empty = every special enabled" (config/MatchConfig.gd's own doc comment),
 ## so unchecking every %SpecialsChecklist box can't publish an empty array --
@@ -100,6 +106,12 @@ var net_provider: Variant = null:
 ## read and write of `.value` / `.selected`, the host-only gating, the bot clamp and
 ## the round trip are unchanged, and the panel drives them (_on_teams_toggled,
 ## _set_bot_count). They are never focus stops.
+## DECISION (ui/Lobby.gd, PL1b): with the panel's Teams toggle and "+ Add bot" button now
+## the only way to change them (PL1b), they are no longer a temporary fallback but the
+## state holders docs/LOBBY_REWORK_PLAN.md D6 chose: _config_from_controls() /
+## _apply_data() / _clamp_ai_count_to_seats() and every existing lobby test read and
+## write them, so removing them would rewrite the whole config round trip (and
+## tests/unit/test_lobby.gd's 31 references) for no player-visible change.
 @onready var _player_count_spin: SpinBox = %PlayerCountSpin
 @onready var _ai_count_spin: SpinBox = %AiCountSpin
 @onready var _ai_difficulty_option: OptionButton = %AiDifficultyOption
@@ -1065,7 +1077,7 @@ func _publish_lobby_data(config: MatchConfig) -> void:
 	# key, so a lobby without one publishes the exact dict it always did.
 	var seats: Dictionary = _players_panel.seats_data()
 	if not seats.is_empty():
-		data["seats"] = seats
+		data[SEATS_KEY] = seats
 	net_provider.set_lobby_data(data)
 	_apply_data(data)
 
@@ -1221,7 +1233,7 @@ func _apply_data(data: Dictionary) -> void:
 	# Bontago-1pi.53 (E1): the panel gets the applied config, the dict's roster (null
 	# when it carried none: the rows stay) and its seat table ({} when absent or not a
 	# Dictionary off the wire).
-	var seats_variant: Variant = data.get("seats", {})
+	var seats_variant: Variant = data.get(SEATS_KEY, {})
 	var seats: Dictionary = seats_variant as Dictionary if seats_variant is Dictionary else {}
 	_players_panel.apply(config, data["roster"] if data.has("roster") else null, seats)
 
@@ -1259,10 +1271,9 @@ func _on_seats_changed() -> void:
 ## OFF or TEAMS_4 ("on, up to 4 teams") into the hidden %TeamModeOption, the
 ## source of truth for config.team_mode; legacy TEAMS_2/3 data stays valid when it
 ## arrives. Host only: a client's controls are read-only.
-## DECISION (ui/Lobby.gd, Bontago-1pi.53 S1b): the segmented Teams control left the settings
-## card, so until the panel's own Teams toggle (PL1b) emits teams_toggled this handler -- and
-## lobby data carrying a team_mode -- is the only way teams switch on; %TeamModeOption stays
-## hidden-but-functional, so starting a team match through the round trip is unchanged.
+## PL1b: the panel's Teams toggle emits teams_toggled (it re-seeded its team picks first);
+## %TeamModeOption stays hidden-but-functional (see the %HiddenSources DECISION above), so
+## lobby data carrying a team_mode round-trips unchanged.
 func _on_teams_toggled(enabled: bool) -> void:
 	if not _is_host_session():
 		return
@@ -1417,7 +1428,6 @@ func _on_start_pressed() -> void:
 	# button -- so the gate is rechecked here.
 	if _players_panel.start_blocker() != "":
 		return
-	Sfx.play(AudioConfig.EVENT_START_GAME)
 	var config: MatchConfig = (
 		_last_config if _last_config != null else _config_from_controls()
 	).duplicate(true) as MatchConfig
@@ -1444,8 +1454,13 @@ func _on_start_pressed() -> void:
 	# Bontago-1pi.53 (E1, P1 review F1): the panel resolves/flattens its seat picks
 	# into the start config only AFTER the clamp above -- MatchConfig.sanitize()
 	# silently drops team arrays whose length differs from player_count, and the
-	# clamp is what settles player_count/ai_count.
-	_players_panel.finalize_start_config(config)
+	# clamp is what settles player_count/ai_count. PL1b: it reconciles the seat table with
+	# Net's CURRENT slot map first (slots move on a lobby leave/kick) and returns the reason
+	# when the seats cannot become match slots; the config is then untouched and nothing
+	# starts.
+	if _players_panel.finalize_start_config(config) != "":
+		return
+	Sfx.play(AudioConfig.EVENT_START_GAME)
 	start_requested.emit(config)
 
 

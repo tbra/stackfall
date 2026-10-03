@@ -56,9 +56,9 @@ const _AI_DIFFICULTY_LABELS: Array[String] = ["Easy", "Normal", "Hard"]
 ## Lobby-data key of the lobby rework's seat table (LobbySeats: humans + bots with
 ## colour/team/difficulty). Republishing the config for the next lobby visit must
 ## carry it across like "roster", or the lobby falls back to default seats.
-## DECISION (ui/ResultsScreen.gd, Bontago-1pi.53): spelled here until the lobby
-## package (E1/PL1) owns a shared constant; the literal is the plan's wire key.
-const LOBBY_SEATS_KEY: String = "seats"
+## Bontago-1pi.53 (PL1b): the key's single definition is Lobby.SEATS_KEY; this alias keeps
+## the results screen's own name (and tests/unit/test_team_slots.gd) working.
+const LOBBY_SEATS_KEY: String = Lobby.SEATS_KEY
 
 ## Column header labels, in the same order _build_row_cells() below emits
 ## per-row text -- kept next to each other so a column can never drift out of

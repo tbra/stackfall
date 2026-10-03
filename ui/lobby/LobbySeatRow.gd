@@ -14,7 +14,7 @@ extends PanelContainer
 ##
 ## The row is a view: it never touches the seat table. It reports what the player
 ## asked for through the four request signals and the LobbyPlayersPanel (which owns
-## the table) applies it and redraws. A row is immutable once built(); a change of
+## the table) applies it and redraws -- or, for a client's own row, sends it to the host. A row is immutable once built(); a change of
 ## seat, colour, team mode or editable state is a fresh row.
 ##
 ## Gamepad / keyboard: every control the player may use is focusable (the panel hands
@@ -61,7 +61,9 @@ var show_team: bool = false
 var difficulty: int = MatchConfig.AiDifficulty.NORMAL
 var is_bot: bool = false
 var is_ready: bool = false
-## Host: the controls work. Client: the same row, read-only.
+## The controls work: the host's on every seat, a client's on its OWN row only (colour and
+## team; PL1b -- the panel turns its clicks into Net.request_seat_pref). Anyone else's row
+## is the same row, read-only.
 var editable: bool = false
 
 # --- Built by build() ------------------------------------------------------------------

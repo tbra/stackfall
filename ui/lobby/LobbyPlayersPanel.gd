@@ -11,13 +11,27 @@ extends VBoxContainer
 ## with the live roster and config on every apply / roster change / host publish,
 ## draws every row from it, and applies the HOST's edits (colour click, team click,
 ## bot difficulty, remove bot) through LobbySeats, then redraws and emits
-## [signal seats_changed] (or [signal remove_bot_requested]). A client's rows are
-## read-only here (PL1b adds the client's own-seat requests).
+## [signal seats_changed] (or [signal remove_bot_requested]).
+##
+## **PL1b: header controls, self-edit, Start.** The header carries the host's "Teams"
+## toggle and "+ Add bot" button ([signal teams_toggled], [signal add_bot_requested];
+## a client sees the toggle read-only and no Add button). A CLIENT edits only its OWN
+## row's colour and team: the click is sent as
+## `net_provider.request_seat_pref(colour, team)` and the row follows the next lobby-data
+## echo (no optimistic update). The HOST applies a client's request from
+## Events.net_seat_pref_requested through LobbySeats.apply_human_pref (exact team cap,
+## colour swap) and republishes -- only while the lobby is still open (a host, no Start
+## committed, no match in progress; Net refuses mid-match requests too). Start:
+## [method finalize_start_config] reconciles the table with Net's CURRENT slot map
+## (slots move when a player leaves or is kicked, so no slot is ever cached) and
+## flattens it LAST into the start config; [method start_blocker] says why Start must
+## wait (teams on and everyone explicitly on one team, a seat clash) and the same text
+## is shown under the rows.
 ##
 ## **What stays in the Lobby.** The hidden spins (%PlayerCountSpin, %AiCountSpin),
 ## %TeamModeOption and every publish/clamp rule: the panel never writes a control
-## and never talks to Net itself except for read-only queries through
-## [member net_provider] (the same `Variant` test seam the Lobby uses). It reports
+## and talks to Net only through [member net_provider] (the same `Variant` test seam
+## the Lobby uses): read-only queries, plus a client's own-seat request. It reports
 ## what the player asked for through signals; the Lobby turns that into a config
 ## edit and republishes.
 ##
@@ -32,18 +46,19 @@ extends VBoxContainer
 ##   "write no key" (no table yet). [method build_roster] reconciles the table with the
 ##   publish's own config and the live peers FIRST, so the table that follows it in
 ##   `_publish_lobby_data` is already current.
-## - [method finalize_start_config]`(config)` -- Start: called AFTER the Lobby clamped
-##   [method MatchConfig.clamp_to_connected_peers] (P1 review F1: sanitize drops team
-##   arrays whose length differs from player_count, so flattening must see the
-##   clamped count); must resolve teams freshly each Start. PL1a: no-op (PL1b).
+## - [method finalize_start_config]`(config) -> String` -- Start: called AFTER the Lobby
+##   clamped [method MatchConfig.clamp_to_connected_peers] (P1 review F1: sanitize drops
+##   team arrays whose length differs from player_count, so flattening must see the
+##   clamped count); resolves teams freshly each Start. Returns "" or the reason Start
+##   must not go ahead (the config is then untouched).
 ## - [method start_blocker] -- non-empty reason disables Start and is shown as the
-##   Start button's tooltip (F4). PL1a: always "" (PL1b).
+##   Start button's tooltip and under the rows (F4).
 ## - [method set_editable] -- host/client gate, pushed by the Lobby every frame (rows
 ##   are only redrawn when it changes).
 ## - [method focus_entries] + [signal focus_entries_changed] -- controls the Lobby
-##   adds to its focus loop; the signal is emitted whenever rows are redrawn. PL1a: the
-##   host's colour box, team button, difficulty dropdown and remove button of every row
-##   (none for a client).
+##   adds to its focus loop; the signal is emitted whenever rows are redrawn. The host's
+##   Teams toggle and Add bot button, then the colour box, team button, difficulty
+##   dropdown and remove button of every row; a client's own colour box and team button.
 ## - Signals [signal seats_changed], [signal teams_toggled], [signal add_bot_requested],
 ##   [signal remove_bot_requested]: the panel updates its own seat table FIRST and
 ##   emits second; the Lobby republishes (host only), so [method seats_data] already
@@ -51,15 +66,13 @@ extends VBoxContainer
 
 # DECISION (ui/lobby/LobbyPlayersPanel.gd, E1): these signals are the contract the
 # seat-row packages (PL1a/PL1b) emit from this class; E1 installed them and the
-# Lobby's connections. teams_toggled and add_bot_requested are PL1b's (the header
-# controls), so the unused-signal warning stays silenced on those two.
+# Lobby's connections.
 ## The seat table changed (colour, team pick or bot difficulty): republish.
 signal seats_changed
-## The host flipped the Teams toggle (PL1b).
-@warning_ignore("unused_signal")
+## The host flipped the Teams toggle (PL1b). The panel has already re-seeded its team
+## picks (1, 2, 1, 2, ... when switched on); the Lobby writes team_mode and republishes.
 signal teams_toggled(enabled: bool)
-## The host pressed "+ Add bot" (PL1b).
-@warning_ignore("unused_signal")
+## The host pressed "+ Add bot" (PL1b); the Lobby grows ai_count by one and republishes.
 signal add_bot_requested
 ## The host removed the bot at [param ordinal] (0 = the first bot row). The panel has
 ## already dropped it from its own table.
@@ -91,6 +104,9 @@ var palette: PackedColorArray = PackedColorArray()
 
 @onready var _player_list: VBoxContainer = %PlayerList
 @onready var _player_count_label: Label = %PlayerCountLabel
+@onready var _teams_toggle: CheckButton = %TeamsToggle
+@onready var _add_bot_button: Button = %AddBotButton
+@onready var _start_blocker_label: Label = %StartBlockerLabel
 
 var _config: MatchConfig = null
 ## The seat table: the dict's table until a roster has been seen, afterwards always
@@ -107,6 +123,26 @@ var _roster_seen: bool = false
 ## config.ai_difficulty of the last applied/published config: a change is the old
 ## %AiDifficultyOption talking ("every bot is now Hard"), see _sync_seats().
 var _default_difficulty: int = LobbySeats.UNSET
+## Start went through finalize_start_config(): the lobby is closed for seat edits (a
+## client's late request must not touch a table the match was just built from). Reset
+## when the panel is shown again.
+var _start_committed: bool = false
+## start_blocker() is asked every frame: the answer is recomputed only when its inputs
+## (live slot map, seat table, team cap, bot count/difficulty) change.
+var _blocker_inputs: int = 0
+var _blocker_text: String = ""
+var _blocker_known: bool = false
+## Which header controls were focus stops at the last _refresh_header() (-1 = never): a change
+## tells the Lobby to rewire its loop even when no row was redrawn.
+var _header_focus_state: int = -1
+
+
+func _ready() -> void:
+	_teams_toggle.toggled.connect(_on_teams_toggle_toggled)
+	_add_bot_button.pressed.connect(_on_add_bot_pressed)
+	visibility_changed.connect(_on_visibility_changed)
+	Events.net_seat_pref_requested.connect(_on_seat_pref_requested)
+	_refresh_header()
 
 
 # --- Hooks the Lobby calls -----------------------------------------------------
@@ -114,6 +150,16 @@ var _default_difficulty: int = LobbySeats.UNSET
 ## Styling that used to live in the Lobby's _apply_visual_style().
 func apply_visual_style() -> void:
 	_player_count_label.add_theme_color_override("font_color", tuning.ink_color)
+	# PL1b: the header controls are the same chip / pill family as the rest of the screen
+	# (cream off, mint on; powder blue like the team numbers); no new colours.
+	MenuStyleFactory.apply_toggle_chip(
+		_teams_toggle, tuning.pill_cream_color, tuning.pill_cream_hover_color,
+		tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning
+	)
+	MenuStyleFactory.apply_pill(
+		_add_bot_button, tuning.pill_powder_blue_color, tuning.pill_powder_blue_hover_color, tuning.ink_color, tuning
+	)
+	_start_blocker_label.add_theme_color_override("font_color", tuning.ink_color)
 
 
 ## One lobby-data apply (Lobby._apply_data(), after the controls were written).
@@ -123,13 +169,16 @@ func apply(config: MatchConfig, roster: Variant, seats: Dictionary) -> void:
 	_config = config
 	_default_difficulty = config.ai_difficulty
 	if not seats.is_empty():
-		_seats = seats.duplicate(true)
+		# Off the wire: a well-formed table before any accessor touches it.
+		_seats = LobbySeats.normalize(seats)
 	if roster != null:
 		_humans = _human_entries(roster)
 		_roster_seen = true
 	if _roster_seen:
 		_reconcile_current()
 		_render()
+	else:
+		_refresh_header()
 
 
 ## DECISION (ui/Lobby.gd, Bontago-mv0.6): Events.net_roster_changed's payload is the
@@ -203,26 +252,60 @@ func seats_data() -> Dictionary:
 	return _seats.duplicate(true)
 
 
-## Start hook, see the header. DECISION (PL1a): the flatten into the start config and
-## the teams start blocker are PL1b's (they need the Start path's slot map and the
-## Teams toggle); until then Start is the legacy one.
-func finalize_start_config(_config_to_start: MatchConfig) -> void:
-	pass
-
-
-## Start gate hook, see the header. PL1a: nothing blocks Start.
-func start_blocker() -> String:
+## Start hook, see the header. Called by Lobby._on_start_pressed() with the config about
+## to start, AFTER MatchConfig.clamp_to_connected_peers(): reconciles the seat table with
+## the live seated peers and Net's CURRENT slot map (never a remembered one: a lobby
+## leave or kick renumbers the slots), then LobbySeats.flatten_to_config() writes the
+## seats' colours, bot difficulties and (teams on) resolved teams into `config_to_start`,
+## LAST, so nothing after it can change player_count and drop the per-slot arrays.
+## Returns "" on success; otherwise the reason (the config is untouched and the Lobby
+## does not start). Random picks resolve afresh on every call.
+## DECISION (ui/lobby/LobbyPlayersPanel.gd, PL1b): the team shuffle's base seed is the
+## match seed when the lobby has one, else a host randi() (LobbySeats.resolve_seed; the
+## result rides in slot_team_ids / team_numbers, so no peer ever re-resolves it).
+func finalize_start_config(config_to_start: MatchConfig) -> String:
+	if net_provider == null:
+		return ""
+	var slot_map: Dictionary = _live_slot_map()
+	var table: Dictionary = _live_table(config_to_start, slot_map)
+	var reason: String = LobbySeats.flatten_to_config(
+		table, slot_map, config_to_start, LobbySeats.resolve_seed(config_to_start, randi())
+	)
+	if not reason.is_empty():
+		return reason
+	_start_committed = true
+	_refresh_header()
 	return ""
 
 
+## Start gate hook, see the header: "" when Start may go ahead (also for a client, which
+## has no Start). Cached against its inputs, since the Lobby asks every frame.
+func start_blocker() -> String:
+	if not _is_editable or _config == null or net_provider == null:
+		return ""
+	var slot_map: Dictionary = _live_slot_map()
+	var cap: int = _team_cap()
+	var inputs: int = hash([slot_map, _seats, cap, _config.ai_count, _config.ai_difficulty])
+	if not _blocker_known or inputs != _blocker_inputs:
+		_blocker_inputs = inputs
+		_blocker_known = true
+		_blocker_text = LobbySeats.start_blocker(_live_table(_config, slot_map), slot_map, cap)
+		_show_blocker()
+	return _blocker_text
+
+
 ## Host/client gate, pushed by the Lobby every frame: rows are drawn live for the host
-## and read-only for everyone else, and only a CHANGE redraws them.
+## (and a client's own row for it) and read-only for everyone else, and only a CHANGE
+## redraws them.
 func set_editable(is_host: bool) -> void:
 	if is_host == _is_editable:
 		return
 	_is_editable = is_host
 	if _roster_seen:
 		_render()
+	else:
+		_refresh_header()
+	_show_blocker()
 
 
 ## What the Lobby last pushed through [method set_editable].
@@ -230,10 +313,15 @@ func is_editable() -> bool:
 	return _is_editable
 
 
-## Controls the Lobby adds to its focus loop, in visual order: per row the colour box,
-## the team button, a bot's difficulty dropdown and its remove button -- host only.
+## Controls the Lobby adds to its focus loop, in visual order: the host's Teams toggle
+## and Add bot button, then per row the colour box, the team button, a bot's difficulty
+## dropdown and its remove button -- every row for the host, only its own row's colour
+## box and team button for a client. A disabled header control is no focus stop.
 func focus_entries() -> Array[Control]:
 	var entries: Array[Control] = []
+	for header_control: Control in [_teams_toggle, _add_bot_button]:
+		if header_control.visible and header_control.focus_mode != Control.FOCUS_NONE:
+			entries.append(header_control)
 	for row_node: Node in _player_rows:
 		var row: LobbySeatRow = row_node as LobbySeatRow
 		entries.append_array(row.focusable_controls())
@@ -312,14 +400,27 @@ func _seats_edited() -> void:
 	seats_changed.emit()
 
 
+## Host: edits the table. Client (own row only): asks the host for the next colour; the
+## row changes when the host's lobby data comes back.
 func _on_color_cycle_requested(key: int, backwards: bool) -> void:
-	if _is_editable and LobbySeats.cycle_color(_seats, key, backwards):
-		_seats_edited()
+	if _is_editable:
+		if LobbySeats.cycle_color(_seats, key, backwards):
+			_seats_edited()
+	elif _is_own_seat(key):
+		var current: int = LobbySeats.color_of(_seats, key)
+		if current != LobbySeats.UNSET:
+			net_provider.request_seat_pref(posmod(current + (-1 if backwards else 1), LobbySeats.palette_size()), LobbySeats.UNCHANGED)
 
 
+## Same split for the team pick: the host edits, a client asks for its own.
 func _on_team_cycle_requested(key: int, backwards: bool) -> void:
-	if _is_editable and LobbySeats.cycle_team(_seats, key, _team_cap(), backwards):
-		_seats_edited()
+	if _is_editable:
+		if LobbySeats.cycle_team(_seats, key, _team_cap(), backwards):
+			_seats_edited()
+	elif _is_own_seat(key) and _team_cap() > 0:
+		var current: int = LobbySeats.team_of(_seats, key)
+		if current != LobbySeats.UNSET:
+			net_provider.request_seat_pref(LobbySeats.UNCHANGED, TeamAssigner.next_pick(current, _team_cap(), backwards))
 
 
 func _on_difficulty_chosen(key: int, difficulty: int) -> void:
@@ -334,6 +435,125 @@ func _on_remove_requested(key: int) -> void:
 		return
 	_render()
 	remove_bot_requested.emit(LobbySeats.bot_ordinal(key))
+
+
+# --- Header controls, client self-edit, Start (PL1b) ----------------------------------
+
+## True while seat edits are welcome: this is the host's lobby, Start has not gone
+## through, and no match is running. Net refuses mid-match requests itself; the lobby
+## re-checks because the stretch between Start's flatten and Net's match flag (the
+## loading overlay's pre-start frames) belongs to this screen, not to Net.
+## DECISION (ui/lobby/LobbyPlayersPanel.gd, PL1b): `match_in_progress` is asked only when
+## the provider has it (the real Net does; the FakeNet test double does not).
+func _lobby_open() -> bool:
+	if not _is_editable or _start_committed or net_provider == null:
+		return false
+	return not (net_provider.has_method(&"match_in_progress") and bool(net_provider.match_in_progress()))
+
+
+## `key` is the local player's own human seat (the one a client may edit).
+func _is_own_seat(key: int) -> bool:
+	return net_provider != null and key > LobbySeats.KEY_NONE and key == int(net_provider.local_peer_id())
+
+
+## The Teams toggle. Switching ON re-seeds every pick (1, 2, 1, 2, ... in seat order,
+## plan section 2); OFF keeps the picks hidden. The table changes first, then the Lobby
+## is asked to write team_mode (OFF or TEAMS_4: "on, up to 4 teams") and republish.
+func _on_teams_toggle_toggled(pressed: bool) -> void:
+	if not _lobby_open():
+		_refresh_header()
+		return
+	if pressed:
+		LobbySeats.seed_team_picks(_seats)
+	teams_toggled.emit(pressed)
+	_refresh_header()
+
+
+## "+ Add bot". DECISION (ui/lobby/LobbyPlayersPanel.gd, PL1b): the table is NOT edited
+## here -- the Lobby grows ai_count and its publish reconciles the table, which appends
+## the new bot exactly as LobbySeats.add_bot would (lowest free colour, the smaller of
+## teams 1/2, the lobby's default difficulty). The cap is 8 seats (humans + bots).
+func _on_add_bot_pressed() -> void:
+	if not _lobby_open() or LobbySeats.seat_count(_seats) >= MatchConfig.PLAYER_COUNT_MAX:
+		return
+	add_bot_requested.emit()
+
+
+## A client's own-seat request (Net.request_seat_pref -> Events.net_seat_pref_requested;
+## Net already vetoed an unknown / spectator sender and out-of-range values). Applied
+## only while the lobby is open, through the exact team cap and the colour swap rule; a
+## refused or no-op request changes and publishes nothing.
+func _on_seat_pref_requested(peer_id: int, color_index: int, team_pick: int) -> void:
+	if not _lobby_open():
+		return
+	_reconcile_current()
+	if LobbySeats.apply_human_pref(_seats, peer_id, color_index, team_pick, _team_cap()):
+		_seats_edited()
+
+
+func _on_visibility_changed() -> void:
+	if is_visible_in_tree():
+		_start_committed = false
+		_refresh_header()
+
+
+## The header controls' state from the applied config and the panel's role: the Teams
+## toggle shows whether teams are on (live for the host, read-only for a client), "+ Add
+## bot" exists for the host and is disabled when all 8 seats are taken. A control that
+## cannot be used is no focus stop; focus that sat on one that just went away moves to
+## the Teams toggle.
+func _refresh_header() -> void:
+	var open: bool = _lobby_open()
+	_teams_toggle.set_pressed_no_signal(_team_cap() > 0)
+	_teams_toggle.disabled = not open
+	_teams_toggle.focus_mode = Control.FOCUS_ALL if open else Control.FOCUS_NONE
+	_add_bot_button.visible = _is_editable
+	var add_enabled: bool = open and LobbySeats.seat_count(_seats) < MatchConfig.PLAYER_COUNT_MAX
+	var add_had_focus: bool = _add_bot_button.has_focus()
+	_add_bot_button.disabled = not add_enabled
+	_add_bot_button.focus_mode = Control.FOCUS_ALL if add_enabled else Control.FOCUS_NONE
+	if add_had_focus and not add_enabled:
+		_add_bot_button.release_focus()
+		_grab(_teams_toggle)
+	_show_blocker()
+	var focus_state: int = int(open) + 2 * int(add_enabled)
+	if focus_state != _header_focus_state:
+		_header_focus_state = focus_state
+		focus_entries_changed.emit()
+
+
+## The start blocker's text under the rows (host only, empty = hidden).
+func _show_blocker() -> void:
+	var text: String = _blocker_text if _is_editable else ""
+	_start_blocker_label.text = text
+	_start_blocker_label.visible = not text.is_empty()
+
+
+## {peer_id: slot_id} of every peer Net lists RIGHT NOW. Never cached: the host's slots
+## move when a player leaves or is kicked and when the lobby is re-entered.
+func _live_slot_map() -> Dictionary:
+	var slot_map: Dictionary = {}
+	if net_provider == null:
+		return slot_map
+	for peer_id: int in net_provider.peer_ids():
+		slot_map[peer_id] = int(net_provider.slot_of_peer(peer_id))
+	return slot_map
+
+
+## The seat table brought in line with `slot_map` and `config` just before it is judged or
+## flattened: seated peers only (a spectator holds no seat), in slot order; a peer that
+## joined since the last publish gets its defaults, one that left drops out, and the bot
+## list follows config.ai_count. A fresh table: the panel's own is not touched.
+func _live_table(config: MatchConfig, slot_map: Dictionary) -> Dictionary:
+	var seated: Array[int] = []
+	for peer_id: int in slot_map.keys():
+		if int(slot_map[peer_id]) >= 0:
+			seated.append(peer_id)
+	seated.sort_custom(func(a: int, b: int) -> bool:
+		return int(slot_map[a]) < int(slot_map[b])
+	)
+	var peer_ids: PackedInt32Array = PackedInt32Array(seated)
+	return LobbySeats.reconcile(_seats, peer_ids, config.ai_count, config.ai_difficulty, config.team_pick_cap())
 
 
 # --- Rendering -------------------------------------------------------------------
@@ -379,6 +599,7 @@ func _render() -> void:
 	for ordinal: int in range(bot_total):
 		ready_count += 1
 		_add_row(_build_bot_row(ordinal))
+	_refresh_header()
 	_restore_focus(focus_memory)
 	roster_rendered.emit(ready_count, _player_rows.size())
 	focus_entries_changed.emit()
@@ -441,7 +662,8 @@ func _new_row(key: int) -> LobbySeatRow:
 	var row: LobbySeatRow = LobbySeatRow.new()
 	row.seat_key = key
 	row.seat_color = _seat_color(key)
-	row.editable = _is_editable and key != LobbySeats.KEY_NONE
+	# The host works every seat; a client only its own (colour and team).
+	row.editable = key != LobbySeats.KEY_NONE and (_is_editable or _is_own_seat(key))
 	row.show_team = _team_cap() > 0
 	row.team_pick = maxi(LobbySeats.team_of(_seats, key), MatchConfig.TEAM_PICK_RANDOM)
 	return row
