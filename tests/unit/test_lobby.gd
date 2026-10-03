@@ -134,16 +134,27 @@ func test_host_changing_a_setting_publishes_lobby_data() -> void:
 	assert_eq(int(calls[0].get("player_count")), 6)
 
 
-## Bontago-mp0.3.5 (mockup 11's TEAMS segmented control): pressing one of the
-## four visible buttons writes into the hidden %TeamModeOption and publishes
-## exactly like any other host edit -- ui/Lobby.gd's own _on_team_button_pressed().
-func test_host_pressing_a_team_segmented_button_publishes_lobby_data() -> void:
+## Bontago-1pi.53 (S1b): the segmented Teams control left the settings card; the players
+## panel's Teams toggle (signal teams_toggled) writes OFF / TEAMS_4 into the hidden
+## %TeamModeOption and publishes exactly like any other host edit (_on_teams_toggled()).
+func test_host_toggling_teams_publishes_lobby_data() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	(lobby.get_node("%Team3Button") as Button).emit_signal("pressed")
+	_panel_of(lobby).teams_toggled.emit(true)
 	var calls: Array[Dictionary] = _fake_of(lobby).set_lobby_data_calls
 	assert_eq(calls.size(), 1)
-	assert_eq(int(calls[0].get("team_mode")), MatchConfig.TeamMode.TEAMS_3)
-	assert_eq((lobby.get_node("%TeamModeOption") as OptionButton).selected, MatchConfig.TeamMode.TEAMS_3)
+	assert_eq(int(calls[0].get("team_mode")), MatchConfig.TeamMode.TEAMS_4)
+	assert_eq((lobby.get_node("%TeamModeOption") as OptionButton).selected, MatchConfig.TeamMode.TEAMS_4)
+	_panel_of(lobby).teams_toggled.emit(false)
+	assert_eq(calls.size(), 2)
+	assert_eq(int(calls[1].get("team_mode")), MatchConfig.TeamMode.OFF)
+
+
+## A client's Teams toggle never edits or publishes (host only).
+func test_a_client_teams_toggle_is_ignored() -> void:
+	var lobby: Lobby = _make_lobby(false)
+	_panel_of(lobby).teams_toggled.emit(true)
+	assert_eq(_fake_of(lobby).set_lobby_data_calls.size(), 0)
+	assert_eq((lobby.get_node("%TeamModeOption") as OptionButton).selected, MatchConfig.TeamMode.OFF)
 
 
 ## Bontago-mp0.3.5 (review r2, item 1): %MapComboOption's own handler decodes
@@ -214,8 +225,6 @@ func test_every_2_8_setting_round_trips_through_to_dict_and_from_dict() -> void:
 	assert_eq(int((lobby.get_node("%AiCountSpin") as SpinBox).value), 3)
 	assert_eq((lobby.get_node("%AiDifficultyOption") as OptionButton).selected, MatchConfig.AiDifficulty.HARD)
 	assert_eq((lobby.get_node("%TeamModeOption") as OptionButton).selected, MatchConfig.TeamMode.TEAMS_2)
-	assert_true((lobby.get_node("%Team2Button") as Button).button_pressed, "the segmented control mirrors a remote team_mode update")
-	assert_false((lobby.get_node("%TeamOffButton") as Button).button_pressed)
 	assert_almost_eq((lobby.get_node("%BlockTimerSlider") as HSlider).value, 9.5, 0.01)
 	assert_almost_eq((lobby.get_node("%GravitySlider") as HSlider).value, 1.25, 0.01)
 	assert_eq(int((lobby.get_node("%GoalFlagSpin") as SpinBox).value), 3)
@@ -798,40 +807,42 @@ func test_roster_entry_with_a_steam_persona_name_renders_unchanged() -> void:
 
 # --- Focus chain (gamepad/keyboard navigability, Bontago-xtq.32) -------------------
 
-## Bontago-mp0.3.5 (review r3, problem 2): pressing %AdvRulesBar (a click or
-## ui_accept, per BaseButton's own `pressed` semantics) opens %AdvancedPopup.
-func test_advanced_rules_bar_opens_the_popup() -> void:
+## Bontago-1pi.53 (S1b): the Advanced rules popup, its summary bar and the chips are gone --
+## their content lives in the sections' Advanced blocks.
+func test_the_advanced_rules_popup_bar_and_chips_are_gone() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var popup: Control = lobby.get_node("%AdvancedPopup") as Control
-	assert_false(popup.visible)
-	(lobby.get_node("%AdvRulesBar") as Button).pressed.emit()
-	assert_true(popup.visible)
+	for unique_name: String in [
+		"%AdvancedPopup", "%AdvancedPopupClose", "%AdvancedPopupCard", "%AdvRulesBar", "%AdvRulesBarPanel",
+		"%AdvRulesChips", "%AdvChipSpecials", "%AdvChipExperiments", "%AdvancedRulesLabel",
+	]:
+		assert_null(lobby.get_node_or_null(unique_name), "%s is deleted" % unique_name)
 
 
-## %AdvancedPopupClose ("Done") hides the popup and returns focus to the bar
-## it was opened from, per the brief's "focus returns to the bar".
-func test_advanced_popup_close_button_closes_it_and_returns_focus_to_the_bar() -> void:
+## The Players/AI steppers, the default-difficulty dropdown and the segmented Teams control left
+## the settings card (seats and teams are managed in the players panel); their hidden
+## sources of truth stay, outside every layout container and never a focus stop.
+func test_legacy_seat_and_team_controls_are_hidden_sources_only() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var popup: Control = lobby.get_node("%AdvancedPopup") as Control
-	var bar: Button = lobby.get_node("%AdvRulesBar") as Button
-	lobby._open_advanced_popup()
-	assert_true(popup.visible)
-	(lobby.get_node("%AdvancedPopupClose") as Button).pressed.emit()
-	assert_false(popup.visible)
-	assert_true(bar.has_focus(), "closing must return focus to the bar that opened it")
+	for unique_name: String in ["%TeamOffButton", "%Team2Button", "%Team3Button", "%Team4Button", "%TeamsSegmented", "%TeamsTrack", "%PlayersSubLabel", "%AiSubLabel"]:
+		assert_null(lobby.get_node_or_null(unique_name), "%s is deleted" % unique_name)
+	var shown: Array[Control] = lobby._visible_chain(lobby._main_chain)
+	for unique_name: String in ["%PlayerCountSpin", "%AiCountSpin", "%AiDifficultyOption", "%TeamModeOption"]:
+		var source: Control = lobby.get_node(unique_name) as Control
+		assert_false(source.is_visible_in_tree(), "%s stays hidden" % unique_name)
+		assert_false(shown.has(source), "%s is never a focus stop" % unique_name)
+		assert_false((lobby.get_node("%SettingsCard") as Control).is_ancestor_of(source), "%s is not in the settings card" % unique_name)
 
 
-## Brief: "closable with a Close/Done pill and ui_cancel". Drives a synthetic
-## ui_cancel InputEventAction through _unhandled_input() the way a gamepad B
-## press or Esc would.
-func test_ui_cancel_closes_the_advanced_popup() -> void:
+## Bontago-1pi.53 (S1b): ui_cancel backs out of the lobby (synthetic action through
+## _unhandled_input(), the way Esc would reach it) -- the popup case is gone.
+func test_ui_cancel_backs_out_of_the_lobby() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	lobby._open_advanced_popup()
+	watch_signals(lobby)
 	var event: InputEventAction = InputEventAction.new()
 	event.action = &"ui_cancel"
 	event.pressed = true
 	lobby._unhandled_input(event)
-	assert_false((lobby.get_node("%AdvancedPopup") as Control).visible)
+	assert_signal_emitted(lobby, "back_requested")
 
 
 # --- Gamepad parity (Bontago-1pi.15.1: "gamepad works in some menus but not
@@ -849,29 +860,30 @@ func test_opening_grabs_focus_somewhere() -> void:
 	assert_true((lobby.get_node("%MapComboOption") as Control).has_focus())
 
 
-## Bontago-1pi.15.1 fix: previously the popup was the *only* case ui_cancel
-## did anything for in this file -- pressing B on the main lobby screen did
-## nothing at all. _unhandled_input() now falls through to _on_back_pressed()
-## when the popup is closed.
+## Bontago-1pi.15.1 fix: pressing B on the lobby screen used to do nothing at all unless a
+## popup was open; _unhandled_input() backs out through _on_back_pressed().
 func test_gamepad_b_on_the_main_screen_emits_back_requested() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	watch_signals(lobby)
-	assert_false((lobby.get_node("%AdvancedPopup") as Control).visible, "fixture: popup starts closed.")
 
 	var event: InputEventJoypadButton = _pad_press_release_action_event(JOY_BUTTON_B)
 	assert_true(event.is_action_pressed(&"ui_cancel"), "gamepad B should map to ui_cancel")
 	lobby._unhandled_input(event)
 
-	assert_signal_emitted(lobby, "back_requested", "gamepad B must back all the way out of the lobby when no popup is open.")
+	assert_signal_emitted(lobby, "back_requested", "gamepad B must back all the way out of the lobby.")
 
 
-func test_gamepad_b_closes_the_advanced_popup_via_real_binding() -> void:
+## Bontago-1pi.53 (S1b): with an Advanced block open B still leaves the lobby in one press (no
+## modal to close first).
+func test_gamepad_b_backs_out_even_with_an_advanced_block_open() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	lobby._open_advanced_popup()
+	(lobby.get_node("%GameSection") as LobbySection).set_advanced_open(true)
+	(lobby.get_node("%GiftsSection") as LobbySection).set_advanced_open(true)
+	watch_signals(lobby)
 
 	lobby._unhandled_input(_pad_press_release_action_event(JOY_BUTTON_B))
 
-	assert_false((lobby.get_node("%AdvancedPopup") as Control).visible, "gamepad B must close the popup, not the whole lobby, while it is open.")
+	assert_signal_emit_count(lobby, "back_requested", 1)
 
 
 func _pad_press_release_action_event(button: JoyButton) -> InputEventJoypadButton:
@@ -882,12 +894,12 @@ func _pad_press_release_action_event(button: JoyButton) -> InputEventJoypadButto
 	return event
 
 
-## Bontago-1pi.53 (S1a): the tilt / hole / sudden-death / turn-based chips left the
+## Bontago-1pi.53 (S1a/S1b): the tilt / hole / sudden-death / turn-based chips left the
 ## Advanced rules bar (their controls moved into the GAME and ROUND sections, where
-## the setting itself is on screen); what the bar still summarises (specials, experiments)
-## and what the section headers now summarise must reflect the live controls without
-## the popup ever needing to be open, and the moved controls must still publish.
-func test_section_summaries_and_specials_chip_reflect_current_settings() -> void:
+## the setting itself is on screen) and the bar itself is gone: the section headers
+## summarise the live controls (the GIFTS header counts the enabled gifts) without any
+## Advanced block needing to be open, and the moved controls must still publish.
+func test_section_summaries_reflect_current_settings() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	(lobby.get_node("%TiltModeOption") as OptionButton).selected = MatchConfig.TiltMode.PHYSICAL_BALANCE
 	(lobby.get_node("%HoleModeOption") as OptionButton).select(MatchConfig.HoleMode.OFF)
@@ -897,7 +909,7 @@ func test_section_summaries_and_specials_chip_reflect_current_settings() -> void
 	(lobby.get_node("%TurnBasedCheck") as CheckButton).button_pressed = true
 	if not lobby._special_checkboxes.is_empty():
 		lobby._special_checkboxes[0].button_pressed = false
-	lobby._update_advanced_rules_summary()
+	lobby._update_section_summaries()
 	var published: MatchConfig = MatchConfig.from_dict(_fake_of(lobby).lobby_data_value)
 	assert_eq(published.tilt_mode, MatchConfig.TiltMode.PHYSICAL_BALANCE)
 	assert_eq(published.hole_mode, MatchConfig.HoleMode.OFF)
@@ -906,37 +918,29 @@ func test_section_summaries_and_specials_chip_reflect_current_settings() -> void
 	assert_true((lobby.get_node("%GameSection") as LobbySection).summary().begins_with("Classic"), "GAME summary leads with the mode")
 	assert_true((lobby.get_node("%RoundSection") as LobbySection).summary().begins_with("15 min"), "ROUND summary leads with the timer")
 	if not lobby._special_checkboxes.is_empty():
-		var expected: String = "Specials: %d/%d" % [lobby._special_checkboxes.size() - 1, lobby._special_checkboxes.size()]
-		assert_eq((lobby.get_node("%AdvChipSpecials") as Label).text, expected)
+		var expected: String = Lobby.SUMMARY_GIFT_COUNT_FORMAT % [lobby._special_checkboxes.size() - 1, lobby._special_checkboxes.size()]
+		assert_true((lobby.get_node("%GiftsSection") as LobbySection).summary().ends_with(expected), "GIFTS counts the enabled gifts (%s)" % expected)
 
 
-## Gamepad/keyboard focus must reach every popup control too (brief: "Keep
-## gamepad focus navigation working through every control including the
-## popup"), in its own closed loop separate from the main card's.
-func test_advanced_popup_focus_chain_is_its_own_closed_loop() -> void:
+## Bontago-1pi.53 (S1b): the per-gift checklist is the GIFTS section's Advanced block; its
+## checkboxes are focus stops (in the one main loop, in visual order) only while it is open.
+func test_gift_checkboxes_join_the_main_loop_only_while_the_gifts_advanced_block_is_open() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var close_button: Control = lobby.get_node("%AdvancedPopupClose") as Control
-	var tilt_option: Control = lobby.get_node("%QolTimerPauseCheck") as Control
-	for unique_name: String in ["%QolTimerPauseCheck", "%QolGiftSlotCheck", "%AdvancedPopupClose"]:
-		var control: Control = lobby.get_node(unique_name) as Control
-		assert_ne(control.focus_neighbor_top, NodePath(""), "%s must have an up neighbor" % unique_name)
-		assert_ne(control.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor" % unique_name)
-	# Walk forward from the first popup control all the way around and back to itself,
-	# proving it's a closed loop rather than a chain that dead-ends.
-	var current: Control = tilt_option
-	var steps: int = 0
-	var visited_close: bool = false
-	# The popup adds one focusable checkbox per installed special (and per QoL
-	# experiment toggle), so bound the walk by the popup's own wired chain.
-	while steps < lobby._popup_chain.size() + 1:
-		current = current.get_node(current.focus_neighbor_bottom) as Control
-		if current == close_button:
-			visited_close = true
-		if current == tilt_option:
-			break
-		steps += 1
-	assert_true(visited_close, "the popup loop must pass through the Close/Done button")
-	assert_eq(current, tilt_option, "the popup chain must wrap back to its own start")
+	if lobby._special_checkboxes.is_empty():
+		pass_test("no SpecialDef .tres on disk in this checkout; nothing to focus")
+		return
+	var gifts: LobbySection = lobby.get_node("%GiftsSection") as LobbySection
+	assert_true(gifts.advanced.is_ancestor_of(lobby.get_node("%SpecialsChecklist")), "the checklist is GIFTS Advanced")
+	for box: CheckBox in lobby._special_checkboxes:
+		assert_false(lobby._visible_chain(lobby._main_chain).has(box), "closed: a gift checkbox is not a stop")
+	gifts.advanced_button.button_pressed = true
+	var shown: Array[Control] = lobby._visible_chain(lobby._main_chain)
+	var previous: Control = gifts.advanced_button
+	for box: CheckBox in lobby._special_checkboxes:
+		assert_true(shown.has(box), "open: a gift checkbox is a stop")
+		assert_eq(previous.get_node(previous.focus_neighbor_bottom), box, "gift checkboxes follow the chip in order")
+		previous = box
+	assert_eq(lobby._special_checkboxes[0].get_node(lobby._special_checkboxes[0].focus_neighbor_top), gifts.advanced_button)
 
 
 func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
@@ -957,27 +961,20 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	var first_option: Control = lobby.get_node("%GameModeOption") as Control
 	assert_eq(first_stop.get_node(first_stop.focus_neighbor_bottom), first_option, "the mode picker follows its header")
 
-	# Bontago-mp0.3.5 (mockup 11's TEAMS segmented control): %TeamModeOption is
-	# hidden -- %TeamOffButton/%Team2Button/%Team3Button/%Team4Button are its
-	# visible front end, so the focus chain runs through those four buttons in its
-	# place, not through the hidden OptionButton a Tab press could never visibly land
-	# on. Same for the combined map dropdown (%MapComboOption) and for the hidden
-	# %PlayerCountSpin/%AiCountSpin, whose visible stand-ins are the stepper buttons.
-	# Collapsed Advanced blocks and the hidden Steam-only invite button are not stops.
+	# Bontago-1pi.53 (S1b): the hidden sources of truth (%TeamModeOption, the seat spins and
+	# the default-difficulty dropdown, plus the map variant/size options behind the combined
+	# map dropdown) are never stops a Tab press could not visibly land on. Collapsed Advanced
+	# blocks and the hidden Steam-only invite button are not stops either.
 	var chain_unique_names: Array[String] = [
-		"%MapComboOption", "%AiDifficultyOption", "%GameModeOption", "%SkyThemeOption", "%WeatherOption",
+		"%MapComboOption", "%GameModeOption", "%SkyThemeOption", "%WeatherOption",
 		"%MatchTimerSlider", "%SuddenDeathCheck", "%BlockTimerSlider",
-		"%TeamOffButton", "%Team2Button", "%Team3Button", "%Team4Button",
 		"%GiftsCheck", "%SpecialFreqSlider", "%ReadyCheck", "%StartButton",
 	]
 	for unique_name: String in chain_unique_names:
 		var control: Control = lobby.get_node(unique_name) as Control
 		assert_ne(control.focus_neighbor_top, NodePath(""), "%s must have an up neighbor" % unique_name)
 		assert_ne(control.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor" % unique_name)
-	var steppers: Array[Button] = []
-	steppers.append_array(lobby._main_stepper_buttons)
-	steppers.append_array(lobby._goal_stepper_buttons)
-	for stepper: Button in steppers:
+	for stepper: Button in lobby._goal_stepper_buttons:
 		assert_ne(stepper.focus_neighbor_bottom, NodePath(""), "stepper %s must have a down neighbor" % stepper.name)
 	# Opening the GAME Advanced block puts its controls in the loop.
 	(lobby.get_node("%GameSection") as LobbySection).set_advanced_open(true)
@@ -986,14 +983,19 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 		assert_ne(control.focus_neighbor_top, NodePath(""), "%s must have an up neighbor once opened" % unique_name)
 		assert_ne(control.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor once opened" % unique_name)
 
-	assert_false((lobby.get_node("%TeamModeOption") as Control).visible, "TeamModeOption stays hidden behind the segmented buttons")
+	assert_false((lobby.get_node("%TeamModeOption") as Control).is_visible_in_tree(), "TeamModeOption stays a hidden source of truth (teams are toggled in the players panel)")
 	assert_false((lobby.get_node("%MapVariantOption") as Control).visible, "MapVariantOption stays hidden behind the combined dropdown")
 	assert_false((lobby.get_node("%MapSizeOption") as Control).visible, "MapSizeOption stays hidden behind the combined dropdown")
 
-	if not lobby._special_checkboxes.is_empty():
-		for box: CheckBox in lobby._special_checkboxes:
-			assert_ne(box.focus_neighbor_top, NodePath(""), "a specials checkbox must have an up neighbor")
-			assert_ne(box.focus_neighbor_bottom, NodePath(""), "a specials checkbox must have a down neighbor")
+	# ... and so do the GIFTS Advanced (per-gift) and EXPERIMENTS blocks once opened.
+	(lobby.get_node("%GiftsSection") as LobbySection).set_advanced_open(true)
+	(lobby.get_node("%ExperimentsSection") as LobbySection).set_advanced_open(true)
+	var opened: Array[Control] = []
+	opened.append_array(lobby._special_checkboxes)
+	opened.append_array(lobby._qol_checks)
+	for control: Control in opened:
+		assert_ne(control.focus_neighbor_top, NodePath(""), "%s must have an up neighbor once opened" % control.name)
+		assert_ne(control.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor once opened" % control.name)
 
 
 ## Bontago-1pi.53 (S1a): the Steam-only invite button is a focus stop only while it is
@@ -1029,18 +1031,60 @@ func test_round_mode_and_timer_are_primary_settings() -> void:
 	assert_eq(header.get_node(header.focus_neighbor_bottom), lobby.get_node("%RoundTimerSlider"))
 
 
-func test_lobby_quick_y_opens_and_closes_advanced_rules() -> void:
-	var lobby: Lobby = _make_lobby(true)
+func _y_event() -> InputEventAction:
 	var event: InputEventAction = InputEventAction.new()
 	event.action = "lobby_quick_advanced"
 	event.pressed = true
-	lobby._unhandled_input(event)
-	assert_true((lobby.get_node("%AdvancedPopup") as Control).visible)
-	lobby._unhandled_input(event)
-	assert_false((lobby.get_node("%AdvancedPopup") as Control).visible)
+	return event
 
 
-func test_lobby_quick_x_obeys_ready_host_and_popup_gates() -> void:
+## Bontago-1pi.53 (S1b): Y toggles the Advanced block of the section holding focus.
+func test_lobby_quick_y_toggles_the_advanced_block_of_the_focused_section() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var game: LobbySection = lobby.get_node("%GameSection") as LobbySection
+	var gifts: LobbySection = lobby.get_node("%GiftsSection") as LobbySection
+	assert_true((lobby.get_node("%MapComboOption") as Control).has_focus(), "fixture: focus starts in GAME")
+	lobby._unhandled_input(_y_event())
+	assert_true(game.is_advanced_open(), "Y opens the focused section's Advanced block")
+	assert_false(gifts.is_advanced_open())
+	lobby._unhandled_input(_y_event())
+	assert_false(game.is_advanced_open(), "a second Y closes it")
+	(lobby.get_node("%GiftsCheck") as Control).grab_focus()
+	lobby._unhandled_input(_y_event())
+	assert_true(gifts.is_advanced_open(), "focus in GIFTS: Y opens GIFTS Advanced")
+	assert_false(game.is_advanced_open())
+	lobby._unhandled_input(_y_event())
+	assert_false(gifts.is_advanced_open())
+
+
+## Focus in a section without an Advanced block (ROUND) or outside every section (Back) falls
+## back to the first section that has one, GAME.
+func test_lobby_quick_y_falls_back_to_the_first_advanced_section() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var game: LobbySection = lobby.get_node("%GameSection") as LobbySection
+	(lobby.get_node("%BlockTimerSlider") as Control).grab_focus()
+	lobby._unhandled_input(_y_event())
+	assert_true(game.is_advanced_open(), "ROUND has no Advanced block: Y toggles GAME's")
+	lobby._unhandled_input(_y_event())
+	(lobby.get_node("%BackButton") as Control).grab_focus()
+	lobby._unhandled_input(_y_event())
+	assert_true(game.is_advanced_open(), "focus outside the sections: Y toggles GAME's")
+
+
+## Y on a focused Advanced control closes the block and keeps focus on a visible stop (the
+## section's chip) instead of dropping it with the hidden control.
+func test_lobby_quick_y_closing_a_block_keeps_focus_on_its_chip() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var game: LobbySection = lobby.get_node("%GameSection") as LobbySection
+	game.set_advanced_open(true)
+	(lobby.get_node("%GravitySlider") as Control).grab_focus()
+	assert_true((lobby.get_node("%GravitySlider") as Control).has_focus(), "fixture: focus is inside the block")
+	lobby._unhandled_input(_y_event())
+	assert_false(game.is_advanced_open())
+	assert_true(game.advanced_button.has_focus(), "focus moved to the Advanced chip, not lost")
+
+
+func test_lobby_quick_x_obeys_ready_and_host_gates() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var fake: FakeNet = _fake_of(lobby)
 	var event: InputEventAction = InputEventAction.new()
@@ -1053,10 +1097,6 @@ func test_lobby_quick_x_obeys_ready_host_and_popup_gates() -> void:
 	assert_signal_not_emitted(lobby, "start_requested")
 	fake.all_peers_ready_value = true
 	lobby._update_host_only_state()
-	lobby._open_advanced_popup()
-	lobby._unhandled_input(event)
-	assert_signal_not_emitted(lobby, "start_requested")
-	lobby._close_advanced_popup()
 	lobby._unhandled_input(event)
 	assert_signal_emitted(lobby, "start_requested")
 
@@ -1067,11 +1107,13 @@ func test_real_gamepad_x_y_trigger_lobby_shortcuts() -> void:
 	fake.all_peers_ready_value = true
 	lobby._update_host_only_state()
 	watch_signals(lobby)
+	var game: LobbySection = lobby.get_node("%GameSection") as LobbySection
 	var y_event: InputEventJoypadButton = _pad_press_release_action_event(JOY_BUTTON_Y)
 	assert_true(y_event.is_action_pressed(&"lobby_quick_advanced"))
 	lobby._unhandled_input(y_event)
-	assert_true((lobby.get_node("%AdvancedPopup") as Control).visible)
+	assert_true(game.is_advanced_open(), "pad Y opens the focused section's Advanced block")
 	lobby._unhandled_input(y_event)
+	assert_false(game.is_advanced_open(), "a second pad Y closes it")
 	var x_event: InputEventJoypadButton = _pad_press_release_action_event(JOY_BUTTON_X)
 	assert_true(x_event.is_action_pressed(&"lobby_quick_start"))
 	lobby._unhandled_input(x_event)

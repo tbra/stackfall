@@ -19,6 +19,10 @@ extends VBoxContainer
 ## [signal advanced_changed]; ui/Lobby.gd listens and rewires its focus loop, so a
 ## collapsed block can never leave an invisible focus stop behind.
 ##
+## **Focus never gets lost.** Hiding a block (collapse, Advanced closed, Y on the pad) while
+## focus is inside it hands focus to the section's chip (or header), so the gamepad loop
+## keeps its place instead of dropping to nothing.
+##
 ## **Read-only clients.** The header and chip are not settings, so a client can
 ## still open a section to read it; only the setting controls inside are disabled
 ## by the Lobby.
@@ -115,8 +119,11 @@ func is_advanced_open() -> bool:
 func set_expanded(value: bool) -> void:
 	if _expanded == value:
 		return
+	var keep_focus: bool = not value and (_focus_in(body) or _focus_in(advanced) or _focus_in(advanced_button))
 	_expanded = value
 	_apply_state()
+	if keep_focus:
+		header_button.grab_focus()
 	expanded_changed.emit(_expanded)
 
 
@@ -125,13 +132,33 @@ func set_expanded(value: bool) -> void:
 func set_advanced_open(value: bool) -> void:
 	if advanced == null or _advanced_open == value:
 		return
+	var keep_focus: bool = not value and _focus_in(advanced)
 	_advanced_open = value
 	_apply_state()
+	if keep_focus:
+		(advanced_button if advanced_button != null else header_button).grab_focus()
 	advanced_changed.emit(_advanced_open)
 
 
 func has_advanced() -> bool:
 	return advanced != null
+
+
+## True while the viewport's focus owner is this section's header, chip or any control inside
+## it (the Lobby's Y shortcut picks the section to toggle with it).
+func has_focus_inside() -> bool:
+	var focus_owner: Control = _focus_owner()
+	return focus_owner != null and (focus_owner == self or is_ancestor_of(focus_owner))
+
+
+## True while the focus owner sits inside [param node] (itself or a descendant).
+func _focus_in(node: Control) -> bool:
+	var focus_owner: Control = _focus_owner()
+	return node != null and focus_owner != null and (focus_owner == node or node.is_ancestor_of(focus_owner))
+
+
+func _focus_owner() -> Control:
+	return get_viewport().gui_get_focus_owner() if is_inside_tree() else null
 
 
 ## Y on the pad (lobby_quick_advanced): toggles the Advanced block, expanding a

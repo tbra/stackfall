@@ -85,31 +85,25 @@ var net_provider: Variant = null:
 			_players_panel.net_provider = value
 
 ## Bontago-mp0.3.5 (review r2, item 1): %MapVariantOption/%MapSizeOption stay
-## the hidden source of truth (same pattern as _team_buttons over the hidden
-## %TeamModeOption) -- %MapComboOption is the single visible "Round · Medium"
+## the hidden source of truth (same pattern as the hidden %TeamModeOption and
+## seat spins) -- %MapComboOption is the single visible "Round · Medium"
 ## style dropdown listing every variant*size combo, decoded/encoded by
 ## _map_combo_index(), with %MapThumbnail (a small disc icon) beside it.
 @onready var _map_variant_option: OptionButton = %MapVariantOption
 @onready var _map_size_option: OptionButton = %MapSizeOption
 @onready var _map_combo_option: OptionButton = %MapComboOption
 @onready var _map_thumbnail: PanelContainer = %MapThumbnail
+## Bontago-1pi.53 (S1b): the Players/AI steppers, the default-difficulty dropdown and the
+## segmented Teams control left the settings card -- seats, bots and teams are managed in
+## the players panel (docs/LOBBY_REWORK_PLAN.md section 2). These four stay as HIDDEN
+## sources of truth under %HiddenSources (the pattern the map combo already uses): every
+## read and write of `.value` / `.selected`, the host-only gating, the bot clamp and
+## the round trip are unchanged, and the panel drives them (_on_teams_toggled,
+## _set_bot_count). They are never focus stops.
 @onready var _player_count_spin: SpinBox = %PlayerCountSpin
 @onready var _ai_count_spin: SpinBox = %AiCountSpin
-## Bontago-mp0.3.5 (polish pass, problem 2): mockup 11 puts "Players"/"AI"
-## inside their own stepper pill's left end, not on a separate row above it
-## -- _add_stepper_buttons() reuses these tscn-authored Labels' text and
-## hides the originals rather than duplicating the strings in code.
-@onready var _players_sub_label: Label = %PlayersSubLabel
-@onready var _ai_sub_label: Label = %AiSubLabel
 @onready var _ai_difficulty_option: OptionButton = %AiDifficultyOption
 @onready var _team_mode_option: OptionButton = %TeamModeOption
-## Bontago-mp0.3.5 (mockup 11's TEAMS segmented control): %TeamModeOption
-## stays the single source of truth for config.team_mode (kept, but hidden,
-## so every existing read/write of `.selected` and its `item_selected` wiring
-## is untouched) -- these four toggle buttons are a visible front end over it,
-## in MatchConfig.team_mode enum order (Off, 2, 3, 4 teams), driven by a
-## shared ButtonGroup so pressing one always releases the others.
-@onready var _team_buttons: Array[Button] = [%TeamOffButton, %Team2Button, %Team3Button, %Team4Button]
 @onready var _block_timer_slider: HSlider = %BlockTimerSlider
 @onready var _block_timer_label: Label = %BlockTimerLabel
 @onready var _gravity_slider: HSlider = %GravitySlider
@@ -153,12 +147,13 @@ var net_provider: Variant = null:
 ## (mockup 11), not the round-1 full-width red bars -- HFlowContainer (a
 ## Container sibling of VBoxContainer, not a subclass) wraps children onto as
 ## many rows as the card's width needs instead of stacking one per row.
+## Bontago-1pi.53 (S1b): the per-gift checklist is the GIFTS section's Advanced block.
 @onready var _specials_checklist: HFlowContainer = %SpecialsChecklist
 @onready var _specials_label: Label = %SpecialsLabel
-@onready var _advanced_rules_label: Label = %AdvancedRulesLabel
-## Bontago-1pi.18.5: the "Experiments" section of the Advanced rules popup, in
-## QolExperiments.with_toggles() argument order (timer pause, backlog, goal
-## radius, gift slot). Host-editable, read-only for a client (_settings_controls).
+## Bontago-1pi.18.5: the Experiments checkboxes, in QolExperiments.with_toggles()
+## argument order (timer pause, backlog, goal radius, gift slot). Bontago-1pi.53 (S1b):
+## they are the EXPERIMENTS section's Advanced block (plan D2). Host-editable,
+## read-only for a client (_settings_controls).
 @onready var _experiments_label: Label = %ExperimentsLabel
 @onready var _qol_timer_pause_check: CheckBox = %QolTimerPauseCheck
 @onready var _qol_backlog_check: CheckBox = %QolBacklogCheck
@@ -168,36 +163,18 @@ var net_provider: Variant = null:
 	_qol_timer_pause_check, _qol_backlog_check, _qol_goal_radius_check, _qol_gift_slot_check,
 ]
 
-## Bontago-mp0.3.5 (review r3, problem 2): the specials checklist + the five
-## rule controls above moved out of the always-visible card into this modal
-## popup (mockup 11 has no room for them inline at 1280x720 without either a
-## horizontal scrollbar or clipped chips -- review r2's own disclosed gap).
-## %AdvRulesBar is the always-visible summary row that opens it.
-##
-## Bontago-mp0.3.5 (polish pass, problem 1): %AdvRulesBarPanel is the visible
-## pill background; %AdvRulesBar (a Button, styled transparent) and
-## %AdvRulesBarContent (label + chips) are both its children, stacked over
-## the same rect by PanelContainer's own multi-child layout, so the whole bar
-## grows in height when %AdvRulesChips wraps onto a second row instead of the
-## old fixed-height anchored-Button layout letting wrapped chips spill out.
-@onready var _adv_rules_bar_panel: PanelContainer = %AdvRulesBarPanel
-@onready var _adv_rules_bar: Button = %AdvRulesBar
-@onready var _adv_chip_specials: Label = %AdvChipSpecials
-@onready var _adv_chip_experiments: Label = %AdvChipExperiments
-@onready var _advanced_popup: Control = %AdvancedPopup
-@onready var _advanced_popup_card: PanelContainer = %AdvancedPopupCard
-@onready var _advanced_popup_close: Button = %AdvancedPopupClose
-
-## Bontago-1pi.53 (S1a): the settings column is a stack of collapsible LobbySections
+## Bontago-1pi.53 (S1a/S1b): the settings column is a stack of collapsible LobbySections
 ## (ui/lobby/LobbySection.gd): GAME (mode, map, time of day, weather; Advanced:
 ## gravity, tilt, holes, turn-based, mid-match join), ROUND (round length / match
-## timer, sudden death, block timer, goal flags, Reach the Sky team height) and GIFTS
-## (on/off, frequency). %Settings is their column (its separation comes from
-## LobbyLayoutTuning.section_spacing_px).
+## timer, sudden death, block timer, goal flags, Reach the Sky team height), GIFTS
+## (on/off, frequency; Advanced: the per-gift checklist) and EXPERIMENTS (the opt-in
+## experiment checks, behind its header). %Settings is their column (its separation
+## comes from LobbyLayoutTuning.section_spacing_px).
 @onready var _settings_column: VBoxContainer = %Settings
 @onready var _game_section: LobbySection = %GameSection
 @onready var _round_section: LobbySection = %RoundSection
 @onready var _gifts_section: LobbySection = %GiftsSection
+@onready var _experiments_section: LobbySection = %ExperimentsSection
 ## Goal flags apply only to the modes MatchConfig.mode_uses_goal_flags() names.
 @onready var _goal_flag_col: Control = %GoalFlagCol
 
@@ -226,10 +203,6 @@ var net_provider: Variant = null:
 ## players * X of Y ready" pill, updated every time the players panel rebuilds its rows (_on_roster_rendered()).
 @onready var _waiting_status_pill: PanelContainer = %WaitingStatusPill
 @onready var _waiting_status_label: Label = %WaitingStatusLabel
-## Bontago-mp0.3.5 (review r1, item 10): the sunken pill track %TeamsTrack
-## wraps _team_buttons, so the selected segment reads as a raised white pill
-## inside a track instead of a bare coral toggle chip.
-@onready var _teams_track: PanelContainer = %TeamsTrack
 
 ## Every control the round trip governs, so enabling/disabling them for a
 ## non-host is one loop instead of fourteen repeated lines.
@@ -243,13 +216,10 @@ var _special_checkboxes: Array[CheckBox] = []
 var _special_ids: Array[StringName] = []
 
 ## Bontago-mp0.3.5 (review r2, item 2): the round "-"/"+" buttons
-## _add_stepper_buttons() builds around each stepper SpinBox, in insertion
-## order (minus, plus, minus, plus, ...) -- read by _wire_focus_chain() so
-## they're gamepad-focusable, same as every other settings control.
-## All visible steppers belong to the main settings card's focus loop.
-var _main_stepper_buttons: Array[Button] = []
-## Bontago-1pi.53 (S1a): the goal-flag stepper's "-"/"+" buttons sit inside the ROUND
-## section (focus order = visual order), so they are not part of the loop above.
+## _add_stepper_buttons() builds around the goal-flag SpinBox (minus, plus) -- read by
+## _wire_focus_chain() so they're gamepad-focusable, same as every other settings
+## control. Bontago-1pi.53 (S1a): they sit inside the ROUND section (focus order =
+## visual order).
 var _goal_stepper_buttons: Array[Button] = []
 
 ## True while _apply_data() is writing sanitized values back into the
@@ -296,7 +266,11 @@ const SUMMARY_BLOCK_TIMER_FORMAT: String = "Block %.1f s"
 const SUMMARY_GOAL_FLAGS_FORMAT: String = "%d goal flags"
 const SUMMARY_GOAL_FLAG_FORMAT: String = "%d goal flag"
 const SUMMARY_GIFTS_ON_FORMAT: String = "On%sfrequency %d"
+## Appended to the GIFTS summary while some (not all) gifts are switched off in its Advanced
+## block -- the at-a-glance count the old "Specials: n/m" chip showed.
+const SUMMARY_GIFT_COUNT_FORMAT: String = "%d/%d gifts"
 const SUMMARY_GIFTS_OFF: String = "Off"
+const SUMMARY_EXPERIMENTS_FORMAT: String = "%d on"
 var _timer_mode: int = MatchConfig.GameMode.CLASSIC
 ## Last minutes each timer slider settled on, so a step through the 1-minute gap
 ## knows which way it was moving (_on_timer_slider_changed()).
@@ -325,7 +299,6 @@ func _ready() -> void:
 	_settings_controls.append(_sky_team_sum_check)
 	_settings_controls.append_array(_special_checkboxes)
 	_settings_controls.append_array(_qol_checks)
-	_settings_controls.append_array(_team_buttons)
 	_connect_control_signals()
 	for section: LobbySection in _sections():
 		section.expanded_changed.connect(_on_section_toggled)
@@ -334,8 +307,6 @@ func _ready() -> void:
 	_ready_check.toggled.connect(_on_ready_toggled)
 	_invite_friends_button.pressed.connect(_on_invite_friends_pressed)
 	_back_button.pressed.connect(_on_back_pressed)
-	_adv_rules_bar.pressed.connect(_open_advanced_popup)
-	_advanced_popup_close.pressed.connect(_close_advanced_popup)
 	_connect_click_and_hover_sounds()
 	Events.net_lobby_data_changed.connect(_on_lobby_data_changed)
 	Events.net_peer_joined.connect(_on_peer_joined)
@@ -510,22 +481,16 @@ func _build_specials_checklist() -> void:
 ## covering it has to be computed at runtime. Mirrors ui/OptionsMenu.gd's own
 ## _wire_focus_chain() (get_path_to()-based circular top/bottom wiring,
 ## called once from _ready() after every dynamic row exists). Player rows
-## (rebuilt by the players panel on every roster change) are plain
-## HBoxContainer(ColorRect, Label) with no focusable child, so they never
-## enter the chain and a later roster change can't invalidate it.
-## Bontago-mp0.3.5 (review r3, problem 2): the specials checklist and the
-## experiments still live inside %AdvancedPopup, only reachable once it's open --
-## they get their *own* closed loop (_wire_loop() again, just called a second
-## time) instead of sharing the main card's loop, so a Tab press on the main screen
-## can never land on a control the popup hasn't opened yet. %AdvRulesBar is the
-## main loop's entry point to it.
+## (rebuilt by the players panel on every roster change) enter the chain through
+## the panel's focus_entries().
 ##
-## Bontago-1pi.53 (S1a): the main loop follows the visual order of the sections:
-## each LobbySection contributes its header, its main controls, its Advanced chip
-## and (when open) its Advanced controls; then the legacy players/AI/teams controls
-## (S1b removes them), %AdvRulesBar, the players panel's entries and the footer.
-## _visible_chain() drops whatever a collapsed block or a mode hides, so there is
-## never an invisible focus stop; every section toggle and mode change rewires.
+## Bontago-1pi.53 (S1a/S1b): ONE closed loop in visual order. Each LobbySection
+## contributes its header, its main controls, its Advanced chip and (when open) its
+## Advanced controls -- GAME, ROUND, GIFTS (Advanced: the per-gift checklist), EXPERIMENTS
+## (header opens its checks) -- then the players panel's entries and the footer. The
+## Advanced rules popup and its separate loop are gone. _visible_chain() drops whatever a
+## collapsed block or a mode hides, so there is never an invisible focus stop; every
+## section toggle and mode change rewires.
 func _wire_focus_chain() -> void:
 	var chain: Array[Control] = []
 	var game_main: Array[Control] = [_game_mode_option, _map_combo_option, _sky_theme_option, _weather_option]
@@ -538,30 +503,19 @@ func _wire_focus_chain() -> void:
 	round_main.append(_sky_team_sum_check)
 	chain.append_array(_section_chain(_round_section, round_main, []))
 	var gifts_main: Array[Control] = [_gifts_check, _special_freq_slider]
-	chain.append_array(_section_chain(_gifts_section, gifts_main, []))
-	# Bontago-mp0.3.5 (review r2, item 2): the players/AI "-"/"+" stepper buttons (the
-	# SpinBoxes themselves are hidden behind their pills).
-	chain.append_array(_main_stepper_buttons)
-	chain.append(_ai_difficulty_option)
-	chain.append_array(_team_buttons)
-	chain.append(_adv_rules_bar)
-	# Bontago-1pi.53 (E1): the players panel's own focusable controls (none yet --
-	# its rows are plain labels) sit between the settings and the footer, in visual
-	# order; the panel asks for a rewire through focus_entries_changed.
+	var gifts_advanced: Array[Control] = []
+	gifts_advanced.append_array(_special_checkboxes)
+	chain.append_array(_section_chain(_gifts_section, gifts_main, gifts_advanced))
+	var experiments_advanced: Array[Control] = []
+	experiments_advanced.append_array(_qol_checks)
+	chain.append_array(_section_chain(_experiments_section, [], experiments_advanced))
+	# Bontago-1pi.53 (E1): the players panel's own focusable controls sit between the
+	# settings and the footer, in visual order; the panel asks for a rewire through
+	# focus_entries_changed.
 	chain.append_array(_players_panel.focus_entries())
 	chain.append_array([_back_button, _invite_friends_button, _ready_check, _start_button])
 	_main_chain = chain
 	_rewire_focus()
-
-	var popup_chain: Array[Control] = _popup_chain
-	popup_chain.clear()
-	for box: CheckBox in _special_checkboxes:
-		popup_chain.append(box)
-	# Bontago-1pi.18.5: the Experiments checkboxes sit below the specials in the popup,
-	# so they come after them and before Done (visual order = focus order).
-	popup_chain.append_array(_qol_checks)
-	popup_chain.append(_advanced_popup_close)
-	_wire_loop(popup_chain)
 
 
 ## One section's focus stops in visual order: header, main controls, Advanced chip,
@@ -576,7 +530,7 @@ func _section_chain(section: LobbySection, main_controls: Array[Control], advanc
 
 
 func _sections() -> Array[LobbySection]:
-	return [_game_section, _round_section, _gifts_section]
+	return [_game_section, _round_section, _gifts_section, _experiments_section]
 
 
 ## Rewires the main loop from the chain built by _wire_focus_chain(): called on every
@@ -593,11 +547,8 @@ func _on_section_toggled(_state: bool) -> void:
 	_rewire_focus()
 
 
-## Assigns focus_neighbor_top/bottom so [param chain] forms one closed loop,
-## wrapping from its last entry back to its first. Shared by the main card's
-## loop and the advanced-rules popup's own separate loop (_wire_focus_chain()).
-## The advanced-popup focus chain.
-var _popup_chain: Array[Control] = []
+## Every control the focus loop may visit, in visual order (built by _wire_focus_chain());
+## _visible_chain() filters it to what is shown right now.
 var _main_chain: Array[Control] = []
 
 
@@ -626,6 +577,8 @@ func _is_shown(control: Control) -> bool:
 	return true
 
 
+## Assigns focus_neighbor_top/bottom so [param chain] forms one closed loop,
+## wrapping from its last entry back to its first.
 func _wire_loop(chain: Array[Control]) -> void:
 	for i: int in range(chain.size()):
 		var current: Control = chain[i]
@@ -669,64 +622,26 @@ func _connect_control_signals() -> void:
 	_mid_join_check.toggled.connect(_on_toggled)
 	for qol_check: CheckBox in _qol_checks:
 		qol_check.toggled.connect(_on_toggled)
-	for i: int in range(_team_buttons.size()):
-		_team_buttons[i].pressed.connect(_on_team_button_pressed.bind(i))
-
-
-## Bontago-mp0.3.5: the segmented control's own handler -- writes the picked
-## index into the hidden %TeamModeOption (the actual source of truth
-## _config_from_controls()/_apply_data() already read/write) and republishes
-## exactly like any other host edit (_on_setting_changed()), rather than
-## duplicating that publish logic here.
-func _on_team_button_pressed(index: int) -> void:
-	_team_mode_option.selected = index
-	_on_setting_changed()
-
-
-## Mirrors [param team_mode] onto the segmented buttons' pressed state
-## without re-emitting `pressed` (ButtonGroup would otherwise fight a
-## programmatic `button_pressed = true` on the wrong index during
-## _apply_data()'s remote-data guard).
-func _sync_team_segmented(team_mode: int) -> void:
-	for i: int in range(_team_buttons.size()):
-		_team_buttons[i].button_pressed = i == team_mode
 
 
 ## Bontago-mp0.3.5 (review r2, item 2): inserts a round "-" button before
 ## [param spin] and a round "+" button after it, in [param spin]'s own
-## parent HBoxContainer -- both just nudge [param spin].value by one step()
-## and let SpinBox's own existing value_changed -> _on_value_changed()
-## wiring do the rest, so this never duplicates the round-trip/clamp logic.
-## Appends both to [param target] (the main card's or the popup's own
-## _wire_focus_chain() loop -- review r3, problem 2) so
-## _update_host_only_state() (which walks _settings_controls, populated from
-## both target arrays in _ready()) gates them exactly like every other
-## host-only control.
+## parent -- both just nudge [param spin].value by one step() and let SpinBox's own
+## existing value_changed -> _on_value_changed() wiring do the rest, so this never
+## duplicates the round-trip/clamp logic. Appends both to [param target] (read by
+## _wire_focus_chain()) and to _settings_controls, so _update_host_only_state() gates
+## them exactly like every other host-only control.
 ##
-## Bontago-mp0.3.5 (review r3, problem 3): the SpinBox itself keeps min/max/
-## step/value/value_changed exactly as before (every get_node("%...").value
-## read/write in this file and in tests/unit/test_lobby.gd is untouched) --
-## only its native up/down spinner buttons are hidden, via the "buttons_width"
-## theme constant SpinBox itself exposes for exactly this (confirmed against
-## the running engine's ThemeDB.get_default_theme().get_constant_list(
-## "SpinBox"), not guessed), so the round pill buttons are the only visible
-## way to nudge it and it reads as a plain bordered value field.
-## Bontago-mp0.3.5 (polish pass, problem 2): mockup 11 draws each stepper as
-## ONE sunken pill -- "[label] (-) value (+)" -- not a bordered SpinBox field
-## flanked by two separate button pills. [param spin] keeps its min/max/step/
-## value/value_changed exactly as before (every get_node("%...").value read/
-## write in this file and in tests/unit/test_lobby.gd is untouched) but is
-## hidden (`visible = false`, so a Container skips it entirely -- no reparent,
-## no owner-reassignment bug like the old wrapper-HBoxContainer approach had
-## to work around); a plain borderless Label shows its value, kept in sync by
-## [param spin]'s own value_changed (which Range emits for a program matic
-## `.value = x` too, so a remote _apply_data() update reaches it exactly like
-## a button press does). [param inline_label], when given, is one of this
-## file's own tscn-authored captions (%PlayersSubLabel/%AiSubLabel) -- hidden
-## and its text folded into the pill's own left end instead of sitting on a
-## separate row above it (mockup 11 has no separate "Players"/"AI" caption
-## row; the word lives inside the pill).
-func _add_stepper_buttons(spin: SpinBox, target: Array[Button], inline_label: Label = null) -> void:
+## Bontago-mp0.3.5 (review r3, problem 3 / polish pass, problem 2): mockup 11 draws a
+## stepper as ONE sunken pill -- "(-) value (+)". [param spin] keeps its min/max/step/
+## value/value_changed exactly as before (every get_node("%...").value read/write in this
+## file and in the tests is untouched) but is hidden (`visible = false`, so a Container
+## skips it entirely -- no reparent); a plain borderless Label shows its value, kept in
+## sync by [param spin]'s own value_changed (which Range emits for a programmatic
+## `.value = x` too, so a remote _apply_data() update reaches it exactly like a button
+## press does). Bontago-1pi.53 (S1b): only the goal-flag count still uses it -- the
+## Players/AI steppers left the card.
+func _add_stepper_buttons(spin: SpinBox, target: Array[Button]) -> void:
 	MenuStyleFactory.hide_spinbox_arrows(spin)
 	spin.visible = false
 
@@ -743,16 +658,6 @@ func _add_stepper_buttons(spin: SpinBox, target: Array[Button], inline_label: La
 	var content: HBoxContainer = HBoxContainer.new()
 	content.add_theme_constant_override("separation", 6)
 	pill.add_child(content)
-
-	if inline_label != null:
-		inline_label.visible = false
-		var name_label: Label = Label.new()
-		name_label.text = inline_label.text
-		name_label.add_theme_font_size_override("font_size", 13)
-		content.add_child(name_label)
-		var spacer: Control = Control.new()
-		spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		content.add_child(spacer)
 
 	var minus: Button = Button.new()
 	minus.text = "−"
@@ -829,13 +734,11 @@ func _apply_visual_style() -> void:
 	for section: LobbySection in _sections():
 		section.apply_style(tuning, layout_tuning)
 
-	# Bontago-mp0.3.5 (review r2, item 2): round "-"/"+" stepper pills flanking
-	# every SpinBox (mockup 11) -- the SpinBox itself stays exactly as it was
-	# (same min/max/step, same value_changed wiring), these just give it a
-	# second, gamepad-focusable way to nudge the value by one step, and (review
-	# r3, problem 3) hides the native up/down spinner entirely.
-	_add_stepper_buttons(_player_count_spin, _main_stepper_buttons, _players_sub_label)
-	_add_stepper_buttons(_ai_count_spin, _main_stepper_buttons, _ai_sub_label)
+	# Bontago-mp0.3.5 (review r2, item 2): a round "-"/"+" stepper pill around the
+	# goal-flag SpinBox (mockup 11) -- the SpinBox itself stays exactly as it was
+	# (same min/max/step, same value_changed wiring), this just gives it a second,
+	# gamepad-focusable way to nudge the value by one step, and (review r3, problem 3)
+	# hides the native up/down spinner entirely.
 	_add_stepper_buttons(_goal_flag_spin, _goal_stepper_buttons)
 	# Bontago-1pi.30: the two timer controls are sliders now (no stepper pills);
 	# gamepad left/right is the Slider's own ui_left/ui_right handling, up/down
@@ -883,18 +786,6 @@ func _apply_visual_style() -> void:
 			box, tuning.pill_cream_color, tuning.pill_cream_hover_color,
 			tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning
 		)
-	_teams_track.add_theme_stylebox_override("panel", MenuStyleFactory.make_well(tuning))
-	for team_button: Button in _team_buttons:
-		MenuStyleFactory.apply_toggle_chip(
-			team_button, tuning.well_color, tuning.well_color,
-			tuning.pill_cream_hover_color, tuning.card_cream_color, tuning.ink_color, tuning
-		)
-		# Bontago-mp0.3.5 (review r2 width fix): a smaller font just for these
-		# four buttons keeps "2 teams"/"3 teams"/"4 teams" from being the
-		# single widest row in %SettingsLeft -- the segmented track is a
-		# secondary control, not body text, so a slightly denser size reads
-		# fine here without touching the shared pill font size anywhere else.
-		team_button.add_theme_font_size_override("font_size", 13)
 	# Bontago-1pi.18.5: the Experiments checkboxes are the same chip family as the
 	# specials grid above (no new colours, no new tunables).
 	for qol_check: CheckBox in _qol_checks:
@@ -911,11 +802,9 @@ func _apply_visual_style() -> void:
 			tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning
 		)
 
-	var captions: Array[Label] = [_specials_label, _advanced_rules_label, _experiments_label]
+	var captions: Array[Label] = [_specials_label, _experiments_label]
 	for caption: Label in captions:
 		caption.add_theme_color_override("font_color", tuning.label_muted_color)
-
-	_apply_advanced_rules_popup_style()
 
 	_status_badge.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_cream_color, tuning))
 	_gamepad_hint_pill.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_cream_color, tuning))
@@ -941,112 +830,55 @@ func _apply_visual_style() -> void:
 	_update_status_badge()
 
 
-## Bontago-mp0.3.5 (review r3, problem 2): the bar itself is a cream pill
-## Button (its text stays empty; %AdvRulesBarLabel + %AdvRulesChips are child
-## Controls with mouse_filter = MOUSE_FILTER_IGNORE, so clicks fall through
-## to %AdvRulesBar (the Button) underneath them -- the same "icon + label
-## inside a Button" pattern used everywhere else in Godot's own UI).
-##
-## Bontago-mp0.3.5 (polish pass, problem 1): %AdvRulesBarPanel (a
-## PanelContainer, not the Button) is now the visible background -- a flat
-## cream pill with real content-margin padding -- and %AdvRulesBar itself is
-## styled fully transparent (apply_flat_stepper_button(), same "no background
-## in any state, keep the shared focus ring" helper the stepper glyphs use)
-## so the two don't double-draw a background. Each chip is a flat, shadow-
-## less make_flat_chip() pill (not make_badge()'s raised/shadowed pill) in a
-## lighter beige than the bar itself, smaller text (set in ui/Lobby.tscn),
-## so they read as light summary tokens rather than a second row of buttons.
-func _apply_advanced_rules_popup_style() -> void:
-	_adv_rules_bar_panel.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_cream_color, tuning))
-	MenuStyleFactory.apply_flat_stepper_button(_adv_rules_bar, tuning)
-	for chip_label: Label in [
-		_adv_chip_specials, _adv_chip_experiments,
-	]:
-		var chip_panel: PanelContainer = chip_label.get_parent() as PanelContainer
-		chip_panel.add_theme_stylebox_override("panel", MenuStyleFactory.make_flat_chip(tuning.pill_cream_hover_color, tuning))
-		chip_label.add_theme_color_override("font_color", tuning.ink_color)
-	_advanced_popup_card.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(tuning.card_cream_color, tuning))
-	MenuStyleFactory.apply_pill(
-		_advanced_popup_close, tuning.pill_coral_color, tuning.pill_coral_hover_color, tuning.label_ink_light_color, tuning
-	)
-
-
-## Bontago-mp0.3.5 (review r3, problem 2): "Activating the bar (click /
-## ui_accept) opens a modal popup ... focus returns to the bar" -- Button's
-## own `pressed` signal already fires for both a mouse click and ui_accept
-## while focused (BaseButton's default shortcut behavior), so this is the
-## bar's sole `pressed` handler, wired in _ready().
-func _open_advanced_popup() -> void:
-	_advanced_popup.visible = true
-	var first: Control = _special_checkboxes[0] if not _special_checkboxes.is_empty() else _tilt_mode_option
-	first.grab_focus()
-
-
-func _close_advanced_popup() -> void:
-	_advanced_popup.visible = false
-	_adv_rules_bar.grab_focus()
-
-
-## ui_cancel closes the popup from anywhere inside it (brief: "closable with
-## a Close/Done pill and ui_cancel"). %AdvancedPopupClose's own `pressed`
-## already covers the pill; this covers the Esc/gamepad-B path, consuming the
-## event so it doesn't also trigger whatever ui_cancel does one layer up
-## (e.g. game/Main.gd's own pause/back handling).
-##
-## Bontago-1pi.15.1 fix: with the popup closed, ui_cancel now backs all the
-## way out of the lobby too (%BackButton's own back_requested, same as a
-## click/ui_accept on it) -- previously B did nothing here at all unless the
-## advanced-rules popup happened to be open, the reported "B never goes back
-## in any menu" gap.
+## Gamepad/keyboard shortcuts and back-out (Bontago-1pi.53, S1b; the Advanced rules popup is
+## gone):
+## - lobby_quick_advanced (Y) opens/closes the Advanced block of the section holding focus
+##   (the first section with one when focus is elsewhere or in a section without one);
+## - lobby_quick_start (X) starts the match when the Start button is usable;
+## - ui_cancel (Esc / gamepad B) backs out of the lobby, same as %BackButton. (An open
+##   OptionButton popup consumes its own ui_cancel before this runs.)
+## Bontago-1pi.15.1 fix: B used to do nothing here unless the popup was open, the reported
+## "B never goes back in any menu" gap.
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed(&"lobby_quick_advanced"):
-		if _advanced_popup.visible:
-			_close_advanced_popup()
-		else:
-			_open_advanced_popup()
+		toggle_focused_advanced()
 		get_viewport().set_input_as_handled()
 		return
 	if event.is_action_pressed(&"lobby_quick_start"):
-		if not _advanced_popup.visible and _start_button.visible and not _start_button.disabled:
+		if _start_button.visible and not _start_button.disabled:
 			_on_start_pressed()
 		get_viewport().set_input_as_handled()
 		return
 	if not event.is_action_pressed(&"ui_cancel"):
 		return
-	if _advanced_popup.visible:
-		_close_advanced_popup()
-	else:
-		_on_back_pressed()
+	_on_back_pressed()
 	get_viewport().set_input_as_handled()
 
 
-## Live summary chips on %AdvRulesBar (brief: "label + summary chips that
-## update live"), driven straight off the same controls _config_from_controls()
-## reads -- called once from _apply_data() so every path that can change one
-## of these five settings (a host's own edit, which round-trips through
-## _publish_lobby_data() -> _apply_data(), or a remote update) refreshes the
-## bar without a second signal wiring.
-func _update_advanced_rules_summary() -> void:
-	_update_timer_values()
-	var enabled_count: int = 0
-	for box: CheckBox in _special_checkboxes:
-		if box.button_pressed:
-			enabled_count += 1
-	_adv_chip_specials.text = "Specials: %d/%d" % [enabled_count, _special_checkboxes.size()]
-	# Bontago-1pi.18.5: how many of the four opt-in experiments are on.
-	var experiments_on: int = 0
-	for qol_check: CheckBox in _qol_checks:
-		if qol_check.button_pressed:
-			experiments_on += 1
-	_adv_chip_experiments.text = "Experiments: %d on" % experiments_on
-	_update_section_summaries()
+## Y on the pad: toggles the Advanced block of the section that holds focus, falling back to
+## the first section that has one (GAME). Collapsing a block that holds focus hands focus
+## to its chip, so the loop never loses its place (LobbySection.set_advanced_open()).
+func toggle_focused_advanced() -> void:
+	var target: LobbySection = null
+	for section: LobbySection in _sections():
+		if section.has_advanced() and section.has_focus_inside():
+			target = section
+			break
+	if target == null:
+		for section: LobbySection in _sections():
+			if section.has_advanced():
+				target = section
+				break
+	if target != null:
+		target.toggle_advanced()
 
 
-## Bontago-1pi.53 (S1a): the one-line summary on each section header, read straight off
-## the same controls _config_from_controls() reads. Called from
-## _update_advanced_rules_summary(), i.e. after every lobby-data apply, so a host edit
-## and a remote update both refresh it.
+## Bontago-1pi.53 (S1a/S1b): the one-line summary on each section header, read straight off
+## the same controls _config_from_controls() reads (and the timer value labels). Called
+## from _apply_data(), i.e. after every lobby-data apply, so a host edit and a remote
+## update both refresh it. Replaces the old Advanced rules bar's live chips.
 func _update_section_summaries() -> void:
+	_update_timer_values()
 	_game_section.set_summary(SUMMARY_SEPARATOR.join([
 		_selected_text(_game_mode_option), _selected_text(_map_combo_option),
 		_selected_text(_sky_theme_option), _selected_text(_weather_option),
@@ -1061,21 +893,35 @@ func _update_section_summaries() -> void:
 		round_parts.append((SUMMARY_GOAL_FLAG_FORMAT if flags == 1 else SUMMARY_GOAL_FLAGS_FORMAT) % flags)
 	_round_section.set_summary(SUMMARY_SEPARATOR.join(round_parts))
 	if _gifts_check.button_pressed:
-		_gifts_section.set_summary(SUMMARY_GIFTS_ON_FORMAT % [SUMMARY_SEPARATOR, int(_special_freq_slider.value)])
+		var gifts_summary: String = SUMMARY_GIFTS_ON_FORMAT % [SUMMARY_SEPARATOR, int(_special_freq_slider.value)]
+		var enabled_gifts: int = 0
+		for box: CheckBox in _special_checkboxes:
+			if box.button_pressed:
+				enabled_gifts += 1
+		if enabled_gifts != _special_checkboxes.size():
+			gifts_summary += SUMMARY_SEPARATOR + SUMMARY_GIFT_COUNT_FORMAT % [enabled_gifts, _special_checkboxes.size()]
+		_gifts_section.set_summary(gifts_summary)
 	else:
 		_gifts_section.set_summary(SUMMARY_GIFTS_OFF)
+	var experiments_on: int = 0
+	for qol_check: CheckBox in _qol_checks:
+		if qol_check.button_pressed:
+			experiments_on += 1
+	_experiments_section.set_summary(SUMMARY_EXPERIMENTS_FORMAT % experiments_on)
 
 
 func _selected_text(option: OptionButton) -> String:
 	return option.get_item_text(option.selected) if option.selected >= 0 else ""
 
 
-## Bontago-mp0.3.5: tools/capture_mockup08.gd's own `--lobby-advanced` frame
-## (public wrapper so the capture tool, which isn't part of this package's
-## own private-method surface, doesn't reach into `_open_advanced_popup()`
-## directly).
+## Bontago-mp0.3.5: tools/capture_mockup08.gd's own `--lobby-advanced` frame (public wrapper
+## so the capture tool, which isn't part of this package's own private-method surface,
+## has a seam). DECISION (ui/Lobby.gd, Bontago-1pi.53 S1b): the popup is gone, so the
+## seam keeps its name and now opens every section's Advanced block -- the lobby's
+## equivalent of "show the advanced rules" -- instead of breaking that tool.
 func debug_open_advanced_rules_popup() -> void:
-	_open_advanced_popup()
+	for section: LobbySection in _sections():
+		section.set_advanced_open(true)
 
 
 func _on_back_pressed() -> void:
@@ -1332,7 +1178,6 @@ func _apply_data(data: Dictionary) -> void:
 	_ai_count_spin.value = config.ai_count
 	_ai_difficulty_option.selected = config.ai_difficulty
 	_team_mode_option.selected = config.team_mode
-	_sync_team_segmented(config.team_mode)
 	_block_timer_slider.value = config.block_timer
 	_block_timer_label.text = "%.1f s" % config.block_timer
 	_gravity_slider.value = config.gravity_multiplier
@@ -1366,7 +1211,7 @@ func _apply_data(data: Dictionary) -> void:
 	_qol_goal_radius_check.button_pressed = qol != null and qol.goal_radius_enabled
 	_qol_gift_slot_check.button_pressed = qol != null and qol.gift_slot_enabled
 	_applying_remote_data = false
-	_update_advanced_rules_summary()
+	_update_section_summaries()
 	# Bontago-1pi.9b: re-bound %AiCountSpin's max after every value assignment
 	# above (player_count and ai_count both just moved, possibly from a wire
 	# value that predates this clamp) -- see _clamp_ai_count_to_seats()'s own
@@ -1412,8 +1257,12 @@ func _on_seats_changed() -> void:
 
 ## The Teams toggle. DECISION (ui/Lobby.gd, E1, plan D8): the toggle writes only
 ## OFF or TEAMS_4 ("on, up to 4 teams") into the hidden %TeamModeOption, the
-## source of truth the segmented buttons also write; legacy TEAMS_2/3 data stays
-## valid when it arrives. Host only: a client's controls are read-only.
+## source of truth for config.team_mode; legacy TEAMS_2/3 data stays valid when it
+## arrives. Host only: a client's controls are read-only.
+## DECISION (ui/Lobby.gd, Bontago-1pi.53 S1b): the segmented Teams control left the settings
+## card, so until the panel's own Teams toggle (PL1b) emits teams_toggled this handler -- and
+## lobby data carrying a team_mode -- is the only way teams switch on; %TeamModeOption stays
+## hidden-but-functional, so starting a team match through the round trip is unchanged.
 func _on_teams_toggled(enabled: bool) -> void:
 	if not _is_host_session():
 		return

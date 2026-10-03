@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://ui/Lobby.gd" id="1_lobby"]
 [ext_resource type="Theme" path="res://ui/theme/stackfall_theme.tres" id="2_theme"]
@@ -6,8 +6,6 @@
 [ext_resource type="Script" path="res://ui/MenuBackdrop.gd" id="4_backdrop"]
 [ext_resource type="PackedScene" path="res://ui/lobby/LobbyPlayersPanel.tscn" id="5_playerspanel"]
 [ext_resource type="Script" path="res://ui/lobby/LobbySection.gd" id="6_section"]
-
-[sub_resource type="ButtonGroup" id="ButtonGroup_teams"]
 
 [node name="Lobby" type="Control"]
 layout_mode = 3
@@ -508,180 +506,77 @@ size_flags_horizontal = 3
 max_value = 100.0
 value = 35.0
 
-[node name="SeatsRow" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings"]
+[node name="Advanced" type="MarginContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection"]
 layout_mode = 2
-theme_override_constants/separation = 31
+theme_override_constants/margin_left = 12
 
-[node name="PlayersAiSection" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SeatsRow"]
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_constants/separation = 4
-
-[node name="PlayersAiCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SeatsRow/PlayersAiSection"]
-layout_mode = 2
-theme_type_variation = &"CaptionLabel"
-text = "PLAYERS / AI"
-
-[node name="PlayersAiRow" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SeatsRow/PlayersAiSection"]
-layout_mode = 2
-theme_override_constants/separation = 10
-
-[node name="PlayersCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SeatsRow/PlayersAiSection/PlayersAiRow"]
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_constants/separation = 4
-
-[node name="PlayersSubLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SeatsRow/PlayersAiSection/PlayersAiRow/PlayersCol"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Players"
-
-[node name="PlayerCountSpin" type="SpinBox" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SeatsRow/PlayersAiSection/PlayersAiRow/PlayersCol"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-min_value = 2.0
-max_value = 8.0
-value = 4.0
-
-[node name="AiCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SeatsRow/PlayersAiSection/PlayersAiRow"]
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_constants/separation = 4
-
-[node name="AiSubLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SeatsRow/PlayersAiSection/PlayersAiRow/AiCol"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "AI"
-
-[node name="AiCountSpin" type="SpinBox" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SeatsRow/PlayersAiSection/PlayersAiRow/AiCol"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-max_value = 8.0
-
-[node name="AiDifficultyOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SeatsRow/PlayersAiSection"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="TeamsSection" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SeatsRow"]
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_constants/separation = 4
-
-[node name="TeamsCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SeatsRow/TeamsSection"]
-layout_mode = 2
-theme_type_variation = &"CaptionLabel"
-text = "TEAMS"
-
-[node name="TeamsRow" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SeatsRow/TeamsSection"]
-layout_mode = 2
-
-[node name="TeamModeOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SeatsRow/TeamsSection/TeamsRow"]
-unique_name_in_owner = true
-layout_mode = 2
-visible = false
-size_flags_horizontal = 3
-
-[node name="TeamsTrack" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SeatsRow/TeamsSection/TeamsRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="TeamsSegmented" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SeatsRow/TeamsSection/TeamsRow/TeamsTrack"]
-unique_name_in_owner = true
+[node name="SpecialsGroup" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Advanced"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="TeamOffButton" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SeatsRow/TeamsSection/TeamsRow/TeamsTrack/TeamsSegmented"]
+[node name="SpecialsLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Advanced/SpecialsGroup"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 3
-toggle_mode = true
-button_pressed = true
-button_group = SubResource("ButtonGroup_teams")
-text = "Off"
+theme_type_variation = &"CaptionLabel"
+text = "Enabled gifts"
 
-[node name="Team2Button" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SeatsRow/TeamsSection/TeamsRow/TeamsTrack/TeamsSegmented"]
+[node name="SpecialsChecklist" type="HFlowContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Advanced/SpecialsGroup"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 3
-toggle_mode = true
-button_group = SubResource("ButtonGroup_teams")
-text = "2 teams"
+theme_override_constants/h_separation = 10
+theme_override_constants/v_separation = 10
 
-[node name="Team3Button" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SeatsRow/TeamsSection/TeamsRow/TeamsTrack/TeamsSegmented"]
+[node name="ExperimentsSection" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 3
-toggle_mode = true
-button_group = SubResource("ButtonGroup_teams")
-text = "3 teams"
+theme_override_constants/separation = 4
+script = ExtResource("6_section")
+title = "EXPERIMENTS"
+header_opens_advanced = true
 
-[node name="Team4Button" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SeatsRow/TeamsSection/TeamsRow/TeamsTrack/TeamsSegmented"]
+[node name="Advanced" type="MarginContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+
+[node name="ExperimentsGroup" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="ExperimentsLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 3
-toggle_mode = true
-button_group = SubResource("ButtonGroup_teams")
-text = "4 teams"
+theme_type_variation = &"CaptionLabel"
+text = "Off by default"
 
-[node name="AdvRulesBarPanel" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout"]
+[node name="ExperimentsChecklist" type="HFlowContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 0
+theme_override_constants/h_separation = 10
+theme_override_constants/v_separation = 10
 
-[node name="AdvRulesBar" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel"]
+[node name="QolTimerPauseCheck" type="CheckBox" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup/ExperimentsChecklist"]
 unique_name_in_owner = true
 layout_mode = 2
-focus_mode = 2
-text = ""
+tooltip_text = "Experiment: the block timer pauses while a special is active or a tower is toppling, so a forced drop cannot land mid-chaos."
+text = "Pause timer on events"
 
-[node name="AdvRulesBarContent" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel"]
-mouse_filter = 2
-layout_mode = 2
-theme_override_constants/separation = 13
-
-[node name="AdvRulesBarLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel/AdvRulesBarContent"]
-mouse_filter = 2
-layout_mode = 2
-size_flags_vertical = 4
-theme_type_variation = &"TitleLabel"
-theme_override_font_sizes/font_size = 12
-text = "Advanced rules"
-
-[node name="AdvRulesChips" type="HFlowContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel/AdvRulesBarContent"]
+[node name="QolBacklogCheck" type="CheckBox" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup/ExperimentsChecklist"]
 unique_name_in_owner = true
-mouse_filter = 2
 layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 4
-theme_override_constants/h_separation = 8
-theme_override_constants/v_separation = 8
+tooltip_text = "Experiment: when the block timer runs out the held piece is queued and you get a fresh one, instead of being dropped."
+text = "Queue expired blocks"
 
-[node name="ChipSpecials" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel/AdvRulesBarContent/AdvRulesChips"]
-mouse_filter = 2
-layout_mode = 2
-
-[node name="AdvChipSpecials" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel/AdvRulesBarContent/AdvRulesChips/ChipSpecials"]
+[node name="QolGoalRadiusCheck" type="CheckBox" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup/ExperimentsChecklist"]
 unique_name_in_owner = true
-mouse_filter = 2
 layout_mode = 2
-theme_override_font_sizes/font_size = 9
-text = "Specials: 9/9"
+tooltip_text = "Experiment: a goal can be claimed by territory around the flag, not only on the flag cell itself."
+text = "Bigger goal claim radius"
 
-[node name="ChipExperiments" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel/AdvRulesBarContent/AdvRulesChips"]
-mouse_filter = 2
-layout_mode = 2
-
-[node name="AdvChipExperiments" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/AdvRulesBarPanel/AdvRulesBarContent/AdvRulesChips/ChipExperiments"]
+[node name="QolGiftSlotCheck" type="CheckBox" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup/ExperimentsChecklist"]
 unique_name_in_owner = true
-mouse_filter = 2
 layout_mode = 2
-theme_override_font_sizes/font_size = 9
-text = "Experiments: 0 on"
+tooltip_text = "Experiment: a claimed gift waits in a slot and is spent with the use-gift action, instead of replacing your next block."
+text = "Gift slot"
 
 [node name="PlayersCard" type="PanelContainer" parent="Margin/Layout/Columns"]
 unique_name_in_owner = true
@@ -767,28 +662,8 @@ theme_type_variation = &"CaptionLabel"
 horizontal_alignment = 2
 text = "(A) Select  *  (B) Back  *  Enter/Esc"
 
-[node name="AdvancedPopup" type="Control" parent="."]
-unique_name_in_owner = true
+[node name="HiddenSources" type="Control" parent="."]
 visible = false
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 1
-
-[node name="AdvancedPopupDim" type="ColorRect" parent="AdvancedPopup"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 1
-color = Color(0.05, 0.06, 0.08, 0.55)
-
-[node name="AdvancedPopupCenter" type="CenterContainer" parent="AdvancedPopup"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -797,85 +672,25 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="AdvancedPopupCard" type="PanelContainer" parent="AdvancedPopup/AdvancedPopupCenter"]
+[node name="Seats" type="HBoxContainer" parent="HiddenSources"]
+layout_mode = 0
+
+[node name="PlayerCountSpin" type="SpinBox" parent="HiddenSources/Seats"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(620, 0)
+min_value = 2.0
+max_value = 8.0
+value = 4.0
 
-[node name="AdvancedPopupLayout" type="VBoxContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard"]
-layout_mode = 2
-theme_override_constants/separation = 16
-
-[node name="AdvancedPopupHeader" type="HBoxContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout"]
-layout_mode = 2
-
-[node name="AdvancedRulesLabel" type="Label" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedPopupHeader"]
+[node name="AiCountSpin" type="SpinBox" parent="HiddenSources/Seats"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_type_variation = &"TitleLabel"
-text = "Advanced rules"
+max_value = 8.0
 
-[node name="AdvancedPopupHeaderSpacer" type="Control" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedPopupHeader"]
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="AdvancedPopupClose" type="Button" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/AdvancedPopupHeader"]
+[node name="AiDifficultyOption" type="OptionButton" parent="HiddenSources/Seats"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Done"
 
-[node name="SpecialsSection" type="VBoxContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout"]
-layout_mode = 2
-theme_override_constants/separation = 6
-
-[node name="SpecialsLabel" type="Label" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/SpecialsSection"]
+[node name="TeamModeOption" type="OptionButton" parent="HiddenSources/Seats"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_type_variation = &"CaptionLabel"
-text = "Specials"
-
-[node name="SpecialsChecklist" type="HFlowContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/SpecialsSection"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_constants/h_separation = 10
-theme_override_constants/v_separation = 10
-
-[node name="ExperimentsSection" type="VBoxContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout"]
-layout_mode = 2
-theme_override_constants/separation = 6
-
-[node name="ExperimentsLabel" type="Label" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/ExperimentsSection"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"CaptionLabel"
-text = "Experiments (off by default)"
-
-[node name="ExperimentsChecklist" type="HFlowContainer" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/ExperimentsSection"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_constants/h_separation = 10
-theme_override_constants/v_separation = 10
-
-[node name="QolTimerPauseCheck" type="CheckBox" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/ExperimentsSection/ExperimentsChecklist"]
-unique_name_in_owner = true
-layout_mode = 2
-tooltip_text = "Experiment: the block timer pauses while a special is active or a tower is toppling, so a forced drop cannot land mid-chaos."
-text = "Pause timer on events"
-
-[node name="QolBacklogCheck" type="CheckBox" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/ExperimentsSection/ExperimentsChecklist"]
-unique_name_in_owner = true
-layout_mode = 2
-tooltip_text = "Experiment: when the block timer runs out the held piece is queued and you get a fresh one, instead of being dropped."
-text = "Queue expired blocks"
-
-[node name="QolGoalRadiusCheck" type="CheckBox" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/ExperimentsSection/ExperimentsChecklist"]
-unique_name_in_owner = true
-layout_mode = 2
-tooltip_text = "Experiment: a goal can be claimed by territory around the flag, not only on the flag cell itself."
-text = "Bigger goal claim radius"
-
-[node name="QolGiftSlotCheck" type="CheckBox" parent="AdvancedPopup/AdvancedPopupCenter/AdvancedPopupCard/AdvancedPopupLayout/ExperimentsSection/ExperimentsChecklist"]
-unique_name_in_owner = true
-layout_mode = 2
-tooltip_text = "Experiment: a claimed gift waits in a slot and is spent with the use-gift action, instead of replacing your next block."
-text = "Gift slot"

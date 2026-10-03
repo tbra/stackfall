@@ -439,7 +439,6 @@ func test_teams_toggled_writes_off_or_four_teams_and_publishes() -> void:
 	_panel_of(lobby).teams_toggled.emit(true)
 	assert_eq(option.selected, int(MatchConfig.TeamMode.TEAMS_4), "on = up to 4 teams (plan D8)")
 	assert_eq(int(_last_published(lobby).get("team_mode")), int(MatchConfig.TeamMode.TEAMS_4))
-	assert_true((lobby.get_node("%Team4Button") as Button).button_pressed, "the segmented front end follows")
 	_panel_of(lobby).teams_toggled.emit(false)
 	assert_eq(option.selected, int(MatchConfig.TeamMode.OFF))
 	assert_eq(int(_last_published(lobby).get("team_mode")), int(MatchConfig.TeamMode.OFF))
@@ -588,10 +587,10 @@ func test_panel_focus_entries_join_the_main_loop_between_the_settings_and_the_fo
 	var lobby: Lobby = _make_lobby(true, FocusPanel)
 	var panel: HookPanel = _panel_of(lobby) as HookPanel
 	var seat_button: Control = panel.entries[0]
-	var adv_bar: Control = lobby.get_node("%AdvRulesBar") as Control
+	var last_setting: Control = _last_settings_stop(lobby)
 	var back: Control = lobby.get_node("%BackButton") as Control
-	assert_eq(adv_bar.get_node(adv_bar.focus_neighbor_bottom), seat_button)
-	assert_eq(seat_button.get_node(seat_button.focus_neighbor_top), adv_bar)
+	assert_eq(last_setting.get_node(last_setting.focus_neighbor_bottom), seat_button)
+	assert_eq(seat_button.get_node(seat_button.focus_neighbor_top), last_setting)
 	assert_eq(seat_button.get_node(seat_button.focus_neighbor_bottom), back)
 	_assert_main_loop_is_closed(lobby)
 
@@ -610,16 +609,22 @@ func test_focus_entries_changed_rewires_the_loop() -> void:
 	_assert_main_loop_is_closed(lobby)
 	panel.entries.clear()
 	panel.focus_entries_changed.emit()
-	var adv_bar: Control = lobby.get_node("%AdvRulesBar") as Control
-	assert_eq(adv_bar.get_node(adv_bar.focus_neighbor_bottom), lobby.get_node("%BackButton"), "no panel entries: the loop is the pre-rework one")
+	var last_setting: Control = _last_settings_stop(lobby)
+	assert_eq(last_setting.get_node(last_setting.focus_neighbor_bottom), lobby.get_node("%BackButton"), "no panel entries: the loop is the pre-rework one")
 	_assert_main_loop_is_closed(lobby)
 
 
 func test_the_default_main_loop_is_closed_and_skips_the_roster() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var adv_bar: Control = lobby.get_node("%AdvRulesBar") as Control
-	assert_eq(adv_bar.get_node(adv_bar.focus_neighbor_bottom), lobby.get_node("%BackButton"), "rows carry no focusable control yet")
+	var last_setting: Control = _last_settings_stop(lobby)
+	assert_eq(last_setting.get_node(last_setting.focus_neighbor_bottom), lobby.get_node("%BackButton"), "rows carry no focusable control yet")
 	_assert_main_loop_is_closed(lobby)
+
+
+## The last settings stop before the players panel's entries (Bontago-1pi.53 S1b: the
+## EXPERIMENTS header, while its Advanced block is collapsed; the Advanced rules bar is gone).
+func _last_settings_stop(lobby: Lobby) -> Control:
+	return (lobby.get_node("%ExperimentsSection") as LobbySection).header_button
 
 
 ## Walks focus_neighbor_bottom from the first control of the main chain and checks it
@@ -905,7 +910,7 @@ func test_the_host_focus_entries_run_colour_team_difficulty_remove_row_by_row() 
 	assert_eq(bot.remove_button.get_node(bot.remove_button.focus_neighbor_left), bot.difficulty_option)
 	assert_eq(bot.difficulty_option.get_node(bot.difficulty_option.focus_neighbor_left), bot.team_button)
 	var back: Control = lobby.get_node("%BackButton") as Control
-	assert_eq(entries[0].get_node(entries[0].focus_neighbor_top), lobby.get_node("%AdvRulesBar"), "the rows follow the settings in the loop")
+	assert_eq(entries[0].get_node(entries[0].focus_neighbor_top), _last_settings_stop(lobby), "the rows follow the settings in the loop")
 	assert_eq(entries[entries.size() - 1].get_node(entries[entries.size() - 1].focus_neighbor_bottom), back, "and precede the footer")
 	_assert_main_loop_is_closed(lobby)
 

@@ -1,9 +1,11 @@
 extends GutTest
-## Bontago-1pi.53 (S1a, docs/LOBBY_REWORK_PLAN.md sections 2 and 4): the settings column
-## is a stack of LobbySections (GAME, ROUND, GIFTS) with collapsible headers, an
+## Bontago-1pi.53 (S1a/S1b, docs/LOBBY_REWORK_PLAN.md sections 2 and 4): the settings column
+## is a stack of LobbySections (GAME, ROUND, GIFTS, EXPERIMENTS) with collapsible headers, an
 ## optional Advanced block, a one-line summary each, and a focus loop that follows them.
 ## Host edits every setting from its section; a client reads them read-only; no
-## collapsed block or hidden column ever leaves an invisible focus stop.
+## collapsed block or hidden column ever leaves an invisible focus stop. S1b: the
+## per-gift checklist is GIFTS Advanced, the experiment checks are the EXPERIMENTS block, and
+## the Advanced rules popup, bar, Players/AI steppers and segmented Teams are gone.
 
 ## Every control the lobby round trip governs must still resolve by its unique name.
 const UNIQUE_NAMES: Array[String] = [
@@ -11,9 +13,12 @@ const UNIQUE_NAMES: Array[String] = [
 	"%SkyThemeOption", "%WeatherOption", "%GravitySlider", "%TurnBasedCheck", "%HoleModeOption",
 	"%TiltModeOption", "%MidJoinCheck", "%RoundTimerSlider", "%MatchTimerSlider", "%SuddenDeathCheck",
 	"%BlockTimerSlider", "%GoalFlagSpin", "%SkyTeamSumCheck", "%GiftsCheck", "%SpecialFreqSlider",
-	"%SpecialsChecklist", "%QolTimerPauseCheck", "%PlayerCountSpin", "%AiCountSpin", "%AiDifficultyOption",
-	"%TeamModeOption", "%GameSection", "%RoundSection", "%GiftsSection",
+	"%SpecialsChecklist", "%QolTimerPauseCheck", "%QolBacklogCheck", "%QolGoalRadiusCheck", "%QolGiftSlotCheck",
+	"%ExperimentsChecklist", "%PlayerCountSpin", "%AiCountSpin", "%AiDifficultyOption",
+	"%TeamModeOption", "%GameSection", "%RoundSection", "%GiftsSection", "%ExperimentsSection",
 ]
+
+const QOL_NAMES: Array[String] = ["%QolTimerPauseCheck", "%QolBacklogCheck", "%QolGoalRadiusCheck", "%QolGiftSlotCheck"]
 
 
 func _make_lobby(is_host: bool) -> Lobby:
@@ -103,6 +108,14 @@ func test_controls_live_in_their_plan_sections() -> void:
 	assert_false(round_section.has_advanced(), "ROUND has no Advanced block (plan D1)")
 	for unique_name: String in ["%GiftsCheck", "%SpecialFreqSlider"]:
 		assert_true(gifts.body.is_ancestor_of(lobby.get_node(unique_name)), "%s is GIFTS main" % unique_name)
+	assert_true(gifts.advanced.is_ancestor_of(lobby.get_node("%SpecialsChecklist")), "the per-gift checkboxes are GIFTS Advanced")
+	var experiments: LobbySection = _section(lobby, "%ExperimentsSection")
+	assert_true(experiments.header_opens_advanced, "the EXPERIMENTS header opens its checks")
+	assert_null(experiments.body, "EXPERIMENTS has no main body")
+	assert_null(experiments.advanced_button, "and no separate Advanced chip")
+	for unique_name: String in QOL_NAMES:
+		assert_true(experiments.advanced.is_ancestor_of(lobby.get_node(unique_name)), "%s is EXPERIMENTS Advanced" % unique_name)
+	assert_eq(lobby._sections(), [game, round_section, gifts, experiments] as Array[LobbySection], "visual order: GAME, ROUND, GIFTS, EXPERIMENTS")
 
 
 func test_sections_default_expanded_with_advanced_collapsed() -> void:
@@ -202,6 +215,7 @@ func test_ui_down_walks_the_sections_in_visual_order() -> void:
 	var order: Array[Control] = [
 		_section(lobby, "%GameSection").header_button, lobby.get_node("%GameModeOption") as Control,
 		_section(lobby, "%RoundSection").header_button, _section(lobby, "%GiftsSection").header_button,
+		_section(lobby, "%ExperimentsSection").header_button, lobby.get_node("%BackButton") as Control,
 	]
 	var last_index: int = -1
 	for control: Control in order:
@@ -213,10 +227,84 @@ func test_ui_down_walks_the_sections_in_visual_order() -> void:
 
 func test_loop_has_no_invisible_stops_in_every_game_mode() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	_section(lobby, "%GameSection").set_advanced_open(true)
+	for section: LobbySection in lobby._sections():
+		section.set_advanced_open(true)
 	for mode: int in MatchConfig.SELECTABLE_GAME_MODES:
 		_pick_mode(lobby, mode)
 		_assert_loop_has_no_invisible_stops(lobby, "mode %d" % mode)
+
+
+func test_gifts_and_experiments_advanced_blocks_join_the_loop_in_visual_order() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var gifts: LobbySection = _section(lobby, "%GiftsSection")
+	var experiments: LobbySection = _section(lobby, "%ExperimentsSection")
+	var checklist: Array[Control] = []
+	checklist.append_array(lobby._special_checkboxes)
+	var shown: Array[Control] = lobby._visible_chain(lobby._main_chain)
+	for control: Control in checklist:
+		assert_false(shown.has(control), "%s is not a stop while GIFTS Advanced is closed" % control.name)
+	for unique_name: String in QOL_NAMES:
+		assert_false(shown.has(lobby.get_node(unique_name)), "%s is not a stop while EXPERIMENTS is closed" % unique_name)
+	gifts.advanced_button.button_pressed = true
+	experiments.header_button.pressed.emit()
+	assert_true(experiments.is_advanced_open(), "the EXPERIMENTS header opens its block")
+	shown = lobby._visible_chain(lobby._main_chain)
+	var last_index: int = shown.find(gifts.advanced_button)
+	assert_gt(last_index, shown.find(lobby.get_node("%SpecialFreqSlider")), "the chip follows the GIFTS main controls")
+	for control: Control in checklist:
+		var index: int = shown.find(control)
+		assert_gt(index, last_index, "%s follows the previous stop" % control.name)
+		last_index = index
+	assert_gt(shown.find(experiments.header_button), last_index, "EXPERIMENTS follows GIFTS")
+	last_index = shown.find(experiments.header_button)
+	for unique_name: String in QOL_NAMES:
+		var index: int = shown.find(lobby.get_node(unique_name))
+		assert_gt(index, last_index, "%s follows the previous stop" % unique_name)
+		last_index = index
+	assert_lt(last_index, shown.find(lobby.get_node("%BackButton")), "the footer follows the settings")
+	_assert_loop_has_no_invisible_stops(lobby, "GIFTS + EXPERIMENTS open")
+	experiments.header_button.pressed.emit()
+	assert_false(experiments.is_advanced_open())
+	_assert_loop_has_no_invisible_stops(lobby, "EXPERIMENTS closed again")
+
+
+func test_ui_accept_on_the_experiments_header_toggles_its_block() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var experiments: LobbySection = _section(lobby, "%ExperimentsSection")
+	experiments.header_button.grab_focus()
+	assert_true(experiments.header_button.has_focus(), "fixture: the header holds focus")
+	Input.parse_input_event(_accept_event(true))
+	Input.parse_input_event(_accept_event(false))
+	Input.flush_buffered_events()
+	await get_tree().process_frame
+	assert_true(experiments.is_advanced_open(), "ui_accept on the header opens the experiments")
+	assert_true(lobby._visible_chain(lobby._main_chain).has(lobby.get_node("%QolBacklogCheck")))
+
+
+## Hiding a block while focus is inside it hands focus to a visible stop (the chip, or the header
+## of a header-toggled section) instead of dropping it with the hidden control.
+func test_collapsing_a_block_with_focus_inside_keeps_focus_on_a_visible_stop() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var game: LobbySection = _section(lobby, "%GameSection")
+	game.set_advanced_open(true)
+	(lobby.get_node("%TurnBasedCheck") as Control).grab_focus()
+	assert_true((lobby.get_node("%TurnBasedCheck") as Control).has_focus(), "fixture: focus inside Advanced")
+	game.set_advanced_open(false)
+	assert_true(game.advanced_button.has_focus(), "focus moved to the chip")
+	(lobby.get_node("%WeatherOption") as Control).grab_focus()
+	game.set_expanded(false)
+	assert_true(game.header_button.has_focus(), "collapsing the section moves focus to its header")
+	var experiments: LobbySection = _section(lobby, "%ExperimentsSection")
+	experiments.set_advanced_open(true)
+	(lobby.get_node("%QolGiftSlotCheck") as Control).grab_focus()
+	experiments.set_advanced_open(false)
+	assert_true(experiments.header_button.has_focus(), "no chip: focus moves to the header")
+	# Focus elsewhere is never stolen by a toggle.
+	(lobby.get_node("%BackButton") as Control).grab_focus()
+	game.set_expanded(true)
+	game.set_advanced_open(true)
+	game.set_advanced_open(false)
+	assert_true((lobby.get_node("%BackButton") as Control).has_focus(), "an unrelated focus stays put")
 
 
 # --- Visibility rules ------------------------------------------------------------------------
@@ -262,8 +350,17 @@ func test_headers_summarise_their_section() -> void:
 	_pick_mode(lobby, MatchConfig.GameMode.ELIMINATION)
 	assert_false(_section(lobby, "%RoundSection").summary().contains("goal flag"), "no goal flags outside their modes")
 	assert_true(_section(lobby, "%GiftsSection").summary().begins_with("On"))
+	assert_false(_section(lobby, "%GiftsSection").summary().contains("gifts"), "all gifts enabled: no count")
+	if not lobby._special_checkboxes.is_empty():
+		lobby._special_checkboxes[0].button_pressed = false
+		var count: String = Lobby.SUMMARY_GIFT_COUNT_FORMAT % [lobby._special_checkboxes.size() - 1, lobby._special_checkboxes.size()]
+		assert_true(_section(lobby, "%GiftsSection").summary().ends_with(count), "GIFTS names how many gifts are on (%s)" % count)
+		lobby._special_checkboxes[0].button_pressed = true
 	(lobby.get_node("%GiftsCheck") as CheckButton).button_pressed = false
 	assert_eq(_section(lobby, "%GiftsSection").summary(), Lobby.SUMMARY_GIFTS_OFF)
+	assert_eq(_section(lobby, "%ExperimentsSection").summary(), "0 on")
+	(lobby.get_node("%QolGoalRadiusCheck") as CheckBox).button_pressed = true
+	assert_eq(_section(lobby, "%ExperimentsSection").summary(), "1 on")
 
 
 # --- Host edits and client read-only ------------------------------------------------------------
@@ -330,14 +427,31 @@ func test_host_edits_every_gift_setting_from_the_gifts_section() -> void:
 	assert_false(config.gifts_enabled)
 
 
+func test_host_edits_the_gift_checkboxes_and_experiments_from_their_blocks() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	_section(lobby, "%GiftsSection").set_advanced_open(true)
+	_section(lobby, "%ExperimentsSection").set_advanced_open(true)
+	if not lobby._special_checkboxes.is_empty():
+		var off_id: StringName = lobby._special_ids[0]
+		lobby._special_checkboxes[0].button_pressed = false
+		var published: Array[StringName] = _published(lobby).enabled_specials
+		assert_false(published.has(off_id), "the unchecked gift is no longer enabled")
+	(lobby.get_node("%QolBacklogCheck") as CheckBox).button_pressed = true
+	assert_true(_published(lobby).qol.backlog_enabled)
+
+
 func test_client_reads_the_sections_but_cannot_edit_them() -> void:
 	var lobby: Lobby = _make_lobby(false)
 	var game: LobbySection = _section(lobby, "%GameSection")
-	for unique_name: String in [
+	var disabled_names: Array[String] = [
 		"%GameModeOption", "%MapComboOption", "%SkyThemeOption", "%WeatherOption", "%GravitySlider",
 		"%TurnBasedCheck", "%HoleModeOption", "%TiltModeOption", "%MidJoinCheck", "%MatchTimerSlider",
 		"%SuddenDeathCheck", "%BlockTimerSlider", "%GiftsCheck", "%SpecialFreqSlider",
-	]:
+	]
+	disabled_names.append_array(QOL_NAMES)
+	for box: CheckBox in lobby._special_checkboxes:
+		assert_true(box.disabled, "%s is a read-only gift checkbox for a client" % box.name)
+	for unique_name: String in disabled_names:
 		var control: Control = lobby.get_node(unique_name) as Control
 		if control is Range:
 			assert_false((control as Range).editable, "%s is read-only for a client" % unique_name)

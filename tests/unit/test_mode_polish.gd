@@ -157,10 +157,15 @@ func test_focus_loops_skip_the_hidden_timer_column() -> void:
 	assert_false(shown.has(round_slider))
 	_assert_closed_loop(shown)
 	# Focus order follows the visual order: the game mode (GAME), then the ROUND timer,
-	# then sudden death, then the players/AI controls and the AI difficulty.
+	# then sudden death, then the GIFTS and EXPERIMENTS sections (Bontago-1pi.53 S1b: the
+	# players/AI controls and the AI difficulty left the settings card).
 	assert_lt(shown.find(lobby.get_node("%GameModeOption")), shown.find(match_slider))
 	assert_lt(shown.find(match_slider), shown.find(sudden))
-	assert_lt(shown.find(lobby._main_stepper_buttons.back()), shown.find(lobby.get_node("%AiDifficultyOption")))
+	var gifts_header: Control = (lobby.get_node("%GiftsSection") as LobbySection).header_button
+	var experiments_header: Control = (lobby.get_node("%ExperimentsSection") as LobbySection).header_button
+	assert_lt(shown.find(sudden), shown.find(gifts_header))
+	assert_lt(shown.find(gifts_header), shown.find(experiments_header))
+	assert_lt(shown.find(experiments_header), shown.find(lobby.get_node("%BackButton")))
 
 
 func _assert_closed_loop(shown: Array[Control]) -> void:
@@ -225,7 +230,7 @@ func test_non_sandbox_classic_still_wins_on_the_hold() -> void:
 
 
 func test_mid_join_toggle_sits_after_turn_based_in_the_game_advanced_focus_loop() -> void:
-	# Bontago-1pi.53 (S1a): Turn-based and Mid-join moved from the popup into the GAME
+	# Bontago-1pi.53 (S1a/S1b): Turn-based and Mid-join moved from the popup into the GAME
 	# section's Advanced block, so they are in the main loop once it is opened.
 	var lobby: Lobby = _make_lobby(true)
 	(lobby.get_node("%GameSection") as LobbySection).set_advanced_open(true)
@@ -234,12 +239,14 @@ func test_mid_join_toggle_sits_after_turn_based_in_the_game_advanced_focus_loop(
 	var mid: int = shown.find(lobby.get_node("%MidJoinCheck"))
 	assert_gt(turn, -1)
 	assert_eq(mid, turn + 1)
-	# QoL Q1 (Bontago-1pi.18.5): Done/Close stays the last stop of the popup loop,
-	# after the Experiments toggles.
-	var popup_chain: Array[Control] = lobby._popup_chain
-	var close: int = popup_chain.find(lobby.get_node("%AdvancedPopupClose"))
-	assert_gt(close, popup_chain.find(lobby.get_node("%QolGiftSlotCheck")))
-	assert_eq(close, popup_chain.size() - 1)
+	# QoL Q1 (Bontago-1pi.18.5) / S1b: the Experiments toggles (their section's Advanced block)
+	# come after the GAME block and before the footer (Back) once opened.
+	(lobby.get_node("%ExperimentsSection") as LobbySection).set_advanced_open(true)
+	shown = lobby._visible_chain(lobby._main_chain)
+	var gift_slot: int = shown.find(lobby.get_node("%QolGiftSlotCheck"))
+	assert_gt(gift_slot, shown.find(lobby.get_node("%QolTimerPauseCheck")))
+	assert_gt(shown.find(lobby.get_node("%QolTimerPauseCheck")), mid)
+	assert_lt(gift_slot, shown.find(lobby.get_node("%BackButton")))
 
 
 # --- Bontago-1pi.25.1 Domination --------------------------------------------
