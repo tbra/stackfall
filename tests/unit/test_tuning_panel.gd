@@ -664,6 +664,54 @@ func test_sky_tab_fog_density_slider_writes_the_resource_and_reaches_a_live_skyb
 	)
 
 
+## Bontago-mp0.83 (owner playtest 2026-10-03): the Sky tab's cycle length row
+## is a 60..1800 s slider whose edits reach a running CYCLE sky live and keep
+## the time of day where it was.
+func test_sky_tab_cycle_length_slider_is_live_and_keeps_the_time_of_day() -> void:
+	var sunset: SkyThemeDef = Skybox.load_theme("sunset")
+	var saved_sunset_length: float = sunset.cycle_length_seconds
+	var saved_panel_length: float = _panel.sky_theme.cycle_length_seconds
+	sunset.cycle_length_seconds = 300.0
+
+	var sky: Sky = Sky.new()
+	sky.sky_material = ProceduralSkyMaterial.new()
+	var environment: Environment = Environment.new()
+	environment.sky = sky
+	var light: DirectionalLight3D = DirectionalLight3D.new()
+	light.name = "Light"
+	add_child_autofree(light)
+	var skybox: Skybox = Skybox.new()
+	skybox.config = _panel.skybox_config
+	skybox.environment = environment
+	skybox.theme = sunset
+	add_child_autofree(skybox)  # _ready() joins Skybox.TUNING_GROUP for real.
+	skybox.light_path = skybox.get_path_to(light)
+	var match_config: MatchConfig = MatchConfig.new()
+	match_config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
+	skybox.configure_match_sky(match_config)
+
+	var slider: HSlider = _panel.control_for(_panel.sky_theme, "cycle_length_seconds") as HSlider
+	assert_true(slider is HSlider, "the Sky tab exposes the cycle length")
+	assert_almost_eq(slider.min_value, 60.0, 0.001)
+	assert_almost_eq(slider.max_value, 1800.0, 0.001)
+	assert_false(_panel.hints.description_for("SkyThemeDef", "cycle_length_seconds").is_empty())
+
+	var length_before: float = skybox.cycle_length_seconds()
+	skybox.update_cycle_clock(60.0)
+	var phase_before: float = skybox.cycle_phase_at(60.0)
+	slider.emit_signal("value_changed", 600.0)
+
+	assert_almost_eq(_panel.sky_theme.cycle_length_seconds, 600.0, 0.001, "the slider writes the Resource")
+	assert_almost_eq(length_before, 300.0, 0.001, "fixture: shipped 5 min cycle")
+	assert_almost_eq(skybox.cycle_length_seconds(), 600.0, 0.001, "and reaches the running cycle")
+	assert_almost_eq(skybox.cycle_phase_at(60.0), phase_before, 0.0001, "time of day does not jump")
+	skybox.update_cycle_clock(120.0)
+	assert_almost_eq(skybox.cycle_phase_at(120.0), fposmod(phase_before + 60.0 / 600.0, 1.0), 0.0001)
+
+	sunset.cycle_length_seconds = saved_sunset_length
+	_panel.sky_theme.cycle_length_seconds = saved_panel_length
+
+
 # --- Toggle: F4 / gamepad Start+X --------------------------------------------
 
 func _key_press(keycode: Key) -> InputEventKey:

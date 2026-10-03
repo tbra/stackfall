@@ -307,6 +307,80 @@ func test_cycle_reuses_material_and_aligns_sun_with_flare() -> void:
 		"leaving cycle restores the authored flare direction")
 
 
+## Bontago-mp0.83 (owner playtest 2026-10-03): one full day/night cycle is 5 min
+## for every theme the match can use, straight from the shipped resources.
+func test_every_theme_ships_a_five_minute_cycle() -> void:
+	assert_almost_eq(SkyThemeDef.new().cycle_length_seconds, 300.0, 0.001, "script default")
+	var ids: PackedStringArray = Skybox.list_available_themes()
+	for id: String in MatchConfig.SKY_THEME_IDS:
+		assert_true(ids.has(id), "match theme %s must be a shipped theme" % id)
+	for id: String in ids:
+		var shipped: SkyThemeDef = ResourceLoader.load(
+			"res://config/sky_themes/%s.tres" % id, "", ResourceLoader.CACHE_MODE_IGNORE) as SkyThemeDef
+		assert_almost_eq(shipped.cycle_length_seconds, 300.0, 0.001, "%s.tres cycle length" % id)
+
+
+func _cycle_skybox() -> Skybox:
+	var parts: Array = _make_skybox(load(SUNSET_PATH) as SkyThemeDef)
+	var skybox: Skybox = parts[0] as Skybox
+	var config: MatchConfig = MatchConfig.new()
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
+	skybox.configure_match_sky(config)
+	return skybox
+
+
+func test_cycle_runs_a_full_loop_in_the_authored_length() -> void:
+	var sunset: SkyThemeDef = load(SUNSET_PATH) as SkyThemeDef
+	var saved_length: float = sunset.cycle_length_seconds
+	sunset.cycle_length_seconds = 300.0
+	var skybox: Skybox = _cycle_skybox()
+	assert_almost_eq(skybox.cycle_length_seconds(), 300.0, 0.001)
+	skybox.update_cycle_clock(75.0)
+	assert_almost_eq(skybox.cycle_phase_at(75.0), 0.25, 0.0001, "noon after a quarter of 5 min")
+	skybox.update_cycle_clock(150.0)
+	assert_almost_eq(skybox.cycle_phase_at(150.0), 0.5, 0.0001)
+	assert_almost_eq(skybox.cycle_phase_at(300.0), 0.0, 0.0001, "a full cycle takes 300 s")
+	sunset.cycle_length_seconds = saved_length
+
+
+## Bontago-mp0.83: a live length edit changes the speed only; the time of day
+## at the moment of the edit is unchanged.
+func test_cycle_length_change_keeps_the_phase_continuous() -> void:
+	var sunset: SkyThemeDef = load(SUNSET_PATH) as SkyThemeDef
+	var saved_length: float = sunset.cycle_length_seconds
+	sunset.cycle_length_seconds = 300.0
+	var skybox: Skybox = _cycle_skybox()
+	skybox.update_cycle_clock(100.0)
+	var before: float = skybox.cycle_phase_at(100.0)
+	skybox.set_cycle_length_seconds(900.0)
+	assert_almost_eq(skybox.cycle_length_seconds(), 900.0, 0.001)
+	assert_almost_eq(skybox.cycle_phase_at(100.0), before, 0.0001, "no jump at the edit")
+	skybox.update_cycle_clock(190.0)
+	assert_almost_eq(skybox.cycle_phase_at(190.0), fposmod(before + 90.0 / 900.0, 1.0), 0.0001,
+		"afterwards the phase advances at the new rate")
+	skybox.set_cycle_length_seconds(60.0)
+	assert_almost_eq(skybox.cycle_phase_at(190.0), fposmod(before + 90.0 / 900.0, 1.0), 0.0001, "shortening is continuous too")
+	skybox.update_cycle_clock(220.0)
+	assert_almost_eq(skybox.cycle_phase_at(220.0), fposmod(before + 90.0 / 900.0 + 30.0 / 60.0, 1.0), 0.0001)
+	# A direct write to the live theme (not through the seam) is folded in on
+	# the next clock update without a jump as well.
+	var direct: float = skybox.cycle_phase_at(220.0)
+	skybox.theme.cycle_length_seconds = 120.0
+	skybox.update_cycle_clock(220.0)
+	assert_almost_eq(skybox.cycle_phase_at(220.0), direct, 0.0001)
+	sunset.cycle_length_seconds = saved_length
+
+
+func test_cycle_length_seam_is_inert_outside_cycle_mode() -> void:
+	var parts: Array = _make_skybox(load(SUNSET_PATH) as SkyThemeDef)
+	var skybox: Skybox = parts[0] as Skybox
+	var sunset: SkyThemeDef = load(SUNSET_PATH) as SkyThemeDef
+	var saved_length: float = sunset.cycle_length_seconds
+	skybox.set_cycle_length_seconds(900.0)
+	assert_almost_eq(skybox.cycle_length_seconds(), 0.0, 0.001, "no cycle running")
+	assert_almost_eq(sunset.cycle_length_seconds, saved_length, 0.001, "a static theme is untouched")
+
+
 func test_dawn_and_storm_themes_load_with_their_character() -> void:
 	var dawn: SkyThemeDef = Skybox.load_theme("dawn")
 	var storm: SkyThemeDef = Skybox.load_theme("storm")

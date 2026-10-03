@@ -2,7 +2,10 @@ class_name SkyThemeDef
 extends Resource
 ## DECISION (Bontago-mp0.13): the cycle length belongs to the theme resource,
 ## so every peer receives the same authored duration with the shipped content.
-@export_range(30.0, 3600.0, 1.0) var cycle_length_seconds: float = 600.0
+## Bontago-mp0.83 (owner playtest 2026-10-03): the full day/night cycle is 300 s
+## (5 min), for every theme; no sky_themes/*.tres overrides it. The F4 Sky tab
+## edits it live (60..1800 s) and Skybox keeps the phase continuous across the edit.
+@export_range(60.0, 1800.0, 1.0) var cycle_length_seconds: float = 300.0
 @export_range(5.0, 85.0, 1.0) var cycle_sun_peak_degrees: float = 65.0
 @export_range(0.01, 0.5, 0.01) var cycle_twilight_width: float = 0.2
 @export_range(1.0, 10.0, 0.1) var cycle_star_brightness: float = 2.0
