@@ -535,3 +535,27 @@ extends Resource
 @export var glow_pulse_end_hz: float = 10.0
 ## Glow multiplier reached at the peak of each warning pulse (1 = no pulse).
 @export var glow_pulse_peak_multiplier: float = 4.0
+
+
+## Bontago-1pi.40: height above the disc surface at which a first block's
+## lowest point must sit to clear the home beacon -- the beacon's top plus
+## home_spawn_beacon_margin. The ONE rule behind both the player's first hover
+## (PlayerController._seed_home_spawn_raise()) and the host's no-cursor AFK
+## auto-drop origin (net/MatchNet.gd _on_feed_timer_expired() via
+## home_spawn_pivot_height() below), so the two cannot drift apart.
+## DECISION: lives here, not on Match, because both callers already hold a
+## GhostTuning and a BeaconVisualTuning, it is pure (no scene tree), and
+## autoload/Match.gd was outside this package's ownership.
+func home_spawn_clear_hover(beacon_visuals: BeaconVisualTuning) -> float:
+	return beacon_visuals.beacon_top_height() + home_spawn_beacon_margin
+
+
+## Bontago-1pi.40: home_spawn_clear_hover() expressed as the origin height the
+## host spawns an unrotated block at (orientation 0, identity free quaternion --
+## what MatchNet's no-cursor fallback sends). A block's origin is the
+## bottom-face pivot of its lowest cells (BlockShape.bottom_center()), and its
+## lowest collision point sits cube_margin / 2 above that pivot
+## (GhostPreview._rotated_bottom_offset()), so the pivot goes that much lower.
+## Shape-independent: every shape's lowest cells put the pivot on their bottom face.
+func home_spawn_pivot_height(beacon_visuals: BeaconVisualTuning, physics_tuning: PhysicsTuning) -> float:
+	return home_spawn_clear_hover(beacon_visuals) - physics_tuning.cube_margin * 0.5

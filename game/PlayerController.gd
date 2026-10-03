@@ -316,7 +316,8 @@ func _seed_home_spawn_raise() -> void:
 	if _ghost == null:
 		return
 	_take_back_home_spawn_raise()
-	var clear_hover: float = beacon_visuals.beacon_top_height() + ghost_tuning.home_spawn_beacon_margin
+	# Bontago-1pi.40: the same rule the host's no-cursor AFK auto-drop uses.
+	var clear_hover: float = ghost_tuning.home_spawn_clear_hover(beacon_visuals)
 	var raise: float = maxf(clear_hover - tuning.hover_height - _ghost.manual_hover_offset, 0.0)
 	_ghost.manual_hover_offset += raise
 	_home_spawn_raise = raise
