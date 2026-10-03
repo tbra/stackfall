@@ -109,9 +109,10 @@ func _apply_visual_style() -> void:
 	MenuStyleFactory.apply_pill(_resume_button, tuning.pill_coral_color, tuning.pill_coral_hover_color, tuning.label_ink_light_color, tuning)
 	MenuStyleFactory.apply_pill(_options_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
 	MenuStyleFactory.apply_pill(_leave_button, tuning.pill_dark_slate_color, tuning.pill_dark_slate_hover_color, tuning.label_ink_light_color, tuning)
-	# DECISION: the cream Options pill uses dark ink for both its text and glyph.
-	_options_button.add_theme_color_override("icon_normal_color", tuning.ink_color)
-	_options_button.add_theme_color_override("icon_hover_color", tuning.ink_color)
+	# DECISION (Bontago-1pi.37): every pill's icon follows its label ink in all
+	# draw states via MenuStyleFactory.apply_pill() -- the cream Options pill's
+	# dark glyph, the coral/slate pills' light glyphs -- so no per-node icon
+	# overrides here.
 
 
 ## pause_menu (Esc/gamepad Start, tools/bootstrap_project.gd) toggles this
