@@ -104,11 +104,39 @@ uniform float light_weight = 0.7;
 uniform float height_weight = 0.2;
 uniform float ambient_shade = -0.05;
 uniform float underside_shade = 0.25;
+// Bontago-mp0.93 (cloud undersides, seen from below by the upper layer): the flat
+// base's normal eases from straight down to the side normal over the outer part
+// of the base, starting at this share of the lumpy radius.
+uniform float base_rim_start = 0.55;
+// Shade lift at the base's centre (light bounced up from the sea), fading out
+// toward the rim, so the domes read as soft mid-tone mottling on the underbelly
+// instead of one flat shadow tone.
+uniform float base_bounce = 0.5;
+// A clump's bases lie in one plane: each puff lifts its own base by up to this
+// many metres so overlapping bases do not z-fight into stripes.
+uniform float base_stagger_m = 0.4;
+// Bontago-mp0.93: the upper layer is seen from below, where a flat base is one huge
+// featureless slab. vfx/CloudSea.gd gives that layer its own base plane height through
+// flat_base_override (< 0 = this material's flat_base, the sea's cumulus bottoms);
+// at or above round_base_from there is no plane at all: the puffs are whole ellipsoids
+// whose lower half is the (lumpy) underside. Their down-facing surfaces get the
+// underbelly bounce by how far the normal points down, from round_under_start.
+uniform float round_base_from = 0.9;
+uniform float round_under_start = 0.3;
+// Upper layer only (floor_on): surfaces less than base_clear_start_m above the camera dither
+// away, solid from base_clear_end_m up, so a camera just under the layer never sees a
+// razor-flat cloud bottom edge-on. 0 end = off.
+uniform float base_clear_start_m = 0.0;
+uniform float base_clear_end_m = 0.0;
 uniform float rim_power = 4.0;
 uniform float rim_sun_side = 0.9;
 uniform float rim_backlight = 1.4;
 uniform float rim_threshold = 0.5;
 uniform float rim_softness = 0.08;
+// Bontago-mp0.93: upper puffs (floor_on) lose their rim on side faces, not only on down-facing
+// ones: the thin yellow slivers along the cloud's lower and side edges. The cut-off normal.y
+// moves up by this much there (0 = the sea's rule).
+uniform float upper_rim_down_shift = 0.1;
 
 // Cauliflower domes from a cellular (F1 distance) noise texture
 // (config/sky_themes/puff_noise.tres). The silhouette octave is
@@ -135,6 +163,11 @@ uniform float billow_speed = 0.35;
 uniform float billow_frequency = 2.0;
 // Extra hull inflation (fraction of radius) covering the low-poly chord error.
 uniform float hull_margin = 0.04;
+// Bontago-mp0.93: the hull's flat faces dip below the sphere between vertices (the High preset's
+// 80-face puff by about 6%), more than hull_margin covers, so the tops of the largest lumps were
+// sliced off along straight face edges (vertical and diagonal razor edges on big overhead clumps).
+// Vertex stage only, on top of hull_margin; the carved silhouette itself does not change.
+uniform float hull_chord_margin = 0.05;
 
 // Bontago-470.3: weather fog for a fog_disabled shader (see
 // vfx/weather/WeatherFogShader.gd). Nothing closer than wfog_begin metres from
@@ -169,6 +202,7 @@ uniform float floor_mid_ratio = 0.8;
 instance uniform float edge_soft_px : hint_range(0.0, 8.0) = 0.0;
 // 1 on the upper puff layer (the floor above applies there only), 0 on the sea.
 instance uniform float floor_on : hint_range(0.0, 1.0) = 0.0;
+instance uniform float flat_base_override : hint_range(-1.0, 1.0) = -1.0;
 
 varying vec3 world_pos;
 varying vec3 world_normal;
@@ -177,6 +211,8 @@ varying vec2 puff_axes;
 varying float puff_seed;
 varying float base_y;
 varying float clump_height;
+// The puff's base plane height (flat_base or flat_base_override).
+varying float base_flat;
 
 // Round dome (1 at a cell centre, 0 on the crease between cells); 0..1.
 // lump_cell_radius is the normalized F1 distance treated as a cell's edge.
@@ -186,13 +222,21 @@ float dome(vec2 p) {
 }
 
 // Triplanar domes on a unit-sphere direction, `scale` x the base frequency.
-float lumps(vec3 u, float seed, float t, float scale) {
+// `to_sides` 1 = the plain triplanar mix; toward 0 the weights move to a
+// top-down map over `under_xz` (the point's own horizontal position in unit
+// space; pass u.xz when to_sides is 1). The flat base needs that: its
+// direction is nearly horizontal with a constant y and a saturated u.xz, so the
+// triplanar weights switch along the 45-degree diagonals and the maps streak
+// (wedge-shaped shards on the underside).
+float lumps(vec3 u, float seed, float t, float scale, float to_sides, vec2 under_xz) {
 	vec3 w = abs(u);
 	w = w * w * w;
 	w /= max(w.x + w.y + w.z, 0.0001);
+	w = mix(vec3(0.0, 1.0, 0.0), w, to_sides);
 	vec2 o = vec2(seed * 0.137 + t, seed * 0.291 - t * 0.7);
 	float f = lump_frequency * scale;
-	return dome(u.yz * f + o) * w.x + dome(u.xz * f + o) * w.y + dome(u.xy * f + o) * w.z;
+	vec2 top_down = mix(under_xz, u.xz, to_sides);
+	return dome(u.yz * f + o) * w.x + dome(top_down * f + o) * w.y + dome(u.xy * f + o) * w.z;
 }
 
 mat2 rot2(float a) {
@@ -207,15 +251,20 @@ void vertex() {
 	vec2 axes = vec2(length(MODEL_MATRIX[0].xyz), length(MODEL_MATRIX[1].xyz));
 	// Inflate the hull to the largest silhouette the fragment stage can carve
 	// (the flat base stays put).
-	float inflate = lump_height * (1.0 - lump_bias) + billow_amount + hull_margin;
+	float inflate = lump_height * (1.0 - lump_bias) + billow_amount + hull_margin + hull_chord_margin;
 	// NORMAL is not unit length under the instance scale: normalize first.
 	vec3 hull_normal = normalize(NORMAL);
-	VERTEX += hull_normal * inflate * max(axes.x, axes.y) * smoothstep(-0.3, 0.3, hull_normal.y);
+	float plane = flat_base_override < 0.0 ? flat_base : flat_base_override;
+	bool round_bottom = plane >= round_base_from;
+	// A round-bottomed puff inflates all the way round, its underside included.
+	VERTEX += hull_normal * inflate * max(axes.x, axes.y) * (round_bottom ? 1.0 : smoothstep(-0.3, 0.3, hull_normal.y));
 	// The flat base polygon is widened to cover the lumpy silhouette too (the
 	// fragment stage clips it to the same radius as the sides), so the underside
 	// joins the body instead of ending at the bare chord polygon.
-	if (hull_normal.y < -0.7) {
+	if (hull_normal.y < -0.7 && !round_bottom) {
 		VERTEX.xz = centre.xz + (VERTEX.xz - centre.xz) * (1.0 + 2.0 * inflate);
+		// INSTANCE_CUSTOM.y is the puff's seed in 0..TAU: its own share of the stagger.
+		VERTEX.y += base_stagger_m * INSTANCE_CUSTOM.y / TAU;
 	}
 	mat2 r = rot2(TIME * INSTANCE_CUSTOM.x);
 	VERTEX.xz = r * VERTEX.xz;
@@ -229,6 +278,7 @@ void vertex() {
 	puff_seed = INSTANCE_CUSTOM.y;
 	base_y = INSTANCE_CUSTOM.z;
 	clump_height = max(INSTANCE_CUSTOM.w, 0.001);
+	base_flat = plane;
 }
 
 // 4x4 ordered dither threshold in 0..1.
@@ -251,8 +301,12 @@ void fragment() {
 	vec3 axes = vec3(puff_axes.x, puff_axes.y, puff_axes.x);
 	float t_boil = TIME * lump_speed;
 	vec3 mesh_n = normalize(world_normal);
-	bool on_base = mesh_n.y < -0.7;
+	bool round_bottom = base_flat >= round_base_from;
+	bool on_base = mesh_n.y < -0.7 && !round_bottom;
 	float edge_alpha = 1.0;
+	// Bontago-mp0.93: share of the side shading on a base fragment (1 on every
+	// other fragment); see base_rim_start.
+	float base_ramp = 1.0;
 
 	// Ray against the lumpy ellipsoid, in the puff's unit-sphere space.
 	vec3 o = (cam - puff_centre) / axes;
@@ -270,7 +324,7 @@ void fragment() {
 			discard;
 		}
 		vec3 dir = normalize(closest);
-		float coarse = lumps(dir, puff_seed, t_boil, lump_vertex_scale);
+		float coarse = lumps(dir, puff_seed, t_boil, lump_vertex_scale, 1.0, dir.xz);
 		float wave = sin(TIME * billow_speed + puff_seed + dot(dir, vec3(1.0, 0.7, 1.3)) * billow_frequency);
 		float radius = 1.0 + (coarse - lump_bias) * lump_height + wave * billow_amount;
 		float miss = closest_sq - radius * radius;
@@ -283,7 +337,7 @@ void fragment() {
 		}
 		vec3 entry = o + v * (t_close - sqrt(max(-miss, 0.0) / vv));
 		// The part of the ellipsoid below the flat base does not exist.
-		if (entry.y < -flat_base) {
+		if (!round_bottom && entry.y < -base_flat) {
 			discard;
 		}
 		if (t_close > 0.0) {
@@ -293,41 +347,58 @@ void fragment() {
 		// Flat base: clip to the very same lumpy radius the sides use in this
 		// direction, so side and base meet along one continuous edge.
 		vec3 dir = normalize(unit);
-		float coarse = lumps(dir, puff_seed, t_boil, lump_vertex_scale);
+		float coarse = lumps(dir, puff_seed, t_boil, lump_vertex_scale, 1.0, dir.xz);
 		float wave = sin(TIME * billow_speed + puff_seed + dot(dir, vec3(1.0, 0.7, 1.3)) * billow_frequency);
 		float radius = 1.0 + (coarse - lump_bias) * lump_height + wave * billow_amount;
-		if (dot(unit, unit) > radius * radius) {
+		float base_sq = dot(unit, unit);
+		if (base_sq > radius * radius) {
+			discard;
+		}
+		// 0 at the base's centre, 1 at its lumpy rim: how far the shading has
+		// moved from the underside to the side surface it joins.
+		base_ramp = smoothstep(min(base_rim_start, 0.99), 1.0, sqrt(base_sq) / max(radius, 0.0001));
+	}
+	vec3 surface = puff_centre + unit * axes;
+	// Upper layer, camera close beneath it: fade out what is within reach of the camera's own height.
+	if (floor_on > 0.5 && base_clear_end_m > 0.0) {
+		float clearance = smoothstep(base_clear_start_m, max(base_clear_end_m, base_clear_start_m + 0.001), surface.y - cam.y);
+		if (clearance < bayer4(FRAGCOORD.xy)) {
 			discard;
 		}
 	}
-	vec3 surface = puff_centre + unit * axes;
 
 	// Ellipsoid normal at the surface point. The flat base uses the same formula
-	// (its point is inside the ellipsoid), so the normal turns smoothly from the
-	// side normals at the rim to straight down at the centre: one continuous cel
-	// ramp, no separate underside band.
+	// (its point is inside the ellipsoid), so at its rim the normal is the side
+	// normal and the shading meets the sides without a step.
 	vec3 n = normalize(unit / axes);
 	if (on_base) {
-		// Toward the middle of the base the normal eases to straight down (rim
-		// value unchanged, so there is no step against the sides): the underside
-		// gets darker only through the shared light ramp.
-		float rim_ratio = clamp(length(unit.xz) / max(length(unit), 0.001), 0.0, 1.0);
-		n = normalize(mix(vec3(0.0, -1.0, 0.0), n, smoothstep(0.55, 1.0, rim_ratio)));
+		// Bontago-mp0.93: inside the rim the normal eases to straight down (the
+		// base faces the ground, not outward: the old ratio left it radial almost
+		// everywhere, so the cel bands cut the underside into sun-side wedges and
+		// lit slivers). Seen from below it is now one dark underbelly with a soft
+		// lit ring toward the sun.
+		n = normalize(mix(vec3(0.0, -1.0, 0.0), n, base_ramp));
+	} else if (round_bottom) {
+		// A round bottom has no plane: the underbelly share follows the normal itself.
+		base_ramp = 1.0 - smoothstep(min(round_under_start, 0.99), 1.0, -n.y);
 	}
 	vec3 sun = normalize(light_direction);
 	vec3 light = normalize(vec3(sun.x, max(sun.y, min_light_elevation), sun.z));
 
 	// Shading domes at the surface point (base included); the fine
-	// octave is dropped with distance.
-	float lump = lumps(normalize(unit), puff_seed, t_boil, 1.0);
+	// octave is dropped with distance. The base eases from a top-down map to
+	// the triplanar one toward its rim (see lumps()).
+	vec3 unit_dir = normalize(unit);
+	float lump = lumps(unit_dir, puff_seed, t_boil, 1.0, base_ramp, unit.xz);
 	if (dist < detail_lod_m && lump_detail_weight > 0.0) {
-		float detail = lumps(normalize(unit), puff_seed + 3.1, t_boil, lump_detail_scale);
+		float detail = lumps(unit_dir, puff_seed + 3.1, t_boil, lump_detail_scale, base_ramp, unit.xz);
 		lump = mix(lump, detail, lump_detail_weight * (1.0 - smoothstep(detail_lod_m * 0.6, detail_lod_m, dist)));
 	}
 	float wrap = dot(n, light) * 0.5 + 0.5;
 	float height_rel = clamp((surface.y - base_y) / clump_height, 0.0, 1.0);
 	float shade = wrap * light_weight + height_rel * height_weight + ambient_shade + (lump - lump_bias) * lump_shade;
 	shade -= underside_shade * clamp(-n.y, 0.0, 1.0);
+	shade += base_bounce * (1.0 - base_ramp);
 	float edge = max(fwidth(shade) * band_edge_px, 0.0001);
 	float to_mid = smoothstep(mid_threshold - edge, mid_threshold + edge, shade);
 	float to_lit = smoothstep(lit_threshold - edge, lit_threshold + edge, shade);
@@ -346,7 +417,7 @@ void fragment() {
 	// Down-facing surfaces (the underside seen at a grazing angle) get no rim: a
 	// flat base has a near-constant fresnel, so the rim would paint it as one
 	// pale band cut off from the shaded body. Continuous in n.y, no step.
-	rim *= 1.0 - smoothstep(-0.25, 0.25, -n.y);
+	rim *= 1.0 - smoothstep(-0.25 - upper_rim_down_shift * floor_on, 0.25 - upper_rim_down_shift * floor_on, -n.y);
 	col = mix(col, rim_color, smoothstep(rim_threshold, rim_threshold + rim_softness, rim));
 	float weather_luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
 	col = mix(col, vec3(weather_luma), weather_desaturate) * (1.0 - weather_dim);

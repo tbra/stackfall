@@ -303,3 +303,59 @@ func test_rain_snow_and_storm_all_drive_the_shared_overcast() -> void:
 		assert_eq(skybox.cloud_lighting().overcast, 0.0, "clear again")
 	assert_gt(float(seen[&"snow"]), 0.0)
 
+
+
+## Bontago-mp0.93 (owner playtest "bottom of clouds has some issues"): the upper
+## layer is seen from below, where the flat base is the whole visible face. The
+## puff shader's base used to keep a radial (side-facing) normal almost
+## everywhere and a triplanar dome map with a constant y, so the cel bands cut
+## the underside into sun-side wedges and lit slivers, and the coplanar bases of
+## a clump z-fought into stripes. A shader cannot be evaluated headless: these
+## pin the source that carries the fix (the captures in the Bead show the look).
+func _puff_shader_code() -> String:
+	var shader: Shader = load("res://shaders/cloud_puffs.gdshader") as Shader
+	var code_lines: PackedStringArray = PackedStringArray()
+	for line: String in shader.code.split("\n"):
+		var stripped: String = line.strip_edges()
+		if not stripped.begins_with("//"):
+			code_lines.append(line.split("//")[0])
+	return "\n".join(code_lines)
+
+
+func test_puff_base_normal_eases_to_straight_down_inside_the_rim() -> void:
+	var code: String = _puff_shader_code()
+	assert_true(code.contains("n = normalize(mix(vec3(0.0, -1.0, 0.0), n, base_ramp));"),
+		"base fragments face down in the middle and join the side normal at the rim")
+	assert_false(code.contains("rim_ratio"), "the old |xz|/|unit| ratio left the base radial almost everywhere")
+	assert_true(code.contains("base_ramp = smoothstep(min(base_rim_start, 0.99), 1.0, sqrt(base_sq) / max(radius, 0.0001));"),
+		"the ramp is measured against the lumpy rim radius, so base and sides meet without a step")
+	assert_true(code.contains("shade += base_bounce * (1.0 - base_ramp);"), "the underbelly's soft lift fades out at the rim")
+	assert_true(code.contains("float base_ramp = 1.0;"), "every non-base fragment keeps the side shading unchanged")
+
+
+func test_puff_base_uses_a_top_down_dome_map_and_staggered_planes() -> void:
+	var code: String = _puff_shader_code()
+	assert_true(code.contains("vec2 top_down = mix(under_xz, u.xz, to_sides);"), "base noise is sampled over the base's own plane")
+	assert_true(code.contains("w = mix(vec3(0.0, 1.0, 0.0), w, to_sides);"), "triplanar weights move to the top-down map on the base")
+	assert_true(code.contains("lumps(unit_dir, puff_seed, t_boil, 1.0, base_ramp, unit.xz)"), "shading domes pass the base ramp")
+	assert_true(code.contains("VERTEX.y += base_stagger_m * INSTANCE_CUSTOM.y / TAU;"), "coplanar bases of one clump are staggered")
+	for silhouette_call: String in ["lumps(dir, puff_seed, t_boil, lump_vertex_scale, 1.0, dir.xz)"]:
+		assert_true(code.contains(silhouette_call), "the silhouette radius keeps the plain triplanar map (side and base share one rim)")
+
+
+func test_puff_base_uniform_defaults() -> void:
+	var code: String = _puff_shader_code()
+	assert_true(code.contains("uniform float base_rim_start = 0.55;"))
+	assert_true(code.contains("uniform float base_bounce = 0.5;"))
+	assert_true(code.contains("uniform float base_stagger_m = 0.4;"))
+
+
+func test_upper_layer_draws_with_the_shader_that_carries_the_base_fix() -> void:
+	Settings.set_graphics_preset(&"high")
+	var skybox: Skybox = _wired_skybox()["skybox"] as Skybox
+	skybox.apply_theme(skybox.theme)
+	var sea: CloudSea = skybox.get_cloud_sea()
+	var material: ShaderMaterial = sea.upper_instance().material_override as ShaderMaterial
+	assert_not_null(material)
+	assert_eq(material.shader.resource_path, "res://shaders/cloud_puffs.gdshader")
+	assert_true(material.shader.code.contains("base_bounce"), "the upper puffs share the underside shading")
