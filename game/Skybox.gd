@@ -97,6 +97,9 @@ const DEFAULT_THEME_ID: String = "sunset"
 const CYCLE_THEME_ID: String = "cycle"
 ## The night palette the cycle fades toward (config/sky_themes/night.tres).
 const CYCLE_NIGHT_THEME_ID: String = "night"
+## Bontago-59o.18 (C1b): the palette of the cycle's morning and noon (config/sky_themes/
+## dawn.tres); SkyPalette fades it into the sunset.tres palette on the setting side.
+const CYCLE_DAWN_THEME_ID: String = "dawn"
 var _cloud_sea: CloudSea = null
 ## Bontago-mp0.29: the one lighting/weather/cycle state all cloud layers read.
 var _cloud_lighting: CloudLighting = CloudLighting.new()
@@ -153,6 +156,10 @@ var _fallback_sky_material: Material = null
 var _cycle_theme: SkyThemeDef = null
 var _cycle_day: SkyThemeDef = null
 var _cycle_night: SkyThemeDef = null
+## Bontago-59o.18 (C1b): `_cycle_day` (sunset.tres) is the cycle's structure and its
+## setting-side palette; `_cycle_dawn` (dawn.tres) is its morning/noon palette. Never
+## written: SkyPalette.blend() mixes the two into `_cycle_theme` every phase tick.
+var _cycle_dawn: SkyThemeDef = null
 var _cycle_phase_last: float = -1.0
 var _cycle_life_is_night: bool = false
 ## Bontago-mp0.83: the phase mapping is phase = fposmod(clock / length + offset,
@@ -280,6 +287,7 @@ func _clear_cycle_state() -> void:
 	_cycle_theme = null
 	_cycle_day = null
 	_cycle_night = null
+	_cycle_dawn = null
 	_cycle_phase_last = -1.0
 	_cycle_life_is_night = false
 	_cycle_length_s = 1.0
@@ -455,6 +463,11 @@ func _start_cycle_at(clock_seconds: float, lock_phase: float, start_phase: float
 	_cycle_night = load_theme(CYCLE_NIGHT_THEME_ID)
 	if _cycle_day == null or _cycle_night == null:
 		return
+	# DECISION (Bontago-59o.18, C1b): a build without dawn.tres degrades to the sunset
+	# palette all day (the blend then has the same palette at both ends).
+	_cycle_dawn = load_theme(CYCLE_DAWN_THEME_ID)
+	if _cycle_dawn == null:
+		_cycle_dawn = _cycle_day
 	# DECISION (Bontago-mp0.13): duplicate the authored resources once. Each
 	# frame changes only shader uniforms and Environment/light properties.
 	_cycle_theme = _cycle_day.duplicate(true) as SkyThemeDef
@@ -516,6 +529,11 @@ func set_cycle_phase(phase: float) -> void:
 	if is_equal_approx(phase, _cycle_phase_last):
 		return
 	_cycle_phase_last = phase
+	# Bontago-59o.18 (C1b): the day palette first (dawn by day, sunset on the setting
+	# side), written onto the live theme and its materials; everything below mixes that
+	# toward the night palette, so `_cycle_theme`'s palette fields are day values here.
+	SkyPalette.blend(_cycle_theme, _cycle_dawn, _cycle_day,
+		SkyPalette.dusk_weight(phase, _cycle_theme.cycle_dusk_weight_phases))
 	var daylight: float = smoothstep(-_cycle_theme.cycle_twilight_width, _cycle_theme.cycle_twilight_width, sin(TAU * phase))
 	var night: float = 1.0 - daylight
 	var sun_base: Vector3 = (_cycle_day.sky_material as ShaderMaterial).get_shader_parameter(&"sun_direction") as Vector3
@@ -528,6 +546,7 @@ func set_cycle_phase(phase: float) -> void:
 	direction.y = sin(elevation)
 	var material: ShaderMaterial = _cycle_theme.sky_material as ShaderMaterial
 	material.set_shader_parameter(&"sun_direction", direction)
+	_apply_procedural_params(material, _cycle_theme)
 	material.set_shader_parameter(&"cycle_night_mix", night)
 	material.set_shader_parameter(&"cycle_night_zenith", _cycle_night.sky_top_color)
 	material.set_shader_parameter(&"cycle_night_horizon", _cycle_night.sky_horizon_color)
@@ -537,17 +556,18 @@ func set_cycle_phase(phase: float) -> void:
 	material.set_shader_parameter(&"cycle_star_threshold", _cycle_theme.cycle_star_threshold)
 	material.set_shader_parameter(&"cycle_star_radius", _cycle_theme.cycle_star_radius)
 	material.set_shader_parameter(&"cycle_star_horizon_fade", _cycle_theme.cycle_star_horizon_fade)
-	_cycle_theme.fog_color = _cycle_day.fog_color.lerp(_cycle_night.fog_color, night)
-	_cycle_theme.fog_density = lerpf(_cycle_day.fog_density, _cycle_night.fog_density, night)
-	_cycle_theme.volumetric_fog_density = lerpf(_cycle_day.volumetric_fog_density, _cycle_night.volumetric_fog_density, night)
-	_cycle_theme.volumetric_fog_albedo = _cycle_day.volumetric_fog_albedo.lerp(_cycle_night.volumetric_fog_albedo, night)
-	_cycle_theme.ambient_energy = lerpf(_cycle_day.ambient_energy, _cycle_night.ambient_energy, night)
+	_cycle_theme.fog_color = _cycle_theme.fog_color.lerp(_cycle_night.fog_color, night)
+	_cycle_theme.fog_density = lerpf(_cycle_theme.fog_density, _cycle_night.fog_density, night)
+	_cycle_theme.volumetric_fog_density = lerpf(_cycle_theme.volumetric_fog_density, _cycle_night.volumetric_fog_density, night)
+	_cycle_theme.volumetric_fog_albedo = _cycle_theme.volumetric_fog_albedo.lerp(_cycle_night.volumetric_fog_albedo, night)
+	_cycle_theme.ambient_energy = lerpf(_cycle_theme.ambient_energy, _cycle_night.ambient_energy, night)
 	# DECISION (Bontago-mp0.13): one key light serves sun by day and a dim
 	# authored night direction after sunset. Both fade to zero at the horizon.
 	var sun_key: float = smoothstep(0.0, 0.2, direction.y)
 	var moon_key: float = smoothstep(0.0, 0.2, -direction.y)
-	_cycle_theme.light_energy = _cycle_day.light_energy * sun_key + _cycle_night.light_energy * 0.2 * moon_key
-	_cycle_theme.light_color = _cycle_day.light_color if direction.y >= 0.0 else _cycle_night.light_color
+	_cycle_theme.light_energy = _cycle_theme.light_energy * sun_key + _cycle_night.light_energy * 0.2 * moon_key
+	if direction.y < 0.0:
+		_cycle_theme.light_color = _cycle_night.light_color
 	environment.volumetric_fog_density = _cycle_theme.volumetric_fog_density
 	environment.volumetric_fog_albedo = _cycle_theme.volumetric_fog_albedo
 	var light: DirectionalLight3D = get_node_or_null(light_path) as DirectionalLight3D if not light_path.is_empty() else null
@@ -577,7 +597,9 @@ func set_cycle_phase(phase: float) -> void:
 			_fireflies.configure(_cycle_night.ambient_life if life_is_night else _cycle_day.ambient_life,
 				life_enabled, _disc_radius_for_ambient_life())
 	if _cloud_sea != null:
-		_cloud_sea.set_cycle_appearance(_cycle_day, _cycle_night, night, direction)
+		# The live theme carries the blended day palette (its puff material, sky cloud
+		# colours and proc_sea colours), not the sunset source alone.
+		_cloud_sea.set_cycle_appearance(_cycle_theme, _cycle_night, night, direction)
 	for node: Node in get_tree().get_nodes_in_group(SunFlare.GROUP):
 		var flare: SunFlare = node as SunFlare
 		if flare != null:
@@ -971,7 +993,7 @@ func apply_theme(applied_theme: SkyThemeDef) -> void:
 	# Bontago-59o.18: while the cycle runs, a source theme it was built from
 	# (F4's live edit of sunset.tres / night.tres) must reach the live duplicate,
 	# never swap its own static sky material in.
-	if _cycle_theme != null and (applied_theme == _cycle_day or applied_theme == _cycle_night):
+	if _cycle_theme != null and (applied_theme == _cycle_day or applied_theme == _cycle_night or applied_theme == _cycle_dawn):
 		refresh_cycle_sources()
 		return
 	_apply_theme_parameters(applied_theme)
