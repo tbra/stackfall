@@ -113,6 +113,10 @@ func _build_territory() -> void:
 	cancel_pending()
 	var map_def: MapDef = _match.config.map_def()
 	_cell_grid = CellGrid.new(map_def.field_radius, map_def.cell_size, map_def.shape_test())
+	# Bontago-1pi.18.11: a new match (map / goal layout) starts with no cached claim
+	# cell lists. The cache is value-keyed, so this frees memory rather than guarding
+	# correctness.
+	ClaimCells.clear()
 	_raster = TerritoryRaster.new(_cell_grid, _match._territory_tuning)
 	_raster.reset()
 	_solver = TerritorySolver.new(_match._territory_tuning)
