@@ -25,6 +25,28 @@ extends Resource
 @export var upper_clump_radius_max_m: float = 110.0
 ## Bases are spread this far above height_m.
 @export var upper_base_spread_m: float = 24.0
+## Bontago-mp0.93: the overcast clumps are seen from below, where a flat base is one
+## huge featureless slab. This is the base plane's height in each puff's unit-sphere
+## space below its centre: 0.15 = the sea's flat-bottomed cumulus, 1 = a fully round
+## bottom (the underside is the lumpy lower half of the puffs, no plane at all).
+@export_range(0.05, 1.0, 0.01) var upper_flat_base: float = 1.0
+## Vertical size of an upper puff as a share of its horizontal radius. With round bottoms
+## the puffs would otherwise stand as tall as they are wide; squashed they keep the low,
+## wide cumulus profile (1 = round balls).
+@export_range(0.2, 1.0, 0.01) var upper_puff_squash: float = 0.6
+## How far (m) a puff may hang below its clump's base level (random per puff), so the
+## round bottoms of one clump never rest on a common plane. The whole layer starts
+## this much higher so nothing hangs below height_m.
+@export var upper_base_sink_m: float = 8.0
+## How far down the clump's small "cauliflower" puffs may sit on the big ones (0 =
+## upper half only, like the sea; 0.7 = they also bulge from the underside, so the
+## bottom is lumpy).
+@export_range(0.0, 0.95, 0.01) var upper_belly_depth: float = 0.7
+## A camera close beneath the layer fades the cloud surfaces nearest its own height
+## (ordered dither) so it never sees a razor-flat cloud bottom edge-on: surfaces less than
+## the start height above the camera vanish, those above the end height are solid.
+@export var upper_clear_fade_start_m: float = 6.0
+@export var upper_clear_fade_end_m: float = 26.0
 ## Added to the theme's cloud_seed so the upper field differs from the sea.
 @export var upper_seed_offset: int = 7919
 

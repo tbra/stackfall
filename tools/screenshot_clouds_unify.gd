@@ -9,6 +9,10 @@ extends Node
 ##   old_shader=<abs path>             also capture every pose with that earlier
 ##                                     cloud_puffs source (A/B in one process; files
 ##                                     get a _new / _old suffix)
+##   ab=pass1                          also capture every pose with the pass-1 upper layer
+##                                     (flat-bottomed puffs, no sink/belly/clearance fade:
+##                                     the ceiling tuning is overridden in memory and the
+##                                     sky rebuilt, same shader); files get _new / _pass1
 ##   godot --path . --windowed --position 10000,10000 --resolution 320x180 --audio-driver Dummy res://tools/screenshot_clouds_unify.tscn -- --agent-probe --render-size=1280x720 shot=start poses=underside
 const SETTLE_SECONDS: float = 1.5
 const WEATHER_FRAMES: int = 720
@@ -45,6 +49,16 @@ const UP_POSES: Array = [
 
 var _out_dir: String = "user://"
 var _old_shader: Shader = null
+var _ab_pass1: bool = false
+## The ceiling tuning's pass-1 values for ab=pass1: property -> value.
+const PASS1_UPPER: Dictionary = {
+	&"upper_flat_base": 0.15,
+	&"upper_puff_squash": 1.0,
+	&"upper_base_sink_m": 0.0,
+	# detail puffs sat on the upper half only (up >= DETAIL_MIN_UP = 0.25), i.e. depth -0.25.
+	&"upper_belly_depth": -0.25,
+	&"upper_clear_fade_end_m": 0.0,
+}
 
 
 func _ready() -> void:
@@ -61,6 +75,8 @@ func _capture() -> void:
 			poses = UNDERSIDE_POSES
 		elif arg.begins_with("out="):
 			_out_dir = arg.trim_prefix("out=").trim_suffix("/") + "/"
+		elif arg == "ab=pass1":
+			_ab_pass1 = true
 		elif arg.begins_with("old_shader="):
 			_old_shader = Shader.new()
 			_old_shader.code = FileAccess.get_file_as_string(arg.trim_prefix("old_shader="))
@@ -109,13 +125,36 @@ func _shoot(shot: String, poses: Array, viewport: SubViewport, skybox: Skybox, c
 	var variants: Array[String] = [""]
 	if _old_shader != null:
 		variants = ["new", "old"]
+	if _ab_pass1:
+		variants = ["new", "pass1"]
+	var tuning: WeatherCeilingTuning = skybox.get_cloud_sea().upper_tuning
+	var saved: Dictionary = {}
+	for property: StringName in PASS1_UPPER:
+		saved[property] = tuning.get(property)
 	for variant: String in variants:
-		if variant != "":
+		if variant == "old" or variant == "new":
 			material.shader = _old_shader if variant == "old" else current
+			for _i: int in range(SHADER_SWAP_FRAMES):
+				await get_tree().process_frame
+		if _ab_pass1:
+			var source: Dictionary = PASS1_UPPER if variant == "pass1" else saved
+			for property: StringName in source:
+				tuning.set(property, source[property])
+			skybox.apply_theme(skybox.theme)
+			skybox.set_cycle_phase(float(spec[0]))
+			upper = skybox.get_cloud_sea().upper_instance()
+			material = skybox.get_cloud_sea().puff_material()
 			for _i: int in range(SHADER_SWAP_FRAMES):
 				await get_tree().process_frame
 		for pose: Array in poses:
 			await _grab_pose(shot, variant, pose, flat, viewport, camera, upper)
+	if _ab_pass1:
+		for property: StringName in saved:
+			tuning.set(property, saved[property])
+		skybox.apply_theme(skybox.theme)
+		skybox.set_cycle_phase(float(spec[0]))
+		upper = skybox.get_cloud_sea().upper_instance()
+		material = skybox.get_cloud_sea().puff_material()
 	material.shader = current
 	upper.visible = true
 

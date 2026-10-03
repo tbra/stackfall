@@ -346,7 +346,7 @@ func test_puff_base_uses_a_top_down_dome_map_and_staggered_planes() -> void:
 func test_puff_base_uniform_defaults() -> void:
 	var code: String = _puff_shader_code()
 	assert_true(code.contains("uniform float base_rim_start = 0.55;"))
-	assert_true(code.contains("uniform float base_bounce = 0.35;"))
+	assert_true(code.contains("uniform float base_bounce = 0.5;"))
 	assert_true(code.contains("uniform float base_stagger_m = 0.4;"))
 
 
