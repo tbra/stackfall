@@ -11,6 +11,7 @@ extends Node
 
 const MODE_ARG: String = "--mode="
 const OUT_ARG: String = "--out="
+const VARIANT_ARG: String = "--variant="
 const MODE_FAKE: String = "fake"
 const DEFAULT_OUT: String = "user://loading_ready.png"
 const WAIT_LIMIT_FRAMES: int = 60 * 40
@@ -59,6 +60,10 @@ func _main_overlay() -> LoadingScreen:
 	config.player_count = MAIN_PLAYERS
 	config.ai_count = MAIN_BOTS
 	config.hot_seat = false
+	# Bontago-mp0.96: optional --variant=<round|oval|ring|twin|cross> picks the arena plate.
+	var variant_name: String = _arg_value(VARIANT_ARG, "").to_upper()
+	if MatchConfig.MapVariant.has(variant_name):
+		config.map_variant = MatchConfig.MapVariant[variant_name] as MatchConfig.MapVariant
 	main._on_lobby_start_requested(config)
 	var screen: LoadingScreen = main._loading_screen
 	var frames: int = 0
