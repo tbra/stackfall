@@ -133,3 +133,80 @@ extends Resource
 @export var warm_viewport_size: Vector2i = Vector2i(128, 128)
 @export var warm_camera_distance: float = 8.0
 @export var warm_mesh_offset: float = 1.5
+
+## --- Bontago-mp0.96: prerendered arena backdrop (owner playtest 2026-10-03:
+## "the next step would be to have a prerendered background of the arena") ---
+## One plate per arena shape and sky theme: assets/ui/loading_arena_v2/
+## <shape>_<theme>.png, 1920x1080, drawn cover-cropped behind the loading card.
+## Map sizes share a plate (the art illustrates the shape, not the size).
+
+## Folder holding the plates (Bontago-mp0.99, all five shapes x sunset/night/dawn).
+@export var backdrop_dir: String = "res://assets/ui/loading_arena_v2"
+
+## Plate file name: %s are the shape id and the sky theme id, in that order.
+@export var backdrop_file_format: String = "%s_%s.png"
+
+## Shape id per MatchConfig.MapVariant (index = enum value: ROUND, OVAL, RING,
+## TWIN, CROSS). A variant outside this list uses backdrop_fallback_shape.
+@export var backdrop_shape_ids: PackedStringArray = ["round", "oval", "ring", "twin", "cross"]
+
+## Used when the match's variant or sky theme has no plate (unknown id, or the
+## file is missing). A missing fallback plate too leaves the plain background.
+@export var backdrop_fallback_shape: String = "round"
+@export var backdrop_fallback_theme: String = "sunset"
+
+## A running day/night cycle has no theme id of its own: the plate nearest (on
+## the cycle ring) to this theme's cycle_start_phase is shown. The theme is
+## where SkyThemeDef.cycle_start_phase / locked_phase_for() live (Skybox's
+## DEFAULT_THEME_ID).
+@export var backdrop_cycle_theme_path: String = "res://config/sky_themes/sunset.tres"
+
+## Seconds the plate takes to fade in when it was not already cached (it is
+## loaded on a worker thread so showing the overlay never stalls). 0 = no fade.
+@export var backdrop_fade_in_s: float = 0.45
+
+## Flat darkening laid over the plate so the cream card keeps the focus. The
+## alpha is the amount of dimming (0 = the plate untouched).
+@export var backdrop_dim_color: Color = Color(0.06, 0.07, 0.09, 0.32)
+
+## Radial vignette over the plate: clear until backdrop_vignette_start (0 = the
+## screen centre, 1 = the middle of each edge), then easing to this colour at
+## the edges. Drawn from a small generated gradient, so it costs no shader.
+@export var backdrop_vignette_color: Color = Color(0.02, 0.03, 0.05, 0.45)
+@export_range(0.0, 0.99, 0.01) var backdrop_vignette_start: float = 0.55
+@export var backdrop_vignette_size_px: int = 128
+
+
+## The plate path for a map variant and sky theme id, with no filesystem check
+## (the screen verifies it exists). An unknown variant or theme maps to the
+## fallback shape / theme.
+func backdrop_path(variant: int, theme_id: String) -> String:
+	var shape_id: String = backdrop_fallback_shape
+	if variant >= 0 and variant < backdrop_shape_ids.size():
+		shape_id = backdrop_shape_ids[variant]
+	var theme: String = theme_id if MatchConfig.SKY_THEME_IDS.has(theme_id) else backdrop_fallback_theme
+	return "%s/%s" % [backdrop_dir, backdrop_file_format % [shape_id, theme]]
+
+
+## The default plate (fallback shape, fallback theme).
+func backdrop_fallback_path() -> String:
+	return "%s/%s" % [backdrop_dir, backdrop_file_format % [backdrop_fallback_shape, backdrop_fallback_theme]]
+
+
+## The concrete sky theme id whose locked phase is closest, around the cycle
+## ring, to `phase` (a running cycle's opening phase). "" if the theme is null.
+func backdrop_theme_for_phase(phase: float, sky_theme: SkyThemeDef) -> String:
+	if sky_theme == null:
+		return ""
+	var best_id: String = ""
+	var best_distance: float = INF
+	for theme_id: String in MatchConfig.SKY_THEME_IDS:
+		var locked: float = sky_theme.locked_phase_for(theme_id)
+		if locked < 0.0:
+			continue
+		var gap: float = absf(fposmod(phase - locked, 1.0))
+		var distance: float = minf(gap, 1.0 - gap)
+		if distance < best_distance:
+			best_distance = distance
+			best_id = theme_id
+	return best_id

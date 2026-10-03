@@ -46,6 +46,12 @@ var name_provider: Variant = null
 @onready var _layer: CanvasLayer = %Layer
 @onready var _content: Control = %Content
 @onready var _background: ColorRect = %Background
+## Bontago-mp0.96: the prerendered arena plate (cover-cropped), the flat darkening and
+## the vignette drawn over it. Dim and Vignette are children of the Backdrop, so they
+## fade in and out with the plate.
+@onready var _backdrop: TextureRect = %Backdrop
+@onready var _dim: ColorRect = %Dim
+@onready var _vignette: TextureRect = %Vignette
 @onready var _card: PanelContainer = %Card
 @onready var _map_label: Label = %MapLabel
 @onready var _info_label: Label = %InfoLabel
@@ -100,6 +106,16 @@ var _local_pressed: bool = false
 var _prompt_announced: bool = false
 ## One entry per player-list row: {slot_id: int, is_bot: bool, mark: Control}.
 var _ready_rows: Array[Dictionary] = []
+## Bontago-mp0.96 backdrop state. _backdrop_path is the plate chosen for the current
+## match ("" = none: no config yet, or no plate on disk); _backdrop_shown_path is the
+## plate whose texture the rect holds. _backdrop_requested: a threaded load of
+## _backdrop_path is in flight. _backdrop_orphans: superseded requests, still to be
+## collected so the loader does not keep them.
+var _backdrop_path: String = ""
+var _backdrop_shown_path: String = ""
+var _backdrop_requested: bool = false
+var _backdrop_orphans: PackedStringArray = PackedStringArray()
+var _backdrop_tween: Tween = null
 
 const WARM_SHADERS: Array[String] = [
 	"res://shaders/block_cell_grid.gdshader",
@@ -118,6 +134,7 @@ func _ready() -> void:
 	z_index = tuning.overlay_z_index
 	_layer.layer = tuning.overlay_canvas_layer
 	_background.color = tuning.background_color
+	_apply_backdrop_styles()
 	_card.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(menu_visual_tuning.pill_cream_color, menu_visual_tuning))
 	_apply_ready_styles()
 	_prompt_content.minimum_size_changed.connect(_sync_prompt_size)
@@ -158,6 +175,7 @@ func show_for_match(config: MatchConfig, slots: Array[PlayerSlot]) -> void:
 	_ready_gate_armed = Match._lifecycle.arm_loading_ready_gate()
 	_map_label.text = _map_display_name(config)
 	_info_label.text = _player_list_text(slots)
+	_select_backdrop(config)
 	_rebuild_ready_rows(slots)
 	_spin_index = 0
 	_spin_elapsed_s = 0.0
@@ -296,6 +314,7 @@ func _input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
+	_poll_backdrop(true)
 	if not _is_pending:
 		_displayed_s += delta
 	if _ready_gate_armed:
@@ -356,6 +375,8 @@ func fade_out() -> void:
 	visible = false
 	set_process(false)
 	_is_fading = false
+	_finish_backdrop_fade()
+	_drain_backdrop_orphans()
 	if _warm_viewport != null:
 		_warm_viewport.queue_free()
 		_warm_viewport = null
@@ -406,6 +427,9 @@ func cancel() -> void:
 	set_process(false)
 	clear_player_rows()
 	_refresh_ready_ui()
+	_abandon_backdrop_request()
+	_finish_backdrop_fade()
+	_drain_backdrop_orphans()
 	if _warm_viewport != null:
 		_warm_viewport.queue_free()
 		_warm_viewport = null
@@ -460,6 +484,175 @@ func _slot_label_text(slot_item: PlayerSlot) -> String:
 ## The roster's name lookup: the real Net unless a test installed a double.
 func _names() -> Variant:
 	return name_provider if name_provider != null else Net
+
+
+# --- Bontago-mp0.96: prerendered arena backdrop -----------------------------------
+
+## Colours and the vignette gradient come from LoadingScreenTuning.
+func _apply_backdrop_styles() -> void:
+	_dim.color = tuning.backdrop_dim_color
+	var gradient: Gradient = Gradient.new()
+	var clear: Color = Color(tuning.backdrop_vignette_color, 0.0)
+	gradient.offsets = PackedFloat32Array([0.0, tuning.backdrop_vignette_start, 1.0])
+	gradient.colors = PackedColorArray([clear, clear, tuning.backdrop_vignette_color])
+	var vignette: GradientTexture2D = GradientTexture2D.new()
+	vignette.gradient = gradient
+	vignette.fill = GradientTexture2D.FILL_RADIAL
+	vignette.fill_from = Vector2(0.5, 0.5)
+	vignette.fill_to = Vector2(1.0, 0.5)
+	vignette.width = tuning.backdrop_vignette_size_px
+	vignette.height = tuning.backdrop_vignette_size_px
+	_vignette.texture = vignette
+
+
+## The plate for this match: arena shape (map variant) x sky theme, a fallback for an
+## unknown shape or theme, and "" when there is no config yet (a client's pending
+## overlay), the theme is not known yet (an unresolved RANDOM sky: the host rolls it at
+## match start, and show_for_match() runs again then) or no plate exists on disk.
+func backdrop_path_for(config: MatchConfig) -> String:
+	if config == null:
+		return ""
+	var theme_id: String = _backdrop_theme_id(config)
+	if theme_id.is_empty():
+		return ""
+	var path: String = tuning.backdrop_path(config.map_variant, theme_id)
+	if ResourceLoader.exists(path):
+		return path
+	var fallback: String = tuning.backdrop_fallback_path()
+	return fallback if ResourceLoader.exists(fallback) else ""
+
+
+## The concrete sky theme id the match opens with. A running cycle opens at the theme's
+## cycle_start_phase, so it shows the plate nearest that phase. "" while an unresolved
+## RANDOM sky has not been rolled.
+func _backdrop_theme_id(config: MatchConfig) -> String:
+	if config.is_sky_cycle_running():
+		var sky_theme: SkyThemeDef = load(tuning.backdrop_cycle_theme_path) as SkyThemeDef
+		var cycle_id: String = ""
+		if sky_theme != null:
+			cycle_id = tuning.backdrop_theme_for_phase(sky_theme.cycle_start_phase, sky_theme)
+		return cycle_id if not cycle_id.is_empty() else tuning.backdrop_fallback_theme
+	if config.sky_theme_mode == MatchConfig.SkyThemeMode.RANDOM and config.sky_theme_resolved.is_empty():
+		return ""
+	return config.effective_sky_theme()
+
+
+## Chooses the plate and starts loading it on a worker thread, so showing the overlay
+## never stalls on a 1920x1080 decode. The same plate as the previous show (or as the
+## pending overlay's) is kept as it is; a different one drops the stale texture at once
+## so it never flashes, and appears (fading in) when loaded.
+func _select_backdrop(config: MatchConfig) -> void:
+	var path: String = backdrop_path_for(config)
+	if path == _backdrop_path and (path.is_empty() or _backdrop_requested or _backdrop_shown_path == path):
+		return
+	_abandon_backdrop_request()
+	_backdrop_path = path
+	if path != _backdrop_shown_path:
+		_clear_backdrop()
+	if path.is_empty() or path == _backdrop_shown_path:
+		return
+	var orphan_index: int = _backdrop_orphans.find(path)
+	if orphan_index >= 0:
+		_backdrop_orphans.remove_at(orphan_index)
+	if ResourceLoader.load_threaded_request(path, "Texture2D") != OK:
+		push_warning("LoadingScreen: could not request the backdrop %s." % path)
+		return
+	_backdrop_requested = true
+	# A plate still cached from an earlier match lands now, with no fade.
+	_poll_backdrop(false)
+
+
+## Collects the in-flight plate once the worker thread has it (called every frame while
+## the overlay runs). `animate` fades it in; a plate that was already loaded appears at
+## once.
+func _poll_backdrop(animate: bool) -> void:
+	_drain_backdrop_orphans()
+	if not _backdrop_requested:
+		return
+	var status: ResourceLoader.ThreadLoadStatus = ResourceLoader.load_threaded_get_status(_backdrop_path)
+	if status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+		return
+	_backdrop_requested = false
+	if status != ResourceLoader.THREAD_LOAD_LOADED:
+		push_warning("LoadingScreen: the backdrop %s failed to load." % _backdrop_path)
+		return
+	var texture: Texture2D = ResourceLoader.load_threaded_get(_backdrop_path) as Texture2D
+	if texture == null:
+		return
+	_backdrop.texture = texture
+	_backdrop.visible = true
+	_backdrop_shown_path = _backdrop_path
+	_kill_backdrop_tween()
+	if animate and tuning.backdrop_fade_in_s > 0.0:
+		_backdrop.modulate.a = 0.0
+		_backdrop_tween = create_tween()
+		_backdrop_tween.tween_property(_backdrop, ^"modulate:a", 1.0, tuning.backdrop_fade_in_s)
+	else:
+		_backdrop.modulate.a = 1.0
+
+
+## Drops the shown plate (and any fade), leaving only the plain background.
+func _clear_backdrop() -> void:
+	_kill_backdrop_tween()
+	_backdrop.texture = null
+	_backdrop.visible = false
+	_backdrop.modulate.a = 0.0
+	_backdrop_shown_path = ""
+
+
+## A hidden overlay keeps its plate fully visible, so the next show of the same plate
+## (a rematch) is not left mid fade-in.
+func _finish_backdrop_fade() -> void:
+	if _backdrop_shown_path.is_empty():
+		return
+	_kill_backdrop_tween()
+	_backdrop.modulate.a = 1.0
+
+
+func _kill_backdrop_tween() -> void:
+	if _backdrop_tween != null and _backdrop_tween.is_valid():
+		_backdrop_tween.kill()
+	_backdrop_tween = null
+
+
+## A load in flight for a plate this match no longer wants is collected later (a
+## threaded request holds its result until it is fetched).
+func _abandon_backdrop_request() -> void:
+	if _backdrop_requested and not _backdrop_orphans.has(_backdrop_path):
+		_backdrop_orphans.append(_backdrop_path)
+	_backdrop_requested = false
+
+
+## Fetches (and drops) every abandoned plate whose worker has finished.
+func _drain_backdrop_orphans() -> void:
+	var still_loading: PackedStringArray = PackedStringArray()
+	for path: String in _backdrop_orphans:
+		if ResourceLoader.load_threaded_get_status(path) == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+			still_loading.append(path)
+		else:
+			ResourceLoader.load_threaded_get(path)
+	_backdrop_orphans = still_loading
+
+
+func _exit_tree() -> void:
+	_abandon_backdrop_request()
+	for path: String in _backdrop_orphans:
+		ResourceLoader.load_threaded_get(path)
+	_backdrop_orphans = PackedStringArray()
+
+
+## Test seams: the plate chosen for this match ("" = none), the plate the rect shows
+## ("" = none yet), and the texture it holds.
+func backdrop_path() -> String:
+	return _backdrop_path
+
+
+func backdrop_shown_path() -> String:
+	return _backdrop_shown_path
+
+
+func backdrop_texture() -> Texture2D:
+	return _backdrop.texture
 
 
 # --- Bontago-1pi.32 L3: the overlay's own CanvasLayer ------------------------------
