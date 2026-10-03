@@ -78,7 +78,7 @@ func _on_gust_started(gust: Dictionary) -> void:
 	last_sent_gust = gust.duplicate()
 	gusts_sent += 1
 	if _can_send():
-		rpc(&"net_breeze_gust", gust)
+		NetFanout.broadcast(self, _session(), &"net_breeze_gust", [gust])
 
 
 @rpc("authority", "call_remote", "reliable")

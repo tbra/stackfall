@@ -93,7 +93,7 @@ func _on_weather_state_changed(state: Dictionary) -> void:
 	last_sent_state = state.duplicate()
 	states_sent += 1
 	if _can_send():
-		rpc(&"net_weather_state", state)
+		NetFanout.broadcast(self, _session(), &"net_weather_state", [state])
 
 
 ## A peer joined or rejoined: hand it the current state so it does not wait for

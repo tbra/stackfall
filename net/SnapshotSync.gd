@@ -85,6 +85,10 @@ const MAX_FRAGMENTS: int = 255
 var _registry: BlockRegistry = null
 var _bounds: AABB = AABB()
 var _running: bool = false
+## Bontago-1pi.59 test seam: the session whose is_peer_disconnecting() the send
+## path asks (a test drives a second Net instance on its own MultiplayerAPI).
+## null keeps the real Net autoload.
+var _net_provider: Variant = null
 
 # --- Host state -------------------------------------------------------------
 
@@ -702,9 +706,18 @@ func _is_spawned(net_id: int) -> bool:
 	return _registry.block_for_net_id(net_id) != null
 
 
+## Test seam (Bontago-1pi.59); see _net_provider. null restores the real Net.
+func set_net_provider(provider: Variant) -> void:
+	_net_provider = provider
+
+
+func _session() -> Variant:
+	return _net_provider if _net_provider != null else Net
+
+
 ## The one network send (a seam so tests can count sends without a peer).
 func _send_packet(packet: PackedByteArray) -> void:
-	net_snapshot.rpc(packet)
+	NetFanout.broadcast(self, _session(), &"net_snapshot", [packet])
 
 
 func _remote_peer_count() -> int:
@@ -715,7 +728,9 @@ func _remote_peer_count() -> int:
 func _remote_peers() -> PackedInt32Array:
 	if not multiplayer.has_multiplayer_peer():
 		return PackedInt32Array()
-	var peers: PackedInt32Array = multiplayer.get_peers()
+	# Bontago-1pi.59: a peer being kicked is not a snapshot target (and with only
+	# such peers left there is nothing to select, quantize or send).
+	var peers: PackedInt32Array = PackedInt32Array(NetFanout.targets(multiplayer, _session()))
 	peers.sort()
 	return peers
 
