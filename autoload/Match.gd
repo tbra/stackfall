@@ -630,6 +630,16 @@ func qol_timer_paused(slot_id: int) -> bool:
 	return _feed.timer_paused(slot_id)
 
 
+## Bontago-1pi.18.6: the goal claim radius in force, in meters: the very value
+## MatchTerritory feeds capture (WinChecker.claim_at), so the beacon's ground ring
+## (GoalFlag.set_claim_ring) cannot disagree with it. 0.0 when the toggle is off or
+## no match config exists yet. Reads Match.config.qol, so host and client agree.
+func qol_claim_radius() -> float:
+	if _territory == null or config == null:
+		return 0.0
+	return _territory._claim_radius()
+
+
 ## Bontago-1pi.18.2 (QoL gift slot): the gift `slot_id` could spend now (&"" if none), how many wait, and the host-validated use.
 func gift_slot_head(slot_id: int) -> StringName:
 	return _gifts.gift_slot_head(slot_id)

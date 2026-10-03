@@ -224,7 +224,7 @@ separate owner decision after playtest.**
 3. "Events" for experiment 1 stay = special triggers (as built); weather, tilt and sudden death are not separate triggers.
 4. Gifts are never backlogged (a held gift expires into a forced drop as today).
 5. `use_gift_slot` is unthrottled: the host refusal path is cheap and idempotent.
-6. Q2 draws one flat translucent ring (neutral colour) per beacon only while claim radius > `goal_zone_radius`; the overlay
+6. Q2 draws one flat translucent ring (neutral colour) per beacon whenever the claim-radius toggle is on (as built: at multiplier 1.0 it coincides with the no-build circle); the overlay
    circle wire stays untouched (no protocol change). A beacon colour/alpha `@export` on `BeaconVisualTuning` needs F4 hints.
 7. Q4's cost budget lives in `BenchBudgets` (no magic numbers); baseline recorded from the first run on an idle machine.
 
