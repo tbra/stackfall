@@ -100,6 +100,9 @@ const EVENT_BLOCK_DISSOLVE_STARTED: StringName = &"block_dissolve_started"
 const EVENT_SLOT_REPLAY: StringName = &"slot_replay"
 ## Bontago-8or.11 (mid-match join replay only): [match_timer_left].
 const EVENT_MATCH_CLOCK: StringName = &"match_clock"
+## Bontago-1pi.42 (mid-match join replay only, COUNTDOWN): the loading-screen ready
+## gate as the host sees it now -- [ready_peer_ids, required_peer_ids, open].
+const EVENT_LOADING_GATE: StringName = &"loading_gate"
 
 @export var config: NetConfig = preload("res://config/net_config.tres")
 
@@ -1716,6 +1719,12 @@ func build_world_replay() -> Array[Array]:
 	var state: int = int(authority.state())
 	if state == Match.State.COUNTDOWN:
 		messages.append(_event(EVENT_COUNTDOWN, [int(ceil(float(authority.countdown_remaining())))]))
+		# Bontago-1pi.42: the ready gate lives only through the countdown; sent after
+		# net_match_start (whose start_match() resets the joiner's mirror), so the
+		# joiner holds the host's current sets whatever it heard before.
+		var gate_args: Array = authority._lifecycle.loading_gate_replay_args()
+		if gate_args.size() == 3:
+			messages.append(_event(EVENT_LOADING_GATE, gate_args))
 	elif state == Match.State.PLAYING or state == Match.State.SUDDEN_DEATH:
 		# A client's own start_match() leaves it in COUNTDOWN; PLAYING is
 		# replayed before SUDDEN_DEATH so its consumers see the order a
@@ -2093,6 +2102,30 @@ func _apply_roster(roster: Array) -> void:
 		target.is_local = bool(_session().is_local_slot(target.slot_id))
 
 
+## Bontago-1pi.42, client: the replayed loading-gate snapshot [ready_ids,
+## required_ids, open], applied through the same Events a live broadcast uses (the
+## lifecycle's mirror and the loading screen listen to those). Host-authored only;
+## every field is validated like Net._rpc_loading_ready_state (wire limit, ids).
+func _apply_loading_gate_snapshot(args: Array) -> void:
+	if _is_host() or args.size() != 3:
+		return
+	if not args[0] is PackedInt32Array or not args[1] is PackedInt32Array or not args[2] is bool:
+		return
+	var ready_ids: PackedInt32Array = args[0]
+	var required_ids: PackedInt32Array = args[1]
+	if ready_ids.size() > config.max_peers or required_ids.size() > config.max_peers:
+		return
+	for peer_id: int in ready_ids:
+		if peer_id < Net.HOST_PEER_ID:
+			return
+	for peer_id: int in required_ids:
+		if peer_id < Net.HOST_PEER_ID:
+			return
+	Events.loading_ready_changed.emit(ready_ids, required_ids)
+	if bool(args[2]):
+		Events.loading_gate_opened.emit()
+
+
 ## Bontago-8or.11: the client half of the replay handshake. Lands after every
 ## replay message (reliable, ordered), so the world is built by now.
 @rpc("authority", "call_remote", "reliable")
@@ -2144,6 +2177,8 @@ func net_match_event(event: StringName, args: Array) -> void:
 		EVENT_COUNTDOWN:
 			_authority().apply_replicated_countdown(int(args[0]))
 			Events.countdown_tick.emit(int(args[0]))
+		EVENT_LOADING_GATE:
+			_apply_loading_gate_snapshot(args)
 		EVENT_TURN_CHANGED:
 			# DECISION (net/MatchNet.gd): offline and in hot-seat,
 			# Events.turn_changed means "it is this slot's turn". In real-time
