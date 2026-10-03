@@ -116,19 +116,19 @@ var net_provider: Variant = null
 @onready var _special_freq_label: Label = %SpecialFreqLabel
 @onready var _tilt_mode_option: OptionButton = %TiltModeOption
 @onready var _hole_mode_option: OptionButton = %HoleModeOption
-@onready var _match_timer_spin: SpinBox = %MatchTimerSpin
+@onready var _match_timer_slider: HSlider = %MatchTimerSlider
 @onready var _weather_option: OptionButton = %WeatherOption
 @onready var _game_mode_option: OptionButton = %GameModeOption
-@onready var _round_timer_spin: SpinBox = %RoundTimerSpin
+@onready var _round_timer_slider: HSlider = %RoundTimerSlider
 ## Bontago-6fc.1: ONE timer control is shown. Classic shows the match-timer
 ## column (+ sudden death); every other mode shows the round-length column.
-## Both spins stay alive and keep mapping their own MatchConfig field.
+## Bontago-1pi.30: both are HSliders (step 1 min, value label under them); each
+## keeps mapping its own MatchConfig field.
 @onready var _match_timer_col: Control = %MatchTimerCol
 @onready var _round_timer_col: Control = %RoundTimerCol
 @onready var _sudden_death_col: Control = %SuddenDeathCol
-@onready var _round_timer_caption: Label = %RoundTimerCaption
-@onready var _match_timer_hint: Label = %MatchTimerHint
-@onready var _round_timer_hint: Label = %RoundTimerHint
+@onready var _match_timer_value: Label = %MatchTimerValue
+@onready var _round_timer_value: Label = %RoundTimerValue
 ## Reach the Sky only (Bontago-22y.9): shown while that mode is selected.
 @onready var _sky_team_col: Control = %SkyTeamCol
 @onready var _sky_team_sum_check: CheckButton = %SkyTeamSumCheck
@@ -243,7 +243,18 @@ const MODE_TIPS: PackedStringArray = [
 	"Control the biggest territory when the round timer ends; a timer is always on.",
 ]
 const TIMER_TIP_DOMINATION: String = "How long the round lasts; when it ends the largest territory share wins. Domination always has a timer."
+## Bontago-1pi.30: the timer sliders' value text. DECISION: the leftmost stop of a
+## slider whose mode may switch its timer off (Classic, Elimination) reads "Off"
+## (Elimination used to read "No limit"); every other value reads "<n> min".
+const TIMER_OFF_TEXT: String = "Off"
+const TIMER_VALUE_FORMAT: String = "%d min"
+const TIMER_REQUIRED_FORMAT: String = "%d min (required)"
+## One minute per slider step (keyboard/gamepad left/right and the mouse drag).
+const TIMER_SLIDER_STEP_MINUTES: float = 1.0
 var _timer_mode: int = MatchConfig.GameMode.CLASSIC
+## Last minutes each timer slider settled on, so a step through the 1-minute gap
+## knows which way it was moving (_on_timer_slider_changed()).
+var _timer_previous_minutes: Dictionary[HSlider, int] = {}
 var _last_config: MatchConfig = null
 
 
@@ -254,13 +265,13 @@ func _ready() -> void:
 		_map_combo_option, _player_count_spin, _ai_count_spin,
 		_ai_difficulty_option, _team_mode_option, _block_timer_slider, _gravity_slider,
 		_goal_flag_spin, _gifts_check, _special_freq_slider, _tilt_mode_option,
-		_hole_mode_option, _match_timer_spin, _sudden_death_check, _turn_based_check,
+		_hole_mode_option, _match_timer_slider, _sudden_death_check, _turn_based_check,
 		_mid_join_check,
 	]
 	_settings_controls.append(_weather_option)
 	_settings_controls.append(_sky_theme_option)
 	_settings_controls.append(_game_mode_option)
-	_settings_controls.append(_round_timer_spin)
+	_settings_controls.append(_round_timer_slider)
 	_settings_controls.append(_sky_team_sum_check)
 	_settings_controls.append_array(_special_checkboxes)
 	_settings_controls.append_array(_qol_checks)
@@ -322,7 +333,25 @@ func _process(_delta: float) -> void:
 
 # --- Building settings controls ----------------------------------------------
 
+## Bontago-1pi.30: range and step of both timer sliders come from MatchConfig, so
+## the .tscn's authored numbers can never drift from the clamp the host applies.
+## The match slider runs Off (0) to the maximum; the round slider's minimum is
+## retargeted per mode by _refresh_timer_control().
+func _configure_timer_sliders() -> void:
+	for slider: HSlider in [_match_timer_slider, _round_timer_slider]:
+		slider.step = TIMER_SLIDER_STEP_MINUTES
+		slider.max_value = MatchConfig.ROUND_TIMER_MAX_MINUTES
+	_match_timer_slider.min_value = MatchConfig.ROUND_TIMER_OFF_MINUTES
+	_round_timer_slider.min_value = MatchConfig.ROUND_TIMER_MIN_MINUTES
+	_match_timer_slider.value = MatchConfig.ROUND_TIMER_OFF_MINUTES
+	_round_timer_slider.value = MatchConfig.ROUND_TIMER_DEFAULT_MINUTES
+	# An unchanged value emits no signal, so seed what _on_timer_slider_changed() compares against.
+	_timer_previous_minutes[_match_timer_slider] = int(_match_timer_slider.value)
+	_timer_previous_minutes[_round_timer_slider] = int(_round_timer_slider.value)
+
+
 func _populate_options() -> void:
+	_configure_timer_sliders()
 	_fill_option(_map_variant_option, MAP_VARIANT_LABELS)
 	_fill_option(_map_size_option, MAP_SIZE_LABELS)
 	var combo_labels: Array[String] = []
@@ -421,7 +450,7 @@ func _wire_focus_chain() -> void:
 	# Focus order follows the visual order: Round section (mode, timers), then
 	# map, players, AI, teams, then the right-hand column.
 	var chain: Array[Control] = [
-		_game_mode_option, _round_timer_spin, _match_timer_spin,
+		_game_mode_option, _round_timer_slider, _match_timer_slider,
 		_map_combo_option, _sky_theme_option, _player_count_spin, _ai_count_spin, _ai_difficulty_option,
 	]
 	chain.append_array(_team_buttons)
@@ -491,7 +520,8 @@ func _connect_control_signals() -> void:
 	# Bontago-6fc.1: retarget the timer control before the publish below reads it.
 	_game_mode_option.item_selected.connect(_on_game_mode_picked)
 	_game_mode_option.item_selected.connect(_on_option_changed)
-	_round_timer_spin.value_changed.connect(_on_value_changed)
+	_round_timer_slider.value_changed.connect(_on_timer_slider_changed.bind(_round_timer_slider))
+	_round_timer_slider.gui_input.connect(_on_timer_slider_gui_input.bind(_round_timer_slider))
 	_sky_team_sum_check.toggled.connect(_on_toggled)
 	_game_mode_option.item_selected.connect(_refresh_sky_controls)
 	_sky_theme_option.item_selected.connect(_on_option_changed)
@@ -506,7 +536,8 @@ func _connect_control_signals() -> void:
 	_gravity_slider.value_changed.connect(_on_value_changed)
 	_goal_flag_spin.value_changed.connect(_on_value_changed)
 	_special_freq_slider.value_changed.connect(_on_value_changed)
-	_match_timer_spin.value_changed.connect(_on_value_changed)
+	_match_timer_slider.value_changed.connect(_on_timer_slider_changed.bind(_match_timer_slider))
+	_match_timer_slider.gui_input.connect(_on_timer_slider_gui_input.bind(_match_timer_slider))
 	_gifts_check.toggled.connect(_on_toggled)
 	_sudden_death_check.toggled.connect(_on_toggled)
 	_turn_based_check.toggled.connect(_on_toggled)
@@ -678,10 +709,9 @@ func _apply_visual_style() -> void:
 	_add_stepper_buttons(_player_count_spin, _main_stepper_buttons, _players_sub_label)
 	_add_stepper_buttons(_ai_count_spin, _main_stepper_buttons, _ai_sub_label)
 	_add_stepper_buttons(_goal_flag_spin, _main_stepper_buttons)
-	# DECISION (Bontago-mp0.8): mode and its timer are primary round choices,
-	# so their stepper buttons join the main card's focus loop.
-	_add_stepper_buttons(_match_timer_spin, _main_stepper_buttons)
-	_add_stepper_buttons(_round_timer_spin, _main_stepper_buttons)
+	# Bontago-1pi.30: the two timer controls are sliders now (no stepper pills);
+	# gamepad left/right is the Slider's own ui_left/ui_right handling, up/down
+	# moves focus along _wire_focus_chain().
 
 	# Bontago-mp0.3.5 (review r2, item 1): a small round disc icon (dark
 	# slate fill, light rim) beside %MapComboOption -- the same two-tone
@@ -705,6 +735,8 @@ func _apply_visual_style() -> void:
 
 	var well_box: StyleBoxFlat = MenuStyleFactory.make_well(tuning)
 	_block_timer_slider.add_theme_stylebox_override("slider", well_box)
+	_match_timer_slider.add_theme_stylebox_override("slider", well_box)
+	_round_timer_slider.add_theme_stylebox_override("slider", well_box)
 	_gravity_slider.add_theme_stylebox_override("slider", well_box)
 	_special_freq_slider.add_theme_stylebox_override("slider", well_box)
 	for chip: PanelContainer in [_block_timer_chip, _gravity_chip, _special_freq_chip]:
@@ -866,7 +898,7 @@ func _unhandled_input(event: InputEvent) -> void:
 ## _publish_lobby_data() -> _apply_data(), or a remote update) refreshes the
 ## bar without a second signal wiring.
 func _update_advanced_rules_summary() -> void:
-	_update_timer_hints()
+	_update_timer_values()
 	_adv_chip_tilt.text = "Tilt: %s" % (
 		"specials only" if _tilt_mode_option.selected == MatchConfig.TiltMode.SPECIALS_ONLY else "physical balance"
 	)
@@ -929,12 +961,12 @@ func _on_game_mode_picked(index: int) -> void:
 	var new_mode: int = MatchConfig.resolve_game_mode(index)
 	_refresh_timer_control(new_mode)
 	if not MatchConfig.same_timer_family(old_mode, new_mode):
-		_timer_spin_for(new_mode).value = MatchConfig.timer_default_minutes(new_mode)
-	_update_timer_hints()
+		_timer_slider_for(new_mode).value = MatchConfig.timer_default_minutes(new_mode)
+	_update_timer_values()
 
 
-func _timer_spin_for(mode: int) -> SpinBox:
-	return _match_timer_spin if MatchConfig.timer_is_match_timer(mode) else _round_timer_spin
+func _timer_slider_for(mode: int) -> HSlider:
+	return _match_timer_slider if MatchConfig.timer_is_match_timer(mode) else _round_timer_slider
 
 
 ## Shows the one timer control `mode` uses, with its label and minimum, and
@@ -947,30 +979,66 @@ func _refresh_timer_control(mode: int) -> void:
 	_round_timer_col.visible = not classic
 	var was_applying: bool = _applying_remote_data
 	_applying_remote_data = true
-	_round_timer_spin.min_value = MatchConfig.timer_min_minutes(mode) if not classic else MatchConfig.ROUND_TIMER_MIN_MINUTES
+	_round_timer_slider.min_value = MatchConfig.timer_min_minutes(mode) if not classic else MatchConfig.ROUND_TIMER_MIN_MINUTES
 	_applying_remote_data = was_applying
-	_round_timer_caption.text = "Round length (minutes)"
 	_match_timer_col.tooltip_text = TIMER_TIP_MATCH
 	_round_timer_col.tooltip_text = TIMER_TIP_DOMINATION if mode == MatchConfig.GameMode.DOMINATION else TIMER_TIP_ROUND
 	_game_mode_option.tooltip_text = MODE_TIPS[mode] if mode >= 0 and mode < MODE_TIPS.size() else ""
-	_update_timer_hints()
+	_update_timer_values()
 	if not _main_chain.is_empty():
 		_wire_loop(_visible_chain(_main_chain))
 	if not _popup_chain.is_empty():
 		_wire_loop(_visible_chain(_popup_chain))
 
 
-## The words under the control that explain its value (0 = Off / No limit).
-func _update_timer_hints() -> void:
-	var match_minutes: int = int(_match_timer_spin.value)
-	_match_timer_hint.text = "Off" if match_minutes == 0 else "%d min" % match_minutes
-	var round_minutes: int = int(_round_timer_spin.value)
-	if round_minutes == 0:
-		_round_timer_hint.text = "No limit"
-	elif _timer_mode == MatchConfig.GameMode.DOMINATION:
-		_round_timer_hint.text = "%d min (required)" % round_minutes
-	else:
-		_round_timer_hint.text = "%d min" % round_minutes
+## The value label under each timer slider ("5 min", or "Off" at its leftmost stop).
+func _update_timer_values() -> void:
+	_match_timer_value.text = _timer_value_text(int(_match_timer_slider.value), false)
+	_round_timer_value.text = _timer_value_text(
+		int(_round_timer_slider.value), _timer_mode == MatchConfig.GameMode.DOMINATION
+	)
+
+
+static func _timer_value_text(minutes: int, required: bool) -> String:
+	if minutes <= MatchConfig.ROUND_TIMER_OFF_MINUTES:
+		return TIMER_OFF_TEXT
+	return (TIMER_REQUIRED_FORMAT if required else TIMER_VALUE_FORMAT) % minutes
+
+
+## Either timer slider moved (host drag, gamepad left/right, or a programmatic
+## write). Host edits skip the 1-minute gap so the stops read Off, 2, 3 ... 30:
+## stepping up from Off lands on 2 and stepping down from 2 lands on Off. A value
+## applied from lobby data is shown as-is (the host's sanitize() already decided).
+func _on_timer_slider_changed(value: float, slider: HSlider) -> void:
+	var minutes: int = int(value)
+	var previous: int = int(_timer_previous_minutes.get(slider, minutes))
+	var in_gap: bool = minutes > MatchConfig.ROUND_TIMER_OFF_MINUTES and minutes < MatchConfig.ROUND_TIMER_MIN_MINUTES
+	if in_gap and not _applying_remote_data:
+		minutes = MatchConfig.ROUND_TIMER_MIN_MINUTES if minutes > previous else MatchConfig.ROUND_TIMER_OFF_MINUTES
+		slider.set_value_no_signal(minutes)
+	_timer_previous_minutes[slider] = minutes
+	_update_timer_values()
+	_on_setting_changed()
+
+
+## Gamepad / keyboard left-right on a focused timer slider steps it one minute (ui_up
+## and ui_down stay with the focus chain). DECISION: the lobby steps the slider itself
+## and accepts the event instead of leaving it to Slider's built-in ui_left/ui_right
+## handling, so this rule is exercised by a plain `gui_input` emit in tests (GUT cannot
+## route key/pad events to a focused control) and a read-only (client) slider is skipped
+## explicitly. The 1-minute gap is skipped by _on_timer_slider_changed().
+func _on_timer_slider_gui_input(event: InputEvent, slider: HSlider) -> void:
+	if not slider.editable:
+		return
+	var direction: int = 0
+	if event.is_action_pressed(&"ui_left", true):
+		direction = -1
+	elif event.is_action_pressed(&"ui_right", true):
+		direction = 1
+	if direction == 0:
+		return
+	slider.accept_event()
+	slider.value += direction * slider.step
 
 
 func _refresh_sky_controls(_index: int = 0) -> void:
@@ -1027,9 +1095,9 @@ func _config_from_controls() -> MatchConfig:
 	config.hole_mode = _hole_mode_option.selected
 	config.weather_mode = _weather_option.selected as MatchConfig.WeatherMode
 	config.sky_theme_mode = _sky_theme_option.selected as MatchConfig.SkyThemeMode
-	config.match_timer_minutes = int(_match_timer_spin.value)
+	config.match_timer_minutes = int(_match_timer_slider.value)
 	config.game_mode = MatchConfig.resolve_game_mode(_game_mode_option.selected)
-	config.round_timer_minutes = int(_round_timer_spin.value)
+	config.round_timer_minutes = int(_round_timer_slider.value)
 	config.sky_team_sum = _sky_team_sum_check.button_pressed
 	config.sudden_death = _sudden_death_check.button_pressed
 	config.turn_based = _turn_based_check.button_pressed
@@ -1127,8 +1195,8 @@ func _apply_data(data: Dictionary) -> void:
 	# retargeted before either value is written (Elimination may hold 0).
 	_game_mode_option.selected = config.game_mode
 	_refresh_timer_control(config.game_mode)
-	_match_timer_spin.value = config.match_timer_minutes
-	_round_timer_spin.value = config.round_timer_minutes
+	_match_timer_slider.value = config.match_timer_minutes
+	_round_timer_slider.value = config.round_timer_minutes
 	_sky_team_sum_check.button_pressed = config.sky_team_sum
 	_refresh_sky_controls()
 	_sudden_death_check.button_pressed = config.sudden_death

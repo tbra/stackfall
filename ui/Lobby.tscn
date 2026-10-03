@@ -174,17 +174,17 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"CaptionLabel"
 theme_override_font_sizes/font_size = 10
-text = "Round length (minutes)"
+text = "Round length"
 
-[node name="RoundTimerSpin" type="SpinBox" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/RoundSection/RoundRow/RoundTimerCol"]
+[node name="RoundTimerSlider" type="HSlider" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/RoundSection/RoundRow/RoundTimerCol"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(110, 0)
-min_value = 1
-max_value = 40
-value = 10
+custom_minimum_size = Vector2(150, 0)
+min_value = 2.0
+max_value = 30.0
+value = 5.0
 
-[node name="RoundTimerHint" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/RoundSection/RoundRow/RoundTimerCol"]
+[node name="RoundTimerValue" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/RoundSection/RoundRow/RoundTimerCol"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"CaptionLabel"
@@ -201,15 +201,15 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"CaptionLabel"
 theme_override_font_sizes/font_size = 10
-text = "Match timer (minutes)"
+text = "Match timer"
 
-[node name="MatchTimerSpin" type="SpinBox" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/RoundSection/RoundRow/MatchTimerCol"]
+[node name="MatchTimerSlider" type="HSlider" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/RoundSection/RoundRow/MatchTimerCol"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(110, 0)
-max_value = 40
+custom_minimum_size = Vector2(150, 0)
+max_value = 30.0
 
-[node name="MatchTimerHint" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/RoundSection/RoundRow/MatchTimerCol"]
+[node name="MatchTimerValue" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/SettingsColumns/SettingsLeft/RoundSection/RoundRow/MatchTimerCol"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"CaptionLabel"

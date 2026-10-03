@@ -310,7 +310,7 @@ func test_lobby_lists_all_modes_but_only_implemented_ones_are_selectable() -> vo
 
 func test_lobby_timer_round_trips_through_published_lobby_data_to_a_client() -> void:
 	var host: Lobby = _make_lobby(true)
-	(host.get_node("%RoundTimerSpin") as SpinBox).value = 15
+	(host.get_node("%RoundTimerSlider") as HSlider).value = 15
 	var calls: Array[Dictionary] = (host.net_provider as FakeNet).set_lobby_data_calls
 	assert_gt(calls.size(), 0)
 	var published: Dictionary = calls[-1]
@@ -320,7 +320,7 @@ func test_lobby_timer_round_trips_through_published_lobby_data_to_a_client() -> 
 	published["game_mode"] = 99
 	var client: Lobby = _make_lobby(false)
 	client._apply_data(published)
-	assert_eq((client.get_node("%RoundTimerSpin") as SpinBox).value, 15.0)
+	assert_eq((client.get_node("%RoundTimerSlider") as HSlider).value, 15.0)
 	assert_eq((client.get_node("%GameModeOption") as OptionButton).selected, MatchConfig.GameMode.CLASSIC)
 	var calls_after: Array[Dictionary] = (client.net_provider as FakeNet).set_lobby_data_calls
 	assert_eq(calls_after.size(), 0, "a client never republishes")
@@ -331,13 +331,13 @@ func test_lobby_mode_controls_are_in_the_popup_focus_loop_and_host_gated() -> vo
 	var client: Lobby = _make_lobby(false)
 	var mode: OptionButton = host.get_node("%GameModeOption")
 	# Bontago-6fc.1: only the selected mode's timer control is in the focus loop.
-	var timer: SpinBox = host.get_node("%MatchTimerSpin")
+	var timer: HSlider = host.get_node("%MatchTimerSlider")
 	assert_false(mode.disabled)
 	assert_true(timer.editable)
 	assert_ne(mode.focus_neighbor_bottom, NodePath(), "gamepad/keyboard focus reaches the mode option")
 	assert_ne(timer.focus_neighbor_top, NodePath())
 	assert_true((client.get_node("%GameModeOption") as OptionButton).disabled)
-	assert_false((client.get_node("%RoundTimerSpin") as SpinBox).editable)
+	assert_false((client.get_node("%RoundTimerSlider") as HSlider).editable)
 
 
 # --- Review fixes ------------------------------------------------------------------

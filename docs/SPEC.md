@@ -316,7 +316,7 @@ Every special is its own `SpecialDef` resource plus a script. The seven evidence
 | Enabled specials | checklist + type weights | seven documented types in §2.6; NEW extras opt-in |
 | Tilt mode | Specials only / Physical balance | Specials only |
 | Hole mode | Temporary / Permanent / Off (v2 alternative) | Temporary, provisional approximation of original overlap holes |
-| Match timer | Off / 10–40 min | Off |
+| Match timer | Off / 2–30 min slider (owner playtest 2026-10-03, Bontago-1pi.30; was 10–40); timed modes default 5 min | Off |
 | Sudden death | Off/On | On if match timer is set |
 
 **Sudden death** [NEW]: Starts when the match timer runs out.
