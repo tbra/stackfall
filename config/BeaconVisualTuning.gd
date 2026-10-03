@@ -209,3 +209,14 @@ extends Resource
 @export var claim_ring_lift: float = 0.05
 ## Segments in the ring's full circle (built once per match).
 @export var claim_ring_segments: int = 96
+
+
+## Bontago-1pi.33: height of a beacon's highest point (the crystal tip) above
+## the surface its socket stands on, in metres -- the same extents
+## HomeFlag._build()/collision_transforms() place the socket and crystal at
+## (socket_height plus the crystal's apex-to-apex height). `scale_factor` is
+## the flag's banner_scale() (1.0 for a HomeFlag). Pure: no node needed, so the
+## held-block spawn (PlayerController.set_home_position()) can clear a beacon
+## without reaching into the scene tree.
+func beacon_top_height(scale_factor: float = 1.0) -> float:
+	return socket_height + crystal_height * scale_factor

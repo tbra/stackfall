@@ -409,6 +409,22 @@ extends Resource
 ## really overlaps a placed block, by the minimal amount, camera follows.
 @export var spawn_clearance_enabled: bool = true
 
+## Bontago-1pi.33 (owner playtest 2026-10-03, "Start the first block higher
+## up, it loads inside the home beacon currently"). ROOT CAUSE: the match's
+## very first piece is held at the cursor's seed point, the owner's home
+## flag (PlayerController.set_home_position()), and the ghost is anchored at
+## the bare disc surface plus PhysicsTuning.hover_height (0.3 m). The beacon
+## sits on its own collision layer the placement ray and the spawn-clearance
+## overlap query never see (Field.PLACEMENT_QUERY_MASK), and the
+## post-placement clearance never runs for the first piece, so nothing lifted
+## the piece out of the ~2.2 m tall socket + crystal it spawned inside. The
+## first held piece is now raised so its lowest point sits this many metres
+## above the top of the home beacon (BeaconVisualTuning.beacon_top_height()).
+## The raise is taken back off the moment the player takes over the hover
+## height or the first accepted placement issues the next piece, so later
+## pieces hover exactly as before.
+@export var home_spawn_beacon_margin: float = 0.25
+
 ## -- Throw aim (M4 P2e, docs/M4_P2_PACKAGES.md P2e; spec 2.5 "Throw
 ## (specials only)") ----------------------------------------------------------
 ## Ghost tint while game/PlayerController.gd's is_aiming_throw() is true
