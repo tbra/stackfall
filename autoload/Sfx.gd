@@ -83,6 +83,12 @@ var _switch_start_envelope: float = 0.0
 var _switch_elapsed: float = 0.0
 var _last_track_by_context: Dictionary = {}
 var _last_gift_spawn_msec: int = -1
+## Bontago-1pi.56: true while a late joiner's world replay is being applied
+## (Events.world_replay_changed). The replay re-emits block_placed per body, the
+## elimination of every dead slot and every falling crate's flight so the world
+## rebuilds; those are state, not news, and must not sound. Not cleared by
+## match_scope_reset: the client's world build fires that mid-replay.
+var _world_replay_silent: bool = false
 var _last_music_tick_usec: int = Time.get_ticks_usec()
 
 
@@ -105,6 +111,7 @@ func _ready() -> void:
 	Events.player_eliminated.connect(_on_player_eliminated)
 	Events.gift_flight_spawned.connect(_on_gift_flight_spawned)
 	Events.gift_claimed.connect(_on_gift_claimed)
+	Events.world_replay_changed.connect(_on_world_replay_changed)
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 	# Bontago-1pi.46 (G6): a new match must not inherit the previous match's tense stem.
 	Events.match_scope_reset.connect(reset_match_audio)
@@ -611,11 +618,19 @@ func _on_placement_rejected(slot_id: int, _reason: StringName) -> void:
 	play(AudioConfig.EVENT_REJECTED)
 
 
+func _on_world_replay_changed(active: bool) -> void:
+	_world_replay_silent = active
+
+
 func _on_block_placed(_block: RigidBody3D, _shape_id: StringName) -> void:
+	if _world_replay_silent:
+		return
 	play(AudioConfig.EVENT_DROP)
 
 
 func _on_player_eliminated(_slot_id: int, _team_id: int) -> void:
+	if _world_replay_silent:
+		return
 	play(AudioConfig.EVENT_BREAKAGE)
 
 
@@ -623,6 +638,8 @@ func _on_player_eliminated(_slot_id: int, _team_id: int) -> void:
 ## the reliable spawn arrives. Late claim or landing events do not retrigger
 ## it, and gift_spawn_min_interval_s rate-limits the jingle.
 func _on_gift_flight_spawned(_gift_id: int, _origin: Vector3, _landing: Vector3) -> void:
+	if _world_replay_silent:
+		return
 	var now_msec: int = Time.get_ticks_msec()
 	if _last_gift_spawn_msec >= 0 and float(now_msec - _last_gift_spawn_msec) < config.gift_spawn_min_interval_s * 1000.0:
 		return
