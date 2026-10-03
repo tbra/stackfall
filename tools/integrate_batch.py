@@ -221,7 +221,7 @@ def integrate(args, ctx, say, res):
         # Preserve gate output directory before worktree cleanup
         out_path = extract_out_path(text)
         if out_path and os.path.isdir(out_path):
-            gate_output_path = os.path.join(args.log_dir, "gate_output")
+            gate_output_path = os.path.join(ctx.log_dir, "gate_output")
             try:
                 shutil.copytree(out_path, gate_output_path, dirs_exist_ok=True)
                 vline = verdict_line(text) + "; preserved in " + gate_output_path
