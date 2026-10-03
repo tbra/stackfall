@@ -14,18 +14,76 @@ class_name MenuStyleFactory
 ## (a Theme resource cannot vary style per node of the same control type).
 extends RefCounted
 
+## Bontago-1pi.37: the Button theme items apply_ink() paints, one per
+## non-disabled draw state (the engine names the plain font state "font_color"
+## but the plain icon state "icon_normal_color").
+const BUTTON_FONT_COLOR_ITEMS: PackedStringArray = [
+	"font_color", "font_focus_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color",
+]
+const BUTTON_ICON_COLOR_ITEMS: PackedStringArray = [
+	"icon_normal_color", "icon_focus_color", "icon_hover_color", "icon_pressed_color", "icon_hover_pressed_color",
+]
+
 
 ## Paints [param button] as a pastel pill in [param normal_color], with
 ## [param hover_color] on hover/pressed and [param font_color] as its label
 ## color. The shared Theme's dark-outline focus StyleBox is left untouched
 ## (gamepad focus must keep looking the same on every pill).
+##
+## Bontago-1pi.37: [param font_color] is the pill's one "ink" -- the label AND
+## the button's icon take it in every draw state (see apply_ink()), so a white
+## SVG glyph can no longer fall back to the theme's default white in the
+## focus/pressed states while the label is dark (the owner's "black icons turn
+## white on the focused button" report).
 static func apply_pill(button: Button, normal_color: Color, hover_color: Color, font_color: Color, tuning: MenuVisualTuning) -> void:
 	button.add_theme_stylebox_override("normal", _pill_box(normal_color, tuning))
 	button.add_theme_stylebox_override("hover", _pill_box(hover_color, tuning))
 	button.add_theme_stylebox_override("pressed", _pill_box(hover_color.darkened(tuning.pill_pressed_darken_amount), tuning))
-	button.add_theme_color_override("font_color", font_color)
-	button.add_theme_color_override("font_hover_color", font_color)
-	button.add_theme_color_override("font_pressed_color", font_color)
+	apply_ink(button, font_color)
+
+
+## Bontago-1pi.37: the single place a Button's label and icon colours are set.
+## Every non-disabled draw state (normal, focus, hover, pressed, hover_pressed)
+## gets [param ink] for both the font_*color and icon_*_color theme items:
+## icons are white-source SVGs (assets/ui/icons/*.svg, tinted by
+## BaseButton's icon_*_color, which multiplies the texture), so the icon takes
+## exactly the caption colour and keeps it while focused or pressed. The
+## disabled state keeps the shared Theme's own muted font/icon colours.
+static func apply_ink(button: Button, ink: Color) -> void:
+	for item: String in BUTTON_FONT_COLOR_ITEMS:
+		button.add_theme_color_override(item, ink)
+	for item: String in BUTTON_ICON_COLOR_ITEMS:
+		button.add_theme_color_override(item, ink)
+
+
+## Bontago-1pi.37: WCAG relative luminance of an sRGB [param color]
+## (0.0 black .. 1.0 white); alpha is ignored.
+static func relative_luminance(color: Color) -> float:
+	return 0.2126 * _linear_channel(color.r) + 0.7152 * _linear_channel(color.g) + 0.0722 * _linear_channel(color.b)
+
+
+## Bontago-1pi.37: WCAG contrast ratio of two colours, symmetric, 1.0 (same
+## colour) .. 21.0 (black on white). tests/unit/test_menu_icons.gd asserts
+## every menu icon stays above MenuVisualTuning.icon_min_contrast_ratio.
+static func contrast_ratio(a: Color, b: Color) -> float:
+	var luminance_a: float = relative_luminance(a)
+	var luminance_b: float = relative_luminance(b)
+	return (maxf(luminance_a, luminance_b) + CONTRAST_FLARE) / (minf(luminance_a, luminance_b) + CONTRAST_FLARE)
+
+
+## The sRGB piecewise transfer constants and the WCAG contrast flare term.
+const SRGB_LINEAR_CUTOFF: float = 0.03928
+const SRGB_LINEAR_DIVISOR: float = 12.92
+const SRGB_GAMMA_OFFSET: float = 0.055
+const SRGB_GAMMA_SCALE: float = 1.055
+const SRGB_GAMMA_EXPONENT: float = 2.4
+const CONTRAST_FLARE: float = 0.05
+
+
+static func _linear_channel(channel: float) -> float:
+	if channel <= SRGB_LINEAR_CUTOFF:
+		return channel / SRGB_LINEAR_DIVISOR
+	return pow((channel + SRGB_GAMMA_OFFSET) / SRGB_GAMMA_SCALE, SRGB_GAMMA_EXPONENT)
 
 
 ## A sunken input/list "well": inset border, no drop shadow, used for the
@@ -62,9 +120,9 @@ static func apply_flat_stepper_button(button: Button, tuning: MenuVisualTuning) 
 	button.add_theme_stylebox_override("hover", empty)
 	button.add_theme_stylebox_override("pressed", empty)
 	button.add_theme_stylebox_override("disabled", empty)
-	button.add_theme_color_override("font_color", tuning.ink_color)
-	button.add_theme_color_override("font_hover_color", tuning.ink_color)
-	button.add_theme_color_override("font_pressed_color", tuning.ink_color)
+	# Bontago-1pi.37: apply_ink() also covers the focus state, which the theme's
+	# pale default font_focus_color left near-invisible on this cream pill.
+	apply_ink(button, tuning.ink_color)
 	button.add_theme_color_override("font_disabled_color", tuning.label_muted_color)
 
 
@@ -147,10 +205,7 @@ static func apply_toggle_chip(toggle: Button, off_color: Color, off_hover_color:
 	toggle.add_theme_stylebox_override("hover", _pill_box(off_hover_color, tuning))
 	toggle.add_theme_stylebox_override("pressed", _pill_box(on_color, tuning))
 	toggle.add_theme_stylebox_override("hover_pressed", _pill_box(on_hover_color, tuning))
-	toggle.add_theme_color_override("font_color", font_color)
-	toggle.add_theme_color_override("font_hover_color", font_color)
-	toggle.add_theme_color_override("font_pressed_color", font_color)
-	toggle.add_theme_color_override("font_hover_pressed_color", font_color)
+	apply_ink(toggle, font_color)
 
 
 ## Cached 1x1 fully-transparent texture shared by every hide_spinbox_arrows()

@@ -191,6 +191,19 @@ extends Resource
 ## (Color.darkened()'s own 0.0..1.0 fraction) -- review finding #4: this was
 ## a bare `0.12` literal in MenuStyleFactory.gd.
 @export var pill_pressed_darken_amount: float = 0.12
+## Bontago-1pi.37: the minimum WCAG-style contrast ratio (1.0 = identical,
+## 21.0 = black on white; MenuStyleFactory.contrast_ratio()) between a menu
+## button's icon colour and the stylebox it is drawn on, in every draw state
+## (normal, focus, hover, pressed, disabled). tests/unit/test_menu_icons.gd
+## walks the menu scenes against it. Icons are white-source SVGs tinted by the
+## Button icon_*_color theme items MenuStyleFactory sets to the pill's label
+## ink, so an icon always follows its caption colour.
+## DECISION (Bontago-1pi.37): 2.0, not WCAG's 3.0 for graphics. The shipped
+## light-ink-on-coral pairing (Host/Bots/Resume) measures 2.1..2.8 across its
+## states (dark ink would give 4.2..5.5); 2.0 rejects the reported bug class
+## (white/light icon on a cream/mint/blue pill = 1.0..1.9) without restyling
+## the primary coral buttons. Raise to 3.0 together with a dark-ink coral pill.
+@export var icon_min_contrast_ratio: float = 2.0
 
 ## -- Shared panel/focus palette ----------------------------------------------
 @export var panel_border_color: Color = Color(0.78, 0.68, 0.52, 1.0)

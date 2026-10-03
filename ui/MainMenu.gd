@@ -356,29 +356,17 @@ func _apply_visual_style() -> void:
 	MenuStyleFactory.apply_pill(_debug_button, tuning.pill_dark_slate_color, tuning.pill_dark_slate_hover_color, tuning.label_ink_light_color, tuning)
 	MenuStyleFactory.apply_pill(_visual_demo_button, tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning)
 	MenuStyleFactory.apply_pill(_gift_demo_button, tuning.pill_powder_blue_color, tuning.pill_powder_blue_hover_color, tuning.ink_color, tuning)
-	_debug_button.add_theme_color_override("font_focus_color", tuning.label_ink_light_color)
-	_visual_demo_button.add_theme_color_override("font_focus_color", tuning.ink_color)
-	_gift_demo_button.add_theme_color_override("font_focus_color", tuning.ink_color)
 	# SVG icons import at a large intrinsic size. Let Join controls scale the
 	# icon into a tuned row height so the full page fits the visible canvas.
 	for button: Button in [_join_lan_tab_button, _join_steam_tab_button,
 			_refresh_button, _refresh_steam_button, _direct_join_button, _back_button]:
 		button.expand_icon = true
 		button.custom_minimum_size.y = tuning.menu_compact_button_height_px
-	# DECISION: monochrome SVGs take the same ink as their button label, so
-	# cream and pastel pills retain contrast without a second asset set.
-	for button: Button in [_join_button, _join_lan_tab_button, _join_steam_tab_button,
-			_play_local_button, _back_button, _host_online_button, _refresh_button,
-			_refresh_steam_button, _sandbox_button, _tutorial_button, _options_button,
-			_quit_button]:
-		button.add_theme_color_override("icon_normal_color", tuning.ink_color)
-		button.add_theme_color_override("icon_hover_color", tuning.ink_color)
-	# The theme's generic focused font is pale; keep focused captions readable
-	# on the pastel pills in all three menu pages.
-	for button: Button in [_join_button, _join_lan_tab_button, _join_steam_tab_button, _play_local_button, _refresh_button, _refresh_steam_button, _sandbox_button, _tutorial_button, _options_button, _quit_button, _back_button]:
-		button.add_theme_color_override("font_focus_color", tuning.ink_color)
-	for button: Button in [_host_button, _bots_button, _direct_join_button]:
-		button.add_theme_color_override("font_focus_color", tuning.label_ink_light_color)
+	# DECISION (Bontago-1pi.37): icons are white-source SVGs and every pill's
+	# icon, like its label, takes the one ink MenuStyleFactory.apply_pill() sets
+	# for all draw states (normal/focus/hover/pressed) -- no per-node icon or
+	# focus-colour overrides here, so a focused button can never flip its icon
+	# to the theme's default white.
 	_gamepad_hint_pill.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_cream_color, tuning))
 	MenuStyleFactory.apply_glyph_circle(_glyph_a, _glyph_a_label, tuning)
 	MenuStyleFactory.apply_glyph_circle(_glyph_b, _glyph_b_label, tuning)
