@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://ui/OptionsMenu.gd" id="1_options"]
 [ext_resource type="Theme" path="res://ui/theme/stackfall_theme.tres" id="2_theme"]
@@ -6,6 +6,7 @@
 [ext_resource type="Texture2D" path="res://assets/ui/icons/speaker_low.svg" id="4_speaker_low"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/speaker_mid.svg" id="5_speaker_mid"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/speaker_high.svg" id="6_speaker_high"]
+[ext_resource type="Script" path="res://ui/FocusScrollContainer.gd" id="7_focus_scroll"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_tabs"]
 
@@ -89,6 +90,8 @@ layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
+follow_focus = true
+script = ExtResource("7_focus_scroll")
 
 [node name="SettingsFields" type="VBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage"]
 layout_mode = 2
@@ -354,9 +357,12 @@ horizontal_alignment = 2
 text = "100%"
 
 [node name="RebindScroll" type="ScrollContainer" parent="Frame/Panel/Layout/Body/ContentColumn/ControlsPage"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
+follow_focus = true
+script = ExtResource("7_focus_scroll")
 
 [node name="RebindList" type="VBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/ControlsPage/RebindScroll"]
 unique_name_in_owner = true

@@ -258,12 +258,24 @@ func _capture(event: InputEvent) -> void:
 	_listening = false
 	Settings.set_key_override(_action, event)
 	_refresh_glyphs()
+	_restore_focus()
 	rebind_captured.emit(_action, event)
 
 
 func _cancel_listening() -> void:
 	_listening = false
 	_refresh_glyphs()
+	_restore_focus()
+
+
+## Bontago-1pi.47: _on_pressed() drops focus for the duration of a capture; once
+## the capture ends the row takes it back, so a keyboard/gamepad player keeps
+## navigating (and the enclosing FocusScrollContainer keeps following) from the
+## row they just remapped instead of landing on no focus at all until the next
+## mouse click. Only when nothing else has taken focus in the meantime.
+func _restore_focus() -> void:
+	if is_visible_in_tree() and get_viewport().gui_get_focus_owner() == null:
+		grab_focus()
 
 
 func _clear_glyphs() -> void:
