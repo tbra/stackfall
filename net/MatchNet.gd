@@ -56,6 +56,10 @@ const EVENT_QOL_FEED: StringName = &"qol_feed"
 ## Bontago-1pi.18.2: [slot_id, contents, activated_special, carrier_shape_id] for the QoL gift slot.
 const EVENT_GIFT_SLOT: StringName = &"gift_slot"
 const EVENT_PLACEMENT_REJECTED: StringName = &"placement_rejected"
+## Bontago-1pi.52: longest refusal reason a client will show. The real ones
+## (PlacementRules/ThrowRules REASON_*) are all well under this; a longer one is
+## not from this build's host.
+const REJECT_REASON_MAX_LENGTH: int = 48
 const EVENT_PLACEMENT_RELOCATED: StringName = &"placement_relocated"
 const EVENT_PLAYER_ELIMINATED: StringName = &"player_eliminated"
 const EVENT_MATCH_WON: StringName = &"match_won"
@@ -132,6 +136,16 @@ var _beacon_visuals: BeaconVisualTuning = preload("res://config/beacon_visual_tu
 ## to replicate, in order -- _can_send() is false without a live peer, so this
 ## is what proves the host would have sent them. Game code never reads it.
 var replicated_dissolve_starts: Array[int] = []
+## Test-only (Bontago-1pi.52): how many times each event name reached
+## replicate_match_event() on the host, counted before its _can_send() gate
+## (false in a unit test). Proves a refusal was never broadcast to every peer.
+## Bounded by the number of event names. Game code never reads it.
+var replicated_event_counts: Dictionary = {}
+## Test-only (Bontago-1pi.52): peer_id -> placement_rejected replies addressed
+## to it by _reject_to_peer(), and the most recent one as [peer_id, slot_id,
+## reason]. Game code never reads either.
+var reject_replies_by_peer: Dictionary = {}
+var last_reject_reply: Array = []
 
 ## _known_special_ids()'s cache: String(SpecialDef.id) -> true, built once
 ## from SpecialDef.load_all_specials() (a directory scan). This node is
@@ -167,6 +181,11 @@ var _cursors: Dictionary = {}
 var _intents_sent: Dictionary = {}
 var _intents_accepted: Dictionary = {}
 var _intents_refused: Dictionary = {}
+## Bontago-1pi.52: the slot whose refusal _on_placement_rejected() already sent
+## to its owning peer while the current intent was being applied, so the intent
+## handler's own tail reply (for refusals Match never announces: a stale
+## feed_seq, a held-block lock, NOT_A_SPECIAL) is not a second copy. -1 = none.
+var _reject_replied_slot: int = -1
 var _auto_drops: Dictionary = {}
 ## Cursor updates from a client that the host dropped as malformed (see
 ## _handle_cursor_update). Not an intent, so not part of the sent/accepted/
@@ -764,7 +783,10 @@ func _encode_circles() -> PackedByteArray:
 ## Host only. Mirrors a match-flow event to every client: state changes, the
 ## countdown, feed issues, rejections, eliminations and the win.
 func replicate_match_event(event: StringName, args: Array) -> void:
-	if not _is_host() or not _can_send():
+	if not _is_host():
+		return
+	replicated_event_counts[event] = int(replicated_event_counts.get(event, 0)) + 1
+	if not _can_send():
 		return
 	rpc(&"net_match_event", event, args)
 
@@ -1014,12 +1036,14 @@ func _handle_place_intent(
 		return
 	# auto_drop is never taken from the wire: it grants the relocation
 	# privilege of spec 2.5, so only the host's own timer may set it.
+	_reject_replied_slot = -1
 	var reason: StringName = _apply_intent(slot_id, origin, orientation_index, free_quat, false, feed_seq)
 	if not _consumed_a_block(reason, false):
-		# Nothing was burned, so Match emitted no placement_rejected of its
-		# own; tell the sender anyway so its ghost unlocks now instead of
+		# Nothing was burned. Match announces most refusals itself (and
+		# _on_placement_rejected already told the sender); for the rest,
+		# tell the sender anyway so its ghost unlocks now instead of
 		# waiting out NetConfig.intent_ack_timeout.
-		_reject_to_peer(sender_peer_id, slot_id, reason)
+		_reply_reject_once(sender_peer_id, slot_id, reason)
 
 
 ## Host side of net_request_throw, split out (like _handle_place_intent) so a
@@ -1064,17 +1088,19 @@ func _handle_throw_intent(
 		# exactly like a malformed placement pose.
 		_refuse_intent(sender_peer_id, sender_slot, PlacementRules.REASON_NO_BLOCK)
 		return
+	_reject_replied_slot = -1
 	var reason: StringName = _apply_throw_intent(
 		slot_id, origin, orientation_index, free_quat, velocity, feed_seq
 	)
 	if not _consumed_a_block(reason, false):
-		# MatchPlacement.request_throw() already emits Events.placement_rejected
-		# for an outside-territory/not-a-special refusal, which
-		# _on_placement_rejected below already mirrors to every client -- but
-		# this targeted reply is still needed so the *sender's own* ghost
-		# unlocks now instead of waiting out NetConfig.intent_ack_timeout,
-		# exactly like _handle_place_intent's own tail.
-		_reject_to_peer(sender_peer_id, slot_id, reason)
+		# MatchPlacement.request_throw() emits Events.placement_rejected for
+		# an off-disk/hole/goal-zone refusal, which _on_placement_rejected
+		# already sent to the sender alone; the refusals it does not announce
+		# (a stale feed_seq, a lock, no held special) still need this targeted
+		# reply so the *sender's own* ghost unlocks now instead of waiting out
+		# NetConfig.intent_ack_timeout, exactly like _handle_place_intent's own
+		# tail.
+		_reply_reject_once(sender_peer_id, slot_id, reason)
 
 
 ## Host side of net_update_cursor, split out (like _handle_place_intent) so a
@@ -1218,9 +1244,20 @@ func _refuse_intent(sender_peer_id: int, sender_slot: int, reason: StringName) -
 
 
 func _reject_to_peer(peer_id: int, slot_id: int, reason: StringName) -> void:
-	if not _can_send():
+	reject_replies_by_peer[peer_id] = int(reject_replies_by_peer.get(peer_id, 0)) + 1
+	last_reject_reply = [peer_id, slot_id, reason]
+	if not _can_send() or not multiplayer.get_peers().has(peer_id):
 		return
 	rpc_id(peer_id, &"net_match_event", EVENT_PLACEMENT_REJECTED, [slot_id, reason])
+
+
+## _reject_to_peer() unless _on_placement_rejected() already sent this slot's
+## refusal while the intent was being applied (one reply per refused intent).
+func _reply_reject_once(peer_id: int, slot_id: int, reason: StringName) -> void:
+	if _reject_replied_slot == slot_id:
+		_reject_replied_slot = -1
+		return
+	_reject_to_peer(peer_id, slot_id, reason)
 
 
 func _bump(counter: Dictionary, slot_id: int) -> void:
@@ -1399,9 +1436,32 @@ func _on_gift_slot_changed(slot_id: int, contents: Array, activated: StringName,
 		replicate_match_event(EVENT_GIFT_SLOT, [slot_id, contents, activated, carrier_id])
 
 
+## Bontago-1pi.52 (owner playtest: "the host could hear my block rejected
+## sound"): a refusal is feedback for the refused player alone. It used to be
+## broadcast to every peer, so the host's own bus (and every other client's)
+## saw each client's refusals; now it goes only to the peer that holds the slot
+## -- never the host's own seat, a bot's or a vacated one, which have no remote
+## peer to tell. The host's own seat reacts to Match's local emit directly.
 func _on_placement_rejected(slot_id: int, reason: StringName) -> void:
-	if _is_host():
-		replicate_match_event(EVENT_PLACEMENT_REJECTED, [slot_id, reason])
+	if not _is_host():
+		return
+	var owner_peer: int = _remote_peer_of_slot(slot_id)
+	if owner_peer < 0:
+		return
+	_reject_to_peer(owner_peer, slot_id, reason)
+	# The intent handler that is applying this refusal must not send it again.
+	_reject_replied_slot = slot_id
+
+
+## The remote peer that holds `slot_id`, or -1 when nobody remote does: the
+## listen-server's own seat, a bot, an empty or vacated seat, a bad slot.
+func _remote_peer_of_slot(slot_id: int) -> int:
+	if slot_id < 0 or bool(_session().is_local_slot(slot_id)):
+		return -1
+	var peer_id: int = int(_session().peer_of_slot(slot_id))
+	if peer_id <= 0 or peer_id == Net.HOST_PEER_ID:
+		return -1
+	return peer_id
 
 
 ## Bontago-mv0.24: mirrors an auto-drop's relocation the same way
@@ -2265,7 +2325,23 @@ func net_match_event(event: StringName, args: Array) -> void:
 			_authority().apply_replicated_qol(args[0], args[1], args[2])
 			Events.qol_feed_changed.emit(args[0], args[1], args[2])
 		EVENT_PLACEMENT_REJECTED:
-			Events.placement_rejected.emit(int(args[0]), StringName(args[1]))
+			# Bontago-1pi.52: an input boundary like every other wire payload
+			# here, and a refusal is the refused player's own feedback: the
+			# host now sends it to the owning peer alone, so anything naming a
+			# slot this instance does not drive (an older host's broadcast, the
+			# host's own seat) is dropped rather than sounded.
+			if _is_host() or args.size() != 2 or not args[0] is int:
+				return
+			if not (args[1] is String or args[1] is StringName):
+				return
+			var rejected_slot: int = args[0]
+			if rejected_slot < 0 or rejected_slot >= _authority().slot_count():
+				return
+			if String(args[1]).length() > REJECT_REASON_MAX_LENGTH:
+				return
+			if not bool(_session().is_local_slot(rejected_slot)):
+				return
+			Events.placement_rejected.emit(rejected_slot, StringName(args[1]))
 		EVENT_PLACEMENT_RELOCATED:
 			Events.placement_relocated.emit(int(args[0]), args[1] as Vector2)
 		EVENT_PLAYER_ELIMINATED:

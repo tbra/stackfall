@@ -28,6 +28,8 @@ extends Node
 ## music playback additionally adds Settings.music_volume_db() -- master
 ## multiplies every channel, the music/SFX sliders only ever scale their own.
 
+const LocalFeedback := preload("res://autoload/match/LocalFeedback.gd")
+
 const AUDIO_SUBDIR: String = "assets/effects"
 const ORIGINAL_AUDIO_SUBDIR: String = "assets/original/audio"
 
@@ -600,7 +602,12 @@ func _on_block_impacted(speed: float) -> void:
 	player.play()
 
 
-func _on_placement_rejected(_slot_id: int, _reason: StringName) -> void:
+## Bontago-1pi.52: the refusal sound is the refused player's own feedback. The
+## host sees every slot's refusals on its bus, so a remote client's (or a bot's)
+## must stay silent here -- see autoload/match/LocalFeedback.gd.
+func _on_placement_rejected(slot_id: int, _reason: StringName) -> void:
+	if not LocalFeedback.is_own_human_slot(slot_id):
+		return
 	play(AudioConfig.EVENT_REJECTED)
 
 

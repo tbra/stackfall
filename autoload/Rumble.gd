@@ -20,6 +20,7 @@ extends Node
 @export var config: RumbleConfig = preload("res://config/rumble_config.tres")
 
 const DEVICE_NONE: int = -1
+const LocalFeedback := preload("res://autoload/match/LocalFeedback.gd")
 
 ## Which joypad most recently sent a real InputEventJoypadButton/Motion (past
 ## Settings.JOYPAD_MOTION_DEVICE_THRESHOLD for motion, reusing that same
@@ -97,8 +98,10 @@ func _on_block_impacted(speed: float) -> void:
 	_trigger(config.impact_weak_magnitude * t, config.impact_strong_magnitude * t, config.impact_duration_s)
 
 
+## Bontago-1pi.52: also silent for a bot seat -- offline, Net.is_local_slot() is
+## true for every slot, bots included (autoload/match/LocalFeedback.gd).
 func _on_placement_rejected(slot_id: int, _reason: StringName) -> void:
-	if not Net.is_local_slot(slot_id):
+	if not LocalFeedback.is_own_human_slot(slot_id):
 		return
 	_trigger(
 		config.placement_refused_weak_magnitude,
