@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tools/screenshot_lobby_players.gd" id="1_s"]
+
+[node name="ScreenshotLobbyPlayers" type="Node"]
+script = ExtResource("1_s")

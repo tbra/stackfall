@@ -1,0 +1,345 @@
+class_name LobbySeatRow
+extends PanelContainer
+## One seat of the lobby's right-hand panel (Bontago-1pi.53, package PL1a, docs/
+## LOBBY_REWORK_PLAN.md "Right panel"): the raised white pill the roster always drew,
+## now carrying the host's per-seat controls --
+##   [colour box] [name / subtitle] [team number] [difficulty] [x] [ready badge]
+## - the colour box is a Button: a click / ui_accept asks for the next palette colour,
+##   a right click / ui_left the previous one (the panel applies it through
+##   LobbySeats.cycle_color, which swaps on a clash);
+## - the team button exists only with teams on and cycles 1..cap then Random ("?")
+##   the same way (LobbySeats.cycle_team);
+## - a bot row has a difficulty dropdown (Easy / Normal / Hard) and, for the host, a
+##   remove button.
+##
+## The row is a view: it never touches the seat table. It reports what the player
+## asked for through the four request signals and the LobbyPlayersPanel (which owns
+## the table) applies it and redraws. A row is immutable once built(); a change of
+## seat, colour, team mode or editable state is a fresh row.
+##
+## Gamepad / keyboard: every control the player may use is focusable (the panel hands
+## them to the Lobby's focus loop through focus_entries()); ui_accept presses, ui_left
+## / ui_right on a focused colour box or team button cycle backwards / forwards (the
+## event is consumed, so focus does not move), ui_up / ui_down move through the loop.
+## The difficulty dropdown and the remove button keep the default behaviour; their
+## left / right neighbours are the row's previous / next control.
+
+## Cycle the seat's colour; `backwards` = previous colour.
+signal color_cycle_requested(key: int, backwards: bool)
+## Cycle the seat's team pick; `backwards` = previous number.
+signal team_cycle_requested(key: int, backwards: bool)
+## The dropdown picked a MatchConfig.AiDifficulty for bot seat `key`.
+signal difficulty_chosen(key: int, difficulty: int)
+## The remove button of bot seat `key` was pressed.
+signal remove_requested(key: int)
+
+## Which control of a row holds focus: lets the panel put focus back on the same
+## control after it redraws the rows.
+const KIND_COLOR: StringName = &"color"
+const KIND_TEAM: StringName = &"team"
+const KIND_DIFFICULTY: StringName = &"difficulty"
+const KIND_REMOVE: StringName = &"remove"
+
+## Difficulty labels in MatchConfig.AiDifficulty enum order (EASY, NORMAL, HARD).
+const DIFFICULTY_LABELS: Array[String] = ["Easy", "Normal", "Hard"]
+## What the team button shows for MatchConfig.TEAM_PICK_RANDOM.
+const TEAM_RANDOM_TEXT: String = "?"
+## The remove button's glyph (multiplication sign).
+const REMOVE_GLYPH: int = 0xD7
+
+# --- Set by the panel before build() ----------------------------------------------
+## LobbySeats key of the seat (human_key / bot_key), KEY_NONE for a seat-less row
+## (a spectator), whose colour box is a plain, inert swatch.
+var seat_key: int = LobbySeats.KEY_NONE
+var display_name: String = ""
+var subtitle: String = ""
+var seat_color: Color = Color.GRAY
+## Team pick (0 = Random, 1..4) and whether the team button is shown (teams on).
+var team_pick: int = MatchConfig.TEAM_PICK_RANDOM
+var show_team: bool = false
+## MatchConfig.AiDifficulty; only read for a bot.
+var difficulty: int = MatchConfig.AiDifficulty.NORMAL
+var is_bot: bool = false
+var is_ready: bool = false
+## Host: the controls work. Client: the same row, read-only.
+var editable: bool = false
+
+# --- Built by build() ------------------------------------------------------------------
+var layout: HBoxContainer = null
+var color_button: Button = null
+var name_label: Label = null
+var subtitle_label: Label = null
+## null unless `show_team` and the row has a seat.
+var team_button: Button = null
+## null for a human.
+var difficulty_option: OptionButton = null
+## null unless the row is a bot's and `editable`.
+var remove_button: Button = null
+var badge: PanelContainer = null
+var badge_label: Label = null
+
+var _tuning: MenuVisualTuning = null
+var _layout_tuning: LobbyLayoutTuning = null
+
+
+## Text of the team button for a pick: "?" for Random, else the number.
+static func team_text(pick: int) -> String:
+	if pick <= MatchConfig.TEAM_PICK_RANDOM:
+		return TEAM_RANDOM_TEXT
+	return str(pick)
+
+
+## Builds the row's controls from the fields above.
+func build(tuning: MenuVisualTuning, layout_tuning: LobbyLayoutTuning) -> void:
+	_tuning = tuning
+	_layout_tuning = layout_tuning
+	# Bontago-mp0.3.5 (review r3, problem 5): make_flat_list() draws
+	# pill_cream_hover_color, which is the *exact same* Color as card_cream_color --
+	# the row blended invisibly into %PlayersCard's own background instead of reading
+	# as a raised white pill (mockup 11). tuning.pill_white_color is a real near-white
+	# the card can never match.
+	add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_white_color, tuning))
+	size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if layout_tuning.seat_row_min_height_px > 0:
+		custom_minimum_size = Vector2(0.0, float(layout_tuning.seat_row_min_height_px))
+	layout = HBoxContainer.new()
+	layout.add_theme_constant_override("separation", layout_tuning.seat_row_separation_px)
+	add_child(layout)
+
+	_build_color_button()
+	_build_text_column()
+	if show_team and seat_key != LobbySeats.KEY_NONE:
+		_build_team_button()
+	if is_bot:
+		_build_difficulty_option()
+		if editable:
+			_build_remove_button()
+	_build_badge()
+	_wire_horizontal_focus()
+
+
+## The controls the player may use, in visual order: what the panel offers the Lobby's
+## focus loop. Empty for a read-only row.
+func focusable_controls() -> Array[Control]:
+	var controls: Array[Control] = []
+	if not editable or seat_key == LobbySeats.KEY_NONE:
+		return controls
+	controls.append(color_button)
+	if team_button != null:
+		controls.append(team_button)
+	if difficulty_option != null:
+		controls.append(difficulty_option)
+	if remove_button != null:
+		controls.append(remove_button)
+	return controls
+
+
+## Which KIND_* `control` is in this row, or &"" for none.
+func kind_of(control: Node) -> StringName:
+	if control == null:
+		return &""
+	if control == color_button or color_button.is_ancestor_of(control):
+		return KIND_COLOR
+	if team_button != null and (control == team_button or team_button.is_ancestor_of(control)):
+		return KIND_TEAM
+	if difficulty_option != null and (control == difficulty_option or difficulty_option.is_ancestor_of(control)):
+		return KIND_DIFFICULTY
+	if remove_button != null and (control == remove_button or remove_button.is_ancestor_of(control)):
+		return KIND_REMOVE
+	return &""
+
+
+## The control of `kind`, or null when this row has none.
+func control_of(kind: StringName) -> Control:
+	match kind:
+		KIND_COLOR:
+			return color_button
+		KIND_TEAM:
+			return team_button
+		KIND_DIFFICULTY:
+			return difficulty_option
+		KIND_REMOVE:
+			return remove_button
+	return null
+
+
+# --- Building --------------------------------------------------------------------------
+
+## The colour box: a flat rounded square in the seat's colour (the clay-cube stand-in
+## the roster always drew), now a Button. The same flat box is drawn in every state
+## (lighter on hover, ringed on focus) so a read-only row looks just like a live one.
+func _build_color_button() -> void:
+	color_button = Button.new()
+	color_button.name = "ColorButton"
+	color_button.custom_minimum_size = _layout_tuning.color_box_size_px
+	color_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	color_button.focus_mode = Control.FOCUS_ALL if editable and seat_key != LobbySeats.KEY_NONE else Control.FOCUS_NONE
+	var radius: int = _layout_tuning.color_box_corner_radius_px
+	var normal: StyleBoxFlat = _color_box(seat_color, radius, 0, Color.TRANSPARENT)
+	var hover: StyleBoxFlat = _color_box(seat_color.lightened(0.18), radius, 0, Color.TRANSPARENT)
+	var focus: StyleBoxFlat = _color_box(seat_color, radius, _layout_tuning.seat_color_focus_border_px, _tuning.focus_outline_color)
+	color_button.add_theme_stylebox_override("normal", normal)
+	color_button.add_theme_stylebox_override("hover", hover if editable else normal)
+	color_button.add_theme_stylebox_override("pressed", normal)
+	color_button.add_theme_stylebox_override("hover_pressed", normal)
+	color_button.add_theme_stylebox_override("disabled", normal)
+	color_button.add_theme_stylebox_override("focus", focus)
+	color_button.disabled = not editable or seat_key == LobbySeats.KEY_NONE
+	if editable and seat_key != LobbySeats.KEY_NONE:
+		color_button.tooltip_text = "Click to change colour (right click: previous)"
+		color_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		color_button.pressed.connect(_on_color_pressed)
+		color_button.gui_input.connect(_on_cycle_gui_input.bind(KIND_COLOR))
+	layout.add_child(color_button)
+
+
+func _build_text_column() -> void:
+	var text_column: VBoxContainer = VBoxContainer.new()
+	text_column.add_theme_constant_override("separation", _layout_tuning.seat_text_separation_px)
+	text_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_label = Label.new()
+	name_label.theme_type_variation = &"TitleLabel"
+	name_label.add_theme_font_size_override("font_size", _layout_tuning.seat_name_font_size)
+	name_label.text = display_name
+	subtitle_label = Label.new()
+	subtitle_label.theme_type_variation = &"CaptionLabel"
+	subtitle_label.text = subtitle
+	text_column.add_child(name_label)
+	text_column.add_child(subtitle_label)
+	layout.add_child(text_column)
+
+
+## The team number pill: "1".."4" or "?" (Random), a cream-blue pill like the other
+## small pills on the screen.
+func _build_team_button() -> void:
+	team_button = Button.new()
+	team_button.name = "TeamButton"
+	team_button.text = team_text(team_pick)
+	team_button.custom_minimum_size = _layout_tuning.seat_team_button_min_size_px
+	team_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	team_button.tooltip_text = "Team %d" % team_pick if team_pick > MatchConfig.TEAM_PICK_RANDOM else "Random team"
+	_style_pill(team_button, _tuning.pill_powder_blue_color, _tuning.pill_powder_blue_hover_color, _tuning.ink_color)
+	team_button.disabled = not editable
+	team_button.focus_mode = Control.FOCUS_ALL if editable else Control.FOCUS_NONE
+	if editable:
+		team_button.tooltip_text += " (click to change, right click: previous)"
+		team_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		team_button.pressed.connect(_on_team_pressed)
+		team_button.gui_input.connect(_on_cycle_gui_input.bind(KIND_TEAM))
+	layout.add_child(team_button)
+
+
+## A bot's own difficulty. Read-only (disabled) for a client; the host's dropdown
+## opens on ui_accept / click like every OptionButton.
+func _build_difficulty_option() -> void:
+	difficulty_option = OptionButton.new()
+	difficulty_option.name = "DifficultyOption"
+	for label: String in DIFFICULTY_LABELS:
+		difficulty_option.add_item(label)
+	difficulty_option.select(clampi(difficulty, 0, DIFFICULTY_LABELS.size() - 1))
+	difficulty_option.custom_minimum_size = Vector2(float(_layout_tuning.seat_difficulty_min_width_px), 0.0)
+	difficulty_option.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	difficulty_option.tooltip_text = "This bot's difficulty"
+	_style_pill(difficulty_option, _tuning.pill_cream_color, _tuning.pill_cream_hover_color, _tuning.ink_color)
+	difficulty_option.disabled = not editable
+	difficulty_option.focus_mode = Control.FOCUS_ALL if editable else Control.FOCUS_NONE
+	if editable:
+		difficulty_option.item_selected.connect(_on_difficulty_selected)
+	layout.add_child(difficulty_option)
+
+
+func _build_remove_button() -> void:
+	remove_button = Button.new()
+	remove_button.name = "RemoveButton"
+	remove_button.text = char(REMOVE_GLYPH)
+	remove_button.custom_minimum_size = _layout_tuning.seat_remove_button_min_size_px
+	remove_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	remove_button.tooltip_text = "Remove this bot"
+	_style_pill(remove_button, _tuning.pill_coral_color, _tuning.pill_coral_hover_color, _tuning.label_ink_light_color)
+	remove_button.pressed.connect(_on_remove_pressed)
+	layout.add_child(remove_button)
+
+
+func _build_badge() -> void:
+	badge = PanelContainer.new()
+	var badge_color: Color = _tuning.pill_mint_color if is_ready else _tuning.ground_band_apricot_color
+	badge.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(badge_color, _tuning))
+	badge_label = Label.new()
+	badge_label.text = ("%s Ready" % char(0x2713)) if is_ready else ("%s Not ready" % char(0x231A))
+	badge_label.add_theme_color_override("font_color", _tuning.ink_color)
+	badge.add_child(badge_label)
+	layout.add_child(badge)
+
+
+## A pill look that stays the same when the control is disabled (a client's read-only
+## row), so only the host sees live controls but both see the same row.
+func _style_pill(button: Button, color: Color, hover_color: Color, ink: Color) -> void:
+	MenuStyleFactory.apply_pill(button, color, hover_color, ink, _tuning)
+	button.add_theme_stylebox_override("disabled", MenuStyleFactory.make_badge(color, _tuning))
+	button.add_theme_color_override("font_disabled_color", ink)
+
+
+static func _color_box(color: Color, radius: int, border_px: int, border_color: Color) -> StyleBoxFlat:
+	var box: StyleBoxFlat = StyleBoxFlat.new()
+	box.bg_color = color
+	box.set_corner_radius_all(radius)
+	if border_px > 0:
+		box.set_border_width_all(border_px)
+		box.border_color = border_color
+	return box
+
+
+## ui_left / ui_right are consumed by the colour box and the team button (they cycle),
+## so a pad cannot step sideways out of them; every other control of the row gets its
+## neighbours as explicit left / right focus targets.
+func _wire_horizontal_focus() -> void:
+	var controls: Array[Control] = focusable_controls()
+	for index: int in range(controls.size()):
+		var control: Control = controls[index]
+		if index > 0:
+			control.focus_neighbor_left = control.get_path_to(controls[index - 1])
+		if index < controls.size() - 1:
+			control.focus_neighbor_right = control.get_path_to(controls[index + 1])
+
+
+# --- Input -------------------------------------------------------------------------------
+
+func _on_color_pressed() -> void:
+	color_cycle_requested.emit(seat_key, false)
+
+
+func _on_team_pressed() -> void:
+	team_cycle_requested.emit(seat_key, false)
+
+
+func _on_remove_pressed() -> void:
+	remove_requested.emit(seat_key)
+
+
+func _on_difficulty_selected(index: int) -> void:
+	difficulty_chosen.emit(seat_key, index)
+
+
+## Right click = previous; ui_left = previous, ui_right = next (the gamepad / keyboard
+## way to cycle a focused colour box or team button). The matching event is consumed
+## BEFORE the request goes out: handling it redraws the rows, and this control then
+## leaves the tree. Connected to the control's `gui_input` signal (not _gui_input) so
+## tests can drive it with a plain emit, like the timer sliders in ui/Lobby.gd.
+func _on_cycle_gui_input(event: InputEvent, kind: StringName) -> void:
+	var backwards: bool = false
+	if event is InputEventMouseButton:
+		var click: InputEventMouseButton = event as InputEventMouseButton
+		if not click.pressed or click.button_index != MOUSE_BUTTON_RIGHT:
+			return
+		backwards = true
+	elif event.is_action_pressed(&"ui_left"):
+		backwards = true
+	elif event.is_action_pressed(&"ui_right"):
+		backwards = false
+	else:
+		return
+	accept_event()
+	if kind == KIND_COLOR:
+		color_cycle_requested.emit(seat_key, backwards)
+	else:
+		team_cycle_requested.emit(seat_key, backwards)
