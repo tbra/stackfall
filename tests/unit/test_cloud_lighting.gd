@@ -145,7 +145,7 @@ func test_sun_effects_off_at_night_reduced_by_overcast() -> void:
 	var night: float = CloudLighting.sun_effect_scale(1.0, CEILING.sun_night_fade_end, 0.0, CEILING.sun_overcast_attenuation, 0.0, CEILING.sun_storm_attenuation)
 	assert_almost_eq(clear, 1.0, EPS)
 	assert_lt(overcast, clear, "overcast reduces the sun effects")
-	assert_lt(storm, 0.05, "a heavy storm hides them")
+	assert_eq(storm, 0.0, "a full storm turns them off exactly (Bontago-mp0.94: no residual ray fan)")
 	assert_almost_eq(night, 0.0, EPS, "night turns them off")
 
 
@@ -157,3 +157,80 @@ func test_skybox_publishes_sun_scale_to_sky_and_flare() -> void:
 	assert_lt(scale, 1.0, "overcast attenuates the published sun scale")
 	var sky: ShaderMaterial = skybox.theme.sky_material as ShaderMaterial
 	assert_almost_eq(float(sky.get_shader_parameter(&"sun_effect_scale")), scale, EPS)
+
+
+## Bontago-mp0.94 (owner playtest: "sun is hidden during storm but the rays are still
+## visible"): the sun disc glow fades linearly to exactly 0 at full storm (Skybox lerps
+## proc_sun_glow_strength to the storm theme), but sun_effect_scale kept 3 % x the overcast
+## keep (about 1 %) of the god rays, so a faint warm ray fan outlived the hidden disc.
+## Every sun effect must now fade with, and never outlast, the disc.
+func test_storm_sun_effects_never_outlive_the_disc_fade() -> void:
+	for overcast: float in [0.0, 0.5, 1.0]:
+		var previous: float = 2.0
+		for storm: float in [0.0, 0.25, 0.3, 0.6, 0.9, 1.0]:
+			var scale: float = CloudLighting.sun_effect_scale(0.0, CEILING.sun_night_fade_end, overcast,
+				CEILING.sun_overcast_attenuation, storm, CEILING.sun_storm_attenuation)
+			assert_lte(scale, (1.0 - storm) + EPS, "overcast %s storm %s: sun effects stay below the disc's own fade" % [overcast, storm])
+			assert_lte(scale, previous + EPS, "more storm never brings the sun effects back")
+			previous = scale
+		assert_eq(previous, 0.0, "overcast %s: nothing of the rays/halo/flare is left at full storm" % overcast)
+	assert_almost_eq(CloudLighting.sun_effect_scale(0.0, CEILING.sun_night_fade_end, 1.0, CEILING.sun_overcast_attenuation,
+		0.0, CEILING.sun_storm_attenuation), 1.0 - CEILING.sun_overcast_attenuation, EPS, "overcast alone is unchanged")
+	assert_almost_eq(CloudLighting.sun_weather_keep(0.0, CEILING.sun_overcast_attenuation, 0.0, CEILING.sun_storm_attenuation), 1.0, EPS,
+		"clear weather keeps every sun effect")
+
+
+## One sun term, as the player sees it: its share of the clear-weather strength.
+func _sun_shares(skybox: Skybox, clear_glow: float, clear_ray: float) -> Dictionary:
+	var sky: ShaderMaterial = skybox.theme.sky_material as ShaderMaterial
+	var scale: float = float(sky.get_shader_parameter(&"sun_effect_scale"))
+	var flare: SunFlare = get_tree().get_nodes_in_group(SunFlare.GROUP)[0] as SunFlare
+	return {
+		&"glow": float(sky.get_shader_parameter(&"proc_sun_glow_strength")) / clear_glow,
+		&"halo": float(sky.get_shader_parameter(&"sun_halo_intensity")) * scale,
+		&"core": float(sky.get_shader_parameter(&"sun_core_intensity")) * scale,
+		&"rays": float(sky.get_shader_parameter(&"ray_intensity")) * scale / clear_ray,
+		&"rays_absolute": float(sky.get_shader_parameter(&"ray_intensity")) * scale,
+		&"flare": flare.weather_scale() if flare.is_theme_enabled() else 0.0,
+	}
+
+
+## The effective sun terms on the live sky material and flare at storm 0.3 / 0.6 / 1 with
+## overcast 1, in the running cycle, a locked phase and a static theme: none of the halo,
+## rays or flare may exceed the disc glow, and all are 0 once the disc is gone.
+func test_every_sun_term_fades_with_the_disc_in_storm() -> void:
+	var storm_theme: SkyThemeDef = Skybox.load_theme("storm")
+	for mode: String in ["cycle", "locked_dawn", "static"]:
+		var skybox: Skybox = _wired_skybox()
+		var flare: SunFlare = SunFlare.new()
+		add_child_autofree(flare)
+		if mode == "static":
+			skybox.apply_theme(skybox.theme)
+		else:
+			var config: MatchConfig = MatchConfig.new()
+			config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE if mode == "cycle" else MatchConfig.SkyThemeMode.DAWN
+			skybox.configure_match_sky(config)
+			if mode == "cycle":
+				skybox.set_cycle_phase(0.2)
+		var sky: ShaderMaterial = skybox.theme.sky_material as ShaderMaterial
+		var clear_glow: float = float(sky.get_shader_parameter(&"proc_sun_glow_strength"))
+		var clear_ray: float = float(sky.get_shader_parameter(&"ray_intensity"))
+		assert_gt(clear_glow, 0.0, "%s: fixture has a sun glow to fade" % mode)
+		assert_gt(clear_ray, 0.0, "%s: fixture has god rays to fade" % mode)
+		var baseline: Dictionary = _sun_shares(skybox, clear_glow, clear_ray)
+		skybox.set_weather_cloud_overcast(1.0)
+		for storm: float in [0.3, 0.6, 1.0]:
+			skybox.set_storm_sky(storm, storm_theme)
+			var shares: Dictionary = _sun_shares(skybox, clear_glow, clear_ray)
+			var label: String = "%s storm %s" % [mode, storm]
+			for term: StringName in [&"halo", &"core", &"rays", &"flare"]:
+				assert_lte(float(shares[term]), float(shares[&"glow"]) + EPS, "%s: %s never outlives the sun glow" % [label, term])
+			if storm >= 1.0:
+				assert_almost_eq(float(shares[&"glow"]), 0.0, EPS, "%s: the sun glow is gone" % label)
+				assert_eq(float(shares[&"rays_absolute"]), 0.0, "%s: no rays left under a hidden sun" % label)
+				assert_eq(float(shares[&"flare"]), 0.0, "%s: no flare" % label)
+		skybox.set_storm_sky(0.0, storm_theme)
+		skybox.set_weather_cloud_overcast(0.0)
+		var cleared: Dictionary = _sun_shares(skybox, clear_glow, clear_ray)
+		for term: StringName in [&"glow", &"rays", &"flare"]:
+			assert_almost_eq(float(cleared[term]), float(baseline[term]), EPS, "%s: clearing the weather restores the %s unchanged" % [mode, term])

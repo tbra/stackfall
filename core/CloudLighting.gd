@@ -106,12 +106,22 @@ static func graded_floored(color: Color, dim_amount: float, desaturate_amount: f
 	return Color(maxf(graded.r, floor.r), maxf(graded.g, floor.g), maxf(graded.b, floor.b), color.a)
 
 
-## Share of the sun's effects (flare, god rays, sun glow) that survives the
-## weather and the day/night cycle: 1 in clear daylight, 0 at night (moon has
-## none), reduced by overcast and almost gone in a heavy storm.
+## Share of the sun's effects (flare, god rays, halo) that survives the weather
+## and the day/night cycle: 1 in clear daylight, 0 at night (moon has none),
+## reduced by overcast and gone at full storm.
 static func sun_effect_scale(night: float, night_fade_end: float, overcast_amount: float, overcast_attenuation: float,
 		storm_amount: float, storm_attenuation: float) -> float:
 	var day: float = 1.0 - smoothstep(0.0, maxf(night_fade_end, 0.0001), clampf(night, 0.0, 1.0))
+	return day * sun_weather_keep(overcast_amount, overcast_attenuation, storm_amount, storm_attenuation)
+
+
+## Bontago-mp0.94: the weather-only part of sun_effect_scale (1 in clear weather).
+## The storm part is linear in the storm amount, exactly like the sky shader's sun disc
+## glow (Skybox lerps proc_sun_glow_strength toward the storm theme's 0), so with a storm
+## attenuation of 1 the rays, halo and flare are always at most the disc's own fade and
+## reach exactly 0 where the disc does (full storm): none can outlive a hidden sun.
+static func sun_weather_keep(overcast_amount: float, overcast_attenuation: float,
+		storm_amount: float, storm_attenuation: float) -> float:
 	var overcast_keep: float = 1.0 - clampf(overcast_attenuation, 0.0, 1.0) * clampf(overcast_amount, 0.0, 1.0)
 	var storm_keep: float = 1.0 - clampf(storm_attenuation, 0.0, 1.0) * clampf(storm_amount, 0.0, 1.0)
-	return day * overcast_keep * storm_keep
+	return overcast_keep * storm_keep

@@ -102,6 +102,10 @@ uniform float ray_shimmer_speed = 0.15;
 uniform float ray_shimmer_amount = 0.08;
 // Bontago-mp0.34: share of the sun glow and god rays that survives weather and
 // night (game/Skybox.gd via CloudLighting.sun_effect_scale); 1 = clear daylight.
+// Bontago-mp0.94: EVERY additive sun term below (core, halo, god rays) multiplies it, and
+// it is exactly 0 at full storm where the procedural sun glow is also 0, so the rays can
+// never outlive a hidden sun. A new sun term must multiply it too (pinned in
+// tests/unit/test_sunset_clouds_shader.gd).
 uniform float sun_effect_scale : hint_range(0.0, 1.0) = 1.0;
 
 
@@ -430,7 +434,7 @@ void sky() {
 	vec3 offset = eyedir - sun_dir * cos_angle;
 	float ray_angle = atan(dot(offset, bitangent), dot(offset, tangent));
 	float ray_fade = 1.0 - smoothstep(0.0, ray_length_deg, angle_deg);
-	if (ray_fade > 0.0) {
+	if (ray_fade > 0.0 && sun_effect_scale > 0.0) {
 		float shimmer = 1.0 + sin(TIME * ray_shimmer_speed + ray_angle * 3.0) * ray_shimmer_amount;
 		float rays_thin = pow(abs(cos(ray_angle * ray_count * 0.5)), ray_sharpness);
 		float rays_wide = pow(abs(cos(ray_angle * ray_wide_count * 0.5)), ray_wide_sharpness);
