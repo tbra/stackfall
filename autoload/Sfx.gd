@@ -630,19 +630,18 @@ func _on_gift_flight_spawned(_gift_id: int, _origin: Vector3, _landing: Vector3)
 		_last_gift_spawn_msec = now_msec
 
 
-## DECISION (autoload/Sfx.gd, Bontago-6y2): unlike the hooks above (a block
-## drop/thud/rejection/breakage is a physical event any nearby player would
-## actually hear happen, so every hook above plays for every slot, no
-## gating), a gift claim queues a special for the whole claiming team -- it is
+## DECISION (autoload/Sfx.gd, Bontago-6y2): unlike the world hooks above (a
+## block drop/thud/breakage is a physical event any nearby player would
+## actually hear happen, so those play for every slot; the rejection sound is
+## personal and gated to the refused local human since Bontago-1pi.52), a gift claim queues a special for the whole claiming team -- it is
 ## personal feedback, not a world event. Gating on "any locally-driven slot on
 ## the claiming team" mirrors game/GiftCrate.gd's own "_local_watch_slot()"
 ## comment and ui/HUD.gd's gift toast (Bontago-1en.16), both already
 ## local-only; a global "someone somewhere claimed a gift" chime would be
-## noise in an 8-player match with crates spawning continuously. The
-## Net.is_local_slot() check inside the loop is also correct in hot-seat/
-## offline play with no extra branching: it always returns true there (one
-## human drives every slot), so every claim plays, same as it would if the
-## local human just made it.
+## noise in an 8-player match with crates spawning continuously. The loop gates
+## on LocalFeedback.is_own_human_slot() (Bontago-1pi.52): a human seat driven
+## on this machine, so hot-seat humans still hear their claims while offline
+## bots (including bot teammates) never chime.
 ##
 ## Simplest reasonable option per the brief: no quieter variant for other
 ## teams' claims -- nothing else about a gift claim has non-local feedback
