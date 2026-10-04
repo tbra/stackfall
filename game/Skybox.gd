@@ -234,7 +234,7 @@ func reset_to_launch() -> void:
 	if not _launch_captured:
 		return
 	var weather_active: bool = _storm_amount > 0.0 or _overcast_amount > 0.0 \
-		or _weather_cloud_overcast > 0.0 or _wfog_amount > 0.0
+		or _weather_cloud_overcast > 0.0 or _snow_brighten > 0.0 or _wfog_amount > 0.0
 	var at_launch: bool = not _launch_cycle and _cycle_theme == null and theme == _launch_theme \
 		and config.theme_name == _launch_theme_name and fallback_active \
 		and config.enabled == _launch_set_enabled and config.default_set == _launch_default_set \
@@ -277,6 +277,7 @@ func _clear_weather_state() -> void:
 	_storm_blend_base = null
 	_overcast_amount = 0.0
 	_weather_cloud_overcast = 0.0
+	_snow_brighten = 0.0
 	_overcast_light_scale = 1.0
 	_overcast_ambient_scale = 1.0
 	_overcast_exposure_scale = 1.0
@@ -707,6 +708,8 @@ const OVERCAST_GROUP: StringName = &"weather_skybox"
 ## Environment or the light directly.
 var _overcast_amount: float = 0.0
 var _weather_cloud_overcast: float = 0.0
+## Bontago-mp0.128: snow brightening 0..1 (CloudCeiling); the gain/lift come from ceiling.tres.
+var _snow_brighten: float = 0.0
 ## Bontago-mp0.19 storm sky blend state (see set_storm_sky()).
 const MOON_DISC_TEXTURE: Texture2D = preload("res://assets/sky/moon_v1/moon_disc.png")
 const MOON_HALO_TEXTURE: Texture2D = preload("res://assets/sky/moon_v1/moon_halo.png")
@@ -1464,6 +1467,8 @@ func _publish_cloud_lighting() -> void:
 	var weather: float = maxf(cloud_overcast, _storm_amount)
 	var dim: float = CloudLighting.combined_dim(CEILING_TUNING.cloud_overcast_dim, CEILING_TUNING.storm_darkness_add,
 		cloud_overcast, _storm_amount, night, CEILING_TUNING.night_dim_relief, CEILING_TUNING.max_combined_dim)
+	# Bontago-mp0.128: snow lifts the clouds (a negative dim brightens), not at night.
+	dim -= CEILING_TUNING.snow_cloud_brighten * _snow_brighten * (1.0 - clampf(night, 0.0, 1.0))
 	var changed: bool = _cloud_lighting.publish(
 		_puff_color(puff, &"shadow_color", _cloud_lighting.shadow_color),
 		_puff_color(puff, &"mid_color", _cloud_lighting.mid_color),
@@ -1748,6 +1753,22 @@ func set_weather_cloud_overcast(amount: float) -> void:
 	_publish_cloud_lighting()
 
 
+## Bontago-mp0.128: snow brightens the sky (background exposure) and the clouds
+## (negative weather dim) by `amount` 0..1; 0 restores exactly.
+func set_snow_brighten(amount: float) -> void:
+	var clamped: float = clampf(amount, 0.0, 1.0)
+	if clamped == _snow_brighten:
+		return
+	_snow_brighten = clamped
+	if theme != null and environment != null:
+		_apply_overcast(_overcast_theme if _overcast_theme != null else theme)
+	_publish_cloud_lighting()
+
+
+func snow_brighten_amount() -> float:
+	return _snow_brighten
+
+
 ## The overcast the cloud layers are graded by (strongest of the sources).
 func cloud_overcast_amount() -> float:
 	return maxf(_overcast_amount, _weather_cloud_overcast)
@@ -1787,7 +1808,7 @@ func _apply_overcast(applied_theme: SkyThemeDef) -> void:
 		_overcast_exposure_base = environment.background_energy_multiplier
 	var amount: float = _overcast_amount
 	environment.ambient_light_energy = applied_theme.ambient_energy * lerpf(1.0, _overcast_ambient_scale, amount)
-	environment.background_energy_multiplier = _overcast_exposure_base * lerpf(1.0, _overcast_exposure_scale, amount)
+	environment.background_energy_multiplier = _overcast_exposure_base * lerpf(1.0, _overcast_exposure_scale, amount) 		* lerpf(1.0, CEILING_TUNING.snow_sky_exposure_gain, _snow_brighten)
 	_apply_sky_exposure(amount)
 	var tint: float = _overcast_fog_tint_strength * amount
 	var fog_color: Color = applied_theme.fog_color.lerp(_overcast_fog_tint, tint)

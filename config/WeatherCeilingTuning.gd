@@ -102,6 +102,12 @@ extends Resource
 @export var storm_theme_id: String = "storm"
 ## Blend toward the storm SkyThemeDef at full storm intensity.
 @export_range(0.0, 1.0, 0.01) var storm_sky_blend: float = 1.0
+## Bontago-mp0.128: rain uses the same storm sky at this lighter strength (storm 1.0 is darker).
+@export_range(0.0, 1.0, 0.01) var rain_sky_blend: float = 0.85
+## Bontago-mp0.128: at full snow the sky's exposure is multiplied by this gain and the
+## clouds are lifted by this share (negative weather dim); 1 / 0 = no brightening.
+@export_range(1.0, 3.0, 0.01) var snow_sky_exposure_gain: float = 1.35
+@export_range(0.0, 0.8, 0.01) var snow_cloud_brighten: float = 0.3
 ## Storm blend amount at which the theme's sun flare switches off.
 @export_range(0.0, 1.0, 0.01) var storm_flare_off_amount: float = 0.5
 
@@ -122,6 +128,16 @@ extends Resource
 ## World height of the lowest layer for a camera at `camera_y`.
 func ceiling_y(camera_y: float) -> float:
 	return maxf(height_m, camera_y + min_clearance_above_camera_m)
+
+
+## Sky storm-blend amount the active weathers drive (storm full, rain lighter).
+func sky_blend_for(weather_id: StringName, intensity: float) -> float:
+	var weight: float = 0.0
+	if weather_id == storm_id:
+		weight = storm_sky_blend
+	elif weather_id == &"rain":
+		weight = rain_sky_blend
+	return clampf(intensity, 0.0, 1.0) * weight
 
 
 ## Shared overcast amount a weather at `intensity` drives (0 for ids without one).
