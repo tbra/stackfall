@@ -1,0 +1,356 @@
+{
+  "version": 1,
+  "file": "snow_atlas.png",
+  "size": [
+    512,
+    512
+  ],
+  "grid": [
+    4,
+    4
+  ],
+  "cell_size": [
+    128,
+    128
+  ],
+  "order": "row-major, top-left origin",
+  "seed_base": 10600,
+  "tiles": [
+    {
+      "index": 0,
+      "id": "crystal_broad",
+      "cell": [
+        0,
+        0
+      ],
+      "region_px": [
+        0,
+        0,
+        128,
+        128
+      ],
+      "uv_rect": [
+        0.0,
+        0.0,
+        0.25,
+        0.25
+      ],
+      "kind": "flake"
+    },
+    {
+      "index": 1,
+      "id": "crystal_short",
+      "cell": [
+        1,
+        0
+      ],
+      "region_px": [
+        128,
+        0,
+        128,
+        128
+      ],
+      "uv_rect": [
+        0.25,
+        0.0,
+        0.25,
+        0.25
+      ],
+      "kind": "flake"
+    },
+    {
+      "index": 2,
+      "id": "crystal_split",
+      "cell": [
+        2,
+        0
+      ],
+      "region_px": [
+        256,
+        0,
+        128,
+        128
+      ],
+      "uv_rect": [
+        0.5,
+        0.0,
+        0.25,
+        0.25
+      ],
+      "kind": "flake"
+    },
+    {
+      "index": 3,
+      "id": "crystal_star",
+      "cell": [
+        3,
+        0
+      ],
+      "region_px": [
+        384,
+        0,
+        128,
+        128
+      ],
+      "uv_rect": [
+        0.75,
+        0.0,
+        0.25,
+        0.25
+      ],
+      "kind": "flake"
+    },
+    {
+      "index": 4,
+      "id": "crystal_long",
+      "cell": [
+        0,
+        1
+      ],
+      "region_px": [
+        0,
+        128,
+        128,
+        128
+      ],
+      "uv_rect": [
+        0.0,
+        0.25,
+        0.25,
+        0.25
+      ],
+      "kind": "flake"
+    },
+    {
+      "index": 5,
+      "id": "crystal_compact",
+      "cell": [
+        1,
+        1
+      ],
+      "region_px": [
+        128,
+        128,
+        128,
+        128
+      ],
+      "uv_rect": [
+        0.25,
+        0.25,
+        0.25,
+        0.25
+      ],
+      "kind": "flake"
+    },
+    {
+      "index": 6,
+      "id": "crystal_tilted",
+      "cell": [
+        2,
+        1
+      ],
+      "region_px": [
+        256,
+        128,
+        128,
+        128
+      ],
+      "uv_rect": [
+        0.5,
+        0.25,
+        0.25,
+        0.25
+      ],
+      "kind": "flake"
+    },
+    {
+      "index": 7,
+      "id": "crystal_uneven",
+      "cell": [
+        3,
+        1
+      ],
+      "region_px": [
+        384,
+        128,
+        128,
+        128
+      ],
+      "uv_rect": [
+        0.75,
+        0.25,
+        0.25,
+        0.25
+      ],
+      "kind": "flake"
+    },
+    {
+      "index": 8,
+      "id": "clump_round",
+      "cell": [
+        0,
+        2
+      ],
+      "region_px": [
+        0,
+        256,
+        128,
+        128
+      ],
+      "uv_rect": [
+        0.0,
+        0.5,
+        0.25,
+        0.25
+      ],
+      "kind": "clump"
+    },
+    {
+      "index": 9,
+      "id": "clump_flat",
+      "cell": [
+        1,
+        2
+      ],
+      "region_px": [
+        128,
+        256,
+        128,
+        128
+      ],
+      "uv_rect": [
+        0.25,
+        0.5,
+        0.25,
+        0.25
+      ],
+      "kind": "clump"
+    },
+    {
+      "index": 10,
+      "id": "clump_twin",
+      "cell": [
+        2,
+        2
+      ],
+      "region_px": [
+        256,
+        256,
+        128,
+        128
+      ],
+      "uv_rect": [
+        0.5,
+        0.5,
+        0.25,
+        0.25
+      ],
+      "kind": "clump"
+    },
+    {
+      "index": 11,
+      "id": "clump_diamond",
+      "cell": [
+        3,
+        2
+      ],
+      "region_px": [
+        384,
+        256,
+        128,
+        128
+      ],
+      "uv_rect": [
+        0.75,
+        0.5,
+        0.25,
+        0.25
+      ],
+      "kind": "clump"
+    },
+    {
+      "index": 12,
+      "id": "clump_long",
+      "cell": [
+        0,
+        3
+      ],
+      "region_px": [
+        0,
+        384,
+        128,
+        128
+      ],
+      "uv_rect": [
+        0.0,
+        0.75,
+        0.25,
+        0.25
+      ],
+      "kind": "clump"
+    },
+    {
+      "index": 13,
+      "id": "clump_chunky",
+      "cell": [
+        1,
+        3
+      ],
+      "region_px": [
+        128,
+        384,
+        128,
+        128
+      ],
+      "uv_rect": [
+        0.25,
+        0.75,
+        0.25,
+        0.25
+      ],
+      "kind": "clump"
+    },
+    {
+      "index": 14,
+      "id": "clump_soft",
+      "cell": [
+        2,
+        3
+      ],
+      "region_px": [
+        256,
+        384,
+        128,
+        128
+      ],
+      "uv_rect": [
+        0.5,
+        0.75,
+        0.25,
+        0.25
+      ],
+      "kind": "clump"
+    },
+    {
+      "index": 15,
+      "id": "clump_scattered",
+      "cell": [
+        3,
+        3
+      ],
+      "region_px": [
+        384,
+        384,
+        128,
+        128
+      ],
+      "uv_rect": [
+        0.75,
+        0.75,
+        0.25,
+        0.25
+      ],
+      "kind": "clump"
+    }
+  ]
+}
