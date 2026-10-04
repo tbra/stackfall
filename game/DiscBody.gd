@@ -156,6 +156,12 @@ func rebuild(segments: int) -> void:
 	# and its fragment() to fade EMISSION from the top edge down.
 	_chamfer.mesh = _build_ring_mesh(true_points, outer_points, 0.0, band_top_y, false, true)
 	_chamfer.material_override = _chamfer_material()
+	# DECISION (Bontago-1pi.60): the band/chamfer are circular outlines; for TWIN
+	# and CROSS they would float around empty space, so hide them there. RING's
+	# outer edge is the circle, so it keeps them.
+	var circular_outline: bool = _map_def.map_shape != MapDef.MapShape.TWIN and _map_def.map_shape != MapDef.MapShape.CROSS
+	_band.visible = circular_outline
+	_chamfer.visible = circular_outline
 
 
 func band_mesh_instance() -> MeshInstance3D:
