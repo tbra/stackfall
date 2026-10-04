@@ -739,6 +739,10 @@ ranges = {
 "HorizonIslandsConfig.lod1_begin_m": Vector2(10.0, 3000.0),
 "HorizonIslandsConfig.lod2_begin_m": Vector2(10.0, 3000.0),
 "HorizonIslandsConfig.visibility_end_m": Vector2(0.0, 5000.0),
+"HorizonIslandsConfig.stretch_fraction": Vector2(0.0, 0.6),
+"HorizonIslandsConfig.tilt_max_deg": Vector2(0.0, 25.0),
+"HorizonIslandsConfig.haze_amount": Vector2(0.0, 1.0),
+"HorizonIslandsConfig.color_gain": Vector2(0.2, 3.0),
 }
 descriptions = {
 "WeatherCeilingTuning.height_m": "World height of the upper puff layer's bases above the disc; rain and snow start just below.",
@@ -1725,4 +1729,8 @@ descriptions = {
 "HorizonIslandsConfig.lod1_begin_m": "Camera distance where the island switches from LOD0 to LOD1.",
 "HorizonIslandsConfig.lod2_begin_m": "Camera distance where the island switches from LOD1 to LOD2.",
 "HorizonIslandsConfig.visibility_end_m": "Camera distance beyond which islands are culled (0 never).",
+"HorizonIslandsConfig.stretch_fraction": "Independent width/depth stretch per island (fraction of its scale).",
+"HorizonIslandsConfig.tilt_max_deg": "Maximum random tilt of an island in degrees.",
+"HorizonIslandsConfig.haze_amount": "How strongly island colours blend toward the live sky haze colour.",
+"HorizonIslandsConfig.color_gain": "Brightness multiplier on the island facet colours.",
 }

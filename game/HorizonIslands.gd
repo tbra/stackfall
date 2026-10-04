@@ -14,13 +14,20 @@ const VARIANT_SCENES: Array[PackedScene] = [
 	preload("res://assets/models/horizon_islands_v1/crag.tscn"),
 ]
 const LOD_NODE_NAMES: Array[String] = ["LOD0", "LOD1", "LOD2"]
+const ISLAND_SHADER: Shader = preload("res://shaders/horizon_island.gdshader")
+## How often (s) the haze colour is re-read from the live sky environment.
+const HAZE_REFRESH_S: float = 0.5
 const DEFAULT_CONFIG: HorizonIslandsConfig = preload("res://config/horizon_islands.tres")
 
 @export var config: HorizonIslandsConfig = DEFAULT_CONFIG
 
+var _material: ShaderMaterial = null
+var _environment: Environment = null
+var _haze_timer_s: float = 0.0
+
 
 ## Deterministic placements: Array of Dictionary {variant:int, position:Vector3,
-## yaw:float, scale:float}, centered on the origin (the arena center).
+## yaw:float, scale:float, stretch:Vector2, tilt:Vector2}, centered on the origin (the arena center).
 static func placements_for(cfg: HorizonIslandsConfig, map_id: StringName) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	if cfg == null or not cfg.enabled or cfg.count <= 0:
@@ -39,12 +46,25 @@ static func placements_for(cfg: HorizonIslandsConfig, map_id: StringName) -> Arr
 			"position": Vector3(cos(angle) * radius, height, sin(angle) * radius),
 			"yaw": rng.randf() * TAU,
 			"scale": rng.randf_range(cfg.scale_min, cfg.scale_max),
+			"stretch": Vector2(
+				1.0 + (rng.randf() * 2.0 - 1.0) * cfg.stretch_fraction,
+				1.0 + (rng.randf() * 2.0 - 1.0) * cfg.stretch_fraction),
+			"tilt": Vector2(
+				(rng.randf() * 2.0 - 1.0) * deg_to_rad(cfg.tilt_max_deg),
+				(rng.randf() * 2.0 - 1.0) * deg_to_rad(cfg.tilt_max_deg)),
 		})
 	return result
 
 
 ## Rebuilds the ring for a map (called whenever the world is (re)built).
-func rebuild_for_map(map: MapDef) -> void:
+func rebuild_for_map(map: MapDef, environment: Environment = null) -> void:
+	if environment != null:
+		_environment = environment
+	_material = ShaderMaterial.new()
+	_material.shader = ISLAND_SHADER
+	_material.set_shader_parameter(&"haze_amount", config.haze_amount)
+	_material.set_shader_parameter(&"color_gain", config.color_gain)
+	_refresh_haze()
 	for child: Node in get_children():
 		remove_child(child)
 		child.queue_free()
@@ -52,8 +72,10 @@ func rebuild_for_map(map: MapDef) -> void:
 	for entry: Dictionary in placements_for(config, map_id):
 		var island: Node3D = VARIANT_SCENES[int(entry["variant"])].instantiate() as Node3D
 		island.position = entry["position"] as Vector3
-		island.rotation.y = float(entry["yaw"])
-		island.scale = Vector3.ONE * float(entry["scale"])
+		var stretch: Vector2 = entry["stretch"] as Vector2
+		var tilt: Vector2 = entry["tilt"] as Vector2
+		island.rotation = Vector3(tilt.x, float(entry["yaw"]), tilt.y)
+		island.scale = Vector3(stretch.x, 1.0, stretch.y) * float(entry["scale"])
 		_setup_lods(island)
 		add_child(island)
 
@@ -68,7 +90,22 @@ func _setup_lods(island: Node3D) -> void:
 		if mesh == null:
 			continue
 		mesh.visible = true
+		mesh.material_override = _material
 		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mesh.visibility_range_begin = begins[i]
 		mesh.visibility_range_end = ends[i]
 		mesh.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+
+
+func _process(delta: float) -> void:
+	_haze_timer_s -= delta
+	if _haze_timer_s <= 0.0:
+		_haze_timer_s = HAZE_REFRESH_S
+		_refresh_haze()
+
+
+## Time-of-day tint: the live sky fog colour (Skybox writes it into the
+## Environment for every theme and the day/night cycle) becomes the haze colour.
+func _refresh_haze() -> void:
+	if _material != null and _environment != null:
+		_material.set_shader_parameter(&"haze_color", _environment.fog_light_color)

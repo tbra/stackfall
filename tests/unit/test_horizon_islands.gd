@@ -19,7 +19,7 @@ func test_spawns_configured_count_in_ring_band() -> void:
 		var radius: float = Vector2(node.position.x, node.position.z).length()
 		assert_between(radius, cfg.radius_min_m - 0.01, cfg.radius_max_m + 0.01)
 		assert_between(node.position.y, cfg.height_min_m - 0.01, cfg.height_max_m + 0.01)
-		assert_between(node.scale.x, cfg.scale_min - 0.001, cfg.scale_max + 0.001)
+		assert_between(node.scale.y, cfg.scale_min - 0.001, cfg.scale_max + 0.001)
 
 
 func test_lods_use_visibility_ranges_no_shadow_no_collision() -> void:
