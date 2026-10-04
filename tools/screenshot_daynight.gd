@@ -144,6 +144,10 @@ func _shoot(skybox: Skybox, camera: Camera3D, file_name: String) -> void:
 	var flat: Vector3 = Vector3(sun_direction.x, 0.0, sun_direction.z).normalized()
 	camera.global_position = -flat * CAMERA_DISTANCE_M + Vector3.UP * CAMERA_HEIGHT_M
 	var aim: Vector3 = Vector3(sun_direction.x, maxf(sun_direction.y, 0.15), sun_direction.z).normalized()
+	if OS.get_cmdline_user_args().has("--aim=moon"):
+		# Bontago-mp0.122: frame the moon (opposite the sun) instead of the sun.
+		aim = (material.get_shader_parameter(&"moon_direction") as Vector3).normalized()
+		camera.global_position = Vector3.UP * CAMERA_HEIGHT_M
 	camera.look_at(camera.global_position + aim * CAMERA_DISTANCE_M, Vector3.UP)
 	await get_tree().create_timer(SHOT_SETTLE_SECONDS).timeout
 	await RenderingServer.frame_post_draw

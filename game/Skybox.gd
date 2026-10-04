@@ -707,6 +707,8 @@ const OVERCAST_GROUP: StringName = &"weather_skybox"
 var _overcast_amount: float = 0.0
 var _weather_cloud_overcast: float = 0.0
 ## Bontago-mp0.19 storm sky blend state (see set_storm_sky()).
+const MOON_DISC_TEXTURE: Texture2D = preload("res://assets/sky/moon_v1/moon_disc.png")
+const MOON_HALO_TEXTURE: Texture2D = preload("res://assets/sky/moon_v1/moon_halo.png")
 const CEILING_TUNING: WeatherCeilingTuning = preload("res://config/weather/ceiling.tres")
 var _storm_amount: float = 0.0
 var _storm_target: SkyThemeDef = null
@@ -1467,6 +1469,7 @@ func _publish_cloud_lighting() -> void:
 		_puff_color(puff, &"rim_color", _cloud_lighting.rim_color),
 		direction, light_color, night, cloud_overcast, _storm_amount, dim,
 		CEILING_TUNING.cloud_overcast_desaturate * weather)
+	_apply_moon(night)
 	var sun_effects: float = CloudLighting.sun_effect_scale(night, CEILING_TUNING.sun_night_fade_end, cloud_overcast,
 		CEILING_TUNING.sun_overcast_attenuation, _storm_amount, CEILING_TUNING.sun_storm_attenuation)
 	var floor_changed: bool = _cloud_lighting.publish_floor(
@@ -1476,6 +1479,30 @@ func _publish_cloud_lighting() -> void:
 		if _cloud_sea != null:
 			_cloud_sea.apply_lighting(_cloud_lighting)
 		_apply_sun_effect_scale(sun_effects)
+
+
+## Bontago-mp0.122: writes the moon_v1 disc/halo uniforms on the live cycle sky. The moon
+## sits opposite the sun, fades in with the night mix and is hidden by overcast/storm
+## exactly as far as the sun's own weather keep (CloudLighting.sun_weather_keep).
+func _apply_moon(night: float) -> void:
+	if _cycle_theme == null:
+		return
+	var sky: ShaderMaterial = _cycle_theme.sky_material as ShaderMaterial
+	if sky == null:
+		return
+	var sun: Variant = sky.get_shader_parameter(&"sun_direction")
+	if sun is Vector3:
+		sky.set_shader_parameter(&"moon_direction", -(sun as Vector3).normalized())
+	var full: float = maxf(_cycle_theme.cycle_moon_full_night_mix, 0.0001)
+	var keep: float = CloudLighting.sun_weather_keep(cloud_overcast_amount(), CEILING_TUNING.sun_overcast_attenuation,
+		_storm_amount, CEILING_TUNING.sun_storm_attenuation)
+	sky.set_shader_parameter(&"moon_disc_tex", MOON_DISC_TEXTURE)
+	sky.set_shader_parameter(&"moon_halo_tex", MOON_HALO_TEXTURE)
+	sky.set_shader_parameter(&"moon_visibility", smoothstep(0.0, full, night) * keep)
+	sky.set_shader_parameter(&"moon_angular_radius_deg", _cycle_theme.cycle_moon_angular_radius_deg)
+	sky.set_shader_parameter(&"moon_halo_radius_deg", _cycle_theme.cycle_moon_halo_radius_deg)
+	sky.set_shader_parameter(&"moon_halo_strength", _cycle_theme.cycle_moon_halo_strength)
+	sky.set_shader_parameter(&"moon_brightness", _cycle_theme.cycle_moon_brightness)
 
 
 ## Bontago-mp0.34: scales the sky shader's god rays / sun glow and the screen

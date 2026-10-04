@@ -51,6 +51,30 @@ uniform float cycle_star_cells = 105.0;
 uniform float cycle_star_threshold = 0.92;
 uniform float cycle_star_radius = 0.12;
 uniform float cycle_star_horizon_fade = 0.22;
+// Bontago-mp0.122: Codex moon_v1 disc + halo textures (assets/sky/moon_v1), drawn at
+// night opposite the sun. moon_visibility is 0..1 (time of day x weather keep, set by
+// game/Skybox.gd); the angular sizes and strengths come from SkyThemeDef.cycle_moon_*.
+uniform sampler2D moon_disc_tex : source_color, filter_linear_mipmap, repeat_disable;
+uniform sampler2D moon_halo_tex : source_color, filter_linear_mipmap, repeat_disable;
+uniform vec3 moon_direction = vec3(-0.963087, -0.069011, 0.260192);
+uniform float moon_visibility : hint_range(0.0, 1.0) = 0.0;
+uniform float moon_angular_radius_deg = 3.2;
+uniform float moon_halo_radius_deg = 14.0;
+uniform float moon_halo_strength = 0.6;
+uniform float moon_brightness = 1.0;
+// Visible disc / halo radius as a fraction of the half texture quad (400/512 and 480/512).
+uniform float moon_disc_fill = 0.78125;
+uniform float moon_halo_fill = 0.9375;
+
+// Samples a moon texture laid on the tangent plane at `plane` (tan-space coords).
+vec4 moon_layer(sampler2D tex, vec2 plane, float visible_angle_deg, float fill) {
+	float half_quad = tan(radians(visible_angle_deg)) / fill;
+	vec2 uv = vec2(plane.x, -plane.y) / (2.0 * half_quad) + 0.5;
+	if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+		return vec4(0.0);
+	}
+	return textureLod(tex, uv, 0.0);
+}
 
 float cycle_star_hash(vec3 p) {
 	p = fract(p * 0.1031);
@@ -416,6 +440,20 @@ void sky() {
 				* smoothstep(0.0, cycle_star_horizon_fade, eyedir.y);
 		}
 		COLOR = mix(COLOR, night * exposure, clamp(cycle_night_mix, 0.0, 1.0));
+	}
+	if (moon_visibility > 0.0 && !AT_CUBEMAP_PASS) {
+		vec3 moon_dir = normalize(moon_direction);
+		float moon_cos = dot(eyedir, moon_dir);
+		if (moon_cos > 0.05) {
+			vec3 moon_ref = abs(moon_dir.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+			vec3 moon_right = normalize(cross(moon_ref, moon_dir));
+			vec3 moon_up = cross(moon_dir, moon_right);
+			vec2 plane = vec2(dot(eyedir, moon_right), dot(eyedir, moon_up)) / moon_cos;
+			vec4 halo_px = moon_layer(moon_halo_tex, plane, moon_halo_radius_deg, moon_halo_fill);
+			COLOR += halo_px.rgb * halo_px.a * moon_halo_strength * moon_visibility * exposure;
+			vec4 disc_px = moon_layer(moon_disc_tex, plane, moon_angular_radius_deg, moon_disc_fill);
+			COLOR = mix(COLOR, disc_px.rgb * moon_brightness * exposure, disc_px.a * moon_visibility);
+		}
 	}
 
 	// Bright core + soft halo, both angular falloffs around the sun direction.
