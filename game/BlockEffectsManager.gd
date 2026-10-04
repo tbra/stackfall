@@ -135,6 +135,7 @@ func _on_block_impacted_at(speed: float, position: Vector3) -> void:
 	if speed < config.dust_impact_speed_threshold:
 		return
 	# Budget check first: the owner physics query below is not free either.
+	_spawn_impact_puff(speed, position)
 	var burst: PooledBurst = _acquire_burst(_landing_pool, 2, false)
 	if burst == null:
 		return
@@ -161,6 +162,63 @@ func _on_block_impacted_at(speed: float, position: Vector3) -> void:
 	dust.lifetime = config.dust_lifetime_s
 	_restart_particles(dust, int(round(float(config.dust_particle_amount) * intensity)))
 	_start_burst(burst, maxf(config.cubelet_lifetime_s, config.dust_lifetime_s))
+
+
+## Bontago-mp0.120: pooled flipbook puff (game/ImpactPuff.gd) at the contact
+## point. Cosmetic only, driven by the same replicated impact event on host and
+## clients. Over-cap puffs are dropped (like bursts); the cap shrinks with the
+## graphics preset's particle_budget_scale, so a Low preset thins/disables them.
+# DECISION: spawned before the burst budget check so a dropped burst still
+# leaves a puff; puffs have their own cap (config.puff_max_active) and live in
+# an INTERNAL-mode container so the manager's public child indices are unchanged.
+func _spawn_impact_puff(speed: float, position: Vector3) -> void:
+	if not config.puff_enabled:
+		return
+	var cap: int = int(floorf(float(config.puff_max_active) * _particle_budget_scale))
+	if cap <= 0:
+		return
+	var intensity: float = _impact_intensity(speed)
+	var puff: ImpactPuff = null
+	var active_count: int = 0
+	for candidate: ImpactPuff in _puffs:
+		if candidate.active:
+			active_count += 1
+		elif puff == null:
+			puff = candidate
+	if active_count >= cap:
+		return
+	if puff == null:
+		puff = ImpactPuff.new()
+		if _puff_root == null:
+			_puff_root = Node3D.new()
+			add_child(_puff_root, false, Node.INTERNAL_MODE_BACK)
+		_puff_root.add_child(puff)
+		_puffs.append(puff)
+	var span: float = maxf(config.impact_intensity_max - 1.0, 0.001)
+	var t: float = clampf((intensity - 1.0) / span, 0.0, 1.0)
+	puff.play(
+		position,
+		intensity >= config.puff_hard_intensity,
+		lerpf(config.puff_size_min_m, config.puff_size_max_m, t),
+		config.puff_tint,
+		lerpf(config.puff_alpha_min, config.puff_alpha_max, t),
+		config.puff_fps,
+		config.puff_frame_count,
+	)
+
+
+## Test seam: puffs currently playing.
+func active_puff_count() -> int:
+	var count: int = 0
+	for puff: ImpactPuff in _puffs:
+		if puff.active:
+			count += 1
+	return count
+
+
+## Test seam: the pooled puffs.
+func puffs() -> Array[ImpactPuff]:
+	return _puffs
 
 
 ## impact speed / dust_impact_speed_threshold, clamped to [1, impact_intensity_
@@ -260,6 +318,9 @@ var _new_bursts_this_frame: int = 0
 var _cubelet_meshes: Dictionary = {}
 var _kill_meshes: Dictionary = {}
 var _dust_mesh: Mesh = null
+## Bontago-mp0.120 flipbook puff pool (see _spawn_impact_puff()).
+var _puffs: Array[ImpactPuff] = []
+var _puff_root: Node3D = null
 
 
 ## Returns an idle pooled burst of `particle_count` systems, or null when the
@@ -366,6 +427,10 @@ func release_pool() -> void:
 	_free_pool(_landing_pool)
 	_free_pool(_kill_pool)
 	_active_bursts = 0
+	if is_instance_valid(_puff_root):
+		_puff_root.queue_free()
+	_puff_root = null
+	_puffs.clear()
 	_cubelet_meshes.clear()
 	_kill_meshes.clear()
 	_dust_mesh = null
