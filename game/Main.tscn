@@ -1,10 +1,11 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://game/Main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://game/Field.tscn" id="2_field"]
 [ext_resource type="PackedScene" path="res://game/CameraRig.tscn" id="3_camera"]
 [ext_resource type="Script" path="res://game/BlockRegistry.gd" id="4_registry"]
 [ext_resource type="PackedScene" path="res://game/Skybox.tscn" id="5_skybox"]
+[ext_resource type="PackedScene" path="res://game/HorizonIslands.tscn" id="90_islands"]
 [ext_resource type="PackedScene" path="res://game/DiscMirror.tscn" id="6_discmirror"]
 [ext_resource type="Script" path="res://vfx/SunFlare.gd" id="7_sunflare"]
 
@@ -64,3 +65,5 @@ field_path = NodePath("../Field")
 [node name="SunFlare" type="CanvasLayer" parent="."]
 script = ExtResource("7_sunflare")
 camera_path = NodePath("../CameraRig/Camera3D")
+
+[node name="HorizonIslands" parent="." instance=ExtResource("90_islands")]
