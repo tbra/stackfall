@@ -110,7 +110,10 @@ extends Resource
 @export var muted_ink_color: Color = Color(0.80, 0.82, 0.84, 0.90)
 @export var inner_surface_color: Color = Color(1.0, 1.0, 1.0, 0.05)
 @export var card_padding_px: float = 16.0
-@export var share_bar_width_px: float = 300.0
+@export var share_bar_width_px: float = 200.0
+## Width in pixels of the player-name column beside each share bar; longer
+## names are ellipsized (Bontago-1pi.68).
+@export var hud_row_name_width_px: float = 110.0
 @export var share_bar_height_px: float = 14.0
 
 ## Bontago-mp0.27: pre-match 3-2-1 label. "Go" stays this long after PLAYING starts.

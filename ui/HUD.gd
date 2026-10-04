@@ -52,7 +52,7 @@ extends CanvasLayer
 ## Bontago-mp0.3.3 (owner review 2026-09-26: "bar ~22-25% of screen width"):
 ## 300px is 23.4% of the 1280px reference width tools/capture_mockup08.tscn
 ## and every other fixed HUD offset in this file already assume.
-const SHARE_BAR_MAX_WIDTH: float = 300.0
+const SHARE_BAR_MAX_WIDTH: float = 200.0
 const SHARE_BAR_HEIGHT: float = 14.0
 ## Bontago-mp0.3.3 (owner review 2026-09-26: "thicker ring (~8 px)").
 const RING_LINE_WIDTH: float = 8.0
@@ -74,15 +74,6 @@ const LOCKED_COLOR: Color = Color(0.75, 0.75, 0.75, 0.9)
 ## (see config/GiftConfig.gd's own "-- Claim feedback --" section for why
 ## these live there rather than in ghost_tuning above).
 @export var gift_config: GiftConfig = preload("res://config/gift_config.tres")
-## Bontago-1pi.18.7: the compact names the experiments line uses, keyed by
-## QolExperiments.active_ids(). Kept short so all four still fit the 344 px status column.
-const EXPERIMENT_SHORT_NAMES: Dictionary[StringName, String] = {
-	QolExperiments.ID_TIMER_PAUSE: "Timer pause",
-	QolExperiments.ID_BACKLOG: "Backlog",
-	QolExperiments.ID_GOAL_RADIUS: "Radius",
-	QolExperiments.ID_GIFT_SLOT: "Gift slot",
-}
-const EXPERIMENTS_LINE_PREFIX: String = "Experiments: "
 ## The action whose bound glyph the gift slot card shows (PlayerController spends the slot on it).
 const GIFT_SLOT_ACTION: StringName = &"use_gift_slot"
 const INPUT_GLYPH_SCENE: PackedScene = preload("res://ui/InputGlyph.tscn")
@@ -182,6 +173,12 @@ var _gift_toast_tween: Tween
 var _share_rows: Array = []
 var _share_bars: Array = []
 var _share_labels: Array = []
+## Bontago-1pi.68: the ellipsized player-name label of each row, parallel to _share_labels
+## (which now holds only the mode-specific value text).
+var _share_name_labels: Array = []
+## Last values fed to the rows, so a mode-state or roster change can repaint them.
+var _last_shares: PackedFloat32Array = PackedFloat32Array()
+var _mode_state: Dictionary = {}
 ## Bontago-mp0.3.3: the small team-colored diamond glyph drawn beside each
 ## player's share bar (mockup 08), parallel to _share_rows/_share_bars/
 ## _share_labels above.
@@ -225,10 +222,6 @@ var _gift_slot_glyph_row: HBoxContainer = null
 var _gift_slot_glyph: InputGlyph = null
 var _gift_slot_glyph_signature: String = ""
 
-## Bontago-1pi.18.7 (QoL experiments): one muted line under the height readout that
-## names every enabled experiment. Built in code; hidden (no layout space) while none is on.
-var _experiments_label: Label = null
-var _experiments_shown: PackedStringArray = PackedStringArray()
 
 
 func _ready() -> void:
@@ -257,7 +250,11 @@ func _ready() -> void:
 	_style_panel(_next_shape_card, true)
 	_style_panel(_held_shape_card, true)
 	_build_gift_slot_column()
-	_build_experiments_label()
+	# Bontago-1pi.68 (owner playtest 2026-10-04): the status pill keeps only the
+	# locked/special/toast rows; the name header, tower/block line and
+	# experiments line are gone from the HUD.
+	_turn_label.visible = false
+	_height_label.visible = false
 	for label: Label in [
 		_turn_label, _height_label, _locked_label, _special_indicator,
 		_gift_toast_label, _reject_label,
@@ -366,7 +363,6 @@ func _process(delta: float) -> void:
 		var right: Vector3 = basis.x
 		_minimap.set_camera_basis(Vector2(right.x, right.z), Vector2(forward.x, forward.z))
 	_update_gift_markers()
-	_refresh_experiments_line()
 	if match_provider == null or _active_slot < 0:
 		return
 	set_feed_progress(match_provider.feed_progress(_active_slot))
@@ -408,6 +404,9 @@ func set_active_slot(slot_id: int, color: Color) -> void:
 		"%s — eliminated" % display_name if eliminated else "%s's turn" % display_name
 	)
 	_turn_label.modulate = ELIMINATED_COLOR if eliminated else color
+	# DECISION (Bontago-1pi.68): the name header is gone except in hot-seat, where
+	# the "<name>'s turn" banner is the only turn indicator there is.
+	_turn_label.visible = true
 	_pull_current_shapes(slot_id)
 	_refresh_special_indicator()
 	_timer_ring.queue_redraw()
@@ -427,6 +426,7 @@ func set_local_slot(slot_id: int) -> void:
 	var display_name: String = _name_for_slot(slot_id)
 	_turn_label.text = "%s — eliminated" % display_name if eliminated else display_name
 	_turn_label.modulate = ELIMINATED_COLOR if eliminated else _active_color
+	_turn_label.visible = false
 	_pull_current_shapes(slot_id)
 	_refresh_special_indicator()
 	_timer_ring.queue_redraw()
@@ -520,6 +520,7 @@ func _set_height_text(text: String) -> void:
 
 
 func set_territory_shares(shares: PackedFloat32Array) -> void:
+	_last_shares = shares
 	_ensure_share_row_count(shares.size())
 	for i: int in range(shares.size()):
 		_update_share_row(i, shares[i])
@@ -704,8 +705,41 @@ static func domination_text(state: Dictionary, team_numbers: PackedInt32Array = 
 	return text
 
 
+## Bontago-1pi.68: what the row value shows for `team` in this mode state: Capture
+## the Flag the team's hold time in seconds, Reach the Sky its record height in
+## meters, every other mode the territory `share` as a percent. Pure.
+static func row_value_text(state: Dictionary, team: int, share: float) -> String:
+	var scores: Array = state.get("scores", []) as Array
+	var mode_id: int = int(state.get("mode_id", -1))
+	if team >= 0 and team < scores.size():
+		if mode_id == MatchConfig.GameMode.CAPTURE_THE_FLAG:
+			return "%s s" % String.num(float(scores[team]), 1)
+		if mode_id == MatchConfig.GameMode.REACH_THE_SKY:
+			return "%s m" % String.num(float(scores[team]), 1)
+	return "%.0f%%" % (share * 100.0)
+
+
+## Bontago-1pi.68: the line under the rows. CTF and Reach the Sky now put their score
+## in the rows, so only the round clock ("3:29", empty when untimed) is left of it;
+## Domination and Elimination keep their existing summary line. Pure.
+## DECISION: the clock stays (a separate small line) so timed modes do not lose their
+## time left; only the per-team numbers moved into the rows.
+static func mode_status_text(state: Dictionary, team_numbers: PackedInt32Array = PackedInt32Array()) -> String:
+	var mode_id: int = int(state.get("mode_id", -1))
+	if mode_id != MatchConfig.GameMode.CAPTURE_THE_FLAG and mode_id != MatchConfig.GameMode.REACH_THE_SKY:
+		return mode_score_text(state, team_numbers)
+	if (state.get("scores", []) as Array).is_empty():
+		return ""
+	var left: int = int(ceil(float(state.get("round_left", 0.0))))
+	if left <= 0:
+		return ""
+	return "%d:%02d" % [left / 60, left % 60]
+
+
 func _on_mode_state_changed(state: Dictionary) -> void:
-	var text: String = mode_score_text(state, _resolved_team_numbers())
+	_mode_state = state
+	set_territory_shares(_last_shares)
+	var text: String = mode_status_text(state, _resolved_team_numbers())
 	if _mode_score_label == null:
 		if text.is_empty():
 			return
@@ -984,6 +1018,22 @@ func _name_for_slot(slot_id: int) -> String:
 	return PlayerNames.label_for_slot(slot_id, "", false, peer_name)
 
 
+## Bontago-1pi.68: the display name of the row for team `team_id`: the roster name of
+## its slot, or every member's name joined with " & " in a team match. Falls back
+## to the slot of the same number with no config (team t is slot t).
+func _name_for_team(team_id: int) -> String:
+	if match_provider != null:
+		var running_config: Variant = match_provider.config
+		if running_config != null:
+			var members: PackedStringArray = PackedStringArray()
+			for slot_id: int in range(int(running_config.player_count)):
+				if int(running_config.team_of_slot(slot_id)) == team_id:
+					members.append(_name_for_slot(slot_id))
+			if not members.is_empty():
+				return " & ".join(members)
+	return _name_for_slot(team_id)
+
+
 func _names() -> Variant:
 	return name_provider if name_provider != null else Net
 
@@ -1098,6 +1148,15 @@ func _ensure_share_row_count(count: int) -> void:
 		highlight.position = Vector2(0.0, 1.0)
 		bar_track.add_child(highlight)
 
+		var name_label: Label = Label.new()
+		name_label.add_theme_font_size_override("font_size", 12)
+		name_label.add_theme_color_override("font_color", hud_visual_tuning.ink_color)
+		_apply_text_outline(name_label)
+		name_label.custom_minimum_size = Vector2(hud_visual_tuning.hud_row_name_width_px, 0.0)
+		name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		name_label.clip_text = true
+		name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
 		var label: Label = Label.new()
 		# Bontago-mp0.3.3 (owner review 2026-09-26: "percent label optional/
 		# small ... with a text shadow").
@@ -1105,12 +1164,14 @@ func _ensure_share_row_count(count: int) -> void:
 		label.add_theme_color_override("font_color", hud_visual_tuning.ink_color)
 
 		row.add_child(glyph)
+		row.add_child(name_label)
 		row.add_child(bar_track)
 		row.add_child(label)
 		_shares_box.add_child(row)
 		_share_rows.append(row)
 		_share_bars.append(bar_fill)
 		_share_labels.append(label)
+		_share_name_labels.append(name_label)
 		_share_glyphs.append(glyph)
 	while _share_rows.size() > count:
 		var last: int = _share_rows.size() - 1
@@ -1118,6 +1179,7 @@ func _ensure_share_row_count(count: int) -> void:
 		_share_rows.remove_at(last)
 		_share_bars.remove_at(last)
 		_share_labels.remove_at(last)
+		_share_name_labels.remove_at(last)
 		_share_glyphs.remove_at(last)
 
 
@@ -1130,7 +1192,10 @@ func _update_share_row(i: int, share: float) -> void:
 	bar.custom_minimum_size = Vector2(width, hud_visual_tuning.share_bar_height_px)
 	bar.size = Vector2(width, hud_visual_tuning.share_bar_height_px)
 	var label: Label = _share_labels[i]
-	label.text = "P%d: %.0f%%%s" % [_team_number(i), share * 100.0, "  (out)" if eliminated else ""]
+	label.text = "%s%s" % [row_value_text(_mode_state, i, share), "  (out)" if eliminated else ""]
+	var name_label: Label = _share_name_labels[i]
+	name_label.text = _name_for_team(i)
+	name_label.tooltip_text = name_label.text
 	var glyph: Control = _share_glyphs[i]
 	glyph.set_meta(&"glyph_color", color)
 	glyph.queue_redraw()
@@ -1426,58 +1491,6 @@ func gift_slot_binding() -> InputEvent:
 func _on_input_device_changed(_device: StringName) -> void:
 	if _gift_slot_column != null and _gift_slot_column.visible:
 		_refresh_gift_slot_glyph()
-
-
-## Bontago-1pi.18.7: "Experiments: Timer pause, Backlog, ..." from the running
-## match's QolExperiments.active_ids(); hidden (taking no layout space) when no
-## experiment is on. Polled from _process like the other readouts; the line only
-## rebuilds when the set of enabled ids changes.
-func _build_experiments_label() -> void:
-	var status_pill: Control = _height_label.get_parent() as Control
-	_experiments_label = Label.new()
-	_experiments_label.name = "ExperimentsLabel"
-	_experiments_label.add_theme_font_size_override("font_size", _height_label.get_theme_font_size("font_size"))
-	_experiments_label.add_theme_color_override("font_color", hud_visual_tuning.muted_ink_color)
-	_apply_text_outline(_experiments_label)
-	# clip_text drops the label's minimum width so a long list can never widen the
-	# status column (and with it the backplate).
-	_experiments_label.clip_text = true
-	_experiments_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_experiments_label.visible = false
-	status_pill.add_child(_experiments_label)
-	status_pill.move_child(_experiments_label, _height_label.get_index() + 1)
-
-
-func _refresh_experiments_line() -> void:
-	var ids: PackedStringArray = _active_experiment_ids()
-	if ids == _experiments_shown:
-		return
-	_experiments_shown = ids
-	_experiments_label.visible = not ids.is_empty()
-	_experiments_label.text = experiments_line_text(ids)
-
-
-## The experiments enabled on the running match's config (empty with no match,
-## no config or no QolExperiments on it).
-func _active_experiment_ids() -> PackedStringArray:
-	var provider: Object = match_provider as Object
-	if provider == null:
-		return PackedStringArray()
-	var running_config: MatchConfig = provider.get(&"config") as MatchConfig
-	if running_config == null or running_config.qol == null:
-		return PackedStringArray()
-	return running_config.qol.active_ids()
-
-
-## Pure: the line's text for `ids` (QolExperiments.active_ids()), "" when none.
-static func experiments_line_text(ids: PackedStringArray) -> String:
-	if ids.is_empty():
-		return ""
-	var names: PackedStringArray = PackedStringArray()
-	for id: String in ids:
-		var short_name: String = EXPERIMENT_SHORT_NAMES.get(StringName(id), id)
-		names.append(short_name)
-	return EXPERIMENTS_LINE_PREFIX + ", ".join(names)
 
 
 func _on_gift_slot_preview_draw() -> void:

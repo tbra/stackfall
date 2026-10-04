@@ -858,57 +858,6 @@ func _reference_glyph(event: InputEvent) -> InputGlyph:
 	return glyph
 
 
-func test_experiments_line_is_hidden_when_no_experiment_is_enabled() -> void:
-	var hud: HUD = _make_hud()
-	assert_false(hud._experiments_label.visible, "no match at all")
-	hud._process(0.0)
-	assert_false(hud._experiments_label.visible)
-	var configs: Array[MatchConfig] = [null, _qol_config(false, false, false, false)]
-	for config: MatchConfig in configs:
-		var provider: GiftFakeMatch = GiftFakeMatch.new()
-		provider.config = config
-		hud.match_provider = provider
-		hud.set_local_slot(0)
-		hud._process(0.0)
-		assert_false(hud._experiments_label.visible, "config %s: nothing enabled" % config)
-		assert_eq(hud._experiments_label.text, "")
-	var bare: MatchConfig = MatchConfig.new()
-	bare.qol = null
-	var no_qol: GiftFakeMatch = GiftFakeMatch.new()
-	no_qol.config = bare
-	hud.match_provider = no_qol
-	hud._process(0.0)
-	assert_false(hud._experiments_label.visible, "a config without a QolExperiments shows nothing")
-
-
-func test_experiments_line_names_the_enabled_experiments_in_order() -> void:
-	var hud: HUD = _qol_hud(_qol_config(true, false, false, true), false)
-	hud._process(0.0)
-	assert_true(hud._experiments_label.visible)
-	assert_eq(hud._experiments_label.text, "Experiments: Timer pause, Gift slot")
-	assert_eq(hud._experiments_label.get_theme_color("font_color"), hud.hud_visual_tuning.muted_ink_color, "muted line")
-	var all_on: HUD = _qol_hud(_qol_config(true, true, true, true), false)
-	all_on._process(0.0)
-	assert_eq(all_on._experiments_label.text, "Experiments: Timer pause, Backlog, Radius, Gift slot")
-	assert_eq(HUD.experiments_line_text(PackedStringArray()), "")
-	assert_eq(HUD.experiments_line_text(PackedStringArray(["backlog"])), "Experiments: Backlog")
-
-
-func test_experiments_line_follows_the_config_and_hides_again() -> void:
-	var config: MatchConfig = _qol_config(false, true, false, false)
-	var hud: HUD = _qol_hud(config, false)
-	hud._process(0.0)
-	assert_eq(hud._experiments_label.text, "Experiments: Backlog")
-	config.qol.goal_radius_enabled = true
-	hud._process(0.0)
-	assert_eq(hud._experiments_label.text, "Experiments: Backlog, Radius")
-	config.qol.backlog_enabled = false
-	config.qol.goal_radius_enabled = false
-	hud._process(0.0)
-	assert_false(hud._experiments_label.visible, "all off again hides the line")
-	assert_eq(hud._experiments_label.text, "")
-
-
 func test_gift_slot_card_shows_the_keyboard_binding_glyph() -> void:
 	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
 	var hud: HUD = _qol_hud(_qol_config(false, false, false, true), true)
@@ -998,7 +947,7 @@ func _settle_layout() -> void:
 		await get_tree().process_frame
 
 
-func test_experiments_line_and_gift_glyph_fit_at_1280x720_and_3440x1440() -> void:
+func test_gift_glyph_and_name_rows_fit_at_1280x720_and_3440x1440() -> void:
 	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
 	for window: Vector2i in LAYOUT_SIZES:
 		var vp: SubViewport = UiScale.make_viewport(window)
@@ -1009,19 +958,15 @@ func test_experiments_line_and_gift_glyph_fit_at_1280x720_and_3440x1440() -> voi
 		var hud: HUD = _layout_hud(vp, config)
 		await _settle_layout()
 		var screen: Rect2 = Rect2(Vector2.ZERO, Vector2(vp.get_visible_rect().size))
-		var label: Label = hud._experiments_label
 		var backplate: Rect2 = hud._top_left_backplate.get_global_rect()
 		var where: String = "at %s" % window
-		assert_true(label.visible, "line shown with every experiment on %s" % where)
-		assert_true(backplate.grow(EDGE_EPS).encloses(label.get_global_rect()), "line stays inside the stats backplate %s" % where)
-		var font: Font = label.get_theme_font("font")
-		var text_width: float = font.get_string_size(label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, label.get_theme_font_size("font_size")).x
-		assert_lte(text_width, label.size.x, "the longest line (all four) is not clipped %s" % where)
+		for name_label: Label in hud._share_name_labels:
+			assert_true(backplate.grow(EDGE_EPS).encloses(name_label.get_global_rect()), "name stays inside the stats backplate %s" % where)
 		assert_true(screen.encloses(backplate), "backplate on screen %s" % where)
 		var panel: Rect2 = hud._held_next_panel.get_global_rect()
 		assert_false(backplate.intersects(hud._timer_ring.get_global_rect()), "stats vs timer ring %s" % where)
 		assert_false(backplate.intersects(hud._minimap.get_global_rect()), "stats vs minimap %s" % where)
-		assert_false(backplate.intersects(panel), "stats (8 players + line) vs held/next/gift panel %s: %s vs %s" % [where, backplate, panel])
+		assert_false(backplate.intersects(panel), "stats (8 players) vs held/next/gift panel %s: %s vs %s" % [where, backplate, panel])
 		assert_false(panel.intersects(hud._minimap.get_global_rect()), "held/next/gift panel vs minimap %s" % where)
 		assert_false(panel.intersects(hud._timer_ring.get_global_rect()), "held/next/gift panel vs timer ring %s" % where)
 		assert_true(screen.encloses(panel), "panel on screen %s" % where)
@@ -1037,23 +982,79 @@ func test_experiments_line_and_gift_glyph_fit_at_1280x720_and_3440x1440() -> voi
 		await get_tree().process_frame
 
 
-func test_a_hidden_experiments_line_takes_no_space() -> void:
-	var vp: SubViewport = UiScale.make_viewport(LAYOUT_SIZES[0])
-	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	add_child_autofree(vp)
-	var config: MatchConfig = _qol_config(false, false, false, false)
-	var hud: HUD = _layout_hud(vp, config)
-	await _settle_layout()
-	var toast_hidden: float = hud._gift_toast_label.get_global_rect().position.y
-	var backplate_hidden: Vector2 = hud._top_left_backplate.size
-	var pill: Node = hud._experiments_label.get_parent()
-	pill.remove_child(hud._experiments_label)
-	await _settle_layout()
-	assert_almost_eq(hud._gift_toast_label.get_global_rect().position.y, toast_hidden, 0.01, "same layout as if the line did not exist")
-	assert_eq(hud._top_left_backplate.size, backplate_hidden)
-	pill.add_child(hud._experiments_label)
-	pill.move_child(hud._experiments_label, hud._height_label.get_index() + 1)
-	config.qol.backlog_enabled = true
-	await _settle_layout()
-	assert_gt(hud._gift_toast_label.get_global_rect().position.y, toast_hidden, "an enabled experiment adds its line")
-	assert_gt(hud._top_left_backplate.size.y, backplate_hidden.y)
+# --- Bontago-1pi.68: names + mode-specific row values, removed lines ----------
+
+func _named_match(names: Array[String]) -> FakeMatch:
+	var fake_match: FakeMatch = FakeMatch.new()
+	for slot_id: int in range(names.size()):
+		var slot: PlayerSlot = PlayerSlot.new(slot_id, slot_id, names[slot_id], Color.WHITE)
+		fake_match.slots_by_id[slot_id] = slot
+	var config: MatchConfig = MatchConfig.new()
+	config.player_count = names.size()
+	fake_match.config = config
+	return fake_match
+
+
+func test_rows_show_player_names_not_p_numbers() -> void:
+	var hud: HUD = _make_hud()
+	hud.match_provider = _named_match(["Tonyflow", "Mira"])
+	hud.set_territory_shares(PackedFloat32Array([0.09, 0.5]))
+	assert_eq((hud._share_name_labels[0] as Label).text, "Tonyflow")
+	assert_eq((hud._share_name_labels[1] as Label).text, "Mira")
+	assert_eq((hud._share_labels[0] as Label).text, "9%")
+	assert_eq((hud._share_labels[1] as Label).text, "50%")
+	for name_label: Label in hud._share_name_labels:
+		assert_eq(name_label.text_overrun_behavior, TextServer.OVERRUN_TRIM_ELLIPSIS, "long names ellipsize")
+
+
+func test_bot_rows_show_the_roster_name() -> void:
+	var hud: HUD = _make_hud()
+	var fake_match: FakeMatch = _named_match(["Tonyflow", "Gizmo"])
+	(fake_match.slots_by_id[1] as PlayerSlot).is_bot = true
+	hud.match_provider = fake_match
+	hud.set_territory_shares(PackedFloat32Array([0.5, 0.5]))
+	assert_true((hud._share_name_labels[1] as Label).text.length() > 0)
+	assert_false((hud._share_name_labels[1] as Label).text.begins_with("P1"))
+
+
+func test_ctf_rows_show_hold_time_and_no_separate_score_line() -> void:
+	var hud: HUD = _make_hud()
+	hud.match_provider = _named_match(["A", "B"])
+	hud.set_territory_shares(PackedFloat32Array([0.4, 0.6]))
+	var ctf: Dictionary = {"mode_id": MatchConfig.GameMode.CAPTURE_THE_FLAG, "scores": [58.0, 0.0], "extra": {}, "round_left": 209.0}
+	hud._on_mode_state_changed(ctf)
+	assert_eq((hud._share_labels[0] as Label).text, "58.0 s")
+	assert_eq((hud._share_labels[1] as Label).text, "0.0 s")
+	assert_eq(hud._mode_score_label.text, "3:29", "only the round clock remains of the old CTF line")
+	assert_eq(HUD.mode_status_text(ctf).find("58"), -1)
+
+
+func test_reach_the_sky_rows_show_height() -> void:
+	var hud: HUD = _make_hud()
+	hud.match_provider = _named_match(["A", "B"])
+	hud.set_territory_shares(PackedFloat32Array([0.0, 0.0]))
+	hud._on_mode_state_changed({"mode_id": MatchConfig.GameMode.REACH_THE_SKY, "scores": [11.93, 2.0], "extra": {}, "round_left": 0.0})
+	assert_eq((hud._share_labels[0] as Label).text, "11.9 m")
+	assert_eq((hud._share_labels[1] as Label).text, "2.0 m")
+
+
+func test_territory_modes_keep_percent_rows() -> void:
+	var state: Dictionary = {"mode_id": MatchConfig.GameMode.DOMINATION, "scores": [0.25, 0.41], "extra": {}, "round_left": 0.0}
+	assert_eq(HUD.row_value_text(state, 1, 0.41), "41%")
+	assert_eq(HUD.row_value_text({}, 0, 0.5), "50%", "Classic: no mode state")
+
+
+func test_name_header_tower_block_and_experiments_lines_are_not_shown() -> void:
+	var hud: HUD = _make_hud()
+	hud.set_local_slot(0)
+	hud.set_tower_and_block_height(11.93, 19.6)
+	assert_false(hud._turn_label.visible, "no local-player name header outside hot-seat")
+	assert_false(hud._height_label.visible, "no Tower/Block line")
+	assert_null(hud.find_child("ExperimentsLabel", true, false), "no experiments line")
+	var hot_seat: MatchConfig = MatchConfig.new()
+	hot_seat.hot_seat = true
+	var fake_match: FakeMatch = FakeMatch.new()
+	fake_match.config = hot_seat
+	hud.match_provider = fake_match
+	hud.set_active_slot(1, Color.RED)
+	assert_true(hud._turn_label.visible, "hot-seat keeps its turn banner")
