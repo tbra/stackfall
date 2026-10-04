@@ -49,6 +49,10 @@ func _run() -> void:
 		print("PROBE cell pos=%s style=%s" % [cell.global_position, cell.get("silhouette_style")])
 	var camera: Camera3D = _viewport.get_camera_3d()
 	print("PROBE camera pos=%s far=%s fov=%s" % [camera.global_position, camera.far, camera.fov])
+	var start_rig: CameraRig = get_tree().root.find_child("CameraRig", true, false) as CameraRig
+	print("PROBE start_framing=%s" % start_rig.begin_start_framing(Net.local_slot()))
+	start_rig.set_process(false)
+	start_rig.set_physics_process(false)
 	await _frames()
 	var on_stats: Dictionary = _stats()
 	await _grab("horizon_storm_on")

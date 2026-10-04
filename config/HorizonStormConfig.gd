@@ -14,9 +14,9 @@ extends Resource
 ## A cell's distance varies by up to this much either way (m).
 @export var distance_jitter_m: float = 120.0
 ## Uniform scale of the 56 m wide authored cell; with the distance this sets how small it looks.
-@export var cell_scale: float = 3.2
-## Height (m) of the cell origin (cloud mid line) relative to the arena top plane; it sits on the horizon band behind the near cloud puffs.
-@export var elevation_m: float = 10.0
+@export var cell_scale: float = 8.0
+## Height (m) of the cell origin (cloud mid line) relative to the arena top plane; slightly below it so the anvil sits in the cloud sea (not a floating saucer) and its rain hangs behind the disc rim.
+@export var elevation_m: float = -4.0
 ## Two cells are at least this many degrees apart around the horizon.
 @export var min_bearing_separation_deg: float = 70.0
 ## Mixed into the match seed so the horizon layout differs from other seeded visuals.
