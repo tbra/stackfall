@@ -75,6 +75,8 @@ const KEY_MUSIC_VOLUME_PERCENT: String = "music_volume_percent"
 const KEY_MUSIC_MUTED: String = "music_muted"
 const KEY_SFX_VOLUME_PERCENT: String = "sfx_volume_percent"
 const KEY_SFX_MUTED: String = "sfx_muted"
+const KEY_WEATHER_VOLUME_PERCENT: String = "weather_volume_percent"
+const KEY_WEATHER_MUTED: String = "weather_muted"
 const KEY_CUSTOM_MUSIC_DIR: String = "custom_music_dir"
 const KEY_CAMERA_SHAKE_ENABLED: String = "camera_shake_enabled"
 const KEY_WINDOW_MODE: String = "window_mode"
@@ -127,7 +129,7 @@ var _rumble_defaults: RumbleConfig = preload("res://config/rumble_config.tres")
 ## Options package: Master/Music/SFX are three independent channels, each a
 ## plain 0..1 linear "slider position" (owner: "Sliders 0-100% (linear,
 ## mapped to dB with linear_to_db; 0% = silent)") plus its own mute flag.
-enum AudioChannel { MASTER, MUSIC, SFX }
+enum AudioChannel { MASTER, MUSIC, SFX, WEATHER }
 
 const DEFAULT_VOLUME_PERCENT: float = 1.0
 
@@ -174,11 +176,13 @@ var _channel_volume_percent: Dictionary[int, float] = {
 	AudioChannel.MASTER: DEFAULT_VOLUME_PERCENT,
 	AudioChannel.MUSIC: DEFAULT_VOLUME_PERCENT,
 	AudioChannel.SFX: DEFAULT_VOLUME_PERCENT,
+	AudioChannel.WEATHER: DEFAULT_VOLUME_PERCENT,
 }
 var _channel_muted: Dictionary[int, bool] = {
 	AudioChannel.MASTER: false,
 	AudioChannel.MUSIC: false,
 	AudioChannel.SFX: false,
+	AudioChannel.WEATHER: false,
 }
 
 var _custom_music_dir: String = ""
@@ -394,9 +398,35 @@ func toggle_sfx_mute() -> void:
 	set_sfx_muted(not sfx_muted())
 
 
+## Weather channel (Bontago-1pi.77): weather ambience loops and gust whoosh.
+## Scales only itself (plus Master), never the SFX slider.
+func weather_volume_percent() -> float:
+	return _channel_volume_percent[AudioChannel.WEATHER]
+
+
+func set_weather_volume_percent(percent: float) -> void:
+	_set_channel_volume_percent(AudioChannel.WEATHER, percent)
+
+
+func weather_volume_db() -> float:
+	return _channel_volume_db(AudioChannel.WEATHER)
+
+
+func weather_muted() -> bool:
+	return _channel_muted[AudioChannel.WEATHER]
+
+
+func set_weather_muted(muted: bool) -> void:
+	_set_channel_muted(AudioChannel.WEATHER, muted)
+
+
+func toggle_weather_mute() -> void:
+	set_weather_muted(not weather_muted())
+
+
 ## ui/OptionsMenu.gd's ResetButton: every channel back to 100%, unmuted.
 func reset_audio_settings() -> void:
-	for channel: AudioChannel in [AudioChannel.MASTER, AudioChannel.MUSIC, AudioChannel.SFX]:
+	for channel: AudioChannel in [AudioChannel.MASTER, AudioChannel.MUSIC, AudioChannel.SFX, AudioChannel.WEATHER]:
 		_channel_volume_percent[channel] = DEFAULT_VOLUME_PERCENT
 		_channel_muted[channel] = false
 	_save()
@@ -776,11 +806,13 @@ func _load() -> void:
 		AudioChannel.MASTER: DEFAULT_VOLUME_PERCENT,
 		AudioChannel.MUSIC: DEFAULT_VOLUME_PERCENT,
 		AudioChannel.SFX: DEFAULT_VOLUME_PERCENT,
+		AudioChannel.WEATHER: DEFAULT_VOLUME_PERCENT,
 	}
 	_channel_muted = {
 		AudioChannel.MASTER: false,
 		AudioChannel.MUSIC: false,
 		AudioChannel.SFX: false,
+		AudioChannel.WEATHER: false,
 	}
 	_custom_music_dir = ""
 	_player_name = ""
@@ -822,6 +854,10 @@ func _load() -> void:
 	)
 	_channel_muted[AudioChannel.SFX] = bool(cfg.get_value(SECTION_AUDIO, KEY_SFX_MUTED, false))
 
+	_channel_volume_percent[AudioChannel.WEATHER] = clampf(
+		float(cfg.get_value(SECTION_AUDIO, KEY_WEATHER_VOLUME_PERCENT, DEFAULT_VOLUME_PERCENT)), 0.0, 1.0
+	)
+	_channel_muted[AudioChannel.WEATHER] = bool(cfg.get_value(SECTION_AUDIO, KEY_WEATHER_MUTED, false))
 	_custom_music_dir = String(cfg.get_value(SECTION_AUDIO, KEY_CUSTOM_MUSIC_DIR, ""))
 	_player_name = PlayerNames.clean(
 		String(cfg.get_value(SECTION_PLAYER, KEY_PLAYER_NAME, "")), _net_config.max_player_name_length
@@ -865,6 +901,8 @@ func _save() -> void:
 	cfg.set_value(SECTION_AUDIO, KEY_MUSIC_MUTED, _channel_muted[AudioChannel.MUSIC])
 	cfg.set_value(SECTION_AUDIO, KEY_SFX_VOLUME_PERCENT, _channel_volume_percent[AudioChannel.SFX])
 	cfg.set_value(SECTION_AUDIO, KEY_SFX_MUTED, _channel_muted[AudioChannel.SFX])
+	cfg.set_value(SECTION_AUDIO, KEY_WEATHER_VOLUME_PERCENT, _channel_volume_percent[AudioChannel.WEATHER])
+	cfg.set_value(SECTION_AUDIO, KEY_WEATHER_MUTED, _channel_muted[AudioChannel.WEATHER])
 	cfg.set_value(SECTION_AUDIO, KEY_CUSTOM_MUSIC_DIR, _custom_music_dir)
 	cfg.set_value(SECTION_PLAYER, KEY_PLAYER_NAME, _player_name)
 	cfg.set_value(SECTION_CONTROLS, KEY_MOUSE_MOVE_SPEED_SCALE, _mouse_move_speed_scale)
