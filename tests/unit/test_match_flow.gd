@@ -235,7 +235,10 @@ func test_start_match_from_playing_returns_through_lobby_with_a_fresh_world() ->
 	assert_ne(Match.raster(), old_raster, "A fresh raster")
 	assert_ne(Match.slot(0), old_slot, "Fresh slots")
 	assert_eq(Match.active_slot(), -1, "No turn is active before play begins")
-	assert_null(Match.held_shape(0), "No held block carries over")
+	# Bontago-1pi.79: the new match's own first block is issued when its countdown
+	# exists (no carry-over: the old match's held shape was cleared by the restart).
+	assert_not_null(Match.held_shape(0), "The new match holds its own first block")
+	assert_eq(Match.feed_seq(0), 0, "A fresh feed sequence")
 	assert_eq(Match.blocks_spawned(), 0)
 
 
