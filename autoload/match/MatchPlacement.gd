@@ -891,7 +891,11 @@ func default_ghost_origin(slot_id: int) -> Vector3:
 	var target: PlayerSlot = _match.slot(slot_id)
 	if target == null or _match._field == null:
 		return Vector3.ZERO
-	return _match._field.to_global(Vector3(target.home_position.x, 0.0, target.home_position.y))
+	# Bontago-1pi.64: the first block starts back from the beacon (away from the
+	# field centre, the camera's side), not on top of it. Shared by the player's
+	# first ghost (set_home_position) and the host's AFK auto-drop.
+	var local_home: Vector3 = Vector3(target.home_position.x, 0.0, target.home_position.y)
+	return _match._field.to_global(_ghost_tuning.home_spawn_back_position(local_home))
 
 
 func _clear_blocks() -> void:

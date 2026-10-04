@@ -221,3 +221,26 @@ func test_host_spawns_the_first_released_block_above_the_beacon() -> void:
 		lowest, beacon_top + margin - HEIGHT_EPSILON,
 		"the host must spawn the first block's lowest point above the beacon top plus margin"
 	)
+
+
+## Bontago-1pi.64 (owner playtest 2026-10-04: first block "right on top of the
+## home beacon"): the first block's start (shared by the player's first ghost
+## and the host's AFK auto-drop) is clear of the beacon top by the margin AND
+## moved back, away from the field centre, by home_spawn_back_offset.
+func test_first_spawn_is_up_and_back_from_the_beacon_on_every_map() -> void:
+	for path: String in _map_paths():
+		var field: Field = _make_field(load(path) as MapDef)
+		var controller: PlayerController = _make_controller()
+		var tuning: GhostTuning = controller.ghost_tuning
+		var home: Vector3 = field.home_flags()[0].global_position
+		var back: Vector3 = tuning.home_spawn_back_position(field.to_local(home))
+		var offset: Vector3 = back - field.to_local(home)
+		assert_almost_eq(offset.length(), tuning.home_spawn_back_offset, HEIGHT_EPSILON, "%s: moved back by the configured offset" % path.get_file())
+		assert_gt(back.length(), field.to_local(home).length(), "%s: back is away from the field centre" % path.get_file())
+		assert_gte(tuning.home_spawn_beacon_margin, 1.0, "visible vertical margin")
+		var beacon_top: float = field.global_position.y + _collider_top_local(field, 0)
+		controller.set_home_position(field.to_global(back))
+		await wait_physics_frames(1)
+		controller._update_ghost_transform()
+		assert_gte(_lowest_point_y(controller), beacon_top + tuning.home_spawn_beacon_margin - HEIGHT_EPSILON, "%s: clears the beacon top by the margin" % path.get_file())
+		field.queue_free()
