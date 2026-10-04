@@ -203,6 +203,9 @@ const MOVE_SPEED_LABEL_STICK: String = "Stick speed"
 @onready var _sfx_mute_button: Button = %SfxMuteButton
 @onready var _sfx_volume_slider: HSlider = %SfxVolumeSlider
 @onready var _sfx_volume_value_label: Label = %SfxVolumeValueLabel
+@onready var _weather_mute_button: Button = %WeatherMuteButton
+@onready var _weather_volume_slider: HSlider = %WeatherVolumeSlider
+@onready var _weather_volume_value_label: Label = %WeatherVolumeValueLabel
 @onready var _music_dir_edit: LineEdit = %MusicDirEdit
 @onready var _browse_button: Button = %BrowseButton
 @onready var _music_dir_dialog: FileDialog = %MusicDirDialog
@@ -231,7 +234,7 @@ var _rows: Array[KeyRebindRow] = []
 func _ready() -> void:
 	if settings_provider == null:
 		settings_provider = Settings
-	for slider: HSlider in [_master_volume_slider, _music_volume_slider, _sfx_volume_slider]:
+	for slider: HSlider in [_master_volume_slider, _music_volume_slider, _sfx_volume_slider, _weather_volume_slider]:
 		slider.min_value = MIN_VOLUME_PERCENT
 		slider.max_value = MAX_VOLUME_PERCENT
 		slider.step = VOLUME_STEP_PERCENT
@@ -241,7 +244,7 @@ func _ready() -> void:
 	_style_section_header(%DisplaySectionHeader)
 	_style_section_header(%AudioSectionHeader)
 	_style_section_header(%RumbleSectionHeader)
-	for mute_button: Button in [_master_mute_button, _music_mute_button, _sfx_mute_button]:
+	for mute_button: Button in [_master_mute_button, _music_mute_button, _sfx_mute_button, _weather_mute_button]:
 		_style_mute_button_icon(mute_button)
 	_move_speed_slider.min_value = MIN_MOVE_SPEED_SCALE
 	_move_speed_slider.max_value = MAX_MOVE_SPEED_SCALE
@@ -268,6 +271,8 @@ func _ready() -> void:
 	_music_mute_button.pressed.connect(_on_music_mute_pressed)
 	_sfx_volume_slider.value_changed.connect(_on_sfx_volume_changed)
 	_sfx_mute_button.pressed.connect(_on_sfx_mute_pressed)
+	_weather_volume_slider.value_changed.connect(_on_weather_volume_changed)
+	_weather_mute_button.pressed.connect(_on_weather_mute_pressed)
 	_music_dir_edit.text_submitted.connect(_on_music_dir_submitted)
 	_music_dir_edit.focus_exited.connect(_on_music_dir_focus_exited)
 	_browse_button.pressed.connect(_on_browse_pressed)
@@ -391,6 +396,8 @@ func _load_current_values() -> void:
 	_load_channel_row(_music_mute_button, _music_volume_slider, _music_volume_value_label, settings_provider.music_muted(), settings_provider.music_volume_percent())
 	_load_channel_row(_sfx_mute_button, _sfx_volume_slider, _sfx_volume_value_label, settings_provider.sfx_muted(), settings_provider.sfx_volume_percent())
 
+	_load_channel_row(_weather_mute_button, _weather_volume_slider, _weather_volume_value_label, settings_provider.weather_muted(), settings_provider.weather_volume_percent())
+
 	_music_dir_edit.text = String(settings_provider.custom_music_dir())
 
 	_camera_shake_check.set_pressed_no_signal(bool(settings_provider.camera_shake_enabled()))
@@ -466,6 +473,16 @@ func _icon_for_channel(muted: bool, percent: float) -> Texture2D:
 
 func _format_percent(value: float) -> String:
 	return "%d%%" % int(round(value * 100.0))
+
+
+func _on_weather_volume_changed(value: float) -> void:
+	settings_provider.set_weather_volume_percent(value)
+	_load_channel_row(_weather_mute_button, _weather_volume_slider, _weather_volume_value_label, settings_provider.weather_muted(), settings_provider.weather_volume_percent())
+
+
+func _on_weather_mute_pressed() -> void:
+	settings_provider.toggle_weather_mute()
+	_load_channel_row(_weather_mute_button, _weather_volume_slider, _weather_volume_value_label, settings_provider.weather_muted(), settings_provider.weather_volume_percent())
 
 
 func _on_music_dir_submitted(_text: String) -> void:
@@ -659,6 +676,7 @@ func _wire_focus_chain() -> void:
 		_master_mute_button, _master_volume_slider,
 		_music_mute_button, _music_volume_slider,
 		_sfx_mute_button, _sfx_volume_slider,
+		_weather_mute_button, _weather_volume_slider,
 		_rumble_enabled_check, _rumble_strength_slider,
 		_move_speed_slider,
 	]

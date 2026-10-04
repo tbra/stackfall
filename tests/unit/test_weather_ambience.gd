@@ -88,3 +88,22 @@ func test_gust_event_plays_whoosh_matching_duration() -> void:
 	assert_eq(_amb.gusts_played, 2)
 	assert_gt(_amb.last_gust_stream.get_length(), short_stream.get_length())
 	assert_eq(_amb.last_gust_stream.loop_mode, AudioStreamWAV.LOOP_DISABLED)
+
+
+## Bontago-1pi.77: loops and gust whoosh follow Master + Weather only, not SFX.
+func test_weather_volume_follows_weather_channel_only() -> void:
+	var saved_weather: float = Settings.weather_volume_percent()
+	var saved_sfx: float = Settings.sfx_volume_percent()
+	Events.weather_started.emit(&"rain")
+	Events.weather_intensity_changed.emit(&"rain", 1.0)
+	_amb.advance(100.0)
+	var base_db: float = _amb.bed_player(&"rain").volume_db
+	Settings.set_sfx_volume_percent(0.1)
+	assert_almost_eq(_amb.bed_player(&"rain").volume_db, base_db, 0.001, "SFX slider must not move the bed")
+	Settings.set_sfx_volume_percent(saved_sfx)
+	Settings.set_weather_volume_percent(0.5)
+	assert_almost_eq(_amb.bed_player(&"rain").volume_db, base_db + linear_to_db(0.5) - linear_to_db(saved_weather), 0.001, "Weather slider moves the bed")
+	Events.breeze_gust_started.emit(_gust(0.8))
+	var gust_player: AudioStreamPlayer = _amb._gust_players[(_amb._gust_next + _amb._gust_players.size() - 1) % _amb._gust_players.size()]
+	assert_almost_eq(gust_player.volume_db, _amb.tuning.gust_volume_db + Settings.master_volume_db() + Settings.weather_volume_db(), 0.001)
+	Settings.set_weather_volume_percent(saved_weather)

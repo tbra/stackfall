@@ -14,6 +14,9 @@ extends Node
 ##
 ## DECISION (WeatherAmbience): no new bus; the ambience counts as SFX for the
 ## slider. While the pause menu is open it is ducked, not stopped.
+## DECISION (Bontago-1pi.77): superseded -- weather has its own Settings
+## channel (Weather slider, Master still applies, SFX no longer does). The
+## project has no AudioServer bus layout, so "bus" here is the Settings channel.
 ## DECISION (WeatherAmbience): WAV loops are not looping on import, so the
 ## runtime duplicates each stream and sets forward looping over its full length.
 
@@ -185,7 +188,7 @@ func _bed_volume_db(weather_id: StringName, gain: float) -> float:
 
 
 func _mix_db() -> float:
-	var db: float = Settings.master_volume_db() + Settings.sfx_volume_db()
+	var db: float = Settings.master_volume_db() + Settings.weather_volume_db()
 	return db + (tuning.pause_duck_db if _paused_duck else 0.0)
 
 

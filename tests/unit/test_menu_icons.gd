@@ -28,7 +28,7 @@ const TUNING: MenuVisualTuning = preload("res://config/menu_visual_tuning.tres")
 ## walk silently missed some, so the contrast assertions would be vacuous.
 const MAIN_MENU_ICON_BUTTONS: int = 15
 const PAUSE_MENU_ICON_BUTTONS: int = 4
-const OPTIONS_MENU_MUTE_BUTTONS: int = 3
+const OPTIONS_MENU_MUTE_BUTTONS: int = 4
 
 ## [state label, stylebox the state is drawn on, icon colour theme item]. A
 ## focused (not hovered) Button draws its "normal" stylebox plus the
