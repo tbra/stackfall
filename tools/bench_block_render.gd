@@ -5,7 +5,7 @@ extends Node3D
 ## time over a fixed number of frames. Run off-screen:
 ##   godot --path . --position 10000,10000 tools/bench_block_render.tscn
 ## Optional user args after `--`:
-##   --legacy=1   swap in res://visual_demo/legacy_block_*.gdshader (the
+##   --legacy=1   swap in user://legacy_block_*.gdshader (the
 ##                pre-rework shaders, extracted with `git show`) for a
 ##                before/after comparison.
 ##   --far=1      double the camera distance (many-blocks-at-distance case).
@@ -18,8 +18,8 @@ const WARMUP_FRAMES: int = 30
 const MEASURE_FRAMES: int = 180
 const CAMERA_DISTANCE_M: float = 40.0
 const CAMERA_HEIGHT_M: float = 35.0
-const LEGACY_CELL_SHADER: String = "res://visual_demo/legacy_block_cell_grid.gdshader"
-const LEGACY_OUTLINE_SHADER: String = "res://visual_demo/legacy_block_outline.gdshader"
+const LEGACY_CELL_SHADER: String = "user://legacy_block_cell_grid.gdshader"
+const LEGACY_OUTLINE_SHADER: String = "user://legacy_block_outline.gdshader"
 
 var _frame: int = 0
 var _gpu_sum_ms: float = 0.0
