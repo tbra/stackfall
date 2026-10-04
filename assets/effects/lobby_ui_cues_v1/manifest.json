@@ -1,0 +1,269 @@
+{
+  "sample_rate": 44100,
+  "channels": 1,
+  "pcm_bits": 16,
+  "generator": "tools/generate_lobby_ui_cues.py",
+  "provenance": "Original damped modes and seeded filtered noise; existing sounds analyzed only, not sampled",
+  "cues": [
+    {
+      "file": "player_joined.wav",
+      "seed": 4100,
+      "duration_s": 0.2,
+      "peak_target_dbfs": -8,
+      "peak_dbfs": -8.0,
+      "rms_dbfs": -26.02,
+      "dc_offset": -1.6262201495181406e-07,
+      "tail_20ms_rms_dbfs": -240.0,
+      "dominant_hz": 745.0,
+      "spectral_centroid_hz": 2284.47,
+      "sha256": "32575780687d7e9b00f2d7de05498f47888710043bd590346d84c3bf49c1d999",
+      "notes": [
+        {
+          "start_s": 0,
+          "body_hz": 587.33,
+          "duration_s": 0.105
+        },
+        {
+          "start_s": 0.06,
+          "body_hz": 739.99,
+          "duration_s": 0.11
+        }
+      ]
+    },
+    {
+      "file": "player_left.wav",
+      "seed": 4117,
+      "duration_s": 0.18,
+      "peak_target_dbfs": -10,
+      "peak_dbfs": -10.0,
+      "rms_dbfs": -27.83,
+      "dc_offset": -2.498919851505417e-07,
+      "tail_20ms_rms_dbfs": -240.0,
+      "dominant_hz": 588.89,
+      "spectral_centroid_hz": 2198.99,
+      "sha256": "d5d0335715acb5f25cde2de10012bc42f0fb11e1f18ae1129f9b38559fad1ac8",
+      "notes": [
+        {
+          "start_s": 0,
+          "body_hz": 739.99,
+          "duration_s": 0.09
+        },
+        {
+          "start_s": 0.055,
+          "body_hz": 587.33,
+          "duration_s": 0.095
+        }
+      ]
+    },
+    {
+      "file": "ready_on.wav",
+      "seed": 4134,
+      "duration_s": 0.18,
+      "peak_target_dbfs": -10,
+      "peak_dbfs": -10.0,
+      "rms_dbfs": -31.295,
+      "dc_offset": -1.5762417524880323e-07,
+      "tail_20ms_rms_dbfs": -240.0,
+      "dominant_hz": 883.33,
+      "spectral_centroid_hz": 2513.28,
+      "sha256": "07776bf5d480b8507418ca081da83d456f8b5d208547278e40c467d8294894f5",
+      "notes": [
+        {
+          "start_s": 0,
+          "body_hz": 587.33,
+          "duration_s": 0.08
+        },
+        {
+          "start_s": 0.055,
+          "body_hz": 880,
+          "duration_s": 0.095
+        }
+      ]
+    },
+    {
+      "file": "ready_off.wav",
+      "seed": 4151,
+      "duration_s": 0.16,
+      "peak_target_dbfs": -12,
+      "peak_dbfs": -12.0,
+      "rms_dbfs": -30.902,
+      "dc_offset": -4.88731055573271e-07,
+      "tail_20ms_rms_dbfs": -240.0,
+      "dominant_hz": 593.75,
+      "spectral_centroid_hz": 2029.44,
+      "sha256": "a5b1e1f1b90572233c23f829e15213816ae71c071b16e63884006c3f87f50690",
+      "notes": [
+        {
+          "start_s": 0,
+          "body_hz": 880,
+          "duration_s": 0.075
+        },
+        {
+          "start_s": 0.05,
+          "body_hz": 587.33,
+          "duration_s": 0.08
+        }
+      ]
+    },
+    {
+      "file": "team_change.wav",
+      "seed": 4168,
+      "duration_s": 0.095011,
+      "peak_target_dbfs": -12,
+      "peak_dbfs": -12.0,
+      "rms_dbfs": -32.651,
+      "dc_offset": -3.8602187127088306e-07,
+      "tail_20ms_rms_dbfs": -93.043,
+      "dominant_hz": 589.4,
+      "spectral_centroid_hz": 1640.02,
+      "sha256": "09322fe105c9899b9ba25b49de64ed4e57fd350a9b7f85ac8fd86da23855cf8c",
+      "notes": [
+        {
+          "start_s": 0,
+          "body_hz": 587.33,
+          "duration_s": 0.065
+        }
+      ]
+    },
+    {
+      "file": "colour_change.wav",
+      "seed": 4185,
+      "duration_s": 0.084989,
+      "peak_target_dbfs": -13,
+      "peak_dbfs": -13.0,
+      "rms_dbfs": -31.784,
+      "dc_offset": -3.664063542222519e-07,
+      "tail_20ms_rms_dbfs": -92.688,
+      "dominant_hz": 741.28,
+      "spectral_centroid_hz": 1963.37,
+      "sha256": "03a724f9ae9af116b2b764c2edb3adf47dc3ab21b86a0324ffd668974eaec22e",
+      "notes": [
+        {
+          "start_s": 0,
+          "body_hz": 739.99,
+          "duration_s": 0.055
+        }
+      ]
+    },
+    {
+      "file": "bot_added.wav",
+      "seed": 4202,
+      "duration_s": 0.135011,
+      "peak_target_dbfs": -11,
+      "peak_dbfs": -11.0,
+      "rms_dbfs": -28.437,
+      "dc_offset": 4.6130030756634196e-08,
+      "tail_20ms_rms_dbfs": -99.511,
+      "dominant_hz": 666.61,
+      "spectral_centroid_hz": 2293.91,
+      "sha256": "6ef30a55ffcda72f378bd284074fa748ee5278dc2e408072595e51f5133bf953",
+      "notes": [
+        {
+          "start_s": 0,
+          "body_hz": 587.33,
+          "duration_s": 0.05
+        },
+        {
+          "start_s": 0.04,
+          "body_hz": 659.25,
+          "duration_s": 0.065
+        }
+      ]
+    },
+    {
+      "file": "bot_removed.wav",
+      "seed": 4219,
+      "duration_s": 0.135011,
+      "peak_target_dbfs": -12,
+      "peak_dbfs": -12.0,
+      "rms_dbfs": -29.076,
+      "dc_offset": -3.741658050260329e-07,
+      "tail_20ms_rms_dbfs": -240.0,
+      "dominant_hz": 592.54,
+      "spectral_centroid_hz": 2150.35,
+      "sha256": "fb064b257a8cb244a38bf29294444acc8489ea20c6a7e612408b725b2c32b9ba",
+      "notes": [
+        {
+          "start_s": 0,
+          "body_hz": 659.25,
+          "duration_s": 0.05
+        },
+        {
+          "start_s": 0.04,
+          "body_hz": 587.33,
+          "duration_s": 0.065
+        }
+      ]
+    },
+    {
+      "file": "section_expanded.wav",
+      "seed": 4236,
+      "duration_s": 0.064989,
+      "peak_target_dbfs": -16,
+      "peak_dbfs": -16.001,
+      "rms_dbfs": -33.65,
+      "dc_offset": -3.8333315160502444e-07,
+      "tail_20ms_rms_dbfs": -92.62,
+      "dominant_hz": 1107.89,
+      "spectral_centroid_hz": 2706.54,
+      "sha256": "b5c75cd17fc2aeb0d4010ba41f0e5e21827f693b433cca834716eeb2c1af6364",
+      "notes": [
+        {
+          "start_s": 0,
+          "body_hz": 1100,
+          "duration_s": 0.035
+        }
+      ]
+    },
+    {
+      "file": "section_collapsed.wav",
+      "seed": 4253,
+      "duration_s": 0.06,
+      "peak_target_dbfs": -16,
+      "peak_dbfs": -16.001,
+      "rms_dbfs": -36.266,
+      "dc_offset": 1.3840171485260771e-07,
+      "tail_20ms_rms_dbfs": -88.156,
+      "dominant_hz": 850.0,
+      "spectral_centroid_hz": 2566.43,
+      "sha256": "a4a335e11c331bb3e9be9c93f596ce6eab5ce391810056ad0ef06c2997ce6c0b",
+      "notes": [
+        {
+          "start_s": 0,
+          "body_hz": 840,
+          "duration_s": 0.03
+        }
+      ]
+    },
+    {
+      "file": "all_players_ready.wav",
+      "seed": 4270,
+      "duration_s": 0.37,
+      "peak_target_dbfs": -6,
+      "peak_dbfs": -6.0,
+      "rms_dbfs": -23.594,
+      "dc_offset": 1.2905024763283693e-07,
+      "tail_20ms_rms_dbfs": -240.0,
+      "dominant_hz": 881.08,
+      "spectral_centroid_hz": 2180.65,
+      "sha256": "ffa1dc135dff3bf169815dde960513af5a55749317a331eb9833dc57a40b14db",
+      "notes": [
+        {
+          "start_s": 0,
+          "body_hz": 587.33,
+          "duration_s": 0.16
+        },
+        {
+          "start_s": 0.07,
+          "body_hz": 739.99,
+          "duration_s": 0.17
+        },
+        {
+          "start_s": 0.14,
+          "body_hz": 880,
+          "duration_s": 0.2
+        }
+      ]
+    }
+  ]
+}

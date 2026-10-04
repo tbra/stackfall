@@ -1,0 +1,80 @@
+{
+  "viewbox": [
+    24,
+    24
+  ],
+  "source_color": "white",
+  "tint": "MenuStyleFactory.apply_ink",
+  "icons": [
+    {
+      "id": "section_game",
+      "file": "section_game.svg",
+      "title": "Game section"
+    },
+    {
+      "id": "section_round",
+      "file": "section_round.svg",
+      "title": "Round section"
+    },
+    {
+      "id": "section_gifts",
+      "file": "section_gifts.svg",
+      "title": "Gifts section"
+    },
+    {
+      "id": "section_experiments",
+      "file": "section_experiments.svg",
+      "title": "Experiments section"
+    },
+    {
+      "id": "bot_add",
+      "file": "bot_add.svg",
+      "title": "Add bot"
+    },
+    {
+      "id": "bot_remove",
+      "file": "bot_remove.svg",
+      "title": "Remove bot"
+    },
+    {
+      "id": "teams",
+      "file": "teams.svg",
+      "title": "Teams"
+    },
+    {
+      "id": "difficulty_easy",
+      "file": "difficulty_easy.svg",
+      "title": "Easy bot difficulty"
+    },
+    {
+      "id": "difficulty_normal",
+      "file": "difficulty_normal.svg",
+      "title": "Normal bot difficulty"
+    },
+    {
+      "id": "difficulty_hard",
+      "file": "difficulty_hard.svg",
+      "title": "Hard bot difficulty"
+    },
+    {
+      "id": "team_random",
+      "file": "team_random.svg",
+      "title": "Random team"
+    },
+    {
+      "id": "colour_swap",
+      "file": "colour_swap.svg",
+      "title": "Swap colours"
+    },
+    {
+      "id": "advanced_open",
+      "file": "advanced_open.svg",
+      "title": "Advanced section expanded"
+    },
+    {
+      "id": "advanced_closed",
+      "file": "advanced_closed.svg",
+      "title": "Advanced section collapsed"
+    }
+  ]
+}

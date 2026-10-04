@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "size": [
+    1024,
+    1024
+  ],
+  "center_px": [
+    512,
+    512
+  ],
+  "disc_radius_px": 400,
+  "halo_radius_px": 480,
+  "files": [
+    "moon_disc.png",
+    "moon_halo.png"
+  ],
+  "phase": "full, optional runtime phase mask",
+  "palette": {
+    "lit": "#e8eefb",
+    "mid": "#b9c9e5",
+    "shade": "#879fc7",
+    "halo": "#90b3f0"
+  },
+  "seed": 10701,
+  "preview": {
+    "source": "assets/ui/loading_arena_v2/round_night.png",
+    "screen_size": [
+      1280,
+      720
+    ],
+    "center": [
+      960,
+      145
+    ],
+    "disc_quad_size": 96,
+    "halo_quad_size": 432
+  }
+}

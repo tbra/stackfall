@@ -1,0 +1,47 @@
+{
+  "atlas": "atlas.svg",
+  "atlas_size": [
+    256,
+    128
+  ],
+  "tile_size": 64,
+  "shapes": [
+    "ROUND",
+    "OVAL",
+    "RING",
+    "TWIN",
+    "CROSS"
+  ],
+  "regions_xywh": {
+    "ROUND": [
+      0,
+      0,
+      64,
+      64
+    ],
+    "OVAL": [
+      64,
+      0,
+      64,
+      64
+    ],
+    "RING": [
+      128,
+      0,
+      64,
+      64
+    ],
+    "TWIN": [
+      192,
+      0,
+      64,
+      64
+    ],
+    "CROSS": [
+      0,
+      64,
+      64,
+      64
+    ]
+  }
+}

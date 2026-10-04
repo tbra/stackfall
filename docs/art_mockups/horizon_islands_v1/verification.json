@@ -1,0 +1,86 @@
+{
+  "checks": "3closed colored meshes x3LODs;unit normals;nondegenerate triangles;LOD1 silhouetteIoU>.95 andLOD2>.85 at3angles; native mesh colors/pivots",
+  "variants": [
+    {
+      "id": "mesa",
+      "triangles": [
+        320,
+        96,
+        32
+      ],
+      "watertight_position_weld": true,
+      "normals_and_colors": true,
+      "render_silhouette_iou": [
+        {
+          "yaw": 0,
+          "lod1_iou": 0.9753061444678212,
+          "lod2_iou": 0.916097968872225
+        },
+        {
+          "yaw": 60,
+          "lod1_iou": 0.9657824032611717,
+          "lod2_iou": 0.8573965410747375
+        },
+        {
+          "yaw": 120,
+          "lod1_iou": 0.9755521806596454,
+          "lod2_iou": 0.890464789895154
+        }
+      ]
+    },
+    {
+      "id": "shelf",
+      "triangles": [
+        320,
+        96,
+        32
+      ],
+      "watertight_position_weld": true,
+      "normals_and_colors": true,
+      "render_silhouette_iou": [
+        {
+          "yaw": 0,
+          "lod1_iou": 0.972055719712959,
+          "lod2_iou": 0.9068836165824358
+        },
+        {
+          "yaw": 60,
+          "lod1_iou": 0.9633004885591617,
+          "lod2_iou": 0.8989927252378288
+        },
+        {
+          "yaw": 120,
+          "lod1_iou": 0.9737889543095067,
+          "lod2_iou": 0.9156847630584003
+        }
+      ]
+    },
+    {
+      "id": "crag",
+      "triangles": [
+        320,
+        96,
+        32
+      ],
+      "watertight_position_weld": true,
+      "normals_and_colors": true,
+      "render_silhouette_iou": [
+        {
+          "yaw": 0,
+          "lod1_iou": 0.9721417774450111,
+          "lod2_iou": 0.8981925071720298
+        },
+        {
+          "yaw": 60,
+          "lod1_iou": 0.9755377477857444,
+          "lod2_iou": 0.8800659483915494
+        },
+        {
+          "yaw": 120,
+          "lod1_iou": 0.9618785136766624,
+          "lod2_iou": 0.9006049813382773
+        }
+      ]
+    }
+  ]
+}

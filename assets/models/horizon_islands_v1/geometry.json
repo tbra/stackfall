@@ -1,0 +1,187 @@
+{
+  "version": 1,
+  "generator": "tools/generate_horizon_islands.py",
+  "units": "meters; default render camera is art review only",
+  "pivot": "surface center at origin; rock body extends down",
+  "variants": [
+    {
+      "id": "mesa",
+      "file": "mesa.glb",
+      "triangles_by_lod": [
+        320,
+        96,
+        32
+      ],
+      "sha256": "767aef8b3eb9c1411d97998a9436d2d131cdce56d250d867d0fed9a82528cbd4",
+      "bytes": 53872,
+      "bounds": {
+        "LOD0": {
+          "min_blender": [
+            -28.883832931518555,
+            -19.18327522277832,
+            -32.0
+          ],
+          "max_blender": [
+            32.17438507080078,
+            20.318212509155273,
+            0.44999998807907104
+          ]
+        },
+        "LOD1": {
+          "min_blender": [
+            -28.08004379272461,
+            -19.18327522277832,
+            -32.0
+          ],
+          "max_blender": [
+            31.91995620727539,
+            20.282209396362305,
+            0.44999998807907104
+          ]
+        },
+        "LOD2": {
+          "min_blender": [
+            -28.08004379272461,
+            -17.717790603637695,
+            -32.0
+          ],
+          "max_blender": [
+            31.91995620727539,
+            20.282209396362305,
+            0.44999998807907104
+          ]
+        }
+      },
+      "nominal_width_depth_height_m": [
+        60,
+        38,
+        32
+      ],
+      "lod_triangle_reduction": [
+        0.0,
+        0.7,
+        0.9
+      ]
+    },
+    {
+      "id": "shelf",
+      "file": "shelf.glb",
+      "triangles_by_lod": [
+        320,
+        96,
+        32
+      ],
+      "sha256": "1ee10f53dcc9e0c71506e7aac2599e3b5416e21e74baf31e5175209290e21722",
+      "bytes": 53876,
+      "bounds": {
+        "LOD0": {
+          "min_blender": [
+            -44.08275604248047,
+            -13.663644790649414,
+            -23.0
+          ],
+          "max_blender": [
+            51.555721282958984,
+            13.254382133483887,
+            0.44999998807907104
+          ]
+        },
+        "LOD1": {
+          "min_blender": [
+            -43.666744232177734,
+            -13.663644790649414,
+            -23.0
+          ],
+          "max_blender": [
+            50.299503326416016,
+            13.254382133483887,
+            0.44999998807907104
+          ]
+        },
+        "LOD2": {
+          "min_blender": [
+            -42.11941146850586,
+            -13.339599609375,
+            -23.0
+          ],
+          "max_blender": [
+            50.299503326416016,
+            13.254382133483887,
+            0.44999998807907104
+          ]
+        }
+      },
+      "nominal_width_depth_height_m": [
+        88,
+        28,
+        23
+      ],
+      "lod_triangle_reduction": [
+        0.0,
+        0.7,
+        0.9
+      ]
+    },
+    {
+      "id": "crag",
+      "file": "crag.glb",
+      "triangles_by_lod": [
+        320,
+        96,
+        32
+      ],
+      "sha256": "f86e55d006da0525b27be82c4ac308ef2e8c9c6b971b7fb9ff7963834df1bb7d",
+      "bytes": 53880,
+      "bounds": {
+        "LOD0": {
+          "min_blender": [
+            -21.297494888305664,
+            -24.513256072998047,
+            -43.0
+          ],
+          "max_blender": [
+            20.95761489868164,
+            27.688194274902344,
+            0.44999998807907104
+          ]
+        },
+        "LOD1": {
+          "min_blender": [
+            -21.297494888305664,
+            -24.513256072998047,
+            -43.0
+          ],
+          "max_blender": [
+            20.758195877075195,
+            27.298004150390625,
+            0.44999998807907104
+          ]
+        },
+        "LOD2": {
+          "min_blender": [
+            -21.297494888305664,
+            -22.701995849609375,
+            -43.0
+          ],
+          "max_blender": [
+            20.702505111694336,
+            27.298004150390625,
+            0.44999998807907104
+          ]
+        }
+      },
+      "nominal_width_depth_height_m": [
+        42,
+        50,
+        43
+      ],
+      "lod_triangle_reduction": [
+        0.0,
+        0.7,
+        0.9
+      ]
+    }
+  ],
+  "color_semantics": "COLOR_0 contains original neutral facet palette; no player/team state",
+  "animation": "none; static world assets, camera supplies parallax"
+}

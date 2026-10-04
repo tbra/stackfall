@@ -1,0 +1,7 @@
+{
+  "checks": "two1024RGBA textures;32px+ transparent edge padding;opaque disc center;monotonic soft halo alpha on4radii;native64/128 small rasters",
+  "sha256": {
+    "moon_disc": "08f88245a27ac3a45905e344f4c55b3f0279cb261ed02e581d890787b111ef66",
+    "moon_halo": "b1fd7304347eb9014f0a74558c5f994e1f0ef3e2772da57d78bec76c8369be90"
+  }
+}

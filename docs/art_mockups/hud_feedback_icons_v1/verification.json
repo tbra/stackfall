@@ -1,0 +1,9 @@
+{
+  "checks": "4distinct alpha silhouettes;16native rasters16/24/32/48px;exactdimensions/nonemptyalpha/clearouteredges",
+  "silhouette_sha256": [
+    "286a37cbc021b2cfb45ea4ca39a85f092eec4bd67245fa6b8bc5cc25336a17bd",
+    "3dced25c145d0cee8c4682ca2d9a9bf400cd192bb0a6c9c23d898354aef8f6c7",
+    "847a6be15d3184372d3d1fe157503944e5c1451a919228207094739fca4ff7ae",
+    "bb9fa24bb69397f35b8f5e5feca00211ee298472e92857062b0a72359836438f"
+  ]
+}
