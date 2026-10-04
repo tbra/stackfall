@@ -514,8 +514,12 @@ func test_build_roster_appends_bot_rows_for_ai_count() -> void:
 	var bot_two: Dictionary = roster[5] as Dictionary
 	assert_eq(int(bot_one.get("slot_id")), 4)
 	assert_eq(int(bot_two.get("slot_id")), 5)
-	assert_eq(str(bot_one.get("name")), "Bot 1 (Normal)")
-	assert_eq(str(bot_two.get("name")), "Bot 2 (Normal)")
+	# Bontago-1pi.62: each bot carries the host-assigned themed name, also in bot_names.
+	var names: Array = calls[calls.size() - 1].get("bot_names") as Array
+	assert_eq(names.size(), 2)
+	assert_ne(names[0], names[1])
+	assert_eq(str(bot_one.get("name")), "%s (Normal)" % names[0])
+	assert_eq(str(bot_two.get("name")), "%s (Normal)" % names[1])
 	assert_true(bool(bot_one.get("ready")))
 	assert_true(bool(bot_two.get("ready")))
 

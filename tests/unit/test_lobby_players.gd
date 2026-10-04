@@ -200,10 +200,12 @@ func test_bot_rows_are_rebuilt_from_the_config_and_split_into_name_and_difficult
 	lobby._on_option_changed(MatchConfig.AiDifficulty.HARD)
 	var rows: Array[Node] = _panel_of(lobby)._player_rows
 	assert_eq(rows.size(), 3, "one human + two bots")
-	assert_eq(_row_name(rows[1]), "Bot 1")
+	var bot_names: PackedStringArray = _panel_of(lobby)._config.bot_names
+	assert_eq(bot_names.size(), 2, "the host named both bots when they were added")
+	assert_eq(_row_name(rows[1]), bot_names[0])
 	assert_eq(_row_subtitle(rows[1]), "AI", "the difficulty is the dropdown beside the name now")
 	assert_eq(_rows_of(lobby)[1].difficulty_option.selected, MatchConfig.AiDifficulty.HARD, "the old default dropdown sets every bot")
-	assert_eq(_row_name(rows[2]), "Bot 2")
+	assert_eq(_row_name(rows[2]), bot_names[1])
 	assert_eq(_row_badge(rows[2]), "%s Ready" % char(0x2713), "bots are always ready")
 
 
@@ -815,8 +817,8 @@ func test_a_bots_dropdown_sets_only_that_bots_difficulty() -> void:
 	assert_eq(LobbySeats.difficulty_of(seats, LobbySeats.bot_key(1)), MatchConfig.AiDifficulty.NORMAL)
 	assert_eq(_rows_of(lobby)[1].difficulty_option.selected, MatchConfig.AiDifficulty.HARD, "the row shows it")
 	var roster: Array = _last_published(lobby)["roster"] as Array
-	assert_eq(str((roster[1] as Dictionary)["name"]), "Bot 1 (Hard)", "the published roster entry carries the bot's own difficulty")
-	assert_eq(str((roster[2] as Dictionary)["name"]), "Bot 2 (Normal)")
+	assert_eq(str((roster[1] as Dictionary)["name"]), "%s (Hard)" % _panel_of(lobby)._config.bot_names[0], "the published roster entry carries the bot's own difficulty")
+	assert_eq(str((roster[2] as Dictionary)["name"]), "%s (Normal)" % _panel_of(lobby)._config.bot_names[1])
 
 
 func test_changing_the_lobby_default_difficulty_sets_every_bot_but_other_edits_keep_each_bot() -> void:

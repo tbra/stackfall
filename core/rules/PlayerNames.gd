@@ -15,6 +15,8 @@ extends RefCounted
 ## always had (MatchLifecycle._build_slots), and the host's fallback for an
 ## empty name.
 const FALLBACK_FORMAT: String = "Player %d"
+## Longest bot name the wire accepts (the owner's longest list entry is 13).
+const BOT_NAME_MAX_LENGTH: int = 24
 ## A joiner with no seat (slot -1, Bontago-8or.11) who sent no name.
 const SPECTATOR_FALLBACK: String = "Spectator"
 
@@ -112,6 +114,14 @@ static func label_for_slot(slot_id: int, slot_display_name: String, is_bot: bool
 		return peer_name
 	if slot_display_name != "":
 		return slot_display_name
+	return fallback_for_slot(slot_id)
+
+
+## The name of the bot in `slot_id`: `bot_names[ordinal]` (ordinal = position among
+## the bot seats) when present, else the slot's "Player N" fallback.
+static func bot_label(slot_id: int, ordinal: int, bot_names: PackedStringArray) -> String:
+	if ordinal >= 0 and ordinal < bot_names.size() and bot_names[ordinal] != "":
+		return bot_names[ordinal]
 	return fallback_for_slot(slot_id)
 
 
