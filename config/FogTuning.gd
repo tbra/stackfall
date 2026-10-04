@@ -18,18 +18,18 @@ extends WeatherTuning
 
 ## Fog starts this far from the camera (metres) and is at full max_opacity at
 ## depth_end_m.
-@export var depth_begin_m: float = 25.0
+@export var depth_begin_m: float = 30.0
 @export var depth_end_m: float = 110.0
 ## Opacity reached at depth_end_m and beyond (0..1); below 1 so far things stay
 ## faintly visible.
-@export_range(0.0, 1.0, 0.01) var max_opacity: float = 0.75
+@export_range(0.0, 1.0, 0.01) var max_opacity: float = 0.7
 ## Fog tint (cool, milky) and how far the theme's fog colour moves toward it at
 ## full intensity.
-@export var fog_color: Color = Color(0.72, 0.8, 0.88, 1.0)
-@export_range(0.0, 1.0, 0.01) var fog_tint_strength: float = 0.85
+@export var fog_color: Color = Color(0.74, 0.8, 0.86, 1.0)
+@export_range(0.0, 1.0, 0.01) var fog_tint_strength: float = 0.7
 ## How much further the fog washes the sky and horizon at full intensity
 ## (added to the theme's own fog_sky_affect).
-@export_range(0.0, 1.0, 0.01) var sky_affect: float = 0.35
+@export_range(0.0, 1.0, 0.01) var sky_affect: float = 0.5
 ## Fraction of max_opacity used on the Low graphics preset (ambient life off).
 @export_range(0.0, 1.0, 0.05) var low_preset_opacity: float = 0.7
 ## Visibility targets the tests pin (fraction of colour kept at full
@@ -38,4 +38,18 @@ extends WeatherTuning
 ## far_min_visibility.
 @export var clear_radius_m: float = 22.0
 @export var far_reference_distance_m: float = 100.0
+## Bontago-mp0.130: weather fog also pushes the Environment's aerial perspective
+## up by this much at full intensity (far scenery takes on the sky colour).
+@export_range(0.0, 1.0, 0.01) var aerial_perspective_add: float = 0.35
+## Ambient (theme) exponential fog readability: from the start camera the whole
+## disc and far rim (arena_far_rim_m away) must keep at least
+## ambient_min_rim_keep of their colour. The tests pin every theme to it.
+@export var arena_far_rim_m: float = 70.0
+@export_range(0.0, 1.0, 0.01) var ambient_min_rim_keep: float = 0.8
 @export_range(0.0, 1.0, 0.01) var far_min_visibility: float = 0.1
+
+
+## Pure: fraction of colour an exponential-fog (Environment fog_density) object
+## keeps at `distance_m`.
+static func exponential_keep(density: float, distance_m: float) -> float:
+	return exp(-maxf(density, 0.0) * maxf(distance_m, 0.0))
