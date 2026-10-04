@@ -232,6 +232,11 @@ func configure(map_def: MapDef, visuals: TerritoryVisuals, tuning: TerritoryTuni
 func rebuild_disk_mesh() -> void:
 	if _map_def == null or _visuals == null:
 		return
+	# Bontago-1pi.60: RING/TWIN/CROSS draw their real cell shape, not the disc.
+	if DiskShapeMesh.needs_cell_mesh(_map_def):
+		mesh = DiskShapeMesh.build(_map_def, _map_def.disk_height)
+		_baked_mesh_segments = _visuals.disk_mesh_segments
+		return
 	var cylinder: CylinderMesh = CylinderMesh.new()
 	cylinder.top_radius = _map_def.field_radius
 	cylinder.bottom_radius = _map_def.field_radius
