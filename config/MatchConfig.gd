@@ -135,6 +135,11 @@ const TEAM_PICK_MAX: int = 4
 ## Difficulty (AiDifficulty int) of the bot in each slot, indexed by slot id
 ## (entries for human slots are ignored); empty or short = ai_difficulty.
 @export var slot_ai_difficulties: PackedInt32Array = PackedInt32Array()
+## Bontago-1pi.62: the name of each bot, by bot ordinal (bot k holds slot
+## player_count - ai_count + k). Runtime state (exported only so duplicate() carries it): the host fills it at
+## match start (BotNames.assign) and it rides in to_dict() so every client labels
+## the same bots the same. Empty or short = "Player N" for the missing bots.
+@export var bot_names: PackedStringArray = PackedStringArray()
 ## Block timer in seconds, 3-12.
 @export var block_timer: float = 5.0
 ## Bontago-1pi.18.1: snapshot of the host's QolExperiments (all OFF by default)
@@ -674,6 +679,8 @@ func to_dict() -> Dictionary:
 		data["team_numbers"] = team_numbers.duplicate()
 	if not slot_ai_difficulties.is_empty():
 		data["slot_ai_difficulties"] = slot_ai_difficulties.duplicate()
+	if not bot_names.is_empty():
+		data["bot_names"] = bot_names.duplicate()
 	if qol != null:
 		data["qol"] = qol.to_dict()
 	return data
@@ -733,9 +740,27 @@ static func from_dict(data: Dictionary) -> MatchConfig:
 	config.slot_team_ids = _int_array_from(data.get("slot_team_ids"))
 	config.team_numbers = _int_array_from(data.get("team_numbers"))
 	config.slot_ai_difficulties = _int_array_from(data.get("slot_ai_difficulties"))
+	config.bot_names = _names_from(data.get("bot_names"))
 	if data.get("qol") is Dictionary:
 		config.qol = QolExperiments.from_dict(data["qol"] as Dictionary)
 	return config
+
+
+## Bot names from whatever the wire delivered: only String entries survive, at
+## most PLAYER_COUNT_MAX of them, each cleaned like a human's name. Anything else
+## gives an empty array (the "Player N" fallback).
+static func _names_from(value: Variant) -> PackedStringArray:
+	var parsed: PackedStringArray = PackedStringArray()
+	if not (value is Array or value is PackedStringArray):
+		return parsed
+	var items: Array = Array(value)
+	if items.size() > PLAYER_COUNT_MAX:
+		return parsed
+	for item: Variant in items:
+		if not (item is String or item is StringName):
+			return PackedStringArray()
+		parsed.append(PlayerNames.clean(String(item), PlayerNames.BOT_NAME_MAX_LENGTH))
+	return parsed
 
 
 ## A PackedInt32Array from whatever the wire delivered: a PackedInt32Array/

@@ -239,10 +239,18 @@ func bot_roster_entries(config: MatchConfig) -> Array[Dictionary]:
 		bots.append({
 			"peer_id": -1,
 			"slot_id": bot_start + ordinal,
-			"name": "Bot %d (%s)" % [ordinal + 1, label],
+			"name": "%s (%s)" % [_bot_name(config, ordinal), label],
 			"ready": true,
 		})
 	return bots
+
+
+## Bontago-1pi.62: the host-assigned name of bot `ordinal` (MatchConfig.bot_names), or
+## "Bot n" before any was assigned (an older host).
+func _bot_name(config: MatchConfig, ordinal: int) -> String:
+	if config != null and ordinal < config.bot_names.size() and config.bot_names[ordinal] != "":
+		return config.bot_names[ordinal]
+	return "Bot %d" % (ordinal + 1)
 
 
 ## The `"seats"` table a host publish merges in (empty = no key yet). Until a roster has
@@ -648,7 +656,7 @@ func _build_human_row(entry: Dictionary) -> LobbySeatRow:
 func _build_bot_row(ordinal: int) -> LobbySeatRow:
 	var key: int = LobbySeats.bot_key(ordinal)
 	var row: LobbySeatRow = _new_row(key)
-	row.display_name = "Bot %d" % (ordinal + 1)
+	row.display_name = _bot_name(_config, ordinal)
 	row.subtitle = "AI"
 	row.is_bot = true
 	row.is_ready = true
