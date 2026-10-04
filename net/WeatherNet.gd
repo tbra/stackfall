@@ -37,6 +37,10 @@ func _ready() -> void:
 	var presenter: WeatherPresenter = WeatherPresenter.new()
 	presenter.name = "WeatherPresenter"
 	add_child(presenter)
+	# Bontago-mp0.118: weather ambience loops and gust whoosh, also Events-only.
+	var ambience: WeatherAmbience = WeatherAmbience.new()
+	ambience.name = "WeatherAmbience"
+	add_child(ambience)
 	Events.weather_state_changed.connect(_on_weather_state_changed)
 	Events.net_peer_joined.connect(_on_net_peer_joined)
 	# Bontago-22y.6: snow's patch replication and client caps (net/SnowNet.gd).

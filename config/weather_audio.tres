@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="WeatherAudioTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/WeatherAudioTuning.gd" id="1_wa"]
+
+[resource]
+script = ExtResource("1_wa")
+crossfade_s = 2.0
+pause_duck_db = -12.0
+silent_gain = 0.001
+gust_volume_db = -6.0
+gust_streams = PackedStringArray("res://assets/effects/weather_ambience_v1/gust_01.wav", "res://assets/effects/weather_ambience_v1/gust_02.wav", "res://assets/effects/weather_ambience_v1/gust_03.wav")
+gust_voices = 3
