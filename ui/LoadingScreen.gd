@@ -486,7 +486,8 @@ func _backdrop_theme_id(config: MatchConfig) -> String:
 		var sky_theme: SkyThemeDef = load(tuning.backdrop_cycle_theme_path) as SkyThemeDef
 		var cycle_id: String = ""
 		if sky_theme != null:
-			cycle_id = tuning.backdrop_theme_for_phase(sky_theme.cycle_start_phase, sky_theme)
+			cycle_id = tuning.backdrop_theme_for_phase(
+				config.sky_start_phase if config.sky_start_phase >= 0.0 else sky_theme.cycle_start_phase, sky_theme)
 		return cycle_id if not cycle_id.is_empty() else tuning.backdrop_fallback_theme
 	if config.sky_theme_mode == MatchConfig.SkyThemeMode.RANDOM and config.sky_theme_resolved.is_empty():
 		return ""

@@ -29,6 +29,12 @@ extends Resource
 ## sky_theme_mode / sky_theme_resolved with no new wire field.
 ## Phase a running Cycle match opens at (0.10 = morning, sun ~38 degrees, full day).
 @export_range(0.0, 1.0, 0.01) var cycle_start_phase: float = 0.10
+## Bontago-1pi.75: a Cycle match opens at a random phase in [min, max] (host-rolled from
+## the match seed, MatchConfig.resolve_sky_start_phase). DECISION: 0.0..0.62 spans dawn,
+## noon and the sunset into early dusk, avoiding the pitch-black midnight (0.75) as an
+## opening; widen max toward 1.0 to allow night starts.
+@export_range(0.0, 1.0, 0.01) var cycle_random_start_min: float = 0.0
+@export_range(0.0, 1.0, 0.01) var cycle_random_start_max: float = 0.62
 ## Phase the lobby's "Sunset" option (id "sunset") is locked at: sun low on the setting side.
 @export_range(0.0, 1.0, 0.005) var cycle_locked_phase_sunset: float = 0.47
 ## Phase the lobby's "Dawn" option (id "dawn") is locked at: just after sunrise.

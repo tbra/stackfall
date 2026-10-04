@@ -64,6 +64,9 @@ const SKY_THEME_IDS: PackedStringArray = ["sunset", "night", "dawn"]
 ## largest seed (a 31-bit int, so core/SkyVariation's integer hash never overflows).
 const SKY_VARIATION_SEED_UNRESOLVED: int = -1
 const SKY_VARIATION_SEED_MAX: int = 2147483647
+## Bontago-1pi.75: sky_start_phase's "not resolved" value (the cycle then opens at
+## SkyThemeDef.cycle_start_phase).
+const SKY_START_PHASE_UNRESOLVED: float = -1.0
 
 ## Game mode (Bontago-22y.11). Appended-only like the other enums: ints ride
 ## in to_dict() and in saved lobbies. Only the ids in SELECTABLE_GAME_MODES
@@ -199,6 +202,11 @@ const TEAM_PICK_MAX: int = 4
 ## with a deterministic rng_seed (>= 0) needs no roll: effective_sky_variation_seed()
 ## falls back to it, keeping seeded tests and bot loops reproducible.
 @export var sky_variation_seed: int = SKY_VARIATION_SEED_UNRESOLVED
+## Bontago-1pi.75: the phase (0..1, Skybox cycle phase) a running Cycle sky opens at.
+## -1 = not resolved (opens at SkyThemeDef.cycle_start_phase). The host rolls it once
+## per match from the match seed (resolve_sky_start_phase) and it rides in to_dict(),
+## so every peer, and the loading screen backdrop, agree. Unused by locked presets.
+@export var sky_start_phase: float = SKY_START_PHASE_UNRESOLVED
 ## Spec 3.4 "Mid-match joins can be enabled in settings" (Bontago-8or.11): when
 ## true the host admits a new peer while a match runs (an open human seat, else
 ## a spectator) and replays the world to it. Off by default, so a match stays
@@ -521,6 +529,7 @@ func sanitize() -> void:
 	if not SKY_THEME_IDS.has(sky_theme_resolved):
 		sky_theme_resolved = ""
 	sky_variation_seed = clampi(sky_variation_seed, SKY_VARIATION_SEED_UNRESOLVED, SKY_VARIATION_SEED_MAX)
+	sky_start_phase = clampf(sky_start_phase, SKY_START_PHASE_UNRESOLVED, 1.0)
 	if player_colors.size() < PLAYER_COUNT_MAX:
 		var defaults: PackedColorArray = default_player_colors()
 		var padded: PackedColorArray = player_colors.duplicate()
@@ -596,6 +605,23 @@ func resolve_sky_variation_seed(roll: int) -> void:
 	sky_variation_seed = posmod(roll, SKY_VARIATION_SEED_MAX + 1)
 
 
+## Host only, at match start after resolve_sky_variation_seed: picks the phase a running
+## Cycle opens at, uniformly in [phase_min, phase_max], from a RandomNumberGenerator
+## seeded with effective_sky_variation_seed() (the host-rolled seed, or the match's
+## deterministic rng_seed), so a seed always gives the same phase and two seeds differ.
+## `roll` is used only when the match has no seed at all. Locked presets and an already
+## resolved phase are left alone.
+func resolve_sky_start_phase(roll: int, phase_min: float, phase_max: float) -> void:
+	if not is_sky_cycle_running() or sky_start_phase >= 0.0:
+		return
+	var seed_value: int = effective_sky_variation_seed()
+	if seed_value < 0:
+		seed_value = posmod(roll, SKY_VARIATION_SEED_MAX + 1)
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = seed_value
+	sky_start_phase = clampf(rng.randf_range(phase_min, phase_max), 0.0, 1.0)
+
+
 ## The seed the cycle sky's variation should use, or SKY_VARIATION_SEED_UNRESOLVED
 ## (-1) when this config has none (the sky then falls back to SkyVariation's shared
 ## default curve). The host's resolved sky_variation_seed wins; otherwise the match's
@@ -666,6 +692,7 @@ func to_dict() -> Dictionary:
 		"sky_theme_mode": sky_theme_mode,
 		"sky_theme_resolved": sky_theme_resolved,
 		"sky_variation_seed": sky_variation_seed,
+		"sky_start_phase": sky_start_phase,
 		"allow_mid_match_join": allow_mid_match_join,
 		"per_player_timer": per_player_timer,
 		"hot_seat": hot_seat,
@@ -727,6 +754,9 @@ static func from_dict(data: Dictionary) -> MatchConfig:
 	var variation_seed: Variant = data.get("sky_variation_seed", config.sky_variation_seed)
 	if variation_seed is int or variation_seed is float:
 		config.sky_variation_seed = clampi(int(variation_seed), SKY_VARIATION_SEED_UNRESOLVED, SKY_VARIATION_SEED_MAX)
+	var start_phase: Variant = data.get("sky_start_phase", config.sky_start_phase)
+	if start_phase is int or start_phase is float:
+		config.sky_start_phase = clampf(float(start_phase), SKY_START_PHASE_UNRESOLVED, 1.0)
 	# Host-validated (Bontago-8or.11): bool("false") is true, so a String or
 	# any other type from Steam lobby data or an old build keeps the default.
 	var mid_match_join: Variant = data.get("allow_mid_match_join", config.allow_mid_match_join)
