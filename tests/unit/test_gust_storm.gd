@@ -18,6 +18,8 @@ const BLOCK_SHAPE_PATH: String = "res://config/blocks/cube.tres"
 const PHYSICS_TUNING_PATH: String = "res://config/physics_tuning.tres"
 const FAST_SPAWN_INTERVAL_S: float = 0.1
 const DURATION_MARGIN_S: float = 1.0
+const BUSY_INTERVAL_S: float = 1.2
+const BUSY_DURATION_S: float = 0.5
 
 var _tuning: BreezeTuning = null
 var _blocks: Array[Block] = []
@@ -28,6 +30,10 @@ var _weather_id: StringName = &""
 
 func before_each() -> void:
 	_tuning = (load(BREEZE_TUNING_PATH) as BreezeTuning).duplicate() as BreezeTuning
+	# Frequent short gusts so the statistics are meaningful (shipped defaults are sporadic).
+	_tuning.spawn_interval_s = BUSY_INTERVAL_S
+	_tuning.duration_min_s = BUSY_DURATION_S
+	_tuning.duration_max_s = BUSY_DURATION_S
 	_blocks.clear()
 	_gusts_seen.clear()
 	_weather_id = &""

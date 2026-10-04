@@ -25,6 +25,8 @@ const SHORT_LAYERS: int = 3
 const SHORT_MAX_M: float = 0.1
 const GUST_SEEDS: Array[int] = [1, 2, 3, 4, 5, 6]
 const GUST_TOPPLE_MIN: int = 5
+const STRONG_GUST_RADIUS_M: float = 12.0
+const STRONG_GUST_DURATION_S: float = 5.0
 
 var _field: Field = null
 var _registry: BlockRegistry = null
@@ -103,6 +105,10 @@ func _measure(top: Block, seconds: float, step: Callable) -> float:
 func _gust_sway(tower: Array[Block], seed_value: int, strength: float) -> float:
 	var tuning: BreezeTuning = (load("res://config/breeze.tres") as BreezeTuning).duplicate() as BreezeTuning
 	tuning.spawn_interval_s = 1.0e6
+	# Capability test: an explicitly strong gust (the pre-1pi.76 defaults), not the
+	# shipped small, short gust (r 4-6 m, 1.5-2.5 s), which topples only some towers.
+	tuning.radius_max_m = STRONG_GUST_RADIUS_M
+	tuning.duration_max_s = STRONG_GUST_DURATION_S
 	var effect: BreezeEffect = BreezeEffect.new()
 	effect.tuning = tuning
 	effect.set_test_world(func() -> Array: return _registry.all_blocks(), _surface)
