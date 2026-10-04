@@ -18,6 +18,9 @@ var _tiny_map: MapDef
 func before_each() -> void:
 	Match.set_process(false)
 	Match.abort_match()
+	# A previous script in the same process (Sandbox's forced-special drawer) may have left a custom
+	# drawer installed; _special_drawer is deliberately not reset per match.
+	Match._gifts.set_special_drawer(Match._gifts._default_special_drawer)
 	_tiny_map = (load("res://config/maps/round_medium.tres") as MapDef).duplicate(true)
 	_tiny_map.field_radius = 20.0
 	_field = autofree(Field.new())
