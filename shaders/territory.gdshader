@@ -101,6 +101,28 @@ uniform float wfog_strength : hint_range(0.0, 1.0) = 0.0;
 uniform float wfog_begin = 30.0;
 uniform float wfog_end = 110.0;
 uniform vec4 wfog_color : source_color = vec4(0.72, 0.8, 0.88, 1.0);
+// Bontago-mp0.127: cloud shadows (vfx/CloudShadows.gd). The disc is EMISSION-dominated (planar
+// mirror), which a Decal cannot darken, so the same two cross-fading shadow layers are sampled
+// here. cshadow_*_m maps world position to the layer's unit box (-0.5..0.5 per axis, the Decal's
+// own mapping); cshadow_*_alpha is the layer's strength (0 = off); cshadow_color is the tint.
+uniform sampler2D cshadow_tex_a : filter_linear, repeat_disable;
+uniform sampler2D cshadow_tex_b : filter_linear, repeat_disable;
+uniform mat4 cshadow_a_m = mat4(1.0);
+uniform mat4 cshadow_b_m = mat4(1.0);
+uniform float cshadow_a_alpha = 0.0;
+uniform float cshadow_b_alpha = 0.0;
+uniform vec3 cshadow_color : source_color = vec3(0.02, 0.025, 0.07);
+
+float cshadow_layer(sampler2D tex, mat4 to_unit, float alpha, vec3 world) {
+	if (alpha <= 0.0) {
+		return 0.0;
+	}
+	vec3 local = (to_unit * vec4(world, 1.0)).xyz;
+	if (abs(local.x) > 0.5 || abs(local.y) > 0.5 || abs(local.z) > 0.5) {
+		return 0.0;
+	}
+	return texture(tex, local.xz + 0.5).a * alpha;
+}
 uniform sampler2D territory_tex : filter_linear, repeat_disable;
 uniform sampler2D territory_cells : filter_nearest, repeat_disable;
 uniform sampler2D territory_state : filter_nearest, repeat_disable;
@@ -1329,6 +1351,18 @@ void fragment() {
 		AO = 1.0;
 		NORMAL = snow_flat_normal;
 		v_snow = 0.0;
+	}
+	if (cshadow_a_alpha + cshadow_b_alpha > 0.0) {
+		vec3 cs_world = (INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz;
+		float cs = clamp(cshadow_layer(cshadow_tex_a, cshadow_a_m, cshadow_a_alpha, cs_world)
+				+ cshadow_layer(cshadow_tex_b, cshadow_b_m, cshadow_b_alpha, cs_world), 0.0, 1.0);
+		vec3 cs_tint = mix(vec3(1.0), cshadow_color, cs);
+		ALBEDO *= cs_tint;
+		EMISSION *= cs_tint;
+		// Indirect light and reflections are not scaled by ALBEDO on this mirror-like disc, so
+		// the shadow also removes ambient occlusion share and specular.
+		AO *= 1.0 - cs;
+		SPECULAR *= 1.0 - cs;
 	}
 	if (wfog_strength > 0.0) {
 		float wfog = clamp((length(VERTEX) - wfog_begin) / max(wfog_end - wfog_begin, 0.001), 0.0, 1.0) * wfog_strength;

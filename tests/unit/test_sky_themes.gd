@@ -756,8 +756,11 @@ func test_noon_mixes_the_dawn_light_fog_and_puff_palette_with_no_night() -> void
 	assert_true(environment.fog_light_color.is_equal_approx(dawn.fog_color), "dawn fog at noon")
 	assert_true(skybox.theme.fog_color.is_equal_approx(dawn.fog_color))
 	assert_true(light.light_color.is_equal_approx(dawn.light_color), "dawn light colour at noon")
-	assert_almost_eq(skybox.theme.light_energy, dawn.light_energy, 0.0001, "dawn key light energy at noon")
-	assert_almost_eq(environment.ambient_light_energy, dawn.ambient_energy, 0.0001, "dawn ambient at noon")
+	# Bontago-mp0.127: the high sun adds its contrast gain on the dawn key light and ambient.
+	assert_almost_eq(skybox.theme.light_energy, dawn.light_energy * SunContrast.light_scale(
+		skybox.sun_direction().y, dawn.cycle_sun_energy_gain, dawn.cycle_sun_contrast_full_sin), 0.0001, "dawn key light energy at noon")
+	assert_almost_eq(environment.ambient_light_energy, dawn.ambient_energy * SunContrast.ambient_scale(
+		skybox.sun_direction().y, dawn.cycle_day_ambient_scale, dawn.cycle_sun_contrast_full_sin), 0.0001, "dawn ambient at noon")
 	var puffs: ShaderMaterial = skybox.get_cloud_sea().puff_material()
 	assert_not_null(puffs, "fixture: the sunset structure builds puffs")
 	for uniform: StringName in SkyPalette.PUFF_UNIFORM_COLORS:
