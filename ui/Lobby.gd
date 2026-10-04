@@ -345,6 +345,7 @@ func _ready() -> void:
 	# host-only kick (a no-op for a client, whose _republish_roster_if_host()
 	# guard is already false) draws the host's own row on the very first frame
 	# instead of leaving the Players card at "0 / N" until someone else connects.
+	_reset_roster_ready_on_entry()
 	_republish_roster_if_host()
 	# Bontago-mp0.3.5 (review r2, item 2): _apply_visual_style() now also
 	# builds the stepper "-"/"+" buttons (_add_stepper_buttons()), so it must
@@ -1474,6 +1475,13 @@ func _clamp_ai_count_to_seats() -> void:
 	var seats: int = int(_player_count_spin.value)
 	var humans: int = net_provider.peer_ids().size()
 	_ai_count_spin.max_value = maxi(0, seats - humans)
+
+
+## Bontago-1pi.73: the Ready toggle starts off on every (re)entry, so the host
+## clears the roster's flags to match (DECISION: reset both, not restore).
+func _reset_roster_ready_on_entry() -> void:
+	if net_provider != null and bool(net_provider.is_host()):
+		net_provider.reset_ready_flags()
 
 
 func _on_ready_toggled(pressed: bool) -> void:
