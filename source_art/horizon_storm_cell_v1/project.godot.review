@@ -1,0 +1,17 @@
+config_version=5
+
+[application]
+config/name="Horizon Storm Cell Review"
+run/main_scene="res://vfx/weather/horizon_storm_cell_v1/storm_cell_preview.tscn"
+
+[display]
+window/size/viewport_width=1600
+window/size/viewport_height=900
+window/size/window_width_override=1600
+window/size/window_height_override=900
+
+[rendering]
+renderer/rendering_method="forward_plus"
+
+[physics]
+3d/default_gravity=9.8
