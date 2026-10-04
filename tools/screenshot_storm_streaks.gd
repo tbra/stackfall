@@ -1,8 +1,10 @@
 extends Node
 ## Bontago-mp0.35: storm streak look probe in REAL gameplay (Main sandbox) with a
-## tall tower in view. Saves user://storm_streaks.png:
-##   godot --path . --windowed --position 10000,10000 --resolution 320x180 --audio-driver Dummy res://tools/screenshot_storm_streaks.tscn -- --agent-probe
-const OUTPUT_DIR: String = "user://"
+## tall tower in view. Run once per density for matched visual/performance probes:
+##   godot --path . --windowed --position 10000,10000 --resolution 320x180 --audio-driver Dummy res://tools/screenshot_storm_streaks.tscn -- 36
+##   godot --path . --windowed --position 10000,10000 --resolution 320x180 --audio-driver Dummy res://tools/screenshot_storm_streaks.tscn -- 72
+## Saves matched 3440x1440 captures under docs/art_mockups/storm_trails_v1/native/.
+const OUTPUT_DIR: String = "res://docs/art_mockups/storm_trails_v1/native/"
 const CAPTURE_SIZE: Vector2i = Vector2i(3440, 1440)
 const SETTLE_TICKS: int = 60
 const TOWER_CUBES: int = 40
@@ -16,6 +18,7 @@ const CAMERA_PITCH_DEG: float = -8.0
 const CAMERA_TARGET_HEIGHT_M: float = 27.0
 const STORM_SEED: int = 11
 const STORM_WAIT_S: float = 3.0
+const PERF_SAMPLE_FRAMES: int = 180
 
 
 func _ready() -> void:
@@ -41,10 +44,16 @@ func _ready() -> void:
 	await _wait(30)
 	var storm: StormPresentation = StormPresentation.new()
 	main.add_child(storm)
-	storm.configure(STORM_SEED)
+	var args: PackedStringArray = OS.get_cmdline_user_args()
+	var count: int = int(args[0]) if not args.is_empty() else 72
+	var tuning: StormTuning = (load("res://config/weather/storm.tres") as StormTuning).duplicate(true) as StormTuning
+	tuning.streak_count = count
+	storm.configure(STORM_SEED, tuning)
 	storm.set_intensity(1.0)
+	var frame_ms: Array[float] = await _measure_frame_time()
+	print("STORM_TRAILS_PERF count=%d instances=%d frame_ms_median=%.3f frame_ms_p95=%.3f draw_calls=%d primitives=%d" % [count, storm.total_instances(), frame_ms[0], frame_ms[1], int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)), int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))])
 	await get_tree().create_timer(STORM_WAIT_S).timeout
-	await _shoot("storm_streaks.png")
+	await _shoot("storm_streaks_%d.png" % count)
 	get_tree().quit()
 
 
@@ -66,6 +75,7 @@ func _shoot(file_name: String) -> void:
 	await RenderingServer.frame_post_draw
 	var image: Image = await _render_large_shot()
 	var path: String = OUTPUT_DIR + file_name
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUTPUT_DIR))
 	image.save_png(path)
 	print("SCREENSHOT arena saved=%s size=%s" % [ProjectSettings.globalize_path(path), image.get_size()])
 
@@ -100,3 +110,18 @@ func _render_large_shot() -> Image:
 func _wait(frames: int) -> void:
 	for _i: int in range(frames):
 		await get_tree().physics_frame
+
+
+func _measure_frame_time() -> Array[float]:
+	var samples: Array[float] = []
+	for _i: int in range(PERF_SAMPLE_FRAMES):
+		var start_us: int = Time.get_ticks_usec()
+		await get_tree().process_frame
+		samples.append(float(Time.get_ticks_usec() - start_us) / 1000.0)
+	samples.sort()
+	var median_index: int = int(samples.size() / 2)
+	var p95_index: int = mini(int(ceil(float(samples.size()) * 0.95)), samples.size() - 1)
+	var result: Array[float] = []
+	result.append(samples[median_index])
+	result.append(samples[p95_index])
+	return result
