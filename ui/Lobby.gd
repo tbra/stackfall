@@ -439,6 +439,9 @@ func _populate_options() -> void:
 	# Bontago-22y.10: order must match MatchConfig.WeatherMode.
 	# Labels come from the enum names, so a new weather type needs no edit here.
 	_fill_option(_weather_option, MatchWeather.mode_labels())
+	for weather_index: int in _weather_option.item_count:
+		_weather_option.set_item_icon(weather_index, GiftIconTable.shared().weather_pictogram(weather_index))
+	_weather_option.add_theme_constant_override("icon_max_width", GiftIconTable.shared().lobby_icon_px)
 	# Bontago-470.4: order must match MatchConfig.SkyThemeMode.
 	# Bontago-59o.18 (U1): the DAY entry is the cycle locked at sunset, so it
 	# reads "Sunset"; Cycle is the default through MatchConfig.sky_theme_mode.
@@ -460,6 +463,13 @@ func _fill_option(option: OptionButton, labels: Array) -> void:
 	option.clear()
 	for label: String in labels:
 		option.add_item(label)
+
+
+## Bontago-mp0.125: shows a pictogram on a toggle at the table's lobby icon size.
+func _apply_icon(button: Button, texture: Texture2D) -> void:
+	button.icon = texture
+	button.expand_icon = true
+	button.add_theme_constant_override("icon_max_width", GiftIconTable.shared().lobby_icon_px)
 
 
 ## M6 A4 (docs/M6_PLAN.md "A4 -- Enabled-specials checklist"): one CheckBox per
@@ -487,6 +497,7 @@ func _build_specials_checklist() -> void:
 		# "Jumping Bean" the way String.capitalize() already title-cases an
 		# underscore-joined identifier.
 		box.text = String(special.id).capitalize()
+		_apply_icon(box, GiftIconTable.shared().gift_pictogram(special.id))
 		box.button_pressed = true
 		box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		box.toggled.connect(_on_toggled)
