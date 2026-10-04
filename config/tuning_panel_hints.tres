@@ -1575,7 +1575,7 @@ descriptions = {
 "BreezeTuning.gust_streak_length_m": "Longest gust wisp in world meters.",
 "BreezeTuning.gust_streak_width_m": "Thickest part of a gust wisp ribbon in meters.",
 "BreezeTuning.gust_streak_speed_ms": "Drift speed in meters per second of a gust wisp along the gust heading.",
-"StormTuning.streak_count": "Swoosh strokes of the ambient wind alive at once at full intensity; few, so they read as wisps of motion.",
+"StormTuning.streak_count": "Wind-aligned swoosh strokes alive at once at full intensity; higher values make the storm's moving trails denser.",
 "StormTuning.streak_length_m": "Arc length of a wind swoosh stroke in world meters before its random variation.",
 "StormTuning.streak_width_m": "Thickest part of a wind swoosh stroke ribbon in meters.",
 "StormTuning.streak_life_m": "Meters a wind stroke drifts along the wind over its draw-on, hold, erase life.",
