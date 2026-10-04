@@ -35,6 +35,11 @@ enum Phase { RAMP_IN, HOLD, RAMP_OUT }
 ## Host-side physics effect: a script extending WeatherEffect. Empty means the
 ## weather has no physics effect (visual-only, or a later package's slot).
 @export_file("*.gd") var effect_script: String = ""
+## Looping ambience bed (Bontago-mp0.118), played on every peer while this
+## weather is active; its volume follows the ramped intensity. Empty = silent.
+@export_file("*.wav") var ambience_loop: String = ""
+## Bed volume (dB) at full intensity, before the Master/SFX sliders.
+@export_range(-40.0, 6.0, 0.5) var ambience_volume_db: float = 0.0
 
 
 ## The ramp factor 0..1 for `phase` after `phase_t` seconds in it.

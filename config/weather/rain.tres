@@ -12,4 +12,6 @@ ramp_out_s = 4.0
 hold_min_s = 40.0
 hold_max_s = 80.0
 presentation_scene = "res://vfx/weather/rain_presentation.tscn"
+ambience_loop = "res://assets/effects/weather_ambience_v1/rain_loop.wav"
+ambience_volume_db = 0.0
 effect_script = "res://autoload/match/weather/RainEffect.gd"
