@@ -22,6 +22,28 @@ func test_spawns_configured_count_in_ring_band() -> void:
 		assert_between(node.scale.y, cfg.scale_min - 0.001, cfg.scale_max + 0.001)
 
 
+func test_caps_tilt_toward_arena_and_float_above_cloud_banks() -> void:
+	# Bontago-mp0.123 root cause: horizon cloud banks (tops up to 60 m) hid the
+	# rock bodies of islands whose caps sat near eye height. The whole body
+	# must hang above the bank tops, and the cap must tip toward the center.
+	var ring: HorizonIslands = _build(&"round_medium")
+	var cfg: HorizonIslandsConfig = ring.config
+	var highest_bank_top_m: float = 0.0
+	for theme_path: String in DirAccess.get_files_at("res://config/sky_themes"):
+		if theme_path.ends_with(".tres"):
+			var theme: SkyThemeDef = load("res://config/sky_themes/" + theme_path) as SkyThemeDef
+			if theme != null and theme.cloud_bank_count > 0:
+				highest_bank_top_m = maxf(highest_bank_top_m, theme.cloud_bank_top_max_m)
+	assert_gt(cfg.toward_tilt_deg, 0.0)
+	for child: Node in ring.get_children():
+		var island: Node3D = child as Node3D
+		var lod0: VisualInstance3D = island.get_node("LOD0") as VisualInstance3D
+		var bottom_y: float = (island.global_transform * lod0.get_aabb()).position.y
+		assert_gt(bottom_y, highest_bank_top_m, "island body above the cloud-bank tops")
+		var to_center: Vector3 = Vector3(-island.position.x, 0.0, -island.position.z).normalized()
+		assert_gt(island.global_basis.y.normalized().dot(to_center), 0.0, "cap tips toward the arena")
+
+
 func test_lods_use_visibility_ranges_no_shadow_no_collision() -> void:
 	var ring: HorizonIslands = _build(&"round_medium")
 	var cfg: HorizonIslandsConfig = ring.config
@@ -69,3 +91,28 @@ func test_config_hints_complete() -> void:
 		if t == TYPE_FLOAT or t == TYPE_INT:
 			var r: Vector2 = hints.range_for("HorizonIslandsConfig", n)
 			assert_false(is_nan(r.x), n)
+
+
+func test_self_lit_material_follows_sun_and_config() -> void:
+	# Sky ambient flattened every facet to one tone; the island shader is
+	# unshaded and lit from the wired sun with a cap/rock split.
+	var sun: DirectionalLight3D = DirectionalLight3D.new()
+	add_child_autofree(sun)
+	sun.rotation_degrees = Vector3(-50.0, 30.0, 0.0)
+	sun.light_color = Color(0.9, 0.8, 0.7)
+	var ring: HorizonIslands = HorizonIslands.new()
+	add_child_autofree(ring)
+	ring.sun_path = ring.get_path_to(sun)
+	var map: MapDef = MapDef.new()
+	map.id = &"round_medium"
+	ring.rebuild_for_map(map)
+	var lod0: GeometryInstance3D = ring.get_child(0).get_node("LOD0") as GeometryInstance3D
+	var material: ShaderMaterial = lod0.material_override as ShaderMaterial
+	assert_eq(material.shader, HorizonIslands.ISLAND_SHADER)
+	assert_eq(material.get_shader_parameter(&"cap_tint"), ring.config.cap_tint)
+	assert_eq(material.get_shader_parameter(&"shadow_level"), ring.config.shadow_level)
+	var to_sun: Vector3 = material.get_shader_parameter(&"sun_direction") as Vector3
+	# The light shines along its -Z, so the vector toward the sun is +Z.
+	assert_almost_eq(to_sun.dot(sun.global_basis.z.normalized()), 1.0, 0.001)
+	assert_eq(material.get_shader_parameter(&"sun_color"), sun.light_color)
+	assert_lt(ring.config.shadow_level, ring.config.mid_level)

@@ -10,6 +10,9 @@ const START_DISTANCE_M: float = 34.0
 const HOME_OFFSET_M: float = 30.0
 const SETTLE_FRAMES: int = 90
 const CAMERA_HEIGHT_M: float = 6.0
+## Close-up diagnosis framing (pass --closeup after --).
+const CLOSEUP_DISTANCE_M: float = 320.0
+const CLOSEUP_DROP_M: float = 60.0
 const THEMES: Dictionary = {"day": 0.25, "dusk": 0.47}
 
 
@@ -27,15 +30,43 @@ func _ready() -> void:
 	var panel: TuningPanel = panels[0] as TuningPanel
 	panel.apply_sky_theme_id("cycle")
 	var sky: Skybox = main.get_node("Skybox") as Skybox
+	var first: bool = true
 	for theme_id: String in THEMES:
 		await _wait(SETTLE_FRAMES)
 		sky.set_locked_phase(float(THEMES[theme_id]))
 		await _wait(SETTLE_FRAMES)
 		ring.visible = true
+		if first and OS.get_cmdline_user_args().has("--closeup"):
+			await _closeup(ring.get_child(0) as Node3D)
+		first = false
 		await _shoot("islands_%s.png" % theme_id, target, true, START_PITCH_DEG)
-		ring.visible = false
-		await _shoot("islands_%s_off.png" % theme_id, target, false, START_PITCH_DEG)
 	get_tree().quit()
+
+
+## Close-up of one island in the real shader and sky (diagnosis only): camera
+## CLOSEUP_DISTANCE_M from the island toward the arena, at CLOSEUP_DROP_M below the cap.
+func _closeup(island: Node3D) -> void:
+	var sub: SubViewport = SubViewport.new()
+	sub.size = CAPTURE_SIZE
+	sub.world_3d = get_viewport().world_3d
+	sub.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	var camera: Camera3D = Camera3D.new()
+	camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	camera.far = CLOSEUP_DISTANCE_M * 4.0
+	sub.add_child(camera)
+	add_child(sub)
+	var p: Vector3 = island.global_position
+	var toward: Vector3 = Vector3(-p.x, 0.0, -p.z).normalized()
+	var eye: Vector3 = p + toward * CLOSEUP_DISTANCE_M + Vector3.DOWN * CLOSEUP_DROP_M
+	var aim: Vector3 = p + Vector3.DOWN * CLOSEUP_DROP_M * 0.5
+	camera.global_transform = Transform3D(Basis.IDENTITY, eye).looking_at(aim, Vector3.UP)
+	camera.current = true
+	for _i: int in range(6):
+		await RenderingServer.frame_post_draw
+	var image: Image = sub.get_texture().get_image()
+	image.save_png("user://islands_closeup.png")
+	print("SCREENSHOT saved=%s" % ProjectSettings.globalize_path("user://islands_closeup.png"))
+	sub.queue_free()
 
 
 func _shoot(file_name: String, target: Vector3, report: bool, pitch_deg: float) -> void:

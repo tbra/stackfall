@@ -67,3 +67,4 @@ script = ExtResource("7_sunflare")
 camera_path = NodePath("../CameraRig/Camera3D")
 
 [node name="HorizonIslands" parent="." instance=ExtResource("90_islands")]
+sun_path = NodePath("../DirectionalLight3D")

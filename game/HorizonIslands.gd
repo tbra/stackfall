@@ -20,6 +20,8 @@ const HAZE_REFRESH_S: float = 0.5
 const DEFAULT_CONFIG: HorizonIslandsConfig = preload("res://config/horizon_islands.tres")
 
 @export var config: HorizonIslandsConfig = DEFAULT_CONFIG
+## The scene sun; its direction and colour light the (unshaded) island shader.
+@export var sun_path: NodePath = NodePath("")
 
 var _material: ShaderMaterial = null
 var _environment: Environment = null
@@ -56,6 +58,24 @@ static func placements_for(cfg: HorizonIslandsConfig, map_id: StringName) -> Arr
 	return result
 
 
+## World transform of one placement: random yaw and small tilt, then the cap
+## tipped toward the arena center by toward_tilt_deg so a camera below the
+## island (they float above the horizon cloud banks) still sees its top.
+static func transform_for(entry: Dictionary, cfg: HorizonIslandsConfig) -> Transform3D:
+	var position: Vector3 = entry["position"] as Vector3
+	var stretch: Vector2 = entry["stretch"] as Vector2
+	var tilt: Vector2 = entry["tilt"] as Vector2
+	var own: Basis = Basis.from_euler(Vector3(tilt.x, float(entry["yaw"]), tilt.y))
+	var to_center: Vector3 = Vector3(-position.x, 0.0, -position.z)
+	var toward: Basis = Basis.IDENTITY
+	if to_center.length_squared() > 0.0 and cfg.toward_tilt_deg != 0.0:
+		# Rotating up about (up x to_center) moves the cap normal toward the center.
+		var axis: Vector3 = Vector3.UP.cross(to_center.normalized())
+		toward = Basis(axis, deg_to_rad(cfg.toward_tilt_deg))
+	var scale_vec: Vector3 = Vector3(stretch.x, 1.0, stretch.y) * float(entry["scale"])
+	return Transform3D(toward * own * Basis.from_scale(scale_vec), position)
+
+
 ## Rebuilds the ring for a map (called whenever the world is (re)built).
 func rebuild_for_map(map: MapDef, environment: Environment = null) -> void:
 	if environment != null:
@@ -64,6 +84,11 @@ func rebuild_for_map(map: MapDef, environment: Environment = null) -> void:
 	_material.shader = ISLAND_SHADER
 	_material.set_shader_parameter(&"haze_amount", config.haze_amount)
 	_material.set_shader_parameter(&"color_gain", config.color_gain)
+	_material.set_shader_parameter(&"cap_normal_min_y", config.cap_normal_min_y)
+	_material.set_shader_parameter(&"cap_tint", config.cap_tint)
+	_material.set_shader_parameter(&"rock_tint", config.rock_tint)
+	_material.set_shader_parameter(&"shadow_level", config.shadow_level)
+	_material.set_shader_parameter(&"mid_level", config.mid_level)
 	_refresh_haze()
 	for child: Node in get_children():
 		remove_child(child)
@@ -71,11 +96,7 @@ func rebuild_for_map(map: MapDef, environment: Environment = null) -> void:
 	var map_id: StringName = map.id if map != null else &""
 	for entry: Dictionary in placements_for(config, map_id):
 		var island: Node3D = VARIANT_SCENES[int(entry["variant"])].instantiate() as Node3D
-		island.position = entry["position"] as Vector3
-		var stretch: Vector2 = entry["stretch"] as Vector2
-		var tilt: Vector2 = entry["tilt"] as Vector2
-		island.rotation = Vector3(tilt.x, float(entry["yaw"]), tilt.y)
-		island.scale = Vector3(stretch.x, 1.0, stretch.y) * float(entry["scale"])
+		island.transform = transform_for(entry, config)
 		_setup_lods(island)
 		add_child(island)
 
@@ -106,6 +127,14 @@ func _process(delta: float) -> void:
 
 ## Time-of-day tint: the live sky fog colour (Skybox writes it into the
 ## Environment for every theme and the day/night cycle) becomes the haze colour.
+## The sun's direction and colour follow the Skybox's day/night light too.
 func _refresh_haze() -> void:
-	if _material != null and _environment != null:
+	if _material == null:
+		return
+	if _environment != null:
 		_material.set_shader_parameter(&"haze_color", _environment.fog_light_color)
+	var sun: DirectionalLight3D = get_node_or_null(sun_path) as DirectionalLight3D if not sun_path.is_empty() else null
+	if sun != null:
+		# A DirectionalLight3D shines along its -Z; the shader wants the vector toward the sun.
+		_material.set_shader_parameter(&"sun_direction", sun.global_basis.z.normalized())
+		_material.set_shader_parameter(&"sun_color", sun.light_color)
