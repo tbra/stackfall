@@ -3,7 +3,11 @@ extends Node
 ## and without the ring. Off-screen:
 ##   godot --path . --windowed --position 10000,10000 --resolution 320x180 --audio-driver Dummy tools/screenshot_horizon_islands.tscn --quit-after 600 -- --agent-probe
 const CAPTURE_SIZE: Vector2i = Vector2i(1280, 720)
-const LOW_PITCH_DEG: float = -6.0
+## Owner start framing (feedback/ref_camera_start.png): camera just outside the
+## rim behind the home beacon, raised to see the whole disc, looking outward.
+const START_PITCH_DEG: float = -14.0
+const START_DISTANCE_M: float = 34.0
+const HOME_OFFSET_M: float = 30.0
 const SETTLE_FRAMES: int = 90
 const CAMERA_HEIGHT_M: float = 6.0
 const THEMES: Dictionary = {"day": 0.25, "dusk": 0.47}
@@ -28,10 +32,9 @@ func _ready() -> void:
 		sky.set_locked_phase(float(THEMES[theme_id]))
 		await _wait(SETTLE_FRAMES)
 		ring.visible = true
-		await _shoot("islands_%s.png" % theme_id, target, true, NAN)
-		await _shoot("islands_%s_low.png" % theme_id, target, true, LOW_PITCH_DEG)
+		await _shoot("islands_%s.png" % theme_id, target, true, START_PITCH_DEG)
 		ring.visible = false
-		await _shoot("islands_%s_off.png" % theme_id, target, false, NAN)
+		await _shoot("islands_%s_off.png" % theme_id, target, false, START_PITCH_DEG)
 	get_tree().quit()
 
 
@@ -41,7 +44,9 @@ func _shoot(file_name: String, target: Vector3, report: bool, pitch_deg: float) 
 	# interpolation, so this probe never moves a second camera.
 	var main: Node = get_tree().root.get_node("Main")
 	var rig: CameraRig = main.get_node("CameraRig") as CameraRig
-	rig.set_home_view(Vector3(0.0, CAMERA_HEIGHT_M, 0.0), Vector3(target.x, CAMERA_HEIGHT_M, target.z))
+	var outward: Vector3 = Vector3(target.x, 0.0, target.z).normalized()
+	rig.set_home_view(-outward * HOME_OFFSET_M, outward)
+	rig.set("_distance", START_DISTANCE_M)
 	if not is_nan(pitch_deg):
 		# The player orbiting down to a low angle: still the real rig, just a
 		# flatter pitch so the horizon band fills the frame.

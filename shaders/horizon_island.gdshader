@@ -17,5 +17,6 @@ void fragment() {
 void light() {
 	float facing = dot(NORMAL, LIGHT);
 	float band = 0.36 + 0.28 * step(0.12, facing) + 0.36 * step(0.60, facing);
-	DIFFUSE_LIGHT += ALBEDO * LIGHT_COLOR * ATTENUATION * band;
+	// Godot pre-multiplies LIGHT_COLOR by PI for diffuse; a custom light() must divide it back out or everything blows out to white.
+	DIFFUSE_LIGHT += ALBEDO * LIGHT_COLOR * ATTENUATION * band / PI;
 }

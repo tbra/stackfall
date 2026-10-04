@@ -10,24 +10,24 @@ extends Resource
 ## Number of islands in the ring (0 hides them).
 @export var count: int = 7
 ## Ring distance from the arena center (m), inner and outer bound.
-@export var radius_min_m: float = 1000.0
-@export var radius_max_m: float = 1500.0
+@export var radius_min_m: float = 900.0
+@export var radius_max_m: float = 1300.0
 ## Height band (m, world Y) of each island's cap-surface center. The rock body
 ## hangs below, so the lower part is buried in the cloud layer.
-@export var height_min_m: float = 22.0
-@export var height_max_m: float = 55.0
+@export var height_min_m: float = -4.0
+@export var height_max_m: float = 8.0
 ## Uniform scale range (distant islands must read at 600m+).
-@export var scale_min: float = 1.5
-@export var scale_max: float = 2.6
+@export var scale_min: float = 1.8
+@export var scale_max: float = 3.0
 ## Random angular jitter inside each ring slot (0 = evenly spaced, 1 = whole
 ## slot), so the ring is irregular with clear sky gaps.
 @export var angle_jitter: float = 0.7
 ## Seed mixed with the map id so every map gets its own stable arrangement.
 @export var seed: int = 1207
 ## Distance (m) at which LOD0 hands over to LOD1.
-@export var lod1_begin_m: float = 1150.0
+@export var lod1_begin_m: float = 1050.0
 ## Distance (m) at which LOD1 hands over to LOD2.
-@export var lod2_begin_m: float = 1350.0
+@export var lod2_begin_m: float = 1250.0
 ## Distance (m) beyond which the island is culled (0 = never).
 @export var visibility_end_m: float = 0.0
 ## Extra width/depth stretch: each island's x and z are scaled independently by
@@ -39,4 +39,4 @@ extends Resource
 ## (0 = raw asset facets, 1 = flat haze). Replaces the scene depth fog.
 @export var haze_amount: float = 0.28
 ## Brightness multiplier on the asset's own facet colours before haze and light.
-@export var color_gain: float = 0.85
+@export var color_gain: float = 1.0
