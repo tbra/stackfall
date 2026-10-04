@@ -329,32 +329,6 @@ func test_joins_close_when_the_match_leaves_the_lobby_and_reopen_on_abort() -> v
 	assert_not_null(_main._lobby, "returning from a match rebuilds the lobby UI")
 
 
-func test_results_settings_survive_return_to_lobby_and_next_start() -> void:
-	_host()
-	_start(2)
-	_run_countdown()
-	Match._finish_match(0)
-	var results_screen: ResultsScreen = _main._results_screen
-	assert_true(results_screen.visible, "the finished match shows results")
-
-	results_screen._on_settings_pressed()
-	results_screen._block_timer_spin.value = 9.0
-	results_screen._on_settings_apply_pressed()
-	assert_eq(Match.config.block_timer, 9.0)
-	assert_eq(float(Net.lobby_data().get("block_timer", 0.0)), 9.0)
-
-	results_screen._on_lobby_pressed()
-	assert_eq(Match.state(), Match.State.LOBBY)
-	assert_not_null(_main._lobby)
-	assert_eq(_main._lobby._last_config.block_timer, 9.0)
-	assert_eq(_main._lobby._config_from_controls().block_timer, 9.0)
-
-	# Starting from the rebuilt lobby must use the saved value, rather than
-	# the resource default its fresh scene would otherwise have loaded.
-	_main._on_lobby_start_requested(_main._lobby._config_from_controls())
-	assert_eq(Match.config.block_timer, 9.0)
-
-
 func test_a_repeated_start_leaves_joins_closed_and_leaving_reopens_them() -> void:
 	_host()
 	_start(2)

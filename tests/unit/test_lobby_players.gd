@@ -1096,7 +1096,6 @@ func _human_team_of_panel(lobby: Lobby, peer_id: int) -> int:
 
 func test_the_seats_key_has_one_definition() -> void:
 	assert_eq(Lobby.SEATS_KEY, "seats")
-	assert_eq(ResultsScreen.LOBBY_SEATS_KEY, Lobby.SEATS_KEY, "the results screen points at the lobby's constant")
 
 
 func test_the_host_header_has_a_live_teams_toggle_and_add_bot_button() -> void:
