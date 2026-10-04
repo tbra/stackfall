@@ -95,7 +95,7 @@ extends WeatherTuning
 ## Factors reached at full intensity (1.0 = no change).
 @export_range(0.0, 1.0, 0.01) var overcast_light_scale: float = 0.4
 @export_range(0.0, 1.0, 0.01) var overcast_ambient_scale: float = 0.8
-@export_range(0.0, 1.0, 0.01) var overcast_sky_exposure_scale: float = 0.4
+@export_range(0.0, 1.0, 0.01) var overcast_sky_exposure_scale: float = 0.85
 ## Fog tint toward this cool grey-blue, and how far at full intensity.
 @export var overcast_fog_color: Color = Color(0.5, 0.58, 0.68, 1.0)
 @export_range(0.0, 1.0, 0.01) var overcast_fog_strength: float = 0.6

@@ -26,7 +26,7 @@ func test_fades_in_with_rain_and_out_when_it_clears() -> void:
 	Events.weather_intensity_changed.emit(&"rain", 0.6)
 	_fade(ceiling, ceiling.tuning.fade_in_s + 1.0)
 	assert_almost_eq(ceiling.amount(), 0.6, 0.001)
-	assert_eq(ceiling.storm_amount(), 0.0, "rain never touches the sky theme")
+	assert_almost_eq(ceiling.storm_amount(), 0.6 * ceiling.tuning.rain_sky_blend, 0.001, "rain uses the storm sky at its lighter blend")
 	Events.weather_stopped.emit(&"rain")
 	_fade(ceiling, ceiling.tuning.fade_out_s + 1.0)
 	assert_eq(ceiling.amount(), 0.0)
@@ -307,7 +307,7 @@ func test_rain_snow_and_storm_all_drive_the_shared_overcast() -> void:
 		Events.weather_stopped.emit(weather_id)
 		_fade(ceiling, ceiling.tuning.fade_out_s + 1.0)
 		assert_eq(skybox.cloud_lighting().overcast, 0.0, "clear again")
-	assert_gt(float(seen[&"snow"]), 0.0)
+	assert_lt(float(seen[&"snow"]), 0.0, "snow lifts the clouds (negative dim)")
 
 
 
