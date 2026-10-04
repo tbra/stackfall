@@ -196,6 +196,10 @@ func start_match(match_config: MatchConfig) -> void:
 		# Bontago-59o.18 (C1b follow-up): and the cycle sky's variation seed, so every
 		# match (not just seeded ones) draws its own curve; it rides in to_dict().
 		_match.config.resolve_sky_variation_seed(randi())
+		# Bontago-1pi.75: and the random phase a Cycle sky opens at (seed-derived).
+		var sky_source: SkyThemeDef = Skybox.load_theme(Skybox.DEFAULT_THEME_ID)
+		if sky_source != null:
+			_match.config.resolve_sky_start_phase(randi(), sky_source.cycle_random_start_min, sky_source.cycle_random_start_max)
 
 	# Bontago-1en.23 (M4 P5-TILT): register_world() itself runs before
 	# start_match() on every path (hot-seat, sandbox and the lobby -- see

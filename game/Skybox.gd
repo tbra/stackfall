@@ -216,7 +216,7 @@ func configure_match_sky(match_config: MatchConfig) -> void:
 	# DECISION (Bontago-59o.18): a match opens its sky at shared clock 0:
 	# SnapshotSync.begin_match() resets the clock right after this call, and a
 	# stale clock read here would make the start phase differ between peers.
-	_start_cycle_at(0.0, locked, -1.0)
+	_start_cycle_at(0.0, locked, match_config.sky_start_phase)
 
 
 ## Bontago-1pi.46 (docs/MATCH_RESET_AUDIT.md G1/G2; Events.match_scope_reset runs this
