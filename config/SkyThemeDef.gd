@@ -21,6 +21,14 @@ extends Resource
 @export_range(0.0, 2.0, 0.05) var cycle_moon_halo_strength: float = 0.6
 @export_range(0.2, 3.0, 0.05) var cycle_moon_brightness: float = 1.0
 @export_range(0.05, 1.0, 0.01) var cycle_moon_full_night_mix: float = 0.8
+## Bontago-mp0.127 (owner: "sun should affect light more"): in the cycle the direct sun is
+## multiplied by up to cycle_sun_energy_gain and the sky ambient by cycle_day_ambient_scale as
+## the sun climbs (both identity at the horizon and at night), so lit vs shadowed block faces
+## read clearly at midday and soften at dusk. cycle_sun_contrast_full_sin is the sun elevation
+## (sine) at which the full factor applies.
+@export_range(1.0, 3.0, 0.05) var cycle_sun_energy_gain: float = 1.7
+@export_range(0.2, 1.0, 0.01) var cycle_day_ambient_scale: float = 0.7
+@export_range(0.1, 1.0, 0.01) var cycle_sun_contrast_full_sin: float = 0.6
 ## Bontago-59o.18 (docs/SKY_CYCLE_DEFAULT_PLAN.md): Cycle is the default sky and
 ## the lobby's Sunset / Dawn / Night options become the same cycle locked at a
 ## fixed phase. Phase 0 = dawn horizon, 0.25 = noon, 0.5 = sunset horizon,

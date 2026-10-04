@@ -279,6 +279,7 @@ func _clear_weather_state() -> void:
 	_weather_cloud_overcast = 0.0
 	_snow_brighten = 0.0
 	_overcast_light_scale = 1.0
+	_sun_cloud_scale = 1.0
 	_overcast_ambient_scale = 1.0
 	_overcast_exposure_scale = 1.0
 	_overcast_fog_tint = Color.WHITE
@@ -297,6 +298,8 @@ func _clear_weather_state() -> void:
 ## that never started one holds.
 func _clear_cycle_state() -> void:
 	_cycle_theme = null
+	_sun_direction = Vector3.ZERO
+	_daylight = 1.0
 	_cycle_day = null
 	_cycle_night = null
 	_cycle_dawn = null
@@ -582,11 +585,18 @@ func set_cycle_phase(phase: float) -> void:
 	_cycle_theme.volumetric_fog_density = lerpf(_cycle_theme.volumetric_fog_density, _cycle_night.volumetric_fog_density, night)
 	_cycle_theme.volumetric_fog_albedo = _cycle_theme.volumetric_fog_albedo.lerp(_cycle_night.volumetric_fog_albedo, night)
 	_cycle_theme.ambient_energy = lerpf(_cycle_theme.ambient_energy, _cycle_night.ambient_energy, night)
+	# Bontago-mp0.127: stronger sun, weaker sky ambient with the sun high (identity at the
+	# horizon and at night), so lit vs shadowed faces read clearly by day and soften at dusk.
+	_cycle_theme.ambient_energy *= SunContrast.ambient_scale(direction.y, _cycle_theme.cycle_day_ambient_scale,
+		_cycle_theme.cycle_sun_contrast_full_sin)
+	_sun_direction = direction
+	_daylight = daylight
 	# DECISION (Bontago-mp0.13): one key light serves sun by day and a dim
 	# authored night direction after sunset. Both fade to zero at the horizon.
 	var sun_key: float = smoothstep(0.0, 0.2, direction.y)
 	var moon_key: float = smoothstep(0.0, 0.2, -direction.y)
-	_cycle_theme.light_energy = _cycle_theme.light_energy * sun_key + _cycle_night.light_energy * 0.2 * moon_key
+	_cycle_theme.light_energy = _cycle_theme.light_energy * sun_key * SunContrast.light_scale(direction.y,
+		_cycle_theme.cycle_sun_energy_gain, _cycle_theme.cycle_sun_contrast_full_sin) 		+ _cycle_night.light_energy * 0.2 * moon_key
 	if direction.y < 0.0:
 		_cycle_theme.light_color = _cycle_night.light_color
 	environment.volumetric_fog_density = _cycle_theme.volumetric_fog_density
@@ -719,6 +729,13 @@ var _storm_target: SkyThemeDef = null
 var _storm_blend: SkyThemeDef = null
 var _storm_blend_base: SkyThemeDef = null
 var _overcast_light_scale: float = 1.0
+## Bontago-mp0.127: direct-sun scale from clouds covering the sun (vfx/CloudShadows.gd),
+## 1 = clear. Part of the one light-energy writer, _apply_overcast().
+var _sun_cloud_scale: float = 1.0
+## Bontago-mp0.127: the cycle's last unit sun direction (ZERO before any cycle phase) and
+## daylight 0..1, read by vfx/CloudShadows.gd.
+var _sun_direction: Vector3 = Vector3.ZERO
+var _daylight: float = 1.0
 var _overcast_ambient_scale: float = 1.0
 var _overcast_exposure_scale: float = 1.0
 var _overcast_fog_tint: Color = Color.WHITE
@@ -1822,7 +1839,38 @@ func _apply_overcast(applied_theme: SkyThemeDef) -> void:
 		return
 	var light: DirectionalLight3D = get_node_or_null(light_path) as DirectionalLight3D
 	if light != null:
-		light.light_energy = applied_theme.light_energy * lerpf(1.0, _overcast_light_scale, amount)
+		light.light_energy = applied_theme.light_energy * lerpf(1.0, _overcast_light_scale, amount) * _sun_cloud_scale
+
+
+## Bontago-mp0.127: the sun scale clouds cover it by (1 = clear). Rewrites only the light.
+func set_sun_cloud_scale(scale: float) -> void:
+	scale = clampf(scale, 0.0, 1.0)
+	if is_equal_approx(scale, _sun_cloud_scale):
+		return
+	_sun_cloud_scale = scale
+	if _overcast_theme != null:
+		_apply_overcast(_overcast_theme)
+
+
+func sun_cloud_scale() -> float:
+	return _sun_cloud_scale
+
+
+## Unit direction toward the sun (ZERO until a cycle phase was applied) and daylight 0..1.
+func sun_direction() -> Vector3:
+	return _sun_direction
+
+
+func daylight() -> float:
+	return _daylight
+
+
+## Mean cloud drift speed (m/s) of the live theme, the wind the cloud shadows follow.
+func cloud_drift_speed_mps() -> float:
+	var live: SkyThemeDef = _cycle_theme if _cycle_theme != null else theme
+	if live == null:
+		return 0.0
+	return absf(live.cloud_drift_speed_min_mps + live.cloud_drift_speed_max_mps) * 0.5
 
 
 ## Bontago-mp0.130: aerial perspective, sun scatter and height fog from the theme.
