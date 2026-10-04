@@ -60,20 +60,22 @@ extends WeatherTuning
 @export var streak_length_m: float = 12.0
 ## Ribbon width at its thickest (m).
 @export var streak_width_m: float = 0.16
-## Metres a streak drifts along the wind over one life (draw on, hold, erase, respawn).
-@export var streak_life_m: float = 70.0
-## Fraction of a streak's life spent drawing on from its tail.
-@export_range(0.05, 0.9, 0.01) var streak_draw_frac: float = 0.3
-## Fraction of a streak's life spent erasing from its tail.
-@export_range(0.05, 0.9, 0.01) var streak_erase_frac: float = 0.35
+## Bontago-mp0.131: strokes are brush strokes. Seconds the head sweeps along the wind drawing the stroke on.
+@export_range(0.1, 5.0, 0.05) var streak_draw_on_s: float = 0.9
+## Seconds the finished stroke holds before it is wiped away.
+@export_range(0.0, 5.0, 0.05) var streak_hold_s: float = 0.6
+## Seconds the tail sweeps along the wind erasing the stroke.
+@export_range(0.1, 5.0, 0.05) var streak_draw_off_s: float = 0.9
+## Feather of the sweeping head and tail edge, as a fraction of the stroke length.
+@export_range(0.0, 1.0, 0.01) var streak_reveal_softness: float = 0.25
 ## Fraction of the length over which each end tapers to a point.
 @export_range(0.01, 0.5, 0.01) var streak_tip_taper: float = 0.3
 ## Streaks fully vanish closer than this to the camera (m) and fade in by
 ## the end distance: a near streak would otherwise span the whole screen.
 @export var streak_near_fade_start_m: float = 14.0
 @export var streak_near_fade_end_m: float = 32.0
-## Drift speed (m/s) of a stroke along the wind; with streak_life_m it sets the stroke cycle time.
-@export var streak_speed_ms: float = 16.0
+## Slow drift (m/s) of a stroke along the wind; the reveal sweep, not this, is the visible motion.
+@export var streak_speed_ms: float = 3.0
 @export var streak_color: Color = Color(1.0, 1.0, 1.0, 0.7)
 @export var mote_count: int = 36
 @export var mote_size_m: float = 0.4
