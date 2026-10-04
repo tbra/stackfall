@@ -341,8 +341,42 @@ func test_ambient_wind_draws_curled_swoosh_strokes() -> void:
 	assert_not_null(presentation.get_node_or_null("StreakLeaders"), "curl-headed leaders are their own MultiMesh")
 	var motes: MultiMeshInstance3D = presentation.get_node("Motes") as MultiMeshInstance3D
 	assert_eq((motes.material_override as ShaderMaterial).shader.resource_path, "res://shaders/wind_streak.gdshader")
-	assert_almost_eq(float(material.get_shader_parameter(&"cycle_s")) * float(material.get_shader_parameter(&"speed")), _tuning.streak_life_m, 0.001, "drifts a life per cycle")
+	assert_almost_eq(float(material.get_shader_parameter(&"cycle_s")) * float(material.get_shader_parameter(&"speed")), StormPresentation.stroke_drift_m(_tuning), 0.001, "drifts a short sweep per cycle")
 	assert_almost_eq(float(material.get_shader_parameter(&"radius")), _tuning.area_half_extent_m, 0.0001, "the weather box is the stroke volume")
+
+
+func test_stroke_reveal_window_draws_on_then_off_along_the_stroke() -> void:
+	# Bontago-mp0.131: head leads while drawing on, tail follows while drawing off.
+	var soft: float = 0.25
+	var start: Vector2 = StormPresentation.reveal_window(0.0, 0.4, 0.3, soft)
+	assert_almost_eq(start.y, 0.0, 0.0001, "nothing drawn at the start")
+	assert_lt(start.x, 0.0, "tail edge waits behind the stroke start")
+	var mid_on: Vector2 = StormPresentation.reveal_window(0.2, 0.4, 0.3, soft)
+	assert_between(mid_on.y, 0.2, 0.9, "head is mid-stroke while drawing on")
+	assert_lt(mid_on.x, 0.0, "tail has not moved yet")
+	var hold: Vector2 = StormPresentation.reveal_window(0.5, 0.4, 0.3, soft)
+	assert_gte(hold.y, 1.0 + soft - 0.0001, "head fully clears the far tip")
+	assert_lte(hold.x, 0.0, "tail still at the start while holding")
+	var mid_off: Vector2 = StormPresentation.reveal_window(0.85, 0.4, 0.3, soft)
+	assert_between(mid_off.x, 0.0, 1.0, "tail is mid-stroke while drawing off")
+	var end: Vector2 = StormPresentation.reveal_window(1.0, 0.4, 0.3, soft)
+	assert_almost_eq(end.x, 1.0, 0.0001, "tail has swept past the whole stroke")
+	var prev: float = -1.0
+	for i: int in range(21):
+		var head: float = StormPresentation.reveal_window(0.4 * float(i) / 20.0, 0.4, 0.3, soft).y
+		assert_gte(head, prev, "head only moves forward")
+		prev = head
+
+
+func test_stroke_timings_load_from_config_and_drive_the_cycle() -> void:
+	var storm: StormTuning = load("res://config/weather/storm.tres") as StormTuning
+	assert_gt(storm.streak_draw_on_s, 0.0)
+	assert_gt(storm.streak_draw_off_s, 0.0)
+	assert_gte(storm.streak_hold_s, 0.0)
+	assert_eq(storm.streak_count, 72, "mp0.115 stroke count unchanged")
+	assert_almost_eq(StormPresentation.stroke_cycle_s(storm), storm.streak_draw_on_s + storm.streak_hold_s + storm.streak_draw_off_s, 0.0001)
+	var fracs: Vector2 = StormPresentation.phase_fracs(storm)
+	assert_lt(fracs.x + fracs.y, 1.0 + 0.0001, "draw-on and draw-off fit the cycle")
 
 
 func test_swoosh_ribbon_is_a_tapered_curling_strip() -> void:

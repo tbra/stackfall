@@ -35,6 +35,8 @@ uniform float cycle_s = 1.8;
 uniform float draw_frac = 0.4;
 uniform float erase_frac = 0.35;
 uniform float tip_taper = 0.12;
+// Bontago-mp0.131: feather (arc fraction) of the draw-on head and draw-off tail edge.
+uniform float reveal_softness = 0.25;
 uniform float peak_bias = 0.8;
 uniform float spread_along = 0.8;
 uniform float spread_side = 0.7;
@@ -51,6 +53,8 @@ const float PI_C = 3.14159265;
 
 varying float side_v;
 varying float shown;
+varying float along_v;
+varying vec2 window_v;
 
 float hash(float n) {
 	return fract(sin(n * 127.1 + 311.7) * 43758.5453);
@@ -109,6 +113,9 @@ void vertex() {
 	vec2 off = centre2 + n2 * half_w * UV.y;
 	VERTEX = view_pos.xyz + vec3(d2 * off.x + perp * off.y, 0.0);
 	side_v = UV.y;
+	along_v = t;
+	// Reveal window (mirrored by StormPresentation.reveal_window): tail edge, head edge in arc fraction.
+	window_v = vec2(tail * (1.0 + reveal_softness) - reveal_softness, head * (1.0 + reveal_softness));
 	float dist = length(view_pos.xyz);
 	float near_w = near_fade_m.y > near_fade_m.x ? smoothstep(near_fade_m.x, near_fade_m.y, dist) : 1.0;
 	float far_w = fade_far_m > 0.0 ? 1.0 - smoothstep(fade_far_m * 0.5, fade_far_m, dist) : 1.0;
@@ -119,5 +126,7 @@ void vertex() {
 void fragment() {
 	float edge = clamp((1.0 - abs(side_v)) / max(fwidth(side_v), 0.0001), 0.0, 1.0);
 	ALBEDO = tint.rgb;
-	ALPHA = edge * tint.a * shown;
+	float soft = max(reveal_softness, 0.001);
+	float reveal = smoothstep(window_v.x, window_v.x + soft, along_v) * (1.0 - smoothstep(window_v.y - soft, window_v.y, along_v));
+	ALPHA = edge * reveal * tint.a * shown;
 }
