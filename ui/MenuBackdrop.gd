@@ -18,6 +18,58 @@ extends Control
 @export var tuning: MenuVisualTuning = preload("res://config/menu_visual_tuning.tres")
 
 
+## Bontago-1pi.11.48 (owner: "main menu uses 95% of my gpu"). Root cause: the
+## match world (Field disc, Skybox, SSR, shadows, glow, reflection probe, disc
+## mirror: ~400k prims) kept rendering uncapped, at monitor refresh, behind this
+## full-screen opaque backdrop. Menu/lobby screens now hold a render budget: the
+## root viewport skips 3D and Engine.max_fps is capped. Reference counted
+## because the lobby is added before the menu's queue_free() runs.
+static var _budget_holders: int = 0
+static var _saved_max_fps: int = 0
+static var _saved_disable_3d: bool = false
+
+var _holds_budget: bool = false
+
+
+func _enter_tree() -> void:
+	if _holds_budget:
+		return
+	_holds_budget = true
+	_budget_holders += 1
+	if _budget_holders == 1:
+		_saved_max_fps = Engine.max_fps
+		var viewport: Viewport = get_viewport()
+		if viewport != null:
+			_saved_disable_3d = viewport.disable_3d
+	_apply_budget()
+
+
+func _exit_tree() -> void:
+	if not _holds_budget:
+		return
+	_holds_budget = false
+	_budget_holders = maxi(_budget_holders - 1, 0)
+	if _budget_holders == 0:
+		Engine.max_fps = _saved_max_fps
+		var viewport: Viewport = get_viewport()
+		if viewport != null:
+			viewport.disable_3d = _saved_disable_3d
+
+
+static func budget_holders() -> int:
+	return _budget_holders
+
+
+func _apply_budget() -> void:
+	# DECISION: an existing lower player/tool cap wins over the menu cap.
+	var cap: int = tuning.menu_max_fps
+	if cap > 0:
+		Engine.max_fps = cap if _saved_max_fps <= 0 else mini(cap, _saved_max_fps)
+	var viewport: Viewport = get_viewport()
+	if viewport != null and tuning.menu_disable_world_3d:
+		viewport.disable_3d = true
+
+
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	resized.connect(queue_redraw)
