@@ -172,7 +172,7 @@ func test_hud_and_results_text() -> void:
 	var text: String = ResultsScreen.mode_outcome_text(results)
 	assert_string_contains(text, "Player 3: alive")
 	assert_string_contains(text, "Player 1: out")
-	assert_string_contains(text, "Out, first to last: Player 2, 1")
+	assert_string_contains(text, "Out, first to last: Player 2, Player 1")
 	assert_eq(ResultsScreen.shared_winners_text(results), "")
 
 
