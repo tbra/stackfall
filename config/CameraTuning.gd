@@ -133,3 +133,33 @@ extends Resource
 ## CameraRig._ready() and apply_follow_tuning() so the F4 panel's slider
 ## (config/tuning_panel_hints.tres, range 40..100) takes effect live.
 @export var fov_deg: float = 75.0
+
+
+## -- Match-start framing (Bontago-1pi.79, owner playtest 2026-10-04,
+## feedback/ref_camera_start.png) ----------------------------------------------
+## When the ready gate opens the camera starts just outside the disc rim behind
+## the local player's home beacon, raised so the whole disc is visible, looking
+## across toward the centre. Everything derives from the map's field radius so
+## every map size gets the same composition; CameraRig.begin_start_framing()
+## applies it and holds it through the 3-2-1, then eases into the follow camera.
+## Tuning hint: raise start_distance_factor to see more sky/fit larger discs;
+## lower start_pitch_deg magnitude to sit lower and flatten the disc.
+## Orbit distance from the pivot, as a multiple of the field radius.
+@export var start_distance_factor: float = 0.75
+## Camera pitch while holding the start framing (negative looks down).
+@export var start_pitch_deg: float = -12.7
+## Pivot (the point looked at) as a fraction of the way from the disc centre to
+## the home beacon: 0 looks at the centre, 1 at the beacon.
+@export var start_pivot_home_bias: float = 0.47
+## Seconds to ease from the start framing into the follow camera once play begins.
+@export var start_release_seconds: float = 0.8
+
+
+## Orbit distance of the start framing for a map of `field_radius`.
+func start_distance(field_radius: float) -> float:
+	return maxf(field_radius * start_distance_factor, zoom_min)
+
+
+## Pivot of the start framing for a home beacon at `home` (centre is the origin).
+func start_pivot(home: Vector3) -> Vector3:
+	return Vector3(home.x, 0.0, home.z) * clampf(start_pivot_home_bias, 0.0, 1.0)

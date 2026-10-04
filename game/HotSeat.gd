@@ -70,6 +70,12 @@ func bind_local_slot(slot_id: int) -> void:
 	# timer expired with no cursor ever reported, but it is exactly "this
 	# slot's home flag in world space" with no fallback logic of its own).
 	_controller.set_home_position(Match.default_ghost_origin(slot_id))
+	# Bontago-1pi.79: the HUD's per-slot widgets (HELD/NEXT cards, timer ring)
+	# follow the local slot from now on, not from the first PLAYING-time
+	# Events.turn_changed -- so the first block issued when the countdown begins
+	# lands in the cards, and the world build leaves no empty-card frame.
+	_hud.set_local_slot(slot_id)
+	_controller.pull_current_held()
 
 
 func controller() -> PlayerController:

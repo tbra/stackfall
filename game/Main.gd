@@ -1411,7 +1411,7 @@ func _finish_loading_when_ready(generation: int) -> void:
 	# Bontago-mp0.27: the camera starts at the local player's own beacon, looking
 	# at the centre, whatever the loading frames did to it.
 	if _hot_seat != null and _camera_rig != null:
-		_camera_rig.place_at_home_beacon(Net.local_slot())
+		_camera_rig.begin_start_framing(Net.local_slot())
 	if _hot_seat != null:
 		_hot_seat.controller().set_process(_controller_was_processing)
 		_hot_seat.controller().set_process_unhandled_input(_controller_was_handling_input)

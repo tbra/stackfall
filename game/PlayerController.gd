@@ -1244,6 +1244,19 @@ func _sync_ghost_gift(slot_id: int) -> void:
 	_ghost.set_held_gift(StringName(_match.held_special(slot_id)))
 
 
+## Bontago-1pi.79: the staged windowed build issues the first block (host) or
+## receives its replicated feed (client) before this controller and its ghost
+## exist, so a bind pulls whatever the acting slot already holds -- shape,
+## colour and gift -- instead of waiting for the next feed signal.
+func pull_current_held() -> void:
+	if _match == null or _ghost == null:
+		return
+	var slot_id: int = _acting_slot()
+	var shape: BlockShape = _match.held_shape(slot_id) as BlockShape
+	if shape != null:
+		_on_feed_block_issued(slot_id, shape.id, &"")
+
+
 func _on_feed_block_issued(slot_id: int, shape_id: StringName, _next_shape_id: StringName) -> void:
 	if slot_id != _acting_slot() or _ghost == null:
 		return

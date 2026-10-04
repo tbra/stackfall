@@ -68,6 +68,8 @@ func _run_host() -> void:
 	_match_net.call(&"replicate_match_start", Match.config)
 	field.place_flags(Match.config.player_count, Match.config.player_colors, Match.config.goal_flag_count)
 	await _wait(INTENT_DELAY_S + 1.0)
+	# Bontago-1pi.79: every slot already holds its first block during the countdown.
+	print("CDENET host held_in_countdown=%s" % [Match.held_shape(0) != null and Match.held_shape(CLIENT_SLOT) != null])
 	print("CDENET host state=%d blocks_during_countdown=%d rejects=%d" % [Match.state(), _blocks.get_child_count(), _rejects])
 	await _wait(Match.COUNTDOWN_SECONDS + 1.5)
 	print("CDENET host final_state=%d" % Match.state())
@@ -85,6 +87,7 @@ func _run_client() -> void:
 		get_tree().quit(2)
 		return
 	print("CDENET client saw_countdown remaining=%.2f" % Match.countdown_remaining())
+	print("CDENET client held_in_countdown=%s next=%s" % [Match.held_shape(CLIENT_SLOT) != null, Match.next_shape(CLIENT_SLOT) != null])
 	await _wait(INTENT_DELAY_S)
 	var home: Vector2 = Match.slot(CLIENT_SLOT).home_position
 	_match_net.call(&"submit_place", CLIENT_SLOT, Vector3(home.x, PLACE_HEIGHT, home.y), 0, Quaternion.IDENTITY, false, Match.feed_seq(CLIENT_SLOT))
