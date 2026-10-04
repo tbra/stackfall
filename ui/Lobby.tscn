@@ -130,58 +130,50 @@ text = "Match settings"
 [node name="GameSection" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 4
 script = ExtResource("6_section")
 title = "GAME"
 
-[node name="Body" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection"]
+[node name="Body" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection" groups=["lobby_rows"]]
 layout_mode = 2
-theme_override_constants/separation = 4
 
-[node name="GameGrid" type="HFlowContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body"]
+[node name="GameGrid" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body" groups=["lobby_rows"]]
 layout_mode = 2
-theme_override_constants/h_separation = 14
-theme_override_constants/v_separation = 6
 
-[node name="GameModeCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid"]
+[node name="GameModeCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid" groups=["lobby_row"]]
 layout_mode = 2
-theme_override_constants/separation = 4
 
-[node name="GameModeCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/GameModeCol"]
+[node name="GameModeCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/GameModeCol" groups=["lobby_label_cell"]]
 layout_mode = 2
 theme_type_variation = &"CaptionLabel"
-theme_override_font_sizes/font_size = 10
 text = "Game mode"
+vertical_alignment = 1
 
 [node name="GameModeOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/GameModeCol"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(150, 0)
+size_flags_horizontal = 3
 
-[node name="MapCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid"]
+[node name="MapCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid" groups=["lobby_row"]]
 layout_mode = 2
-theme_override_constants/separation = 4
 
-[node name="MapCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/MapCol"]
+[node name="MapCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/MapCol" groups=["lobby_label_cell"]]
 layout_mode = 2
 theme_type_variation = &"CaptionLabel"
-theme_override_font_sizes/font_size = 10
 text = "Map"
+vertical_alignment = 1
 
-[node name="MapRow" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/MapCol"]
+[node name="MapRow" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/MapCol" groups=["lobby_row"]]
 layout_mode = 2
-theme_override_constants/separation = 10
+size_flags_horizontal = 3
 
 [node name="MapThumbnail" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/MapCol/MapRow"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(28, 28)
 size_flags_vertical = 4
 
 [node name="MapComboOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/MapCol/MapRow"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(140, 0)
 size_flags_horizontal = 3
 
 [node name="MapVariantOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/MapCol/MapRow"]
@@ -194,245 +186,236 @@ unique_name_in_owner = true
 layout_mode = 2
 visible = false
 
-[node name="SkyCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid"]
+[node name="SkyCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid" groups=["lobby_row"]]
 layout_mode = 2
-theme_override_constants/separation = 4
 
-[node name="SkyCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/SkyCol"]
+[node name="SkyCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/SkyCol" groups=["lobby_label_cell"]]
 layout_mode = 2
 theme_type_variation = &"CaptionLabel"
-theme_override_font_sizes/font_size = 10
 text = "Time of day"
+vertical_alignment = 1
 
 [node name="SkyThemeOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/SkyCol"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(120, 0)
+size_flags_horizontal = 3
 
-[node name="WeatherCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid"]
+[node name="WeatherCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid" groups=["lobby_row"]]
 layout_mode = 2
-theme_override_constants/separation = 4
 
-[node name="WeatherCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/WeatherCol"]
+[node name="WeatherCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/WeatherCol" groups=["lobby_label_cell"]]
 layout_mode = 2
 theme_type_variation = &"CaptionLabel"
-theme_override_font_sizes/font_size = 10
 text = "Weather"
+vertical_alignment = 1
 
 [node name="WeatherOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/WeatherCol"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(130, 0)
+size_flags_horizontal = 3
 
 [node name="Advanced" type="MarginContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection"]
 layout_mode = 2
-theme_override_constants/margin_left = 12
 
-[node name="AdvancedGrid" type="HFlowContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced"]
-layout_mode = 2
-theme_override_constants/h_separation = 21
-theme_override_constants/v_separation = 10
-
-[node name="GravityGroup" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid"]
-layout_mode = 2
-theme_override_constants/separation = 4
-
-[node name="GravityHeader" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/GravityGroup"]
+[node name="AdvancedGrid" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced" groups=["lobby_rows"]]
 layout_mode = 2
 
-[node name="GravityLabelCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/GravityGroup/GravityHeader"]
+[node name="GravityGroup" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid" groups=["lobby_row"]]
 layout_mode = 2
-size_flags_horizontal = 3
+
+[node name="GravityLabelCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/GravityGroup" groups=["lobby_label_cell"]]
+layout_mode = 2
 theme_type_variation = &"CaptionLabel"
-text = "GRAVITY"
-
-[node name="GravityChip" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/GravityGroup/GravityHeader"]
-unique_name_in_owner = true
-layout_mode = 2
-
-[node name="GravityLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/GravityGroup/GravityHeader/GravityChip"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "1.00x"
+text = "Gravity"
+vertical_alignment = 1
 
 [node name="GravitySlider" type="HSlider" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/GravityGroup"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(150, 0)
 size_flags_horizontal = 3
+size_flags_vertical = 4
 min_value = 0.35
 max_value = 1.45
 step = 0.05
 value = 1.0
 
-[node name="TiltCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid"]
+[node name="GravityChip" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/GravityGroup" groups=["lobby_value_cell"]]
+unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 4
+size_flags_vertical = 4
 
-[node name="TiltCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/TiltCol"]
+[node name="GravityLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/GravityGroup/GravityChip"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "1.00x"
+horizontal_alignment = 1
+
+[node name="TiltCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid" groups=["lobby_row"]]
+layout_mode = 2
+
+[node name="TiltCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/TiltCol" groups=["lobby_label_cell"]]
 layout_mode = 2
 theme_type_variation = &"CaptionLabel"
-theme_override_font_sizes/font_size = 10
 text = "Tilt mode"
+vertical_alignment = 1
 
 [node name="TiltModeOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/TiltCol"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(150, 0)
+size_flags_horizontal = 3
 
-[node name="HoleCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid"]
+[node name="HoleCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid" groups=["lobby_row"]]
 layout_mode = 2
-theme_override_constants/separation = 4
 
-[node name="HoleCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/HoleCol"]
+[node name="HoleCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/HoleCol" groups=["lobby_label_cell"]]
 layout_mode = 2
 theme_type_variation = &"CaptionLabel"
-theme_override_font_sizes/font_size = 10
 text = "Hole mode"
+vertical_alignment = 1
 
 [node name="HoleModeOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/HoleCol"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(150, 0)
+size_flags_horizontal = 3
 
-[node name="TurnBasedCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid"]
+[node name="TurnBasedCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid" groups=["lobby_row"]]
 layout_mode = 2
-theme_override_constants/separation = 4
+
+[node name="TurnBasedSpacer" type="Control" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/TurnBasedCol" groups=["lobby_label_cell"]]
+layout_mode = 2
 
 [node name="TurnBasedCheck" type="CheckButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/TurnBasedCol"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 3
 text = "Turn-based"
 
-[node name="MidJoinCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid"]
+[node name="MidJoinCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid" groups=["lobby_row"]]
 layout_mode = 2
-theme_override_constants/separation = 4
+
+[node name="MidJoinSpacer" type="Control" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/MidJoinCol" groups=["lobby_label_cell"]]
+layout_mode = 2
 
 [node name="MidJoinCheck" type="CheckButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/MidJoinCol"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 3
 text = "Allow joining mid-match"
 
 [node name="RoundSection" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 4
 script = ExtResource("6_section")
 title = "ROUND"
 
-[node name="Body" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection"]
+[node name="Body" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection" groups=["lobby_rows"]]
 layout_mode = 2
-theme_override_constants/separation = 4
 
-[node name="RoundRow" type="HFlowContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body"]
+[node name="RoundRow" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body" groups=["lobby_rows"]]
 layout_mode = 2
-theme_override_constants/h_separation = 14
-theme_override_constants/v_separation = 6
 
-[node name="RoundTimerCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow"]
+[node name="RoundTimerCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow" groups=["lobby_row"]]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 4
 
-[node name="RoundTimerCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/RoundTimerCol"]
+[node name="RoundTimerCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/RoundTimerCol" groups=["lobby_label_cell"]]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"CaptionLabel"
-theme_override_font_sizes/font_size = 10
 text = "Round length"
+vertical_alignment = 1
 
 [node name="RoundTimerSlider" type="HSlider" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/RoundTimerCol"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(150, 0)
+size_flags_horizontal = 3
+size_flags_vertical = 4
 min_value = 2.0
 max_value = 30.0
 value = 5.0
 
-[node name="RoundTimerValue" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/RoundTimerCol"]
+[node name="RoundTimerValue" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/RoundTimerCol" groups=["lobby_value_cell"]]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"CaptionLabel"
-theme_override_font_sizes/font_size = 10
 text = ""
 
-[node name="MatchTimerCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow"]
+[node name="MatchTimerCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow" groups=["lobby_row"]]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 4
 
-[node name="MatchTimerCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/MatchTimerCol"]
+[node name="MatchTimerCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/MatchTimerCol" groups=["lobby_label_cell"]]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"CaptionLabel"
-theme_override_font_sizes/font_size = 10
 text = "Match timer"
+vertical_alignment = 1
 
 [node name="MatchTimerSlider" type="HSlider" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/MatchTimerCol"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(150, 0)
+size_flags_horizontal = 3
+size_flags_vertical = 4
 max_value = 30.0
 
-[node name="MatchTimerValue" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/MatchTimerCol"]
+[node name="MatchTimerValue" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/MatchTimerCol" groups=["lobby_value_cell"]]
 unique_name_in_owner = true
 layout_mode = 2
 theme_type_variation = &"CaptionLabel"
-theme_override_font_sizes/font_size = 10
 text = ""
 
-[node name="SuddenDeathCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow"]
+[node name="SuddenDeathCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow" groups=["lobby_row"]]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 4
+
+[node name="SuddenDeathSpacer" type="Control" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/SuddenDeathCol" groups=["lobby_label_cell"]]
+layout_mode = 2
 
 [node name="SuddenDeathCheck" type="CheckButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/SuddenDeathCol"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 3
 text = "Sudden death"
 
-[node name="BlockTimerGroup" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow"]
-layout_mode = 2
-theme_override_constants/separation = 4
-
-[node name="BlockTimerHeader" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/BlockTimerGroup"]
+[node name="BlockTimerGroup" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow" groups=["lobby_row"]]
 layout_mode = 2
 
-[node name="BlockTimerLabelCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/BlockTimerGroup/BlockTimerHeader"]
+[node name="BlockTimerLabelCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/BlockTimerGroup" groups=["lobby_label_cell"]]
 layout_mode = 2
-size_flags_horizontal = 3
 theme_type_variation = &"CaptionLabel"
-text = "BLOCK TIMER"
-
-[node name="BlockTimerChip" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/BlockTimerGroup/BlockTimerHeader"]
-unique_name_in_owner = true
-layout_mode = 2
-
-[node name="BlockTimerLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/BlockTimerGroup/BlockTimerHeader/BlockTimerChip"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "6.0 s"
+text = "Block timer"
+vertical_alignment = 1
 
 [node name="BlockTimerSlider" type="HSlider" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/BlockTimerGroup"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(150, 0)
 size_flags_horizontal = 3
+size_flags_vertical = 4
 min_value = 3.0
 max_value = 12.0
 step = 0.5
 value = 6.0
 
-[node name="GoalFlagCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow"]
+[node name="BlockTimerChip" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/BlockTimerGroup" groups=["lobby_value_cell"]]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 4
+size_flags_vertical = 4
 
-[node name="GoalFlagCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/GoalFlagCol"]
+[node name="BlockTimerLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/BlockTimerGroup/BlockTimerChip"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "6.0 s"
+horizontal_alignment = 1
+
+[node name="GoalFlagCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow" groups=["lobby_row"]]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="GoalFlagCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/GoalFlagCol" groups=["lobby_label_cell"]]
 layout_mode = 2
 theme_type_variation = &"CaptionLabel"
-theme_override_font_sizes/font_size = 10
 text = "Goal flags"
+vertical_alignment = 1
 
 [node name="GoalFlagSpin" type="SpinBox" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/GoalFlagCol"]
 unique_name_in_owner = true
@@ -442,139 +425,145 @@ min_value = 1.0
 max_value = 5.0
 value = 1.0
 
-[node name="SkyTeamCol" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow"]
+[node name="SkyTeamCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow" groups=["lobby_row"]]
 unique_name_in_owner = true
 layout_mode = 2
 visible = false
-theme_override_constants/separation = 4
+
+[node name="SkyTeamSpacer" type="Control" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/SkyTeamCol" groups=["lobby_label_cell"]]
+layout_mode = 2
 
 [node name="SkyTeamSumCheck" type="CheckButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/SkyTeamCol"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 3
 text = "Team height: sum of members"
 
 [node name="GiftsSection" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 4
 script = ExtResource("6_section")
 title = "GIFTS"
 
-[node name="Body" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection"]
+[node name="Body" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection" groups=["lobby_rows"]]
 layout_mode = 2
-theme_override_constants/separation = 4
 
-[node name="GiftsRow" type="HFlowContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Body"]
+[node name="GiftsRow" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Body" groups=["lobby_rows"]]
 layout_mode = 2
-theme_override_constants/h_separation = 14
-theme_override_constants/v_separation = 6
 
-[node name="GiftsCheck" type="CheckButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Body/GiftsRow"]
+[node name="GiftsToggleCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Body/GiftsRow" groups=["lobby_row"]]
+layout_mode = 2
+
+[node name="GiftsCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Body/GiftsRow/GiftsToggleCol" groups=["lobby_label_cell"]]
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+text = "Gifts"
+vertical_alignment = 1
+
+[node name="GiftsCheck" type="CheckButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Body/GiftsRow/GiftsToggleCol"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_vertical = 4
+size_flags_horizontal = 3
 button_pressed = true
 text = "On"
 
-[node name="SpecialFreqGroup" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Body/GiftsRow"]
-layout_mode = 2
-theme_override_constants/separation = 4
-
-[node name="SpecialFreqHeader" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Body/GiftsRow/SpecialFreqGroup"]
+[node name="SpecialFreqGroup" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Body/GiftsRow" groups=["lobby_row"]]
 layout_mode = 2
 
-[node name="SpecialFreqLabelCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Body/GiftsRow/SpecialFreqGroup/SpecialFreqHeader"]
+[node name="SpecialFreqLabelCaption" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Body/GiftsRow/SpecialFreqGroup" groups=["lobby_label_cell"]]
 layout_mode = 2
-size_flags_horizontal = 3
 theme_type_variation = &"CaptionLabel"
-text = "FREQUENCY"
-
-[node name="SpecialFreqChip" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Body/GiftsRow/SpecialFreqGroup/SpecialFreqHeader"]
-unique_name_in_owner = true
-layout_mode = 2
-
-[node name="SpecialFreqLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Body/GiftsRow/SpecialFreqGroup/SpecialFreqHeader/SpecialFreqChip"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "35"
+text = "Frequency"
+vertical_alignment = 1
 
 [node name="SpecialFreqSlider" type="HSlider" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Body/GiftsRow/SpecialFreqGroup"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(170, 0)
 size_flags_horizontal = 3
+size_flags_vertical = 4
 max_value = 100.0
 value = 35.0
 
-[node name="Advanced" type="MarginContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection"]
-layout_mode = 2
-theme_override_constants/margin_left = 12
-
-[node name="SpecialsGroup" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Advanced"]
-layout_mode = 2
-theme_override_constants/separation = 6
-
-[node name="SpecialsLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Advanced/SpecialsGroup"]
+[node name="SpecialFreqChip" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Body/GiftsRow/SpecialFreqGroup" groups=["lobby_value_cell"]]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_vertical = 4
+
+[node name="SpecialFreqLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Body/GiftsRow/SpecialFreqGroup/SpecialFreqChip"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "35"
+horizontal_alignment = 1
+
+[node name="Advanced" type="MarginContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection"]
+layout_mode = 2
+
+[node name="SpecialsGroup" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Advanced" groups=["lobby_row"]]
+layout_mode = 2
+
+[node name="SpecialsLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Advanced/SpecialsGroup" groups=["lobby_label_cell"]]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 0
 theme_type_variation = &"CaptionLabel"
 text = "Enabled gifts"
 
-[node name="SpecialsChecklist" type="HFlowContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Advanced/SpecialsGroup"]
+[node name="SpecialsChecklist" type="GridContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Advanced/SpecialsGroup" groups=["lobby_checklist"]]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/h_separation = 10
-theme_override_constants/v_separation = 10
+size_flags_horizontal = 3
+columns = 2
 
 [node name="ExperimentsSection" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 4
 script = ExtResource("6_section")
 title = "EXPERIMENTS"
-header_opens_advanced = true
 
 [node name="Advanced" type="MarginContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection"]
 layout_mode = 2
-theme_override_constants/margin_left = 12
 
-[node name="ExperimentsGroup" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced"]
+[node name="ExperimentsGroup" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced" groups=["lobby_row"]]
 layout_mode = 2
-theme_override_constants/separation = 6
 
-[node name="ExperimentsLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup"]
+[node name="ExperimentsLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup" groups=["lobby_label_cell"]]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_vertical = 0
 theme_type_variation = &"CaptionLabel"
 text = "Off by default"
 
-[node name="ExperimentsChecklist" type="HFlowContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup"]
+[node name="ExperimentsChecklist" type="GridContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup" groups=["lobby_checklist"]]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/h_separation = 10
-theme_override_constants/v_separation = 10
+size_flags_horizontal = 3
+columns = 2
 
 [node name="QolTimerPauseCheck" type="CheckBox" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup/ExperimentsChecklist"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 3
 tooltip_text = "Experiment: the block timer pauses while a special is active or a tower is toppling, so a forced drop cannot land mid-chaos."
 text = "Pause timer on events"
 
 [node name="QolBacklogCheck" type="CheckBox" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup/ExperimentsChecklist"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 3
 tooltip_text = "Experiment: when the block timer runs out the held piece is queued and you get a fresh one, instead of being dropped."
 text = "Queue expired blocks"
 
 [node name="QolGoalRadiusCheck" type="CheckBox" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup/ExperimentsChecklist"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 3
 tooltip_text = "Experiment: a goal can be claimed by territory around the flag, not only on the flag cell itself."
 text = "Bigger goal claim radius"
 
 [node name="QolGiftSlotCheck" type="CheckBox" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup/ExperimentsChecklist"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 3
 tooltip_text = "Experiment: a claimed gift waits in a slot and is spent with the use-gift action, instead of replacing your next block."
 text = "Gift slot"
 

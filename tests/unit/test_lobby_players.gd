@@ -625,9 +625,9 @@ func test_the_default_main_loop_is_closed_and_skips_the_roster() -> void:
 
 
 ## The last settings stop before the players panel's entries (Bontago-1pi.53 S1b: the
-## EXPERIMENTS header, while its Advanced block is collapsed; the Advanced rules bar is gone).
+## EXPERIMENTS Advanced chip, while its block is collapsed; Bontago-1pi.61: headers are not stops).
 func _last_settings_stop(lobby: Lobby) -> Control:
-	return (lobby.get_node("%ExperimentsSection") as LobbySection).header_button
+	return (lobby.get_node("%ExperimentsSection") as LobbySection).advanced_button
 
 
 ## Walks focus_neighbor_bottom from the first control of the main chain and checks it

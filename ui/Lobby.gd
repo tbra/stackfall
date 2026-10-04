@@ -42,6 +42,13 @@ signal back_requested
 ## numbers").
 @export var tuning: MenuVisualTuning = preload("res://config/menu_visual_tuning.tres")
 
+## Scene groups of the settings grid (see _apply_row_layout()).
+const ROW_GROUP: StringName = &"lobby_row"
+const ROWS_GROUP: StringName = &"lobby_rows"
+const CHECKLIST_GROUP: StringName = &"lobby_checklist"
+const LABEL_CELL_GROUP: StringName = &"lobby_label_cell"
+const VALUE_CELL_GROUP: StringName = &"lobby_value_cell"
+
 ## Bontago-1pi.53 (E1): sizes and spacings new to the lobby rework (section
 ## spacing, seat colour box, row height, advanced indent); also handed to the
 ## players panel. Never touches the MenuVisualTuning look above.
@@ -160,7 +167,7 @@ var net_provider: Variant = null:
 ## Container sibling of VBoxContainer, not a subclass) wraps children onto as
 ## many rows as the card's width needs instead of stacking one per row.
 ## Bontago-1pi.53 (S1b): the per-gift checklist is the GIFTS section's Advanced block.
-@onready var _specials_checklist: HFlowContainer = %SpecialsChecklist
+@onready var _specials_checklist: GridContainer = %SpecialsChecklist
 @onready var _specials_label: Label = %SpecialsLabel
 ## Bontago-1pi.18.5: the Experiments checkboxes, in QolExperiments.with_toggles()
 ## argument order (timer pause, backlog, goal radius, gift slot). Bontago-1pi.53 (S1b):
@@ -313,7 +320,6 @@ func _ready() -> void:
 	_settings_controls.append_array(_qol_checks)
 	_connect_control_signals()
 	for section: LobbySection in _sections():
-		section.expanded_changed.connect(_on_section_toggled)
 		section.advanced_changed.connect(_on_section_toggled)
 	_start_button.pressed.connect(_on_start_pressed)
 	_ready_check.toggled.connect(_on_ready_toggled)
@@ -480,6 +486,7 @@ func _build_specials_checklist() -> void:
 		# underscore-joined identifier.
 		box.text = String(special.id).capitalize()
 		box.button_pressed = true
+		box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		box.toggled.connect(_on_toggled)
 		_specials_checklist.add_child(box)
 		_special_checkboxes.append(box)
@@ -497,9 +504,9 @@ func _build_specials_checklist() -> void:
 ## the panel's focus_entries().
 ##
 ## Bontago-1pi.53 (S1a/S1b): ONE closed loop in visual order. Each LobbySection
-## contributes its header, its main controls, its Advanced chip and (when open) its
+## contributes its main controls, its Advanced chip and (when open) its
 ## Advanced controls -- GAME, ROUND, GIFTS (Advanced: the per-gift checklist), EXPERIMENTS
-## (header opens its checks) -- then the players panel's entries and the footer. The
+## (chip opens its checks) -- then the players panel's entries and the footer. The
 ## Advanced rules popup and its separate loop are gone. _visible_chain() drops whatever a
 ## collapsed block or a mode hides, so there is never an invisible focus stop; every
 ## section toggle and mode change rewires.
@@ -530,10 +537,10 @@ func _wire_focus_chain() -> void:
 	_rewire_focus()
 
 
-## One section's focus stops in visual order: header, main controls, Advanced chip,
-## Advanced controls.
+## One section's focus stops in visual order: main controls, Advanced chip, Advanced
+## controls (the header is static and not a stop; Bontago-1pi.61).
 func _section_chain(section: LobbySection, main_controls: Array[Control], advanced_controls: Array[Control]) -> Array[Control]:
-	var out: Array[Control] = [section.header_button]
+	var out: Array[Control] = []
 	out.append_array(main_controls)
 	if section.advanced_button != null:
 		out.append(section.advanced_button)
@@ -553,6 +560,25 @@ func _rewire_focus() -> void:
 	if _main_chain.is_empty():
 		return
 	_wire_loop(_visible_chain(_main_chain))
+
+
+## Bontago-1pi.61: one shared column grid for every settings row. Each row (group
+## `lobby_row`) is label cell | control (expands) | optional value cell, so the label and
+## value columns share one x/width in every section; widths and gaps come from
+## [member layout_tuning] (scaled by the one project UI scale), not per-node pixels.
+func _apply_row_layout() -> void:
+	for node: Node in _settings_column.find_children("*", "", true, false):
+		if node.is_in_group(ROW_GROUP):
+			node.add_theme_constant_override("separation", layout_tuning.row_separation_px)
+		elif node.is_in_group(ROWS_GROUP):
+			node.add_theme_constant_override("separation", layout_tuning.row_spacing_px)
+		elif node.is_in_group(CHECKLIST_GROUP):
+			node.add_theme_constant_override("h_separation", layout_tuning.row_separation_px)
+			node.add_theme_constant_override("v_separation", layout_tuning.row_spacing_px)
+		elif node.is_in_group(LABEL_CELL_GROUP):
+			(node as Control).custom_minimum_size.x = layout_tuning.label_column_width_px
+		elif node.is_in_group(VALUE_CELL_GROUP):
+			(node as Control).custom_minimum_size.x = layout_tuning.value_column_width_px
 
 
 func _on_section_toggled(_state: bool) -> void:
@@ -743,6 +769,7 @@ func _apply_visual_style() -> void:
 	_settings_card.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(tuning.card_cream_color, tuning))
 	_players_card.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(tuning.card_cream_color, tuning))
 	_settings_column.add_theme_constant_override("separation", layout_tuning.section_spacing_px)
+	_apply_row_layout()
 	for section: LobbySection in _sections():
 		section.apply_style(tuning, layout_tuning)
 

@@ -283,16 +283,16 @@ func test_start_picks_up_an_f4_numeric_edit_made_while_the_lobby_was_open() -> v
 func test_experiment_checkboxes_join_the_main_loop_once_the_section_opens() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var section: LobbySection = lobby.get_node("%ExperimentsSection") as LobbySection
-	section.header_button.pressed.emit()
-	assert_true(section.is_advanced_open(), "the header of the Experiments section opens its checks")
+	section.advanced_button.button_pressed = true
+	assert_true(section.is_advanced_open(), "the chip of the Experiments section opens its checks")
 	for unique_name: String in CHECK_NAMES:
 		var check: CheckBox = _check(lobby, unique_name)
 		assert_true(check.is_visible_in_tree(), "%s is visible once the section is open" % unique_name)
 		assert_eq(check.focus_mode, Control.FOCUS_ALL, "%s is focusable" % unique_name)
 		assert_ne(check.focus_neighbor_top, NodePath(""), "%s must have an up neighbor" % unique_name)
 		assert_ne(check.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor" % unique_name)
-	# Forward order: the header -> the four experiments (in order) -> the next stop.
-	var current: Control = section.header_button
+	# Forward order: the chip -> the four experiments (in order) -> the next stop.
+	var current: Control = section.advanced_button
 	for unique_name: String in CHECK_NAMES:
 		current = current.get_node(current.focus_neighbor_bottom) as Control
 		assert_eq(current, _check(lobby, unique_name), "next stop after the previous one is %s" % unique_name)
@@ -300,7 +300,7 @@ func test_experiment_checkboxes_join_the_main_loop_once_the_section_opens() -> v
 	assert_false(CHECK_NAMES.has("%" + String(after.name)), "the loop leaves the experiments after the last one")
 	# Backward order mirrors it.
 	var first: CheckBox = _check(lobby, CHECK_NAMES[0])
-	assert_eq(first.get_node(first.focus_neighbor_top), section.header_button)
+	assert_eq(first.get_node(first.focus_neighbor_top), section.advanced_button)
 	assert_eq(after.get_node(after.focus_neighbor_top), _check(lobby, CHECK_NAMES[3]))
 
 
@@ -310,7 +310,7 @@ func test_experiment_checkboxes_are_not_focus_stops_while_the_section_is_collaps
 	var section: LobbySection = lobby.get_node("%ExperimentsSection") as LobbySection
 	assert_false(section.is_advanced_open(), "the experiments start collapsed")
 	var shown: Array[Control] = lobby._visible_chain(lobby._main_chain)
-	assert_true(shown.has(section.header_button), "the header is a stop")
+	assert_true(shown.has(section.advanced_button), "the chip is a stop")
 	for unique_name: String in CHECK_NAMES:
 		assert_true(lobby._main_chain.has(_check(lobby, unique_name)), "%s is a candidate stop" % unique_name)
 		assert_false(shown.has(_check(lobby, unique_name)), "%s is not a stop while collapsed" % unique_name)

@@ -6,6 +6,10 @@
 script = ExtResource("1_lobbylayout")
 section_spacing_px = 10
 advanced_indent_px = 12
+label_column_width_px = 150
+value_column_width_px = 64
+row_separation_px = 12
+row_spacing_px = 8
 color_box_size_px = Vector2(24, 24)
 color_box_corner_radius_px = 6
 seat_row_min_height_px = 0

@@ -161,8 +161,8 @@ func test_focus_loops_skip_the_hidden_timer_column() -> void:
 	# players/AI controls and the AI difficulty left the settings card).
 	assert_lt(shown.find(lobby.get_node("%GameModeOption")), shown.find(match_slider))
 	assert_lt(shown.find(match_slider), shown.find(sudden))
-	var gifts_header: Control = (lobby.get_node("%GiftsSection") as LobbySection).header_button
-	var experiments_header: Control = (lobby.get_node("%ExperimentsSection") as LobbySection).header_button
+	var gifts_header: Control = (lobby.get_node("%GiftsSection") as LobbySection).advanced_button
+	var experiments_header: Control = (lobby.get_node("%ExperimentsSection") as LobbySection).advanced_button
 	assert_lt(shown.find(sudden), shown.find(gifts_header))
 	assert_lt(shown.find(gifts_header), shown.find(experiments_header))
 	assert_lt(shown.find(experiments_header), shown.find(lobby.get_node("%BackButton")))
