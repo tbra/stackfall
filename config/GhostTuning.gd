@@ -423,7 +423,12 @@ extends Resource
 ## The raise is taken back off the moment the player takes over the hover
 ## height or the first accepted placement issues the next piece, so later
 ## pieces hover exactly as before.
-@export var home_spawn_beacon_margin: float = 0.25
+## Bontago-1pi.64 (owner playtest 2026-10-04: first block "right on top of the
+## home beacon"): margin raised 0.25 -> 1.25 m of breathing space.
+@export var home_spawn_beacon_margin: float = 1.25
+## Bontago-1pi.64: metres the first block starts back from the home beacon,
+## horizontally away from the field centre (the side the home camera sits on).
+@export var home_spawn_back_offset: float = 2.0
 
 ## -- Throw aim (M4 P2e, docs/M4_P2_PACKAGES.md P2e; spec 2.5 "Throw
 ## (specials only)") ----------------------------------------------------------
@@ -559,3 +564,12 @@ func home_spawn_clear_hover(beacon_visuals: BeaconVisualTuning) -> float:
 ## Shape-independent: every shape's lowest cells put the pivot on their bottom face.
 func home_spawn_pivot_height(beacon_visuals: BeaconVisualTuning, physics_tuning: PhysicsTuning) -> float:
 	return home_spawn_clear_hover(beacon_visuals) - physics_tuning.cube_margin * 0.5
+
+
+## Bontago-1pi.64: a home flag's field-local position moved home_spawn_back_offset
+## metres horizontally away from the field centre (unchanged at the centre).
+func home_spawn_back_position(local_home: Vector3) -> Vector3:
+	var away: Vector3 = Vector3(local_home.x, 0.0, local_home.z)
+	if away.length() < 0.0001:
+		return local_home
+	return local_home + away.normalized() * home_spawn_back_offset

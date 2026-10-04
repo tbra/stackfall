@@ -169,9 +169,17 @@ var _view_tweens: Array[Tween] = []
 @onready var _camera: Camera3D = $Camera3D
 
 
+var _pause_open: bool = false
+var _results_open: bool = false
+
+
 func _ready() -> void:
 	add_to_group(TUNING_GROUP)
 	Events.block_impacted.connect(_on_block_impacted)
+	Events.pause_menu_opened.connect(_on_pause_menu_opened)
+	Events.pause_menu_closed.connect(_on_pause_menu_closed)
+	Events.match_results_ready.connect(_on_match_results_ready)
+	Events.match_scope_reset.connect(_on_match_scope_reset)
 	process_priority = _PROCESS_PRIORITY_AFTER_GHOST
 	# Bontago-1bt (owner log: "Interpolated Camera3D triggered from outside
 	# physics process" -- the same warning game/DiscMirror.gd's own class doc
@@ -211,7 +219,35 @@ func _apply_default_view() -> void:
 		_update_transform()
 
 
+## Bontago-1pi.65 (owner playtest 2026-10-04: "I can still move the camera with
+## the joystick while the round end screen shows"). True while the pause menu or
+## the results screen is open: orbit, pan, zoom and snap input are all ignored.
+## Driven only by the Events bus (pause_menu_*, match_results_ready; cleared by
+## match_scope_reset and reset_view()), so no UI node is referenced.
+func is_input_blocked() -> bool:
+	return _pause_open or _results_open
+
+
+func _on_pause_menu_opened() -> void:
+	_pause_open = true
+
+
+func _on_pause_menu_closed() -> void:
+	_pause_open = false
+
+
+func _on_match_results_ready(_results: Dictionary) -> void:
+	_results_open = true
+
+
+func _on_match_scope_reset() -> void:
+	_pause_open = false
+	_results_open = false
+
+
 func _unhandled_input(event: InputEvent) -> void:
+	if is_input_blocked():
+		return
 	if _rotate_drag_frozen():
 		# Bontago-mv0.29: freeze consumes every camera input this rig would
 		# otherwise react to (orbit motion, pan motion, zoom keys, snap
@@ -304,7 +340,7 @@ func _process(delta: float) -> void:
 	# above freezes the whole rig for a different hold.
 	var look_x: float = 0.0
 	var look_y: float = 0.0
-	if not Input.is_action_pressed(&"throw_aim"):
+	if not Input.is_action_pressed(&"throw_aim") and not is_input_blocked():
 		look_x = Input.get_action_strength(&"camera_look_right") - Input.get_action_strength(&"camera_look_left")
 		look_y = Input.get_action_strength(&"camera_look_down") - Input.get_action_strength(&"camera_look_up")
 	if look_x != 0.0 or look_y != 0.0:
@@ -435,6 +471,8 @@ func set_home_view(home_position: Vector3, look_at_position: Vector3 = Vector3.Z
 ## sandbox start), so a lobby match after a sandbox session has gamepad Back =
 ## focus home again.
 func reset_view() -> void:
+	_pause_open = false
+	_results_open = false
 	suppress_pad_home_focus = false
 	for tween: Tween in _view_tweens:
 		if tween != null and tween.is_valid():
