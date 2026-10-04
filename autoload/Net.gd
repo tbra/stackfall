@@ -536,6 +536,22 @@ func set_peer_ready(peer_id: int, ready: bool) -> void:
 	_broadcast_roster()
 
 
+## Host only: clears every peer's ready flag (host included) and republishes the roster.
+## DECISION (Bontago-1pi.73): a lobby (re)entered after a match or a pause "Return to
+## lobby" builds a fresh Lobby whose Ready toggle starts off, so the roster resets to
+## match it for the host and every client alike.
+func reset_ready_flags() -> void:
+	if not is_host():
+		return
+	var changed: bool = false
+	for peer_id: int in _peers.keys():
+		if bool(_peers[peer_id].get("ready", false)):
+			_peers[peer_id]["ready"] = false
+			changed = true
+	if changed:
+		_broadcast_roster()
+
+
 func kick_peer(peer_id: int, reason: LeaveReason = LeaveReason.KICKED) -> void:
 	if not is_host() or not _peers.has(peer_id):
 		return
