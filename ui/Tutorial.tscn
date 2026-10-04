@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://ui/Tutorial.gd" id="1_tutorial"]
 [ext_resource type="PackedScene" path="res://game/GhostPreview.tscn" id="2_ghost"]
@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" path="res://ui/HUD.tscn" id="4_hud"]
 [ext_resource type="PackedScene" path="res://game/ThrowArcPreview.tscn" id="5_arc"]
 [ext_resource type="Resource" path="res://config/tutorial_config.tres" id="6_config"]
+[ext_resource type="Script" path="res://ui/InputPromptFlow.gd" id="7_hints"]
 
 [node name="Tutorial" type="Node"]
 script = ExtResource("1_tutorial")
@@ -36,10 +37,9 @@ offset_right = 260.0
 offset_bottom = 64.0
 grow_horizontal = 2
 
-[node name="PromptLabel" type="Label" parent="PromptLayer/PromptPanel"]
+[node name="PromptLabel" type="HFlowContainer" parent="PromptLayer/PromptPanel"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
-horizontal_alignment = 1
-autowrap_mode = 2
-text = ""
+mouse_filter = 2
+alignment = 1
+script = ExtResource("7_hints")

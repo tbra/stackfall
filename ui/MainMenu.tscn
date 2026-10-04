@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://ui/MainMenu.gd" id="1_menu"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/back.svg" id="glyph_back"]
@@ -13,6 +13,7 @@
 [ext_resource type="Theme" path="res://ui/theme/stackfall_theme.tres" id="2_theme"]
 [ext_resource type="Script" path="res://ui/MenuDiorama.gd" id="3_diorama"]
 [ext_resource type="Script" path="res://ui/MenuBackdrop.gd" id="4_backdrop"]
+[ext_resource type="Script" path="res://ui/InputPromptFlow.gd" id="5_hints"]
 
 [node name="MainMenu" type="Control"]
 layout_mode = 3
@@ -409,50 +410,9 @@ grow_horizontal = 0
 grow_vertical = 0
 mouse_filter = 2
 
-[node name="GamepadHintRow" type="HBoxContainer" parent="GamepadHintPill"]
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="GlyphA" type="PanelContainer" parent="GamepadHintPill/GamepadHintRow"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(22, 22)
-layout_mode = 2
-size_flags_vertical = 4
-
-[node name="GlyphALabel" type="Label" parent="GamepadHintPill/GamepadHintRow/GlyphA"]
+[node name="GamepadHintRow" type="HFlowContainer" parent="GamepadHintPill"]
 unique_name_in_owner = true
 layout_mode = 2
-horizontal_alignment = 1
-vertical_alignment = 1
-text = "A"
-
-[node name="SelectLabel" type="Label" parent="GamepadHintPill/GamepadHintRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_vertical = 4
-text = "Select"
-
-[node name="GlyphB" type="PanelContainer" parent="GamepadHintPill/GamepadHintRow"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(22, 22)
-layout_mode = 2
-size_flags_vertical = 4
-
-[node name="GlyphBLabel" type="Label" parent="GamepadHintPill/GamepadHintRow/GlyphB"]
-unique_name_in_owner = true
-layout_mode = 2
-horizontal_alignment = 1
-vertical_alignment = 1
-text = "B"
-
-[node name="BackLabel" type="Label" parent="GamepadHintPill/GamepadHintRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_vertical = 4
-text = "Back"
-
-[node name="KeyboardLabel" type="Label" parent="GamepadHintPill/GamepadHintRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_vertical = 4
-text = "⌨ Enter · Esc"
+mouse_filter = 2
+script = ExtResource("5_hints")
+template = "{ui_accept} Select   {ui_cancel} Back"
