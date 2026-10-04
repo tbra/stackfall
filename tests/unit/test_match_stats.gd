@@ -546,3 +546,42 @@ func test_client_receives_the_same_tally_over_the_results_event() -> void:
 	var bad: Dictionary = host_results.duplicate(true)
 	(bad["rows"] as Array)[0]["wins"] = -1
 	assert_true(MatchStats.validate_results_payload(bad).is_empty(), "a negative wins count is dropped")
+
+
+# --- Bontago-1pi.69: live scoreboard snapshot ----------------------------------
+
+func test_live_payload_is_the_results_shape_for_the_round_in_progress() -> void:
+	Match.start_match(_free_for_all_config(2))
+	_run_countdown()
+	_place(0)
+	Match.stats().record_height(1, 3.0)
+	var live: Dictionary = Match.stats().live_payload()
+	assert_true(bool(live.get("live")), "flagged live so the table says Alive")
+	assert_eq(int(live["winner_id"]), -1, "nobody has won yet")
+	var rows: Array = live["rows"]
+	assert_eq(rows.size(), 2)
+	assert_eq(int((rows[0] as Dictionary)["blocks_placed"]), 1)
+	assert_almost_eq(float((rows[1] as Dictionary)["height"]), 3.0, 0.001)
+	assert_false(MatchStats.validate_results_payload(live).is_empty(), "same wire validation as the results payload")
+	var wins_before: int = Match.stats().session_wins(0)
+	Match.stats().build_live_payload()
+	assert_eq(Match.stats().session_wins(0), wins_before, "building a live snapshot records no win")
+
+
+func test_client_live_payload_is_the_last_replicated_snapshot() -> void:
+	var stats: MatchStats = MatchStats.new()
+	var snapshot: Dictionary = MatchStats.validate_results_payload(_sample_valid_payload())
+	stats.apply_live_snapshot(snapshot)
+	assert_eq((stats._remote_live["rows"] as Array).size(), 2)
+	assert_true(bool(stats._remote_live["live"]))
+	stats.reset()
+	assert_true(stats._remote_live.is_empty(), "a new match drops the previous snapshot")
+
+
+func test_live_scores_event_is_dropped_on_the_host_and_when_malformed() -> void:
+	var net: MatchNetScript = _make_net({1: 0})
+	Match.start_match(_free_for_all_config(2))
+	net.net_match_event(MatchNetScript.EVENT_LIVE_SCORES, [_sample_valid_payload()])
+	assert_true(Match.stats()._remote_live.is_empty(), "the host never applies a snapshot")
+	net.net_match_event(MatchNetScript.EVENT_LIVE_SCORES, ["junk"])
+	assert_true(Match.stats()._remote_live.is_empty())

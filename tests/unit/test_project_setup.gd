@@ -48,6 +48,7 @@ const REQUIRED_ACTIONS: PackedStringArray = [
 	"net_debug_toggle",
 	"tuning_panel_toggle",
 	"sandbox_next_slot",
+	"show_scores",
 	"sandbox_reset_field",
 	"sandbox_toggle_timer",
 	"sandbox_spawn_tower",

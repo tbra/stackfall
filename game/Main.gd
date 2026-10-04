@@ -77,6 +77,8 @@ const PAUSE_MENU_SCENE: PackedScene = preload("res://ui/PauseMenu.tscn")
 ## Events.match_results_ready/match_state_changed, so this is only an
 ## instantiate-and-hide, no further wiring in this file.
 const RESULTS_SCREEN_SCENE: PackedScene = preload("res://ui/ResultsScreen.tscn")
+## Bontago-1pi.69: hold-to-show live scoreboard (action show_scores).
+const SCOREBOARD_SCENE: PackedScene = preload("res://ui/ScoreboardOverlay.tscn")
 ## Bontago-1pi.8 (owner playtest 2026-09-27): covers the LOBBY -> LOADING ->
 ## COUNTDOWN window instead of leaving the idle centre-beacon camera shot on
 ## screen -- see ui/LoadingScreen.gd's own header doc.
@@ -124,6 +126,7 @@ var _pause_menu: PauseMenu = null
 ## response to Events.match_results_ready (never a raw key press), so there
 ## is no toggle input to suppress during Tutorial/hot-seat/sandbox.
 var _results_screen: ResultsScreen = null
+var _scoreboard: ScoreboardOverlay = null
 ## Bontago-1pi.8: built once, right alongside _pause_menu above (same
 ## "instantiate once, self-wire" contract this file's own header describes),
 ## never for --hot-seat/the CLI-only --sandbox debug entry point (both return
@@ -243,6 +246,8 @@ func _ready() -> void:
 
 	_results_screen = RESULTS_SCREEN_SCENE.instantiate() as ResultsScreen
 	add_child(_results_screen)
+	_scoreboard = SCOREBOARD_SCENE.instantiate() as ScoreboardOverlay
+	add_child(_scoreboard)
 	# Bontago-1pi.8: built before Net.init_steam()/_show_main_menu() below,
 	# same reasoning as _pause_menu just above -- it must already exist the
 	# first time _on_match_state_changed() below can possibly fire.
@@ -383,6 +388,9 @@ func _start_sandbox_match_with_args(args: PackedStringArray) -> void:
 	Sfx.set_music_context(&"gameplay")
 	_sandbox = SANDBOX_SCENE.instantiate() as Sandbox
 	add_child(_sandbox)
+	# DECISION (Bontago-1pi.69): no scoreboard in the sandbox; Tab stays sandbox_next_slot.
+	if _scoreboard != null:
+		_scoreboard.suppressed = true
 	_sandbox.set_camera_rig(_camera_rig)
 	_sandbox.set_field(_field)
 	Match.register_world(_field, _registry, _blocks_container)
@@ -1202,6 +1210,8 @@ func _on_pause_leave_requested() -> void:
 		_sandbox.process_mode = Node.PROCESS_MODE_DISABLED
 		_sandbox.queue_free()
 		_sandbox = null
+		if _scoreboard != null:
+			_scoreboard.suppressed = false
 	if Match.state() != Match.State.LOBBY:
 		Match.abort_match()
 	_show_main_menu()

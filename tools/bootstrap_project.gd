@@ -220,11 +220,21 @@ func _actions() -> Dictionary:
 	a["ghost_place"] = [_mouse(MOUSE_BUTTON_LEFT), _pad(JOY_BUTTON_A)]
 
 	# Bontago-1pi.18.2 (QoL gift slot experiment): spends the slotted gift.
-	# DECISION: G on keyboard (unbound); right-stick click on gamepad -- every
-	# other standard pad button is bound. It shares the button with the debug
-	# perf_overlay_toggle chord (Back held + R3), so game/PlayerController.gd
-	# ignores the pad press while Back (camera_snap_home) is held.
-	a["use_gift_slot"] = [_key(KEY_G), _pad(JOY_BUTTON_RIGHT_STICK)]
+	# DECISION (Bontago-1pi.69): G on keyboard (unbound); the pad half moved off
+	# right-stick click, which now holds the scoreboard (show_scores, owner
+	# request), to JOY_BUTTON_TOUCHPAD -- the least-conflicting free button: only
+	# the sandbox-only, debug-gated sandbox_force_special shares it. The D-pad is
+	# block rotation and every other standard button is bound; Xbox-layout pads
+	# have no touchpad, so there the experimental (off by default) slot is
+	# keyboard/rebind only.
+	a["use_gift_slot"] = [_key(KEY_G), _pad(JOY_BUTTON_TOUCHPAD)]
+
+	# Bontago-1pi.69 (owner playtest: a hold-to-show score tracker). DECISION: Tab
+	# is shared with the sandbox-only sandbox_next_slot; ui/ScoreboardOverlay.gd is
+	# suppressed in the sandbox so Tab keeps its sandbox meaning there. R3 is also
+	# the debug perf_overlay_toggle chord (Back held + R3): the overlay ignores a
+	# pad press while Back (camera_snap_home) is held.
+	a["show_scores"] = [_key(KEY_TAB), _pad(JOY_BUTTON_RIGHT_STICK)]
 
 	# Yaw keeps the original game's A/S (spec 1.5, ORIGINAL). Bontago-mv0.14:
 	# the wheel used to double as yaw too; it is now block height only (see

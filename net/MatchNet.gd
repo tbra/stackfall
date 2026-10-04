@@ -107,6 +107,10 @@ const EVENT_MATCH_CLOCK: StringName = &"match_clock"
 ## Bontago-1pi.42 (mid-match join replay only, COUNTDOWN): the loading-screen ready
 ## gate as the host sees it now -- [ready_peer_ids, required_peer_ids, open].
 const EVENT_LOADING_GATE: StringName = &"loading_gate"
+## Bontago-1pi.69: the live scoreboard snapshot (MatchStats.build_live_payload()),
+## sent at NetConfig.scoreboard_hz while the round is live; clients show it in the
+## hold-to-show scoreboard (ui/ScoreboardOverlay.gd). Display only.
+const EVENT_LIVE_SCORES: StringName = &"live_scores"
 
 @export var config: NetConfig = preload("res://config/net_config.tres")
 
@@ -316,6 +320,7 @@ var _replaying_since_ms: int = 0
 ## Bontago-22y.10: the weather RPC surface (net/WeatherNet.gd), a child node.
 var _weather_net: WeatherNet = null
 var _cat_send_accum: float = 0.0
+var _scores_send_accum: float = 0.0
 var _cat_target_last_send: float = -1.0
 
 
@@ -447,6 +452,11 @@ func _process(delta: float) -> void:
 			_cat_send_accum = 0.0
 			_broadcast(&"net_cat_state", [cat.activation_id, cat.global_position,
 				cat.linear_velocity, cat.target, cat.time_left])
+	if MatchLifecycle.is_live_state(_authority().state()):
+		_scores_send_accum += delta
+		if _scores_send_accum >= 1.0 / maxf(config.scoreboard_hz, 0.001):
+			_scores_send_accum = 0.0
+			replicate_match_event(EVENT_LIVE_SCORES, [_authority().stats().build_live_payload()])
 	_raster_send_accum += delta
 	var step: float = 1.0 / maxf(config.raster_diff_hz, 0.001)
 	if _raster_send_accum >= step:
@@ -2716,6 +2726,13 @@ func net_match_event(event: StringName, args: Array) -> void:
 			if validated.is_empty():
 				return
 			Events.match_results_ready.emit(validated)
+		EVENT_LIVE_SCORES:
+			if _is_host() or args.size() < 1:
+				return
+			var live: Dictionary = MatchStats.validate_results_payload(args[0])
+			if live.is_empty():
+				return
+			_authority().stats().apply_live_snapshot(live)
 		EVENT_GIFT_FLIGHT:
 			if args.size() != 3 or not args[0] is int or not args[1] is Vector3 or not args[2] is Vector3:
 				return
