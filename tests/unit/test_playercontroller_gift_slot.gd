@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.18.2: the use_gift_slot action (keyboard G, gamepad right-stick click)
+## Bontago-1pi.18.2: the use_gift_slot action (keyboard G, gamepad touchpad)
 ## asks Match to spend the slotted gift, and only when one is waiting.
 
 
@@ -24,13 +24,13 @@ func _controller(fake: GiftFakeMatch) -> PlayerController:
 	return controller
 
 
-func test_gamepad_stick_click_uses_the_slot() -> void:
+func test_gamepad_touchpad_uses_the_slot() -> void:
 	var fake: GiftFakeMatch = GiftFakeMatch.new()
 	fake.head = &"anvil"
 	var controller: PlayerController = _controller(fake)
 	var event: InputEventJoypadButton = InputEventJoypadButton.new()
 	event.device = -1
-	event.button_index = JOY_BUTTON_RIGHT_STICK
+	event.button_index = JOY_BUTTON_TOUCHPAD
 	event.pressed = true
 	assert_true(event.is_action_pressed(&"use_gift_slot"))
 	controller._unhandled_input(event)
@@ -51,15 +51,10 @@ func test_keyboard_g_uses_the_slot_and_empty_slot_is_ignored() -> void:
 	assert_eq(fake.use_calls, [0])
 
 
-func test_pad_press_is_ignored_while_back_is_held_for_the_debug_chord() -> void:
-	var fake: GiftFakeMatch = GiftFakeMatch.new()
-	fake.head = &"anvil"
-	var controller: PlayerController = _controller(fake)
-	Input.action_press(&"camera_snap_home")
+func test_r3_no_longer_spends_a_gift_it_shows_the_scoreboard() -> void:
 	var event: InputEventJoypadButton = InputEventJoypadButton.new()
 	event.device = -1
 	event.button_index = JOY_BUTTON_RIGHT_STICK
 	event.pressed = true
-	controller._unhandled_input(event)
-	Input.action_release(&"camera_snap_home")
-	assert_eq(fake.use_calls.size(), 0, "Back + R3 is the perf overlay chord, not a gift use")
+	assert_false(event.is_action_pressed(&"use_gift_slot"), "Bontago-1pi.69: R3 belongs to show_scores")
+	assert_true(event.is_action_pressed(&"show_scores"))

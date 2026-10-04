@@ -57,6 +57,7 @@ const DISPLAY_NAMES: Dictionary[StringName, String] = {
 	&"camera_snap_home": "Snap to home",
 	&"camera_snap_goal": "Snap to goal",
 	&"pause_menu": "Pause",
+	&"show_scores": "Show scores (hold)",
 }
 
 ## Bontago-1pi.41 (owner capture of the Options gamepad Controls page: blank

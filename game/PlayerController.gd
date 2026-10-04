@@ -692,11 +692,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_ghost.reset_rotation()
 		_rotation_drag = Vector2.ZERO
 	elif event.is_action_pressed(&"use_gift_slot"):
-		# DECISION (Bontago-1pi.18.2): R3 is shared with the debug perf_overlay_toggle
-		# chord (Back held + R3, ui/PerfOverlay.gd); every other pad button is taken,
-		# so the pad press is ignored while Back is held and the chord never spends a gift.
-		if event is InputEventJoypadButton and Input.is_action_pressed(&"camera_snap_home"):
-			return
+		# Bontago-1pi.69: the pad half moved off R3 (now show_scores), so the old
+		# Back-held guard for the perf chord is no longer needed.
 		_use_gift_slot()
 	elif event.is_action_pressed(&"ghost_place"):
 		# Bontago-1en.14 (M4 P2d, owner decision Bontago-mvl (a)): on mouse,

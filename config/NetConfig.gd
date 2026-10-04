@@ -113,6 +113,8 @@ const STEAM_LOBBY_TYPE_PUBLIC: int = 2
 ## Cursor updates per second, client -> host and host -> clients (spec 3.4:
 ## "update_cursor(pos): unreliable, 15 Hz").
 @export var cursor_hz: float = 15.0
+## Bontago-1pi.69: live scoreboard snapshots per second, host -> clients.
+@export var scoreboard_hz: float = 2.0
 
 # --- Snapshot packing (spec 3.4 "Snapshots") --------------------------------
 
@@ -263,6 +265,7 @@ func sanitize() -> void:
 	snapshot_hz = clampf(snapshot_hz, 1.0, 60.0)
 	raster_diff_hz = clampf(raster_diff_hz, 1.0, 30.0)
 	cursor_hz = clampf(cursor_hz, 1.0, 60.0)
+	scoreboard_hz = clampf(scoreboard_hz, 0.5, 10.0)
 	max_packet_bytes = clampi(max_packet_bytes, 256, 1400)
 	replay_ack_timeout = maxf(replay_ack_timeout, 1.0)
 	peer_timeout_limit = maxi(peer_timeout_limit, 1)

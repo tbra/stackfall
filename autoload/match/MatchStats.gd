@@ -125,6 +125,8 @@ var _session_wins: Dictionary = {}
 ## State.SUDDEN_DEATH). Reset to 0.0 by reset(); read by match_duration() and
 ## snapshotted into build_results_payload()'s "match_duration" field.
 var _elapsed: float = 0.0
+## Bontago-1pi.69: client copy of the host's last live snapshot; cleared by reset().
+var _remote_live: Dictionary = {}
 
 
 func setup(match_ref: MatchAutoload) -> void:
@@ -148,6 +150,7 @@ func reset() -> void:
 	_eliminated_at.clear()
 	_height_reached.clear()
 	_peak_share.clear()
+	_remote_live = {}
 	_elapsed = 0.0
 
 
@@ -307,6 +310,25 @@ func build_results_payload(winning_team: int, mode_fields: Dictionary = {}) -> D
 		winner_teams.append(winning_team)
 	_record_session_wins(winner_teams)
 
+	var rows: Array[Dictionary] = _build_rows()
+
+	var payload: Dictionary = {
+		"winner_kind": WINNER_KIND_SLOT if ffa else WINNER_KIND_TEAM,
+		"winner_id": winning_team,
+		"winner_name": _winner_name(winning_team, ffa),
+		"match_duration": _elapsed,
+		"rows": rows,
+	}
+	# Bontago-22y.11: the mode outcome rides in an optional "mode" block, absent
+	# for classic so its payload is unchanged.
+	if not mode_fields.is_empty():
+		payload["mode"] = mode_fields
+	return payload
+
+
+## Bontago-1pi.69: one row per seated slot from the current counters (the
+## results payload and the live scoreboard snapshot share it).
+func _build_rows() -> Array[Dictionary]:
 	var rows: Array[Dictionary] = []
 	for slot_id: int in range(_match.slot_count()):
 		var slot: PlayerSlot = _match.slot(slot_id)
@@ -328,19 +350,44 @@ func build_results_payload(winning_team: int, mode_fields: Dictionary = {}) -> D
 			"peak_territory": peak_territory(team_id),
 			"wins": session_wins(slot_id),
 		})
+	return rows
 
+
+## Bontago-1pi.69 (hold-to-show scoreboard): the same payload shape as
+## build_results_payload() for the round in progress. Side-effect free (records
+## no session wins); winner_id -1 / empty name = nobody has won. DECISION: the
+## optional "mode" block carries only mode_id + scores (no winners/order, which
+## are only known at the end).
+func build_live_payload() -> Dictionary:
+	var config: MatchConfig = _match.config
+	var ffa: bool = config == null or config.team_mode == MatchConfig.TeamMode.OFF
 	var payload: Dictionary = {
 		"winner_kind": WINNER_KIND_SLOT if ffa else WINNER_KIND_TEAM,
-		"winner_id": winning_team,
-		"winner_name": _winner_name(winning_team, ffa),
+		"winner_id": -1,
+		"winner_name": "",
 		"match_duration": _elapsed,
-		"rows": rows,
+		"rows": _build_rows(),
+		"live": true,
 	}
-	# Bontago-22y.11: the mode outcome rides in an optional "mode" block, absent
-	# for classic so its payload is unchanged.
-	if not mode_fields.is_empty():
-		payload["mode"] = mode_fields
+	var objective: ModeObjective = _match._territory._objective
+	if objective != null and objective.mode_id() != MatchConfig.GameMode.CLASSIC:
+		payload["mode"] = {"mode_id": objective.mode_id(), "scores": Array(objective.scores())}
 	return payload
+
+
+## The live table's data on this peer: the host builds it from its own counters,
+## a client shows the last snapshot the host replicated (apply_live_snapshot()).
+func live_payload() -> Dictionary:
+	if _match._is_host():
+		return build_live_payload()
+	return _remote_live
+
+
+## Client side of the replicated live snapshot (already validated by the
+## caller via validate_results_payload()); display only.
+func apply_live_snapshot(payload: Dictionary) -> void:
+	_remote_live = payload.duplicate()
+	_remote_live["live"] = true
 
 
 func _winner_name(winning_team: int, ffa: bool) -> String:
