@@ -276,6 +276,7 @@ func _ready() -> void:
 	Events.pause_menu_closed.connect(_on_pause_menu_closed)
 	# Bontago-1pi.65: the results screen blocks gameplay input like the pause menu.
 	Events.match_results_ready.connect(_on_match_results_ready)
+	Events.match_scope_reset.connect(_on_match_scope_reset)
 
 
 ## HotSeat.gd calls this after Main builds the shared CameraRig: HotSeat.tscn
@@ -366,12 +367,23 @@ func _on_pause_menu_opened() -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
-## Mirrors _on_pause_menu_opened() above: restores input and, if this session
-## ever had mouse capture on, re-captures it exactly as enable_mouse_capture()
-## originally set it up.
 func _on_match_results_ready(_results: Dictionary) -> void:
 	_results_open = true
 	input_enabled = false
+
+
+## Play again / sandbox reset reuse this controller: the results screen is gone,
+## so gameplay input comes back (review finding on Bontago-1pi.65).
+func _on_match_scope_reset() -> void:
+	if not _results_open:
+		return
+	_results_open = false
+	input_enabled = true
+
+
+## Mirrors _on_pause_menu_opened() above: restores input and, if this session
+## ever had mouse capture on, re-captures it exactly as enable_mouse_capture()
+## originally set it up.
 
 
 func _on_pause_menu_closed() -> void:
