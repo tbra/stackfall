@@ -175,6 +175,10 @@ func _build() -> void:
 	material.set_shader_parameter(&"edge_color", tuning.flake_edge_color)
 	material.set_shader_parameter(&"edge_start", tuning.flake_edge_start)
 	material.set_shader_parameter(&"flake_size", tuning.flake_size_m)
+	material.set_shader_parameter(&"use_atlas", tuning.flake_atlas != null)
+	if tuning.flake_atlas != null:
+		material.set_shader_parameter(&"atlas", tuning.flake_atlas)
+	material.set_shader_parameter(&"atlas_grid", Vector2(float(tuning.flake_atlas_columns), float(tuning.flake_atlas_rows)))
 	material.set_shader_parameter(&"min_angle", tuning.flake_min_angle)
 	material.set_shader_parameter(&"max_angle", tuning.flake_max_angle)
 
