@@ -199,6 +199,11 @@ const MAX_STOP: float = 0.99
 ## costs lifetime * this many steps, so lower is cheaper.
 @export_range(1, 60, 1) var flake_sim_fps: int = 15
 @export var flake_size_m: float = 0.18
+## Cel-shaded flake sprite atlas (assets/vfx/snow_atlas_v1): each flake keeps one
+## random cell of the grid. Empty = the procedural round dot.
+@export var flake_atlas: Texture2D = null
+@export_range(1, 8, 1) var flake_atlas_columns: int = 4
+@export_range(1, 8, 1) var flake_atlas_rows: int = 4
 ## Smallest and largest apparent flake size as an angle in radians (about
 ## 4.7 px and 23 px at 720p): far flakes never shrink to sub-pixel specks
 ## against the bright sky and near ones never become blobs.

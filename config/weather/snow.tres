@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="SnowTuning" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="SnowTuning" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://config/SnowTuning.gd" id="1_st"]
+[ext_resource type="Texture2D" uid="uid://bbpiomkl126x7" path="res://assets/vfx/snow_atlas_v1/snow_atlas.png" id="2_atlas"]
 
 [resource]
 script = ExtResource("1_st")
@@ -91,6 +92,9 @@ flake_lifetime_s = 9.0
 flake_prefill = true
 flake_sim_fps = 15
 flake_size_m = 0.18
+flake_atlas = ExtResource("2_atlas")
+flake_atlas_columns = 4
+flake_atlas_rows = 4
 flake_min_angle = 0.008
 flake_max_angle = 0.04
 flake_stop_intensity = 0.5
