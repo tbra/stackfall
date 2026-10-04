@@ -755,3 +755,11 @@ func test_restore_default_special_drawer_reinstalls_the_weighted_drawer() -> voi
 		Match._gifts._special_drawer.call(), &"forced_id",
 		"the forced drawer must no longer be installed"
 	)
+
+
+## Bontago-8or.30: a forced drawer left by Sandbox must not survive into a
+## normal match.
+func test_start_match_restores_default_drawer_after_forced_one() -> void:
+	Match._gifts.set_special_drawer(func() -> StringName: return &"forced_id")
+	_start_playing(_config())
+	assert_ne(Match._gifts._special_drawer.call(), &"forced_id", "normal start drops the forced drawer")
