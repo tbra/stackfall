@@ -40,10 +40,9 @@ func _ready() -> void:
 	await RenderingServer.frame_post_draw
 	var image: Image = _shot_viewport.get_texture().get_image()
 	var err: Error = image.save_png(out_path)
-	print("LOADREADY saved=%s err=%d mode=%s size=%s status='%s' cap='%s' prompt=%s glyphs=%s" % [
+	print("LOADREADY saved=%s err=%d mode=%s size=%s prompt=%s glyphs=%s" % [
 		ProjectSettings.globalize_path(out_path) if out_path.begins_with("user://") else out_path,
-		err, mode, _shot_viewport.size, screen._status_label.text, screen._cap_label.text,
-		screen._ready_button.visible, screen.prompt_glyph_texts()])
+		err, mode, _shot_viewport.size, screen.accepts_ready_input(), screen.prompt_glyph_texts()])
 	get_tree().quit()
 
 

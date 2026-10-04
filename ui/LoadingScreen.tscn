@@ -102,39 +102,12 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 28
 horizontal_alignment = 1
-text = "Loading match..."
-
-[node name="InfoLabel" type="Label" parent="Layer/Content/Center/Card/Layout"]
-unique_name_in_owner = true
-layout_mode = 2
-horizontal_alignment = 1
-autowrap_mode = 2
-text = "Get ready..."
 
 [node name="PlayerList" type="VBoxContainer" parent="Layer/Content/Center/Card/Layout"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
 mouse_filter = 2
-
-[node name="SpinnerLabel" type="Label" parent="Layer/Content/Center/Card/Layout"]
-unique_name_in_owner = true
-layout_mode = 2
-horizontal_alignment = 1
-text = "Loading"
-
-[node name="StageLabel" type="Label" parent="Layer/Content/Center/Card/Layout"]
-unique_name_in_owner = true
-layout_mode = 2
-horizontal_alignment = 1
-text = "Preparing match"
-
-[node name="ProgressBar" type="ProgressBar" parent="Layer/Content/Center/Card/Layout"]
-unique_name_in_owner = true
-layout_mode = 2
-custom_minimum_size = Vector2(320, 18)
-max_value = 100.0
-show_percentage = false
 
 [node name="ReadyBox" type="VBoxContainer" parent="Layer/Content/Center/Card/Layout"]
 unique_name_in_owner = true
@@ -143,52 +116,20 @@ layout_mode = 2
 mouse_filter = 2
 alignment = 1
 
-[node name="StatusLabel" type="Label" parent="Layer/Content/Center/Card/Layout/ReadyBox"]
+[node name="PromptContent" type="VBoxContainer" parent="Layer/Content/Center/Card/Layout/ReadyBox"]
 unique_name_in_owner = true
 layout_mode = 2
-horizontal_alignment = 1
-text = "Get ready..."
-
-[node name="ReadyButton" type="Button" parent="Layer/Content/Center/Card/Layout/ReadyBox"]
-unique_name_in_owner = true
-visible = false
-layout_mode = 2
-size_flags_horizontal = 4
-focus_mode = 0
-mouse_default_cursor_shape = 2
-
-[node name="PromptContent" type="HBoxContainer" parent="Layer/Content/Center/Card/Layout/ReadyBox/ReadyButton"]
-unique_name_in_owner = true
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
 mouse_filter = 2
 alignment = 1
 
-[node name="PromptPrefix" type="Label" parent="Layer/Content/Center/Card/Layout/ReadyBox/ReadyButton/PromptContent"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_vertical = 4
-mouse_filter = 2
-text = "Press"
-
-[node name="GlyphSlot" type="HBoxContainer" parent="Layer/Content/Center/Card/Layout/ReadyBox/ReadyButton/PromptContent"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_vertical = 4
-mouse_filter = 2
-
-[node name="PromptSuffix" type="Label" parent="Layer/Content/Center/Card/Layout/ReadyBox/ReadyButton/PromptContent"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_vertical = 4
-mouse_filter = 2
-text = "to ready"
-
-[node name="CapLabel" type="Label" parent="Layer/Content/Center/Card/Layout/ReadyBox"]
+[node name="PromptText" type="Label" parent="Layer/Content/Center/Card/Layout/ReadyBox/PromptContent"]
 unique_name_in_owner = true
 layout_mode = 2
 horizontal_alignment = 1
+mouse_filter = 2
+
+[node name="GlyphSlot" type="HBoxContainer" parent="Layer/Content/Center/Card/Layout/ReadyBox/PromptContent"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+alignment = 1
