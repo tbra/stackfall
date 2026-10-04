@@ -277,12 +277,12 @@ func _header_texts() -> Array[String]:
 func test_team_column_only_with_teams() -> void:
 	_screen.show_results(_ffa_results())
 	assert_false(_header_texts().has("Team"), "free-for-all has no Team column")
-	assert_eq(_header_texts().size(), 6)
+	assert_eq(_header_texts().size(), 9)
 	var ffa_cells: Array[Node] = ((_screen._rows_list.get_child(1) as PanelContainer).get_child(0) as HBoxContainer).get_children()
-	assert_eq(ffa_cells.size(), 6, "data rows match the header")
+	assert_eq(ffa_cells.size(), 9, "data rows match the header")
 	_screen.show_results(_team_results())
 	assert_true(_header_texts().has("Team"))
-	assert_eq(_header_texts().size(), 7)
+	assert_eq(_header_texts().size(), 10)
 
 
 func test_gifts_column_is_merged_and_shows_gifts_used() -> void:

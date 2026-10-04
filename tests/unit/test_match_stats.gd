@@ -25,6 +25,7 @@ var _tiny_map: MapDef
 func before_each() -> void:
 	Match.set_process(false)
 	Match.abort_match()
+	Match.stats().reset_session_wins()  # the tally outlives a match, not a test
 	_tiny_map = (load("res://config/maps/round_medium.tres") as MapDef).duplicate(true)
 	_tiny_map.field_radius = 20.0
 	_field = autofree(Field.new())
@@ -422,3 +423,102 @@ func test_net_match_event_match_results_drops_a_malformed_payload() -> void:
 	Events.match_results_ready.disconnect(collect)
 	assert_eq(captured.size(), 1, "a well-formed payload is re-emitted for the client's own game code")
 	assert_eq(String(captured[0]["winner_kind"]), "slot")
+
+
+# --- Bontago-1pi.72.2: height, mode stat, session win tally ------------------
+
+func _finish_and_capture(winner: int) -> Dictionary:
+	var captured: Array[Dictionary] = []
+	var collect: Callable = func(results: Dictionary) -> void: captured.append(results)
+	Events.match_results_ready.connect(collect)
+	Match._finish_match(winner)
+	Events.match_results_ready.disconnect(collect)
+	return captured[0]
+
+
+func test_height_reached_is_the_highest_settled_block_and_only_rises() -> void:
+	Match.start_match(_free_for_all_config(2))
+	_run_countdown()
+	Match.stats().record_height(0, 3.0)
+	Match.stats().record_height(0, 1.5)
+	Match.stats().record_height(1, 2.0)
+	var rows: Array = _finish_and_capture(0)["rows"]
+	assert_almost_eq(float(rows[0]["height"]), 3.0, 0.001, "a later lower block never lowers the record")
+	assert_almost_eq(float(rows[1]["height"]), 2.0, 0.001)
+	assert_between(float(rows[0]["peak_territory"]), 0.0, 1.0)
+
+
+func test_mode_stat_column_per_mode() -> void:
+	var row: Dictionary = {"team_id": 1, "peak_territory": 0.4}
+	var classic: Dictionary = {}
+	assert_eq(ResultsScreen.mode_stat_header(classic), "Peak %")
+	assert_eq(ResultsScreen.mode_stat_text(classic, row), "40%")
+	for mode_id: int in [MatchConfig.GameMode.ELIMINATION, MatchConfig.GameMode.DOMINATION]:
+		var results: Dictionary = {"mode": {"mode_id": mode_id, "scores": [0.0, 0.0]}}
+		assert_eq(ResultsScreen.mode_stat_text(results, row), "40%", "peak territory for mode %d" % mode_id)
+	var ctf: Dictionary = {"mode": {"mode_id": MatchConfig.GameMode.CAPTURE_THE_FLAG, "scores": [1.0, 12.4]}}
+	assert_eq(ResultsScreen.mode_stat_header(ctf), "Points")
+	assert_eq(ResultsScreen.mode_stat_text(ctf, row), "12")
+	var sky: Dictionary = {"mode": {"mode_id": MatchConfig.GameMode.REACH_THE_SKY, "scores": [1.0, 7.25]}}
+	assert_eq(ResultsScreen.mode_stat_header(sky), "Team best")
+	assert_eq(ResultsScreen.mode_stat_text(sky, row), "7.3 m")
+
+
+func test_session_wins_accumulate_across_rounds_and_reset_with_the_host_session() -> void:
+	Match.start_match(_free_for_all_config(2))
+	_run_countdown()
+	var first: Dictionary = _finish_and_capture(0)
+	assert_eq(int((first["rows"] as Array)[0]["wins"]), 1)
+	assert_eq(int((first["rows"] as Array)[1]["wins"]), 0)
+
+	# Play again, then slot 0 and slot 1 win a round each.
+	Match.start_match(_free_for_all_config(2))
+	_run_countdown()
+	var second: Dictionary = _finish_and_capture(0)
+	assert_eq(int((second["rows"] as Array)[0]["wins"]), 2, "wins carry over a replay")
+	Match.start_match(_free_for_all_config(2))
+	_run_countdown()
+	var third: Dictionary = _finish_and_capture(1)
+	assert_eq(int((third["rows"] as Array)[0]["wins"]), 2)
+	assert_eq(int((third["rows"] as Array)[1]["wins"]), 1)
+
+	Events.net_mode_changed.emit(Net.Mode.OFFLINE)  # host session ended
+	Match.start_match(_free_for_all_config(2))
+	_run_countdown()
+	var fresh: Dictionary = _finish_and_capture(1)
+	assert_eq(int((fresh["rows"] as Array)[0]["wins"]), 0, "a new session starts the tally at zero")
+	assert_eq(int((fresh["rows"] as Array)[1]["wins"]), 1)
+
+
+func test_team_win_counts_for_every_member_of_the_winning_team() -> void:
+	Match.start_match(_team_config(4, MatchConfig.TeamMode.TEAMS_2))
+	_run_countdown()
+	var rows: Array = _finish_and_capture(1)["rows"]
+	for row: Dictionary in rows:
+		assert_eq(int(row["wins"]), 1 if int(row["team_id"]) == 1 else 0)
+
+
+func test_client_receives_the_same_tally_over_the_results_event() -> void:
+	Match.start_match(_free_for_all_config(2))
+	_run_countdown()
+	Match.stats().record_height(1, 4.0)
+	var host_results: Dictionary = _finish_and_capture(1)
+	var wire: Dictionary = host_results.duplicate(true)
+
+	var net: MatchNetScript = _make_net({1: 0})
+	var captured: Array[Dictionary] = []
+	var collect: Callable = func(results: Dictionary) -> void: captured.append(results)
+	Events.match_results_ready.connect(collect)
+	net.net_match_event(MatchNetScript.EVENT_MATCH_RESULTS, [wire])
+	Events.match_results_ready.disconnect(collect)
+	assert_eq(captured.size(), 1)
+	var client_rows: Array = captured[0]["rows"]
+	var host_rows: Array = host_results["rows"]
+	for i: int in range(host_rows.size()):
+		assert_eq(int(client_rows[i]["wins"]), int(host_rows[i]["wins"]))
+		assert_almost_eq(float(client_rows[i]["height"]), float(host_rows[i]["height"]), 0.001)
+	assert_eq(int(client_rows[1]["wins"]), 1)
+
+	var bad: Dictionary = host_results.duplicate(true)
+	(bad["rows"] as Array)[0]["wins"] = -1
+	assert_true(MatchStats.validate_results_payload(bad).is_empty(), "a negative wins count is dropped")

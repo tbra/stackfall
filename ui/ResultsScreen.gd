@@ -44,15 +44,17 @@ var match_net_provider: Variant = null
 ## sync between the header and the data rows.
 ## Column ids; _columns() picks which are shown. Headers and ratios live beside
 ## the id so header and data cells can never drift apart.
-enum Column { PLAYER, TEAM, PLACED, LOST, GIFTS, TERRITORY, STATUS }
+enum Column { PLAYER, TEAM, PLACED, LOST, GIFTS, HEIGHT, MODE_STAT, TERRITORY, STATUS, WINS }
 const _COLUMN_HEADERS: Dictionary = {
 	Column.PLAYER: "Player", Column.TEAM: "Team", Column.PLACED: "Placed", Column.LOST: "Lost",
-	Column.GIFTS: "Gifts", Column.TERRITORY: "Territory", Column.STATUS: "Status",
+	Column.GIFTS: "Gifts", Column.HEIGHT: "Height", Column.MODE_STAT: "Peak", Column.TERRITORY: "Territory",
+	Column.STATUS: "Status", Column.WINS: "Wins",
 }
 ## _make_cell()'s size_flags_stretch_ratio per column.
 const _COLUMN_RATIOS: Dictionary = {
 	Column.PLAYER: 3.0, Column.TEAM: 1.4, Column.PLACED: 1.0, Column.LOST: 1.0,
-	Column.GIFTS: 1.0, Column.TERRITORY: 1.2, Column.STATUS: 1.6,
+	Column.GIFTS: 1.0, Column.HEIGHT: 1.1, Column.MODE_STAT: 1.2, Column.TERRITORY: 1.2, Column.STATUS: 1.6,
+	Column.WINS: 0.9,
 }
 
 @export var tuning: MenuVisualTuning = preload("res://config/menu_visual_tuning.tres")
@@ -351,10 +353,10 @@ func _populate_rows(results: Dictionary) -> void:
 
 	var winner_kind: String = String(results.get("winner_kind", MatchStats.WINNER_KIND_SLOT))
 	var show_team: bool = winner_kind == MatchStats.WINNER_KIND_TEAM
-	_rows_list.add_child(_build_header_row(show_team))
+	_rows_list.add_child(_build_header_row(show_team, mode_stat_header(results)))
 	var team_numbers: PackedInt32Array = _resolved_team_numbers()
 	for row: Dictionary in sorted_rows(results):
-		_rows_list.add_child(_build_data_row(row, show_team, team_numbers))
+		_rows_list.add_child(_build_data_row(row, show_team, team_numbers, results))
 
 
 ## Bontago-1pi.72.1: the Team column exists only when the match played in teams
@@ -363,21 +365,27 @@ func _columns(show_team: bool) -> Array[int]:
 	var columns: Array[int] = [Column.PLAYER]
 	if show_team:
 		columns.append(Column.TEAM)
-	columns.append_array([Column.PLACED, Column.LOST, Column.GIFTS, Column.TERRITORY, Column.STATUS])
+	columns.append_array([
+		Column.PLACED, Column.LOST, Column.GIFTS, Column.HEIGHT, Column.MODE_STAT, Column.TERRITORY, Column.STATUS,
+		Column.WINS,
+	])
 	return columns
 
 
-func _build_header_row(show_team: bool) -> HBoxContainer:
+func _build_header_row(show_team: bool, mode_header: String = "Peak") -> HBoxContainer:
 	var header: HBoxContainer = HBoxContainer.new()
 	header.name = "HeaderRow"
 	for column: int in _columns(show_team):
-		var cell: Label = _make_cell(String(_COLUMN_HEADERS[column]), float(_COLUMN_RATIOS[column]))
+		var header_text: String = mode_header if column == Column.MODE_STAT else String(_COLUMN_HEADERS[column])
+		var cell: Label = _make_cell(header_text, float(_COLUMN_RATIOS[column]))
 		cell.add_theme_color_override("font_color", tuning.label_muted_color)
 		header.add_child(cell)
 	return header
 
 
-func _build_data_row(row: Dictionary, show_team: bool, team_numbers: PackedInt32Array = PackedInt32Array()) -> PanelContainer:
+func _build_data_row(
+	row: Dictionary, show_team: bool, team_numbers: PackedInt32Array = PackedInt32Array(), results: Dictionary = {}
+) -> PanelContainer:
 	var panel: PanelContainer = PanelContainer.new()
 	var is_winner: bool = bool(row.get("is_winner", false))
 	panel.set_meta(&"slot_id", int(row.get("slot_id", -1)))
@@ -402,14 +410,47 @@ func _build_data_row(row: Dictionary, show_team: bool, team_numbers: PackedInt32
 		Column.PLACED: str(int(row.get("blocks_placed", 0))),
 		Column.LOST: str(int(row.get("blocks_lost", 0))),
 		Column.GIFTS: str(int(row.get("specials_used", 0))),
+		Column.HEIGHT: "%s m" % String.num(float(row.get("height", 0.0)), 1),
+		Column.MODE_STAT: mode_stat_text(results, row),
 		Column.TERRITORY: territory_text,
 		Column.STATUS: status_text,
+		Column.WINS: str(int(row.get("wins", 0))),
 	}
 	for column: int in _columns(show_team):
 		var cell: Label = _make_cell(String(cell_text_by_column[column]), float(_COLUMN_RATIOS[column]))
 		cell.add_theme_color_override("font_color", tuning.ink_color)
 		box.add_child(cell)
 	return panel
+
+
+## Bontago-1pi.72.2: the one mode column. # DECISION: Capture the Flag shows the
+## team's beacon points (mode.scores), Reach the Sky the team's record in metres
+## (mode.scores; Height is the player's own best), every other mode (Classic,
+## Elimination, Domination) the team's peak territory share during the round.
+static func mode_stat_header(results: Dictionary) -> String:
+	match _results_mode_id(results):
+		MatchConfig.GameMode.CAPTURE_THE_FLAG:
+			return "Points"
+		MatchConfig.GameMode.REACH_THE_SKY:
+			return "Team best"
+	return "Peak %"
+
+
+static func mode_stat_text(results: Dictionary, row: Dictionary) -> String:
+	var team_id: int = int(row.get("team_id", 0))
+	var mode_id: int = _results_mode_id(results)
+	if mode_id == MatchConfig.GameMode.CAPTURE_THE_FLAG or mode_id == MatchConfig.GameMode.REACH_THE_SKY:
+		var scores: Array = (results.get("mode", {}) as Dictionary).get("scores", []) as Array
+		var value: float = float(scores[team_id]) if team_id >= 0 and team_id < scores.size() else 0.0
+		return "%s m" % String.num(value, 1) if mode_id == MatchConfig.GameMode.REACH_THE_SKY else str(int(round(value)))
+	return "%d%%" % int(round(float(row.get("peak_territory", 0.0)) * 100.0))
+
+
+static func _results_mode_id(results: Dictionary) -> int:
+	var mode: Variant = results.get("mode")
+	if mode is Dictionary:
+		return int((mode as Dictionary).get("mode_id", MatchConfig.GameMode.CLASSIC))
+	return MatchConfig.GameMode.CLASSIC
 
 
 func _make_cell(text: String, ratio: float) -> Label:
