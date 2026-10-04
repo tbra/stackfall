@@ -397,6 +397,12 @@ func start_match(match_config: MatchConfig) -> void:
 	_sandbox_cone_height_source = SandboxConeExperiment.HEIGHT_TOP
 	_sandbox_cone_base_mode = SandboxConeExperiment.BASE_ADDITIVE
 	_territory_cache_enabled = true
+	# Bontago-8or.30: a forced-special drawer (Sandbox / gift demo) must not
+	# leak into a later real match. Sandbox installs its drawer after start,
+	# so resetting here for every non-sandbox start is safe; the weighted
+	# drawer is re-installed lazily at the first claim (_roster_ready reset).
+	if match_config == null or not match_config.sandbox:
+		_gifts.set_special_drawer(_gifts._default_special_drawer)
 	_lifecycle.start_match(match_config)
 
 

@@ -1,0 +1,41 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://tools/screenshot_horizon_storm_cell.gd" id="1_capture"]
+[ext_resource type="PackedScene" path="res://vfx/weather/horizon_storm_cell_v1/storm_cell.tscn" id="2_cell"]
+
+[sub_resource type="ProceduralSkyMaterial" id="SkyMaterial_review"]
+sky_top_color = Color(0.035, 0.063, 0.13, 1)
+sky_horizon_color = Color(0.20, 0.21, 0.31, 1)
+ground_bottom_color = Color(0.055, 0.072, 0.12, 1)
+ground_horizon_color = Color(0.20, 0.21, 0.31, 1)
+sun_angle_max = 0.0
+
+[sub_resource type="Sky" id="Sky_review"]
+sky_material = SubResource("SkyMaterial_review")
+
+[sub_resource type="Environment" id="Environment_review"]
+background_mode = 2
+sky = SubResource("Sky_review")
+ambient_light_source = 2
+ambient_light_color = Color(0.34, 0.42, 0.64, 1)
+ambient_light_energy = 0.75
+tonemap_mode = 2
+
+[node name="StormCellReview" type="Node3D"]
+script = ExtResource("1_capture")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_review")
+
+[node name="DuskKey" type="DirectionalLight3D" parent="."]
+rotation = Vector3(-0.65, -0.42, -0.18)
+light_color = Color(0.73, 0.72, 0.88, 1)
+light_energy = 1.1
+shadow_enabled = false
+
+[node name="HorizonStormCell" parent="." instance=ExtResource("2_cell")]
+
+[node name="Camera3D" type="Camera3D" parent="."]
+current = true
+fov = 55.0
+position = Vector3(0, -10, 112)

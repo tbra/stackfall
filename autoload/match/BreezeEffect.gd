@@ -176,7 +176,8 @@ func _try_spawn() -> void:
 	var angle: float = _rng.randf() * TAU
 	var radius: float = _rng.randf_range(tuning.radius_min_m, maxf(tuning.radius_min_m, tuning.radius_max_m))
 	var duration: float = _rng.randf_range(tuning.duration_min_s, maxf(tuning.duration_min_s, tuning.duration_max_s))
-	if blocks.is_empty() or _gusts.size() >= tuning.max_active_gusts:
+	# Bontago-1pi.76: at most ONE gust alive at a time (a sporadic single gust).
+	if blocks.is_empty() or not _gusts.is_empty():
 		return
 	var block: Block = blocks[mini(int(pick * float(blocks.size())), blocks.size() - 1)]
 	if not _eligible(block):

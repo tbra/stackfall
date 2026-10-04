@@ -196,6 +196,10 @@ func start_match(match_config: MatchConfig) -> void:
 		# Bontago-59o.18 (C1b follow-up): and the cycle sky's variation seed, so every
 		# match (not just seeded ones) draws its own curve; it rides in to_dict().
 		_match.config.resolve_sky_variation_seed(randi())
+		# Bontago-1pi.75: and the random phase a Cycle sky opens at (seed-derived).
+		var sky_source: SkyThemeDef = Skybox.load_theme(Skybox.DEFAULT_THEME_ID)
+		if sky_source != null:
+			_match.config.resolve_sky_start_phase(randi(), sky_source.cycle_random_start_min, sky_source.cycle_random_start_max)
 
 	# Bontago-1en.23 (M4 P5-TILT): register_world() itself runs before
 	# start_match() on every path (hot-seat, sandbox and the lobby -- see
@@ -252,6 +256,13 @@ func start_match(match_config: MatchConfig) -> void:
 	# LOADING -> COUNTDOWN emit above), so a client's reliable channel delivers
 	# the gate state to a match it has already built.
 	_publish_loading_gate_start()
+	# Bontago-1pi.79: every slot holds its first block from the moment the
+	# countdown exists (the HUD cards and the local ghost are populated when the
+	# ready gate opens, not on the first PLAYING frame). Placement stays
+	# PLAYING-only and the feed timers only tick in PLAYING, so nothing can be
+	# released early; _begin_playing() below only arms the timers.
+	if _match._is_host():
+		_issue_first_blocks()
 
 
 ## Back to Lobby from anywhere, clearing the field. Emits (old -> LOBBY) even
@@ -411,15 +422,7 @@ func _begin_playing() -> void:
 	# before ever reaching PLAYING never arms a timer it will not tick.
 	_match_timer_left = _armed_timer_seconds()
 	_active_slot = _next_alive_slot(-1)
-	for i: int in range(_slots.size()):
-		# Bontago-mv0.10 follow-up: set the interval before issuing, not
-		# after -- _issue_next_block() emits Events.feed_block_issued
-		# synchronously, and net/MatchNet.gd's handler reads feed_time_left()
-		# at that exact moment to replicate it, so a client's mirror is only
-		# ever as accurate as what this slot's timer already says.
-		_match._feed._feed_time_left[i] = _match.config.block_timer
-		_match._feed._feed_expired[i] = false
-		_match._feed._issue_next_block(i)
+	_issue_first_blocks()
 	if _active_slot != -1:
 		Events.turn_changed.emit(_active_slot)
 	# The home circles exist from the first frame of play (spec 2.2), so the
@@ -429,6 +432,22 @@ func _begin_playing() -> void:
 	# contested time accrues and no hole can open on the seeding step.
 	if _match._territory._raster != null and _match._territory._solver != null:
 		_match._territory._run_territory_step(0.0)
+
+
+## Arms every slot's block timer and issues its first block. Idempotent: a slot
+## that already holds its first block (issued when the countdown began, Bontago-
+## 1pi.79) is left alone, so the bag is never advanced twice.
+func _issue_first_blocks() -> void:
+	for i: int in range(_slots.size()):
+		# Bontago-mv0.10 follow-up: set the interval before issuing, not
+		# after -- _issue_next_block() emits Events.feed_block_issued
+		# synchronously, and net/MatchNet.gd's handler reads feed_time_left()
+		# at that exact moment to replicate it, so a client's mirror is only
+		# ever as accurate as what this slot's timer already says.
+		_match._feed._feed_time_left[i] = _match.config.block_timer
+		_match._feed._feed_expired[i] = false
+		if _match._feed._held_shapes[i] == null:
+			_match._feed._issue_next_block(i)
 
 
 # --- Loading-screen ready gate (Bontago-1pi.32) -----------------------------

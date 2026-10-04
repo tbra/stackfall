@@ -177,6 +177,8 @@ func _walk_settings_page(pad: bool) -> void:
 		menu.get_node("%MusicVolumeSlider") as Control,
 		menu.get_node("%SfxMuteButton") as Control,
 		menu.get_node("%SfxVolumeSlider") as Control,
+		menu.get_node("%WeatherMuteButton") as Control,
+		menu.get_node("%WeatherVolumeSlider") as Control,
 		menu.get_node("%RumbleEnabledCheck") as Control,
 		menu.get_node("%RumbleStrengthSlider") as Control,
 	]

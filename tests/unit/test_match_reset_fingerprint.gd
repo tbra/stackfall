@@ -61,6 +61,9 @@ func before_each() -> void:
 	Match.set_process(false)
 	Match.abort_match()
 	SnapshotSync.end_match()
+	# Bots keep their names across matches (MatchLifecycle._host_bot_names); a previous script in
+	# the same process leaves names behind that the seeded draw would otherwise reuse.
+	Match._lifecycle._host_bot_names = PackedStringArray()
 	assert_true(Net.is_offline(), "fixture: the real Net must start offline")
 	Engine.time_scale = 1.0
 	_map = (load("res://config/maps/round_medium.tres") as MapDef).duplicate(true)

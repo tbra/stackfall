@@ -189,7 +189,7 @@ uniform float near_fade_end_m = 16.0;
 
 // Bontago-mp0.29: weather grade shared with the weather cloud ceiling
 // (CloudLighting.grade): desaturate toward luminance, then darken.
-uniform float weather_dim : hint_range(0.0, 1.0) = 0.0;
+uniform float weather_dim : hint_range(-1.0, 1.0) = 0.0;
 uniform float weather_desaturate : hint_range(0.0, 1.0) = 0.0;
 
 // Bontago-mp0.34: per-tone brightness floor after the weather grade (lit tone

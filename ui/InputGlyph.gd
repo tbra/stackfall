@@ -24,6 +24,8 @@ extends Control
 ## click.
 
 @export var tuning: MenuVisualTuning = preload("res://config/menu_visual_tuning.tres")
+## Stick direction / click / chord art (Bontago-mp0.124), keyed in config.
+@export var glyph_table: InputGlyphTable = preload("res://config/input_glyph_table.tres")
 
 ## Owner: "Glyph height consistent (~32 px at 1080p)".
 const GLYPH_HEIGHT_PX: float = 32.0
@@ -63,6 +65,22 @@ const STICK_BUTTONS: Dictionary[int, String] = {
 	JOY_BUTTON_LEFT_STICK: "L3",
 	JOY_BUTTON_RIGHT_STICK: "R3",
 }
+
+## Stick side per click button / axis, and the direction an axis value points
+## to (Godot: X negative = left, Y negative = up) -- keys of InputGlyphTable.
+const STICK_CLICK_SIDES: Dictionary[int, StringName] = {
+	JOY_BUTTON_LEFT_STICK: &"left",
+	JOY_BUTTON_RIGHT_STICK: &"right",
+}
+const STICK_AXIS_SIDES: Dictionary[int, StringName] = {
+	JOY_AXIS_LEFT_X: &"left",
+	JOY_AXIS_LEFT_Y: &"left",
+	JOY_AXIS_RIGHT_X: &"right",
+	JOY_AXIS_RIGHT_Y: &"right",
+}
+const STICK_HORIZONTAL_AXES: Array[int] = [JOY_AXIS_LEFT_X, JOY_AXIS_RIGHT_X]
+## Combo art is authored 160x64 against the 64x64 single glyphs.
+const COMBO_ASPECT: float = 2.5
 
 ## tools/bootstrap_project.gd's own bootstrap bindings set physical_keycode
 ## (layout-independent) rather than keycode -- as_text_physical_keycode()
@@ -253,6 +271,45 @@ func set_event(event: InputEvent) -> void:
 	queue_redraw()
 
 
+## Chord prompt: `events` (all gamepad) held together. Uses the authored combo
+## art when the component set has one (LB+RB, RT+right stick), else the first
+## event's own glyph; the label is always the joined component labels.
+func set_chord(events: Array[InputEvent]) -> void:
+	if events.is_empty():
+		return
+	set_event(events[0])
+	if events.size() == 1:
+		return
+	var ids: PackedStringArray = PackedStringArray()
+	var labels: PackedStringArray = PackedStringArray()
+	for event: InputEvent in events:
+		var id: String = pad_component_id(event)
+		if id.is_empty():
+			ids.clear()
+			break
+		ids.append(id)
+	for event: InputEvent in events:
+		var part: InputGlyph = InputGlyph.new()
+		part.set_event(event)
+		labels.append(part.label_text())
+		part.free()
+	_text = "+".join(labels)
+	if not ids.is_empty() and _apply_table_texture(glyph_table.combo(ids)):
+		custom_minimum_size = Vector2(GLYPH_HEIGHT_PX * COMBO_ASPECT, GLYPH_HEIGHT_PX)
+	queue_redraw()
+
+
+## Stable id of a gamepad event for combo lookup ("lb", "rt", "stick_right",
+## ...), or "" for anything that is not a named pad button/axis.
+static func pad_component_id(event: InputEvent) -> String:
+	var file: String = ""
+	if event is InputEventJoypadButton:
+		file = JOYPAD_BUTTON_GLYPH_FILES.get((event as InputEventJoypadButton).button_index, "")
+	elif event is InputEventJoypadMotion:
+		file = JOYPAD_AXIS_GLYPH_FILES.get((event as InputEventJoypadMotion).axis, "")
+	return file.trim_prefix("gamepad_").trim_suffix(".svg")
+
+
 ## Renders a plain "+N" overflow badge instead of a real event -- Owner: "max
 ## two glyphs per row, extra bindings hidden behind '+1'".
 func set_overflow_count(count: int) -> void:
@@ -340,6 +397,8 @@ func _configure_joypad_button(joy_event: InputEventJoypadButton) -> void:
 	else:
 		_kind = Kind.GENERIC
 		custom_minimum_size = Vector2(SHAPE_WIDTH_PX, GLYPH_HEIGHT_PX)
+	if STICK_CLICK_SIDES.has(index) and _apply_table_texture(glyph_table.stick_click(STICK_CLICK_SIDES[index])):
+		return
 	_apply_pad_texture(JOYPAD_BUTTON_GLYPH_FILES.get(index, ""))
 
 
@@ -352,6 +411,12 @@ func _configure_joypad_motion(motion_event: InputEventJoypadMotion) -> void:
 	else:
 		_kind = Kind.STICK
 		custom_minimum_size = Vector2(SHAPE_WIDTH_PX, GLYPH_HEIGHT_PX)
+		# A stick axis bound with a sign (axis_value) is a directed prompt.
+		if STICK_AXIS_SIDES.has(axis) and not is_zero_approx(motion_event.axis_value):
+			var direction: StringName = _axis_direction(axis, motion_event.axis_value)
+			if _apply_table_texture(glyph_table.stick_direction(STICK_AXIS_SIDES[axis], direction)):
+				_text = "%s %s" % [_text, direction]
+				return
 	_apply_pad_texture(JOYPAD_AXIS_GLYPH_FILES.get(axis, ""))
 
 
@@ -404,6 +469,23 @@ func _apply_square_texture(path: String) -> bool:
 	_shell = Shell.NONE
 	custom_minimum_size = Vector2(GLYPH_HEIGHT_PX, GLYPH_HEIGHT_PX)
 	return true
+
+
+## Table art (stick direction/click, combos): only with the shipped asset root
+## so the missing-folder fallback seam still reaches _draw().
+func _apply_table_texture(texture: Texture2D) -> bool:
+	if texture == null or asset_root != GLYPH_ASSET_ROOT:
+		return false
+	_texture = texture
+	_shell = Shell.NONE
+	custom_minimum_size = Vector2(GLYPH_HEIGHT_PX, GLYPH_HEIGHT_PX)
+	return true
+
+
+static func _axis_direction(axis: int, value: float) -> StringName:
+	if STICK_HORIZONTAL_AXES.has(axis):
+		return &"left" if value < 0.0 else &"right"
+	return &"up" if value < 0.0 else &"down"
 
 
 func _has_extra_modifier(key_event: InputEventKey, code: Key) -> bool:

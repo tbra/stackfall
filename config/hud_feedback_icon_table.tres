@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="HudFeedbackIconTable" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://config/HudFeedbackIconTable.gd" id="1_t"]
+[ext_resource type="Texture2D" path="res://assets/ui/hud/feedback_icons_v1/held_block_height.svg" id="2_h"]
+[ext_resource type="Texture2D" path="res://assets/ui/hud/feedback_icons_v1/goal_capture.svg" id="3_c"]
+[ext_resource type="Texture2D" path="res://assets/ui/hud/feedback_icons_v1/placement_rejected.svg" id="4_r"]
+[ext_resource type="Texture2D" path="res://assets/ui/hud/feedback_icons_v1/placement_relocated.svg" id="5_l"]
+
+[resource]
+script = ExtResource("1_t")
+held_height = ExtResource("2_h")
+capture = ExtResource("3_c")
+rejected = ExtResource("4_r")
+relocated = ExtResource("5_l")
+icon_px = 28

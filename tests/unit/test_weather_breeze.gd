@@ -19,6 +19,9 @@ const MIN_SWAY_M: float = 1.5
 const SHORT_TOWER_CUBES: int = 4
 const MAX_SHORT_SWAY_M: float = 0.15
 
+const BUSY_INTERVAL_S: float = 1.2
+const BUSY_DURATION_S: float = 0.5
+
 var _tuning: BreezeTuning = null
 var _blocks: Array[Block] = []
 var _root: Node3D = null
@@ -27,6 +30,11 @@ var _gusts_seen: Array[Dictionary] = []
 
 func before_each() -> void:
 	_tuning = (load("res://config/breeze.tres") as BreezeTuning).duplicate() as BreezeTuning
+	# Statistical tests below need many gusts: a frequent, short-lived profile
+	# (the shipped defaults are sporadic, see test_default_gusts_are_sporadic_single).
+	_tuning.spawn_interval_s = BUSY_INTERVAL_S
+	_tuning.duration_min_s = BUSY_DURATION_S
+	_tuning.duration_max_s = BUSY_DURATION_S
 	_blocks.clear()
 	_gusts_seen.clear()
 	_root = Node3D.new()
@@ -176,11 +184,13 @@ func _top_sway(count: int, with_gust: bool, center_height: float) -> float:
 	var effect: BreezeEffect = _effect(_quiet_tuning())
 	effect.begin(SEED_A)
 	if with_gust:
-		var duration: float = (_tuning.duration_min_s + _tuning.duration_max_s) * 0.5
-		var radius: float = (_tuning.radius_min_m + _tuning.radius_max_m) * 0.5
+		# The shipped (sporadic) gust size, not the busy statistics profile.
+		var shipped: BreezeTuning = load("res://config/breeze.tres") as BreezeTuning
+		var duration: float = (shipped.duration_min_s + shipped.duration_max_s) * 0.5
+		var radius: float = (shipped.radius_min_m + shipped.radius_max_m) * 0.5
 		effect.gusts().append({"id": 1, "x": 0.0, "y": center_height, "z": 0.0, "a": 0.0, "r": radius, "d": duration, "s": 1.0, "age": 0.0})
 	var moved: float = 0.0
-	for _i: int in range(int((_tuning.duration_max_s + 3.0) * 60.0)):
+	for _i: int in range(int(((load("res://config/breeze.tres") as BreezeTuning).duration_max_s + 3.0) * 60.0)):
 		effect.tick(DELTA)
 		await get_tree().physics_frame
 		if not is_instance_valid(top):
@@ -263,16 +273,27 @@ func test_gusts_are_rare_low_and_common_high() -> void:
 		assert_almost_eq(float(gust["s"]), 1.0, 0.0001, "high gusts are full strength")
 
 
-func test_active_gusts_are_capped_and_expire() -> void:
+func test_default_gusts_are_sporadic_single() -> void:
+	var shipped: BreezeTuning = load("res://config/breeze.tres") as BreezeTuning
+	assert_gte(shipped.spawn_interval_s, 15.0, "a gust every now and then")
+	assert_lte(shipped.radius_max_m, 6.0, "small gusts")
+	assert_lte(shipped.duration_max_s, 3.0, "short gusts")
+
+
+func test_at_most_one_gust_is_active_and_it_expires() -> void:
 	_block(Vector3(0.0, HIGH_M, 0.0))
 	var fast: BreezeTuning = _tuning.duplicate() as BreezeTuning
 	fast.spawn_interval_s = 0.1
-	fast.max_active_gusts = 3
+	fast.duration_min_s = 1.0
+	fast.duration_max_s = 1.0
 	var effect: BreezeEffect = _effect(fast)
 	effect.begin(SEED_A)
+	var saw_gust: bool = false
 	for _i: int in range(300):
 		effect.tick(SIM_STEP)
-		assert_lte(effect.gust_count(), 3)
+		assert_lte(effect.gust_count(), 1)
+		saw_gust = saw_gust or effect.gust_count() == 1
+	assert_true(saw_gust, "a gust did spawn")
 	effect.set_enabled(false)
 	assert_eq(effect.gust_count(), 0, "the F4 toggle ends every gust")
 	for _i: int in range(100):

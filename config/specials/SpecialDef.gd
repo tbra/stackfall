@@ -77,6 +77,13 @@ static func find_by_id(special_id: StringName) -> SpecialDef:
 
 ## The HUD icon for `special_id`: its own preview_icon or the generic one.
 static func preview_icon_for(special_id: StringName) -> Texture2D:
+	# Bontago-mp0.125: the rendered model preview (config/gift_icon_table.tres) wins so
+	# the HUD card agrees with the held GLB; then the def's own icon, then the generic one.
+	var table: GiftIconTable = GiftIconTable.shared()
+	if table != null:
+		var model_icon: Texture2D = table.model_preview(special_id)
+		if model_icon != null:
+			return model_icon
 	var def: SpecialDef = find_by_id(special_id)
 	if def != null and def.preview_icon != null:
 		return def.preview_icon

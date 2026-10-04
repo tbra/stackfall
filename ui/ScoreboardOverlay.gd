@@ -131,7 +131,7 @@ func _refresh_table() -> void:
 	var team_numbers: PackedInt32Array = PackedInt32Array()
 	if config != null and config.teams_resolved():
 		team_numbers = config.team_numbers
-	ScoreTable.populate(_rows_list, payload, tuning, team_numbers)
+	ScoreTable.populate(_rows_list, payload, tuning, team_numbers, match_provider)
 	var outcome: String = ResultsScreen.mode_outcome_text(payload, team_numbers).strip_edges()
 	_mode_outcome.text = outcome
 	_mode_outcome.visible = not outcome.is_empty()

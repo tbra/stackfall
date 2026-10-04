@@ -19,6 +19,8 @@ var _storm_amount: float = 0.0
 ## the puff layer and published to every Skybox so all cloud layers grade together.
 var _overcast: float = 0.0
 var _pushed_overcast: float = -1.0
+var _brighten: float = 0.0
+var _pushed_brighten: float = -1.0
 var _storm_theme: SkyThemeDef = null
 ## Cached Skybox lookups (refreshed whenever the storm value changes).
 var _skyboxes: Array[Skybox] = []
@@ -34,6 +36,7 @@ func _exit_tree() -> void:
 		Events.match_scope_reset.disconnect(snap_clear)
 	_amount = 0.0
 	_overcast = 0.0
+	_brighten = 0.0
 	_push_storm(0.0)
 
 
@@ -47,6 +50,8 @@ func snap_clear() -> void:
 	_amount = 0.0
 	_storm_amount = 0.0
 	_overcast = 0.0
+	_brighten = 0.0
+	_pushed_brighten = -1.0
 	# Forget what was pushed so _push_storm() cannot treat "0 again" as settled and
 	# skip a skybox that was dirtied meanwhile; it also refreshes the group lookup.
 	_pushed_storm = -1.0
@@ -73,7 +78,15 @@ func target_amount() -> float:
 
 
 func target_storm() -> float:
-	return float(_targets.get(tuning.storm_id, 0.0)) * tuning.storm_sky_blend
+	var best: float = 0.0
+	for weather_id: Variant in _targets.keys():
+		best = maxf(best, tuning.sky_blend_for(weather_id as StringName, float(_targets[weather_id])))
+	return best
+
+
+## Snow brightening target (0..1): the snow intensity, unless a rain or storm sky is up.
+func target_brighten() -> float:
+	return float(_targets.get(&"snow", 0.0)) * (1.0 - clampf(target_storm(), 0.0, 1.0))
 
 
 ## Overcast the active weathers drive right now (the strongest one wins).
@@ -82,6 +95,10 @@ func target_overcast() -> float:
 	for weather_id: Variant in _targets.keys():
 		best = maxf(best, tuning.overcast_for(weather_id as StringName, float(_targets[weather_id])))
 	return best
+
+
+func brighten() -> float:
+	return _brighten
 
 
 func overcast() -> float:
@@ -108,18 +125,22 @@ func step(delta: float) -> void:
 	var overcast_target: float = target_overcast()
 	var overcast_s: float = tuning.fade_in_s if overcast_target > _overcast else tuning.fade_out_s
 	_overcast = move_toward(_overcast, overcast_target, delta / maxf(overcast_s, 0.001))
+	var bright_target: float = target_brighten()
+	var bright_s: float = tuning.fade_in_s if bright_target > _brighten else tuning.fade_out_s
+	_brighten = move_toward(_brighten, bright_target, delta / maxf(bright_s, 0.001))
 	_push_storm(_storm_amount)
 
 
 func _process(delta: float) -> void:
 	# Idle early-out: nothing to fade or push.
-	if _amount <= 0.0 and _storm_amount <= 0.0 and _overcast <= 0.0 and _targets.is_empty():
+	if _amount <= 0.0 and _storm_amount <= 0.0 and _overcast <= 0.0 and _brighten <= 0.0 and _targets.is_empty():
 		return
 	step(delta)
 
 
 func _push_storm(value: float) -> void:
-	var settled: bool = is_equal_approx(value, _pushed_storm) and _overcast == _pushed_overcast
+	var settled: bool = is_equal_approx(value, _pushed_storm) and _overcast == _pushed_overcast \
+			and _brighten == _pushed_brighten
 	if settled and not _skyboxes.is_empty():
 		return
 	var tree: SceneTree = get_tree() if is_inside_tree() else (Engine.get_main_loop() as SceneTree)
@@ -134,8 +155,12 @@ func _push_storm(value: float) -> void:
 	_pushed_storm = value
 	var cloud_changed: bool = _overcast != _pushed_overcast
 	_pushed_overcast = _overcast
+	var bright_changed: bool = _brighten != _pushed_brighten
+	_pushed_brighten = _brighten
 	for skybox: Skybox in _skyboxes:
 		if is_instance_valid(skybox):
 			skybox.set_storm_sky(value, _storm_theme)
 			if cloud_changed:
 				skybox.set_weather_cloud_overcast(_overcast)
+			if bright_changed:
+				skybox.set_snow_brighten(_brighten)

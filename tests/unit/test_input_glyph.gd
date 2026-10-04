@@ -163,7 +163,7 @@ func test_joypad_buttons_and_axes_resolve_to_their_gamepad_svgs() -> void:
 	var button_files: Dictionary[int, String] = {
 		JOY_BUTTON_DPAD_UP: "gamepad_dpad_up.svg",
 		JOY_BUTTON_RIGHT_SHOULDER: "gamepad_rb.svg",
-		JOY_BUTTON_LEFT_STICK: "gamepad_stick_left.svg",
+		JOY_BUTTON_LEFT_STICK: "gamepad_stick_left_click.svg",
 		JOY_BUTTON_START: "gamepad_start.svg",
 		JOY_BUTTON_MISC1: "gamepad_misc.svg",
 	}

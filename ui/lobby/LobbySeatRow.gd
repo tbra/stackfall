@@ -236,8 +236,10 @@ func _build_team_button() -> void:
 func _build_difficulty_option() -> void:
 	difficulty_option = OptionButton.new()
 	difficulty_option.name = "DifficultyOption"
-	for label: String in DIFFICULTY_LABELS:
-		difficulty_option.add_item(label)
+	for label_index: int in range(DIFFICULTY_LABELS.size()):
+		difficulty_option.add_item(DIFFICULTY_LABELS[label_index], label_index)
+		difficulty_option.set_item_icon(label_index, UiArtTable.shared().difficulty_icon(label_index))
+	difficulty_option.add_theme_constant_override("icon_max_width", UiArtTable.shared().lobby_icon_px)
 	difficulty_option.select(clampi(difficulty, 0, DIFFICULTY_LABELS.size() - 1))
 	difficulty_option.custom_minimum_size = Vector2(float(_layout_tuning.seat_difficulty_min_width_px), 0.0)
 	difficulty_option.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -253,7 +255,8 @@ func _build_difficulty_option() -> void:
 func _build_remove_button() -> void:
 	remove_button = Button.new()
 	remove_button.name = "RemoveButton"
-	remove_button.text = char(REMOVE_GLYPH)
+	remove_button.text = ""
+	UiArtTable.shared().apply_button_icon(remove_button, UiArtTable.shared().lobby_icon(UiArtTable.KEY_BOT_REMOVE))
 	remove_button.custom_minimum_size = _layout_tuning.seat_remove_button_min_size_px
 	remove_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	remove_button.tooltip_text = "Remove this bot"

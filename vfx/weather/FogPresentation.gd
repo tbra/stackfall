@@ -51,7 +51,7 @@ func _apply_fog(amount: float) -> void:
 	for node: Node in tree.get_nodes_in_group(Skybox.OVERCAST_GROUP):
 		var skybox: Skybox = node as Skybox
 		skybox.set_weather_fog(amount, opacity, _tuning.depth_begin_m, _tuning.depth_end_m,
-			_tuning.fog_color, _tuning.fog_tint_strength, _tuning.sky_affect)
+			_tuning.fog_color, _tuning.fog_tint_strength, _tuning.sky_affect, _tuning.aerial_perspective_add)
 		color = skybox.weather_fog_color()
 	# Scenery shaders that opt out of Environment fog (cloud puffs, distant
 	# birds, fireflies) fade by the same distance rule, so farther means foggier.

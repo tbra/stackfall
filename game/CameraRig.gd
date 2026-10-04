@@ -82,6 +82,10 @@ const _PROCESS_PRIORITY_AFTER_GHOST: int = 1
 ## rather than a unit amplitude fraction.
 const _DROP_RECOVER_CONVERGED_M: float = 0.001
 
+## A distance/pitch/yaw change larger than this during the match-start hold is
+## player input taking over the camera (Bontago-1pi.79).
+const _START_INPUT_EPSILON: float = 0.0001
+
 ## Bontago-b7r (owner decision 2026-09-28, Bontago-aem): game/Sandbox.gd's own
 ## sandbox_next_slot hotkey is gamepad Back, which camera_snap_home also binds.
 ## DECISION (game/CameraRig.gd, orchestrator review): game/Sandbox.gd sets this
@@ -132,6 +136,17 @@ var _shake_elapsed_s: float = 0.0
 ## home_target() below falls back to the disk center in that case, same as
 ## an eliminated or missing flag.
 var _local_slot: int = -1
+
+## Bontago-1pi.79: the match-start framing (begin_start_framing()) holds the
+## pivot/distance/pitch fixed instead of following the ghost until play begins,
+## then eases (_start_release_t, 0..1) into the follow camera.
+var _start_holding: bool = false
+var _start_releasing: bool = false
+var _start_release_t: float = 0.0
+var _start_pivot: Vector3 = Vector3.ZERO
+var _start_distance: float = 0.0
+var _start_pitch: float = 0.0
+var _start_yaw: float = 0.0
 
 ## Bontago-b7r: camera_snap_home/camera_snap_goal's tap-vs-hold state, tracked
 ## only while tuning.follow_block (the legacy free camera keeps its old
@@ -367,7 +382,9 @@ func _process(delta: float) -> void:
 		# PEEK while tuning.follow_block, so this branch is the only place
 		# that needs to know about it.
 		_update_focus_hold(delta)
-		if _peek_active:
+		if _start_holding or _start_releasing:
+			_update_start_framing(delta)
+		elif _peek_active:
 			_approach_focus(_focus_target_point, tuning.focus_peek_distance, tuning.focus_peek_pitch_deg, tuning.focus_peek_transition_s, delta)
 		elif _peek_returning:
 			_approach_focus(_follow_position, tuning.follow_distance, tuning.follow_pitch_deg, tuning.focus_peek_transition_s, delta)
@@ -482,6 +499,9 @@ func reset_view() -> void:
 	_target = Vector3.ZERO
 	_follow_position = Vector3.ZERO
 	_local_slot = -1
+	_start_holding = false
+	_start_releasing = false
+	_start_release_t = 0.0
 	block_held = false
 	_drop_recovering = false
 	_peek_active = false
@@ -506,6 +526,80 @@ func place_at_home_beacon(slot_id: int) -> bool:
 		return false
 	set_home_view(home, Vector3.ZERO)
 	return true
+
+
+## Bontago-1pi.79 (owner playtest 2026-10-04, feedback/ref_camera_start.png):
+## match-start entry point, called when the ready gate opens. Puts the camera
+## just outside the disc rim behind `slot_id`'s home beacon (yaw as
+## set_home_view()), raised and pulled back by CameraTuning's start_* values so
+## the whole disc is visible and the beacon sits low-centre, looking across the
+## disc. No tween: the very first frame is the final framing. It is then held
+## (the ghost-follow is paused) until the match reaches PLAYING, when
+## _update_start_framing() eases into the normal follow camera.
+## Returns false, leaving the camera alone, when the slot has no beacon.
+func begin_start_framing(slot_id: int) -> bool:
+	_local_slot = slot_id
+	var home: Vector3 = _resolve_home_target()
+	if home == Vector3.ZERO:
+		return false
+	set_home_view(home, Vector3.ZERO)
+	_start_pivot = tuning.start_pivot(home)
+	_start_distance = tuning.start_distance(_start_field_radius())
+	_start_pitch = deg_to_rad(tuning.start_pitch_deg)
+	_start_yaw = _yaw
+	_target = _start_pivot
+	_distance = _start_distance
+	_pitch = _start_pitch
+	_start_holding = tuning.follow_block
+	_start_releasing = false
+	_start_release_t = 0.0
+	_update_transform()
+	return true
+
+
+func _start_field_radius() -> float:
+	var field: Field = Match.field()
+	if field != null and field.map_def != null:
+		return field.map_def.field_radius
+	return map_def.field_radius
+
+
+## True while the match-start framing is held or easing out.
+func is_start_framing() -> bool:
+	return _start_holding or _start_releasing
+
+
+## One frame of the start framing: hold until play begins, then blend pivot,
+## distance and pitch into the follow values over tuning.start_release_seconds.
+## DECISION (Bontago-1pi.79 review): a short ease at GO is kept rather than
+## staying on the wide framing, because the follow camera tracks the ghost at
+## follow_distance and a pose that never follows would lose the ghost; the
+## ease starts from the start pose (no snap) and is tunable/zeroable via
+## CameraTuning.start_release_seconds.
+func _update_start_framing(delta: float) -> void:
+	if _start_holding:
+		# Player camera input (orbit, pitch, zoom) during the hold takes over for
+		# good: it already changed these values this frame, so do not fight it.
+		if absf(_distance - _start_distance) > _START_INPUT_EPSILON or absf(_pitch - _start_pitch) > _START_INPUT_EPSILON or absf(_yaw - _start_yaw) > _START_INPUT_EPSILON:
+			_start_holding = false
+			return
+		_target = _start_pivot
+		_distance = _start_distance
+		_pitch = _start_pitch
+		if MatchLifecycle.is_live_state(Match.state()):
+			_start_holding = false
+			_start_releasing = true
+			_start_release_t = 0.0
+		else:
+			return
+	var duration: float = tuning.start_release_seconds
+	_start_release_t = 1.0 if duration <= 0.0 else minf(_start_release_t + delta / duration, 1.0)
+	var weight: float = smoothstep(0.0, 1.0, _start_release_t)
+	_target = _start_pivot.lerp(_follow_position, weight)
+	_distance = lerpf(_start_distance, clampf(tuning.follow_distance, tuning.zoom_min, tuning.zoom_max), weight)
+	_pitch = lerpf(_start_pitch, deg_to_rad(tuning.follow_pitch_deg), weight)
+	if _start_release_t >= 1.0:
+		_start_releasing = false
 
 
 ## Bontago-b7r: pushed every frame by game/PlayerController.gd's own

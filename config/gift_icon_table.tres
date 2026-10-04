@@ -1,0 +1,66 @@
+[gd_resource type="Resource" script_class="GiftIconTable" load_steps=18 format=3]
+
+[ext_resource type="Script" path="res://config/GiftIconTable.gd" id="1_t"]
+[ext_resource type="Texture2D" path="res://assets/ui/gift_pictograms_v1/atlas.svg" id="2_g"]
+[ext_resource type="Texture2D" path="res://assets/ui/weather_pictograms_v1/atlas.svg" id="3_w"]
+[ext_resource type="Texture2D" path="res://assets/ui/gift_model_previews/original_v1/anvil.png" id="p0"]
+[ext_resource type="Texture2D" path="res://assets/ui/gift_model_previews/additional_v1/black_hole.png" id="p1"]
+[ext_resource type="Texture2D" path="res://assets/ui/gift_model_previews/original_v1/bomb.png" id="p2"]
+[ext_resource type="Texture2D" path="res://assets/ui/gift_model_previews/additional_v1/cat.png" id="p3"]
+[ext_resource type="Texture2D" path="res://assets/ui/gift_model_previews/original_v1/earthquake.png" id="p4"]
+[ext_resource type="Texture2D" path="res://assets/ui/gift_model_previews/additional_v1/freeze.png" id="p5"]
+[ext_resource type="Texture2D" path="res://assets/ui/gift_model_previews/additional_v1/glue.png" id="p6"]
+[ext_resource type="Texture2D" path="res://assets/ui/gift_model_previews/original_v1/jumping_bean.png" id="p7"]
+[ext_resource type="Texture2D" path="res://assets/ui/gift_model_previews/additional_v1/magnet.png" id="p8"]
+[ext_resource type="Texture2D" path="res://assets/ui/gift_model_previews/additional_v1/paintball.png" id="p9"]
+[ext_resource type="Texture2D" path="res://assets/ui/gift_model_previews/original_v1/propeller.png" id="p10"]
+[ext_resource type="Texture2D" path="res://assets/ui/gift_model_previews/original_v1/rocket.png" id="p11"]
+[ext_resource type="Texture2D" path="res://assets/ui/gift_model_previews/additional_v1/stackfall.png" id="p12"]
+[ext_resource type="Texture2D" path="res://assets/ui/gift_model_previews/original_v1/volcano.png" id="p13"]
+
+[resource]
+script = ExtResource("1_t")
+gift_atlas = ExtResource("2_g")
+gift_regions = {
+&"anvil": Rect2(0, 0, 64, 64),
+&"black_hole": Rect2(64, 0, 64, 64),
+&"bomb": Rect2(128, 0, 64, 64),
+&"cat": Rect2(192, 0, 64, 64),
+&"earthquake": Rect2(0, 64, 64, 64),
+&"freeze": Rect2(64, 64, 64, 64),
+&"glue": Rect2(128, 64, 64, 64),
+&"jumping_bean": Rect2(192, 64, 64, 64),
+&"magnet": Rect2(0, 128, 64, 64),
+&"paintball": Rect2(64, 128, 64, 64),
+&"propeller": Rect2(128, 128, 64, 64),
+&"rocket": Rect2(192, 128, 64, 64),
+&"stackfall": Rect2(0, 192, 64, 64),
+&"volcano": Rect2(64, 192, 64, 64)
+}
+weather_atlas = ExtResource("3_w")
+weather_regions = {
+&"OFF": Rect2(0, 0, 64, 64),
+&"STORM": Rect2(64, 0, 64, 64),
+&"RAIN": Rect2(128, 0, 64, 64),
+&"SNOW": Rect2(192, 0, 64, 64),
+&"FOG": Rect2(0, 64, 64, 64),
+&"RANDOM": Rect2(64, 64, 64, 64),
+&"CHANGING": Rect2(128, 64, 64, 64)
+}
+model_previews = {
+&"anvil": ExtResource("p0"),
+&"black_hole": ExtResource("p1"),
+&"bomb": ExtResource("p2"),
+&"cat": ExtResource("p3"),
+&"earthquake": ExtResource("p4"),
+&"freeze": ExtResource("p5"),
+&"glue": ExtResource("p6"),
+&"jumping_bean": ExtResource("p7"),
+&"magnet": ExtResource("p8"),
+&"paintball": ExtResource("p9"),
+&"propeller": ExtResource("p10"),
+&"rocket": ExtResource("p11"),
+&"stackfall": ExtResource("p12"),
+&"volcano": ExtResource("p13")
+}
+lobby_icon_px = 24

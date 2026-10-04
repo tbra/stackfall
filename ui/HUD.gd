@@ -113,6 +113,12 @@ var name_provider: Variant = null
 @onready var _shares_box: VBoxContainer = %SharesBox
 @onready var _capture_ring: Control = %CaptureRing
 @onready var _reject_label: Label = %RejectLabel
+## Bontago-mp0.124: feedback pictograms (config/hud_feedback_icon_table.tres)
+## beside held height, the capture ring and the reject/relocated message.
+@onready var _height_icon: TextureRect = %HeightIcon
+@onready var _capture_icon: TextureRect = %CaptureIcon
+@onready var _reject_icon: TextureRect = %RejectIcon
+@export var feedback_icons: HudFeedbackIconTable = preload("res://config/hud_feedback_icon_table.tres")
 @onready var _winner_label: Label = %WinnerLabel
 @onready var _gift_toast_label: Label = %GiftToastLabel
 ## Bontago-mp0.3.3 (mockup 08 restyle): the next-shape card's own backing
@@ -232,6 +238,7 @@ func _ready() -> void:
 	_next_shape_preview.draw.connect(_on_next_shape_preview_draw)
 	_capture_ring.draw.connect(_on_capture_ring_draw)
 	_reject_label.modulate.a = 0.0
+	_setup_feedback_icons()
 	_gift_toast_label.modulate.a = 0.0
 	_winner_label.visible = false
 	_capture_ring.visible = false
@@ -497,7 +504,35 @@ func set_feed_seconds(seconds: float) -> void:
 	_timer_ring.queue_redraw()
 
 
+## Bontago-mp0.124: sizes the three pictograms from the table. The held-height
+## icon only shows while a block is held (set_tower_and_block_height); the reject
+## icon sits centred above the message and is hidden until a message plays.
+func _setup_feedback_icons() -> void:
+	var px: float = float(feedback_icons.icon_px)
+	_height_icon.texture = feedback_icons.icon_for(HudFeedbackIconTable.Feedback.HELD_HEIGHT)
+	_height_icon.custom_minimum_size = Vector2(px, px)
+	_height_icon.visible = false
+	_capture_icon.texture = feedback_icons.icon_for(HudFeedbackIconTable.Feedback.CAPTURE)
+	_capture_icon.offset_left = -px * 0.5
+	_capture_icon.offset_right = px * 0.5
+	_capture_icon.offset_top = -px * 0.5
+	_capture_icon.offset_bottom = px * 0.5
+	_reject_icon.offset_left = -px * 0.5
+	_reject_icon.offset_right = px * 0.5
+	_reject_icon.offset_bottom = _reject_label.offset_top
+	_reject_icon.offset_top = _reject_label.offset_top - px
+	_reject_icon.modulate.a = 0.0
+
+
+## Shows `feedback`'s pictogram with the message and fades it with the label.
+func _play_reject_icon(feedback: HudFeedbackIconTable.Feedback, fade_s: float) -> void:
+	_reject_icon.texture = feedback_icons.icon_for(feedback)
+	_reject_icon.modulate = Color(1.0, 1.0, 1.0, 1.0)
+	_reject_tween.parallel().tween_property(_reject_icon, ^"modulate:a", 0.0, fade_s)
+
+
 func set_height(meters: float) -> void:
+	_height_icon.visible = false
 	_set_height_text("Height: %.2f m" % meters)
 
 
@@ -508,6 +543,7 @@ func set_height(meters: float) -> void:
 ## ghost fixed at screen centre -- so raising looked capped. While a local
 ## block is held the label names both numbers explicitly.
 func set_tower_and_block_height(tower_meters: float, block_meters: float) -> void:
+	_height_icon.visible = true
 	_set_height_text("Tower: %.2f m   Block: %.1f m" % [tower_meters, block_meters])
 
 
@@ -546,6 +582,7 @@ func show_reject(reason: StringName) -> void:
 	_reject_tween = create_tween()
 	_reject_tween.tween_interval(ghost_tuning.hud_reject_message_duration)
 	_reject_tween.tween_property(_reject_label, ^"modulate:a", 0.0, ghost_tuning.hud_reject_fade_duration)
+	_play_reject_icon(HudFeedbackIconTable.Feedback.REJECTED, ghost_tuning.hud_reject_fade_duration)
 
 
 ## Bontago-xtq.23 (owner playtest 2026-09-24, "if I'm hovering over another
@@ -573,6 +610,7 @@ func show_relocated() -> void:
 	_reject_tween = create_tween()
 	_reject_tween.tween_interval(ghost_tuning.hud_relocated_message_duration)
 	_reject_tween.tween_property(_reject_label, ^"modulate:a", 0.0, ghost_tuning.hud_relocated_fade_duration)
+	_play_reject_icon(HudFeedbackIconTable.Feedback.RELOCATED, ghost_tuning.hud_relocated_fade_duration)
 
 
 ## DECISION (ui/HUD.gd, Bontago-1pi.5): a separate results screen (built

@@ -421,3 +421,14 @@ func test_gut_run_never_touches_real_settings_file() -> void:
 		assert_eq(FileAccess.get_file_as_string(real), content, "content unchanged")
 	assert_true(FileAccess.file_exists(other.effective_path()), "saved to the GUT file instead")
 	DirAccess.remove_absolute(other.effective_path())
+
+
+func test_weather_volume_and_mute_persist_independently() -> void:
+	assert_eq(_settings.weather_volume_percent(), 1.0)
+	_settings.set_weather_volume_percent(0.4)
+	_settings.set_weather_muted(true)
+	assert_eq(_settings.sfx_volume_percent(), 1.0, "SFX untouched")
+	var reloaded: Node = _fresh_settings_at_same_path()
+	assert_almost_eq(reloaded.weather_volume_percent(), 0.4, 0.0001)
+	assert_true(reloaded.weather_muted())
+	assert_eq(reloaded.weather_volume_db(), Settings.SILENT_VOLUME_DB)

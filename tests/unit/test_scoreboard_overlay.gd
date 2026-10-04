@@ -21,6 +21,12 @@ class ScoreFakeMatch:
 	var fake_stats: FakeStats = FakeStats.new()
 	var current_state: MatchAutoload.State = MatchAutoload.State.PLAYING
 
+	## Slot 0 has a live colour; slot 1 is unknown so the default palette applies.
+	func slot(slot_id: int) -> PlayerSlot:
+		if slot_id == 0:
+			return PlayerSlot.new(0, 0, "Ann", Color(0.1, 0.2, 0.3), Vector2.ZERO)
+		return null
+
 	func state() -> MatchAutoload.State:
 		return current_state
 
@@ -130,6 +136,17 @@ func test_table_shows_the_live_rows_with_alive_status() -> void:
 	assert_has(texts, "Ann")
 	assert_has(texts, "Alive", "a live round says Alive, not Survived")
 	assert_has(texts, "2", "wins column and placed/height columns come from the shared table")
+
+
+func test_player_cells_carry_the_hud_slot_colour() -> void:
+	await _send(_key(true))
+	var rows: VBoxContainer = _overlay.get_node("%RowsList") as VBoxContainer
+	var ann: Label = (rows.get_child(1).get_child(0) as HBoxContainer).get_child(0) as Label
+	var bo: Label = (rows.get_child(2).get_child(0) as HBoxContainer).get_child(0) as Label
+	assert_eq(ann.get_meta(&"slot_color"), Color(0.1, 0.2, 0.3), "live PlayerSlot.color, as the HUD")
+	assert_eq(bo.get_meta(&"slot_color"), MatchConfig.default_player_colors()[1], "default palette fallback")
+	var bar: StyleBoxFlat = ann.get_theme_stylebox("normal") as StyleBoxFlat
+	assert_eq(bar.border_color, Color(0.1, 0.2, 0.3))
 
 
 func test_hidden_when_not_live_paused_suppressed_or_focus_lost() -> void:
