@@ -469,7 +469,10 @@ func test_loading_screen_lists_each_slots_name_and_keeps_bot_labels() -> void:
 	screen.name_provider = _named_fake({0: "Mira", 1: "Zed"})
 	var slots: Array[PlayerSlot] = _slots(4, 2)
 	screen.show_for_match(MatchConfig.new(), slots)
-	var lines: PackedStringArray = screen._info_label.text.split("\n")
+	# Bontago-1pi.63: the screen is map name + one ready row per player (no info label).
+	var lines: PackedStringArray = PackedStringArray()
+	for row: Dictionary in screen._ready_rows:
+		lines.append((row["name"] as Label).text)
 	assert_eq(lines.size(), 4)
 	assert_eq(lines[0], "Mira")
 	assert_eq(lines[1], "Zed")

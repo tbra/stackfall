@@ -134,9 +134,12 @@ func _stack_drop_trace() -> Dictionary:
 	var ghost: GhostPreview = controller._ghost
 	var rig: CameraRig = _main._camera_rig
 	# Two metres in from the home flag, toward the disk centre (own territory).
+	# Bontago-1pi.64: the first spawn now sits home_spawn_back_offset outward of
+	# the flag, so measure from the flag itself to keep this fixture's geometry
+	# (A's spot, and B tumbling clear of it) exactly as it was written.
 	var home: Vector3 = controller._cursor
 	var inward: Vector3 = Vector3(-home.x, 0.0, -home.z).normalized()
-	controller._cursor = home + inward * 2.0
+	controller._cursor = home + inward * (2.0 + controller.ghost_tuning.home_spawn_back_offset)
 	controller._last_safe_cursor = controller._cursor
 	for _i: int in range(5):
 		await _frame()
