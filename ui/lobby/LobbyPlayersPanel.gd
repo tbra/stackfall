@@ -413,10 +413,12 @@ func _seats_edited() -> void:
 func _on_color_cycle_requested(key: int, backwards: bool) -> void:
 	if _is_editable:
 		if LobbySeats.cycle_color(_seats, key, backwards):
+			Events.lobby_ui_cue.emit(&"colour_change")
 			_seats_edited()
 	elif _is_own_seat(key):
 		var current: int = LobbySeats.color_of(_seats, key)
 		if current != LobbySeats.UNSET:
+			Events.lobby_ui_cue.emit(&"colour_change")
 			net_provider.request_seat_pref(posmod(current + (-1 if backwards else 1), LobbySeats.palette_size()), LobbySeats.UNCHANGED)
 
 
@@ -424,10 +426,12 @@ func _on_color_cycle_requested(key: int, backwards: bool) -> void:
 func _on_team_cycle_requested(key: int, backwards: bool) -> void:
 	if _is_editable:
 		if LobbySeats.cycle_team(_seats, key, _team_cap(), backwards):
+			Events.lobby_ui_cue.emit(&"team_change")
 			_seats_edited()
 	elif _is_own_seat(key) and _team_cap() > 0:
 		var current: int = LobbySeats.team_of(_seats, key)
 		if current != LobbySeats.UNSET:
+			Events.lobby_ui_cue.emit(&"team_change")
 			net_provider.request_seat_pref(LobbySeats.UNCHANGED, TeamAssigner.next_pick(current, _team_cap(), backwards))
 
 

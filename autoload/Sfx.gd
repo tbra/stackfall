@@ -90,6 +90,8 @@ var _last_gift_spawn_msec: int = -1
 ## match_scope_reset: the client's world build fires that mid-replay.
 var _world_replay_silent: bool = false
 var _last_music_tick_usec: int = Time.get_ticks_usec()
+## Bontago-mp0.116: last variant index played per "<surface>_<tier>" key.
+var _last_impact_variant: Dictionary = {}
 
 
 func _ready() -> void:
@@ -105,7 +107,11 @@ func _ready() -> void:
 	_refresh_music_root_dir()
 	_build_player_pool()
 	_refresh_tense_stem()
-	Events.block_impacted.connect(_on_block_impacted)
+	Events.block_impacted_at.connect(_on_block_impacted_at)
+	Events.lobby_ui_cue.connect(play_ui_cue)
+	Events.net_peer_joined.connect(_on_net_peer_joined)
+	Events.net_peer_left.connect(_on_net_peer_left)
+	Events.loading_gate_opened.connect(_on_loading_gate_opened)
 	Events.placement_rejected.connect(_on_placement_rejected)
 	Events.block_placed.connect(_on_block_placed)
 	Events.player_eliminated.connect(_on_player_eliminated)
@@ -597,16 +603,116 @@ func _on_music_finished() -> void:
 
 # --- Events hooks -------------------------------------------------------------
 
+## Host and client both reach this: Block.gd emits it on the host's own detection
+## and MatchNet re-emits it from the replicated impact batch (Bontago-1pi.55).
+func _on_block_impacted_at(speed: float, position: Vector3) -> void:
+	if speed < config.impact_speed_min:
+		return
+	_play_impact(speed, _classify_surface(position))
+
+
+## Speed-only entry kept for callers/tests without a position; treated as the disc.
 func _on_block_impacted(speed: float) -> void:
 	if speed < config.impact_speed_min:
 		return
-	var stream: AudioStream = _pick_stream(AudioConfig.EVENT_THUD)
+	_play_impact(speed, AudioConfig.SURFACE_DISC)
+
+
+## Block-on-block when the impact point overlaps at least
+## config.impact_block_surface_min_blocks distinct Blocks (the faller plus what
+## it hit); otherwise the disc. DECISION (Bontago-mp0.116): the impact event
+## carries no surface, so it is derived from a physics query (the same approach
+## as BlockEffectsManager._find_block_at) -- works on clients too, whose frozen
+## replicas still collide, and needs no wire change.
+func _classify_surface(position: Vector3) -> StringName:
+	var world: World3D = get_tree().root.world_3d if is_inside_tree() else null
+	if world == null:
+		return AudioConfig.SURFACE_DISC
+	var query_shape: SphereShape3D = SphereShape3D.new()
+	query_shape.radius = config.impact_surface_query_radius_m
+	var params: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
+	params.shape = query_shape
+	params.transform = Transform3D(Basis(), position)
+	params.collide_with_bodies = true
+	params.collide_with_areas = false
+	var seen: Dictionary = {}
+	for result: Dictionary in world.direct_space_state.intersect_shape(params, 8):
+		if result.get("collider") is Block:
+			seen[result["collider_id"]] = true
+	if seen.size() >= config.impact_block_surface_min_blocks:
+		return AudioConfig.SURFACE_BLOCK
+	return AudioConfig.SURFACE_DISC
+
+
+## Picks the variation sample for `surface` x the speed's strength tier (random
+## variant, never the same twice in a row); falls back to the legacy thud set
+## when the variation files are missing.
+func _play_impact(speed: float, surface: StringName) -> void:
+	var stream: AudioStream = _pick_impact_stream(speed, surface)
+	if stream == null:
+		stream = _pick_stream(AudioConfig.EVENT_THUD)
 	if stream == null:
 		return
 	var player: AudioStreamPlayer = _next_sfx_player()
 	player.stream = stream
 	player.volume_db = config.sfx_volume_db + config.impact_volume_db(speed) + Settings.master_volume_db() + Settings.sfx_volume_db()
 	player.play()
+
+
+func _pick_impact_stream(speed: float, surface: StringName) -> AudioStream:
+	if not _available:
+		return null
+	var tier: StringName = config.impact_tier(speed)
+	var files: Array[String] = config.impact_variation_for(surface, tier)
+	if files.is_empty():
+		return null
+	var key: String = "%s_%s" % [surface, tier]
+	var index: int = 0
+	if files.size() > 1:
+		var last: int = int(_last_impact_variant.get(key, -1))
+		index = _rng.randi_range(0, files.size() - 2)
+		if last >= 0 and index >= last:
+			index += 1
+		_last_impact_variant[key] = index
+	return _load_stream(files[index])
+
+
+## Plays a lobby/loading UI cue (AudioConfig.ui_cue_files). False when unknown or
+## the file is missing.
+func play_ui_cue(cue: StringName) -> bool:
+	var filename: String = config.ui_cue_file(cue)
+	if filename.is_empty() or not _available:
+		return false
+	var stream: AudioStream = _load_stream(filename)
+	if stream == null:
+		return false
+	var player: AudioStreamPlayer = _next_sfx_player()
+	player.stream = stream
+	player.volume_db = config.sfx_volume_db + config.ui_cue_volume_db + Settings.master_volume_db() + Settings.sfx_volume_db()
+	player.play()
+	return true
+
+
+## net_peer_joined fires for a remote peer on the host and for the local peer on
+## a client once accepted. DECISION (Bontago-mp0.117): both chime; a late-joiner
+## world replay stays silent.
+func _on_net_peer_joined(_peer_id: int, _slot_id: int, _player_name: String) -> void:
+	if _world_replay_silent:
+		return
+	play_ui_cue(&"player_joined")
+
+
+## DECISION (Bontago-mp0.117): the local peer's own departure (host shutdown or
+## leaving) does not play player_left; kick/error have no dedicated cue.
+func _on_net_peer_left(peer_id: int, _slot_id: int, _reason: int) -> void:
+	if _world_replay_silent or peer_id == Net.local_peer_id():
+		return
+	play_ui_cue(&"player_left")
+
+
+## The loading ready gate actually opened (everyone ready / min display elapsed).
+func _on_loading_gate_opened() -> void:
+	play_ui_cue(&"all_players_ready")
 
 
 ## Bontago-1pi.52: the refusal sound is the refused player's own feedback. The
