@@ -1,0 +1,43 @@
+{
+  "bead": "Bontago-59o.22",
+  "mode": "built-in image_gen",
+  "edit_target": "M:/Bontago/feedback/horizon_mockups/reference_morning.png",
+  "supporting_style_references": [
+    "reference_afternoon.png",
+    "reference_cycle_strip.png"
+  ],
+  "base": "01261d187c3d4ee6f5b7babb607f02df667638d7",
+  "variants": [
+    {
+      "id": "A",
+      "file": "a_cumulus_ring.png",
+      "generated_source": "C:\\Users\\tonyf\\.codex\\generated_images\\01a0f909-1264-7263-aa10-754f54141aab\\exec-42d47650-d7b0-4996-8729-077cba5f8193.png",
+      "prompt": "Use case: precise-object-edit / stylized-concept. Edit the attached Stackfall gameplay screenshot into a horizon-design mockup, keeping the same 16:9 composition, camera angle, pastel morning light, sun location, cel shaded lavender/peach palette, existing upper cloud layer and HUD positions. This is a proposal for a moving-camera 3D game's distant environment. Change only the distant sky/horizon in the lower-middle part of the frame; retain recognizable existing cloud forms and unchanged readable HUD. Match the original game's broad cel shading, no photorealism, painterly detail, heavy black outlines, text labels or watermark. OPTION A \u00e2\u20ac\u201d TOWERING CUMULUS RING. Add a distant irregular encircling bank of enormous rising cumulus clouds, rooted in the lower cloud sea, which bridge the empty gap to the high clouds. Show three unequal towers across the horizon, with broad pillowing vertical silhouettes and pale shaded bases dissolved by atmospheric depth. The bank is far away; it does not engulf the camera. Keep generous open sky between towers and leave the sun clearly visible. Avoid a continuous flat wall or mountains: these are clouds with soft rounded billows and crisp large cel light/shade shapes."
+    },
+    {
+      "id": "B",
+      "file": "b_stratus_haze.png",
+      "generated_source": "C:\\Users\\tonyf\\.codex\\generated_images\\01a0f909-1264-7263-aa10-754f54141aab\\exec-6c4793af-2fe2-4aa3-b212-a233c5936758.png",
+      "prompt": "Use case: precise-object-edit / stylized-concept. Edit the attached Stackfall gameplay screenshot into a horizon-design mockup, keeping the same 16:9 composition, camera angle, pastel morning light, sun location, cel shaded lavender/peach palette, existing upper cloud layer and HUD positions. This is a proposal for a moving-camera 3D game's distant environment. Change only the distant sky/horizon in the lower-middle part of the frame; retain recognizable existing cloud forms and unchanged readable HUD. Match the original game's broad cel shading, no photorealism, painterly detail, heavy black outlines, text labels or watermark. OPTION B \u00e2\u20ac\u201d STRATUS AND HAZE. Fill the empty horizon gap with a few long, thin, slightly broken horizontal stratus cloud streaks at several depths. Add a subtle atmospheric haze gradient linking the low peach cloud sea to the lavender sky; distant bands become progressively pale and less contrasted. This is a quiet low-profile solution: no tall cloud towers, islands, storms or mountains. Retain plenty of open sky, the existing upper clouds and clearly visible sun. The added horizon bands have broad crisp cel light/shade shapes, not wispy photographic detail."
+    },
+    {
+      "id": "C",
+      "file": "c_floating_islands.png",
+      "generated_source": "C:\\Users\\tonyf\\.codex\\generated_images\\01a0f909-1264-7263-aa10-754f54141aab\\exec-5fafa8b7-2f46-4536-84c2-7050c6ace9a3.png",
+      "prompt": "Use case: precise-object-edit / stylized-concept. Edit the attached Stackfall gameplay screenshot into a horizon-design mockup, keeping the same 16:9 composition, camera angle, pastel morning light, sun location, cel shaded lavender/peach palette, existing upper cloud layer and HUD positions. This is a proposal for a moving-camera 3D game's distant environment. Change only the distant sky/horizon in the lower-middle part of the frame; retain recognizable existing cloud forms and unchanged readable HUD. Match the original game's broad cel shading, no photorealism, painterly detail, heavy black outlines, text labels or watermark. OPTION C \u00e2\u20ac\u201d DISTANT FLOATING ISLANDS. Add three very far-away unequal floating rock islands half-sunk in the lower cloud sea along the horizon, their faceted rocky underside roots disappearing into haze. A small restrained mossy surface is visible on their broad tops. These are atmospheric background silhouettes; no buildings, bridges, trees, waterfalls, giant foreground mountains or decorative fantasy scenery. Let one gently elevated island interrupt the empty sky gap, but keep the original upper clouds, open sun and HUD intact. Match the soft lavender and peach cel shaded game palette, with low-contrast distance fading."
+    },
+    {
+      "id": "D",
+      "file": "d_storm_cell.png",
+      "generated_source": "C:\\Users\\tonyf\\.codex\\generated_images\\01a0f909-1264-7263-aa10-754f54141aab\\exec-ab75c28e-4049-4aa4-ae63-ceaad37e8722.png",
+      "prompt": "Use case: precise-object-edit / stylized-concept. Edit the attached Stackfall gameplay screenshot into a horizon-design mockup, keeping the same 16:9 composition, camera angle, pastel morning light, sun location, cel shaded lavender/peach palette, existing upper cloud layer and HUD positions. This is a proposal for a moving-camera 3D game's distant environment. Change only the distant sky/horizon in the lower-middle part of the frame; retain recognizable existing cloud forms and unchanged readable HUD. Match the original game's broad cel shading, no photorealism, painterly detail, heavy black outlines, text labels or watermark. OPTION D \u00e2\u20ac\u201d DISTANT STORM CELL. Add one far-away localized towering storm cloud over the lower horizon, off to the left side so the central sun remains visible, with a broad anvil top approaching the existing upper cloud level, lavender-grey cel bands and a few thin rain curtains dissolving into the lower cloud sea. Include one restrained short lightning trace inside the rain curtain to suggest an occasional flicker. Keep the rest of the morning sky light and pastel: do not turn the entire view into a dark storm. No islands, mountains, giant foreground storm or dense lightning spectacle. Preserve original camera, upper clouds and HUD."
+    },
+    {
+      "id": "E",
+      "file": "e_cumulus_stratus.png",
+      "generated_source": "C:\\Users\\tonyf\\.codex\\generated_images\\01a0f909-1264-7263-aa10-754f54141aab\\exec-be8be007-cb20-4f9f-a9d6-84b569ae3f05.png",
+      "prompt": "Use case: precise-object-edit / stylized-concept. Edit the attached Stackfall gameplay screenshot into a horizon-design mockup, keeping the same 16:9 composition, camera angle, pastel morning light, sun location, cel shaded lavender/peach palette, existing upper cloud layer and HUD positions. This is a proposal for a moving-camera 3D game's distant environment. Change only the distant sky/horizon in the lower-middle part of the frame; retain recognizable existing cloud forms and unchanged readable HUD. Match the original game's broad cel shading, no photorealism, painterly detail, heavy black outlines, text labels or watermark. OPTION E \u00e2\u20ac\u201d CUMULUS PLUS STRATUS. Show a restrained combination of a distant irregular towering cumulus ring and long thin stratus layers. Two unequal rising pillowy cloud towers grow from the low cloud sea at the outer sides, bridging some of the gap toward the upper cloud layer, while broken thin horizontal stratus streaks and soft pale atmospheric haze connect the rest of the horizon. Keep the center open around the sun, with broad cel shading and low-contrast distant bases. Less crowded than a solid bank of towers: leave clear sky gaps, no islands or storm cells. Preserve original gameplay composition and HUD."
+    }
+  ],
+  "reference_sha256": "1edd5558a303009c8483e71dd7c3afb1f27e94c24c10b3f8af4d842ce45b2bc8"
+}

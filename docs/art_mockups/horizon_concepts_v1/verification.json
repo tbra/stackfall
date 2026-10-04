@@ -1,0 +1,59 @@
+{
+  "checks": "five valid unique near16:9 PNGs; workspace copies byte-identical to tool originals; all input/output files present",
+  "variants": [
+    {
+      "id": "A",
+      "file": "a_cumulus_ring.png",
+      "size": [
+        1672,
+        941
+      ],
+      "sha256": "35c76a77c86e399362137dad5de3a98b0e3dd6bab7830ad7cb1457194cb7f55f"
+    },
+    {
+      "id": "B",
+      "file": "b_stratus_haze.png",
+      "size": [
+        1672,
+        941
+      ],
+      "sha256": "4ac7ae6b602af7cc28f59e7af6aca1513910caa27f073fdc87708afc5792fe0f"
+    },
+    {
+      "id": "C",
+      "file": "c_floating_islands.png",
+      "size": [
+        1672,
+        941
+      ],
+      "sha256": "ce92c26c347450b089d52180092b4afb4dc43eb61ce5e378ca11a31d86ad4d83"
+    },
+    {
+      "id": "D",
+      "file": "d_storm_cell.png",
+      "size": [
+        1672,
+        941
+      ],
+      "sha256": "cd9c715d73f4e362a829f06a13ba1a224a6c4d84a18d1fb64ef14bb7d2ff2693"
+    },
+    {
+      "id": "E",
+      "file": "e_cumulus_stratus.png",
+      "size": [
+        1672,
+        941
+      ],
+      "sha256": "c725d3010007c54c623dcaf809f11e9b9c8d181b6a95c5ae25c56c95694d9f83"
+    }
+  ],
+  "contact_sheet_size": [
+    1280,
+    1228
+  ],
+  "concept_limitations": [
+    "AI edit may alter HUD pixels; not UI validation",
+    "Single camera and morning lighting only",
+    "Not a seamless panorama, 3D asset or game capture after integration"
+  ]
+}
