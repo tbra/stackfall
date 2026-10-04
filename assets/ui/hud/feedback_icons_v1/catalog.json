@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "nominal_size": [
+    32,
+    32
+  ],
+  "palette": {
+    "ink": "#26323A",
+    "teal": "#75CBD1",
+    "coral": "#EB6B5C",
+    "brass": "#E8B85D",
+    "paper": "#F5EBD6"
+  },
+  "icons": [
+    {
+      "id": "held_block_height",
+      "file": "held_block_height.svg",
+      "label": "Held block height",
+      "intended_usage": "Current held block height above the surface; separate from the tallest placed tower"
+    },
+    {
+      "id": "goal_capture",
+      "file": "goal_capture.svg",
+      "label": "Goal capture",
+      "intended_usage": "Supplement the actual goal capture indicator; does not encode a progress fraction"
+    },
+    {
+      "id": "placement_rejected",
+      "file": "placement_rejected.svg",
+      "label": "Placement rejected",
+      "intended_usage": "A rejected placement that did not happen; retain the actual reason text"
+    },
+    {
+      "id": "placement_relocated",
+      "file": "placement_relocated.svg",
+      "label": "Placement relocated",
+      "intended_usage": "Placement happened at an automatic valid point in own territory; not rejected"
+    }
+  ]
+}
