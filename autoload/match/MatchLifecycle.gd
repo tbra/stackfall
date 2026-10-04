@@ -22,9 +22,8 @@ var _countdown_last_whole: int = 0
 var _countdown_held: bool = false
 
 ## -- Loading-screen ready gate (Bontago-1pi.32) ---------------------------------
-## Owner playtest 2026-10-03: the loading screen is shown at least
-## min_display_s and every human presses ready (ui_accept / gamepad A) before the
-## countdown runs. The rule is core/LoadingReadyGate.gd; this file owns the
+## Owner playtest 2026-10-03: every human presses ready (ui_accept / gamepad A)
+## on the loading screen before the countdown runs (1pi.63: no minimum display time). The rule is core/LoadingReadyGate.gd; this file owns the
 ## per-match state and the host's hooks. Net (autoload/Net.gd) is the transport:
 ## it validates the sender and hands the intent over on the Events bus.
 ##
@@ -449,7 +448,7 @@ func arm_loading_ready_gate() -> bool:
 	if not _gate_armed:
 		_gate_armed = true
 		_gate_open_mirror = false
-		_ready_gate.begin(_loading_tuning.min_display_s, _loading_tuning.ready_wait_max_s)
+		_ready_gate.begin(_loading_tuning.ready_wait_max_s)
 	return true
 
 
@@ -517,14 +516,6 @@ func loading_slot_ready(slot_id: int) -> bool:
 	return peer_id >= 0 and loading_ready_peers().has(peer_id)
 
 
-## Seconds left of the host's minimum display time (0.0 on a client, which has no
-## gate clock; ui/LoadingScreen.gd's min_display_remaining_s() is the local one).
-func loading_min_display_remaining_s() -> float:
-	if not _gate_armed or not _match._is_host():
-		return 0.0
-	return _ready_gate.min_display_remaining_s()
-
-
 func _loading_session() -> Variant:
 	return _match._net_provider if _match._net_provider != null else Net
 
@@ -538,7 +529,7 @@ func _reset_loading_gate() -> void:
 	_published_required = PackedInt32Array()
 	_published_any = false
 	loading_ready_refused = 0
-	_ready_gate.begin(0.0, 0.0)
+	_ready_gate.begin(0.0)
 
 
 ## Host. Net already checked the sender is a seated peer; this checks the phase

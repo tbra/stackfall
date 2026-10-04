@@ -19,10 +19,6 @@ extends Resource
 ## itself delayed by warmup_frames below).
 @export var fade_out_duration_s: float = 0.35
 
-## Seconds between one "Loading." / "Loading.." / "Loading..." frame and the
-## next.
-@export var spinner_interval_s: float = 0.35
-
 ## Rendered frames LoadingScreen.fade_out() holds the overlay up once called,
 ## before starting the actual fade -- see that function's own DECISION doc.
 @export var warmup_frames: int = 3
@@ -42,12 +38,6 @@ extends Resource
 ## Presented frames after the first result, while the new world renders covered.
 @export var stable_frames: int = 4
 
-## Bontago-1pi.32 (owner playtest 2026-10-03): the loading screen is shown for at
-## least this long, even when the world is built sooner. Enforced by the host's
-## ready gate (core/LoadingReadyGate.gd), measured from LOADING, and locally by
-## ui/LoadingScreen.gd's fade-out so every instance displays it that long.
-@export var min_display_s: float = 5.0
-
 ## Bontago-1pi.32 safety cap on the wait for every human player to press ready.
 ## Measured from LOADING (asset loading still has its own ready_timeout_s above);
 ## once it passes the host starts the countdown anyway. # DECISION: an AFK or
@@ -58,23 +48,10 @@ extends Resource
 ## Colours reuse config/menu_visual_tuning.tres (ink, muted, mint) so the overlay
 ## stays on the menu palette; only sizes and wording live here.
 
-## Subtle line shown while the minimum display time remains (or this instance is
-## still loading).
-@export var get_ready_text: String = "Get ready..."
-
-## "<prefix> [glyph] <suffix>" -- the glyph is the bound ui_accept key/button of
-## the player's active device (ui/InputGlyph.gd).
-@export var ready_prompt_prefix: String = "Press"
-@export var ready_prompt_suffix: String = "to ready"
-
-## After the local press: how many required players have not pressed yet. %d is
-## that count; one text per grammatical number.
-@export var waiting_one_text: String = "Waiting for %d player..."
-@export var waiting_many_text: String = "Waiting for %d players..."
-
-## Safety-cap countdown while the host would start without a laggard; %d is whole
-## seconds left (rounded up).
-@export var cap_countdown_format: String = "Starting in %ds"
+## Bontago-1pi.63: the line above the device glyph ("Ready?" + [Enter] / [A]); the
+## glyph is the bound ui_accept key/button of the player's active device
+## (ui/InputGlyph.gd).
+@export var ready_prompt_text: String = "Ready?"
 
 ## Appended to a bot's name in the player list (a bot is always ready).
 @export var bot_suffix: String = " (bot)"
@@ -83,22 +60,15 @@ extends Resource
 @export var ready_prompt_glyph_count: int = 1
 
 @export var ready_prompt_font_size: int = 20
-@export var ready_status_font_size: int = 16
-@export var ready_cap_font_size: int = 14
 @export var ready_row_font_size: int = 18
 
 ## Opacity of the prompt once the local player has pressed it (it stays visible but
 ## disabled while the others catch up).
 @export var ready_prompt_disabled_alpha: float = 0.55
 
-## Vertical gap between the ready box's status line, prompt and cap countdown, and
-## the horizontal gap inside the prompt (prefix, glyph, suffix).
+## Vertical gap inside the ready box, and between the prompt text and its glyph.
 @export var ready_box_separation_px: int = 8
 @export var ready_prompt_separation_px: int = 10
-
-## Space reserved for the ready box (status + prompt + cap line) once the gate is
-## armed, so the card does not jump when the prompt appears.
-@export var ready_box_min_height_px: float = 128.0
 
 ## Player ready list: gap between rows, between a row's cells, the colour swatch
 ## and the tick/ring mark (diameters), plus the tick's stroke width.

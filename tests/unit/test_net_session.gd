@@ -127,9 +127,8 @@ func test_ready_flag_change_emits_roster_changed_on_host_and_client() -> void:
 	assert_true(_ready_in_roster(host_roster, Net.HOST_PEER_ID), "the host's own entry must read ready")
 
 	var client_id: int = _client.local_peer_id()
-	# The host's own peer starts "ready" by default (host_game()), so waiting
-	# on peer_info().ready alone could pass on stale, pre-flip data; wait on
-	# the emit count itself instead, and confirm the roster's content after.
+	# Wait on the emit count itself (not peer_info().ready alone, which could pass
+	# on stale pre-flip data), and confirm the roster's content after.
 	var landed: bool = await _wait_until(func() -> bool:
 		return get_signal_emit_count(Events, "net_roster_changed") >= 2
 	)
@@ -148,6 +147,18 @@ func _ready_in_roster(roster: Array, peer_id: int) -> bool:
 		if int(entry.get("peer_id", -1)) == peer_id:
 			return bool(entry.get("ready", false))
 	return false
+
+
+## Bontago-1pi.67: the host is seeded not ready (mirrors its Ready toggle like a
+## client); the Start gate ignores the host's own flag and waits for the others.
+func test_host_seeded_not_ready_and_start_gate_ignores_the_host_flag() -> void:
+	var port: int = _take_port()
+	_connect_host_and_client(port)
+	await _wait_until(func() -> bool: return _host.peer_ids().size() == 2)
+	assert_false(bool(_host.peer_info(Net.HOST_PEER_ID).get("ready", true)), "host starts not ready")
+	assert_false(_host.all_peers_ready(), "the client is not ready")
+	_host.set_peer_ready(_client.local_peer_id(), true)
+	assert_true(_host.all_peers_ready(), "host pressing Start is its own consent")
 
 
 func test_ping_exchange_reports_low_round_trip() -> void:

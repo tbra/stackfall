@@ -2,7 +2,7 @@ extends Node
 ## Bontago-1pi.32: host + one lagged client over real ENet, loading-screen ready
 ## gate armed (MatchLifecycle.set_loading_gate_forced -- headless has no overlay
 ## to arm it). Per-peer log lines (LRENET): the host holds the countdown until
-## min_display_s elapsed AND both humans pressed ready; the client presses ready
+## both humans pressed ready; the client presses ready
 ## over the lagged link, receives the host's open message, then sees the 3-2-1
 ## run down and PLAYING. Run via tools/run_loading_ready_enet.ps1.
 ## Host: --headless-host --expect-peers=2.
@@ -93,8 +93,8 @@ func _on_state(_from: int, to_state: int) -> void:
 
 
 func _verdict(role: String) -> void:
-	var ok: bool = _open_t >= Match._lifecycle._loading_tuning.min_display_s - TOLERANCE_S and _playing_t >= _open_t + Match.config.effective_countdown_seconds() - TOLERANCE_S
-	print("LRENET %s result=%s open_t=%.2f playing_t=%.2f min_display_s=%.1f" % [role, "PASS" if ok else "FAIL", _open_t, _playing_t, Match._lifecycle._loading_tuning.min_display_s])
+	var ok: bool = _open_t >= 0.0 and _playing_t >= _open_t + Match.config.effective_countdown_seconds() - TOLERANCE_S
+	print("LRENET %s result=%s open_t=%.2f playing_t=%.2f" % [role, "PASS" if ok else "FAIL", _open_t, _playing_t])
 
 
 func _run_host() -> void:
@@ -133,7 +133,7 @@ func _run_host() -> void:
 		await _wait(0.5)
 	else:
 		Net.request_loading_ready()
-		await _wait(Match._lifecycle._loading_tuning.min_display_s + Match.COUNTDOWN_SECONDS + 3.0)
+		await _wait(Match.COUNTDOWN_SECONDS + 3.0)
 	_verdict("host")
 	get_tree().quit(0)
 
