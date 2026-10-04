@@ -1,0 +1,140 @@
+{
+  "glyphs": [
+    {
+      "file": "gamepad_stick_left_up.svg",
+      "title": "Left stick up",
+      "viewbox": [
+        64,
+        64
+      ],
+      "kind": "stick_direction",
+      "side": "left",
+      "direction": "up"
+    },
+    {
+      "file": "gamepad_stick_left_down.svg",
+      "title": "Left stick down",
+      "viewbox": [
+        64,
+        64
+      ],
+      "kind": "stick_direction",
+      "side": "left",
+      "direction": "down"
+    },
+    {
+      "file": "gamepad_stick_left_left.svg",
+      "title": "Left stick left",
+      "viewbox": [
+        64,
+        64
+      ],
+      "kind": "stick_direction",
+      "side": "left",
+      "direction": "left"
+    },
+    {
+      "file": "gamepad_stick_left_right.svg",
+      "title": "Left stick right",
+      "viewbox": [
+        64,
+        64
+      ],
+      "kind": "stick_direction",
+      "side": "left",
+      "direction": "right"
+    },
+    {
+      "file": "gamepad_stick_left_click.svg",
+      "title": "Left stick click (L3)",
+      "viewbox": [
+        64,
+        64
+      ],
+      "kind": "stick_click",
+      "side": "left"
+    },
+    {
+      "file": "gamepad_stick_right_up.svg",
+      "title": "Right stick up",
+      "viewbox": [
+        64,
+        64
+      ],
+      "kind": "stick_direction",
+      "side": "right",
+      "direction": "up"
+    },
+    {
+      "file": "gamepad_stick_right_down.svg",
+      "title": "Right stick down",
+      "viewbox": [
+        64,
+        64
+      ],
+      "kind": "stick_direction",
+      "side": "right",
+      "direction": "down"
+    },
+    {
+      "file": "gamepad_stick_right_left.svg",
+      "title": "Right stick left",
+      "viewbox": [
+        64,
+        64
+      ],
+      "kind": "stick_direction",
+      "side": "right",
+      "direction": "left"
+    },
+    {
+      "file": "gamepad_stick_right_right.svg",
+      "title": "Right stick right",
+      "viewbox": [
+        64,
+        64
+      ],
+      "kind": "stick_direction",
+      "side": "right",
+      "direction": "right"
+    },
+    {
+      "file": "gamepad_stick_right_click.svg",
+      "title": "Right stick click (R3)",
+      "viewbox": [
+        64,
+        64
+      ],
+      "kind": "stick_click",
+      "side": "right"
+    },
+    {
+      "file": "gamepad_combo_rt_right_stick.svg",
+      "title": "RT plus right stick",
+      "viewbox": [
+        160,
+        64
+      ],
+      "kind": "default_combo_specimen",
+      "components": [
+        "gamepad_rt.svg",
+        "gamepad_stick_right.svg"
+      ]
+    },
+    {
+      "file": "gamepad_combo_lb_rb.svg",
+      "title": "LB plus RB",
+      "viewbox": [
+        160,
+        64
+      ],
+      "kind": "default_combo_specimen",
+      "components": [
+        "gamepad_lb.svg",
+        "gamepad_rb.svg"
+      ]
+    }
+  ],
+  "height": 64,
+  "provenance": "Original vector construction; existing project glyphs compose combo specimens"
+}
