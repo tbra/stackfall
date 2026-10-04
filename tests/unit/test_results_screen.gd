@@ -162,6 +162,16 @@ func test_populate_rows_builds_one_panel_per_player_plus_a_header() -> void:
 	assert_false(bool(other_panel.get_meta(&"is_winner")))
 
 
+func test_each_results_row_is_marked_with_its_slot_colour() -> void:
+	_screen.show_results(_ffa_results())
+	var palette: PackedColorArray = MatchConfig.default_player_colors()
+	for index: int in range(1, _screen._rows_list.get_child_count()):
+		var panel: PanelContainer = _screen._rows_list.get_child(index) as PanelContainer
+		var slot_id: int = int(panel.get_meta(&"slot_id"))
+		var name_cell: Label = (panel.get_child(0) as HBoxContainer).get_child(0) as Label
+		assert_eq(name_cell.get_meta(&"slot_color"), palette[slot_id], "row for slot %d" % slot_id)
+
+
 # --- Host/client gate ---------------------------------------------------------
 
 func test_host_sees_enabled_buttons_and_no_waiting_hint() -> void:
