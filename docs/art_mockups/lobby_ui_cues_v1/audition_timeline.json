@@ -1,0 +1,57 @@
+[
+  {
+    "file": "player_joined.wav",
+    "start_s": 0.0,
+    "end_s": 0.2
+  },
+  {
+    "file": "player_left.wav",
+    "start_s": 0.9,
+    "end_s": 1.08
+  },
+  {
+    "file": "ready_on.wav",
+    "start_s": 1.78,
+    "end_s": 1.96
+  },
+  {
+    "file": "ready_off.wav",
+    "start_s": 2.66,
+    "end_s": 2.82
+  },
+  {
+    "file": "team_change.wav",
+    "start_s": 3.52,
+    "end_s": 3.615
+  },
+  {
+    "file": "colour_change.wav",
+    "start_s": 4.315,
+    "end_s": 4.4
+  },
+  {
+    "file": "bot_added.wav",
+    "start_s": 5.1,
+    "end_s": 5.235
+  },
+  {
+    "file": "bot_removed.wav",
+    "start_s": 5.935,
+    "end_s": 6.07
+  },
+  {
+    "file": "section_expanded.wav",
+    "start_s": 6.77,
+    "end_s": 6.835
+  },
+  {
+    "file": "section_collapsed.wav",
+    "start_s": 7.535,
+    "end_s": 7.595
+  },
+  {
+    "file": "all_players_ready.wav",
+    "start_s": 8.295,
+    "end_s": 8.665
+  }
+]
