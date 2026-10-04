@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode unshaded, blend_mix, cull_disabled, depth_draw_never, shadows_disabled;
+render_mode unshaded, blend_mix, cull_disabled, depth_draw_never, shadows_disabled, fog_disabled;
 
 uniform vec4 tint : source_color = vec4(0.66, 0.79, 0.98, 0.42);
 uniform float curtain_height = 30.0;

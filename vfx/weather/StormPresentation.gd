@@ -40,9 +40,14 @@ var _elapsed: float = 0.0
 var _travel: float = 0.0
 var _materials: Array[ShaderMaterial] = []
 var _instances: Array[MultiMeshInstance3D] = []
+var _horizon: HorizonStormCells = null
 
 
 func _ready() -> void:
+	# Bontago-mp0.126: distant storm cells on the horizon follow the same intensity.
+	_horizon = HorizonStormCells.new()
+	_horizon.name = "HorizonStormCells"
+	add_child(_horizon)
 	_build()
 	Settings.graphics_preset_changed.connect(_on_graphics_preset_changed)
 
@@ -120,6 +125,8 @@ func total_instances() -> int:
 
 func set_intensity(value: float) -> void:
 	super.set_intensity(value)
+	if _horizon != null:
+		_horizon.set_intensity(value)
 	for material: ShaderMaterial in _materials:
 		material.set_shader_parameter(&"density", value)
 
