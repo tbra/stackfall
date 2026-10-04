@@ -1,0 +1,29 @@
+[
+  {
+    "id": "mesa",
+    "native_color_and_pivot_check": true,
+    "triangles": [
+      320,
+      96,
+      32
+    ]
+  },
+  {
+    "id": "shelf",
+    "native_color_and_pivot_check": true,
+    "triangles": [
+      320,
+      96,
+      32
+    ]
+  },
+  {
+    "id": "crag",
+    "native_color_and_pivot_check": true,
+    "triangles": [
+      320,
+      96,
+      32
+    ]
+  }
+]
