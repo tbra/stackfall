@@ -85,6 +85,8 @@ func _make_cloud_material() -> StandardMaterial3D:
 	material.roughness = 1.0
 	material.diffuse_mode = BaseMaterial3D.DIFFUSE_BURLEY
 	material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	# Bontago-mp0.126: the cell sits ~1 km out, where depth fog would swallow it whole.
+	material.disable_fog = true
 	return material
 
 
@@ -277,6 +279,7 @@ func _build_lightning() -> void:
 	_bolt_material.emission = Color(0.24, 0.63, 1.0)
 	_bolt_material.emission_energy_multiplier = 4.0
 	_bolt_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_bolt_material.disable_fog = true
 	var bolt_mesh: ArrayMesh = _make_lightning_mesh(main_path, branch_path)
 	_bolt = MeshInstance3D.new()
 	_bolt.name = "Lightning"
