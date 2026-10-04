@@ -210,6 +210,13 @@ func kick_peer(peer_id: int, reason: int = 0) -> void:
 	kick_peer_calls.append({"peer_id": peer_id, "reason": reason})
 
 
+var reset_ready_flags_calls: int = 0
+
+
+func reset_ready_flags() -> void:
+	reset_ready_flags_calls += 1
+
+
 func set_local_ready(ready: bool) -> void:
 	set_local_ready_calls.append(ready)
 

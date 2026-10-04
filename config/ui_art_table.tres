@@ -1,0 +1,48 @@
+[gd_resource type="Resource" script_class="UiArtTable" load_steps=17 format=3]
+
+[ext_resource type="Script" path="res://config/UiArtTable.gd" id="1_t"]
+[ext_resource type="Texture2D" path="res://assets/ui/map_pictograms_v1/atlas.svg" id="2_m"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/lobby_v1/section_game.svg" id="i0"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/lobby_v1/section_round.svg" id="i1"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/lobby_v1/section_gifts.svg" id="i2"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/lobby_v1/section_experiments.svg" id="i3"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/lobby_v1/bot_add.svg" id="i4"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/lobby_v1/bot_remove.svg" id="i5"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/lobby_v1/teams.svg" id="i6"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/lobby_v1/team_random.svg" id="i7"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/lobby_v1/colour_swap.svg" id="i8"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/lobby_v1/advanced_open.svg" id="i9"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/lobby_v1/advanced_closed.svg" id="i10"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/lobby_v1/difficulty_easy.svg" id="i11"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/lobby_v1/difficulty_normal.svg" id="i12"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/lobby_v1/difficulty_hard.svg" id="i13"]
+
+[resource]
+script = ExtResource("1_t")
+map_atlas = ExtResource("2_m")
+map_regions = {
+&"ROUND": Rect2(0, 0, 64, 64),
+&"OVAL": Rect2(64, 0, 64, 64),
+&"RING": Rect2(128, 0, 64, 64),
+&"TWIN": Rect2(192, 0, 64, 64),
+&"CROSS": Rect2(0, 64, 64, 64)
+}
+lobby_icons = {
+&"section_game": ExtResource("i0"),
+&"section_round": ExtResource("i1"),
+&"section_gifts": ExtResource("i2"),
+&"section_experiments": ExtResource("i3"),
+&"bot_add": ExtResource("i4"),
+&"bot_remove": ExtResource("i5"),
+&"teams": ExtResource("i6"),
+&"team_random": ExtResource("i7"),
+&"colour_swap": ExtResource("i8"),
+&"advanced_open": ExtResource("i9"),
+&"advanced_closed": ExtResource("i10"),
+&"difficulty_easy": ExtResource("i11"),
+&"difficulty_normal": ExtResource("i12"),
+&"difficulty_hard": ExtResource("i13")
+}
+map_icon_px = 28
+loading_map_icon_px = 64
+lobby_icon_px = 20

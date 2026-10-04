@@ -88,3 +88,4 @@ tests/.gut_targeted/
 
 # Owner-reply hook state (tools/owner_replies.py)
 /.claude/owner_replies_state.json
+build_info.cfg

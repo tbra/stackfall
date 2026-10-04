@@ -68,7 +68,7 @@ func test_fog_uses_depth_mode_from_a_begin_distance_and_restores_the_theme_exact
 	assert_eq(environment.fog_depth_end, base_end)
 	assert_almost_eq(environment.fog_density, sunset.fog_density, 0.00001)
 	assert_eq(environment.fog_light_color, sunset.fog_color)
-	assert_eq(environment.fog_sky_affect, sunset.fog_sky_affect)
+	assert_almost_eq(environment.fog_sky_affect, sunset.fog_sky_affect, 0.00001)
 
 
 func test_removing_the_presentation_restores_the_fog() -> void:
@@ -161,7 +161,7 @@ func test_scenery_shaders_fade_by_the_same_distance_rule() -> void:
 	assert_eq(float(material.get_shader_parameter(&"wfog_end")), _fog.depth_end_m)
 	presentation.set_intensity(0.0)
 	WeatherFogShader.apply(material)
-	assert_eq(float(material.get_shader_parameter(&"wfog_strength")), 0.0, "restored")
+	assert_almost_eq(float(material.get_shader_parameter(&"wfog_strength")), WeatherFogShader.ambient_strength, 0.00001, "restored to the theme ambient haze")
 
 
 func test_cloud_sea_puffs_join_the_fog_and_follow_it() -> void:

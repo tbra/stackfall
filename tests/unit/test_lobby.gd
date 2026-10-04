@@ -480,6 +480,18 @@ func test_ready_toggle_calls_set_local_ready() -> void:
 	assert_eq(_fake_of(lobby).set_local_ready_calls, [true])
 
 
+## Bontago-1pi.73: a fresh Lobby (match -> Back to lobby, pause -> Return) resets the
+## roster ready flags for the host only, matching its toggle that starts off.
+func test_lobby_entry_resets_roster_ready_for_host_only() -> void:
+	var host_lobby: Lobby = _make_lobby(true)
+	host_lobby._reset_roster_ready_on_entry()
+	assert_eq(_fake_of(host_lobby).reset_ready_flags_calls, 1)
+	assert_false((host_lobby.get_node("%ReadyCheck") as CheckButton).button_pressed)
+	var client_lobby: Lobby = _make_lobby(false)
+	client_lobby._reset_roster_ready_on_entry()
+	assert_eq(_fake_of(client_lobby).reset_ready_flags_calls, 0)
+
+
 # --- Roster --------------------------------------------------------------------
 
 func test_roster_in_lobby_data_builds_player_rows() -> void:

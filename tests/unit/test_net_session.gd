@@ -149,6 +149,29 @@ func _ready_in_roster(roster: Array, peer_id: int) -> bool:
 	return false
 
 
+## Bontago-1pi.73: a lobby (re)entry resets every ready flag, seen on host and client.
+func test_reset_ready_flags_clears_host_and_client_views() -> void:
+	var port: int = _take_port()
+	_connect_host_and_client(port)
+	await _wait_until(func() -> bool: return _host.peer_ids().size() == 2 and _client.peer_ids().size() == 2)
+	var client_id: int = _client.local_peer_id()
+	_host.set_local_ready(true)
+	_client.set_local_ready(true)
+	var flagged: bool = await _wait_until(func() -> bool:
+		return bool(_client.peer_info(Net.HOST_PEER_ID).get("ready", false)) and bool(_host.peer_info(client_id).get("ready", false)) and bool(_client.peer_info(client_id).get("ready", false))
+	)
+	assert_true(flagged, "both flags settle ready on both views first")
+	_client.reset_ready_flags()
+	assert_true(bool(_host.peer_info(Net.HOST_PEER_ID).get("ready", false)), "a client cannot reset the roster")
+	_host.reset_ready_flags()
+	assert_false(bool(_host.peer_info(Net.HOST_PEER_ID).get("ready", true)), "host view: host flag cleared")
+	assert_false(bool(_host.peer_info(client_id).get("ready", true)), "host view: client flag cleared")
+	var cleared: bool = await _wait_until(func() -> bool:
+		return not bool(_client.peer_info(Net.HOST_PEER_ID).get("ready", true)) and not bool(_client.peer_info(client_id).get("ready", true))
+	)
+	assert_true(cleared, "client view mirrors the reset")
+
+
 ## Bontago-1pi.67: the host is seeded not ready (mirrors its Ready toggle like a
 ## client); the Start gate ignores the host's own flag and waits for the others.
 func test_host_seeded_not_ready_and_start_gate_ignores_the_host_flag() -> void:

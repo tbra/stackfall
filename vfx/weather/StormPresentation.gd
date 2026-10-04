@@ -74,9 +74,30 @@ static func _hash11(n: float) -> float:
 	return fposmod(sin(n * 127.1 + 311.7) * 43758.5453, 1.0)
 
 
-## Cycle time of one swoosh stroke: the metres it drifts over a life at the drift speed.
+## Cycle time of one swoosh stroke: draw-on, hold and draw-off seconds (Bontago-mp0.131).
 static func stroke_cycle_s(wind_tuning: StormTuning) -> float:
-	return maxf(wind_tuning.streak_life_m / maxf(wind_tuning.streak_speed_ms, MIN_SPEED_MS), MIN_CYCLE_S)
+	return maxf(wind_tuning.streak_draw_on_s + wind_tuning.streak_hold_s + wind_tuning.streak_draw_off_s, MIN_CYCLE_S)
+
+
+## Metres a stroke drifts downwind over one cycle (slow: the reveal sweep is the motion).
+static func stroke_drift_m(wind_tuning: StormTuning) -> float:
+	return wind_tuning.streak_speed_ms * stroke_cycle_s(wind_tuning)
+
+
+## Share of the cycle spent drawing on (x) and drawing off (y).
+static func phase_fracs(wind_tuning: StormTuning) -> Vector2:
+	var cycle: float = stroke_cycle_s(wind_tuning)
+	return Vector2(maxf(wind_tuning.streak_draw_on_s / cycle, MIN_PHASE_FRAC), maxf(wind_tuning.streak_draw_off_s / cycle, MIN_PHASE_FRAC))
+
+
+## Pure mirror of the shader's reveal window at cycle phase c (0..1): x is the tail edge,
+## y the head edge, in stroke arc fraction (feather `softness` beyond 0..1 so the ends
+## fully clear). The head sweeps 0 -> 1 + softness during draw-on; the tail then sweeps
+## -softness -> 1 during draw-off, so a stroke is drawn along the wind and wiped the same way.
+static func reveal_window(c: float, draw_frac: float, erase_frac: float, softness: float) -> Vector2:
+	var head: float = smoothstep(0.0, 1.0, clampf(c / maxf(draw_frac, MIN_PHASE_FRAC), 0.0, 1.0))
+	var tail: float = smoothstep(0.0, 1.0, clampf((c - (1.0 - erase_frac)) / maxf(erase_frac, MIN_PHASE_FRAC), 0.0, 1.0))
+	return Vector2(tail * (1.0 + softness) - softness, head * (1.0 + softness))
 
 
 ## Centre of the weather box the swoosh strokes are scattered through (before the
@@ -149,7 +170,7 @@ func _process(delta: float) -> void:
 			# Swoosh strokes take the travel as time (cycle = travel / cycle_s); the box is
 			# shifted upwind by half a life so the downwind drift stays centred on the disc.
 			_materials[i].set_shader_parameter(&"travel", _travel)
-			_materials[i].set_shader_parameter(&"center", box_center(tuning) - dir * (tuning.streak_life_m * 0.5))
+			_materials[i].set_shader_parameter(&"center", box_center(tuning) - dir * (stroke_drift_m(tuning) * 0.5))
 		else:
 			_materials[i].set_shader_parameter(&"travel", _travel * tuning.mote_speed_ms)
 
@@ -249,8 +270,10 @@ func _swoosh_material() -> ShaderMaterial:
 	material.set_shader_parameter(&"tint", tuning.streak_color)
 	material.set_shader_parameter(&"spacing_m", tuning.swoosh_parallel_spacing_m)
 	material.set_shader_parameter(&"cycle_s", stroke_cycle_s(tuning))
-	material.set_shader_parameter(&"draw_frac", maxf(tuning.streak_draw_frac, MIN_PHASE_FRAC))
-	material.set_shader_parameter(&"erase_frac", maxf(tuning.streak_erase_frac, MIN_PHASE_FRAC))
+	var fracs: Vector2 = phase_fracs(tuning)
+	material.set_shader_parameter(&"draw_frac", fracs.x)
+	material.set_shader_parameter(&"erase_frac", fracs.y)
+	material.set_shader_parameter(&"reveal_softness", tuning.streak_reveal_softness)
 	material.set_shader_parameter(&"tip_taper", tuning.streak_tip_taper)
 	material.set_shader_parameter(&"peak_bias", tuning.swoosh_width_peak_bias)
 	material.set_shader_parameter(&"min_foreshorten", tuning.swoosh_min_foreshorten)
@@ -305,7 +328,7 @@ func _add_instance(instance_name: String, multimesh: MultiMesh, material: Shader
 	# read as grey squares on the disc.
 	instance.layers = RainPresentation.RENDER_LAYER_BIT
 	# The swoosh strokes drift up to a life downwind of the box.
-	var extent: float = (maxf(half, half_y) + tuning.streak_life_m) * 2.0
+	var extent: float = (maxf(half, half_y) + stroke_drift_m(tuning)) * 2.0
 	instance.custom_aabb = AABB(Vector3.ONE * -extent, Vector3.ONE * extent * 2.0)
 	add_child(instance)
 	_instances.append(instance)

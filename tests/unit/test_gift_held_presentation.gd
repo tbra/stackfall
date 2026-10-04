@@ -74,12 +74,17 @@ func test_preview_icon_falls_back_to_generic() -> void:
 	assert_eq(SpecialDef.preview_icon_for(&"no_such_gift"), SpecialDef.GENERIC_PREVIEW_ICON)
 	var def: SpecialDef = SpecialDef.find_by_id(&"rocket")
 	var baked: Texture2D = def.preview_icon
+	# Bontago-mp0.125: the model preview outranks the def icon, so hide it for this check.
+	var table: GiftIconTable = GiftIconTable.shared()
+	var model: Texture2D = table.model_previews[&"rocket"] as Texture2D
+	table.model_previews.erase(&"rocket")
 	def.preview_icon = null
 	assert_eq(SpecialDef.preview_icon_for(&"rocket"), SpecialDef.GENERIC_PREVIEW_ICON)
 	var icon: Texture2D = PlaceholderTexture2D.new()
 	def.preview_icon = icon
 	assert_eq(SpecialDef.preview_icon_for(&"rocket"), icon)
 	def.preview_icon = baked
+	table.model_previews[&"rocket"] = model
 
 
 func test_every_gift_has_baked_preview_icon() -> void:
@@ -87,7 +92,7 @@ func test_every_gift_has_baked_preview_icon() -> void:
 		var def: SpecialDef = SpecialDef.find_by_id(id)
 		assert_not_null(def.preview_icon, "%s preview_icon" % id)
 		assert_ne(def.preview_icon, SpecialDef.GENERIC_PREVIEW_ICON, String(id))
-		assert_eq(SpecialDef.preview_icon_for(id), def.preview_icon, String(id))
+		assert_eq(SpecialDef.preview_icon_for(id), GiftIconTable.shared().model_preview(id), String(id))
 
 
 func test_hud_uses_gift_icon_for_held_and_next() -> void:
@@ -102,7 +107,7 @@ func test_hud_uses_gift_icon_for_held_and_next() -> void:
 	fake.held_special_by_slot[0] = &"rocket"
 	fake.pending_special_count_by_slot[0] = 2
 	hud._refresh_special_indicator()
-	var rocket_icon: Texture2D = SpecialDef.find_by_id(&"rocket").preview_icon
+	var rocket_icon: Texture2D = GiftIconTable.shared().model_preview(&"rocket")
 	assert_not_null(rocket_icon)
 	assert_eq(hud.held_gift_icon(), rocket_icon)
 	# FakeMatch has no next_special, so the queued gift is the generic placeholder id.

@@ -106,6 +106,7 @@ var net_provider: Variant = null:
 @onready var _map_size_option: OptionButton = %MapSizeOption
 @onready var _map_combo_option: OptionButton = %MapComboOption
 @onready var _map_thumbnail: PanelContainer = %MapThumbnail
+var _map_thumbnail_icon: TextureRect = null
 ## Bontago-1pi.53 (S1b): the Players/AI steppers, the default-difficulty dropdown and the
 ## segmented Teams control left the settings card -- seats, bots and teams are managed in
 ## the players panel (docs/LOBBY_REWORK_PLAN.md section 2). These four stay as HIDDEN
@@ -322,6 +323,12 @@ func _ready() -> void:
 	_connect_control_signals()
 	for section: LobbySection in _sections():
 		section.advanced_changed.connect(_on_section_toggled)
+	# Bontago-mp0.124: each section header carries its UiArtTable symbol.
+	var art: UiArtTable = UiArtTable.shared()
+	_game_section.set_header_icon(art.lobby_icon(UiArtTable.KEY_SECTION_GAME))
+	_round_section.set_header_icon(art.lobby_icon(UiArtTable.KEY_SECTION_ROUND))
+	_gifts_section.set_header_icon(art.lobby_icon(UiArtTable.KEY_SECTION_GIFTS))
+	_experiments_section.set_header_icon(art.lobby_icon(UiArtTable.KEY_SECTION_EXPERIMENTS))
 	_start_button.pressed.connect(_on_start_pressed)
 	_ready_check.toggled.connect(_on_ready_toggled)
 	_invite_friends_button.pressed.connect(_on_invite_friends_pressed)
@@ -345,6 +352,7 @@ func _ready() -> void:
 	# host-only kick (a no-op for a client, whose _republish_roster_if_host()
 	# guard is already false) draws the host's own row on the very first frame
 	# instead of leaving the Players card at "0 / N" until someone else connects.
+	_reset_roster_ready_on_entry()
 	_republish_roster_if_host()
 	# Bontago-mp0.3.5 (review r2, item 2): _apply_visual_style() now also
 	# builds the stepper "-"/"+" buttons (_add_stepper_buttons()), so it must
@@ -420,6 +428,7 @@ func _populate_options() -> void:
 		for size_label: String in MAP_SIZE_LABELS:
 			combo_labels.append("%s · %s" % [variant_label, size_label])
 	_fill_option(_map_combo_option, combo_labels)
+	_decorate_map_picker()
 	_map_combo_option.item_selected.connect(_on_map_combo_selected)
 	_fill_option(_ai_difficulty_option, ["Easy", "Normal", "Hard"])
 	_fill_option(_team_mode_option, ["Off", "2 teams", "3 teams", "4 teams"])
@@ -438,6 +447,9 @@ func _populate_options() -> void:
 	# Bontago-22y.10: order must match MatchConfig.WeatherMode.
 	# Labels come from the enum names, so a new weather type needs no edit here.
 	_fill_option(_weather_option, MatchWeather.mode_labels())
+	for weather_index: int in _weather_option.item_count:
+		_weather_option.set_item_icon(weather_index, GiftIconTable.shared().weather_pictogram(weather_index))
+	_weather_option.add_theme_constant_override("icon_max_width", GiftIconTable.shared().lobby_icon_px)
 	# Bontago-470.4: order must match MatchConfig.SkyThemeMode.
 	# Bontago-59o.18 (U1): the DAY entry is the cycle locked at sunset, so it
 	# reads "Sunset"; Cycle is the default through MatchConfig.sky_theme_mode.
@@ -455,10 +467,46 @@ func _populate_options() -> void:
 	_build_specials_checklist()
 
 
+## Bontago-mp0.124: every map combo row shows its variant's pictogram (UiArtTable) and
+## the thumbnail beside the picker shows the selected one. Reads only the selected
+## index, so host and client (replicated config) agree.
+func _decorate_map_picker() -> void:
+	var art: UiArtTable = UiArtTable.shared()
+	for index: int in range(_map_combo_option.item_count):
+		_map_combo_option.set_item_icon(index, art.map_pictogram(index / MAP_SIZE_LABELS.size()))
+	_map_combo_option.add_theme_constant_override("icon_max_width", art.map_icon_px)
+	if _map_thumbnail_icon == null:
+		_map_thumbnail_icon = TextureRect.new()
+		_map_thumbnail_icon.name = "MapThumbnailIcon"
+		_map_thumbnail_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_map_thumbnail_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		_map_thumbnail_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		_map_thumbnail_icon.custom_minimum_size = Vector2.ONE * float(art.map_icon_px)
+		_map_thumbnail.add_child(_map_thumbnail_icon)
+	_refresh_map_thumbnail()
+
+
+## The pictogram of the currently selected map variant, or null.
+func map_thumbnail_texture() -> Texture2D:
+	return _map_thumbnail_icon.texture if _map_thumbnail_icon != null else null
+
+
+func _refresh_map_thumbnail() -> void:
+	if _map_thumbnail_icon != null:
+		_map_thumbnail_icon.texture = UiArtTable.shared().map_pictogram(_map_variant_option.selected)
+
+
 func _fill_option(option: OptionButton, labels: Array) -> void:
 	option.clear()
 	for label: String in labels:
 		option.add_item(label)
+
+
+## Bontago-mp0.125: shows a pictogram on a toggle at the table's lobby icon size.
+func _apply_icon(button: Button, texture: Texture2D) -> void:
+	button.icon = texture
+	button.expand_icon = true
+	button.add_theme_constant_override("icon_max_width", GiftIconTable.shared().lobby_icon_px)
 
 
 ## M6 A4 (docs/M6_PLAN.md "A4 -- Enabled-specials checklist"): one CheckBox per
@@ -486,6 +534,7 @@ func _build_specials_checklist() -> void:
 		# "Jumping Bean" the way String.capitalize() already title-cases an
 		# underscore-joined identifier.
 		box.text = String(special.id).capitalize()
+		_apply_icon(box, GiftIconTable.shared().gift_pictogram(special.id))
 		box.button_pressed = true
 		box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		box.toggled.connect(_on_toggled)
@@ -985,6 +1034,7 @@ func _on_map_combo_selected(index: int) -> void:
 	var size_count: int = MAP_SIZE_LABELS.size()
 	_map_variant_option.selected = index / size_count
 	_map_size_option.selected = index % size_count
+	_refresh_map_thumbnail()
 	_on_setting_changed()
 
 
@@ -1238,6 +1288,8 @@ func _apply_data(data: Dictionary) -> void:
 	_map_variant_option.selected = config.map_variant
 	_map_size_option.selected = config.map_size
 	_map_combo_option.selected = int(config.map_variant) * MAP_SIZE_LABELS.size() + int(config.map_size)
+	_map_variant_option.selected = int(config.map_variant)
+	_refresh_map_thumbnail()
 	_player_count_spin.value = config.player_count
 	_ai_count_spin.value = config.ai_count
 	_ai_difficulty_option.selected = config.ai_difficulty
@@ -1474,6 +1526,13 @@ func _clamp_ai_count_to_seats() -> void:
 	var seats: int = int(_player_count_spin.value)
 	var humans: int = net_provider.peer_ids().size()
 	_ai_count_spin.max_value = maxi(0, seats - humans)
+
+
+## Bontago-1pi.73: the Ready toggle starts off on every (re)entry, so the host
+## clears the roster's flags to match (DECISION: reset both, not restore).
+func _reset_roster_ready_on_entry() -> void:
+	if net_provider != null and bool(net_provider.is_host()):
+		net_provider.reset_ready_flags()
 
 
 func _on_ready_toggled(pressed: bool) -> void:

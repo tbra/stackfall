@@ -24,7 +24,7 @@ const _COLUMN_RATIOS: Dictionary = {
 ## Replaces `rows_list`'s children with a header row plus one row per player.
 static func populate(
 	rows_list: VBoxContainer, results: Dictionary, tuning: MenuVisualTuning,
-	team_numbers: PackedInt32Array = PackedInt32Array()
+	team_numbers: PackedInt32Array = PackedInt32Array(), match_provider: Variant = null
 ) -> void:
 	for child: Node in rows_list.get_children():
 		rows_list.remove_child(child)
@@ -33,7 +33,7 @@ static func populate(
 	var show_team: bool = winner_kind == MatchStats.WINNER_KIND_TEAM
 	rows_list.add_child(build_header_row(show_team, ResultsScreen.mode_stat_header(results), tuning))
 	for row: Dictionary in ResultsScreen.sorted_rows(results):
-		rows_list.add_child(build_data_row(row, show_team, tuning, team_numbers, results))
+		rows_list.add_child(build_data_row(row, show_team, tuning, team_numbers, results, match_provider))
 
 
 ## Bontago-1pi.72.1: the Team column exists only when the match played in teams
@@ -61,7 +61,7 @@ static func build_header_row(show_team: bool, mode_header: String, tuning: MenuV
 
 
 static func build_data_row(
-	row: Dictionary, show_team: bool, tuning: MenuVisualTuning, team_numbers: PackedInt32Array = PackedInt32Array(), results: Dictionary = {}
+	row: Dictionary, show_team: bool, tuning: MenuVisualTuning, team_numbers: PackedInt32Array = PackedInt32Array(), results: Dictionary = {}, match_provider: Variant = null
 ) -> PanelContainer:
 	var panel: PanelContainer = PanelContainer.new()
 	var is_winner: bool = bool(row.get("is_winner", false))
@@ -98,8 +98,40 @@ static func build_data_row(
 	for column: int in columns(show_team):
 		var cell: Label = make_cell(String(cell_text_by_column[column]), float(_COLUMN_RATIOS[column]))
 		cell.add_theme_color_override("font_color", tuning.ink_color)
+		if column == Column.PLAYER:
+			_mark_with_slot_colour(cell, slot_color(int(row.get("slot_id", -1)), match_provider), tuning)
 		box.add_child(cell)
 	return panel
+
+
+## Bontago-1pi.78: the HUD's colour source (ui/HUD.gd _color_for_slot): the live
+## PlayerSlot.color from Match, else MatchConfig's default palette. `match_provider`
+## is a test seam; null means the Match autoload when it exists.
+static func slot_color(slot_id: int, match_provider: Variant = null) -> Color:
+	var provider: Variant = match_provider
+	if provider == null:
+		var loop: MainLoop = Engine.get_main_loop()
+		if loop is SceneTree:
+			provider = (loop as SceneTree).root.get_node_or_null("Match")
+	if provider != null:
+		var slot: PlayerSlot = provider.slot(slot_id) as PlayerSlot
+		if slot != null:
+			return slot.color
+	var palette: PackedColorArray = MatchConfig.default_player_colors()
+	if slot_id >= 0 and slot_id < palette.size():
+		return palette[slot_id]
+	return Color.WHITE
+
+
+## A coloured bar down the left of the name cell (the cell stays a plain Label).
+static func _mark_with_slot_colour(cell: Label, color: Color, tuning: MenuVisualTuning) -> void:
+	var bar: StyleBoxFlat = StyleBoxFlat.new()
+	bar.bg_color = Color(0, 0, 0, 0)
+	bar.border_color = color
+	bar.border_width_left = tuning.score_swatch_width_px
+	bar.content_margin_left = tuning.score_swatch_width_px + tuning.score_swatch_gap_px
+	cell.add_theme_stylebox_override("normal", bar)
+	cell.set_meta(&"slot_color", color)
 
 
 static func make_cell(text: String, ratio: float) -> Label:

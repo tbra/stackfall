@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="InputGlyphTable" load_steps=14 format=3]
+
+[ext_resource type="Script" path="res://config/InputGlyphTable.gd" id="1_t"]
+[ext_resource type="Texture2D" path="res://assets/ui/input_glyphs/gamepad_stick_left_up.svg" id="t1"]
+[ext_resource type="Texture2D" path="res://assets/ui/input_glyphs/gamepad_stick_left_down.svg" id="t2"]
+[ext_resource type="Texture2D" path="res://assets/ui/input_glyphs/gamepad_stick_left_left.svg" id="t3"]
+[ext_resource type="Texture2D" path="res://assets/ui/input_glyphs/gamepad_stick_left_right.svg" id="t4"]
+[ext_resource type="Texture2D" path="res://assets/ui/input_glyphs/gamepad_stick_left_click.svg" id="t5"]
+[ext_resource type="Texture2D" path="res://assets/ui/input_glyphs/gamepad_stick_right_up.svg" id="t6"]
+[ext_resource type="Texture2D" path="res://assets/ui/input_glyphs/gamepad_stick_right_down.svg" id="t7"]
+[ext_resource type="Texture2D" path="res://assets/ui/input_glyphs/gamepad_stick_right_left.svg" id="t8"]
+[ext_resource type="Texture2D" path="res://assets/ui/input_glyphs/gamepad_stick_right_right.svg" id="t9"]
+[ext_resource type="Texture2D" path="res://assets/ui/input_glyphs/gamepad_stick_right_click.svg" id="t10"]
+[ext_resource type="Texture2D" path="res://assets/ui/input_glyphs/gamepad_combo_lb_rb.svg" id="t11"]
+[ext_resource type="Texture2D" path="res://assets/ui/input_glyphs/gamepad_combo_rt_right_stick.svg" id="t12"]
+
+[resource]
+script = ExtResource("1_t")
+stick_directions = {
+"left_up": ExtResource("t1"),
+"left_down": ExtResource("t2"),
+"left_left": ExtResource("t3"),
+"left_right": ExtResource("t4"),
+"right_up": ExtResource("t6"),
+"right_down": ExtResource("t7"),
+"right_left": ExtResource("t8"),
+"right_right": ExtResource("t9")
+}
+stick_clicks = {
+"left": ExtResource("t5"),
+"right": ExtResource("t10")
+}
+combos = {
+"lb+rb": ExtResource("t11"),
+"rt+stick_right": ExtResource("t12")
+}

@@ -29,6 +29,12 @@ extends Resource
 ## sky_theme_mode / sky_theme_resolved with no new wire field.
 ## Phase a running Cycle match opens at (0.10 = morning, sun ~38 degrees, full day).
 @export_range(0.0, 1.0, 0.01) var cycle_start_phase: float = 0.10
+## Bontago-1pi.75: a Cycle match opens at a random phase in [min, max] (host-rolled from
+## the match seed, MatchConfig.resolve_sky_start_phase). DECISION: 0.0..0.62 spans dawn,
+## noon and the sunset into early dusk, avoiding the pitch-black midnight (0.75) as an
+## opening; widen max toward 1.0 to allow night starts.
+@export_range(0.0, 1.0, 0.01) var cycle_random_start_min: float = 0.0
+@export_range(0.0, 1.0, 0.01) var cycle_random_start_max: float = 0.62
 ## Phase the lobby's "Sunset" option (id "sunset") is locked at: sun low on the setting side.
 @export_range(0.0, 1.0, 0.005) var cycle_locked_phase_sunset: float = 0.47
 ## Phase the lobby's "Dawn" option (id "dawn") is locked at: just after sunrise.
@@ -122,6 +128,24 @@ extends Resource
 ## haze regardless of fog_density. Kept at 0.0 here so the sunset gradient at
 ## the horizon stays visible; a future stormier theme could raise it.
 @export var fog_sky_affect: float = 0.0
+
+## Bontago-mp0.130 (cosmic-map reference: sky-matched haze, strong sky affect):
+## the further Environment fog techniques. fog_aerial_perspective blends the fog
+## colour toward the sky colour behind it with distance, so the far cloud sea
+## melts into the horizon instead of a flat tint. fog_sun_scatter warms the haze
+## toward the sun (COSTS ~1.5 ms GPU at 720p, so every shipped theme keeps it 0). The height pair makes fog denser below fog_height_m (the
+## cloud sea under the disc) than around the arena; fog_height_density 0 turns
+## it off. All stay clear of the play field: tests pin the keep at the far rim.
+@export_range(0.0, 1.0, 0.01) var fog_aerial_perspective: float = 0.0
+@export_range(0.0, 1.0, 0.01) var fog_sun_scatter: float = 0.0
+@export var fog_height_m: float = 0.0
+@export var fog_height_density: float = 0.0
+## Ambient haze on the scenery shaders that opt out of Environment fog (the cloud
+## sea / puffs): nothing nearer than haze_begin_m, haze_strength at haze_end_m,
+## toward fog_color. begin sits beyond 1.2x the field radius so the arena stays crisp.
+@export_range(0.0, 1.0, 0.01) var haze_strength: float = 0.0
+@export var haze_begin_m: float = 90.0
+@export var haze_end_m: float = 520.0
 
 ## Environment.volumetric_fog_density/volumetric_fog_albedo -- the global
 ## ambient volumetric-fog density/tint the render server applies across the

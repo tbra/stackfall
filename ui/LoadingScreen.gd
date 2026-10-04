@@ -54,6 +54,8 @@ var name_provider: Variant = null
 @onready var _vignette: TextureRect = %Vignette
 @onready var _card: PanelContainer = %Card
 @onready var _map_label: Label = %MapLabel
+## Bontago-mp0.124: the map pictogram above the name (UiArtTable); hidden without a config.
+@onready var _map_icon: TextureRect = %MapIcon
 ## Bontago-1pi.32 L2 (ready prompt + player ready list; presentation only).
 @onready var _player_list: VBoxContainer = %PlayerList
 @onready var _ready_box: VBoxContainer = %ReadyBox
@@ -161,6 +163,7 @@ func show_for_match(config: MatchConfig, slots: Array[PlayerSlot]) -> void:
 	# trivial follow-up.
 	_ready_gate_armed = Match._lifecycle.arm_loading_ready_gate()
 	_map_label.text = _map_display_name(config)
+	_refresh_map_icon(config)
 	_select_backdrop(config)
 	_rebuild_ready_rows(slots)
 	set_stage("Building world", tuning.world_progress)
@@ -419,6 +422,18 @@ func clear_player_rows() -> void:
 	_ready_rows.clear()
 
 
+func _refresh_map_icon(config: MatchConfig) -> void:
+	var art: UiArtTable = UiArtTable.shared()
+	_map_icon.texture = art.map_pictogram(config.map_variant) if config != null else null
+	_map_icon.visible = _map_icon.texture != null
+	_map_icon.custom_minimum_size = Vector2.ONE * float(art.loading_map_icon_px)
+
+
+## The pictogram currently shown on the card (null when hidden).
+func map_icon_texture() -> Texture2D:
+	return _map_icon.texture if _map_icon.visible else null
+
+
 func _map_display_name(config: MatchConfig) -> String:
 	if config == null:
 		return ""
@@ -486,7 +501,8 @@ func _backdrop_theme_id(config: MatchConfig) -> String:
 		var sky_theme: SkyThemeDef = load(tuning.backdrop_cycle_theme_path) as SkyThemeDef
 		var cycle_id: String = ""
 		if sky_theme != null:
-			cycle_id = tuning.backdrop_theme_for_phase(sky_theme.cycle_start_phase, sky_theme)
+			cycle_id = tuning.backdrop_theme_for_phase(
+				config.sky_start_phase if config.sky_start_phase >= 0.0 else sky_theme.cycle_start_phase, sky_theme)
 		return cycle_id if not cycle_id.is_empty() else tuning.backdrop_fallback_theme
 	if config.sky_theme_mode == MatchConfig.SkyThemeMode.RANDOM and config.sky_theme_resolved.is_empty():
 		return ""

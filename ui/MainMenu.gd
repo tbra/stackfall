@@ -73,6 +73,10 @@ const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
 ## any other control; %GiftDemoButton lives on the Debug page.
 @onready var _debug_button: Button = %DebugButton
 @onready var _gift_demo_button: Button = %GiftDemoButton
+## Bontago-1pi.74: build label (BuildVersion.label()) beside the Debug corner pill.
+@onready var _build_version_label: Label = %BuildVersionLabel
+## Left inset of the label when the Debug pill is hidden (matches the pill's own).
+const BUILD_LABEL_LEFT_INSET: float = 16.0
 @onready var _host_row: HBoxContainer = $Center/Panel/Layout/HostRow
 @onready var _join_tab_row: HBoxContainer = %JoinTabRow
 @onready var _join_lan_tab_button: Button = %JoinLanTabButton
@@ -170,12 +174,16 @@ var _host_steam_choice: Button = null
 ## place, the same "one owner frees what it opened" convention
 ## _on_quit_pressed() implicitly follows via get_tree().quit().
 var _options_menu: OptionsMenu = null
+var _build_version_label_left: float = 0.0
 
 
 func _ready() -> void:
 	net_provider = Net
 	_debug_entry_enabled = DebugMode.is_enabled()
 	_home_tagline = _tagline.text
+	_build_version_label.text = BuildVersion.label()
+	_build_version_label.add_theme_color_override("font_color", tuning.label_ink_light_color)
+	_build_version_label_left = _build_version_label.offset_left
 	_host_button.pressed.connect(_on_host_pressed)
 	_join_button.pressed.connect(_on_join_pressed)
 	_join_lan_tab_button.pressed.connect(_on_join_lan_tab_pressed)
@@ -498,6 +506,8 @@ func _set_page(page: int, focus_target: Control = null) -> void:
 	_gift_demo_button.visible = page == PAGE_DEBUG
 	_back_button.visible = page != PAGE_HOME
 	_debug_button.visible = _debug_entry_enabled and page == PAGE_HOME
+	_build_version_label.visible = page == PAGE_HOME
+	_build_version_label.offset_left = _build_version_label_left if _debug_button.visible else BUILD_LABEL_LEFT_INSET
 	_wire_focus()
 	var target: Control = focus_target if focus_target != null else _default_focus(page)
 	if target.focus_mode != Control.FOCUS_NONE:

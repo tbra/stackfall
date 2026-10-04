@@ -797,3 +797,14 @@ func test_real_gamepad_shoulders_switch_options_tabs() -> void:
 	assert_true(left.is_action_pressed(&"menu_tab_previous"))
 	menu._unhandled_input(left)
 	assert_true((menu.get_node("%SettingsTabButton") as Button).button_pressed)
+
+
+func test_weather_volume_slider_calls_set_weather_volume_percent_only() -> void:
+	var menu: OptionsMenu = _make_menu()
+	menu._on_weather_volume_changed(0.35)
+	assert_almost_eq(_settings_of(menu).weather_volume_percent(), 0.35, 0.0001)
+	assert_eq(_settings_of(menu).sfx_volume_percent(), 1.0, "the SFX channel must be untouched")
+	var slider: HSlider = menu.get_node("%WeatherVolumeSlider") as HSlider
+	var sfx: HSlider = menu.get_node("%SfxVolumeSlider") as HSlider
+	assert_eq(sfx.get_node(sfx.focus_neighbor_bottom).name, &"WeatherMuteButton", "gamepad focus reaches Weather after SFX")
+	assert_eq(slider.get_node(slider.focus_neighbor_top).name, &"WeatherMuteButton")

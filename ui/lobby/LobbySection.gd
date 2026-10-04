@@ -51,6 +51,9 @@ var _advanced_open: bool = false
 var _summary: String = ""
 var _title_label: Label = null
 var _summary_label: Label = null
+## Bontago-mp0.124: the header's section icon (white source, tinted like the caption).
+var _icon_rect: TextureRect = null
+var _icon_texture: Texture2D = null
 
 
 func _ready() -> void:
@@ -71,6 +74,7 @@ func apply_style(tuning: MenuVisualTuning, layout: LobbyLayoutTuning) -> void:
 	_apply_layout()
 	for label: Label in [_title_label, _summary_label]:
 		label.add_theme_color_override("font_color", tuning.label_muted_color)
+	_icon_rect.modulate = tuning.label_muted_color
 	if advanced_button != null:
 		MenuStyleFactory.apply_toggle_chip(
 			advanced_button, tuning.pill_cream_color, tuning.pill_cream_hover_color,
@@ -83,6 +87,19 @@ func set_summary(text: String) -> void:
 	_summary = text
 	if _summary_label != null:
 		_summary_label.text = text
+
+
+## Bontago-mp0.124: the section symbol drawn left of the caption (UiArtTable lobby icon).
+func set_header_icon(texture: Texture2D) -> void:
+	_icon_texture = texture
+	if _icon_rect != null:
+		_icon_rect.texture = texture
+		_icon_rect.visible = texture != null
+
+
+## The texture currently shown in the header (null when none).
+func header_icon() -> Texture2D:
+	return _icon_rect.texture if _icon_rect != null else null
 
 
 func summary() -> String:
@@ -143,6 +160,16 @@ func _build_header() -> void:
 	var row: HBoxContainer = HBoxContainer.new()
 	row.name = "HeaderRow"
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_icon_rect = TextureRect.new()
+	_icon_rect.name = "HeaderIcon"
+	_icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_icon_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_icon_rect.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_icon_rect.custom_minimum_size = Vector2.ONE * float(UiArtTable.shared().lobby_icon_px)
+	_icon_rect.texture = _icon_texture
+	_icon_rect.visible = _icon_texture != null
+	row.add_child(_icon_rect)
 	_title_label = Label.new()
 	_title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_title_label.theme_type_variation = &"CaptionLabel"
@@ -183,3 +210,5 @@ func _apply_state() -> void:
 		advanced.visible = _advanced_open
 	if advanced_button != null:
 		advanced_button.set_pressed_no_signal(_advanced_open)
+		var chevron_key: StringName = UiArtTable.KEY_ADVANCED_OPEN if _advanced_open else UiArtTable.KEY_ADVANCED_CLOSED
+		UiArtTable.shared().apply_button_icon(advanced_button, UiArtTable.shared().lobby_icon(chevron_key))
