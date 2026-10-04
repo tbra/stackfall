@@ -138,6 +138,9 @@ var _header_focus_state: int = -1
 
 
 func _ready() -> void:
+	var art: UiArtTable = UiArtTable.shared()
+	art.apply_button_icon(_teams_toggle, art.lobby_icon(UiArtTable.KEY_TEAMS))
+	art.apply_button_icon(_add_bot_button, art.lobby_icon(UiArtTable.KEY_BOT_ADD))
 	_teams_toggle.toggled.connect(_on_teams_toggle_toggled)
 	_add_bot_button.pressed.connect(_on_add_bot_pressed)
 	visibility_changed.connect(_on_visibility_changed)
