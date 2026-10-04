@@ -174,8 +174,11 @@ static func apply_gift_visual(block: Block, shape: BlockShape, tuning: PhysicsTu
 		if mesh_instance != null:
 			mesh_instance.visible = false
 	var visual: Node3D = null
+	# Bontago-mp0.119: the Codex GLB from config/gift_model_table.tres first,
+	# then the older cel-shaded held scene, then the generic crate.
+	visual = GiftModelTable.shared().build_gift_visual(gift_id)
 	var def: SpecialDef = SpecialDef.find_by_id(gift_id)
-	if def != null and def.held_scene != null:
+	if visual == null and def != null and def.held_scene != null:
 		visual = def.held_scene.instantiate() as Node3D
 	if visual == null:
 		visual = GhostPreview.build_fallback_gift_visual(tuning.cube_size)

@@ -96,9 +96,8 @@ func test_pickup_has_a_readable_wrapped_silhouette() -> void:
 	var parent: Node3D = autofree(Node3D.new())
 	add_child_autofree(parent)
 	var crate: GiftCrate = _make_crate(5, Vector2.ZERO, parent)
-	assert_not_null(crate.get_node_or_null("Lid"))
-	assert_not_null(crate.get_node_or_null("RibbonX"))
-	assert_not_null(crate.get_node_or_null("RibbonZ"))
+	# Bontago-mp0.119: the lid/ribbons are part of the gift_crate_v1 model now.
+	assert_gt(crate.get_node("Mesh").find_children("*", "MeshInstance3D", true, false).size(), 1)
 	assert_not_null(crate.get_node_or_null("PickupRing"))
 	assert_not_null(crate.get_node_or_null("GiftBeacon/BeaconDiamond"))
 

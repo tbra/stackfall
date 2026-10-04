@@ -33,7 +33,8 @@ const BEACON_SPEED: float = 2.2
 var gift_id: int = -1
 var owner_slot: int = -1
 
-var _mesh: MeshInstance3D = null
+var _mesh: Node3D = null
+var _tint_overlay: StandardMaterial3D = null
 var _material: StandardMaterial3D = null
 var _beacon: Node3D = null
 var _visual_time: float = 0.0
@@ -96,26 +97,31 @@ func _build() -> void:
 	shape_node.shape = box_shape
 	add_child(shape_node)
 
-	_mesh = MeshInstance3D.new()
-	_mesh.name = &"Mesh"
-	var box_mesh: BoxMesh = BoxMesh.new()
-	box_mesh.size = CRATE_SIZE
-	_mesh.mesh = box_mesh
+	# Bontago-mp0.119: gift_crate_v1 (config/gift_model_table.tres) replaces the
+	# box + lid + ribbon placeholder. `Mesh` is the model root; the hint/owner
+	# tint rides on it as a translucent overlay (_material keeps the tint
+	# colour). Collision and CRATE_SIZE are unchanged. Falls back to the plain
+	# box when the table has no crate row.
 	_material = StandardMaterial3D.new()
 	_material.albedo_color = UNCLAIMED_COLOR
 	_material.roughness = 1.0
-	_mesh.material_override = _material
+	_mesh = GiftModelTable.shared().build_crate_visual()
+	if _mesh != null:
+		_tint_overlay = StandardMaterial3D.new()
+		_tint_overlay.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_tint_overlay.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_tint_overlay.albedo_color = Color(UNCLAIMED_COLOR, 0.0)
+		for node: Node in _mesh.find_children("*", "MeshInstance3D", true, false):
+			(node as MeshInstance3D).material_overlay = _tint_overlay
+	else:
+		var box_instance: MeshInstance3D = MeshInstance3D.new()
+		var box_mesh: BoxMesh = BoxMesh.new()
+		box_mesh.size = CRATE_SIZE
+		box_instance.mesh = box_mesh
+		box_instance.material_override = _material
+		_mesh = box_instance
+	_mesh.name = &"Mesh"
 	add_child(_mesh)
-
-	# DECISION: fixed mesh dimensions are presentation, not gameplay tuning.
-	# The collision and field placement still use CRATE_SIZE.
-	var lid_material: StandardMaterial3D = _flat_material(LID_COLOR)
-	var ribbon_material: StandardMaterial3D = _flat_material(RIBBON_COLOR)
-	_add_box(self, &"Lid", LID_SIZE, Vector3(0.0, 0.34, 0.0), lid_material)
-	_add_box(self, &"RibbonX", Vector3(CRATE_SIZE.x + 0.025, CRATE_SIZE.y, RIBBON_WIDTH), Vector3.ZERO, ribbon_material)
-	_add_box(self, &"RibbonZ", Vector3(RIBBON_WIDTH, CRATE_SIZE.y, CRATE_SIZE.z + 0.025), Vector3.ZERO, ribbon_material)
-	_add_box(self, &"LidRibbonX", Vector3(LID_SIZE.x + 0.015, 0.025, RIBBON_WIDTH), Vector3(0.0, 0.41, 0.0), ribbon_material)
-	_add_box(self, &"LidRibbonZ", Vector3(RIBBON_WIDTH, 0.025, LID_SIZE.z + 0.015), Vector3(0.0, 0.41, 0.0), ribbon_material)
 
 	var ring: MeshInstance3D = MeshInstance3D.new()
 	ring.name = &"PickupRing"
@@ -216,6 +222,14 @@ func _flat_material(color: Color, emissive: bool = false) -> StandardMaterial3D:
 	return material
 
 
+## Paints the model overlay in _material's colour at `strength` (0 = hidden).
+func _sync_tint_overlay(strength: float) -> void:
+	if _tint_overlay == null:
+		return
+	var tint: Color = _material.albedo_color
+	_tint_overlay.albedo_color = Color(tint.r, tint.g, tint.b, strength * GiftModelTable.shared().crate_tint_alpha)
+
+
 func _add_box(parent: Node3D, label: StringName, size: Vector3, offset: Vector3, material: StandardMaterial3D) -> MeshInstance3D:
 	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
 	mesh_instance.name = label
@@ -236,6 +250,7 @@ func set_owner_tint(slot_id: int, color: Color) -> void:
 	owner_slot = slot_id
 	if _material != null:
 		_material.albedo_color = color
+		_sync_tint_overlay(1.0)
 
 
 ## Documented no-op (see class doc): a later milestone may want a thrown
@@ -305,9 +320,15 @@ static func spawn_claim_pop(parent: Node3D, world_position: Vector3, color: Colo
 	parent.add_child(pop)
 	pop.global_position = world_position
 
+	# Bontago-mp0.119: child 0 is the slot-coloured glow cube (the claimed
+	# gift); when the table has the reveal model, it opens around the cube
+	# (gift_crate_reveal_v1, `open_reveal_1s` sped up to fit the pop), otherwise
+	# the cube is the old full-size crate-sized pop.
+	var table: GiftModelTable = GiftModelTable.shared()
+	var reveal: Node3D = table.build_reveal_visual()
 	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
 	var box_mesh: BoxMesh = BoxMesh.new()
-	box_mesh.size = CRATE_SIZE
+	box_mesh.size = CRATE_SIZE if reveal == null else Vector3.ONE * table.reveal_core_size_m
 	mesh_instance.mesh = box_mesh
 	var material: StandardMaterial3D = StandardMaterial3D.new()
 	material.albedo_color = color
@@ -316,6 +337,8 @@ static func spawn_claim_pop(parent: Node3D, world_position: Vector3, color: Colo
 	material.emission_energy_multiplier = 1.0
 	mesh_instance.material_override = material
 	pop.add_child(mesh_instance)
+	if reveal != null:
+		pop.add_child(reveal)
 
 	var tween: Tween = pop.create_tween()
 	tween.tween_property(pop, ^"scale", Vector3.ONE * config.claim_pop_scale_factor, config.claim_pop_grow_duration_s)
@@ -336,10 +359,12 @@ func _update_hint(delta: float) -> void:
 		if _hint_time > 0.0:
 			_hint_time = 0.0
 			_material.albedo_color = UNCLAIMED_COLOR
+			_sync_tint_overlay(0.0)
 		return
 	_hint_time += delta
 	var t: float = 0.5 + 0.5 * sin(_hint_time * gift_config.hint_pulse_speed)
 	_material.albedo_color = UNCLAIMED_COLOR.lerp(gift_config.hint_pulse_color, t)
+	_sync_tint_overlay(t)
 
 
 func _is_hint_hovering() -> bool:

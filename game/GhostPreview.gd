@@ -672,8 +672,10 @@ func _rebuild_gift_visual() -> void:
 				mesh_instance.visible = not show_gift
 	if not show_gift:
 		return
+	# Bontago-mp0.119: Codex GLB first, then the older held scene.
+	_gift_visual = GiftModelTable.shared().build_gift_visual(_held_gift_id)
 	var def: SpecialDef = SpecialDef.find_by_id(_held_gift_id)
-	if def != null and def.held_scene != null:
+	if _gift_visual == null and def != null and def.held_scene != null:
 		_gift_visual = def.held_scene.instantiate() as Node3D
 	if _gift_visual == null:
 		_gift_visual = build_fallback_gift_visual(tuning.cube_size)

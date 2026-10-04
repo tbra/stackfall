@@ -1,0 +1,146 @@
+[gd_resource type="Resource" script_class="GiftModelTable" format=3]
+
+[ext_resource type="Script" path="res://config/GiftModelTable.gd" id="1_table"]
+[ext_resource type="Script" path="res://config/GiftModelEntry.gd" id="2_entry"]
+[ext_resource type="PackedScene" path="res://assets/models/anvil_v1/anvil_v1.glb" id="3_m"]
+[ext_resource type="PackedScene" path="res://assets/models/black_hole_v1/black_hole_v1.glb" id="4_m"]
+[ext_resource type="PackedScene" path="res://assets/models/bomb_v1/bomb_v1.glb" id="5_m"]
+[ext_resource type="PackedScene" path="res://assets/models/cat_v1/cat_v1.glb" id="6_m"]
+[ext_resource type="PackedScene" path="res://assets/models/earthquake_v1/earthquake_v1.glb" id="7_m"]
+[ext_resource type="PackedScene" path="res://assets/models/freeze_v1/freeze_v1.glb" id="8_m"]
+[ext_resource type="PackedScene" path="res://assets/models/glue_v1/glue_v1.glb" id="9_m"]
+[ext_resource type="PackedScene" path="res://assets/models/jumping_bean_v1/jumping_bean_v1.glb" id="10_m"]
+[ext_resource type="PackedScene" path="res://assets/models/magnet_v1/magnet_v1.glb" id="11_m"]
+[ext_resource type="PackedScene" path="res://assets/models/paintball_v1/paintball_v1.glb" id="12_m"]
+[ext_resource type="PackedScene" path="res://assets/models/propeller_v1/propeller_v1.glb" id="13_m"]
+[ext_resource type="PackedScene" path="res://assets/models/rocket_v1/rocket_v1.glb" id="14_m"]
+[ext_resource type="PackedScene" path="res://assets/models/stackfall_v1/stackfall_v1.glb" id="15_m"]
+[ext_resource type="PackedScene" path="res://assets/models/volcano_v1/volcano_v1.glb" id="16_m"]
+[ext_resource type="PackedScene" path="res://assets/models/gift_crate_v1/gift_crate_v1.glb" id="17_m"]
+[ext_resource type="PackedScene" path="res://assets/models/gift_crate_reveal_v1/gift_crate_reveal_v1.glb" id="18_m"]
+
+[sub_resource type="Resource" id="Entry_anvil"]
+script = ExtResource("2_entry")
+id = &"anvil"
+scene = ExtResource("3_m")
+model_scale = 0.635
+offset = Vector3(-0.1730, 0.0675, -0.0051)
+
+[sub_resource type="Resource" id="Entry_black_hole"]
+script = ExtResource("2_entry")
+id = &"black_hole"
+scene = ExtResource("4_m")
+model_scale = 1.0
+offset = Vector3(-0.0143, -0.0000, -0.0000)
+loop_animation = &"orbit_4s"
+
+[sub_resource type="Resource" id="Entry_bomb"]
+script = ExtResource("2_entry")
+id = &"bomb"
+scene = ExtResource("5_m")
+model_scale = 0.888
+offset = Vector3(-0.0000, -0.0908, -0.0000)
+
+[sub_resource type="Resource" id="Entry_cat"]
+script = ExtResource("2_entry")
+id = &"cat"
+scene = ExtResource("6_m")
+model_scale = 0.95
+offset = Vector3(-0.1472, -0.0380, -0.0165)
+loop_animation = &"tail_sway_2s"
+world_scale = 1.5
+world_yaw_deg = 180.0
+
+[sub_resource type="Resource" id="Entry_earthquake"]
+script = ExtResource("2_entry")
+id = &"earthquake"
+scene = ExtResource("7_m")
+model_scale = 1.0
+offset = Vector3(0.0050, 0.1290, 0.0100)
+loop_animation = &"quake_pulse_1s"
+
+[sub_resource type="Resource" id="Entry_freeze"]
+script = ExtResource("2_entry")
+id = &"freeze"
+scene = ExtResource("8_m")
+model_scale = 0.848
+offset = Vector3(0.0290, -0.1526, -0.0145)
+
+[sub_resource type="Resource" id="Entry_glue"]
+script = ExtResource("2_entry")
+id = &"glue"
+scene = ExtResource("9_m")
+model_scale = 0.941
+offset = Vector3(-0.0000, -0.0635, -0.0160)
+
+[sub_resource type="Resource" id="Entry_jumping_bean"]
+script = ExtResource("2_entry")
+id = &"jumping_bean"
+scene = ExtResource("10_m")
+model_scale = 1.0
+offset = Vector3(-0.0012, 0.0164, -0.0051)
+loop_animation = &"idle_hop_1p5s"
+
+[sub_resource type="Resource" id="Entry_magnet"]
+script = ExtResource("2_entry")
+id = &"magnet"
+scene = ExtResource("11_m")
+model_scale = 0.856
+offset = Vector3(-0.0000, -0.0683, -0.0058)
+
+[sub_resource type="Resource" id="Entry_paintball"]
+script = ExtResource("2_entry")
+id = &"paintball"
+scene = ExtResource("12_m")
+model_scale = 0.952
+offset = Vector3(-0.0163, -0.1006, -0.0106)
+
+[sub_resource type="Resource" id="Entry_propeller"]
+script = ExtResource("2_entry")
+id = &"propeller"
+scene = ExtResource("13_m")
+model_scale = 0.805
+offset = Vector3(-0.0000, -0.0159, -0.0000)
+loop_animation = &"spin_1s"
+
+[sub_resource type="Resource" id="Entry_rocket"]
+script = ExtResource("2_entry")
+id = &"rocket"
+scene = ExtResource("14_m")
+model_scale = 0.702
+offset = Vector3(-0.0000, -0.0834, -0.0000)
+
+[sub_resource type="Resource" id="Entry_stackfall"]
+script = ExtResource("2_entry")
+id = &"stackfall"
+scene = ExtResource("15_m")
+model_scale = 1.0
+offset = Vector3(0.0125, 0.0017, -0.0000)
+loop_animation = &"stack_sway_2_7s"
+
+[sub_resource type="Resource" id="Entry_volcano"]
+script = ExtResource("2_entry")
+id = &"volcano"
+scene = ExtResource("16_m")
+model_scale = 1.0
+offset = Vector3(-0.0080, 0.0336, 0.0289)
+
+[sub_resource type="Resource" id="Entry_gift_crate"]
+script = ExtResource("2_entry")
+id = &"gift_crate"
+scene = ExtResource("17_m")
+model_scale = 0.55
+offset = Vector3(0.0, -0.3, 0.0)
+
+[sub_resource type="Resource" id="Entry_gift_crate_reveal"]
+script = ExtResource("2_entry")
+id = &"gift_crate_reveal"
+scene = ExtResource("18_m")
+model_scale = 0.55
+offset = Vector3(0.0, -0.3, 0.0)
+
+[resource]
+script = ExtResource("1_table")
+entries = Array[ExtResource("2_entry")]([SubResource("Entry_anvil"), SubResource("Entry_black_hole"), SubResource("Entry_bomb"), SubResource("Entry_cat"), SubResource("Entry_earthquake"), SubResource("Entry_freeze"), SubResource("Entry_glue"), SubResource("Entry_jumping_bean"), SubResource("Entry_magnet"), SubResource("Entry_paintball"), SubResource("Entry_propeller"), SubResource("Entry_rocket"), SubResource("Entry_stackfall"), SubResource("Entry_volcano")])
+crate = SubResource("Entry_gift_crate")
+reveal = SubResource("Entry_gift_crate_reveal")

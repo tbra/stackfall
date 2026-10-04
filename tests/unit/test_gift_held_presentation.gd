@@ -51,9 +51,14 @@ func test_held_scene_overrides_fallback() -> void:
 	packed.pack(node)
 	node.free()
 	var previous: PackedScene = def.held_scene
+	# Bontago-mp0.119: the GLB table wins when it has a row, so empty it here.
+	var table: GiftModelTable = GiftModelTable.shared()
+	var saved_entries: Array[GiftModelEntry] = table.entries
+	table.entries = []
 	def.held_scene = packed
 	ghost.set_held_gift(&"rocket")
 	def.held_scene = previous
+	table.entries = saved_entries
 	assert_eq(ghost.gift_visual().get_child_count(), 0, "custom scene root, not the fallback crate")
 
 

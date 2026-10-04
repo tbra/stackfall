@@ -47,6 +47,32 @@ func _ready() -> void:
 	var collider: CollisionShape3D = CollisionShape3D.new()
 	collider.shape = shape
 	add_child(collider)
+	# Bontago-mp0.119: the cat_v1 GLB (tail-sway loop) replaces the primitive
+	# cat; the primitive build stays as the fallback if the table lacks it.
+	var cat_visual: Node3D = GiftModelTable.shared().build_gift_visual(&"cat", true)
+	if cat_visual != null:
+		cat_visual.name = &"CatModel"
+		add_child(cat_visual)
+	else:
+		_build_primitive_cat()
+	_laser = MeshInstance3D.new()
+	_laser.top_level = true
+	var dot: SphereMesh = SphereMesh.new()
+	dot.radius = 0.23
+	dot.height = 0.46
+	_laser.mesh = dot
+	var glow: StandardMaterial3D = StandardMaterial3D.new()
+	glow.albedo_color = Color.RED
+	glow.emission_enabled = true
+	glow.emission = Color.RED
+	glow.emission_energy_multiplier = 3.0
+	_laser.material_override = glow
+	add_child(_laser)
+	global_position = _origin
+	_update_laser()
+
+
+func _build_primitive_cat() -> void:
 	var coat: StandardMaterial3D = StandardMaterial3D.new()
 	coat.albedo_color = Color(0.95, 0.55, 0.16)
 	var inner_ear: StandardMaterial3D = StandardMaterial3D.new()
@@ -72,21 +98,6 @@ func _ready() -> void:
 	var tail_node: MeshInstance3D = _add_mesh("Tail", tail,
 		Vector3(0.0, radius_m * 0.65, radius_m * 0.9), coat)
 	tail_node.rotation.x = -0.5
-	_laser = MeshInstance3D.new()
-	_laser.top_level = true
-	var dot: SphereMesh = SphereMesh.new()
-	dot.radius = 0.23
-	dot.height = 0.46
-	_laser.mesh = dot
-	var glow: StandardMaterial3D = StandardMaterial3D.new()
-	glow.albedo_color = Color.RED
-	glow.emission_enabled = true
-	glow.emission = Color.RED
-	glow.emission_energy_multiplier = 3.0
-	_laser.material_override = glow
-	add_child(_laser)
-	global_position = _origin
-	_update_laser()
 
 
 func _add_mesh(part_name: StringName, mesh: Mesh, offset: Vector3,
