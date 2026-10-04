@@ -712,6 +712,9 @@ func _on_net_peer_left(peer_id: int, _slot_id: int, _reason: int) -> void:
 
 ## The loading ready gate actually opened (everyone ready / min display elapsed).
 func _on_loading_gate_opened() -> void:
+	# A late joiner's world replay re-emits the open gate; stay silent then.
+	if _world_replay_silent:
+		return
 	play_ui_cue(&"all_players_ready")
 
 
