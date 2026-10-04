@@ -299,14 +299,12 @@ func test_hud_steps_aside_while_results_are_shown() -> void:
 
 
 func test_results_scales_uniformly() -> void:
-	var names: PackedStringArray = ["%Card", "%ReplayButton", "%LobbyButton", "%SettingsButton"]
+	var names: PackedStringArray = ["%Card", "%ReplayButton", "%LobbyButton"]
 	var measured: Dictionary = await _measure(_build_results, names)
 	_check_on_screen(measured, names, "results")
-	_check_fixed_size(measured, PackedStringArray(["%ReplayButton", "%LobbyButton", "%SettingsButton"]), "results")
+	_check_fixed_size(measured, PackedStringArray(["%ReplayButton", "%LobbyButton"]), "results")
 	_check_height_fraction(measured, PackedStringArray(["%Card"]), "results")
-	_check_no_overlap(measured, [
-		["%ReplayButton", "%LobbyButton"], ["%LobbyButton", "%SettingsButton"],
-	], "results")
+	_check_no_overlap(measured, [["%ReplayButton", "%LobbyButton"]], "results")
 
 
 func test_loading_scales_uniformly() -> void:

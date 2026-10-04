@@ -169,7 +169,6 @@ func test_host_sees_enabled_buttons_and_no_waiting_hint() -> void:
 	_screen.show_results(_ffa_results())
 	assert_false(_screen._replay_button.disabled)
 	assert_false(_screen._lobby_button.disabled)
-	assert_false(_screen._settings_button.disabled)
 	assert_false(_screen._waiting_hint.visible)
 
 
@@ -178,7 +177,6 @@ func test_client_sees_disabled_buttons_and_a_waiting_hint() -> void:
 	_screen.show_results(_ffa_results())
 	assert_true(_screen._replay_button.disabled, "a client must not be able to restart the match locally.")
 	assert_true(_screen._lobby_button.disabled)
-	assert_true(_screen._settings_button.disabled)
 	assert_true(_screen._waiting_hint.visible, "a client needs to know why its buttons are inert.")
 
 
@@ -212,48 +210,15 @@ func test_a_match_scope_reset_clears_the_rows_and_the_payload() -> void:
 	assert_eq(_screen._rows_list.get_child_count(), 4, "a later results screen still fills the table.")
 
 
-# --- Quick settings: edits MatchConfig, sanitized ---------------------------
-
-func test_settings_apply_writes_sanitized_fields_onto_the_running_config() -> void:
-	_fake_match.config.player_count = 2
-	_screen.show_results(_ffa_results())
-
-	_screen._block_timer_spin.value = 9.0
-	_screen._gravity_spin.value = 1.2
-	_screen._special_freq_spin.value = 60
-	_screen._gifts_check.button_pressed = false
-	_screen._ai_count_spin.value = 8  # spin's own max; sanitize() must clamp to player_count.
-	_screen._ai_difficulty_option.selected = MatchConfig.AiDifficulty.HARD
-
-	_screen._on_settings_apply_pressed()
-
-	var config: MatchConfig = _fake_match.config
-	assert_eq(config.block_timer, 9.0)
-	assert_eq(config.gravity_multiplier, 1.2)
-	assert_eq(config.special_frequency, 60)
-	assert_false(config.gifts_enabled)
-	assert_eq(config.ai_count, 2, "sanitize() must clamp ai_count down to player_count.")
-	assert_eq(config.ai_difficulty, MatchConfig.AiDifficulty.HARD)
-	assert_false(_screen._settings_panel.visible, "Apply must close the panel.")
-
-
-func test_settings_button_disabled_on_client_keeps_the_panel_unreachable() -> void:
-	_fake_net.is_host_value = false
-	_screen.show_results(_ffa_results())
-	assert_true(_screen._settings_button.disabled)
-
-
 # --- Focus chain: gamepad/keyboard navigability -----------------------------
 
 func test_focus_chain_wraps_top_and_bottom() -> void:
 	_screen.show_results(_ffa_results())
 	var replay: Button = _screen._replay_button
 	var lobby: Button = _screen._lobby_button
-	var settings: Button = _screen._settings_button
 
 	assert_eq(replay.get_node(replay.focus_neighbor_bottom), lobby)
-	assert_eq(lobby.get_node(lobby.focus_neighbor_bottom), settings)
-	assert_eq(settings.get_node(settings.focus_neighbor_bottom), replay, "the chain must wrap.")
+	assert_eq(lobby.get_node(lobby.focus_neighbor_bottom), replay, "the chain must wrap.")
 
 
 func test_gamepad_dpad_down_moves_focus_to_the_next_button() -> void:
@@ -300,23 +265,77 @@ func test_gamepad_a_activates_the_focused_replay_button() -> void:
 	assert_eq(_fake_match_net.replay_calls, 1, "gamepad A on the focused Replay button must activate it via ui_accept.")
 
 
-## Bontago-1pi.15.1: %SettingsPanel is the one popup this screen owns; gamepad
-## B must close it (ui/ResultsScreen.gd's new _unhandled_input()), the same
-## "popups close with B" contract ui/Lobby.gd's advanced-rules popup and
-## ui/OptionsMenu.gd's own Back both already follow.
-func test_gamepad_b_closes_the_settings_panel_via_real_binding() -> void:
+# --- Bontago-1pi.72.1 --------------------------------------------------------
+
+func _header_texts() -> Array[String]:
+	var texts: Array[String] = []
+	for cell: Node in (_screen._rows_list.get_child(0) as HBoxContainer).get_children():
+		texts.append((cell as Label).text)
+	return texts
+
+
+func test_team_column_only_with_teams() -> void:
 	_screen.show_results(_ffa_results())
-	_screen._on_settings_pressed()
-	assert_true(_screen._settings_panel.visible, "fixture: settings panel opened.")
+	assert_false(_header_texts().has("Team"), "free-for-all has no Team column")
+	assert_eq(_header_texts().size(), 9)
+	var ffa_cells: Array[Node] = ((_screen._rows_list.get_child(1) as PanelContainer).get_child(0) as HBoxContainer).get_children()
+	assert_eq(ffa_cells.size(), 9, "data rows match the header")
+	_screen.show_results(_team_results())
+	assert_true(_header_texts().has("Team"))
+	assert_eq(_header_texts().size(), 10)
 
-	var event: InputEventJoypadButton = InputEventJoypadButton.new()
-	event.device = -1
-	event.button_index = JOY_BUTTON_B
-	event.pressed = true
-	assert_true(event.is_action_pressed(&"ui_cancel"), "gamepad B should map to ui_cancel")
-	_screen._unhandled_input(event)
 
-	assert_false(_screen._settings_panel.visible, "gamepad B must close the settings panel.")
+func test_gifts_column_is_merged_and_shows_gifts_used() -> void:
+	_screen.show_results(_ffa_results())
+	assert_false(_header_texts().has("Specials"))
+	var gifts_index: int = _header_texts().find("Gifts")
+	assert_gte(gifts_index, 0)
+	var cells: Array[Node] = ((_screen._rows_list.get_child(1) as PanelContainer).get_child(0) as HBoxContainer).get_children()
+	assert_eq((cells[gifts_index] as Label).text, "1", "Alice: specials_used 1 (gifts_claimed 2 is not shown)")
+
+
+func test_subtitle_uses_display_names() -> void:
+	var results: Dictionary = _ffa_results()
+	results["mode"] = {"mode_id": MatchConfig.GameMode.REACH_THE_SKY, "scores": [10.9, 3.0, 1.0], "winners": "0"}
+	var text: String = ResultsScreen.mode_outcome_text(results)
+	assert_true(text.find("Alice: 10.9 m") >= 0, text)
+	assert_true(text.find("Bot 1 (Bot): 1.0 m") >= 0, text)
+	assert_eq(text.find("Player 1"), -1, text)
+
+
+func test_screen_has_no_settings_button() -> void:
+	assert_null(_screen.get_node_or_null("%SettingsButton"))
+	assert_null(_screen.get_node_or_null("%SettingsPanel"))
+
+
+## Pause menu open when the round ends: it closes itself, and once it is closed
+## the results own the cursor and focus again.
+func test_pause_menu_open_at_round_end_leaves_results_interactive() -> void:
+	var pause: PauseMenu = autofree((load("res://ui/PauseMenu.tscn") as PackedScene).instantiate())
+	add_child_autofree(pause)
+	pause._open()
+	assert_true(pause.visible)
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	Events.match_results_ready.emit(_ffa_results())
+	assert_false(pause.visible, "results close the pause menu")
+	# Simulate PlayerController re-capturing the mouse on pause_menu_closed.
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	_screen._on_pause_menu_closed()
+	await get_tree().process_frame
+	assert_eq(Input.mouse_mode, Input.MOUSE_MODE_VISIBLE, "cursor usable on results")
+	assert_true(_screen._replay_button.has_focus(), "results regain focus")
+	var press: InputEventJoypadButton = InputEventJoypadButton.new()
+	press.device = -1
+	press.button_index = JOY_BUTTON_A
+	press.pressed = true
+	Input.parse_input_event(press)
+	var release: InputEventJoypadButton = InputEventJoypadButton.new()
+	release.device = -1
+	release.button_index = JOY_BUTTON_A
+	Input.parse_input_event(release)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_eq(_fake_match_net.replay_calls, 1, "gamepad A reaches the results after the pause menu closed")
 
 
 # --- Bontago-1pi.25.1 Domination ---------------------------------------------

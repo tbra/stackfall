@@ -492,7 +492,7 @@ func test_shared_win_and_mode_scores_use_the_lobby_numbers() -> void:
 
 	var ffa: Dictionary = results.duplicate(true)
 	ffa["winner_kind"] = MatchStats.WINNER_KIND_SLOT
-	assert_eq(ResultsScreen.shared_winners_text(ffa, numbers), "Players 1 & 2 share the win!", "FFA labels are slot numbers, never lobby team numbers")
+	assert_eq(ResultsScreen.shared_winners_text(ffa, numbers), "Players P1 & P2 (Bot) share the win!", "FFA labels are player names (Bontago-1pi.72.1), never lobby team numbers")
 
 
 func test_results_headline_uses_the_shared_win_numbers_of_the_running_config() -> void:
@@ -505,104 +505,3 @@ func test_results_headline_uses_the_shared_win_numbers_of_the_running_config() -
 	var hud: HUD = _make_hud(_fake_match_with(_resolved_config()))
 	hud._on_match_results_ready(results)
 	assert_eq(hud._winner_label.text, "Teams 1 & 3 share the win!")
-
-
-# --- Results quick settings: per-slot difficulty and the seat table (review F2) ------
-
-func _seats_table() -> Dictionary:
-	var seats: Dictionary = LobbySeats.empty()
-	(seats[LobbySeats.KEY_HUMANS] as Array).append({LobbySeats.FIELD_PEER_ID: 1, LobbySeats.FIELD_COLOR: 0, LobbySeats.FIELD_TEAM: 1})
-	for ordinal: int in range(BOT_COUNT):
-		(seats[LobbySeats.KEY_BOTS] as Array).append({
-			LobbySeats.FIELD_COLOR: ordinal + 1,
-			LobbySeats.FIELD_TEAM: 2,
-			LobbySeats.FIELD_DIFFICULTY: SEAT_DIFFICULTIES[ordinal + 1],
-		})
-	return seats
-
-
-func _published_bot_difficulties(data: Dictionary) -> Array[int]:
-	var difficulties: Array[int] = []
-	var seats: Dictionary = data[ResultsScreen.LOBBY_SEATS_KEY] as Dictionary
-	for bot: Dictionary in (seats[LobbySeats.KEY_BOTS] as Array):
-		difficulties.append(int(bot[LobbySeats.FIELD_DIFFICULTY]))
-	return difficulties
-
-
-func test_apply_with_an_untouched_dropdown_keeps_the_per_seat_difficulties() -> void:
-	var config: MatchConfig = _resolved_config()
-	var net: FakeNet = FakeNet.host()
-	net.lobby_data_value = {"roster": [], ResultsScreen.LOBBY_SEATS_KEY: _seats_table()}
-	var screen: ResultsScreen = _make_results_screen(config, net)
-	screen.show_results(_team_payload())
-
-	screen._on_settings_pressed()
-	screen._on_settings_apply_pressed()
-
-	assert_eq(config.slot_ai_difficulties, PackedInt32Array(SEAT_DIFFICULTIES), "nothing changed, nothing overwritten")
-	assert_eq(config.slot_team_ids, PackedInt32Array(SLOT_TEAM_IDS), "resolved teams ride along for the rematch")
-	var data: Dictionary = net.set_lobby_data_calls[0]
-	assert_eq(_published_bot_difficulties(data), [SEAT_DIFFICULTIES[1], SEAT_DIFFICULTIES[2], SEAT_DIFFICULTIES[3]])
-	assert_eq(MatchConfig.from_dict(data).slot_ai_difficulties, PackedInt32Array(SEAT_DIFFICULTIES), "the republished config carries the per-slot array")
-
-
-func test_changing_the_dropdown_sets_every_bot_and_stays_alive() -> void:
-	var config: MatchConfig = _resolved_config()  # ai_difficulty NORMAL; bots EASY, HARD, EASY
-	var net: FakeNet = FakeNet.host()
-	net.lobby_data_value = {"roster": [], ResultsScreen.LOBBY_SEATS_KEY: _seats_table()}
-	var screen: ResultsScreen = _make_results_screen(config, net)
-	screen.show_results(_team_payload())
-
-	screen._on_settings_pressed()
-	screen._ai_difficulty_option.selected = MatchConfig.AiDifficulty.HARD
-	screen._on_settings_apply_pressed()
-
-	var hard: int = MatchConfig.AiDifficulty.HARD
-	assert_eq(config.ai_difficulty, MatchConfig.AiDifficulty.HARD)
-	for slot_id: int in range(1, PLAYER_COUNT):
-		assert_eq(
-			config.ai_difficulty_for_slot(slot_id), MatchConfig.AiDifficulty.HARD,
-			"the dropdown must reach the bot in slot %d even though per-slot values exist" % slot_id
-		)
-	var data: Dictionary = net.set_lobby_data_calls[0]
-	assert_eq(_published_bot_difficulties(data), [hard, hard, hard], "the republished seat table follows")
-
-
-func test_a_seat_that_becomes_a_bot_takes_the_dropdown_difficulty() -> void:
-	var config: MatchConfig = _resolved_config()
-	config.ai_count = 2  # slots 2 and 3 are bots, slot 1 is a human seat
-	config.slot_ai_difficulties = PackedInt32Array([
-		MatchConfig.AiDifficulty.HARD, MatchConfig.AiDifficulty.HARD,
-		MatchConfig.AiDifficulty.EASY, MatchConfig.AiDifficulty.EASY,
-	])
-	var screen: ResultsScreen = _make_results_screen(config, FakeNet.host())
-	screen.show_results(_team_payload())
-
-	screen._on_settings_pressed()
-	screen._ai_count_spin.value = 3
-	screen._on_settings_apply_pressed()
-
-	assert_eq(config.ai_count, 3)
-	assert_eq(config.ai_difficulty_for_slot(1), MatchConfig.AiDifficulty.NORMAL, "the newly converted seat gets the dropdown value")
-	assert_eq(config.ai_difficulty_for_slot(2), MatchConfig.AiDifficulty.EASY, "an existing bot keeps its seat's difficulty")
-	assert_eq(config.ai_difficulty_for_slot(3), MatchConfig.AiDifficulty.EASY)
-	config.sanitize()
-	assert_true(config.teams_resolved(), "player_count did not change, so the resolved teams stay valid")
-
-
-func test_republish_without_a_seat_table_adds_none_and_legacy_difficulty_still_applies() -> void:
-	var config: MatchConfig = _legacy_config()
-	var net: FakeNet = FakeNet.host()
-	net.lobby_data_value = {"roster": []}
-	var screen: ResultsScreen = _make_results_screen(config, net)
-	screen.show_results(_team_payload())
-
-	screen._on_settings_pressed()
-	screen._ai_difficulty_option.selected = MatchConfig.AiDifficulty.EASY
-	screen._on_settings_apply_pressed()
-
-	assert_eq(config.ai_difficulty, MatchConfig.AiDifficulty.EASY)
-	assert_true(config.slot_ai_difficulties.is_empty(), "a legacy config never grows a per-slot array here")
-	var data: Dictionary = net.set_lobby_data_calls[0]
-	assert_false(data.has(ResultsScreen.LOBBY_SEATS_KEY), "no lobby seat table existed, none is invented")
-	assert_true(data.has("roster"))

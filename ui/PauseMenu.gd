@@ -134,6 +134,7 @@ func _ready() -> void:
 	_leave_button.pressed.connect(_on_leave_pressed)
 	_confirm_dialog.confirmed.connect(_on_confirm_dialog_confirmed)
 	_confirm_dialog.canceled.connect(_on_confirm_dialog_canceled)
+	Events.match_results_ready.connect(_on_match_results_ready)
 	_apply_visual_style()
 	_wire_focus_chain()
 
@@ -220,6 +221,14 @@ func _close() -> void:
 func force_close() -> void:
 	if visible:
 		_close()
+
+
+## Bontago-1pi.72.1 (owner playtest: pause menu open when the round ended left the
+## results unusable). DECISION: the menu closes itself when results arrive, so it
+## never covers the results screen and Events.pause_menu_closed fires once;
+## ui/ResultsScreen.gd then claims cursor and focus.
+func _on_match_results_ready(_results: Dictionary) -> void:
+	force_close()
 
 
 func _on_resume_pressed() -> void:

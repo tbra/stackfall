@@ -107,6 +107,16 @@ var _blocks_lost: Array[int] = []
 var _gifts_claimed: Array[int] = []
 var _specials_used: Array[int] = []
 var _eliminated_at: Array[float] = []
+## Bontago-1pi.72.2: highest settled block top per slot (m above the disk, all
+## modes) and the peak territory share per TEAM seen while the match was live.
+var _height_reached: Array[float] = []
+var _peak_share: Array[float] = []
+
+## Bontago-1pi.72.2: host-session win tally, slot_id -> {"wins": int, "bot": bool}.
+## NOT cleared by reset() (that runs every start_match); cleared when the net
+## session changes (Events.net_mode_changed: hosting started/ended, joined, left).
+## A seat whose human/bot kind changed between rounds starts again at 0.
+var _session_wins: Dictionary = {}
 
 ## Seconds accumulated by _tick() while the match is live (State.PLAYING or
 ## State.SUDDEN_DEATH). Reset to 0.0 by reset(); read by match_duration() and
@@ -120,6 +130,7 @@ func setup(match_ref: MatchAutoload) -> void:
 	Events.gift_claimed.connect(_on_gift_claimed)
 	Events.special_consumed.connect(_on_special_consumed)
 	Events.player_eliminated.connect(_on_player_eliminated)
+	Events.net_mode_changed.connect(_on_net_mode_changed)
 
 
 ## Called from MatchLifecycle._reset_match_state(), shared by abort_match()
@@ -132,6 +143,8 @@ func reset() -> void:
 	_gifts_claimed.clear()
 	_specials_used.clear()
 	_eliminated_at.clear()
+	_height_reached.clear()
+	_peak_share.clear()
 	_elapsed = 0.0
 
 
@@ -146,6 +159,11 @@ func resize_for_slots(slot_count: int) -> void:
 	_gifts_claimed.resize(slot_count)
 	_specials_used.resize(slot_count)
 	_eliminated_at.resize(slot_count)
+	_height_reached.resize(slot_count)
+	_height_reached.fill(0.0)
+	var team_count: int = _match.config.team_count() if _match.config != null else slot_count
+	_peak_share.resize(maxi(team_count, slot_count))
+	_peak_share.fill(0.0)
 	for i: int in range(slot_count):
 		_blocks_placed[i] = 0
 		_blocks_lost[i] = 0
@@ -165,6 +183,8 @@ func _tick(delta: float) -> void:
 	if not _match._is_host():
 		return
 	_elapsed += delta
+	for team: int in range(_peak_share.size()):
+		_peak_share[team] = maxf(_peak_share[team], _match.territory_share(team))
 
 
 func match_duration() -> float:
@@ -178,6 +198,53 @@ func record_block_placed(slot_id: int) -> void:
 	if not _match._is_host():
 		return
 	_bump(_blocks_placed, slot_id)
+
+
+## Host: a block of `slot_id` settled with its top `height` m above the disk
+## (called from MatchTerritory's block_settled listener, live states only).
+## A record only rises.
+func record_height(slot_id: int, height: float) -> void:
+	if not _match._is_host() or not is_finite(height):
+		return
+	if slot_id < 0 or slot_id >= _height_reached.size():
+		return
+	_height_reached[slot_id] = maxf(_height_reached[slot_id], height)
+
+
+func height_reached(slot_id: int) -> float:
+	return _height_reached[slot_id] if slot_id >= 0 and slot_id < _height_reached.size() else 0.0
+
+
+func peak_territory(team_id: int) -> float:
+	return _peak_share[team_id] if team_id >= 0 and team_id < _peak_share.size() else 0.0
+
+
+func session_wins(slot_id: int) -> int:
+	return int((_session_wins.get(slot_id, {}) as Dictionary).get("wins", 0))
+
+
+func reset_session_wins() -> void:
+	_session_wins.clear()
+
+
+func _on_net_mode_changed(_mode: int) -> void:
+	reset_session_wins()
+
+
+## Adds one win to every slot whose team is among `winner_teams` (a shared win
+## counts for each). Called once per match from build_results_payload().
+func _record_session_wins(winner_teams: PackedInt32Array) -> void:
+	for slot_id: int in range(_match.slot_count()):
+		var slot: PlayerSlot = _match.slot(slot_id)
+		if slot == null:
+			continue
+		var entry: Dictionary = _session_wins.get(slot_id, {}) as Dictionary
+		if entry.has("bot") and bool(entry["bot"]) != slot.is_bot:
+			entry = {}
+		var wins: int = int(entry.get("wins", 0))
+		if winner_teams.has(_match.team_of(slot_id)):
+			wins += 1
+		_session_wins[slot_id] = {"wins": wins, "bot": slot.is_bot}
 
 
 func blocks_placed(slot_id: int) -> int:
@@ -214,6 +281,13 @@ func build_results_payload(winning_team: int, mode_fields: Dictionary = {}) -> D
 	var config: MatchConfig = _match.config
 	var ffa: bool = config == null or config.team_mode == MatchConfig.TeamMode.OFF
 
+	var winner_teams: PackedInt32Array = PackedInt32Array()
+	for id_text: String in String(mode_fields.get("winners", "")).split(",", false):
+		winner_teams.append(int(id_text))
+	if winner_teams.is_empty():
+		winner_teams.append(winning_team)
+	_record_session_wins(winner_teams)
+
 	var rows: Array[Dictionary] = []
 	for slot_id: int in range(_match.slot_count()):
 		var slot: PlayerSlot = _match.slot(slot_id)
@@ -231,6 +305,9 @@ func build_results_payload(winning_team: int, mode_fields: Dictionary = {}) -> D
 			"specials_used": specials_used(slot_id),
 			"territory_share": _match.territory_share(team_id),
 			"eliminated_at": eliminated_at(slot_id),
+			"height": height_reached(slot_id),
+			"peak_territory": peak_territory(team_id),
+			"wins": session_wins(slot_id),
 		})
 
 	var payload: Dictionary = {
@@ -325,6 +402,10 @@ static func _validate_row(raw_row: Variant) -> Dictionary:
 	var specials: Variant = row.get("specials_used")
 	var share: Variant = row.get("territory_share")
 	var eliminated: Variant = row.get("eliminated_at")
+	# Bontago-1pi.72.2: optional (an older payload lacks them) but typed when present.
+	var height: Variant = row.get("height", 0.0)
+	var peak: Variant = row.get("peak_territory", 0.0)
+	var wins: Variant = row.get("wins", 0)
 
 	if not (slot_id is int or slot_id is float) or int(slot_id) < 0:
 		return {}
@@ -342,6 +423,12 @@ static func _validate_row(raw_row: Variant) -> Dictionary:
 	if not (eliminated is int or eliminated is float) or not is_finite(float(eliminated)):
 		return {}
 
+	for amount: Variant in [height, peak]:
+		if not (amount is int or amount is float) or not is_finite(float(amount)) or float(amount) < 0.0:
+			return {}
+	if not (wins is int or wins is float) or int(wins) < 0:
+		return {}
+
 	return {
 		"slot_id": int(slot_id),
 		"name": String(name),
@@ -353,6 +440,9 @@ static func _validate_row(raw_row: Variant) -> Dictionary:
 		"specials_used": int(specials),
 		"territory_share": float(share),
 		"eliminated_at": float(eliminated),
+		"height": float(height),
+		"peak_territory": float(peak),
+		"wins": int(wins),
 	}
 
 

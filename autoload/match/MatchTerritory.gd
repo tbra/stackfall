@@ -489,6 +489,8 @@ func _connect_sky_records() -> void:
 
 
 func _on_block_settled(owner_slot: int, height: float) -> void:
+	if MatchLifecycle.is_live_state(_match.state()):
+		_match._stats.record_height(owner_slot, height)  # Bontago-1pi.72.2
 	if _objective is ReachSkyObjective and MatchLifecycle.is_live_state(_match.state()):
 		(_objective as ReachSkyObjective).record_height(owner_slot, height)
 
