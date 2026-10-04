@@ -120,8 +120,8 @@ func test_rows_render_the_stand_in_glyphs() -> void:
 	assert_eq(_glyph_labels(_make_row(&"rotate_yaw_cw")), ["B"])
 	assert_eq(_glyph_labels(_make_row(&"rotate_yaw_ccw")), ["RT"])
 	assert_eq(_glyph_labels(_make_row(&"rotate_drag")), ["B", "RT"])
-	assert_eq(_glyph_labels(_make_row(&"camera_orbit")), ["R Stick"])
-	assert_eq(_glyph_labels(_make_row(&"camera_zoom_in")), ["LT", "L Stick"])
+	assert_eq(_glyph_labels(_make_row(&"camera_orbit")), ["R Stick right"])
+	assert_eq(_glyph_labels(_make_row(&"camera_zoom_in")), ["LT", "L Stick up"])
 
 
 func test_keyboard_page_is_unchanged_by_the_stand_ins() -> void:
