@@ -329,12 +329,15 @@ func test_mode_score_text_labels_use_the_lobby_numbers() -> void:
 
 func test_hud_mode_score_label_reads_the_running_configs_numbers() -> void:
 	var hud: HUD = _make_hud(_fake_match_with(_resolved_config()))
+	hud.set_territory_shares(PackedFloat32Array([0.0, 0.0]))
 	hud._on_mode_state_changed({"mode_id": MatchConfig.GameMode.CAPTURE_THE_FLAG, "scores": [1.0, 4.0], "round_left": 0.0})
-	assert_eq(hud._mode_score_label.text, "1: 1.0  3: 4.0")
+	assert_eq((hud._share_labels[0] as Label).text, "1.0 s")
+	assert_eq((hud._share_labels[1] as Label).text, "4.0 s")
 
 	var legacy_hud: HUD = _make_hud(_fake_match_with(_legacy_config()))
+	legacy_hud.set_territory_shares(PackedFloat32Array([0.0, 0.0]))
 	legacy_hud._on_mode_state_changed({"mode_id": MatchConfig.GameMode.CAPTURE_THE_FLAG, "scores": [1.0, 4.0], "round_left": 0.0})
-	assert_eq(legacy_hud._mode_score_label.text, "1: 1.0  2: 4.0")
+	assert_eq((legacy_hud._share_labels[1] as Label).text, "4.0 s")
 
 
 func test_hud_share_rows_use_team_numbers_colours_and_team_elimination() -> void:
@@ -344,8 +347,8 @@ func test_hud_share_rows_use_team_numbers_colours_and_team_elimination() -> void
 	var team_colors: PackedColorArray = config.territory_colors()
 
 	hud.set_territory_shares(PackedFloat32Array([0.6, 0.4]))
-	assert_eq((hud._share_labels[0] as Label).text, "P1: 60%")
-	assert_eq((hud._share_labels[1] as Label).text, "P3: 40%", "second team was lobby team 3")
+	assert_eq((hud._share_labels[0] as Label).text, "60%")
+	assert_eq((hud._share_labels[1] as Label).text, "40%")
 	assert_eq((hud._share_bars[0] as ColorRect).color, team_colors[0])
 	assert_eq((hud._share_bars[1] as ColorRect).color, team_colors[1])
 
@@ -367,8 +370,8 @@ func test_hud_share_rows_are_unchanged_without_resolved_teams() -> void:
 	var hud: HUD = _make_hud(fake_match)
 
 	hud.set_territory_shares(PackedFloat32Array([0.6, 0.4]))
-	assert_eq((hud._share_labels[0] as Label).text, "P1: 60%")
-	assert_eq((hud._share_labels[1] as Label).text, "P2: 40%  (out)", "legacy: team t is slot t")
+	assert_eq((hud._share_labels[0] as Label).text, "60%")
+	assert_eq((hud._share_labels[1] as Label).text, "40%  (out)", "legacy: team t is slot t")
 	assert_eq((hud._share_bars[0] as ColorRect).color, fake_match.slots_by_id[0].color)
 
 
