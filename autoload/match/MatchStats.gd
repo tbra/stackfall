@@ -114,8 +114,11 @@ var _peak_share: Array[float] = []
 
 ## Bontago-1pi.72.2: host-session win tally, slot_id -> {"wins": int, "bot": bool}.
 ## NOT cleared by reset() (that runs every start_match); cleared when the net
-## session changes (Events.net_mode_changed: hosting started/ended, joined, left).
-## A seat whose human/bot kind changed between rounds starts again at 0.
+## session changes (Events.net_mode_changed: hosting started/ended, joined, left)
+## and when the main menu is shown (game/Main.gd; local Play again accumulates
+## until the player leaves for the menu). Each entry also records its occupant ("peer",
+## Net.peer_of_slot; "bot"); a seat whose occupant changed (a different peer, a
+## bot, or nobody took it) starts again at 0 while other seats keep theirs.
 var _session_wins: Dictionary = {}
 
 ## Seconds accumulated by _tick() while the match is live (State.PLAYING or
@@ -154,6 +157,7 @@ func reset() -> void:
 ## NOT_ELIMINATED for elimination time), mirroring MatchLifecycle's own
 ## per-slot array resets in the same function.
 func resize_for_slots(slot_count: int) -> void:
+	_drop_stale_session_wins(slot_count)
 	_blocks_placed.resize(slot_count)
 	_blocks_lost.resize(slot_count)
 	_gifts_claimed.resize(slot_count)
@@ -227,6 +231,21 @@ func reset_session_wins() -> void:
 	_session_wins.clear()
 
 
+## Bontago-1pi.72.3: a seat whose occupant changed starts at 0.
+func _drop_stale_session_wins(slot_count: int) -> void:
+	for slot_id: int in _session_wins.keys():
+		var entry: Dictionary = _session_wins[slot_id] as Dictionary
+		var is_bot: bool = slot_id >= 0 and slot_id < slot_count and _seat_is_bot(slot_id, slot_count)
+		if int(entry.get("peer", -1)) != Net.peer_of_slot(slot_id) or bool(entry.get("bot", false)) != is_bot:
+			_session_wins.erase(slot_id)
+
+
+func _seat_is_bot(slot_id: int, slot_count: int) -> bool:
+	if _match.config == null:
+		return false
+	return slot_id >= slot_count - _match.config.ai_count
+
+
 func _on_net_mode_changed(_mode: int) -> void:
 	reset_session_wins()
 
@@ -239,12 +258,12 @@ func _record_session_wins(winner_teams: PackedInt32Array) -> void:
 		if slot == null:
 			continue
 		var entry: Dictionary = _session_wins.get(slot_id, {}) as Dictionary
-		if entry.has("bot") and bool(entry["bot"]) != slot.is_bot:
+		if entry.has("bot") and (bool(entry["bot"]) != slot.is_bot or int(entry.get("peer", -1)) != Net.peer_of_slot(slot_id)):
 			entry = {}
 		var wins: int = int(entry.get("wins", 0))
 		if winner_teams.has(_match.team_of(slot_id)):
 			wins += 1
-		_session_wins[slot_id] = {"wins": wins, "bot": slot.is_bot}
+		_session_wins[slot_id] = {"wins": wins, "bot": slot.is_bot, "peer": Net.peer_of_slot(slot_id)}
 
 
 func blocks_placed(slot_id: int) -> int:

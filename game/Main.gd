@@ -987,6 +987,7 @@ func _headless_bots_state_name() -> String:
 # --- Menu / lobby routing -----------------------------------------------------
 
 func _show_main_menu() -> void:
+	Match.stats().reset_session_wins()  # Bontago-1pi.72.3: a fresh local session
 	Sfx.set_music_context(&"menu")
 	_clear_menu_and_lobby()
 	# Bontago-xtq.42 fix round 2 (orchestrator review): the main menu is a

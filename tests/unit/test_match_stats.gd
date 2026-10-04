@@ -26,6 +26,8 @@ func before_each() -> void:
 	Match.set_process(false)
 	Match.abort_match()
 	Match.stats().reset_session_wins()  # the tally outlives a match, not a test
+	Net._mode = Net.Mode.OFFLINE
+	Net._peers.clear()
 	_tiny_map = (load("res://config/maps/round_medium.tres") as MapDef).duplicate(true)
 	_tiny_map.field_radius = 20.0
 	_field = autofree(Field.new())
@@ -464,30 +466,52 @@ func test_mode_stat_column_per_mode() -> void:
 	assert_eq(ResultsScreen.mode_stat_text(sky, row), "7.3 m")
 
 
-func test_session_wins_accumulate_across_rounds_and_reset_with_the_host_session() -> void:
-	Match.start_match(_free_for_all_config(2))
-	_run_countdown()
-	var first: Dictionary = _finish_and_capture(0)
-	assert_eq(int((first["rows"] as Array)[0]["wins"]), 1)
-	assert_eq(int((first["rows"] as Array)[1]["wins"]), 0)
+## Seats two human peers (ids 101/102) in slots 0/1 of a hosted session.
+func _host_two_peers() -> void:
+	Net._mode = Net.Mode.HOST
+	Net._peers = {101: {"slot_id": 0, "name": "A"}, 102: {"slot_id": 1, "name": "B"}}
 
-	# Play again, then slot 0 and slot 1 win a round each.
+
+func _wins_of(results: Dictionary) -> Array[int]:
+	var wins: Array[int] = []
+	for row: Dictionary in (results["rows"] as Array):
+		wins.append(int(row["wins"]))
+	return wins
+
+
+func _play_round(winner: int) -> Dictionary:
 	Match.start_match(_free_for_all_config(2))
 	_run_countdown()
-	var second: Dictionary = _finish_and_capture(0)
-	assert_eq(int((second["rows"] as Array)[0]["wins"]), 2, "wins carry over a replay")
-	Match.start_match(_free_for_all_config(2))
-	_run_countdown()
-	var third: Dictionary = _finish_and_capture(1)
-	assert_eq(int((third["rows"] as Array)[0]["wins"]), 2)
-	assert_eq(int((third["rows"] as Array)[1]["wins"]), 1)
+	return _finish_and_capture(winner)
+
+
+func test_session_wins_accumulate_across_rounds_and_reset_with_the_host_session() -> void:
+	_host_two_peers()
+	assert_eq(_wins_of(_play_round(0)), [1, 0] as Array[int])
+	assert_eq(_wins_of(_play_round(0)), [2, 0] as Array[int], "wins carry over a replay")
+	assert_eq(_wins_of(_play_round(1)), [2, 1] as Array[int])
 
 	Events.net_mode_changed.emit(Net.Mode.OFFLINE)  # host session ended
-	Match.start_match(_free_for_all_config(2))
-	_run_countdown()
-	var fresh: Dictionary = _finish_and_capture(1)
-	assert_eq(int((fresh["rows"] as Array)[0]["wins"]), 0, "a new session starts the tally at zero")
-	assert_eq(int((fresh["rows"] as Array)[1]["wins"]), 1)
+	assert_eq(_wins_of(_play_round(1)), [0, 1] as Array[int], "a new session starts the tally at zero")
+
+
+func test_new_peer_in_a_freed_slot_starts_at_zero_while_other_slots_keep_theirs() -> void:
+	_host_two_peers()
+	_play_round(1)
+	assert_eq(_wins_of(_play_round(1)), [0, 2] as Array[int])
+	# Peer 101 leaves; a different peer takes slot 0.
+	Net._peers = {103: {"slot_id": 0, "name": "C"}, 102: {"slot_id": 1, "name": "B"}}
+	assert_eq(_wins_of(_play_round(0)), [1, 2] as Array[int], "newcomer starts fresh, slot 1 keeps its wins")
+	# A freed seat taken by a bot also starts fresh; a vacated one is not inherited later.
+	Net._peers = {102: {"slot_id": 1, "name": "B"}}
+	assert_eq(_wins_of(_play_round(1)), [0, 3] as Array[int])
+
+
+func test_offline_play_again_accumulates_until_the_session_is_reset() -> void:
+	assert_eq(_wins_of(_play_round(0)), [1, 0] as Array[int])
+	assert_eq(_wins_of(_play_round(0)), [2, 0] as Array[int], "local Play again accumulates")
+	Match.stats().reset_session_wins()  # what Main._show_main_menu() does
+	assert_eq(_wins_of(_play_round(0)), [1, 0] as Array[int], "a fresh local session starts at zero")
 
 
 func test_team_win_counts_for_every_member_of_the_winning_team() -> void:
