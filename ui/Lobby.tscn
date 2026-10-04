@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://ui/Lobby.gd" id="1_lobby"]
 [ext_resource type="Theme" path="res://ui/theme/stackfall_theme.tres" id="2_theme"]
@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://ui/MenuBackdrop.gd" id="4_backdrop"]
 [ext_resource type="PackedScene" path="res://ui/lobby/LobbyPlayersPanel.tscn" id="5_playerspanel"]
 [ext_resource type="Script" path="res://ui/lobby/LobbySection.gd" id="6_section"]
+[ext_resource type="Script" path="res://ui/InputPromptFlow.gd" id="99_hints"]
 
 [node name="Lobby" type="Control"]
 layout_mode = 3
@@ -618,6 +619,19 @@ text = "● Waiting for players"
 layout_mode = 2
 size_flags_horizontal = 3
 
+[node name="GamepadHintPill" type="PanelContainer" parent="Margin/Layout/BottomBar"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+
+[node name="GamepadHintBar" type="HFlowContainer" parent="Margin/Layout/BottomBar/GamepadHintPill"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("99_hints")
+template = "{ui_accept} Select   {ui_cancel} Back"
+
 [node name="StartButton" type="Button" parent="Margin/Layout/BottomBar"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -625,31 +639,6 @@ disabled = true
 custom_minimum_size = Vector2(0, 41)
 
 text = "▷ Start Match"
-
-[node name="GamepadHintPill" type="PanelContainer" parent="."]
-unique_name_in_owner = true
-visible = false
-layout_mode = 1
-anchors_preset = 3
-anchor_left = 1.0
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = -340.0
-offset_top = -44.0
-offset_right = -16.0
-offset_bottom = -16.0
-grow_horizontal = 0
-grow_vertical = 0
-mouse_filter = 2
-
-[node name="GamepadHintBar" type="Label" parent="GamepadHintPill"]
-unique_name_in_owner = true
-layout_mode = 2
-mouse_filter = 2
-theme_type_variation = &"CaptionLabel"
-horizontal_alignment = 2
-text = "(A) Select  *  (B) Back  *  Enter/Esc"
 
 [node name="HiddenSources" type="Control" parent="."]
 visible = false

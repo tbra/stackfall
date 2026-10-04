@@ -21,7 +21,9 @@ extends Resource
 ## position) -- for the inspector/a future step list UI, and so a test can
 ## assert on which step is active by name rather than a bare int.
 @export var id: StringName = &""
-## Shown verbatim in ui/Tutorial.gd's prompt overlay while this step is
+## Bontago-1pi.71: `{action}` / `{a|b}` tokens render the bound action's glyph for the
+## active device (ui/InputPromptFlow.gd); never type key or button names here.
+## Shown in ui/Tutorial.gd's prompt overlay while this step is
 ## active. Placeholder wording (docs/M6_PLAN.md package B3: "no art
 ## direction decisions -- plain placeholder styling").
 @export var prompt_text: String = ""

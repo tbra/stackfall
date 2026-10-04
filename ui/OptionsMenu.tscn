@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://ui/OptionsMenu.gd" id="1_options"]
 [ext_resource type="Theme" path="res://ui/theme/stackfall_theme.tres" id="2_theme"]
@@ -7,6 +7,7 @@
 [ext_resource type="Texture2D" path="res://assets/ui/icons/speaker_mid.svg" id="5_speaker_mid"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/speaker_high.svg" id="6_speaker_high"]
 [ext_resource type="Script" path="res://ui/FocusScrollContainer.gd" id="7_focus_scroll"]
+[ext_resource type="Script" path="res://ui/InputPromptFlow.gd" id="99_hints"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_tabs"]
 
@@ -377,11 +378,13 @@ layout_mode = 2
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="FooterHintLabel" type="Label" parent="Frame/Panel/Layout/Footer"]
+[node name="FooterHintLabel" type="HFlowContainer" parent="Frame/Panel/Layout/Footer"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Enter · Esc"
+mouse_filter = 2
+script = ExtResource("99_hints")
+template = "{ui_accept} Select   {ui_cancel} Back"
 
 [node name="ResetButton" type="Button" parent="Frame/Panel/Layout/Footer"]
 unique_name_in_owner = true

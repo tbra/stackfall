@@ -115,13 +115,7 @@ const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
 ## bare Label -- %GamepadHintPill wraps the existing %GamepadHintBar Label in
 ## a PanelContainer so it reads as a chip instead of floating text.
 @onready var _gamepad_hint_pill: PanelContainer = %GamepadHintPill
-@onready var _glyph_a: PanelContainer = %GlyphA
-@onready var _glyph_a_label: Label = %GlyphALabel
-@onready var _glyph_b: PanelContainer = %GlyphB
-@onready var _glyph_b_label: Label = %GlyphBLabel
-@onready var _select_label: Label = %SelectLabel
-@onready var _back_label: Label = %BackLabel
-@onready var _keyboard_label: Label = %KeyboardLabel
+@onready var _hint_row: InputPromptFlow = %GamepadHintRow
 
 ## M3b (docs/M3b_PLAN.md P3): the Steam section vs. the "not available" notice
 ## (spec 3.4: "Hide the online menu entries and show a notice").
@@ -357,10 +351,7 @@ func _apply_visual_style() -> void:
 	# focus-colour overrides here, so a focused button can never flip its icon
 	# to the theme's default white.
 	_gamepad_hint_pill.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_cream_color, tuning))
-	MenuStyleFactory.apply_glyph_circle(_glyph_a, _glyph_a_label, tuning)
-	MenuStyleFactory.apply_glyph_circle(_glyph_b, _glyph_b_label, tuning)
-	for label: Label in [_select_label, _back_label, _keyboard_label]:
-		label.add_theme_color_override("font_color", tuning.ink_color)
+	_hint_row.set_text_color(tuning.ink_color)
 
 
 ## Shift the painted back cards diagonally while retaining container layout.

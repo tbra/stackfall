@@ -218,6 +218,7 @@ var net_provider: Variant = null:
 ## but hidden in ui/Lobby.tscn -- the bottom-right corner is %StartButton's
 ## spot on this screen now, unlike ui/MainMenu.gd where the hint still owns it.
 @onready var _gamepad_hint_pill: PanelContainer = %GamepadHintPill
+@onready var _hint_row: InputPromptFlow = %GamepadHintBar
 ## Bontago-mp0.3.5 (review r1, item 13): mockup 11's bottom-left "Waiting for
 ## players * X of Y ready" pill, updated every time the players panel rebuilds its rows (_on_roster_rendered()).
 @onready var _waiting_status_pill: PanelContainer = %WaitingStatusPill
@@ -847,6 +848,7 @@ func _apply_visual_style() -> void:
 
 	_status_badge.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_cream_color, tuning))
 	_gamepad_hint_pill.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_cream_color, tuning))
+	_hint_row.set_text_color(tuning.ink_color)
 	_waiting_status_pill.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_cream_color, tuning))
 	_waiting_status_label.add_theme_color_override("font_color", tuning.ink_color)
 	_status_badge_label.add_theme_color_override("font_color", tuning.ink_color)

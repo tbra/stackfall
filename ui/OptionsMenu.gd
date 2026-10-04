@@ -149,8 +149,10 @@ const KEY_REBIND_ROW_SCENE: PackedScene = preload("res://ui/KeyRebindRow.tscn")
 ## plain literals rather than a config/*.tres Resource, since these are
 ## display-only strings, not gameplay/physics tuning (CLAUDE.md's
 ## no-magic-numbers rule targets those).
-const FOOTER_HINT_KEYBOARD_MOUSE: String = "Enter · Esc"
-const FOOTER_HINT_GAMEPAD: String = "A Select   B Back   LB / RB Tabs"
+## Bontago-1pi.71: InputPromptFlow templates -- `{action}` renders the bound
+## action's glyph for the active device, so no key or button name is typed here.
+const FOOTER_HINT_KEYBOARD_MOUSE: String = "{ui_accept} Select   {ui_cancel} Back"
+const FOOTER_HINT_GAMEPAD: String = "{ui_accept} Select   {ui_cancel} Back   {menu_tab_previous} {menu_tab_next} Tabs"
 const CONTROLS_LABEL_KEYBOARD_MOUSE: String = "Showing keyboard & mouse bindings"
 const CONTROLS_LABEL_GAMEPAD: String = "Showing gamepad bindings"
 
@@ -217,7 +219,7 @@ const MOVE_SPEED_LABEL_STICK: String = "Stick speed"
 @onready var _settings_page: ScrollContainer = %SettingsPage
 @onready var _controls_page: VBoxContainer = %ControlsPage
 @onready var _controls_device_label: Label = %ControlsDeviceLabel
-@onready var _footer_hint_label: Label = %FooterHintLabel
+@onready var _footer_hint_label: InputPromptFlow = %FooterHintLabel
 @onready var _move_speed_label: Label = %MoveSpeedLabel
 @onready var _move_speed_slider: HSlider = %MoveSpeedSlider
 @onready var _move_speed_value_label: Label = %MoveSpeedValueLabel
@@ -306,13 +308,18 @@ func _on_controls_tab_toggled(pressed: bool) -> void:
 	_controls_page.visible = pressed
 
 
+## Bontago-1pi.71: a rebind of ui_accept/ui_cancel/menu_tab_* must show in the footer glyphs.
+func _on_row_rebind_captured(_action: StringName, _event: InputEvent) -> void:
+	_footer_hint_label.refresh()
+
+
 func _on_input_device_changed(_device: StringName) -> void:
 	_refresh_device_dependent_ui()
 
 
 func _refresh_device_dependent_ui() -> void:
 	var gamepad: bool = Settings.active_input_device() == Settings.DEVICE_GAMEPAD
-	_footer_hint_label.text = FOOTER_HINT_GAMEPAD if gamepad else FOOTER_HINT_KEYBOARD_MOUSE
+	_footer_hint_label.set_template(FOOTER_HINT_GAMEPAD if gamepad else FOOTER_HINT_KEYBOARD_MOUSE)
 	_controls_device_label.text = CONTROLS_LABEL_GAMEPAD if gamepad else CONTROLS_LABEL_KEYBOARD_MOUSE
 	_refresh_move_speed_row()
 	# Bontago-1pi.41: which rows exist on the page depends on the device (rows
@@ -618,6 +625,7 @@ func _build_rebind_rows() -> void:
 			var row: KeyRebindRow = KEY_REBIND_ROW_SCENE.instantiate() as KeyRebindRow
 			_rebind_list.add_child(row)
 			row.setup(action)
+			row.rebind_captured.connect(_on_row_rebind_captured)
 			_rows.append(row)
 
 

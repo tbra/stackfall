@@ -425,18 +425,18 @@ func test_pressing_the_settings_tab_again_switches_back() -> void:
 
 func test_footer_hint_and_controls_label_default_to_keyboard_mouse() -> void:
 	var menu: OptionsMenu = _make_menu()
-	assert_eq((menu.get_node("%FooterHintLabel") as Label).text, OptionsMenu.FOOTER_HINT_KEYBOARD_MOUSE)
+	assert_eq((menu.get_node("%FooterHintLabel") as InputPromptFlow).template, OptionsMenu.FOOTER_HINT_KEYBOARD_MOUSE)
 	assert_eq((menu.get_node("%ControlsDeviceLabel") as Label).text, OptionsMenu.CONTROLS_LABEL_KEYBOARD_MOUSE)
 
 
 func test_footer_hint_and_controls_label_switch_live_when_the_active_device_changes() -> void:
 	var menu: OptionsMenu = _make_menu()
 	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
-	assert_eq((menu.get_node("%FooterHintLabel") as Label).text, OptionsMenu.FOOTER_HINT_GAMEPAD)
+	assert_eq((menu.get_node("%FooterHintLabel") as InputPromptFlow).template, OptionsMenu.FOOTER_HINT_GAMEPAD)
 	assert_eq((menu.get_node("%ControlsDeviceLabel") as Label).text, OptionsMenu.CONTROLS_LABEL_GAMEPAD)
 
 	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
-	assert_eq((menu.get_node("%FooterHintLabel") as Label).text, OptionsMenu.FOOTER_HINT_KEYBOARD_MOUSE)
+	assert_eq((menu.get_node("%FooterHintLabel") as InputPromptFlow).template, OptionsMenu.FOOTER_HINT_KEYBOARD_MOUSE)
 	assert_eq((menu.get_node("%ControlsDeviceLabel") as Label).text, OptionsMenu.CONTROLS_LABEL_KEYBOARD_MOUSE)
 
 

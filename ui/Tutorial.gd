@@ -29,7 +29,7 @@ signal finished
 @onready var _controller: PlayerController = $PlayerController
 @onready var _ghost: GhostPreview = $GhostPreview
 @onready var _hud: HUD = $HUDLayer
-@onready var _prompt_label: Label = %PromptLabel
+@onready var _prompt_label: InputPromptFlow = %PromptLabel
 
 ## -1 before the first _begin_step() call (never observed once _ready() has
 ## run); otherwise an index into tutorial_config.steps.
@@ -167,7 +167,7 @@ func _current_step() -> TutorialStep:
 func _begin_step(index: int) -> void:
 	_step_index = index
 	var step: TutorialStep = tutorial_config.steps[index]
-	_prompt_label.text = step.prompt_text
+	_prompt_label.set_template(step.prompt_text)
 	if step.completion_signal == SIGNAL_ORIENTATION_CHANGED:
 		_rotation_baseline = _ghost.orientation_index
 	elif step.completion_signal == SIGNAL_CAMERA_MOVED:
