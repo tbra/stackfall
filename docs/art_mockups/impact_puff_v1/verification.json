@@ -1,0 +1,121 @@
+{
+  "checks": "2 x 1024 RGBA;16distinct frames each;12px+padding;terminal frame clear;atlas/frame edge-AA tolerance1alphaLSB/2premultiplied RGB;soft silhouette area<40percent hard;tail alpha mass<3percent peak",
+  "stats": {
+    "hard": {
+      "alpha_mass": [
+        32706,
+        121714,
+        289510,
+        457655,
+        553902,
+        605363,
+        604313,
+        561956,
+        485117,
+        381205,
+        274697,
+        176899,
+        92802,
+        32290,
+        5539,
+        0
+      ],
+      "nonzero_area": [
+        337,
+        889,
+        1722,
+        2670,
+        3646,
+        4573,
+        5381,
+        5953,
+        6245,
+        6296,
+        6059,
+        5519,
+        4400,
+        3221,
+        1931,
+        0
+      ],
+      "tile_sha256": [
+        "2557d6a7ff9f942a30f937eb779a58f722903083c70304c3e8d530394b9b5d4b",
+        "37d6c8ff3bb5001aa762981cbf15b190eb9b84dcb7cec986cbf0986f61d108dc",
+        "4f063ccc5d95e723e10ec82da7418899af348bb30e8449885a577f6b4c1d47b5",
+        "4898f40a005cf7bbfb631a56a13bc0650b058aabdb53d89b339b43b2a41d302f",
+        "04330c5c2f4d8266d371185342556f731ac1a039ccf0b2cfe102d457a4125c07",
+        "952035a07c795551cb25556dc494d73609d158c6eb8ebe49ae17912049676de0",
+        "02a2b2df81a87a50bca0dd8e188421c5483bca41abc698b131355aae0aa08153",
+        "5c6c1c28e379bba3795b4020479cc815fc3cf60bca40bdb9b4c34434bcefac1e",
+        "56bb3345b12f862ce0a37f6218f6ea86564baaf262c5cf4dc5c8f6dd99e4ebff",
+        "1fae70309937643d6206c635c433b26a94e9a3f3de73ef0aee02af37a1806a4c",
+        "67b19e730142d2fc87f8e16d2c4c3b52d7859e583f1dbf56058998395a764ba7",
+        "8d9c7427d0b868b1d78a1abcb0efe4b6e46b2dc77ae75b9c0a0e089ecf248158",
+        "46fb8ba4172f3d95a991a92b16e7b993a036ebf08b98e11e1b76ab456e2e56f8",
+        "07772f5431898b181b74abe627e100338e759edb80f8ebfc0eadd3ffd478aafc",
+        "bcd11145fd7ebce1eaf81f0bc6b4a64149ccb6a65c744a8c48ac18238343795a",
+        "8a39d2abd3999ab73c34db2476849cddf303ce389b35826850f9a700589b4a90"
+      ]
+    },
+    "soft": {
+      "alpha_mass": [
+        10134,
+        37168,
+        87907,
+        138391,
+        167182,
+        182411,
+        182179,
+        169905,
+        146823,
+        115498,
+        83271,
+        53758,
+        28357,
+        9844,
+        1704,
+        0
+      ],
+      "nonzero_area": [
+        107,
+        283,
+        534,
+        821,
+        1107,
+        1392,
+        1632,
+        1807,
+        1901,
+        1900,
+        1818,
+        1653,
+        1372,
+        1002,
+        609,
+        0
+      ],
+      "tile_sha256": [
+        "37d8a94744f14a06f17bb04e3f5c2fe479d9fb3e107d4baa4231e422fa2b8a45",
+        "8e7fb8de5bb73f6dc7232a02082c412f76007f07f45b69bc5e6887ef75047022",
+        "9e142b9e5d23e8f1eca5ec9f627231f36bf45b775b5e19c4825e586330283b45",
+        "6ec5d6db8ecf5ef94bbe5988b92175d77b2f4ac2845e6e8e98619333bb3bfe89",
+        "5512da34766d4e13308198f1bdc7c4cbf6bdea3e4f746d2a0cf4ffa19382b726",
+        "78955a6499ff4069990a1859b03da3ee76a27647d7c81f17349111d3c5d5bf14",
+        "f28d98a0cc5d689ddf2cd98604ff2e0d991cdf9f1a711a6f7aface7b58e1a3b8",
+        "e05d3b8739034a3654840307e109f56ec5de230cc11a458be0b9fb261de48a78",
+        "9906647e51aaacce98560e7f4e05a71e46cbfb83c38048c8591a85110de5c0b9",
+        "74563db3bd0e541c03e3d35c652e4ee4fd6538303431182ece6683e091893915",
+        "2ea511f8ca3bfd7f7e356281cdc7046b2316b3ba1e07f41de3220be2445db23f",
+        "ca700b986b5b183062c980fbba0265fd108ff0fdc00a7fc18186bee4563c819e",
+        "bc62c4ae5f19716af778ccfe41d462ff1631c4c5fe9876647e963d7002e60e2e",
+        "21d1a29e01dce4219bff1e6e2fb3042a943ee2b4565bcfd02c112c506dfb3c96",
+        "643082317c3a746c572e02d5a4d153757179bb2b0e5aecc96e1e6aaa9d9aec85",
+        "8a39d2abd3999ab73c34db2476849cddf303ce389b35826850f9a700589b4a90"
+      ]
+    }
+  },
+  "sha256": {
+    "hard": "5a57db54228017c84ab019b6154bd190c9a90f13db8e611cd220ed544cab973f",
+    "soft": "dd5e08bcebe6373f26bef70b0c341f65bd44f7efbda79e749f2013d46c8cd51e"
+  }
+}
