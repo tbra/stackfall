@@ -130,6 +130,49 @@ func playlist_for_context(context: StringName) -> Array[AudioStream]:
 @export var sfx_volume_db: float = -3.0
 @export var music_volume_db: float = -10.0
 
+## Block impact variation set (Bontago-mp0.116, assets/effects/impact_variation_v1).
+## Folder under assets/effects holding the soft/medium/hard x block/disc wavs.
+@export var impact_variation_dir: String = "impact_variation_v1"
+## Normalized impact strength t = clamp((speed - impact_speed_min) /
+## (impact_speed_loud - impact_speed_min), 0, 1). Below impact_soft_max_t is
+## SOFT, below impact_medium_max_t is MEDIUM, otherwise HARD.
+@export_range(0.0, 1.0) var impact_soft_max_t: float = 1.0 / 3.0
+@export_range(0.0, 1.0) var impact_medium_max_t: float = 2.0 / 3.0
+## Sample variants per "<surface>_<tier>" key (SURFACE_* / TIER_* below). Sfx picks
+## one at random, never the same twice in a row while a second exists.
+@export var impact_variation_files: Dictionary[StringName, PackedStringArray] = {
+	&"block_soft": PackedStringArray(["impact_block_soft_01.wav", "impact_block_soft_02.wav"]),
+	&"block_medium": PackedStringArray(["impact_block_medium_01.wav", "impact_block_medium_02.wav"]),
+	&"block_hard": PackedStringArray(["impact_block_hard_01.wav", "impact_block_hard_02.wav"]),
+	&"disc_soft": PackedStringArray(["impact_disc_soft_01.wav", "impact_disc_soft_02.wav"]),
+	&"disc_medium": PackedStringArray(["impact_disc_medium_01.wav", "impact_disc_medium_02.wav"]),
+	&"disc_hard": PackedStringArray(["impact_disc_hard_01.wav", "impact_disc_hard_02.wav"]),
+}
+## The impact event carries only (speed, position); Sfx classifies the surface
+## with a sphere query of this radius (m) at the impact point. At least
+## impact_block_surface_min_blocks distinct Blocks inside it (the faller plus
+## what it hit) means block-on-block; anything else is the disc/platform.
+@export var impact_surface_query_radius_m: float = 0.75
+@export var impact_block_surface_min_blocks: int = 2
+
+## Lobby/loading UI cues (Bontago-mp0.117, assets/effects/lobby_ui_cues_v1).
+@export var ui_cue_dir: String = "lobby_ui_cues_v1"
+@export var ui_cue_files: Dictionary[StringName, String] = {
+	&"player_joined": "player_joined.wav",
+	&"player_left": "player_left.wav",
+	&"ready_on": "ready_on.wav",
+	&"ready_off": "ready_off.wav",
+	&"team_change": "team_change.wav",
+	&"colour_change": "colour_change.wav",
+	&"bot_added": "bot_added.wav",
+	&"bot_removed": "bot_removed.wav",
+	&"section_expanded": "section_expanded.wav",
+	&"section_collapsed": "section_collapsed.wav",
+	&"all_players_ready": "all_players_ready.wav",
+}
+## Extra gain (dB) on top of sfx_volume_db for UI cues (files carry their own level).
+@export var ui_cue_volume_db: float = 0.0
+
 ## Sfx's AudioStreamPlayer pool size (spec: "max_simultaneous"). One extra
 ## player is always reserved for music, on top of this many for one-shot sfx.
 @export var max_simultaneous: int = 8
@@ -160,6 +203,12 @@ const EVENT_BREAKAGE: StringName = &"breakage"
 const EVENT_CREAK: StringName = &"creak"
 const EVENT_GIFT_CLAIMED: StringName = &"gift_claimed"
 const EVENT_GIFT_SPAWNED: StringName = &"gift_spawned"
+
+const SURFACE_BLOCK: StringName = &"block"
+const SURFACE_DISC: StringName = &"disc"
+const TIER_SOFT: StringName = &"soft"
+const TIER_MEDIUM: StringName = &"medium"
+const TIER_HARD: StringName = &"hard"
 
 const ALL_EVENTS: Array[StringName] = [
 	EVENT_THUD, EVENT_REJECTED, EVENT_CLICK, EVENT_START_GAME, EVENT_HOVER, EVENT_DROP, EVENT_BOUNCE,
@@ -219,3 +268,31 @@ func impact_volume_db(speed: float) -> float:
 	var span: float = maxf(impact_speed_loud - impact_speed_min, 0.001)
 	var t: float = clampf((speed - impact_speed_min) / span, 0.0, 1.0)
 	return lerpf(impact_quiet_db_offset, impact_loud_db_offset, t)
+
+
+## Strength tier (TIER_*) for an impact at `speed` m/s; uses the same span guard
+## as impact_volume_db().
+func impact_tier(speed: float) -> StringName:
+	var span: float = maxf(impact_speed_loud - impact_speed_min, 0.001)
+	var t: float = clampf((speed - impact_speed_min) / span, 0.0, 1.0)
+	if t < impact_soft_max_t:
+		return TIER_SOFT
+	if t < impact_medium_max_t:
+		return TIER_MEDIUM
+	return TIER_HARD
+
+
+## Variant filenames (relative to assets/effects) for `surface` x `tier`, empty
+## when the set is not configured.
+func impact_variation_for(surface: StringName, tier: StringName) -> Array[String]:
+	var out: Array[String] = []
+	var names: PackedStringArray = impact_variation_files.get(StringName("%s_%s" % [surface, tier]), PackedStringArray())
+	for filename: String in names:
+		out.append(impact_variation_dir.path_join(filename))
+	return out
+
+
+## Filename (relative to assets/effects) of lobby UI cue `cue`, "" when unknown.
+func ui_cue_file(cue: StringName) -> String:
+	var filename: String = ui_cue_files.get(cue, "")
+	return "" if filename.is_empty() else ui_cue_dir.path_join(filename)

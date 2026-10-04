@@ -335,6 +335,12 @@ signal net_steam_lobbies_discovered(lobbies: Array[Dictionary])
 ## tumble doesn't spam one impact into a machine-gun of thuds.
 signal block_impacted(speed: float)
 
+## Bontago-mp0.117: a local lobby UI action with its own sound (autoload/Sfx.gd
+## maps `cue` to a lobby_ui_cues_v1 file via AudioConfig.ui_cue_files). Emitted
+## by ui/Lobby.gd and ui/lobby/LobbyPlayersPanel.gd only for the local user's
+## confirmed action; peer join/leave and the loading gate use their own signals.
+signal lobby_ui_cue(cue: StringName)
+
 # --- M7 P4: block effects (spec 2.10) ---------------------------------------
 
 ## Additive alongside block_impacted above (Bontago-xtq.29, M7 P4 fix):

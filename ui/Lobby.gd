@@ -582,7 +582,8 @@ func _apply_row_layout() -> void:
 			(node as Control).custom_minimum_size.x = layout_tuning.value_column_width_px
 
 
-func _on_section_toggled(_state: bool) -> void:
+func _on_section_toggled(state: bool) -> void:
+	Events.lobby_ui_cue.emit(&"section_expanded" if state else &"section_collapsed")
 	_rewire_focus()
 
 
@@ -725,9 +726,10 @@ func _add_stepper_buttons(spin: SpinBox, target: Array[Button]) -> void:
 ## own (it isn't gameplay), so this calls Sfx directly -- the one named
 ## exception to "Sfx listens, nothing calls it" (autoload/Sfx.gd's header).
 ## Scoped to actual buttons, not every settings control, so dragging a
-## slider doesn't spam hover sounds.
+## slider doesn't spam hover sounds. DECISION (Bontago-mp0.117): the ready toggle
+## is not here -- it has its own ready_on/ready_off cue (no double click).
 func _connect_click_and_hover_sounds() -> void:
-	var buttons: Array[BaseButton] = [_start_button, _invite_friends_button, _ready_check, _back_button]
+	var buttons: Array[BaseButton] = [_start_button, _invite_friends_button, _back_button]
 	for button: BaseButton in buttons:
 		button.pressed.connect(_on_sound_button_pressed)
 		button.mouse_entered.connect(_on_sound_button_hovered)
@@ -1332,14 +1334,20 @@ func _on_teams_toggled(enabled: bool) -> void:
 
 
 func _on_add_bot_requested() -> void:
-	_set_bot_count(int(_ai_count_spin.value) + 1)
+	var before: int = int(_ai_count_spin.value)
+	_set_bot_count(before + 1)
+	if int(_ai_count_spin.value) > before:
+		Events.lobby_ui_cue.emit(&"bot_added")
 
 
 func _on_remove_bot_requested(ordinal: int) -> void:
 	# Bontago-1pi.62: the removed bot's name is freed; later bots keep theirs.
 	if ordinal >= 0 and ordinal < _bot_names.size():
 		_bot_names.remove_at(ordinal)
-	_set_bot_count(maxi(0, int(_ai_count_spin.value) - 1))
+	var before: int = int(_ai_count_spin.value)
+	_set_bot_count(maxi(0, before - 1))
+	if int(_ai_count_spin.value) < before:
+		Events.lobby_ui_cue.emit(&"bot_removed")
 
 
 ## Add/remove bot through the hidden spins, so the existing clamps and the one
@@ -1469,6 +1477,7 @@ func _clamp_ai_count_to_seats() -> void:
 
 
 func _on_ready_toggled(pressed: bool) -> void:
+	Events.lobby_ui_cue.emit(&"ready_on" if pressed else &"ready_off")
 	if net_provider != null:
 		net_provider.set_local_ready(pressed)
 
