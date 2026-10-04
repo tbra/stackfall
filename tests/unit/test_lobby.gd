@@ -678,7 +678,7 @@ func test_every_loaded_special_def_gets_a_checkbox_checked_by_default() -> void:
 	for i: int in range(all_defs.size()):
 		assert_eq(lobby._special_ids[i], all_defs[i].id)
 		assert_true(lobby._special_checkboxes[i].button_pressed, "every box starts checked (all enabled)")
-	var checklist: HFlowContainer = lobby.get_node("%SpecialsChecklist")
+	var checklist: GridContainer = lobby.get_node("%SpecialsChecklist")
 	assert_eq(checklist.get_child_count(), all_defs.size())
 
 
@@ -951,15 +951,15 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	var lobby: Lobby = _make_lobby(true)
 
 	var start_button: Control = lobby.get_node("%StartButton") as Control
-	# Bontago-1pi.53 (S1a): the loop starts at the GAME section's header, then its mode.
-	var first_stop: Control = (lobby.get_node("%GameSection") as LobbySection).header_button
+	# Bontago-1pi.61: section headers are static; the loop starts at the GAME mode.
+	var first_stop: Control = lobby.get_node("%GameModeOption") as Control
 	var start_bottom: Node = start_button.get_node(start_button.focus_neighbor_bottom)
-	assert_eq(start_bottom, first_stop, "the chain must wrap from StartButton back to the GAME header")
+	assert_eq(start_bottom, first_stop, "the chain must wrap from StartButton back to the game mode")
 
 	var top_neighbor: Node = first_stop.get_node(first_stop.focus_neighbor_top)
-	assert_eq(top_neighbor, start_button, "the GAME header's up neighbor must close the loop back to StartButton")
-	var first_option: Control = lobby.get_node("%GameModeOption") as Control
-	assert_eq(first_stop.get_node(first_stop.focus_neighbor_bottom), first_option, "the mode picker follows its header")
+	assert_eq(top_neighbor, start_button, "the game mode's up neighbor must close the loop back to StartButton")
+	var second_option: Control = lobby.get_node("%MapComboOption") as Control
+	assert_eq(first_stop.get_node(first_stop.focus_neighbor_bottom), second_option, "the map picker follows the mode picker")
 
 	# Bontago-1pi.53 (S1b): the hidden sources of truth (%TeamModeOption, the seat spins and
 	# the default-difficulty dropdown, plus the map variant/size options behind the combined
@@ -1022,13 +1022,14 @@ func test_round_mode_and_timer_are_primary_settings() -> void:
 	assert_eq(round_section.name, "RoundSection")
 	assert_true((lobby.get_node("%MatchTimerCol") as Control).visible)
 	assert_false((lobby.get_node("%RoundTimerCol") as Control).visible)
-	var header: Control = round_section.header_button
+	# Bontago-1pi.61: headers are not stops; ROUND's first stop follows GAME's Advanced chip.
 	var timer_control: Control = lobby.get_node("%MatchTimerSlider") as Control
-	assert_eq(header.get_node(header.focus_neighbor_bottom), timer_control)
+	assert_eq(timer_control.get_node(timer_control.focus_neighbor_top), game_section.advanced_button)
 	lobby._refresh_timer_control(MatchConfig.GameMode.ELIMINATION)
 	assert_false((lobby.get_node("%MatchTimerCol") as Control).visible)
 	assert_true((lobby.get_node("%RoundTimerCol") as Control).visible)
-	assert_eq(header.get_node(header.focus_neighbor_bottom), lobby.get_node("%RoundTimerSlider"))
+	var round_control: Control = lobby.get_node("%RoundTimerSlider") as Control
+	assert_eq(round_control.get_node(round_control.focus_neighbor_top), game_section.advanced_button)
 
 
 func _y_event() -> InputEventAction:

@@ -20,6 +20,18 @@ extends Resource
 ## Left indent of an Advanced block under its section header (S1b).
 @export var advanced_indent_px: int = 12
 
+## Width of the label column every settings row shares (Bontago-1pi.61), in px.
+@export var label_column_width_px: int = 150
+
+## Width of the value column (slider readout chip / value label) every row shares.
+@export var value_column_width_px: int = 64
+
+## Horizontal gap between the cells of one settings row.
+@export var row_separation_px: int = 12
+
+## Vertical gap between settings rows (and between checklist rows).
+@export var row_spacing_px: int = 8
+
 ## Edge of a seat row's colour box, in px (width, height). Replaces the 24 x 24
 ## clay-cube icon the roster rows drew before the rework.
 @export var color_box_size_px: Vector2 = Vector2(24.0, 24.0)

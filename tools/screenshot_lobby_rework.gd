@@ -40,7 +40,8 @@ func _ready() -> void:
 	var mode_option: OptionButton = lobby.get_node("%GameModeOption") as OptionButton
 	mode_option.select(MatchConfig.GameMode.REACH_THE_SKY)
 	mode_option.item_selected.emit(MatchConfig.GameMode.REACH_THE_SKY)
-	lobby.debug_open_advanced_rules_popup()
+	for section: LobbySection in lobby._sections():
+		section.set_advanced_open(true)
 	await _wait_frames(SETTLE_FRAMES)
 	shots.append(await _shoot())
 

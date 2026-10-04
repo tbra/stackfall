@@ -1,7 +1,8 @@
 extends GutTest
 ## Bontago-1pi.53 (S1a/S1b, docs/LOBBY_REWORK_PLAN.md sections 2 and 4): the settings column
-## is a stack of LobbySections (GAME, ROUND, GIFTS, EXPERIMENTS) with collapsible headers, an
-## optional Advanced block, a one-line summary each, and a focus loop that follows them.
+## is a stack of LobbySections (GAME, ROUND, GIFTS, EXPERIMENTS) with static headers (Bontago-1pi.61:
+## never collapsible), an optional collapsible Advanced block, a one-line summary each, and a focus
+## loop that follows them.
 ## Host edits every setting from its section; a client reads them read-only; no
 ## collapsed block or hidden column ever leaves an invisible focus stop. S1b: the
 ## per-gift checklist is GIFTS Advanced, the experiment checks are the EXPERIMENTS block, and
@@ -110,21 +111,22 @@ func test_controls_live_in_their_plan_sections() -> void:
 		assert_true(gifts.body.is_ancestor_of(lobby.get_node(unique_name)), "%s is GIFTS main" % unique_name)
 	assert_true(gifts.advanced.is_ancestor_of(lobby.get_node("%SpecialsChecklist")), "the per-gift checkboxes are GIFTS Advanced")
 	var experiments: LobbySection = _section(lobby, "%ExperimentsSection")
-	assert_true(experiments.header_opens_advanced, "the EXPERIMENTS header opens its checks")
 	assert_null(experiments.body, "EXPERIMENTS has no main body")
-	assert_null(experiments.advanced_button, "and no separate Advanced chip")
+	assert_not_null(experiments.advanced_button, "its checks sit behind the Advanced chip like every section")
 	for unique_name: String in QOL_NAMES:
 		assert_true(experiments.advanced.is_ancestor_of(lobby.get_node(unique_name)), "%s is EXPERIMENTS Advanced" % unique_name)
 	assert_eq(lobby._sections(), [game, round_section, gifts, experiments] as Array[LobbySection], "visual order: GAME, ROUND, GIFTS, EXPERIMENTS")
 
 
-func test_sections_default_expanded_with_advanced_collapsed() -> void:
+func test_sections_default_with_advanced_collapsed() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	for section: LobbySection in lobby._sections():
-		assert_true(section.is_expanded(), "%s starts expanded" % section.name)
 		assert_false(section.is_advanced_open(), "%s starts with Advanced collapsed" % section.name)
-		assert_true(section.header_button.is_visible_in_tree(), "%s header is shown" % section.name)
-		assert_eq(section.header_button.focus_mode, Control.FOCUS_ALL)
+		assert_true((section.get_node("HeaderRow") as Control).is_visible_in_tree(), "%s header is shown" % section.name)
+		if section.has_advanced():
+			assert_eq(section.advanced_button.focus_mode, Control.FOCUS_ALL)
+		if section.body != null:
+			assert_true(section.body.is_visible_in_tree(), "%s body is always shown" % section.name)
 	var game: LobbySection = _section(lobby, "%GameSection")
 	assert_false(game.advanced.visible)
 	assert_false((lobby.get_node("%GravitySlider") as Control).is_visible_in_tree(), "collapsed Advanced hides its controls")
@@ -133,23 +135,18 @@ func test_sections_default_expanded_with_advanced_collapsed() -> void:
 
 # --- Toggling ------------------------------------------------------------------------------
 
-func test_header_press_collapses_and_restores_a_section_and_its_focus_stops() -> void:
+## Section headers are static (Bontago-1pi.61): no collapse API, no focus stop, no chevron.
+func test_section_headers_are_static_and_not_focus_stops() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var round_section: LobbySection = _section(lobby, "%RoundSection")
-	var block_slider: Control = lobby.get_node("%BlockTimerSlider") as Control
-	assert_true(lobby._visible_chain(lobby._main_chain).has(block_slider))
-	watch_signals(round_section)
-	round_section.header_button.pressed.emit()
-	assert_false(round_section.is_expanded())
-	assert_signal_emitted_with_parameters(round_section, "expanded_changed", [false])
-	assert_false(block_slider.is_visible_in_tree(), "the body is hidden")
-	assert_false(lobby._visible_chain(lobby._main_chain).has(block_slider), "its controls leave the loop")
-	assert_true(lobby._visible_chain(lobby._main_chain).has(round_section.header_button), "the header stays a stop")
-	_assert_loop_has_no_invisible_stops(lobby, "ROUND collapsed")
-	round_section.header_button.pressed.emit()
-	assert_true(round_section.is_expanded())
-	assert_true(block_slider.is_visible_in_tree())
-	_assert_loop_has_no_invisible_stops(lobby, "ROUND restored")
+	for section: LobbySection in lobby._sections():
+		assert_false(section.has_method("set_expanded"), "%s cannot be collapsed" % section.name)
+		assert_false(section.has_signal("expanded_changed"))
+		var header: Control = section.get_node("HeaderRow") as Control
+		for child: Node in header.find_children("*", "Control", true, false):
+			assert_eq((child as Control).focus_mode, Control.FOCUS_NONE, "%s header is not focusable" % section.name)
+		for stop: Control in lobby._visible_chain(lobby._main_chain):
+			assert_false(header.is_ancestor_of(stop), "no header control is a stop")
+	_assert_loop_has_no_invisible_stops(lobby, "static headers")
 
 
 func test_advanced_chip_opens_the_block_and_adds_its_controls_to_the_loop() -> void:
@@ -173,49 +170,41 @@ func test_advanced_chip_opens_the_block_and_adds_its_controls_to_the_loop() -> v
 	_assert_loop_has_no_invisible_stops(lobby, "GAME advanced closed again")
 
 
-func test_toggle_advanced_expands_a_collapsed_section_first() -> void:
+func test_toggle_advanced_flips_the_block() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var game: LobbySection = _section(lobby, "%GameSection")
-	game.set_expanded(false)
 	game.toggle_advanced()
-	assert_true(game.is_expanded())
 	assert_true(game.is_advanced_open())
 	game.toggle_advanced()
 	assert_false(game.is_advanced_open())
 	_assert_loop_has_no_invisible_stops(lobby, "toggle_advanced")
 
 
-func test_ui_accept_on_a_focused_header_and_chip_toggles_them() -> void:
+func test_ui_accept_on_a_focused_chip_toggles_it() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var game: LobbySection = _section(lobby, "%GameSection")
-	game.header_button.grab_focus()
-	assert_true(game.header_button.has_focus(), "fixture: the header holds focus")
-	Input.parse_input_event(_accept_event(true))
-	Input.parse_input_event(_accept_event(false))
-	Input.flush_buffered_events()
-	await get_tree().process_frame
-	assert_false(game.is_expanded(), "ui_accept on the header collapses the section")
-	Input.parse_input_event(_accept_event(true))
-	Input.parse_input_event(_accept_event(false))
-	Input.flush_buffered_events()
-	await get_tree().process_frame
-	assert_true(game.is_expanded(), "a second ui_accept expands it again")
 	game.advanced_button.grab_focus()
+	assert_true(game.advanced_button.has_focus(), "fixture: the chip holds focus")
 	Input.parse_input_event(_accept_event(true))
 	Input.parse_input_event(_accept_event(false))
 	Input.flush_buffered_events()
 	await get_tree().process_frame
 	assert_true(game.is_advanced_open(), "ui_accept on the Advanced chip opens the block")
 	assert_true(lobby._visible_chain(lobby._main_chain).has(lobby.get_node("%GravitySlider")))
+	Input.parse_input_event(_accept_event(true))
+	Input.parse_input_event(_accept_event(false))
+	Input.flush_buffered_events()
+	await get_tree().process_frame
+	assert_false(game.is_advanced_open(), "a second ui_accept closes it again")
 
 
 func test_ui_down_walks_the_sections_in_visual_order() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var visited: Array[Control] = _walk_loop(lobby)
 	var order: Array[Control] = [
-		_section(lobby, "%GameSection").header_button, lobby.get_node("%GameModeOption") as Control,
-		_section(lobby, "%RoundSection").header_button, _section(lobby, "%GiftsSection").header_button,
-		_section(lobby, "%ExperimentsSection").header_button, lobby.get_node("%BackButton") as Control,
+		lobby.get_node("%GameModeOption") as Control, _section(lobby, "%GameSection").advanced_button,
+		lobby.get_node("%BlockTimerSlider") as Control, _section(lobby, "%GiftsSection").advanced_button,
+		_section(lobby, "%ExperimentsSection").advanced_button, lobby.get_node("%BackButton") as Control,
 	]
 	var last_index: int = -1
 	for control: Control in order:
@@ -246,8 +235,8 @@ func test_gifts_and_experiments_advanced_blocks_join_the_loop_in_visual_order() 
 	for unique_name: String in QOL_NAMES:
 		assert_false(shown.has(lobby.get_node(unique_name)), "%s is not a stop while EXPERIMENTS is closed" % unique_name)
 	gifts.advanced_button.button_pressed = true
-	experiments.header_button.pressed.emit()
-	assert_true(experiments.is_advanced_open(), "the EXPERIMENTS header opens its block")
+	experiments.advanced_button.button_pressed = true
+	assert_true(experiments.is_advanced_open(), "the EXPERIMENTS chip opens its block")
 	shown = lobby._visible_chain(lobby._main_chain)
 	var last_index: int = shown.find(gifts.advanced_button)
 	assert_gt(last_index, shown.find(lobby.get_node("%SpecialFreqSlider")), "the chip follows the GIFTS main controls")
@@ -255,34 +244,34 @@ func test_gifts_and_experiments_advanced_blocks_join_the_loop_in_visual_order() 
 		var index: int = shown.find(control)
 		assert_gt(index, last_index, "%s follows the previous stop" % control.name)
 		last_index = index
-	assert_gt(shown.find(experiments.header_button), last_index, "EXPERIMENTS follows GIFTS")
-	last_index = shown.find(experiments.header_button)
+	assert_gt(shown.find(experiments.advanced_button), last_index, "EXPERIMENTS follows GIFTS")
+	last_index = shown.find(experiments.advanced_button)
 	for unique_name: String in QOL_NAMES:
 		var index: int = shown.find(lobby.get_node(unique_name))
 		assert_gt(index, last_index, "%s follows the previous stop" % unique_name)
 		last_index = index
 	assert_lt(last_index, shown.find(lobby.get_node("%BackButton")), "the footer follows the settings")
 	_assert_loop_has_no_invisible_stops(lobby, "GIFTS + EXPERIMENTS open")
-	experiments.header_button.pressed.emit()
+	experiments.advanced_button.button_pressed = false
 	assert_false(experiments.is_advanced_open())
 	_assert_loop_has_no_invisible_stops(lobby, "EXPERIMENTS closed again")
 
 
-func test_ui_accept_on_the_experiments_header_toggles_its_block() -> void:
+func test_ui_accept_on_the_experiments_chip_toggles_its_block() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var experiments: LobbySection = _section(lobby, "%ExperimentsSection")
-	experiments.header_button.grab_focus()
-	assert_true(experiments.header_button.has_focus(), "fixture: the header holds focus")
+	experiments.advanced_button.grab_focus()
+	assert_true(experiments.advanced_button.has_focus(), "fixture: the chip holds focus")
 	Input.parse_input_event(_accept_event(true))
 	Input.parse_input_event(_accept_event(false))
 	Input.flush_buffered_events()
 	await get_tree().process_frame
-	assert_true(experiments.is_advanced_open(), "ui_accept on the header opens the experiments")
+	assert_true(experiments.is_advanced_open(), "ui_accept on the chip opens the experiments")
 	assert_true(lobby._visible_chain(lobby._main_chain).has(lobby.get_node("%QolBacklogCheck")))
 
 
-## Hiding a block while focus is inside it hands focus to a visible stop (the chip, or the header
-## of a header-toggled section) instead of dropping it with the hidden control.
+## Hiding a block while focus is inside it hands focus to the section's chip instead of
+## dropping it with the hidden control.
 func test_collapsing_a_block_with_focus_inside_keeps_focus_on_a_visible_stop() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var game: LobbySection = _section(lobby, "%GameSection")
@@ -291,17 +280,13 @@ func test_collapsing_a_block_with_focus_inside_keeps_focus_on_a_visible_stop() -
 	assert_true((lobby.get_node("%TurnBasedCheck") as Control).has_focus(), "fixture: focus inside Advanced")
 	game.set_advanced_open(false)
 	assert_true(game.advanced_button.has_focus(), "focus moved to the chip")
-	(lobby.get_node("%WeatherOption") as Control).grab_focus()
-	game.set_expanded(false)
-	assert_true(game.header_button.has_focus(), "collapsing the section moves focus to its header")
 	var experiments: LobbySection = _section(lobby, "%ExperimentsSection")
 	experiments.set_advanced_open(true)
 	(lobby.get_node("%QolGiftSlotCheck") as Control).grab_focus()
 	experiments.set_advanced_open(false)
-	assert_true(experiments.header_button.has_focus(), "no chip: focus moves to the header")
+	assert_true(experiments.advanced_button.has_focus(), "focus moves to the chip")
 	# Focus elsewhere is never stolen by a toggle.
 	(lobby.get_node("%BackButton") as Control).grab_focus()
-	game.set_expanded(true)
 	game.set_advanced_open(true)
 	game.set_advanced_open(false)
 	assert_true((lobby.get_node("%BackButton") as Control).has_focus(), "an unrelated focus stays put")
@@ -457,7 +442,7 @@ func test_client_reads_the_sections_but_cannot_edit_them() -> void:
 			assert_false((control as Range).editable, "%s is read-only for a client" % unique_name)
 		else:
 			assert_true((control as BaseButton).disabled, "%s is disabled for a client" % unique_name)
-	assert_false(game.header_button.disabled, "a client can still open a section to read it")
+	assert_false(game.advanced_button.disabled, "a client can still open the Advanced block to read it")
 	game.advanced_button.button_pressed = true
 	assert_true(game.is_advanced_open())
 	assert_eq(_fake_of(lobby).set_lobby_data_calls.size(), 0, "opening a block publishes nothing")
@@ -468,8 +453,80 @@ func test_section_state_is_not_published_or_persisted() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var before: int = _fake_of(lobby).set_lobby_data_calls.size()
 	_section(lobby, "%GameSection").set_advanced_open(true)
-	_section(lobby, "%RoundSection").set_expanded(false)
 	assert_eq(_fake_of(lobby).set_lobby_data_calls.size(), before, "toggling a section is local UI state")
 	var fresh: Lobby = _make_lobby(true)
 	assert_false(_section(fresh, "%GameSection").is_advanced_open(), "a new lobby starts collapsed (plan D7)")
-	assert_true(_section(fresh, "%RoundSection").is_expanded())
+
+
+# --- Alignment (Bontago-1pi.61) ---------------------------------------------------------------
+
+## Lays the lobby out at a real size so cell rectangles mean something.
+func _laid_out_lobby(size: Vector2) -> Lobby:
+	var lobby: Lobby = _make_lobby(true)
+	lobby.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	lobby.size = size
+	for section: LobbySection in lobby._sections():
+		section.set_advanced_open(true)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	return lobby
+
+
+func _is_row_cell(cell: Control, group: StringName) -> bool:
+	return cell.is_visible_in_tree() and cell.is_in_group(group) and cell.get_parent().is_in_group(Lobby.ROW_GROUP)
+
+
+func test_label_and_value_columns_share_one_x_and_width_across_sections() -> void:
+	var lobby: Lobby = await _laid_out_lobby(Vector2(1920, 1080))
+	var settings: Control = lobby.get_node("%Settings") as Control
+	var value_edge: float = NAN
+	var label_count: int = 0
+	var expected_width: float = lobby.layout_tuning.label_column_width_px
+	for node: Node in settings.find_children("*", "Control", true, false):
+		var cell: Control = node as Control
+		if _is_row_cell(cell, Lobby.LABEL_CELL_GROUP):
+			label_count += 1
+			assert_almost_eq(cell.size.x, expected_width, 0.51, "%s label cell width" % cell.name)
+		elif _is_row_cell(cell, Lobby.VALUE_CELL_GROUP):
+			if is_nan(value_edge):
+				value_edge = cell.global_position.x + cell.size.x
+			assert_almost_eq(cell.global_position.x + cell.size.x, value_edge, 0.51, "%s value column right edge" % cell.name)
+	assert_gt(label_count, 8, "label cells found")
+	_assert_cells_aligned(lobby, false)
+	_assert_cells_aligned(lobby, true)
+
+
+## Main-body label cells share an x in every section; Advanced label cells share an x too.
+func _assert_cells_aligned(lobby: Lobby, advanced_block: bool) -> void:
+	var x_ref: float = NAN
+	var seen: int = 0
+	for section: LobbySection in lobby._sections():
+		var block: Control = section.advanced if advanced_block else section.body
+		if block == null:
+			continue
+		for node: Node in block.find_children("*", "Control", true, false):
+			var cell: Control = node as Control
+			if _is_row_cell(cell, Lobby.LABEL_CELL_GROUP):
+				if is_nan(x_ref):
+					x_ref = cell.global_position.x
+				seen += 1
+				assert_almost_eq(cell.global_position.x, x_ref, 0.51, "%s (%s) label x" % [cell.name, section.name])
+	assert_gt(seen, 2, "label cells found in the %s blocks" % ("Advanced" if advanced_block else "main"))
+
+
+func test_main_block_control_columns_share_one_x() -> void:
+	var lobby: Lobby = await _laid_out_lobby(Vector2(1920, 1080))
+	var control_x: float = NAN
+	var seen: int = 0
+	for section: LobbySection in lobby._sections():
+		if section.body == null:
+			continue
+		for node: Node in section.body.find_children("*", "HBoxContainer", true, false):
+			var rowc: Control = node as Control
+			if rowc.is_in_group(Lobby.ROW_GROUP) and rowc.is_visible_in_tree() and rowc.get_child_count() > 1 and rowc.get_child(0).is_in_group(Lobby.LABEL_CELL_GROUP):
+				var first_control: Control = rowc.get_child(1) as Control
+				if is_nan(control_x):
+					control_x = first_control.global_position.x
+				seen += 1
+				assert_almost_eq(first_control.global_position.x, control_x, 0.51, "%s control column x" % rowc.name)
+	assert_gt(seen, 4, "rows found")
