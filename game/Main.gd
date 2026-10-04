@@ -63,6 +63,7 @@ const MAIN_MENU_SCENE: PackedScene = preload("res://ui/MainMenu.tscn")
 const LOBBY_SCENE: PackedScene = preload("res://ui/Lobby.tscn")
 const HOT_SEAT_SCENE: PackedScene = preload("res://game/HotSeat.tscn")
 const SANDBOX_SCENE: PackedScene = preload("res://game/Sandbox.tscn")
+const GIFT_DEMO_PRESET: SandboxConfig = preload("res://config/sandbox_gift_demo.tres")
 ## docs/M6_PLAN.md package B3 (spec 2.7 "Tutorial").
 const TUTORIAL_SCENE: PackedScene = preload("res://ui/Tutorial.tscn")
 const REMOTE_CURSORS_SCENE: PackedScene = preload("res://game/RemoteCursors.tscn")
@@ -96,6 +97,8 @@ var _main_menu: MainMenu = null
 var _lobby: Lobby = null
 var _hot_seat: HotSeat = null
 var _sandbox: Sandbox = null
+## Bontago-1pi.70: set only by start_gift_demo_from_menu().
+var _sandbox_preset: SandboxConfig = null
 ## docs/M6_PLAN.md package B3: built/freed only by start_tutorial_from_menu()/
 ## _on_tutorial_finished() below -- never touched by _build_match_world()/
 ## _end_match_world() (this package does not own those functions).
@@ -261,9 +264,7 @@ func _ready() -> void:
 		Net.init_steam()
 	# Bontago-59o.1: interactive launches show the SlopShop splash (with its
 	# jingle) first; headless/CLI entry points go straight to the menu.
-	# Bontago-1pi.34: coming back from a debug demo scene skips the splash.
-	var returning_from_demo: bool = DemoReturn.consume_returning()
-	if SplashScreen.should_show_now() and not returning_from_demo:
+	if SplashScreen.should_show_now():
 		var splash: SplashScreen = SplashScreen.new()
 		add_child(splash)
 		splash.finished.connect(_show_main_menu)
@@ -432,6 +433,11 @@ func _start_sandbox_match_with_args(args: PackedStringArray) -> void:
 ## false. _start_sandbox_match_with_args([]) below still runs byte-identical
 ## to the CLI path: default player count, no forced special.
 func start_sandbox_from_menu() -> void:
+	_sandbox_preset = null
+	_launch_sandbox_from_menu()
+
+
+func _launch_sandbox_from_menu() -> void:
 	_clear_menu_and_lobby()
 	# Bontago-1pi.46 (G5): this path bypasses _build_match_world(), so it needs
 	# its own new-match reset -- before Sandbox.set_camera_rig() below, which
@@ -446,6 +452,17 @@ func start_sandbox_from_menu() -> void:
 	_start_sandbox_match_with_args(PackedStringArray())
 
 
+## Bontago-1pi.70: the Debug page's Gift demo. The ordinary sandbox launched
+## with config/sandbox_gift_demo.tres: pre-placed opponent towers, gifts on at
+## high frequency. Leaving goes through the sandbox pause menu like any sandbox.
+func start_gift_demo_from_menu() -> void:
+	if not DebugMode.is_enabled():
+		return
+	_sandbox_preset = GIFT_DEMO_PRESET
+	_launch_sandbox_from_menu()
+	_sandbox.apply_preset(GIFT_DEMO_PRESET)
+
+
 ## Same lobby-settings-minus-a-few-overrides shape as _build_hot_seat_config().
 ## config.sandbox is what lets MatchConfig.sanitize() allow `player_count`
 ## below spec 2.8's normal floor of 2, and tells Match to start with its feed
@@ -456,6 +473,10 @@ func _build_sandbox_config(requested_player_count: int) -> MatchConfig:
 	config.hot_seat = false
 	config.ai_count = 0
 	config.sandbox = true
+	if _sandbox_preset != null:
+		if _sandbox_preset.special_frequency_override >= 0:
+			config.gifts_enabled = true
+			config.special_frequency = _sandbox_preset.special_frequency_override
 	return config
 
 
@@ -474,6 +495,8 @@ func _sandbox_player_count(args: PackedStringArray) -> int:
 			text = text.substr(1)
 		if text.begins_with(PREFIX):
 			return int(text.substr(PREFIX.length()))
+	if _sandbox_preset != null:
+		return _sandbox_preset.default_player_count
 	return sandbox_config.default_player_count
 
 
@@ -979,27 +1002,7 @@ func _show_main_menu() -> void:
 	_main_menu.sandbox_requested.connect(start_sandbox_from_menu)
 	_main_menu.tutorial_requested.connect(start_tutorial_from_menu)
 	_main_menu.bots_requested.connect(start_bots_from_menu)
-	_main_menu.debug_scene_requested.connect(open_debug_scene)
-
-
-## Bontago-1pi.34: the main menu's Debug page opens the visual demo / gift demo
-## scenes as the running scene (debug mode only -- DebugMode is the same gate
-## the menu entry uses, so a stray signal in a player build does nothing).
-## This does not touch AgentProbe: its tiny-window/mute mode is decided once
-## at startup from the command line (Settings._ready() -> AgentProbe.apply(),
-## "res://tools/..." named on the command line or `-- --agent-probe`), and a
-## scene change from here changes neither, so the owner's window stays as is.
-## game/DemoReturn.gd brings the player back (Esc / B, or the gift demo's own
-## pause-menu Leave). A scene that does not exist (the visual demo is baked
-## per checkout, see tools/bake_visual_demo.gd) is reported on the status line.
-func open_debug_scene(scene_path: String) -> void:
-	if not DebugMode.is_enabled():
-		return
-	var err: Error = DemoReturn.launch(get_tree(), scene_path)
-	if err != OK and _main_menu != null and is_instance_valid(_main_menu):
-		_main_menu.show_status("Could not open %s (%s). The visual demo is made by tools/bake_visual_demo.tscn." % [
-			scene_path, error_string(err),
-		])
+	_main_menu.gift_demo_requested.connect(start_gift_demo_from_menu)
 
 
 ## DECISION: Play local → Vs bots starts from the normal lobby with one human

@@ -68,6 +68,11 @@ var _forced_special_queue_full: bool = false
 ## sandbox_config.slow_motion_scale. ui/SandboxPanel.gd reads this every
 ## refresh.
 var _slow_motion_active: bool = false
+## Bontago-1pi.70: the gift-demo preset (null for a plain sandbox) and a
+## counter that cancels a pending pre-placement when the field resets again.
+var _preset: SandboxConfig = null
+var _gift_strip: GiftDemoStrip = null
+var _preplace_generation: int = 0
 ## sandbox_pause_physics (F11): whether get_tree().paused is currently true
 ## (set only by this hotkey, in sandbox). ui/SandboxPanel.gd reads this every
 ## refresh.
@@ -196,6 +201,18 @@ func forced_special_queue_full() -> bool:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# Bontago-1pi.70: gift-demo preset only. DECISION: the old demo's cursor
+	# toggle is dropped (pause menu frees the cursor) and its reset is F5, which
+	# re-places the preset towers.
+	if _preset != null:
+		if event.is_action_pressed(&"gift_demo_cycle_prev"):
+			_cycle_forced_special(-1)
+			get_viewport().set_input_as_handled()
+			return
+		if event.is_action_pressed(&"gift_demo_cycle_next"):
+			_cycle_forced_special(1)
+			get_viewport().set_input_as_handled()
+			return
 	# Bontago-470.8: every sandbox hotkey but slot switching (Tab / pad Back, a
 	# play feature, not a debug tool) is debug-only.
 	if not DebugMode.is_enabled() and not event.is_action_pressed(&"sandbox_next_slot"):
@@ -366,6 +383,7 @@ func _reset_field() -> void:
 	_slow_motion_active = false
 	Engine.time_scale = 1.0
 	_panel.reset_height_record()
+	_preplace_preset_blocks()
 	_comparison_panel.show_status("Field reset. Choose a trial; F4 adjusts physics before the next run.")
 
 
@@ -566,6 +584,40 @@ func _comparison_finished(result: Dictionary) -> void:
 ## practice this builds a tower of whatever the bag deals next, not
 ## literally N cubes — the debugging value (a fast physical stack to test
 ## territory/physics against) is the same either way.
+## Bontago-1pi.70: arms the gift-demo preset; its towers drop once the match
+## countdown ends and again after every field reset.
+func apply_preset(preset: SandboxConfig) -> void:
+	_preset = preset
+	if _gift_strip == null:
+		_gift_strip = GiftDemoStrip.new()
+		add_child(_gift_strip)
+	_preplace_preset_blocks()
+
+
+## Ordinary accepted placements by every opponent slot (all but slot 0), stacked
+## at each home position, so the field has real blocks for gifts to hit.
+func _preplace_preset_blocks() -> void:
+	_preplace_generation += 1
+	if _preset == null or _preset.preplaced_tower_blocks <= 0:
+		return
+	var generation: int = _preplace_generation
+	while Match.state() != Match.State.PLAYING:
+		if generation != _preplace_generation or not is_inside_tree():
+			return
+		await get_tree().process_frame
+	if generation != _preplace_generation or _field == null:
+		return
+	for slot_id: int in range(1, Match.slot_count()):
+		var home: Vector2 = Match.slot(slot_id).home_position
+		for i: int in range(_preset.preplaced_tower_blocks):
+			var height: float = _preset.preplaced_drop_height + _preset.tower_spacing * float(i)
+			var origin: Vector3 = _field.to_global(Vector3(home.x, height, home.y))
+			var result: StringName = Match.request_place(slot_id, origin, 0, Quaternion.IDENTITY, false)
+			if result != PlacementRules.REASON_OK:
+				push_warning("Sandbox preset: pre-place for slot %d refused: %s" % [slot_id, result])
+				break
+
+
 func _spawn_tower() -> void:
 	if _ghost == null or Match.state() != Match.State.PLAYING:
 		return
@@ -600,12 +652,14 @@ func _toggle_overlay() -> void:
 ## sandbox_force_special (F9 / gamepad): advances _forced_special_index one
 ## step, wrapping "off" (-1) back in after the last roster id -- see this
 ## field's own doc comment for the off/on-roster/off shape.
-func _cycle_forced_special() -> void:
+func _cycle_forced_special(step: int = 1) -> void:
 	if _special_roster_ids.is_empty():
 		return
-	_forced_special_index += 1
+	_forced_special_index += step
 	if _forced_special_index >= _special_roster_ids.size():
 		_forced_special_index = -1
+	elif _forced_special_index < -1:
+		_forced_special_index = _special_roster_ids.size() - 1
 	_apply_forced_special()
 
 
@@ -634,6 +688,8 @@ func force_special_by_id(special_id: StringName) -> void:
 ## gift while leaving the current held piece untouched. The forced drawer is
 ## still installed if the debug request is refused.
 func _apply_forced_special() -> void:
+	if _gift_strip != null:
+		_gift_strip.set_gift(_special_roster_ids[_forced_special_index] if _forced_special_index >= 0 and _forced_special_index < _special_roster_ids.size() else &"")
 	if _forced_special_index < 0 or _forced_special_index >= _special_roster_ids.size():
 		_forced_special_id = &""
 		_forced_special_queue_full = false

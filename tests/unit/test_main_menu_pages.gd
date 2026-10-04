@@ -183,19 +183,16 @@ func test_debug_entry_does_not_move_any_other_control() -> void:
 		assert_true((before[node_name] as Rect2).is_equal_approx(restored), "%s moved when the debug entry went away" % node_name)
 
 
-func test_debug_page_offers_both_demos_and_back_returns_to_the_entry() -> void:
+func test_debug_page_offers_the_gift_demo_and_back_returns_to_the_entry() -> void:
 	var menu: MainMenu = _make_menu(true)
 	watch_signals(menu)
 	menu._on_debug_pressed()
-	assert_true(_node(menu, "VisualDemoButton").is_visible_in_tree())
 	assert_true(_node(menu, "GiftDemoButton").is_visible_in_tree())
 	assert_false(_node(menu, "HostButton").is_visible_in_tree())
 	assert_false(_node(menu, "NameEdit").is_visible_in_tree())
-	assert_eq(_focus(), _node(menu, "VisualDemoButton"))
-	_node(menu, "VisualDemoButton").pressed.emit()
+	assert_eq(_focus(), _node(menu, "GiftDemoButton"))
 	_node(menu, "GiftDemoButton").pressed.emit()
-	assert_signal_emitted_with_parameters(menu, "debug_scene_requested", [MainMenu.VISUAL_DEMO_SCENE], 0)
-	assert_signal_emitted_with_parameters(menu, "debug_scene_requested", [MainMenu.GIFT_DEMO_SCENE], 1)
+	assert_signal_emit_count(menu, "gift_demo_requested", 1)
 	var cancel: InputEventAction = InputEventAction.new()
 	cancel.action = "ui_cancel"
 	cancel.pressed = true
@@ -208,10 +205,9 @@ func test_demo_buttons_do_nothing_when_debug_mode_is_off() -> void:
 	var menu: MainMenu = _make_menu(false)
 	watch_signals(menu)
 	menu._on_debug_pressed()
-	menu._on_visual_demo_pressed()
 	menu._on_gift_demo_pressed()
-	assert_signal_not_emitted(menu, "debug_scene_requested")
-	assert_false(_node(menu, "VisualDemoButton").is_visible_in_tree())
+	assert_signal_not_emitted(menu, "gift_demo_requested")
+	assert_false(_node(menu, "GiftDemoButton").is_visible_in_tree())
 
 
 func test_pad_reaches_the_debug_entry_and_it_is_not_a_dead_end() -> void:
@@ -221,7 +217,7 @@ func test_pad_reaches_the_debug_entry_and_it_is_not_a_dead_end() -> void:
 	await _pad(JOY_BUTTON_DPAD_DOWN)
 	assert_eq(_focus(), _node(menu, "DebugButton"))
 	await _pad(JOY_BUTTON_A)
-	assert_eq(_focus(), _node(menu, "VisualDemoButton"), "A on Debug opens the Debug page")
+	assert_eq(_focus(), _node(menu, "GiftDemoButton"), "A on Debug opens the Debug page")
 	await _pad(JOY_BUTTON_B)
 	assert_eq(_focus(), _node(menu, "DebugButton"), "B goes back to the entry")
 	await _pad(JOY_BUTTON_DPAD_DOWN)
@@ -234,38 +230,6 @@ func test_debug_entry_off_leaves_home_navigation_as_before() -> void:
 	assert_eq(quit.get_node(quit.focus_neighbor_bottom), _node(menu, "NameEdit"))
 	var name_edit: LineEdit = _node(menu, "NameEdit") as LineEdit
 	assert_eq(name_edit.get_node(name_edit.focus_neighbor_top), _node(menu, "PlayLocalButton"))
-
-
-func test_demo_launch_reports_a_missing_scene_without_changing_scene() -> void:
-	var root_children: int = get_tree().root.get_child_count()
-	assert_eq(DemoReturn.launch(get_tree(), "res://visual_demo/does_not_exist.tscn"), ERR_FILE_NOT_FOUND)
-	assert_eq(get_tree().root.get_child_count(), root_children, "no return glue is left behind")
-
-
-func test_demo_return_glue_rules() -> void:
-	assert_true(DemoReturn.needs_glue(MainMenu.VISUAL_DEMO_SCENE))
-	assert_false(DemoReturn.needs_glue(MainMenu.GIFT_DEMO_SCENE), "the gift demo returns through its own pause menu")
-	assert_false(DemoReturn.consume_returning())
-
-
-func test_demo_return_glue_answers_cancel() -> void:
-	var glue: DemoReturn = DemoReturn.new()
-	glue.auto_return = false
-	add_child_autofree(glue)
-	watch_signals(glue)
-	var other: InputEventAction = InputEventAction.new()
-	other.action = "ui_accept"
-	other.pressed = true
-	glue._unhandled_input(other)
-	assert_signal_not_emitted(glue, "return_requested")
-	var cancel: InputEventAction = InputEventAction.new()
-	cancel.action = "ui_cancel"
-	cancel.pressed = true
-	glue._unhandled_input(cancel)
-	assert_signal_emitted(glue, "return_requested")
-
-
-# --- 1pi.36: Play local ---------------------------------------------------------------
 
 func test_play_local_has_no_name_input_and_vs_bots_first() -> void:
 	var menu: MainMenu = _make_menu()

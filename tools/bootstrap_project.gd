@@ -563,16 +563,11 @@ func _actions() -> Dictionary:
 	# press opens the pause menu.
 	a["perf_overlay_toggle"] = [_key(KEY_F1), _pad(JOY_BUTTON_RIGHT_STICK)]
 
-	# --- Gift demo tool (Bontago-mp0.25) ----------------------------------------
-	# DECISION: gift_demo is a development tool scene (tools/gift_demo.tscn) for
-	# testing special gift cycling. Its input actions do not conflict with
-	# gameplay since the demo disables normal controller input and handles its
-	# own subset of controls. These are tool-only actions, not shipped game
-	# bindings.
+	# --- Gift demo (Bontago-1pi.70) ---------------------------------------------
+	# Only read by game/Sandbox.gd while the gift-demo preset is active, so they
+	# never act in a normal sandbox or match.
 	a["gift_demo_cycle_prev"] = [_key(KEY_LEFT), _pad(JOY_BUTTON_LEFT_SHOULDER)]
 	a["gift_demo_cycle_next"] = [_key(KEY_RIGHT), _pad(JOY_BUTTON_RIGHT_SHOULDER)]
-	a["gift_demo_cursor_toggle"] = [_key(KEY_F6), _pad(JOY_BUTTON_BACK)]
-	a["gift_demo_reset"] = [_key(KEY_R), _pad(JOY_BUTTON_Y)]
 
 	return a
 

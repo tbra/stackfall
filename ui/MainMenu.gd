@@ -39,22 +39,13 @@ signal sandbox_requested
 signal tutorial_requested
 signal bots_requested(player_name: String)
 
-## Bontago-1pi.34: the Debug page's two demo buttons ask game/Main.gd to open a
-## demo scene (same direct child-signal convention as the signals above).
-## Only ever emitted while debug mode is on: the entry is not even visible
-## otherwise.
-signal debug_scene_requested(scene_path: String)
+## Bontago-1pi.70: the Debug page's Gift demo button asks game/Main.gd to start
+## the sandbox with the gift-demo preset. Only ever emitted while debug mode is
+## on: the entry is not even visible otherwise.
+signal gift_demo_requested
 
-## Bontago-1pi.34: the two dev demo scenes the Debug page opens. The visual
-## demo is the baked res://visual_demo/VisualDemo.tscn (tools/bake_visual_demo.
-## gd; the folder is gitignored, so it may not exist on a given checkout --
-## game/Main.gd reports that on the status line instead of failing); the gift
-## demo is tools/gift_demo.tscn (excluded from exports, so these are plain
-## paths here, never preloads).
-const VISUAL_DEMO_SCENE: String = "res://visual_demo/VisualDemo.tscn"
-const GIFT_DEMO_SCENE: String = "res://tools/gift_demo.tscn"
 ## Tagline shown on the Debug page in place of the wordmark's own tagline.
-const DEBUG_TAGLINE: String = "DEBUG · DEMO SCENES"
+const DEBUG_TAGLINE: String = "DEBUG · GIFT DEMO"
 
 ## docs/M6_PLAN.md package C2: OptionsMenu.tscn is instanced/freed directly by
 ## this menu (ui/OptionsMenu.gd's own header: "self-contained ... MainMenu
@@ -79,9 +70,8 @@ const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
 @onready var _back_button: Button = %BackButton
 ## Bontago-1pi.34: the debug-only entry. A corner overlay on the menu root (not
 ## a child of the card's containers), so showing or hiding it can never move
-## any other control; %VisualDemoButton/%GiftDemoButton live on the Debug page.
+## any other control; %GiftDemoButton lives on the Debug page.
 @onready var _debug_button: Button = %DebugButton
-@onready var _visual_demo_button: Button = %VisualDemoButton
 @onready var _gift_demo_button: Button = %GiftDemoButton
 @onready var _host_row: HBoxContainer = $Center/Panel/Layout/HostRow
 @onready var _join_tab_row: HBoxContainer = %JoinTabRow
@@ -199,7 +189,6 @@ func _ready() -> void:
 	_play_local_button.pressed.connect(_on_play_local_pressed)
 	_bots_button.pressed.connect(_on_bots_pressed)
 	_debug_button.pressed.connect(_on_debug_pressed)
-	_visual_demo_button.pressed.connect(_on_visual_demo_pressed)
 	_gift_demo_button.pressed.connect(_on_gift_demo_pressed)
 	_back_button.pressed.connect(_on_back_pressed)
 	_init_name_field()
@@ -263,7 +252,7 @@ func _connect_click_and_hover_sounds() -> void:
 	var buttons: Array[BaseButton] = [
 		_host_button, _join_button, _join_lan_tab_button, _join_steam_tab_button, _play_local_button, _sandbox_button, _tutorial_button,
 		_bots_button, _back_button, _options_button, _quit_button, _refresh_button,
-		_direct_join_button, _refresh_steam_button, _debug_button, _visual_demo_button,
+		_direct_join_button, _refresh_steam_button, _debug_button,
 		_gift_demo_button,
 	]
 	for button: BaseButton in buttons:
@@ -355,7 +344,6 @@ func _apply_visual_style() -> void:
 	# the corner entry so it reads as a tool, not a game mode); no icons, so
 	# they stay clear of the shared icon-colour overrides below.
 	MenuStyleFactory.apply_pill(_debug_button, tuning.pill_dark_slate_color, tuning.pill_dark_slate_hover_color, tuning.label_ink_light_color, tuning)
-	MenuStyleFactory.apply_pill(_visual_demo_button, tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning)
 	MenuStyleFactory.apply_pill(_gift_demo_button, tuning.pill_powder_blue_color, tuning.pill_powder_blue_hover_color, tuning.ink_color, tuning)
 	# SVG icons import at a large intrinsic size. Let Join controls scale the
 	# icon into a tuned row height so the full page fits the visible canvas.
@@ -451,14 +439,9 @@ func _on_debug_pressed() -> void:
 		_set_page(PAGE_DEBUG)
 
 
-func _on_visual_demo_pressed() -> void:
-	if _debug_entry_enabled:
-		debug_scene_requested.emit(VISUAL_DEMO_SCENE)
-
-
 func _on_gift_demo_pressed() -> void:
 	if _debug_entry_enabled:
-		debug_scene_requested.emit(GIFT_DEMO_SCENE)
+		gift_demo_requested.emit()
 
 
 ## Back (button, Esc or gamepad B) returns to the home page with focus on the
@@ -521,7 +504,6 @@ func _set_page(page: int, focus_target: Control = null) -> void:
 	_bots_button.visible = page == PAGE_LOCAL
 	_sandbox_button.visible = page == PAGE_LOCAL
 	_tutorial_button.visible = page == PAGE_LOCAL
-	_visual_demo_button.visible = page == PAGE_DEBUG
 	_gift_demo_button.visible = page == PAGE_DEBUG
 	_back_button.visible = page != PAGE_HOME
 	_debug_button.visible = _debug_entry_enabled and page == PAGE_HOME
@@ -539,7 +521,7 @@ func _default_focus(page: int) -> Control:
 		PAGE_LOCAL:
 			return _bots_button
 		PAGE_DEBUG:
-			return _visual_demo_button
+			return _gift_demo_button
 	return _host_button
 
 
@@ -561,7 +543,7 @@ func _steam_available() -> bool:
 func _wired_controls() -> Array[Control]:
 	return [
 		_name_edit, _host_button, _join_button, _play_local_button, _options_button, _quit_button,
-		_debug_button, _bots_button, _sandbox_button, _tutorial_button, _visual_demo_button,
+		_debug_button, _bots_button, _sandbox_button, _tutorial_button,
 		_gift_demo_button, _back_button, _join_lan_tab_button, _join_steam_tab_button,
 		_refresh_button, _game_list, _direct_ip_edit, _direct_join_button, _refresh_steam_button,
 		_steam_lobby_list,
@@ -580,7 +562,7 @@ func _wire_focus() -> void:
 		PAGE_LOCAL:
 			_wire_cycle_row([_bots_button, _sandbox_button, _tutorial_button, _back_button])
 		PAGE_DEBUG:
-			_wire_cycle_row([_visual_demo_button, _gift_demo_button, _back_button])
+			_wire_cycle_row([_gift_demo_button, _back_button])
 		_:
 			_wire_join_focus()
 
