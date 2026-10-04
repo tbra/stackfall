@@ -327,7 +327,7 @@ func host_game(port: int = 0, player_name: String = "", advertise: bool = true) 
 		"peer_id": HOST_PEER_ID,
 		"slot_id": 0,
 		"name": host_name,
-		"ready": true,
+		"ready": false,
 		"ping_ms": 0.0,
 		"build": _host_build_version,
 	}
@@ -574,6 +574,11 @@ func all_peers_ready() -> bool:
 	if _peers.is_empty():
 		return false
 	for peer_id: int in _peers.keys():
+		# DECISION (Bontago-1pi.67): the host's own entry mirrors its Ready toggle like
+		# any peer's (seeded false), but pressing Start is the host's consent, so the
+		# Start gate waits for every OTHER seated human only.
+		if peer_id == HOST_PEER_ID:
+			continue
 		if not bool(_peers[peer_id].get("ready", false)):
 			return false
 	return true
@@ -847,7 +852,7 @@ func _on_steam_lobby_created(result: int, lobby_id: int) -> void:
 		"peer_id": HOST_PEER_ID,
 		"slot_id": 0,
 		"name": host_name,
-		"ready": true,
+		"ready": false,
 		"ping_ms": 0.0,
 		"build": _host_build_version,
 	}

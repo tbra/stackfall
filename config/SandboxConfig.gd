@@ -39,3 +39,16 @@ extends Resource
 ## (Engine.time_scale is process-global, not scoped to one scene, so a leaked
 ## value here would still be in effect for the next match).
 @export var slow_motion_scale: float = 0.25
+
+## Bontago-1pi.70 (gift demo preset, config/sandbox_gift_demo.tres). Every
+## opponent slot (all but slot 0) gets a tower of this many blocks dropped at
+## its home position when the sandbox starts and after each field reset. 0 = none.
+@export var preplaced_tower_blocks: int = 0
+
+## Height of the lowest pre-placed block above the field, in meters.
+@export var preplaced_drop_height: float = 5.0
+
+## Gift-testing tweak: when >= 0, overrides MatchConfig.special_frequency
+## (0-100) and forces gifts_enabled for the sandbox match. -1 leaves the
+## lobby/default value alone.
+@export var special_frequency_override: int = -1

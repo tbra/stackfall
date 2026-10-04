@@ -10,16 +10,15 @@ extends RefCounted
 ## the host's countdown tick and feeds it the *current* set of required peers
 ## (every connected peer that holds a human slot; bots never appear in it).
 ##
-## The gate opens once BOTH hold:
-##   1. min_display_s has elapsed since begin(), and
-##   2. every required peer is ready -- or max_wait_s has elapsed, the safety
-##      cap that keeps an AFK/frozen player from blocking everyone forever.
+## The gate opens once every required peer is ready -- or max_wait_s has elapsed,
+## the safety cap that keeps an AFK/frozen player from blocking everyone forever.
+## Bontago-1pi.63 (owner playtest 2026-10-04): there is no minimum display time any
+## more; the ready presses alone hold the screen.
 ## The required set is passed in on every call rather than stored, so a peer
 ## that disconnects drops out of it at once and one that joins is waited for.
 ## Readiness is keyed by peer id, never by anything a peer could claim about
 ## itself, and recording it is idempotent.
 
-var _min_display_s: float = 0.0
 var _max_wait_s: float = 0.0
 var _elapsed_s: float = 0.0
 var _open: bool = false
@@ -28,8 +27,7 @@ var _timed_out: bool = false
 var _ready: Dictionary = {}
 
 
-func begin(min_display_s: float, max_wait_s: float) -> void:
-	_min_display_s = maxf(min_display_s, 0.0)
+func begin(max_wait_s: float) -> void:
 	_max_wait_s = maxf(max_wait_s, 0.0)
 	_elapsed_s = 0.0
 	_open = false
@@ -49,11 +47,6 @@ func opened_by_timeout() -> bool:
 
 func elapsed_s() -> float:
 	return _elapsed_s
-
-
-## Seconds until min_display_s has elapsed; 0.0 once it has.
-func min_display_remaining_s() -> float:
-	return maxf(_min_display_s - _elapsed_s, 0.0)
 
 
 ## Records `peer_id` as ready. Returns true only when this changed something:
@@ -95,8 +88,6 @@ func tick(delta: float, required: PackedInt32Array) -> bool:
 	if _open:
 		return false
 	_elapsed_s += maxf(delta, 0.0)
-	if _elapsed_s < _min_display_s:
-		return false
 	var cap_reached: bool = _elapsed_s >= _max_wait_s
 	if not all_ready(required) and not cap_reached:
 		return false

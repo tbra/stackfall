@@ -22,9 +22,8 @@ var _countdown_last_whole: int = 0
 var _countdown_held: bool = false
 
 ## -- Loading-screen ready gate (Bontago-1pi.32) ---------------------------------
-## Owner playtest 2026-10-03: the loading screen is shown at least
-## min_display_s and every human presses ready (ui_accept / gamepad A) before the
-## countdown runs. The rule is core/LoadingReadyGate.gd; this file owns the
+## Owner playtest 2026-10-03: every human presses ready (ui_accept / gamepad A)
+## on the loading screen before the countdown runs (1pi.63: no minimum display time). The rule is core/LoadingReadyGate.gd; this file owns the
 ## per-match state and the host's hooks. Net (autoload/Net.gd) is the transport:
 ## it validates the sender and hands the intent over on the Events bus.
 ##
@@ -186,6 +185,10 @@ func start_match(match_config: MatchConfig) -> void:
 	if _match._is_host() and _match.config.qol == null:
 		_match.config.qol = QOL_EXPERIMENTS.duplicate() as QolExperiments
 	_match.config.sanitize()
+	# Bontago-1pi.62: the host names its bots once; clients keep the names the
+	# config dict carried.
+	if _match._is_host():
+		_assign_bot_names()
 	# Bontago-470.4: the host resolves Random once; a client keeps the id it
 	# was sent (net_match_start carries sky_theme_resolved).
 	if _match._is_host():
@@ -449,7 +452,7 @@ func arm_loading_ready_gate() -> bool:
 	if not _gate_armed:
 		_gate_armed = true
 		_gate_open_mirror = false
-		_ready_gate.begin(_loading_tuning.min_display_s, _loading_tuning.ready_wait_max_s)
+		_ready_gate.begin(_loading_tuning.ready_wait_max_s)
 	return true
 
 
@@ -517,14 +520,6 @@ func loading_slot_ready(slot_id: int) -> bool:
 	return peer_id >= 0 and loading_ready_peers().has(peer_id)
 
 
-## Seconds left of the host's minimum display time (0.0 on a client, which has no
-## gate clock; ui/LoadingScreen.gd's min_display_remaining_s() is the local one).
-func loading_min_display_remaining_s() -> float:
-	if not _gate_armed or not _match._is_host():
-		return 0.0
-	return _ready_gate.min_display_remaining_s()
-
-
 func _loading_session() -> Variant:
 	return _match._net_provider if _match._net_provider != null else Net
 
@@ -538,7 +533,7 @@ func _reset_loading_gate() -> void:
 	_published_required = PackedInt32Array()
 	_published_any = false
 	loading_ready_refused = 0
-	_ready_gate.begin(0.0, 0.0)
+	_ready_gate.begin(0.0)
 
 
 ## Host. Net already checked the sender is a seated peer; this checks the phase
@@ -912,6 +907,32 @@ func _next_alive_slot(after: int) -> int:
 	return -1
 
 
+## Bontago-1pi.62: the names this host gave its bots so far, by bot ordinal. They
+## persist across matches (play again) and are trimmed when a bot seat goes away.
+var _host_bot_names: PackedStringArray = PackedStringArray()
+
+
+## Host only: fills config.bot_names (distinct from each other and from every human
+## seat's name), keeping the names handed out earlier while still valid.
+func _assign_bot_names() -> void:
+	var config: MatchConfig = _match.config
+	var taken: PackedStringArray = PackedStringArray()
+	var human_count: int = config.player_count - config.ai_count
+	for i: int in range(human_count):
+		var human_name: String = _peer_name_for_slot(i)
+		if human_name != "":
+			taken.append(human_name)
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	if config.rng_seed >= 0:
+		rng.seed = config.rng_seed
+	else:
+		rng.randomize()
+	# The lobby already named the bots (config.bot_names): reuse, never re-roll.
+	var existing: PackedStringArray = config.bot_names if not config.bot_names.is_empty() else _host_bot_names
+	_host_bot_names = BotNames.assign(existing, config.ai_count, taken, rng)
+	config.bot_names = _host_bot_names.duplicate()
+
+
 func _build_slots() -> void:
 	_slots.clear()
 	var map_def: MapDef = _match.config.map_def()
@@ -927,8 +948,9 @@ func _build_slots() -> void:
 		# offline hot-seat seat or an empty seat keeps "Player N". Host and client
 		# both build from the same roster, so MatchStats' results (host-built,
 		# read from PlayerSlot.display_name) and every slot reader agree.
+		var bot_ordinal: int = i - (_match.config.player_count - _match.config.ai_count)
 		var seat_name: String = PlayerNames.label_for_slot(
-			i, PlayerNames.fallback_for_slot(i), is_bot, _peer_name_for_slot(i)
+			i, PlayerNames.bot_label(i, bot_ordinal, _match.config.bot_names), is_bot, _peer_name_for_slot(i)
 		)
 		var new_slot: PlayerSlot = PlayerSlot.new(i, _match.config.team_of_slot(i), seat_name, color, home)
 		new_slot.is_bot = is_bot

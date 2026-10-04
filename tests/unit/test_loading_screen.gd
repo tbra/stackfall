@@ -16,7 +16,6 @@ func before_each() -> void:
 	_screen.tuning = LoadingScreenTuning.new()
 	_screen.tuning.warmup_frames = 2
 	_screen.tuning.fade_out_duration_s = 0.05
-	_screen.tuning.spinner_interval_s = 0.05
 
 
 func _config(variant: int = MatchConfig.MapVariant.ROUND, size: int = MapDef.MapSize.MEDIUM) -> MatchConfig:
@@ -53,19 +52,32 @@ func test_show_for_match_sets_the_map_label() -> void:
 
 func test_show_for_match_lists_players() -> void:
 	_screen.show_for_match(_config(), _slots(2))
-	assert_true(_screen._info_label.text.findn("Player 1") >= 0)
-	assert_true(_screen._info_label.text.findn("Player 2") >= 0)
+	var names: PackedStringArray = _screen.player_row_names()
+	assert_eq(names.size(), 2)
+	assert_true(names[0].findn("Player 1") >= 0)
+	assert_true(names[1].findn("Player 2") >= 0)
+	assert_true(_screen._player_list.visible, "the list shows even when no gate is armed")
 
 
 func test_show_for_match_marks_bots() -> void:
 	_screen.show_for_match(_config(), _slots(2, 1))
-	assert_true(_screen._info_label.text.findn("Player 2 (bot)") >= 0, "expected the trailing bot slot marked: %s" % _screen._info_label.text)
-	assert_false(_screen._info_label.text.findn("Player 1 (bot)") >= 0, "the human slot must not be marked a bot.")
+	var names: PackedStringArray = _screen.player_row_names()
+	assert_true(names[1].findn("Player 2 (bot)") >= 0, "expected the trailing bot slot marked: %s" % names[1])
+	assert_false(names[0].findn("(bot)") >= 0, "the human slot must not be marked a bot.")
 
 
-func test_show_for_match_with_no_slots_shows_a_placeholder() -> void:
+func test_show_for_match_with_no_slots_shows_no_rows() -> void:
 	_screen.show_for_match(_config(), [])
-	assert_eq(_screen._info_label.text, "Get ready...")
+	assert_eq(_screen.player_row_names().size(), 0)
+	assert_false(_screen._player_list.visible)
+
+
+## Bontago-1pi.63: no loading text, bar, spinner, status line, button or timer nodes.
+func test_screen_has_only_map_players_and_the_ready_prompt() -> void:
+	for node_name: String in ["SpinnerLabel", "StageLabel", "ProgressBar", "InfoLabel", "StatusLabel", "ReadyButton", "CapLabel", "PromptSuffix"]:
+		assert_null(_screen.find_child(node_name, true, false), "%s was removed" % node_name)
+	assert_eq(_screen.ready_prompt_text(), "Ready?")
+	assert_false("min_display_s" in _screen.tuning, "no minimum display time")
 
 
 # --- fade_out(): held frames, then a fade, then hidden -----------------------
@@ -160,7 +172,6 @@ func test_progress_stages_are_clamped_and_visible() -> void:
 	_screen.show_pending(null)
 	assert_gt(_screen.progress(), 0.0)
 	_screen.set_stage("Solving territory", 0.7)
-	assert_eq(_screen._stage_label.text, "Solving territory")
 	assert_almost_eq(_screen.progress(), 0.7, 0.001)
 	_screen.set_stage("Ready", 2.0)
 	assert_almost_eq(_screen.progress(), 1.0, 0.001)
@@ -445,7 +456,6 @@ func test_host_start_shows_overlay_before_the_match_starts() -> void:
 	assert_true(states.has(Match.State.LOADING), "match handed off after the pre-roll")
 	assert_false(overlay.is_pending())
 	assert_true(overlay.visible, "overlay stays up through the build until fade_out")
-	assert_eq(overlay._stage_label.text, "Solving territory")
 	await wait_process_frames(overlay.tuning.stable_frames + overlay.tuning.warmup_frames + 2)
 	assert_true(overlay.visible, "host waits for the first applied territory result")
 	Events.territory_updated.emit(Match.raster(), Match.groups())

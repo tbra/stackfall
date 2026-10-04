@@ -6,7 +6,7 @@ extends GutTest
 ## intent validation, and ui/LoadingScreen.gd's input glue.
 
 const MatchNetScript := preload("res://net/MatchNet.gd")
-const MIN_S: float = 5.0
+const MIN_S: float = 5.0  # a long step that used to be the minimum display time
 const MAX_S: float = 60.0
 const STEP_S: float = 0.1
 
@@ -95,13 +95,12 @@ func _press(peer_id: int) -> void:
 
 # --- the pure rule -----------------------------------------------------------
 
-func test_gate_min_display_holds_even_when_everyone_is_ready() -> void:
+func test_gate_opens_on_the_tick_everyone_is_ready_with_no_minimum_display() -> void:
 	var gate: LoadingReadyGate = LoadingReadyGate.new()
-	gate.begin(MIN_S, MAX_S)
+	gate.begin(MAX_S)
+	assert_false(gate.tick(0.0, PackedInt32Array([1])), "nobody pressed yet")
 	assert_true(gate.mark_ready(1, PackedInt32Array([1])))
-	assert_false(gate.tick(4.9, PackedInt32Array([1])), "ready at once, but 5 s have not passed")
-	assert_almost_eq(gate.min_display_remaining_s(), 0.1, 0.001)
-	assert_true(gate.tick(0.2, PackedInt32Array([1])), "opens on the tick that crosses min_display_s")
+	assert_true(gate.tick(0.01, PackedInt32Array([1])), "opens at once: the 5 s minimum is gone (1pi.63)")
 	assert_false(gate.opened_by_timeout())
 	assert_false(gate.tick(1.0, PackedInt32Array([1])), "opens exactly once")
 
@@ -109,7 +108,7 @@ func test_gate_min_display_holds_even_when_everyone_is_ready() -> void:
 func test_gate_waits_for_every_required_peer() -> void:
 	var required: PackedInt32Array = PackedInt32Array([1, 2])
 	var gate: LoadingReadyGate = LoadingReadyGate.new()
-	gate.begin(MIN_S, MAX_S)
+	gate.begin(MAX_S)
 	gate.mark_ready(1, required)
 	assert_false(gate.tick(MIN_S + 1.0, required), "peer 2 has not pressed")
 	assert_false(gate.all_ready(required))
@@ -118,17 +117,16 @@ func test_gate_waits_for_every_required_peer() -> void:
 	assert_eq(gate.ready_ids(required), required)
 
 
-func test_gate_with_nobody_to_wait_for_opens_at_min_display() -> void:
+func test_gate_with_nobody_to_wait_for_opens_at_once() -> void:
 	var gate: LoadingReadyGate = LoadingReadyGate.new()
-	gate.begin(MIN_S, MAX_S)
-	assert_false(gate.tick(MIN_S - 0.5, PackedInt32Array()))
-	assert_true(gate.tick(0.6, PackedInt32Array()), "all-bot match: only the minimum display applies")
+	gate.begin(MAX_S)
+	assert_true(gate.tick(0.01, PackedInt32Array()), "all-bot match: nothing to wait for")
 
 
 func test_gate_max_wait_opens_without_the_laggard() -> void:
 	var required: PackedInt32Array = PackedInt32Array([1, 2])
 	var gate: LoadingReadyGate = LoadingReadyGate.new()
-	gate.begin(MIN_S, MAX_S)
+	gate.begin(MAX_S)
 	gate.mark_ready(1, required)
 	assert_false(gate.tick(MAX_S - 1.0, required))
 	assert_true(gate.tick(1.5, required), "safety cap: an AFK peer cannot block everyone forever")
@@ -138,7 +136,7 @@ func test_gate_max_wait_opens_without_the_laggard() -> void:
 func test_gate_refuses_spoofed_duplicate_and_late_intents() -> void:
 	var required: PackedInt32Array = PackedInt32Array([1, 2])
 	var gate: LoadingReadyGate = LoadingReadyGate.new()
-	gate.begin(MIN_S, MAX_S)
+	gate.begin(MAX_S)
 	assert_false(gate.mark_ready(99, required), "a peer that is not required")
 	assert_false(gate.mark_ready(-1, required))
 	assert_true(gate.mark_ready(1, required))
@@ -150,7 +148,7 @@ func test_gate_refuses_spoofed_duplicate_and_late_intents() -> void:
 
 func test_gate_leaver_drops_out_of_the_required_set() -> void:
 	var gate: LoadingReadyGate = LoadingReadyGate.new()
-	gate.begin(MIN_S, MAX_S)
+	gate.begin(MAX_S)
 	gate.mark_ready(1, PackedInt32Array([1, 2]))
 	assert_false(gate.tick(MIN_S + 1.0, PackedInt32Array([1, 2])))
 	assert_true(gate.tick(0.1, PackedInt32Array([1])), "peer 2 left: only peer 1 is still waited for")
@@ -205,7 +203,7 @@ func test_agent_probe_run_leaves_the_gate_unarmed_unless_forced() -> void:
 	Events.match_state_changed.disconnect(on_state)
 
 
-func test_countdown_waits_for_min_display_and_all_humans() -> void:
+func test_countdown_waits_for_all_humans() -> void:
 	var net: FakeNet = FakeNet.host({1: 0, 2: 1}, [0] as Array[int])
 	_start_gated(net, 2, 0)
 	var full: float = Match.countdown_remaining()
@@ -215,26 +213,44 @@ func test_countdown_waits_for_min_display_and_all_humans() -> void:
 	assert_eq(Match.countdown_remaining(), full, "the countdown has not started running down")
 	_press(1)
 	_step(2.0)
-	assert_eq(Match.countdown_remaining(), full, "min display elapsed but peer 2 is not ready")
+	assert_eq(Match.countdown_remaining(), full, "peer 2 is not ready")
 	assert_eq(Match._lifecycle.loading_ready_peers(), PackedInt32Array([1]))
 	_press(2)
 	_step(STEP_S * 2.0)
-	assert_lt(Match.countdown_remaining(), full, "all ready and 5 s gone: countdown runs")
+	assert_lt(Match.countdown_remaining(), full, "all ready: countdown runs")
 	assert_eq(_opened_count, 1)
 	_step(full + 0.5)
 	assert_eq(Match.state(), Match.State.PLAYING)
 
 
-func test_early_ready_still_waits_for_the_minimum_display_time() -> void:
+## Bontago-1pi.67: the host is seeded exactly like a client -- nobody is ready when
+## LOADING starts, whatever the lobby Ready toggle said (a host's lobby entry is
+## seeded ready for the Start gate; the loading gate must not read it).
+func test_host_and_clients_start_loading_not_ready_and_host_needs_its_own_press() -> void:
+	var net: FakeNet = FakeNet.host({1: 0, 2: 1}, [0] as Array[int])
+	_start_gated(net, 2, 0)
+	assert_eq(Match._lifecycle.loading_required_peers(), PackedInt32Array([1, 2]))
+	assert_eq(Match._lifecycle.loading_ready_peers().size(), 0, "no peer is pre-readied")
+	assert_false(Match._lifecycle.loading_slot_ready(0), "host row: not ready")
+	assert_false(Match._lifecycle.loading_slot_ready(1), "client row: not ready")
+	assert_eq(_published.back()["ready"], PackedInt32Array(), "the first publish carries no ready peer")
+	_press(2)
+	assert_eq(Match._lifecycle.loading_ready_peers(), PackedInt32Array([2]))
+	assert_true(Match._lifecycle.loading_gate_blocking(), "the host still has to press its own ready")
+	_press(1)
+	assert_eq(Match._lifecycle.loading_ready_peers(), PackedInt32Array([1, 2]))
+
+
+func test_ready_press_opens_the_gate_with_no_minimum_display_time() -> void:
 	var net: FakeNet = FakeNet.offline()
 	_start_gated(net, 1, 0)
 	var full: float = Match.countdown_remaining()
-	_press(1)
-	_step(MIN_S - 0.6)
-	assert_eq(Match.countdown_remaining(), full, "ready at t=0 must not skip the 5 s")
+	_step(STEP_S * 2.0)
+	assert_eq(Match.countdown_remaining(), full, "nobody pressed: still holding")
 	assert_eq(_opened_count, 0)
-	_step(0.8)
-	assert_eq(_opened_count, 1)
+	_press(1)
+	_step(STEP_S * 2.0)
+	assert_eq(_opened_count, 1, "one press opens it at once (1pi.63: no 5 s minimum)")
 
 
 func test_bots_are_auto_ready_and_never_required() -> void:
@@ -248,13 +264,11 @@ func test_bots_are_auto_ready_and_never_required() -> void:
 	assert_true(Match._lifecycle.loading_slot_ready(0))
 
 
-func test_all_bot_match_needs_only_the_minimum_display() -> void:
+func test_all_bot_match_opens_at_once() -> void:
 	var net: FakeNet = FakeNet.offline()
 	_start_gated(net, 2, 2)
 	assert_eq(Match._lifecycle.loading_required_peers().size(), 0)
-	_step(MIN_S - 0.5)
-	assert_true(Match._lifecycle.loading_gate_blocking())
-	_step(0.7)
+	_step(STEP_S * 2.0)
 	assert_false(Match._lifecycle.loading_gate_blocking())
 
 
@@ -465,7 +479,7 @@ func test_late_spectator_gets_the_sets_but_is_not_required() -> void:
 func test_late_joiner_after_the_gate_opened_does_not_wait() -> void:
 	var fixture: Array = _gated_host_for_joiner()
 	_press(2)
-	_step(MIN_S + 0.2)
+	_step(STEP_S * 2.0)
 	assert_false(Match._lifecycle.loading_gate_blocking(), "the host's gate is open")
 	assert_eq(Match.state(), Match.State.COUNTDOWN, "the countdown is still running")
 	var received: Array = _host_admits(fixture[0] as FakeNet, 3, 2)
@@ -589,7 +603,6 @@ func test_net_client_rejects_malformed_or_oversized_mirrors() -> void:
 
 func test_tuning_defaults_are_the_owners_values() -> void:
 	var tuning: LoadingScreenTuning = load("res://config/loading_screen_tuning.tres") as LoadingScreenTuning
-	assert_almost_eq(tuning.min_display_s, 5.0, 0.0001)
 	assert_almost_eq(tuning.ready_wait_max_s, 60.0, 0.0001)
 	assert_almost_eq(tuning.ready_timeout_s, 20.0, 0.0001, "asset-loading timeout keeps its meaning")
 
@@ -600,7 +613,6 @@ func _screen() -> LoadingScreen:
 	screen.tuning = LoadingScreenTuning.new()
 	screen.tuning.warmup_frames = 1
 	screen.tuning.fade_out_duration_s = 0.02
-	screen.tuning.min_display_s = 0.05
 	screen.tuning.ready_wait_max_s = 5.0
 	return screen
 
@@ -617,8 +629,7 @@ func test_screen_ready_input_is_off_until_loading_finished_and_holds_the_overlay
 	var net: FakeNet = FakeNet.offline()
 	_start_gated(net, 1, 0)
 	Match._lifecycle._loading_tuning = LoadingScreenTuning.new()
-	Match._lifecycle._loading_tuning.min_display_s = 0.05
-	Match._lifecycle._ready_gate.begin(0.05, 5.0)
+	Match._lifecycle._ready_gate.begin(5.0)
 	var screen: LoadingScreen = _screen()
 	screen.show_for_match(_config(1, 0), [] as Array[PlayerSlot])
 	assert_true(screen.ready_gate_armed())
@@ -696,7 +707,6 @@ func _match_slots() -> Array[PlayerSlot]:
 func _open_screen(net: Variant, players: int, ai: int, hot_seat: bool = false) -> LoadingScreen:
 	_start_gated(net, players, ai, hot_seat)
 	var screen: LoadingScreen = _screen()
-	screen.tuning.min_display_s = MIN_S
 	screen.tuning.ready_wait_max_s = MAX_S
 	screen.show_for_match(_config(players, ai, hot_seat), _match_slots())
 	return screen
@@ -742,18 +752,13 @@ func test_prompt_is_hidden_until_loading_finished_and_shows_the_bound_glyph() ->
 	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
 	var screen: LoadingScreen = _open_screen(FakeNet.offline(), 1, 0)
 	assert_true(screen.ready_gate_armed())
-	assert_false(screen._ready_button.visible, "no prompt while this instance is still loading")
-	assert_true(screen._ready_box.visible)
-	assert_eq(screen._status_label.text, screen.tuning.get_ready_text, "subtle 'Get ready...' while it loads")
-	assert_true(screen._player_list.visible, "the ready list replaces the plain name list")
-	assert_false(screen._info_label.visible)
+	assert_false(screen.ready_prompt_visible(), "no prompt while this instance is still loading")
+	assert_true(screen._player_list.visible, "the ready list shows the players")
 	screen.fade_out()
 	assert_true(screen.accepts_ready_input())
-	assert_true(screen._ready_button.visible, "the prompt opens with the ready input")
-	assert_eq(screen._prompt_prefix.text, "Press")
-	assert_eq(screen._prompt_suffix.text, "to ready")
+	assert_true(screen.ready_prompt_visible(), "the prompt opens with the ready input")
+	assert_eq(screen.ready_prompt_text(), "Ready?")
 	assert_eq(screen.prompt_glyph_texts(), PackedStringArray(["Enter"]), "keyboard glyph of ui_accept")
-	assert_eq(screen._status_label.text, screen.tuning.get_ready_text, "min display still remains")
 	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
 	assert_eq(screen.prompt_glyph_texts(), PackedStringArray(["A"]), "a gamepad user sees the A button")
 	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
@@ -777,7 +782,7 @@ func test_synthetic_ui_accept_presses_once_for_key_and_gamepad_a() -> void:
 	screen._input(_accept_pad())
 	assert_eq(counter[0], 1, "idempotent: A afterwards (and a repeat) never re-sends")
 	assert_false(screen.press_ready(), "an explicit second call reports it sent nothing")
-	assert_true(screen._ready_button.disabled, "the prompt is disabled after the press")
+	assert_almost_eq(screen._ready_box.modulate.a, screen.tuning.ready_prompt_disabled_alpha, 0.001, "the prompt is dimmed after the press")
 	await _close(screen)
 	_stop_counting()
 
@@ -794,18 +799,12 @@ func test_gamepad_a_alone_readies_once() -> void:
 	_stop_counting()
 
 
-func test_clicking_the_prompt_readies_once() -> void:
-	var counter: Array[int] = _count_intents()
+func test_prompt_is_not_a_button() -> void:
 	var screen: LoadingScreen = _open_screen(FakeNet.offline(), 1, 0)
-	screen._ready_button.pressed.emit()
-	assert_eq(counter[0], 0, "a click before loading finished does nothing")
 	screen.fade_out()
-	screen._ready_button.pressed.emit()
-	screen._ready_button.pressed.emit()
-	assert_eq(counter[0], 1)
-	assert_true(screen.local_pressed())
+	assert_null(screen.find_child("ReadyButton", true, false), "1pi.63: no button, only the action glyph")
+	assert_eq(screen.find_children("*", "BaseButton", true, false).size(), 0)
 	await _close(screen)
-	_stop_counting()
 
 
 func test_player_list_follows_loading_ready_changed_and_bots_are_ready() -> void:
@@ -819,7 +818,6 @@ func test_player_list_follows_loading_ready_changed_and_bots_are_ready() -> void
 	screen.press_ready()
 	assert_true(screen.player_row_ready(0), "local press ticks the row at once")
 	assert_false(screen.player_row_ready(1))
-	assert_eq(screen._status_label.text, "Waiting for 1 player...")
 	_press(2)
 	assert_true(screen.player_row_ready(1), "the other peer's ready reaches the list")
 	await _close(screen)
@@ -840,48 +838,41 @@ func test_player_list_names_colours_and_bot_marks() -> void:
 	await _close(screen)
 
 
-func test_waiting_status_counts_the_others_and_the_cap_counts_down() -> void:
+func test_pressed_prompt_stays_dimmed_while_the_others_catch_up() -> void:
 	var net: FakeNet = FakeNet.host({1: 0, 2: 1, 3: 2}, [0] as Array[int])
 	var screen: LoadingScreen = _open_screen(net, 3, 0)
 	screen.fade_out()
-	assert_eq(screen._cap_label.text, "Starting in 60s", "the safety cap is running while someone is not ready")
+	assert_almost_eq(screen._ready_box.modulate.a, 1.0, 0.001)
 	screen.press_ready()
-	assert_eq(screen._status_label.text, "Waiting for 2 players...")
-	assert_true(screen._ready_button.visible, "the prompt stays, disabled")
-	assert_almost_eq(screen._ready_button.modulate.a, screen.tuning.ready_prompt_disabled_alpha, 0.001)
-	screen._displayed_s = MAX_S - 12.4
-	screen._refresh_ready_ui()
-	assert_eq(screen._cap_label.text, "Starting in 13s", "rounded up to whole seconds")
+	assert_true(screen.ready_prompt_visible(), "the prompt stays, dimmed")
+	assert_almost_eq(screen._ready_box.modulate.a, screen.tuning.ready_prompt_disabled_alpha, 0.001)
 	_press(2)
-	assert_eq(screen._status_label.text, "Waiting for 1 player...")
 	_press(3)
-	assert_eq(screen._cap_label.text, "", "everyone is ready: the cap no longer matters")
+	_step(STEP_S * 2.0)
+	screen._refresh_ready_ui()
+	assert_false(screen.ready_prompt_visible(), "everyone is ready: the gate opened")
 	await _close(screen)
 
 
-func test_all_ready_before_min_display_shows_get_ready_not_waiting() -> void:
+func test_all_ready_opens_the_gate_and_hides_the_prompt() -> void:
 	var screen: LoadingScreen = _open_screen(FakeNet.offline(), 1, 0)
 	screen.fade_out()
 	screen.press_ready()
-	assert_eq(screen._status_label.text, screen.tuning.get_ready_text, "everyone ready but the minimum display time remains")
-	_step(MIN_S + 0.2)
-	screen._displayed_s = MIN_S + 0.1
+	_step(STEP_S * 2.0)
 	screen._refresh_ready_ui()
-	assert_false(screen._ready_button.visible, "the gate opened: prompt gone")
-	assert_eq(screen._status_label.text, "")
+	assert_false(screen.ready_prompt_visible(), "the gate opened: prompt gone")
 	await _close(screen)
 
 
 func test_all_bot_match_and_spectator_get_no_prompt() -> void:
 	var screen: LoadingScreen = _open_screen(FakeNet.offline(), 2, 2)
 	screen.fade_out()
-	assert_false(screen._ready_button.visible, "nobody to press: the minimum display alone holds the screen")
-	assert_eq(screen._status_label.text, screen.tuning.get_ready_text)
+	assert_false(screen.ready_prompt_visible(), "nobody to press")
 	await _close(screen)
 	var net: FakeNet = FakeNet.host({2: 0, 3: -1}, [0] as Array[int])
 	var spectator_screen: LoadingScreen = _open_screen(net, 1, 0)
 	spectator_screen.fade_out()
-	assert_false(spectator_screen._ready_button.visible, "the local peer holds no seat in this roster")
+	assert_false(spectator_screen.ready_prompt_visible(), "the local peer holds no seat in this roster")
 	await _close(spectator_screen)
 
 
@@ -890,27 +881,26 @@ func test_client_list_mirrors_the_hosts_sets() -> void:
 	net.slots_by_peer = {1: 0, 2: 1}
 	var screen: LoadingScreen = _open_screen(net, 2, 0)
 	screen.fade_out()
-	assert_false(screen._ready_button.visible, "no host message yet: nothing to press for")
+	assert_false(screen.ready_prompt_visible(), "no host message yet: nothing to press for")
 	Events.loading_ready_changed.emit(PackedInt32Array(), PackedInt32Array([1, 2]))
-	assert_true(screen._ready_button.visible)
+	assert_true(screen.ready_prompt_visible())
 	assert_false(screen.player_row_ready(0))
 	Events.loading_ready_changed.emit(PackedInt32Array([2]), PackedInt32Array([1, 2]))
 	assert_true(screen.player_row_ready(1), "the host's mirror ticks peer 2's row")
 	assert_false(screen.player_row_ready(0))
-	assert_false(screen._ready_button.disabled)
+	assert_almost_eq(screen._ready_box.modulate.a, 1.0, 0.001, "not pressed yet: full opacity")
 	Events.loading_gate_opened.emit()
-	assert_false(screen._ready_button.visible, "the gate opened")
+	assert_false(screen.ready_prompt_visible(), "the gate opened")
 	await _close(screen)
 
 
-func test_unarmed_overlay_keeps_the_plain_name_list_and_no_prompt() -> void:
+func test_unarmed_overlay_lists_the_players_and_has_no_prompt() -> void:
 	var screen: LoadingScreen = _screen()
 	screen.show_for_match(_config(2, 0), _slots_for_layout(2, 0))
 	assert_false(screen.ready_gate_armed())
-	assert_true(screen._info_label.visible)
-	assert_false(screen._player_list.visible)
+	assert_true(screen._player_list.visible)
 	assert_false(screen._ready_box.visible)
-	assert_true(screen._info_label.text.findn("Player 1") >= 0)
+	assert_true(screen.player_row_names()[0].findn("Player 1") >= 0)
 
 
 func _opened_counter(screen: LoadingScreen) -> Array[int]:
@@ -928,12 +918,11 @@ func test_spectator_is_never_prompted_and_cannot_press_ready() -> void:
 	var opened: Array[int] = _opened_counter(screen)
 	screen.fade_out()
 	assert_false(screen.accepts_ready_input(), "the local peer holds no human seat")
-	assert_false(screen._ready_button.visible)
+	assert_false(screen.ready_prompt_visible())
 	screen._input(_accept_key())
 	screen._input(_accept_pad())
 	Input.parse_input_event(_accept_key())
 	Input.flush_buffered_events()
-	screen._ready_button.pressed.emit()
 	assert_false(screen.press_ready())
 	assert_false(screen.local_pressed())
 	assert_eq(counter[0], 0, "no intent leaves a spectator")
@@ -953,7 +942,7 @@ func test_client_of_an_ungated_host_is_never_prompted() -> void:
 	Events.loading_ready_changed.emit(PackedInt32Array(), PackedInt32Array([1, 2]))
 	assert_false(Match._lifecycle.loading_gate_blocking(), "the host announced the gate open (it never armed one)")
 	assert_false(screen.accepts_ready_input())
-	assert_false(screen._ready_button.visible)
+	assert_false(screen.ready_prompt_visible())
 	screen._input(_accept_key())
 	assert_false(screen.press_ready())
 	assert_eq(counter[0], 0)
@@ -973,7 +962,7 @@ func test_late_joiner_after_the_countdown_loses_the_prompt() -> void:
 	Match._lifecycle.apply_replicated_state_change(Match.State.PLAYING)
 	screen._refresh_ready_ui()
 	assert_false(screen.accepts_ready_input(), "the host's match moved on: nothing left to press for")
-	assert_false(screen._ready_button.visible)
+	assert_false(screen.ready_prompt_visible())
 	screen._input(_accept_key())
 	assert_eq(counter[0], 0)
 	await _close(screen)
@@ -1059,18 +1048,11 @@ func _layout_in(window_size: Vector2i) -> void:
 	assert_true(card.encloses(title_rect), "%s: the title is inside the card" % window_size)
 	assert_false(title_rect.intersects(screen._player_list.get_global_rect()), "%s: title and player list do not overlap" % window_size)
 	var list_rect: Rect2 = screen._player_list.get_global_rect()
-	var bar_rect: Rect2 = screen._progress_bar.get_global_rect()
 	var ready_rect: Rect2 = screen._ready_box.get_global_rect()
-	assert_false(list_rect.intersects(bar_rect), "list and progress bar do not overlap")
 	assert_false(list_rect.intersects(ready_rect), "list and ready box do not overlap")
-	assert_false(bar_rect.intersects(ready_rect), "progress bar and ready box do not overlap")
-	assert_true(screen._ready_button.visible)
-	assert_true(ready_rect.encloses(screen._ready_button.get_global_rect()), "the prompt sits inside the reserved ready box")
-	assert_gte(screen._ready_button.size.x, screen._prompt_content.get_combined_minimum_size().x, "the pill is wide enough for its content")
+	assert_true(screen.ready_prompt_visible())
 	assert_true(card.encloses(ready_rect), "the ready box is inside the card")
-	assert_ne(screen._status_label.text, "")
-	assert_ne(screen._cap_label.text, "")
-	assert_almost_eq(ready_rect.size.y, screen.tuning.ready_box_min_height_px, 0.5, "status + prompt + cap fit the reserved height, so the card never jumps")
+	assert_true(ready_rect.size.x > 0.0 and ready_rect.size.y > 0.0, "the Ready? prompt and glyph have room")
 	await _close(screen)
 
 

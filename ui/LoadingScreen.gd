@@ -2,10 +2,10 @@ class_name LoadingScreen
 extends Control
 signal readiness_timed_out
 ## Bontago-1pi.32: loading finished on this instance and the ready prompt is shown
-## (ui_accept, a click on the prompt or gamepad A now sends the ready intent). The
-## prompt, status line, safety-cap countdown and per-player ready list (L2) are
-## driven by accepts_ready_input(), min_display_remaining_s(), the lifecycle's gate
-## sets and Events.loading_ready_changed / loading_gate_opened.
+## (ui_accept: Enter or gamepad A sends the ready intent). The "Ready?" + glyph prompt
+## and per-player ready list are driven by accepts_ready_input(), the lifecycle's gate
+## sets and Events.loading_ready_changed / loading_gate_opened. Bontago-1pi.63: no
+## loading text/bar, status line, button, timer or minimum display time.
 signal ready_prompt_opened
 ## Bontago-1pi.8 (owner playtest 2026-09-27: "When a game round starts it
 ## centers around the center goal beacon for a little while before actually
@@ -54,22 +54,12 @@ var name_provider: Variant = null
 @onready var _vignette: TextureRect = %Vignette
 @onready var _card: PanelContainer = %Card
 @onready var _map_label: Label = %MapLabel
-@onready var _info_label: Label = %InfoLabel
-@onready var _spinner_label: Label = %SpinnerLabel
-@onready var _stage_label: Label = %StageLabel
-@onready var _progress_bar: ProgressBar = %ProgressBar
 ## Bontago-1pi.32 L2 (ready prompt + player ready list; presentation only).
 @onready var _player_list: VBoxContainer = %PlayerList
 @onready var _ready_box: VBoxContainer = %ReadyBox
-@onready var _status_label: Label = %StatusLabel
-@onready var _ready_button: Button = %ReadyButton
-@onready var _prompt_content: HBoxContainer = %PromptContent
-@onready var _prompt_prefix: Label = %PromptPrefix
+@onready var _prompt_content: VBoxContainer = %PromptContent
+@onready var _prompt_text: Label = %PromptText
 @onready var _glyph_slot: HBoxContainer = %GlyphSlot
-@onready var _prompt_suffix: Label = %PromptSuffix
-@onready var _cap_label: Label = %CapLabel
-
-const _SPIN_FRAMES: Array[String] = ["Loading", "Loading.", "Loading..", "Loading..."]
 
 ## The Input Map action that readies (Enter/Numpad Enter/Space and gamepad A).
 const READY_ACTION: StringName = &"ui_accept"
@@ -77,8 +67,9 @@ const INPUT_GLYPH_SCENE: PackedScene = preload("res://ui/InputGlyph.tscn")
 ## Unit-square check mark of a ready tick (relative to the mark's radius).
 const _CHECK_POINTS: PackedVector2Array = [Vector2(-0.38, 0.02), Vector2(-0.1, 0.3), Vector2(0.4, -0.3)]
 
-var _spin_index: int = 0
-var _spin_elapsed_s: float = 0.0
+## Bontago-1pi.63: the loading bar is gone; the stage fraction is only kept for
+## progress() (game/Main.gd still reports it).
+var _progress: float = 0.0
 var _is_fading: bool = false
 var _fade_tween: Tween = null
 ## Bumped by show_for_match()/cancel() so a fade_out() coroutine still
@@ -98,7 +89,6 @@ var _warm_viewport: SubViewport = null
 ## long this overlay has been up for the minimum display time.
 var _ready_gate_armed: bool = false
 var _ready_input_enabled: bool = false
-var _displayed_s: float = 0.0
 ## Bontago-1pi.32 L2: the local player pressed ready on this overlay (the host's
 ## echo can lag behind by a round trip). One press is ever sent.
 var _local_pressed: bool = false
@@ -137,8 +127,6 @@ func _ready() -> void:
 	_apply_backdrop_styles()
 	_card.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(menu_visual_tuning.pill_cream_color, menu_visual_tuning))
 	_apply_ready_styles()
-	_prompt_content.minimum_size_changed.connect(_sync_prompt_size)
-	_ready_button.pressed.connect(_on_ready_button_pressed)
 	Events.loading_ready_changed.connect(_on_loading_ready_changed)
 	Events.loading_gate_opened.connect(_on_loading_gate_opened)
 	Events.match_scope_reset.connect(_on_match_scope_reset)
@@ -157,7 +145,6 @@ func show_for_match(config: MatchConfig, slots: Array[PlayerSlot]) -> void:
 	_is_pending = false
 	_loading_elapsed_s = 0.0
 	_timed_out = false
-	_displayed_s = 0.0
 	_ready_input_enabled = false
 	_local_pressed = false
 	_prompt_announced = false
@@ -174,12 +161,8 @@ func show_for_match(config: MatchConfig, slots: Array[PlayerSlot]) -> void:
 	# trivial follow-up.
 	_ready_gate_armed = Match._lifecycle.arm_loading_ready_gate()
 	_map_label.text = _map_display_name(config)
-	_info_label.text = _player_list_text(slots)
 	_select_backdrop(config)
 	_rebuild_ready_rows(slots)
-	_spin_index = 0
-	_spin_elapsed_s = 0.0
-	_spinner_label.text = _SPIN_FRAMES[0]
 	set_stage("Building world", tuning.world_progress)
 	_set_opacity(1.0)
 	visible = true
@@ -198,13 +181,12 @@ func show_pending(config: MatchConfig) -> void:
 	set_stage("Preparing match", tuning.preparing_progress)
 
 
-func set_stage(stage: String, fraction: float) -> void:
-	_stage_label.text = stage
-	_progress_bar.value = clampf(fraction, 0.0, 1.0) * _progress_bar.max_value
+func set_stage(_stage: String, fraction: float) -> void:
+	_progress = clampf(fraction, 0.0, 1.0)
 
 
 func progress() -> float:
-	return _progress_bar.value / _progress_bar.max_value
+	return _progress
 
 
 func timed_out() -> bool:
@@ -271,14 +253,6 @@ func ready_gate_armed() -> bool:
 	return _ready_gate_armed
 
 
-## Local clock of the minimum display time (0.0 when no gate is armed or it has
-## elapsed). The host's authoritative clock is MatchLifecycle's.
-func min_display_remaining_s() -> float:
-	if not _ready_gate_armed:
-		return 0.0
-	return maxf(tuning.min_display_s - _displayed_s, 0.0)
-
-
 ## True once the host reports this instance's peer as ready.
 func local_ready() -> bool:
 	return Match._lifecycle.loading_ready_peers().has(Net.local_peer_id())
@@ -315,8 +289,6 @@ func _input(event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	_poll_backdrop(true)
-	if not _is_pending:
-		_displayed_s += delta
 	if _ready_gate_armed:
 		_refresh_ready_ui()
 	if _is_pending:
@@ -328,16 +300,9 @@ func _process(delta: float) -> void:
 		_loading_elapsed_s += delta
 		if _loading_elapsed_s >= tuning.ready_timeout_s:
 			_timed_out = true
-			set_stage("Loading timed out", progress())
 			cancel()
 			readiness_timed_out.emit()
 			return
-	_spin_elapsed_s += delta
-	if _spin_elapsed_s < tuning.spinner_interval_s:
-		return
-	_spin_elapsed_s = 0.0
-	_spin_index = (_spin_index + 1) % _SPIN_FRAMES.size()
-	_spinner_label.text = _SPIN_FRAMES[_spin_index]
 
 
 ## Called once game/Main.gd has passed every readiness stage.
@@ -395,7 +360,7 @@ func _wait_for_ready_gate(token: int) -> void:
 	# once for a required human; a client when the host's mirror arrives).
 	_refresh_ready_ui()
 	var waited_s: float = 0.0
-	while Match._lifecycle.loading_gate_blocking() or _displayed_s < tuning.min_display_s:
+	while Match._lifecycle.loading_gate_blocking():
 		if waited_s >= tuning.ready_wait_max_s:
 			break
 		await get_tree().process_frame
@@ -460,15 +425,6 @@ func _map_display_name(config: MatchConfig) -> String:
 	var variant_name: String = (MatchConfig.MapVariant.keys()[config.map_variant] as String).capitalize()
 	var size_name: String = (MapDef.MapSize.keys()[config.map_size] as String).capitalize()
 	return "%s - %s" % [variant_name, size_name]
-
-
-func _player_list_text(slots: Array[PlayerSlot]) -> String:
-	if slots.is_empty():
-		return tuning.get_ready_text
-	var lines: PackedStringArray = PackedStringArray()
-	for slot_item: PlayerSlot in slots:
-		lines.append(_slot_label_text(slot_item))
-	return "\n".join(lines)
 
 
 ## Bontago-1pi.49: a human seat shows the name its player typed (the host's
@@ -694,34 +650,9 @@ func _apply_ready_styles() -> void:
 	_player_list.add_theme_constant_override("separation", tuning.ready_list_separation_px)
 	_ready_box.add_theme_constant_override("separation", tuning.ready_box_separation_px)
 	_prompt_content.add_theme_constant_override("separation", tuning.ready_prompt_separation_px)
-	_status_label.add_theme_font_size_override("font_size", tuning.ready_status_font_size)
-	_status_label.add_theme_color_override("font_color", palette.ink_color)
-	_cap_label.add_theme_font_size_override("font_size", tuning.ready_cap_font_size)
-	_cap_label.add_theme_color_override("font_color", palette.label_muted_color)
-	for prompt_label: Label in [_prompt_prefix, _prompt_suffix]:
-		prompt_label.add_theme_font_size_override("font_size", tuning.ready_prompt_font_size)
-		prompt_label.add_theme_color_override("font_color", palette.ink_color)
-	_prompt_prefix.text = tuning.ready_prompt_prefix
-	_prompt_suffix.text = tuning.ready_prompt_suffix
-	MenuStyleFactory.apply_pill(_ready_button, palette.pill_mint_color, palette.pill_mint_hover_color, palette.ink_color, palette)
-	_ready_button.add_theme_stylebox_override("disabled", _ready_button.get_theme_stylebox("normal"))
-	_ready_button.add_theme_color_override("font_disabled_color", palette.ink_color)
-	_prompt_content.offset_left = palette.pill_margin_x_px
-	_prompt_content.offset_right = -palette.pill_margin_x_px
-	_prompt_content.offset_top = palette.pill_margin_y_px
-	_prompt_content.offset_bottom = -palette.pill_margin_y_px
-	_sync_prompt_size()
-
-
-## The Button hosts its content as a child (a glyph is not text), so it sizes
-## itself to that content plus the pill margins, as ui/KeyRebindRow.gd does.
-func _sync_prompt_size() -> void:
-	var margins: Vector2 = Vector2(menu_visual_tuning.pill_margin_x_px, menu_visual_tuning.pill_margin_y_px) * 2.0
-	_ready_button.custom_minimum_size = _prompt_content.get_combined_minimum_size() + margins
-
-
-func _on_ready_button_pressed() -> void:
-	press_ready()
+	_prompt_text.text = tuning.ready_prompt_text
+	_prompt_text.add_theme_font_size_override("font_size", tuning.ready_prompt_font_size)
+	_prompt_text.add_theme_color_override("font_color", palette.ink_color)
 
 
 func _on_loading_ready_changed(_ready_ids: PackedInt32Array, _required_ids: PackedInt32Array) -> void:
@@ -801,7 +732,7 @@ func _rebuild_ready_rows(slots: Array[PlayerSlot]) -> void:
 		row.add_child(name_label)
 		row.add_child(mark)
 		_player_list.add_child(row)
-		_ready_rows.append({"slot_id": slot_item.slot_id, "is_bot": slot_item.is_bot, "mark": mark})
+		_ready_rows.append({"slot_id": slot_item.slot_id, "is_bot": slot_item.is_bot, "mark": mark, "name": name_label})
 
 
 func _draw_ready_mark(mark: Control) -> void:
@@ -817,6 +748,24 @@ func _draw_ready_mark(mark: Control) -> void:
 		mark.draw_arc(center, radius, 0.0, TAU, tuning.ready_mark_arc_points, menu_visual_tuning.label_muted_color, tuning.ready_mark_stroke_px, true)
 
 
+## Test seam: the name shown on each player row, in order.
+func player_row_names() -> PackedStringArray:
+	var names: PackedStringArray = PackedStringArray()
+	for row: Dictionary in _ready_rows:
+		names.append((row["name"] as Label).text)
+	return names
+
+
+## Test seam: whether the "Ready?" + glyph prompt is on screen.
+func ready_prompt_visible() -> bool:
+	return _ready_box.visible
+
+
+## Test seam: the prompt's text line ("Ready?").
+func ready_prompt_text() -> String:
+	return _prompt_text.text
+
+
 ## Test seam: whether slot_id's row currently shows the ready tick.
 func player_row_ready(slot_id: int) -> bool:
 	for row: Dictionary in _ready_rows:
@@ -828,17 +777,13 @@ func player_row_ready(slot_id: int) -> bool:
 ## Re-derives everything the ready gate shows from the host's state (the lifecycle
 ## mirrors it on clients) and the local press. Cheap; runs every frame while armed
 ## and on every ready/gate/device signal. Nothing here decides anything: the host
-## still owns the gate.
+## still owns the gate. Bontago-1pi.63: only the player list (name + tick/ring) and
+## the "Ready?" + device glyph prompt remain.
 func _refresh_ready_ui() -> void:
-	var show_list: bool = _ready_gate_armed and not _ready_rows.is_empty()
-	_player_list.visible = show_list
-	_info_label.visible = not show_list
-	_ready_box.visible = _ready_gate_armed
-	_ready_box.custom_minimum_size.y = tuning.ready_box_min_height_px if _ready_gate_armed else 0.0
+	_player_list.visible = not _ready_rows.is_empty()
 	if not _ready_gate_armed:
-		_ready_button.visible = false
+		_ready_box.visible = false
 		return
-	var required: PackedInt32Array = Match._lifecycle.loading_required_peers()
 	var ready_ids: PackedInt32Array = Match._lifecycle.loading_ready_peers()
 	for row: Dictionary in _ready_rows:
 		var slot_ready: bool = bool(row["is_bot"]) or Match._lifecycle.loading_slot_ready(int(row["slot_id"]))
@@ -846,11 +791,7 @@ func _refresh_ready_ui() -> void:
 		if bool(mark.get_meta(&"ready", false)) != slot_ready:
 			mark.set_meta(&"ready", slot_ready)
 			mark.queue_redraw()
-	var blocking: bool = Match._lifecycle.loading_gate_blocking()
-	var local_peer: int = Net.local_peer_id()
-	var is_required: bool = required.has(local_peer)
-	var pressed: bool = _local_pressed or ready_ids.has(local_peer)
-	var waiting: int = maxi(required.size() - ready_ids.size(), 0)
+	var pressed: bool = _local_pressed or ready_ids.has(Net.local_peer_id())
 	# The prompt: this instance finished loading, the gate is still closed, and the
 	# host waits for this peer (spectators, late joiners, clients of an ungated host
 	# and an all-bot match have nothing to press).
@@ -858,18 +799,5 @@ func _refresh_ready_ui() -> void:
 	if prompt_open and not _prompt_announced:
 		_prompt_announced = true
 		ready_prompt_opened.emit()
-	_ready_button.visible = prompt_open
-	_ready_button.disabled = pressed
-	_ready_button.modulate.a = tuning.ready_prompt_disabled_alpha if pressed else 1.0
-	if (pressed or not is_required) and waiting > 0 and _ready_input_enabled and blocking:
-		_status_label.text = (tuning.waiting_one_text if waiting == 1 else tuning.waiting_many_text) % waiting
-	elif blocking and (min_display_remaining_s() > 0.0 or not _ready_input_enabled):
-		_status_label.text = tuning.get_ready_text
-	else:
-		_status_label.text = ""
-	# The safety cap: the host starts without a laggard once ready_wait_max_s passed.
-	var cap_left_s: float = maxf(tuning.ready_wait_max_s - _displayed_s, 0.0)
-	if _ready_input_enabled and blocking and waiting > 0 and cap_left_s > 0.0:
-		_cap_label.text = tuning.cap_countdown_format % ceili(cap_left_s)
-	else:
-		_cap_label.text = ""
+	_ready_box.visible = prompt_open
+	_ready_box.modulate.a = tuning.ready_prompt_disabled_alpha if pressed else 1.0

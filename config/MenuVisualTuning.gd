@@ -9,6 +9,13 @@ extends Resource
 ## and 11-lobby-layered-pastel.png after the owner rejected the first pass
 ## (Bontago-xtq.32: "absolutely not, it looks awful and nothing like the mockup").
 
+## -- Menu render budget (Bontago-1pi.11.48): while a menu/lobby backdrop is in
+## the tree the full-screen opaque backdrop hides the match world, so the root
+## viewport skips its 3D pass and the frame rate is capped (0 = no cap). Never
+## applied in a match; the player's vsync choice is untouched. --------------
+@export var menu_max_fps: int = 60
+@export var menu_disable_world_3d: bool = true
+
 ## -- Diorama framing: the SubViewportContainer is reframed into a small,
 ## framed rectangle in the right third of the screen (gap item 1), instead of
 ## filling the whole background. Fractions of the parent Control's rect. -----

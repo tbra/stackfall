@@ -308,7 +308,8 @@ func test_results_scales_uniformly() -> void:
 
 
 func test_loading_scales_uniformly() -> void:
-	var names: PackedStringArray = ["%Card", "%ProgressBar"]
+	# Bontago-1pi.63: the card holds the map name, player rows and the ready prompt.
+	var names: PackedStringArray = ["%Card", "%MapLabel", "%PlayerList", "%ReadyBox"]
 	var measured: Dictionary = await _measure(_build_loading, names)
 	_check_on_screen(measured, names, "loading")
 	_check_fixed_size(measured, PackedStringArray(["%Card"]), "loading")

@@ -1147,7 +1147,27 @@ func _config_from_controls() -> MatchConfig:
 	# flags -- a toggle left on in the F4 panel cannot leak into a lobby match
 	# the host sees as "all off". Numeric parameters stay in the shared resource.
 	config.qol = _qol_from_controls()
+	config.bot_names = _reconciled_bot_names(config.ai_count)
 	return config
+
+
+## Bontago-1pi.62: the host's bot names, by bot ordinal. Assigned the moment a bot
+## seat exists (so the lobby and the match show the same name), replicated in the
+## published MatchConfig.bot_names, and reused by Match.start_match.
+var _bot_names: PackedStringArray = PackedStringArray()
+
+
+## Keeps the names still valid, drops those of removed seats, draws fresh distinct
+## ones (not any human's name, not another bot's) for new seats.
+func _reconciled_bot_names(bot_count: int) -> PackedStringArray:
+	var human_names: PackedStringArray = PackedStringArray()
+	if net_provider != null:
+		for peer_id: int in net_provider.peer_ids():
+			human_names.append(str(net_provider.peer_info(peer_id).get("name", "")))
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.randomize()
+	_bot_names = BotNames.assign(_bot_names, bot_count, human_names, rng)
+	return _bot_names.duplicate()
 
 
 ## The four Experiments checkboxes folded onto a copy of the shared F4 resource
@@ -1208,6 +1228,7 @@ func _apply_data(data: Dictionary) -> void:
 	# ever receive over the wire.
 	config.hot_seat = false
 	_last_config = config
+	_bot_names = config.bot_names.duplicate()
 
 	_applying_remote_data = true
 	_map_variant_option.selected = config.map_variant
@@ -1312,7 +1333,10 @@ func _on_add_bot_requested() -> void:
 	_set_bot_count(int(_ai_count_spin.value) + 1)
 
 
-func _on_remove_bot_requested(_ordinal: int) -> void:
+func _on_remove_bot_requested(ordinal: int) -> void:
+	# Bontago-1pi.62: the removed bot's name is freed; later bots keep theirs.
+	if ordinal >= 0 and ordinal < _bot_names.size():
+		_bot_names.remove_at(ordinal)
 	_set_bot_count(maxi(0, int(_ai_count_spin.value) - 1))
 
 
