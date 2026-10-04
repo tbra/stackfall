@@ -1,0 +1,11 @@
+root = true
+
+# Text files are stored and written as LF (matches .gitattributes).
+[*]
+end_of_line = lf
+
+[*.{gd,gdshader}]
+indent_style = tab
+
+[*.{bat,cmd}]
+end_of_line = crlf

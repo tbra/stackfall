@@ -230,6 +230,17 @@ def is_asset_path(path):
     return path.startswith(ASSET_PREFIXES)
 
 
+def normalize_eol(ctx, dest, c):
+    """CRLF -> LF in the copied text files so `git add` prints no line-ending warnings (fca.26)."""
+    for i, chunk in enumerate(add_chunks(c.paths)):
+        code, text, log = run_cmd(ctx, "eol_%s_%d" % (c.bead, i),
+                                  [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "normalize_eol.py"),
+                                   "--path", dest, *chunk],
+                                  dest, STEP_TIMEOUT_S)
+        if code != 0:
+            raise StepFailed("eol", "normalize_eol failed for %s; log %s" % (c.bead, log))
+
+
 def commit_message(title, bead, wt):
     """(subject, body, trailer): one commit per bead."""
     return ("%s (%s)" % (title, bead),
@@ -477,6 +488,7 @@ def stage(args, ctx, say, res):
             if path_exists(dst):
                 raise StepFailed("copy", "refusing to overwrite " + dst)
             copy_file(fwd_join(c.wt, p), dst)
+        normalize_eol(ctx, dest, c)
         for i, chunk in enumerate(add_chunks(c.paths)):
             code, text, log = git(ctx, "add_%s_%d" % (c.bead, i), dest, "add", "--", *chunk,
                                   timeout=STEP_TIMEOUT_S)
