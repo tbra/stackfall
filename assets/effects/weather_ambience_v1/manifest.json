@@ -1,0 +1,153 @@
+{
+  "sample_rate": 44100,
+  "channels": 2,
+  "pcm_bits": 16,
+  "generator": "tools/generate_weather_audio.py",
+  "provenance": "Original periodic Fourier noise, circular droplets and finite noise sweeps; no sampled audio",
+  "cues": [
+    {
+      "file": "rain_loop.wav",
+      "kind": "loop",
+      "weather": "rain",
+      "seed": 3101,
+      "circular_rotation_frames": 1106139,
+      "target_rms_dbfs": -28,
+      "duration_s": 32.0,
+      "peak_dbfs": -13.314,
+      "rms_dbfs": -28.0,
+      "max_dc_offset": 1.0077374862705499e-08,
+      "stereo_correlation": 0.63961,
+      "mono_loss_db": -0.863,
+      "loop_begin_frame": 0,
+      "loop_end_frame_exclusive": 1411200,
+      "seam_jump": [
+        0.000213623046875,
+        3.0517578125e-05
+      ],
+      "internal_difference_p99": [
+        0.04742431640625,
+        0.047607421875
+      ],
+      "seam_curvature": [
+        0.0015869140625,
+        0.00042724609375
+      ],
+      "internal_curvature_p99": [
+        0.03076171875,
+        0.030853271484375
+      ],
+      "seam_level_difference_db": 0.3588,
+      "sha256": "8511b6e09a37a9bf58632cd94f3745c34674b3ddd58185530674fc40cf2893f0"
+    },
+    {
+      "file": "snow_loop.wav",
+      "kind": "loop",
+      "weather": "snow",
+      "seed": 3102,
+      "circular_rotation_frames": 1388742,
+      "target_rms_dbfs": -37,
+      "duration_s": 32.0,
+      "peak_dbfs": -22.329,
+      "rms_dbfs": -37.0,
+      "max_dc_offset": 6.963336278521826e-09,
+      "stereo_correlation": 0.63986,
+      "mono_loss_db": -0.862,
+      "loop_begin_frame": 0,
+      "loop_end_frame_exclusive": 1411200,
+      "seam_jump": [
+        3.0517578125e-05,
+        3.0517578125e-05
+      ],
+      "internal_difference_p99": [
+        0.009674072265625,
+        0.009613037109375
+      ],
+      "seam_curvature": [
+        9.1552734375e-05,
+        9.1552734375e-05
+      ],
+      "internal_curvature_p99": [
+        0.003265380859375,
+        0.003265380859375
+      ],
+      "seam_level_difference_db": 0.1086,
+      "sha256": "18a1f1a543a8a97b87ad26a092379ebd2879d05b9beee39cdac53d9cd5c86fb6"
+    },
+    {
+      "file": "storm_loop.wav",
+      "kind": "loop",
+      "weather": "storm",
+      "seed": 3103,
+      "circular_rotation_frames": 169531,
+      "target_rms_dbfs": -29,
+      "duration_s": 32.0,
+      "peak_dbfs": -14.62,
+      "rms_dbfs": -29.0,
+      "max_dc_offset": 1.3256289250726333e-08,
+      "stereo_correlation": 0.63976,
+      "mono_loss_db": -0.862,
+      "loop_begin_frame": 0,
+      "loop_end_frame_exclusive": 1411200,
+      "seam_jump": [
+        6.103515625e-05,
+        3.0517578125e-05
+      ],
+      "internal_difference_p99": [
+        0.008941650390625,
+        0.009002685546875
+      ],
+      "seam_curvature": [
+        3.0517578125e-05,
+        3.0517578125e-05
+      ],
+      "internal_curvature_p99": [
+        0.001312255859375,
+        0.001312255859375
+      ],
+      "seam_level_difference_db": 0.141,
+      "sha256": "3f1ebb5964643c50b0516c824f33065da6b24d8b23189cdcd2022a6e5b2ce4aa"
+    },
+    {
+      "file": "gust_01.wav",
+      "kind": "one_shot",
+      "variant": 1,
+      "seed": 3191,
+      "duration_s": 0.85,
+      "peak_dbfs": -12.0,
+      "rms_dbfs": -27.347,
+      "max_dc_offset": 7.89703902394291e-08,
+      "stereo_correlation": 0.63457,
+      "mono_loss_db": -0.876,
+      "tail_20ms_rms_dbfs": -67.208,
+      "sha256": "3071cd710ab3f184c0e575dda7226818c23778cf4931de1c1ca10cb2a7310262"
+    },
+    {
+      "file": "gust_02.wav",
+      "kind": "one_shot",
+      "variant": 2,
+      "seed": 3192,
+      "duration_s": 1.25,
+      "peak_dbfs": -12.0,
+      "rms_dbfs": -28.184,
+      "max_dc_offset": 3.432362528344671e-08,
+      "stereo_correlation": 0.65097,
+      "mono_loss_db": -0.833,
+      "tail_20ms_rms_dbfs": -74.052,
+      "sha256": "faa7f74c0782a5bbf1dd69cd86ae001a10a5520c274299ad5eda8e8e81b229fa"
+    },
+    {
+      "file": "gust_03.wav",
+      "kind": "one_shot",
+      "variant": 3,
+      "seed": 3193,
+      "duration_s": 1.65,
+      "peak_dbfs": -12.0,
+      "rms_dbfs": -28.208,
+      "max_dc_offset": 3.564892655294441e-08,
+      "stereo_correlation": 0.63346,
+      "mono_loss_db": -0.879,
+      "tail_20ms_rms_dbfs": -79.53,
+      "sha256": "49e81a0b267a4e048400aa686d33fa028e362dd2d99915a074e6b97a8ed73545"
+    }
+  ]
+}

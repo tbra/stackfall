@@ -1,0 +1,38 @@
+[
+  {
+    "file": "rain_loop.wav",
+    "start_s": 0.0,
+    "seam_s": 3.0,
+    "end_s": 6.0
+  },
+  {
+    "file": "snow_loop.wav",
+    "start_s": 6.8,
+    "seam_s": 9.8,
+    "end_s": 12.8
+  },
+  {
+    "file": "storm_loop.wav",
+    "start_s": 13.6,
+    "seam_s": 16.6,
+    "end_s": 19.6
+  },
+  {
+    "file": "gust_01.wav",
+    "start_s": 20.4,
+    "seam_s": null,
+    "end_s": 21.25
+  },
+  {
+    "file": "gust_02.wav",
+    "start_s": 22.05,
+    "seam_s": null,
+    "end_s": 23.3
+  },
+  {
+    "file": "gust_03.wav",
+    "start_s": 24.1,
+    "seam_s": null,
+    "end_s": 25.75
+  }
+]
