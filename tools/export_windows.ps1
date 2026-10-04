@@ -35,6 +35,12 @@ if (-not (Test-Path $steamDll)) {
 	Write-Warning "GodotSteam addon not installed in $Path; the build will run LAN/direct IP only."
 }
 
+# Bontago-1pi.74: bake the git revision into res://build_info.cfg for the menu label.
+& $Godot --headless --path $Path -s tools/stamp_build_info.gd
+if ($LASTEXITCODE -ne 0) {
+	Write-Warning "stamp_build_info failed; the build label will show the version only."
+}
+
 $mode = if ($Debug) { "--export-debug" } else { "--export-release" }
 Write-Host "Exporting ($mode) from $Path to $exe"
 & $Godot --headless --path $Path $mode "Windows Desktop" $exe
