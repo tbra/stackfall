@@ -13,6 +13,14 @@ extends Resource
 @export_range(0.0, 1.0, 0.01) var cycle_star_threshold: float = 0.92
 @export_range(0.01, 0.3, 0.01) var cycle_star_radius: float = 0.12
 @export_range(0.01, 0.5, 0.01) var cycle_star_horizon_fade: float = 0.22
+## Bontago-mp0.122: the moon_v1 disc + halo, opposite the sun. Angular radius of the
+## visible disc and halo (degrees), halo strength, disc brightness, and the night mix
+## (0..1) at which it is fully visible (it fades in from 0 at dusk, out at dawn).
+@export_range(0.5, 12.0, 0.1) var cycle_moon_angular_radius_deg: float = 3.2
+@export_range(2.0, 40.0, 0.5) var cycle_moon_halo_radius_deg: float = 14.0
+@export_range(0.0, 2.0, 0.05) var cycle_moon_halo_strength: float = 0.6
+@export_range(0.2, 3.0, 0.05) var cycle_moon_brightness: float = 1.0
+@export_range(0.05, 1.0, 0.01) var cycle_moon_full_night_mix: float = 0.8
 ## Bontago-59o.18 (docs/SKY_CYCLE_DEFAULT_PLAN.md): Cycle is the default sky and
 ## the lobby's Sunset / Dawn / Night options become the same cycle locked at a
 ## fixed phase. Phase 0 = dawn horizon, 0.25 = noon, 0.5 = sunset horizon,
