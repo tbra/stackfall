@@ -158,6 +158,28 @@ extends Resource
 @export var kill_scale: float = 0.08
 @export var kill_color: Color = Color(0.82, 0.78, 0.68)
 
+# --- Cel dust-puff flipbook (Bontago-mp0.120, assets/vfx/impact_puff_v1) -----
+
+## Master switch for the flipbook puff at impact points.
+@export var puff_enabled: bool = true
+## Impact intensity (BlockEffectsManager._impact_intensity()) at or above which
+## the "hard" atlas is used; below it the "soft" atlas plays.
+@export var puff_hard_intensity: float = 1.6
+## Quad edge (meters) at intensity 1 and at impact_intensity_max; the quad grows
+## linearly between them (the soft atlas art is already smaller).
+@export var puff_size_min_m: float = 1.0
+@export var puff_size_max_m: float = 2.0
+## Opacity at intensity 1 and at impact_intensity_max.
+@export var puff_alpha_min: float = 0.6
+@export var puff_alpha_max: float = 0.95
+@export var puff_tint: Color = Color(1.0, 1.0, 1.0, 1.0)
+## Flipbook rate and frame count (atlas manifest: 16 frames at 30 fps).
+@export var puff_fps: float = 30.0
+@export var puff_frame_count: int = 16
+## Hard cap on simultaneously active puffs (scaled by the graphics preset's
+## particle_budget_scale); extra puffs are dropped.
+@export var puff_max_active: int = 12
+
 # --- Burst pool and budget (Bontago-1pi.11.31) -------------------------------
 
 ## Hard cap on simultaneously active one-shot bursts (landing + kill-plane
