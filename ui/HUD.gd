@@ -1364,9 +1364,28 @@ var _glue_active: bool = false
 func _on_match_state_changed_glue(_from_state: int, to_state: int) -> void:
 	if to_state != Match.State.END:
 		visible = true
+	if to_state == Match.State.LOADING or to_state == Match.State.COUNTDOWN:
+		prime_pregame_widgets()
 	if to_state == Match.State.LOBBY or to_state == Match.State.END:
 		_last_special_signature = []
 		_set_glue_active(false)
+
+
+## Bontago-1pi.84: the player-stat rows and minimap otherwise fill in only on
+## the first territory_share_changed, which the solver emits once play begins, so
+## the countdown showed an empty stats panel and no minimap. Called on
+## LOADING/COUNTDOWN (the HUD is loaded behind the Ready screen): builds one
+## zero-share row per team and pushes the map/raster/homes to the minimap.
+func prime_pregame_widgets() -> void:
+	if match_provider == null:
+		return
+	var running_config: Variant = match_provider.config
+	if running_config == null:
+		return
+	var shares: PackedFloat32Array = PackedFloat32Array()
+	shares.resize(int(running_config.team_count()))
+	set_territory_shares(shares)
+	_update_minimap()
 
 
 func glue_preview_active() -> bool:

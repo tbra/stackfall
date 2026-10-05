@@ -5,7 +5,9 @@ extends Node
 
 const OUTPUT_NAME: String = "pt79_start.png"
 const MAX_FRAMES: int = 1800
-const CAPTURE_COUNTDOWN_S: float = 2.2
+const MAX_SHOTS: int = 14
+const SHOT_INTERVAL_MS: int = 450
+const POST_GO_MS: int = 2000
 const RENDER_FALLBACK: Vector2i = Vector2i(1720, 720)
 
 var _viewport: SubViewport = null
@@ -19,21 +21,30 @@ func _ready() -> void:
 	await get_tree().process_frame
 	Net.host_game(AgentProbe.free_udp_port(), "Tonyflow")
 	main._start_headless_bot_match_with_args(PackedStringArray(["--bots=1", "--players=2"]))
+	var rig: CameraRig = main._camera_rig
 	var frames: int = 0
-	while frames < MAX_FRAMES and not _ready_to_shoot():
+	var shots: int = 0
+	var go_time_ms: int = -1
+	var last_shot_ms: int = -1000000
+	while frames < MAX_FRAMES and shots < MAX_SHOTS:
 		await get_tree().process_frame
 		frames += 1
-	await RenderingServer.frame_post_draw
-	var rig: CameraRig = main._camera_rig
-	print("PT79 state=%d rem=%.2f start=%s cam=%s" % [Match.state(), Match.countdown_remaining(), rig.is_start_framing(), rig.get_camera().global_position])
-	var image: Image = _viewport.get_texture().get_image()
-	var path: String = "user://%s" % OUTPUT_NAME
-	image.save_png(path)
-	print("PT79 saved=%s" % ProjectSettings.globalize_path(path))
+		var state: int = Match.state()
+		if state != Match.State.COUNTDOWN and state != Match.State.PLAYING:
+			continue
+		if state == Match.State.COUNTDOWN and Match._lifecycle.is_countdown_held():
+			continue
+		if state == Match.State.PLAYING and go_time_ms < 0:
+			go_time_ms = Time.get_ticks_msec()
+		if go_time_ms >= 0 and Time.get_ticks_msec() - go_time_ms > POST_GO_MS:
+			break
+		if Time.get_ticks_msec() - last_shot_ms < SHOT_INTERVAL_MS:
+			continue
+		last_shot_ms = Time.get_ticks_msec()
+		await RenderingServer.frame_post_draw
+		var path: String = "user://pt84_%02d.png" % shots
+		_viewport.get_texture().get_image().save_png(path)
+		var xf: Transform3D = rig.get_camera().global_transform
+		print("PT84 shot=%d state=%d rem=%.2f pos=%s basis=%s file=%s" % [shots, state, Match.countdown_remaining(), xf.origin, xf.basis.get_euler(), ProjectSettings.globalize_path(path)])
+		shots += 1
 	get_tree().quit()
-
-
-func _ready_to_shoot() -> bool:
-	if Match.state() == Match.State.PLAYING:
-		return true
-	return Match.state() == Match.State.COUNTDOWN and not Match._lifecycle.is_countdown_held() and Match.countdown_remaining() < CAPTURE_COUNTDOWN_S

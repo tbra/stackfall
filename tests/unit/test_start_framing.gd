@@ -56,36 +56,30 @@ func _home(slot: int) -> Vector3:
 	return Vector3.ZERO
 
 
-func test_camera_equals_configured_start_framing_for_each_map_size() -> void:
+func test_camera_starts_in_the_final_follow_view_for_each_map_size() -> void:
 	for path: String in MAP_PATHS:
 		var map: MapDef = (load(path) as MapDef).duplicate(true)
 		await _start_match(map)
 		var rig: CameraRig = _main._camera_rig
 		var tuning: CameraTuning = rig.tuning
 		assert_true(rig.begin_start_framing(HELD_SLOT), path)
-		var home: Vector3 = _home(HELD_SLOT)
-		var away: Vector3 = Vector3(home.x, 0.0, home.z).normalized()
-		var pitch: float = deg_to_rad(tuning.start_pitch_deg)
-		var distance: float = tuning.start_distance(map.field_radius)
-		var pivot: Vector3 = tuning.start_pivot(home)
-		var expected: Vector3 = pivot + Vector3(away.x * cos(pitch), -sin(pitch), away.z * cos(pitch)) * distance
-		var actual: Vector3 = rig.get_camera().global_position
-		assert_lt(actual.distance_to(expected), POSITION_TOLERANCE_M, "%s: camera sits at the configured framing" % path)
-		assert_gt(actual.y, 0.0, "%s: raised above the disc" % path)
-		assert_gt(Vector2(actual.x, actual.z).length(), map.field_radius, "%s: just outside the rim" % path)
-		# Held through the whole countdown, not dragged to the ghost.
-		_step_countdown_frames_before_play(rig, expected)
+		assert_almost_eq(rig.get_pitch(), deg_to_rad(tuning.start_pitch_deg), 0.0001, "%s: owner's pitch" % path)
+		assert_almost_eq(rig.get_distance(), clampf(tuning.start_distance_m, tuning.zoom_min, tuning.zoom_max), 0.0001, "%s: configured distance" % path)
+		var first: Transform3D = rig.get_camera().global_transform
+		# Ghost follow runs from the first frame; GO changes nothing about the pose.
+		var follow: Vector3 = rig.get_target()
+		rig.set_follow_position(follow)
+		rig._process(0.016)
+		assert_lt(rig.get_camera().global_position.distance_to(first.origin), POSITION_TOLERANCE_M, "%s: no shift on the first frame" % path)
+		_step_countdown()
+		for _i: int in range(60):
+			rig.set_follow_position(follow)
+			rig._process(0.016)
+		assert_eq(Match.state(), Match.State.PLAYING)
+		assert_lt(rig.get_camera().global_position.distance_to(first.origin), POSITION_TOLERANCE_M, "%s: no ease or shift through GO" % path)
 		_main.queue_free()
 		await get_tree().process_frame
 		Net.leave()
-
-
-func _step_countdown_frames_before_play(rig: CameraRig, expected: Vector3) -> void:
-	rig._process(0.016)
-	rig.set_follow_position(Vector3(3.0, 4.0, 5.0))
-	rig._process(0.016)
-	assert_lt(rig.get_camera().global_position.distance_to(expected), POSITION_TOLERANCE_M, "countdown holds the framing")
-	assert_true(rig.is_start_framing())
 
 
 func test_first_gameplay_frame_has_ghost_hud_cards_and_rows() -> void:
@@ -136,16 +130,10 @@ func test_late_bound_controller_pulls_the_held_block_into_its_ghost() -> void:
 	assert_eq(ghost.get_shape().id, Match.held_shape(HELD_SLOT).id)
 
 
-func test_player_camera_input_during_the_hold_takes_over() -> void:
+func test_hud_stats_and_minimap_are_populated_in_the_countdown() -> void:
 	var map: MapDef = (load(MAP_PATHS[0]) as MapDef).duplicate(true)
 	await _start_match(map)
-	var rig: CameraRig = _main._camera_rig
-	assert_true(rig.begin_start_framing(HELD_SLOT))
-	rig._process(0.016)
-	var before: float = rig.get_distance()
-	rig.zoom_by_orbit_step(1.0)
-	var zoomed: float = rig.get_distance()
-	assert_ne(zoomed, before)
-	rig._process(0.016)
-	assert_false(rig.is_start_framing(), "input ends the hold")
-	assert_almost_eq(rig.get_distance(), zoomed, 0.001, "and is not overwritten")
+	var hud: HUD = _main._hot_seat.hud()
+	assert_eq(Match.state(), Match.State.COUNTDOWN)
+	assert_eq(hud._share_rows.size(), Match.slot_count(), "one stats row per player before the first solve")
+	assert_true(hud._minimap.visible, "minimap shown in the countdown")
