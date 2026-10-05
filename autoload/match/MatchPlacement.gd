@@ -133,7 +133,7 @@ func request_place(
 	# here locally must not spawn anything; it waits for the host's spawn.
 	if not _match._is_host():
 		return PlacementRules.REASON_NO_BLOCK
-	if _match.state() != MatchAutoload.State.PLAYING or _match._field == null or _match._blocks_parent == null:
+	if not MatchLifecycle.is_live_state(_match.state()) or _match._field == null or _match._blocks_parent == null:
 		return PlacementRules.REASON_NO_BLOCK
 	if slot_id < 0 or slot_id >= _match.slot_count():
 		return PlacementRules.REASON_NO_BLOCK
@@ -208,11 +208,7 @@ func request_place(
 		# zone". core/rules/PlacementRules.gd itself stays config-agnostic;
 		# this is the one call site that already knows about config.sandbox
 		# (autoload/match/MatchLifecycle.gd:121's own precedent).
-		if (_match.config.sandbox or _match.held_special(slot_id) != &"") and (  # Bontago-sen.1: held gift waives territory (host state)
-			result == PlacementRules.Result.OUTSIDE_TERRITORY
-			or result == PlacementRules.Result.CONTESTED
-		):
-			result = PlacementRules.Result.VALID
+		result = _apply_territory_waiver(slot_id, result)  # Bontago-sen.1: held gift waives territory (host state)
 	if result != PlacementRules.Result.VALID and auto_drop:
 		relocated = PlacementRules.closest_valid_point(disk_origin, _match.raster(), team_id, _match._territory_tuning)
 	var outcome: Dictionary = _resolve_outcome(result, auto_drop, relocated)
@@ -352,7 +348,7 @@ func request_throw(
 ) -> StringName:
 	if not _match._is_host():
 		return PlacementRules.REASON_NO_BLOCK
-	if _match.state() != MatchAutoload.State.PLAYING or _match._field == null or _match._blocks_parent == null:
+	if not MatchLifecycle.is_live_state(_match.state()) or _match._field == null or _match._blocks_parent == null:
 		return PlacementRules.REASON_NO_BLOCK
 	if slot_id < 0 or slot_id >= _match.slot_count():
 		return PlacementRules.REASON_NO_BLOCK
@@ -404,11 +400,7 @@ func request_throw(
 		# DECISION (Bontago-sen.1): orchestrator ruling -- owner says gifts may be
 		# "dropped anywhere", so a host-held gift (always true here, see the
 		# NOT_A_SPECIAL guard above) waives territory on the throw path too.
-		if (_match.config.sandbox or _match.held_special(slot_id) != &"") and (
-			result == PlacementRules.Result.OUTSIDE_TERRITORY
-			or result == PlacementRules.Result.CONTESTED
-		):
-			result = PlacementRules.Result.VALID
+		result = _apply_territory_waiver(slot_id, result)
 	if result != PlacementRules.Result.VALID:
 		# docs/M4_P2_PACKAGES.md P2c: "a refused throw keeps the piece in
 		# hand, like a refused click; never burns" -- mirrors request_place()'s
@@ -497,7 +489,7 @@ func spawn_special_projectile(
 ) -> Block:
 	if not _match._is_host():
 		return null
-	if _match.state() != MatchAutoload.State.PLAYING or _match._field == null or _match._blocks_parent == null:
+	if not MatchLifecycle.is_live_state(_match.state()) or _match._field == null or _match._blocks_parent == null:
 		return null
 	if shape == null:
 		return null
@@ -632,7 +624,7 @@ func _resolve_outcome(
 func preview_placement(
 	slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion
 ) -> PlacementRules.Result:
-	if _match.state() != MatchAutoload.State.PLAYING or _match.cell_grid() == null or _match.raster() == null or _match._field == null:
+	if not MatchLifecycle.is_live_state(_match.state()) or _match.cell_grid() == null or _match.raster() == null or _match._field == null:
 		return PlacementRules.Result.EMPTY
 	if slot_id < 0 or slot_id >= _match.slot_count():
 		return PlacementRules.Result.EMPTY
@@ -651,12 +643,20 @@ func preview_placement(
 		return PlacementRules.Result.OFF_DISK
 	var preview_result: PlacementRules.Result = PlacementRules.validate_point(hit as Vector2, _match.raster(), team_id)
 	# Bontago-sen.1: mirrors request_place(): a held gift ignores territory.
-	if _match.held_special(slot_id) != &"" and (
-		preview_result == PlacementRules.Result.OUTSIDE_TERRITORY
-		or preview_result == PlacementRules.Result.CONTESTED
+	return _apply_territory_waiver(slot_id, preview_result)
+
+
+## Bontago-1pi.87: the one territory waiver shared by request_place(),
+## request_throw() and preview_placement(): sandbox (no territory limits) or a
+## held gift (Bontago-sen.1) turns OUTSIDE_TERRITORY / CONTESTED into VALID;
+## every other result (OFF_DISK, HOLE, GOAL_ZONE, ...) is unchanged.
+func _apply_territory_waiver(slot_id: int, result: PlacementRules.Result) -> PlacementRules.Result:
+	if (_match.config.sandbox or _match.held_special(slot_id) != &"") and (
+		result == PlacementRules.Result.OUTSIDE_TERRITORY
+		or result == PlacementRules.Result.CONTESTED
 	):
 		return PlacementRules.Result.VALID
-	return preview_result
+	return result
 
 
 ## Bontago-mv0.11: `slot_id`'s own colour tints every mesh of the block it
