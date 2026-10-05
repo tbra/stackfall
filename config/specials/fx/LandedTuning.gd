@@ -13,3 +13,6 @@ extends Resource
 
 ## Hard timeout ceiling for landing detection in seconds (e.g., for continuous tilt).
 @export var landed_timeout_s: float = 5.0
+
+## Downward test-motion distance in meters used to detect that the block touches something.
+@export var contact_probe_m: float = 0.05
