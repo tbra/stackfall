@@ -2,7 +2,7 @@
 
   python tools/stage_codex_handoffs.py --beads Bontago-mp0.52 Bontago-mp0.53 --branch wt/assets-batch3
          [--worktree-root M:/Bontago-worktrees] [--repo M:/Bontago] [--base <rev, default main>]
-         [--dry-run] [--min-age-min 30] [--allow-missing] [--log-dir DIR]
+         [--dry-run] [--min-age-min 30] [--allow-missing] [--no-import] [--godot godot] [--log-dir DIR]
 
 Codex leaves each package UNCOMMITTED in its own checkout (M:/Bontago/.claude/worktrees/codex-*) and names
 that path in a bead comment (author "codex"; backslashes or slashes; the LAST path mentioned wins). This
@@ -26,6 +26,13 @@ Unless --dry-run: `git worktree add -b <branch> <root>/<branch tail> <base>`, co
 (never overwrites), `git add -- <files>` (chunked for the Windows command-line limit) and one commit
 "<title> (<bead>)" per bead, then verify the branch diff against <base> is exactly the staged files. A
 failure after the worktree exists removes that worktree and branch (the Codex sources are untouched).
+
+Import metadata (Bontago-fca.25): after the per-bead commits, `godot --headless --editor --path <staging
+worktree> --quit` runs once (--godot to override the executable) so Godot generates the `.import` / `.uid`
+sidecars; only the untracked sidecars belonging to the staged paths (`<path>.import`, `<path>.uid`) are
+committed, as a final "Import metadata for staged assets" commit (nothing else Godot touches is added).
+The branch diff check then expects staged files + those sidecars. --dry-run creates nothing but lists the
+staged paths expected to gain sidecars ("import metadata candidates"); --no-import skips the step.
 
 Stdout is compact: one line per bead, then `STAGE OK branch=<b> head=<sha> beads=N files=M`,
 `STAGE REFUSED: <reason>` or `STAGE FAILED at <step>: <detail>`; full detail goes to <log-dir>/detail.txt
@@ -52,6 +59,9 @@ ASSET_PREFIXES = ("assets/", "source_art/", "docs/art_mockups/", "docs/audio_rev
 BYTES_PER_MB = 1_000_000
 SECONDS_PER_MIN = 60.0
 MAX_LISTED = 3  # paths listed per stdout line; detail.txt has every one
+IMPORT_TIMEOUT_S = 1800
+SIDECAR_SUFFIXES = (".import", ".uid")
+NO_SIDECAR_SUFFIXES = (".import", ".uid", ".md", ".txt", ".json", ".py", ".cfg", ".ps1", ".csv")
 ADD_CHUNK_CHARS = 20000  # stay well under the ~32k Windows command-line limit
 COMMIT_TRAILER = "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 # Drive path whose parent directory name ends in "worktrees" (.claude/worktrees/x, Bontago-worktrees/x).
@@ -239,6 +249,43 @@ def normalize_eol(ctx, dest, c):
                                   dest, STEP_TIMEOUT_S)
         if code != 0:
             raise StepFailed("eol", "normalize_eol failed for %s; log %s" % (c.bead, log))
+
+
+def sidecar_candidates(paths):
+    """Staged paths expected to gain a .import (assets) or .uid (scripts/shaders) sidecar from an editor import."""
+    return [p for p in paths if not p.lower().endswith(NO_SIDECAR_SUFFIXES)]
+
+
+def import_metadata(ctx, godot, dest, staged_paths, say):
+    """Run the editor import in the staging worktree and commit the sidecars of staged paths. Returns their paths."""
+    code, text, log = run_cmd(ctx, "godot_import", [shutil.which(godot) or godot, "--headless", "--editor", "--path", dest, "--quit"],
+                              dest, IMPORT_TIMEOUT_S)
+    if code != 0:
+        raise StepFailed("import", "godot editor import exited %d; log %s" % (code, log))
+    owners = set(p.lower() for p in staged_paths)
+    code, text, log = git(ctx, "status_import", dest, "-c", "core.quotepath=false", "status", "--porcelain",
+                          "-uall", timeout=STEP_TIMEOUT_S)
+    if code != 0:
+        raise StepFailed("import", "git status failed after import; log " + log)
+    sidecars = []
+    for xy, path in parse_porcelain(text):
+        if xy == "??" and path.lower().endswith(SIDECAR_SUFFIXES):
+            if path.rsplit(".", 1)[0].lower() in owners:
+                sidecars.append(path)
+    if not sidecars:
+        say("import metadata: no new sidecars")
+        return []
+    for i, chunk in enumerate(add_chunks(sidecars)):
+        code, text, log = git(ctx, "add_import_%d" % i, dest, "add", "--", *chunk, timeout=STEP_TIMEOUT_S)
+        if code != 0:
+            raise StepFailed("import", "git add of sidecars failed; log " + log)
+    code, text, log = git(ctx, "commit_import", dest, "commit", "-q", "-m", "Import metadata for staged assets",
+                          "-m", "Generated .import/.uid files for the staged asset paths only.",
+                          "-m", COMMIT_TRAILER, timeout=STEP_TIMEOUT_S)
+    if code != 0:
+        raise StepFailed("import", "git commit of sidecars failed; log " + log)
+    say("committed import metadata (%d files)" % len(sidecars))
+    return sidecars
 
 
 def commit_message(title, bead, wt):
@@ -475,6 +522,12 @@ def stage(args, ctx, say, res):
         raise Refused("; ".join(problems)[:400])
     files = sum(len(c.rows) for c in staged)
     if args.dry_run:
+        if not args.no_import:
+            cand = sidecar_candidates([p for c in staged for p in c.paths])
+            say("import metadata candidates (%d): %s" % (len(cand), brief(cand)))
+            with open(os.path.join(ctx.log_dir, "detail.txt"), "a", encoding="utf-8") as fh:
+                for p in cand:
+                    fh.write("IMPORT-CANDIDATE %s\n" % p)
         return "dry-run", len(staged), files
     # worktree + one commit per bead
     code, text, log = git(ctx, "worktree_add", repo, "worktree", "add", "-b", args.branch, dest, base)
@@ -501,6 +554,8 @@ def stage(args, ctx, say, res):
             raise StepFailed("commit", "git commit failed for %s; log %s" % (c.bead, log))
         staged_paths.extend(c.paths)
         say("committed %s (%d files)" % (c.bead, len(c.rows)))
+    if not args.no_import:
+        staged_paths.extend(import_metadata(ctx, args.godot, dest, staged_paths, say))
     head = git_out(ctx, "rev_head", dest, "rev-parse", "HEAD")
     changed = git_out(ctx, "verify_diff", dest, "diff", "--name-only", "--no-renames", "-z",
                        base, "HEAD").split("\0")
@@ -529,6 +584,8 @@ def main(argv):
                     help="refuse a candidate whose newest file is younger than this (minutes)")
     ap.add_argument("--allow-missing", action="store_true",
                     help="skip beads with no usable Codex worktree (NO-WT) instead of refusing the run")
+    ap.add_argument("--godot", default="godot", help="Godot executable for the import step")
+    ap.add_argument("--no-import", action="store_true", help="skip the editor import + import metadata commit")
     ap.add_argument("--log-dir", default="")
     args = ap.parse_args(argv)
     log_dir = args.log_dir or tempfile.mkdtemp(prefix="stage_codex_handoffs_")
