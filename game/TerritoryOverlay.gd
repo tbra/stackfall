@@ -1110,6 +1110,21 @@ func set_wet(amount: float, sheen_add: float, roughness_scale: float) -> void:
 	_apply_wet()
 
 
+## Bontago-mp0.127: the cloud shadow layers on the disc (vfx/CloudShadows.gd). `to_unit_*` map
+## world to the layer's unit box, `alpha_*` is its strength; both 0 turns the term off.
+func set_cloud_shadows(texture_a: Texture2D, texture_b: Texture2D, to_unit_a: Transform3D, to_unit_b: Transform3D,
+		alpha_a: float, alpha_b: float, color: Color) -> void:
+	if _material == null:
+		return
+	_material.set_shader_parameter(&"cshadow_tex_a", texture_a)
+	_material.set_shader_parameter(&"cshadow_tex_b", texture_b)
+	_material.set_shader_parameter(&"cshadow_a_m", to_unit_a)
+	_material.set_shader_parameter(&"cshadow_b_m", to_unit_b)
+	_material.set_shader_parameter(&"cshadow_a_alpha", alpha_a)
+	_material.set_shader_parameter(&"cshadow_b_alpha", alpha_b)
+	_material.set_shader_parameter(&"cshadow_color", Vector3(color.r, color.g, color.b))
+
+
 ## Weather fog (Bontago-470.3): the disc shader is `fog_disabled` (the warm
 ## theme fog once browned the graphite), so it applies the SAME distance fog as
 ## the Environment itself -- nothing within `begin_m`, `max_strength` at `end_m`,

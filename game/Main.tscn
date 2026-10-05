@@ -8,6 +8,7 @@
 [ext_resource type="PackedScene" path="res://game/HorizonIslands.tscn" id="90_islands"]
 [ext_resource type="PackedScene" path="res://game/DiscMirror.tscn" id="6_discmirror"]
 [ext_resource type="Script" path="res://vfx/SunFlare.gd" id="7_sunflare"]
+[ext_resource type="Script" path="res://vfx/CloudShadows.gd" id="8_cloudshadows"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 
@@ -60,6 +61,10 @@ script = ExtResource("4_registry")
 
 [node name="DiscMirror" parent="." instance=ExtResource("6_discmirror")]
 camera_path = NodePath("../CameraRig/Camera3D")
+field_path = NodePath("../Field")
+
+[node name="CloudShadows" type="Node3D" parent="."]
+script = ExtResource("8_cloudshadows")
 field_path = NodePath("../Field")
 
 [node name="SunFlare" type="CanvasLayer" parent="."]

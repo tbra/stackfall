@@ -48,6 +48,9 @@ extends Resource
 ## Bontago-mp0.23: the persistent per-crate OmniLight3D on a landed gift
 ## (game/GiftCrate.gd). Off on Low: only the brief spawn flash remains.
 @export var gift_idle_glow_enabled: bool = true
+## Bontago-mp0.127: moving cloud shadows on the arena and the sun dimming under clouds
+## (vfx/CloudShadows.gd). Off on Low.
+@export var cloud_shadows_enabled: bool = true
 
 ## Bontago-1pi.11.37: the fields below are all-default on every shipped preset; only
 ## the adaptive quality governor (core/QualityGovernor.gd) lowers them, on a duplicate
