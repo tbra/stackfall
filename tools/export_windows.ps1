@@ -9,19 +9,54 @@
 #   tools/export_windows.ps1 -Debug          # debug export (script errors visible)
 #   tools/export_windows.ps1 -SkipSmoke      # skip the exported-exe bot-match smoke gate (default: 1200 frames, -SmokeFrames N)
 #   tools/export_windows.ps1 -Path M:/some/worktree
+#   tools/export_windows.ps1 -Path M:/clean/worktree -AssetsFrom M:/Bontago
+#       # copy the gitignored addons/godotsteam and assets/original from the main checkout into the worktree first
+#   tools/export_windows.ps1 -AllowNoOriginalAssets   # export without assets/original (otherwise a missing folder is an error)
+#   tools/export_windows.ps1 -OutDir C:/scratch/out   # export somewhere other than <Path>/build/windows
 param(
 	[switch]$Debug,
 	[string]$Path = "",
 	[string]$Godot = "godot",
 	[switch]$SkipSmoke,
-	[int]$SmokeFrames = 1200
+	[int]$SmokeFrames = 1200,
+	[string]$AssetsFrom = "",
+	[switch]$AllowNoOriginalAssets,
+	[string]$OutDir = ""
 )
 
 $ErrorActionPreference = "Stop"
 if ($Path -eq "") {
 	$Path = (Resolve-Path (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "..")).Path
 }
-$outDir = Join-Path $Path "build/windows"
+
+# Replace $dst with the CONTENTS of $src. Copy-Item -Recurse onto an existing
+# directory nests a second copy (build/windows/assets/original/original), so the
+# target is cleared first and the children are copied.
+function Copy-DirContents([string]$src, [string]$dst) {
+	if (Test-Path $dst) { Remove-Item -Recurse -Force $dst }
+	New-Item -ItemType Directory -Force -Path $dst | Out-Null
+	Copy-Item -Recurse -Force -Path (Join-Path $src "*") -Destination $dst
+}
+
+# Gitignored per-developer folders are absent from a clean worktree; pull them
+# from the main checkout (-AssetsFrom) before anything reads them.
+if ($AssetsFrom -ne "") {
+	foreach ($rel in @("addons/godotsteam", "assets/original")) {
+		$from = Join-Path $AssetsFrom $rel
+		if (Test-Path $from) {
+			Write-Host "Copying $rel from $AssetsFrom into $Path"
+			Copy-DirContents $from (Join-Path $Path $rel)
+		} else {
+			Write-Warning "$rel not found in $AssetsFrom; nothing copied."
+		}
+	}
+}
+if (-not $AllowNoOriginalAssets -and -not (Test-Path (Join-Path $Path "assets/original"))) {
+	[Console]::Error.WriteLine("assets/original/ is missing in $Path. Install it (tools/install_original_assets.ps1), pass -AssetsFrom <main checkout>, or pass -AllowNoOriginalAssets to export without original-asset sound.")
+	exit 4
+}
+
+$outDir = if ($OutDir -ne "") { $OutDir } else { Join-Path $Path "build/windows" }
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 $exe = Join-Path $outDir "Stackfall.exe"
 
@@ -99,7 +134,7 @@ Set-Content -Path (Join-Path $outDir "README-PLAYTEST.txt") -Value $readme -Enco
 # hover sound (and all other effects) becomes silent in a packaged build.
 $effectAssets = Join-Path $Path "assets/effects"
 if (Test-Path $effectAssets) {
-	Copy-Item -Recurse -Force $effectAssets (Join-Path $outDir "assets/effects")
+	Copy-DirContents $effectAssets (Join-Path $outDir "assets/effects")
 } else {
 	Write-Warning "assets/effects/ not found in $Path; the exported build will have no effects."
 }
@@ -108,9 +143,9 @@ if (Test-Path $effectAssets) {
 # consumers. The source folder is gitignored and installed per developer.
 $originalAssets = Join-Path $Path "assets/original"
 if (Test-Path $originalAssets) {
-	Copy-Item -Recurse -Force $originalAssets (Join-Path $outDir "assets/original")
+	Copy-DirContents $originalAssets (Join-Path $outDir "assets/original")
 } else {
-	Write-Warning "assets/original/ not installed in $Path; the export will run with no original-asset sound (see tools/install_original_assets.ps1)."
+	Write-Warning "assets/original/ not installed in $Path (-AllowNoOriginalAssets); the export will run with no original-asset sound (see tools/install_original_assets.ps1)."
 }
 
 # Smoke gate (Bontago-8or.18): GUT runs from source, never from the PCK, so
