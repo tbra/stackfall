@@ -233,10 +233,9 @@ func test_the_colour_box_uses_the_slot_colour_and_the_layout_tuning_size() -> vo
 	var rows: Array[Node] = _panel_of(lobby)._player_rows
 	for slot: int in range(2):
 		var icon: Button = _row_layout(rows[slot]).get_child(0) as Button
-		var box: StyleBoxFlat = icon.get_theme_stylebox("normal") as StyleBoxFlat
-		assert_eq(box.bg_color, palette[slot], "seat %d shows its palette colour (new seats take the lowest free)" % slot)
+		assert_eq(_box_color(icon), palette[slot], "seat %d shows its palette colour (new seats take the lowest free)" % slot)
 		assert_eq(icon.custom_minimum_size, tuning.color_box_size_px)
-		assert_eq(box.corner_radius_top_left, tuning.color_box_corner_radius_px)
+		assert_true(icon.get_node("SlotDiamond") is SlotDiamond, "the seat colour is the shared diamond")
 
 
 func test_the_header_and_row_styling_is_the_lobbys_menu_look() -> void:
@@ -264,9 +263,9 @@ func test_a_colour_past_the_palette_and_a_seatless_row_read_gray() -> void:
 	]
 	Events.net_lobby_data_changed.emit(data)
 	var rows: Array[LobbySeatRow] = _rows_of(lobby)
-	assert_eq((rows[0].color_button.get_theme_stylebox("normal") as StyleBoxFlat).bg_color, Color.RED, "colour index 0 is inside the palette")
-	assert_eq((rows[1].color_button.get_theme_stylebox("normal") as StyleBoxFlat).bg_color, Color.GRAY, "index 1 is past the one-colour palette")
-	assert_eq((rows[2].color_button.get_theme_stylebox("normal") as StyleBoxFlat).bg_color, Color.GRAY, "a spectator holds no seat")
+	assert_eq(_box_color(rows[0].color_button), Color.RED, "colour index 0 is inside the palette")
+	assert_eq(_box_color(rows[1].color_button), Color.GRAY, "index 1 is past the one-colour palette")
+	assert_eq(_box_color(rows[2].color_button), Color.GRAY, "a spectator holds no seat")
 	assert_eq(rows[2].seat_key, LobbySeats.KEY_NONE)
 
 
@@ -682,7 +681,7 @@ func _human_team(lobby: Lobby, peer_id: int) -> int:
 
 
 func _box_color(button: Button) -> Color:
-	return (button.get_theme_stylebox("normal") as StyleBoxFlat).bg_color
+	return (button.get_node("SlotDiamond") as SlotDiamond).color
 
 
 func _right_click() -> InputEventMouseButton:

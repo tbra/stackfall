@@ -170,6 +170,9 @@ func test_each_results_row_is_marked_with_its_slot_colour() -> void:
 		var slot_id: int = int(panel.get_meta(&"slot_id"))
 		var name_cell: Label = (panel.get_child(0) as HBoxContainer).get_child(0) as Label
 		assert_eq(name_cell.get_meta(&"slot_color"), palette[slot_id], "row for slot %d" % slot_id)
+		var diamond: SlotDiamond = name_cell.get_node("SlotDiamond") as SlotDiamond
+		assert_not_null(diamond, "the round overview uses the shared SlotDiamond")
+		assert_eq(diamond.color, palette[slot_id])
 
 
 # --- Host/client gate ---------------------------------------------------------

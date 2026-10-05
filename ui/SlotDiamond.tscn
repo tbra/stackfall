@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://ui/SlotDiamond.gd" id="1_diamond"]
+
+[node name="SlotDiamond" type="Control"]
+layout_mode = 2
+mouse_filter = 2
+size_flags_horizontal = 0
+size_flags_vertical = 4
+script = ExtResource("1_diamond")

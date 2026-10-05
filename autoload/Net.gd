@@ -80,6 +80,9 @@ var _next_slot_id: int = 1
 ## Host only: whether _rpc_handshake may still seat a new peer. True in the
 ## lobby, false once the match flow leaves it (see set_accepting_joins()).
 var _accepting_joins: bool = true
+## Bontago-1pi.83: true for a private loopback host (host_game(..., advertise=false), the
+## Vs bots session); lets the lobby badge say so instead of "LAN". Cleared by leave().
+var _private_session: bool = false
 
 ## -- Mid-match join and reconnect (Bontago-8or.11, spec 3.4 "Late join /
 ## reconnect") ------------------------------------------------------------
@@ -335,6 +338,7 @@ func host_game(port: int = 0, player_name: String = "", advertise: bool = true) 
 	}
 	_next_slot_id = 1
 	_accepting_joins = advertise
+	_private_session = not advertise
 	_reset_rejoin_state()
 	Events.net_mode_changed.emit(_mode)
 	# Agent runs must not appear in the owner's LAN browser.
@@ -413,6 +417,7 @@ func leave(forget_rejoin: bool = true) -> void:
 	_own_ping_ms = 0.0
 	_lobby_data = {}
 	_accepting_joins = true
+	_private_session = false
 	_reset_rejoin_state()
 	_steam_session = false
 	_steam_lobby_id = 0
@@ -697,6 +702,11 @@ func init_steam() -> void:
 ## True only once host_online()/join_lobby() has produced a live
 ## SteamMultiplayerPeer — false offline, false mid-ENet-session, and false
 ## while a Steam lobby_created/lobby_joined callback is still pending.
+## True for the private local host a Vs bots game runs on (nobody can join).
+func is_private_session() -> bool:
+	return _private_session
+
+
 func is_steam_session() -> bool:
 	return _steam_session
 

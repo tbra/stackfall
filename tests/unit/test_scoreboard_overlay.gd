@@ -145,8 +145,7 @@ func test_player_cells_carry_the_hud_slot_colour() -> void:
 	var bo: Label = (rows.get_child(2).get_child(0) as HBoxContainer).get_child(0) as Label
 	assert_eq(ann.get_meta(&"slot_color"), Color(0.1, 0.2, 0.3), "live PlayerSlot.color, as the HUD")
 	assert_eq(bo.get_meta(&"slot_color"), MatchConfig.default_player_colors()[1], "default palette fallback")
-	var bar: StyleBoxFlat = ann.get_theme_stylebox("normal") as StyleBoxFlat
-	assert_eq(bar.border_color, Color(0.1, 0.2, 0.3))
+	assert_eq((ann.get_node("SlotDiamond") as SlotDiamond).color, Color(0.1, 0.2, 0.3))
 
 
 func test_hidden_when_not_live_paused_suppressed_or_focus_lost() -> void:

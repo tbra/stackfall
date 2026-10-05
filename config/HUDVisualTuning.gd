@@ -91,6 +91,14 @@ extends Resource
 ## Side length, in pixels, of the small faceted diamond glyph drawn beside
 ## each player's territory-share bar (owner review 2026-09-26: "~20 px tall").
 @export var hud_row_glyph_size_px: float = 20.0
+## Bontago-1pi.81 (ui/SlotDiamond.gd, the one colour diamond used by the HUD, lobby seats and
+## round score table): how much lighter the lit (left) half is than the slot colour,
+@export var hud_diamond_lit_amount: float = 0.25
+## how much darker the shaded (right) half is,
+@export var hud_diamond_shade_amount: float = 0.25
+## and the stroke around the diamond.
+@export var hud_diamond_outline_color: Color = Color(0.0, 0.0, 0.0, 0.55)
+@export var hud_diamond_outline_width_px: float = 1.5
 ## Dark translucent track color behind each player's territory-share bar
 ## (the team-colored fill is drawn on top of this, per slot).
 @export var hud_share_bar_track_color: Color = Color(0.05, 0.06, 0.09, 0.55)

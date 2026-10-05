@@ -19,6 +19,8 @@ extends Resource
 
 ## Left indent of an Advanced block under its section header (S1b).
 @export var advanced_indent_px: int = 12
+## Horizontal padding inside the Advanced disclosure so its focus ring clears the text.
+@export var advanced_toggle_padding_px: int = 8
 
 ## Width of the label column every settings row shares (Bontago-1pi.61), in px.
 @export var label_column_width_px: int = 150

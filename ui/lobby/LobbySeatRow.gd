@@ -69,6 +69,8 @@ var editable: bool = false
 # --- Built by build() ------------------------------------------------------------------
 var layout: HBoxContainer = null
 var color_button: Button = null
+## The shared colour diamond inside color_button (ui/SlotDiamond.tscn).
+var color_diamond: SlotDiamond = null
 var name_label: Label = null
 var subtitle_label: Label = null
 ## null unless `show_team` and the row has a seat.
@@ -167,9 +169,8 @@ func control_of(kind: StringName) -> Control:
 
 # --- Building --------------------------------------------------------------------------
 
-## The colour box: a flat rounded square in the seat's colour (the clay-cube stand-in
-## the roster always drew), now a Button. The same flat box is drawn in every state
-## (lighter on hover, ringed on focus) so a read-only row looks just like a live one.
+## The colour box: a Button holding the shared SlotDiamond in the seat's colour (lit on
+## hover when live, ringed on focus), so a read-only row looks just like a live one.
 func _build_color_button() -> void:
 	color_button = Button.new()
 	color_button.name = "ColorButton"
@@ -177,15 +178,28 @@ func _build_color_button() -> void:
 	color_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	color_button.focus_mode = Control.FOCUS_ALL if editable and seat_key != LobbySeats.KEY_NONE else Control.FOCUS_NONE
 	var radius: int = _layout_tuning.color_box_corner_radius_px
-	var normal: StyleBoxFlat = _color_box(seat_color, radius, 0, Color.TRANSPARENT)
-	var hover: StyleBoxFlat = _color_box(seat_color.lightened(0.18), radius, 0, Color.TRANSPARENT)
-	var focus: StyleBoxFlat = _color_box(seat_color, radius, _layout_tuning.seat_color_focus_border_px, _tuning.focus_outline_color)
+	var normal: StyleBoxFlat = _color_box(Color.TRANSPARENT, radius, 0, Color.TRANSPARENT)
+	var hover: StyleBoxFlat = _color_box(_tuning.pill_cream_hover_color, radius, 0, Color.TRANSPARENT)
+	var focus: StyleBoxFlat = _color_box(Color.TRANSPARENT, radius, _layout_tuning.seat_color_focus_border_px, _tuning.focus_outline_color)
 	color_button.add_theme_stylebox_override("normal", normal)
 	color_button.add_theme_stylebox_override("hover", hover if editable else normal)
 	color_button.add_theme_stylebox_override("pressed", normal)
 	color_button.add_theme_stylebox_override("hover_pressed", normal)
 	color_button.add_theme_stylebox_override("disabled", normal)
 	color_button.add_theme_stylebox_override("focus", focus)
+	# Bontago-1pi.81: the seat colour is the shared SlotDiamond, centred in the button.
+	color_diamond = SlotDiamond.create(seat_color)
+	color_diamond.name = "SlotDiamond"
+	var half: float = color_diamond.diamond_size_px() * 0.5
+	color_diamond.anchor_left = 0.5
+	color_diamond.anchor_right = 0.5
+	color_diamond.anchor_top = 0.5
+	color_diamond.anchor_bottom = 0.5
+	color_diamond.offset_left = -half
+	color_diamond.offset_right = half
+	color_diamond.offset_top = -half
+	color_diamond.offset_bottom = half
+	color_button.add_child(color_diamond)
 	color_button.disabled = not editable or seat_key == LobbySeats.KEY_NONE
 	if editable and seat_key != LobbySeats.KEY_NONE:
 		color_button.tooltip_text = "Click to change colour (right click: previous)"

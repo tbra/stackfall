@@ -4,7 +4,7 @@ extends VBoxContainer
 ## docs/LOBBY_REWORK_PLAN.md section 2; Bontago-1pi.61 made the headers static): a
 ## header (the section's caption and a right-aligned one-line summary, never
 ## collapsible), a main body that is always shown, and an optional Advanced block
-## behind a flat toggle chip. Only the Advanced block collapses.
+## behind a text disclosure (triangle + "Advanced"). Only the Advanced block collapses.
 ##
 ## **Scene convention** (the section builds only its own header and chip; every
 ## setting control stays an authored node of ui/Lobby.tscn so its `%UniqueName`
@@ -29,6 +29,9 @@ signal advanced_changed(open: bool)
 
 ## Text of the Advanced toggle chip.
 const ADVANCED_CHIP_TEXT: String = "Advanced"
+## Bontago-1pi.83: the disclosure triangle drawn before the text (right = collapsed, down = open).
+const DISCLOSURE_CLOSED: String = "►"
+const DISCLOSURE_OPEN: String = "▼"
 const BODY_NAME: StringName = &"Body"
 const ADVANCED_NAME: StringName = &"Advanced"
 
@@ -76,10 +79,24 @@ func apply_style(tuning: MenuVisualTuning, layout: LobbyLayoutTuning) -> void:
 		label.add_theme_color_override("font_color", tuning.label_muted_color)
 	_icon_rect.modulate = tuning.label_muted_color
 	if advanced_button != null:
-		MenuStyleFactory.apply_toggle_chip(
-			advanced_button, tuning.pill_cream_color, tuning.pill_cream_hover_color,
-			tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning
-		)
+		_style_disclosure(tuning)
+
+
+## Bontago-1pi.83: Advanced is a plain text disclosure (triangle + word), not a pill: no
+## background in any state, muted ink that darkens on hover/press; the default focus
+## outline stays so keyboard and gamepad users see where they are.
+func _style_disclosure(tuning: MenuVisualTuning) -> void:
+	for state: String in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
+		var gutter: StyleBoxEmpty = StyleBoxEmpty.new()
+		gutter.content_margin_left = float(layout_tuning.advanced_toggle_padding_px)
+		gutter.content_margin_right = float(layout_tuning.advanced_toggle_padding_px)
+		advanced_button.add_theme_stylebox_override(state, gutter)
+	advanced_button.add_theme_color_override("font_color", tuning.label_muted_color)
+	advanced_button.add_theme_color_override("font_pressed_color", tuning.label_muted_color)
+	advanced_button.add_theme_color_override("font_disabled_color", tuning.label_muted_color)
+	advanced_button.add_theme_color_override("font_hover_color", tuning.ink_color)
+	advanced_button.add_theme_color_override("font_hover_pressed_color", tuning.ink_color)
+	advanced_button.add_theme_color_override("font_focus_color", tuning.ink_color)
 
 
 ## The one-line summary on the header's right ("Classic · Round · Medium · Cycle").
@@ -195,7 +212,9 @@ func _build_advanced_chip() -> void:
 	advanced_button.toggle_mode = true
 	advanced_button.focus_mode = Control.FOCUS_ALL
 	advanced_button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	advanced_button.text = ADVANCED_CHIP_TEXT
+	advanced_button.flat = true
+	advanced_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	advanced_button.text = _disclosure_text()
 	advanced_button.toggled.connect(_on_advanced_chip_toggled)
 	add_child(advanced_button)
 	move_child(advanced_button, advanced.get_index())
@@ -210,5 +229,8 @@ func _apply_state() -> void:
 		advanced.visible = _advanced_open
 	if advanced_button != null:
 		advanced_button.set_pressed_no_signal(_advanced_open)
-		var chevron_key: StringName = UiArtTable.KEY_ADVANCED_OPEN if _advanced_open else UiArtTable.KEY_ADVANCED_CLOSED
-		UiArtTable.shared().apply_button_icon(advanced_button, UiArtTable.shared().lobby_icon(chevron_key))
+		advanced_button.text = _disclosure_text()
+
+
+func _disclosure_text() -> String:
+	return "%s %s" % [DISCLOSURE_OPEN if _advanced_open else DISCLOSURE_CLOSED, ADVANCED_CHIP_TEXT]
