@@ -45,6 +45,13 @@ func diamond_size_px() -> float:
 
 ## The diamond's corners (top, right, bottom, left) around `center`, `half` from it; also
 ## the shape other canvases (the minimap beacons) can draw.
+## Corner indices of points(): clockwise from the top.
+const CORNER_TOP: int = 0
+const CORNER_RIGHT: int = 1
+const CORNER_BOTTOM: int = 2
+const CORNER_LEFT: int = 3
+
+
 static func points(center: Vector2, half: float) -> PackedVector2Array:
 	return PackedVector2Array([
 		center + Vector2(0.0, -half), center + Vector2(half, 0.0),
@@ -59,8 +66,8 @@ func _apply_size() -> void:
 
 func _draw() -> void:
 	var corners: PackedVector2Array = points(size * 0.5, diamond_size_px() * 0.5)
-	draw_colored_polygon(PackedVector2Array([corners[0], corners[3], corners[2]]), color.lightened(tuning.hud_diamond_lit_amount))
-	draw_colored_polygon(PackedVector2Array([corners[0], corners[1], corners[2]]), color.darkened(tuning.hud_diamond_shade_amount))
+	draw_colored_polygon(PackedVector2Array([corners[CORNER_TOP], corners[CORNER_LEFT], corners[CORNER_BOTTOM]]), color.lightened(tuning.hud_diamond_lit_amount))
+	draw_colored_polygon(PackedVector2Array([corners[CORNER_TOP], corners[CORNER_RIGHT], corners[CORNER_BOTTOM]]), color.darkened(tuning.hud_diamond_shade_amount))
 	var outline: PackedVector2Array = corners.duplicate()
-	outline.append(corners[0])
+	outline.append(corners[CORNER_TOP])
 	draw_polyline(outline, tuning.hud_diamond_outline_color, tuning.hud_diamond_outline_width_px, true)
