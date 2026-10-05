@@ -153,6 +153,49 @@ func test_sudden_death_branch_keeps_ticking_feed_and_territory() -> void:
 		"SUDDEN_DEATH must still tick the territory solve")
 
 
+# --- Bontago-1pi.87: placement / preview / client feed display stay live ----
+
+func _sudden_death_match() -> void:
+	Match.start_match(_config(2))
+	_run_countdown()
+	Match._lifecycle._begin_sudden_death()
+	assert_eq(Match.state(), Match.State.SUDDEN_DEATH)
+
+
+func test_sudden_death_accepts_a_host_placement() -> void:
+	_sudden_death_match()
+	var home: Vector2 = Match.slot(0).home_position
+	var reason: StringName = Match.request_place(0, _field.to_global(Vector3(home.x, 5.0, home.y)), 0, Quaternion.IDENTITY, false)
+	assert_eq(reason, PlacementRules.REASON_OK, "spec 2.8: normal play continues in sudden death")
+	assert_eq(_blocks_root.get_child_count(), 1)
+
+
+func test_sudden_death_preview_matches_a_live_placement() -> void:
+	_sudden_death_match()
+	var home: Vector2 = Match.slot(0).home_position
+	var result: PlacementRules.Result = Match.preview_placement(0, _field.to_global(Vector3(home.x, 5.0, home.y)), 0, Quaternion.IDENTITY)
+	assert_eq(result, PlacementRules.Result.VALID)
+
+
+func test_sudden_death_client_display_feed_timer_keeps_counting() -> void:
+	_sudden_death_match()
+	Match._feed._feed_time_left[0] = 5.0
+	Match._feed._tick_client_display(1.0)
+	assert_lt(float(Match._feed._feed_time_left[0]), 5.0, "client display countdown must run in SUDDEN_DEATH")
+
+
+func test_preview_applies_the_sandbox_waiver_like_request_place() -> void:
+	var config: MatchConfig = _config(2)
+	config.sandbox = true
+	Match.start_match(config)
+	_run_countdown()
+	var enemy: Vector2 = Match.slot(1).home_position
+	var world: Vector3 = _field.to_global(Vector3(enemy.x, 5.0, enemy.y))
+	var preview: PlacementRules.Result = Match.preview_placement(0, world, 0, Quaternion.IDENTITY)
+	assert_ne(preview, PlacementRules.Result.OUTSIDE_TERRITORY)
+	assert_ne(preview, PlacementRules.Result.CONTESTED)
+
+
 # --- shrink_to_radius() (spec 2.8: "crumbles inward by 1 m every 10 s") -----
 
 func test_shrink_to_radius_punches_exactly_the_cells_outside_its_argument() -> void:

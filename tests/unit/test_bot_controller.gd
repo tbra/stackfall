@@ -272,6 +272,18 @@ func test_sends_exactly_one_request_place_after_the_reaction_delay() -> void:
 	assert_eq(int(match_ref.request_place_calls[0]["slot_id"]), 0)
 
 
+func test_bot_still_places_in_sudden_death() -> void:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	match_ref.state_value = MatchAutoload.State.SUDDEN_DEATH
+	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
+	var controller: BotController = _make_controller(field, match_ref, net_ref)
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+	Events.feed_block_issued.emit(0, &"cube", &"")
+	_tick(controller, 72)
+	assert_eq(match_ref.request_place_calls.size(), 1, "spec 2.8: bots keep playing in sudden death")
+
+
 func test_sends_nothing_while_release_locked() -> void:
 	var field: Field = _make_field()
 	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
