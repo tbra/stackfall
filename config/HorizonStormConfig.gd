@@ -4,6 +4,10 @@ extends Resource
 ## storm weather (vfx/weather/HorizonStormCells.gd). Presentation only.
 ## config/horizon_storm.tres is the shipped instance.
 
+## Master switch. Off by default (owner playtest 2026-10-05, Bontago-mp0.133: the
+## cells looked bad); set true in config/horizon_storm.tres to restore them.
+@export var enabled: bool = true
+
 @export_group("Layout")
 ## Fewest cells a storm shows on the horizon.
 @export var cell_count_min: int = 1

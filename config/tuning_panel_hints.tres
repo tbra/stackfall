@@ -1821,6 +1821,7 @@ descriptions = {
 "SnowTuning.flake_prefill": "Fill the whole fall column the moment snowfall starts, instead of waiting for the first flakes to fall from the clouds.",
 "SnowTuning.flake_sim_fps": "Flake simulation steps per second (movement is interpolated); lower is cheaper, and the pre-fill costs one lifetime of steps.",
 "SnowTuning.flake_edge_start": "How far out from the centre of a flake its cool outline starts (0 = centre, 1 = rim).",
+"HorizonStormConfig.enabled": "Show the distant storm cells on the horizon during storm weather.",
 "HorizonIslandsConfig.enabled": "Show the ring of floating islands on the horizon.",
 "HorizonIslandsConfig.count": "Number of floating islands in the horizon ring (0 hides them).",
 "HorizonIslandsConfig.radius_min_m": "Nearest ring distance of an island from the arena center.",

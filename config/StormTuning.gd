@@ -74,8 +74,8 @@ extends WeatherTuning
 ## the end distance: a near streak would otherwise span the whole screen.
 @export var streak_near_fade_start_m: float = 14.0
 @export var streak_near_fade_end_m: float = 32.0
-## Slow drift (m/s) of a stroke along the wind; the reveal sweep, not this, is the visible motion.
-@export var streak_speed_ms: float = 3.0
+## Drift (m/s) of a stroke along the wind (Bontago-mp0.134: raised from 3 so the trails travel faster).
+@export var streak_speed_ms: float = 7.0
 @export var streak_color: Color = Color(1.0, 1.0, 1.0, 0.7)
 @export var mote_count: int = 36
 @export var mote_size_m: float = 0.4

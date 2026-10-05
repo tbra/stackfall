@@ -13,12 +13,14 @@ var _config: HorizonStormConfig = null
 
 
 func before_each() -> void:
-	_config = load("res://config/horizon_storm.tres") as HorizonStormConfig
+	# Shipped default is off (Bontago-mp0.133); these tests exercise the restored cells.
+	_config = (load("res://config/horizon_storm.tres") as HorizonStormConfig).duplicate() as HorizonStormConfig
+	_config.enabled = true
 
 
 func _make(seed_value: int) -> HorizonStormCells:
 	var cells: HorizonStormCells = HorizonStormCells.new()
-	cells.configure(seed_value)
+	cells.configure(seed_value, _config)
 	add_child_autofree(cells)
 	return cells
 
@@ -107,3 +109,9 @@ func test_storm_presentation_owns_cells_and_feeds_intensity() -> void:
 	assert_not_null(horizon)
 	storm.set_intensity(0.7)
 	assert_almost_eq(horizon.intensity, 0.7, 0.0001)
+
+
+func test_shipped_default_is_disabled() -> void:
+	var shipped: HorizonStormConfig = load("res://config/horizon_storm.tres") as HorizonStormConfig
+	assert_false(shipped.enabled)
+	assert_eq(HorizonStormCells.layout(SEED_A, shipped).size(), 0)
