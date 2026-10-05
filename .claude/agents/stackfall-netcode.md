@@ -44,6 +44,7 @@ the orchestrator owns issue status and closure.
 The orchestrator owns commits, integration, push and sync.
 
 ## Operating notes (learned 2026-09-18..22; follow them, they save hours)
+- **Hard-coded test values (owner debrief 2026-10-05):** before handback, grep `tests/` for assertions on every value, ordering, label, node name or fingerprint your change touches (e.g. Options row order, tuning thresholds, config fingerprints) and update or run those tests. Name them in `checks`. Each missed one costs the orchestrator a full gate cycle.
 - Fresh worktree: run `godot --headless --editor --path <wt> --quit` twice before anything (the first run builds `.godot`; a plain run without it hangs on parse errors). Never delete another checkout's `.godot`.
 - Tests: `powershell -NoProfile -File tools/run_gut.ps1 <script>[,<script>] [-Unit <substr>] [-Path <checkout>]` (seconds). Read the `Totals` block; the runner's exit code is not trustworthy. **Never run the full suite** (`-gdir=res://tests`); the orchestrator does that once per batch. `test_match_flow` and `test_match_lifecycle` are slow (minutes) — include them only when your files touch them.
 - Godot `-s script.gd` runs a bare SceneTree: autoloads (Match, Net, Events) do not resolve there; use a `.tscn` under `tools/` (see `tools/screenshot_*.tscn`) for windowed probes and quit via `get_tree().quit()`.

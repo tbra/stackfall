@@ -47,6 +47,7 @@ pending tests, unavailable hardware and errors honestly. Do not close milestones
 commit, push, remotely sync or terminate unrelated processes on your own.
 
 ## Operating notes (2026-09-22)
+- **Hard-coded test values (owner debrief 2026-10-05):** before handback, grep `tests/` for assertions on every value, ordering, label, node name or fingerprint your change touches (e.g. Options row order, tuning thresholds, config fingerprints) and update or run those tests. Name them in `checks`. Each missed one costs the orchestrator a full gate cycle.
 - Validate only the changed area: targeted `tools/run_gut.ps1` sets, the ENet harness for net/rules/lobby changes, benchmarks alone on the machine for physics/territory/wire changes. The full suite is the orchestrator's once-per-batch background run, not yours, unless the brief names it explicitly.
 - Never hand back while a Godot run you started is still alive: poll its log until the `Totals`/result line appears (foreground with a long timeout, or a wait loop), then report. Check `tasklist | grep -i godot` (findstr is broken in Git Bash) before benchmarks and report contamination honestly; never `taskkill //IM` -- kill only PIDs you started.
 - Read the `Totals` block, not the runner's exit code. Report with the template in `docs/AGENT_WORKFLOW.md`; paths to logs, not log contents.
