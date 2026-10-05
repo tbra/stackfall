@@ -6,6 +6,7 @@
 script = ExtResource("1_lobbylayout")
 section_spacing_px = 10
 advanced_indent_px = 12
+advanced_toggle_padding_px = 8
 label_column_width_px = 150
 value_column_width_px = 64
 row_separation_px = 12

@@ -630,11 +630,13 @@ unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
 script = ExtResource("99_hints")
+single_row = true
 template = "{ui_accept} Select   {ui_cancel} Back"
 
 [node name="StartButton" type="Button" parent="Margin/Layout/BottomBar"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_vertical = 4
 disabled = true
 custom_minimum_size = Vector2(0, 41)
 

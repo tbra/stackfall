@@ -1477,7 +1477,11 @@ func _on_peer_left(_peer_id: int, _slot_id: int, _reason: int) -> void:
 
 func _republish_roster_if_host() -> void:
 	if net_provider != null and bool(net_provider.is_host()):
-		_publish_lobby_data(_last_config if _last_config != null else _config_from_controls())
+		var republish: MatchConfig = _last_config if _last_config != null else _config_from_controls()
+		# Bontago-1pi.83: bots seeded before the lobby opened (Vs bots) carry no names yet;
+		# name them here so the first roster never falls back to "Bot n".
+		republish.bot_names = _reconciled_bot_names(republish.ai_count)
+		_publish_lobby_data(republish)
 
 
 ## Bontago-mv0.7: player_count above the number of connected peers leaves a
@@ -1623,6 +1627,9 @@ func _update_host_only_state() -> void:
 	_update_status_badge()
 
 
+const BADGE_VS_BOTS: String = "Vs bots"
+
+
 ## Header badge (Bontago-xtq.32 redo, mockup 11's top-right "Hosting * LAN"
 ## pill): reads the same net_provider calls _update_host_only_state() above
 ## already gates on, so it never assumes a transport (CLAUDE.md
@@ -1634,6 +1641,12 @@ func _update_status_badge() -> void:
 		return
 	var is_host: bool = bool(net_provider.is_host())
 	var is_steam: bool = bool(net_provider.is_steam_session())
-	_status_badge_label.text = "%s %s %s" % [
-		"Hosting" if is_host else "Joined", char(0xB7), "Steam" if is_steam else "LAN"
-	]
+	var is_private: bool = net_provider.has_method(&"is_private_session") and bool(net_provider.is_private_session())
+	_status_badge_label.text = status_badge_text(is_host, is_steam, is_private)
+
+
+## The header badge text: "Vs bots" for a private local session, else "Hosting/Joined * Steam/LAN".
+static func status_badge_text(is_host: bool, is_steam: bool, is_private: bool) -> String:
+	if is_private:
+		return BADGE_VS_BOTS
+	return "%s %s %s" % ["Hosting" if is_host else "Joined", char(0xB7), "Steam" if is_steam else "LAN"]

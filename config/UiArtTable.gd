@@ -26,6 +26,9 @@ const KEY_DIFFICULTY: Array[StringName] = [&"difficulty_easy", &"difficulty_norm
 ## 4x2 map atlas and its regions keyed by MatchConfig.MapVariant enum name.
 @export var map_atlas: Texture2D = null
 @export var map_regions: Dictionary = {}
+## Bontago-1pi.83: the atlas SVG is imported at this svg/scale (crisp at 1080p+); the regions
+## stay in the authored 256x128 coordinates and are multiplied by it.
+@export var map_atlas_import_scale: float = 4.0
 
 ## Icon key -> white-source 24x24 SVG texture.
 @export var lobby_icons: Dictionary = {}
@@ -59,7 +62,7 @@ func map_pictogram(variant: int) -> Texture2D:
 		return null
 	var tex: AtlasTexture = AtlasTexture.new()
 	tex.atlas = map_atlas
-	tex.region = map_regions[key] as Rect2
+	tex.region = Rect2((map_regions[key] as Rect2).position * map_atlas_import_scale, (map_regions[key] as Rect2).size * map_atlas_import_scale)
 	tex.filter_clip = true
 	_cache[key] = tex
 	return tex

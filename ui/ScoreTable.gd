@@ -129,14 +129,22 @@ static func slot_color(slot_id: int, match_provider: Variant = null) -> Color:
 	return Color.WHITE
 
 
-## A coloured bar down the left of the name cell (the cell stays a plain Label).
+## Bontago-1pi.81: the shared SlotDiamond (ui/SlotDiamond.tscn) at the left of the name
+## cell, which stays a plain Label whose left margin leaves room for it.
 static func _mark_with_slot_colour(cell: Label, color: Color, tuning: MenuVisualTuning) -> void:
-	var bar: StyleBoxFlat = StyleBoxFlat.new()
-	bar.bg_color = Color(0, 0, 0, 0)
-	bar.border_color = color
-	bar.border_width_left = tuning.score_swatch_width_px
-	bar.content_margin_left = tuning.score_swatch_width_px + tuning.score_swatch_gap_px
-	cell.add_theme_stylebox_override("normal", bar)
+	var diamond: SlotDiamond = SlotDiamond.create(color)
+	diamond.name = "SlotDiamond"
+	var edge: float = diamond.diamond_size_px()
+	diamond.anchor_top = 0.5
+	diamond.anchor_bottom = 0.5
+	diamond.offset_left = 0.0
+	diamond.offset_right = edge
+	diamond.offset_top = -edge * 0.5
+	diamond.offset_bottom = edge * 0.5
+	cell.add_child(diamond)
+	var gutter: StyleBoxEmpty = StyleBoxEmpty.new()
+	gutter.content_margin_left = edge + float(tuning.score_swatch_gap_px)
+	cell.add_theme_stylebox_override("normal", gutter)
 	cell.set_meta(&"slot_color", color)
 
 

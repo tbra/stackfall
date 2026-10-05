@@ -290,6 +290,13 @@ func init_steam() -> void:
 	init_steam_calls += 1
 
 
+var is_private_session_value: bool = false
+
+
+func is_private_session() -> bool:
+	return is_private_session_value
+
+
 func is_steam_session() -> bool:
 	return is_steam_session_value
 

@@ -253,7 +253,7 @@ func bot_roster_entries(config: MatchConfig) -> Array[Dictionary]:
 func _bot_name(config: MatchConfig, ordinal: int) -> String:
 	if config != null and ordinal < config.bot_names.size() and config.bot_names[ordinal] != "":
 		return config.bot_names[ordinal]
-	return "Bot %d" % (ordinal + 1)
+	return BotNames.FALLBACK_FORMAT % (ordinal + 1)
 
 
 ## The `"seats"` table a host publish merges in (empty = no key yet). Until a roster has

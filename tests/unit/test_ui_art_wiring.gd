@@ -72,9 +72,10 @@ func test_lobby_section_headers_and_chips_show_icons() -> void:
 		var section: LobbySection = lobby.get_node(path) as LobbySection
 		assert_eq(section.header_icon(), UiArtTable.shared().lobby_icon(expected[path] as StringName), path)
 		if section.advanced_button != null:
-			assert_eq(section.advanced_button.icon, UiArtTable.shared().lobby_icon(UiArtTable.KEY_ADVANCED_CLOSED))
+			assert_true(section.advanced_button.text.begins_with(LobbySection.DISCLOSURE_CLOSED), "collapsed triangle")
+			assert_true(section.advanced_button.flat, "a text disclosure, not a pill")
 			section.set_advanced_open(true)
-			assert_eq(section.advanced_button.icon, UiArtTable.shared().lobby_icon(UiArtTable.KEY_ADVANCED_OPEN))
+			assert_true(section.advanced_button.text.begins_with(LobbySection.DISCLOSURE_OPEN), "open triangle")
 
 
 func test_lobby_bot_and_team_controls_show_icons() -> void:

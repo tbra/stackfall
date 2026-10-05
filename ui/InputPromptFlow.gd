@@ -29,6 +29,11 @@ const INPUT_GLYPH_SCENE: PackedScene = preload("res://ui/InputGlyph.tscn")
 		if is_node_ready():
 			refresh()
 
+## Bontago-1pi.83: keep every token on one row. An HFlowContainer reports only its widest
+## child as minimum width, so inside a shrink-wrapped pill it wraps; with this on, the
+## summed child width is pinned as the minimum after each rebuild.
+@export var single_row: bool = false
+
 ## Ink for the word labels (menus pass their palette ink; a transparent default
 ## leaves the theme colour alone).
 var text_color: Color = Color(0.0, 0.0, 0.0, 0.0)
@@ -74,6 +79,23 @@ func refresh() -> void:
 		_add_words(rest.substr(0, open))
 		_add_token(rest.substr(open + 1, close - open - 1))
 		rest = rest.substr(close + 1)
+	if single_row:
+		_pin_single_row_width.call_deferred()
+
+
+## Sets custom_minimum_size.x to the width of all live children laid out on one row.
+func _pin_single_row_width() -> void:
+	var total: float = 0.0
+	var count: int = 0
+	for child: Node in get_children():
+		var control: Control = child as Control
+		if control == null or control.is_queued_for_deletion() or not control.visible:
+			continue
+		total += control.get_combined_minimum_size().x
+		count += 1
+	if count > 1:
+		total += float(count - 1) * float(get_theme_constant(&"h_separation"))
+	custom_minimum_size.x = total
 
 
 ## Test seam: the glyphs currently shown, in order.

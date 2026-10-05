@@ -1148,7 +1148,7 @@ func _special_display_name(head_id: StringName) -> String:
 
 
 ## Bontago-mp0.3.3 (mockup 08): one row per player, a small team-colored
-## diamond glyph (_on_row_glyph_draw() below) beside a slim rounded
+## diamond glyph (the shared SlotDiamond) beside a slim rounded
 ## territory-share bar. Bontago-1pi.80: each bar is ONE ui/ShareBar.gd control
 ## drawing its track, the team-colored fill inside it and a sheen. Replaces
 ## the old boxy SharesPanel background entirely (Bontago-mp0.2).
@@ -1157,12 +1157,7 @@ func _ensure_share_row_count(count: int) -> void:
 		var row: HBoxContainer = HBoxContainer.new()
 		row.add_theme_constant_override("separation", 6)
 
-		var glyph: Control = Control.new()
-		glyph.custom_minimum_size = Vector2(
-			hud_visual_tuning.hud_row_glyph_size_px, hud_visual_tuning.hud_row_glyph_size_px
-		)
-		glyph.set_meta(&"glyph_color", Color.WHITE)
-		glyph.draw.connect(_on_row_glyph_draw.bind(glyph))
+		var glyph: SlotDiamond = SlotDiamond.create(Color.WHITE)
 
 		var bar: ShareBar = ShareBar.new()
 		bar.configure(hud_visual_tuning)
@@ -1213,34 +1208,8 @@ func _update_share_row(i: int, share: float) -> void:
 	var name_label: Label = _share_name_labels[i]
 	name_label.text = _name_for_team(i)
 	name_label.tooltip_text = name_label.text
-	var glyph: Control = _share_glyphs[i]
-	glyph.set_meta(&"glyph_color", color)
-	glyph.queue_redraw()
-
-
-## Small faceted diamond beside each share bar (mockup 08), tinted the same
-## color _update_share_row() just gave that row's bar. Bontago-mp0.3.3 (owner
-## review 2026-09-26: "faceted (two-tone, lit/shade halves)") -- split down
-## the vertical diagonal into a lightened left half (facing the mockup's
-## implied upper-left light) and a darkened right half, instead of one flat
-## fill, so the glyph itself reads as a small faceted gem/block like the
-## mockup's.
-func _on_row_glyph_draw(glyph: Control) -> void:
-	var color: Color = glyph.get_meta(&"glyph_color", Color.WHITE)
-	var half: float = hud_visual_tuning.hud_row_glyph_size_px * 0.5
-	var center: Vector2 = glyph.size * 0.5
-	var top: Vector2 = center + Vector2(0.0, -half)
-	var right: Vector2 = center + Vector2(half, 0.0)
-	var bottom: Vector2 = center + Vector2(0.0, half)
-	var left: Vector2 = center + Vector2(-half, 0.0)
-	glyph.draw_colored_polygon(
-		PackedVector2Array([top, left, bottom]), color.lightened(0.25)
-	)
-	glyph.draw_colored_polygon(
-		PackedVector2Array([top, right, bottom]), color.darkened(0.25)
-	)
-	var outline: PackedVector2Array = PackedVector2Array([top, right, bottom, left, top])
-	glyph.draw_polyline(outline, Color(0.0, 0.0, 0.0, 0.55), 1.5, true)
+	var glyph: SlotDiamond = _share_glyphs[i]
+	glyph.set_color(color)
 
 
 ## Events.feed_block_issued names the next shape by id; the preview needs the
