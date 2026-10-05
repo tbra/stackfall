@@ -5,6 +5,7 @@
 [ext_resource type="PackedScene" path="res://game/CameraRig.tscn" id="3_camera"]
 [ext_resource type="Script" path="res://game/BlockRegistry.gd" id="4_registry"]
 [ext_resource type="PackedScene" path="res://game/Skybox.tscn" id="5_skybox"]
+[ext_resource type="PackedScene" path="res://game/HorizonIslands.tscn" id="90_islands"]
 [ext_resource type="PackedScene" path="res://game/DiscMirror.tscn" id="6_discmirror"]
 [ext_resource type="Script" path="res://vfx/SunFlare.gd" id="7_sunflare"]
 [ext_resource type="Script" path="res://vfx/CloudShadows.gd" id="8_cloudshadows"]
@@ -69,3 +70,6 @@ field_path = NodePath("../Field")
 [node name="SunFlare" type="CanvasLayer" parent="."]
 script = ExtResource("7_sunflare")
 camera_path = NodePath("../CameraRig/Camera3D")
+
+[node name="HorizonIslands" parent="." instance=ExtResource("90_islands")]
+sun_path = NodePath("../DirectionalLight3D")

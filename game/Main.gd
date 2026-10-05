@@ -89,6 +89,8 @@ const LOADING_SCREEN_SCENE: PackedScene = preload("res://ui/LoadingScreen.tscn")
 @onready var _registry: BlockRegistry = $BlockRegistry
 @onready var _camera_rig: CameraRig = $CameraRig
 @onready var _skybox: Skybox = $Skybox
+## Bontago-mp0.123: cosmetic horizon island ring, rebuilt wherever the sky set loads.
+@onready var _horizon_islands: HorizonIslands = $HorizonIslands
 ## Bontago-xtq.26 (M7 P1): the one WorldEnvironment in game/Main.tscn --
 ## _apply_graphics_preset() below forwards ssr_enabled/volumetric_fog_enabled
 ## to its Environment resource. Null-checked rather than assumed non-null so a
@@ -354,6 +356,7 @@ func _start_hot_seat_match() -> void:
 	_field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
 	_field.set_overlay_source(Match.raster(), config.territory_colors())
 	_skybox.load_set(config.map_def().skybox_set)
+	_horizon_islands.rebuild_for_map(config.map_def(), _world_environment.environment if _world_environment != null else null)
 
 
 ## The lobby settings a real lobby screen collects, for the one path that
@@ -401,6 +404,7 @@ func _start_sandbox_match_with_args(args: PackedStringArray) -> void:
 	_field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
 	_field.set_overlay_source(Match.raster(), config.territory_colors())
 	_skybox.load_set(config.map_def().skybox_set)
+	_horizon_islands.rebuild_for_map(config.map_def(), _world_environment.environment if _world_environment != null else null)
 
 	# F3's overlay works offline too (Net.stats() reports Offline/0 peers,
 	# which is still useful context while sandbox-testing); it costs nothing
@@ -561,6 +565,7 @@ func start_tutorial_from_menu() -> void:
 	_field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
 	_field.set_overlay_source(Match.raster(), config.territory_colors())
 	_skybox.load_set(config.map_def().skybox_set)
+	_horizon_islands.rebuild_for_map(config.map_def(), _world_environment.environment if _world_environment != null else null)
 
 
 ## Same lobby-settings-minus-a-few-overrides shape as _build_sandbox_config()
@@ -1482,6 +1487,7 @@ func _build_match_world(force_staging_for_test: bool = false) -> void:
 			return
 	_field.set_overlay_source(Match.raster(), config.territory_colors())
 	_skybox.load_set(config.map_def().skybox_set)
+	_horizon_islands.rebuild_for_map(config.map_def(), _world_environment.environment if _world_environment != null else null)
 	# Bontago-470.4: the lobby's Day/Night/Random, resolved by the host and
 	# replicated; the F4 Theme dropdown still overrides live afterwards.
 	_skybox.configure_match_sky(config)
