@@ -170,9 +170,8 @@ func test_hud_and_results_text() -> void:
 		"mode": {"mode_id": MatchConfig.GameMode.ELIMINATION, "scores": [0.0, 0.0, 1.0], "winners": "2", "order": "1,0"},
 	}
 	var text: String = ResultsScreen.mode_outcome_text(results)
-	assert_string_contains(text, "Player 3: alive")
-	assert_string_contains(text, "Player 1: out")
-	assert_string_contains(text, "Out, first to last: Player 2, Player 1")
+	assert_eq(text, "", "Bontago-1pi.82: no alive/out text or order line; the Status column and row order carry it")
+	assert_eq(ResultsScreen.mode_title(results), "Elimination")
 	assert_eq(ResultsScreen.shared_winners_text(results), "")
 
 

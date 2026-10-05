@@ -38,6 +38,12 @@ layout_mode = 2
 layout_mode = 2
 theme_override_constants/separation = 14
 
+[node name="ModeTitle" type="Label" parent="Center/Card/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+horizontal_alignment = 1
+text = "Classic"
+
 [node name="Headline" type="Label" parent="Center/Card/Layout"]
 unique_name_in_owner = true
 layout_mode = 2

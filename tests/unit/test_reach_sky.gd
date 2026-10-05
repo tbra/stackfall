@@ -307,7 +307,7 @@ func test_a_sky_match_records_settled_heights_and_the_timer_decides() -> void:
 	assert_eq(mode["mode_id"], MatchConfig.GameMode.REACH_THE_SKY)
 	assert_eq(mode["winners"], "0")
 	assert_eq(int(results[0]["winner_id"]), 0)
-	assert_eq(ResultsScreen.mode_outcome_text(results[0]), "\nReach the Sky - Team 1: 9.0 m, Team 2: 8.0 m")
+	assert_eq(ResultsScreen.mode_outcome_text(results[0]), "Team 1: 9.0 m, Team 2: 8.0 m")
 
 
 func test_client_mirrors_host_records_for_display_only() -> void:

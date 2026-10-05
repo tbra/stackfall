@@ -111,11 +111,11 @@ var name_provider: Variant = null
 @onready var _locked_label: Label = %LockedLabel
 @onready var _height_label: Label = %HeightLabel
 @onready var _shares_box: VBoxContainer = %SharesBox
+@onready var _status_pill: VBoxContainer = %StatusPill
 @onready var _capture_ring: Control = %CaptureRing
 @onready var _reject_label: Label = %RejectLabel
 ## Bontago-mp0.124: feedback pictograms (config/hud_feedback_icon_table.tres)
 ## beside held height, the capture ring and the reject/relocated message.
-@onready var _height_icon: TextureRect = %HeightIcon
 @onready var _capture_icon: TextureRect = %CaptureIcon
 @onready var _reject_icon: TextureRect = %RejectIcon
 @export var feedback_icons: HudFeedbackIconTable = preload("res://config/hud_feedback_icon_table.tres")
@@ -509,9 +509,8 @@ func set_feed_seconds(seconds: float) -> void:
 ## icon sits centred above the message and is hidden until a message plays.
 func _setup_feedback_icons() -> void:
 	var px: float = float(feedback_icons.icon_px)
-	_height_icon.texture = feedback_icons.icon_for(HudFeedbackIconTable.Feedback.HELD_HEIGHT)
-	_height_icon.custom_minimum_size = Vector2(px, px)
-	_height_icon.visible = false
+	# DECISION (Bontago-1pi.80): the held-height icon is gone from the HUD; with the
+	# height text hidden it was a label-less icon that carried no information.
 	_capture_icon.texture = feedback_icons.icon_for(HudFeedbackIconTable.Feedback.CAPTURE)
 	_capture_icon.offset_left = -px * 0.5
 	_capture_icon.offset_right = px * 0.5
@@ -532,7 +531,6 @@ func _play_reject_icon(feedback: HudFeedbackIconTable.Feedback, fade_s: float) -
 
 
 func set_height(meters: float) -> void:
-	_height_icon.visible = false
 	_set_height_text("Height: %.2f m" % meters)
 
 
@@ -543,7 +541,6 @@ func set_height(meters: float) -> void:
 ## ghost fixed at screen centre -- so raising looked capped. While a local
 ## block is held the label names both numbers explicitly.
 func set_tower_and_block_height(tower_meters: float, block_meters: float) -> void:
-	_height_icon.visible = true
 	_set_height_text("Tower: %.2f m   Block: %.1f m" % [tower_meters, block_meters])
 
 
@@ -938,6 +935,11 @@ func _resize_top_left_backplate() -> void:
 		maxf(_top_left_cluster.size.x, _top_left_cluster.get_combined_minimum_size().x) + padding * 2.0,
 		_top_left_cluster.get_combined_minimum_size().y + padding * 2.0
 	)
+	# Bontago-1pi.80: the status rows (locked/special/toast/mode score) live
+	# outside the stats box, stacked just below it.
+	_status_pill.position = Vector2(
+		_top_left_cluster.position.x, _top_left_backplate.position.y + _top_left_backplate.size.y + padding
+	)
 
 
 ## Bontago-mp0.3.3 (mockup 08 restyle; Bontago-mp0.2 "top-left HUD
@@ -1147,10 +1149,8 @@ func _special_display_name(head_id: StringName) -> String:
 
 ## Bontago-mp0.3.3 (mockup 08): one row per player, a small team-colored
 ## diamond glyph (_on_row_glyph_draw() below) beside a slim rounded
-## territory-share bar -- a dark translucent track (bar_track's StyleBoxFlat)
-## under a saturated team-colored fill (bar_fill, still a plain ColorRect so
-## tests/unit/test_hud.gd's existing `ColorRect` assertions on _share_bars
-## keep compiling unchanged) and a subtle highlight sheen on top. Replaces
+## territory-share bar. Bontago-1pi.80: each bar is ONE ui/ShareBar.gd control
+## drawing its track, the team-colored fill inside it and a sheen. Replaces
 ## the old boxy SharesPanel background entirely (Bontago-mp0.2).
 func _ensure_share_row_count(count: int) -> void:
 	while _share_rows.size() < count:
@@ -1164,27 +1164,8 @@ func _ensure_share_row_count(count: int) -> void:
 		glyph.set_meta(&"glyph_color", Color.WHITE)
 		glyph.draw.connect(_on_row_glyph_draw.bind(glyph))
 
-		var bar_track: Panel = Panel.new()
-		bar_track.custom_minimum_size = Vector2(hud_visual_tuning.share_bar_width_px, hud_visual_tuning.share_bar_height_px)
-		var track_style: StyleBoxFlat = StyleBoxFlat.new()
-		track_style.bg_color = hud_visual_tuning.hud_share_bar_track_color
-		track_style.set_corner_radius_all(int(hud_visual_tuning.share_bar_height_px * 0.5))
-		# Bontago-mp0.3.3 (owner review 2026-09-26: "thin light inner border").
-		track_style.border_color = hud_visual_tuning.hud_share_bar_border_color
-		track_style.set_border_width_all(1)
-		bar_track.add_theme_stylebox_override("panel", track_style)
-
-		var bar_fill: ColorRect = ColorRect.new()
-		bar_fill.custom_minimum_size = Vector2(0.0, hud_visual_tuning.share_bar_height_px)
-		bar_fill.size = Vector2(0.0, hud_visual_tuning.share_bar_height_px)
-		bar_track.add_child(bar_fill)
-
-		var highlight: ColorRect = ColorRect.new()
-		highlight.color = hud_visual_tuning.hud_share_bar_highlight_color
-		highlight.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		highlight.size = Vector2(hud_visual_tuning.share_bar_width_px, hud_visual_tuning.share_bar_height_px * 0.35)
-		highlight.position = Vector2(0.0, 1.0)
-		bar_track.add_child(highlight)
+		var bar: ShareBar = ShareBar.new()
+		bar.configure(hud_visual_tuning)
 
 		var name_label: Label = Label.new()
 		name_label.add_theme_font_size_override("font_size", 12)
@@ -1203,11 +1184,11 @@ func _ensure_share_row_count(count: int) -> void:
 
 		row.add_child(glyph)
 		row.add_child(name_label)
-		row.add_child(bar_track)
+		row.add_child(bar)
 		row.add_child(label)
 		_shares_box.add_child(row)
 		_share_rows.append(row)
-		_share_bars.append(bar_fill)
+		_share_bars.append(bar)
 		_share_labels.append(label)
 		_share_name_labels.append(name_label)
 		_share_glyphs.append(glyph)
@@ -1224,11 +1205,9 @@ func _ensure_share_row_count(count: int) -> void:
 func _update_share_row(i: int, share: float) -> void:
 	var eliminated: bool = _is_team_eliminated(i)
 	var color: Color = ELIMINATED_COLOR if eliminated else _color_for_team(i)
-	var bar: ColorRect = _share_bars[i]
-	bar.color = color
-	var width: float = hud_visual_tuning.share_bar_width_px * clampf(share, 0.0, 1.0)
-	bar.custom_minimum_size = Vector2(width, hud_visual_tuning.share_bar_height_px)
-	bar.size = Vector2(width, hud_visual_tuning.share_bar_height_px)
+	var bar: ShareBar = _share_bars[i]
+	bar.fill_color = color
+	bar.fraction = share
 	var label: Label = _share_labels[i]
 	label.text = "%s%s" % [row_value_text(_mode_state, i, share), "  (out)" if eliminated else ""]
 	var name_label: Label = _share_name_labels[i]
