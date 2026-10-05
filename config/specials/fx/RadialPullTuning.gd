@@ -14,8 +14,13 @@ extends Resource
 ## Falloff curve exponent (1.0 = linear, 2.0 = quadratic).
 @export var falloff_exponent: float = 1.0
 
-## Friction compensation acceleration in m/s^2 (typically block_friction * g).
-@export var friction_compensation: float = 8.3
+## Friction compensation acceleration in m/s^2, added to the falloff pull so a resting
+## block actually slides. MEASURED on the real disc (block_friction 0.85, disk_friction 0.9,
+## gravity_multiplier 1.4, resting cube): sliding deceleration is 14.4 m/s^2 but a RESTING block
+## breaks away only above about 22.5 m/s^2 (at compensation 14.4/18/22 a cube 6 m out moved
+## 0.03/0.06/0.2 m in 0.5 s; at 25 it moved 1.0 m). The plan's 8.3 (block_friction * 9.8) is
+## far too low. Keep this above the breakaway value.
+@export var friction_compensation: float = 24.0
 
 ## Capture core radius in meters (blocks entering this radius trigger on_captured).
 @export var core_radius_m: float = 0.8
