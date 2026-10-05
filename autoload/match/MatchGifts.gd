@@ -274,7 +274,7 @@ func _store_in_gift_slot(slot_id: int, special_id: StringName) -> void:
 func request_use_gift_slot(slot_id: int) -> bool:
 	if _match == null or not _match._is_host() or gift_slot_capacity() <= 0:
 		return false
-	if _match.state() != MatchAutoload.State.PLAYING and _match.state() != MatchAutoload.State.SUDDEN_DEATH:
+	if not MatchLifecycle.is_live_state(_match.state()):
 		return false
 	if slot_id < 0 or slot_id >= _match.slot_count():
 		return false
@@ -613,7 +613,11 @@ func _ensure_special_drawer_installed() -> void:
 	if _roster_ready:
 		return
 	_roster_ready = true
-	var all_defs: Array[SpecialDef] = SpecialDef.load_all_specials()
+	# Bontago-1pi.85.9: the draw honours SpecialDef.enabled_by_default (Cat is off).
+	# FOLLOW-UP (not owned here): game/Sandbox.gd:143 (cycle list) and ui/Lobby.gd:529
+	# (gift checklist) still call load_all_specials() and should switch to
+	# load_selectable_specials() so a disabled gift is not offered there either.
+	var all_defs: Array[SpecialDef] = SpecialDef.load_selectable_specials()
 	var enabled: Array[StringName] = _match.config.enabled_specials if _match.config != null else []
 	var roster: Array[SpecialDef] = []
 	if enabled.has(ALL_DISABLED_SENTINEL):

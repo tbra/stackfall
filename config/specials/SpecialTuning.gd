@@ -64,3 +64,8 @@ extends Resource
 ## Bontago-t8x.5: hard backstop. A gift body whose action never completed
 ## (e.g. never reached its fuse) is removed this many seconds after binding.
 @export var gift_max_lifetime_s: float = 60.0
+
+## Bontago-1pi.85.9: a gift whose effect declares effect_effect_lifetime_s() > 0 gets a fuse
+## backstop of (time its lifetime starts) + effect_lifetime_s() + this margin instead
+## of the blanket arm_delay + fuse_timeout_s force-trigger.
+@export var fuse_backstop_margin_s: float = 5.0

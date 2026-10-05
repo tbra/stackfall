@@ -126,6 +126,18 @@ static func load_all_specials() -> Array[SpecialDef]:
 	return defs
 
 
+## The roster a match may draw from: load_all_specials() minus defs with
+## `enabled_by_default == false` (Bontago-1pi.85.9: Cat is disabled but its
+## code and resource stay). Same id order. load_all_specials() stays the full
+## catalogue (find_by_id, icon table, net id tables must still resolve Cat).
+static func load_selectable_specials() -> Array[SpecialDef]:
+	var defs: Array[SpecialDef] = []
+	for def: SpecialDef in load_all_specials():
+		if def.enabled_by_default:
+			defs.append(def)
+	return defs
+
+
 ## DECISION (config/specials/SpecialDef.gd): pulled out of load_all_specials()
 ## as its own static function, rather than an inline lambda, so
 ## tests/unit/test_special_def.gd can exercise the loader's actual sort order

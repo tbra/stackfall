@@ -152,3 +152,25 @@ func test_defaults_match_the_spec_2_6_baseline() -> void:
 	assert_true(def.enabled_by_default)
 	assert_almost_eq(def.arm_delay, 0.4, 0.0001)
 	assert_null(def.effect)
+
+
+## -- load_selectable_specials (Bontago-1pi.85.9) ------------------------------
+
+func test_selectable_specials_exclude_cat_but_load_all_keeps_it() -> void:
+	var all_ids: Array[StringName] = []
+	for def: SpecialDef in SpecialDef.load_all_specials():
+		all_ids.append(def.id)
+	assert_true(all_ids.has(&"cat"), "Cat code/resource must stay in the catalogue.")
+	var selectable: Array[SpecialDef] = SpecialDef.load_selectable_specials()
+	assert_gt(selectable.size(), 0)
+	for def: SpecialDef in selectable:
+		assert_true(def.enabled_by_default)
+		assert_ne(def.id, &"cat")
+
+
+func test_a_thousand_draws_from_the_selectable_roster_never_pick_cat() -> void:
+	var roster: Array[SpecialDef] = SpecialDef.load_selectable_specials()
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 12345
+	for _i: int in range(1000):
+		assert_ne(SpecialDef.pick_weighted(roster, rng).id, &"cat")

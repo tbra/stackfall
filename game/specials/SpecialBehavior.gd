@@ -55,6 +55,11 @@ var _has_triggered: bool = false
 var _chain_depth: int = 0
 var _prev_linear_velocity: Vector3 = Vector3.ZERO
 
+## Bontago-1pi.85.9: landing detection for effects with needs_landing(). Replaces
+## Jolt `sleeping`, which never fires on a tilting disc with an awake island.
+var _landed_probe: LandedProbe = null
+var _landed_at_age: float = -1.0
+
 
 ## Entry point -- called once, immediately after this node is created and
 ## added as a child of `block` (docs/M4_P2_PACKAGES.md P2a: "avoids an
@@ -71,6 +76,8 @@ func bind(block: Block, def: SpecialDef, tuning: SpecialTuning) -> void:
 	_chain_depth = 0
 	_completed = false
 	_despawn_timer = -1.0
+	_landed_probe = LandedProbe.new()
+	_landed_at_age = -1.0
 	_prev_linear_velocity = block.linear_velocity if block != null else Vector3.ZERO
 	add_to_group(GROUP)
 
@@ -89,6 +96,17 @@ func age() -> float:
 
 func chain_depth() -> int:
 	return _chain_depth
+
+
+## True once the carrier has landed per the LandedProbe. Only meaningful for an
+## effect whose needs_landing() is true (the probe is not fed otherwise).
+func has_landed() -> bool:
+	return _landed_at_age >= 0.0
+
+
+## Seconds since landing; 0.0 before it.
+func landed_age() -> float:
+	return maxf(_age - _landed_at_age, 0.0) if _landed_at_age >= 0.0 else 0.0
 
 
 func _physics_process(delta: float) -> void:
@@ -115,14 +133,38 @@ func advance(delta: float) -> void:
 		# tick's decel is measured against "velocity when arming happened",
 		# not a stale sample from before arm_delay elapsed.
 		_prev_linear_velocity = _block.linear_velocity
+	var needs_landing: bool = _def.effect != null and _def.effect.needs_landing()
+	if needs_landing and _landed_at_age < 0.0:
+		_landed_probe.update(_block, delta)
+		if _landed_probe.has_landed():
+			_landed_at_age = _age
 	if _armed:
 		_check_impact()
-	if not _has_triggered and _armed and _def.effect != null:
+	var effect_may_run: bool = not needs_landing or _landed_at_age >= 0.0
+	if not _has_triggered and _armed and effect_may_run and _def.effect != null:
 		_def.effect.physics_tick(_block, self, delta)
 		if not _has_triggered and _def.effect.wants_early_trigger(_block, self):
 			trigger(0)
-	if not _has_triggered and _age >= _def.arm_delay + _def.fuse_timeout_s:
+	if not _has_triggered and _age >= _fuse_deadline():
 		trigger(0)
+
+
+## Age at which the fuse force-triggers. Without an effect lifetime this is the
+## old arm_delay + fuse_timeout_s. With effect_lifetime_s() > 0 it is derived from the
+## lifetime: landing time (or, before landing, arm_delay + fuse_timeout_s as the
+## landing wait) + lifetime + SpecialTuning.fuse_backstop_margin_s.
+func _fuse_deadline() -> float:
+	var base: float = _def.arm_delay + _def.fuse_timeout_s
+	if _def.effect == null:
+		return base
+	var lifetime: float = _def.effect.effect_lifetime_s()
+	if lifetime <= 0.0:
+		return base
+	var margin: float = _tuning.fuse_backstop_margin_s if _tuning != null else 0.0
+	if _def.effect.needs_landing() and _landed_at_age < 0.0:
+		return base + lifetime + margin
+	var start: float = _landed_at_age if _landed_at_age >= 0.0 else _def.arm_delay
+	return start + lifetime + margin
 
 
 ## Counts the post-trigger linger down and completes once it elapses.
@@ -190,8 +232,9 @@ func _check_impact() -> void:
 	_prev_linear_velocity = current_velocity
 	if _has_triggered or decel < _def.arm_impulse:
 		return
-	if _def.effect != null and not _def.effect.impact_triggers(_block, self):
-		return
+	if _def.effect != null:
+		if not _def.effect.triggers_on_impact() or not _def.effect.impact_triggers(_block, self):
+			return
 	trigger(0)
 
 
@@ -212,7 +255,12 @@ func trigger(incoming_chain_depth: int) -> void:
 	var def_id: StringName = _def.id if _def != null else &""
 	triggered.emit(def_id, position, _chain_depth)
 	if despawn_when_done:
-		_despawn_timer = _tuning.gift_despawn_delay_s if _tuning != null else 0.0
+		if _def != null and _def.effect != null and _def.effect.detaches():
+			# The effect owns a standalone world node: no linger, the carrier goes now.
+			_despawn_timer = 0.0
+			_complete()
+		else:
+			_despawn_timer = _tuning.gift_despawn_delay_s if _tuning != null else 0.0
 
 
 ## Called by a concrete SpecialEffect's own detonate() (P3-P5), not by
