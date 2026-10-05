@@ -115,6 +115,8 @@ extends Resource
 ## names are ellipsized (Bontago-1pi.68).
 @export var hud_row_name_width_px: float = 110.0
 @export var share_bar_height_px: float = 14.0
+## Fraction of a share bar's height covered by the lighter highlight band on its fill.
+@export var share_bar_highlight_ratio: float = 0.35
 
 ## Bontago-mp0.27: pre-match 3-2-1 label. "Go" stays this long after PLAYING starts.
 @export var countdown_font_size: int = 120
