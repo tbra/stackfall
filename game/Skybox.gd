@@ -101,6 +101,8 @@ const CYCLE_NIGHT_THEME_ID: String = "night"
 ## dawn.tres); SkyPalette fades it into the sunset.tres palette on the setting side.
 const CYCLE_DAWN_THEME_ID: String = "dawn"
 var _cloud_sea: CloudSea = null
+## Bontago-mp0.92: the running cloud wind (calm per-match heading, storm wind, parallax integral).
+var _cloud_drift: CloudDriftState = CloudDriftState.new()
 ## Bontago-mp0.29: the one lighting/weather/cycle state all cloud layers read.
 var _cloud_lighting: CloudLighting = CloudLighting.new()
 var _birds: DistantBirds = null
@@ -213,6 +215,7 @@ func configure_match_sky(match_config: MatchConfig) -> void:
 	# variation. The host rolls MatchConfig.sky_variation_seed once per match (an
 	# unresolved config with no rng_seed shares SkyVariation's default curve).
 	_variation_seed = SkyVariation.seed_for(match_config.effective_sky_variation_seed())
+	_cloud_drift.reset(_variation_seed)
 	# DECISION (Bontago-59o.18): a match opens its sky at shared clock 0:
 	# SnapshotSync.begin_match() resets the clock right after this call, and a
 	# stale clock read here would make the start phase differ between peers.
@@ -310,6 +313,7 @@ func _clear_cycle_state() -> void:
 	_cycle_clock_s = 0.0
 	_cycle_locked_phase = -1.0
 	_variation_seed = SkyVariation.DEFAULT_SEED
+	_cloud_drift.reset(_variation_seed)
 
 
 ## Drops the baseline-exposure entries of sky materials that are no longer the live
@@ -323,7 +327,8 @@ func _prune_overcast_sky_bases() -> void:
 			_overcast_sky_bases.erase(key)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_step_cloud_drift(delta)
 	if _cycle_theme == null:
 		return
 	update_cycle_clock(SnapshotSync.sky_cycle_seconds())
@@ -1865,12 +1870,36 @@ func daylight() -> float:
 	return _daylight
 
 
-## Mean cloud drift speed (m/s) of the live theme, the wind the cloud shadows follow.
+## Mean cloud drift speed (m/s) of the live theme at the current wind strength (calm 1x,
+## storm_speed_mult at full storm), the speed the cloud shadows follow.
 func cloud_drift_speed_mps() -> float:
 	var live: SkyThemeDef = _cycle_theme if _cycle_theme != null else theme
 	if live == null:
 		return 0.0
-	return absf(live.cloud_drift_speed_min_mps + live.cloud_drift_speed_max_mps) * 0.5
+	return absf(live.cloud_drift_speed_min_mps + live.cloud_drift_speed_max_mps) * 0.5 * _cloud_drift.speed_mult
+
+
+## Bontago-mp0.92: the one cloud wind (puffs, sun occlusion and CloudShadows all read it).
+func cloud_drift() -> CloudDriftState:
+	return _cloud_drift
+
+
+## Unit ground wind (x, z) the clouds currently drift along.
+func cloud_wind_dir() -> Vector2:
+	return _cloud_drift.heading
+
+
+## The storm's live wind heading (StormPresentation pushes it); the clouds ease onto it as the
+## storm blend rises and back to the calm heading as it falls.
+func set_cloud_storm_wind(direction: Vector2) -> void:
+	_cloud_drift.set_storm_wind(direction)
+
+
+## Advances the shared cloud wind by `delta` and hands its integral to the puffs (also the test seam).
+func _step_cloud_drift(delta: float) -> void:
+	_cloud_drift.step(delta, _storm_amount)
+	if _cloud_sea != null:
+		_cloud_sea.set_drift_offset(_cloud_drift.offset)
 
 
 ## Bontago-mp0.130: aerial perspective, sun scatter and height fog from the theme.

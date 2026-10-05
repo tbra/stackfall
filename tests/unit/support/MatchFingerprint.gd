@@ -298,7 +298,10 @@ static func _capture_sky(main: Node, out: Dictionary) -> void:
 	if light != null:
 		out["sky.light_basis"] = _basis(light.global_basis)
 		out["sky.light_color"] = _col(light.light_color)
-		out["sky.light_energy"] = _r(light.light_energy)
+		# Bontago-mp0.132: the sun's cloud dimming (CloudShadows, from the live puff occlusion) follows
+		# frame count and the drifting clouds, so it is transient by design; the fingerprint reads
+		# the undimmed energy.
+		out["sky.light_energy"] = _r(light.light_energy / maxf(skybox.sun_cloud_scale(), 0.001))
 	var lighting: CloudLighting = skybox.cloud_lighting()
 	if lighting != null:
 		out["sky.cloud_night"] = _r(lighting.night_mix)

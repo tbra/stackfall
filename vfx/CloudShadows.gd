@@ -10,8 +10,9 @@ extends Node3D
 ## shader and gives the right oblique stretch at low sun for free. A light projector is not
 ## available on a DirectionalLight3D, and per-shader shadow terms would touch every material.
 ## The two layers use different noise and cross-fade (core/CloudShadowMath.gd) while each
-## drifts along the cloud wind (heading from CloudShadowConfig, speed from the sky theme's
-## cloud drift), so no decal edge is ever visible. Territory colours stay readable: the shadow
+## drifts along the cloud wind (Bontago-mp0.92: heading and speed from the Skybox's shared
+## CloudDriftState, so shadows follow the visible clouds and the storm wind; the config
+## heading is only the fallback), so no decal edge is ever visible. Territory colours stay readable: the shadow
 ## only multiplies albedo by a tint at <= max_strength alpha.
 ## DECISION: the sun dimming uses the real puff bounds (CloudSea.sun_ray_cloud_occlusion, the
 ## same query the sun flare uses) cast from the arena toward the sun, smoothed, and is applied
@@ -30,6 +31,8 @@ const NOISE_OCTAVES: int = 3
 @export var config: CloudShadowConfig = CONFIG
 
 var _decals: Array[Decal] = []
+## Unit ground wind of the last step (the Skybox's shared cloud drift heading).
+var _wind: Vector2 = Vector2.RIGHT
 var _skybox: Skybox = null
 var _cloud_sea: CloudSea = null
 var _enabled: bool = true
@@ -125,14 +128,16 @@ func _process(delta: float) -> void:
 		# Cosmetic start phase from the match's sky variation seed (differs per match, no sync).
 		_time_s = float(absi(hash(_skybox.variation_seed())) % SEED_PHASE_RANGE_S)
 		_time_seeded = true
-	step(delta, _skybox.sun_direction(), _skybox.daylight(), _skybox.cloud_drift_speed_mps())
+	step(delta, _skybox.sun_direction(), _skybox.daylight(), _skybox.cloud_drift_speed_mps(), _skybox.cloud_wind_dir())
 
 
 ## One frame (also the test seam): places the decals for the sun at unit `sun_dir` with
-## `daylight` 0..1 and mean cloud drift `drift_mps`, and updates the sun dimming.
-func step(delta: float, sun_dir: Vector3, daylight: float, drift_mps: float) -> void:
+## `daylight` 0..1 and mean cloud drift `drift_mps` along the unit ground wind `wind` (the
+## Skybox's shared cloud drift; ZERO = the config's fallback heading), and updates the sun dimming.
+func step(delta: float, sun_dir: Vector3, daylight: float, drift_mps: float, wind: Vector2 = Vector2.ZERO) -> void:
 	var known: bool = sun_dir.length_squared() > 0.0
 	var strength: float = CloudShadowMath.strength(sun_dir.normalized().y, daylight, config) if known else 0.0
+	_wind = wind.normalized() if wind.length_squared() > 0.0 else CloudShadowMath.wind_dir(config.wind_heading_deg)
 	_update_decals(sun_dir.normalized(), strength, drift_mps)
 	_update_sun_dim(delta, sun_dir, daylight)
 
@@ -148,8 +153,7 @@ func _update_decals(sun_dir: Vector3, strength: float, drift_mps: float) -> void
 	var size_y: float = 2.0 * (_field_radius + config.volume_height_m)
 	# A Decal projects along its local -Y; light travels along -sun_dir, so local +Y points
 	# toward the sun and local X is the in-plane axis along the wind.
-	var wind: Vector2 = CloudShadowMath.wind_dir(config.wind_heading_deg)
-	var along: Vector3 = Vector3(wind.x, 0.0, wind.y)
+	var along: Vector3 = Vector3(_wind.x, 0.0, _wind.y)
 	along = (along - sun_dir * along.dot(sun_dir)).normalized()
 	var basis_sun: Basis = Basis(along, sun_dir, along.cross(sun_dir).normalized())
 	var centre: Vector3 = Vector3(0.0, config.volume_height_m * 0.5, 0.0)

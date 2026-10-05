@@ -17,8 +17,13 @@ render_mode unshaded, world_vertex_coords, cull_back, depth_draw_always, fog_dis
 //
 // Motion is all here, driven by TIME and per-instance custom data, so it
 // runs in the game, the editor and the baked demo with no script:
-//  - drift: every puff orbits the disc's vertical axis at its clump's own
-//    angular speed (INSTANCE_CUSTOM.x), so clumps slide past each other;
+//  - drift (Bontago-mp0.92): every clump slides along the shared cloud wind by
+//    drift_offset (integrated on the CPU, core/CloudDriftState.gd) times its own
+//    speed (INSTANCE_CUSTOM.x, set per depth layer: parallax). The clump's rest
+//    position and wrap domain arrive in the instance COLOR (x, z, domain, exclusion
+//    radius); a clump leaving one side of the square domain re-enters on the other
+//    while dissolved (drift_vis), and clumps below the disc dissolve inside the
+//    exclusion radius so none enters the play volume;
 //  - billow/boil: the silhouette breathes and the dome pattern slides slowly.
 // Shading: wrap-lit N.L against the (elevation-lifted) sun/moon plus a
 // height-in-clump term and the dome pattern, split into three flat cel tones
@@ -186,6 +191,11 @@ uniform float depth_fade_amount = 0.45;
 uniform float far_fade_cap = 1.0;
 uniform float near_fade_start_m = 5.0;
 uniform float near_fade_end_m = 16.0;
+// Bontago-mp0.92: the integrated cloud wind (m per m/s of clump speed) and the dissolve bands
+// (CloudDriftConfig edge_fade_m / exclusion_fade_m), written by vfx/CloudSea.gd.
+uniform vec2 drift_offset = vec2(0.0);
+uniform float drift_edge_fade_m = 120.0;
+uniform float drift_exclusion_fade_m = 60.0;
 
 // Bontago-mp0.29: weather grade shared with the weather cloud ceiling
 // (CloudLighting.grade): desaturate toward luminance, then darken.
@@ -213,6 +223,7 @@ varying float base_y;
 varying float clump_height;
 // The puff's base plane height (flat_base or flat_base_override).
 varying float base_flat;
+varying float drift_vis;
 
 // Round dome (1 at a cell centre, 0 on the crease between cells); 0..1.
 // lump_cell_radius is the normalized F1 distance treated as a cell's edge.
@@ -266,11 +277,18 @@ void vertex() {
 		// INSTANCE_CUSTOM.y is the puff's seed in 0..TAU: its own share of the stagger.
 		VERTEX.y += base_stagger_m * INSTANCE_CUSTOM.y / TAU;
 	}
-	mat2 r = rot2(TIME * INSTANCE_CUSTOM.x);
-	VERTEX.xz = r * VERTEX.xz;
+	vec2 rest = COLOR.rg;
+	float domain = max(COLOR.b, 1.0);
+	vec2 wrapped = mod(rest + drift_offset * INSTANCE_CUSTOM.x + vec2(domain), 2.0 * domain) - vec2(domain);
+	vec2 moved = wrapped - rest;
+	VERTEX.xz += moved;
 	NORMAL = hull_normal;
-	NORMAL.xz = r * NORMAL.xz;
-	centre.xz = r * centre.xz;
+	centre.xz += moved;
+	float edge = domain - max(abs(wrapped.x), abs(wrapped.y));
+	drift_vis = smoothstep(0.0, max(drift_edge_fade_m, 0.001), edge);
+	if (COLOR.a > 0.0) {
+		drift_vis *= smoothstep(COLOR.a, COLOR.a + max(drift_exclusion_fade_m, 0.001), length(wrapped));
+	}
 	world_pos = VERTEX;
 	world_normal = NORMAL;
 	puff_centre = centre;
@@ -295,6 +313,9 @@ void fragment() {
 	float dist = length(to_frag);
 	float near = smoothstep(near_fade_start_m, near_fade_end_m, dist);
 	if (near < bayer4(FRAGCOORD.xy)) {
+		discard;
+	}
+	if (drift_vis < bayer4(FRAGCOORD.xy)) {
 		discard;
 	}
 	vec3 view_dir = to_frag / max(dist, 0.001);
