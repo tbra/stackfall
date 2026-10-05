@@ -4,15 +4,20 @@
 
 Steps (each step's full output goes to <log-dir>/NN_name.log; stdout stays compact):
   1 worktree  temp integration worktree + branch from local main (origin/main must be an ancestor)
-  2 merge     git merge --no-ff each branch; on conflict stop and list conflicting files
+  2 merge     git merge --no-ff each branch; on conflict stop and list conflicting files. Exception
+              (Bontago-fca.33): if config/tuning_panel_hints.tres is the ONLY conflicted file and every
+              hunk is a pure union of distinct `"key": value,` entries (no base line removed or changed,
+              no duplicate key afterwards) the markers are stripped, both sides kept, and the merge
+              committed; anything else aborts the merge.
   3 import    godot --headless --editor --path <wt> --quit (bounded error/warning lines)
   4 check-only (always): tools/check_scripts.gd compiles each added/modified tools/*.gd with autoloads loaded
   5 gate      --game-code (default): tools/full_gate.py --path <wt>; ONLY a `FULL GATE GREEN`
               line passes (missing verdict line = RED)
   6 ff        fast-forward the main checkout (refuses on dirty touched files or a moved main)
   7 push      git push origin main (separate step), git fetch, verify HEAD == origin/main
-  8 close     bd close for each bead, only after remote verification (--force-close adds
-              --force for reviewed handoffs whose claim another agent such as codex holds)
+  8 close     only after remote verification, per bead: `bd update --assignee stackfall-orchestrator`
+              (retried with --force when bd refuses a live worker claim; Bontago-fca.32), then `bd close`
+              (--force-close adds --force to the close for reviewed handoffs held by another agent)
   9 postimport  godot import check in the main checkout
  10 sidecars  if that import generated untracked .import/.uid sidecars whose source file is tracked,
               commit only those as "Assets: import sidecars for <beads>", push, verify the remote again
@@ -104,6 +109,131 @@ def close_args(repo, bead, reason, force):
     if force:
         argv.append("--force")
     return argv
+
+
+def reassign_args(repo, bead, force):
+    """bd update argv that moves a bead to the orchestrator so its `bd close` is accepted."""
+    argv = [bd_exe(), "-C", repo, "update", bead, "--assignee", BD_ACTOR, "--actor", BD_ACTOR]
+    if force:
+        argv.append("--force")
+    return argv
+
+
+def close_bead(ctx, repo, bead, reason, force_close):
+    """Reassign to the orchestrator (plain, then --force when bd refuses a live claim), then close.
+    Never touches Beads remotes. Raises StepFailed('close')."""
+    code, text, log = run_cmd(ctx, "assign_" + bead, reassign_args(repo, bead, False), repo, GIT_TIMEOUT_S)
+    if code != 0:
+        code, text, log = run_cmd(ctx, "assign_force_" + bead, reassign_args(repo, bead, True), repo, GIT_TIMEOUT_S)
+    if code != 0 and not force_close:
+        raise StepFailed("close", "bd update --assignee %s failed; log %s" % (bead, log))
+    code, text, log = run_cmd(ctx, "close_" + bead, close_args(repo, bead, reason, force_close), repo, GIT_TIMEOUT_S)
+    if code != 0:
+        raise StepFailed("close", "bd close %s failed; log %s" % (bead, log))
+
+
+HINTS_PATH = "config/tuning_panel_hints.tres"
+HINT_ENTRY_RE = re.compile(r'^("(?:[^"\\]|\\.)+")\s*:\s*.+,\s*$')
+SECTION_RE = re.compile(r"^(\w+) = \{\s*$")
+
+
+def _entry_key(line):
+    m = HINT_ENTRY_RE.match(line)
+    return m.group(1) if m else None
+
+
+def resolve_hints_conflict(text, base_text):
+    """Auto-resolve a conflicted tuning_panel_hints.tres whose every hunk is a pure union of
+    distinct dictionary entries. Returns (resolved_text, None) or (None, reason).
+    base_text is the merge-base version ('' if absent); each of its lines must survive."""
+    out, mode, ours, theirs, in_base = [], 0, [], [], False
+    for line in text.split("\n"):
+        if line.startswith("<<<<<<< ") and mode == 0:
+            mode, ours, theirs, in_base = 1, [], [], False
+        elif line.startswith("|||||||") and mode == 1:
+            in_base = True
+        elif line == "=======" and mode == 1:
+            mode, in_base = 2, False
+        elif line.startswith(">>>>>>> ") and mode == 2:
+            by_key = {}
+            for l in ours + theirs:
+                k = _entry_key(l)
+                if k is None:
+                    return None, "hunk line is not a plain hint entry: " + l[:80]
+                if by_key.setdefault(k, l) != l:
+                    return None, "same key with different values: " + k
+            out.extend(ours)
+            out.extend(l for l in theirs if l not in ours)
+            mode = 0
+        elif mode == 1:
+            if not in_base:
+                ours.append(line)
+        elif mode == 2:
+            theirs.append(line)
+        else:
+            out.append(line)
+    if mode != 0:
+        return None, "unterminated conflict markers"
+    section, seen = "", set()
+    for line in out:
+        m = SECTION_RE.match(line)
+        if m:
+            section = m.group(1)
+            continue
+        k = _entry_key(line)
+        if k is not None:
+            if (section, k) in seen:
+                return None, "duplicate key %s in %s" % (k, section or "?")
+            seen.add((section, k))
+    have = {}
+    for l in out:
+        have[l] = have.get(l, 0) + 1
+    for l in base_text.split("\n"):
+        if have.get(l, 0) <= 0:
+            return None, "base line removed or changed: " + l[:80]
+        have[l] -= 1
+    return "\n".join(out), None
+
+
+def try_resolve_hints(ctx, wt):
+    """Resolve the conflicted hints file in wt and commit the merge. Returns None on success,
+    else the refusal reason."""
+    try:
+        with open(os.path.join(wt, HINTS_PATH), encoding="utf-8", newline="") as fh:
+            conflicted = fh.read().replace("\r\n", "\n")
+    except OSError as e:
+        return "cannot read hints file: %s" % e
+    code, base_text, _ = git(ctx, "hints_base", wt, "show", ":1:" + HINTS_PATH)
+    resolved, reason = resolve_hints_conflict(conflicted, base_text.replace("\r\n", "\n") if code == 0 else "")
+    if resolved is None:
+        return reason
+    with open(os.path.join(wt, HINTS_PATH), "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(resolved)
+    if git(ctx, "hints_add", wt, "add", "--", HINTS_PATH)[0] != 0 or \
+            git(ctx, "hints_commit", wt, "commit", "--no-edit")[0] != 0:
+        return "could not commit the resolved hints file"
+    return None
+
+
+def merge_branches(ctx, wt, branches, beads, say):
+    """Merge each branch with --no-ff; a pure-additive hints conflict is auto-resolved, any other
+    conflict aborts the merge and raises StepFailed('merge')."""
+    for b in branches:
+        code, text, _ = git(ctx, "merge_" + b.replace("/", "_"), wt, "merge", "--no-ff",
+                            "-m", merge_subject(b, beads), "-m", MERGE_TRAILER, b)
+        if code == 0:
+            continue
+        files = git(ctx, "conflicts", wt, "diff", "--name-only", "--diff-filter=U")[1].split()
+        note = ""
+        if files == [HINTS_PATH]:
+            refused = try_resolve_hints(ctx, wt)
+            if refused is None:
+                say("  merge: auto-resolved additive %s conflict from %s" % (HINTS_PATH, b))
+                continue
+            note = " (hints auto-resolve refused: %s)" % refused
+        git(ctx, "merge_abort", wt, "merge", "--abort")
+        raise StepFailed("merge", "conflict merging %s: %s%s" % (
+            b, ", ".join(files[:15]) or text.strip()[:200], note))
 
 
 def parse_verdict(text):
@@ -248,13 +378,7 @@ def integrate(args, ctx, say, res):
     run_cmd(ctx, "override", [sys.executable, os.path.join(ROOT, "tools", "agent_worktree_setup.py"), wt], ROOT, GIT_TIMEOUT_S)
     say("worktree  ok   %s @ %s" % (wt, base[:9]))
     # 2 merge
-    for b in args.branches:
-        code, text, _ = git(ctx, "merge_" + b.replace("/", "_"), wt, "merge", "--no-ff",
-                            "-m", merge_subject(b, args.beads), "-m", MERGE_TRAILER, b)
-        if code != 0:
-            files = git(ctx, "conflicts", wt, "diff", "--name-only", "--diff-filter=U")[1].split()
-            git(ctx, "merge_abort", wt, "merge", "--abort")
-            raise StepFailed("merge", "conflict merging %s: %s" % (b, ", ".join(files[:15]) or text.strip()[:200]))
+    merge_branches(ctx, wt, args.branches, args.beads, say)
     result = git_out(ctx, "rev_result", wt, "rev-parse", "HEAD")
     res["result"] = result
     say("merge     ok   %d branch(es) -> %s" % (len(args.branches), result[:9]))
@@ -298,6 +422,9 @@ def integrate(args, ctx, say, res):
         say("gate      skip not game code")
     res["verdict"] = verdict
     if args.dry_run:
+        for bead in args.beads:
+            say("  dry-run would run: bd update %s --assignee %s --actor %s (retry --force), then bd close %s%s" % (
+                bead, BD_ACTOR, BD_ACTOR, bead, " --force" if getattr(args, "force_close", False) else ""))
         say("dry-run   stop before ff/push/close")
         return
     # 6 ff main
@@ -333,10 +460,7 @@ def integrate(args, ctx, say, res):
     # 8 close beads, only after remote verification
     for bead in args.beads:
         reason = "%s pushed+verified; gate %s" % (head[:9], verdict)
-        argv = close_args(repo, bead, reason, getattr(args, "force_close", False))
-        code, text, log = run_cmd(ctx, "close_" + bead, argv, repo, GIT_TIMEOUT_S)
-        if code != 0:
-            raise StepFailed("close", "bd close %s failed; log %s" % (bead, log))
+        close_bead(ctx, repo, bead, reason, getattr(args, "force_close", False))
     say("close     ok   %s" % (", ".join(args.beads) or "(none)"))
     # 9 post-pull import check in the main checkout
     code, issues, log = import_check(ctx, "postimport", repo)
