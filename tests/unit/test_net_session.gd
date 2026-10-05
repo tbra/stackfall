@@ -1741,3 +1741,16 @@ func test_fakenet_records_seat_pref_requests() -> void:
 	assert_eq(fake.request_seat_pref_calls[0], {"color_index": 2, "team_pick": -1})
 	assert_eq(fake.request_seat_pref_calls[1], {"color_index": -1, "team_pick": 3})
 	assert_eq(fake.request_seat_pref_calls[2], {"color_index": -1, "team_pick": -1})
+
+## Bontago-fca.30: a client whose transport already closed (server_disconnected
+## runs net_peer_left listeners such as Sfx before leave()) must still answer
+## local_peer_id() with its last live id, not hit get_unique_id() on a dead peer.
+func test_local_peer_id_survives_closed_transport() -> void:
+	_client = _make_side("ClientClosedId")
+	assert_eq(_client.join_game("127.0.0.1", _next_port), OK)
+	_next_port += 1
+	var live_id: int = _client.local_peer_id()
+	assert_ne(live_id, 0, "a connecting client already has its unique id")
+	_client.multiplayer.multiplayer_peer.close()
+	assert_eq(_client.local_peer_id(), live_id, "closed transport: last live id, not 0")
+

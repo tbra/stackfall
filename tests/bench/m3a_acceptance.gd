@@ -185,6 +185,28 @@ const LATE_JOIN_SETTLE_SECONDS: float = 1.0
 ## How long to wait for the late joiner to ack its replay.
 const LATE_JOIN_ACK_TIMEOUT_SECONDS: float = 8.0
 
+## Bontago-fca.30: --reconnect-pass. The client holding RECONNECT_SLOT_ID closes
+## its ENet connection mid-match (Net.leave(false) keeps its rejoin token),
+## stays away RECONNECT_DOWN_SECONDS, then joins the same host again. Spec 3.4
+## "Late join / reconnect" + Net._handshake_mid_match: a returning peer quoting
+## its token inside NetConfig.disconnect_grace gets its OWN slot back and a full
+## world replay. Needs >= 2 players (slot 1 is a client).
+const RECONNECT_SLOT_ID: int = 1
+const RECONNECT_DOWN_SECONDS: float = 1.5
+const RECONNECT_EVENT_TIMEOUT_SECONDS: float = 25.0
+const RECONNECT_SETTLE_SECONDS: float = 2.0
+const RECONNECT_TERRITORY_POLL_SECONDS: float = 4.0
+const RECONNECT_PLACE_ATTEMPTS: int = 2
+
+var _reconnect_pass: bool = false
+## Host: events recorded by Events.net_peer_left / net_peer_joined for the slot.
+var _rc_left: Dictionary = {}
+var _rc_joined: Dictionary = {}
+## Host: the client report (from _rpc_reconnect_done), empty until it arrives.
+var _rc_client_done: Dictionary = {}
+## Client: the host expectations (from _rpc_reconnect_expect).
+var _rc_expect: Dictionary = {}
+
 var _failures: Array[String] = []
 ## Review item 2: kept separate from _failures so "M3A_THROW result=..."
 ## reports only the throw phase's own criteria; folded into _failures before
@@ -274,6 +296,10 @@ func _ready() -> void:
 	# Bontago-8or.11: detect late-join mode
 	_late_join_after_seconds = _int_arg("--late-join-after=", 0)
 	_is_late_joiner = _late_join_flag_was_given()
+	_reconnect_pass = _flag_given("--reconnect-pass")
+	if _reconnect_pass:
+		Events.net_peer_left.connect(_on_rc_peer_left)
+		Events.net_peer_joined.connect(_on_rc_peer_joined)
 
 	Events.block_placed.connect(_on_block_placed)
 	Events.block_replicated.connect(_on_block_replicated)
@@ -441,6 +467,11 @@ func _run_host() -> void:
 	add_child(registry)
 
 	Match.register_world(field, registry, blocks)
+	if _reconnect_pass:
+		# Mirrors game/Main.gd: Net must know a match runs and how to seat a
+		# returning peer (this bare scene has no Main to do it).
+		Net.set_seat_policy(Callable(_match_net, &"pick_open_seat"), Callable(_match_net, &"seat_reclaimable"))
+		Net.set_match_in_progress(true)
 	Match.start_match(config)
 	_match_net.call(&"replicate_match_start", Match.config)
 	field.place_flags(Match.config.player_count, Match.config.player_colors, Match.config.goal_flag_count)
@@ -495,6 +526,8 @@ func _run_host() -> void:
 	# This runs DURING the match, before clients exit, so we can compare states
 	if _late_join_after_seconds > 0:
 		await _run_host_late_join_and_reconnect(initial_player_count)
+	if _reconnect_pass:
+		await _run_host_reconnect_phase(initial_player_count)
 
 
 ## Review item 2: proves M4 P2c-ii's request_throw over a real ENet
@@ -705,6 +738,9 @@ func _run_client() -> void:
 	# Bontago-8or.11: if late-join is enabled, stay alive longer so the host
 	# can verify the late joiner during the match (before clients exit).
 	# This allows the late-join check to run DURING the match, not after.
+	if _reconnect_pass and slot_id == RECONNECT_SLOT_ID:
+		await _run_client_reconnect_phase(slot_id)
+
 	if _late_join_after_seconds > 0:
 		print("M3A_ACCEPT (client late_join) waiting for host late-join verification...")
 		await get_tree().create_timer(LATE_JOIN_ACK_TIMEOUT_SECONDS + LATE_JOIN_SETTLE_SECONDS + 2.0).timeout
@@ -1039,6 +1075,165 @@ func _on_fixture_gift_landed(gift_id: int, _landing: Vector3) -> void:
 
 
 # --- Bontago-8or.11: Late-join testing ----------------------------------------
+
+func _flag_given(flag: String) -> bool:
+	return OS.get_cmdline_user_args().has(flag)
+
+
+func _orphans() -> int:
+	return int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT))
+
+
+func _on_rc_peer_left(peer_id: int, slot_id: int, _reason: int) -> void:
+	if slot_id != RECONNECT_SLOT_ID or not _rc_left.is_empty():
+		return
+	_rc_left = {
+		"peer": peer_id,
+		"slot_has_peer": Net.peer_of_slot(slot_id),
+		"in_peer_ids": Net.peer_ids().has(peer_id),
+		"grace": Match.disconnect_grace_left(slot_id),
+		"blocks": _live_blocks().size(),
+	}
+
+
+func _on_rc_peer_joined(peer_id: int, slot_id: int, _player_name: String) -> void:
+	if _rc_left.is_empty() or not _rc_joined.is_empty():
+		return
+	_rc_joined = {
+		"peer": peer_id,
+		"slot": slot_id,
+		"slot_peer": Net.peer_of_slot(slot_id),
+		"grace": Match.disconnect_grace_left(slot_id) if slot_id >= 0 else -2.0,
+		"blocks": _live_blocks().size(),
+		"acked_before": int(_match_net.get(&"replays_acknowledged")),
+	}
+
+
+func _owner_hash() -> int:
+	var raster: TerritoryRaster = Match.raster()
+	return 0 if raster == null else hash(raster.owner_bytes())
+
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_reconnect_expect(blocks_lo: int, blocks_hi: int, owner_hash: int) -> void:
+	_rc_expect = {"lo": blocks_lo, "hi": blocks_hi, "hash": owner_hash}
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_reconnect_done(ok: bool, detail: String) -> void:
+	_rc_client_done = {"ok": ok, "detail": detail}
+
+
+## Bontago-fca.30. Host half of the real drop + rejoin (see RECONNECT_SLOT_ID).
+func _run_host_reconnect_phase(initial_player_count: int) -> void:
+	if initial_player_count <= RECONNECT_SLOT_ID:
+		print("M3A_ACCEPT (reconnect_pass) skipped: no client at slot %d" % RECONNECT_SLOT_ID)
+		return
+	var orphans_before: int = _orphans()
+	var accepted_before: int = _intents_accepted(RECONNECT_SLOT_ID)
+	if not await _wait_for_condition(func() -> bool: return not _rc_left.is_empty(), RECONNECT_EVENT_TIMEOUT_SECONDS):
+		_check("reconnect_peer_left_seen", false, "no net_peer_left for slot %d" % RECONNECT_SLOT_ID)
+		return
+	var old_peer: int = int(_rc_left["peer"])
+	_check("reconnect_peer_left_roster", int(_rc_left["slot_has_peer"]) == -1 and not bool(_rc_left["in_peer_ids"]),
+		"left=%s" % [_rc_left])
+	_check("reconnect_grace_started", float(_rc_left["grace"]) >= 0.0, "grace_left=%.2f" % float(_rc_left["grace"]))
+	if not await _wait_for_condition(func() -> bool: return not _rc_joined.is_empty(), RECONNECT_EVENT_TIMEOUT_SECONDS):
+		_check("reconnect_peer_rejoined_seen", false, "no net_peer_joined after the drop (left=%s)" % [_rc_left])
+		return
+	_check("reconnect_same_slot", int(_rc_joined["slot"]) == RECONNECT_SLOT_ID,
+		"rejoined slot=%d expected=%d (Net._handshake_mid_match token reclaim)" % [int(_rc_joined["slot"]), RECONNECT_SLOT_ID])
+	_check("reconnect_new_connection", int(_rc_joined["peer"]) != old_peer and int(_rc_joined["slot_peer"]) == int(_rc_joined["peer"]),
+		"old_peer=%d joined=%s" % [old_peer, _rc_joined])
+	_check("reconnect_grace_cleared", is_equal_approx(float(_rc_joined["grace"]), -1.0), "grace_left=%.2f" % float(_rc_joined["grace"]))
+	_check("reconnect_no_block_lost_during_drop", int(_rc_joined["blocks"]) >= int(_rc_left["blocks"]),
+		"blocks at drop=%d at rejoin=%d" % [int(_rc_left["blocks"]), int(_rc_joined["blocks"])])
+	var replayed: bool = await _wait_for_condition(
+		func() -> bool: return int(_match_net.get(&"replays_acknowledged")) > int(_rc_joined["acked_before"]),
+		LATE_JOIN_ACK_TIMEOUT_SECONDS)
+	_check("reconnect_replay_acknowledged", replayed, "replays_acknowledged=%d" % int(_match_net.get(&"replays_acknowledged")))
+	await get_tree().create_timer(RECONNECT_SETTLE_SECONDS).timeout
+	_check("reconnect_match_continues", Match.state() == Match.State.PLAYING, "state=%d" % Match.state())
+	var peer_now: int = int(_rc_joined["peer"])
+	if Net.peer_ids().has(peer_now):
+		_rpc_reconnect_expect.rpc_id(peer_now, int(_rc_joined["blocks"]), _live_blocks().size(), _owner_hash())
+	if not await _wait_for_condition(func() -> bool: return not _rc_client_done.is_empty(), RECONNECT_EVENT_TIMEOUT_SECONDS):
+		_check("reconnect_client_reported", false, "client never sent its verdict")
+		return
+	_check("reconnect_client_verdict", bool(_rc_client_done["ok"]), String(_rc_client_done["detail"]))
+	_check("reconnect_post_rejoin_place_accepted", _intents_accepted(RECONNECT_SLOT_ID) > accepted_before,
+		"accepted before=%d now=%d host sent=%d refused=%d refused_before_replay_ack=%d" % [
+			accepted_before, _intents_accepted(RECONNECT_SLOT_ID), _intents_sent(RECONNECT_SLOT_ID),
+			_intents_refused(RECONNECT_SLOT_ID), int(_match_net.get(&"intents_refused_before_replay_ack"))])
+	_check("reconnect_host_no_new_orphans", _orphans() <= orphans_before, "orphans %d -> %d" % [orphans_before, _orphans()])
+	print("M3A_ACCEPT (reconnect_pass) host done: left=%s joined=%s" % [_rc_left, _rc_joined])
+
+
+## Bontago-fca.30. Client half: only the RECONNECT_SLOT_ID client drops.
+func _run_client_reconnect_phase(slot_before: int) -> void:
+	var address: String = "127.0.0.1"
+	var port: int = 0
+	for arg: String in OS.get_cmdline_user_args():
+		if arg.begins_with("--join="):
+			var parts: PackedStringArray = arg.substr("--join=".length()).split(":")
+			address = parts[0]
+			if parts.size() > 1 and parts[1].is_valid_int():
+				port = int(parts[1])
+	var token: String = Net.rejoin_token()
+	var old_peer: int = Net.local_peer_id()
+	var orphans_before: int = _orphans()
+	_check("reconnect_client_has_token", token != "", "rejoin token empty before drop")
+	print("M3A_ACCEPT (reconnect_pass) client dropping: peer=%d slot=%d blocks=%d" % [old_peer, slot_before, _replicated_block_count()])
+	Net.leave(false)
+	# The client world is gone with its connection: a rejoin replays from zero.
+	_seen_net_ids.clear()
+	_duplicate_net_id = false
+	await get_tree().create_timer(RECONNECT_DOWN_SECONDS).timeout
+	Net.join_game(address, port)
+	var back: bool = await _wait_for_condition(
+		func() -> bool: return Net.mode() == Net.Mode.CLIENT and Net.local_slot() == slot_before and Net.peer_ids().size() >= 2,
+		CONNECT_TIMEOUT_SECONDS)
+	_check("reconnect_client_rejoined_slot", back, "mode=%d local_slot=%d expected=%d" % [Net.mode(), Net.local_slot(), slot_before])
+	_check("reconnect_client_token_kept", Net.rejoin_token() == token, "token changed across rejoin")
+	var replayed: bool = await _wait_for_condition(
+		func() -> bool: return int(_match_net.get(&"last_replay_acknowledged")) > 0, LATE_JOIN_ACK_TIMEOUT_SECONDS)
+	_check("reconnect_client_replay_acked", replayed, "last_replay_acknowledged=%d" % int(_match_net.get(&"last_replay_acknowledged")))
+	var at_ack: int = _replicated_block_count()
+	_check("reconnect_client_playing", Match.state() == Match.State.PLAYING, "state=%d" % Match.state())
+	_check("reconnect_client_no_duplicate_net_id", not _duplicate_net_id, "a net_id was replicated twice in the replay")
+	if not await _wait_for_condition(func() -> bool: return not _rc_expect.is_empty(), RECONNECT_EVENT_TIMEOUT_SECONDS):
+		_check("reconnect_client_got_expectation", false, "host never sent expectations")
+		return
+	var lo: int = int(_rc_expect["lo"])
+	var hi: int = int(_rc_expect["hi"])
+	_check("reconnect_client_world_block_count", at_ack >= lo and at_ack <= hi,
+		"client blocks at replay ack=%d, host at rejoin=%d .. at verdict=%d" % [at_ack, lo, hi])
+	var want_hash: int = int(_rc_expect["hash"])
+	var hash_ok: bool = await _wait_for_condition(func() -> bool: return _owner_hash() == want_hash, RECONNECT_TERRITORY_POLL_SECONDS)
+	_check("reconnect_client_territory_hash", hash_ok, "client owner hash=%d host=%d" % [_owner_hash(), want_hash])
+	# The match goes on: post-rejoin intents for this slot. Acceptance is
+	# counted on the host only (a client never sees accept events), so the
+	# host's own check "reconnect_post_rejoin_place_accepted" is the verdict;
+	# the second attempt covers a first one landing inside the slot's interval
+	# lock (the rejoin resets its feed timer).
+	var sent_before: int = _intents_sent(slot_before)
+	for attempt: int in range(RECONNECT_PLACE_ATTEMPTS):
+		# Inside the slot's own territory (the host loop's recipe; the field
+		# sits at the origin): a spot outside it is refused for a reason that
+		# has nothing to do with reconnecting.
+		var spot: Vector2 = Match.slot(slot_before).home_position + _offset_for_index(INTENTS_PER_CLIENT + attempt)
+		_submit_place(slot_before, Vector3(spot.x, PLACE_HEIGHT, spot.y), 0, Quaternion.IDENTITY, false)
+		await get_tree().create_timer(INTENT_SPACING_SECONDS).timeout
+	_check("reconnect_client_post_rejoin_sent", _intents_sent(slot_before) - sent_before == RECONNECT_PLACE_ATTEMPTS,
+		"sent=%d expected=%d" % [_intents_sent(slot_before) - sent_before, RECONNECT_PLACE_ATTEMPTS])
+	_check("reconnect_client_no_new_orphans", _orphans() <= orphans_before, "orphans %d -> %d" % [orphans_before, _orphans()])
+	var mine_ok: bool = true
+	for failure: String in _failures:
+		if failure.begins_with("(reconnect_"):
+			mine_ok = false
+	_rpc_reconnect_done.rpc_id(Net.HOST_PEER_ID, mine_ok, "client reconnect checks ok" if mine_ok else "client FAILED: %s" % [_failures])
+	await get_tree().create_timer(1.0).timeout
+
 
 func _late_join_flag_was_given() -> bool:
 	for arg: String in OS.get_cmdline_user_args():

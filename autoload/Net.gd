@@ -116,6 +116,8 @@ var _can_reclaim_seat: Callable = Callable()
 var _rejoin_token: String = ""
 ## Which host issued _rejoin_token: "enet:<address>:<port>" or "steam:<lobby>".
 var _rejoin_scope: String = ""
+## Last peer id local_peer_id() read from a live transport (Bontago-fca.30).
+var _last_local_peer_id: int = 0
 ## Scope of the ENet connection the client is making now (join_game()).
 var _join_scope: String = ""
 
@@ -442,7 +444,15 @@ func is_offline() -> bool:
 func local_peer_id() -> int:
 	if _mode == Mode.OFFLINE:
 		return HOST_PEER_ID
-	return multiplayer.get_unique_id()
+	# Bontago-fca.30: while the transport is already closed (the server_disconnected
+	# path emits net_peer_left before leave() runs, and listeners such as Sfx ask
+	# "was that me?"), get_unique_id() is an engine error ("The multiplayer
+	# instance isn't currently active"). Answer with the last live id instead.
+	var peer: MultiplayerPeer = multiplayer.multiplayer_peer
+	if peer == null or peer.get_connection_status() == MultiplayerPeer.CONNECTION_DISCONNECTED:
+		return _last_local_peer_id
+	_last_local_peer_id = multiplayer.get_unique_id()
+	return _last_local_peer_id
 
 
 ## The game build version both ends compare during the handshake. Reads

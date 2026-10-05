@@ -33,6 +33,7 @@ param(
 	[string]$Godot = "godot",
 	[int]$TimeoutSeconds = 120,
 	[switch]$ThrowPass,
+	[switch]$ReconnectPass,
 	[int]$LateJoinAfter = 0
 )
 
@@ -102,6 +103,10 @@ if ($ThrowPass) {
 if ($LateJoinAfter -gt 0) {
 	$hostArgs += "--late-join-after=$LateJoinAfter"
 }
+# Bontago-fca.30: a real mid-match drop + rejoin of the slot-1 client.
+if ($ReconnectPass) {
+	$hostArgs += "--reconnect-pass"
+}
 $instances += Start-Instance -Name "host" -GameArgs $hostArgs
 
 # The host needs a moment to bind and start advertising before a client
@@ -117,6 +122,9 @@ for ($i = 1; $i -lt $Peers; $i++) {
 	}
 	if ($ThrowPass) {
 		$clientArgs += "--throw-pass"
+	}
+	if ($ReconnectPass) {
+		$clientArgs += "--reconnect-pass"
 	}
 	# Bontago-8or.11: pass late-join flag to initial clients so they stay alive longer
 	if ($LateJoinAfter -gt 0) {
@@ -180,9 +188,34 @@ foreach ($instance in $instances) {
 	}
 }
 
+# Bontago-fca.30: a reconnect run must also be clean of engine errors/warnings
+# (bad RPCs, dangling peers) in every instance's logs. The engine's
+# quit-time "ObjectDB instances were leaked at exit" line is excluded: it also
+# appears intermittently in runs without this pass (98 of the old run logs);
+# live orphan nodes are asserted in-process instead (Performance monitor).
+$logProblems = @()
+if ($ReconnectPass) {
+	foreach ($instance in $instances) {
+		foreach ($log in @($instance.OutLog, $instance.ErrLog)) {
+			if (Test-Path $log) {
+				$hits = Select-String -Path $log -Pattern "ERROR:|SCRIPT ERROR|WARNING:|leaked|orphan" | Where-Object { $_.Line -notmatch "M3A_ACCEPT" -and $_.Line -notmatch "ObjectDB instances were leaked at exit" }
+				foreach ($hit in $hits) { $logProblems += "$($instance.Name): $($hit.Line)" }
+			}
+		}
+	}
+	if ($logProblems.Count -gt 0) {
+		Write-Host "M3A harness: reconnect pass found $($logProblems.Count) error/warning log line(s):"
+		$logProblems | Select-Object -First 10 | ForEach-Object { Write-Host "  $_" }
+	}
+}
+
 $failed = $exitCodes.GetEnumerator() | Where-Object { $_.Value -ne 0 }
 if ($failed) {
 	Write-Host "M3A harness FAILED: $($failed.Name -join ', ') exited non-zero. Full logs in $logDir"
+	exit 1
+}
+if ($logProblems.Count -gt 0) {
+	Write-Host "M3A harness FAILED: engine errors/warnings in logs. Full logs in $logDir"
 	exit 1
 }
 $totalInstances = $instances.Count
