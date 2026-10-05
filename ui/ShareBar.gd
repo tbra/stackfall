@@ -18,12 +18,13 @@ var _track_style: StyleBoxFlat = StyleBoxFlat.new()
 var _fill_style: StyleBoxFlat = StyleBoxFlat.new()
 var _border_px: float = 1.0
 var _highlight_color: Color = Color.TRANSPARENT
-var _highlight_ratio: float = 0.35
+var _highlight_ratio: float = 0.0
 
 
 func configure(tuning: HUDVisualTuning) -> void:
 	custom_minimum_size = Vector2(tuning.share_bar_width_px, tuning.share_bar_height_px)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_highlight_ratio = tuning.share_bar_highlight_ratio
 	_track_style.bg_color = tuning.hud_share_bar_track_color
 	_track_style.border_color = tuning.hud_share_bar_border_color
 	_track_style.set_border_width_all(int(_border_px))
