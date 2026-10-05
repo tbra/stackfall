@@ -2,6 +2,7 @@
 Run: python tools/test_integrate_batch.py
 """
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -115,6 +116,38 @@ class Tests(unittest.TestCase):
             run(fake, force_close=True)
             closes = [a for name, a in fake.calls if name.startswith("close_")]
             self.assertTrue(all("--force" in a for a in closes))
+
+    def test_reassign_precedes_close_and_retries_with_force(self):
+        fake = Fake()
+        err, _, _ = run(fake)
+        self.assertIsNone(err)
+        n = fake.names()
+        self.assertLess(n.index("assign_B-1"), n.index("close_B-1"))
+        self.assertLess(n.index("close_B-1"), n.index("assign_B-2"))
+        a = dict(fake.calls)["assign_B-1"]
+        self.assertIn("update", a)
+        self.assertIn("stackfall-orchestrator", a)
+        self.assertNotIn("--force", a)
+        for forbidden in (c for _, c in fake.calls):
+            self.assertNotIn("dolt", forbidden)
+        fake = Fake({"assign_B-1": (1, "claimed by worker")})
+        err, _, _ = run(fake)
+        self.assertIsNone(err)
+        self.assertIn("--force", dict(fake.calls)["assign_force_B-1"])
+        fake = Fake({"assign_B-1": (1, "x"), "assign_force_B-1": (1, "x")})
+        err, _, _ = run(fake)
+        self.assertEqual(err.step, "close")
+        self.assertNotIn("close_B-1", fake.names())
+        fake = Fake({"assign_B-1": (1, "x"), "assign_force_B-1": (1, "x")})
+        err, _, _ = run(fake, force_close=True)
+        self.assertIsNone(err)
+        self.assertIn("close_B-1", fake.names())
+
+    def test_dry_run_shows_reassign_then_close(self):
+        err, out, _ = run(Fake(), dry_run=True)
+        self.assertIsNone(err)
+        line = [l for l in out if "dry-run would run" in l][0]
+        self.assertLess(line.index("bd update B-1 --assignee"), line.index("then bd close B-1"))
 
     def test_remote_mismatch_never_closes(self):
         fake = Fake({"remote": (0, "other999\n")})
@@ -247,6 +280,95 @@ class Tests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertNotIn("wt_remove", names)
         self.assertNotIn("br_delete", names)
+
+
+
+def git_run(cwd, *a):
+    subprocess.run(["git", "-C", cwd, *a], check=True, capture_output=True, text=True)
+
+
+HINTS_BASE = ('[resource]\nranges = {\n"A.x": Vector2(0.0, 1.0),\n}\n'
+              + ''.join('"F%d.f": Vector2(0.0, 1.0),\n' % n for n in range(8))
+              + 'descriptions = {\n"A.x": "ax",\n}\n')
+
+
+class HintsMergeTests(unittest.TestCase):
+    """Real git repo: two branches editing config/tuning_panel_hints.tres."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.repo = os.path.join(self.tmp.name, "r").replace("\\", "/")
+        os.makedirs(os.path.join(self.repo, "config"))
+        git_run(self.repo, "init", "-q", "-b", "main")
+        git_run(self.repo, "config", "user.email", "t@t")
+        git_run(self.repo, "config", "user.name", "t")
+        self.write(HINTS_BASE)
+        git_run(self.repo, "add", "-A")
+        git_run(self.repo, "commit", "-qm", "base")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def write(self, text):
+        with open(os.path.join(self.repo, ib.HINTS_PATH), "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(text)
+
+    def branch(self, name, text, extra=None):
+        git_run(self.repo, "checkout", "-q", "-b", name, "main")
+        self.write(text)
+        if extra:
+            with open(os.path.join(self.repo, extra), "w") as fh:
+                fh.write(name)
+        git_run(self.repo, "add", "-A")
+        git_run(self.repo, "commit", "-qm", name)
+
+    def merge(self, branches):
+        git_run(self.repo, "checkout", "-q", "main")
+        out = []
+        try:
+            ib.merge_branches(ib.Ctx(self.tmp.name), self.repo, branches, [], out.append)
+        except ib.StepFailed as e:
+            return e, out
+        return None, out
+
+    def test_additive_conflict_is_resolved(self):
+        self.branch("a", HINTS_BASE.replace('"A.x": Vector2(0.0, 1.0),\n', '"A.x": Vector2(0.0, 1.0),\n"B.y": Vector2(0.0, 2.0),\n')
+                    .replace('"A.x": "ax",\n', '"A.x": "ax",\n"B.y": "by",\n'))
+        self.branch("b", HINTS_BASE.replace('"A.x": Vector2(0.0, 1.0),\n', '"A.x": Vector2(0.0, 1.0),\n"C.z": Vector2(0.0, 3.0),\n')
+                    .replace('"A.x": "ax",\n', '"A.x": "ax",\n"C.z": "cz",\n'))
+        err, out = self.merge(["a", "b"])
+        self.assertIsNone(err, err and err.detail)
+        self.assertTrue(any("auto-resolved" in l for l in out))
+        with open(os.path.join(self.repo, ib.HINTS_PATH), encoding="utf-8") as fh:
+            text = fh.read()
+        self.assertNotIn("<<<<", text)
+        for k in ('"A.x"', '"B.y"', '"C.z"'):
+            self.assertEqual(text.count(k), 2, k)
+        self.assertEqual(subprocess.run(["git", "-C", self.repo, "status", "--porcelain"], capture_output=True, text=True).stdout, "")
+
+    def test_same_key_different_value_aborts(self):
+        self.branch("a", HINTS_BASE.replace('"A.x": Vector2(0.0, 1.0),\n', '"A.x": Vector2(0.0, 1.0),\n"B.y": Vector2(0.0, 2.0),\n'))
+        self.branch("b", HINTS_BASE.replace('"A.x": Vector2(0.0, 1.0),\n', '"A.x": Vector2(0.0, 1.0),\n"B.y": Vector2(0.0, 9.0),\n'))
+        err, _ = self.merge(["a", "b"])
+        self.assertEqual(err.step, "merge")
+        self.assertIn("refused", err.detail)
+        self.assertFalse(os.path.exists(os.path.join(self.repo, ".git", "MERGE_HEAD")))
+
+    def test_modified_base_line_aborts(self):
+        self.branch("a", HINTS_BASE.replace('Vector2(0.0, 1.0)', 'Vector2(0.0, 5.0)'))
+        self.branch("b", HINTS_BASE.replace('Vector2(0.0, 1.0)', 'Vector2(0.0, 7.0)'))
+        err, _ = self.merge(["a", "b"])
+        self.assertEqual(err.step, "merge")
+        self.assertFalse(os.path.exists(os.path.join(self.repo, ".git", "MERGE_HEAD")))
+
+    def test_other_file_conflict_aborts(self):
+        self.branch("a", HINTS_BASE.replace('"A.x": "ax",\n', '"A.x": "ax",\n"B.y": "by",\n'), extra="f.txt")
+        self.branch("b", HINTS_BASE.replace('"A.x": "ax",\n', '"A.x": "ax",\n"C.z": "cz",\n'), extra="f.txt")
+        git_run(self.repo, "checkout", "-q", "main")
+        # make f.txt exist on main so both branches conflict on it
+        err, _ = self.merge(["a", "b"])
+        self.assertEqual(err.step, "merge")
+        self.assertFalse(os.path.exists(os.path.join(self.repo, ".git", "MERGE_HEAD")))
 
 
 if __name__ == "__main__":
