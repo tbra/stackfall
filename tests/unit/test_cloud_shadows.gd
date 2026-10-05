@@ -88,6 +88,16 @@ func test_low_preset_disables_cloud_shadows() -> void:
 	assert_true(high.cloud_shadows_enabled)
 
 
+func test_decals_do_not_touch_cloud_puffs_or_disc() -> void:
+	# Bontago-mp0.136: the decal box covers the cloud sea; it must skip the puff render layer.
+	var node: CloudShadows = CloudShadows.new()
+	add_child_autofree(node)
+	for decal: Decal in node.decals():
+		assert_eq(decal.cull_mask & CloudSea.RENDER_LAYER_BIT, 0, "puff layer excluded")
+		assert_eq(decal.cull_mask & DiscMirror.DISC_LAYER_BIT, 0, "disc layer excluded")
+		assert_ne(decal.cull_mask & 1, 0, "default layer (blocks) still shadowed")
+
+
 func test_node_shows_decals_by_day_and_hides_at_night_and_low() -> void:
 	var node: CloudShadows = CloudShadows.new()
 	add_child_autofree(node)
