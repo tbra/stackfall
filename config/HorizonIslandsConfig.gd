@@ -5,7 +5,8 @@ extends Resource
 ## collision, no shadows, never networked. Placement is a pure function of
 ## (seed, map id, these values), so host and clients agree.
 
-## Master switch.
+## Master switch. Off by default (owner playtest 2026-10-05, Bontago-mp0.133: the
+## islands looked bad); set true in config/horizon_islands.tres to restore them.
 @export var enabled: bool = true
 ## Number of islands in the ring (0 hides them).
 @export var count: int = 7

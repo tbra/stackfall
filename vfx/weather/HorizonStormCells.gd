@@ -28,6 +28,8 @@ static func layout(seed_value: int, cfg: HorizonStormConfig) -> Array[Dictionary
 	rng.seed = hash([seed_value, cfg.seed_salt])
 	var count: int = rng.randi_range(maxi(cfg.cell_count_min, 1), maxi(cfg.cell_count_max, cfg.cell_count_min))
 	var out: Array[Dictionary] = []
+	if not cfg.enabled:
+		return out
 	var styles: Array[int] = []
 	for i: int in range(SILHOUETTE_COUNT):
 		styles.append(i)

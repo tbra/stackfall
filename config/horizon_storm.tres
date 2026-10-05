@@ -4,5 +4,6 @@
 
 [resource]
 script = ExtResource("1_hs")
+enabled = false
 cell_scale = 8.0
 elevation_m = -4.0
