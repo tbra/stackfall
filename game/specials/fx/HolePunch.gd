@@ -1,15 +1,26 @@
 class_name HolePunch
 ## Territory hole module for displacement effects (Jumping Bean).
 ##
-## `punch` opens a circular hole in the disc's territory at world_pos for open_s seconds.
-## Respects HoleMode.OFF (returns false), PLAYING (returns true), and territory state via Match.
-## Converts world coordinates to disc local and validates via Match.punch_special_hole.
+## `punch` opens a circular hole in the disc's territory at a world position.
+## Gates (all host-side): authority, live play (PLAYING or SUDDEN_DEATH via
+## MatchLifecycle.is_live_state()), HoleMode != OFF, a Field and a positive
+## radius. Match.punch_special_hole re-checks the same rules.
 ##
 ## Depends on: Match
 
 
-## Punches a hole in the territory at world_pos with given radius and duration.
-## Converts to disc-local coordinates and honours HoleMode via Match.punch_special_hole.
-## Returns true if a hole was requested, false if blocked (e.g., HoleMode.OFF).
+## Returns true if a hole was requested, false if any gate blocked it.
 static func punch(world_pos: Vector3, radius_m: float, open_s: float) -> bool:
-	return false
+	if not world_pos.is_finite() or not is_finite(radius_m) or not is_finite(open_s):
+		return false
+	if radius_m <= 0.0 or open_s <= 0.0:
+		return false
+	if not Match._is_host() or not MatchLifecycle.is_live_state(Match.state()):
+		return false
+	if Match.config == null or Match.config.hole_mode == MatchConfig.HoleMode.OFF:
+		return false
+	var field: Field = Match.field()
+	if field == null:
+		return false
+	Match.punch_special_hole(field.disk_local_from_world(world_pos), radius_m, open_s)
+	return true

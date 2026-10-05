@@ -2,17 +2,18 @@ class_name DiscForceTuning
 extends Resource
 ## Tuning parameters for disc tilt effects (Anvil, Propeller, Earthquake).
 ##
-## Controls tilt strength, shake amplitude and frequency, and effect duration.
-## All values are in SI units (degrees, meters, seconds).
+## Consumed by DiscForce. Units noted per field.
 
-## Tilt impulse strength applied per unit distance per frame.
+## Tilt impulse per metre of disc-local distance (Field.apply_tilt_impulse
+## units). Per-tick callers pass a delta, making this "per metre per second".
 @export var strength: float = 0.02
 
-## Amplitude of oscillation for shake effects in meters of tilt travel.
-@export var shake_amplitude_m: float = 0.1
+## Shake kick size in tilt-impulse units per second (DiscForce.shake multiplies
+## by the tick delta).
+@export var shake_amplitude_m: float = 3.0
 
-## Tilt oscillation frequency in degrees per cycle.
-@export var shake_tilt_deg: float = 5.0
+## Degrees per second the shake axis sweeps around the disc.
+@export var shake_tilt_deg: float = 720.0
 
-## Effect duration in seconds from trigger.
+## Effect duration in seconds from trigger (shake stops after it).
 @export var duration_s: float = 3.0

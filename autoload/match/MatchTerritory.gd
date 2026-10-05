@@ -971,13 +971,14 @@ func punch_special_hole(world_pos: Vector2, radius_m: float, hole_open_s: float)
 	if not _match._is_host():
 		return
 	# DECISION (autoload/match/MatchTerritory.gd, Bontago-1en.20 review):
-	# mirror MatchPlacement.spawn_special_projectile()'s State.PLAYING guard.
+	# live-play guard (Bontago-1pi.85.8: PLAYING or SUDDEN_DEATH via
+	# MatchLifecycle.is_live_state(), like placement since Bontago-1pi.87).
 	# _finish_match() only sets State.END -- it never tears the raster down or
 	# stops a SpecialEffect's physics_tick() -- so a Jumping Bean still hopping
 	# after a natural win could otherwise still punch a hole here and, through
 	# _check_home_flags() below, eliminate a still-alive slot (even one on the
 	# already-decided winning team) after the match is already over.
-	if _match.state() != MatchAutoload.State.PLAYING:
+	if not MatchLifecycle.is_live_state(_match.state()):
 		return
 	if _match.config.hole_mode == MatchConfig.HoleMode.OFF:
 		return
