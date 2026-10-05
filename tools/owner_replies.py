@@ -69,8 +69,8 @@ def _save(now):
 def find_replies(since):
     replies = []
     for issue in _export():
-        if (issue.get("updated_at") or "") < since:
-            continue
+        # No updated_at prefilter: adding a comment does not bump the issue's
+        # updated_at in Beads, so that filter hid owner replies (2026-10-05).
         for comment in issue.get("comments") or []:
             if (comment.get("created_at") or "") <= since or not _is_owner(comment.get("author")):
                 continue
