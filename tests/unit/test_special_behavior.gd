@@ -26,6 +26,22 @@ class StubEffect:
 	var call_order: Array[String] = []
 	var early_trigger_result: bool = false
 	var impact_triggers_result: bool = true
+	var needs_landing_result: bool = false
+	var lifetime_result: float = -1.0
+	var detaches_result: bool = false
+	var triggers_on_impact_result: bool = true
+
+	func needs_landing() -> bool:
+		return needs_landing_result
+
+	func effect_lifetime_s() -> float:
+		return lifetime_result
+
+	func detaches() -> bool:
+		return detaches_result
+
+	func triggers_on_impact() -> bool:
+		return triggers_on_impact_result
 
 	func impact_triggers(_block: Block, _behavior: SpecialBehavior) -> bool:
 		return impact_triggers_result
@@ -489,3 +505,92 @@ func test_trigger_others_in_range_does_nothing_past_the_chain_cap() -> void:
 
 	origin.trigger_others_in_range(Vector3.ZERO, 5.0, _tuning.max_chain_depth)
 	assert_false(neighbor.is_triggered(), "A chain at the cap must not extend to a neighbor.")
+
+
+## -- Bontago-1pi.85.9 lifecycle hooks ---------------------------------------------
+
+func test_effect_defaults_preserve_existing_behaviour() -> void:
+	var effect: SpecialEffect = SpecialEffect.new()
+	assert_false(effect.needs_landing())
+	assert_lt(effect.effect_lifetime_s(), 0.0)
+	assert_false(effect.detaches())
+	assert_true(effect.triggers_on_impact())
+
+
+func test_needs_landing_effect_does_not_run_before_landing() -> void:
+	var block: Block = _make_block()
+	var def: SpecialDef = _make_def(0.25, 999.0, 6.0)
+	var stub: StubEffect = StubEffect.new()
+	stub.needs_landing_result = true
+	stub.lifetime_result = 14.0
+	def.effect = stub
+	var behavior: SpecialBehavior = _make_behavior(block, def)
+	# Past the old 6.25 s blanket fuse: still alive, effect never ticked (no landing).
+	for _i: int in range(28):
+		behavior.advance(0.25)
+	assert_false(behavior.has_landed())
+	assert_eq(stub.physics_tick_calls, 0, "No physics_tick before the carrier has landed.")
+	assert_eq(stub.wants_early_trigger_calls, 0)
+	assert_false(behavior.is_triggered(), "Lifetime left: the 6.25 s blanket fuse must not fire.")
+
+
+func test_lifetime_derives_the_fuse_backstop() -> void:
+	var block: Block = _make_block()
+	var def: SpecialDef = _make_def(0.25, 999.0, 1.0)
+	var stub: StubEffect = StubEffect.new()
+	stub.lifetime_result = 2.0  # not landing-gated: backstop = arm_delay + 2.0 + margin
+	def.effect = stub
+	_tuning.fuse_backstop_margin_s = 1.0
+	var behavior: SpecialBehavior = _make_behavior(block, def)
+	for _i: int in range(4):
+		behavior.advance(0.25)  # age 1.0, below the old 1.25 fuse
+	behavior.advance(0.25)  # age 1.25 == old fuse
+	assert_false(behavior.is_triggered(), "Old arm_delay + fuse_timeout_s no longer force-triggers.")
+	for _i: int in range(6):
+		behavior.advance(0.25)  # age 2.75 < 3.25
+	assert_false(behavior.is_triggered())
+	behavior.advance(0.25)
+	behavior.advance(0.25)  # age 3.25 == 0.25 + 2.0 + 1.0
+	assert_true(behavior.is_triggered(), "Backstop = arm_delay + lifetime + margin must fire.")
+
+
+func test_detaching_effect_completes_the_carrier_at_trigger_without_linger() -> void:
+	var block: Block = _make_block()
+	var def: SpecialDef = _make_def()
+	var stub: StubEffect = StubEffect.new()
+	stub.detaches_result = true
+	def.effect = stub
+	var behavior: SpecialBehavior = _make_behavior(block, def)
+	behavior.despawn_when_done = true
+	watch_signals(behavior)
+	behavior.trigger(0)
+	assert_signal_emitted(behavior, "completed")
+
+
+func test_non_detaching_effect_still_lingers() -> void:
+	var block: Block = _make_block()
+	var def: SpecialDef = _make_def()
+	def.effect = StubEffect.new()
+	var behavior: SpecialBehavior = _make_behavior(block, def)
+	behavior.despawn_when_done = true
+	watch_signals(behavior)
+	behavior.trigger(0)
+	assert_signal_not_emitted(behavior, "completed")
+	behavior.advance(_tuning.gift_despawn_delay_s)
+	assert_signal_emitted(behavior, "completed")
+
+
+func test_triggers_on_impact_false_ignores_a_hard_landing_but_chain_still_works() -> void:
+	var block: Block = _make_block(Vector3.ZERO, 2.0)
+	var def: SpecialDef = _make_def(0.1, 5.0, 999.0)
+	var stub: StubEffect = StubEffect.new()
+	stub.triggers_on_impact_result = false
+	def.effect = stub
+	var behavior: SpecialBehavior = _make_behavior(block, def)
+	block.linear_velocity = Vector3(0, -20, 0)
+	behavior.advance(0.1)  # arms
+	block.linear_velocity = Vector3.ZERO
+	behavior.advance(0.05)  # decel 40 kg*m/s
+	assert_false(behavior.is_triggered())
+	behavior.trigger(1)
+	assert_true(behavior.is_triggered())

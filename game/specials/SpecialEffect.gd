@@ -58,3 +58,36 @@ func wants_early_trigger(_block: Block, _behavior: SpecialBehavior) -> bool:
 ## function's own doc comment for the chain-cap semantics. No-op by default.
 func detonate(_block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> void:
 	pass
+
+
+## Bontago-1pi.85.9 lifecycle hooks (docs/GIFT_EFFECTS_PLAN.md section 2). Every
+## default below preserves the pre-rework behaviour, so an effect opts in
+## individually.
+
+## True: SpecialBehavior runs a LandedProbe and does not call physics_tick()/
+## wants_early_trigger() until the carrier has landed (replaces any
+## `block.sleeping` gate inside the effect). False by default.
+func needs_landing() -> bool:
+	return false
+
+
+## Seconds the effect's action runs (after landing when needs_landing(), else
+## after arming). <= 0 means "unspecified": the def's fuse_timeout_s keeps
+## acting as the force-trigger, exactly as before. > 0 replaces that blanket
+## fuse with a backstop derived from this lifetime (SpecialTuning.
+## fuse_backstop_margin_s on top).
+func effect_lifetime_s() -> float:
+	return -1.0
+
+
+## True: the effect owns a standalone world node, so the host removes the
+## carrier at trigger without the gift_despawn_delay_s linger.
+func detaches() -> bool:
+	return false
+
+
+## Static switch for impact activation; false means a hard landing never
+## triggers this effect (Bomb after rework). Combined with the per-instance
+## impact_triggers() veto above: both must allow the impact. True by default.
+func triggers_on_impact() -> bool:
+	return true
