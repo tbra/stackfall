@@ -47,8 +47,8 @@ static func apply(block: Block, period_s: float, duration_s: float) -> void:
 class GiftBlinkDriver:
 	extends Node
 
-	var period_s: float = 0.25
-	var duration_s: float = 3.0
+	var period_s: float = 0.0  # set by GiftBlink.apply()
+	var duration_s: float = 0.0  # set by GiftBlink.apply()
 	var age_s: float = 0.0
 	var phase: float = 0.0
 	var _material: StandardMaterial3D = null
