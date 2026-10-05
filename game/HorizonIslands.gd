@@ -76,6 +76,23 @@ static func transform_for(entry: Dictionary, cfg: HorizonIslandsConfig) -> Trans
 	return Transform3D(toward * own * Basis.from_scale(scale_vec), position)
 
 
+func _ready() -> void:
+	Events.match_scope_reset.connect(clear_ring)
+
+
+func _exit_tree() -> void:
+	if Events.match_scope_reset.is_connected(clear_ring):
+		Events.match_scope_reset.disconnect(clear_ring)
+
+
+## Match-scope reset (Events.match_scope_reset): drops the ring so the menu and
+## lobby look like a fresh launch; the next world build calls rebuild_for_map().
+func clear_ring() -> void:
+	for child: Node in get_children():
+		remove_child(child)
+		child.queue_free()
+
+
 ## Rebuilds the ring for a map (called whenever the world is (re)built).
 func rebuild_for_map(map: MapDef, environment: Environment = null) -> void:
 	if environment != null:
@@ -90,9 +107,7 @@ func rebuild_for_map(map: MapDef, environment: Environment = null) -> void:
 	_material.set_shader_parameter(&"shadow_level", config.shadow_level)
 	_material.set_shader_parameter(&"mid_level", config.mid_level)
 	_refresh_haze()
-	for child: Node in get_children():
-		remove_child(child)
-		child.queue_free()
+	clear_ring()
 	var map_id: StringName = map.id if map != null else &""
 	for entry: Dictionary in placements_for(config, map_id):
 		var island: Node3D = VARIANT_SCENES[int(entry["variant"])].instantiate() as Node3D
