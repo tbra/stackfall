@@ -38,15 +38,9 @@ func test_every_feedback_icon_resolves() -> void:
 		assert_not_null(table.icon_for(feedback as HudFeedbackIconTable.Feedback), "feedback %d" % feedback)
 
 
-func test_hud_height_icon_shows_with_held_block() -> void:
+func test_hud_has_no_height_icon() -> void:
 	var hud: HUD = _make_hud()
-	var table: HudFeedbackIconTable = HudFeedbackIconTable.shared()
-	assert_eq(hud._height_icon.texture, table.held_height)
-	assert_false(hud._height_icon.visible)
-	hud.set_tower_and_block_height(3.0, 5.0)
-	assert_true(hud._height_icon.visible)
-	hud.set_height(3.0)
-	assert_false(hud._height_icon.visible)
+	assert_null(hud.get_node_or_null("%HeightIcon"), "Bontago-1pi.80: label-less held-height icon removed")
 
 
 func test_hud_capture_icon_follows_the_ring() -> void:

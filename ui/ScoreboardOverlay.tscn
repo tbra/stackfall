@@ -45,10 +45,11 @@ mouse_filter = 2
 layout_mode = 2
 theme_override_constants/separation = 14
 
-[node name="Title" type="Label" parent="Root/Center/Card/Layout"]
+[node name="ModeTitle" type="Label" parent="Root/Center/Card/Layout"]
+unique_name_in_owner = true
 layout_mode = 2
 horizontal_alignment = 1
-text = "Scores"
+text = "Classic"
 
 [node name="ModeOutcome" type="Label" parent="Root/Center/Card/Layout"]
 unique_name_in_owner = true

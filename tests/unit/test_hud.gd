@@ -84,10 +84,11 @@ func test_set_territory_shares_builds_one_row_per_player_with_matching_width() -
 	var hud: HUD = _make_hud()
 	hud.set_territory_shares(PackedFloat32Array([0.25, 0.75]))
 	assert_eq(hud._share_bars.size(), 2)
-	var bar0: ColorRect = hud._share_bars[0]
-	var bar1: ColorRect = hud._share_bars[1]
-	assert_almost_eq(bar0.custom_minimum_size.x, HUD.SHARE_BAR_MAX_WIDTH * 0.25, 0.01)
-	assert_almost_eq(bar1.custom_minimum_size.x, HUD.SHARE_BAR_MAX_WIDTH * 0.75, 0.01)
+	var bar0: ShareBar = hud._share_bars[0]
+	var bar1: ShareBar = hud._share_bars[1]
+	assert_almost_eq(bar0.fraction, 0.25, 0.0001)
+	assert_almost_eq(bar1.fraction, 0.75, 0.0001)
+	assert_eq(bar0.get_child_count(), 0, "the fill is drawn inside the track control, not a child bar")
 	assert_true((hud._share_labels[0] as Label).text.contains("25"))
 	assert_true((hud._share_labels[1] as Label).text.contains("75"))
 
