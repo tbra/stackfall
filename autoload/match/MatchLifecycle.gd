@@ -1115,10 +1115,10 @@ func _eliminate_slot(slot_id: int) -> void:
 ## _resolve_sudden_death_tiebreak()). Shared by _check_last_team_standing()
 ## here and MatchTerritory.gd's goal-capture check so the two win paths can't
 ## drift apart on which states are "live" (stackfall-reviewer finding F1).
-## Deliberately NOT used by MatchTerritory.punch_special_hole()'s own
-## State.PLAYING-only guard (mirrors MatchPlacement.spawn_special_projectile(),
-## which stays PLAYING-only per docs/M6_PLAN.md A3 -- a special's physical
-## effect is placement-adjacent, not a win check).
+## Bontago-1pi.87: also the single gate for placement, throws, special
+## projectile spawns, the feed's client display countdown and bot play.
+## MatchTerritory.punch_special_hole()'s own State.PLAYING-only guard is
+## still outside this predicate (reported as a follow-up).
 static func is_live_state(state: MatchAutoload.State) -> bool:
 	return state == MatchAutoload.State.PLAYING or state == MatchAutoload.State.SUDDEN_DEATH
 

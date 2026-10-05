@@ -135,31 +135,15 @@ extends Resource
 @export var fov_deg: float = 75.0
 
 
-## -- Match-start framing (Bontago-1pi.79, owner playtest 2026-10-04,
-## feedback/ref_camera_start.png) ----------------------------------------------
-## When the ready gate opens the camera starts just outside the disc rim behind
-## the local player's home beacon, raised so the whole disc is visible, looking
-## across toward the centre. Everything derives from the map's field radius so
-## every map size gets the same composition; CameraRig.begin_start_framing()
-## applies it and holds it through the 3-2-1, then eases into the follow camera.
-## Tuning hint: raise start_distance_factor to see more sky/fit larger discs;
-## lower start_pitch_deg magnitude to sit lower and flatten the disc.
-## Orbit distance from the pivot, as a multiple of the field radius.
-@export var start_distance_factor: float = 0.75
-## Camera pitch while holding the start framing (negative looks down).
+## -- Match-start view (Bontago-1pi.84, owner playtest 2026-10-05,
+## feedback/051026/3.png) -----------------------------------------------------
+## The camera has no countdown pose: when the ready gate opens it takes this
+## pitch and distance (the low, wide angle of the owner's screenshot 3) and the
+## normal ghost-follow runs from the first frame, through the 3-2-1 and GO.
+## Distance from the followed block in metres. Derived from screenshot 3 (field
+## of view 75 deg): the home territory circle is ~0.92 of its width in the
+## follow-pose screenshot 4 (9 m), so the camera sits ~11 m back (probe-checked against the screenshot).
+@export var start_distance_m: float = 11.2
+## Camera pitch of the match-start view (negative looks down). Derived from
+## screenshot 3: the horizon sits ~120 px above centre of an 837 px frame.
 @export var start_pitch_deg: float = -12.7
-## Pivot (the point looked at) as a fraction of the way from the disc centre to
-## the home beacon: 0 looks at the centre, 1 at the beacon.
-@export var start_pivot_home_bias: float = 0.47
-## Seconds to ease from the start framing into the follow camera once play begins.
-@export var start_release_seconds: float = 0.8
-
-
-## Orbit distance of the start framing for a map of `field_radius`.
-func start_distance(field_radius: float) -> float:
-	return maxf(field_radius * start_distance_factor, zoom_min)
-
-
-## Pivot of the start framing for a home beacon at `home` (centre is the origin).
-func start_pivot(home: Vector3) -> Vector3:
-	return Vector3(home.x, 0.0, home.z) * clampf(start_pivot_home_bias, 0.0, 1.0)

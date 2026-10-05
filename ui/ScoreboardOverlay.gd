@@ -28,6 +28,7 @@ var _last_mode: Variant = null
 
 @onready var _root: Control = %Root
 @onready var _card: PanelContainer = %Card
+@onready var _mode_title: Label = %ModeTitle
 @onready var _mode_outcome: Label = %ModeOutcome
 @onready var _rows_list: VBoxContainer = %RowsList
 
@@ -38,6 +39,7 @@ func _ready() -> void:
 		match_provider = Match
 	_card.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(tuning.card_cream_color, tuning))
 	_root.visible = false
+	_mode_title.add_theme_font_size_override("font_size", tuning.score_card_title_font_size)
 	_refresh_layout()
 	get_viewport().size_changed.connect(_refresh_layout)
 	Events.pause_menu_opened.connect(_on_pause_opened)
@@ -131,6 +133,7 @@ func _refresh_table() -> void:
 	var team_numbers: PackedInt32Array = PackedInt32Array()
 	if config != null and config.teams_resolved():
 		team_numbers = config.team_numbers
+	_mode_title.text = ResultsScreen.mode_title(payload)
 	ScoreTable.populate(_rows_list, payload, tuning, team_numbers, match_provider)
 	var outcome: String = ResultsScreen.mode_outcome_text(payload, team_numbers).strip_edges()
 	_mode_outcome.text = outcome

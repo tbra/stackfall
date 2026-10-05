@@ -287,12 +287,12 @@ func _header_texts() -> Array[String]:
 func test_team_column_only_with_teams() -> void:
 	_screen.show_results(_ffa_results())
 	assert_false(_header_texts().has("Team"), "free-for-all has no Team column")
-	assert_eq(_header_texts().size(), 9)
+	assert_eq(_header_texts().size(), 8)
 	var ffa_cells: Array[Node] = ((_screen._rows_list.get_child(1) as PanelContainer).get_child(0) as HBoxContainer).get_children()
-	assert_eq(ffa_cells.size(), 9, "data rows match the header")
+	assert_eq(ffa_cells.size(), 8, "data rows match the header")
 	_screen.show_results(_team_results())
 	assert_true(_header_texts().has("Team"))
-	assert_eq(_header_texts().size(), 10)
+	assert_eq(_header_texts().size(), 9)
 
 
 func test_gifts_column_is_merged_and_shows_gifts_used() -> void:
@@ -354,7 +354,8 @@ func test_domination_results_show_shares_and_winners() -> void:
 	var results: Dictionary = _team_results()
 	results["mode"] = {"mode_id": MatchConfig.GameMode.DOMINATION, "scores": [0.4, 0.6], "winners": "1"}
 	var text: String = ResultsScreen.mode_outcome_text(results)
-	assert_true(text.find("Domination") >= 0 and text.find("60%") >= 0 and text.find("40%") >= 0)
+	assert_true(text.find("60%") >= 0 and text.find("40%") >= 0)
+	assert_eq(ResultsScreen.mode_title(results), "Domination")
 	assert_eq(ResultsScreen.winner_ids(results), PackedInt32Array([1]))
 
 
@@ -365,3 +366,15 @@ func test_domination_early_end_falls_back_to_the_finish_winner() -> void:
 	var rows: Array[Dictionary] = ResultsScreen.sorted_rows(results)
 	assert_eq(int(rows[0].get("team_id")), 1)
 	assert_true(bool(rows[0].get("is_winner")))
+
+
+func test_header_is_the_mode_name_and_peak_column_is_gone() -> void:
+	var results: Dictionary = _ffa_results()
+	results["mode"] = {"mode_id": MatchConfig.GameMode.ELIMINATION, "scores": [1.0, 0.0, 0.0], "winners": "0", "order": "2,1"}
+	_screen.show_results(results)
+	assert_eq((_screen.get_node("%ModeTitle") as Label).text, "Elimination")
+	assert_false(_header_texts().has("Peak %"))
+	assert_eq(ResultsScreen.mode_outcome_text(results), "", "no alive text or out-order caption")
+	results["mode"] = {"mode_id": MatchConfig.GameMode.CAPTURE_THE_FLAG, "scores": [3.0, 0.0, 0.0], "winners": "0"}
+	_screen.show_results(results)
+	assert_true(_header_texts().has("Points"), "CTF keeps its own score column")

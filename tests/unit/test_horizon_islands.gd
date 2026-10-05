@@ -1,8 +1,21 @@
 extends GutTest
 ## Bontago-mp0.123: the horizon island ring (game/HorizonIslands.gd).
 
+func _enabled_config() -> HorizonIslandsConfig:
+	# Shipped default is off (Bontago-mp0.133); these tests exercise the restored ring.
+	var cfg: HorizonIslandsConfig = HorizonIslands.DEFAULT_CONFIG.duplicate() as HorizonIslandsConfig
+	cfg.enabled = true
+	return cfg
+
+
+func test_shipped_default_is_disabled() -> void:
+	assert_false(HorizonIslands.DEFAULT_CONFIG.enabled)
+	assert_eq(HorizonIslands.placements_for(HorizonIslands.DEFAULT_CONFIG, &"round_medium").size(), 0)
+
+
 func _build(map_id: StringName) -> HorizonIslands:
 	var ring: HorizonIslands = HorizonIslands.new()
+	ring.config = _enabled_config()
 	add_child_autofree(ring)
 	var map: MapDef = MapDef.new()
 	map.id = map_id
@@ -63,7 +76,7 @@ func test_lods_use_visibility_ranges_no_shadow_no_collision() -> void:
 
 
 func test_placement_deterministic_per_map() -> void:
-	var cfg: HorizonIslandsConfig = HorizonIslands.DEFAULT_CONFIG
+	var cfg: HorizonIslandsConfig = _enabled_config()
 	var a: Array[Dictionary] = HorizonIslands.placements_for(cfg, &"round_medium")
 	var b: Array[Dictionary] = HorizonIslands.placements_for(cfg, &"round_medium")
 	var c: Array[Dictionary] = HorizonIslands.placements_for(cfg, &"ring_large")
@@ -101,6 +114,7 @@ func test_self_lit_material_follows_sun_and_config() -> void:
 	sun.rotation_degrees = Vector3(-50.0, 30.0, 0.0)
 	sun.light_color = Color(0.9, 0.8, 0.7)
 	var ring: HorizonIslands = HorizonIslands.new()
+	ring.config = _enabled_config()
 	add_child_autofree(ring)
 	ring.sun_path = ring.get_path_to(sun)
 	var map: MapDef = MapDef.new()

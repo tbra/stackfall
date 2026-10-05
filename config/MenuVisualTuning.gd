@@ -142,6 +142,8 @@ extends Resource
 @export var score_swatch_width_px: int = 8
 ## Bontago-1pi.78: gap between that bar and the player's name.
 @export var score_swatch_gap_px: int = 8
+## Bontago-1pi.82: font size of the mode-name header on both score cards.
+@export var score_card_title_font_size: int = 48
 ## Bontago-mp0.18: minimum gap between the left window edge and the main card.
 @export var menu_card_left_margin_px: float = 48.0
 @export var menu_max_width_px: float = 960.0

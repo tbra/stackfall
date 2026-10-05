@@ -46,6 +46,7 @@ var match_net_provider: Variant = null
 ## data" habit) and so a test can inspect exactly what was rendered.
 var last_results: Dictionary = {}
 
+@onready var _mode_title: Label = %ModeTitle
 @onready var _headline: Label = %Headline
 ## Bontago-1pi.23: mode scores sit in their own small label; they used to be
 ## appended to the 28pt headline and spilled over the table header.
@@ -82,6 +83,7 @@ func _ready() -> void:
 
 	_replay_button.pressed.connect(_on_replay_pressed)
 	_lobby_button.pressed.connect(_on_lobby_pressed)
+	_mode_title.add_theme_font_size_override("font_size", tuning.score_card_title_font_size)
 	_apply_visual_style()
 	_wire_focus_chain()
 
@@ -142,6 +144,7 @@ func _claim_input() -> void:
 ## mouse.
 func show_results(results: Dictionary) -> void:
 	last_results = results
+	_mode_title.text = mode_title(results)
 	_headline.text = _headline_text(results)
 	var outcome: String = mode_outcome_text(results, _resolved_team_numbers()).strip_edges()
 	_mode_outcome.text = outcome
@@ -228,19 +231,27 @@ static func mode_outcome_text(results: Dictionary, team_numbers: PackedInt32Arra
 		elif domination:
 			value_text = "%d%%" % int(round(float(scores[team]) * 100.0))
 		parts.append("%s: %s" % [player_label(results, team) if ffa else "Team %d" % team_number_in(team_numbers, team), value_text])
-	var text: String = "
-%s" % MatchConfig.GAME_MODE_LABELS[mode_id]
-	if not parts.is_empty():
-		text += " - " + ", ".join(parts)
+	# Bontago-1pi.82: the mode name is the card header (mode_title()); Elimination's
+	# alive/out text and "out first to last" order are gone (the Status column and
+	# row order say it), so only modes with a score of their own keep this line.
 	if elimination:
-		var order: PackedStringArray = String(block.get("order", "")).split(",", false)
-		if not order.is_empty():
-			var names: PackedStringArray = PackedStringArray()
-			for slot_text: String in order:
-				names.append(player_label(results, int(slot_text)))
-			text += "
-Out, first to last: " + ", ".join(names)
-	return text
+		return ""
+	return ", ".join(parts)
+
+
+## Bontago-1pi.82: the score card header, the mode's own name ("Classic" when the
+## payload has no mode block).
+static func mode_title(results: Dictionary) -> String:
+	var mode_id: int = _results_mode_id(results)
+	if mode_id < 0 or mode_id >= MatchConfig.GAME_MODE_LABELS.size():
+		return MatchConfig.GAME_MODE_LABELS[MatchConfig.GameMode.CLASSIC]
+	return MatchConfig.GAME_MODE_LABELS[mode_id]
+
+
+## Bontago-1pi.82: only Capture the Flag and Reach the Sky carry a mode column.
+static func has_mode_stat(results: Dictionary) -> bool:
+	var mode_id: int = _results_mode_id(results)
+	return mode_id == MatchConfig.GameMode.CAPTURE_THE_FLAG or mode_id == MatchConfig.GameMode.REACH_THE_SKY
 
 
 ## Bontago-1pi.72.1: a slot's name exactly as its table row shows it (display name,

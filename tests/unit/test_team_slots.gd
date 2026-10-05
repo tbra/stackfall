@@ -349,8 +349,8 @@ func test_hud_share_rows_use_team_numbers_colours_and_team_elimination() -> void
 	hud.set_territory_shares(PackedFloat32Array([0.6, 0.4]))
 	assert_eq((hud._share_labels[0] as Label).text, "60%")
 	assert_eq((hud._share_labels[1] as Label).text, "40%")
-	assert_eq((hud._share_bars[0] as ColorRect).color, team_colors[0])
-	assert_eq((hud._share_bars[1] as ColorRect).color, team_colors[1])
+	assert_eq((hud._share_bars[0] as ShareBar).fill_color, team_colors[0])
+	assert_eq((hud._share_bars[1] as ShareBar).fill_color, team_colors[1])
 
 	# Team id 0 = slots 1 and 2: one home flag lost leaves the team in.
 	fake_match.slots_by_id[1].home_flag_alive = false
@@ -372,7 +372,7 @@ func test_hud_share_rows_are_unchanged_without_resolved_teams() -> void:
 	hud.set_territory_shares(PackedFloat32Array([0.6, 0.4]))
 	assert_eq((hud._share_labels[0] as Label).text, "60%")
 	assert_eq((hud._share_labels[1] as Label).text, "40%  (out)", "legacy: team t is slot t")
-	assert_eq((hud._share_bars[0] as ColorRect).color, fake_match.slots_by_id[0].color)
+	assert_eq((hud._share_bars[0] as ShareBar).fill_color, fake_match.slots_by_id[0].color)
 
 
 func test_hud_forwards_team_colours_and_slot_colours_to_the_minimap() -> void:
