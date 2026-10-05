@@ -118,6 +118,8 @@ Orchestrator integration is one command: `python tools/integrate_batch.py --bran
 
 Codex leaves asset packages uncommitted in its own `.claude/worktrees/codex-*` checkouts; stage them with `python tools/stage_codex_handoffs.py --beads id1 id2 --branch wt/name [--dry-run] [--min-age-min 30]` (reads each bead's last codex-named worktree path, refuses modified-tracked, overlapping, base-colliding or too-recent candidates, then one commit per bead on a new branch; never touches the Codex worktrees), and integrate that branch with `integrate_batch.py`.
 
+Magic-number ratchet: `python tools/lint_magic_numbers.py` counts non-trivial numeric literals (not 0, 1, -1, 2, 0.5) per game `.gd` file, ignoring comments, strings and `const`/`enum`/`@export` lines, and fails if any file exceeds `tools/magic_number_baseline.json` or a new file has any; `full_gate.py` runs it first and goes RED on failure. Move new tunables to `config/` Resources instead. After removing literals, lower the baseline with `--update` (never raises it); a new file needs an explicit `--update --allow-new <path>`.
+
 Implementation workers must implement their assigned changes, not return only advice. They report failure honestly and preserve partial work. Use open-project import before tests in a fresh worktree; the generated `.godot/` cache is not shared. Relevant gates:
 
 ```powershell

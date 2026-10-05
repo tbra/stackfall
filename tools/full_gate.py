@@ -25,6 +25,9 @@ import sys
 import time
 import xml.etree.ElementTree as ET
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import lint_magic_numbers  # noqa: E402
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TIMINGS = os.path.join(ROOT, "tests", ".gut_targeted", "gate_timings.json")
 TOTAL_RE = re.compile(r"^(Scripts|Tests|Passing Tests|Failing Tests|Pending|Risky)\s+(\d+)", re.M)
@@ -169,6 +172,10 @@ def main(argv):
     except (OSError, ValueError):
         timings = {}
 
+    # Magic-number ratchet (Bontago-fca.35): <2 s, runs before the shards.
+    lint_code = lint_magic_numbers.main(["--path", path])
+    print("MAGIC LINT %s" % ("GREEN" if lint_code == 0 else "RED"), flush=True)
+
     tests = collect(path)
     if not tests:
         print("FULL GATE ERROR: no tests found under", path)
@@ -208,16 +215,16 @@ def main(argv):
             ok = "Tests" in r["totals"] and r["totals"].get("Failing Tests", 0) == 0 and not r["failing"]
             (flaky if ok else confirmed).append(t)
 
-    verdict = "GREEN" if not confirmed and not harness else "RED"
+    verdict = "GREEN" if not confirmed and not harness and lint_code == 0 else "RED"
     result = {"verdict": verdict, "path": path, "shards": len(shards), "seconds": round(time.time() - t0, 1),
-              "totals": sums, "failing": confirmed, "parallel_flaky": flaky, "harness_errors": harness,
+              "totals": sums, "failing": confirmed, "parallel_flaky": flaky, "harness_errors": harness, "magic_lint": "green" if lint_code == 0 else "red",
               "shard_seconds": {n: r["seconds"] for n, r in sorted(results.items())}, "out": out_dir}
     with open(os.path.join(out_dir, "result.json"), "w", encoding="utf-8") as fh:
         json.dump(result, fh, indent=1)
     sys.stdout.flush()
-    print("FULL GATE %s: %s/%s passing, %d shards, %.0fs; failing=%s parallel_flaky=%s harness=%s; out=%s" % (
+    print("FULL GATE %s: %s/%s passing, %d shards, %.0fs; failing=%s parallel_flaky=%s harness=%s magic_lint=%s; out=%s" % (
         verdict, sums.get("Passing Tests", 0), sums.get("Tests", 0), len(shards), result["seconds"],
-        confirmed or "none", flaky or "none", harness or "none", out_dir), flush=True)
+        confirmed or "none", flaky or "none", harness or "none", "green" if lint_code == 0 else "RED", out_dir), flush=True)
     if harness:
         return 2
     return 0 if verdict == "GREEN" else 1
