@@ -112,6 +112,7 @@ var _stats: MatchStats = null
 ## Bontago-22y.10: host-scheduled weather events. See autoload/match/MatchWeather.gd.
 var _weather: MatchWeather = null
 var _cat: CatController = null
+var _gift_fx: GiftFxPresenter = null
 var _cat_serial: int = 0
 
 
@@ -131,8 +132,12 @@ func _ready() -> void:
 	_stats.setup(self)
 	_weather.setup(self)
 	Events.feed_block_issued.connect(_on_feed_block_issued)
-	Events.special_triggered.connect(_on_paintball_triggered)
-	Events.special_triggered.connect(_on_black_hole_triggered)
+	# Bontago-1pi.85.8: one presenter owns every per-gift client visual
+	# (Paintball splash, Black hole disc, ...); it subscribes to
+	# Events.special_triggered itself.
+	_gift_fx = GiftFxPresenter.new()
+	_gift_fx.name = "GiftFxPresenter"
+	add_child(_gift_fx)
 	Events.match_state_changed.connect(_on_cat_match_state_changed)
 
 
@@ -208,33 +213,6 @@ func _on_cat_match_state_changed(_old: int, next: int) -> void:
 		var cat: CatController = active_cat()
 		if cat != null:
 			end_cat(cat.activation_id)
-
-
-func _on_paintball_triggered(net_id: int, def_id: StringName, position: Vector3, _chain_depth: int) -> void:
-	if def_id != &"paintball" or blocks_parent() == null or registry() == null:
-		return
-	var glob: Block = _registry.block_for_net_id(net_id)
-	if glob == null or glob.owner_slot < 0 or glob.owner_slot >= slot_count():
-		return
-	var splash: PaintballSplash = PaintballSplash.new()
-	_blocks_parent.add_child(splash)
-	splash.global_position = position
-	splash.setup(slot(glob.owner_slot).color)
-
-
-## Black hole (Bontago-8or.25): every peer draws the placeholder sphere from
-## the replicated special_triggered; the pull itself is host-only physics.
-func _on_black_hole_triggered(_net_id: int, def_id: StringName, position: Vector3, _chain_depth: int) -> void:
-	if def_id != &"black_hole" or blocks_parent() == null:
-		return
-	var def: SpecialDef = SpecialDef.find_by_id(def_id)
-	var effect: BlackHoleEffect = def.effect as BlackHoleEffect if def != null else null
-	if effect == null or not position.is_finite():
-		return
-	var visual: BlackHoleVisual = BlackHoleVisual.new()
-	_blocks_parent.add_child(visual)
-	visual.global_position = position
-	visual.setup(effect.visual_radius_m, effect.lifetime_s)
 
 
 # --- Test/debug seams (Bontago-split.1) --------------------------------------
