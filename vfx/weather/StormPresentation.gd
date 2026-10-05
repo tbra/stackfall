@@ -161,6 +161,7 @@ func _process(delta: float) -> void:
 		_seed = WindField.event_seed(Match.weather().seed_value(), Match.weather().event_index())
 	_elapsed += delta
 	var dir2: Vector2 = heading()
+	_push_cloud_wind(dir2)
 	var gust_mult: float = WindField.gust(_seed, _elapsed, tuning)
 	_travel += delta * gust_mult * lerpf(0.5, 1.0, intensity)
 	var dir: Vector3 = Vector3(dir2.x, 0.0, dir2.y)
@@ -396,3 +397,14 @@ static func build_swoosh_ribbon(wind_tuning: StormTuning, curled: bool = true) -
 	var mesh: ArrayMesh = ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
+
+
+## Bontago-mp0.92: the clouds drift along this same wind (Skybox cloud drift), easing in and
+## out with the storm blend.
+func _push_cloud_wind(direction: Vector2) -> void:
+	if not is_inside_tree():
+		return
+	for node: Node in get_tree().get_nodes_in_group(Skybox.OVERCAST_GROUP):
+		var skybox: Skybox = node as Skybox
+		if skybox != null:
+			skybox.set_cloud_storm_wind(direction)

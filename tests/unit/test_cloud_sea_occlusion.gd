@@ -52,7 +52,7 @@ func test_one_puff_is_recorded_with_its_clump_bounds() -> void:
 func test_sun_behind_a_puff_is_fully_occluded() -> void:
 	var sea: CloudSea = _single_puff_sea()
 	var centre: Vector3 = _centre(sea)
-	var occlusion: float = sea.sun_ray_cloud_occlusion(centre - Vector3(FAR_M, 0.0, 0.0), Vector3.RIGHT, null, 0.0)
+	var occlusion: float = sea.sun_ray_cloud_occlusion(centre - Vector3(FAR_M, 0.0, 0.0), Vector3.RIGHT, null, Vector2.ZERO)
 	assert_gt(occlusion, 0.99, "a ray through the puff's centre is hidden")
 
 
@@ -61,13 +61,13 @@ func test_clear_sky_is_not_occluded() -> void:
 	var centre: Vector3 = _centre(sea)
 	var radius: float = _horizontal_radius(sea)
 	# Far to the side of the puff.
-	var aside: float = sea.sun_ray_cloud_occlusion(centre + Vector3(-FAR_M, 0.0, radius * 3.0), Vector3.RIGHT, null, 0.0)
+	var aside: float = sea.sun_ray_cloud_occlusion(centre + Vector3(-FAR_M, 0.0, radius * 3.0), Vector3.RIGHT, null, Vector2.ZERO)
 	assert_eq(aside, 0.0, "a ray passing clear of the puff sees open sky")
 	# Pointing away: the puff is behind the camera, so it cannot hide the sun.
-	var behind: float = sea.sun_ray_cloud_occlusion(centre + Vector3(FAR_M, 0.0, 0.0), Vector3.RIGHT, null, 0.0)
+	var behind: float = sea.sun_ray_cloud_occlusion(centre + Vector3(FAR_M, 0.0, 0.0), Vector3.RIGHT, null, Vector2.ZERO)
 	assert_eq(behind, 0.0, "a puff behind the camera hides nothing")
 	# Above everything, looking up.
-	var above: float = sea.sun_ray_cloud_occlusion(centre + Vector3(0.0, FAR_M, 0.0), Vector3.UP, null, 0.0)
+	var above: float = sea.sun_ray_cloud_occlusion(centre + Vector3(0.0, FAR_M, 0.0), Vector3.UP, null, Vector2.ZERO)
 	assert_eq(above, 0.0, "a camera above the clouds looking up sees open sky")
 
 
@@ -80,17 +80,17 @@ func test_edge_of_a_puff_is_soft_and_monotonic() -> void:
 	var previous: float = 2.0
 	for fraction: float in [0.0, 0.6, 0.7, 0.8, 0.85, 0.9, 0.99, 1.05]:
 		var from: Vector3 = centre + Vector3(-FAR_M, 0.0, radius * fraction)
-		var occlusion: float = sea.sun_ray_cloud_occlusion(from, Vector3.RIGHT, tuning, 0.0)
+		var occlusion: float = sea.sun_ray_cloud_occlusion(from, Vector3.RIGHT, tuning, Vector2.ZERO)
 		assert_lte(occlusion, previous + 0.0001, "occlusion never grows toward the silhouette (%.2f)" % fraction)
 		previous = occlusion
 		if fraction <= 0.7:
 			assert_gt(occlusion, 0.99, "inside the soft band's inner edge the puff is solid (%.2f)" % fraction)
 		if fraction >= 1.0:
 			assert_eq(occlusion, 0.0, "outside the silhouette nothing is hidden")
-	var half: float = sea.sun_ray_cloud_occlusion(centre + Vector3(-FAR_M, 0.0, radius * 0.85), Vector3.RIGHT, tuning, 0.0)
+	var half: float = sea.sun_ray_cloud_occlusion(centre + Vector3(-FAR_M, 0.0, radius * 0.85), Vector3.RIGHT, tuning, Vector2.ZERO)
 	assert_almost_eq(half, 0.5, 0.03, "midway through the soft band the sun is half hidden")
 	tuning.cloud_edge_softness = 0.0
-	var hard: float = sea.sun_ray_cloud_occlusion(centre + Vector3(-FAR_M, 0.0, radius * 0.95), Vector3.RIGHT, tuning, 0.0)
+	var hard: float = sea.sun_ray_cloud_occlusion(centre + Vector3(-FAR_M, 0.0, radius * 0.95), Vector3.RIGHT, tuning, Vector2.ZERO)
 	assert_gt(hard, 0.99, "zero softness keeps the whole disc solid")
 
 
@@ -99,55 +99,59 @@ func test_flat_base_blocks_nothing_below_the_cut() -> void:
 	var cut: float = sea._occ_puffs[5]
 	assert_gt(cut, CloudSea.NO_BASE_CUT, "the sea's flat-bottomed puff records its base plane")
 	var centre: Vector3 = _centre(sea)
-	var under: float = sea.sun_ray_cloud_occlusion(Vector3(centre.x - FAR_M, cut - 0.2, centre.z), Vector3.RIGHT, null, 0.0)
+	var under: float = sea.sun_ray_cloud_occlusion(Vector3(centre.x - FAR_M, cut - 0.2, centre.z), Vector3.RIGHT, null, Vector2.ZERO)
 	assert_eq(under, 0.0, "a horizontal ray just under the flat base passes below the puff")
-	var up_through: float = sea.sun_ray_cloud_occlusion(Vector3(centre.x, cut - 40.0, centre.z), Vector3.UP, null, 0.0)
+	var up_through: float = sea.sun_ray_cloud_occlusion(Vector3(centre.x, cut - 40.0, centre.z), Vector3.UP, null, Vector2.ZERO)
 	assert_gt(up_through, 0.99, "a ray from below the sea that climbs through the puff is hidden by its base")
 
 
-func test_clump_orbit_follows_the_shader_clock() -> void:
+func test_clump_drift_follows_the_shared_wind_offset() -> void:
 	var sea: CloudSea = _single_puff_sea(10.0)
 	var speed: float = sea._occ_speed[0]
 	assert_gt(speed, 0.0, "fixture: the clump drifts")
 	var rest: Vector3 = _centre(sea)
 	var radius: float = _horizontal_radius(sea)
-	var angle: float = 2.0
-	var time_s: float = angle / speed
-	# shaders/cloud_puffs.gdshader: rot2(a) = mat2(vec2(cos, sin), vec2(-sin, cos)) applied to xz.
-	var c: float = cos(angle)
-	var s: float = sin(angle)
-	var moved: Vector3 = Vector3(c * rest.x - s * rest.z, rest.y, s * rest.x + c * rest.z)
+	# shaders/cloud_puffs.gdshader: the clump slides by drift_offset * speed (wrapped in its domain).
+	var offset: Vector2 = Vector2(0.0, 1.0) * (SEPARATION_RADII * radius * 4.0 / speed)
+	var wrapped: Vector2 = CloudDriftMath.wrapped_position(sea._occ_rest[0], offset * speed, sea._occ_domain[0])
+	var moved: Vector3 = rest + Vector3(wrapped.x - sea._occ_rest[0].x, 0.0, wrapped.y - sea._occ_rest[0].y)
 	assert_gt(moved.distance_to(rest), SEPARATION_RADII * radius, "fixture: the clump moved well clear of where it was")
-	assert_gt(sea.sun_ray_cloud_occlusion(moved - Vector3(FAR_M, 0.0, 0.0), Vector3.RIGHT, null, time_s), 0.99,
-			"the puff is where the shader's orbit put it")
-	assert_eq(sea.sun_ray_cloud_occlusion(rest - Vector3(FAR_M, 0.0, 0.0), Vector3.RIGHT, null, time_s), 0.0,
+	assert_gt(sea.sun_ray_cloud_occlusion(moved - Vector3(FAR_M, 0.0, 0.0), Vector3.RIGHT, null, offset), 0.99,
+			"the puff is where the shader's drift put it")
+	assert_eq(sea.sun_ray_cloud_occlusion(rest - Vector3(FAR_M, 0.0, 0.0), Vector3.RIGHT, null, offset), 0.0,
 			"and no longer where it started")
-	assert_gt(sea.sun_ray_cloud_occlusion(rest - Vector3(FAR_M, 0.0, 0.0), Vector3.RIGHT, null, 0.0), 0.99,
-			"at time zero it is at its build position")
+	assert_gt(sea.sun_ray_cloud_occlusion(rest - Vector3(FAR_M, 0.0, 0.0), Vector3.RIGHT, null, Vector2.ZERO), 0.99,
+			"with no wind it is at its build position")
+	sea.set_drift_offset(offset)
+	assert_eq(sea.sun_ray_cloud_occlusion(rest - Vector3(FAR_M, 0.0, 0.0), Vector3.RIGHT), 0.0,
+			"the default query uses the live offset set by set_drift_offset()")
 
 
 func test_several_thin_puffs_add_up_and_an_empty_sea_is_clear() -> void:
 	var sea: CloudSea = CloudSea.new()
 	add_child_autofree(sea)
-	assert_eq(sea.sun_ray_cloud_occlusion(Vector3.ZERO, Vector3.UP, null, 0.0), 0.0, "an unbuilt sea hides nothing")
+	assert_eq(sea.sun_ray_cloud_occlusion(Vector3.ZERO, Vector3.UP, null, Vector2.ZERO), 0.0, "an unbuilt sea hides nothing")
 	var single: CloudSea = _single_puff_sea()
 	var centre: Vector3 = _centre(single)
 	var radius: float = _horizontal_radius(single)
 	var tuning: SunFlareConfig = (load("res://config/sun_flare.tres") as SunFlareConfig).duplicate() as SunFlareConfig
 	var from: Vector3 = centre + Vector3(-FAR_M, 0.0, radius * 0.85)
-	var one: float = single.sun_ray_cloud_occlusion(from, Vector3.RIGHT, tuning, 0.0)
+	var one: float = single.sun_ray_cloud_occlusion(from, Vector3.RIGHT, tuning, Vector2.ZERO)
 	# The same single puff twice over, as two clumps' worth of records.
 	var doubled: CloudSea = _single_puff_sea()
 	doubled._occ_puffs.append_array(doubled._occ_puffs.duplicate())
 	doubled._occ_centre.append(doubled._occ_centre[0])
 	doubled._occ_radius.append(doubled._occ_radius[0])
 	doubled._occ_speed.append(doubled._occ_speed[0])
+	doubled._occ_rest.append(doubled._occ_rest[0])
+	doubled._occ_domain.append(doubled._occ_domain[0])
+	doubled._occ_excl.append(doubled._occ_excl[0])
 	doubled._occ_y_low.append(doubled._occ_y_low[0])
 	doubled._occ_y_high.append(doubled._occ_y_high[0])
 	doubled._occ_first.append(1)
 	doubled._occ_count.append(1)
 	doubled._occ_upper.append(0)
-	var two: float = doubled.sun_ray_cloud_occlusion(from, Vector3.RIGHT, tuning, 0.0)
+	var two: float = doubled.sun_ray_cloud_occlusion(from, Vector3.RIGHT, tuning, Vector2.ZERO)
 	assert_almost_eq(two, 1.0 - (1.0 - one) * (1.0 - one), 0.001, "transmittances multiply")
 	assert_gt(two, one)
 
@@ -183,5 +187,5 @@ func _time_query_ms(sea: CloudSea, from: Vector3, dir: Vector3, tuning: SunFlare
 	var runs: int = 20
 	var begin: int = Time.get_ticks_usec()
 	for _i: int in range(runs):
-		sea.sun_ray_cloud_occlusion(from, dir, tuning, 12.0)
+		sea.sun_ray_cloud_occlusion(from, dir, tuning, Vector2(12.0, 0.0))
 	return float(Time.get_ticks_usec() - begin) / 1000.0 / float(runs)
