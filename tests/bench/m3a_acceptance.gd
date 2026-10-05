@@ -583,15 +583,29 @@ func _run_host_throw_phase() -> void:
 	# meantime -- see this function's own opening comment -- and is not
 	# itself a failure here).
 	await get_tree().create_timer(THROW_CLAIM_WAIT_SECONDS + THROW_RESULT_WAIT_SECONDS).timeout
-	var after_negative: Block = _fast_block_for_slot(THROW_SLOT_ID)
-	# Bontago-mv0.32: capture net_id before the block might be freed (kill/burn)
-	var after_negative_net_id: int = after_negative.net_id if after_negative != null else -1
+	# Bontago-fca.22: key on the throw's own identity, not "the last fast block
+	# sampled". Only request_throw() sets continuous_cd at spawn (an auto-drop
+	# or placement starts at rest), and net_ids are monotonic, so any live block
+	# of this slot with continuous_cd and a net_id past the accepted throw's is a
+	# second throw spawn. A load-stretched auto-drop that happens to fall > 5 m/s
+	# no longer replaces the sampled block and false-fails this check.
+	var extra_throw_ids: Array[int] = _throw_spawns_for_slot_after(THROW_SLOT_ID, thrown_net_id)
 	_throw_check(
-		"throw_outside_territory_spawned_nothing_on_host", after_negative == thrown_block,
-		"slot=%d accepted_net_id=%d observed_after_net_id=%d" % [
-			THROW_SLOT_ID, thrown_net_id, after_negative_net_id
+		"throw_outside_territory_spawned_nothing_on_host", extra_throw_ids.is_empty(),
+		"slot=%d accepted_net_id=%d extra_throw_net_ids=%s" % [
+			THROW_SLOT_ID, thrown_net_id, extra_throw_ids
 		]
 	)
+
+
+## Bontago-fca.22: net_ids of live throw-spawned (continuous_cd) blocks owned by
+## `slot_id` that spawned after `after_net_id`.
+func _throw_spawns_for_slot_after(slot_id: int, after_net_id: int) -> Array[int]:
+	var found: Array[int] = []
+	for block: Block in _live_blocks().values():
+		if block.owner_slot == slot_id and block.net_id > after_net_id and block.continuous_cd:
+			found.append(block.net_id)
+	return found
 
 
 func _wait_for_peer_count(expected: int) -> bool:
@@ -1095,8 +1109,12 @@ func _run_host_late_join_and_reconnect(initial_player_count: int) -> void:
 		"host_blocks=%d (placement phase had %d intents)" % [host_blocks, INTENTS_PER_CLIENT])
 	_check("late_joiner_match_running", Match.state() == Match.State.PLAYING,
 		"match state=%d" % Match.state())
-	_check("late_joiner_timer_valid", host_timer > 0.0,
-		"timer=%.2f" % host_timer)
+	# Bontago-fca.24: harness expectation, not a product bug. This harness's
+	# MatchConfig leaves match_timer_minutes at 0 (= off, untimed Classic), where
+	# match_timer_left() is correctly 0.0. Only a timed config must have time left.
+	var timed: bool = Match.config.match_timer_minutes > 0
+	_check("late_joiner_timer_valid", host_timer > 0.0 if timed else is_zero_approx(host_timer),
+		"timer=%.2f timed=%s" % [host_timer, timed])
 
 	print("M3A_ACCEPT (late_join) host state: blocks=%d timer=%.2f eliminated=%s" % [
 		host_blocks, host_timer, host_eliminated
@@ -1118,9 +1136,14 @@ func _run_host_reconnect_test(test_slot: int, initial_player_count: int) -> void
 	# Simulate a client disconnect by waiting a bit (in a real test, the client
 	# would intentionally disconnect via Net.close_peer()).
 	# For now, just verify the test setup is valid.
-	_check("reconnect_has_test_peers", peer_count_before >= 3,
-		"need >= 3 peers for reconnect test, have %d" % peer_count_before)
-	_check("reconnect_late_joiner_present", peer_count_before > initial_player_count,
-		"late joiner should be present from previous check")
+	# Bontago-fca.24: Net.peer_ids() lists remote peers only (the host, id 1, is
+	# not in it), so initial_player_count players = initial_player_count - 1
+	# remote peers; with the late joiner that is exactly initial_player_count.
+	# The old ">= 3" / "> initial_player_count" expected the host to be counted.
+	# NOTE: no drop/rejoin is actually exercised here (see Bontago-fca.24 follow-up).
+	_check("reconnect_has_test_peers", peer_count_before >= initial_player_count,
+		"need >= %d remote peers (initial remotes + late joiner), have %d" % [initial_player_count, peer_count_before])
+	_check("reconnect_late_joiner_present", peer_count_before > initial_player_count - 1,
+		"late joiner should be present on top of %d initial remote peers" % (initial_player_count - 1))
 
 	print("M3A_ACCEPT (reconnect) PASS peers_before=%d" % peer_count_before)
