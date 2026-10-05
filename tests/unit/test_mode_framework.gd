@@ -269,7 +269,8 @@ func test_results_text_shows_the_mode_outcome_and_classic_is_unchanged() -> void
 	var with_mode: Dictionary = base.duplicate()
 	with_mode["mode"] = {"mode_id": MatchConfig.GameMode.CAPTURE_THE_FLAG, "scores": [3.0, 5.5]}
 	var text: String = ResultsScreen.mode_outcome_text(with_mode)
-	assert_string_contains(text, "Capture the Flag")
+	# Bontago-1pi.82: the mode name is the card header now, not part of this line.
+	assert_false(text.contains("Capture the Flag"))
 	assert_string_contains(text, "Team 2: 5.5")
 
 
