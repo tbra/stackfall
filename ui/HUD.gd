@@ -76,7 +76,6 @@ const LOCKED_COLOR: Color = Color(0.75, 0.75, 0.75, 0.9)
 @export var gift_config: GiftConfig = preload("res://config/gift_config.tres")
 ## The action whose bound glyph the gift slot card shows (PlayerController spends the slot on it).
 const GIFT_SLOT_ACTION: StringName = &"use_gift_slot"
-const INPUT_GLYPH_SCENE: PackedScene = preload("res://ui/InputGlyph.tscn")
 ## Gap between the gift card's border and its icon/glyph (screen-space geometry, see the DECISION above).
 const GIFT_CARD_INSET_PX: float = 6.0
 const GIFT_CARD_ICON_GLYPH_GAP_PX: float = 2.0
@@ -619,7 +618,7 @@ func show_relocated() -> void:
 ## deleted so a future revert or the results-screen work doesn't need to
 ## re-add the node.
 func show_winner(team_id: int, color: Color) -> void:
-	_winner_label.text = "Team %d wins!" % _team_number(team_id)
+	_winner_label.text = PlayerNames.winner_text(ResultsScreen.team_number_in(_resolved_team_numbers(), team_id))
 	_winner_label.modulate = color
 	_winner_label.visible = false
 
@@ -973,18 +972,6 @@ func _team_of_slot(slot_id: int) -> int:
 	return int(running_config.team_of_slot(slot_id))
 
 
-## Lobby rework (Bontago-1pi.53): the number a team shows in labels -- the one it
-## had in the lobby once the host resolved the picks, else team id + 1 (the legacy
-## "Team 1/Team 2" numbering). Null-safe like _team_of_slot() above.
-func _team_number(team_id: int) -> int:
-	if match_provider == null:
-		return team_id + 1
-	var running_config: Variant = match_provider.config
-	if running_config == null:
-		return team_id + 1
-	return int(running_config.team_number_for(team_id))
-
-
 ## MatchConfig.team_numbers when the lobby teams are host-resolved, else empty
 ## (labels fall back to team id + 1). For the static score formatters above.
 func _resolved_team_numbers() -> PackedInt32Array:
@@ -1030,13 +1017,12 @@ func _is_team_eliminated(team_id: int) -> bool:
 
 
 func _color_for_slot(slot_id: int) -> Color:
+	var live_color: Variant = null
 	if match_provider != null:
 		var slot: PlayerSlot = match_provider.slot(slot_id)
 		if slot != null:
-			return slot.color
-	if slot_id >= 0 and slot_id < default_palette.player_colors.size():
-		return default_palette.player_colors[slot_id]
-	return Color.WHITE
+			live_color = slot.color
+	return SlotColors.resolve(slot_id, live_color, default_palette.player_colors)
 
 
 ## Bontago-mv0.9: PlayerSlot.display_name when Match has built one, otherwise
@@ -1140,9 +1126,7 @@ func _special_display_text(head_id: StringName, count: int) -> String:
 ## String.capitalize() (snake_case -> Title Case), e.g. "jumping_bean" ->
 ## "Jumping Bean" -- placeholder art only, M7 replaces this with real icons.
 func _special_display_name(head_id: StringName) -> String:
-	if head_id == MatchGifts.PENDING_SPECIAL_ID or head_id == &"":
-		return "Special"
-	return String(head_id).capitalize()
+	return DisplayNames.special(head_id)
 
 
 ## Bontago-mp0.3.3 (mockup 08): one row per player, a small team-colored
@@ -1461,8 +1445,7 @@ func _refresh_gift_slot() -> void:
 func _refresh_gift_slot_glyph(force: bool = false) -> void:
 	if _gift_slot_glyph_row == null:
 		return
-	var event: InputEvent = gift_slot_binding()
-	var signature: String = "%s|%s" % [Settings.active_input_device(), event.as_text() if event != null else ""]
+	var signature: String = InputGlyph.signature_for_action(GIFT_SLOT_ACTION)
 	if signature == _gift_slot_glyph_signature and not force:
 		return
 	_gift_slot_glyph_signature = signature
@@ -1470,25 +1453,9 @@ func _refresh_gift_slot_glyph(force: bool = false) -> void:
 		_gift_slot_glyph_row.remove_child(_gift_slot_glyph)
 		_gift_slot_glyph.queue_free()
 		_gift_slot_glyph = null
-	if event == null:
-		return
-	_gift_slot_glyph = INPUT_GLYPH_SCENE.instantiate() as InputGlyph
-	_gift_slot_glyph_row.add_child(_gift_slot_glyph)
-	_gift_slot_glyph.set_event(event)
-
-
-## The first InputMap event of GIFT_SLOT_ACTION that belongs to the active input
-## device family (gamepad vs keyboard/mouse, the same split the Controls page
-## uses), or null when that family has none.
-func gift_slot_binding() -> InputEvent:
-	if not InputMap.has_action(GIFT_SLOT_ACTION):
-		return null
-	var want_gamepad: bool = Settings.active_input_device() == Settings.DEVICE_GAMEPAD
-	for event: InputEvent in InputMap.action_get_events(GIFT_SLOT_ACTION):
-		var is_gamepad: bool = event is InputEventJoypadButton or event is InputEventJoypadMotion
-		if is_gamepad == want_gamepad:
-			return event
-	return null
+	var built: Array[InputGlyph] = InputGlyph.build_for_action(_gift_slot_glyph_row, GIFT_SLOT_ACTION, 1)
+	if not built.is_empty():
+		_gift_slot_glyph = built[0]
 
 
 func _on_input_device_changed(_device: StringName) -> void:

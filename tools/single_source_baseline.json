@@ -1,20 +1,15 @@
 {
  "CAPITALIZE_ID": {
-  "ui/HUD.gd": 1,
   "ui/Lobby.gd": 1
  },
  "COLOR_LOOKUP": {
-  "autoload/match/MatchLifecycle.gd": 1,
-  "ui/HUD.gd": 2
+  "autoload/match/MatchLifecycle.gd": 1
  },
  "DIAMOND": {},
  "ENUM_LABEL": {},
- "GLYPH_EVENTS": {
-  "ui/HUD.gd": 2
- },
+ "GLYPH_EVENTS": {},
  "NAME_FMT": {
   "core/bot_names.gd": 1,
-  "ui/HUD.gd": 1,
   "ui/lobby/LobbySeatRow.gd": 1
  },
  "NAME_RAW": {}
