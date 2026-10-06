@@ -139,11 +139,11 @@ var _map_thumbnail_icon: TextureRect = null
 @onready var _gifts_check: CheckButton = %GiftsCheck
 @onready var _special_freq_slider: HSlider = %SpecialFreqSlider
 @onready var _special_freq_label: Label = %SpecialFreqLabel
-@onready var _tilt_mode_option: OptionButton = %TiltModeOption
-@onready var _hole_mode_option: OptionButton = %HoleModeOption
+@onready var _tilt_mode_option: CycleSelector = %TiltModeOption
+@onready var _hole_mode_option: CycleSelector = %HoleModeOption
 @onready var _match_timer_slider: HSlider = %MatchTimerSlider
-@onready var _weather_option: OptionButton = %WeatherOption
-@onready var _game_mode_option: OptionButton = %GameModeOption
+@onready var _weather_option: CycleSelector = %WeatherOption
+@onready var _game_mode_option: CycleSelector = %GameModeOption
 @onready var _round_timer_slider: HSlider = %RoundTimerSlider
 ## Bontago-6fc.1: ONE timer control is shown. Classic shows the match-timer
 ## column (+ sudden death); every other mode shows the round-length column.
@@ -158,7 +158,7 @@ var _map_thumbnail_icon: TextureRect = null
 @onready var _sky_team_col: Control = %SkyTeamCol
 @onready var _sky_team_sum_check: CheckButton = %SkyTeamSumCheck
 ## Bontago-470.4: the "Map" time-of-day dropdown (MatchConfig.SkyThemeMode).
-@onready var _sky_theme_option: OptionButton = %SkyThemeOption
+@onready var _sky_theme_option: CycleSelector = %SkyThemeOption
 @onready var _sudden_death_check: CheckButton = %SuddenDeathCheck
 @onready var _turn_based_check: CheckButton = %TurnBasedCheck
 ## Bontago-8or.20: host-only toggle for MatchConfig.allow_mid_match_join.
@@ -421,6 +421,12 @@ func _configure_timer_sliders() -> void:
 	_timer_previous_minutes[_round_timer_slider] = int(_round_timer_slider.value)
 
 
+## DECISION (Bontago-1pi.94): game mode, time of day, weather, tilt and hole mode (and each bot's
+## difficulty and team in LobbySeatRow) are CycleSelectors: click / ui_accept = next, right click
+## = previous, focus navigation never changes the value. %MapComboOption stays a dropdown: it is
+## 15 entries (5 variants x 3 sizes), where stepping through is clearly worse than picking.
+## %MapVariantOption / %MapSizeOption / %AiDifficultyOption / %TeamModeOption are hidden sources
+## of truth that nobody clicks, so they stay plain OptionButtons.
 func _populate_options() -> void:
 	_configure_timer_sliders()
 	_fill_option(_map_variant_option, MAP_VARIANT_LABELS)
@@ -434,7 +440,7 @@ func _populate_options() -> void:
 	_map_combo_option.item_selected.connect(_on_map_combo_selected)
 	_fill_option(_ai_difficulty_option, ["Easy", "Normal", "Hard"])
 	_fill_option(_team_mode_option, ["Off", "2 teams", "3 teams", "4 teams"])
-	_fill_option(_tilt_mode_option, ["Specials only", "Physical balance"])
+	_fill_cycle(_tilt_mode_option, ["Specials only", "Physical balance"])
 	# Territory v2 (docs/TERRITORY_V2_PLAN.md) added HoleMode.OFF (= 2,
 	# appended after TEMPORARY/PERMANENT) as the optional no-overlap mode.
 	# "Off" must still be the option list's third item, at the same index as
@@ -445,25 +451,25 @@ func _populate_options() -> void:
 	# audit); the lobby shows whatever config/match_defaults.tres stores
 	# (_ready()'s _apply_data(default_config.to_dict())), so no lobby-side
 	# default needs to move separately.
-	_fill_option(_hole_mode_option, ["Temporary", "Permanent", "Off"])
+	_fill_cycle(_hole_mode_option, ["Temporary", "Permanent", "Off"])
 	# Bontago-22y.10: order must match MatchConfig.WeatherMode.
 	# Labels come from the enum names, so a new weather type needs no edit here.
-	_fill_option(_weather_option, MatchWeather.mode_labels())
+	_fill_cycle(_weather_option, MatchWeather.mode_labels())
 	for weather_index: int in _weather_option.item_count:
 		_weather_option.set_item_icon(weather_index, GiftIconTable.shared().weather_pictogram(weather_index))
 	_weather_option.add_theme_constant_override("icon_max_width", GiftIconTable.shared().lobby_icon_px)
 	# Bontago-470.4: order must match MatchConfig.SkyThemeMode.
 	# Bontago-59o.18 (U1): the DAY entry is the cycle locked at sunset, so it
 	# reads "Sunset"; Cycle is the default through MatchConfig.sky_theme_mode.
-	_fill_option(_sky_theme_option, Array(SKY_THEME_LABELS))
-	_sky_theme_option.tooltip_text = SKY_THEME_TIP
+	_fill_cycle(_sky_theme_option, Array(SKY_THEME_LABELS))
+	_sky_theme_option.list_tooltip = SKY_THEME_TIP
 	for sky_index: int in range(SKY_THEME_ITEM_TIPS.size()):
 		_sky_theme_option.set_item_tooltip(sky_index, SKY_THEME_ITEM_TIPS[sky_index])
 	# Bontago-22y.11: order must match MatchConfig.GameMode. Reserved modes are
 	# listed but disabled, so neither the mouse nor the gamepad popup can pick
 	# one; MatchConfig.resolve_game_mode() also rejects them on the wire.
 	# DECISION (Bontago-6fc.1): one timer control per mode (_refresh_timer_control).
-	_fill_option(_game_mode_option, Array(MatchConfig.GAME_MODE_LABELS))
+	_fill_cycle(_game_mode_option, Array(MatchConfig.GAME_MODE_LABELS))
 	for mode_index: int in range(_game_mode_option.item_count):
 		_game_mode_option.set_item_disabled(mode_index, not MatchConfig.is_game_mode_selectable(mode_index))
 	_build_specials_checklist()
@@ -502,6 +508,13 @@ func _fill_option(option: OptionButton, labels: Array) -> void:
 	option.clear()
 	for label: String in labels:
 		option.add_item(label)
+
+
+## The click-to-cycle twin of _fill_option() (Bontago-1pi.94): same index order, same stored ints.
+func _fill_cycle(selector: CycleSelector, labels: Array) -> void:
+	selector.clear()
+	for label: String in labels:
+		selector.add_item(label)
 
 
 ## Bontago-mp0.125: shows a pictogram on a toggle at the table's lobby icon size.
@@ -895,6 +908,17 @@ func _apply_visual_style() -> void:
 			tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning
 		)
 
+	# Bontago-1pi.94: the click-to-cycle selectors are cream pills; a client's read-only copy
+	# keeps the same look (disabled box = the normal pill) so only the host sees a live control.
+	var selectors: Array[CycleSelector] = [
+		_game_mode_option, _sky_theme_option, _weather_option, _tilt_mode_option, _hole_mode_option,
+	]
+	for selector: CycleSelector in selectors:
+		MenuStyleFactory.apply_pill(selector, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
+		selector.add_theme_stylebox_override("disabled", MenuStyleFactory.make_badge(tuning.pill_cream_color, tuning))
+		selector.add_theme_color_override("font_disabled_color", tuning.ink_color)
+		selector.add_theme_constant_override("icon_max_width", GiftIconTable.shared().lobby_icon_px)
+
 	var captions: Array[Label] = [_specials_label, _experiments_label]
 	for caption: Label in captions:
 		caption.add_theme_color_override("font_color", tuning.label_muted_color)
@@ -972,8 +996,8 @@ func toggle_focused_advanced() -> void:
 func _update_section_summaries() -> void:
 	_update_timer_values()
 	_game_section.set_summary(SUMMARY_SEPARATOR.join([
-		_selected_text(_game_mode_option), _selected_text(_map_combo_option),
-		_selected_text(_sky_theme_option), _selected_text(_weather_option),
+		_cycle_text(_game_mode_option), _selected_text(_map_combo_option),
+		_cycle_text(_sky_theme_option), _cycle_text(_weather_option),
 	]))
 	var timer_slider: HSlider = _timer_slider_for(_timer_mode)
 	var round_parts: Array[String] = [
@@ -1004,6 +1028,10 @@ func _update_section_summaries() -> void:
 
 func _selected_text(option: OptionButton) -> String:
 	return option.get_item_text(option.selected) if option.selected >= 0 else ""
+
+
+func _cycle_text(selector: CycleSelector) -> String:
+	return selector.get_item_text(selector.selected)
 
 
 ## Bontago-mp0.3.5: tools/capture_mockup08.gd's own `--lobby-advanced` frame (public wrapper

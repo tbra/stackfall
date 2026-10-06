@@ -49,7 +49,7 @@ func _badges(lobby: Lobby) -> Dictionary:
 		var row: LobbySeatRow = node as LobbySeatRow
 		if row == null or row.is_bot or row.badge_label == null:
 			continue
-		badges[row.display_name] = not row.badge_label.text.containsn("not ready")
+		badges[row.display_name] = row.badge.tooltip_text == LobbySeatRow.ready_tooltip(true)
 	return badges
 
 

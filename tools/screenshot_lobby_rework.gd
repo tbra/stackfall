@@ -37,7 +37,7 @@ func _ready() -> void:
 	await _wait_frames(SETTLE_FRAMES)
 	var shots: Array[Image] = [await _shoot()]
 
-	var mode_option: OptionButton = lobby.get_node("%GameModeOption") as OptionButton
+	var mode_option: CycleSelector = lobby.get_node("%GameModeOption") as CycleSelector
 	mode_option.select(MatchConfig.GameMode.REACH_THE_SKY)
 	mode_option.item_selected.emit(MatchConfig.GameMode.REACH_THE_SKY)
 	for section: LobbySection in lobby._sections():

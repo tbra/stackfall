@@ -18,11 +18,10 @@ extends PanelContainer
 ## seat, colour, team mode or editable state is a fresh row.
 ##
 ## Gamepad / keyboard: every control the player may use is focusable (the panel hands
-## them to the Lobby's focus loop through focus_entries()); ui_accept presses, ui_left
-## / ui_right on a focused team button cycle backwards / forwards (consumed, so focus
-## does not move; the colour box does NOT, Bontago-1pi.93), ui_up / ui_down move through the loop.
-## The difficulty dropdown and the remove button keep the default behaviour; their
-## left / right neighbours are the row's previous / next control.
+## them to the Lobby's focus loop through focus_entries()); ui_accept presses and
+## a right click goes back; ui_left / ui_right (held, echoed or pad) only move focus
+## (Bontago-1pi.94), as do ui_up / ui_down through the loop. Every control's left / right
+## neighbours are the row's previous / next control.
 
 ## Cycle the seat's colour; `backwards` = previous colour.
 signal color_cycle_requested(key: int, backwards: bool)
@@ -74,9 +73,9 @@ var color_diamond: SlotDiamond = null
 var name_label: Label = null
 var subtitle_label: Label = null
 ## null unless `show_team` and the row has a seat.
-var team_button: Button = null
+var team_button: CycleSelector = null
 ## null for a human.
-var difficulty_option: OptionButton = null
+var difficulty_option: CycleSelector = null
 ## null unless the row is a bot's and `editable`.
 var remove_button: Button = null
 var badge: PanelContainer = null
@@ -84,6 +83,11 @@ var badge_label: Label = null
 
 var _tuning: MenuVisualTuning = null
 var _layout_tuning: LobbyLayoutTuning = null
+
+
+## The accessible text of a Ready / Not ready pill (the pill itself shows only its icon).
+static func ready_tooltip(ready: bool) -> String:
+	return "Ready" if ready else "Not ready"
 
 
 ## Text of the team button for a pick: "?" for Random, else the number.
@@ -246,7 +250,9 @@ func _build_text_column() -> void:
 ## The team number pill: "1".."4" or "?" (Random), a cream-blue pill like the other
 ## small pills on the screen.
 func _build_team_button() -> void:
-	team_button = Button.new()
+	team_button = CycleSelector.new()
+	# The pick lives in the panel's seat table: the pill only reports the click and the row is rebuilt.
+	team_button.auto_advance = false
 	team_button.name = "TeamButton"
 	team_button.text = team_text(team_pick)
 	team_button.custom_minimum_size = _layout_tuning.seat_team_button_min_size_px
@@ -258,24 +264,21 @@ func _build_team_button() -> void:
 	if editable:
 		team_button.tooltip_text += " (click to change, right click: previous)"
 		team_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		team_button.pressed.connect(_on_team_pressed)
-		team_button.gui_input.connect(_on_cycle_gui_input.bind(KIND_TEAM))
+		team_button.cycled.connect(_on_team_cycled)
 	layout.add_child(team_button)
 
 
-## A bot's own difficulty. Read-only (disabled) for a client; the host's dropdown
-## opens on ui_accept / click like every OptionButton.
+## A bot's own difficulty. Read-only (disabled) for a client; the host's pill cycles on
+## click / ui_accept (right click: previous), like every CycleSelector.
 func _build_difficulty_option() -> void:
-	difficulty_option = OptionButton.new()
+	difficulty_option = CycleSelector.new()
 	difficulty_option.name = "DifficultyOption"
 	for label_index: int in range(DIFFICULTY_LABELS.size()):
-		difficulty_option.add_item(DIFFICULTY_LABELS[label_index], label_index)
+		difficulty_option.add_item(DIFFICULTY_LABELS[label_index])
 		difficulty_option.set_item_icon(label_index, UiArtTable.shared().difficulty_icon(label_index))
 	difficulty_option.add_theme_constant_override("icon_max_width", UiArtTable.shared().lobby_icon_px)
 	difficulty_option.select(clampi(difficulty, 0, DIFFICULTY_LABELS.size() - 1))
 	# Bontago-1pi.95: clip so the dropdown's minimum is this tuned width, not its widest item.
-	difficulty_option.clip_text = true
-	difficulty_option.fit_to_longest_item = false
 	difficulty_option.custom_minimum_size = Vector2(float(_layout_tuning.seat_difficulty_min_width_px), 0.0)
 	difficulty_option.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	difficulty_option.tooltip_text = "This bot's difficulty"
@@ -305,7 +308,9 @@ func _build_badge() -> void:
 	var badge_color: Color = _tuning.pill_mint_color if is_ready else _tuning.ground_band_apricot_color
 	badge.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(badge_color, _tuning))
 	badge_label = Label.new()
-	badge_label.text = ("%s Ready" % char(0x2713)) if is_ready else ("%s Not ready" % char(0x231A))
+	# Bontago-1pi.94: the pill is its icon only; the words stay as the accessible tooltip.
+	badge_label.text = char(0x2713) if is_ready else char(0x231A)
+	badge.tooltip_text = ready_tooltip(is_ready)
 	badge_label.add_theme_color_override("font_color", _tuning.ink_color)
 	badge.add_child(badge_label)
 	layout.add_child(badge)
@@ -329,9 +334,7 @@ static func _color_box(color: Color, radius: int, border_px: int, border_color: 
 	return box
 
 
-## ui_left / ui_right are consumed by the team button (it cycles), so a pad cannot
-## step sideways out of it; every other control of the row gets its
-## neighbours as explicit left / right focus targets.
+## Every control of the row gets its neighbours as explicit left / right focus targets.
 func _wire_horizontal_focus() -> void:
 	var controls: Array[Control] = focusable_controls()
 	for index: int in range(controls.size()):
@@ -348,8 +351,8 @@ func _on_color_pressed() -> void:
 	color_cycle_requested.emit(seat_key, false)
 
 
-func _on_team_pressed() -> void:
-	team_cycle_requested.emit(seat_key, false)
+func _on_team_cycled(backwards: bool) -> void:
+	team_cycle_requested.emit(seat_key, backwards)
 
 
 func _on_remove_pressed() -> void:
@@ -360,29 +363,17 @@ func _on_difficulty_selected(index: int) -> void:
 	difficulty_chosen.emit(seat_key, index)
 
 
-## Right click = previous; ui_left = previous, ui_right = next (the gamepad / keyboard
-## way to cycle a focused colour box or team button). The matching event is consumed
-## BEFORE the request goes out: handling it redraws the rows, and this control then
-## leaves the tree. Connected to the control's `gui_input` signal (not _gui_input) so
-## tests can drive it with a plain emit, like the timer sliders in ui/Lobby.gd.
-func _on_cycle_gui_input(event: InputEvent, kind: StringName) -> void:
-	var backwards: bool = false
-	if event is InputEventMouseButton:
-		var click: InputEventMouseButton = event as InputEventMouseButton
-		if not click.pressed or click.button_index != MOUSE_BUTTON_RIGHT:
-			return
-		backwards = true
-	elif kind == KIND_TEAM and event.is_action_pressed(&"ui_left"):
-		backwards = true
-	elif kind == KIND_TEAM and event.is_action_pressed(&"ui_right"):
-		backwards = false
-	else:
-		# Bontago-1pi.93: the colour box no longer reacts to ui_left / ui_right (held,
-		# echoed or pad), so sideways navigation moves focus instead of spinning the
-		# palette; only a click / ui_accept (pressed) cycles it.
+## Right click = previous colour. The matching event is consumed BEFORE the request goes
+## out: handling it redraws the rows, and this control then leaves the tree. Connected to the
+## control's `gui_input` signal (not _gui_input) so tests can drive it with a plain emit, like
+## the timer sliders in ui/Lobby.gd. (The team pill is a CycleSelector and does the same itself.)
+func _on_cycle_gui_input(event: InputEvent, _kind: StringName) -> void:
+	if not (event is InputEventMouseButton):
+		# Bontago-1pi.93: ui_left / ui_right (held, echoed or pad) only move focus; a click /
+		# ui_accept (pressed) cycles the colour.
+		return
+	var click: InputEventMouseButton = event as InputEventMouseButton
+	if not click.pressed or click.button_index != MOUSE_BUTTON_RIGHT:
 		return
 	accept_event()
-	if kind == KIND_COLOR:
-		color_cycle_requested.emit(seat_key, backwards)
-	else:
-		team_cycle_requested.emit(seat_key, backwards)
+	color_cycle_requested.emit(seat_key, true)

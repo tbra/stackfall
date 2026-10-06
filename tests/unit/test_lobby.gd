@@ -39,7 +39,7 @@ func _count_label(lobby: Lobby) -> Label:
 
 func test_cycle_option_round_trips_through_lobby_data() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var option: OptionButton = lobby.get_node("%SkyThemeOption") as OptionButton
+	var option: CycleSelector = lobby.get_node("%SkyThemeOption") as CycleSelector
 	assert_eq(option.item_count, MatchConfig.SkyThemeMode.size())
 	assert_eq(option.get_item_text(MatchConfig.SkyThemeMode.CYCLE), "Cycle")
 	option.select(MatchConfig.SkyThemeMode.CYCLE)
@@ -55,7 +55,7 @@ func test_cycle_option_round_trips_through_lobby_data() -> void:
 ## unchanged) and Cycle is preselected through MatchConfig's new default.
 func test_sky_options_are_relabelled_and_cycle_is_the_default() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var option: OptionButton = lobby.get_node("%SkyThemeOption") as OptionButton
+	var option: CycleSelector = lobby.get_node("%SkyThemeOption") as CycleSelector
 	assert_eq(option.item_count, MatchConfig.SkyThemeMode.size())
 	assert_eq(option.get_item_text(MatchConfig.SkyThemeMode.DAY), "Sunset")
 	assert_eq(option.get_item_text(MatchConfig.SkyThemeMode.NIGHT), "Night")
@@ -71,7 +71,7 @@ func test_sky_options_are_relabelled_and_cycle_is_the_default() -> void:
 
 func test_sky_option_tooltips_explain_locked_time_versus_running_cycle() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var option: OptionButton = lobby.get_node("%SkyThemeOption") as OptionButton
+	var option: CycleSelector = lobby.get_node("%SkyThemeOption") as CycleSelector
 	assert_true(option.tooltip_text.contains("fixed time"), "the dropdown says the non-cycle options hold one time")
 	assert_true(option.tooltip_text.contains("Cycle runs"))
 	for mode: int in [MatchConfig.SkyThemeMode.DAY, MatchConfig.SkyThemeMode.NIGHT, MatchConfig.SkyThemeMode.DAWN, MatchConfig.SkyThemeMode.RANDOM]:
@@ -81,7 +81,7 @@ func test_sky_option_tooltips_explain_locked_time_versus_running_cycle() -> void
 
 func test_sunset_option_keeps_the_day_enum_value_through_lobby_data() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var option: OptionButton = lobby.get_node("%SkyThemeOption") as OptionButton
+	var option: CycleSelector = lobby.get_node("%SkyThemeOption") as CycleSelector
 	option.select(MatchConfig.SkyThemeMode.DAY)
 	lobby._on_option_changed(MatchConfig.SkyThemeMode.DAY)
 	var published: MatchConfig = MatchConfig.from_dict(_fake_of(lobby).lobby_data_value)
@@ -93,7 +93,7 @@ func test_sunset_option_keeps_the_day_enum_value_through_lobby_data() -> void:
 
 func test_dawn_option_round_trips_through_lobby_data() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var option: OptionButton = lobby.get_node("%SkyThemeOption") as OptionButton
+	var option: CycleSelector = lobby.get_node("%SkyThemeOption") as CycleSelector
 	assert_eq(option.item_count, MatchConfig.SkyThemeMode.size())
 	assert_eq(option.get_item_text(MatchConfig.SkyThemeMode.DAWN), "Dawn")
 	option.select(MatchConfig.SkyThemeMode.DAWN)
@@ -217,7 +217,7 @@ func test_every_2_8_setting_round_trips_through_to_dict_and_from_dict() -> void:
 	config.sky_theme_mode = MatchConfig.SkyThemeMode.NIGHT
 
 	Events.net_lobby_data_changed.emit(config.to_dict())
-	assert_eq((lobby.get_node("%SkyThemeOption") as OptionButton).selected, int(MatchConfig.SkyThemeMode.NIGHT))
+	assert_eq((lobby.get_node("%SkyThemeOption") as CycleSelector).selected, int(MatchConfig.SkyThemeMode.NIGHT))
 
 	assert_eq((lobby.get_node("%MapVariantOption") as OptionButton).selected, MatchConfig.MapVariant.RING)
 	assert_eq((lobby.get_node("%MapSizeOption") as OptionButton).selected, int(MapDef.MapSize.LARGE))
@@ -230,8 +230,8 @@ func test_every_2_8_setting_round_trips_through_to_dict_and_from_dict() -> void:
 	assert_eq(int((lobby.get_node("%GoalFlagSpin") as SpinBox).value), 3)
 	assert_false((lobby.get_node("%GiftsCheck") as CheckButton).button_pressed)
 	assert_eq(int((lobby.get_node("%SpecialFreqSlider") as HSlider).value), 80)
-	assert_eq((lobby.get_node("%TiltModeOption") as OptionButton).selected, MatchConfig.TiltMode.PHYSICAL_BALANCE)
-	assert_eq((lobby.get_node("%HoleModeOption") as OptionButton).selected, MatchConfig.HoleMode.PERMANENT)
+	assert_eq((lobby.get_node("%TiltModeOption") as CycleSelector).selected, MatchConfig.TiltMode.PHYSICAL_BALANCE)
+	assert_eq((lobby.get_node("%HoleModeOption") as CycleSelector).selected, MatchConfig.HoleMode.PERMANENT)
 	assert_eq(int((lobby.get_node("%MatchTimerSlider") as HSlider).value), 20)
 	assert_true((lobby.get_node("%SuddenDeathCheck") as CheckButton).button_pressed)
 	assert_true((lobby.get_node("%TurnBasedCheck") as CheckButton).button_pressed)
@@ -331,7 +331,7 @@ func test_a_config_that_arrives_with_hot_seat_true_is_forced_false() -> void:
 ## would be silently ignored and the control would stick on index 0.
 func test_hole_mode_option_has_an_off_item_and_defaults_to_temporary() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var option: OptionButton = lobby.get_node("%HoleModeOption") as OptionButton
+	var option: CycleSelector = lobby.get_node("%HoleModeOption") as CycleSelector
 	assert_eq(option.item_count, 3, "Temporary/Permanent/Off")
 	assert_eq(option.get_item_text(MatchConfig.HoleMode.OFF), "Off")
 	assert_eq(option.selected, MatchConfig.HoleMode.TEMPORARY,
@@ -680,7 +680,7 @@ func test_roster_changed_signal_updates_ready_label_without_a_lobby_data_round_t
 	# badge), instead of the old row.get_child(1) plain trailing-text Label.
 	var guest_row: PanelContainer = _panel_of(lobby)._player_rows[1] as PanelContainer
 	var guest_badge_label: Label = _row_badge_label(guest_row)
-	assert_true(guest_badge_label.text.containsn("not ready"))
+	assert_eq(guest_badge_label.get_parent().tooltip_text, "Not ready")
 
 	roster = [
 		{"peer_id": 1, "slot_id": 0, "name": "Host", "ready": false},
@@ -689,7 +689,7 @@ func test_roster_changed_signal_updates_ready_label_without_a_lobby_data_round_t
 	Events.net_roster_changed.emit(roster)
 	guest_row = _panel_of(lobby)._player_rows[1] as PanelContainer
 	guest_badge_label = _row_badge_label(guest_row)
-	assert_true(guest_badge_label.text.containsn("ready") and not guest_badge_label.text.containsn("not"), "the ready flag flip must reach the row's badge")
+	assert_eq(guest_badge_label.get_parent().tooltip_text, "Ready", "the ready flag flip must reach the row's badge")
 
 
 # --- Specials checklist (M6 A4, docs/M6_PLAN.md) ------------------------------
@@ -925,9 +925,9 @@ func _pad_press_release_action_event(button: JoyButton) -> InputEventJoypadButto
 ## Advanced block needing to be open, and the moved controls must still publish.
 func test_section_summaries_reflect_current_settings() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	(lobby.get_node("%TiltModeOption") as OptionButton).selected = MatchConfig.TiltMode.PHYSICAL_BALANCE
-	(lobby.get_node("%HoleModeOption") as OptionButton).select(MatchConfig.HoleMode.OFF)
-	(lobby.get_node("%HoleModeOption") as OptionButton).item_selected.emit(MatchConfig.HoleMode.OFF)
+	(lobby.get_node("%TiltModeOption") as CycleSelector).selected = MatchConfig.TiltMode.PHYSICAL_BALANCE
+	(lobby.get_node("%HoleModeOption") as CycleSelector).select(MatchConfig.HoleMode.OFF)
+	(lobby.get_node("%HoleModeOption") as CycleSelector).item_selected.emit(MatchConfig.HoleMode.OFF)
 	(lobby.get_node("%MatchTimerSlider") as HSlider).value = 15
 	(lobby.get_node("%SuddenDeathCheck") as CheckButton).button_pressed = true
 	(lobby.get_node("%TurnBasedCheck") as CheckButton).button_pressed = true
@@ -1143,3 +1143,28 @@ func test_real_gamepad_x_y_trigger_lobby_shortcuts() -> void:
 	assert_true(x_event.is_action_pressed(&"lobby_quick_start"))
 	lobby._unhandled_input(x_event)
 	assert_signal_emitted(lobby, "start_requested")
+
+
+## Bontago-1pi.94: a click on a lobby cycle selector publishes the next value (same index a
+## dropdown pick sent), a right click the previous, and a client's copy is inert.
+func test_host_clicking_the_weather_selector_cycles_and_publishes() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var option: CycleSelector = lobby.get_node("%WeatherOption") as CycleSelector
+	var start: int = option.selected
+	option.pressed.emit()
+	var calls: Array[Dictionary] = (lobby.net_provider as FakeNet).set_lobby_data_calls
+	assert_eq(calls.size(), 1)
+	assert_eq(int(calls[0].get("weather_mode")), (start + 1) % option.item_count)
+	var right: InputEventMouseButton = InputEventMouseButton.new()
+	right.button_index = MOUSE_BUTTON_RIGHT
+	right.pressed = true
+	option.gui_input.emit(right)
+	assert_eq(option.selected, start, "right click steps back")
+
+
+func test_a_client_cannot_cycle_the_hole_mode_selector() -> void:
+	var lobby: Lobby = _make_lobby(false)
+	var option: CycleSelector = lobby.get_node("%HoleModeOption") as CycleSelector
+	assert_true(option.disabled)
+	option.pressed.emit()
+	assert_eq(option.selected, MatchConfig.HoleMode.TEMPORARY)

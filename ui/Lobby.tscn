@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://ui/Lobby.gd" id="1_lobby"]
 [ext_resource type="Theme" path="res://ui/theme/stackfall_theme.tres" id="2_theme"]
@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://ui/MenuBackdrop.gd" id="4_backdrop"]
 [ext_resource type="PackedScene" path="res://ui/lobby/LobbyPlayersPanel.tscn" id="5_playerspanel"]
 [ext_resource type="Script" path="res://ui/lobby/LobbySection.gd" id="6_section"]
+[ext_resource type="Script" path="res://ui/CycleSelector.gd" id="7_cycle"]
 
 [node name="Lobby" type="Control"]
 layout_mode = 3
@@ -148,8 +149,9 @@ theme_type_variation = &"CaptionLabel"
 text = "Game mode"
 vertical_alignment = 1
 
-[node name="GameModeOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/GameModeCol"]
+[node name="GameModeOption" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/GameModeCol"]
 unique_name_in_owner = true
+script = ExtResource("7_cycle")
 layout_mode = 2
 size_flags_horizontal = 3
 
@@ -195,8 +197,9 @@ theme_type_variation = &"CaptionLabel"
 text = "Time of day"
 vertical_alignment = 1
 
-[node name="SkyThemeOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/SkyCol"]
+[node name="SkyThemeOption" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/SkyCol"]
 unique_name_in_owner = true
+script = ExtResource("7_cycle")
 layout_mode = 2
 size_flags_horizontal = 3
 
@@ -209,8 +212,9 @@ theme_type_variation = &"CaptionLabel"
 text = "Weather"
 vertical_alignment = 1
 
-[node name="WeatherOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/WeatherCol"]
+[node name="WeatherOption" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/WeatherCol"]
 unique_name_in_owner = true
+script = ExtResource("7_cycle")
 layout_mode = 2
 size_flags_horizontal = 3
 
@@ -259,8 +263,9 @@ theme_type_variation = &"CaptionLabel"
 text = "Tilt mode"
 vertical_alignment = 1
 
-[node name="TiltModeOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/TiltCol"]
+[node name="TiltModeOption" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/TiltCol"]
 unique_name_in_owner = true
+script = ExtResource("7_cycle")
 layout_mode = 2
 size_flags_horizontal = 3
 
@@ -273,8 +278,9 @@ theme_type_variation = &"CaptionLabel"
 text = "Hole mode"
 vertical_alignment = 1
 
-[node name="HoleModeOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/HoleCol"]
+[node name="HoleModeOption" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/HoleCol"]
 unique_name_in_owner = true
+script = ExtResource("7_cycle")
 layout_mode = 2
 size_flags_horizontal = 3
 
