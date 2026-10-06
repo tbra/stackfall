@@ -10,7 +10,7 @@ extends Node
 ## Handshake (no fixed-timer races, Bontago-fca.40): every phase is announced to the
 ## clients, the host fires only after all clients ack "armed", and a phase ends when
 ## all clients ack "done" (or the per-phase timeout, which is a failure).
-## Run via tests/bench/run_gift_fx_enet.ps1. Host: --headless-host --expect-peers=4.
+## Run via tools/run_gift_fx_enet.ps1. Host: --headless-host --expect-peers=4.
 
 const TAG: String = "GFXENET"
 const HOST_AND_CLIENTS: int = 4

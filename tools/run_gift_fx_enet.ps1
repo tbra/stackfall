@@ -3,7 +3,7 @@
 # real console exe); the finally block does it again so an error cannot orphan a child.
 # Prints every GFXENET line, then per-peer error-line counts. A deadline hit prints "timeout".
 param(
-	[string]$Path = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path,
+	[string]$Path = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
 	[int]$Port = 47795,
 	[int]$Lag = 60,
 	[string]$Out = $env:TEMP,

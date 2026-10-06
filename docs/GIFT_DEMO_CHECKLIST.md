@@ -1,7 +1,7 @@
 # Gift effects: owner demo checklist
 
 Source: `docs/GIFT_EFFECTS_PLAN.md` section 6 (Bontago-1pi.85.17). Automated coverage:
-`tests/bench/run_gift_fx_enet.ps1` (four-peer ENet: Bomb blink and explosion, Black hole and
+`tools/run_gift_fx_enet.ps1` (four-peer ENet: Bomb blink and explosion, Black hole and
 Volcano visuals on clients, despawn). Everything below needs a human, a window and, for the
 last section, a second PC or Steam.
 
