@@ -631,9 +631,7 @@ func test_sandbox_reset_field_mid_throw_leaves_exactly_one_local_held_block() ->
 	_start_sandbox(2)
 	_run_countdown()
 	var sandbox: Sandbox = _main._sandbox
-	var controller: PlayerController = sandbox.controller()
 	sandbox.ghost().update_placement(Match.default_ghost_origin(0), Vector3.UP)
-	controller._aiming_throw = true
 
 	sandbox._unhandled_input(_key_press(KEY_F5))
 	_run_countdown()
