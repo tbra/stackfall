@@ -741,10 +741,11 @@ func _select_bodies() -> Dictionary:
 	var sleepers: Array[Block] = []
 
 	for key: Variant in _bodies.keys():
-		var block: Block = _bodies[key] as Block
-		if block == null or not is_instance_valid(block):
+		var held: Variant = _bodies[key]
+		if held == null or not is_instance_valid(held):
 			_bodies.erase(key)
 			continue
+		var block: Block = held as Block
 		if block.net_id <= 0:
 			continue
 		if not block.sleeping or _moved_since_sent(block):
@@ -797,8 +798,11 @@ func _remember_sent(bodies: Array) -> void:
 func _count_sleeping() -> int:
 	var count: int = 0
 	for key: Variant in _bodies.keys():
-		var block: Block = _bodies[key] as Block
-		if block != null and is_instance_valid(block) and block.net_id > 0 and block.sleeping:
+		var held: Variant = _bodies[key]
+		if held == null or not is_instance_valid(held):
+			continue
+		var block: Block = held as Block
+		if block != null and block.net_id > 0 and block.sleeping:
 			count += 1
 	return count
 

@@ -259,3 +259,31 @@ func _cap_height(block: Block) -> float:
 		low = minf(low, vertex.y)
 		high = maxf(high, vertex.y)
 	return high - low
+
+
+func test_a_freed_rendered_block_is_dropped_without_an_engine_error() -> void:
+	_start_client_snow()
+	var keep: Block = _client_block(NET_ID, Vector3.ZERO)
+	var doomed: Block = _client_block(LATE_NET_ID, Vector3(4.0, 0.0, 0.0))
+	assert_true(_snow_net.apply_state(_state([NET_ID, LATE_NET_ID], -1)))
+	_snow_net.step_client(BIG_BUDGET)
+	assert_true(_snow_net._rendered.has(LATE_NET_ID), "both blocks drawn")
+	_registry._on_block_removed(doomed, "gift_blast")  # the registry unbinds it, as in play
+	doomed.free()
+	# The host still lists the freed block (gift blast), then stops listing it.
+	assert_true(_snow_net.apply_state(_state([NET_ID, LATE_NET_ID], _a_disc_cell())))
+	assert_false(_snow_net._rendered.has(LATE_NET_ID), "stale key dropped")
+	assert_false(_snow_net._rendered_records.has(LATE_NET_ID))
+	assert_true(_snow_net.apply_state(_state([NET_ID], -1)))
+	assert_not_null(SnowCaps.cap_mesh(keep, SnowCaps.CAP_NAME), "live block keeps its cap")
+
+
+func test_clearing_the_client_tolerates_a_freed_rendered_block() -> void:
+	_start_client_snow()
+	var doomed: Block = _client_block(NET_ID, Vector3.ZERO)
+	assert_true(_snow_net.apply_state(_state([NET_ID], -1)))
+	_snow_net.step_client(BIG_BUDGET)
+	_registry._on_block_removed(doomed, "gift_blast")
+	doomed.free()
+	_snow_net.clear_client()
+	assert_true(_snow_net._rendered.is_empty())

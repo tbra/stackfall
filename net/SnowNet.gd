@@ -184,9 +184,9 @@ func clear_client() -> void:
 	if _builder != null:
 		_builder.clear_all()
 	for key: Variant in _rendered.keys():
-		var block: Block = _rendered[key] as Block
-		if is_instance_valid(block):
-			SnowCaps.clear_block(block)
+		var held: Variant = _rendered[key]
+		if is_instance_valid(held):
+			SnowCaps.clear_block(held as Block)
 	_rendered.clear()
 	_rendered_records.clear()
 	_rendered_disc.clear()
@@ -220,11 +220,12 @@ func _render() -> void:
 	var seed_value: int = int(_client_state["seed"])
 	var blocks: Dictionary = _client_state["blocks"]
 	for key: Variant in _rendered.keys():
-		if not blocks.has(key):
-			var gone: Block = _rendered[key] as Block
+		# A freed block (gift blast/despawn) is a stale key even if the host still lists it.
+		if not blocks.has(key) or not is_instance_valid(_rendered[key]):
+			var gone: Variant = _rendered[key]
 			_builder.drop_owner("b%d" % int(key))
 			if is_instance_valid(gone):
-				SnowCaps.clear_block(gone)
+				SnowCaps.clear_block(gone as Block)
 			_rendered.erase(key)
 			_rendered_records.erase(key)
 	_unresolved = false
