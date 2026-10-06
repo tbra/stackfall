@@ -225,7 +225,7 @@ func test_host_refuses_a_thrown_pose_inside_a_placed_block() -> void:
 	Match._gifts._held_specials[0] = &"test_special"
 	Match._feed._held_is_gift[0] = true
 	tuning.spawn_clearance_max_raise = 0.1
-	var reason: StringName = Match.request_throw(0, block_a.global_position, 0, Quaternion.IDENTITY, Vector3.ZERO)
+	var reason: StringName = Match.request_throw(0, block_a.global_position, 0, Quaternion.IDENTITY, Vector3(1.0, 0.0, 0.0))
 	tuning.spawn_clearance_max_raise = saved
 	assert_eq(reason, PlacementRules.REASON_NO_BLOCK, "thrown pose inside a block is refused")
 	assert_eq(_blocks_root.get_child_count(), 1, "nothing spawned")

@@ -186,8 +186,10 @@ func test_throw_velocity_above_throw_max_speed_is_clamped_not_refused() -> void:
 	assert_eq(reason, PlacementRules.REASON_OK, "an over-speed throw is clamped, never refused")
 	assert_eq(_blocks_root.get_child_count(), 1)
 	var block: Block = _blocks_root.get_child(0) as Block
-	assert_almost_eq(block.linear_velocity.length(), tuning.throw_max_speed, 0.01)
-	assert_almost_eq(block.linear_velocity.normalized().x, 1.0, 0.01, "direction must be preserved by the clamp")
+	# Bontago-1pi.85.21: an unresolved-def gift is normalised to the fixed trajectory, never the raw velocity.
+	var fixed: Vector3 = GiftThrow.fixed_velocity(huge, Match._placement._special_tuning)
+	assert_true(block.linear_velocity.is_equal_approx(fixed), "fixed trajectory, not the client's magnitude")
+	assert_gt(block.linear_velocity.x, 0.0, "the horizontal heading is preserved")
 
 
 # --- Accept: velocity, continuous_cd, special attach, pop-once --------------
@@ -250,7 +252,8 @@ func test_accepted_throw_spawns_with_the_requested_velocity_and_continuous_cd() 
 	assert_eq(reason, PlacementRules.REASON_OK)
 	assert_eq(_blocks_root.get_child_count(), 1)
 	var block: Block = _blocks_root.get_child(0) as Block
-	assert_true(block.linear_velocity.is_equal_approx(velocity), "velocity must be exactly what was requested, under the cap")
+	var fixed: Vector3 = GiftThrow.fixed_velocity(velocity, Match._placement._special_tuning)
+	assert_true(block.linear_velocity.is_equal_approx(fixed), "Bontago-1pi.85.21: normalised, not the raw client velocity")
 	assert_true(block.continuous_cd, "spec 3.5: thrown specials always use continuous_cd")
 
 
