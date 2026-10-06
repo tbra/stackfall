@@ -57,9 +57,10 @@ def args_for(**kw):
 def run(fake, **kw):
     out, res = [], {}
     err = None
+    log_dir = kw.pop("log_dir", tempfile.gettempdir())
     with mock.patch.object(ib, "run_cmd", fake):
         try:
-            ib.integrate(args_for(**kw), ib.Ctx(tempfile.gettempdir()), out.append, res)
+            ib.integrate(args_for(**kw), ib.Ctx(log_dir), out.append, res)
         except ib.StepFailed as e:
             err = e
     return err, out, res
