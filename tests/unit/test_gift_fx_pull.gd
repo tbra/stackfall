@@ -101,3 +101,19 @@ func test_no_capture_callback_means_no_capture_state() -> void:
 	await wait_physics_frames(SETTLE_FRAMES)
 	await _run_pull(Callable(), 1.0)
 	assert_false(block.has_meta(RadialPull.CAPTURED_META), "Magnet-style call leaves no capture flag")
+
+
+var _refusals: int = 0
+
+
+func _refuse(_body: RigidBody3D) -> bool:
+	_refusals += 1
+	return false
+
+
+func test_refused_capture_leaves_block_unmarked_and_retried() -> void:
+	var block: Block = _block("cube", Vector3(1.5, _rest_y(), 0.0))
+	await wait_physics_frames(SETTLE_FRAMES)
+	await _run_pull(Callable(), 2.0, Callable(self, "_refuse"))
+	assert_false(block.has_meta(RadialPull.CAPTURED_META), "refused capture must not mark the block")
+	assert_gt(_refusals, 1, "capture is retried while the block stays at the core")

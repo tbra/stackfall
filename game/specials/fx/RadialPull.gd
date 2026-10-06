@@ -16,10 +16,16 @@ const CAPTURED_META: StringName = &"radial_pull_captured"
 const EPSILON: float = 0.0001
 
 
+## A callback that returns nothing (null) counts as accepted; only an explicit false refuses.
+static func _accepted(result: Variant) -> bool:
+	return not (result is bool and not bool(result))
+
+
 ## Applies radial pull to all bodies within range, with mass-proportional acceleration.
 ## Acceleration per body = `t.accel_mps2 * falloff` + `t.friction_compensation`.
 ## Bodies in `exclude` (RID list) and failing `filter(body)` are skipped.
-## When a body enters `t.core_radius_m`, calls `on_captured(body)` if provided.
+## When a body enters `t.core_radius_m`, calls `on_captured(body)` if provided
+## (return false to refuse the capture: the body is not marked and is retried).
 ## Returns the affected bodies.
 static func pull(space: PhysicsDirectSpaceState3D, center: Vector3, t: RadialPullTuning, exclude: Array[RID], filter: Callable, delta: float, on_captured: Callable = Callable()) -> Array[RigidBody3D]:
 	var affected: Array[RigidBody3D] = []
@@ -32,10 +38,14 @@ static func pull(space: PhysicsDirectSpaceState3D, center: Vector3, t: RadialPul
 		var to_center: Vector3 = center - body.global_position
 		var distance: float = to_center.length()
 		if on_captured.is_valid() and distance <= t.core_radius_m:
-			if not body.has_meta(CAPTURED_META):
+			if body.has_meta(CAPTURED_META):
+				continue
+			# The flag is set only once the callback accepted the body: a callback
+			# returning false (dissolve refused: no registry/sandbox) leaves the body
+			# unmarked, so it keeps being pulled and the capture is retried.
+			if _accepted(on_captured.call(body)):
 				body.set_meta(CAPTURED_META, true)
-				on_captured.call(body)
-			continue
+				continue
 		if distance <= EPSILON:
 			continue
 		var ratio: float = clampf(distance / t.radius_m, 0.0, 1.0)
