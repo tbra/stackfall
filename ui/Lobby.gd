@@ -215,11 +215,6 @@ var _map_thumbnail_icon: TextureRect = null
 @onready var _header_title: Label = %HeaderTitle
 @onready var _header_eyebrow: Label = %Eyebrow
 @onready var _back_button: Button = %BackButton
-## Bontago-mp0.3.5 (review r1, item 13): kept for its shared styling helper,
-## but hidden in ui/Lobby.tscn -- the bottom-right corner is %StartButton's
-## spot on this screen now, unlike ui/MainMenu.gd where the hint still owns it.
-@onready var _gamepad_hint_pill: PanelContainer = %GamepadHintPill
-@onready var _hint_row: InputPromptFlow = %GamepadHintBar
 ## Bontago-mp0.3.5 (review r1, item 13): mockup 11's bottom-left "Waiting for
 ## players * X of Y ready" pill, updated every time the players panel rebuilds its rows (_on_roster_rendered()).
 @onready var _waiting_status_pill: PanelContainer = %WaitingStatusPill
@@ -299,6 +294,7 @@ var _timer_previous_minutes: Dictionary[HSlider, int] = {}
 var _last_config: MatchConfig = null
 ## Footer buttons' visibility the focus loop was last wired for (_update_host_only_state()).
 var _start_was_shown: bool = false
+var _ready_was_shown: bool = true
 var _invite_was_shown: bool = false
 
 
@@ -904,8 +900,6 @@ func _apply_visual_style() -> void:
 		caption.add_theme_color_override("font_color", tuning.label_muted_color)
 
 	_status_badge.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_cream_color, tuning))
-	_gamepad_hint_pill.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_cream_color, tuning))
-	_hint_row.set_text_color(tuning.ink_color)
 	_waiting_status_pill.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_cream_color, tuning))
 	_waiting_status_label.add_theme_color_override("font_color", tuning.ink_color)
 	_status_badge_label.add_theme_color_override("font_color", tuning.ink_color)
@@ -1644,6 +1638,10 @@ func _update_host_only_state() -> void:
 	# nothing blocks, which is also the tooltip's default.
 	var start_blocker: String = _players_panel.start_blocker() if is_host else ""
 	_start_button.visible = is_host
+	# DECISION (Bontago-1pi.95): the host's Start button is its consent -- Net.all_peers_ready()
+	# already waits for every OTHER peer only -- so the host's own Ready toggle is redundant and
+	# hidden; a client keeps its toggle. Start itself still goes out through start_requested.
+	_ready_check.visible = not is_host
 	_start_button.disabled = (
 		not is_host or not (net_provider != null and bool(net_provider.all_peers_ready())) or start_blocker != ""
 	)
@@ -1652,7 +1650,11 @@ func _update_host_only_state() -> void:
 	# Bontago-1pi.53 (S1a): Start and Invite Friends are focus stops only while shown, so
 	# the loop is rewired when their visibility flips (a role or transport change), not
 	# every frame.
-	if _start_button.visible != _start_was_shown or _invite_friends_button.visible != _invite_was_shown:
+	if (
+		_start_button.visible != _start_was_shown or _invite_friends_button.visible != _invite_was_shown
+		or _ready_check.visible != _ready_was_shown
+	):
+		_ready_was_shown = _ready_check.visible
 		_start_was_shown = _start_button.visible
 		_invite_was_shown = _invite_friends_button.visible
 		_rewire_focus()

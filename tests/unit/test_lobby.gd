@@ -992,7 +992,7 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	var chain_unique_names: Array[String] = [
 		"%MapComboOption", "%GameModeOption", "%SkyThemeOption", "%WeatherOption",
 		"%MatchTimerSlider", "%SuddenDeathCheck", "%BlockTimerSlider",
-		"%GiftsCheck", "%SpecialFreqSlider", "%ReadyCheck", "%StartButton",
+		"%GiftsCheck", "%SpecialFreqSlider", "%StartButton",
 	]
 	for unique_name: String in chain_unique_names:
 		var control: Control = lobby.get_node(unique_name) as Control

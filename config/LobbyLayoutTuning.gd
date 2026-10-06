@@ -54,12 +54,16 @@ extends Resource
 ## Font size of a seat's name.
 @export var seat_name_font_size: int = 16
 
+## Widest a seat name may force its row to be (logical px, scaled by the one UI scale
+## rule): a short name is never clipped, a longer one ends in an ellipsis (Bontago-1pi.95).
+@export var seat_name_max_width_px: int = 180
+
 ## Seat-row controls (PL1a, ui/lobby/LobbySeatRow.gd). Smallest size of the team
 ## number button (visible with teams on): width, height in px.
 @export var seat_team_button_min_size_px: Vector2 = Vector2(36.0, 28.0)
 
 ## Smallest width of a bot's difficulty dropdown, in px.
-@export var seat_difficulty_min_width_px: int = 96
+@export var seat_difficulty_min_width_px: int = 130
 
 ## Smallest size of a bot row's remove ("x") button: width, height in px.
 @export var seat_remove_button_min_size_px: Vector2 = Vector2(28.0, 28.0)

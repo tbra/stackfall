@@ -733,18 +733,39 @@ func test_a_right_click_cycles_the_colour_backwards_and_a_left_press_in_gui_inpu
 	assert_eq(_fake_of(lobby).set_lobby_data_calls.size(), published + 1)
 
 
-func test_ui_right_and_ui_left_on_the_colour_box_cycle_forwards_and_backwards() -> void:
+func test_ui_left_and_ui_right_on_the_colour_box_never_change_the_colour() -> void:
+	# Bontago-1pi.93: held / echoed sideways navigation used to spin the palette.
 	var lobby: Lobby = _host_lobby(2)
-	_rows_of(lobby)[0].color_button.gui_input.emit(_pad(JOY_BUTTON_DPAD_RIGHT))
-	assert_eq(_human_color(lobby, 1), 1, "ui_right = next colour")
-	assert_eq(_human_color(lobby, 2), 0, "swapped")
-	_rows_of(lobby)[0].color_button.gui_input.emit(_pad(JOY_BUTTON_DPAD_LEFT))
-	assert_eq(_human_color(lobby, 1), 0, "ui_left = previous colour")
-	assert_eq(_human_color(lobby, 2), 1)
-	var other: InputEventJoypadButton = _pad(JOY_BUTTON_DPAD_UP)
+	var box: Button = _rows_of(lobby)[0].color_button
 	var published: int = _fake_of(lobby).set_lobby_data_calls.size()
-	_rows_of(lobby)[0].color_button.gui_input.emit(other)
-	assert_eq(_fake_of(lobby).set_lobby_data_calls.size(), published, "ui_up is focus navigation, not a cycle")
+	var events: Array[InputEvent] = [_pad(JOY_BUTTON_DPAD_RIGHT), _pad(JOY_BUTTON_DPAD_LEFT)]
+	for action: StringName in [&"ui_left", &"ui_right"]:
+		var act: InputEventAction = InputEventAction.new()
+		act.action = action
+		act.pressed = true
+		events.append(act)
+	for sign: float in [-1.0, 1.0]:
+		var motion: InputEventJoypadMotion = InputEventJoypadMotion.new()
+		motion.axis = JOY_AXIS_LEFT_X
+		motion.axis_value = sign
+		events.append(motion)
+	var echo: InputEventKey = InputEventKey.new()
+	echo.keycode = KEY_RIGHT
+	echo.physical_keycode = KEY_RIGHT
+	echo.pressed = true
+	echo.echo = true
+	events.append(echo)
+	for event: InputEvent in events:
+		for _repeat: int in range(5):
+			box.gui_input.emit(event.duplicate())
+			Input.parse_input_event(event.duplicate())
+			await get_tree().process_frame
+	assert_eq(_human_color(lobby, 1), 0, "colour unchanged by navigation input")
+	assert_eq(_human_color(lobby, 2), 1)
+	assert_eq(_fake_of(lobby).set_lobby_data_calls.size(), published, "nothing published")
+	box.pressed.emit()
+	assert_eq(_human_color(lobby, 1), 1, "one click / ui_accept advances exactly once")
+	assert_eq(_fake_of(lobby).set_lobby_data_calls.size(), published + 1)
 
 
 func test_a_pad_can_reach_and_activate_the_colour_box() -> void:
@@ -1752,3 +1773,101 @@ func test_a_junk_seat_table_off_the_wire_is_normalized_and_never_errors() -> voi
 	bare["seats"] = {"humans": [5, {"peer_id": "x"}], "bots": [null]}
 	Events.net_lobby_data_changed.emit(bare)
 	assert_eq(LobbySeats.seat_count(_panel_of(late).seats_data()), 0)
+
+
+## Bontago-1pi.95: no Select/Back hint row in the lobby; Start stays a normal button.
+func test_lobby_has_no_select_back_hint_row_and_start_is_not_stretched() -> void:
+	var lobby: Lobby = _host_lobby(2)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_null(lobby.get_node_or_null("%GamepadHintBar"), "no hint bar")
+	assert_null(lobby.get_node_or_null("%GamepadHintPill"), "no hint pill")
+	var start: Button = lobby.get_node("%StartButton") as Button
+	var bar: Control = start.get_parent() as Control
+	assert_eq(bar.name, &"BottomBar")
+	assert_eq(start.size_flags_vertical, Control.SIZE_SHRINK_CENTER, "not stretched by the row")
+	assert_lte(start.size.y, maxf(start.get_combined_minimum_size().y, start.custom_minimum_size.y) + 1.0)
+
+
+## Bontago-1pi.95: eight seats scroll inside the panel and never move the layout.
+func test_seven_bots_scroll_inside_the_players_panel_without_moving_the_layout() -> void:
+	var lobby: Lobby = _host_lobby(1, 0, true)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var names: Array[String] = ["%SettingsCard", "%PlayersCard", "%StartButton"]
+	var before: Array[Rect2] = []
+	for node_name: String in names:
+		before.append((lobby.get_node(node_name) as Control).get_global_rect())
+	var root_before: Vector2 = lobby.size
+	(lobby.get_node("%PlayerCountSpin") as SpinBox).value = 8
+	(lobby.get_node("%AiCountSpin") as SpinBox).value = 7
+	lobby._on_option_changed(0)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_eq(_rows_of(lobby).size(), 8, "host + 7 bots")
+	assert_eq(lobby.size, root_before)
+	for index: int in range(names.size()):
+		assert_eq((lobby.get_node(names[index]) as Control).get_global_rect(), before[index], "%s unchanged" % names[index])
+	var scroll: ScrollContainer = _panel_of(lobby).get_node("%PlayerScroll") as ScrollContainer
+	assert_true(scroll is FocusScrollContainer)
+	assert_true(scroll.follow_focus, "gamepad focus scrolls to the focused seat")
+	assert_eq(_list_of(lobby).get_parent(), scroll, "seats live in the ScrollContainer")
+
+
+## Bontago-1pi.95: at 1280x720 and 1920x1080 (the same 1280x720 logical canvas, the one UI
+## scale rule) every seat's name label is at least as wide as its text, so a short bot name is
+## never clipped to a letter by the fixed-width controls beside it.
+func test_seat_names_keep_their_text_width_with_seven_bots_at_common_resolutions() -> void:
+	var sizes: Array[Vector2i] = [Vector2i(1280, 720), Vector2i(1920, 1080), Vector2i(3440, 1440)]
+	for window: Vector2i in sizes:
+		var viewport: SubViewport = UiScale.make_viewport(window)
+		add_child_autofree(viewport)
+		var lobby: Lobby = (load("res://ui/Lobby.tscn") as PackedScene).instantiate() as Lobby
+		viewport.add_child(lobby)
+		var fake: FakeNet = FakeNet.new()
+		fake.is_host_value = true
+		fake.is_offline_value = true
+		lobby.net_provider = fake
+		lobby._update_host_only_state()
+		fake.slots_by_peer = {1: 0}
+		var data: Dictionary = MatchConfig.new().to_dict()
+		data["player_count"] = 8
+		data["ai_count"] = 7
+		data["bot_names"] = PackedStringArray(["Velocity", "Monolith", "Gantry", "Velocity", "Monolith", "Gantry", "Velocity"])
+		data["roster"] = [{"peer_id": 1, "slot_id": 0, "name": "Host", "ready": true}]
+		Events.net_lobby_data_changed.emit(data)
+		await get_tree().process_frame
+		await get_tree().process_frame
+		await get_tree().process_frame
+		var rows: Array[LobbySeatRow] = _rows_of(lobby)
+		assert_eq(rows.size(), 8, "host + 7 bots at %s" % window)
+		var scroll_width: float = (_list_of(lobby).get_parent() as Control).size.x
+		for row: LobbySeatRow in rows:
+			assert_lte(row.size.x, scroll_width + 0.5, "a seat row fits the card without a sideways scroll at %s" % window)
+			var label: Label = row.name_label
+			var font: Font = label.get_theme_font(&"font")
+			var wanted: float = font.get_string_size(label.text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, label.get_theme_font_size(&"font_size")).x
+			assert_gte(label.size.x + 0.5, wanted, "'%s' unclipped at %s (width %s, text %s)" % [label.text, window, label.size.x, wanted])
+
+
+## Bontago-1pi.95 (DECISION in ui/Lobby.gd): the host's Start is its consent -- enabled once every
+## OTHER seat is ready -- and its own Ready toggle is hidden; a client keeps its toggle.
+func test_host_start_needs_no_own_ready_and_hides_the_ready_toggle_but_a_client_keeps_it() -> void:
+	var host: Lobby = _host_lobby(1, 3)
+	_fake_of(host).all_peers_ready_value = true
+	host._update_host_only_state()
+	assert_false((host.get_node("%StartButton") as Button).disabled, "every other seat ready: Start is live")
+	assert_false((host.get_node("%ReadyCheck") as CheckButton).visible, "the host's Ready toggle is redundant")
+	assert_not_null(_press_start(host), "pressing Start emits the start request")
+	var client: Lobby = _make_lobby(false)
+	assert_true((client.get_node("%ReadyCheck") as CheckButton).visible, "a client still readies up")
+	assert_false((client.get_node("%StartButton") as Button).visible)
+
+
+## The real Net's own gate: a host alone (or with ready bots) is startable without flipping its toggle.
+func test_real_net_host_gate_ignores_the_hosts_own_ready_flag() -> void:
+	var err: Error = Net.host_game(0, "Host", false)
+	assert_eq(err, OK)
+	assert_false(bool(Net.peer_info(Net.local_peer_id()).get("ready", true)), "the host flag stays false")
+	assert_true(Net.all_peers_ready(), "host consent is Start itself")
+	Net.leave()
