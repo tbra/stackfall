@@ -18,40 +18,23 @@ extends SpecialEffect
 ## tick" lives in block.set_meta()/get_meta(), keyed by a unique StringName,
 ## exactly the seam PropellerEffect.gd/VolcanoEffect.gd already use.
 
-## Radius (m) within which an enemy block is pulled. docs/SPEC.md: "within 8 m".
-@export var pull_radius_m: float = 8.0
+## Pull strength and reach (Bontago-1pi.85.13). RadialPull applies a
+## mass-independent acceleration (accel_mps2 * falloff) plus friction_compensation,
+## so an 8 kg tetromino on the 0.85-friction disc really slides toward the magnet.
+## radius_m is docs/SPEC.md's "within 8 m"; no core capture (core_radius_m is only
+## read when an on_captured callback is passed, and Magnet passes none).
+@export var pull: RadialPullTuning = RadialPullTuning.new()
 
 ## Seconds the pull runs, from the first armed tick, before this special
 ## force-triggers on its own. docs/SPEC.md: "for 3 s".
 @export var pull_duration_s: float = 3.0
 
-## Impulse (kg*m/s) applied toward the magnet to each affected enemy body,
-## every tick, scaled by that tick's delta -- i.e. this is really a constant
-## *force* in newtons expressed as apply_impulse()'s per-tick equivalent
-## (impulse = force * dt), matching SpecialPhysics.explode()'s own
-## apply_impulse() idiom rather than apply_central_force() (whose effect on
-## linear_velocity is only visible after the next physics integration step,
-## not immediately -- apply_impulse() lets a direct physics_tick() call, the
-## way tests/unit/test_special_behavior.gd drives every SpecialBehavior tick,
-## observe the pull's result on linear_velocity right away).
-##
-## DECISION (game/specials/MagnetEffect.gd): docs/SPEC.md and docs/M8_PLAN.md
-## name the radius and duration exactly but leave the pull's own strength
-## OPEN -- no existing SpecialTuning field or sibling .tres covers it. Picked
-## so a typical 1 kg single-cell block (game/BlockFactory.gd's default mass)
-## at the full 8 m radius still visibly accelerates toward the magnet within
-## a single 60 Hz physics tick: 20 N / 1 kg = 20 m/s^2 -- comparable to
-## PropellerEffect's 4 m/s lift and well under SpecialPhysics.explode()'s own
-## impulse clamp (30 kg*m/s), strong enough to matter over the 3 s window
-## without instantly snapping a block across the whole disk in one tick.
-@export var pull_force: float = 20.0
-
 ## @export var tuning ... mirrors BombEffect.gd:18's preload pattern so every
 ## SpecialEffect subclass follows the same "has its own SpecialTuning
 ## fallback" shape sibling effects (Bomb/Rocket/Volcano) already establish.
 ## Not actually read by this effect's own logic below -- no tunable Magnet
-## needs belongs on the shared SpecialTuning resource; pull_radius_m/
-## pull_duration_s/pull_force above are all Magnet-specific and live on this
+## needs belongs on the shared SpecialTuning resource; pull/
+## pull_duration_s above are all Magnet-specific and live on this
 ## subclass, exactly like PropellerEffect's lift_speed/lift_duration_s/
 ## tilt_strength do.
 @export var tuning: SpecialTuning = preload("res://config/special_tuning.tres")
@@ -62,7 +45,7 @@ extends SpecialEffect
 const _START_AGE_META: StringName = &"magnet_start_age"
 
 
-## Pulls every enemy Block within pull_radius_m toward this block's own
+## Pulls every enemy Block within pull.radius_m toward this block's own
 ## position, every armed tick, for pull_duration_s seconds starting the very
 ## first tick this runs (no "settle" gate, unlike Propeller -- neither
 ## docs/SPEC.md nor docs/M8_PLAN.md ask the magnet itself to land first, and
@@ -87,25 +70,10 @@ func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void
 		return candidate != null and candidate.owner_slot != mover_owner_slot
 
 	var exclude: Array[RID] = [block.get_rid()]
-	var hits: Array[RigidBody3D] = SpecialPhysics.query_bodies_in_range(
-		space_state, block.global_position, pull_radius_m, exclude, enemy_only_filter
-	)
-
-	for body: RigidBody3D in hits:
-		var offset: Vector3 = block.global_position - body.global_position
-		var distance: float = offset.length()
-		if distance <= 0.0001:
-			continue  # exactly at the magnet's own position: no well-defined pull direction
-		var direction: Vector3 = offset / distance
-		# wake_and_impulse() (game/specials/SpecialPhysics.gd, Bontago-8or.16
-		# P5b) first releases Block.FREEZE_REASON_STABLE so a long-stable,
-		# STATIC-frozen enemy block still gets pulled instead of silently
-		# ignoring the impulse, then applies it and marks a script kick the
-		# same way this call always has (matches SpecialPhysics.explode()'s
-		# own mark_script_kick() use -- without it, a pull that flips a
-		# falling block's vertical velocity toward rising would otherwise get
-		# scaled by PhysicsTuning.rebound_damping as if it were a real bounce).
-		SpecialPhysics.wake_and_impulse(body, direction * pull_force * delta)
+	# DECISION (Bontago-1pi.85.13): query through RadialPull (ExplosionFx.query_bodies)
+	# instead of SpecialPhysics.query_bodies_in_range, which misses blocks near the
+	# concave disc floor (one hit per triangle, capped).
+	RadialPull.pull(space_state, block.global_position, pull, exclude, enemy_only_filter, delta)
 
 
 ## FIX pattern (matches PropellerEffect.gd/VolcanoEffect.gd's own
@@ -131,3 +99,9 @@ func wants_early_trigger(block: Block, behavior: SpecialBehavior) -> bool:
 ## no-op for every timed-effect special.
 func detonate(_block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> void:
 	pass
+
+
+## The pull window is the effect's lifetime (SpecialBehavior derives the fuse backstop
+## from it instead of the blanket arm_delay + fuse_timeout_s).
+func effect_lifetime_s() -> float:
+	return pull_duration_s

@@ -237,3 +237,76 @@ func test_elimination_clears_the_slots_glue_charges_and_publishes() -> void:
 	assert_eq(Match.glue_drops_left(0), 0)
 	assert_eq(Match.glue_drops_left(1), 4)
 	assert_eq(seen, [[0, 0]])
+
+
+# --- Bontago-1pi.85.13: bonds that hold (docs/GIFT_EFFECTS_PLAN.md section 5 F) ---
+
+const TILT_CYCLE_S: float = 10.0
+const TILT_FLIP_S: float = 2.0
+const TILT_KICK: float = 0.35
+const DROP_AT_S: float = 4.0
+const MAX_DRIFT_M: float = 0.5
+const BLAST_ZONE_Z: float = 2.0
+
+
+func _real_block(shape_id: String, slot_id: int, at: Vector3) -> Block:
+	var shape: BlockShape = load("res://config/blocks/%s.tres" % shape_id)
+	var physics: PhysicsTuning = load("res://config/physics_tuning.tres")
+	var block: Block = BlockFactory.build(shape, physics, slot_id)
+	_blocks_root.add_child(block)
+	block.global_position = at
+	return block
+
+
+func _glued_pair() -> Array[Block]:
+	var rest_y: float = _field.surface_y() + 0.6
+	var a: Block = _real_block("cube", 0, _field.to_global(Vector3(0.0, rest_y, 0.0)))
+	var b: Block = _real_block("cube", 1, _field.to_global(Vector3(1.0, rest_y, 0.0)))
+	for _i: int in range(40):
+		await get_tree().physics_frame
+	var glue: GlueDrops = GlueDrops.new()
+	a.add_child(glue)
+	glue.bind(a, _tuning)
+	assert_true(glue.try_bond(b))
+	return [a, b]
+
+
+func _pair_gap(a: Block, b: Block) -> float:
+	return (b.global_position - a.global_position).length()
+
+
+func test_glued_pair_survives_tilt_cycle_and_a_drop_onto_it() -> void:
+	var pair: Array[Block] = await _glued_pair()
+	var a: Block = pair[0]
+	var b: Block = pair[1]
+	var rest_gap: float = _pair_gap(a, b)
+	var bond: GlueJoint = _bonds(a)[0]
+	_field.set_tilt_enabled(true)
+	var dropped: bool = false
+	var frames: int = int(TILT_CYCLE_S * 60.0)
+	for i: int in range(frames):
+		var t: float = float(i) / 60.0
+		if i % int(TILT_FLIP_S * 60.0) == 0:
+			var sign_dir: float = 1.0 if (i / int(TILT_FLIP_S * 60.0)) % 2 == 0 else -1.0
+			_field.apply_tilt_impulse(Vector2(sign_dir, 0.0), TILT_KICK)
+		if not dropped and t >= DROP_AT_S:
+			dropped = true
+			var mid: Vector3 = (a.global_position + b.global_position) * 0.5
+			_real_block("L4", 1, mid + Vector3(0.0, 3.0, 0.0))
+		await get_tree().physics_frame
+	assert_true(is_instance_valid(bond), "bond must survive a 10 s tilt cycle and a placement drop")
+	assert_lt(absf(_pair_gap(a, b) - rest_gap), MAX_DRIFT_M, "pair must not drift apart")
+
+
+func test_glued_pair_breaks_under_a_two_metre_blast() -> void:
+	var pair: Array[Block] = await _glued_pair()
+	var a: Block = pair[0]
+	var b: Block = pair[1]
+	var bond: GlueJoint = _bonds(a)[0]
+	var center: Vector3 = a.global_position + Vector3(-BLAST_ZONE_Z, 0.0, 0.0)
+	var blast: ExplosionTuning = ExplosionTuning.new()
+	var space: PhysicsDirectSpaceState3D = a.get_world_3d().direct_space_state
+	ExplosionFx.blast(space, center, blast, [])
+	for _i: int in range(30):
+		await get_tree().physics_frame
+	assert_false(is_instance_valid(bond), "a 2 m bomb blast must break the glue bond")
