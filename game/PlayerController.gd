@@ -284,6 +284,24 @@ func _ready() -> void:
 ## tree, so it can't be wired by NodePath at scene-author time.
 func set_camera_rig(rig: CameraRig) -> void:
 	_camera_rig = rig
+	# Bontago-1pi.90: the rig's match-start framing pivots on the held piece's
+	# spawn anchor (see spawn_camera_anchor()), not on the bare home beacon.
+	if rig != null:
+		rig.set_start_anchor_source(spawn_camera_anchor)
+
+
+## Bontago-1pi.90 (owner: "START CAMERA STILL NOT FIXED"): places the ghost at
+## the current cursor -- at match start, the held piece's spawn pose behind the
+## home beacon (set_home_position()) -- and returns the camera anchor the
+## ordinary follow uses there (_camera_follow_anchor()). CameraRig.
+## begin_start_framing() calls it when the ready gate opens, so the very first
+## start view already pivots on the held piece exactly as the first PLAYING
+## frame does. Falls back to the cursor when no ghost is wired.
+func spawn_camera_anchor() -> Vector3:
+	if _ghost == null:
+		return _cursor
+	_update_ghost_transform()
+	return _camera_follow_anchor()
 
 
 ## Bontago-mv0.17 item 4 (owner feel report: "the camera starts looking from
@@ -401,7 +419,10 @@ func _countdown_blocks_input() -> bool:
 
 
 func _process(delta: float) -> void:
-	if not input_enabled or _countdown_blocks_input():
+	if not input_enabled:
+		return
+	if _countdown_blocks_input():
+		_present_countdown_hold()
 		return
 	_tick_wheel_ramp(delta)
 	if _camera_rig != null:
@@ -443,6 +464,27 @@ func _process(delta: float) -> void:
 	_handle_hover_adjust(delta)
 	_publish_cursor()
 	_publish_cat_target()
+	_follow_held_piece()
+
+
+## Bontago-1pi.90 (owner: "START CAMERA STILL NOT FIXED"; feedback/051026/3.png
+## vs 4.png). ROOT CAUSE: _countdown_blocks_input() made _process() return before
+## it ever placed the ghost or fed the camera, so for the whole 3-2-1 the held
+## piece sat unplaced and the camera pivoted on the bare home beacon; the first
+## PLAYING frame then placed the piece at its spawn pose (pushed back from the
+## beacon and raised clear of it) and the follow snapped ~4 m to it. The
+## countdown now reads no input but still keeps the piece at that spawn pose and
+## the camera on it, so the countdown view is the first play view.
+func _present_countdown_hold() -> void:
+	if _camera_rig != null:
+		_camera_rig.set_local_slot(_acting_slot())
+	_update_ghost_transform()
+	_follow_held_piece()
+
+
+## Feeds the camera rig the held piece's follow anchor (every processed frame,
+## countdown included).
+func _follow_held_piece() -> void:
 	if _camera_rig != null and _ghost != null:
 		_camera_rig.block_held = _ghost.get_shape() != null
 		# Bontago-mv0.28 (owner test 2026-09-22): follow the rotated shape's own

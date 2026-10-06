@@ -63,8 +63,13 @@ func test_camera_starts_in_the_final_follow_view_for_each_map_size() -> void:
 		var rig: CameraRig = _main._camera_rig
 		var tuning: CameraTuning = rig.tuning
 		assert_true(rig.begin_start_framing(HELD_SLOT), path)
-		assert_almost_eq(rig.get_pitch(), deg_to_rad(tuning.start_pitch_deg), 0.0001, "%s: owner's pitch" % path)
-		assert_almost_eq(rig.get_distance(), clampf(tuning.start_distance_m, tuning.zoom_min, tuning.zoom_max), 0.0001, "%s: configured distance" % path)
+		assert_almost_eq(rig.get_pitch(), deg_to_rad(tuning.start_pitch_deg), 0.0001, "%s: start pitch (view 3)" % path)
+		assert_almost_eq(rig.get_distance(), clampf(tuning.start_distance_m, tuning.zoom_min, tuning.zoom_max), 0.0001, "%s: follow distance" % path)
+		# Bontago-1pi.90: the pivot is the held piece's spawn anchor, the point the
+		# follow tracks once play starts, not the bare beacon.
+		var anchor: Vector3 = _main._hot_seat.controller()._camera_follow_anchor()
+		assert_lt(rig.get_target().distance_to(anchor), POSITION_TOLERANCE_M, "%s: pivots on the held piece" % path)
+		assert_gt(rig.get_target().distance_to(_home(HELD_SLOT)), POSITION_TOLERANCE_M, "%s: not on the bare beacon" % path)
 		var first: Transform3D = rig.get_camera().global_transform
 		# Ghost follow runs from the first frame; GO changes nothing about the pose.
 		var follow: Vector3 = rig.get_target()
