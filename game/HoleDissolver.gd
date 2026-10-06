@@ -143,6 +143,24 @@ func physics_tick(delta: float, candidates: Array[Block]) -> void:
 		_finish(block)
 
 
+## Bontago-1pi.85.12 (owner resolution 1pi.85.2): the ONE removal entry for every
+## cause. Territory holes call start_dissolve() below on this registry's dissolver;
+## the Black hole's RadialPull on_captured callback calls this static wrapper, which
+## resolves the live match's registry and calls the very same start_dissolve(), so
+## the fade event (Events.block_dissolve_started), the delay, the wake of the stack
+## above and the removal through Field.remove_fallen_block() are shared, not
+## duplicated. Returns whether a dissolve was requested (false: no registry, or not
+## the host).
+static func request_dissolve(block: Block) -> bool:
+	if block == null or not is_instance_valid(block):
+		return false
+	var registry: BlockRegistry = Match.registry()
+	if registry == null or not registry.is_host_authority():
+		return false
+	registry.hole_dissolver().start_dissolve(block)
+	return true
+
+
 ## Starts `block`'s dissolve (idempotent). Host only.
 func start_dissolve(block: Block) -> void:
 	if not _is_host() or block == null or not is_instance_valid(block) or block.is_queued_for_deletion():

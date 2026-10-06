@@ -5,6 +5,9 @@ extends GutTest
 
 const MatchNetScript := preload("res://net/MatchNet.gd")
 const RADIUS: float = 6.0
+const CAPTURE_START_M: float = 6.0
+const CAPTURE_MASS_KG: float = 8.0
+const SETTLE_FRAMES: int = 20
 
 var _bodies: Array[Node3D] = []
 
@@ -18,7 +21,7 @@ func after_each() -> void:
 
 func _effect() -> BlackHoleEffect:
 	var effect: BlackHoleEffect = BlackHoleEffect.new()
-	effect.pull_radius_m = RADIUS
+	effect.pull.radius_m = RADIUS
 	effect.lifetime_s = 2.0
 	return effect
 
@@ -44,8 +47,9 @@ func _make_block(position: Vector3, slot: int) -> Block:
 func _make_field(effect: BlackHoleEffect) -> BlackHoleField:
 	var field: BlackHoleField = BlackHoleField.new()
 	field.configure(effect, [])
-	field.set_physics_process(false)
 	add_child(field)
+	# Godot re-enables _physics_process on READY; manual ticks must be the only ones.
+	field.set_physics_process(false)
 	field.global_position = Vector3.ZERO
 	_bodies.append(field)
 	return field
@@ -64,20 +68,24 @@ func test_blocks_inside_radius_of_every_team_are_pulled_and_outside_is_not() -> 
 	assert_eq(far.linear_velocity, Vector3.ZERO, "block outside the radius untouched")
 
 
-func test_pull_is_stronger_closer_and_capped() -> void:
+func test_pull_is_mass_independent_and_stronger_closer() -> void:
 	var effect: BlackHoleEffect = _effect()
-	effect.max_pull_force = 5.0
-	var close: Block = _make_block(Vector3(1.0, 0.0, 0.0), 0)
+	var close: Block = _make_block(Vector3(1.5, 0.0, 0.0), 0)
 	var farther: Block = _make_block(Vector3(0.0, 0.0, 5.0), 0)
+	var heavy: Block = _make_block(Vector3(0.0, 0.0, -5.0), 0)
+	heavy.mass = 8.0
 	var field: BlackHoleField = _make_field(effect)
 	await wait_physics_frames(1)
 	field.tick(0.1)
 	await wait_physics_frames(1)
-	# Velocity per unit force*dt, measured from the uncapped far body.
-	var uncapped_force: float = effect.pull_acceleration * farther.mass * (1.0 - 5.0 / RADIUS)
-	var response: float = farther.linear_velocity.length() / (uncapped_force * 0.1)
-	assert_almost_eq(close.linear_velocity.length(), response * effect.max_pull_force * 0.1, 0.01, "capped at max_pull_force")
-	assert_gt(close.linear_velocity.length(), farther.linear_velocity.length())
+	var accel_close: float = effect.pull.accel_mps2 * (1.0 - 1.5 / RADIUS) + effect.pull.friction_compensation
+	var accel_far: float = effect.pull.accel_mps2 * (1.0 - 5.0 / RADIUS) + effect.pull.friction_compensation
+	assert_almost_eq(
+		close.linear_velocity.length() / farther.linear_velocity.length(), accel_close / accel_far, 0.01,
+		"speed gained follows acceleration x dt (falloff plus friction compensation)"
+	)
+	assert_gt(close.linear_velocity.length(), farther.linear_velocity.length(), "stronger closer")
+	assert_almost_eq(heavy.linear_velocity.length(), farther.linear_velocity.length(), 0.05, "8 kg pulled like 1 kg")
 
 
 func test_field_expires_after_lifetime() -> void:
@@ -90,17 +98,88 @@ func test_field_expires_after_lifetime() -> void:
 	assert_true(field.is_queued_for_deletion())
 
 
-func test_consume_is_off_by_default_and_removes_core_blocks_when_on() -> void:
+func _host_registry() -> BlockRegistry:
+	var root: Node3D = autofree(Node3D.new())
+	add_child_autofree(root)
+	var registry: BlockRegistry = autofree(BlockRegistry.new())
+	add_child_autofree(registry)
+	registry.set_host_authority(true)
+	Match.register_world(null, registry, root)
+	return registry
+
+
+func test_a_block_reaching_the_core_is_captured_once_through_the_shared_hole_dissolve() -> void:
+	Match.set_process(false)
+	Match.abort_match()
+	var registry: BlockRegistry = _host_registry()
 	var effect: BlackHoleEffect = _effect()
-	assert_false(effect.consume_blocks, "consume defaults OFF")
-	var core: Block = _make_block(Vector3(0.2, 0.0, 0.0), 0)
+	var core: Block = _make_block(Vector3(effect.pull.core_radius_m * 0.5, 0.0, 0.0), 0)
+	var outside: Block = _make_block(Vector3(effect.pull.core_radius_m * 3.0, 0.0, 0.0), 0)
 	var field: BlackHoleField = _make_field(effect)
 	await wait_physics_frames(1)
+	var started: Array[int] = [0]
+	var count_started: Callable = func(_b: RigidBody3D, _n: int, _d: float) -> void: started[0] += 1
+	Events.block_dissolve_started.connect(count_started)
 	field.tick(0.1)
-	assert_false(core.is_queued_for_deletion())
-	effect.consume_blocks = true
 	field.tick(0.1)
-	assert_true(core.is_queued_for_deletion())
+	Events.block_dissolve_started.disconnect(count_started)
+	assert_true(registry.hole_dissolver().is_dissolving(core), "captured: same pending dissolve a hole starts")
+	assert_false(registry.hole_dissolver().is_dissolving(outside), "outside the core: still being pulled")
+	assert_eq(registry.hole_dissolver().dissolves_started, 1, "captured once, not per tick")
+	assert_eq(started[0], 1, "the fade event the territory holes use is emitted")
+	assert_false(core.is_queued_for_deletion(), "removal waits for the dissolve fade")
+	var no_candidates: Array[Block] = []
+	registry.hole_dissolver().physics_tick(1.0, no_candidates)
+	Match.register_world(null, null, null)
+
+
+func test_capture_without_a_registry_leaves_the_block_at_the_core() -> void:
+	Match.set_process(false)
+	Match.abort_match()
+	Match.register_world(null, null, null)
+	var core: Block = _make_block(Vector3(0.1, 0.0, 0.0), 0)
+	var field: BlackHoleField = _make_field(_effect())
+	await wait_physics_frames(1)
+	field.tick(0.1)
+	assert_false(core.is_queued_for_deletion(), "no dissolver: nothing removes it")
+	assert_false(HoleDissolver.request_dissolve(core))
+
+
+## Plan section 5 E: an 8 kg block on the real disc, 6 m out, reaches the core within
+## lifetime_s and is captured (friction is overcome, unlike the old 14 m/s^2 / 60 N pull).
+func test_real_disc_8kg_block_from_6m_reaches_the_core_within_lifetime() -> void:
+	Match.set_process(false)
+	Match.abort_match()
+	var map_def: MapDef = MapDef.new()
+	map_def.id = &"test_black_hole_disc"
+	map_def.field_radius = 14.0
+	map_def.cell_size = 1.0
+	map_def.disk_height = 1.0
+	map_def.territory_res = 32
+	var disc: Field = autofree(Field.new())
+	disc.map_def = map_def
+	add_child_autofree(disc)
+	var shape: BlockShape = load("res://config/blocks/bar4.tres") as BlockShape
+	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres") as PhysicsTuning
+	var heavy: Block = BlockFactory.build(shape, tuning, 1)
+	add_child_autofree(heavy)
+	var rest_y: float = disc.surface_y() + 0.6
+	heavy.global_position = Vector3(CAPTURE_START_M, rest_y, 0.0)
+	assert_almost_eq(heavy.mass, CAPTURE_MASS_KG, 0.001, "fixture: an 8 kg block")
+	await wait_physics_frames(SETTLE_FRAMES)
+	var effect: BlackHoleEffect = (SpecialDef.find_by_id(&"black_hole").effect as BlackHoleEffect)
+	var hole: BlackHoleField = BlackHoleField.new()
+	hole.configure(effect, [])
+	add_child_autofree(hole)
+	hole.set_physics_process(false)
+	hole.global_position = Vector3(0.0, rest_y, 0.0)
+	var frames: int = 0
+	var limit: int = int(effect.lifetime_s * float(Engine.physics_ticks_per_second)) - 1
+	while frames < limit and not heavy.has_meta(RadialPull.CAPTURED_META):
+		hole.tick(1.0 / float(Engine.physics_ticks_per_second))
+		await wait_physics_frames(1)
+		frames += 1
+	assert_true(heavy.has_meta(RadialPull.CAPTURED_META), "reached the core and was captured (frames=%d)" % frames)
 
 
 func test_shipped_resource_is_in_the_roster_with_a_black_hole_effect() -> void:
@@ -109,6 +188,14 @@ func test_shipped_resource_is_in_the_roster_with_a_black_hole_effect() -> void:
 	assert_true(def.effect is BlackHoleEffect)
 	assert_gt(def.weight, 0.0)
 	assert_true(def.enabled_by_default)
+	var effect: BlackHoleEffect = def.effect as BlackHoleEffect
+	assert_almost_eq(effect.pull.radius_m, 7.0, 0.0001)
+	assert_almost_eq(effect.pull.accel_mps2, 26.0, 0.0001)
+	assert_almost_eq(effect.pull.friction_compensation, 24.0, 0.0001, "above the ~22.5 breakaway value")
+	assert_almost_eq(effect.pull.core_radius_m, 0.8, 0.0001)
+	assert_almost_eq(effect.lifetime_s, 6.0, 0.0001)
+	assert_true(effect.detaches(), "the field is a standalone world node")
+	assert_almost_eq(effect.effect_lifetime_s(), -1.0, 0.0001, "the pre-trigger fuse is not stretched")
 
 
 func test_detonate_spawns_a_field_at_the_block() -> void:
