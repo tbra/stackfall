@@ -552,19 +552,24 @@ func set_peer_ready(peer_id: int, ready: bool) -> void:
 
 
 ## Host only: clears every peer's ready flag (host included) and republishes the roster.
-## DECISION (Bontago-1pi.73): a lobby (re)entered after a match or a pause "Return to
-## lobby" builds a fresh Lobby whose Ready toggle starts off, so the roster resets to
-## match it for the host and every client alike.
+## Bontago-1pi.89: Net owns this rule -- the session returning to the lobby calls it (through
+## set_match_in_progress(false)) -- and the Lobby's Ready toggle only shows the result; it no
+## longer resets the flags itself on entry (Bontago-1pi.73's workaround).
 func reset_ready_flags() -> void:
+	if _clear_ready_flags():
+		_broadcast_roster()
+
+
+## Host only: clears every ready flag without broadcasting; whether any flag changed.
+func _clear_ready_flags() -> bool:
 	if not is_host():
-		return
+		return false
 	var changed: bool = false
 	for peer_id: int in _peers.keys():
 		if bool(_peers[peer_id].get("ready", false)):
 			_peers[peer_id]["ready"] = false
 			changed = true
-	if changed:
-		_broadcast_roster()
+	return changed
 
 
 func kick_peer(peer_id: int, reason: LeaveReason = LeaveReason.KICKED) -> void:
@@ -1775,7 +1780,7 @@ func accepting_joins() -> bool:
 ## the lobby. Every call drops the rejoin reservations, so a slot reserved in
 ## one match can never be reclaimed in the next. Going back to the lobby also
 ## gives each spectator a real lobby slot again, so the next Start counts it
-## as a player.
+## as a player, and clears every ready flag (Bontago-1pi.89).
 ##
 ## Like set_accepting_joins(), a flag the match flow flips rather than a
 ## subscription to a gameplay signal: this file must not name Match.
@@ -1794,7 +1799,9 @@ func set_match_in_progress(active: bool) -> void:
 	# (nothing compacts mid-match); close it now the lobby is back, so Start is not
 	# blocked on a seat nobody can fill.
 	var compacted: bool = _compact_lobby_slots() > 0
-	if reseated or compacted:
+	# Bontago-1pi.89: back in the lobby nobody is ready (every lobby view reads this flag).
+	var cleared: bool = _clear_ready_flags()
+	if reseated or compacted or cleared:
 		_broadcast_roster()
 
 

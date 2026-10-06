@@ -35,6 +35,11 @@ var slots_by_peer: Dictionary = {}
 ## is what keeps M2's hot-seat working unchanged (see is_local_slot).
 var local_slots: Array[int] = []
 var names_by_peer: Dictionary = {}
+## peer_id -> ready flag, the fake's copy of Net's per-peer "ready" (Bontago-1pi.89). A peer
+## with no entry reads ready (the fake's long-standing peer_info default), so tests that never
+## touch it see what they always saw; set_local_ready()/reset_ready_flags() write it the way
+## Net's host path does, and a test calls roster_payload() + emits it to play Net's broadcast.
+var ready_by_peer: Dictionary = {}
 
 var local_slot_value: int = 0
 var local_peer_id_value: int = 1
@@ -187,7 +192,7 @@ func peer_info(peer_id: int) -> Dictionary:
 		"peer_id": peer_id,
 		"slot_id": slot_of_peer(peer_id),
 		"name": String(names_by_peer.get(peer_id, "Player")),
-		"ready": true,
+		"ready": bool(ready_by_peer.get(peer_id, true)),
 		"ping_ms": 0.0,
 		"build": "",
 	}
@@ -202,8 +207,9 @@ func name_for_slot(slot_id: int) -> String:
 	return String(names_by_peer.get(peer_id, ""))
 
 
-func set_peer_ready(_peer_id: int, _ready: bool) -> void:
-	pass
+func set_peer_ready(peer_id: int, ready: bool) -> void:
+	if slots_by_peer.has(peer_id):
+		ready_by_peer[peer_id] = ready
 
 
 func kick_peer(peer_id: int, reason: int = 0) -> void:
@@ -215,10 +221,27 @@ var reset_ready_flags_calls: int = 0
 
 func reset_ready_flags() -> void:
 	reset_ready_flags_calls += 1
+	if not is_host_value:
+		return
+	for peer_id: Variant in slots_by_peer.keys():
+		ready_by_peer[int(peer_id)] = false
 
 
 func set_local_ready(ready: bool) -> void:
 	set_local_ready_calls.append(ready)
+	set_peer_ready(local_peer_id_value, ready)
+
+
+## The roster payload Net's _broadcast_roster() emits on Events.net_roster_changed: every
+## peer's peer_info(), in slot order (Bontago-1pi.89).
+func roster_payload() -> Array[Dictionary]:
+	var roster: Array[Dictionary] = []
+	for peer_id: int in peer_ids():
+		roster.append(peer_info(peer_id))
+	roster.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return int(a.get("slot_id", -1)) < int(b.get("slot_id", -1))
+	)
+	return roster
 
 
 ## Bontago-1pi.53: records the call and does nothing else (no event, no seat table),
