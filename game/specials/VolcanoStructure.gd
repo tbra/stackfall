@@ -35,7 +35,8 @@ var _next_burst_s: float = 0.0
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _body: AnimatableBody3D = null
 var _collision: CollisionShape3D = null
-var _mesh: MeshInstance3D = null
+## Pivot holding the visual (model or fallback cone); scaled in Y during the rise.
+var _visual: Node3D = null
 ## Set when spawned into a match world: the structure frees itself once the match is
 ## no longer live (ended or restarted).
 var bind_to_match: bool = false
@@ -85,12 +86,10 @@ func configure(effect: VolcanoEffect, owner_slot: int, physics: bool, exclude: R
 func _ready() -> void:
 	if _effect == null:
 		return
-	_mesh = MeshInstance3D.new()
-	_mesh.mesh = _build_cone_mesh()
-	var material: StandardMaterial3D = StandardMaterial3D.new()
-	material.albedo_color = _effect.cone_color
-	_mesh.material_override = material
-	add_child(_mesh)
+	_visual = Node3D.new()
+	add_child(_visual)
+	if not _build_model_visual():
+		_build_cone_visual()
 	if _physics:
 		_body = AnimatableBody3D.new()
 		_body.collision_layer = Field.BEACON_COLLISION_LAYER
@@ -168,11 +167,10 @@ func tick(delta: float) -> void:
 
 
 func _apply_height(height: float) -> void:
-	if _mesh != null:
+	if _visual != null:
 		var fraction: float = maxf(height, 0.0) / maxf(_effect.height_m, HEIGHT_EPSILON)
-		_mesh.scale = Vector3(1.0, maxf(fraction, MIN_HEIGHT_FRACTION), 1.0)
-		# The cylinder mesh is centred on its origin: lift it so its base stays on y = 0.
-		_mesh.position = Vector3(0.0, height * 0.5, 0.0)
+		# The visual's base stays on y = 0: it grows upward from the structure origin.
+		_visual.scale = Vector3(1.0, maxf(fraction, MIN_HEIGHT_FRACTION), 1.0)
 	if _collision != null:
 		_collision.shape = _build_hull(maxf(height, _effect.height_m * MIN_HEIGHT_FRACTION))
 
@@ -197,6 +195,62 @@ func _build_cone_mesh() -> CylinderMesh:
 	mesh.radial_segments = maxi(_effect.ring_segments, MIN_RING_SEGMENTS)
 	mesh.rings = 1
 	return mesh
+
+
+## Fallback visual: the procedural cone, centred on its origin so it is lifted by half
+## its height to keep the base on y = 0.
+func _build_cone_visual() -> void:
+	var cone: MeshInstance3D = MeshInstance3D.new()
+	cone.mesh = _build_cone_mesh()
+	var material: StandardMaterial3D = StandardMaterial3D.new()
+	material.albedo_color = _effect.cone_color
+	cone.material_override = material
+	cone.position = Vector3(0.0, _effect.height_m * 0.5, 0.0)
+	_visual.add_child(cone)
+
+
+## Instances the effect's model scene, scaled non-uniformly so its measured footprint is
+## base_radius_m * 2 and its height height_m, base centre on the pivot origin. False
+## (nothing added) when there is no usable scene.
+func _build_model_visual() -> bool:
+	if _effect.model_scene == null:
+		return false
+	var model: Node3D = _effect.model_scene.instantiate() as Node3D
+	if model == null:
+		return false
+	var bounds: AABB = _model_bounds(model, Transform3D.IDENTITY)
+	if bounds.size.x <= HEIGHT_EPSILON or bounds.size.y <= HEIGHT_EPSILON or bounds.size.z <= HEIGHT_EPSILON:
+		model.free()
+		return false
+	var model_scale: Vector3 = Vector3(
+		_effect.base_radius_m * 2.0 / bounds.size.x,
+		_effect.height_m / bounds.size.y,
+		_effect.base_radius_m * 2.0 / bounds.size.z
+	)
+	var base_centre: Vector3 = bounds.position + Vector3(bounds.size.x * 0.5, 0.0, bounds.size.z * 0.5)
+	model.scale = model_scale
+	model.position = -base_centre * model_scale
+	_visual.add_child(model)
+	return true
+
+
+## Union AABB of every mesh below `node`, in the model root's space.
+static func _model_bounds(node: Node, to_root: Transform3D) -> AABB:
+	var result: AABB = AABB()
+	var found: bool = false
+	var node_3d: Node3D = node as Node3D
+	var current: Transform3D = to_root * node_3d.transform if node_3d != null else to_root
+	var mesh_instance: MeshInstance3D = node as MeshInstance3D
+	if mesh_instance != null and mesh_instance.mesh != null:
+		result = current * mesh_instance.mesh.get_aabb()
+		found = true
+	for child: Node in node.get_children():
+		var child_bounds: AABB = _model_bounds(child, current)
+		if child_bounds.size == Vector3.ZERO:
+			continue
+		result = child_bounds if not found else result.merge(child_bounds)
+		found = true
+	return result
 
 
 ## Gives every block inside the footprint (plus margin) an outward speed up to
