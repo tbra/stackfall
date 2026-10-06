@@ -268,7 +268,7 @@ func request_place(
 				_match._lifecycle.begin_turn_settle_wait()
 			return PlacementRules.REASON_OK
 		# Bontago-1pi.14 round 3: host-side spawn validation (see _lift_pose_clear()).
-		var lifted: Variant = _lift_pose_clear(shape, final_world_origin, basis, auto_drop)
+		var lifted: Variant = _lift_pose_clear(shape, final_world_origin, basis, auto_drop, _held_deliverable_gift(slot_id) if reason == PlacementRules.REASON_OK else &"")
 		if lifted == null:
 			Events.placement_rejected.emit(slot_id, PlacementRules.REASON_NO_BLOCK)
 			return PlacementRules.REASON_NO_BLOCK
@@ -468,7 +468,7 @@ func request_throw(
 	# the aim, never below gift_aim_min_height_m over the surface); territory was validated at
 	# the cursor above.
 	world_origin = GiftAim.spawn_point(world_origin, aim_direction, _match._field.surface_y(), _special_tuning)
-	var lifted: Variant = _lift_pose_clear(shape, world_origin, basis, false)
+	var lifted: Variant = _lift_pose_clear(shape, world_origin, basis, false, gift_id)
 	if lifted == null:
 		Events.placement_rejected.emit(slot_id, PlacementRules.REASON_NO_BLOCK)
 		return PlacementRules.REASON_NO_BLOCK
@@ -588,7 +588,7 @@ func spawn_special_projectile(
 ## DECISION: an unresolvable manual release is refused like any invalid intent
 ## (nothing spent); an unresolvable auto-drop still spawns at the maximum lift
 ## because the forced release must never lose the block.
-func _lift_pose_clear(shape: BlockShape, origin: Vector3, basis: Basis, auto_drop: bool) -> Variant:
+func _lift_pose_clear(shape: BlockShape, origin: Vector3, basis: Basis, auto_drop: bool, gift_id: StringName = &"") -> Variant:
 	var tuning: GhostTuning = _ghost_tuning
 	# DECISION: unconditional -- this is intent validation, not the client's
 	# predictive lift, so GhostTuning.spawn_clearance_enabled does not gate it.
@@ -597,7 +597,7 @@ func _lift_pose_clear(shape: BlockShape, origin: Vector3, basis: Basis, auto_dro
 	var world: World3D = _match._blocks_parent.get_viewport().world_3d if _match._blocks_parent.is_inside_tree() else null
 	if world == null:
 		return origin
-	if not _pose_overlaps(world.direct_space_state, shape, origin, basis, tuning):
+	if not _pose_overlaps(world.direct_space_state, shape, origin, basis, tuning, gift_id):
 		return origin
 	var step: float = maxf(tuning.spawn_clearance_step, MIN_CLEARANCE_STEP)
 	var cap: float = tuning.spawn_clearance_max_raise
@@ -606,7 +606,7 @@ func _lift_pose_clear(shape: BlockShape, origin: Vector3, basis: Basis, auto_dro
 	var raise_try: float = step
 	while raise_try <= cap + CLEARANCE_CAP_EPSILON:
 		var r: float = minf(raise_try, cap)
-		if not _pose_overlaps(world.direct_space_state, shape, origin + Vector3.UP * r, basis, tuning):
+		if not _pose_overlaps(world.direct_space_state, shape, origin + Vector3.UP * r, basis, tuning, gift_id):
 			high = r
 			break
 		low = raise_try
@@ -615,15 +615,32 @@ func _lift_pose_clear(shape: BlockShape, origin: Vector3, basis: Basis, auto_dro
 		return origin + Vector3.UP * cap if auto_drop else null
 	for _i: int in range(tuning.spawn_clearance_bisect_steps):
 		var mid: float = (low + high) * 0.5
-		if _pose_overlaps(world.direct_space_state, shape, origin + Vector3.UP * mid, basis, tuning):
+		if _pose_overlaps(world.direct_space_state, shape, origin + Vector3.UP * mid, basis, tuning, gift_id):
 			low = mid
 		else:
 			high = mid
 	return origin + Vector3.UP * minf(high + tuning.spawn_clearance, cap)
 
 
-func _pose_overlaps(space: PhysicsDirectSpaceState3D, shape: BlockShape, origin: Vector3, basis: Basis, tuning: GhostTuning) -> bool:
+func _pose_overlaps(space: PhysicsDirectSpaceState3D, shape: BlockShape, origin: Vector3, basis: Basis, tuning: GhostTuning, gift_id: StringName = &"") -> bool:
 	var physics: PhysicsTuning = _match._physics_tuning
+	# Bontago-1pi.85.32: a gift that spawns enlarged is tested as its one scaled cube (bottom-anchored
+	# at the gift cell, like BlockFactory.apply_gift_visual), not as the 1x carrier cells.
+	var gift_scale: float = BlockFactory.activation_scale_for(gift_id) if gift_id != &"" else 1.0
+	if gift_id != &"" and not is_equal_approx(gift_scale, 1.0):
+		var big: BoxShape3D = BoxShape3D.new()
+		big.size = Vector3.ONE * ((physics.cube_size - physics.cube_margin) * gift_scale)
+		var centre: Vector3 = BlockFactory.gift_cell_center(shape, physics) + Vector3.UP * ((gift_scale - 1.0) * (physics.cube_size - physics.cube_margin) * 0.5)
+		var big_params: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
+		big_params.shape = big
+		big_params.transform = Transform3D(basis, origin + basis * centre)
+		big_params.collide_with_bodies = true
+		big_params.collide_with_areas = false
+		big_params.collision_mask = Field.PLACEMENT_QUERY_MASK
+		for hit: Dictionary in space.intersect_shape(big_params, tuning.collision_probe_max_bodies):
+			if hit.get("collider") is RigidBody3D:
+				return true
+		return false
 	var box: BoxShape3D = BoxShape3D.new()
 	box.size = Vector3.ONE * (physics.cube_size - physics.cube_margin)
 	var pivot: Vector3 = shape.bottom_center()
