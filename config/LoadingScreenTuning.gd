@@ -116,9 +116,10 @@ extends Resource
 ## Plate file name: %s are the shape id and the sky theme id, in that order.
 @export var backdrop_file_format: String = "%s_%s.png"
 
-## Shape id per MatchConfig.MapVariant (index = enum value: ROUND, OVAL, RING,
-## TWIN, CROSS). A variant outside this list uses backdrop_fallback_shape.
-@export var backdrop_shape_ids: PackedStringArray = ["round", "oval", "ring", "twin", "cross"]
+## Optional shape id override per MatchConfig.MapVariant (index = enum value).
+## Empty (default) derives the ids from MapDef.shape_id(); with an override, a
+## variant outside the list uses backdrop_fallback_shape.
+@export var backdrop_shape_ids: PackedStringArray = []
 
 ## Used when the match's variant or sky theme has no plate (unknown id, or the
 ## file is missing). A missing fallback plate too leaves the plain background.
@@ -152,7 +153,10 @@ extends Resource
 ## fallback shape / theme.
 func backdrop_path(variant: int, theme_id: String) -> String:
 	var shape_id: String = backdrop_fallback_shape
-	if variant >= 0 and variant < backdrop_shape_ids.size():
+	if backdrop_shape_ids.is_empty():
+		if not MapDef.shape_id(variant).is_empty():
+			shape_id = MapDef.shape_id(variant)
+	elif variant >= 0 and variant < backdrop_shape_ids.size():
 		shape_id = backdrop_shape_ids[variant]
 	var theme: String = theme_id if MatchConfig.SKY_THEME_IDS.has(theme_id) else backdrop_fallback_theme
 	return "%s/%s" % [backdrop_dir, backdrop_file_format % [shape_id, theme]]

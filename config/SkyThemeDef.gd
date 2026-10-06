@@ -354,14 +354,14 @@ extends Resource
 ## ("sunset", "night" or "dawn"), or -1.0 for any other id (including "" = the
 ## running cycle), so callers can tell "locked" from "running" without a flag.
 func locked_phase_for(sky_id: String) -> float:
-	# DECISION: literal ids, matching MatchConfig.SKY_THEME_IDS; the enum has
-	# non-concrete RANDOM/CYCLE entries, so its indices cannot key this.
+	# The ids come from MatchConfig.SKY_ID_* (the single owner of the concrete
+	# theme ids); the SkyThemeMode enum has non-concrete RANDOM/CYCLE entries.
 	match sky_id:
-		"sunset":
+		MatchConfig.SKY_ID_SUNSET:
 			return cycle_locked_phase_sunset
-		"dawn":
+		MatchConfig.SKY_ID_DAWN:
 			return cycle_locked_phase_dawn
-		"night":
+		MatchConfig.SKY_ID_NIGHT:
 			return cycle_locked_phase_night
 		_:
 			return -1.0
