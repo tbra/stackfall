@@ -4,16 +4,22 @@ extends GutTest
 
 var _listener: LanDiscovery
 var _config: NetConfig
+var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
-## Each test gets its own port so a socket lingering from the previous test
-## (the OS can take a moment to release a closed UDP socket) never collides.
-static var _next_test_port: int = 47790
+## Concurrent GUT processes share the machine's UDP ports, so a fixed port range
+## collides across processes (bind fails, or a foreign process's advert lands in
+## this listener). Each test picks a random high port and start_listening is
+## retried on another one if the bind is taken; the bound port is then exclusive.
+const _PORT_MIN: int = 20000
+const _PORT_SPAN: int = 30000
+const _BIND_ATTEMPTS: int = 40
+const _WAIT_SECONDS: float = 5.0
 
 
 func before_each() -> void:
 	_config = load("res://config/net_config.tres").duplicate() as NetConfig
-	_config.discovery_port = _next_test_port
-	_next_test_port += 1
+	_rng.randomize()
+	_config.discovery_port = _random_port()
 	# A tiny TTL so expiry doesn't make the suite slow.
 	_config.discovery_entry_ttl = 0.15
 	_config.discovery_broadcast_hz = 20.0
@@ -25,6 +31,32 @@ func before_each() -> void:
 func after_each() -> void:
 	_listener.stop_listening()
 	_listener.stop_advertising()
+
+
+func _random_port() -> int:
+	return _PORT_MIN + _rng.randi_range(0, _PORT_SPAN - 1)
+
+
+## Starts listening, moving to another random port when the bind is taken.
+func _listen_on_free_port() -> Error:
+	var err: Error = ERR_CANT_CREATE
+	for _i: int in range(_BIND_ATTEMPTS):
+		err = _listener.start_listening()
+		if err == OK:
+			return OK
+		_config.discovery_port = _random_port()
+	return err
+
+
+## Event-driven wait: polls each frame until `done` is true or the wall-clock
+## deadline passes (never a fixed frame count, which is too short under load).
+func _wait_until(done: Callable) -> bool:
+	var deadline: int = Time.get_ticks_msec() + int(_WAIT_SECONDS * 1000.0)
+	while Time.get_ticks_msec() < deadline:
+		if done.call():
+			return true
+		await get_tree().process_frame
+	return done.call()
 
 
 func _sample_info() -> Dictionary:
@@ -92,17 +124,12 @@ func test_decode_rejects_random_garbage_without_erroring() -> void:
 # --- Listening + list expiry (loopback UDP) ---------------------------------
 
 func test_listen_sees_a_loopback_advert() -> void:
-	assert_eq(_listener.start_listening(), OK)
+	assert_eq(_listen_on_free_port(), OK)
 	var sender: PacketPeerUDP = PacketPeerUDP.new()
 	sender.connect_to_host("127.0.0.1", _config.discovery_port)
 	sender.put_packet(LanDiscovery.encode_advert(_sample_info()))
 
-	var seen: bool = false
-	for _attempt: int in range(50):
-		await get_tree().process_frame
-		if not _listener.games().is_empty():
-			seen = true
-			break
+	var seen: bool = await _wait_until(func() -> bool: return not _listener.games().is_empty())
 	assert_true(seen, "advert sent to loopback must appear in games()")
 	if seen:
 		assert_eq(_listener.games()[0].get("name"), "Tony's Game")
@@ -115,39 +142,34 @@ func test_discovered_entry_expires_after_ttl() -> void:
 	# flipping a local bool: GDScript lambdas capture locals *by value* at
 	# creation time, so a bare `func(): flag = true` closure never actually
 	# updates the outer `flag` the test reads afterward.
+	_config.discovery_entry_ttl = 0.5  # long enough to observe the entry under load
 	watch_signals(_listener)
-	assert_eq(_listener.start_listening(), OK)
+	assert_eq(_listen_on_free_port(), OK)
 	var sender: PacketPeerUDP = PacketPeerUDP.new()
 	sender.connect_to_host("127.0.0.1", _config.discovery_port)
 	sender.put_packet(LanDiscovery.encode_advert(_sample_info()))
 
-	for _attempt: int in range(50):
-		await get_tree().process_frame
-		if not _listener.games().is_empty():
-			break
+	await _wait_until(func() -> bool: return not _listener.games().is_empty())
 	assert_false(_listener.games().is_empty(), "advert must be seen before it can expire")
 
-	var expired: bool = false
-	for _attempt: int in range(120):
-		await get_tree().process_frame
-		if _listener.games().is_empty():
-			expired = true
-			break
+	var expired: bool = await _wait_until(func() -> bool: return _listener.games().is_empty())
 	assert_true(expired, "entry must expire after discovery_entry_ttl with no refresh")
 	assert_signal_emitted(_listener, "game_expired")
 	sender.close()
 
 
 func test_refreshed_advert_does_not_expire() -> void:
-	assert_eq(_listener.start_listening(), OK)
+	# Generous TTL so a scheduling stall on a loaded machine cannot expire it.
+	_config.discovery_entry_ttl = 0.6
+	assert_eq(_listen_on_free_port(), OK)
 	var sender: PacketPeerUDP = PacketPeerUDP.new()
 	sender.connect_to_host("127.0.0.1", _config.discovery_port)
 
 	# Keep refreshing faster than the TTL for longer than the TTL would allow
 	# a stale entry to survive.
 	var elapsed: float = 0.0
-	var step: float = 0.03
-	while elapsed < _config.discovery_entry_ttl * 3.0:
+	var step: float = 0.05
+	while elapsed < _config.discovery_entry_ttl * 2.0:
 		sender.put_packet(LanDiscovery.encode_advert(_sample_info()))
 		await get_tree().create_timer(step).timeout
 		elapsed += step
