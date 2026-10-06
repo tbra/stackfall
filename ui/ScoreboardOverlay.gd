@@ -123,8 +123,8 @@ func _refresh_table() -> void:
 	var payload: Dictionary = match_provider.stats().live_payload()
 	if payload.is_empty():
 		return
-	var rows: Array = payload.get("rows", []) as Array
-	var mode: Variant = payload.get("mode")
+	var rows: Array = ResultsPayload.rows(payload)
+	var mode: Variant = payload.get(ResultsPayload.KEY_MODE)
 	if rows == _last_rows and mode == _last_mode:
 		return
 	_last_rows = rows.duplicate(true)

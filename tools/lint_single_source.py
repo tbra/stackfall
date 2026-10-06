@@ -86,6 +86,18 @@ RULES = [
          r"\.capitalize\(\)",
          ("ui/", "game/", "autoload/"), ("core/rules/DisplayNames.gd", "game/Skybox.gd"), False, GD,
          "label ids through DisplayNames, not capitalize()"),
+    Rule("RESULTS_KEY",
+         # Results-payload keys that no other payload uses: any ui/ literal-key read is a bypass of
+         # core/rules/ResultsPayload.gd (use its KEY_* constants / typed accessors).
+         r"(?:\.get\(|\[)\s*\"(?:winner_id|winner_kind|winner_name|match_duration|rows|blocks_placed|blocks_lost|"
+         r"gifts_claimed|specials_used|territory_share|eliminated_at|peak_territory|winners)\"",
+         ("ui/",), ("core/rules/ResultsPayload.gd",), True, GD,
+         "read results-payload keys through ResultsPayload (KEY_* / accessors)"),
+    Rule("RESULTS_KEY_SHARED",
+         # Keys other payloads also use (lobby seats, mode state), so only the results readers are scanned.
+         r"(?:\.get\(|\[)\s*\"(?:slot_id|team_id|name|is_bot|wins|height|mode|mode_id|scores|live|is_winner)\"",
+         ("ui/ResultsScreen.gd", "ui/ScoreTable.gd", "ui/ScoreboardOverlay.gd"), ("core/rules/ResultsPayload.gd",), True, GD,
+         "read results-payload keys through ResultsPayload (KEY_* / accessors)"),
     Rule("GIFT_ICON",
          r"res://assets/gifts/",
          None, ("config/", "game/GiftCrate.gd", "game/BlockFactory.gd"), True, GD,

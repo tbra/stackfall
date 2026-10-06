@@ -29,8 +29,8 @@ static func populate(
 	for child: Node in rows_list.get_children():
 		rows_list.remove_child(child)
 		child.queue_free()
-	var winner_kind: String = String(results.get("winner_kind", MatchStats.WINNER_KIND_SLOT))
-	var show_team: bool = winner_kind == MatchStats.WINNER_KIND_TEAM
+	var winner_kind: String = ResultsPayload.winner_kind(results)
+	var show_team: bool = winner_kind == ResultsPayload.WINNER_KIND_TEAM
 	var show_mode_stat: bool = ResultsScreen.has_mode_stat(results)
 	rows_list.add_child(build_header_row(show_team, ResultsScreen.mode_stat_header(results), tuning, show_mode_stat))
 	for row: Dictionary in ResultsScreen.sorted_rows(results):
@@ -70,8 +70,8 @@ static func build_data_row(
 	show_mode_stat: bool = false
 ) -> PanelContainer:
 	var panel: PanelContainer = PanelContainer.new()
-	var is_winner: bool = bool(row.get("is_winner", false))
-	panel.set_meta(&"slot_id", int(row.get("slot_id", -1)))
+	var is_winner: bool = ResultsPayload.bool_of(row, ResultsPayload.KEY_IS_WINNER)
+	panel.set_meta(&"slot_id", ResultsPayload.int_of(row, ResultsPayload.KEY_SLOT_ID, -1))
 	panel.set_meta(&"is_winner", is_winner)
 	panel.add_theme_stylebox_override(
 		"panel",
@@ -81,31 +81,31 @@ static func build_data_row(
 	var box: HBoxContainer = HBoxContainer.new()
 	panel.add_child(box)
 
-	var eliminated_at: float = float(row.get("eliminated_at", MatchStats.NOT_ELIMINATED))
+	var eliminated_at: float = ResultsPayload.float_of(row, ResultsPayload.KEY_ELIMINATED_AT, ResultsPayload.NOT_ELIMINATED)
 	# DECISION (Bontago-1pi.69): a live snapshot says "Alive", not "Survived".
-	var alive_text: String = "Alive" if bool(results.get("live", false)) else "Survived"
+	var alive_text: String = "Alive" if ResultsPayload.is_live(results) else "Survived"
 	var status_text: String = alive_text if eliminated_at < 0.0 else "Out @ %ds" % int(round(eliminated_at))
-	var territory_text: String = "%d%%" % int(round(float(row.get("territory_share", 0.0)) * 100.0))
+	var territory_text: String = "%d%%" % int(round(ResultsPayload.float_of(row, ResultsPayload.KEY_TERRITORY_SHARE) * 100.0))
 
 	# DECISION (Bontago-1pi.72.1, orchestrator): one "Gifts" column showing gifts
 	# USED (specials_used); gifts_claimed stays in the stats payload untouched.
 	var cell_text_by_column: Dictionary = {
 		Column.PLAYER: ResultsScreen.row_name_text(row),
-		Column.TEAM: PlayerNames.team_label(ResultsScreen.team_number_in(team_numbers, int(row.get("team_id", 0)))),
-		Column.PLACED: str(int(row.get("blocks_placed", 0))),
-		Column.LOST: str(int(row.get("blocks_lost", 0))),
-		Column.GIFTS: str(int(row.get("specials_used", 0))),
-		Column.HEIGHT: "%s m" % String.num(float(row.get("height", 0.0)), 1),
+		Column.TEAM: PlayerNames.team_label(ResultsScreen.team_number_in(team_numbers, ResultsPayload.int_of(row, ResultsPayload.KEY_TEAM_ID))),
+		Column.PLACED: str(ResultsPayload.int_of(row, ResultsPayload.KEY_BLOCKS_PLACED)),
+		Column.LOST: str(ResultsPayload.int_of(row, ResultsPayload.KEY_BLOCKS_LOST)),
+		Column.GIFTS: str(ResultsPayload.int_of(row, ResultsPayload.KEY_SPECIALS_USED)),
+		Column.HEIGHT: "%s m" % String.num(ResultsPayload.float_of(row, ResultsPayload.KEY_HEIGHT), 1),
 		Column.MODE_STAT: ResultsScreen.mode_stat_text(results, row),
 		Column.TERRITORY: territory_text,
 		Column.STATUS: status_text,
-		Column.WINS: str(int(row.get("wins", 0))),
+		Column.WINS: str(ResultsPayload.int_of(row, ResultsPayload.KEY_WINS)),
 	}
 	for column: int in columns(show_team, show_mode_stat):
 		var cell: Label = make_cell(String(cell_text_by_column[column]), float(_COLUMN_RATIOS[column]))
 		cell.add_theme_color_override("font_color", tuning.ink_color)
 		if column == Column.PLAYER:
-			_mark_with_slot_colour(cell, slot_color(int(row.get("slot_id", -1)), match_provider), tuning)
+			_mark_with_slot_colour(cell, slot_color(ResultsPayload.int_of(row, ResultsPayload.KEY_SLOT_ID, -1), match_provider), tuning)
 		box.add_child(cell)
 	return panel
 

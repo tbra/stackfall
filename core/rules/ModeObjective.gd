@@ -207,49 +207,32 @@ static func validate_state(raw: Variant) -> Dictionary:
 		return {}
 	var data: Dictionary = raw
 	var mode: Variant = data.get("mode_id")
-	if not (mode is int or mode is float) or not _is_known_mode(int(mode)):
+	if not (mode is int or mode is float) or not is_known_mode(int(mode)):
 		return {}
-	var scores: Array = _clean_scores(data.get("scores"))
+	var scores: Array = clean_scores(data.get("scores"))
 	if scores.size() == 1 and scores[0] == null:
 		return {}
 	var round_left: Variant = data.get("round_left", 0.0)
 	if not (round_left is int or round_left is float) or not is_finite(float(round_left)) or float(round_left) < 0.0:
 		return {}
-	var extra: Variant = _clean_scalars(data.get("extra", {}))
+	var extra: Variant = clean_scalars(data.get("extra", {}))
 	if extra == null:
 		return {}
 	return {"mode_id": int(mode), "scores": scores, "extra": extra, "round_left": float(round_left)}
 
 
-## Same checks for the results "mode" block (mode_id, scores and scalars).
+## The results "mode" block validator lives in ResultsPayload (the one results
+## schema owner); kept as a delegate for existing callers.
 static func validate_results_block(raw: Variant) -> Dictionary:
-	if not (raw is Dictionary):
-		return {}
-	var data: Dictionary = raw
-	var mode: Variant = data.get("mode_id")
-	if not (mode is int or mode is float) or not _is_known_mode(int(mode)):
-		return {}
-	var scores: Array = _clean_scores(data.get("scores"))
-	if scores.size() == 1 and scores[0] == null:
-		return {}
-	var rest: Dictionary = data.duplicate()
-	rest.erase("mode_id")
-	rest.erase("scores")
-	var cleaned: Variant = _clean_scalars(rest)
-	if cleaned == null:
-		return {}
-	var out: Dictionary = cleaned
-	out["mode_id"] = int(mode)
-	out["scores"] = scores
-	return out
+	return ResultsPayload.validate_mode_block(raw)
 
 
-static func _is_known_mode(mode: int) -> bool:
+static func is_known_mode(mode: int) -> bool:
 	return mode >= MatchConfig.GameMode.CLASSIC and mode <= MatchConfig.GameMode.DOMINATION
 
 
 ## Array of floats, or [null] as the malformed sentinel.
-static func _clean_scores(raw: Variant) -> Array:
+static func clean_scores(raw: Variant) -> Array:
 	if not (raw is Array) or (raw as Array).size() > MatchConfig.PLAYER_COUNT_MAX:
 		return [null]
 	var out: Array = []
@@ -262,7 +245,7 @@ static func _clean_scores(raw: Variant) -> Array:
 
 ## A copy of `raw` when it is a small dictionary of String keys mapped to
 ## int/float(finite)/bool/short String; null otherwise.
-static func _clean_scalars(raw: Variant) -> Variant:
+static func clean_scalars(raw: Variant) -> Variant:
 	if not (raw is Dictionary) or (raw as Dictionary).size() > MAX_WIRE_KEYS:
 		return null
 	var out: Dictionary = {}
