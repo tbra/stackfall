@@ -184,7 +184,7 @@ func _apply_mood(amount: float) -> void:
 		(node as Skybox).set_overcast(amount, _tuning.overcast_light_scale, _tuning.overcast_ambient_scale,
 			_tuning.overcast_sky_exposure_scale, _tuning.overcast_fog_color, _tuning.overcast_fog_strength)
 	for node: Node in tree.get_nodes_in_group(TerritoryOverlay.WET_GROUP):
-		(node as TerritoryOverlay).set_wet(amount, _tuning.wet_sheen_add, _tuning.wet_roughness_scale)
+		(node as TerritoryOverlay).set_wet(amount, _tuning.wet_sheen_add, _tuning.wet_roughness_scale, _tuning.wet_darken)
 
 
 func _process(_delta: float) -> void:

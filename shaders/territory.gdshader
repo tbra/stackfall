@@ -100,6 +100,9 @@ const int GOAL_MAX = 8;
 uniform float wfog_strength : hint_range(0.0, 1.0) = 0.0;
 uniform float wfog_begin = 30.0;
 uniform float wfog_end = 110.0;
+
+// Bontago-mp0.140: rain wet look. Albedo is multiplied by (1 - wet_darken); 0 = off.
+uniform float wet_darken : hint_range(0.0, 1.0) = 0.0;
 uniform vec4 wfog_color : source_color = vec4(0.72, 0.8, 0.88, 1.0);
 // Bontago-mp0.127: cloud shadows (vfx/CloudShadows.gd). The disc is EMISSION-dominated (planar
 // mirror), which a Decal cannot darken, so the same two cross-fading shadow layers are sampled
@@ -1364,6 +1367,7 @@ void fragment() {
 		AO *= 1.0 - cs;
 		SPECULAR *= 1.0 - cs;
 	}
+	ALBEDO *= 1.0 - wet_darken;
 	if (wfog_strength > 0.0) {
 		float wfog = clamp((length(VERTEX) - wfog_begin) / max(wfog_end - wfog_begin, 0.001), 0.0, 1.0) * wfog_strength;
 		ALBEDO = mix(ALBEDO, vec3(0.0), wfog);

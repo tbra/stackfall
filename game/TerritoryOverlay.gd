@@ -78,6 +78,7 @@ const WET_GROUP: StringName = &"weather_territory"
 var _wet_amount: float = 0.0
 var _wet_sheen_add: float = 0.0
 var _wet_roughness_scale: float = 1.0
+var _wet_darken: float = 0.0
 ## Last per-slot colors handed in (Bontago-sen.4). _apply_visual_uniforms()
 ## re-pushes these; it used to reset every slot to goal_flag_color, wiping the
 ## team colors whenever the F4 panel / a graphics refresh called
@@ -1103,10 +1104,14 @@ func _apply_procedural_disc(surface: DiscSurfaceDef) -> void:
 ## Weather wetness (Bontago-22y.5): `amount` 0..1 adds `sheen_add` to the disc's
 ## sheen strength and scales its roughness by `roughness_scale` at amount 1.
 ## Amount 0 is exactly TerritoryVisuals' own values.
-func set_wet(amount: float, sheen_add: float, roughness_scale: float) -> void:
+func set_wet(amount: float, sheen_add: float, roughness_scale: float, darken: float = 0.0) -> void:
 	_wet_amount = clampf(amount, 0.0, 1.0)
-	_wet_sheen_add = sheen_add
-	_wet_roughness_scale = roughness_scale
+	# Dry is one baseline: at amount 0 the stored wet params match a never-wetted overlay
+	# (every term is multiplied by the amount, so rendering is identical).
+	var dry: bool = _wet_amount <= 0.0
+	_wet_sheen_add = 0.0 if dry else sheen_add
+	_wet_roughness_scale = 1.0 if dry else roughness_scale
+	_wet_darken = 0.0 if dry else darken
 	_apply_wet()
 
 
@@ -1143,6 +1148,7 @@ func _apply_wet() -> void:
 		return
 	var add: float = _wet_sheen_add * _wet_amount
 	var rough: float = lerpf(1.0, _wet_roughness_scale, _wet_amount)
+	_material.set_shader_parameter(&"wet_darken", _wet_darken * _wet_amount)
 	_material.set_shader_parameter(&"disk_sheen_strength", _visuals.disk_sheen_strength + add)
 	_material.set_shader_parameter(&"base_roughness", clampf(_visuals.disk_roughness * rough, 0.0, 1.0))
 	var surface: DiscSurfaceDef = _visuals.disc_surface
