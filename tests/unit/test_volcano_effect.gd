@@ -1,6 +1,6 @@
 extends GutTest
-## VolcanoEffect (lifecycle hooks, config, landing -> structure) and
-## VolcanoOrbEffect (Bontago-1pi.85.14). The structure itself is covered by
+## VolcanoEffect (lifecycle hooks, config, landing -> structure)
+## (Bontago-1pi.85.14). The structure itself is covered by
 ## test_volcano_structure.gd. Uses a real started host Match on a tiny map.
 
 var _blocks_root: Node3D
@@ -191,50 +191,3 @@ func test_real_landing_triggers_removes_carrier_and_raises_the_structure() -> vo
 	assert_true(behavior.is_triggered(), "volcano triggers once the carrier landed (ticks: %d)" % ticks)
 	assert_eq(_structures().size(), 1, "the structure stands after the trigger")
 	assert_signal_emit_count(behavior, "completed", 1, "detaches: completed right at trigger, no linger")
-
-
-# --- VolcanoOrbEffect --------------------------------------------------------
-
-func _orb_effect(radius: float) -> VolcanoOrbEffect:
-	var orb_effect: VolcanoOrbEffect = VolcanoOrbEffect.new()
-	orb_effect.blast.radius_m = radius
-	return orb_effect
-
-
-func test_orb_blast_pushes_a_nearby_block_away() -> void:
-	var tuning: SpecialTuning = SpecialTuning.new()
-	var orb_block: Block = _make_bare_block(Vector3.ZERO)
-	var orb_behavior: SpecialBehavior = _make_bare_behavior(orb_block, _orb_effect(3.0), tuning)
-	var neighbor: Block = _make_bare_block(Vector3(1.0, 0.0, 0.0))
-	await wait_physics_frames(1)
-	orb_behavior.trigger(0)
-	await wait_physics_frames(2)
-	assert_gt(neighbor.linear_velocity.x, 0.5, "the blast gives a delta-v away from the orb")
-
-
-func test_volcano_orb_effect_detonate_respects_the_chain_depth_cap() -> void:
-	var tuning: SpecialTuning = SpecialTuning.new()
-	tuning.max_chain_depth = 2
-	var orb_block: Block = _make_bare_block(Vector3.ZERO)
-	var orb_behavior: SpecialBehavior = _make_bare_behavior(orb_block, _orb_effect(3.0), tuning)
-	var neighbor_block: Block = _make_bare_block(Vector3(0.5, 0.0, 0.0))
-	var neighbor_behavior: SpecialBehavior = _make_bare_behavior(neighbor_block, VolcanoOrbEffect.new(), tuning)
-	await wait_physics_frames(1)
-	orb_behavior.trigger(tuning.max_chain_depth)
-	await wait_physics_frames(1)
-	assert_true(orb_behavior.is_triggered())
-	assert_false(neighbor_behavior.is_triggered(), "a chain at max_chain_depth must not extend")
-
-
-func test_volcano_orb_effect_chains_into_a_nearby_special_below_the_cap() -> void:
-	var tuning: SpecialTuning = SpecialTuning.new()
-	tuning.max_chain_depth = 4
-	var orb_block: Block = _make_bare_block(Vector3.ZERO)
-	var orb_behavior: SpecialBehavior = _make_bare_behavior(orb_block, _orb_effect(3.0), tuning)
-	var neighbor_block: Block = _make_bare_block(Vector3(0.5, 0.0, 0.0))
-	var neighbor_behavior: SpecialBehavior = _make_bare_behavior(neighbor_block, VolcanoOrbEffect.new(), tuning)
-	await wait_physics_frames(1)
-	orb_behavior.trigger(0)
-	await wait_physics_frames(1)
-	assert_true(neighbor_behavior.is_triggered(), "a chain below the cap reaches a nearby armed special")
-	assert_eq(neighbor_behavior.chain_depth(), 1)

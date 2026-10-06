@@ -11,10 +11,10 @@ extends Node3D
 ## collision body and no spawning. The node frees itself after rise_s +
 ## eruption_duration_s of simulation time, or as soon as the match is no longer live.
 ##
-## DECISION: the collider rises by growing the hull's apex from a flat disc to
-## height_m (the hull is rebuilt each tick of the rise, ~120 ticks) rather than
+## DECISION: the collider rises by scaling a full-height hull in Y (built once in
+## _ready, then only CollisionShape3D.scale.y changes per rise tick) rather than
 ## translating a full cone up through the disc, so blocks are never squeezed against
-## the floor.
+## the floor. The apex is the same as rebuilding the hull at each height.
 ##
 ## DECISION: the collider sits on Field.BEACON_COLLISION_LAYER (mask 0), the beacon
 ## precedent: blocks collide with it, placement queries do not see it.
@@ -172,7 +172,10 @@ func _apply_height(height: float) -> void:
 		# The visual's base stays on y = 0: it grows upward from the structure origin.
 		_visual.scale = Vector3(1.0, maxf(fraction, MIN_HEIGHT_FRACTION), 1.0)
 	if _collision != null:
-		_collision.shape = _build_hull(maxf(height, _effect.height_m * MIN_HEIGHT_FRACTION))
+		if _collision.shape == null:
+			_collision.shape = _build_hull(_effect.height_m)
+		var hull_fraction: float = maxf(height, _effect.height_m * MIN_HEIGHT_FRACTION) / maxf(_effect.height_m, HEIGHT_EPSILON)
+		_collision.scale = Vector3(1.0, hull_fraction, 1.0)
 
 
 func _build_hull(height: float) -> ConvexPolygonShape3D:
