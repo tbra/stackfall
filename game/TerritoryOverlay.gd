@@ -1106,9 +1106,12 @@ func _apply_procedural_disc(surface: DiscSurfaceDef) -> void:
 ## Amount 0 is exactly TerritoryVisuals' own values.
 func set_wet(amount: float, sheen_add: float, roughness_scale: float, darken: float = 0.0) -> void:
 	_wet_amount = clampf(amount, 0.0, 1.0)
-	_wet_sheen_add = sheen_add
-	_wet_roughness_scale = roughness_scale
-	_wet_darken = darken
+	# Dry is one baseline: at amount 0 the stored wet params match a never-wetted overlay
+	# (every term is multiplied by the amount, so rendering is identical).
+	var dry: bool = _wet_amount <= 0.0
+	_wet_sheen_add = 0.0 if dry else sheen_add
+	_wet_roughness_scale = 1.0 if dry else roughness_scale
+	_wet_darken = 0.0 if dry else darken
 	_apply_wet()
 
 
