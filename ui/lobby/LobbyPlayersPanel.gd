@@ -595,7 +595,9 @@ func _render() -> void:
 	# _apply_data() writes from that same sanitized value (and every host edit
 	# republishes), so the two agree whenever the Lobby is shown.
 	var seat_count: int = _config.player_count if _config != null else _humans.size()
+	# Bontago-1pi.95: the label clips (never widens the card); the tooltip carries the full text.
 	_player_count_label.text = format_roster_header(_humans.size(), bot_total, seat_count)
+	_player_count_label.tooltip_text = _player_count_label.text
 
 	var focus_memory: Dictionary = _remember_focus()
 	for row: Node in _player_rows:

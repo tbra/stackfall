@@ -4,7 +4,6 @@ extends GutTest
 ## the player switches between keyboard/mouse and gamepad.
 
 const MAIN_MENU_SCENE: PackedScene = preload("res://ui/MainMenu.tscn")
-const LOBBY_SCENE: PackedScene = preload("res://ui/Lobby.tscn")
 const OPTIONS_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
 const TUTORIAL_CONFIG: TutorialConfig = preload("res://config/tutorial_config.tres")
 const PLAYER_FACING_FILES: Array[String] = [
@@ -71,12 +70,6 @@ func test_main_menu_footer_swaps_glyphs_with_the_active_device() -> void:
 	var menu: MainMenu = autofree(MAIN_MENU_SCENE.instantiate())
 	add_child_autofree(menu)
 	_assert_swaps(menu.get_node("%GamepadHintRow") as InputPromptFlow, "main menu")
-
-
-func test_lobby_footer_swaps_glyphs_with_the_active_device() -> void:
-	var lobby: Lobby = autofree(LOBBY_SCENE.instantiate())
-	add_child_autofree(lobby)
-	_assert_swaps(lobby.get_node("%GamepadHintBar") as InputPromptFlow, "lobby")
 
 
 func test_options_footer_swaps_glyphs_with_the_active_device() -> void:

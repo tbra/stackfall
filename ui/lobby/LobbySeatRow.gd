@@ -5,7 +5,7 @@ extends PanelContainer
 ## now carrying the host's per-seat controls --
 ##   [colour box] [name / subtitle] [team number] [difficulty] [x] [ready badge]
 ## - the colour box is a Button: a click / ui_accept asks for the next palette colour,
-##   a right click / ui_left the previous one (the panel applies it through
+##   a right click the previous one (Bontago-1pi.93: ui_left / ui_right only move focus; the panel applies it through
 ##   LobbySeats.cycle_color, which swaps on a clash);
 ## - the team button exists only with teams on and cycles 1..cap then Random ("?")
 ##   the same way (LobbySeats.cycle_team);
@@ -19,8 +19,8 @@ extends PanelContainer
 ##
 ## Gamepad / keyboard: every control the player may use is focusable (the panel hands
 ## them to the Lobby's focus loop through focus_entries()); ui_accept presses, ui_left
-## / ui_right on a focused colour box or team button cycle backwards / forwards (the
-## event is consumed, so focus does not move), ui_up / ui_down move through the loop.
+## / ui_right on a focused team button cycle backwards / forwards (consumed, so focus
+## does not move; the colour box does NOT, Bontago-1pi.93), ui_up / ui_down move through the loop.
 ## The difficulty dropdown and the remove button keep the default behaviour; their
 ## left / right neighbours are the row's previous / next control.
 
@@ -91,6 +91,19 @@ static func team_text(pick: int) -> String:
 	if pick <= MatchConfig.TEAM_PICK_RANDOM:
 		return TEAM_RANDOM_TEXT
 	return str(pick)
+
+
+## Bontago-1pi.95: with clip_text the label's own minimum width is 0, so on a narrow card the
+## fixed-width controls took every pixel and a short bot name ("Velocity") showed as one
+## letter. Once in the tree (the theme font is known) the name asks for its own text width,
+## capped by seat_name_max_width_px; only a longer name still ends in an ellipsis.
+func _ready() -> void:
+	if name_label == null or _layout_tuning == null:
+		return
+	var font: Font = name_label.get_theme_font(&"font")
+	var font_size: int = name_label.get_theme_font_size(&"font_size")
+	var text_width: float = ceilf(font.get_string_size(name_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size).x)
+	name_label.custom_minimum_size.x = minf(text_width, float(_layout_tuning.seat_name_max_width_px))
 
 
 ## Builds the row's controls from the fields above.
@@ -217,9 +230,14 @@ func _build_text_column() -> void:
 	name_label.theme_type_variation = &"TitleLabel"
 	name_label.add_theme_font_size_override("font_size", _layout_tuning.seat_name_font_size)
 	name_label.text = display_name
+	# Bontago-1pi.95: long names / subtitles clip so a row's minimum width is its controls only.
+	name_label.clip_text = true
+	name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	subtitle_label = Label.new()
 	subtitle_label.theme_type_variation = &"CaptionLabel"
 	subtitle_label.text = subtitle
+	subtitle_label.clip_text = true
+	subtitle_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	text_column.add_child(name_label)
 	text_column.add_child(subtitle_label)
 	layout.add_child(text_column)
@@ -255,6 +273,9 @@ func _build_difficulty_option() -> void:
 		difficulty_option.set_item_icon(label_index, UiArtTable.shared().difficulty_icon(label_index))
 	difficulty_option.add_theme_constant_override("icon_max_width", UiArtTable.shared().lobby_icon_px)
 	difficulty_option.select(clampi(difficulty, 0, DIFFICULTY_LABELS.size() - 1))
+	# Bontago-1pi.95: clip so the dropdown's minimum is this tuned width, not its widest item.
+	difficulty_option.clip_text = true
+	difficulty_option.fit_to_longest_item = false
 	difficulty_option.custom_minimum_size = Vector2(float(_layout_tuning.seat_difficulty_min_width_px), 0.0)
 	difficulty_option.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	difficulty_option.tooltip_text = "This bot's difficulty"
@@ -308,8 +329,8 @@ static func _color_box(color: Color, radius: int, border_px: int, border_color: 
 	return box
 
 
-## ui_left / ui_right are consumed by the colour box and the team button (they cycle),
-## so a pad cannot step sideways out of them; every other control of the row gets its
+## ui_left / ui_right are consumed by the team button (it cycles), so a pad cannot
+## step sideways out of it; every other control of the row gets its
 ## neighbours as explicit left / right focus targets.
 func _wire_horizontal_focus() -> void:
 	var controls: Array[Control] = focusable_controls()
@@ -351,11 +372,14 @@ func _on_cycle_gui_input(event: InputEvent, kind: StringName) -> void:
 		if not click.pressed or click.button_index != MOUSE_BUTTON_RIGHT:
 			return
 		backwards = true
-	elif event.is_action_pressed(&"ui_left"):
+	elif kind == KIND_TEAM and event.is_action_pressed(&"ui_left"):
 		backwards = true
-	elif event.is_action_pressed(&"ui_right"):
+	elif kind == KIND_TEAM and event.is_action_pressed(&"ui_right"):
 		backwards = false
 	else:
+		# Bontago-1pi.93: the colour box no longer reacts to ui_left / ui_right (held,
+		# echoed or pad), so sideways navigation moves focus instead of spinning the
+		# palette; only a click / ui_accept (pressed) cycles it.
 		return
 	accept_event()
 	if kind == KIND_COLOR:

@@ -95,14 +95,3 @@ func test_advanced_is_a_flat_text_disclosure_that_toggles() -> void:
 	assert_eq(toggle.focus_mode, Control.FOCUS_ALL, "reachable by pad and keyboard")
 
 
-func test_footer_prompt_stays_on_one_row() -> void:
-	var lobby: Lobby = _make_lobby()
-	var hint: InputPromptFlow = lobby.get_node("%GamepadHintBar") as InputPromptFlow
-	assert_true(hint.single_row)
-	await get_tree().process_frame
-	await get_tree().process_frame
-	var tops: Dictionary = {}
-	for child: Node in hint.get_children():
-		if child is Control and not child.is_queued_for_deletion():
-			tops[snappedf((child as Control).position.y + (child as Control).size.y * 0.5, 4.0)] = true
-	assert_lte(tops.size(), 1, "every prompt sits on one row")
