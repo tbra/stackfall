@@ -16,10 +16,10 @@ extends Node
 var _joint: Generic6DOFJoint3D = null
 var _body_a: PhysicsBody3D = null
 var _body_b: PhysicsBody3D = null
-var _break_force: float = 600.0
-var _break_separation_m: float = 0.15
-var _break_speed_mps: float = 6.0
-var _break_shock_mps: float = 2.5
+var _break_force: float = 0.0
+var _break_separation_m: float = 0.0
+var _break_speed_mps: float = 0.0
+var _break_shock_mps: float = 0.0
 var _prev_velocity_a: Vector3 = Vector3.ZERO
 var _prev_velocity_b: Vector3 = Vector3.ZERO
 ## Body B's transform in body A's frame at bind time (the pose the joint holds).
@@ -30,15 +30,16 @@ var _bound: bool = false
 ## Wires this node to the joint it owns and the two bodies it connects.
 ## `joint` must already be a child of this node (GlueDrops.try_bond()'s build
 ## order) so freeing this node frees the joint too. The disc is not a rigid
-## body, so its velocity in the stress estimate is treated as zero.
+## body, so its velocity in the stress estimate is treated as zero. Thresholds come
+## from GlueDropTuning (the fields above are unset until bind()).
 func bind(
 	joint: Generic6DOFJoint3D,
 	body_a: PhysicsBody3D,
 	body_b: PhysicsBody3D,
 	break_force_value: float,
-	break_separation_value: float = 0.15,
-	break_speed_value: float = 6.0,
-	break_shock_value: float = 2.5
+	break_separation_value: float,
+	break_speed_value: float,
+	break_shock_value: float
 ) -> void:
 	_joint = joint
 	_body_a = body_a
