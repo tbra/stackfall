@@ -328,7 +328,7 @@ func test_playercontroller_moves_the_camera_on_its_own_slots_placement_relocated
 
 ## Bontago-sen.1 (owner 2026-09-30): a held gift is exempt from the territory
 ## check; the host decides from its own held state.
-func _hold_gift(slot_id: int, gift_id: StringName = &"earthquake") -> void:
+func _hold_gift(slot_id: int, gift_id: StringName = &"bomb") -> void:
 	# debug_queue_special is sandbox-only; flip the flag just for the queue
 	# call so the placement rules below run with sandbox off.
 	Match.config.sandbox = true
@@ -425,7 +425,7 @@ func test_dropping_held_gift_spawns_block_with_its_special_and_consumes_it() -> 
 		if block != null and _special_behavior_of(block) != null:
 			gift_block = block
 	assert_not_null(gift_block, "the dropped gift block must carry a SpecialBehavior")
-	assert_signal_emitted_with_parameters(Events, "special_consumed", [0, &"earthquake"])
+	assert_signal_emitted_with_parameters(Events, "special_consumed", [0, &"bomb"])
 	assert_eq(Match.held_special(0), &"", "the gift is consumed by the drop")
 
 
@@ -457,7 +457,7 @@ func test_used_gift_spawns_exactly_one_body_that_shows_the_gift_model_not_a_bloc
 	)
 	assert_eq(_blocks_root.get_child_count(), before + 1, "a gift use spawns exactly one body")
 	var gift_block: Block = _blocks_root.get_child(_blocks_root.get_child_count() - 1) as Block
-	assert_eq(gift_block.gift_id, &"earthquake")
+	assert_eq(gift_block.gift_id, &"bomb")
 	assert_not_null(gift_block.get_node_or_null(^"GiftVisual"), "the gift model is attached")
 	for child: Node in gift_block.get_children():
 		if child is MeshInstance3D:

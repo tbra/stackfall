@@ -13,6 +13,16 @@ extends SpecialEffect
 @export var block_shape: BlockShape = preload("res://config/blocks/cube.tres")
 
 
+## Seed mixing for an in-place activation (no net_id): slot and activation counter.
+const SLOT_SEED_MIX: int = 2654435761
+const SEQ_SEED_MIX: int = 40503
+
+
+## An in-place activation (MatchGiftActivation anchor) has nothing to wait for: rain now.
+func wants_early_trigger(block: Block, _behavior: SpecialBehavior) -> bool:
+	return block != null and block.has_meta(MatchGiftActivation.IN_PLACE_META)
+
+
 func detonate(block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> void:
 	if block == null or not Match._is_host() or Match.state() != Match.State.PLAYING:
 		return
@@ -22,7 +32,10 @@ func detonate(block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> vo
 	if field == null or Match.blocks_parent() == null or block_shape == null:
 		return
 	var rain: StackfallRain = StackfallRain.new()
-	var seed_value: int = int(Match.config.rng_seed) ^ (block.net_id * 2654435761)
+	var seed_value: int = int(Match.config.rng_seed) ^ (block.net_id * SLOT_SEED_MIX)
+	if block.net_id < 0:
+		# In-place anchor: the id is -1 for every activation, so mix slot + counter instead.
+		seed_value = int(Match.config.rng_seed) ^ ((block.owner_slot + 1) * SLOT_SEED_MIX) 			^ (int(block.get_meta(MatchGiftActivation.SEQ_META, 0)) * SEQ_SEED_MIX)
 	rain.bind(
 		block.owner_slot, field.disk_local_from_world(block.global_position), seed_value,
 		block_shape, block_count, blocks_per_second, area_radius_m, spawn_height_m,

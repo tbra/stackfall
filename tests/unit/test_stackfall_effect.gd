@@ -170,3 +170,13 @@ func test_full_rain_spawns_28_from_height_and_respects_cap() -> void:
 	for i: int in range(1, _blocks_root.get_child_count()):
 		highest = maxf(highest, (_blocks_root.get_child(i) as Block).global_position.y)
 	assert_gt(highest, effect.spawn_height_m * 0.8)
+
+
+## Bontago-1pi.85.24: only an in-place anchor makes Stackfall trigger on its own first tick; a
+## falling carrier still waits for its impact.
+func test_wants_early_trigger_only_for_an_in_place_anchor() -> void:
+	var effect: StackfallEffect = StackfallEffect.new()
+	var carrier: Block = _activation()
+	assert_false(effect.wants_early_trigger(carrier, null))
+	carrier.set_meta(MatchGiftActivation.IN_PLACE_META, true)
+	assert_true(effect.wants_early_trigger(carrier, null))
