@@ -1,54 +1,41 @@
 class_name EarthquakeEffect
 extends SpecialEffect
 ## Earthquake special (spec 2.6): "shakes the field, tilts randomly, helps
-## level existing tilt." docs/M4_SPECIALS_PACKAGES.md P5-EARTHQUAKE. Follows
-## that doc's "timed-effect pattern" -- physics_tick() runs the shake every
-## armed tick, before triggering; wants_early_trigger() flips once
-## shake_duration_s has elapsed; detonate() is a no-op because the effect
-## already ran.
+## level existing tilt." docs/M4_SPECIALS_PACKAGES.md P5-EARTHQUAKE, moved onto
+## DiscForce.shake by docs/GIFT_EFFECTS_PLAN.md package D (behaviour
+## unchanged). Follows the "timed-effect pattern": physics_tick() shakes every
+## armed tick; wants_early_trigger() flips once `disc_force.duration_s` has
+## elapsed; detonate() is a no-op because the effect already ran.
 ##
-## DECISION (game/specials/EarthquakeEffect.gd): SpecialDef.effect is a
-## single Resource instance, preloaded once by SpecialDef.load_all_specials()
-## and shared by every block that draws this special --
-## config/specials/SpecialDef.gd's own `@export var effect` doc and
-## autoload/match/MatchPlacement.gd's _attach_pending_special() (which binds
-## the SAME def/effect to a new SpecialBehavior each time, never duplicating
-## either) both confirm this. So this effect keeps NO mutable per-block state
-## on itself (no `var elapsed` field) -- "seconds since armed" instead lives
-## in `block.set_meta()/get_meta()`, keyed by START_AGE_META, exactly the
-## pattern docs/M4_SPECIALS_PACKAGES.md's "timed-effect pattern" section
-## prescribes. Two blocks that both drew Earthquake (sharing this very
-## instance) therefore keep fully independent elapsed timers, one per block.
+## DECISION: SpecialDef.effect is a single Resource instance shared by every
+## block that draws this special, so this effect keeps NO mutable per-block
+## state (no `var elapsed`). "Seconds since armed" lives in block meta, keyed
+## by START_AGE_META, so two Earthquake blocks keep independent timers.
 const START_AGE_META: StringName = &"earthquake_start_age"
 
-## Seconds the shake runs before this special force-triggers on its own
-## (spec 2.6's Earthquake row; no explicit number given -- provisional).
-@export var shake_duration_s: float = 4.0
-
-## Impulse magnitude (Field.apply_tilt_impulse's "unit mass" velocity-kick
-## units, not meters/degrees) fed into a random disk-local direction every
-## armed tick -- the shake itself.
+## DiscForce tuning: `duration_s` is the seconds the shake runs before this
+## special force-triggers on its own (spec 2.6's Earthquake row; no explicit
+## number given -- provisional), `shake_amplitude_m` the tilt impulse units per
+## second of the kick and `shake_tilt_deg` how fast its axis sweeps around the
+## disc.
 ##
-## DECISION (game/specials/EarthquakeEffect.gd, matches
-## docs/M4_SPECIALS_PACKAGES.md's own P5-EARTHQUAKE decision): spec 2.6 pairs
-## a linear amplitude (0.25 m) with an angular one (2.5 deg) for Earthquake's
-## "bounce"; Field.gd exposes no literal vertical-bounce entry point (Open
-## question 3, decided in place: ship without it), so both fold onto this one
-## tilt-impulse tunable instead of a separate Y-offset system.
-@export var shake_magnitude: float = 0.05
+## DECISION (carried over): spec 2.6 pairs a linear amplitude (0.25 m) with an
+## angular one (2.5 deg); Field.gd exposes no vertical-bounce entry point, so
+## both fold onto the one tilt-impulse tunable. 3.0 per second equals the old
+## 0.05 per tick at 60 Hz.
+@export var disc_force: DiscForceTuning = DiscForceTuning.new()
 
 ## Fraction of the field's current |tilt_vector()| fed back as an impulse
 ## opposing the tilt each armed tick -- spec 2.6: Earthquake "helps level
 ## existing tilt." NEW, OPEN in spec.
 @export var leveling_strength: float = 0.5
 
-## Shared across every block using this effect instance (see the DECISION
-## above) -- fine, since it only ever picks a fresh random direction each
-## tick and carries no per-block state.
-var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+
+func effect_lifetime_s() -> float:
+	return disc_force.duration_s
 
 
-func physics_tick(block: Block, behavior: SpecialBehavior, _delta: float) -> void:
+func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void:
 	if not block.has_meta(START_AGE_META):
 		block.set_meta(START_AGE_META, behavior.age())
 	var field: Field = Match.field()
@@ -58,59 +45,36 @@ func physics_tick(block: Block, behavior: SpecialBehavior, _delta: float) -> voi
 	# shake.
 	if field == null:
 		return
-	# A random disk-local unit vector (Vector2.from_angle() is unit-length by
-	# construction, so this is never the zero vector apply_tilt_impulse()
-	# would otherwise no-op on).
-	var shake_dir: Vector2 = Vector2.from_angle(_rng.randf_range(0.0, TAU))
-	field.apply_tilt_impulse(shake_dir, shake_magnitude)
+	# Sweeping kick; a no-op once `disc_force.duration_s` has passed.
+	var elapsed: float = behavior.age() - float(block.get_meta(START_AGE_META))
+	DiscForce.shake(field, disc_force, elapsed, delta)
 	# Field.apply_tilt_impulse() already no-ops while tilt is disabled
 	# (PHYSICAL_BALANCE/OFF match config, or before any match wires tilt on
-	# at all -- game/Field.gd:260-266), so this effect needs no separate
-	# MatchConfig.tilt_mode guard of its own; verified by reading that
-	# function directly rather than assumed.
+	# at all), so this effect needs no separate MatchConfig.tilt_mode guard.
 	var tilt: Vector2 = field.tilt_vector()
 	if tilt != Vector2.ZERO:
-			# DECISION (game/specials/EarthquakeEffect.gd): NOT
-			# `apply_tilt_impulse(-tilt.normalized(), ...)` as
-			# docs/M4_SPECIALS_PACKAGES.md's P5-EARTHQUAKE pseudocode literally
-			# reads -- verified against Field.gd:260-266's own contract and a
-			# failing regression test (tests/unit/test_earthquake_effect.gd)
-			# showing a "leveled" field ending up MORE tilted than an
-			# unleveled control field kicked identically.
-			# apply_tilt_impulse()'s `direction` is a disk-local XZ *position*
-			# to push down on, converted into a velocity kick via the
-			# perpendicular map Vector2(dz, -dx) (Field.gd's own DECISION on
-			# that function). `tilt_vector()` is a ROTATION-space vector, not
-			# a disk position (Field.gd:116-120's own doc: "chosen to read
-			# the same way disk-local (x, z) already does ... NOT because it
-			# is a literal disk-local point"), so feeding `-tilt.normalized()`
-			# straight in as `direction` runs that same perpendicular map
-			# again -- the resulting velocity kick lands orthogonal to the
-			# tilt vector (a torque that rotates it) rather than opposing it:
-			# apply_tilt_impulse(d, m) adds Vector2(d.y, -d.x) * m to the
-			# tilt velocity, so d = -tilt.normalized() always yields a kick
-			# perpendicular to `tilt`, never a `-tilt`-directed one (their dot
-			# product is zero by construction). Composing the map TWICE --
-			# `direction = Vector2(tilt_normalized.y, -tilt_normalized.x)` --
-			# cancels out to a true `-leveling_strength * tilt` velocity
-			# contribution (two -90 deg turns = 180 deg = negation), which is
-			# what "helps level existing tilt" (spec 2.6) actually needs: a
-			# kick working directly against the current lean, not a
-			# perpendicular nudge the spring's own dynamics can turn into
-			# *more* tilt.
-			var tilt_normalized: Vector2 = tilt.normalized()
-			var cancel_direction: Vector2 = Vector2(tilt_normalized.y, -tilt_normalized.x)
-			field.apply_tilt_impulse(cancel_direction, leveling_strength * tilt.length())
+		# DECISION: NOT `apply_tilt_impulse(-tilt.normalized(), ...)` as
+		# docs/M4_SPECIALS_PACKAGES.md's P5-EARTHQUAKE pseudocode literally
+		# reads -- verified against Field.gd's own contract and a failing
+		# regression test. apply_tilt_impulse()'s `direction` is a disk-local
+		# XZ *position* to push down on, converted into a velocity kick via
+		# the perpendicular map Vector2(dz, -dx). `tilt_vector()` is a
+		# ROTATION-space vector, not a disk position, so feeding
+		# `-tilt.normalized()` straight in runs that perpendicular map again
+		# and the kick lands orthogonal to the tilt instead of opposing it.
+		# Composing the map TWICE -- `Vector2(tilt_normalized.y,
+		# -tilt_normalized.x)` -- cancels out to a true
+		# `-leveling_strength * tilt` contribution (two -90 deg turns = 180
+		# deg), which is what "helps level existing tilt" actually needs.
+		var tilt_normalized: Vector2 = tilt.normalized()
+		var cancel_direction: Vector2 = Vector2(tilt_normalized.y, -tilt_normalized.x)
+		field.apply_tilt_impulse(cancel_direction, leveling_strength * tilt.length())
 
 
-## FIX (game/specials/EarthquakeEffect.gd, Bontago-1en.22): vetoes the decel-
-## based impact trigger entirely -- see SpecialEffect.impact_triggers()'s own
-## doc comment. An earthquake special thrown/dropped hard enough to land
-## right as it arms used to satisfy arm_impulse on that very landing and
-## detonate (a no-op detonate()) before physics_tick() ever shook the field
-## once. This effect's own end is entirely time-driven (wants_early_trigger()
-## below) or a chain trigger from a nearby special (SpecialBehavior.
-## trigger_others_in_range(), unaffected by this hook).
+## FIX (Bontago-1en.22): vetoes the decel-based impact trigger entirely -- see
+## SpecialEffect.impact_triggers()'s own doc comment. This effect's own end is
+## time-driven (wants_early_trigger() below) or a chain trigger from a nearby
+## special (SpecialBehavior.trigger_others_in_range(), unaffected).
 func impact_triggers(_block: Block, _behavior: SpecialBehavior) -> bool:
 	return false
 
@@ -119,11 +83,9 @@ func wants_early_trigger(block: Block, behavior: SpecialBehavior) -> bool:
 	if not block.has_meta(START_AGE_META):
 		return false
 	var elapsed: float = behavior.age() - float(block.get_meta(START_AGE_META))
-	return elapsed >= shake_duration_s
+	return elapsed >= disc_force.duration_s
 
 
-## No-op: the shake already ran, tick by tick, in physics_tick() above --
-## docs/M4_SPECIALS_PACKAGES.md's timed-effect pattern note ("detonate()
-## becomes a no-op for every P5 special"). Kept for SpecialEffect's contract.
+## No-op: the shake already ran, tick by tick, in physics_tick() above.
 func detonate(_block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> void:
 	pass

@@ -8,6 +8,9 @@ extends GutTest
 ## fixture tests/unit/test_field_tilt.gd uses), reset in after_each.
 
 const TICK: float = 1.0 / 60.0
+const AWAKE_MAX_FRAMES: int = 480
+const AWAKE_KICK_EVERY_FRAMES: int = 6
+const AWAKE_KICK_IMPULSE: float = 1.0
 
 
 # --- shared stub-Block/def/behavior fixture (no physics, no scene tree) -----
@@ -89,38 +92,85 @@ func test_mass_override_is_idempotent_across_later_ticks() -> void:
 	)
 
 
-# --- wants_early_trigger: true only once the block has settled --------------
+# --- wants_early_trigger: true only once the landing probe reports landed ----
 
-func test_wants_early_trigger_false_while_airborne() -> void:
+func test_wants_early_trigger_false_before_any_probe_tick() -> void:
 	var effect: AnvilEffect = AnvilEffect.new()
 	var block: Block = _make_block()
-	block.sleeping = false
 	assert_false(effect.wants_early_trigger(block, null))
 
 
-func test_wants_early_trigger_true_once_sleeping() -> void:
+func test_wants_early_trigger_false_while_airborne() -> void:
+	var effect: AnvilEffect = AnvilEffect.new()
+	var block: Block = _make_block(Vector3(0.0, 50.0, 0.0))
+	var behavior: SpecialBehavior = _make_behavior(block, _make_def(effect))
+	for _i: int in range(10):
+		behavior.advance(TICK)
+	assert_false(effect.wants_early_trigger(block, behavior), "nothing under it: not landed")
+
+
+func test_wants_early_trigger_true_once_the_probe_has_landed() -> void:
 	var effect: AnvilEffect = AnvilEffect.new()
 	var block: Block = _make_block()
-	block.sleeping = true
-	assert_true(effect.wants_early_trigger(block, null))
+	var behavior: SpecialBehavior = _make_behavior(block, _make_def(effect))
+	behavior.advance(0.1)  # arms; the effect creates this block's probe
+	assert_true(block.has_meta(&"anvil_landed_probe"))
+	var probe: LandedProbe = block.get_meta(&"anvil_landed_probe") as LandedProbe
+	probe._landed = true
+	assert_true(effect.wants_early_trigger(block, behavior))
 
 
-## End-to-end through SpecialBehavior.advance(): the settled block actually
-## triggers (and detonate() runs) once physics_tick()+wants_early_trigger()
-## are both wired in via the real behavior, not just the effect in isolation.
-func test_settling_triggers_the_behavior_through_advance() -> void:
+## End-to-end through SpecialBehavior.advance(): once landed the behaviour
+## triggers (and detonate() runs) via physics_tick()+wants_early_trigger().
+func test_landing_triggers_the_behavior_through_advance() -> void:
 	var effect: AnvilEffect = AnvilEffect.new()
 	var block: Block = _make_block(Vector3.ZERO, 1.0)
 	var def: SpecialDef = _make_def(effect, 0.1)
 	var behavior: SpecialBehavior = _make_behavior(block, def)
 
-	block.sleeping = false
 	behavior.advance(0.1)  # arms; still airborne, must not trigger yet
 	assert_false(behavior.is_triggered())
 
-	block.sleeping = true
+	(block.get_meta(&"anvil_landed_probe") as LandedProbe)._landed = true
 	behavior.advance(0.1)
-	assert_true(behavior.is_triggered(), "settling (sleeping) must early-trigger once armed")
+	assert_true(behavior.is_triggered(), "landing must early-trigger once armed")
+
+
+## The Anvil fires from the landing probe even while the island around it
+## never sleeps (the real-physics case that broke the old `sleeping` gate).
+func test_anvil_triggers_on_a_continuously_tilting_awake_disc() -> void:
+	var field: Field = autofree(Field.new())
+	field.map_def = _small_map()
+	add_child_autofree(field)
+	_blocks_root = autofree(Node3D.new())
+	add_child_autofree(_blocks_root)
+	_registry = autofree(BlockRegistry.new())
+	add_child_autofree(_registry)
+	Match.register_world(field, _registry, _blocks_root)
+	field.set_tilt_enabled(true)
+	var shape: BlockShape = load("res://config/blocks/cube.tres") as BlockShape
+	var physics_tuning: PhysicsTuning = load("res://config/physics_tuning.tres") as PhysicsTuning
+	var anvil: Block = BlockFactory.build(shape, physics_tuning)
+	_blocks_root.add_child(anvil)
+	anvil.global_position = Vector3(2.0, field.surface_y() + 1.0, 0.0)
+	var neighbour: Block = BlockFactory.build(shape, physics_tuning)
+	_blocks_root.add_child(neighbour)
+	neighbour.global_position = Vector3(-2.0, field.surface_y() + 0.8, 0.0)
+	var def: SpecialDef = SpecialDef.find_by_id(&"anvil")
+	var behavior: SpecialBehavior = SpecialBehavior.new()
+	anvil.add_child(behavior)
+	behavior.bind(anvil, def, SpecialTuning.new())
+
+	var frames: int = 0
+	while frames < AWAKE_MAX_FRAMES and not behavior.is_triggered():
+		if frames % AWAKE_KICK_EVERY_FRAMES == 0:
+			neighbour.wake_for_impulse()
+			neighbour.apply_central_impulse(Vector3(0.0, 0.0, AWAKE_KICK_IMPULSE))
+		await wait_physics_frames(1)
+		frames += 1
+
+	assert_true(behavior.is_triggered(), "the anvil must trigger by landing, not wait on `sleeping`")
+	assert_eq(anvil.mass, 60.0, "the mass override ran on arming")
 
 
 # --- detonate(): landing-point tilt impulse, real Field fixture -------------
@@ -175,7 +225,7 @@ func _register_spy_field() -> SpyField:
 func test_detonate_pushes_an_impulse_toward_the_landing_point() -> void:
 	var spy: SpyField = _register_spy_field()
 	var effect: AnvilEffect = AnvilEffect.new()
-	effect.tilt_impulse_per_distance = 0.02
+	effect.disc_force.strength = 0.02
 	var block: Block = _make_block(Vector3(3.0, 0.0, 4.0))  # distance 5 from centre
 	var behavior: SpecialBehavior = _make_behavior(block, _make_def(effect))
 
@@ -184,7 +234,7 @@ func test_detonate_pushes_an_impulse_toward_the_landing_point() -> void:
 	assert_eq(spy.call_count, 1)
 	assert_almost_eq(spy.last_direction.x, 0.6, 0.001)
 	assert_almost_eq(spy.last_direction.y, 0.8, 0.001)
-	assert_almost_eq(spy.last_magnitude, 0.02 * 5.0, 0.001)
+	assert_almost_eq(spy.last_magnitude, effect.disc_force.strength * 5.0, 0.001)
 
 
 func test_detonate_magnitude_scales_with_distance_from_centre() -> void:

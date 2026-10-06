@@ -1,14 +1,21 @@
-[gd_resource type="Resource" script_class="SpecialDef" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="SpecialDef" load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://config/specials/SpecialDef.gd" id="1_def"]
 [ext_resource type="Script" path="res://game/specials/EarthquakeEffect.gd" id="2_effect"]
 [ext_resource type="PackedScene" path="res://assets/gifts/held/earthquake.tscn" id="9_held"]
 [ext_resource type="Texture2D" path="res://assets/ui/gift_previews/earthquake.png" id="10_icon"]
 
+[ext_resource type="Script" path="res://config/specials/fx/DiscForceTuning.gd" id="3_disc"]
+
+[sub_resource type="Resource" id="Resource_earthquake_disc"]
+script = ExtResource("3_disc")
+shake_amplitude_m = 3.0
+shake_tilt_deg = 720.0
+duration_s = 4.0
+
 [sub_resource type="Resource" id="Resource_earthquake_effect"]
 script = ExtResource("2_effect")
-shake_duration_s = 4.0
-shake_magnitude = 0.05
+disc_force = SubResource("Resource_earthquake_disc")
 leveling_strength = 0.5
 
 [resource]
