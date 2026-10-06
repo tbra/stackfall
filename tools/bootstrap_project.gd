@@ -157,6 +157,18 @@ func _apply_settings() -> void:
 		"display/window/stretch/aspect": "expand",
 		"display/window/size/mode": 3,
 		"display/window/size/borderless": true,
+		# Owner 2026-10-06 ("game windows once again launch in fullscreen and then
+		# resize"): Godot 4.7 creates the first window from display/window/size/mode
+		# and ignores --windowed for that (main.cpp: window_mode comes from the
+		# project setting; init_windowed only skips a later mode change), so every
+		# agent probe opened fullscreen on the owner's monitor until AgentProbe.apply()
+		# shrank it. The "editor" feature (any run of the editor binary: probes,
+		# benches, tests, `godot --path .`) starts windowed; exported builds keep the
+		# borderless fullscreen boot above. Real dev runs still switch to the saved
+		# mode in game/Main.gd (Settings.apply_window_mode()). Pinned by
+		# tests/unit/test_window_launch_defaults.gd so a bootstrap regen cannot drop it.
+		"display/window/size/mode.editor": 0,
+		"display/window/size/borderless.editor": false,
 
 		# CLAUDE.md - untyped declarations are errors, not warnings. Godot 4.7
 		# exempts res://addons through debug/gdscript/warnings/directory_rules,
