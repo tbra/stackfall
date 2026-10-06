@@ -70,6 +70,13 @@ const MIN_DIRECTION_LENGTH: float = 0.001
 const ANTIPARALLEL_DOT: float = -0.9999
 const NEAR_X_AXIS: float = 0.9
 
+## The shipped wire config: its position_bounds() is the volume snapshots quantize into.
+const _NET_CONFIG: NetConfig = preload("res://config/net_config.tres")
+
+## Ticks of travel looked ahead for the bounds check: the trigger lands a tick or two after the
+## flag is set, and the body must still be inside when it does.
+const DETONATION_LOOKAHEAD_TICKS: float = 3.0
+
 ## block.set_meta() key: the host-side launch direction input (Vector3, unit length).
 const LAUNCH_DIRECTION_META: StringName = &"rocket_launch_direction"
 
@@ -92,6 +99,19 @@ static func set_launch_direction(block: Block, direction: Vector3) -> bool:
 		return false
 	block.set_meta(LAUNCH_DIRECTION_META, clean)
 	return true
+
+
+## The replicable volume snapshots quantize positions into (NetConfig.position_bounds for the
+## running map, the default map outside a match). Single source: nothing is hard-coded here.
+static func replicable_bounds() -> AABB:
+	var running: MatchConfig = Match.config if Match != null else null
+	var map: MapDef = running.map_def() if running != null else MatchConfig.new().map_def()
+	return _NET_CONFIG.position_bounds(map)
+
+
+## Pure: whether the point lies outside `bounds` (a body there would be clamped on the wire).
+static func is_outside_bounds(point: Vector3, bounds: AABB) -> bool:
+	return not bounds.has_point(point)
 
 
 ## Pure: the direction the host will actually fly. Non-finite or degenerate input gives
@@ -173,6 +193,15 @@ func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void
 	if behavior.age() - launched_at >= own_block_grace_s:
 		release_own_exceptions(block)
 	if _contact_ahead(block, behavior, direction, delta, launched_at):
+		block.set_meta(_HIT_META, true)
+	# DECISION (Bontago-1pi.85.43): a rocket aimed upward (or out past the field) would leave the
+	# volume snapshots quantize into, and clients would see it pinned at the clamp. The host
+	# detonates it on the last tick it is still inside, using NetConfig.position_bounds() (the
+	# encoder's own bounds, no second constant); the burst in the sky is harmless.
+	elif is_outside_bounds(
+		block.global_position + direction * thrust_speed_mps * delta * DETONATION_LOOKAHEAD_TICKS,
+		replicable_bounds()
+	):
 		block.set_meta(_HIT_META, true)
 
 

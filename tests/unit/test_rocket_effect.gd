@@ -229,8 +229,8 @@ func test_two_blocks_sharing_the_effect_keep_independent_state() -> void:
 	var effect: RocketEffect = RocketEffect.new()
 	effect.fuel_duration_s = 1.0
 	var shared_def: SpecialDef = _make_def(effect, 0.25)
-	var block_a: Block = _make_stub_block(Vector3(-100.0, 0.0, 0.0))
-	var block_b: Block = _make_stub_block(Vector3(100.0, 0.0, 0.0))
+	var block_a: Block = _make_stub_block(Vector3(-30.0, 0.0, 0.0))
+	var block_b: Block = _make_stub_block(Vector3(30.0, 0.0, 0.0))
 	RocketEffect.set_launch_direction(block_a, Vector3(1.0, 0.0, 0.0))
 	RocketEffect.set_launch_direction(block_b, Vector3(0.0, 0.0, 1.0))
 	var behavior_a: SpecialBehavior = _make_behavior(block_a, shared_def)

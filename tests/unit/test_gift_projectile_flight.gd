@@ -234,3 +234,17 @@ func test_rocket_does_not_tunnel_through_a_thin_enemy_block() -> void:
 
 func test_paintball_does_not_tunnel_through_a_thin_enemy_block() -> void:
 	await _assert_no_tunnelling(&"paintball")
+
+
+## Bontago-1pi.85.43: a rocket fired straight up is detonated by the host before it leaves the
+## volume snapshots quantize into (it used to climb past pos_max_y and render pinned at the clamp).
+func test_rocket_fired_straight_up_detonates_inside_the_replicable_bounds() -> void:
+	var bounds: AABB = RocketEffect.replicable_bounds()
+	var block: Block = _launch(&"rocket", Vector3.UP)
+	for _i: int in range(MAX_WAIT_FRAMES * 2):
+		if not _triggered_at.is_empty():
+			break
+		await wait_physics_frames(1)
+	assert_false(_triggered_at.is_empty(), "the rocket detonated")
+	assert_true(bounds.has_point(_triggered_at[0]), "burst at %s inside %s" % [_triggered_at[0], bounds])
+	assert_lt(block.global_position.y, bounds.end.y + 1.0, "no runaway past the ceiling")
