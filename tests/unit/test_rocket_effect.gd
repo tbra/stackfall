@@ -387,8 +387,11 @@ func test_explodes_on_the_first_contact_with_a_block_and_blows_it_away() -> void
 	assert_gt(target.linear_velocity.x, MIN_PUSH_MPS, "the target is blown away from the rocket")
 
 
-func test_own_blocks_are_ignored_during_the_grace_but_an_enemys_are_not() -> void:
+func test_own_blocks_near_the_launch_are_passed_through_but_an_enemy_is_not() -> void:
+	# Bontago-1pi.85.37: own blocks within the clear radius are collision exceptions (not an impact,
+	# not shoved); an enemy block at the same spot is hit at once.
 	var ages: Array[float] = []
+	var own_speed: float = 0.0
 	for slot: int in [0, 1]:  # 0 = the rocket's own slot, 1 = an enemy
 		var obstacle: Block = _make_physics_block(Vector3(OWN_BLOCK_AHEAD_M, 0.0, 0.0), HEAVY_MASS_KG)
 		obstacle.owner_slot = slot
@@ -398,14 +401,15 @@ func test_own_blocks_are_ignored_during_the_grace_but_an_enemys_are_not() -> voi
 		await _fly_until_triggered(behavior)
 		assert_true(behavior.is_triggered(), "slot %d: exploded" % slot)
 		ages.append(behavior.age())
+		if slot == 0:
+			own_speed = obstacle.linear_velocity.length()
 		for body: Node3D in _bodies:
 			body.free()
 		_bodies.clear()
 	var arm_delay: float = 0.4
-	# Launch happens on the first armed tick (age arm_delay); the grace runs arm_delay after it.
-	assert_lt(ages[1], arm_delay + arm_delay, "an enemy block: explodes at once")
-	assert_gte(ages[0], arm_delay + arm_delay - TICK, "its own block: ignored until the grace is over")
-	assert_lt(ages[0], arm_delay + arm_delay + 0.3, "and then it explodes there")
+	assert_lt(ages[1], arm_delay + 0.2, "an enemy block: explodes at once")
+	assert_gt(ages[0], ages[1] + 0.5, "its own block: passed through, the fuel ends it later")
+	assert_lt(own_speed, 0.5, "and the own block was not shoved")
 
 
 func test_the_safety_fuel_fires_on_a_straight_line_when_nothing_is_in_the_way() -> void:

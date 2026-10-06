@@ -18,9 +18,12 @@ extends SpecialEffect
 ## is restored at the splash.
 @export var flight_gravity_scale: float = 0.0
 
-## Seconds after the launch during which the owner's own blocks are not an impact (arm_delay is
-## 0, so SpecialBehavior's own grace is gone).
+## Seconds after the launch during which the owner's own blocks within `own_block_clear_radius_m`
+## of the launch point are collision exceptions (Bontago-1pi.85.37; see RocketEffect).
 @export var own_block_grace_s: float = 0.4
+
+## Radius (m) around the launch point whose own blocks the glob may leave through.
+@export var own_block_clear_radius_m: float = 2.0
 
 ## Extra look-ahead (m) beyond one tick of travel for the contact probe.
 @export var impact_probe_margin_m: float = 0.05
@@ -59,25 +62,22 @@ func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void
 		block.set_meta(_CARRIER_GRAVITY_META, block.gravity_scale)
 		block.wake_for_impulse()
 		block.wake()
+		RocketEffect.hold_own_exceptions(block, own_block_clear_radius_m)
 	var direction: Vector3 = block.get_meta(LAUNCH_DIRECTION_META) as Vector3
 	block.continuous_cd = true
 	block.gravity_scale = flight_gravity_scale
 	block.kick(direction * flight_speed_mps)
 	block.angular_velocity = Vector3.ZERO
 	var launched_at: float = float(block.get_meta(_LAUNCH_AGE_META))
+	if behavior.age() - launched_at >= own_block_grace_s:
+		RocketEffect.release_own_exceptions(block)
 	var params: PhysicsTestMotionParameters3D = PhysicsTestMotionParameters3D.new()
 	params.from = block.global_transform
 	params.motion = direction * (flight_speed_mps * delta + impact_probe_margin_m)
+	params.exclude_bodies = RocketEffect.held_own_rids(block)
 	var result: PhysicsTestMotionResult3D = PhysicsTestMotionResult3D.new()
 	if PhysicsServer3D.body_test_motion(block.get_rid(), params, result):
-		var other: Block = result.get_collider() as Block
-		var own_grace: bool = (
-			other != null
-			and block.owner_slot >= 0
-			and other.owner_slot == block.owner_slot
-			and behavior.age() - launched_at < own_block_grace_s
-		)
-		if not own_grace and behavior.impact_filter(result.get_collider(), launched_at):
+		if behavior.impact_filter(result.get_collider(), launched_at):
 			block.set_meta(_HIT_META, true)
 
 
@@ -86,6 +86,8 @@ func wants_early_trigger(block: Block, _behavior: SpecialBehavior) -> bool:
 
 
 func detonate(block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> void:
+	if block != null:
+		RocketEffect.release_own_exceptions(block)
 	if block != null and block.has_meta(_CARRIER_GRAVITY_META):
 		block.gravity_scale = float(block.get_meta(_CARRIER_GRAVITY_META))
 	if block == null or not Match._is_host() or Match.state() != Match.State.PLAYING:

@@ -44,9 +44,13 @@ extends SpecialEffect
 ## along its velocity (Bontago-1pi.85.25); the pose snapshot already carries the rotation.
 @export var model_nose_axis: Vector3 = Vector3(0.0, 1.0, 0.0)
 
-## Seconds after the launch during which the owner's own blocks do not count as an impact
-## (arm_delay is 0 now, so SpecialBehavior's own grace is gone).
+## Seconds after the launch during which the owner's own blocks that were within
+## `own_block_clear_radius_m` at the launch are collision exceptions (neither an impact nor shoved).
+## Enemy blocks and everything else stay solid from the first tick (Bontago-1pi.85.37).
 @export var own_block_grace_s: float = 0.4
+
+## Radius (m) around the launch point whose own blocks the projectile may leave through.
+@export var own_block_clear_radius_m: float = 2.0
 
 ## Downward pitch (degrees) of the default launch direction used when no camera
 ## direction was supplied (bots, tests, a client that sent nothing usable).
@@ -75,6 +79,7 @@ const _FLIGHT_DIRECTION_META: StringName = &"rocket_flight_direction"
 const _HIT_META: StringName = &"rocket_hit"
 const _FACED_META: StringName = &"rocket_faced"
 const _CARRIER_GRAVITY_META: StringName = &"rocket_carrier_gravity_scale"
+const _OWN_EXCEPTIONS_META: StringName = &"projectile_own_exceptions"
 
 
 ## Host-side launch-direction input for `block` (a Rocket carrier). Returns whether it was
@@ -165,6 +170,8 @@ func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void
 	block.angular_velocity = Vector3.ZERO
 	_face_direction(block, direction)
 	var launched_at: float = float(block.get_meta(_LAUNCH_AGE_META))
+	if behavior.age() - launched_at >= own_block_grace_s:
+		release_own_exceptions(block)
 	if _contact_ahead(block, behavior, direction, delta, launched_at):
 		block.set_meta(_HIT_META, true)
 
@@ -181,6 +188,7 @@ func wants_early_trigger(block: Block, behavior: SpecialBehavior) -> bool:
 ## Blast every real RigidBody3D within `blast.radius_m` (the Rocket's own body excluded),
 ## then chain into any other special in range one depth deeper.
 func detonate(block: Block, behavior: SpecialBehavior, chain_depth: int) -> void:
+	release_own_exceptions(block)
 	if block.has_meta(_CARRIER_GRAVITY_META):
 		block.gravity_scale = float(block.get_meta(_CARRIER_GRAVITY_META))
 	var center: Vector3 = block.global_position
@@ -196,6 +204,7 @@ func _launch(block: Block, behavior: SpecialBehavior) -> void:
 	block.set_meta(_FLIGHT_DIRECTION_META, launch_direction_for(block))
 	block.wake_for_impulse()
 	block.wake()
+	hold_own_exceptions(block, own_block_clear_radius_m)
 
 
 ## Whether the body would touch something accepted by the behaviour's impact_filter within
@@ -207,15 +216,11 @@ func _contact_ahead(
 	var params: PhysicsTestMotionParameters3D = PhysicsTestMotionParameters3D.new()
 	params.from = block.global_transform
 	params.motion = direction * (thrust_speed_mps * delta + impact_probe_margin_m)
+	params.exclude_bodies = held_own_rids(block)
 	var result: PhysicsTestMotionResult3D = PhysicsTestMotionResult3D.new()
 	if not PhysicsServer3D.body_test_motion(block.get_rid(), params, result):
 		return false
-	var collider: Object = result.get_collider()
-	var other: Block = collider as Block
-	if other != null and block.owner_slot >= 0 and other.owner_slot == block.owner_slot:
-		if behavior.age() - launched_at < own_block_grace_s:
-			return false
-	return behavior.impact_filter(collider, launched_at)
+	return behavior.impact_filter(result.get_collider(), launched_at)
 
 
 ## Turns the carrier so `model_nose_axis` points along `direction` (shortest arc), keeping its
@@ -238,3 +243,49 @@ static func nose_basis(nose: Vector3, direction: Vector3) -> Basis:
 		var side: Vector3 = Vector3.RIGHT if absf(from.x) < NEAR_X_AXIS else Vector3.UP
 		return Basis(from.cross(side).normalized(), PI)
 	return Basis(Quaternion(from, to))
+
+
+## Shared by Rocket and Paintball (Bontago-1pi.85.37): makes every block of `block`'s owner within
+## `radius` of it a collision exception, so the projectile leaves its own tower without
+## detonating on it or shoving it, while enemy blocks stay solid. Replaces the old time window
+## that only looked at the first collider of the probe and so also hid an enemy right behind an
+## own block. Remembered in meta for release_own_exceptions().
+static func hold_own_exceptions(block: Block, radius: float) -> void:
+	if block.owner_slot < 0 or not block.is_inside_tree():
+		return
+	var slot: int = block.owner_slot
+	var own: Array[RigidBody3D] = SpecialPhysics.query_bodies_in_range(
+		block.get_world_3d().direct_space_state,
+		block.global_position,
+		radius,
+		[block.get_rid()],
+		func(body: RigidBody3D) -> bool: return body is Block and (body as Block).owner_slot == slot
+	)
+	var held: Array[Block] = []
+	for body: RigidBody3D in own:
+		block.add_collision_exception_with(body)
+		held.append(body as Block)
+	block.set_meta(_OWN_EXCEPTIONS_META, held)
+
+
+## Undoes hold_own_exceptions(); safe to call twice or after some blocks were freed.
+static func release_own_exceptions(block: Block) -> void:
+	if not block.has_meta(_OWN_EXCEPTIONS_META):
+		return
+	var held: Array = block.get_meta(_OWN_EXCEPTIONS_META) as Array
+	block.remove_meta(_OWN_EXCEPTIONS_META)
+	for entry: Variant in held:
+		if is_instance_valid(entry):
+			block.remove_collision_exception_with(entry as Block)
+
+
+## RIDs of the blocks currently held as collision exceptions. The Jolt body_test_motion probe does
+## not read a body's exception list, so it is given them explicitly (Bontago-1pi.85.37).
+static func held_own_rids(block: Block) -> Array[RID]:
+	var rids: Array[RID] = []
+	if not block.has_meta(_OWN_EXCEPTIONS_META):
+		return rids
+	for entry: Variant in block.get_meta(_OWN_EXCEPTIONS_META) as Array:
+		if is_instance_valid(entry):
+			rids.append((entry as Block).get_rid())
+	return rids
