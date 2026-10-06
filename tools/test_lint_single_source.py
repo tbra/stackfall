@@ -31,6 +31,10 @@ CASES = {
                    "config/MapDef.gd", "core/Pick.gd"),
     "CAPITALIZE_ID": ("ui/Name.gd", 'var n: String = String(id).capitalize()\n',
                       "core/rules/DisplayNames.gd", "core/Name.gd"),
+    "RESULTS_KEY": ("ui/Board.gd", 'var w: int = int(results.get("winner_id", -1))\n',
+                    "core/rules/ResultsPayload.gd", "game/Board.gd"),
+    "RESULTS_KEY_SHARED": ("ui/ScoreTable.gd", 'var s: int = int(row.get("slot_id", -1))\n',
+                           "core/rules/ResultsPayload.gd", "ui/Lobby.gd"),
     "GIFT_ICON": ("ui/Gift.gd", 'var t := load("res://assets/gifts/bomb.png")\n',
                   "game/GiftCrate.gd", None),
 }
