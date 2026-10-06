@@ -66,5 +66,5 @@ func tick(delta: float) -> void:
 ## Captured blocks go through the territory holes' removal (shared entry, no
 ## duplicate removal code). DECISION: with no live registry (an isolated unit test)
 ## the block simply stays at the core.
-func _capture(body: RigidBody3D) -> void:
-	HoleDissolver.request_dissolve(body as Block)
+func _capture(body: RigidBody3D) -> bool:
+	return HoleDissolver.request_dissolve(body as Block)

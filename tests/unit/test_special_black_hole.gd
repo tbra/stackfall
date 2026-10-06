@@ -175,11 +175,15 @@ func test_real_disc_8kg_block_from_6m_reaches_the_core_within_lifetime() -> void
 	hole.global_position = Vector3(0.0, rest_y, 0.0)
 	var frames: int = 0
 	var limit: int = int(effect.lifetime_s * float(Engine.physics_ticks_per_second)) - 1
-	while frames < limit and not heavy.has_meta(RadialPull.CAPTURED_META):
+	# Sandbox: no registry, so the dissolve is refused and the block is (correctly) not
+	# flagged captured; reaching the core is checked by distance instead.
+	var core_m: float = effect.pull.core_radius_m
+	while frames < limit and heavy.global_position.distance_to(hole.global_position) > core_m:
 		hole.tick(1.0 / float(Engine.physics_ticks_per_second))
 		await wait_physics_frames(1)
 		frames += 1
-	assert_true(heavy.has_meta(RadialPull.CAPTURED_META), "reached the core and was captured (frames=%d)" % frames)
+	assert_lte(heavy.global_position.distance_to(hole.global_position), core_m, "reached the core (frames=%d)" % frames)
+	assert_false(heavy.has_meta(RadialPull.CAPTURED_META), "refused dissolve leaves no capture flag")
 
 
 func test_shipped_resource_is_in_the_roster_with_a_black_hole_effect() -> void:
