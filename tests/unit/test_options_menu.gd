@@ -285,11 +285,6 @@ func test_rebindable_actions_exclude_every_debug_only_action() -> void:
 	assert_true(found_any_debug_action, "expected at least one debug-only action bound by tools/bootstrap_project.gd")
 
 
-func test_rebindable_actions_exclude_throw_aim() -> void:
-	assert_true(InputMap.has_action(&"throw_aim"), "throw_aim should exist so this exclusion is meaningful")
-	assert_false(OptionsMenu.REBINDABLE_ACTIONS.has(&"throw_aim"))
-
-
 ## Bontago-8or.19 (owner playtest: "many of them not mapped to anything"): a
 ## row shown on the keyboard+mouse rebind screen must have a real
 ## keyboard/mouse binding to rebind. tests/unit/test_project_setup.gd's own

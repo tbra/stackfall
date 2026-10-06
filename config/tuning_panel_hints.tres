@@ -1043,7 +1043,7 @@ descriptions = {
 "GhostTuning.spawn_clearance_enabled": "Raise the next held block just enough to clear a block it would spawn inside (off: it spawns at normal hover height).",
 "GhostTuning.home_spawn_back_offset": "How far back (metres, away from the field centre) your first block starts from your home beacon.",
 "GhostTuning.home_spawn_beacon_margin": "Gap (metres) between the top of your home beacon and the lowest point of the first block you hold, so it starts above the beacon instead of inside it.",
-"GhostTuning.throw_aim_tint_color": "Ghost tint shown while aiming a throw (holding throw_aim on a held special).",
+"GhostTuning.throw_aim_tint_color": "Ghost tint shown while aiming a throw (throw aiming a held special).",
 "GhostTuning.throw_arc_sample_count": "Number of straight segments the throw-aim arc preview is divided into before its own landing cutoff can stop it early.",
 "GhostTuning.throw_arc_max_time_s": "Safety-cap seconds of flight the throw-aim arc preview samples out to if it never reaches a landing height at all.",
 "GhostTuning.throw_arc_color": "Colour of the throw-aim arc preview line and its landing-point marker.",

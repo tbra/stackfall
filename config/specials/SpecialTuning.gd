@@ -21,14 +21,6 @@ extends Resource
 ## distance).
 @export var throw_max_speed: float = 25.0
 
-## Below this drag distance in meters, a throw-aim release is treated as an
-## ordinary place instead of a throw (P2d).
-@export var throw_drag_min_distance_m: float = 0.15
-
-## Below this release speed in m/s, a throw-aim release is treated as an
-## ordinary place instead of a throw (P2d).
-@export var throw_drag_min_speed_mps: float = 1.0
-
 ## Throw launch speed in m/s per meter of aim drag, before the
 ## throw_max_speed clamp above (P2d).
 @export var throw_speed_per_meter: float = 12.0

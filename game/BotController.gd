@@ -626,8 +626,13 @@ func _send_throw(action: BotSpecialPlanner.BotSpecialAction) -> StringName:
 	var world_velocity: Vector3 = _field.global_transform.basis * action.throw_velocity
 	# Bontago-1pi.85.29: the host derives the throw from a unit aim only (client speed is never
 	# trusted), so the bot sends its planned direction, not a speed-scaled velocity.
+	# Bontago-1pi.85.39: the host (GiftAim.throw_velocity) adds the loft itself, so send the flat
+	# camera-style forward (planner's horizontal heading), not the loft-included ballistic direction.
+	var flat_forward: Vector3 = Vector3(world_velocity.x, 0.0, world_velocity.z)
+	if flat_forward.length_squared() <= 0.0:
+		flat_forward = world_velocity
 	return StringName(match_ref.request_throw(
-		_slot_id, world_origin, 0, Quaternion.IDENTITY, world_velocity.normalized(), int(match_ref.feed_seq(_slot_id))
+		_slot_id, world_origin, 0, Quaternion.IDENTITY, flat_forward.normalized(), int(match_ref.feed_seq(_slot_id))
 	))
 
 

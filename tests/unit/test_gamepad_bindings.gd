@@ -16,7 +16,7 @@ const KEY_REBIND_ROW_SCENE: PackedScene = preload("res://ui/KeyRebindRow.tscn")
 ## actions are deliberately outside this set: they share buttons with gameplay
 ## on purpose and are only read in their own context (tools/bootstrap_project.gd).
 const EXTRA_GAMEPLAY_ACTIONS: Array[StringName] = [
-	&"rotate_snap", &"rotate_drag_pad", &"camera_zoom_modifier", &"throw_aim", &"use_gift_slot",
+	&"rotate_snap", &"rotate_drag_pad", &"camera_zoom_modifier", &"use_gift_slot",
 	&"ghost_move_left", &"ghost_move_right", &"ghost_move_forward", &"ghost_move_back",
 	&"camera_look_left", &"camera_look_right", &"camera_look_up", &"camera_look_down",
 ]
@@ -25,14 +25,11 @@ const EXTRA_GAMEPLAY_ACTIONS: Array[StringName] = [
 ## actions, names sorted and joined with ",".
 ## - Left stick axes: ghost_move_* vs camera_pan_* (camera_modifier held pans
 ##   instead of moving; PlayerController zeroes the stick while it is held).
-## - Left trigger: throw_aim vs camera_zoom_modifier (PlayerController decides by
-##   whether the held piece is a throwable special).
 const INTENTIONAL_SHARES: Array = [
 	"camera_pan_left,ghost_move_left",
 	"camera_pan_right,ghost_move_right",
 	"camera_pan_forward,ghost_move_forward",
 	"camera_pan_back,ghost_move_back",
-	"camera_zoom_modifier,throw_aim",
 ]
 
 
