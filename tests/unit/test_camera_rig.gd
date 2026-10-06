@@ -401,31 +401,17 @@ func test_zoom_by_orbit_step_is_a_noop_while_rotate_drag_is_held() -> void:
 	)
 
 
-## M4 P2e (docs/M4_P2_PACKAGES.md P2e): throw_aim's gamepad binding (left
-## trigger) and the free-orbit right stick share nothing at the Input Map
-## level, but the player uses the right stick to aim a throw while throw_aim
-## is held (game/PlayerController.gd._accumulate_gamepad_throw_drag()), so
-## _process()'s own unconditional right-stick read must stop reading it for
-## that hold -- distinct from _rotate_drag_frozen() above, which freezes the
-## whole rig for a different button.
-func test_process_suppresses_gamepad_orbit_while_throw_aim_is_held_and_resumes_after_release() -> void:
+## Bontago-1pi.85.39: LT (camera_zoom_modifier) no longer throws, so holding it
+## must not block the right-stick orbit (spec 2.5: LT + left stick zooms only).
+func test_process_orbits_with_gamepad_right_stick_while_lt_zoom_modifier_is_held() -> void:
 	var rig: CameraRig = _make_rig()
 	var yaw_before: float = rig.get_yaw()
-	var pitch_before: float = rig.get_pitch()
 
-	Input.action_press(&"throw_aim")
+	Input.action_press(&"camera_zoom_modifier")
 	Input.action_press(&"camera_look_right")
 	rig._process(1.0 / 60.0)
 
-	assert_almost_eq(
-		rig.get_yaw(), yaw_before, 0.0001,
-		"throw_aim held must suppress the gamepad right-stick orbit read entirely."
-	)
-	assert_almost_eq(rig.get_pitch(), pitch_before, 0.0001)
+	assert_ne(rig.get_yaw(), yaw_before, "LT held must not suppress the right-stick orbit.")
 
-	Input.action_release(&"throw_aim")
-	rig._process(1.0 / 60.0)
-
-	assert_ne(rig.get_yaw(), yaw_before, "releasing throw_aim must let the right stick orbit again, the very next frame.")
-
+	Input.action_release(&"camera_zoom_modifier")
 	Input.action_release(&"camera_look_right")

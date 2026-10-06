@@ -859,7 +859,9 @@ func test_send_throw_rotates_the_planners_velocity_through_the_field_basis() -> 
 	assert_true(expected_action.should_throw, "fixture: an offensive Bomb with a live enemy target always throws")
 
 	# Bontago-1pi.85.29: the bot sends the unit aim; the host owns the speed.
-	var expected_world_velocity: Vector3 = (tilt_basis * expected_action.throw_velocity).normalized()
+	# Bontago-1pi.85.39: flat camera-style forward; the host (GiftAim.throw_velocity) adds the loft once.
+	var tilted: Vector3 = tilt_basis * expected_action.throw_velocity
+	var expected_world_velocity: Vector3 = Vector3(tilted.x, 0.0, tilted.z).normalized()
 	var actual_velocity: Vector3 = match_ref.request_throw_calls[0]["velocity"] as Vector3
 	assert_almost_eq(actual_velocity.x, expected_world_velocity.x, 0.01, "world-space x")
 	assert_almost_eq(actual_velocity.y, expected_world_velocity.y, 0.01, "world-space y")
@@ -868,6 +870,13 @@ func test_send_throw_rotates_the_planners_velocity_through_the_field_basis() -> 
 		actual_velocity.length(), 1.0, 0.01,
 		"the bot sends a unit aim direction (the host never reads a client speed)"
 	)
+	var special_tuning: SpecialTuning = SpecialTuning.new()
+	assert_eq(
+		GiftAim.throw_velocity(actual_velocity, special_tuning),
+		GiftAim.throw_velocity(expected_world_velocity, special_tuning),
+		"host velocity equals GiftAim.throw_velocity of the flat forward"
+	)
+	assert_almost_eq(actual_velocity.y, 0.0, 0.0001, "no loft in the sent aim (host adds it; no double loft)")
 	assert_true(
 		actual_velocity.distance_to(expected_action.throw_velocity.normalized()) > 0.05,
 		"fixture: the tilt must actually change the vector -- otherwise this test cannot tell the fix from the bug"

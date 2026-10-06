@@ -366,7 +366,6 @@ func _actions() -> Dictionary:
 	# onto MOUSE_BUTTON_LEFT instead, the same physical button ghost_place
 	# already uses -- game/PlayerController.gd's ghost_place handler tells
 	# the two apart by whether the piece in hand is a throwable special.
-	a["throw_aim"] = [_mouse(MOUSE_BUTTON_LEFT), _axis(JOY_AXIS_TRIGGER_LEFT, 1.0)]
 
 	# --- Camera -------------------------------------------------------------
 	# Bontago-mv0.14 (original tutorial: "while holding the camera-mode key,
@@ -421,8 +420,7 @@ func _actions() -> Dictionary:
 	#
 	# Owner controller update (feedback/controller-update.md, re-confirmed
 	# 2026-09-28): "Triggers alone must NEVER zoom" -- these used to double as
-	# zoom directly (a bare trigger pull, while also being throw_aim/
-	# rotation_mode), which the owner explicitly rejected. The trigger axes
+	# zoom directly (a bare trigger pull, while also rotation_mode), which the owner explicitly rejected. The trigger axes
 	# come off these two actions entirely; Z/X stay the sole zoom input on
 	# keyboard. See camera_zoom_modifier below for the trigger's new job (LT +
 	# left stick = continuous zoom).
@@ -433,10 +431,7 @@ func _actions() -> Dictionary:
 
 	# Owner controller update (feedback/controller-update.md, re-confirmed
 	# 2026-09-28): "LT held + left stick up/down = zoom camera in/out,
-	# continuous". LT keeps its other job too (throw_aim, unchanged) --
-	# game/PlayerController.gd tells the two apart by whether the held piece
-	# is a throwable special (_can_begin_throw_aim()/is_aiming_throw()): zoom
-	# applies only when it is not. Pad-only, no mouse/keyboard equivalent (Z/X
+	# continuous". Pad-only, no mouse/keyboard equivalent (Z/X
 	# already zoom on those devices) -- a documented "mouse" DEVICE_EXCEPTION.
 	a["camera_zoom_modifier"] = [_axis(JOY_AXIS_TRIGGER_LEFT, 1.0)]
 
