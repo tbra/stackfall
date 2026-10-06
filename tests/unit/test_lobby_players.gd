@@ -99,6 +99,11 @@ func _row_badge(row: Node) -> String:
 	return ((layout.get_child(layout.get_child_count() - 1) as PanelContainer).get_child(0) as Label).text
 
 
+func _row_badge_tip(row: Node) -> String:
+	var layout: HBoxContainer = _row_layout(row)
+	return (layout.get_child(layout.get_child_count() - 1) as PanelContainer).tooltip_text
+
+
 func _rows_of(lobby: Lobby) -> Array[LobbySeatRow]:
 	var rows: Array[LobbySeatRow] = []
 	for node: Node in _panel_of(lobby)._player_rows:
@@ -169,10 +174,12 @@ func test_human_rows_name_subtitle_and_ready_badge() -> void:
 	assert_eq(rows.size(), 2)
 	assert_eq(_row_name(rows[0]), "Host")
 	assert_eq(_row_subtitle(rows[0]), "Host · you", "the local peer is peer 1 on a FakeNet")
-	assert_eq(_row_badge(rows[0]), "%s Ready" % char(0x2713))
+	assert_eq(_row_badge(rows[0]), char(0x2713), "icon only: no words on the pill")
+	assert_eq(_row_badge_tip(rows[0]), "Ready")
 	assert_eq(_row_name(rows[1]), "Guest")
 	assert_eq(_row_subtitle(rows[1]), "LAN · 0 ms")
-	assert_eq(_row_badge(rows[1]), "%s Not ready" % char(0x231A))
+	assert_eq(_row_badge(rows[1]), char(0x231A))
+	assert_eq(_row_badge_tip(rows[1]), "Not ready")
 
 
 func test_remote_subtitles_follow_the_transport_and_the_local_peer() -> void:
@@ -206,7 +213,7 @@ func test_bot_rows_are_rebuilt_from_the_config_and_split_into_name_and_difficult
 	assert_eq(_row_subtitle(rows[1]), "AI", "the difficulty is the dropdown beside the name now")
 	assert_eq(_rows_of(lobby)[1].difficulty_option.selected, MatchConfig.AiDifficulty.HARD, "the old default dropdown sets every bot")
 	assert_eq(_row_name(rows[2]), bot_names[1])
-	assert_eq(_row_badge(rows[2]), "%s Ready" % char(0x2713), "bots are always ready")
+	assert_eq(_row_badge(rows[2]), char(0x2713), "bots are always ready")
 
 
 func test_a_live_roster_without_bot_rows_still_draws_the_configured_bots() -> void:
@@ -798,14 +805,15 @@ func test_the_team_button_cycles_one_to_four_then_random_then_one() -> void:
 	assert_eq(_human_team(lobby, 2), 2, "other seats are untouched")
 
 
-func test_the_team_button_cycles_backwards_on_right_click_and_ui_left() -> void:
+func test_the_team_button_cycles_backwards_on_right_click_and_ignores_ui_left_right() -> void:
 	var lobby: Lobby = _host_lobby(2, 0, true)
 	_rows_of(lobby)[0].team_button.gui_input.emit(_right_click())
 	assert_eq(_human_team(lobby, 1), MatchConfig.TEAM_PICK_RANDOM, "1 steps back to Random")
-	_rows_of(lobby)[0].team_button.gui_input.emit(_pad(JOY_BUTTON_DPAD_LEFT))
+	_rows_of(lobby)[0].team_button.gui_input.emit(_right_click())
 	assert_eq(_human_team(lobby, 1), 4, "Random steps back to the last team")
+	_rows_of(lobby)[0].team_button.gui_input.emit(_pad(JOY_BUTTON_DPAD_LEFT))
 	_rows_of(lobby)[0].team_button.gui_input.emit(_pad(JOY_BUTTON_DPAD_RIGHT))
-	assert_eq(_human_team(lobby, 1), MatchConfig.TEAM_PICK_RANDOM, "ui_right steps forward again")
+	assert_eq(_human_team(lobby, 1), 4, "ui_left / ui_right only move focus (Bontago-1pi.94)")
 
 
 func test_the_team_cycle_follows_a_legacy_two_team_lobby_and_teams_off_has_no_button() -> void:

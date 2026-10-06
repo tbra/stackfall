@@ -47,7 +47,7 @@ func _published(lobby: Lobby) -> MatchConfig:
 
 
 func _pick_mode(lobby: Lobby, mode: int) -> void:
-	var option: OptionButton = lobby.get_node("%GameModeOption") as OptionButton
+	var option: CycleSelector = lobby.get_node("%GameModeOption") as CycleSelector
 	option.select(mode)
 	option.item_selected.emit(mode)
 
@@ -357,18 +357,18 @@ func test_host_edits_every_game_setting_from_the_game_section() -> void:
 	var combo: OptionButton = lobby.get_node("%MapComboOption") as OptionButton
 	combo.select(5)
 	combo.item_selected.emit(5)
-	var sky: OptionButton = lobby.get_node("%SkyThemeOption") as OptionButton
+	var sky: CycleSelector = lobby.get_node("%SkyThemeOption") as CycleSelector
 	sky.select(MatchConfig.SkyThemeMode.NIGHT)
 	sky.item_selected.emit(MatchConfig.SkyThemeMode.NIGHT)
-	var weather: OptionButton = lobby.get_node("%WeatherOption") as OptionButton
+	var weather: CycleSelector = lobby.get_node("%WeatherOption") as CycleSelector
 	weather.select(MatchConfig.WeatherMode.SNOW)
 	weather.item_selected.emit(MatchConfig.WeatherMode.SNOW)
 	(lobby.get_node("%GravitySlider") as HSlider).value = 0.5
 	(lobby.get_node("%TurnBasedCheck") as CheckButton).button_pressed = true
-	var hole: OptionButton = lobby.get_node("%HoleModeOption") as OptionButton
+	var hole: CycleSelector = lobby.get_node("%HoleModeOption") as CycleSelector
 	hole.select(MatchConfig.HoleMode.PERMANENT)
 	hole.item_selected.emit(MatchConfig.HoleMode.PERMANENT)
-	var tilt: OptionButton = lobby.get_node("%TiltModeOption") as OptionButton
+	var tilt: CycleSelector = lobby.get_node("%TiltModeOption") as CycleSelector
 	tilt.select(MatchConfig.TiltMode.PHYSICAL_BALANCE)
 	tilt.item_selected.emit(MatchConfig.TiltMode.PHYSICAL_BALANCE)
 	(lobby.get_node("%MidJoinCheck") as CheckButton).button_pressed = false

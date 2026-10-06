@@ -237,7 +237,7 @@ func _make_lobby(is_host: bool) -> Lobby:
 
 func test_lobby_toggle_is_visible_only_for_reach_the_sky_and_round_trips() -> void:
 	var host: Lobby = _make_lobby(true)
-	var mode: OptionButton = host.get_node("%GameModeOption")
+	var mode: CycleSelector = host.get_node("%GameModeOption")
 	var toggle: CheckButton = host.get_node("%SkyTeamSumCheck")
 	var column: Control = host.get_node("%SkyTeamCol")
 	assert_false(column.visible, "hidden for classic")

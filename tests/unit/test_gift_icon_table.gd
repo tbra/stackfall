@@ -39,6 +39,6 @@ func test_lobby_widgets_use_pictograms() -> void:
 		var check: CheckBox = box as CheckBox
 		var id: StringName = StringName(check.text.to_lower().replace(" ", "_"))
 		assert_eq(check.icon, table.gift_pictogram(id), "checkbox %s" % id)
-	var weather: OptionButton = lobby.get_node("%WeatherOption") as OptionButton
+	var weather: CycleSelector = lobby.get_node("%WeatherOption") as CycleSelector
 	for i: int in weather.item_count:
 		assert_eq(weather.get_item_icon(i), table.weather_pictogram(i), "weather item %d" % i)
