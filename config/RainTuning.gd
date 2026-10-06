@@ -100,5 +100,7 @@ extends WeatherTuning
 @export var overcast_fog_color: Color = Color(0.5, 0.58, 0.68, 1.0)
 @export_range(0.0, 1.0, 0.01) var overcast_fog_strength: float = 0.6
 ## Wet disc: extra sheen strength and a roughness factor at full intensity.
-@export_range(0.0, 2.0, 0.01) var wet_sheen_add: float = 0.0
+@export_range(0.0, 2.0, 0.01) var wet_sheen_add: float = 0.12
 @export_range(0.0, 1.0, 0.01) var wet_roughness_scale: float = 0.6
+## Bontago-mp0.140: share of the disc albedo removed at full rain (0 = no darkening).
+@export_range(0.0, 0.8, 0.01) var wet_darken: float = 0.22
