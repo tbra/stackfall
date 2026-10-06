@@ -153,3 +153,41 @@ func test_headless_leaves_engine_cap_alone() -> void:
 
 func test_medium_mirror_factor_is_three_quarters() -> void:
 	assert_almost_eq(load("res://config/graphics_presets/medium.tres").mirror_resolution_factor, 0.75, 0.001)
+
+
+func test_frame_cap_follows_window_mode_and_screen_change() -> void:
+	var before_fps: int = Engine.max_fps
+	var menu_cap: int = load("res://config/menu_visual_tuning.tres").menu_max_fps
+	_leave_menu()
+	var state: Dictionary = {"hz": 60.0, "screen": 0}
+	_main.frame_cap_in_headless = true
+	_main.refresh_rate_provider = func() -> float: return state["hz"]
+	_main.screen_provider = func() -> int: return state["screen"]
+	Settings.set_graphics_preset(&"medium")
+	assert_eq(Engine.max_fps, 60)
+	_main._recheck_frame_cap()
+	assert_eq(Engine.max_fps, 60, "unchanged screen keeps the cap")
+	state["screen"] = 1
+	state["hz"] = 144.0
+	_main._recheck_frame_cap()
+	assert_eq(Engine.max_fps, 144, "screen change re-applies the cap")
+	state["hz"] = 75.0
+	_main._on_window_mode_changed(&"fullscreen")
+	await get_tree().process_frame
+	assert_eq(Engine.max_fps, 75, "window-mode change re-applies the cap")
+	var backdrop: MenuBackdrop = MenuBackdrop.new()
+	add_child(backdrop)
+	state["hz"] = 120.0
+	_main._recheck_frame_cap()
+	assert_eq(Engine.max_fps, menu_cap, "menus keep the menu cap")
+	backdrop.free()
+	assert_eq(Engine.max_fps, 120, "match cap after the menu closes")
+	_main.frame_cap_in_headless = false
+	_main.refresh_rate_provider = Callable()
+	_main.screen_provider = Callable()
+	var headless_fps: int = Engine.max_fps
+	state["hz"] = 30.0
+	_main._recheck_frame_cap()
+	assert_eq(Engine.max_fps, headless_fps, "headless skips the re-check")
+	MenuBackdrop.clear_match_cap()
+	Engine.max_fps = before_fps

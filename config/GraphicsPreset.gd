@@ -61,6 +61,8 @@ enum FrameCap { DISPLAY_REFRESH, FIXED, UNCAPPED }
 @export_range(1, 360) var fixed_fps: int = 60
 ## Used by DISPLAY_REFRESH when the display reports no refresh rate (<= 0).
 @export_range(1, 360) var fallback_fps: int = 60
+## Bontago-1pi.11.51: seconds between checks that the window's screen/refresh changed.
+@export_range(0.1, 10.0) var screen_check_interval_s: float = 1.0
 
 ## Bontago-1pi.11.37: the fields below are all-default on every shipped preset; only
 ## the adaptive quality governor (core/QualityGovernor.gd) lowers them, on a duplicate
