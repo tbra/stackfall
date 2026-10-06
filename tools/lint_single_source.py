@@ -237,6 +237,8 @@ def main(argv):
     ap.add_argument("--update", action="store_true")
     ap.add_argument("--allow-new", action="append", default=[],
                     help="admit a new (rule, file): RULE:path or path (every rule)")
+    ap.add_argument("--allow-baseline", action="store_true",
+                    help="legacy ratchet mode (tests only): tolerate non-empty baseline entries")
     ap.add_argument("--list", action="store_true", help="print every violation with line numbers")
     ap.add_argument("--rule", action="append", default=[], help="with --list: only these rule ids")
     args = ap.parse_args(argv)
@@ -268,6 +270,14 @@ def main(argv):
         return 0
     baseline = baseline or {}
     problems = check(counts, baseline)
+    if not args.allow_baseline:
+        # P7: every rule is at zero; the baseline must stay empty, so a violation can
+        # never be parked in it. Fix the site (route it through its owner) instead.
+        for rid, files in sorted(baseline.items()):
+            for rel, b in sorted(files.items()):
+                if b:
+                    problems.append("%s %s: baseline entry %d; baselines must stay empty (fix the site)"
+                                    % (rid, rel, b))
     for p in problems:
         print("SINGLE-SOURCE LINT FAIL " + p)
     if problems:

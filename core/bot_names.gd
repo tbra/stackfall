@@ -5,8 +5,7 @@ extends RefCounted
 ## bot and from every human's name, and replicates it in MatchConfig.bot_names.
 
 
-## Only when the pool is exhausted. DECISION: kept as an alias of the single owner
-## (PlayerNames.BOT_FALLBACK_FORMAT) until P4 migrates LobbyPlayersPanel, then deleted.
+## Only when the pool is exhausted. Alias of the single owner (PlayerNames.BOT_FALLBACK_FORMAT).
 const FALLBACK_FORMAT: String = PlayerNames.BOT_FALLBACK_FORMAT
 
 const TACTICIANS: Array[String] = [

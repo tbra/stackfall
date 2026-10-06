@@ -956,7 +956,7 @@ func _build_slots() -> void:
 	_slots.clear()
 	var map_def: MapDef = _match.config.map_def()
 	for i: int in range(_match.config.player_count):
-		var color: Color = _match.config.player_colors[i % _match.config.player_colors.size()]
+		var color: Color = SlotColors.wrapped_color(i, _match.config.player_colors)
 		var home: Vector2 = PlayerSlot.home_position_for(i, _match.config.player_count, map_def)
 		# Bontago-d5c (M5 P1): the trailing ai_count slots become bots; every
 		# slot before that stays a human seat exactly as today. See
