@@ -1,18 +1,29 @@
-[gd_resource type="Resource" script_class="SpecialDef" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="SpecialDef" load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://config/specials/SpecialDef.gd" id="1_def"]
 [ext_resource type="Script" path="res://game/specials/JumpingBeanEffect.gd" id="2_effect"]
 [ext_resource type="PackedScene" path="res://assets/gifts/held/jumping_bean.tscn" id="9_held"]
 [ext_resource type="Texture2D" path="res://assets/ui/gift_previews/jumping_bean.png" id="10_icon"]
 
+[ext_resource type="Script" path="res://config/specials/fx/LandedTuning.gd" id="11_landed"]
+
+[sub_resource type="Resource" id="Resource_landed"]
+script = ExtResource("11_landed")
+landed_speed_mps = 2.0
+landed_hold_s = 0.15
+landed_timeout_s = 1.0
+contact_probe_m = 0.05
+
 [sub_resource type="Resource" id="Resource_jumping_bean_effect"]
 script = ExtResource("2_effect")
-hop_impulse = 6.5
-hop_horizontal_speed = 3.5
-hop_interval_s = 1.2
-hole_radius_m = 1.4
-hole_open_s = 2.5
+hop_impulse = 9.0
+hop_horizontal_speed = 7.0
+first_hop_delay_s = 0.4
+hop_interval_s = 1.0
+hole_radius_m = 2.5
+hole_open_s = 3.0
 lifetime_s = 14.0
+landed = SubResource("Resource_landed")
 
 [resource]
 script = ExtResource("1_def")

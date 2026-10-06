@@ -26,7 +26,7 @@ const NEIGHBOUR_KICK_EVERY_FRAMES: int = 6
 const NEIGHBOUR_KICK_SPEED_MPS: float = 1.5
 const HOP_RISE_EDGE_MPS: float = 3.0
 const MAX_LAND_FRAMES: int = 300
-const SPAWN_DISTANCE_M: float = 6.0
+const SPAWN_DISTANCE_M: float = 0.0
 const SPAWN_HEIGHT_M: float = 0.7
 const NEIGHBOUR_OFFSET_M: float = 1.2
 
@@ -111,6 +111,7 @@ func _register_field() -> void:
 func test_inert_until_landed_no_hop_no_velocity_change() -> void:
 	_register_field()
 	var effect: JumpingBeanEffect = JumpingBeanEffect.new()
+	effect.contact_override = func(_b: Block) -> bool: return true  # stub block: no collision to probe
 	effect.hop_interval_s = 0.05  # deliberately tiny: proves this is a landing
 	# gate, not merely "hasn't been long enough yet".
 	var start_position: Vector3 = Vector3(2.0, 0.0, 2.0)
@@ -139,6 +140,7 @@ func test_inert_until_landed_no_hop_no_velocity_change() -> void:
 ## arm_impulse = 10.0 tuning).
 func test_hard_impact_before_settling_does_not_prematurely_trigger() -> void:
 	var effect: JumpingBeanEffect = JumpingBeanEffect.new()
+	effect.contact_override = func(_b: Block) -> bool: return true  # stub block: no collision to probe
 	var block: Block = _make_block(Vector3.ZERO)  # sleeping == false: still airborne
 	var def: SpecialDef = _make_def(effect)
 	def.arm_impulse = 5.0
@@ -174,7 +176,9 @@ class _CountingBeanEffect:
 func _count_hops_over(dt: float, hop_interval_s: float, total_span_s: float) -> int:
 	_register_field()
 	var effect: _CountingBeanEffect = _CountingBeanEffect.new()
+	effect.contact_override = func(_b: Block) -> bool: return true  # stub block: no collision to probe
 	effect.hop_interval_s = hop_interval_s
+	effect.first_hop_delay_s = hop_interval_s  # legacy cadence: first hop one interval after landing
 	var block: Block = _make_block(Vector3(2.0, 0.0, 2.0))
 	var behavior: SpecialBehavior = _make_behavior(block, _make_def(effect))
 	_land(behavior)
@@ -199,12 +203,29 @@ func test_hops_exactly_once_per_hop_interval_s_frame_rate_independent() -> void:
 	assert_eq(hops_coarse, 3, "must match regardless of the caller's step size")
 
 
+func test_first_hop_comes_after_first_hop_delay_not_hop_interval() -> void:
+	_register_field()
+	var effect: _CountingBeanEffect = _CountingBeanEffect.new()
+	effect.contact_override = func(_b: Block) -> bool: return true  # stub block: no collision to probe
+	effect.first_hop_delay_s = 0.4
+	effect.hop_interval_s = 1.0
+	var block: Block = _make_block(Vector3(2.0, 0.0, 2.0))
+	var behavior: SpecialBehavior = _make_behavior(block, _make_def(effect))
+	_land(behavior)
+	behavior.advance(0.3)
+	assert_eq(effect.hop_calls, 0, "no hop before first_hop_delay_s")
+	behavior.advance(0.15)
+	assert_eq(effect.hop_calls, 1, "first hop at first_hop_delay_s")
+
+
 # --- a hop is a velocity kick, never a position teleport --------------------
 
 func test_hop_kicks_velocity_up_and_horizontal_never_teleports_position() -> void:
 	_register_field()
 	var effect: JumpingBeanEffect = JumpingBeanEffect.new()
+	effect.contact_override = func(_b: Block) -> bool: return true  # stub block: no collision to probe
 	effect.hop_interval_s = 1.0
+	effect.first_hop_delay_s = 1.0
 	effect.hop_impulse = 6.0
 	effect.hop_horizontal_speed = 3.0
 	var start_position: Vector3 = Vector3(2.0, 0.0, 2.0)
@@ -215,8 +236,10 @@ func test_hop_kicks_velocity_up_and_horizontal_never_teleports_position() -> voi
 	behavior.advance(0.5)  # landed 0.5 s: no hop due yet
 	assert_eq(block.linear_velocity, Vector3.ZERO, "setup: no hop before hop_interval_s")
 
-	behavior.advance(0.5)  # landed 1.0 s == hop_interval_s -> hops
+	behavior.advance(0.5)  # landed 1.0 s == first_hop_delay_s -> hops
 	assert_almost_eq(block.linear_velocity.y, effect.hop_impulse, 0.0001)
+	assert_eq(Vector2(block.linear_velocity.x, block.linear_velocity.z), Vector2.ZERO, "sideways part follows next tick")
+	behavior.advance(TICK)
 	var horizontal: Vector2 = Vector2(block.linear_velocity.x, block.linear_velocity.z)
 	assert_almost_eq(horizontal.length(), effect.hop_horizontal_speed, 0.0001)
 	assert_eq(
@@ -231,6 +254,7 @@ func test_hop_kicks_velocity_up_and_horizontal_never_teleports_position() -> voi
 func test_self_triggers_once_elapsed_since_settle_reaches_lifetime_s() -> void:
 	_register_field()
 	var effect: JumpingBeanEffect = JumpingBeanEffect.new()
+	effect.contact_override = func(_b: Block) -> bool: return true  # stub block: no collision to probe
 	effect.hop_interval_s = 100.0  # keeps hops out of this timing-only test
 	effect.lifetime_s = 1.0
 	var block: Block = _make_block()
@@ -251,6 +275,7 @@ func test_self_triggers_once_elapsed_since_settle_reaches_lifetime_s() -> void:
 func test_two_beans_sharing_the_effect_keep_independent_timers() -> void:
 	_register_field()
 	var effect: JumpingBeanEffect = JumpingBeanEffect.new()
+	effect.contact_override = func(_b: Block) -> bool: return true  # stub block: no collision to probe
 	effect.hop_interval_s = 100.0
 	effect.lifetime_s = 1.0
 	var shared_def: SpecialDef = _make_def(effect, 0.25)  # one SpecialDef/effect instance
@@ -292,6 +317,7 @@ func test_hop_still_kicks_when_no_field_is_registered() -> void:
 	Match._field = null
 
 	var effect: JumpingBeanEffect = JumpingBeanEffect.new()
+	effect.contact_override = func(_b: Block) -> bool: return true  # stub block: no collision to probe
 	effect.hop_interval_s = 1.0
 	effect.lifetime_s = 2.0
 	var start_position: Vector3 = Vector3(2.0, 0.0, 2.0)
@@ -363,7 +389,9 @@ func test_each_hop_punches_a_hole_at_the_bean_current_position_under_temporary()
 	var raster: TerritoryRaster = Match.raster()
 
 	var effect: JumpingBeanEffect = JumpingBeanEffect.new()
+	effect.contact_override = func(_b: Block) -> bool: return true  # stub block: no collision to probe
 	effect.hop_interval_s = 1.0
+	effect.first_hop_delay_s = 1.0
 	effect.hole_radius_m = 0.4  # smaller than one 1 m cell -> exactly one cell
 	effect.hole_open_s = 2.0
 
@@ -384,7 +412,8 @@ func test_each_hop_punches_a_hole_at_the_bean_current_position_under_temporary()
 	var position_2: Vector3 = Vector3(9.0, 0.0, 9.0)
 	block.global_position = position_2  # stand-in for real physics moving it since the last hop
 
-	behavior.advance(1.0)  # landed 2.0 -> second hop punches at position_2
+	behavior.advance(0.1)  # touchdown: the interval counts from here
+	behavior.advance(1.1)  # next hop due -> punches at position_2
 	var cell_2: Vector2i = cell_grid.world_to_cell(Vector2(position_2.x, position_2.z))
 	assert_true(
 		raster.is_hole(cell_2.x, cell_2.y),
@@ -405,7 +434,9 @@ func test_hop_still_occurs_but_punches_no_hole_under_hole_mode_off() -> void:
 	var raster: TerritoryRaster = Match.raster()
 
 	var effect: JumpingBeanEffect = JumpingBeanEffect.new()
+	effect.contact_override = func(_b: Block) -> bool: return true  # stub block: no collision to probe
 	effect.hop_interval_s = 1.0
+	effect.first_hop_delay_s = 1.0
 	effect.hop_impulse = 6.0
 	effect.hop_horizontal_speed = 3.0
 
@@ -495,11 +526,17 @@ func test_jumping_bean_tres_loads_with_the_contract_defaults() -> void:
 		"jumping_bean.tres's effect sub-resource must be a JumpingBeanEffect"
 	)
 	var effect: JumpingBeanEffect = found.effect as JumpingBeanEffect
-	assert_almost_eq(effect.hop_interval_s, 1.2, 0.0001)
-	assert_almost_eq(effect.hop_impulse, 6.5, 0.0001)
-	assert_almost_eq(effect.hop_horizontal_speed, 3.5, 0.0001)
-	assert_almost_eq(effect.hole_radius_m, 1.4, 0.0001)
-	assert_almost_eq(effect.hole_open_s, 2.5, 0.0001)
+	assert_almost_eq(effect.first_hop_delay_s, 0.4, 0.0001)
+	assert_almost_eq(effect.hop_interval_s, 1.0, 0.0001)
+	assert_almost_eq(effect.hop_impulse, 9.0, 0.0001)
+	assert_almost_eq(effect.hop_horizontal_speed, 7.0, 0.0001)
+	assert_almost_eq(effect.hole_radius_m, 2.5, 0.0001)
+	assert_almost_eq(effect.hole_open_s, 3.0, 0.0001)
+	var probe: LandedTuning = effect.landed_tuning()
+	assert_almost_eq(probe.landed_speed_mps, 2.0, 0.0001)
+	assert_almost_eq(probe.landed_hold_s, 0.15, 0.0001)
+	assert_almost_eq(probe.landed_timeout_s, 1.0, 0.0001)
+	assert_almost_eq(probe.contact_probe_m, 0.05, 0.0001)
 	assert_almost_eq(effect.lifetime_s, 14.0, 0.0001)
 	assert_almost_eq(effect.effect_lifetime_s(), 14.0, 0.0001, "effect_lifetime_s() is the hopping window")
 	assert_true(effect.needs_landing(), "the Jolt sleeping gate is replaced by LandedProbe")
@@ -672,6 +709,8 @@ func _awake_island_run(hole_mode: MatchConfig.HoleMode) -> Dictionary:
 	bean.add_child(behavior)
 	behavior.bind(bean, def, SpecialTuning.new())
 	var landed_frames: int = 0
+	var landed: bool = false
+	var triggered: bool = false
 	var frames: int = 0
 	while landed_frames < int(ISLAND_RUN_SECONDS * Engine.physics_ticks_per_second) and frames < MAX_LAND_FRAMES * 4:
 		if frames % NEIGHBOUR_KICK_EVERY_FRAMES == 0:
@@ -683,9 +722,13 @@ func _awake_island_run(hole_mode: MatchConfig.HoleMode) -> Dictionary:
 				neighbour.apply_central_impulse(kick * NEIGHBOUR_KICK_SPEED_MPS * neighbour.mass)
 		await wait_physics_frames(1)
 		frames += 1
+		if not is_instance_valid(behavior):
+			break  # the bean hopped off the disc edge and burned at the kill plane (by design)
+		landed = landed or behavior.has_landed()
+		triggered = triggered or behavior.is_triggered()
 		if behavior.has_landed():
 			landed_frames += 1
-	return {"hops": spy.hops, "holes": spy.holes_after_hop, "landed": behavior.has_landed(), "triggered": behavior.is_triggered()}
+	return {"hops": spy.hops, "holes": spy.holes_after_hop, "landed": landed, "triggered": triggered}
 
 
 func test_awake_island_bean_hops_three_times_in_six_seconds_and_punches_a_hole_each_hop() -> void:
