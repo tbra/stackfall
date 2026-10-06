@@ -132,7 +132,8 @@ func _make_stress_joint() -> Array[Node]:
 	var wrapper: GlueJoint = GlueJoint.new()
 	wrapper.add_child(inner)
 	_blocks_root.add_child(wrapper)
-	wrapper.bind(inner, body_a, body_b, 40.0)
+	var tuning: GlueDropTuning = GlueDropTuning.new()
+	wrapper.bind(inner, body_a, body_b, 40.0, tuning.break_separation_m, tuning.break_speed_mps, tuning.break_shock_mps)
 	return [wrapper, inner]
 
 

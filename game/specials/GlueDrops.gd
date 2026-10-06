@@ -37,7 +37,9 @@ func try_bond(other: Node3D) -> bool:
 	var bond: GlueJoint = GlueJoint.new()
 	bond.add_child(joint)
 	_block.add_child(bond)
-	bond.bind(joint, _block, target, _tuning.break_force)
+	bond.bind(
+		joint, _block, target, _tuning.break_force, _tuning.break_separation_m, _tuning.break_speed_mps, _tuning.break_shock_mps
+	)
 	return true
 
 
