@@ -54,6 +54,16 @@ const GENERIC_PREVIEW_ICON: Texture2D = preload("res://assets/ui/icons/gift_gene
 ## along the activating player's camera forward (host-validated, see core/gifts/GiftThrow.gd).
 @export var aimed_launch: bool = false
 
+## Bontago-1pi.85.35 (gift playtest 2, docs/GIFT_PLAYTEST2_PLAN.md): true = releasing this gift
+## activates it at the cursor surface point with no physical carrier falling first
+## (MatchGiftActivation.try_activate). SpecialBehavior then never waits for landing
+## (needs_landing is ignored). False (default) keeps the falling carrier.
+@export var activates_in_place: bool = false
+
+## Bontago-1pi.85.35: uniform size multiplier of the gift carrier from release on (visual and
+## collider, mass via SpecialTuning.activation_mass_exponent). 1.0 = today's size.
+@export_range(0.1, 10.0, 0.1) var activation_scale: float = 1.0
+
 ## Seconds after SpecialBehavior.bind() before this special can arm (spec
 ## 2.6: "[NEW] earlier 0.4 s arm delay").
 @export var arm_delay: float = 0.4

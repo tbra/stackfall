@@ -5,6 +5,11 @@
 [resource]
 script = ExtResource("1_hints")
 ranges = {
+"SpecialTuning.gift_aim_back_m": Vector2(0.0, 30.0),
+"SpecialTuning.gift_aim_min_height_m": Vector2(0.0, 5.0),
+"SpecialTuning.gift_throw_speed_mps": Vector2(1.0, 60.0),
+"SpecialTuning.gift_throw_up_ratio": Vector2(0.0, 2.0),
+"SpecialTuning.activation_mass_exponent": Vector2(0.0, 3.0),
 "WeatherCeilingTuning.height_m": Vector2(20.0, 300.0),
 "SnowTuning.cap_rim_width_m": Vector2(0.02, 0.5),
 "SnowTuning.cross_merge_height_tol_m": Vector2(0.0, 0.2),
@@ -823,6 +828,11 @@ ranges = {
 "CloudDriftConfig.exclusion_fade_m": Vector2(5.0, 200.0),
 }
 descriptions = {
+"SpecialTuning.gift_aim_back_m": "How far back along the camera line a camera-aimed gift spawns from the cursor point, in meters.",
+"SpecialTuning.gift_aim_min_height_m": "Lowest allowed spawn height of an aimed gift above the surface, in meters.",
+"SpecialTuning.gift_throw_speed_mps": "Fixed launch speed of a thrown gift (Bomb, Magnet, Jumping Bean) in m/s.",
+"SpecialTuning.gift_throw_up_ratio": "Upward lift added to the camera forward of a thrown gift before normalising (0 = flat, 1 = 45 degrees).",
+"SpecialTuning.activation_mass_exponent": "Gift mass grows with activation_scale to this power (1 = linear, 3 = with volume).",
 "SnowTuning.flake_atlas_columns": "Columns of the snowflake sprite atlas; each falling flake picks one cell at random.",
 "SnowTuning.flake_atlas_rows": "Rows of the snowflake sprite atlas.",
 "WeatherCeilingTuning.height_m": "World height of the upper puff layer's bases above the disc; rain and snow start just below.",
