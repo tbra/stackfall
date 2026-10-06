@@ -82,9 +82,6 @@ const _PROCESS_PRIORITY_AFTER_GHOST: int = 1
 ## rather than a unit amplitude fraction.
 const _DROP_RECOVER_CONVERGED_M: float = 0.001
 
-## A distance/pitch/yaw change larger than this during the match-start hold is
-## player input taking over the camera (Bontago-1pi.79).
-
 ## Bontago-b7r (owner decision 2026-09-28, Bontago-aem): game/Sandbox.gd's own
 ## sandbox_next_slot hotkey is gamepad Back, which camera_snap_home also binds.
 ## DECISION (game/CameraRig.gd, orchestrator review): game/Sandbox.gd sets this
@@ -169,6 +166,11 @@ var _goal_cycle_index: int = 0
 ## can stop one before it keeps writing _yaw/_target/_distance/_pitch into the
 ## next match.
 var _view_tweens: Array[Tween] = []
+## Bontago-1pi.90: returns the held piece's camera anchor at its spawn pose
+## (game/PlayerController.gd spawn_camera_anchor(), registered through
+## set_camera_rig()). begin_start_framing() pivots on it; empty means "no
+## controller", and the home beacon is used instead.
+var _start_anchor_source: Callable = Callable()
 
 @onready var _camera: Camera3D = $Camera3D
 
@@ -482,6 +484,7 @@ func reset_view() -> void:
 		if tween != null and tween.is_valid():
 			tween.kill()
 	_view_tweens.clear()
+	_start_anchor_source = Callable()
 	_yaw = 0.0
 	_target = Vector3.ZERO
 	_follow_position = Vector3.ZERO
@@ -516,9 +519,15 @@ func place_at_home_beacon(slot_id: int) -> bool:
 ## entry point, called when the ready gate opens. There is no separate countdown
 ## camera: this sets the FINAL gameplay view at once -- yaw from the home beacon
 ## (set_home_view()), pitch and distance from CameraTuning's start_* values (the
-## low, wide angle the owner prefers) -- and the ordinary ghost-follow takes
+## low, wide angle the owner prefers, feedback/051026/3.png) -- and the ordinary ghost-follow takes
 ## over from the first frame, so nothing eases or shifts at GO. Player orbit
 ## and zoom work as normal afterwards.
+## Bontago-1pi.90 (owner 2026-10-06, "START CAMERA STILL NOT FIXED"): the pivot
+## is the held piece's follow anchor at its spawn pose (_start_pivot()), the
+## point the follow tracks on the first PLAYING frame -- not the bare beacon,
+## which sits ~2 m nearer the centre and ~3.5 m lower, so the view used to jump
+## by that much at GO. PlayerController keeps feeding that same anchor through
+## the countdown (its _present_countdown_hold()).
 ## Returns false, leaving the camera alone, when the slot has no beacon.
 func begin_start_framing(slot_id: int) -> bool:
 	_local_slot = slot_id
@@ -526,10 +535,34 @@ func begin_start_framing(slot_id: int) -> bool:
 	if home == Vector3.ZERO:
 		return false
 	set_home_view(home, Vector3.ZERO)
+	var pivot: Vector3 = _start_pivot(home)
+	_target = pivot
+	_follow_position = pivot
+	_drop_recovering = false
+	# Owner 2026-10-06: "3 is the preferred view" (feedback/051026/3.png, the low
+	# wide start angle) -- CameraTuning's start_* pitch/distance, held from the
+	# ready gate through PLAYING with no shift; the follow keeps it until the
+	# player moves the camera.
 	_distance = clampf(tuning.start_distance_m, tuning.zoom_min, tuning.zoom_max)
 	_pitch = deg_to_rad(tuning.start_pitch_deg)
 	_update_transform()
 	return true
+
+
+## Bontago-1pi.90: registered by PlayerController.set_camera_rig(); see
+## _start_anchor_source. Cleared by reset_view().
+func set_start_anchor_source(source: Callable) -> void:
+	_start_anchor_source = source
+
+
+## The match-start pivot: the held piece's spawn anchor when a controller is
+## wired, else the home beacon `home`.
+func _start_pivot(home: Vector3) -> Vector3:
+	if _start_anchor_source.is_valid():
+		var anchor: Variant = _start_anchor_source.call()
+		if anchor is Vector3:
+			return anchor as Vector3
+	return home
 
 
 ## Bontago-b7r: pushed every frame by game/PlayerController.gd's own
