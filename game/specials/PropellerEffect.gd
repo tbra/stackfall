@@ -34,6 +34,14 @@ const _BASE_Y_META: StringName = &"propeller_base_y"
 @export var carrier_rise_m: float = 0.6
 
 
+## Client-only: seconds after the gift spawns before its visual rise starts. Clients do
+## not run the landing probe, so this stands in for "fall time + landing" (about the
+## drop time); the rise then lasts disc_force.duration_s like the host's.
+@export var client_rise_delay_s: float = 1.0
+
+const _CLIENT_RISE_NODE: StringName = &"PropellerClientRise"
+
+
 func needs_landing() -> bool:
 	return true
 
@@ -83,3 +91,42 @@ func _apply_visual_rise(block: Block, landed_age_s: float) -> void:
 	if not visual.has_meta(_BASE_Y_META):
 		visual.set_meta(_BASE_Y_META, visual.position.y)
 	visual.position.y = float(visual.get_meta(_BASE_Y_META)) + rise_at(landed_age_s)
+
+
+## Client-derived rise (no RPC; Bontago-1pi.85.19): on a non-host peer a gift carrier whose
+## def is this effect gets a visual-only driver that lifts the GiftVisual from its own
+## age. Idempotent; no-op on the host (physics_tick already rises it), for other gifts
+## and for a block without a GiftVisual. Never touches the body or collider.
+static func start_client_rise(block: Block) -> void:
+	if block == null or not is_instance_valid(block) or block.gift_id == &"" or Match._is_host():
+		return
+	var def: SpecialDef = SpecialDef.find_by_id(block.gift_id)
+	var effect: PropellerEffect = def.effect as PropellerEffect if def != null else null
+	if effect == null or effect.carrier_rise_m == 0.0:
+		return
+	if block.get_node_or_null(NodePath(String(_CLIENT_RISE_NODE))) != null:
+		return
+	var driver: ClientRiseDriver = ClientRiseDriver.new()
+	driver.name = _CLIENT_RISE_NODE
+	driver.effect = effect
+	block.add_child(driver)
+
+
+class ClientRiseDriver:
+	extends Node
+
+	var effect: PropellerEffect = null  # set by start_client_rise()
+	var age_s: float = 0.0
+
+
+	func _process(delta: float) -> void:
+		advance(delta)
+
+
+	## Advances the rise by `delta` seconds (also the test seam).
+	func advance(delta: float) -> void:
+		age_s += delta
+		var block: Block = get_parent() as Block
+		if block == null or effect == null:
+			return
+		effect._apply_visual_rise(block, maxf(age_s - effect.client_rise_delay_s, 0.0))
