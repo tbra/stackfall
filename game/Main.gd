@@ -206,6 +206,7 @@ func _ready() -> void:
 	# a default at its own _ready()), so the initial call always has a preset
 	# to apply.
 	Settings.graphics_preset_changed.connect(_apply_graphics_preset)
+	Settings.window_mode_changed.connect(_on_window_mode_changed)
 	_apply_graphics_preset(Settings.current_graphics_preset())
 	# Bontago-1pi.11.37: opt-in adaptive quality (idle unless the Options toggle is on).
 	add_child(QualityGovernorDriver.new())
@@ -301,6 +302,66 @@ func _physics_process(delta: float) -> void:
 	PerfProbe.stop(&"snapshot", probe_snapshot)
 
 
+## Bontago-1pi.11.49: the single place that decides the in-match frame cap (default =
+## display refresh, see GraphicsPreset.FrameCap); ui/MenuBackdrop.gd arbitrates it
+## against the menu cap. Headless and agent-probe runs keep the engine default.
+## Tests set frame_cap_in_headless and refresh_rate_provider.
+var frame_cap_in_headless: bool = false
+var refresh_rate_provider: Callable = Callable()
+
+
+## Bontago-1pi.11.51: the cap also follows the window: re-applied after a window-mode
+## change and when a low-frequency check (GraphicsPreset.screen_check_interval_s) sees the
+## window on another screen or the screen's refresh rate changed. Tests set screen_provider.
+var screen_provider: Callable = Callable()
+var _cap_display_key: Vector2 = Vector2.INF
+var _screen_check_timer: Timer = null
+
+
+func _frame_cap_skipped() -> bool:
+	return not frame_cap_in_headless and (DisplayServer.get_name() == "headless" or AgentProbe.is_active())
+
+
+func _current_screen() -> int:
+	if screen_provider.is_valid():
+		return int(screen_provider.call())
+	return DisplayServer.window_get_current_screen()
+
+
+func _current_refresh_hz() -> float:
+	if refresh_rate_provider.is_valid():
+		return float(refresh_rate_provider.call())
+	return DisplayServer.screen_get_refresh_rate(_current_screen())
+
+
+func _apply_frame_cap(preset: GraphicsPreset) -> void:
+	if _frame_cap_skipped():
+		return
+	var refresh_hz: float = _current_refresh_hz()
+	_cap_display_key = Vector2(float(_current_screen()), refresh_hz)
+	MenuBackdrop.set_match_cap(FrameCapRule.resolve_for_preset(preset, refresh_hz))
+	if _screen_check_timer == null and not _frame_cap_skipped() and DisplayServer.get_name() != "headless":
+		_screen_check_timer = Timer.new()
+		_screen_check_timer.wait_time = preset.screen_check_interval_s
+		_screen_check_timer.timeout.connect(_recheck_frame_cap)
+		add_child(_screen_check_timer)
+		_screen_check_timer.start()
+
+
+## Re-applies the cap only when the window's screen or that screen's refresh changed.
+func _recheck_frame_cap() -> void:
+	if _frame_cap_skipped():
+		return
+	var key: Vector2 = Vector2(float(_current_screen()), _current_refresh_hz())
+	if key != _cap_display_key:
+		_apply_frame_cap(Settings.current_graphics_preset())
+
+
+func _on_window_mode_changed(_id: StringName) -> void:
+	# The OS moves/resizes the window after apply_window_mode(); read the screen next frame.
+	_apply_frame_cap.call_deferred(Settings.current_graphics_preset())
+
+
 ## Bontago-xtq.26 (M7 P1): applies every field GraphicsPreset (config/
 ## GraphicsPreset.gd) currently declares. Connected to
 ## Settings.graphics_preset_changed and also called once at startup above, so
@@ -327,6 +388,10 @@ func _apply_graphics_preset(preset: GraphicsPreset) -> void:
 	# 16_bits override) -- not a preset-tunable value, so it isn't a
 	# GraphicsPreset field.
 	RenderingServer.directional_shadow_atlas_set_size(preset.shadow_atlas_size, true)
+
+	# Bontago-1pi.11.49: frame cap per preset (the headless server/tests keep the engine
+	# default so bot matches and test waits are not throttled).
+	_apply_frame_cap(preset)
 
 	# Bontago-1pi.11.2: cascade count / range of the sun's shadow pass.
 	var sun: DirectionalLight3D = get_node_or_null("DirectionalLight3D") as DirectionalLight3D
