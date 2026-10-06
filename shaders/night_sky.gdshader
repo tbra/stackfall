@@ -82,6 +82,18 @@ uniform float twinkle_amount = 0.55;
 uniform vec3 star_tint_cool : source_color = vec3(0.7, 0.82, 1.0);
 uniform vec3 star_tint_warm : source_color = vec3(1.0, 0.9, 0.75);
 uniform float star_horizon_fade = 0.22;
+// Bontago-mp0.129: aurora borealis curtains (cloud_common aurora_borealis), drawn after the
+// stars and before the moon and clouds so both sit in front of them. aurora_visibility is
+// 0..1 (game/Skybox.gd: SkyThemeDef.aurora_always_on x weather keep x graphics preset);
+// the rest come from SkyThemeDef.aurora_*. Background pass only, like the stars.
+uniform float aurora_visibility : hint_range(0.0, 1.0) = 0.0;
+uniform float aurora_intensity = 0.45;
+uniform vec3 aurora_color_low : source_color = vec3(0.12, 1.0, 0.42);
+uniform vec3 aurora_color_mid : source_color = vec3(0.08, 0.75, 0.8);
+uniform vec3 aurora_color_top : source_color = vec3(0.55, 0.3, 0.95);
+uniform float aurora_speed = 1.0;
+uniform float aurora_base_height = 0.1;
+uniform float aurora_curtain_height = 0.4;
 
 uniform float cloud_layer_opacity = 0.9;
 uniform float cloud_layer_scale = 1.1;
@@ -155,6 +167,12 @@ void sky() {
 			vec3 stars = star_layer(eyedir, star_cells_fine, 1.0);
 			stars += star_layer(eyedir + vec3(3.7, 1.3, 9.1), star_cells_coarse, 1.5);
 			col += stars * star_mask;
+		}
+
+		// Aurora curtains, additive over the stars (exposure-scaled like the sea).
+		if (aurora_visibility > 0.0 && aurora_intensity > 0.0 && eyedir.y > 0.0) {
+			col += aurora_borealis(noise_tex, eyedir, TIME, aurora_base_height, aurora_curtain_height, aurora_speed,
+				aurora_color_low, aurora_color_mid, aurora_color_top) * aurora_intensity * aurora_visibility * exposure;
 		}
 
 		// Moon disc with a phase terminator and dark maria.

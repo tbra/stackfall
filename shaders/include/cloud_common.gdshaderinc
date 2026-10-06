@@ -280,3 +280,90 @@ vec4 sky_cloud_cards(sampler2D atlas, vec3 dir, vec3 sun_dir, float time, vec4 l
 	}
 	return vec4(acc / max(acc_a, 0.0001), acc_a);
 }
+
+// Bontago-mp0.129 (owner playtest: "at night lets add an aurora borealis effect to the
+// sky"): soft aurora curtains for the night sky, shared by sunset_clouds (the
+// day/night cycle's night) and night_sky (the static night theme). Drawn in
+// view-direction space, azimuth around the horizon x elevation (dir.y), so the bands
+// wrap the whole sky and any camera orbit sees some of them. Every texture tap is a
+// textureLod on the shared seamless noise at a whole number of repeats around the
+// horizon, and every sine has an integer frequency, so the atan() wrap leaves neither a
+// seam nor a mip-selection line. Background pass only (callers skip the radiance pass);
+// two curtain layers of three taps each, nothing at all below the horizon or when the
+// caller's visibility is 0. Look constants below; the owner-facing tunables (intensity,
+// colours, speed, base height, curtain height) are SkyThemeDef.aurora_*.
+const float AURORA_TIME_RATE = 0.04;        // seconds -> animation time at speed 1
+const float AURORA_PATCH_TILES = 3.0;       // noise repeats around the horizon: slow arcs and the gaps between
+const float AURORA_RAY_TILES = 52.0;        // noise repeats around the horizon: the fine vertical rays
+const float AURORA_PATCH_LOW = 0.48;        // patch noise range mapped to curtain presence
+const float AURORA_PATCH_HIGH = 0.64;
+const float AURORA_RAY_LOW = 0.25;          // ray noise range mapped to ray strength
+const float AURORA_RAY_HIGH = 0.75;
+const float AURORA_PATCH_DRIFT = 0.2;       // arc drift along the horizon, tiles per animation second
+const float AURORA_RAY_DRIFT = 1.8;         // ray drift along the horizon, tiles per animation second
+const float AURORA_RAY_SHIMMER = 1.5;       // ray brightness shimmer, tiles per animation second
+const float AURORA_RAY_SLANT = 0.12;        // how much a ray's noise changes with height (a gentle sway)
+const float AURORA_RIPPLE_A = 0.045;        // lower-edge meander amplitudes (dir.y) and rates
+const float AURORA_RIPPLE_B = 0.025;
+const float AURORA_RIPPLE_RATE_A = 3.0;
+const float AURORA_RIPPLE_RATE_B = 4.5;
+const float AURORA_EDGE_SOFT = 0.12;        // lower-edge softness, fraction of the curtain height
+const float AURORA_FALLOFF = 1.3;           // how fast a ray fades with height
+const float AURORA_REACH_MIN = 0.45;        // the shortest ray's reach, fraction of the curtain height
+const float AURORA_RAY_FLOOR = 0.5;         // dimmest ray's brightness next to the brightest
+const float AURORA_MID_START = 0.0;         // colour ramp along each ray (0 = base, 1 = tip): low -> mid, mid -> top
+const float AURORA_MID_END = 0.55;
+const float AURORA_TOP_START = 0.4;
+const float AURORA_TOP_END = 0.95;
+const float AURORA_TOP_GAIN = 1.6;          // brightness boost of the violet tips so they read through the fade
+const float AURORA_MAX_HEIGHT = 1.5;        // curtain-height fraction past which nothing is drawn
+const float AURORA_SECOND_LIFT = 0.3;       // second, fainter layer: lift and height as curtain-height fractions
+const float AURORA_SECOND_HEIGHT = 1.1;
+const float AURORA_SECOND_RATE = 0.7;
+const float AURORA_SECOND_WEIGHT = 0.6;
+const float AURORA_HORIZON_FADE = 0.04;     // dir.y over which the curtains fade in above the horizon
+const float AURORA_ZENITH_CUT = 0.98;       // atan() is undefined at the pole
+
+// One curtain layer: rgb at azimuth `az` (radians) and elevation `elev` (dir.y). `t` is
+// animation time, `base` the mean lower-edge elevation, `height` its extent, `seed`
+// decorrelates the layers.
+vec3 aurora_layer(sampler2D noise_tex, float az, float elev, float t, float base, float height, float seed,
+		vec3 col_low, vec3 col_mid, vec3 col_top) {
+	float edge = base
+		+ AURORA_RIPPLE_A * sin(az * 2.0 + t * AURORA_RIPPLE_RATE_A + seed * 3.1)
+		+ AURORA_RIPPLE_B * sin(az * 5.0 - t * AURORA_RIPPLE_RATE_B + seed * 1.7);
+	float h = (elev - edge) / max(height, 0.01);
+	if (h <= 0.0 || h >= AURORA_MAX_HEIGHT) {
+		return vec3(0.0);
+	}
+	float a = az / TAU;
+	float arcs = smoothstep(AURORA_PATCH_LOW, AURORA_PATCH_HIGH,
+		textureLod(noise_tex, vec2(a * AURORA_PATCH_TILES + t * AURORA_PATCH_DRIFT + seed, 0.17 + seed * 0.37), 0.0).r);
+	if (arcs <= 0.0) {
+		return vec3(0.0);
+	}
+	vec2 ruv = vec2(a * AURORA_RAY_TILES + t * AURORA_RAY_DRIFT + seed * 5.0, h * AURORA_RAY_SLANT + t * AURORA_RAY_SHIMMER + seed);
+	float rays = textureLod(noise_tex, ruv, 0.0).r * 0.65 + textureLod(noise_tex, ruv * 2.0 + vec2(0.37, 0.11), 0.0).r * 0.35;
+	rays = smoothstep(AURORA_RAY_LOW, AURORA_RAY_HIGH, rays);
+	float v = h / mix(AURORA_REACH_MIN, 1.0, rays);
+	float profile = smoothstep(0.0, AURORA_EDGE_SOFT, h) * pow(max(1.0 - v, 0.0), AURORA_FALLOFF);
+	vec3 c = mix(col_low, col_mid, smoothstep(AURORA_MID_START, AURORA_MID_END, v));
+	float tip = smoothstep(AURORA_TOP_START, AURORA_TOP_END, v);
+	c = mix(c, col_top * AURORA_TOP_GAIN, tip);
+	return c * (arcs * mix(AURORA_RAY_FLOOR, 1.0, rays) * profile);
+}
+
+// Additive aurora rgb for view direction `dir` (0 at the horizon and below). `base` and
+// `height` are in dir.y units, `speed` scales the animation (1 = the default drift).
+vec3 aurora_borealis(sampler2D noise_tex, vec3 dir, float time, float base, float height, float speed,
+		vec3 col_low, vec3 col_mid, vec3 col_top) {
+	if (dir.y <= 0.0 || dir.y >= AURORA_ZENITH_CUT) {
+		return vec3(0.0);
+	}
+	float az = atan(dir.x, -dir.z);
+	float t = time * speed * AURORA_TIME_RATE;
+	vec3 sum = aurora_layer(noise_tex, az, dir.y, t, base, height, 0.0, col_low, col_mid, col_top);
+	sum += aurora_layer(noise_tex, az, dir.y, t * AURORA_SECOND_RATE, base + AURORA_SECOND_LIFT * height,
+		height * AURORA_SECOND_HEIGHT, 1.0, col_low, col_mid, col_top) * AURORA_SECOND_WEIGHT;
+	return sum * smoothstep(0.0, AURORA_HORIZON_FADE, dir.y);
+}

@@ -51,6 +51,9 @@ extends Resource
 ## Bontago-mp0.127: moving cloud shadows on the arena and the sun dimming under clouds
 ## (vfx/CloudShadows.gd). Off on Low.
 @export var cloud_shadows_enabled: bool = true
+## Bontago-mp0.129: the night-sky aurora borealis curtains (shaders/include/cloud_common.gdshaderinc,
+## game/Skybox.gd). Off on Low: the sky keeps its stars and moon.
+@export var aurora_enabled: bool = true
 
 ## Bontago-1pi.11.37: the fields below are all-default on every shipped preset; only
 ## the adaptive quality governor (core/QualityGovernor.gd) lowers them, on a duplicate

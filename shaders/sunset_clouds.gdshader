@@ -65,6 +65,18 @@ uniform float moon_brightness = 1.0;
 // Visible disc / halo radius as a fraction of the half texture quad (400/512 and 480/512).
 uniform float moon_disc_fill = 0.78125;
 uniform float moon_halo_fill = 0.9375;
+// Bontago-mp0.129: aurora borealis curtains (cloud_common aurora_borealis) behind the moon
+// at night. aurora_visibility is 0..1 (night x weather keep x graphics preset, set by
+// game/Skybox.gd, so it is exactly 0 by day, in a storm and on Low); the rest come from
+// SkyThemeDef.aurora_*.
+uniform float aurora_visibility : hint_range(0.0, 1.0) = 0.0;
+uniform float aurora_intensity = 0.45;
+uniform vec3 aurora_color_low : source_color = vec3(0.12, 1.0, 0.42);
+uniform vec3 aurora_color_mid : source_color = vec3(0.08, 0.75, 0.8);
+uniform vec3 aurora_color_top : source_color = vec3(0.55, 0.3, 0.95);
+uniform float aurora_speed = 1.0;
+uniform float aurora_base_height = 0.1;
+uniform float aurora_curtain_height = 0.4;
 
 // Samples a moon texture laid on the tangent plane at `plane` (tan-space coords).
 vec4 moon_layer(sampler2D tex, vec2 plane, float visible_angle_deg, float fill) {
@@ -440,6 +452,11 @@ void sky() {
 				* smoothstep(0.0, cycle_star_horizon_fade, eyedir.y);
 		}
 		COLOR = mix(COLOR, night * exposure, clamp(cycle_night_mix, 0.0, 1.0));
+	}
+	// Aurora over the night sky, behind the moon below and (like the stars) background pass only.
+	if (aurora_visibility > 0.0 && aurora_intensity > 0.0 && !AT_CUBEMAP_PASS && eyedir.y > 0.0) {
+		COLOR += aurora_borealis(noise_tex, eyedir, TIME, aurora_base_height, aurora_curtain_height, aurora_speed,
+			aurora_color_low, aurora_color_mid, aurora_color_top) * aurora_intensity * aurora_visibility * exposure;
 	}
 	if (moon_visibility > 0.0 && !AT_CUBEMAP_PASS) {
 		vec3 moon_dir = normalize(moon_direction);

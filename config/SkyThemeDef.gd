@@ -21,6 +21,30 @@ extends Resource
 @export_range(0.0, 2.0, 0.05) var cycle_moon_halo_strength: float = 0.6
 @export_range(0.2, 3.0, 0.05) var cycle_moon_brightness: float = 1.0
 @export_range(0.05, 1.0, 0.01) var cycle_moon_full_night_mix: float = 0.8
+## Bontago-mp0.129 (owner playtest: "at night lets add an aurora borealis effect to the sky"):
+## soft green -> teal -> violet curtain bands in the night sky (cloud_common.gdshaderinc
+## aurora_borealis, drawn by sunset_clouds' cycle night and night_sky), slowly drifting and
+## rippling, behind the moon and clouds. Cosmetic only. game/Skybox.gd writes the shader
+## uniforms: the visibility fades in with the cycle's night mix (aurora_start_night_mix ..
+## aurora_full_night_mix), is scaled by the weather's sun keep like the moon (hidden in a
+## storm) and is 0 when aurora_enabled is off or the graphics preset's aurora_enabled is off
+## (Low). aurora_intensity scales the brightness; the three colours are the curtain's lower,
+## middle and upper stops; aurora_speed scales the drift/ripple (1 = default); the lower edge
+## sits at aurora_base_height and the curtains extend aurora_curtain_height above it, both in
+## sky elevation units (the sine of the elevation angle: 0.1 ~ 6 degrees, 0.5 = 30 degrees).
+@export var aurora_enabled: bool = true
+@export_range(0.0, 3.0, 0.05) var aurora_intensity: float = 0.45
+@export var aurora_color_low: Color = Color(0.12, 1.0, 0.42)
+@export var aurora_color_mid: Color = Color(0.08, 0.75, 0.8)
+@export var aurora_color_top: Color = Color(0.55, 0.3, 0.95)
+@export_range(0.0, 4.0, 0.05) var aurora_speed: float = 1.0
+@export_range(0.0, 0.6, 0.01) var aurora_base_height: float = 0.1
+@export_range(0.05, 1.0, 0.01) var aurora_curtain_height: float = 0.4
+@export_range(0.0, 1.0, 0.01) var aurora_start_night_mix: float = 0.5
+@export_range(0.05, 1.0, 0.01) var aurora_full_night_mix: float = 0.95
+## A static (non-cycle) theme has no night mix: true shows the aurora at full strength
+## under it (config/sky_themes/night.tres), false never shows it. The cycle ignores this.
+@export var aurora_always_on: bool = false
 ## Bontago-mp0.127 (owner: "sun should affect light more"): in the cycle the direct sun is
 ## multiplied by up to cycle_sun_energy_gain and the sky ambient by cycle_day_ambient_scale as
 ## the sun climbs (both identity at the horizon and at night), so lit vs shadowed block faces
@@ -348,6 +372,17 @@ extends Resource
 @export var proc_cards_density: float = 0.85
 @export var proc_cards_scale: float = 1.5
 @export var proc_cards_opacity: float = 0.95
+
+
+## Bontago-mp0.129: how much of the aurora the cycle shows at night mix `night` (0 = none,
+## 1 = full): a smoothstep across aurora_start_night_mix .. aurora_full_night_mix. The two edges
+## are ordered first, so an F4 edit that drags the start above the full value still fades in
+## with the night (a smoothstep with reversed edges would fade out instead); equal edges make
+## it a hard step.
+func aurora_night_strength(night: float) -> float:
+	var low: float = minf(aurora_start_night_mix, aurora_full_night_mix)
+	var high: float = maxf(aurora_start_night_mix, aurora_full_night_mix)
+	return smoothstep(low, high, night)
 
 
 ## Locked cycle phase (0..1) for a concrete sky id as MatchConfig resolves it

@@ -730,6 +730,14 @@ const MOON_DISC_TEXTURE: Texture2D = preload("res://assets/sky/moon_v1/moon_disc
 const MOON_HALO_TEXTURE: Texture2D = preload("res://assets/sky/moon_v1/moon_halo.png")
 const CEILING_TUNING: WeatherCeilingTuning = preload("res://config/weather/ceiling.tres")
 var _storm_amount: float = 0.0
+## Bontago-mp0.129: aurora write cache (see _apply_aurora()). `_aurora_preset_on` is the graphics
+## preset's aurora_enabled, kept from graphics_preset_changed instead of looked up every call;
+## `_aurora_sky` is the sky material the uniforms were last written to, `_aurora_visibility_written`
+## the visibility on it (-1 = nothing written yet) and `_aurora_look_written` its look values.
+var _aurora_preset_on: bool = true
+var _aurora_sky: ShaderMaterial = null
+var _aurora_visibility_written: float = -1.0
+var _aurora_look_written: Array = []
 var _storm_target: SkyThemeDef = null
 var _storm_blend: SkyThemeDef = null
 var _storm_blend_base: SkyThemeDef = null
@@ -831,9 +839,11 @@ func _ready() -> void:
 	var registry_node: BlockRegistry = get_node_or_null(registry_path) as BlockRegistry if not registry_path.is_empty() else null
 	_perching.bind_scene(field_node, registry_node)
 	_fireflies.bind_field(field_node)
+	var boot_preset: GraphicsPreset = Settings.current_graphics_preset()
+	_aurora_preset_on = boot_preset == null or boot_preset.aurora_enabled
 	apply_theme(theme)
 	_spawn_fog_volume()
-	_apply_fog_volume_visibility(Settings.current_graphics_preset())
+	_apply_fog_volume_visibility(boot_preset)
 	Settings.graphics_preset_changed.connect(_on_graphics_preset_changed)
 	Events.match_scope_reset.connect(reset_to_launch)
 	# Bontago-59o.18: F4's persisted "cycle" Theme entry runs the cycle from boot
@@ -1316,6 +1326,8 @@ func _spawn_fog_volume() -> void:
 ## autoload/Settings.gd's graphics_preset_changed handler, connected in
 ## _ready() and disconnected in _exit_tree() above.
 func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
+	# Bontago-mp0.129: the aurora reads this cached flag, never the Settings lookup.
+	_aurora_preset_on = preset == null or preset.aurora_enabled
 	_apply_fog_volume_visibility(preset)
 	_apply_ambient_life(preset, theme)
 	# Bontago-59o.18: the rebuild above is day-configured (puff palette, light
@@ -1471,13 +1483,16 @@ func _publish_cloud_lighting() -> void:
 	var puff: ShaderMaterial = _cloud_sea.puff_material() if _cloud_sea != null else null
 	if puff == null and theme != null:
 		puff = theme.cloud_puff_material as ShaderMaterial
-	if puff == null:
-		return
 	var sky: ShaderMaterial = theme.sky_material as ShaderMaterial if theme != null else null
 	var night: float = 0.0
 	if sky != null and _cycle_theme != null:
 		var mixed: Variant = sky.get_shader_parameter(&"cycle_night_mix")
 		night = float(mixed) if mixed is float else 0.0
+	# Bontago-mp0.129: the aurora follows the same night / weather / preset inputs, and does
+	# not need the puff material, so it is written before the puff-less early return.
+	_apply_aurora(night)
+	if puff == null:
+		return
 	var direction: Vector3 = _cloud_lighting.light_direction
 	var raw_direction: Variant = puff.get_shader_parameter(&"light_direction")
 	if raw_direction is Vector3:
@@ -1532,6 +1547,57 @@ func _apply_moon(night: float) -> void:
 	sky.set_shader_parameter(&"moon_halo_radius_deg", _cycle_theme.cycle_moon_halo_radius_deg)
 	sky.set_shader_parameter(&"moon_halo_strength", _cycle_theme.cycle_moon_halo_strength)
 	sky.set_shader_parameter(&"moon_brightness", _cycle_theme.cycle_moon_brightness)
+
+
+## Bontago-mp0.129 (owner playtest: "at night lets add an aurora borealis effect to the sky"):
+## writes the aurora uniforms on the live sky material (the cycle's sunset_clouds, or a static
+## theme's own sky such as night_sky). `night` is the cycle's night mix 0..1 (0 outside the
+## cycle). The shaders only read `aurora_visibility`, so the day / night / weather / preset
+## decision lives here, exactly as for the moon: the cycle fades it in over the theme's
+## aurora_start_night_mix .. aurora_full_night_mix (SkyThemeDef.aurora_night_strength, edges
+## ordered), a static theme shows it at full strength only when SkyThemeDef.aurora_always_on,
+## the weather's sun keep (overcast, storm) scales it, and it is 0 whenever the theme or the
+## graphics preset (Low, `_aurora_preset_on`) switches it off.
+## This runs on every cycle phase tick, so it is cheap while the aurora is hidden (the whole
+## day): no Settings lookup, and nothing is written to the material until the visibility
+## changes. The look uniforms are written only while visible and only when they differ from
+## what is already on that material (a new sky material is written afresh).
+func _apply_aurora(night: float) -> void:
+	var active: SkyThemeDef = _cycle_theme if _cycle_theme != null else theme
+	var sky: ShaderMaterial = active.sky_material as ShaderMaterial if active != null else null
+	if sky == null:
+		return
+	if sky != _aurora_sky:
+		_aurora_sky = sky
+		_aurora_visibility_written = -1.0
+		_aurora_look_written = []
+	var strength: float = 0.0
+	if active.aurora_enabled and _aurora_preset_on:
+		if _cycle_theme != null:
+			strength = active.aurora_night_strength(night)
+		elif active.aurora_always_on:
+			strength = 1.0
+	var visibility: float = 0.0
+	if strength > 0.0:
+		visibility = strength * CloudLighting.sun_weather_keep(cloud_overcast_amount(),
+			CEILING_TUNING.sun_overcast_attenuation, _storm_amount, CEILING_TUNING.sun_storm_attenuation)
+	if visibility != _aurora_visibility_written:
+		_aurora_visibility_written = visibility
+		sky.set_shader_parameter(&"aurora_visibility", visibility)
+	if visibility <= 0.0:
+		return
+	var look: Array = [active.aurora_intensity, active.aurora_color_low, active.aurora_color_mid,
+		active.aurora_color_top, active.aurora_speed, active.aurora_base_height, active.aurora_curtain_height]
+	if look == _aurora_look_written:
+		return
+	_aurora_look_written = look
+	sky.set_shader_parameter(&"aurora_intensity", active.aurora_intensity)
+	sky.set_shader_parameter(&"aurora_color_low", active.aurora_color_low)
+	sky.set_shader_parameter(&"aurora_color_mid", active.aurora_color_mid)
+	sky.set_shader_parameter(&"aurora_color_top", active.aurora_color_top)
+	sky.set_shader_parameter(&"aurora_speed", active.aurora_speed)
+	sky.set_shader_parameter(&"aurora_base_height", active.aurora_base_height)
+	sky.set_shader_parameter(&"aurora_curtain_height", active.aurora_curtain_height)
 
 
 ## Bontago-mp0.34: scales the sky shader's god rays / sun glow and the screen
