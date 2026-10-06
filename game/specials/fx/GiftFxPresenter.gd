@@ -14,6 +14,11 @@ extends Node
 
 const PAINTBALL_ID: StringName = &"paintball"
 const BLACK_HOLE_ID: StringName = &"black_hole"
+const BOMB_ID: StringName = &"bomb"
+const ROCKET_ID: StringName = &"rocket"
+const VOLCANO_ID: StringName = &"volcano"
+const MIN_FPS: float = 0.001
+const EXPLOSION_TUNING: GiftExplosionFxTuning = preload("res://config/specials/fx/gift_explosion_fx_tuning.tres")
 
 var _handlers: Dictionary = {}
 
@@ -21,7 +26,19 @@ var _handlers: Dictionary = {}
 func _ready() -> void:
 	register(PAINTBALL_ID, _build_paintball)
 	register(BLACK_HOLE_ID, _build_black_hole)
+	register(BOMB_ID, _build_explosion)
+	register(ROCKET_ID, _build_explosion)
+	register(VOLCANO_ID, _build_volcano)
 	connect_events()
+
+
+## The one spawn hook (BlockFactory.apply_gift_visual, which host and clients both run
+## for a gift carrier): starts the client-derived per-gift visuals. No RPC; each peer
+## derives them from block.gift_id and its own clock. Both are visual-only and no-ops
+## for a gift without such a visual.
+static func on_gift_block_spawned(block: Block) -> void:
+	GiftBlink.start_for_gift(block)
+	PropellerEffect.start_client_rise(block)
 
 
 ## Idempotent: a second call never adds a second subscription.
@@ -78,3 +95,37 @@ func _build_black_hole(_block: Block, def: SpecialDef, position: Vector3) -> voi
 	parent.add_child(visual)
 	visual.global_position = position
 	visual.setup(effect.visual_radius_m, effect.lifetime_s)
+
+
+## Bomb and Rocket: a blast puff (the pooled impact flipbook) sized by the blast radius.
+## Rides the replicated special_triggered, so every peer sees it. Visual only.
+func _build_explosion(_block: Block, def: SpecialDef, position: Vector3) -> void:
+	var parent: Node3D = Match.blocks_parent()
+	var blast: ExplosionTuning = null
+	if def != null:
+		var bomb: BombEffect = def.effect as BombEffect
+		var rocket: RocketEffect = def.effect as RocketEffect
+		if bomb != null:
+			blast = bomb.blast
+		elif rocket != null:
+			blast = rocket.blast
+	if parent == null or blast == null or not parent.is_inside_tree():
+		return
+	var puff: ImpactPuff = ImpactPuff.new()
+	parent.add_child(puff)
+	var tuning: GiftExplosionFxTuning = EXPLOSION_TUNING
+	puff.play(
+		position, tuning.hard, blast.radius_m * tuning.size_per_blast_radius,
+		tuning.tint, tuning.alpha, tuning.fps, tuning.frame_count
+	)
+	var lifetime_s: float = float(tuning.frame_count) / maxf(tuning.fps, MIN_FPS)
+	parent.get_tree().create_timer(lifetime_s).timeout.connect(puff.queue_free)
+
+
+## Volcano (Bontago-1pi.85.14): clients draw the same cone without a physics body; the
+## host already has the real structure (build_client_visual returns null there).
+func _build_volcano(block: Block, def: SpecialDef, position: Vector3) -> void:
+	var effect: VolcanoEffect = def.effect as VolcanoEffect if def != null else null
+	if effect == null:
+		return
+	VolcanoStructure.build_client_visual(effect, position, block.owner_slot if block != null else -1)

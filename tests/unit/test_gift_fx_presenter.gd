@@ -81,3 +81,90 @@ func test_blink_pure_helpers_and_driver() -> void:
 	driver.call("_process", 0.6)
 	assert_null(mesh.material_overlay, "overlay removed when the blink ends")
 	GiftBlink.apply(null, 0.25, 1.0)
+
+
+# --- C2: client-derived visuals (Bontago-1pi.85.20) -------------------------
+
+func _gift_block(gift_id: StringName) -> Block:
+	var block: Block = autofree(Block.new())
+	var visual: Node3D = Node3D.new()
+	visual.name = BlockFactory.GIFT_VISUAL_NODE
+	visual.add_child(MeshInstance3D.new())
+	block.add_child(visual)
+	block.gift_id = gift_id
+	add_child_autofree(block)
+	return block
+
+
+func _client() -> FakeNet:
+	var net: FakeNet = FakeNet.new()
+	net.is_host_value = false
+	net.is_client_value = true
+	net.is_offline_value = false
+	Match.set_net_provider(net)
+	return net
+
+
+func test_spawn_hook_starts_blink_for_a_bomb_on_a_client_and_is_idempotent() -> void:
+	_client()
+	var bomb: Block = _gift_block(&"bomb")
+	GiftFxPresenter.on_gift_block_spawned(bomb)
+	assert_not_null(bomb.get_node_or_null(NodePath(String(GiftBlink.DRIVER_NAME))), "client blinks")
+	GiftFxPresenter.on_gift_block_spawned(bomb)
+	var drivers: int = 0
+	for child: Node in bomb.get_children():
+		if child is GiftBlink.GiftBlinkDriver:
+			drivers += 1
+	assert_eq(drivers, 1)
+	var other: Block = _gift_block(&"anvil")
+	GiftFxPresenter.on_gift_block_spawned(other)
+	assert_null(other.get_node_or_null(NodePath(String(GiftBlink.DRIVER_NAME))), "only the bomb blinks")
+	Match.set_net_provider(null)
+
+
+func test_bomb_and_rocket_explosion_adds_a_puff_under_blocks_parent() -> void:
+	var blocks: Node3D = autofree(Node3D.new())
+	add_child_autofree(blocks)
+	Match.register_world(null, null, blocks)
+	var presenter: GiftFxPresenter = GiftFxPresenter.new()
+	add_child_autofree(presenter)
+	for id: StringName in [GiftFxPresenter.BOMB_ID, GiftFxPresenter.ROCKET_ID]:
+		var before: int = blocks.get_child_count()
+		presenter.on_special_triggered(-1, id, Vector3(1, 2, 3), 0)
+		assert_eq(blocks.get_child_count(), before + 1, "%s puff" % id)
+	var puff: ImpactPuff = blocks.get_child(0) as ImpactPuff
+	assert_not_null(puff)
+	assert_true(puff.active)
+	assert_false((puff as Node) is CollisionObject3D, "no physics body")
+	MatchTestReset.clear_world()
+
+
+func test_client_volcano_visual_has_no_collider() -> void:
+	_client()
+	var map: MapDef = (load("res://config/maps/round_medium.tres") as MapDef).duplicate(true)
+	var field: Field = autofree(Field.new())
+	field.map_def = map
+	add_child_autofree(field)
+	var blocks: Node3D = autofree(Node3D.new())
+	add_child_autofree(blocks)
+	Match.register_world(field, null, blocks)
+	var presenter: GiftFxPresenter = GiftFxPresenter.new()
+	add_child_autofree(presenter)
+	assert_true(presenter.has_handler(GiftFxPresenter.VOLCANO_ID))
+	var structures_before: int = _count_structures(field)
+	presenter.on_special_triggered(-1, GiftFxPresenter.VOLCANO_ID, field.world_from_disk_local(Vector2.ZERO, field.surface_y()), 0)
+	assert_eq(_count_structures(field), structures_before + 1, "client builds the cone")
+	for child: Node in field.get_children():
+		var structure: VolcanoStructure = child as VolcanoStructure
+		if structure != null:
+			assert_false(structure.has_body(), "no physics body on a client")
+	Match.set_net_provider(null)
+	MatchTestReset.clear_world()
+
+
+func _count_structures(field: Field) -> int:
+	var count: int = 0
+	for child: Node in field.get_children():
+		if child is VolcanoStructure:
+			count += 1
+	return count

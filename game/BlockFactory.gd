@@ -202,6 +202,8 @@ static func apply_gift_visual(block: Block, shape: BlockShape, tuning: PhysicsTu
 	block.add_child(collision)
 	block.cube_count = 1
 	block.mass = tuning.cube_mass
+	# Client-derived gift visuals (Bomb blink, Propeller rise) start on every peer here.
+	GiftFxPresenter.on_gift_block_spawned(block)
 
 
 ## Bontago-t8x.1: where a gift's single cell sits, in the carrier shape's own

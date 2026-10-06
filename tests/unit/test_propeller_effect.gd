@@ -463,3 +463,49 @@ func test_propeller_tilts_opposite_to_an_anvil_at_the_same_point() -> void:
 	var ratio: float = float(prop["peak"]) / float(anvil["peak"])
 	assert_gt(ratio, MIN_PEAK_RATIO, "propeller peak tilt comparable to the anvil's (ratio %f)" % ratio)
 	assert_lt(ratio, MAX_PEAK_RATIO, "propeller peak tilt comparable to the anvil's (ratio %f)" % ratio)
+
+
+# --- client-derived visual rise (Bontago-1pi.85.19) --------------------------
+
+func _gift_block_with_visual() -> Block:
+	var block: Block = _make_block()
+	block.gift_id = &"propeller"
+	var visual: Node3D = Node3D.new()
+	visual.name = BlockFactory.GIFT_VISUAL_NODE
+	block.add_child(visual)
+	return block
+
+
+func test_client_rise_driver_lifts_only_the_visual_after_the_delay() -> void:
+	var net: FakeNet = FakeNet.new()
+	net.is_host_value = false
+	net.is_client_value = true
+	net.is_offline_value = false
+	Match.set_net_provider(net)
+	var block: Block = _gift_block_with_visual()
+	PropellerEffect.start_client_rise(block)
+	var driver: PropellerEffect.ClientRiseDriver = block.get_node(NodePath("PropellerClientRise")) as PropellerEffect.ClientRiseDriver
+	assert_not_null(driver)
+	PropellerEffect.start_client_rise(block)
+	assert_eq(block.get_child_count(), 2, "idempotent: visual + one driver")
+	var effect: PropellerEffect = driver.effect
+	var visual: Node3D = block.get_node(NodePath(String(BlockFactory.GIFT_VISUAL_NODE))) as Node3D
+	driver.advance(effect.client_rise_delay_s * 0.5)
+	assert_almost_eq(visual.position.y, 0.0, 0.0001, "no rise before the delay")
+	driver.advance(effect.client_rise_delay_s * 0.5 + effect.disc_force.duration_s)
+	assert_almost_eq(visual.position.y, effect.carrier_rise_m, 0.0001, "full rise after the window")
+	assert_eq(block.global_position, Vector3.ZERO, "body untouched")
+	Match.set_net_provider(null)
+
+
+func test_client_rise_is_a_no_op_on_the_host_and_for_other_gifts() -> void:
+	var block: Block = _gift_block_with_visual()
+	PropellerEffect.start_client_rise(block)
+	assert_null(block.get_node_or_null(NodePath("PropellerClientRise")), "host rises via physics_tick")
+	var net: FakeNet = FakeNet.new()
+	net.is_host_value = false
+	Match.set_net_provider(net)
+	block.gift_id = &"bomb"
+	PropellerEffect.start_client_rise(block)
+	assert_null(block.get_node_or_null(NodePath("PropellerClientRise")))
+	Match.set_net_provider(null)
