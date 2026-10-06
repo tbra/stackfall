@@ -25,3 +25,10 @@ func test_match_slot_color_delegates_and_falls_back() -> void:
 		assert_eq(Match.slot_color(0, Color.GRAY), live.color)
 	else:
 		assert_eq(Match.slot_color(0, Color.GRAY), MatchConfig.default_player_colors()[0])
+
+
+func test_wrapped_color_wraps_and_falls_back_on_empty_palette() -> void:
+	assert_eq(SlotColors.wrapped_color(0, PALETTE), PALETTE[0])
+	assert_eq(SlotColors.wrapped_color(PALETTE.size(), PALETTE), PALETTE[0])
+	assert_eq(SlotColors.wrapped_color(PALETTE.size() + 1, PALETTE), PALETTE[1])
+	assert_eq(SlotColors.wrapped_color(3, PackedColorArray(), Color.GRAY), Color.GRAY)

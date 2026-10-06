@@ -257,7 +257,7 @@ func _build_team_button() -> void:
 	team_button.text = team_text(team_pick)
 	team_button.custom_minimum_size = _layout_tuning.seat_team_button_min_size_px
 	team_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	team_button.tooltip_text = "Team %d" % team_pick if team_pick > MatchConfig.TEAM_PICK_RANDOM else "Random team"
+	team_button.tooltip_text = PlayerNames.team_label(team_pick) if team_pick > MatchConfig.TEAM_PICK_RANDOM else "Random team"
 	_style_pill(team_button, _tuning.pill_powder_blue_color, _tuning.pill_powder_blue_hover_color, _tuning.ink_color)
 	team_button.disabled = not editable
 	team_button.focus_mode = Control.FOCUS_ALL if editable else Control.FOCUS_NONE

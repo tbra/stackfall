@@ -87,7 +87,7 @@ In-flight: 1pi.83 owns lobby files (Lobby.gd, LobbyPlayersPanel.gd, LobbySeatRow
 | P4 | Lobby migration: "Bot N", "Team N", seat colour, mode/sky/map labels, special names, diamond via SlotDiamond | ui/Lobby.gd, ui/lobby/LobbyPlayersPanel.gd, ui/lobby/LobbySeatRow.gd, ui/lobby/LobbySection.gd, core/rules/LobbySeats.gd | 1pi.83 AND 1pi.81 merged, P1 |
 | P5 | Results/ScoreTable/Minimap: names, colour resolve, team number | ui/ResultsScreen.gd, ui/ScoreTable.gd, ui/Minimap.gd | 1pi.81 merged, P1 |
 | P6 | HUD migration: winner text, team label, colour, special name, gift glyph via build_for_action, share-row diamond | ui/HUD.gd | 1pi.81 merged, P3 |
-Final: P7 (orchestrator-sized) removes empty baseline entries and asserts each rule's baseline is `{}`.
+Final: P7 (orchestrator-sized) removes empty baseline entries and asserts each rule's baseline is `{}`. **Done (Bontago-1pi.86.8):** all rules at zero, baseline `{}`; the lint fails any baseline entry unless `--allow-baseline` (test-only ratchet mode); `test_checked_in_baseline_is_empty` asserts it.
 Each package ends with `python tools/lint_single_source.py` showing that concept's baseline reduced to zero for its files.
 
 ## 4. Decisions made (routine) and owner questions

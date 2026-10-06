@@ -18,3 +18,10 @@ static func palette_color(index: int, palette: PackedColorArray, fallback: Color
 	if index >= 0 and index < palette.size():
 		return palette[index]
 	return fallback
+
+
+## palette entry for the slot, wrapping when there are more slots than colours.
+static func wrapped_color(index: int, palette: PackedColorArray, fallback: Color = Color.WHITE) -> Color:
+	if palette.is_empty():
+		return fallback
+	return palette[posmod(index, palette.size())]

@@ -60,10 +60,13 @@ class LintTest(unittest.TestCase):
         with open(self.bfile, encoding="utf-8") as fh:
             return json.load(fh)
 
+    strict = False
+
     def run_lint(self, *extra):
         out = io.StringIO()
+        legacy = [] if self.strict else ["--allow-baseline"]
         with contextlib.redirect_stdout(out):
-            code = ls.main(["--path", self.root, *extra])
+            code = ls.main(["--path", self.root, *legacy, *extra])
         self.last_out = out.getvalue()
         return code
 
@@ -201,6 +204,23 @@ class LintTest(unittest.TestCase):
         self.assertIn("2 violation(s)", self.last_out)
         self.assertEqual(self.run_lint("--list", "--rule", "NAME_FMT"), 0)
         self.assertNotIn("CAPITALIZE_ID", self.last_out)
+
+    def test_any_baseline_entry_fails_by_default(self):
+        self.strict = True
+        self.write("ui/A.gd", "var a := 1\n")
+        self.write_baseline({"NAME_FMT": {"ui/A.gd": 1}})
+        self.assertEqual(self.run_lint(), 1, self.last_out)
+        self.assertIn("baselines must stay empty", self.last_out)
+        self.write_baseline({})
+        self.assertEqual(self.run_lint(), 0, self.last_out)
+        self.write("ui/A.gd", 'var a := "Team %d" % n\n')  # a violation still fails
+        self.assertEqual(self.run_lint(), 1, self.last_out)
+
+    def test_checked_in_baseline_is_empty(self):
+        path = os.path.join(ls.ROOT, "tools", ls.BASELINE_NAME)
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        self.assertEqual({r: f for r, f in data.items() if f}, {}, "baselines must stay empty")
 
     def test_checked_in_baseline_is_well_formed(self):
         path = os.path.join(ls.ROOT, "tools", ls.BASELINE_NAME)
