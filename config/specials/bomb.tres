@@ -30,6 +30,7 @@ preview_icon = ExtResource("10_icon")
 scene = null
 weight = 1.0
 enabled_by_default = true
+throwable = true
 arm_delay = 0.4
 arm_impulse = 5.0
 fuse_timeout_s = 6.0

@@ -96,6 +96,7 @@ func _install_test_def(def: SpecialDef) -> void:
 func _make_test_def(id: StringName = &"test_special") -> SpecialDef:
 	var def: SpecialDef = SpecialDef.new()
 	def.id = id
+	def.throwable = true
 	def.arm_delay = 999.0
 	def.arm_impulse = 999.0
 	def.fuse_timeout_s = 999.0
@@ -192,8 +193,12 @@ func test_throw_velocity_above_throw_max_speed_is_clamped_not_refused() -> void:
 # --- Accept: velocity, continuous_cd, special attach, pop-once --------------
 
 func test_real_crate_claim_can_be_thrown_and_activated() -> void:
-	var defs: Array[SpecialDef] = SpecialDef.load_all_specials()
-	assert_false(defs.is_empty(), "the shipped roster must contain a usable special")
+	var all_defs: Array[SpecialDef] = SpecialDef.load_all_specials()
+	var defs: Array[SpecialDef] = []
+	for roster_def: SpecialDef in all_defs:
+		if roster_def.throwable:
+			defs.append(roster_def)
+	assert_false(defs.is_empty(), "the shipped roster must contain a throwable special")
 	var config: MatchConfig = _config()
 	config.enabled_specials = [defs[0].id]
 	config.special_frequency = 0  # The injected crate is the only gift in this path.

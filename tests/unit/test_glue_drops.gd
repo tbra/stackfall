@@ -214,12 +214,12 @@ func test_valid_relocated_auto_drop_spends_a_charge() -> void:
 
 func test_throw_does_not_spend_a_drop_charge() -> void:
 	assert_true(Match.grant_glue_drops(0, 2))
-	assert_true(Match.debug_queue_special(0, &"anvil"))
+	assert_true(Match.debug_queue_special(0, &"bomb"))
 	assert_eq(_place(), PlacementRules.REASON_OK)
 	assert_eq(Match.glue_drops_left(0), 1)
-	assert_eq(Match.held_special(0), &"anvil")
+	assert_eq(Match.held_special(0), &"bomb")
 	assert_eq(
-		Match.request_throw(0, _home(), 0, Quaternion.IDENTITY, Vector3(0.0, 2.0, 0.0), Match.feed_seq(0)),
+		Match.request_throw(0, _home(), 0, Quaternion.IDENTITY, Vector3(2.0, 0.0, 0.0), Match.feed_seq(0)),
 		PlacementRules.REASON_OK
 	)
 	assert_eq(Match.glue_drops_left(0), 1)

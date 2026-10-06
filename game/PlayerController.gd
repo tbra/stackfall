@@ -922,6 +922,10 @@ func _intent_target() -> Variant:
 
 
 func _request_place(auto_drop: bool) -> StringName:
+	# Bontago-1pi.85.16: Rocket/Paintball are released along the camera forward (the throw
+	# intent carries it); every other release is an ordinary place.
+	if not auto_drop and _held_gift_mode() == GiftThrow.Mode.AIMED:
+		return _request_throw(_camera_forward())
 	var slot_id: int = _acting_slot()
 	var membrane: Variant = _intent_target()
 	_clear_ghost_before_release()
@@ -1005,7 +1009,29 @@ func _can_begin_throw_aim() -> bool:
 		return false
 	if _intent_lock_left > 0.0:
 		return false
-	return StringName(_match.held_special(_acting_slot())) != &""
+	# Bontago-1pi.85.16 (owner answer 1pi.85.1): only Bomb/Magnet/Jumping Bean are thrown.
+	return _held_gift_mode() == GiftThrow.Mode.THROW
+
+
+## Bontago-1pi.85.16: how the gift in hand leaves it (NONE for an ordinary piece).
+func _held_gift_mode() -> GiftThrow.Mode:
+	var slot_id: int = _acting_slot()
+	if _match == null or slot_id < 0:
+		return GiftThrow.Mode.NONE
+	var special_id: StringName = StringName(_match.held_special(slot_id))
+	if special_id == &"":
+		return GiftThrow.Mode.NONE
+	return GiftThrow.mode_for(SpecialDef.find_by_id(special_id))
+
+
+## Bontago-1pi.85.16: the activating player's camera forward (unit), sent as the aim of a
+## Rocket/Paintball launch. The host validates and normalises it again.
+func _camera_forward() -> Vector3:
+	var camera: Camera3D = _camera_rig.get_camera() if _camera_rig != null else null
+	if camera != null and camera.is_inside_tree():
+		return -camera.global_transform.basis.z
+	var yaw: float = _camera_rig.get_yaw() if _camera_rig != null else 0.0
+	return Vector3(sin(yaw), 0.0, cos(yaw))
 
 
 ## Bontago-1en.14: the whole start/stop lifecycle for aiming, driven by
@@ -1163,12 +1189,8 @@ func _commit_throw_aim() -> void:
 ## component" half lofts it; the loft is SpecialTuning.throw_loft_ratio
 ## (default 1.0 = 45 degrees).
 func _throw_velocity_for_drag(drag: Vector3) -> Vector3:
-	var distance: float = drag.length()
-	if distance <= 0.0:
-		return Vector3.ZERO
-	var direction: Vector3 = (drag + Vector3.UP * distance * special_tuning.throw_loft_ratio).normalized()
-	var speed_mps: float = minf(distance * special_tuning.throw_speed_per_meter, special_tuning.throw_max_speed)
-	return direction * speed_mps
+	# Bontago-1pi.85.16: fixed gift trajectory; the drag only supplies the horizontal heading.
+	return GiftThrow.fixed_velocity(drag, special_tuning)
 
 
 ## Cancels an in-progress aim with no side effect other than clearing state --

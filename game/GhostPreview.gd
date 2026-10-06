@@ -633,6 +633,9 @@ var _gift_visual: Node3D = null
 
 func set_held_gift(special_id: StringName) -> void:
 	_held_gift_id = special_id
+	if special_id != &"":
+		# Bontago-1pi.85.16: gifts always show and spawn upright.
+		reset_rotation()
 	_rebuild_gift_visual()
 	_apply_projection_visibility()
 
@@ -697,6 +700,15 @@ var _gift_tint_material: StandardMaterial3D = null
 var _gift_glow_material: ShaderMaterial = null
 
 
+const GIFT_NEUTRAL_TINT: Color = Color(1.0, 1.0, 1.0, 1.0)
+
+
+## True while the ghost's state colour is the owner's colour (plain valid placement), the one
+## state a gift must not be recoloured by.
+func _gift_uses_owner_colour() -> bool:
+	return not _locked and not _throw_hint_active and _last_result == PlacementRules.Result.VALID
+
+
 func _apply_gift_tint() -> void:
 	if _gift_visual == null or _material == null:
 		return
@@ -709,6 +721,10 @@ func _apply_gift_tint() -> void:
 		_gift_glow_material.shader = GHOST_GLOW_RIM_SHADER
 		_gift_tint_material.next_pass = _gift_glow_material
 	var tint: Color = current_tint_color()
+	if _gift_uses_owner_colour():
+		# Bontago-1pi.85.16: a held gift keeps its own model colours; the plain "valid" state is
+		# not tinted with the owner colour (hole/invalid/locked/throw cues still show).
+		tint = Color(GIFT_NEUTRAL_TINT.r, GIFT_NEUTRAL_TINT.g, GIFT_NEUTRAL_TINT.b, tint.a)
 	_gift_tint_material.albedo_color = Color(tint.r, tint.g, tint.b, tint.a * HELD_GIFT_TINT_STRENGTH)
 	for node: Node in _gift_visual.find_children("*", "MeshInstance3D", true, false):
 		(node as MeshInstance3D).material_overlay = _gift_tint_material
@@ -750,6 +766,9 @@ func get_shape() -> BlockShape:
 
 
 func set_orientation_index(index: int) -> void:
+	# Bontago-1pi.85.16: a held gift is never rotated by its owner.
+	if _held_gift_id != &"":
+		return
 	orientation_index = ((index % BlockOrientations.ORIENTATION_COUNT) + BlockOrientations.ORIENTATION_COUNT) % BlockOrientations.ORIENTATION_COUNT
 	_apply_rotation()
 
@@ -777,6 +796,8 @@ func reset_rotation() -> void:
 ## pre-combined into one delta quaternion, so a frame with only one axis of
 ## motion (the common case) never even nudges the other.
 func apply_free_rotation_delta(yaw: float, pitch: float, pitch_axis: Vector3 = Vector3.RIGHT) -> void:
+	if _held_gift_id != &"":
+		return
 	if yaw != 0.0:
 		free_quaternion = (Quaternion(Vector3.UP, yaw) * free_quaternion).normalized()
 	if pitch != 0.0:

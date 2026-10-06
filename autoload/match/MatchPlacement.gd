@@ -377,6 +377,31 @@ func request_throw(
 		return PlacementRules.REASON_NO_BLOCK
 	if _match.held_special(slot_id) == &"":
 		return ThrowRules.REASON_NOT_A_SPECIAL
+	# Bontago-1pi.85.16 (owner answer 1pi.85.1): only Bomb/Magnet/Jumping Bean are thrown (on a
+	# fixed trajectory) and Rocket/Paintball take an aimed launch direction; every other gift
+	# refuses a throw (nothing burned, the piece stays held). The client's `velocity` is never
+	# used as a launch velocity: THROW keeps only its horizontal heading, AIMED treats it as the
+	# camera forward and validates it.
+	# DECISION (Bontago-1pi.85.16): the camera forward rides the unchanged throw RPC's
+	# `velocity` slot (no new RPC, no replicated camera pose exists to read instead); the host
+	# validates length/finiteness and drops the upward part in RocketEffect.
+	var held_def: SpecialDef = _resolve_deliverable_special(_match.held_special(slot_id))
+	var throw_mode: GiftThrow.Mode = GiftThrow.mode_for(held_def)
+	if throw_mode == GiftThrow.Mode.NONE and held_def != null:
+		return ThrowRules.REASON_NOT_A_SPECIAL
+	var launch_velocity: Vector3 = Vector3.ZERO
+	var aim_direction: Vector3 = Vector3.ZERO
+	if held_def == null:
+		# A gift with no def spawns as a plain block: legacy clamped client velocity.
+		launch_velocity = velocity
+	elif throw_mode == GiftThrow.Mode.THROW:
+		launch_velocity = GiftThrow.fixed_velocity(velocity, _special_tuning)
+		if launch_velocity == Vector3.ZERO:
+			return PlacementRules.REASON_NO_BLOCK
+	else:
+		aim_direction = GiftThrow.sanitize_aim(velocity, _special_tuning)
+		if aim_direction == Vector3.ZERO:
+			return PlacementRules.REASON_NO_BLOCK
 
 	var basis: Basis = Basis(free_quat) * BlockOrientations.get_basis(orientation_index)
 	var local_origin: Vector3 = _match._field.to_local(origin)
@@ -410,7 +435,7 @@ func request_throw(
 		Events.placement_rejected.emit(slot_id, reason)
 		return reason
 
-	var clamped_velocity: Vector3 = velocity.limit_length(_special_tuning.throw_max_speed)
+	var clamped_velocity: Vector3 = launch_velocity.limit_length(_special_tuning.throw_max_speed)
 	var world_origin: Vector3 = _match._field.to_global(Vector3(disk_origin.x, local_origin.y, disk_origin.y))
 	# Bontago-1pi.14 round 3: the throw spawns at the client-sent pose too, so
 	# it gets the same host overlap validation (a manual intent: refused, the
@@ -439,6 +464,8 @@ func request_throw(
 	# request_place()'s matching call, which is conditional, for why this one
 	# is not).
 	_attach_pending_special(spawned, slot_id)
+	if throw_mode == GiftThrow.Mode.AIMED:
+		_apply_aim_direction(spawned, held_def, aim_direction)
 
 	_match._feed._consume_and_refeed(slot_id, false)
 	if _match.config.hot_seat:
@@ -447,6 +474,15 @@ func request_throw(
 		_match._lifecycle.begin_turn_settle_wait()
 
 	return PlacementRules.REASON_OK
+
+
+## Bontago-1pi.85.16: hands the validated camera forward to the effect that flies along it.
+## Rocket's own sanitiser drops an upward part; Paintball does the same.
+func _apply_aim_direction(block: Block, def: SpecialDef, direction: Vector3) -> void:
+	if def.effect is RocketEffect:
+		RocketEffect.set_launch_direction(block, direction)
+	elif def.effect is PaintballEffect:
+		PaintballEffect.set_launch_direction(block, direction)
 
 
 ## M4 P4-SPAWN (docs/M4_SPECIALS_PACKAGES.md "P4-SPAWN", prerequisite for
@@ -689,7 +725,10 @@ func _spawn_block(
 	var color: Color = acting_slot.color if acting_slot != null else Color.WHITE
 	var block: Block = BlockFactory.build(shape, _match._physics_tuning, slot_id, color)
 	_match._blocks_parent.add_child(block)
-	block.global_transform = Transform3D(basis, world_origin)
+	# Bontago-1pi.85.16: a gift is never rotated by its owner (rotate actions are no-ops while
+	# one is held), so the host spawns it upright whatever pose the intent carried.
+	var spawn_basis: Basis = Basis.IDENTITY if gift_id != &"" else basis
+	block.global_transform = Transform3D(spawn_basis, world_origin)
 	# Bontago-t8x.1: a used gift is delivered as its gift model, not as a
 	# plain block. The body keeps the held piece's collision (it is the
 	# gift's physical carrier) but shows the gift; the id rides the spawn RPC.
