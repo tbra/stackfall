@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="GiftBlinkTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/specials/fx/GiftBlinkTuning.gd" id="1_blink"]
+
+[resource]
+script = ExtResource("1_blink")
+flash_color = Color(1, 0.25, 0.1, 1)
+flash_max_alpha = 0.55
+end_period_ratio = 0.4

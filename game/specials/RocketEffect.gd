@@ -1,107 +1,179 @@
 class_name RocketEffect
 extends SpecialEffect
-## Rocket special (spec 2.6: "launches straight up, explodes when its fuel
-## runs out" -- no homing, spec's own §2.6 explicitly drops that). See
-## docs/M4_SPECIALS_PACKAGES.md's P3-ROCKET package. Follows that doc's
-## "timed-effect pattern" for the fuel countdown (physics_tick()/
-## wants_early_trigger() gated on elapsed-since-armed), but unlike the P5
-## effects this one's physics_tick() actually moves the body (continuous
-## thrust) rather than shaking/tilting the field, and detonate() is a real
-## explosion (Bomb's own shape), not a no-op.
+## Rocket special. OWNER decision 2026-10-05 (docs/SPEC.md 2.6, Bontago-1pi.85, answer
+## to plan question 1): on activation the Rocket launches in a STRAIGHT LINE along the
+## activating player's camera direction (not thrown, not upward) and explodes on the
+## first thing it touches (a block, the disc or map geometry); fuel running out is only
+## a safety backstop. It no longer climbs 27 m and bursts in empty air.
 ##
-## DECISION (game/specials/RocketEffect.gd, docs/M4_SPECIALS_PACKAGES.md
-## P3-ROCKET): `physics_tick()` writes `block.linear_velocity =
-## Vector3.UP * launch_speed` every armed tick rather than a one-shot launch
-## impulse at spawn -- spec 2.6 leaves the trajectory OPEN, and continuous
-## thrust makes "fuel exhausted" a literal, testable condition (the velocity
-## write itself, not an arbitrary timer racing an independent launch impulse)
-## without fighting SpecialBehavior._check_impact()'s own decel read (constant
-## frame-to-frame velocity, absent a real collision, never looks like an
-## impact).
+## Flow: armed (arm_delay after the drop) -> physics_tick() launches it once, then every
+## tick holds its velocity at `thrust_speed_mps` along the launch direction and probes the
+## contact it is about to make; a contact the behaviour's impact_filter accepts sets a
+## block-meta flag, wants_early_trigger() reports it, and detonate() blasts with ExplosionFx.
 ##
-## DECISION (game/specials/RocketEffect.gd): a SpecialDef's `effect` is one
-## shared Resource instance reused by every block spawned with this special
-## during a match (autoload/match/MatchPlacement.gd's _attach_pending_special()
-## binds the same cached, un-duplicated def/effect to a fresh SpecialBehavior
-## each time) -- so this effect keeps NO mutable per-block state on itself.
-## "Seconds since armed" lives in block.set_meta()/get_meta(), exactly the
-## timed-effect pattern's own seam (EarthquakeEffect.gd/PropellerEffect.gd).
-## Two blocks sharing this very instance therefore keep fully independent
-## fuel timers, one per block.
-
-## Reaches config/special_tuning.tres the same way game/Field.gd reaches
-## PhysicsTuning -- see BombEffect.gd's identical field for the full DECISION;
-## mirrored verbatim here since Rocket also explodes.
-@export var tuning: SpecialTuning = preload("res://config/special_tuning.tres")
-
-## Vertical thrust speed (m/s) this block's body is held at, every armed
-## tick, until its fuel runs out (spec 2.6's Rocket row; provisional).
-@export var launch_speed: float = 18.0
-
-## Seconds of thrust before this special force-triggers (explodes) on its
-## own. NEW, spec's fuel duration left OPEN.
-@export var fuel_duration_s: float = 1.5
-
-## Explosion radius in meters once the fuel runs out (or an early impact
-## triggers it) -- tunables table: 3.0, provisional.
-@export var explosion_radius: float = 3.0
-
-## Explosion impulse magnitude fed into SpecialPhysics.explode()'s falloff,
-## before tuning.max_explosion_impulse's clamp -- tunables table: 14.0,
-## provisional.
-@export var explosion_impulse: float = 14.0
-
-## block.set_meta() key: behavior.age() at the tick this block first armed --
-## the timed-effect pattern's "<key>_start_age", seeded once on the first
-## armed tick, read every tick after via elapsed = age() - start_age.
-const _START_AGE_META: StringName = &"rocket_start_age"
-
-
-## Every armed tick: continuous upward thrust plus continuous collision
-## detection (spec 3.5: "any body moving faster than 15 m/s uses
-## continuous_cd" -- launch_speed's default of 18.0 always qualifies, and a
-## tuned-down value might not, so this sets it explicitly every tick rather
-## than assuming the spawn path already did). Seeds _START_AGE_META on the
-## very first armed tick, same as every other timed-effect pattern user.
+## DECISION (Bontago-1pi.85.10): impact is detected by this effect's own contact probe
+## (a short body_test_motion along the flight line), not by SpecialBehavior's
+## velocity-drop test, so triggers_on_impact() is false: the velocity-drop test cannot
+## tell what was hit (needed for the owner-grace filter) and would also fire on the
+## carrier's own landing before the launch. The probe runs after the velocity write and
+## looks one tick of travel (plus `impact_probe_margin_m`) ahead, continuous_cd stays
+## armed, so the blast is centred within about a third of a metre of the surface.
 ##
-## Review-precedent guard (mirrors PropellerEffect.gd's own fix, Bontago-1en.6):
-## never gates on `block.sleeping` after writing velocity here -- a rocket
-## under continuous thrust never actually sleeps, but wants_early_trigger()
-## below reads elapsed-since-armed from meta, not from any sleep flag, so
-## there is nothing here to regress the same way in the first place.
-func physics_tick(block: Block, behavior: SpecialBehavior, _delta: float) -> void:
-	if not block.has_meta(_START_AGE_META):
-		block.set_meta(_START_AGE_META, behavior.age())
-	block.continuous_cd = true
-	# Review fix (Bontago-xtq.17 SHOULD-FIX 1): kick(), not a bare
-	# `linear_velocity =` write -- the first armed tick's thrust overwrites
-	# whatever downward velocity the block still had from its own placement
-	# fall, which would otherwise read to Block._integrate_forces() as a
-	# falling-to-rising bounce and get scaled by PhysicsTuning.rebound_damping.
-	# See Block.kick()'s own doc comment.
-	block.kick(Vector3.UP * launch_speed)
+## DECISION (Bontago-1pi.85.10): the launch direction is host-side input, per block, in
+## block meta: the shared SpecialEffect resource keeps no per-block state (the pattern
+## every timed effect uses). The camera-direction wiring from the client (PlayerController
+## intent -> MatchPlacement) is package I's; it calls
+## `RocketEffect.set_launch_direction(block, camera_forward)` on the spawned carrier
+## before its first physics tick. The host never trusts the value: it must be finite,
+## its upward part is dropped ("not upward") and it is normalised; anything unusable
+## keeps the default (see default_launch_direction()).
+
+## Speed (m/s) the Rocket flies at along its launch direction (plan section 3: 14).
+@export var thrust_speed_mps: float = 14.0
+
+## Safety fuel: seconds after the launch before it explodes even if it touched nothing
+## (plan section 3: 4.0).
+@export var fuel_duration_s: float = 4.0
+
+## Downward pitch (degrees) of the default launch direction used when no camera
+## direction was supplied (bots, tests, a client that sent nothing usable).
+@export var default_pitch_down_deg: float = 20.0
+
+## Extra look-ahead (m) beyond one tick of travel for the impact probe.
+@export var impact_probe_margin_m: float = 0.05
+
+## Blast shape (plan section 3: radius 4.5 m, peak 10 m/s delta-v).
+@export var blast: ExplosionTuning = ExplosionTuning.new()
+
+## Smallest horizontal-plus-downward direction length treated as a direction at all.
+const MIN_DIRECTION_LENGTH: float = 0.001
+
+## block.set_meta() key: the host-side launch direction input (Vector3, unit length).
+const LAUNCH_DIRECTION_META: StringName = &"rocket_launch_direction"
+
+## block.set_meta() keys for the per-block flight state (the effect resource is shared).
+const _LAUNCH_AGE_META: StringName = &"rocket_launch_age"
+const _FLIGHT_DIRECTION_META: StringName = &"rocket_flight_direction"
+const _HIT_META: StringName = &"rocket_hit"
 
 
-## True once elapsed-since-armed reaches fuel_duration_s. An impact strong
-## enough to satisfy SpecialBehavior's own arm_impulse check can still
-## trigger this earlier, same as every other special.
-func wants_early_trigger(block: Block, behavior: SpecialBehavior) -> bool:
-	if not block.has_meta(_START_AGE_META):
+## Host-side launch-direction input for `block` (a Rocket carrier). Returns whether it was
+## accepted; a rejected value leaves any earlier one (or the default) in place.
+static func set_launch_direction(block: Block, direction: Vector3) -> bool:
+	if block == null or not is_instance_valid(block):
 		return false
-	var elapsed: float = behavior.age() - float(block.get_meta(_START_AGE_META))
-	return elapsed >= fuel_duration_s
+	var clean: Vector3 = sanitize_launch_direction(direction)
+	if clean == Vector3.ZERO:
+		return false
+	block.set_meta(LAUNCH_DIRECTION_META, clean)
+	return true
 
 
-## The moment SpecialBehavior triggers this special (fuel exhausted or an
-## early impact), explode exactly like BombEffect.detonate() with Rocket's
-## own numbers.
+## Pure: the direction the host will actually fly. Non-finite or degenerate input gives
+## Vector3.ZERO (rejected); an upward component is removed (owner: "not upward").
+static func sanitize_launch_direction(direction: Vector3) -> Vector3:
+	if not direction.is_finite():
+		return Vector3.ZERO
+	var not_upward: Vector3 = Vector3(direction.x, minf(direction.y, 0.0), direction.z)
+	if not_upward.length() < MIN_DIRECTION_LENGTH:
+		return Vector3.ZERO
+	return not_upward.normalized()
+
+
+## Default launch direction without camera input: toward the middle of the field (the
+## world origin, where game/Field.gd sits) pitched `default_pitch_down_deg` below
+## horizontal, so a Rocket dropped on a stack heads inward and down into the pile.
+func default_launch_direction(block: Block) -> Vector3:
+	var inward: Vector3 = Vector3(-block.global_position.x, 0.0, -block.global_position.z)
+	if inward.length() < MIN_DIRECTION_LENGTH:
+		inward = Vector3.FORWARD
+	var pitch: float = deg_to_rad(default_pitch_down_deg)
+	return (inward.normalized() * cos(pitch) + Vector3.DOWN * sin(pitch)).normalized()
+
+
+## The direction `block` will launch along: the host-side input when one was set,
+## otherwise default_launch_direction().
+func launch_direction_for(block: Block) -> Vector3:
+	# has_meta first: get_meta() with a null default still errors on a missing key.
+	if block.has_meta(LAUNCH_DIRECTION_META):
+		var raw: Variant = block.get_meta(LAUNCH_DIRECTION_META)
+		if raw is Vector3:
+			var stored: Vector3 = sanitize_launch_direction(raw)
+			if stored != Vector3.ZERO:
+				return stored
+	return default_launch_direction(block)
+
+
+## Impacts are detected by the contact probe below, not by the velocity-drop test.
+func triggers_on_impact() -> bool:
+	return false
+
+
+## The action (flight) lasts at most `fuel_duration_s`; SpecialBehavior derives its fuse
+## backstop from this.
+func effect_lifetime_s() -> float:
+	return fuel_duration_s
+
+
+## DECISION (Bontago-1pi.85.10): the spent Rocket is removed at its explosion (no 0.75 s
+## linger), same as the Bomb.
+func detaches() -> bool:
+	return true
+
+
+## Every armed tick: launch once, hold the straight-line velocity, probe for contact.
+## Written with kick() so the thrust is exempt from rebound damping (Bontago-xtq.17).
+func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void:
+	if block.has_meta(_HIT_META):
+		return
+	if not block.has_meta(_LAUNCH_AGE_META):
+		_launch(block, behavior)
+	var direction: Vector3 = block.get_meta(_FLIGHT_DIRECTION_META) as Vector3
+	block.continuous_cd = true
+	block.kick(direction * thrust_speed_mps)
+	block.angular_velocity = Vector3.ZERO
+	var launched_at: float = float(block.get_meta(_LAUNCH_AGE_META))
+	if _contact_ahead(block, behavior, direction, delta, launched_at):
+		block.set_meta(_HIT_META, true)
+
+
+## True once the Rocket touched something (impact) or its safety fuel is spent.
+func wants_early_trigger(block: Block, behavior: SpecialBehavior) -> bool:
+	if block.has_meta(_HIT_META):
+		return true
+	if not block.has_meta(_LAUNCH_AGE_META):
+		return false
+	return behavior.age() - float(block.get_meta(_LAUNCH_AGE_META)) >= fuel_duration_s
+
+
+## Blast every real RigidBody3D within `blast.radius_m` (the Rocket's own body excluded),
+## then chain into any other special in range one depth deeper.
 func detonate(block: Block, behavior: SpecialBehavior, chain_depth: int) -> void:
-	SpecialPhysics.explode(
-		block.get_world_3d().direct_space_state,
-		block.global_position,
-		explosion_radius,
-		explosion_impulse,
-		tuning.max_explosion_impulse,
-		[block.get_rid()]
-	)
-	behavior.trigger_others_in_range(block.global_position, explosion_radius, chain_depth)
+	var center: Vector3 = block.global_position
+	ExplosionFx.blast(block.get_world_3d().direct_space_state, center, blast, [block.get_rid()])
+	ExplosionFx.chain(behavior, center, blast.radius_m, chain_depth)
+
+
+## First armed tick: fix the flight direction and wake the body (a long-stable carrier is
+## STATIC-frozen by StableBlockManager and would ignore the velocity write).
+func _launch(block: Block, behavior: SpecialBehavior) -> void:
+	block.set_meta(_LAUNCH_AGE_META, behavior.age())
+	block.set_meta(_FLIGHT_DIRECTION_META, launch_direction_for(block))
+	block.wake_for_impulse()
+	block.wake()
+
+
+## Whether the body would touch something accepted by the behaviour's impact_filter within
+## the next tick of travel (plus the margin). Disc and map geometry are not Blocks, so the
+## filter always accepts them; only the owner's own blocks are ignored during the grace.
+func _contact_ahead(
+	block: Block, behavior: SpecialBehavior, direction: Vector3, delta: float, launched_at: float
+) -> bool:
+	var params: PhysicsTestMotionParameters3D = PhysicsTestMotionParameters3D.new()
+	params.from = block.global_transform
+	params.motion = direction * (thrust_speed_mps * delta + impact_probe_margin_m)
+	var result: PhysicsTestMotionResult3D = PhysicsTestMotionResult3D.new()
+	if not PhysicsServer3D.body_test_motion(block.get_rid(), params, result):
+		return false
+	var collider: Object = result.get_collider()
+	return behavior.impact_filter(collider, launched_at)
