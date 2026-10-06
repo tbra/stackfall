@@ -64,6 +64,7 @@ func _rain() -> StackfallRain:
 func test_activation_rains_owned_registered_ordinary_blocks_at_bounded_rate() -> void:
 	var activation: Block = _activation()
 	var effect: StackfallEffect = StackfallEffect.new()
+	effect.shape_weights = null
 	effect.block_count = 4
 	effect.blocks_per_second = 2.0
 	effect.area_radius_m = 3.0
@@ -180,3 +181,34 @@ func test_wants_early_trigger_only_for_an_in_place_anchor() -> void:
 	assert_false(effect.wants_early_trigger(carrier, null))
 	carrier.set_meta(MatchGiftActivation.IN_PLACE_META, true)
 	assert_true(effect.wants_early_trigger(carrier, null))
+
+
+## Bontago-1pi.85.31: the shipped rain mixes shapes (not only cubes), replicated as normal blocks.
+func test_shipped_rain_spawns_a_mix_of_shapes_deterministically() -> void:
+	var seen: Dictionary = {}
+	for _run: int in range(2):
+		var activation: Block = _activation()
+		var effect: StackfallEffect = (load("res://config/specials/stackfall.tres") as SpecialDef).effect as StackfallEffect
+		effect = effect.duplicate() as StackfallEffect
+		effect.area_radius_m = 15.0
+		effect.detonate(activation, null, 0)
+		var rain: StackfallRain = _rain()
+		rain.set_physics_process(false)
+		rain.advance(float(effect.block_count) / effect.blocks_per_second + 0.1)
+		var ids: Array[StringName] = []
+		for i: int in range(1, _blocks_root.get_child_count()):
+			var dropped: Block = _blocks_root.get_child(i) as Block
+			ids.append(dropped.shape_id)
+			assert_eq(dropped.owner_slot, 0)
+			assert_gt(dropped.net_id, 0)
+		assert_gt(ids.size(), 10)
+		var unique: Dictionary = {}
+		for id: StringName in ids:
+			unique[id] = true
+		assert_gt(unique.size(), 2, "rain should not be only cubes")
+		seen[_run] = ids
+		rain.free()
+		for child: Node in _blocks_root.get_children():
+			child.free()
+		break
+	assert_true(seen.has(0))
