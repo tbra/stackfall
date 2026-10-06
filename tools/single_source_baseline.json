@@ -1,7 +1,5 @@
 {
- "CAPITALIZE_ID": {
-  "ui/Lobby.gd": 1
- },
+ "CAPITALIZE_ID": {},
  "COLOR_LOOKUP": {
   "autoload/match/MatchLifecycle.gd": 1
  },
@@ -9,8 +7,7 @@
  "ENUM_LABEL": {},
  "GLYPH_EVENTS": {},
  "NAME_FMT": {
-  "core/bot_names.gd": 1,
-  "ui/lobby/LobbySeatRow.gd": 1
+  "core/bot_names.gd": 1
  },
  "NAME_RAW": {}
 }

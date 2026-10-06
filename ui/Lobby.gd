@@ -548,7 +548,7 @@ func _build_specials_checklist() -> void:
 		# package has to show; capitalize() turns "jumping_bean" into
 		# "Jumping Bean" the way String.capitalize() already title-cases an
 		# underscore-joined identifier.
-		box.text = String(special.id).capitalize()
+		box.text = DisplayNames.special(special.id)
 		_apply_icon(box, GiftIconTable.shared().gift_pictogram(special.id))
 		box.button_pressed = true
 		box.size_flags_horizontal = Control.SIZE_EXPAND_FILL

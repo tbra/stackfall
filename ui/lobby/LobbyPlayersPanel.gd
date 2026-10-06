@@ -253,7 +253,7 @@ func bot_roster_entries(config: MatchConfig) -> Array[Dictionary]:
 func _bot_name(config: MatchConfig, ordinal: int) -> String:
 	if config != null and ordinal < config.bot_names.size() and config.bot_names[ordinal] != "":
 		return config.bot_names[ordinal]
-	return BotNames.FALLBACK_FORMAT % (ordinal + 1)
+	return PlayerNames.bot_fallback(ordinal + 1)
 
 
 ## The `"seats"` table a host publish merges in (empty = no key yet). Until a roster has
@@ -690,9 +690,7 @@ func _new_row(key: int) -> LobbySeatRow:
 ## palette does not have.
 func _seat_color(key: int) -> Color:
 	var index: int = LobbySeats.color_of(_seats, key)
-	if index >= 0 and index < palette.size():
-		return palette[index]
-	return Color.GRAY
+	return SlotColors.palette_color(index, palette, Color.GRAY)
 
 
 func _human_subtitle(entry: Dictionary, peer_id: int) -> String:
