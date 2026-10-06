@@ -11,6 +11,7 @@ splash_radius_m = 3.5
 flight_speed_mps = 60.0
 flight_gravity_scale = 0.0
 own_block_grace_s = 0.4
+own_block_clear_radius_m = 2.0
 
 [resource]
 script = ExtResource("1_def")

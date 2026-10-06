@@ -21,6 +21,7 @@ fuel_duration_s = 3.0
 flight_gravity_scale = 0.0
 model_nose_axis = Vector3(0, 1, 0)
 own_block_grace_s = 0.4
+own_block_clear_radius_m = 2.0
 default_pitch_down_deg = 20.0
 impact_probe_margin_m = 0.05
 blast = SubResource("Resource_rocket_blast")
