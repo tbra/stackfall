@@ -5,12 +5,9 @@
  },
  "COLOR_LOOKUP": {
   "autoload/match/MatchLifecycle.gd": 1,
-  "ui/HUD.gd": 2,
-  "ui/ScoreTable.gd": 1
+  "ui/HUD.gd": 2
  },
- "DIAMOND": {
-  "ui/Minimap.gd": 3
- },
+ "DIAMOND": {},
  "ENUM_LABEL": {},
  "GLYPH_EVENTS": {
   "game/GiftDemoStrip.gd": 1,
@@ -21,8 +18,6 @@
  "NAME_FMT": {
   "core/bot_names.gd": 1,
   "ui/HUD.gd": 1,
-  "ui/ResultsScreen.gd": 2,
-  "ui/ScoreTable.gd": 1,
   "ui/lobby/LobbySeatRow.gd": 1
  },
  "NAME_RAW": {}

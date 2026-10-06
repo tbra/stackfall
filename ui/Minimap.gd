@@ -570,15 +570,10 @@ func _draw_beacons() -> void:
 	for i: int in range(_home_positions.size()):
 		var point: Vector2 = _world_to_px(_home_positions[i], px_per_m)
 		var color: Color = _beacon_color(i)
-		var diamond: PackedVector2Array = PackedVector2Array([
-			point + Vector2(0.0, -half),
-			point + Vector2(half, 0.0),
-			point + Vector2(0.0, half),
-			point + Vector2(-half, 0.0),
-		])
-		_canvas.draw_colored_polygon(diamond, color)
-		var outline: PackedVector2Array = diamond.duplicate()
-		outline.append(diamond[0])
+		var corners: PackedVector2Array = SlotDiamond.points(point, half)
+		_canvas.draw_colored_polygon(corners, color)
+		var outline: PackedVector2Array = corners.duplicate()
+		outline.append(corners[SlotDiamond.CORNER_TOP])
 		_canvas.draw_polyline(outline, Color(0.0, 0.0, 0.0, 0.6), 1.0, true)
 
 

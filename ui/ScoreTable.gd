@@ -91,7 +91,7 @@ static func build_data_row(
 	# USED (specials_used); gifts_claimed stays in the stats payload untouched.
 	var cell_text_by_column: Dictionary = {
 		Column.PLAYER: ResultsScreen.row_name_text(row),
-		Column.TEAM: "Team %d" % ResultsScreen.team_number_in(team_numbers, int(row.get("team_id", 0))),
+		Column.TEAM: PlayerNames.team_label(ResultsScreen.team_number_in(team_numbers, int(row.get("team_id", 0)))),
 		Column.PLACED: str(int(row.get("blocks_placed", 0))),
 		Column.LOST: str(int(row.get("blocks_lost", 0))),
 		Column.GIFTS: str(int(row.get("specials_used", 0))),
@@ -119,14 +119,14 @@ static func slot_color(slot_id: int, match_provider: Variant = null) -> Color:
 		var loop: MainLoop = Engine.get_main_loop()
 		if loop is SceneTree:
 			provider = (loop as SceneTree).root.get_node_or_null("Match")
-	if provider != null:
-		var slot: PlayerSlot = provider.slot(slot_id) as PlayerSlot
-		if slot != null:
-			return slot.color
-	var palette: PackedColorArray = MatchConfig.default_player_colors()
-	if slot_id >= 0 and slot_id < palette.size():
-		return palette[slot_id]
-	return Color.WHITE
+	if provider == null:
+		return SlotColors.resolve(slot_id, null, MatchConfig.new().player_colors)
+	if provider.has_method(&"slot_color"):
+		return provider.slot_color(slot_id) as Color
+	var slot: PlayerSlot = provider.slot(slot_id) as PlayerSlot
+	var config: MatchConfig = provider.config as MatchConfig
+	var palette: PackedColorArray = config.player_colors if config != null else MatchConfig.new().player_colors
+	return SlotColors.resolve(slot_id, slot.color if slot != null else null, palette)
 
 
 ## Bontago-1pi.81: the shared SlotDiamond (ui/SlotDiamond.tscn) at the left of the name
