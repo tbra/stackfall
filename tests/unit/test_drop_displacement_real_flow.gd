@@ -32,6 +32,11 @@ var _tiny_map: MapDef
 
 
 func before_each() -> void:
+	# Bontago-fca.41: synthetic events parsed into the global Input singleton stay latched
+	# (stick axis, ui_* actions) for every later script in the same process; clear them.
+	Input.flush_buffered_events()
+	for action: StringName in InputMap.get_actions():
+		Input.action_release(action)
 	Match.set_process(false)
 	Match.abort_match()
 	SnapshotSync.end_match()
