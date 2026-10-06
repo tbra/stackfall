@@ -38,3 +38,4 @@ arm_delay = 0.4
 arm_impulse = 10.0
 fuse_timeout_s = 20.0
 effect = SubResource("Resource_jumping_bean_effect")
+activation_scale = 2.0

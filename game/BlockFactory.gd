@@ -184,7 +184,11 @@ static func apply_gift_visual(block: Block, shape: BlockShape, tuning: PhysicsTu
 		visual = GhostPreview.build_fallback_gift_visual(tuning.cube_size)
 	visual.name = GIFT_VISUAL_NODE
 	var centre: Vector3 = gift_cell_center(shape, tuning)
-	visual.position = centre
+	# Bontago-1pi.85.32: a released gift swaps to its activation-scale model; it grows about the
+	# cell's bottom face (the held preview stays 1x). Scale derives from gift_id on every peer.
+	var scale_factor: float = activation_scale_for(gift_id)
+	visual.position = centre + Vector3.UP * ((scale_factor - 1.0) * tuning.cube_size * 0.5)
+	visual.scale = visual.scale * scale_factor
 	block.add_child(visual)
 	# DECISION (Bontago-t8x.1): the gift body's collision is ONE cube cell
 	# (tuning.cube_size) centred where the gift visual sits, replacing the
@@ -197,13 +201,21 @@ static func apply_gift_visual(block: Block, shape: BlockShape, tuning: PhysicsTu
 			block.remove_child(child)
 			child.queue_free()
 	var collision: CollisionShape3D = CollisionShape3D.new()
-	collision.shape = _make_collision_shape((tuning.cube_size - tuning.cube_margin) * 0.5, false)
-	collision.position = centre
+	collision.shape = _make_collision_shape((tuning.cube_size - tuning.cube_margin) * 0.5 * scale_factor, false)
+	collision.position = centre + Vector3.UP * ((scale_factor - 1.0) * (tuning.cube_size - tuning.cube_margin) * 0.5)
 	block.add_child(collision)
 	block.cube_count = 1
-	block.mass = tuning.cube_mass
+	block.mass = tuning.cube_mass * pow(scale_factor, (load("res://config/special_tuning.tres") as SpecialTuning).activation_mass_exponent)
 	# Client-derived gift visuals (Bomb blink, Propeller rise) start on every peer here.
 	GiftFxPresenter.on_gift_block_spawned(block)
+
+
+## Bontago-1pi.85.32: the released-gift size factor for `gift_id` (SpecialDef.activation_scale; 1.0 for unknown).
+static func activation_scale_for(gift_id: StringName) -> float:
+	var def: SpecialDef = SpecialDef.find_by_id(gift_id)
+	if def == null or not is_finite(def.activation_scale) or def.activation_scale <= 0.0:
+		return 1.0
+	return def.activation_scale
 
 
 ## Bontago-t8x.1: where a gift's single cell sits, in the carrier shape's own

@@ -33,3 +33,4 @@ preview_icon = ExtResource("10_icon")
 weight = 1.0
 enabled_by_default = true
 effect = SubResource("Resource_anvil_effect")
+activation_scale = 5.0
