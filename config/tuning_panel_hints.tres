@@ -185,7 +185,7 @@ ranges = {
 "PhysicsTuning.stable_freeze_rest_epsilon_m": Vector2(0.0, 0.05),
 "TerritoryTuning.hole_delay": Vector2(0.0, 5.0),
 "TerritoryTuning.hole_close_delay": Vector2(0.0, 10.0),
-"TerritoryTuning.capture_hold": Vector2(0.0, 10.0),
+"TerritoryTuning.capture_hold": Vector2(0.0, 30.0),
 "TerritoryTuning.ctf_score_per_beacon_second": Vector2(0.0, 10.0),
 "TerritoryTuning.ctf_replicate_interval_s": Vector2(0.1, 10.0),
 "TerritoryTuning.sky_replicate_interval_s": Vector2(0.0, 10.0),
