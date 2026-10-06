@@ -1,14 +1,61 @@
 class_name GiftShapePicker
 extends RefCounted
-## Bontago-1pi.85.35 (docs/GIFT_PLAYTEST2_PLAN.md, P0 contract): picks the BlockShape of a block
-## an effect spawns (Stackfall rain, Volcano eruption). Pure, deterministic for a given RNG state.
-## SIGNATURE IS THE CONTRACT; package PG replaces the stub with a weighted pick over
-## BlockShape.load_all_shapes() using a GiftShapeWeights resource.
+## Bontago-1pi.85.31 (docs/GIFT_PLAYTEST2_PLAN.md, PG): picks the BlockShape of a block an effect
+## spawns (Stackfall rain, Volcano eruption). Pure, deterministic for a given RNG state: exactly one
+## rng.randf() is consumed per pick (none when no shape is available).
 
 const CUBE_SHAPE_PATH: String = "res://config/blocks/cube.tres"
 
 
-## Weighted random shape. `weights` is a GiftShapeWeights resource (null = unweighted).
-## Stub: always the cube, without advancing `rng`.
-static func pick(_rng: RandomNumberGenerator, _weights: Resource) -> BlockShape:
-	return load(CUBE_SHAPE_PATH) as BlockShape
+## Weighted random shape over BlockShape.load_all_shapes(). `weights` is a GiftShapeWeights
+## (null or invalid = every shape at its own BlockShape.weight). Zero-weight shapes are never picked.
+static func pick(rng: RandomNumberGenerator, weights: Resource) -> BlockShape:
+	var shapes: Array[BlockShape] = BlockShape.load_all_shapes()
+	var table: GiftShapeWeights = weights as GiftShapeWeights
+	if table != null and not table.is_valid():
+		table = null
+	var effective: PackedFloat32Array = _effective_weights(shapes, table)
+	var total: float = 0.0
+	for w: float in effective:
+		total += w
+	if total <= 0.0 and table != null:
+		effective = _effective_weights(shapes, null)
+		total = 0.0
+		for w: float in effective:
+			total += w
+	if total <= 0.0:
+		return load(CUBE_SHAPE_PATH) as BlockShape
+	var roll: float = (rng.randf() if rng != null else 0.5) * total
+	var last_positive: int = -1
+	for i: int in range(shapes.size()):
+		if effective[i] <= 0.0:
+			continue
+		last_positive = i
+		roll -= effective[i]
+		if roll < 0.0:
+			return shapes[i]
+	return shapes[last_positive]
+
+
+static func _effective_weights(shapes: Array[BlockShape], table: GiftShapeWeights) -> PackedFloat32Array:
+	var out: PackedFloat32Array = PackedFloat32Array()
+	for shape: BlockShape in shapes:
+		var w: float = shape.weight
+		if table != null:
+			var override: float = table.override_for(shape.id)
+			if override >= 0.0:
+				w = override
+		out.append(w if is_finite(w) and w > 0.0 else 0.0)
+	return out
+
+
+## Largest horizontal distance from the shape's cell-bounds centre to a cell centre, in metres per
+## cell unit (cube = 0). Rotation about the vertical axis does not change it.
+static func footprint_radius(shape: BlockShape, cell_size: float) -> float:
+	if shape == null or shape.cells.is_empty():
+		return 0.0
+	var centre: Vector3 = shape.bottom_center()
+	var radius: float = 0.0
+	for cell: Vector3i in shape.cells:
+		radius = maxf(radius, Vector2(float(cell.x) - centre.x, float(cell.z) - centre.z).length())
+	return radius * cell_size

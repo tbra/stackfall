@@ -267,3 +267,109 @@ func test_null_model_scene_falls_back_to_the_cone_mesh() -> void:
 	assert_eq(meshes.size(), 1)
 	assert_true(meshes[0].mesh is CylinderMesh)
 	_assert_model_fits(_effect, structure)
+
+
+# --- eruption particles and shape mix (Bontago-1pi.85.30 / 85.31) -------------------------------
+
+func test_eruption_spawns_a_mix_of_shapes_from_the_shared_picker() -> void:
+	_start()
+	var structure: VolcanoStructure = _manual(VolcanoStructure.spawn_host(_effect, _origin(), 0))
+	_step(structure, _effect.rise_s + 20.0)
+	var seen: Dictionary = {}
+	for child: Node in _blocks.get_children():
+		var block: Block = child as Block
+		if block != null:
+			seen[block.shape_id] = true
+	assert_gt(seen.size(), 2, "several different shapes, not just cubes: %s" % [seen.keys()])
+
+
+func test_eruption_shapes_are_host_deterministic_for_a_seed() -> void:
+	var picks: Array = []
+	for _run: int in range(2):
+		var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+		rng.seed = 4242
+		var ids: Array[StringName] = []
+		for _i: int in range(12):
+			ids.append(GiftShapePicker.pick(rng, _effect.shape_weights).id)
+		picks.append(ids)
+	assert_eq(picks[0], picks[1])
+
+
+func test_null_weights_fall_back_to_the_single_block_shape() -> void:
+	_start()
+	_effect.shape_weights = null
+	var structure: VolcanoStructure = _manual(VolcanoStructure.spawn_host(_effect, _origin(), 0))
+	_step(structure, _effect.rise_s + 5.0)
+	assert_gt(_blocks.get_child_count(), 0)
+	for child: Node in _blocks.get_children():
+		assert_eq((child as Block).shape_id, _effect.block_shape.id)
+
+
+func test_particles_emit_only_while_erupting_and_stop_at_the_end() -> void:
+	_start()
+	var structure: VolcanoStructure = _manual(VolcanoStructure.spawn_host(_effect, _origin(), 0))
+	var fx: VolcanoEruptionFx = structure.eruption_fx()
+	assert_not_null(fx)
+	assert_true(fx.has_burst_emitter() and fx.has_plume_emitter())
+	assert_false(fx.is_emitting(), "quiet before the eruption")
+	_step(structure, _effect.rise_s * 0.5)
+	assert_false(fx.is_emitting(), "quiet while rising")
+	_step(structure, _effect.rise_s + 1.0)
+	assert_true(fx.is_emitting(), "plume/bursts while erupting")
+	_step(structure, _effect.eruption_duration_s)
+	assert_false(fx.is_emitting(), "stopped once the volcano ended")
+	assert_true(structure.is_queued_for_deletion(), "the structure, and its particles, free themselves")
+
+
+func test_particles_stop_when_the_match_ends() -> void:
+	_start()
+	var structure: VolcanoStructure = _manual(VolcanoStructure.spawn_host(_effect, _origin(), 0))
+	_step(structure, _effect.rise_s + 1.0)
+	var fx: VolcanoEruptionFx = structure.eruption_fx()
+	assert_true(fx.is_emitting())
+	Match.abort_match()
+	structure.tick(TICK)
+	assert_false(fx.is_emitting())
+
+
+func test_client_visual_also_emits_particles_without_spawning_blocks() -> void:
+	_start()
+	var visual: VolcanoStructure = VolcanoStructure.new()
+	visual.configure(_effect, 0, false)
+	_field.add_child(visual)
+	visual.global_position = _origin()
+	_manual(visual)
+	_step(visual, _effect.rise_s + 2.0)
+	assert_true(visual.eruption_fx().is_emitting())
+	assert_eq(_blocks.get_child_count(), 0)
+
+
+func test_particle_count_is_bounded_per_preset() -> void:
+	var tuning: VolcanoParticleTuning = _effect.particles
+	var full: GraphicsPreset = GraphicsPreset.new()
+	var low: GraphicsPreset = GraphicsPreset.new()
+	low.ambient_life_enabled = false
+	var shed: GraphicsPreset = GraphicsPreset.new()
+	shed.particle_budget_scale = 0.0
+	var big: VolcanoParticleTuning = tuning.duplicate()
+	big.burst_count = 500
+	big.ember_rate_per_s = 200.0
+	var counts: Array[int] = []
+	for preset: GraphicsPreset in [full, low, shed]:
+		var fx: VolcanoEruptionFx = autofree(VolcanoEruptionFx.new())
+		add_child(fx)
+		fx.setup(big, preset)
+		assert_lte(fx.particle_count(), VolcanoEruptionFx.budget_for(big, preset))
+		assert_lte(fx.particle_count(), big.max_particles)
+		counts.append(fx.particle_count())
+	assert_gt(counts[0], counts[1], "Low draws fewer particles")
+	assert_eq(counts[2], 0, "a zero particle budget builds none")
+	var capped: VolcanoEruptionFx = autofree(VolcanoEruptionFx.new())
+	add_child(capped)
+	capped.setup(big, full)
+	assert_lte(capped.particle_count(), big.max_particles, "an oversized tuning is scaled to the cap")
+
+
+func test_orb_leftovers_are_gone() -> void:
+	for property: Dictionary in _effect.get_property_list():
+		assert_ne(String(property["name"]), "orb_blast")

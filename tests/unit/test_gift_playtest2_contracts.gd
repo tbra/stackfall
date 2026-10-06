@@ -144,11 +144,13 @@ func test_gift_aim_signatures_are_callable() -> void:
 	assert_almost_eq(GiftAim.throw_velocity(Vector3.FORWARD, t).length(), t.gift_throw_speed_mps, 0.001)
 
 
-func test_shape_picker_stub_returns_cube() -> void:
+## PG (Bontago-1pi.85.31) implemented the P0 stub: with no weights the picker falls back
+## to the shapes' own weights, so the contract is "always a real block shape".
+func test_shape_picker_returns_a_real_block_shape() -> void:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	var shape: BlockShape = GiftShapePicker.pick(rng, null)
 	assert_not_null(shape)
-	assert_eq(shape.resource_path, GiftShapePicker.CUBE_SHAPE_PATH)
+	assert_true(shape.resource_path.begins_with("res://config/blocks/"), "a shipped block shape")
 
 
 func test_activation_stub_returns_false() -> void:
