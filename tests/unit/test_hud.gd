@@ -359,13 +359,13 @@ func test_process_shows_locked_when_the_local_slots_release_is_locked() -> void:
 	hud._process(0.0)
 
 	assert_true(hud._locked)
-	assert_true(hud._locked_label.visible)
+	# Bontago-1pi.92: the lock shows only as the greyed ring, never as text.
+	assert_null(hud.find_child("LockedLabel", true, false))
 
 	hud.set_local_slot(1)
 	hud._process(0.0)
 
 	assert_false(hud._locked)
-	assert_false(hud._locked_label.visible)
 
 
 # --- Bontago-1en.16: pending-special queue indicator ------------------------
