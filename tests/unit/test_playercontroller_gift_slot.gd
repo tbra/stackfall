@@ -117,11 +117,15 @@ func test_a_held_gift_ghost_visual_is_not_recoloured_by_the_owner_colour() -> vo
 	var ghost: GhostPreview = controller._ghost
 	ghost.apply_validity(PlacementRules.Result.VALID)
 	ghost.set_player_color(Color(1.0, 0.0, 0.0))
-	var red: Color = (ghost.gift_visual().find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D).material_overlay.get("albedo_color")
+	# Bontago-1pi.85.33: the valid state shows the model's own materials with only the glow
+	# rim overlay, so compare the overlay itself (not a tint colour) across owner colours.
+	var red: Material = (ghost.gift_visual().find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D).material_overlay
 	ghost.set_player_color(Color(0.0, 0.0, 1.0))
 	ghost.apply_validity(PlacementRules.Result.VALID)
-	var blue: Color = (ghost.gift_visual().find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D).material_overlay.get("albedo_color")
+	var blue: Material = (ghost.gift_visual().find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D).material_overlay
 	assert_eq(red, blue, "owner colour must not tint a held gift")
+	if blue is StandardMaterial3D:
+		assert_ne((blue as StandardMaterial3D).albedo_color, Color(0.0, 0.0, 1.0), "the overlay never takes the owner colour")
 
 
 func test_a_rocket_released_by_mouse_or_pad_fires_along_the_camera_forward_identically() -> void:

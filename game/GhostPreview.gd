@@ -700,9 +700,6 @@ var _gift_tint_material: StandardMaterial3D = null
 var _gift_glow_material: ShaderMaterial = null
 
 
-const GIFT_NEUTRAL_TINT: Color = Color(1.0, 1.0, 1.0, 1.0)
-
-
 ## True while the ghost's state colour is the owner's colour (plain valid placement), the one
 ## state a gift must not be recoloured by.
 func _gift_uses_owner_colour() -> bool:
@@ -722,12 +719,15 @@ func _apply_gift_tint() -> void:
 		_gift_tint_material.next_pass = _gift_glow_material
 	var tint: Color = current_tint_color()
 	if _gift_uses_owner_colour():
-		# Bontago-1pi.85.16: a held gift keeps its own model colours; the plain "valid" state is
-		# not tinted with the owner colour (hole/invalid/locked/throw cues still show).
-		tint = Color(GIFT_NEUTRAL_TINT.r, GIFT_NEUTRAL_TINT.g, GIFT_NEUTRAL_TINT.b, tint.a)
-	_gift_tint_material.albedo_color = Color(tint.r, tint.g, tint.b, tint.a * HELD_GIFT_TINT_STRENGTH)
-	for node: Node in _gift_visual.find_children("*", "MeshInstance3D", true, false):
-		(node as MeshInstance3D).material_overlay = _gift_tint_material
+		# Bontago-1pi.85.33: plain valid state shows the model's OWN materials. The old white
+		# unshaded wash made every dark GLB look plain white. Only the additive glow rim
+		# (transparent away from the silhouette edge) stays as the overlay.
+		for node: Node in _gift_visual.find_children("*", "MeshInstance3D", true, false):
+			(node as MeshInstance3D).material_overlay = _gift_glow_material
+	else:
+		_gift_tint_material.albedo_color = Color(tint.r, tint.g, tint.b, tint.a * HELD_GIFT_TINT_STRENGTH)
+		for node: Node in _gift_visual.find_children("*", "MeshInstance3D", true, false):
+			(node as MeshInstance3D).material_overlay = _gift_tint_material
 	_apply_glow()
 
 
