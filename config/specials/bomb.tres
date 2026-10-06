@@ -9,11 +9,11 @@
 
 [sub_resource type="Resource" id="Resource_bomb_blast"]
 script = ExtResource("11_blast")
-radius_m = 5.0
-peak_speed_mps = 12.0
+radius_m = 8.0
+peak_speed_mps = 120.0
 falloff_exponent = 1.5
 upward_bias = 0.35
-max_delta_v_mps = 16.0
+max_delta_v_mps = 160.0
 
 [sub_resource type="Resource" id="Resource_bomb_effect"]
 script = ExtResource("2_effect")

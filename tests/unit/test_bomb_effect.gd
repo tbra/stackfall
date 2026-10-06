@@ -17,6 +17,7 @@ const HEAVY_MASS: float = 8.0
 const MASS_TOLERANCE_MPS: float = 0.5
 const FAR_FACTOR: float = 1.5
 const FAR_AWAY_M: float = 200.0
+const OLD_PEAK_FRACTION_MIN: float = 0.15
 
 var _bodies: Array[Node3D] = []
 
@@ -312,11 +313,26 @@ func test_bomb_tres_loads_with_the_plan_numbers() -> void:
 	var effect: BombEffect = found.effect as BombEffect
 	assert_eq(effect.blink_duration_s, 3.0)
 	assert_eq(effect.blink_period_s, 0.25)
-	assert_eq(effect.blast.radius_m, 5.0)
-	assert_eq(effect.blast.peak_speed_mps, 12.0)
+	assert_eq(effect.blast.radius_m, 8.0)
+	assert_eq(effect.blast.peak_speed_mps, 120.0)
 	assert_eq(effect.blast.falloff_exponent, 1.5)
 	assert_eq(effect.blast.upward_bias, 0.35)
-	assert_eq(effect.blast.max_delta_v_mps, 16.0)
+	assert_eq(effect.blast.max_delta_v_mps, 160.0)
 	assert_eq(effect.blink_tuning.end_period_ratio, 0.4)
 	assert_eq(effect.blink_tuning.flash_color, Color(1.0, 0.25, 0.1))
 	assert_eq(effect.blink_tuning.flash_max_alpha, 0.55)
+
+
+## Bontago-1pi.85.27: the blast is ~10x stronger; a body at NEAR_FRACTION of the radius leaves at
+## a large share of the shipped peak speed (derived from the tuning, not a literal).
+func test_blast_launches_a_near_body_much_faster_than_the_old_tuning() -> void:
+	var blast: ExplosionTuning = (_bomb_def().effect as BombEffect).blast
+	var bomb_block: Block = _make_block(Vector3.ZERO)
+	var nearby: RigidBody3D = _make_rigid_body(Vector3(blast.radius_m * NEAR_FRACTION, 0.0, 0.0), HEAVY_MASS)
+	var behavior: SpecialBehavior = _make_behavior(bomb_block)
+	await wait_physics_frames(1)
+
+	behavior.trigger(0)
+	await wait_physics_frames(1)
+
+	assert_gt(nearby.linear_velocity.x, blast.peak_speed_mps * OLD_PEAK_FRACTION_MIN, "near body leaves far faster than the old 12 m/s peak")
