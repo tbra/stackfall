@@ -67,7 +67,7 @@ func _can_send() -> bool:
 
 
 func _on_match_state_changed(_from_state: int, to_state: int) -> void:
-	if to_state == MatchAutoload.State.LOADING or to_state == MatchAutoload.State.LOBBY or to_state == MatchAutoload.State.END:
+	if MatchAutoload.is_resetting(to_state):
 		_last_id = 0
 
 
@@ -93,7 +93,7 @@ func net_breeze_gust(gust: Dictionary) -> void:
 	if awaiting_world.is_valid() and bool(awaiting_world.call()):
 		gusts_refused += 1
 		return
-	if not MatchWeather.accepts_replication_in(int(_authority().state())):
+	if not MatchAutoload.is_replicating(int(_authority().state())):
 		gusts_refused += 1
 		return
 	apply_gust(gust)

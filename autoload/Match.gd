@@ -45,6 +45,30 @@ extends Node
 ## Spec 3.7's states.
 enum State { LOBBY, LOADING, COUNTDOWN, PLAYING, SUDDEN_DEATH, END }
 
+
+## Single source for the match-state sets (Bontago-fca.36.3; tools/lint_single_source.py
+## STATE_SET bans hand-written sets elsewhere).
+## LIVE = PLAYING, SUDDEN_DEATH: the host simulates play (placement, throws, gifts,
+## special spawns, bots, win checks, the match clock). COUNTDOWN is not live: nothing
+## may be placed or won before the horn.
+static func is_live(state: int) -> bool:
+	return state == State.PLAYING or state == State.SUDDEN_DEATH
+
+
+## REPLICATING = COUNTDOWN, PLAYING, SUDDEN_DEATH: a match that has started and not
+## ended. Clients accept replicated weather/world state and a mid-match joiner is
+## admitted and replayed into exactly these states (spec 3.7). Superset of is_live.
+static func is_replicating(state: int) -> bool:
+	return state == State.COUNTDOWN or state == State.PLAYING or state == State.SUDDEN_DEATH
+
+
+## RESETTING = LOADING, LOBBY, END: the world is being built, is torn down, or is over,
+## so per-match effect state (weather, wind ids, snow patches) must be cleared.
+## Complement of is_replicating. Sites that clear on a narrower set (LOBBY|END cursors
+## and rain, LOBBY|LOADING impacts) are intentionally not this predicate.
+static func is_resetting(state: int) -> bool:
+	return state == State.LOADING or state == State.LOBBY or state == State.END
+
 ## Spec 3.7: "Countdown(3s)". A fixed part of the state machine's shape, not a
 ## lobby setting (spec 2.8's table doesn't list it) — kept as a named constant
 ## here rather than in a Resource for the same reason
@@ -170,7 +194,7 @@ func start_cat(owner_slot: int, position: Vector3, effect: CatEffect) -> bool:
 
 func set_cat_target(slot_id: int, point: Vector3) -> bool:
 	var cat: CatController = active_cat()
-	if not _is_host() or cat == null or cat.owner_slot != slot_id or not MatchLifecycle.is_live_state(state()):
+	if not _is_host() or cat == null or cat.owner_slot != slot_id or not is_live(state()):
 		return false
 	return cat.set_target(point)
 
@@ -209,7 +233,7 @@ func end_cat(id: int) -> void:
 
 
 func _on_cat_match_state_changed(_old: int, next: int) -> void:
-	if next == State.LOBBY or next == State.END or next == State.LOADING:
+	if is_resetting(next):
 		var cat: CatController = active_cat()
 		if cat != null:
 			end_cat(cat.activation_id)
@@ -272,9 +296,9 @@ func _run_territory_step(delta: float) -> void:
 ## Gift flight and landed expiry use physics time, independent of territory solve cadence.
 func _physics_process(delta: float) -> void:
 	var probe_gifts: int = PerfProbe.start()
-	if _is_host() and _lifecycle != null and MatchLifecycle.is_live_state(state()):
+	if _is_host() and _lifecycle != null and is_live(state()):
 		_gifts.tick_host(delta)
-	elif not _is_host() and _lifecycle != null and MatchLifecycle.is_live_state(state()):
+	elif not _is_host() and _lifecycle != null and is_live(state()):
 		_gifts.tick_client(delta)
 	PerfProbe.stop(&"gifts", probe_gifts)
 	# Bontago-22y.10: no-op unless a weather schedule is running.
@@ -451,7 +475,7 @@ func _process(delta: float) -> void:
 			# config.match_timer_minutes == 0 no-op).
 			_lifecycle._tick_turn_based(delta)
 			# Bontago-1pi.13: match_duration() accumulates only across the two
-			# "live" states (MatchLifecycle.is_live_state()), mirroring every
+			# "live" states (is_live()), mirroring every
 			# other per-state tick call above.
 			_stats._tick(delta)
 		State.SUDDEN_DEATH:

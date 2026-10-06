@@ -282,7 +282,7 @@ func _store_in_gift_slot(slot_id: int, special_id: StringName) -> void:
 func request_use_gift_slot(slot_id: int) -> bool:
 	if _match == null or not _match._is_host() or gift_slot_capacity() <= 0:
 		return false
-	if not MatchLifecycle.is_live_state(_match.state()):
+	if not MatchAutoload.is_live(_match.state()):
 		return false
 	if slot_id < 0 or slot_id >= _match.slot_count():
 		return false

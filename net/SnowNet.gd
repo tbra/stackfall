@@ -173,7 +173,7 @@ func apply_state(raw: Variant) -> bool:
 
 
 func _snow_live(authority: Variant) -> bool:
-	if not MatchWeather.accepts_replication_in(int(authority.state())):
+	if not MatchAutoload.is_replicating(int(authority.state())):
 		return false
 	var weather: MatchWeather = authority.weather() as MatchWeather
 	return weather != null and weather.active_id() == &"snow"
@@ -299,9 +299,8 @@ func _set_disc_cell(field: Field, grid: CellGrid, edge: float, cell: int, level:
 func _on_match_state_changed(_from_state: int, to_state: int) -> void:
 	if _is_host():
 		return
-	match to_state:
-		MatchAutoload.State.LOADING, MatchAutoload.State.LOBBY, MatchAutoload.State.END:
-			clear_client()
+	if MatchAutoload.is_resetting(to_state):
+		clear_client()
 
 
 func _on_weather_stopped(weather_id: StringName) -> void:

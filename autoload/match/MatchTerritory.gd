@@ -370,7 +370,7 @@ func _finish_objective_step() -> void:
 	# Bontago-6fc.2: a sandbox never ends on the goal hold.
 	if _match.config.sandbox and _objective is ClassicObjective:
 		return
-	if MatchLifecycle.is_live_state(_match.state()) and _objective.winner() != ModeObjective.NO_TEAM:
+	if MatchAutoload.is_live(_match.state()) and _objective.winner() != ModeObjective.NO_TEAM:
 		_match._lifecycle._finish_match(_objective.winner())
 
 
@@ -489,9 +489,9 @@ func _connect_sky_records() -> void:
 
 
 func _on_block_settled(owner_slot: int, height: float) -> void:
-	if MatchLifecycle.is_live_state(_match.state()):
+	if MatchAutoload.is_live(_match.state()):
 		_match._stats.record_height(owner_slot, height)  # Bontago-1pi.72.2
-	if _objective is ReachSkyObjective and MatchLifecycle.is_live_state(_match.state()):
+	if _objective is ReachSkyObjective and MatchAutoload.is_live(_match.state()):
 		(_objective as ReachSkyObjective).record_height(owner_slot, height)
 
 
@@ -972,13 +972,13 @@ func punch_special_hole(world_pos: Vector2, radius_m: float, hole_open_s: float)
 		return
 	# DECISION (autoload/match/MatchTerritory.gd, Bontago-1en.20 review):
 	# live-play guard (Bontago-1pi.85.8: PLAYING or SUDDEN_DEATH via
-	# MatchLifecycle.is_live_state(), like placement since Bontago-1pi.87).
+	# MatchAutoload.is_live(), like placement since Bontago-1pi.87).
 	# _finish_match() only sets State.END -- it never tears the raster down or
 	# stops a SpecialEffect's physics_tick() -- so a Jumping Bean still hopping
 	# after a natural win could otherwise still punch a hole here and, through
 	# _check_home_flags() below, eliminate a still-alive slot (even one on the
 	# already-decided winning team) after the match is already over.
-	if not MatchLifecycle.is_live_state(_match.state()):
+	if not MatchAutoload.is_live(_match.state()):
 		return
 	if _match.config.hole_mode == MatchConfig.HoleMode.OFF:
 		return

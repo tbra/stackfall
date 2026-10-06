@@ -138,7 +138,7 @@ func request_place(
 	# here locally must not spawn anything; it waits for the host's spawn.
 	if not _match._is_host():
 		return PlacementRules.REASON_NO_BLOCK
-	if not MatchLifecycle.is_live_state(_match.state()) or _match._field == null or _match._blocks_parent == null:
+	if not MatchAutoload.is_live(_match.state()) or _match._field == null or _match._blocks_parent == null:
 		return PlacementRules.REASON_NO_BLOCK
 	if slot_id < 0 or slot_id >= _match.slot_count():
 		return PlacementRules.REASON_NO_BLOCK
@@ -364,7 +364,7 @@ func request_throw(
 ) -> StringName:
 	if not _match._is_host():
 		return PlacementRules.REASON_NO_BLOCK
-	if not MatchLifecycle.is_live_state(_match.state()) or _match._field == null or _match._blocks_parent == null:
+	if not MatchAutoload.is_live(_match.state()) or _match._field == null or _match._blocks_parent == null:
 		return PlacementRules.REASON_NO_BLOCK
 	if slot_id < 0 or slot_id >= _match.slot_count():
 		return PlacementRules.REASON_NO_BLOCK
@@ -555,7 +555,7 @@ func spawn_special_projectile(
 ) -> Block:
 	if not _match._is_host():
 		return null
-	if not MatchLifecycle.is_live_state(_match.state()) or _match._field == null or _match._blocks_parent == null:
+	if not MatchAutoload.is_live(_match.state()) or _match._field == null or _match._blocks_parent == null:
 		return null
 	if shape == null:
 		return null
@@ -707,7 +707,7 @@ func _resolve_outcome(
 func preview_placement(
 	slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion
 ) -> PlacementRules.Result:
-	if not MatchLifecycle.is_live_state(_match.state()) or _match.cell_grid() == null or _match.raster() == null or _match._field == null:
+	if not MatchAutoload.is_live(_match.state()) or _match.cell_grid() == null or _match.raster() == null or _match._field == null:
 		return PlacementRules.Result.EMPTY
 	if slot_id < 0 or slot_id >= _match.slot_count():
 		return PlacementRules.Result.EMPTY

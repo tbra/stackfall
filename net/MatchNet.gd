@@ -457,7 +457,7 @@ func _process(delta: float) -> void:
 			_cat_send_accum = 0.0
 			_broadcast(&"net_cat_state", [cat.activation_id, cat.global_position,
 				cat.linear_velocity, cat.target, cat.time_left])
-	if MatchLifecycle.is_live_state(_authority().state()):
+	if MatchAutoload.is_live(_authority().state()):
 		_scores_send_accum += delta
 		if _scores_send_accum >= 1.0 / maxf(config.scoreboard_hz, 0.001):
 			_scores_send_accum = 0.0
@@ -1399,7 +1399,9 @@ func _roster() -> Array:
 # --- Events the host mirrors to its clients ---------------------------------
 
 func _on_match_state_changed(_from_state: int, to_state: int) -> void:
-	if to_state == Match.State.LOBBY or to_state == Match.State.LOADING:
+	# DECISION (fca.36.3): impacts clear on LOBBY|LOADING only; END is excluded from
+	# is_resetting so impacts already queued still play into the results screen.
+	if MatchAutoload.is_resetting(to_state) and to_state != Match.State.END:
 		# World teardown / rebuild: nothing still waiting may play into it.
 		_reset_impacts()
 	if not _is_host():
@@ -1952,11 +1954,7 @@ func _on_net_mode_changed(mode: int) -> void:
 ## joiner is admitted into and gets a replay for (spec 3.7).
 func is_match_live() -> bool:
 	var state: int = int(_authority().state())
-	return (
-		state == Match.State.COUNTDOWN
-		or state == Match.State.PLAYING
-		or state == Match.State.SUDDEN_DEATH
-	)
+	return MatchAutoload.is_replicating(state)
 
 
 # --- Mid-match join and reconnect (Bontago-8or.11, spec 3.4) -----------------
@@ -2143,7 +2141,7 @@ func build_world_replay(replay_id: int = 0) -> Array[Array]:
 		var gate_args: Array = authority._lifecycle.loading_gate_replay_args()
 		if gate_args.size() == 3:
 			messages.append(_event(EVENT_LOADING_GATE, gate_args))
-	elif state == Match.State.PLAYING or state == Match.State.SUDDEN_DEATH:
+	elif MatchAutoload.is_live(state):
 		# A client's own start_match() leaves it in COUNTDOWN; PLAYING is
 		# replayed before SUDDEN_DEATH so its consumers see the order a
 		# seated client saw.

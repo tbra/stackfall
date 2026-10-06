@@ -37,6 +37,8 @@ CASES = {
                            "core/rules/ResultsPayload.gd", "ui/Lobby.gd"),
     "GIFT_ICON": ("ui/Gift.gd", 'var t := load("res://assets/gifts/bomb.png")\n',
                   "game/GiftCrate.gd", None),
+    "STATE_SET": ("net/Foo.gd", 'if s == Match.State.PLAYING or s == Match.State.SUDDEN_DEATH:\n\tpass\n',
+                  "autoload/Match.gd", None),
 }
 
 
@@ -73,6 +75,25 @@ class LintTest(unittest.TestCase):
             code = ls.main(["--path", self.root, *legacy, *extra])
         self.last_out = out.getvalue()
         return code
+
+    def test_state_set_sees_multiline_chains_and_line_level_allowance(self):
+        chain = ("var live: bool = (\n\t\tstate == Match.State.COUNTDOWN\n"
+                 "\t\tor state == Match.State.PLAYING\n\t)\n")
+        cont = "if a == Match.State.LOBBY or \\n\t\tb == Match.State.END:\n\tpass\n"
+        arm = "match s:\n\tMatch.State.LOADING,\n\tMatch.State.LOBBY:\n\t\tpass\n"
+        for text in (chain, cont, arm):
+            hits = ls.violations_in("net/Foo.gd", text)
+            self.assertEqual([h[0] for h in hits], ["STATE_SET"], text)
+            self.assertEqual(hits[0][1], 2 if text is arm else 1)
+        self.assertEqual(ls.violations_in("net/Foo.gd", "var x = (\n\ta == Match.State.END\n)\n"), [])
+        # whole files are not waived: only the exact line-level entry passes
+        self.assertEqual(ls.violations_in("ui/HUD.gd", chain)[0][0], "STATE_SET")
+        waived = "if to_state == Match.State.LOBBY or to_state == Match.State.END:\n\tpass\n"
+        self.assertEqual(ls.violations_in("ui/HUD.gd", waived), [])
+        self.assertEqual(ls.violations_in("net/Foo.gd", waived)[0][0], "STATE_SET")
+        for entries in ls.LINE_ALLOW.values():
+            for _file, _snippet, reason in entries:
+                self.assertTrue(reason.strip())
 
     def test_every_rule_is_covered_by_a_case(self):
         self.assertEqual(sorted(CASES), sorted(ls.RULE_IDS))
