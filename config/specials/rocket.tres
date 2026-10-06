@@ -1,16 +1,26 @@
-[gd_resource type="Resource" script_class="SpecialDef" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="SpecialDef" load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://config/specials/SpecialDef.gd" id="1_def"]
 [ext_resource type="Script" path="res://game/specials/RocketEffect.gd" id="2_effect"]
 [ext_resource type="PackedScene" path="res://assets/gifts/held/rocket.tscn" id="9_held"]
 [ext_resource type="Texture2D" path="res://assets/ui/gift_previews/rocket.png" id="10_icon"]
+[ext_resource type="Script" path="res://config/specials/fx/ExplosionTuning.gd" id="11_blast"]
+
+[sub_resource type="Resource" id="Resource_rocket_blast"]
+script = ExtResource("11_blast")
+radius_m = 4.5
+peak_speed_mps = 10.0
+falloff_exponent = 1.5
+upward_bias = 0.35
+max_delta_v_mps = 16.0
 
 [sub_resource type="Resource" id="Resource_rocket_effect"]
 script = ExtResource("2_effect")
-launch_speed = 18.0
-fuel_duration_s = 1.5
-explosion_radius = 3.0
-explosion_impulse = 14.0
+thrust_speed_mps = 14.0
+fuel_duration_s = 4.0
+default_pitch_down_deg = 20.0
+impact_probe_margin_m = 0.05
+blast = SubResource("Resource_rocket_blast")
 
 [resource]
 script = ExtResource("1_def")

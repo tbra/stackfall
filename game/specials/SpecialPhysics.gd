@@ -12,75 +12,31 @@ extends RefCounted
 ## returns (Godot's own max_results argument). Spec 3.5's max_active_blocks
 ## = 600 bounds the whole match; this is a much smaller per-explosion safety
 ## bound so one blast at the centre of a dense, legally-overlapping pile
-## can't make a single query scan unbounded results.
+## can't make a single query scan unbounded results. Read by
+## ExplosionFx.query_bodies(), which owns the query loop.
 const MAX_QUERY_RESULTS: int = 128
 
 ## Sphere-queries real RigidBody3D bodies within `radius` of `center` and
-## returns each distinct body exactly once (see `_query_unique_bodies()`'s own
-## doc comment for the multi-shape dedupe this relies on). Skips anything that
-## isn't a RigidBody3D (the disk's AnimatableBody3D -- a kinematic
-## StaticBody3D subtype per game/Field.gd's own doc comment -- and the kill
-## plane's Area3D, which collide_with_areas = false already excludes) and any
-## RID listed in `exclude`.
+## returns each distinct body exactly once. Skips anything that isn't a
+## RigidBody3D (the disk's AnimatableBody3D, a kinematic StaticBody3D subtype per
+## game/Field.gd's own doc comment; the kill plane's Area3D is excluded by
+## collide_with_areas = false) and any RID listed in `exclude`.
+##
+## Bontago-1pi.85.10 fix: this used to be its own capped single `intersect_shape`
+## call. The disc is one ConcavePolygonShape3D and `intersect_shape` returns one hit
+## per triangle, so a query near the floor filled its MAX_QUERY_RESULTS cap with disc
+## triangles and missed blocks resting on the disc (reproduced with 24 cubes on a real
+## Field: query_bodies_in_range()/explode() found only 5 of them).
+## The one implementation of the multi-pass, per-body-deduplicated query is
+## ExplosionFx.query_bodies(); this delegates so Magnet, Black hole, the legacy
+## `explode()` below and the new ExplosionFx.blast() cannot drift apart again.
 ##
 ## Shared by `explode()` (impulse + wake) and `query_bodies_in_range()`
-## (query-only, no impulse/wake/mark_script_kick) so the sphere-query and
-## per-body dedupe logic exists in exactly one place.
+## (query-only, no impulse/wake/mark_script_kick).
 static func _query_unique_bodies(
 	space_state: PhysicsDirectSpaceState3D, center: Vector3, radius: float, exclude: Array[RID]
 ) -> Array[RigidBody3D]:
-	var hit_bodies: Array[RigidBody3D] = []
-	if space_state == null or radius <= 0.0:
-		return hit_bodies
-
-	var shape: SphereShape3D = SphereShape3D.new()
-	shape.radius = radius
-	var params: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
-	params.shape = shape
-	params.transform = Transform3D(Basis.IDENTITY, center)
-	params.collide_with_bodies = true
-	params.collide_with_areas = false
-	# DECISION (game/specials/SpecialPhysics.gd): the brief asks for a
-	# collision mask naming "the placed-block layer", but nothing in this
-	# project sets a distinguishing physics layer -- grep across game/,
-	# config/, core/ turns up none, and game/PlayerController.gd already
-	# recorded the same finding (its own "Ghost-vs-placed-block collision"
-	# DECISION) rather than editing project.godot's physics layers, which
-	# neither that package nor this one owns (tools/bootstrap_project.gd
-	# does). So this filters by node type below (`as RigidBody3D`), exactly
-	# that precedent's technique, on the engine's default mask (every body
-	# still collides on layer/mask 1). Filed under Unresolved for a future
-	# dedicated layer.
-	params.exclude = exclude
-
-	var overlaps: Array[Dictionary] = space_state.intersect_shape(params, MAX_QUERY_RESULTS)
-	# DECISION (game/specials/SpecialPhysics.gd): intersect_shape() returns one
-	# Dictionary per overlapping CollisionShape3D, not per body, and
-	# BlockFactory.build() gives every placed block one CollisionShape3D per
-	# cell (game/BlockFactory.gd lines ~86-93: domino has 2, slab6 has 6). Left
-	# undeduplicated, a multi-cell block within range would be returned once
-	# per one of its own cells -- up to 6x the intended per-body effect (an
-	# explosion impulse, or a Magnet/Glue/Gravity-well hit count). Track
-	# visited bodies by instance id (RigidBody3D has no Comparable identity
-	# other than object identity/RID) and skip every shape after a body's
-	# first, so each distinct body is returned exactly once -- matching a
-	# body-level sphere query the way spec 3.5 describes it.
-	var seen_body_ids: Dictionary = {}
-	for overlap: Dictionary in overlaps:
-		var body: RigidBody3D = overlap.get("collider") as RigidBody3D
-		if body == null:
-			continue
-		var rid: RID = overlap.get("rid") as RID
-		if exclude.has(rid):
-			continue  # belt-and-suspenders: params.exclude should already drop these
-
-		var body_id: int = body.get_instance_id()
-		if seen_body_ids.has(body_id):
-			continue
-		seen_body_ids[body_id] = true
-		hit_bodies.append(body)
-
-	return hit_bodies
+	return ExplosionFx.query_bodies(space_state, center, radius, exclude)
 
 
 ## Query-only sibling of `explode()` (docs/M8_PLAN.md "Interface stubs" item
@@ -146,7 +102,13 @@ static func wake_and_impulse(body: RigidBody3D, impulse: Vector3) -> void:
 		kicked_block.wake()
 	else:
 		body.sleeping = false
-	body.apply_impulse(impulse)
+	# DECISION (Bontago-1pi.85.10): a CENTRAL impulse. apply_impulse(impulse) acts at the body's
+	# origin, which for a Block is the middle of its bottom face, below the centre of mass, so a
+	# horizontal blast on a block lying on the disc spun it onto an edge and the floor contact ate
+	# about 40% of the horizontal speed while adding a spurious pop upward (measured: a cube 2.2 m
+	# from a 12 m/s Bomb left at 2.9 m/s outward instead of 4.7). The linear delta-v
+	# (impulse / mass) is the same either way; only the unwanted torque goes.
+	body.apply_central_impulse(impulse)
 	# Review fix (Bontago-xtq.17 SHOULD-FIX 1): an airborne block's knockback
 	# can flip its vertical velocity from falling to rising exactly like a
 	# real bounce would -- mark it as a script kick so Block._integrate_

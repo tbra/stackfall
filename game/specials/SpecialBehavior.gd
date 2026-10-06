@@ -238,6 +238,26 @@ func _check_impact() -> void:
 	trigger(0)
 
 
+## Bontago-1pi.85.10 (docs/GIFT_EFFECTS_PLAN.md section 2 `impact_filter`): contact
+## filter for an effect that detects its own impact instead of using the velocity-drop
+## test above (Rocket probes the contact it is about to make, so it knows the collider).
+## True when a contact with `collider` counts as an impact. The carrier itself never
+## counts. For the first `SpecialDef.arm_delay` seconds after `window_start_age` (this
+## behaviour's age() when the effect started acting, 0 = since bind) the owner's own
+## blocks do not count either, so a launch does not detonate on its thrower's stack.
+## Anything that is not a Block (the disc, map geometry) always counts.
+func impact_filter(collider: Object, window_start_age: float = 0.0) -> bool:
+	if collider == null or collider == _block:
+		return false
+	var other: Block = collider as Block
+	if other == null or _block == null or _def == null:
+		return true
+	var in_grace: bool = _age - window_start_age < _def.arm_delay
+	if in_grace and _block.owner_slot >= 0 and other.owner_slot == _block.owner_slot:
+		return false
+	return true
+
+
 ## Idempotent (docs/M4_P2_PACKAGES.md P2a): a second/third call after the
 ## first is a no-op. Always calls def.effect.detonate() (a SpecialDef with
 ## no effect assigned just detonates as a no-op -- see SpecialEffect.gd) and

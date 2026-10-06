@@ -1,14 +1,26 @@
-[gd_resource type="Resource" script_class="SpecialDef" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="SpecialDef" load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://config/specials/SpecialDef.gd" id="1_def"]
 [ext_resource type="Script" path="res://game/specials/BombEffect.gd" id="2_effect"]
 [ext_resource type="PackedScene" path="res://assets/gifts/held/bomb.tscn" id="9_held"]
 [ext_resource type="Texture2D" path="res://assets/ui/gift_previews/bomb.png" id="10_icon"]
+[ext_resource type="Script" path="res://config/specials/fx/ExplosionTuning.gd" id="11_blast"]
+[ext_resource type="Resource" path="res://config/specials/fx/gift_blink_tuning.tres" id="12_blink"]
+
+[sub_resource type="Resource" id="Resource_bomb_blast"]
+script = ExtResource("11_blast")
+radius_m = 5.0
+peak_speed_mps = 12.0
+falloff_exponent = 1.5
+upward_bias = 0.35
+max_delta_v_mps = 16.0
 
 [sub_resource type="Resource" id="Resource_bomb_effect"]
 script = ExtResource("2_effect")
-explosion_radius = 3.5
-explosion_impulse = 18.0
+blink_duration_s = 3.0
+blink_period_s = 0.25
+blink_tuning = ExtResource("12_blink")
+blast = SubResource("Resource_bomb_blast")
 
 [resource]
 script = ExtResource("1_def")

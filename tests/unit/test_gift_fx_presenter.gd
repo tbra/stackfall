@@ -63,7 +63,7 @@ func test_black_hole_handler_adds_visual_under_blocks_parent() -> void:
 
 func test_blink_pure_helpers_and_driver() -> void:
 	assert_almost_eq(GiftBlink.period_at(0.0, 0.25, 3.0), 0.25, 0.0001)
-	assert_almost_eq(GiftBlink.period_at(3.0, 0.25, 3.0), 0.25 * GiftBlink.END_PERIOD_RATIO, 0.0001)
+	assert_almost_eq(GiftBlink.period_at(3.0, 0.25, 3.0), 0.25 * GiftBlink.DEFAULT_TUNING.end_period_ratio, 0.0001)
 	assert_almost_eq(GiftBlink.intensity_at(0.0), 0.0, 0.0001)
 	assert_almost_eq(GiftBlink.intensity_at(0.5), 1.0, 0.0001)
 	var block: Block = autofree(Block.new())
