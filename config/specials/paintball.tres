@@ -8,6 +8,9 @@
 [sub_resource type="Resource" id="Resource_paintball_effect"]
 script = ExtResource("2_effect")
 splash_radius_m = 3.5
+flight_speed_mps = 60.0
+flight_gravity_scale = 0.0
+own_block_grace_s = 0.4
 
 [resource]
 script = ExtResource("1_def")
@@ -17,7 +20,7 @@ preview_icon = ExtResource("10_icon")
 weight = 1.0
 enabled_by_default = true
 aimed_launch = true
-arm_delay = 0.4
+arm_delay = 0.0
 arm_impulse = 5.0
 fuse_timeout_s = 6.0
 effect = SubResource("Resource_paintball_effect")

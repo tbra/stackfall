@@ -12,7 +12,15 @@ extends SpecialEffect
 @export_range(0.5, 20.0, 0.1) var splash_radius_m: float = 3.5
 
 ## Speed (m/s) of the aimed flight.
-@export var flight_speed_mps: float = 14.0
+@export var flight_speed_mps: float = 60.0
+
+## Gravity scale while in flight (Bontago-1pi.85.25: 0, straight line); the carrier's own scale
+## is restored at the splash.
+@export var flight_gravity_scale: float = 0.0
+
+## Seconds after the launch during which the owner's own blocks are not an impact (arm_delay is
+## 0, so SpecialBehavior's own grace is gone).
+@export var own_block_grace_s: float = 0.4
 
 ## Extra look-ahead (m) beyond one tick of travel for the contact probe.
 @export var impact_probe_margin_m: float = 0.05
@@ -23,6 +31,7 @@ const MIN_DIRECTION_LENGTH: float = 0.001
 const LAUNCH_DIRECTION_META: StringName = &"paintball_launch_direction"
 const _LAUNCH_AGE_META: StringName = &"paintball_launch_age"
 const _HIT_META: StringName = &"paintball_hit"
+const _CARRIER_GRAVITY_META: StringName = &"paintball_carrier_gravity_scale"
 
 
 ## Host-side aimed-launch input for `block`; returns whether it was accepted. The upward part is
@@ -47,10 +56,12 @@ func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void
 		return
 	if not block.has_meta(_LAUNCH_AGE_META):
 		block.set_meta(_LAUNCH_AGE_META, behavior.age())
+		block.set_meta(_CARRIER_GRAVITY_META, block.gravity_scale)
 		block.wake_for_impulse()
 		block.wake()
 	var direction: Vector3 = block.get_meta(LAUNCH_DIRECTION_META) as Vector3
 	block.continuous_cd = true
+	block.gravity_scale = flight_gravity_scale
 	block.kick(direction * flight_speed_mps)
 	block.angular_velocity = Vector3.ZERO
 	var launched_at: float = float(block.get_meta(_LAUNCH_AGE_META))
@@ -59,7 +70,14 @@ func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void
 	params.motion = direction * (flight_speed_mps * delta + impact_probe_margin_m)
 	var result: PhysicsTestMotionResult3D = PhysicsTestMotionResult3D.new()
 	if PhysicsServer3D.body_test_motion(block.get_rid(), params, result):
-		if behavior.impact_filter(result.get_collider(), launched_at):
+		var other: Block = result.get_collider() as Block
+		var own_grace: bool = (
+			other != null
+			and block.owner_slot >= 0
+			and other.owner_slot == block.owner_slot
+			and behavior.age() - launched_at < own_block_grace_s
+		)
+		if not own_grace and behavior.impact_filter(result.get_collider(), launched_at):
 			block.set_meta(_HIT_META, true)
 
 
@@ -68,6 +86,8 @@ func wants_early_trigger(block: Block, _behavior: SpecialBehavior) -> bool:
 
 
 func detonate(block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> void:
+	if block != null and block.has_meta(_CARRIER_GRAVITY_META):
+		block.gravity_scale = float(block.get_meta(_CARRIER_GRAVITY_META))
 	if block == null or not Match._is_host() or Match.state() != Match.State.PLAYING:
 		return
 	if block.owner_slot < 0 or block.owner_slot >= Match.slot_count():

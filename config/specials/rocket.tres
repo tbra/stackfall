@@ -8,16 +8,19 @@
 
 [sub_resource type="Resource" id="Resource_rocket_blast"]
 script = ExtResource("11_blast")
-radius_m = 4.5
-peak_speed_mps = 10.0
+radius_m = 7.0
+peak_speed_mps = 100.0
 falloff_exponent = 1.5
 upward_bias = 0.35
-max_delta_v_mps = 16.0
+max_delta_v_mps = 160.0
 
 [sub_resource type="Resource" id="Resource_rocket_effect"]
 script = ExtResource("2_effect")
-thrust_speed_mps = 14.0
-fuel_duration_s = 4.0
+thrust_speed_mps = 60.0
+fuel_duration_s = 3.0
+flight_gravity_scale = 0.0
+model_nose_axis = Vector3(0, 1, 0)
+own_block_grace_s = 0.4
 default_pitch_down_deg = 20.0
 impact_probe_margin_m = 0.05
 blast = SubResource("Resource_rocket_blast")
@@ -31,7 +34,7 @@ scene = null
 weight = 1.0
 enabled_by_default = true
 aimed_launch = true
-arm_delay = 0.4
+arm_delay = 0.0
 arm_impulse = 5.0
 fuse_timeout_s = 6.0
 effect = SubResource("Resource_rocket_effect")
