@@ -40,6 +40,9 @@ import subprocess
 import sys
 import tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import prune_worktrees  # noqa: E402
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_REPO = "M:/Bontago"
 STEP_TIMEOUT_S = 600
@@ -468,6 +471,7 @@ def integrate(args, ctx, say, res):
         reason = "%s pushed+verified; gate %s" % (head[:9], verdict)
         close_bead(ctx, repo, bead, reason, getattr(args, "force_close", False))
     say("close     ok   %s" % (", ".join(args.beads) or "(none)"))
+    prune_merged(args, say)
     # 9 post-pull import check in the main checkout
     code, issues, log = import_check(ctx, "postimport", repo)
     for l in issues:
@@ -488,6 +492,15 @@ def integrate(args, ctx, say, res):
     if head != git_out(ctx, "remote2", repo, "rev-parse", "origin/main"):
         raise StepFailed("sidecars", "verify mismatch after sidecar push")
     say("sidecars  ok   %d committed+pushed, origin/main == HEAD == %s" % (len(files), head[:9]))
+
+
+def prune_merged(args, say):
+    """Remove the worktrees+branches just merged (fully pushed). Never fails the integration."""
+    try:
+        c = prune_worktrees.prune(args.repo, apply=True, branches=list(args.branches), say=lambda l: say("  prune: " + l))
+        say("prune     ok   removed=%d kept=%d" % (c["removed"], c["kept_dirty"] + c["kept_unmerged"] + c["protected"] + c["failed"]))
+    except Exception as e:  # warn only
+        say("prune     warn %s" % str(e)[:200])
 
 
 def cleanup(args, ctx, res):
