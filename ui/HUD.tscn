@@ -54,13 +54,6 @@ text = "Height: 0.00 m"
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="LockedLabel" type="Label" parent="StatusPill/LockedRow"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_font_sizes/font_size = 12
-text = "LOCKED"
-visible = false
-
 [node name="SpecialIndicator" type="Label" parent="StatusPill/LockedRow"]
 unique_name_in_owner = true
 layout_mode = 2

@@ -47,7 +47,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	hud.set_territory_shares(PackedFloat32Array([0.58, 0.31, 0.08, 0.02]))
 	hud.set_height(3.0)
-	hud._locked_label.visible = true
+	hud.set_locked(true)
 	hud._gift_toast_label.text = "Special queued: Jumping Bean"
 	hud._gift_toast_label.modulate.a = 1.0
 	await _shot("hud")

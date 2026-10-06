@@ -2,7 +2,7 @@ class_name HUD
 extends CanvasLayer
 ## Spec 2.10's HUD, scoped to what M2/Bontago-mv0.9 need: a timer ring around
 ## the held-block preview, a separate next-block preview, max height,
-## per-player territory share, capture ring, a LOCKED indicator, and a
+## per-player territory share, capture ring, a greyed locked ring, and a
 ## hot-seat turn indicator. Bontago-1en.16 (M4 P2b-ii) adds a small pending-
 ## special queue indicator beside the next-shape preview. M7 P5 adds the
 ## live minimap (ui/Minimap.gd); Bontago-mp0.3.3 restyles the whole HUD
@@ -108,7 +108,6 @@ var name_provider: Variant = null
 @onready var _next_label: Label = $HeldNextPanel/HeldNextRow/NextColumn/NextLabel
 @onready var _held_label: Label = $HeldNextPanel/HeldNextRow/HeldColumn/HeldLabel
 @onready var _special_indicator: Label = %SpecialIndicator
-@onready var _locked_label: Label = %LockedLabel
 @onready var _height_label: Label = %HeightLabel
 @onready var _shares_box: VBoxContainer = %SharesBox
 @onready var _status_pill: VBoxContainer = %StatusPill
@@ -242,7 +241,6 @@ func _ready() -> void:
 	_gift_toast_label.modulate.a = 0.0
 	_winner_label.visible = false
 	_capture_ring.visible = false
-	_locked_label.visible = false
 	_special_indicator.visible = false
 
 	# Bontago-mp0.3.3 (mockup 08 restyle): no boxy panel behind the top-left
@@ -263,14 +261,14 @@ func _ready() -> void:
 	_turn_label.visible = false
 	_height_label.visible = false
 	for label: Label in [
-		_turn_label, _height_label, _locked_label, _special_indicator,
+		_turn_label, _height_label, _special_indicator,
 		_gift_toast_label, _reject_label,
 	]:
 		label.add_theme_color_override("font_color", hud_visual_tuning.ink_color)
 	_height_label.add_theme_color_override("font_color", hud_visual_tuning.muted_ink_color)
 	_held_label.add_theme_color_override("font_color", hud_visual_tuning.muted_ink_color)
 	_next_label.add_theme_color_override("font_color", hud_visual_tuning.muted_ink_color)
-	for outlined: Label in [_turn_label, _height_label, _locked_label, _special_indicator, _gift_toast_label, _held_label, _next_label]:
+	for outlined: Label in [_turn_label, _height_label, _special_indicator, _gift_toast_label, _held_label, _next_label]:
 		_apply_text_outline(outlined)
 	# Bontago-mp0.3.3 (owner review 2026-09-26: "row gap ~12 px"). The status
 	# labels above sit in %StatusPill, a VBoxContainer nested right under
@@ -421,7 +419,7 @@ func set_active_slot(slot_id: int, color: Color) -> void:
 
 
 ## Real-time play and sandbox: points every per-slot widget (turn label sans
-## "turn" wording, timer ring, held/next previews, LOCKED state) at
+## "turn" wording, timer ring, held/next previews, locked state) at
 ## `slot_id` without implying anyone is "taking a turn". Called from
 ## Events.turn_changed outside hot-seat (net/MatchNet.gd already substitutes
 ## the local slot into that signal there) and from game/Sandbox.gd whenever
@@ -474,13 +472,13 @@ func set_next_shape(shape: BlockShape) -> void:
 
 ## Spec 2.4/2.5's release-locked state (Match.is_release_locked): the held
 ## piece may be aimed but not released again until the interval boundary.
-## Greys the ring out and shows the LOCKED label; a no-op call when nothing
-## changed, matching set_capture's shape.
+## Greys the ring out (Bontago-1pi.92: no LOCKED text, owner 2026-10-06 "locked
+## text still exists, get rid of it"); a no-op call when nothing changed,
+## matching set_capture's shape.
 func set_locked(locked: bool) -> void:
 	if _locked == locked:
 		return
 	_locked = locked
-	_locked_label.visible = locked
 	_timer_ring.queue_redraw()
 
 
