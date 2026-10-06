@@ -96,7 +96,7 @@ def _fallback(files: List[str], kind: str, brief: str) -> Dict[str, Any]:
         "verification_tier": tier,
         "visual_probe_recommended": visual,
         "max_targeted_runs": 0 if tier == "quick" else 2,
-        "max_windowed_probes": 2 if visual else 0,
+        "max_windowed_probes": None,  # owner 2026-10-07: no fixed probe cap
         "reason": "TYPESAFE_API_KEY missing or API unreachable; deterministic rules applied",
     }
 
@@ -216,7 +216,7 @@ def route(title: str, brief: str, files: List[str], kind: str, prior_attempts: i
         "visual_probe_recommended": visual,
         "visual_probe_probability": visual_p,
         "max_targeted_runs": 0 if tier == "quick" else 2,
-        "max_windowed_probes": 2 if visual else 0,
+        "max_windowed_probes": None,  # owner 2026-10-07: no fixed probe cap
         "usage": response.get("usage", {}),
         "reason": "Jev judgement; opus requires confidence >= 0.6",
     }
