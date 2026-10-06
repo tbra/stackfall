@@ -1,20 +1,24 @@
-[gd_resource type="Resource" script_class="SpecialDef" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="SpecialDef" load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://config/specials/SpecialDef.gd" id="1_def"]
 [ext_resource type="Script" path="res://game/specials/BlackHoleEffect.gd" id="2_effect"]
 
+[ext_resource type="Script" path="res://config/specials/fx/RadialPullTuning.gd" id="3_pull"]
 [ext_resource type="PackedScene" path="res://assets/gifts/held/black_hole.tscn" id="9_held"]
 [ext_resource type="Texture2D" path="res://assets/ui/gift_previews/black_hole.png" id="10_icon"]
 
+[sub_resource type="Resource" id="Resource_black_hole_pull"]
+script = ExtResource("3_pull")
+radius_m = 7.0
+accel_mps2 = 26.0
+falloff_exponent = 1.0
+friction_compensation = 24.0
+core_radius_m = 0.8
+
 [sub_resource type="Resource" id="Resource_black_hole_effect"]
 script = ExtResource("2_effect")
-pull_radius_m = 6.0
-lifetime_s = 5.0
-pull_acceleration = 14.0
-falloff_exponent = 1.0
-max_pull_force = 60.0
-consume_blocks = false
-core_radius_m = 0.6
+pull = SubResource("Resource_black_hole_pull")
+lifetime_s = 6.0
 visual_radius_m = 0.7
 
 [resource]

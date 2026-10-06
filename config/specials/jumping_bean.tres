@@ -7,12 +7,12 @@
 
 [sub_resource type="Resource" id="Resource_jumping_bean_effect"]
 script = ExtResource("2_effect")
-hop_impulse = 6.0
-hop_horizontal_speed = 3.0
-hop_interval_s = 1.5
-hole_radius_m = 1.0
-hole_open_s = 2.0
-lifetime_s = 12.0
+hop_impulse = 6.5
+hop_horizontal_speed = 3.5
+hop_interval_s = 1.2
+hole_radius_m = 1.4
+hole_open_s = 2.5
+lifetime_s = 14.0
 
 [resource]
 script = ExtResource("1_def")

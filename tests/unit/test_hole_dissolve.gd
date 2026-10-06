@@ -416,6 +416,35 @@ func test_host_replicates_the_dissolve_start_and_the_despawn() -> void:
 	assert_false(net._spawned_net_ids.has(block.net_id), "The removal goes out as the ordinary despawn.")
 
 
+## Bontago-1pi.85.12: the Black hole captures through the same entry the holes use.
+func test_request_dissolve_is_the_shared_entry_and_removes_like_a_hole_dissolve() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_match(MatchConfig.HoleMode.OFF, false)
+	var block: Block = _spawn_at_local(Match.slot(1).home_position * 0.5)
+	var id: int = block.get_instance_id()
+	watch_signals(Events)
+
+	assert_true(HoleDissolver.request_dissolve(block), "host with a registry: requested")
+	assert_true(_registry.hole_dissolver().is_dissolving(block), "same pending state as a hole dissolve")
+	assert_signal_emitted(Events, "block_dissolve_started")
+	assert_eq(_registry.hole_dissolver().dissolves_started, 1)
+	var no_candidates: Array[Block] = []
+	_registry.hole_dissolver().physics_tick(_dissolve_tuning.dissolve_delay_s + 0.01, no_candidates)
+
+	assert_true(_was_removed(id))
+	assert_eq(_removed[id], String(Events.REASON_KILL_PLANE), "removed through the edge-fall path")
+
+
+func test_request_dissolve_refuses_a_client_and_a_null_block() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_match(MatchConfig.HoleMode.TEMPORARY, false)
+	var block: Block = _spawn_at_local(Match.slot(1).home_position * 0.5)
+	_registry.set_host_authority(false)
+	assert_false(HoleDissolver.request_dissolve(block), "only the host removes blocks")
+	assert_false(HoleDissolver.request_dissolve(null))
+	assert_eq(_registry.hole_dissolver().dissolves_started, 0)
+
+
 func test_a_client_mirrors_a_replicated_dissolve_start_and_drops_bad_payloads() -> void:
 	Match.set_net_provider(FakeNet.host({}, [0, 1]))
 	_start_match(MatchConfig.HoleMode.TEMPORARY, false)
