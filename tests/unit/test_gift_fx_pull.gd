@@ -1,6 +1,6 @@
 extends GutTest
 ## RadialPull.pull (docs/GIFT_EFFECTS_PLAN.md section 5 A1): a block resting on a
-## friction surface moves under the pull, filter respected, on_captured once.
+## friction surface moves under the pull, filter respected.
 
 const FRAMES_PER_SECOND: int = 60
 const START_DISTANCE_M: float = 6.0
@@ -9,11 +9,9 @@ const SETTLE_FRAMES: int = 20
 
 var _field: Field
 var _root: Node3D
-var _captured: Array[RigidBody3D] = []
 
 
 func before_each() -> void:
-	_captured.clear()
 	var map_def: MapDef = MapDef.new()
 	map_def.id = &"test_fx_pull"
 	map_def.field_radius = 14.0
@@ -44,16 +42,12 @@ func _space() -> PhysicsDirectSpaceState3D:
 	return _field.get_world_3d().direct_space_state
 
 
-func _on_captured(body: RigidBody3D) -> void:
-	_captured.append(body)
-
-
-func _run_pull(filter: Callable, seconds: float, on_captured: Callable = Callable()) -> void:
+func _run_pull(filter: Callable, seconds: float) -> void:
 	var center: Vector3 = Vector3(0.0, _rest_y(), 0.0)
 	var t: RadialPullTuning = RadialPullTuning.new()
 	var delta: float = 1.0 / FRAMES_PER_SECOND
 	for _i: int in int(seconds * FRAMES_PER_SECOND):
-		RadialPull.pull(_space(), center, t, [], filter, delta, on_captured)
+		RadialPull.pull(_space(), center, t, [], filter, delta)
 		await wait_physics_frames(1)
 
 
@@ -85,35 +79,3 @@ func test_filter_skips_own_owner() -> void:
 	await _run_pull(filter, 1.0)
 	assert_almost_eq(own.global_position.x, own_x, 0.05, "own block ignored")
 	assert_gt(enemy.global_position.x, enemy_x + MIN_MOVE_M, "enemy block pulled")
-
-
-func test_on_captured_fires_once_per_body() -> void:
-	var block: Block = _block("cube", Vector3(1.5, _rest_y(), 0.0))
-	await wait_physics_frames(SETTLE_FRAMES)
-	await _run_pull(Callable(), 2.0, Callable(self, "_on_captured"))
-	assert_eq(_captured.size(), 1, "captured exactly once")
-	if _captured.size() == 1:
-		assert_eq(_captured[0], block)
-
-
-func test_no_capture_callback_means_no_capture_state() -> void:
-	var block: Block = _block("cube", Vector3(1.5, _rest_y(), 0.0))
-	await wait_physics_frames(SETTLE_FRAMES)
-	await _run_pull(Callable(), 1.0)
-	assert_false(block.has_meta(RadialPull.CAPTURED_META), "Magnet-style call leaves no capture flag")
-
-
-var _refusals: int = 0
-
-
-func _refuse(_body: RigidBody3D) -> bool:
-	_refusals += 1
-	return false
-
-
-func test_refused_capture_leaves_block_unmarked_and_retried() -> void:
-	var block: Block = _block("cube", Vector3(1.5, _rest_y(), 0.0))
-	await wait_physics_frames(SETTLE_FRAMES)
-	await _run_pull(Callable(), 2.0, Callable(self, "_refuse"))
-	assert_false(block.has_meta(RadialPull.CAPTURED_META), "refused capture must not mark the block")
-	assert_gt(_refusals, 1, "capture is retried while the block stays at the core")

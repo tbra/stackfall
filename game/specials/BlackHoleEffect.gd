@@ -18,15 +18,14 @@ extends SpecialEffect
 ## DECISION: a SpecialDef's `effect` is one shared Resource, so it keeps no
 ## per-activation state; the BlackHoleField node owns the timer.
 
-## Pull reach, strength and capture core. Radius 7 m, acceleration 26 m/s^2 at the
-## core (linear falloff), friction compensation 24 m/s^2 (the measured breakaway
-## value, see RadialPullTuning). pull.core_radius_m is not used for capture (no
-## callback is passed; see capture_radius_m).
+## Pull reach and strength. Radius 7 m, acceleration 26 m/s^2 at the core (linear
+## falloff), friction compensation 24 m/s^2 (the measured breakaway value, see
+## RadialPullTuning). Capture is the volume below (capture_radius_m).
 @export var pull: RadialPullTuning = RadialPullTuning.new()
 
 ## Capture volume (Bontago-1pi.85.26): horizontal radius (m) and vertical half-height
 ## (m) around the centre, measured to each block's collision centre; a block must stay
-## inside for capture_hold_s seconds. Replaces pull.core_radius_m's 0.8 m sphere, which
+## inside for capture_hold_s seconds. Replaced RadialPull's 0.8 m origin sphere, which
 ## was measured to the block's bottom-face origin: the hole sits on the disc surface,
 ## and tumbled or stacked cubes kept that origin 1.0-1.5 m away, so they were pulled
 ## into the core forever and never dissolved (BlackHoleField._sweep_capture).

@@ -113,8 +113,8 @@ func test_a_block_reaching_the_core_is_captured_once_through_the_shared_hole_dis
 	Match.abort_match()
 	var registry: BlockRegistry = _host_registry()
 	var effect: BlackHoleEffect = _effect()
-	var core: Block = _make_block(Vector3(effect.pull.core_radius_m * 0.5, 0.0, 0.0), 0)
-	var outside: Block = _make_block(Vector3(effect.pull.core_radius_m * 3.0, 0.0, 0.0), 0)
+	var core: Block = _make_block(Vector3(effect.capture_radius_m * 0.5, 0.0, 0.0), 0)
+	var outside: Block = _make_block(Vector3(effect.capture_radius_m + 1.0, 0.0, 0.0), 0)
 	var field: BlackHoleField = _make_field(effect)
 	await wait_physics_frames(1)
 	var started: Array[int] = [0]
@@ -177,7 +177,7 @@ func test_real_disc_8kg_block_from_6m_reaches_the_core_within_lifetime() -> void
 	var limit: int = int(effect.lifetime_s * float(Engine.physics_ticks_per_second)) - 1
 	# Sandbox: no registry, so the dissolve is refused and the block is (correctly) not
 	# flagged captured; reaching the core is checked by distance instead.
-	var core_m: float = effect.pull.core_radius_m
+	var core_m: float = effect.capture_radius_m
 	while frames < limit and heavy.global_position.distance_to(hole.global_position) > core_m:
 		hole.tick(1.0 / float(Engine.physics_ticks_per_second))
 		await wait_physics_frames(1)
@@ -187,6 +187,7 @@ func test_real_disc_8kg_block_from_6m_reaches_the_core_within_lifetime() -> void
 
 
 const CUBE_COLUMN_COUNT: int = 12
+const OLD_ORIGIN_CORE_M: float = 0.8
 const CUBE_COLUMN_SPACING_M: float = 1.2
 const CUBE_COLUMN_START_M: float = 0.8
 const CUBE_COLUMN_JITTER_M: float = 0.45
@@ -323,7 +324,7 @@ func test_tumbled_and_stacked_real_cubes_at_the_core_are_captured() -> void:
 	]
 	var effect: BlackHoleEffect = SpecialDef.find_by_id(&"black_hole").effect as BlackHoleEffect
 	for cube: Block in cubes:
-		assert_gt(cube.global_position.distance_to(centre), effect.pull.core_radius_m, "the old origin sphere misses it")
+		assert_gt(cube.global_position.distance_to(centre), OLD_ORIGIN_CORE_M, "the old origin sphere misses it")
 	var hole: BlackHoleField = BlackHoleField.new()
 	hole.configure(effect, [])
 	add_child_autofree(hole)
@@ -363,7 +364,6 @@ func test_shipped_resource_is_in_the_roster_with_a_black_hole_effect() -> void:
 	assert_almost_eq(effect.pull.radius_m, 7.0, 0.0001)
 	assert_almost_eq(effect.pull.accel_mps2, 26.0, 0.0001)
 	assert_almost_eq(effect.pull.friction_compensation, 24.0, 0.0001, "above the ~22.5 breakaway value")
-	assert_almost_eq(effect.pull.core_radius_m, 0.8, 0.0001)
 	assert_almost_eq(effect.capture_radius_m, 2.0, 0.0001)
 	assert_almost_eq(effect.capture_height_m, 3.0, 0.0001)
 	assert_almost_eq(effect.capture_hold_s, 0.15, 0.0001)

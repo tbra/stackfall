@@ -21,8 +21,7 @@ extends SpecialEffect
 ## Pull strength and reach (Bontago-1pi.85.13). RadialPull applies a
 ## mass-independent acceleration (accel_mps2 * falloff) plus friction_compensation,
 ## so an 8 kg tetromino on the 0.85-friction disc really slides toward the magnet.
-## radius_m is docs/SPEC.md's "within 8 m"; no core capture (core_radius_m is only
-## read when an on_captured callback is passed, and Magnet passes none).
+## radius_m is docs/SPEC.md's "within 8 m"; Magnet has no capture.
 @export var pull: RadialPullTuning = RadialPullTuning.new()
 
 ## Seconds the pull runs, from the first armed tick, before this special

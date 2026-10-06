@@ -2,8 +2,7 @@ class_name RadialPullTuning
 extends Resource
 ## Tuning parameters for radial pull effects (Magnet, Black hole).
 ##
-## Controls pull radius, acceleration, falloff curve, friction compensation,
-## and capture core radius. All values are in SI units (meters, m/s^2).
+## Controls pull radius, acceleration, falloff curve, and friction compensation. All values are in SI units (meters, m/s^2).
 
 ## Pull radius in meters from center.
 @export var radius_m: float = 8.0
@@ -21,6 +20,3 @@ extends Resource
 ## 0.03/0.06/0.2 m in 0.5 s; at 25 it moved 1.0 m). The plan's 8.3 (block_friction * 9.8) is
 ## far too low. Keep this above the breakaway value.
 @export var friction_compensation: float = 24.0
-
-## Capture core radius in meters (blocks entering this radius trigger on_captured).
-@export var core_radius_m: float = 0.8

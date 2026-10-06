@@ -145,7 +145,7 @@ func physics_tick(delta: float, candidates: Array[Block]) -> void:
 
 ## Bontago-1pi.85.12 (owner resolution 1pi.85.2): the ONE removal entry for every
 ## cause. Territory holes call start_dissolve() below on this registry's dissolver;
-## the Black hole's RadialPull on_captured callback calls this static wrapper, which
+## the Black hole's capture sweep calls this static wrapper, which
 ## resolves the live match's registry and calls the very same start_dissolve(), so
 ## the fade event (Events.block_dissolve_started), the delay, the wake of the stack
 ## above and the removal through Field.remove_fallen_block() are shared, not
