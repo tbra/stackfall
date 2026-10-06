@@ -40,7 +40,7 @@ func _on_gust(gust: Dictionary) -> void:
 
 
 func _on_match_state_changed(_from_state: int, to_state: int) -> void:
-	if to_state == MatchAutoload.State.LOADING or to_state == MatchAutoload.State.LOBBY or to_state == MatchAutoload.State.END:
+	if MatchAutoload.is_resetting(to_state):
 		clear()
 
 
