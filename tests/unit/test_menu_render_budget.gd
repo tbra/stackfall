@@ -42,3 +42,15 @@ func test_hidden_diorama_does_not_render() -> void:
 	assert_eq(vp.render_target_update_mode, SubViewport.UPDATE_ALWAYS)
 	menu.hide()
 	assert_eq(vp.render_target_update_mode, SubViewport.UPDATE_DISABLED)
+
+
+func test_match_cap_set_while_menu_open_applies_on_last_exit() -> void:
+	var before_fps: int = Engine.max_fps
+	var backdrop: MenuBackdrop = MenuBackdrop.new()
+	add_child(backdrop)
+	MenuBackdrop.set_match_cap(144)
+	assert_eq(Engine.max_fps, TUNING.menu_max_fps, "menu cap stays in force")
+	backdrop.free()
+	assert_eq(Engine.max_fps, 144)
+	MenuBackdrop.clear_match_cap()
+	Engine.max_fps = before_fps

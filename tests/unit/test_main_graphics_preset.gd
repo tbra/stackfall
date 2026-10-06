@@ -81,3 +81,75 @@ func test_low_preset_reduces_sun_shadow_cascades() -> void:
 	Settings.set_graphics_preset(&"high")
 	assert_eq(int(sun.directional_shadow_mode), DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS)
 	assert_lt(low_preset.mirror_resolution_factor, Settings.current_graphics_preset().mirror_resolution_factor + 0.001)
+
+
+## Bontago-1pi.11.49: drops the main menu so no MenuBackdrop holds the menu budget.
+func _leave_menu() -> void:
+	var menu: Node = _main._main_menu
+	if menu != null and menu.is_inside_tree():
+		_main.remove_child(menu)
+		menu.free()
+		_main._main_menu = null
+	assert_eq(MenuBackdrop.budget_holders(), 0, "fixture: no menu budget holder")
+
+
+func _stub_refresh(hz: float) -> void:
+	_main.frame_cap_in_headless = true
+	_main.refresh_rate_provider = func() -> float: return hz
+
+
+func test_frame_cap_defaults_to_display_refresh_on_every_preset() -> void:
+	var before_fps: int = Engine.max_fps
+	_leave_menu()
+	_stub_refresh(144.0)
+	for id: StringName in [&"low", &"medium", &"high"]:
+		Settings.set_graphics_preset(id)
+		assert_eq(Settings.current_graphics_preset().frame_cap_mode, GraphicsPreset.FrameCap.DISPLAY_REFRESH)
+		assert_eq(Engine.max_fps, 144, "preset %s follows the display refresh" % id)
+	_stub_refresh(0.0)
+	Settings.set_graphics_preset(&"medium")
+	assert_eq(Engine.max_fps, Settings.current_graphics_preset().fallback_fps, "fallback when the display reports <= 0")
+	MenuBackdrop.clear_match_cap()
+	Engine.max_fps = before_fps
+
+
+func test_frame_cap_fixed_and_uncapped_modes() -> void:
+	assert_eq(FrameCapRule.resolve(GraphicsPreset.FrameCap.FIXED, 90, 144.0, 60), 90)
+	assert_eq(FrameCapRule.resolve(GraphicsPreset.FrameCap.UNCAPPED, 90, 144.0, 60), 0)
+	assert_eq(FrameCapRule.resolve(GraphicsPreset.FrameCap.DISPLAY_REFRESH, 90, 143.98, 60), 144)
+	assert_eq(FrameCapRule.resolve(GraphicsPreset.FrameCap.DISPLAY_REFRESH, 90, -1.0, 75), 75)
+
+
+func test_menu_match_preset_change_menu_sequence_ends_with_right_caps() -> void:
+	var before_fps: int = Engine.max_fps
+	var menu_cap: int = load("res://config/menu_visual_tuning.tres").menu_max_fps
+	_leave_menu()
+	_stub_refresh(144.0)
+	Settings.set_graphics_preset(&"high")
+	assert_eq(Engine.max_fps, 144, "match")
+	var backdrop: MenuBackdrop = MenuBackdrop.new()
+	add_child(backdrop)
+	assert_eq(Engine.max_fps, menu_cap, "menu cap in the menu")
+	Settings.set_graphics_preset(&"low")
+	assert_eq(Engine.max_fps, menu_cap, "preset change in the menu keeps the menu cap")
+	_stub_refresh(60.0)
+	Settings.set_graphics_preset(&"medium")
+	backdrop.free()
+	assert_eq(Engine.max_fps, 60, "match cap from the latest preset after the menu closes")
+	var again: MenuBackdrop = MenuBackdrop.new()
+	add_child(again)
+	assert_eq(Engine.max_fps, menu_cap)
+	again.free()
+	assert_eq(Engine.max_fps, 60, "back in the match")
+	MenuBackdrop.clear_match_cap()
+	Engine.max_fps = before_fps
+
+
+func test_headless_leaves_engine_cap_alone() -> void:
+	var before_fps: int = Engine.max_fps
+	Settings.set_graphics_preset(&"low")
+	assert_eq(Engine.max_fps, before_fps)
+
+
+func test_medium_mirror_factor_is_three_quarters() -> void:
+	assert_almost_eq(load("res://config/graphics_presets/medium.tres").mirror_resolution_factor, 0.75, 0.001)

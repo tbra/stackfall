@@ -51,6 +51,16 @@ extends Resource
 ## Bontago-mp0.127: moving cloud shadows on the arena and the sun dimming under clouds
 ## (vfx/CloudShadows.gd). Off on Low.
 @export var cloud_shadows_enabled: bool = true
+## Bontago-1pi.11.49: how Engine.max_fps is chosen while a match runs (core/FrameCapRule.gd).
+## DECISION (owner/orchestrator 2026-10-07): the default on every preset is the display's
+## refresh rate, so a 144 Hz monitor still gets 144 fps but nothing renders uncapped
+## (a 245 fps uncapped match held a 3060 at ~60% at 4K; 144 = 39%, 60 = 28%).
+enum FrameCap { DISPLAY_REFRESH, FIXED, UNCAPPED }
+@export var frame_cap_mode: FrameCap = FrameCap.DISPLAY_REFRESH
+## Used by the FIXED mode.
+@export_range(1, 360) var fixed_fps: int = 60
+## Used by DISPLAY_REFRESH when the display reports no refresh rate (<= 0).
+@export_range(1, 360) var fallback_fps: int = 60
 
 ## Bontago-1pi.11.37: the fields below are all-default on every shipped preset; only
 ## the adaptive quality governor (core/QualityGovernor.gd) lowers them, on a duplicate

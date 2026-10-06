@@ -301,6 +301,25 @@ func _physics_process(delta: float) -> void:
 	PerfProbe.stop(&"snapshot", probe_snapshot)
 
 
+## Bontago-1pi.11.49: the single place that decides the in-match frame cap (default =
+## display refresh, see GraphicsPreset.FrameCap); ui/MenuBackdrop.gd arbitrates it
+## against the menu cap. Headless and agent-probe runs keep the engine default.
+## Tests set frame_cap_in_headless and refresh_rate_provider.
+var frame_cap_in_headless: bool = false
+var refresh_rate_provider: Callable = Callable()
+
+
+func _apply_frame_cap(preset: GraphicsPreset) -> void:
+	if not frame_cap_in_headless and (DisplayServer.get_name() == "headless" or AgentProbe.is_active()):
+		return
+	var refresh_hz: float = 0.0
+	if refresh_rate_provider.is_valid():
+		refresh_hz = float(refresh_rate_provider.call())
+	else:
+		refresh_hz = DisplayServer.screen_get_refresh_rate(DisplayServer.window_get_current_screen())
+	MenuBackdrop.set_match_cap(FrameCapRule.resolve_for_preset(preset, refresh_hz))
+
+
 ## Bontago-xtq.26 (M7 P1): applies every field GraphicsPreset (config/
 ## GraphicsPreset.gd) currently declares. Connected to
 ## Settings.graphics_preset_changed and also called once at startup above, so
@@ -327,6 +346,10 @@ func _apply_graphics_preset(preset: GraphicsPreset) -> void:
 	# 16_bits override) -- not a preset-tunable value, so it isn't a
 	# GraphicsPreset field.
 	RenderingServer.directional_shadow_atlas_set_size(preset.shadow_atlas_size, true)
+
+	# Bontago-1pi.11.49: frame cap per preset (the headless server/tests keep the engine
+	# default so bot matches and test waits are not throttled).
+	_apply_frame_cap(preset)
 
 	# Bontago-1pi.11.2: cascade count / range of the sun's shadow pass.
 	var sun: DirectionalLight3D = get_node_or_null("DirectionalLight3D") as DirectionalLight3D

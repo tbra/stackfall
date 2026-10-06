@@ -12,6 +12,8 @@ const SAMPLE_MIN_S: float = 2.0
 const SAMPLE_MIN_FRAMES: int = 20
 const SAMPLE_MAX_FRAMES: int = 90
 const WARMUP_FRAMES: int = 6
+const LOAD_PHASE_S: int = 8
+const UTIL_HOLD_S: int = 5
 const SETTLE_MAX_S: float = 12.0
 const GRID_SIDE: int = 5
 const GRID_SPACING_M: float = 2.6
@@ -189,6 +191,10 @@ func _ready() -> void:
 		_call_cost()
 	if args.has("--subtrees"):
 		await _subtree_toggles(counts[counts.size() - 1])
+	if args.has("--util"):
+		await _util_toggles()
+	if args.has("--gpu"):
+		await _gpu_toggles(counts[counts.size() - 1])
 	if args.has("--visoff"):
 		await _visibility_toggles(counts[counts.size() - 1])
 	if args.has("--groups"):
@@ -324,6 +330,134 @@ func _visibility_toggles(target: int) -> void:
 		await _sample("vis_off_%s_%s_vi%d" % [node.name, node.get_class(), meshes], target)
 		node.visible = true
 	await _sample("vis_recheck_base", target)
+
+
+## Bontago-1pi.11.49: one-effect-at-a-time GPU ms (gpu_ms= column) for the Environment
+## effects, viewport AA/scaling, shadows and the frame cap, so a ranked table comes
+## from one run. Frame cap rows read frame_ms with vsync off (uncapped vs max_fps 60).
+func _gpu_toggles(target: int) -> void:
+	var env: Environment = (_main.get("_world_environment") as WorldEnvironment).environment
+	var vp: Viewport = _render_vp if _render_vp != null else get_viewport()
+	await _sample("gpu_base", target)
+	var ssr: bool = env.ssr_enabled
+	env.ssr_enabled = false
+	await _sample("gpu_ssr_off", target)
+	env.ssr_enabled = ssr
+	var fog: bool = env.volumetric_fog_enabled
+	env.volumetric_fog_enabled = false
+	await _sample("gpu_volfog_off", target)
+	env.volumetric_fog_enabled = fog
+	var glow: bool = env.glow_enabled
+	env.glow_enabled = false
+	await _sample("gpu_glow_off", target)
+	env.glow_enabled = glow
+	var msaa: Viewport.MSAA = vp.msaa_3d
+	vp.msaa_3d = Viewport.MSAA_DISABLED
+	await _sample("gpu_msaa_off", target)
+	vp.msaa_3d = msaa
+	var bg: Environment.BGMode = env.background_mode
+	env.background_mode = Environment.BG_COLOR
+	await _sample("gpu_sky_bg_off", target)
+	env.background_mode = bg
+	var scale: float = vp.scaling_3d_scale
+	vp.scaling_3d_scale = 0.5
+	await _sample("gpu_scale_0.5", target)
+	vp.scaling_3d_scale = scale
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	Engine.max_fps = 0
+	await _sample("cap_off_vsync_off", target)
+	Engine.max_fps = 60
+	await _sample("cap_60", target)
+	Engine.max_fps = 0
+	await _sample("gpu_base_again", target)
+	if OS.get_cmdline_user_args().has("--load"):
+		await _load_phases()
+
+
+## --util: uncapped, vsync off; holds each toggle UTIL_HOLD_S and prints wall-clock
+## markers (match to `nvidia-smi ... -lms 500`): GPU busy per frame = util / fps.
+func _util_hold(label: String) -> void:
+	var begin: String = Time.get_datetime_string_from_system(false)
+	var end_ms: int = Time.get_ticks_msec() + UTIL_HOLD_S * 1000
+	var frames: int = 0
+	while Time.get_ticks_msec() < end_ms:
+		await get_tree().process_frame
+		frames += 1
+	print("UTIL %s begin=%s end=%s fps=%.1f" % [label, begin, Time.get_datetime_string_from_system(false), float(frames) / float(UTIL_HOLD_S)])
+
+
+func _util_toggles() -> void:
+	var env: Environment = (_main.get("_world_environment") as WorldEnvironment).environment
+	var vp: Viewport = _render_vp if _render_vp != null else get_viewport()
+	var sun: DirectionalLight3D = _shadow_lights()[0]
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	Engine.max_fps = 0
+	await _util_hold("warmup")
+	await _util_hold("base")
+	env.ssr_enabled = false
+	await _util_hold("ssr_off")
+	env.ssr_enabled = true
+	env.volumetric_fog_enabled = false
+	await _util_hold("volfog_off")
+	env.volumetric_fog_enabled = true
+	env.glow_enabled = false
+	await _util_hold("glow_off")
+	env.glow_enabled = true
+	vp.msaa_3d = Viewport.MSAA_DISABLED
+	await _util_hold("msaa_off")
+	vp.msaa_3d = Viewport.MSAA_2X
+	sun.shadow_enabled = false
+	await _util_hold("shadows_off")
+	sun.shadow_enabled = true
+	var mirror_was: bool = _set_mirror(false)
+	await _util_hold("mirror_off")
+	_set_mirror(mirror_was)
+	_set_blocks_visible(false)
+	await _util_hold("blocks_hidden")
+	_set_blocks_visible(true)
+	var hidden: Array[CanvasItem] = _hide_ui()
+	await _util_hold("ui_hidden")
+	for item: CanvasItem in hidden:
+		item.visible = true
+	for child: Node in _main.get_children():
+		if child is Node3D and child != Match.blocks_parent() and (child as Node3D).visible and not child is DirectionalLight3D:
+			(child as Node3D).visible = false
+			await _util_hold("hide_%s" % child.name)
+			(child as Node3D).visible = true
+	await _util_hold("base_again")
+	# Candidate cuts (applied together at the end).
+	sun.directional_shadow_max_distance = 60.0
+	await _util_hold("cand_shadow_dist_60")
+	sun.directional_shadow_max_distance = 100.0
+	var mirror_node: Node = get_tree().root.find_children("*", "DiscMirror", true, false)[0]
+	var visuals: TerritoryVisuals = mirror_node.get(&"visuals") as TerritoryVisuals
+	var scale_was: float = visuals.mirror_resolution_scale
+	visuals.mirror_resolution_scale = scale_was * 0.5 / 0.75
+	await _util_hold("cand_mirror_res_0.5")
+	visuals.mirror_resolution_scale = scale_was
+	await _util_hold("base_final")
+	var shot: String = ""
+	for arg: String in OS.get_cmdline_user_args():
+		if arg.begins_with("--shot="):
+			shot = arg.trim_prefix("--shot=")
+	if shot != "":
+		vp.get_texture().get_image().save_png("%s_util_base.png" % shot)
+
+
+## --load: holds each frame cap for LOAD_PHASE_S and prints wall-clock markers so an
+## external `nvidia-smi --query-gpu=timestamp,utilization.gpu -lms 500` log can be
+## matched to uncapped / 144 / 60 fps (real GPU utilisation, not viewport ms).
+func _load_phases() -> void:
+	for cap: int in [0, 144, 60]:
+		Engine.max_fps = cap
+		print("LOAD begin cap=%d at %s" % [cap, Time.get_datetime_string_from_system(false)])
+		var end_ms: int = Time.get_ticks_msec() + LOAD_PHASE_S * 1000
+		var frames: int = 0
+		while Time.get_ticks_msec() < end_ms:
+			await get_tree().process_frame
+			frames += 1
+		print("LOAD end cap=%d fps=%.1f at %s" % [cap, float(frames) / float(LOAD_PHASE_S), Time.get_datetime_string_from_system(false)])
+	Engine.max_fps = 0
 
 
 func _group_toggles(target: int) -> void:
