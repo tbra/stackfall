@@ -71,6 +71,13 @@ func needs_landing() -> bool:
 	return false
 
 
+## Bontago-1pi.85.35: landing-probe thresholds for this effect's carrier. null (default) =
+## LandedProbe's own LandedTuning defaults, i.e. today's behaviour. SpecialBehavior builds
+## its LandedProbe from this once, in bind().
+func landed_tuning() -> LandedTuning:
+	return null
+
+
 ## Seconds the effect's action runs (after landing when needs_landing(), else
 ## after arming). <= 0 means "unspecified": the def's fuse_timeout_s keeps
 ## acting as the force-trigger, exactly as before. > 0 replaces that blanket

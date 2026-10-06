@@ -74,8 +74,13 @@ var _special_defs_config: MatchConfig = null
 var _warned_special_ids: Dictionary = {}
 
 
+## Bontago-1pi.85.35: in-place gift activation (see MatchGiftActivation).
+var _activation: MatchGiftActivation = MatchGiftActivation.new()
+
+
 func setup(match_ref: MatchAutoload) -> void:
 	_match = match_ref
+	_activation.setup(match_ref)
 
 
 # --- The one authoritative entry point (spec 3.4) ---------------------------
@@ -253,6 +258,15 @@ func request_place(
 		final_disk_origin.x, local_origin.y, final_disk_origin.y
 	))
 	if reason == PlacementRules.REASON_OK:
+		# Bontago-1pi.85.35: an in-place gift activates here, with no carrier body.
+		var in_place_def: SpecialDef = _resolve_deliverable_special(_match.held_special(slot_id))
+		if in_place_def != null and in_place_def.activates_in_place and _activation.try_activate(slot_id, in_place_def, final_disk_origin):
+			_match._feed._consume_and_refeed(slot_id, auto_drop)
+			if _match.config.hot_seat:
+				_match.advance_turn()
+			elif _match.config.turn_based:
+				_match._lifecycle.begin_turn_settle_wait()
+			return PlacementRules.REASON_OK
 		# Bontago-1pi.14 round 3: host-side spawn validation (see _lift_pose_clear()).
 		var lifted: Variant = _lift_pose_clear(shape, final_world_origin, basis, auto_drop)
 		if lifted == null:

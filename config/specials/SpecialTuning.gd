@@ -73,7 +73,7 @@ extends Resource
 ## Bontago-1pi.85.16: the fixed gift throw (Bomb, Magnet, Jumping Bean). The host ignores the
 ## client's drag length/speed: every thrown gift leaves at this speed and loft; only the
 ## horizontal heading of the client's aim is used.
-@export var gift_throw_speed_mps: float = 12.0
+@export var gift_throw_speed_mps: float = 22.0
 
 ## Vertical component of the fixed gift throw relative to its horizontal heading (1.0 = 45 deg).
 @export var gift_throw_loft_ratio: float = 1.0
@@ -86,3 +86,21 @@ extends Resource
 
 ## Smallest horizontal component of a fixed-throw aim treated as a heading at all.
 @export var gift_aim_min_horizontal: float = 0.001
+
+## Bontago-1pi.85.35 (core/gifts/GiftAim.gd): how far back along the camera forward, in meters,
+## a camera-aimed gift spawns from the cursor surface point, so the aim line passes through
+## what the player points at.
+@export var gift_aim_back_m: float = 8.0
+
+## Bontago-1pi.85.35: the aimed spawn point is never lower than this many meters above the
+## surface (stops a flat camera spawning the projectile inside the disc).
+@export var gift_aim_min_height_m: float = 1.0
+
+## Bontago-1pi.85.35: vertical component added to the unit camera forward of a THROW gift
+## (Bomb, Magnet, Jumping Bean) before renormalising; replaces gift_throw_loft_ratio for the
+## camera-aimed throw (GiftAim.throw_velocity).
+@export var gift_throw_up_ratio: float = 0.35
+
+## Bontago-1pi.85.35: carrier mass = cube_mass * activation_scale ^ this exponent
+## (1.0 = mass grows linearly with scale; 3.0 = with volume).
+@export var activation_mass_exponent: float = 1.0

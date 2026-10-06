@@ -76,7 +76,8 @@ func bind(block: Block, def: SpecialDef, tuning: SpecialTuning) -> void:
 	_chain_depth = 0
 	_completed = false
 	_despawn_timer = -1.0
-	_landed_probe = LandedProbe.new()
+	var effect_landed: LandedTuning = _def.effect.landed_tuning() if _def != null and _def.effect != null else null
+	_landed_probe = LandedProbe.new(effect_landed)
 	_landed_at_age = -1.0
 	_prev_linear_velocity = block.linear_velocity if block != null else Vector3.ZERO
 	add_to_group(GROUP)
@@ -133,7 +134,10 @@ func advance(delta: float) -> void:
 		# tick's decel is measured against "velocity when arming happened",
 		# not a stale sample from before arm_delay elapsed.
 		_prev_linear_velocity = _block.linear_velocity
-	var needs_landing: bool = _def.effect != null and _def.effect.needs_landing()
+	# Bontago-1pi.85.35: an in-place activated gift has no falling carrier to wait for.
+	var needs_landing: bool = (
+		_def.effect != null and _def.effect.needs_landing() and not _def.activates_in_place
+	)
 	if needs_landing and _landed_at_age < 0.0:
 		_landed_probe.update(_block, delta)
 		if _landed_probe.has_landed():
