@@ -225,7 +225,13 @@ func test_host_refuses_a_thrown_pose_inside_a_placed_block() -> void:
 	Match._gifts._held_specials[0] = &"test_special"
 	Match._feed._held_is_gift[0] = true
 	tuning.spawn_clearance_max_raise = 0.1
+	# Bontago-1pi.85.29: a throw spawns on the camera line (cursor minus aim * gift_aim_back_m),
+	# so collapse that offset to make the spawn point coincide with the occupied cursor pose.
+	var special_tuning: SpecialTuning = Match._placement._special_tuning
+	var saved_back: float = special_tuning.gift_aim_back_m
+	special_tuning.gift_aim_back_m = 0.0
 	var reason: StringName = Match.request_throw(0, block_a.global_position, 0, Quaternion.IDENTITY, Vector3(1.0, 0.0, 0.0))
+	special_tuning.gift_aim_back_m = saved_back
 	tuning.spawn_clearance_max_raise = saved
 	assert_eq(reason, PlacementRules.REASON_NO_BLOCK, "thrown pose inside a block is refused")
 	assert_eq(_blocks_root.get_child_count(), 1, "nothing spawned")

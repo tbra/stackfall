@@ -2,7 +2,7 @@ class_name RocketEffect
 extends SpecialEffect
 ## Rocket special. OWNER decision 2026-10-05 (docs/SPEC.md 2.6, Bontago-1pi.85, answer
 ## to plan question 1): on activation the Rocket launches in a STRAIGHT LINE along the
-## activating player's camera direction (not thrown, not upward) and explodes on the
+## activating player's camera direction (not thrown; any angle, upward included, 1pi.85.34 Q3) and explodes on the
 ## first thing it touches (a block, the disc or map geometry); fuel running out is only
 ## a safety backstop. It no longer climbs 27 m and bursts in empty air.
 ##
@@ -25,7 +25,7 @@ extends SpecialEffect
 ## intent -> MatchPlacement) is package I's; it calls
 ## `RocketEffect.set_launch_direction(block, camera_forward)` on the spawned carrier
 ## before its first physics tick. The host never trusts the value: it must be finite,
-## its upward part is dropped ("not upward") and it is normalised; anything unusable
+## and it is normalised (any pitch is kept); anything unusable
 ## keeps the default (see default_launch_direction()).
 
 ## Speed (m/s) the Rocket flies at along its launch direction (Bontago-1pi.85.25: 60).
@@ -90,8 +90,18 @@ static func set_launch_direction(block: Block, direction: Vector3) -> bool:
 
 
 ## Pure: the direction the host will actually fly. Non-finite or degenerate input gives
-## Vector3.ZERO (rejected); an upward component is removed (owner: "not upward").
+## Vector3.ZERO (rejected). Bontago-1pi.85.34 Q3 (owner "c"): the Rocket flies exactly where
+## the camera aims, upward and straight up included (fuel ends it if it hits nothing), so no
+## upward part is removed any more.
 static func sanitize_launch_direction(direction: Vector3) -> Vector3:
+	if not direction.is_finite() or direction.length() < MIN_DIRECTION_LENGTH:
+		return Vector3.ZERO
+	return direction.normalized()
+
+
+## Pure: the Paintball's launch direction (it keeps the old "not upward" rule, owner kept it
+## for Paintball only): the upward part removed and normalised, ZERO when nothing is left.
+static func sanitize_downward_direction(direction: Vector3) -> Vector3:
 	if not direction.is_finite():
 		return Vector3.ZERO
 	var not_upward: Vector3 = Vector3(direction.x, minf(direction.y, 0.0), direction.z)

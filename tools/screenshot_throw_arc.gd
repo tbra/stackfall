@@ -1,6 +1,5 @@
 extends Node
-## Windowed smoke-shot of M4 P2e's throw-arc preview + ghost throw hint
-## (docs/M4_P2_PACKAGES.md P2e). Run:
+## Windowed smoke-shot of the held-throwable arc preview (Bontago-1pi.85.29; was M4 P2e). Run:
 ##   godot --path . --scene res://tools/screenshot_throw_arc.tscn
 ##
 ## Grants slot 0 a real held special directly through Match._gifts (the same
@@ -28,6 +27,11 @@ func _ready() -> void:
 	# MatchLifecycle._begin_playing() issues each slot's first block.
 	await _wait(int(3.5 * Engine.physics_ticks_per_second))
 
+	# Probe-only: a readable capture, with the menu overlay hidden (window stays off-screen).
+	get_window().size = Vector2i(1280, 720)
+	for child: Node in main.get_children():
+		if child is CanvasLayer:
+			(child as CanvasLayer).visible = false
 	var controller: PlayerController = main._sandbox.controller()
 	var ghost: GhostPreview = main._sandbox.ghost()
 
@@ -41,23 +45,21 @@ func _ready() -> void:
 	# throwable piece without waiting on a real gift crate spawn/claim cycle.
 	# _ensure_capacity() is the same lazy-grow MatchGifts.gd's own claim path
 	# calls before ever indexing _pending_queues by slot.
+	# Bontago-1pi.85.29: no LT/drag any more; a held Bomb shows its camera-based arc on its own.
 	Match._gifts._ensure_capacity(0)
-	Match._gifts._pending_queues[0].append(&"rocket")
-
-	Input.action_press(&"throw_aim")
+	Match._gifts._held_specials[0] = &"bomb"
+	Match._feed._held_is_gift[0] = true
+	ghost.set_held_gift(&"bomb")
 	controller._update_throw_aim(1.0 / 60.0)
-	var motion: InputEventMouseMotion = InputEventMouseMotion.new()
-	motion.relative = Vector2(400.0, 150.0)
-	controller._unhandled_input(motion)
-	controller._update_throw_aim(1.0 / 60.0)
-	await _wait(SETTLE_FRAMES)
+	await _wait(SETTLE_FRAMES * 3)
 
-	print("SCREENSHOT aiming=%s ghost_state=%s arc_visible=%s" % [
-		controller.is_aiming_throw(),
-		ghost.current_state(),
+	print("SCREENSHOT mode=%s arc_visible=%s" % [
+		controller._held_gift_mode(),
 		controller._arc_preview.visible if controller._arc_preview != null else "null(no arc wired)",
 	])
 
+	var pts: PackedVector3Array = controller._arc_preview.current_points()
+	print("SCREENSHOT ghost=%s ghost_visible=%s points=%d first=%s last=%s cam=%s" % [ghost.global_position, ghost.visible, pts.size(), pts[0] if pts.size() > 0 else "-", pts[pts.size() - 1] if pts.size() > 0 else "-", get_viewport().get_camera_3d().global_position])
 	await RenderingServer.frame_post_draw
 	var image: Image = get_viewport().get_texture().get_image()
 	image.save_png(OUTPUT_PATH)

@@ -216,62 +216,57 @@ func _fake_match_with_special(slot_id: int) -> FakeMatch:
 	return fake
 
 
-func test_arc_and_hint_appear_once_a_throwable_drag_starts() -> void:
+func test_arc_is_shown_automatically_while_a_throwable_is_held_without_lt() -> void:
 	var fake: FakeMatch = _fake_match_with_special(0)
 	var fixture: Dictionary = _make_special_controller(fake)
-	var ghost: GhostPreview = fixture["ghost"]
 	var arc: ThrowArcPreview = fixture["arc"]
 	var controller: PlayerController = fixture["controller"]
 
-	assert_false(arc.visible, "fixture: not aiming yet.")
+	assert_false(arc.visible, "fixture: nothing drawn before the first frame")
 
-	Input.action_press(&"throw_aim")
-	controller._update_throw_aim(1.0 / 60.0)
-	assert_eq(ghost.current_state(), GhostPreview.STATE_THROW, "the ghost must show the throw hint as soon as aiming starts.")
-	assert_false(arc.visible, "a still-zero drag must not show an arc (it would place, not throw).")
+	controller._update_throw_aim(1.0 / 60.0)  # no LT / throw_aim press anywhere
 
-	# A real drag, well past throw_drag_min_distance_m/throw_drag_min_speed_mps
-	# defaults -- same convention test_playercontroller_throw.gd's own
-	# test_real_drag_throws_with_velocity_clamped_by_drag_distance uses.
-	var motion: InputEventMouseMotion = InputEventMouseMotion.new()
-	motion.relative = Vector2(500.0, 0.0)
-	controller._unhandled_input(motion)
-	controller._update_throw_aim(1.0 / 60.0)
-
-	assert_true(arc.visible, "a real throwable drag must show the arc.")
-	var expected: PackedVector3Array = arc.sample_arc(ghost.global_position, controller.current_throw_velocity())
+	assert_true(arc.visible, "a held throwable shows the arc automatically")
+	var preview: Dictionary = controller.gift_launch_preview()
+	var expected: PackedVector3Array = arc.sample_arc(
+		preview["origin"] as Vector3, preview["velocity"] as Vector3, Match.field(), float(preview["gravity_scale"])
+	)
 	assert_eq(arc.current_points().size(), expected.size())
 	for i: int in range(expected.size()):
-		assert_true(arc.current_points()[i].is_equal_approx(expected[i]), "the arc must use current_throw_velocity()'s own formula.")
-
-	Input.action_release(&"throw_aim")
-	controller._update_throw_aim(1.0 / 60.0)
-
-	assert_false(arc.visible, "releasing must clear the arc.")
-	assert_eq(ghost.current_state(), GhostPreview.STATE_VALID, "releasing must also drop the throw hint.")
-	assert_eq(fake.request_throw_calls.size(), 1, "fixture: the drag was real enough to actually throw.")
+		assert_true(arc.current_points()[i].is_equal_approx(expected[i]), "the arc is the host's GiftAim launch")
 
 
-func test_current_throw_velocity_matches_the_velocity_commit_throw_aim_would_send() -> void:
+func test_arc_follows_the_camera_forward() -> void:
 	var fake: FakeMatch = _fake_match_with_special(0)
 	var fixture: Dictionary = _make_special_controller(fake)
+	var arc: ThrowArcPreview = fixture["arc"]
 	var controller: PlayerController = fixture["controller"]
+	controller._update_throw_aim(1.0 / 60.0)
+	var first: Vector3 = arc.current_points()[arc.current_points().size() - 1]
+	var rig: CameraRig = load("res://game/CameraRig.tscn").instantiate()
+	add_child_autofree(rig)
+	rig._yaw = PI * 0.5
+	controller._camera_rig = rig
+	controller._update_throw_aim(1.0 / 60.0)
+	var second: Vector3 = arc.current_points()[arc.current_points().size() - 1]
+	assert_false(first.is_equal_approx(second), "moving the camera moves the arc, nothing else needed")
 
-	Input.action_press(&"throw_aim")
-	controller._update_throw_aim(0.05)
-	var motion: InputEventMouseMotion = InputEventMouseMotion.new()
-	motion.relative = Vector2(500.0, 0.0)
-	controller._unhandled_input(motion)
-	controller._update_throw_aim(0.05)
 
-	var live_velocity: Vector3 = controller.current_throw_velocity()
+func test_arc_hides_when_the_gift_is_gone() -> void:
+	var fake: FakeMatch = _fake_match_with_special(0)
+	var fixture: Dictionary = _make_special_controller(fake)
+	var arc: ThrowArcPreview = fixture["arc"]
+	var controller: PlayerController = fixture["controller"]
+	controller._update_throw_aim(1.0 / 60.0)
+	assert_true(arc.visible)
+	fake.held_special_by_slot.erase(0)
+	controller._update_throw_aim(1.0 / 60.0)
+	assert_false(arc.visible, "an ordinary piece has no arc")
 
-	Input.action_release(&"throw_aim")
-	controller._update_throw_aim(0.05)
 
-	assert_eq(fake.request_throw_calls.size(), 1)
-	var committed_velocity: Vector3 = fake.request_throw_calls[0]["velocity"]
-	assert_true(
-		live_velocity.is_equal_approx(committed_velocity),
-		"current_throw_velocity() must share the exact formula _commit_throw_aim() uses on release."
-	)
+func test_rocket_arc_is_straight_gravity_free() -> void:
+	var arc: ThrowArcPreview = _make_arc()
+	var points: PackedVector3Array = arc.sample_arc(Vector3(0.0, 5.0, 0.0), Vector3(0.0, 10.0, 10.0), null, 0.0)
+	var direction: Vector3 = (points[1] - points[0]).normalized()
+	for i: int in range(1, points.size()):
+		assert_true((points[i] - points[i - 1]).normalized().is_equal_approx(direction), "straight line, no gravity")

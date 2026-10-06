@@ -403,22 +403,27 @@ func request_throw(
 	var throw_mode: GiftThrow.Mode = GiftThrow.mode_for(held_def)
 	if throw_mode == GiftThrow.Mode.NONE and held_def != null:
 		return ThrowRules.REASON_NOT_A_SPECIAL
+	# DECISION (Bontago-1pi.85.29): every gift release is camera-aimed now. The unit camera
+	# forward is the ONLY thing read from the client's `velocity` slot (finite, length band,
+	# 85.21 refusals without consuming); the host derives launch velocity and spawn point from
+	# it and SpecialTuning alone (GiftAim), so a client-supplied speed is never trusted.
+	var aim_direction: Vector3 = GiftThrow.sanitize_aim(velocity, _special_tuning)
+	if aim_direction == Vector3.ZERO:
+		return PlacementRules.REASON_NO_BLOCK
 	var launch_velocity: Vector3 = Vector3.ZERO
-	var aim_direction: Vector3 = Vector3.ZERO
 	if held_def == null or throw_mode == GiftThrow.Mode.THROW:
-		# DECISION (Bontago-1pi.85.21): a gift whose def cannot be resolved (it spawns as a plain
-		# block) is normalised through the same fixed trajectory as a THROW gift instead of
-		# launching with the client's raw velocity; no usable heading refuses without consuming.
-		launch_velocity = GiftThrow.fixed_velocity(velocity, _special_tuning)
+		# An unresolved def (spawns as a plain block) takes the same ballistic throw (85.21).
+		launch_velocity = GiftAim.throw_velocity(aim_direction, _special_tuning)
 		if launch_velocity == Vector3.ZERO:
 			return PlacementRules.REASON_NO_BLOCK
-	else:
-		aim_direction = GiftThrow.sanitize_aim(velocity, _special_tuning)
-		# DECISION (Bontago-1pi.85.21): the effects drop an upward part, so a straight-up (or
-		# otherwise purely vertical) aim would be consumed and fall unlaunched; refuse it without
-		# consuming, like the THROW zero-heading refusal, instead of clamping.
+	elif held_def.effect is RocketEffect:
+		# Owner 2026-10-06 (1pi.85.34 Q3): any aim, upward included.
 		if RocketEffect.sanitize_launch_direction(aim_direction) == Vector3.ZERO:
 			return PlacementRules.REASON_NO_BLOCK
+	elif RocketEffect.sanitize_downward_direction(aim_direction) == Vector3.ZERO:
+		# Paintball keeps the "not upward" rule: a purely vertical aim would be consumed and
+		# fall unlaunched, so it is refused without consuming.
+		return PlacementRules.REASON_NO_BLOCK
 
 	var gift_id: StringName = _held_deliverable_gift(slot_id)
 	# Bontago-1pi.85.21: the overlap/lift check must test the basis _spawn_block() will use.
@@ -459,6 +464,10 @@ func request_throw(
 	# Bontago-1pi.14 round 3: the throw spawns at the client-sent pose too, so
 	# it gets the same host overlap validation (a manual intent: refused, the
 	# special stays in hand, when no lift clears it).
+	# Bontago-1pi.85.29: the projectile spawns on the camera line (cursor point moved back along
+	# the aim, never below gift_aim_min_height_m over the surface); territory was validated at
+	# the cursor above.
+	world_origin = GiftAim.spawn_point(world_origin, aim_direction, _match._field.surface_y(), _special_tuning)
 	var lifted: Variant = _lift_pose_clear(shape, world_origin, basis, false)
 	if lifted == null:
 		Events.placement_rejected.emit(slot_id, PlacementRules.REASON_NO_BLOCK)
@@ -496,7 +505,7 @@ func request_throw(
 
 
 ## Bontago-1pi.85.16: hands the validated camera forward to the effect that flies along it.
-## Rocket's own sanitiser drops an upward part; Paintball does the same.
+## The Rocket keeps any pitch (1pi.85.34 Q3); Paintball drops an upward part.
 func _apply_aim_direction(block: Block, def: SpecialDef, direction: Vector3) -> void:
 	if def.effect is RocketEffect:
 		RocketEffect.set_launch_direction(block, direction)

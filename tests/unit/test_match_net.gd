@@ -1205,7 +1205,7 @@ func test_submit_throw_on_the_host_spawns_and_launches_the_block_inline() -> voi
 	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
 	_start_playing()
 	_seed_held_gift(0, MatchGifts.PENDING_SPECIAL_ID)
-	var velocity: Vector3 = Vector3(3.0, 0.0, 4.0)
+	var velocity: Vector3 = Vector3(0.6, 0.0, 0.8)
 
 	var before: int = _block_count()
 	var reason: StringName = net.submit_throw(
@@ -1218,7 +1218,7 @@ func test_submit_throw_on_the_host_spawns_and_launches_the_block_inline() -> voi
 	assert_eq(net.intents_sent(0), 1)
 	var block: Block = _blocks_root.get_child(_block_count() - 1) as Block
 	assert_true(
-		block.linear_velocity.is_equal_approx(GiftThrow.fixed_velocity(velocity, Match._placement._special_tuning)),
+		block.linear_velocity.is_equal_approx(GiftAim.throw_velocity(velocity, Match._placement._special_tuning)),
 		"Bontago-1pi.85.21: the host normalises to the fixed trajectory, never the raw client velocity"
 	)
 
@@ -1261,7 +1261,7 @@ func test_a_remote_peers_own_throw_intent_is_accepted_with_velocity_untouched() 
 	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
 	_start_playing()
 	_seed_held_gift(1, MatchGifts.PENDING_SPECIAL_ID)
-	var velocity: Vector3 = Vector3(2.0, 0.0, -1.0)
+	var velocity: Vector3 = Vector3(1.0, 0.0, -1.0)
 
 	net._handle_throw_intent(
 		2, 1, _home_world_position(1), 0, Quaternion.IDENTITY, velocity, Match.feed_seq(1)
@@ -1272,7 +1272,7 @@ func test_a_remote_peers_own_throw_intent_is_accepted_with_velocity_untouched() 
 	assert_eq(net.intents_refused(1), 0)
 	var block: Block = _blocks_root.get_child(0) as Block
 	assert_true(
-		block.linear_velocity.is_equal_approx(GiftThrow.fixed_velocity(velocity, Match._placement._special_tuning)),
+		block.linear_velocity.is_equal_approx(GiftAim.throw_velocity(velocity, Match._placement._special_tuning)),
 		"Bontago-1pi.85.21: request_throw() normalises an unresolved-def gift's velocity"
 	)
 

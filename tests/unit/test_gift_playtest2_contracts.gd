@@ -136,11 +136,12 @@ func test_effect_landed_tuning_defaults_to_null() -> void:
 # --- Stub signatures --------------------------------------------------------------
 
 func test_gift_aim_signatures_are_callable() -> void:
+	# PA2 filled the P0 stubs: same signatures, real maths (details in test_gift_throw).
 	var t: SpecialTuning = SpecialTuning.new()
 	var cursor: Vector3 = Vector3(1.0, 2.0, 3.0)
-	assert_eq(GiftAim.spawn_point(cursor, Vector3.FORWARD, 0.0, t), cursor)
-	assert_eq(GiftAim.straight_velocity(Vector3.FORWARD, 10.0), Vector3.ZERO)
-	assert_eq(GiftAim.throw_velocity(Vector3.FORWARD, t), Vector3.ZERO)
+	assert_ne(GiftAim.spawn_point(cursor, Vector3.FORWARD, 0.0, t), cursor)
+	assert_almost_eq(GiftAim.straight_velocity(Vector3.FORWARD, 10.0).length(), 10.0, 0.001)
+	assert_almost_eq(GiftAim.throw_velocity(Vector3.FORWARD, t).length(), t.gift_throw_speed_mps, 0.001)
 
 
 func test_shape_picker_stub_returns_cube() -> void:

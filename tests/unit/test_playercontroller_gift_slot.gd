@@ -147,7 +147,14 @@ func test_a_rocket_released_by_mouse_or_pad_fires_along_the_camera_forward_ident
 	assert_almost_eq(mouse_v.length(), 1.0, 0.001, "a unit camera forward")
 
 
-func test_a_rocket_never_starts_a_throw_aim_but_a_bomb_does() -> void:
-	assert_false(_held_controller(&"rocket")._can_begin_throw_aim())
-	assert_false(_held_controller(&"anvil")._can_begin_throw_aim())
-	assert_true(_held_controller(&"bomb")._can_begin_throw_aim())
+func test_every_throwable_and_aimed_gift_releases_on_a_plain_press_but_other_gifts_place() -> void:
+	for id: StringName in [&"bomb", &"magnet", &"jumping_bean", &"rocket", &"paintball"]:
+		var controller: PlayerController = _held_controller(id)
+		controller._unhandled_input(_pad_button(JOY_BUTTON_A))
+		var fake: FakeMatch = controller._match as FakeMatch
+		assert_eq(fake.request_throw_calls.size(), 1, "%s: A throws along the camera, no LT" % id)
+		assert_eq(fake.request_place_calls.size(), 0, String(id))
+	var anvil: PlayerController = _held_controller(&"anvil")
+	anvil._unhandled_input(_pad_button(JOY_BUTTON_A))
+	assert_eq((anvil._match as FakeMatch).request_throw_calls.size(), 0)
+	assert_eq((anvil._match as FakeMatch).request_place_calls.size(), 1)
