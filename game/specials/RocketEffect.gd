@@ -28,12 +28,25 @@ extends SpecialEffect
 ## its upward part is dropped ("not upward") and it is normalised; anything unusable
 ## keeps the default (see default_launch_direction()).
 
-## Speed (m/s) the Rocket flies at along its launch direction (plan section 3: 14).
-@export var thrust_speed_mps: float = 14.0
+## Speed (m/s) the Rocket flies at along its launch direction (Bontago-1pi.85.25: 60).
+@export var thrust_speed_mps: float = 60.0
 
 ## Safety fuel: seconds after the launch before it explodes even if it touched nothing
-## (plan section 3: 4.0).
-@export var fuel_duration_s: float = 4.0
+## (Bontago-1pi.85.25: 3.0).
+@export var fuel_duration_s: float = 3.0
+
+## Gravity scale while in flight (Bontago-1pi.85.25: 0, the rocket flies dead straight). The
+## carrier's own scale is restored at the explosion.
+@export var flight_gravity_scale: float = 0.0
+
+## The model's nose axis in the carrier's local frame. rocket_v1.glb points its nose along +Y
+## (nose mesh at y = +0.625). Every flight tick the carrier basis is turned so this axis points
+## along its velocity (Bontago-1pi.85.25); the pose snapshot already carries the rotation.
+@export var model_nose_axis: Vector3 = Vector3(0.0, 1.0, 0.0)
+
+## Seconds after the launch during which the owner's own blocks do not count as an impact
+## (arm_delay is 0 now, so SpecialBehavior's own grace is gone).
+@export var own_block_grace_s: float = 0.4
 
 ## Downward pitch (degrees) of the default launch direction used when no camera
 ## direction was supplied (bots, tests, a client that sent nothing usable).
@@ -42,11 +55,16 @@ extends SpecialEffect
 ## Extra look-ahead (m) beyond one tick of travel for the impact probe.
 @export var impact_probe_margin_m: float = 0.05
 
-## Blast shape (plan section 3: radius 4.5 m, peak 10 m/s delta-v).
+## Blast shape (Bontago-1pi.85.27 Q1: delta-v x10, radius x1.6 of the old 4.5 m / 10 m/s).
 @export var blast: ExplosionTuning = ExplosionTuning.new()
 
 ## Smallest horizontal-plus-downward direction length treated as a direction at all.
 const MIN_DIRECTION_LENGTH: float = 0.001
+
+## nose_basis(): dot below which the direction counts as opposite to the nose, and the |x| above
+## which the nose counts as lying along X (so another helper axis is used).
+const ANTIPARALLEL_DOT: float = -0.9999
+const NEAR_X_AXIS: float = 0.9
 
 ## block.set_meta() key: the host-side launch direction input (Vector3, unit length).
 const LAUNCH_DIRECTION_META: StringName = &"rocket_launch_direction"
@@ -55,6 +73,8 @@ const LAUNCH_DIRECTION_META: StringName = &"rocket_launch_direction"
 const _LAUNCH_AGE_META: StringName = &"rocket_launch_age"
 const _FLIGHT_DIRECTION_META: StringName = &"rocket_flight_direction"
 const _HIT_META: StringName = &"rocket_hit"
+const _FACED_META: StringName = &"rocket_faced"
+const _CARRIER_GRAVITY_META: StringName = &"rocket_carrier_gravity_scale"
 
 
 ## Host-side launch-direction input for `block` (a Rocket carrier). Returns whether it was
@@ -130,8 +150,10 @@ func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void
 		_launch(block, behavior)
 	var direction: Vector3 = block.get_meta(_FLIGHT_DIRECTION_META) as Vector3
 	block.continuous_cd = true
+	block.gravity_scale = flight_gravity_scale
 	block.kick(direction * thrust_speed_mps)
 	block.angular_velocity = Vector3.ZERO
+	_face_direction(block, direction)
 	var launched_at: float = float(block.get_meta(_LAUNCH_AGE_META))
 	if _contact_ahead(block, behavior, direction, delta, launched_at):
 		block.set_meta(_HIT_META, true)
@@ -149,6 +171,8 @@ func wants_early_trigger(block: Block, behavior: SpecialBehavior) -> bool:
 ## Blast every real RigidBody3D within `blast.radius_m` (the Rocket's own body excluded),
 ## then chain into any other special in range one depth deeper.
 func detonate(block: Block, behavior: SpecialBehavior, chain_depth: int) -> void:
+	if block.has_meta(_CARRIER_GRAVITY_META):
+		block.gravity_scale = float(block.get_meta(_CARRIER_GRAVITY_META))
 	var center: Vector3 = block.global_position
 	ExplosionFx.blast(block.get_world_3d().direct_space_state, center, blast, [block.get_rid()])
 	ExplosionFx.chain(behavior, center, blast.radius_m, chain_depth)
@@ -158,6 +182,7 @@ func detonate(block: Block, behavior: SpecialBehavior, chain_depth: int) -> void
 ## STATIC-frozen by StableBlockManager and would ignore the velocity write).
 func _launch(block: Block, behavior: SpecialBehavior) -> void:
 	block.set_meta(_LAUNCH_AGE_META, behavior.age())
+	block.set_meta(_CARRIER_GRAVITY_META, block.gravity_scale)
 	block.set_meta(_FLIGHT_DIRECTION_META, launch_direction_for(block))
 	block.wake_for_impulse()
 	block.wake()
@@ -176,4 +201,30 @@ func _contact_ahead(
 	if not PhysicsServer3D.body_test_motion(block.get_rid(), params, result):
 		return false
 	var collider: Object = result.get_collider()
+	var other: Block = collider as Block
+	if other != null and block.owner_slot >= 0 and other.owner_slot == block.owner_slot:
+		if behavior.age() - launched_at < own_block_grace_s:
+			return false
 	return behavior.impact_filter(collider, launched_at)
+
+
+## Turns the carrier so `model_nose_axis` points along `direction` (shortest arc), keeping its
+## position. The first write also resets physics interpolation so it does not swing in.
+func _face_direction(block: Block, direction: Vector3) -> void:
+	var basis: Basis = nose_basis(model_nose_axis, direction)
+	var first: bool = not block.has_meta(_FACED_META)
+	block.global_transform = Transform3D(basis, block.global_position)
+	if first:
+		block.set_meta(_FACED_META, true)
+		block.reset_physics_interpolation()
+
+
+## Pure: a rotation taking the unit `nose` axis onto the unit `direction` (shortest arc). A
+## direction opposite to the nose turns half a revolution about a perpendicular axis.
+static func nose_basis(nose: Vector3, direction: Vector3) -> Basis:
+	var from: Vector3 = nose.normalized()
+	var to: Vector3 = direction.normalized()
+	if from.dot(to) < ANTIPARALLEL_DOT:
+		var side: Vector3 = Vector3.RIGHT if absf(from.x) < NEAR_X_AXIS else Vector3.UP
+		return Basis(from.cross(side).normalized(), PI)
+	return Basis(Quaternion(from, to))
