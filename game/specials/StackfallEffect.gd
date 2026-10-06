@@ -3,10 +3,10 @@ extends SpecialEffect
 ## A triggered gift starts a bounded host-owned rain of ordinary blocks.
 ## Runtime state lives on StackfallRain, never on this shared Resource.
 
-@export_range(1, 64, 1) var block_count: int = 12
-@export_range(0.1, 30.0, 0.1) var blocks_per_second: float = 6.0
+@export_range(1, 64, 1) var block_count: int = 28
+@export_range(0.1, 30.0, 0.1) var blocks_per_second: float = 9.5
 @export_range(1.0, 100.0, 0.5) var area_radius_m: float = 12.0
-@export_range(1.0, 100.0, 0.5) var spawn_height_m: float = 18.0
+@export_range(1.0, 100.0, 0.5) var spawn_height_m: float = 30.0
 @export_range(0.0, 10.0, 0.1) var min_spacing_m: float = 1.5
 @export_range(1, 128, 1) var position_attempts: int = 40
 @export_range(1, 2000, 1) var max_active_blocks: int = 600

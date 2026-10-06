@@ -152,3 +152,21 @@ func test_shipped_special_is_available_to_the_roster() -> void:
 	assert_eq(def.id, &"stackfall")
 	assert_true(def.effect is StackfallEffect)
 	assert_true(def.enabled_by_default)
+
+
+func test_full_rain_spawns_28_from_height_and_respects_cap() -> void:
+	var activation: Block = _activation()
+	var effect: StackfallEffect = (load("res://config/specials/stackfall.tres") as SpecialDef).effect as StackfallEffect
+	effect = effect.duplicate() as StackfallEffect
+	effect.area_radius_m = 15.0
+	effect.min_spacing_m = 0.5
+	effect.detonate(activation, null, 0)
+	var rain: StackfallRain = _rain()
+	rain.set_physics_process(false)
+	rain.advance(float(effect.block_count) / effect.blocks_per_second + 0.1)
+	assert_eq(rain.attempted, effect.block_count)
+	assert_eq(rain.spawned, effect.block_count)
+	var highest: float = 0.0
+	for i: int in range(1, _blocks_root.get_child_count()):
+		highest = maxf(highest, (_blocks_root.get_child(i) as Block).global_position.y)
+	assert_gt(highest, effect.spawn_height_m * 0.8)

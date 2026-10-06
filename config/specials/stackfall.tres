@@ -7,10 +7,10 @@
 
 [sub_resource type="Resource" id="Resource_stackfall_effect"]
 script = ExtResource("2_effect")
-block_count = 12
-blocks_per_second = 6.0
+block_count = 28
+blocks_per_second = 9.5
 area_radius_m = 12.0
-spawn_height_m = 18.0
+spawn_height_m = 30.0
 min_spacing_m = 1.5
 position_attempts = 40
 max_active_blocks = 600
