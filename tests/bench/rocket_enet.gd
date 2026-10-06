@@ -11,7 +11,9 @@ const GATE_TIMEOUT: float = 40.0
 const POLL_S: float = 0.05
 const SEED: int = 20261007
 const START_LOCAL: Vector3 = Vector3(-10.0, 35.0, 0.0)
-const AIM: Vector3 = Vector3(1.0, -1.4, 0.0)
+## Aimed steeply UPWARD (Bontago-1pi.85.43): the host must detonate it before it leaves the
+## replicable volume, so the client never sees a body pinned at the quantization clamp.
+const AIM: Vector3 = Vector3(0.2, 1.0, 0.0)
 const MAX_NOSE_ERROR_DEG: float = 8.0
 const MIN_SAMPLES: int = 5
 const MIN_MOVE_M: float = 0.05
@@ -20,6 +22,7 @@ const ARM_WAIT_S: float = 0.3
 const QUIT_DELAY_S: float = 1.5
 const PRE_FIRE_WAIT_S: float = 1.0
 const MAX_END_ERROR_M: float = 12.0
+const CLAMP_EPSILON_M: float = 0.05
 ## Samples ignored at the start: the spawn message carries the resting pose before the first snapshot.
 const SKIP_SAMPLES: int = 5
 const UNSET_DEG: float = 999.0
@@ -131,8 +134,9 @@ func _run_host() -> void:
 	var last: Vector3 = _client_report.get("last", Vector3(INF, INF, INF)) as Vector3
 	var end_err: float = last.distance_to(_explosion)
 	var gone: bool = bool(_client_report.get("gone", false))
+	var clamped: bool = last.y >= RocketEffect.replicable_bounds().end.y - CLAMP_EPSILON_M
 	var pass_all: bool = ok and _exploded and _client_done and worst < MAX_NOSE_ERROR_DEG \
-		and samples >= MIN_SAMPLES and gone and end_err < MAX_END_ERROR_M
+		and samples >= MIN_SAMPLES and gone and end_err < MAX_END_ERROR_M and not clamped
 	print("%s host exploded=%s at=%s client_samples=%d worst_nose_deg=%.2f carrier_gone=%s end_err_m=%.2f" % [
 		TAG, _exploded, _explosion, samples, worst, gone, end_err])
 	print("%s host result=%s" % [TAG, "PASS" if pass_all else "FAIL"])
