@@ -53,8 +53,12 @@ extends SpecialEffect
 @export var spawn_clearance_m: float = 0.4
 @export var burst_spread_m: float = 0.8
 
-## Shape of every erupted block (owner-coloured by the spawn path).
+## Fallback single shape, used only when `shape_weights` is null.
 @export var block_shape: BlockShape = preload("res://config/blocks/cube.tres")
+
+## Per-block shape pick (shared GiftShapeWeights, Bontago-1pi.85.31); null = every block is
+## `block_shape`. Blocks are owner-coloured by the spawn path.
+@export var shape_weights: GiftShapeWeights = preload("res://config/gifts/gift_shape_weights.tres")
 
 ## Erupting stops once the blocks root holds this many children (same 600 cap as
 ## StackfallEffect).
@@ -73,8 +77,8 @@ extends SpecialEffect
 ## Fallback cone colour (used only when model_scene is null).
 @export var cone_color: Color = Color(0.45, 0.18, 0.08)
 
-## Blast of one lava orb (VolcanoOrbEffect; plan section 3: radius 1.5, peak 4 m/s).
-@export var orb_blast: ExplosionTuning = ExplosionTuning.new()
+## Eruption particles (Bontago-1pi.85.30); null = none.
+@export var particles: VolcanoParticleTuning = preload("res://config/specials/fx/volcano_particle_tuning.tres")
 
 
 ## The action's length; SpecialBehavior derives its fuse backstop from it.
