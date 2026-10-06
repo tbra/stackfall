@@ -74,7 +74,12 @@ const EVENT_GIFT_LANDED: StringName = &"gift_landed"
 
 # DECISION: reliable channel order plus per-match tombstones prevents a late
 # spawn/flight from resurrecting a claimed gift. Legacy spawn can upgrade once.
-enum GiftWirePhase { LEGACY, FALLING, LANDED, REMOVED }
+enum GiftWirePhase {
+	FALLING = MatchGifts.FALLING,
+	LANDED = MatchGifts.LANDED,
+	LEGACY = MatchGifts.WIRE_LEGACY,
+	REMOVED = MatchGifts.WIRE_REMOVED,
+}
 var _gift_wire_phases: Dictionary = {}
 var _gift_spawn_notified: Dictionary = {}
 
@@ -1229,6 +1234,14 @@ func _pose_is_acceptable(origin: Vector3, orientation_index: int, free_quat: Qua
 ## own pattern: a malformed or out-of-disk position from a bad or ancient build
 ## is dropped rather than trusted, since a client only ever uses this position
 ## to place a visual and to compute the cell it later frees for.
+## Records a gift's wire phase; refuses an out-of-range value (returns false).
+func _set_gift_wire_phase(gift_id: int, phase: int) -> bool:
+	if gift_id < 0 or not MatchGifts.is_valid_wire_phase(phase):
+		return false
+	_gift_wire_phases[gift_id] = phase
+	return true
+
+
 func _gift_wire_ok(gift_id: int, position: Vector2) -> bool:
 	if gift_id < 0:
 		return false
@@ -2746,7 +2759,7 @@ func net_match_event(event: StringName, args: Array) -> void:
 			if _gift_wire_phases.has(gift_id) and int(_gift_wire_phases[gift_id]) != GiftWirePhase.LEGACY:
 				return
 			_authority().apply_replicated_gift_flight(gift_id, origin, landing)
-			_gift_wire_phases[gift_id] = GiftWirePhase.FALLING
+			_set_gift_wire_phase(gift_id, GiftWirePhase.FALLING)
 			Events.gift_flight_spawned.emit(gift_id, origin, landing)
 		EVENT_GIFT_LANDED:
 			if args.size() != 2 or not args[0] is int or not args[1] is Vector3:
@@ -2759,7 +2772,7 @@ func net_match_event(event: StringName, args: Array) -> void:
 			if state.is_empty() or not landing.is_equal_approx(state["landing"]):
 				return
 			_authority().apply_replicated_gift_landed(gift_id, landing)
-			_gift_wire_phases[gift_id] = GiftWirePhase.LANDED
+			_set_gift_wire_phase(gift_id, GiftWirePhase.LANDED)
 			Events.gift_landed.emit(gift_id, landing)
 		EVENT_GIFT_SPAWNED:
 			if args.size() != 2 or not args[0] is int or not args[1] is Vector2:
@@ -2769,7 +2782,7 @@ func net_match_event(event: StringName, args: Array) -> void:
 			if _gift_spawn_notified.has(gift_id) or not _gift_wire_ok(gift_id, position) or _gift_wire_phases.get(gift_id, -1) in [GiftWirePhase.LEGACY, GiftWirePhase.LANDED, GiftWirePhase.REMOVED]:
 				return
 			if not _gift_wire_phases.has(gift_id):
-				_gift_wire_phases[gift_id] = GiftWirePhase.LEGACY
+				_set_gift_wire_phase(gift_id, GiftWirePhase.LEGACY)
 			_authority().apply_replicated_gift_spawned(gift_id, position)
 			_gift_spawn_notified[gift_id] = true
 			Events.gift_spawned.emit(gift_id, position)
@@ -2800,7 +2813,7 @@ func net_match_event(event: StringName, args: Array) -> void:
 			var gift_shape_id: StringName = StringName(args[3])
 			if _authority()._feed._shape_by_id(gift_shape_id) == null:
 				return
-			_gift_wire_phases[claimed_gift_id] = GiftWirePhase.REMOVED
+			_set_gift_wire_phase(claimed_gift_id, GiftWirePhase.REMOVED)
 			if _authority().gift_slot_enabled():
 				# Bontago-1pi.18.2: the gift went to the slot (EVENT_GIFT_SLOT),
 				# not the block queue; only the crate visual is retired here.
@@ -2815,7 +2828,7 @@ func net_match_event(event: StringName, args: Array) -> void:
 			var expired_gift_id: int = int(args[0])
 			if expired_gift_id < 0 or _gift_wire_phases.get(expired_gift_id, -1) == GiftWirePhase.REMOVED:
 				return
-			_gift_wire_phases[expired_gift_id] = GiftWirePhase.REMOVED
+			_set_gift_wire_phase(expired_gift_id, GiftWirePhase.REMOVED)
 			_authority().apply_replicated_gift_expired(expired_gift_id)
 			Events.gift_expired.emit(expired_gift_id)
 		EVENT_SPECIAL_TRIGGERED:
