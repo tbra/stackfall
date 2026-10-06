@@ -69,3 +69,20 @@ extends Resource
 ## backstop of (time its lifetime starts) + effect_lifetime_s() + this margin instead
 ## of the blanket arm_delay + fuse_timeout_s force-trigger.
 @export var fuse_backstop_margin_s: float = 5.0
+
+## Bontago-1pi.85.16: the fixed gift throw (Bomb, Magnet, Jumping Bean). The host ignores the
+## client's drag length/speed: every thrown gift leaves at this speed and loft; only the
+## horizontal heading of the client's aim is used.
+@export var gift_throw_speed_mps: float = 12.0
+
+## Vertical component of the fixed gift throw relative to its horizontal heading (1.0 = 45 deg).
+@export var gift_throw_loft_ratio: float = 1.0
+
+## Accepted length range of a client-sent aim direction (Rocket/Paintball camera forward).
+## The client sends a unit vector; anything outside this band is a malformed intent and is
+## refused (the piece stays held).
+@export var gift_aim_min_length: float = 0.5
+@export var gift_aim_max_length: float = 2.0
+
+## Smallest horizontal component of a fixed-throw aim treated as a heading at all.
+@export var gift_aim_min_horizontal: float = 0.001

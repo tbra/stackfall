@@ -328,17 +328,17 @@ func test_playercontroller_moves_the_camera_on_its_own_slots_placement_relocated
 
 ## Bontago-sen.1 (owner 2026-09-30): a held gift is exempt from the territory
 ## check; the host decides from its own held state.
-func _hold_gift(slot_id: int) -> void:
+func _hold_gift(slot_id: int, gift_id: StringName = &"earthquake") -> void:
 	# debug_queue_special is sandbox-only; flip the flag just for the queue
 	# call so the placement rules below run with sandbox off.
 	Match.config.sandbox = true
-	assert_true(Match.debug_queue_special(slot_id, &"earthquake"))
+	assert_true(Match.debug_queue_special(slot_id, gift_id))
 	Match.config.sandbox = false
 	assert_eq(
 		Match.request_place(slot_id, _home_world_position(slot_id), 0, Quaternion.IDENTITY, false),
 		PlacementRules.REASON_OK, "fixture: ordinary piece placed so the gift is fed."
 	)
-	assert_eq(Match.held_special(slot_id), &"earthquake", "fixture: the gift is now held.")
+	assert_eq(Match.held_special(slot_id), gift_id, "fixture: the gift is now held.")
 
 
 func test_held_gift_drops_outside_own_territory_but_plain_block_does_not() -> void:
@@ -367,9 +367,9 @@ func test_held_gift_throw_outside_own_territory_is_accepted_plain_throw_refused(
 		Match.request_throw(0, foreign, 0, Quaternion.IDENTITY, Vector3.ZERO),
 		PlacementRules.REASON_OK, "control: a plain block throw is refused."
 	)
-	_hold_gift(0)
+	_hold_gift(0, &"bomb")  # Bontago-1pi.85.16: only throwable gifts may be thrown
 	assert_eq(
-		Match.request_throw(0, foreign, 0, Quaternion.IDENTITY, Vector3.ZERO),
+		Match.request_throw(0, foreign, 0, Quaternion.IDENTITY, Vector3(1.0, 0.0, 0.0)),
 		PlacementRules.REASON_OK, "a held gift may be thrown from outside own territory."
 	)
 

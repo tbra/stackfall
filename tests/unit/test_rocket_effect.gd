@@ -440,6 +440,32 @@ func test_explodes_on_the_first_contact_with_the_disc() -> void:
 	assert_lt(behavior.age(), effect.fuel_duration_s, "an impact, not the safety fuel")
 
 
+## Bontago-1pi.85.16 (reviewer hypothesis from package C): a horizontal launch from rest on a
+## floor, the carrier touching the surface, must not report the resting contact as an impact; it
+## flies on to the wall ahead.
+func test_a_horizontal_launch_from_rest_on_a_floor_does_not_explode_on_the_resting_contact() -> void:
+	_make_wall()
+	var floor_body: StaticBody3D = StaticBody3D.new()
+	var floor_collision: CollisionShape3D = CollisionShape3D.new()
+	var floor_shape: BoxShape3D = BoxShape3D.new()
+	floor_shape.size = Vector3(40.0, 1.0, 40.0)
+	floor_collision.shape = floor_shape
+	floor_body.add_child(floor_collision)
+	add_child(floor_body)
+	floor_body.global_position = Vector3(0.0, -0.5 - BODY_RADIUS_M, 0.0)
+	_bodies.append(floor_body)
+	var effect: RocketEffect = RocketEffect.new()
+	var behavior: SpecialBehavior = _make_rocket(Vector3.ZERO, Vector3(1.0, 0.0, 0.0), 0, effect)
+	(behavior.get_parent() as Block).gravity_scale = 1.0
+	await wait_physics_frames(SETTLE_FRAMES)
+
+	var at: Vector3 = await _fly_until_triggered(behavior)
+
+	assert_true(behavior.is_triggered(), "exploded")
+	var wall_face_x: float = WALL_X_M - WALL_HALF_THICKNESS_M
+	assert_gt(at.x, wall_face_x - BODY_RADIUS_M - 0.6, "at the wall (x=%.2f), not on the floor contact at the start" % at.x)
+
+
 # --- config/specials/rocket.tres ---------------------------------------------
 
 func test_rocket_tres_loads_with_the_plan_numbers() -> void:

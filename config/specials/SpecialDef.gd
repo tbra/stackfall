@@ -46,6 +46,14 @@ const GENERIC_PREVIEW_ICON: Texture2D = preload("res://assets/ui/icons/gift_gene
 ## does not filter on it itself.
 @export var enabled_by_default: bool = true
 
+## Bontago-1pi.85.16 (owner answer 1pi.85.1): whether this gift can be thrown on the fixed
+## gift trajectory (Bomb, Magnet, Jumping Bean). Every other gift is only dropped in place.
+@export var throwable: bool = false
+
+## Bontago-1pi.85.16: Rocket/Paintball are not thrown; on release they fire in a straight line
+## along the activating player's camera forward (host-validated, see core/gifts/GiftThrow.gd).
+@export var aimed_launch: bool = false
+
 ## Seconds after SpecialBehavior.bind() before this special can arm (spec
 ## 2.6: "[NEW] earlier 0.4 s arm delay").
 @export var arm_delay: float = 0.4

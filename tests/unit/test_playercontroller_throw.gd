@@ -45,7 +45,7 @@ func _make_special_controller(fake: FakeMatch) -> PlayerController:
 
 func _fake_match_with_special(slot_id: int) -> FakeMatch:
 	var fake: FakeMatch = FakeMatch.new()
-	fake.held_special_by_slot[slot_id] = &"rocket"
+	fake.held_special_by_slot[slot_id] = &"bomb"
 	return fake
 
 
@@ -144,13 +144,9 @@ func test_real_drag_throws_with_velocity_clamped_by_drag_distance() -> void:
 	var call: Dictionary = fake.request_throw_calls[0]
 	assert_eq(call["slot_id"], 0)
 	var velocity: Vector3 = call["velocity"]
-	var expected_speed: float = minf(
-		expected_distance * controller.special_tuning.throw_speed_per_meter,
-		controller.special_tuning.throw_max_speed
-	)
 	assert_almost_eq(
-		velocity.length(), expected_speed, 0.01,
-		"launch speed must be drag distance * throw_speed_per_meter, clamped at throw_max_speed."
+		velocity.length(), controller.special_tuning.gift_throw_speed_mps, 0.01,
+		"Bontago-1pi.85.16: a gift throw leaves at the fixed gift_throw_speed_mps whatever the drag."
 	)
 	assert_gt(velocity.x, 0.0, "the throw direction should follow the drag (world +X here).")
 	assert_almost_eq(velocity.z, 0.0, 0.01, "no Z drag was applied, so there should be no Z component.")
@@ -160,16 +156,16 @@ func test_real_drag_throws_with_velocity_clamped_by_drag_distance() -> void:
 	var ratio: float = direction.y / horizontal_length if horizontal_length > 0.0 else 0.0
 	assert_almost_eq(
 		ratio,
-		controller.special_tuning.throw_loft_ratio,
+		controller.special_tuning.gift_throw_loft_ratio,
 		1e-3,
-		"throw direction's y component must equal horizontal length times throw_loft_ratio"
+		"throw direction's y component must equal horizontal length times gift_throw_loft_ratio"
 	)
 
 
 ## The drag distance/speed formula clamps at throw_max_speed regardless of how
 ## far past both thresholds the drag goes (SpecialTuning.throw_max_speed's own
 ## doc comment: "regardless of drag distance").
-func test_an_enormous_drag_clamps_at_throw_max_speed() -> void:
+func test_an_enormous_drag_still_throws_at_the_fixed_gift_speed() -> void:
 	var fake: FakeMatch = _fake_match_with_special(0)
 	var controller: PlayerController = _make_special_controller(fake)
 
@@ -181,7 +177,7 @@ func test_an_enormous_drag_clamps_at_throw_max_speed() -> void:
 
 	assert_eq(fake.request_throw_calls.size(), 1)
 	var velocity: Vector3 = fake.request_throw_calls[0]["velocity"]
-	assert_almost_eq(velocity.length(), controller.special_tuning.throw_max_speed, 0.01)
+	assert_almost_eq(velocity.length(), controller.special_tuning.gift_throw_speed_mps, 0.01)
 
 
 # --- Gamepad: LT + right-stick drag (spec 2.5 "Hold LT, aim, release") ------

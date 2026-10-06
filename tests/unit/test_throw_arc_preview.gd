@@ -212,7 +212,7 @@ func _make_special_controller(fake: FakeMatch) -> Dictionary:
 
 func _fake_match_with_special(slot_id: int) -> FakeMatch:
 	var fake: FakeMatch = FakeMatch.new()
-	fake.held_special_by_slot[slot_id] = &"rocket"
+	fake.held_special_by_slot[slot_id] = &"bomb"
 	return fake
 
 
