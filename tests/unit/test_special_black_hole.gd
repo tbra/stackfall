@@ -186,6 +186,128 @@ func test_real_disc_8kg_block_from_6m_reaches_the_core_within_lifetime() -> void
 	assert_false(heavy.has_meta(RadialPull.CAPTURED_META), "refused dissolve leaves no capture flag")
 
 
+const CUBE_COLUMN_COUNT: int = 12
+const CUBE_COLUMN_SPACING_M: float = 1.2
+const CUBE_COLUMN_START_M: float = 0.8
+const CUBE_COLUMN_JITTER_M: float = 0.45
+const PILE_RING_M: float = 1.0
+const REMOVAL_MARGIN_S: float = 1.0
+
+
+## Real disc, live host registry: builds the world and returns the registry.
+func _live_world() -> Array:
+	Match.set_process(false)
+	Match.abort_match()
+	var map_def: MapDef = MapDef.new()
+	map_def.id = &"test_black_hole_pile"
+	map_def.field_radius = 14.0
+	map_def.cell_size = 1.0
+	map_def.disk_height = 1.0
+	map_def.territory_res = 32
+	var disc: Field = autofree(Field.new())
+	disc.map_def = map_def
+	add_child_autofree(disc)
+	var root: Node3D = autofree(Node3D.new())
+	add_child_autofree(root)
+	var registry: BlockRegistry = autofree(BlockRegistry.new())
+	add_child_autofree(registry)
+	registry.set_host_authority(true)
+	registry.configure(disc, map_def)
+	Match.register_world(disc, registry, root)
+	return [disc, registry, root]
+
+
+## Drops the cubes, ticks the field with the physics loop and returns how many were
+## removed (freed or queued) by the end of the effect lifetime plus a margin.
+func _count_removed_after_lifetime(disc: Field, root: Node3D, positions: Array[Vector3]) -> int:
+	var shape: BlockShape = load("res://config/blocks/cube.tres") as BlockShape
+	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres") as PhysicsTuning
+	var cube_ids: Array[int] = []
+	for position: Vector3 in positions:
+		var cube: Block = BlockFactory.build(shape, tuning, 0)
+		root.add_child(cube)
+		cube.global_position = position
+		cube_ids.append(cube.get_instance_id())
+	var effect: BlackHoleEffect = (SpecialDef.find_by_id(&"black_hole").effect as BlackHoleEffect)
+	var hole: BlackHoleField = BlackHoleField.new()
+	hole.configure(effect, [])
+	add_child_autofree(hole)
+	hole.set_physics_process(false)
+	hole.global_position = Vector3(0.0, disc.surface_y() + 0.6, 0.0)
+	var ticks: int = int((effect.lifetime_s + REMOVAL_MARGIN_S) * float(Engine.physics_ticks_per_second))
+	var step: float = 1.0 / float(Engine.physics_ticks_per_second)
+	for _i: int in ticks:
+		if is_instance_valid(hole) and not hole.is_queued_for_deletion():
+			hole.tick(step)
+		await wait_physics_frames(1)
+	var removed: int = 0
+	for id: int in cube_ids:
+		var alive: Object = instance_from_id(id)
+		if alive == null or (alive as Node).is_queued_for_deletion():
+			removed += 1
+	return removed
+
+
+func test_cube_column_above_the_hole_is_all_removed_within_the_lifetime() -> void:
+	var world: Array = _live_world()
+	var disc: Field = world[0] as Field
+	var positions: Array[Vector3] = []
+	for i: int in CUBE_COLUMN_COUNT:
+		var angle: float = float(i) * 2.4
+		var jitter: Vector3 = Vector3(cos(angle), 0.0, sin(angle)) * CUBE_COLUMN_JITTER_M
+		positions.append(jitter + Vector3(0.0, disc.surface_y() + CUBE_COLUMN_START_M + float(i) * CUBE_COLUMN_SPACING_M, 0.0))
+	var removed: int = await _count_removed_after_lifetime(disc, world[2] as Node3D, positions)
+	assert_eq(removed, CUBE_COLUMN_COUNT, "every cube pulled into the vortex is destroyed")
+	Match.register_world(null, null, null)
+
+
+func test_cubes_piled_in_the_core_are_all_removed() -> void:
+	var world: Array = _live_world()
+	var disc: Field = world[0] as Field
+	var positions: Array[Vector3] = []
+	for i: int in CUBE_COLUMN_COUNT:
+		var angle: float = float(i) * TAU / 4.0
+		var ring: Vector3 = Vector3(cos(angle), 0.0, sin(angle)) * PILE_RING_M * float(i % 2)
+		positions.append(ring + Vector3(0.0, disc.surface_y() + 0.6 + float(i / 4) * CUBE_COLUMN_SPACING_M, 0.0))
+	var removed: int = await _count_removed_after_lifetime(disc, world[2] as Node3D, positions)
+	assert_eq(removed, CUBE_COLUMN_COUNT, "a pile resting in the core is destroyed layer by layer")
+	Match.register_world(null, null, null)
+
+
+func test_block_above_the_core_inside_the_height_band_is_captured_but_not_beyond_it() -> void:
+	var world: Array = _live_world()
+	var disc: Field = world[0] as Field
+	var effect: BlackHoleEffect = _effect()
+	var above: Block = _make_block(Vector3(0.5, effect.capture_height_m - 0.5, 0.0), 0)
+	var too_high: Block = _make_block(Vector3(0.5, effect.capture_height_m + 1.0, 0.0), 0)
+	above.freeze = true
+	too_high.freeze = true
+	var field: BlackHoleField = _make_field(effect)
+	await wait_physics_frames(1)
+	field.tick(effect.capture_hold_s + 0.05)
+	assert_true((world[1] as BlockRegistry).hole_dissolver().is_dissolving(above), "pile layer above the old 0.8 m core")
+	assert_false((world[1] as BlockRegistry).hole_dissolver().is_dissolving(too_high), "beyond the height band")
+	assert_not_null(disc)
+	Match.register_world(null, null, null)
+
+
+func test_refused_dissolve_does_not_mark_the_block_and_hold_entries_are_cleaned() -> void:
+	Match.set_process(false)
+	Match.abort_match()
+	Match.register_world(null, null, null)
+	var effect: BlackHoleEffect = _effect()
+	var core: Block = _make_block(Vector3(0.1, 0.0, 0.0), 0)
+	var field: BlackHoleField = _make_field(effect)
+	await wait_physics_frames(1)
+	field.tick(effect.capture_hold_s + 0.1)
+	assert_false(core.has_meta(RadialPull.CAPTURED_META), "refused: retried next tick")
+	assert_true(field._hold_s.has(core.get_instance_id()))
+	core.global_position = Vector3(effect.capture_radius_m + 3.0, 0.0, 0.0)
+	await wait_physics_frames(1)
+	field.tick(0.01)
+	assert_false(field._hold_s.has(core.get_instance_id()), "left the volume: hold forgotten")
+
+
 func test_shipped_resource_is_in_the_roster_with_a_black_hole_effect() -> void:
 	var def: SpecialDef = SpecialDef.find_by_id(&"black_hole")
 	assert_not_null(def)
@@ -197,6 +319,9 @@ func test_shipped_resource_is_in_the_roster_with_a_black_hole_effect() -> void:
 	assert_almost_eq(effect.pull.accel_mps2, 26.0, 0.0001)
 	assert_almost_eq(effect.pull.friction_compensation, 24.0, 0.0001, "above the ~22.5 breakaway value")
 	assert_almost_eq(effect.pull.core_radius_m, 0.8, 0.0001)
+	assert_almost_eq(effect.capture_radius_m, 2.0, 0.0001)
+	assert_almost_eq(effect.capture_height_m, 3.0, 0.0001)
+	assert_almost_eq(effect.capture_hold_s, 0.15, 0.0001)
 	assert_almost_eq(effect.lifetime_s, 6.0, 0.0001)
 	assert_true(effect.detaches(), "the field is a standalone world node")
 	assert_almost_eq(effect.effect_lifetime_s(), -1.0, 0.0001, "the pre-trigger fuse is not stretched")

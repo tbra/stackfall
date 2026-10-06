@@ -22,6 +22,13 @@ extends SpecialEffect
 ## value, see RadialPullTuning), core 0.8 m.
 @export var pull: RadialPullTuning = RadialPullTuning.new()
 
+## Capture volume (Bontago-1pi.85.26): horizontal radius (m) and vertical half-height
+## (m) around the centre; a block must stay inside for capture_hold_s seconds.
+## Replaces pull.core_radius_m, whose 0.8 m 3D sphere was too small for a pile.
+@export var capture_radius_m: float = 2.0
+@export var capture_height_m: float = 3.0
+@export var capture_hold_s: float = 0.15
+
 ## Seconds the black hole lives after it spawns.
 @export var lifetime_s: float = 6.0
 

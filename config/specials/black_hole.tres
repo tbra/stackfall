@@ -18,6 +18,9 @@ core_radius_m = 0.8
 [sub_resource type="Resource" id="Resource_black_hole_effect"]
 script = ExtResource("2_effect")
 pull = SubResource("Resource_black_hole_pull")
+capture_radius_m = 2.0
+capture_height_m = 3.0
+capture_hold_s = 0.15
 lifetime_s = 6.0
 visual_radius_m = 0.7
 

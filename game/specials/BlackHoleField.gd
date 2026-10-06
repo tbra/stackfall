@@ -9,8 +9,8 @@ var _exclude: Array[RID] = []
 var _age: float = 0.0
 ## Cached once: tick() runs every physics frame.
 var _block_filter: Callable = _is_block
-## Cached once: passed to RadialPull every tick.
-var _capture_callable: Callable = _capture
+## Seconds each body (instance id) has spent inside the capture volume.
+var _hold_s: Dictionary = {}
 ## Set when spawned into a match world: the field then frees itself as soon as
 ## the match is no longer live (ended or restarted).
 var bind_to_match: bool = false
@@ -57,10 +57,37 @@ func tick(delta: float) -> void:
 	var world: World3D = get_world_3d()
 	if world == null:
 		return
-	RadialPull.pull(
-		world.direct_space_state, global_position, _effect.pull, _exclude, _block_filter, delta,
-		_capture_callable
-	)
+	var space: PhysicsDirectSpaceState3D = world.direct_space_state
+	# No capture callback: RadialPull's 3D core is too small for a pile (85.26).
+	RadialPull.pull(space, global_position, _effect.pull, _exclude, _block_filter, delta)
+	_sweep_capture(space, delta)
+
+
+## Bontago-1pi.85.26: capture volume = horizontal radius + vertical band around the
+## centre, so blocks piled in or above the core are removed, not only the first
+## one touching a 0.8 m sphere. A body must stay inside capture_hold_s.
+func _sweep_capture(space: PhysicsDirectSpaceState3D, delta: float) -> void:
+	var reach: float = Vector2(_effect.capture_radius_m, _effect.capture_height_m).length()
+	var inside: Dictionary = {}
+	for body: RigidBody3D in ExplosionFx.query_bodies(space, global_position, reach, _exclude):
+		if not _block_filter.call(body) or body.has_meta(RadialPull.CAPTURED_META):
+			continue
+		var offset: Vector3 = body.global_position - global_position
+		if Vector2(offset.x, offset.z).length() > _effect.capture_radius_m:
+			continue
+		if absf(offset.y) > _effect.capture_height_m:
+			continue
+		var id: int = body.get_instance_id()
+		inside[id] = true
+		var held: float = float(_hold_s.get(id, 0.0)) + delta
+		_hold_s[id] = held
+		# A refused dissolve (no registry) leaves the block unmarked: retried next tick.
+		if held >= _effect.capture_hold_s and _capture(body):
+			body.set_meta(RadialPull.CAPTURED_META, true)
+	# Forget bodies that left the volume or were freed.
+	for id: int in _hold_s.keys():
+		if not inside.has(id):
+			_hold_s.erase(id)
 
 
 ## Captured blocks go through the territory holes' removal (shared entry, no
