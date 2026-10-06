@@ -259,7 +259,9 @@ func request_place(
 	))
 	if reason == PlacementRules.REASON_OK:
 		# Bontago-1pi.85.35: an in-place gift activates here, with no carrier body.
-		var in_place_def: SpecialDef = _resolve_deliverable_special(_match.held_special(slot_id))
+		# An ordinary piece (held id &"") never queries the special roster.
+		var held_id: StringName = _match.held_special(slot_id)
+		var in_place_def: SpecialDef = _resolve_deliverable_special(held_id) if held_id != &"" else null
 		if in_place_def != null and in_place_def.activates_in_place and _activation.try_activate(slot_id, in_place_def, final_disk_origin):
 			_match._feed._consume_and_refeed(slot_id, auto_drop)
 			if _match.config.hot_seat:
