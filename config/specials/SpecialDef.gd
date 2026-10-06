@@ -13,6 +13,10 @@ extends Resource
 ## Unique identifier, e.g. &"rocket", &"volcano".
 @export var id: StringName = &""
 
+## Player-facing name (Bontago-1pi.86 Q1). Empty falls back to the capitalised id
+## through get_display_name(); read it through DisplayNames.special(), not directly.
+@export var display_name: String = ""
+
 ## Scene used to build this special's extra visuals (fuse glow, fins, ...).
 ## Optional -- SpecialBehavior only needs `effect` below to arm and trigger.
 @export var scene: PackedScene = null
@@ -61,6 +65,19 @@ const GENERIC_PREVIEW_ICON: Texture2D = preload("res://assets/ui/icons/gift_gene
 ## so a SpecialDef with no effect assigned still ages/arms/force-triggers,
 ## it just detonates as a no-op.
 @export var effect: SpecialEffect = null
+
+## The player-facing name: `display_name` when authored, else the id with
+## underscores as spaces and each word capitalised ("jumping_bean" -> "Jumping Bean").
+func get_display_name() -> String:
+	if display_name != "":
+		return display_name
+	return name_from_id(id)
+
+
+## "jumping_bean" -> "Jumping Bean"; "" for an empty id.
+static func name_from_id(special_id: StringName) -> String:
+	return String(special_id).replace("_", " ").capitalize()
+
 
 ## Looks up a roster entry by id (cached); null for unknown/empty ids.
 static var _by_id_cache: Dictionary = {}
