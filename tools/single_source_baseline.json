@@ -1,0 +1,40 @@
+{
+ "CAPITALIZE_ID": {
+  "autoload/match/MatchWeather.gd": 1,
+  "ui/HUD.gd": 1,
+  "ui/LoadingScreen.gd": 2,
+  "ui/Lobby.gd": 1,
+  "ui/TuningPanel.gd": 2
+ },
+ "COLOR_LOOKUP": {
+  "autoload/match/MatchLifecycle.gd": 1,
+  "game/BlockEffectsManager.gd": 2,
+  "game/GiftCrate.gd": 2,
+  "ui/HUD.gd": 2,
+  "ui/ScoreTable.gd": 1
+ },
+ "DIAMOND": {
+  "ui/Minimap.gd": 3
+ },
+ "ENUM_LABEL": {
+  "autoload/match/MatchWeather.gd": 1,
+  "ui/LoadingScreen.gd": 2
+ },
+ "GLYPH_EVENTS": {
+  "game/GiftDemoStrip.gd": 1,
+  "ui/HUD.gd": 2,
+  "ui/KeyRebindRow.gd": 1,
+  "ui/LoadingScreen.gd": 1
+ },
+ "NAME_FMT": {
+  "autoload/match/MatchStats.gd": 2,
+  "core/bot_names.gd": 1,
+  "ui/HUD.gd": 1,
+  "ui/ResultsScreen.gd": 2,
+  "ui/ScoreTable.gd": 1,
+  "ui/lobby/LobbySeatRow.gd": 1
+ },
+ "NAME_RAW": {
+  "autoload/match/MatchStats.gd": 1
+ }
+}
