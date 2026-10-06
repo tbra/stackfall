@@ -223,3 +223,15 @@ func test_abort_match_frees_live_anchors() -> void:
 	Match.abort_match()
 	await get_tree().process_frame
 	assert_eq(_anchor_count(), 0)
+
+
+## Bontago-1pi.85.44: an ordinary piece (held id &"") must never query the special roster, so
+## neither a manual release nor a feed auto-drop may log the "unknown special id" warning.
+func test_ordinary_piece_never_queries_specials_on_place_or_auto_drop() -> void:
+	_start()
+	Match._placement._warned_special_ids.clear()
+	assert_eq(Match.held_special(0), &"")
+	assert_eq(Match.request_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false), PlacementRules.REASON_OK)
+	assert_eq(Match.request_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, true), PlacementRules.REASON_OK)
+	assert_eq(_blocks_root.get_child_count(), 2, "ordinary pieces still place")
+	assert_true(Match._placement._warned_special_ids.is_empty(), "no special lookup for an ordinary piece")
