@@ -65,7 +65,6 @@ var name_provider: Variant = null
 
 ## The Input Map action that readies (Enter/Numpad Enter/Space and gamepad A).
 const READY_ACTION: StringName = &"ui_accept"
-const INPUT_GLYPH_SCENE: PackedScene = preload("res://ui/InputGlyph.tscn")
 ## Unit-square check mark of a ready tick (relative to the mark's radius).
 const _CHECK_POINTS: PackedVector2Array = [Vector2(-0.38, 0.02), Vector2(-0.1, 0.3), Vector2(0.4, -0.3)]
 
@@ -691,18 +690,7 @@ func _refresh_prompt_glyph() -> void:
 		child.free()
 	if not InputMap.has_action(READY_ACTION):
 		return
-	var want_gamepad: bool = Settings.active_input_device() == Settings.DEVICE_GAMEPAD
-	var shown: int = 0
-	for event: InputEvent in InputMap.action_get_events(READY_ACTION):
-		var is_gamepad: bool = event is InputEventJoypadButton or event is InputEventJoypadMotion
-		if is_gamepad != want_gamepad:
-			continue
-		var glyph: InputGlyph = INPUT_GLYPH_SCENE.instantiate() as InputGlyph
-		_glyph_slot.add_child(glyph)
-		glyph.set_event(event)
-		shown += 1
-		if shown >= tuning.ready_prompt_glyph_count:
-			break
+	InputGlyph.build_for_action(_glyph_slot, READY_ACTION, tuning.ready_prompt_glyph_count)
 
 
 ## Test seam: the labels of the glyphs currently in the prompt ("Enter", "A").

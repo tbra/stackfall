@@ -3,7 +3,6 @@ extends CanvasLayer
 ## Bontago-1pi.70: the gift demo's on-screen hint: which gift the next piece is
 ## forced to, plus the bound prev/next glyphs (shared InputGlyph, active device).
 
-const INPUT_GLYPH_SCENE: PackedScene = preload("res://ui/InputGlyph.tscn")
 const ACTION_PREV: StringName = &"gift_demo_cycle_prev"
 const ACTION_NEXT: StringName = &"gift_demo_cycle_next"
 const STRIP_LAYER: int = 30
@@ -51,13 +50,5 @@ func _rebuild_glyphs() -> void:
 		if child is InputGlyph:
 			_row.remove_child(child)
 			child.free()
-	var want_gamepad: bool = Settings.active_input_device() == Settings.DEVICE_GAMEPAD
 	for action: StringName in [ACTION_PREV, ACTION_NEXT]:
-		for event: InputEvent in InputMap.action_get_events(action):
-			var is_gamepad: bool = event is InputEventJoypadButton or event is InputEventJoypadMotion
-			if is_gamepad != want_gamepad:
-				continue
-			var glyph: InputGlyph = INPUT_GLYPH_SCENE.instantiate() as InputGlyph
-			_row.add_child(glyph)
-			glyph.set_event(event)
-			break
+		InputGlyph.build_for_action(_row, action, 1)

@@ -148,6 +148,7 @@ const JOYPAD_AXIS_LABELS: Dictionary[int, String] = {
 # DECISION: the glyph art locations are pure asset paths, kept as consts here
 # (they are binary art references, not tunable values); the layout numbers
 # below are measurements of that art's own SVG geometry, documented per const.
+const GLYPH_SCENE_PATH: String = "res://ui/InputGlyph.tscn"
 const GLYPH_ASSET_ROOT: String = "res://assets/ui/input_glyphs/"
 const KEY_ATLAS_SUBDIR: String = "key_atlas/"
 const KEY_CATALOG_FILE: String = "key_atlas/catalog.json"
@@ -297,6 +298,56 @@ func set_chord(events: Array[InputEvent]) -> void:
 	if not ids.is_empty() and _apply_table_texture(glyph_table.combo(ids)):
 		custom_minimum_size = Vector2(GLYPH_HEIGHT_PX * COMBO_ASPECT, GLYPH_HEIGHT_PX)
 	queue_redraw()
+
+
+## Events bound to `action` on one device family (gamepad when `gamepad`, else
+## keyboard/mouse). Empty for an unknown action. The only place UI code reads
+## the Input Map for prompts (single-source concept G).
+static func events_of_family(action: StringName, gamepad: bool) -> Array[InputEvent]:
+	var matched: Array[InputEvent] = []
+	if not InputMap.has_action(action):
+		return matched
+	for event: InputEvent in InputMap.action_get_events(action):
+		var is_gamepad: bool = event is InputEventJoypadButton or event is InputEventJoypadMotion
+		if is_gamepad == gamepad:
+			matched.append(event)
+	return matched
+
+
+## Events of `action` for `device` (a Settings.DEVICE_* family; empty = the
+## player's active device).
+static func events_for_action(action: StringName, device: StringName = &"") -> Array[InputEvent]:
+	var family: StringName = device if device != &"" else Settings.active_input_device()
+	return events_of_family(action, family == Settings.DEVICE_GAMEPAD)
+
+
+## Instantiates one glyph per event (at most `max_count` when > 0) under
+## `parent` and returns them.
+static func build_for_events(parent: Control, events: Array[InputEvent], max_count: int = 0) -> Array[InputGlyph]:
+	var built: Array[InputGlyph] = []
+	var scene: PackedScene = load(GLYPH_SCENE_PATH) as PackedScene
+	for event: InputEvent in events:
+		if max_count > 0 and built.size() >= max_count:
+			break
+		var glyph: InputGlyph = scene.instantiate() as InputGlyph
+		parent.add_child(glyph)
+		glyph.set_event(event)
+		built.append(glyph)
+	return built
+
+
+## Glyphs for the first `max_count` (0 = all) bindings of `action` on the
+## active device, parented under `parent`.
+static func build_for_action(parent: Control, action: StringName, max_count: int = 0) -> Array[InputGlyph]:
+	return build_for_events(parent, events_for_action(action), max_count)
+
+
+## Stable text signature of the active-device bindings of `action` (cache key).
+static func signature_for_action(action: StringName) -> String:
+	var parts: PackedStringArray = PackedStringArray([String(Settings.active_input_device())])
+	for event: InputEvent in events_for_action(action):
+		parts.append(event.as_text())
+	return "|".join(parts)
 
 
 ## Stable id of a gamepad event for combo lookup ("lb", "rt", "stick_right",

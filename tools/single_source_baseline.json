@@ -10,10 +10,7 @@
  "DIAMOND": {},
  "ENUM_LABEL": {},
  "GLYPH_EVENTS": {
-  "game/GiftDemoStrip.gd": 1,
-  "ui/HUD.gd": 2,
-  "ui/KeyRebindRow.gd": 1,
-  "ui/LoadingScreen.gd": 1
+  "ui/HUD.gd": 2
  },
  "NAME_FMT": {
   "core/bot_names.gd": 1,

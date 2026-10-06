@@ -301,10 +301,7 @@ func _refresh_glyphs() -> void:
 
 	var events: Array[InputEvent] = _events_for_active_device()
 	var shown_count: int = mini(events.size(), MAX_GLYPHS)
-	for i: int in range(shown_count):
-		var glyph: InputGlyph = INPUT_GLYPH_SCENE.instantiate() as InputGlyph
-		_glyph_row.add_child(glyph)
-		glyph.set_event(events[i])
+	InputGlyph.build_for_events(_glyph_row, events, shown_count)
 
 	if events.size() > MAX_GLYPHS:
 		var overflow: InputGlyph = INPUT_GLYPH_SCENE.instantiate() as InputGlyph
@@ -345,14 +342,7 @@ static func gamepad_events_for(action: StringName) -> Array[InputEvent]:
 
 
 static func events_of_family(action: StringName, gamepad: bool) -> Array[InputEvent]:
-	var matched: Array[InputEvent] = []
-	if not InputMap.has_action(action):
-		return matched
-	for event: InputEvent in InputMap.action_get_events(action):
-		var is_gamepad: bool = event is InputEventJoypadButton or event is InputEventJoypadMotion
-		if is_gamepad == gamepad:
-			matched.append(event)
-	return matched
+	return InputGlyph.events_of_family(action, gamepad)
 
 
 ## Friendly label for `action` (owner: "Friendly action names ... human
