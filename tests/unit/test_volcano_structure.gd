@@ -1,7 +1,7 @@
 extends GutTest
 ## VolcanoStructure (Bontago-1pi.85.14): rise, footprint push, 20 s+ eruption through
 ## BlockSpawner, cap, match reset, client visual without a body.
-## Field is an AnimatableBody3D with sync_to_physics: no test writes its transform.
+## Field is an AnimatableBody3D with sync_to_physics: the tilt test writes its pose from a PhysicsCallDriver.
 
 const TICK: float = 1.0 / 60.0
 
@@ -79,11 +79,43 @@ func test_rises_over_rise_s_to_height_with_a_cone_collider_on_the_beacon_layer()
 	_step(structure, _effect.rise_s * 0.5 + TICK)
 	assert_almost_eq(structure.current_height(), _effect.height_m, 0.001)
 	assert_false(structure.is_rising())
-	var hull: ConvexPolygonShape3D = (structure.body().get_child(0) as CollisionShape3D).shape as ConvexPolygonShape3D
+	var collision: CollisionShape3D = structure.body().get_child(0) as CollisionShape3D
+	var hull: ConvexPolygonShape3D = collision.shape as ConvexPolygonShape3D
 	var top: float = 0.0
 	for point: Vector3 in hull.points:
 		top = maxf(top, point.y)
-	assert_almost_eq(top, _effect.height_m, 0.001, "the hull's apex reached the full height")
+	assert_almost_eq(top * collision.scale.y, _effect.height_m, 0.001, "the hull's scaled apex reached the full height")
+
+
+func test_hull_is_built_once_and_only_scaled_during_the_rise() -> void:
+	_start()
+	var structure: VolcanoStructure = _manual(VolcanoStructure.spawn_host(_effect, _origin(), 0))
+	var collision: CollisionShape3D = structure.body().get_child(0) as CollisionShape3D
+	var hull: Shape3D = collision.shape
+	var last_scale: float = collision.scale.y
+	for _i: int in range(int(ceil(_effect.rise_s / TICK)) + 1):
+		structure.tick(TICK)
+		assert_same(collision.shape, hull, "the hull resource is never rebuilt")
+		assert_gte(collision.scale.y, last_scale - 0.00001)
+		last_scale = collision.scale.y
+	assert_almost_eq(last_scale, 1.0, 0.001)
+
+
+func test_structure_stays_seated_on_a_tilting_field() -> void:
+	_start()
+	var structure: VolcanoStructure = _manual(VolcanoStructure.spawn_host(_effect, _origin(), 0))
+	_step(structure, _effect.rise_s + TICK)
+	var local_before: Transform3D = _field.global_transform.affine_inverse() * structure.global_transform
+	var tilt: Quaternion = Quaternion(Vector3(1.0, 0.0, 1.0).normalized(), deg_to_rad(12.0))
+	var driver: PhysicsCallDriver = PhysicsCallDriver.new()
+	driver.callable = Callable(_field, "apply_replicated_pose").bind(Vector3.ZERO, tilt)
+	add_child_autofree(driver)
+	await wait_physics_frames(2)
+	assert_almost_eq(_field.global_basis.get_rotation_quaternion().angle_to(tilt), 0.0, 0.01, "the field tilted")
+	var local_after: Transform3D = _field.global_transform.affine_inverse() * structure.global_transform
+	assert_true(local_before.is_equal_approx(local_after), "structure keeps its pose in the field frame")
+	assert_gt(structure.global_basis.y.angle_to(Vector3.UP), 0.1, "structure axis tilted with the disc")
+	assert_almost_eq(structure.apex_world().distance_to(structure.global_position), _effect.height_m, 0.001)
 
 
 func test_erupts_for_at_least_20_s_of_sim_time_with_owner_cubes_and_no_stat_bump() -> void:
