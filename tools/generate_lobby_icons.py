@@ -10,7 +10,7 @@ ART={
  'section_gifts':('Gifts section','<rect x="4" y="10" width="16" height="4" rx="1"/><path d="M5 14v7h14v-7M12 10v11"/><path d="M12 10C3 10 5 2 9 5l3 5c9 0 7-8 3-5Z"/>'),
  'section_experiments':('Experiments section','<path d="M9 3h6m-5 0v7l-6 8q-2 3 2 3h12q4 0 2-3l-6-8V3M7 15h10"/><circle cx="10" cy="18" r=".7" fill="#fff" stroke="none"/><circle cx="14" cy="17" r=".7" fill="#fff" stroke="none"/>'),
  'bot_add':('Add bot','<rect x="3" y="8" width="12" height="11" rx="3"/><path d="M9 5v3M6 16h6M18.5 15v6M15.5 18h6"/><circle cx="6.5" cy="12" r=".8" fill="#fff" stroke="none"/><circle cx="11.5" cy="12" r=".8" fill="#fff" stroke="none"/>'),
- 'bot_remove':('Remove bot','<rect x="3" y="8" width="12" height="11" rx="3"/><path d="M9 5v3M6 16h6M15.5 18h6"/><circle cx="6.5" cy="12" r=".8" fill="#fff" stroke="none"/><circle cx="11.5" cy="12" r=".8" fill="#fff" stroke="none"/>'),
+ 'bot_remove':('Remove bot','<path d="M4 4l16 16M20 4L4 20"/>'),
  'teams':('Teams','<circle cx="8" cy="7" r="3"/><circle cx="17" cy="7" r="3"/><path d="M3 20v-4q0-4 5-4t5 4v4M13 13q2-2 4-1q4 0 4 4v4"/>'),
  'difficulty_easy':('Easy bot difficulty','<rect x="10" y="14" width="4" height="7" rx="1" fill="#fff" stroke="none"/>'),
  'difficulty_normal':('Normal bot difficulty','<rect x="7" y="13" width="4" height="8" rx="1" fill="#fff" stroke="none"/><rect x="13" y="8" width="4" height="13" rx="1" fill="#fff" stroke="none"/>'),
