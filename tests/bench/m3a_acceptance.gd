@@ -128,7 +128,7 @@ const THROW_GIFT_ID_REJECT: int = 900002
 ## Comfortably above SpecialTuning.throw_max_speed (25 m/s) so the host's own
 ## clamp (spec 3.4: "the host clamps velocity to throw_max_speed") is the
 ## thing actually under test, not merely "a velocity was accepted."
-const THROW_VELOCITY_SPEED: float = 40.0
+const THROW_VELOCITY_SPEED: float = 1.0 # Bontago-1pi.85.29: the intent carries a unit camera aim; the host owns the speed
 ## Review fix: offset from the slot's own home_position the accepted throw
 ## releases at (see _run_client_throw_phase()'s own comment). Unlike a unit
 ## test, this harness's host runs real Jolt physics continuously, and the
@@ -587,10 +587,10 @@ func _run_host_throw_phase() -> void:
 
 	var special_tuning: SpecialTuning = load("res://config/special_tuning.tres") as SpecialTuning
 	var speed: float = thrown_block.linear_velocity.length()
-	var tolerance: float = special_tuning.throw_max_speed * THROW_SPEED_TOLERANCE_FRACTION
+	var tolerance: float = special_tuning.gift_throw_speed_mps * THROW_SPEED_TOLERANCE_FRACTION
 	_throw_check(
-		"throw_speed_clamped_to_max", absf(speed - special_tuning.throw_max_speed) <= tolerance,
-		"speed=%.3f throw_max_speed=%.3f tolerance=%.3f" % [speed, special_tuning.throw_max_speed, tolerance]
+		"throw_speed_clamped_to_max", absf(speed - special_tuning.gift_throw_speed_mps) <= tolerance,
+		"speed=%.3f gift_throw_speed_mps=%.3f tolerance=%.3f" % [speed, special_tuning.gift_throw_speed_mps, tolerance]
 	)
 	_throw_check(
 		"throw_continuous_cd_set", thrown_continuous_cd,

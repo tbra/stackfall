@@ -624,8 +624,10 @@ func _send_throw(action: BotSpecialPlanner.BotSpecialAction) -> StringName:
 	# reinvented. A pure rotation preserves length, so the planner's own
 	# `special_throw_speed_mps` speed survives the conversion unchanged.
 	var world_velocity: Vector3 = _field.global_transform.basis * action.throw_velocity
+	# Bontago-1pi.85.29: the host derives the throw from a unit aim only (client speed is never
+	# trusted), so the bot sends its planned direction, not a speed-scaled velocity.
 	return StringName(match_ref.request_throw(
-		_slot_id, world_origin, 0, Quaternion.IDENTITY, world_velocity, int(match_ref.feed_seq(_slot_id))
+		_slot_id, world_origin, 0, Quaternion.IDENTITY, world_velocity.normalized(), int(match_ref.feed_seq(_slot_id))
 	))
 
 

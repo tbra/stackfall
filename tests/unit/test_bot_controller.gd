@@ -858,17 +858,18 @@ func test_send_throw_rotates_the_planners_velocity_through_the_field_basis() -> 
 	)
 	assert_true(expected_action.should_throw, "fixture: an offensive Bomb with a live enemy target always throws")
 
-	var expected_world_velocity: Vector3 = tilt_basis * expected_action.throw_velocity
+	# Bontago-1pi.85.29: the bot sends the unit aim; the host owns the speed.
+	var expected_world_velocity: Vector3 = (tilt_basis * expected_action.throw_velocity).normalized()
 	var actual_velocity: Vector3 = match_ref.request_throw_calls[0]["velocity"] as Vector3
 	assert_almost_eq(actual_velocity.x, expected_world_velocity.x, 0.01, "world-space x")
 	assert_almost_eq(actual_velocity.y, expected_world_velocity.y, 0.01, "world-space y")
 	assert_almost_eq(actual_velocity.z, expected_world_velocity.z, 0.01, "world-space z")
 	assert_almost_eq(
-		actual_velocity.length(), expected_action.throw_velocity.length(), 0.01,
-		"a pure rotation preserves the planner's own throw speed"
+		actual_velocity.length(), 1.0, 0.01,
+		"the bot sends a unit aim direction (the host never reads a client speed)"
 	)
 	assert_true(
-		actual_velocity.distance_to(expected_action.throw_velocity) > 0.05,
+		actual_velocity.distance_to(expected_action.throw_velocity.normalized()) > 0.05,
 		"fixture: the tilt must actually change the vector -- otherwise this test cannot tell the fix from the bug"
 	)
 

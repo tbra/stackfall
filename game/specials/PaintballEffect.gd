@@ -39,7 +39,7 @@ const _CARRIER_GRAVITY_META: StringName = &"paintball_carrier_gravity_scale"
 static func set_launch_direction(block: Block, direction: Vector3) -> bool:
 	if block == null or not is_instance_valid(block):
 		return false
-	var clean: Vector3 = RocketEffect.sanitize_launch_direction(direction)
+	var clean: Vector3 = RocketEffect.sanitize_downward_direction(direction)
 	if clean == Vector3.ZERO:
 		return false
 	block.set_meta(LAUNCH_DIRECTION_META, clean)

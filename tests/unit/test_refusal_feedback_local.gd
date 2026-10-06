@@ -246,7 +246,7 @@ func test_a_remote_throw_refusal_goes_to_the_owning_peer_once_and_host_hears_not
 	var off_disk: Vector3 = _home_world_position(REMOTE_SLOT) + Vector3(1000.0, 0.0, 1000.0)
 
 	net._handle_throw_intent(
-		REMOTE_PEER, REMOTE_SLOT, off_disk, 0, Quaternion.IDENTITY, Vector3(5.0, 0.0, 0.0), Match.feed_seq(REMOTE_SLOT)
+		REMOTE_PEER, REMOTE_SLOT, off_disk, 0, Quaternion.IDENTITY, Vector3(0.0, -0.5, -1.0).normalized(), Match.feed_seq(REMOTE_SLOT)
 	)
 
 	assert_eq(_rejected_events, [REMOTE_SLOT] as Array[int], "fixture: the host refused a throw off the disk")

@@ -1,8 +1,7 @@
 class_name ThrowArcPreview
 extends Node3D
-## M4 P2e (docs/M4_P2_PACKAGES.md P2e, spec 2.5 "Throw (specials only)"):
-## a pure-presentation ballistic-arc polyline, shown only while game/
-## PlayerController.gd reports is_aiming_throw() true. It samples the same
+## M4 P2e / Bontago-1pi.85.29: a pure-presentation arc polyline, shown while game/
+## PlayerController.gd holds a throwable/aimed gift (no LT/drag any more). It samples the same
 ## closed-form `position(t) = origin + velocity*t + 0.5*gravity*t^2` game/
 ## BlockFactory.gd's own gravity_scale wiring implies (constant acceleration,
 ## no drag on a thrown special before it lands), stepping at a fixed dt
@@ -80,9 +79,16 @@ func _ready() -> void:
 ## from a spawn point, no initial acceleration ramp). `field`, if given, is
 ## read-only (see this file's top doc comment); null keeps the pre-landing
 ## fixed-time-budget behaviour every existing bare-unit-test caller relies on.
-func sample_arc(origin: Vector3, velocity: Vector3, field: Field = null) -> PackedVector3Array:
+## Bontago-1pi.85.29: `gravity_scale` multiplies the block gravity (default 1.0 = a thrown block;
+## 0.0 = the straight gravity-free flight of Rocket/Paintball).
+func sample_arc(
+	origin: Vector3, velocity: Vector3, field: Field = null, gravity_scale: float = 1.0
+) -> PackedVector3Array:
 	var gravity: Vector3 = (
-		Vector3.DOWN * float(ProjectSettings.get_setting("physics/3d/default_gravity")) * physics_tuning.gravity_multiplier
+		Vector3.DOWN
+		* float(ProjectSettings.get_setting("physics/3d/default_gravity"))
+		* physics_tuning.gravity_multiplier
+		* gravity_scale
 	)
 	var sample_count: int = maxi(ghost_tuning.throw_arc_sample_count, 1)
 	var dt: float = ghost_tuning.throw_arc_max_time_s / float(sample_count)
@@ -142,8 +148,8 @@ func _landing_point(previous: Vector3, point: Vector3, landing_y: float) -> Vect
 ## safe to call every frame, like GhostPreview.apply_validity(). `field` is
 ## forwarded straight to sample_arc() (Bontago-1en.25); PlayerController
 ## passes Match.field(), read-only, same as its own _on_placement_relocated().
-func update_arc(origin: Vector3, velocity: Vector3, field: Field = null) -> void:
-	_rebuild_mesh(sample_arc(origin, velocity, field))
+func update_arc(origin: Vector3, velocity: Vector3, field: Field = null, gravity_scale: float = 1.0) -> void:
+	_rebuild_mesh(sample_arc(origin, velocity, field, gravity_scale))
 	visible = true
 
 

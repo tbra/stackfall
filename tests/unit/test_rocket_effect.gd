@@ -92,6 +92,8 @@ func test_inert_before_armed() -> void:
 func test_armed_tick_launches_along_the_given_direction() -> void:
 	var directions: Array[Vector3] = [
 		Vector3(1.0, 0.0, 0.0),
+		Vector3(0.0, 1.0, 0.0),  # straight up (1pi.85.34 Q3)
+		Vector3(0.3, 0.8, -0.5),
 		Vector3(0.0, -1.0, 0.0),
 		Vector3(0.6, -0.3, -0.8),
 		Vector3(-1.0, -0.5, 2.0),
@@ -157,8 +159,6 @@ func test_unusable_directions_are_rejected_and_keep_the_previous_one() -> void:
 		Vector3.ZERO,
 		Vector3(NAN, 0.0, 1.0),
 		Vector3(INF, 0.0, 0.0),
-		Vector3.UP,  # nothing left once "not upward" is applied
-		Vector3(0.0, 5.0, 0.0),
 	]
 	for direction: Vector3 in rejected:
 		assert_false(RocketEffect.set_launch_direction(block, direction), "rejected: %s" % [direction])
@@ -166,13 +166,23 @@ func test_unusable_directions_are_rejected_and_keep_the_previous_one() -> void:
 	assert_false(RocketEffect.set_launch_direction(null, Vector3.FORWARD))
 
 
-func test_an_upward_component_is_dropped_and_the_result_normalised() -> void:
-	var sanitised: Vector3 = RocketEffect.sanitize_launch_direction(Vector3(3.0, 5.0, 4.0))
+func test_an_upward_aim_is_kept_and_normalised() -> void:
+	# Bontago-1pi.85.34 Q3: the Rocket flies exactly where the camera aims.
+	var up: Vector3 = RocketEffect.sanitize_launch_direction(Vector3(3.0, 5.0, 4.0))
+	assert_almost_eq(up.length(), 1.0, 0.0001)
+	assert_true(up.is_equal_approx(Vector3(3.0, 5.0, 4.0).normalized()), "upward kept")
+	assert_true(RocketEffect.sanitize_launch_direction(Vector3(0.0, 5.0, 0.0)).is_equal_approx(Vector3.UP), "straight up")
+	assert_eq(RocketEffect.sanitize_launch_direction(Vector3.ZERO), Vector3.ZERO)
+	assert_eq(RocketEffect.sanitize_launch_direction(Vector3(NAN, 0.0, 1.0)), Vector3.ZERO)
+	assert_true(RocketEffect.set_launch_direction(_make_stub_block(), Vector3.UP), "straight up is a valid launch now")
+
+
+func test_downward_sanitiser_keeps_the_paintball_rule() -> void:
+	var sanitised: Vector3 = RocketEffect.sanitize_downward_direction(Vector3(3.0, 5.0, 4.0))
 	assert_almost_eq(sanitised.y, 0.0, 0.0001, "not upward")
-	assert_almost_eq(sanitised.length(), 1.0, 0.0001)
 	assert_almost_eq(sanitised.x, 0.6, 0.0001)
-	var downward: Vector3 = RocketEffect.sanitize_launch_direction(Vector3(0.0, -3.0, -4.0))
-	assert_almost_eq(downward.y, -0.6, 0.0001, "a downward pitch is kept")
+	assert_eq(RocketEffect.sanitize_downward_direction(Vector3.UP), Vector3.ZERO)
+	assert_almost_eq(RocketEffect.sanitize_downward_direction(Vector3(0.0, -3.0, -4.0)).y, -0.6, 0.0001)
 
 
 # --- safety fuel: exactly fuel_duration_s after the launch, frame-rate independent

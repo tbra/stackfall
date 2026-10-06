@@ -447,15 +447,13 @@ func test_gamepad_camera_zoom_modifier_zooms_with_stick_not_trigger_alone_and_fr
 	Input.flush_buffered_events()
 
 
-## Owner controller update: "LT when the held piece is a throwable special:
-## keep spec 2.5 throw ... LT+stick zoom applies only when not aiming a
-## throw." A held special must still start a throw aim on LT, undisturbed by
-## camera_zoom_modifier sharing the same physical trigger.
-func test_gamepad_camera_zoom_modifier_does_not_block_throw_aim_on_a_held_special() -> void:
+## Bontago-1pi.85.29: throwing no longer uses LT (no hold-to-aim state), so LT + stick zoom
+## applies to every held piece, throwables included, and LT alone never throws or places.
+func test_gamepad_camera_zoom_modifier_never_starts_a_throw_on_a_held_special() -> void:
 	var ghost: GhostPreview = autofree(GhostPreview.new())
 	add_child_autofree(ghost)
-	var rocket_shape: BlockShape = load("res://config/blocks/cube.tres")
-	ghost.set_shape(rocket_shape)
+	var cube_shape: BlockShape = load("res://config/blocks/cube.tres")
+	ghost.set_shape(cube_shape)
 
 	var controller: PlayerController = autofree(PlayerController.new())
 	add_child_autofree(controller)
@@ -463,8 +461,8 @@ func test_gamepad_camera_zoom_modifier_does_not_block_throw_aim_on_a_held_specia
 	controller._active_slot = 0
 
 	var fake_match: FakeMatch = FakeMatch.new()
-	fake_match.held_shapes[0] = rocket_shape
-	fake_match.held_special_by_slot[0] = &"bomb"  # throwable per owner answer 1pi.85.1 (Rocket fires along the camera instead)
+	fake_match.held_shapes[0] = cube_shape
+	fake_match.held_special_by_slot[0] = &"bomb"
 	controller._match = fake_match
 
 	var trigger: InputEventJoypadMotion = InputEventJoypadMotion.new()
@@ -474,14 +472,10 @@ func test_gamepad_camera_zoom_modifier_does_not_block_throw_aim_on_a_held_specia
 	Input.parse_input_event(trigger)
 	Input.flush_buffered_events()
 
-	assert_true(
-		controller._can_begin_throw_aim(),
-		"fixture: a held special with the aim gate open must still be able to start aiming."
-	)
-
 	controller._update_throw_aim(1.0 / 60.0)
 
-	assert_true(controller.is_aiming_throw(), "LT on a held special must still start a throw aim, camera_zoom_modifier notwithstanding.")
+	assert_eq(fake_match.request_throw_calls.size(), 0, "LT alone throws nothing")
+	assert_eq(fake_match.request_place_calls.size(), 0, "LT alone places nothing")
 
 	var trigger_release: InputEventJoypadMotion = InputEventJoypadMotion.new()
 	trigger_release.device = -1

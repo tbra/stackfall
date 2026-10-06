@@ -113,7 +113,7 @@ func test_throw_with_no_pending_special_is_refused_and_nothing_is_consumed() -> 
 	var shape_before: BlockShape = Match.held_shape(slot_id)
 
 	var reason: StringName = Match.request_throw(
-		slot_id, _home_world_position(slot_id), 0, Quaternion.IDENTITY, Vector3(5.0, 0.0, 0.0)
+		slot_id, _home_world_position(slot_id), 0, Quaternion.IDENTITY, Vector3(1.0, 0.0, 0.0)
 	)
 
 	assert_eq(reason, ThrowRules.REASON_NOT_A_SPECIAL)
@@ -132,7 +132,7 @@ func test_held_gift_throw_outside_territory_is_accepted() -> void:
 
 	# Slot 1's home is outside slot 0's own territory; a gift may go anywhere.
 	var reason: StringName = Match.request_throw(
-		slot_id, _home_world_position(1), 0, Quaternion.IDENTITY, Vector3(5.0, 0.0, 0.0)
+		slot_id, _home_world_position(1), 0, Quaternion.IDENTITY, Vector3(1.0, 0.0, 0.0)
 	)
 
 	assert_eq(reason, PlacementRules.REASON_OK)
@@ -151,7 +151,7 @@ func test_throw_off_the_disk_is_refused_and_the_piece_stays_held() -> void:
 
 	var off_disk: Vector3 = _home_world_position(slot_id) + Vector3(1000.0, 0.0, 1000.0)
 	var reason: StringName = Match.request_throw(
-		slot_id, off_disk, 0, Quaternion.IDENTITY, Vector3(5.0, 0.0, 0.0)
+		slot_id, off_disk, 0, Quaternion.IDENTITY, Vector3(1.0, 0.0, 0.0)
 	)
 
 	assert_ne(reason, PlacementRules.REASON_OK)
@@ -164,7 +164,7 @@ func test_throw_off_the_disk_is_refused_and_the_piece_stays_held() -> void:
 	# The refusal must not have jammed anything: a real throw right after
 	# still works.
 	var second: StringName = Match.request_throw(
-		slot_id, _home_world_position(slot_id), 0, Quaternion.IDENTITY, Vector3(5.0, 0.0, 0.0)
+		slot_id, _home_world_position(slot_id), 0, Quaternion.IDENTITY, Vector3(1.0, 0.0, 0.0)
 	)
 	assert_eq(second, PlacementRules.REASON_OK)
 
@@ -183,13 +183,19 @@ func test_throw_velocity_above_throw_max_speed_is_clamped_not_refused() -> void:
 		slot_id, _home_world_position(slot_id), 0, Quaternion.IDENTITY, huge
 	)
 
-	assert_eq(reason, PlacementRules.REASON_OK, "an over-speed throw is clamped, never refused")
-	assert_eq(_blocks_root.get_child_count(), 1)
+	# Bontago-1pi.85.29: the `velocity` slot carries a unit camera aim; a speed-sized vector is
+	# outside the accepted band and refused unconsumed (the host never trusts a client speed).
+	assert_eq(reason, PlacementRules.REASON_NO_BLOCK)
+	assert_eq(_blocks_root.get_child_count(), 0)
+	assert_true(Match.held_special(slot_id) != &"", "nothing consumed")
+
+	var aim: Vector3 = Vector3(1.0, 0.0, 0.0)
+	assert_eq(Match.request_throw(slot_id, _home_world_position(slot_id), 0, Quaternion.IDENTITY, aim), PlacementRules.REASON_OK)
 	var block: Block = _blocks_root.get_child(0) as Block
-	# Bontago-1pi.85.21: an unresolved-def gift is normalised to the fixed trajectory, never the raw velocity.
-	var fixed: Vector3 = GiftThrow.fixed_velocity(huge, Match._placement._special_tuning)
-	assert_true(block.linear_velocity.is_equal_approx(fixed), "fixed trajectory, not the client's magnitude")
-	assert_gt(block.linear_velocity.x, 0.0, "the horizontal heading is preserved")
+	# An unresolved-def gift is normalised through GiftAim's ballistic throw, never the raw velocity.
+	var fixed: Vector3 = GiftAim.throw_velocity(aim, Match._placement._special_tuning)
+	assert_true(block.linear_velocity.is_equal_approx(fixed), "host-computed trajectory")
+	assert_gt(block.linear_velocity.x, 0.0, "the heading is preserved")
 
 
 # --- Accept: velocity, continuous_cd, special attach, pop-once --------------
@@ -243,7 +249,7 @@ func test_accepted_throw_spawns_with_the_requested_velocity_and_continuous_cd() 
 	_run_countdown()
 	var slot_id: int = 0
 	_queue_special(slot_id)
-	var velocity: Vector3 = Vector3(3.0, 0.0, 4.0)  # length 5, well under the 25 m/s cap
+	var velocity: Vector3 = Vector3(0.6, 0.0, 0.8)  # unit camera aim (1pi.85.29)
 
 	var reason: StringName = Match.request_throw(
 		slot_id, _home_world_position(slot_id), 0, Quaternion.IDENTITY, velocity
@@ -252,7 +258,7 @@ func test_accepted_throw_spawns_with_the_requested_velocity_and_continuous_cd() 
 	assert_eq(reason, PlacementRules.REASON_OK)
 	assert_eq(_blocks_root.get_child_count(), 1)
 	var block: Block = _blocks_root.get_child(0) as Block
-	var fixed: Vector3 = GiftThrow.fixed_velocity(velocity, Match._placement._special_tuning)
+	var fixed: Vector3 = GiftAim.throw_velocity(velocity, Match._placement._special_tuning)
 	assert_true(block.linear_velocity.is_equal_approx(fixed), "Bontago-1pi.85.21: normalised, not the raw client velocity")
 	assert_true(block.continuous_cd, "spec 3.5: thrown specials always use continuous_cd")
 
