@@ -43,8 +43,6 @@ const KIND_REMOVE: StringName = &"remove"
 const DIFFICULTY_LABELS: Array[String] = ["Easy", "Normal", "Hard"]
 ## What the team button shows for MatchConfig.TEAM_PICK_RANDOM.
 const TEAM_RANDOM_TEXT: String = "?"
-## The remove button's glyph (multiplication sign).
-const REMOVE_GLYPH: int = 0xD7
 
 # --- Set by the panel before build() ----------------------------------------------
 ## LobbySeats key of the seat (human_key / bot_key), KEY_NONE for a seat-less row
@@ -299,6 +297,12 @@ func _build_remove_button() -> void:
 	remove_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	remove_button.tooltip_text = "Remove this bot"
 	_style_pill(remove_button, _tuning.pill_coral_color, _tuning.pill_coral_hover_color, _tuning.label_ink_light_color)
+	# The pill's text margins would eat the whole icon-only circle: zero them so the x gets the full box.
+	for state: String in ["normal", "hover", "pressed", "disabled"]:
+		var box: StyleBox = remove_button.get_theme_stylebox(state)
+		box.content_margin_left = 0.0
+		box.content_margin_right = 0.0
+	remove_button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	remove_button.pressed.connect(_on_remove_pressed)
 	layout.add_child(remove_button)
 

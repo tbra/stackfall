@@ -91,6 +91,11 @@ func test_lobby_bot_and_team_controls_show_icons() -> void:
 			continue
 		bot_rows += 1
 		assert_eq(row.remove_button.icon, table.lobby_icon(UiArtTable.KEY_BOT_REMOVE))
+		assert_eq(row.remove_button.text, "", "the remove button is an icon, not a font glyph")
+		var normal_box: StyleBox = row.remove_button.get_theme_stylebox("normal")
+		assert_eq(normal_box.get_margin(SIDE_LEFT) + normal_box.get_margin(SIDE_RIGHT), 0.0, "no text margins eat the icon")
+		assert_gt(row.remove_button.custom_minimum_size.x, float(table.lobby_icon_px), "the circle is wider than its icon")
+		assert_true(row.remove_button.visible)
 		for index: int in range(row.difficulty_option.item_count):
 			assert_eq(row.difficulty_option.get_item_icon(index), table.difficulty_icon(index))
 	assert_eq(bot_rows, 2)
