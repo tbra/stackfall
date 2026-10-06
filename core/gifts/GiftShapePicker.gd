@@ -6,11 +6,32 @@ extends RefCounted
 
 const CUBE_SHAPE_PATH: String = "res://config/blocks/cube.tres"
 
+## Shape list cached once per process: BlockShape.load_all_shapes() scans a directory and effects
+## pick per spawned block. Tests that add shapes call reset_cache_for_tests().
+static var _cached_shapes: Array[BlockShape] = []
+static var _cache_loaded: bool = false
+## Number of directory scans this class triggered (test seam).
+static var scan_count: int = 0
+
+
+static func reset_cache_for_tests() -> void:
+	_cached_shapes = []
+	_cache_loaded = false
+	scan_count = 0
+
+
+static func _shapes() -> Array[BlockShape]:
+	if not _cache_loaded:
+		_cached_shapes = BlockShape.load_all_shapes()
+		_cache_loaded = true
+		scan_count += 1
+	return _cached_shapes
+
 
 ## Weighted random shape over BlockShape.load_all_shapes(). `weights` is a GiftShapeWeights
 ## (null or invalid = every shape at its own BlockShape.weight). Zero-weight shapes are never picked.
 static func pick(rng: RandomNumberGenerator, weights: Resource) -> BlockShape:
-	var shapes: Array[BlockShape] = BlockShape.load_all_shapes()
+	var shapes: Array[BlockShape] = _shapes()
 	var table: GiftShapeWeights = weights as GiftShapeWeights
 	if table != null and not table.is_valid():
 		table = null

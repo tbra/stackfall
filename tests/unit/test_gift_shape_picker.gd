@@ -66,3 +66,17 @@ func test_invalid_weights_fall_back_safely() -> void:
 func test_footprint_radius_is_zero_for_cube_and_grows_for_bars() -> void:
 	assert_eq(GiftShapePicker.footprint_radius(load("res://config/blocks/cube.tres") as BlockShape, 1.0), 0.0)
 	assert_gt(GiftShapePicker.footprint_radius(load("res://config/blocks/bar4.tres") as BlockShape, 1.0), 1.0)
+
+
+func test_repeated_picks_do_not_rescan_and_results_match_uncached() -> void:
+	GiftShapePicker.reset_cache_for_tests()
+	var a: RandomNumberGenerator = _rng(5)
+	var first: Array[StringName] = []
+	for _i: int in range(50):
+		first.append(GiftShapePicker.pick(a, null).id)
+	assert_eq(GiftShapePicker.scan_count, 1)
+	GiftShapePicker.reset_cache_for_tests()
+	var b: RandomNumberGenerator = _rng(5)
+	for i: int in range(50):
+		assert_eq(GiftShapePicker.pick(b, null).id, first[i])
+	assert_eq(GiftShapePicker.scan_count, 1)
