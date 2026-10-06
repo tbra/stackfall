@@ -1197,8 +1197,8 @@ func _weather() -> MatchWeather:
 func _weather_display_name(weather_id: StringName) -> String:
 	for def: WeatherTuning in WeatherTuning.load_all():
 		if def.id == weather_id:
-			return def.display_name if def.display_name != "" else String(weather_id).capitalize()
-	return String(weather_id).capitalize()
+			return def.display_name if def.display_name != "" else DisplayNames.weather_id_label(weather_id)
+	return DisplayNames.weather_id_label(weather_id)
 
 
 ## Bontago-adt: selects theme `theme_id` -- writes skybox_config.theme_name,

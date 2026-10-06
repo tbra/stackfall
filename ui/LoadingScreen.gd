@@ -437,8 +437,8 @@ func map_icon_texture() -> Texture2D:
 func _map_display_name(config: MatchConfig) -> String:
 	if config == null:
 		return ""
-	var variant_name: String = (MatchConfig.MapVariant.keys()[config.map_variant] as String).capitalize()
-	var size_name: String = (MapDef.MapSize.keys()[config.map_size] as String).capitalize()
+	var variant_name: String = DisplayNames.map_variant(config.map_variant)
+	var size_name: String = DisplayNames.map_size(config.map_size)
 	return "%s - %s" % [variant_name, size_name]
 
 

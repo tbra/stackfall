@@ -193,7 +193,7 @@ static func accepts_replication_in(match_state: int) -> bool:
 static func id_for_mode(weather_mode: int) -> StringName:
 	if not is_type_mode(weather_mode):
 		return &""
-	return StringName(String(MatchConfig.WeatherMode.keys()[weather_mode]).to_lower())
+	return DisplayNames.weather_key(weather_mode)
 
 
 static func is_type_mode(weather_mode: int) -> bool:
@@ -203,8 +203,8 @@ static func is_type_mode(weather_mode: int) -> bool:
 ## Lobby labels indexed by WeatherMode value ("Storm", "Random", ...).
 static func mode_labels() -> Array:
 	var labels: Array = []
-	for key: String in MatchConfig.WeatherMode.keys():
-		labels.append(key.capitalize())
+	for index: int in MatchConfig.WeatherMode.size():
+		labels.append(DisplayNames.weather(index))
 	return labels
 
 

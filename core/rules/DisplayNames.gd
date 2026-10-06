@@ -44,6 +44,19 @@ static func weather(index: int) -> String:
 	return _enum_label(MatchConfig.WeatherMode, index)
 
 
+## Lower-case enum key of a WeatherMode (matches config/weather/<id>.tres); "" when out of range.
+static func weather_key(index: int) -> StringName:
+	var label: String = _enum_label(MatchConfig.WeatherMode, index)
+	if label == UNKNOWN_LABEL:
+		return &""
+	return StringName(label.to_lower())
+
+
+## Capitalised weather id, the fallback when a WeatherTuning has no display_name.
+static func weather_id_label(weather_id: StringName) -> String:
+	return String(weather_id).capitalize()
+
+
 ## SpecialDef.display_name (fallback: capitalised id) for a known gift; the pending
 ## placeholder and an empty id are "Special" (as HUD shows them); an unknown id is its capitalised id.
 static func special(special_id: StringName) -> String:

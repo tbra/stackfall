@@ -299,13 +299,10 @@ func _on_gift_claimed(claimed_gift_id: int, slot_id: int, _special_id: StringNam
 ## team id safely stood in for a teammate's colour; that no longer applies
 ## now that the payload is a real slot).
 func _claim_color(slot_id: int) -> Color:
-	var slot: PlayerSlot = Match.slot(slot_id)
-	if slot != null:
-		return slot.color
-	var palette: MatchConfig = load("res://config/match_defaults.tres") as MatchConfig
-	if palette != null and slot_id >= 0 and slot_id < palette.player_colors.size():
-		return palette.player_colors[slot_id]
-	return Color.WHITE
+	# DECISION (Bontago-1pi.86.3): D1 precedence via Match.slot_color (live slot, else the
+	# running config's palette, else the default palette, else white). The old copy read
+	# match_defaults.tres even with a live config; identical unless a match overrides colours.
+	return Match.slot_color(slot_id, Color.WHITE)
 
 
 ## The actual "pop": a brand-new box mesh (not a continuation of the claimed
