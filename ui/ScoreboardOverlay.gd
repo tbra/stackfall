@@ -105,7 +105,7 @@ func _on_match_state_changed(_from_state: int, _to_state: int) -> void:
 func _can_show() -> bool:
 	if suppressed or _paused or not _holding or match_provider == null:
 		return false
-	return MatchLifecycle.is_live_state(match_provider.state())
+	return MatchAutoload.is_live(match_provider.state())
 
 
 func _update_visibility() -> void:

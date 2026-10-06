@@ -303,7 +303,7 @@ func _tick_feed(delta: float) -> void:
 ## the host's value, so it cannot drift. Nothing here can duplicate or lose a
 ## placement, which is what the gate above exists to guarantee.
 func _tick_client_display(delta: float) -> void:
-	if not MatchLifecycle.is_live_state(_match.state()) or _match.config == null:
+	if not MatchAutoload.is_live(_match.state()) or _match.config == null:
 		return
 	for i: int in range(_feed_time_left.size()):
 		if not _match.slot(i).home_flag_alive:

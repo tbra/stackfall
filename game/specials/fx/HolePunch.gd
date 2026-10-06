@@ -3,7 +3,7 @@ class_name HolePunch
 ##
 ## `punch` opens a circular hole in the disc's territory at a world position.
 ## Gates (all host-side): authority, live play (PLAYING or SUDDEN_DEATH via
-## MatchLifecycle.is_live_state()), HoleMode != OFF, a Field and a positive
+## MatchAutoload.is_live()), HoleMode != OFF, a Field and a positive
 ## radius. Match.punch_special_hole re-checks the same rules.
 ##
 ## Depends on: Match
@@ -15,7 +15,7 @@ static func punch(world_pos: Vector3, radius_m: float, open_s: float) -> bool:
 		return false
 	if radius_m <= 0.0 or open_s <= 0.0:
 		return false
-	if not Match._is_host() or not MatchLifecycle.is_live_state(Match.state()):
+	if not Match._is_host() or not MatchAutoload.is_live(Match.state()):
 		return false
 	if Match.config == null or Match.config.hole_mode == MatchConfig.HoleMode.OFF:
 		return false

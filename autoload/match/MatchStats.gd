@@ -65,7 +65,7 @@ extends RefCounted
 ##       "Team %d wins!" numbering.
 ##   "match_duration": float,          # seconds spent in State.PLAYING or
 ##       State.SUDDEN_DEATH (the two "live" states, MatchLifecycle.
-##       is_live_state()) over the whole match, ticked by _tick() below.
+##       is_live()) over the whole match, ticked by _tick() below.
 ##   "rows": Array[Dictionary],        # one entry per slot, in slot_id order:
 ##     {
 ##       "slot_id": int,
@@ -182,7 +182,7 @@ func resize_for_slots(slot_count: int) -> void:
 ## Ticked from Match._process()'s State.PLAYING and State.SUDDEN_DEATH
 ## branches (mirroring MatchLifecycle._tick_match_timer/_tick_sudden_death's
 ## own call sites) -- both are "live" states a match can actually be played
-## and won from (MatchLifecycle.is_live_state()). A no-op on a client: only
+## and won from (MatchAutoload.is_live()). A no-op on a client: only
 ## the host's own _process() reaches either branch at all (Match._process()'s
 ## `if not _is_host(): return` at its top), so this guard is defense in depth
 ## rather than the only thing stopping client accumulation.

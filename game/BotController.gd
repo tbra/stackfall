@@ -140,7 +140,7 @@ func _physics_process(delta: float) -> void:
 	if _slot_id < 0 or not _is_host():
 		return
 	var match_ref: Variant = _match()
-	if not MatchLifecycle.is_live_state(match_ref.state() as MatchAutoload.State):
+	if not MatchAutoload.is_live(match_ref.state() as MatchAutoload.State):
 		return
 	match _state:
 		State.IDLE:

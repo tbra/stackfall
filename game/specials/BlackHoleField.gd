@@ -38,8 +38,7 @@ func _is_block(body: RigidBody3D) -> bool:
 
 
 func _match_is_live() -> bool:
-	var current: Match.State = Match.state()
-	return current == Match.State.PLAYING or current == Match.State.SUDDEN_DEATH
+	return MatchAutoload.is_live(Match.state())
 
 
 ## One simulation step; public so tests drive it without the physics loop.

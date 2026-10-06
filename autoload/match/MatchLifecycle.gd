@@ -493,7 +493,11 @@ func is_loading_gate_armed() -> bool:
 func loading_gate_blocking() -> bool:
 	if not _gate_armed:
 		return false
-	if _state != MatchAutoload.State.LOADING and _state != MatchAutoload.State.COUNTDOWN:
+	# DECISION (fca.36.3): the gate exists only in the pre-play window LOADING..COUNTDOWN,
+	# a set no other site shares, so it is not a Match predicate.
+	var pre_play: bool = _state == MatchAutoload.State.LOADING
+	pre_play = pre_play or _state == MatchAutoload.State.COUNTDOWN
+	if not pre_play:
 		return false
 	return not (_ready_gate.is_open() if _match._is_host() else _gate_open_mirror)
 
@@ -1108,23 +1112,8 @@ func _eliminate_slot(slot_id: int) -> void:
 	_check_last_team_standing()
 
 
-## True for PLAYING and SUDDEN_DEATH -- the two states a match can actually be
-## won from (spec 2.8: an elimination or a goal capture during sudden death
-## ends the match immediately, same as during ordinary play; only the
-## radius-8 tiebreak is sudden-death-exclusive, and that has its own guard in
-## _resolve_sudden_death_tiebreak()). Shared by _check_last_team_standing()
-## here and MatchTerritory.gd's goal-capture check so the two win paths can't
-## drift apart on which states are "live" (stackfall-reviewer finding F1).
-## Bontago-1pi.87: also the single gate for placement, throws, special
-## projectile spawns, the feed's client display countdown and bot play.
-## MatchTerritory.punch_special_hole()'s own State.PLAYING-only guard is
-## still outside this predicate (reported as a follow-up).
-static func is_live_state(state: MatchAutoload.State) -> bool:
-	return state == MatchAutoload.State.PLAYING or state == MatchAutoload.State.SUDDEN_DEATH
-
-
 func _check_last_team_standing() -> void:
-	if not MatchLifecycle.is_live_state(_state):
+	if not MatchAutoload.is_live(_state):
 		return
 	var elimination: ModeObjective = _match._territory._objective
 	if elimination is EliminationObjective:

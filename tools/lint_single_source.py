@@ -41,7 +41,29 @@ GD = (".gd",)
 # regex needs string bodies (name formats, asset paths, prompt text); otherwise
 # strings and comments are blanked with strip_line so only code matches.
 # exts: file types scanned (.tscn only for GLYPH_ASSET).
-Rule = namedtuple("Rule", "id pattern scope allowed keep_strings exts message")
+Rule = namedtuple("Rule", "id pattern scope allowed keep_strings exts message multiline",
+                  defaults=(False,))
+
+# Line-level allowances: {rule_id: [(file, source snippet, reason)]}. A hit is waived only
+# when its statement contains the snippet. Whole-file allowances are not used for STATE_SET.
+# PART_B = Bontago-fca.36.10 (presentation sites migrate there, then these entries go).
+PART_B = "Bontago-fca.36.10"
+LINE_ALLOW = {
+    "STATE_SET": [
+        ("game/Main.gd", "state != Match.State.LOBBY and state != Match.State.END",
+         "deferred to %s: 'match in progress' = not LOBBY, not END (spans LOADING)" % PART_B),
+        ("game/Main.gd", "from_state == Match.State.LOBBY and to_state == Match.State.LOADING",
+         "a from->to transition pair (sandbox reset), not a state set"),
+        ("ui/HUD.gd", "to_state == Match.State.LOADING or to_state == Match.State.COUNTDOWN",
+         "deferred to %s: HUD fade-in on the pre-play window" % PART_B),
+        ("ui/HUD.gd", "to_state == Match.State.LOBBY or to_state == Match.State.END",
+         "deferred to %s: HUD hides outside a match" % PART_B),
+        ("game/RemoteCursors.gd", "to_state == Match.State.LOBBY or to_state == Match.State.END",
+         "deferred to %s: cursors survive LOADING, so not is_resetting" % PART_B),
+        ("game/specials/StackfallRain.gd", "new_state == Match.State.LOBBY or new_state == Match.State.END",
+         "deferred to %s: rain survives LOADING, so not is_resetting" % PART_B),
+    ],
+}
 
 ALL_CODE = ("ui/", "game/", "autoload/", "net/", "core/", "vfx/")
 
@@ -90,6 +112,15 @@ RULES = [
          r"res://assets/gifts/",
          None, ("config/", "game/GiftCrate.gd", "game/BlockFactory.gd"), True, GD,
          "gift art paths belong to GiftIconTable / GiftModelTable"),
+    Rule("STATE_SET",
+         # Two or more Match.State members in one statement joined by or/and/a match-arm comma:
+         # an ad-hoc "live"/"replicating"/"resetting" set. Multi-line (parenthesised or
+         # or/and-continued) statements are joined first. Single-state checks stay legal.
+         r"\bState\.(?:LOBBY|LOADING|COUNTDOWN|PLAYING|SUDDEN_DEATH|END)\b.*"
+         r"(?:\bor\b|\band\b|,).*\bState\.(?:LOBBY|LOADING|COUNTDOWN|PLAYING|SUDDEN_DEATH|END)\b",
+         None, ("autoload/Match.gd",), False, GD,
+         "use Match.is_live / is_replicating / is_resetting, not a hand-written state set",
+         True),
 ]
 RULE_IDS = [r.id for r in RULES]
 _COMPILED = {r.id: re.compile(r.pattern) for r in RULES}
@@ -126,6 +157,37 @@ def applies(rule, rel):
     return True
 
 
+_CONT = re.compile(r"(?:\bor|\band|,|\\)$")
+
+
+def logical_lines(text):
+    """[(first_line_number, joined_source)]: statements spanning lines (open brackets, a
+    trailing or/and/comma/backslash) are joined so multi-line sets are seen whole."""
+    out = []
+    buf = ""
+    start = 0
+    depth = 0
+    for n, line in enumerate(text.splitlines(), 1):
+        code = strip_line(line)
+        if not buf:
+            start = n
+        buf = (buf + " " + code.strip()) if buf else code
+        depth += sum(code.count(c) for c in "([{") - sum(code.count(c) for c in ")]}")
+        tail = code.rstrip()
+        if depth > 0 or _CONT.search(tail):
+            continue
+        out.append((start, buf))
+        buf = ""
+        depth = 0
+    if buf:
+        out.append((start, buf))
+    return out
+
+
+def line_allowed(rule_id, rel, src):
+    return any(rel == f and snip in src for f, snip, _reason in LINE_ALLOW.get(rule_id, ()))
+
+
 def violations_in(rel, text, rules=None):
     """[(rule_id, line_number, source_line)] for one file's text."""
     active = [r for r in (rules or RULES) if applies(r, rel)]
@@ -133,6 +195,12 @@ def violations_in(rel, text, rules=None):
     if not active:
         return out
     is_scene = rel.endswith(".tscn")
+    for r in active:
+        if r.multiline and not is_scene:
+            for n, joined in logical_lines(text):
+                if _COMPILED[r.id].search(joined) and not line_allowed(r.id, rel, joined):
+                    out.append((r.id, n, joined.strip()))
+    active = [r for r in active if not r.multiline]
     for n, line in enumerate(text.splitlines(), 1):
         kept = None
         blanked = None

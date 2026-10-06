@@ -1303,11 +1303,7 @@ func _on_match_state_changed(from_state: int, to_state: int) -> void:
 		Net.set_match_in_progress(true)
 	elif to_state == Match.State.LOBBY and not Match._lifecycle.is_starting_match():
 		Net.set_match_in_progress(false)
-	var live_state: bool = (
-		to_state == Match.State.COUNTDOWN
-		or to_state == Match.State.PLAYING
-		or to_state == Match.State.SUDDEN_DEATH
-	)
+	var live_state: bool = Match.is_replicating(to_state)
 	var mid_match_join: bool = live_state and Match.config != null and Match.config.allow_mid_match_join
 	Net.set_accepting_joins(to_state == Match.State.LOBBY or mid_match_join)
 

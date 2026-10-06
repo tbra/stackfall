@@ -141,7 +141,7 @@ func net_weather_state(state: Dictionary) -> void:
 		return
 	# A late packet from a finished match must not resurrect weather: only a
 	# started match (countdown onward, not END) accepts one.
-	var live: bool = MatchWeather.accepts_replication_in(int(authority.state()))
+	var live: bool = MatchAutoload.is_replicating(int(authority.state()))
 	if weather.apply_replicated_state(state, live):
 		states_applied += 1
 	else:
