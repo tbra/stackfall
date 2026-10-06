@@ -1,9 +1,10 @@
-[gd_resource type="Resource" script_class="SpecialDef" load_steps=8 format=3]
+[gd_resource type="Resource" script_class="SpecialDef" load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://config/specials/SpecialDef.gd" id="1_def"]
 [ext_resource type="Script" path="res://game/specials/VolcanoEffect.gd" id="2_effect"]
 [ext_resource type="Script" path="res://config/specials/fx/ExplosionTuning.gd" id="3_blast"]
 [ext_resource type="PackedScene" path="res://assets/gifts/held/volcano.tscn" id="9_held"]
+[ext_resource type="PackedScene" path="res://assets/models/volcano_v1/volcano_v1.glb" id="11_model"]
 [ext_resource type="Texture2D" path="res://assets/ui/gift_previews/volcano.png" id="10_icon"]
 
 [sub_resource type="Resource" id="Resource_orb_blast"]
@@ -35,6 +36,7 @@ push_speed_mps = 4.0
 push_margin_m = 0.6
 push_max_bodies = 64
 cone_color = Color(0.45, 0.18, 0.08, 1)
+model_scene = ExtResource("11_model")
 orb_blast = SubResource("Resource_orb_blast")
 
 [resource]

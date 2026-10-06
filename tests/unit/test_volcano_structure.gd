@@ -158,3 +158,80 @@ func test_rising_cone_pushes_footprint_blocks_outward() -> void:
 	await wait_physics_frames(int(ceil(_effect.rise_s * 60.0)))
 	var end_flat: float = Vector2(block.global_position.x - center.x, block.global_position.z - center.z).length()
 	assert_gt(end_flat, start_flat + 1.0, "pushed outward by the rising cone (%f -> %f)" % [start_flat, end_flat])
+
+
+func _model_effect() -> VolcanoEffect:
+	var def: SpecialDef = load("res://config/specials/volcano.tres") as SpecialDef
+	return (def.effect as VolcanoEffect).duplicate(true) as VolcanoEffect
+
+
+func _mesh_instances(node: Node, out: Array[MeshInstance3D]) -> void:
+	if node is MeshInstance3D:
+		out.append(node as MeshInstance3D)
+	for child: Node in node.get_children():
+		_mesh_instances(child, out)
+
+
+## Union AABB of all meshes under the structure, in the structure's own space.
+func _visual_bounds(structure: VolcanoStructure) -> AABB:
+	var meshes: Array[MeshInstance3D] = []
+	_mesh_instances(structure, meshes)
+	var bounds: AABB = AABB()
+	var first: bool = true
+	for mesh: MeshInstance3D in meshes:
+		var local: AABB = structure.global_transform.affine_inverse() * mesh.global_transform * mesh.mesh.get_aabb()
+		bounds = local if first else bounds.merge(local)
+		first = false
+	return bounds
+
+
+func _assert_model_fits(effect: VolcanoEffect, structure: VolcanoStructure) -> void:
+	_step(structure, effect.rise_s + TICK)
+	var bounds: AABB = _visual_bounds(structure)
+	assert_almost_eq(bounds.size.x, effect.base_radius_m * 2.0, 0.05, "footprint x")
+	assert_almost_eq(bounds.size.z, effect.base_radius_m * 2.0, 0.05, "footprint z")
+	assert_almost_eq(bounds.size.y, effect.height_m, 0.05, "height")
+	assert_almost_eq(bounds.position.y, 0.0, 0.05, "base sits on y = 0")
+	assert_almost_eq(bounds.position.x + bounds.size.x * 0.5, 0.0, 0.05, "centred on x")
+
+
+func test_host_instances_the_model_scaled_to_the_effect_dimensions() -> void:
+	_start()
+	var effect: VolcanoEffect = _model_effect()
+	assert_not_null(effect.model_scene, "volcano.tres sets the model")
+	var structure: VolcanoStructure = _manual(VolcanoStructure.spawn_host(effect, _origin(), 0))
+	var meshes: Array[MeshInstance3D] = []
+	_mesh_instances(structure, meshes)
+	assert_gt(meshes.size(), 0)
+	assert_false(meshes[0].mesh is CylinderMesh, "the model replaces the procedural cone")
+	_assert_model_fits(effect, structure)
+
+
+func test_client_visual_uses_the_model_without_a_body() -> void:
+	_start()
+	var effect: VolcanoEffect = _model_effect()
+	var visual: VolcanoStructure = VolcanoStructure.new()
+	visual.configure(effect, 0, false)
+	_field.add_child(visual)
+	_manual(visual)
+	assert_false(visual.has_body())
+	_assert_model_fits(effect, visual)
+
+
+func test_model_grows_with_the_rise_fraction() -> void:
+	_start()
+	var effect: VolcanoEffect = _model_effect()
+	var structure: VolcanoStructure = _manual(VolcanoStructure.spawn_host(effect, _origin(), 0))
+	_step(structure, effect.rise_s * 0.5)
+	assert_almost_eq(_visual_bounds(structure).size.y, effect.height_m * 0.5, 0.1)
+
+
+func test_null_model_scene_falls_back_to_the_cone_mesh() -> void:
+	_start()
+	_effect.model_scene = null
+	var structure: VolcanoStructure = _manual(VolcanoStructure.spawn_host(_effect, _origin(), 0))
+	var meshes: Array[MeshInstance3D] = []
+	_mesh_instances(structure, meshes)
+	assert_eq(meshes.size(), 1)
+	assert_true(meshes[0].mesh is CylinderMesh)
+	_assert_model_fits(_effect, structure)

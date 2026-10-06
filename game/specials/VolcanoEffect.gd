@@ -66,7 +66,11 @@ extends SpecialEffect
 @export var push_margin_m: float = 0.6
 @export var push_max_bodies: int = 64
 
-## Placeholder cone colour (client and host visual).
+## Visual model (host and client), scaled to base_radius_m / height_m. Null falls back
+## to the procedural cone below.
+@export var model_scene: PackedScene = null
+
+## Fallback cone colour (used only when model_scene is null).
 @export var cone_color: Color = Color(0.45, 0.18, 0.08)
 
 ## Blast of one lava orb (VolcanoOrbEffect; plan section 3: radius 1.5, peak 4 m/s).
