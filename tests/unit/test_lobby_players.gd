@@ -43,6 +43,14 @@ class FocusPanel extends HookPanel:
 		entries.append(button)
 
 
+func after_each() -> void:
+	# Bontago-fca.41: synthetic events parsed into the global Input singleton stay latched
+	# (stick axis, ui_* actions) for every later script in the same process; clear them.
+	Input.flush_buffered_events()
+	for action: StringName in InputMap.get_actions():
+		Input.action_release(action)
+
+
 func _make_lobby(is_host: bool, panel_script: Script = null) -> Lobby:
 	var scene: PackedScene = load("res://ui/Lobby.tscn")
 	var lobby: Lobby = autofree(scene.instantiate())

@@ -10,10 +10,15 @@ const RAIN_PATH: String = "res://config/weather/rain.tres"
 var _bodies: Array[RigidBody3D] = []
 var _disc: StaticBody3D = null
 var _rain: RainTuning = null
+## Every MatchWeather a test built: the autoload WeatherPresenter listens to their Events, so one
+## left running keeps its rain presenting (and storm-tinting every later Skybox) for the rest of
+## the process (Bontago-fca.39).
+var _weathers: Array[MatchWeather] = []
 
 
 func before_each() -> void:
 	_bodies.clear()
+	_weathers.clear()
 	_disc = StaticBody3D.new()
 	_disc.physics_material_override = _mat(BASE_DISC)
 	_rain = load(RAIN_PATH) as RainTuning
@@ -23,6 +28,9 @@ func after_each() -> void:
 	for body: RigidBody3D in _bodies:
 		body.free()
 	_disc.free()
+	for weather: MatchWeather in _weathers:
+		weather.reset()
+	_weathers.clear()
 	Match.abort_match()
 
 
@@ -130,6 +138,7 @@ func _weather(host: bool, factory_calls: Array) -> MatchWeather:
 	w.set_effect_factory(func(_def: WeatherTuning) -> WeatherEffect:
 		factory_calls.append(1)
 		return _effect())
+	_weathers.append(w)
 	return w
 
 
