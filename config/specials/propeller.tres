@@ -1,15 +1,21 @@
-[gd_resource type="Resource" script_class="SpecialDef" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="SpecialDef" load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://config/specials/SpecialDef.gd" id="1_def"]
 [ext_resource type="Script" path="res://game/specials/PropellerEffect.gd" id="2_effect"]
 [ext_resource type="PackedScene" path="res://assets/gifts/held/propeller.tscn" id="9_held"]
 [ext_resource type="Texture2D" path="res://assets/ui/gift_previews/propeller.png" id="10_icon"]
 
+[ext_resource type="Script" path="res://config/specials/fx/DiscForceTuning.gd" id="3_disc"]
+
+[sub_resource type="Resource" id="Resource_propeller_disc"]
+script = ExtResource("3_disc")
+strength = 0.01
+duration_s = 3.0
+
 [sub_resource type="Resource" id="Resource_propeller_effect"]
 script = ExtResource("2_effect")
-lift_speed = 4.0
-lift_duration_s = 3.0
-tilt_strength = 0.3
+disc_force = SubResource("Resource_propeller_disc")
+carrier_rise_m = 0.6
 
 [resource]
 script = ExtResource("1_def")

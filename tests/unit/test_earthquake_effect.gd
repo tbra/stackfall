@@ -88,7 +88,7 @@ func _tick(behavior: SpecialBehavior, dt: float) -> void:
 
 func test_an_armed_ticks_calls_apply_tilt_impulse_and_moves_the_tilt_vector() -> void:
 	var effect: EarthquakeEffect = EarthquakeEffect.new()
-	effect.shake_magnitude = 0.5
+	effect.disc_force.shake_amplitude_m = 30.0
 	effect.leveling_strength = 0.0
 	var block: Block = _make_block()
 	var def: SpecialDef = _make_def(effect)
@@ -117,7 +117,7 @@ func test_an_armed_ticks_calls_apply_tilt_impulse_and_moves_the_tilt_vector() ->
 ## read the same value and hide leveling's effect entirely.
 func test_with_zero_shake_magnitude_leveling_shrinks_tilt_faster_than_natural_decay_alone() -> void:
 	var effect: EarthquakeEffect = EarthquakeEffect.new()
-	effect.shake_magnitude = 0.0
+	effect.disc_force.shake_amplitude_m = 0.0
 	effect.leveling_strength = 0.5
 	var block: Block = _make_block()
 	var def: SpecialDef = _make_def(effect)
@@ -158,7 +158,7 @@ func test_with_zero_shake_magnitude_leveling_shrinks_tilt_faster_than_natural_de
 ## age reaches arm_delay + shake_duration_s.
 func test_wants_early_trigger_flips_at_shake_duration_s() -> void:
 	var effect: EarthquakeEffect = EarthquakeEffect.new()
-	effect.shake_duration_s = 1.0
+	effect.disc_force.duration_s = 1.0
 	var block: Block = _make_block()
 	var def: SpecialDef = _make_def(effect, 0.25)
 	var behavior: SpecialBehavior = _make_behavior(block, def)
@@ -181,11 +181,11 @@ func test_wants_early_trigger_is_frame_rate_independent() -> void:
 	var dt_b: float = 0.01
 
 	var effect_a: EarthquakeEffect = EarthquakeEffect.new()
-	effect_a.shake_duration_s = 1.0
+	effect_a.disc_force.duration_s = 1.0
 	var behavior_a: SpecialBehavior = _make_behavior(_make_block(), _make_def(effect_a))
 
 	var effect_b: EarthquakeEffect = EarthquakeEffect.new()
-	effect_b.shake_duration_s = 1.0
+	effect_b.disc_force.duration_s = 1.0
 	var behavior_b: SpecialBehavior = _make_behavior(_make_block(), _make_def(effect_b))
 
 	var real_time_a: float = 0.0
@@ -226,8 +226,8 @@ class _CountingEarthquakeEffect:
 
 func test_no_further_physics_ticks_after_trigger() -> void:
 	var effect: _CountingEarthquakeEffect = _CountingEarthquakeEffect.new()
-	effect.shake_duration_s = 0.1
-	effect.shake_magnitude = 0.5
+	effect.disc_force.duration_s = 0.1
+	effect.disc_force.shake_amplitude_m = 30.0
 	var block: Block = _make_block()
 	var def: SpecialDef = _make_def(effect)  # arm_delay == 0.0
 	var behavior: SpecialBehavior = _make_behavior(block, def)
@@ -253,7 +253,7 @@ func test_no_further_physics_ticks_after_trigger() -> void:
 
 func test_two_blocks_with_the_same_def_keep_independent_elapsed_timers() -> void:
 	var effect: EarthquakeEffect = EarthquakeEffect.new()
-	effect.shake_duration_s = 1.0
+	effect.disc_force.duration_s = 1.0
 	var shared_def: SpecialDef = _make_def(effect, 0.25)  # one SpecialDef/effect instance
 
 	var block_a: Block = _make_block(Vector3(1.0, 0.0, 0.0))
@@ -321,3 +321,28 @@ func test_hard_impact_after_arming_does_not_prematurely_trigger_and_the_shake_st
 		block.has_meta(EarthquakeEffect.START_AGE_META),
 		"physics_tick() must have run and started the shake despite the hard impact."
 	)
+
+
+# --- DiscForce wiring (docs/GIFT_EFFECTS_PLAN.md package D) -------------------
+
+func test_the_tres_carries_the_disc_force_tuning_and_lifetime() -> void:
+	var def: SpecialDef = SpecialDef.find_by_id(&"earthquake")
+	var effect: EarthquakeEffect = def.effect as EarthquakeEffect
+	assert_almost_eq(effect.disc_force.duration_s, 4.0, 0.0001, "unchanged 4 s shake")
+	assert_almost_eq(effect.effect_lifetime_s(), 4.0, 0.0001, "lifetime drives the fuse backstop")
+	assert_almost_eq(
+		effect.disc_force.shake_amplitude_m * TICK, 0.05, 0.0001,
+		"3.0 per second equals the old 0.05 per tick at 60 Hz"
+	)
+
+
+func test_the_shake_kick_comes_from_disc_force_and_stops_after_the_duration() -> void:
+	var effect: EarthquakeEffect = EarthquakeEffect.new()
+	effect.leveling_strength = 0.0
+	effect.disc_force.duration_s = 0.5
+	var behavior: SpecialBehavior = _make_behavior(_make_block(), _make_def(effect))
+	_tick(behavior, TICK)
+	assert_gt(_field._tilt_velocity.length(), 0.0, "the first armed tick kicks the disc")
+	_field._tilt_velocity = Vector2.ZERO
+	DiscForce.shake(_field, effect.disc_force, effect.disc_force.duration_s + 0.1, TICK)
+	assert_eq(_field._tilt_velocity, Vector2.ZERO, "no kick once past the duration")
