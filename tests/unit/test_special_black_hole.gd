@@ -233,7 +233,8 @@ func _count_removed_after_lifetime(disc: Field, root: Node3D, positions: Array[V
 	hole.configure(effect, [])
 	add_child_autofree(hole)
 	hole.set_physics_process(false)
-	hole.global_position = Vector3(0.0, disc.surface_y() + 0.6, 0.0)
+	# The real carrier's origin is its bottom face resting on the disc (85.26 repro).
+	hole.global_position = Vector3(0.0, disc.surface_y(), 0.0)
 	var ticks: int = int((effect.lifetime_s + REMOVAL_MARGIN_S) * float(Engine.physics_ticks_per_second))
 	var step: float = 1.0 / float(Engine.physics_ticks_per_second)
 	for _i: int in ticks:
@@ -288,6 +289,50 @@ func test_block_above_the_core_inside_the_height_band_is_captured_but_not_beyond
 	assert_true((world[1] as BlockRegistry).hole_dissolver().is_dissolving(above), "pile layer above the old 0.8 m core")
 	assert_false((world[1] as BlockRegistry).hole_dissolver().is_dissolving(too_high), "beyond the height band")
 	assert_not_null(disc)
+	Match.register_world(null, null, null)
+
+
+## Builds a real cube (BlockFactory) with `basis` whose collision centre sits at `centre`.
+func _real_cube_at(root: Node3D, basis: Basis, centre: Vector3) -> Block:
+	var cube: Block = BlockFactory.build(
+		load("res://config/blocks/cube.tres") as BlockShape, load("res://config/physics_tuning.tres") as PhysicsTuning, 0
+	)
+	root.add_child(cube)
+	cube.global_transform = Transform3D(basis, Vector3.ZERO)
+	cube.global_position = centre - BlackHoleField.collision_centre(cube)
+	cube.freeze = true
+	return cube
+
+
+## Bontago-1pi.85.26 root cause: the hole sits on the disc surface and a Block's origin
+## is its bottom face, so a cube lying upside down or on its side right at the core, or
+## the second layer of the core pile, kept its origin farther than the old 0.8 m core
+## sphere and was never captured. Measured to the collision centre, all are captured.
+func test_tumbled_and_stacked_real_cubes_at_the_core_are_captured() -> void:
+	var world: Array = _live_world()
+	var disc: Field = world[0] as Field
+	var registry: BlockRegistry = world[1] as BlockRegistry
+	var root: Node3D = world[2] as Node3D
+	var size: float = (load("res://config/physics_tuning.tres") as PhysicsTuning).cube_size
+	var centre: Vector3 = Vector3(0.0, disc.surface_y(), 0.0)
+	var half: float = size * 0.5
+	var cubes: Array[Block] = [
+		_real_cube_at(root, Basis(Vector3.RIGHT, PI), centre + Vector3(0.2, half, 0.0)),
+		_real_cube_at(root, Basis(Vector3.BACK, PI * 0.5), centre + Vector3(0.4, half, 0.3)),
+		_real_cube_at(root, Basis.IDENTITY, centre + Vector3(0.1, size + half, -0.2)),
+	]
+	var effect: BlackHoleEffect = SpecialDef.find_by_id(&"black_hole").effect as BlackHoleEffect
+	for cube: Block in cubes:
+		assert_gt(cube.global_position.distance_to(centre), effect.pull.core_radius_m, "the old origin sphere misses it")
+	var hole: BlackHoleField = BlackHoleField.new()
+	hole.configure(effect, [])
+	add_child_autofree(hole)
+	hole.set_physics_process(false)
+	hole.global_position = centre
+	await wait_physics_frames(1)
+	hole.tick(effect.capture_hold_s + 0.05)
+	for cube: Block in cubes:
+		assert_true(registry.hole_dissolver().is_dissolving(cube), "captured through the shared hole dissolve")
 	Match.register_world(null, null, null)
 
 

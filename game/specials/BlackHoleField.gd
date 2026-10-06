@@ -58,21 +58,31 @@ func tick(delta: float) -> void:
 	if world == null:
 		return
 	var space: PhysicsDirectSpaceState3D = world.direct_space_state
-	# No capture callback: RadialPull's 3D core is too small for a pile (85.26).
+	# No capture callback: RadialPull's core sphere is measured to the bottom-face
+	# origin, which misses tumbled and stacked blocks (85.26, see _sweep_capture).
 	RadialPull.pull(space, global_position, _effect.pull, _exclude, _block_filter, delta)
 	_sweep_capture(space, delta)
 
 
-## Bontago-1pi.85.26: capture volume = horizontal radius + vertical band around the
-## centre, so blocks piled in or above the core are removed, not only the first
-## one touching a 0.8 m sphere. A body must stay inside capture_hold_s.
+## Bontago-1pi.85.26 (reproduced in the real gift demo flow, tests/unit/
+## test_black_hole_gift_demo_flow.gd): the old capture was RadialPull's 3D sphere of
+## core_radius_m 0.8 around the hole, measured to each block's ORIGIN. The hole sits at
+## the carrier's origin, i.e. on the disc surface, and a Block's origin is the middle
+## of its BOTTOM face (BlockFactory: colliders are built above the shape's
+## bottom_center() pivot). Pulled cubes tumble, so their origin rides 0.5 m (on a side)
+## to 1.0 m (upside down) above the disc, and a second layer is 1.0 m+ up: once the
+## first few cubes dissolved, the rest jammed in the core with their origins 1.1-1.5 m
+## from the centre and were pulled forever. The capture volume is therefore a
+## horizontal radius plus a vertical band around the centre, measured to each block's
+## collision centre (orientation independent), and a body must stay inside
+## capture_hold_s.
 func _sweep_capture(space: PhysicsDirectSpaceState3D, delta: float) -> void:
 	var reach: float = Vector2(_effect.capture_radius_m, _effect.capture_height_m).length()
 	var inside: Dictionary = {}
 	for body: RigidBody3D in ExplosionFx.query_bodies(space, global_position, reach, _exclude):
 		if not _block_filter.call(body) or body.has_meta(RadialPull.CAPTURED_META):
 			continue
-		var offset: Vector3 = body.global_position - global_position
+		var offset: Vector3 = collision_centre(body) - global_position
 		if Vector2(offset.x, offset.z).length() > _effect.capture_radius_m:
 			continue
 		if absf(offset.y) > _effect.capture_height_m:
@@ -88,6 +98,21 @@ func _sweep_capture(space: PhysicsDirectSpaceState3D, delta: float) -> void:
 	for id: int in _hold_s.keys():
 		if not inside.has(id):
 			_hold_s.erase(id)
+
+
+## World-space centre of `body`'s enabled collision shapes (a Block's cells or a gift's
+## one cube), which unlike the bottom-face origin does not move when the body tumbles.
+## Falls back to the origin for a body without collision children.
+static func collision_centre(body: RigidBody3D) -> Vector3:
+	var sum: Vector3 = Vector3.ZERO
+	var count: int = 0
+	for child: Node in body.get_children():
+		var collision: CollisionShape3D = child as CollisionShape3D
+		if collision == null or collision.disabled or collision.is_queued_for_deletion():
+			continue
+		sum += collision.global_position
+		count += 1
+	return sum / float(count) if count > 0 else body.global_position
 
 
 ## Captured blocks go through the territory holes' removal (shared entry, no

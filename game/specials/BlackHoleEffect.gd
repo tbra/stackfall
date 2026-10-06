@@ -9,22 +9,27 @@ extends SpecialEffect
 ##
 ## Bontago-1pi.85.12: strength and capture. The pull is RadialPull (mass-independent
 ## acceleration plus friction compensation, so an 8 kg block really slides across the
-## disc; the old 14 m/s^2 capped at 60 N was below friction). A block entering
-## pull.core_radius_m is captured and removed through the SAME removal as a territory
-## hole (HoleDissolver.request_dissolve; owner resolution Bontago-1pi.85.2). No
-## territory hole is punched (owner resolution Bontago-1pi.85.3).
+## disc; the old 14 m/s^2 capped at 60 N was below friction). A block whose collision
+## centre stays inside the capture volume below (Bontago-1pi.85.26) is captured and
+## removed through the SAME removal as a territory hole (HoleDissolver.request_dissolve;
+## owner resolution Bontago-1pi.85.2). No territory hole is punched (owner resolution
+## Bontago-1pi.85.3).
 ##
 ## DECISION: a SpecialDef's `effect` is one shared Resource, so it keeps no
 ## per-activation state; the BlackHoleField node owns the timer.
 
 ## Pull reach, strength and capture core. Radius 7 m, acceleration 26 m/s^2 at the
 ## core (linear falloff), friction compensation 24 m/s^2 (the measured breakaway
-## value, see RadialPullTuning), core 0.8 m.
+## value, see RadialPullTuning). pull.core_radius_m is not used for capture (no
+## callback is passed; see capture_radius_m).
 @export var pull: RadialPullTuning = RadialPullTuning.new()
 
 ## Capture volume (Bontago-1pi.85.26): horizontal radius (m) and vertical half-height
-## (m) around the centre; a block must stay inside for capture_hold_s seconds.
-## Replaces pull.core_radius_m, whose 0.8 m 3D sphere was too small for a pile.
+## (m) around the centre, measured to each block's collision centre; a block must stay
+## inside for capture_hold_s seconds. Replaces pull.core_radius_m's 0.8 m sphere, which
+## was measured to the block's bottom-face origin: the hole sits on the disc surface,
+## and tumbled or stacked cubes kept that origin 1.0-1.5 m away, so they were pulled
+## into the core forever and never dissolved (BlackHoleField._sweep_capture).
 @export var capture_radius_m: float = 2.0
 @export var capture_height_m: float = 3.0
 @export var capture_hold_s: float = 0.15
