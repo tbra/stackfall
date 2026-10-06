@@ -25,7 +25,10 @@ Step 6 also clears the fast-forward blockers: untracked *.uid/*.import files in 
 result adds with byte-identical content are removed (each logged); if content differs the ff fails
 listing them. Non-sidecar and differing files are never deleted. --no-push / --dry-run stop before 7/10.
 The temp worktree and branch are removed on every success (incl. --no-push) and kept on failure. --dry-run stops after step 5 (no ff/push/close),
-then removes the temp worktree and branch. Exit 0 = success, 1 = failed step (named).
+then removes the temp worktree and branch. NOTE: --dry-run still runs the full gate (step 5), so it
+must not run while a Godot worker is live; for a conflict-only precheck use --merge-only, which stops
+after step 2 (no import, no gate, no Godot) and removes the temp worktree. Exit 0 = success,
+1 = failed step (named).
 """
 
 import argparse
@@ -382,6 +385,9 @@ def integrate(args, ctx, say, res):
     result = git_out(ctx, "rev_result", wt, "rev-parse", "HEAD")
     res["result"] = result
     say("merge     ok   %d branch(es) -> %s" % (len(args.branches), result[:9]))
+    if getattr(args, "merge_only", False):
+        say("merge-only stop before import/gate (no Godot started)")
+        return
     # 3 import
     code, issues, log = import_check(ctx, "import", wt)
     if code != 0 or issues:
@@ -500,6 +506,8 @@ def main(argv):
     ap.add_argument("--game-code", dest="game_code", action="store_true", default=True)
     ap.add_argument("--no-game-code", dest="game_code", action="store_false")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--merge-only", action="store_true",
+                    help="conflict precheck: stop after step 2, start no Godot process (safe while workers run)")
     ap.add_argument("--no-push", action="store_true")
     # DECISION (Bontago-fca.13): opt-in rather than automatic, so a bead held by a live
     # worker is never force-closed by default; pass it only for reviewed Codex handoffs.

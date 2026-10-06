@@ -49,7 +49,7 @@ class Fake:
 
 def args_for(**kw):
     ns = dict(branches=["wt/a", "wt/b"], beads=["B-1", "B-2"], repo="R", worktree_root="W",
-              log_dir="", game_code=True, dry_run=False, no_push=False, force_close=False)
+              log_dir="", game_code=True, dry_run=False, merge_only=False, no_push=False, force_close=False)
     ns.update(kw)
     return type("A", (), ns)()
 
@@ -149,6 +149,14 @@ class Tests(unittest.TestCase):
         self.assertIsNone(err)
         line = [l for l in out if "dry-run would run" in l][0]
         self.assertLess(line.index("bd update B-1 --assignee"), line.index("then bd close B-1"))
+
+    def test_merge_only_starts_no_godot(self):
+        fake = Fake()
+        err, out, _ = run(fake, merge_only=True)
+        self.assertIsNone(err)
+        for bad in ("import", "gate", "ff", "push", "close_B-1"):
+            self.assertNotIn(bad, fake.names())
+        self.assertTrue([l for l in out if l.startswith("merge-only")])
 
     def test_remote_mismatch_never_closes(self):
         fake = Fake({"remote": (0, "other999\n")})
