@@ -961,6 +961,9 @@ func default_ghost_origin(slot_id: int) -> Vector3:
 
 
 func _clear_blocks() -> void:
+	# Bontago-1pi.85.24 review: in-place activation anchors (Earthquake etc.) are not
+	# under _blocks_parent; free them on every reset/abort too, not only via the lifetime backstop.
+	_activation.clear()
 	if _match._blocks_parent == null:
 		return
 	for child: Node in _match._blocks_parent.get_children():
