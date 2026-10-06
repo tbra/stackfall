@@ -303,7 +303,10 @@ var _invite_was_shown: bool = false
 
 
 func _ready() -> void:
-	net_provider = Net
+	# DECISION (Bontago-1pi.89): a provider assigned before the node enters the tree is kept,
+	# so a test can seat a Lobby on a second real Net instance and drive the real entry path.
+	if net_provider == null:
+		net_provider = Net
 	_configure_players_panel()
 	_populate_options()
 	_settings_controls = [
@@ -344,6 +347,10 @@ func _ready() -> void:
 	# reflected by the controls and the next Start action.
 	var initial_data: Dictionary = net_provider.lobby_data()
 	_apply_data(initial_data if not initial_data.is_empty() else default_config.to_dict())
+	# Bontago-1pi.89: the roster and the Ready toggle are views of Net's live state, drawn
+	# before anything else can look at them (a cached lobby snapshot is from before the match).
+	_show_live_roster()
+	_sync_ready_toggle_from_net()
 	# Bontago-mp0.3.5 (review r1, item 12): Net.host_game() populates its own
 	# HOST_PEER_ID roster entry directly and only emits net_mode_changed, not
 	# net_roster_changed / a lobby-data publish -- so a Lobby scene opened
@@ -352,7 +359,6 @@ func _ready() -> void:
 	# host-only kick (a no-op for a client, whose _republish_roster_if_host()
 	# guard is already false) draws the host's own row on the very first frame
 	# instead of leaving the Players card at "0 / N" until someone else connects.
-	_reset_roster_ready_on_entry()
 	_republish_roster_if_host()
 	# Bontago-mp0.3.5 (review r2, item 2): _apply_visual_style() now also
 	# builds the stepper "-"/"+" buttons (_add_stepper_buttons()), so it must
@@ -1465,6 +1471,7 @@ func _on_roster_changed(roster: Array[Dictionary]) -> void:
 	# not redundant with it.
 	_clamp_ai_count_to_seats()
 	_players_panel.on_roster_changed(roster)
+	_sync_ready_toggle_from_net()
 
 
 func _on_peer_joined(_peer_id: int, _slot_id: int, _player_name: String) -> void:
@@ -1532,11 +1539,36 @@ func _clamp_ai_count_to_seats() -> void:
 	_ai_count_spin.max_value = maxi(0, seats - humans)
 
 
-## Bontago-1pi.73: the Ready toggle starts off on every (re)entry, so the host
-## clears the roster's flags to match (DECISION: reset both, not restore).
-func _reset_roster_ready_on_entry() -> void:
-	if net_provider != null and bool(net_provider.is_host()):
-		net_provider.reset_ready_flags()
+## Bontago-1pi.89: the Ready toggle is a VIEW of Net's per-peer ready flag, never a second copy
+## of it. Net owns the flag (host: set_peer_ready(); client: the host's roster) and the rule that
+## clears it when the session returns to the lobby (Net.set_match_in_progress(false), replacing
+## the lobby-entry reset Bontago-1pi.73 added here); this only reads it -- on entry and on every
+## roster refresh, host and client alike -- and draws it with set_pressed_no_signal(), so a view
+## update is neither a press (no cue) nor a write back into Net (no echo).
+## DECISION: the flag read is Net's own peer_info() of the local peer, not the roster payload, so
+## the toggle can never differ from what Net itself says. A press whose host confirmation is still
+## in flight reads as the old flag until the host's roster lands: the toggle shows what the host
+## recorded, not what was asked.
+func _sync_ready_toggle_from_net() -> void:
+	if net_provider == null:
+		return
+	var own: Dictionary = net_provider.peer_info(net_provider.local_peer_id())
+	_ready_check.set_pressed_no_signal(bool(own.get("ready", false)))
+
+
+## Bontago-1pi.89: draws Net's live roster into the players panel on entry. A client's cached
+## lobby data (Net.lobby_data()) embeds the roster as it was when the host last published --
+## before a match, with that match's ready flags -- and nothing redraws it until the next roster
+## event; Net's own peers are never older than that snapshot. Nothing is drawn while Net holds no
+## peers (a session still handshaking): the lobby data's roster stays the only source then.
+func _show_live_roster() -> void:
+	if net_provider == null:
+		return
+	var live: Array[Dictionary] = []
+	for peer_id: int in net_provider.peer_ids():
+		live.append(net_provider.peer_info(peer_id))
+	if not live.is_empty():
+		_players_panel.on_roster_changed(live)
 
 
 func _on_ready_toggled(pressed: bool) -> void:

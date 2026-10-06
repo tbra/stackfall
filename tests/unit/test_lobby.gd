@@ -480,16 +480,24 @@ func test_ready_toggle_calls_set_local_ready() -> void:
 	assert_eq(_fake_of(lobby).set_local_ready_calls, [true])
 
 
-## Bontago-1pi.73: a fresh Lobby (match -> Back to lobby, pause -> Return) resets the
-## roster ready flags for the host only, matching its toggle that starts off.
-func test_lobby_entry_resets_roster_ready_for_host_only() -> void:
-	var host_lobby: Lobby = _make_lobby(true)
-	host_lobby._reset_roster_ready_on_entry()
-	assert_eq(_fake_of(host_lobby).reset_ready_flags_calls, 1)
-	assert_false((host_lobby.get_node("%ReadyCheck") as CheckButton).button_pressed)
-	var client_lobby: Lobby = _make_lobby(false)
-	client_lobby._reset_roster_ready_on_entry()
-	assert_eq(_fake_of(client_lobby).reset_ready_flags_calls, 0)
+## Bontago-1pi.89 (replaces Bontago-1pi.73's entry-reset test): the Ready toggle is a view of
+## Net's per-peer flag. The lobby never resets or writes the flag on entry (Net clears it when
+## the session returns to the lobby); it shows whatever Net holds, on entry and on every roster
+## event, without a press (no write into Net). Every route is covered in test_lobby_ready_sync.
+func test_ready_toggle_shows_net_flag_and_never_writes_it() -> void:
+	for is_host: bool in [true, false]:
+		var lobby: Lobby = _make_lobby(is_host)
+		var fake: FakeNet = _fake_of(lobby)
+		var toggle: CheckButton = lobby.get_node("%ReadyCheck") as CheckButton
+		fake.slots_by_peer = {fake.local_peer_id_value: 0}
+		fake.ready_by_peer = {fake.local_peer_id_value: true}
+		lobby._sync_ready_toggle_from_net()
+		assert_true(toggle.button_pressed, "host=%s: the flag Net holds is shown" % is_host)
+		fake.ready_by_peer[fake.local_peer_id_value] = false
+		Events.net_roster_changed.emit(fake.roster_payload())
+		assert_false(toggle.button_pressed, "host=%s: a roster event moves the toggle" % is_host)
+		assert_eq(fake.reset_ready_flags_calls, 0, "host=%s: the lobby never resets Net's flags" % is_host)
+		assert_eq(fake.set_local_ready_calls, [], "host=%s: showing the flag is not a press" % is_host)
 
 
 # --- Roster --------------------------------------------------------------------
