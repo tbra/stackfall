@@ -464,7 +464,7 @@ func test_gamepad_camera_zoom_modifier_does_not_block_throw_aim_on_a_held_specia
 
 	var fake_match: FakeMatch = FakeMatch.new()
 	fake_match.held_shapes[0] = rocket_shape
-	fake_match.held_special_by_slot[0] = &"rocket"
+	fake_match.held_special_by_slot[0] = &"bomb"  # throwable per owner answer 1pi.85.1 (Rocket fires along the camera instead)
 	controller._match = fake_match
 
 	var trigger: InputEventJoypadMotion = InputEventJoypadMotion.new()
