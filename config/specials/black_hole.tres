@@ -13,7 +13,6 @@ radius_m = 7.0
 accel_mps2 = 26.0
 falloff_exponent = 1.0
 friction_compensation = 24.0
-core_radius_m = 0.8
 
 [sub_resource type="Resource" id="Resource_black_hole_effect"]
 script = ExtResource("2_effect")

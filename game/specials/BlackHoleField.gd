@@ -58,15 +58,13 @@ func tick(delta: float) -> void:
 	if world == null:
 		return
 	var space: PhysicsDirectSpaceState3D = world.direct_space_state
-	# No capture callback: RadialPull's core sphere is measured to the bottom-face
-	# origin, which misses tumbled and stacked blocks (85.26, see _sweep_capture).
 	RadialPull.pull(space, global_position, _effect.pull, _exclude, _block_filter, delta)
 	_sweep_capture(space, delta)
 
 
 ## Bontago-1pi.85.26 (reproduced in the real gift demo flow, tests/unit/
 ## test_black_hole_gift_demo_flow.gd): the old capture was RadialPull's 3D sphere of
-## core_radius_m 0.8 around the hole, measured to each block's ORIGIN. The hole sits at
+## a 0.8 m core radius around the hole, measured to each block's ORIGIN. The hole sits at
 ## the carrier's origin, i.e. on the disc surface, and a Block's origin is the middle
 ## of its BOTTOM face (BlockFactory: colliders are built above the shape's
 ## bottom_center() pivot). Pulled cubes tumble, so their origin rides 0.5 m (on a side)
