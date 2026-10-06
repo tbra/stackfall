@@ -481,6 +481,14 @@ func slot(slot_id: int) -> PlayerSlot:
 	return _lifecycle.slot(slot_id)
 
 
+## The colour of `slot_id`: the live PlayerSlot.color, else the config palette,
+## else `fallback` (SlotColors.resolve owns the order, Bontago-1pi.86 D1).
+func slot_color(slot_id: int, fallback: Color = Color.WHITE) -> Color:
+	var live: PlayerSlot = slot(slot_id) if _lifecycle != null else null
+	var palette: PackedColorArray = config.player_colors if config != null else MatchConfig.default_player_colors()
+	return SlotColors.resolve(slot_id, live.color if live != null else null, palette, fallback)
+
+
 func team_of(slot_id: int) -> int:
 	return _lifecycle.team_of(slot_id)
 

@@ -5,8 +5,9 @@ extends RefCounted
 ## bot and from every human's name, and replicates it in MatchConfig.bot_names.
 
 
-## Only when the pool is exhausted.
-const FALLBACK_FORMAT: String = "Bot %d"
+## Only when the pool is exhausted. DECISION: kept as an alias of the single owner
+## (PlayerNames.BOT_FALLBACK_FORMAT) until P4 migrates LobbyPlayersPanel, then deleted.
+const FALLBACK_FORMAT: String = PlayerNames.BOT_FALLBACK_FORMAT
 
 const TACTICIANS: Array[String] = [
 	"Tetra", "Vertex", "Apex", "Cantilever", "Fulcrum", "PlumbLine", "Keystone",
@@ -93,7 +94,7 @@ static func assign(existing: PackedStringArray, count: int, taken: PackedStringA
 		if result[index] != "":
 			continue
 		if free.is_empty():
-			result[index] = FALLBACK_FORMAT % (index + 1)
+			result[index] = PlayerNames.bot_fallback(index + 1)
 			continue
 		var pick: int = rng.randi_range(0, free.size() - 1)
 		result[index] = free[pick]

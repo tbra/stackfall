@@ -174,3 +174,16 @@ func test_a_thousand_draws_from_the_selectable_roster_never_pick_cat() -> void:
 	rng.seed = 12345
 	for _i: int in range(1000):
 		assert_ne(SpecialDef.pick_weighted(roster, rng).id, &"cat")
+
+
+func test_display_name_falls_back_to_capitalised_id() -> void:
+	var def: SpecialDef = _make_def(&"jumping_bean")
+	assert_eq(def.get_display_name(), "Jumping Bean")
+	def.display_name = "Bouncy"
+	assert_eq(def.get_display_name(), "Bouncy")
+	assert_eq(_make_def(&"").get_display_name(), "")
+
+
+func test_every_shipped_special_has_a_nonempty_display_name() -> void:
+	for def: SpecialDef in SpecialDef.load_all_specials():
+		assert_ne(def.get_display_name(), "", String(def.id))

@@ -691,3 +691,19 @@ func test_results_payload_and_screen_show_the_real_names() -> void:
 		for cell: Node in row_node.find_children("*", "Label", true, false):
 			names_in_table.append((cell as Label).text)
 	assert_true(names_in_table.has("Mira") and names_in_table.has("Zed"), "the stats table rows carry the real names: %s" % [names_in_table])
+
+
+## -- Bontago-1pi.86 single-owner formats ------------------------------------
+
+func test_bot_team_and_winner_formats_are_owned_here() -> void:
+	assert_eq(PlayerNames.bot_fallback(1), "Bot 1")
+	assert_eq(PlayerNames.team_label(2), "Team 2")
+	assert_eq(PlayerNames.winner_text(3), "Team 3 wins!")
+
+
+func test_bot_names_pool_exhaustion_uses_the_owner_format() -> void:
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	var taken: PackedStringArray = BotNames.all_names()
+	var result: PackedStringArray = BotNames.assign(PackedStringArray(), 2, taken, rng)
+	assert_eq(result[0], PlayerNames.bot_fallback(1))
+	assert_eq(result[1], PlayerNames.bot_fallback(2))

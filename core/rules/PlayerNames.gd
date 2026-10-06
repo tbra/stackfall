@@ -15,6 +15,12 @@ extends RefCounted
 ## always had (MatchLifecycle._build_slots), and the host's fallback for an
 ## empty name.
 const FALLBACK_FORMAT: String = "Player %d"
+## "Bot %d" with the 1-based ordinal: a bot seat whose list name ran out.
+const BOT_FALLBACK_FORMAT: String = "Bot %d"
+## "Team %d" with the 1-based team number (Bontago-1pi.86 single owner).
+const TEAM_FORMAT: String = "Team %d"
+## Winner banner for a team: the team label plus this suffix.
+const WINS_SUFFIX: String = " wins!"
 ## Longest bot name the wire accepts (the owner's longest list entry is 13).
 const BOT_NAME_MAX_LENGTH: int = 24
 ## A joiner with no seat (slot -1, Bontago-8or.11) who sent no name.
@@ -63,6 +69,21 @@ static func fallback_for_slot(slot_id: int) -> String:
 	if slot_id < 0:
 		return SPECTATOR_FALLBACK
 	return FALLBACK_FORMAT % (slot_id + 1)
+
+
+## "Bot N" for the 1-based `ordinal` (BotNames and the lobby both call this).
+static func bot_fallback(ordinal: int) -> String:
+	return BOT_FALLBACK_FORMAT % ordinal
+
+
+## "Team N" for the 1-based `team_number` (MatchConfig.team_number_for).
+static func team_label(team_number: int) -> String:
+	return TEAM_FORMAT % team_number
+
+
+## "Team N wins!".
+static func winner_text(team_number: int) -> String:
+	return team_label(team_number) + WINS_SUFFIX
 
 
 ## The number of leading characters of a raw name clean() will look at for a
