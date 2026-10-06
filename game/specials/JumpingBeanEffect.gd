@@ -35,28 +35,48 @@ extends SpecialEffect
 ## landing can never trigger the bean; a nearby explosion still chains into it.
 
 ## Vertical speed (m/s) applied straight up on every hop.
-@export var hop_impulse: float = 6.5
+@export var hop_impulse: float = 9.0
 
-## Horizontal speed (m/s) applied in a random direction on every hop.
-@export var hop_horizontal_speed: float = 3.5
+## Horizontal speed (m/s) applied in a random direction on every hop, one physics
+## tick AFTER the vertical kick (Bontago-1pi.85.28: written while still touching the
+## disc, the contact friction ate it and the bean hopped straight up).
+@export var hop_horizontal_speed: float = 7.0
 
-## Seconds between hops, counted from landing.
-@export var hop_interval_s: float = 1.2
+## Seconds from landing to the FIRST hop (Bontago-1pi.85.28: the owner saw ~5 s idle).
+@export var first_hop_delay_s: float = 0.4
+
+## Seconds between the following hops.
+@export var hop_interval_s: float = 1.0
 
 ## Radius (m) of the hole punched at the position each hop leaves behind.
-@export var hole_radius_m: float = 1.4
+@export var hole_radius_m: float = 2.5
 
 ## Seconds the punched hole stays open (never closes under HoleMode.PERMANENT).
-@export var hole_open_s: float = 2.5
+@export var hole_open_s: float = 3.0
 
 ## Seconds the bean keeps hopping after it lands; the fuse backstop is derived
 ## from it by SpecialBehavior (SpecialTuning.fuse_backstop_margin_s on top).
 @export var lifetime_s: float = 14.0
 
-## block.set_meta() key: landed-age at which the NEXT hop is due. Seeded to
-## hop_interval_s on the first landed tick, advanced by hop_interval_s per hop, so
-## exactly one hop fires per interval whatever the caller's delta.
-const _NEXT_HOP_META: StringName = &"bean_next_hop_at"
+## Bean-specific landing probe (Bontago-1pi.85.28): a bouncing/rolling bean on a tilting
+## disc never drops below LandedProbe's default 0.5 m/s, so it only "landed" at the 5 s
+## timeout. Looser speed, shorter hold and a 1 s ceiling start the hopping promptly.
+@export var landed: LandedTuning = LandedTuning.new()
+
+## block.set_meta() key: landed-age from which the next hop may start (while grounded).
+## Seeded to first_hop_delay_s, reset to touchdown + hop_interval_s after every hop.
+const _READY_AT_META: StringName = &"bean_ready_at"
+
+## block.set_meta() key: set at take-off, cleared at the next touchdown.
+const _AIRBORNE_META: StringName = &"bean_airborne"
+
+## block.set_meta() key: the horizontal velocity (Vector3) still owed to the current hop,
+## added on the first tick after the vertical kick, once the bean has left the disc.
+const _PENDING_HORIZONTAL_META: StringName = &"bean_pending_horizontal"
+
+## Unit-test seam: when valid, replaces the physics contact query (Callable(Block) -> bool),
+## since a stub Block has no collision to probe. Never set in the shipped def.
+var contact_override: Callable = Callable()
 
 ## Shared across every block using this effect instance (see the class DECISION).
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -72,16 +92,46 @@ func effect_lifetime_s() -> float:
 	return lifetime_s
 
 
-## Fires every hop that is due by landed time. Only called once landed.
+## Fires a hop only from contact: the bean must be touching a surface and not rising, and
+## its interval since the last landing must have elapsed. A hop due while the bean is still
+## in the air simply waits for touchdown (flight time can exceed hop_interval_s).
 func physics_tick(block: Block, behavior: SpecialBehavior, _delta: float) -> void:
-	if not block.has_meta(_NEXT_HOP_META):
-		block.set_meta(_NEXT_HOP_META, hop_interval_s)
-	var next_hop_at: float = float(block.get_meta(_NEXT_HOP_META))
+	_apply_pending_horizontal(block)
 	var elapsed: float = behavior.landed_age()
-	while elapsed >= next_hop_at and hop_interval_s > 0.0:
+	if not block.has_meta(_READY_AT_META):
+		block.set_meta(_READY_AT_META, first_hop_delay_s)
+	var grounded: bool = _is_grounded(block)
+	if grounded and block.has_meta(_AIRBORNE_META) and not block.has_meta(_PENDING_HORIZONTAL_META):
+		# Touchdown after a hop: the interval counts from here, not from take-off.
+		block.remove_meta(_AIRBORNE_META)
+		block.set_meta(_READY_AT_META, elapsed + hop_interval_s)
+	if not grounded or block.has_meta(_AIRBORNE_META) or block.has_meta(_PENDING_HORIZONTAL_META):
+		return
+	if elapsed >= float(block.get_meta(_READY_AT_META)):
 		_hop(block)
-		next_hop_at += hop_interval_s
-	block.set_meta(_NEXT_HOP_META, next_hop_at)
+	# Bean-side guard (HoleDissolver is not ours): a grounded bean sitting over an open hole
+	# cell would dissolve in it, so kick it out now (no new hole) instead of waiting.
+	elif _is_over_open_hole(block):
+		_kick(block)
+
+
+## True when the bean touches a surface below it and is not moving upward (same downward
+## test-motion as LandedProbe, since blocks run without contact_monitor).
+func _is_grounded(block: Block) -> bool:
+	if contact_override.is_valid():
+		return bool(contact_override.call(block))
+	if block.linear_velocity.y > landed.landed_speed_mps:
+		return false
+	var params: PhysicsTestMotionParameters3D = PhysicsTestMotionParameters3D.new()
+	params.from = block.global_transform
+	params.motion = Vector3.DOWN * landed.contact_probe_m
+	var result: PhysicsTestMotionResult3D = PhysicsTestMotionResult3D.new()
+	return PhysicsServer3D.body_test_motion(block.get_rid(), params, result)
+
+
+## Landing probe thresholds for this bean (see `landed`).
+func landed_tuning() -> LandedTuning:
+	return landed
 
 
 ## Bontago-1en.22: vetoes the decel-based impact trigger (see class DECISION).
@@ -100,9 +150,15 @@ func detonate(_block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> v
 
 
 ## One hop: punches a hole at the pre-hop position (HolePunch applies the
-## HoleMode.OFF / live-match / host gates), then kicks the bean up and sideways.
+## HoleMode.OFF / live-match / host gates), then kicks the bean up; the sideways part
+## follows on the next tick (see _apply_pending_horizontal()).
 func _hop(block: Block) -> void:
 	HolePunch.punch(block.global_position, hole_radius_m, hole_open_s)
+	_kick(block)
+
+
+## Vertical kick now, horizontal part owed to the next tick.
+func _kick(block: Block) -> void:
 	var angle: float = _rng.randf_range(0.0, TAU)
 	var horizontal: Vector3 = Vector3(cos(angle), 0.0, sin(angle)) * hop_horizontal_speed
 	block.wake_for_impulse()
@@ -110,5 +166,33 @@ func _hop(block: Block) -> void:
 		return
 	# kick(), not a bare `linear_velocity =` write: see Block.kick() (a hop kicked
 	# during a residual downward velocity must not read as a damped bounce).
-	block.kick(Vector3.UP * hop_impulse + horizontal)
+	block.kick(Vector3.UP * hop_impulse)
+	block.set_meta(_PENDING_HORIZONTAL_META, horizontal)
+	block.set_meta(_AIRBORNE_META, true)
 	block.wake()
+
+
+## Sets the horizontal part of the last hop once the bean is off the ground.
+func _apply_pending_horizontal(block: Block) -> void:
+	if not block.has_meta(_PENDING_HORIZONTAL_META):
+		return
+	var horizontal: Vector3 = block.get_meta(_PENDING_HORIZONTAL_META) as Vector3
+	block.remove_meta(_PENDING_HORIZONTAL_META)
+	# Replaces (not adds to) the sideways speed: hops never accumulate speed, and any
+	# friction/bounce leftover from the take-off tick is discarded.
+	block.kick(Vector3(horizontal.x, block.linear_velocity.y, horizontal.z))
+
+
+## True when the bean's centre cell is an open hole and it is not rising.
+func _is_over_open_hole(block: Block) -> bool:
+	if block.linear_velocity.y > 0.0:
+		return false
+	var field: Field = Match.field()
+	var grid: CellGrid = Match.cell_grid()
+	var raster: TerritoryRaster = Match.raster()
+	if field == null or grid == null or raster == null:
+		return false
+	var cell: Vector2i = grid.world_to_cell(field.disk_local_from_world(block.global_position))
+	if not grid.in_bounds(cell.x, cell.y):
+		return false
+	return raster.is_hole(cell.x, cell.y)
