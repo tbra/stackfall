@@ -61,15 +61,14 @@ func advance(delta: float) -> void:
 
 func _spawn_one() -> void:
 	var field: Field = Match.field()
-	var blocks: Node3D = Match.blocks_parent()
-	if field == null or blocks == null or _shape == null or blocks.get_child_count() >= _body_cap:
+	if field == null or _shape == null:
 		return
 	var point: Vector2 = _sample_position(field.map_def)
 	if not point.is_finite():
 		return
 	var origin: Vector3 = field.world_from_disk_local(point, _height)
-	var placed: Block = Match.spawn_special_projectile(
-		_shape, origin, Basis.IDENTITY, owner_slot, Vector3.ZERO, null, null
+	var placed: Block = BlockSpawner.spawn(
+		_shape, origin, Basis.IDENTITY, owner_slot, Vector3.ZERO, _body_cap
 	)
 	if placed != null:
 		_positions.append(point)
