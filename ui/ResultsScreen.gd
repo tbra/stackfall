@@ -230,7 +230,7 @@ static func mode_outcome_text(results: Dictionary, team_numbers: PackedInt32Arra
 			value_text = survivor_text(int(scores[team]))
 		elif domination:
 			value_text = "%d%%" % int(round(float(scores[team]) * 100.0))
-		parts.append("%s: %s" % [player_label(results, team) if ffa else "Team %d" % team_number_in(team_numbers, team), value_text])
+		parts.append("%s: %s" % [player_label(results, team) if ffa else PlayerNames.team_label(team_number_in(team_numbers, team)), value_text])
 	# Bontago-1pi.82: the mode name is the card header (mode_title()); Elimination's
 	# alive/out text and "out first to last" order are gone (the Status column and
 	# row order say it), so only modes with a score of their own keep this line.
@@ -262,7 +262,7 @@ static func player_label(results: Dictionary, slot_id: int) -> String:
 		var row: Dictionary = raw_row as Dictionary
 		if int(row.get("slot_id", -1)) == slot_id:
 			return row_name_text(row)
-	return "Player %d" % (slot_id + 1)
+	return PlayerNames.fallback_for_slot(slot_id)
 
 
 static func row_name_text(row: Dictionary) -> String:

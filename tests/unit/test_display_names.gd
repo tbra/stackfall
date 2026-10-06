@@ -25,3 +25,10 @@ func test_special_names() -> void:
 	assert_eq(DisplayNames.special(MatchGifts.PENDING_SPECIAL_ID), "Special")
 	assert_eq(DisplayNames.special(&"not_a_gift"), "Not A Gift")
 	assert_eq(DisplayNames.special(&""), DisplayNames.special(MatchGifts.PENDING_SPECIAL_ID))
+
+
+func test_weather_key_and_id_label() -> void:
+	assert_eq(DisplayNames.weather_key(MatchConfig.WeatherMode.STORM), &"storm")
+	assert_eq(DisplayNames.weather_key(-1), &"")
+	assert_eq(DisplayNames.weather_key(999), &"")
+	assert_eq(DisplayNames.weather_id_label(&"storm"), "Storm")

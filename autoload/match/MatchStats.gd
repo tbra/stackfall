@@ -393,12 +393,14 @@ func apply_live_snapshot(payload: Dictionary) -> void:
 func _winner_name(winning_team: int, ffa: bool) -> String:
 	if ffa:
 		var slot: PlayerSlot = _match.slot(winning_team)
-		return slot.display_name if slot != null else "Player %d" % (winning_team + 1)
+		if slot != null:
+			return slot.display_name
+		return PlayerNames.fallback_for_slot(winning_team)
 	# Lobby rework (Bontago-1pi.53): the number the team had in the lobby once the
 	# host resolved the picks (MatchConfig.team_number_for()), else team id + 1.
 	var config: MatchConfig = _match.config
 	var team_number: int = config.team_number_for(winning_team) if config != null else winning_team + 1
-	return "Team %d" % team_number
+	return PlayerNames.team_label(team_number)
 
 
 # --- Wire validation (net/MatchNet.gd EVENT_MATCH_RESULTS dispatch) ---------

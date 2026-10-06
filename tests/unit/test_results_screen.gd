@@ -381,3 +381,8 @@ func test_header_is_the_mode_name_and_peak_column_is_gone() -> void:
 	results["mode"] = {"mode_id": MatchConfig.GameMode.CAPTURE_THE_FLAG, "scores": [3.0, 0.0, 0.0], "winners": "0"}
 	_screen.show_results(results)
 	assert_true(_header_texts().has("Points"), "CTF keeps its own score column")
+
+
+func test_fallback_label_and_slot_colour_come_from_the_core_owners() -> void:
+	assert_eq(ResultsScreen.player_label({}, 2), "Player 3", "no row: PlayerNames fallback")
+	assert_eq(ScoreTable.slot_color(1, null), MatchConfig.default_player_colors()[1], "palette via SlotColors")
