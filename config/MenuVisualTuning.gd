@@ -13,8 +13,16 @@ extends Resource
 ## the tree the full-screen opaque backdrop hides the match world, so the root
 ## viewport skips its 3D pass and the frame rate is capped (0 = no cap). Never
 ## applied in a match; the player's vsync choice is untouched. --------------
-@export var menu_max_fps: int = 60
+## DECISION (Bontago-1pi.11.52, owner: ~25% GPU idling in the menu): 60 -> 30. The
+## menu is a static paper-cut backdrop, UI cards and one slow diorama orbit; 30 fps
+## halves every idle GPU/CPU cost (present, UI redraw, diorama) with no visible change.
+@export var menu_max_fps: int = 30
 @export var menu_disable_world_3d: bool = true
+
+## Bontago-1pi.11.52: how often the diorama SubViewport re-renders (its camera orbit
+## takes 24 s, so 30 reads as smooth). 0 = every frame. The camera is only moved on
+## those ticks, so the per-frame script work in between is a single accumulator add.
+@export var diorama_update_fps: int = 30
 
 ## -- Diorama framing: the SubViewportContainer is reframed into a small,
 ## framed rectangle in the right third of the screen (gap item 1), instead of
