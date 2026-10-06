@@ -89,8 +89,12 @@ func _surface() -> float:
 	return _field.surface_y()
 
 
-## Max horizontal displacement of `top` while `step` runs for `seconds`.
-func _measure(top: Block, seconds: float, step: Callable) -> float:
+## Max horizontal displacement of `top` while `step` runs for `seconds`. The
+## displacement only ever grows as a running maximum, so a caller asserting
+## "moved more than X" passes `stop_above = X` and the run ends the first tick it
+## is exceeded (Bontago-fca.38.1: same verdict, no waiting out the rest of the
+## gust/storm). Tests asserting "stays below X" leave it at INF and run in full.
+func _measure(top: Block, seconds: float, step: Callable, stop_above: float = INF) -> float:
 	var start: Vector3 = top.global_position
 	var moved: float = 0.0
 	for _i: int in range(int(seconds / DELTA)):
@@ -99,10 +103,12 @@ func _measure(top: Block, seconds: float, step: Callable) -> float:
 		if not is_instance_valid(top):
 			return FREED_M
 		moved = maxf(moved, _horizontal(top.global_position, start))
+		if moved > stop_above:
+			break
 	return moved
 
 
-func _gust_sway(tower: Array[Block], seed_value: int, strength: float) -> float:
+func _gust_sway(tower: Array[Block], seed_value: int, strength: float, stop_above: float = INF) -> float:
 	var tuning: BreezeTuning = (load("res://config/breeze.tres") as BreezeTuning).duplicate() as BreezeTuning
 	tuning.spawn_interval_s = 1.0e6
 	# Capability test: an explicitly strong gust (the pre-1pi.76 defaults), not the
@@ -118,15 +124,15 @@ func _gust_sway(tower: Array[Block], seed_value: int, strength: float) -> float:
 	var duration: float = tuning.duration_max_s
 	effect.gusts().append({"id": 1, "x": center.x, "y": _surface() + GUST_HEIGHT_M, "z": center.z,
 		"a": angle, "r": tuning.radius_max_m, "d": duration, "s": strength, "age": 0.0})
-	return await _measure(tower[tower.size() - 1], duration + GUST_TAIL_S, func() -> void: effect.tick(DELTA))
+	return await _measure(tower[tower.size() - 1], duration + GUST_TAIL_S, func() -> void: effect.tick(DELTA), stop_above)
 
 
-func _storm_sway(tower: Array[Block], seconds: float) -> float:
+func _storm_sway(tower: Array[Block], seconds: float, stop_above: float = INF) -> float:
 	var effect: StormEffect = StormEffect.new()
 	effect.tuning = load("res://config/weather/storm.tres") as StormTuning
 	effect.set_seed(11)
 	effect.set_test_world(func() -> Array: return _registry.all_blocks(), _surface)
-	return await _measure(tower[tower.size() - 1], seconds, func() -> void: effect.tick(DELTA, 1.0))
+	return await _measure(tower[tower.size() - 1], seconds, func() -> void: effect.tick(DELTA, 1.0), stop_above)
 
 
 func test_manager_freezes_the_settled_tower() -> void:
@@ -141,7 +147,7 @@ func test_gust_topples_settled_tall_tower() -> void:
 	for seed_value: int in GUST_SEEDS:
 		var tower: Array[Block] = _build(TOWER_LAYERS)
 		await _settle_and_freeze()
-		var moved: float = await _gust_sway(tower, seed_value, 1.0)
+		var moved: float = await _gust_sway(tower, seed_value, 1.0, TOPPLE_M)
 		report += " %.2f" % moved
 		if moved > TOPPLE_M:
 			toppled += 1
@@ -149,6 +155,8 @@ func test_gust_topples_settled_tall_tower() -> void:
 			block.free()
 		_field.queue_free()
 		await get_tree().process_frame
+		if toppled >= GUST_TOPPLE_MIN:
+			break  # the assertion below is already satisfied; later seeds cannot undo it
 	gut.p("gust top displacement per seed (m):" + report)
 	assert_gte(toppled, GUST_TOPPLE_MIN, "a strong gust topples a settled 30 m tower")
 
@@ -156,7 +164,7 @@ func test_gust_topples_settled_tall_tower() -> void:
 func test_storm_sways_settled_tall_tower() -> void:
 	var tower: Array[Block] = _build(TOWER_LAYERS)
 	await _settle_and_freeze()
-	var moved: float = await _storm_sway(tower, STORM_SECONDS)
+	var moved: float = await _storm_sway(tower, STORM_SECONDS, SWAY_M)
 	gut.p("storm top displacement: %.2f m" % moved)
 	assert_gt(moved, SWAY_M, "steady storm wind moves a settled 30 m tower")
 

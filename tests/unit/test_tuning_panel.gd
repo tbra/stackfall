@@ -39,11 +39,59 @@ var _saved_skybox_enabled: bool
 var _saved_sky_fog_density: float
 
 
+## Bontago-fca.38.1: the ~2900-node tab UI is built once per script, not once per
+## test. Tests that only read the panel or write resources/controls run against
+## _shared; after_each repairs it (rebuild) if anything left it dirty (a "•"
+## modified marker, open/hidden state, swapped providers or wiring). Tests that
+## open/close the panel, swap providers, wire a field/controller or alter a
+## control's selection take their own throw-away panel via _own_panel().
+var _shared: TuningPanel = null
+var _shared_sky_theme: SkyThemeDef = null
+
+
+func before_all() -> void:
+	_shared = load("res://ui/TuningPanel.tscn").instantiate()
+	add_child(_shared)
+	_shared.rebuild()
+	_shared_sky_theme = _shared.sky_theme
+
+
+func after_all() -> void:
+	if _shared != null:
+		_shared.free()
+		_shared = null
+
+
+## A fresh panel for a test that mutates panel-level state. prebuild = false
+## leaves the UI unbuilt for a test that rebuilds/opens it itself (half the cost).
+func _own_panel(prebuild: bool) -> TuningPanel:
+	var own: TuningPanel = autofree(load("res://ui/TuningPanel.tscn").instantiate())
+	add_child_autofree(own)
+	if prebuild:
+		own.rebuild()
+	_panel = own
+	return own
+
+
+func _shared_is_dirty() -> bool:
+	if _shared._tab_container == null or _shared.visible:
+		return true
+	if _shared.sky_theme != _shared_sky_theme or _shared.net_provider != Net:
+		return true
+	var resources: Array[Resource] = [
+		_shared.camera_tuning, _shared.ghost_tuning, _shared.physics_tuning,
+		_shared.territory_tuning, _shared.territory_visuals, _shared.block_feed_config,
+		_shared.sky_theme,
+	]
+	for resource: Resource in resources:
+		for prop_name: String in _shared.shown_fields_for(resource):
+			if _shared.label_text_for(resource, prop_name).begins_with("•"):
+				return true
+	return false
+
+
 func before_each() -> void:
-	_panel = autofree(load("res://ui/TuningPanel.tscn").instantiate())
-	add_child_autofree(_panel)
-	# Bontago-1pi.11.5: the tab UI is built lazily on open; build it up front.
-	_panel.rebuild()
+	_panel = _shared
 
 	_saved_gravity = _panel.physics_tuning.gravity_multiplier
 	_saved_friction = _panel.physics_tuning.block_friction
@@ -64,27 +112,33 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	_panel.physics_tuning.gravity_multiplier = _saved_gravity
-	_panel.physics_tuning.block_friction = _saved_friction
-	_panel.physics_tuning.disk_friction = _saved_disk_friction
-	_panel.physics_tuning.block_bounce = _saved_bounce
-	_panel.physics_tuning.block_linear_damp = _saved_linear_damp
-	_panel.physics_tuning.block_angular_damp = _saved_angular_damp
-	_panel.physics_tuning.cube_mass = _saved_cube_mass
-	_panel.physics_tuning.rebound_damping = _saved_rebound_damping
-	_panel.camera_tuning.follow_block = _saved_follow_block
-	_panel.camera_tuning.follow_distance = _saved_follow_distance
-	_panel.territory_tuning.max_cell_toggles_per_frame = _saved_max_cell_toggles
-	_panel.ghost_tuning.tint_color = _saved_tint_color
-	_panel.territory_visuals.disk_metallic = _saved_disk_metallic
-	_panel.skybox_config.default_set = _saved_skybox_default_set
-	_panel.skybox_config.enabled = _saved_skybox_enabled
-	_panel.sky_theme.fog_density = _saved_sky_fog_density
+	_shared.physics_tuning.gravity_multiplier = _saved_gravity
+	_shared.physics_tuning.block_friction = _saved_friction
+	_shared.physics_tuning.disk_friction = _saved_disk_friction
+	_shared.physics_tuning.block_bounce = _saved_bounce
+	_shared.physics_tuning.block_linear_damp = _saved_linear_damp
+	_shared.physics_tuning.block_angular_damp = _saved_angular_damp
+	_shared.physics_tuning.cube_mass = _saved_cube_mass
+	_shared.physics_tuning.rebound_damping = _saved_rebound_damping
+	_shared.camera_tuning.follow_block = _saved_follow_block
+	_shared.camera_tuning.follow_distance = _saved_follow_distance
+	_shared.territory_tuning.max_cell_toggles_per_frame = _saved_max_cell_toggles
+	_shared.ghost_tuning.tint_color = _saved_tint_color
+	_shared.territory_visuals.disk_metallic = _saved_disk_metallic
+	_shared.skybox_config.default_set = _saved_skybox_default_set
+	_shared.skybox_config.enabled = _saved_skybox_enabled
+	_shared.sky_theme.fog_density = _saved_sky_fog_density
 
 	Input.action_release(&"pause_menu")
 
 	if FileAccess.file_exists(TuningPanel.save_path()):
 		DirAccess.remove_absolute(TuningPanel.save_path())
+	_panel = _shared
+	if _shared_is_dirty():
+		_shared.visible = false
+		_shared.net_provider = Net
+		_shared.sky_theme = _shared_sky_theme
+		_shared.rebuild()
 
 
 # --- Reflection: one control per exported field ------------------------------
@@ -212,6 +266,7 @@ func test_original_feel_preset_live_values_and_current_clears_release_tilt() -> 
 
 
 func test_tokamak_preset_reaches_live_cube_and_disc_materials() -> void:
+	_own_panel(false)
 	var field: Field = Field.new()
 	add_child_autofree(field)
 	_panel.set_field(field)
@@ -295,6 +350,7 @@ func test_sky_tab_has_a_skybox_option_button_listing_procedural_and_every_discov
 
 
 func test_skybox_row_preselects_the_current_config_value() -> void:
+	_own_panel(false)
 	var available: PackedStringArray = Skybox.list_available_sets()
 	var target_id: String = available[0] if available.size() > 0 else Skybox.PROCEDURAL_SET_ID
 	_panel.skybox_config.default_set = target_id
@@ -348,6 +404,7 @@ func test_apply_skybox_set_is_safe_with_no_live_skybox_in_the_tree() -> void:
 ## the control's own signal directly is what a real mouse click eventually
 ## delivers too.
 func test_selecting_the_skybox_dropdown_item_applies_it() -> void:
+	_own_panel(true)
 	var skybox: Skybox = Skybox.new()
 	skybox.config = _panel.skybox_config
 	add_child_autofree(skybox)
@@ -384,6 +441,7 @@ func test_a_slider_drag_reaches_an_already_placed_block_end_to_end() -> void:
 # --- Territory visuals live-apply --------------------------------------------
 
 func test_territory_visuals_change_refreshes_a_wired_overlays_shader_uniform() -> void:
+	_own_panel(false)
 	var field: Field = autofree(Field.new())
 	add_child_autofree(field)  # Field._ready() builds a real, configured overlay.
 	_panel.set_field(field)
@@ -430,6 +488,7 @@ func test_apply_camera_tuning_live_is_a_noop_with_no_rig_in_the_tree() -> void:
 # --- Reset / Save / Copy ------------------------------------------------------
 
 func test_reset_reloads_physics_tuning_from_disk() -> void:
+	_own_panel(false)
 	var original: float = _panel.physics_tuning.gravity_multiplier
 	_panel.physics_tuning.gravity_multiplier = original + 1.5
 
@@ -445,6 +504,7 @@ func test_reset_reloads_physics_tuning_from_disk() -> void:
 ## resource_and_reaches_a_live_skybox above uses) so this also pins "applies
 ## live", not just "the Resource field goes back to its file default".
 func test_reset_reloads_sky_theme_from_disk_and_applies_live() -> void:
+	_own_panel(false)
 	var sky: Sky = Sky.new()
 	sky.sky_material = ProceduralSkyMaterial.new()
 	var environment: Environment = Environment.new()
@@ -534,6 +594,7 @@ func _fake_weather(host: bool) -> MatchWeather:
 
 
 func test_weather_row_lists_schedule_off_and_every_registered_type() -> void:
+	_own_panel(false)
 	_panel.net_provider = FakeNet.host()
 	_panel.weather_provider = _fake_weather(true)
 	_panel.rebuild()
@@ -547,6 +608,7 @@ func test_weather_row_lists_schedule_off_and_every_registered_type() -> void:
 
 
 func test_weather_row_selection_forces_swaps_and_releases_on_the_host() -> void:
+	_own_panel(false)
 	_panel.net_provider = FakeNet.host()
 	var weather: MatchWeather = _fake_weather(true)
 	_panel.weather_provider = weather
@@ -568,6 +630,7 @@ func test_weather_row_selection_forces_swaps_and_releases_on_the_host() -> void:
 
 
 func test_weather_row_is_disabled_on_a_client_and_changes_nothing() -> void:
+	_own_panel(false)
 	_panel.net_provider = FakeNet.client(0)
 	var weather: MatchWeather = _fake_weather(false)
 	_panel.weather_provider = weather
@@ -580,6 +643,7 @@ func test_weather_row_is_disabled_on_a_client_and_changes_nothing() -> void:
 # --- Availability: host/offline vs. client -----------------------------------
 
 func test_offline_shows_every_tab() -> void:
+	_own_panel(false)
 	_panel.net_provider = FakeNet.offline()
 	_panel.rebuild()
 	for index: int in range(_panel._tab_container.get_tab_count()):
@@ -587,6 +651,7 @@ func test_offline_shows_every_tab() -> void:
 
 
 func test_host_shows_every_tab() -> void:
+	_own_panel(false)
 	_panel.net_provider = FakeNet.host()
 	_panel.rebuild()
 	for index: int in range(_panel._tab_container.get_tab_count()):
@@ -598,6 +663,7 @@ func test_host_shows_every_tab() -> void:
 ## so every visual tab (Camera, Controls, and the five new M7 tabs) must stay
 ## visible to a client, and only Physics/Territory/Feed (indices 7-9) hide.
 func test_client_hides_physics_territory_and_feed_but_not_the_visual_tabs() -> void:
+	_own_panel(false)
 	_panel.net_provider = FakeNet.client(0)
 	_panel.rebuild()
 	var visible_names: PackedStringArray = [
@@ -731,6 +797,7 @@ func _pad_press(button: JoyButton) -> InputEventJoypadButton:
 
 
 func test_f4_toggles_visibility_both_ways() -> void:
+	_own_panel(false)
 	var event: InputEventKey = _key_press(KEY_F4)
 	assert_true(event.is_action_pressed(&"tuning_panel_toggle"), "F4 should map to tuning_panel_toggle")
 
@@ -742,6 +809,7 @@ func test_f4_toggles_visibility_both_ways() -> void:
 
 
 func test_toggle_suppresses_and_restores_controller_input() -> void:
+	_own_panel(false)
 	var controller: PlayerController = autofree(PlayerController.new())
 	add_child_autofree(controller)
 	_panel.set_controller(controller)
@@ -755,6 +823,7 @@ func test_toggle_suppresses_and_restores_controller_input() -> void:
 
 
 func test_gamepad_x_alone_does_not_toggle() -> void:
+	_own_panel(false)
 	var event: InputEventJoypadButton = _pad_press(JOY_BUTTON_X)
 	assert_true(event.is_action_pressed(&"tuning_panel_toggle"))
 
@@ -763,6 +832,7 @@ func test_gamepad_x_alone_does_not_toggle() -> void:
 
 
 func test_gamepad_start_plus_x_toggles() -> void:
+	_own_panel(false)
 	Input.action_press(&"pause_menu")
 	var event: InputEventJoypadButton = _pad_press(JOY_BUTTON_X)
 
@@ -779,6 +849,7 @@ func test_gamepad_start_plus_x_toggles() -> void:
 ## landed back on 0) and pass once the panel remembers the tab across a
 ## close/reopen in the same session.
 func test_f4_remembers_selected_tab_across_close_and_reopen() -> void:
+	_own_panel(false)
 	_panel._unhandled_input(_key_press(KEY_F4))
 	assert_true(_panel.visible, "fixture: opened.")
 
@@ -809,6 +880,7 @@ func test_f4_remembers_selected_tab_across_close_and_reopen() -> void:
 ## choice survives a fresh TuningPanel instance (a stand-in for a full app
 ## restart), not just the same live panel object.
 func test_selected_tab_index_persists_across_a_fresh_panel_instance() -> void:
+	_own_panel(true)
 	var target_tab: int = _panel._tab_container.get_tab_count() - 1
 	_panel._tab_container.current_tab = target_tab
 	_panel._tab_container.emit_signal("tab_changed", target_tab)
@@ -828,6 +900,7 @@ func test_selected_tab_index_persists_across_a_fresh_panel_instance() -> void:
 # --- Bontago-1pi.22: tab memory only writes on user interaction -------------
 
 func test_programmatic_tab_selection_does_not_write() -> void:
+	_own_panel(true)
 	DirAccess.remove_absolute(_panel.save_path())
 	assert_false(FileAccess.file_exists(_panel.save_path()), "fixture: file removed.")
 	var target_tab: int = _panel._tab_container.get_tab_count() - 1
@@ -838,6 +911,7 @@ func test_programmatic_tab_selection_does_not_write() -> void:
 
 
 func test_user_tab_selection_writes_to_per_pid_file() -> void:
+	_own_panel(true)
 	DirAccess.remove_absolute(_panel.save_path())
 	assert_false(FileAccess.file_exists(_panel.save_path()), "fixture: file removed.")
 	var target_tab: int = _panel._tab_container.get_tab_count() - 1
@@ -924,6 +998,10 @@ func test_reset_restores_shipped_tres_and_default_label_and_highlight_agree() ->
 		_panel.skybox_config, _panel.sky_theme,
 	]
 	var differing: int = 0
+	# Bontago-fca.38.1: every differing field is edited first, then one reset_all()
+	# (a full ~2900-node rebuild) restores them all, then every field gets the same
+	# per-field assertions as before (was one reset_all() per field).
+	var edited: Array[Dictionary] = []
 	for resource: Resource in resources:
 		var shipped: Resource = ResourceLoader.load(resource.resource_path, "", ResourceLoader.CACHE_MODE_IGNORE)
 		var gd_default: Resource = (resource.get_script() as Script).new() as Resource
@@ -936,16 +1014,23 @@ func test_reset_restores_shipped_tres_and_default_label_and_highlight_agree() ->
 			# A field whose .tres value differs from its .gd default.
 			differing += 1
 			resource.set(prop_name, float(shipped.get(prop_name)) + 1.0 if type == TYPE_FLOAT else int(shipped.get(prop_name)) + 1)
-			_panel.reset_all()
-			assert_true(is_equal_approx(float(resource.get(prop_name)), float(shipped.get(prop_name))), "%s.%s must return to the shipped .tres value." % [resource, prop_name])
-			assert_false(_panel.is_modified(resource, prop_name), "%s.%s must not be flagged modified after Reset." % [resource, prop_name])
-			var label: String = _panel.label_text_for(resource, prop_name)
-			assert_false(label.begins_with("•"), "%s must not carry the modified marker after Reset." % label)
-			assert_true(label.contains(_panel._format_default(shipped.get(prop_name), type)), "%s must show the shipped value as its default." % label)
+			edited.append({"resource": resource, "prop": prop_name, "type": type, "shipped": shipped.get(prop_name)})
+	_panel.reset_all()
+	for entry: Dictionary in edited:
+		var resource: Resource = entry["resource"] as Resource
+		var prop_name: String = entry["prop"] as String
+		var type: int = entry["type"] as int
+		var shipped_value: Variant = entry["shipped"]
+		assert_true(is_equal_approx(float(resource.get(prop_name)), float(shipped_value)), "%s.%s must return to the shipped .tres value." % [resource, prop_name])
+		assert_false(_panel.is_modified(resource, prop_name), "%s.%s must not be flagged modified after Reset." % [resource, prop_name])
+		var label: String = _panel.label_text_for(resource, prop_name)
+		assert_false(label.begins_with("•"), "%s must not carry the modified marker after Reset." % label)
+		assert_true(label.contains(_panel._format_default(shipped_value, type)), "%s must show the shipped value as its default." % label)
 	gut.p("fields whose .tres differs from .gd default: %d" % differing)
 
 
 func test_no_row_is_modified_after_reset_all() -> void:
+	_own_panel(false)
 	_panel.reset_all()
 	for resource: Resource in [_panel.camera_tuning, _panel.ghost_tuning, _panel.physics_tuning, _panel.territory_tuning, _panel.territory_visuals, _panel.block_feed_config]:
 		for prop_name: String in _panel.shown_fields_for(resource):
@@ -1018,6 +1103,7 @@ func _find_option_named(node: Node, option_name: String) -> OptionButton:
 
 
 func test_sky_tab_theme_dropdown_lists_themes_and_switches_live() -> void:
+	_own_panel(false)
 	var saved_name: String = _panel.skybox_config.theme_name
 	var skybox: Skybox = Skybox.new()
 	skybox.config = _panel.skybox_config
@@ -1118,6 +1204,7 @@ func _find_control_named(node: Node, control_name: String) -> Control:
 
 
 func test_theme_dropdown_cycle_entry_starts_the_cycle_and_persists_theme_name() -> void:
+	_own_panel(false)
 	var saved_name: String = _panel.skybox_config.theme_name
 	var saved_theme: SkyThemeDef = _panel.sky_theme
 	var spy: SpySkybox = _make_spy_skybox(false)
@@ -1146,6 +1233,7 @@ func test_theme_dropdown_cycle_entry_starts_the_cycle_and_persists_theme_name() 
 
 
 func test_theme_dropdown_shows_cycle_while_a_live_skybox_runs_it() -> void:
+	_own_panel(false)
 	var spy: SpySkybox = _make_spy_skybox(true)
 	assert_eq(_panel.skybox_config.theme_name, "sunset", "fixture: the persisted name is still the static default")
 	assert_eq(_panel.theme_choice(), "cycle", "a match's running cycle is what F4 must show")
@@ -1156,6 +1244,7 @@ func test_theme_dropdown_shows_cycle_while_a_live_skybox_runs_it() -> void:
 
 
 func test_time_of_day_row_routes_every_choice_through_set_locked_phase() -> void:
+	_own_panel(false)
 	var spy: SpySkybox = _make_spy_skybox(true)
 	_panel.rebuild()
 	var option: OptionButton = _find_option_named(_panel, "TimeOfDayOption")
@@ -1199,6 +1288,7 @@ func test_time_of_day_row_routes_every_choice_through_set_locked_phase() -> void
 
 
 func test_time_of_day_row_reflects_a_cycle_locked_by_the_lobby() -> void:
+	_own_panel(false)
 	var spy: SpySkybox = _make_spy_skybox(true)
 	var source: SkyThemeDef = Skybox.load_theme("sunset")
 	spy.locked = source.locked_phase_for("night")
@@ -1215,6 +1305,7 @@ func test_time_of_day_row_reflects_a_cycle_locked_by_the_lobby() -> void:
 
 
 func test_time_of_day_row_is_disabled_while_a_static_theme_is_shown() -> void:
+	_own_panel(false)
 	var spy: SpySkybox = _make_spy_skybox(false)
 	_panel.rebuild()
 	assert_true(_find_option_named(_panel, "TimeOfDayOption").disabled)
@@ -1224,6 +1315,7 @@ func test_time_of_day_row_is_disabled_while_a_static_theme_is_shown() -> void:
 
 
 func test_live_sky_edit_refreshes_cycle_sources_instead_of_applying_the_static_theme() -> void:
+	_own_panel(false)
 	var spy: SpySkybox = _make_spy_skybox(true)
 	_panel.rebuild()
 	var slider: HSlider = _panel.control_for(_panel.sky_theme, "fog_density") as HSlider
@@ -1238,6 +1330,7 @@ func test_live_sky_edit_refreshes_cycle_sources_instead_of_applying_the_static_t
 
 
 func test_editing_a_locked_phase_export_moves_the_selected_preset() -> void:
+	_own_panel(false)
 	var spy: SpySkybox = _make_spy_skybox(true)
 	_panel.rebuild()
 	var source: SkyThemeDef = Skybox.load_theme("sunset")
@@ -1251,6 +1344,7 @@ func test_editing_a_locked_phase_export_moves_the_selected_preset() -> void:
 
 
 func test_reset_keeps_a_running_cycle_instead_of_switching_to_the_static_theme() -> void:
+	_own_panel(false)
 	var spy: SpySkybox = _make_spy_skybox(true)
 	_panel.reset_all()
 	assert_true(spy.cycle_active, "reset must not replace the cycle with a static theme")
