@@ -186,6 +186,49 @@ func test_aimed_gift_refuses_malformed_directions_and_stays_held() -> void:
 	assert_eq(Match.held_special(0), &"gift_rocket")
 
 
+# --- Bontago-1pi.85.21: host validation findings -----------------------------------
+
+func test_unresolved_def_gift_never_launches_with_the_raw_client_velocity() -> void:
+	Match.start_match(_config())
+	for _i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * Engine.physics_ticks_per_second)) + 2):
+		Match._process(1.0 / Engine.physics_ticks_per_second)
+	Match._gifts._ensure_capacity(0)
+	Match._gifts._held_specials[0] = &"no_such_gift"
+	Match._feed._held_is_gift[0] = true
+	var hostile: Vector3 = Vector3(0.0, 24.0, 0.0)
+	assert_eq(_throw(hostile), PlacementRules.REASON_NO_BLOCK, "no usable heading: refused")
+	assert_eq(_blocks_root.get_child_count(), 0)
+	assert_eq(Match.held_special(0), &"no_such_gift", "nothing consumed")
+	var sent: Vector3 = Vector3(20.0, 20.0, 0.0)
+	assert_eq(_throw(sent), PlacementRules.REASON_OK)
+	var block: Block = _blocks_root.get_child(0) as Block
+	assert_true(block.linear_velocity.is_equal_approx(GiftThrow.fixed_velocity(sent, _tuning())))
+	assert_false(block.linear_velocity.is_equal_approx(sent))
+
+
+func test_aimed_gift_with_a_straight_up_aim_is_refused_and_stays_held() -> void:
+	_start_with(&"gift_rocket", GiftThrow.Mode.AIMED)
+	var seq: int = Match.feed_seq(0)
+	assert_eq(_throw(Vector3(0.0, 1.0, 0.0)), PlacementRules.REASON_NO_BLOCK)
+	assert_eq(_throw(Vector3(0.0, 5.0, 0.0)), PlacementRules.REASON_NO_BLOCK)
+	assert_eq(_blocks_root.get_child_count(), 0, "nothing spawned")
+	assert_eq(Match.feed_seq(0), seq, "the piece was not consumed")
+	assert_eq(Match.held_special(0), &"gift_rocket")
+
+
+func test_overlap_check_uses_the_basis_the_gift_actually_spawns_with() -> void:
+	_start_with(&"gift_bomb", GiftThrow.Mode.THROW)
+	var tilted: Quaternion = Quaternion(Vector3.RIGHT, 1.0)
+	assert_eq(_throw(Vector3(1.0, 0.0, 0.0), 5, tilted), PlacementRules.REASON_OK)
+	var spawn_basis: Basis = (_blocks_root.get_child(0) as Block).global_transform.basis
+	assert_true(spawn_basis.is_equal_approx(Basis.IDENTITY))
+	assert_true(
+		Match._placement._spawn_basis(&"gift_bomb", Basis(tilted)).is_equal_approx(spawn_basis),
+		"the helper both the lift check and the spawn use yields the spawned basis"
+	)
+	assert_true(Match._placement._spawn_basis(&"", Basis(tilted)).is_equal_approx(Basis(tilted)), "plain blocks keep the pose")
+
+
 # --- host: upright spawn ----------------------------------------------------------
 
 func test_a_gift_spawns_upright_whatever_orientation_the_intent_carries() -> void:

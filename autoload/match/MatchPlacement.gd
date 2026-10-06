@@ -391,19 +391,24 @@ func request_throw(
 		return ThrowRules.REASON_NOT_A_SPECIAL
 	var launch_velocity: Vector3 = Vector3.ZERO
 	var aim_direction: Vector3 = Vector3.ZERO
-	if held_def == null:
-		# A gift with no def spawns as a plain block: legacy clamped client velocity.
-		launch_velocity = velocity
-	elif throw_mode == GiftThrow.Mode.THROW:
+	if held_def == null or throw_mode == GiftThrow.Mode.THROW:
+		# DECISION (Bontago-1pi.85.21): a gift whose def cannot be resolved (it spawns as a plain
+		# block) is normalised through the same fixed trajectory as a THROW gift instead of
+		# launching with the client's raw velocity; no usable heading refuses without consuming.
 		launch_velocity = GiftThrow.fixed_velocity(velocity, _special_tuning)
 		if launch_velocity == Vector3.ZERO:
 			return PlacementRules.REASON_NO_BLOCK
 	else:
 		aim_direction = GiftThrow.sanitize_aim(velocity, _special_tuning)
-		if aim_direction == Vector3.ZERO:
+		# DECISION (Bontago-1pi.85.21): the effects drop an upward part, so a straight-up (or
+		# otherwise purely vertical) aim would be consumed and fall unlaunched; refuse it without
+		# consuming, like the THROW zero-heading refusal, instead of clamping.
+		if RocketEffect.sanitize_launch_direction(aim_direction) == Vector3.ZERO:
 			return PlacementRules.REASON_NO_BLOCK
 
-	var basis: Basis = Basis(free_quat) * BlockOrientations.get_basis(orientation_index)
+	var gift_id: StringName = _held_deliverable_gift(slot_id)
+	# Bontago-1pi.85.21: the overlap/lift check must test the basis _spawn_block() will use.
+	var basis: Basis = _spawn_basis(gift_id, Basis(free_quat) * BlockOrientations.get_basis(orientation_index))
 	var local_origin: Vector3 = _match._field.to_local(origin)
 	var team_id: int = acting_slot.team_id
 
@@ -446,7 +451,7 @@ func request_throw(
 		return PlacementRules.REASON_NO_BLOCK
 	world_origin = lifted as Vector3
 	var spawned: Block = _spawn_block(
-		shape, world_origin, basis, slot_id, true, _held_deliverable_gift(slot_id)
+		shape, world_origin, basis, slot_id, true, gift_id
 	)
 	spawned.linear_velocity = clamped_velocity
 	# DECISION (autoload/match/MatchPlacement.gd, M4 P2c): spec 3.5 names
@@ -695,6 +700,11 @@ func _apply_territory_waiver(slot_id: int, result: PlacementRules.Result) -> Pla
 	return result
 
 
+## The basis a spawn actually uses: a gift is always upright, a plain block keeps the pose.
+func _spawn_basis(gift_id: StringName, requested: Basis) -> Basis:
+	return Basis.IDENTITY if gift_id != &"" else requested
+
+
 ## Bontago-mv0.11: `slot_id`'s own colour tints every mesh of the block it
 ## places.
 ##
@@ -727,8 +737,7 @@ func _spawn_block(
 	_match._blocks_parent.add_child(block)
 	# Bontago-1pi.85.16: a gift is never rotated by its owner (rotate actions are no-ops while
 	# one is held), so the host spawns it upright whatever pose the intent carried.
-	var spawn_basis: Basis = Basis.IDENTITY if gift_id != &"" else basis
-	block.global_transform = Transform3D(spawn_basis, world_origin)
+	block.global_transform = Transform3D(_spawn_basis(gift_id, basis), world_origin)
 	# Bontago-t8x.1: a used gift is delivered as its gift model, not as a
 	# plain block. The body keeps the held piece's collision (it is the
 	# gift's physical carrier) but shows the gift; the id rides the spawn RPC.
