@@ -76,6 +76,53 @@ func test_flight_lands_then_expires_at_exact_configured_life_boundary() -> void:
 	assert_false(Match._gifts._crates.has(gift_id))
 
 
+## Bontago-mp0.139: the parachute visuals follow the falling/landed state and
+## change nothing about the descent itself (positions, phases, timing).
+func test_host_crate_parachute_deploys_on_spawn_and_collapses_on_landing() -> void:
+	_start()
+	Match._gifts._gift_config.relocate_min_distance_m = 1000.0
+	var gift_id: int = _spawn(Vector2(0.0, 15.0))
+	var crate: GiftCrate = Match._gifts._crates[gift_id]["node"]
+	var chute: GiftParachute = crate.parachute()
+	assert_true(crate.is_falling())
+	assert_eq(chute.phase(), ParachuteAnim.Phase.DEPLOYING)
+	assert_true(chute.visible)
+	Match._gifts.tick_host(4.5)
+	assert_eq(int(Match.gift_state(gift_id)["phase"]), MatchGifts.FALLING, "descent timing is unchanged")
+	assert_true(crate.is_falling())
+	Match._gifts.tick_host(4.5)
+	assert_eq(int(Match.gift_state(gift_id)["phase"]), MatchGifts.LANDED, "landing timing is unchanged")
+	assert_false(crate.is_falling())
+	assert_eq(chute.phase(), ParachuteAnim.Phase.COLLAPSING)
+	assert_true(chute.visible, "the canopy collapses on screen instead of vanishing")
+	chute.advance(Match._gifts._gift_config.life_s)
+	assert_false(chute.visible)
+
+
+func test_client_crate_parachute_follows_the_replicated_flight_and_landing() -> void:
+	_start()
+	Match.set_net_provider(FakeNet.client(0))
+	var origin: Vector3 = Vector3(0.0, 10.0, 15.0)
+	var landing: Vector3 = Vector3(0.0, 1.0, 15.0)
+	Match._gifts.apply_replicated_flight(301, origin, landing)
+	var crate: GiftCrate = Match._gifts._crates[301]["node"]
+	assert_eq(crate.parachute().phase(), ParachuteAnim.Phase.DEPLOYING, "flight event inflates the canopy")
+	Match._gifts.apply_replicated_flight(301, origin, landing)
+	assert_eq(crate.parachute().phase(), ParachuteAnim.Phase.DEPLOYING, "a duplicate flight event is ignored")
+	Match._gifts.apply_replicated_landing(301, landing)
+	assert_eq(crate.parachute().phase(), ParachuteAnim.Phase.COLLAPSING, "landing event deflates it")
+	assert_true(crate.parachute().visible)
+
+
+func test_client_legacy_landed_spawn_shows_no_canopy() -> void:
+	_start()
+	Match.set_net_provider(FakeNet.client(0))
+	Match._gifts.apply_replicated_spawn(302, Vector2(0.0, 15.0))
+	var crate: GiftCrate = Match._gifts._crates[302]["node"]
+	assert_false(crate.is_falling())
+	assert_false(crate.parachute().visible, "a crate that never fell must not wear a parachute")
+
+
 func test_owned_landing_claims_once() -> void:
 	_start()
 	var gift_id: int = _spawn(Match.slot(0).home_position)

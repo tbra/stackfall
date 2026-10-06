@@ -66,7 +66,12 @@ var _idle_glow_enabled: bool = true
 ## freed anyway.
 var _claimed: bool = false
 var _hint_time: float = 0.0
-var _canopy: Node3D = null
+## Bontago-mp0.139: the visual parachute (see game/GiftParachute.gd) and the
+## replicated falling state it follows. `_falling` is false for a crate nothing
+## has told to fall -- a landed crate built by a client's replicated spawn --
+## so such a crate shows no canopy (it used to keep one forever).
+var _parachute: GiftParachute = null
+var _falling: bool = false
 
 
 func _ready() -> void:
@@ -164,23 +169,16 @@ func _build() -> void:
 	var jewel: MeshInstance3D = _add_box(_beacon, &"BeaconDiamond", Vector3(0.22, 0.22, 0.22), Vector3.ZERO, _flat_material(BEACON_COLOR, true))
 	jewel.rotation = Vector3(0.0, 0.0, PI * 0.25)
 
-	_canopy = Node3D.new()
-	_canopy.name = &"Parachute"
-	_canopy.position.y = 1.35
-	add_child(_canopy)
-	var canopy_mesh: SphereMesh = SphereMesh.new()
-	canopy_mesh.radius = 0.85
-	canopy_mesh.height = 0.45
-	var canopy: MeshInstance3D = MeshInstance3D.new()
-	canopy.mesh = canopy_mesh
-	canopy.material_override = _flat_material(RIBBON_COLOR)
-	_canopy.add_child(canopy)
-	var cord_material: StandardMaterial3D = _flat_material(LID_COLOR)
-	for x_sign: int in [-1, 1]:
-		for z_sign: int in [-1, 1]:
-			var cord: MeshInstance3D = _add_box(_canopy, &"Cord", Vector3(0.025, 1.0, 0.025),
-				Vector3(float(x_sign) * 0.4, -0.63, float(z_sign) * 0.4), cord_material)
-			cord.rotation.z = float(x_sign) * 0.17
+	# Bontago-mp0.139: procedural gore-panel parachute (game/ParachuteMesh.gd),
+	# animated by core/gifts/ParachuteAnim.gd; hidden until set_falling(true).
+	_parachute = GiftParachute.new()
+	_parachute.name = &"Parachute"
+	_parachute.setup(gift_config, CRATE_SIZE.y * 0.5)
+	add_child(_parachute)
+	if _falling:
+		# set_falling(true) arrived before _ready() built the parachute.
+		_parachute.set_phase_seed(float(gift_id))
+		_parachute.deploy()
 
 
 func _update_spawn_glow() -> void:
@@ -206,9 +204,28 @@ func idle_glow_enabled() -> bool:
 	return _idle_glow_enabled
 
 
+## Called by MatchGifts on the host (spawn/landing) and on a client when the
+## replicated flight/landing event arrives. Drives only the parachute visuals:
+## true inflates the canopy, false collapses it (it deflates, sinks and fades
+## rather than vanishing). Repeating the same state is harmless.
 func set_falling(falling: bool) -> void:
-	if _canopy != null:
-		_canopy.visible = falling
+	_falling = falling
+	if _parachute == null:
+		return
+	if falling:
+		_parachute.set_phase_seed(float(gift_id))
+		_parachute.deploy()
+	else:
+		_parachute.collapse()
+
+
+func is_falling() -> bool:
+	return _falling
+
+
+## The parachute node, for tests and probes (null before _ready()).
+func parachute() -> GiftParachute:
+	return _parachute
 
 
 func _flat_material(color: Color, emissive: bool = false) -> StandardMaterial3D:
@@ -282,6 +299,11 @@ func _on_gift_claimed(claimed_gift_id: int, slot_id: int, _special_id: StringNam
 	var parent: Node = get_parent()
 	if parent == null or not (parent is Node3D) or not parent.is_inside_tree():
 		return
+	# Bontago-mp0.139: this crate is freed right after the claim, so a canopy
+	# that is still up (an air capture, or a landing claimed the same tick)
+	# moves to the crate's parent and finishes its collapse there.
+	if _parachute != null and _parachute.is_active():
+		_parachute.release_to(parent as Node3D)
 	spawn_claim_pop(parent as Node3D, global_position, _claim_color(slot_id), gift_config)
 
 
@@ -350,7 +372,7 @@ static func spawn_claim_pop(parent: Node3D, world_position: Vector3, color: Colo
 ## by a held block touch, so they never show this not-claimable hint. Resets
 ## to the flat UNCLAIMED_COLOR when hovering stops.
 func _update_hint(delta: float) -> void:
-	if _canopy != null and _canopy.visible:
+	if _falling:
 		return
 	if not _is_hint_hovering():
 		if _hint_time > 0.0:

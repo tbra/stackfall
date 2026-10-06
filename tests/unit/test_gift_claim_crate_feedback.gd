@@ -92,6 +92,45 @@ func test_real_spawn_claim_uses_its_id_for_the_pop() -> void:
 	assert_not_null(Match._gifts._container.get_node_or_null("GiftClaimPop"), "the claim must leave visible feedback")
 
 
+## Bontago-mp0.139: a landing claimed the same tick frees the crate node at
+## once, so its parachute is handed to the container and finishes collapsing.
+func test_a_landing_claim_leaves_the_parachute_collapsing_in_the_container() -> void:
+	_start_playing(_config())
+	var home: Vector2 = Match.slot(0).home_position
+	Match._gifts._spawn_crate_at(home)
+	var fall_time: float = Match._gifts._gift_config.drop_height_m / Match._gifts._gift_config.fall_speed_m_s
+	Match._gifts.tick_host(fall_time + 0.01)
+	var chute: GiftParachute = Match._gifts._container.get_node_or_null("Parachute") as GiftParachute
+	assert_not_null(chute, "the freed crate's canopy must survive its claim")
+	assert_eq(chute.phase(), ParachuteAnim.Phase.COLLAPSING)
+	assert_true(chute.visible)
+	chute.advance(Match._gifts._gift_config.chute_collapse_s + 0.1)
+	assert_true(chute.is_queued_for_deletion(), "and free itself once it has faded")
+
+
+func test_an_airborne_claim_hands_the_open_canopy_over_to_collapse() -> void:
+	_start_playing(_config())
+	var parent: Node3D = autofree(Node3D.new())
+	add_child_autofree(parent)
+	var crate: GiftCrate = _make_crate(5, Match.slot(0).home_position, parent)
+	crate.set_falling(true)
+	crate.parachute().advance(crate.gift_config.chute_deploy_s + 0.1)
+	var chute: GiftParachute = crate.parachute()
+	Events.gift_claimed.emit(5, 0, MatchGifts.PENDING_SPECIAL_ID)
+	assert_eq(chute.get_parent(), parent, "no longer a child of the crate that is about to be freed")
+	assert_eq(chute.phase(), ParachuteAnim.Phase.COLLAPSING)
+
+
+func test_a_claim_with_no_canopy_up_leaves_nothing_behind() -> void:
+	_start_playing(_config())
+	var parent: Node3D = autofree(Node3D.new())
+	add_child_autofree(parent)
+	var crate: GiftCrate = _make_crate(5, Match.slot(0).home_position, parent)
+	var chute: GiftParachute = crate.parachute()
+	Events.gift_claimed.emit(5, 0, MatchGifts.PENDING_SPECIAL_ID)
+	assert_eq(chute.get_parent(), crate, "a hidden canopy just goes with its crate")
+
+
 func test_pickup_has_a_readable_wrapped_silhouette() -> void:
 	var parent: Node3D = autofree(Node3D.new())
 	add_child_autofree(parent)
@@ -236,6 +275,23 @@ func test_hint_does_not_trigger_over_a_crate_inside_the_local_players_own_territ
 		crate._material.albedo_color, GiftCrate.UNCLAIMED_COLOR,
 		"a crate the local player really can claim must not show the not-claimable hint"
 	)
+
+
+func test_hint_waits_for_the_landing_but_not_for_the_canopy_to_finish_collapsing() -> void:
+	_start_playing(_config())
+	_step_territory()
+	var parent: Node3D = autofree(Node3D.new())
+	add_child_autofree(parent)
+	var crate: GiftCrate = _make_crate(1, Vector2(19.0, 19.0), parent)
+	var ghost: GhostPreview = _make_local_ghost()
+	ghost.global_position = crate.global_position
+	crate.set_falling(true)
+	crate._process(0.05)
+	assert_eq(crate._material.albedo_color, GiftCrate.UNCLAIMED_COLOR, "a falling crate never shows the hint")
+	crate.set_falling(false)
+	assert_true(crate.parachute().visible, "fixture: the canopy is still collapsing")
+	crate._process(0.05)
+	assert_ne(crate._material.albedo_color, GiftCrate.UNCLAIMED_COLOR, "a landed crate hints even while the canopy settles")
 
 
 func test_hint_does_not_trigger_with_no_local_ghost_held() -> void:

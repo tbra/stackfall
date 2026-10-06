@@ -156,3 +156,64 @@ extends Resource
 @export var spawn_halo_alpha: float = 0.65
 @export var spawn_halo_start_scale: float = 0.75
 @export var spawn_halo_end_scale: float = 2.0
+
+## -- Parachute (Bontago-mp0.139): the visual canopy a crate wears while it
+## descends. Purely cosmetic and client-side: it follows the replicated
+## falling/landed state (GiftCrate.set_falling) and changes no descent speed,
+## landing time, claim rule or network message. GiftConfig is not on the F4
+## roster, so none of these needs a tuning_panel_hints entry.
+## The model is built by game/ParachuteMesh.gd, animated by
+## core/gifts/ParachuteAnim.gd and shown by game/GiftParachute.gd.
+
+## Canopy rim radius in metres (the old placeholder's 0.85 literal).
+@export var chute_radius_m: float = 0.85
+## Height of the dome above its rim, in metres.
+@export var chute_dome_height_m: float = 0.55
+## Height of the canopy rim above the riser point (where the lines converge).
+@export var chute_rim_height_m: float = 0.95
+## Height of the riser point above the crate's top face; four short harness
+## lines run from it to the crate's top corners.
+@export var chute_riser_height_m: float = 0.45
+## Inset of the harness attachment points from the crate's edge, as the
+## half-width of the square they sit on (metres from the crate's centre line).
+@export var chute_attach_half_extent_m: float = 0.24
+## Number of panels (gores); even so the two colours alternate all round.
+@export var chute_gore_count: int = 12
+## Rows of panels between the vent and the rim.
+@export var chute_ring_count: int = 4
+## Polar angle (radians from the top) at which the open vent ends.
+@export var chute_vent_angle_rad: float = 0.22
+## How far the middle of each panel's rim edge is lifted (the scallop), metres.
+@export var chute_scallop_depth_m: float = 0.07
+## Outward bulge of each panel's middle, as a fraction of the canopy radius.
+@export var chute_billow: float = 0.06
+@export var chute_color_a: Color = Color(1.0, 0.7, 0.19)
+@export var chute_color_b: Color = Color(0.96, 0.93, 0.85)
+@export var chute_line_color: Color = Color(0.92, 0.9, 0.82)
+## Edge length of the thin prism each suspension line is drawn as, in metres.
+@export var chute_line_thickness_m: float = 0.016
+
+## Deploy: the canopy inflates from a narrow stream over this many seconds.
+@export var chute_deploy_s: float = 0.9
+@export var chute_deploy_start_radius_scale: float = 0.12
+@export var chute_deploy_start_height_scale: float = 0.75
+## Opening-shock overshoot (0 = none; ~1.7 is the classic 10% back-ease overshoot).
+@export var chute_deploy_overshoot: float = 1.2
+
+## Descent: a gentle pendulum lean about the riser, plus a slow breathing.
+@export var chute_sway_hz: float = 0.4
+## Peak lean in radians.
+@export var chute_sway_tilt_rad: float = 0.09
+## The second lean axis swings at this multiple of chute_sway_hz.
+@export var chute_sway_axis_ratio: float = 1.31
+@export var chute_breath_hz: float = 0.8
+## Radius swells and height shrinks by this fraction at the peak of a breath.
+@export var chute_breath_amount: float = 0.025
+
+## Landing: the canopy deflates, sinks and fades over this many seconds.
+@export var chute_collapse_s: float = 1.1
+@export var chute_collapse_end_radius_scale: float = 0.9
+@export var chute_collapse_end_height_scale: float = 0.08
+@export var chute_collapse_drop_m: float = 0.55
+## Fraction of the collapse after which the fade-out starts.
+@export var chute_collapse_fade_start: float = 0.35
