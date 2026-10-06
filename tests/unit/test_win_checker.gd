@@ -1,6 +1,6 @@
 extends GutTest
 ## Spec 2.3: "A player or team wins when one connected territory contains every
-## goal flag continuously for capture_hold = 5 s."
+## goal flag continuously for capture_hold (20 s since Bontago-1pi.91)."
 ##
 ## Spec 3.3 says to check it against the raster. The decisive detail
 ## (docs/M2_PLAN.md, "Solver -> raster -> win check") is that every goal must
@@ -10,6 +10,10 @@ extends GutTest
 
 const MAP_RADIUS: float = 20.0
 const CELL: float = 1.0
+## The timing tests below step whole seconds against a fixed hold so they test
+## WinChecker's logic, not the shipped tunable (config/territory_tuning.tres,
+## 20 s since Bontago-1pi.91), which changes by owner request.
+const TEST_HOLD: float = 5.0
 const CENTRE_GOAL: Vector2 = Vector2(0.0, 0.0)
 
 var _tuning: TerritoryTuning = preload("res://config/territory_tuning.tres")
@@ -44,7 +48,7 @@ func _run(
 
 
 func _checker(goals: PackedVector2Array) -> WinChecker:
-	return WinChecker.new(goals, _tuning.capture_hold)
+	return WinChecker.new(goals, TEST_HOLD)
 
 
 ## -- Construction ------------------------------------------------------------
@@ -54,7 +58,7 @@ func test_it_starts_with_nobody_capturing() -> void:
 	assert_eq(checker.capturing_team(), WinChecker.NO_TEAM)
 	assert_eq(checker.winner(), WinChecker.NO_TEAM)
 	assert_almost_eq(checker.capture_progress(), 0.0, 0.0001)
-	assert_almost_eq(checker.capture_hold(), _tuning.capture_hold, 0.0001)
+	assert_almost_eq(checker.capture_hold(), TEST_HOLD, 0.0001)
 	assert_eq(checker.goal_positions().size(), 1)
 
 
