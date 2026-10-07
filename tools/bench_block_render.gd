@@ -63,11 +63,10 @@ func _ready() -> void:
 				var mesh_instance: MeshInstance3D = child as MeshInstance3D
 				if mesh_instance == null:
 					continue
-				if mesh_instance.name == &"BlockOutline":
-					mesh_instance.material_override = legacy_outline
-				elif mesh_instance.name == &"BlockMesh":
+				if mesh_instance.name == &"BlockMesh":
 					var mat: ShaderMaterial = legacy_cell.duplicate() as ShaderMaterial
 					mat.set_shader_parameter(&"albedo_color", color)
+					mat.next_pass = legacy_outline
 					mesh_instance.material_override = mat
 
 	var distance_scale: float = 2.0 if far else 1.0

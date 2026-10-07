@@ -29,15 +29,17 @@ uniform vec4 outline_color : source_color = vec4(0.05, 0.04, 0.05, 1.0);
 uniform float outline_tint_amount : hint_range(0.0, 1.0) = 0.65;
 uniform float outline_tint_darken : hint_range(0.0, 1.0) = 0.35;
 
-instance uniform vec4 tint_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
+uniform vec4 tint_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
 // Bontago-1pi.11.42: same progress as the cell-grid pass (shared noise), the
 // outline vanishes with the surface it inks.
-instance uniform float dissolve_amount = 0.0;
+instance uniform float dissolve_amount : instance_index(1) = 0.0;
 uniform float dissolve_noise_scale = 5.0;
 uniform float dissolve_edge_width : hint_range(0.01, 0.6) = 0.14;
 varying vec3 v_obj;
 
 void vertex() {
+	// Bontago-1pi.11.60: next_pass surfaces are also drawn in the shadow pass;
+	// collapse to a degenerate (culled) triangle there.
 	v_obj = VERTEX;
 	vec4 view_pos = MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
 	vec4 clip = PROJECTION_MATRIX * view_pos;
@@ -52,7 +54,7 @@ void vertex() {
 	// NDC spans 2 units across the viewport; clip.w undoes the divide.
 	vec2 ndc_offset = dir * width_px * 2.0 / VIEWPORT_SIZE;
 	clip.xy += ndc_offset * clip.w;
-	POSITION = clip;
+	POSITION = IN_SHADOW_PASS ? vec4(0.0, 0.0, 0.0, 1.0) : clip;
 }
 
 void fragment() {

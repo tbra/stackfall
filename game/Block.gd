@@ -93,6 +93,9 @@ var _prev_step_linear_velocity_y: float = 0.0
 ## below, consumed (and cleared) by the very next _integrate_forces() call.
 ## See kick()'s own doc comment for what this is for.
 var _script_kick_pending: bool = false
+## For tests (Bontago-1pi.11.60): how many _integrate_forces() calls ran the
+## full rebound path (awake, non-frozen body) rather than the early-out.
+var rebound_work_runs: int = 0
 var _release_checked: bool = false
 
 ## Fix round (Bontago-xtq.27 review MAJOR): the "contributing to territory
@@ -342,6 +345,14 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 		_release_checked = true
 		_apply_release_tilt(state)
 	var current_y: float = state.linear_velocity.y
+	# Bontago-1pi.11.60: a sleeping or frozen body has nothing to damp (its
+	# velocity is solver-free); only keep the previous-velocity sample current
+	# and consume a pending kick, exactly what the full path leaves behind.
+	if freeze or state.sleeping:
+		_script_kick_pending = false
+		_prev_step_linear_velocity_y = current_y
+		return
+	rebound_work_runs += 1
 	if _script_kick_pending:
 		# Review fix (Bontago-xtq.17 SHOULD-FIX 1): this step's velocity was
 		# just written by a special effect (kick()/mark_script_kick()), not
