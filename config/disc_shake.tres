@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="DiscShakeConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/DiscShakeConfig.gd" id="1_discshake"]
+
+[resource]
+script = ExtResource("1_discshake")
+impulse_special_ids = Array[StringName]([&"anvil", &"bomb", &"rocket"])
+disc_tilt_rate_threshold = 0.05
+disc_tilt_amplitude_fraction = 0.5
+max_distance_field_factor = 1.5

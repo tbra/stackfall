@@ -95,17 +95,19 @@ func test_stick_move_speed_scale_increases_gamepad_cursor_motion() -> void:
 	# (scaled) max_speed -- one single short frame is acceleration-capped
 	# identically regardless of the target speed and would not show a
 	# difference at all.
-	for _i: int in range(90):
+	for _i: int in range(150):
 		baseline._update_gamepad_cursor(1.0 / 60.0)
 
 	var scaled: PlayerController = autofree(PlayerController.new())
 	add_child_autofree(scaled)
 	Settings.set_stick_move_speed_scale(2.0)
-	for _i: int in range(90):
+	for _i: int in range(150):
 		scaled._update_gamepad_cursor(1.0 / 60.0)
 
 	assert_gt(scaled._cursor_velocity.length(), baseline._cursor_velocity.length(), "a 2x stick speed scale should saturate the gamepad cursor's velocity higher than the 1x baseline.")
 	assert_almost_eq(baseline._cursor_velocity.length(), baseline.ghost_tuning.gamepad_cursor_base_speed, 0.5)
+	# Bontago-1pi.109: slider 100% now equals the former 120% (30 * 1.2).
+	assert_almost_eq(baseline._cursor_velocity.length(), 30.0 * 1.2, 0.5)
 	assert_almost_eq(scaled._cursor_velocity.length(), scaled.ghost_tuning.gamepad_cursor_base_speed * 2.0, 0.5)
 	assert_eq(Settings.mouse_move_speed_scale(), 1.0, "the mouse scale must be untouched by the stick scale setter.")
 

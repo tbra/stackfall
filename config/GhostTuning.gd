@@ -26,7 +26,9 @@ extends Resource
 ## landed changes), which this package reuses as a reasonable "moderately
 ## faster" starting point rather than inventing a third number.
 ## Bontago-59o.4 (owner, 2026-09-30): default raised to 30.
-@export var gamepad_cursor_base_speed: float = 30.0
+## Bontago-1pi.109 (owner): raised x1.2 to 36 so the Options "Stick speed"
+## 100% equals the former 120%.
+@export var gamepad_cursor_base_speed: float = 36.0
 ## The zoom (camera orbit distance) at which base_speed applies; farther out
 ## moves the cursor faster, closer in moves it slower.
 @export var gamepad_cursor_zoom_reference_distance: float = 30.0

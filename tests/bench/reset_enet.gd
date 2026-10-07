@@ -132,7 +132,7 @@ func _dirty_camera_and_sky() -> void:
 	rig.zoom_continuous(DIRTY_ZOOM)
 	rig._yaw += 1.3
 	rig._pitch = deg_to_rad(-72.0)
-	rig._on_block_impacted(1000.0)
+	rig._on_special_triggered(1, &"bomb", Vector3.ZERO, 0)
 	rig._peek_active = true
 	rig._focus_action = &"camera_snap_goal"
 	(_main.get("_skybox") as Skybox).set_theme_by_id("sunset")
