@@ -3,9 +3,9 @@ param([string]$Path = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path, [int]$
 $scene = "res://tests/bench/black_hole_enet.tscn"
 $h = $null; $c = $null
 try {
-	$h = Start-Process godot -ArgumentList @("--headless","--path",$Path,$scene,"--","--headless-host","--port=$Port","--expect-peers=2") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\bh_host.log" -RedirectStandardError "$Out\bh_host.err"
+	$h = Start-Process godot -ArgumentList @("--headless","--log-file","$Outgodot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--headless-host","--port=$Port","--expect-peers=2") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\bh_host.log" -RedirectStandardError "$Out\bh_host.err"
 	Start-Sleep 3
-	$c = Start-Process godot -ArgumentList @("--headless","--path",$Path,$scene,"--","--join=127.0.0.1:$Port","--sim-lag=$Lag") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\bh_client.log" -RedirectStandardError "$Out\bh_client.err"
+	$c = Start-Process godot -ArgumentList @("--headless","--log-file","$Outgodot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--join=127.0.0.1:$Port","--sim-lag=$Lag") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\bh_client.log" -RedirectStandardError "$Out\bh_client.err"
 	$null = $h.Handle; $null = $c.Handle
 	$deadline = (Get-Date).AddSeconds(180)
 	while (((Get-Date) -lt $deadline) -and (-not ($h.HasExited -and $c.HasExited))) { Start-Sleep 1 }

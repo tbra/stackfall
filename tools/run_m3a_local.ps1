@@ -69,7 +69,7 @@ function Start-Instance {
 	param([string]$Name, [string[]]$GameArgs)
 	$outLog = Join-Path $logDir "$Name.out.log"
 	$errLog = Join-Path $logDir "$Name.err.log"
-	$allArgs = @("--headless", "--path", $repoRoot, $scenePath, "--") + $GameArgs
+	$allArgs = @("--headless", "--log-file", (Join-Path $logDir "$Name.godot.log"), "--path", $repoRoot, $scenePath, "--") + $GameArgs
 	$process = Start-Process -FilePath $Godot -ArgumentList $allArgs -PassThru -NoNewWindow `
 		-RedirectStandardOutput $outLog -RedirectStandardError $errLog
 	# Touch the handle: without this, PowerShell's Process object never caches

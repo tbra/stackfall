@@ -108,7 +108,7 @@ def start(path, out_dir, name, tests):
     log_path = os.path.join(out_dir, name + ".log")
     log = open(log_path, "w", encoding="utf-8", errors="replace")
     proc = subprocess.Popen(
-        [godot_exe(), "--headless", "--fixed-fps", FIXED_FPS, "--path", path, "-s", "addons/gut/gut_cmdln.gd",
+        [godot_exe(), "--headless", "--log-file", os.path.join(out_dir, name + ".godot.log"), "--fixed-fps", FIXED_FPS, "--path", path, "-s", "addons/gut/gut_cmdln.gd",
          "-gconfig=" + res_of(path, cfg), "-gexit"],
         cwd=path, stdout=log, stderr=subprocess.STDOUT)
     return proc, log, log_path

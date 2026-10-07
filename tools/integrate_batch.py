@@ -332,7 +332,7 @@ def commit_import_sidecars(ctx, repo, beads):
 
 
 def import_check(ctx, name, path):
-    cmd = [godot_exe(), "--headless", "--editor", "--path", path, "--quit"]
+    cmd = [godot_exe(), "--headless", "--log-file", ctx.log_path(name + "_godotlog"), "--editor", "--path", path, "--quit"]
     run_cmd(ctx, name + "_warm", cmd, path, STEP_TIMEOUT_S)  # first run builds .godot
     code, text, log = run_cmd(ctx, name, cmd, path, STEP_TIMEOUT_S)
     return code, issue_lines(text), log
@@ -350,7 +350,7 @@ def check_tools_scripts(ctx, base, wt):
     files = [f.strip() for f in text.split("\n") if f.strip()]
     if not files:
         return 0, [], 0, ctx.log_path("check_tools_empty")
-    cmd = [godot_exe(), "--headless", "--path", wt, "-s", "res://tools/check_scripts.gd", "--"]
+    cmd = [godot_exe(), "--headless", "--log-file", ctx.log_path("check_tools_godotlog"), "--path", wt, "-s", "res://tools/check_scripts.gd", "--"]
     cmd += ["res://" + f for f in files]
     code, text, log = run_cmd(ctx, "check_tools", cmd, wt, 180)
     errors = []

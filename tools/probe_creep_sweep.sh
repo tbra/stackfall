@@ -8,5 +8,5 @@ if [ -n "$1" ]; then
   printf '\n[physics]\n\n' >> override.cfg
   echo "$1" | tr ';' '\n' | sed "s#^#jolt_physics_3d/simulation/#" >> override.cfg
 fi
-timeout 400 godot --headless --path . res://tools/probe_creep.tscn -- $2 --label=$3 2>&1 | grep -E "PROBE|SCRIPT|ERROR|TRACE"
+timeout 400 godot --headless --log-file "${TMPDIR:-/tmp}/probe_creep_godot.log" --path . res://tools/probe_creep.tscn -- $2 --label=$3 2>&1 | grep -E "PROBE|SCRIPT|ERROR|TRACE"
 cp override.cfg.bak override.cfg; rm override.cfg.bak

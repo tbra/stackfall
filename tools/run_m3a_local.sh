@@ -56,7 +56,7 @@ declare -a WATCHDOG_PIDS=()
 start_instance() {
 	local name="$1"
 	shift
-	"$GODOT" --headless --path "$REPO_ROOT" "$SCENE_PATH" -- "$@" \
+	"$GODOT" --headless --log-file "$LOG_DIR/$name.godot.log" --path "$REPO_ROOT" "$SCENE_PATH" -- "$@" \
 		> "$LOG_DIR/$name.out.log" 2> "$LOG_DIR/$name.err.log" &
 	PIDS+=("$!")
 	NAMES+=("$name")
