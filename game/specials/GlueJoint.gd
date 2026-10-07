@@ -25,6 +25,17 @@ var _prev_velocity_b: Vector3 = Vector3.ZERO
 ## Body B's transform in body A's frame at bind time (the pose the joint holds).
 var _rest_relative: Transform3D = Transform3D.IDENTITY
 var _bound: bool = false
+## True while a `formed` glue_bond_changed is outstanding (ended on exit_tree).
+var _announced: bool = false
+
+
+func _exit_tree() -> void:
+	if not _announced:
+		return
+	_announced = false
+	var a: Node = _body_a if is_instance_valid(_body_a) else null
+	var b: Node = _body_b if is_instance_valid(_body_b) else null
+	Events.glue_bond_changed.emit(a, b, false)
 
 
 ## Wires this node to the joint it owns and the two bodies it connects.
@@ -52,6 +63,8 @@ func bind(
 	_prev_velocity_b = _velocity(body_b)
 	_rest_relative = body_a.global_transform.affine_inverse() * body_b.global_transform
 	_bound = true
+	Events.glue_bond_changed.emit(body_a, body_b, true)
+	_announced = true
 
 
 func bodies_match(a: PhysicsBody3D, b: PhysicsBody3D) -> bool:

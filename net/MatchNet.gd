@@ -95,6 +95,8 @@ const EVENT_SPECIAL_TRIGGERED: StringName = &"special_triggered"
 ## below.
 const EVENT_SPECIAL_CONSUMED: StringName = &"special_consumed"
 const EVENT_GLUE_CHARGES: StringName = &"glue_charges_changed"
+## Bontago-1pi.85.52: [net_id, glued] -- a placed block gained its first / lost its last glue bond.
+const EVENT_BLOCK_GLUED: StringName = &"block_glued_changed"
 const EVENT_BLOCK_OWNER_CHANGED: StringName = &"block_owner_changed"
 const EVENT_BLOCK_FROZEN: StringName = &"block_frozen_changed"
 const EVENT_CAT_STARTED: StringName = &"cat_started"
@@ -145,6 +147,8 @@ var _beacon_visuals: BeaconVisualTuning = preload("res://config/beacon_visual_tu
 ## to replicate, in order -- NetFanout.can_send() is false without a live peer, so this
 ## is what proves the host would have sent them. Game code never reads it.
 var replicated_dissolve_starts: Array[int] = []
+## Host: live glue bond count per block net_id (only blocks with a bond are present).
+var _glue_bond_counts: Dictionary = {}
 ## Test-only (Bontago-1pi.52): how many times each event name reached
 ## replicate_match_event() on the host, counted before its NetFanout.can_send() gate
 ## (false in a unit test). Proves a refusal was never broadcast to every peer.
@@ -352,6 +356,7 @@ func _ready() -> void:
 	Events.special_triggered.connect(_on_special_triggered)
 	Events.special_consumed.connect(_on_special_consumed)
 	Events.glue_charges_changed.connect(_on_glue_charges_changed)
+	Events.glue_bond_changed.connect(_on_glue_bond_changed)
 	Events.block_owner_changed.connect(_on_block_owner_changed)
 	Events.block_frozen_changed.connect(_on_block_frozen_changed)
 	Events.cat_started.connect(_on_cat_started)
@@ -947,6 +952,7 @@ func reset_counters() -> void:
 	replicated_state_changes.clear()
 	match_starts_replicated = 0
 	replicated_dissolve_starts.clear()
+	_glue_bond_counts.clear()
 
 
 # --- Host-side intent handling ----------------------------------------------
@@ -1634,6 +1640,25 @@ func _on_glue_charges_changed(slot_id: int, charges: int, revision: int) -> void
 		replicate_match_event(EVENT_GLUE_CHARGES, [slot_id, charges, revision])
 
 
+## Host: counts bonds per block and replicates only the 0 <-> 1 transitions.
+func _on_glue_bond_changed(body_a: Node, body_b: Node, formed: bool) -> void:
+	if not _session().is_host():
+		return
+	for body: Node in [body_a, body_b]:
+		var block: Block = body as Block
+		if block == null or not Quantize.is_wire_id(block.net_id):
+			continue
+		var before: int = int(_glue_bond_counts.get(block.net_id, 0))
+		var after: int = maxi(before + (1 if formed else -1), 0)
+		if after > 0:
+			_glue_bond_counts[block.net_id] = after
+		else:
+			_glue_bond_counts.erase(block.net_id)
+		if (before > 0) != (after > 0):
+			HoneyCoat.set_coated(block, after > 0)
+			replicate_match_event(EVENT_BLOCK_GLUED, [block.net_id, after > 0])
+
+
 func _on_block_owner_changed(net_id: int, owner_slot: int) -> void:
 	if _session().is_host():
 		replicate_match_event(EVENT_BLOCK_OWNER_CHANGED, [net_id, owner_slot])
@@ -1655,6 +1680,7 @@ func _on_goal_capture_progress(team_id: int, progress: float) -> void:
 func _on_block_removed(block: RigidBody3D, reason: String) -> void:
 	var typed: Block = block as Block
 	if typed != null:
+		_glue_bond_counts.erase(typed.net_id)
 		replicate_despawn(typed.net_id, reason)
 
 
@@ -2104,6 +2130,11 @@ func build_world_replay(replay_id: int = 0) -> Array[Array]:
 		# the spawn args, so a joiner needs it after the block exists.
 		for frozen_payload: Array in _frozen_overlay_snapshot():
 			messages.append(_event(EVENT_BLOCK_FROZEN, frozen_payload))
+		# Bontago-1pi.85.52: honey coat of currently glued blocks.
+		var glued_ids: Array = _glue_bond_counts.keys()
+		glued_ids.sort()
+		for glued_id: int in glued_ids:
+			messages.append(_event(EVENT_BLOCK_GLUED, [glued_id, true]))
 
 	var territory: Array = _territory_replay_args()
 	if not territory.is_empty():
@@ -2924,6 +2955,18 @@ func net_match_event(event: StringName, args: Array) -> void:
 			if not Quantize.is_wire_id(painted_id) or painted_slot < 0 or painted_slot >= _authority().slot_count():
 				return
 			_authority().apply_replicated_block_owner(painted_id, painted_slot)
+		EVENT_BLOCK_GLUED:
+			if _session().is_host() or args.size() != 2 or not args[0] is int or not args[1] is bool:
+				return
+			var glued_id: int = args[0]
+			if not Quantize.is_wire_id(glued_id):
+				return
+			var glued_registry: BlockRegistry = _authority().registry()
+			if glued_registry == null:
+				return
+			var glued_block: Block = glued_registry.block_for_net_id(glued_id)
+			if glued_block != null and is_instance_valid(glued_block):
+				HoneyCoat.set_coated(glued_block, args[1])
 		EVENT_BLOCK_FROZEN:
 			if _session().is_host() or args.size() != 2 or not args[0] is int or not args[1] is bool:
 				return
