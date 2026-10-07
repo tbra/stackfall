@@ -58,6 +58,7 @@ Every assignment must include:
 - **Hard deadlines (owner 2026-10-02):** every harness, multiplayer, bot-match or other long command in the brief runs under an explicit wall-clock deadline (default 15 min per run unless the brief names another) that kills the process tree and reports `timeout`; a hung harness is a finding, not something to wait on. Briefs for work expected to exceed 30 min name a check-in time; the worker comments a checkpoint on its Bead at least every 30 min. If no handback or checkpoint has arrived by the check-in time, the orchestrator inspects the worker's output/processes immediately instead of waiting.
 - Expected Beads comment: files changed, tests actually run, findings, decisions, unresolved work and next action. Expected handback: the self-contained compact result below, with a Bead record pointer for later recovery.
 - **Hard-coded test values (owner debrief 2026-10-05):** before handback, grep `tests/` for assertions on every value, ordering, label, node name or fingerprint your change touches (e.g. Options row order, tuning thresholds, config fingerprints) and update or run those tests. Name them in `checks`. Each missed one costs the orchestrator a full gate cycle. Run `python tools/affected_tests.py --path <checkout>` before handback, run the tests it lists and name it in `checks`.
+- **Deletions and renames (debrief 2026-10-07):** before dispatching a brief that deletes or renames a function, class, resource field or node, the orchestrator greps the symbol across `tests/` (and runs `python tools/affected_tests.py` on the owned files) and lists every referencing test in the brief as owned or must-run. A missed caller in another test file costs a second worker (fca.47).
 
 Use role names as subagent types when dispatching. Workers first read the supplied context and inspect checkout identity/status. Do not assume they inherit the conversation. Reassign overlapping ownership or establish a missing interface before dependent implementation; report substantial spec ambiguity to the orchestrator.
 
@@ -147,6 +148,8 @@ Before staging a worker candidate, run `python tools/normalize_eol.py --path <ch
 - Close stale or superseded beads with a reason that names what replaced them, instead of letting them age. `python tools/board_brief.py` prints an `EPIC HYGIENE` block for violations and the owner-reply block (`tools/owner_replies.py`); fix both before new work.
 
 ## Skills and references
+
+**Engine source (owner 2026-10-07):** a read-only Godot checkout matching the runtime is at `M:/Godot/godot-4.7.2-stable` (detached `4.7.2-stable` worktree of the owner's `M:/Godot/godot` master clone). Grep it for engine behaviour (Jolt module `modules/jolt_physics/`, `scene/`, `servers/`) instead of guessing; never edit or build it, and do not use the master checkout for version-specific claims.
 
 Use `.agents/skills/beads/SKILL.md` for task tracking. For TypeSafe/Jev features or log-triage changes, read `.agents/skills/typesafe-ai/SKILL.md` and its current live API/SDK guidance. Keep credentials in environment variables and out of logs, issue bodies and commits. TypeSafe is not required for ordinary deterministic GDScript changes.
 
