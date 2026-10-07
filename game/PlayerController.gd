@@ -1720,23 +1720,9 @@ func _update_ghost_transform() -> void:
 ## skips it just reports a miss, same as an empty query.
 func _raycast_disk_surface(origin: Vector3) -> Dictionary:
 	var space_state: PhysicsDirectSpaceState3D = get_viewport().world_3d.direct_space_state
-	var exclude: Array[RID] = []
-	var attempts: int = 0
-	while attempts <= ghost_tuning.surface_probe_max_blocks:
-		var params: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
-			origin, origin + Vector3.DOWN * ghost_tuning.placement_ray_length
-		)
-		params.exclude = exclude
-		params.collision_mask = Field.PLACEMENT_QUERY_MASK
-		var hit: Dictionary = space_state.intersect_ray(params)
-		if hit.is_empty():
-			return {}
-		if hit["collider"] is RigidBody3D:
-			exclude.append(hit["rid"] as RID)
-			attempts += 1
-			continue
-		return hit
-	return {}
+	return Field.raycast_disk_surface(
+		space_state, origin, ghost_tuning.placement_ray_length, ghost_tuning.surface_probe_max_blocks
+	)
 
 
 # --- Ghost-vs-placed-block collision (Bontago-mv0.23, spec 2.5 "Held-block
