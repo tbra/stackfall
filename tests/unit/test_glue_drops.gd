@@ -258,7 +258,7 @@ func _real_block(shape_id: String, slot_id: int, at: Vector3) -> Block:
 	return block
 
 
-func _glued_pair() -> Array[Block]:
+func _glued_pair(tuning: GlueDropTuning = null) -> Array[Block]:
 	var rest_y: float = _field.surface_y() + 0.6
 	var a: Block = _real_block("cube", 0, _field.to_global(Vector3(0.0, rest_y, 0.0)))
 	var b: Block = _real_block("cube", 1, _field.to_global(Vector3(1.0, rest_y, 0.0)))
@@ -266,7 +266,7 @@ func _glued_pair() -> Array[Block]:
 		await get_tree().physics_frame
 	var glue: GlueDrops = GlueDrops.new()
 	a.add_child(glue)
-	glue.bind(a, _tuning)
+	glue.bind(a, tuning if tuning != null else _tuning)
 	assert_true(glue.try_bond(b))
 	return [a, b]
 
@@ -310,3 +310,55 @@ func test_glued_pair_breaks_under_a_two_metre_blast() -> void:
 	for _i: int in range(30):
 		await get_tree().physics_frame
 	assert_false(is_instance_valid(bond), "a 2 m bomb blast must break the glue bond")
+
+
+## Bontago-1pi.85.51: the owner found glue too weak. A sideways kick on one body
+# DECISION: the plan's 40 kg*m/s is 20 m/s on a 2 kg cube, far above the shock
+# limit, so the kick is 10 kg*m/s = 5 m/s: above the old 2.5 limit
+# (baseline breaks), the joint keeps it under the new 4 limit (survives); the
+# default 2 m bomb must still exceed that limit (bombs counter glue).
+const SIDE_KICK_IMPULSE: float = 10.0
+const KICK_SETTLE_FRAMES: int = 60
+
+
+func _old_tuning() -> GlueDropTuning:
+	var old: GlueDropTuning = GlueDropTuning.new()
+	old.break_force = 600.0
+	old.break_separation_m = 0.15
+	old.break_speed_mps = 6.0
+	old.break_shock_mps = 2.5
+	return old
+
+
+func _kick_pair(tuning: GlueDropTuning) -> bool:
+	var pair: Array[Block] = await _glued_pair(tuning)
+	var bond: GlueJoint = _bonds(pair[0])[0]
+	pair[1].apply_central_impulse(Vector3(0.0, 0.0, SIDE_KICK_IMPULSE))
+	for _i: int in range(KICK_SETTLE_FRAMES):
+		await get_tree().physics_frame
+	return is_instance_valid(bond)
+
+
+func test_old_glue_tuning_broke_under_a_sideways_kick() -> void:
+	var survived: bool = await _kick_pair(_old_tuning())
+	assert_false(survived, "the pre-1pi.85.51 tuning must break under the kick (baseline)")
+
+
+func test_new_glue_tuning_survives_a_sideways_kick() -> void:
+	var survived: bool = await _kick_pair(_tuning)
+	assert_true(survived, "stronger glue must hold under a 10 kg*m/s sideways kick")
+
+
+const GUST_ACCEL_MPS2: float = 5.0
+const GUST_FRAMES: int = 180
+const GUST_FIELD_MARGIN: float = 1.0
+
+
+func test_glued_pair_survives_a_sustained_wind_gust() -> void:
+	var pair: Array[Block] = await _glued_pair()
+	var bond: GlueJoint = _bonds(pair[0])[0]
+	for _i: int in range(GUST_FRAMES):
+		for block: Block in pair:
+			block.apply_central_force(Vector3(0.0, 0.0, GUST_ACCEL_MPS2 * GUST_FIELD_MARGIN * block.mass))
+		await get_tree().physics_frame
+	assert_true(is_instance_valid(bond), "wind gust accel must not break a bond")

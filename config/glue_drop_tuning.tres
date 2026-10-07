@@ -4,8 +4,8 @@
 
 [resource]
 script = ExtResource("1_tuning")
-break_force = 600.0
-break_separation_m = 0.15
-break_speed_mps = 6.0
-break_shock_mps = 2.5
+break_force = 2000.0
+break_separation_m = 0.4
+break_speed_mps = 12.0
+break_shock_mps = 4.0
 max_contacts_reported = 16
