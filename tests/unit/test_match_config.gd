@@ -885,3 +885,12 @@ func test_an_eight_seat_resolved_dict_fits_the_steam_lobby_data_budget() -> void
 	var text: String = JSON.stringify(config.to_dict())
 	assert_lt(text.to_utf8_buffer().size(), net_config.steam_lobby_data_max_bytes,
 		"the replicated config stays under steam_lobby_data_max_bytes with the new arrays")
+
+
+func test_is_sequential_play_is_hot_seat_or_turn_based() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	for hot: bool in [false, true]:
+		for turn: bool in [false, true]:
+			config.hot_seat = hot
+			config.turn_based = turn
+			assert_eq(config.is_sequential_play(), hot or turn, "hot=%s turn=%s" % [hot, turn])

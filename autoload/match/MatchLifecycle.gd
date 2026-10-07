@@ -903,7 +903,7 @@ func active_slot() -> int:
 ## placement resolves (hot-seat: immediately; turn-based: once
 ## _tick_turn_based() decides the settle-wait is over), not by input.
 func advance_turn() -> void:
-	if not _match.config.hot_seat and not _match.config.turn_based:
+	if not _match.config.is_sequential_play():
 		return
 	# Any settle-wait belonged to the outgoing turn. If the active slot was
 	# eliminated mid-wait, MatchFeed._tick_feed() advances the turn here and

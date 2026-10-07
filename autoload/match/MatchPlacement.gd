@@ -124,7 +124,7 @@ func _intent_gate(slot_id: int, feed_seq: int, kind: IntentKind) -> StringName:
 	if seat == null or not seat.home_flag_alive:
 		return PlacementRules.REASON_NO_BLOCK
 	if (
-		(_match.config.hot_seat or _match.config.turn_based)
+		_match.config.is_sequential_play()
 		and slot_id != _match.active_slot()
 	):
 		return PlacementRules.REASON_NOT_YOUR_TURN

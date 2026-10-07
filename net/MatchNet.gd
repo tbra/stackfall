@@ -2610,7 +2610,7 @@ func net_match_event(event: StringName, args: Array) -> void:
 			# Turn-based (M6 B4) mirrors the host's slot verbatim like hot-seat:
 			# the client-side active-slot gate and turn banner must agree with
 			# the host on whose turn it is.
-			if running != null and not running.hot_seat and not running.turn_based:
+			if running != null and not running.is_sequential_play():
 				turn_slot = int(_session().local_slot())
 			if turn_slot < 0:
 				return

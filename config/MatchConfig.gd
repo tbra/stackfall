@@ -419,6 +419,12 @@ func team_of_slot(slot_id: int) -> int:
 	return posmod(slot_id, team_count())
 
 
+## True when exactly one actor plays at a time (hot-seat or turn-based): the
+## single owner of that pair, enforced by the SEQUENTIAL_PREDICATE lint.
+func is_sequential_play() -> bool:
+	return hot_seat or turn_based
+
+
 ## True when teams are on (any TeamMode but OFF).
 func teams_enabled() -> bool:
 	return team_mode != TeamMode.OFF
