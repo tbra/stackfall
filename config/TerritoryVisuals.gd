@@ -545,4 +545,19 @@ extends Resource
 ## keeps the center more subdued for longer before the grazing-angle
 ## reflection appears.
 @export var mirror_fresnel_power: float = 1.6
+## Bontago-1pi.11.50: the mirror camera's own copy of the scene Environment runs only
+## what the reflection can show. SSR, volumetric fog and glow on the mirror pass cost
+## GPU every frame for a half-resolution, 0.55-strength image where they are lost
+## (SSR in a mirror is a reflection of a reflection; the glow threshold sits above
+## mirror_max_luminance). All three default off; turn one on to compare. Each is still
+## ANDed with the live Environment, so a preset that disabled it stays disabled.
+@export var mirror_ssr_enabled: bool = false
+@export var mirror_volumetric_fog_enabled: bool = false
+@export var mirror_glow_enabled: bool = false
+## Bontago-1pi.11.50 (opt-in): true renders the sky/cloud shader into the mirror. False
+## replaces it with mirror_background_color (ambient/reflected light still come from the
+## sky, so lit blocks do not change). Only invisible while mirror_sky_energy_scale is
+## near 0 (shipped 0.03), hence off by default pending owner sign-off.
+@export var mirror_sky_background_enabled: bool = true
+@export var mirror_background_color: Color = Color(0.02, 0.025, 0.04)
 

@@ -123,6 +123,10 @@ var _overlay: TerritoryOverlay = null
 ## this project currently replaces the WorldEnvironment's Environment
 ## resource at runtime (only individual fields on it change).
 var _mirror_environment: Environment = null
+## Bontago-1pi.11.50: the live scene Environment the mirror copy follows for the
+## effect flags below; _last_env_key change-gates the writes.
+var _live_environment: Environment = null
+var _last_env_key: Array = []
 ## Bontago-1pi.11.6: change-gate caches for _process().
 var _settings: Node = null
 ## Bontago-1pi.11.20: Settings.current_graphics_preset() does ResourceLoader.exists()
@@ -164,6 +168,7 @@ func _ready() -> void:
 	_viewport.add_child(_camera)
 
 	var live_environment: Environment = get_viewport().world_3d.environment
+	_live_environment = live_environment
 	if live_environment != null:
 		_mirror_environment = live_environment.duplicate() as Environment
 		_camera.environment = _mirror_environment
@@ -235,6 +240,7 @@ func _process(_delta: float) -> void:
 			_mirror_environment.background_energy_multiplier = sky_scale
 	if not mirror_on:
 		return
+	_apply_environment_cuts()
 
 	_resize_viewport()
 	# The reflected pose only changes when the camera or the (tiltable) field
@@ -254,6 +260,38 @@ func _process(_delta: float) -> void:
 	_camera.near = _source_camera.near
 	_camera.far = _source_camera.far
 	_camera.projection = _source_camera.projection
+
+
+## Bontago-1pi.11.50: the mirror pass only runs the Environment effects the
+## TerritoryVisuals.mirror_*_enabled flags allow, each ANDed with the live scene value
+## (so Low's volumetric fog / SSR switch-offs still hold). With the sky background
+## off, ambient and reflected light stay on the sky so lit blocks do not change.
+func _apply_environment_cuts() -> void:
+	if _mirror_environment == null or _live_environment == null:
+		return
+	var key: Array = [
+		_live_environment.ssr_enabled, visuals.mirror_ssr_enabled,
+		_live_environment.volumetric_fog_enabled, visuals.mirror_volumetric_fog_enabled,
+		_live_environment.glow_enabled, visuals.mirror_glow_enabled,
+		visuals.mirror_sky_background_enabled, visuals.mirror_background_color,
+	]
+	if key == _last_env_key:
+		return
+	_last_env_key = key
+	_mirror_environment.ssr_enabled = _live_environment.ssr_enabled and visuals.mirror_ssr_enabled
+	_mirror_environment.volumetric_fog_enabled = (
+		_live_environment.volumetric_fog_enabled and visuals.mirror_volumetric_fog_enabled
+	)
+	_mirror_environment.glow_enabled = _live_environment.glow_enabled and visuals.mirror_glow_enabled
+	if visuals.mirror_sky_background_enabled:
+		_mirror_environment.background_mode = _live_environment.background_mode
+		_mirror_environment.ambient_light_source = _live_environment.ambient_light_source
+		_mirror_environment.reflected_light_source = _live_environment.reflected_light_source
+	else:
+		_mirror_environment.background_mode = Environment.BG_COLOR
+		_mirror_environment.background_color = visuals.mirror_background_color
+		_mirror_environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+		_mirror_environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 
 
 func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
