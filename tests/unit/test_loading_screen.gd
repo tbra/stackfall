@@ -231,7 +231,9 @@ func test_fade_runs_on_the_layer_content_and_the_next_show_is_opaque_again() -> 
 
 const PLATE_DIR: String = "res://assets/ui/loading_arena_v2"
 const VARIANT_SHAPES: Array[String] = ["round", "oval", "ring", "twin", "cross"]
-const LOAD_WAIT_S: float = 5.0
+# Game-time budget; wait_until returns as soon as the plate loads. The runners use
+# --fixed-fps (frames outrun the worker-thread load), so allow generous frames.
+const LOAD_WAIT_S: float = 60.0
 const COVER_SIZES: Array[Vector2i] = [Vector2i(1280, 720), Vector2i(3440, 1440)]
 
 

@@ -40,6 +40,7 @@ param(
 	[int]$LogLevel = 1
 )
 
+# --fixed-fps 60 (Bontago-fca.38.7): no wall-clock pacing, physics ticks run as fast as the CPU allows.
 $ErrorActionPreference = "Stop"
 if ($Path -eq "") {
 	# $PSScriptRoot is not yet set while parameter defaults are evaluated
@@ -102,7 +103,7 @@ $outLog = Join-Path $configDir ("out_" + [guid]::NewGuid().ToString("N").Substri
 # call so stderr lines flow through and get captured like any other output.
 $prevEap = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
-& $Godot --headless --path $Path -s addons/gut/gut_cmdln.gd "-gconfig=$configRes" -gexit 2>&1 | Tee-Object -FilePath $outLog
+& $Godot --headless --fixed-fps 60 --path $Path -s addons/gut/gut_cmdln.gd "-gconfig=$configRes" -gexit 2>&1 | Tee-Object -FilePath $outLog
 $code = $LASTEXITCODE
 $ErrorActionPreference = $prevEap
 

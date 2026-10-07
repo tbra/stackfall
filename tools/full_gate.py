@@ -37,6 +37,11 @@ FAILED_RE = re.compile(r"\[Failed\]")
 DEFAULT_TIMEOUT_S = 1200
 
 
+# Bontago-fca.38.7: --fixed-fps disables wall-clock pacing, so physics ticks
+# (one per frame at 60) run as fast as the CPU allows instead of 60 Hz real time.
+FIXED_FPS = "60"
+
+
 def godot_exe():
     return shutil.which("godot") or shutil.which("godot.exe") or "godot"
 
@@ -92,7 +97,7 @@ def start(path, out_dir, name, tests):
     log_path = os.path.join(out_dir, name + ".log")
     log = open(log_path, "w", encoding="utf-8", errors="replace")
     proc = subprocess.Popen(
-        [godot_exe(), "--headless", "--path", path, "-s", "addons/gut/gut_cmdln.gd",
+        [godot_exe(), "--headless", "--fixed-fps", FIXED_FPS, "--path", path, "-s", "addons/gut/gut_cmdln.gd",
          "-gconfig=" + res_of(path, cfg), "-gexit"],
         cwd=path, stdout=log, stderr=subprocess.STDOUT)
     return proc, log, log_path

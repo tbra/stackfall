@@ -9,6 +9,13 @@ extends GutTest
 ## child; see that scene).
 
 
+## The manager expires bursts by wall clock (Time.get_ticks_msec), and the runners use
+## --fixed-fps (frames outrun the wall), so wait real time then let a frame run.
+func _wait_wall_s(seconds: float) -> void:
+	OS.delay_msec(int(ceil(seconds * 1000.0)))
+	await get_tree().process_frame
+
+
 func _make_manager() -> BlockEffectsManager:
 	var manager: BlockEffectsManager = BlockEffectsManager.new()
 	add_child_autofree(manager)
@@ -182,7 +189,7 @@ func test_cleanup_fallback_frees_the_effect_after_its_lifetime() -> void:
 	Events.block_removed.emit(block, String(Events.REASON_KILL_PLANE))
 	assert_eq(manager.active_effect_count(), 1, "fixture: the burst must have spawned before it can be cleaned up.")
 
-	await wait_seconds(manager.config.kill_lifetime_s + manager.config.cleanup_margin_s + 0.2)
+	await _wait_wall_s(manager.config.kill_lifetime_s + manager.config.cleanup_margin_s + 0.2)
 
 	assert_eq(manager.active_effect_count(), 0, "the cleanup fallback must free the burst node well after its own lifetime, even headless.")
 
@@ -231,7 +238,7 @@ func test_impacts_allocate_no_new_materials_and_reuse_pooled_nodes() -> void:
 	var dust_material_id: int = dust.process_material.get_instance_id()
 	var dust_mesh_id: int = dust.draw_pass_1.get_instance_id()
 
-	await wait_seconds(0.4)
+	await _wait_wall_s(0.4)
 	assert_eq(manager.active_effect_count(), 0, "fixture: the first burst must have expired back into the pool.")
 
 	Events.block_impacted_at.emit(speed, Vector3(5.0, 0.0, 0.0))
@@ -259,7 +266,7 @@ func test_reused_burst_keeps_amount_and_rescales_amount_ratio() -> void:
 	var cubelet_amount: int = cubelets.amount
 	var dust_amount: int = dust.amount
 	var soft_ratio: float = cubelets.amount_ratio
-	await wait_seconds(0.4)
+	await _wait_wall_s(0.4)
 
 	Events.block_impacted_at.emit(threshold * 1000.0, Vector3(5.0, 0.0, 0.0))
 	assert_eq(manager.pooled_burst_count(), 1, "fixture: the burst was reused.")
