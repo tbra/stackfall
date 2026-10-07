@@ -79,6 +79,23 @@ func test_block_removed_untracks_and_frees_its_net_id() -> void:
 	assert_null(registry.block_for_net_id(net_id))
 
 
+func test_block_for_net_id_returns_null_for_block_freed_without_removed_signal() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block: Block = BlockFactory.build(shape, _tuning, 0)
+	field.add_child(block)
+	Events.block_placed.emit(block, shape.id)
+	var net_id: int = block.net_id
+	assert_gt(net_id, 0)
+
+	field.remove_child(block)
+	block.free()
+
+	assert_null(registry.block_for_net_id(net_id))
+	assert_null(registry.block_for_net_id(net_id), "stale entry is dropped, second lookup stays null")
+
+
 func _place(field: Field, shape: BlockShape, slot: int) -> Block:
 	var block: Block = BlockFactory.build(shape, _tuning, slot)
 	field.add_child(block)
