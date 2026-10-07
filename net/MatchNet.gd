@@ -2503,13 +2503,13 @@ func _apply_roster(roster: Array) -> void:
 		if not (entry is Dictionary):
 			continue
 		var info: Dictionary = entry
-		if not info.has("slot_id"):
+		if not info.has(LobbySeats.FIELD_SLOT_ID):
 			continue
-		var target: PlayerSlot = _authority().slot(int(info["slot_id"]))
+		var target: PlayerSlot = _authority().slot(int(info[LobbySeats.FIELD_SLOT_ID]))
 		if target == null:
 			continue
-		target.peer_id = int(info.get("peer_id", 0))
-		target.display_name = String(info.get("name", target.display_name))
+		target.peer_id = int(info.get(LobbySeats.FIELD_PEER_ID, 0))
+		target.display_name = String(info.get(LobbySeats.FIELD_NAME, target.display_name))
 		target.is_local = bool(_session().is_local_slot(target.slot_id))
 
 

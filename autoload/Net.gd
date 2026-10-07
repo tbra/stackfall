@@ -328,14 +328,7 @@ func host_game(port: int = 0, player_name: String = "", advertise: bool = true) 
 	# Bontago-1pi.49: the host's own name goes through the same check a joiner's
 	# does, so an empty or oversized typed name is "Player 1" or cut, everywhere.
 	var host_name: String = PlayerNames.sanitize(player_name, config.max_player_name_length, 0)
-	_peers[HOST_PEER_ID] = {
-		"peer_id": HOST_PEER_ID,
-		"slot_id": 0,
-		"name": host_name,
-		"ready": false,
-		"ping_ms": 0.0,
-		"build": _host_build_version,
-	}
+	_peers[HOST_PEER_ID] = LobbySeats.entry_to_wire(HOST_PEER_ID, 0, host_name, false, 0.0, _host_build_version)
 	_next_slot_id = 1
 	_accepting_joins = advertise
 	_private_session = not advertise
@@ -397,7 +390,7 @@ func leave(forget_rejoin: bool = true) -> void:
 	if _mode == Mode.HOST:
 		for peer_id: int in _peers.keys():
 			if peer_id != HOST_PEER_ID:
-				Events.net_peer_left.emit(peer_id, int(_peers[peer_id].get("slot_id", -1)), LeaveReason.HOST_SHUTDOWN)
+				Events.net_peer_left.emit(peer_id, int(_peers[peer_id].get(LobbySeats.FIELD_SLOT_ID, -1)), LeaveReason.HOST_SHUTDOWN)
 
 	if _steam_session and steam_provider != null and _steam_lobby_id != 0:
 		steam_provider.leave_lobby(_steam_lobby_id)
@@ -481,7 +474,7 @@ func build_version() -> String:
 func peer_ids() -> PackedInt32Array:
 	var ids: Array = _peers.keys()
 	ids.sort_custom(func(a: int, b: int) -> bool:
-		return int(_peers[a].get("slot_id", -1)) < int(_peers[b].get("slot_id", -1))
+		return int(_peers[a].get(LobbySeats.FIELD_SLOT_ID, -1)) < int(_peers[b].get(LobbySeats.FIELD_SLOT_ID, -1))
 	)
 	var result: PackedInt32Array = PackedInt32Array()
 	for id: int in ids:
@@ -503,7 +496,7 @@ func peer_info(peer_id: int) -> Dictionary:
 func slot_of_peer(peer_id: int) -> int:
 	if not _peers.has(peer_id):
 		return -1
-	return int(_peers[peer_id].get("slot_id", -1))
+	return int(_peers[peer_id].get(LobbySeats.FIELD_SLOT_ID, -1))
 
 
 ## Inverse of slot_of_peer(). -1 for an unclaimed slot (an empty seat, or a
@@ -513,7 +506,7 @@ func peer_of_slot(slot_id: int) -> int:
 	if slot_id < 0:
 		return -1
 	for peer_id: int in _peers.keys():
-		if int(_peers[peer_id].get("slot_id", -1)) == slot_id:
+		if int(_peers[peer_id].get(LobbySeats.FIELD_SLOT_ID, -1)) == slot_id:
 			return peer_id
 	return -1
 
@@ -527,7 +520,7 @@ func name_for_slot(slot_id: int) -> String:
 	var peer_id: int = peer_of_slot(slot_id)
 	if peer_id == -1 or not _peers.has(peer_id):
 		return ""
-	return String(_peers[peer_id].get("name", ""))
+	return String(_peers[peer_id].get(LobbySeats.FIELD_NAME, ""))
 
 
 ## The slot this instance's local player controls. Offline this is
@@ -555,7 +548,7 @@ func is_local_slot(slot_id: int) -> bool:
 func set_peer_ready(peer_id: int, ready: bool) -> void:
 	if not is_host() or not _peers.has(peer_id):
 		return
-	_peers[peer_id]["ready"] = ready
+	_peers[peer_id][LobbySeats.FIELD_READY] = ready
 	_broadcast_roster()
 
 
@@ -574,8 +567,8 @@ func _clear_ready_flags() -> bool:
 		return false
 	var changed: bool = false
 	for peer_id: int in _peers.keys():
-		if bool(_peers[peer_id].get("ready", false)):
-			_peers[peer_id]["ready"] = false
+		if bool(_peers[peer_id].get(LobbySeats.FIELD_READY, false)):
+			_peers[peer_id][LobbySeats.FIELD_READY] = false
 			changed = true
 	return changed
 
@@ -583,7 +576,7 @@ func _clear_ready_flags() -> bool:
 func kick_peer(peer_id: int, reason: LeaveReason = LeaveReason.KICKED) -> void:
 	if not is_host() or not _peers.has(peer_id):
 		return
-	var slot_id: int = int(_peers[peer_id].get("slot_id", -1))
+	var slot_id: int = int(_peers[peer_id].get(LobbySeats.FIELD_SLOT_ID, -1))
 	_peers.erase(peer_id)
 	_ping_samples.erase(peer_id)
 	_pending_handshake.erase(peer_id)
@@ -623,7 +616,7 @@ func all_peers_ready() -> bool:
 		# Start gate waits for every OTHER seated human only.
 		if peer_id == HOST_PEER_ID:
 			continue
-		if not bool(_peers[peer_id].get("ready", false)):
+		if not bool(_peers[peer_id].get(LobbySeats.FIELD_READY, false)):
 			return false
 	return true
 
@@ -638,7 +631,7 @@ func ping_ms(peer_id: int = 0) -> float:
 		target = local_peer_id()
 	if not _peers.has(target):
 		return 0.0
-	return float(_peers[target].get("ping_ms", 0.0))
+	return float(_peers[target].get(LobbySeats.FIELD_PING_MS, 0.0))
 
 
 # --- Lobby data (spec 3.4: "Steam lobbies store match settings as lobby
@@ -897,14 +890,7 @@ func _on_steam_lobby_created(result: int, lobby_id: int) -> void:
 	_steam_lobby_id = lobby_id
 	_host_build_version = build_version()
 	_peers.clear()
-	_peers[HOST_PEER_ID] = {
-		"peer_id": HOST_PEER_ID,
-		"slot_id": 0,
-		"name": host_name,
-		"ready": false,
-		"ping_ms": 0.0,
-		"build": _host_build_version,
-	}
+	_peers[HOST_PEER_ID] = LobbySeats.entry_to_wire(HOST_PEER_ID, 0, host_name, false, 0.0, _host_build_version)
 	_next_slot_id = 1
 	_accepting_joins = true
 	_reset_rejoin_state()
@@ -1363,7 +1349,7 @@ func _on_peer_disconnected(id: int) -> void:
 		return
 	if not _peers.has(id):
 		return
-	var slot_id: int = int(_peers[id].get("slot_id", -1))
+	var slot_id: int = int(_peers[id].get(LobbySeats.FIELD_SLOT_ID, -1))
 	_peers.erase(id)
 	_ping_samples.erase(id)
 	# Bontago-8or.11: a seated peer dropping mid-match keeps a reservation on
@@ -1515,7 +1501,7 @@ func _take_next_lobby_slot() -> int:
 		return next_id
 	var taken: Dictionary = {}
 	for peer_id: int in _peers.keys():
-		var held: int = int(_peers[peer_id].get("slot_id", -1))
+		var held: int = int(_peers[peer_id].get(LobbySeats.FIELD_SLOT_ID, -1))
 		if held >= 0:
 			taken[held] = true
 	for reserved: Variant in _reservations.values():
@@ -1545,7 +1531,7 @@ func _compact_lobby_slots() -> int:
 		return 0
 	var seated: Array[Vector2i] = []
 	for peer_id: int in _peers.keys():
-		var held: int = int(_peers[peer_id].get("slot_id", -1))
+		var held: int = int(_peers[peer_id].get(LobbySeats.FIELD_SLOT_ID, -1))
 		if held >= 0:
 			seated.append(Vector2i(held, peer_id))
 	seated.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
@@ -1567,9 +1553,9 @@ func _compact_lobby_slots() -> int:
 ## name the player chose is never touched, even when it reads "Player 3".
 func _set_peer_slot(peer_id: int, slot_id: int) -> void:
 	var entry: Dictionary = _peers[peer_id]
-	entry["slot_id"] = slot_id
-	if bool(entry.get("name_auto", false)):
-		entry["name"] = PlayerNames.fallback_for_slot(slot_id)
+	entry[LobbySeats.FIELD_SLOT_ID] = slot_id
+	if bool(entry.get(LobbySeats.FIELD_NAME_AUTO, false)):
+		entry[LobbySeats.FIELD_NAME] = PlayerNames.fallback_for_slot(slot_id)
 
 
 ## Seats `peer_id` in `slot_id` (-1 = spectator, Bontago-8or.11). `token` is a
@@ -1593,17 +1579,9 @@ func _accept_peer(peer_id: int, build: String, player_name: String, slot_id: int
 	var typed_name: String = PlayerNames.clean(player_name, config.max_player_name_length)
 	var name_auto: bool = typed_name == ""
 	var checked_name: String = PlayerNames.fallback_for_slot(slot_id) if name_auto else typed_name
-	_peers[peer_id] = {
-		"peer_id": peer_id,
-		"slot_id": slot_id,
-		"name": checked_name,
-		# Bontago-1pi.53 review F1: true when the joiner sent no usable name and
-		# "name" is the host's own "Player N" for the seat (see _set_peer_slot).
-		"name_auto": name_auto,
-		"ready": false,
-		"ping_ms": 0.0,
-		"build": build,
-	}
+	# Bontago-1pi.53 review F1: name_auto is true when the joiner sent no usable name and
+	# the name is the host's own "Player N" for the seat (see _set_peer_slot).
+	_peers[peer_id] = LobbySeats.entry_to_wire(peer_id, slot_id, checked_name, false, 0.0, build, true, name_auto)
 	_ping_samples[peer_id] = []
 	_pending_handshake.erase(peer_id)
 	_rpc_join_accepted.rpc_id(peer_id, slot_id, HOST_PEER_ID, issued)
@@ -1703,13 +1681,15 @@ func _rpc_roster_update(roster: Array) -> void:
 	var updated: Dictionary = {}
 	var typed_roster: Array[Dictionary] = []
 	for entry: Variant in roster:
-		var data: Dictionary = entry as Dictionary
-		updated[int(data.get("peer_id", -1))] = data
+		var data: Dictionary = LobbySeats.entry_from_wire(entry)
+		if data.is_empty():
+			continue
+		updated[int(data[LobbySeats.FIELD_PEER_ID])] = data
 		typed_roster.append(data)
 	_peers = updated
 	var mine: int = local_peer_id()
 	if _peers.has(mine):
-		_local_slot = int(_peers[mine].get("slot_id", -1))
+		_local_slot = int(_peers[mine].get(LobbySeats.FIELD_SLOT_ID, -1))
 	# Bontago-mv0.6: the client-side mirror of the emit above, so a client's
 	# own ui/Lobby.gd updates the moment this RPC lands instead of on the
 	# next unrelated net_lobby_data_changed republish.
@@ -1800,7 +1780,7 @@ func set_match_in_progress(active: bool) -> void:
 		return
 	var reseated: bool = false
 	for peer_id: int in peer_ids():
-		if int(_peers[peer_id].get("slot_id", -1)) < 0:
+		if int(_peers[peer_id].get(LobbySeats.FIELD_SLOT_ID, -1)) < 0:
 			_set_peer_slot(peer_id, _take_next_lobby_slot())
 			reseated = true
 	# Bontago-1pi.53: a player who left for good during the match left a hole too
@@ -2066,7 +2046,7 @@ func _rpc_pong(sent_at_ms: int) -> void:
 		return
 	var rtt: float = float(Time.get_ticks_msec() - sent_at_ms)
 	_record_ping_sample(sender, rtt)
-	_rpc_report_ping.rpc_id(sender, float(_peers[sender]["ping_ms"]))
+	_rpc_report_ping.rpc_id(sender, float(_peers[sender][LobbySeats.FIELD_PING_MS]))
 
 
 @rpc("authority", "call_remote", "unreliable")
@@ -2085,7 +2065,7 @@ func _record_ping_sample(peer_id: int, rtt: float) -> void:
 	var total: float = 0.0
 	for sample: float in samples:
 		total += sample
-	_peers[peer_id]["ping_ms"] = total / samples.size()
+	_peers[peer_id][LobbySeats.FIELD_PING_MS] = total / samples.size()
 
 
 # --- Internal helpers --------------------------------------------------
