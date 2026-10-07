@@ -72,7 +72,7 @@ func _build_layers() -> void:
 		decal.lower_fade = 0.0
 		decal.normal_fade = 0.0
 		# The disc is darkened by its own shader term (EMISSION-dominated); keep the decal off it.
-		decal.cull_mask = decal.cull_mask & ~DiscMirror.DISC_LAYER_BIT
+		decal.cull_mask = decal.cull_mask & ~TerritoryOverlay.DISC_LAYER_BIT
 		# Bontago-mp0.136: the cloud puffs (sea and upper layer) sit inside the decal box; the
 		# decal darkened them in moving streaks (clouds shadowing clouds, blinking as the two
 		# layers cross-fade). Their own layer bit keeps the decal off them.

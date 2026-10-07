@@ -71,7 +71,7 @@ extends Node3D
 ## purely cosmetic mesh rendered from every camera angle a life-sized arena
 ## never needs backface culling to look right, and skipping that
 ## verification was worth the render-order simplicity here (contrast
-## game/DiscMirror.gd's own mirror_transform() DECISION, where getting
+## the removed DiscMirror's own mirror_transform() DECISION, where getting
 ## winding exactly right was load-bearing for a *reflected* camera's
 ## rasterizer).
 
@@ -177,22 +177,9 @@ func _mesh_instance(existing: MeshInstance3D, node_name: StringName) -> MeshInst
 		return existing
 	var instance: MeshInstance3D = MeshInstance3D.new()
 	instance.name = node_name
-	# Bontago-mp0.3.2 review pass 3 (decisive finding): game/DiscMirror.gd's
-	# own mirror Camera3D sits reflected BELOW the disc, looking back up at
-	# the blocks/sky it needs to capture -- exactly where this node's own
-	# band/bottom-cap geometry hangs. Left on the default render layer, that
-	# solid, opaque, dark mesh sat directly in the mirror camera's own line
-	# of sight, so mirror_tex came back a near-featureless dark image no
-	# matter how strong mirror_strength/mirror_center_fraction were pushed
-	# (confirmed: even mirror_strength = mirror_center_fraction = 1.0 showed
-	# no block silhouettes). game/TerritoryOverlay.gd's own disc mesh solves
-	# the identical problem the identical way (see DiscMirror.gd's own
-	# DECISION on `overlay.layers = DISC_LAYER_BIT`) -- this reuses that same
-	# bit rather than inventing a second one, so both disc-owned meshes are
-	# invisible to the one camera that must never see them nested inside
-	# their own reflection, while staying on every other camera's default
-	# cull_mask (CameraRig, every screenshot tool) exactly like the overlay.
-	instance.layers = DiscMirror.DISC_LAYER_BIT
+	# Disc-owned meshes share TerritoryOverlay.DISC_LAYER_BIT so the reflection probe
+	# and decals skip them; every other camera keeps the default cull_mask.
+	instance.layers = TerritoryOverlay.DISC_LAYER_BIT
 	add_child(instance)
 	return instance
 

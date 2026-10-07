@@ -4,15 +4,13 @@ extends Node
 ## skybox"). Boots the owner's own path -- Main.tscn with the real
 ## `--headless-host --bots=<n> --players=<n>` command line, the same
 ## tools/screenshot_feel8b_disc_glare.gd pattern -- places a small cube stack
-## near slot 0's home so the disc mirror has something recognizable to
+## near slot 0's home so the disc reflection has something recognizable to
 ## reflect, then calls game/Skybox.apply_set() through the live Skybox node
 ## (exactly the call ui/TuningPanel.gd's Skybox row makes) to switch between
-## two discovered sets, saving a screenshot of the whole scene plus the raw
-## DiscMirror SubViewport (game/DiscMirror.gd's own MirrorViewport child)
+## two discovered sets, saving a screenshot of the whole scene
 ## after each switch:
 ##
 ##   <prefix>-<set>-scene.png   the full view (sky + disc + blocks)
-##   <prefix>-<set>-mirror.png  DiscMirror's own per-pixel reflection texture
 ##
 ## Picks its two sets from Skybox.list_available_sets() (sorted, so the run is
 ## reproducible) rather than hard-coding names, so it still runs (with a
@@ -45,7 +43,6 @@ var _main: Node = null
 var _rig: CameraRig = null
 var _field: Field = null
 var _skybox: Skybox = null
-var _mirror: DiscMirror = null
 
 
 func _ready() -> void:
@@ -57,7 +54,6 @@ func _ready() -> void:
 	_field = _main.get_node("Field") as Field
 	_rig = _main.get_node("CameraRig") as CameraRig
 	_skybox = _main.get_node("Skybox") as Skybox
-	_mirror = _main.get_node("DiscMirror") as DiscMirror
 
 	var free_tuning: CameraTuning = (_rig.tuning as CameraTuning).duplicate(true) as CameraTuning
 	free_tuning.follow_block = false
@@ -97,7 +93,6 @@ func _apply_and_shoot(set_name: String) -> void:
 	print("XTQ22 apply_set(%s)=%s fallback_active=%s" % [set_name, result, _skybox.fallback_active])
 	await _frames(SETTLE_FRAMES)
 	await _shoot_scene(label)
-	_shoot_mirror(label)
 
 
 func _wait_for_playing() -> void:
@@ -140,14 +135,6 @@ func _shoot_scene(label: String) -> void:
 	await RenderingServer.frame_post_draw
 	var image: Image = get_viewport().get_texture().get_image()
 	_save(image, "%s-scene" % label)
-
-
-func _shoot_mirror(label: String) -> void:
-	var viewport: SubViewport = _mirror.get_node_or_null("MirrorViewport") as SubViewport
-	if viewport == null:
-		print("XTQ22 no mirror viewport")
-		return
-	_save(viewport.get_texture().get_image(), "%s-mirror" % label)
 
 
 func _save(image: Image, label: String) -> void:

@@ -493,7 +493,7 @@ func test_shader_top_grain_block_never_writes_albedo_or_emission() -> void:
 	var code: String = shader.code
 
 	var grain_start: int = code.find("float grain_h0")
-	var mirror_start: int = code.find("if (mirror_enabled)")
+	var mirror_start: int = code.find("the explicit warm-gold sheen")
 	assert_true(grain_start >= 0 and mirror_start > grain_start,
 		"fixture: could not locate the top-grain block in the shader source.")
 	var grain_block: String = code.substr(grain_start, mirror_start - grain_start)
@@ -504,18 +504,13 @@ func test_shader_top_grain_block_never_writes_albedo_or_emission() -> void:
 		"the top-grain block must never write EMISSION -- territory borders/shimmer must be untouched.")
 
 
-func test_disk_defaults_to_a_glossy_dielectric_under_the_planar_mirror() -> void:
-	# Bontago-xtq.20: the mirror-like look is the planar mirror (mirror_strength), composited
-	# as reflected light; metallic stays on the dielectric side so the lit territory tint and
-	# the mirror image are not reduced to a tint of the environment reflection. Asserted as
-	# classifications (dielectric < half metallic, visible-but-not-total mirror) and as the
+func test_disk_defaults_to_a_glossy_polished_plate() -> void:
+	# Owner 2026-10-07: the planar mirror pass is gone; the disc is a polished plate lit by
+	# the Environment sky and the reflection probe. Asserted as classifications and as the
 	# values the overlay actually pushes to its material, not as exact numbers.
 	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres")
 	var overlay: TerritoryOverlay = _make_overlay(_map())
-	assert_lt(visuals.disk_metallic, 0.5, "a dielectric; high metallic hid the mirror image and muddied the tint.")
-	assert_lt(visuals.disk_roughness, 0.5, "a sheen under the planar mirror, not a matte surface.")
-	assert_gt(visuals.mirror_strength, 0.0, "a visible reflection")
-	assert_lt(visuals.mirror_strength, 1.0, "the territory tint stays legible")
+	assert_lt(visuals.disk_roughness, 0.5, "polished, not a matte surface.")
 	assert_almost_eq(float(overlay.material().get_shader_parameter(&"base_metallic")), visuals.disk_metallic, 0.0001)
 	assert_almost_eq(float(overlay.material().get_shader_parameter(&"base_roughness")), visuals.disk_roughness, 0.0001)
 
@@ -640,220 +635,16 @@ func _shader_source_without_comments(shader: Shader) -> String:
 	return "\n".join(code_lines)
 
 
-# --- Bontago-xtq.12 step 2: the disc planar mirror ---------------------------
-#
-# game/DiscMirror.gd renders a mirrored camera into a SubViewport every frame
-# and hands this overlay the result through set_mirror_texture(); shaders/
-# territory.gdshader blends it over the disk. These tests cover this file's
-# own share of that feature (the plain uniform push, same shape as
-# set_slot_colors()) plus DiscMirror.mirror_transform()'s pure math, which
-# that file's own class doc says is exposed here for exactly this reason.
+# --- Owner 2026-10-07: the disc mirror pass is removed -----------------------
 
 
-func test_set_mirror_texture_pushes_the_shader_uniforms() -> void:
+func test_shader_and_overlay_have_no_planar_mirror_hooks() -> void:
 	var overlay: TerritoryOverlay = _make_overlay(_map())
-	var image: Image = Image.create(4, 4, false, Image.FORMAT_RGB8)
-	var texture: ImageTexture = ImageTexture.create_from_image(image)
-
-	overlay.set_mirror_texture(texture, true, 0.7)
-
-	assert_eq(overlay.material().get_shader_parameter(&"mirror_tex"), texture)
-	assert_true(bool(overlay.material().get_shader_parameter(&"mirror_enabled")))
-	assert_almost_eq(
-		float(overlay.material().get_shader_parameter(&"mirror_strength")), 0.7, 0.0001
-	)
-
-
-func test_shader_declares_the_mirror_uniforms_and_flips_screen_uv_x() -> void:
-	var overlay: TerritoryOverlay = _make_overlay(_map())
-	var code: String = _shader_source_without_comments(overlay.material().shader)
-
-	assert_true(code.contains("uniform sampler2D mirror_tex"), "expected a mirror_tex sampler uniform.")
-	assert_true(code.contains("uniform bool mirror_enabled"), "expected a mirror_enabled uniform.")
-	assert_true(code.contains("uniform float mirror_strength"), "expected a mirror_strength uniform.")
-
-	var flip_sample: RegEx = RegEx.new()
-	flip_sample.compile(
-		"texture\\(\\s*mirror_tex\\s*,\\s*vec2\\(\\s*1\\.0\\s*-\\s*SCREEN_UV\\.x\\s*,\\s*SCREEN_UV\\.y\\s*\\)\\s*\\)"
-	)
-	assert_not_null(
-		flip_sample.search(code),
-		"mirror_tex must be sampled at a horizontally-flipped SCREEN_UV (see DiscMirror.gd's mirror_transform() DECISION)."
-	)
-
-
-func test_shader_default_mirror_max_luminance_matches_territory_visuals() -> void:
-	# Bontago-xtq.20 (owner, 2026-09-23 20:12: "the main light source is
-	# glaringly visible in the disc reflection"): game/DiscMirror.gd pushes
-	# this uniform itself every frame (through TerritoryOverlay's own public
-	# material() accessor, not a dedicated push method here -- see
-	# tests/unit/test_disc_mirror.gd for that push), so an overlay with no
-	# live DiscMirror ticking it yet (this test's _make_overlay(), same as
-	# every other fixture in this file) only ever shows the shader's own
-	# compiled-in default -- ShaderMaterial.get_shader_parameter() returns
-	# null for a uniform no set_shader_parameter() call has ever touched, even
-	# when the shader source declares a default, so this reads the literal
-	# default straight out of the compiled shader source instead (the same
-	# "parse the shader code" idiom
-	# test_shader_declares_the_mirror_uniforms_and_flips_screen_uv_x() above
-	# already uses) and checks it matches TerritoryVisuals.gd's own default.
-	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres")
-	var overlay: TerritoryOverlay = _make_overlay(_map())
-	var code: String = _shader_source_without_comments(overlay.material().shader)
-
-	var default_literal: RegEx = RegEx.new()
-	default_literal.compile("uniform\\s+float\\s+mirror_max_luminance[^=]*=\\s*([0-9.]+)\\s*;")
-	var match: RegExMatch = default_literal.search(code)
-	assert_not_null(match, "expected mirror_max_luminance to declare a default literal.")
-	if match != null:
-		assert_almost_eq(
-			match.get_string(1).to_float(), visuals.mirror_max_luminance, 0.0001,
-			"the shader's compiled-in default must match TerritoryVisuals.gd's own default.",
-		)
-
-
-func test_default_mirror_max_luminance_only_clamps_genuinely_blown_out_highlights() -> void:
-	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres")
-	assert_between(
-		visuals.mirror_max_luminance, 1.0, 2.0,
-		"low enough to tame a clipped sun disc/specular hot spot, high enough that an ordinarily-lit block or sky patch (luminance well under 1.0) is never touched.",
-	)
-
-
-func test_shader_clamps_mirror_color_luminance_before_compositing() -> void:
-	# Bontago-xtq.20: fail-before this fix -- the shader used to mix
-	# mirror_color into albedo completely unclamped, so a directly-visible
-	# sun disc or specular highlight read as a stark, hard-edged white blob
-	# substituted straight into the disk's own mid-toned albedo.
-	var overlay: TerritoryOverlay = _make_overlay(_map())
-	var code: String = _shader_source_without_comments(overlay.material().shader)
-
-	assert_true(
-		code.contains("uniform float mirror_max_luminance"),
-		"expected a mirror_max_luminance uniform.",
-	)
-
-	var luma_calc: RegEx = RegEx.new()
-	luma_calc.compile("float\\s+mirror_luma\\s*=\\s*dot\\(\\s*mirror_color\\s*,")
-	assert_not_null(
-		luma_calc.search(code),
-		"expected mirror_color's luminance to be computed via a dot product.",
-	)
-
-	var clamp_scale: RegEx = RegEx.new()
-	clamp_scale.compile(
-		"if\\s*\\(\\s*mirror_luma\\s*>\\s*mirror_max_luminance\\s*\\)\\s*\\{[\\s\\S]*?mirror_color\\s*\\*="
-	)
-	assert_not_null(
-		clamp_scale.search(code),
-		"expected mirror_color to be scaled down whenever its luminance exceeds mirror_max_luminance.",
-	)
-
-	# The clamp must run before mirror_color is composited, not after (a clamp
-	# applied to the already-composited color would also dim the unrelated
-	# ownership tint/rim/shimmer colors).
-	var add_index: int = code.find("emission += mirror_color * mirror_amount")
-	var clamp_index: int = code.find("mirror_luma > mirror_max_luminance")
-	assert_true(add_index >= 0 and clamp_index >= 0 and clamp_index < add_index)
-
-
-func test_shader_disables_direct_light_specular_on_the_disc() -> void:
-	# Bontago-xtq.20, fail-before: the reproduced "main light source glaringly
-	# visible in the reflection" is the DirectionalLight3D's GGX specular lobe
-	# on the disc (feedback/feel8b-before-bisect-*: unchanged with mirror/SSR/
-	# probe/shadows off, gone only with light specular 0). specular_schlick_ggx
-	# used to be the render mode.
-	var overlay: TerritoryOverlay = _make_overlay(_map())
-	var code: String = _shader_source_without_comments(overlay.material().shader)
-	var render_mode: RegEx = RegEx.new()
-	render_mode.compile("render_mode\\s+([^;]*);")
-	var found: RegExMatch = render_mode.search(code)
-	assert_not_null(found, "expected a render_mode line.")
-	if found != null:
-		assert_true(found.get_string(1).contains("specular_disabled"), found.get_string(1))
-		assert_false(found.get_string(1).contains("specular_schlick_ggx"), found.get_string(1))
-
-
-func test_shader_reads_the_mirror_viewport_as_srgb() -> void:
-	# Bontago-xtq.20, fail-before: the SubViewport holds a tonemapped sRGB
-	# frame; without source_color the shader treated the encoded values as
-	# linear (a washed-out, too-bright reflection).
-	var overlay: TerritoryOverlay = _make_overlay(_map())
-	var code: String = _shader_source_without_comments(overlay.material().shader)
-	var decl: RegEx = RegEx.new()
-	decl.compile("uniform\\s+sampler2D\\s+mirror_tex\\s*:\\s*([^;]*);")
-	var found: RegExMatch = decl.search(code)
-	assert_not_null(found, "expected a mirror_tex declaration with hints.")
-	if found != null:
-		assert_true(found.get_string(1).contains("source_color"), found.get_string(1))
-
-
-func test_shader_composites_the_mirror_as_reflected_light_not_metallic_albedo() -> void:
-	# Bontago-xtq.20, fail-before: the mirror used to be mixed into ALBEDO
-	# under METALLIC, where albedo only tints the environment reflection, so
-	# the per-pixel mirror image barely showed. It is now the reflected
-	# fraction: albedo scaled down, mirror added as EMISSION, independent of
-	# base_metallic.
-	var overlay: TerritoryOverlay = _make_overlay(_map())
-	var code: String = _shader_source_without_comments(overlay.material().shader)
-	assert_false(code.contains("mix(albedo, mirror_color"), "the mirror must not be mixed into albedo.")
-	assert_true(code.contains("albedo *= 1.0 - mirror_amount"), "the lit albedo must be scaled by the non-reflected fraction.")
-	assert_true(code.contains("emission += mirror_color * mirror_amount"), "the mirror must be added as reflected light.")
-	var amount: RegEx = RegEx.new()
-	amount.compile("float\\s+mirror_amount\\s*=\\s*([^;]*);")
-	var found: RegExMatch = amount.search(code)
-	assert_not_null(found)
-	if found != null:
-		assert_false(found.get_string(1).contains("base_metallic"), found.get_string(1))
-
-
-func test_mirror_transform_reflects_a_camera_above_a_horizontal_plane() -> void:
-	var plane: Plane = Plane(Vector3.UP, 0.0)
-	var camera_origin: Vector3 = Vector3(2.0, 5.0, 3.0)
-	var target: Vector3 = Vector3.ZERO
-	var camera_xf: Transform3D = Transform3D.IDENTITY.translated(camera_origin).looking_at(target, Vector3.UP)
-
-	var mirrored: Transform3D = DiscMirror.mirror_transform(camera_xf, plane)
-
-	assert_almost_eq(
-		mirrored.origin.y, -camera_origin.y, 0.0001,
-		"reflecting a camera above the y=0 plane must negate its height."
-	)
-	assert_almost_eq(mirrored.origin.x, camera_origin.x, 0.0001, "x is unchanged by a horizontal-plane reflection.")
-	assert_almost_eq(mirrored.origin.z, camera_origin.z, 0.0001, "z is unchanged by a horizontal-plane reflection.")
-	assert_almost_eq(
-		mirrored.basis.determinant(), 1.0, 0.0001,
-		"the reflected basis must stay proper (determinant 1), or backface culling flips the wrong way."
-	)
-
-	var mirrored_target: Vector3 = target - 2.0 * plane.distance_to(target) * plane.normal
-	var forward: Vector3 = -mirrored.basis.z
-	var to_target: Vector3 = (mirrored_target - mirrored.origin).normalized()
-	assert_almost_eq(
-		forward.dot(to_target), 1.0, 0.0001,
-		"the mirrored camera must look at the mirrored target, not just sit at the mirrored origin."
-	)
-
-
-func test_mirror_transform_reflects_across_a_tilted_plane() -> void:
-	var tilt: float = deg_to_rad(10.0)
-	var normal: Vector3 = Vector3(0.0, cos(tilt), sin(tilt)).normalized()
-	var plane: Plane = Plane(normal, Vector3.ZERO)
-	var camera_origin: Vector3 = Vector3(2.0, 5.0, 3.0)
-	var camera_xf: Transform3D = Transform3D.IDENTITY.translated(camera_origin).looking_at(Vector3.ZERO, Vector3.UP)
-
-	var mirrored: Transform3D = DiscMirror.mirror_transform(camera_xf, plane)
-
-	var camera_distance: float = plane.distance_to(camera_origin)
-	var mirrored_distance: float = plane.distance_to(mirrored.origin)
-	assert_almost_eq(
-		mirrored_distance, -camera_distance, 0.0001,
-		"the mirrored origin must sit the same distance on the opposite side of a tilted plane."
-	)
-	assert_almost_eq(
-		mirrored.basis.determinant(), 1.0, 0.0001,
-		"the reflected basis must stay proper for a tilted plane too."
-	)
+	var code: String = overlay.material().shader.code
+	assert_false(code.contains("uniform sampler2D mirror_tex"), "no mirror sampler uniform.")
+	assert_false(code.contains("mirror_enabled"), "no mirror toggle uniform.")
+	assert_false(overlay.has_method("set_mirror_texture"), "no mirror texture door.")
+	assert_eq(overlay.layers, TerritoryOverlay.DISC_LAYER_BIT, "the disc keeps its own render layer.")
 
 
 # --- Bontago-1pi.11: spatial circle bins -------------------------------------

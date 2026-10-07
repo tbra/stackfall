@@ -58,6 +58,10 @@ extends MeshInstance3D
 const STATE_CONTESTED: int = TerritoryRaster.STATE_CONTESTED
 const STATE_HOLE: int = TerritoryRaster.STATE_HOLE
 
+## Render layer the disc (overlay top + DiscBody rim) lives on alone, so the disc
+## ReflectionProbe (Skybox.PROBE_CULL_MASK) and the decals skip it. Moved here from
+## the removed DiscMirror (owner 2026-10-07).
+const DISC_LAYER_BIT: int = 1 << 19
 const TERRITORY_SHADER: Shader = preload("res://shaders/territory.gdshader")
 const CIRCLE_BAKE_SHADER: Shader = preload("res://shaders/territory_circle_bake.gdshader")
 ## Frames the first bake is given to reach the render target before the disc
@@ -202,6 +206,7 @@ func _process(delta: float) -> void:
 ## Builds the disk mesh and its material. Called by Field before the node
 ## enters the tree.
 func configure(map_def: MapDef, visuals: TerritoryVisuals, tuning: TerritoryTuning) -> void:
+	layers = DISC_LAYER_BIT
 	_pushed_revision = -1
 	_map_def = map_def
 	_visuals = visuals
@@ -983,8 +988,6 @@ func _apply_visual_uniforms() -> void:
 	_material.set_shader_parameter(&"hole_rim_width", _visuals.hole_rim_width)
 	_material.set_shader_parameter(&"hole_rim_glow", _visuals.hole_rim_glow)
 	_apply_hole_void_uniforms()
-	_material.set_shader_parameter(&"mirror_center_fraction", _visuals.mirror_center_fraction)
-	_material.set_shader_parameter(&"mirror_fresnel_power", _visuals.mirror_fresnel_power)
 	# Bontago-mp0.3.2: MapDef.MapShape.OVAL's true shape is an ellipse
 	# (field_radius in x, field_radius * oval_aspect in z) -- see the
 	# shader's own disc_z_scale uniform DECISION for why the vertex shader,
@@ -997,23 +1000,6 @@ func _apply_visual_uniforms() -> void:
 	_material.set_shader_parameter(&"disc_z_scale", z_scale)
 	set_slot_colors(_slot_colors)
 	_apply_wet()
-
-
-## Bontago-xtq.12 step 2: the one door game/DiscMirror.gd (owned by this same
-## package, but a different file) uses to push its rendered planar-mirror
-## viewport texture onto shaders/territory.gdshader's mirror_tex/
-## mirror_enabled/mirror_strength uniforms every frame -- this file's whole
-## share of the planar-mirror feature, per this package's own file ownership
-## (DiscMirror.gd owns the camera math/viewport lifecycle; this is a plain
-## uniform push, the same shape as set_slot_colors() above). A no-op before
-## configure() has built _material, same contract as every other public
-## setter on this class.
-func set_mirror_texture(texture: Texture2D, enabled: bool, strength: float) -> void:
-	if _material == null:
-		return
-	_material.set_shader_parameter(&"mirror_tex", texture)
-	_material.set_shader_parameter(&"mirror_enabled", enabled)
-	_material.set_shader_parameter(&"mirror_strength", strength)
 
 
 ## Bontago-adt.2: pushes the DiscSurfaceDef texture set (or clears it).

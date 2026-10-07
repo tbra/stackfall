@@ -278,43 +278,6 @@ uniform float rim_strength = 1.4;
 uniform float rim_pulse_depth : hint_range(0.0, 1.0) = 0.45;
 uniform float rim_speed = 1.6;
 
-// -- Planar mirror (Bontago-xtq.12 step 2) -----------------------------------
-// game/DiscMirror.gd's SubViewport, holding a camera-mirrored-about-the-disk
-// render of the scene at the same fov/near/far as the main camera. Sampled
-// with SCREEN_UV (X flipped -- see below), the standard planar-reflection
-// trick: a shared projection between the two cameras means a given screen
-// pixel's mirrored-camera color is the correct reflection for that pixel's
-// real-camera ray. Defaults (false / 0.0) match the ReflectionProbe/SSR-only
-// look whenever no DiscMirror is wired (every existing
-// tests/unit/test_territory_overlay.gd fixture, none of which call
-// TerritoryOverlay.set_mirror_texture()).
-// source_color (Bontago-xtq.20): the SubViewport holds the mirror camera's
-// final, tonemapped sRGB-encoded frame; without the hint the shader read
-// those encoded values as linear and the reflection came out washed-out and
-// brighter than the scene it mirrors.
-uniform sampler2D mirror_tex : source_color, filter_linear;
-uniform bool mirror_enabled = false;
-uniform float mirror_strength : hint_range(0.0, 1.0) = 0.0;
-// Bontago-xtq.20: hue-preserving luminance cap on the sampled mirror color.
-// The mirror viewport is LDR (tonemapped, <= 1.0 per channel), so this only
-// engages below 1.0 -- it is a safety knob for a clipped white patch (e.g. the
-// procedural fallback sky's own sun disc), not the glare fix (see the
-// render_mode DECISION above: the glare was the light's specular lobe).
-uniform float mirror_max_luminance : hint_range(0.1, 8.0) = 1.35;
-// Bontago-mp0.3.2 (owner feedback: "the disc is just a thin mirror
-// currently ... a much thicker metallic disc"): the mirror used to blend at
-// a flat mirror_strength everywhere, which read as a bright, near-complete
-// copy of the whole cloud sky straight down through the disc (the "brownish,
-// almost see-through reflection" report) -- there was nothing left to read
-// as a dark polished surface under it. fragment() below now scales the
-// blended amount by a fresnel term built from the disc's own NORMAL/VIEW:
-// mirror_center_fraction is how strong the reflection stays looking straight
-// down (a subdued, mostly-albedo graphite/lacquer read), mirror_strength
-// (unchanged) is the ceiling it opens up to at a grazing angle near the
-// horizon -- exactly where the mockup's warm sunset sheen shows.
-uniform float mirror_center_fraction : hint_range(0.0, 1.0) = 0.35;
-uniform float mirror_fresnel_power : hint_range(0.1, 8.0) = 2.0;
-
 // Bontago-mp0.3.2: disk_z_scale lets a non-round MapDef.MapShape.OVAL map
 // warp this mesh's plain circle into the true ellipse shape_contains() tests
 // membership against, entirely inside this shader -- see
@@ -1210,45 +1173,6 @@ void fragment() {
 				- grain_z * grain_dz * top_grain_strength
 			);
 		}
-	}
-
-	// Bontago-xtq.12 step 2: the planar mirror, where it is wired and
-	// enabled, blends mirror_strength of the true per-pixel reflection over
-	// the disk (see the Bontago-xtq.20 DECISION inside the branch for how).
-	if (mirror_enabled) {
-		// game/DiscMirror.gd's own mirror_transform() DECISION comment: its
-		// camera basis is deliberately proper (not a raw per-axis
-		// reflection), which keeps triangle winding/culling correct but
-		// renders the true mirror image flipped left-right -- flipping X
-		// here undoes exactly that, so this samples the correct final image.
-		vec3 mirror_color = texture(mirror_tex, vec2(1.0 - SCREEN_UV.x, SCREEN_UV.y)).rgb;
-		// Bontago-xtq.20: hue-preserving luminance cap -- see
-		// mirror_max_luminance's own doc above.
-		float mirror_luma = dot(mirror_color, vec3(0.2126, 0.7152, 0.0722));
-		if (mirror_luma > mirror_max_luminance) {
-			mirror_color *= mirror_max_luminance / max(mirror_luma, 0.0001);
-		}
-		// Bontago-mp0.3.2: fresnel-scaled blend amount -- see the
-		// mirror_center_fraction/mirror_fresnel_power uniforms' own DECISION
-		// above. NORMAL/VIEW are both view-space here (Godot spatial
-		// fragment() built-ins), so this needs no extra transform.
-		float ndotv = clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0);
-		float fresnel = pow(1.0 - ndotv, mirror_fresnel_power);
-		float mirror_amount = clamp(
-			mix(mirror_strength * mirror_center_fraction, mirror_strength, fresnel), 0.0, 1.0
-		);
-		// DECISION (shaders/territory.gdshader, Bontago-xtq.20): the mirror is
-		// composited as the surface's reflected light -- the lit albedo is
-		// scaled down by the reflected fraction and the mirror image is added
-		// as EMISSION (it is already a fully lit render, so it must not be lit
-		// a second time). It used to be mixed into ALBEDO under METALLIC 0.85,
-		// where albedo only tints the environment reflection: the true
-		// per-pixel mirror image barely showed (the owner's "not very
-		// reflective") while the sun's specular lobe dominated.
-		albedo *= 1.0 - mirror_amount;
-		// Bontago-adt.2: procedural seams cut through the reflection a little.
-		mirror_color *= 1.0 - proc_seam_occ * disc_proc_seam_reflection_occlusion;
-		emission += mirror_color * mirror_amount;
 	}
 
 	// Bontago-mp0.3.8 problem 1: the explicit warm-gold sheen -- see the

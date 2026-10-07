@@ -6,7 +6,6 @@
 [ext_resource type="Script" path="res://game/BlockRegistry.gd" id="4_registry"]
 [ext_resource type="PackedScene" path="res://game/Skybox.tscn" id="5_skybox"]
 [ext_resource type="PackedScene" path="res://game/HorizonIslands.tscn" id="90_islands"]
-[ext_resource type="PackedScene" path="res://game/DiscMirror.tscn" id="6_discmirror"]
 [ext_resource type="Script" path="res://vfx/SunFlare.gd" id="7_sunflare"]
 [ext_resource type="Script" path="res://vfx/CloudShadows.gd" id="8_cloudshadows"]
 
@@ -58,10 +57,6 @@ shadow_enabled = true
 script = ExtResource("4_registry")
 
 [node name="CameraRig" parent="." instance=ExtResource("3_camera")]
-
-[node name="DiscMirror" parent="." instance=ExtResource("6_discmirror")]
-camera_path = NodePath("../CameraRig/Camera3D")
-field_path = NodePath("../Field")
 
 [node name="CloudShadows" type="Node3D" parent="."]
 script = ExtResource("8_cloudshadows")

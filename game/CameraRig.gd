@@ -188,7 +188,7 @@ func _ready() -> void:
 	Events.match_scope_reset.connect(_on_match_scope_reset)
 	process_priority = _PROCESS_PRIORITY_AFTER_GHOST
 	# Bontago-1bt (owner log: "Interpolated Camera3D triggered from outside
-	# physics process" -- the same warning game/DiscMirror.gd's own class doc
+	# physics process" -- the same warning the removed DiscMirror's own class doc
 	# already root-caused and fixed for its mirror camera, xtq.21): this rig's
 	# own global_position (_update_transform() below sets it every frame via
 	# `global_position = _target`) and its Camera3D child's position/rotation

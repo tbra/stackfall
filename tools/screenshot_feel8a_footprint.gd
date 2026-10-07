@@ -128,12 +128,6 @@ func _ready() -> void:
 	await _shot("bisect-prism-off")
 	_ghost._projection_mesh.visible = true
 
-	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres")
-	var mirror_was: bool = visuals.mirror_enabled
-	visuals.mirror_enabled = false
-	await _shot("bisect-mirror-off")
-	visuals.mirror_enabled = mirror_was
-
 	var env: Environment = (_main.get_node("WorldEnvironment") as WorldEnvironment).environment
 	env.ssr_enabled = false
 	await _shot("bisect-ssr-off")
@@ -160,7 +154,6 @@ func _ready() -> void:
 	await _close_shot(rig, close_target, "L-close-sunshadow-off")
 	light.shadow_enabled = true
 	env.ssr_enabled = false
-	visuals.mirror_enabled = false
 	await _close_shot(rig, close_target, "L-close-ssr-mirror-off")
 	get_tree().quit()
 
@@ -289,7 +282,6 @@ func _run_confirm(home: Vector3) -> void:
 	var light: DirectionalLight3D = _main.get_node("DirectionalLight3D") as DirectionalLight3D
 	var env: Environment = (_main.get_node("WorldEnvironment") as WorldEnvironment).environment
 	var probe: ReflectionProbe = _main.get_node("ReflectionProbe") as ReflectionProbe
-	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres")
 	print("FEEL8A light bias=%s normal_bias=%s mode=%s blur=%s" % [
 		light.shadow_bias, light.shadow_normal_bias, light.directional_shadow_mode, light.shadow_blur
 	])
@@ -301,10 +293,8 @@ func _run_confirm(home: Vector3) -> void:
 	await _shot("confirm-L-probe-off")
 	probe.visible = true
 	env.ssr_enabled = false
-	visuals.mirror_enabled = false
 	await _shot("confirm-L-ssr-mirror-off")
 	env.ssr_enabled = true
-	visuals.mirror_enabled = true
 	var sky_contrib: float = env.ambient_light_sky_contribution
 	env.ambient_light_energy = 0.0
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED

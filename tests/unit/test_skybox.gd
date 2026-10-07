@@ -659,8 +659,8 @@ func test_reflection_probe_disabled_hides_it() -> void:
 func test_reflection_probe_excludes_the_disc_mirror_layer() -> void:
 	# Bontago-xtq.20 (owner, 2026-09-23 20:12: "graphics flickering"):
 	# fail-before this fix -- a fresh ReflectionProbe's default cull_mask
-	# includes every layer, including DiscMirror.DISC_LAYER_BIT (the layer
-	# game/DiscMirror.gd moves the disc onto in _ready() so its OWN mirror
+	# includes every layer, including TerritoryOverlay.DISC_LAYER_BIT (the layer
+	# the removed DiscMirror moves the disc onto in _ready() so its OWN mirror
 	# camera cannot see it). Left unset, the probe would still bake the disc's
 	# own shader (which samples SCREEN_UV of a SubViewport rendered for the
 	# main camera's projection, meaningless from a cubemap face's own
@@ -671,11 +671,11 @@ func test_reflection_probe_excludes_the_disc_mirror_layer() -> void:
 	var probe: ReflectionProbe = wired["probe"] as ReflectionProbe
 
 	assert_eq(
-		probe.cull_mask & DiscMirror.DISC_LAYER_BIT, 0,
+		probe.cull_mask & TerritoryOverlay.DISC_LAYER_BIT, 0,
 		"the reflection probe must not see the layer the disc's planar-mirror material lives on.",
 	)
 	assert_eq(
-		probe.cull_mask, DiscMirror.MIRROR_CULL_MASK,
+		probe.cull_mask, Skybox.PROBE_CULL_MASK,
 		"the probe should exclude exactly the same layer DiscMirror's own mirror camera already excludes.",
 	)
 

@@ -31,13 +31,10 @@ extends Resource
 @export var ambient_life_enabled: bool = true
 ## Bontago-1pi.11.2: sun DirectionalLight3D cascade count (DirectionalLight3D.ShadowMode;
 ## 2 = 4 splits, 1 = 2 splits, 0 = one orthogonal split). Shadow pass cost grows with
-## block count, and the mirror camera pays it a second time.
+## block count.
 @export_enum("Orthogonal:0", "PSSM 2 Splits:1", "PSSM 4 Splits:2") var sun_shadow_mode: int = 2
 ## Bontago-1pi.11.2: sun shadow max distance in metres (engine default 100).
 @export var sun_shadow_max_distance: float = 100.0
-## Bontago-1pi.11.2: multiplies TerritoryVisuals.mirror_resolution_scale for the disc
-## mirror SubViewport (1.0 = unchanged; lower renders the second scene pass smaller).
-@export_range(0.1, 1.0) var mirror_resolution_factor: float = 1.0
 
 ## Bontago-1pi.11.42: the swirl animation (noise, per-pixel) of the hole void
 ## on the disc. Off on Low: the void is then a flat deep colour with its rim.
@@ -74,7 +71,5 @@ enum FrameCap { DISPLAY_REFRESH, FIXED, UNCAPPED }
 @export_range(0.0, 1.0) var particle_budget_scale: float = 1.0
 ## Multiplies the rain / snow / storm-mote density (1 = unchanged).
 @export_range(0.0, 1.0) var weather_density_scale: float = 1.0
-## False stops the disc mirror's second scene render (visuals.mirror_enabled still applies).
-@export var mirror_enabled: bool = true
 ## Viewport.scaling_3d_scale (1 = native resolution).
 @export_range(0.25, 1.0) var render_scale_3d: float = 1.0

@@ -104,7 +104,7 @@ func test_decals_do_not_touch_cloud_puffs_or_disc() -> void:
 	add_child_autofree(node)
 	for decal: Decal in node.decals():
 		assert_eq(decal.cull_mask & CloudSea.RENDER_LAYER_BIT, 0, "puff layer excluded")
-		assert_eq(decal.cull_mask & DiscMirror.DISC_LAYER_BIT, 0, "disc layer excluded")
+		assert_eq(decal.cull_mask & TerritoryOverlay.DISC_LAYER_BIT, 0, "disc layer excluded")
 		assert_ne(decal.cull_mask & 1, 0, "default layer (blocks) still shadowed")
 
 

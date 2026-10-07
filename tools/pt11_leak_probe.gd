@@ -26,7 +26,7 @@ var _manual_territory_probe: bool = true
 var _forced_weather: StringName = &""
 var _weather_forced: bool = false
 const AB_THRESHOLDS: Array[int] = [40, 90, 150, 190]
-const AB_VARIANTS: Array[String] = ["base", "mirror_off", "fx_off", "circles_off", "all_off", "base2"]
+const AB_VARIANTS: Array[String] = ["base", "fx_off", "circles_off", "all_off", "base2"]
 const AB_SETTLE_FRAMES: int = 15
 const AB_FRAMES: int = 120
 var _ab_threshold_index: int = 0
@@ -286,14 +286,10 @@ func _find_first(script_file: String) -> Node:
 
 
 func _ab_apply(variant: String) -> void:
-	var mirror: DiscMirror = _find_first("DiscMirror.gd") as DiscMirror
 	var fx: BlockEffectsManager = _find_first("BlockEffectsManager.gd") as BlockEffectsManager
 	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres") as TerritoryVisuals
-	var mirror_off: bool = variant == "mirror_off" or variant == "all_off"
 	var fx_off: bool = variant == "fx_off" or variant == "all_off"
 	var circles_off: bool = variant == "circles_off" or variant == "all_off"
-	if mirror != null:
-		mirror.visuals.mirror_enabled = not mirror_off
 	if fx != null:
 		if _ab_saved_threshold <= 0.0:
 			_ab_saved_threshold = fx.config.dust_impact_speed_threshold

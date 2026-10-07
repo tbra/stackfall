@@ -161,14 +161,14 @@ extends Node3D
 ## the footprint quad, the prism, the planar mirror, SSR, the sun's shadows and
 ## the ReflectionProbe one at a time (feel8a-before_bisect-*.png), and vanishes
 ## (241 -> 0 near-black pixels) the moment the decal stops reaching the disc
-## (cull_mask 0, or cull_mask without DiscMirror.DISC_LAYER_BIT). The decal's
+## (cull_mask 0, or cull_mask without TerritoryOverlay.DISC_LAYER_BIT). The decal's
 ## box bottom sits exactly on the disc surface (landing_y) and both fades were
 ## 0.0: Godot's decal fade is pow(1 - |uv.y|, fade), and at the box's own
 ## bottom plane that is pow(0, 0) -- NaN on the GPU (exp2(0 * log2(0))) for
 ## every disc pixel whose interpolated height lands exactly on the plane,
 ## i.e. a per-pixel speckle, and a NaN stays black through the translucent
 ## footprint quad blended over it. Two fixes, _ready()/_update_block_
-## projection_decal(): the decal's cull_mask drops DiscMirror.DISC_LAYER_BIT
+## projection_decal(): the decal's cull_mask drops TerritoryOverlay.DISC_LAYER_BIT
 ## (the disc already has its own footprint quad; the decal is for placed
 ## blocks, xtq.15's own brief), and both fades are clamped above zero
 ## (ghost_tuning.block_projection_edge_fade) so no surface lying exactly on
@@ -589,11 +589,11 @@ func _ready() -> void:
 	_block_projection_decal.upper_fade = _decal_fade()
 	_block_projection_decal.lower_fade = _decal_fade()
 	# Bontago-xtq.18 attempt 3 (this file's own header): never paint the disc.
-	# DiscMirror moves the disc onto DISC_LAYER_BIT alone, so removing that
+	# TerritoryOverlay keeps the disc on DISC_LAYER_BIT alone, so removing that
 	# bit from Decal's own default (all 20 layers) leaves placed blocks
 	# (layer 1) painted and the disc -- whose box-bottom contact produced the
 	# speckle -- untouched; the disc keeps its own footprint quad.
-	_block_projection_decal.cull_mask = _block_projection_decal.cull_mask & ~DiscMirror.DISC_LAYER_BIT
+	_block_projection_decal.cull_mask = _block_projection_decal.cull_mask & ~TerritoryOverlay.DISC_LAYER_BIT
 	_block_projection_decal.top_level = true
 	_block_projection_decal.visible = false
 	add_child(_block_projection_decal)
@@ -1128,7 +1128,7 @@ func _clear_projection_mesh() -> void:
 ## ghost's own rendered body) down to `landing_y` (the footprint's own disc
 ## height). Bontago-xtq.18 attempt 3 supersedes xtq.15's original "painting
 ## the disc too is harmless" DECISION: it was not harmless (this file's own
-## header) -- the disc lives on DiscMirror.DISC_LAYER_BIT since xtq.12, and
+## header) -- the disc lives on TerritoryOverlay.DISC_LAYER_BIT since xtq.12, and
 ## _ready() now strips that bit from this decal's cull_mask.
 func _update_block_projection_decal(world_hull: PackedVector2Array, landing_y: float) -> void:
 	if _block_projection_decal == null:

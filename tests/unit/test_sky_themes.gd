@@ -87,7 +87,7 @@ func test_cloud_puffs_stay_below_the_disc_and_off_the_mirror_layer() -> void:
 		assert_true(sea.highest_puff_top() <= maxf(theme.cloud_top_max_m + theme.cloud_puff_raise_m, theme.cloud_bank_top_max_m) + 0.001,
 			"%s: no puff above its layer ceiling" % path)
 		assert_eq(sea.puff_instance().layers, CloudSea.RENDER_LAYER_BIT)
-		assert_eq(DiscMirror.MIRROR_CULL_MASK & CloudSea.RENDER_LAYER_BIT, 0, "mirror camera must not see the puffs")
+		assert_eq(Skybox.PROBE_CULL_MASK & CloudSea.RENDER_LAYER_BIT, 0, "mirror camera must not see the puffs")
 
 
 func test_cloud_puffs_share_the_sky_panorama_and_grade() -> void:

@@ -8,7 +8,7 @@ extends PanelContainer
 ## DECISION (ui/Minimap.gd, Bontago-mp0.3.3): the original M7 P5 design used a
 ## live orthographic SubViewport + Camera3D looking straight down at the
 ## shared World3D (docs/M7_ART_DIRECTION.md Q4, owner-selected option (a)).
-## In practice that camera also framed game/DiscMirror.gd's planar-reflection
+## In practice that camera also framed the removed DiscMirror's planar-reflection
 ## quad -- a real 3D plane sitting on the disk -- and a top-down camera's own
 ## viewing angle relative to that mirror plane changes with match state (disk
 ## tilt, camera height reframing per MapDef), so the mirror sometimes bounced

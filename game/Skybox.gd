@@ -90,6 +90,9 @@ extends Node3D
 ## theme's light colour/energy/rotation onto it. Empty in fixtures: no-op.
 @export var light_path: NodePath = NodePath("")
 
+## Probe cull mask: all 20 render layers minus the disc, the cloud puffs (below the
+## disc plane) and rain streaks (formerly DiscMirror.MIRROR_CULL_MASK).
+const PROBE_CULL_MASK: int = 0xFFFFF & ~TerritoryOverlay.DISC_LAYER_BIT & ~CloudSea.RENDER_LAYER_BIT & ~RainPresentation.RENDER_LAYER_BIT
 const THEME_DIR: String = "res://config/sky_themes"
 const DEFAULT_THEME_ID: String = "sunset"
 ## Bontago-59o.18: SkyboxConfig.theme_name value that means "the day/night cycle"
@@ -920,22 +923,9 @@ func configure_reflection_probe() -> void:
 	# as infinitely far away, ReflectionProbe's default) keeps the mirrored
 	# blocks positioned correctly instead of drifting as the camera orbits.
 	probe.box_projection = true
-	# DECISION (game/Skybox.gd, Bontago-xtq.20, owner 2026-09-23: "graphics
-	# flickering"): exclude TerritoryOverlay's own disc from this probe's
-	# cull_mask, the same DiscMirror.MIRROR_CULL_MASK its planar mirror camera
-	# already uses -- found by re-reading game/DiscMirror.gd's own class doc,
-	# which explains exactly why its mirror camera cannot see the disc (a
-	# one-frame-stale nested reflection) but never applied that same reasoning
-	# here. It applies doubly for a ReflectionProbe: the disc's own shader
-	# samples SCREEN_UV of game/DiscMirror.gd's SubViewport (rendered for the
-	# main camera's projection), but a cubemap face capture is a *different*
-	# camera/projection entirely, so a probe that could see the disc would
-	# bake an incoherent, per-face-mismatched sample of that texture into its
-	# cubemap -- recomputed every frame under
-	# reflection_probe_update_always's default UPDATE_ALWAYS, which is what
-	# reads as general flicker (an incoherent image changing every frame),
-	# not just a mis-reflected disc.
-	probe.cull_mask = DiscMirror.MIRROR_CULL_MASK
+	# DECISION: exclude the disc (TerritoryOverlay.DISC_LAYER_BIT) and the cloud/rain
+	# layers from the probe so it never captures the disc's own reflection.
+	probe.cull_mask = PROBE_CULL_MASK
 
 
 ## Called once per match/scene start (game/Main.gd) with the map's chosen set
