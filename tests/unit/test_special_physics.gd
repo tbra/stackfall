@@ -112,14 +112,6 @@ func _make_static_body(position: Vector3) -> StaticBody3D:
 
 
 
-# --- config/special_tuning.tres --------------------------------------------------
-
-func test_special_tuning_resource_has_a_usable_max_explosion_impulse() -> void:
-	var tuning: SpecialTuning = load("res://config/special_tuning.tres") as SpecialTuning
-	assert_not_null(tuning)
-	assert_gt(tuning.max_explosion_impulse, 0.0, "a clamp of zero or less would disable every blast")
-
-
 # --- query_bodies_in_range() ---------------------------------------------------
 ## Query-only sibling of ExplosionFx.blast() (docs/M8_PLAN.md "Interface stubs" item 1):
 ## same sphere-query + dedupe, no impulse/wake/mark_script_kick.

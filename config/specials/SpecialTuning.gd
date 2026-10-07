@@ -6,9 +6,9 @@ extends Resource
 ## once as config/special_tuning.tres.
 ##
 ## DECISION (config/specials/SpecialTuning.gd): deviates from the old M4 plan
-## by not pre-declaring `max_explosion_impulse` etc. -- nothing in P2a reads
-## them; P3/P4 add what they need when those concrete specials land
-## (docs/M4_P2_PACKAGES.md P2a).
+## by not pre-declaring tunables nothing reads; specials add what they need
+## when they land (docs/M4_P2_PACKAGES.md P2a). The explosion clamp is per
+## def, not here: ExplosionTuning.max_delta_v_mps (Bontago-fca.48).
 
 ## Chain reactions are capped at this depth (spec 2.6: "Cap them at
 ## max_chain_depth = 4 as a remake performance choice"). A special triggered
@@ -24,16 +24,6 @@ extends Resource
 ## Throw launch speed in m/s per meter of aim drag, before the
 ## throw_max_speed clamp above (P2d).
 @export var throw_speed_per_meter: float = 12.0
-
-## Hard per-body clamp on an explosion's applied impulse magnitude (spec 3.5
-## "Explosions": "Clamp the impulse per body to max_explosion_impulse" --
-## names the clamp, gives no number). Shared across every explosion-based
-## special (Rocket, Bomb, Volcano), so one body caught by a very high per-def
-## impulse can never launch faster than this. NOTE (Bontago-fca.47): its only
-## reader was the removed SpecialPhysics.explode(); the live blast
-## (ExplosionFx.blast) clamps per body with ExplosionTuning.max_delta_v_mps.
-## Reconciling the two is tracked separately.
-@export var max_explosion_impulse: float = 30.0
 
 ## M4 P4-SPAWN: spec 3.5's continuous-collision threshold ("Rockets, lava
 ## orbs, thrown specials, and any body moving faster than 15 m/s use
