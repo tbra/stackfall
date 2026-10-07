@@ -79,6 +79,7 @@ func set_defs(defs: Array[WeatherTuning]) -> void:
 ## Moves every bed's gain toward its target and stops silent ones.
 func advance(delta: float) -> void:
 	var step: float = delta / maxf(tuning.crossfade_s, 0.001)
+	var faded_out: Array[StringName] = []
 	for weather_id: StringName in _beds.keys():
 		var bed: Dictionary = _beds[weather_id]
 		var gain: float = move_toward(float(bed["gain"]), float(bed["target"]), step)
@@ -88,8 +89,27 @@ func advance(delta: float) -> void:
 			bed["gain"] = 0.0
 			if player.playing:
 				player.stop()
+			if bool(bed["heard"]):
+				faded_out.append(weather_id)
 			continue
+		bed["heard"] = true
 		player.volume_db = _bed_volume_db(weather_id, gain)
+	for weather_id: StringName in faded_out:
+		_release_bed(weather_id)
+
+
+## Bontago-1pi.11.63: a bed that has faded out drops its looped WAV copy (~1 MB
+## decoded) and player; _bed_for() rebuilds it when that weather returns.
+func _release_bed(weather_id: StringName) -> void:
+	var bed: Dictionary = _beds.get(weather_id, {}) as Dictionary
+	if bed.is_empty():
+		return
+	var player: AudioStreamPlayer = bed["player"] as AudioStreamPlayer
+	_beds.erase(weather_id)
+	if is_instance_valid(player):
+		player.stop()
+		player.stream = null
+		player.queue_free()
 
 
 func bed_ids() -> Array[StringName]:
@@ -195,7 +215,7 @@ func _bed_for(weather_id: StringName) -> Dictionary:
 	player.name = "Bed_" + String(weather_id)
 	player.stream = stream
 	add_child(player)
-	var bed: Dictionary = {"player": player, "gain": 0.0, "target": 0.0}
+	var bed: Dictionary = {"player": player, "gain": 0.0, "target": 0.0, "heard": false}
 	_beds[weather_id] = bed
 	return bed
 

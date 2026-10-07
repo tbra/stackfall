@@ -344,6 +344,10 @@ func fade_out() -> void:
 	_is_fading = false
 	_finish_backdrop_fade()
 	_drain_backdrop_orphans()
+	# Bontago-1pi.11.63: the plate is only needed while the screen is up; drop the
+	# texture so the 1920x1080 art leaves memory once the match is visible. The next
+	# show_for_match() re-requests it (threaded) because the shown path is cleared.
+	_clear_backdrop()
 	if _warm_viewport != null:
 		_warm_viewport.queue_free()
 		_warm_viewport = null
