@@ -207,8 +207,24 @@ func _apply_input_map() -> void:
 ## lines" gate (CLAUDE.md, "never hand-edit project.godot") honest for
 ## autoloads too, rather than adding another hand-edited exception.
 func _apply_autoloads() -> void:
-	ProjectSettings.set_setting("autoload/Screenshots", "*res://autoload/Screenshots.gd")
-	ProjectSettings.set_setting("autoload/Rumble", "*res://autoload/Rumble.gd")
+	# Bontago-1pi.11.55: this function owns the complete ordered list. StartupPump is a
+	# non-singleton (no "*") and must be first so it pumps the window while the rest compile.
+	var ordered: Array[Array] = [
+		["StartupPump", "res://autoload/StartupPump.gd"],
+		["Events", "*res://autoload/Events.gd"],
+		["Settings", "*res://autoload/Settings.gd"],
+		["Net", "*res://autoload/Net.gd"],
+		["Match", "*res://autoload/Match.gd"],
+		["SnapshotSync", "*res://net/SnapshotSync.gd"],
+		["MatchNet", "*res://net/MatchNet.gd"],
+		["Sfx", "*res://autoload/Sfx.gd"],
+		["Screenshots", "*res://autoload/Screenshots.gd"],
+		["Rumble", "*res://autoload/Rumble.gd"],
+	]
+	for entry: Array in ordered:
+		ProjectSettings.set_setting("autoload/%s" % entry[0], null)
+	for entry: Array in ordered:
+		ProjectSettings.set_setting("autoload/%s" % entry[0], entry[1])
 
 
 ## Every action in spec 2.5/1.5 (Bontago-mv0.14 rewrites the mouse/keyboard

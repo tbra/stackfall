@@ -25,6 +25,7 @@ config/icon="res://assets/ui/stackfall_mark.svg"
 
 [autoload]
 
+StartupPump="res://autoload/StartupPump.gd"
 Events="*res://autoload/Events.gd"
 Settings="*res://autoload/Settings.gd"
 Net="*res://autoload/Net.gd"
