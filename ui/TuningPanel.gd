@@ -220,6 +220,20 @@ const TIME_OF_DAY_DEFAULT_CUSTOM_PHASE: float = 0.25
 const TIME_OF_DAY_SLIDER_MIN_WIDTH: float = 160.0
 const TIME_OF_DAY_VALUE_FORMAT: String = "%.3f"
 
+## Bontago-1pi.112: F4 fields whose tunable no live game code reads any more
+## ("Class.property"); the reflection loop skips them. The config fields
+## themselves are left in place for a follow-up cleanup.
+const UNUSED_FIELDS: PackedStringArray = [
+	"TerritoryVisuals.flag_pole_height", "TerritoryVisuals.flag_pole_radius",
+	"TerritoryVisuals.flag_pole_color", "TerritoryVisuals.flag_emission",
+	"TerritoryVisuals.goal_flag_scale", "BlockFeedConfig.preview_count",
+	"HUDVisualTuning.panel_border_color", "HUDVisualTuning.panel_text_color",
+]
+## Fields sharing a name prefix form a sub-header group once there are this many.
+const GROUP_MIN_FIELDS: int = 3
+const GENERAL_GROUP: String = "General"
+const GROUP_HEADER_COLOR: Color = Color(1.0, 0.9, 0.6)
+
 @export var hints: TuningPanelHints = preload("res://config/tuning_panel_hints.tres")
 
 var camera_tuning: CameraTuning = preload("res://config/camera_tuning.tres")
@@ -268,6 +282,9 @@ var _field: Field = null
 ## "control": Control}. Lets tests (and _on_field_changed()) find the control
 ## for a given resource field without walking the tree.
 var _rows: Array[Dictionary] = []
+
+## One {"resource", "title"} per sub-header built (Bontago-1pi.112).
+var _group_titles: Array[Dictionary] = []
 
 var _tab_container: TabContainer = null
 var _status_label: Label = null
@@ -506,6 +523,7 @@ func _free_ui() -> void:
 	_tab_container = null
 	_status_label = null
 	_rows.clear()
+	_group_titles.clear()
 
 
 ## Public so a test can force a rebuild after swapping camera_tuning/etc.
@@ -522,6 +540,7 @@ func rebuild() -> void:
 		# emitter mid-emission is a Godot error / potential crash.
 		child.queue_free()
 	_rows.clear()
+	_group_titles.clear()
 	_bind_sky_theme_to_live_cycle()
 
 	_add_tab("Camera", [camera_tuning])
@@ -609,13 +628,46 @@ func _build_resource_rows(resource: Resource) -> VBoxContainer:
 	header.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
 	list.add_child(header)
 
+	var types: Dictionary = {}
+	var names: Array[String] = []
 	for prop: Dictionary in resource.get_property_list():
 		if not _is_exported_field(prop):
 			continue
 		var prop_name: String = str(prop.get("name", ""))
-		var type: int = int(prop.get("type", TYPE_NIL))
-		var row: Control = _build_row_control(resource, prop_name, type, class_label, fresh)
-		if row != null:
+		if is_unused_field(class_label, prop_name):
+			continue
+		types[prop_name] = int(prop.get("type", TYPE_NIL))
+		names.append(prop_name)
+
+	# Bontago-1pi.112: rows sit under a sub-header per name prefix, groups and
+	# fields alphabetical (DECISION), small groups folded into "General" (first).
+	var groups: Dictionary = _group_field_names(names)
+	var group_order: Array[String] = []
+	for group_title: Variant in groups.keys():
+		group_order.append(String(group_title))
+	group_order.sort_custom(func(a: String, b: String) -> bool:
+		if a == GENERAL_GROUP or b == GENERAL_GROUP:
+			return a == GENERAL_GROUP and b != GENERAL_GROUP
+		return a < b
+	)
+	for group_title: String in group_order:
+		var members: Array = groups[group_title]
+		var built: Array[Control] = []
+		for member: Variant in members:
+			var prop_name: String = String(member)
+			var row: Control = _build_row_control(resource, prop_name, int(types[prop_name]), class_label, fresh)
+			if row != null:
+				built.append(row)
+		if built.is_empty():
+			continue
+		var group_header: Label = Label.new()
+		group_header.name = "Group_%s" % group_title.replace(" ", "_")
+		group_header.text = group_title
+		group_header.add_theme_color_override("font_color", GROUP_HEADER_COLOR)
+		list.add_child(HSeparator.new())
+		list.add_child(group_header)
+		_group_titles.append({"resource": resource, "title": group_title})
+		for row: Control in built:
 			list.add_child(row)
 	return list
 
@@ -924,6 +976,41 @@ func control_for(resource: Resource, prop_name: String) -> Control:
 		if row.get("resource") == resource and row.get("property") == prop_name:
 			return row.get("control") as Control
 	return null
+
+
+## True for a field this panel no longer shows (see UNUSED_FIELDS).
+func is_unused_field(class_label: String, prop_name: String) -> bool:
+	return UNUSED_FIELDS.has("%s.%s" % [class_label, prop_name])
+
+
+## Splits `names` into {group title: sorted field names}: the first underscore
+## token (capitalized) when at least GROUP_MIN_FIELDS fields share it, else General.
+func _group_field_names(names: Array[String]) -> Dictionary:
+	var prefix_counts: Dictionary = {}
+	for field_name: String in names:
+		var prefix: String = field_name.get_slice("_", 0)
+		prefix_counts[prefix] = int(prefix_counts.get(prefix, 0)) + 1
+	var groups: Dictionary = {}
+	for field_name: String in names:
+		var prefix: String = field_name.get_slice("_", 0)
+		var title: String = GENERAL_GROUP
+		if field_name.contains("_") and int(prefix_counts[prefix]) >= GROUP_MIN_FIELDS:
+			title = prefix.left(1).to_upper() + prefix.substr(1)
+		if not groups.has(title):
+			groups[title] = []
+		(groups[title] as Array).append(field_name)
+	for title: Variant in groups.keys():
+		(groups[title] as Array).sort()
+	return groups
+
+
+## Test/inspection seam: the sub-header titles built for `resource`, in order.
+func group_titles_for(resource: Resource) -> Array[String]:
+	var titles: Array[String] = []
+	for entry: Dictionary in _group_titles:
+		if entry.get("resource") == resource:
+			titles.append(String(entry.get("title")))
+	return titles
 
 
 ## Test/inspection seam: how many rows this panel built for `resource`.
