@@ -206,6 +206,7 @@ var _launch_default_set: String = ""
 ## phase comes from the replicated mode/resolved id (locked) or from
 ## SnapshotSync's shared clock (running), so host and clients agree.
 func configure_match_sky(match_config: MatchConfig) -> void:
+	configure_reflection_probe()  # Bontago-1pi.107: the probe box follows the match's disc size
 	var locked: float = -1.0
 	if not match_config.is_sky_cycle_running():
 		var source: SkyThemeDef = load_theme(DEFAULT_THEME_ID)
@@ -910,7 +911,7 @@ func configure_reflection_probe() -> void:
 		ReflectionProbe.UPDATE_ALWAYS if visuals.reflection_probe_update_always
 		else ReflectionProbe.UPDATE_ONCE
 	)
-	var half_width: float = MapDef.RADIUS_LARGE + visuals.reflection_probe_margin_m
+	var half_width: float = _largest_disc_radius() + visuals.reflection_probe_margin_m
 	var height: float = visuals.reflection_probe_height_m
 	probe.size = Vector3(half_width * 2.0, height, half_width * 2.0)
 	probe.position = Vector3(0.0, height * 0.5 - PROBE_GROUND_CLEARANCE_M, 0.0)
@@ -1435,6 +1436,7 @@ func _apply_ambient_life(preset: GraphicsPreset, applied_theme: SkyThemeDef) -> 
 		var sky_material: Material = applied_theme.sky_material if applied_theme != null else null
 		var subdivisions: int = preset.cloud_puff_subdivisions if preset != null else CloudSea.PUFF_SUBDIVISIONS
 		_cloud_sea.upper_low = preset != null and not preset.ambient_life_enabled
+		_cloud_sea.disc_radius_m = _largest_disc_radius()
 		_cloud_sea.configure(applied_theme, density, sky_material, subdivisions)
 		# Bontago-mp0.19: configure() resets the puff palette; keep the storm tint.
 		if _storm_amount > 0.0 and _storm_target != null and applied_theme != null and applied_theme == theme:
@@ -1634,6 +1636,17 @@ func get_perching_birds() -> PerchingBirds:
 
 func get_fireflies() -> Fireflies:
 	return _fireflies
+
+
+## Bontago-1pi.107: the radius the cloud sea, its exclusion cylinder and the
+## reflection probe must cover -- the bound Field's (disc-size scaled) radius,
+## never below the largest shipped map.
+func _largest_disc_radius() -> float:
+	if not field_path.is_empty():
+		var field_node: Field = get_node_or_null(field_path) as Field
+		if field_node != null and field_node.map_definition() != null:
+			return maxf(field_node.map_definition().field_radius, MapDef.RADIUS_LARGE)
+	return MapDef.RADIUS_LARGE
 
 
 ## Disc radius (m) the fireflies ring around: the bound Field's map, else the

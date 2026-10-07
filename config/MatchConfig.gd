@@ -115,6 +115,13 @@ const TEAM_PICK_MAX: int = 4
 
 ## -- Spec 2.8 table, in order -----------------------------------------------
 @export var map_variant: MapVariant = MapVariant.ROUND
+## Bontago-1pi.107 (owner 2026-10-07): the lobby's disc-size slider step, an index
+## into config/disc_size_tuning.tres (0 = tiny 50% .. 5 = enormous 175%); the
+## default is the medium step, 100% = the unscaled default map. map_variant and
+## map_size below are no longer lobby-selectable (the lobby pins ROUND/MEDIUM)
+## but stay in the config and the wire format so the other maps keep working.
+const DISC_SIZE_STEP_DEFAULT: int = 2
+@export var disc_size_step: int = DISC_SIZE_STEP_DEFAULT
 ## Spec 2.8's map size; the enum lives on MapDef (see the note there).
 @export var map_size: MapDef.MapSize = MapDef.MapSize.MEDIUM
 ## Total players including bots, 2-8.
@@ -364,8 +371,20 @@ func effective_goal_flag_count() -> int:
 
 
 ## The MapDef this config's map_variant + map_size select.
+## Scaled by disc_size_step's factor; cached per (variant, size, step) so every
+## caller in a match sees the same MapDef instance (HUD/Minimap compare identity).
 func map_def() -> MapDef:
-	return MapDef.for_variant_and_size(map_variant, map_size)
+	var key: Vector3i = Vector3i(map_variant, map_size, disc_size_step)
+	if _map_def_cache == null or key != _map_def_cache_key:
+		var tuning: DiscSizeTuning = DiscSizeTuning.shared()
+		var base: MapDef = MapDef.for_variant_and_size(map_variant, map_size)
+		_map_def_cache = base.scaled(tuning.factor_for(disc_size_step)) if tuning != null else base
+		_map_def_cache_key = key
+	return _map_def_cache
+
+
+var _map_def_cache: MapDef = null
+var _map_def_cache_key: Vector3i = Vector3i.ZERO
 
 
 func field_radius() -> float:
@@ -516,6 +535,9 @@ func clamp_to_connected_peers(peer_count: int) -> void:
 func sanitize() -> void:
 	map_variant = clampi(map_variant, MapVariant.ROUND, MapVariant.CROSS)
 	map_size = clampi(map_size, MapDef.MapSize.SMALL, MapDef.MapSize.LARGE) as MapDef.MapSize
+	var disc_tuning: DiscSizeTuning = DiscSizeTuning.shared()
+	if disc_tuning != null:
+		disc_size_step = disc_tuning.clamp_step(disc_size_step)
 	# Spec 2.8's floor is 2 players; sandbox is the one path allowed below it
 	# (down to 1), for solo rules/physics testing (Bontago-mv0.8).
 	var min_player_count: int = 1 if sandbox else PLAYER_COUNT_MIN
@@ -680,6 +702,7 @@ func to_dict() -> Dictionary:
 	var data: Dictionary = {
 		"map_variant": map_variant,
 		"map_size": map_size,
+		"disc_size_step": disc_size_step,
 		"player_count": player_count,
 		"ai_count": ai_count,
 		"ai_difficulty": ai_difficulty,
@@ -729,6 +752,8 @@ static func from_dict(data: Dictionary) -> MatchConfig:
 	var config: MatchConfig = MatchConfig.new()
 	config.map_variant = int(data.get("map_variant", config.map_variant))
 	config.map_size = int(data.get("map_size", config.map_size)) as MapDef.MapSize
+	# Absent in lobby data from before Bontago-1pi.107: the default (medium, 1.0).
+	config.disc_size_step = int(data.get("disc_size_step", config.disc_size_step))
 	config.player_count = int(data.get("player_count", config.player_count))
 	config.ai_count = int(data.get("ai_count", config.ai_count))
 	config.ai_difficulty = int(data.get("ai_difficulty", config.ai_difficulty))
