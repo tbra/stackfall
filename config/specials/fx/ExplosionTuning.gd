@@ -18,4 +18,5 @@ extends Resource
 @export var upward_bias: float = 0.35
 
 ## Hard clamp on delta-v per body in m/s (not kg*m/s).
+# DECISION: spec 3.5 'Clamp the impulse per body to max_explosion_impulse' is implemented per explosion def by this field (Bontago-fca.48).
 @export var max_delta_v_mps: float = 16.0

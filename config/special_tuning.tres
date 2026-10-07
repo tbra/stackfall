@@ -7,7 +7,6 @@ script = ExtResource("1_special")
 max_chain_depth = 4
 throw_max_speed = 25.0
 throw_speed_per_meter = 12.0
-max_explosion_impulse = 30.0
 ccd_speed_threshold_mps = 15.0
 throw_loft_ratio = 1.0
 fuse_backstop_margin_s = 5.0
