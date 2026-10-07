@@ -19,12 +19,13 @@ const EPSILON: float = 0.0001
 ## Applies radial pull to all bodies within range, with mass-proportional acceleration.
 ## Acceleration per body = `t.accel_mps2 * falloff` + `t.friction_compensation`.
 ## Bodies in `exclude` (RID list) and failing `filter(body)` are skipped.
-## Returns the affected bodies.
-static func pull(space: PhysicsDirectSpaceState3D, center: Vector3, t: RadialPullTuning, exclude: Array[RID], filter: Callable, delta: float) -> Array[RigidBody3D]:
+## radius_scale shrinks the reach (BlackHoleField growth). Returns the affected bodies.
+static func pull(space: PhysicsDirectSpaceState3D, center: Vector3, t: RadialPullTuning, exclude: Array[RID], filter: Callable, delta: float, radius_scale: float = 1.0) -> Array[RigidBody3D]:
 	var affected: Array[RigidBody3D] = []
-	if space == null or t == null or t.radius_m <= 0.0:
+	var radius: float = t.radius_m * radius_scale if t != null else 0.0
+	if space == null or radius <= 0.0:
 		return affected
-	var candidates: Array[RigidBody3D] = ExplosionFx.query_bodies(space, center, t.radius_m, exclude)
+	var candidates: Array[RigidBody3D] = ExplosionFx.query_bodies(space, center, radius, exclude)
 	for body: RigidBody3D in candidates:
 		if filter.is_valid() and not bool(filter.call(body)):
 			continue
@@ -32,7 +33,7 @@ static func pull(space: PhysicsDirectSpaceState3D, center: Vector3, t: RadialPul
 		var distance: float = to_center.length()
 		if distance <= EPSILON:
 			continue
-		var ratio: float = clampf(distance / t.radius_m, 0.0, 1.0)
+		var ratio: float = clampf(distance / radius, 0.0, 1.0)
 		var falloff: float = pow(1.0 - ratio, maxf(t.falloff_exponent, 0.0))
 		var accel: float = t.accel_mps2 * falloff + t.friction_compensation
 		# Mass-proportional: impulse = m * a * dt, so the acceleration is mass independent.
