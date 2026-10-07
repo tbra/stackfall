@@ -113,5 +113,5 @@ func _sample_position(map_def: MapDef, footprint: float = 0.0) -> Vector2:
 
 
 func _on_match_state_changed(_old_state: int, new_state: int) -> void:
-	if new_state == Match.State.LOBBY or new_state == Match.State.END:
+	if Match.is_lobby_or_end(new_state):
 		queue_free()

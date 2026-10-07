@@ -19,3 +19,15 @@ func test_predicates_over_every_state() -> void:
 		assert_ne(MatchAutoload.is_replicating(s), MatchAutoload.is_resetting(s), "complements %s" % key)
 		if MatchAutoload.is_live(s):
 			assert_true(MatchAutoload.is_replicating(s), "live implies replicating %s" % key)
+
+
+func test_presentation_predicates_over_every_state() -> void:
+	var S: Variant = MatchAutoload.State
+	for key: String in MatchAutoload.State.keys():
+		var s: int = MatchAutoload.State[key]
+		assert_eq(MatchAutoload.is_in_progress(s), s != S.LOBBY and s != S.END, "is_in_progress %s" % key)
+		assert_eq(MatchAutoload.is_pregame(s), s == S.LOADING or s == S.COUNTDOWN, "is_pregame %s" % key)
+		assert_eq(MatchAutoload.is_lobby_or_end(s), s == S.LOBBY or s == S.END, "is_lobby_or_end %s" % key)
+		for t_key: String in MatchAutoload.State.keys():
+			var t: int = MatchAutoload.State[t_key]
+			assert_eq(MatchAutoload.is_start_transition(s, t), s == S.LOBBY and t == S.LOADING, "%s>%s" % [key, t_key])

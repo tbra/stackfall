@@ -1315,9 +1315,9 @@ var _glue_active: bool = false
 func _on_match_state_changed_glue(_from_state: int, to_state: int) -> void:
 	if to_state != Match.State.END:
 		visible = true
-	if to_state == Match.State.LOADING or to_state == Match.State.COUNTDOWN:
+	if Match.is_pregame(to_state):
 		prime_pregame_widgets()
-	if to_state == Match.State.LOBBY or to_state == Match.State.END:
+	if Match.is_lobby_or_end(to_state):
 		_last_special_signature = []
 		_set_glue_active(false)
 
