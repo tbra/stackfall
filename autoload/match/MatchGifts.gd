@@ -280,20 +280,14 @@ func _store_in_gift_slot(slot_id: int, special_id: StringName) -> void:
 ## eliminated slot, with an empty slot, with no held piece, or while a gift is
 ## already held or queued for this slot.
 func request_use_gift_slot(slot_id: int) -> bool:
-	if _match == null or not _match._is_host() or gift_slot_capacity() <= 0:
+	if _match == null or gift_slot_capacity() <= 0:
 		return false
-	if not MatchAutoload.is_live(_match.state()):
-		return false
-	if slot_id < 0 or slot_id >= _match.slot_count():
-		return false
-	# Same one-actor-at-a-time gate request_place uses: off-turn seats cannot spend.
-	if (_match.config.hot_seat or _match.config.turn_based) and slot_id != _match.active_slot():
-		return false
-	var seat: PlayerSlot = _match.slot(slot_id)
-	if seat == null or not seat.home_flag_alive:
+	# Bontago-fca.36.2: the shared host/live/slot/home/turn/held-shape preamble
+	# (same one-actor-at-a-time gate request_place uses: off-turn seats cannot spend).
+	if _match._placement._intent_gate(slot_id, -1, MatchPlacement.IntentKind.GIFT_USE) != &"":
 		return false
 	var special_id: StringName = gift_slot_head(slot_id)
-	if special_id == &"" or _match._feed.held_shape(slot_id) == null:
+	if special_id == &"":
 		return false
 	if held_special(slot_id) != &"" or next_special(slot_id) != &"":
 		return false

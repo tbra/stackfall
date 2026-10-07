@@ -83,6 +83,61 @@ func setup(match_ref: MatchAutoload) -> void:
 	_activation.setup(match_ref)
 
 
+# --- The one intent gate (Bontago-fca.36.2) ---------------------------------
+
+## Which host-side entry point is asking _intent_gate().
+enum IntentKind {
+	PLACE,  ## request_place, a player's own release
+	AUTO_DROP,  ## request_place, the host's forced release (exempt from the release lock)
+	THROW,  ## request_throw
+	GIFT_USE,  ## MatchGifts.request_use_gift_slot (no world nodes needed, no release lock)
+	PROJECTILE,  ## spawn_special_projectile: authority + live state + world only, no seat
+}
+
+## The shared host-side guard preamble of every authoritative intent, in the
+## one order the copies agreed on: host, live match state, world nodes, slot
+## range, feed_seq replay defence, seat/home alive, turn gate, held shape and
+## the one-release-per-interval lock. Returns &"" when allowed, otherwise the
+## refusal reason (PlacementRules.REASON_NO_BLOCK, or REASON_NOT_YOUR_TURN for
+## an off-turn seat). Callers keep only their kind-specific checks (pose,
+## held special, aim, territory) after it and map the reason to their own
+## return type (bool/null for GIFT_USE/PROJECTILE). `feed_seq < 0` is the
+## trusted-local "don't check" sentinel (see request_place's doc comment).
+## DECISION (Bontago-fca.36.2): the dead-home check ranks before the turn gate
+## for every kind (request_place/request_throw already did; request_use_gift_slot
+## had them swapped, which cannot change its bool result).
+func _intent_gate(slot_id: int, feed_seq: int, kind: IntentKind) -> StringName:
+	if not _match._is_host():
+		return PlacementRules.REASON_NO_BLOCK
+	if not MatchAutoload.is_live(_match.state()):
+		return PlacementRules.REASON_NO_BLOCK
+	# The gift slot never touched the field or block parent, so it never required them.
+	if kind != IntentKind.GIFT_USE and (_match._field == null or _match._blocks_parent == null):
+		return PlacementRules.REASON_NO_BLOCK
+	if kind == IntentKind.PROJECTILE:
+		return &""
+	if slot_id < 0 or slot_id >= _match.slot_count():
+		return PlacementRules.REASON_NO_BLOCK
+	if feed_seq >= 0 and feed_seq != _match.feed_seq(slot_id):
+		return PlacementRules.REASON_NO_BLOCK
+	var seat: PlayerSlot = _match.slot(slot_id)
+	if seat == null or not seat.home_flag_alive:
+		return PlacementRules.REASON_NO_BLOCK
+	if (
+		(_match.config.hot_seat or _match.config.turn_based)
+		and slot_id != _match.active_slot()
+	):
+		return PlacementRules.REASON_NOT_YOUR_TURN
+	if _match.held_shape(slot_id) == null:
+		return PlacementRules.REASON_NO_BLOCK
+	# Bontago-mv0.10 lock. A forced auto-drop is what ends it, and the gift slot
+	# has always ignored it (finding for the orchestrator: a locked slot may
+	# still use a slotted gift; behaviour kept).
+	if (kind == IntentKind.PLACE or kind == IntentKind.THROW) and _match.is_release_locked(slot_id):
+		return PlacementRules.REASON_NO_BLOCK
+	return &""
+
+
 # --- The one authoritative entry point (spec 3.4) ---------------------------
 
 ## Every placement in the game goes through here, local or remote. `origin` is
@@ -136,41 +191,16 @@ func request_place(
 ) -> StringName:
 	# Spec 3.4: the host decides every placement. A client that somehow got
 	# here locally must not spawn anything; it waits for the host's spawn.
-	if not _match._is_host():
-		return PlacementRules.REASON_NO_BLOCK
-	if not MatchAutoload.is_live(_match.state()) or _match._field == null or _match._blocks_parent == null:
-		return PlacementRules.REASON_NO_BLOCK
-	if slot_id < 0 or slot_id >= _match.slot_count():
-		return PlacementRules.REASON_NO_BLOCK
-	if feed_seq >= 0 and feed_seq != _match.feed_seq(slot_id):
-		return PlacementRules.REASON_NO_BLOCK
+	var gate_kind: IntentKind = IntentKind.AUTO_DROP if auto_drop else IntentKind.PLACE
+	var refusal: StringName = _intent_gate(slot_id, feed_seq, gate_kind)
+	if refusal != &"":
+		return refusal
 	var acting_slot: PlayerSlot = _match.slot(slot_id)
-	if not acting_slot.home_flag_alive:
-		return PlacementRules.REASON_NO_BLOCK
-	if (
-		(_match.config.hot_seat or _match.config.turn_based)
-		and slot_id != _match.active_slot()
-	):
-		return PlacementRules.REASON_NOT_YOUR_TURN
 	var shape: BlockShape = _match.held_shape(slot_id)
-	if shape == null:
-		return PlacementRules.REASON_NO_BLOCK
-	if not auto_drop and _match.is_release_locked(slot_id):
-		# Bontago-mv0.10 (spec 2.4 "[ORIGINAL target]" cadence): this slot
-		# already spent this interval's one release early and is only
-		# preparing/aiming the next piece; it may not be released again
-		# before the interval boundary unlocks it.
-		#
-		# DECISION (autoload/Match.gd): reuses REASON_NO_BLOCK rather than a
-		# new PlacementRules.REASON_* constant -- PlacementRules.gd lives in
-		# core/, which this package does not own, and REASON_NO_BLOCK already
-		# means exactly "nothing was spent" to every caller: MatchNet's
-		# _consumed_a_block() already classifies it as a no-op, and the ghost
-		# already reacts to any non-OK, non-territory reason without a burn.
-		# auto_drop is exempt because it is never a player's own click -- it
-		# is the host's own forced release at the interval boundary, which is
-		# exactly what ends the lock (see _consume_and_refeed()).
-		return PlacementRules.REASON_NO_BLOCK
+	# DECISION (Bontago-mv0.10): the release lock (enforced in _intent_gate for
+	# manual releases only) reuses REASON_NO_BLOCK rather than a new
+	# PlacementRules.REASON_* constant (core/ is not this package's); auto_drop is
+	# exempt because it is the host's own forced release that ends the lock.
 	if not is_pose_well_formed(origin, orientation_index, free_quat):
 		return PlacementRules.REASON_NO_BLOCK
 
@@ -362,33 +392,13 @@ func request_throw(
 	velocity: Vector3,
 	feed_seq: int = -1
 ) -> StringName:
-	if not _match._is_host():
-		return PlacementRules.REASON_NO_BLOCK
-	if not MatchAutoload.is_live(_match.state()) or _match._field == null or _match._blocks_parent == null:
-		return PlacementRules.REASON_NO_BLOCK
-	if slot_id < 0 or slot_id >= _match.slot_count():
-		return PlacementRules.REASON_NO_BLOCK
-	if feed_seq >= 0 and feed_seq != _match.feed_seq(slot_id):
-		return PlacementRules.REASON_NO_BLOCK
+	var refusal: StringName = _intent_gate(slot_id, feed_seq, IntentKind.THROW)
+	if refusal != &"":
+		return refusal
 	var acting_slot: PlayerSlot = _match.slot(slot_id)
-	if not acting_slot.home_flag_alive:
-		return PlacementRules.REASON_NO_BLOCK
-	if (
-		(_match.config.hot_seat or _match.config.turn_based)
-		and slot_id != _match.active_slot()
-	):
-		return PlacementRules.REASON_NOT_YOUR_TURN
 	var shape: BlockShape = _match.held_shape(slot_id)
-	if shape == null:
-		return PlacementRules.REASON_NO_BLOCK
-	if _match.is_release_locked(slot_id):
-		# DECISION (autoload/match/MatchPlacement.gd, M4 P2c): request_place()
-		# only checks this when `not auto_drop` -- a throw has no auto_drop
-		# equivalent at all (the feed timer's forced release always drops
-		# wherever the ghost sits, never throws it), so this is unconditional,
-		# the same branch request_place() takes for every one of its own
-		# deliberate (non-auto_drop) releases.
-		return PlacementRules.REASON_NO_BLOCK
+	# DECISION (M4 P2c): the release lock is unconditional for a throw (_intent_gate's
+	# THROW kind); a throw has no auto_drop equivalent.
 	if not is_pose_well_formed(origin, orientation_index, free_quat) or not velocity.is_finite():
 		return PlacementRules.REASON_NO_BLOCK
 	if _match.held_special(slot_id) == &"":
@@ -553,9 +563,7 @@ func spawn_special_projectile(
 	orb_def: SpecialDef,
 	orb_tuning: SpecialTuning
 ) -> Block:
-	if not _match._is_host():
-		return null
-	if not MatchAutoload.is_live(_match.state()) or _match._field == null or _match._blocks_parent == null:
+	if _intent_gate(owner_slot, -1, IntentKind.PROJECTILE) != &"":
 		return null
 	if shape == null:
 		return null
