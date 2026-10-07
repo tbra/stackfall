@@ -88,6 +88,18 @@ func set_lobby_data(lobby_id: int, key: String, value: String) -> void:
 	(lobby_data_store[lobby_id] as Dictionary)[key] = value
 
 
+var joinable_calls: Array = []
+var unfiltered_requests: int = 0
+
+
+func set_lobby_joinable(lobby_id: int, joinable: bool) -> void:
+	joinable_calls.append([lobby_id, joinable])
+
+
+func request_unfiltered_debug_list() -> void:
+	unfiltered_requests += 1
+
+
 func get_lobby_data(lobby_id: int, key: String) -> String:
 	if not lobby_data_store.has(lobby_id):
 		return ""

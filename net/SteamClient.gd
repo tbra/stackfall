@@ -87,6 +87,10 @@ const _DEFAULT_CONFIG: NetConfig = preload("res://config/net_config.tres")
 var _steam: Object = null
 
 
+## Bontago-1pi.48: lobby data values are truncated to this many characters in the diagnostic log.
+const LOG_VALUE_MAX_CHARS: int = 40
+
+
 func is_available() -> bool:
 	return ClassDB.class_exists(&"Steam")
 
@@ -141,13 +145,47 @@ func local_persona_name() -> String:
 func create_lobby(lobby_type: int, max_members: int) -> void:
 	if _steam == null:
 		return
+	print("STEAM createLobby requested: type=%d (%s) max_members=%d" % [lobby_type, _LOBBY_TYPE_NAMES.get(lobby_type, "?"), max_members])
+	_print_account_diagnostics()
 	_steam.call("createLobby", lobby_type, max_members)
 
 
 func set_lobby_data(lobby_id: int, key: String, value: String) -> void:
 	if _steam == null:
 		return
-	_steam.call("setLobbyData", lobby_id, key, value)
+	var ok: Variant = _steam.call("setLobbyData", lobby_id, key, value)
+	print("STEAM setLobbyData lobby=%d %s=%s -> %s" % [lobby_id, key, value.left(LOG_VALUE_MAX_CHARS), str(ok)])
+
+
+## Bontago-1pi.48 diagnostics: explicitly marks the lobby joinable and logs the result.
+func set_lobby_joinable(lobby_id: int, joinable: bool) -> void:
+	if _steam == null:
+		return
+	var ok: Variant = _steam.call("setLobbyJoinable", lobby_id, joinable)
+	print("STEAM setLobbyJoinable lobby=%d joinable=%s -> %s" % [lobby_id, str(joinable), str(ok)])
+
+
+const _LOBBY_TYPE_NAMES: Dictionary = {0: "Private", 1: "FriendsOnly", 2: "Public", 3: "Invisible", 4: "PrivateUnique"}
+## Candidate GodotSteam account getters; only those the installed API exposes are printed.
+const _ACCOUNT_DIAG_METHODS: Array[String] = [
+	"getSteamID", "getPersonaName", "getPersonaState", "isSubscribed", "loggedOn", "isLimitedAccount", "isLimited", "getAppID"
+]
+
+
+func _print_account_diagnostics() -> void:
+	var parts: PackedStringArray = PackedStringArray()
+	for m: String in _ACCOUNT_DIAG_METHODS:
+		if _steam != null and _steam.has_method(m):
+			parts.append("%s=%s" % [m, str(_steam.call(m))])
+	print("STEAM account: ", " ".join(parts) if not parts.is_empty() else "(no account getters exposed)")
+
+
+## `--steam-lobby-debug`: unfiltered worldwide request whose answer is summarised by log_unfiltered_results().
+func request_unfiltered_debug_list() -> void:
+	if _steam == null:
+		return
+	_steam.call("addRequestLobbyListDistanceFilter", LOBBY_DISTANCE_FILTER_WORLDWIDE)
+	_steam.call("requestLobbyList")
 
 
 func get_lobby_data(lobby_id: int, key: String) -> String:
@@ -194,6 +232,10 @@ func request_lobby_list(string_filters: Array[Dictionary]) -> void:
 	if _steam == null:
 		return
 	_steam.call("addRequestLobbyListDistanceFilter", LOBBY_DISTANCE_FILTER_WORLDWIDE)
+	var desc: PackedStringArray = PackedStringArray()
+	for f: Dictionary in string_filters:
+		desc.append("%s=%s" % [f.get("key", ""), f.get("value", "")])
+	print("STEAM lobby request: distance=worldwide(3) filters: ", ", ".join(desc))
 	for filter: Dictionary in string_filters:
 		_steam.call(
 			"addRequestLobbyListStringFilter",

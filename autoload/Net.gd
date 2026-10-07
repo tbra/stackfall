@@ -236,6 +236,11 @@ var _steam_pending_generations: Array[int] = []
 ## guard above. False once leave() bumps the generation, even if an older
 ## generation's request is still genuinely in flight with Steam (those
 ## resolve as stale — see _steam_request_generation's doc comment).
+## Bontago-1pi.48: --steam-lobby-debug prints the game/version data of at most this many
+## unfiltered lobbies (a diagnostic sample size, not gameplay).
+const LOBBY_DEBUG_SAMPLE_COUNT: int = 5
+
+
 func _steam_request_pending() -> bool:
 	return _steam_pending_generations.has(_steam_request_generation)
 
@@ -801,6 +806,9 @@ func refresh_lobby_list() -> void:
 		{"key": String(SteamClient.KEY_VERSION), "value": build_version()},
 	]
 	steam_provider.request_lobby_list(filters)
+	if OS.get_cmdline_user_args().has("--steam-lobby-debug") and not _steam_debug_pending:
+		_steam_debug_pending = true
+		steam_provider.request_unfiltered_debug_list()
 
 
 ## Opens the Steam overlay's invite dialog for this session's lobby. A no-op
@@ -857,6 +865,7 @@ func _consume_steam_answer_is_stale(ok: bool, lobby_id: int) -> bool:
 
 
 func _on_steam_lobby_created(result: int, lobby_id: int) -> void:
+	print("STEAM lobby_created: result=%d lobby_id=%d" % [result, lobby_id])
 	# Bontago-mv0.2.6 finding B / Bontago-mv0.4: consume this request's
 	# generation first; a stale answer abandons whatever lobby Steam actually
 	# created rather than let the guard below silently drop it and orphan it.
@@ -891,6 +900,11 @@ func _on_steam_lobby_created(result: int, lobby_id: int) -> void:
 	steam_provider.set_lobby_data(
 		lobby_id, String(SteamClient.KEY_MATCH_CONFIG), SteamClient.encode_match_config(_lobby_data)
 	)
+
+	steam_provider.set_lobby_joinable(lobby_id, true)
+	print("STEAM lobby readback: game=%s version=%s" % [
+		steam_provider.get_lobby_data(lobby_id, String(SteamClient.KEY_GAME)),
+		steam_provider.get_lobby_data(lobby_id, String(SteamClient.KEY_VERSION))])
 
 	var peer: MultiplayerPeer = _make_steam_host_peer()
 	if peer == null:
@@ -962,7 +976,22 @@ func _on_steam_lobby_joined(lobby_id: int, response: int) -> void:
 	# unmodified _rpc_handshake round trip — no Steam-specific code needed.
 
 
+var _steam_debug_pending: bool = false
+var _steam_debug_answer_next: bool = false
+
+
 func _on_steam_lobby_match_list(lobby_ids: Array) -> void:
+	if _steam_debug_pending and _steam_debug_answer_next:
+		_steam_debug_pending = false
+		_steam_debug_answer_next = false
+		var lines: PackedStringArray = PackedStringArray()
+		for i: int in mini(LOBBY_DEBUG_SAMPLE_COUNT, lobby_ids.size()):
+			var id: int = int(lobby_ids[i])
+			lines.append("%d{game=%s version=%s}" % [id, steam_provider.get_lobby_data(id, String(SteamClient.KEY_GAME)), steam_provider.get_lobby_data(id, String(SteamClient.KEY_VERSION))])
+		print("STEAM unfiltered debug search: %d lobbies visible; first: %s" % [lobby_ids.size(), " ".join(lines)])
+		return
+	if _steam_debug_pending:
+		_steam_debug_answer_next = true
 	var result: Array[Dictionary] = []
 	for raw_id: Variant in lobby_ids:
 		var lobby_id: int = int(raw_id)

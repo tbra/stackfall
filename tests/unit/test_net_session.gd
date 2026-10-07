@@ -630,6 +630,7 @@ func test_lobby_created_tags_the_lobby_with_the_json_encoded_match_config() -> v
 	assert_eq(fake.get_lobby_data(lobby_id, String(SteamClient.KEY_GAME)), String(Net.DISCOVERY_MAGIC))
 	assert_eq(fake.get_lobby_data(lobby_id, String(SteamClient.KEY_VERSION)), _host.build_version())
 	assert_eq(fake.get_lobby_data(lobby_id, String(SteamClient.KEY_HOST_NAME)), "TestSteamUser")
+	assert_eq(fake.joinable_calls, [[lobby_id, true]], "host lobby is explicitly joinable (Bontago-1pi.48)")
 
 	var decoded: Dictionary = SteamClient.decode_match_config(
 		fake.get_lobby_data(lobby_id, String(SteamClient.KEY_MATCH_CONFIG))
