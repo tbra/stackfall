@@ -342,6 +342,7 @@ func _ready() -> void:
 	print("M3A_ACCEPT result=%s failures=%d" % ["PASS" if _failures.is_empty() else "FAIL", _failures.size()])
 	for failure: String in _failures:
 		print("M3A_ACCEPT failure %s" % failure)
+	await Sfx.drain_for_quit()
 	get_tree().quit(0 if _failures.is_empty() else 1)
 
 

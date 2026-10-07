@@ -18,6 +18,18 @@ func test_bundled_owner_theme_plays_without_original_assets_and_loops() -> void:
 	assert_true((_sfx._music_player.stream as AudioStreamMP3).loop)
 	_sfx._music_player.stop()
 
+func test_release_audio_stops_players_and_drops_stream_refs() -> void:
+	_sfx.set_root_dir_for_test(_tmp_dir)
+	assert_true(_sfx.play(AudioConfig.EVENT_CLICK))
+	assert_true(_sfx._sfx_players[0].playing)
+	_sfx.release_audio()
+	for player: AudioStreamPlayer in _sfx._sfx_players:
+		assert_false(player.playing)
+		assert_null(player.stream)
+	assert_true(_sfx._streams_by_filename.is_empty())
+	assert_eq(_sfx._music_state, _sfx.MusicState.STOPPED)
+
+
 var _sfx: Node
 var _config: AudioConfig
 var _tmp_dir: String

@@ -42,6 +42,13 @@ const ORIGINAL_AUDIO_SUBDIR: String = "assets/original/audio"
 ## something anyone would want to retune).
 const MUSIC_STEM_MUTE_DB: float = -80.0
 
+## DECISION (Bontago-fca.49): engine constant, not designer-facing. AudioServer
+## only frees a stopped playback after one mix cycle plus a main-thread cleanup,
+## so anything stopped/replaced within this window of get_tree().quit() is
+## still listed (and reported as leaked) at exit. Long enough for several
+## mix cycles at any real output buffer size.
+const QUIT_DRAIN_S: float = 0.25
+
 @export var config: AudioConfig = preload("res://config/audio_config.tres")
 
 var _root_dir: String = ""
@@ -512,6 +519,36 @@ func _process(_delta: float) -> void:
 	if _music_state == MusicState.PLAYING and _music_player.playing:
 		playback_position = maxf(0.0, _music_player.get_playback_position() + AudioServer.get_time_since_last_mix() - AudioServer.get_output_latency())
 	_advance_music(real_delta, playback_position)
+
+
+## Quit-time release (Bontago-fca.49): stop every player and drop stream refs
+## (and the filename caches) so AudioServer playbacks and the loaded MP3/WAV
+## resources are not still referenced when the engine reports leaks at exit.
+func _exit_tree() -> void:
+	release_audio()
+
+
+## Call (and await) right before get_tree().quit(): silences everything, then
+## lets the AudioServer finish deleting the stopped playbacks (see QUIT_DRAIN_S).
+func drain_for_quit() -> void:
+	release_audio()
+	await get_tree().create_timer(QUIT_DRAIN_S, true, false, true).timeout
+
+
+func release_audio() -> void:
+	if _music_crossfade_tween != null and _music_crossfade_tween.is_valid():
+		_music_crossfade_tween.kill()
+	_music_crossfade_tween = null
+	_music_state = MusicState.STOPPED
+	var players: Array[AudioStreamPlayer] = _sfx_players.duplicate()
+	players.append(_music_player)
+	players.append(_tense_music_player)
+	for player: AudioStreamPlayer in players:
+		if player != null and is_instance_valid(player):
+			player.stop()
+			player.stream = null
+	_streams_by_filename.clear()
+	_music_streams_by_filename.clear()
 
 
 func _notification(what: int) -> void:
