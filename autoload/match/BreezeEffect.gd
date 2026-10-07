@@ -40,7 +40,7 @@ extends RefCounted
 ## schedule. The Storm's own wind is untouched.
 
 ## The weather id (config/weather/storm.tres) that quiets the Breeze.
-const QUIET_WEATHER_ID: StringName = &"storm"
+const QUIET_WEATHER_ID: StringName = WeatherIds.STORM
 
 var tuning: BreezeTuning = preload("res://config/breeze.tres")
 var match_ref: MatchAutoload = null

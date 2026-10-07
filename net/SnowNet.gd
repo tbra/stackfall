@@ -163,7 +163,7 @@ func _snow_live(authority: Variant) -> bool:
 	if not MatchAutoload.is_replicating(int(authority.state())):
 		return false
 	var weather: MatchWeather = authority.weather() as MatchWeather
-	return weather != null and weather.active_id() == &"snow"
+	return weather != null and weather.active_id() == WeatherIds.SNOW
 
 
 ## Client: removes every drawn cap.
@@ -291,7 +291,7 @@ func _on_match_state_changed(_from_state: int, to_state: int) -> void:
 
 
 func _on_weather_stopped(weather_id: StringName) -> void:
-	if weather_id == &"snow" and not _session().is_host():
+	if weather_id == WeatherIds.SNOW and not _session().is_host():
 		clear_client()
 
 

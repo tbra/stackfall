@@ -38,9 +38,10 @@ const DOME_STRIDE: int = 5
 
 ## Wire format. Architecture, not tunables.
 const WIRE_VERSION: int = 2
-const WIRE_KEYS: PackedStringArray = ["v", "seed", "c", "b", "d"]
 ## Disc patches use this owner id in the seed (block net ids are >= 1).
 const DISC_OWNER: int = -1
+## Most ints one accepted block patch can cost: its 3 header ints plus 2 for the patch itself.
+const BLOCK_RECORD_INTS_MAX: int = 5
 ## Largest cell index a block patch may name (blocks have a few cells).
 const MAX_BLOCK_CELL_INDEX: int = 63
 const MASK32: int = 0xFFFFFFFF
@@ -419,17 +420,8 @@ static func append_block_record(buffer: PackedInt32Array, net_id: int, axis: int
 static func sanitize_state(raw: Variant, tuning: SnowTuning, max_cell_index: int) -> Dictionary:
 	if not (raw is Dictionary):
 		return {}
-	var data: Dictionary = raw
-	if data.size() != WIRE_KEYS.size():
-		return {}
-	for key: String in WIRE_KEYS:
-		if not data.has(key):
-			return {}
-	if typeof(data["v"]) != TYPE_INT or int(data["v"]) != WIRE_VERSION or typeof(data["seed"]) != TYPE_INT:
-		return {}
-	if typeof(data["c"]) != TYPE_INT or int(data["c"]) < 0 or int(data["c"]) > tuning.depth_levels:
-		return {}
-	if typeof(data["b"]) != TYPE_PACKED_INT32_ARRAY or typeof(data["d"]) != TYPE_PACKED_INT32_ARRAY:
+	var data: Dictionary = WireSchema.sanitize(raw, state_schema(tuning))
+	if data.is_empty():
 		return {}
 	var b: PackedInt32Array = data["b"]
 	var d: PackedInt32Array = data["d"]
@@ -477,6 +469,18 @@ static func sanitize_state(raw: Variant, tuning: SnowTuning, max_cell_index: int
 			return {}
 		disc[cell_index] = disc_level
 	return {"seed": int(data["seed"]), "cover": int(data["c"]), "blocks": blocks, "disc": disc}
+
+
+## Header schema of a snow state. Array caps are the sizes the tuning's patch
+## budgets already imply (3 header ints + 2 per patch per block; 2 per disc patch).
+static func state_schema(tuning: SnowTuning) -> Dictionary:
+	return {
+		"v": WireSchema.int_field(WIRE_VERSION, WIRE_VERSION),
+		"seed": WireSchema.int_field(),
+		"c": WireSchema.int_field(0, tuning.depth_levels),
+		"b": WireSchema.int_array_field(tuning.max_block_patches * BLOCK_RECORD_INTS_MAX),
+		"d": WireSchema.int_array_field(tuning.max_disc_patches * 2),
+	}
 
 
 static func make_state(seed_value: int, cover: int, blocks: PackedInt32Array, disc: PackedInt32Array) -> Dictionary:

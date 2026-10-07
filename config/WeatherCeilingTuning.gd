@@ -95,10 +95,10 @@ extends Resource
 @export var fade_in_s: float = 5.0
 @export var fade_out_s: float = 7.0
 ## Ids whose intensity drives the ceiling (the strongest one wins).
-@export var weather_ids: Array[StringName] = [&"rain", &"snow", &"storm"]
+@export var weather_ids: Array[StringName] = [WeatherIds.RAIN, WeatherIds.SNOW, WeatherIds.STORM]
 
 @export_group("Storm sky")
-@export var storm_id: StringName = &"storm"
+@export var storm_id: StringName = WeatherIds.STORM
 @export var storm_theme_id: String = "storm"
 ## Blend toward the storm SkyThemeDef at full storm intensity.
 @export_range(0.0, 1.0, 0.01) var storm_sky_blend: float = 1.0
@@ -135,7 +135,7 @@ func sky_blend_for(weather_id: StringName, intensity: float) -> float:
 	var weight: float = 0.0
 	if weather_id == storm_id:
 		weight = storm_sky_blend
-	elif weather_id == &"rain":
+	elif weather_id == WeatherIds.RAIN:
 		weight = rain_sky_blend
 	return clampf(intensity, 0.0, 1.0) * weight
 
@@ -143,9 +143,9 @@ func sky_blend_for(weather_id: StringName, intensity: float) -> float:
 ## Shared overcast amount a weather at `intensity` drives (0 for ids without one).
 func overcast_for(weather_id: StringName, intensity: float) -> float:
 	var weight: float = 0.0
-	if weather_id == &"rain":
+	if weather_id == WeatherIds.RAIN:
 		weight = overcast_rain
-	elif weather_id == &"snow":
+	elif weather_id == WeatherIds.SNOW:
 		weight = overcast_snow
 	elif weather_id == storm_id:
 		weight = overcast_storm

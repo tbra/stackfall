@@ -86,7 +86,7 @@ func target_storm() -> float:
 
 ## Snow brightening target (0..1): the snow intensity, unless a rain or storm sky is up.
 func target_brighten() -> float:
-	return float(_targets.get(&"snow", 0.0)) * (1.0 - clampf(target_storm(), 0.0, 1.0))
+	return float(_targets.get(WeatherIds.SNOW, 0.0)) * (1.0 - clampf(target_storm(), 0.0, 1.0))
 
 
 ## Overcast the active weathers drive right now (the strongest one wins).
