@@ -23,8 +23,21 @@ extends Resource
 ## 0..this. 100 -> frequency_to_chance_max, 0 -> 0.0, monotonic in between.
 @export var frequency_to_chance_max: float = 0.5
 
-## No new crate spawns while this many are already live and unclaimed.
-@export var max_live_crates: int = 1
+## Hard ceiling on simultaneously live crates (owner playtest 2026-10-07:
+## several gifts may be on the disc together). No new crate spawns while this
+## many are already live and unclaimed.
+## DECISION (Bontago-1pi.85.58): the effective cap scales with the match:
+## ceil(players / players_per_crate), clamped to 1..max_live_crates
+## (GiftSpawner.live_cap()). Spawn chance per window is unchanged: still one
+## roll per window, so crates accumulate at most one per window and the cap
+## alone bounds the count; no extra guard needed. GiftConfig is not on the F4
+## roster, so no tuning_panel_hints entry is required.
+@export var max_live_crates: int = 4
+## Players needed per allowed live crate (2 players -> 1, 4 -> 2, 8 -> 4).
+@export var players_per_crate: int = 2
+## A newly spawned crate keeps at least this far (disk-local metres) from
+## every other live crate so simultaneous crates never stack.
+@export var crate_min_separation_m: float = 3.0
 
 ## Seconds a crate lives before it expires unclaimed (spec 2.6, "Crate life"
 ## owner decision: stationary pickups, 25 s per owner 2026-09-30, Bontago-sen.2).
