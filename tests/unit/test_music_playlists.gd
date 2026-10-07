@@ -188,6 +188,16 @@ func _lazy_sfx() -> Node:
 	return sfx
 
 
+func _preheld_tracks() -> Dictionary:
+	var held: Dictionary = {}
+	var all_paths: Array[String] = [MENU_TRACK, LOBBY_TRACK]
+	all_paths.append_array(GAME_TRACKS)
+	for path: String in all_paths:
+		if ResourceLoader.has_cached(path) or Sfx._music_requested.has(path):
+			held[path] = true
+	return held
+
+
 func test_shipped_config_resource_does_not_reference_music_streams() -> void:
 	var deps: PackedStringArray = ResourceLoader.get_dependencies("res://config/audio_config.tres")
 	for dep: String in deps:
@@ -206,13 +216,15 @@ func test_boot_holds_at_most_the_first_contexts_track() -> void:
 
 
 func test_context_switch_loads_next_and_frees_previous() -> void:
+	# Residency left by the shared process (the real Sfx autoload's own prefetch,
+	# or an earlier script in the same shard that loaded a track) is not ours to
+	# assert on: snapshot it before this fixture touches anything (Bontago-fca.60).
+	var preheld: Dictionary = _preheld_tracks()
 	var sfx: Node = _lazy_sfx()
 	sfx._advance_music(sfx.config.music_initial_delay_seconds)
 	assert_true(sfx._music_player.playing)
-	# The real Sfx autoload may itself be holding its own upcoming menu track.
-	var autoload_held: Dictionary = Sfx._music_requested.duplicate()
 	for path: String in [MENU_TRACK, LOBBY_TRACK]:
-		if not autoload_held.has(path):
+		if not preheld.has(path):
 			assert_false(ResourceLoader.has_cached(path), "the started track's source is not kept (the player owns a copy)")
 	sfx.set_music_context(&"gameplay")
 	assert_eq(sfx._music_state, sfx.MusicState.SWITCHING)
@@ -225,11 +237,11 @@ func test_context_switch_loads_next_and_frees_previous() -> void:
 	assert_true(sfx._music_player.stream is AudioStreamMP3)
 	assert_true(sfx._music_requested.is_empty(), "request consumed")
 	for path: String in [MENU_TRACK, LOBBY_TRACK]:
-		if not autoload_held.has(path):
+		if not preheld.has(path):
 			assert_false(ResourceLoader.has_cached(path), "previous context's track is not resident: %s" % path)
 	var cached_game: int = 0
 	for path: String in GAME_TRACKS:
-		if ResourceLoader.has_cached(path):
+		if ResourceLoader.has_cached(path) and not preheld.has(path):
 			cached_game += 1
 	assert_eq(cached_game, 0, "started gameplay track is held only by the player's copy")
 
