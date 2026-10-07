@@ -51,6 +51,7 @@ func before_each() -> void:
 	_config = load("res://config/audio_config.tres").duplicate() as AudioConfig
 	_config.contextual_music_enabled = false # Legacy disk/stem fixtures only.
 	_config.bundled_theme = null # Existing fixtures test optional disk audio.
+	_config.bundled_theme_path = ""
 	_sfx = autofree(SFX_SCRIPT.new())
 	_sfx.config = _config
 	add_child_autofree(_sfx)

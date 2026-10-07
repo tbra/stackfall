@@ -65,6 +65,7 @@ func before_each() -> void:
 	_audio_config = load("res://config/audio_config.tres").duplicate() as AudioConfig
 	_audio_config.contextual_music_enabled = false
 	_audio_config.bundled_theme = null
+	_audio_config.bundled_theme_path = ""
 	_sfx = autofree(SFX_SCRIPT.new())
 	_sfx.config = _audio_config
 	add_child_autofree(_sfx)

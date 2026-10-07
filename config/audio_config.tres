@@ -1,18 +1,13 @@
-[gd_resource type="Resource" script_class="AudioConfig" load_steps=7 format=3]
+[gd_resource type="Resource" script_class="AudioConfig" load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://config/AudioConfig.gd" id="1_audio"]
-[ext_resource type="AudioStream" path="res://assets/music/stacking-blocks.mp3" id="2_theme"]
-[ext_resource type="AudioStream" path="res://assets/music/stacking-blocks-2.mp3" id="3_theme"]
-[ext_resource type="AudioStream" path="res://assets/music/stacking-blocks-3.mp3" id="4_theme"]
-[ext_resource type="AudioStream" path="res://assets/music/menu-theme.mp3" id="5_menu"]
-[ext_resource type="AudioStream" path="res://assets/music/lobby-theme.mp3" id="6_lobby"]
 
 [resource]
 script = ExtResource("1_audio")
-bundled_theme = ExtResource("2_theme")
-menu_playlist = Array[AudioStream]([ExtResource("5_menu"), ExtResource("6_lobby")])
-lobby_playlist = Array[AudioStream]([ExtResource("5_menu"), ExtResource("6_lobby")])
-gameplay_playlist = Array[AudioStream]([ExtResource("2_theme"), ExtResource("3_theme"), ExtResource("4_theme")])
+bundled_theme_path = "res://assets/music/stacking-blocks.mp3"
+menu_playlist_paths = PackedStringArray("res://assets/music/menu-theme.mp3", "res://assets/music/lobby-theme.mp3")
+lobby_playlist_paths = PackedStringArray("res://assets/music/menu-theme.mp3", "res://assets/music/lobby-theme.mp3")
+gameplay_playlist_paths = PackedStringArray("res://assets/music/stacking-blocks.mp3", "res://assets/music/stacking-blocks-2.mp3", "res://assets/music/stacking-blocks-3.mp3")
 thud_files = Array[String](["thud1.wav", "thud2.wav", "thud3.wav", "thud4.wav"])
 rejected_file = "placement_rejected_pcm.wav"
 click_file = "select.wav"

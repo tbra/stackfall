@@ -89,6 +89,12 @@ var _music_envelope: float = 0.0
 var _switch_start_envelope: float = 0.0
 var _switch_elapsed: float = 0.0
 var _last_track_by_context: Dictionary = {}
+## Lazy music (Bontago-1pi.11.61): the track chosen for the next start, the
+## path-playlist requests still outstanding (path -> true) and loaded-but-not-yet
+## started streams (path -> AudioStream). Only the upcoming track is ever held.
+var _next_track_context: StringName = &""
+var _next_track_index: int = -1
+var _music_requested: Dictionary = {}
 var _last_gift_spawn_msec: int = -1
 ## Bontago-1pi.56: true while a late joiner's world replay is being applied
 ## (Events.world_replay_changed). The replay re-emits block_placed per body, the
@@ -190,7 +196,7 @@ func _build_player_pool() -> void:
 func play(event: StringName) -> bool:
 	if event == AudioConfig.EVENT_MUSIC and config.contextual_music_enabled:
 		play_music()
-		return _music_enabled and not config.playlist_for_context(_music_context).is_empty()
+		return _music_enabled and config.playlist_track_count(_music_context) > 0
 	var stream: AudioStream = _pick_stream(event)
 	if stream == null:
 		return false
@@ -237,6 +243,16 @@ func play_music() -> void:
 		_play_music_stream(stream)
 
 
+## Legacy single theme: the explicit stream (tests/custom builds) else the
+## configured path, loaded on use rather than resident from boot.
+func _bundled_theme() -> AudioStream:
+	if config.bundled_theme != null:
+		return config.bundled_theme
+	if config.bundled_theme_path.is_empty():
+		return null
+	return load(config.bundled_theme_path) as AudioStream
+
+
 func _play_music_stream(stream: AudioStream) -> void:
 	if stream is AudioStreamMP3:
 		(stream as AudioStreamMP3).loop = true
@@ -250,8 +266,9 @@ func _pick_stream(event: StringName) -> AudioStream:
 	var is_music: bool = event == AudioConfig.EVENT_MUSIC
 	if is_music:
 		# The legacy bundled theme is independent of optional original assets.
-		if config.bundled_theme != null:
-			return config.bundled_theme
+		var bundled: AudioStream = _bundled_theme()
+		if bundled != null:
+			return bundled
 		if not _music_available:
 			return null
 		# DECISION (autoload/Sfx.gd, Bontago-xtq.31 review, MEDIUM): only steer
@@ -349,7 +366,7 @@ func _refresh_tense_stem() -> void:
 		return  # called from _ready() before _build_player_pool() creates it
 	_tense_music_player.stop()
 	# The owner theme is a complete mix, not a stem of the original score.
-	if config.contextual_music_enabled or config.bundled_theme != null:
+	if config.contextual_music_enabled or _bundled_theme() != null:
 		_tense_stem_is_active = false
 		return
 	if not _music_available:
@@ -501,6 +518,9 @@ func set_music_context(context: StringName) -> void:
 	_music_context = context
 	if not config.contextual_music_enabled or not _music_enabled:
 		return
+	# Prefetch the next context's track now so it is decoded-ready by the time
+	# the fade-out of the current one ends.
+	_prepare_next_track()
 	if _music_state == MusicState.PLAYING:
 		_music_state = MusicState.SWITCHING
 		_switch_start_envelope = _music_envelope
@@ -519,6 +539,8 @@ func _process(_delta: float) -> void:
 	if _music_state == MusicState.PLAYING and _music_player.playing:
 		playback_position = maxf(0.0, _music_player.get_playback_position() + AudioServer.get_time_since_last_mix() - AudioServer.get_output_latency())
 	_advance_music(real_delta, playback_position)
+	if not _music_requested.is_empty():
+		_reap_music_requests()
 
 
 ## Quit-time release (Bontago-fca.49): stop every player and drop stream refs
@@ -549,6 +571,7 @@ func release_audio() -> void:
 			player.stream = null
 	_streams_by_filename.clear()
 	_music_streams_by_filename.clear()
+	_drop_music_requests()
 
 
 func _notification(what: int) -> void:
@@ -578,6 +601,7 @@ func _advance_music(delta: float, playback_position: float = -1.0) -> void:
 			_apply_playlist_volume()
 			if fraction >= 1.0:
 				_music_player.stop()
+				_music_player.stream = null # release the faded-out track
 				_schedule_music(config.music_initial_delay_seconds)
 
 
@@ -585,27 +609,121 @@ func _schedule_music(delay: float) -> void:
 	_last_music_tick_usec = Time.get_ticks_usec()
 	_music_wait_remaining = maxf(delay, 0.0)
 	_music_state = MusicState.WAITING
+	_prepare_next_track()
 
 
-func _start_playlist_track() -> void:
-	var playlist: Array[AudioStream] = config.playlist_for_context(_music_context)
+## Picks the next track for the current context and starts its threaded load
+## (path playlists only). Idempotent while the pick is still valid.
+func _prepare_next_track() -> void:
+	if _next_track_context == _music_context and _next_track_index >= 0:
+		return
+	var index: int = _choose_track_index(_music_context)
+	_next_track_context = _music_context
+	_next_track_index = index
+	if index < 0:
+		return
+	var paths: PackedStringArray = config.playlist_paths_for_context(_music_context)
+	if index < paths.size():
+		_request_music_path(paths[index])
+
+
+func _choose_track_index(context: StringName) -> int:
+	var count: int = config.playlist_track_count(context)
+	var streams: Array[AudioStream] = config.playlist_for_context(context)
 	var choices: Array[int] = []
-	var previous: int = int(_last_track_by_context.get(_music_context, -1))
-	for index: int in range(playlist.size()):
-		if playlist[index] != null and (index != previous or playlist.size() == 1):
+	var previous: int = int(_last_track_by_context.get(context, -1))
+	for index: int in range(count):
+		if (streams.is_empty() or streams[index] != null) and (index != previous or count == 1):
 			choices.append(index)
 	if choices.is_empty():
 		# Also tolerate a playlist with null entries and only one usable track.
-		if previous >= 0 and previous < playlist.size() and playlist[previous] != null:
-			choices.append(previous)
-		else:
-			_music_state = MusicState.STOPPED
-			return
-	var selected: int = choices[_rng.randi_range(0, choices.size() - 1)]
+		if previous >= 0 and previous < count and (streams.is_empty() or streams[previous] != null):
+			return previous
+		return -1
+	return choices[_rng.randi_range(0, choices.size() - 1)]
+
+
+func _request_music_path(path: String) -> void:
+	if _music_requested.has(path):
+		return
+	if ResourceLoader.load_threaded_request(path) == OK:
+		_music_requested[path] = true
+
+
+## Loaded stream for `path`: collects the threaded request, or loads
+## synchronously when none was made (fallback, may hitch once).
+func _take_music_stream(path: String) -> AudioStream:
+	var stream: AudioStream = null
+	if _music_requested.has(path):
+		stream = ResourceLoader.load_threaded_get(path) as AudioStream
+	_music_requested.erase(path)
+	if stream == null:
+		stream = load(path) as AudioStream
+	return stream
+
+
+## Collects finished requests that are no longer the pending pick (a context
+## changed again before they were used) and discards them.
+func _reap_music_requests() -> void:
+	var keep: String = ""
+	var paths: PackedStringArray = config.playlist_paths_for_context(_next_track_context)
+	if _next_track_index >= 0 and _next_track_index < paths.size():
+		keep = paths[_next_track_index]
+	for path: String in _music_requested.keys():
+		if path == keep:
+			continue
+		if ResourceLoader.load_threaded_get_status(path) != ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+			ResourceLoader.load_threaded_get(path)
+			_music_requested.erase(path)
+
+
+## Quit/release: every threaded request must be collected or the loaded
+## resources outlive the engine's leak report.
+func _drop_music_requests() -> void:
+	for path: String in _music_requested.keys():
+		ResourceLoader.load_threaded_get(path)
+	_music_requested.clear()
+	_next_track_context = &""
+	_next_track_index = -1
+
+
+func _load_track(context: StringName, index: int) -> AudioStream:
+	var override: Array[AudioStream] = config.playlist_for_context(context)
+	if not override.is_empty():
+		return override[index]
+	return _take_music_stream(config.playlist_paths_for_context(context)[index])
+
+
+func _start_playlist_track() -> void:
+	if (
+		_next_track_context != _music_context
+		or _next_track_index < 0
+		or _next_track_index >= config.playlist_track_count(_music_context)
+	):
+		_next_track_index = -1
+		_next_track_context = &""
+		_prepare_next_track()
+	var selected: int = _next_track_index
+	_next_track_context = &""
+	_next_track_index = -1
+	if selected < 0:
+		_music_state = MusicState.STOPPED
+		return
+	var source: AudioStream = _load_track(_music_context, selected)
+	# A failed load advances to the next entry; each entry is tried once.
+	var count: int = config.playlist_track_count(_music_context)
+	var tried: int = 1
+	while source == null and tried < count:
+		selected = (selected + 1) % count
+		tried += 1
+		source = _load_track(_music_context, selected)
+	if source == null:
+		_music_state = MusicState.STOPPED
+		return
 	_last_track_by_context[_music_context] = selected
 	# Duplicate before changing loop flags: imported shared resources and
 	# legacy consumers must not inherit one another's playback settings.
-	var stream: AudioStream = playlist[selected].duplicate() as AudioStream
+	var stream: AudioStream = source.duplicate() as AudioStream
 	if stream is AudioStreamMP3:
 		(stream as AudioStreamMP3).loop = false
 	elif stream is AudioStreamOggVorbis:
@@ -630,6 +748,7 @@ func _apply_playlist_volume() -> void:
 func _on_music_finished() -> void:
 	if not config.contextual_music_enabled or not _music_enabled:
 		return
+	_music_player.stream = null # finished track: release it during the silent gap
 	if _music_state == MusicState.SWITCHING:
 		_schedule_music(config.music_initial_delay_seconds)
 	elif _music_state == MusicState.PLAYING:
