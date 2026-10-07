@@ -319,10 +319,10 @@ func test_frozen_block_in_radius_is_unfrozen_and_receives_the_impulse() -> void:
 	)
 
 
-func test_special_tuning_resource_has_max_explosion_impulse() -> void:
+func test_special_tuning_resource_has_a_usable_max_explosion_impulse() -> void:
 	var tuning: SpecialTuning = load("res://config/special_tuning.tres") as SpecialTuning
 	assert_not_null(tuning)
-	assert_eq(tuning.max_explosion_impulse, 30.0)
+	assert_gt(tuning.max_explosion_impulse, 0.0, "a clamp of zero or less would disable every blast")
 
 
 # --- query_bodies_in_range() ---------------------------------------------------

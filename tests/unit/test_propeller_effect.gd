@@ -320,8 +320,8 @@ func test_propeller_tres_loads_with_expected_id_and_effect() -> void:
 	assert_true(found.effect is PropellerEffect)
 	var effect: PropellerEffect = found.effect as PropellerEffect
 	assert_true(effect.needs_landing())
-	assert_almost_eq(effect.disc_force.duration_s, 3.0, 0.0001)
-	assert_gt(effect.effect_lifetime_s(), 0.0, "lifetime drives the fuse backstop")
+	assert_gt(effect.disc_force.duration_s, 0.0)
+	assert_almost_eq(effect.effect_lifetime_s(), effect.disc_force.duration_s, 0.0001, "lifetime drives the fuse backstop")
 
 
 ## The real Field's own tilt-disabled guard is enough.

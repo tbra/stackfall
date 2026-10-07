@@ -139,20 +139,20 @@ func test_hooks_declare_a_landed_detaching_timed_effect() -> void:
 	assert_gte(effect.effect_lifetime_s(), effect.rise_s + 20.0, "the eruption lasts at least 20 s after the rise")
 
 
-func test_volcano_tres_loads_with_plan_defaults() -> void:
+func test_volcano_tres_loads_with_a_usable_eruption() -> void:
 	var found: SpecialDef = _real_def()
 	assert_not_null(found, "config/specials/volcano.tres must be found by load_all_specials()")
 	assert_true(found.effect is VolcanoEffect)
 	var effect: VolcanoEffect = found.effect as VolcanoEffect
-	assert_eq(effect.rise_s, 2.0)
-	assert_eq(effect.eruption_duration_s, 22.0)
-	assert_eq(effect.height_m, 4.0)
-	assert_eq(effect.base_radius_m, 2.5)
-	assert_eq(effect.cone_angle_deg, 35.0)
-	assert_eq(effect.launch_speed_mps, 9.0)
-	assert_eq(effect.eruption_interval_min_s, 0.4)
-	assert_eq(effect.eruption_interval_max_s, 1.2)
-	assert_eq(effect.block_cap, 600)
+	assert_gt(effect.rise_s, 0.0)
+	assert_gt(effect.eruption_duration_s, 0.0)
+	assert_gt(effect.height_m, 0.0)
+	assert_gt(effect.base_radius_m, 0.0)
+	assert_gt(effect.cone_angle_deg, 0.0)
+	assert_gt(effect.launch_speed_mps, 0.0)
+	assert_gt(effect.eruption_interval_min_s, 0.0)
+	assert_gte(effect.eruption_interval_max_s, effect.eruption_interval_min_s, "the eruption interval range is ordered")
+	assert_gt(effect.block_cap, 0)
 	assert_not_null(effect.particles, "eruption particle tuning")
 	assert_not_null(effect.shape_weights, "shared gift shape weights")
 

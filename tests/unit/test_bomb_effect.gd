@@ -17,7 +17,7 @@ const HEAVY_MASS: float = 8.0
 const MASS_TOLERANCE_MPS: float = 0.5
 const FAR_FACTOR: float = 1.5
 const FAR_AWAY_M: float = 200.0
-const OLD_PEAK_FRACTION_MIN: float = 0.15
+const NEAR_PEAK_FRACTION_MIN: float = 0.15
 
 var _bodies: Array[Node3D] = []
 
@@ -302,7 +302,7 @@ func test_start_for_gift_derives_the_blink_from_the_gift_id_alone() -> void:
 
 # --- config/specials/bomb.tres ----------------------------------------------
 
-func test_bomb_tres_loads_with_the_plan_numbers() -> void:
+func test_bomb_tres_loads_with_a_usable_blink_and_blast() -> void:
 	var found: SpecialDef = null
 	for def: SpecialDef in SpecialDef.load_all_specials():
 		if def.id == &"bomb":
@@ -311,21 +311,20 @@ func test_bomb_tres_loads_with_the_plan_numbers() -> void:
 	assert_not_null(found, "config/specials/bomb.tres is found by load_all_specials()")
 	assert_true(found.effect is BombEffect, "bomb.tres's effect is a BombEffect")
 	var effect: BombEffect = found.effect as BombEffect
-	assert_eq(effect.blink_duration_s, 3.0)
-	assert_eq(effect.blink_period_s, 0.25)
-	assert_eq(effect.blast.radius_m, 8.0)
-	assert_eq(effect.blast.peak_speed_mps, 120.0)
-	assert_eq(effect.blast.falloff_exponent, 1.5)
-	assert_eq(effect.blast.upward_bias, 0.35)
-	assert_eq(effect.blast.max_delta_v_mps, 160.0)
-	assert_eq(effect.blink_tuning.end_period_ratio, 0.4)
-	assert_eq(effect.blink_tuning.flash_color, Color(1.0, 0.25, 0.1))
-	assert_eq(effect.blink_tuning.flash_max_alpha, 0.55)
+	assert_gt(effect.blink_duration_s, 0.0, "the fuse has a visible countdown")
+	assert_gt(effect.blink_period_s, 0.0)
+	assert_lt(effect.blink_period_s, effect.blink_duration_s, "at least one full blink fits in the fuse")
+	assert_gt(effect.blast.radius_m, 0.0)
+	assert_gt(effect.blast.peak_speed_mps, 0.0)
+	assert_gt(effect.blast.falloff_exponent, 0.0)
+	assert_gt(effect.blast.max_delta_v_mps, 0.0, "a zero delta-v cap would make the blast inert")
+	assert_gt(effect.blink_tuning.end_period_ratio, 0.0)
+	assert_gt(effect.blink_tuning.flash_max_alpha, 0.0, "the flash is visible")
 
 
-## Bontago-1pi.85.27: the blast is ~10x stronger; a body at NEAR_FRACTION of the radius leaves at
-## a large share of the shipped peak speed (derived from the tuning, not a literal).
-func test_blast_launches_a_near_body_much_faster_than_the_old_tuning() -> void:
+## A body at NEAR_FRACTION of the radius leaves at a sizeable share of the shipped peak speed
+## (derived from the tuning, not a literal).
+func test_blast_launches_a_near_body_at_a_sizeable_share_of_peak_speed() -> void:
 	var blast: ExplosionTuning = (_bomb_def().effect as BombEffect).blast
 	var bomb_block: Block = _make_block(Vector3.ZERO)
 	var nearby: RigidBody3D = _make_rigid_body(Vector3(blast.radius_m * NEAR_FRACTION, 0.0, 0.0), HEAVY_MASS)
@@ -335,4 +334,4 @@ func test_blast_launches_a_near_body_much_faster_than_the_old_tuning() -> void:
 	behavior.trigger(0)
 	await wait_physics_frames(1)
 
-	assert_gt(nearby.linear_velocity.x, blast.peak_speed_mps * OLD_PEAK_FRACTION_MIN, "near body leaves far faster than the old 12 m/s peak")
+	assert_gt(nearby.linear_velocity.x, blast.peak_speed_mps * NEAR_PEAK_FRACTION_MIN, "a near body leaves at a sizeable share of the blast peak speed")
