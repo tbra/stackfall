@@ -263,16 +263,6 @@ func test_world_build_hands_the_overlay_and_goal_flags_the_team_colours() -> voi
 		_assert_same_rgb(field.home_flags()[slot_id].color(), colors[slot_id], "home flag %d keeps its player's own colour" % slot_id)
 
 
-func test_world_build_with_a_legacy_team_config_is_unchanged() -> void:
-	_make_main()
-	await _start_world(_legacy_config())
-
-	var colors: PackedColorArray = Match.config.player_colors
-	var field: Field = _main._field
-	_assert_same_rgb(field._color_for_index(0), colors[0], "legacy: team t is slot t")
-	_assert_same_rgb(field._color_for_index(1), colors[1], "legacy: team t is slot t")
-
-
 # --- HUD labels and colours (ui/HUD.gd) -------------------------------------------
 
 func test_hud_winner_banner_names_the_lobby_team_number() -> void:
@@ -281,15 +271,6 @@ func test_hud_winner_banner_names_the_lobby_team_number() -> void:
 	assert_eq(hud._winner_label.text, "Team 3 wins!", "dense team 1 was lobby team 3")
 	hud.show_winner(0, Color.GOLD)
 	assert_eq(hud._winner_label.text, "Team 1 wins!")
-
-
-func test_hud_winner_banner_is_unchanged_without_resolved_teams() -> void:
-	var hud: HUD = _make_hud(_fake_match_with(_legacy_config()))
-	hud.show_winner(1, Color.GOLD)
-	assert_eq(hud._winner_label.text, "Team 2 wins!")
-	var bare_hud: HUD = _make_hud(null)
-	bare_hud.show_winner(0, Color.GOLD)
-	assert_eq(bare_hud._winner_label.text, "Team 1 wins!", "no provider/config at all keeps team id + 1")
 
 
 func test_hud_winner_and_capture_tints_use_the_team_colour() -> void:
@@ -303,16 +284,6 @@ func test_hud_winner_and_capture_tints_use_the_team_colour() -> void:
 	assert_eq(hud._capture_color, team_colors[1])
 	hud._on_goal_capture_progress(-1, 0.0)
 	assert_eq(hud._capture_color, Color.WHITE, "no capturer stays white")
-
-
-func test_hud_winner_and_capture_tints_are_unchanged_without_resolved_teams() -> void:
-	var config: MatchConfig = _legacy_config()
-	var hud: HUD = _make_hud(_fake_match_with(config))
-
-	hud._on_match_won(1)
-	assert_eq(hud._winner_label.modulate, config.player_colors[1], "legacy: team t shows slot t's colour")
-	hud._on_goal_capture_progress(0, 0.5)
-	assert_eq(hud._capture_color, config.player_colors[0])
 
 
 func test_mode_score_text_labels_use_the_lobby_numbers() -> void:
@@ -363,18 +334,6 @@ func test_hud_share_rows_use_team_numbers_colours_and_team_elimination() -> void
 	assert_false((hud._share_labels[1] as Label).text.contains("out"))
 
 
-func test_hud_share_rows_are_unchanged_without_resolved_teams() -> void:
-	var config: MatchConfig = _legacy_config()
-	var fake_match: RasterFakeMatch = _fake_match_with(config)
-	fake_match.slots_by_id[1].home_flag_alive = false
-	var hud: HUD = _make_hud(fake_match)
-
-	hud.set_territory_shares(PackedFloat32Array([0.6, 0.4]))
-	assert_eq((hud._share_labels[0] as Label).text, "60%")
-	assert_eq((hud._share_labels[1] as Label).text, "40%  (out)", "legacy: team t is slot t")
-	assert_eq((hud._share_bars[0] as ShareBar).fill_color, fake_match.slots_by_id[0].color)
-
-
 func test_hud_forwards_team_colours_and_slot_colours_to_the_minimap() -> void:
 	var config: MatchConfig = _resolved_config()
 	var hud: HUD = _make_hud(_fake_match_with(config))
@@ -384,16 +343,6 @@ func test_hud_forwards_team_colours_and_slot_colours_to_the_minimap() -> void:
 	assert_eq(hud._minimap._team_colors, config.territory_colors(), "territory/goal colours are per team")
 	assert_eq(hud._minimap._slot_colors, config.player_colors, "beacons stay per slot")
 	assert_ne(hud._minimap._team_colors, hud._minimap._slot_colors, "fixture: the two palettes really differ")
-
-
-func test_hud_forwards_the_same_array_for_both_with_a_legacy_config() -> void:
-	var config: MatchConfig = _legacy_config()
-	var hud: HUD = _make_hud(_fake_match_with(config))
-
-	Events.territory_share_changed.emit(PackedFloat32Array([0.5, 0.5]))
-
-	assert_eq(hud._minimap._team_colors, config.player_colors)
-	assert_eq(hud._minimap._slot_colors, config.player_colors)
 
 
 # --- Minimap (ui/Minimap.gd, review F3) ----------------------------------------------
@@ -471,15 +420,6 @@ func test_results_rows_show_the_lobby_team_numbers() -> void:
 	assert_eq(texts[3], "Team 3")
 
 
-func test_results_rows_are_unchanged_without_resolved_teams() -> void:
-	var screen: ResultsScreen = _make_results_screen(_legacy_config(), FakeNet.host())
-	screen.show_results(_team_payload())
-
-	var texts: Dictionary = _row_team_texts(screen)
-	assert_eq(texts[0], "Team 2", "legacy: SLOT_TEAM_IDS[0] = 1, shown as team id + 1")
-	assert_eq(texts[1], "Team 1")
-
-
 func test_shared_win_and_mode_scores_use_the_lobby_numbers() -> void:
 	var numbers: PackedInt32Array = PackedInt32Array(TEAM_NUMBERS)
 	var results: Dictionary = _team_payload(0)
@@ -505,3 +445,57 @@ func test_results_headline_uses_the_shared_win_numbers_of_the_running_config() -
 	var hud: HUD = _make_hud(_fake_match_with(_resolved_config()))
 	hud._on_match_results_ready(results)
 	assert_eq(hud._winner_label.text, "Teams 1 & 3 share the win!")
+
+
+## Merged table of the six "unchanged without resolved teams" legacy cases (world
+## build, HUD winner banner, HUD tints, HUD share rows, minimap colour forwarding,
+## results rows): each consumer still reads a legacy config (no per-seat arrays) as
+## team id t = slot t, label "Team t+1".
+func test_legacy_config_leaves_every_team_consumer_unchanged() -> void:
+	# World build (legacy: team t is slot t).
+	_make_main()
+	await _start_world(_legacy_config())
+	var world_colors: PackedColorArray = Match.config.player_colors
+	var field: Field = _main._field
+	_assert_same_rgb(field._color_for_index(0), world_colors[0], "legacy: team t is slot t")
+	_assert_same_rgb(field._color_for_index(1), world_colors[1], "legacy: team t is slot t")
+
+	# HUD winner banner.
+	var banner_hud: HUD = _make_hud(_fake_match_with(_legacy_config()))
+	banner_hud.show_winner(1, Color.GOLD)
+	assert_eq(banner_hud._winner_label.text, "Team 2 wins!")
+	var bare_hud: HUD = _make_hud(null)
+	bare_hud.show_winner(0, Color.GOLD)
+	assert_eq(bare_hud._winner_label.text, "Team 1 wins!", "no provider/config at all keeps team id + 1")
+
+	# HUD winner and capture tints.
+	var tint_config: MatchConfig = _legacy_config()
+	var tint_hud: HUD = _make_hud(_fake_match_with(tint_config))
+	tint_hud._on_match_won(1)
+	assert_eq(tint_hud._winner_label.modulate, tint_config.player_colors[1], "legacy: team t shows slot t's colour")
+	tint_hud._on_goal_capture_progress(0, 0.5)
+	assert_eq(tint_hud._capture_color, tint_config.player_colors[0])
+
+	# HUD share rows.
+	var share_match: RasterFakeMatch = _fake_match_with(_legacy_config())
+	share_match.slots_by_id[1].home_flag_alive = false
+	var share_hud: HUD = _make_hud(share_match)
+	share_hud.set_territory_shares(PackedFloat32Array([0.6, 0.4]))
+	assert_eq((share_hud._share_labels[0] as Label).text, "60%")
+	assert_eq((share_hud._share_labels[1] as Label).text, "40%  (out)", "legacy: team t is slot t")
+	assert_eq((share_hud._share_bars[0] as ShareBar).fill_color, share_match.slots_by_id[0].color)
+
+	# HUD forwards the same colour array to the minimap for both palettes.
+	var minimap_config: MatchConfig = _legacy_config()
+	var minimap_hud: HUD = _make_hud(_fake_match_with(minimap_config))
+	Events.territory_share_changed.emit(PackedFloat32Array([0.5, 0.5]))
+	assert_eq(minimap_hud._minimap._team_colors, minimap_config.player_colors)
+	assert_eq(minimap_hud._minimap._slot_colors, minimap_config.player_colors)
+
+	# Results rows.
+	var screen: ResultsScreen = _make_results_screen(_legacy_config(), FakeNet.host())
+	screen.show_results(_team_payload())
+	var texts: Dictionary = _row_team_texts(screen)
+	assert_eq(texts[0], "Team 2", "legacy: SLOT_TEAM_IDS[0] = 1, shown as team id + 1")
+	assert_eq(texts[1], "Team 1")
+

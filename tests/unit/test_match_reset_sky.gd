@@ -144,7 +144,7 @@ func _dirty_with_locked_night_storm(rig: Dictionary) -> void:
 # --- Skybox.reset_to_launch() -------------------------------------------------------
 
 
-func test_a_cycle_locked_night_storm_sky_resets_to_a_fresh_skybox() -> void:
+func test_a_dirty_sky_resets_to_a_fresh_skybox_for_cycle_locked_and_static_night_storms() -> void:
 	var fresh: Dictionary = _rig()
 	var expected: Dictionary = _snapshot(fresh)
 	var used: Dictionary = _rig()
@@ -160,23 +160,20 @@ func test_a_cycle_locked_night_storm_sky_resets_to_a_fresh_skybox() -> void:
 	skybox.reset_to_launch()
 	_assert_same_snapshot(_snapshot(used), expected, "after reset")
 
-
-func test_a_static_night_theme_then_storm_and_overcast_resets_to_a_fresh_skybox() -> void:
-	var fresh: Dictionary = _rig()
-	var expected: Dictionary = _snapshot(fresh)
-	var used: Dictionary = _rig()
-	var skybox: Skybox = used["skybox"] as Skybox
-	var config: MatchConfig = MatchConfig.new()
-	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
-	skybox.configure_match_sky(config)
-	assert_true(skybox.set_theme_by_id("night"))
-	skybox.set_storm_sky(STORM_AMOUNT, Skybox.load_theme("storm"))
-	_overcast(skybox, 1.0)
-	assert_eq(skybox.config.theme_name, "night", "fixture: set_theme_by_id wrote the shared config")
-	skybox.reset_to_launch()
-	_assert_same_snapshot(_snapshot(used), expected, "after reset")
-	assert_eq(skybox.config.theme_name, "", "config.theme_name is the launch value again")
-	assert_false(skybox.is_cycle_active())
+	# Merged variant: a static night theme (set_theme_by_id) with storm + overcast.
+	var static_used: Dictionary = _rig()
+	var static_skybox: Skybox = static_used["skybox"] as Skybox
+	var static_config: MatchConfig = MatchConfig.new()
+	static_config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
+	static_skybox.configure_match_sky(static_config)
+	assert_true(static_skybox.set_theme_by_id("night"))
+	static_skybox.set_storm_sky(STORM_AMOUNT, Skybox.load_theme("storm"))
+	_overcast(static_skybox, 1.0)
+	assert_eq(static_skybox.config.theme_name, "night", "fixture: set_theme_by_id wrote the shared config")
+	static_skybox.reset_to_launch()
+	_assert_same_snapshot(_snapshot(static_used), expected, "static night: after reset")
+	assert_eq(static_skybox.config.theme_name, "", "config.theme_name is the launch value again")
+	assert_false(static_skybox.is_cycle_active())
 
 
 func test_a_skybox_launched_on_the_cycle_restarts_the_running_cycle() -> void:
@@ -286,7 +283,7 @@ func _storm_to_full(presenter: WeatherPresenter) -> CloudCeiling:
 	return ceiling
 
 
-func test_ceiling_snap_clear_after_a_storm_ends_reads_zero_and_the_skybox_is_clear() -> void:
+func test_ceiling_snap_clear_zeroes_the_ceiling_and_skybox_after_a_storm_ends_and_while_one_runs() -> void:
 	var rig: Dictionary = _rig()
 	var skybox: Skybox = rig["skybox"] as Skybox
 	var presenter: WeatherPresenter = _presenter()
@@ -306,20 +303,18 @@ func test_ceiling_snap_clear_after_a_storm_ends_reads_zero_and_the_skybox_is_cle
 	ceiling._process(1.0)
 	assert_eq(ceiling.storm_amount(), 0.0, "nothing refills it afterwards")
 
-
-func test_ceiling_snap_clear_also_drops_a_weather_that_is_still_running() -> void:
-	var rig: Dictionary = _rig()
-	var skybox: Skybox = rig["skybox"] as Skybox
-	var presenter: WeatherPresenter = _presenter()
-	var ceiling: CloudCeiling = _storm_to_full(presenter)
-	ceiling.snap_clear()
-	assert_eq(ceiling.target_amount(), 0.0, "the old match's requests are gone")
-	assert_eq(ceiling.storm_amount(), 0.0)
-	assert_eq(skybox.storm_sky_amount(), 0.0)
+	# Merged variant: snap_clear also drops a weather that is still running.
+	var running_rig: Dictionary = _rig()
+	var running_skybox: Skybox = running_rig["skybox"] as Skybox
+	var running_ceiling: CloudCeiling = _storm_to_full(_presenter())
+	running_ceiling.snap_clear()
+	assert_eq(running_ceiling.target_amount(), 0.0, "the old match's requests are gone")
+	assert_eq(running_ceiling.storm_amount(), 0.0)
+	assert_eq(running_skybox.storm_sky_amount(), 0.0)
 	# The next match's weather ramps in from zero as in a fresh launch.
 	Events.weather_intensity_changed.emit(RAIN_ID, 0.5)
-	assert_almost_eq(ceiling.target_amount(), 0.5, 0.001)
-	assert_eq(ceiling.amount(), 0.0)
+	assert_almost_eq(running_ceiling.target_amount(), 0.5, 0.001)
+	assert_eq(running_ceiling.amount(), 0.0)
 
 
 func test_presenter_clear_now_keeps_a_weather_that_is_still_running() -> void:

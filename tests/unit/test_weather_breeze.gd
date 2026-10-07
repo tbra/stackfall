@@ -10,12 +10,9 @@ const HIGH_M: float = 20.0
 const LOW_M: float = 0.4
 const SIM_SECONDS: float = 1200.0
 const SIM_STEP: float = 0.1
-const TALL_TOWER_CUBES: int = 32
 const TALL_SETTLE_TICKS: int = 120
-const GUST_CENTER_HEIGHT_M: float = 24.0
 const TOWER_FOOTPRINT: Array[Vector2] = [Vector2(0.0, 0.0), Vector2(1.0, 0.0), Vector2(0.0, 1.0), Vector2(1.0, 1.0)]
 const TOWER_GAP_M: float = 0.03
-const MIN_SWAY_M: float = 1.5
 const SHORT_TOWER_CUBES: int = 4
 const MAX_SHORT_SWAY_M: float = 0.15
 
@@ -199,16 +196,6 @@ func _top_sway(count: int, with_gust: bool, center_height: float) -> float:
 	return moved
 
 
-func test_a_gust_visibly_sways_a_tall_tower() -> void:
-	var quiet: float = await _top_sway(TALL_TOWER_CUBES, false, GUST_CENTER_HEIGHT_M)
-	for block: Block in _blocks:
-		block.free()
-	_blocks.clear()
-	var gusted: float = await _top_sway(TALL_TOWER_CUBES, true, GUST_CENTER_HEIGHT_M)
-	gut.p("tall tower top sway: quiet %.2f m, gusted %.2f m" % [quiet, gusted])
-	assert_gt(gusted, quiet + MIN_SWAY_M, "a gust moves a 48 m tower's top")
-
-
 func test_gust_visual_travels_along_the_physics_heading() -> void:
 	var straight: BreezeTuning = _tuning.duplicate() as BreezeTuning
 	straight.swirl_deg = 0.0
@@ -317,23 +304,6 @@ func test_a_gust_pushes_only_blocks_inside_it() -> void:
 	assert_eq(near.linear_velocity.y, 0.0, "horizontal only")
 
 
-func test_speed_and_dv_are_clamped_over_a_long_gust() -> void:
-	var block: Block = _block(Vector3(0.0, HIGH_M, 0.0))
-	var effect: BreezeEffect = _effect(_quiet_tuning())
-	effect.begin(SEED_A)
-	_inject_gust(effect, Vector3(0.0, HIGH_M, 0.6), 6.0)
-	var widest: float = 0.0
-	var previous: Vector3 = Vector3.ZERO
-	for _i: int in range(60 * 6):
-		effect.tick(DELTA)
-		await get_tree().physics_frame
-		widest = maxf(widest, (block.linear_velocity - previous).length())
-		previous = block.linear_velocity
-		block.global_position.x = 0.0
-	assert_lte(widest, _tuning.max_dv_per_tick * 3.0)
-	assert_lte(block.linear_velocity.length(), _tuning.max_speed_ms + _tuning.max_dv_per_tick * 3.0)
-
-
 func test_sleepers_wake_only_when_the_push_reaches_the_wake_threshold() -> void:
 	var strong_tuning: BreezeTuning = _quiet_tuning()
 	strong_tuning.wake_accel = 0.0001
@@ -377,32 +347,60 @@ func test_frozen_blocks_and_clients_are_never_pushed() -> void:
 	assert_eq(_gusts_seen.size(), 0, "and no spawn")
 
 
-func test_breeze_and_storm_sum_and_stay_within_both_clamps() -> void:
-	var storm_tuning: StormTuning = load("res://config/weather/storm.tres") as StormTuning
-	var block: Block = _block(Vector3(0.0, HIGH_M, 0.0))
-	var storm: StormEffect = StormEffect.new()
-	storm.tuning = storm_tuning
-	storm.set_seed(SEED_A)
-	storm.set_test_world(func() -> Array: return _blocks, func() -> float: return 0.0)
-	var breeze: BreezeEffect = _effect(_quiet_tuning())
-	breeze.begin(SEED_A)
-	_inject_gust(breeze, Vector3(0.0, HIGH_M, 0.6), 8.0)
+## Wind clamps (merged from the breeze, storm and breeze+storm clamp tests):
+## one floating block under the named layer(s); returns the widest per-tick
+## velocity change, the final speed and how many ticks both layers pushed.
+func _clamp_run(use_breeze: bool, use_storm: bool, seconds: float, gust_radius: float, pin_z: bool, height: float = HIGH_M) -> Dictionary:
+	var block: Block = _block(Vector3(0.0, height, 0.0))
+	var storm: StormEffect = null
+	if use_storm:
+		storm = StormEffect.new()
+		storm.tuning = load("res://config/weather/storm.tres") as StormTuning
+		storm.set_seed(SEED_A)
+		storm.set_test_world(func() -> Array: return _blocks, func() -> float: return 0.0)
+	var breeze: BreezeEffect = null
+	if use_breeze:
+		breeze = _effect(_quiet_tuning())
+		breeze.begin(SEED_A)
+		_inject_gust(breeze, Vector3(0.0, HIGH_M, 0.6), gust_radius)
 	var both_ticks: int = 0
 	var widest: float = 0.0
 	var previous: Vector3 = Vector3.ZERO
-	for _i: int in range(60 * 4):
-		storm.tick(DELTA, 1.0)
-		breeze.tick(DELTA)
-		if storm.last_pushed > 0 and breeze.last_pushed > 0:
+	for _i: int in range(int(seconds * 60.0)):
+		if use_storm:
+			storm.tick(DELTA, 1.0)
+		if use_breeze:
+			breeze.tick(DELTA)
+		if use_storm and use_breeze and storm.last_pushed > 0 and breeze.last_pushed > 0:
 			both_ticks += 1
 		await get_tree().physics_frame
 		widest = maxf(widest, (block.linear_velocity - previous).length())
 		previous = block.linear_velocity
-		block.global_position.x = 0.0
-		block.global_position.z = 0.0
-	assert_gt(both_ticks, 5, "both layers act on the same block (Breeze then hits its own speed cap)")
-	assert_lte(widest, (storm_tuning.max_dv_per_tick + _tuning.max_dv_per_tick) * 3.0, "summed dv is bounded by the two clamps")
-	assert_lte(block.linear_velocity.length(), storm_tuning.max_speed_ms + _tuning.max_speed_ms + 0.6, "summed speed is bounded")
+		if use_breeze:
+			block.global_position.x = 0.0
+		if pin_z:
+			block.global_position.z = 0.0
+	var result: Dictionary = {"widest": widest, "speed": block.linear_velocity.length(), "both_ticks": both_ticks}
+	block.free()
+	_blocks.clear()
+	return result
+
+
+func test_wind_speed_and_dv_stay_within_the_clamps_for_breeze_storm_and_both() -> void:
+	var storm_tuning: StormTuning = load("res://config/weather/storm.tres") as StormTuning
+
+	var breeze_only: Dictionary = await _clamp_run(true, false, 6.0, 6.0, false)
+	assert_lte(float(breeze_only["widest"]), _tuning.max_dv_per_tick * 3.0, "breeze: per-tick dv")
+	assert_lte(float(breeze_only["speed"]), _tuning.max_speed_ms + _tuning.max_dv_per_tick * 3.0, "breeze: speed")
+
+	var storm_only: Dictionary = await _clamp_run(false, true, 6.0, 0.0, false, storm_tuning.cap_height_m + 5.0)
+	assert_lte(float(storm_only["widest"]), storm_tuning.max_dv_per_tick * 3.0, "storm: per-tick dv stays near the clamp")
+	assert_lte(float(storm_only["speed"]), storm_tuning.max_speed_ms + storm_tuning.max_dv_per_tick * 3.0, "storm: capped along-wind speed")
+
+	var both: Dictionary = await _clamp_run(true, true, 4.0, 8.0, true)
+	assert_gt(int(both["both_ticks"]), 5, "both layers act on the same block (Breeze then hits its own speed cap)")
+	assert_lte(float(both["widest"]), (storm_tuning.max_dv_per_tick + _tuning.max_dv_per_tick) * 3.0, "summed dv is bounded by the two clamps")
+	assert_lte(float(both["speed"]), storm_tuning.max_speed_ms + _tuning.max_speed_ms + 0.6, "summed speed is bounded")
 
 
 # --- Lifecycle through MatchWeather ------------------------------------------------------

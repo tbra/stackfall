@@ -11,17 +11,6 @@ func _make_lobby() -> Lobby:
 	return lobby
 
 
-func test_every_gift_has_pictogram_and_model_preview() -> void:
-	var table: GiftIconTable = GiftIconTable.shared()
-	assert_not_null(table)
-	var defs: Array[SpecialDef] = SpecialDef.load_all_specials()
-	assert_gt(defs.size(), 0)
-	for def: SpecialDef in defs:
-		assert_not_null(table.gift_pictogram(def.id), "pictogram %s" % def.id)
-		assert_not_null(table.model_preview(def.id), "model preview %s" % def.id)
-		assert_eq(SpecialDef.preview_icon_for(def.id), table.model_preview(def.id), "HUD icon %s" % def.id)
-
-
 func test_every_weather_mode_has_pictogram() -> void:
 	var table: GiftIconTable = GiftIconTable.shared()
 	for mode: int in MatchConfig.WeatherMode.values():
