@@ -25,11 +25,11 @@ if ($Port -le 0) { $Port = Get-FreeUdpPort }
 Write-Host "qol_enet: port=$Port lag=${Lag}ms deadline=${TimeoutSeconds}s out=$Out"
 foreach ($f in @("qol_host.log", "qol_host.err", "qol_client.log", "qol_client.err")) { Remove-Item -ErrorAction SilentlyContinue "$Out\$f" }
 try {
-	$h = Start-Process godot -ArgumentList @("--headless","--path",$Path,$scene,"--","--agent-probe","--headless-host","--port=$Port","--expect-peers=2") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\qol_host.log" -RedirectStandardError "$Out\qol_host.err"
+	$h = Start-Process godot -ArgumentList @("--headless","--log-file","$Outgodot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--agent-probe","--headless-host","--port=$Port","--expect-peers=2") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\qol_host.log" -RedirectStandardError "$Out\qol_host.err"
 	$null = $h.Handle
 	$procs += $h
 	Start-Sleep 3
-	$c = Start-Process godot -ArgumentList @("--headless","--path",$Path,$scene,"--","--agent-probe","--join=127.0.0.1:$Port","--sim-lag=$Lag") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\qol_client.log" -RedirectStandardError "$Out\qol_client.err"
+	$c = Start-Process godot -ArgumentList @("--headless","--log-file","$Outgodot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--agent-probe","--join=127.0.0.1:$Port","--sim-lag=$Lag") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\qol_client.log" -RedirectStandardError "$Out\qol_client.err"
 	$null = $c.Handle
 	$procs += $c
 	$deadline = (Get-Date).AddSeconds($TimeoutSeconds)

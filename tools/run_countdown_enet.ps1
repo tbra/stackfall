@@ -12,11 +12,11 @@ function Stop-Tree([object]$p) {
 	}
 }
 try {
-	$h = Start-Process godot -ArgumentList @("--headless","--path",$Path,$scene,"--","--headless-host","--port=$Port","--expect-peers=2") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\cd_host.log" -RedirectStandardError "$Out\cd_host.err"
+	$h = Start-Process godot -ArgumentList @("--headless","--log-file","$Outgodot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--headless-host","--port=$Port","--expect-peers=2") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\cd_host.log" -RedirectStandardError "$Out\cd_host.err"
 	$null = $h.Handle
 	$procs += $h
 	Start-Sleep 3
-	$c = Start-Process godot -ArgumentList @("--headless","--path",$Path,$scene,"--","--join=127.0.0.1:$Port","--sim-lag=$Lag") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\cd_client.log" -RedirectStandardError "$Out\cd_client.err"
+	$c = Start-Process godot -ArgumentList @("--headless","--log-file","$Outgodot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--join=127.0.0.1:$Port","--sim-lag=$Lag") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\cd_client.log" -RedirectStandardError "$Out\cd_client.err"
 	$null = $c.Handle
 	$procs += $c
 	$deadline = (Get-Date).AddSeconds($TimeoutSeconds)

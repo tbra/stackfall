@@ -10,11 +10,11 @@ $scene = "res://tests/bench/rocket_enet.tscn"
 $procs = @()
 $timedOut = $false
 try {
-	$h = Start-Process godot -ArgumentList @("--headless","--path",$Path,$scene,"--","--headless-host","--port=$Port","--expect-peers=2") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\rkt_host.log" -RedirectStandardError "$Out\rkt_host.err"
+	$h = Start-Process godot -ArgumentList @("--headless","--log-file","$Outgodot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--headless-host","--port=$Port","--expect-peers=2") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\rkt_host.log" -RedirectStandardError "$Out\rkt_host.err"
 	$null = $h.Handle
 	$procs += $h
 	Start-Sleep 3
-	$c = Start-Process godot -ArgumentList @("--headless","--path",$Path,$scene,"--","--join=127.0.0.1:$Port","--sim-lag=$Lag") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\rkt_client.log" -RedirectStandardError "$Out\rkt_client.err"
+	$c = Start-Process godot -ArgumentList @("--headless","--log-file","$Outgodot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--join=127.0.0.1:$Port","--sim-lag=$Lag") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\rkt_client.log" -RedirectStandardError "$Out\rkt_client.err"
 	$null = $c.Handle
 	$procs += $c
 	$deadline = (Get-Date).AddSeconds($TimeoutSeconds)

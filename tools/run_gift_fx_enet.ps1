@@ -21,12 +21,12 @@ function Stop-Tree([object]$p) {
 }
 $timedOut = $false
 try {
-	$h = Start-Process godot -ArgumentList (@("--headless","--path",$Path,$scene,"--","--headless-host","--port=$Port","--expect-peers=4") + $extra) -PassThru -NoNewWindow -RedirectStandardOutput "$Out\gfx_host.log" -RedirectStandardError "$Out\gfx_host.err"
+	$h = Start-Process godot -ArgumentList (@("--headless","--log-file","$Outgodot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--headless-host","--port=$Port","--expect-peers=4") + $extra) -PassThru -NoNewWindow -RedirectStandardOutput "$Out\gfx_host.log" -RedirectStandardError "$Out\gfx_host.err"
 	$null = $h.Handle
 	$procs += $h
 	Start-Sleep 3
 	foreach ($i in 1..3) {
-		$c = Start-Process godot -ArgumentList @("--headless","--path",$Path,$scene,"--","--join=127.0.0.1:$Port","--sim-lag=$Lag") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\gfx_client$i.log" -RedirectStandardError "$Out\gfx_client$i.err"
+		$c = Start-Process godot -ArgumentList @("--headless","--log-file","$Outgodot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--join=127.0.0.1:$Port","--sim-lag=$Lag") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\gfx_client$i.log" -RedirectStandardError "$Out\gfx_client$i.err"
 		$null = $c.Handle
 		$procs += $c
 	}
