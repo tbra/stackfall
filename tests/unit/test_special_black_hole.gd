@@ -192,6 +192,7 @@ const CUBE_COLUMN_SPACING_M: float = 1.2
 const CUBE_COLUMN_START_M: float = 0.8
 const CUBE_COLUMN_JITTER_M: float = 0.45
 const PILE_RING_M: float = 1.0
+const PILE_CORE_M: float = 0.5
 const REMOVAL_MARGIN_S: float = 1.0
 
 
@@ -269,7 +270,11 @@ func test_cubes_piled_in_the_core_are_all_removed() -> void:
 	var positions: Array[Vector3] = []
 	for i: int in CUBE_COLUMN_COUNT:
 		var angle: float = float(i) * TAU / 4.0
-		var ring: Vector3 = Vector3(cos(angle), 0.0, sin(angle)) * PILE_RING_M * float(i % 2)
+		# Even cubes sit at +-PILE_CORE_M on x, odd ones on the PILE_RING_M ring on z: no two
+		# cubes of a layer coincide (coincident bodies made Jolt depenetrate violently and
+		# overflow its job system under CPU contention, fca.50).
+		var radius: float = PILE_RING_M if i % 2 == 1 else PILE_CORE_M
+		var ring: Vector3 = Vector3(cos(angle), 0.0, sin(angle)) * radius
 		positions.append(ring + Vector3(0.0, disc.surface_y() + 0.6 + float(i / 4) * CUBE_COLUMN_SPACING_M, 0.0))
 	var removed: int = await _count_removed_after_lifetime(disc, world[2] as Node3D, positions)
 	assert_eq(removed, CUBE_COLUMN_COUNT, "a pile resting in the core is destroyed layer by layer")

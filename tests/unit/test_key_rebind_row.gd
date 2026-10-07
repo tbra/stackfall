@@ -25,9 +25,15 @@ var _test_action: StringName = &"key_rebind_row_test_action"
 var _sub_viewport: SubViewport = null
 var _row: KeyRebindRow = null
 var _cover: ColorRect = null
+var _prior_device: StringName = Settings.DEFAULT_ACTIVE_DEVICE
 
 
 func before_each() -> void:
+	# Settings.active_input_device() is process-global and flips to gamepad on any
+	# joypad event (e.g. test_playercontroller_throw earlier in the same shard).
+	# The row only shows keyboard glyphs while it is keyboard_mouse (fca.50).
+	_prior_device = Settings.active_input_device()
+	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
 	if not InputMap.has_action(_test_action):
 		InputMap.add_action(_test_action)
 	_sub_viewport = SubViewport.new()
@@ -56,6 +62,7 @@ func after_each() -> void:
 	if InputMap.has_action(_test_action):
 		InputMap.erase_action(_test_action)
 	Settings.set_config_path_for_test(DEFAULT_SETTINGS_CFG_PATH)
+	Settings.set_active_input_device_for_test(_prior_device)
 	_row = null
 	_sub_viewport = null
 	_cover = null
