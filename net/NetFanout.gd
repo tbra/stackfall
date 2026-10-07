@@ -34,6 +34,32 @@ static func targets(api: MultiplayerAPI, session: Variant) -> Array[int]:
 	return ids
 
 
+## True only when there is a live peer to talk to: `session` is not offline and
+## `api` holds a connected peer that is not the engine's OfflineMultiplayerPeer.
+## Offline (hot-seat, the sandbox, a unit test) every rpc() would error, so each
+## replication layer becomes a no-op and Match runs exactly as it did offline.
+##
+## Godot installs an OfflineMultiplayerPeer by default, so has_multiplayer_peer()
+## is true and the connection reads CONNECTED even with no session at all;
+## rpc_id() onto it then fails with "p_peer_id == caller_id". Excluding that one
+## class is not a transport assumption (CLAUDE.md): it is the engine's own
+## stand-in for "no transport", and ENet and Steam are equally unaffected.
+##
+## DECISION (Bontago-fca.36.5): the one owner of this predicate. It lives here as
+## a static helper beside broadcast() rather than only on the Net autoload
+## because every caller (MatchNet, WeatherNet, SnowNet, BreezeNet) tests against
+## its own node's MultiplayerAPI and an injectable `session` double; Net.can_send()
+## delegates here. Host-ness has one owner too: Net.is_host() (callers go through
+## their `_session()`).
+static func can_send(api: MultiplayerAPI, session: Variant) -> bool:
+	if session != null and bool(session.is_offline()):
+		return false
+	var peer: MultiplayerPeer = api.multiplayer_peer if api != null else null
+	if peer == null or peer is OfflineMultiplayerPeer:
+		return false
+	return peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
+
+
 ## Calls `method` with `args` on `node`'s counterpart on every peer
 ## targets(node.multiplayer, session) lists. Callers keep their own "is this
 ## instance the host and is there a live transport" gate.

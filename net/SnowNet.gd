@@ -76,19 +76,6 @@ func _authority() -> Variant:
 	return _match_provider if _match_provider != null else Match
 
 
-func _is_host() -> bool:
-	return bool(_session().is_host())
-
-
-func _can_send() -> bool:
-	if bool(_session().is_offline()):
-		return false
-	var peer: MultiplayerPeer = multiplayer.multiplayer_peer
-	if peer == null or peer is OfflineMultiplayerPeer:
-		return false
-	return peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
-
-
 func _process(delta: float) -> void:
 	step_client(_tuning.rebuild_patches_per_frame)
 	_since_send += delta
@@ -99,7 +86,7 @@ func _process(delta: float) -> void:
 # --- Host -> clients ------------------------------------------------------------------
 
 func _on_published(state: Dictionary) -> void:
-	if not _is_host():
+	if not _session().is_host():
 		return
 	if SnowRelay.is_empty_state(state) or _since_send >= _tuning.send_min_interval_s:
 		_send(state)
@@ -114,12 +101,12 @@ func _send(state: Dictionary) -> void:
 	_since_send = 0.0
 	last_sent_state = state
 	states_sent += 1
-	if _can_send():
+	if NetFanout.can_send(multiplayer, _session()):
 		NetFanout.broadcast(self, _session(), &"net_snow_state", [state])
 
 
 func _on_net_peer_joined(peer_id: int, _slot_id: int, _player_name: String) -> void:
-	if not _is_host():
+	if not _session().is_host():
 		return
 	if multiplayer.has_multiplayer_peer() and peer_id == multiplayer.get_unique_id():
 		return
@@ -127,13 +114,13 @@ func _on_net_peer_joined(peer_id: int, _slot_id: int, _player_name: String) -> v
 	if SnowRelay.is_empty_state(state):
 		return
 	states_sent += 1
-	if _can_send():
+	if NetFanout.can_send(multiplayer, _session()):
 		rpc_id(peer_id, &"net_snow_state", state)
 
 
 @rpc("authority", "call_remote", "reliable")
 func net_snow_state(state: Dictionary) -> void:
-	if _is_host():
+	if _session().is_host():
 		states_refused += 1
 		return
 	if awaiting_world.is_valid() and bool(awaiting_world.call()):
@@ -152,7 +139,7 @@ func net_snow_state(state: Dictionary) -> void:
 ## nothing) on the host, for a malformed payload, or for snow arriving while
 ## no snow event is live (an empty state is always accepted: it clears).
 func apply_state(raw: Variant) -> bool:
-	if _is_host():
+	if _session().is_host():
 		states_refused += 1
 		return false
 	var authority: Variant = _authority()
@@ -297,20 +284,20 @@ func _set_disc_cell(field: Field, grid: CellGrid, edge: float, cell: int, level:
 
 
 func _on_match_state_changed(_from_state: int, to_state: int) -> void:
-	if _is_host():
+	if _session().is_host():
 		return
 	if MatchAutoload.is_resetting(to_state):
 		clear_client()
 
 
 func _on_weather_stopped(weather_id: StringName) -> void:
-	if weather_id == &"snow" and not _is_host():
+	if weather_id == &"snow" and not _session().is_host():
 		clear_client()
 
 
 ## A block spawned on a client after the state that names it: draw it once
 ## its net_id is bound (MatchNet binds right after emitting block_placed).
 func _on_block_placed(_block: RigidBody3D, _shape_id: StringName) -> void:
-	if _unresolved and not _render_queued and not _is_host():
+	if _unresolved and not _render_queued and not _session().is_host():
 		_render_queued = true
 		_render.call_deferred()

@@ -130,14 +130,12 @@ func _match() -> Variant:
 	return _match_provider if _match_provider != null else Match
 
 
-func _is_host() -> bool:
-	if _net_provider != null:
-		return bool(_net_provider.is_host())
-	return Net.is_host()
+func _session() -> Variant:
+	return _net_provider if _net_provider != null else Net
 
 
 func _physics_process(delta: float) -> void:
-	if _slot_id < 0 or not _is_host():
+	if _slot_id < 0 or not _session().is_host():
 		return
 	var match_ref: Variant = _match()
 	if not MatchAutoload.is_live(match_ref.state() as MatchAutoload.State):

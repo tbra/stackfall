@@ -53,19 +53,6 @@ func _authority() -> Variant:
 	return _match_provider if _match_provider != null else Match
 
 
-func _is_host() -> bool:
-	return bool(_session().is_host())
-
-
-func _can_send() -> bool:
-	if bool(_session().is_offline()):
-		return false
-	var peer: MultiplayerPeer = multiplayer.multiplayer_peer
-	if peer == null or peer is OfflineMultiplayerPeer:
-		return false
-	return peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
-
-
 func _on_match_state_changed(_from_state: int, to_state: int) -> void:
 	if MatchAutoload.is_resetting(to_state):
 		_last_id = 0
@@ -73,17 +60,17 @@ func _on_match_state_changed(_from_state: int, to_state: int) -> void:
 
 func _on_gust_started(gust: Dictionary) -> void:
 	# On a client this fires for gusts this node re-emitted itself: never resend.
-	if not _is_host():
+	if not _session().is_host():
 		return
 	last_sent_gust = gust.duplicate()
 	gusts_sent += 1
-	if _can_send():
+	if NetFanout.can_send(multiplayer, _session()):
 		NetFanout.broadcast(self, _session(), &"net_breeze_gust", [gust])
 
 
 @rpc("authority", "call_remote", "reliable")
 func net_breeze_gust(gust: Dictionary) -> void:
-	if _is_host():
+	if _session().is_host():
 		gusts_refused += 1
 		return
 	var sender: int = multiplayer.get_remote_sender_id()
