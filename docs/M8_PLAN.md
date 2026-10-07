@@ -398,7 +398,10 @@ preset diff only (no code to review).
 ### P8 — 2-hour bot soak + log triage (integrator-run gate, not a worker package)
 No new owned files (`game/Main.gd`'s `--headless-host --bots=<n>
 --seconds=<n>` already exists per the audit above). Run:
-`godot --headless --path . -- --headless-host --bots=8 --seconds=7200`
+`godot --headless --path . -- --headless-host --bots=8 --seconds=7200 --loop-matches`
+(`--loop-matches`, Bontago-8or.21, restarts a fresh match after each END; without it a
+match that ends early leaves the host idle in END for the rest of the run, as the
+2026-10-07 attempt showed: one ~5 min match, then ~115 min idle)
 on an otherwise-idle machine (CLAUDE.md's own note on bench/timing runs),
 capture the log, then `python tools/triage_log.py <log>` (needs
 `TYPESAFE_API_KEY`; degrades to deterministic grouping without one, per
