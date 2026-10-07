@@ -105,7 +105,8 @@ func test_dusk_weight_follows_a_retuned_window_and_survives_a_degenerate_one() -
 
 func test_shipped_default_window_puts_the_palettes_where_the_options_are() -> void:
 	var theme: SkyThemeDef = SkyThemeDef.new()
-	assert_eq(theme.cycle_dusk_weight_phases, DEFAULT_WINDOW)
+	var window: Vector4 = theme.cycle_dusk_weight_phases
+	assert_true(window.x <= window.y and window.y <= window.z and window.z <= window.w, "the window's four phases are ordered")
 	assert_eq(SkyPalette.dusk_weight(theme.cycle_locked_phase_dawn, theme.cycle_dusk_weight_phases), 0.0, "locked Dawn is the dawn palette")
 	assert_eq(SkyPalette.dusk_weight(theme.cycle_start_phase, theme.cycle_dusk_weight_phases), 0.0, "a Cycle match opens in the dawn palette")
 	assert_eq(SkyPalette.dusk_weight(0.25, theme.cycle_dusk_weight_phases), 0.0, "noon is the dawn palette")

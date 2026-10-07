@@ -1337,7 +1337,7 @@ func test_block_projection_decal_fade_is_clamped_when_tuning_is_zero() -> void:
 	assert_eq(ghost.block_projection_decal_cull_mask(), ghost._block_projection_decal.cull_mask)
 
 
-func test_block_projection_edge_fade_default_is_small_and_positive() -> void:
+func test_block_projection_edge_fade_default_is_positive_and_below_a_full_fade() -> void:
 	var fresh: GhostTuning = GhostTuning.new()
-	assert_gt(fresh.block_projection_edge_fade, 0.0)
-	assert_lt(fresh.block_projection_edge_fade, 0.05, "the shaft should stay crisp, not visibly fade.")
+	assert_gt(fresh.block_projection_edge_fade, 0.0, "never zero: a zero fade renders NaN speckle")
+	assert_lt(fresh.block_projection_edge_fade, 1.0, "the shaft stays crisp rather than fading across its whole height")

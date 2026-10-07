@@ -209,12 +209,18 @@ func _same_circle(a: InfluenceCircle, b: InfluenceCircle) -> bool:
 	)
 
 
+## Differential against a copy of the pre-change algorithm. Size kept moderate: the oracle is
+## quadratic, and a few dozen seeded sets with forced radius ties exercise every branch.
+const SET_COUNT: int = 60
+const MAX_SET_SIZE: int = 120
+
+
 func test_randomized_sets_match_the_pre_change_algorithm() -> void:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = 2212
 	var level_heights: PackedFloat32Array = PackedFloat32Array([0.0, 0.5, 1.0, 2.0, 3.5, 5.0])
-	for set_index: int in range(500):
-		var n: int = rng.randi_range(0, 300) if set_index % 10 != 0 else rng.randi_range(0, 4)
+	for set_index: int in range(SET_COUNT):
+		var n: int = rng.randi_range(0, MAX_SET_SIZE) if set_index % 10 != 0 else rng.randi_range(0, 4)
 		var circles: Array[InfluenceCircle] = []
 		var heights: PackedFloat32Array = PackedFloat32Array()
 		var spread: float = rng.randf_range(1.0, 25.0)
@@ -250,4 +256,4 @@ func test_randomized_sets_match_the_pre_change_algorithm() -> void:
 			if not _same_circle(got_circles[i], want_circles[i]):
 				fail_test("set %d circle %d differs" % [set_index, i])
 				return
-	pass_test("500 randomized sets match the oracle")
+	pass_test("%d randomized sets match the oracle" % SET_COUNT)

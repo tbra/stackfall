@@ -119,43 +119,47 @@ func test_pass_one_look_is_still_reachable_from_tuning() -> void:
 	tuning.upper_belly_depth = saved_belly
 
 
-func test_shader_has_round_bottoms_and_the_clearance_fade() -> void:
+func _uniform_names() -> Array:
 	var shader: Shader = load("res://shaders/cloud_puffs.gdshader") as Shader
-	var code_lines: PackedStringArray = PackedStringArray()
-	for line: String in shader.code.split("\n"):
-		code_lines.append(line.split("//")[0])
-	var code: String = "\n".join(code_lines)
-	assert_true(code.contains("instance uniform float flat_base_override"), "the upper layer carries its own base plane")
-	assert_true(code.contains("bool round_bottom = base_flat >= round_base_from;"))
-	assert_true(code.contains("bool on_base = mesh_n.y < -0.7 && !round_bottom;"), "a round puff has no base fragments")
-	assert_true(code.contains("if (!round_bottom && entry.y < -base_flat) {"), "no plane cut under a round puff")
-	assert_true(code.contains("base_ramp = 1.0 - smoothstep(min(round_under_start, 0.99), 1.0, -n.y);"),
-		"the underbelly bounce follows the normal on a round bottom")
-	assert_true(code.contains("if (floor_on > 0.5 && base_clear_end_m > 0.0) {"), "the fade is the upper layer's only")
-	assert_true(code.contains("surface.y - cam.y"), "the fade follows the surface height above the camera")
-	assert_true(code.contains("if (clearance < bayer4(FRAGCOORD.xy)) {"), "ordered dither, like the near fade")
+	var names: Array = []
+	for entry: Dictionary in shader.get_shader_uniform_list():
+		names.append(entry["name"])
+	return names
 
 
-func test_shader_hull_covers_the_chord_error_and_upper_rim_is_calmer_on_side_faces() -> void:
-	var shader: Shader = load("res://shaders/cloud_puffs.gdshader") as Shader
-	var code_lines: PackedStringArray = PackedStringArray()
-	for line: String in shader.code.split("
-"):
-		code_lines.append(line.split("//")[0])
-	var code: String = "
-".join(code_lines)
-	assert_true(code.contains("uniform float hull_chord_margin = 0.05;"))
-	assert_true(code.contains("+ hull_margin + hull_chord_margin;"), "the hull is inflated past the faces' chord error")
-	assert_true(code.contains("uniform float upper_rim_down_shift = 0.1;"))
-	assert_true(code.contains("smoothstep(-0.25 - upper_rim_down_shift * floor_on, 0.25 - upper_rim_down_shift * floor_on, -n.y)"),
-		"only the upper layer gets the calmer rim; the sea keeps rim *= 1 - smoothstep(-0.25, 0.25, -n.y)")
+## The shader exposes the knobs the CloudSea code drives (presence, not source text); the
+## behaviour they carry is covered by the tuning/instance-parameter tests above.
+func test_shader_exposes_the_round_bottom_and_clearance_fade_params() -> void:
+	var names: Array = _uniform_names()
+	for param: String in ["base_clear_start_m", "base_clear_end_m", "hull_chord_margin", "upper_rim_down_shift"]:
+		assert_true(names.has(param), "cloud_puffs shader declares %s" % param)
+	var sea: CloudSea = _upper_sea()
+	assert_not_null(sea.puff_material().get_shader_parameter(&"base_clear_end_m"), "CloudSea passes the fade to the material")
+	assert_not_null(sea.upper_instance().get_instance_shader_parameter(&"flat_base_override"), "the upper layer carries its own base plane")
+
+
+## The shader's declared default of a float uniform (the dummy renderer cannot report it).
+func _declared_default(uniform_name: String) -> float:
+	var declaration: RegEx = RegEx.new()
+	declaration.compile("uniform\\s+float\\s+%s\\b[^=;]*=\\s*([-+0-9.eE]+)\\s*;" % uniform_name)
+	var code: String = (load("res://shaders/cloud_puffs.gdshader") as Shader).code
+	var found: RegExMatch = declaration.search(code)
+	assert_not_null(found, "uniform float %s has a declared default" % uniform_name)
+	return found.get_string(1).to_float() if found != null else 0.0
+
+
+func test_hull_covers_the_chord_error() -> void:
+	assert_true(_uniform_names().has("hull_chord_margin"))
 	# The hull's chord error: how far inside the unit sphere the mesh's flat faces are at worst.
-	var silhouette: float = 1.0 + CloudSea.hull_inflate(ShaderMaterial.new()) - 0.04
-	var push: float = CloudSea.hull_inflate(ShaderMaterial.new()) + 0.05
+	var chord_margin: float = _declared_default("hull_chord_margin")
+	var hull_margin: float = _declared_default("hull_margin")
+	assert_gt(chord_margin, 0.0, "the shader inflates its hull past the chord error")
+	var silhouette: float = 1.0 + CloudSea.hull_inflate(ShaderMaterial.new()) - hull_margin
+	var push: float = CloudSea.hull_inflate(ShaderMaterial.new()) + chord_margin
 	var high_inradius: float = _inradius(CloudSea.build_puff_mesh(1.0, 1))
 	assert_lt(high_inradius, 0.97, "the High preset's 80-face puff is visibly coarser than a sphere")
 	assert_gte(high_inradius * (1.0 + push), silhouette, "with the chord margin its hull holds the largest lump")
-	assert_lt(high_inradius * (1.0 + push - 0.05), silhouette, "positive control: without it the faces slice lump tops")
+	assert_lt(high_inradius * (1.0 + push - chord_margin), silhouette, "positive control: without it the faces slice lump tops")
 	assert_gte(_inradius(CloudSea.build_puff_mesh(1.0, 2)) * (1.0 + push), silhouette)
 
 
