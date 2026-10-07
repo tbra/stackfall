@@ -119,7 +119,9 @@ const DEVICE_EXCEPTIONS: Dictionary = {
 	"camera_zoom_modifier": "mouse",
 }
 
-const AUTOLOADS: PackedStringArray = ["Events", "Settings", "Net", "Match", "Screenshots"]
+const AUTOLOADS: PackedStringArray = [
+	"StartupPump", "Events", "Settings", "Net", "Match", "SnapshotSync", "MatchNet", "Sfx", "Screenshots", "Rumble"
+]
 
 
 func test_snap_rotation_uses_b_without_shoulder_rotation() -> void:
@@ -216,6 +218,10 @@ func test_autoloads_are_registered() -> void:
 			get_tree().root.get_node_or_null(NodePath(singleton)),
 			"Autoload %s did not load at runtime." % singleton
 		)
+
+
+func test_startup_pump_is_first_root_child() -> void:
+	assert_eq(get_tree().root.get_child(0).name, &"StartupPump", "StartupPump must be the first autoload.")
 
 
 func test_every_required_action_exists() -> void:
