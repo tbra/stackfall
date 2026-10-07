@@ -46,6 +46,7 @@ func _render_all() -> void:
 	material.set_shader_parameter(&"albedo_color", Color.WHITE)
 	var outline_material: ShaderMaterial = ShaderMaterial.new()
 	outline_material.shader = load("res://shaders/block_outline.gdshader")
+	outline_material.set_shader_parameter(&"tint_color", Color.WHITE)
 	for uniform: Dictionary in outline_material.shader.get_shader_uniform_list():
 		var parameter: StringName = uniform["name"]
 		var value: Variant = visual_tuning.get(parameter)
@@ -62,7 +63,6 @@ func _render_all() -> void:
 		var outline: MeshInstance3D = MeshInstance3D.new()
 		outline.mesh = generated_mesh
 		outline.material_override = outline_material
-		outline.set_instance_shader_parameter(&"tint_color", Color.WHITE)
 		visual.add_child(outline)
 		viewport.add_child(visual)
 		var mesh: MeshInstance3D = visual.get_node("BlockMesh")

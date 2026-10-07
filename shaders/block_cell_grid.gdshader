@@ -117,11 +117,13 @@ uniform float rim_strength : hint_range(0.0, 1.0) = 0.22;
 uniform vec4 rim_cool_color : source_color = vec4(0.55, 0.65, 1.0, 1.0);
 uniform float rim_cool_strength : hint_range(0.0, 1.0) = 0.16;
 
-instance uniform bool contributing = false;
+// Explicit instance indices: this shader's next_pass (block_outline.gdshader)
+// shares dissolve_amount on the same MeshInstance3D, so the slots must match.
+instance uniform bool contributing : instance_index(0) = false;
 // Bontago-1pi.11.42: hole dissolve progress 0..1, driven per block by
 // game/BlockDissolveFx.gd (instance uniform: the shared per-colour material
 // is untouched). 0 costs one branch.
-instance uniform float dissolve_amount = 0.0;
+instance uniform float dissolve_amount : instance_index(1) = 0.0;
 uniform float dissolve_noise_scale = 5.0;
 uniform float dissolve_edge_width : hint_range(0.01, 0.6) = 0.14;
 uniform float dissolve_rim_glow = 3.0;

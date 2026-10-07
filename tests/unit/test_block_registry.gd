@@ -120,7 +120,7 @@ func test_owner_conversion_updates_territory_and_only_target_material() -> void:
 	assert_eq(registry.influence_circles(_slots(2), _territory_tuning, _map_def)[0].slot_id, 0)
 	assert_ne(target_mesh.material_override, old_material)
 	assert_eq((target_mesh.material_override as ShaderMaterial).get_shader_parameter(&"albedo_color"), paint_color)
-	assert_eq((target.get_node("BlockOutline") as MeshInstance3D).get_instance_shader_parameter(&"tint_color"), paint_color)
+	assert_eq(((target_mesh.material_override as ShaderMaterial).next_pass as ShaderMaterial).get_shader_parameter(&"tint_color"), paint_color)
 	assert_eq(other_mesh.material_override, other_material)
 	assert_false(registry.convert_owner(target, 0, paint_color), "repeat conversion does nothing")
 	var untracked: Block = autofree(Block.new())

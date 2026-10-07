@@ -11,10 +11,8 @@ func test_cube_mass_and_shape_count() -> void:
 	assert_eq(block.cube_count, 1)
 	assert_almost_eq(block.mass, _tuning.cube_mass * 1.0, 0.0001)
 	assert_eq(_count_children_of_type(block, "CollisionShape3D"), 1)
-	# Bontago-xtq.27: a real spawned block now carries a second MeshInstance3D
-	# ("BlockOutline", inverted-hull outline pass) alongside the primary
-	# ("BlockMesh") one -- see game/BlockFactory.gd's own DECISION comment.
-	assert_eq(_count_children_of_type(block, "MeshInstance3D"), 2)
+	# Bontago-1pi.11.60: the outline is a next_pass on the BlockMesh material.
+	assert_eq(_count_children_of_type(block, "MeshInstance3D"), 1)
 
 
 func test_bar4_mass_and_shape_count() -> void:
@@ -25,9 +23,9 @@ func test_bar4_mass_and_shape_count() -> void:
 	assert_eq(_count_children_of_type(block, "CollisionShape3D"), 4)
 	# Bontago-xtq.3: one solid mesh for the whole shape, not one per cell --
 	# see game/BlockFactory.gd's DECISION and core/blocks/BlockMeshBuilder.gd.
-	# Bontago-xtq.27 adds a second MeshInstance3D (the outline pass) on top of
-	# that single solid mesh -- see game/BlockFactory.gd's own DECISION comment.
-	assert_eq(_count_children_of_type(block, "MeshInstance3D"), 2)
+	# Bontago-1pi.11.60: the outline is a next_pass on that mesh's material,
+	# not a second MeshInstance3D.
+	assert_eq(_count_children_of_type(block, "MeshInstance3D"), 1)
 
 
 ## Bontago-xtq.3 (owner feel report "our blocks are made up of many smaller
@@ -42,8 +40,8 @@ func test_every_shape_builds_exactly_one_mesh_instance_regardless_of_cube_count(
 	for shape: BlockShape in BlockShape.load_all_shapes():
 		var block: Block = autofree(BlockFactory.build(shape, _tuning))
 		assert_eq(
-			_count_children_of_type(block, "MeshInstance3D"), 2,
-			"%s (cube_count=%d) should build exactly one solid MeshInstance3D plus its outline pass." % [shape.id, shape.cells.size()]
+			_count_children_of_type(block, "MeshInstance3D"), 1,
+			"%s (cube_count=%d) should build exactly one MeshInstance3D (outline is a next_pass)." % [shape.id, shape.cells.size()]
 		)
 		assert_eq(_count_children_of_type(block, "CollisionShape3D"), shape.cells.size())
 		var visual: Node3D = autofree(BlockFactory.build_visual_only(shape, _tuning))
@@ -202,10 +200,10 @@ func test_two_blocks_of_the_same_slot_color_share_one_cached_material() -> void:
 		if child is MeshInstance3D and child.name == &"BlockMesh":
 			assert_eq((child as MeshInstance3D).material_override, material_a)
 
-	var outline_a: Material = (block_a.get_node(^"BlockOutline") as MeshInstance3D).material_override
-	var outline_b: Material = (block_b.get_node(^"BlockOutline") as MeshInstance3D).material_override
+	var outline_a: Material = material_a.next_pass
+	var outline_b: Material = material_b.next_pass
 	assert_not_null(outline_a)
-	assert_eq(outline_a, outline_b, "the outline pass is one shared ShaderMaterial regardless of owner colour.")
+	assert_eq(outline_a, outline_b, "the outline pass is one cached ShaderMaterial per owner colour.")
 	assert_ne(outline_a, material_a, "the outline pass must not be the same ShaderMaterial as the solid-mesh one.")
 
 
@@ -338,7 +336,7 @@ func test_built_blocks_use_the_same_cell_offsets_as_their_ghost_visual() -> void
 			# only outline pass sharing the exact same ArrayMesh (and the exact
 			# same node position) as "BlockMesh", not a distinct cell placement,
 			# so it must not be double-counted against the ghost's one entry.
-			if child is MeshInstance3D and child.name != &"BlockOutline":
+			if child is MeshInstance3D:
 				block_positions.append((child as MeshInstance3D).position)
 		var visual_positions: Array[Vector3] = []
 		for child: Node in visual.get_children():

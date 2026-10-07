@@ -205,7 +205,7 @@ func test_dissolve_start_fades_only_the_right_block() -> void:
 	fx.step(0.2)
 	assert_almost_eq(fx.amount_for(target), 0.5, 0.001)
 	assert_almost_eq(_instance_amount(target, &"BlockMesh"), 0.5, 0.001)
-	assert_almost_eq(_instance_amount(target, &"BlockOutline"), 0.5, 0.001, "The outline fades in step.")
+	assert_null(target.get_node_or_null("BlockOutline"), "The outline is a next_pass now, fading with BlockMesh.")
 	assert_almost_eq(_instance_amount(other, &"BlockMesh"), 0.0, 0.001, "Other blocks are untouched.")
 	fx.step(1.0)
 	assert_almost_eq(fx.amount_for(target), 1.0, 0.001, "Progress clamps at 1.")

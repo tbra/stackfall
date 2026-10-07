@@ -28,10 +28,10 @@ extends RefCounted
 ## shape was never the thing the owner was seeing.
 ##
 ## Bontago-xtq.27 (M7 P2, spec 2.10 as amended, owner decision 2026-09-26
-## Bontago-5h7 Q1/Q2): a real spawned block now carries a *second*
-## MeshInstance3D (named "BlockOutline") sharing that exact same ArrayMesh --
-## an inverted-hull outline pass, shaders/block_outline.gdshader -- in
-## addition to the primary one (named "BlockMesh"), whose material is now
+## Bontago-5h7 Q1/Q2): a real spawned block's material now chains an
+## inverted-hull outline pass (shaders/block_outline.gdshader) as next_pass
+## (Bontago-1pi.11.60; formerly a second "BlockOutline" node) on the one
+## "BlockMesh" MeshInstance3D, whose material is now
 ## shaders/block_cell_grid.gdshader (toon-banded diffuse + UV-edge cell-grid
 ## lines + a per-instance "contributing" glow toggle). The mesh geometry
 ## itself, and the ghost-only ("BlockOutline"-less) path through
@@ -67,11 +67,9 @@ const HOLE_VISUALS: HoleVisualTuning = preload("res://config/hole_visual_tuning.
 ## process.
 static var _materials_by_color: Dictionary = {}
 
-## Bontago-xtq.27: the outline pass's own ShaderMaterial never varies by
-## owner colour (outline_color/outline_width_m are both plain
-## BlockVisualTuning fields, not per-player), so exactly one instance is ever
-## built, lazily, the first time a real block spawns.
-static var _outline_material: ShaderMaterial = null
+## Bontago-1pi.11.60: one outline ShaderMaterial per owner colour (its tint is
+## a plain uniform), chained as that colour's material next_pass.
+static var _outline_materials_by_color: Dictionary = {}
 
 
 ## `owner_slot` defaults to -1 so M1's call sites (no player slots yet) keep
@@ -255,9 +253,8 @@ static func build_visual_only(shape: BlockShape, tuning: PhysicsTuning) -> Node3
 ## "BlockMesh" holding a BlockMeshBuilder-generated mesh for the whole shape,
 ## with interior faces already removed; when `material` is non-null (a real
 ## spawned block, never build_visual_only()'s ghost -- see that function's own
-## doc comment) a second MeshInstance3D named "BlockOutline" is added sharing
-## that exact same mesh resource, with the shared inverted-hull outline
-## ShaderMaterial. Falls back to the pre-existing one-mesh-per-cell path
+## doc comment) the material carries the shared inverted-hull outline
+## ShaderMaterial as its next_pass (Bontago-1pi.11.60; no second node). Falls back to the pre-existing one-mesh-per-cell path
 ## (`material` per cell, no face culling, no outline) only for a shape
 ## BlockMeshBuilder.build_mesh() refuses -- see its own doc comment for
 ## exactly when that is (sloped_cells or a custom shape.mesh, neither used by
@@ -273,36 +270,16 @@ static func _add_shape_visual(
 		mesh_instance.material_override = material
 		parent.add_child(mesh_instance)
 
-		# DECISION (game/BlockFactory.gd, Bontago-xtq.27, docs/M7_PLAN.md P2):
-		# a second MeshInstance3D sharing this same ArrayMesh, not a
-		# next_pass material on the primary one. next_pass still costs
-		# Godot a full second render pass per block either way, but chains
-		# both shaders onto ONE surface's render_mode -- the cell-grid pass
-		# needs cull_back (normal) while the outline needs cull_front
-		# (inverted hull); a second MeshInstance3D keeps each shader's own
-		# render_mode simple and independent instead of fighting over one
-		# surface's cull state. Only added for a real spawned block
-		# (`material` non-null); build_visual_only()'s ghost stays at
-		# exactly one MeshInstance3D so GhostPreview's own tint logic
-		# (_apply_material_to_visual(), which overwrites every
-		# MeshInstance3D child's material_override with one plain tint)
-		# keeps working unmodified instead of stomping the outline's
-		# ShaderMaterial.
-		if material != null:
-			var outline_instance: MeshInstance3D = MeshInstance3D.new()
-			outline_instance.name = &"BlockOutline"
-			outline_instance.mesh = combined_mesh
-			outline_instance.material_override = _outline_material_singleton()
-			outline_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			# Bontago-mp0.3.1 (owner feedback: the outline should be "a dark
-			# tinted version of the block color rather than pure black"): a
-			# per-instance shader parameter, not a second cached material --
-			# the outline ShaderMaterial stays the one shared singleton
-			# (_outline_material_singleton()) regardless of owner colour.
-			outline_instance.set_instance_shader_parameter(
-				&"tint_color", material.get_shader_parameter(&"albedo_color")
-			)
-			parent.add_child(outline_instance)
+		# DECISION (Bontago-1pi.11.60): the inverted-hull outline is now the
+		# per-colour material's next_pass (see _material_for_color()), not a
+		# second "BlockOutline" MeshInstance3D: one fewer node and draw item
+		# per block. Each pass keeps its own render_mode (cull_back vs
+		# cull_front). The engine also draws next_pass surfaces in the shadow
+		# pass, so block_outline.gdshader collapses itself via IN_SHADOW_PASS
+		# to keep the outline shadow-free. The outline's tint_color is a plain
+		# uniform on a per-colour outline material (instance uniforms did not
+		# reach the next_pass in the 1280x720 capture). build_visual_only()
+		# passes a null material, so the ghost never gets an outline.
 		return
 
 	var half_size: float = (tuning.cube_size - tuning.cube_margin) * 0.5
@@ -365,6 +342,7 @@ static func _material_for_color(color: Color) -> ShaderMaterial:
 	material.set_shader_parameter(&"dissolve_rim_glow", HOLE_VISUALS.dissolve_rim_glow)
 	material.set_shader_parameter(&"dissolve_rim_color", HOLE_VISUALS.void_rim_color)
 	material.set_shader_parameter(&"dissolve_void_color", HOLE_VISUALS.void_deep_color)
+	material.next_pass = _outline_material_for_color(color)
 	_materials_by_color[color] = material
 	return material
 
@@ -376,27 +354,27 @@ static func recolor(block: Block, color: Color) -> void:
 		return
 	var material: ShaderMaterial = _material_for_color(color)
 	for child: Node in block.get_children():
-		if child is MeshInstance3D and child.name == &"BlockOutline":
-			(child as MeshInstance3D).set_instance_shader_parameter(&"tint_color", color)
-		elif child is MeshInstance3D:
+		if child is MeshInstance3D:
 			(child as MeshInstance3D).material_override = material
 
 
-static func _outline_material_singleton() -> ShaderMaterial:
-	if _outline_material == null:
-		var material: ShaderMaterial = ShaderMaterial.new()
-		material.shader = OUTLINE_SHADER
-		material.set_shader_parameter(&"outline_width_px", VISUAL_TUNING.outline_width_px)
-		material.set_shader_parameter(&"outline_far_width_px", VISUAL_TUNING.outline_far_width_px)
-		material.set_shader_parameter(&"outline_fade_start_m", VISUAL_TUNING.outline_fade_start_m)
-		material.set_shader_parameter(&"outline_far_distance_m", VISUAL_TUNING.outline_far_distance_m)
-		material.set_shader_parameter(&"outline_color", VISUAL_TUNING.outline_color)
-		material.set_shader_parameter(&"outline_tint_amount", VISUAL_TUNING.outline_tint_amount)
-		material.set_shader_parameter(&"outline_tint_darken", VISUAL_TUNING.outline_tint_darken)
-		material.set_shader_parameter(&"dissolve_noise_scale", HOLE_VISUALS.dissolve_noise_scale)
-		material.set_shader_parameter(&"dissolve_edge_width", HOLE_VISUALS.dissolve_edge_width)
-		_outline_material = material
-	return _outline_material
+static func _outline_material_for_color(color: Color) -> ShaderMaterial:
+	if _outline_materials_by_color.has(color):
+		return _outline_materials_by_color[color]
+	var material: ShaderMaterial = ShaderMaterial.new()
+	material.shader = OUTLINE_SHADER
+	material.set_shader_parameter(&"tint_color", color)
+	material.set_shader_parameter(&"outline_width_px", VISUAL_TUNING.outline_width_px)
+	material.set_shader_parameter(&"outline_far_width_px", VISUAL_TUNING.outline_far_width_px)
+	material.set_shader_parameter(&"outline_fade_start_m", VISUAL_TUNING.outline_fade_start_m)
+	material.set_shader_parameter(&"outline_far_distance_m", VISUAL_TUNING.outline_far_distance_m)
+	material.set_shader_parameter(&"outline_color", VISUAL_TUNING.outline_color)
+	material.set_shader_parameter(&"outline_tint_amount", VISUAL_TUNING.outline_tint_amount)
+	material.set_shader_parameter(&"outline_tint_darken", VISUAL_TUNING.outline_tint_darken)
+	material.set_shader_parameter(&"dissolve_noise_scale", HOLE_VISUALS.dissolve_noise_scale)
+	material.set_shader_parameter(&"dissolve_edge_width", HOLE_VISUALS.dissolve_edge_width)
+	_outline_materials_by_color[color] = material
+	return material
 
 
 static func _make_collision_shape(half_size: float, sloped: bool) -> Shape3D:
