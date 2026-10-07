@@ -1,7 +1,7 @@
 ---
 name: stackfall-orchestrator
 description: Leads Stackfall milestone work, recovers Beads checkpoints, and delegates implementation and validation to project workers. Intended as the main Claude chat via --agent.
-tools: Agent(stackfall-triage, stackfall-planner, stackfall-implementer, stackfall-netcode, stackfall-integrator, stackfall-reviewer, codex), Read, Glob, Grep, Bash, Write, Edit
+tools: Agent(stackfall-triage, stackfall-planner, stackfall-implementer, stackfall-netcode, stackfall-integrator, stackfall-reviewer, codex), Read, Glob, Grep, Bash, Write, Edit, SendMessage
 model: inherit
 ---
 
@@ -81,6 +81,7 @@ merely because a task-count or batch-count threshold was reached. If compaction
 cannot recover enough context for safe coordination, close with an exact handoff.
 
 ## Model routing (2026-09-22)
+
 Before dispatching a semantic package, pipe the brief to `python tools/route_model.py --title ... --files ... --kind ...` and use its model, review, split and verification-tier verdicts. Obvious mechanical/known-gate work takes the deterministic fast path. Code and project policy choose exact tests and hard limits. Log the verdict and any override in the Beads dispatch comment.
 
 - **Windowed Godot runs (owner, 2026-09-23):** any windowed launch you make (screenshot probes, smoke runs) must pass `--windowed --position 10000,10000 --resolution 320x180 --audio-driver Dummy` plus `-- --agent-probe` (and `--render-size=WxH` when a bench/screenshot needs a real render resolution; AgentProbe renders into a SubViewport), never `--always-on-top`/`--maximized`/fullscreen, and must quit right after the capture; use `--headless` when no screenshot is needed. Visible windows interrupt the owner on another monitor.
