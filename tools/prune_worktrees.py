@@ -11,6 +11,7 @@ Dry-run unless --apply. Prints one line: PRUNE removed=N kept_dirty=N kept_unmer
 import argparse
 import fnmatch
 import subprocess
+import time
 import sys
 
 DEFAULT_REPO = "M:/Bontago"
@@ -48,6 +49,23 @@ def is_protected(branch, patterns):
     return any(fnmatch.fnmatchcase(branch, p) for p in patterns)
 
 
+FRESH_MAX_AGE_S = 24 * 3600
+
+
+def is_fresh(repo, branch):
+    """True when the branch was created and never committed to (Bontago-fca.57): a just-created
+    agent worktree is clean and its tip is already in main, so it looks 'merged'. Its reflog then
+    holds only the 'branch: Created from' entry."""
+    code, text = _git(repo, "reflog", "show", "--format=%ct|%gs", "refs/heads/" + branch)
+    if code != 0:
+        return False
+    rows = [ln.split("|", 1) for ln in text.splitlines() if "|" in ln]
+    if not rows or not all(r[1].startswith("branch: Created from") for r in rows):
+        return False
+    # Older uncommitted branches are abandoned, not about to be used.
+    return time.time() - int(rows[-1][0]) < FRESH_MAX_AGE_S
+
+
 def is_clean(path):
     """True if status shows nothing except untracked .import/.uid files. None if status failed."""
     code, text = _git(path, "status", "--porcelain")
@@ -61,7 +79,7 @@ def is_clean(path):
     return True
 
 
-def prune(repo, apply=False, branches=None, protect=None, say=print):
+def prune(repo, apply=False, branches=None, protect=None, say=print, keep_fresh=True):
     """Returns counts: removed/kept_dirty/kept_unmerged/protected/failed."""
     patterns = DEFAULT_PROTECT if protect is None else protect
     counts = {"removed": 0, "kept_dirty": 0, "kept_unmerged": 0, "protected": 0, "failed": 0}
@@ -85,6 +103,10 @@ def prune(repo, apply=False, branches=None, protect=None, say=print):
         if not clean:
             say("keep  %s (%s): dirty%s" % (path, branch, "" if clean is False else " (status failed)"))
             counts["kept_dirty"] += 1
+            continue
+        if keep_fresh and is_fresh(repo, branch):
+            say("keep  %s (%s): fresh (no commits yet; an agent may be about to work here)" % (path, branch))
+            counts["kept_unmerged"] += 1
             continue
         if not apply:
             say("would remove %s (%s): merged and clean" % (path, branch))

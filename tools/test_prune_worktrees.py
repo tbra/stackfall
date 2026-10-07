@@ -48,7 +48,15 @@ class PruneTest(unittest.TestCase):
                               capture_output=True, text=True).stdout.split()
 
     def run_prune(self, apply=True, **kw):
+        kw.setdefault("keep_fresh", False)  # these fixtures model finished branches
         return pw.prune(self.repo, apply=apply, say=lambda s: None, **kw)
+
+    def test_fresh_uncommitted_branch_kept(self):
+        # Bontago-fca.57: a just-created agent worktree looks merged and clean.
+        p = self.add_wt("wt/fresh")
+        c = self.run_prune(keep_fresh=True)
+        self.assertEqual(c["removed"], 0)
+        self.assertTrue(os.path.exists(p))
 
     def test_merged_clean_removed_and_branch_deleted(self):
         p = self.add_wt("wt/a")
