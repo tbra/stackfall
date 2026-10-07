@@ -35,6 +35,7 @@ func test_missing_main_scene_fails_instead_of_hanging() -> void:
 	add_child(boot)
 	await get_tree().process_frame
 	assert_true(boot.load_failed, "the failed load is reported")
-	assert_push_error_count(1, "Boot reports the failure once")
-	assert_engine_error("found", "the engine reports the missing resource")
+	await get_tree().process_frame
+	assert_push_error_count(1, "Boot reports the failure exactly once (no _process re-poll)")
+	assert_engine_error_count(2, "the engine reports the failed sync load (open + condition)")
 	boot.queue_free()

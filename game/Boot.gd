@@ -24,7 +24,11 @@ var _threaded: bool = false
 
 
 func _ready() -> void:
-	_threaded = DisplayServer.get_name() != "headless" 			and ResourceLoader.load_threaded_request(main_scene_path) == OK
+	# _process is auto-enabled by its override; only the threaded path polls (the sync path
+	# would otherwise report a second, bogus failure).
+	set_process(false)
+	_threaded = (DisplayServer.get_name() != "headless"
+			and ResourceLoader.load_threaded_request(main_scene_path) == OK)
 	if not _threaded:
 		# Deferred: the root is still adding its main scene while _ready runs, so the swap
 		# happens on the next idle step instead of inside this callback.
