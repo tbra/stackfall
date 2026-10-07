@@ -769,6 +769,36 @@ func test_refresh_lobby_list_filters_by_this_builds_game_and_version() -> void:
 	assert_true(keys.has(String(SteamClient.KEY_VERSION)))
 
 
+func test_two_quick_lobby_refreshes_send_one_request_at_a_time() -> void:
+	var fake: FakeSteam = FakeSteam.new()
+	_ready_steam(_client, fake)
+	_client.refresh_lobby_list()
+	_client.refresh_lobby_list()
+	assert_eq(fake.request_lobby_list_calls.size(), 1, "second refresh is coalesced while one is pending")
+	fake.lobby_match_list.emit([])
+	assert_eq(fake.request_lobby_list_calls.size(), 2, "the queued refresh is sent after the answer")
+	fake.lobby_match_list.emit([])
+	assert_eq(fake.request_lobby_list_calls.size(), 2)
+
+
+func test_lobby_debug_unfiltered_request_follows_filtered_answer() -> void:
+	var fake: FakeSteam = FakeSteam.new()
+	_ready_steam(_client, fake)
+	_client.steam_lobby_debug = true
+	fake.seed_lobby(111, 555, 2, {"game": String(Net.DISCOVERY_MAGIC), "version": _client.build_version(), "map": "round", "host_name": "A"})
+	fake.seed_lobby(222, 777, 5, {"game": "other", "version": "x"})
+	_client.refresh_lobby_list()
+	assert_eq(fake.unfiltered_requests, 0, "unfiltered request must not overlap the filtered one")
+	fake.lobby_match_list.emit([111])
+	assert_eq(_client.discovered_lobbies().size(), 1)
+	assert_eq(fake.unfiltered_requests, 1)
+	fake.lobby_match_list.emit([111, 222]) # answers the unfiltered request: must not touch the cache
+	assert_eq(_client.discovered_lobbies().size(), 1)
+	assert_eq(int(_client.discovered_lobbies()[0]["lobby_id"]), 111)
+	_client.refresh_lobby_list()
+	assert_eq(fake.request_lobby_list_calls.size(), 2, "a new refresh is allowed once the debug answer arrived")
+
+
 func test_invite_friends_is_a_no_op_off_steam_or_before_a_lobby_exists() -> void:
 	var fake: FakeSteam = FakeSteam.new()
 	_host.steam_provider = fake

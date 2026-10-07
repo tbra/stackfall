@@ -801,14 +801,18 @@ func refresh_lobby_list() -> void:
 	_wire_steam_signals()
 	if not steam_available():
 		return
+	# Bontago-1pi.105: Steam keeps one outstanding lobby list request; never overlap.
+	if _lobby_list_pending != LobbyListPending.NONE and Time.get_ticks_msec() - _lobby_list_sent_msec < LOBBY_LIST_STALE_MSEC:
+		_lobby_list_refresh_queued = true
+		print("STEAM lobby search: refresh coalesced, a request is still pending")
+		return
 	var filters: Array[Dictionary] = [
 		{"key": String(SteamClient.KEY_GAME), "value": String(DISCOVERY_MAGIC)},
 		{"key": String(SteamClient.KEY_VERSION), "value": build_version()},
 	]
 	steam_provider.request_lobby_list(filters)
-	if OS.get_cmdline_user_args().has("--steam-lobby-debug") and not _steam_debug_pending:
-		_steam_debug_pending = true
-		steam_provider.request_unfiltered_debug_list()
+	_lobby_list_pending = LobbyListPending.FILTERED
+	_lobby_list_sent_msec = Time.get_ticks_msec()
 
 
 ## Opens the Steam overlay's invite dialog for this session's lobby. A no-op
@@ -976,22 +980,33 @@ func _on_steam_lobby_joined(lobby_id: int, response: int) -> void:
 	# unmodified _rpc_handshake round trip — no Steam-specific code needed.
 
 
-var _steam_debug_pending: bool = false
-var _steam_debug_answer_next: bool = false
+enum LobbyListPending { NONE, FILTERED, DEBUG }
+## A lobby list request this old is presumed lost, so a new refresh may go out.
+const LOBBY_LIST_STALE_MSEC: int = 15000
+var _lobby_list_pending: LobbyListPending = LobbyListPending.NONE
+var _lobby_list_refresh_queued: bool = false
+var _lobby_list_sent_msec: int = 0
+## `--steam-lobby-debug`; a var so tests can toggle it.
+var steam_lobby_debug: bool = OS.get_cmdline_user_args().has("--steam-lobby-debug")
 
 
 func _on_steam_lobby_match_list(lobby_ids: Array) -> void:
-	if _steam_debug_pending and _steam_debug_answer_next:
-		_steam_debug_pending = false
-		_steam_debug_answer_next = false
+	if _lobby_list_pending == LobbyListPending.DEBUG:
+		_lobby_list_pending = LobbyListPending.NONE
 		var lines: PackedStringArray = PackedStringArray()
 		for i: int in mini(LOBBY_DEBUG_SAMPLE_COUNT, lobby_ids.size()):
 			var id: int = int(lobby_ids[i])
-			lines.append("%d{game=%s version=%s}" % [id, steam_provider.get_lobby_data(id, String(SteamClient.KEY_GAME)), steam_provider.get_lobby_data(id, String(SteamClient.KEY_VERSION))])
-		print("STEAM unfiltered debug search: %d lobbies visible; first: %s" % [lobby_ids.size(), " ".join(lines)])
+			lines.append("%d{owner=%d members=%d game=%s version=%s}" % [id, steam_provider.lobby_owner(id), steam_provider.lobby_member_count(id), steam_provider.get_lobby_data(id, String(SteamClient.KEY_GAME)), steam_provider.get_lobby_data(id, String(SteamClient.KEY_VERSION))])
+		print("STEAM unfiltered debug search (answers the unfiltered request): %d lobbies visible; first: %s" % [lobby_ids.size(), " ".join(lines)])
+		_drain_queued_lobby_refresh()
 		return
-	if _steam_debug_pending:
-		_steam_debug_answer_next = true
+	var was_filtered: bool = _lobby_list_pending == LobbyListPending.FILTERED
+	_lobby_list_pending = LobbyListPending.NONE
+	if was_filtered and steam_lobby_debug:
+		# Sent only now, after the filtered answer, so Steam never cancels one for the other.
+		steam_provider.request_unfiltered_debug_list()
+		_lobby_list_pending = LobbyListPending.DEBUG
+		_lobby_list_sent_msec = Time.get_ticks_msec()
 	var result: Array[Dictionary] = []
 	for raw_id: Variant in lobby_ids:
 		var lobby_id: int = int(raw_id)
@@ -1009,7 +1024,14 @@ func _on_steam_lobby_match_list(lobby_ids: Array) -> void:
 	_discovered_lobbies = result
 	Events.net_steam_lobbies_discovered.emit(result)
 	# Bontago-1pi.48: one line per search so a failed Steam join can be diagnosed from godot.log.
-	print("STEAM lobby search: %d lobbies returned, %d match game+version %s" % [lobby_ids.size(), result.size(), build_version()])
+	print("STEAM lobby search (answers the filtered request): %d lobbies returned, %d match game+version %s" % [lobby_ids.size(), result.size(), build_version()])
+	_drain_queued_lobby_refresh()
+
+
+func _drain_queued_lobby_refresh() -> void:
+	if _lobby_list_refresh_queued and _lobby_list_pending == LobbyListPending.NONE:
+		_lobby_list_refresh_queued = false
+		refresh_lobby_list()
 
 
 ## The overlay's "Join Game" / invite-accept path when this game is already
