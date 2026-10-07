@@ -96,6 +96,8 @@ func _apply_growth(grow: float) -> void:
 	_last_grow = grow
 	_material.set_shader_parameter(PARAM_GROW, grow)
 	_core.scale = Vector3.ONE * grow
+	# Opens up from underneath: the core rises from core_emerge_depth_m below the surface.
+	_core.position.y = -TUNING.core_emerge_depth_m * (1.0 - grow)
 	_core.visible = grow > 0.0
 
 

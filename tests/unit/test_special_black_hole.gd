@@ -483,3 +483,23 @@ func test_vortex_disc_matches_pull_radius_and_low_preset_drops_streaks() -> void
 	var built: ShaderMaterial = visual._build_material(true)
 	assert_eq(built.get_shader_parameter(&"streaks_on"), 0.0, "Low preset has no streaks")
 	assert_lt(float(built.get_shader_parameter(&"arm_count")), float(visual._build_material(false).get_shader_parameter(&"arm_count")))
+
+
+func test_shipped_black_hole_activates_in_place_and_fires_on_the_first_tick() -> void:
+	var def: SpecialDef = SpecialDef.find_by_id(&"black_hole")
+	assert_true(def.activates_in_place, "opens where the gift is dropped (Bontago-1pi.85.45)")
+	assert_eq(def.arm_delay, 0.0)
+	assert_eq(def.fuse_timeout_s, 0.0, "no fuse wait: the hole opens at release")
+
+
+func test_vortex_core_opens_up_from_below_the_surface() -> void:
+	var effect: BlackHoleEffect = SpecialDef.find_by_id(&"black_hole").effect as BlackHoleEffect
+	var tuning: BlackHoleVisualTuning = load("res://config/black_hole_visual.tres") as BlackHoleVisualTuning
+	var visual: BlackHoleVisual = BlackHoleVisual.new()
+	add_child_autofree(visual)
+	visual.setup(effect.visual_radius_m, effect.lifetime_s)
+	var core: MeshInstance3D = visual.get_child(1) as MeshInstance3D
+	assert_gt(tuning.core_emerge_depth_m, 0.0)
+	assert_almost_eq(core.position.y, -tuning.core_emerge_depth_m, 0.001, "starts below the surface")
+	visual._process(tuning.grow_in_s)
+	assert_almost_eq(core.position.y, 0.0, 0.001, "risen to the surface once grown in")

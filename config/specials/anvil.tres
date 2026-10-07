@@ -34,3 +34,4 @@ weight = 1.0
 enabled_by_default = true
 effect = SubResource("Resource_anvil_effect")
 activation_scale = 5.0
+sky_drop_height_m = 14.0
