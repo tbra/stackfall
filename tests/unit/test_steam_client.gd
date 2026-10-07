@@ -108,3 +108,25 @@ func test_is_available_is_false_without_the_real_steam_class_or_true_with_it() -
 	# that is_available() agrees with ClassDB, never touches Steam itself.
 	var client: SteamClient = SteamClient.new()
 	assert_eq(client.is_available(), ClassDB.class_exists(&"Steam"))
+
+
+## Bontago-1pi.48: leave/create/join log lines name the GDScript caller chain.
+func _origin_from_a_named_caller() -> String:
+	return _origin_helper()
+
+
+func _origin_helper() -> String:
+	return SteamClient.call_origin()
+
+
+func test_call_origin_names_the_caller_of_the_logging_method() -> void:
+	var origin: String = _origin_from_a_named_caller()
+	assert_string_contains(origin, "test_steam_client.gd")
+	assert_string_contains(origin, "_origin_from_a_named_caller", "frames start at the logging method's caller")
+	assert_false(origin.contains("_origin_helper"), "the logging method itself is skipped")
+
+
+## Without a Steam singleton the self-check still answers (no call reaches Steam).
+func test_self_check_line_without_steam_reports_not_initialised() -> void:
+	var client: SteamClient = SteamClient.new()
+	assert_string_contains(client.self_check_line(42), "lobby=42")
