@@ -55,6 +55,11 @@ var _nodes: Array[Node3D] = []
 ## Synchronous free() -- not queue_free() -- so no stale collider lingers in
 ## the physics world for even one frame into the next test (matches
 ## test_special_physics.gd's own "free bodies synchronously" precedent).
+const BLAST_RADIUS_M: float = 5.0
+const BLAST_PEAK_SPEED_MPS: float = 40.0
+const BLAST_MAX_DELTA_V_MPS: float = 1000.0
+const BLAST_FALLOFF_EXPONENT: float = 2.0
+
 func after_each() -> void:
 	for node: Node3D in _nodes:
 		if is_instance_valid(node):
@@ -197,10 +202,10 @@ func _drop_kick_and_measure_peak(tuning: PhysicsTuning, offset_x: float) -> floa
 
 # --- (c) explosion knockback on an airborne block must not be damped --------
 
-## MUST FAIL before the fix: SpecialPhysics.explode()'s apply_impulse() used
+## MUST FAIL before the fix: the blast's apply_impulse() used
 ## to never mark anything, so an airborne block's own knockback flipped its
 ## vertical velocity exactly like a real bounce and got scaled by
-## rebound_damping -- explode() now calls mark_script_kick() on every Block it
+## rebound_damping -- the blast now calls mark_script_kick() on every Block it
 ## hits (cast from the plain RigidBody3D it returns), fixing this the same
 ## way kick() fixes (b).
 func test_explosion_reaches_the_same_peak_regardless_of_rebound_damping() -> void:
@@ -223,9 +228,10 @@ func test_explosion_reaches_the_same_peak_regardless_of_rebound_damping() -> voi
 ## Spawns a fresh cube already in free-fall with a genuine downward velocity
 ## (see _drop_kick_and_measure_peak()'s own DECISION for why this is a fixed
 ## script write, not counted-out ticks), then detonates a
-## SpecialPhysics.explode() centred directly beneath it (a real
+## ExplosionFx.blast() centred directly beneath it (a real
 ## PhysicsDirectSpaceState3D query, same fixture idiom as
-## test_special_physics.gd) and returns the committed vertical velocity for
+## test_special_physics.gd; upward_bias 0 keeps it a pure outward/upward push,
+## old explode impulse 40 / max 1000 became delta-v 40 / max 1000 m/s) and returns the committed vertical velocity for
 ## that exact step.
 func _drop_explode_and_measure_peak(tuning: PhysicsTuning, offset_x: float) -> float:
 	var block: Block = _build_block(tuning)
@@ -235,6 +241,13 @@ func _drop_explode_and_measure_peak(tuning: PhysicsTuning, offset_x: float) -> f
 	assert_lt(block.linear_velocity.y, 0.0, "fixture: the block must still be falling when it explodes.")
 
 	var center: Vector3 = block.global_position - Vector3(0.0, 1.0, 0.0)
-	SpecialPhysics.explode(get_viewport().world_3d.direct_space_state, center, 5.0, 40.0, 1000.0, [])
+	var blast_tuning: ExplosionTuning = ExplosionTuning.new()
+	blast_tuning.radius_m = BLAST_RADIUS_M
+	blast_tuning.peak_speed_mps = BLAST_PEAK_SPEED_MPS
+	blast_tuning.max_delta_v_mps = BLAST_MAX_DELTA_V_MPS
+	blast_tuning.falloff_exponent = BLAST_FALLOFF_EXPONENT
+	blast_tuning.upward_bias = 0.0
+	var no_exclude: Array[RID] = []
+	ExplosionFx.blast(get_viewport().world_3d.direct_space_state, center, blast_tuning, no_exclude)
 	await wait_physics_frames(1)  # the impulse reaches linear_velocity, and the flag is consumed
 	return block.linear_velocity.y

@@ -26,29 +26,28 @@ const MAX_QUERY_RESULTS: int = 128
 ## call. The disc is one ConcavePolygonShape3D and `intersect_shape` returns one hit
 ## per triangle, so a query near the floor filled its MAX_QUERY_RESULTS cap with disc
 ## triangles and missed blocks resting on the disc (reproduced with 24 cubes on a real
-## Field: query_bodies_in_range()/explode() found only 5 of them).
+## Field: query_bodies_in_range() and the old explode() found only 5 of them).
 ## The one implementation of the multi-pass, per-body-deduplicated query is
-## ExplosionFx.query_bodies(); this delegates so Magnet, Black hole, the legacy
-## `explode()` below and the new ExplosionFx.blast() cannot drift apart again.
+## ExplosionFx.query_bodies(); this delegates so Magnet, Black hole and
+## ExplosionFx.blast() cannot drift apart again.
 ##
-## Shared by `explode()` (impulse + wake) and `query_bodies_in_range()`
-## (query-only, no impulse/wake/mark_script_kick).
+## Used by `query_bodies_in_range()` (query-only, no impulse/wake/mark_script_kick).
 static func _query_unique_bodies(
 	space_state: PhysicsDirectSpaceState3D, center: Vector3, radius: float, exclude: Array[RID]
 ) -> Array[RigidBody3D]:
 	return ExplosionFx.query_bodies(space_state, center, radius, exclude)
 
 
-## Query-only sibling of `explode()` (docs/M8_PLAN.md "Interface stubs" item
+## Query-only sibling of ExplosionFx.blast() (docs/M8_PLAN.md "Interface stubs" item
 ## 1). Sphere-queries real RigidBody3D bodies within `radius` of `center`,
-## deduped per-body exactly like `explode()`, but applies no impulse, no wake
+## deduped per-body exactly like ExplosionFx.blast(), but applies no impulse, no wake
 ## and no `mark_script_kick()` -- purely a read of "what bodies are in range
 ## right now". Consumed by the Magnet (P1), Glue (P3) and Gravity well (P4)
 ## specials. `owner_filter`, when a valid Callable, is called as
 ## `owner_filter.call(body)` for each deduped body and the body is dropped
 ## when it returns false; ownership semantics (e.g. `body.owner_slot !=
 ## mover.owner_slot` for Magnet, `==` for Glue) live entirely in the caller --
-## this function and `explode()` both stay team-agnostic, per the class's own
+## this function and ExplosionFx.blast() both stay team-agnostic, per the class's own
 ## top-of-file DECISION.
 static func query_bodies_in_range(
 	space_state: PhysicsDirectSpaceState3D,
@@ -71,8 +70,8 @@ static func query_bodies_in_range(
 
 
 ## Wakes `body` and applies `impulse` to it, in the one place every special
-## that hits an arbitrary RigidBody3D with an impulse (explode() below,
-## MagnetEffect.physics_tick()) should do it from (Bontago-8or.16 P5b).
+## that hits an arbitrary RigidBody3D with an impulse (MagnetEffect.physics_tick() and
+## the blast path) should do it from (Bontago-8or.16 P5b).
 ##
 ## DECISION (game/specials/SpecialPhysics.gd): a block long enough at rest
 ## gets frozen to FREEZE_MODE_STATIC by game/StableBlockManager.gd (spec 3.5's
@@ -118,56 +117,3 @@ static func wake_and_impulse(body: RigidBody3D, impulse: Vector3) -> void:
 		kicked_block.mark_script_kick()
 
 
-## Sphere-queries real RigidBody3D bodies within `radius` of `center`, wakes
-## each, and applies an outward impulse with spec 3.5's falloff, clamped to
-## `max_impulse`. See `_query_unique_bodies()` for the shared sphere-query +
-## dedupe this builds on. Returns the bodies actually hit.
-static func explode(
-	space_state: PhysicsDirectSpaceState3D,
-	center: Vector3,
-	radius: float,
-	impulse: float,
-	max_impulse: float,
-	exclude: Array[RID] = []
-) -> Array[RigidBody3D]:
-	var hit_bodies: Array[RigidBody3D] = []
-	var candidates: Array[RigidBody3D] = _query_unique_bodies(space_state, center, radius, exclude)
-
-	for body: RigidBody3D in candidates:
-		var offset: Vector3 = body.global_position - center
-		var distance: float = offset.length()
-		var direction: Vector3
-		if distance <= 0.0001:
-			# DECISION (game/specials/SpecialPhysics.gd): a body exactly at
-			# the epicentre has no well-defined outward direction; pick a
-			# fixed one (straight up) rather than a random or zero vector,
-			# so the same input is always deterministic and still gives the
-			# body a real push instead of none.
-			direction = Vector3.UP
-		else:
-			direction = offset / distance
-
-		# DECISION (game/specials/SpecialPhysics.gd): clamp the falloff's
-		# distance ratio to [0, 1] before squaring. Spec 3.5's formula is
-		# `pow(1.0 - d/radius, 2.0)`, which is exact for a point at the
-		# query sphere's centre or edge; intersect_shape() can still return
-		# a wide body whose *origin* sits just past `radius` while one edge
-		# of its own collision shape still overlaps the query sphere. Left
-		# unclamped, `d/radius` slightly above 1.0 still yields a small
-		# positive (squared) push rather than the intended near-zero one --
-		# clamping keeps the falloff monotonic and zero exactly at the edge
-		# without changing any in-radius result (ratio already in [0, 1]
-		# there).
-		var ratio: float = clampf(distance / radius, 0.0, 1.0)
-		var falloff: float = pow(1.0 - ratio, 2.0)
-		var magnitude: float = clampf(impulse * falloff, 0.0, max_impulse)
-
-		# wake_and_impulse() releases Block.FREEZE_REASON_STABLE first (see its
-		# own doc comment above) so a long-stable, STATIC-frozen block still
-		# receives this impulse instead of silently ignoring it (Bontago-
-		# 8or.16 P5b), then applies the impulse and marks a script kick the
-		# same way this function always has.
-		wake_and_impulse(body, direction * magnitude)
-		hit_bodies.append(body)
-
-	return hit_bodies

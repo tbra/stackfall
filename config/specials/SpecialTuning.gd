@@ -28,9 +28,11 @@ extends Resource
 ## Hard per-body clamp on an explosion's applied impulse magnitude (spec 3.5
 ## "Explosions": "Clamp the impulse per body to max_explosion_impulse" --
 ## names the clamp, gives no number). Shared across every explosion-based
-## special (Rocket, Bomb, Volcano; see game/specials/SpecialPhysics.gd's
-## explode()), so one body caught by a very high per-def impulse can never
-## launch faster than this.
+## special (Rocket, Bomb, Volcano), so one body caught by a very high per-def
+## impulse can never launch faster than this. NOTE (Bontago-fca.47): its only
+## reader was the removed SpecialPhysics.explode(); the live blast
+## (ExplosionFx.blast) clamps per body with ExplosionTuning.max_delta_v_mps.
+## Reconciling the two is tracked separately.
 @export var max_explosion_impulse: float = 30.0
 
 ## M4 P4-SPAWN: spec 3.5's continuous-collision threshold ("Rockets, lava
