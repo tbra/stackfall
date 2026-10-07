@@ -571,6 +571,13 @@ func _effective_special_frequency() -> float:
 	return lerpf(base_frequency, float(MatchConfig.SPECIAL_FREQUENCY_MAX), t)
 
 
+func _live_positions() -> Array[Vector2]:
+	var result: Array[Vector2] = []
+	for entry: Dictionary in _crates.values():
+		result.append(entry["position"])
+	return result
+
+
 func _try_spawn() -> void:
 	if _match.config == null or not _match.config.gifts_enabled:
 		return
@@ -579,9 +586,9 @@ func _try_spawn() -> void:
 	if raster == null or grid == null:
 		return
 	_ensure_rng()
-	if not GiftSpawner.should_spawn(_gift_config, _effective_special_frequency(), _crates.size(), _rng):
+	if not GiftSpawner.should_spawn(_gift_config, _effective_special_frequency(), _crates.size(), _rng, _match.slot_count()):
 		return
-	var point: Vector2 = GiftSpawner.pick_spawn_point(raster, grid, _rng, _gift_config)
+	var point: Vector2 = GiftSpawner.pick_spawn_point(raster, grid, _rng, _gift_config, _live_positions())
 	if GiftSpawner.is_no_spawn_point(point):
 		return
 	_spawn_crate_at(point)
@@ -1027,7 +1034,7 @@ func _relocate_after_expiry(old_position: Vector2) -> void:
 func _pick_relocation_point(raster: TerritoryRaster, grid: CellGrid, old_position: Vector2) -> Vector2:
 	var min_distance_sq: float = _gift_config.relocate_min_distance_m * _gift_config.relocate_min_distance_m
 	for attempt: int in range(_gift_config.spawn_max_attempts):
-		var candidate: Vector2 = GiftSpawner.pick_spawn_point(raster, grid, _rng, _gift_config)
+		var candidate: Vector2 = GiftSpawner.pick_spawn_point(raster, grid, _rng, _gift_config, _live_positions())
 		if GiftSpawner.is_no_spawn_point(candidate):
 			return GiftSpawner.NO_SPAWN_POINT
 		if candidate.distance_squared_to(old_position) >= min_distance_sq:

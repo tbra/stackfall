@@ -28,6 +28,16 @@ static func chance_for_frequency(config: GiftConfig, special_frequency: float) -
 	return clampf((freq / 100.0) * max_chance, 0.0, max_chance)
 
 
+## Simultaneous-crate cap: ceil(players / players_per_crate) clamped to
+## 1..max_live_crates. player_count <= 0 (unknown) means the plain ceiling.
+static func live_cap(config: GiftConfig, player_count: int) -> int:
+	var ceiling: int = maxi(config.max_live_crates, 1)
+	if player_count <= 0:
+		return ceiling
+	var per: int = maxi(config.players_per_crate, 1)
+	return clampi((player_count + per - 1) / per, 1, ceiling)
+
+
 ## One Bernoulli roll. Pure logic: it has no idea how many players there are
 ## or how often it gets called, so the "for the whole match (not per player)"
 ## contract is the *caller's* job -- autoload/match/MatchGifts.gd (M4 P1b
@@ -40,9 +50,10 @@ static func should_spawn(
 	config: GiftConfig,
 	special_frequency: float,
 	live_crates: int,
-	rng: RandomNumberGenerator
+	rng: RandomNumberGenerator,
+	player_count: int = 0
 ) -> bool:
-	if live_crates >= config.max_live_crates:
+	if live_crates >= live_cap(config, player_count):
 		return false
 	var chance: float = chance_for_frequency(config, special_frequency)
 	return rng.randf() < chance
@@ -56,11 +67,15 @@ static func should_spawn(
 ## next window rather than treating that as an error (mirrors
 ## PlacementRules.closest_valid_origin()'s NO_ORIGIN contract).
 ##
+## `avoid` lists the positions of crates already live; a candidate closer than
+## config.crate_min_separation_m to any of them is skipped.
+##
 ## Deterministic given rng's seed: every random draw comes from the passed-in
 ## generator and nothing else, so replaying the same seed replays the same
 ## point.
 static func pick_spawn_point(
-	raster: TerritoryRaster, grid: CellGrid, rng: RandomNumberGenerator, config: GiftConfig
+	raster: TerritoryRaster, grid: CellGrid, rng: RandomNumberGenerator, config: GiftConfig,
+	avoid: Array[Vector2] = []
 ) -> Vector2:
 	var effective_radius: float = maxf(grid.field_radius - config.spawn_edge_margin_m, 0.0)
 
@@ -70,6 +85,13 @@ static func pick_spawn_point(
 		if not grid.in_bounds(cell.x, cell.y) or not grid.is_in_disk(cell.x, cell.y):
 			continue
 		if raster.is_contested(cell.x, cell.y) or raster.is_hole(cell.x, cell.y):
+			continue
+		var too_close: bool = false
+		for other: Vector2 in avoid:
+			if other.distance_to(candidate) < config.crate_min_separation_m:
+				too_close = true
+				break
+		if too_close:
 			continue
 		return candidate
 
