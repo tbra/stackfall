@@ -79,6 +79,20 @@ def weight(path, res_path, timings):
         return 1.0
 
 
+SERIAL_LIST = os.path.join(os.path.dirname(os.path.abspath(__file__)), "full_gate_serial.txt")
+
+
+def load_serial_list(list_path, tests):
+    """Heavy scripts to run alone after the shards (Bontago-fca.56); entries not in `tests` are skipped."""
+    try:
+        with open(list_path, encoding="utf-8") as fh:
+            lines = [l.split("#")[0].strip() for l in fh]
+    except OSError:
+        return []
+    known = set(tests)
+    return [l for l in dict.fromkeys(lines) if l in known]
+
+
 def make_shards(path, tests, count, timings):
     shards = [[] for _ in range(count)]
     loads = [0.0] * count
@@ -201,8 +215,17 @@ def main(argv):
         print("FULL GATE ERROR: no tests found under", path)
         return 2
     t0 = time.time()
-    shards = make_shards(path, tests, count, timings)
-    results = run_batch(path, out_dir, [("shard%d" % i, s) for i, s in enumerate(shards)], args.timeout)
+    serial = load_serial_list(SERIAL_LIST, tests)
+    shards = make_shards(path, [t for t in tests if t not in serial], count, timings)
+    results = run_batch(path, out_dir, [("shard%d" % i, s) for i, s in enumerate(shards)], args.timeout) if shards else {}
+    serial_seconds = 0.0
+    if serial:
+        # One process, nothing else running: the heavy scripts get the whole CPU.
+        results.update(run_batch(path, out_dir, [("serial", serial)], args.timeout))
+        serial_seconds = results["serial"]["seconds"]
+    by_name = {"shard%d" % i: s for i, s in enumerate(shards)}
+    if serial:
+        by_name["serial"] = serial
     sums = {}
     failing = set()
     harness = []
@@ -214,7 +237,8 @@ def main(argv):
             harness.append("%s exit=%s (no Totals; see %s)" % (name, r["exit"], r["log"]))
     # Per-script durations (JUnit) balance the next run; fall back to the
     # shard average for scripts the export missed.
-    for (name, r), shard in zip(sorted(results.items()), shards):
+    for name, r in sorted(results.items()):
+        shard = by_name[name]
         measured = suite_times(out_dir, name)
         per = r["seconds"] / max(1, len(shard))
         for t in shard:
@@ -236,15 +260,15 @@ def main(argv):
             (flaky if ok else confirmed).append(t)
 
     verdict = "GREEN" if not confirmed and not harness and lint_code == 0 and ss_code == 0 else "RED"
-    result = {"verdict": verdict, "path": path, "shards": len(shards), "seconds": round(time.time() - t0, 1),
+    result = {"verdict": verdict, "path": path, "shards": len(shards), "serial": serial, "serial_seconds": serial_seconds, "seconds": round(time.time() - t0, 1),
               "totals": sums, "failing": confirmed, "parallel_flaky": flaky, "harness_errors": harness, "magic_lint": "green" if lint_code == 0 else "red",
               "single_source_lint": "green" if ss_code == 0 else "red",
               "shard_seconds": {n: r["seconds"] for n, r in sorted(results.items())}, "out": out_dir}
     with open(os.path.join(out_dir, "result.json"), "w", encoding="utf-8") as fh:
         json.dump(result, fh, indent=1)
     sys.stdout.flush()
-    print("FULL GATE %s: %s/%s passing, %d shards, %.0fs; failing=%s parallel_flaky=%s harness=%s magic_lint=%s single_source_lint=%s; out=%s" % (
-        verdict, sums.get("Passing Tests", 0), sums.get("Tests", 0), len(shards), result["seconds"],
+    print("FULL GATE %s: %s/%s passing, %d shards, %.0fs, serial=%d scripts %.0fs; failing=%s parallel_flaky=%s harness=%s magic_lint=%s single_source_lint=%s; out=%s" % (
+        verdict, sums.get("Passing Tests", 0), sums.get("Tests", 0), result["shards"], result["seconds"], len(serial), serial_seconds,
         confirmed or "none", flaky or "none", harness or "none", "green" if lint_code == 0 else "RED", "green" if ss_code == 0 else "RED", out_dir), flush=True)
     if harness:
         return 2
