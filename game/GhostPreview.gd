@@ -2024,11 +2024,11 @@ func _process(delta: float) -> void:
 ## DECISION: look constants live here (GhostTuning is owned elsewhere this
 ## batch); remote ghosts can call set_glue_charges() once RemoteCursors
 ## mirrors Match.glue_drops_left().
-const GLUE_OVERLAY_COLOR: Color = Color(0.55, 0.95, 0.25, 0.45)
-const GLUE_OVERLAY_ROUGHNESS: float = 0.08
-const GLUE_OVERLAY_METALLIC_SPECULAR: float = 1.0
+const HONEY_COAT_TUNING_PATH: String = "res://config/honey_coat_tuning.tres"
 var _glue_charges: int = 0
-var _glue_overlay: StandardMaterial3D = null
+var _glue_overlay: ShaderMaterial = null
+var _glue_drip_material: ShaderMaterial = null
+var _honey_tuning: HoneyCoatTuning = null
 
 
 func set_glue_charges(charges: int) -> void:
@@ -2049,17 +2049,20 @@ func is_glue_overlay_active() -> bool:
 func _apply_glue_overlay() -> void:
 	if _shape_visual == null:
 		return
-	if _glue_overlay == null:
-		_glue_overlay = StandardMaterial3D.new()
-		_glue_overlay.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_glue_overlay.albedo_color = GLUE_OVERLAY_COLOR
-		_glue_overlay.roughness = GLUE_OVERLAY_ROUGHNESS
-		_glue_overlay.metallic_specular = GLUE_OVERLAY_METALLIC_SPECULAR
-		_glue_overlay.rim_enabled = true
+	if _glue_overlay == null and _glue_charges > 0:
+		_honey_tuning = load(HONEY_COAT_TUNING_PATH) as HoneyCoatTuning
+		var preset: GraphicsPreset = Settings.current_graphics_preset()
+		var animated: bool = preset == null or preset.ambient_life_enabled
+		_glue_overlay = _honey_tuning.build_material(animated)
+		_glue_drip_material = _honey_tuning.build_drip_material(animated)
 	for child: Node in _shape_visual.get_children():
 		var mesh_instance: MeshInstance3D = child as MeshInstance3D
 		if mesh_instance != null:
 			mesh_instance.material_overlay = _glue_overlay if _glue_charges > 0 else null
+			if _glue_charges > 0:
+				_honey_tuning.attach_drips(mesh_instance, _glue_drip_material)
+			else:
+				HoneyCoatTuning.remove_drips(mesh_instance)
 
 
 func _local_glue_charges() -> int:

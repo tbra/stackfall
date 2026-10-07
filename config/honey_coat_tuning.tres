@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="HoneyCoatTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/HoneyCoatTuning.gd" id="1_tuning"]
+
+[resource]
+script = ExtResource("1_tuning")
+color = Color(0.98, 0.7, 0.06, 0.93)
+thickness_m = 0.03
+drip_scale = 6.0
+drip_speed = 0.35
+drip_depth = 0.25
+roughness = 0.05
+rim_power = 2.5
+rim_strength = 1.2
+drip_length_m = 0.45
+drip_radius_m = 0.08
+max_drips = 24
+animate_drips = true
+render_priority = 10
