@@ -229,6 +229,28 @@ var _steam_request_generation: int = 0
 ## host_online()/join_lobby() call was issued under. See
 ## _steam_request_generation's doc comment above.
 var _steam_pending_generations: Array[int] = []
+## Bontago-1pi.48: parallel to _steam_pending_generations — the lobby id each
+## pending join_lobby() targets, or _STEAM_CREATE_REQUEST (-1: Steam lobby ids
+## are positive) for host_online().
+## lobby_created resolves the oldest pending create, lobby_joined the pending
+## join for its own lobby id, so the creator's LobbyEnter echo (below) can never
+## be consumed as some other request's answer.
+var _steam_pending_targets: Array[int] = []
+const _STEAM_CREATE_REQUEST: int = -1
+## Bontago-1pi.48: every lobby this process created (live or abandoned).
+## Steamworks answers a successful CreateLobby with lobby_created AND a
+## lobby_joined (LobbyEnter_t) for the creator; that echo is not a join answer
+## and must never reach the stray-answer leave_lobby() (it used to: the host
+## left, and so destroyed, its own fresh lobby). One int per created lobby.
+var _steam_created_lobbies: Dictionary = {}
+## Tests only: _make_steam_host_peer() hands this out instead of building a
+## SteamMultiplayerPeer (never built for a FakeSteam provider, crash safety),
+## so a FakeSteam test can reach the live Steam HOST state.
+var steam_host_peer_override: MultiplayerPeer = null
+## Bontago-1pi.48 diagnostics: seconds between `STEAM SELFCHECK` lines while a
+## Steam session is live (diagnostic cadence, not a gameplay knob).
+const STEAM_SELFCHECK_PERIOD_S: float = 10.0
+var _steam_selfcheck_accum: float = 0.0
 
 
 ## True while a request of the *current* generation is still outstanding —
@@ -284,6 +306,7 @@ func _process(delta: float) -> void:
 	# session exists — those need callbacks pumped too.
 	if _steam_ready and steam_provider != null:
 		steam_provider.run_callbacks()
+	_tick_steam_selfcheck(delta)
 
 	var now: float = _now()
 	if _mode == Mode.HOST:
@@ -398,7 +421,7 @@ func leave(forget_rejoin: bool = true) -> void:
 				Events.net_peer_left.emit(peer_id, int(_peers[peer_id].get(LobbySeats.FIELD_SLOT_ID, -1)), LeaveReason.HOST_SHUTDOWN)
 
 	if _steam_session and steam_provider != null and _steam_lobby_id != 0:
-		steam_provider.leave_lobby(_steam_lobby_id)
+		steam_provider.leave_lobby(_steam_lobby_id, "Net.leave()")
 
 	_lan.stop_advertising()
 	_lan.stop_listening()
@@ -420,6 +443,7 @@ func leave(forget_rejoin: bool = true) -> void:
 	_steam_session = false
 	_steam_lobby_id = 0
 	_steam_pending_name = ""
+	_steam_selfcheck_accum = 0.0
 	Events.net_mode_changed.emit(_mode)
 
 
@@ -759,6 +783,7 @@ func host_online(player_name: String = "") -> Error:
 	if _mode != Mode.OFFLINE:
 		leave()
 	_steam_pending_generations.append(_steam_request_generation)
+	_steam_pending_targets.append(_STEAM_CREATE_REQUEST)
 	_steam_pending_name = player_name
 	steam_provider.create_lobby(config.steam_lobby_type, config.max_peers)
 	return OK
@@ -778,6 +803,7 @@ func join_lobby(lobby_id: int, player_name: String = "") -> Error:
 	if _mode != Mode.OFFLINE:
 		leave()
 	_steam_pending_generations.append(_steam_request_generation)
+	_steam_pending_targets.append(lobby_id)
 	_steam_pending_name = player_name
 	steam_provider.join_lobby(lobby_id)
 	return OK
@@ -804,7 +830,7 @@ func refresh_lobby_list() -> void:
 	# Bontago-1pi.105: Steam keeps one outstanding lobby list request; never overlap.
 	if _lobby_list_pending != LobbyListPending.NONE and Time.get_ticks_msec() - _lobby_list_sent_msec < LOBBY_LIST_STALE_MSEC:
 		_lobby_list_refresh_queued = true
-		print("STEAM lobby search: refresh coalesced, a request is still pending")
+		SteamClient.log_line("lobby search: refresh coalesced, a request is still pending")
 		return
 	var filters: Array[Dictionary] = [
 		{"key": String(SteamClient.KEY_GAME), "value": String(DISCOVERY_MAGIC)},
@@ -851,29 +877,63 @@ func _on_steam_init_result(status: int, verbal: String) -> void:
 ## success (`ok`) is handed straight to steam_provider.leave_lobby() so it is
 ## never orphaned; a stale failure is simply dropped. Shared by
 ## _on_steam_lobby_created() and _on_steam_lobby_joined() below.
-func _consume_steam_answer_is_stale(ok: bool, lobby_id: int) -> bool:
-	if _steam_pending_generations.is_empty():
+## Bontago-1pi.48: `index` is the pending entry this answer resolves (see
+## _steam_pending_index()), or -1 when no request matches it.
+func _consume_steam_answer_is_stale(index: int, ok: bool, lobby_id: int) -> bool:
+	if index < 0 or index >= _steam_pending_generations.size():
 		# Defensive: host_online()/join_lobby() always push a generation
 		# before issuing the Steam call, so this should not happen in
 		# practice — treat a stray answer the same as stale so a success is
 		# never orphaned.
 		if ok:
-			steam_provider.leave_lobby(lobby_id)
+			steam_provider.leave_lobby(lobby_id, "stray answer: no pending request matches it")
 		return true
-	var answer_generation: int = _steam_pending_generations.pop_front()
+	var answer_generation: int = _steam_pending_generations[index]
+	_steam_pending_generations.remove_at(index)
+	_steam_pending_targets.remove_at(index)
 	if answer_generation != _steam_request_generation:
 		if ok:
-			steam_provider.leave_lobby(lobby_id)
+			steam_provider.leave_lobby(lobby_id, "stale answer: leave() cancelled its request")
 		return true
 	return false
 
 
+## Oldest pending entry whose target is `target` (a join's lobby id, or
+## _STEAM_CREATE_REQUEST), or -1.
+func _steam_pending_index(target: int) -> int:
+	return _steam_pending_targets.find(target)
+
+
+## Oldest pending join_lobby() entry whatever its target, or -1.
+func _steam_first_pending_join_index() -> int:
+	for i: int in _steam_pending_targets.size():
+		if _steam_pending_targets[i] != _STEAM_CREATE_REQUEST:
+			return i
+	return -1
+
+
+## Bontago-1pi.48: true for Steam's LobbyEnter echo of a lobby this process
+## created (or a repeat enter of the lobby it is already in) — a success no
+## join_lobby() asked for. Arrives after lobby_created in every probe log, but
+## the order is not relied on: an echo while a create is still pending counts.
+func _is_own_lobby_enter_echo(lobby_id: int, response: int) -> bool:
+	if response != 1 or _steam_pending_index(lobby_id) >= 0:
+		return false
+	if _steam_created_lobbies.has(lobby_id):
+		return true
+	if _steam_session and lobby_id == _steam_lobby_id:
+		return true
+	return _steam_pending_index(_STEAM_CREATE_REQUEST) >= 0
+
+
 func _on_steam_lobby_created(result: int, lobby_id: int) -> void:
-	print("STEAM lobby_created: result=%d lobby_id=%d" % [result, lobby_id])
+	SteamClient.log_line("lobby_created: result=%d lobby_id=%d" % [result, lobby_id])
+	if result == 1:
+		_steam_created_lobbies[lobby_id] = true
 	# Bontago-mv0.2.6 finding B / Bontago-mv0.4: consume this request's
 	# generation first; a stale answer abandons whatever lobby Steam actually
 	# created rather than let the guard below silently drop it and orphan it.
-	if _consume_steam_answer_is_stale(result == 1, lobby_id):
+	if _consume_steam_answer_is_stale(_steam_pending_index(_STEAM_CREATE_REQUEST), result == 1, lobby_id):
 		return
 	if _mode != Mode.OFFLINE:
 		return
@@ -906,14 +966,14 @@ func _on_steam_lobby_created(result: int, lobby_id: int) -> void:
 	)
 
 	steam_provider.set_lobby_joinable(lobby_id, true)
-	print("STEAM lobby readback: game=%s version=%s" % [
+	SteamClient.log_line("lobby readback: game=%s version=%s" % [
 		steam_provider.get_lobby_data(lobby_id, String(SteamClient.KEY_GAME)),
 		steam_provider.get_lobby_data(lobby_id, String(SteamClient.KEY_VERSION))])
 
 	var peer: MultiplayerPeer = _make_steam_host_peer()
 	if peer == null:
 		Events.net_join_failed.emit(JoinError.TRANSPORT, "SteamMultiplayerPeer unavailable")
-		steam_provider.leave_lobby(lobby_id)
+		steam_provider.leave_lobby(lobby_id, "host peer unavailable")
 		return
 
 	multiplayer.multiplayer_peer = peer
@@ -927,13 +987,26 @@ func _on_steam_lobby_created(result: int, lobby_id: int) -> void:
 	_next_slot_id = 1
 	_accepting_joins = true
 	_reset_rejoin_state()
+	_steam_selfcheck_accum = 0.0
 	Events.net_mode_changed.emit(_mode)
 
 
 func _on_steam_lobby_joined(lobby_id: int, response: int) -> void:
+	# Bontago-1pi.48 root cause: Steam also sends the creator a lobby_joined for
+	# its own new lobby. With the create already answered, the stray-answer
+	# branch below used to leave_lobby() it, so every game-hosted lobby died
+	# instantly and was never found by another account's search.
+	if _is_own_lobby_enter_echo(lobby_id, response):
+		SteamClient.log_line("lobby_joined: lobby=%d is this process's own lobby enter (creator echo); ignored" % lobby_id)
+		return
+	var index: int = _steam_pending_index(lobby_id)
+	if index < 0:
+		# DECISION: an answer whose lobby id matches no pending join resolves
+		# the oldest pending join (the pre-1pi.48 FIFO rule), never a create.
+		index = _steam_first_pending_join_index()
 	# Same stale-answer handling as _on_steam_lobby_created() above, and for
 	# the same reason (Bontago-mv0.2.6 finding B / Bontago-mv0.4).
-	if _consume_steam_answer_is_stale(response == 1, lobby_id):
+	if _consume_steam_answer_is_stale(index, response == 1, lobby_id):
 		return
 	if _mode != Mode.OFFLINE:
 		return
@@ -960,12 +1033,13 @@ func _on_steam_lobby_joined(lobby_id: int, response: int) -> void:
 		# above (which already does exactly this for the host side) rather
 		# than restructure leave()'s guard — same fix shape, same file, no new
 		# teardown path.
-		steam_provider.leave_lobby(lobby_id)
+		steam_provider.leave_lobby(lobby_id, "client peer unavailable")
 		_fail_join(JoinError.TRANSPORT, "SteamMultiplayerPeer unavailable")
 		return
 	multiplayer.multiplayer_peer = peer
 	_peer = peer
 	_mode = Mode.CLIENT
+	_steam_selfcheck_accum = 0.0
 	_steam_session = true
 	_steam_lobby_id = lobby_id
 	_peers.clear()
@@ -997,7 +1071,7 @@ func _on_steam_lobby_match_list(lobby_ids: Array) -> void:
 		for i: int in mini(LOBBY_DEBUG_SAMPLE_COUNT, lobby_ids.size()):
 			var id: int = int(lobby_ids[i])
 			lines.append("%d{owner=%d members=%d game=%s version=%s}" % [id, steam_provider.lobby_owner(id), steam_provider.lobby_member_count(id), steam_provider.get_lobby_data(id, String(SteamClient.KEY_GAME)), steam_provider.get_lobby_data(id, String(SteamClient.KEY_VERSION))])
-		print("STEAM unfiltered debug search (answers the unfiltered request): %d lobbies visible; first: %s" % [lobby_ids.size(), " ".join(lines)])
+		SteamClient.log_line("unfiltered debug search (answers the unfiltered request): %d lobbies visible; first: %s" % [lobby_ids.size(), " ".join(lines)])
 		_drain_queued_lobby_refresh()
 		return
 	var was_filtered: bool = _lobby_list_pending == LobbyListPending.FILTERED
@@ -1024,7 +1098,7 @@ func _on_steam_lobby_match_list(lobby_ids: Array) -> void:
 	_discovered_lobbies = result
 	Events.net_steam_lobbies_discovered.emit(result)
 	# Bontago-1pi.48: one line per search so a failed Steam join can be diagnosed from godot.log.
-	print("STEAM lobby search (answers the filtered request): %d lobbies returned, %d match game+version %s" % [lobby_ids.size(), result.size(), build_version()])
+	SteamClient.log_line("lobby search (answers the filtered request): %d lobbies returned, %d match game+version %s" % [lobby_ids.size(), result.size(), build_version()])
 	_drain_queued_lobby_refresh()
 
 
@@ -1032,6 +1106,21 @@ func _drain_queued_lobby_refresh() -> void:
 	if _lobby_list_refresh_queued and _lobby_list_pending == LobbyListPending.NONE:
 		_lobby_list_refresh_queued = false
 		refresh_lobby_list()
+
+
+## Bontago-1pi.48 diagnostics: every STEAM_SELFCHECK_PERIOD_S while a Steam
+## session is live, logs `STEAM [time] SELFCHECK ...` (members, owner vs me,
+## member limit, all lobby data). A host that silently left its lobby reads
+## members=0 / owner=0 here even though Net still believes it is hosting.
+func _tick_steam_selfcheck(delta: float) -> void:
+	if not _steam_session or _steam_lobby_id == 0 or steam_provider == null:
+		return
+	_steam_selfcheck_accum += delta
+	if _steam_selfcheck_accum < STEAM_SELFCHECK_PERIOD_S:
+		return
+	_steam_selfcheck_accum = 0.0
+	var role: String = "HOST" if _mode == Mode.HOST else "CLIENT"
+	SteamClient.log_line("SELFCHECK role=%s %s" % [role, steam_provider.self_check_line(_steam_lobby_id)])
 
 
 ## The overlay's "Join Game" / invite-accept path when this game is already
@@ -1356,6 +1445,8 @@ func _make_client_peer(address: String, port: int) -> MultiplayerPeer:
 ## FakeSteam's signals claim — the exact thing docs/M3b_PLAN.md's "Testing
 ## without Steam" says GUT cannot verify either way.
 func _make_steam_host_peer() -> MultiplayerPeer:
+	if steam_host_peer_override != null:
+		return steam_host_peer_override
 	if not _steam_ready or not (steam_provider is SteamClient):
 		return null
 	if not ClassDB.class_exists(&"SteamMultiplayerPeer"):

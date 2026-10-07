@@ -89,6 +89,32 @@ var _steam: Object = null
 
 ## Bontago-1pi.48: lobby data values are truncated to this many characters in the diagnostic log.
 const LOG_VALUE_MAX_CHARS: int = 40
+## Bontago-1pi.48: the SELFCHECK line's all-lobby-data dump is cut to this many characters.
+const SELFCHECK_DATA_MAX_CHARS: int = 400
+## Bontago-1pi.48: call_origin() lists at most this many script frames.
+const ORIGIN_MAX_FRAMES: int = 6
+const _MSEC_PER_SEC: float = 1000.0
+
+
+## Bontago-1pi.48: every Steam diagnostic line is `STEAM [HH:MM:SS.mmm] text`
+## (local wall clock), so a host log can be lined up against another PC's log.
+static func log_line(text: String) -> void:
+	var now: float = Time.get_unix_time_from_system()
+	var msec: int = int((now - floorf(now)) * _MSEC_PER_SEC)
+	print("STEAM [%s.%03d] %s" % [Time.get_time_string_from_system(), msec, text])
+
+
+## Bontago-1pi.48: the GDScript caller chain of the current call (innermost
+## first, this helper and its direct caller skipped), e.g.
+## "Net.gd:1023 _on_steam_lobby_joined < SteamClient.gd:290 _on_lobby_joined".
+## get_stack() is empty in release exports; debug exports track it.
+static func call_origin() -> String:
+	var frames: Array = get_stack()
+	var parts: PackedStringArray = PackedStringArray()
+	for i: int in range(2, mini(frames.size(), ORIGIN_MAX_FRAMES + 2)):
+		var f: Dictionary = frames[i]
+		parts.append("%s:%d %s" % [String(f.get("source", "")).get_file(), int(f.get("line", 0)), f.get("function", "")])
+	return " < ".join(parts) if not parts.is_empty() else "(no script stack: release build)"
 
 
 func is_available() -> bool:
@@ -127,6 +153,7 @@ func init() -> void:
 	# reported to crash in-editor. steamInitEx() returns {"verbal", "status"};
 	# 0 ok, 1 other failure, 2 client not running, 3 client out of date.
 	var result: Dictionary = _steam.call("steamInitEx", Net.STEAM_APP_ID_EXPECTED, false)
+	log_line("steamInitEx(app_id=%d, embed_callbacks=false) -> %s" % [Net.STEAM_APP_ID_EXPECTED, str(result)])
 	init_result.emit(int(result.get("status", 1)), String(result.get("verbal", "")))
 
 
@@ -145,7 +172,7 @@ func local_persona_name() -> String:
 func create_lobby(lobby_type: int, max_members: int) -> void:
 	if _steam == null:
 		return
-	print("STEAM createLobby requested: type=%d (%s) max_members=%d" % [lobby_type, _LOBBY_TYPE_NAMES.get(lobby_type, "?"), max_members])
+	log_line("createLobby requested: type=%d (%s) max_members=%d origin=%s" % [lobby_type, _LOBBY_TYPE_NAMES.get(lobby_type, "?"), max_members, call_origin()])
 	_print_account_diagnostics()
 	_steam.call("createLobby", lobby_type, max_members)
 
@@ -154,7 +181,7 @@ func set_lobby_data(lobby_id: int, key: String, value: String) -> void:
 	if _steam == null:
 		return
 	var ok: Variant = _steam.call("setLobbyData", lobby_id, key, value)
-	print("STEAM setLobbyData lobby=%d %s=%s -> %s" % [lobby_id, key, value.left(LOG_VALUE_MAX_CHARS), str(ok)])
+	log_line("setLobbyData lobby=%d %s=%s -> %s" % [lobby_id, key, value.left(LOG_VALUE_MAX_CHARS), str(ok)])
 
 
 ## Bontago-1pi.48 diagnostics: explicitly marks the lobby joinable and logs the result.
@@ -162,7 +189,7 @@ func set_lobby_joinable(lobby_id: int, joinable: bool) -> void:
 	if _steam == null:
 		return
 	var ok: Variant = _steam.call("setLobbyJoinable", lobby_id, joinable)
-	print("STEAM setLobbyJoinable lobby=%d joinable=%s -> %s" % [lobby_id, str(joinable), str(ok)])
+	log_line("setLobbyJoinable lobby=%d joinable=%s -> %s" % [lobby_id, str(joinable), str(ok)])
 
 
 const _LOBBY_TYPE_NAMES: Dictionary = {0: "Private", 1: "FriendsOnly", 2: "Public", 3: "Invisible", 4: "PrivateUnique"}
@@ -177,7 +204,7 @@ func _print_account_diagnostics() -> void:
 	for m: String in _ACCOUNT_DIAG_METHODS:
 		if _steam != null and _steam.has_method(m):
 			parts.append("%s=%s" % [m, str(_steam.call(m))])
-	print("STEAM account: ", " ".join(parts) if not parts.is_empty() else "(no account getters exposed)")
+	log_line("account: " + (" ".join(parts) if not parts.is_empty() else "(no account getters exposed)"))
 
 
 ## `--steam-lobby-debug`: unfiltered request with Steam's default distance filter (nearest first).
@@ -208,13 +235,31 @@ func lobby_member_count(lobby_id: int) -> int:
 func join_lobby(lobby_id: int) -> void:
 	if _steam == null:
 		return
+	log_line("joinLobby lobby=%d origin=%s" % [lobby_id, call_origin()])
 	_steam.call("joinLobby", lobby_id)
 
 
-func leave_lobby(lobby_id: int) -> void:
+## `reason` names the Net path that gave up the lobby (Bontago-1pi.48: a host
+## leaving its own lobby must always be visible in the log).
+func leave_lobby(lobby_id: int, reason: String = "") -> void:
 	if _steam == null:
 		return
+	log_line("leaveLobby lobby=%d reason=%s origin=%s" % [lobby_id, reason, call_origin()])
 	_steam.call("leaveLobby", lobby_id)
+
+
+## Bontago-1pi.48 diagnostics: one line describing what Steam itself reports for
+## `lobby_id` (membership, owner vs this account, member limit, all lobby data).
+func self_check_line(lobby_id: int) -> String:
+	if _steam == null:
+		return "lobby=%d (Steam not initialised)" % lobby_id
+	var me: int = local_steam_id()
+	var owner_id: int = lobby_owner(lobby_id)
+	var limit: String = str(_steam.call("getLobbyMemberLimit", lobby_id)) if _steam.has_method("getLobbyMemberLimit") else "?"
+	var data: String = str(_steam.call("getAllLobbyData", lobby_id)) if _steam.has_method("getAllLobbyData") else "?"
+	return "lobby=%d members=%d member_limit=%s owner=%d me=%d owner_is_me=%s data=%s" % [
+		lobby_id, lobby_member_count(lobby_id), limit, owner_id, me, str(owner_id == me and me != 0),
+		data.left(SELFCHECK_DATA_MAX_CHARS)]
 
 
 ## `string_filters` is `[{"key": String, "value": String}, ...]`, ANDed by
@@ -234,7 +279,7 @@ func request_lobby_list(string_filters: Array[Dictionary]) -> void:
 	var desc: PackedStringArray = PackedStringArray()
 	for f: Dictionary in string_filters:
 		desc.append("%s=%s" % [f.get("key", ""), f.get("value", "")])
-	print("STEAM lobby request: distance=worldwide(3) filters: ", ", ".join(desc))
+	log_line("lobby request: distance=worldwide(3) filters: " + ", ".join(desc))
 	for filter: Dictionary in string_filters:
 		_steam.call(
 			"addRequestLobbyListStringFilter",
@@ -278,7 +323,8 @@ func _on_lobby_data_update(_success: int, lobby_id: int, _member_id: int) -> voi
 	lobby_data_updated.emit(lobby_id)
 
 
-func _on_lobby_joined(lobby_id: int, _permissions: int, _locked: bool, response: int) -> void:
+func _on_lobby_joined(lobby_id: int, permissions: int, locked: bool, response: int) -> void:
+	log_line("lobby_joined (LobbyEnter) lobby=%d permissions=%d locked=%s response=%d" % [lobby_id, permissions, str(locked), response])
 	lobby_joined.emit(lobby_id, response)
 
 

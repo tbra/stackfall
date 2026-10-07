@@ -1058,6 +1058,130 @@ func test_leave_then_join_lobby_before_either_answers_resolves_the_second_attemp
 	)
 
 
+# --- Creator's own lobby_joined (Bontago-1pi.48) ------------------------------
+# Steamworks answers a successful CreateLobby with LobbyCreated_t AND a
+# LobbyEnter_t (GodotSteam's lobby_joined) for the creator; every probe log of
+# 2026-10-07 shows lobby_created then lobby_joined(response=1). Net used to take
+# that second answer for a stray join: the pending queue was already empty, so
+# the "defensive" branch called leave_lobby() and the host left (destroyed) its
+# own fresh lobby, which is why no other account could ever find it.
+
+## The host's real state right after a successful lobby_created (poked, since a
+## FakeSteam provider never builds a SteamMultiplayerPeer), then Steam's echo.
+func test_host_ignores_the_creator_lobby_joined_echo_for_its_own_live_lobby() -> void:
+	var fake: FakeSteam = FakeSteam.new()
+	_ready_steam(_host, fake)
+	assert_eq(_host.host_online("Hostie"), OK)
+	fake.lobby_created.emit(FakeSteam.RESULT_OK, 77)
+	fake.leave_lobby_calls.clear() # the FakeSteam crash-safety leave, not under test
+	_host._steam_session = true
+	_host._steam_lobby_id = 77
+	_host._mode = Net.Mode.HOST
+	watch_signals(Events)
+
+	fake.lobby_joined.emit(77, FakeSteam.CHAT_ROOM_ENTER_SUCCESS)
+
+	assert_eq(fake.leave_lobby_calls, [] as Array[int], "the host must stay in its own lobby")
+	assert_true(_host.is_steam_session())
+	assert_eq(_host.mode(), Net.Mode.HOST)
+	assert_eq(get_signal_emit_count(Events, "net_join_failed"), 0)
+
+
+## Same echo delivered BEFORE lobby_created: it must not be taken as the answer
+## to a join (that would try to connect to ourselves as a client), and the
+## create request must stay pending for its own lobby_created.
+func test_creator_echo_before_lobby_created_is_not_taken_as_a_client_join() -> void:
+	var fake: FakeSteam = FakeSteam.new()
+	_ready_steam(_host, fake)
+	assert_eq(_host.host_online("Hostie"), OK)
+	watch_signals(Events)
+
+	fake.lobby_joined.emit(77, FakeSteam.CHAT_ROOM_ENTER_SUCCESS)
+
+	assert_eq(fake.leave_lobby_calls, [] as Array[int], "an echo must never leave the lobby being created")
+	assert_eq(get_signal_emit_count(Events, "net_join_failed"), 0, "an echo is not a failed join")
+	assert_eq(_host.host_online("Hostie2"), ERR_BUSY, "the create request must still be pending")
+	fake.lobby_created.emit(FakeSteam.RESULT_OK, 77)
+	assert_eq(
+		fake.get_lobby_data(77, String(SteamClient.KEY_HOST_NAME)), "TestSteamUser",
+		"lobby_created must still be accepted as the live create answer"
+	)
+
+
+## A cancelled create's lobby echoes too; that echo must not be consumed as the
+## answer to a join_lobby() issued after leave().
+func test_echo_of_a_cancelled_create_does_not_resolve_a_pending_join() -> void:
+	var fake: FakeSteam = FakeSteam.new()
+	fake.lobby_owners[9002] = 555
+	_ready_steam(_host, fake)
+	assert_eq(_host.host_online("Hostie"), OK)
+	_host.leave()
+	assert_eq(_host.join_lobby(9002, "Hostie"), OK)
+	watch_signals(Events)
+
+	fake.lobby_created.emit(FakeSteam.RESULT_OK, 111)
+	assert_eq(fake.leave_lobby_calls, [111] as Array[int], "the cancelled create's lobby is abandoned")
+	fake.lobby_joined.emit(111, FakeSteam.CHAT_ROOM_ENTER_SUCCESS)
+	assert_eq(fake.leave_lobby_calls, [111] as Array[int], "its echo must not be handled as a join answer")
+	assert_eq(get_signal_emit_count(Events, "net_join_failed"), 0)
+	assert_eq(_host.join_lobby(9003, "Hostie"), ERR_BUSY, "the join to 9002 must still be pending")
+
+	fake.lobby_joined.emit(9002, FakeSteam.CHAT_ROOM_ENTER_SUCCESS)
+	assert_eq(
+		get_signal_emit_count(Events, "net_join_failed"), 1,
+		"9002's own answer is accepted as live (then hits the FakeSteam peer-construction refusal)"
+	)
+
+
+## Full Steam answer order through FakeSteam.answer_create_lobby() (lobby_created
+## then the creator's lobby_joined), with a stand-in host peer so the live HOST
+## state is reached: the host stays in its lobby until an explicit leave().
+func test_host_stays_in_its_lobby_through_steams_created_then_joined_answers() -> void:
+	var fake: FakeSteam = FakeSteam.new()
+	_ready_steam(_host, fake)
+	_host.steam_host_peer_override = OfflineMultiplayerPeer.new()
+	assert_eq(_host.host_online("Hostie"), OK)
+
+	fake.answer_create_lobby(FakeSteam.RESULT_OK, 4242)
+
+	assert_eq(fake.leave_lobby_calls, [] as Array[int], "the host must not leave the lobby it just created")
+	assert_eq(_host.mode(), Net.Mode.HOST)
+	assert_true(_host.is_steam_session())
+	assert_eq(_host._steam_lobby_id, 4242)
+	assert_false(_host._steam_request_pending(), "no request is left pending after the echo")
+	_host.leave()
+	assert_eq(fake.leave_lobby_calls, [4242] as Array[int], "only leave() gives the lobby up")
+	assert_eq(fake.leave_lobby_reasons, ["Net.leave()"] as Array[String])
+
+
+## Bontago-1pi.48 diagnostics: one SELFCHECK per period while the session lives.
+func test_live_steam_session_runs_a_selfcheck_every_period() -> void:
+	var fake: FakeSteam = FakeSteam.new()
+	_ready_steam(_host, fake)
+	_host.steam_host_peer_override = OfflineMultiplayerPeer.new()
+	assert_eq(_host.host_online("Hostie"), OK)
+	fake.answer_create_lobby(FakeSteam.RESULT_OK, 4242)
+	var period: float = _host.STEAM_SELFCHECK_PERIOD_S
+
+	_host._tick_steam_selfcheck(period * 0.5)
+	assert_eq(fake.self_check_calls, [] as Array[int])
+	_host._tick_steam_selfcheck(period * 0.5)
+	assert_eq(fake.self_check_calls, [4242] as Array[int])
+	_host.leave()
+	_host._tick_steam_selfcheck(period)
+	assert_eq(fake.self_check_calls, [4242] as Array[int], "no self-check once the session ended")
+
+
+## A success for a lobby nobody asked for is still abandoned (pre-existing
+## defensive behaviour, kept).
+func test_a_stray_lobby_joined_for_an_unknown_lobby_is_still_abandoned() -> void:
+	var fake: FakeSteam = FakeSteam.new()
+	_ready_steam(_client, fake)
+	fake.lobby_joined.emit(4444, FakeSteam.CHAT_ROOM_ENTER_SUCCESS)
+	assert_eq(fake.leave_lobby_calls, [4444] as Array[int])
+	assert_eq(_client.mode(), Net.Mode.OFFLINE)
+
+
 func test_init_steam_forwards_steamclient_status_onto_events_and_is_idempotent() -> void:
 	var fake: FakeSteam = FakeSteam.new()
 	fake.init_status_value = 0

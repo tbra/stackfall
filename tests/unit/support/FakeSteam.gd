@@ -118,8 +118,27 @@ func join_lobby(lobby_id: int) -> void:
 	join_lobby_calls.append(lobby_id)
 
 
-func leave_lobby(lobby_id: int) -> void:
+var leave_lobby_reasons: Array[String] = []
+var self_check_calls: Array[int] = []
+
+
+func leave_lobby(lobby_id: int, reason: String = "") -> void:
 	leave_lobby_calls.append(lobby_id)
+	leave_lobby_reasons.append(reason)
+
+
+func self_check_line(lobby_id: int) -> String:
+	self_check_calls.append(lobby_id)
+	return "lobby=%d members=%d owner=%d" % [lobby_id, lobby_member_count(lobby_id), lobby_owner(lobby_id)]
+
+
+## Answers a create_lobby() the way Steamworks does (Bontago-1pi.48, seen in
+## every probe log): lobby_created, then — on success — the creator's own
+## lobby_joined (LobbyEnter_t) for the same lobby.
+func answer_create_lobby(result: int, lobby_id: int) -> void:
+	lobby_created.emit(result, lobby_id)
+	if result == RESULT_OK:
+		lobby_joined.emit(lobby_id, CHAT_ROOM_ENTER_SUCCESS)
 
 
 func request_lobby_list(string_filters: Array[Dictionary]) -> void:
