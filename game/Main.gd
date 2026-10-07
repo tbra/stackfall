@@ -60,15 +60,15 @@ extends Node3D
 @export var sandbox_config: SandboxConfig = preload("res://config/sandbox.tres")
 
 const MAIN_MENU_SCENE: PackedScene = preload("res://ui/MainMenu.tscn")
-const LOBBY_SCENE: PackedScene = preload("res://ui/Lobby.tscn")
-const HOT_SEAT_SCENE: PackedScene = preload("res://game/HotSeat.tscn")
-const SANDBOX_SCENE: PackedScene = preload("res://game/Sandbox.tscn")
-const GIFT_DEMO_PRESET: SandboxConfig = preload("res://config/sandbox_gift_demo.tres")
-const TOWER_TOPPLE_PRESET: SandboxConfig = preload("res://config/sandbox_tower_topple.tres")
+const LOBBY_SCENE_PATH: String = "res://ui/Lobby.tscn"
+const HOT_SEAT_SCENE_PATH: String = "res://game/HotSeat.tscn"
+const SANDBOX_SCENE_PATH: String = "res://game/Sandbox.tscn"
+const GIFT_DEMO_PRESET_PATH: String = "res://config/sandbox_gift_demo.tres"
+const TOWER_TOPPLE_PRESET_PATH: String = "res://config/sandbox_tower_topple.tres"
 ## docs/M6_PLAN.md package B3 (spec 2.7 "Tutorial").
-const TUTORIAL_SCENE: PackedScene = preload("res://ui/Tutorial.tscn")
-const REMOTE_CURSORS_SCENE: PackedScene = preload("res://game/RemoteCursors.tscn")
-const NET_DEBUG_OVERLAY_SCENE: PackedScene = preload("res://ui/NetDebugOverlay.tscn")
+const TUTORIAL_SCENE_PATH: String = "res://ui/Tutorial.tscn"
+const REMOTE_CURSORS_SCENE_PATH: String = "res://game/RemoteCursors.tscn"
+const NET_DEBUG_OVERLAY_SCENE_PATH: String = "res://ui/NetDebugOverlay.tscn"
 ## Bontago-xtq.42 (M7 P42, owner playtest: "there's no pause menu, I can't
 ## abandon a game and go back to the main menu or quit the game").
 const PAUSE_MENU_SCENE: PackedScene = preload("res://ui/PauseMenu.tscn")
@@ -410,7 +410,7 @@ func _apply_graphics_preset(preset: GraphicsPreset) -> void:
 
 func _start_hot_seat_match() -> void:
 	Sfx.set_music_context(&"gameplay")
-	_hot_seat = HOT_SEAT_SCENE.instantiate() as HotSeat
+	_hot_seat = _load_scene(HOT_SEAT_SCENE_PATH).instantiate() as HotSeat
 	add_child(_hot_seat)
 	_hot_seat.set_camera_rig(_camera_rig)
 	_hot_seat.set_field(_field)
@@ -455,7 +455,7 @@ func _start_sandbox_match() -> void:
 ## there is no OS.set_cmdline_user_args() to fake the real one with.
 func _start_sandbox_match_with_args(args: PackedStringArray) -> void:
 	Sfx.set_music_context(&"gameplay")
-	_sandbox = SANDBOX_SCENE.instantiate() as Sandbox
+	_sandbox = _load_scene(SANDBOX_SCENE_PATH).instantiate() as Sandbox
 	add_child(_sandbox)
 	# DECISION (Bontago-1pi.69): no scoreboard in the sandbox; Tab stays sandbox_next_slot.
 	if _scoreboard != null:
@@ -475,7 +475,7 @@ func _start_sandbox_match_with_args(args: PackedStringArray) -> void:
 	# F3's overlay works offline too (Net.stats() reports Offline/0 peers,
 	# which is still useful context while sandbox-testing); it costs nothing
 	# unopened, exactly as in the networked path below.
-	_debug_overlay = NET_DEBUG_OVERLAY_SCENE.instantiate() as NetDebugOverlay
+	_debug_overlay = _load_scene(NET_DEBUG_OVERLAY_SCENE_PATH).instantiate() as NetDebugOverlay
 	add_child(_debug_overlay)
 
 	# Bontago-1en.24: `--force-special=<id>` sets the same state F9
@@ -536,9 +536,9 @@ func _launch_sandbox_from_menu() -> void:
 func start_gift_demo_from_menu() -> void:
 	if not DebugMode.is_enabled():
 		return
-	_sandbox_preset = GIFT_DEMO_PRESET
+	_sandbox_preset = load(GIFT_DEMO_PRESET_PATH) as SandboxConfig
 	_launch_sandbox_from_menu()
-	_sandbox.apply_preset(GIFT_DEMO_PRESET)
+	_sandbox.apply_preset(_sandbox_preset)
 
 
 ## Bontago-1pi.102: the Debug page's Tower topple. Same sandbox path with
@@ -548,9 +548,9 @@ func start_gift_demo_from_menu() -> void:
 func start_tower_topple_from_menu() -> void:
 	if not DebugMode.is_enabled():
 		return
-	_sandbox_preset = TOWER_TOPPLE_PRESET
+	_sandbox_preset = load(TOWER_TOPPLE_PRESET_PATH) as SandboxConfig
 	_launch_sandbox_from_menu()
-	_sandbox.apply_preset(TOWER_TOPPLE_PRESET)
+	_sandbox.apply_preset(_sandbox_preset)
 
 
 ## Same lobby-settings-minus-a-few-overrides shape as _build_hot_seat_config().
@@ -631,7 +631,7 @@ func start_tutorial_from_menu() -> void:
 	# two scenes' _unhandled_input() dispatch order relative to each other
 	# (unrelated siblings under this node) is not a documented guarantee.
 	_pause_menu.suppressed = true
-	_tutorial = TUTORIAL_SCENE.instantiate() as Tutorial
+	_tutorial = _load_scene(TUTORIAL_SCENE_PATH).instantiate() as Tutorial
 	add_child(_tutorial)
 	_tutorial.set_camera_rig(_camera_rig)
 	_tutorial.finished.connect(_on_tutorial_finished)
@@ -1115,6 +1115,7 @@ func start_bots_from_menu(player_name: String) -> void:
 
 
 func _show_lobby() -> void:
+	_prefetch_match_scenes()
 	# Menu and lobby share a playlist; navigation must not restart the song.
 	Sfx.set_music_context(&"menu")
 	_clear_menu_and_lobby()
@@ -1122,7 +1123,7 @@ func _show_lobby() -> void:
 	# above -- the lobby is equally a "no match world" screen.
 	_pause_menu.force_close()
 	_pause_menu.suppressed = true
-	_lobby = LOBBY_SCENE.instantiate() as Lobby
+	_lobby = _load_scene(LOBBY_SCENE_PATH).instantiate() as Lobby
 	add_child(_lobby)
 	_lobby.start_requested.connect(_on_lobby_start_pressed)
 	_lobby.back_requested.connect(_on_lobby_back_requested)
@@ -1199,9 +1200,26 @@ func _on_lobby_start_requested(config: MatchConfig) -> void:
 
 
 ## Client side of the above: raise the overlay as soon as the host announces.
+## Bontago-1pi.11.62: rarely used scenes are loaded on first use instead of
+## preloaded at parse time. No member keeps the PackedScene: the resource cache
+## holds it while an instance is alive and releases it afterwards.
+func _load_scene(path: String) -> PackedScene:
+	return load(path) as PackedScene
+
+
+## Bontago-1pi.11.62: threaded prefetch of the match-start scene set so the
+## world build's _load_scene() calls do not hitch (called while the lobby /
+## loading screen is up).
+func _prefetch_match_scenes() -> void:
+	for path: String in [HOT_SEAT_SCENE_PATH, REMOTE_CURSORS_SCENE_PATH, NET_DEBUG_OVERLAY_SCENE_PATH]:
+		if ResourceLoader.load_threaded_get_status(path) == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
+			ResourceLoader.load_threaded_request(path)
+
+
 func _on_match_loading_announced() -> void:
 	if Match.state() != Match.State.LOBBY:
 		return
+	_prefetch_match_scenes()
 	_loading_screen.show_pending(null)
 
 
@@ -1577,7 +1595,7 @@ func _build_match_world(force_staging_for_test: bool = false) -> void:
 			_world_building = false
 			return
 
-	_remote_cursors = REMOTE_CURSORS_SCENE.instantiate() as RemoteCursors
+	_remote_cursors = _load_scene(REMOTE_CURSORS_SCENE_PATH).instantiate() as RemoteCursors
 	add_child(_remote_cursors)
 
 	# Bontago-d5c.6 (M5 P5): a HotSeat instance always binds Net.local_slot()
@@ -1594,14 +1612,14 @@ func _build_match_world(force_staging_for_test: bool = false) -> void:
 	# DECISION (Bontago-8or.11): it watches through the default camera rig
 	# with no HotSeat -- there is no slot for one to drive.
 	if config.ai_count < config.player_count and Net.local_slot() >= 0:
-		_hot_seat = HOT_SEAT_SCENE.instantiate() as HotSeat
+		_hot_seat = _load_scene(HOT_SEAT_SCENE_PATH).instantiate() as HotSeat
 		add_child(_hot_seat)
 		_hot_seat.set_camera_rig(_camera_rig)
 		_hot_seat.set_field(_field)
 		_hot_seat.bind_local_slot(Net.local_slot())
 		# Bontago-mv0.26 (owner test 2026-09-22, "the original lets me keep moving
 		# once I hit the edge of the screen"): HotSeat.gd's own _ready() already
-		# calls this unconditionally (this scene is the exact same HOT_SEAT_SCENE
+		# calls this unconditionally (this scene is the exact same HOT_SEAT_SCENE_PATH scene
 		# --hot-seat uses), so it should already be captured by the time
 		# add_child() above returns. Called again here, explicitly, the same way
 		# HotSeat.gd/Sandbox.gd each call it for their own subtree: this world
@@ -1629,7 +1647,7 @@ func _build_match_world(force_staging_for_test: bool = false) -> void:
 	add_child(_stable_block_manager)
 	_stable_block_manager.setup(_registry)
 
-	_debug_overlay = NET_DEBUG_OVERLAY_SCENE.instantiate() as NetDebugOverlay
+	_debug_overlay = _load_scene(NET_DEBUG_OVERLAY_SCENE_PATH).instantiate() as NetDebugOverlay
 	add_child(_debug_overlay)
 
 	# Bontago-xtq.26 (M7 P1): re-applies the current preset once the match
