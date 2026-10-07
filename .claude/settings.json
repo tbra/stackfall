@@ -8,8 +8,17 @@
             "type": "command"
           },
           {
-            "type": "command",
-            "command": "python tools/owner_replies.py"
+            "command": "python tools/owner_replies.py",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      },
+      {
+        "hooks": [
+          {
+            "command": "bd prime --hook-json --no-memories",
+            "type": "command"
           }
         ],
         "matcher": ""
@@ -17,14 +26,14 @@
     ],
     "UserPromptSubmit": [
       {
-        "matcher": "",
         "hooks": [
           {
-            "type": "command",
             "command": "python tools/owner_replies.py",
-            "timeout": 45
+            "timeout": 45,
+            "type": "command"
           }
-        ]
+        ],
+        "matcher": ""
       }
     ]
   }
