@@ -13,6 +13,14 @@ var _tiny_map: MapDef
 func before_each() -> void:
 	Match.set_process(false)
 	Match.abort_match()
+	# Bontago-fca.61: the shared Match autoload may still hold rain/anchors from an
+	# earlier script in the same shard; start from none so _rain()/anchor lookups and
+	# the live-anchor count only see this test's effects.
+	Match._placement._activation.clear()
+	for child: Node in Match.get_children():
+		if child is StackfallRain or (child is Block and child.has_meta(MatchGiftActivation.IN_PLACE_META)):
+			Match.remove_child(child)
+			child.free()
 	_tiny_map = (load("res://config/maps/round_medium.tres") as MapDef).duplicate(true)
 	_tiny_map.field_radius = 20.0
 	_field = autofree(Field.new())
