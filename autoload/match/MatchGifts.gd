@@ -798,7 +798,7 @@ func _held_block_touches(slot_id: int, crate_world: Vector3) -> bool:
 	var shape: BlockShape = _match.held_shape(slot_id)
 	if slot == null or not slot.home_flag_alive or shape == null:
 		return false
-	if (_match.config.hot_seat or _match.config.turn_based) and slot_id != _match.active_slot():
+	if _match.config.is_sequential_play() and slot_id != _match.active_slot():
 		return false
 	var origin: Vector3 = Vector3.ZERO
 	var orientation: int = 0

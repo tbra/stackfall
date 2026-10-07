@@ -132,6 +132,14 @@ RULES = [
          None, ("autoload/Net.gd", "net/NetFanout.gd"), False, GD,
          "use Net.is_host() / NetFanout.can_send(), not a private copy",
          True),
+    Rule("SEQUENTIAL_PREDICATE",
+         # Bontago-fca.36.11: MatchConfig.is_sequential_play() owns "one actor at a time"
+         # (hot_seat or turn_based). A hand-written pair of the two flags (either order,
+         # or/and, multi-line) is a copy; single-flag checks stay legal.
+         r"\bhot_seat\b.*\b(?:or|and)\b.*\bturn_based\b|\bturn_based\b.*\b(?:or|and)\b.*\bhot_seat\b",
+         None, ("config/MatchConfig.gd",), False, GD,
+         "use MatchConfig.is_sequential_play(), not a hand-written hot_seat/turn_based pair",
+         True),
 ]
 RULE_IDS = [r.id for r in RULES]
 _COMPILED = {r.id: re.compile(r.pattern) for r in RULES}

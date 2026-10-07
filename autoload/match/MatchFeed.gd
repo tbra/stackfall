@@ -209,7 +209,7 @@ func _tick_feed(delta: float) -> void:
 		# matching DECISION explains.
 		return
 	_tick_qol_pause(delta)
-	if _match.config.hot_seat or _match.config.turn_based:
+	if _match.config.is_sequential_play():
 		# stackfall-reviewer finding (Bontago-keo.10, M6 B4 turn-based review):
 		# turn_based used to fall into the concurrent `else` branch below,
 		# which ticked down EVERY slot's timer regardless of whose turn it
@@ -452,7 +452,7 @@ func _consume_and_refeed(slot_id: int, auto_drop: bool) -> void:
 	# feed_block_issued that tells the owner "you have a block" already
 	# carries the sequence its next intent must quote.
 	_feed_seq[slot_id] += 1
-	if _match.config.hot_seat or _match.config.turn_based:
+	if _match.config.is_sequential_play():
 		_feed_time_left[slot_id] = _match.config.block_timer
 		_feed_expired[slot_id] = false
 		_issue_next_block(slot_id)
