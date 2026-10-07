@@ -18,6 +18,7 @@ ART={
  'team_random':('Random team','<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="7" cy="7" r="1.3" fill="#fff" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="#fff" stroke="none"/><circle cx="17" cy="17" r="1.3" fill="#fff" stroke="none"/>'),
  'colour_swap':('Swap colours','<path d="M4 8h15m-4-4 4 4-4 4M20 16H5m4-4-4 4 4 4"/>'),
  'advanced_open':('Advanced section expanded','<path d="M6 9l6 6 6-6"/>'),
+ 'host_crown':('Host','<path d="M4 18L3 8l5 4 4-7 4 7 5-4-1 10ZM5 21h14"/>'),
  'advanced_closed':('Advanced section collapsed','<path d="M9 6l6 6-6 6"/>'),
 }
 
@@ -28,7 +29,7 @@ def build():
   ET.fromstring(svg);(OUT/(name+'.svg')).write_text(svg)
   catalog.append({'id':name,'file':name+'.svg','title':title})
  (OUT/'catalog.json').write_text(json.dumps({'viewbox':[24,24],'source_color':'white','tint':'MenuStyleFactory.apply_ink','icons':catalog},indent=2)+'\n')
- print('14 white-source lobby SVGs:XML/catalog PASS')
+ print('15 white-source lobby SVGs:XML/catalog PASS')
 
 if __name__=='__main__':build()
 

@@ -72,6 +72,11 @@
       "title": "Advanced section expanded"
     },
     {
+      "id": "host_crown",
+      "file": "host_crown.svg",
+      "title": "Host"
+    },
+    {
       "id": "advanced_closed",
       "file": "advanced_closed.svg",
       "title": "Advanced section collapsed"

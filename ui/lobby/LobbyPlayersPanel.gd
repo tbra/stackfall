@@ -594,7 +594,8 @@ func _render() -> void:
 	# config's player_count; the Lobby used to read its %PlayerCountSpin, which
 	# _apply_data() writes from that same sanitized value (and every host edit
 	# republishes), so the two agree whenever the Lobby is shown.
-	var seat_count: int = _config.player_count if _config != null else _humans.size()
+	# Bontago-1pi.106: the player/bot count controls are gone, so the denominator is always the maximum.
+	var seat_count: int = MatchConfig.PLAYER_COUNT_MAX
 	# Bontago-1pi.95: the label clips (never widens the card); the tooltip carries the full text.
 	_player_count_label.text = format_roster_header(_humans.size(), bot_total, seat_count)
 	_player_count_label.tooltip_text = _player_count_label.text
@@ -656,6 +657,7 @@ func _build_human_row(entry: Dictionary) -> LobbySeatRow:
 	row.display_name = str(entry.get(LobbySeats.FIELD_NAME, "?"))
 	row.subtitle = _human_subtitle(entry, peer_id)
 	row.is_ready = bool(entry.get(LobbySeats.FIELD_READY, false))
+	row.is_host = peer_id == Net.HOST_PEER_ID
 	row.build(tuning, layout_tuning)
 	return row
 

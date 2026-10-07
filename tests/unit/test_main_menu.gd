@@ -67,6 +67,11 @@ func test_host_button_opens_transport_dialog_before_hosting() -> void:
 	assert_eq(_fake_of(menu).host_game_calls.size(), 1)
 
 
+func test_play_offline_label() -> void:
+	var menu: MainMenu = _make_menu()
+	assert_eq((menu.get_node("%PlayLocalButton") as Button).text, "Play Offline")
+
+
 func test_join_and_play_local_keep_discovery_off_the_front_page() -> void:
 	var menu: MainMenu = _make_menu()
 	assert_false((menu.get_node("%LanGamesWell") as Control).visible)

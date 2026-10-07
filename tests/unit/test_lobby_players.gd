@@ -187,11 +187,30 @@ func test_human_rows_name_subtitle_and_ready_badge() -> void:
 	assert_eq(rows.size(), 2)
 	assert_eq(_row_name(rows[0]), "Host")
 	assert_eq(_row_subtitle(rows[0]), "Host · you", "the local peer is peer 1 on a FakeNet")
-	assert_eq(_row_badge(rows[0]), char(0x2713), "icon only: no words on the pill")
-	assert_eq(_row_badge_tip(rows[0]), "Ready")
+	_assert_host_crown(rows[0])
+	assert_eq(_header_of(lobby).text, "2 players · 2/%d seats" % MatchConfig.PLAYER_COUNT_MAX)
 	assert_eq(_row_name(rows[1]), "Guest")
 	assert_eq(_row_subtitle(rows[1]), "LAN · 0 ms")
 	assert_eq(_row_badge(rows[1]), char(0x231A))
+	assert_eq(_row_badge_tip(rows[1]), "Not ready")
+
+
+func _assert_host_crown(row: Node) -> void:
+	var layout: HBoxContainer = _row_layout(row)
+	var badge: PanelContainer = layout.get_child(layout.get_child_count() - 1) as PanelContainer
+	var crown: TextureRect = badge.get_child(0) as TextureRect
+	assert_not_null(crown, "the host row shows a crown, not the Ready pill")
+	assert_eq(crown.texture, UiArtTable.shared().lobby_icon(UiArtTable.KEY_HOST_CROWN))
+	assert_eq(badge.tooltip_text, "Host")
+
+
+func test_host_crown_shows_for_a_client_too_and_guest_keeps_its_pill() -> void:
+	var lobby: Lobby = _make_lobby(false)
+	_fake_of(lobby).local_peer_id_value = 2
+	Events.net_lobby_data_changed.emit(_two_humans_data(false))
+	var rows: Array[Node] = _panel_of(lobby)._player_rows
+	_assert_host_crown(rows[0])
+	assert_eq(_row_badge(rows[1]), char(0x231A), "a guest still has the Ready pill")
 	assert_eq(_row_badge_tip(rows[1]), "Not ready")
 
 
@@ -483,11 +502,11 @@ func test_add_bot_grows_the_seat_count_to_humans_plus_bots_and_publishes() -> vo
 	panel.add_bot_requested.emit()
 	assert_eq(int(_last_published(lobby).get("ai_count")), 1)
 	assert_eq(int(_last_published(lobby).get("player_count")), 2, "1 human + 1 bot = 2 seats")
-	assert_eq(_header_of(lobby).text, "1 player · 1 bot · 2/2 seats")
+	assert_eq(_header_of(lobby).text, "1 player · 1 bot · 2/8 seats")
 	panel.add_bot_requested.emit()
 	assert_eq(int(_last_published(lobby).get("ai_count")), 2)
 	assert_eq(int(_last_published(lobby).get("player_count")), 3)
-	assert_eq(_header_of(lobby).text, "1 player · 2 bots · 3/3 seats")
+	assert_eq(_header_of(lobby).text, "1 player · 2 bots · 3/8 seats")
 	assert_eq(_panel_of(lobby)._player_rows.size(), 3)
 
 
@@ -889,7 +908,7 @@ func test_remove_bot_drops_the_seat_compacts_the_rest_and_asks_the_lobby_for_one
 	assert_eq(LobbySeats.bot_count(seats), 1)
 	assert_eq(LobbySeats.color_of(seats, LobbySeats.bot_key(0)), second_color, "the later bot moved down with its picks")
 	assert_eq(_panel_of(lobby)._player_rows.size(), 2, "one human + one bot row left")
-	assert_eq(_header_of(lobby).text, "1 player · 1 bot · 2/2 seats")
+	assert_eq(_header_of(lobby).text, "1 player · 1 bot · 2/8 seats")
 
 
 func test_a_clients_rows_are_read_only() -> void:
@@ -1217,7 +1236,7 @@ func test_the_add_bot_button_adds_a_default_bot_and_publishes_the_seats() -> voi
 	assert_eq(LobbySeats.difficulty_of(table, LobbySeats.bot_key(0)), MatchConfig.AiDifficulty.NORMAL, "the lobby's default difficulty")
 	assert_eq(LobbySeats.color_of(table, LobbySeats.bot_key(0)), 1, "the lowest free colour")
 	assert_eq(_rows_of(lobby).size(), 2)
-	assert_eq(_header_of(lobby).text, "1 player · 1 bot · 2/2 seats")
+	assert_eq(_header_of(lobby).text, "1 player · 1 bot · 2/8 seats")
 	_add_bot_button(lobby).pressed.emit()
 	assert_eq(LobbySeats.bot_count(_seat_table(lobby)), 2)
 
