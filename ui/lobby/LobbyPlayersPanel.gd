@@ -206,10 +206,10 @@ func build_roster(config: MatchConfig) -> Array[Dictionary]:
 	for peer_id: int in net_provider.peer_ids():
 		var info: Dictionary = net_provider.peer_info(peer_id)
 		roster.append({
-			"peer_id": peer_id,
-			"slot_id": int(info.get("slot_id", -1)),
-			"name": str(info.get("name", "")),
-			"ready": bool(info.get("ready", false)),
+			LobbySeats.FIELD_PEER_ID: peer_id,
+			LobbySeats.FIELD_SLOT_ID: int(info.get(LobbySeats.FIELD_SLOT_ID, -1)),
+			LobbySeats.FIELD_NAME: str(info.get(LobbySeats.FIELD_NAME, "")),
+			LobbySeats.FIELD_READY: bool(info.get(LobbySeats.FIELD_READY, false)),
 		})
 	_sync_seats(config, _human_entries(roster))
 	roster.append_array(bot_roster_entries(config))
@@ -240,10 +240,10 @@ func bot_roster_entries(config: MatchConfig) -> Array[Dictionary]:
 			seat_difficulty = config.ai_difficulty
 		var label: String = _AI_DIFFICULTY_LABELS[clampi(seat_difficulty, 0, _AI_DIFFICULTY_LABELS.size() - 1)]
 		bots.append({
-			"peer_id": -1,
-			"slot_id": bot_start + ordinal,
-			"name": "%s (%s)" % [_bot_name(config, ordinal), label],
-			"ready": true,
+			LobbySeats.FIELD_PEER_ID: -1,
+			LobbySeats.FIELD_SLOT_ID: bot_start + ordinal,
+			LobbySeats.FIELD_NAME: "%s (%s)" % [_bot_name(config, ordinal), label],
+			LobbySeats.FIELD_READY: true,
 		})
 	return bots
 
@@ -352,14 +352,14 @@ func _human_entries(roster_data: Variant) -> Array[Dictionary]:
 			if not entry_variant is Dictionary:
 				continue
 			var entry: Dictionary = entry_variant as Dictionary
-			if int(entry.get("peer_id", -1)) == -1:
+			if int(entry.get(LobbySeats.FIELD_PEER_ID, -1)) == -1:
 				continue
-			if int(entry.get("slot_id", -1)) >= 0:
+			if int(entry.get(LobbySeats.FIELD_SLOT_ID, -1)) >= 0:
 				seated.append(entry)
 			else:
 				spectators.append(entry)
 	seated.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		return int(a.get("slot_id", -1)) < int(b.get("slot_id", -1))
+		return int(a.get(LobbySeats.FIELD_SLOT_ID, -1)) < int(b.get(LobbySeats.FIELD_SLOT_ID, -1))
 	)
 	seated.append_array(spectators)
 	return seated
@@ -369,8 +369,8 @@ func _human_entries(roster_data: Variant) -> Array[Dictionary]:
 func _seated_peer_ids(entries: Array[Dictionary]) -> PackedInt32Array:
 	var ids: PackedInt32Array = PackedInt32Array()
 	for entry: Dictionary in entries:
-		if int(entry.get("slot_id", -1)) >= 0:
-			ids.append(int(entry.get("peer_id", -1)))
+		if int(entry.get(LobbySeats.FIELD_SLOT_ID, -1)) >= 0:
+			ids.append(int(entry.get(LobbySeats.FIELD_PEER_ID, -1)))
 	return ids
 
 
@@ -648,14 +648,14 @@ static func format_roster_header(humans: int, bots: int, seats: int) -> String:
 ## "LAN · <ping> ms"), and a Ready (mint)/Not ready (peach) badge on the right.
 ## PL1a adds the per-seat controls (see LobbySeatRow).
 func _build_human_row(entry: Dictionary) -> LobbySeatRow:
-	var peer_id: int = int(entry.get("peer_id", -1))
+	var peer_id: int = int(entry.get(LobbySeats.FIELD_PEER_ID, -1))
 	var key: int = LobbySeats.KEY_NONE
-	if int(entry.get("slot_id", -1)) >= 0 and LobbySeats.has_seat(_seats, LobbySeats.human_key(peer_id)):
+	if int(entry.get(LobbySeats.FIELD_SLOT_ID, -1)) >= 0 and LobbySeats.has_seat(_seats, LobbySeats.human_key(peer_id)):
 		key = LobbySeats.human_key(peer_id)
 	var row: LobbySeatRow = _new_row(key)
-	row.display_name = str(entry.get("name", "?"))
+	row.display_name = str(entry.get(LobbySeats.FIELD_NAME, "?"))
 	row.subtitle = _human_subtitle(entry, peer_id)
-	row.is_ready = bool(entry.get("ready", false))
+	row.is_ready = bool(entry.get(LobbySeats.FIELD_READY, false))
 	row.build(tuning, layout_tuning)
 	return row
 
@@ -703,7 +703,7 @@ func _human_subtitle(entry: Dictionary, peer_id: int) -> String:
 	if is_local:
 		return "you"
 	var transport: String = "Steam" if (net_provider != null and bool(net_provider.is_steam_session())) else "LAN"
-	return "%s · %d ms" % [transport, int(entry.get("ping_ms", 0.0))]
+	return "%s · %d ms" % [transport, int(entry.get(LobbySeats.FIELD_PING_MS, 0.0))]
 
 
 # --- Focus across a redraw -------------------------------------------------------

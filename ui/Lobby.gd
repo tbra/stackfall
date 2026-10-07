@@ -1245,7 +1245,7 @@ func _reconciled_bot_names(bot_count: int) -> PackedStringArray:
 	var human_names: PackedStringArray = PackedStringArray()
 	if net_provider != null:
 		for peer_id: int in net_provider.peer_ids():
-			human_names.append(str(net_provider.peer_info(peer_id).get("name", "")))
+			human_names.append(str(net_provider.peer_info(peer_id).get(LobbySeats.FIELD_NAME, "")))
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.randomize()
 	_bot_names = BotNames.assign(_bot_names, bot_count, human_names, rng)
@@ -1575,7 +1575,7 @@ func _sync_ready_toggle_from_net() -> void:
 	if net_provider == null:
 		return
 	var own: Dictionary = net_provider.peer_info(net_provider.local_peer_id())
-	_ready_check.set_pressed_no_signal(bool(own.get("ready", false)))
+	_ready_check.set_pressed_no_signal(bool(own.get(LobbySeats.FIELD_READY, false)))
 
 
 ## Bontago-1pi.89: draws Net's live roster into the players panel on entry. A client's cached

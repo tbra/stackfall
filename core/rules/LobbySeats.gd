@@ -35,6 +35,19 @@ const FIELD_PEER_ID: String = "peer_id"
 const FIELD_COLOR: String = "color"
 const FIELD_TEAM: String = "team"
 const FIELD_DIFFICULTY: String = "difficulty"
+## Roster entry (Net._peers value, one per connected peer; the _rpc_roster_update wire).
+const FIELD_SLOT_ID: String = "slot_id"
+const FIELD_NAME: String = "name"
+## Present only on joiner entries (the host's own never carries it).
+const FIELD_NAME_AUTO: String = "name_auto"
+const FIELD_READY: String = "ready"
+const FIELD_PING_MS: String = "ping_ms"
+const FIELD_BUILD: String = "build"
+## Roster receive limits: NetConfig.max_player_name_length clamps to 64; slot ids are
+## monotonic mid-match so only the int32 range bounds them; -1 = spectator.
+const ROSTER_NAME_MAX: int = 64
+const ROSTER_BUILD_MAX: int = 64
+const SPECTATOR_SLOT: int = -1
 
 ## "No seat": never a valid human key (peer ids are positive) nor a bot key (negative).
 const KEY_NONE: int = 0
@@ -499,6 +512,72 @@ static func flatten_to_config(seats: Dictionary, slot_of_peer: Dictionary, confi
 		config.slot_team_ids = PackedInt32Array()
 		config.team_numbers = PackedInt32Array()
 	return ""
+
+
+# --- Roster entry wire (one owner for Net's peer table) ---------------------------
+
+## One roster entry exactly as Net has always built it. `name_auto` is only written
+## when `with_name_auto` (joiner entries); the host's own entry omits the key.
+static func entry_to_wire(
+	peer_id: int, slot_id: int, display_name: String, ready: bool, ping_ms: float, build: String,
+	with_name_auto: bool = false, name_auto: bool = false
+) -> Dictionary:
+	var entry: Dictionary = {
+		FIELD_PEER_ID: peer_id,
+		FIELD_SLOT_ID: slot_id,
+		FIELD_NAME: display_name,
+	}
+	if with_name_auto:
+		entry[FIELD_NAME_AUTO] = name_auto
+	entry[FIELD_READY] = ready
+	entry[FIELD_PING_MS] = ping_ms
+	entry[FIELD_BUILD] = build
+	return entry
+
+
+## The validated copy of a received roster entry, or {} to reject it: must be a
+## Dictionary with peer_id >= 1, slot_id in -1..int32 max (ints only), a String name,
+## bool ready, finite non-negative number ping_ms, String build, an optional bool
+## name_auto, and no other keys.
+static func entry_from_wire(raw: Variant) -> Dictionary:
+	if not (raw is Dictionary):
+		return {}
+	var data: Dictionary = raw
+	var schema: Dictionary = {
+		FIELD_PEER_ID: WireSchema.int_field(1, int(_WIRE_INT_LIMIT)),
+		FIELD_SLOT_ID: WireSchema.int_field(SPECTATOR_SLOT, int(_WIRE_INT_LIMIT)),
+		FIELD_NAME: WireSchema.string_field(ROSTER_NAME_MAX),
+		FIELD_PING_MS: WireSchema.number_field(0.0),
+		FIELD_BUILD: WireSchema.string_field(ROSTER_BUILD_MAX),
+	}
+	# schema keys + ready (bool, checked below) [+ the optional name_auto bool].
+	var required: int = schema.size() + 1
+	if data.has(FIELD_NAME_AUTO):
+		required += 1
+		if typeof(data[FIELD_NAME_AUTO]) != TYPE_BOOL:
+			return {}
+	if data.size() != required:
+		return {}
+	var probe: Dictionary = {}
+	for key: String in schema:
+		if not data.has(key):
+			return {}
+		probe[key] = data[key]
+	if typeof(data.get(FIELD_READY)) != TYPE_BOOL:
+		return {}
+	var clean: Dictionary = WireSchema.sanitize(probe, schema)
+	if clean.is_empty():
+		return {}
+	var out: Dictionary = {}
+	out[FIELD_PEER_ID] = clean[FIELD_PEER_ID]
+	out[FIELD_SLOT_ID] = clean[FIELD_SLOT_ID]
+	out[FIELD_NAME] = clean[FIELD_NAME]
+	if data.has(FIELD_NAME_AUTO):
+		out[FIELD_NAME_AUTO] = data[FIELD_NAME_AUTO]
+	out[FIELD_READY] = data[FIELD_READY]
+	out[FIELD_PING_MS] = clean[FIELD_PING_MS]
+	out[FIELD_BUILD] = clean[FIELD_BUILD]
+	return out
 
 
 # --- Internals -------------------------------------------------------------------

@@ -111,6 +111,12 @@ RULES = [
          r"(?:\.get\(|\[)\s*\"(?:slot_id|team_id|name|is_bot|wins|height|mode|mode_id|scores|live|is_winner)\"",
          ("ui/ResultsScreen.gd", "ui/ScoreTable.gd", "ui/ScoreboardOverlay.gd"), ("core/rules/ResultsPayload.gd",), True, GD,
          "read results-payload keys through ResultsPayload (KEY_* / accessors)"),
+    Rule("SEAT_WIRE_KEY",
+         # Roster-entry keys (Net._peers / _rpc_roster_update): net/ and autoload/ build and read them only
+         # through core/rules/LobbySeats.gd (FIELD_* consts, entry_to_wire / entry_from_wire).
+         r"(?:\.get\(|\[)\s*\"(?:peer_id|slot_id|name_auto|ping_ms)\"|\"(?:slot_id|name_auto)\"\s*:",
+         ("net/", "autoload/"), ("core/rules/LobbySeats.gd", "autoload/match/MatchStats.gd"), True, GD,
+         "seat/roster payload keys belong to LobbySeats (FIELD_* / entry_to_wire / entry_from_wire)"),
     Rule("GIFT_ICON",
          r"res://assets/gifts/",
          None, ("config/", "game/GiftCrate.gd", "game/BlockFactory.gd"), True, GD,
