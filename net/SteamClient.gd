@@ -180,11 +180,10 @@ func _print_account_diagnostics() -> void:
 	print("STEAM account: ", " ".join(parts) if not parts.is_empty() else "(no account getters exposed)")
 
 
-## `--steam-lobby-debug`: unfiltered worldwide request whose answer is summarised by log_unfiltered_results().
+## `--steam-lobby-debug`: unfiltered request with Steam's default distance filter (nearest first).
 func request_unfiltered_debug_list() -> void:
 	if _steam == null:
 		return
-	_steam.call("addRequestLobbyListDistanceFilter", LOBBY_DISTANCE_FILTER_WORLDWIDE)
 	_steam.call("requestLobbyList")
 
 
