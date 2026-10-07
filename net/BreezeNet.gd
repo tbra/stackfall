@@ -12,7 +12,8 @@ extends Node
 ## client -> host message, and gusts are transient, so a late joiner is not
 ## sent history.
 
-const WIRE_KEYS: PackedStringArray = ["id", "x", "y", "z", "a", "r", "d", "s"]
+## Largest heading magnitude (radians) a gust may carry: four turns. Wire format, not a tunable.
+const GUST_MAX_ANGLE: float = TAU * 4.0
 
 ## Same gate as WeatherNet.awaiting_world (set by WeatherNet).
 var awaiting_world: Callable = Callable()
@@ -101,39 +102,18 @@ func apply_gust(raw: Variant) -> bool:
 
 ## The sanitized gust or {} when `raw` is malformed: wrong type, missing or
 ## extra key, non-number or non-finite value, or a coordinate, radius, duration
-## or strength outside the tuning's wire limits.
+## or strength outside the tuning's wire limits (all checked by WireSchema).
 static func sanitize_gust(raw: Variant, tuning: BreezeTuning) -> Dictionary:
-	if not (raw is Dictionary):
-		return {}
-	var data: Dictionary = raw
-	if data.size() != WIRE_KEYS.size():
-		return {}
-	for key: String in WIRE_KEYS:
-		if not data.has(key):
-			return {}
-		var value: Variant = data[key]
-		if typeof(value) != TYPE_INT and typeof(value) != TYPE_FLOAT:
-			return {}
-		if not is_finite(float(value)):
-			return {}
-	if typeof(data["id"]) != TYPE_INT or int(data["id"]) < 1:
-		return {}
+	return WireSchema.sanitize(raw, gust_schema(tuning))
+
+
+static func gust_schema(tuning: BreezeTuning) -> Dictionary:
 	var limit: float = tuning.wire_max_coord_m
-	for axis: String in ["x", "y", "z"]:
-		if absf(float(data[axis])) > limit:
-			return {}
-	if absf(float(data["a"])) > TAU * 4.0:
-		return {}
-	var radius: float = float(data["r"])
-	var duration: float = float(data["d"])
-	var strength: float = float(data["s"])
-	if radius <= 0.0 or radius > tuning.wire_max_radius_m:
-		return {}
-	if duration <= 0.0 or duration > tuning.wire_max_duration_s:
-		return {}
-	if strength < 0.0 or strength > 1.0:
-		return {}
+	var coord: Dictionary = WireSchema.number_field(-limit, limit)
 	return {
-		"id": int(data["id"]), "x": float(data["x"]), "y": float(data["y"]), "z": float(data["z"]),
-		"a": float(data["a"]), "r": radius, "d": duration, "s": strength,
+		"id": WireSchema.int_field(1), "x": coord, "y": coord, "z": coord,
+		"a": WireSchema.number_field(-GUST_MAX_ANGLE, GUST_MAX_ANGLE),
+		"r": WireSchema.number_field(-INF, tuning.wire_max_radius_m, 0.0),
+		"d": WireSchema.number_field(-INF, tuning.wire_max_duration_s, 0.0),
+		"s": WireSchema.number_field(0.0, 1.0),
 	}

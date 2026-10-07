@@ -42,7 +42,9 @@ const BREEZE_SEED_SALT: int = 0x5B1EE2E
 
 ## Wire format version of state_dict(). Architecture, not a tunable.
 const WIRE_VERSION: int = 1
-const WIRE_KEYS: PackedStringArray = ["v", "epoch", "seed", "mode", "sched", "left", "id", "phase", "t", "ev"]
+## Longest weather id accepted on the wire (ids are short snake_case words).
+# DECISION: a wire-safety cap, not a gameplay tunable, so it stays a const.
+const WIRE_MAX_ID_LENGTH: int = 32
 
 var _match: MatchAutoload = null
 var _defs: Dictionary = {}
@@ -571,40 +573,14 @@ func state_dict() -> Dictionary:
 func sanitize_wire_state(raw: Variant) -> Dictionary:
 	if not (raw is Dictionary):
 		return {}
-	var data: Dictionary = raw
-	if data.size() != WIRE_KEYS.size():
-		return {}
-	for key: String in WIRE_KEYS:
-		if not data.has(key):
-			return {}
-	if not _is_int(data["v"]) or int(data["v"]) != WIRE_VERSION:
-		return {}
-	if not _is_int(data["epoch"]) or int(data["epoch"]) < 0:
-		return {}
-	if not _is_int(data["seed"]) or not _is_int(data["mode"]) or not _is_int(data["sched"]) or not _is_int(data["phase"]):
+	var data: Dictionary = WireSchema.sanitize(raw, _wire_schema())
+	if data.is_empty():
 		return {}
 	var mode_value: int = int(data["mode"])
 	var sched_value: int = int(data["sched"])
 	var phase_value: int = int(data["phase"])
-	if mode_value < MatchConfig.WeatherMode.OFF or mode_value > MatchConfig.WeatherMode.CHANGING:
-		return {}
-	if sched_value < Sched.OFF or sched_value > Sched.EVENT:
-		return {}
-	if phase_value < WeatherTuning.Phase.RAMP_IN or phase_value > WeatherTuning.Phase.RAMP_OUT:
-		return {}
-	if not _is_int(data["ev"]) or int(data["ev"]) < 0:
-		return {}
-	if not _is_number(data["left"]) or not _is_number(data["t"]):
-		return {}
 	var left_value: float = float(data["left"])
 	var t_value: float = float(data["t"])
-	if not is_finite(left_value) or not is_finite(t_value):
-		return {}
-	if left_value < 0.0 or t_value < 0.0 or left_value > _schedule.wire_max_time_s or t_value > _schedule.wire_max_time_s:
-		return {}
-	var id_type: int = typeof(data["id"])
-	if id_type != TYPE_STRING and id_type != TYPE_STRING_NAME:
-		return {}
 	var id_value: StringName = StringName(String(data["id"]))
 	_ensure_defs()
 	if sched_value == Sched.EVENT:
@@ -622,12 +598,20 @@ func sanitize_wire_state(raw: Variant) -> Dictionary:
 	}
 
 
-static func _is_int(value: Variant) -> bool:
-	return typeof(value) == TYPE_INT
-
-
-static func _is_number(value: Variant) -> bool:
-	return typeof(value) == TYPE_INT or typeof(value) == TYPE_FLOAT
+func _wire_schema() -> Dictionary:
+	var time_field: Dictionary = WireSchema.number_field(0.0, _schedule.wire_max_time_s)
+	return {
+		"v": WireSchema.int_field(WIRE_VERSION, WIRE_VERSION),
+		"epoch": WireSchema.int_field(0),
+		"seed": WireSchema.int_field(),
+		"mode": WireSchema.int_field(MatchConfig.WeatherMode.OFF, MatchConfig.WeatherMode.CHANGING),
+		"sched": WireSchema.int_field(Sched.OFF, Sched.EVENT),
+		"left": time_field,
+		"id": WireSchema.string_field(WIRE_MAX_ID_LENGTH),
+		"phase": WireSchema.int_field(WeatherTuning.Phase.RAMP_IN, WeatherTuning.Phase.RAMP_OUT),
+		"t": time_field,
+		"ev": WireSchema.int_field(0),
+	}
 
 
 ## Client: adopts the host's state. Returns false (and changes nothing) for a
