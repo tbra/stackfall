@@ -87,6 +87,10 @@ const _DEFAULT_CONFIG: NetConfig = preload("res://config/net_config.tres")
 var _steam: Object = null
 
 
+## Bontago-1pi.48: lobby data values are truncated to this many characters in the diagnostic log.
+const LOG_VALUE_MAX_CHARS: int = 40
+
+
 func is_available() -> bool:
 	return ClassDB.class_exists(&"Steam")
 
@@ -150,7 +154,7 @@ func set_lobby_data(lobby_id: int, key: String, value: String) -> void:
 	if _steam == null:
 		return
 	var ok: Variant = _steam.call("setLobbyData", lobby_id, key, value)
-	print("STEAM setLobbyData lobby=%d %s=%s -> %s" % [lobby_id, key, value.left(40), str(ok)])
+	print("STEAM setLobbyData lobby=%d %s=%s -> %s" % [lobby_id, key, value.left(LOG_VALUE_MAX_CHARS), str(ok)])
 
 
 ## Bontago-1pi.48 diagnostics: explicitly marks the lobby joinable and logs the result.

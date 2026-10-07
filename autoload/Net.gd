@@ -236,6 +236,11 @@ var _steam_pending_generations: Array[int] = []
 ## guard above. False once leave() bumps the generation, even if an older
 ## generation's request is still genuinely in flight with Steam (those
 ## resolve as stale — see _steam_request_generation's doc comment).
+## Bontago-1pi.48: --steam-lobby-debug prints the game/version data of at most this many
+## unfiltered lobbies (a diagnostic sample size, not gameplay).
+const LOBBY_DEBUG_SAMPLE_COUNT: int = 5
+
+
 func _steam_request_pending() -> bool:
 	return _steam_pending_generations.has(_steam_request_generation)
 
@@ -980,7 +985,7 @@ func _on_steam_lobby_match_list(lobby_ids: Array) -> void:
 		_steam_debug_pending = false
 		_steam_debug_answer_next = false
 		var lines: PackedStringArray = PackedStringArray()
-		for i: int in mini(5, lobby_ids.size()):
+		for i: int in mini(LOBBY_DEBUG_SAMPLE_COUNT, lobby_ids.size()):
 			var id: int = int(lobby_ids[i])
 			lines.append("%d{game=%s version=%s}" % [id, steam_provider.get_lobby_data(id, String(SteamClient.KEY_GAME)), steam_provider.get_lobby_data(id, String(SteamClient.KEY_VERSION))])
 		print("STEAM unfiltered debug search: %d lobbies visible; first: %s" % [lobby_ids.size(), " ".join(lines)])
