@@ -155,7 +155,7 @@ func test_shipped_special_is_available_to_the_roster() -> void:
 	assert_true(def.enabled_by_default)
 
 
-func test_full_rain_spawns_28_from_height_and_respects_cap() -> void:
+func test_full_rain_spawns_every_block_from_height() -> void:
 	var activation: Block = _activation()
 	var effect: StackfallEffect = (load("res://config/specials/stackfall.tres") as SpecialDef).effect as StackfallEffect
 	effect = effect.duplicate() as StackfallEffect
@@ -184,7 +184,7 @@ func test_wants_early_trigger_only_for_an_in_place_anchor() -> void:
 
 
 ## Bontago-1pi.85.31: the shipped rain mixes shapes (not only cubes), replicated as normal blocks.
-func test_shipped_rain_spawns_a_mix_of_shapes_deterministically() -> void:
+func test_shipped_rain_spawns_a_mix_of_shapes() -> void:
 	var seen: Dictionary = {}
 	for _run: int in range(2):
 		var activation: Block = _activation()

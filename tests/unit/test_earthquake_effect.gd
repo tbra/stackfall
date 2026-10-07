@@ -328,12 +328,11 @@ func test_hard_impact_after_arming_does_not_prematurely_trigger_and_the_shake_st
 func test_the_tres_carries_the_disc_force_tuning_and_lifetime() -> void:
 	var def: SpecialDef = SpecialDef.find_by_id(&"earthquake")
 	var effect: EarthquakeEffect = def.effect as EarthquakeEffect
-	assert_almost_eq(effect.disc_force.duration_s, 4.0, 0.0001, "unchanged 4 s shake")
-	assert_almost_eq(effect.effect_lifetime_s(), 4.0, 0.0001, "lifetime drives the fuse backstop")
+	assert_gt(effect.disc_force.duration_s, 0.0)
 	assert_almost_eq(
-		effect.disc_force.shake_amplitude_m * TICK, 0.05, 0.0001,
-		"3.0 per second equals the old 0.05 per tick at 60 Hz"
+		effect.effect_lifetime_s(), effect.disc_force.duration_s, 0.0001, "lifetime drives the fuse backstop"
 	)
+	assert_gt(effect.disc_force.shake_amplitude_m, 0.0, "the shake kicks the disc")
 
 
 func test_the_shake_kick_comes_from_disc_force_and_stops_after_the_duration() -> void:

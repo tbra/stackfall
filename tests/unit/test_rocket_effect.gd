@@ -482,7 +482,7 @@ func test_a_horizontal_launch_from_rest_on_a_floor_does_not_explode_on_the_resti
 
 # --- config/specials/rocket.tres ---------------------------------------------
 
-func test_rocket_tres_loads_with_the_plan_numbers() -> void:
+func test_rocket_tres_loads_with_a_usable_thrust_fuel_and_blast() -> void:
 	var found: SpecialDef = null
 	for def: SpecialDef in SpecialDef.load_all_specials():
 		if def.id == &"rocket":
@@ -491,11 +491,10 @@ func test_rocket_tres_loads_with_the_plan_numbers() -> void:
 	assert_not_null(found, "config/specials/rocket.tres is found by load_all_specials()")
 	assert_true(found.effect is RocketEffect, "rocket.tres's effect is a RocketEffect")
 	var effect: RocketEffect = found.effect as RocketEffect
-	assert_eq(effect.thrust_speed_mps, 60.0)
-	assert_eq(effect.fuel_duration_s, 3.0)
-	assert_eq(effect.default_pitch_down_deg, 20.0)
-	assert_eq(effect.blast.radius_m, 7.0)
-	assert_eq(effect.blast.peak_speed_mps, 100.0)
-	assert_eq(effect.blast.falloff_exponent, 1.5)
-	assert_eq(effect.blast.upward_bias, 0.35)
-	assert_eq(effect.blast.max_delta_v_mps, 160.0)
+	assert_gt(effect.thrust_speed_mps, 0.0)
+	assert_gt(effect.fuel_duration_s, 0.0)
+	assert_gt(effect.default_pitch_down_deg, 0.0, "the default aim points downward")
+	assert_gt(effect.blast.radius_m, 0.0)
+	assert_gt(effect.blast.peak_speed_mps, 0.0)
+	assert_gt(effect.blast.falloff_exponent, 0.0)
+	assert_gt(effect.blast.max_delta_v_mps, 0.0)

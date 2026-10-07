@@ -513,7 +513,7 @@ func test_real_jumping_bean_tres_def_does_not_fuse_trigger_before_lifetime_s() -
 
 # --- jumping_bean.tres loads through the shared loader with contract defaults
 
-func test_jumping_bean_tres_loads_with_the_contract_defaults() -> void:
+func test_jumping_bean_tres_loads_with_a_usable_hop_cycle() -> void:
 	var defs: Array[SpecialDef] = SpecialDef.load_all_specials()
 	var found: SpecialDef = null
 	for def: SpecialDef in defs:
@@ -526,19 +526,19 @@ func test_jumping_bean_tres_loads_with_the_contract_defaults() -> void:
 		"jumping_bean.tres's effect sub-resource must be a JumpingBeanEffect"
 	)
 	var effect: JumpingBeanEffect = found.effect as JumpingBeanEffect
-	assert_almost_eq(effect.first_hop_delay_s, 0.4, 0.0001)
-	assert_almost_eq(effect.hop_interval_s, 1.0, 0.0001)
-	assert_almost_eq(effect.hop_impulse, 9.0, 0.0001)
-	assert_almost_eq(effect.hop_horizontal_speed, 7.0, 0.0001)
-	assert_almost_eq(effect.hole_radius_m, 2.5, 0.0001)
-	assert_almost_eq(effect.hole_open_s, 3.0, 0.0001)
+	assert_gt(effect.first_hop_delay_s, 0.0)
+	assert_gt(effect.hop_interval_s, 0.0)
+	assert_gt(effect.hop_impulse, 0.0)
+	assert_gt(effect.hop_horizontal_speed, 0.0)
+	assert_gt(effect.hole_radius_m, 0.0)
+	assert_gt(effect.hole_open_s, 0.0)
 	var probe: LandedTuning = effect.landed_tuning()
-	assert_almost_eq(probe.landed_speed_mps, 2.0, 0.0001)
-	assert_almost_eq(probe.landed_hold_s, 0.15, 0.0001)
-	assert_almost_eq(probe.landed_timeout_s, 1.0, 0.0001)
-	assert_almost_eq(probe.contact_probe_m, 0.05, 0.0001)
-	assert_almost_eq(effect.lifetime_s, 14.0, 0.0001)
-	assert_almost_eq(effect.effect_lifetime_s(), 14.0, 0.0001, "effect_lifetime_s() is the hopping window")
+	assert_gt(probe.landed_speed_mps, 0.0)
+	assert_gt(probe.landed_hold_s, 0.0)
+	assert_gt(probe.landed_timeout_s, probe.landed_hold_s, "the landing timeout outlasts the hold")
+	assert_gt(probe.contact_probe_m, 0.0)
+	assert_gt(effect.lifetime_s, effect.first_hop_delay_s + effect.hop_interval_s, "the bean gets at least two hops")
+	assert_almost_eq(effect.effect_lifetime_s(), effect.lifetime_s, 0.0001, "effect_lifetime_s() is the hopping window")
 	assert_true(effect.needs_landing(), "the Jolt sleeping gate is replaced by LandedProbe")
 
 

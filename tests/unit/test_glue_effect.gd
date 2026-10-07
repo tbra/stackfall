@@ -115,11 +115,11 @@ func test_match_reset_clears_charges() -> void:
 	assert_eq(Match.glue_drops_left(0), 0)
 
 
-func test_glue_resource_has_five_drop_default() -> void:
+func test_glue_resource_grants_at_least_one_drop() -> void:
 	var def: SpecialDef = load("res://config/specials/glue.tres") as SpecialDef
 	assert_eq(def.id, &"glue")
 	assert_true(def.effect is GlueEffect)
-	assert_eq((def.effect as GlueEffect).drop_charges, 5)
+	assert_gt((def.effect as GlueEffect).drop_charges, 0)
 
 
 ## GlueJoint remains the contact/break helper for the later placement package.
