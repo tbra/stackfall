@@ -492,8 +492,11 @@ func request_throw(
 		Events.placement_rejected.emit(slot_id, PlacementRules.REASON_NO_BLOCK)
 		return PlacementRules.REASON_NO_BLOCK
 	world_origin = lifted as Vector3
+	# Bontago-1pi.85.53: Rocket/Magnet spawn already facing their flight line, so the first
+	# replicated pose is never upright.
 	var spawned: Block = _spawn_block(
-		shape, world_origin, basis, slot_id, true, gift_id
+		shape, world_origin, basis, slot_id, true, gift_id,
+		launch_facing_basis(held_def, throw_mode, aim_direction, clamped_velocity)
 	)
 	spawned.linear_velocity = clamped_velocity
 	# DECISION (autoload/match/MatchPlacement.gd, M4 P2c): spec 3.5 names
@@ -785,6 +788,25 @@ func _apply_territory_waiver(slot_id: int, result: PlacementRules.Result) -> Pla
 	return result
 
 
+## Bontago-1pi.85.53: the basis a thrown/launched Rocket or Magnet carrier spawns with (nose along
+## its flight line), or null when the gift keeps the upright spawn pose. Pure.
+static func launch_facing_basis(
+	def: SpecialDef, mode: GiftThrow.Mode, aim_direction: Vector3, throw_velocity: Vector3
+) -> Variant:
+	if def == null:
+		return null
+	if mode == GiftThrow.Mode.AIMED and def.effect is RocketEffect:
+		var rocket: RocketEffect = def.effect as RocketEffect
+		var direction: Vector3 = RocketEffect.sanitize_launch_direction(aim_direction)
+		if direction == Vector3.ZERO:
+			return null
+		return FlightFacing.nose_basis(rocket.model_nose_axis, direction)
+	if mode == GiftThrow.Mode.THROW and def.effect is MagnetEffect and throw_velocity.length() > 0.0:
+		var magnet: MagnetEffect = def.effect as MagnetEffect
+		return FlightFacing.nose_basis(magnet.model_nose_axis, throw_velocity)
+	return null
+
+
 ## The basis a spawn actually uses: a gift is always upright, a plain block keeps the pose.
 func _spawn_basis(gift_id: StringName, requested: Basis) -> Basis:
 	return Basis.IDENTITY if gift_id != &"" else requested
@@ -814,7 +836,8 @@ func _spawn_block(
 	basis: Basis,
 	slot_id: int,
 	is_player_placement: bool = true,
-	gift_id: StringName = &""
+	gift_id: StringName = &"",
+	faced_basis: Variant = null
 ) -> Block:
 	var acting_slot: PlayerSlot = _match.slot(slot_id)
 	var color: Color = acting_slot.color if acting_slot != null else Color.WHITE
@@ -822,7 +845,10 @@ func _spawn_block(
 	_match._blocks_parent.add_child(block)
 	# Bontago-1pi.85.16: a gift is never rotated by its owner (rotate actions are no-ops while
 	# one is held), so the host spawns it upright whatever pose the intent carried.
-	block.global_transform = Transform3D(_spawn_basis(gift_id, basis), world_origin)
+	var pose_basis: Basis = _spawn_basis(gift_id, basis)
+	if faced_basis is Basis:
+		pose_basis = faced_basis as Basis
+	block.global_transform = Transform3D(pose_basis, world_origin)
 	# Bontago-t8x.1: a used gift is delivered as its gift model, not as a
 	# plain block. The body keeps the held piece's collision (it is the
 	# gift's physical carrier) but shows the gift; the id rides the spawn RPC.

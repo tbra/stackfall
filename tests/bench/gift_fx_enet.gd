@@ -13,6 +13,8 @@ extends Node
 ##   rocket:     fired upward, keeps rising, nose (model_nose_axis) along its velocity
 ##   black_hole: cubes beside the hole are captured and removed on clients
 ##   magnet:     thrown throwable leaves with the host-computed velocity (GiftAim)
+##   Bontago-1pi.85.53: first received Rocket/Magnet pose already faced; Propeller stand and
+##               Black-hole visual exist with no carrier body
 ##   final:      host/client block counts converge, no gift carriers left, no duplicate ids
 ## Handshake (no fixed-timer races, Bontago-fca.40): every phase is announced to the
 ## clients, the host fires only after all clients ack "armed", and a phase ends when
@@ -54,12 +56,16 @@ const BOMB_SLOT: int = 1
 const VOLCANO_SLOT: int = 2
 const HOLE_SLOT: int = 3
 const PHASES: Array[StringName] = [
-	&"bomb", &"black_hole", &"volcano", &"anvil", &"rocket", &"magnet", &"earthquake", &"stackfall"]
+	&"bomb", &"black_hole", &"volcano", &"anvil", &"rocket", &"magnet", &"earthquake", &"stackfall", &"propeller"]
 const ANVIL_SLOT: int = 1
-const ROCKET_SLOT: int = 2
+const ROCKET_SLOT: int = 1
 const MAGNET_SLOT: int = 3
 const QUAKE_SLOT: int = 1
 const STACKFALL_SLOT: int = 2
+const PROPELLER_SLOT: int = 3
+const PROPELLER_OBSERVE_S: float = 3.0
+## Bontago-1pi.85.53: the FIRST replicated pose of a thrown Rocket/Magnet is already faced.
+const FIRST_POSE_MAX_DEG: float = 5.0
 const ROCKET_AIM: Vector3 = Vector3(0.3, 1.0, 0.2)
 const MAGNET_AIM: Vector3 = Vector3(0.8, 0.1, 0.6)
 const HOLE_CUBE_OFFSET: Vector2 = Vector2(1.0, 0.0)
@@ -245,6 +251,8 @@ func _host_phase(phase: StringName) -> void:
 			await _fire_gift(QUAKE_SLOT, &"earthquake")
 		&"stackfall":
 			await _fire_gift(STACKFALL_SLOT, &"stackfall")
+		&"propeller":
+			await _fire_gift(PROPELLER_SLOT, &"propeller")
 	var done: bool = await _until(func() -> bool: return _ack_count(phase, "done") >= CLIENT_COUNT, PHASE_DONE_TIMEOUT)
 	if not done:
 		_failures.append("%s: timeout waiting for done (%d)" % [phase, _ack_count(phase, "done")])
@@ -398,6 +406,8 @@ func _client_phase(phase: StringName) -> void:
 			_watch_in_place(&"earthquake", QUAKE_OBSERVE_S, false)
 		&"stackfall":
 			_watch_in_place(&"stackfall", STACKFALL_OBSERVE_S, true)
+		&"propeller":
+			_watch_propeller()
 	# Watchers run synchronously up to their first await, so their baseline exists.
 	_ack(phase, "armed", true)
 
@@ -457,10 +467,17 @@ func _watch_bomb() -> void:
 
 func _watch_black_hole() -> void:
 	_watch_hole_cubes()
-	var appeared: bool = await _until(func() -> bool: return _find_nodes(&"BlackHoleVisual", Match.blocks_parent()).size() > 0, WATCH_TIMEOUT)
+	var saw_carrier: bool = _gift_block(&"black_hole") != null
+	var appeared: bool = await _until(func() -> bool:
+		saw_carrier = saw_carrier or _gift_block(&"black_hole") != null
+		return _find_nodes(&"BlackHoleVisual", Match.blocks_parent()).size() > 0, WATCH_TIMEOUT)
+	saw_carrier = saw_carrier or _gift_block(&"black_hole") != null
+	_ack(&"black_hole", "no_carrier", not saw_carrier, "in_place_carrier_seen=%s" % saw_carrier)
 	_ack(&"black_hole", "visual", appeared and int(_trig.get(&"black_hole", 0)) > 0, "visual=%s event=%s" % [appeared, _trig.get(&"black_hole", 0)])
 	var gone: bool = await _until(func() -> bool:
+		saw_carrier = saw_carrier or _gift_block(&"black_hole") != null
 		return _find_nodes(&"BlackHoleVisual", Match.blocks_parent()).is_empty() and _gift_block(&"black_hole") == null, WATCH_TIMEOUT)
+	_ack(&"black_hole", "no_carrier_whole_run", not saw_carrier, "in_place_carrier_seen=%s" % saw_carrier)
 	_ack(&"black_hole", "despawn", gone, "visual_and_carrier_gone=%s" % gone)
 	_ack(&"black_hole", "done", true)
 
@@ -542,6 +559,24 @@ func _watch_in_place(gift: StringName, observe_s: float, rains: bool) -> void:
 	_ack(gift, "done", true)
 
 
+## Bontago-1pi.85.53: the Propeller is in-place; a client builds the stand visual (under the Field)
+## from the effect event and never receives a carrier body.
+func _watch_propeller() -> void:
+	var saw_carrier: bool = _gift_block(&"propeller") != null
+	var stand_up: bool = await _until(func() -> bool:
+		saw_carrier = saw_carrier or _gift_block(&"propeller") != null
+		return not _find_nodes(&"PropellerStand", Match.field()).is_empty(), WATCH_TIMEOUT)
+	var found: Array[Node] = _find_nodes(&"PropellerStand", Match.field())
+	var stand: PropellerStand = found[0] as PropellerStand if not found.is_empty() else null
+	_ack(&"propeller", "stand_visual", stand_up and stand != null and int(_trig.get(&"propeller", 0)) > 0, "stand=%s event=%s" % [stand_up, _trig.get(&"propeller", 0)])
+	var deadline: int = Time.get_ticks_msec() + int(PROPELLER_OBSERVE_S * MSEC_PER_S)
+	while Time.get_ticks_msec() < deadline:
+		saw_carrier = saw_carrier or _gift_block(&"propeller") != null
+		await _wait(FRAME_S)
+	_ack(&"propeller", "no_carrier", not saw_carrier, "in_place_carrier_seen=%s" % saw_carrier)
+	_ack(&"propeller", "done", true)
+
+
 func _watch_anvil() -> void:
 	var seen: bool = await _until(func() -> bool: return _gift_block(&"anvil") != null, WATCH_TIMEOUT)
 	var gift: Block = _gift_block(&"anvil")
@@ -583,6 +618,9 @@ func _watch_rocket() -> void:
 	var net_id: int = gift.net_id
 	var def: SpecialDef = SpecialDef.find_by_id(&"rocket")
 	var nose: Vector3 = (def.effect as RocketEffect).model_nose_axis.normalized()
+	# Bontago-1pi.85.53: the pose the client holds the moment the carrier first exists.
+	var first_off_deg: float = rad_to_deg((gift.global_basis * nose).normalized().angle_to(ROCKET_AIM.normalized()))
+	_ack(&"rocket", "first_pose_faced", first_off_deg <= FIRST_POSE_MAX_DEG, "first_nose_off_aim_deg=%.1f" % first_off_deg)
 	var points: Array[Vector3] = []
 	var noses: Array[Vector3] = []
 	var rocket_left_bounds: bool = false
@@ -635,6 +673,9 @@ func _watch_magnet() -> void:
 		_ack(&"magnet", "done", false, "no carrier")
 		return
 	var net_id: int = gift.net_id
+	var magnet_def: SpecialDef = SpecialDef.find_by_id(&"magnet")
+	var magnet_nose: Vector3 = (magnet_def.effect as MagnetEffect).model_nose_axis.normalized()
+	var first_nose: Vector3 = (gift.global_basis * magnet_nose).normalized()
 	var first_pos: Vector3 = gift.global_position
 	var first_ms: int = Time.get_ticks_msec()
 	var span_pos: Vector3 = first_pos
@@ -656,6 +697,10 @@ func _watch_magnet() -> void:
 		angle_deg = rad_to_deg(delta.normalized().angle_to(expected.normalized()))
 		speed_ratio = (delta.length() / span_s) / expected.length()
 	var ok: bool = angle_deg <= THROW_MAX_DEG and absf(speed_ratio - 1.0) <= THROW_SPEED_TOLERANCE
+	var first_off_deg: float = 180.0
+	if got and expected.length() > 0.0:
+		first_off_deg = rad_to_deg(first_nose.angle_to(expected.normalized()))
+	_ack(&"magnet", "first_pose_faced", first_off_deg <= FIRST_POSE_MAX_DEG, "first_nose_off_velocity_deg=%.1f" % first_off_deg)
 	_ack(&"magnet", "velocity", ok, "expected=%s angle_deg=%.1f speed_ratio=%.2f span_s=%.2f" % [expected, angle_deg, speed_ratio, span_s])
 	var gone: bool = await _until(func() -> bool: return Match.registry().block_for_net_id(net_id) == null, CARRIER_GONE_TIMEOUT)
 	_ack(&"magnet", "despawn", gone, "carrier_gone=%s" % gone)
