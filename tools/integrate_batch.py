@@ -456,6 +456,14 @@ def integrate(args, ctx, say, res):
     # 7 push (separate step), then verify the remote
     if args.no_push:
         say("push      skip --no-push (beads not closed)")
+        # main moved: refresh its .godot caches so runs from the main checkout see new
+        # class_name scripts (2026-10-07: a soak in main hit a stale global class cache).
+        code, issues, log = import_check(ctx, "postimport", repo)
+        for l in issues:
+            say("  postimport: " + l)
+        if code != 0 or issues:
+            raise StepFailed("postimport", "main checkout import not clean; log " + log)
+        say("postimport ok")
         return
     code, text, log = git(ctx, "push", repo, "push", "origin", "main", timeout=STEP_TIMEOUT_S)
     if code != 0:
