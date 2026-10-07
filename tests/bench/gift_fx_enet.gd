@@ -58,7 +58,11 @@ const HOLE_SLOT: int = 3
 const PHASES: Array[StringName] = [
 	&"bomb", &"black_hole", &"volcano", &"anvil", &"rocket", &"magnet", &"earthquake", &"stackfall", &"propeller"]
 const ANVIL_SLOT: int = 1
-const ROCKET_SLOT: int = 1
+const ROCKET_SLOT: int = 2
+## Bontago-1pi.85.54: after the earlier phases several floor columns around slot 2's home have no
+## collider (the cursor ray misses: a throw there is refused as off_disk, not outside_territory), so
+## the Rocket is released from a cursor point this far toward the disk centre, where the floor is intact.
+const ROCKET_CURSOR_OFFSET_M: float = 20.0
 const MAGNET_SLOT: int = 3
 const QUAKE_SLOT: int = 1
 const STACKFALL_SLOT: int = 2
@@ -244,7 +248,7 @@ func _host_phase(phase: StringName) -> void:
 		&"anvil":
 			await _fire_gift(ANVIL_SLOT, &"anvil")
 		&"rocket":
-			await _fire_throw(ROCKET_SLOT, &"rocket", ROCKET_AIM)
+			await _fire_throw(ROCKET_SLOT, &"rocket", ROCKET_AIM, Vector2(ROCKET_CURSOR_OFFSET_M, 0.0))
 		&"magnet":
 			await _fire_throw(MAGNET_SLOT, &"magnet", MAGNET_AIM)
 		&"earthquake":
@@ -284,11 +288,11 @@ func _fire_hole() -> void:
 
 ## Releases the held gift through request_throw (camera forward `aim`) and tells the clients
 ## what the host computed: the launch velocity (magnet) or the aim (rocket).
-func _fire_throw(slot: int, gift: StringName, aim: Vector3) -> void:
+func _fire_throw(slot: int, gift: StringName, aim: Vector3, cursor_offset: Vector2 = Vector2.ZERO) -> void:
 	Match._gifts._queue_claimed_special(slot, gift)
 	var used: bool = Match._gifts.request_use_gift_slot(slot)
 	var held: bool = used and await _until(func() -> bool: return Match.held_special(slot) == gift, FIRE_HELD_TIMEOUT)
-	var home: Vector2 = Match.slot(slot).home_position
+	var home: Vector2 = Match.slot(slot).home_position + cursor_offset
 	var reason: StringName = &"not_held"
 	if held:
 		reason = Match.request_throw(slot, Vector3(home.x, PLACE_HEIGHT, home.y), 0, Quaternion.IDENTITY, aim, Match.feed_seq(slot))

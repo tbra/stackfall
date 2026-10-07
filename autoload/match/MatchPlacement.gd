@@ -487,17 +487,17 @@ func request_throw(
 	# the aim, never below gift_aim_min_height_m over the surface); territory was validated at
 	# the cursor above.
 	world_origin = GiftAim.spawn_point(world_origin, aim_direction, _match._field.surface_y(), _special_tuning)
-	var lifted: Variant = _lift_pose_clear(shape, world_origin, basis, false, gift_id)
+	# Bontago-1pi.85.53: Rocket/Magnet spawn already facing their flight line, so the first
+	# replicated pose is never upright.
+	# Bontago-1pi.85.54: the overlap/lift check tests that same faced basis (null = upright).
+	var faced: Variant = launch_facing_basis(held_def, throw_mode, aim_direction, clamped_velocity)
+	var overlap_basis: Basis = faced as Basis if faced != null else basis
+	var lifted: Variant = _lift_pose_clear(shape, world_origin, overlap_basis, false, gift_id)
 	if lifted == null:
 		Events.placement_rejected.emit(slot_id, PlacementRules.REASON_NO_BLOCK)
 		return PlacementRules.REASON_NO_BLOCK
 	world_origin = lifted as Vector3
-	# Bontago-1pi.85.53: Rocket/Magnet spawn already facing their flight line, so the first
-	# replicated pose is never upright.
-	var spawned: Block = _spawn_block(
-		shape, world_origin, basis, slot_id, true, gift_id,
-		launch_facing_basis(held_def, throw_mode, aim_direction, clamped_velocity)
-	)
+	var spawned: Block = _spawn_block(shape, world_origin, basis, slot_id, true, gift_id, faced)
 	spawned.linear_velocity = clamped_velocity
 	# DECISION (autoload/match/MatchPlacement.gd, M4 P2c): spec 3.5 names
 	# "thrown specials" as their own continuous_cd case in the same sentence

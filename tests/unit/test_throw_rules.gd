@@ -1,7 +1,8 @@
 extends GutTest
 ## core/rules/ThrowRules.gd: a throw's release-point check collapses to
 ## exactly two outcomes -- REASON_OK inside the throwing player's own
-## territory, REASON_OUTSIDE_TERRITORY everywhere else (spec 2.5). Same
+## territory, REASON_OUTSIDE_TERRITORY outside/contested territory (spec 2.5), and
+## the hole / off-disk / goal-zone reasons by name (Bontago-1pi.85.54). Same
 ## fixture pattern as tests/unit/test_placement_rules.gd's v2 point-API
 ## section (grid/solver/raster built directly, no Match/Field involved).
 
@@ -97,22 +98,22 @@ func test_contested_collapses_to_reason_outside_territory() -> void:
 	assert_eq(_reason(Vector2(0.5, 0.5)), ThrowRules.REASON_OUTSIDE_TERRITORY)
 
 
-func test_hole_collapses_to_reason_outside_territory() -> void:
+func test_hole_reports_its_own_reason() -> void:
 	var circles: Array[InfluenceCircle] = [_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)]
 	for i: int in range(10):
 		_rasterize(circles, true)
-	assert_eq(_reason(Vector2(0.5, 0.5)), ThrowRules.REASON_OUTSIDE_TERRITORY)
+	assert_eq(_reason(Vector2(0.5, 0.5)), PlacementRules.REASON_HOLE)
 
 
-func test_off_disk_collapses_to_reason_outside_territory() -> void:
+func test_off_disk_reports_its_own_reason() -> void:
 	_my_territory()
-	assert_eq(_reason(Vector2(500.0, 0.0)), ThrowRules.REASON_OUTSIDE_TERRITORY)
+	assert_eq(_reason(Vector2(500.0, 0.0)), PlacementRules.REASON_OFF_DISK)
 
 
-func test_goal_zone_collapses_to_reason_outside_territory() -> void:
+func test_goal_zone_reports_its_own_reason() -> void:
 	_raster.set_goal_zones(PackedVector2Array([Vector2(0.0, 0.0)]), ZONE_RADIUS)
 	_my_territory()
-	assert_eq(_reason(Vector2(0.0, 0.0)), ThrowRules.REASON_OUTSIDE_TERRITORY)
+	assert_eq(_reason(Vector2(0.0, 0.0)), PlacementRules.REASON_GOAL_ZONE)
 
 
 func test_reason_not_a_special_is_a_distinct_constant() -> void:
