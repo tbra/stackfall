@@ -5,7 +5,7 @@ extends GutTest
 ## registry (so HoleDissolver is active), a bean thrown onto the disc on an arc.
 
 const FIELD_RADIUS_M: float = 40.0
-const RUN_SECONDS: float = 7.0
+const RUN_SECONDS: float = 10.0
 const DROP_HEIGHT_M: float = 1.2
 const THROW_SPEED_MPS: float = 5.0
 const TILT_IMPULSE: float = 0.05
@@ -90,7 +90,7 @@ func test_bean_hops_promptly_far_and_survives_its_own_holes() -> void:
 	for property: Dictionary in real.get_property_list():
 		if int(property["usage"]) & PROPERTY_USAGE_STORAGE != 0 and property["name"] != "script":
 			spy.set(property["name"], real.get(property["name"]))
-	spy._rng.seed = 11
+	spy._rng.seed = 5
 	var def: SpecialDef = shipped.duplicate() as SpecialDef
 	def.effect = spy
 

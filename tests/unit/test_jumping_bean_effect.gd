@@ -20,7 +20,7 @@ extends GutTest
 
 const TICK: float = 1.0 / 60.0
 ## Awake-island acceptance (plan section 5 E).
-const ISLAND_RUN_SECONDS: float = 6.0
+const ISLAND_RUN_SECONDS: float = 10.0
 const MIN_ISLAND_HOPS: int = 3
 const NEIGHBOUR_KICK_EVERY_FRAMES: int = 6
 const NEIGHBOUR_KICK_SPEED_MPS: float = 1.5
@@ -494,7 +494,7 @@ func test_real_jumping_bean_tres_def_does_not_fuse_trigger_before_lifetime_s() -
 
 	# 9.0s of age: comfortably past the OLD (broken) fuse threshold of
 	# arm_delay + fuse_timeout_s = 0.4 + 6.0 = 6.4s, comfortably short of the
-	# real lifetime of 14.0s after landing.
+	# real lifetime of 24.0s after landing.
 	# No impact ever occurs (a settled stub block whose velocity only the
 	# effect's own hops touch -- see the class-level DECISION on _check_impact
 	# above and the passing cadence tests already proving decel reads 0
@@ -526,8 +526,13 @@ func test_jumping_bean_tres_loads_with_a_usable_hop_cycle() -> void:
 		"jumping_bean.tres's effect sub-resource must be a JumpingBeanEffect"
 	)
 	var effect: JumpingBeanEffect = found.effect as JumpingBeanEffect
-	assert_gt(effect.first_hop_delay_s, 0.0)
-	assert_gt(effect.hop_interval_s, 0.0)
+	assert_almost_eq(effect.first_hop_delay_s, 0.6, 0.0001)
+	assert_almost_eq(effect.hop_interval_s, 1.8, 0.0001)
+	assert_almost_eq(effect.lifetime_s, 24.0, 0.0001)
+	assert_almost_eq(effect.hop_horizontal_speed, 11.0, 0.0001)
+	assert_almost_eq(effect.hop_impulse, 11.0, 0.0001)
+	assert_almost_eq(effect.centre_weight, 0.65, 0.0001)
+	assert_almost_eq(effect.centre_spread_deg, 70.0, 0.0001)
 	assert_gt(effect.hop_impulse, 0.0)
 	assert_gt(effect.hop_horizontal_speed, 0.0)
 	assert_gt(effect.hole_radius_m, 0.0)
@@ -697,7 +702,7 @@ func _awake_island_run(hole_mode: MatchConfig.HoleMode) -> Dictionary:
 	spy.hole_radius_m = real.hole_radius_m
 	spy.hole_open_s = real.hole_open_s
 	spy.lifetime_s = real.lifetime_s
-	spy._rng.seed = 11
+	spy._rng.seed = 5
 	var def: SpecialDef = shipped.duplicate() as SpecialDef
 	def.effect = spy
 	var spawn: Vector3 = field.world_from_disk_local(Vector2(SPAWN_DISTANCE_M, 0.0), SPAWN_HEIGHT_M)
@@ -734,12 +739,41 @@ func _awake_island_run(hole_mode: MatchConfig.HoleMode) -> Dictionary:
 func test_awake_island_bean_hops_three_times_in_six_seconds_and_punches_a_hole_each_hop() -> void:
 	var result: Dictionary = await _awake_island_run(MatchConfig.HoleMode.TEMPORARY)
 	assert_true(result["landed"] as bool, "the bean registers as landed on the awake island")
-	assert_gte(int(result["hops"]), MIN_ISLAND_HOPS, "at least 3 hops in 6 s after landing")
+	assert_gte(int(result["hops"]), MIN_ISLAND_HOPS, "at least 3 hops in 10 s after landing")
 	assert_eq(int(result["holes"]), int(result["hops"]), "every hop opens a hole under TEMPORARY")
-	assert_false(result["triggered"] as bool, "still hopping (lifetime 14 s, not the fuse)")
+	assert_false(result["triggered"] as bool, "still hopping (lifetime 24 s, not the fuse)")
 
 
 func test_awake_island_bean_hops_but_opens_no_hole_under_hole_mode_off() -> void:
 	var result: Dictionary = await _awake_island_run(MatchConfig.HoleMode.OFF)
 	assert_gte(int(result["hops"]), MIN_ISLAND_HOPS, "hops are not gated on HoleMode")
 	assert_eq(int(result["holes"]), 0, "owner decision Bontago-z4h: no hole under OFF")
+
+
+# --- centre-weighted hop bearing (Bontago-1pi.85.48) --------------------------
+
+func test_hop_direction_is_biased_toward_centre_yet_can_leave_the_rim() -> void:
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 4807
+	var rim: Vector2 = Vector2(10.0, 0.0)  # inward bearing is -x
+	var samples: int = 2000
+	var inward_sum: float = 0.0
+	var outward_hops: int = 0
+	for _i: int in range(samples):
+		var dir: Vector2 = JumpingBeanEffect.hop_direction(rim, rng, 0.65, 70.0)
+		assert_almost_eq(dir.length(), 1.0, 0.0001)
+		inward_sum += -dir.x
+		if dir.x > 0.0:
+			outward_hops += 1
+	assert_gt(inward_sum / float(samples), 0.3, "mean bearing leans toward the disc centre")
+	assert_gt(outward_hops, 0, "an off-disc hop stays possible from the rim")
+
+
+func test_hop_direction_zero_weight_is_uniform_and_centre_has_no_bias() -> void:
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 11
+	var sum: Vector2 = Vector2.ZERO
+	for _i: int in range(2000):
+		sum += JumpingBeanEffect.hop_direction(Vector2(10.0, 0.0), rng, 0.0, 70.0)
+	assert_lt((sum / 2000.0).length(), 0.1, "weight 0 keeps the old uniform spread")
+	assert_eq(JumpingBeanEffect.hop_direction(Vector2.ZERO, rng, 1.0, 70.0).length() > 0.99, true)

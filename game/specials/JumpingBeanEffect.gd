@@ -35,18 +35,18 @@ extends SpecialEffect
 ## landing can never trigger the bean; a nearby explosion still chains into it.
 
 ## Vertical speed (m/s) applied straight up on every hop.
-@export var hop_impulse: float = 9.0
+@export var hop_impulse: float = 11.0
 
 ## Horizontal speed (m/s) applied in a random direction on every hop, one physics
 ## tick AFTER the vertical kick (Bontago-1pi.85.28: written while still touching the
 ## disc, the contact friction ate it and the bean hopped straight up).
-@export var hop_horizontal_speed: float = 7.0
+@export var hop_horizontal_speed: float = 11.0
 
 ## Seconds from landing to the FIRST hop (Bontago-1pi.85.28: the owner saw ~5 s idle).
-@export var first_hop_delay_s: float = 0.4
+@export var first_hop_delay_s: float = 0.6
 
 ## Seconds between the following hops.
-@export var hop_interval_s: float = 1.0
+@export var hop_interval_s: float = 1.8
 
 ## Radius (m) of the hole punched at the position each hop leaves behind.
 @export var hole_radius_m: float = 2.5
@@ -56,7 +56,14 @@ extends SpecialEffect
 
 ## Seconds the bean keeps hopping after it lands; the fuse backstop is derived
 ## from it by SpecialBehavior (SpecialTuning.fuse_backstop_margin_s on top).
-@export var lifetime_s: float = 14.0
+@export var lifetime_s: float = 24.0
+
+## Probability (0..1) that a hop heads roughly at the disc centre; otherwise the bearing is
+## uniform over the full circle, so an off-disc hop stays possible (owner 2026-10-07).
+@export_range(0.0, 1.0) var centre_weight: float = 0.65
+
+## Half-width (degrees) of the random cone around the inward bearing for a centre-weighted hop.
+@export var centre_spread_deg: float = 70.0
 
 ## Bean-specific landing probe (Bontago-1pi.85.28): a bouncing/rolling bean on a tilting
 ## disc never drops below LandedProbe's default 0.5 m/s, so it only "landed" at the 5 s
@@ -157,10 +164,31 @@ func _hop(block: Block) -> void:
 	_kick(block)
 
 
+## Unit hop bearing in disk-local (x, z). With probability centre_weight: the inward
+## direction (towards the origin) rotated by a uniform angle within +/- spread_deg;
+## otherwise uniform over TAU. At the exact centre there is no inward bearing (uniform).
+static func hop_direction(position_disk: Vector2, rng: RandomNumberGenerator,
+		centre_weight: float, spread_deg: float) -> Vector2:
+	var uniform_angle: float = rng.randf_range(0.0, TAU)
+	if position_disk.length_squared() > 0.0 and rng.randf() < centre_weight:
+		var spread: float = deg_to_rad(spread_deg)
+		return (-position_disk).normalized().rotated(rng.randf_range(-spread, spread))
+	return Vector2(cos(uniform_angle), sin(uniform_angle))
+
+
 ## Vertical kick now, horizontal part owed to the next tick.
 func _kick(block: Block) -> void:
-	var angle: float = _rng.randf_range(0.0, TAU)
-	var horizontal: Vector3 = Vector3(cos(angle), 0.0, sin(angle)) * hop_horizontal_speed
+	var field: Field = Match.field()
+	var position_disk: Vector2 = Vector2.ZERO
+	if field != null:
+		position_disk = field.disk_local_from_world(block.global_position)
+	var dir: Vector2 = hop_direction(position_disk, _rng, centre_weight, centre_spread_deg)
+	var horizontal: Vector3 = Vector3(dir.x, 0.0, dir.y)
+	if field != null:
+		horizontal = field.global_transform.basis * horizontal
+		horizontal.y = 0.0
+		horizontal = horizontal.normalized()
+	horizontal *= hop_horizontal_speed
 	block.wake_for_impulse()
 	if block.is_freeze_static():
 		return
