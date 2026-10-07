@@ -129,6 +129,7 @@ custom_minimum_size = Vector2(0, 37)
 
 size_flags_horizontal = 3
 placeholder_text = "Player"
+tooltip_text = "Used when Steam is not running; with Steam your Steam name is used."
 
 [node name="HostRow" type="HBoxContainer" parent="Center/Panel/Layout"]
 layout_mode = 2
