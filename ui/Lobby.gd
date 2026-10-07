@@ -950,7 +950,7 @@ func _apply_visual_style() -> void:
 ## gone):
 ## - lobby_quick_advanced (Y) opens/closes the Advanced block of the section holding focus
 ##   (the first section with one when focus is elsewhere or in a section without one);
-## - lobby_quick_start (X) starts the match when the Start button is usable;
+## - lobby_quick_start (X) starts the match (host) or toggles Ready (client) when the Start button is usable;
 ## - ui_cancel (Esc / gamepad B) backs out of the lobby, same as %BackButton. (An open
 ##   OptionButton popup consumes its own ui_cancel before this runs.)
 ## Bontago-1pi.15.1 fix: B used to do nothing here unless the popup was open, the reported
@@ -961,14 +961,39 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if event.is_action_pressed(&"lobby_quick_start"):
-		if _start_button.visible and not _start_button.disabled:
-			_on_start_pressed()
+		_run_start_shortcut()
 		get_viewport().set_input_as_handled()
 		return
 	if not event.is_action_pressed(&"ui_cancel"):
 		return
 	_on_back_pressed()
 	get_viewport().set_input_as_handled()
+
+
+## Bontago-1pi.98: Enter / KP Enter / pad Start (lobby_confirm) act from any focus, so it is
+## taken in _input, before the focused Button's ui_accept. Left alone while a text field has
+## focus or an OptionButton popup is open. Space still activates the focused control.
+func _input(event: InputEvent) -> void:
+	if not is_visible_in_tree() or not event.is_action_pressed(&"lobby_confirm"):
+		return
+	var focus: Control = get_viewport().gui_get_focus_owner()
+	if focus is LineEdit or focus is TextEdit:
+		return
+	for option: OptionButton in [_map_variant_option, _map_size_option, _map_combo_option, _ai_difficulty_option, _team_mode_option]:
+		if option.get_popup().visible:
+			return
+	_run_start_shortcut()
+	get_viewport().set_input_as_handled()
+
+
+## Host: start when usable (same gate as _on_start_pressed), otherwise nothing.
+## DECISION (Bontago-1pi.98): a client's Start/Enter toggles its own Ready, the same path
+## as the ReadyCheck button, so the one shortcut is the lobby's "confirm" for every seat.
+func _run_start_shortcut() -> void:
+	if _ready_check.visible:
+		_ready_check.button_pressed = not _ready_check.button_pressed
+	elif _start_button.visible and not _start_button.disabled:
+		_on_start_pressed()
 
 
 ## Y on the pad: toggles the Advanced block of the section that holds focus, falling back to
