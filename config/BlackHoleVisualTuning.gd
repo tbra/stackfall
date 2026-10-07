@@ -9,6 +9,10 @@ extends Resource
 ## Seconds the vortex collapses out before its lifetime ends.
 @export var collapse_out_s: float = 0.6
 
+## Depth (m) below the surface the core starts at; it rises to the surface over
+## grow_in_s so the hole "opens up underneath" the drop point (Bontago-1pi.85.45).
+@export var core_emerge_depth_m: float = 0.7
+
 ## Height (m) of the vortex disc above the trigger point, to avoid z-fighting.
 @export var disc_lift_m: float = 0.08
 

@@ -15,7 +15,10 @@ duration_s = 3.0
 [sub_resource type="Resource" id="Resource_propeller_effect"]
 script = ExtResource("2_effect")
 disc_force = SubResource("Resource_propeller_disc")
-carrier_rise_m = 0.6
+emerge_height_m = 0.6
+emerge_s = 0.8
+sink_s = 0.6
+start_depth_m = 5.0
 
 [resource]
 script = ExtResource("1_def")
@@ -25,8 +28,9 @@ preview_icon = ExtResource("10_icon")
 scene = null
 weight = 1.0
 enabled_by_default = true
-arm_delay = 0.4
+arm_delay = 0.0
 arm_impulse = 5.0
 fuse_timeout_s = 6.0
 effect = SubResource("Resource_propeller_effect")
 activation_scale = 5.0
+activates_in_place = true

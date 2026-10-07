@@ -60,6 +60,11 @@ const GENERIC_PREVIEW_ICON: Texture2D = preload("res://assets/ui/icons/gift_gene
 ## (needs_landing is ignored). False (default) keeps the falling carrier.
 @export var activates_in_place: bool = false
 
+## Bontago-1pi.85.45: metres above the validated release point the physical carrier spawns
+## and falls from (Anvil: "falls from the sky"). 0 = off (spawn at the point). Host-only;
+## clients see the fall through the normal body snapshots.
+@export_range(0.0, 60.0, 0.5) var sky_drop_height_m: float = 0.0
+
 ## Bontago-1pi.85.35: uniform size multiplier of the gift carrier from release on (visual and
 ## collider, mass via SpecialTuning.activation_mass_exponent). 1.0 = today's size.
 @export_range(0.1, 10.0, 0.1) var activation_scale: float = 1.0

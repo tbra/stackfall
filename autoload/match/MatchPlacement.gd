@@ -300,11 +300,18 @@ func request_place(
 				_match._lifecycle.begin_turn_settle_wait()
 			return PlacementRules.REASON_OK
 		# Bontago-1pi.14 round 3: host-side spawn validation (see _lift_pose_clear()).
-		var lifted: Variant = _lift_pose_clear(shape, final_world_origin, basis, auto_drop, _held_deliverable_gift(slot_id) if reason == PlacementRules.REASON_OK else &"")
-		if lifted == null:
-			Events.placement_rejected.emit(slot_id, PlacementRules.REASON_NO_BLOCK)
-			return PlacementRules.REASON_NO_BLOCK
-		final_world_origin = lifted as Vector3
+		# Bontago-1pi.85.45: a sky-drop gift (Anvil) spawns high above the validated point and
+		# falls; there is nothing up there to clear, so the lift search is skipped for it.
+		var sky_height_m: float = in_place_def.sky_drop_height_m if in_place_def != null else 0.0
+		var sky_origin: Variant = _sky_spawn_origin(shape, final_world_origin, basis, in_place_def) if sky_height_m > 0.0 else null
+		if sky_origin != null:
+			final_world_origin = sky_origin as Vector3
+		else:
+			var lifted: Variant = _lift_pose_clear(shape, final_world_origin, basis, auto_drop, _held_deliverable_gift(slot_id) if reason == PlacementRules.REASON_OK else &"")
+			if lifted == null:
+				Events.placement_rejected.emit(slot_id, PlacementRules.REASON_NO_BLOCK)
+				return PlacementRules.REASON_NO_BLOCK
+			final_world_origin = lifted as Vector3
 	# Bontago-t8x.1: only a non-burn spawn delivers the gift (a burn keeps it queued).
 	var gift_id: StringName = _held_deliverable_gift(slot_id) if reason == PlacementRules.REASON_OK else &""
 	var spawned: Block = _spawn_block(shape, final_world_origin, basis, slot_id, true, gift_id)
@@ -582,6 +589,34 @@ func spawn_special_projectile(
 	spawned.linear_velocity = initial_velocity
 	spawned.continuous_cd = initial_velocity.length() > effective_tuning.ccd_speed_threshold_mps
 	return spawned
+
+
+## Bontago-1pi.85.45: spawn pose of a sky-drop gift (Anvil), derived on the host from the
+## validated drop point, never from the client's hover height: the top of whatever is below
+## the point (disc surface or the highest block, a downward ray) plus sky_drop_height_m,
+## clamped hover_ceiling_margin below NetConfig.pos_max_y so the carrier stays inside the
+## snapshot position band. Returns null when that pose overlaps a body (DECISION: the caller
+## then falls back to the ordinary validated release point, lifted clear as usual).
+func _sky_spawn_origin(shape: BlockShape, origin: Vector3, basis: Basis, def: SpecialDef) -> Variant:
+	if _match._blocks_parent == null or not _match._blocks_parent.is_inside_tree():
+		return null
+	var world: World3D = _match._blocks_parent.get_viewport().world_3d
+	if world == null:
+		return null
+	var ceiling_y: float = _match._net_config.pos_max_y - _ghost_tuning.hover_ceiling_margin
+	var surface_y: float = _match._field.to_global(Vector3(0.0, _match._field.surface_y(), 0.0)).y
+	var top_y: float = surface_y
+	var ray: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
+		Vector3(origin.x, ceiling_y, origin.z), Vector3(origin.x, surface_y - 1.0, origin.z), Field.PLACEMENT_QUERY_MASK
+	)
+	var hit: Dictionary = world.direct_space_state.intersect_ray(ray)
+	if not hit.is_empty():
+		top_y = maxf(top_y, (hit["position"] as Vector3).y)
+	var sky_y: float = minf(top_y + def.sky_drop_height_m, ceiling_y)
+	var sky_origin: Vector3 = Vector3(origin.x, sky_y, origin.z)
+	if _pose_overlaps(world.direct_space_state, shape, sky_origin, basis, _ghost_tuning, def.id):
+		return null
+	return sky_origin
 
 
 ## Bontago-1pi.14 round 3 (owner playtest: dropped blocks get shoved): the

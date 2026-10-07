@@ -4,3 +4,4 @@
 
 [resource]
 script = ExtResource("1_tuning")
+core_emerge_depth_m = 0.7

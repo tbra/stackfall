@@ -17,6 +17,7 @@ const BLACK_HOLE_ID: StringName = &"black_hole"
 const BOMB_ID: StringName = &"bomb"
 const ROCKET_ID: StringName = &"rocket"
 const VOLCANO_ID: StringName = &"volcano"
+const PROPELLER_ID: StringName = &"propeller"
 const MIN_FPS: float = 0.001
 const EXPLOSION_TUNING: GiftExplosionFxTuning = preload("res://config/specials/fx/gift_explosion_fx_tuning.tres")
 
@@ -29,16 +30,16 @@ func _ready() -> void:
 	register(BOMB_ID, _build_explosion)
 	register(ROCKET_ID, _build_explosion)
 	register(VOLCANO_ID, _build_volcano)
+	register(PROPELLER_ID, _build_propeller)
 	connect_events()
 
 
 ## The one spawn hook (BlockFactory.apply_gift_visual, which host and clients both run
 ## for a gift carrier): starts the client-derived per-gift visuals. No RPC; each peer
-## derives them from block.gift_id and its own clock. Both are visual-only and no-ops
-## for a gift without such a visual.
+## derives them from block.gift_id and its own clock. Visual-only and a no-op for a
+## gift without such a visual.
 static func on_gift_block_spawned(block: Block) -> void:
 	GiftBlink.start_for_gift(block)
-	PropellerEffect.start_client_rise(block)
 
 
 ## Idempotent: a second call never adds a second subscription.
@@ -129,3 +130,13 @@ func _build_volcano(block: Block, def: SpecialDef, position: Vector3) -> void:
 	if effect == null:
 		return
 	VolcanoStructure.build_client_visual(effect, position, block.owner_slot if block != null else -1)
+
+
+## Propeller (Bontago-1pi.85.45): clients draw the stand rising out of the disc at the drop
+## point without a carrier body; the host already has the real stand (build_client_visual
+## returns null there).
+func _build_propeller(_block: Block, def: SpecialDef, position: Vector3) -> void:
+	var effect: PropellerEffect = def.effect as PropellerEffect if def != null else null
+	if effect == null:
+		return
+	PropellerStand.build_client_visual(effect, position)

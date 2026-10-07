@@ -94,12 +94,15 @@ func _rain() -> StackfallRain:
 
 
 func test_shipped_defs_activate_in_place_without_arm_delay() -> void:
-	for id: String in ["stackfall", "volcano", "earthquake"]:
+	for id: String in ["stackfall", "volcano", "earthquake", "propeller", "black_hole"]:
 		var def: SpecialDef = SpecialDef.find_by_id(StringName(id))
 		assert_not_null(def, id)
 		assert_true(def.activates_in_place, id)
 		assert_eq(def.arm_delay, 0.0, id)
 	assert_false(SpecialDef.find_by_id(&"bomb").activates_in_place)
+	var anvil: SpecialDef = SpecialDef.find_by_id(&"anvil")
+	assert_false(anvil.activates_in_place, "the anvil is a physical carrier")
+	assert_gt(anvil.sky_drop_height_m, 0.0, "the anvil falls from the sky")
 	assert_false(SpecialDef.find_by_id(&"rocket").activates_in_place)
 
 

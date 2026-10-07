@@ -1,26 +1,20 @@
 class_name PropellerEffect
 extends SpecialEffect
 ## Propeller special (spec 2.6: "stands where it lands, then lifts itself and
-## blows for its duration"). docs/GIFT_EFFECTS_PLAN.md package D: Propeller is
-## the Anvil in reverse. After landing (SpecialBehavior's LandedProbe, via
-## needs_landing(); never Jolt `sleeping`) it runs DiscForce.apply(sign -1)
-## every tick for `disc_force.duration_s`, raising the side it stands on, so
-## the disc tilts the opposite way from an Anvil at the same point.
+## blows for its duration"). Bontago-1pi.85.45 (owner playtest 2026-10-07): the
+## propeller activates where the gift is dropped, like the Volcano. The
+## SpecialDef is `activates_in_place`, so it triggers at once on the host's
+## invisible anchor and detonate() spawns a standalone PropellerStand that rises
+## out of the disc, spins, and runs DiscForce.apply(sign -1) every tick for
+## `disc_force.duration_s` (the Anvil in reverse: it raises the side it stands
+## on). Clients draw the same stand from the replicated special_triggered
+## (GiftFxPresenter._build_propeller); there is no carrier body on any peer.
 ##
-## DECISION (plan section 7): the literal body lift (`linear_velocity.y =
-## lift_speed` every tick) is gone -- it fought Jolt and ejected/woke the
-## carrier. The disc coupling is the effect; "lifts itself" survives as a
-## visual-only rise of the gift model (`carrier_rise_m`), never a physics write.
-##
-## No per-block state lives on this shared Resource: elapsed time is
-## SpecialBehavior.landed_age().
-
-## Meta on the GiftVisual node holding its resting local Y.
-const _BASE_Y_META: StringName = &"propeller_base_y"
+## No per-block state lives on this shared Resource; the stand owns its clock.
 
 ## DiscForce tuning. `strength` is tilt impulse per metre of disc-local
 ## distance per second (DiscForce.apply with delta > 0); `duration_s` is how
-## long the blow runs after landing.
+## long the blow (and the stand) lasts.
 ##
 ## DECISION: strength 0.01 per metre per second for 3 s (0.03 per metre in
 ## total, 1.5x the Anvil's single 0.02-per-metre kick) because the tilt
@@ -29,104 +23,45 @@ const _BASE_Y_META: StringName = &"propeller_base_y"
 ## test_propeller_effect.gd asserts it stays within 0.5x-2x.
 @export var disc_force: DiscForceTuning = DiscForceTuning.new()
 
-## Visual-only height (m) the gift model rises over the effect's duration,
-## smoothstepped. Applied to the GiftVisual child only; 0 disables it.
-@export var carrier_rise_m: float = 0.6
+## Visual rest height (m) above the surface once the model has risen (smoothstepped).
+@export var emerge_height_m: float = 0.6
+
+## Seconds the model takes to rise out of the disc.
+@export var emerge_s: float = 0.8
+
+## Seconds at the end of the effect the model sinks back into the disc.
+@export var sink_s: float = 0.6
+
+## Depth (m) below the surface the model starts from, so it is hidden inside the disc.
+@export var start_depth_m: float = 5.0
 
 
-## Client-only: seconds after the gift spawns before its visual rise starts. Clients do
-## not run the landing probe, so this stands in for "fall time + landing" (about the
-## drop time); the rise then lasts disc_force.duration_s like the host's.
-@export var client_rise_delay_s: float = 1.0
-
-const _CLIENT_RISE_NODE: StringName = &"PropellerClientRise"
-
-
+## In place: no falling carrier to wait for.
 func needs_landing() -> bool:
-	return true
+	return false
 
 
 func effect_lifetime_s() -> float:
 	return disc_force.duration_s
 
 
-## Raises the landing side while the effect window runs. Only called once the
-## behaviour reports the carrier has landed (needs_landing()).
-func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void:
-	_apply_visual_rise(block, behavior.landed_age())
-	DiscForce.apply(Match.field(), block.global_position, -1.0, disc_force, delta)
+## The stand is a standalone world node; the anchor goes at trigger.
+func detaches() -> bool:
+	return true
 
 
-## Pure: the visual rise (m) `landed_age_s` seconds after landing.
-func rise_at(landed_age_s: float) -> float:
-	if disc_force.duration_s <= 0.0:
-		return 0.0
-	return carrier_rise_m * smoothstep(0.0, 1.0, landed_age_s / disc_force.duration_s)
-
-
-## Vetoes the decel-based impact trigger entirely (Bontago-1en.22): a hard
-## landing must not detonate (a no-op) before the effect ran. The end is
-## time-driven (wants_early_trigger()) or a chain trigger.
+## A hard landing never triggers it (there is no carrier). Chain triggers still do.
 func impact_triggers(_block: Block, _behavior: SpecialBehavior) -> bool:
 	return false
 
 
-## True once `disc_force.duration_s` has elapsed since landing.
-func wants_early_trigger(_block: Block, behavior: SpecialBehavior) -> bool:
-	return behavior.has_landed() and behavior.landed_age() >= disc_force.duration_s
+## Triggers on the first tick: the stand owns the whole blow.
+func wants_early_trigger(_block: Block, _behavior: SpecialBehavior) -> bool:
+	return true
 
 
-## No-op: the blow already ran tick by tick in physics_tick().
-func detonate(_block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> void:
-	pass
-
-
-## Moves the gift model up; the carrier body and collider are untouched.
-func _apply_visual_rise(block: Block, landed_age_s: float) -> void:
-	if carrier_rise_m == 0.0:
+## Spawns the host-side stand at the drop point (disc force plus visual).
+func detonate(block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> void:
+	if block == null or not block.is_inside_tree():
 		return
-	var visual: Node3D = block.get_node_or_null(NodePath(String(BlockFactory.GIFT_VISUAL_NODE))) as Node3D
-	if visual == null:
-		return
-	if not visual.has_meta(_BASE_Y_META):
-		visual.set_meta(_BASE_Y_META, visual.position.y)
-	visual.position.y = float(visual.get_meta(_BASE_Y_META)) + rise_at(landed_age_s)
-
-
-## Client-derived rise (no RPC; Bontago-1pi.85.19): on a non-host peer a gift carrier whose
-## def is this effect gets a visual-only driver that lifts the GiftVisual from its own
-## age. Idempotent; no-op on the host (physics_tick already rises it), for other gifts
-## and for a block without a GiftVisual. Never touches the body or collider.
-static func start_client_rise(block: Block) -> void:
-	if block == null or not is_instance_valid(block) or block.gift_id == &"" or Match._is_host():
-		return
-	var def: SpecialDef = SpecialDef.find_by_id(block.gift_id)
-	var effect: PropellerEffect = def.effect as PropellerEffect if def != null else null
-	if effect == null or effect.carrier_rise_m == 0.0:
-		return
-	if block.get_node_or_null(NodePath(String(_CLIENT_RISE_NODE))) != null:
-		return
-	var driver: ClientRiseDriver = ClientRiseDriver.new()
-	driver.name = _CLIENT_RISE_NODE
-	driver.effect = effect
-	block.add_child(driver)
-
-
-class ClientRiseDriver:
-	extends Node
-
-	var effect: PropellerEffect = null  # set by start_client_rise()
-	var age_s: float = 0.0
-
-
-	func _process(delta: float) -> void:
-		advance(delta)
-
-
-	## Advances the rise by `delta` seconds (also the test seam).
-	func advance(delta: float) -> void:
-		age_s += delta
-		var block: Block = get_parent() as Block
-		if block == null or effect == null:
-			return
-		effect._apply_visual_rise(block, maxf(age_s - effect.client_rise_delay_s, 0.0))
+	PropellerStand.spawn_host(self, block.global_position)
