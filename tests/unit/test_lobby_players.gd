@@ -156,21 +156,26 @@ func test_the_lobby_hands_the_panel_its_tunables_palette_and_net_seam() -> void:
 	assert_eq(panel.net_provider, other)
 
 
-func test_lobby_layout_tuning_ships_todays_look_as_defaults() -> void:
+func test_lobby_layout_tuning_resource_agrees_with_script_defaults_and_is_sane() -> void:
 	var tuning: LobbyLayoutTuning = load("res://config/lobby_layout_tuning.tres") as LobbyLayoutTuning
 	assert_not_null(tuning)
 	var fresh: LobbyLayoutTuning = LobbyLayoutTuning.new()
-	assert_eq(tuning.color_box_size_px, Vector2(24.0, 24.0), "the 24 px clay-cube the rows always drew")
-	assert_eq(tuning.color_box_corner_radius_px, 6)
-	assert_eq(tuning.seat_row_separation_px, 10)
-	assert_eq(tuning.seat_text_separation_px, 0)
-	assert_eq(tuning.seat_name_font_size, 16)
-	assert_eq(tuning.seat_row_min_height_px, 0, "0 = natural row height, no visual change in E1")
+	var checked: int = 0
+	for prop: Dictionary in tuning.get_property_list():
+		if (int(prop.get("usage", 0)) & PROPERTY_USAGE_SCRIPT_VARIABLE) == 0:
+			continue
+		var prop_name: String = str(prop.get("name", ""))
+		checked += 1
+		assert_eq(tuning.get(prop_name), fresh.get(prop_name), ".tres and .gd defaults agree for %s" % prop_name)
+		var value: Variant = tuning.get(prop_name)
+		if value is int or value is float:
+			assert_gte(float(value), 0.0, "%s is never negative" % prop_name)
+	assert_gt(checked, 0, "fixture: the layout tuning exposes script variables")
 	assert_gt(tuning.section_spacing_px, 0)
 	assert_gt(tuning.advanced_indent_px, 0)
-	assert_eq(tuning.section_spacing_px, fresh.section_spacing_px, ".tres and .gd defaults agree")
-	assert_eq(tuning.advanced_indent_px, fresh.advanced_indent_px)
-	assert_eq(tuning.color_box_size_px, fresh.color_box_size_px)
+	var box_min: float = minf(tuning.color_box_size_px.x, tuning.color_box_size_px.y)
+	assert_gt(box_min, 0.0, "the colour cube is visible")
+	assert_lte(float(tuning.color_box_corner_radius_px), box_min * 0.5, "corner radius fits inside the cube")
 
 
 # --- Rows: behaviour moved 1:1 out of the Lobby ----------------------------------

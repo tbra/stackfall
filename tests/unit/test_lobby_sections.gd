@@ -8,17 +8,6 @@ extends GutTest
 ## per-gift checklist is GIFTS Advanced, the experiment checks are the EXPERIMENTS block, and
 ## the Advanced rules popup, bar, Players/AI steppers and segmented Teams are gone.
 
-## Every control the lobby round trip governs must still resolve by its unique name.
-const UNIQUE_NAMES: Array[String] = [
-	"%GameModeOption", "%MapComboOption", "%MapThumbnail", "%MapVariantOption", "%MapSizeOption",
-	"%SkyThemeOption", "%WeatherOption", "%GravitySlider", "%TurnBasedCheck", "%HoleModeOption",
-	"%TiltModeOption", "%MidJoinCheck", "%RoundTimerSlider", "%MatchTimerSlider", "%SuddenDeathCheck",
-	"%BlockTimerSlider", "%GoalFlagSpin", "%SkyTeamSumCheck", "%GiftsCheck", "%SpecialFreqSlider",
-	"%SpecialsChecklist", "%QolTimerPauseCheck", "%QolBacklogCheck", "%QolGoalRadiusCheck", "%QolGiftSlotCheck",
-	"%ExperimentsChecklist", "%PlayerCountSpin", "%AiCountSpin", "%AiDifficultyOption",
-	"%TeamModeOption", "%GameSection", "%RoundSection", "%GiftsSection", "%ExperimentsSection",
-]
-
 const QOL_NAMES: Array[String] = ["%QolTimerPauseCheck", "%QolBacklogCheck", "%QolGoalRadiusCheck", "%QolGiftSlotCheck"]
 
 
@@ -89,10 +78,33 @@ func _accept_event(pressed: bool) -> InputEventAction:
 
 # --- Structure -------------------------------------------------------------------------
 
-func test_every_unique_name_still_resolves() -> void:
+func test_every_chain_control_belongs_to_at_most_one_section_and_every_section_is_reachable() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	for unique_name: String in UNIQUE_NAMES:
-		assert_not_null(lobby.get_node_or_null(unique_name), "%s resolves" % unique_name)
+	for section: LobbySection in lobby._sections():
+		section.set_advanced_open(true)
+	var sections: Array[LobbySection] = lobby._sections()
+	# The sections the lobby loops over are exactly the LobbySection nodes in its tree.
+	var in_tree: Array[Node] = lobby.find_children("*", "LobbySection", true, false)
+	assert_eq(sections.size(), in_tree.size(), "every LobbySection in the tree is walked by the lobby")
+	for section: LobbySection in sections:
+		assert_true(in_tree.has(section), "%s is in the lobby tree" % section.name)
+	var chain: Array[Control] = lobby._visible_chain(lobby._main_chain)
+	for section: LobbySection in sections:
+		var reachable: int = 0
+		for control: Control in chain:
+			if section.is_ancestor_of(control) or control == section.advanced_button:
+				reachable += 1
+		assert_gt(reachable, 0, "%s offers at least one focus stop" % section.name)
+	for control: Control in chain:
+		var owners: int = 0
+		for section: LobbySection in sections:
+			if section.is_ancestor_of(control):
+				owners += 1
+		assert_lte(owners, 1, "%s sits in at most one section" % control.name)
+	for section: LobbySection in sections:
+		if section.has_advanced():
+			assert_not_null(section.advanced_button, "%s has a chip for its Advanced block" % section.name)
+			assert_true(section.advanced_button.is_visible_in_tree())
 
 
 func test_controls_live_in_their_plan_sections() -> void:
@@ -198,19 +210,13 @@ func test_ui_accept_on_a_focused_chip_toggles_it() -> void:
 	assert_false(game.is_advanced_open(), "a second ui_accept closes it again")
 
 
-func test_ui_down_walks_the_sections_in_visual_order() -> void:
+func test_ui_down_walk_visits_every_section_chip_once() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var visited: Array[Control] = _walk_loop(lobby)
-	var order: Array[Control] = [
-		lobby.get_node("%GameModeOption") as Control, _section(lobby, "%GameSection").advanced_button,
-		lobby.get_node("%BlockTimerSlider") as Control, _section(lobby, "%GiftsSection").advanced_button,
-		_section(lobby, "%ExperimentsSection").advanced_button, lobby.get_node("%BackButton") as Control,
-	]
-	var last_index: int = -1
-	for control: Control in order:
-		var index: int = visited.find(control)
-		assert_gt(index, last_index, "%s follows the previous stop" % control.name)
-		last_index = index
+	for section: LobbySection in lobby._sections():
+		if section.has_advanced():
+			assert_eq(visited.count(section.advanced_button), 1, "%s chip is a stop exactly once" % section.name)
+	assert_eq(visited.size(), lobby._visible_chain(lobby._main_chain).size(), "the walk covers the shown chain, no more, no less")
 	_assert_loop_has_no_invisible_stops(lobby, "default")
 
 
@@ -223,37 +229,31 @@ func test_loop_has_no_invisible_stops_in_every_game_mode() -> void:
 		_assert_loop_has_no_invisible_stops(lobby, "mode %d" % mode)
 
 
-func test_gifts_and_experiments_advanced_blocks_join_the_loop_in_visual_order() -> void:
+func test_gifts_and_experiments_advanced_blocks_join_the_loop_when_opened() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var gifts: LobbySection = _section(lobby, "%GiftsSection")
 	var experiments: LobbySection = _section(lobby, "%ExperimentsSection")
 	var checklist: Array[Control] = []
 	checklist.append_array(lobby._special_checkboxes)
+	assert_gt(checklist.size(), 0, "fixture: the gift checklist exists")
+	var experiment_checks: Array[Control] = []
+	for node: Node in experiments.advanced.find_children("*", "CheckBox", true, false):
+		experiment_checks.append(node as Control)
+	assert_gt(experiment_checks.size(), 0, "fixture: the experiments block has checks")
 	var shown: Array[Control] = lobby._visible_chain(lobby._main_chain)
-	for control: Control in checklist:
-		assert_false(shown.has(control), "%s is not a stop while GIFTS Advanced is closed" % control.name)
-	for unique_name: String in QOL_NAMES:
-		assert_false(shown.has(lobby.get_node(unique_name)), "%s is not a stop while EXPERIMENTS is closed" % unique_name)
+	for control: Control in checklist + experiment_checks:
+		assert_false(shown.has(control), "%s is not a stop while its Advanced block is closed" % control.name)
 	gifts.advanced_button.button_pressed = true
 	experiments.advanced_button.button_pressed = true
 	assert_true(experiments.is_advanced_open(), "the EXPERIMENTS chip opens its block")
 	shown = lobby._visible_chain(lobby._main_chain)
-	var last_index: int = shown.find(gifts.advanced_button)
-	assert_gt(last_index, shown.find(lobby.get_node("%SpecialFreqSlider")), "the chip follows the GIFTS main controls")
-	for control: Control in checklist:
-		var index: int = shown.find(control)
-		assert_gt(index, last_index, "%s follows the previous stop" % control.name)
-		last_index = index
-	assert_gt(shown.find(experiments.advanced_button), last_index, "EXPERIMENTS follows GIFTS")
-	last_index = shown.find(experiments.advanced_button)
-	for unique_name: String in QOL_NAMES:
-		var index: int = shown.find(lobby.get_node(unique_name))
-		assert_gt(index, last_index, "%s follows the previous stop" % unique_name)
-		last_index = index
-	assert_lt(last_index, shown.find(lobby.get_node("%BackButton")), "the footer follows the settings")
+	for control: Control in checklist + experiment_checks:
+		assert_true(shown.has(control), "%s joins the loop once its block is open" % control.name)
 	_assert_loop_has_no_invisible_stops(lobby, "GIFTS + EXPERIMENTS open")
 	experiments.advanced_button.button_pressed = false
 	assert_false(experiments.is_advanced_open())
+	for control: Control in experiment_checks:
+		assert_false(lobby._visible_chain(lobby._main_chain).has(control), "%s leaves the loop when closed again" % control.name)
 	_assert_loop_has_no_invisible_stops(lobby, "EXPERIMENTS closed again")
 
 

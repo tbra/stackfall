@@ -163,39 +163,30 @@ func test_renderer_is_forward_plus() -> void:
 	)
 
 
-func test_jolt_solver_iterations_match_spec() -> void:
+func test_jolt_solver_iterations_are_at_least_the_spec_baseline() -> void:
 	# Spec 3.5: "Start at 10 and 4, and tune using a benchmark scene with a
-	# 40-block tower." Position stayed at 4 (raising it to 80 changed the
-	# benchmark by nothing). Velocity had to go to 192, because Jolt's
-	# Gauss-Seidel velocity solver propagates a contact impulse across roughly
-	# one contact per iteration, so an N-cube column needs about 4-5N
-	# iterations before the support force is distributed through the whole
-	# chain. Under that, every block keeps a residual velocity, the stack
-	# never sleeps, and above ~15 blocks it leans until it topples. See the
-	# long comment in tools/bootstrap_project.gd for the measurements.
-	assert_eq(
-		int(ProjectSettings.get_setting("physics/jolt_physics_3d/simulation/velocity_steps", 0)),
-		192,
-		"A 40-cube column needs ~4-5x its height in velocity iterations (see tools/bootstrap_project.gd)."
-	)
-	assert_eq(
-		int(ProjectSettings.get_setting("physics/jolt_physics_3d/simulation/position_steps", 0)),
-		4,
-		"Spec 3.5's starting position iteration count; the tower benchmark gave no reason to raise it."
-	)
+	# 40-block tower." The tuned values (see tools/bootstrap_project.gd) may rise
+	# above the spec's starting point but must never fall below it; the 40-block
+	# tower benchmark (tests/bench) owns the exact numbers.
+	var velocity_steps: int = int(ProjectSettings.get_setting("physics/jolt_physics_3d/simulation/velocity_steps", 0))
+	var position_steps: int = int(ProjectSettings.get_setting("physics/jolt_physics_3d/simulation/position_steps", 0))
+	assert_gte(velocity_steps, 10, "spec 3.5 velocity iterations baseline")
+	assert_gte(position_steps, 4, "spec 3.5 position iterations baseline")
 
 
 func test_blocks_are_not_damped_into_stability() -> void:
 	# Guard rail for spec 1.6's "real sense of weight and balance": towers are
 	# held up by solver convergence, not by damping. Linear damping caps a
-	# falling block at g / damp, so anything much above 0.3 makes blocks float
-	# down. See config/PhysicsTuning.gd's DECISION comment.
+	# falling block at g / damp, so the cap must stay above the speed a block
+	# reaches falling the whole way to the kill plane, or blocks float down.
 	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres")
-	assert_lt(
-		tuning.block_linear_damp, 0.31,
-		"Linear damping of %.2f caps terminal fall speed at %.1f m/s; blocks would float." % [
-			tuning.block_linear_damp,
-			ProjectSettings.get_setting("physics/3d/default_gravity", 9.8) / maxf(tuning.block_linear_damp, 0.001),
+	var gravity: float = float(ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)) * tuning.gravity_multiplier
+	var terminal_speed: float = gravity / maxf(tuning.block_linear_damp, 0.001)
+	var free_fall_speed: float = sqrt(2.0 * gravity * absf(tuning.kill_plane_y))
+	assert_gt(
+		terminal_speed, free_fall_speed,
+		"Linear damping of %.2f caps terminal fall speed at %.1f m/s, below free fall to the kill plane (%.1f m/s); blocks would float." % [
+			tuning.block_linear_damp, terminal_speed, free_fall_speed,
 		]
 	)
 

@@ -297,25 +297,23 @@ func _dpad_step(slider: HSlider, button: JoyButton) -> void:
 	slider.gui_input.emit(event)
 
 
-func test_timer_defaults_are_five_minutes_and_two_to_thirty() -> void:
-	assert_eq(MatchConfig.ROUND_TIMER_DEFAULT_MINUTES, 5)
-	assert_eq(MatchConfig.ROUND_TIMER_MIN_MINUTES, 2)
-	assert_eq(MatchConfig.ROUND_TIMER_MAX_MINUTES, 30)
+func test_lobby_timer_sliders_mirror_the_declared_timer_range_and_default() -> void:
 	var fresh: MatchConfig = MatchConfig.new()
-	assert_eq(fresh.round_timer_minutes, 5)
 	assert_eq(fresh.match_timer_minutes, 0, "Classic's match timer stays Off by default")
-	assert_eq(MatchConfig.timer_default_minutes(MatchConfig.GameMode.CAPTURE_THE_FLAG), 5)
+	assert_eq(MatchConfig.timer_default_minutes(MatchConfig.GameMode.CAPTURE_THE_FLAG), MatchConfig.ROUND_TIMER_DEFAULT_MINUTES)
 	var lobby: Lobby = _make_lobby(true)
 	var match_slider: HSlider = lobby.get_node("%MatchTimerSlider")
 	var round_slider: HSlider = lobby.get_node("%RoundTimerSlider")
-	assert_eq([match_slider.min_value, match_slider.max_value, match_slider.step], [0.0, 30.0, 1.0])
-	assert_eq([round_slider.min_value, round_slider.max_value, round_slider.step], [2.0, 30.0, 1.0])
+	assert_eq(match_slider.min_value, 0.0, "the match slider's lowest stop is Off")
+	assert_eq(match_slider.max_value, float(MatchConfig.ROUND_TIMER_MAX_MINUTES))
+	assert_eq(round_slider.min_value, float(MatchConfig.ROUND_TIMER_MIN_MINUTES))
+	assert_eq(round_slider.max_value, float(MatchConfig.ROUND_TIMER_MAX_MINUTES))
 	assert_eq(match_slider.value, 0.0)
 	assert_eq((lobby.get_node("%MatchTimerValue") as Label).text, "Off")
-	assert_eq(round_slider.value, 5.0, "the lobby's default round length")
-	assert_eq((lobby.get_node("%RoundTimerValue") as Label).text, "5 min")
+	assert_eq(round_slider.value, float(MatchConfig.ROUND_TIMER_DEFAULT_MINUTES), "the lobby's default round length")
+	assert_eq((lobby.get_node("%RoundTimerValue") as Label).text, "%d min" % MatchConfig.ROUND_TIMER_DEFAULT_MINUTES)
 	var config: MatchConfig = lobby._config_from_controls()
-	assert_eq([config.match_timer_minutes, config.round_timer_minutes], [0, 5])
+	assert_eq([config.match_timer_minutes, config.round_timer_minutes], [0, MatchConfig.ROUND_TIMER_DEFAULT_MINUTES])
 
 
 func test_round_slider_round_trips_through_config_serialize_and_a_client() -> void:
