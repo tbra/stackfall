@@ -42,6 +42,17 @@ DEFAULT_TIMEOUT_S = 1200
 FIXED_FPS = "60"
 
 
+def run_lint(path, name, fallback_module):
+    """Run the candidate tree's own lint (its rules and reviewed allowances travel with the
+    change; 2026-10-07: a branch that moved an allowance was judged by main's stale copy).
+    Falls back to this checkout's module when the candidate has no such script."""
+    script = os.path.join(path, "tools", name + ".py")
+    if not os.path.isfile(script):
+        return fallback_module.main(["--path", path])
+    proc = subprocess.run([sys.executable, script, "--path", path], timeout=DEFAULT_TIMEOUT_S)
+    return proc.returncode
+
+
 def godot_exe():
     return shutil.which("godot") or shutil.which("godot.exe") or "godot"
 
@@ -179,10 +190,10 @@ def main(argv):
         timings = {}
 
     # Magic-number ratchet (Bontago-fca.35): <2 s, runs before the shards.
-    lint_code = lint_magic_numbers.main(["--path", path])
+    lint_code = run_lint(path, "lint_magic_numbers", lint_magic_numbers)
     print("MAGIC LINT %s" % ("GREEN" if lint_code == 0 else "RED"), flush=True)
     # Single-source ratchet (Bontago-1pi.86.1): same cost, same position.
-    ss_code = lint_single_source.main(["--path", path])
+    ss_code = run_lint(path, "lint_single_source", lint_single_source)
     print("SINGLE-SOURCE LINT %s" % ("GREEN" if ss_code == 0 else "RED"), flush=True)
 
     tests = collect(path)
