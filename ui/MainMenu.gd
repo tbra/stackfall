@@ -43,6 +43,7 @@ signal bots_requested(player_name: String)
 ## the sandbox with the gift-demo preset. Only ever emitted while debug mode is
 ## on: the entry is not even visible otherwise.
 signal gift_demo_requested
+signal tower_topple_requested
 
 ## Tagline shown on the Debug page in place of the wordmark's own tagline.
 const DEBUG_TAGLINE: String = "DEBUG · GIFT DEMO"
@@ -73,6 +74,7 @@ const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
 ## any other control; %GiftDemoButton lives on the Debug page.
 @onready var _debug_button: Button = %DebugButton
 @onready var _gift_demo_button: Button = %GiftDemoButton
+@onready var _tower_topple_button: Button = %TowerToppleButton
 ## Bontago-1pi.74: build label (BuildVersion.label()) beside the Debug corner pill.
 @onready var _build_version_label: Label = %BuildVersionLabel
 ## Left inset of the label when the Debug pill is hidden (matches the pill's own).
@@ -192,6 +194,7 @@ func _ready() -> void:
 	_bots_button.pressed.connect(_on_bots_pressed)
 	_debug_button.pressed.connect(_on_debug_pressed)
 	_gift_demo_button.pressed.connect(_on_gift_demo_pressed)
+	_tower_topple_button.pressed.connect(_on_tower_topple_pressed)
 	_back_button.pressed.connect(_on_back_pressed)
 	_init_name_field()
 	_sandbox_button.pressed.connect(_on_sandbox_pressed)
@@ -347,6 +350,7 @@ func _apply_visual_style() -> void:
 	# they stay clear of the shared icon-colour overrides below.
 	MenuStyleFactory.apply_pill(_debug_button, tuning.pill_dark_slate_color, tuning.pill_dark_slate_hover_color, tuning.label_ink_light_color, tuning)
 	MenuStyleFactory.apply_pill(_gift_demo_button, tuning.pill_powder_blue_color, tuning.pill_powder_blue_hover_color, tuning.ink_color, tuning)
+	MenuStyleFactory.apply_pill(_tower_topple_button, tuning.pill_powder_blue_color, tuning.pill_powder_blue_hover_color, tuning.ink_color, tuning)
 	# SVG icons import at a large intrinsic size. Let Join controls scale the
 	# icon into a tuned row height so the full page fits the visible canvas.
 	for button: Button in [_join_lan_tab_button, _join_steam_tab_button,
@@ -443,6 +447,11 @@ func _on_gift_demo_pressed() -> void:
 		gift_demo_requested.emit()
 
 
+func _on_tower_topple_pressed() -> void:
+	if _debug_entry_enabled:
+		tower_topple_requested.emit()
+
+
 ## Back (button, Esc or gamepad B) returns to the home page with focus on the
 ## button that opened the page just left, so the controller never loses its
 ## place.
@@ -504,6 +513,7 @@ func _set_page(page: int, focus_target: Control = null) -> void:
 	_sandbox_button.visible = page == PAGE_LOCAL
 	_tutorial_button.visible = page == PAGE_LOCAL
 	_gift_demo_button.visible = page == PAGE_DEBUG
+	_tower_topple_button.visible = page == PAGE_DEBUG
 	_back_button.visible = page != PAGE_HOME
 	_debug_button.visible = _debug_entry_enabled and page == PAGE_HOME
 	_build_version_label.visible = page == PAGE_HOME
@@ -545,7 +555,7 @@ func _wired_controls() -> Array[Control]:
 	return [
 		_name_edit, _host_button, _join_button, _play_local_button, _options_button, _quit_button,
 		_debug_button, _bots_button, _sandbox_button, _tutorial_button,
-		_gift_demo_button, _back_button, _join_lan_tab_button, _join_steam_tab_button,
+		_gift_demo_button, _tower_topple_button, _back_button, _join_lan_tab_button, _join_steam_tab_button,
 		_refresh_button, _game_list, _direct_ip_edit, _direct_join_button, _refresh_steam_button,
 		_steam_lobby_list,
 	]
@@ -563,7 +573,7 @@ func _wire_focus() -> void:
 		PAGE_LOCAL:
 			_wire_cycle_row([_bots_button, _sandbox_button, _tutorial_button, _back_button])
 		PAGE_DEBUG:
-			_wire_cycle_row([_gift_demo_button, _back_button])
+			_wire_cycle_row([_gift_demo_button, _tower_topple_button, _back_button])
 		_:
 			_wire_join_focus()
 
