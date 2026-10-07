@@ -392,6 +392,39 @@ func test_broadcast_roster_after_transport_closed_does_not_rpc() -> void:
 	# the assertion: the RPC attempt above must have been skipped.
 
 
+## Bontago-1pi.103: a peer whose ENet link is already DISCONNECTING (its disconnect
+## command arrived, its peer_disconnected event is still queued) is still in
+## get_peers(); a roster broadcast must not address it (engine error "Unable to
+## send packet on channel 0, max channels: 0"), while a still-connected peer
+## keeps hearing the roster on a normal disconnect.
+func test_roster_broadcast_skips_a_peer_whose_enet_link_is_closing() -> void:
+	var port: int = _take_port()
+	assert_eq(_host.host_game(port, "Hostie"), OK)
+	var second: Variant = _make_side("SecondNet")
+	assert_eq(_client.join_game("127.0.0.1", port, "Clienty"), OK)
+	assert_eq(second.join_game("127.0.0.1", port, "Seconda"), OK)
+	var seated: bool = await _wait_until(func() -> bool:
+		return _host.peer_ids().size() == 3 and second.peer_ids().size() == 3
+	)
+	assert_true(seated, "all three settle")
+	var closing_id: int = _client.local_peer_id()
+	var kept_id: int = second.local_peer_id()
+	var enet: ENetMultiplayerPeer = _host.multiplayer.multiplayer_peer as ENetMultiplayerPeer
+	assert_true(_host._broadcast_targets().has(closing_id), "connected peers are addressed")
+	enet.get_peer(closing_id).peer_disconnect()
+	assert_true(_host.multiplayer.get_peers().has(closing_id), "ENet still lists it")
+	assert_false(_host._broadcast_targets().has(closing_id), "but the broadcast skips it")
+	assert_true(_host.is_peer_disconnecting(closing_id), "per-peer senders skip it too")
+	assert_true(_host._broadcast_targets().has(kept_id), "the connected peer stays addressed")
+	_host._broadcast_roster()
+	await _wait_until(func() -> bool: return not _host.peer_ids().has(closing_id))
+	var told: bool = await _wait_until(func() -> bool:
+		return second.peer_ids().size() == 2 and not second.peer_ids().has(closing_id)
+	)
+	assert_true(told, "the remaining peer hears the updated roster")
+	second.leave()
+
+
 func test_tick_ping_after_transport_closed_does_not_rpc() -> void:
 	var port: int = _take_port()
 	_connect_host_and_client(port)

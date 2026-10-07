@@ -1651,7 +1651,23 @@ func _can_send() -> bool:
 ## has not dropped out of get_peers() yet. A send to it logs an engine error, so
 ## per-peer senders outside this file (net/MatchNet.gd) skip it.
 func is_peer_disconnecting(peer_id: int) -> bool:
-	return _disconnecting_peers.has(peer_id)
+	return _disconnecting_peers.has(peer_id) or not _transport_peer_sendable(peer_id)
+
+
+## Bontago-1pi.103: ENet marks a remote peer ZOMBIE/DISCONNECTING as soon as its
+## disconnect command arrives, but get_peers() keeps listing it until its own
+## queued DISCONNECT event is dispatched (several clients leaving at host
+## shutdown, or one peer's event running a roster broadcast first). Sending then
+## logs "Unable to send packet on channel 0, max channels: 0". Non-ENet
+## transports have no such view and are always treated as sendable.
+func _transport_peer_sendable(peer_id: int) -> bool:
+	var enet: ENetMultiplayerPeer = multiplayer.multiplayer_peer as ENetMultiplayerPeer
+	if enet == null:
+		return true
+	var link: ENetPacketPeer = enet.get_peer(peer_id)
+	if link == null:
+		return false
+	return link.get_state() == ENetPacketPeer.STATE_CONNECTED
 
 
 ## Host only: the connected peers a broadcast may address -- every entry of
@@ -1667,7 +1683,7 @@ func _broadcast_targets() -> Array[int]:
 	if peer == null or peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
 		return targets
 	for peer_id: int in multiplayer.get_peers():
-		if not _disconnecting_peers.has(peer_id):
+		if not _disconnecting_peers.has(peer_id) and _transport_peer_sendable(peer_id):
 			targets.append(peer_id)
 	return targets
 
@@ -2039,8 +2055,8 @@ func _tick_ping(delta: float) -> void:
 	# Bontago-mv0.1.10 review: same teardown hazard as _broadcast_roster().
 	if not _can_send():
 		return
-	for peer_id: int in _peers.keys():
-		if peer_id != HOST_PEER_ID:
+	for peer_id: int in _broadcast_targets():
+		if peer_id != HOST_PEER_ID and _peers.has(peer_id):
 			_rpc_ping.rpc_id(peer_id, now_ms)
 
 
@@ -2060,6 +2076,8 @@ func _rpc_pong(sent_at_ms: int) -> void:
 		return
 	var rtt: float = float(Time.get_ticks_msec() - sent_at_ms)
 	_record_ping_sample(sender, rtt)
+	if is_peer_disconnecting(sender):
+		return
 	_rpc_report_ping.rpc_id(sender, float(_peers[sender][LobbySeats.FIELD_PING_MS]))
 
 
