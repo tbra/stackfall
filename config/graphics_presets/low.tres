@@ -20,3 +20,4 @@ hole_void_animated = false
 block_dissolve_effect_enabled = false
 gift_idle_glow_enabled = false
 cloud_shadows_enabled = false
+aurora_enabled = false

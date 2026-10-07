@@ -51,6 +51,9 @@ extends Resource
 ## Bontago-mp0.127: moving cloud shadows on the arena and the sun dimming under clouds
 ## (vfx/CloudShadows.gd). Off on Low.
 @export var cloud_shadows_enabled: bool = true
+## Bontago-mp0.129: the night-sky aurora borealis curtains (shaders/include/cloud_common.gdshaderinc,
+## game/Skybox.gd). Off on Low: the sky keeps its stars and moon.
+@export var aurora_enabled: bool = true
 ## Bontago-1pi.11.49: how Engine.max_fps is chosen while a match runs (core/FrameCapRule.gd).
 ## DECISION (owner/orchestrator 2026-10-07): the default on every preset is the display's
 ## refresh rate, so a 144 Hz monitor still gets 144 fps but nothing renders uncapped
