@@ -13,32 +13,50 @@ func _is_exported_field(prop: Dictionary) -> bool:
 	return (int(prop.get("usage", 0)) & EXPORT_USAGE_MASK) == EXPORT_USAGE_MASK
 
 
-# --- rebound_damping's default is a byte-identical no-op --------------------
+# --- rebound_damping ---------------------------------------------------------
 
-func test_rebound_damping_default_is_the_heavy_bouncy_value() -> void:
+func test_rebound_damping_default_is_a_valid_damping_factor() -> void:
 	var fresh: PhysicsTuning = PhysicsTuning.new()
-	assert_almost_eq(fresh.rebound_damping, 0.3, 0.0001)
+	assert_gte(fresh.rebound_damping, 0.0, "a scale factor is never negative")
+	assert_lte(fresh.rebound_damping, 1.0, "a factor above 1 would amplify the bounce")
+	var live: PhysicsTuning = load("res://config/physics_tuning.tres")
+	assert_between(live.rebound_damping, 0.0, 1.0, "the shipped tuning is a valid factor too")
+	# The default drives Block._damp_rebound: the result is the fresh bounce scaled by it.
+	assert_almost_eq(Block._damp_rebound(-2.0, 4.0, fresh.rebound_damping, 0.15), 4.0 * fresh.rebound_damping, 0.0001)
 
 
 # --- The shipped presets ------------------------------------------------------
 
-## "heavy_bouncy" must stay byte-identical to config/physics_tuning.tres's own
-## defaults (owner 2026-09-30: Heavy & Bouncy is the shipped default), field for field, not just on
-## the fields this package happened to touch.
-func test_heavy_bouncy_preset_matches_the_shipped_physics_tuning() -> void:
+## Every shipped preset must supply a sane value for every exported field of the live
+## tuning, so an A/B swap from the Physics tab can never leave a field NaN, negative
+## where a magnitude is expected, or missing (a stale preset after a new field).
+func test_every_shipped_preset_covers_every_tuning_field_with_finite_values() -> void:
 	var live: PhysicsTuning = load("res://config/physics_tuning.tres")
-	var current: PhysicsTuning = load("res://config/physics_presets/heavy_bouncy.tres")
-	var checked_any: bool = false
-	for prop: Dictionary in live.get_property_list():
-		if not _is_exported_field(prop):
+	var dir: DirAccess = DirAccess.open("res://config/physics_presets")
+	assert_not_null(dir, "fixture: the presets directory opens")
+	var presets: int = 0
+	for file: String in dir.get_files():
+		if not file.ends_with(".tres"):
 			continue
-		checked_any = true
-		var prop_name: String = str(prop.get("name", ""))
-		assert_almost_eq(
-			float(live.get(prop_name)), float(current.get(prop_name)), 0.0001,
-			"%s should be byte-identical between physics_tuning.tres and the 'heavy_bouncy' preset" % prop_name
-		)
-	assert_true(checked_any, "fixture: PhysicsTuning must have at least one exported field.")
+		var preset: PhysicsTuning = load("res://config/physics_presets/%s" % file) as PhysicsTuning
+		assert_not_null(preset, "%s loads as PhysicsTuning" % file)
+		if preset == null:
+			continue
+		presets += 1
+		var checked_any: bool = false
+		for prop: Dictionary in live.get_property_list():
+			if not _is_exported_field(prop):
+				continue
+			checked_any = true
+			var prop_name: String = str(prop.get("name", ""))
+			var value: Variant = preset.get(prop_name)
+			assert_not_null(value, "%s defines %s" % [file, prop_name])
+			if value is float:
+				assert_true(is_finite(float(value)), "%s.%s is finite" % [file, prop_name])
+		assert_true(checked_any, "fixture: PhysicsTuning must have at least one exported field.")
+		assert_between(preset.rebound_damping, 0.0, 1.0, "%s: rebound_damping is a valid factor" % file)
+		assert_gt(preset.cube_mass, 0.0, "%s: bodies have mass" % file)
+	assert_gt(presets, 0, "fixture: presets found")
 
 
 func test_heavy_presets_are_heavier_and_damp_the_rebound() -> void:

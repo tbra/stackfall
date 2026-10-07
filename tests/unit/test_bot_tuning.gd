@@ -69,13 +69,17 @@ func test_shipped_bot_tuning_profiles_have_positive_numeric_fields() -> void:
 		assert_true(checked_any, "fixture: BotDifficultyProfile must have at least one exported numeric field.")
 
 
-func test_shipped_bot_tuning_difficulty_ordering_gets_harder() -> void:
+func test_shipped_bot_tuning_hard_is_stronger_than_easy() -> void:
 	var tuning: BotTuning = load("res://config/bot_tuning.tres")
 	# Spec 2.9: harder difficulties sample more candidates, aim more precisely
-	# (lower noise) and react faster (lower delay).
-	assert_lt(tuning.easy.candidate_count, tuning.normal.candidate_count)
-	assert_lt(tuning.normal.candidate_count, tuning.hard.candidate_count)
-	assert_gt(tuning.easy.aim_noise_m, tuning.normal.aim_noise_m)
-	assert_gt(tuning.normal.aim_noise_m, tuning.hard.aim_noise_m)
-	assert_gt(tuning.easy.reaction_delay_s, tuning.normal.reaction_delay_s)
-	assert_gt(tuning.normal.reaction_delay_s, tuning.hard.reaction_delay_s)
+	# (lower noise) and react faster (lower delay). Only the extremes are
+	# related, so retuning the Normal middle never breaks this; it fails if the
+	# profiles are swapped or the direction of a knob is inverted.
+	assert_lt(tuning.easy.candidate_count, tuning.hard.candidate_count)
+	assert_gt(tuning.easy.aim_noise_m, tuning.hard.aim_noise_m)
+	assert_gt(tuning.easy.reaction_delay_s, tuning.hard.reaction_delay_s)
+	for field: String in ["candidate_count", "aim_noise_m", "reaction_delay_s"]:
+		var lo: float = minf(float(tuning.easy.get(field)), float(tuning.hard.get(field)))
+		var hi: float = maxf(float(tuning.easy.get(field)), float(tuning.hard.get(field)))
+		var mid: float = float(tuning.normal.get(field))
+		assert_between(mid, lo, hi, "normal.%s sits between easy and hard" % field)

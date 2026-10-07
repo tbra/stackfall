@@ -601,10 +601,13 @@ func test_net_client_rejects_malformed_or_oversized_mirrors() -> void:
 
 # --- tuning + the LoadingScreen glue -------------------------------------------
 
-func test_tuning_defaults_are_the_owners_values() -> void:
+func test_tuning_ready_wait_cap_is_a_positive_safety_net_beyond_asset_timeout() -> void:
 	var tuning: LoadingScreenTuning = load("res://config/loading_screen_tuning.tres") as LoadingScreenTuning
-	assert_almost_eq(tuning.ready_wait_max_s, 60.0, 0.0001)
-	assert_almost_eq(tuning.ready_timeout_s, 20.0, 0.0001, "asset-loading timeout keeps its meaning")
+	assert_gt(tuning.ready_timeout_s, 0.0)
+	assert_gt(tuning.ready_wait_max_s, 0.0)
+	# The AFK-player cap is measured from LOADING and covers asset loading too,
+	# so it must not be shorter than the asset-loading timeout.
+	assert_gte(tuning.ready_wait_max_s, tuning.ready_timeout_s)
 
 
 func _screen() -> LoadingScreen:

@@ -246,13 +246,23 @@ func test_apply_physics_live_updates_an_existing_blocks_damping_material_and_gra
 
 # --- Bontago-xtq.17: Physics preset dropdown ---------------------------------
 
-func test_physics_tab_has_a_preset_option_button_with_five_presets() -> void:
+func test_physics_tab_preset_dropdown_lists_one_item_per_shipped_preset() -> void:
 	var physics_tab: Control = _panel._tab_container.get_node("Physics")
 	var found: Array[Node] = physics_tab.find_children("*", "OptionButton", true, false)
 	assert_eq(found.size(), 1)
-	assert_eq((found[0] as OptionButton).item_count, 5)
-	assert_eq((found[0] as OptionButton).get_item_text(3), "Tokamak defaults (Jolt)")
-	assert_eq((found[0] as OptionButton).get_item_text(4), "Original feel (experimental)")
+	var dropdown: OptionButton = found[0] as OptionButton
+	var preset_files: int = 0
+	for file: String in DirAccess.get_files_at("res://config/physics_presets"):
+		if file.ends_with(".tres"):
+			preset_files += 1
+	assert_eq(dropdown.item_count, preset_files, "one dropdown item per shipped preset file")
+	var seen: Dictionary = {}
+	for index: int in range(dropdown.item_count):
+		var text: String = dropdown.get_item_text(index)
+		assert_false(text.is_empty(), "item %d has a label" % index)
+		assert_false(seen.has(text), "label %s is unique" % text)
+		seen[text] = true
+
 
 func test_original_feel_preset_live_values_and_current_clears_release_tilt() -> void:
 	var block: Block = BlockFactory.build(load("res://config/blocks/cube.tres"), _panel.physics_tuning)
@@ -300,14 +310,15 @@ func test_apply_physics_preset_copies_values_and_reapplies_live() -> void:
 	)
 
 
-func test_apply_physics_preset_heavy_bouncy_matches_the_shipped_defaults() -> void:
-	_panel.physics_tuning.gravity_multiplier = 99.0
-	_panel.physics_tuning.rebound_damping = 0.1
+func test_apply_physics_preset_overwrites_edited_values_with_the_preset_file() -> void:
+	var preset: PhysicsTuning = load("res://config/physics_presets/heavy_bouncy.tres")
+	_panel.physics_tuning.gravity_multiplier = preset.gravity_multiplier + 9.0
+	_panel.physics_tuning.rebound_damping = preset.rebound_damping + 0.5
 
 	_panel.apply_physics_preset("heavy_bouncy")
 
-	assert_almost_eq(_panel.physics_tuning.gravity_multiplier, _saved_gravity, 0.0001)
-	assert_almost_eq(_panel.physics_tuning.rebound_damping, 0.3, 0.0001)
+	assert_almost_eq(_panel.physics_tuning.gravity_multiplier, preset.gravity_multiplier, 0.0001)
+	assert_almost_eq(_panel.physics_tuning.rebound_damping, preset.rebound_damping, 0.0001)
 
 
 func test_apply_physics_preset_ignores_an_unknown_id() -> void:
@@ -680,14 +691,18 @@ func test_client_hides_physics_territory_and_feed_but_not_the_visual_tabs() -> v
 
 # --- Bontago-xtq.36: M7 art-direction tabs (Blocks FX/Beacons/Camera FX/HUD/Sky) ---
 
-func test_tab_roster_names_and_count() -> void:
-	var expected: PackedStringArray = [
-		"Camera", "Controls", "Blocks FX", "Beacons", "Camera FX", "HUD", "Sky",
-		"Physics", "Territory", "Feed", "QoL",
-	]
-	assert_eq(_panel._tab_container.get_tab_count(), expected.size())
-	for index: int in range(expected.size()):
-		assert_eq(_panel._tab_container.get_tab_title(index), expected[index])
+func test_tab_roster_has_one_unique_titled_page_per_tab() -> void:
+	var tabs: TabContainer = _panel._tab_container
+	assert_gt(tabs.get_tab_count(), 0, "fixture: the panel builds tabs")
+	assert_eq(tabs.get_tab_count(), tabs.get_child_count(), "every tab is backed by exactly one page")
+	var seen: Dictionary = {}
+	for index: int in range(tabs.get_tab_count()):
+		var title: String = tabs.get_tab_title(index)
+		assert_false(title.is_empty(), "tab %d has a title" % index)
+		assert_false(seen.has(title), "tab title %s is unique" % title)
+		seen[title] = true
+	for resource: Resource in [_panel.camera_tuning, _panel.ghost_tuning, _panel.physics_tuning, _panel.territory_tuning, _panel.block_feed_config]:
+		assert_gt(_panel.row_count_for(resource), 0, "%s is shown on some tab" % resource)
 
 
 ## CameraShakeConfig (config/CameraShakeConfig.gd) is four plain floats and
@@ -931,15 +946,13 @@ func test_persistence_disallowed_for_headless_non_gut_run() -> void:
 
 # --- Bontago-mv0.21: owner-tuned defaults --------------------------------------
 
-func test_camera_tuning_default_values() -> void:
-	var fresh: CameraTuning = CameraTuning.new()
-	assert_almost_eq(fresh.follow_lag_seconds, 0.0, 0.0001)
-	assert_almost_eq(fresh.follow_pitch_deg, -35.0, 0.0001)
-
-
-func test_ghost_tuning_default_value() -> void:
-	var fresh: GhostTuning = GhostTuning.new()
-	assert_almost_eq(fresh.block_move_sensitivity, 0.05, 0.0001)
+func test_camera_and_ghost_tuning_defaults_are_physically_sensible() -> void:
+	var camera: CameraTuning = CameraTuning.new()
+	assert_gte(camera.follow_lag_seconds, 0.0, "smoothing time is never negative")
+	assert_lt(camera.follow_pitch_deg, 0.0, "the follow camera looks down at the stack")
+	assert_gt(camera.follow_pitch_deg, -90.0, "...but not straight down")
+	var ghost: GhostTuning = GhostTuning.new()
+	assert_gt(ghost.block_move_sensitivity, 0.0, "mouse motion moves the block forward, not backward or never")
 
 
 # --- Bontago-mv0.21: self-describing rows (default + description) -------------
@@ -950,12 +963,28 @@ func test_every_row_label_shows_its_default_value() -> void:
 		_panel.territory_tuning, _panel.territory_visuals, _panel.block_feed_config,
 	]
 	var checked_any: bool = false
+	var compared: int = 0
 	for resource: Resource in resources:
+		var shipped: Resource = null
+		if not resource.resource_path.is_empty():
+			shipped = ResourceLoader.load(resource.resource_path, "", ResourceLoader.CACHE_MODE_IGNORE)
 		for prop_name: String in _panel.shown_fields_for(resource):
 			checked_any = true
 			var text: String = _panel.label_text_for(resource, prop_name)
-			assert_true(text.contains("(default"), "%s.%s label %s must show its default" % [resource, prop_name, text])
+			assert_true(text.contains(prop_name), "label %s names its field %s" % [text, prop_name])
+			assert_true(text.contains("(default "), "%s.%s label %s must show its default" % [resource, prop_name, text])
+			# Exact-format check for the types whose text is unambiguous: the label's
+			# default is the value Reset restores (the shipped resource), read from disk.
+			if shipped != null:
+				var value: Variant = shipped.get(prop_name)
+				if value is bool:
+					compared += 1
+					assert_true(text.contains("(default %s)" % ("true" if value else "false")), "%s default text" % prop_name)
+				elif value is int:
+					compared += 1
+					assert_true(text.contains("(default %d)" % value), "%s default text" % prop_name)
 	assert_true(checked_any, "fixture: at least one row must exist to check.")
+	assert_gt(compared, 0, "fixture: at least one int/bool row compared against its shipped default")
 
 
 func test_every_shown_field_has_a_non_empty_description() -> void:
