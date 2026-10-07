@@ -46,6 +46,25 @@ func _ready() -> void:
 	Settings.audio_settings_changed.connect(_refresh_volumes)
 
 
+## Quit-time release (Bontago-fca.49): stop beds and gust voices, drop streams.
+func _exit_tree() -> void:
+	release_audio()
+
+
+func release_audio() -> void:
+	for weather_id: StringName in _beds.keys():
+		var player: AudioStreamPlayer = (_beds[weather_id] as Dictionary)["player"] as AudioStreamPlayer
+		if is_instance_valid(player):
+			player.stop()
+			player.stream = null
+	for player: AudioStreamPlayer in _gust_players:
+		if is_instance_valid(player):
+			player.stop()
+			player.stream = null
+	_gust_streams.clear()
+	last_gust_stream = null
+
+
 func _process(delta: float) -> void:
 	advance(delta)
 

@@ -744,6 +744,8 @@ func _on_game_activated(index: int) -> void:
 
 
 func _on_quit_pressed() -> void:
+	# Bontago-fca.49: let the AudioServer free stopped playbacks before exit (no quit-time leaks).
+	await Sfx.drain_for_quit()
 	get_tree().quit()
 
 

@@ -1000,6 +1000,7 @@ func _on_headless_bots_report_tick() -> void:
 ## ticks.
 func _on_headless_bots_seconds_elapsed() -> void:
 	print(_headless_bots_done_line())
+	await Sfx.drain_for_quit()
 	get_tree().quit(0)
 
 

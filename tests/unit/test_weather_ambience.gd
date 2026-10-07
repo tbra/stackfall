@@ -107,3 +107,13 @@ func test_weather_volume_follows_weather_channel_only() -> void:
 	var gust_player: AudioStreamPlayer = _amb._gust_players[(_amb._gust_next + _amb._gust_players.size() - 1) % _amb._gust_players.size()]
 	assert_almost_eq(gust_player.volume_db, _amb.tuning.gust_volume_db + Settings.master_volume_db() + Settings.weather_volume_db(), 0.001)
 	Settings.set_weather_volume_percent(saved_weather)
+
+
+func test_release_audio_stops_beds_and_drops_streams() -> void:
+	Events.weather_started.emit(&"rain")
+	var player: AudioStreamPlayer = _amb.bed_player(&"rain")
+	assert_true(player.playing)
+	_amb.release_audio()
+	assert_false(player.playing)
+	assert_null(player.stream)
+	assert_null(_amb.last_gust_stream)
