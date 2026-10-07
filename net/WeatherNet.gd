@@ -74,29 +74,14 @@ func _authority() -> Variant:
 	return _match_provider if _match_provider != null else Match
 
 
-func _is_host() -> bool:
-	return bool(_session().is_host())
-
-
-## True only with a live peer (see MatchNet._can_send() for why offline and
-## the engine's OfflineMultiplayerPeer must be excluded).
-func _can_send() -> bool:
-	if bool(_session().is_offline()):
-		return false
-	var peer: MultiplayerPeer = multiplayer.multiplayer_peer
-	if peer == null or peer is OfflineMultiplayerPeer:
-		return false
-	return peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
-
-
 # --- Host -> clients ----------------------------------------------------------------
 
 func _on_weather_state_changed(state: Dictionary) -> void:
-	if not _is_host():
+	if not _session().is_host():
 		return
 	last_sent_state = state.duplicate()
 	states_sent += 1
-	if _can_send():
+	if NetFanout.can_send(multiplayer, _session()):
 		NetFanout.broadcast(self, _session(), &"net_weather_state", [state])
 
 
@@ -106,7 +91,7 @@ func _on_net_peer_joined(peer_id: int, _slot_id: int, _player_name: String) -> v
 	# Net emits net_peer_joined for sessions that may use their own
 	# MultiplayerAPI; with no peer on this node's API there is nothing to send
 	# (and get_unique_id() would raise an engine error).
-	if not _is_host():
+	if not _session().is_host():
 		return
 	if multiplayer.has_multiplayer_peer() and peer_id == multiplayer.get_unique_id():
 		return
@@ -115,7 +100,7 @@ func _on_net_peer_joined(peer_id: int, _slot_id: int, _player_name: String) -> v
 		return
 	states_sent += 1
 	last_sent_state = weather.state_dict()
-	if _can_send():
+	if NetFanout.can_send(multiplayer, _session()):
 		rpc_id(peer_id, &"net_weather_state", last_sent_state)
 
 
@@ -124,7 +109,7 @@ func net_weather_state(state: Dictionary) -> void:
 	# The engine already drops this RPC from any non-authority sender; the
 	# checks below are the second line: never on the host, never from a peer
 	# other than the server.
-	if _is_host():
+	if _session().is_host():
 		states_refused += 1
 		return
 	if _is_awaiting_world():

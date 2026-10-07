@@ -47,6 +47,13 @@ Rule = namedtuple("Rule", "id pattern scope allowed keep_strings exts message mu
 # Line-level allowances: {rule_id: [(file, source snippet, reason)]}. A hit is waived only
 # when its statement contains the snippet. Whole-file allowances are not used for STATE_SET.
 LINE_ALLOW = {
+    "NET_PREDICATE": [
+        ("autoload/Match.gd", "func _is_host", "the injectable net-provider seam over Net.is_host(); ~70 controller/test call sites"),
+        ("autoload/match/BreezeEffect.gd", "func _is_host", "test override seam, then Match._is_host(); no own predicate"),
+        ("autoload/match/StormEffect.gd", "func _is_host", "test override seam, then Match._is_host(); no own predicate"),
+        ("autoload/match/MatchWeather.gd", "func _is_host", "test override seam, then Match._is_host(); no own predicate"),
+        ("game/HoleDissolver.gd", "func _is_host", "reads BlockRegistry's cached host-authority flag, not the session"),
+    ],
 }
 
 ALL_CODE = ("ui/", "game/", "autoload/", "net/", "core/", "vfx/")
@@ -116,6 +123,14 @@ RULES = [
          r"(?:\bor\b|\band\b|,).*\bState\.(?:LOBBY|LOADING|COUNTDOWN|PLAYING|SUDDEN_DEATH|END)\b",
          None, ("autoload/Match.gd",), False, GD,
          "use Match.is_live / is_replicating / is_resetting, not a hand-written state set",
+         True),
+    Rule("NET_PREDICATE",
+         # Bontago-fca.36.5: Net.is_host() / NetFanout.can_send() own "am I the host" and "is
+         # there a live peer to send to". A new `func _is_host` / `func _can_send` (or an
+         # OfflineMultiplayerPeer test) outside the owners is a copy; call the owners instead.
+         r"\bfunc\s+_?(?:is_host|can_send)\s*\(|\bOfflineMultiplayerPeer\b",
+         None, ("autoload/Net.gd", "net/NetFanout.gd"), False, GD,
+         "use Net.is_host() / NetFanout.can_send(), not a private copy",
          True),
 ]
 RULE_IDS = [r.id for r in RULES]

@@ -142,11 +142,11 @@ var _hole_dissolve_tuning: HoleDissolveTuning = preload("res://config/hole_disso
 var _ghost_tuning: GhostTuning = preload("res://config/ghost_tuning.tres")
 var _beacon_visuals: BeaconVisualTuning = preload("res://config/beacon_visual_tuning.tres")
 ## Test-only (Bontago-1pi.11.41): net_ids _on_block_dissolve_started() decided
-## to replicate, in order -- _can_send() is false without a live peer, so this
+## to replicate, in order -- NetFanout.can_send() is false without a live peer, so this
 ## is what proves the host would have sent them. Game code never reads it.
 var replicated_dissolve_starts: Array[int] = []
 ## Test-only (Bontago-1pi.52): how many times each event name reached
-## replicate_match_event() on the host, counted before its _can_send() gate
+## replicate_match_event() on the host, counted before its NetFanout.can_send() gate
 ## (false in a unit test). Proves a refusal was never broadcast to every peer.
 ## Bounded by the number of event names. Game code never reads it.
 var replicated_event_counts: Dictionary = {}
@@ -173,7 +173,7 @@ var _impact_refill_ms: int = -1
 ## reach the moment they happened (receive_impacts()).
 var _impact_queue: Array[Array] = []
 ## Test-only (Bontago-1pi.55): when true the host collects impacts and records
-## every batch flush_impacts() builds even without a live peer (_can_send() is
+## every batch flush_impacts() builds even without a live peer (NetFanout.can_send() is
 ## false in a unit test). Game code never sets it.
 var capture_impacts: bool = false
 var impact_batches: Array[PackedByteArray] = []
@@ -246,14 +246,14 @@ var _duplicate_net_ids: int = 0
 ## Test-only (Bontago-mv0.1.7): counts every replicate_spawn() call this host
 ## refused to put on the wire because BlockRegistry's allocator left the block
 ## with an id the wire cannot carry (net_id == -1 past Quantize.NET_ID_MAX).
-## _can_send() is already false in a unit test with no live peer, so that gate
+## NetFanout.can_send() is already false in a unit test with no live peer, so that gate
 ## alone cannot prove a refused spawn was never even handed to the rpc(); this
 ## counter is the seam that does. Game code never reads it.
 var _invalid_spawn_refusals: int = 0
 
 ## Test-only (Bontago-mv0.1.13): to_state values _on_match_state_changed
 ## actually decided to replicate as EVENT_STATE_CHANGED, in order. Needed for
-## the same reason as _invalid_spawn_refusals above: _can_send() is already
+## the same reason as _invalid_spawn_refusals above: NetFanout.can_send() is already
 ## false in a unit test with no live peer, so it alone cannot prove the
 ## transient LOBBY/LOADING/COUNTDOWN states a start_match() call produces
 ## internally were suppressed rather than merely handed to a no-op rpc().
@@ -408,29 +408,6 @@ func _authority() -> Variant:
 	return _match_provider if _match_provider != null else Match
 
 
-func _is_host() -> bool:
-	return bool(_session().is_host())
-
-
-## True only when there is a live peer to talk to. Offline — M2's hot-seat,
-## the sandbox, a unit test — every rpc() below would error, so the whole
-## replication layer becomes a no-op and Match runs exactly as it did in M2.
-##
-## Godot installs an OfflineMultiplayerPeer by default, so has_multiplayer_peer()
-## is true and the connection reads CONNECTED even with no session at all;
-## rpc_id() onto it then fails with "p_peer_id == caller_id". Excluding that
-## one class is not a transport assumption (CLAUDE.md) — it is the engine's
-## own stand-in for "no transport", and ENet and Steam are both equally
-## unaffected.
-func _can_send() -> bool:
-	if bool(_session().is_offline()):
-		return false
-	var peer: MultiplayerPeer = multiplayer.multiplayer_peer
-	if peer == null or peer is OfflineMultiplayerPeer:
-		return false
-	return peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
-
-
 ## Bontago-1pi.59: every host -> clients broadcast goes through here, so a peer the
 ## host is kicking (still listed by the transport until its disconnect completes)
 ## is never addressed. See net/NetFanout.gd.
@@ -439,7 +416,7 @@ func _broadcast(method: StringName, args: Array = []) -> void:
 
 
 func _process(delta: float) -> void:
-	if not _is_host():
+	if not _session().is_host():
 		_tick_world_replay_expiry()
 		if not _impact_queue.is_empty():
 			drain_impacts(Time.get_ticks_msec())
@@ -451,7 +428,7 @@ func _process(delta: float) -> void:
 			_impact_send_accum = 0.0
 			flush_impacts(Time.get_ticks_msec())
 	var cat: CatController = _authority().active_cat()
-	if cat != null and _can_send():
+	if cat != null and NetFanout.can_send(multiplayer, _session()):
 		_cat_send_accum += delta
 		if _cat_send_accum >= 1.0 / maxf(config.cursor_hz, 0.001):
 			_cat_send_accum = 0.0
@@ -488,7 +465,7 @@ func submit_place(
 	auto_drop: bool,
 	feed_seq: int
 ) -> StringName:
-	if _is_host():
+	if _session().is_host():
 		if not auto_drop:
 			_bump(_intents_sent, slot_id)
 		return _apply_intent(slot_id, origin, orientation_index, free_quat, auto_drop, feed_seq)
@@ -498,7 +475,7 @@ func submit_place(
 	# last cursor it received (see _on_feed_timer_expired).
 	if auto_drop:
 		return PlacementRules.REASON_NO_BLOCK
-	if not _can_send():
+	if not NetFanout.can_send(multiplayer, _session()):
 		# Nothing went on the wire, so nothing is counted: the harness proves
 		# "never lost" by comparing this client's intents_sent with the host's
 		# count for the same slot, and a phantom here would break that.
@@ -531,11 +508,11 @@ func submit_throw(
 	velocity: Vector3,
 	feed_seq: int
 ) -> StringName:
-	if _is_host():
+	if _session().is_host():
 		_bump(_intents_sent, slot_id)
 		return _apply_throw_intent(slot_id, origin, orientation_index, free_quat, velocity, feed_seq)
 
-	if not _can_send():
+	if not NetFanout.can_send(multiplayer, _session()):
 		# See submit_place()'s matching comment: nothing went on the wire, so
 		# nothing is counted.
 		return PlacementRules.REASON_NO_BLOCK
@@ -564,14 +541,14 @@ func submit_throw(
 ## rate accumulator of its own.
 func submit_cursor(slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion) -> void:
 	_store_cursor(slot_id, origin, orientation_index, free_quat)
-	if not _can_send():
+	if not NetFanout.can_send(multiplayer, _session()):
 		return
 	var step: float = 1.0 / maxf(config.cursor_hz, 0.001)
 	var now: float = _now()
 	if now - _cursor_send_accum < step:
 		return
 	_cursor_send_accum = now
-	if _is_host():
+	if _session().is_host():
 		_broadcast(&"net_cursor", [slot_id, origin, orientation_index, free_quat])
 	else:
 		rpc_id(Net.HOST_PEER_ID, &"net_update_cursor", slot_id, origin, orientation_index, free_quat)
@@ -580,9 +557,9 @@ func submit_cursor(slot_id: int, origin: Vector3, orientation_index: int, free_q
 func submit_cat_target(slot_id: int, point: Vector3) -> void:
 	if not point.is_finite():
 		return
-	if _is_host():
+	if _session().is_host():
 		_authority().set_cat_target(slot_id, point)
-	elif _can_send():
+	elif NetFanout.can_send(multiplayer, _session()):
 		var now: float = _now()
 		if now - _cat_target_last_send >= 1.0 / maxf(config.cursor_hz, 0.001):
 			_cat_target_last_send = now
@@ -590,7 +567,7 @@ func submit_cat_target(slot_id: int, point: Vector3) -> void:
 
 
 func _handle_cat_target(sender_peer_id: int, slot_id: int, point: Vector3) -> void:
-	if not _is_host() or int(_session().slot_of_peer(sender_peer_id)) != slot_id:
+	if not _session().is_host() or int(_session().slot_of_peer(sender_peer_id)) != slot_id:
 		return
 	if _replay_pending.has(sender_peer_id):
 		return
@@ -624,22 +601,22 @@ func _handle_cat_target(sender_peer_id: int, slot_id: int, point: Vector3) -> vo
 ## a remote request, since a stray local call mid-match must not restart or
 ## abandon every other player's match either (Bontago-1pi.13 review fix).
 func request_replay() -> void:
-	if _is_host():
+	if _session().is_host():
 		if _match_flow_state_allows():
 			_replay_current_match()
 		return
-	if _can_send():
+	if NetFanout.can_send(multiplayer, _session()):
 		rpc_id(Net.HOST_PEER_ID, &"net_request_replay")
 
 
 ## Results screen "Return to lobby": sends every peer back to State.LOBBY.
 ## Mirrors request_replay() above exactly.
 func request_return_to_lobby() -> void:
-	if _is_host():
+	if _session().is_host():
 		if _match_flow_state_allows():
 			_authority().abort_match()
 		return
-	if _can_send():
+	if NetFanout.can_send(multiplayer, _session()):
 		rpc_id(Net.HOST_PEER_ID, &"net_request_return_to_lobby")
 
 
@@ -684,7 +661,7 @@ func _remote_may_request_match_flow(sender_peer_id: int) -> bool:
 ## Host side of net_request_replay, split out (like _handle_place_intent) so
 ## a test can drive it with a manufactured sender id and no peer at all.
 func _handle_replay_request(sender_peer_id: int) -> void:
-	if not _is_host():
+	if not _session().is_host():
 		return
 	if not _remote_may_request_match_flow(sender_peer_id):
 		return
@@ -693,7 +670,7 @@ func _handle_replay_request(sender_peer_id: int) -> void:
 
 ## Host side of net_request_return_to_lobby, split out the same way.
 func _handle_return_to_lobby_request(sender_peer_id: int) -> void:
-	if not _is_host():
+	if not _session().is_host():
 		return
 	if not _remote_may_request_match_flow(sender_peer_id):
 		return
@@ -738,13 +715,13 @@ func cursor_for_slot(slot_id: int) -> Dictionary:
 ## despawn could ever address (bind_net_id() below also refuses it, but the
 ## body would already be parented under blocks_parent by then).
 func replicate_spawn(block: Block, net_id: int) -> void:
-	if not _is_host() or block == null:
+	if not _session().is_host() or block == null:
 		return
 	if not Quantize.is_wire_id(net_id):
 		_invalid_spawn_refusals += 1
 		return
 	_note_spawn(net_id)
-	if not _can_send():
+	if not NetFanout.can_send(multiplayer, _session()):
 		return
 	var args: Array = _spawn_args(block, net_id)
 	_broadcast(&"net_block_spawned", args)
@@ -767,10 +744,10 @@ func _spawn_args(block: Block, net_id: int) -> Array:
 
 
 func replicate_despawn(net_id: int, reason: String) -> void:
-	if not _is_host() or net_id < 0:
+	if not _session().is_host() or net_id < 0:
 		return
 	_spawned_net_ids.erase(net_id)
-	if not _can_send():
+	if not NetFanout.can_send(multiplayer, _session()):
 		return
 	_broadcast(&"net_block_despawned", [net_id, reason])
 
@@ -787,7 +764,7 @@ func replicate_despawn(net_id: int, reason: String) -> void:
 ## circles, ~2.8 KB) and a circle that vanished (a tower toppled) has no
 ## "unchanged" cell to skip the way a raster byte does.
 func replicate_territory() -> void:
-	if not _is_host() or not _can_send():
+	if not _session().is_host() or not NetFanout.can_send(multiplayer, _session()):
 		return
 	var raster: TerritoryRaster = _authority().raster()
 	if raster == null:
@@ -859,10 +836,10 @@ func _encode_circles() -> PackedByteArray:
 ## refusal, a relocation) is not one of these: it goes to its owning peer alone
 ## (_on_placement_rejected, _on_placement_relocated; Bontago-1pi.52).
 func replicate_match_event(event: StringName, args: Array) -> void:
-	if not _is_host():
+	if not _session().is_host():
 		return
 	replicated_event_counts[event] = int(replicated_event_counts.get(event, 0)) + 1
-	if not _can_send():
+	if not NetFanout.can_send(multiplayer, _session()):
 		return
 	_broadcast(&"net_match_event", [event, args])
 
@@ -872,12 +849,12 @@ func replicate_match_event(event: StringName, args: Array) -> void:
 ## first snapshot. Idempotent for one match, so an explicit call from the
 ## lobby and the automatic one below cannot both go out.
 func replicate_match_start(match_config: MatchConfig) -> void:
-	if not _is_host() or match_config == null or _match_start_sent:
+	if not _session().is_host() or match_config == null or _match_start_sent:
 		return
 	_match_start_sent = true
 	match_starts_replicated += 1
 	_force_full_raster = true
-	if not _can_send():
+	if not NetFanout.can_send(multiplayer, _session()):
 		return
 	_broadcast(&"net_match_start", [match_config.to_dict(), _roster(), 0])
 
@@ -887,7 +864,7 @@ func replicate_match_start(match_config: MatchConfig) -> void:
 ## loading overlay and have it drawn before the synchronous world build that
 ## net_match_start triggers. Reliable RPCs are ordered, so it always lands first.
 func replicate_match_loading() -> void:
-	if not _is_host() or not _can_send():
+	if not _session().is_host() or not NetFanout.can_send(multiplayer, _session()):
 		return
 	_broadcast(&"net_match_loading")
 
@@ -1045,9 +1022,9 @@ static func _consumed_a_block(reason: StringName, auto_drop: bool) -> bool:
 ## gift, state, no gift already in hand) and the result arrives as the normal
 ## feed event. Returns whether the request was applied (host) or sent (client).
 func submit_use_gift_slot(slot_id: int) -> bool:
-	if _is_host():
+	if _session().is_host():
 		return bool(_authority().request_use_gift_slot(slot_id))
-	if not _can_send():
+	if not NetFanout.can_send(multiplayer, _session()):
 		return false
 	rpc_id(Net.HOST_PEER_ID, &"net_request_use_gift_slot", slot_id)
 	return true
@@ -1056,7 +1033,7 @@ func submit_use_gift_slot(slot_id: int) -> bool:
 ## Host side of net_request_use_gift_slot, split out so a test can drive it
 ## with a manufactured sender id.
 func _handle_use_gift_slot_intent(sender_peer_id: int, slot_id: int) -> bool:
-	if not _is_host():
+	if not _session().is_host():
 		return false
 	var sender_slot: int = int(_session().slot_of_peer(sender_peer_id))
 	if sender_slot < 0 or sender_slot != slot_id or _replay_pending.has(sender_peer_id):
@@ -1074,7 +1051,7 @@ func _handle_place_intent(
 	free_quat: Quaternion,
 	feed_seq: int
 ) -> void:
-	if not _is_host():
+	if not _session().is_host():
 		return
 	var sender_slot: int = int(_session().slot_of_peer(sender_peer_id))
 	if sender_slot < 0:
@@ -1140,7 +1117,7 @@ func _handle_throw_intent(
 	velocity: Vector3,
 	feed_seq: int
 ) -> void:
-	if not _is_host():
+	if not _session().is_host():
 		return
 	var sender_slot: int = int(_session().slot_of_peer(sender_peer_id))
 	if sender_slot < 0:
@@ -1186,7 +1163,7 @@ func _handle_throw_intent(
 func _handle_cursor_update(
 	sender_peer_id: int, slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion
 ) -> void:
-	if not _is_host():
+	if not _session().is_host():
 		return
 	var sender_slot: int = int(_session().slot_of_peer(sender_peer_id))
 	if sender_slot < 0 or sender_slot != slot_id:
@@ -1206,7 +1183,7 @@ func _handle_cursor_update(
 		return
 	_store_cursor(slot_id, origin, orientation_index, free_quat)
 	Events.remote_cursor_updated.emit(slot_id, origin, orientation_index, free_quat)
-	if _can_send():
+	if NetFanout.can_send(multiplayer, _session()):
 		_broadcast(&"net_cursor", [slot_id, origin, orientation_index, free_quat])
 
 
@@ -1330,7 +1307,7 @@ func _refuse_intent(sender_peer_id: int, sender_slot: int, reason: StringName) -
 func _reject_to_peer(peer_id: int, slot_id: int, reason: StringName) -> void:
 	reject_replies_by_peer[peer_id] = int(reject_replies_by_peer.get(peer_id, 0)) + 1
 	last_reject_reply = [peer_id, slot_id, reason]
-	if not _can_send() or not multiplayer.get_peers().has(peer_id):
+	if not NetFanout.can_send(multiplayer, _session()) or not multiplayer.get_peers().has(peer_id):
 		return
 	rpc_id(peer_id, &"net_match_event", EVENT_PLACEMENT_REJECTED, [slot_id, reason])
 
@@ -1404,7 +1381,7 @@ func _on_match_state_changed(_from_state: int, to_state: int) -> void:
 	if MatchAutoload.is_resetting(to_state) and to_state != Match.State.END:
 		# World teardown / rebuild: nothing still waiting may play into it.
 		_reset_impacts()
-	if not _is_host():
+	if not _session().is_host():
 		return
 	if to_state == Match.State.LOADING:
 		# The lobby may call replicate_match_start() itself; this is the
@@ -1435,12 +1412,12 @@ func _on_match_state_changed(_from_state: int, to_state: int) -> void:
 
 
 func _on_countdown_tick(seconds_left: int) -> void:
-	if _is_host():
+	if _session().is_host():
 		replicate_match_event(EVENT_COUNTDOWN, [seconds_left])
 
 
 func _on_turn_changed(slot_id: int) -> void:
-	if _is_host():
+	if _session().is_host():
 		replicate_match_event(EVENT_TURN_CHANGED, [slot_id])
 
 
@@ -1460,7 +1437,7 @@ func _on_turn_changed(slot_id: int) -> void:
 ## (spec 2.4 "does not restart the interval") and never showed the ghost
 ## locked on a client's own screen either.
 func _on_feed_block_issued(slot_id: int, shape_id: StringName, next_shape_id: StringName) -> void:
-	if _is_host():
+	if _session().is_host():
 		var authority: Variant = _authority()
 		replicate_match_event(
 			EVENT_FEED_ISSUED,
@@ -1481,7 +1458,7 @@ func _on_feed_block_issued(slot_id: int, shape_id: StringName, next_shape_id: St
 ## all of M2's hot-seat) is left to its own PlayerController, whose ghost is
 ## exact and costs nothing.
 func _on_feed_timer_expired(slot_id: int) -> void:
-	if not _is_host():
+	if not _session().is_host():
 		return
 	# The ghost flash is feedback, not a rule, so every instance gets it.
 	replicate_match_event(EVENT_FEED_EXPIRED, [slot_id])
@@ -1516,12 +1493,12 @@ func _afk_fallback_origin(slot_id: int) -> Vector3:
 
 
 func _on_qol_feed_changed(slot_id: int, backlog: int, paused: bool) -> void:
-	if _is_host():
+	if _session().is_host():
 		replicate_match_event(EVENT_QOL_FEED, [slot_id, backlog, paused])
 
 
 func _on_gift_slot_changed(slot_id: int, contents: Array, activated: StringName, carrier_id: StringName) -> void:
-	if _is_host():
+	if _session().is_host():
 		replicate_match_event(EVENT_GIFT_SLOT, [slot_id, contents, activated, carrier_id])
 
 
@@ -1532,7 +1509,7 @@ func _on_gift_slot_changed(slot_id: int, contents: Array, activated: StringName,
 ## -- never the host's own seat, a bot's or a vacated one, which have no remote
 ## peer to tell. The host's own seat reacts to Match's local emit directly.
 func _on_placement_rejected(slot_id: int, reason: StringName) -> void:
-	if not _is_host():
+	if not _session().is_host():
 		return
 	var owner_peer: int = _remote_peer_of_slot(slot_id)
 	if owner_peer < 0:
@@ -1562,32 +1539,32 @@ func _remote_peer_of_slot(slot_id: int) -> int:
 ## drop a slot that is not theirs). Never the host's own seat (it reacts to
 ## Match's local emit), a bot's, or a vacated one: no remote peer to tell.
 func _on_placement_relocated(slot_id: int, point: Vector2) -> void:
-	if not _is_host():
+	if not _session().is_host():
 		return
 	var owner_peer: int = _remote_peer_of_slot(slot_id)
 	if owner_peer < 0:
 		return
 	relocate_replies_by_peer[owner_peer] = int(relocate_replies_by_peer.get(owner_peer, 0)) + 1
 	last_relocate_reply = [owner_peer, slot_id, point]
-	if not _can_send() or not multiplayer.get_peers().has(owner_peer):
+	if not NetFanout.can_send(multiplayer, _session()) or not multiplayer.get_peers().has(owner_peer):
 		return
 	rpc_id(owner_peer, &"net_match_event", EVENT_PLACEMENT_RELOCATED, [slot_id, point])
 
 
 func _on_player_eliminated(slot_id: int, team_id: int) -> void:
-	if _is_host():
+	if _session().is_host():
 		replicate_match_event(EVENT_PLAYER_ELIMINATED, [slot_id, team_id])
 
 
 ## Host only: the objective's state changed. A client's own apply re-emits the
 ## same signal, hence the host guard (no echo, and a client never replicates).
 func _on_mode_state_changed(state: Dictionary) -> void:
-	if _is_host():
+	if _session().is_host():
 		replicate_match_event(EVENT_MODE_STATE, [state])
 
 
 func _on_match_won(team_id: int) -> void:
-	if _is_host():
+	if _session().is_host():
 		replicate_match_event(EVENT_MATCH_WON, [team_id])
 
 
@@ -1599,33 +1576,33 @@ func _on_match_won(team_id: int) -> void:
 ## MatchConfig.to_dict()/net_match_start precedent), so no separate encoding
 ## is needed the way the territory raster's binary payload requires.
 func _on_match_results_ready(results: Dictionary) -> void:
-	if _is_host():
+	if _session().is_host():
 		replicate_match_event(EVENT_MATCH_RESULTS, [results])
 
 
 func _on_gift_flight(gift_id: int, origin: Vector3, landing: Vector3) -> void:
-	if _is_host():
+	if _session().is_host():
 		replicate_match_event(EVENT_GIFT_FLIGHT, [gift_id, origin, landing])
 
 
 func _on_gift_landed(gift_id: int, landing: Vector3) -> void:
-	if _is_host():
+	if _session().is_host():
 		replicate_match_event(EVENT_GIFT_LANDED, [gift_id, landing])
 
 
 func _on_gift_spawned(gift_id: int, position: Vector2) -> void:
-	if _is_host():
+	if _session().is_host():
 		replicate_match_event(EVENT_GIFT_SPAWNED, [gift_id, position])
 
 
 func _on_gift_claimed(gift_id: int, slot_id: int, special_id: StringName) -> void:
-	if _is_host():
+	if _session().is_host():
 		var next_shape: BlockShape = _authority().next_shape(slot_id)
 		replicate_match_event(EVENT_GIFT_CLAIMED, [gift_id, slot_id, special_id, next_shape.id if next_shape != null else &""])
 
 
 func _on_gift_expired(gift_id: int) -> void:
-	if _is_host():
+	if _session().is_host():
 		replicate_match_event(EVENT_GIFT_EXPIRED, [gift_id])
 
 
@@ -1635,7 +1612,7 @@ func _on_gift_expired(gift_id: int) -> void:
 ## and orchestrator amendment 2), so this mirrors it to every client exactly
 ## like _on_gift_spawned above.
 func _on_special_triggered(net_id: int, def_id: StringName, position: Vector3, chain_depth: int) -> void:
-	if _is_host():
+	if _session().is_host():
 		# Bontago-1pi.18.1 (QoL 1): a special freezes block timers for a while.
 		var feed: Variant = _authority().get("_feed")
 		if feed != null:
@@ -1648,22 +1625,22 @@ func _on_special_triggered(net_id: int, def_id: StringName, position: Vector3, c
 ## mirrors the host's, via apply_replicated_special_consumed() below), so this
 ## dispatch is the only place a client ever learns a special was spent.
 func _on_special_consumed(slot_id: int, special_id: StringName) -> void:
-	if _is_host():
+	if _session().is_host():
 		replicate_match_event(EVENT_SPECIAL_CONSUMED, [slot_id, special_id])
 
 
 func _on_glue_charges_changed(slot_id: int, charges: int, revision: int) -> void:
-	if _is_host():
+	if _session().is_host():
 		replicate_match_event(EVENT_GLUE_CHARGES, [slot_id, charges, revision])
 
 
 func _on_block_owner_changed(net_id: int, owner_slot: int) -> void:
-	if _is_host():
+	if _session().is_host():
 		replicate_match_event(EVENT_BLOCK_OWNER_CHANGED, [net_id, owner_slot])
 
 
 func _on_block_frozen_changed(net_id: int, frozen: bool) -> void:
-	if _is_host():
+	if _session().is_host():
 		replicate_match_event(EVENT_BLOCK_FROZEN, [net_id, frozen])
 
 
@@ -1684,19 +1661,19 @@ func _on_block_removed(block: RigidBody3D, reason: String) -> void:
 ## Host: mirrors a dissolve start so clients can play the same fade. A body
 ## without a wire id (net_id allocation failed) never reached a client.
 func _on_block_dissolve_started(_block: RigidBody3D, net_id: int, _duration_s: float) -> void:
-	if not _is_host() or not Quantize.is_wire_id(net_id):
+	if not _session().is_host() or not Quantize.is_wire_id(net_id):
 		return
 	replicated_dissolve_starts.append(net_id)
 	replicate_match_event(EVENT_BLOCK_DISSOLVE_STARTED, [net_id])
 
 
 func _on_cat_started(id: int, slot_id: int, position: Vector3, duration: float) -> void:
-	if _is_host():
+	if _session().is_host():
 		replicate_match_event(EVENT_CAT_STARTED, [id, slot_id, position, duration])
 
 
 func _on_cat_ended(id: int) -> void:
-	if _is_host():
+	if _session().is_host():
 		replicate_match_event(EVENT_CAT_ENDED, [id])
 
 
@@ -1711,7 +1688,7 @@ func _on_cat_ended(id: int) -> void:
 
 ## Host: one detected impact. Only collected while someone can hear it.
 func _on_block_impacted_at(speed: float, position: Vector3) -> void:
-	if not _is_host():
+	if not _session().is_host():
 		return
 	if not capture_impacts and not _impact_audience():
 		return
@@ -1719,7 +1696,7 @@ func _on_block_impacted_at(speed: float, position: Vector3) -> void:
 
 
 func _impact_audience() -> bool:
-	return _can_send() and not multiplayer.get_peers().is_empty()
+	return NetFanout.can_send(multiplayer, _session()) and not multiplayer.get_peers().is_empty()
 
 
 ## Host: folds one impact into the current batch window -- same
@@ -1781,7 +1758,7 @@ func flush_impacts(now_ms: int) -> PackedByteArray:
 	var packet: PackedByteArray = ImpactWire.encode(chosen)
 	if capture_impacts:
 		impact_batches.append(packet)
-	if _can_send():
+	if NetFanout.can_send(multiplayer, _session()):
 		for peer_id: int in multiplayer.get_peers():
 			# A mid-match joiner still loading its world replay hears nothing
 			# yet; impacts are never part of that replay either.
@@ -1795,7 +1772,7 @@ func flush_impacts(now_ms: int) -> PackedByteArray:
 ## host) shows it: due = arrival + delay - age. A malformed batch is dropped
 ## whole.
 func receive_impacts(packet: PackedByteArray, now_ms: int) -> void:
-	if _is_host() or _client_awaiting_world():
+	if _session().is_host() or _client_awaiting_world():
 		return
 	var events: Array[Dictionary] = ImpactWire.decode(
 		packet, config.impact_speed_max, config.pos_min_y, config.pos_max_y, _impact_batch_cap()
@@ -1899,7 +1876,7 @@ func _on_net_peer_left(peer_id: int, slot_id: int, _reason: int) -> void:
 ## owes this peer the whole world, as one ordered replay -- see
 ## _replay_world_to().
 func _on_net_peer_joined(peer_id: int, slot_id: int, _player_name: String) -> void:
-	if not _is_host():
+	if not _session().is_host():
 		return
 	if slot_id >= 0:
 		# Inside the disconnect grace: resume the slot's feed with a full
@@ -1968,7 +1945,7 @@ func is_match_live() -> bool:
 ## would have to be torn down mid-match and spec 2.9 does not ask for it;
 ## with every human seat filled or reserved the joiner spectates.
 func pick_open_seat() -> int:
-	if not _is_host() or not is_match_live():
+	if not _session().is_host() or not is_match_live():
 		return -1
 	var authority: Variant = _authority()
 	for slot_id: int in range(int(authority.slot_count())):
@@ -1987,7 +1964,7 @@ func pick_open_seat() -> int:
 ## returning peer may have `slot_id` back -- the match is live, the slot is
 ## alive and its disconnect grace is still running.
 func seat_reclaimable(slot_id: int) -> bool:
-	if not _is_host() or not is_match_live():
+	if not _session().is_host() or not is_match_live():
 		return false
 	var authority: Variant = _authority()
 	if slot_id < 0 or slot_id >= int(authority.slot_count()):
@@ -2087,7 +2064,7 @@ func _send_replay(peer_id: int, method: StringName, args: Array) -> void:
 	if capture_replay:
 		replay_capture.append([peer_id, method, args])
 		return
-	if not _can_send() or not multiplayer.get_peers().has(peer_id) or _peer_is_disconnecting(peer_id):
+	if not NetFanout.can_send(multiplayer, _session()) or not multiplayer.get_peers().has(peer_id) or _peer_is_disconnecting(peer_id):
 		return
 	callv(&"rpc_id", [peer_id, method] + args)
 
@@ -2298,7 +2275,7 @@ func _apply_slot_replay(args: Array) -> void:
 ## test can drive it with a manufactured sender id. Only the id the host
 ## actually sent this peer counts; a stale or forged ack is ignored.
 func _handle_replay_ack(sender_peer_id: int, replay_id: int) -> void:
-	if not _is_host():
+	if not _session().is_host():
 		return
 	if int(_replay_pending.get(sender_peer_id, -1)) != replay_id:
 		return
@@ -2515,7 +2492,7 @@ func net_match_start(config_data: Dictionary, roster: Array, replay_id: int = 0)
 	reset_counters()
 	# Before start_match(): its own state events belong to the replay too.
 	_end_world_replay()
-	if replay_id > 0 and not _is_host():
+	if replay_id > 0 and not _session().is_host():
 		_begin_world_replay(replay_id)
 	_authority().start_match(match_config)
 	_apply_roster(roster)
@@ -2541,7 +2518,7 @@ func _apply_roster(roster: Array) -> void:
 ## lifecycle's mirror and the loading screen listen to those). Host-authored only;
 ## every field is validated like Net._rpc_loading_ready_state (wire limit, ids).
 func _apply_loading_gate_snapshot(args: Array) -> void:
-	if _is_host() or args.size() != 3:
+	if _session().is_host() or args.size() != 3:
 		return
 	if not args[0] is PackedInt32Array or not args[1] is PackedInt32Array or not args[2] is bool:
 		return
@@ -2564,13 +2541,13 @@ func _apply_loading_gate_snapshot(args: Array) -> void:
 ## replay message (reliable, ordered), so the world is built by now.
 @rpc("authority", "call_remote", "reliable")
 func net_replay_end(replay_id: int) -> void:
-	if _is_host() or _client_awaiting_world() or replay_id <= 0:
+	if _session().is_host() or _client_awaiting_world() or replay_id <= 0:
 		return
 	last_replay_acknowledged = replay_id
 	# The replay's last message: live events from here on are news again.
 	if replay_id == _replaying_id:
 		_end_world_replay()
-	if _can_send():
+	if NetFanout.can_send(multiplayer, _session()):
 		rpc_id(Net.HOST_PEER_ID, &"net_replay_ack", replay_id)
 
 
@@ -2582,7 +2559,7 @@ func net_replay_ack(replay_id: int) -> void:
 ## True on a client that has not received net_match_start since it joined
 ## (see _awaiting_match_start).
 func _client_awaiting_world() -> bool:
-	return _awaiting_match_start and not _is_host()
+	return _awaiting_match_start and not _session().is_host()
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -2591,7 +2568,7 @@ func net_match_event(event: StringName, args: Array) -> void:
 		return
 	match event:
 		EVENT_CAT_STARTED:
-			if _is_host() or args.size() != 4 or not args[0] is int or not args[1] is int:
+			if _session().is_host() or args.size() != 4 or not args[0] is int or not args[1] is int:
 				return
 			if not args[2] is Vector3 or (not args[3] is float and not args[3] is int):
 				return
@@ -2604,7 +2581,7 @@ func net_match_event(event: StringName, args: Array) -> void:
 				return
 			_authority().apply_replicated_cat_start(cat_id, cat_slot, args[2], cat_duration)
 		EVENT_CAT_ENDED:
-			if _is_host() or args.size() != 1 or not args[0] is int:
+			if _session().is_host() or args.size() != 1 or not args[0] is int:
 				return
 			if not Quantize.is_wire_id(args[0]):
 				return
@@ -2652,7 +2629,7 @@ func net_match_event(event: StringName, args: Array) -> void:
 		EVENT_FEED_EXPIRED:
 			Events.feed_timer_expired.emit(int(args[0]))
 		EVENT_GIFT_SLOT:
-			if _is_host() or args.size() != 4 or not args[0] is int or not args[1] is Array:
+			if _session().is_host() or args.size() != 4 or not args[0] is int or not args[1] is Array:
 				return
 			if not (args[2] is String or args[2] is StringName) or not (args[3] is String or args[3] is StringName):
 				return
@@ -2669,7 +2646,7 @@ func net_match_event(event: StringName, args: Array) -> void:
 				return
 			_authority().apply_replicated_gift_slot(args[0], slot_contents, activated_special, carrier_id)
 		EVENT_QOL_FEED:
-			if _is_host() or args.size() != 3 or not args[0] is int or not args[1] is int or not args[2] is bool:
+			if _session().is_host() or args.size() != 3 or not args[0] is int or not args[1] is int or not args[2] is bool:
 				return
 			if args[0] < 0 or args[0] >= _authority().slot_count():
 				return
@@ -2681,7 +2658,7 @@ func net_match_event(event: StringName, args: Array) -> void:
 			# host now sends it to the owning peer alone, so anything naming a
 			# slot this instance does not drive (an older host's broadcast, the
 			# host's own seat) is dropped rather than sounded.
-			if _is_host() or args.size() != 2 or not args[0] is int:
+			if _session().is_host() or args.size() != 2 or not args[0] is int:
 				return
 			if not (args[1] is String or args[1] is StringName):
 				return
@@ -2699,7 +2676,7 @@ func net_match_event(event: StringName, args: Array) -> void:
 			# peer alone, so another seat's relocation (an older host's
 			# broadcast) or a malformed or out-of-disk point never reaches
 			# the cursor/camera jump.
-			if _is_host() or args.size() != 2 or not args[0] is int or not args[1] is Vector2:
+			if _session().is_host() or args.size() != 2 or not args[0] is int or not args[1] is Vector2:
 				return
 			var relocated_slot: int = args[0]
 			var relocated_point: Vector2 = args[1]
@@ -2738,7 +2715,7 @@ func net_match_event(event: StringName, args: Array) -> void:
 				return
 			Events.match_results_ready.emit(validated)
 		EVENT_LIVE_SCORES:
-			if _is_host() or args.size() < 1:
+			if _session().is_host() or args.size() < 1:
 				return
 			var live: Dictionary = MatchStats.validate_results_payload(args[0])
 			if live.is_empty():
@@ -2862,7 +2839,7 @@ func net_match_event(event: StringName, args: Array) -> void:
 			Events.special_triggered.emit(triggered_net_id, triggered_def_id, triggered_position, chain_depth)
 		EVENT_SPECIAL_CONSUMED:
 			# DECISION (net/MatchNet.gd, Bontago-1en.21): unlike this match's
-			# other cases, this one guards `_is_host()` itself rather than
+			# other cases, this one guards `_session().is_host()` itself rather than
 			# relying only on net_match_event's own @rpc("authority", ...)
 			# annotation -- a well-behaved client never sends this RPC at all
 			# (only the host ever fires Events.special_consumed for a real
@@ -2873,7 +2850,7 @@ func net_match_event(event: StringName, args: Array) -> void:
 			# call) would silently desync it from every client's mirror with
 			# no wire message able to undo it, so the host refuses to ever
 			# apply one to itself, belt-and-braces on top of the RPC config.
-			if _is_host():
+			if _session().is_host():
 				return
 			# Bontago-1en.21: a short args array (an older or malformed
 			# sender) is dropped before either arg is read, exactly
@@ -2896,7 +2873,7 @@ func net_match_event(event: StringName, args: Array) -> void:
 			_authority().apply_replicated_special_consumed(consumed_slot_id, consumed_special_id)
 			Events.special_consumed.emit(consumed_slot_id, consumed_special_id)
 		EVENT_GLUE_CHARGES:
-			if _is_host() or args.size() != 3:
+			if _session().is_host() or args.size() != 3:
 				return
 			if not args[0] is int or not args[1] is int or not args[2] is int:
 				return
@@ -2911,7 +2888,7 @@ func net_match_event(event: StringName, args: Array) -> void:
 		EVENT_BLOCK_DISSOLVE_STARTED:
 			# Bontago-1pi.11.41: presentation only. An unknown id (a spawn the
 			# client never built) or a malformed payload is dropped.
-			if _is_host() or args.size() != 1 or not args[0] is int:
+			if _session().is_host() or args.size() != 1 or not args[0] is int:
 				return
 			var dissolving_id: int = args[0]
 			if not Quantize.is_wire_id(dissolving_id):
@@ -2924,11 +2901,11 @@ func net_match_event(event: StringName, args: Array) -> void:
 				return
 			Events.block_dissolve_started.emit(dissolving, dissolving_id, _hole_dissolve_tuning.dissolve_delay_s)
 		EVENT_SLOT_REPLAY:
-			if _is_host():
+			if _session().is_host():
 				return
 			_apply_slot_replay(args)
 		EVENT_MATCH_CLOCK:
-			if _is_host() or args.size() != 1 or not (args[0] is float or args[0] is int):
+			if _session().is_host() or args.size() != 1 or not (args[0] is float or args[0] is int):
 				return
 			var clock: float = float(args[0])
 			if not is_finite(clock) or clock < 0.0:
@@ -2940,7 +2917,7 @@ func net_match_event(event: StringName, args: Array) -> void:
 			# ticks it; timed modes keep it current through EVENT_MODE_STATE.
 			_authority()._lifecycle._match_timer_left = clock
 		EVENT_BLOCK_OWNER_CHANGED:
-			if _is_host() or args.size() != 2 or not args[0] is int or not args[1] is int:
+			if _session().is_host() or args.size() != 2 or not args[0] is int or not args[1] is int:
 				return
 			var painted_id: int = args[0]
 			var painted_slot: int = args[1]
@@ -2948,7 +2925,7 @@ func net_match_event(event: StringName, args: Array) -> void:
 				return
 			_authority().apply_replicated_block_owner(painted_id, painted_slot)
 		EVENT_BLOCK_FROZEN:
-			if _is_host() or args.size() != 2 or not args[0] is int or not args[1] is bool:
+			if _session().is_host() or args.size() != 2 or not args[0] is int or not args[1] is bool:
 				return
 			var frozen_id: int = args[0]
 			if not Quantize.is_wire_id(frozen_id):

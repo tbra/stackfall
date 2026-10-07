@@ -437,6 +437,14 @@ func is_host() -> bool:
 	return _mode == Mode.HOST or _mode == Mode.OFFLINE
 
 
+## True when this session may send RPCs: not offline and the multiplayer peer is
+## a connected, non-offline one. The single owner is NetFanout.can_send(); Net's
+## private _can_send() below is a different, host-only question (are there
+## connected remote peers to broadcast to).
+func can_send() -> bool:
+	return NetFanout.can_send(multiplayer, self)
+
+
 func is_client() -> bool:
 	return _mode == Mode.CLIENT
 
