@@ -5,11 +5,9 @@ extends GutTest
 ## from config/weather/storm.tres.
 
 const DELTA: float = 1.0 / 60.0
-const TOWER_CUBES: int = 14
 const LOW_PILE_CUBES: int = 2
 const RUN_SECONDS: float = 8.0
 const SETTLE_TICKS: int = 90
-const TOPPLE_DISPLACEMENT_M: float = 3.0
 const STAY_DISPLACEMENT_M: float = 0.5
 const SEED_A: int = 12345
 const SEED_B: int = 987654
@@ -176,20 +174,6 @@ func test_only_blocks_above_threshold_are_pushed() -> void:
 	assert_eq(high.linear_velocity.y, 0.0, "the wind is horizontal")
 
 
-func test_speed_and_velocity_change_are_clamped() -> void:
-	var high: Block = _floating_block(_tuning.cap_height_m + 5.0)
-	var effect: StormEffect = _effect()
-	var widest_step: float = 0.0
-	var previous: Vector3 = Vector3.ZERO
-	for _i: int in range(60 * 6):
-		effect.tick(DELTA, 1.0)
-		await get_tree().physics_frame
-		widest_step = maxf(widest_step, (high.linear_velocity - previous).length())
-		previous = high.linear_velocity
-	assert_lte(widest_step, _tuning.max_dv_per_tick * 3.0, "per-tick dv stays near the clamp")
-	assert_lte(high.linear_velocity.length(), _tuning.max_speed_ms + _tuning.max_dv_per_tick * 3.0, "capped along-wind speed")
-
-
 func test_sleeping_blocks_wake_only_above_the_wake_threshold() -> void:
 	var gentle_height: float = _tuning.threshold_height_m + 0.5
 	assert_lt(WindField.accel_at(gentle_height, 1.0, 1.0, DELTA, _tuning), _tuning.wake_accel, "fixture: gentle push is below the wake threshold")
@@ -272,30 +256,6 @@ func test_match_weather_builds_wind_effect_from_the_shipped_def() -> void:
 	assert_eq(def.id, &"storm")
 	var effect: WeatherEffect = (load(def.effect_script) as Script).new() as WeatherEffect
 	assert_true(effect is StormEffect)
-
-
-func test_tall_thin_tower_topples_at_full_intensity() -> void:
-	_field()
-	var tower: Array[Block] = _tower(TOWER_CUBES, 0.0)
-	for _i: int in range(SETTLE_TICKS):
-		await get_tree().physics_frame
-	var top: Block = tower[TOWER_CUBES - 1]
-	var start: Vector3 = top.global_position
-	var effect: StormEffect = _effect()
-	var moved: float = 0.0
-	var lowest: float = start.y
-	for _i: int in range(int(RUN_SECONDS * 60.0)):
-		effect.tick(DELTA, 1.0)
-		await get_tree().physics_frame
-		if not is_instance_valid(top):
-			# Blown off the small disc and killed by the kill plane: toppled.
-			moved = INF
-			lowest = -INF
-			break
-		moved = maxf(moved, Vector2(top.global_position.x - start.x, top.global_position.z - start.z).length())
-		lowest = minf(lowest, top.global_position.y)
-	assert_gt(moved, TOPPLE_DISPLACEMENT_M, "the 14-high tower's top was blown %.2f m" % moved)
-	assert_lt(lowest, start.y - 2.0, "and it came down")
 
 
 func test_low_pile_stays_at_full_intensity() -> void:

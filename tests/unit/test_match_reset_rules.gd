@@ -133,24 +133,29 @@ func _assert_render_arrays_empty(context: String) -> void:
 
 # --- G3: stale influence circles -----------------------------------------------
 
-func test_clear_circles_returns_the_cache_to_its_fresh_state() -> void:
-	_start_playing()
-	assert_gt(_circle_count(), 0, "fixture: the players' home circles are live while PLAYING")
-
-	Match._territory.clear_circles()
-
-	_assert_render_arrays_empty("after clear_circles()")
-	Match._territory.clear_circles()
-	_assert_render_arrays_empty("clear_circles() is idempotent")
-
-
-func test_abort_match_drops_the_previous_matchs_circles() -> void:
-	_start_playing()
-	assert_gt(_circle_count(), 0, "fixture: circles live in match A")
-
-	Match.abort_match()
-
-	_assert_render_arrays_empty("after abort_match()")
+func test_every_reset_path_drops_the_previous_matchs_circles() -> void:
+	# Merged: clear_circles(), abort_match(), a direct start_match() from PLAYING
+	# (no explicit abort) and _build_territory() alone (the second guard).
+	for path: StringName in [&"clear_circles", &"abort_match", &"start_match_from_playing", &"build_territory"]:
+		_start_playing()
+		assert_gt(_circle_count(), 0, "%s: fixture: circles live in match A" % path)
+		match path:
+			&"clear_circles":
+				Match._territory.clear_circles()
+				_assert_render_arrays_empty("after clear_circles()")
+				Match._territory.clear_circles()
+				_assert_render_arrays_empty("clear_circles() is idempotent")
+			&"abort_match":
+				Match.abort_match()
+				_assert_render_arrays_empty("after abort_match()")
+			&"start_match_from_playing":
+				Match.start_match(_config(3))
+				assert_ne(Match.state(), Match.State.PLAYING)
+				_assert_render_arrays_empty("B's countdown after a direct restart")
+			&"build_territory":
+				Match._territory._build_territory()
+				_assert_render_arrays_empty("after _build_territory()")
+		Match.abort_match()
 
 
 func test_a_new_match_after_a_solved_one_has_no_circles_before_playing() -> void:
@@ -165,27 +170,6 @@ func test_a_new_match_after_a_solved_one_has_no_circles_before_playing() -> void
 	_run_countdown()
 	assert_eq(Match.state(), Match.State.PLAYING)
 	assert_gt(_circle_count(), 0, "once B is PLAYING its own home circles are solved")
-
-
-func test_start_match_from_playing_also_drops_the_previous_matchs_circles() -> void:
-	# start_match() tears the running match down itself (no explicit abort_match()).
-	_start_playing()
-	assert_gt(_circle_count(), 0, "fixture: circles live in match A")
-
-	Match.start_match(_config(3))
-
-	assert_ne(Match.state(), Match.State.PLAYING)
-	_assert_render_arrays_empty("B's countdown after a direct restart")
-
-
-func test_build_territory_clears_circles_even_without_a_reset_before_it() -> void:
-	_start_playing()
-	assert_gt(_circle_count(), 0, "fixture: circles live in match A")
-
-	# _build_territory() alone (no _reset_match_state() in front of it) is the second guard.
-	Match._territory._build_territory()
-
-	_assert_render_arrays_empty("after _build_territory()")
 
 
 func test_the_hosts_circle_payload_during_the_next_countdown_decodes_to_zero_circles() -> void:
@@ -303,15 +287,11 @@ func test_the_reset_keeps_the_playlist_envelope_with_contextual_music_on() -> vo
 
 # --- Rumble ------------------------------------------------------------------------
 
-func test_match_scope_reset_stops_the_last_pad() -> void:
-	Rumble.set_last_device_for_test(3, Settings.DEVICE_GAMEPAD)
 
+func test_match_scope_reset_stops_the_last_pad_and_nothing_when_none_spoke() -> void:
 	Events.match_scope_reset.emit()
-
-	assert_eq(_stop_calls, [3] as Array[int], "the last-active pad is stopped")
-
-
-func test_match_scope_reset_with_no_pad_stops_nothing() -> void:
-	Events.match_scope_reset.emit()
-
 	assert_eq(_stop_calls.size(), 0, "no pad has ever spoken: nothing to stop")
+
+	Rumble.set_last_device_for_test(3, Settings.DEVICE_GAMEPAD)
+	Events.match_scope_reset.emit()
+	assert_eq(_stop_calls, [3] as Array[int], "the last-active pad is stopped")

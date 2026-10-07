@@ -409,40 +409,28 @@ func test_a_different_map_and_rain_after_a_dirty_match_matches_a_fresh_launch() 
 	_assert_checkpoints(reference, dirty, "other map + rain")
 
 
-func test_a_menu_sandbox_after_a_dirty_match_matches_a_fresh_sandbox() -> void:
-	var fresh_main: Node = _new_main(_map)
-	_seed_main_config(fresh_main)
-	fresh_main.start_sandbox_from_menu()
-	await _settle()
-	var reference: Dictionary = MatchFingerprint.capture(fresh_main)
-	await _free_main(fresh_main)
-	Match.abort_match()
-	var main: Node = _new_main(_map)
-	await _play_dirty_a(main)
-	main._on_pause_leave_requested()
-	await _settle()
-	_seed_main_config(main)
-	main.start_sandbox_from_menu()
-	await _settle()
-	_assert_same(reference, MatchFingerprint.capture(main), "sandbox after A")
-
-
-func test_a_menu_tutorial_after_a_dirty_match_matches_a_fresh_tutorial() -> void:
-	var fresh_main: Node = _new_main(_map)
-	_seed_main_config(fresh_main)
-	fresh_main.start_tutorial_from_menu()
-	await _settle()
-	var reference: Dictionary = MatchFingerprint.capture(fresh_main)
-	await _free_main(fresh_main)
-	Match.abort_match()
-	var main: Node = _new_main(_map)
-	await _play_dirty_a(main)
-	main._on_pause_leave_requested()
-	await _settle()
-	_seed_main_config(main)
-	main.start_tutorial_from_menu()
-	await _settle()
-	_assert_same(reference, MatchFingerprint.capture(main), "tutorial after A")
+func test_a_menu_sandbox_or_tutorial_after_a_dirty_match_matches_a_fresh_one() -> void:
+	for kind: StringName in [&"sandbox", &"tutorial"]:
+		var start_method: StringName = &"start_sandbox_from_menu" if kind == &"sandbox" else &"start_tutorial_from_menu"
+		var fresh_main: Node = _new_main(_map)
+		_seed_main_config(fresh_main)
+		fresh_main.call(start_method)
+		await _settle()
+		var reference: Dictionary = MatchFingerprint.capture(fresh_main)
+		await _free_main(fresh_main)
+		Match.abort_match()
+		var main: Node = _new_main(_map)
+		await _play_dirty_a(main)
+		main._on_pause_leave_requested()
+		await _settle()
+		_seed_main_config(main)
+		main.call(start_method)
+		await _settle()
+		_assert_same(reference, MatchFingerprint.capture(main), "%s after A" % kind)
+		if kind == &"sandbox":
+			# The second variant starts from the same clean slate as its own test did.
+			await after_each()
+			before_each()
 
 
 func test_a_lobby_match_after_a_sandbox_session_matches_a_fresh_launch() -> void:

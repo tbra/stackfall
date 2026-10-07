@@ -8,6 +8,12 @@ const SPECIAL_IDS: Array[StringName] = [
 	&"jumping_bean", &"magnet", &"paintball", &"propeller", &"rocket", &"stackfall", &"volcano",
 ]
 const CELL_LIMIT: float = 1.01
+## The held-scene / baked-icon checks covered these twelve gifts (not black_hole/freeze).
+const HELD_SCENE_IDS: Array[StringName] = [
+	&"anvil", &"bomb", &"cat", &"earthquake", &"glue", &"jumping_bean",
+	&"magnet", &"paintball", &"propeller", &"rocket", &"stackfall", &"volcano",
+]
+const HELD_MESH_BUDGET: int = 12
 
 
 func _bounds(root: Node3D) -> AABB:
@@ -26,18 +32,51 @@ func _bounds(root: Node3D) -> AABB:
 	return bounds
 
 
-func test_table_has_every_special_model_and_fits_one_cell() -> void:
+## Merged roster iteration (was four tests over the same gift roster: model
+## table fit, pictogram + model preview, baked HUD preview icon, held scene fit).
+func test_every_gift_has_model_pictogram_preview_and_held_scene_within_one_cell() -> void:
+	var icons: GiftIconTable = GiftIconTable.shared()
+	assert_not_null(icons)
+	assert_gt(SpecialDef.load_all_specials().size(), 0)
+	for def: SpecialDef in SpecialDef.load_all_specials():
+		assert_not_null(icons.gift_pictogram(def.id), "pictogram %s" % def.id)
+		assert_not_null(icons.model_preview(def.id), "model preview %s" % def.id)
+		assert_eq(SpecialDef.preview_icon_for(def.id), icons.model_preview(def.id), "HUD icon %s" % def.id)
 	var table: GiftModelTable = GiftModelTable.shared()
 	assert_not_null(table)
 	for id: StringName in SPECIAL_IDS:
 		var visual: Node3D = table.build_gift_visual(id)
 		assert_not_null(visual, "%s model loads" % id)
-		if visual == null:
-			continue
-		autofree(visual)
-		var size: Vector3 = _bounds(visual).size
-		assert_gt(size.length(), 0.1, "%s has geometry" % id)
-		assert_lt(maxf(size.x, maxf(size.y, size.z)), CELL_LIMIT, "%s fits one cell" % id)
+		if visual != null:
+			autofree(visual)
+			var size: Vector3 = _bounds(visual).size
+			assert_gt(size.length(), 0.1, "%s has geometry" % id)
+			assert_lt(maxf(size.x, maxf(size.y, size.z)), CELL_LIMIT, "%s fits one cell" % id)
+		var def: SpecialDef = SpecialDef.find_by_id(id)
+		assert_not_null(def, String(id))
+		if id in HELD_SCENE_IDS:
+			assert_not_null(def.preview_icon, "%s preview_icon" % id)
+			assert_ne(def.preview_icon, SpecialDef.GENERIC_PREVIEW_ICON, String(id))
+			_assert_held_scene_within_one_cell(def)
+
+
+func _assert_held_scene_within_one_cell(def: SpecialDef) -> void:
+	var id: StringName = def.id
+	assert_not_null(def.held_scene, "%s held_scene" % id)
+	var root: Node3D = autofree(def.held_scene.instantiate() as Node3D)
+	var meshes: Array[Node] = root.find_children("*", "MeshInstance3D", true, false)
+	assert_between(meshes.size(), 1, HELD_MESH_BUDGET, "%s draw-call budget" % id)
+	var bounds: AABB = AABB()
+	var first: bool = true
+	for node: Node in meshes:
+		var mi: MeshInstance3D = node as MeshInstance3D
+		var box: AABB = mi.transform * mi.mesh.get_aabb()
+		bounds = box if first else bounds.merge(box)
+		first = false
+	bounds = root.transform * bounds
+	assert_lt(bounds.size.x, CELL_LIMIT, "%s x" % id)
+	assert_lt(bounds.size.y, CELL_LIMIT, "%s y" % id)
+	assert_lt(bounds.size.z, CELL_LIMIT, "%s z" % id)
 
 
 func test_crate_and_reveal_models_load() -> void:

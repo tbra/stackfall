@@ -87,14 +87,6 @@ func test_preview_icon_falls_back_to_generic() -> void:
 	table.model_previews[&"rocket"] = model
 
 
-func test_every_gift_has_baked_preview_icon() -> void:
-	for id: StringName in GIFT_IDS:
-		var def: SpecialDef = SpecialDef.find_by_id(id)
-		assert_not_null(def.preview_icon, "%s preview_icon" % id)
-		assert_ne(def.preview_icon, SpecialDef.GENERIC_PREVIEW_ICON, String(id))
-		assert_eq(SpecialDef.preview_icon_for(id), GiftIconTable.shared().model_preview(id), String(id))
-
-
 func test_hud_uses_gift_icon_for_held_and_next() -> void:
 	var hud: HUD = autofree((load("res://ui/HUD.tscn") as PackedScene).instantiate())
 	add_child_autofree(hud)
@@ -117,33 +109,6 @@ func test_hud_uses_gift_icon_for_held_and_next() -> void:
 	hud._refresh_special_indicator()
 	assert_null(hud.held_gift_icon())
 	assert_null(hud.next_gift_icon())
-
-
-const GIFT_IDS: Array[StringName] = [
-	&"anvil", &"bomb", &"cat", &"earthquake", &"glue", &"jumping_bean",
-	&"magnet", &"paintball", &"propeller", &"rocket", &"stackfall", &"volcano",
-]
-
-
-func test_every_gift_has_held_scene_within_one_cell() -> void:
-	for id: StringName in GIFT_IDS:
-		var def: SpecialDef = SpecialDef.find_by_id(id)
-		assert_not_null(def, String(id))
-		assert_not_null(def.held_scene, "%s held_scene" % id)
-		var root: Node3D = autofree(def.held_scene.instantiate() as Node3D)
-		var meshes: Array[Node] = root.find_children("*", "MeshInstance3D", true, false)
-		assert_between(meshes.size(), 1, 12, "%s draw-call budget" % id)
-		var bounds: AABB = AABB()
-		var first: bool = true
-		for node: Node in meshes:
-			var mi: MeshInstance3D = node as MeshInstance3D
-			var box: AABB = mi.transform * mi.mesh.get_aabb()
-			bounds = box if first else bounds.merge(box)
-			first = false
-		bounds = root.transform * bounds
-		assert_lt(bounds.size.x, 1.01, "%s x" % id)
-		assert_lt(bounds.size.y, 1.01, "%s y" % id)
-		assert_lt(bounds.size.z, 1.01, "%s z" % id)
 
 
 func test_held_gift_shows_validity_tint() -> void:
