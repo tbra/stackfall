@@ -46,23 +46,7 @@ Rule = namedtuple("Rule", "id pattern scope allowed keep_strings exts message mu
 
 # Line-level allowances: {rule_id: [(file, source snippet, reason)]}. A hit is waived only
 # when its statement contains the snippet. Whole-file allowances are not used for STATE_SET.
-# PART_B = Bontago-fca.36.10 (presentation sites migrate there, then these entries go).
-PART_B = "Bontago-fca.36.10"
 LINE_ALLOW = {
-    "STATE_SET": [
-        ("game/Main.gd", "state != Match.State.LOBBY and state != Match.State.END",
-         "deferred to %s: 'match in progress' = not LOBBY, not END (spans LOADING)" % PART_B),
-        ("game/Main.gd", "from_state == Match.State.LOBBY and to_state == Match.State.LOADING",
-         "a from->to transition pair (sandbox reset), not a state set"),
-        ("ui/HUD.gd", "to_state == Match.State.LOADING or to_state == Match.State.COUNTDOWN",
-         "deferred to %s: HUD fade-in on the pre-play window" % PART_B),
-        ("ui/HUD.gd", "to_state == Match.State.LOBBY or to_state == Match.State.END",
-         "deferred to %s: HUD hides outside a match" % PART_B),
-        ("game/RemoteCursors.gd", "to_state == Match.State.LOBBY or to_state == Match.State.END",
-         "deferred to %s: cursors survive LOADING, so not is_resetting" % PART_B),
-        ("game/specials/StackfallRain.gd", "new_state == Match.State.LOBBY or new_state == Match.State.END",
-         "deferred to %s: rain survives LOADING, so not is_resetting" % PART_B),
-    ],
 }
 
 ALL_CODE = ("ui/", "game/", "autoload/", "net/", "core/", "vfx/")

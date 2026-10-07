@@ -1307,7 +1307,7 @@ func _pause_menu_context() -> Dictionary:
 		Net.Mode.CLIENT:
 			entry = PauseMenu.ReturnEntry.DISABLED
 	var state: int = int(Match.state())
-	var in_progress: bool = state != Match.State.LOBBY and state != Match.State.END
+	var in_progress: bool = Match.is_in_progress(state)
 	return {"return_entry": entry, "match_in_progress": in_progress}
 
 
@@ -1431,7 +1431,7 @@ func _on_match_state_changed(from_state: int, to_state: int) -> void:
 		# out of the UI route so the new match builds directly.
 		if not Match._lifecycle.is_starting_match() and not Net.is_offline():
 			_show_lobby()
-	elif from_state == Match.State.LOBBY and to_state == Match.State.LOADING:
+	elif Match.is_start_transition(from_state, to_state):
 		_loading_generation += 1
 		_first_territory_ready = false
 		# Bontago-1pi.8: shown before _build_match_world() below runs, so the

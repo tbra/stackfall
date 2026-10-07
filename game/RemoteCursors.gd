@@ -131,7 +131,7 @@ func _on_player_eliminated(slot_id: int, _team_id: int) -> void:
 
 
 func _on_match_state_changed(_from_state: int, to_state: int) -> void:
-	if to_state == Match.State.LOBBY or to_state == Match.State.END:
+	if Match.is_lobby_or_end(to_state):
 		clear()
 
 
