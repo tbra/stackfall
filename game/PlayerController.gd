@@ -1010,9 +1010,10 @@ func _camera_forward() -> Vector3:
 
 
 ## Bontago-1pi.85.29: no state machine -- called every frame from _process(). While a throwable
-## or aimed gift is held the arc preview is always shown from the camera forward (no LT, no
-## drag); otherwise it is hidden. The previewed launch comes from the same GiftAim functions the
-## host uses, so the line equals the real flight (Rocket/Paintball: a straight gravity-free line).
+## or aimed gift is held, the arc starts at the held gift and follows the camera forward (no LT,
+## no drag; Bontago-1pi.85.47) for gifts whose GiftThrow.shows_preview() is true; Rocket and
+## Paintball draw none (Bontago-1pi.85.50). The previewed launch comes from the same GiftAim
+## functions the host uses, so the line equals the real flight.
 func _update_throw_aim(_delta: float) -> void:
 	_drive_throw_visuals()
 
@@ -1039,7 +1040,7 @@ func _can_preview_gift_aim() -> bool:
 		return false
 	if _ghost.get_shape() == null or _is_active_slot_eliminated():
 		return false
-	return _held_gift_mode() != GiftThrow.Mode.NONE
+	return GiftThrow.shows_preview(_held_gift_mode())
 
 
 ## The arc the held gift would fly right now: {origin, velocity, gravity_scale}, or an empty

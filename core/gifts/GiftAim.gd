@@ -16,7 +16,8 @@ static func unit_forward(forward: Vector3) -> Vector3:
 const MIN_FORWARD_LENGTH: float = 0.001
 
 
-## World spawn point of a camera-aimed gift: the cursor surface point moved back along the unit
+## World spawn point of a camera-aimed gift (1pi.85.47: gift_aim_back_m defaults to 0, so it is the
+## held gift / ghost pose itself): the cursor point moved back along the unit
 ## `forward` by SpecialTuning.gift_aim_back_m, clamped to at least gift_aim_min_height_m above
 ## `surface_y`, so the aim line passes through the cursor. An unusable forward returns `cursor`.
 static func spawn_point(cursor: Vector3, forward: Vector3, surface_y: float, t: SpecialTuning) -> Vector3:

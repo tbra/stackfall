@@ -102,12 +102,13 @@ func test_aim_maths_reject_unusable_forwards() -> void:
 		assert_eq(GiftAim.spawn_point(Vector3(1.0, 2.0, 3.0), bad, 0.0, t), Vector3(1.0, 2.0, 3.0))
 
 
-func test_spawn_point_is_back_along_the_aim_and_never_below_the_min_height() -> void:
+func test_spawn_point_is_the_held_gift_pose_and_never_below_the_min_height() -> void:
 	var t: SpecialTuning = SpecialTuning.new()
 	var cursor: Vector3 = Vector3(0.0, 10.0, 0.0)
 	var forward: Vector3 = Vector3(0.0, -1.0, -1.0).normalized()
 	var p: Vector3 = GiftAim.spawn_point(cursor, forward, 0.0, t)
 	assert_true(p.is_equal_approx(cursor - forward * t.gift_aim_back_m))
+	assert_true(p.is_equal_approx(cursor), "1pi.85.47: default origin is the held gift")
 	var up_aim: Vector3 = GiftAim.spawn_point(Vector3(0.0, 0.2, 0.0), Vector3.UP, 0.0, t)
 	assert_almost_eq(up_aim.y, t.gift_aim_min_height_m, 0.001, "clamped over the surface")
 
@@ -161,13 +162,14 @@ func test_a_client_speed_sized_velocity_is_refused_not_trusted() -> void:
 	assert_eq(Match.held_special(0), &"gift_bomb")
 
 
-func test_throwable_gift_spawns_on_the_camera_line_not_at_the_cursor() -> void:
+func test_throwable_gift_spawns_at_the_held_gift_pose() -> void:
 	_start_with(&"gift_bomb", GiftThrow.Mode.THROW)
 	var forward: Vector3 = Vector3(1.0, -0.2, 0.0).normalized()
 	assert_eq(_throw(forward), PlacementRules.REASON_OK)
 	var block: Block = _blocks_root.get_child(0) as Block
 	var cursor: Vector3 = _home_world_position(0)
-	assert_lt(block.global_position.x, cursor.x - 1.0, "moved back along the aim")
+	assert_almost_eq(block.global_position.x, cursor.x, 0.01, "1pi.85.47: no back-off along the aim")
+	assert_almost_eq(block.global_position.z, cursor.z, 0.01)
 	assert_gte(block.global_position.y, _field.surface_y() + _tuning().gift_aim_min_height_m - 0.01)
 
 
@@ -284,3 +286,9 @@ func test_paintball_launch_direction_is_sanitised_and_vetoes_the_velocity_drop_i
 	var stored: Vector3 = block.get_meta(PaintballEffect.LAUNCH_DIRECTION_META) as Vector3
 	assert_true(stored.is_equal_approx(Vector3(0.0, 0.0, 1.0)), "not upward, unit length")
 	assert_false(effect.impact_triggers(block, null), "a flying paintball ends by its contact probe")
+
+
+func test_only_the_ballistic_throw_mode_shows_a_preview() -> void:
+	assert_true(GiftThrow.shows_preview(GiftThrow.Mode.THROW))
+	assert_false(GiftThrow.shows_preview(GiftThrow.Mode.AIMED))
+	assert_false(GiftThrow.shows_preview(GiftThrow.Mode.NONE))

@@ -225,8 +225,8 @@ func test_host_refuses_a_thrown_pose_inside_a_placed_block() -> void:
 	Match._gifts._held_specials[0] = &"test_special"
 	Match._feed._held_is_gift[0] = true
 	tuning.spawn_clearance_max_raise = 0.1
-	# Bontago-1pi.85.29: a throw spawns on the camera line (cursor minus aim * gift_aim_back_m),
-	# so collapse that offset to make the spawn point coincide with the occupied cursor pose.
+	# Bontago-1pi.85.47: a throw spawns at the held gift (gift_aim_back_m defaults to 0); pin it
+	# to 0 so the spawn point coincides with the occupied cursor pose whatever the tuning.
 	var special_tuning: SpecialTuning = Match._placement._special_tuning
 	var saved_back: float = special_tuning.gift_aim_back_m
 	special_tuning.gift_aim_back_m = 0.0

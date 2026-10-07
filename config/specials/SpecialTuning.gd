@@ -74,7 +74,7 @@ extends Resource
 ## Bontago-1pi.85.35 (core/gifts/GiftAim.gd): how far back along the camera forward, in meters,
 ## a camera-aimed gift spawns from the cursor surface point, so the aim line passes through
 ## what the player points at.
-@export var gift_aim_back_m: float = 8.0
+@export var gift_aim_back_m: float = 0.0
 
 ## Bontago-1pi.85.35: the aimed spawn point is never lower than this many meters above the
 ## surface (stops a flat camera spawning the projectile inside the disc).

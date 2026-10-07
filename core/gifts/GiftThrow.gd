@@ -21,6 +21,12 @@ static func mode_for(def: SpecialDef) -> Mode:
 	return Mode.NONE
 
 
+## Whether holding a gift in `mode` draws a trajectory preview (1pi.85.50): only the ballistic
+## THROW arc; AIMED (Rocket, Paintball) shows none.
+static func shows_preview(mode: Mode) -> bool:
+	return mode == Mode.THROW
+
+
 ## A client-sent aim direction as a unit vector, or Vector3.ZERO when malformed (non-finite,
 ## zero or outside the accepted length band).
 static func sanitize_aim(direction: Vector3, tuning: SpecialTuning) -> Vector3:
