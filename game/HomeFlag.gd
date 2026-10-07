@@ -37,11 +37,9 @@ const CRYSTAL_SHADER: Shader = preload("res://shaders/beacon_crystal.gdshader")
 var _slot_id: int = -1
 var _color: Color = Color.WHITE
 var _socket: MeshInstance3D = null
-var _beacon_ring: MeshInstance3D = null
-var _beacon_ring_material: StandardMaterial3D = null
+var _beacon_ring: PulseRing = null
 var _crystal: MeshInstance3D = null
 var _crystal_material: ShaderMaterial = null
-var _pulse_time_s: float = 0.0
 
 
 func _ready() -> void:
@@ -79,14 +77,9 @@ func _build() -> void:
 	var ring_inner: float = maxf(
 		ring_outer - beacon_visuals.ring_thickness * scale_factor, 0.001
 	)
-	_beacon_ring = MeshInstance3D.new()
+	_beacon_ring = PulseRing.new()
 	_beacon_ring.name = &"Ring"
-	_beacon_ring.mesh = _build_beacon_ring_mesh(ring_outer, ring_inner)
-	_beacon_ring_material = StandardMaterial3D.new()
-	_beacon_ring_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_beacon_ring_material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_beacon_ring_material.emission_enabled = true
-	_beacon_ring.material_override = _beacon_ring_material
+	_beacon_ring.build(ring_outer, ring_inner, beacon_visuals.ring_segments, _color)
 	_beacon_ring.position = Vector3(
 		0.0, beacon_visuals.socket_height + beacon_visuals.ring_lift, 0.0
 	)
@@ -182,10 +175,9 @@ func color() -> Color:
 
 
 func _apply_color() -> void:
-	if _beacon_ring_material == null or _crystal_material == null:
+	if _beacon_ring == null or _crystal_material == null:
 		return
-	_beacon_ring_material.albedo_color = _color
-	_beacon_ring_material.emission = _color
+	_beacon_ring.set_color(_color)
 	_crystal_material.set_shader_parameter(&"albedo_color", _color)
 	_crystal_material.set_shader_parameter(&"emission_color", _color)
 	# emission_energy_multiplier/emission_energy are owned by _apply_pulse()
@@ -203,20 +195,14 @@ func _apply_color() -> void:
 ## beacon never pops from "unpulsed" to "pulsed" on the first real _process()
 ## tick) -- kept as a parameter anyway so both call sites share one method.
 func _apply_pulse(_delta: float) -> void:
-	if _beacon_ring_material == null or _crystal_material == null:
+	if _beacon_ring == null or not _beacon_ring.is_built() or _crystal_material == null:
 		return
-	_pulse_time_s += _delta
-	var wave: float = 0.0
-	if beacon_visuals.pulse_period_s > 0.0:
-		wave = sin(TAU * _pulse_time_s / beacon_visuals.pulse_period_s)
-
-	var ring_scale: float = 1.0 + wave * beacon_visuals.pulse_scale_amplitude + _extra_ring_scale()
-	_beacon_ring.scale = Vector3(ring_scale, 1.0, ring_scale)
-
+	var wave: float = _beacon_ring.advance(
+		_delta, beacon_visuals.pulse_period_s, beacon_visuals.pulse_scale_amplitude,
+		beacon_visuals.pulse_emission_amplitude,
+		beacon_visuals.ring_emission * beacon_visuals.emission_scale,
+		_extra_ring_scale(), _emission_boost())
 	var energy_mult: float = 1.0 + wave * beacon_visuals.pulse_emission_amplitude
-	_beacon_ring_material.emission_energy_multiplier = (
-		beacon_visuals.ring_emission * beacon_visuals.emission_scale * energy_mult * _emission_boost()
-	)
 	_crystal_material.set_shader_parameter(
 		&"emission_energy", beacon_visuals.crystal_emission * energy_mult * _emission_boost()
 	)
@@ -231,12 +217,6 @@ func _emission_boost() -> float:
 ## Extra ring scale fraction applied on top of the pulse (GoalFlag's claim flash).
 func _extra_ring_scale() -> float:
 	return 0.0
-
-
-## A full annulus lying flat at y=0 in local space (see GoalFlag._build_arc()
-## for the same idea swept over less than a full turn, for the capture ring).
-func _build_beacon_ring_mesh(outer: float, inner: float) -> ArrayMesh:
-	return build_annulus_mesh(outer, inner, TAU, maxi(beacon_visuals.ring_segments, 3))
 
 
 ## A flat annulus in the XZ plane (normals up) swept clockwise from +z over

@@ -9,6 +9,8 @@ extends Node3D
 const TUNING: BlackHoleVisualTuning = preload("res://config/black_hole_visual.tres")
 const SHADER: Shader = preload("res://shaders/black_hole_vortex.gdshader")
 const BLACK_HOLE_ID: StringName = &"black_hole"
+## Smallest divisor/exponent used by the growth curve (avoids a zero division).
+const MIN_SPAN: float = 0.001
 const PARAM_GROW: StringName = &"grow"
 const PARAM_TIME: StringName = &"time_s"
 
@@ -54,15 +56,25 @@ func setup(radius_m: float, lifetime_s: float) -> void:
 	_core.material_override = core_material
 	_core.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_core)
-	_apply_growth(0.0)
+	_apply_growth(scale_at(0.0, lifetime_s))
 
 
-## 0..1 growth envelope: eases in over grow_in_s, collapses over the last collapse_out_s.
-static func growth(age_s: float, remaining_s: float, grow_in_s: float, collapse_out_s: float) -> float:
-	var grow_in: float = clampf(age_s / maxf(grow_in_s, 0.001), 0.0, 1.0)
-	var collapse: float = clampf(remaining_s / maxf(collapse_out_s, 0.001), 0.0, 1.0)
-	var linear: float = minf(grow_in, collapse)
-	return linear * linear * (3.0 - 2.0 * linear)
+## 0..1 size envelope: ease-in growth (start fraction up to 1 over grow_in_s, slow start
+## then accelerating), multiplied by a smoothstep collapse over the last collapse_out_s.
+## Defaults give the plain smoothstep-free ease-in from 0.
+static func growth(age_s: float, remaining_s: float, grow_in_s: float, collapse_out_s: float,
+		start_fraction: float = 0.0, ease_power: float = 1.0) -> float:
+	var t: float = clampf(age_s / maxf(grow_in_s, MIN_SPAN), 0.0, 1.0)
+	var grown: float = start_fraction + (1.0 - start_fraction) * pow(t, maxf(ease_power, MIN_SPAN))
+	var collapse: float = clampf(remaining_s / maxf(collapse_out_s, MIN_SPAN), 0.0, 1.0)
+	return grown * collapse * collapse * (3.0 - 2.0 * collapse)
+
+
+## Size fraction from the shared tuning: used by the visual and by BlackHoleField's
+## pull/capture radius so both follow the same curve.
+static func scale_at(age_s: float, lifetime_s: float) -> float:
+	return growth(age_s, lifetime_s - age_s, TUNING.grow_in_s, TUNING.collapse_out_s,
+		TUNING.grow_start_fraction, TUNING.grow_ease_power)
 
 
 func _build_material(low: bool) -> ShaderMaterial:
@@ -109,4 +121,4 @@ func _process(delta: float) -> void:
 		return
 	if _material != null:
 		_material.set_shader_parameter(PARAM_TIME, _age_s)
-		_apply_growth(growth(_age_s, _remaining_s, TUNING.grow_in_s, TUNING.collapse_out_s))
+		_apply_growth(scale_at(_age_s, _lifetime_s))

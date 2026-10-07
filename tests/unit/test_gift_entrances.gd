@@ -165,7 +165,7 @@ func test_black_hole_opens_up_underneath_the_drop_point_without_a_carrier() -> v
 	var visual: BlackHoleVisual = visuals[0] as BlackHoleVisual
 	var core: MeshInstance3D = visual.get_child(1) as MeshInstance3D
 	var tuning: BlackHoleVisualTuning = load("res://config/black_hole_visual.tres") as BlackHoleVisualTuning
-	assert_almost_eq(core.position.y, -tuning.core_emerge_depth_m, HEIGHT_EPSILON_M, "core starts below the surface")
+	assert_almost_eq(core.position.y, -tuning.core_emerge_depth_m * (1.0 - tuning.grow_start_fraction), HEIGHT_EPSILON_M, "core starts below the surface")
 	visual._process(tuning.grow_in_s)
 	assert_almost_eq(core.position.y, 0.0, HEIGHT_EPSILON_M, "core has risen to the surface")
 

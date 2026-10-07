@@ -3,8 +3,17 @@ extends Resource
 ## Presentation tunables for the black hole vortex (Bontago-8or.26). Presentation
 ## only; the pull radius and lifetime come from BlackHoleEffect.
 
-## Seconds the vortex takes to grow in after the special triggers.
-@export var grow_in_s: float = 0.4
+## Seconds the vortex takes to grow from grow_start_fraction to full size after the
+## special triggers (Bontago-1pi.85.56). The pull and capture radius follow the same
+## curve (BlackHoleField), so what you see is what pulls.
+@export var grow_in_s: float = 1.5
+
+## Size fraction (0..1) the hole spawns at.
+@export_range(0.0, 1.0) var grow_start_fraction: float = 0.1
+
+## Ease-in exponent: size = start + (1 - start) * t^power. 1 is linear, above 1 starts
+## slowly and accelerates.
+@export var grow_ease_power: float = 2.0
 
 ## Seconds the vortex collapses out before its lifetime ends.
 @export var collapse_out_s: float = 0.6

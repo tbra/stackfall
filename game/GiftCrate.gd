@@ -41,6 +41,9 @@ var _visual_time: float = 0.0
 var _glow_light: OmniLight3D = null
 var _spawn_halo: MeshInstance3D = null
 var _spawn_halo_material: StandardMaterial3D = null
+## Bontago-1pi.85.57: pulse ring shown while the crate lies on the disc (not falling).
+var _land_ring: PulseRing = null
+@export var ring_tuning: GiftRingTuning = preload("res://config/gift_ring_tuning.tres")
 ## GraphicsPreset.gift_idle_glow_enabled: false (Low) keeps only the spawn
 ## flash; the OmniLight3D is hidden once the flash ends.
 var _idle_glow_enabled: bool = true
@@ -90,6 +93,9 @@ func _process(delta: float) -> void:
 	if _beacon != null:
 		_beacon.position.y = BEACON_HEIGHT + sin(_visual_time * BEACON_SPEED) * BEACON_BOB
 		_beacon.rotation.y += delta * BEACON_SPEED
+	if _land_ring != null and _land_ring.visible:
+		_land_ring.advance(delta, ring_tuning.pulse_period_s, ring_tuning.pulse_scale_amplitude,
+			ring_tuning.pulse_emission_amplitude, ring_tuning.emission)
 	_update_spawn_glow()
 	_update_hint(delta)
 
@@ -162,6 +168,13 @@ func _build() -> void:
 	_spawn_halo.material_override = _spawn_halo_material
 	add_child(_spawn_halo)
 
+	_land_ring = PulseRing.new()
+	_land_ring.name = &"LandRing"
+	_land_ring.build(ring_tuning.outer_radius_m, maxf(ring_tuning.outer_radius_m - ring_tuning.thickness_m, 0.001), ring_tuning.segments, ring_tuning.color)
+	_land_ring.position.y = ring_tuning.height_m
+	_land_ring.visible = not _falling
+	add_child(_land_ring)
+
 	_beacon = Node3D.new()
 	_beacon.name = &"GiftBeacon"
 	_beacon.position.y = BEACON_HEIGHT
@@ -210,6 +223,8 @@ func idle_glow_enabled() -> bool:
 ## rather than vanishing). Repeating the same state is harmless.
 func set_falling(falling: bool) -> void:
 	_falling = falling
+	if _land_ring != null:
+		_land_ring.visible = not falling and not _claimed
 	if _parachute == null:
 		return
 	if falling:
@@ -294,6 +309,8 @@ func _on_gift_claimed(claimed_gift_id: int, slot_id: int, _special_id: StringNam
 	if claimed_gift_id != gift_id or _claimed:
 		return
 	_claimed = true
+	if _land_ring != null:
+		_land_ring.visible = false
 	if not is_inside_tree():
 		return
 	var parent: Node = get_parent()

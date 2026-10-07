@@ -25,6 +25,13 @@ func age() -> float:
 	return _age
 
 
+## Bontago-1pi.85.56 DECISION: the pull and capture reach grow with the visual (same
+## curve, BlackHoleVisual.scale_at) so what you see is what pulls. The field's own age
+## starts at the trigger; clients draw the visual from the same replicated trigger event.
+func reach_scale() -> float:
+	return BlackHoleVisual.scale_at(_age, _effect.lifetime_s) if _effect != null else 0.0
+
+
 func is_expired() -> bool:
 	return _effect == null or _age >= _effect.lifetime_s
 
@@ -57,8 +64,9 @@ func tick(delta: float) -> void:
 	if world == null:
 		return
 	var space: PhysicsDirectSpaceState3D = world.direct_space_state
-	RadialPull.pull(space, global_position, _effect.pull, _exclude, _block_filter, delta)
-	_sweep_capture(space, delta)
+	var radius_scale: float = reach_scale()
+	RadialPull.pull(space, global_position, _effect.pull, _exclude, _block_filter, delta, radius_scale)
+	_sweep_capture(space, delta, radius_scale)
 
 
 ## Bontago-1pi.85.26 (reproduced in the real gift demo flow, tests/unit/
@@ -73,16 +81,18 @@ func tick(delta: float) -> void:
 ## horizontal radius plus a vertical band around the centre, measured to each block's
 ## collision centre (orientation independent), and a body must stay inside
 ## capture_hold_s.
-func _sweep_capture(space: PhysicsDirectSpaceState3D, delta: float) -> void:
-	var reach: float = Vector2(_effect.capture_radius_m, _effect.capture_height_m).length()
+func _sweep_capture(space: PhysicsDirectSpaceState3D, delta: float, radius_scale: float = 1.0) -> void:
+	var capture_radius: float = _effect.capture_radius_m * radius_scale
+	var capture_height: float = _effect.capture_height_m * radius_scale
+	var reach: float = Vector2(capture_radius, capture_height).length()
 	var inside: Dictionary = {}
 	for body: RigidBody3D in ExplosionFx.query_bodies(space, global_position, reach, _exclude):
 		if not _block_filter.call(body) or body.has_meta(RadialPull.CAPTURED_META):
 			continue
 		var offset: Vector3 = collision_centre(body) - global_position
-		if Vector2(offset.x, offset.z).length() > _effect.capture_radius_m:
+		if Vector2(offset.x, offset.z).length() > capture_radius:
 			continue
-		if absf(offset.y) > _effect.capture_height_m:
+		if absf(offset.y) > capture_height:
 			continue
 		var id: int = body.get_instance_id()
 		inside[id] = true

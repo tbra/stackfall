@@ -22,7 +22,7 @@ func after_each() -> void:
 func _effect() -> BlackHoleEffect:
 	var effect: BlackHoleEffect = BlackHoleEffect.new()
 	effect.pull.radius_m = RADIUS
-	effect.lifetime_s = 2.0
+	effect.lifetime_s = 8.0
 	return effect
 
 
@@ -44,8 +44,15 @@ func _make_block(position: Vector3, slot: int) -> Block:
 	return block
 
 
-func _make_field(effect: BlackHoleEffect) -> BlackHoleField:
+## Skips the spawn growth (Bontago-1pi.85.56) so rule tests see the full-size hole.
+func _grow_in(field: BlackHoleField) -> void:
+	field._age = (load("res://config/black_hole_visual.tres") as BlackHoleVisualTuning).grow_in_s
+
+
+func _make_field(effect: BlackHoleEffect, grown: bool = true) -> BlackHoleField:
 	var field: BlackHoleField = BlackHoleField.new()
+	if grown:
+		_grow_in(field)
 	field.configure(effect, [])
 	add_child(field)
 	# Godot re-enables _physics_process on READY; manual ticks must be the only ones.
@@ -90,7 +97,7 @@ func test_pull_is_mass_independent_and_stronger_closer() -> void:
 
 func test_field_expires_after_lifetime() -> void:
 	var effect: BlackHoleEffect = _effect()
-	var field: BlackHoleField = _make_field(effect)
+	var field: BlackHoleField = _make_field(effect, false)
 	field.tick(effect.lifetime_s - 0.5)
 	assert_false(field.is_expired())
 	field.tick(0.6)
@@ -170,6 +177,7 @@ func test_real_disc_8kg_block_from_6m_reaches_the_core_within_lifetime() -> void
 	var effect: BlackHoleEffect = (SpecialDef.find_by_id(&"black_hole").effect as BlackHoleEffect)
 	var hole: BlackHoleField = BlackHoleField.new()
 	hole.configure(effect, [])
+	_grow_in(hole)
 	add_child_autofree(hole)
 	hole.set_physics_process(false)
 	hole.global_position = Vector3(0.0, rest_y, 0.0)
@@ -233,6 +241,7 @@ func _count_removed_after_lifetime(disc: Field, root: Node3D, positions: Array[V
 	var effect: BlackHoleEffect = (SpecialDef.find_by_id(&"black_hole").effect as BlackHoleEffect)
 	var hole: BlackHoleField = BlackHoleField.new()
 	hole.configure(effect, [])
+	_grow_in(hole)
 	add_child_autofree(hole)
 	hole.set_physics_process(false)
 	# The real carrier's origin is its bottom face resting on the disc (85.26 repro).
@@ -332,6 +341,7 @@ func test_tumbled_and_stacked_real_cubes_at_the_core_are_captured() -> void:
 		assert_gt(cube.global_position.distance_to(centre), OLD_ORIGIN_CORE_M, "the old origin sphere misses it")
 	var hole: BlackHoleField = BlackHoleField.new()
 	hole.configure(effect, [])
+	_grow_in(hole)
 	add_child_autofree(hole)
 	hole.set_physics_process(false)
 	hole.global_position = centre
@@ -500,6 +510,52 @@ func test_vortex_core_opens_up_from_below_the_surface() -> void:
 	visual.setup(effect.visual_radius_m, effect.lifetime_s)
 	var core: MeshInstance3D = visual.get_child(1) as MeshInstance3D
 	assert_gt(tuning.core_emerge_depth_m, 0.0)
-	assert_almost_eq(core.position.y, -tuning.core_emerge_depth_m, 0.001, "starts below the surface")
+	assert_almost_eq(core.position.y, -tuning.core_emerge_depth_m * (1.0 - tuning.grow_start_fraction), 0.001, "starts below the surface")
 	visual._process(tuning.grow_in_s)
 	assert_almost_eq(core.position.y, 0.0, 0.001, "risen to the surface once grown in")
+
+
+# --- Bontago-1pi.85.56: spawn small, ease-in growth ----------------------------
+
+func test_growth_curve_starts_small_eases_in_and_reaches_full_size() -> void:
+	var tuning: BlackHoleVisualTuning = load("res://config/black_hole_visual.tres") as BlackHoleVisualTuning
+	var lifetime: float = 100.0
+	var start: float = BlackHoleVisual.scale_at(0.0, lifetime)
+	assert_almost_eq(start, tuning.grow_start_fraction, 0.0001, "spawns at the small start fraction")
+	assert_gt(start, 0.0)
+	var mid: float = BlackHoleVisual.scale_at(tuning.grow_in_s * 0.5, lifetime)
+	var end: float = BlackHoleVisual.scale_at(tuning.grow_in_s, lifetime)
+	assert_almost_eq(end, 1.0, 0.0001, "full size at the end of the growth")
+	# Ease-in: below the linear midpoint, and each step grows more than the last.
+	assert_lt(mid, (start + end) * 0.5, "slow start: mid is under the linear midpoint")
+	var previous: float = start
+	var previous_step: float = 0.0
+	for i: int in range(1, 11):
+		var value: float = BlackHoleVisual.scale_at(tuning.grow_in_s * float(i) / 10.0, lifetime)
+		var step: float = value - previous
+		assert_gt(step, previous_step - 0.0001, "accelerating (ease-in) at step %d" % i)
+		previous = value
+		previous_step = step
+	assert_almost_eq(BlackHoleVisual.scale_at(lifetime, lifetime), 0.0, 0.0001, "collapsed at the end")
+
+
+func test_field_pull_and_capture_radius_follow_the_growth_curve() -> void:
+	var effect: BlackHoleEffect = _effect()
+	var field: BlackHoleField = BlackHoleField.new()
+	add_child_autofree(field)
+	field.configure(effect, [])
+	assert_almost_eq(field.reach_scale(), BlackHoleVisual.scale_at(0.0, effect.lifetime_s), 0.0001)
+	field._age = 1.0
+	assert_almost_eq(field.reach_scale(), BlackHoleVisual.scale_at(1.0, effect.lifetime_s), 0.0001)
+	field._age = 1.0 + 0.5
+	assert_gt(field.reach_scale(), BlackHoleVisual.scale_at(1.0, effect.lifetime_s), "reach grows over time")
+	field._age = 2.0
+	assert_almost_eq(field.reach_scale(), 1.0, 0.0001, "full reach once grown in")
+
+
+func test_radial_pull_radius_scale_shrinks_reach() -> void:
+	var t: RadialPullTuning = RadialPullTuning.new()
+	t.radius_m = 10.0
+	# No physics space: the scaled radius is still used for the early-out only; a zero
+	# scale pulls nothing.
+	assert_eq(RadialPull.pull(null, Vector3.ZERO, t, [] as Array[RID], Callable(), 0.016, 0.0).size(), 0)
