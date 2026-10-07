@@ -112,7 +112,7 @@ func test_controls_live_in_their_plan_sections() -> void:
 	var game: LobbySection = _section(lobby, "%GameSection")
 	var round_section: LobbySection = _section(lobby, "%RoundSection")
 	var gifts: LobbySection = _section(lobby, "%GiftsSection")
-	for unique_name: String in ["%GameModeOption", "%MapComboOption", "%SkyThemeOption", "%WeatherOption"]:
+	for unique_name: String in ["%GameModeOption", "%DiscSizeSlider", "%SkyThemeOption", "%WeatherOption"]:
 		assert_true(game.body.is_ancestor_of(lobby.get_node(unique_name)), "%s is GAME main" % unique_name)
 	for unique_name: String in ["%GravitySlider", "%TurnBasedCheck", "%HoleModeOption", "%TiltModeOption", "%MidJoinCheck"]:
 		assert_true(game.advanced.is_ancestor_of(lobby.get_node(unique_name)), "%s is GAME advanced" % unique_name)
@@ -354,9 +354,7 @@ func test_host_edits_every_game_setting_from_the_game_section() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	_section(lobby, "%GameSection").set_advanced_open(true)
 	_pick_mode(lobby, MatchConfig.GameMode.ELIMINATION)
-	var combo: OptionButton = lobby.get_node("%MapComboOption") as OptionButton
-	combo.select(5)
-	combo.item_selected.emit(5)
+	(lobby.get_node("%DiscSizeSlider") as HSlider).value = 5.0
 	var sky: CycleSelector = lobby.get_node("%SkyThemeOption") as CycleSelector
 	sky.select(MatchConfig.SkyThemeMode.NIGHT)
 	sky.item_selected.emit(MatchConfig.SkyThemeMode.NIGHT)
@@ -374,7 +372,7 @@ func test_host_edits_every_game_setting_from_the_game_section() -> void:
 	(lobby.get_node("%MidJoinCheck") as CheckButton).button_pressed = false
 	var config: MatchConfig = _published(lobby)
 	assert_eq(config.game_mode, MatchConfig.GameMode.ELIMINATION)
-	assert_eq(int(config.map_variant) * 3 + int(config.map_size), 5)
+	assert_eq(config.disc_size_step, 5)
 	assert_eq(config.sky_theme_mode, MatchConfig.SkyThemeMode.NIGHT)
 	assert_eq(config.weather_mode, MatchConfig.WeatherMode.SNOW)
 	assert_almost_eq(config.gravity_multiplier, 0.5, 0.001)
@@ -429,7 +427,7 @@ func test_client_reads_the_sections_but_cannot_edit_them() -> void:
 	var lobby: Lobby = _make_lobby(false)
 	var game: LobbySection = _section(lobby, "%GameSection")
 	var disabled_names: Array[String] = [
-		"%GameModeOption", "%MapComboOption", "%SkyThemeOption", "%WeatherOption", "%GravitySlider",
+		"%GameModeOption", "%DiscSizeSlider", "%SkyThemeOption", "%WeatherOption", "%GravitySlider",
 		"%TurnBasedCheck", "%HoleModeOption", "%TiltModeOption", "%MidJoinCheck", "%MatchTimerSlider",
 		"%SuddenDeathCheck", "%BlockTimerSlider", "%GiftsCheck", "%SpecialFreqSlider",
 	]

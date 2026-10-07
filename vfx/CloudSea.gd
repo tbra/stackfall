@@ -178,6 +178,9 @@ var _highest_top: float = -INF
 var _inflate: float = 0.0
 ## Highest inflated puff top among puffs whose footprint enters the exclusion cylinder.
 var _highest_top_near_disc: float = -INF
+## Bontago-1pi.107: the largest disc radius (m) the clouds must clear -- the active
+## (disc-size scaled) field radius; never below the largest shipped map.
+var disc_radius_m: float = MapDef.RADIUS_LARGE
 var _exclusion_radius_m: float = 0.0
 var _disc_ceiling_m: float = 0.0
 ## Bontago-mp0.95 sun-occlusion bounds, recorded by configure() for every clump of both
@@ -297,8 +300,8 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 		visible = false
 		return
 	_inflate = hull_inflate(_material)
-	_exclusion_radius_m = exclusion_radius_m(theme)
-	_disc_ceiling_m = disc_ceiling_m(theme)
+	_exclusion_radius_m = exclusion_radius_m(theme, disc_radius_m)
+	_disc_ceiling_m = disc_ceiling_m(theme, disc_radius_m)
 	visible = true
 	add_to_group(WeatherFogShader.GROUP)
 	add_to_group(GROUP)
@@ -411,20 +414,20 @@ static func _float_param(material: ShaderMaterial, name: StringName, fallback: f
 
 ## Clearance (m) kept around the disc: cloud_disc_clearance_ratio of the largest
 ## field radius.
-static func disc_clearance_m(theme: SkyThemeDef) -> float:
-	return MapDef.RADIUS_LARGE * theme.cloud_disc_clearance_ratio
+static func disc_clearance_m(theme: SkyThemeDef, radius_m: float = MapDef.RADIUS_LARGE) -> float:
+	return radius_m * theme.cloud_disc_clearance_ratio
 
 
 ## Radius (m) of the cylinder around the disc axis no puff may rise out of the
 ## under-disc ceiling inside: the largest field plus the clearance.
-static func exclusion_radius_m(theme: SkyThemeDef) -> float:
-	return MapDef.RADIUS_LARGE + disc_clearance_m(theme)
+static func exclusion_radius_m(theme: SkyThemeDef, radius_m: float = MapDef.RADIUS_LARGE) -> float:
+	return radius_m + disc_clearance_m(theme, radius_m)
 
 
 ## World Y no puff top inside the exclusion cylinder may exceed: the disc's
 ## underside (MapDef.disk_height below y 0) minus the clearance.
-static func disc_ceiling_m(theme: SkyThemeDef) -> float:
-	return -MapDef.new().disk_height - disc_clearance_m(theme)
+static func disc_ceiling_m(theme: SkyThemeDef, radius_m: float = MapDef.RADIUS_LARGE) -> float:
+	return -MapDef.new().disk_height - disc_clearance_m(theme, radius_m)
 
 
 ## Bontago-mp0.29: the overcast layer above the disc -- clumps over a disc of

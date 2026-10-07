@@ -104,7 +104,11 @@ var net_provider: Variant = null:
 ## _map_combo_index(), with %MapThumbnail (a small disc icon) beside it.
 @onready var _map_variant_option: OptionButton = %MapVariantOption
 @onready var _map_size_option: OptionButton = %MapSizeOption
-@onready var _map_combo_option: OptionButton = %MapComboOption
+## Bontago-1pi.107 (owner 2026-10-07): the map pickers are gone from the card (the hidden
+## variant/size options above stay pinned to Round/Medium); %DiscSizeSlider is the one
+## visible map control, six steps into config/disc_size_tuning.tres (tiny 50% .. enormous 175%).
+@onready var _disc_size_slider: HSlider = %DiscSizeSlider
+@onready var _disc_size_value: Label = %DiscSizeValue
 @onready var _map_thumbnail: PanelContainer = %MapThumbnail
 var _map_thumbnail_icon: TextureRect = null
 ## Bontago-1pi.53 (S1b): the Players/AI steppers, the default-difficulty dropdown and the
@@ -306,7 +310,7 @@ func _ready() -> void:
 	_configure_players_panel()
 	_populate_options()
 	_settings_controls = [
-		_map_combo_option, _player_count_spin, _ai_count_spin,
+		_disc_size_slider, _player_count_spin, _ai_count_spin,
 		_ai_difficulty_option, _team_mode_option, _block_timer_slider, _gravity_slider,
 		_goal_flag_spin, _gifts_check, _special_freq_slider, _tilt_mode_option,
 		_hole_mode_option, _match_timer_slider, _sudden_death_check, _turn_based_check,
@@ -369,7 +373,7 @@ func _ready() -> void:
 	# hidden control left ScrollContainer's own "scroll the focused control
 	# into view" behavior scrolling to that control's stale/zero rect,
 	# shifting the whole card sideways in every capture.
-	_map_combo_option.grab_focus()
+	_disc_size_slider.grab_focus()
 
 
 func _process(_delta: float) -> void:
@@ -431,13 +435,8 @@ func _populate_options() -> void:
 	_configure_timer_sliders()
 	_fill_option(_map_variant_option, MAP_VARIANT_LABELS)
 	_fill_option(_map_size_option, MAP_SIZE_LABELS)
-	var combo_labels: Array[String] = []
-	for variant_label: String in MAP_VARIANT_LABELS:
-		for size_label: String in MAP_SIZE_LABELS:
-			combo_labels.append("%s · %s" % [variant_label, size_label])
-	_fill_option(_map_combo_option, combo_labels)
+	_configure_disc_size_slider()
 	_decorate_map_picker()
-	_map_combo_option.item_selected.connect(_on_map_combo_selected)
 	_fill_option(_ai_difficulty_option, ["Easy", "Normal", "Hard"])
 	_fill_option(_team_mode_option, ["Off", "2 teams", "3 teams", "4 teams"])
 	_fill_cycle(_tilt_mode_option, ["Specials only", "Physical balance"])
@@ -480,9 +479,6 @@ func _populate_options() -> void:
 ## index, so host and client (replicated config) agree.
 func _decorate_map_picker() -> void:
 	var art: UiArtTable = UiArtTable.shared()
-	for index: int in range(_map_combo_option.item_count):
-		_map_combo_option.set_item_icon(index, art.map_pictogram(index / MAP_SIZE_LABELS.size()))
-	_map_combo_option.add_theme_constant_override("icon_max_width", art.map_icon_px)
 	if _map_thumbnail_icon == null:
 		_map_thumbnail_icon = TextureRect.new()
 		_map_thumbnail_icon.name = "MapThumbnailIcon"
@@ -577,7 +573,7 @@ func _build_specials_checklist() -> void:
 ## section toggle and mode change rewires.
 func _wire_focus_chain() -> void:
 	var chain: Array[Control] = []
-	var game_main: Array[Control] = [_game_mode_option, _map_combo_option, _sky_theme_option, _weather_option]
+	var game_main: Array[Control] = [_game_mode_option, _disc_size_slider, _sky_theme_option, _weather_option]
 	var game_advanced: Array[Control] = [
 		_gravity_slider, _tilt_mode_option, _hole_mode_option, _turn_based_check, _mid_join_check,
 	]
@@ -720,6 +716,8 @@ func _connect_control_signals() -> void:
 	_special_freq_slider.value_changed.connect(_on_value_changed)
 	_match_timer_slider.value_changed.connect(_on_timer_slider_changed.bind(_match_timer_slider))
 	_match_timer_slider.gui_input.connect(_on_timer_slider_gui_input.bind(_match_timer_slider))
+	_disc_size_slider.value_changed.connect(_on_disc_size_changed)
+	_disc_size_slider.gui_input.connect(_on_timer_slider_gui_input.bind(_disc_size_slider))
 	_gifts_check.toggled.connect(_on_toggled)
 	_sudden_death_check.toggled.connect(_on_toggled)
 	_turn_based_check.toggled.connect(_on_toggled)
@@ -873,6 +871,7 @@ func _apply_visual_style() -> void:
 	var well_box: StyleBoxFlat = MenuStyleFactory.make_well(tuning)
 	_block_timer_slider.add_theme_stylebox_override("slider", well_box)
 	_match_timer_slider.add_theme_stylebox_override("slider", well_box)
+	_disc_size_slider.add_theme_stylebox_override("slider", well_box)
 	_round_timer_slider.add_theme_stylebox_override("slider", well_box)
 	_gravity_slider.add_theme_stylebox_override("slider", well_box)
 	_special_freq_slider.add_theme_stylebox_override("slider", well_box)
@@ -979,7 +978,7 @@ func _input(event: InputEvent) -> void:
 	var focus: Control = get_viewport().gui_get_focus_owner()
 	if focus is LineEdit or focus is TextEdit:
 		return
-	for option: OptionButton in [_map_variant_option, _map_size_option, _map_combo_option, _ai_difficulty_option, _team_mode_option]:
+	for option: OptionButton in [_map_variant_option, _map_size_option, _ai_difficulty_option, _team_mode_option]:
 		if option.get_popup().visible:
 			return
 	_run_start_shortcut()
@@ -1021,7 +1020,7 @@ func toggle_focused_advanced() -> void:
 func _update_section_summaries() -> void:
 	_update_timer_values()
 	_game_section.set_summary(SUMMARY_SEPARATOR.join([
-		_cycle_text(_game_mode_option), _selected_text(_map_combo_option),
+		_cycle_text(_game_mode_option), _disc_size_text(),
 		_cycle_text(_sky_theme_option), _cycle_text(_weather_option),
 	]))
 	var timer_slider: HSlider = _timer_slider_for(_timer_mode)
@@ -1077,18 +1076,29 @@ func _on_option_changed(_index: int) -> void:
 	_on_setting_changed()
 
 
-## Bontago-mp0.3.5 (review r2, item 1): %MapComboOption's own handler --
-## decodes the combined index back into the hidden %MapVariantOption/
-## %MapSizeOption selections (the real source of truth _config_from_controls()
-## already reads) and republishes exactly like any other host edit, the same
-## pattern ui/Lobby.gd's _on_team_button_pressed() uses for the segmented
-## Teams control.
-func _on_map_combo_selected(index: int) -> void:
-	var size_count: int = MAP_SIZE_LABELS.size()
-	_map_variant_option.selected = index / size_count
-	_map_size_option.selected = index % size_count
-	_refresh_map_thumbnail()
+## Bontago-1pi.107: the disc-size slider moved; refresh its text and republish like any host edit.
+func _on_disc_size_changed(_value: float) -> void:
+	_update_disc_size_value()
 	_on_setting_changed()
+
+
+func _configure_disc_size_slider() -> void:
+	var tuning: DiscSizeTuning = DiscSizeTuning.shared()
+	_disc_size_slider.min_value = 0.0
+	_disc_size_slider.max_value = float(maxi(tuning.step_count() - 1, 0))
+	_disc_size_slider.step = 1.0
+	_disc_size_slider.tick_count = tuning.step_count()
+	_disc_size_slider.set_value_no_signal(float(MatchConfig.DISC_SIZE_STEP_DEFAULT))
+	_update_disc_size_value()
+
+
+func _update_disc_size_value() -> void:
+	_disc_size_value.text = _disc_size_text()
+
+
+## "Medium - 100%" for the current slider step; also the Game section's summary entry.
+func _disc_size_text() -> String:
+	return DiscSizeTuning.shared().value_text(int(_disc_size_slider.value))
 
 
 func _on_value_changed(_value: float) -> void:
@@ -1226,8 +1236,10 @@ func _config_from_controls() -> MatchConfig:
 	# game/HotSeat.tscn (docs/M3a_PLAN.md question 3) — so every config this
 	# screen builds must run the real-time per-player-timer branch instead.
 	config.hot_seat = false
-	config.map_variant = _map_variant_option.selected
-	config.map_size = _map_size_option.selected as MapDef.MapSize
+	# Bontago-1pi.107: the other maps are disabled for now (data kept); the disc size is the choice.
+	config.map_variant = MatchConfig.MapVariant.ROUND
+	config.map_size = MapDef.MapSize.MEDIUM
+	config.disc_size_step = int(_disc_size_slider.value)
 	config.player_count = int(_player_count_spin.value)
 	config.ai_count = int(_ai_count_spin.value)
 	config.ai_difficulty = _ai_difficulty_option.selected
@@ -1340,7 +1352,8 @@ func _apply_data(data: Dictionary) -> void:
 	_applying_remote_data = true
 	_map_variant_option.selected = config.map_variant
 	_map_size_option.selected = config.map_size
-	_map_combo_option.selected = int(config.map_variant) * MAP_SIZE_LABELS.size() + int(config.map_size)
+	_disc_size_slider.value = config.disc_size_step
+	_update_disc_size_value()
 	_map_variant_option.selected = int(config.map_variant)
 	_refresh_map_thumbnail()
 	_player_count_spin.value = config.player_count

@@ -419,6 +419,7 @@ func _start_hot_seat_match() -> void:
 
 	var config: MatchConfig = Match.config
 	_field.rebuild_for_map(config.map_def())
+	_camera_rig.set_map_def(config.map_def())
 	_field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
 	_field.set_overlay_source(Match.raster(), config.territory_colors())
 	_apply_match_sky(config)
@@ -474,6 +475,7 @@ func _start_sandbox_match_with_args(args: PackedStringArray) -> void:
 
 	var config: MatchConfig = Match.config
 	_field.rebuild_for_map(config.map_def())
+	_camera_rig.set_map_def(config.map_def())
 	_field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
 	_field.set_overlay_source(Match.raster(), config.territory_colors())
 	_apply_match_sky(config)
@@ -647,6 +649,7 @@ func start_tutorial_from_menu() -> void:
 
 	var config: MatchConfig = Match.config
 	_field.rebuild_for_map(config.map_def())
+	_camera_rig.set_map_def(config.map_def())
 	_field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
 	_field.set_overlay_source(Match.raster(), config.territory_colors())
 	_apply_match_sky(config)
@@ -887,6 +890,11 @@ func _build_headless_bot_config(bots: int, args: PackedStringArray) -> MatchConf
 	# GameMode integer) picks the headless bot match's mode; absent keeps the
 	# config's own mode. resolve_game_mode() still falls back for unselectable ids.
 	# DECISION (Bontago-1t5.1): `--goals=<1..5>` overrides goal_flag_count for headless bot matches.
+	# Bontago-1pi.107: `--disc-size=<step>` picks the disc-size slider step (0 tiny .. 5 enormous).
+	var disc_step: int = _disc_size_arg(args)
+	if disc_step >= 0:
+		config.disc_size_step = DiscSizeTuning.shared().clamp_step(disc_step)
+
 	var goals_override: int = _goals_arg(args)
 	if goals_override > 0:
 		config.goal_flag_count = clampi(goals_override, MatchConfig.GOAL_FLAG_MIN, MatchConfig.GOAL_FLAG_MAX)
@@ -895,6 +903,18 @@ func _build_headless_bot_config(bots: int, args: PackedStringArray) -> MatchConf
 		config.game_mode = MatchConfig.resolve_game_mode(mode_override)
 		config.round_timer_minutes = MatchConfig.clamp_round_timer(config.round_timer_minutes, config.game_mode)
 	return config
+
+
+## `--disc-size=<step>`, -1 when absent.
+func _disc_size_arg(args: PackedStringArray) -> int:
+	const PREFIX: String = "disc-size="
+	for raw: String in args:
+		var text: String = raw
+		while text.begins_with("-"):
+			text = text.substr(1)
+		if text.begins_with(PREFIX):
+			return int(text.substr(PREFIX.length()))
+	return -1
 
 
 ## `--goals=<n>`, 0 when absent.
@@ -1573,6 +1593,7 @@ func _build_match_world(force_staging_for_test: bool = false) -> void:
 
 	var config: MatchConfig = Match.config
 	_field.rebuild_for_map(config.map_def())
+	_camera_rig.set_map_def(config.map_def())
 	_loading_screen.set_stage("Placing flags", _loading_screen.tuning.flags_progress)
 	if stage_build:
 		await get_tree().process_frame

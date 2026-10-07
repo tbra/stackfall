@@ -776,6 +776,9 @@ func test_ui_left_and_ui_right_on_the_colour_box_never_change_the_colour() -> vo
 	# Bontago-1pi.93: held / echoed sideways navigation used to spin the palette.
 	var lobby: Lobby = _host_lobby(2)
 	var box: Button = _rows_of(lobby)[0].color_button
+	# Bontago-1pi.107: the lobby's initial focus is the disc-size slider, which steps on left/right;
+	# the test is about the colour box, so it must hold focus.
+	box.grab_focus()
 	var published: int = _fake_of(lobby).set_lobby_data_calls.size()
 	var events: Array[InputEvent] = [_pad(JOY_BUTTON_DPAD_RIGHT), _pad(JOY_BUTTON_DPAD_LEFT)]
 	for action: StringName in [&"ui_left", &"ui_right"]:

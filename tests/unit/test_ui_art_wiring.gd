@@ -50,16 +50,9 @@ func test_every_lobby_icon_key_resolves() -> void:
 		assert_not_null(table.difficulty_icon(difficulty))
 
 
-func test_lobby_map_picker_and_thumbnail_use_the_pictograms() -> void:
+func test_lobby_map_thumbnail_uses_the_round_pictogram() -> void:
 	var lobby: Lobby = _make_lobby()
-	var combo: OptionButton = lobby.get_node("%MapComboOption") as OptionButton
-	var size_count: int = Lobby.MAP_SIZE_LABELS.size()
-	for index: int in range(combo.item_count):
-		assert_eq(combo.get_item_icon(index), UiArtTable.shared().map_pictogram(index / size_count), "row %d" % index)
-	var ring_index: int = MatchConfig.MapVariant.RING * size_count
-	combo.select(ring_index)
-	lobby._on_map_combo_selected(ring_index)
-	assert_eq(lobby.map_thumbnail_texture(), UiArtTable.shared().map_pictogram(MatchConfig.MapVariant.RING))
+	assert_eq(lobby.map_thumbnail_texture(), UiArtTable.shared().map_pictogram(MatchConfig.MapVariant.ROUND))
 
 
 func test_lobby_section_headers_and_chips_show_icons() -> void:

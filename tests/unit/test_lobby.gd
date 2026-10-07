@@ -157,20 +157,52 @@ func test_a_client_teams_toggle_is_ignored() -> void:
 	assert_eq((lobby.get_node("%TeamModeOption") as OptionButton).selected, MatchConfig.TeamMode.OFF)
 
 
-## Bontago-mp0.3.5 (review r2, item 1): %MapComboOption's own handler decodes
-## a combined "variant * size" index back into the hidden %MapVariantOption/
-## %MapSizeOption (index = variant * MAP_SIZE_LABELS.size() + size) and
-## publishes exactly like any other host edit.
-func test_host_selecting_a_map_combo_entry_publishes_the_decoded_variant_and_size() -> void:
+## Bontago-1pi.107: the disc-size slider defaults to medium (step 2, 100%), publishes the chosen
+## step and pins the map to Round/Medium; the other map pickers are gone from the card.
+func test_disc_size_slider_defaults_to_medium_and_publishes_the_step() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	# Ring (index 2) * Large (index 2 of 3): combo index = 2 * 3 + 2 = 8.
-	lobby._on_map_combo_selected(8)
+	var slider: HSlider = lobby.get_node("%DiscSizeSlider") as HSlider
+	assert_eq(int(slider.value), MatchConfig.DISC_SIZE_STEP_DEFAULT)
+	assert_eq(int(slider.max_value), DiscSizeTuning.shared().step_count() - 1)
+	assert_eq((lobby.get_node("%DiscSizeValue") as Label).text, "Medium - 100%")
+	slider.value = 0.0
 	var calls: Array[Dictionary] = _fake_of(lobby).set_lobby_data_calls
 	assert_eq(calls.size(), 1)
-	assert_eq(int(calls[0].get("map_variant")), MatchConfig.MapVariant.RING)
-	assert_eq(int(calls[0].get("map_size")), int(MapDef.MapSize.LARGE))
-	assert_eq((lobby.get_node("%MapVariantOption") as OptionButton).selected, MatchConfig.MapVariant.RING)
-	assert_eq((lobby.get_node("%MapSizeOption") as OptionButton).selected, int(MapDef.MapSize.LARGE))
+	assert_eq(int(calls[0].get("disc_size_step")), 0)
+	assert_eq(int(calls[0].get("map_variant")), MatchConfig.MapVariant.ROUND)
+	assert_eq(int(calls[0].get("map_size")), int(MapDef.MapSize.MEDIUM))
+	assert_eq((lobby.get_node("%DiscSizeValue") as Label).text, "Tiny - 50%")
+
+
+## Keyboard / gamepad left-right on the focused slider steps it one stop; a client's is inert.
+func test_disc_size_slider_steps_with_ui_left_and_right() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var slider: HSlider = lobby.get_node("%DiscSizeSlider") as HSlider
+	var right: InputEventAction = InputEventAction.new()
+	right.action = &"ui_right"
+	right.pressed = true
+	slider.gui_input.emit(right)
+	assert_eq(int(slider.value), MatchConfig.DISC_SIZE_STEP_DEFAULT + 1)
+	var left: InputEventAction = InputEventAction.new()
+	left.action = &"ui_left"
+	left.pressed = true
+	slider.gui_input.emit(left)
+	slider.gui_input.emit(left)
+	assert_eq(int(slider.value), MatchConfig.DISC_SIZE_STEP_DEFAULT - 1)
+	var client: Lobby = _make_lobby(false)
+	var client_slider: HSlider = client.get_node("%DiscSizeSlider") as HSlider
+	assert_false(client_slider.editable)
+	client_slider.gui_input.emit(right)
+	assert_eq(int(client_slider.value), MatchConfig.DISC_SIZE_STEP_DEFAULT)
+
+
+func test_remote_lobby_data_moves_the_disc_size_slider() -> void:
+	var lobby: Lobby = _make_lobby(false)
+	var config: MatchConfig = MatchConfig.new()
+	config.disc_size_step = 5
+	lobby._apply_data(config.to_dict())
+	assert_eq(int((lobby.get_node("%DiscSizeSlider") as HSlider).value), 5)
+	assert_eq((lobby.get_node("%DiscSizeValue") as Label).text, "Enormous - 175%")
 
 
 ## Bontago-mp0.3.5 (review r1, item 12): Net.host_game() populates its own
@@ -881,7 +913,7 @@ func test_ui_cancel_backs_out_of_the_lobby() -> void:
 func test_opening_grabs_focus_somewhere() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	assert_not_null(get_viewport().gui_get_focus_owner(), "the lobby must land focus somewhere as soon as it opens.")
-	assert_true((lobby.get_node("%MapComboOption") as Control).has_focus())
+	assert_true((lobby.get_node("%DiscSizeSlider") as Control).has_focus())
 
 
 ## Bontago-1pi.15.1 fix: pressing B on the lobby screen used to do nothing at all unless a
@@ -982,7 +1014,7 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 
 	var top_neighbor: Node = first_stop.get_node(first_stop.focus_neighbor_top)
 	assert_eq(top_neighbor, start_button, "the game mode's up neighbor must close the loop back to StartButton")
-	var second_option: Control = lobby.get_node("%MapComboOption") as Control
+	var second_option: Control = lobby.get_node("%DiscSizeSlider") as Control
 	assert_eq(first_stop.get_node(first_stop.focus_neighbor_bottom), second_option, "the map picker follows the mode picker")
 
 	# Bontago-1pi.53 (S1b): the hidden sources of truth (%TeamModeOption, the seat spins and
@@ -990,7 +1022,7 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	# map dropdown) are never stops a Tab press could not visibly land on. Collapsed Advanced
 	# blocks and the hidden Steam-only invite button are not stops either.
 	var chain_unique_names: Array[String] = [
-		"%MapComboOption", "%GameModeOption", "%SkyThemeOption", "%WeatherOption",
+		"%DiscSizeSlider", "%GameModeOption", "%SkyThemeOption", "%WeatherOption",
 		"%MatchTimerSlider", "%SuddenDeathCheck", "%BlockTimerSlider",
 		"%GiftsCheck", "%SpecialFreqSlider", "%StartButton",
 	]
@@ -1068,7 +1100,7 @@ func test_lobby_quick_y_toggles_the_advanced_block_of_the_focused_section() -> v
 	var lobby: Lobby = _make_lobby(true)
 	var game: LobbySection = lobby.get_node("%GameSection") as LobbySection
 	var gifts: LobbySection = lobby.get_node("%GiftsSection") as LobbySection
-	assert_true((lobby.get_node("%MapComboOption") as Control).has_focus(), "fixture: focus starts in GAME")
+	assert_true((lobby.get_node("%DiscSizeSlider") as Control).has_focus(), "fixture: focus starts in GAME")
 	lobby._unhandled_input(_y_event())
 	assert_true(game.is_advanced_open(), "Y opens the focused section's Advanced block")
 	assert_false(gifts.is_advanced_open())

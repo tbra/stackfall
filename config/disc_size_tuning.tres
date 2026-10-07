@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="DiscSizeTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/DiscSizeTuning.gd" id="1_disc"]
+
+[resource]
+script = ExtResource("1_disc")
+step_labels = PackedStringArray("Tiny", "Small", "Medium", "Large", "Huge", "Enormous")
+step_factors = PackedFloat32Array(0.5, 0.75, 1.0, 1.25, 1.5, 1.75)
+value_format = "%s - %d%%"

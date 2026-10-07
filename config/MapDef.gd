@@ -228,6 +228,23 @@ static func shape_id(variant: int) -> String:
 	return (keys[variant] as String).to_lower()
 
 
+## Bontago-1pi.107: a uniformly scaled copy of this map (the lobby's disc-size
+## slider, see config/DiscSizeTuning.gd for the DECISION on what scales). The
+## radius, the territory texture resolution and the absolute bridge widths
+## scale; every fraction-of-radius field (flags, hole, arms) follows the radius
+## by itself, and cell_size / disk_height / wake query extents stay as they are.
+## A factor of 1.0 returns this very resource so the default map is untouched.
+func scaled(factor: float) -> MapDef:
+	if is_equal_approx(factor, 1.0) or factor <= 0.0:
+		return self
+	var copy: MapDef = duplicate(true) as MapDef
+	copy.field_radius = field_radius * factor
+	copy.territory_res = maxi(roundi(float(territory_res) * factor), 1)
+	copy.ring_bridge_half_width = ring_bridge_half_width * factor
+	copy.twin_bridge_half_width = twin_bridge_half_width * factor
+	return copy
+
+
 ## Number of cells along one edge of the square grid that covers the disk.
 func cells_per_side() -> int:
 	return int(ceil(2.0 * field_radius / maxf(cell_size, 0.001)))

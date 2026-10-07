@@ -220,7 +220,7 @@ func _apply_default_view() -> void:
 		# whole-disk overview the free camera starts from.
 		apply_follow_tuning()
 	else:
-		_distance = clampf(map_def.field_radius * 1.4, tuning.zoom_min, tuning.zoom_max)
+		_distance = clampf(map_def.field_radius * 1.4, tuning.zoom_min, _zoom_max())
 		_pitch = deg_to_rad(tuning.snap_pitch_deg)
 		_update_transform()
 
@@ -536,7 +536,7 @@ func begin_start_framing(slot_id: int) -> bool:
 	# wide start angle) -- CameraTuning's start_* pitch/distance, held from the
 	# ready gate through PLAYING with no shift; the follow keeps it until the
 	# player moves the camera.
-	_distance = clampf(tuning.start_distance_m, tuning.zoom_min, tuning.zoom_max)
+	_distance = clampf(tuning.start_distance_m, tuning.zoom_min, _zoom_max())
 	_pitch = deg_to_rad(tuning.start_pitch_deg)
 	_update_transform()
 	return true
@@ -595,7 +595,7 @@ func apply_follow_tuning() -> void:
 	_camera.fov = tuning.fov_deg
 	if not tuning.follow_block:
 		return
-	_distance = clampf(tuning.follow_distance, tuning.zoom_min, tuning.zoom_max)
+	_distance = clampf(tuning.follow_distance, tuning.zoom_min, _zoom_max())
 	_pitch = deg_to_rad(tuning.follow_pitch_deg)
 	_update_transform()
 
@@ -680,8 +680,22 @@ func _rotate_drag_frozen() -> bool:
 	return Input.is_action_pressed(&"rotate_drag")
 
 
+## Bontago-1pi.107: the match's own (possibly disc-size scaled) map; the rig frames and
+## zooms relative to it. Called by Main whenever the field is rebuilt.
+func set_map_def(new_map_def: MapDef) -> void:
+	if new_map_def != null:
+		map_def = new_map_def
+
+
+## The farthest zoom: tuning.zoom_max, grown in proportion when the disc is larger than the
+## default medium map so a whole enormous disc still fits in view (never shrunk).
+func _zoom_max() -> float:
+	var growth: float = maxf(map_def.field_radius / MapDef.RADIUS_MEDIUM, 1.0) if map_def != null else 1.0
+	return tuning.zoom_max * growth
+
+
 func _zoom(direction: float) -> void:
-	_distance = clampf(_distance + direction * tuning.zoom_step, tuning.zoom_min, tuning.zoom_max)
+	_distance = clampf(_distance + direction * tuning.zoom_step, tuning.zoom_min, _zoom_max())
 
 
 ## Bontago-mv0.22 (spec 2.5 "mouse wheel zooms while held" [ORIGINAL, owner
@@ -698,7 +712,7 @@ func zoom_by_orbit_step(direction: float) -> void:
 		# the player also holds rotate_drag at the same time, freeze wins --
 		# see the DECISION on _rotate_drag_frozen().
 		return
-	_distance = clampf(_distance + direction * tuning.orbit_zoom_step, tuning.zoom_min, tuning.zoom_max)
+	_distance = clampf(_distance + direction * tuning.orbit_zoom_step, tuning.zoom_min, _zoom_max())
 
 
 ## Owner controller update (feedback/controller-update.md, re-confirmed
@@ -713,7 +727,7 @@ func zoom_by_orbit_step(direction: float) -> void:
 func zoom_continuous(amount: float) -> void:
 	if _rotate_drag_frozen():
 		return
-	_distance = clampf(_distance + amount, tuning.zoom_min, tuning.zoom_max)
+	_distance = clampf(_distance + amount, tuning.zoom_min, _zoom_max())
 
 
 func _pan_offset(input_2d: Vector2) -> Vector3:
@@ -817,7 +831,7 @@ func _approach_focus(target_point: Vector3, distance_val: float, pitch_deg: floa
 		weight = 1.0 - exp(-delta / lag_s)
 	weight = clampf(weight, 0.0, 1.0)
 	_target = _target.lerp(target_point, weight)
-	_distance = lerpf(_distance, clampf(distance_val, tuning.zoom_min, tuning.zoom_max), weight)
+	_distance = lerpf(_distance, clampf(distance_val, tuning.zoom_min, _zoom_max()), weight)
 	_pitch = lerpf(_pitch, deg_to_rad(pitch_deg), weight)
 
 
