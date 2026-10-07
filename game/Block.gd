@@ -400,8 +400,7 @@ func _apply_release_tilt(state: PhysicsDirectBodyState3D) -> void:
 ## overwrites the whole vector (JumpingBeanEffect's hop, RocketEffect's thrust
 ## tick). See mark_script_kick() below for the case that doesn't fit this
 ## (a partial write like Propeller's `.y` component, or an external caller
-## that only has this Block as a plain RigidBody3D, like SpecialPhysics.
-## explode()).
+## that only has this Block as a plain RigidBody3D).
 func kick(velocity: Vector3) -> void:
 	linear_velocity = velocity
 	mark_script_kick()
@@ -411,9 +410,8 @@ func kick(velocity: Vector3) -> void:
 ## write, not a natural bounce -- see _integrate_forces()'s own review-fix
 ## DECISION above for why a flag, not contact detection. Call this right after
 ## directly assigning/adding to `linear_velocity` (or apply_impulse()) from a
-## special effect, whenever kick() itself doesn't fit (PropellerEffect only
-## overwrites the Y component every tick; SpecialPhysics.explode() only has
-## the body it hits as a plain RigidBody3D, so it casts to Block first).
+## special effect, whenever kick() itself doesn't fit (e.g. PropellerEffect
+## only overwrites the Y component every tick).
 func mark_script_kick() -> void:
 	_script_kick_pending = true
 
@@ -578,8 +576,8 @@ func is_freeze_static() -> bool:
 
 ## Releases only FREEZE_REASON_STABLE (docs/M8_PLAN.md Interface stubs item
 ## 2): called by a special effect right before it writes this block's
-## velocity/applies an impulse (game/specials/SpecialPhysics.gd's explode(),
-## a separate M8 P5b dispatch), so the stable-block auto-freeze above can
+## velocity/applies an impulse (SpecialPhysics.wake_and_impulse callers and
+## ExplosionFx.blast), so the stable-block auto-freeze above can
 ## never turn a special's impulse into a silent no-op -- RigidBody3D ignores
 ## apply_impulse()/linear_velocity writes on a STATIC body. Deliberately
 ## narrower than "release everything": any *other* reason still holding this
