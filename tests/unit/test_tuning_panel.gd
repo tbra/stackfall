@@ -1098,6 +1098,8 @@ func test_m7_config_resources_have_complete_hints() -> void:
 
 			var prop_name: String = str(prop.get("name", ""))
 			var type: int = int(prop.get("type", TYPE_NIL))
+			if _panel.is_unused_field(class_label, prop_name):
+				continue
 			checked_any = true
 
 			# Every exported property must have a description.
@@ -1403,3 +1405,98 @@ func test_gut_run_save_overrides_never_touches_real_file() -> void:
 	assert_eq(FileAccess.file_exists(real), existed, "real file existence unchanged")
 	if existed:
 		assert_eq(FileAccess.get_modified_time(real), mtime, "real file mtime unchanged")
+
+
+# --- Bontago-1pi.112: no unused rows, grouped and sorted ------------------------
+
+## Fields read only through an accessor method on their own config class: the
+## accessor name must still appear in live game code outside config/ and the panel.
+const READ_VIA_ACCESSOR: Dictionary = {
+	"GhostTuning.home_spawn_beacon_margin": "home_spawn_clear_hover",
+	"GhostTuning.home_spawn_back_offset": "home_spawn_back_position",
+	"QolExperiments.pause_max_s": "effective_pause_max_s",
+	"QolExperiments.backlog_max": "effective_backlog_max",
+	"QolExperiments.goal_radius_multiplier": "effective_goal_radius",
+	"QolExperiments.gift_slot_min_window_s": "effective_gift_min_window_s",
+	"SkyThemeDef.aurora_start_night_mix": "aurora_night_strength",
+	"SkyThemeDef.aurora_full_night_mix": "aurora_night_strength",
+	"SkyThemeDef.cycle_locked_phase_sunset": "locked_phase_for",
+	"SkyThemeDef.cycle_locked_phase_dawn": "locked_phase_for",
+	"SkyThemeDef.cycle_locked_phase_night": "locked_phase_for",
+}
+const LIVE_CODE_DIRS: PackedStringArray = ["game", "autoload", "core", "net", "vfx", "ui", "shaders"]
+
+
+func _collect_code(dir_path: String, out: PackedStringArray) -> void:
+	for sub: String in DirAccess.get_directories_at(dir_path):
+		_collect_code("%s/%s" % [dir_path, sub], out)
+	for file_name: String in DirAccess.get_files_at(dir_path):
+		if not (file_name.ends_with(".gd") or file_name.ends_with(".gdshader")):
+			continue
+		if dir_path == "res://ui" and file_name == "TuningPanel.gd":
+			continue
+		var text: String = FileAccess.get_file_as_string("%s/%s" % [dir_path, file_name])
+		var kept: PackedStringArray = PackedStringArray()
+		for line: String in text.split("
+"):
+			if not line.strip_edges().begins_with("#"):
+				kept.append(line)
+		out.append("
+".join(kept))
+
+
+func test_every_shown_control_is_read_by_live_game_code() -> void:
+	var sources: PackedStringArray = PackedStringArray()
+	for dir_name: String in LIVE_CODE_DIRS:
+		_collect_code("res://%s" % dir_name, sources)
+	var blob: String = "
+".join(sources)
+	var resources: Array[Resource] = [
+		_panel.camera_tuning, _panel.ghost_tuning, _panel.physics_tuning,
+		_panel.territory_tuning, _panel.territory_visuals, _panel.block_feed_config,
+		_panel.block_visual_tuning, _panel.block_effects_config, _panel.beacon_visual_tuning,
+		_panel.camera_shake_config, _panel.hud_visual_tuning, _panel.qol_experiments,
+		_panel.sky_theme,
+	]
+	var checked: int = 0
+	for resource: Resource in resources:
+		var class_label: String = String((resource.get_script() as Script).get_global_name())
+		for prop_name: String in _panel.shown_fields_for(resource):
+			checked += 1
+			assert_true(resource.get(prop_name) != null, "%s.%s exists" % [class_label, prop_name])
+			var key: String = "%s.%s" % [class_label, prop_name]
+			var token: String = String(READ_VIA_ACCESSOR.get(key, prop_name))
+			var pattern: RegEx = RegEx.create_from_string("(\\.%s\\b|\"%s\")" % [token, token])
+			assert_not_null(pattern.search(blob), "%s is shown but nothing outside config/ reads it" % key)
+	assert_gt(checked, 300, "fixture: the table covers every tab's rows")
+
+
+func test_unused_fields_get_no_row_and_no_hint() -> void:
+	for key: String in TuningPanel.UNUSED_FIELDS:
+		var parts: PackedStringArray = key.split(".")
+		assert_eq(_panel.hints.description_for(parts[0], parts[1]), "", "%s hint removed" % key)
+	assert_null(_panel.control_for(_panel.territory_visuals, "flag_pole_height"))
+	assert_null(_panel.control_for(_panel.block_feed_config, "preview_count"))
+	assert_null(_panel.control_for(_panel.hud_visual_tuning, "panel_border_color"))
+	assert_not_null(_panel.control_for(_panel.block_feed_config, "bag_multiplier"))
+
+
+func test_rows_are_grouped_under_headers_general_first_then_alphabetical() -> void:
+	var titles: Array[String] = _panel.group_titles_for(_panel.block_effects_config)
+	assert_gt(titles.size(), 2, "BlockEffectsConfig splits into several groups")
+	if titles.has(TuningPanel.GENERAL_GROUP):
+		assert_eq(titles[0], TuningPanel.GENERAL_GROUP, "General comes first")
+	var rest: Array[String] = titles.duplicate()
+	rest.erase(TuningPanel.GENERAL_GROUP)
+	var sorted_rest: Array[String] = rest.duplicate()
+	sorted_rest.sort()
+	assert_eq(rest, sorted_rest, "named groups are alphabetical")
+	assert_true(titles.has("Dust") and titles.has("Trail"))
+	var header: Node = _panel._tab_container.find_child("Group_Dust", true, false)
+	assert_not_null(header, "the group header is rendered")
+
+
+func test_fields_inside_a_group_are_sorted() -> void:
+	var groups: Dictionary = _panel._group_field_names(["dust_b", "dust_a", "dust_c", "solo", "x_y"])
+	assert_eq(groups["Dust"], ["dust_a", "dust_b", "dust_c"])
+	assert_eq(groups[TuningPanel.GENERAL_GROUP], ["solo", "x_y"])
