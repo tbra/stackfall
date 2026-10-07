@@ -327,7 +327,7 @@ func host_game(port: int = 0, player_name: String = "", advertise: bool = true) 
 	_peers.clear()
 	# Bontago-1pi.49: the host's own name goes through the same check a joiner's
 	# does, so an empty or oversized typed name is "Player 1" or cut, everywhere.
-	var host_name: String = PlayerNames.sanitize(player_name, config.max_player_name_length, 0)
+	var host_name: String = PlayerNames.sanitize(resolve_local_name(player_name), config.max_player_name_length, 0)
 	_peers[HOST_PEER_ID] = LobbySeats.entry_to_wire(HOST_PEER_ID, 0, host_name, false, 0.0, _host_build_version)
 	_next_slot_id = 1
 	_accepting_joins = advertise
@@ -356,7 +356,7 @@ func join_game(address: String, port: int = 0, player_name: String = "") -> Erro
 	_peers.clear()
 	# Bontago-1pi.49: cleaned here so a bad name is never sent; "" stays "" (the
 	# host seats the joiner as "Player N"). The host re-checks it regardless.
-	_pending_join_name = PlayerNames.clean(player_name, config.max_player_name_length)
+	_pending_join_name = PlayerNames.clean(resolve_local_name(player_name), config.max_player_name_length)
 	_join_scope = "enet:%s:%d" % [address, use_port]
 	_joined_accepted = false
 	_join_deadline = _now() + config.connect_timeout + config.handshake_timeout
@@ -686,6 +686,22 @@ func lobby_data() -> Dictionary:
 ## notes": "addon not installed" and "status != 0" are logged with different
 ## messages but collapse to this one false for every UI purpose — the whole
 ## point being a caller never needs to ask which case it is.
+## Bontago-1pi.100 single owner of "which name does the local player go by".
+## DECISION (owner: names come from Steam, the name setting is the fallback):
+## (1) while Steam is initialised and reports a non-empty persona name, the
+## persona wins; (2) otherwise the typed/saved name (`typed`, the Settings name;
+## "" when never set); (3) "" so the host seats "Player N". The result is still
+## cleaned/sanitised by every caller and again by the host.
+func resolve_local_name(typed: String) -> String:
+	if steam_available():
+		var persona: String = PlayerNames.clean(
+			String(steam_provider.local_persona_name()), config.max_player_name_length
+		)
+		if persona != "":
+			return persona
+	return typed
+
+
 func steam_available() -> bool:
 	return steam_provider != null and bool(steam_provider.is_available()) and _steam_ready
 
@@ -859,8 +875,7 @@ func _on_steam_lobby_created(result: int, lobby_id: int) -> void:
 		return
 
 	var host_name: String = PlayerNames.sanitize(
-		_steam_pending_name if _steam_pending_name != "" else String(steam_provider.local_persona_name()),
-		config.max_player_name_length, 0
+		resolve_local_name(_steam_pending_name), config.max_player_name_length, 0
 	)
 	# Tag the lobby *before* attempting to instantiate the transport peer.
 	# ClassDB.instantiate(&"SteamMultiplayerPeer") succeeding is explicitly
@@ -937,8 +952,7 @@ func _on_steam_lobby_joined(lobby_id: int, response: int) -> void:
 	_steam_lobby_id = lobby_id
 	_peers.clear()
 	_pending_join_name = PlayerNames.clean(
-		_steam_pending_name if _steam_pending_name != "" else String(steam_provider.local_persona_name()),
-		config.max_player_name_length
+		resolve_local_name(_steam_pending_name), config.max_player_name_length
 	)
 	_joined_accepted = false
 	_join_deadline = _now() + config.connect_timeout + config.handshake_timeout

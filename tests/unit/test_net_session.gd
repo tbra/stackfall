@@ -596,7 +596,7 @@ func test_lobby_created_tags_the_lobby_with_the_json_encoded_match_config() -> v
 
 	assert_eq(fake.get_lobby_data(lobby_id, String(SteamClient.KEY_GAME)), String(Net.DISCOVERY_MAGIC))
 	assert_eq(fake.get_lobby_data(lobby_id, String(SteamClient.KEY_VERSION)), _host.build_version())
-	assert_eq(fake.get_lobby_data(lobby_id, String(SteamClient.KEY_HOST_NAME)), "Hostie")
+	assert_eq(fake.get_lobby_data(lobby_id, String(SteamClient.KEY_HOST_NAME)), "TestSteamUser")
 
 	var decoded: Dictionary = SteamClient.decode_match_config(
 		fake.get_lobby_data(lobby_id, String(SteamClient.KEY_MATCH_CONFIG))
@@ -816,7 +816,7 @@ func test_host_online_refuses_a_second_call_while_the_first_is_still_pending() -
 
 	fake.lobby_created.emit(FakeSteam.RESULT_OK, 111)
 	assert_eq(
-		fake.get_lobby_data(111, String(SteamClient.KEY_HOST_NAME)), "Hostie",
+		fake.get_lobby_data(111, String(SteamClient.KEY_HOST_NAME)), "TestSteamUser",
 		"the only request in flight must be the first one's"
 	)
 
@@ -907,7 +907,7 @@ func test_leave_then_host_online_before_either_answers_the_first_delivered_answe
 	# not dropped as stale in its place (the exact bug this fix targets).
 	fake.lobby_created.emit(FakeSteam.RESULT_OK, 222)
 	assert_eq(
-		fake.get_lobby_data(222, String(SteamClient.KEY_HOST_NAME)), "Hostie2",
+		fake.get_lobby_data(222, String(SteamClient.KEY_HOST_NAME)), "TestSteamUser",
 		"the attempt delivered second must be accepted as the live one, tagged with its own player name"
 	)
 	# 222 is still handed to leave_lobby() here too, but for an unrelated,
@@ -948,7 +948,7 @@ func test_leave_then_host_online_before_either_answers_also_resolves_with_the_id
 
 	fake.lobby_created.emit(FakeSteam.RESULT_OK, 111)
 	assert_eq(
-		fake.get_lobby_data(111, String(SteamClient.KEY_HOST_NAME)), "Hostie2",
+		fake.get_lobby_data(111, String(SteamClient.KEY_HOST_NAME)), "TestSteamUser",
 		"whichever answer arrives after must be accepted as the live attempt"
 	)
 	assert_eq(fake.leave_lobby_calls, [222, 111], "111 is released only by the peer-construction crash-safety path")

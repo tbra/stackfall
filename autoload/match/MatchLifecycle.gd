@@ -1012,6 +1012,9 @@ func _peer_name_for_slot(slot_id: int) -> String:
 	if session.has_method(&"name_for_slot"):
 		peer_name = String(session.name_for_slot(slot_id))
 	if peer_name == "" and slot_id == 0 and session.has_method(&"is_offline") and bool(session.is_offline()):
+		# Bontago-1pi.100: the Steam persona wins when Steam is up.
+		if session.has_method(&"resolve_local_name"):
+			return String(session.resolve_local_name(Settings.player_name()))
 		return Settings.player_name()
 	return peer_name
 

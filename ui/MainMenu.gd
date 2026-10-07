@@ -459,7 +459,11 @@ func _on_back_pressed() -> void:
 
 
 func _on_bots_pressed() -> void:
-	bots_requested.emit(_player_name())
+	var bot_host_name: String = _player_name()
+	if net_provider.has_method(&"resolve_local_name"):
+		# Bontago-1pi.100: the Steam persona wins when Steam is up.
+		bot_host_name = String(net_provider.resolve_local_name(bot_host_name))
+	bots_requested.emit(bot_host_name)
 
 
 ## Bontago-1pi.34 seam: shows/hides the debug entry on a live menu (the answer
