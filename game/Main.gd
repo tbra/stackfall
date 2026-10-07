@@ -421,8 +421,15 @@ func _start_hot_seat_match() -> void:
 	_field.rebuild_for_map(config.map_def())
 	_field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
 	_field.set_overlay_source(Match.raster(), config.territory_colors())
-	_skybox.load_set(config.map_def().skybox_set)
+	_apply_match_sky(config)
 	_horizon_islands.rebuild_for_map(config.map_def(), _world_environment.environment if _world_environment != null else null)
+
+
+## Bontago-1pi.108: every mode that builds a world (match, hot-seat, sandbox, tutorial)
+## gets the same sky: the map's textured set plus the config's theme / cycle.
+func _apply_match_sky(config: MatchConfig) -> void:
+	_skybox.load_set(config.map_def().skybox_set)
+	_skybox.configure_match_sky(config)
 
 
 ## The lobby settings a real lobby screen collects, for the one path that
@@ -469,7 +476,7 @@ func _start_sandbox_match_with_args(args: PackedStringArray) -> void:
 	_field.rebuild_for_map(config.map_def())
 	_field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
 	_field.set_overlay_source(Match.raster(), config.territory_colors())
-	_skybox.load_set(config.map_def().skybox_set)
+	_apply_match_sky(config)
 	_horizon_islands.rebuild_for_map(config.map_def(), _world_environment.environment if _world_environment != null else null)
 
 	# F3's overlay works offline too (Net.stats() reports Offline/0 peers,
@@ -642,7 +649,7 @@ func start_tutorial_from_menu() -> void:
 	_field.rebuild_for_map(config.map_def())
 	_field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
 	_field.set_overlay_source(Match.raster(), config.territory_colors())
-	_skybox.load_set(config.map_def().skybox_set)
+	_apply_match_sky(config)
 	_horizon_islands.rebuild_for_map(config.map_def(), _world_environment.environment if _world_environment != null else null)
 
 
@@ -1580,11 +1587,10 @@ func _build_match_world(force_staging_for_test: bool = false) -> void:
 			_world_building = false
 			return
 	_field.set_overlay_source(Match.raster(), config.territory_colors())
-	_skybox.load_set(config.map_def().skybox_set)
+	_apply_match_sky(config)
 	_horizon_islands.rebuild_for_map(config.map_def(), _world_environment.environment if _world_environment != null else null)
 	# Bontago-470.4: the lobby's Day/Night/Random, resolved by the host and
 	# replicated; the F4 Theme dropdown still overrides live afterwards.
-	_skybox.configure_match_sky(config)
 
 	SnapshotSync.set_disk(_field)
 	SnapshotSync.begin_match(Match.registry(), config.map_def())
