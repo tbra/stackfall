@@ -26,7 +26,20 @@ extends SpecialEffect
 
 ## Seconds the pull runs, from the first armed tick, before this special
 ## force-triggers on its own. docs/SPEC.md: "for 3 s".
-@export var pull_duration_s: float = 3.0
+@export var pull_duration_s: float = 6.0
+
+## The model's "nose" in the carrier's local frame: magnet_v1.glb's pole tips sit at +Y. While
+## thrown (airborne, before the pull starts) the carrier turns so this axis leads along its
+## velocity (Bontago-1pi.85.49, FlightFacing).
+@export var model_nose_axis: Vector3 = Vector3(0.0, 1.0, 0.0)
+
+## Seconds after the throw before the pull starts (the old SpecialDef.arm_delay of 0.4 s). The def's
+## arm_delay is 0 so physics_tick() runs, and the carrier faces its velocity, from the first tick
+## (Bontago-1pi.85.49); the pull itself waits this long.
+@export var pull_start_delay_s: float = 0.0
+
+## Below this speed (m/s) the thrown magnet keeps its pose instead of facing its velocity.
+@export var face_min_speed_mps: float = 1.0
 
 ## @export var tuning ... mirrors BombEffect.gd:18's preload pattern so every
 ## SpecialEffect subclass follows the same "has its own SpecialTuning
@@ -43,6 +56,10 @@ extends SpecialEffect
 ## tick after via elapsed = age() - start_age.
 const _START_AGE_META: StringName = &"magnet_start_age"
 
+## block.set_meta() key: set once the thrown magnet has slowed below face_min_speed_mps (landed);
+## from then on it keeps its resting pose instead of turning toward a slide or wobble.
+const _FACING_DONE_META: StringName = &"magnet_facing_done"
+
 
 ## Pulls every enemy Block within pull.radius_m toward this block's own
 ## position, every armed tick, for pull_duration_s seconds starting the very
@@ -52,6 +69,9 @@ const _START_AGE_META: StringName = &"magnet_start_age"
 func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void:
 	if not block.has_meta(_START_AGE_META):
 		block.set_meta(_START_AGE_META, behavior.age())
+	_face_while_airborne(block)
+	if behavior.age() - float(block.get_meta(_START_AGE_META)) < pull_start_delay_s:
+		return
 
 	var world: World3D = block.get_world_3d()
 	if world == null:
@@ -75,6 +95,20 @@ func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void
 	RadialPull.pull(space_state, block.global_position, pull, exclude, enemy_only_filter, delta)
 
 
+## Bontago-1pi.85.49: while the thrown magnet is still travelling it turns so the pole tips lead
+## along its velocity (FlightFacing); once it slows below `face_min_speed_mps` it has landed and
+## keeps that pose for good. Runs from the first tick (magnet.tres arm_delay is 0).
+func _face_while_airborne(block: Block) -> void:
+	if block.has_meta(_FACING_DONE_META):
+		return
+	if block.linear_velocity.length() < face_min_speed_mps:
+		if block.has_meta(FlightFacing.FACED_META):
+			block.set_meta(_FACING_DONE_META, true)
+		return
+	block.angular_velocity = Vector3.ZERO
+	FlightFacing.face_velocity(block, model_nose_axis, face_min_speed_mps)
+
+
 ## FIX pattern (matches PropellerEffect.gd/VolcanoEffect.gd's own
 ## impact_triggers() override, Bontago-1en.22): vetoes the decel-based impact
 ## trigger entirely so the magnet's own landing impact right as it arms can't
@@ -90,7 +124,7 @@ func wants_early_trigger(block: Block, behavior: SpecialBehavior) -> bool:
 	if not block.has_meta(_START_AGE_META):
 		return false
 	var elapsed: float = behavior.age() - float(block.get_meta(_START_AGE_META))
-	return elapsed >= pull_duration_s
+	return elapsed >= pull_start_delay_s + pull_duration_s
 
 
 ## No-op: the pull already ran, tick by tick, in physics_tick() above --
@@ -103,4 +137,4 @@ func detonate(_block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> v
 ## The pull window is the effect's lifetime (SpecialBehavior derives the fuse backstop
 ## from it instead of the blanket arm_delay + fuse_timeout_s).
 func effect_lifetime_s() -> float:
-	return pull_duration_s
+	return pull_start_delay_s + pull_duration_s
