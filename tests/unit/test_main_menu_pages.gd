@@ -193,6 +193,9 @@ func test_debug_page_offers_the_gift_demo_and_back_returns_to_the_entry() -> voi
 	assert_eq(_focus(), _node(menu, "GiftDemoButton"))
 	_node(menu, "GiftDemoButton").pressed.emit()
 	assert_signal_emit_count(menu, "gift_demo_requested", 1)
+	assert_true(_node(menu, "TowerToppleButton").is_visible_in_tree())
+	_node(menu, "TowerToppleButton").pressed.emit()
+	assert_signal_emit_count(menu, "tower_topple_requested", 1)
 	var cancel: InputEventAction = InputEventAction.new()
 	cancel.action = "ui_cancel"
 	cancel.pressed = true
@@ -206,7 +209,9 @@ func test_demo_buttons_do_nothing_when_debug_mode_is_off() -> void:
 	watch_signals(menu)
 	menu._on_debug_pressed()
 	menu._on_gift_demo_pressed()
+	menu._on_tower_topple_pressed()
 	assert_signal_not_emitted(menu, "gift_demo_requested")
+	assert_signal_not_emitted(menu, "tower_topple_requested")
 	assert_false(_node(menu, "GiftDemoButton").is_visible_in_tree())
 
 

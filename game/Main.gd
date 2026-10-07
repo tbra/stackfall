@@ -64,6 +64,7 @@ const LOBBY_SCENE: PackedScene = preload("res://ui/Lobby.tscn")
 const HOT_SEAT_SCENE: PackedScene = preload("res://game/HotSeat.tscn")
 const SANDBOX_SCENE: PackedScene = preload("res://game/Sandbox.tscn")
 const GIFT_DEMO_PRESET: SandboxConfig = preload("res://config/sandbox_gift_demo.tres")
+const TOWER_TOPPLE_PRESET: SandboxConfig = preload("res://config/sandbox_tower_topple.tres")
 ## docs/M6_PLAN.md package B3 (spec 2.7 "Tutorial").
 const TUTORIAL_SCENE: PackedScene = preload("res://ui/Tutorial.tscn")
 const REMOTE_CURSORS_SCENE: PackedScene = preload("res://game/RemoteCursors.tscn")
@@ -538,6 +539,18 @@ func start_gift_demo_from_menu() -> void:
 	_sandbox_preset = GIFT_DEMO_PRESET
 	_launch_sandbox_from_menu()
 	_sandbox.apply_preset(GIFT_DEMO_PRESET)
+
+
+## Bontago-1pi.102: the Debug page's Tower topple. Same sandbox path with
+## config/sandbox_tower_topple.tres: a row of settled towers (the tower tests'
+## heights, up to the 30/40-block acceptance towers) to knock down with blocks
+## and gifts.
+func start_tower_topple_from_menu() -> void:
+	if not DebugMode.is_enabled():
+		return
+	_sandbox_preset = TOWER_TOPPLE_PRESET
+	_launch_sandbox_from_menu()
+	_sandbox.apply_preset(TOWER_TOPPLE_PRESET)
 
 
 ## Same lobby-settings-minus-a-few-overrides shape as _build_hot_seat_config().
@@ -1082,6 +1095,7 @@ func _show_main_menu() -> void:
 	_main_menu.tutorial_requested.connect(start_tutorial_from_menu)
 	_main_menu.bots_requested.connect(start_bots_from_menu)
 	_main_menu.gift_demo_requested.connect(start_gift_demo_from_menu)
+	_main_menu.tower_topple_requested.connect(start_tower_topple_from_menu)
 
 
 ## DECISION: Play local → Vs bots starts from the normal lobby with one human

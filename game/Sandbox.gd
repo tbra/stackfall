@@ -594,11 +594,16 @@ func apply_preset(preset: SandboxConfig) -> void:
 	_preplace_preset_blocks()
 
 
-## Ordinary accepted placements by every opponent slot (all but slot 0), stacked
-## at each home position, so the field has real blocks for gifts to hit.
+## Ordinary accepted placements, built as settled towers: either one tower per
+## opponent slot (all but slot 0), stood clear of its home beacon, or the
+## tower-topple row (SandboxConfig.row_tower_heights). Every block rests on the
+## one below at its exact height, so nothing spawns interpenetrating.
 func _preplace_preset_blocks() -> void:
 	_preplace_generation += 1
-	if _preset == null or _preset.preplaced_tower_blocks <= 0:
+	if _preset == null:
+		return
+	var row: bool = not _preset.row_tower_heights.is_empty()
+	if not row and _preset.preplaced_tower_blocks <= 0:
 		return
 	var generation: int = _preplace_generation
 	while Match.state() != Match.State.PLAYING:
@@ -607,15 +612,38 @@ func _preplace_preset_blocks() -> void:
 		await get_tree().process_frame
 	if generation != _preplace_generation or _field == null:
 		return
+	if row:
+		var count: int = _preset.row_tower_heights.size()
+		for i: int in range(count):
+			var x: float = (float(i) - float(count - 1) * 0.5) * _preset.row_tower_spacing
+			_build_tower(i % maxi(Match.slot_count(), 1), _preset.row_center + Vector2(x, 0.0), _preset.row_tower_heights[i])
+		return
 	for slot_id: int in range(1, Match.slot_count()):
 		var home: Vector2 = Match.slot(slot_id).home_position
-		for i: int in range(_preset.preplaced_tower_blocks):
-			var height: float = _preset.preplaced_drop_height + _preset.tower_spacing * float(i)
-			var origin: Vector3 = _field.to_global(Vector3(home.x, height, home.y))
-			var result: StringName = Match.request_place(slot_id, origin, 0, Quaternion.IDENTITY, false)
-			if result != PlacementRules.REASON_OK:
-				push_warning("Sandbox preset: pre-place for slot %d refused: %s" % [slot_id, result])
-				break
+		var inward: Vector2 = -home.normalized() * _preset.preplaced_home_offset if home.length() > 0.0 else Vector2.ZERO
+		_build_tower(slot_id, home + inward, _preset.preplaced_tower_blocks)
+
+
+## One tower of `height` blocks at disk-local `at`. Block i's collision box
+## rests on block i-1's (bench_tower's pivot maths: the body origin is the
+## bottom of the nominal cell, the box sits cube_margin / 2 above it).
+func _build_tower(slot_id: int, at: Vector2, height: int) -> void:
+	var tuning: PhysicsTuning = _controller.tuning
+	var edge: float = tuning.cube_size - tuning.cube_margin
+	var base_y: float = -tuning.cube_margin * 0.5
+	for i: int in range(height):
+		Match._feed.debug_force_next_shape(slot_id, _preset.preplaced_shape_id)
+		var origin: Vector3 = _field.to_global(Vector3(at.x, base_y + edge * float(i), at.y))
+		var result: StringName = Match.request_place(slot_id, origin, 0, Quaternion.IDENTITY, false)
+		if result != PlacementRules.REASON_OK:
+			push_warning("Sandbox preset: pre-place for slot %d refused: %s" % [slot_id, result])
+			break
+		var parent: Node = Match.blocks_parent()
+		var block: RigidBody3D = parent.get_child(parent.get_child_count() - 1) as RigidBody3D
+		if block != null:
+			block.linear_velocity = Vector3.ZERO
+			block.angular_velocity = Vector3.ZERO
+			block.sleeping = _preset.preplaced_start_asleep
 
 
 func _spawn_tower() -> void:

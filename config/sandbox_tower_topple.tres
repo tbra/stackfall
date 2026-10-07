@@ -4,13 +4,16 @@
 
 [resource]
 script = ExtResource("1_sandbox")
-default_player_count = 4
+default_player_count = 2
 tower_block_count = 6
 tower_spacing = 1.05
 panel_refresh_hz = 10.0
 slow_motion_scale = 0.25
-preplaced_tower_blocks = 3
+preplaced_tower_blocks = 0
 preplaced_home_offset = 4.0
 preplaced_start_asleep = true
 preplaced_shape_id = &"cube"
+row_tower_heights = PackedInt32Array(3, 6, 10, 20, 30, 40)
+row_tower_spacing = 5.0
+row_center = Vector2(0, 8)
 special_frequency_override = 100

@@ -45,8 +45,33 @@ extends Resource
 ## its home position when the sandbox starts and after each field reset. 0 = none.
 @export var preplaced_tower_blocks: int = 0
 
-## Height of the lowest pre-placed block above the field, in meters.
-@export var preplaced_drop_height: float = 5.0
+## Pre-placed towers are built resting on the disc (lowest block on the surface,
+## each block on the one below at its exact stacked height), never dropped, so
+## nothing is interpenetrating or falling at spawn. Opponent towers stand this
+## far in from their home beacon toward the field centre, in meters, so they
+## clear the beacon's collision (socket and crystal) with room to spare.
+@export var preplaced_home_offset: float = 4.0
+
+## Spawned towers start asleep (zero velocity) so they stand until something
+## hits them.
+@export var preplaced_start_asleep: bool = true
+
+## BlockShape id every pre-placed block uses (a stacked tower of cubes).
+@export var preplaced_shape_id: StringName = &"cube"
+
+## Tower-topple layout (Bontago-1pi.102). When non-empty this replaces the
+## per-opponent towers: one tower per entry, that many cubes tall, in a row
+## along the field's x axis centred on the origin, owned round-robin by the
+## slots. Mirrors the tower tests (a few heights plus the 30- and 40-block
+## acceptance towers).
+@export var row_tower_heights: PackedInt32Array = PackedInt32Array()
+
+## Centre-to-centre distance between neighbouring row towers, in meters.
+@export var row_tower_spacing: float = 5.0
+
+## Disk-local (x, z) centre of the row, in meters. Kept off the origin: the
+## central goal flag's zone (TerritoryTuning.goal_zone_radius) refuses blocks.
+@export var row_center: Vector2 = Vector2(0.0, 8.0)
 
 ## Gift-testing tweak: when >= 0, overrides MatchConfig.special_frequency
 ## (0-100) and forces gifts_enabled for the sandbox match. -1 leaves the
