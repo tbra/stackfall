@@ -36,7 +36,7 @@ extends CanvasLayer
 var _cycle_config_local: bool = false
 var _cycle_base_config: SunFlareConfig = null
 ## Wired in Main.tscn to the live gameplay camera (game/CameraRig.tscn's own
-## Camera3D), the same NodePath convention game/DiscMirror.gd's own
+## Camera3D), the same NodePath convention the removed DiscMirror's own
 ## camera_path/field_path already use for a sibling-node reference resolved
 ## once at _ready() rather than a deep get_node("../..") chain.
 @export var camera_path: NodePath = NodePath("")

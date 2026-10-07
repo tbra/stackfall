@@ -269,7 +269,6 @@ func _run() -> void:
 			if awake >= _callcost_marks[i]:
 				print("BM callcost_at_awake>=%d (awake=%d)" % [_callcost_marks[i], awake])
 				_call_cost(12)
-				_dm_probe()
 				_callcost_marks.remove_at(i)
 		if Match.state() != Match.State.PLAYING and t > 30:
 			print("BM match state=%s" % [Match.state()])
@@ -504,40 +503,3 @@ func _call_cost(top: int) -> void:
 	print("BM callcost total_us=%d phys_us=%d proc_us=%d nodes=%d" % [total, phys_total, proc_total, rows.size()])
 	for i: int in range(mini(top, rows.size())):
 		print("BM callcost %6d us  %s (%s)" % [rows[i][0], rows[i][1], rows[i][2]])
-
-
-## Bontago-1pi.11.20: per-statement cost of DiscMirror._process's pieces (us per call).
-func _dm_probe() -> void:
-	var dm: Node = get_tree().root.find_child("DiscMirror", true, false)
-	if dm == null:
-		return
-	var cam: Camera3D = dm.get(&"_source_camera") as Camera3D
-	var fld: Node3D = dm.get(&"_field") as Node3D
-	var vp: SubViewport = dm.get(&"_viewport") as SubViewport
-	var vis: Resource = dm.get(&"visuals") as Resource
-	var n: int = 300
-	var t0: int = Time.get_ticks_usec()
-	for i: int in range(n):
-		var x: Transform3D = cam.global_transform
-	var t1: int = Time.get_ticks_usec()
-	for i: int in range(n):
-		var x: Transform3D = fld.global_transform
-	var t2: int = Time.get_ticks_usec()
-	for i: int in range(n):
-		var s: Vector2i = dm.get_viewport().size
-	var t3: int = Time.get_ticks_usec()
-	for i: int in range(n):
-		dm.call(&"_resize_viewport")
-	var t4: int = Time.get_ticks_usec()
-	for i: int in range(n):
-		var k: Array = [cam.fov, cam.near, cam.far, cam.projection]
-	var t5: int = Time.get_ticks_usec()
-	for i: int in range(n):
-		var m: bool = vp.render_target_update_mode == SubViewport.UPDATE_ALWAYS
-		var e: float = vis.get(&"mirror_strength")
-	var t6: int = Time.get_ticks_usec()
-	for i: int in range(n):
-		dm.call(&"_process", 0.016)
-	var t7: int = Time.get_ticks_usec()
-	print("BM dmprobe us/call: cam_xf=%.2f field_xf=%.2f vp_size=%.2f resize=%.2f lenskey=%.2f props=%.2f whole=%.2f" % [
-		float(t1 - t0) / n, float(t2 - t1) / n, float(t3 - t2) / n, float(t4 - t3) / n, float(t5 - t4) / n, float(t6 - t5) / n, float(t7 - t6) / n])

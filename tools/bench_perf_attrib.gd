@@ -157,9 +157,6 @@ func _ready() -> void:
 		_set_blocks_visible(false)
 		await _sample("blocks_hidden", target)
 		_set_blocks_visible(true)
-		var mirror_was: bool = _set_mirror(false)
-		await _sample("mirror_off", target)
-		_set_mirror(mirror_was)
 		var lights: Array[DirectionalLight3D] = _shadow_lights()
 		for light: DirectionalLight3D in lights:
 			light.shadow_enabled = false
@@ -193,8 +190,6 @@ func _ready() -> void:
 		await _subtree_toggles(counts[counts.size() - 1])
 	if args.has("--util"):
 		await _util_toggles()
-	if args.has("--mirror-cuts"):
-		await _mirror_cut_states(args)
 	if args.has("--gpu"):
 		await _gpu_toggles(counts[counts.size() - 1])
 	if args.has("--visoff"):
@@ -411,9 +406,6 @@ func _util_toggles() -> void:
 	sun.shadow_enabled = false
 	await _util_hold("shadows_off")
 	sun.shadow_enabled = true
-	var mirror_was: bool = _set_mirror(false)
-	await _util_hold("mirror_off")
-	_set_mirror(mirror_was)
 	_set_blocks_visible(false)
 	await _util_hold("blocks_hidden")
 	_set_blocks_visible(true)
@@ -431,12 +423,6 @@ func _util_toggles() -> void:
 	sun.directional_shadow_max_distance = 60.0
 	await _util_hold("cand_shadow_dist_60")
 	sun.directional_shadow_max_distance = 100.0
-	var mirror_node: Node = get_tree().root.find_children("*", "DiscMirror", true, false)[0]
-	var visuals: TerritoryVisuals = mirror_node.get(&"visuals") as TerritoryVisuals
-	var scale_was: float = visuals.mirror_resolution_scale
-	visuals.mirror_resolution_scale = scale_was * 0.5 / 0.75
-	await _util_hold("cand_mirror_res_0.5")
-	visuals.mirror_resolution_scale = scale_was
 	await _util_hold("base_final")
 	var shot: String = ""
 	for arg: String in OS.get_cmdline_user_args():
@@ -444,72 +430,6 @@ func _util_toggles() -> void:
 			shot = arg.trim_prefix("--shot=")
 	if shot != "":
 		vp.get_texture().get_image().save_png("%s_util_base.png" % shot)
-
-
-## Bontago-1pi.11.50 --mirror-cuts: the mirror's Environment cuts one at a time, held
-## UTIL_HOLD_S each (--mirror-reps=N times, default 3) for nvidia-smi correlation
-## (UTIL markers), or with --shot=PREFIX one PNG per state instead of holds
-## (--mirror-shots only). Run on --preset=medium, uncapped.
-func _mirror_cut_states(args: PackedStringArray) -> void:
-	var reps: int = 3
-	var shots_only: bool = args.has("--mirror-shots")
-	var shot: String = ""
-	for arg: String in args:
-		if arg.begins_with("--mirror-reps="):
-			reps = int(arg.trim_prefix("--mirror-reps="))
-		elif arg.begins_with("--shot="):
-			shot = arg.trim_prefix("--shot=")
-	var vp: Viewport = _render_vp if _render_vp != null else get_viewport()
-	if shots_only:
-		# Same framing for every state: UI hidden, camera frozen (optionally re-pitched).
-		_main.call(&"_clear_menu_and_lobby")
-		for i: int in range(WARMUP_FRAMES * 5):
-			await get_tree().process_frame
-		_hide_ui()
-		var rig: CameraRig = _main.get_node("CameraRig") as CameraRig
-		for arg: String in args:
-			if arg.begins_with("--mirror-pitch="):
-				rig._pitch = deg_to_rad(float(arg.trim_prefix("--mirror-pitch=")))
-		rig._update_transform()
-		rig.set_process(false)
-	var mirror_node: Node = get_tree().root.find_children("*", "DiscMirror", true, false)[0]
-	var visuals: TerritoryVisuals = mirror_node.get(&"visuals") as TerritoryVisuals
-	var res_scale: float = visuals.mirror_resolution_scale
-	var res_half: float = res_scale * 0.5 / 0.75
-	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
-	Engine.max_fps = 0
-	# [label, ssr, fog, glow, sky, resolution scale]
-	var states: Array = [
-		["legacy", true, true, true, true, res_scale],
-		["ssr_off", false, true, true, true, res_scale],
-		["fog_off", true, false, true, true, res_scale],
-		["glow_off", true, true, false, true, res_scale],
-		["cuts_all", false, false, false, true, res_scale],
-		["cuts_all_sky_off", false, false, false, false, res_scale],
-		["cuts_all_res_0.5", false, false, false, true, res_half],
-		["legacy_again", true, true, true, true, res_scale],
-	]
-	if not shots_only:
-		await _util_hold("mm_warmup")
-	for state: Array in states:
-		visuals.mirror_ssr_enabled = state[1]
-		visuals.mirror_volumetric_fog_enabled = state[2]
-		visuals.mirror_glow_enabled = state[3]
-		visuals.mirror_sky_background_enabled = state[4]
-		visuals.mirror_resolution_scale = state[5]
-		if shots_only:
-			for i: int in range(WARMUP_FRAMES * 5):
-				await get_tree().process_frame
-			vp.get_texture().get_image().save_png("%s_%s.png" % [shot, state[0]])
-			print("SHOT %s_%s.png" % [shot, state[0]])
-			continue
-		for rep: int in range(reps):
-			await _util_hold("mm_%s_r%d" % [state[0], rep])
-	visuals.mirror_ssr_enabled = false
-	visuals.mirror_volumetric_fog_enabled = false
-	visuals.mirror_glow_enabled = false
-	visuals.mirror_sky_background_enabled = true
-	visuals.mirror_resolution_scale = res_scale
 
 
 ## --load: holds each frame cap for LOAD_PHASE_S and prints wall-clock markers so an
@@ -529,7 +449,7 @@ func _load_phases() -> void:
 
 
 func _group_toggles(target: int) -> void:
-	var classes: PackedStringArray = PackedStringArray(["TerritoryOverlay", "DiscMirror", "CameraRig", "Minimap", "HUD", "GhostPreview", "Field", "SunFlare", "Fireflies", "PerchingBirds", "DistantBirds", "HomeFlag", "GoalFlag", "Sfx", "Net", "MatchAutoload", "Sandbox", "SandboxPanel", "PerfSampler"])
+	var classes: PackedStringArray = PackedStringArray(["TerritoryOverlay", "CameraRig", "Minimap", "HUD", "GhostPreview", "Field", "SunFlare", "Fireflies", "PerchingBirds", "DistantBirds", "HomeFlag", "GoalFlag", "Sfx", "Net", "MatchAutoload", "Sandbox", "SandboxPanel", "PerfSampler"])
 	var nodes_by_class: Dictionary = {}
 	for node: Node in get_tree().root.find_children("*", "", true, false):
 		var script: Script = node.get_script() as Script
@@ -693,17 +613,6 @@ func _set_blocks_physics_process(on: bool) -> void:
 func _set_blocks_visible(on: bool) -> void:
 	for body: RigidBody3D in _blocks():
 		body.visible = on
-
-
-func _set_mirror(on: bool) -> bool:
-	var mirrors: Array[Node] = get_tree().root.find_children("*", "DiscMirror", true, false)
-	var was: bool = true
-	for node: Node in mirrors:
-		var visuals: TerritoryVisuals = node.get(&"visuals") as TerritoryVisuals
-		if visuals != null:
-			was = visuals.mirror_enabled
-			visuals.mirror_enabled = on
-	return was
 
 
 func _shadow_lights() -> Array[DirectionalLight3D]:

@@ -342,7 +342,7 @@ The AI runs only on the host, and for multiple bots it spreads its thinking acro
 ### 2.10 Presentation [NEW, modernizing the original look]
 
 **Owner direction 2026-09-22:** blocks render as solid single shapes (no visible per-cell cubes, as in the original); the map disc reads as glass — slightly transparent and reflective — with territory colours still legible on it (superseded 2026-09-23: the disc is an opaque, mirror-like reflective surface, not glass — Bontago-xtq.11); camera FOV is a tunable. **Owner decision 2026-09-26 (Bontago-5h7 Q1):** the mesh stays one merged solid shape, but the block shader draws thin dark cell-grid lines on its faces (the cel-shaded reference `docs/art_mockups/08-cel-shaded-home-beacons.png`); this is a visual amendment, collision and connectivity are unchanged.
-- **Disk:** Opaque, mirror-like polished surface (reflective, never transparent; owner 2026-09-23), with sky reflections via the Environment sky and a reflection probe for nearby blocks.
+- **Disk:** Opaque, polished metal plate; sky reflections via the Environment sky and a reflection probe for nearby blocks (owner 2026-10-07: mirror pass removed).
   - Territory is drawn by a shader. Each player's area is a soft tint in their color with an animated outline.
   - Contested areas shimmer. Hole edges glow and crackle.
 - **Blocks:** One merged solid shape per piece, cel-shaded (banded toon lighting, restrained silhouette outline) with thin dark cell-grid lines drawn by the shader; the lines always stay dark (the owner-colour glow for contributing blocks is retained as an off-by-default tunable). (Amended 2026-09-26, Bontago-5h7: replaces "bevelled cubes with a subtle PBR material and an emissive seam"; glow dropped after playtest, Bontago-xtq.39.)

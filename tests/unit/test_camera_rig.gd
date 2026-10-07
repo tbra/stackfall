@@ -48,7 +48,7 @@ func test_rig_and_camera_have_physics_interpolation_off() -> void:
 	# physics process" x4 per 60s bot run): this rig writes both its own
 	# global_position and its Camera3D child's transform every rendered
 	# _process() frame (never _physics_process), the same pattern
-	# game/DiscMirror.gd's own mirror camera already had fixed -- see
+	# the removed DiscMirror's own mirror camera already had fixed -- see
 	# test_disc_mirror.gd's test_mirror_camera_has_physics_interpolation_off()
 	# and this rig's own _ready() doc comment.
 	var rig: CameraRig = _make_rig()

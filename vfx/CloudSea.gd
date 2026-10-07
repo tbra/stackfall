@@ -15,10 +15,8 @@ extends Node3D
 ## and the 0..72 m play volume. game/Skybox.gd owns one of these and calls
 ## configure() on theme and graphics-preset changes.
 
-## Render layer bit the puffs live on (layer 19). game/DiscMirror.gd's
-## MIRROR_CULL_MASK (also the disc ReflectionProbe's mask) excludes it: the
-## planar-mirror camera sits below the disc plane, among the puffs, and
-## anything below a mirror must never appear in its reflection.
+## Render layer bit the puffs live on (layer 19). Skybox.PROBE_CULL_MASK (the disc ReflectionProbe's mask) excludes it: the
+## puffs sit below the disc plane and must never appear in its reflection.
 const RENDER_LAYER_BIT: int = 1 << 18
 ## Sky-material uniforms the puff shader shares so its far fade matches the
 ## sky drawn behind it exactly.

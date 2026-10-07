@@ -11,7 +11,7 @@ const SHADER: Shader = preload("res://shaders/rain_streaks.gdshader")
 const TUNING: RainTuning = preload("res://config/weather/rain.tres")
 ## The volume's AABB is unbounded for culling: the vertex shader relocates it.
 const CULL_EXTENT_M: float = 2000.0
-## Render layer the mirror camera skips (game/DiscMirror.gd): reflected streaks
+## Render layer the mirror camera skips (the removed DiscMirror): reflected streaks
 ## rendered at mirror resolution read as dotted chains. Distinct from CloudSea.
 const RENDER_LAYER_BIT: int = 1 << 17
 

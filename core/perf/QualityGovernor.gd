@@ -3,8 +3,9 @@ extends RefCounted
 ## Bontago-1pi.11.37: pure rules of the opt-in adaptive quality governor (no scene
 ## tree). A level 0..max_level() counts how many expensive visuals are shed, cheapest
 ## visual loss first:
-##   1 particle budget, 2 weather density, 3 disc mirror,
-##   4 shadow distance + cascades, 5 volumetric fog, 6 3D render scale (optional).
+##   1 particle budget, 2 weather density, 3 shadow distance + cascades,
+##   4 volumetric fog, 5 3D render scale (optional). (The disc mirror step was removed
+##   with the mirror pass, owner 2026-10-07.)
 ## evaluate() is fed one low-rate sample (mean frame ms, awake block count) and moves
 ## the level one step at a time: down after a sustained stress, back up only after a
 ## longer sustained recovery below a stricter band (hysteresis). apply() builds the
@@ -12,10 +13,9 @@ extends RefCounted
 
 const LEVEL_PARTICLES: int = 1
 const LEVEL_WEATHER: int = 2
-const LEVEL_MIRROR: int = 3
-const LEVEL_SHADOWS: int = 4
-const LEVEL_FOG: int = 5
-const LEVEL_RENDER_SCALE: int = 6
+const LEVEL_SHADOWS: int = 3
+const LEVEL_FOG: int = 4
+const LEVEL_RENDER_SCALE: int = 5
 
 var config: QualityGovernorConfig = null
 var level: int = 0
@@ -78,8 +78,6 @@ static func apply(base: GraphicsPreset, at_level: int, cfg: QualityGovernorConfi
 		out.particle_budget_scale = minf(out.particle_budget_scale, cfg.shed_particle_budget_scale)
 	if at_level >= LEVEL_WEATHER:
 		out.weather_density_scale = minf(out.weather_density_scale, cfg.shed_weather_density_scale)
-	if at_level >= LEVEL_MIRROR:
-		out.mirror_enabled = false
 	if at_level >= LEVEL_SHADOWS:
 		out.sun_shadow_mode = mini(out.sun_shadow_mode, cfg.shed_shadow_mode)
 		out.sun_shadow_max_distance = minf(out.sun_shadow_max_distance, cfg.shed_shadow_max_distance_m)

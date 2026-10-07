@@ -13,4 +13,3 @@ cloud_puff_subdivisions = 1
 cloud_puff_density = 0.6
 sun_shadow_mode = 1
 sun_shadow_max_distance = 100.0
-mirror_resolution_factor = 0.75

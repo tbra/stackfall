@@ -1301,13 +1301,13 @@ func test_block_projection_defaults() -> void:
 # fades, i.e. pow(0, 0) = NaN per pixel) ------------------------------------
 
 ## Failed before the fix: the decal kept Decal's default all-layers cull_mask,
-## which includes DiscMirror.DISC_LAYER_BIT, the disc's only render layer.
+## which includes TerritoryOverlay.DISC_LAYER_BIT, the disc's only render layer.
 func test_block_projection_decal_never_paints_the_disc_layer() -> void:
 	var ghost: GhostPreview = _make_ghost()
 	ghost.update_placement(Vector3.ZERO, Vector3.UP)
 
 	var mask: int = ghost._block_projection_decal.cull_mask
-	assert_eq(mask & DiscMirror.DISC_LAYER_BIT, 0, "the decal must not reach the disc's own render layer.")
+	assert_eq(mask & TerritoryOverlay.DISC_LAYER_BIT, 0, "the decal must not reach the disc's own render layer.")
 	assert_ne(mask & 1, 0, "placed blocks (render layer 1) must still receive the projection.")
 
 

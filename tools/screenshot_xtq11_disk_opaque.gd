@@ -36,13 +36,6 @@ extends Node
 ## follow_pitch_deg -- instead of this tool's own closer/steeper evidence
 ## angles above.
 ##
-## `--mirror-mode=none|ssr|planar|both` (Bontago-xtq.12 step 2, owner: "the
-## disc isn't very reflective, like at all?"): overrides TerritoryVisuals.
-## ssr_enabled/mirror_enabled on the same duplicated-copy pattern
-## `--reflection-mode=` uses above -- never touches the shipped
-## config/territory_visuals.tres. Omitted, the disk keeps whichever
-## combination territory_visuals.tres itself ships (both true by default).
-##
 ## Run windowed (a real render is required for the screenshot):
 ##   godot --path . --scene res://tools/screenshot_xtq11_disk_opaque.tscn -- \
 ##       --before --out=disk-before.png
@@ -150,13 +143,6 @@ const STEEP_ARG: String = "--steep"
 const FOLLOW_ARG: String = "--follow"
 const OUT_ARG: String = "--out="
 const REFLECTION_MODE_ARG: String = "--reflection-mode="
-## Bontago-xtq.12 step 2 (owner: "the disc isn't very reflective, like at
-## all?"): none|ssr|planar|both, overriding TerritoryVisuals.ssr_enabled/
-## mirror_enabled on the same duplicated-copy pattern REFLECTION_MODE_ARG
-## uses right above -- never touches the shipped config/territory_visuals.tres.
-## Omitted, the disk keeps whichever combination territory_visuals.tres
-## itself ships (both true by default).
-const MIRROR_MODE_ARG: String = "--mirror-mode="
 ## Bontago-xtq.14: overrides the disk's own edge_softness_m for one run, same
 ## override-a-copy pattern as `--before` right below (never touches the
 ## shipped config/territory_visuals.tres). e.g. `--edge-softness=0.3` recreates
@@ -174,14 +160,12 @@ func _ready() -> void:
 	var follow: bool = args.has(FOLLOW_ARG)
 	var out_name: String = _string_arg(args, OUT_ARG, DEFAULT_OUTPUT)
 	var reflection_mode: String = _string_arg(args, REFLECTION_MODE_ARG, "")
-	var mirror_mode: String = _string_arg(args, MIRROR_MODE_ARG, "")
 	var edge_softness_str: String = _string_arg(args, EDGE_SOFTNESS_ARG, "")
 
 	var main: Node = (load("res://game/Main.tscn") as PackedScene).instantiate()
 	var field: Field = main.get_node("Field") as Field
 	var rig: CameraRig = main.get_node("CameraRig") as CameraRig
 	var skybox: Skybox = main.get_node("Skybox") as Skybox
-	var discmirror: DiscMirror = main.get_node("DiscMirror") as DiscMirror
 
 	if before or edge_softness_str != "":
 		var visuals: TerritoryVisuals = (field.visuals as TerritoryVisuals).duplicate(true) as TerritoryVisuals
@@ -192,7 +176,7 @@ func _ready() -> void:
 			visuals.edge_softness_m = float(edge_softness_str)
 		field.visuals = visuals
 
-	if reflection_mode != "" or mirror_mode != "":
+	if reflection_mode != "":
 		# One duplicated copy shared by skybox and discmirror (Bontago-xtq.12
 		# step 2): both `visuals` exports resolve to the exact same preloaded
 		# res://config/territory_visuals.tres instance by default, so a
@@ -213,24 +197,7 @@ func _ready() -> void:
 					probe_visuals.reflection_probe_update_always = true
 				_:
 					push_warning("screenshot_xtq11_disk_opaque: unknown --reflection-mode=%s, ignoring." % reflection_mode)
-		if mirror_mode != "":
-			match mirror_mode:
-				"none":
-					probe_visuals.ssr_enabled = false
-					probe_visuals.mirror_enabled = false
-				"ssr":
-					probe_visuals.ssr_enabled = true
-					probe_visuals.mirror_enabled = false
-				"planar":
-					probe_visuals.ssr_enabled = false
-					probe_visuals.mirror_enabled = true
-				"both":
-					probe_visuals.ssr_enabled = true
-					probe_visuals.mirror_enabled = true
-				_:
-					push_warning("screenshot_xtq11_disk_opaque: unknown --mirror-mode=%s, ignoring." % mirror_mode)
 		skybox.visuals = probe_visuals
-		discmirror.visuals = probe_visuals
 		# Skybox._ready() already ran configure_reflection_probe()/
 		# configure_ssr() once against the shipped resource before this
 		# script's override above could reach it -- re-run both now against
@@ -268,10 +235,10 @@ func _ready() -> void:
 		distance = CLOSE_CAMERA_DISTANCE
 
 	print((
-		"SCREENSHOT xtq11 before=%s low=%s steep=%s follow=%s reflection_mode=%s mirror_mode=%s "
+		"SCREENSHOT xtq11 before=%s low=%s steep=%s follow=%s reflection_mode=%s "
 		+ "metallic=%s roughness=%s edge_softness_m=%s blocks_placed=%s"
 	) % [
-		before, low, steep, follow, reflection_mode, mirror_mode, field.visuals.disk_metallic,
+		before, low, steep, follow, reflection_mode, field.visuals.disk_metallic,
 		field.visuals.disk_roughness, field.visuals.edge_softness_m, block_world_spot != null,
 	])
 
