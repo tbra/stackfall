@@ -26,9 +26,20 @@ extends Resource
 
 ## Legacy single-stream fallback (custom-folder overrides are disabled).
 @export var bundled_theme: AudioStream = null
+## Path form of the legacy theme (loaded on use, not resident at boot); played when
+## contextual_music_enabled is false and bundled_theme is unset.
+@export_file("*.mp3") var bundled_theme_path: String = ""
 
 ## Contextual tracks play once, with silence between songs instead of looping.
 @export var contextual_music_enabled: bool = true
+## Shipped playlists are path lists (Bontago-1pi.11.61): Sfx loads only the one
+## track it is about to play (threaded prefetch, released afterwards) instead of
+## every MP3 being resident from boot. The AudioStream arrays below are an
+## optional pre-resolved override (tests, custom builds); when non-empty for a
+## context they win over the paths.
+@export var menu_playlist_paths: PackedStringArray = PackedStringArray()
+@export var lobby_playlist_paths: PackedStringArray = PackedStringArray()
+@export var gameplay_playlist_paths: PackedStringArray = PackedStringArray()
 @export var menu_playlist: Array[AudioStream] = []
 @export var lobby_playlist: Array[AudioStream] = []
 @export var gameplay_playlist: Array[AudioStream] = []
@@ -49,6 +60,27 @@ func playlist_for_context(context: StringName) -> Array[AudioStream]:
 			return gameplay_playlist
 		_:
 			return []
+
+
+## Track resource paths for `context` (empty when a stream override is set).
+func playlist_paths_for_context(context: StringName) -> PackedStringArray:
+	if not playlist_for_context(context).is_empty():
+		return PackedStringArray()
+	match context:
+		&"menu":
+			return menu_playlist_paths
+		&"lobby":
+			return lobby_playlist_paths
+		&"gameplay":
+			return gameplay_playlist_paths
+		_:
+			return PackedStringArray()
+
+
+## Number of tracks in `context`, from the stream override or else the paths.
+func playlist_track_count(context: StringName) -> int:
+	var streams: Array[AudioStream] = playlist_for_context(context)
+	return streams.size() if not streams.is_empty() else playlist_paths_for_context(context).size()
 
 ## Two-stem adaptive music (spec 2.10 "adaptive... more intense as someone
 ## gets close to capturing"; docs/M7_PLAN.md P6). Sfx.gd crossfades between

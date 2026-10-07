@@ -126,6 +126,7 @@ func _make_sfx() -> void:
 	_audio = load("res://config/audio_config.tres").duplicate() as AudioConfig
 	_audio.contextual_music_enabled = false
 	_audio.bundled_theme = null
+	_audio.bundled_theme_path = ""
 	_sfx = SFX_SCRIPT.new()
 	_sfx.config = _audio
 	add_child_autofree(_sfx)
