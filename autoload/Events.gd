@@ -237,6 +237,10 @@ signal special_consumed(slot_id: int, special_id: StringName)
 ## one match; client mirrors re-emit only when accepting a newer update.
 signal glue_charges_changed(slot_id: int, charges: int, revision: int)
 
+## Host-only: a glue bond between two bodies formed (formed=true) or ended (broke,
+## or a body left the world). A body that is already freed arrives as null.
+signal glue_bond_changed(body_a: Node, body_b: Node, formed: bool)
+
 ## Paintball's host-owned block conversion. Clients emit this only after a
 ## valid, new owner change by net ID; terrain ownership uses the registry.
 signal block_owner_changed(net_id: int, owner_slot: int)
