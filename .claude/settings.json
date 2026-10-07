@@ -35,6 +35,18 @@
         ],
         "matcher": ""
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/tools/guard_store_python.py\"",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }
