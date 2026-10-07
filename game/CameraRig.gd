@@ -35,6 +35,8 @@ extends Node3D
 ## offset _update_transform() adds on top of the normal orbit position
 ## whenever Events.block_impacted fires hard enough. See shake_offset().
 @export var shake_config: CameraShakeConfig = preload("res://config/camera_shake.tres")
+## Bontago-1pi.110: which specials trigger a shake (disc-shaking/toppling only).
+@export var disc_shake: DiscShakeConfig = preload("res://config/disc_shake.tres")
 
 ## Bontago-mv0.20b (F4 tuning panel live-apply): every CameraRig adds itself
 ## to this group in _ready(), the same idea as game/Block.gd's TUNING_GROUP,
@@ -124,6 +126,12 @@ var _drop_recovering: bool = false
 ## governs.
 var _shake_amplitude_m: float = 0.0
 var _shake_elapsed_s: float = 0.0
+## Last sampled disc tilt, for the disc-motion shake (earthquake).
+var _prev_disc_tilt: Vector2 = Vector2.ZERO
+var _has_prev_disc_tilt: bool = false
+var _disc_sample_elapsed_s: float = 0.0
+var _sampled_field: Field = null
+var _decay_elapsed_s: float = 0.0
 
 ## Bontago-b7r: which slot's home beacon Focus home should target -- pushed
 ## every frame by game/PlayerController.gd's own _acting_slot() (the same
@@ -181,7 +189,7 @@ var _results_open: bool = false
 
 func _ready() -> void:
 	add_to_group(TUNING_GROUP)
-	Events.block_impacted.connect(_on_block_impacted)
+	Events.special_triggered.connect(_on_special_triggered)
 	Events.pause_menu_opened.connect(_on_pause_menu_opened)
 	Events.pause_menu_closed.connect(_on_pause_menu_closed)
 	Events.match_results_ready.connect(_on_match_results_ready)
@@ -492,6 +500,8 @@ func reset_view() -> void:
 	_goal_cycle_index = 0
 	_shake_amplitude_m = 0.0
 	_shake_elapsed_s = 0.0
+	_decay_elapsed_s = 0.0
+	_has_prev_disc_tilt = false
 	_camera.fov = tuning.fov_deg
 	_apply_default_view()
 
@@ -890,22 +900,66 @@ func _resolve_goal_target() -> Vector3:
 	return target
 
 
-## Bontago-xtq.29 (camera shake): Events.block_impacted carries only the
-## scalar deceleration magnitude (Block.gd's own emit site never passes the
-## block or its position -- confirmed by reading Block.gd directly), so this
-## can only start an undirected shake impulse, never one aimed at the impact
-## site. Below shake_config.impact_speed_threshold, the hit is too soft to
-## react to at all.
-func _on_block_impacted(speed: float) -> void:
+## Bontago-1pi.110: the camera shakes only for gift specials that shake the
+## disc or risk toppling towers (DiscShakeConfig). Rides the replicated
+## special_triggered, so every peer shakes. Block landings, volcano spew and
+## other cosmetic events no longer shake it.
+func _on_special_triggered(_net_id: int, def_id: StringName, position: Vector3, _chain_depth: int) -> void:
 	if not Settings.camera_shake_enabled():
 		return
-	if speed < shake_config.impact_speed_threshold:
+	if disc_shake.impulse_special_ids.has(def_id) and _near_disc(position):
+		_start_shake(shake_config.max_offset_m)
+
+
+## True within max_distance_field_factor field radii of the disc centre; with
+## no field (isolated tests) every position counts as near.
+func _near_disc(position: Vector3) -> bool:
+	var field: Field = Match.field()
+	if field == null or field.map_def == null:
+		return true
+	var offset: Vector3 = position - field.global_position
+	offset.y = 0.0
+	return offset.length() <= field.map_def.field_radius * disc_shake.max_distance_field_factor
+
+
+## Keeps the shake alive while the disc tilts faster than the threshold
+## (earthquake): re-arms the decay without restarting the oscillation phase.
+func _sample_disc_motion(delta: float) -> void:
+	var field: Field = Match.field()
+	if field == null or delta <= 0.0 or not Settings.camera_shake_enabled():
+		_has_prev_disc_tilt = false
 		return
-	var over_threshold: float = speed - shake_config.impact_speed_threshold
-	var amplitude: float = clampf(over_threshold / maxf(shake_config.impact_speed_threshold, 0.0001), 0.0, 1.0) * shake_config.max_offset_m
+	var tilt: Vector2 = field.tilt_vector()
+	if not _has_prev_disc_tilt or field != _sampled_field:
+		_prev_disc_tilt = tilt
+		_has_prev_disc_tilt = true
+		_sampled_field = field
+		_disc_sample_elapsed_s = 0.0
+		return
+	# The tilt only changes once per physics tick, so measure over a window of
+	# at least one tick: frame-rate independent (no 2-4x spikes at 144/240 fps).
+	_disc_sample_elapsed_s += delta
+	var window_s: float = 1.0 / float(Engine.physics_ticks_per_second)
+	if _disc_sample_elapsed_s < window_s - 0.0001:
+		return
+	var rate: float = (tilt - _prev_disc_tilt).length() / _disc_sample_elapsed_s
+	_prev_disc_tilt = tilt
+	_disc_sample_elapsed_s = 0.0
+	if rate < disc_shake.disc_tilt_rate_threshold:
+		return
+	var amplitude: float = shake_config.max_offset_m * disc_shake.disc_tilt_amplitude_fraction
+	if _shake_amplitude_m <= 0.0:
+		_shake_elapsed_s = 0.0
+	if amplitude >= _current_shake_amplitude():
+		_shake_amplitude_m = amplitude
+		_decay_elapsed_s = 0.0
+
+
+func _start_shake(amplitude: float) -> void:
 	if amplitude >= _current_shake_amplitude():
 		_shake_amplitude_m = amplitude
 		_shake_elapsed_s = 0.0
+		_decay_elapsed_s = 0.0
 
 
 func _current_shake_amplitude() -> float:
@@ -913,17 +967,20 @@ func _current_shake_amplitude() -> float:
 		return 0.0
 	var decay: float = 1.0
 	if shake_config.decay_seconds > 0.0:
-		decay = exp(-_shake_elapsed_s / shake_config.decay_seconds)
+		decay = exp(-_decay_elapsed_s / shake_config.decay_seconds)
 	return _shake_amplitude_m * decay
 
 
 func _update_shake(delta: float) -> void:
+	_sample_disc_motion(delta)
 	if _shake_amplitude_m <= 0.0:
 		return
 	_shake_elapsed_s += delta
+	_decay_elapsed_s += delta
 	if _current_shake_amplitude() <= 0.0001:
 		_shake_amplitude_m = 0.0
 		_shake_elapsed_s = 0.0
+		_decay_elapsed_s = 0.0
 
 
 func _update_transform() -> void:

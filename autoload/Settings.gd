@@ -84,6 +84,15 @@ const KEY_RUMBLE_ENABLED: String = "rumble_enabled"
 const KEY_RUMBLE_STRENGTH: String = "rumble_strength"
 const KEY_MOUSE_MOVE_SPEED_SCALE: String = "mouse_move_speed_scale"
 const KEY_STICK_MOVE_SPEED_SCALE: String = "stick_move_speed_scale"
+## Bontago-1pi.109: marks a save written after gamepad_cursor_base_speed was
+## raised x1.2; a save without it holds a scale relative to the old base.
+const KEY_STICK_SPEED_BASIS: String = "stick_speed_basis"
+const STICK_SPEED_BASIS_CURRENT: int = 2
+## Old base -> new base ratio (30 -> 36) and the Options slider's range (kept
+## in step with ui/OptionsMenu.gd MIN/MAX_MOVE_SPEED_SCALE) for the migration.
+const STICK_SPEED_BASE_RATIO: float = 1.2
+const STICK_SPEED_MIGRATED_MIN: float = 0.5
+const STICK_SPEED_MIGRATED_MAX: float = 2.0
 
 ## Bontago-xtq.45 (M7 P4): the three player-facing window modes, exclusive
 ## fullscreen, borderless fullscreen and windowed. Ids are StringName rather
@@ -876,6 +885,13 @@ func _load() -> void:
 	_stick_move_speed_scale = clampf(
 		float(cfg.get_value(SECTION_CONTROLS, KEY_STICK_MOVE_SPEED_SCALE, DEFAULT_STICK_MOVE_SPEED_SCALE)), 0.01, 10.0
 	)
+	# DECISION (Bontago-1pi.109): no settings-version mechanism existed, so a
+	# minimal per-key basis marker is used. A stored stick scale without it is
+	# relative to the old base speed: divide by the ratio, clamped to the slider.
+	if cfg.has_section_key(SECTION_CONTROLS, KEY_STICK_MOVE_SPEED_SCALE) 			and int(cfg.get_value(SECTION_CONTROLS, KEY_STICK_SPEED_BASIS, 1)) < STICK_SPEED_BASIS_CURRENT:
+		_stick_move_speed_scale = clampf(
+			_stick_move_speed_scale / STICK_SPEED_BASE_RATIO, STICK_SPEED_MIGRATED_MIN, STICK_SPEED_MIGRATED_MAX
+		)
 
 	if cfg.has_section_key(SECTION_DEBUG, KEY_DEBUG_ENABLED):
 		_debug_setting = 1 if bool(cfg.get_value(SECTION_DEBUG, KEY_DEBUG_ENABLED, false)) else 0
@@ -907,6 +923,7 @@ func _save() -> void:
 	cfg.set_value(SECTION_PLAYER, KEY_PLAYER_NAME, _player_name)
 	cfg.set_value(SECTION_CONTROLS, KEY_MOUSE_MOVE_SPEED_SCALE, _mouse_move_speed_scale)
 	cfg.set_value(SECTION_CONTROLS, KEY_STICK_MOVE_SPEED_SCALE, _stick_move_speed_scale)
+	cfg.set_value(SECTION_CONTROLS, KEY_STICK_SPEED_BASIS, STICK_SPEED_BASIS_CURRENT)
 	if _debug_setting >= 0:
 		cfg.set_value(SECTION_DEBUG, KEY_DEBUG_ENABLED, _debug_setting == 1)
 	for action: StringName in _key_overrides.keys():

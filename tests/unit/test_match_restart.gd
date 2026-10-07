@@ -118,7 +118,7 @@ func _dirty(rig: CameraRig) -> void:
 	rig.begin_follow_transition()
 	rig.block_held = true
 	rig.set_local_slot(1)
-	rig._on_block_impacted(1000.0)
+	rig._on_special_triggered(1, &"bomb", Vector3.ZERO, 0)
 	rig._peek_active = true
 	rig._peek_returning = true
 	rig._focus_action = &"camera_snap_goal"

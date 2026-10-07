@@ -4,6 +4,8 @@ extends Resource
 ## Events.block_impacted. Keeps game/CameraRig.gd free of magic numbers per
 ## CLAUDE.md.
 
+## DEPRECATED (Bontago-1pi.110): block impacts no longer shake the camera;
+## see DiscShakeConfig. Kept so existing tuning/tests load.
 ## Minimum impact speed (Block.gd's deceleration magnitude passed to
 ## Events.block_impacted) that triggers any shake at all -- a soft landing
 ## should not visibly move the camera.

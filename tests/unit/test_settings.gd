@@ -172,6 +172,35 @@ func test_mouse_and_stick_move_speed_scale_round_trip_and_persist() -> void:
 	assert_almost_eq(reloaded.stick_move_speed_scale(), 0.75, 0.0001)
 
 
+func test_stored_old_stick_scale_migrates_to_the_same_effective_speed() -> void:
+	var cfg: ConfigFile = ConfigFile.new()
+	cfg.set_value("controls", "stick_move_speed_scale", 1.2)  # old save, no basis key
+	cfg.save(_settings.effective_path())
+
+	var reloaded: Node = _fresh_settings_at_same_path()
+	# Old 120% of base 30 == new 100% of base 36.
+	assert_almost_eq(reloaded.stick_move_speed_scale(), 1.0, 0.0001)
+	var ghost: GhostTuning = load("res://config/ghost_tuning.tres") as GhostTuning
+	assert_almost_eq(ghost.gamepad_cursor_base_speed * reloaded.stick_move_speed_scale(), 30.0 * 1.2, 0.001)
+
+
+func test_migrated_stick_scale_is_clamped_and_not_migrated_twice() -> void:
+	var cfg: ConfigFile = ConfigFile.new()
+	cfg.set_value("controls", "stick_move_speed_scale", 0.55)
+	cfg.save(_settings.effective_path())
+	var once: Node = _fresh_settings_at_same_path()
+	assert_almost_eq(once.stick_move_speed_scale(), 0.5, 0.0001, "clamped to the slider minimum")
+	once.set_stick_move_speed_scale(1.5)  # saves with the basis marker
+	var twice: Node = _fresh_settings_at_same_path()
+	assert_almost_eq(twice.stick_move_speed_scale(), 1.5, 0.0001, "a current save must not migrate again")
+
+
+func test_default_stick_cursor_base_speed_is_old_value_times_1_2() -> void:
+	var ghost: GhostTuning = load("res://config/ghost_tuning.tres") as GhostTuning
+	assert_almost_eq(ghost.gamepad_cursor_base_speed, 30.0 * 1.2, 0.0001)
+	assert_eq(_settings.stick_move_speed_scale(), 1.0)
+
+
 func test_reset_move_speed_scales_restores_defaults() -> void:
 	_settings.set_mouse_move_speed_scale(1.8)
 	_settings.set_stick_move_speed_scale(0.6)
