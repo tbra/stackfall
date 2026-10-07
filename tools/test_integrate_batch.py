@@ -284,6 +284,19 @@ class Tests(unittest.TestCase):
             self.assertIn("wt_remove", names)
             self.assertIn("br_delete", names)
 
+    def test_prune_merged_targets_only_merged_branches_and_never_raises(self):
+        lines = []
+        args = mock.Mock(repo="R", branches=["wt/a", "wt/b"])
+        counts = {"removed": 1, "kept_dirty": 1, "kept_unmerged": 0, "protected": 0, "failed": 0}
+        with mock.patch.object(ib.prune_worktrees, "prune", return_value=counts) as pr:
+            ib.prune_merged(args, lines.append)
+        self.assertEqual(pr.call_args.kwargs["branches"], ["wt/a", "wt/b"])
+        self.assertTrue(pr.call_args.kwargs["apply"])
+        self.assertIn("prune     ok   removed=1 kept=1", lines)
+        with mock.patch.object(ib.prune_worktrees, "prune", side_effect=RuntimeError("boom")):
+            ib.prune_merged(args, lines.append)
+        self.assertTrue(lines[-1].startswith("prune     warn"))
+
     def test_failure_keeps_worktree(self):
         code, names = self._main(["--no-push"], fail=True)
         self.assertEqual(code, 1)

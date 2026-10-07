@@ -32,6 +32,8 @@ var _orbit_angle_rad: float = 0.0
 var _elapsed_s: float = 0.0
 var _falling_block: Node3D = null
 var _falling_base: Vector3 = Vector3.ZERO
+## Bontago-1pi.11.52: time banked since the diorama last re-rendered.
+var _tick_accum_s: float = 0.0
 
 
 func _ready() -> void:
@@ -48,7 +50,7 @@ func _ready() -> void:
 	_viewport.own_world_3d = true
 	_viewport.transparent_bg = true
 	_viewport.msaa_3d = Viewport.MSAA_4X
-	_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	_viewport.disable_3d = false
 	add_child(_viewport)
 
@@ -63,6 +65,18 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if not is_visible_in_tree() or _camera == null or tuning.camera_orbit_period_s <= 0.0:
 		return
+	# Bontago-1pi.11.52: re-render (and so move the camera) only at diorama_update_fps;
+	# between ticks the frame costs one accumulator add and the viewport texture is reused.
+	_tick_accum_s += delta
+	if tuning.diorama_update_fps > 0:
+		if _tick_accum_s < 1.0 / float(tuning.diorama_update_fps):
+			return
+		_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+	_advance(_tick_accum_s)
+	_tick_accum_s = 0.0
+
+
+func _advance(delta: float) -> void:
 	_elapsed_s += delta
 	var angular_speed: float = TAU / tuning.camera_orbit_period_s
 	# DECISION: a sine-modulated speed eases the orbit without reversing it.
@@ -80,7 +94,14 @@ func _on_visibility_changed() -> void:
 		return
 	var active: bool = is_visible_in_tree()
 	set_process(active)
-	_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS if active else SubViewport.UPDATE_DISABLED
+	if not active:
+		_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	elif tuning.diorama_update_fps > 0:
+		# Paint one frame now; _process() then asks for UPDATE_ONCE on each tick.
+		_tick_accum_s = 0.0
+		_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+	else:
+		_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 
 
 func _animate_falling_block() -> void:

@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="VolcanoParticleTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/specials/fx/VolcanoParticleTuning.gd" id="1_tuning"]
+
+[resource]
+script = ExtResource("1_tuning")
+burst_count = 32
+lifetime_s = 1.4
+speed_mps = 9.0
+max_particles = 160
+ember_rate_per_s = 20.0
+plume_speed_ratio = 0.45
+spread_deg = 28.0
+gravity_mps2 = 9.0
+size_min_m = 0.12
+size_max_m = 0.28
+low_preset_scale = 0.4
+color = Color(1, 0.45, 0.1, 1)
+cool_color = Color(0.45, 0.08, 0.04, 1)

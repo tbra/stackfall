@@ -182,12 +182,6 @@ func event_index() -> int:
 	return _event_index
 
 
-## Which Match states a client accepts a replicated weather state in: from the
-## countdown on, never after the match ended or before it started.
-static func accepts_replication_in(match_state: int) -> bool:
-	return match_state == MatchAutoload.State.COUNTDOWN 		or match_state == MatchAutoload.State.PLAYING 		or match_state == MatchAutoload.State.SUDDEN_DEATH
-
-
 ## The weather id a TYPE mode stands for (its enum name lower-cased, matching
 ## config/weather/<id>.tres); &"" for OFF/RANDOM/CHANGING or an out-of-range int.
 static func id_for_mode(weather_mode: int) -> StringName:
@@ -249,15 +243,14 @@ func _sorted_ids() -> Array[StringName]:
 # --- Lifecycle -----------------------------------------------------------------
 
 func _on_match_state_changed(_from_state: int, to_state: int) -> void:
-	match to_state:
-		MatchAutoload.State.PLAYING:
-			if _is_host() and _match != null and _match.config != null:
-				if not _running:
-					begin_match(_match.config)
-				if not _breeze.is_running():
-					begin_breeze(_match.config)
-		MatchAutoload.State.LOADING, MatchAutoload.State.LOBBY, MatchAutoload.State.END:
-			reset()
+	if to_state == MatchAutoload.State.PLAYING:
+		if _is_host() and _match != null and _match.config != null:
+			if not _running:
+				begin_match(_match.config)
+			if not _breeze.is_running():
+				begin_breeze(_match.config)
+	elif MatchAutoload.is_resetting(to_state):
+		reset()
 
 
 ## Host: starts the schedule for a match played with `config`. A repeated call

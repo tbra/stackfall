@@ -54,6 +54,18 @@ extends Resource
 ## Bontago-mp0.129: the night-sky aurora borealis curtains (shaders/include/cloud_common.gdshaderinc,
 ## game/Skybox.gd). Off on Low: the sky keeps its stars and moon.
 @export var aurora_enabled: bool = true
+## Bontago-1pi.11.49: how Engine.max_fps is chosen while a match runs (core/FrameCapRule.gd).
+## DECISION (owner/orchestrator 2026-10-07): the default on every preset is the display's
+## refresh rate, so a 144 Hz monitor still gets 144 fps but nothing renders uncapped
+## (a 245 fps uncapped match held a 3060 at ~60% at 4K; 144 = 39%, 60 = 28%).
+enum FrameCap { DISPLAY_REFRESH, FIXED, UNCAPPED }
+@export var frame_cap_mode: FrameCap = FrameCap.DISPLAY_REFRESH
+## Used by the FIXED mode.
+@export_range(1, 360) var fixed_fps: int = 60
+## Used by DISPLAY_REFRESH when the display reports no refresh rate (<= 0).
+@export_range(1, 360) var fallback_fps: int = 60
+## Bontago-1pi.11.51: seconds between checks that the window's screen/refresh changed.
+@export_range(0.1, 10.0) var screen_check_interval_s: float = 1.0
 
 ## Bontago-1pi.11.37: the fields below are all-default on every shipped preset; only
 ## the adaptive quality governor (core/QualityGovernor.gd) lowers them, on a duplicate

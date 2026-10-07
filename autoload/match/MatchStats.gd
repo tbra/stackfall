@@ -65,7 +65,7 @@ extends RefCounted
 ##       "Team %d wins!" numbering.
 ##   "match_duration": float,          # seconds spent in State.PLAYING or
 ##       State.SUDDEN_DEATH (the two "live" states, MatchLifecycle.
-##       is_live_state()) over the whole match, ticked by _tick() below.
+##       is_live()) over the whole match, ticked by _tick() below.
 ##   "rows": Array[Dictionary],        # one entry per slot, in slot_id order:
 ##     {
 ##       "slot_id": int,
@@ -90,15 +90,16 @@ extends RefCounted
 ##     }
 ## }
 ## ```
+## (ResultsPayload owns the key names and the validator.)
 ## validate_results_payload(raw: Variant) -> Dictionary rebuilds and
 ## strictly re-types a wire Dictionary into exactly this shape, or returns an
 ## empty Dictionary for anything malformed (net/MatchNet.gd's dispatch treats
 ## an empty return as "drop the packet", the same convention
 ## _gift_wire_ok()/_pose_is_acceptable() already use there).
 
-const NOT_ELIMINATED: float = -1.0
-const WINNER_KIND_SLOT: String = "slot"
-const WINNER_KIND_TEAM: String = "team"
+const NOT_ELIMINATED: float = ResultsPayload.NOT_ELIMINATED
+const WINNER_KIND_SLOT: String = ResultsPayload.WINNER_KIND_SLOT
+const WINNER_KIND_TEAM: String = ResultsPayload.WINNER_KIND_TEAM
 
 var _match: MatchAutoload = null
 
@@ -182,7 +183,7 @@ func resize_for_slots(slot_count: int) -> void:
 ## Ticked from Match._process()'s State.PLAYING and State.SUDDEN_DEATH
 ## branches (mirroring MatchLifecycle._tick_match_timer/_tick_sudden_death's
 ## own call sites) -- both are "live" states a match can actually be played
-## and won from (MatchLifecycle.is_live_state()). A no-op on a client: only
+## and won from (MatchAutoload.is_live()). A no-op on a client: only
 ## the host's own _process() reaches either branch at all (Match._process()'s
 ## `if not _is_host(): return` at its top), so this guard is defense in depth
 ## rather than the only thing stopping client accumulation.
@@ -304,7 +305,7 @@ func build_results_payload(winning_team: int, mode_fields: Dictionary = {}) -> D
 	var ffa: bool = config == null or config.team_mode == MatchConfig.TeamMode.OFF
 
 	var winner_teams: PackedInt32Array = PackedInt32Array()
-	for id_text: String in String(mode_fields.get("winners", "")).split(",", false):
+	for id_text: String in ResultsPayload.string_of(mode_fields, ResultsPayload.KEY_WINNERS).split(",", false):
 		winner_teams.append(int(id_text))
 	if winner_teams.is_empty():
 		winner_teams.append(winning_team)
@@ -313,16 +314,16 @@ func build_results_payload(winning_team: int, mode_fields: Dictionary = {}) -> D
 	var rows: Array[Dictionary] = _build_rows()
 
 	var payload: Dictionary = {
-		"winner_kind": WINNER_KIND_SLOT if ffa else WINNER_KIND_TEAM,
-		"winner_id": winning_team,
-		"winner_name": _winner_name(winning_team, ffa),
-		"match_duration": _elapsed,
-		"rows": rows,
+		ResultsPayload.KEY_WINNER_KIND: WINNER_KIND_SLOT if ffa else WINNER_KIND_TEAM,
+		ResultsPayload.KEY_WINNER_ID: winning_team,
+		ResultsPayload.KEY_WINNER_NAME: _winner_name(winning_team, ffa),
+		ResultsPayload.KEY_MATCH_DURATION: _elapsed,
+		ResultsPayload.KEY_ROWS: rows,
 	}
 	# Bontago-22y.11: the mode outcome rides in an optional "mode" block, absent
 	# for classic so its payload is unchanged.
 	if not mode_fields.is_empty():
-		payload["mode"] = mode_fields
+		payload[ResultsPayload.KEY_MODE] = mode_fields
 	return payload
 
 
@@ -336,19 +337,19 @@ func _build_rows() -> Array[Dictionary]:
 			continue
 		var team_id: int = _match.team_of(slot_id)
 		rows.append({
-			"slot_id": slot_id,
-			"name": slot.display_name,
-			"team_id": team_id,
-			"is_bot": slot.is_bot,
-			"blocks_placed": blocks_placed(slot_id),
-			"blocks_lost": blocks_lost(slot_id),
-			"gifts_claimed": gifts_claimed(slot_id),
-			"specials_used": specials_used(slot_id),
-			"territory_share": _match.territory_share(team_id),
-			"eliminated_at": eliminated_at(slot_id),
-			"height": height_reached(slot_id),
-			"peak_territory": peak_territory(team_id),
-			"wins": session_wins(slot_id),
+			ResultsPayload.KEY_SLOT_ID: slot_id,
+			ResultsPayload.KEY_NAME: slot.display_name,
+			ResultsPayload.KEY_TEAM_ID: team_id,
+			ResultsPayload.KEY_IS_BOT: slot.is_bot,
+			ResultsPayload.KEY_BLOCKS_PLACED: blocks_placed(slot_id),
+			ResultsPayload.KEY_BLOCKS_LOST: blocks_lost(slot_id),
+			ResultsPayload.KEY_GIFTS_CLAIMED: gifts_claimed(slot_id),
+			ResultsPayload.KEY_SPECIALS_USED: specials_used(slot_id),
+			ResultsPayload.KEY_TERRITORY_SHARE: _match.territory_share(team_id),
+			ResultsPayload.KEY_ELIMINATED_AT: eliminated_at(slot_id),
+			ResultsPayload.KEY_HEIGHT: height_reached(slot_id),
+			ResultsPayload.KEY_PEAK_TERRITORY: peak_territory(team_id),
+			ResultsPayload.KEY_WINS: session_wins(slot_id),
 		})
 	return rows
 
@@ -362,16 +363,16 @@ func build_live_payload() -> Dictionary:
 	var config: MatchConfig = _match.config
 	var ffa: bool = config == null or config.team_mode == MatchConfig.TeamMode.OFF
 	var payload: Dictionary = {
-		"winner_kind": WINNER_KIND_SLOT if ffa else WINNER_KIND_TEAM,
-		"winner_id": -1,
-		"winner_name": "",
-		"match_duration": _elapsed,
-		"rows": _build_rows(),
-		"live": true,
+		ResultsPayload.KEY_WINNER_KIND: WINNER_KIND_SLOT if ffa else WINNER_KIND_TEAM,
+		ResultsPayload.KEY_WINNER_ID: -1,
+		ResultsPayload.KEY_WINNER_NAME: "",
+		ResultsPayload.KEY_MATCH_DURATION: _elapsed,
+		ResultsPayload.KEY_ROWS: _build_rows(),
+		ResultsPayload.KEY_LIVE: true,
 	}
 	var objective: ModeObjective = _match._territory._objective
 	if objective != null and objective.mode_id() != MatchConfig.GameMode.CLASSIC:
-		payload["mode"] = {"mode_id": objective.mode_id(), "scores": Array(objective.scores())}
+		payload[ResultsPayload.KEY_MODE] = {ResultsPayload.KEY_MODE_ID: objective.mode_id(), ResultsPayload.KEY_SCORES: Array(objective.scores())}
 	return payload
 
 
@@ -387,7 +388,7 @@ func live_payload() -> Dictionary:
 ## caller via validate_results_payload()); display only.
 func apply_live_snapshot(payload: Dictionary) -> void:
 	_remote_live = payload.duplicate()
-	_remote_live["live"] = true
+	_remote_live[ResultsPayload.KEY_LIVE] = true
 
 
 func _winner_name(winning_team: int, ffa: bool) -> String:
@@ -415,103 +416,7 @@ func _winner_name(winning_team: int, ffa: bool) -> String:
 ## value to fall back to the way MatchConfig.from_dict() falls back to a
 ## field default.
 static func validate_results_payload(raw: Variant) -> Dictionary:
-	if not (raw is Dictionary):
-		return {}
-	var data: Dictionary = raw
-	var winner_kind: Variant = data.get("winner_kind")
-	if not (winner_kind is String) or (winner_kind != WINNER_KIND_SLOT and winner_kind != WINNER_KIND_TEAM):
-		return {}
-	var winner_id: Variant = data.get("winner_id")
-	if not (winner_id is int or winner_id is float):
-		return {}
-	var winner_name: Variant = data.get("winner_name")
-	if not (winner_name is String):
-		return {}
-	var duration: Variant = data.get("match_duration")
-	if not (duration is int or duration is float) or not is_finite(float(duration)) or float(duration) < 0.0:
-		return {}
-	var raw_rows: Variant = data.get("rows")
-	if not (raw_rows is Array):
-		return {}
-
-	var rows: Array[Dictionary] = []
-	for raw_row: Variant in (raw_rows as Array):
-		var row: Dictionary = _validate_row(raw_row)
-		if row.is_empty():
-			return {}
-		rows.append(row)
-
-	var validated: Dictionary = {
-		"winner_kind": String(winner_kind),
-		"winner_id": int(winner_id),
-		"winner_name": String(winner_name),
-		"match_duration": float(duration),
-		"rows": rows,
-	}
-	if data.has("mode"):
-		var mode_block: Dictionary = ModeObjective.validate_results_block(data["mode"])
-		if mode_block.is_empty():
-			return {}
-		validated["mode"] = mode_block
-	return validated
-
-
-static func _validate_row(raw_row: Variant) -> Dictionary:
-	if not (raw_row is Dictionary):
-		return {}
-	var row: Dictionary = raw_row
-	var slot_id: Variant = row.get("slot_id")
-	var team_id: Variant = row.get("team_id")
-	var name: Variant = row.get("name")
-	var is_bot: Variant = row.get("is_bot")
-	var placed: Variant = row.get("blocks_placed")
-	var lost: Variant = row.get("blocks_lost")
-	var gifts: Variant = row.get("gifts_claimed")
-	var specials: Variant = row.get("specials_used")
-	var share: Variant = row.get("territory_share")
-	var eliminated: Variant = row.get("eliminated_at")
-	# Bontago-1pi.72.2: optional (an older payload lacks them) but typed when present.
-	var height: Variant = row.get("height", 0.0)
-	var peak: Variant = row.get("peak_territory", 0.0)
-	var wins: Variant = row.get("wins", 0)
-
-	if not (slot_id is int or slot_id is float) or int(slot_id) < 0:
-		return {}
-	if not (team_id is int or team_id is float):
-		return {}
-	if not (name is String):
-		return {}
-	if not (is_bot is bool):
-		return {}
-	for count: Variant in [placed, lost, gifts, specials]:
-		if not (count is int or count is float) or int(count) < 0:
-			return {}
-	if not (share is int or share is float) or not is_finite(float(share)):
-		return {}
-	if not (eliminated is int or eliminated is float) or not is_finite(float(eliminated)):
-		return {}
-
-	for amount: Variant in [height, peak]:
-		if not (amount is int or amount is float) or not is_finite(float(amount)) or float(amount) < 0.0:
-			return {}
-	if not (wins is int or wins is float) or int(wins) < 0:
-		return {}
-
-	return {
-		"slot_id": int(slot_id),
-		"name": String(name),
-		"team_id": int(team_id),
-		"is_bot": bool(is_bot),
-		"blocks_placed": int(placed),
-		"blocks_lost": int(lost),
-		"gifts_claimed": int(gifts),
-		"specials_used": int(specials),
-		"territory_share": float(share),
-		"eliminated_at": float(eliminated),
-		"height": float(height),
-		"peak_territory": float(peak),
-		"wins": int(wins),
-	}
+	return ResultsPayload.validate(raw)
 
 
 # --- Event listeners (host only) --------------------------------------------

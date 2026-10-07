@@ -164,8 +164,8 @@ func show_results(results: Dictionary) -> void:
 ## MatchStats.validate_results_payload()) reads as a draw instead of crashing
 ## on a blank headline.
 func _headline_text(results: Dictionary) -> String:
-	var winner_id: int = int(results.get("winner_id", -1))
-	var winner_name: String = String(results.get("winner_name", ""))
+	var winner_id: int = ResultsPayload.winner_id(results)
+	var winner_name: String = ResultsPayload.winner_name(results)
 	var headline: String = "It's a draw!" if winner_id < 0 or winner_name.is_empty() else "%s wins!" % winner_name
 	var shared: String = shared_winners_text(results, _resolved_team_numbers())
 	if not shared.is_empty():
@@ -179,25 +179,22 @@ func _headline_text(results: Dictionary) -> String:
 ## winners list, so it falls back to the finish winner_id the same way.
 static func winner_ids(results: Dictionary) -> PackedInt32Array:
 	var out: PackedInt32Array = PackedInt32Array()
-	var mode: Variant = results.get("mode")
-	if mode is Dictionary:
-		for id_text: String in String((mode as Dictionary).get("winners", "")).split(",", false):
-			out.append(int(id_text))
-	if out.is_empty() and int(results.get("winner_id", -1)) >= 0:
-		out.append(int(results.get("winner_id", -1)))
+	for id_text: String in ResultsPayload.mode_winner_texts(results):
+		out.append(int(id_text))
+	if out.is_empty() and ResultsPayload.winner_id(results) >= 0:
+		out.append(ResultsPayload.winner_id(results))
 	return out
 
 
 ## Bontago-22y.7: a tied timed mode lists every top team in mode.winners
 ## ("0,2"); returns "Teams 1 & 3 share the win!" for two or more, else "".
 static func shared_winners_text(results: Dictionary, team_numbers: PackedInt32Array = PackedInt32Array()) -> String:
-	var mode: Variant = results.get("mode")
-	if not (mode is Dictionary):
+	if not ResultsPayload.has_mode_block(results):
 		return ""
-	var ids: PackedStringArray = String((mode as Dictionary).get("winners", "")).split(",", false)
+	var ids: PackedStringArray = ResultsPayload.mode_winner_texts(results)
 	if ids.size() < 2:
 		return ""
-	var ffa: bool = String(results.get("winner_kind", MatchStats.WINNER_KIND_SLOT)) == MatchStats.WINNER_KIND_SLOT
+	var ffa: bool = ResultsPayload.winner_kind(results) == ResultsPayload.WINNER_KIND_SLOT
 	var names: PackedStringArray = PackedStringArray()
 	for id_text: String in ids:
 		names.append(player_label(results, int(id_text)) if ffa else str(team_number_in(team_numbers, int(id_text))))
@@ -210,16 +207,14 @@ static func shared_winners_text(results: Dictionary, team_numbers: PackedInt32Ar
 ## DECISION: the outcome shares the headline Label (no new scene node) so the
 ## classic layout cannot move.
 static func mode_outcome_text(results: Dictionary, team_numbers: PackedInt32Array = PackedInt32Array()) -> String:
-	var mode: Variant = results.get("mode")
-	if not (mode is Dictionary):
+	if not ResultsPayload.has_mode_block(results):
 		return ""
-	var block: Dictionary = mode
-	var mode_id: int = int(block.get("mode_id", MatchConfig.GameMode.CLASSIC))
+	var mode_id: int = ResultsPayload.mode_id(results)
 	if mode_id < 0 or mode_id >= MatchConfig.GAME_MODE_LABELS.size():
 		return ""
 	var parts: PackedStringArray = PackedStringArray()
-	var scores: Array = block.get("scores", []) as Array
-	var ffa: bool = String(results.get("winner_kind", MatchStats.WINNER_KIND_SLOT)) == MatchStats.WINNER_KIND_SLOT
+	var scores: Array = ResultsPayload.mode_scores(results)
+	var ffa: bool = ResultsPayload.winner_kind(results) == ResultsPayload.WINNER_KIND_SLOT
 	var unit: String = " m" if mode_id == MatchConfig.GameMode.REACH_THE_SKY else ""
 	var elimination: bool = mode_id == MatchConfig.GameMode.ELIMINATION
 	# Domination scores are territory shares (0..1), shown as percentages.
@@ -258,16 +253,16 @@ static func has_mode_stat(results: Dictionary) -> bool:
 ## " (Bot)" suffix), so the subtitle and the table agree. Falls back to
 ## "Player N" for a slot with no row (an old/short payload).
 static func player_label(results: Dictionary, slot_id: int) -> String:
-	for raw_row: Variant in results.get("rows", []) as Array:
+	for raw_row: Variant in ResultsPayload.rows(results):
 		var row: Dictionary = raw_row as Dictionary
-		if int(row.get("slot_id", -1)) == slot_id:
+		if ResultsPayload.int_of(row, ResultsPayload.KEY_SLOT_ID, -1) == slot_id:
 			return row_name_text(row)
 	return PlayerNames.fallback_for_slot(slot_id)
 
 
 static func row_name_text(row: Dictionary) -> String:
-	var name_text: String = String(row.get("name", ""))
-	if bool(row.get("is_bot", false)):
+	var name_text: String = ResultsPayload.string_of(row, ResultsPayload.KEY_NAME)
+	if ResultsPayload.bool_of(row, ResultsPayload.KEY_IS_BOT):
 		name_text += " (Bot)"
 	return name_text
 
@@ -309,34 +304,34 @@ static func survivor_text(alive: int) -> String:
 ## they survived (a later eliminated_at outranks an earlier one). Reasonable
 ## and stable, not spec-mandated.
 static func sorted_rows(results: Dictionary) -> Array[Dictionary]:
-	var winner_kind: String = String(results.get("winner_kind", MatchStats.WINNER_KIND_SLOT))
+	var winner_kind: String = ResultsPayload.winner_kind(results)
 	var winners: PackedInt32Array = winner_ids(results)
-	var raw_rows: Array = results.get("rows", [])
+	var raw_rows: Array = ResultsPayload.rows(results)
 	var rows: Array[Dictionary] = []
 	for raw_row: Variant in raw_rows:
 		var row: Dictionary = (raw_row as Dictionary).duplicate()
 		var is_winner: bool = (
-			(winner_kind == MatchStats.WINNER_KIND_TEAM and winners.has(int(row.get("team_id", -1))))
-			or (winner_kind == MatchStats.WINNER_KIND_SLOT and winners.has(int(row.get("slot_id", -1))))
+			(winner_kind == ResultsPayload.WINNER_KIND_TEAM and winners.has(ResultsPayload.int_of(row, ResultsPayload.KEY_TEAM_ID, -1)))
+			or (winner_kind == ResultsPayload.WINNER_KIND_SLOT and winners.has(ResultsPayload.int_of(row, ResultsPayload.KEY_SLOT_ID, -1)))
 		)
-		row["is_winner"] = is_winner
+		row[ResultsPayload.KEY_IS_WINNER] = is_winner
 		rows.append(row)
 	rows.sort_custom(_row_less_than)
 	return rows
 
 
 static func _row_less_than(a: Dictionary, b: Dictionary) -> bool:
-	var a_winner: bool = bool(a.get("is_winner", false))
-	var b_winner: bool = bool(b.get("is_winner", false))
+	var a_winner: bool = ResultsPayload.bool_of(a, ResultsPayload.KEY_IS_WINNER)
+	var b_winner: bool = ResultsPayload.bool_of(b, ResultsPayload.KEY_IS_WINNER)
 	if a_winner != b_winner:
 		return a_winner
-	var a_alive: bool = float(a.get("eliminated_at", MatchStats.NOT_ELIMINATED)) < 0.0
-	var b_alive: bool = float(b.get("eliminated_at", MatchStats.NOT_ELIMINATED)) < 0.0
+	var a_alive: bool = ResultsPayload.float_of(a, ResultsPayload.KEY_ELIMINATED_AT, ResultsPayload.NOT_ELIMINATED) < 0.0
+	var b_alive: bool = ResultsPayload.float_of(b, ResultsPayload.KEY_ELIMINATED_AT, ResultsPayload.NOT_ELIMINATED) < 0.0
 	if a_alive != b_alive:
 		return a_alive
 	if a_alive:
-		return float(a.get("territory_share", 0.0)) > float(b.get("territory_share", 0.0))
-	return float(a.get("eliminated_at", 0.0)) > float(b.get("eliminated_at", 0.0))
+		return ResultsPayload.float_of(a, ResultsPayload.KEY_TERRITORY_SHARE) > ResultsPayload.float_of(b, ResultsPayload.KEY_TERRITORY_SHARE)
+	return ResultsPayload.float_of(a, ResultsPayload.KEY_ELIMINATED_AT) > ResultsPayload.float_of(b, ResultsPayload.KEY_ELIMINATED_AT)
 
 
 func _populate_rows(results: Dictionary) -> void:
@@ -357,20 +352,17 @@ static func mode_stat_header(results: Dictionary) -> String:
 
 
 static func mode_stat_text(results: Dictionary, row: Dictionary) -> String:
-	var team_id: int = int(row.get("team_id", 0))
+	var team_id: int = ResultsPayload.int_of(row, ResultsPayload.KEY_TEAM_ID)
 	var mode_id: int = _results_mode_id(results)
 	if mode_id == MatchConfig.GameMode.CAPTURE_THE_FLAG or mode_id == MatchConfig.GameMode.REACH_THE_SKY:
-		var scores: Array = (results.get("mode", {}) as Dictionary).get("scores", []) as Array
+		var scores: Array = ResultsPayload.mode_scores(results)
 		var value: float = float(scores[team_id]) if team_id >= 0 and team_id < scores.size() else 0.0
 		return "%s m" % String.num(value, 1) if mode_id == MatchConfig.GameMode.REACH_THE_SKY else str(int(round(value)))
-	return "%d%%" % int(round(float(row.get("peak_territory", 0.0)) * 100.0))
+	return "%d%%" % int(round(ResultsPayload.float_of(row, ResultsPayload.KEY_PEAK_TERRITORY) * 100.0))
 
 
 static func _results_mode_id(results: Dictionary) -> int:
-	var mode: Variant = results.get("mode")
-	if mode is Dictionary:
-		return int((mode as Dictionary).get("mode_id", MatchConfig.GameMode.CLASSIC))
-	return MatchConfig.GameMode.CLASSIC
+	return ResultsPayload.mode_id(results)
 
 
 # --- Host/client gate ---------------------------------------------------------

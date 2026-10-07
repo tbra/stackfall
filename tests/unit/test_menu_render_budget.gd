@@ -39,6 +39,41 @@ func test_hidden_diorama_does_not_render() -> void:
 	var diorama: MenuDiorama = menu.find_child("Diorama", true, false) as MenuDiorama
 	assert_not_null(diorama)
 	var vp: SubViewport = diorama.get_node("DioramaViewport") as SubViewport
-	assert_eq(vp.render_target_update_mode, SubViewport.UPDATE_ALWAYS)
+	var expected: SubViewport.UpdateMode = SubViewport.UPDATE_ONCE if TUNING.diorama_update_fps > 0 else SubViewport.UPDATE_ALWAYS
+	assert_eq(vp.render_target_update_mode, expected)
 	menu.hide()
 	assert_eq(vp.render_target_update_mode, SubViewport.UPDATE_DISABLED)
+
+
+func test_match_cap_set_while_menu_open_applies_on_last_exit() -> void:
+	var before_fps: int = Engine.max_fps
+	var backdrop: MenuBackdrop = MenuBackdrop.new()
+	add_child(backdrop)
+	MenuBackdrop.set_match_cap(144)
+	assert_eq(Engine.max_fps, TUNING.menu_max_fps, "menu cap stays in force")
+	backdrop.free()
+	assert_eq(Engine.max_fps, 144)
+	MenuBackdrop.clear_match_cap()
+	Engine.max_fps = before_fps
+
+
+func test_diorama_renders_only_at_its_update_rate() -> void:
+	var diorama: MenuDiorama = MenuDiorama.new()
+	var tuning: MenuVisualTuning = TUNING.duplicate() as MenuVisualTuning
+	tuning.diorama_update_fps = 10
+	diorama.tuning = tuning
+	add_child_autofree(diorama)
+	var vp: SubViewport = diorama._viewport
+	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	var camera_before: Vector3 = diorama._camera.position
+	diorama._process(0.04)
+	assert_eq(vp.render_target_update_mode, SubViewport.UPDATE_DISABLED, "below the interval: no render")
+	assert_eq(diorama._camera.position, camera_before, "below the interval: camera untouched")
+	diorama._process(0.07)
+	assert_eq(vp.render_target_update_mode, SubViewport.UPDATE_ONCE, "interval reached: one render")
+	assert_ne(diorama._camera.position, camera_before)
+	assert_almost_eq(diorama._elapsed_s, 0.11, 0.0001, "banked time is not lost")
+	tuning.diorama_update_fps = 0
+	diorama.hide()
+	diorama.show()
+	assert_eq(vp.render_target_update_mode, SubViewport.UPDATE_ALWAYS, "0 = every frame")

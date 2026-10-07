@@ -27,6 +27,12 @@ extends Control
 static var _budget_holders: int = 0
 static var _saved_max_fps: int = 0
 static var _saved_disable_3d: bool = false
+## Bontago-1pi.11.49: the in-match cap decided by game/Main.gd (-1 = none decided, so
+## the cap saved on menu entry is restored). Main is the single place that decides it;
+## this class only arbitrates menu vs match, so a preset change made while a menu is
+## open cannot leave the match cap behind in the menu (or the menu cap in the match).
+static var _match_cap: int = -1
+static var _menu_cap: int = 0
 
 var _holds_budget: bool = false
 
@@ -50,7 +56,7 @@ func _exit_tree() -> void:
 	_holds_budget = false
 	_budget_holders = maxi(_budget_holders - 1, 0)
 	if _budget_holders == 0:
-		Engine.max_fps = _saved_max_fps
+		Engine.max_fps = _match_cap if _match_cap >= 0 else _saved_max_fps
 		var viewport: Viewport = get_viewport()
 		if viewport != null:
 			viewport.disable_3d = _saved_disable_3d
@@ -60,11 +66,33 @@ static func budget_holders() -> int:
 	return _budget_holders
 
 
+## Called by game/Main.gd whenever it decides the in-match cap (0 = uncapped). While a
+## menu holds the budget the menu cap stays in force and the match cap takes effect on
+## the last menu exit; otherwise it applies immediately.
+static func set_match_cap(cap: int) -> void:
+	_match_cap = maxi(cap, 0)
+	if _budget_holders == 0:
+		Engine.max_fps = _match_cap
+	else:
+		Engine.max_fps = _menu_effective_cap()
+
+
+static func clear_match_cap() -> void:
+	_match_cap = -1
+
+
+static func _menu_effective_cap() -> int:
+	# DECISION: an existing lower player/tool/match cap wins over the menu cap.
+	var base: int = _match_cap if _match_cap >= 0 else _saved_max_fps
+	if _menu_cap <= 0:
+		return base
+	return _menu_cap if base <= 0 else mini(_menu_cap, base)
+
+
 func _apply_budget() -> void:
-	# DECISION: an existing lower player/tool cap wins over the menu cap.
-	var cap: int = tuning.menu_max_fps
-	if cap > 0:
-		Engine.max_fps = cap if _saved_max_fps <= 0 else mini(cap, _saved_max_fps)
+	_menu_cap = tuning.menu_max_fps
+	if _menu_cap > 0:
+		Engine.max_fps = _menu_effective_cap()
 	var viewport: Viewport = get_viewport()
 	if viewport != null and tuning.menu_disable_world_3d:
 		viewport.disable_3d = true

@@ -11,11 +11,9 @@ extends Resource
 ## resolve its map).
 enum MapSize { SMALL, MEDIUM, LARGE }
 
-## Spec 2.1's five map shapes. Ordinals match MatchConfig.MapVariant's own
-## ROUND/OVAL/RING/TWIN/CROSS exactly (config/MatchConfig.gd:11) so
-## for_variant_and_size() below can take that enum's raw int value without
-## importing MatchConfig itself (see this file's own cycle note above
-## for_size()).
+## Spec 2.1's five map shapes. Single owner: MatchConfig.MapVariant is a const
+## alias of this enum (same ordinals, stored in lobby data and settings), so
+## for_variant_and_size() takes its raw int value without importing MatchConfig.
 enum MapShape { ROUND, OVAL, RING, TWIN, CROSS }
 
 const RADIUS_SMALL: float = 30.0
@@ -210,16 +208,24 @@ static func for_variant_and_size(variant: int, size: MapSize) -> MapDef:
 		if shipped != null:
 			return shipped
 	var result: MapDef = for_size(size).duplicate(true) as MapDef
-	result.map_shape = variant as MapShape
+	result.map_shape = variant as MapShape  # MatchConfig.MapVariant is this enum
 	return result
 
 
 ## res://config/maps/<shape>_<size>.tres for a MapVariant/MapShape ordinal and
 ## a MapSize, e.g. "res://config/maps/ring_small.tres".
 static func variant_resource_path(variant: int, size: MapSize) -> String:
-	var shape_name: String = (MapShape.keys()[variant] as String).to_lower()
+	var shape_name: String = shape_id(variant)
 	var size_name: String = (MapSize.keys()[size] as String).to_lower()
 	return "res://config/maps/%s_%s.tres" % [shape_name, size_name]
+
+
+## Lower-case shape id ("round", "ring", ...) of a MapShape/MapVariant value; "" when out of range.
+static func shape_id(variant: int) -> String:
+	var keys: Array = MapShape.keys()
+	if variant < 0 or variant >= keys.size():
+		return ""
+	return (keys[variant] as String).to_lower()
 
 
 ## Number of cells along one edge of the square grid that covers the disk.

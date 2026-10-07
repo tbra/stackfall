@@ -39,3 +39,4 @@ arm_delay = 0.0
 arm_impulse = 5.0
 fuse_timeout_s = 6.0
 effect = SubResource("Resource_rocket_effect")
+activation_scale = 2.0

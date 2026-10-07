@@ -105,7 +105,7 @@ func _on_match_state_changed(_from_state: int, _to_state: int) -> void:
 func _can_show() -> bool:
 	if suppressed or _paused or not _holding or match_provider == null:
 		return false
-	return MatchLifecycle.is_live_state(match_provider.state())
+	return MatchAutoload.is_live(match_provider.state())
 
 
 func _update_visibility() -> void:
@@ -123,8 +123,8 @@ func _refresh_table() -> void:
 	var payload: Dictionary = match_provider.stats().live_payload()
 	if payload.is_empty():
 		return
-	var rows: Array = payload.get("rows", []) as Array
-	var mode: Variant = payload.get("mode")
+	var rows: Array = ResultsPayload.rows(payload)
+	var mode: Variant = payload.get(ResultsPayload.KEY_MODE)
 	if rows == _last_rows and mode == _last_mode:
 		return
 	_last_rows = rows.duplicate(true)

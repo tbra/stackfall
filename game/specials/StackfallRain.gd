@@ -15,6 +15,10 @@ var _position_attempts: int = 1
 var _body_cap: int = 600
 var _center: Vector2 = Vector2.ZERO
 var _shape: BlockShape = null
+var _weights: Resource = null
+var _random_yaw: bool = false
+var _cell_size: float = 1.0
+var _radii: Array[float] = []
 var _elapsed: float = 0.0
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _positions: Array[Vector2] = []
@@ -23,12 +27,15 @@ var _positions: Array[Vector2] = []
 func bind(
 	slot_id: int, center: Vector2, seed_value: int, shape: BlockShape,
 	count: int, rate: float, radius: float, height: float, spacing: float,
-	position_attempts: int, body_cap: int
+	position_attempts: int, body_cap: int, weights: Resource = null, random_yaw: bool = false
 ) -> void:
 	owner_slot = slot_id
 	_center = center
 	_rng.seed = seed_value
 	_shape = shape
+	_weights = weights
+	_random_yaw = random_yaw
+	_cell_size = Match._physics_tuning.cube_size
 	_count = maxi(count, 0)
 	_rate = maxf(rate, 0.1)
 	_radius = maxf(radius, 0.0)
@@ -61,21 +68,33 @@ func advance(delta: float) -> void:
 
 func _spawn_one() -> void:
 	var field: Field = Match.field()
-	if field == null or _shape == null:
+	if field == null or (_shape == null and _weights == null):
 		return
-	var point: Vector2 = _sample_position(field.map_def)
+	var shape: BlockShape = _shape
+	var radius: float = 0.0
+	if _weights != null:
+		shape = GiftShapePicker.pick(_rng, _weights)
+	if shape == null:
+		return
+	radius = GiftShapePicker.footprint_radius(shape, _cell_size)
+	var point: Vector2 = _sample_position(field.map_def, radius)
 	if not point.is_finite():
 		return
+	var basis: Basis = Basis.IDENTITY
+	if _random_yaw:
+		basis = Basis(Vector3.UP, _rng.randf_range(0.0, TAU))
 	var origin: Vector3 = field.world_from_disk_local(point, _height)
 	var placed: Block = BlockSpawner.spawn(
-		_shape, origin, Basis.IDENTITY, owner_slot, Vector3.ZERO, _body_cap
+		shape, origin, basis, owner_slot, Vector3.ZERO, _body_cap
 	)
 	if placed != null:
 		_positions.append(point)
+		_radii.append(radius)
 		spawned += 1
 
 
-func _sample_position(map_def: MapDef) -> Vector2:
+## `footprint` (metres) widens the spacing check for big shapes: prior radius + this one are added.
+func _sample_position(map_def: MapDef, footprint: float = 0.0) -> Vector2:
 	for _i: int in range(_position_attempts):
 		var angle: float = _rng.randf_range(0.0, TAU)
 		var radius: float = sqrt(_rng.randf()) * _radius
@@ -83,8 +102,9 @@ func _sample_position(map_def: MapDef) -> Vector2:
 		if not map_def.shape_contains(point):
 			continue
 		var separated: bool = true
-		for prior: Vector2 in _positions:
-			if prior.distance_to(point) < _spacing:
+		for i: int in range(_positions.size()):
+			var prior_radius: float = _radii[i] if i < _radii.size() else 0.0
+			if _positions[i].distance_to(point) < _spacing + prior_radius + footprint:
 				separated = false
 				break
 		if separated:

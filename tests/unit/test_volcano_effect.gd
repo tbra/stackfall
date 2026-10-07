@@ -153,8 +153,8 @@ func test_volcano_tres_loads_with_plan_defaults() -> void:
 	assert_eq(effect.eruption_interval_min_s, 0.4)
 	assert_eq(effect.eruption_interval_max_s, 1.2)
 	assert_eq(effect.block_cap, 600)
-	assert_eq(effect.orb_blast.radius_m, 1.5)
-	assert_eq(effect.orb_blast.peak_speed_mps, 4.0)
+	assert_not_null(effect.particles, "eruption particle tuning")
+	assert_not_null(effect.shape_weights, "shared gift shape weights")
 
 
 func test_detonate_spawns_one_structure_on_the_field_for_the_owner() -> void:

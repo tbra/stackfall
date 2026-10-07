@@ -468,7 +468,9 @@ func test_used_gift_spawns_exactly_one_body_that_shows_the_gift_model_not_a_bloc
 		if child is CollisionShape3D:
 			colliders += 1
 			var box: BoxShape3D = (child as CollisionShape3D).shape as BoxShape3D
-			assert_almost_eq(box.size.x, Match._physics_tuning.cube_size - Match._physics_tuning.cube_margin, 0.0001)
+			# Bontago-1pi.85.32: a released gift collides at its activation scale (bomb 3x).
+			var bomb_scale: float = (load("res://config/specials/bomb.tres") as SpecialDef).activation_scale
+			assert_almost_eq(box.size.x, (Match._physics_tuning.cube_size - Match._physics_tuning.cube_margin) * bomb_scale, 0.0001)
 	assert_eq(colliders, 1, "a gift body collides as one cube cell, not the carrier piece")
 
 

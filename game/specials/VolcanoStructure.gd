@@ -5,8 +5,8 @@ extends Node3D
 ##
 ## Host (physics = true): carries an AnimatableBody3D with a convex cone hull that
 ## grows over rise_s, pushes blocks in its footprint outward while it rises (bounded
-## scan, push_max_bodies per tick) and, once risen, spawns 1-3 owner-coloured cube
-## blocks per burst through BlockSpawner (not counted as placements, stops at the
+## scan, push_max_bodies per tick) and, once risen, spawns 1-3 owner-coloured
+## blocks of random shape (GiftShapePicker, shared weights) per burst through BlockSpawner (not counted as placements, stops at the
 ## cap). Client (physics = false): the same placeholder cone visual and clock, no
 ## collision body and no spawning. The node frees itself after rise_s +
 ## eruption_duration_s of simulation time, or as soon as the match is no longer live.
@@ -22,6 +22,10 @@ extends Node3D
 ## The hull never degenerates to a flat plane at the start of the rise.
 const MIN_HEIGHT_FRACTION: float = 0.02
 
+## Seed mixing for the host's deterministic eruption stream (slot and spawn counter).
+const SLOT_SEED_MIX: int = 2654435761
+const SEQ_SEED_MIX: int = 40503
+
 ## Fewest base-ring segments a convex hull / cone mesh needs, and the divide-by-zero guard.
 const MIN_RING_SEGMENTS: int = 3
 const HEIGHT_EPSILON: float = 0.0001
@@ -33,6 +37,10 @@ var _exclude: Array[RID] = []
 var _age: float = 0.0
 var _next_burst_s: float = 0.0
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+var _fx: VolcanoEruptionFx = null
+var _fx_stopped: bool = false
+## Count of host structures spawned this session; mixed into the eruption seed.
+static var _spawn_seq: int = 0
 var _body: AnimatableBody3D = null
 var _collision: CollisionShape3D = null
 ## Pivot holding the visual (model or fallback cone); scaled in Y during the rise.
@@ -66,6 +74,11 @@ static func _spawn(effect: VolcanoEffect, world_position: Vector3, owner_slot: i
 		return null
 	var structure: VolcanoStructure = VolcanoStructure.new()
 	structure.configure(effect, owner_slot, physics, exclude)
+	if physics:
+		# Host-deterministic eruption stream: match seed, owner slot and spawn counter.
+		_spawn_seq += 1
+		var base_seed: int = int(Match.config.rng_seed) if Match.config != null else 0
+		structure._rng.seed = base_seed ^ ((owner_slot + 1) * SLOT_SEED_MIX) ^ (_spawn_seq * SEQ_SEED_MIX)
 	structure.bind_to_match = true
 	field.add_child(structure)
 	structure.global_position = world_position
@@ -102,7 +115,22 @@ func _ready() -> void:
 		_collision = CollisionShape3D.new()
 		_body.add_child(_collision)
 		add_child(_body)
+	_build_particles()
 	_apply_height(current_height())
+
+
+## Cosmetic eruption particles on host and client (client-side visual; no net traffic).
+func _build_particles() -> void:
+	if _effect.particles == null:
+		return
+	_fx = VolcanoEruptionFx.new()
+	_fx.position = Vector3(0.0, _effect.height_m, 0.0)
+	add_child(_fx)
+	_fx.setup(_effect.particles, Settings.current_graphics_preset())
+
+
+func eruption_fx() -> VolcanoEruptionFx:
+	return _fx
 
 
 func age() -> float:
@@ -144,25 +172,26 @@ func _physics_process(delta: float) -> void:
 
 
 func _match_is_live() -> bool:
-	var current: Match.State = Match.state()
-	return current == Match.State.PLAYING or current == Match.State.SUDDEN_DEATH
+	return MatchAutoload.is_live(Match.state())
 
 
 ## One simulation step; public so tests drive it without the physics loop.
 func tick(delta: float) -> void:
 	if _effect == null or (bind_to_match and not _match_is_live()):
+		_stop_fx()
 		queue_free()
 		return
 	var was_rising: bool = is_rising()
 	_age += delta
 	if is_expired():
+		_stop_fx()
 		queue_free()
 		return
 	if was_rising:
 		_apply_height(current_height())
 		if _physics:
 			_push_footprint()
-	if _physics and not is_rising():
+	if not is_rising():
 		_erupt(delta)
 
 
@@ -286,14 +315,28 @@ func _push_footprint() -> void:
 		pushed += 1
 
 
-## Counts the next burst down and spawns it; stops quietly at the block cap.
+func _stop_fx() -> void:
+	if _fx != null and not _fx_stopped:
+		_fx_stopped = true
+		_fx.stop()
+
+
+## Counts the next burst down and fires it. The host spawns the blocks; host and client both
+## emit the cosmetic embers (a client's own clock, so its bursts are not frame-locked to the
+## host's shots). Stops quietly at the block cap.
 func _erupt(delta: float) -> void:
+	if _fx != null and not _fx_stopped:
+		_fx.set_plume_active(true)
 	_next_burst_s -= delta
 	if _next_burst_s > 0.0:
 		return
 	_next_burst_s = _rng.randf_range(
 		_effect.eruption_interval_min_s, maxf(_effect.eruption_interval_min_s, _effect.eruption_interval_max_s)
 	)
+	if _fx != null:
+		_fx.burst()
+	if not _physics:
+		return
 	var count: int = _rng.randi_range(_effect.min_blocks_per_burst, maxi(_effect.min_blocks_per_burst, _effect.max_blocks_per_burst))
 	var phase: float = _rng.randf_range(0.0, TAU)
 	for i: int in range(count):
@@ -302,8 +345,11 @@ func _erupt(delta: float) -> void:
 			var angle: float = phase + TAU * float(i) / float(count)
 			spread = Vector3(cos(angle), 0.0, sin(angle)) * _effect.burst_spread_m
 		var origin: Vector3 = apex_world() + global_basis.y * _effect.spawn_clearance_m + spread
+		var shape: BlockShape = _effect.block_shape
+		if _effect.shape_weights != null:
+			shape = GiftShapePicker.pick(_rng, _effect.shape_weights)
 		var spawned: Block = BlockSpawner.spawn(
-			_effect.block_shape, origin, Basis.IDENTITY, _owner_slot, _launch_velocity(), _effect.block_cap
+			shape, origin, Basis.IDENTITY, _owner_slot, _launch_velocity(), _effect.block_cap
 		)
 		if spawned == null:
 			return

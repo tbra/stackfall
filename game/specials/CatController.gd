@@ -149,7 +149,7 @@ func set_target(point: Vector3) -> bool:
 func _physics_process(delta: float) -> void:
 	if not _host_body:
 		return
-	if not MatchLifecycle.is_live_state(Match.state()):
+	if not MatchAutoload.is_live(Match.state()):
 		Match.end_cat(activation_id)
 		return
 	time_left -= delta

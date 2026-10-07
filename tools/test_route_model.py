@@ -16,7 +16,7 @@ class RoutePolicyTests(unittest.TestCase):
             result = router.route("Rename HUD label", "Exact text supplied", ["ui/Hud.gd"], "mechanical", 0)
         request.assert_not_called()
         self.assertEqual((result["model"], result["verification_tier"]), ("haiku", "quick"))
-        self.assertEqual(result["max_windowed_probes"], 0)
+        self.assertIsNone(result["max_windowed_probes"])
 
     def test_core_review_and_specialized_gate_cannot_be_waived_by_jev(self):
         reply = {
@@ -33,7 +33,7 @@ class RoutePolicyTests(unittest.TestCase):
         self.assertTrue(result["needs_review"])
         self.assertEqual(result["verification_tier"], "specialized")
         self.assertEqual(result["max_targeted_runs"], 2)
-        self.assertEqual(result["max_windowed_probes"], 0)
+        self.assertIsNone(result["max_windowed_probes"])
 
     def test_unavailable_service_uses_bounded_fallback(self):
         with patch.dict(os.environ, {"TYPESAFE_API_KEY": ""}):

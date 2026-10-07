@@ -8,7 +8,9 @@ extends Resource
 ## duplicate, never the shared resource, so a match can never write back into
 ## the defaults on disk.
 
-enum MapVariant { ROUND, OVAL, RING, TWIN, CROSS }
+## Single owner: MapDef.MapShape (MapDef cannot import MatchConfig, MatchConfig can
+## import MapDef). Same ordinals and names; tests/unit/test_enum_lockstep.gd pins them.
+const MapVariant = MapDef.MapShape
 ## Spec 2.8 "Teams: Off / 2 / 3 / 4".
 enum TeamMode { OFF, TEAMS_2, TEAMS_3, TEAMS_4 }
 enum AiDifficulty { EASY, NORMAL, HARD }
@@ -59,7 +61,10 @@ enum WeatherMode { OFF, STORM, RAIN, SNOW, FOG, RANDOM, CHANGING }
 enum SkyThemeMode { DAY, NIGHT, RANDOM, CYCLE, DAWN }
 ## Concrete theme ids for host RANDOM rolls and resolved-id validation. The
 ## enum has non-concrete RANDOM/CYCLE entries, so its indices are not used here.
-const SKY_THEME_IDS: PackedStringArray = ["sunset", "night", "dawn"]
+const SKY_ID_SUNSET: String = "sunset"
+const SKY_ID_NIGHT: String = "night"
+const SKY_ID_DAWN: String = "dawn"
+const SKY_THEME_IDS: PackedStringArray = [SKY_ID_SUNSET, SKY_ID_NIGHT, SKY_ID_DAWN]
 ## Bontago-59o.18 (C1b follow-up): sky_variation_seed's "not resolved" value, and the
 ## largest seed (a 31-bit int, so core/SkyVariation's integer hash never overflows).
 const SKY_VARIATION_SEED_UNRESOLVED: int = -1

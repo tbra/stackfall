@@ -5,6 +5,7 @@
 [resource]
 script = ExtResource("1_hints")
 ranges = {
+"GraphicsPreset.screen_check_interval_s": Vector2(0.1, 10.0),
 "SpecialTuning.gift_aim_back_m": Vector2(0.0, 30.0),
 "SpecialTuning.gift_aim_min_height_m": Vector2(0.0, 5.0),
 "SpecialTuning.gift_throw_speed_mps": Vector2(1.0, 60.0),
@@ -430,6 +431,7 @@ ranges = {
 "FogTuning.aerial_perspective_add": Vector2(0.0, 1.0),
 "FogTuning.ambient_min_rim_keep": Vector2(0.0, 1.0),
 "SkyThemeDef.cloud_deck_height_m": Vector2(-200.0, 200.0),
+"MenuVisualTuning.diorama_update_fps": Vector2(0.0, 120.0),
 "MenuVisualTuning.diorama_anchor_left": Vector2(0.0, 1.0),
 "MenuVisualTuning.diorama_anchor_top": Vector2(0.0, 1.0),
 "MenuVisualTuning.diorama_anchor_right": Vector2(0.0, 1.0),
@@ -1425,6 +1427,7 @@ descriptions = {
 "FogTuning.ambient_min_rim_keep": "Minimum colour fraction ambient theme fog must keep at the far rim.",
 "SkyThemeDef.cloud_deck_size_m": "World-space dimensions of the cloud-deck FogVolume box.",
 "SkyThemeDef.cloud_deck_height_m": "World Y-height of the cloud-deck FogVolume center.",
+"MenuVisualTuning.diorama_update_fps": "How many times per second the menu diorama re-renders (0 = every frame). Lower saves idle GPU/CPU.",
 "MenuVisualTuning.diorama_anchor_left": "Left edge of the live-3D diorama viewport, as a fraction of the menu control's width.",
 "MenuVisualTuning.diorama_anchor_top": "Top edge of the live-3D diorama viewport, as a fraction of the menu control's height.",
 "MenuVisualTuning.diorama_anchor_right": "Right edge of the live-3D diorama viewport, as a fraction of the menu control's width.",
