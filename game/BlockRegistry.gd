@@ -433,7 +433,15 @@ func net_id_for_block(block: Block) -> int:
 
 
 func block_for_net_id(net_id: int) -> Block:
-	return _net_id_to_block.get(net_id) as Block
+	# Read as Variant: casting a freed instance with `as Block` is an error.
+	var stored: Variant = _net_id_to_block.get(net_id)
+	if stored == null:
+		return null
+	if not is_instance_valid(stored):
+		# DECISION: drop the stale entry (block freed without block_removed, e.g. teardown).
+		_net_id_to_block.erase(net_id)
+		return null
+	return stored as Block
 
 
 ## Host Paintball conversion and client mirror converge here so influence
