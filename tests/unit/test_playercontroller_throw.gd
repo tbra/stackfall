@@ -5,6 +5,11 @@ extends GutTest
 ## Fixture family of test_playercontroller_mouse.gd/test_playercontroller_gamepad.gd.
 
 
+func after_each() -> void:
+	# Synthetic gamepad presses flip Settings' active device; restore it for later scripts.
+	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+
+
 func _mouse_press(button: MouseButton) -> InputEventMouseButton:
 	var event: InputEventMouseButton = InputEventMouseButton.new()
 	event.button_index = button
@@ -106,6 +111,29 @@ func test_rocket_preview_is_a_straight_gravity_free_line() -> void:
 	assert_eq(preview["gravity_scale"], 0.0)
 	var velocity: Vector3 = preview["velocity"]
 	assert_true(velocity.normalized().is_equal_approx(controller._camera_forward().normalized()))
+
+
+func test_preview_origin_is_the_ghost_pose_and_the_camera_yaw_rotates_the_velocity() -> void:
+	var controller: PlayerController = _make_controller(_fake_match_with(&"bomb"))
+	controller._ghost.global_position = Vector3(2.0, 9.0, 3.0)
+	var first: Dictionary = controller.gift_launch_preview()
+	var clamped: Vector3 = Vector3(2.0, 9.0 + controller.special_tuning.gift_aim_min_height_m, 3.0)
+	# No field behind the fake match: surface_y is the ghost height, so only the min-height clamp lifts it.
+	assert_true((first["origin"] as Vector3).is_equal_approx(clamped), "arc starts at the held gift")
+	var rig: CameraRig = load("res://game/CameraRig.tscn").instantiate()
+	add_child_autofree(rig)
+	rig._yaw = PI * 0.5
+	controller._camera_rig = rig
+	var second: Dictionary = controller.gift_launch_preview()
+	assert_true((second["origin"] as Vector3).is_equal_approx(clamped), "origin independent of camera")
+	assert_false((first["velocity"] as Vector3).is_equal_approx(second["velocity"] as Vector3), "yaw rotates the aim")
+
+
+func test_rocket_and_paintball_are_not_previewable() -> void:
+	for id: StringName in [&"rocket", &"paintball"]:
+		var controller: PlayerController = _make_controller(_fake_match_with(id))
+		assert_false(GiftThrow.shows_preview(controller._held_gift_mode()), "%s" % id)
+	assert_true(GiftThrow.shows_preview(_make_controller(_fake_match_with(&"bomb"))._held_gift_mode()))
 
 
 func test_no_preview_for_an_ordinary_piece_or_a_placed_gift() -> void:

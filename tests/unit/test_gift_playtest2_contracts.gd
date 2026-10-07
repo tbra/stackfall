@@ -121,7 +121,7 @@ func test_special_tuning_defaults_and_shipped_resource() -> void:
 		SpecialTuning.new(), load("res://config/special_tuning.tres") as SpecialTuning
 	]
 	for t: SpecialTuning in tunings:
-		assert_eq(t.gift_aim_back_m, 8.0)
+		assert_eq(t.gift_aim_back_m, 0.0)
 		assert_eq(t.gift_aim_min_height_m, 1.0)
 		assert_eq(t.gift_throw_speed_mps, 22.0)
 		assert_eq(t.gift_throw_up_ratio, 0.35)
@@ -139,7 +139,8 @@ func test_gift_aim_signatures_are_callable() -> void:
 	# PA2 filled the P0 stubs: same signatures, real maths (details in test_gift_throw).
 	var t: SpecialTuning = SpecialTuning.new()
 	var cursor: Vector3 = Vector3(1.0, 2.0, 3.0)
-	assert_ne(GiftAim.spawn_point(cursor, Vector3.FORWARD, 0.0, t), cursor)
+	assert_eq(GiftAim.spawn_point(cursor, Vector3.FORWARD, 0.0, t), cursor)
+	assert_eq(GiftAim.spawn_point(cursor, Vector3.ZERO, 0.0, t), cursor)
 	assert_almost_eq(GiftAim.straight_velocity(Vector3.FORWARD, 10.0).length(), 10.0, 0.001)
 	assert_almost_eq(GiftAim.throw_velocity(Vector3.FORWARD, t).length(), t.gift_throw_speed_mps, 0.001)
 

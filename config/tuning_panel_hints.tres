@@ -839,7 +839,7 @@ ranges = {
 "CloudDriftConfig.exclusion_fade_m": Vector2(5.0, 200.0),
 }
 descriptions = {
-"SpecialTuning.gift_aim_back_m": "How far back along the camera line a camera-aimed gift spawns from the cursor point, in meters.",
+"SpecialTuning.gift_aim_back_m": "How far back along the camera line a camera-aimed gift spawns from the held gift, in meters (0 = from the held gift).",
 "SpecialTuning.gift_aim_min_height_m": "Lowest allowed spawn height of an aimed gift above the surface, in meters.",
 "SpecialTuning.gift_throw_speed_mps": "Fixed launch speed of a thrown gift (Bomb, Magnet, Jumping Bean) in m/s.",
 "SpecialTuning.gift_throw_up_ratio": "Upward lift added to the camera forward of a thrown gift before normalising (0 = flat, 1 = 45 degrees).",

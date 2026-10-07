@@ -264,6 +264,23 @@ func test_arc_hides_when_the_gift_is_gone() -> void:
 	assert_false(arc.visible, "an ordinary piece has no arc")
 
 
+func test_rocket_and_paintball_draw_no_arc_but_bomb_magnet_bean_do() -> void:
+	for id: StringName in [&"rocket", &"paintball"]:
+		var fake: FakeMatch = FakeMatch.new()
+		fake.held_special_by_slot[0] = id
+		var fixture: Dictionary = _make_special_controller(fake)
+		var arc: ThrowArcPreview = fixture["arc"]
+		arc.update_arc(Vector3(0.0, 5.0, 0.0), Vector3(0.0, 1.0, 5.0), null, 1.0)
+		(fixture["controller"] as PlayerController)._update_throw_aim(1.0 / 60.0)
+		assert_false(arc.visible, "%s shows no preview (1pi.85.50)" % id)
+	for id: StringName in [&"bomb", &"magnet", &"jumping_bean"]:
+		var fake: FakeMatch = FakeMatch.new()
+		fake.held_special_by_slot[0] = id
+		var fixture: Dictionary = _make_special_controller(fake)
+		(fixture["controller"] as PlayerController)._update_throw_aim(1.0 / 60.0)
+		assert_true((fixture["arc"] as ThrowArcPreview).visible, "%s keeps its arc" % id)
+
+
 func test_rocket_arc_is_straight_gravity_free() -> void:
 	var arc: ThrowArcPreview = _make_arc()
 	var points: PackedVector3Array = arc.sample_arc(Vector3(0.0, 5.0, 0.0), Vector3(0.0, 10.0, 10.0), null, 0.0)
