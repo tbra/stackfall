@@ -296,6 +296,10 @@ func _ready() -> void:
 	Events.gift_landed.connect(_on_gift_state_changed)
 	Events.gift_expired.connect(_on_gift_state_changed)
 	Events.input_device_changed.connect(_on_input_device_changed)
+	# Bontago-1pi.99: the world build awaits frames, so the HUD can be created after
+	# the LOADING/COUNTDOWN state emits it would otherwise prime on. Catch up now.
+	if Match.is_in_progress(Match.state()):
+		prime_pregame_widgets()
 
 
 func _build_countdown_label() -> void:
