@@ -136,6 +136,58 @@ func test_erupts_for_at_least_20_s_of_sim_time_with_owner_cubes_and_no_stat_bump
 	assert_true(structure.is_expired())
 
 
+## Bontago-1pi.85.46: a 3-block burst launches along distinct directions at jittered speeds, spawns
+## apart, and the blocks stay more than one cube width apart through the first half second.
+const MIN_VELOCITY_DIFF_MPS: float = 2.0
+const SEPARATION_FRAMES: int = 30
+
+
+func _burst_blocks(structure: VolcanoStructure, burst_size: int) -> Array[Block]:
+	var found: Array[Block] = []
+	for _i: int in range(int(ceil(_effect.eruption_interval_max_s / TICK)) + 2):
+		structure.tick(TICK)
+		if _blocks.get_child_count() >= burst_size:
+			break
+	for child: Node in _blocks.get_children():
+		if child is Block:
+			found.append(child as Block)
+	return found
+
+
+func test_burst_blocks_launch_apart_and_stay_separated() -> void:
+	_start()
+	_effect.min_blocks_per_burst = 3
+	_effect.max_blocks_per_burst = 3
+	_effect.eruption_interval_min_s = 0.05
+	_effect.eruption_interval_max_s = 0.05
+	var structure: VolcanoStructure = _manual(VolcanoStructure.spawn_host(_effect, _origin(), 1))
+	_step(structure, _effect.rise_s)
+	var burst: Array[Block] = _burst_blocks(structure, 3)
+	assert_gte(burst.size(), 3, "a full burst spawned")
+	var cube: float = (preload("res://config/physics_tuning.tres") as PhysicsTuning).cube_size
+	for a: int in range(3):
+		for b: int in range(a + 1, 3):
+			var dv: float = (burst[a].linear_velocity - burst[b].linear_velocity).length()
+			assert_gt(dv, MIN_VELOCITY_DIFF_MPS, "blocks %d/%d leave at clearly different velocities" % [a, b])
+			assert_gt(burst[a].global_position.distance_to(burst[b].global_position), cube, "spawned apart")
+	for _f: int in range(SEPARATION_FRAMES):
+		await wait_physics_frames(1)
+	var min_gap: float = INF
+	for a: int in range(3):
+		for b: int in range(a + 1, 3):
+			min_gap = minf(min_gap, burst[a].global_position.distance_to(burst[b].global_position))
+	assert_gt(min_gap, cube, "no two ejected blocks are within one cube width after 0.5 s (%.2f m)" % min_gap)
+
+
+func test_shipped_volcano_launch_is_stronger_and_spread() -> void:
+	var fresh: VolcanoEffect = VolcanoEffect.new()
+	assert_eq(fresh.launch_speed_mps, 16.0)
+	assert_eq(fresh.cone_angle_deg, 50.0)
+	assert_eq(fresh.burst_spread_m, 1.6)
+	assert_gt(fresh.launch_speed_jitter, 0.0)
+	assert_true(fresh.azimuth_even)
+
+
 func test_eruption_stops_at_the_block_cap() -> void:
 	_start()
 	_effect.block_cap = 6

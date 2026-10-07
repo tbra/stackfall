@@ -43,15 +43,27 @@ extends SpecialEffect
 @export var max_blocks_per_burst: int = 3
 
 ## Half-angle (degrees) of the launch cone around the structure's up.
-@export var cone_angle_deg: float = 35.0
+@export var cone_angle_deg: float = 50.0
 
-## Launch speed of each block in m/s.
-@export var launch_speed_mps: float = 9.0
+## Base launch speed of each block in m/s (Bontago-1pi.85.46: 9 -> 16, ejected blocks fly clear).
+@export var launch_speed_mps: float = 16.0
+
+## Per-block speed spread as a fraction of the base: each block's speed is drawn from
+## [1 - j, 1 + j] times `launch_speed_mps`, so blocks of one burst separate along the flight.
+@export var launch_speed_jitter: float = 0.3
+
+## The blocks of one burst launch at evenly spaced azimuths round the cone (not independent
+## random ones), so no two share a direction.
+@export var azimuth_even: bool = true
+
+## With more than one block in a burst, the launch polar angle is drawn from
+## [this fraction of cone_angle_deg, cone_angle_deg] so none flies straight up with another.
+@export var multi_burst_min_cone_fraction: float = 0.5
 
 ## Metres above the apex a block spawns, and the horizontal spread between the
 ## blocks of one burst so they do not interpenetrate.
 @export var spawn_clearance_m: float = 0.4
-@export var burst_spread_m: float = 0.8
+@export var burst_spread_m: float = 1.6
 
 ## Fallback single shape, used only when `shape_weights` is null.
 @export var block_shape: BlockShape = preload("res://config/blocks/cube.tres")

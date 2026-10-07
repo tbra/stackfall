@@ -349,14 +349,22 @@ func _erupt(delta: float) -> void:
 		if _effect.shape_weights != null:
 			shape = GiftShapePicker.pick(_rng, _effect.shape_weights)
 		var spawned: Block = BlockSpawner.spawn(
-			shape, origin, Basis.IDENTITY, _owner_slot, _launch_velocity(), _effect.block_cap
+			shape, origin, Basis.IDENTITY, _owner_slot, _launch_velocity(i, count, phase), _effect.block_cap
 		)
 		if spawned == null:
 			return
 
 
-func _launch_velocity() -> Vector3:
+## Launch velocity of block `index` of a `count`-block burst (Bontago-1pi.85.46). Evenly spaced
+## azimuths from the burst `phase` (when azimuth_even), a polar angle kept off the axis for a
+## multi-block burst, and a per-block speed drawn from [1 - j, 1 + j] times the base.
+func _launch_velocity(index: int = 0, count: int = 1, phase: float = 0.0) -> Vector3:
 	var azimuth: float = _rng.randf_range(0.0, TAU)
-	var polar: float = deg_to_rad(_rng.randf_range(0.0, _effect.cone_angle_deg))
+	if _effect.azimuth_even and count > 1:
+		azimuth = phase + TAU * float(index) / float(count)
+	var min_polar: float = _effect.cone_angle_deg * _effect.multi_burst_min_cone_fraction if count > 1 else 0.0
+	var polar: float = deg_to_rad(_rng.randf_range(min_polar, _effect.cone_angle_deg))
+	var jitter: float = clampf(_effect.launch_speed_jitter, 0.0, 1.0)
+	var speed: float = _effect.launch_speed_mps * _rng.randf_range(1.0 - jitter, 1.0 + jitter)
 	var local_direction: Vector3 = Vector3(sin(polar) * cos(azimuth), cos(polar), sin(polar) * sin(azimuth))
-	return global_basis * local_direction * _effect.launch_speed_mps
+	return global_basis * local_direction * speed

@@ -210,8 +210,8 @@ func test_magnet_tres_loads_with_expected_id_and_usable_pull() -> void:
 	assert_true(found.effect is MagnetEffect, "magnet.tres's effect sub-resource must be a MagnetEffect")
 	var effect: MagnetEffect = found.effect as MagnetEffect
 	assert_gt(effect.pull.radius_m, 0.0)
-	assert_gt(effect.pull_duration_s, 0.0)
-	assert_eq(effect.effect_lifetime_s(), effect.pull_duration_s, "the pull window is the effect lifetime")
+	assert_eq(effect.pull_duration_s, 6.0, "owner 2026-10-07: the magnet lasts longer (3 -> 6 s, Bontago-1pi.85.49)")
+	assert_eq(effect.effect_lifetime_s(), effect.pull_start_delay_s + effect.pull_duration_s, "start delay + pull window is the effect lifetime")
 	assert_gt(effect.pull.friction_compensation, 0.0, "the pull must beat block friction to break a block away")
 	assert_not_null(effect.tuning, "tuning must fall back to the preloaded config/special_tuning.tres")
 

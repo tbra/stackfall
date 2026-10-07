@@ -65,11 +65,6 @@ extends SpecialEffect
 ## Smallest horizontal-plus-downward direction length treated as a direction at all.
 const MIN_DIRECTION_LENGTH: float = 0.001
 
-## nose_basis(): dot below which the direction counts as opposite to the nose, and the |x| above
-## which the nose counts as lying along X (so another helper axis is used).
-const ANTIPARALLEL_DOT: float = -0.9999
-const NEAR_X_AXIS: float = 0.9
-
 ## The shipped wire config: its position_bounds() is the volume snapshots quantize into.
 const _NET_CONFIG: NetConfig = preload("res://config/net_config.tres")
 
@@ -84,7 +79,6 @@ const LAUNCH_DIRECTION_META: StringName = &"rocket_launch_direction"
 const _LAUNCH_AGE_META: StringName = &"rocket_launch_age"
 const _FLIGHT_DIRECTION_META: StringName = &"rocket_flight_direction"
 const _HIT_META: StringName = &"rocket_hit"
-const _FACED_META: StringName = &"rocket_faced"
 const _CARRIER_GRAVITY_META: StringName = &"rocket_carrier_gravity_scale"
 const _OWN_EXCEPTIONS_META: StringName = &"projectile_own_exceptions"
 
@@ -98,6 +92,12 @@ static func set_launch_direction(block: Block, direction: Vector3) -> bool:
 	if clean == Vector3.ZERO:
 		return false
 	block.set_meta(LAUNCH_DIRECTION_META, clean)
+	# Bontago-1pi.85.49: face the carrier at once (needs the effect's nose axis, so the shipped
+	# def's), not only on the first physics tick, so the pose written to the body already matches.
+	var def: SpecialDef = SpecialDef.find_by_id(&"rocket")
+	var effect: RocketEffect = def.effect as RocketEffect if def != null else null
+	if effect != null and block.is_inside_tree():
+		FlightFacing.face_direction(block, effect.model_nose_axis, clean)
 	return true
 
 
@@ -252,26 +252,14 @@ func _contact_ahead(
 	return behavior.impact_filter(result.get_collider(), launched_at)
 
 
-## Turns the carrier so `model_nose_axis` points along `direction` (shortest arc), keeping its
-## position. The first write also resets physics interpolation so it does not swing in.
+## Turns the carrier so `model_nose_axis` points along `direction` (FlightFacing).
 func _face_direction(block: Block, direction: Vector3) -> void:
-	var basis: Basis = nose_basis(model_nose_axis, direction)
-	var first: bool = not block.has_meta(_FACED_META)
-	block.global_transform = Transform3D(basis, block.global_position)
-	if first:
-		block.set_meta(_FACED_META, true)
-		block.reset_physics_interpolation()
+	FlightFacing.face_direction(block, model_nose_axis, direction)
 
 
-## Pure: a rotation taking the unit `nose` axis onto the unit `direction` (shortest arc). A
-## direction opposite to the nose turns half a revolution about a perpendicular axis.
+## Pure: delegates to FlightFacing.nose_basis (Bontago-1pi.85.49).
 static func nose_basis(nose: Vector3, direction: Vector3) -> Basis:
-	var from: Vector3 = nose.normalized()
-	var to: Vector3 = direction.normalized()
-	if from.dot(to) < ANTIPARALLEL_DOT:
-		var side: Vector3 = Vector3.RIGHT if absf(from.x) < NEAR_X_AXIS else Vector3.UP
-		return Basis(from.cross(side).normalized(), PI)
-	return Basis(Quaternion(from, to))
+	return FlightFacing.nose_basis(nose, direction)
 
 
 ## Shared by Rocket and Paintball (Bontago-1pi.85.37): makes every block of `block`'s owner within
