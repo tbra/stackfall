@@ -167,3 +167,48 @@ func test_discmirror_process_priority_runs_after_a_priority_one_camera_mover() -
 	var mirror: DiscMirror = wired["mirror"] as DiscMirror
 
 	assert_gt(mirror.process_priority, 1)
+
+
+func test_mirror_environment_drops_ssr_fog_glow_by_default_and_follows_live_flags() -> void:
+	var visuals: TerritoryVisuals = TerritoryVisuals.new()
+	var mirror: DiscMirror = _make_wired_mirror(visuals)["mirror"] as DiscMirror
+	var live: Environment = Environment.new()
+	live.ssr_enabled = true
+	live.volumetric_fog_enabled = true
+	live.glow_enabled = true
+	mirror._live_environment = live
+	mirror._mirror_environment = live.duplicate() as Environment
+
+	mirror._apply_environment_cuts()
+	assert_false(mirror._mirror_environment.ssr_enabled, "SSR is off in the mirror by default.")
+	assert_false(mirror._mirror_environment.volumetric_fog_enabled, "Volumetric fog is off in the mirror by default.")
+	assert_false(mirror._mirror_environment.glow_enabled, "Glow is off in the mirror by default.")
+
+	visuals.mirror_ssr_enabled = true
+	visuals.mirror_glow_enabled = true
+	mirror._apply_environment_cuts()
+	assert_true(mirror._mirror_environment.ssr_enabled, "The flag lets the live value through.")
+	assert_true(mirror._mirror_environment.glow_enabled)
+	assert_false(mirror._mirror_environment.volumetric_fog_enabled)
+
+	live.ssr_enabled = false
+	mirror._apply_environment_cuts()
+	assert_false(mirror._mirror_environment.ssr_enabled, "A live scene with SSR off keeps the mirror's off (Low preset).")
+
+
+func test_mirror_sky_background_cut_keeps_ambient_and_reflection_on_the_sky() -> void:
+	var visuals: TerritoryVisuals = TerritoryVisuals.new()
+	var mirror: DiscMirror = _make_wired_mirror(visuals)["mirror"] as DiscMirror
+	var live: Environment = Environment.new()
+	live.background_mode = Environment.BG_SKY
+	mirror._live_environment = live
+	mirror._mirror_environment = live.duplicate() as Environment
+
+	mirror._apply_environment_cuts()
+	assert_eq(mirror._mirror_environment.background_mode, Environment.BG_SKY, "The sky is drawn by default.")
+
+	visuals.mirror_sky_background_enabled = false
+	mirror._apply_environment_cuts()
+	assert_eq(mirror._mirror_environment.background_mode, Environment.BG_COLOR)
+	assert_eq(mirror._mirror_environment.ambient_light_source, Environment.AMBIENT_SOURCE_SKY)
+	assert_eq(mirror._mirror_environment.reflected_light_source, Environment.REFLECTION_SOURCE_SKY)
