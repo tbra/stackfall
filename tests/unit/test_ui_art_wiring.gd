@@ -7,7 +7,7 @@ const LOBBY_KEYS: Array[StringName] = [
 	UiArtTable.KEY_SECTION_GAME, UiArtTable.KEY_SECTION_ROUND, UiArtTable.KEY_SECTION_GIFTS,
 	UiArtTable.KEY_SECTION_EXPERIMENTS, UiArtTable.KEY_BOT_ADD, UiArtTable.KEY_BOT_REMOVE,
 	UiArtTable.KEY_TEAMS, UiArtTable.KEY_TEAM_RANDOM, UiArtTable.KEY_COLOUR_SWAP,
-	UiArtTable.KEY_ADVANCED_OPEN, UiArtTable.KEY_ADVANCED_CLOSED,
+	UiArtTable.KEY_ADVANCED_OPEN, UiArtTable.KEY_ADVANCED_CLOSED, UiArtTable.KEY_HOST_CROWN,
 	&"difficulty_easy", &"difficulty_normal", &"difficulty_hard",
 ]
 

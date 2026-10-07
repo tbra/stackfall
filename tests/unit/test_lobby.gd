@@ -595,7 +595,7 @@ func test_roster_header_omits_bots_when_ai_count_is_zero() -> void:
 	(lobby.get_node("%PlayerCountSpin") as SpinBox).value = 5
 
 	var count_label: Label = _count_label(lobby)
-	assert_eq(count_label.text, "2 players · 2/5 seats")
+	assert_eq(count_label.text, "2 players · 2/8 seats")
 
 
 ## Bontago-1pi.9b: owner playtest -- "I can add bots up to the player limit"

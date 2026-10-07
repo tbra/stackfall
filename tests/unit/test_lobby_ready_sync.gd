@@ -47,9 +47,10 @@ func _badges(lobby: Lobby) -> Dictionary:
 	var badges: Dictionary = {}
 	for node: Node in _panel_of(lobby)._player_rows:
 		var row: LobbySeatRow = node as LobbySeatRow
-		if row == null or row.is_bot or row.badge_label == null:
+		if row == null or row.is_bot or row.badge == null:
 			continue
-		badges[row.display_name] = row.badge.tooltip_text == LobbySeatRow.ready_tooltip(true)
+		# Bontago-1pi.106: the host's badge is a crown, so its ready state is read off the row flag.
+		badges[row.display_name] = row.is_ready if row.is_host else row.badge.tooltip_text == LobbySeatRow.ready_tooltip(true)
 	return badges
 
 

@@ -58,6 +58,9 @@ var show_team: bool = false
 var difficulty: int = MatchConfig.AiDifficulty.NORMAL
 var is_bot: bool = false
 var is_ready: bool = false
+## The host's row: no Ready toggle exists for the host (Start is its consent), so the badge
+## slot shows a crown instead of the Ready / Not ready pill.
+var is_host: bool = false
 ## The controls work: the host's on every seat, a client's on its OWN row only (colour and
 ## team; PL1b -- the panel turns its clicks into Net.request_seat_pref). Anyone else's row
 ## is the same row, read-only.
@@ -81,6 +84,9 @@ var badge_label: Label = null
 
 var _tuning: MenuVisualTuning = null
 var _layout_tuning: LobbyLayoutTuning = null
+
+
+const HOST_TOOLTIP: String = "Host"
 
 
 ## The accessible text of a Ready / Not ready pill (the pill itself shows only its icon).
@@ -307,8 +313,27 @@ func _build_remove_button() -> void:
 	layout.add_child(remove_button)
 
 
+## The host's crown pill: same mint pill as Ready, holding the crown icon (UiArtTable).
+func _build_host_crown_badge() -> void:
+	badge.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(_tuning.pill_mint_color, _tuning))
+	badge.tooltip_text = HOST_TOOLTIP
+	var crown: TextureRect = TextureRect.new()
+	var table: UiArtTable = UiArtTable.shared()
+	crown.texture = table.lobby_icon(UiArtTable.KEY_HOST_CROWN)
+	crown.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	crown.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	crown.custom_minimum_size = Vector2.ONE * float(table.lobby_icon_px)
+	crown.modulate = _tuning.ink_color
+	crown.name = "HostCrown"
+	badge.add_child(crown)
+	layout.add_child(badge)
+
+
 func _build_badge() -> void:
 	badge = PanelContainer.new()
+	if is_host:
+		_build_host_crown_badge()
+		return
 	var badge_color: Color = _tuning.pill_mint_color if is_ready else _tuning.ground_band_apricot_color
 	badge.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(badge_color, _tuning))
 	badge_label = Label.new()

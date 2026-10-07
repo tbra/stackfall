@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UiArtTable" load_steps=17 format=3]
+[gd_resource type="Resource" script_class="UiArtTable" load_steps=18 format=3]
 
 [ext_resource type="Script" path="res://config/UiArtTable.gd" id="1_t"]
 [ext_resource type="Texture2D" path="res://assets/ui/map_pictograms_v1/atlas.svg" id="2_m"]
@@ -16,6 +16,7 @@
 [ext_resource type="Texture2D" path="res://assets/ui/icons/lobby_v1/difficulty_easy.svg" id="i11"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/lobby_v1/difficulty_normal.svg" id="i12"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/lobby_v1/difficulty_hard.svg" id="i13"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/lobby_v1/host_crown.svg" id="i14"]
 
 [resource]
 script = ExtResource("1_t")
@@ -41,7 +42,8 @@ lobby_icons = {
 &"advanced_closed": ExtResource("i10"),
 &"difficulty_easy": ExtResource("i11"),
 &"difficulty_normal": ExtResource("i12"),
-&"difficulty_hard": ExtResource("i13")
+&"difficulty_hard": ExtResource("i13"),
+&"host_crown": ExtResource("i14")
 }
 map_icon_px = 28
 loading_map_icon_px = 64
