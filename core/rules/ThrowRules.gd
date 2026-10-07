@@ -24,8 +24,9 @@ const REASON_NOT_A_SPECIAL: StringName = &"not_a_special"
 
 ## Spec 2.5 gives a throw a single "outside your own territory" release-point
 ## failure, not PlacementRules' several distinguishable reasons (contested,
-## hole, off-disk, goal zone) -- reason_for() below collapses every non-VALID
-## PlacementRules.Result into this one constant. Aliased to PlacementRules'
+## hole, off-disk, goal zone) -- reason_for() below maps the territory outcomes
+## (outside territory, contested) to this constant and, since Bontago-1pi.85.54,
+## reports hole / off-disk / goal zone by their own reasons. Aliased to PlacementRules'
 ## own constant (not a new StringName literal) so MatchNet/HUD code that
 ## already switches on PlacementRules.REASON_OUTSIDE_TERRITORY recognizes a
 ## throw's refusal without a second case.
@@ -43,12 +44,16 @@ static func validate_release_point(
 	return PlacementRules.validate_point(point, raster, team_id)
 
 
-## Collapses every non-VALID PlacementRules.Result into REASON_OUTSIDE_
-## TERRITORY -- spec 2.5 gives a throw only one release-point failure
-## message, unlike placement's several distinguishable REASON_* reasons.
-## REASON_NOT_A_SPECIAL is never produced here; MatchPlacement.request_throw()
-## returns it directly, before a point is ever tested.
+## Bontago-1pi.85.54: only the territory outcomes (OUTSIDE_TERRITORY, CONTESTED) collapse into
+## REASON_OUTSIDE_TERRITORY (spec 2.5). A cursor over a pit/hole, past the rim or in a goal zone
+## reports its real reason (hole / off_disk / goal_zone) -- e.g. the volcano crater at a home
+## whose column has no floor used to be mislabelled "outside_territory" although a held gift
+## waives territory. REASON_NOT_A_SPECIAL is never produced here.
 static func reason_for(result: PlacementRules.Result) -> StringName:
-	if result == PlacementRules.Result.VALID:
-		return PlacementRules.REASON_OK
-	return REASON_OUTSIDE_TERRITORY
+	match result:
+		PlacementRules.Result.VALID:
+			return PlacementRules.REASON_OK
+		PlacementRules.Result.OUTSIDE_TERRITORY, PlacementRules.Result.CONTESTED:
+			return REASON_OUTSIDE_TERRITORY
+		_:
+			return PlacementRules.reason_for(result)
