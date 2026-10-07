@@ -236,12 +236,18 @@ func _extra_ring_scale() -> float:
 ## A full annulus lying flat at y=0 in local space (see GoalFlag._build_arc()
 ## for the same idea swept over less than a full turn, for the capture ring).
 func _build_beacon_ring_mesh(outer: float, inner: float) -> ArrayMesh:
-	var segments: int = maxi(beacon_visuals.ring_segments, 3)
+	return build_annulus_mesh(outer, inner, TAU, maxi(beacon_visuals.ring_segments, 3))
+
+
+## A flat annulus in the XZ plane (normals up) swept clockwise from +z over
+## `sweep` radians in `segments` quads. Shared by the beacon ring (full turn),
+## GoalFlag's capture arc (partial turn) and its claim-radius ring.
+static func build_annulus_mesh(outer: float, inner: float, sweep: float, segments: int) -> ArrayMesh:
 	var vertices: PackedVector3Array = PackedVector3Array()
 	var normals: PackedVector3Array = PackedVector3Array()
 	for i: int in range(segments):
-		var a0: float = TAU * float(i) / float(segments)
-		var a1: float = TAU * float(i + 1) / float(segments)
+		var a0: float = sweep * float(i) / float(segments)
+		var a1: float = sweep * float(i + 1) / float(segments)
 		var d0: Vector3 = Vector3(sin(a0), 0.0, cos(a0))
 		var d1: Vector3 = Vector3(sin(a1), 0.0, cos(a1))
 		var o0: Vector3 = d0 * outer

@@ -372,21 +372,12 @@ func _home_position() -> Vector2:
 ## fallback" -- a caller that only reads `"height"` (support_height's own
 ## producer, `_generate_one_candidate()`) is unaffected either way.
 func _raycast_support_height(local_xz: Vector2) -> Dictionary:
-	if _field == null or not _field.is_inside_tree():
+	if _field == null:
 		return {}
-	var world: World3D = _field.get_world_3d()
-	if world == null:
-		return {}
-	var space: PhysicsDirectSpaceState3D = world.direct_space_state
+	var space: PhysicsDirectSpaceState3D = _field.direct_space()
 	if space == null:
 		return {}
-	var start: Vector3 = _field.world_from_disk_local(local_xz, _field.map_def.cell_wake_height)
-	var end: Vector3 = _field.world_from_disk_local(local_xz, _field.tuning.kill_plane_y)
-	var params: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(start, end)
-	params.collide_with_bodies = true
-	params.collide_with_areas = false
-	params.collision_mask = Field.PLACEMENT_QUERY_MASK
-	var hit: Dictionary = space.intersect_ray(params)
+	var hit: Dictionary = _field.raycast_disk_column(space, local_xz)
 	if hit.is_empty():
 		return {"height": 0.0, "collider": null, "hit": false}
 	var local_hit: Vector3 = _field.to_local(hit["position"] as Vector3)

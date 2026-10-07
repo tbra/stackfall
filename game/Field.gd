@@ -962,16 +962,31 @@ func _on_hole_cells_changed(opened: PackedInt32Array, closed: PackedInt32Array) 
 ## as "the only two functions that change" then). `world_origin.y` itself is
 ## never read: only its (x, z) projection onto the disk matters here.
 func raycast_down_disk_local(world_origin: Vector3) -> Variant:
+	var space: PhysicsDirectSpaceState3D = direct_space()
+	if space == null:
+		return null
+	var hit: Dictionary = raycast_disk_column(space, disk_local_from_world(world_origin))
+	if hit.is_empty():
+		return null
+	return disk_local_from_world(hit["position"] as Vector3)
+
+
+## The live physics space this field queries, or null when the field is out
+## of the tree / has no world (bare unit tests). Shared by
+## raycast_down_disk_local() and game/BotController.gd's support probe.
+func direct_space() -> PhysicsDirectSpaceState3D:
 	if not is_inside_tree():
 		return null
 	var world: World3D = get_world_3d()
 	if world == null:
 		return null
-	var space: PhysicsDirectSpaceState3D = world.direct_space_state
-	if space == null:
-		return null
+	return world.direct_space_state
 
-	var local_xz: Vector2 = disk_local_from_world(world_origin)
+
+## The straight-down column ray at disk-local `local_xz` (map_def.
+## cell_wake_height down to tuning.kill_plane_y, PLACEMENT_QUERY_MASK, bodies
+## only), returning the raw intersect_ray() dictionary (empty on a miss).
+func raycast_disk_column(space: PhysicsDirectSpaceState3D, local_xz: Vector2) -> Dictionary:
 	var start: Vector3 = world_from_disk_local(local_xz, map_def.cell_wake_height)
 	var end: Vector3 = world_from_disk_local(local_xz, tuning.kill_plane_y)
 	var params: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(start, end)
@@ -979,11 +994,34 @@ func raycast_down_disk_local(world_origin: Vector3) -> Variant:
 	params.collide_with_areas = false
 	params.collision_mask = PLACEMENT_QUERY_MASK
 	params.exclude = []
+	return space.intersect_ray(params)
 
-	var hit: Dictionary = space.intersect_ray(params)
-	if hit.is_empty():
-		return null
-	return disk_local_from_world(hit["position"] as Vector3)
+
+## Straight down from `origin` for `ray_length`, skipping any RigidBody3D (a
+## placed block) so the first hit is the disk's own collision, never a tower
+## beneath. Bounded by `max_skips` so a very tall or adversarial stack cannot
+## spin the loop; past that many skips it reports a miss ({}). Shared by
+## PlayerController and GhostPreview (their copies were identical).
+static func raycast_disk_surface(
+	space: PhysicsDirectSpaceState3D, origin: Vector3, ray_length: float, max_skips: int
+) -> Dictionary:
+	var exclude: Array[RID] = []
+	var attempts: int = 0
+	while attempts <= max_skips:
+		var params: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
+			origin, origin + Vector3.DOWN * ray_length
+		)
+		params.exclude = exclude
+		params.collision_mask = PLACEMENT_QUERY_MASK
+		var hit: Dictionary = space.intersect_ray(params)
+		if hit.is_empty():
+			return {}
+		if hit["collider"] is RigidBody3D:
+			exclude.append(hit["rid"] as RID)
+			attempts += 1
+			continue
+		return hit
+	return {}
 
 
 ## Called by game/Main.gd's _end_match_world() when a match's world comes down

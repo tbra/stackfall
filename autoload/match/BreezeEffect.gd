@@ -1,5 +1,5 @@
 class_name BreezeEffect
-extends RefCounted
+extends WindEffect
 ## Host-side Breeze (Bontago-470.2): an always-on weak wind made of short
 ## local GUSTS, layered independently of the weather mode and of any active
 ## weather, except Storm: no NEW gust spawns while a Storm event is active
@@ -42,11 +42,10 @@ extends RefCounted
 ## The weather id (config/weather/storm.tres) that quiets the Breeze.
 const QUIET_WEATHER_ID: StringName = WeatherIds.STORM
 
-var tuning: BreezeTuning = preload("res://config/breeze.tres")
-var match_ref: MatchAutoload = null
-var last_pushed: int = 0
-## Stable-frozen blocks woken on the most recent tick (capped by tuning).
-var last_woken: int = 0
+## The base class's `tuning`, typed as this effect's own BreezeTuning.
+var _bt: BreezeTuning:
+	get:
+		return tuning as BreezeTuning
 
 var _enabled: bool = true
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -55,25 +54,23 @@ var _spawn_left: float = 0.0
 var _next_id: int = 1
 var _tick_index: int = 0
 var _gusts: Array[Dictionary] = []
-var _host_check: Callable = Callable()
-## Test seams (same shape as StormEffect's).
-var _blocks_source: Callable = Callable()
-var _surface_source: Callable = Callable()
-var _force_host: bool = false
 ## Optional override for the active weather id (returns a StringName/String);
 ## unset = ask match_ref.weather().
 var _weather_id_source: Callable = Callable()
 
 
-func bind(match_owner: MatchAutoload, host_check: Callable = Callable()) -> void:
+func _init() -> void:
+	tuning = preload("res://config/breeze.tres")
+
+
+## `weather_tuning` null keeps the current (default breeze.tres) tuning.
+func bind(
+	match_owner: MatchAutoload, weather_tuning: WeatherTuning = null, host_check: Callable = Callable()
+) -> void:
 	match_ref = match_owner
+	if weather_tuning != null:
+		tuning = weather_tuning
 	_host_check = host_check
-
-
-func set_test_world(blocks: Callable, surface_y: Callable) -> void:
-	_blocks_source = blocks
-	_surface_source = surface_y
-	_force_host = true
 
 
 ## Test seam: replaces the lookup of the active weather id.
@@ -84,8 +81,8 @@ func set_weather_source(source: Callable) -> void:
 func begin(seed_value: int) -> void:
 	stop()
 	_rng.seed = seed_value
-	_enabled = tuning.enabled
-	_spawn_left = tuning.spawn_interval_s
+	_enabled = _bt.enabled
+	_spawn_left = _bt.spawn_interval_s
 	_next_id = 1
 	_running = true
 
@@ -128,7 +125,7 @@ func gusts() -> Array[Dictionary]:
 	return _gusts
 
 
-func tick(delta: float) -> void:
+func tick(delta: float, _intensity: float = 1.0) -> void:
 	last_pushed = 0
 	last_woken = 0
 	if not _running or not _enabled or not _is_host():
@@ -137,7 +134,7 @@ func tick(delta: float) -> void:
 	_age_and_expire(delta)
 	_spawn_left -= delta
 	if _spawn_left <= 0.0:
-		_spawn_left += maxf(tuning.spawn_interval_s, delta)
+		_spawn_left += maxf(_bt.spawn_interval_s, delta)
 		if not is_quieted_by_weather():
 			_try_spawn()
 	if not _gusts.is_empty():
@@ -158,7 +155,7 @@ func _eligible(block: Block) -> bool:
 		return false
 	# A settled tower is stable-frozen STATIC after 20 s asleep; gusts wake it
 	# (Bontago-mp0.36). Any other freeze (Freeze special) still blocks the push.
-	if StormEffect.is_stable_frozen(block):
+	if WindEffect.is_stable_frozen(block):
 		return true
 	return not block.freeze and not block.is_freeze_static()
 
@@ -174,8 +171,8 @@ func _try_spawn() -> void:
 	var jitter_y: float = _rng.randf_range(-1.0, 1.0)
 	var jitter_z: float = _rng.randf_range(-1.0, 1.0)
 	var angle: float = _rng.randf() * TAU
-	var radius: float = _rng.randf_range(tuning.radius_min_m, maxf(tuning.radius_min_m, tuning.radius_max_m))
-	var duration: float = _rng.randf_range(tuning.duration_min_s, maxf(tuning.duration_min_s, tuning.duration_max_s))
+	var radius: float = _rng.randf_range(_bt.radius_min_m, maxf(_bt.radius_min_m, _bt.radius_max_m))
+	var duration: float = _rng.randf_range(_bt.duration_min_s, maxf(_bt.duration_min_s, _bt.duration_max_s))
 	# Bontago-1pi.76: at most ONE gust alive at a time (a sporadic single gust).
 	if blocks.is_empty() or not _gusts.is_empty():
 		return
@@ -184,13 +181,13 @@ func _try_spawn() -> void:
 		return
 	var surface: float = _surface_y()
 	var height: float = block.global_position.y - surface
-	if accept >= BreezeField.spawn_probability(height, tuning):
+	if accept >= BreezeField.spawn_probability(height, _bt):
 		return
-	var jitter: float = radius * tuning.center_jitter
+	var jitter: float = radius * _bt.center_jitter
 	var center: Vector3 = block.global_position + Vector3(jitter_x, jitter_y, jitter_z) * jitter
 	var gust: Dictionary = {
 		"id": _next_id, "x": center.x, "y": center.y, "z": center.z,
-		"a": angle, "r": radius, "d": duration, "s": BreezeField.gust_strength(height, tuning),
+		"a": angle, "r": radius, "d": duration, "s": BreezeField.gust_strength(height, _bt),
 	}
 	_next_id += 1
 	var wire: Dictionary = gust.duplicate()
@@ -201,7 +198,7 @@ func _try_spawn() -> void:
 
 func _push(delta: float) -> void:
 	var surface: float = _surface_y()
-	var stride: int = maxi(tuning.sleeper_stride_ticks, 1)
+	var stride: int = maxi(_bt.sleeper_stride_ticks, 1)
 	# Cheap sphere data first: most blocks are outside every gust, and the
 	# full checks (tree, freeze, children) only run for the few inside one.
 	var centers: Array[Vector3] = []
@@ -224,48 +221,28 @@ func _push(delta: float) -> void:
 			continue
 		var total: Vector3 = Vector3.ZERO
 		for gust: Dictionary in _gusts:
-			total += BreezeField.gust_accel(gust, float(gust["age"]), position, surface, delta, tuning)
+			total += BreezeField.gust_accel(gust, float(gust["age"]), position, surface, delta, _bt)
 		var accel: float = total.length()
 		if accel <= 0.0:
 			continue
-		if StormEffect._owns_physics(block):
+		if WindEffect._owns_physics(block):
 			continue
-		var stable_frozen: bool = StormEffect.is_stable_frozen(block)
+		var stable_frozen: bool = WindEffect.is_stable_frozen(block)
 		var asleep: bool = block.sleeping or stable_frozen
-		if asleep and ((index + _tick_index) % stride != 0 or accel < tuning.wake_accel):
+		if asleep and ((index + _tick_index) % stride != 0 or accel < _bt.wake_accel):
 			continue
 		var dir: Vector3 = total / accel
 		if stable_frozen:
-			if last_woken >= tuning.max_wakes_per_tick or not StormEffect.is_exposed(block, tuning.exposure_probe_m):
+			if last_woken >= _bt.max_wakes_per_tick or not WindEffect.is_exposed(block, _bt.exposure_probe_m):
 				continue
-			if not StormEffect.wake_stable_frozen(block):
+			if not WindEffect.wake_stable_frozen(block):
 				continue
 			last_woken += 1
-		if block.linear_velocity.dot(dir) >= tuning.max_speed_ms:
+		if block.linear_velocity.dot(dir) >= _bt.max_speed_ms:
 			continue
-		accel = minf(accel, tuning.max_dv_per_tick / maxf(delta, 0.0001))
+		accel = minf(accel, _bt.max_dv_per_tick / maxf(delta, 0.0001))
 		block.apply_central_force(dir * accel * block.mass)
 		last_pushed += 1
-
-
-func _is_host() -> bool:
-	if _force_host:
-		return true
-	if _host_check.is_valid():
-		return bool(_host_check.call())
-	return match_ref != null and match_ref._is_host()
-
-
-func _blocks() -> Array[Block]:
-	if _blocks_source.is_valid():
-		var listed: Array[Block] = []
-		listed.assign(_blocks_source.call() as Array)
-		return listed
-	var registry: BlockRegistry = match_ref.registry() if match_ref != null else null
-	if registry == null:
-		var none: Array[Block] = []
-		return none
-	return registry.all_blocks()
 
 
 func _active_weather_id() -> StringName:
@@ -273,10 +250,3 @@ func _active_weather_id() -> StringName:
 		return StringName(String(_weather_id_source.call()))
 	var weather: MatchWeather = match_ref.weather() if match_ref != null else null
 	return weather.active_id() if weather != null else &""
-
-
-func _surface_y() -> float:
-	if _surface_source.is_valid():
-		return float(_surface_source.call())
-	var field: Field = match_ref.field() if match_ref != null else null
-	return field.surface_y() if field != null else 0.0

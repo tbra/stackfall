@@ -298,28 +298,7 @@ func _build_arc(progress: float) -> ArrayMesh:
 	var inner: float = maxf(outer - visuals.capture_ring_thickness, 0.001)
 	var sweep: float = TAU * progress
 
-	var vertices: PackedVector3Array = PackedVector3Array()
-	var normals: PackedVector3Array = PackedVector3Array()
-	for i: int in range(used):
-		var a0: float = sweep * float(i) / float(used)
-		var a1: float = sweep * float(i + 1) / float(used)
-		var d0: Vector3 = Vector3(sin(a0), 0.0, cos(a0))
-		var d1: Vector3 = Vector3(sin(a1), 0.0, cos(a1))
-		var o0: Vector3 = d0 * outer
-		var o1: Vector3 = d1 * outer
-		var i0: Vector3 = d0 * inner
-		var i1: Vector3 = d1 * inner
-		vertices.append_array([i0, o0, o1, i0, o1, i1])
-	for _v: int in range(vertices.size()):
-		normals.append(Vector3.UP)
-
-	var arrays: Array = []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = vertices
-	arrays[Mesh.ARRAY_NORMAL] = normals
-	var mesh_out: ArrayMesh = ArrayMesh.new()
-	mesh_out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	return mesh_out
+	return build_annulus_mesh(outer, inner, sweep, used)
 
 
 ## Bontago-1pi.18.6: shows (radius > 0) or removes (radius <= 0 or non-finite) the
@@ -387,27 +366,4 @@ func _build_claim_ring_mesh(radius: float) -> ArrayMesh:
 	var half: float = maxf(beacon_visuals.claim_ring_width, 0.001) * 0.5
 	var outer: float = radius + half
 	var inner: float = maxf(radius - half, 0.0)
-	var vertices: PackedVector3Array = PackedVector3Array()
-	var normals: PackedVector3Array = PackedVector3Array()
-	vertices.resize(segments * 6)
-	normals.resize(segments * 6)
-	for i: int in range(segments):
-		var a0: float = TAU * float(i) / float(segments)
-		var a1: float = TAU * float(i + 1) / float(segments)
-		var d0: Vector3 = Vector3(sin(a0), 0.0, cos(a0))
-		var d1: Vector3 = Vector3(sin(a1), 0.0, cos(a1))
-		var base: int = i * 6
-		vertices[base] = d0 * inner
-		vertices[base + 1] = d0 * outer
-		vertices[base + 2] = d1 * outer
-		vertices[base + 3] = d0 * inner
-		vertices[base + 4] = d1 * outer
-		vertices[base + 5] = d1 * inner
-	normals.fill(Vector3.UP)
-	var arrays: Array = []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = vertices
-	arrays[Mesh.ARRAY_NORMAL] = normals
-	var mesh_out: ArrayMesh = ArrayMesh.new()
-	mesh_out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	return mesh_out
+	return build_annulus_mesh(outer, inner, TAU, segments)

@@ -49,8 +49,7 @@ Rule = namedtuple("Rule", "id pattern scope allowed keep_strings exts message mu
 LINE_ALLOW = {
     "NET_PREDICATE": [
         ("autoload/Match.gd", "func _is_host", "the injectable net-provider seam over Net.is_host(); ~70 controller/test call sites"),
-        ("autoload/match/BreezeEffect.gd", "func _is_host", "test override seam, then Match._is_host(); no own predicate"),
-        ("autoload/match/StormEffect.gd", "func _is_host", "test override seam, then Match._is_host(); no own predicate"),
+        ("autoload/match/WindEffect.gd", "func _is_host", "shared Storm/Breeze test override seam, then Match._is_host(); no own predicate"),
         ("autoload/match/MatchWeather.gd", "func _is_host", "test override seam, then Match._is_host(); no own predicate"),
         ("game/HoleDissolver.gd", "func _is_host", "reads BlockRegistry's cached host-authority flag, not the session"),
     ],

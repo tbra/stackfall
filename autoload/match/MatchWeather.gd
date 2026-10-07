@@ -92,7 +92,7 @@ var _breeze: BreezeEffect = BreezeEffect.new()
 
 func setup(match_ref: MatchAutoload) -> void:
 	_match = match_ref
-	_breeze.bind(match_ref, _is_host)
+	_breeze.bind(match_ref, null, _is_host)
 	Events.match_state_changed.connect(_on_match_state_changed)
 
 

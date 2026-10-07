@@ -1612,9 +1612,7 @@ func _build_polygon_mesh(hull: PackedVector2Array, center: Vector2) -> ArrayMesh
 ## the first hit reported is the disk's own collision -- never a tower
 ## underneath the hull's own centroid (Bontago-xtq.7, this file's own header
 ## fix (2)). Mirrors game/PlayerController.gd's own _raycast_disk_surface()
-## (out of this package's ownership, so duplicated rather than reached into --
-## same call this file already makes for collision_box_local_centers(), see
-## its own DECISION) exactly, including its surface_probe_max_blocks bound
+## (both now call Field.raycast_disk_surface()), including its surface_probe_max_blocks bound
 ## against a very tall or adversarial stack.
 func _raycast_disk_surface(origin: Vector3) -> Dictionary:
 	if not is_inside_tree():
@@ -1625,23 +1623,9 @@ func _raycast_disk_surface(origin: Vector3) -> Dictionary:
 	var space_state: PhysicsDirectSpaceState3D = world.direct_space_state
 	if space_state == null:
 		return {}
-	var exclude: Array[RID] = []
-	var attempts: int = 0
-	while attempts <= ghost_tuning.surface_probe_max_blocks:
-		var params: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
-			origin, origin + Vector3.DOWN * ghost_tuning.placement_ray_length
-		)
-		params.exclude = exclude
-		params.collision_mask = Field.PLACEMENT_QUERY_MASK
-		var hit: Dictionary = space_state.intersect_ray(params)
-		if hit.is_empty():
-			return {}
-		if hit["collider"] is RigidBody3D:
-			exclude.append(hit["rid"] as RID)
-			attempts += 1
-			continue
-		return hit
-	return {}
+	return Field.raycast_disk_surface(
+		space_state, origin, ghost_tuning.placement_ray_length, ghost_tuning.surface_probe_max_blocks
+	)
 
 
 func _set_footprint_quad_count(count: int) -> void:
