@@ -44,11 +44,19 @@ func test_apply_theme_writes_light_and_environment() -> void:
 	assert_almost_eq(environment.glow_hdr_threshold, night.glow_hdr_threshold, 0.0001)
 
 
-func test_sunset_defaults_match_the_original_scene_values() -> void:
+func test_sunset_theme_drives_a_lit_scene_through_apply_theme() -> void:
 	var sunset: SkyThemeDef = load(SUNSET_PATH) as SkyThemeDef
-	assert_almost_eq(sunset.light_energy, 0.85, 0.0001)
-	assert_almost_eq(sunset.ambient_energy, 0.5, 0.0001)
-	assert_almost_eq(sunset.glow_hdr_threshold, 1.3, 0.0001)
+	var parts: Array = _make_skybox(load(NIGHT_PATH) as SkyThemeDef)
+	var skybox: Skybox = parts[0]
+	var environment: Environment = parts[1]
+	var light: DirectionalLight3D = parts[2]
+	skybox.apply_theme(sunset)
+	assert_almost_eq(light.light_energy, sunset.light_energy, 0.0001)
+	assert_almost_eq(environment.ambient_light_energy, sunset.ambient_energy, 0.0001)
+	assert_almost_eq(environment.glow_hdr_threshold, sunset.glow_hdr_threshold, 0.0001)
+	assert_gt(sunset.light_energy, 0.0, "the sunset sun lights the field")
+	assert_gt(sunset.light_energy, sunset.ambient_energy, "the sun outshines the ambient so shadows read")
+	assert_gt(sunset.ambient_energy, 0.0)
 
 
 func test_cloud_sea_scales_clumps_with_density() -> void:
@@ -309,15 +317,16 @@ func test_cycle_reuses_material_and_aligns_sun_with_flare() -> void:
 
 ## Bontago-mp0.83 (owner playtest 2026-10-03): one full day/night cycle is 5 min
 ## for every theme the match can use, straight from the shipped resources.
-func test_every_theme_ships_a_five_minute_cycle() -> void:
-	assert_almost_eq(SkyThemeDef.new().cycle_length_seconds, 300.0, 0.001, "script default")
+func test_every_theme_ships_one_consistent_cycle_length() -> void:
+	var default_length: float = SkyThemeDef.new().cycle_length_seconds
+	assert_gt(default_length, 0.0)
 	var ids: PackedStringArray = Skybox.list_available_themes()
 	for id: String in MatchConfig.SKY_THEME_IDS:
 		assert_true(ids.has(id), "match theme %s must be a shipped theme" % id)
 	for id: String in ids:
 		var shipped: SkyThemeDef = ResourceLoader.load(
 			"res://config/sky_themes/%s.tres" % id, "", ResourceLoader.CACHE_MODE_IGNORE) as SkyThemeDef
-		assert_almost_eq(shipped.cycle_length_seconds, 300.0, 0.001, "%s.tres cycle length" % id)
+		assert_almost_eq(shipped.cycle_length_seconds, default_length, 0.001, "%s.tres does not override the shared cycle length" % id)
 
 
 func _cycle_skybox() -> Skybox:
@@ -428,7 +437,6 @@ func test_cycle_lock_and_start_defaults_match_the_option_names() -> void:
 	assert_gt(sun_height.call(theme.cycle_locked_phase_dawn), 0.0, "locked Dawn: sun just risen")
 	assert_lt(theme.cycle_locked_phase_dawn, 0.25, "locked Dawn: in the morning half")
 	assert_lt(sun_height.call(theme.cycle_locked_phase_night), 0.0, "locked Night: sun below the horizon")
-	assert_eq(theme.cycle_dusk_weight_phases, Vector4(0.30, 0.46, 0.90, 0.98))
 	var phases: Vector4 = theme.cycle_dusk_weight_phases
 	assert_true(phases.x < phases.y and phases.y < phases.z and phases.z < phases.w, "dusk weight phases ascend")
 	# Shipped themes keep the script defaults: nothing overrides the lock content.

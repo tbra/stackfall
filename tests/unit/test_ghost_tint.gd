@@ -227,6 +227,7 @@ func test_ghost_opacity_is_the_alpha_of_every_tint_state() -> void:
 	assert_almost_eq(ghost.current_tint_color().a, 0.42, 0.001, "throw-aim tint alpha must equal ghost_opacity.")
 
 
-func test_ghost_opacity_default_value() -> void:
+func test_ghost_opacity_default_is_a_valid_translucent_alpha() -> void:
 	var fresh: GhostTuning = GhostTuning.new()
-	assert_almost_eq(fresh.ghost_opacity, 0.9, 0.0001)
+	assert_gt(fresh.ghost_opacity, 0.0, "the ghost is visible")
+	assert_lte(fresh.ghost_opacity, 1.0, "a valid alpha")

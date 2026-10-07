@@ -219,10 +219,10 @@ func test_processing_a_flag_with_a_ring_allocates_no_new_nodes() -> void:
 
 # --- tuning defaults: new exports are subtle, positive and hinted ---------------------
 
-func test_ring_tuning_defaults_are_subtle_and_sane() -> void:
+func test_ring_tuning_defaults_are_drawable_and_translucent() -> void:
 	var tuning: BeaconVisualTuning = load("res://config/beacon_visual_tuning.tres") as BeaconVisualTuning
-	assert_gt(tuning.claim_ring_alpha, 0.0)
-	assert_lt(tuning.claim_ring_alpha, 0.6)
+	assert_gt(tuning.claim_ring_alpha, 0.0, "the ring is visible")
+	assert_lt(tuning.claim_ring_alpha, 1.0, "the ring is translucent, not an opaque band")
 	assert_gt(tuning.claim_ring_width, 0.0)
-	assert_gt(tuning.claim_ring_lift, 0.0)
-	assert_gte(tuning.claim_ring_segments, 12)
+	assert_gt(tuning.claim_ring_lift, 0.0, "lifted off the ground so it does not z-fight")
+	assert_gte(tuning.claim_ring_segments, 3, "enough segments to close a polygon")

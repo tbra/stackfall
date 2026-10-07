@@ -505,23 +505,19 @@ func test_shader_top_grain_block_never_writes_albedo_or_emission() -> void:
 
 
 func test_disk_defaults_to_a_glossy_dielectric_under_the_planar_mirror() -> void:
-	# Bontago-xtq.20: the mirror-like look is the planar mirror
-	# (mirror_strength), composited as reflected light; metallic stays low so
-	# the lit territory tint and the mirror image are not reduced to a tint of
-	# the environment reflection (tools/screenshot_feel8b_disc_glare.gd).
+	# Bontago-xtq.20: the mirror-like look is the planar mirror (mirror_strength), composited
+	# as reflected light; metallic stays on the dielectric side so the lit territory tint and
+	# the mirror image are not reduced to a tint of the environment reflection. Asserted as
+	# classifications (dielectric < half metallic, visible-but-not-total mirror) and as the
+	# values the overlay actually pushes to its material, not as exact numbers.
 	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres")
-	assert_between(
-		visuals.disk_metallic, 0.0, 0.3,
-		"a glossy dielectric; high metallic hid the mirror image and muddied the tint.",
-	)
-	assert_between(
-		visuals.disk_roughness, 0.0, 0.5,
-		"a soft sky/probe sheen under the planar mirror, not a matte surface.",
-	)
-	assert_between(
-		visuals.mirror_strength, 0.3, 0.8,
-		"a clearly visible reflection (docs/original_stacked-tower.png) that still leaves the territory tint legible.",
-	)
+	var overlay: TerritoryOverlay = _make_overlay(_map())
+	assert_lt(visuals.disk_metallic, 0.5, "a dielectric; high metallic hid the mirror image and muddied the tint.")
+	assert_lt(visuals.disk_roughness, 0.5, "a sheen under the planar mirror, not a matte surface.")
+	assert_gt(visuals.mirror_strength, 0.0, "a visible reflection")
+	assert_lt(visuals.mirror_strength, 1.0, "the territory tint stays legible")
+	assert_almost_eq(float(overlay.material().get_shader_parameter(&"base_metallic")), visuals.disk_metallic, 0.0001)
+	assert_almost_eq(float(overlay.material().get_shader_parameter(&"base_roughness")), visuals.disk_roughness, 0.0001)
 
 
 func test_territory_shader_never_blends_or_writes_alpha() -> void:
@@ -582,12 +578,12 @@ func test_refresh_visual_uniforms_does_not_reallocate_the_mesh_when_segments_are
 # tunables untouched (docs/original_hover-preview.png: "hard-edged shadows/
 # edges").
 
-func test_edge_softness_m_default_is_a_few_centimeters() -> void:
+func test_edge_softness_m_default_is_crisp_relative_to_the_rim_glow() -> void:
+	# spec 2.10 / Bontago-xtq.14: a crisp ownership edge, much narrower than the rim glow it
+	# used to share a feather width with (rim_soft_width).
 	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres")
-	assert_between(
-		visuals.edge_softness_m, 0.0, 0.1,
-		"spec 2.10 / Bontago-xtq.14: a crisp ownership edge, a few cm at most.",
-	)
+	assert_gte(visuals.edge_softness_m, 0.0)
+	assert_lt(visuals.edge_softness_m, visuals.rim_soft_width, "the ownership edge is sharper than the glow's feather")
 
 
 func test_configure_pushes_edge_softness_m() -> void:

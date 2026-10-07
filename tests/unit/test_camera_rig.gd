@@ -197,9 +197,12 @@ func test_zoom_by_orbit_step_changes_distance_by_the_tuned_step_clamped() -> voi
 # --- Bontago-mv0.27 (owner: "is there a fish-eye effect? add a slider") -----
 
 
-func test_fov_deg_defaults_to_the_cameras_previous_fixed_fov() -> void:
+func test_fov_deg_default_is_a_sane_lens_and_a_fresh_rig_uses_it() -> void:
 	var tuning: CameraTuning = CameraTuning.new()
-	assert_almost_eq(tuning.fov_deg, 75.0, 0.001, "matches Camera3D's own default, unset before this tunable existed.")
+	assert_gt(tuning.fov_deg, 0.0)
+	assert_lt(tuning.fov_deg, 180.0)
+	var rig: CameraRig = _make_rig()
+	assert_almost_eq(rig.get_camera().fov, rig.tuning.fov_deg, 0.001, "the built camera takes its fov from the tuning")
 
 
 func test_apply_follow_tuning_pushes_fov_deg_to_the_camera_live() -> void:

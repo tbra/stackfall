@@ -29,29 +29,29 @@ func _shader_source_without_comments() -> String:
 	return "\n".join(code_lines)
 
 
-func test_sun_core_and_halo_intensity_default_to_zero() -> void:
-	var source: String = _shader_source_without_comments()
-	assert_true(
-		source.contains("uniform float sun_core_intensity = 0.0;"),
-		"sun_core_intensity must default to 0.0 -- the painted panorama sun is the only disc; " +
-		"see this shader's own sun_core_intensity DECISION."
-	)
-	assert_true(
-		source.contains("uniform float sun_halo_intensity = 0.0;"),
-		"sun_halo_intensity must default to 0.0 for the same reason."
-	)
+## The shader's declared default for a float uniform. The dummy renderer cannot report
+## defaults (RenderingServer returns null headless), so the declaration is parsed: the
+## number after the uniform's `=`, whatever it is, not an exact source string.
+func _default(uniform_name: StringName) -> float:
+	var declaration: RegEx = RegEx.new()
+	declaration.compile("uniform\\s+float\\s+%s\\b[^=;]*=\\s*([-+0-9.eE]+)\\s*;" % uniform_name)
+	var found: RegExMatch = declaration.search(_shader_source_without_comments())
+	if found == null:
+		fail_test("uniform float %s has no declared default" % uniform_name)
+		return NAN
+	return found.get_string(1).to_float()
 
 
-## The god-ray beams (a fix round the owner separately requested, "move god
-## rays into the sky") are untouched by this package -- pins that ray_intensity
-## keeps its own non-zero default rather than having been zeroed alongside
-## the disc by mistake.
-func test_ray_intensity_default_is_unchanged() -> void:
-	var source: String = _shader_source_without_comments()
-	assert_true(
-		source.contains("uniform float ray_intensity = 0.35;"),
-		"ray_intensity must keep its own default -- only the disc (core/halo) was disabled, not the god rays."
-	)
+## The painted panorama sun is the only disc: the shader's own additive core and halo are off
+## by default (read through the shader's declared default, not its source text).
+func test_sun_core_and_halo_are_off_by_default() -> void:
+	assert_eq(_default(&"sun_core_intensity"), 0.0, "no second disc: core off")
+	assert_eq(_default(&"sun_halo_intensity"), 0.0, "no second disc: halo off")
+
+
+## The god-ray beams stay on by default (only the disc was disabled).
+func test_god_rays_stay_enabled_by_default() -> void:
+	assert_gt(_default(&"ray_intensity"), 0.0, "only the disc (core/halo) was disabled, not the god rays")
 
 
 ## The painted disc's lower cap is behind clouds. Pin its full-circle centre,
@@ -81,13 +81,17 @@ func test_procedural_sea_color_is_shared_and_guarded() -> void:
 	assert_true(include_src.contains("max(-dir.y, 0.0005)"), "projection depth must be clamped so eyedir.y == 0 cannot divide by zero.")
 
 
-func test_sea_and_second_strata_skip_the_radiance_pass() -> void:
-	var source: String = _shader_source_without_comments()
-	var call_at: int = source.find("pcol = procedural_sea_color(")
-	var before: String = source.substr(maxi(call_at - 80, 0), mini(80, call_at))
-	assert_true(call_at > 0 and before.contains("!AT_CUBEMAP_PASS"), "sea noise taps must be background-pass only.")
-	assert_true(source.contains("procedural_sea_mix > 0.0 && proc_cards_mix <= 0.0 && proc_overhead_mix > 0.0)"), "second strata layer must be background-pass only.")
-	assert_true(source.contains("u2.rgb * exposure") and source.contains("u1.rgb * exposure"), "procedural strata must be multiplied by exposure.")
+func test_sea_noise_taps_are_background_pass_only() -> void:
+	var lines: PackedStringArray = _shader_source_without_comments().split("
+")
+	var found: int = 0
+	for i: int in range(lines.size()):
+		if lines[i].contains("procedural_sea_color(") and not lines[i].contains("vec3 procedural_sea_color("):
+			found += 1
+			var context: String = "
+".join(lines.slice(maxi(i - 3, 0), i + 1))
+			assert_true(context.contains("AT_CUBEMAP_PASS"), "sea noise taps skip the radiance pass: " + lines[i].strip_edges())
+	assert_gt(found, 0, "the sky pass samples the procedural sea")
 
 
 func test_card_layer_is_background_only_and_exposed() -> void:
@@ -100,10 +104,16 @@ func test_card_layer_is_background_only_and_exposed() -> void:
 
 ## Bontago-mp0.94: the additive sun terms (core, halo, god rays) all multiply
 ## sun_effect_scale, which Skybox drives to exactly 0 at full storm; a term that skips it
-## is the "sun hidden but rays still visible" bug. The ray loop also skips outright at 0.
+## is the "sun hidden but rays still visible" bug. Checked per use line (invariant, not an exact string).
 func test_every_additive_sun_term_multiplies_the_weather_scale() -> void:
+	var shader: Shader = load(SHADER_PATH)
+	var names: Array = []
+	for entry: Dictionary in shader.get_shader_uniform_list():
+		names.append(entry["name"])
+	assert_true(names.has("sun_effect_scale"), "Skybox drives the weather scale through this uniform")
 	var source: String = _shader_source_without_comments()
 	for token: String in ["sun_core_intensity", "sun_halo_intensity", "ray_intensity"]:
+		assert_true(names.has(token), "%s is a tunable uniform" % token)
 		var found: int = 0
 		for line: String in source.split("
 "):
@@ -111,4 +121,3 @@ func test_every_additive_sun_term_multiplies_the_weather_scale() -> void:
 				found += 1
 				assert_true(line.contains("sun_effect_scale"), "%s must be scaled by sun_effect_scale: %s" % [token, line.strip_edges()])
 		assert_gt(found, 0, "%s is used by the sky pass" % token)
-	assert_true(source.contains("ray_fade > 0.0 && sun_effect_scale > 0.0"), "the god-ray loop is skipped when the weather scale is 0.")

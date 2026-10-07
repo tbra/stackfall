@@ -97,10 +97,12 @@ func _abc() -> Array[WeatherTuning]:
 # --- Config ---------------------------------------------------------------------
 
 func test_weather_defaults_to_changing_everywhere() -> void:
-	# DECISION (470.1): Changing (calm most of the time) is the default.
-	assert_eq(MatchConfig.new().weather_mode, MatchConfig.WeatherMode.CHANGING)
-	assert_eq((load("res://config/match_defaults.tres") as MatchConfig).weather_mode, MatchConfig.WeatherMode.CHANGING)
-	assert_eq(MatchConfig.from_dict({}).weather_mode, MatchConfig.WeatherMode.CHANGING, "a missing key means the default")
+	# DECISION (470.1): Changing (calm most of the time) is the default everywhere; the three
+	# sources of a default must agree with the class default, whichever mode that is.
+	var class_default: int = MatchConfig.new().weather_mode
+	assert_eq(class_default, MatchConfig.WeatherMode.CHANGING, "Changing is the shipped default (470.1)")
+	assert_eq((load("res://config/match_defaults.tres") as MatchConfig).weather_mode, class_default, "the shipped config resource does not override it")
+	assert_eq(MatchConfig.from_dict({}).weather_mode, class_default, "a missing key means the default")
 
 
 func test_weather_mode_round_trips_and_sanitize_clamps() -> void:
@@ -118,6 +120,7 @@ func test_weather_mode_round_trips_and_sanitize_clamps() -> void:
 func test_registry_loads_storm_rain_snow_with_sane_tunables() -> void:
 	var defs: Array[WeatherTuning] = WeatherTuning.load_all()
 	var ids: Array[String] = []
+	assert_gt(defs.size(), 0)
 	for def: WeatherTuning in defs:
 		ids.append(String(def.id))
 		assert_between(def.intensity, 0.0, 1.0)
@@ -125,7 +128,13 @@ func test_registry_loads_storm_rain_snow_with_sane_tunables() -> void:
 		assert_gt(def.ramp_out_s, 0.0)
 		assert_lte(def.hold_min_s, def.hold_max_s)
 		assert_true(load(def.presentation_scene) is PackedScene, "%s presentation scene loads" % def.id)
-	assert_eq(ids, ["fog", "rain", "snow", "storm"], "sorted by id")
+	var sorted_ids: Array[String] = ids.duplicate()
+	sorted_ids.sort()
+	assert_eq(ids, sorted_ids, "sorted by id")
+	var unique: Dictionary = {}
+	for id: String in ids:
+		unique[id] = true
+	assert_eq(unique.size(), ids.size(), "no duplicate ids")
 	for mode: int in [MatchConfig.WeatherMode.STORM, MatchConfig.WeatherMode.RAIN, MatchConfig.WeatherMode.SNOW]:
 		assert_true(ids.has(String(MatchWeather.id_for_mode(mode))))
 

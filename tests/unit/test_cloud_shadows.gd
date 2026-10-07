@@ -9,12 +9,19 @@ func _config() -> CloudShadowConfig:
 	return load(CONFIG_PATH) as CloudShadowConfig
 
 
-func test_config_loads_with_sane_values() -> void:
+func test_config_drives_a_monotonic_strength_ramp_and_a_real_sun_dim() -> void:
 	var config: CloudShadowConfig = _config()
 	assert_not_null(config)
-	assert_gt(config.max_strength, 0.0)
-	assert_gt(config.full_sun_sin, config.min_sun_sin)
-	assert_gt(config.sun_dim_max, 0.0)
+	assert_gt(config.full_sun_sin, config.min_sun_sin, "the ramp has a positive width")
+	var previous: float = -1.0
+	for step: int in range(0, 11):
+		var sun_sin: float = float(step) / 10.0
+		var value: float = CloudShadowMath.strength(sun_sin, 1.0, config)
+		assert_gte(value, previous, "shadows never weaken as the sun climbs")
+		assert_lte(value, config.max_strength + 0.0001)
+		previous = value
+	assert_gt(previous, 0.0, "a high sun casts visible shadows")
+	assert_lt(CloudShadowMath.sun_scale(1.0, config), 1.0, "full occlusion dims the sun")
 
 
 func test_strength_zero_at_night_and_horizon_full_at_noon() -> void:
@@ -77,8 +84,11 @@ func test_sun_contrast_identity_at_horizon_and_stronger_high() -> void:
 
 func test_theme_defaults_boost_sun_over_ambient() -> void:
 	var theme: SkyThemeDef = Skybox.load_theme("sunset")
-	assert_gt(theme.cycle_sun_energy_gain, 1.0)
-	assert_lt(theme.cycle_day_ambient_scale, 1.0)
+	var high_sun: float = 1.0
+	assert_gt(SunContrast.light_scale(high_sun, theme.cycle_sun_energy_gain, theme.cycle_sun_contrast_full_sin), 1.0,
+		"the day sun is brighter than the base light")
+	assert_lt(SunContrast.ambient_scale(high_sun, theme.cycle_day_ambient_scale, theme.cycle_sun_contrast_full_sin), 1.0,
+		"the day ambient is dimmer than the base, so shadows read")
 
 
 func test_low_preset_disables_cloud_shadows() -> void:
