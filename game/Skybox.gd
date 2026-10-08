@@ -1541,6 +1541,7 @@ func _apply_moon(night: float) -> void:
 	sky.set_shader_parameter(&"moon_brightness", _cycle_theme.cycle_moon_brightness)
 
 
+## Bontago-1pi.131: the cycle's night number (integer cycle count; a locked sky is night 0).
 ## Bontago-mp0.129 (owner playtest: "at night lets add an aurora borealis effect to the sky"):
 ## writes the aurora uniforms on the live sky material (the cycle's sunset_clouds, or a static
 ## theme's own sky such as night_sky). `night` is the cycle's night mix 0..1 (0 outside the
@@ -1554,6 +1555,12 @@ func _apply_moon(night: float) -> void:
 ## day): no Settings lookup, and nothing is written to the material until the visibility
 ## changes. The look uniforms are written only while visible and only when they differ from
 ## what is already on that material (a new sky material is written afresh).
+func _cycle_night_index() -> int:
+	if _cycle_locked_phase >= 0.0:
+		return 0
+	return int(floori(_cycle_clock_s / _cycle_length_s + _cycle_phase_offset))
+
+
 func _apply_aurora(night: float) -> void:
 	var active: SkyThemeDef = _cycle_theme if _cycle_theme != null else theme
 	var sky: ShaderMaterial = active.sky_material as ShaderMaterial if active != null else null
@@ -1566,7 +1573,10 @@ func _apply_aurora(night: float) -> void:
 	var strength: float = 0.0
 	if active.aurora_enabled and _aurora_preset_on:
 		if _cycle_theme != null:
-			strength = active.aurora_night_strength(night)
+			# DECISION (Bontago-1pi.131): one seeded roll per night; a night spans phase 0.5..1
+			# and its aurora is 0 at both edges, so the integer cycle count is the night id.
+			if SkyVariation.aurora_night_shown(_variation_seed, _cycle_night_index(), active.aurora_night_chance):
+				strength = active.aurora_night_strength(night)
 		elif active.aurora_always_on:
 			strength = 1.0
 	var visibility: float = 0.0

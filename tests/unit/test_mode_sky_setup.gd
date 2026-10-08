@@ -39,6 +39,14 @@ func _assert_sky_configured(mode: String) -> void:
 	var sky: Skybox = _main.get_node("Skybox") as Skybox
 	assert_true(sky.is_cycle_active(), "%s: the Skybox must run the configured sky cycle" % mode)
 	assert_ne(sky.theme, null, "%s: a theme is applied" % mode)
+	# Bontago-1pi.127: the panorama (the launch fallback sky / textured set) is absent: the live
+	# sky is the cycle's own procedural material and no textured face is drawn.
+	assert_true(sky.theme.sky_look_procedural, "%s: procedural sky look" % mode)
+	assert_eq(sky.environment.sky.sky_material, sky.theme.sky_material, "%s: the cycle's material is the live sky" % mode)
+	assert_true(sky.fallback_active, "%s: no textured panorama set is loaded" % mode)
+	for face: MeshInstance3D in sky._face_meshes.values():
+		assert_false(face.visible, "%s: textured sky face %s hidden" % [mode, face.name])
+
 
 
 func test_hot_seat_configures_sky() -> void:

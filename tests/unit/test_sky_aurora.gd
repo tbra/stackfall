@@ -15,14 +15,21 @@ const NIGHT_SHADER: String = "res://shaders/night_sky.gdshader"
 const INCLUDE_PATH: String = "res://shaders/include/cloud_common.gdshaderinc"
 
 var _original_preset_id: StringName
+var _original_chance: float = 0.0
 
 
 func before_each() -> void:
 	_original_preset_id = Settings.current_graphics_preset().id
 	Settings.set_graphics_preset(&"high")
+	# Bontago-1pi.131: these tests check the per-night fade, so every night shows it here;
+	# the per-night roll itself is covered by test_sky_aurora_nights.gd.
+	var source: SkyThemeDef = Skybox.load_theme(Skybox.DEFAULT_THEME_ID)
+	_original_chance = source.aurora_night_chance
+	source.aurora_night_chance = 1.0
 
 
 func after_each() -> void:
+	Skybox.load_theme(Skybox.DEFAULT_THEME_ID).aurora_night_chance = _original_chance
 	Settings.set_graphics_preset(_original_preset_id)
 
 

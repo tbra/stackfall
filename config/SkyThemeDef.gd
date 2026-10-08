@@ -45,6 +45,10 @@ extends Resource
 ## A static (non-cycle) theme has no night mix: true shows the aurora at full strength
 ## under it (config/sky_themes/night.tres), false never shows it. The cycle ignores this.
 @export var aurora_always_on: bool = false
+## Bontago-1pi.131 (owner playtest: the aurora should be rarer): the chance a cycle night shows
+## the aurora, rolled once per night from the match seed (SkyVariation.aurora_night_shown), so
+## every peer agrees. 1 = every night; a locked Night sky is one night (night 0 of the seed).
+@export_range(0.0, 1.0, 0.01) var aurora_night_chance: float = 0.1
 ## Bontago-mp0.127 (owner: "sun should affect light more"): in the cycle the direct sun is
 ## multiplied by up to cycle_sun_energy_gain and the sky ambient by cycle_day_ambient_scale as
 ## the sun climbs (both identity at the horizon and at night), so lit vs shadowed block faces
