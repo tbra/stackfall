@@ -1477,6 +1477,12 @@ func _on_match_state_changed(from_state: int, to_state: int) -> void:
 			# the camera stays where the player put it, and so does the sandbox's
 			# own CameraRig.suppress_pad_home_focus (only a camera reset clears it).
 			_reset_match_scope(false)
+		elif Match.is_start_transition(from_state, to_state) and Match.config != null:
+			# Bontago-1pi.127 (owner screenshot: the sandbox showed the painted sunset after
+			# F5): the scope reset on the (X -> LOBBY) half returns the Skybox to its launch
+			# sky (the static painted-panorama sunset), so the restart sets the sandbox's sky
+			# up again like at entry.
+			_apply_match_sky(Match.config)
 		return
 
 	if to_state == Match.State.LOBBY:

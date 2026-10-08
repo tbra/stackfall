@@ -20,6 +20,8 @@ extends RefCounted
 const CHANNEL_EXPOSURE: int = 0
 const CHANNEL_CLOUD_COVERAGE: int = 1
 const CHANNEL_SEA_COVERAGE: int = 2
+## Bontago-1pi.131: the per-night aurora roll's own stream.
+const CHANNEL_AURORA: int = 3
 ## A one-point lattice would be a constant; two is the least that can swing.
 const MIN_KNOTS: int = 2
 ## The seed a match without a replicated one uses (MatchConfig.rng_seed < 0 means
@@ -61,13 +63,25 @@ static func weight(phase: float, knots: int, seed_value: int, channel: int) -> f
 
 ## The lattice value (0..1, end-heavy) of `channel` at lattice point `index`.
 static func knot_value(seed_value: int, channel: int, index: int) -> float:
+	return smoothstep(0.0, 1.0, hash_unit(seed_value, channel, index))
+
+
+## The raw uniform 0..1 hash behind knot_value() (no end-pushing smoothstep).
+static func hash_unit(seed_value: int, channel: int, index: int) -> float:
 	var mixed: int = (seed_value * HASH_SEED_MIX + channel * HASH_CHANNEL_MIX + index * HASH_INDEX_MIX) & HASH_MASK
 	mixed = (mixed ^ (mixed >> HASH_SHIFT_WIDE)) & HASH_MASK
 	mixed = (mixed * HASH_ROUND_A) & HASH_MASK
 	mixed = (mixed ^ (mixed >> HASH_SHIFT_NARROW)) & HASH_MASK
 	mixed = (mixed * HASH_ROUND_B) & HASH_MASK
 	mixed = (mixed ^ (mixed >> HASH_SHIFT_NARROW)) & HASH_MASK
-	return smoothstep(0.0, 1.0, float(mixed & HASH_VALUE_MASK) / HASH_RESOLUTION)
+	return float(mixed & HASH_VALUE_MASK) / HASH_RESOLUTION
+
+
+## Bontago-1pi.131: whether night number `night_index` of a match with `seed_value` shows the
+## aurora: an independent seeded roll per night against `chance` (0..1). Pure, so the host and
+## every client agree from the replicated match seed alone.
+static func aurora_night_shown(seed_value: int, night_index: int, chance: float) -> bool:
+	return hash_unit(seed_value, CHANNEL_AURORA, night_index) < chance
 
 
 ## `weight` mapped into [low, high] (a swapped pair is read as min/max, so a
