@@ -421,6 +421,14 @@ func test_dim_and_vignette_come_from_the_tuning() -> void:
 	assert_lt((screen.get_node("%Dim") as ColorRect).color.a, 1.0, "a dim, not a cover: the plate shows through.")
 
 
+## Wall-clock-tolerant ceiling for readiness polls (returns as soon as true).
+const FLOW_TIMEOUT_S: float = 600.0
+
+
+func _progress_is(overlay: LoadingScreen, expected: float) -> Callable:
+	return func() -> bool: return absf(overlay.progress() - expected) < 0.001
+
+
 ## Flow tests against the real Main (same fixture shape as
 ## test_match_lifecycle.gd): the overlay is up and un-started Match is still in
 ## LOBBY when the Start press returns; the match only starts later.
@@ -430,6 +438,13 @@ func _real_main() -> Node:
 	tiny.field_radius = 20.0
 	(main.get_node("Field") as Field).map_def = tiny
 	add_child_autofree(main)
+	# Bontago-fca.66: the real-time pending/ready timeouts (10 s / 20 s) are product
+	# safety nets; a world build on a gate-loaded machine can outlast them and
+	# cancel the overlay mid-test. These flows assert hand-off order, not timeouts.
+	var overlay_tuning: LoadingScreenTuning = (main._loading_screen as LoadingScreen).tuning.duplicate() as LoadingScreenTuning # the preload is shared
+	overlay_tuning.pending_timeout_s = FLOW_TIMEOUT_S
+	overlay_tuning.ready_timeout_s = FLOW_TIMEOUT_S
+	(main._loading_screen as LoadingScreen).tuning = overlay_tuning
 	return main
 
 
@@ -464,7 +479,7 @@ func test_host_start_shows_overlay_before_the_match_starts() -> void:
 	await wait_process_frames(overlay.tuning.stable_frames + overlay.tuning.warmup_frames + 2)
 	assert_true(overlay.visible, "host waits for the first applied territory result")
 	Events.territory_updated.emit(Match.raster(), Match.groups())
-	await wait_process_frames(overlay.tuning.stable_frames + 2)
+	await wait_until(_progress_is(overlay, 1.0), FLOW_TIMEOUT_S, "readiness completes")
 	assert_almost_eq(overlay.progress(), 1.0, 0.001)
 	Events.match_state_changed.disconnect(on_state)
 	Net.leave()
@@ -486,7 +501,7 @@ func test_early_client_territory_completes_readiness_after_build() -> void:
 	await wait_process_frames(2)
 	assert_lt(overlay.progress(), overlay.tuning.complete_progress)
 	main._world_built = true
-	await wait_process_frames(overlay.tuning.stable_frames + 2)
+	await wait_until(_progress_is(overlay, overlay.tuning.complete_progress), FLOW_TIMEOUT_S, "readiness completes")
 	assert_almost_eq(overlay.progress(), overlay.tuning.complete_progress, 0.001)
 	assert_false(overlay.timed_out())
 	overlay.cancel()
@@ -533,7 +548,7 @@ func test_client_waits_for_replicated_territory_before_ready() -> void:
 	assert_true(overlay.visible)
 	assert_lt(overlay.progress(), 1.0)
 	Events.territory_replicated.emit(null)
-	await wait_process_frames(overlay.tuning.stable_frames + 2)
+	await wait_until(_progress_is(overlay, 1.0), FLOW_TIMEOUT_S, "readiness completes")
 	assert_almost_eq(overlay.progress(), 1.0, 0.001)
 	overlay.cancel()
 	await wait_process_frames(overlay.tuning.warmup_frames + 2)
