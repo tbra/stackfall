@@ -30,6 +30,8 @@ const MAX_CAMERA_RISE_M: float = 0.05
 var _main: Variant = null
 var _tiny_map: MapDef
 
+var _saved_feed_config: BlockFeedConfig = null
+
 
 func before_each() -> void:
 	# Bontago-fca.41: synthetic events parsed into the global Input singleton stay latched
@@ -39,6 +41,7 @@ func before_each() -> void:
 		Input.action_release(action)
 	Match.set_process(false)
 	Match.abort_match()
+	_pin_feed_to_convex_shape()
 	SnapshotSync.end_match()
 	_main = MAIN_SCENE.instantiate()
 	_tiny_map = (load("res://config/maps/round_medium.tres") as MapDef).duplicate(true)
@@ -51,9 +54,20 @@ func before_each() -> void:
 	_main.match_config = config
 	add_child_autofree(_main)
 
+## DECISION (Bontago-1pi.115): these tests aim at a placed block's origin or rely on the
+## held piece being solid there, which fails for concave shapes (u5, arch5, corner4, stair6)
+## now in the random feed. Pin the feed to the cube; the shape mix is not under test.
+func _pin_feed_to_convex_shape() -> void:
+	_saved_feed_config = Match._block_feed_config
+	var pinned: BlockFeedConfig = _saved_feed_config.duplicate() as BlockFeedConfig
+	pinned.shapes = [load("res://config/blocks/cube.tres") as BlockShape]
+	pinned.weight_overrides = PackedFloat32Array()
+	Match._block_feed_config = pinned
+
 
 func after_each() -> void:
 	Net.leave()
+	Match._block_feed_config = _saved_feed_config
 	Match.abort_match()
 	SnapshotSync.end_match()
 	Match.set_process(true)
