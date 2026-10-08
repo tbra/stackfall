@@ -1,0 +1,3 @@
+# Globs (repo-relative, forward slashes, one per line) of ADDED files that tools/probe_lint.py
+# should accept even though they match a throwaway-probe pattern. Keep this list empty unless a
+# probe is meant to be tracked. Lines starting with # are comments.

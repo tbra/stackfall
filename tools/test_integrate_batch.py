@@ -49,7 +49,7 @@ class Fake:
 
 def args_for(**kw):
     ns = dict(branches=["wt/a", "wt/b"], beads=["B-1", "B-2"], repo="R", worktree_root="W",
-              log_dir="", game_code=True, dry_run=False, merge_only=False, no_push=False, force_close=False)
+              log_dir="", game_code=True, dry_run=False, merge_only=False, no_push=False, force_close=False, allow_probes=False)
     ns.update(kw)
     return type("A", (), ns)()
 
@@ -312,6 +312,27 @@ def git_run(cwd, *a):
 HINTS_BASE = ('[resource]\nranges = {\n"A.x": Vector2(0.0, 1.0),\n}\n'
               + ''.join('"F%d.f": Vector2(0.0, 1.0),\n' % n for n in range(8))
               + 'descriptions = {\n"A.x": "ax",\n}\n')
+
+
+class ProbeLintTests(unittest.TestCase):
+    def test_probe_added_aborts_before_merge(self):
+        fake = Fake({"probes_wt_b": (0, "tools/capture_x.gd\ncore/a.gd\n")})
+        err, out, res = run(fake)
+        self.assertIsNotNone(err)
+        self.assertEqual(err.step, "probes")
+        self.assertIn("wt/b: tools/capture_x.gd", err.detail)
+        self.assertFalse([n for n in fake.names() if n.startswith("merge_")])
+
+    def test_allow_probes_skips_check(self):
+        fake = Fake({"probes_wt_b": (0, "tools/capture_x.gd\n")})
+        err, out, res = run(fake, allow_probes=True)
+        self.assertFalse([n for n in fake.names() if n.startswith("probes_")])
+        self.assertTrue(err is None or err.step != "probes")
+
+    def test_clean_branches_pass(self):
+        fake = Fake({"probes_wt_a": (0, "core/a.gd\n")})
+        err, out, res = run(fake)
+        self.assertTrue(err is None or err.step != "probes")
 
 
 class HintsMergeTests(unittest.TestCase):
