@@ -12,3 +12,6 @@ extends Resource
 ## physics tick: the signature of a blast, which the joint solver otherwise absorbs.
 @export_range(0.5, 20.0, 0.1) var break_shock_mps: float = 4.0
 @export_range(1, 64, 1) var max_contacts_reported: int = 16
+## Bond formation soaks the impact: the glued block takes the partner's linear velocity and
+## both bodies lose spin, so an off-edge landing does not topple the pair.
+@export var absorb_impact: bool = true

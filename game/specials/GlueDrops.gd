@@ -31,6 +31,8 @@ func try_bond(other: Node3D) -> bool:
 	var target: PhysicsBody3D = other as PhysicsBody3D
 	if target == null or _has_bond(_block, target):
 		return false
+	if _tuning.absorb_impact:
+		_absorb_impact(target)
 	var joint: Generic6DOFJoint3D = Generic6DOFJoint3D.new()
 	joint.node_a = _block.get_path()
 	joint.node_b = target.get_path()
@@ -54,3 +56,16 @@ func _has_bond(a: Block, b: PhysicsBody3D) -> bool:
 			if child is GlueJoint and (child as GlueJoint).bodies_match(a, b):
 				return true
 	return false
+
+
+## Glue is inelastic (Bontago-1pi.85.65): the charged block's momentum relative to
+## what it hit is soaked up when the bond forms, so a block landing off an edge
+## does not carry its impact spin into the pair and topple it off the support.
+## The bond forms a tick after first contact, so the impact is already partly
+## resolved; this zeroes the relative velocity and the glued block's spin.
+func _absorb_impact(target: PhysicsBody3D) -> void:
+	var partner_velocity: Vector3 = (target as RigidBody3D).linear_velocity if target is RigidBody3D else Vector3.ZERO
+	_block.linear_velocity = partner_velocity
+	_block.angular_velocity = Vector3.ZERO
+	if target is RigidBody3D:
+		(target as RigidBody3D).angular_velocity = Vector3.ZERO
