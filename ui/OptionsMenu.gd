@@ -249,6 +249,12 @@ func _ready() -> void:
 	_move_speed_slider.min_value = MIN_MOVE_SPEED_SCALE
 	_move_speed_slider.max_value = MAX_MOVE_SPEED_SCALE
 	_move_speed_slider.step = MOVE_SPEED_SCALE_STEP
+	# Bontago-1pi.119 / 1pi.123: coarse keyboard/gamepad steps, and the wheel scrolls the page.
+	for nav_slider: HSlider in [
+		_master_volume_slider, _music_volume_slider, _sfx_volume_slider, _weather_volume_slider,
+		_rumble_strength_slider, _move_speed_slider,
+	]:
+		SliderNav.apply(nav_slider)
 
 	MenuStyleFactory.apply_toggle_chip(_settings_tab_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.pill_coral_color, tuning.pill_coral_hover_color, tuning.ink_color, tuning)
 	MenuStyleFactory.apply_toggle_chip(_controls_tab_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.pill_coral_color, tuning.pill_coral_hover_color, tuning.ink_color, tuning)

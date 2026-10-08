@@ -38,11 +38,8 @@ extends Resource
 ## Presented frames after the first result, while the new world renders covered.
 @export var stable_frames: int = 4
 
-## Bontago-1pi.32 safety cap on the wait for every human player to press ready.
-## Measured from LOADING (asset loading still has its own ready_timeout_s above);
-## once it passes the host starts the countdown anyway. # DECISION: an AFK or
-## frozen player must not block everyone forever.
-@export var ready_wait_max_s: float = 60.0
+## Bontago-1pi.125: the ready-wait auto-start cap (ready_wait_max_s) was removed; the match starts
+## only when every required player is ready.
 
 ## --- Bontago-1pi.32 L2: the ready prompt and player ready list (presentation) ---
 ## Colours reuse config/menu_visual_tuning.tres (ink, muted, mint) so the overlay

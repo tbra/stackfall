@@ -313,9 +313,10 @@ func _build_remove_button() -> void:
 	layout.add_child(remove_button)
 
 
-## The host's crown pill: same mint pill as Ready, holding the crown icon (UiArtTable).
+## The host's crown pill: a yellow pill (Bontago-1pi.120, LobbyLayoutTuning.host_crown_pill_color)
+## holding the crown icon (UiArtTable).
 func _build_host_crown_badge() -> void:
-	badge.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(_tuning.pill_mint_color, _tuning))
+	badge.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(_layout_tuning.host_crown_pill_color, _tuning))
 	badge.tooltip_text = HOST_TOOLTIP
 	var crown: TextureRect = TextureRect.new()
 	var table: UiArtTable = UiArtTable.shared()

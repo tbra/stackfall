@@ -44,10 +44,13 @@ func test_show_for_match_becomes_visible() -> void:
 	assert_almost_eq(_screen.modulate.a, 1.0, 0.001)
 
 
-func test_show_for_match_sets_the_map_label() -> void:
-	_screen.show_for_match(_config(MatchConfig.MapVariant.RING, MapDef.MapSize.LARGE), _slots(2))
-	assert_true(_screen._map_label.text.findn("Ring") >= 0, "expected the map shape in the label: %s" % _screen._map_label.text)
-	assert_true(_screen._map_label.text.findn("Large") >= 0, "expected the map size in the label: %s" % _screen._map_label.text)
+## Bontago-1pi.124: the title is the game mode name only (no map shape or size).
+func test_show_for_match_title_is_only_the_game_mode_name() -> void:
+	var config: MatchConfig = _config(MatchConfig.MapVariant.RING, MapDef.MapSize.LARGE)
+	_screen.show_for_match(config, _slots(2))
+	assert_eq(_screen._map_label.text, DisplayNames.mode(MatchConfig.resolve_game_mode(config.game_mode)))
+	assert_eq(_screen._map_label.text.findn("Ring"), -1, "no map shape in the title")
+	assert_eq(_screen._map_label.text.findn("Large"), -1, "no map size in the title")
 
 
 func test_show_for_match_lists_players() -> void:
