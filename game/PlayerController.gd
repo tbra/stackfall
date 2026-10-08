@@ -1021,6 +1021,7 @@ func _update_throw_aim(_delta: float) -> void:
 func _drive_throw_visuals() -> void:
 	if _ghost != null:
 		_ghost.show_throw_hint(false)
+		_ghost.set_held_aim(_held_gift_aim_direction())
 	if _arc_preview == null:
 		return
 	if not _can_preview_gift_aim():
@@ -1054,7 +1055,9 @@ func gift_launch_preview() -> Dictionary:
 	var forward: Vector3 = _camera_forward()
 	var field: Field = Match.field() if _match == Match else null
 	var surface_y: float = field.surface_y() if field != null else _ghost.global_position.y
-	var origin: Vector3 = GiftAim.spawn_point(_ghost.global_position, forward, surface_y, special_tuning)
+	# Bontago-1pi.85.62: the arc starts at the held model's visual centre, not the ghost's
+	# bottom-face pivot (which sits below the model).
+	var origin: Vector3 = GiftAim.spawn_point(_held_model_centre(), forward, surface_y, special_tuning)
 	if mode == GiftThrow.Mode.THROW:
 		return {
 			"origin": origin,
@@ -1069,6 +1072,30 @@ func gift_launch_preview() -> Dictionary:
 		"velocity": GiftAim.straight_velocity(direction, special_tuning.gift_throw_speed_mps),
 		"gravity_scale": 0.0,
 	}
+
+
+## World centre of the held gift model (the ghost origin when no model is shown).
+func _held_model_centre() -> Vector3:
+	var box: AABB = _ghost.gift_visual_world_aabb()
+	if box.size == Vector3.ZERO and box.position == Vector3.ZERO:
+		return _ghost.global_position
+	return box.get_center()
+
+
+## Direction the held gift will leave in (Bontago-1pi.85.61: the held Rocket/Magnet model points
+## its nose along it); ZERO when nothing aimable is held.
+func _held_gift_aim_direction() -> Vector3:
+	if _ghost == null or special_tuning == null or _match == null or _acting_slot() < 0:
+		return Vector3.ZERO
+	var mode: GiftThrow.Mode = _held_gift_mode()
+	var forward: Vector3 = _camera_forward()
+	if mode == GiftThrow.Mode.THROW:
+		return GiftAim.throw_velocity(forward, special_tuning).normalized()
+	if mode == GiftThrow.Mode.AIMED:
+		if _held_gift_flies_upward():
+			return RocketEffect.sanitize_launch_direction(forward)
+		return RocketEffect.sanitize_downward_direction(forward)
+	return Vector3.ZERO
 
 
 ## Whether the held aimed gift may fly upward (Rocket, 1pi.85.34 Q3); Paintball may not.

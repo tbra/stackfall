@@ -663,6 +663,7 @@ func gift_visual() -> Node3D:
 
 
 func _rebuild_gift_visual() -> void:
+	_stop_held_facing()
 	if _gift_visual != null:
 		_gift_visual.queue_free()
 		_gift_visual.get_parent().remove_child(_gift_visual)
@@ -688,6 +689,75 @@ func _rebuild_gift_visual() -> void:
 	_gift_visual.position = BlockFactory.gift_cell_center(_shape, tuning)
 	add_child(_gift_visual)
 	_apply_gift_tint()
+	_setup_held_facing()
+
+
+## Bontago-1pi.85.61: a gift whose table row has a held_nose_axis (Rocket, Magnet) is shown with
+## that axis pointing along the aim/launch direction, not standing upright. PlayerController
+## pushes the real direction via set_held_aim(); with none (remote ghosts) the horizontal
+## camera forward is used, refreshed every frame. The turn is applied to the gift visual only.
+## Shortest aim vector treated as a direction (a blend guard, not a tunable).
+const MIN_AIM_LENGTH: float = 0.0001
+var _held_nose_axis: Vector3 = Vector3.ZERO
+var _held_aim: Vector3 = Vector3.ZERO
+
+
+func set_held_aim(direction: Vector3) -> void:
+	_held_aim = direction.normalized() if direction.length() > MIN_AIM_LENGTH else Vector3.ZERO
+	_refresh_held_facing()
+
+
+## World AABB of the held gift model's meshes (zero-size AABB when no gift visual is shown):
+## the arc preview starts at its centre (Bontago-1pi.85.62).
+func gift_visual_world_aabb() -> AABB:
+	var merged: AABB = AABB()
+	if _gift_visual == null or not _gift_visual.is_inside_tree():
+		return merged
+	var first: bool = true
+	for node: Node in _gift_visual.find_children("*", "MeshInstance3D", true, false):
+		var mesh: MeshInstance3D = node as MeshInstance3D
+		if mesh.mesh == null:
+			continue
+		var box: AABB = mesh.global_transform * mesh.get_aabb()
+		merged = box if first else merged.merge(box)
+		first = false
+	if first:
+		merged = AABB(_gift_visual.global_position, Vector3.ZERO)
+	return merged
+
+
+func _setup_held_facing() -> void:
+	var entry: GiftModelEntry = GiftModelTable.shared().entry_for(_held_gift_id)
+	_held_nose_axis = entry.held_nose_axis if entry != null else Vector3.ZERO
+	if _held_nose_axis == Vector3.ZERO:
+		return
+	var tree: SceneTree = get_tree()
+	if tree != null and not tree.process_frame.is_connected(_refresh_held_facing):
+		tree.process_frame.connect(_refresh_held_facing)
+	_refresh_held_facing()
+
+
+func _stop_held_facing() -> void:
+	_held_nose_axis = Vector3.ZERO
+	var tree: SceneTree = get_tree()
+	if tree != null and tree.process_frame.is_connected(_refresh_held_facing):
+		tree.process_frame.disconnect(_refresh_held_facing)
+
+
+func _refresh_held_facing() -> void:
+	if _gift_visual == null or _held_nose_axis == Vector3.ZERO or not is_inside_tree():
+		return
+	var direction: Vector3 = _held_aim
+	if direction == Vector3.ZERO:
+		var camera: Camera3D = get_viewport().get_camera_3d() if get_viewport() != null else null
+		if camera == null:
+			return
+		var flat: Vector3 = -camera.global_transform.basis.z
+		flat.y = 0.0
+		if flat.length() < MIN_AIM_LENGTH:
+			return
+		direction = flat.normalized()
+	_gift_visual.basis = global_basis.inverse() * FlightFacing.nose_basis(_held_nose_axis, direction)
 
 
 ## Bontago-59o.14.1: held gift models keep their own colours; the ghost's
