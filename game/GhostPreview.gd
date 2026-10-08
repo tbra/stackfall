@@ -375,6 +375,16 @@ const _SILHOUETTE_PROBE_INSET: float = 1e-3
 ## How close the underside may come to the wall bottom before that stretch of
 ## wall is treated as "the shape sits on the ground here" and not drawn
 ## (_append_underside_wall()).
+## Bontago-1pi.129/132: how far below the disc-level wall bottom the per-piece
+## floor probe ray reaches, so a hit exactly on the disc still registers.
+const _PIECE_FLOOR_RAY_MARGIN: float = 0.05
+## Bontago-1pi.132: resolution of the block-projection decal's footprint mask.
+const FOOTPRINT_MASK_PIXELS_PER_METER: float = 12.0
+const FOOTPRINT_MASK_MAX_PIXELS: int = 256
+const _MIN_POLYGON_POINTS: int = 3
+## Indices of the probe point in _underside_heights()'s result.
+const _HEIGHTS_PROBE_X: int = 2
+const _HEIGHTS_PROBE_Y: int = 3
 const _UNDERSIDE_CONTACT_EPSILON: float = 1e-4
 
 ## Bontago-mv0.35: the group game/PlayerController.gd puts its own (local,
@@ -461,6 +471,11 @@ var _cached_silhouette_valid: bool = false
 ## never re-walks the mesh.
 var _cached_wall_segments: PackedVector2Array = PackedVector2Array()
 var _cached_wall_heights: PackedVector2Array = PackedVector2Array()
+## Bontago-1pi.129/132: one ghost-local XZ point per cached wall piece, nudged
+## just inside the silhouette, where _update_projection_mesh() casts its
+## straight-down probe so each wall stops on whatever (tower top or disc) lies
+## under that piece instead of running through placed blocks.
+var _cached_wall_probes: PackedVector2Array = PackedVector2Array()
 ## Bontago-xtq.7: the last disk-surface point PlayerController's own
 ## placed-block-skipping probe reported (update_placement()'s own
 ## `surface_point` argument), kept so _update_footprint()'s disk-under-the-
@@ -1088,7 +1103,11 @@ func _update_footprint() -> void:
 		landing_normal = hit["normal"] as Vector3
 
 	_footprint_quads[0].global_position = Vector3(world_x, landing_y, world_z) + landing_normal * ghost_tuning.footprint_offset
-	_footprint_quads[0].mesh = _build_polygon_mesh(hull, centroid)
+	# Bontago-1pi.132: the quad follows the rendered silhouette (the union of
+	# every cell's footprint), so concave shapes (plus5, u5, corner4...) no
+	# longer show their convex hull. The hull stays the bounding/test polygon.
+	var footprint_mesh: ArrayMesh = _build_loops_mesh(_shape_silhouette_loops(), centroid)
+	_footprint_quads[0].mesh = footprint_mesh if footprint_mesh != null else _build_polygon_mesh(hull, centroid)
 	var world_hull: PackedVector2Array = PackedVector2Array()
 	for point: Vector2 in hull:
 		world_hull.append(Vector2(global_position.x + point.x, global_position.z + point.y))
@@ -1151,9 +1170,15 @@ func _update_projection_mesh(landing_y: float) -> void:
 	var origin_y: float = global_position.y
 	for i: int in range(_cached_wall_heights.size()):
 		var heights: Vector2 = _cached_wall_heights[i]
+		# Bontago-1pi.129/132: stop each piece on whatever is under it (a placed
+		# tower's top face, which the block-projection decal paints), not the
+		# disc, so the additive wall never runs through placed blocks.
+		var piece_bottom_y: float = _piece_floor_y(
+			_cached_wall_probes[i], origin_y + minf(heights.x, heights.y), wall_bottom_y
+		)
 		_append_underside_wall(
 			_cached_wall_segments[i * 2], _cached_wall_segments[i * 2 + 1],
-			origin_y + heights.x, origin_y + heights.y, wall_bottom_y,
+			origin_y + heights.x, origin_y + heights.y, piece_bottom_y,
 			verts, normals, uvs, indices
 		)
 
@@ -1175,6 +1200,29 @@ func _update_projection_mesh(landing_y: float) -> void:
 	var built: ArrayMesh = ArrayMesh.new()
 	built.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	_projection_mesh.mesh = built
+
+
+## Bontago-1pi.129/132: world Y the wall piece probed at ghost-local `probe`
+## should stop at -- the first collider (placed block or disc) straight below
+## `from_y`, never lower than `floor_y` (the disc-level wall bottom).
+func _piece_floor_y(probe: Vector2, from_y: float, floor_y: float) -> float:
+	if not is_inside_tree() or from_y <= floor_y:
+		return floor_y
+	var world: World3D = get_world_3d()
+	if world == null:
+		return floor_y
+	var space_state: PhysicsDirectSpaceState3D = world.direct_space_state
+	if space_state == null:
+		return floor_y
+	var origin: Vector3 = Vector3(global_position.x + probe.x, from_y, global_position.z + probe.y)
+	var params: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
+		origin, Vector3(origin.x, floor_y - _PIECE_FLOOR_RAY_MARGIN, origin.z)
+	)
+	params.collision_mask = Field.PLACEMENT_QUERY_MASK
+	var hit: Dictionary = space_state.intersect_ray(params)
+	if hit.is_empty():
+		return floor_y
+	return maxf(floor_y, (hit["position"] as Vector3).y)
 
 
 ## Hides the projection prism (nothing held, or every column collapsed -- see
@@ -1219,6 +1267,9 @@ func _update_block_projection_decal(world_hull: PackedVector2Array, landing_y: f
 	var center_z: float = (min_point.y + max_point.y) * 0.5
 
 	_block_projection_decal.visible = true
+	_apply_decal_footprint_mask(
+		Vector2(min_point.x - global_position.x, min_point.y - global_position.z), Vector2(size_x, size_z)
+	)
 	_block_projection_decal.upper_fade = _decal_fade()
 	_block_projection_decal.lower_fade = _decal_fade()
 	_block_projection_decal.size = Vector3(size_x, top_y - landing_y, size_z)
@@ -1435,6 +1486,7 @@ func _build_underside_walls(
 ) -> void:
 	_cached_wall_segments = PackedVector2Array()
 	_cached_wall_heights = PackedVector2Array()
+	_cached_wall_probes = PackedVector2Array()
 	for loop: PackedVector2Array in loops:
 		var edge_count: int = loop.size()
 		if edge_count < 3:
@@ -1472,6 +1524,7 @@ func _build_underside_walls(
 				_cached_wall_segments.append(piece_a)
 				_cached_wall_segments.append(piece_b)
 				_cached_wall_heights.append(Vector2(heights[0], heights[1]))
+				_cached_wall_probes.append(Vector2(heights[_HEIGHTS_PROBE_X], heights[_HEIGHTS_PROBE_Y]))
 				last_piece = _cached_wall_heights.size() - 1
 
 
@@ -1550,6 +1603,7 @@ func _underside_heights(
 			return PackedFloat64Array([
 				_triangle_plane_y(triangle, triangle_flat, a),
 				_triangle_plane_y(triangle, triangle_flat, b),
+				probe.x, probe.y,
 			])
 	return PackedFloat64Array()
 
@@ -1676,6 +1730,110 @@ func _build_polygon_mesh(hull: PackedVector2Array, center: Vector2) -> ArrayMesh
 	var built: ArrayMesh = ArrayMesh.new()
 	built.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return built
+
+
+## Bontago-1pi.132: flat triangle mesh of every silhouette loop (even-odd for
+## holes is not needed: shipped shapes have none, hole loops wind opposite to
+## the largest loop and are skipped), recentred on `center`. Null when nothing
+## triangulates, so the caller can fall back to the convex hull mesh.
+func _build_loops_mesh(loops: Array[PackedVector2Array], center: Vector2) -> ArrayMesh:
+	if loops.is_empty():
+		return null
+	var outer_clockwise: bool = Geometry2D.is_polygon_clockwise(_largest_loop(loops))
+	var verts: PackedVector3Array = PackedVector3Array()
+	var normals: PackedVector3Array = PackedVector3Array()
+	var uvs: PackedVector2Array = PackedVector2Array()
+	var indices: PackedInt32Array = PackedInt32Array()
+	for loop: PackedVector2Array in loops:
+		if loop.size() < _MIN_POLYGON_POINTS or Geometry2D.is_polygon_clockwise(loop) != outer_clockwise:
+			continue
+		var triangles: PackedInt32Array = Geometry2D.triangulate_polygon(loop)
+		if triangles.is_empty():
+			continue
+		var base: int = verts.size()
+		for point: Vector2 in loop:
+			var local: Vector2 = point - center
+			verts.append(Vector3(local.x, 0.0, local.y))
+			normals.append(Vector3.UP)
+			uvs.append(Vector2(local.x / tuning.cube_size + 0.5, local.y / tuning.cube_size + 0.5))
+		for index: int in triangles:
+			indices.append(base + index)
+	if indices.is_empty():
+		return null
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var built: ArrayMesh = ArrayMesh.new()
+	built.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return built
+
+
+func _largest_loop(loops: Array[PackedVector2Array]) -> PackedVector2Array:
+	var best: PackedVector2Array = loops[0]
+	var best_area: float = 0.0
+	for loop: PackedVector2Array in loops:
+		var area: float = 0.0
+		for i: int in range(loop.size()):
+			var next: Vector2 = loop[(i + 1) % loop.size()]
+			area += loop[i].x * next.y - next.x * loop[i].y
+		if absf(area) > best_area:
+			best_area = absf(area)
+			best = loop
+	return best
+
+
+## For tests: the silhouette outline loops (ghost-local XZ) the footprint quad
+## and decal mask are built from -- empty when nothing is held.
+func footprint_loops_local() -> Array[PackedVector2Array]:
+	return _shape_silhouette_loops()
+
+
+## For tests: whether ghost-local XZ point `point` lies inside the projected
+## footprint (union of the silhouette loops, even-odd).
+func footprint_contains_local(point: Vector2) -> bool:
+	return _point_in_loops(point, _shape_silhouette_loops())
+
+
+func _point_in_loops(point: Vector2, loops: Array[PackedVector2Array]) -> bool:
+	var crossings: int = 0
+	for loop: PackedVector2Array in loops:
+		if Geometry2D.is_point_in_polygon(point, loop):
+			crossings += 1
+	return crossings % 2 == 1
+
+
+## Bontago-1pi.132: the decal used to paint the whole hull bounding box (a
+## solid rectangle over every placed block below a concave piece). Its albedo
+## is now an alpha mask of the true footprint over [origin, origin + extent]
+## (ghost-local XZ), rebuilt only when the shape/rotation/box changes.
+var _mask_shape: BlockShape = null
+var _mask_basis: Basis = Basis.IDENTITY
+var _mask_origin: Vector2 = Vector2.ZERO
+var _mask_extent: Vector2 = Vector2.ZERO
+
+
+func _apply_decal_footprint_mask(origin: Vector2, extent: Vector2) -> void:
+	if _mask_shape == _shape and _mask_basis.is_equal_approx(basis) 			and _mask_origin.is_equal_approx(origin) and _mask_extent.is_equal_approx(extent):
+		return
+	var loops: Array[PackedVector2Array] = _shape_silhouette_loops()
+	if loops.is_empty():
+		_block_projection_decal.texture_albedo = _build_white_decal_texture()
+		return
+	_mask_shape = _shape
+	_mask_basis = basis
+	_mask_origin = origin
+	_mask_extent = extent
+	var width: int = clampi(ceili(extent.x * FOOTPRINT_MASK_PIXELS_PER_METER), 2, FOOTPRINT_MASK_MAX_PIXELS)
+	var height: int = clampi(ceili(extent.y * FOOTPRINT_MASK_PIXELS_PER_METER), 2, FOOTPRINT_MASK_MAX_PIXELS)
+	var image: Image = Image.create(width, height, false, Image.FORMAT_RGBA8)
+	for py: int in range(height):
+		for px: int in range(width):
+			var point: Vector2 = origin + Vector2((px + 0.5) / width * extent.x, (py + 0.5) / height * extent.y)
+			image.set_pixel(px, py, Color.WHITE if _point_in_loops(point, loops) else Color(1.0, 1.0, 1.0, 0.0))
+	_block_projection_decal.texture_albedo = ImageTexture.create_from_image(image)
 
 
 ## Straight down from `origin`, skipping any RigidBody3D (a placed block) so
