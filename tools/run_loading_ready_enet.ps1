@@ -12,20 +12,20 @@ function Stop-Tree([object]$p) {
 	}
 }
 try {
-	$hostArgs = @("--headless","--log-file","$Outgodot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--headless-host","--port=$Port","--expect-peers=2")
+	$hostArgs = @("--headless","--log-file","${Out}\godot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--headless-host","--port=$Port","--expect-peers=2")
 	if ($Late) { $hostArgs += "--late-step" }
 	$h = Start-Process godot -ArgumentList $hostArgs -PassThru -NoNewWindow -RedirectStandardOutput "$Out\lr_host.log" -RedirectStandardError "$Out\lr_host.err"
 	$null = $h.Handle
 	$procs += $h
 	Start-Sleep 3
-	$c = Start-Process godot -ArgumentList @("--headless","--log-file","$Outgodot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--join=127.0.0.1:$Port","--sim-lag=$Lag") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\lr_client.log" -RedirectStandardError "$Out\lr_client.err"
+	$c = Start-Process godot -ArgumentList @("--headless","--log-file","${Out}\godot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--join=127.0.0.1:$Port","--sim-lag=$Lag") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\lr_client.log" -RedirectStandardError "$Out\lr_client.err"
 	$null = $c.Handle
 	$procs += $c
 	if ($Late) {
 		# Bontago-1pi.42: a third peer joins while the host's gate is still closed (the
 		# host holds its own ready press until that peer is seated).
 		Start-Sleep 5
-		$l = Start-Process godot -ArgumentList @("--headless","--log-file","$Outgodot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--join=127.0.0.1:$Port","--sim-lag=$Lag","--late-joiner") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\lr_late.log" -RedirectStandardError "$Out\lr_late.err"
+		$l = Start-Process godot -ArgumentList @("--headless","--log-file","${Out}\godot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--join=127.0.0.1:$Port","--sim-lag=$Lag","--late-joiner") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\lr_late.log" -RedirectStandardError "$Out\lr_late.err"
 		$null = $l.Handle
 		$procs += $l
 	}
