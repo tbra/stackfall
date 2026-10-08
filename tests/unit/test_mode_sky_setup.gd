@@ -72,3 +72,20 @@ func test_gift_demo_configures_sky() -> void:
 func test_tower_topple_configures_sky() -> void:
 	_main.start_tower_topple_from_menu()
 	_assert_sky_configured("tower topple")
+
+
+## Bontago-1pi.127 (owner screenshot 2026-10-08 showed the painted sunset): the real menu
+## entry, with the match clock running, keeps the painted panorama off the live sky material
+## (procedural_sea_mix replaces it entirely) and survives the F5 reset's restart.
+func test_menu_sandbox_never_samples_the_painted_panorama() -> void:
+	Match.set_process(true)
+	_main.start_sandbox_from_menu()
+	var sky: Skybox = _main.get_node("Skybox") as Skybox
+	for step: int in 3:
+		await get_tree().create_timer(0.2).timeout
+		_assert_sky_configured("menu sandbox step %d" % step)
+		var material: ShaderMaterial = sky.environment.sky.sky_material as ShaderMaterial
+		assert_eq(float(material.get_shader_parameter(&"procedural_sea_mix")), 1.0, "painted panorama fully replaced")
+		if step == 1:
+			_main._sandbox._reset_field()
+	Match.set_process(false)
