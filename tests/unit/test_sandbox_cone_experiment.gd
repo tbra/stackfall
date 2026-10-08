@@ -78,7 +78,7 @@ func test_additive_base_with_top_height_matches_current_radius_slope() -> void:
 	var circles: Array[InfluenceCircle] = [
 		InfluenceCircle.new(Vector2.ZERO, current_radius, 0, 0, false, 11),
 	]
-	var angle: float = rad_to_deg(atan(tuning.influence_k))
+	var angle: float = InfluenceCircle.CONE_HALF_ANGLE_DEGREES
 	var result: Dictionary = SandboxConeExperiment.build(
 		circles, PackedFloat32Array([top_height]), angle,
 		SandboxConeExperiment.BASE_ADDITIVE, tuning.influence_base,
@@ -113,7 +113,7 @@ func test_additive_top_variant_matches_current_territory_map_at_current_slope() 
 	]
 	var result: Dictionary = SandboxConeExperiment.build(
 		circles, PackedFloat32Array([0.0, 5.0, 10.0, 0.0, 6.0]),
-		rad_to_deg(atan(tuning.influence_k)), SandboxConeExperiment.BASE_ADDITIVE,
+		InfluenceCircle.CONE_HALF_ANGLE_DEGREES, SandboxConeExperiment.BASE_ADDITIVE,
 		tuning.influence_base, tuning.influence_max_fraction * radius
 	)
 	assert_gt(result["culled_count"], 0)

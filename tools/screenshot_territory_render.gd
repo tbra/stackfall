@@ -100,7 +100,7 @@ func _ready() -> void:
 	var home1: Vector2 = Match.slot(1).home_position
 	var dir0: Vector2 = (home1 - home0).normalized()
 	var dir1: Vector2 = -dir0
-	var reach: float = _tuning.influence_base + _tuning.influence_k * _physics.cube_size
+	var reach: float = _tuning.influence_base + InfluenceCircle.cone_slope() * _physics.cube_size
 
 	for step: int in range(TOWER_STEPS):
 		var distance: float = _tuning.home_radius - _physics.cube_size + float(step) * reach * 0.5

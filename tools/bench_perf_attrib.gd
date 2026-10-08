@@ -150,7 +150,7 @@ func _ready() -> void:
 		PhysicsServer3D.set_active(true)
 		Match.set_sandbox_territory_mode(MatchAutoload.SANDBOX_TERRITORY_PAUSED)
 		await _sample("territory_paused", target)
-		Match.set_sandbox_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
+		Match.set_sandbox_territory_mode(MatchAutoload.DEFAULT_TERRITORY_MODE)
 		_set_blocks_physics_process(false)
 		await _sample("block_scripts_off", target)
 		_set_blocks_physics_process(true)
@@ -489,7 +489,7 @@ func _group_toggles(target: int) -> void:
 		teams.append(circle.team_id)
 	Match._field.set_overlay_circles(xs, zs, radii, teams, Match._territory._goal_positions, Match._territory._goal_radii, Match._territory._circle_argmax_mode)
 	await _sample("shader_home_circles_only", target)
-	Match.set_sandbox_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
+	Match.set_sandbox_territory_mode(MatchAutoload.DEFAULT_TERRITORY_MODE)
 	await _sample("territory_resumed", target)
 
 

@@ -46,12 +46,6 @@ func _ready() -> void:
 	print("LIVE_BENCH blocks=%d settled=%d renderer=%s" % [
 		Match.blocks_parent().get_child_count(), _settled_count(), DisplayServer.get_name()
 	])
-	Match.set_sandbox_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
-	await _sample("current")
-	Match._territory_cache_enabled = true
-	await _sample("current_cached")
-	_verify_cache_matches_fresh("current")
-	Match._territory_cache_enabled = false
 	Match.set_sandbox_territory_mode(
 		MatchAutoload.SANDBOX_TERRITORY_CONE, 45.0,
 		SandboxConeExperiment.HEIGHT_TOP, SandboxConeExperiment.BASE_ADDITIVE
@@ -77,15 +71,11 @@ func _ready() -> void:
 	await _sample("both_paused")
 	_sandbox._set_block_physics_frozen(false)
 	Match._territory_cache_enabled = true
-	Match.set_sandbox_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
-	await _sample("current_cached_stable")
 	Match.set_sandbox_territory_mode(
 		MatchAutoload.SANDBOX_TERRITORY_CONE, 45.0,
 		SandboxConeExperiment.HEIGHT_TOP, SandboxConeExperiment.BASE_ADDITIVE
 	)
 	await _sample("cones_cached_stable")
-	Match.set_sandbox_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
-	await _sample("current_cached_repeat")
 	# Isolate analytic-shader scaling from collision and territory CPU work.
 	_sandbox._set_block_physics_frozen(true)
 	Match.set_sandbox_territory_mode(MatchAutoload.SANDBOX_TERRITORY_PAUSED)

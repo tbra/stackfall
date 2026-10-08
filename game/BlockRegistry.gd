@@ -346,7 +346,7 @@ func influence_circles(
 	var field_xform: Transform3D = field_global_transform()
 	var circles: Array[InfluenceCircle] = []
 	var base: float = territory_tuning.influence_base
-	var k: float = territory_tuning.influence_k
+	var slope: float = InfluenceCircle.cone_slope()
 	var cap: float = territory_tuning.influence_max_fraction * map_def.field_radius
 	for id: Variant in _entries:
 		var entry: _Entry = _entries[id]
@@ -357,7 +357,7 @@ func influence_circles(
 			continue
 		_refresh_geometry(entry, field_xform)
 		# Same arithmetic as InfluenceCircle.radius_for_height.
-		var radius: float = minf(base + k * maxf(entry.geom_top, 0.0), cap)
+		var radius: float = minf(base + slope * maxf(entry.geom_top, 0.0), cap)
 		var circle: InfluenceCircle = entry.circle
 		if (
 			circle == null or circle.center != entry.geom_com_xz or circle.radius != radius

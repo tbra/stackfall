@@ -117,7 +117,7 @@ const NEUTRAL_SPOT_FRACTION: float = 0.9
 ## (scenario b), to widen the contested band into a patch of cells.
 const FRONT_STACK_HEIGHT: int = 4
 ## Cubes in (h)'s dedicated, isolated tower -- enough that its own reach
-## (influence_base + influence_k * height) clears home_radius with a solid
+## (influence_base + tan(45 deg) * height) clears home_radius with a solid
 ## margin, so there is a cell only that tower (and not the permanent home
 ## circle) can be seen to own.
 const TOPPLE_TOWER_LAYERS: int = 2
@@ -213,7 +213,7 @@ func _scenario_growth_holes_cutoff_and_topple() -> void:
 
 	# (b) The two fronts overlap, so cells in between belong to both teams.
 	# Both players now build up at the front, which widens each front circle
-	# (r = influence_base + influence_k * h) and so widens the contested band
+	# (r = influence_base + tan(45 deg) * h) and so widens the contested band
 	# between them into a patch of cells rather than a hairline.
 	var peak_contested: Array[int] = [0]
 	await _raise_fronts(chain_0, chain_1, peak_contested)
@@ -278,7 +278,7 @@ func _scenario_growth_holes_cutoff_and_topple() -> void:
 	# the tower could never flip that cell's ownership at all.
 	var team_1: int = Match.team_of(1)
 	var share_before_topple: float = Match.territory_share(team_1)
-	var topple_reach: float = _tuning.influence_base + _tuning.influence_k * (
+	var topple_reach: float = _tuning.influence_base + InfluenceCircle.cone_slope() * (
 		_physics.cube_size * float(TOPPLE_TOWER_LAYERS)
 	)
 	var topple_point: Vector2 = topple_base + Vector2(0.0, -1.0) * (topple_reach - _corner_margin())
@@ -320,7 +320,7 @@ func _scenario_home_flag_hole() -> void:
 	await _march_solo_route(0, [meeting, home_1], chain)
 
 	# A single cube's circle stops short of the flag itself. Stacking on the
-	# head of the chain grows that circle by influence_k per meter of height
+	# head of the chain grows that circle by the cone slope per meter of height
 	# until it swallows the home flag's cell, which is what opens the hole.
 	var eliminated: bool = await _stack_until_home_flag_falls(0, chain, 1)
 	_check("f", eliminated and not Match.slot(1).home_flag_alive,
@@ -363,7 +363,7 @@ func _scenario_capture_win() -> void:
 	)
 
 	# Stack height on the last block outside the zone until this team's
-	# uncontested reach (influence_base + influence_k * h) covers the flag
+	# uncontested reach (influence_base + tan(45 deg) * h) covers the flag
 	# base -- never by moving the block itself any closer.
 	var covered: bool = await _stack_until_goal_covered(0, head, goal, team_0, chain)
 	var covered_before_hold: bool = Match.state() != Match.State.END
@@ -738,9 +738,9 @@ func _march_one(slot_id: int, front: Vector2, reach: float, target: Vector2) -> 
 
 
 ## A block's influence circle when it is sitting on the disk (spec 2.2:
-## r = influence_base + influence_k * h, h being its highest point).
+## r = influence_base + tan(45 deg) * h, h being its highest point).
 func _cube_reach() -> float:
-	return _tuning.influence_base + _tuning.influence_k * _physics.cube_size
+	return _tuning.influence_base + InfluenceCircle.cone_slope() * _physics.cube_size
 
 
 ## The furthest a cube may step from the center of a circle of radius `reach`
@@ -760,12 +760,12 @@ func _corner_margin() -> float:
 
 
 ## The tallest any front in scenarios (a)-(c) ever grows (spec 2.2's
-## r = influence_base + influence_k * h), after _raise_fronts() stacks
+## r = influence_base + tan(45 deg) * h), after _raise_fronts() stacks
 ## FRONT_STACK_HEIGHT extra layers on the first cube. This is the largest
 ## radius any single circle in those scenarios can ever have.
 func _max_front_reach() -> float:
 	var stacked_height: float = _physics.cube_size * float(1 + FRONT_STACK_HEIGHT)
-	return _tuning.influence_base + _tuning.influence_k * stacked_height
+	return _tuning.influence_base + InfluenceCircle.cone_slope() * stacked_height
 
 
 ## _march_pair()'s stopping gap: the fully-raised reach (_max_front_reach())

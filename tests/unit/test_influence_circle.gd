@@ -1,5 +1,5 @@
 extends GutTest
-## Spec 2.2's influence rule: "r = influence_base + influence_k * h ... capped
+## Spec 2.2's influence rule: "r = influence_base + h * tan(45 deg) ... capped
 ## at influence_max = 0.6 * field_radius", and spec 3.3's "two circles are
 ## connected if they overlap".
 
@@ -29,7 +29,7 @@ func test_radius_grows_linearly_with_height() -> void:
 	for height: float in [1.0, 4.0, 10.0]:
 		assert_almost_eq(
 			InfluenceCircle.radius_for_height(height, _tuning, MAP_RADIUS),
-			_tuning.influence_base + _tuning.influence_k * height,
+			_tuning.influence_base + InfluenceCircle.cone_slope() * height,
 			0.0001
 		)
 
@@ -48,7 +48,7 @@ func test_radius_is_capped_at_the_map_fraction() -> void:
 
 func test_just_below_the_cap_is_not_clamped() -> void:
 	var cap: float = _tuning.influence_max_fraction * MAP_RADIUS
-	var height: float = (cap - _tuning.influence_base) / _tuning.influence_k - 1.0
+	var height: float = (cap - _tuning.influence_base) / InfluenceCircle.cone_slope() - 1.0
 	assert_lt(InfluenceCircle.radius_for_height(height, _tuning, MAP_RADIUS), cap)
 
 
@@ -78,7 +78,7 @@ func test_for_block_builds_a_non_home_circle_at_the_projected_center() -> void:
 	)
 	assert_eq(circle.center, Vector2(3.0, -7.0))
 	assert_almost_eq(
-		circle.radius, _tuning.influence_base + _tuning.influence_k * 5.0, 0.0001
+		circle.radius, _tuning.influence_base + InfluenceCircle.cone_slope() * 5.0, 0.0001
 	)
 	assert_eq(circle.team_id, 1)
 	assert_eq(circle.slot_id, 2)
