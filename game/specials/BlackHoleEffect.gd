@@ -57,11 +57,13 @@ func detaches() -> bool:
 func detonate(block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> void:
 	if block == null or not block.is_inside_tree():
 		return
-	# Same per-match container as BlackHoleVisual, so the field dies with the match world.
+	# Bontago-1pi.85.66: parented under the Field (DiscAnchor) so the hole rides the
+	# tilting/shaking disc like the volcano; BlackHoleField.tick() reads global_position
+	# every physics tick, so the pull centre follows. Falls back to the blocks container
+	# (then the carrier's parent) without a live Field.
 	var world: Node3D = Match.blocks_parent()
-	var parent: Node = world if world != null else block.get_parent()
+	var fallback: Node = world if world != null else block.get_parent()
 	var field: BlackHoleField = BlackHoleField.new()
 	field.bind_to_match = world != null
 	field.configure(self, [block.get_rid()])
-	parent.add_child(field)
-	field.global_position = block.global_position
+	DiscAnchor.attach(field, block.global_position, fallback)

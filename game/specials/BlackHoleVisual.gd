@@ -20,6 +20,10 @@ var _lifetime_s: float = 0.0
 var _material: ShaderMaterial = null
 var _core: MeshInstance3D = null
 var _last_grow: float = -1.0
+## Set when spawned into a match world (GiftFxPresenter): the visual frees itself once the
+## match is no longer live, since it now hangs under the persistent Field (1pi.85.66)
+## rather than the per-match blocks container.
+var bind_to_match: bool = false
 
 
 ## radius_m is the core sphere radius; the disc covers the pull radius read from the
@@ -114,6 +118,9 @@ func _apply_growth(grow: float) -> void:
 
 
 func _process(delta: float) -> void:
+	if bind_to_match and not MatchAutoload.is_live(Match.state()):
+		queue_free()
+		return
 	_remaining_s -= delta
 	_age_s += delta
 	if _remaining_s <= 0.0:

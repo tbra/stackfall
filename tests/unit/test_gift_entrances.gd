@@ -157,9 +157,10 @@ func test_black_hole_opens_up_underneath_the_drop_point_without_a_carrier() -> v
 	_start()
 	assert_eq(_release(0, &"black_hole"), PlacementRules.REASON_OK)
 	assert_eq(_registry.tracked_block_count(), 0, "nothing registered")
-	var visuals: Array[Node] = _blocks_root.find_children("*", "BlackHoleVisual", true, false)
+	# Bontago-1pi.85.66: the vortex and pull field ride the disc, so they hang under the Field.
+	var visuals: Array[Node] = _field.find_children("*", "BlackHoleVisual", true, false)
 	assert_eq(visuals.size(), 1, "the vortex is drawn at the release point")
-	assert_eq(_blocks_root.find_children("*", "BlackHoleField", true, false).size(), 1, "the pull field runs")
+	assert_eq(_field.find_children("*", "BlackHoleField", true, false).size(), 1, "the pull field runs")
 	for child: Node in _blocks_root.get_children():
 		assert_false(child is Block, "no carrier body")
 	var visual: BlackHoleVisual = visuals[0] as BlackHoleVisual
