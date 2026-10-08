@@ -70,6 +70,11 @@ static var _materials_by_color: Dictionary = {}
 ## Bontago-1pi.11.60: one outline ShaderMaterial per owner colour (its tint is
 ## a plain uniform), chained as that colour's material next_pass.
 static var _outline_materials_by_color: Dictionary = {}
+## Bontago-1pi.11.67 fix2b: GraphicsPreset.block_outline_enabled (Low: off). Read
+## once from Settings when the first block material is built, then kept in step
+## with Settings.graphics_preset_changed by _on_graphics_preset_changed().
+static var _outline_enabled: bool = true
+static var _preset_hooked: bool = false
 
 
 ## `owner_slot` defaults to -1 so M1's call sites (no player slots yet) keep
@@ -297,6 +302,7 @@ static func _add_shape_visual(
 static func _material_for_color(color: Color) -> ShaderMaterial:
 	if _materials_by_color.has(color):
 		return _materials_by_color[color]
+	_hook_graphics_preset()
 	var material: ShaderMaterial = ShaderMaterial.new()
 	material.shader = CELL_GRID_SHADER
 	material.set_shader_parameter(&"albedo_color", color)
@@ -342,9 +348,40 @@ static func _material_for_color(color: Color) -> ShaderMaterial:
 	material.set_shader_parameter(&"dissolve_rim_glow", HOLE_VISUALS.dissolve_rim_glow)
 	material.set_shader_parameter(&"dissolve_rim_color", HOLE_VISUALS.void_rim_color)
 	material.set_shader_parameter(&"dissolve_void_color", HOLE_VISUALS.void_deep_color)
-	material.next_pass = _outline_material_for_color(color)
+	material.next_pass = _outline_material_for_color(color) if _outline_enabled else null
 	_materials_by_color[color] = material
 	return material
+
+
+## Bontago-1pi.11.67 fix2b: whether block materials currently chain the outline pass.
+static func outline_enabled() -> bool:
+	return _outline_enabled
+
+
+## Bontago-1pi.11.67 fix2b: attaches (true) or detaches (false) the inverted-hull
+## outline next_pass on every cached block material at once, so every live block
+## follows a graphics preset change. Detaching drops the pass from the depth
+## prepass, the colour pass and every shadow cascade, not just its pixels.
+static func set_outline_enabled(enabled: bool) -> void:
+	_outline_enabled = enabled
+	for color: Variant in _materials_by_color.keys():
+		var material: ShaderMaterial = _materials_by_color[color] as ShaderMaterial
+		material.next_pass = _outline_material_for_color(color as Color) if enabled else null
+
+
+static func _hook_graphics_preset() -> void:
+	if _preset_hooked:
+		return
+	_preset_hooked = true
+	var preset: GraphicsPreset = Settings.current_graphics_preset()
+	_outline_enabled = preset == null or preset.block_outline_enabled
+	Settings.graphics_preset_changed.connect(Callable(BlockFactory, &"_on_graphics_preset_changed"))
+
+
+static func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
+	var enabled: bool = preset == null or preset.block_outline_enabled
+	if enabled != _outline_enabled:
+		set_outline_enabled(enabled)
 
 
 ## Ownership-changing effects swap the Block's material reference. The cached

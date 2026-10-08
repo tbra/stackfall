@@ -77,3 +77,35 @@ func test_frozen_block_skips_rebound_work_and_awake_runs_it() -> void:
 	assert_gt(awake.rebound_work_runs, 0, "awake body still runs it")
 	awake.free()
 	frozen.free()
+
+
+## Bontago-1pi.11.67 fix2b: Low detaches the outline next_pass from every cached block
+## material (no draw in the prepass, colour pass or shadow cascades); High reattaches it.
+func test_low_preset_detaches_outline_and_high_reattaches() -> void:
+	_restore_preset_id = Settings.current_graphics_preset().id
+	Settings.set_graphics_preset(&"high")
+	var block: Block = autofree(BlockFactory.build(load(CUBE_PATH), _tuning, 0, COLOR_A))
+	var material: ShaderMaterial = _mesh_children(block)[0].material_override as ShaderMaterial
+	assert_not_null(material.next_pass)
+	Settings.set_graphics_preset(&"low")
+	assert_false(BlockFactory.outline_enabled())
+	assert_null(material.next_pass, "Low: no outline pass on a live block.")
+	var low_block: Block = autofree(BlockFactory.build(load(CUBE_PATH), _tuning, 0, Color(0.3, 0.8, 0.3)))
+	var low_material: ShaderMaterial = _mesh_children(low_block)[0].material_override as ShaderMaterial
+	assert_null(low_material.next_pass, "Low: a material built now has no outline either.")
+	Settings.set_graphics_preset(&"high")
+	assert_true(BlockFactory.outline_enabled())
+	assert_not_null(material.next_pass)
+	assert_eq((material.next_pass as ShaderMaterial).get_shader_parameter(&"tint_color"), COLOR_A)
+	assert_not_null(low_material.next_pass)
+
+
+## Bontago-1pi.11.67 fix2b: a test that switches the graphics preset records the
+## original here; after_each puts it back even when an assert failed midway.
+var _restore_preset_id: StringName = &""
+
+
+func after_each() -> void:
+	if _restore_preset_id != &"":
+		Settings.set_graphics_preset(_restore_preset_id)
+		_restore_preset_id = &""
