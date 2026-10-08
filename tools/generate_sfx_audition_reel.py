@@ -9,7 +9,7 @@ import wave
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs/audio_review"
-NAMES = ("boing", "creak", "rocket", "bomb", "volcano", "quake2", "propeller")
+NAMES = ("boing", "creak", "rocket", "bomb", "volcano", "quake2", "propeller", "claim_tension_loop", "claim_interrupt_sting", "claim_rival_broken")
 GAP_SECONDS = 0.75
 
 
@@ -84,13 +84,13 @@ def main() -> None:
         "",
         "## Listening notes",
         "",
-        "Check the attack, tail, loudness balance, and whether each cue reads as its intended event at normal gameplay volume. In particular, audition boing and creak with a gift claim; the special rocket, bomb, volcano, quake, and propeller cues are candidates awaiting live wiring. Log any cue requiring revision in Beads before integration.",
+        "Check the attack, tail, loudness balance, and whether each cue reads as its intended event at normal gameplay volume. In particular, audition boing and creak with a gift claim; the special rocket, bomb, volcano, quake, and propeller cues are candidates awaiting live wiring; the three claim_* cues are procedural placeholders (see CLAIM_TENSION.md). Log any cue requiring revision in Beads before integration.",
         "",
         "This sheet verifies digital integrity only. A person still needs to listen to the WAV and judge the sound.",
         "",
     ])
     (OUT / "SFX_AUDITION.md").write_text("\n".join(lines), encoding="utf-8")
-    print(f"Wrote {reel.relative_to(ROOT)} ({timestamp(cursor, rate)}) and timestamp sheet; all seven PCM segments and six silence gaps verified.")
+    print(f"Wrote {reel.relative_to(ROOT)} ({timestamp(cursor, rate)}) and timestamp sheet; all {len(NAMES)} PCM segments and {len(NAMES) - 1} silence gaps verified.")
 
 
 if __name__ == "__main__":
