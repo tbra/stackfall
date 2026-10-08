@@ -184,7 +184,7 @@ func _claim_radius() -> float:
 
 
 func _tick_territory(delta: float) -> void:
-	# Spec 3.4 / docs/M3a_PLAN.md, "Clients never solve territory": on a
+	# Spec 3.4 / docs/archive/M3a_PLAN.md, "Clients never solve territory": on a
 	# client every body is frozen, so the settled rule would call the whole
 	# field settled instantly and the solve would invent a territory that
 	# disagrees with the host's. The mirror raster arrives over the wire
@@ -834,7 +834,7 @@ func circle_render_arrays() -> Dictionary:
 	}
 
 
-## Owner decision (docs/M2_PLAN.md, "Home flag lost to a hole"): a hole
+## Owner decision (docs/archive/M2_PLAN.md, "Home flag lost to a hole"): a hole
 ## opening under a slot's home flag eliminates it — home_flag_alive goes
 ## false, its circles unanchor (P1's TerritorySolver drops them next solve
 ## since they no longer connect to a home circle), it gets no more feed, and

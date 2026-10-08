@@ -84,7 +84,7 @@ extends Resource
 ## still far cheaper than all-pairs.
 ##
 ## Raised from the plan's starting 4.0 to 12.0 after measuring, which
-## docs/M2_PLAN.md's P1 acceptance note explicitly allows ("raise
+## docs/archive/M2_PLAN.md's P1 acceptance note explicitly allows ("raise
 ## hash_cell_size ... in the resource, never in code, and report the
 ## numbers").
 ##

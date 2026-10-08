@@ -9,7 +9,7 @@ extends Node
 ## speed is below sleep_linear_threshold and its angular speed below
 ## sleep_angular_threshold for sleep_settle_time. One frame above either
 ## threshold resets the accumulator to zero" — not a decay, so a falling
-## block never flashes influence on the way down (docs/M2_PLAN.md).
+## block never flashes influence on the way down (docs/archive/M2_PLAN.md).
 ##
 ## Lives in game/, not core/, because it watches live RigidBody3D nodes;
 ## everything it hands back to Match (InfluenceCircle, floats, RigidBody3D
@@ -66,7 +66,7 @@ var _move_epsilon: float = 0.005
 
 ## Set by Match.start_match() via configure(). Used only for the disk-local
 ## projection (Field.to_local/to_global are plain Node3D methods, not part of
-## Field's not-yet-landed M2 API — see docs/M2_PLAN.md's Field contract) and
+## Field's not-yet-landed M2 API — see docs/archive/M2_PLAN.md's Field contract) and
 ## for bodies_over_cells()'s cell lookup.
 var _field: Node3D = null
 ## Test seam: false recomputes every block's geometry (the oracle path).
@@ -77,7 +77,7 @@ var _grid: CellGrid = null
 ## single-PC behaviour is the default and nothing had to change for it.
 ## A client allocates no net_ids — the host's are the only ones a snapshot can
 ## name — and runs no settled rule, because every one of its bodies is frozen
-## and would read as settled the instant it spawned (docs/M3a_PLAN.md, "two
+## and would read as settled the instant it spawned (docs/archive/M3a_PLAN.md, "two
 ## kinds of asleep").
 var _host_authority: bool = true
 
@@ -194,7 +194,7 @@ func _on_block_placed(block: RigidBody3D, _shape_id: StringName) -> void:
 		return
 
 	# Monotonic and never reused within a match: reusing an id would let a
-	# snapshot still in flight move the wrong body (docs/M3a_PLAN.md,
+	# snapshot still in flight move the wrong body (docs/archive/M3a_PLAN.md,
 	# "net_id allocation and the spawn/snapshot race").
 	var net_id: int = _next_net_id
 	if not Quantize.is_wire_id(net_id):
@@ -535,7 +535,7 @@ func all_settled() -> bool:
 ## center, mass, disk-local z offset) -- the same "a spare component carries a
 ## second scalar" packing this codebase already uses to avoid a per-frame
 ## Array[Object] allocation. game/Field.gd's PHYSICAL_BALANCE tilt (M6 B5,
-## spec 2.1/2.7; kinematic-torque approximation, docs/M6_PLAN.md DECISION,
+## spec 2.1/2.7; kinematic-torque approximation, docs/archive/M6_PLAN.md DECISION,
 ## owner-approved Bontago-keo.16) sums mass * lever-arm across these to drive
 ## its tilt spring every physics tick.
 ##

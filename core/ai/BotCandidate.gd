@@ -5,7 +5,7 @@ extends RefCounted
 ## -- no scene-tree reference, so core/ai/ scorers can be unit-tested without
 ## a running Field.
 ##
-## docs/M5_PLAN.md P1 (Bontago-d5c): this is the interface-stub package's own
+## docs/archive/M5_PLAN.md P1 (Bontago-d5c): this is the interface-stub package's own
 ## data shape. P2 may append fields here if it needs a genuinely new fact
 ## (flagged in its own package doc), but must not remove or retype any of the
 ## five below.

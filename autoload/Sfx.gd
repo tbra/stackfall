@@ -23,7 +23,7 @@ extends Node
 ## Every play()/play_music()/impact-thud
 ## volume_db also adds Settings.master_volume_db() on top of this file's own
 ## AudioConfig.sfx_volume_db/music_volume_db baseline, live-updated via
-## Settings.audio_settings_changed (docs/M6_PLAN.md package C3). Bontago
+## Settings.audio_settings_changed (docs/archive/M6_PLAN.md package C3). Bontago
 ## (options package): SFX playback additionally adds Settings.sfx_volume_db(),
 ## music playback additionally adds Settings.music_volume_db() -- master
 ## multiplies every channel, the music/SFX sliders only ever scale their own.
@@ -187,7 +187,7 @@ func _refresh_music_root_dir() -> void:
 
 ## Settings.audio_settings_changed fires for both a master-volume change and a
 ## custom-music-dir change (autoload/Settings.gd), so this re-resolves the
-## music folder and, per docs/M6_PLAN.md package C3, re-applies the volume to
+## music folder and, per docs/archive/M6_PLAN.md package C3, re-applies the volume to
 ## whatever is already playing -- no restart needed to hear a slider move.
 func _on_audio_settings_changed() -> void:
 	if config.contextual_music_enabled:

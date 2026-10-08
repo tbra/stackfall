@@ -3,7 +3,7 @@ extends RefCounted
 ## Pure (CLAUDE.md "core/ ... no dependence on the scene tree"): every
 ## argument is a value type or an already-built core/ object.
 ##
-## docs/M5_PLAN.md P2 (Bontago-d5c.3): real scoring for the four spec 2.9
+## docs/archive/M5_PLAN.md P2 (Bontago-d5c.3): real scoring for the four spec 2.9
 ## factors -- height gained, goal progress, stability, risk -- combined with
 ## BotTuning's four weights, plus flattest_orientations()'s pure geometry and
 ## pick_best()'s highest-scorer selection. P1's trivial default bodies (always
@@ -21,7 +21,7 @@ extends RefCounted
 ##   is driven by the block's highest point above the disk, not merely its
 ##   pivot's support height) -- a smaller (even negative) number is better.
 ##   A full TerritorySolver.solve()
-##   per candidate (up to 120 per bot per think-cycle, docs/M5_PLAN.md's own
+##   per candidate (up to 120 per bot per think-cycle, docs/archive/M5_PLAN.md's own
 ##   "Known risks: Perf") is the actual thing this estimate avoids doing.
 ## - Stability: BotCandidate carries `footprint_cells` (the geometric
 ##   footprint PlacementRules.footprint_cells() already computed) but not what
@@ -92,7 +92,7 @@ static func _goal_progress_metric(
 
 
 ## True when `candidate.origin` -- the stand-in for the shape's own centre of
-## mass (docs/M5_PLAN.md P2: "approximated as candidate.origin for a
+## mass (docs/archive/M5_PLAN.md P2: "approximated as candidate.origin for a
 ## single-cube-pivot shape") -- falls inside the axis-aligned bounding box of
 ## `footprint_cells`' own cell centres, expanded by half a cell so a centre
 ## sitting exactly on a footprint cell still counts. That bounding box is a
@@ -126,7 +126,7 @@ static func _origin_within_footprint_bounds(candidate: BotCandidate, grid: CellG
 ## not-yet-wired producer), whether the origin/centre-of-mass stand-in falls
 ## inside the supported area, and a flat bonus for resting on the bot's own
 ## already-placed stack -- "on_top_of_own_stack == true with full contact
-## scores higher than one balanced on a corner" (docs/M5_PLAN.md P2).
+## scores higher than one balanced on a corner" (docs/archive/M5_PLAN.md P2).
 static func _stability_term(candidate: BotCandidate, grid: CellGrid, tuning: BotTuning) -> float:
 	var cell_count: int = candidate.footprint_cells.size()
 	if cell_count == 0:

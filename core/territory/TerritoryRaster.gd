@@ -5,7 +5,7 @@ extends RefCounted
 ##
 ## One cell of CellGrid is one pixel here and one BoxShape3D in the field's
 ## collision, so the three never disagree about where a hole is. See
-## docs/M2_PLAN.md, "Raster resolution", for why the rules run at cell
+## docs/archive/M2_PLAN.md, "Raster resolution", for why the rules run at cell
 ## resolution while MapDef.territory_res is the size the overlay uploads.
 ##
 ## **Two fills.** `update()`'s `holes_enabled` selects which ruleset decides a
@@ -58,7 +58,7 @@ const STATE_GOAL_ZONE: int = 4
 
 ## Group id written into every owned cell of a *replicated* raster (M3a).
 ##
-## A client's raster is a mirror, not a solve (docs/M3a_PLAN.md, "The client's
+## A client's raster is a mirror, not a solve (docs/archive/M3a_PLAN.md, "The client's
 ## raster is a mirror"): the host ships one owner byte and one state byte per
 ## cell, which is exactly the set PlacementRules.validate() reads, but real
 ## group indices cannot be reconstructed from them and are not needed — the

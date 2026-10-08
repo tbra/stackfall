@@ -181,7 +181,7 @@ signal claim_tension_changed(level: float, mine: bool)
 signal claim_interrupted(was_mine: bool, peak: float)
 
 ## A slot's home flag was lost to a hole opening under it (spec 2.2 is silent
-## on this; docs/M2_PLAN.md's owner decision: this eliminates the slot —
+## on this; docs/archive/M2_PLAN.md's owner decision: this eliminates the slot —
 ## PlayerSlot.home_flag_alive goes false, its circles unanchor, and it gets no
 ## more feed). Match ends the match itself via match_won if only one
 ## player/team is left.
@@ -200,7 +200,7 @@ signal gift_landed(gift_id: int, landing: Vector3)
 ## A crate in a team's territory popped: `slot_id` is the RESOLVED RECIPIENT --
 ## the one teammate whose home circle (PlayerSlot.home_position) is nearest
 ## the crate, picked by autoload/match/MatchGifts.gd's _resolve_recipient_slot()
-## (Bontago-keo.17, owner decision "b" on docs/M6_PLAN.md's Owner Q1). Only
+## (Bontago-keo.17, owner decision "b" on docs/archive/M6_PLAN.md's Owner Q1). Only
 ## that slot's own pending queue (Match.held_special()/pop_pending_special())
 ## grows; a claim never queues onto a teammate's queue who isn't the resolved
 ## recipient. `special_id` is the id drawn for this claim -- Orchestrator
@@ -220,14 +220,14 @@ signal gift_claimed(gift_id: int, slot_id: int, special_id: StringName)
 ## A crate lived past GiftConfig.life_s without being claimed.
 signal gift_expired(gift_id: int)
 
-## M4 P2c (docs/M4_P2_PACKAGES.md, orchestrator amendment 2): a spawned
+## M4 P2c (docs/archive/M4_P2_PACKAGES.md, orchestrator amendment 2): a spawned
 ## special (placed or thrown) triggered -- game/specials/SpecialBehavior.gd
 ## emits its own `triggered(def_id, position, chain_depth)` signal per
 ## instance; autoload/match/MatchPlacement.gd connects every behaviour it
 ## attaches to a forwarder that re-emits it here with the block's net_id
 ## added, so a listener can tell which block without holding a live reference
 ## to it. Host-only: only the host ever attaches a SpecialBehavior (a client
-## never calls _spawn_block() -- decision 4 in docs/M4_P2_PACKAGES.md).
+## never calls _spawn_block() -- decision 4 in docs/archive/M4_P2_PACKAGES.md).
 ## net/MatchNet.gd (Bontago-1en.17, not this package) replicates it to
 ## clients from here.
 signal special_triggered(net_id: int, def_id: StringName, position: Vector3, chain_depth: int)
@@ -276,7 +276,7 @@ signal net_mode_changed(mode: int)
 signal net_peer_joined(peer_id: int, slot_id: int, player_name: String)
 
 ## A peer disconnected. `reason` is a Net.LeaveReason value. The host decides
-## what happens to its slot (docs/M3a_PLAN.md); this is the notification, not
+## what happens to its slot (docs/archive/M3a_PLAN.md); this is the notification, not
 ## the decision.
 signal net_peer_left(peer_id: int, slot_id: int, reason: int)
 
@@ -327,7 +327,7 @@ signal remote_cursor_updated(
 	slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion
 )
 
-# --- M3b: Steam transport (spec 3.4, docs/M3b_PLAN.md P1) -------------------
+# --- M3b: Steam transport (spec 3.4, docs/archive/M3b_PLAN.md P1) -------------------
 
 ## Net.init_steam() finished (or the extension isn't installed). `available`
 ## mirrors Net.steam_available(); `detail` is a human-readable line for the
