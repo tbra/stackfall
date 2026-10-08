@@ -174,3 +174,22 @@ func _inradius(mesh: ArrayMesh) -> float:
 		var normal: Vector3 = (vertices[faces[f + 1]] - a).cross(vertices[faces[f + 2]] - a).normalized()
 		smallest = minf(smallest, absf(normal.dot(a)))
 	return smallest
+
+
+## Bontago-1pi.11.67 (fix 2a): clumps at or beyond the billboard distance draw as 4-triangle
+## impostors; the puff count and the occlusion rows do not change.
+func test_far_clumps_use_billboard_impostors() -> void:
+	var theme: SkyThemeDef = load("res://config/sky_themes/sunset.tres") as SkyThemeDef
+	var hulls: CloudSea = CloudSea.new()
+	add_child_autofree(hulls)
+	hulls.configure(theme, 0.2, theme.sky_material, 1, 0.0)
+	var impostors: CloudSea = CloudSea.new()
+	add_child_autofree(impostors)
+	impostors.configure(theme, 0.2, theme.sky_material, 1, 150.0)
+	assert_null(hulls.billboard_instance(), "distance 0 keeps every hull")
+	assert_not_null(impostors.billboard_instance())
+	assert_gt(impostors.billboard_puff_count(), 0)
+	assert_eq(impostors.billboard_instance().get_instance_shader_parameter(&"billboard"), 1.0)
+	assert_eq(CloudSea.build_billboard_mesh().get_faces().size() / 3, 4, "hexagon impostor")
+	assert_lt(impostors.triangle_count(), hulls.triangle_count() / 2, "far puffs cost 4 triangles, not 80")
+	assert_eq(impostors.occlusion_puff_count(), impostors.puff_count() + impostors.upper_puff_count())

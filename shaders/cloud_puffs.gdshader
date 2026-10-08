@@ -213,6 +213,13 @@ instance uniform float edge_soft_px : hint_range(0.0, 8.0) = 0.0;
 // 1 on the upper puff layer (the floor above applies there only), 0 on the sea.
 instance uniform float floor_on : hint_range(0.0, 1.0) = 0.0;
 instance uniform float flat_base_override : hint_range(-1.0, 1.0) = -1.0;
+// Bontago-1pi.11.67 (fix 2a): 1 on the instance whose mesh is a hexagon impostor (UV = corner,
+// inradius 1) instead of the 80-triangle hull. Distant clumps use it: the fragment stage already
+// ray-traces the ellipsoid itself, so only the covering polygon changes (4 triangles, not 80).
+// The impostor faces the camera on the plane touching the puff's near side (depth of the hull's
+// front) and is sized to the silhouette cone of the inflated bounding sphere. No flat base is
+// drawn on it (a distant puff below the camera shows none).
+instance uniform float billboard : hint_range(0.0, 1.0) = 0.0;
 
 varying vec3 world_pos;
 varying vec3 world_normal;
@@ -284,6 +291,19 @@ void vertex() {
 	VERTEX.xz += moved;
 	NORMAL = hull_normal;
 	centre.xz += moved;
+	if (billboard > 0.5) {
+		float radius = max(axes.x, axes.y) * (1.0 + lump_height * (1.0 - lump_bias) + billow_amount + hull_margin);
+		vec3 to_centre = centre - CAMERA_POSITION_WORLD;
+		float dist_c = max(length(to_centre), radius * 1.5);
+		vec3 forward = to_centre / max(length(to_centre), 0.0001);
+		vec3 side = cross(forward, vec3(0.0, 1.0, 0.0));
+		side = length(side) > 0.001 ? normalize(side) : vec3(1.0, 0.0, 0.0);
+		vec3 lift = cross(side, forward);
+		float cone = inversesqrt(max(1.0 - (radius * radius) / (dist_c * dist_c), 0.25));
+		float half_size = radius * cone * (dist_c - radius) / dist_c;
+		VERTEX = centre - forward * radius + (side * UV.x + lift * UV.y) * half_size;
+		NORMAL = vec3(0.0, 1.0, 0.0);
+	}
 	float edge = domain - max(abs(wrapped.x), abs(wrapped.y));
 	drift_vis = smoothstep(0.0, max(drift_edge_fade_m, 0.001), edge);
 	if (COLOR.a > 0.0) {
