@@ -164,3 +164,52 @@ func test_disabled_music_silences_bed() -> void:
 	_sfx.set_music_enabled(false)
 	Events.goal_capture_progress.emit(MINE, 0.9)
 	assert_eq(_sfx.claim_tension_target_volume_db(), SFX_SCRIPT.MUSIC_STEM_MUTE_DB)
+
+
+func test_client_extrapolates_between_sparse_updates_and_stops_on_break() -> void:
+	_sfx._claim_test_client = true
+	_sfx._claim_test_hold_s = 20.0
+	Events.goal_capture_progress.emit(MINE, 0.1)
+	var at_first: float = _sfx.claim_tension_level()
+	_sfx._claim_extrapolate(5.0)  # 0.35
+	var mid: float = _sfx.claim_tension_level()
+	assert_gt(mid, at_first, "keeps rising with no new packet")
+	_sfx._claim_extrapolate(5.0)  # 0.6
+	assert_gt(_sfx.claim_tension_level(), mid)
+	Events.goal_capture_progress.emit(MINE, 0.6)  # snaps to the received value
+	assert_almost_eq(_sfx._claim_ext_progress, 0.6, 0.0001)
+	_sfx._claim_extrapolate(100.0)
+	assert_almost_eq(_sfx._claim_ext_progress, 1.0, 0.0001, "capped at a full hold")
+	Events.goal_capture_progress.emit(-1, 0.0)
+	var level_after_break: float = _sfx.claim_tension_level()
+	_sfx._claim_extrapolate(5.0)
+	assert_eq(level_after_break, 0.0)
+	assert_eq(_sfx.claim_tension_level(), 0.0, "no extrapolation after a break")
+
+
+func test_host_does_not_extrapolate() -> void:
+	_sfx._claim_test_client = false
+	_sfx._claim_test_hold_s = 20.0
+	Events.goal_capture_progress.emit(MINE, 0.3)
+	var before: float = _sfx.claim_tension_level()
+	_sfx._claim_extrapolate(5.0)
+	assert_eq(_sfx.claim_tension_level(), before)
+
+
+func test_holding_update_ignored_when_match_not_live() -> void:
+	Events.goal_capture_progress.emit(MINE, 0.9)
+	Events.match_won.emit(MINE)
+	_sfx._claim_test_live = false
+	Events.goal_capture_progress.emit(MINE, 1.0)  # END zero-time redraw
+	assert_eq(_sfx.claim_tension_level(), 0.0)
+	assert_false(_sfx._claim_player.playing and _sfx._claim_player.volume_db > SFX_SCRIPT.MUSIC_STEM_MUTE_DB)
+
+
+func test_unchanged_target_makes_no_new_tweens() -> void:
+	Events.goal_capture_progress.emit(-1, 0.0)
+	assert_null(_sfx._claim_tween, "silent and already silent: no tween")
+	Events.goal_capture_progress.emit(MINE, 0.5)
+	var tween: Tween = _sfx._claim_tween
+	assert_not_null(tween)
+	Events.goal_capture_progress.emit(MINE, 0.5)
+	assert_same(_sfx._claim_tween, tween, "same target keeps the running tween")

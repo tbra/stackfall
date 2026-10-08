@@ -119,6 +119,13 @@ var _claim_last_level: float = 0.0
 ## Test seams: null = use Net/Match.
 var _claim_test_local_team: Variant = null
 var _claim_test_live: Variant = null
+var _claim_test_client: Variant = null
+var _claim_test_hold_s: Variant = null
+## Last applied (volume_db, pitch, duck) targets; an unchanged target makes no tweens.
+var _claim_last_targets: Vector3 = Vector3(MUSIC_STEM_MUTE_DB, 1.0, 0.0)
+## Client-side extrapolation of a hold between sparse replicated updates.
+var _claim_ext_team: int = ClaimTensionState.NO_TEAM
+var _claim_ext_progress: float = 0.0
 
 
 func _ready() -> void:
@@ -549,7 +556,8 @@ func set_music_context(context: StringName) -> void:
 		_schedule_music(config.music_initial_delay_seconds)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_claim_extrapolate(delta)
 	# Sandbox slow-motion changes Engine.time_scale, not the audio clock.
 	# Silence and transitions use wall time; song fades follow the decoder.
 	var now_usec: int = Time.get_ticks_usec()
@@ -1063,8 +1071,14 @@ func _claim_match_live() -> bool:
 func _on_claim_progress(team_id: int, progress: float) -> void:
 	if not config.claim_tension_enabled or _world_replay_silent or _claim_state == null:
 		return
+	var live: bool = _claim_match_live()
+	var holding: bool = team_id != ClaimTensionState.NO_TEAM and progress > 0.0
+	if holding and not live:
+		return  # e.g. the END zero-time redraw must not revive the bed after a win
+	_claim_ext_team = team_id if holding else ClaimTensionState.NO_TEAM
+	_claim_ext_progress = progress if holding else 0.0
 	var now_s: float = float(Time.get_ticks_msec()) / MSEC_PER_S
-	_claim_state.update(team_id, progress, _local_claim_team(team_id), _claim_match_live(), now_s)
+	_claim_state.update(team_id, progress, _local_claim_team(team_id), live, now_s)
 	_refresh_claim_target(false)
 	# A win emits goal_capture_progress first and match_won after, in the same
 	# call stack: judge the break one frame later so a win never stings.
@@ -1089,7 +1103,37 @@ func _on_claim_match_won(_team_id: int) -> void:
 	if _claim_state == null:
 		return
 	_claim_state.mark_won()
+	_claim_ext_team = ClaimTensionState.NO_TEAM
 	_refresh_claim_target(false)
+
+
+func _claim_is_client() -> bool:
+	if _claim_test_client != null:
+		return bool(_claim_test_client)
+	return Net.is_client()
+
+
+func _claim_hold_seconds() -> float:
+	if _claim_test_hold_s != null:
+		return float(_claim_test_hold_s)
+	return Match._territory_tuning.capture_hold
+
+
+## A client only hears the capture progress when the territory raster changes
+## (MatchNet skips unchanged boards), so between updates the hold is advanced
+## here at the known hold rate while the holding team is unchanged; each real
+## update snaps it back. Host path untouched. No new replication.
+func _claim_extrapolate(delta: float) -> void:
+	if _claim_state == null or _claim_ext_team == ClaimTensionState.NO_TEAM or not config.claim_tension_enabled:
+		return
+	if not _claim_is_client() or not _claim_match_live():
+		return
+	var hold: float = _claim_hold_seconds()
+	if hold <= 0.0 or _claim_ext_progress >= 1.0:
+		return
+	_claim_ext_progress = minf(_claim_ext_progress + delta / hold, 1.0)
+	_claim_state.update(_claim_ext_team, _claim_ext_progress, _local_claim_team(_claim_ext_team), true)
+	_refresh_claim_target(true)
 
 
 ## New match scope: silence at once, forget any hold.
@@ -1098,6 +1142,8 @@ func reset_claim_tension() -> void:
 		return
 	_claim_state.reset()
 	_claim_flush_queued = false
+	_claim_ext_team = ClaimTensionState.NO_TEAM
+	_claim_ext_progress = 0.0
 	_refresh_claim_target(true)
 
 
@@ -1118,6 +1164,10 @@ func _refresh_claim_target(immediate: bool) -> void:
 	var target_db: float = claim_tension_target_volume_db()
 	var pitch: float = claim_tension_pitch_scale()
 	var duck: float = claim_duck_target_db()
+	var targets: Vector3 = Vector3(target_db, pitch, duck)
+	if not immediate and targets == _claim_last_targets:
+		return
+	_claim_last_targets = targets
 	if level > 0.0 and not _claim_player.playing and not _claim_stream_missing and _music_enabled:
 		_start_claim_bed()
 	_kill_claim_tweens()
@@ -1125,6 +1175,8 @@ func _refresh_claim_target(immediate: bool) -> void:
 	if not is_equal_approx(level, _claim_last_level):
 		Events.claim_tension_changed.emit(level, _claim_state.is_mine())
 	_claim_last_level = level
+	if not immediate and level <= 0.0 and not _claim_player.playing and _claim_duck_db == duck:
+		return
 	if immediate or not is_inside_tree():
 		_claim_player.volume_db = target_db
 		_claim_player.pitch_scale = pitch
