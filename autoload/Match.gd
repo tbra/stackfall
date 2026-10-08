@@ -126,13 +126,14 @@ var _replicator: Variant = null
 var _field: Field = null
 var _registry: BlockRegistry = null
 var _blocks_parent: Node3D = null
-## Sandbox may override the live method or pause it for diagnostics. New
+## Sandbox may tune the cone projection or pause it for diagnostics. New
 ## matches use the owner-approved top-height cone projection by default.
-const SANDBOX_TERRITORY_CURRENT: int = 0
+## (Value 0 was the removed linear per-block model, Bontago-1pi.111; the
+## remaining values keep their numbers.)
 const SANDBOX_TERRITORY_CONE: int = 1
 const SANDBOX_TERRITORY_PAUSED: int = 2
 const DEFAULT_TERRITORY_MODE: int = SANDBOX_TERRITORY_CONE
-const DEFAULT_CONE_ANGLE_DEGREES: float = 45.0
+const DEFAULT_CONE_ANGLE_DEGREES: float = InfluenceCircle.CONE_HALF_ANGLE_DEGREES
 var _sandbox_territory_mode: int = DEFAULT_TERRITORY_MODE
 var _sandbox_cone_angle: float = DEFAULT_CONE_ANGLE_DEGREES
 var _sandbox_cone_height_source: int = SandboxConeExperiment.HEIGHT_TOP
@@ -726,15 +727,15 @@ func set_feed_timer_enabled(enabled: bool) -> void:
 	_feed.set_feed_timer_enabled(enabled)
 
 
-## Sandbox A/B switch over the live host territory method. Normal matches
-## start in DEFAULT_TERRITORY_MODE; the sandbox can still select either model.
+## Sandbox switch over the live host territory solve: cone settings or paused.
+## Normal matches start in DEFAULT_TERRITORY_MODE.
 func set_sandbox_territory_mode(
 	mode: int,
 	angle_degrees: float = DEFAULT_CONE_ANGLE_DEGREES,
 	height_source: int = SandboxConeExperiment.HEIGHT_TOP,
 	base_mode: int = SandboxConeExperiment.BASE_ADDITIVE
 ) -> void:
-	if mode < SANDBOX_TERRITORY_CURRENT or mode > SANDBOX_TERRITORY_PAUSED:
+	if mode < SANDBOX_TERRITORY_CONE or mode > SANDBOX_TERRITORY_PAUSED:
 		return
 	_sandbox_territory_mode = mode
 	_sandbox_cone_angle = angle_degrees

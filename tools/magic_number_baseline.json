@@ -57,7 +57,6 @@
  "game/PlayerController.gd": 7,
  "game/QualityGovernorDriver.gd": 2,
  "game/Sandbox.gd": 7,
- "game/SandboxConeComparison.gd": 9,
  "game/Skybox.gd": 10,
  "game/TerritoryOverlay.gd": 13,
  "game/ThrowArcPreview.gd": 5,

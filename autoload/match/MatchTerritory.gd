@@ -727,7 +727,6 @@ func _territory_config_signature() -> Dictionary:
 		"base_mode": _match._sandbox_cone_base_mode,
 		"hole_mode": _match.config.hole_mode,
 		"influence_base": _match._territory_tuning.influence_base,
-		"influence_k": _match._territory_tuning.influence_k,
 		"influence_cap": _match._territory_tuning.influence_max_fraction,
 		"home_radius": _match._territory_tuning.home_radius,
 		"hash_cell_size": _match._territory_tuning.hash_cell_size,

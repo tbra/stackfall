@@ -14,10 +14,11 @@ extends Resource
 ## Loaded once as config/territory_tuning.tres.
 
 ## -- Influence circles (spec 2.2) -------------------------------------------
-## r = influence_base + influence_k * h, where h is the height of the block's
-## highest point above the disk surface along the disk normal.
+## r = min(influence_base + h * tan(45 deg), influence_max_fraction * field_radius),
+## where h is the height of the block's highest point above the disk surface
+## along the disk normal (InfluenceCircle.CONE_HALF_ANGLE_DEGREES). The earlier
+## linear per-block radius model was removed (owner decision 2026-10-08, Bontago-1pi.111).
 @export var influence_base: float = 1.5
-@export var influence_k: float = 0.9
 ## r is capped at influence_max_fraction * field_radius (spec 2.2: 0.6).
 @export var influence_max_fraction: float = 0.6
 ## The home flag's own circle, which exists while the flag is on the disk.

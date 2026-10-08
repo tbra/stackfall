@@ -5,15 +5,21 @@ extends RefCounted
 ##
 ## Spec 2.2, [RECONSTRUCTED]: "Each of your blocks that is settled produces an
 ## influence circle... centered on the block's center of mass, projected onto
-## the disk plane... r = influence_base + influence_k * h, where h is the
+## the disk plane... r = influence_base + h * tan(45 deg), where h is the
 ## height of the block's highest point above the disk surface, measured along
 ## the disk's normal", capped at influence_max_fraction * field_radius.
+## (The former linear per-block slope was removed by owner decision
+## 2026-10-08, Bontago-1pi.111; the 45-degree cone slope is the one model.)
 ##
 ## Spec "Still open" 3 records that it is unknown whether the original drew a
 ## circle per block or one circle per player; the spec's stated default, and
 ## what this class implements, is a circle per block.
 ##
 ## Pure logic: no scene tree (CLAUDE.md).
+
+## Half-angle of the territory cone (SPEC 2.2); the radius grows by
+## tan(this) metres per metre of block height.
+const CONE_HALF_ANGLE_DEGREES: float = 45.0
 
 ## Disk-local (x, z) center, see CellGrid for the convention.
 var center: Vector2 = Vector2.ZERO
@@ -54,12 +60,17 @@ func _init(
 	top_height = p_top_height
 
 
+## Metres of radius per metre of height: tan(CONE_HALF_ANGLE_DEGREES).
+static func cone_slope() -> float:
+	return tan(deg_to_rad(CONE_HALF_ANGLE_DEGREES))
+
+
 ## Spec 2.2's radius formula. `height` is the block's highest point above the
 ## disk surface along the disk normal; `field_radius` supplies the cap.
 static func radius_for_height(
 	height: float, tuning: TerritoryTuning, field_radius: float
 ) -> float:
-	var raw: float = tuning.influence_base + tuning.influence_k * maxf(height, 0.0)
+	var raw: float = tuning.influence_base + cone_slope() * maxf(height, 0.0)
 	return minf(raw, tuning.influence_max_fraction * field_radius)
 
 

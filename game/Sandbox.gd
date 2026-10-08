@@ -106,7 +106,6 @@ func _ready() -> void:
 	_cone_panel = SandboxConePanel.new()
 	add_child(_cone_panel)
 	_cone_panel.set_live_territory_mode(Match.sandbox_territory_mode())
-	_cone_panel.measure_requested.connect(_measure_cone_comparison)
 	_cone_panel.open_changed.connect(_comparison_controls_changed)
 	_cone_panel.live_territory_mode_changed.connect(_set_live_territory_mode)
 	_cone_panel.block_collision_freeze_changed.connect(_set_block_physics_frozen)
@@ -434,19 +433,6 @@ func _open_cone_comparison() -> void:
 	clear_physics_comparison()
 	_comparison_panel.set_open(false)
 	_cone_panel.set_open(true)
-
-
-func _measure_cone_comparison(mode: int, angle_degrees: float, height_source: int, base_mode: int) -> void:
-	if _field == null or Match.state() != Match.State.PLAYING:
-		_cone_panel.show_snapshot({"error": "Wait for sandbox countdown to finish."}, null, null, PackedColorArray())
-		return
-	var comparison: Dictionary = SandboxConeComparison.measure(_field, mode, angle_degrees, height_source, base_mode)
-	if comparison.has("error"):
-		_cone_panel.show_snapshot(comparison, null, null, PackedColorArray())
-		return
-	_cone_panel.show_snapshot(
-		comparison["metrics"], comparison["baseline"], comparison["experiment"], Match.config.player_colors
-	)
 
 
 func _set_live_territory_mode(mode: int, angle_degrees: float, height_source: int, base_mode: int) -> void:

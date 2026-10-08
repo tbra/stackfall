@@ -61,7 +61,7 @@ func _place_outward(field: Field, slot_id: int, step: int) -> void:
 		return
 	var home: Vector2 = Match.slot(slot_id).home_position
 	var inward: Vector2 = -home.normalized()
-	var reach: float = _tuning.influence_base + _tuning.influence_k * _physics.cube_size
+	var reach: float = _tuning.influence_base + InfluenceCircle.cone_slope() * _physics.cube_size
 	var distance: float = _tuning.home_radius - _physics.cube_size + float(step) * reach * 0.5
 	var spot: Vector3 = field.world_from_disk_local(home + inward * distance, PLACE_HEIGHT)
 	Match._held_shapes[slot_id] = _cube

@@ -1,6 +1,6 @@
 extends GutTest
 
-func test_cone_panel_measures_without_replacing_live_territory() -> void:
+func test_cone_panel_controls_live_territory_without_replacing_it() -> void:
 	_start_sandbox(2)
 	_run_countdown()
 	var sandbox: Sandbox = _main._sandbox
@@ -15,46 +15,33 @@ func test_cone_panel_measures_without_replacing_live_territory() -> void:
 	assert_true(sandbox._cone_panel.opened)
 	assert_false(sandbox._comparison_panel.opened)
 	assert_false(sandbox.controller().input_enabled)
-	assert_not_null(sandbox._cone_panel._baseline_map.texture)
-	assert_not_null(sandbox._cone_panel._cone_map.texture)
-	assert_same(Match.raster(), live_raster, "experiment must not replace match territory")
-	assert_true(sandbox._cone_panel._status.text.contains("Current:"))
+	assert_same(Match.raster(), live_raster, "panel must not replace match territory")
 	sandbox._cone_panel._cache_territory.button_pressed = false
 	assert_false(Match._territory_cache_enabled)
 	sandbox._cone_panel._cache_territory.button_pressed = true
 	assert_true(Match._territory_cache_enabled)
-	assert_eq(sandbox._cone_panel._height_source.get_selected_id(), SandboxConeComparison.HEIGHT_TOP)
+	assert_eq(sandbox._cone_panel._height_source.get_selected_id(), SandboxConeExperiment.HEIGHT_TOP)
 	assert_eq(sandbox._cone_panel._base_mode.get_selected_id(), SandboxConeExperiment.BASE_ADDITIVE)
-	sandbox._cone_panel._height_source.select(SandboxConeComparison.HEIGHT_CENTER)
-	sandbox._cone_panel._base_mode.select(SandboxConeExperiment.BASE_ADDITIVE)
-	sandbox._cone_panel._request_measurement()
-	assert_true(sandbox._cone_panel._status.text.contains("Cone:"))
-	sandbox._cone_panel._mode.select(SandboxConeComparison.MODE_CONTAINMENT)
-	sandbox._cone_panel._on_mode_selected(SandboxConeComparison.MODE_CONTAINMENT)
-	assert_true(sandbox._cone_panel._status.text.contains("Containment:"))
-	assert_false(sandbox._cone_panel._angle_row.visible)
-	assert_false(sandbox._cone_panel._cone_options_row.visible)
-	assert_true(sandbox._cone_panel._status.text.contains("Different cells: 0 (0.00%)"))
-	sandbox._cone_panel._live_mode.select(MatchAutoload.SANDBOX_TERRITORY_CONE)
+	sandbox._cone_panel.set_live_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CONE)
 	sandbox._cone_panel._on_live_mode_selected(MatchAutoload.SANDBOX_TERRITORY_CONE)
 	assert_eq(Match.sandbox_territory_mode(), MatchAutoload.SANDBOX_TERRITORY_CONE)
 	assert_false(sandbox._cone_panel._live_badge.visible)
-	sandbox._cone_panel._live_mode.select(MatchAutoload.SANDBOX_TERRITORY_PAUSED)
+	sandbox._cone_panel.set_live_territory_mode(MatchAutoload.SANDBOX_TERRITORY_PAUSED)
 	sandbox._cone_panel._on_live_mode_selected(MatchAutoload.SANDBOX_TERRITORY_PAUSED)
 	assert_true(Match.sandbox_territory_paused())
 	assert_true(sandbox._cone_panel._live_badge.visible)
 	Match._territory._last_groups = null
 	Match._process(0.1)
 	assert_null(Match._territory._last_groups, "paused sandbox must skip live territory solving")
-	sandbox._cone_panel._live_mode.select(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
-	sandbox._cone_panel._on_live_mode_selected(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
+	sandbox._cone_panel.set_live_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CONE)
+	sandbox._cone_panel._on_live_mode_selected(MatchAutoload.SANDBOX_TERRITORY_CONE)
 	assert_false(Match.sandbox_territory_paused())
-	assert_true(sandbox._cone_panel._live_badge.visible)
+	assert_false(sandbox._cone_panel._live_badge.visible)
 	Match._process(0.1)
 	assert_not_null(Match._territory._last_groups, "unpausing resumes normal solves")
 	sandbox._cone_panel.set_open(false)
 	assert_true(sandbox.controller().input_enabled)
-	sandbox._cone_panel._live_mode.select(MatchAutoload.SANDBOX_TERRITORY_CONE)
+	sandbox._cone_panel.set_live_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CONE)
 	sandbox._cone_panel._on_live_mode_selected(MatchAutoload.SANDBOX_TERRITORY_CONE)
 	sandbox._reset_field()
 	assert_eq(Match.sandbox_territory_mode(), MatchAutoload.DEFAULT_TERRITORY_MODE, "field reset must restore normal territory")
@@ -62,7 +49,7 @@ func test_cone_panel_measures_without_replacing_live_territory() -> void:
 	assert_false(sandbox._cone_panel._live_badge.visible)
 
 
-func test_live_cone_switch_projects_a_settled_block_and_restores_current_rule() -> void:
+func test_live_cone_switch_projects_a_settled_block_and_restores_the_default_angle() -> void:
 	_start_sandbox(2)
 	_run_countdown()
 	var reason: StringName = Match.request_place(0, Match.default_ghost_origin(0), 0, Quaternion.IDENTITY, false)
@@ -93,10 +80,10 @@ func test_live_cone_switch_projects_a_settled_block_and_restores_current_rule() 
 	Match._territory._run_territory_step(0.0)
 	var cone_render: PackedFloat32Array = Match.circle_render_arrays()["radii"]
 	assert_true(_has_radius(cone_render, cone_radius), "live overlay must receive projected radius")
-	Match.set_sandbox_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CURRENT)
+	Match.set_sandbox_territory_mode(MatchAutoload.DEFAULT_TERRITORY_MODE)
 	Match._territory._run_territory_step(0.0)
 	var current_render: PackedFloat32Array = Match.circle_render_arrays()["radii"]
-	assert_true(_has_radius(current_render, original_radius), "switching back restores current block radius")
+	assert_true(_has_radius(current_render, original_radius), "switching back restores the default 45-degree radius")
 
 
 func test_block_collision_freeze_keeps_territory_running_and_restores_contacts() -> void:
