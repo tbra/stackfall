@@ -9,6 +9,9 @@ const THEME_IDS: Array[String] = ["dawn", "sunset", "storm", "night"]
 var _fog: FogTuning = preload("res://config/weather/fog.tres")
 
 
+const FOG_MATCH_TOLERANCE: float = 0.1
+
+
 func _rig(theme_id: String) -> Array:
 	var environment: Environment = Environment.new()
 	environment.sky = Sky.new()
@@ -48,14 +51,15 @@ func test_themes_load_the_new_fog_params_and_skybox_applies_them() -> void:
 		assert_almost_eq(environment.fog_height_density, theme.fog_height_density, 0.0001)
 
 
-func test_weather_fog_adds_aerial_perspective_and_restores_it() -> void:
+func test_weather_fog_flattens_aerial_perspective_and_restores_it() -> void:
 	var parts: Array = _rig("sunset")
 	var skybox: Skybox = parts[0]
 	var environment: Environment = parts[1]
 	var base: float = environment.fog_aerial_perspective
 	skybox.set_weather_fog(1.0, _fog.max_opacity, _fog.depth_begin_m, _fog.depth_end_m,
 		_fog.fog_color, _fog.fog_tint_strength, _fog.sky_affect, _fog.aerial_perspective_add)
-	assert_gt(environment.fog_aerial_perspective, base)
+	assert_gt(base, 0.0)
+	assert_almost_eq(environment.fog_aerial_perspective, 0.0, 0.0001, "flat fog colour like the disc (night sky is black)")
 	skybox.set_weather_fog(0.0, 0.0, 0.0, 0.0, Color.WHITE, 0.0)
 	assert_almost_eq(environment.fog_aerial_perspective, base, 0.0001)
 
@@ -79,3 +83,24 @@ func test_ambient_haze_starts_beyond_the_arena_and_blends_with_weather() -> void
 	assert_almost_eq(WeatherFogShader.strength, 0.7, 0.0001)
 	WeatherFogShader.reset_to_launch(null)
 	assert_eq(WeatherFogShader.strength, 0.0)
+
+
+## Bontago-1pi.130: Environment depth fog (what blocks get) vs the disc shader's
+## own linear fog: same colour source, same begin/end/opacity, factors agree at
+## the midpoint and stay close at the far end.
+func test_env_fog_factor_matches_disc_fog_formula() -> void:
+	var parts: Array = _rig("night")
+	var skybox: Skybox = parts[0]
+	var environment: Environment = parts[1]
+	skybox.set_weather_fog(1.0, _fog.max_opacity, _fog.depth_begin_m, _fog.depth_end_m,
+		_fog.fog_color, _fog.fog_tint_strength, _fog.sky_affect, _fog.aerial_perspective_add)
+	assert_eq(environment.fog_mode, Environment.FOG_MODE_DEPTH)
+	assert_almost_eq(environment.fog_aerial_perspective, 0.0, 0.0001)
+	assert_true(skybox.weather_fog_color().is_equal_approx(environment.fog_light_color))
+	var span: float = environment.fog_depth_end - environment.fog_depth_begin
+	for fraction: float in [0.5, 0.9, 1.0]:
+		var distance: float = environment.fog_depth_begin + span * fraction
+		var env_factor: float = pow(smoothstep(environment.fog_depth_begin, environment.fog_depth_end, distance),
+			environment.fog_depth_curve) * environment.fog_density
+		var disc_factor: float = clampf((distance - _fog.depth_begin_m) / span, 0.0, 1.0) * _fog.max_opacity
+		assert_almost_eq(env_factor, disc_factor, FOG_MATCH_TOLERANCE, "fraction %.2f" % fraction)

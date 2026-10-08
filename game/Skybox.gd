@@ -1976,7 +1976,12 @@ func _apply_fog_extras(applied_theme: SkyThemeDef) -> void:
 	if is_inside_tree():
 		WeatherFogShader.set_ambient(applied_theme.haze_strength, applied_theme.haze_begin_m,
 			applied_theme.haze_end_m, environment.fog_light_color, get_tree())
-	environment.fog_aerial_perspective = clampf(applied_theme.fog_aerial_perspective + _wfog_aerial_add * _wfog_amount, 0.0, 1.0)
+	# Bontago-1pi.130: aerial perspective blends the fog toward the SKY colour, which
+	# at night is near black, so distant blocks read as black silhouettes against the
+	# light-grey fogged disc (the disc/clouds use the flat fog colour). Weather fog
+	# therefore fades the theme's aerial perspective OUT (flat colour = the disc's).
+	# _wfog_aerial_add is kept only for API compatibility.
+	environment.fog_aerial_perspective = clampf(applied_theme.fog_aerial_perspective * (1.0 - _wfog_amount), 0.0, 1.0)
 	environment.fog_sun_scatter = applied_theme.fog_sun_scatter
 	environment.fog_height = applied_theme.fog_height_m
 	environment.fog_height_density = applied_theme.fog_height_density

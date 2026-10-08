@@ -77,3 +77,19 @@ func test_frozen_block_skips_rebound_work_and_awake_runs_it() -> void:
 	assert_gt(awake.rebound_work_runs, 0, "awake body still runs it")
 	awake.free()
 	frozen.free()
+
+
+## Bontago-1pi.130: every block pass must take Environment fog like ordinary
+## geometry (no fog_disabled render mode, no custom fog() hook).
+func test_block_passes_do_not_opt_out_of_fog() -> void:
+	var block: Block = autofree(BlockFactory.build(load(CUBE_PATH), _tuning, 0, COLOR_A))
+	var material: ShaderMaterial = _mesh_children(block)[0].material_override as ShaderMaterial
+	var pass_material: Material = material
+	var checked: int = 0
+	while pass_material != null:
+		var shader: Shader = (pass_material as ShaderMaterial).shader
+		assert_false(shader.code.contains("fog_disabled"), "%s opts out of fog" % shader.resource_path)
+		assert_false(shader.code.contains("void fog("), "%s overrides fog()" % shader.resource_path)
+		checked += 1
+		pass_material = pass_material.next_pass
+	assert_eq(checked, 2, "body + outline pass checked")
