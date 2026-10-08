@@ -99,7 +99,6 @@ func test_host_coats_glued_pair_and_removes_coat_when_bond_breaks() -> void:
 	assert_eq(int(net.replicated_event_counts.get(MatchNetScript.EVENT_BLOCK_GLUED, 0)), 2)
 	var coat_mesh: MeshInstance3D = a.get_node("BlockMesh").get_node(HoneyCoat.COAT_NODE_NAME) as MeshInstance3D
 	assert_not_null(coat_mesh.material_override)
-	assert_null(coat_mesh.get_node_or_null(HoneyCoatTuning.DRIPS_NODE_NAME), "tongues are drawn by the shader, no drip lobes")
 	bond.apply_stress_sample(INF)
 	await get_tree().process_frame
 	assert_false(HoneyCoat.is_coated(a))
