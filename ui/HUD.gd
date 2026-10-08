@@ -1325,11 +1325,15 @@ func _next_gift_id_for(count: int, head_id: StringName) -> StringName:
 
 ## Bontago-sen.3: while Glue charges remain, the held/next previews wear a
 ## glue overlay (tint plus drips) drawn over the block image.
-const GLUE_PREVIEW_COLOR: Color = Color(0.55, 0.95, 0.25, 0.4)
-const GLUE_DRIP_COLOR: Color = Color(0.55, 0.95, 0.25, 0.85)
-const GLUE_DRIP_COUNT: int = 3
-const GLUE_DRIP_WIDTH_FRACTION: float = 0.1
-const GLUE_DRIP_LENGTH_FRACTION: float = 0.22
+const HONEY_TUNING_PATH: String = "res://config/honey_coat_tuning.tres"
+## Blob layout in fractions of the drawn block image: [x, y, radius] of each honey
+## cap blob, and [x, y_top, length, width] of each drip (owner mockup glue(honey).png).
+const GLUE_BLOBS: Array[Vector3] = [Vector3(0.42, 0.3, 0.14), Vector3(0.62, 0.36, 0.1)]
+const GLUE_DRIPS: Array[Vector4] = [Vector4(0.3, 0.34, 0.2, 0.1), Vector4(0.7, 0.42, 0.14, 0.08)]
+const GLUE_EDGE_GROW: float = 1.18
+const GLUE_HIGHLIGHT_SHIFT: Vector2 = Vector2(-0.35, -0.4)
+const GLUE_HIGHLIGHT_SCALE: float = 0.35
+static var _honey_tuning: HoneyCoatTuning = null
 var _glue_active: bool = false
 
 
@@ -1374,14 +1378,29 @@ func _set_glue_active(active: bool) -> void:
 	_next_shape_preview.queue_redraw()
 
 
-func _draw_glue_overlay(control: Control) -> void:
-	var rect: Rect2 = Rect2(Vector2.ZERO, control.size)
-	control.draw_rect(rect, GLUE_PREVIEW_COLOR)
-	var drip_width: float = control.size.x * GLUE_DRIP_WIDTH_FRACTION
-	var drip_length: float = control.size.y * GLUE_DRIP_LENGTH_FRACTION
-	for i: int in range(GLUE_DRIP_COUNT):
-		var x: float = control.size.x * (float(i) + 0.5) / float(GLUE_DRIP_COUNT)
-		control.draw_rect(Rect2(x - drip_width * 0.5, control.size.y - drip_length * (1.0 + 0.4 * float(i % 2)), drip_width, drip_length * (1.0 + 0.4 * float(i % 2))), GLUE_DRIP_COLOR)
+## Honey blobs and drips over the drawn block image (rect = where the image sits).
+func _draw_glue_overlay(control: Control, rect: Rect2) -> void:
+	if _honey_tuning == null:
+		_honey_tuning = load(HONEY_TUNING_PATH) as HoneyCoatTuning
+	var base: Color = _honey_tuning.hud_blob_color
+	var edge: Color = _honey_tuning.hud_blob_edge_color
+	var light: Color = _honey_tuning.hud_blob_highlight
+	var unit: float = minf(rect.size.x, rect.size.y)
+	for d: Vector4 in GLUE_DRIPS:
+		var x: float = rect.position.x + rect.size.x * d.x
+		var top: float = rect.position.y + rect.size.y * d.y
+		var w: float = unit * d.w
+		var len: float = unit * d.z
+		control.draw_circle(Vector2(x, top + len), w * 0.5 * GLUE_EDGE_GROW, edge, true)
+		control.draw_rect(Rect2(x - w * 0.5 * GLUE_EDGE_GROW, top, w * GLUE_EDGE_GROW, len), edge)
+		control.draw_circle(Vector2(x, top + len), w * 0.5, base, true)
+		control.draw_rect(Rect2(x - w * 0.5, top, w, len), base)
+	for b: Vector3 in GLUE_BLOBS:
+		var c: Vector2 = rect.position + rect.size * Vector2(b.x, b.y)
+		var r: float = unit * b.z
+		control.draw_circle(c, r * GLUE_EDGE_GROW, edge, true)
+		control.draw_circle(c, r, base, true)
+		control.draw_circle(c + GLUE_HIGHLIGHT_SHIFT * r, r * GLUE_HIGHLIGHT_SCALE, light, true)
 
 
 func _set_gift_icons(held_id: StringName, next_id: StringName) -> void:
@@ -1503,12 +1522,13 @@ func _draw_static_shape(control: Control, shape: BlockShape, color: Color) -> vo
 	var texture: Texture2D = SpecialDef.preview_icon_for(gift_id) if gift_id != &"" else _preview_texture(shape)
 	if texture == null:
 		return
-	if _glue_active:
-		_draw_glue_overlay(control)
 	var texture_size: Vector2 = texture.get_size()
 	var scale: float = minf(control.size.x / texture_size.x, control.size.y / texture_size.y)
 	var draw_size: Vector2 = texture_size * scale
-	control.draw_texture_rect(texture, Rect2((control.size - draw_size) * 0.5, draw_size), false, color)
+	var image_rect: Rect2 = Rect2((control.size - draw_size) * 0.5, draw_size)
+	control.draw_texture_rect(texture, image_rect, false, color)
+	if _glue_active and gift_id == &"":
+		_draw_glue_overlay(control, image_rect)
 
 
 
