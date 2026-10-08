@@ -6,32 +6,42 @@ extends Resource
 ## Fed to shaders/honey_coat.gdshader by build_material() / build_ghost_material() /
 ## build_drip_material().
 
-## Honey amber; alpha is the placed glaze's opacity (translucent: the block colour shows through).
-@export var color: Color = Color(1.0, 0.6, 0.04, 0.12)
+## Honey yellow; alpha is the opacity of the honey patches on placed blocks (owner mockup: opaque blobs).
+@export var color: Color = Color(1.0, 0.78, 0.08, 1.0)
 ## Deep amber the glaze darkens toward at grazing angles.
-@export var deep_amber: Color = Color(0.7, 0.32, 0.0)
+@export var deep_amber: Color = Color(0.85, 0.42, 0.0)
 ## How far (m) the glaze swells off the block surface (avoids z-fighting).
-@export_range(0.0, 0.1, 0.002) var thickness_m: float = 0.012
-## Ghost preview: glaze opacity. Low, so the green/red validity tint stays readable.
-@export_range(0.0, 1.0, 0.01) var ghost_alpha: float = 0.14
+@export_range(0.0, 0.1, 0.002) var thickness_m: float = 0.02
+## Ghost preview: honey patch opacity. Below 1 so the green/red validity tint shows through.
+@export_range(0.0, 1.0, 0.01) var ghost_alpha: float = 0.6
 @export_range(0.0, 1.0, 0.01) var roughness: float = 0.05
 ## Fresnel exponent and glow of the grazing rim.
 @export_range(0.5, 8.0, 0.1) var rim_power: float = 3.5
-@export_range(0.0, 4.0, 0.05) var rim_strength: float = 2.0
+@export_range(0.0, 4.0, 0.05) var rim_strength: float = 0.6
 ## Gloss: clearcoat amount and roughness, wet highlight power and strength, colour.
 @export_range(0.0, 1.0, 0.01) var clearcoat_amount: float = 1.0
 @export_range(0.0, 1.0, 0.01) var clearcoat_roughness: float = 0.03
 @export_range(1.0, 128.0, 1.0) var shine_power: float = 12.0
 @export_range(0.0, 4.0, 0.05) var shine_strength: float = 1.6
 @export var shine_color: Color = Color(1.0, 0.96, 0.75)
+## Honey patches (shader noise): feature scale (1/m), covered fraction, extra
+## coverage on upward faces, and edge softness (noise units).
+@export_range(0.5, 8.0, 0.1) var patch_scale: float = 2.2
+@export_range(0.0, 1.0, 0.01) var patch_coverage: float = 0.5
+@export_range(0.0, 1.0, 0.01) var patch_top_bias: float = 0.35
+@export_range(0.005, 0.3, 0.005) var patch_edge: float = 0.06
+## HUD held/next preview honey blobs: base colour, darker edge colour, highlight.
+@export var hud_blob_color: Color = Color(1.0, 0.78, 0.08, 1.0)
+@export var hud_blob_edge_color: Color = Color(0.85, 0.42, 0.0, 1.0)
+@export var hud_blob_highlight: Color = Color(1.0, 0.96, 0.7, 0.8)
 ## Drips (placed blocks only): density per metre of bottom edge, hard cap, opacity,
 ## longest sag (m), lobe radius (m), sag cycle speed (cycles/s), shortest sag as a
 ## fraction of the longest, and teardrop narrowing at the tip (1 = no taper).
-@export_range(0.5, 30.0, 0.1) var drip_scale: float = 3.0
-@export_range(0, 64, 1) var max_drips: int = 10
-@export_range(0.0, 1.0, 0.01) var drip_alpha: float = 0.85
-@export_range(0.02, 1.5, 0.01) var drip_length_m: float = 0.16
-@export_range(0.01, 0.3, 0.005) var drip_radius_m: float = 0.04
+@export_range(0.5, 30.0, 0.1) var drip_scale: float = 4.0
+@export_range(0, 64, 1) var max_drips: int = 16
+@export_range(0.0, 1.0, 0.01) var drip_alpha: float = 1.0
+@export_range(0.02, 1.5, 0.01) var drip_length_m: float = 0.26
+@export_range(0.01, 0.3, 0.005) var drip_radius_m: float = 0.055
 @export_range(0.0, 3.0, 0.01) var drip_speed: float = 0.2
 @export_range(0.0, 1.0, 0.01) var sag_base: float = 0.5
 @export_range(0.1, 1.0, 0.01) var tear_narrow: float = 0.55
@@ -72,6 +82,10 @@ func build_material(animated: bool = true) -> ShaderMaterial:
 	material.set_shader_parameter(&"drip_speed", drip_speed if (animated and animate_drips) else 0.0)
 	material.set_shader_parameter(&"sag_base", sag_base)
 	material.set_shader_parameter(&"tear_narrow", tear_narrow)
+	material.set_shader_parameter(&"patch_scale", patch_scale)
+	material.set_shader_parameter(&"patch_coverage", patch_coverage)
+	material.set_shader_parameter(&"patch_top_bias", patch_top_bias)
+	material.set_shader_parameter(&"patch_edge", patch_edge)
 	material.set_shader_parameter(&"drip_mesh", false)
 	material.set_shader_parameter(&"ghost_mode", false)
 	return material

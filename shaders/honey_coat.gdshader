@@ -27,6 +27,11 @@ uniform float drip_length = 0.12;
 uniform float drip_speed = 0.2;
 uniform float sag_base = 0.5;
 uniform float tear_narrow = 0.55;
+uniform float patch_scale = 2.2;
+uniform float patch_coverage = 0.5;
+uniform float patch_top_bias = 0.35;
+uniform float patch_edge = 0.06;
+uniform vec3 patch_seed = vec3(0.0);
 
 // DECISION: hash seeds, the highlight direction and the sag root are shader math, not looks.
 const vec3 SHINE_DIR = vec3(-0.35, 0.75, 0.55);
@@ -34,8 +39,34 @@ const float TAU_VALUE = 6.2831;
 const vec3 PHASE_HASH = vec3(12.9898, 78.233, 37.719);
 const float PHASE_SCALE = 43758.5453;
 const float SAG_ROOT = 0.06;
+const float OCTAVE_GAIN = 0.5;
+const float OCTAVE_LACUNARITY = 2.07;
+const float EDGE_DARKEN = 0.55;
+
+varying vec3 local_pos;
+
+float hash31(vec3 p) {
+	return fract(sin(dot(p, PHASE_HASH)) * PHASE_SCALE);
+}
+
+float value_noise(vec3 p) {
+	vec3 i = floor(p);
+	vec3 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	float n000 = hash31(i);
+	float n100 = hash31(i + vec3(1.0, 0.0, 0.0));
+	float n010 = hash31(i + vec3(0.0, 1.0, 0.0));
+	float n110 = hash31(i + vec3(1.0, 1.0, 0.0));
+	float n001 = hash31(i + vec3(0.0, 0.0, 1.0));
+	float n101 = hash31(i + vec3(1.0, 0.0, 1.0));
+	float n011 = hash31(i + vec3(0.0, 1.0, 1.0));
+	float n111 = hash31(i + vec3(1.0, 1.0, 1.0));
+	return mix(mix(mix(n000, n100, f.x), mix(n010, n110, f.x), f.y),
+		mix(mix(n001, n101, f.x), mix(n011, n111, f.x), f.y), f.z);
+}
 
 void vertex() {
+	local_pos = VERTEX;
 	if (drip_mesh) {
 		// Sphere lobe on its anchor: the lower half sags slowly into a teardrop.
 		float seed = fract(sin(dot(MODEL_MATRIX[3].xyz, PHASE_HASH)) * PHASE_SCALE);
@@ -58,8 +89,24 @@ void fragment() {
 	float ndv = clamp(dot(n, normalize(VIEW)), 0.0, 1.0);
 	float fresnel = pow(1.0 - ndv, rim_power);
 	float shine = pow(max(dot(n, normalize(SHINE_DIR)), 0.0), shine_power);
-	ALBEDO = mix(honey_color.rgb, deep_amber, fresnel);
-	EMISSION = honey_color.rgb * fresnel * rim_strength + shine_color * shine * shine_strength;
+	// Patchy blobs of opaque honey: object-space noise, biased toward upward faces.
+	float mask = 1.0;
+	float edge_band = 0.0;
+	if (!drip_mesh) {
+		vec3 world_n = normalize((INV_VIEW_MATRIX * vec4(n, 0.0)).xyz);
+		vec3 q = (local_pos + patch_seed) * patch_scale;
+		float field = value_noise(q) * (1.0 - OCTAVE_GAIN) + value_noise(q * OCTAVE_LACUNARITY) * OCTAVE_GAIN;
+		field += patch_top_bias * world_n.y;
+		float cut = 1.0 - patch_coverage;
+		mask = smoothstep(cut - patch_edge, cut + patch_edge, field);
+		edge_band = 1.0 - smoothstep(cut + patch_edge, cut + patch_edge * 4.0, field);
+		if (mask < 0.01) {
+			discard;
+		}
+	}
+	vec3 body = mix(honey_color.rgb, deep_amber, clamp(edge_band * EDGE_DARKEN + fresnel * 0.5, 0.0, 1.0));
+	ALBEDO = body;
+	EMISSION = honey_color.rgb * (0.25 + fresnel * rim_strength) + shine_color * shine * shine_strength;
 	ROUGHNESS = roughness_value;
 	SPECULAR = 1.0;
 	METALLIC = 0.0;
@@ -72,5 +119,5 @@ void fragment() {
 	if (drip_mesh) {
 		alpha = drip_alpha;
 	}
-	ALPHA = clamp(alpha + fresnel * (1.0 - alpha), 0.0, 1.0);
+	ALPHA = clamp(alpha, 0.0, 1.0) * mask;
 }

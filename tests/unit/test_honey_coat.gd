@@ -24,9 +24,9 @@ func _meshes(ghost: GhostPreview) -> Array[MeshInstance3D]:
 func test_tuning_defaults_match_plan() -> void:
 	var tuning: HoneyCoatTuning = load(TUNING_PATH) as HoneyCoatTuning
 	assert_not_null(tuning)
-	assert_eq(tuning.color, Color(1.0, 0.6, 0.04, 0.12))
-	assert_almost_eq(tuning.thickness_m, 0.012, 0.0001)
-	assert_almost_eq(tuning.ghost_alpha, 0.14, 0.0001)
+	assert_eq(tuning.color, Color(1.0, 0.78, 0.08, 1.0))
+	assert_almost_eq(tuning.thickness_m, 0.02, 0.0001)
+	assert_almost_eq(tuning.ghost_alpha, 0.6, 0.0001)
 	assert_almost_eq(tuning.drip_speed, 0.2, 0.0001)
 	assert_almost_eq(tuning.roughness, 0.05, 0.0001)
 
@@ -68,7 +68,8 @@ func test_glue_ghost_is_a_faint_tint_without_drips() -> void:
 	assert_true(bool(overlay.get_shader_parameter(&"ghost_mode")))
 	assert_false(bool(overlay.get_shader_parameter(&"drip_mesh")))
 	var tuning: HoneyCoatTuning = load(TUNING_PATH) as HoneyCoatTuning
-	assert_lt(tuning.ghost_alpha, 0.3, "faint enough that the validity colour reads")
+	assert_lt(tuning.ghost_alpha, 1.0, "translucent so the validity colour reads through")
+	assert_almost_eq(float(overlay.get_shader_parameter(&"patch_coverage")), tuning.patch_coverage, 0.0001)
 
 
 func test_placed_drips_hang_from_the_bottom_edge() -> void:
