@@ -29,6 +29,9 @@ then removes the temp worktree and branch. NOTE: --dry-run still runs the full g
 must not run while a Godot worker is live; for a conflict-only precheck use --merge-only, which stops
 after step 2 (no import, no gate, no Godot) and removes the temp worktree. Exit 0 = success,
 1 = failed step (named).
+Probe lint (Bontago-fca.63): before merging, each branch's ADDED files are checked with
+tools/probe_lint.py (tools/screenshot_*, capture_*, *probe*, tools/_scratch*/; allowlist
+tools/probe_allowlist.txt); any offender fails step `probes` before a merge starts. Escape: --allow-probes.
 """
 
 import argparse
@@ -41,6 +44,7 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import probe_lint  # noqa: E402
 import prune_worktrees  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -362,6 +366,20 @@ def check_tools_scripts(ctx, base, wt):
     return 1 if errors else 0, errors[:MAX_ISSUE_LINES * 2], len(files), log
 
 
+def check_probes(ctx, repo, base, branches):
+    """Fail step `probes` when a branch adds throwaway probe/capture files (Bontago-fca.63)."""
+    allow = probe_lint.read_allowlist(repo)
+    bad = []
+    for b in branches:
+        code, text, _ = git(ctx, "probes_" + b.replace("/", "_"), repo, "diff", "--diff-filter=A",
+                            "--name-only", base + "..." + b)
+        if code != 0:
+            raise StepFailed("probes", "git diff failed for " + b)
+        bad += ["%s: %s" % (b, f) for f in probe_lint.filter_probes(text.splitlines(), allow)]
+    if bad:
+        raise StepFailed("probes", "branch adds probe files (delete them, allowlist, or pass --allow-probes): " + "; ".join(bad[:10]))
+
+
 def integrate(args, ctx, say, res):
     repo = args.repo
     # 1 worktree
@@ -384,6 +402,8 @@ def integrate(args, ctx, say, res):
     run_cmd(ctx, "override", [sys.executable, os.path.join(ROOT, "tools", "agent_worktree_setup.py"), wt], ROOT, GIT_TIMEOUT_S)
     say("worktree  ok   %s @ %s" % (wt, base[:9]))
     # 2 merge
+    if not getattr(args, "allow_probes", False):
+        check_probes(ctx, repo, base, args.branches)
     merge_branches(ctx, wt, args.branches, args.beads, say)
     result = git_out(ctx, "rev_result", wt, "rev-parse", "HEAD")
     res["result"] = result
@@ -530,6 +550,8 @@ def main(argv):
     ap.add_argument("--merge-only", action="store_true",
                     help="conflict precheck: stop after step 2, start no Godot process (safe while workers run)")
     ap.add_argument("--no-push", action="store_true")
+    ap.add_argument("--allow-probes", action="store_true",
+                    help="skip the added-probe-file lint (tools/probe_lint.py) before merging")
     # DECISION (Bontago-fca.13): opt-in rather than automatic, so a bead held by a live
     # worker is never force-closed by default; pass it only for reviewed Codex handoffs.
     ap.add_argument("--force-close", action="store_true",
