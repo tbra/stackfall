@@ -55,6 +55,13 @@ enum ReflectionProbeMode { OFF, ONCE, INTERVAL, ALWAYS }
 ## Bontago-1pi.11.42: the swirl animation (noise, per-pixel) of the hole void
 ## on the disc. Off on Low: the void is then a flat deep colour with its rim.
 @export var hole_void_animated: bool = true
+## Bontago-1pi.11.67 fix2b: the rivets and brushed streaks of the procedural disc
+## plating (shaders/territory.gdshader disc_fine_detail), its two costliest per-pixel
+## details. Off on Low: plates, seams, lips, hatches and the sheen stay.
+@export var disc_fine_detail_enabled: bool = true
+## Bontago-1pi.11.67 fix2b: the inverted-hull block outline (shaders/block_outline.gdshader,
+## the next_pass of every block material; game/BlockFactory.gd). Off on Low.
+@export var block_outline_enabled: bool = true
 ## Bontago-1pi.11.42: the noise dissolve + rim glow on a block eaten by a hole
 ## (game/BlockDissolveFx.gd). Off on Low: the block simply vanishes on time.
 @export var block_dissolve_effect_enabled: bool = true

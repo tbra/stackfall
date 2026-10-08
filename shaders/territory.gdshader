@@ -236,6 +236,11 @@ uniform float hole_cell_uv = 0.05;
 // sampled with a linear filter so the void follows a smooth field, not cell
 // squares. Bound by game/TerritoryOverlay.gd's push_cells().
 uniform sampler2D territory_hole : filter_linear, repeat_disable;
+// Bontago-1pi.11.67 fix2b: false only while the uploaded territory_hole has no
+// hole cell (game/TerritoryOverlay.gd push_cells()); fragment() then skips the
+// void field entirely. True by default so an overlay that never uploaded keeps
+// the old always-evaluate behaviour.
+uniform bool void_present = true;
 // Smoothed hole mask level a pixel needs inside the overlap region (every
 // pixel of an activated cell clears it; reaches at most ~0.3 cell past one).
 uniform float void_overlap_mask_min = 0.2;
@@ -421,6 +426,10 @@ uniform float disc_proc_seam_fade_height_end_m = 40.0;
 uniform float disc_proc_aa_rivet_min_px = 1.5;
 uniform float disc_proc_aa_plate_min_px = 6.0;
 uniform float disc_proc_brush_fade_px = 3.0;
+// Bontago-1pi.11.67 fix2b: GraphicsPreset.disc_fine_detail_enabled. false (Low)
+// drops the rivets and the brushed streaks, the two most expensive per-pixel
+// details of proc_plating(); plates, seams, lips, hatches, tone and sheen stay.
+uniform bool disc_fine_detail = true;
 
 varying vec3 v_local;
 
@@ -619,6 +628,17 @@ float proc_hash(vec2 id, float salt) {
 void proc_rivet(vec2 o, vec2 sun2, float fw, float fade, inout float tone, inout float highlight) {
 	float radius = max(disc_proc_rivet_radius_m, 0.001);
 	float d = length(o);
+	// Bontago-1pi.11.67 fix2b: exact early-out. Past this reach the head
+	// (radius + fw / 2), its cast shadow (head offset by radius * shadow_offset
+	// along the unit sun2) and its outline (radius + outline_w + fw / 2) all
+	// smoothstep to exactly 0, so every factor below is exactly 1.0 and the
+	// highlight term exactly 0: skipping them leaves the pixel bit-identical.
+	// Most plate pixels are nowhere near a rivet.
+	float reach = radius * (1.0 + abs(disc_proc_rivet_shadow_offset))
+		+ 0.5 * abs(disc_proc_seam_width_px) * fw + fw;
+	if (d > reach) {
+		return;
+	}
 	float body = 1.0 - smoothstep(radius - fw * 0.5, radius + fw * 0.5, d);
 	vec2 shadow_o = o + sun2 * radius * disc_proc_rivet_shadow_offset;
 	float cast_shadow = (1.0 - body)
@@ -649,8 +669,17 @@ void proc_rivet(vec2 o, vec2 sun2, float fw, float fade, inout float tone, inout
 void proc_groove(float d, vec2 into_plate, vec2 sun2, float fade, inout float tone, inout float highlight, inout float seam_occ) {
 	float fw = max(fwidth(d), 0.00001);
 	float half_w = 0.5 * disc_proc_seam_width_px * fw;
-	float seam = 1.0 - smoothstep(half_w - 0.5 * fw, half_w + 0.5 * fw, d);
 	float lip_end = half_w + disc_proc_lip_width_px * fw;
+	// Bontago-1pi.11.67 fix2b: exact early-out (after the fwidth above, which
+	// must stay in uniform control flow). Past both the seam (half_w + fw / 2)
+	// and the lip (lip_end + fw / 2) both masks smoothstep to exactly 0: tone
+	// is multiplied by exactly 1.0, highlight gains 0 and seam_occ keeps its
+	// value (it starts at 0), so the skip is bit-identical. Most pixels are
+	// plate interior, not groove.
+	if (d > max(half_w, lip_end) + fw) {
+		return;
+	}
+	float seam = 1.0 - smoothstep(half_w - 0.5 * fw, half_w + 0.5 * fw, d);
 	float lip = smoothstep(half_w - 0.5 * fw, half_w + 0.5 * fw, d)
 		* (1.0 - smoothstep(lip_end - 0.5 * fw, lip_end + 0.5 * fw, d));
 	// The plate edge beside a groove faces back toward the groove: lit when
@@ -751,7 +780,7 @@ void proc_plating(vec2 p, vec2 sun2, float cam_height, out float tone, out float
 	proc_groove(d_seam, into_seam, sun2, seam_fade, tone, highlight, seam_occ);
 
 	// Rivets: one pattern per plate, chosen by disc_proc_rivet_weights.
-	if (rivet_fade > 0.0) {
+	if (disc_fine_detail && rivet_fade > 0.0) {
 		float inset = disc_proc_rivet_inset_m;
 		float spacing = disc_proc_rivet_spacing_m;
 		if (is_hub) {
@@ -803,11 +832,14 @@ void proc_plating(vec2 p, vec2 sun2, float cam_height, out float tone, out float
 	plate_n = normalize(vec3(tilt.x, 1.0, tilt.y));
 
 	// Brushed streaks along or across each plate (sheen/roughness only).
-	float brush_coord = proc_hash(plate_id, 9.0) < 0.5 ? u_c : v_c;
-	float scale = max(disc_proc_brush_scale_m, 0.001);
-	float brush_fade = smoothstep(disc_proc_brush_fade_px, 2.0 * disc_proc_brush_fade_px, scale / m_per_px);
-	brush = (value_noise_1d(brush_coord / scale + proc_hash(plate_id, 10.0) * 97.0) - 0.5)
-		* 2.0 * disc_proc_brush_strength * brush_fade;
+	brush = 0.0;
+	if (disc_fine_detail) {
+		float brush_coord = proc_hash(plate_id, 9.0) < 0.5 ? u_c : v_c;
+		float scale = max(disc_proc_brush_scale_m, 0.001);
+		float brush_fade = smoothstep(disc_proc_brush_fade_px, 2.0 * disc_proc_brush_fade_px, scale / m_per_px);
+		brush = (value_noise_1d(brush_coord / scale + proc_hash(plate_id, 10.0) * 97.0) - 0.5)
+			* 2.0 * disc_proc_brush_strength * brush_fade;
+	}
 	rough = disc_proc_roughness
 		+ (proc_hash(plate_id, 11.0) - 0.5) * 2.0 * disc_proc_roughness_variation * seam_fade
 		+ brush * disc_proc_roughness_variation;
@@ -1057,14 +1089,21 @@ void fragment() {
 	// snow replaces the base albedo the territory tint is mixed onto, and the
 	// tint fill, contour, shimmer and hole rim (path emission) stay on top.
 	vec3 snow_flat_normal = NORMAL;
-	float snow_depth = snow_strength > 0.0 ? snow_coverage(v_local.xz) : 0.0;
-	float snow = snow_strength * smoothstep(0.0, max(snow_edge_soft, 0.001), snow_depth);
+	float snow = 0.0;
+	vec3 path_base = base_color.rgb;
+	// Bontago-1pi.11.67 fix2b: the whole snow block is skipped (uniform branch)
+	// when there is no snow; mix(base, tone, 0.0) == base, so dry pixels are
+	// bit-identical to the old always-on code.
+	if (snow_strength > 0.0) {
+		float snow_depth = snow_coverage(v_local.xz);
+		snow = snow_strength * smoothstep(0.0, max(snow_edge_soft, 0.001), snow_depth);
+		vec3 snow_tone = mix(snow_tone_shade.rgb, snow_tone_mid.rgb,
+			smoothstep(snow_tone_mid_at - snow_tone_width, snow_tone_mid_at + snow_tone_width, snow_depth));
+		snow_tone = mix(snow_tone, snow_color.rgb,
+			smoothstep(snow_tone_lit_at - snow_tone_width, snow_tone_lit_at + snow_tone_width, snow_depth));
+		path_base = mix(base_color.rgb, snow_tone, snow);
+	}
 	v_snow = snow;
-	vec3 snow_tone = mix(snow_tone_shade.rgb, snow_tone_mid.rgb,
-		smoothstep(snow_tone_mid_at - snow_tone_width, snow_tone_mid_at + snow_tone_width, snow_depth));
-	snow_tone = mix(snow_tone, snow_color.rgb,
-		smoothstep(snow_tone_lit_at - snow_tone_width, snow_tone_lit_at + snow_tone_width, snow_depth));
-	vec3 path_base = mix(base_color.rgb, snow_tone, snow);
 	if (circles_valid) {
 		circle_path(v_local.xz, path_base, albedo, emission, void_g);
 	} else {
@@ -1140,7 +1179,9 @@ void fragment() {
 	}
 
 	// Bontago-adt.2: machined panel seams + per-panel brightness (albedo only).
-	{
+	// Bontago-1pi.11.67 fix2b: skipped (uniform branch) when both strengths are
+	// 0 -- the shipped look -- where every factor below is exactly 1.0.
+	if (panel_variation != 0.0 || panel_seam_strength != 0.0) {
 		vec2 panel_p = v_local.xz / max(panel_size_m, 0.01);
 		vec2 panel_id = floor(panel_p);
 		vec2 panel_f = fract(panel_p);
@@ -1260,10 +1301,17 @@ void fragment() {
 		AO = mix(AO, AO * snow_ambient_factor, snow);
 		NORMAL = normalize(mix(NORMAL, snow_flat_normal, snow));
 	}
-	float void_cell_m;
-	float void_d = void_signed_distance(uv, void_g, void_cell_m);
-	// Anti-aliased edge: one pixel of the distance field's own gradient.
-	float void_cover = smoothstep(0.0, max(fwidth(void_d), 0.0001), void_d);
+	float void_cell_m = 0.0;
+	float void_d = -1000000.0;
+	float void_cover = 0.0;
+	// Bontago-1pi.11.67 fix2b: void_present (uniform) is false while the
+	// uploaded hole mask has no hole cell; the mask then samples 0 everywhere,
+	// void_d < 0 and void_cover == 0, so skipping the fetch changes no pixel.
+	if (void_present) {
+		void_d = void_signed_distance(uv, void_g, void_cell_m);
+		// Anti-aliased edge: one pixel of the distance field's own gradient.
+		void_cover = smoothstep(0.0, max(fwidth(void_d), 0.0001), void_d);
+	}
 	if (void_cover > 0.0) {
 		// Bontago-1pi.11.42/44: the void replaces everything the bare disc
 		// shows (plating, mirror, snow, tint): it must read as a gap.

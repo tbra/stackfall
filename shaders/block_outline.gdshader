@@ -18,7 +18,17 @@ shader_type spatial;
 // Bontago-mp0.3.1: `tint_color` is a per-instance parameter (the block's own
 // colour) so the material stays one shared instance; outline_color mixes with
 // the darkened tint by outline_tint_amount.
-render_mode cull_front, unshaded;
+// DECISION (Bontago-1pi.11.67 fix2b, GPU cost): depth_draw_never moves the hull
+// out of the opaque path into the transparent pass. An opaque next_pass is drawn
+// in the depth prepass, the colour pass and every shadow cascade (collapsed there
+// via IN_SHADOW_PASS, but still one draw per block per cascade); a no-depth-write
+// pass is drawn once, depth-TESTED against the finished opaque depth, so the
+// back faces behind the block are still rejected and only the silhouette rim
+// shades, exactly as before. The output colour is unchanged (no ALPHA write =
+// opaque blend) and fog still applies (Bontago-1pi.130). The one difference: the
+// transparent pass runs after SSR, so the rim no longer shows inside the disc's
+// screen-space reflection of a block (a ~1 px line in a rough reflection).
+render_mode cull_front, unshaded, depth_draw_never;
 #include "res://shaders/include/block_dissolve.gdshaderinc"
 
 uniform float outline_width_px : hint_range(0.0, 8.0) = 1.6;

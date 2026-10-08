@@ -839,3 +839,62 @@ func test_upload_now_skips_push_cells_until_the_raster_changes() -> void:
 
 	overlay.set_source(raster, PackedColorArray())
 	assert_eq(overlay.pushes, after_source + 2, "A re-set source always uploads.")
+
+
+# --- Bontago-1pi.11.67 fix2b: GPU cost of the disc shader ---------------------
+
+## The void field is skipped while no cell is a hole; any hole cell turns it on.
+func test_void_present_follows_hole_cells_in_the_upload() -> void:
+	var overlay: TerritoryOverlay = _make_overlay(_map())
+	var cell_total: int = CELLS_PER_SIDE * CELLS_PER_SIDE
+	var owners: PackedByteArray = PackedByteArray()
+	owners.resize(cell_total)
+	var states: PackedByteArray = PackedByteArray()
+	states.resize(cell_total)
+	states[7] = TerritoryOverlay.STATE_CONTESTED
+	overlay.push_cells(owners, states, CELLS_PER_SIDE)
+	assert_false(bool(overlay.material().get_shader_parameter(&"void_present")),
+		"contested cells alone draw no void, so the shader may skip the void field.")
+	states[7] = TerritoryOverlay.STATE_HOLE | TerritoryOverlay.STATE_CONTESTED
+	overlay.push_cells(owners, states, CELLS_PER_SIDE)
+	assert_true(bool(overlay.material().get_shader_parameter(&"void_present")), "a hole cell needs the void field.")
+	states[7] = 0
+	overlay.push_cells(owners, states, CELLS_PER_SIDE)
+	assert_false(bool(overlay.material().get_shader_parameter(&"void_present")), "a closed hole drops it again.")
+
+
+## Low drops the plating's rivets/brush; Medium and High keep them, and a live preset
+## change reaches an existing overlay.
+func test_disc_fine_detail_follows_the_graphics_preset() -> void:
+	_restore_preset_id = Settings.current_graphics_preset().id
+	Settings.set_graphics_preset(&"high")
+	var overlay: TerritoryOverlay = _make_overlay(_map())
+	assert_true(overlay.disc_fine_detail())
+	assert_true(bool(overlay.material().get_shader_parameter(&"disc_fine_detail")))
+	Settings.set_graphics_preset(&"low")
+	assert_false(overlay.disc_fine_detail())
+	assert_false(bool(overlay.material().get_shader_parameter(&"disc_fine_detail")))
+	Settings.set_graphics_preset(&"medium")
+	assert_true(bool(overlay.material().get_shader_parameter(&"disc_fine_detail")))
+
+
+## The cost cuts are exact early-outs: the shader source keeps every branch the
+## shipped look needs, guarded by the uniforms the overlay pushes.
+func test_shader_carries_the_fix2b_guards() -> void:
+	var code: String = _shader_source_without_comments(load("res://shaders/territory.gdshader") as Shader)
+	assert_true(code.contains("uniform bool void_present = true;"), "void skip defaults to the old behaviour.")
+	assert_true(code.contains("uniform bool disc_fine_detail = true;"), "fine detail defaults on.")
+	assert_true(code.contains("if (void_present)"))
+	assert_true(code.contains("if (disc_fine_detail && rivet_fade > 0.0)"))
+	assert_true(code.contains("if (panel_variation != 0.0 || panel_seam_strength != 0.0)"))
+
+
+## Bontago-1pi.11.67 fix2b: a test that switches the graphics preset records the
+## original here; after_each puts it back even when an assert failed midway.
+var _restore_preset_id: StringName = &""
+
+
+func after_each() -> void:
+	if _restore_preset_id != &"":
+		Settings.set_graphics_preset(_restore_preset_id)
+		_restore_preset_id = &""

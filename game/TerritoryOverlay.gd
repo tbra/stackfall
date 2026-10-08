@@ -129,6 +129,9 @@ var _visuals: TerritoryVisuals = null
 @export var hole_visuals: HoleVisualTuning = preload("res://config/hole_visual_tuning.tres")
 ## GraphicsPreset.hole_void_animated: false = flat void + rim (Low).
 var _void_animated: bool = true
+## GraphicsPreset.disc_fine_detail_enabled: false = plating without rivets and
+## brushed streaks (Low; Bontago-1pi.11.67 fix2b).
+var _disc_fine_detail: bool = true
 var _tuning: TerritoryTuning = null
 var _material: ShaderMaterial = null
 var _texture: ImageTexture = null
@@ -138,6 +141,9 @@ var _state_texture: ImageTexture = null
 ## linear-filtered so the void shader reads a smooth hole field.
 var _hole_texture: ImageTexture = null
 var _hole_cell_image: Image = null
+## Bontago-1pi.11.67 fix2b: whether the last uploaded hole mask has any hole cell
+## (the shader's void_present uniform).
+var _hole_any: bool = false
 var _raster: TerritoryRaster = null
 ## Bontago-1pi.11.23: raster revision last pushed to the textures; -1 = none.
 var _pushed_revision: int = -1
@@ -215,6 +221,7 @@ func configure(map_def: MapDef, visuals: TerritoryVisuals, tuning: TerritoryTuni
 	add_to_group(WET_GROUP)
 	var preset: GraphicsPreset = Settings.current_graphics_preset()
 	_void_animated = preset == null or preset.hole_void_animated
+	_disc_fine_detail = preset == null or preset.disc_fine_detail_enabled
 	if not Settings.graphics_preset_changed.is_connected(_on_graphics_preset_changed):
 		Settings.graphics_preset_changed.connect(_on_graphics_preset_changed)
 
@@ -361,6 +368,9 @@ func push_cells(
 	_hole_cell_image = _hole_mask_image(state_image.get_data(), side)
 	_hole_texture = _store(_hole_texture, _hole_cell_image)
 	_material.set_shader_parameter(&"territory_hole", _hole_texture)
+	# Bontago-1pi.11.67 fix2b: lets the shader skip the void field (a texture
+	# fetch + fwidth per disc pixel) while no cell is a hole.
+	_material.set_shader_parameter(&"void_present", _hole_any)
 	_material.set_shader_parameter(&"territory_cells", _cell_texture)
 	_material.set_shader_parameter(&"territory_state", _state_texture)
 	_material.set_shader_parameter(&"territory_state_soft", _state_texture)
@@ -374,9 +384,11 @@ func push_cells(
 func _hole_mask_image(state_bytes: PackedByteArray, side: int) -> Image:
 	var mask: PackedByteArray = PackedByteArray()
 	mask.resize(state_bytes.size() * 2)
+	_hole_any = false
 	for i: int in range(state_bytes.size()):
 		if (state_bytes[i] & STATE_HOLE) != 0:
 			mask[i * 2] = 255
+			_hole_any = true
 		if (state_bytes[i] & STATE_CONTESTED) != 0:
 			mask[i * 2 + 1] = 255
 	return Image.create_from_data(side, side, false, Image.FORMAT_RG8, mask)
@@ -866,8 +878,16 @@ func _store(target: ImageTexture, image: Image) -> ImageTexture:
 ## to an odd number of cells.
 func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 	_void_animated = preset == null or preset.hole_void_animated
+	_disc_fine_detail = preset == null or preset.disc_fine_detail_enabled
 	if _material != null:
 		_material.set_shader_parameter(&"void_animated", 1.0 if _void_animated else 0.0)
+		_material.set_shader_parameter(&"disc_fine_detail", _disc_fine_detail)
+
+
+## Whether the disc plating draws its rivets and brushed streaks (graphics
+## preset, Bontago-1pi.11.67 fix2b); tests read it.
+func disc_fine_detail() -> bool:
+	return _disc_fine_detail
 
 
 ## Whether the hole void swirl is animating (graphics preset); tests read it.
@@ -1009,6 +1029,7 @@ func _apply_disc_surface() -> void:
 	var textured: bool = surface != null and not procedural and surface.albedo_texture != null
 	_material.set_shader_parameter(&"disc_textured", textured)
 	_material.set_shader_parameter(&"disc_procedural", procedural)
+	_material.set_shader_parameter(&"disc_fine_detail", _disc_fine_detail)
 	if procedural:
 		_apply_procedural_disc(surface)
 	if not textured:
