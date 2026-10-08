@@ -35,7 +35,7 @@ class Fake:
             code, text = 0, "result22\n"
         elif name == "cur_branch":
             code, text = 0, "main\n"
-        elif name == "gate":
+        elif name in ("gate", "gate2"):
             code, text = 0, GREEN
         elif name in ("touched", "dirty"):
             code, text = 0, ""
@@ -86,6 +86,42 @@ class Tests(unittest.TestCase):
         self.assertEqual(err.step, "gate")
         self.assertNotIn("ff", fake.names())
         self.assertNotIn("push", fake.names())
+
+    def test_gate_runner_detection(self):
+        self.assertTrue(ib.touches_gate_runner(["tools/full_gate.py"]))
+        self.assertTrue(ib.touches_gate_runner(["a.gd", "addons/gut/gut.gd"]))
+        self.assertTrue(ib.touches_gate_runner([".gutconfig.json", "x"]))
+        self.assertFalse(ib.touches_gate_runner(["tools/full_gate_extra.py", "core/a.gd", "addons/gutx/a.gd"]))
+        self.assertFalse(ib.touches_gate_runner([]))
+
+    def test_untouched_runner_runs_single_gate(self):
+        fake = Fake({"gate_touched": (0, "core/a.gd\n")})
+        err, out, _ = run(fake)
+        self.assertIsNone(err)
+        self.assertNotIn("gate2", fake.names())
+        self.assertTrue(any("gate2" in l and "skip" in l for l in out))
+
+    def test_touched_runner_runs_candidate_gate_and_reports_both(self):
+        fake = Fake({"gate_touched": (0, "tools/run_gut.ps1\n")})
+        err, out, _ = run(fake)
+        self.assertIsNone(err)
+        self.assertEqual(fake.names().count("gate"), 1)
+        self.assertEqual(fake.names().count("gate2"), 1)
+        args2 = [c for c in fake.calls if c[0] == "gate2"][0][1]
+        self.assertTrue(args2[1].replace("\\", "/").startswith("W/integrate-tmp-"))
+        self.assertEqual(sum(1 for l in out if "FULL GATE GREEN" in l), 2)
+
+    def test_candidate_gate_red_blocks_ff(self):
+        fake = Fake({"gate_touched": (0, "tools/full_gate.py\n"),
+                     "gate2": (0, "FULL GATE RED: 1 failing; out=/tmp/x\n")})
+        err, _, _ = run(fake)
+        self.assertEqual(err.step, "gate")
+        self.assertNotIn("ff", fake.names())
+
+    def test_candidate_gate_skipped_without_game_code(self):
+        fake = Fake({"gate_touched": (0, "tools/full_gate.py\n")})
+        run(fake, game_code=False, dry_run=True)
+        self.assertNotIn("gate2", fake.names())
 
     def test_conflict_stops_with_files(self):
         fake = Fake({"merge_wt_b": (1, "CONFLICT"), "conflicts": (0, "a.gd\nb.gd\n")})

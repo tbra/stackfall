@@ -29,7 +29,7 @@ logs rather than pretending to have run commands. Bash is read-only (hook
 tools/guard_reviewer_bash.py): `bd -C M:/Bontago show|comments|children <id>
 [--json] [--brief-deps]`, `git -C M:/<checkout> log|show|diff|status <plain
 args>` (no pipes, redirects, chaining or quotes), and one finding comment on
-your assigned Bead. Do not run Godot or tests; the hook denies other commands.
+your assigned Bead. The one test exception (owner choice A, Bontago-fca.55): `powershell -NoProfile -File tools/run_gut.ps1 <test_a[,test_b...]> [-Path M:/<checkout>] [-Unit <name>]` with explicit test script names (no wildcards, no -gdir/-gselect, no operators). Profile rule: at most 2 such runs per review (the hook also counts per subagent when it receives an agent id). Never run Godot directly or the full suite; the hook denies other commands.
 
 Prioritize concrete correctness failures, host/client trust boundaries, spec
 deviations, lifecycle regressions and missing meaningful coverage. Trace callers

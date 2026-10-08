@@ -11,8 +11,12 @@ Steps (each step's full output goes to <log-dir>/NN_name.log; stdout stays compa
               committed; anything else aborts the merge.
   3 import    godot --headless --editor --path <wt> --quit (bounded error/warning lines)
   4 check-only (always): tools/check_scripts.gd compiles each added/modified tools/*.gd with autoloads loaded
-  5 gate      --game-code (default): tools/full_gate.py --path <wt>; ONLY a `FULL GATE GREEN`
-              line passes (missing verdict line = RED)
+  5 gate      --game-code (default): main's tools/full_gate.py --path <wt>; ONLY a `FULL GATE GREEN`
+              line passes (missing verdict line = RED). Bontago-fca.54: when the merged diff (base..merge)
+              touches the gate runner (GATE_RUNNER_PATHS: tools/full_gate.py, tools/full_gate_serial.txt,
+              tools/run_gut.ps1, .gutconfig.json, addons/gut/) the candidate tree's own
+              <wt>/tools/full_gate.py is ALSO run on the temp worktree ("gate2"); both must be GREEN
+              and both verdict lines are reported.
   6 ff        fast-forward the main checkout (refuses on dirty touched files or a moved main)
   7 push      git push origin main (separate step), git fetch, verify HEAD == origin/main
   8 close     only after remote verification, per bead: `bd update --assignee stackfall-orchestrator`
@@ -246,6 +250,20 @@ def merge_branches(ctx, wt, branches, beads, say):
             b, ", ".join(files[:15]) or text.strip()[:200], note))
 
 
+GATE_RUNNER_PATHS = ("tools/full_gate.py", "tools/full_gate_serial.txt", "tools/run_gut.ps1",
+                     ".gutconfig.json", "addons/gut/")
+
+
+def touches_gate_runner(paths):
+    """True when any changed path is the gate runner (exact file or under a listed directory)."""
+    for p in paths:
+        p = p.strip().replace("\\", "/")
+        for g in GATE_RUNNER_PATHS:
+            if p == g or (g.endswith("/") and p.startswith(g)):
+                return True
+    return False
+
+
 def parse_verdict(text):
     """GREEN only when every verdict line is `FULL GATE GREEN`; a missing line is RED."""
     found = VERDICT_RE.findall(text)
@@ -447,6 +465,15 @@ def integrate(args, ctx, say, res):
         say("gate      %s %s" % ("ok  " if verdict == "GREEN" else "FAIL", vline))
         if verdict != "GREEN":
             raise StepFailed("gate", "verdict %s; log %s" % (verdict, log))
+        changed = git_out(ctx, "gate_touched", wt, "diff", "--name-only", base, result).split()
+        if touches_gate_runner(changed):
+            code2, text2, log2 = run_cmd(ctx, "gate2", [sys.executable, os.path.join(wt, "tools", "full_gate.py"), "--path", wt], wt, GATE_TIMEOUT_S + 120)
+            verdict2 = parse_verdict(text2)
+            say("gate2     %s candidate runner: %s" % ("ok  " if verdict2 == "GREEN" else "FAIL", verdict_line(text2)))
+            if verdict2 != "GREEN":
+                raise StepFailed("gate", "candidate gate runner verdict %s; log %s" % (verdict2, log2))
+        else:
+            say("gate2     skip merged diff does not touch the gate runner")
     else:
         say("gate      skip not game code")
     res["verdict"] = verdict
