@@ -4,16 +4,25 @@
 
 [resource]
 script = ExtResource("1_tuning")
-color = Color(0.98, 0.7, 0.06, 0.93)
-thickness_m = 0.03
-drip_scale = 6.0
-drip_speed = 0.35
-drip_depth = 0.25
+color = Color(1, 0.6, 0.04, 0.12)
+deep_amber = Color(0.7, 0.32, 0, 1)
+thickness_m = 0.012
+ghost_alpha = 0.14
 roughness = 0.05
-rim_power = 2.5
-rim_strength = 1.2
-drip_length_m = 0.45
-drip_radius_m = 0.08
-max_drips = 24
+rim_power = 3.5
+rim_strength = 2.0
+clearcoat_amount = 1.0
+clearcoat_roughness = 0.03
+shine_power = 12.0
+shine_strength = 1.6
+shine_color = Color(1, 0.96, 0.75, 1)
+drip_scale = 3.0
+max_drips = 10
+drip_alpha = 0.85
+drip_length_m = 0.16
+drip_radius_m = 0.04
+drip_speed = 0.2
+sag_base = 0.5
+tear_narrow = 0.55
 animate_drips = true
 render_priority = 10

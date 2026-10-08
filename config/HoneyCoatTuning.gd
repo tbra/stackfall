@@ -1,87 +1,86 @@
 class_name HoneyCoatTuning
 extends Resource
-## Look of the honey coat drawn over glue-charged ghosts (Bontago-1pi.85.51).
-## Fed to shaders/honey_coat.gdshader by build_material() / build_drip_material();
-## a later package can reuse the same resource and shader unchanged on placed
-## glued blocks (material_overlay + attach_drips).
+## Look of the honey glaze (Bontago-1pi.85.64): placed glued blocks wear a thin
+## glossy translucent amber skin with a few small drips; the held ghost with glue
+## charges wears a faint stable amber tint (no drips) so its validity colour reads.
+## Fed to shaders/honey_coat.gdshader by build_material() / build_ghost_material() /
+## build_drip_material().
 
-## Honey gold; alpha is the coat's base opacity (near opaque so it hides the colour below).
-@export var color: Color = Color(0.98, 0.7, 0.06, 0.93)
-## How far (m) the coat swells outward from the block surface (also avoids z-fighting).
-@export_range(0.0, 0.3, 0.005) var thickness_m: float = 0.03
-## Drip lobes per metre of bottom edge (also the lump frequency of the coat).
-@export_range(0.5, 30.0, 0.1) var drip_scale: float = 6.0
-## Sag cycle speed, cycles per second (slow, viscous).
-@export_range(0.0, 3.0, 0.01) var drip_speed: float = 0.35
-## How much the coat pools and the drip lengths vary (0..1).
-@export_range(0.0, 1.0, 0.01) var drip_depth: float = 0.25
+## Honey amber; alpha is the placed glaze's opacity (translucent: the block colour shows through).
+@export var color: Color = Color(1.0, 0.6, 0.04, 0.12)
+## Deep amber the glaze darkens toward at grazing angles.
+@export var deep_amber: Color = Color(0.7, 0.32, 0.0)
+## How far (m) the glaze swells off the block surface (avoids z-fighting).
+@export_range(0.0, 0.1, 0.002) var thickness_m: float = 0.012
+## Ghost preview: glaze opacity. Low, so the green/red validity tint stays readable.
+@export_range(0.0, 1.0, 0.01) var ghost_alpha: float = 0.14
 @export_range(0.0, 1.0, 0.01) var roughness: float = 0.05
-## Fresnel exponent of the thick darkened rim (higher = thinner rim).
-@export_range(0.5, 8.0, 0.1) var rim_power: float = 2.5
-## Rim glow multiplier.
-@export_range(0.0, 4.0, 0.05) var rim_strength: float = 1.2
-## Longest a hanging drip sags below the block's bottom edge (m).
-@export_range(0.05, 1.5, 0.01) var drip_length_m: float = 0.45
-## Radius (m) of a hanging drip lobe.
-@export_range(0.01, 0.3, 0.005) var drip_radius_m: float = 0.08
-## Hard cap on drip lobes per mesh.
-@export_range(0, 64, 1) var max_drips: int = 24
-## Surface lumpiness: how much the coat swells where it pools (0..1) and how
-## strongly the lumps tilt the normal so highlights roll across flat faces.
-@export_range(0.0, 2.0, 0.01) var lump_swell: float = 0.6
-@export_range(0.0, 1.5, 0.01) var lump_tilt: float = 0.45
-## Deep amber the coat darkens toward at pools and rims.
-@export var deep_amber: Color = Color(0.62, 0.28, 0.0)
-## How much the grazing rim darkens toward deep_amber (thick-coat look).
-@export_range(0.0, 1.0, 0.01) var rim_darken: float = 0.55
+## Fresnel exponent and glow of the grazing rim.
+@export_range(0.5, 8.0, 0.1) var rim_power: float = 3.5
+@export_range(0.0, 4.0, 0.05) var rim_strength: float = 2.0
 ## Gloss: clearcoat amount and roughness, wet highlight power and strength, colour.
 @export_range(0.0, 1.0, 0.01) var clearcoat_amount: float = 1.0
 @export_range(0.0, 1.0, 0.01) var clearcoat_roughness: float = 0.03
-@export_range(1.0, 128.0, 1.0) var shine_power: float = 28.0
+@export_range(1.0, 128.0, 1.0) var shine_power: float = 12.0
 @export_range(0.0, 4.0, 0.05) var shine_strength: float = 1.6
 @export var shine_color: Color = Color(1.0, 0.96, 0.75)
-## Self-glow and albedo darkening (higher body_darken = brighter body).
-@export_range(0.0, 1.0, 0.01) var base_glow: float = 0.04
-@export_range(0.1, 1.0, 0.01) var body_darken: float = 0.7
-## Drips: shortest sag as a fraction of the longest, teardrop narrowing at the tip
-## (1 = no taper) and how much lengths differ per drip.
-@export_range(0.0, 1.0, 0.01) var sag_base: float = 0.35
+## Drips (placed blocks only): density per metre of bottom edge, hard cap, opacity,
+## longest sag (m), lobe radius (m), sag cycle speed (cycles/s), shortest sag as a
+## fraction of the longest, and teardrop narrowing at the tip (1 = no taper).
+@export_range(0.5, 30.0, 0.1) var drip_scale: float = 3.0
+@export_range(0, 64, 1) var max_drips: int = 10
+@export_range(0.0, 1.0, 0.01) var drip_alpha: float = 0.85
+@export_range(0.02, 1.5, 0.01) var drip_length_m: float = 0.16
+@export_range(0.01, 0.3, 0.005) var drip_radius_m: float = 0.04
+@export_range(0.0, 3.0, 0.01) var drip_speed: float = 0.2
+@export_range(0.0, 1.0, 0.01) var sag_base: float = 0.5
 @export_range(0.1, 1.0, 0.01) var tear_narrow: float = 0.55
-@export_range(0.0, 4.0, 0.05) var reach_variation: float = 2.0
 ## Drip animation off (static drips) when false; the graphics preset gates this.
 @export var animate_drips: bool = true
-## Draw order among transparent surfaces; above the ghost's own material so the coat is not painted over.
+## Draw order among transparent surfaces; above the ghost's own material so the glaze is not painted over.
 @export_range(0, 127, 1) var render_priority: int = 10
 
 const SHADER_PATH: String = "res://shaders/honey_coat.gdshader"
 const DRIPS_NODE_NAME: String = "HoneyDrips"
 const KEY_PRECISION: float = 1000.0
-const SPHERE_SEGMENTS: int = 12
-const SPHERE_RINGS: int = 8
+const SPHERE_SEGMENTS: int = 10
+const SPHERE_RINGS: int = 6
 const EDGE_COUNT_INDEX: int = 2
 const DOWN_FACING_NORMAL_Y: float = -0.9
 
 
-## One ShaderMaterial for the coat on every mesh. animated=false (Low preset)
-## freezes the sag by zeroing the speed.
+## One ShaderMaterial for the glaze on every placed mesh. animated=false (Low
+## preset) freezes the drip sag by zeroing the speed.
 func build_material(animated: bool = true) -> ShaderMaterial:
 	var material: ShaderMaterial = ShaderMaterial.new()
 	material.shader = load(SHADER_PATH) as Shader
 	material.render_priority = render_priority
 	material.set_shader_parameter(&"honey_color", color)
+	material.set_shader_parameter(&"deep_amber", deep_amber)
 	material.set_shader_parameter(&"thickness", thickness_m)
-	material.set_shader_parameter(&"drip_scale", drip_scale)
-	material.set_shader_parameter(&"drip_speed", drip_speed if (animated and animate_drips) else 0.0)
-	material.set_shader_parameter(&"drip_depth", drip_depth)
 	material.set_shader_parameter(&"roughness_value", roughness)
 	material.set_shader_parameter(&"rim_power", rim_power)
 	material.set_shader_parameter(&"rim_strength", rim_strength)
-	material.set_shader_parameter(&"drip_length", drip_length_m)
-	for name: StringName in [&"lump_swell", &"lump_tilt", &"rim_darken", &"clearcoat_amount", &"clearcoat_roughness", &"shine_power", &"shine_strength", &"base_glow", &"body_darken", &"sag_base", &"tear_narrow", &"reach_variation"]:
-		material.set_shader_parameter(name, get(name))
-	material.set_shader_parameter(&"deep_amber", deep_amber)
+	material.set_shader_parameter(&"clearcoat_amount", clearcoat_amount)
+	material.set_shader_parameter(&"clearcoat_roughness", clearcoat_roughness)
+	material.set_shader_parameter(&"shine_power", shine_power)
+	material.set_shader_parameter(&"shine_strength", shine_strength)
 	material.set_shader_parameter(&"shine_color", shine_color)
+	material.set_shader_parameter(&"ghost_alpha", ghost_alpha)
+	material.set_shader_parameter(&"drip_alpha", drip_alpha)
+	material.set_shader_parameter(&"drip_length", drip_length_m)
+	material.set_shader_parameter(&"drip_speed", drip_speed if (animated and animate_drips) else 0.0)
+	material.set_shader_parameter(&"sag_base", sag_base)
+	material.set_shader_parameter(&"tear_narrow", tear_narrow)
 	material.set_shader_parameter(&"drip_mesh", false)
+	material.set_shader_parameter(&"ghost_mode", false)
+	return material
+
+
+## The held ghost's preview glaze: same shader, faint and stable (no drips).
+func build_ghost_material(animated: bool = true) -> ShaderMaterial:
+	var material: ShaderMaterial = build_material(animated)
+	material.set_shader_parameter(&"ghost_mode", true)
 	return material
 
 

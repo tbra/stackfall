@@ -2027,7 +2027,6 @@ func _process(delta: float) -> void:
 const HONEY_COAT_TUNING_PATH: String = "res://config/honey_coat_tuning.tres"
 var _glue_charges: int = 0
 var _glue_overlay: ShaderMaterial = null
-var _glue_drip_material: ShaderMaterial = null
 var _honey_tuning: HoneyCoatTuning = null
 
 
@@ -2053,16 +2052,14 @@ func _apply_glue_overlay() -> void:
 		_honey_tuning = load(HONEY_COAT_TUNING_PATH) as HoneyCoatTuning
 		var preset: GraphicsPreset = Settings.current_graphics_preset()
 		var animated: bool = preset == null or preset.ambient_life_enabled
-		_glue_overlay = _honey_tuning.build_material(animated)
-		_glue_drip_material = _honey_tuning.build_drip_material(animated)
+		_glue_overlay = _honey_tuning.build_ghost_material(animated)
 	for child: Node in _shape_visual.get_children():
 		var mesh_instance: MeshInstance3D = child as MeshInstance3D
 		if mesh_instance != null:
 			mesh_instance.material_overlay = _glue_overlay if _glue_charges > 0 else null
-			if _glue_charges > 0:
-				_honey_tuning.attach_drips(mesh_instance, _glue_drip_material)
-			else:
-				HoneyCoatTuning.remove_drips(mesh_instance)
+			# Bontago-1pi.85.64: the preview is a faint stable tint only. Drips on a
+			# translucent ghost sorted against it and flickered, so it gets none.
+			HoneyCoatTuning.remove_drips(mesh_instance)
 
 
 func _local_glue_charges() -> int:

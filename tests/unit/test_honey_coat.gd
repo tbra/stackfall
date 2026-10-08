@@ -24,11 +24,10 @@ func _meshes(ghost: GhostPreview) -> Array[MeshInstance3D]:
 func test_tuning_defaults_match_plan() -> void:
 	var tuning: HoneyCoatTuning = load(TUNING_PATH) as HoneyCoatTuning
 	assert_not_null(tuning)
-	assert_eq(tuning.color, Color(0.98, 0.7, 0.06, 0.93))
-	assert_almost_eq(tuning.thickness_m, 0.03, 0.0001)
-	assert_almost_eq(tuning.drip_scale, 6.0, 0.0001)
-	assert_almost_eq(tuning.drip_speed, 0.35, 0.0001)
-	assert_almost_eq(tuning.drip_depth, 0.25, 0.0001)
+	assert_eq(tuning.color, Color(1.0, 0.6, 0.04, 0.12))
+	assert_almost_eq(tuning.thickness_m, 0.012, 0.0001)
+	assert_almost_eq(tuning.ghost_alpha, 0.14, 0.0001)
+	assert_almost_eq(tuning.drip_speed, 0.2, 0.0001)
 	assert_almost_eq(tuning.roughness, 0.05, 0.0001)
 
 
@@ -60,15 +59,27 @@ func test_glue_ghost_gets_honey_overlay_and_loses_it() -> void:
 		assert_null(mesh.material_overlay, "overlay is removed at zero charges")
 
 
-func test_glue_ghost_hangs_drips_below_the_bottom_edge_and_clears_them() -> void:
+func test_glue_ghost_is_a_faint_tint_without_drips() -> void:
 	var ghost: GhostPreview = _make_ghost()
 	var mesh: MeshInstance3D = _meshes(ghost)[0]
 	ghost.set_glue_charges(1)
-	var holder: Node = mesh.get_node_or_null("HoneyDrips")
-	assert_not_null(holder, "glued ghost gets a drip holder")
-	assert_gt(holder.get_child_count(), 0)
-	var lowest: float = mesh.mesh.get_aabb().position.y
-	for drip: Node in holder.get_children():
-		assert_almost_eq((drip as Node3D).position.y, lowest, 0.01, "drips hang from the bottom plane")
-	ghost.set_glue_charges(0)
-	assert_null(mesh.get_node_or_null("HoneyDrips"))
+	assert_null(mesh.get_node_or_null("HoneyDrips"), "the translucent ghost gets no drips (they flickered)")
+	var overlay: ShaderMaterial = mesh.material_overlay as ShaderMaterial
+	assert_true(bool(overlay.get_shader_parameter(&"ghost_mode")))
+	assert_false(bool(overlay.get_shader_parameter(&"drip_mesh")))
+	var tuning: HoneyCoatTuning = load(TUNING_PATH) as HoneyCoatTuning
+	assert_lt(tuning.ghost_alpha, 0.3, "faint enough that the validity colour reads")
+
+
+func test_placed_drips_hang_from_the_bottom_edge() -> void:
+	var tuning: HoneyCoatTuning = load(TUNING_PATH) as HoneyCoatTuning
+	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
+	var box: BoxMesh = BoxMesh.new()
+	mesh_instance.mesh = box
+	add_child_autofree(mesh_instance)
+	var count: int = tuning.attach_drips(mesh_instance, tuning.build_drip_material(false))
+	assert_gt(count, 0)
+	assert_true(count <= tuning.max_drips)
+	var lowest: float = box.get_aabb().position.y
+	for drip: Node in mesh_instance.get_node("HoneyDrips").get_children():
+		assert_almost_eq((drip as Node3D).position.y, lowest, 0.01)
