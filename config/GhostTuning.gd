@@ -487,7 +487,7 @@ extends Resource
 ## point, for extra legibility beyond the polyline simply stopping there.
 @export var throw_arc_end_marker_enabled: bool = true
 ## Outer radius (meters) of the landing-zone ring above (Bontago-1pi.85.63).
-@export var throw_arc_end_marker_radius: float = 0.5
+@export var throw_arc_end_marker_radius: float = 1.5
 ## Radial width (meters) of the landing-zone ring's band, measured inward from its outer radius.
 @export var throw_arc_end_marker_width: float = 0.08
 ## Meters the ring floats along the landing surface normal, so it never z-fights the surface.

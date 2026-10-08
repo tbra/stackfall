@@ -193,7 +193,7 @@ func test_throw_velocity_above_throw_max_speed_is_clamped_not_refused() -> void:
 	assert_eq(Match.request_throw(slot_id, _home_world_position(slot_id), 0, Quaternion.IDENTITY, aim), PlacementRules.REASON_OK)
 	var block: Block = _blocks_root.get_child(0) as Block
 	# An unresolved-def gift is normalised through GiftAim's ballistic throw, never the raw velocity.
-	var fixed: Vector3 = GiftAim.throw_velocity(aim, Match._placement._special_tuning)
+	var fixed: Vector3 = GiftAim.throw_velocity(aim, Match._placement._special_tuning, Match._placement._throw_range_scale())
 	assert_true(block.linear_velocity.is_equal_approx(fixed), "host-computed trajectory")
 	assert_gt(block.linear_velocity.x, 0.0, "the heading is preserved")
 
@@ -258,7 +258,7 @@ func test_accepted_throw_spawns_with_the_requested_velocity_and_continuous_cd() 
 	assert_eq(reason, PlacementRules.REASON_OK)
 	assert_eq(_blocks_root.get_child_count(), 1)
 	var block: Block = _blocks_root.get_child(0) as Block
-	var fixed: Vector3 = GiftAim.throw_velocity(velocity, Match._placement._special_tuning)
+	var fixed: Vector3 = GiftAim.throw_velocity(velocity, Match._placement._special_tuning, Match._placement._throw_range_scale())
 	assert_true(block.linear_velocity.is_equal_approx(fixed), "Bontago-1pi.85.21: normalised, not the raw client velocity")
 	assert_true(block.continuous_cd, "spec 3.5: thrown specials always use continuous_cd")
 

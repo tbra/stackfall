@@ -210,6 +210,9 @@ func _run_host() -> void:
 		config.weather_mode = MatchConfig.WeatherMode.OFF
 	Match._lifecycle.set_loading_gate_forced(true)
 	var field: Field = _build_world()
+	# Bontago-1pi.126: this harness checks replication timing, not throw scaling; pin the throw
+	# reference radius to the harness map so thrown gifts keep their unscaled flight (scale 1.0).
+	(load("res://config/special_tuning.tres") as SpecialTuning).gift_throw_reference_radius = field.map_def.field_radius
 	Match.start_match(config)
 	get_node(^"/root/MatchNet").call(&"replicate_match_start", Match.config)
 	field.place_flags(Match.config.player_count, Match.config.player_colors, Match.config.goal_flag_count)
@@ -309,7 +312,8 @@ func _fire_throw(slot: int, gift: StringName, aim: Vector3, cursor_offset: Vecto
 				print("%s host rocket diag pos=%s vel_dir=%s speed=%.1f nose_dir=%s aim=%s" % [TAG, carrier.global_position, carrier.linear_velocity.normalized(), carrier.linear_velocity.length(), (carrier.global_basis * Vector3.UP).normalized(), aim.normalized()])
 	if gift == &"magnet" and carrier != null:
 		var tuning: SpecialTuning = load("res://config/special_tuning.tres") as SpecialTuning
-		var expected: Vector3 = GiftAim.throw_velocity(aim, tuning).limit_length(tuning.throw_max_speed)
+		var expected_scale: float = GiftAim.range_scale(Match.field().map_definition().field_radius, tuning)
+		var expected: Vector3 = GiftAim.throw_velocity(aim, tuning, expected_scale).limit_length(tuning.throw_max_speed * GiftAim.speed_factor(expected_scale))
 		sent = carrier.linear_velocity
 		if sent.distance_to(expected) > THROW_VELOCITY_EPS:
 			_failures.append("host throw velocity %s != GiftAim %s" % [sent, expected])

@@ -432,7 +432,7 @@ func request_throw(
 	var launch_velocity: Vector3 = Vector3.ZERO
 	if held_def == null or throw_mode == GiftThrow.Mode.THROW:
 		# An unresolved def (spawns as a plain block) takes the same ballistic throw (85.21).
-		launch_velocity = GiftAim.throw_velocity(aim_direction, _special_tuning)
+		launch_velocity = GiftAim.throw_velocity(aim_direction, _special_tuning, _throw_range_scale())
 		if launch_velocity == Vector3.ZERO:
 			return PlacementRules.REASON_NO_BLOCK
 	elif held_def.effect is RocketEffect:
@@ -478,7 +478,9 @@ func request_throw(
 		Events.placement_rejected.emit(slot_id, reason)
 		return reason
 
-	var clamped_velocity: Vector3 = launch_velocity.limit_length(_special_tuning.throw_max_speed)
+	var clamped_velocity: Vector3 = launch_velocity.limit_length(
+		_special_tuning.throw_max_speed * GiftAim.speed_factor(_throw_range_scale())
+	)
 	var world_origin: Vector3 = _match._field.to_global(Vector3(disk_origin.x, local_origin.y, disk_origin.y))
 	# Bontago-1pi.14 round 3: the throw spawns at the client-sent pose too, so
 	# it gets the same host overlap validation (a manual intent: refused, the
@@ -1065,3 +1067,11 @@ func _clear_blocks() -> void:
 		return
 	for child: Node in _match._blocks_parent.get_children():
 		child.queue_free()
+
+
+## Bontago-1pi.126: this match's thrown-gift range scale (GiftAim.range_scale of the field radius);
+## 1.0 while no field exists.
+func _throw_range_scale() -> float:
+	if _match._field == null or _match._field.map_def == null:
+		return 1.0
+	return GiftAim.range_scale(_match._field.map_def.field_radius, _special_tuning)

@@ -38,11 +38,27 @@ static func straight_velocity(forward: Vector3, speed: float) -> Vector3:
 ## Ballistic THROW launch velocity: unit `forward` with SpecialTuning.gift_throw_up_ratio added
 ## on Y, renormalised, times SpecialTuning.gift_throw_speed_mps. Non-finite or zero forward gives
 ## Vector3.ZERO. The client's own speed is never an input.
-static func throw_velocity(forward: Vector3, t: SpecialTuning) -> Vector3:
+static func throw_velocity(forward: Vector3, t: SpecialTuning, range_scale: float = 1.0) -> Vector3:
 	var direction: Vector3 = unit_forward(forward)
 	if direction == Vector3.ZERO:
 		return Vector3.ZERO
 	var lifted: Vector3 = direction + Vector3.UP * t.gift_throw_up_ratio
 	if lifted.length() < MIN_FORWARD_LENGTH:
 		return Vector3.ZERO
-	return lifted.normalized() * t.gift_throw_speed_mps
+	return lifted.normalized() * t.gift_throw_speed_mps * speed_factor(range_scale)
+
+
+## Bontago-1pi.126: how much a thrown gift's range grows for a field of `field_radius`:
+## field_radius / SpecialTuning.gift_throw_reference_radius, clamped to the tuning's min/max.
+## A non-positive radius or reference gives 1.0 (no scaling). Host and client preview both use
+## it, so the previewed arc equals the host's launch.
+static func range_scale(field_radius: float, t: SpecialTuning) -> float:
+	if field_radius <= 0.0 or t.gift_throw_reference_radius <= 0.0:
+		return 1.0
+	return clampf(field_radius / t.gift_throw_reference_radius, t.gift_throw_range_scale_min, t.gift_throw_range_scale_max)
+
+
+## Launch speed multiplier giving `range_scale` times the range: flat-ground ballistic range
+## goes with speed squared at fixed gravity and loft, so speed scales with its square root.
+static func speed_factor(range_scale: float) -> float:
+	return sqrt(maxf(range_scale, 0.0))
