@@ -57,6 +57,16 @@ class AffectedTest(unittest.TestCase):
         self.assertNotIn("self", ids)
         self.assertNotIn("true", ids)
 
+    def test_unchanged_class_name_found_in_string_literal(self):
+        self.write("core/black_hole_vis.gd", "class_name BlackHoleVisual\nextends Node3D\nvar a := 1\n")
+        self.write("tests/unit/test_entr.gd", 'func test_e():\n\tn.find_children("*", "BlackHoleVisual")\n')
+        g(self.repo, "add", "-A")
+        g(self.repo, "commit", "-m", "vis")
+        self.write("core/black_hole_vis.gd", "class_name BlackHoleVisual\nextends Node3D\nvar a := 2\n")
+        _, ids, results, _ = at.analyse(self.repo, self.base)
+        self.assertIn("BlackHoleVisual", ids)
+        self.assertIn("tests/unit/test_entr.gd", {r["file"] for r in results})
+
     def test_untracked_file_and_basename(self):
         self.write("scenes/aurora_sky.gd", "extends Node\nfunc paint_aurora() -> void:\n\tpass\n")
         self.write("tests/unit/test_sky.gd", "var s = preload('res://scenes/aurora_sky.gd')\n")
