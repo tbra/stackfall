@@ -8,6 +8,8 @@ const FINAL_RADIUS_M: float = 3.5
 
 var _age: float = 0.0
 var _material: StandardMaterial3D
+## Set when spawned into a match world (GiftFxPresenter); see BlackHoleVisual.bind_to_match.
+var bind_to_match: bool = false
 
 
 func setup(color: Color, radius_m: float = FINAL_RADIUS_M) -> void:
@@ -28,6 +30,9 @@ func setup(color: Color, radius_m: float = FINAL_RADIUS_M) -> void:
 
 
 func _process(delta: float) -> void:
+	if bind_to_match and not MatchAutoload.is_live(Match.state()):
+		queue_free()
+		return
 	_age += delta
 	var progress: float = minf(_age / LIFETIME_S, 1.0)
 	scale = Vector3.ONE * lerpf(0.05, 1.0, progress)

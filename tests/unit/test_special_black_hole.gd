@@ -432,9 +432,11 @@ func test_client_builds_the_visual_from_the_replicated_trigger() -> void:
 
 	net.net_match_event(MatchNetScript.EVENT_SPECIAL_TRIGGERED, [7, &"black_hole", Vector3(1.0, 2.0, 3.0), 0])
 
-	var visuals: Array[Node] = blocks_root.find_children("*", "BlackHoleVisual", true, false)
+	# Bontago-1pi.85.66: the client's visual rides the disc (child of the Field).
+	var visuals: Array[Node] = field.find_children("*", "BlackHoleVisual", true, false)
 	assert_eq(visuals.size(), 1, "client draws the placeholder from the replicated activation")
 	if visuals.size() == 1:
+		assert_eq(visuals[0].get_parent(), field, "client visual rides the disc")
 		assert_eq((visuals[0] as Node3D).global_position, Vector3(1.0, 2.0, 3.0))
 	net.set_providers(null, null)
 	Match.set_net_provider(null)

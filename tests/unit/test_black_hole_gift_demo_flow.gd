@@ -71,7 +71,8 @@ func _note(line: String) -> void:
 
 
 func _black_hole_field() -> BlackHoleField:
-	var parent: Node3D = Match.blocks_parent()
+	# Bontago-1pi.85.66: the field rides the disc, so it is a child of the Field.
+	var parent: Node3D = Match.field()
 	if parent == null:
 		return null
 	for child: Node in parent.get_children():

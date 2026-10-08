@@ -80,8 +80,8 @@ func _build_paintball(block: Block, _def: SpecialDef, position: Vector3) -> void
 	if parent == null or block == null or block.owner_slot < 0 or block.owner_slot >= Match.slot_count():
 		return
 	var splash: PaintballSplash = PaintballSplash.new()
-	parent.add_child(splash)
-	splash.global_position = position
+	splash.bind_to_match = true
+	DiscAnchor.attach(splash, position, parent)
 	splash.setup(Match.slot(block.owner_slot).color)
 
 
@@ -93,8 +93,8 @@ func _build_black_hole(_block: Block, def: SpecialDef, position: Vector3) -> voi
 	if parent == null or effect == null:
 		return
 	var visual: BlackHoleVisual = BlackHoleVisual.new()
-	parent.add_child(visual)
-	visual.global_position = position
+	visual.bind_to_match = true
+	DiscAnchor.attach(visual, position, parent)
 	visual.setup(effect.visual_radius_m, effect.lifetime_s)
 
 
@@ -113,7 +113,7 @@ func _build_explosion(_block: Block, def: SpecialDef, position: Vector3) -> void
 	if parent == null or blast == null or not parent.is_inside_tree():
 		return
 	var puff: ImpactPuff = ImpactPuff.new()
-	parent.add_child(puff)
+	DiscAnchor.parent_for(parent).add_child(puff)
 	var tuning: GiftExplosionFxTuning = EXPLOSION_TUNING
 	puff.play(
 		position, tuning.hard, blast.radius_m * tuning.size_per_blast_radius,
