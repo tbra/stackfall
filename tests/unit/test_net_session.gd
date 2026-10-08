@@ -28,6 +28,9 @@ var _client: Variant
 ## the previous test can never collide with the next one.
 static var _next_port: int = 47800
 
+## Minimum wall-clock budget of every _wait_until before it reports failure.
+const _WAIT_FLOOR_MSEC: int = 8000
+
 
 func _make_side(node_name: String, tuned: NetConfig = null) -> Variant:
 	var node: Node = _NET_SCRIPT.new()
@@ -64,13 +67,19 @@ func _take_port() -> int:
 	return AgentProbe.free_udp_port()
 
 
-## Polls until `condition` (a Callable returning bool) is true or `frames`
-## process frames have passed. Returns whether it succeeded.
+## Polls until `condition` (a Callable returning bool) is true. Gives up only
+## once `frames` process frames AND `_WAIT_FLOOR_MSEC` of wall clock have both
+## passed: headless frames are uncapped (200 can elapse in milliseconds), while
+## an ENet handshake needs real time, so a frame-only deadline flaked when
+## parallel gate shards loaded the CPU (Bontago-fca.64). Returns success.
 func _wait_until(condition: Callable, frames: int = 200) -> bool:
-	for _i: int in range(frames):
+	var deadline_msec: int = Time.get_ticks_msec() + _WAIT_FLOOR_MSEC
+	var spent: int = 0
+	while spent < frames or Time.get_ticks_msec() < deadline_msec:
 		if condition.call():
 			return true
 		await get_tree().process_frame
+		spent += 1
 	return condition.call()
 
 
@@ -153,7 +162,8 @@ func _ready_in_roster(roster: Array, peer_id: int) -> bool:
 func test_reset_ready_flags_clears_host_and_client_views() -> void:
 	var port: int = _take_port()
 	_connect_host_and_client(port)
-	await _wait_until(func() -> bool: return _host.peer_ids().size() == 2 and _client.peer_ids().size() == 2)
+	var seated: bool = await _wait_until(func() -> bool: return _host.peer_ids().size() == 2 and _client.peer_ids().size() == 2 and _client.mode() == Net.Mode.CLIENT)
+	assert_true(seated, "both views settle on a 2-peer roster before any ready RPC")
 	var client_id: int = _client.local_peer_id()
 	_host.set_local_ready(true)
 	_client.set_local_ready(true)
