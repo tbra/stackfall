@@ -331,3 +331,12 @@ func test_end_ring_aligns_to_tilted_field_normal() -> void:
 	assert_true(ring.global_position.distance_to(end) <= 0.01 + arc.ghost_tuning.throw_arc_end_marker_lift)
 	assert_true(ring.global_transform.basis.y.angle_to(normal) < deg_to_rad(2.0))
 	assert_true(arc.end_ring_normal().angle_to(normal) < deg_to_rad(2.0))
+
+
+func test_end_ring_radius_comes_from_config_and_scales_with_ring_scale() -> void:
+	var arc: ThrowArcPreview = _make_arc()
+	var field: Field = _make_field()
+	assert_gte(arc.ghost_tuning.throw_arc_end_marker_radius, 1.0, "ring is bigger than the old 0.5 m")
+	arc.update_arc(Vector3(0.0, 2.0, 0.0), Vector3(6.0, 8.0, 0.0), field, 1.0, 2.0)
+	assert_almost_eq(arc.end_ring().global_transform.basis.x.length(), 2.0, 0.001)
+	assert_almost_eq(arc.end_ring().global_transform.basis.y.length(), 1.0, 0.001)

@@ -141,7 +141,7 @@ func test_throwable_gift_leaves_along_the_host_computed_velocity_whatever_the_cl
 	var forward: Vector3 = Vector3(1.0, 0.2, 0.0)
 	assert_eq(_throw(forward * 1.7), PlacementRules.REASON_OK)
 	var block: Block = _blocks_root.get_child(0) as Block
-	var expected: Vector3 = GiftAim.throw_velocity(forward, _tuning())
+	var expected: Vector3 = GiftAim.throw_velocity(forward, _tuning(), GiftAim.range_scale(_tiny_map.field_radius, _tuning()))
 	assert_true(block.linear_velocity.is_equal_approx(expected), "%s vs %s" % [block.linear_velocity, expected])
 
 
@@ -236,7 +236,7 @@ func test_unresolved_def_gift_never_launches_with_the_raw_client_velocity() -> v
 	var sent: Vector3 = Vector3(1.0, 1.0, 0.0)
 	assert_eq(_throw(sent), PlacementRules.REASON_OK)
 	var block: Block = _blocks_root.get_child(0) as Block
-	assert_true(block.linear_velocity.is_equal_approx(GiftAim.throw_velocity(sent, _tuning())))
+	assert_true(block.linear_velocity.is_equal_approx(GiftAim.throw_velocity(sent, _tuning(), GiftAim.range_scale(_tiny_map.field_radius, _tuning()))))
 
 
 func test_paintball_with_a_straight_up_aim_is_refused_and_stays_held() -> void:
@@ -292,3 +292,44 @@ func test_only_the_ballistic_throw_mode_shows_a_preview() -> void:
 	assert_true(GiftThrow.shows_preview(GiftThrow.Mode.THROW))
 	assert_false(GiftThrow.shows_preview(GiftThrow.Mode.AIMED))
 	assert_false(GiftThrow.shows_preview(GiftThrow.Mode.NONE))
+
+
+# --- Bontago-1pi.126: throw range scales with the field radius ---------------------------
+
+func _flat_range(velocity: Vector3) -> float:
+	var g: float = float(ProjectSettings.get_setting("physics/3d/default_gravity")) * PhysicsTuning.new().gravity_multiplier
+	var flight_s: float = 2.0 * velocity.y / g
+	return Vector2(velocity.x, velocity.z).length() * flight_s
+
+
+func test_range_scale_is_radius_over_reference_clamped() -> void:
+	var t: SpecialTuning = SpecialTuning.new()
+	assert_almost_eq(GiftAim.range_scale(t.gift_throw_reference_radius, t), 1.0, 0.0001)
+	assert_almost_eq(GiftAim.range_scale(60.0, t), 60.0 / 45.0, 0.0001)
+	assert_eq(GiftAim.range_scale(1.0, t), t.gift_throw_range_scale_min)
+	assert_eq(GiftAim.range_scale(10000.0, t), t.gift_throw_range_scale_max)
+	assert_eq(GiftAim.range_scale(0.0, t), 1.0)
+
+
+func test_flat_ground_range_is_proportional_to_field_radius() -> void:
+	var t: SpecialTuning = SpecialTuning.new()
+	var forward: Vector3 = Vector3(0.0, 0.2, -1.0)
+	var small: float = _flat_range(GiftAim.throw_velocity(forward, t, GiftAim.range_scale(MapDef.RADIUS_SMALL, t)))
+	var medium: float = _flat_range(GiftAim.throw_velocity(forward, t, GiftAim.range_scale(MapDef.RADIUS_MEDIUM, t)))
+	var large: float = _flat_range(GiftAim.throw_velocity(forward, t, GiftAim.range_scale(MapDef.RADIUS_LARGE, t)))
+	assert_almost_eq(small / medium, MapDef.RADIUS_SMALL / MapDef.RADIUS_MEDIUM, 0.01)
+	assert_almost_eq(large / medium, MapDef.RADIUS_LARGE / MapDef.RADIUS_MEDIUM, 0.01)
+
+
+func test_host_throw_matches_preview_velocity_when_the_field_is_larger_than_the_reference() -> void:
+	_start_with(&"gift_bomb", GiftThrow.Mode.THROW)
+	var original: float = _tuning().gift_throw_reference_radius
+	_tuning().gift_throw_reference_radius = _tiny_map.field_radius / 1.5
+	var forward: Vector3 = Vector3(1.0, 0.2, 0.0)
+	var result: StringName = _throw(forward)
+	var preview: Vector3 = GiftAim.throw_velocity(forward, _tuning(), GiftAim.range_scale(_tiny_map.field_radius, _tuning()))
+	_tuning().gift_throw_reference_radius = original
+	assert_eq(result, PlacementRules.REASON_OK)
+	var block: Block = _blocks_root.get_child(0) as Block
+	assert_true(block.linear_velocity.is_equal_approx(preview), "%s vs %s" % [block.linear_velocity, preview])
+	assert_gt(block.linear_velocity.length(), _tuning().gift_throw_speed_mps)

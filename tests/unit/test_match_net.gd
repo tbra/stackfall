@@ -1218,7 +1218,7 @@ func test_submit_throw_on_the_host_spawns_and_launches_the_block_inline() -> voi
 	assert_eq(net.intents_sent(0), 1)
 	var block: Block = _blocks_root.get_child(_block_count() - 1) as Block
 	assert_true(
-		block.linear_velocity.is_equal_approx(GiftAim.throw_velocity(velocity, Match._placement._special_tuning)),
+		block.linear_velocity.is_equal_approx(GiftAim.throw_velocity(velocity, Match._placement._special_tuning, Match._placement._throw_range_scale())),
 		"Bontago-1pi.85.21: the host normalises to the fixed trajectory, never the raw client velocity"
 	)
 
@@ -1272,7 +1272,7 @@ func test_a_remote_peers_own_throw_intent_is_accepted_with_velocity_untouched() 
 	assert_eq(net.intents_refused(1), 0)
 	var block: Block = _blocks_root.get_child(0) as Block
 	assert_true(
-		block.linear_velocity.is_equal_approx(GiftAim.throw_velocity(velocity, Match._placement._special_tuning)),
+		block.linear_velocity.is_equal_approx(GiftAim.throw_velocity(velocity, Match._placement._special_tuning, Match._placement._throw_range_scale())),
 		"Bontago-1pi.85.21: request_throw() normalises an unresolved-def gift's velocity"
 	)
 

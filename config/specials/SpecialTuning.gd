@@ -59,6 +59,12 @@ extends Resource
 ## horizontal heading of the client's aim is used.
 @export var gift_throw_speed_mps: float = 22.0
 
+## Bontago-1pi.126: field radius (m) the gift throw speed/range above is tuned for; a thrown
+## gift's range scales by field_radius / this, clamped to the two limits below (GiftAim.range_scale).
+@export var gift_throw_reference_radius: float = 45.0
+@export var gift_throw_range_scale_min: float = 0.5
+@export var gift_throw_range_scale_max: float = 2.0
+
 ## Vertical component of the fixed gift throw relative to its horizontal heading (1.0 = 45 deg).
 @export var gift_throw_loft_ratio: float = 1.0
 
