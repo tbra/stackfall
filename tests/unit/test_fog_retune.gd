@@ -57,7 +57,7 @@ func test_weather_fog_flattens_aerial_perspective_and_restores_it() -> void:
 	var environment: Environment = parts[1]
 	var base: float = environment.fog_aerial_perspective
 	skybox.set_weather_fog(1.0, _fog.max_opacity, _fog.depth_begin_m, _fog.depth_end_m,
-		_fog.fog_color, _fog.fog_tint_strength, _fog.sky_affect, _fog.aerial_perspective_add)
+		_fog.fog_color, _fog.fog_tint_strength, _fog.sky_affect)
 	assert_gt(base, 0.0)
 	assert_almost_eq(environment.fog_aerial_perspective, 0.0, 0.0001, "flat fog colour like the disc (night sky is black)")
 	skybox.set_weather_fog(0.0, 0.0, 0.0, 0.0, Color.WHITE, 0.0)
@@ -93,7 +93,7 @@ func test_env_fog_factor_matches_disc_fog_formula() -> void:
 	var skybox: Skybox = parts[0]
 	var environment: Environment = parts[1]
 	skybox.set_weather_fog(1.0, _fog.max_opacity, _fog.depth_begin_m, _fog.depth_end_m,
-		_fog.fog_color, _fog.fog_tint_strength, _fog.sky_affect, _fog.aerial_perspective_add)
+		_fog.fog_color, _fog.fog_tint_strength, _fog.sky_affect)
 	assert_eq(environment.fog_mode, Environment.FOG_MODE_DEPTH)
 	assert_almost_eq(environment.fog_aerial_perspective, 0.0, 0.0001)
 	assert_true(skybox.weather_fog_color().is_equal_approx(environment.fog_light_color))
