@@ -298,7 +298,6 @@ func _clear_weather_state() -> void:
 	_wfog_tint = Color.WHITE
 	_wfog_tint_strength = 0.0
 	_wfog_sky_affect_add = 0.0
-	_wfog_aerial_add = 0.0
 
 
 ## No cycle of any kind (running or locked) and no pending phase state: what a Skybox
@@ -781,7 +780,6 @@ var _wfog_depth_end_m: float = 0.0
 var _wfog_tint: Color = Color.WHITE
 var _wfog_tint_strength: float = 0.0
 var _wfog_sky_affect_add: float = 0.0
-var _wfog_aerial_add: float = 0.0
 var _wfog_base_captured: bool = false
 var _wfog_base_mode: int = 0
 var _wfog_base_begin: float = 0.0
@@ -1870,7 +1868,7 @@ func cloud_overcast_amount() -> float:
 ## full colour) and reaches `max_opacity * amount` at `depth_end_m`, tints the
 ## fog toward `tint` and lets it wash the sky/horizon by `sky_affect_add` more.
 ## Amount 0 restores the theme (and its own fog mode) exactly.
-func set_weather_fog(amount: float, max_opacity: float, depth_begin_m: float, depth_end_m: float, tint: Color, tint_strength: float, sky_affect_add: float = 0.0, aerial_add: float = 0.0) -> void:
+func set_weather_fog(amount: float, max_opacity: float, depth_begin_m: float, depth_end_m: float, tint: Color, tint_strength: float, sky_affect_add: float = 0.0) -> void:
 	_wfog_amount = clampf(amount, 0.0, 1.0)
 	_wfog_max_opacity = max_opacity
 	_wfog_depth_begin_m = depth_begin_m
@@ -1878,7 +1876,6 @@ func set_weather_fog(amount: float, max_opacity: float, depth_begin_m: float, de
 	_wfog_tint = tint
 	_wfog_tint_strength = tint_strength
 	_wfog_sky_affect_add = sky_affect_add
-	_wfog_aerial_add = aerial_add
 	_apply_overcast(_overcast_theme if _overcast_theme != null else theme)
 
 
@@ -1976,7 +1973,11 @@ func _apply_fog_extras(applied_theme: SkyThemeDef) -> void:
 	if is_inside_tree():
 		WeatherFogShader.set_ambient(applied_theme.haze_strength, applied_theme.haze_begin_m,
 			applied_theme.haze_end_m, environment.fog_light_color, get_tree())
-	environment.fog_aerial_perspective = clampf(applied_theme.fog_aerial_perspective + _wfog_aerial_add * _wfog_amount, 0.0, 1.0)
+	# Bontago-1pi.130: aerial perspective blends the fog toward the SKY colour, which
+	# at night is near black, so distant blocks read as black silhouettes against the
+	# light-grey fogged disc (the disc/clouds use the flat fog colour). Weather fog
+	# therefore fades the theme's aerial perspective OUT (flat colour = the disc's).
+	environment.fog_aerial_perspective = clampf(applied_theme.fog_aerial_perspective * (1.0 - _wfog_amount), 0.0, 1.0)
 	environment.fog_sun_scatter = applied_theme.fog_sun_scatter
 	environment.fog_height = applied_theme.fog_height_m
 	environment.fog_height_density = applied_theme.fog_height_density
