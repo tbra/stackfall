@@ -285,7 +285,9 @@ func test_the_header_and_row_styling_is_the_lobbys_menu_look() -> void:
 	var pill: StyleBoxFlat = row.get_theme_stylebox("panel") as StyleBoxFlat
 	assert_eq(pill.bg_color, lobby.tuning.pill_white_color, "rows stay the raised white pill")
 	var badge: PanelContainer = (row as LobbySeatRow).badge
-	assert_eq((badge.get_theme_stylebox("panel") as StyleBoxFlat).bg_color, lobby.tuning.pill_mint_color, "ready = mint")
+	assert_eq((badge.get_theme_stylebox("panel") as StyleBoxFlat).bg_color, lobby.layout_tuning.host_crown_pill_color, "host crown = yellow (1pi.120)")
+	var guest_ready_badge: PanelContainer = _rows_of(lobby)[1].badge
+	assert_eq((guest_ready_badge.get_theme_stylebox("panel") as StyleBoxFlat).bg_color, lobby.tuning.pill_mint_color, "ready = mint")
 	Events.net_lobby_data_changed.emit(_two_humans_data(false))
 	var guest_badge: PanelContainer = _rows_of(lobby)[1].badge
 	assert_eq((guest_badge.get_theme_stylebox("panel") as StyleBoxFlat).bg_color, lobby.tuning.ground_band_apricot_color, "not ready = apricot")
@@ -368,7 +370,35 @@ func test_the_waiting_pill_counts_ready_seats_of_the_rows_just_drawn() -> void:
 	assert_eq(label.text, "%s Waiting for players %s 1 of 2 ready" % [char(0x25CF), char(0xB7)])
 	roster[1]["ready"] = true
 	Events.net_roster_changed.emit(roster)
-	assert_eq(label.text, "%s Waiting for players %s 2 of 2 ready" % [char(0x25CF), char(0xB7)])
+	assert_eq(label.text, "%s %s" % [char(0x25CF), Lobby.ALL_READY_TEXT], "everyone ready: the pill says so (1pi.122)")
+
+
+## Bontago-1pi.122: the host's seat shows the crown and Start is its consent, so a host row whose
+## "ready" flag is false still counts: host + one ready guest is "2 of 2", not "1 of 2".
+func test_the_waiting_pill_counts_the_host_as_ready() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var roster: Array[Dictionary] = [
+		{"peer_id": 1, "slot_id": 0, "name": "Host", "ready": false},
+		{"peer_id": 2, "slot_id": 1, "name": "Guest", "ready": true},
+		{"peer_id": 3, "slot_id": 2, "name": "Third", "ready": false},
+	]
+	Events.net_roster_changed.emit(roster)
+	var label: Label = lobby.get_node("%WaitingStatusLabel") as Label
+	assert_eq(label.text, "%s Waiting for players %s 2 of 3 ready" % [char(0x25CF), char(0xB7)])
+	roster.remove_at(2)
+	Events.net_roster_changed.emit(roster)
+	assert_eq(label.text, "%s %s" % [char(0x25CF), Lobby.ALL_READY_TEXT])
+
+
+## Bontago-1pi.120: the host crown pill is yellow (LobbyLayoutTuning.host_crown_pill_color).
+func test_the_host_crown_pill_is_yellow() -> void:
+	var lobby: Lobby = _make_lobby(false)
+	Events.net_lobby_data_changed.emit(_two_humans_data(false))
+	var host_badge: PanelContainer = _rows_of(lobby)[0].badge
+	var fill: Color = (host_badge.get_theme_stylebox("panel") as StyleBoxFlat).bg_color
+	assert_eq(fill, lobby.layout_tuning.host_crown_pill_color)
+	assert_gt(fill.r, fill.b + 0.4, "yellow: red and green high, blue low")
+	assert_gt(fill.g, fill.b + 0.4)
 
 
 func test_the_panel_reports_rendered_counts() -> void:

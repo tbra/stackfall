@@ -26,6 +26,24 @@ func _init() -> void:
 	follow_focus = true
 
 
+func _ready() -> void:
+	# Bontago-1pi.121 (owner playtest: menus with scrollbars don't start at the top): a list
+	# opens at its top, then follows focus as before. Deferred so it runs after the opening
+	# focus grab (whose ensure_control_visible would otherwise leave it scrolled down).
+	visibility_changed.connect(_on_visibility_changed)
+	scroll_to_top()
+
+
+func _on_visibility_changed() -> void:
+	if is_visible_in_tree():
+		scroll_to_top()
+
+
+## Resets the vertical scroll to the top on the next idle frame (public for tests).
+func scroll_to_top() -> void:
+	set_deferred(&"scroll_vertical", 0)
+
+
 func _enter_tree() -> void:
 	var viewport: Viewport = get_viewport()
 	if viewport != null and not viewport.gui_focus_changed.is_connected(_on_gui_focus_changed):
