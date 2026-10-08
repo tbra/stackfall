@@ -13,3 +13,5 @@ cloud_puff_subdivisions = 1
 cloud_puff_density = 1.0
 sun_shadow_mode = 2
 sun_shadow_max_distance = 100.0
+reflection_probe_mode = 2
+reflection_probe_interval_s = 0.5

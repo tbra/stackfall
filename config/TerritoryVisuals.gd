@@ -361,21 +361,11 @@ extends Resource
 ## ReflectionProbe from these fields (see its class doc for why the box is
 ## sized once, for the largest map, rather than resized per active MapDef).
 @export var reflection_probe_enabled: bool = true
-## UPDATE_ALWAYS recomputes the probe's cubemap every frame, so a block that
-## lands after boot still shows up in the disk's reflection (accurate, more
-## GPU cost); UPDATE_ONCE captures a single snapshot at boot and never again
-## (cheap, but every block placed afterward is invisible in the reflection
-## until the scene reloads).
-##
-## DECISION (config/TerritoryVisuals.gd, Bontago-xtq.12): default true.
-## tools/screenshot_xtq11_disk_opaque.gd's --reflection-mode=once/always
-## comparison in a windowed run with several placed blocks measured well
-## under a millisecond of extra frame time for ALWAYS over ONCE at this
-## scene's scale (one small disk, a handful of blocks) — see the package
-## report for the numbers — and a stale reflection would look like a new
-## bug (blocks players just placed missing from the mirror) worse than the
-## small, currently unmeasurable-in-practice cost of recomputing every frame.
-@export var reflection_probe_update_always: bool = true
+## Bontago-1pi.11.67: a dev/F4 override that forces UPDATE_ALWAYS (six faces every
+## frame, ~2.5 ms on a 3060 at 3440x1440) regardless of the graphics preset. Default
+## false: the refresh strategy (off / once / interval / always) is now the preset's
+## GraphicsPreset.reflection_probe_mode, which game/Skybox.gd applies.
+@export var reflection_probe_update_always: bool = false
 ## Extra meters of box half-width beyond MapDef.RADIUS_LARGE (spec 2.8's
 ## largest map size), so one static probe box covers every map without
 ## resizing itself per match. DECISION (config/TerritoryVisuals.gd,

@@ -647,6 +647,76 @@ func test_reflection_probe_update_once_when_visuals_says_so() -> void:
 	assert_eq(probe.update_mode, ReflectionProbe.UPDATE_ONCE)
 
 
+func test_effective_probe_mode_maps_preset_and_overrides() -> void:
+	var visuals: TerritoryVisuals = TerritoryVisuals.new()
+	var preset: GraphicsPreset = GraphicsPreset.new()
+	for mode: int in [
+		GraphicsPreset.ReflectionProbeMode.OFF, GraphicsPreset.ReflectionProbeMode.ONCE,
+		GraphicsPreset.ReflectionProbeMode.INTERVAL, GraphicsPreset.ReflectionProbeMode.ALWAYS,
+	]:
+		preset.reflection_probe_mode = mode as GraphicsPreset.ReflectionProbeMode
+		assert_eq(Skybox.effective_probe_mode(visuals, preset), mode)
+	assert_eq(Skybox.effective_probe_mode(visuals, null), GraphicsPreset.ReflectionProbeMode.INTERVAL)
+	preset.reflection_probe_mode = GraphicsPreset.ReflectionProbeMode.OFF
+	visuals.reflection_probe_update_always = true
+	assert_eq(Skybox.effective_probe_mode(visuals, preset), GraphicsPreset.ReflectionProbeMode.ALWAYS)
+	visuals.reflection_probe_enabled = false
+	assert_eq(Skybox.effective_probe_mode(visuals, preset), GraphicsPreset.ReflectionProbeMode.OFF)
+
+
+func test_shipped_presets_pick_probe_glow_and_shadow_costs() -> void:
+	var low: GraphicsPreset = load("res://config/graphics_presets/low.tres") as GraphicsPreset
+	var medium: GraphicsPreset = load("res://config/graphics_presets/medium.tres") as GraphicsPreset
+	var high: GraphicsPreset = load("res://config/graphics_presets/high.tres") as GraphicsPreset
+	assert_eq(low.reflection_probe_mode, GraphicsPreset.ReflectionProbeMode.OFF)
+	assert_eq(medium.reflection_probe_mode, GraphicsPreset.ReflectionProbeMode.INTERVAL)
+	assert_gt(medium.reflection_probe_interval_s, high.reflection_probe_interval_s)
+	assert_eq(high.reflection_probe_mode, GraphicsPreset.ReflectionProbeMode.INTERVAL)
+	assert_false(low.glow_enabled)
+	assert_true(medium.glow_enabled and high.glow_enabled)
+	assert_lt(low.sun_shadow_mode, medium.sun_shadow_mode)
+	assert_lt(low.sun_shadow_max_distance, medium.sun_shadow_max_distance)
+
+
+func test_interval_mode_rerenders_the_probe_only_when_blocks_changed() -> void:
+	var visuals: TerritoryVisuals = TerritoryVisuals.new()
+	var wired: Dictionary = _make_skybox_with_probe(visuals)
+	var skybox: Skybox = wired["skybox"] as Skybox
+	var probe: ReflectionProbe = wired["probe"] as ReflectionProbe
+	var registry: BlockRegistry = BlockRegistry.new()
+	add_child_autofree(registry)
+	skybox._probe_registry = registry
+	skybox._probe_mode = GraphicsPreset.ReflectionProbeMode.INTERVAL
+	skybox._probe_interval_s = 0.5
+	var y0: float = probe.position.y
+	skybox._step_probe_interval(0.4)
+	assert_eq(probe.position.y, y0, "before the interval nothing happens")
+	skybox._step_probe_interval(0.2)
+	assert_ne(probe.position.y, y0, "first interval renders once (new revision)")
+	var y1: float = probe.position.y
+	skybox._step_probe_interval(0.6)
+	assert_eq(probe.position.y, y1, "unchanged blocks do not re-render")
+	registry.mark_territory_dirty()
+	skybox._step_probe_interval(0.6)
+	assert_ne(probe.position.y, y1, "a block change re-renders")
+
+
+func test_off_and_once_modes_never_retrigger() -> void:
+	var visuals: TerritoryVisuals = TerritoryVisuals.new()
+	var wired: Dictionary = _make_skybox_with_probe(visuals)
+	var skybox: Skybox = wired["skybox"] as Skybox
+	var probe: ReflectionProbe = wired["probe"] as ReflectionProbe
+	var registry: BlockRegistry = BlockRegistry.new()
+	add_child_autofree(registry)
+	skybox._probe_registry = registry
+	var y0: float = probe.position.y
+	for mode: int in [GraphicsPreset.ReflectionProbeMode.OFF, GraphicsPreset.ReflectionProbeMode.ONCE]:
+		skybox._probe_mode = mode
+		registry.mark_territory_dirty()
+		skybox._step_probe_interval(100.0)
+		assert_eq(probe.position.y, y0)
+
+
 func test_reflection_probe_disabled_hides_it() -> void:
 	var visuals: TerritoryVisuals = TerritoryVisuals.new()
 	visuals.reflection_probe_enabled = false

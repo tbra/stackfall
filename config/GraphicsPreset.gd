@@ -36,6 +36,18 @@ extends Resource
 ## Bontago-1pi.11.2: sun shadow max distance in metres (engine default 100).
 @export var sun_shadow_max_distance: float = 100.0
 
+## Bontago-1pi.11.67: how the ReflectionProbe over the disc is refreshed (game/Skybox.gd).
+## OFF hides it (the disc then mirrors only the sky radiance); ONCE renders at match start
+## and after a sky/theme/time-of-day/map change; INTERVAL also re-renders every
+## reflection_probe_interval_s while blocks moved; ALWAYS is the engine's UPDATE_ALWAYS
+## (six faces every frame, ~2.5 ms on a 3060 at 3440x1440).
+enum ReflectionProbeMode { OFF, ONCE, INTERVAL, ALWAYS }
+@export var reflection_probe_mode: ReflectionProbeMode = ReflectionProbeMode.INTERVAL
+## Seconds between INTERVAL re-renders (only when the block layout changed).
+@export_range(0.1, 60.0) var reflection_probe_interval_s: float = 0.5
+## Bontago-1pi.11.67: Environment glow (bloom) pass; off on Low.
+@export var glow_enabled: bool = true
+
 ## Bontago-1pi.11.42: the swirl animation (noise, per-pixel) of the hole void
 ## on the disc. Off on Low: the void is then a flat deep colour with its rim.
 @export var hole_void_animated: bool = true

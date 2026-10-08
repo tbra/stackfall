@@ -6,6 +6,7 @@
 script = ExtResource("1_hints")
 ranges = {
 "GraphicsPreset.screen_check_interval_s": Vector2(0.1, 10.0),
+"GraphicsPreset.reflection_probe_interval_s": Vector2(0.1, 60.0),
 "SpecialTuning.gift_aim_back_m": Vector2(0.0, 30.0),
 "SpecialTuning.gift_aim_min_height_m": Vector2(0.0, 5.0),
 "SpecialTuning.gift_throw_speed_mps": Vector2(1.0, 60.0),
@@ -1175,7 +1176,7 @@ descriptions = {
 "TerritoryVisuals.circle_bake_enabled": "Bake the territory circle field into a texture when it changes instead of looping circles per pixel; big GPU saving, turn off only to compare.",
 "TerritoryVisuals.circle_bake_texels_per_m": "Resolution of the baked territory field in texels per meter; higher is crisper at the cost of a larger texture and bake.",
 "TerritoryVisuals.reflection_probe_enabled": "Whether a ReflectionProbe over the disc mirrors placed blocks (not just the sky) in the disk's metallic surface.",
-"TerritoryVisuals.reflection_probe_update_always": "Recompute the reflection probe every frame (blocks show up as they land, more GPU cost) instead of once at boot (cheap, but later blocks stay invisible in the reflection).",
+"TerritoryVisuals.reflection_probe_update_always": "Force the reflection probe to re-render every frame regardless of the graphics preset (costly, ~2.5 ms at 3440x1440). Off: the preset decides (off / once / interval).",
 "TerritoryVisuals.reflection_probe_margin_m": "Extra meters of box half-width the reflection probe extends beyond the largest map's radius.",
 "TerritoryVisuals.reflection_probe_height_m": "Full box height, in meters, of the reflection probe above the disk.",
 "TerritoryVisuals.ssr_enabled": "Whether screen-space reflections show currently-on-screen blocks mirrored in the disk, on top of the reflection probe.",

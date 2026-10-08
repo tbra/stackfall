@@ -403,6 +403,7 @@ func _apply_graphics_preset(preset: GraphicsPreset) -> void:
 	if _world_environment != null and _world_environment.environment != null:
 		var environment: Environment = _world_environment.environment
 		environment.ssr_enabled = preset.ssr_enabled
+		environment.glow_enabled = preset.glow_enabled  # Bontago-1pi.11.67
 		environment.volumetric_fog_enabled = preset.volumetric_fog_enabled
 
 
