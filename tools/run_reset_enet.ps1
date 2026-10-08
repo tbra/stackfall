@@ -25,11 +25,11 @@ function Get-FreeUdpPort {
 }
 function Invoke-Pair([string]$mode, [int]$pairPort) {
 	foreach ($f in @("reset_${mode}_host.log", "reset_${mode}_host.err", "reset_${mode}_client.log", "reset_${mode}_client.err")) { Remove-Item -ErrorAction SilentlyContinue "$Out\$f" }
-	$h = Start-Process godot -ArgumentList @("--headless","--log-file","$Outgodot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--agent-probe","--headless-host","--port=$pairPort","--mode=$mode","--out-dir=$Out") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\reset_${mode}_host.log" -RedirectStandardError "$Out\reset_${mode}_host.err"
+	$h = Start-Process godot -ArgumentList @("--headless","--log-file","${Out}\godot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--agent-probe","--headless-host","--port=$pairPort","--mode=$mode","--out-dir=$Out") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\reset_${mode}_host.log" -RedirectStandardError "$Out\reset_${mode}_host.err"
 	$null = $h.Handle
 	$script:procs += $h
 	Start-Sleep 3
-	$c = Start-Process godot -ArgumentList @("--headless","--log-file","$Outgodot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--agent-probe","--join=127.0.0.1:$pairPort","--sim-lag=$Lag","--mode=$mode","--out-dir=$Out") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\reset_${mode}_client.log" -RedirectStandardError "$Out\reset_${mode}_client.err"
+	$c = Start-Process godot -ArgumentList @("--headless","--log-file","${Out}\godot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--agent-probe","--join=127.0.0.1:$pairPort","--sim-lag=$Lag","--mode=$mode","--out-dir=$Out") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\reset_${mode}_client.log" -RedirectStandardError "$Out\reset_${mode}_client.err"
 	$null = $c.Handle
 	$script:procs += $c
 	while (((Get-Date) -lt $deadlineAt) -and (-not ($h.HasExited -and $c.HasExited))) { Start-Sleep 1 }

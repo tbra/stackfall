@@ -91,6 +91,10 @@ const ROCKET_AIM_MAX_DEG: float = 15.0
 const ROCKET_MIN_SAMPLES: int = 6
 const THROW_MIN_SPAN_S: float = 0.3
 const THROW_MAX_DEG: float = 15.0
+## DECISION (8or.31): the magnet re-faces its CURRENT velocity every tick (MagnetEffect._face_while_airborne), so by the
+## first replicated pose gravity has bent the path off the launch vector (6.8 deg seen); the first pose is judged
+## against the launch vector with the same slack as the whole-flight heading, not the rocket's straight-line 5 deg.
+const MAGNET_FIRST_POSE_MAX_DEG: float = THROW_MAX_DEG
 const THROW_SPEED_TOLERANCE: float = 0.4
 const THROW_VELOCITY_EPS: float = 0.05
 const THROW_SAMPLE_TIMEOUT: float = 8.0
@@ -478,13 +482,13 @@ func _watch_black_hole() -> void:
 	var saw_carrier: bool = _gift_block(&"black_hole") != null
 	var appeared: bool = await _until(func() -> bool:
 		saw_carrier = saw_carrier or _gift_block(&"black_hole") != null
-		return _find_nodes(&"BlackHoleVisual", Match.blocks_parent()).size() > 0, WATCH_TIMEOUT)
+		return _find_nodes(&"BlackHoleVisual", Match.field()).size() > 0, WATCH_TIMEOUT)
 	saw_carrier = saw_carrier or _gift_block(&"black_hole") != null
 	_ack(&"black_hole", "no_carrier", not saw_carrier, "in_place_carrier_seen=%s" % saw_carrier)
 	_ack(&"black_hole", "visual", appeared and int(_trig.get(&"black_hole", 0)) > 0, "visual=%s event=%s" % [appeared, _trig.get(&"black_hole", 0)])
 	var gone: bool = await _until(func() -> bool:
 		saw_carrier = saw_carrier or _gift_block(&"black_hole") != null
-		return _find_nodes(&"BlackHoleVisual", Match.blocks_parent()).is_empty() and _gift_block(&"black_hole") == null, WATCH_TIMEOUT)
+		return _find_nodes(&"BlackHoleVisual", Match.field()).is_empty() and _gift_block(&"black_hole") == null, WATCH_TIMEOUT)
 	_ack(&"black_hole", "no_carrier_whole_run", not saw_carrier, "in_place_carrier_seen=%s" % saw_carrier)
 	_ack(&"black_hole", "despawn", gone, "visual_and_carrier_gone=%s" % gone)
 	_ack(&"black_hole", "done", true)
@@ -708,7 +712,7 @@ func _watch_magnet() -> void:
 	var first_off_deg: float = 180.0
 	if got and expected.length() > 0.0:
 		first_off_deg = rad_to_deg(first_nose.angle_to(expected.normalized()))
-	_ack(&"magnet", "first_pose_faced", first_off_deg <= FIRST_POSE_MAX_DEG, "first_nose_off_velocity_deg=%.1f" % first_off_deg)
+	_ack(&"magnet", "first_pose_faced", first_off_deg <= MAGNET_FIRST_POSE_MAX_DEG, "first_nose_off_velocity_deg=%.1f" % first_off_deg)
 	_ack(&"magnet", "velocity", ok, "expected=%s angle_deg=%.1f speed_ratio=%.2f span_s=%.2f" % [expected, angle_deg, speed_ratio, span_s])
 	var gone: bool = await _until(func() -> bool: return Match.registry().block_for_net_id(net_id) == null, CARRIER_GONE_TIMEOUT)
 	_ack(&"magnet", "despawn", gone, "carrier_gone=%s" % gone)

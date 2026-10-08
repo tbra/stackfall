@@ -21,11 +21,11 @@ foreach ($f in @("rl_host.log", "rl_host.err", "rl_client.log", "rl_client.err")
 $deadlineHit = $false
 try {
 	Write-Host "return_lobby_enet: port=$Port lag=${Lag}ms out=$Out"
-	$h = Start-Process godot -ArgumentList @("--headless","--log-file","$Outgodot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--agent-probe","--headless-host","--port=$Port") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\rl_host.log" -RedirectStandardError "$Out\rl_host.err"
+	$h = Start-Process godot -ArgumentList @("--headless","--log-file","${Out}\godot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--agent-probe","--headless-host","--port=$Port") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\rl_host.log" -RedirectStandardError "$Out\rl_host.err"
 	$null = $h.Handle
 	$script:procs += $h
 	Start-Sleep 3
-	$c = Start-Process godot -ArgumentList @("--headless","--log-file","$Outgodot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--agent-probe","--join=127.0.0.1:$Port","--sim-lag=$Lag") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\rl_client.log" -RedirectStandardError "$Out\rl_client.err"
+	$c = Start-Process godot -ArgumentList @("--headless","--log-file","${Out}\godot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--agent-probe","--join=127.0.0.1:$Port","--sim-lag=$Lag") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\rl_client.log" -RedirectStandardError "$Out\rl_client.err"
 	$null = $c.Handle
 	$script:procs += $c
 	$deadlineAt = (Get-Date).AddSeconds($TimeoutSeconds)
