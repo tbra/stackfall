@@ -1059,3 +1059,31 @@ func test_name_header_tower_block_and_experiments_lines_are_not_shown() -> void:
 	hud.match_provider = fake_match
 	hud.set_active_slot(1, Color.RED)
 	assert_true(hud._turn_label.visible, "hot-seat keeps its turn banner")
+
+
+## Bontago-1pi.117: a client gets sparse capture updates on a static board; the
+## ring must rise between them at the hold rate, snap on each update, and stop.
+func test_client_capture_ring_rises_between_sparse_updates_and_snaps() -> void:
+	var hud: HUD = _make_hud()
+	Events.goal_capture_progress.emit(0, 0.1)
+	hud.extrapolate_capture(2.0, 20.0)
+	assert_almost_eq(hud._capture_progress, 0.2, 0.0001)
+	hud.extrapolate_capture(2.0, 20.0)
+	assert_almost_eq(hud._capture_progress, 0.3, 0.0001, "monotonic rise")
+	Events.goal_capture_progress.emit(0, 0.6)
+	assert_almost_eq(hud._capture_progress, 0.6, 0.0001, "snaps to the received value")
+	hud.extrapolate_capture(1000.0, 20.0)
+	assert_almost_eq(hud._capture_progress, 1.0, 0.0001, "capped")
+
+
+func test_client_capture_ring_stops_on_break_and_win() -> void:
+	var hud: HUD = _make_hud()
+	Events.goal_capture_progress.emit(0, 0.4)
+	Events.goal_capture_progress.emit(-1, 0.0)
+	hud.extrapolate_capture(5.0, 20.0)
+	assert_eq(hud._capture_progress, 0.0)
+	assert_false(hud._capture_ring.visible)
+	Events.goal_capture_progress.emit(1, 0.4)
+	Events.match_won.emit(1)
+	hud.extrapolate_capture(5.0, 20.0)
+	assert_almost_eq(hud._capture_progress, 0.4, 0.0001, "no rise after a win")

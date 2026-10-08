@@ -171,6 +171,8 @@ var _next_shape: BlockShape = null
 var _locked: bool = false
 var _capture_color: Color = Color.WHITE
 var _capture_progress: float = 0.0
+## Client-only smoothing between sparse goal_capture_progress updates (1pi.117).
+var _capture_ext: ClaimProgressExtrapolator = ClaimProgressExtrapolator.new()
 var _reject_tween: Tween
 var _gift_toast_tween: Tween
 
@@ -289,6 +291,7 @@ func _ready() -> void:
 	Events.mode_state_changed.connect(_on_mode_state_changed)
 	Events.match_results_ready.connect(_on_match_results_ready)
 	Events.match_won.connect(_on_match_won)
+	Events.match_scope_reset.connect(_capture_ext.clear)
 	Events.match_state_changed.connect(_on_match_state_changed_glue)
 	Events.player_eliminated.connect(_on_player_eliminated)
 	Events.gift_claimed.connect(_on_gift_claimed)
@@ -351,6 +354,8 @@ func _update_countdown_label(delta: float) -> void:
 
 func _process(delta: float) -> void:
 	_update_countdown_label(delta)
+	if Net.is_client() and Match.is_live(Match.state()):
+		extrapolate_capture(delta, Match._territory_tuning.capture_hold)
 	# Bontago-mp0.3.3 (owner review 2026-09-26: "the minimap must match what
 	# the player sees -- rotate it with the camera yaw"). DECISION (ui/HUD.gd):
 	# reads Viewport.get_camera_3d() (whichever Camera3D currently has
@@ -788,8 +793,21 @@ func _on_mode_state_changed(state: Dictionary) -> void:
 
 
 func _on_goal_capture_progress(team_id: int, progress: float) -> void:
+	_capture_ext.snap(team_id, progress)
 	_minimap.set_capture(team_id, progress)
 	set_capture(team_id, progress, _color_for_team(team_id) if team_id >= 0 else Color.WHITE)
+
+
+## A client gets capture progress only when the territory raster changes, so on
+## a static board the ring froze (Bontago-1pi.117). Advance it at the hold rate
+## between updates, the same ClaimProgressExtrapolator Sfx uses; callers gate
+## this to live client matches. Each real update snaps it back.
+func extrapolate_capture(delta: float, hold_seconds: float) -> void:
+	if not _capture_ext.advance(delta, hold_seconds):
+		return
+	var team_id: int = _capture_ext.team()
+	_minimap.set_capture(team_id, _capture_ext.progress())
+	set_capture(team_id, _capture_ext.progress(), _color_for_team(team_id))
 
 
 ## A shared win (CTF tie) replaces the sole-winner text, from the payload's
@@ -805,6 +823,7 @@ func _on_match_results_ready(results: Dictionary) -> void:
 
 
 func _on_match_won(team_id: int) -> void:
+	_capture_ext.clear()
 	show_winner(team_id, _color_for_team(team_id))
 
 
