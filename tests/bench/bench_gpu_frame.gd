@@ -11,10 +11,18 @@ extends Node
 ## User args: --preset=low|medium|high, --blocks=N, --frames=N, --warmup=N,
 ## --gpu-off=<features> (applied together for the single run), --sweep=<features|all>
 ## (baseline, each feature alone, baseline again; one GPU_BENCH line each), --list.
+## Steady mode (--steady, used by tools/measure_gpu_steady.py): after --warmup-seconds the
+## bench prints "STEADY_BEGIN", holds the configuration for --steady-seconds at
+## Engine.max_fps=--max-fps (0 = uncapped) with vsync off, then prints "STEADY_END" and one
+## "GPU_STEADY" line (achieved fps, viewport-timer GPU ms, draws). The driver samples
+## nvidia-smi between the markers: that is the whole-GPU number, which unlike the viewport
+## timer also covers reflection-probe and sky-radiance passes (engine source: render_probes()
+## runs in RenderingServerDefault::_draw outside the vp_begin/vp_end timestamps).
 ## Output: one machine-readable line per run starting with "GPU_BENCH ". Only run it
 ## when no other app is using the GPU: the timestamps include contention.
 
-const DEFAULT_BLOCKS: int = 150
+# DECISION: owner's perf log shows a median of 8 blocks on the field; 40 is a busy-but-real sandbox.
+const DEFAULT_BLOCKS: int = 40
 const DEFAULT_FRAMES: int = 90
 const DEFAULT_WARMUP: int = 40
 const DEFAULT_PRESET: StringName = &"high"
@@ -28,10 +36,15 @@ const DROP_MAX_M: float = 14.0
 const SEED: int = 20261008
 const P90: float = 0.9
 const REDUCED_SCALE: float = 0.5
+const DEFAULT_MAX_FPS: int = 144
+const DEFAULT_WARMUP_SECONDS: float = 12.0
+const DEFAULT_STEADY_SECONDS: float = 12.0
+const USEC_PER_SEC: float = 1000000.0
 const FEATURES: PackedStringArray = [
 	"volumetric_fog", "ssr", "glow", "msaa", "shadows", "sky_radiance", "probe",
 	"overlay", "clouds", "outline", "birds", "sky_bg", "depth_fog", "islands",
 	"cloud_shadows", "sun_flare", "blocks", "fog_volume", "scale50", "aurora",
+	"probe_once", "ssao", "ssil", "sdfgi", "lights",
 ]
 
 var _main: Node = null
@@ -54,6 +67,10 @@ func _ready() -> void:
 	var warmup: int = DEFAULT_WARMUP
 	var off: PackedStringArray = PackedStringArray()
 	var sweep: PackedStringArray = PackedStringArray()
+	var steady: bool = false
+	var max_fps: int = DEFAULT_MAX_FPS
+	var warmup_seconds: float = DEFAULT_WARMUP_SECONDS
+	var steady_seconds: float = DEFAULT_STEADY_SECONDS
 	for arg: String in args:
 		if arg.begins_with("--preset="):
 			preset_id = StringName(arg.trim_prefix("--preset="))
@@ -65,6 +82,14 @@ func _ready() -> void:
 			warmup = int(arg.trim_prefix("--warmup="))
 		elif arg.begins_with("--gpu-off="):
 			off = arg.trim_prefix("--gpu-off=").split(",", false)
+		elif arg == "--steady":
+			steady = true
+		elif arg.begins_with("--max-fps="):
+			max_fps = int(arg.trim_prefix("--max-fps="))
+		elif arg.begins_with("--warmup-seconds="):
+			warmup_seconds = float(arg.trim_prefix("--warmup-seconds="))
+		elif arg.begins_with("--steady-seconds="):
+			steady_seconds = float(arg.trim_prefix("--steady-seconds="))
 		elif arg.begins_with("--sweep="):
 			var value: String = arg.trim_prefix("--sweep=")
 			sweep = FEATURES if value == "all" else value.split(",", false)
@@ -74,7 +99,9 @@ func _ready() -> void:
 	_render_vp.add_child.call_deferred(_main)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_main.call(&"_start_sandbox_match_with_args", PackedStringArray(["sandbox", "players=%d" % PLAYERS]))
+	# The real menu path: clears the main menu + its diorama (the first harness left the
+	# menu on screen, so every earlier reading measured the menu scene, not the match).
+	_main.call(&"start_sandbox_from_menu")
 	while Match.state() != Match.State.PLAYING:
 		await get_tree().process_frame
 	_field = _main.get_node("Field") as Field
@@ -83,7 +110,17 @@ func _ready() -> void:
 	_spawn_blocks(blocks)
 	await get_tree().create_timer(SETTLE_SECONDS).timeout
 	(_main.get("_sandbox") as Sandbox)._set_block_physics_frozen(true)
-	if sweep.is_empty():
+	if args.has("--prims-audit"):
+		for i: int in range(3):
+			await get_tree().process_frame
+		_prims_audit()
+		get_tree().quit()
+		return
+	if steady:
+		for feature: String in off:
+			_set_feature(feature, false)
+		await _steady(preset_id, off, max_fps, warmup_seconds, steady_seconds)
+	elif sweep.is_empty():
 		for feature: String in off:
 			_set_feature(feature, false)
 		await _measure(preset_id, off, blocks, frames, warmup)
@@ -95,6 +132,109 @@ func _ready() -> void:
 			_set_feature(feature, true)
 		await _measure(preset_id, PackedStringArray(), blocks, frames, warmup)
 	get_tree().quit()
+
+
+func _steady(preset_id: StringName, off: PackedStringArray, max_fps: int, warmup_seconds: float, steady_seconds: float) -> void:
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	Engine.max_fps = max_fps
+	var rid: RID = _render_vp.get_viewport_rid()
+	var warm_end: int = Time.get_ticks_usec() + int(warmup_seconds * USEC_PER_SEC)
+	while Time.get_ticks_usec() < warm_end:
+		await get_tree().process_frame
+	var gpu: Array[float] = []
+	var frames: int = 0
+	var begin: int = Time.get_ticks_usec()
+	print("STEADY_BEGIN")
+	var end: int = begin + int(steady_seconds * USEC_PER_SEC)
+	while Time.get_ticks_usec() < end:
+		await get_tree().process_frame
+		frames += 1
+		gpu.append(RenderingServer.viewport_get_measured_render_time_gpu(rid))
+	var elapsed: float = float(Time.get_ticks_usec() - begin) / USEC_PER_SEC
+	print("STEADY_END")
+	var shot: String = ""
+	for arg: String in OS.get_cmdline_user_args():
+		if arg.begins_with("--shot="):
+			shot = arg.trim_prefix("--shot=")
+	if not shot.is_empty():
+		_render_vp.get_texture().get_image().save_png(shot)
+	for info_type: int in [RenderingServer.VIEWPORT_RENDER_INFO_TYPE_VISIBLE, RenderingServer.VIEWPORT_RENDER_INFO_TYPE_SHADOW]:
+		print("VP_INFO type=%d objects=%d prims=%d draws=%d" % [
+			info_type,
+			RenderingServer.viewport_get_render_info(rid, info_type, RenderingServer.VIEWPORT_RENDER_INFO_OBJECTS_IN_FRAME),
+			RenderingServer.viewport_get_render_info(rid, info_type, RenderingServer.VIEWPORT_RENDER_INFO_PRIMITIVES_IN_FRAME),
+			RenderingServer.viewport_get_render_info(rid, info_type, RenderingServer.VIEWPORT_RENDER_INFO_DRAW_CALLS_IN_FRAME),
+		])
+	print("PERF_MON prims=%d draws=%d objects=%d" % [
+		int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)),
+		int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),
+		int(Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME)),
+	])
+	gpu.sort()
+	print("GPU_STEADY preset=%s off=%s max_fps=%d fps=%.1f vp_gpu_ms_median=%.3f vp_gpu_ms_p90=%.3f draws=%d objects=%d prims=%d" % [
+		preset_id, ",".join(off) if not off.is_empty() else "none", max_fps, float(frames) / elapsed,
+		gpu[gpu.size() / 2], gpu[mini(int(float(gpu.size()) * P90), gpu.size() - 1)],
+		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
+		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_OBJECTS_IN_FRAME),
+		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME),
+	])
+	get_tree().quit()
+
+
+## Static triangle inventory (no GPU timing): every MeshInstance3D / MultiMeshInstance3D under
+## the scene, with triangles per submission, how many passes can draw it (main + shadow splits +
+## probe faces by cull mask) and flags, sorted by triangles x passes.
+func _prims_audit() -> void:
+	# Menu leftovers after the real menu -> sandbox flow (Bontago-1pi.127 question).
+	for node: Node in get_tree().root.find_children("*", "SubViewport", true, false):
+		var sv: SubViewport = node as SubViewport
+		print("TREE_AUDIT subviewport=%s size=%s update=%d visible_in_tree=%s" % [str(sv.get_path()), sv.size, sv.render_target_update_mode, sv.is_inside_tree()])
+	for node: Node in get_tree().root.find_children("*", "", true, false):
+		var cls: String = node.get_class()
+		var script: Script = node.get_script() as Script
+		var global_name: String = script.get_global_name() if script != null else ""
+		if global_name in ["MainMenu", "MenuDiorama", "MenuBackdrop", "Lobby", "SplashScreen"]:
+			print("TREE_AUDIT menu_node=%s class=%s queued_for_deletion=%s" % [str(node.get_path()), global_name, node.is_queued_for_deletion()])
+	print("TREE_AUDIT root_disable_3d=%s max_fps=%d" % [get_tree().root.disable_3d, Engine.max_fps])
+	var rows: Array[Dictionary] = []
+	var probe_mask: int = 0
+	for node: Node in _main.find_children("*", "ReflectionProbe", true, false):
+		probe_mask = (node as ReflectionProbe).cull_mask
+	for node: Node in _main.find_children("*", "GeometryInstance3D", true, false):
+		var gi: GeometryInstance3D = node as GeometryInstance3D
+		var mesh: Mesh = null
+		var count: int = 1
+		if gi is MeshInstance3D:
+			mesh = (gi as MeshInstance3D).mesh
+		elif gi is MultiMeshInstance3D and (gi as MultiMeshInstance3D).multimesh != null:
+			var mm: MultiMesh = (gi as MultiMeshInstance3D).multimesh
+			mesh = mm.mesh
+			count = mm.visible_instance_count if mm.visible_instance_count >= 0 else mm.instance_count
+		if mesh == null:
+			continue
+		var tris: int = 0
+		for surf: int in range(mesh.get_surface_count()):
+			var arrays: Array = mesh.surface_get_arrays(surf)
+			var idx: Variant = arrays[Mesh.ARRAY_INDEX]
+			if idx != null and (idx as PackedInt32Array).size() > 0:
+				tris += (idx as PackedInt32Array).size() / 3
+			else:
+				tris += (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() / 3
+		var visible: bool = gi.is_visible_in_tree()
+		rows.append({
+			"path": str(_main.get_path_to(gi)), "tris": tris * count, "visible": visible,
+			"shadow": gi.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF,
+			"in_probe": (gi.layers & probe_mask) != 0, "layers": gi.layers,
+		})
+	rows.sort_custom(func(x: Dictionary, y: Dictionary) -> bool: return int(x["tris"]) > int(y["tris"]))
+	var total: int = 0
+	for row: Dictionary in rows:
+		if row["visible"]:
+			total += int(row["tris"])
+	print("PRIMS_AUDIT preset=%s visible_total_tris=%d probe_mask=%d nodes=%d" % [Settings.current_graphics_preset().id, total, probe_mask, rows.size()])
+	for i: int in range(mini(rows.size(), 30)):
+		var row: Dictionary = rows[i]
+		print("PRIMS_AUDIT_ROW tris=%d vis=%s shadow=%s in_probe=%s layers=%d %s" % [row["tris"], row["visible"], row["shadow"], row["in_probe"], row["layers"], row["path"]])
 
 
 func _spawn_blocks(count: int) -> void:
@@ -160,6 +300,17 @@ func _set_feature(feature: String, on: bool) -> void:
 		"sky_radiance":
 			# Off = radiance cubemap rendered once (QUALITY) instead of incrementally each frame.
 			_toggle(feature, _env.sky, "process_mode", Sky.PROCESS_MODE_QUALITY, on)
+		"probe_once":
+			_toggle_all(feature, ReflectionProbe, "update_mode", ReflectionProbe.UPDATE_ONCE, on)
+		"ssao":
+			_toggle(feature, _env, "ssao_enabled", false, on)
+		"ssil":
+			_toggle(feature, _env, "ssil_enabled", false, on)
+		"sdfgi":
+			_toggle(feature, _env, "sdfgi_enabled", false, on)
+		"lights":
+			_toggle_all(feature, OmniLight3D, "visible", false, on)
+			_toggle_all(feature + "_spot", SpotLight3D, "visible", false, on)
 		"overlay":
 			_toggle(feature, _field.overlay(), "visible", false, on)
 		"blocks":
