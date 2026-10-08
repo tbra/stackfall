@@ -178,6 +178,8 @@ func _issue_next_block(slot_id: int, from_backlog: bool = true) -> void:
 		is_gift = _next_gift_shapes.has(slot_id)
 		_next_gift_shapes.erase(slot_id)
 	_held_is_gift[slot_id] = is_gift
+	# Bontago-1pi.134 review: an aim noted for the previous piece never carries over to this one.
+	_match._placement.forget_aim(slot_id)
 	if is_gift:
 		_match._gifts.activate_next_special(slot_id)
 	else:

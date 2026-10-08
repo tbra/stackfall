@@ -551,6 +551,11 @@ func note_aim(slot_id: int, forward: Vector3) -> void:
 	_aim_by_slot[slot_id] = forward
 
 
+## Drops the aim noted for `slot_id` (a new piece was issued to it).
+func forget_aim(slot_id: int) -> void:
+	_aim_by_slot.erase(slot_id)
+
+
 ## The aim last noted for `slot_id`, or Vector3.ZERO.
 func noted_aim(slot_id: int) -> Vector3:
 	return _aim_by_slot.get(slot_id, Vector3.ZERO)

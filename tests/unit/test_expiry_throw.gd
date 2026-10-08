@@ -318,3 +318,11 @@ func test_bot_bomb_without_a_range_keeps_the_nearest_release_point() -> void:
 		MatchConfig.AiDifficulty.HARD, _bot_tuning()
 	)
 	assert_eq(action.throw_origin, Vector2(-30.0, 0.0))
+
+
+func test_issuing_a_new_piece_clears_the_previous_pieces_aim() -> void:
+	_start_with(&"gift_bomb", GiftThrow.Mode.THROW)
+	Match.note_aim(0, AIM)
+	assert_eq(Match.noted_aim(0), AIM)
+	Match._feed._consume_and_refeed(0, false)
+	assert_eq(Match.noted_aim(0), Vector3.ZERO, "expiry must not reuse an earlier piece's aim")
