@@ -129,3 +129,41 @@ func test_walls_stop_on_a_block_under_the_ghost() -> void:
 	for vertex: Vector3 in ghost.projection_mesh_vertices_world():
 		lowest = minf(lowest, vertex.y)
 	assert_almost_eq(lowest, 2.0, 0.05, "wall bottoms on the tower top (y=2), not the disc")
+
+
+func test_mask_matches_mesh_rule_and_free_rotation_footprint() -> void:
+	var ghost: GhostPreview = _ghost_with("plus5")
+	ghost.free_quaternion = Quaternion(Vector3.UP, 0.4)
+	ghost.set_orientation_index(0)
+	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+	ghost.global_position.y = 3.0
+	ghost._update_footprint()
+	var pivot: Vector3 = ghost.get_shape().bottom_center()
+	for cell: Vector3i in ghost.get_shape().cells:
+		var rotated: Vector3 = ghost.basis * ((Vector3(cell) - pivot) * ghost.tuning.cube_size)
+		assert_true(ghost.footprint_contains_local(Vector2(rotated.x, rotated.z)), "free-rotated cell %s" % cell)
+	var corner: Vector3 = ghost.basis * ((Vector3(0, 0, 0) - pivot) * ghost.tuning.cube_size)
+	assert_false(ghost.footprint_contains_local(Vector2(corner.x, corner.z)), "empty corner column stays empty")
+	var image: Image = (ghost._block_projection_decal.texture_albedo as ImageTexture).get_image()
+	assert_eq(image.get_pixel(0, 0).a, 0.0, "mask corner of the bbox is transparent")
+
+
+func test_mask_rebuild_is_cheap_and_not_repeated_for_an_unchanged_basis() -> void:
+	var ghost: GhostPreview = _ghost_with("plus5")
+	var worst_usec: int = 0
+	for step: int in range(12):
+		ghost.free_quaternion = Quaternion(Vector3.UP, 0.1 + step * 0.13)
+		ghost.set_orientation_index(0)
+		ghost.update_placement(Vector3.ZERO, Vector3.UP)
+		ghost.global_position.y = 3.0
+		var loops: Array[PackedVector2Array] = ghost._shape_silhouette_loops()
+		var started: int = Time.get_ticks_usec()
+		ghost._rasterize_footprint_mask(loops, Vector2(-2.0, -2.0), Vector2(4.0, 4.0))
+		worst_usec = maxi(worst_usec, Time.get_ticks_usec() - started)
+	gut.p("worst mask raster: %d us" % worst_usec)
+	assert_lt(worst_usec, 2000, "mask raster stays cheap (target < 0.5 ms; headless margin)")
+	ghost._update_footprint()
+	var before: int = ghost.mask_rebuild_count
+	ghost._update_footprint()
+	ghost._update_footprint()
+	assert_eq(ghost.mask_rebuild_count, before, "an unchanged basis never rebuilds the mask")

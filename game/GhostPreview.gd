@@ -378,9 +378,14 @@ const _SILHOUETTE_PROBE_INSET: float = 1e-3
 ## Bontago-1pi.129/132: how far below the disc-level wall bottom the per-piece
 ## floor probe ray reaches, so a hit exactly on the disc still registers.
 const _PIECE_FLOOR_RAY_MARGIN: float = 0.05
+const _FLOOR_RAY_MAX_SKIPS: int = 3
+const _FLOORS_NEVER: int = -1000000
+const _FLOOR_RECAST_FRAMES: int = 12
+const MASK_CACHE_MAX_ENTRIES: int = 64
+const _MASK_KEY_SCALE: float = 1000.0
 ## Bontago-1pi.132: resolution of the block-projection decal's footprint mask.
-const FOOTPRINT_MASK_PIXELS_PER_METER: float = 12.0
-const FOOTPRINT_MASK_MAX_PIXELS: int = 256
+const FOOTPRINT_MASK_PIXELS_PER_METER: float = 8.0
+const FOOTPRINT_MASK_MAX_PIXELS: int = 96
 const _MIN_POLYGON_POINTS: int = 3
 ## Indices of the probe point in _underside_heights()'s result.
 const _HEIGHTS_PROBE_X: int = 2
@@ -476,6 +481,12 @@ var _cached_wall_heights: PackedVector2Array = PackedVector2Array()
 ## straight-down probe so each wall stops on whatever (tower top or disc) lies
 ## under that piece instead of running through placed blocks.
 var _cached_wall_probes: PackedVector2Array = PackedVector2Array()
+var _floors: PackedFloat64Array = PackedFloat64Array()
+var _floors_shape: BlockShape = null
+var _floors_position: Vector3 = Vector3.ZERO
+var _floors_basis: Basis = Basis.IDENTITY
+var _floors_bottom: float = 0.0
+var _floors_frame: int = _FLOORS_NEVER
 ## Bontago-xtq.7: the last disk-surface point PlayerController's own
 ## placed-block-skipping probe reported (update_placement()'s own
 ## `surface_point` argument), kept so _update_footprint()'s disk-under-the-
@@ -1168,14 +1179,13 @@ func _update_projection_mesh(landing_y: float) -> void:
 	# frame's own height -- the only per-frame work (see
 	# _cached_wall_heights' own doc comment).
 	var origin_y: float = global_position.y
+	var floors: PackedFloat64Array = _piece_floors(wall_bottom_y)
 	for i: int in range(_cached_wall_heights.size()):
 		var heights: Vector2 = _cached_wall_heights[i]
 		# Bontago-1pi.129/132: stop each piece on whatever is under it (a placed
 		# tower's top face, which the block-projection decal paints), not the
 		# disc, so the additive wall never runs through placed blocks.
-		var piece_bottom_y: float = _piece_floor_y(
-			_cached_wall_probes[i], origin_y + minf(heights.x, heights.y), wall_bottom_y
-		)
+		var piece_bottom_y: float = floors[i]
 		_append_underside_wall(
 			_cached_wall_segments[i * 2], _cached_wall_segments[i * 2 + 1],
 			origin_y + heights.x, origin_y + heights.y, piece_bottom_y,
@@ -1202,9 +1212,33 @@ func _update_projection_mesh(landing_y: float) -> void:
 	_projection_mesh.mesh = built
 
 
-## Bontago-1pi.129/132: world Y the wall piece probed at ghost-local `probe`
-## should stop at -- the first collider (placed block or disc) straight below
-## `from_y`, never lower than `floor_y` (the disc-level wall bottom).
+## Bontago-1pi.129/132: per-piece wall floors (world Y). Re-cast only when the
+## ghost pose, wall set or disc-level floor changed, or every
+## _FLOOR_RECAST_FRAMES physics frames (a tower may have grown), so a held
+## still ghost costs no rays.
+func _piece_floors(wall_bottom_y: float) -> PackedFloat64Array:
+	var frame: int = Engine.get_physics_frames()
+	if _floors_shape == _shape and _floors_position.is_equal_approx(global_position) \
+			and _floors_basis.is_equal_approx(basis) and is_equal_approx(_floors_bottom, wall_bottom_y) \
+			and _floors.size() == _cached_wall_heights.size() and frame - _floors_frame < _FLOOR_RECAST_FRAMES:
+		return _floors
+	_floors_shape = _shape
+	_floors_position = global_position
+	_floors_basis = basis
+	_floors_bottom = wall_bottom_y
+	_floors_frame = frame
+	_floors = PackedFloat64Array()
+	for i: int in range(_cached_wall_heights.size()):
+		var heights: Vector2 = _cached_wall_heights[i]
+		_floors.append(_piece_floor_y(_cached_wall_probes[i], global_position.y + minf(heights.x, heights.y), wall_bottom_y))
+	return _floors
+
+
+## World Y the wall piece probed at ghost-local `probe` should stop at: the
+## first settled collider (placed sleeping block or disc; loose/falling blocks
+## are skipped so the bottom never flickers; gifts are Areas and never hit)
+## straight below `from_y`, plus footprint_offset against z-fighting, never
+## lower than `floor_y` (the disc-level wall bottom).
 func _piece_floor_y(probe: Vector2, from_y: float, floor_y: float) -> float:
 	if not is_inside_tree() or from_y <= floor_y:
 		return floor_y
@@ -1215,14 +1249,22 @@ func _piece_floor_y(probe: Vector2, from_y: float, floor_y: float) -> float:
 	if space_state == null:
 		return floor_y
 	var origin: Vector3 = Vector3(global_position.x + probe.x, from_y, global_position.z + probe.y)
-	var params: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
-		origin, Vector3(origin.x, floor_y - _PIECE_FLOOR_RAY_MARGIN, origin.z)
-	)
-	params.collision_mask = Field.PLACEMENT_QUERY_MASK
-	var hit: Dictionary = space_state.intersect_ray(params)
-	if hit.is_empty():
-		return floor_y
-	return maxf(floor_y, (hit["position"] as Vector3).y)
+	var exclude: Array[RID] = []
+	for _attempt: int in range(_FLOOR_RAY_MAX_SKIPS + 1):
+		var params: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
+			origin, Vector3(origin.x, floor_y - _PIECE_FLOOR_RAY_MARGIN, origin.z)
+		)
+		params.collision_mask = Field.PLACEMENT_QUERY_MASK
+		params.exclude = exclude
+		var hit: Dictionary = space_state.intersect_ray(params)
+		if hit.is_empty():
+			return floor_y
+		var body: RigidBody3D = hit["collider"] as RigidBody3D
+		if body != null and not body.sleeping:
+			exclude.append(hit["rid"] as RID)
+			continue
+		return maxf(floor_y, (hit["position"] as Vector3).y + ghost_tuning.footprint_offset)
+	return floor_y
 
 
 ## Hides the projection prism (nothing held, or every column collapsed -- see
@@ -1335,9 +1377,11 @@ func block_projection_decal_color() -> Color:
 ## and fades on its own; same runtime-built-texture idea as _build_hatch_
 ## texture() below.
 func _build_white_decal_texture() -> ImageTexture:
-	var image: Image = Image.create(2, 2, false, Image.FORMAT_RGBA8)
-	image.fill(Color(1.0, 1.0, 1.0, 1.0))
-	return ImageTexture.create_from_image(image)
+	if _white_texture == null:
+		var image: Image = Image.create(2, 2, false, Image.FORMAT_RGBA8)
+		image.fill(Color(1.0, 1.0, 1.0, 1.0))
+		_white_texture = ImageTexture.create_from_image(image)
+	return _white_texture
 
 
 ## Bontago-xtq.19 attempt 3 (this file's own header): the projection prism's
@@ -1798,9 +1842,14 @@ func footprint_contains_local(point: Vector2) -> bool:
 
 
 func _point_in_loops(point: Vector2, loops: Array[PackedVector2Array]) -> bool:
+	if loops.is_empty():
+		return false
+	# Same rule as the footprint mesh: only outer-wound loops fill (a hole loop
+	# winds the other way and is not triangulated), so the mask matches it.
+	var outer_clockwise: bool = Geometry2D.is_polygon_clockwise(_largest_loop(loops))
 	var crossings: int = 0
 	for loop: PackedVector2Array in loops:
-		if Geometry2D.is_point_in_polygon(point, loop):
+		if Geometry2D.is_polygon_clockwise(loop) == outer_clockwise and Geometry2D.is_point_in_polygon(point, loop):
 			crossings += 1
 	return crossings % 2 == 1
 
@@ -1813,10 +1862,14 @@ var _mask_shape: BlockShape = null
 var _mask_basis: Basis = Basis.IDENTITY
 var _mask_origin: Vector2 = Vector2.ZERO
 var _mask_extent: Vector2 = Vector2.ZERO
+var _mask_cache: Dictionary = {}
+var mask_rebuild_count: int = 0
+static var _white_texture: ImageTexture = null
 
 
 func _apply_decal_footprint_mask(origin: Vector2, extent: Vector2) -> void:
-	if _mask_shape == _shape and _mask_basis.is_equal_approx(basis) 			and _mask_origin.is_equal_approx(origin) and _mask_extent.is_equal_approx(extent):
+	if _mask_shape == _shape and _mask_basis.is_equal_approx(basis) \
+			and _mask_origin.is_equal_approx(origin) and _mask_extent.is_equal_approx(extent):
 		return
 	var loops: Array[PackedVector2Array] = _shape_silhouette_loops()
 	if loops.is_empty():
@@ -1826,14 +1879,56 @@ func _apply_decal_footprint_mask(origin: Vector2, extent: Vector2) -> void:
 	_mask_basis = basis
 	_mask_origin = origin
 	_mask_extent = extent
+	var key: int = [
+		_shape.get_instance_id(), roundi(basis.x.x * _MASK_KEY_SCALE), roundi(basis.x.y * _MASK_KEY_SCALE),
+		roundi(basis.x.z * _MASK_KEY_SCALE), roundi(basis.y.x * _MASK_KEY_SCALE), roundi(basis.y.y * _MASK_KEY_SCALE),
+		roundi(basis.y.z * _MASK_KEY_SCALE), roundi(basis.z.x * _MASK_KEY_SCALE), roundi(basis.z.y * _MASK_KEY_SCALE),
+		roundi(basis.z.z * _MASK_KEY_SCALE), roundi(origin.x * _MASK_KEY_SCALE), roundi(origin.y * _MASK_KEY_SCALE),
+		roundi(extent.x * _MASK_KEY_SCALE), roundi(extent.y * _MASK_KEY_SCALE),
+	].hash()
+	if _mask_cache.has(key):
+		_block_projection_decal.texture_albedo = _mask_cache[key] as ImageTexture
+		return
+	if _mask_cache.size() >= MASK_CACHE_MAX_ENTRIES:
+		_mask_cache.clear()
+	mask_rebuild_count += 1
+	var texture: ImageTexture = ImageTexture.create_from_image(_rasterize_footprint_mask(loops, origin, extent))
+	_mask_cache[key] = texture
+	_block_projection_decal.texture_albedo = texture
+
+
+## Scanline fill of the outer loops (even-odd, hole loops skipped like the
+## mesh) into an alpha mask over [origin, origin + extent]; one fill_rect per
+## covered span, no per-pixel polygon tests.
+func _rasterize_footprint_mask(loops: Array[PackedVector2Array], origin: Vector2, extent: Vector2) -> Image:
 	var width: int = clampi(ceili(extent.x * FOOTPRINT_MASK_PIXELS_PER_METER), 2, FOOTPRINT_MASK_MAX_PIXELS)
 	var height: int = clampi(ceili(extent.y * FOOTPRINT_MASK_PIXELS_PER_METER), 2, FOOTPRINT_MASK_MAX_PIXELS)
-	var image: Image = Image.create(width, height, false, Image.FORMAT_RGBA8)
-	for py: int in range(height):
-		for px: int in range(width):
-			var point: Vector2 = origin + Vector2((px + 0.5) / width * extent.x, (py + 0.5) / height * extent.y)
-			image.set_pixel(px, py, Color.WHITE if _point_in_loops(point, loops) else Color(1.0, 1.0, 1.0, 0.0))
-	_block_projection_decal.texture_albedo = ImageTexture.create_from_image(image)
+	var image: Image = Image.create_empty(width, height, false, Image.FORMAT_RGBA8)
+	image.fill(Color(Color.WHITE, 0.0))
+	var outer_clockwise: bool = Geometry2D.is_polygon_clockwise(_largest_loop(loops))
+	var edges: PackedVector2Array = PackedVector2Array()
+	for loop: PackedVector2Array in loops:
+		if Geometry2D.is_polygon_clockwise(loop) != outer_clockwise:
+			continue
+		for i: int in range(loop.size()):
+			edges.append(loop[i])
+			edges.append(loop[(i + 1) % loop.size()])
+	var crossings: PackedFloat64Array = PackedFloat64Array()
+	for row: int in range(height):
+		var v: float = origin.y + (row + 0.5) / height * extent.y
+		crossings.clear()
+		for e: int in range(0, edges.size(), 2):
+			var a: Vector2 = edges[e]
+			var b: Vector2 = edges[e + 1]
+			if (a.y <= v) != (b.y <= v):
+				crossings.append(a.x + (v - a.y) / (b.y - a.y) * (b.x - a.x))
+		crossings.sort()
+		for k: int in range(0, crossings.size() - 1, 2):
+			var x0: int = clampi(ceili((crossings[k] - origin.x) / extent.x * width - 0.5), 0, width)
+			var x1: int = clampi(ceili((crossings[k + 1] - origin.x) / extent.x * width - 0.5), 0, width)
+			if x1 > x0:
+				image.fill_rect(Rect2i(x0, row, x1 - x0, 1), Color.WHITE)
+	return image
 
 
 ## Straight down from `origin`, skipping any RigidBody3D (a placed block) so
