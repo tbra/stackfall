@@ -287,3 +287,47 @@ func test_rocket_arc_is_straight_gravity_free() -> void:
 	var direction: Vector3 = (points[1] - points[0]).normalized()
 	for i: int in range(1, points.size()):
 		assert_true((points[i] - points[i - 1]).normalized().is_equal_approx(direction), "straight line, no gravity")
+
+
+# --- Landing-zone ring (Bontago-1pi.85.63) -----------------------------------
+
+func _ring_mesh_is_flat_annulus(ring: MeshInstance3D, outer: float, width: float) -> void:
+	var mesh: ArrayMesh = ring.mesh as ArrayMesh
+	assert_not_null(mesh, "the end marker must be an ArrayMesh ring, not a sphere.")
+	var verts: PackedVector3Array = mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var max_r: float = 0.0
+	var min_r: float = INF
+	for v: Vector3 in verts:
+		assert_almost_eq(v.y, 0.0, 0.0001, "ring must be flat.")
+		max_r = maxf(max_r, Vector2(v.x, v.z).length())
+		min_r = minf(min_r, Vector2(v.x, v.z).length())
+	assert_almost_eq(max_r, outer, 0.001, "outer radius equals config.")
+	assert_almost_eq(min_r, outer - width, 0.001, "inner radius = outer - width.")
+
+
+func test_end_ring_sits_at_landing_point_flat_field() -> void:
+	var arc: ThrowArcPreview = _make_arc()
+	var field: Field = _make_field()
+	arc.update_arc(Vector3(0.0, 2.0, 0.0), Vector3(6.0, 8.0, 0.0), field)
+	var ring: MeshInstance3D = arc.end_ring()
+	assert_true(ring.visible)
+	var end: Vector3 = arc.current_points()[arc.current_points().size() - 1]
+	var lift: float = arc.ghost_tuning.throw_arc_end_marker_lift
+	assert_true(ring.global_position.distance_to(end) <= 0.01 + lift)
+	assert_true(ring.global_transform.basis.y.angle_to(Vector3.UP) < deg_to_rad(2.0))
+	_ring_mesh_is_flat_annulus(ring, arc.ghost_tuning.throw_arc_end_marker_radius, arc.ghost_tuning.throw_arc_end_marker_width)
+	arc.clear_arc()
+	assert_false(ring.visible)
+
+
+func test_end_ring_aligns_to_tilted_field_normal() -> void:
+	var arc: ThrowArcPreview = _make_arc()
+	var field: Field = _make_field()
+	field.rotation = Vector3(deg_to_rad(10.0), 0.0, deg_to_rad(-6.0))
+	var normal: Vector3 = field.global_transform.basis.y.normalized()
+	arc.update_arc(Vector3(0.0, 2.0, 0.0), Vector3(1.0, 3.0, 0.0), field)
+	var ring: MeshInstance3D = arc.end_ring()
+	var end: Vector3 = arc.current_points()[arc.current_points().size() - 1]
+	assert_true(ring.global_position.distance_to(end) <= 0.01 + arc.ghost_tuning.throw_arc_end_marker_lift)
+	assert_true(ring.global_transform.basis.y.angle_to(normal) < deg_to_rad(2.0))
+	assert_true(arc.end_ring_normal().angle_to(normal) < deg_to_rad(2.0))

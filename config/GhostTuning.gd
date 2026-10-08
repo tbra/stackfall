@@ -483,11 +483,17 @@ extends Resource
 ## point -- e.g. for a map/tuning combination where "3 m below the disc" would
 ## still read as floating in the air.
 @export var throw_arc_floor_enabled: bool = true
-## Whether the arc preview drops a small flat disc marker at its own landing
+## Whether the arc preview draws a flat landing-zone ring at its own landing
 ## point, for extra legibility beyond the polyline simply stopping there.
 @export var throw_arc_end_marker_enabled: bool = true
-## World-space radius (meters) of the landing-point marker disc above.
-@export var throw_arc_end_marker_radius: float = 0.12
+## Outer radius (meters) of the landing-zone ring above (Bontago-1pi.85.63).
+@export var throw_arc_end_marker_radius: float = 0.5
+## Radial width (meters) of the landing-zone ring's band, measured inward from its outer radius.
+@export var throw_arc_end_marker_width: float = 0.08
+## Meters the ring floats along the landing surface normal, so it never z-fights the surface.
+@export var throw_arc_end_marker_lift: float = 0.02
+## Segments around the landing-zone ring (higher reads rounder).
+@export var throw_arc_end_marker_segments: int = 48
 
 ## -- Feel round 7 (ghost) --
 
