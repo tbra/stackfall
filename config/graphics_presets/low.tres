@@ -10,6 +10,7 @@ msaa_3d = 0
 shadow_atlas_size = 2048
 volumetric_fog_enabled = false
 cloud_puff_subdivisions = 1
+cloud_billboard_distance_m = 150.0
 cloud_puff_density = 0.2
 birds_enabled = false
 ambient_life_enabled = false
@@ -23,3 +24,7 @@ aurora_enabled = false
 reflection_probe_mode = 0
 reflection_probe_interval_s = 0.5
 glow_enabled = false
+; DECISION (Bontago-1pi.11.67): Low renders the 3D scene at 0.75 and upscales with FSR 1.0 (mode 1).
+; High and Medium stay native.
+render_scale_3d = 0.75
+render_scale_3d_mode = 1

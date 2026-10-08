@@ -7,6 +7,8 @@ script = ExtResource("1_hints")
 ranges = {
 "GraphicsPreset.screen_check_interval_s": Vector2(0.1, 10.0),
 "GraphicsPreset.reflection_probe_interval_s": Vector2(0.1, 60.0),
+"GraphicsPreset.cloud_billboard_distance_m": Vector2(0.0, 2000.0),
+"GraphicsPreset.render_scale_3d_mode": Vector2(0.0, 2.0),
 "SpecialTuning.gift_aim_back_m": Vector2(0.0, 30.0),
 "SpecialTuning.gift_aim_min_height_m": Vector2(0.0, 5.0),
 "SpecialTuning.gift_throw_speed_mps": Vector2(1.0, 60.0),

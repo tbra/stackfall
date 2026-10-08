@@ -25,6 +25,10 @@ extends Resource
 ## The shader carves the silhouette per pixel, so 1 looks the same at a quarter of the
 ## ~1.2M-primitive cloud-sea cost.
 @export_range(1, 2) var cloud_puff_subdivisions: int = 2
+## Bontago-1pi.11.67 (fix 2a): cloud clumps whose rest position lies at least this far (m) from the
+## disc axis draw as camera-facing hexagon impostors (4 triangles) instead of 80-triangle hulls; the
+## puff shader carves the same lumpy silhouette on either. 0 = every puff keeps its hull.
+@export var cloud_billboard_distance_m: float = 0.0
 ## Bontago-adt.1: distant animated bird flocks (vfx/DistantBirds.gd); off on Low.
 @export var birds_enabled: bool = true
 ## Bontago-adt.3: cosmetic ambient life (perching birds, fireflies); off on Low.
@@ -85,3 +89,6 @@ enum FrameCap { DISPLAY_REFRESH, FIXED, UNCAPPED }
 @export_range(0.0, 1.0) var weather_density_scale: float = 1.0
 ## Viewport.scaling_3d_scale (1 = native resolution).
 @export_range(0.25, 1.0) var render_scale_3d: float = 1.0
+## Bontago-1pi.11.67 (fix 2a): Viewport.Scaling3DMode used while render_scale_3d < 1 (0 bilinear,
+## 1 FSR 1.0, 2 FSR 2.2). Ignored at native resolution.
+@export_range(0, 2) var render_scale_3d_mode: int = 0

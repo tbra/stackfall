@@ -375,6 +375,10 @@ func _apply_graphics_preset(preset: GraphicsPreset) -> void:
 		# Bontago-1pi.11.37: only written on change; 1.0 on every shipped preset.
 		if not is_equal_approx(viewport.scaling_3d_scale, preset.render_scale_3d):
 			viewport.scaling_3d_scale = preset.render_scale_3d
+		# DECISION (Bontago-1pi.11.67): the upscaler is a preset field (Low: FSR 1.0).
+		var mode: Viewport.Scaling3DMode = preset.render_scale_3d_mode as Viewport.Scaling3DMode
+		if viewport.scaling_3d_mode != mode:
+			viewport.scaling_3d_mode = mode
 
 	# DECISION (Bontago-xtq.26): Godot 4 has no per-Viewport or per-light
 	# directional-shadow-atlas size -- RenderingServer.

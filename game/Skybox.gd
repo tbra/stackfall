@@ -1490,7 +1490,8 @@ func _apply_ambient_life(preset: GraphicsPreset, applied_theme: SkyThemeDef) -> 
 		var subdivisions: int = preset.cloud_puff_subdivisions if preset != null else CloudSea.PUFF_SUBDIVISIONS
 		_cloud_sea.upper_low = preset != null and not preset.ambient_life_enabled
 		_cloud_sea.disc_radius_m = _largest_disc_radius()
-		_cloud_sea.configure(applied_theme, density, sky_material, subdivisions)
+		var billboard_m: float = preset.cloud_billboard_distance_m if preset != null else 0.0
+		_cloud_sea.configure(applied_theme, density, sky_material, subdivisions, billboard_m)
 		# Bontago-mp0.19: configure() resets the puff palette; keep the storm tint.
 		if _storm_amount > 0.0 and _storm_target != null and applied_theme != null and applied_theme == theme:
 			_cloud_sea.apply_storm_tint(applied_theme, _storm_target, _storm_amount, applied_theme.sky_material)

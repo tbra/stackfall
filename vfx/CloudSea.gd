@@ -64,6 +64,13 @@ const SIZE_JITTER: float = 0.15
 const TOP_JITTER_MIN: float = 0.82
 const STRETCH_MAX: float = 1.2
 
+## Bontago-1pi.11.67 (fix 2a): per-instance shader flag marking the hexagon-impostor instances.
+const BILLBOARD_PARAMETER: StringName = &"billboard"
+## Hexagon impostor (UV = corner): circumradius over inradius 1 is 2 / sqrt(3), so the polygon
+## contains the unit circle the shader sizes to the puff silhouette (1 / cos(PI / corners)).
+const BILLBOARD_CORNERS: int = 6
+const INDICES_PER_TRIANGLE: int = 3
+
 ## Bontago-mp0.95: group the live CloudSea joins so vfx/SunFlare.gd can ask it whether the
 ## puffs hide the sun without a node path.
 const GROUP: StringName = &"cloud_sea"
@@ -118,7 +125,20 @@ class _Layer:
 	var vertical_scale: float = 1.0
 
 
+## One instance's puffs while they are generated (clumps pick their instance by distance).
+class _Stage:
+	extends RefCounted
+	var transforms: Array[Transform3D] = []
+	var customs: Array[Color] = []
+	var colors: Array[Color] = []
+
+
 var _instance: MultiMeshInstance3D = null
+## Bontago-1pi.11.67: the impostor twins of _instance / _upper (null when no clump is that far).
+var _far: MultiMeshInstance3D = null
+var _upper_far: MultiMeshInstance3D = null
+## GraphicsPreset.cloud_billboard_distance_m of the last configure() (0 = hulls only).
+var _billboard_distance_m: float = 0.0
 var _material: ShaderMaterial = null
 ## Bontago-mp0.26: the cycle-mixed cloud colours last written by
 ## set_cycle_appearance(), keyed by shader parameter. apply_storm_tint() lerps
@@ -273,13 +293,16 @@ func drift_offset() -> Vector2:
 	return _drift_offset
 
 
-func configure(theme: SkyThemeDef, density: float, sky_material: Material = null, subdivisions: int = PUFF_SUBDIVISIONS) -> void:
-	if _instance != null:
-		_instance.queue_free()
-		_instance = null
-	if _upper != null:
-		_upper.queue_free()
-		_upper = null
+func configure(theme: SkyThemeDef, density: float, sky_material: Material = null, subdivisions: int = PUFF_SUBDIVISIONS,
+		billboard_distance_m: float = 0.0) -> void:
+	_billboard_distance_m = maxf(billboard_distance_m, 0.0)
+	for node: MultiMeshInstance3D in [_instance, _far, _upper, _upper_far]:
+		if node != null:
+			node.queue_free()
+	_instance = null
+	_far = null
+	_upper = null
+	_upper_far = null
 	_material = null
 	_cycle_base.clear()
 	_highest_top = -INF
@@ -324,42 +347,37 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = theme.cloud_seed
-	_instance = _build_instance("Puffs", layers, theme, subdivisions, rng, theme.cloud_flat_base)
+	var sea_nodes: Array[MultiMeshInstance3D] = _build_instances("Puffs", layers, theme, subdivisions, rng, theme.cloud_flat_base)
+	_instance = sea_nodes[0]
+	_far = sea_nodes[1]
 	add_child(_instance)
+	if _far != null:
+		add_child(_far)
 	# Bontago-mp0.29: the same puffs, shader, material and lighting again above
 	# the disc, always present (weather only changes its lighting).
 	var upper_layers: Array[_Layer] = _upper_layers_for(theme, density)
 	if not upper_layers.is_empty():
 		rng.seed = theme.cloud_seed + upper_tuning.upper_seed_offset
-		_upper = _build_instance("UpperPuffs", upper_layers, theme, subdivisions, rng, upper_layers[0].flat_base)
+		var upper_nodes: Array[MultiMeshInstance3D] = _build_instances("UpperPuffs", upper_layers, theme, subdivisions, rng, upper_layers[0].flat_base)
+		_upper = upper_nodes[0]
+		_upper_far = upper_nodes[1]
 		add_child(_upper)
+		if _upper_far != null:
+			add_child(_upper_far)
 		_apply_upper_parameters()
 
 
-## One MultiMeshInstance3D of `layers`' clumps drawn with the shared puff material.
-func _build_instance(node_name: String, layers: Array[_Layer], theme: SkyThemeDef, subdivisions: int,
-		rng: RandomNumberGenerator, flat_base: float) -> MultiMeshInstance3D:
-	var clumps: int = 0
-	for layer: _Layer in layers:
-		clumps += layer.clumps
-	var multimesh: MultiMesh = MultiMesh.new()
-	multimesh.transform_format = MultiMesh.TRANSFORM_3D
-	multimesh.use_custom_data = true
-	multimesh.use_colors = true
-	multimesh.mesh = build_puff_mesh(flat_base, subdivisions)
-	multimesh.instance_count = clumps * theme.cloud_puffs_per_clump
-	var index: int = 0
+## The MultiMeshInstance3Ds of the clumps of `layers`, drawn with the shared puff material:
+## [hull puffs, impostor puffs]. Clumps at or beyond _billboard_distance_m go to the impostor
+## instance (null when none does); the hull instance always exists.
+func _build_instances(node_name: String, layers: Array[_Layer], theme: SkyThemeDef, subdivisions: int,
+		rng: RandomNumberGenerator, flat_base: float) -> Array[MultiMeshInstance3D]:
+	var near: _Stage = _Stage.new()
+	var far: _Stage = _Stage.new()
 	for layer: _Layer in layers:
 		for _clump: int in range(layer.clumps):
-			index = _add_clump(multimesh, index, theme, layer, rng)
-	var instance: MultiMeshInstance3D = MultiMeshInstance3D.new()
-	instance.name = node_name
-	instance.multimesh = multimesh
-	instance.material_override = _material
-	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	instance.layers = RENDER_LAYER_BIT
-	# The shader slides puffs along the wind inside the layer's square wrap domain, so the
-	# culling box must cover the whole domain.
+			_add_clump(near, far, theme, layer, rng)
+	# The culling box must cover the whole wrap domain the shader slides puffs inside.
 	var extent: float = 0.0
 	var low: float = INF
 	var high: float = -INF
@@ -369,24 +387,59 @@ func _build_instance(node_name: String, layers: Array[_Layer], theme: SkyThemeDe
 		extent = maxf(extent, layer.ring_outer_m + layer.radius_max_m * 2.0)
 		low = minf(low, layer.base_min_m - layer.radius_max_m)
 		high = maxf(high, layer.top_max_m)
-	instance.custom_aabb = AABB(Vector3(-extent, low, -extent), Vector3(extent * 2.0, high - low, extent * 2.0))
+	var box: AABB = AABB(Vector3(-extent, low, -extent), Vector3(extent * 2.0, high - low, extent * 2.0))
+	var result: Array[MultiMeshInstance3D] = [null, null]
+	result[0] = _make_instance(node_name, near, build_puff_mesh(flat_base, subdivisions), box, false)
+	if not far.transforms.is_empty():
+		result[1] = _make_instance(node_name + "Far", far, build_billboard_mesh(), box, true)
+	return result
+
+
+func _make_instance(node_name: String, stage: _Stage, mesh: Mesh, box: AABB, billboard: bool) -> MultiMeshInstance3D:
+	var multimesh: MultiMesh = MultiMesh.new()
+	multimesh.transform_format = MultiMesh.TRANSFORM_3D
+	multimesh.use_custom_data = true
+	multimesh.use_colors = true
+	multimesh.mesh = mesh
+	multimesh.instance_count = stage.transforms.size()
+	for index: int in range(stage.transforms.size()):
+		multimesh.set_instance_transform(index, stage.transforms[index])
+		multimesh.set_instance_custom_data(index, stage.customs[index])
+		multimesh.set_instance_color(index, stage.colors[index])
+	var instance: MultiMeshInstance3D = MultiMeshInstance3D.new()
+	instance.name = node_name
+	instance.multimesh = multimesh
+	instance.material_override = _material
+	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	instance.layers = RENDER_LAYER_BIT
+	instance.custom_aabb = box
+	if billboard:
+		instance.set_instance_shader_parameter(BILLBOARD_PARAMETER, 1.0)
 	return instance
 
 
 ## Per-instance shader parameters of the always-present upper puff layer.
 func _apply_upper_parameters() -> void:
-	_upper.set_instance_shader_parameter(&"floor_on", 1.0)
-	_upper.set_instance_shader_parameter(&"edge_soft_px", upper_tuning.upper_edge_softness_px if upper_tuning != null else 0.0)
+	for node: MultiMeshInstance3D in [_upper, _upper_far]:
+		if node != null:
+			_apply_upper_parameters_to(node)
+	if upper_tuning == null:
+		return
+	_material.set_shader_parameter(CLEAR_FADE_START_PARAMETER, upper_tuning.upper_clear_fade_start_m)
+	_material.set_shader_parameter(CLEAR_FADE_END_PARAMETER, upper_tuning.upper_clear_fade_end_m)
+	_occ_clear_start_m = upper_tuning.upper_clear_fade_start_m
+	_occ_clear_end_m = upper_tuning.upper_clear_fade_end_m
+
+
+func _apply_upper_parameters_to(node: MultiMeshInstance3D) -> void:
+	node.set_instance_shader_parameter(&"floor_on", 1.0)
+	node.set_instance_shader_parameter(&"edge_soft_px", upper_tuning.upper_edge_softness_px if upper_tuning != null else 0.0)
 	if upper_tuning == null:
 		return
 	# Bontago-mp0.93: the layer's own base plane (the shader reads it per instance, the
 	# sea keeps the material's flat_base), and the camera-clearance dither fade. The
 	# fade uniforms live on the shared material but only the floor_on layer applies them.
-	_upper.set_instance_shader_parameter(FLAT_BASE_OVERRIDE_PARAMETER, upper_tuning.upper_flat_base)
-	_material.set_shader_parameter(CLEAR_FADE_START_PARAMETER, upper_tuning.upper_clear_fade_start_m)
-	_material.set_shader_parameter(CLEAR_FADE_END_PARAMETER, upper_tuning.upper_clear_fade_end_m)
-	_occ_clear_start_m = upper_tuning.upper_clear_fade_start_m
-	_occ_clear_end_m = upper_tuning.upper_clear_fade_end_m
+	node.set_instance_shader_parameter(FLAT_BASE_OVERRIDE_PARAMETER, upper_tuning.upper_flat_base)
 
 
 func upper_instance() -> MultiMeshInstance3D:
@@ -394,7 +447,11 @@ func upper_instance() -> MultiMeshInstance3D:
 
 
 func upper_puff_count() -> int:
-	return _upper.multimesh.instance_count if _upper != null else 0
+	return _count_of(_upper) + _count_of(_upper_far)
+
+
+func _count_of(node: MultiMeshInstance3D) -> int:
+	return node.multimesh.instance_count if node != null else 0
 
 
 ## Largest silhouette the puff shader can carve beyond a puff's radius, as a
@@ -518,7 +575,7 @@ static func _layers_for(theme: SkyThemeDef, density: float) -> Array[_Layer]:
 
 
 ## Writes one clump's puffs from `index`; returns the next free index.
-func _add_clump(multimesh: MultiMesh, index: int, theme: SkyThemeDef, layer: _Layer, rng: RandomNumberGenerator) -> int:
+func _add_clump(near: _Stage, far: _Stage, theme: SkyThemeDef, layer: _Layer, rng: RandomNumberGenerator) -> void:
 	var azimuth: float = rng.randf() * TAU
 	# Uniform over the ring's area, not its radius.
 	# A radial bias above 1 crowds clumps toward the inner (near) edge.
@@ -543,9 +600,16 @@ func _add_clump(multimesh: MultiMesh, index: int, theme: SkyThemeDef, layer: _La
 	if not layer.is_upper and ring_radius - reach >= _exclusion_radius_m:
 		excl_gone = _exclusion_radius_m + reach
 	var rest: Color = Color(centre.x, centre.z, layer.ring_outer_m, excl_gone)
+	var stage: _Stage = far if _billboard_distance_m > 0.0 and ring_radius >= _billboard_distance_m else near
 	var flat: float = layer.flat_base if layer.is_upper else theme.cloud_flat_base
 	var total: int = theme.cloud_puffs_per_clump
 	var detail_count: int = int(float(total) * DETAIL_SHARE) if total > 2 else 0
+	# DECISION (Bontago-1pi.11.67): an impostor clump is far away, where the small cauliflower
+	# puffs sitting on the big ones are a few pixels at most: it draws its body puffs only.
+	var distant: bool = stage == far
+	if distant:
+		total -= detail_count
+		detail_count = 0
 	var body_count: int = total - detail_count
 	var body_centres: Array[Vector3] = []
 	var body_radii: Array[float] = []
@@ -559,7 +623,7 @@ func _add_clump(multimesh: MultiMesh, index: int, theme: SkyThemeDef, layer: _La
 		var top: float = base_y + clump_height * (1.0 - DOME_FALLOFF * spread * spread) * rng.randf_range(TOP_JITTER_MIN, 1.0)
 		var y: float = puff_centre_y(top, radius * layer.vertical_scale, base_y, flat, layer.sink_m * rng.randf() if layer.is_upper else 0.0)
 		var at: Vector3 = centre + offset + Vector3(0.0, y, 0.0)
-		index = _write_puff(multimesh, index, at, radius, layer, rng, angular_speed, base_y, clump_height, flat, rest)
+		_write_puff(stage, at, radius, layer, rng, angular_speed, base_y, clump_height, flat, rest)
 		body_centres.append(at)
 		body_radii.append(radius)
 	for _detail: int in range(detail_count):
@@ -571,13 +635,12 @@ func _add_clump(multimesh: MultiMesh, index: int, theme: SkyThemeDef, layer: _La
 		var radius: float = body_radii[host] * rng.randf_range(DETAIL_RADIUS_MIN_FRACTION, DETAIL_RADIUS_MAX_FRACTION)
 		direction.y *= layer.vertical_scale
 		var at: Vector3 = body_centres[host] + direction * body_radii[host] * DETAIL_SURFACE_OFFSET
-		index = _write_puff(multimesh, index, at, radius, layer, rng, angular_speed, base_y, clump_height, flat, rest)
+		_write_puff(stage, at, radius, layer, rng, angular_speed, base_y, clump_height, flat, rest)
 	_record_clump_bounds(first_puff, angular_speed, layer.is_upper, rest)
-	return index
 
 
-func _write_puff(multimesh: MultiMesh, index: int, at: Vector3, radius: float, layer: _Layer,
-		rng: RandomNumberGenerator, angular_speed: float, base_y: float, clump_height: float, flat: float, rest: Color) -> int:
+func _write_puff(stage: _Stage, at: Vector3, radius: float, layer: _Layer,
+		rng: RandomNumberGenerator, angular_speed: float, base_y: float, clump_height: float, flat: float, rest: Color) -> void:
 	# Never let a puff top rise above its layer ceiling.
 	var height: float = radius * layer.vertical_scale
 	at.y = minf(at.y, layer.top_max_m - height)
@@ -599,10 +662,9 @@ func _write_puff(multimesh: MultiMesh, index: int, at: Vector3, radius: float, l
 		_upper_lowest_bottom = minf(_upper_lowest_bottom, at.y - height * layer.flat_base)
 	var basis: Basis = Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(radius * stretch, height, radius * stretch))
 	_record_puff(at, radius * stretch, height, flat)
-	multimesh.set_instance_transform(index, Transform3D(basis, at))
-	multimesh.set_instance_custom_data(index, Color(angular_speed, rng.randf() * TAU, base_y, clump_height))
-	multimesh.set_instance_color(index, rest)
-	return index + 1
+	stage.transforms.append(Transform3D(basis, at))
+	stage.customs.append(Color(angular_speed, rng.randf() * TAU, base_y, clump_height))
+	stage.colors.append(rest)
 
 
 ## Bontago-mp0.95: appends one puff's occlusion row (a spheroid: horizontal radius
@@ -784,8 +846,28 @@ func highest_top_near_disc() -> float:
 	return _highest_top_near_disc
 
 
+## Puffs of the sea layers (hulls plus impostors).
 func puff_count() -> int:
-	return _instance.multimesh.instance_count if _instance != null else 0
+	return _count_of(_instance) + _count_of(_far)
+
+
+## Impostor (billboard) puffs among puff_count() and upper_puff_count().
+func billboard_puff_count() -> int:
+	return _count_of(_far) + _count_of(_upper_far)
+
+
+## Triangles the cloud instances draw (mesh triangles x puffs, hulls plus impostors).
+func triangle_count() -> int:
+	var total: int = 0
+	for node: MultiMeshInstance3D in [_instance, _far, _upper, _upper_far]:
+		if node != null and node.multimesh.mesh != null:
+			var indices: PackedInt32Array = node.multimesh.mesh.surface_get_arrays(0)[Mesh.ARRAY_INDEX] as PackedInt32Array
+			total += node.multimesh.instance_count * indices.size() / INDICES_PER_TRIANGLE
+	return total
+
+
+func billboard_instance() -> MultiMeshInstance3D:
+	return _far
 
 
 func puff_instance() -> MultiMeshInstance3D:
@@ -845,6 +927,32 @@ static func build_puff_mesh(flat_base: float, subdivisions: int = PUFF_SUBDIVISI
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = positions
 	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_INDEX] = faces
+	var mesh: ArrayMesh = ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+
+## Bontago-1pi.11.67: the impostor polygon, a hexagon in the XY plane whose UV is its corner
+## (inradius 1): 4 triangles. The vertex stage places it facing the camera; see the shader.
+static func build_billboard_mesh() -> ArrayMesh:
+	var positions: PackedVector3Array = PackedVector3Array()
+	var uvs: PackedVector2Array = PackedVector2Array()
+	var normals: PackedVector3Array = PackedVector3Array()
+	for corner: int in range(BILLBOARD_CORNERS):
+		var angle: float = TAU * float(corner) / float(BILLBOARD_CORNERS)
+		var at: Vector2 = Vector2(cos(angle), sin(angle)) / cos(PI / float(BILLBOARD_CORNERS))
+		positions.append(Vector3(at.x, at.y, 0.0))
+		uvs.append(at)
+		normals.append(Vector3.UP)
+	var faces: PackedInt32Array = PackedInt32Array()
+	for corner: int in range(1, BILLBOARD_CORNERS - 1):
+		faces.append_array(PackedInt32Array([0, corner + 1, corner]))
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = positions
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
 	arrays[Mesh.ARRAY_INDEX] = faces
 	var mesh: ArrayMesh = ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
