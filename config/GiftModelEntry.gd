@@ -28,3 +28,8 @@ extends Resource
 
 ## Yaw (degrees) turning the model's +Z front to the host's body forward.
 @export var world_yaw_deg: float = 0.0
+
+## Model-space axis that is the gift's nose (Rocket, Magnet: +Y in their GLBs). Non-zero turns
+## the HELD model so this axis points along the aim/launch direction instead of standing
+## upright (Bontago-1pi.85.61). Zero: held upright, no turn.
+@export var held_nose_axis: Vector3 = Vector3.ZERO

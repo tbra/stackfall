@@ -87,6 +87,7 @@ id = &"magnet"
 scene = ExtResource("11_m")
 model_scale = 0.856
 offset = Vector3(-0.0000, -0.0683, -0.0058)
+held_nose_axis = Vector3(0, 1, 0)
 
 [sub_resource type="Resource" id="Entry_paintball"]
 script = ExtResource("2_entry")
@@ -109,6 +110,7 @@ id = &"rocket"
 scene = ExtResource("14_m")
 model_scale = 0.702
 offset = Vector3(-0.0000, -0.0834, -0.0000)
+held_nose_axis = Vector3(0, 1, 0)
 
 [sub_resource type="Resource" id="Entry_stackfall"]
 script = ExtResource("2_entry")
