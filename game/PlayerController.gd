@@ -552,7 +552,7 @@ func _publish_cursor() -> void:
 	if membrane == null:
 		return
 	membrane.submit_cursor(
-		_acting_slot(), _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion
+		_acting_slot(), _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion, _camera_forward()
 	)
 
 
@@ -923,6 +923,11 @@ func _request_place(auto_drop: bool) -> StringName:
 	# other release is an ordinary place.
 	if not auto_drop and _held_gift_mode() != GiftThrow.Mode.NONE:
 		return _request_throw(_camera_forward())
+	# Bontago-1pi.134: at timer expiry the host throws a held throwable gift along the last
+	# aim it knows (MatchPlacement.request_place); a seat this instance controls reports its
+	# own camera first (MatchNet only ever hears remote seats' aim from their cursor packets).
+	if auto_drop and _held_gift_mode() != GiftThrow.Mode.NONE and _match.has_method(&"note_aim"):
+		_match.note_aim(_acting_slot(), _camera_forward())
 	var slot_id: int = _acting_slot()
 	var membrane: Variant = _intent_target()
 	_clear_ghost_before_release()

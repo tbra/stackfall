@@ -788,6 +788,16 @@ func request_throw(
 	return _placement.request_throw(slot_id, origin, orientation_index, free_quat, velocity, feed_seq)
 
 
+## Bontago-1pi.134: host-side last aim (unit camera forward) of a slot; the forced release at
+## timer expiry throws a held throwable gift along it. See MatchPlacement.note_aim().
+func note_aim(slot_id: int, forward: Vector3) -> void:
+	_placement.note_aim(slot_id, forward)
+
+
+func noted_aim(slot_id: int) -> Vector3:
+	return _placement.noted_aim(slot_id)
+
+
 ## M4 P4-SPAWN: a special effect's own runtime projectile spawn (e.g.
 ## Volcano's lava orbs), not a player intent. See
 ## MatchPlacement.spawn_special_projectile() for the full contract
