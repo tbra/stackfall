@@ -82,7 +82,8 @@ static func plan(
 	active_special_positions: PackedVector2Array,
 	difficulty: MatchConfig.AiDifficulty,
 	tuning: BotTuning,
-	block_samples: Array[BotBlockSample] = []
+	block_samples: Array[BotBlockSample] = [],
+	throw_range_m: float = 0.0
 ) -> BotSpecialAction:
 	var profile: BotDifficultyProfile = tuning.profile_for(difficulty)
 	var offensive: bool = profile != null and profile.uses_offensive_specials
@@ -107,7 +108,7 @@ static func plan(
 			# offensive special use, gated on uses_offensive_specials.
 			if not offensive:
 				return BotSpecialAction.new()
-			return _plan_bomb(own_home_position, own_territory_sample_points, enemy_circle_centers, tuning)
+			return _plan_bomb(own_home_position, own_territory_sample_points, enemy_circle_centers, tuning, throw_range_m)
 		&"volcano":
 			return _plan_volcano(
 				own_home_position, own_territory_sample_points, enemy_circle_centers, offensive, defensive, tuning
@@ -171,13 +172,25 @@ static func _plan_bomb(
 	own_home_position: Vector2,
 	own_territory_sample_points: PackedVector2Array,
 	enemy_circle_centers: PackedVector2Array,
-	tuning: BotTuning
+	tuning: BotTuning,
+	throw_range_m: float = 0.0
 ) -> BotSpecialAction:
 	var action: BotSpecialAction = BotSpecialAction.new()
 	if enemy_circle_centers.is_empty():
 		return action
 	var cluster: Vector2 = _densest_cluster_center(enemy_circle_centers, tuning.risk_enemy_territory_radius_m)
 	var origin: Vector2 = _nearest(own_territory_sample_points, cluster, own_home_position)
+	if throw_range_m > 0.0 and not own_territory_sample_points.is_empty():
+		# Bontago-1pi.135 (b): the host throws a fixed trajectory whose range scales with the map
+		# (GiftAim.range_scale), so release from the own-territory point whose distance to the
+		# cluster is closest to that range instead of the nearest one (which overshoots on a
+		# large map's long throw and falls short of nothing on a small one).
+		var best_error: float = INF
+		for point: Vector2 in own_territory_sample_points:
+			var error: float = absf(point.distance_to(cluster) - throw_range_m)
+			if error < best_error:
+				best_error = error
+				origin = point
 	var velocity: Vector3 = _ballistic_velocity(origin, cluster, tuning)
 	if velocity == Vector3.ZERO or not velocity.is_finite():
 		# Degenerate only when origin and cluster coincide exactly (no

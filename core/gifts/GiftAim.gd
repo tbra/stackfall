@@ -58,6 +58,16 @@ static func range_scale(field_radius: float, t: SpecialTuning) -> float:
 	return clampf(field_radius / t.gift_throw_reference_radius, t.gift_throw_range_scale_min, t.gift_throw_range_scale_max)
 
 
+## Bontago-1pi.135: flat-ground range in metres of a ballistic THROW launched from ground level
+## (2 * horizontal speed * vertical speed / gravity of the same launch the host derives, so it
+## includes `range_scale`). 0 for a non-positive gravity. Bots use it to pick a release point.
+static func flat_range(t: SpecialTuning, range_scale: float, gravity: float) -> float:
+	if gravity <= 0.0:
+		return 0.0
+	var velocity: Vector3 = throw_velocity(Vector3.FORWARD, t, range_scale)
+	return 2.0 * Vector2(velocity.x, velocity.z).length() * velocity.y / gravity
+
+
 ## Launch speed multiplier giving `range_scale` times the range: flat-ground ballistic range
 ## goes with speed squared at fixed gravity and loft, so speed scales with its square root.
 static func speed_factor(range_scale: float) -> float:

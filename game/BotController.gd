@@ -35,6 +35,8 @@ const RNG_OFFSET: int = 777001
 enum State { IDLE, GENERATING, ACTING }
 
 @export var tuning: BotTuning = preload("res://config/bot_tuning.tres")
+var _special_tuning: SpecialTuning = preload("res://config/special_tuning.tres")
+var _physics_tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
 
 var _slot_id: int = -1
 var _difficulty: MatchConfig.AiDifficulty = MatchConfig.AiDifficulty.NORMAL
@@ -442,7 +444,9 @@ func _tick_acting() -> void:
 			_enemy_circle_centers(),
 			_active_special_positions(),
 			_difficulty,
-			tuning
+			tuning,
+			[],
+			_throw_range_m()
 		)
 		if action.should_throw:
 			_apply_rejection_backoff(_send_throw(action))
@@ -589,6 +593,19 @@ func _pick_candidate_nearest_to(target: Vector2) -> BotCandidate:
 	return best
 
 
+## Bontago-1pi.135 (b): this map's host throw range (GiftAim.range_scale of the field radius),
+## so the bomb heuristic releases from where the fixed trajectory lands on the target.
+func _throw_range_m() -> float:
+	var radius: float = _field_radius()
+	if radius <= 0.0:
+		return 0.0
+	return GiftAim.flat_range(
+		_special_tuning,
+		GiftAim.range_scale(radius, _special_tuning),
+		float(ProjectSettings.get_setting("physics/3d/default_gravity")) * _physics_tuning.gravity_multiplier
+	)
+
+
 func _send_throw(action: BotSpecialPlanner.BotSpecialAction) -> StringName:
 	if _field == null:
 		return PlacementRules.REASON_OK
@@ -620,6 +637,10 @@ func _send_throw(action: BotSpecialPlanner.BotSpecialAction) -> StringName:
 	var flat_forward: Vector3 = Vector3(world_velocity.x, 0.0, world_velocity.z)
 	if flat_forward.length_squared() <= 0.0:
 		flat_forward = world_velocity
+	# Bontago-1pi.134: remembered so a refused/backed-off throw still leaves the host an aim for
+	# the expiry throw of this gift.
+	if match_ref.has_method(&"note_aim"):
+		match_ref.note_aim(_slot_id, flat_forward.normalized())
 	return StringName(match_ref.request_throw(
 		_slot_id, world_origin, 0, Quaternion.IDENTITY, flat_forward.normalized(), int(match_ref.feed_seq(_slot_id))
 	))
