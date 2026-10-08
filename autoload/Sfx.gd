@@ -48,6 +48,7 @@ const MUSIC_STEM_MUTE_DB: float = -80.0
 ## still listed (and reported as leaked) at exit. Long enough for several
 ## mix cycles at any real output buffer size.
 const QUIT_DRAIN_S: float = 0.25
+const MSEC_PER_S: float = 1000.0
 
 @export var config: AudioConfig = preload("res://config/audio_config.tres")
 
@@ -106,6 +107,19 @@ var _last_music_tick_usec: int = Time.get_ticks_usec()
 ## Bontago-mp0.116: last variant index played per "<surface>_<tier>" key.
 var _last_impact_variant: Dictionary = {}
 
+## Beacon-claim tension layer (Bontago-1pi.114); see the section near the end.
+var _claim_state: ClaimTensionState
+var _claim_player: AudioStreamPlayer
+var _claim_tween: Tween
+var _claim_duck_tween: Tween
+var _claim_duck_db: float = 0.0
+var _claim_stream_missing: bool = false
+var _claim_flush_queued: bool = false
+var _claim_last_level: float = 0.0
+## Test seams: null = use Net/Match.
+var _claim_test_local_team: Variant = null
+var _claim_test_live: Variant = null
+
 
 func _ready() -> void:
 	Block.impact_speed_min = config.impact_speed_min
@@ -120,6 +134,7 @@ func _ready() -> void:
 	_refresh_music_root_dir()
 	_build_player_pool()
 	_refresh_tense_stem()
+	_build_claim_layer()
 	Events.block_impacted_at.connect(_on_block_impacted_at)
 	Events.lobby_ui_cue.connect(play_ui_cue)
 	Events.net_peer_joined.connect(_on_net_peer_joined)
@@ -132,8 +147,11 @@ func _ready() -> void:
 	Events.gift_claimed.connect(_on_gift_claimed)
 	Events.world_replay_changed.connect(_on_world_replay_changed)
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
+	Events.goal_capture_progress.connect(_on_claim_progress)
+	Events.match_won.connect(_on_claim_match_won)
 	# Bontago-1pi.46 (G6): a new match must not inherit the previous match's tense stem.
 	Events.match_scope_reset.connect(reset_match_audio)
+	Events.match_scope_reset.connect(reset_claim_tension)
 	Settings.audio_settings_changed.connect(_on_audio_settings_changed)
 	play_music()
 
@@ -227,6 +245,7 @@ func set_music_enabled(enabled: bool) -> void:
 		_tense_music_player.stop()
 		_music_state = MusicState.STOPPED
 		_music_envelope = 0.0
+		_refresh_claim_target(true)
 	elif not _music_player.playing:
 		play_music()
 
@@ -345,6 +364,7 @@ func set_root_dir_for_test(path: String) -> void:
 	_root_dir = path
 	_available = DirAccess.dir_exists_absolute(path)
 	_streams_by_filename.clear()
+	_claim_stream_missing = false
 	_refresh_music_root_dir()  # re-derive the bundled-fallback case against the new _root_dir
 	_refresh_tense_stem()
 
@@ -565,10 +585,12 @@ func release_audio() -> void:
 	var players: Array[AudioStreamPlayer] = _sfx_players.duplicate()
 	players.append(_music_player)
 	players.append(_tense_music_player)
+	players.append(_claim_player)
 	for player: AudioStreamPlayer in players:
 		if player != null and is_instance_valid(player):
 			player.stop()
 			player.stream = null
+	_kill_claim_tweens()
 	_streams_by_filename.clear()
 	_music_streams_by_filename.clear()
 	_drop_music_requests()
@@ -742,7 +764,7 @@ func _apply_playlist_volume() -> void:
 	if _music_player == null:
 		return
 	var baseline: float = config.music_volume_db + Settings.master_volume_db() + Settings.music_volume_db()
-	_music_player.volume_db = MUSIC_STEM_MUTE_DB if _music_envelope <= 0.0 else maxf(MUSIC_STEM_MUTE_DB, baseline + linear_to_db(_music_envelope))
+	_music_player.volume_db = MUSIC_STEM_MUTE_DB if _music_envelope <= 0.0 else maxf(MUSIC_STEM_MUTE_DB, baseline + _claim_duck_db + linear_to_db(_music_envelope))
 
 
 func _on_music_finished() -> void:
@@ -968,3 +990,193 @@ func _team_of_slot(slot_id: int) -> int:
 	if Match.config == null:
 		return slot_id
 	return Match.config.team_of_slot(slot_id)
+
+
+# --- Beacon-claim tension layer (Bontago-1pi.114) ------------------------------
+#
+# Derived locally from Events.goal_capture_progress, which every machine already
+# receives (MatchTerritory emits it on host and clients alike; Classic keeps its
+# state in that signal, see ModeObjective.replicates_state()), so nothing new is
+# replicated and the host stays authoritative. A looped bed is layered above
+# whichever music runs (contextual playlist or legacy stem), its volume/pitch
+# follow ClaimTensionState.level(), and the music is ducked while it is up.
+
+func _build_claim_layer() -> void:
+	_claim_state = ClaimTensionState.new(config)
+	_claim_player = AudioStreamPlayer.new()
+	_claim_player.volume_db = MUSIC_STEM_MUTE_DB
+	add_child(_claim_player)
+
+
+## Target volume_db of the tension bed at the current level (MUSIC_STEM_MUTE_DB
+## when silent), including the master and music sliders.
+func claim_tension_target_volume_db() -> float:
+	var level: float = _claim_state.level() if _claim_state != null else 0.0
+	if level <= 0.0 or not _music_enabled or not config.claim_tension_enabled:
+		return MUSIC_STEM_MUTE_DB
+	var baseline: float = config.claim_tension_max_db + Settings.master_volume_db() + Settings.music_volume_db()
+	return clampf(baseline + linear_to_db(level), MUSIC_STEM_MUTE_DB, baseline)
+
+
+## Pitch scale of the bed: rises toward claim_tension_pitch_max with level, lower
+## (claim_rival_pitch_scale) while a rival holds.
+func claim_tension_pitch_scale() -> float:
+	if _claim_state == null:
+		return 1.0
+	var rise: float = lerpf(1.0, config.claim_tension_pitch_max, _claim_state.level())
+	return rise if _claim_state.is_mine() else rise * config.claim_rival_pitch_scale
+
+
+## Music duck (dB offset, <= 0) the current level asks for.
+func claim_duck_target_db() -> float:
+	if _claim_state == null or not config.claim_tension_enabled:
+		return 0.0
+	return config.claim_music_duck_db * _claim_state.level()
+
+
+## The duck currently applied to the music (tweened toward claim_duck_target_db()).
+func claim_duck_applied_db() -> float:
+	return _claim_duck_db
+
+
+func claim_tension_level() -> float:
+	return _claim_state.level() if _claim_state != null else 0.0
+
+
+func _local_claim_team(team_id: int) -> int:
+	if _claim_test_local_team != null:
+		return int(_claim_test_local_team)
+	# Any human seat driven here that plays for the holding team makes it mine;
+	# otherwise (rival, spectator, bots only) it is the quieter rival flavour.
+	for slot_id: int in range(Match.slot_count()):
+		if LocalFeedback.is_own_human_slot(slot_id) and _team_of_slot(slot_id) == team_id:
+			return team_id
+	return ClaimTensionState.NO_LOCAL_TEAM
+
+
+func _claim_match_live() -> bool:
+	if _claim_test_live != null:
+		return bool(_claim_test_live)
+	return Match.is_live(Match.state())
+
+
+func _on_claim_progress(team_id: int, progress: float) -> void:
+	if not config.claim_tension_enabled or _world_replay_silent or _claim_state == null:
+		return
+	var now_s: float = float(Time.get_ticks_msec()) / MSEC_PER_S
+	_claim_state.update(team_id, progress, _local_claim_team(team_id), _claim_match_live(), now_s)
+	_refresh_claim_target(false)
+	# A win emits goal_capture_progress first and match_won after, in the same
+	# call stack: judge the break one frame later so a win never stings.
+	if not _claim_flush_queued and not _claim_state.peek_interrupt().is_empty():
+		_claim_flush_queued = true
+		_flush_claim_interrupt.call_deferred()
+
+
+func _flush_claim_interrupt() -> void:
+	_claim_flush_queued = false
+	if _claim_state == null:
+		return
+	var info: Dictionary = _claim_state.take_interrupt()
+	if info.is_empty():
+		return
+	var was_mine: bool = bool(info.get("was_mine", false))
+	play(AudioConfig.EVENT_CLAIM_INTERRUPTED if was_mine else AudioConfig.EVENT_CLAIM_RIVAL_BROKEN)
+	Events.claim_interrupted.emit(was_mine, float(info.get("peak", 0.0)))
+
+
+func _on_claim_match_won(_team_id: int) -> void:
+	if _claim_state == null:
+		return
+	_claim_state.mark_won()
+	_refresh_claim_target(false)
+
+
+## New match scope: silence at once, forget any hold.
+func reset_claim_tension() -> void:
+	if _claim_state == null:
+		return
+	_claim_state.reset()
+	_claim_flush_queued = false
+	_refresh_claim_target(true)
+
+
+func _kill_claim_tweens() -> void:
+	for tween: Tween in [_claim_tween, _claim_duck_tween]:
+		if tween != null and tween.is_valid():
+			tween.kill()
+	_claim_tween = null
+	_claim_duck_tween = null
+
+
+## Moves the bed volume/pitch and the music duck toward the current target;
+## `immediate` jumps (scope reset).
+func _refresh_claim_target(immediate: bool) -> void:
+	if _claim_state == null or _claim_player == null:
+		return
+	var level: float = claim_tension_level() if config.claim_tension_enabled else 0.0
+	var target_db: float = claim_tension_target_volume_db()
+	var pitch: float = claim_tension_pitch_scale()
+	var duck: float = claim_duck_target_db()
+	if level > 0.0 and not _claim_player.playing and not _claim_stream_missing and _music_enabled:
+		_start_claim_bed()
+	_kill_claim_tweens()
+	var rising: bool = level > _claim_last_level
+	if not is_equal_approx(level, _claim_last_level):
+		Events.claim_tension_changed.emit(level, _claim_state.is_mine())
+	_claim_last_level = level
+	if immediate or not is_inside_tree():
+		_claim_player.volume_db = target_db
+		_claim_player.pitch_scale = pitch
+		_set_claim_duck(duck)
+		if level <= 0.0:
+			_claim_player.stop()
+		return
+	var fade: float = config.claim_fade_in_seconds if rising else config.claim_fade_out_seconds
+	_claim_tween = create_tween().set_parallel(true)
+	_claim_tween.tween_property(_claim_player, "volume_db", target_db, fade)
+	_claim_tween.tween_property(_claim_player, "pitch_scale", pitch, fade)
+	if level <= 0.0:
+		_claim_tween.chain().tween_callback(_stop_claim_bed_if_silent)
+	_claim_duck_tween = create_tween()
+	_claim_duck_tween.tween_method(_set_claim_duck, _claim_duck_db, duck, config.claim_duck_seconds)
+
+
+func _stop_claim_bed_if_silent() -> void:
+	if claim_tension_level() <= 0.0 and _claim_player != null:
+		_claim_player.stop()
+
+
+func _set_claim_duck(duck_db: float) -> void:
+	_claim_duck_db = duck_db
+	_apply_claim_duck()
+
+
+## The playlist re-applies its own volume every frame (with _claim_duck_db in
+## it); the legacy single stream needs the duck pushed explicitly.
+func _apply_claim_duck() -> void:
+	if _music_player == null or not _music_player.playing:
+		return
+	if config.contextual_music_enabled:
+		_apply_playlist_volume()
+	else:
+		_music_player.volume_db = calm_stem_target_volume_db() + _claim_duck_db
+
+
+func _start_claim_bed() -> void:
+	if not _available:
+		return
+	var source: AudioStream = _load_stream(config.claim_tension_file)
+	if source == null:
+		_claim_stream_missing = true  # silent no-op: do not retry (and log) every step
+		return
+	var stream: AudioStream = source.duplicate() as AudioStream
+	if stream is AudioStreamWAV and (stream as AudioStreamWAV).loop_mode == AudioStreamWAV.LOOP_DISABLED:
+		# load_from_file ignores the .import loop flags; a stream that already loops is left alone.
+		var wav: AudioStreamWAV = stream as AudioStreamWAV
+		var bytes_per_frame: int = (2 if wav.format == AudioStreamWAV.FORMAT_16_BITS else 1) * (2 if wav.stereo else 1)
+		wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		wav.loop_begin = 0
+		wav.loop_end = wav.data.size() / bytes_per_frame
+	_claim_player.stream = stream
+	_claim_player.play()

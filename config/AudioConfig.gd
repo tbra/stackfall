@@ -132,6 +132,37 @@ func playlist_track_count(context: StringName) -> int:
 ## Minimum seconds between gift-spawn jingles (spam limit).
 @export var gift_spawn_min_interval_s: float = 2.0
 
+## Beacon-claim tension layer (Bontago-1pi.114). A looped bed rises with the
+## Classic hold's progress (Events.goal_capture_progress), ducks the music, and a
+## sting plays when a hold that got far enough breaks. Files live in
+## assets/effects; a missing file is a silent no-op.
+@export var claim_tension_enabled: bool = true
+@export var claim_tension_file: String = "claim_tension_loop.wav"
+@export var claim_interrupt_file: String = "claim_interrupt_sting.wav"
+## Short positive cue when a RIVAL's hold breaks.
+@export var claim_rival_broken_file: String = "claim_rival_broken.wav"
+## Progress below which no tension is heard.
+@export_range(0.0, 0.5) var claim_tension_start_progress: float = 0.05
+## Loudest volume_db of the tension bed (at level 1, before Settings volumes).
+@export var claim_tension_max_db: float = -6.0
+## Shape of progress -> level (1 = linear, >1 stays quiet longer then swells).
+@export_range(0.25, 4.0) var claim_tension_curve_exp: float = 1.6
+## Pitch scale reached at level 1 (1.0 = no rise).
+@export_range(1.0, 1.5) var claim_tension_pitch_max: float = 1.12
+## Music duck (dB, negative) at level 1, scaled by level.
+@export var claim_music_duck_db: float = -9.0
+@export var claim_duck_seconds: float = 1.0
+@export var claim_fade_in_seconds: float = 1.2
+@export var claim_fade_out_seconds: float = 1.5
+## A break only stings when the hold had reached this progress.
+@export_range(0.0, 1.0) var claim_interrupt_min_progress: float = 0.25
+## Minimum seconds between interrupt/rival-broken cues.
+@export var claim_interrupt_min_interval_s: float = 2.0
+## Level multiplier while a RIVAL holds (quieter, darker).
+@export_range(0.0, 1.0) var claim_rival_tension_scale: float = 0.5
+## Pitch multiplier while a RIVAL holds (<1 = lower, darker).
+@export_range(0.5, 1.0) var claim_rival_pitch_scale: float = 0.9
+
 ## M4 specials (spec 2.6): registered now so the event map is complete, no
 ## hooks call these yet -- the specials themselves aren't implemented.
 @export var bomb_file: String = "bomb.wav"
@@ -235,6 +266,8 @@ const EVENT_BREAKAGE: StringName = &"breakage"
 const EVENT_CREAK: StringName = &"creak"
 const EVENT_GIFT_CLAIMED: StringName = &"gift_claimed"
 const EVENT_GIFT_SPAWNED: StringName = &"gift_spawned"
+const EVENT_CLAIM_INTERRUPTED: StringName = &"claim_interrupted"
+const EVENT_CLAIM_RIVAL_BROKEN: StringName = &"claim_rival_broken"
 
 const SURFACE_BLOCK: StringName = &"block"
 const SURFACE_DISC: StringName = &"disc"
@@ -246,6 +279,7 @@ const ALL_EVENTS: Array[StringName] = [
 	EVENT_THUD, EVENT_REJECTED, EVENT_CLICK, EVENT_START_GAME, EVENT_HOVER, EVENT_DROP, EVENT_BOUNCE,
 	EVENT_MUSIC, EVENT_BOMB, EVENT_ROCKET, EVENT_VOLCANO, EVENT_QUAKE, EVENT_PROPELLER,
 	EVENT_BREAKAGE, EVENT_CREAK, EVENT_GIFT_CLAIMED, EVENT_GIFT_SPAWNED,
+	EVENT_CLAIM_INTERRUPTED, EVENT_CLAIM_RIVAL_BROKEN,
 ]
 
 
@@ -287,6 +321,10 @@ func files_for_event(event: StringName) -> Array[String]:
 			return [gift_claimed_file]
 		EVENT_GIFT_SPAWNED:
 			return [gift_spawn_file]
+		EVENT_CLAIM_INTERRUPTED:
+			return [claim_interrupt_file]
+		EVENT_CLAIM_RIVAL_BROKEN:
+			return [claim_rival_broken_file]
 		_:
 			return []
 
