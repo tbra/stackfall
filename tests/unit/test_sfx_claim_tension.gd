@@ -177,9 +177,9 @@ func test_client_extrapolates_between_sparse_updates_and_stops_on_break() -> voi
 	_sfx._claim_extrapolate(5.0)  # 0.6
 	assert_gt(_sfx.claim_tension_level(), mid)
 	Events.goal_capture_progress.emit(MINE, 0.6)  # snaps to the received value
-	assert_almost_eq(_sfx._claim_ext_progress, 0.6, 0.0001)
+	assert_almost_eq(_sfx._claim_ext.progress(), 0.6, 0.0001)
 	_sfx._claim_extrapolate(100.0)
-	assert_almost_eq(_sfx._claim_ext_progress, 1.0, 0.0001, "capped at a full hold")
+	assert_almost_eq(_sfx._claim_ext.progress(), 1.0, 0.0001, "capped at a full hold")
 	Events.goal_capture_progress.emit(-1, 0.0)
 	var level_after_break: float = _sfx.claim_tension_level()
 	_sfx._claim_extrapolate(5.0)

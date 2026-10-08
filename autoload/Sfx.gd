@@ -124,8 +124,7 @@ var _claim_test_hold_s: Variant = null
 ## Last applied (volume_db, pitch, duck) targets; an unchanged target makes no tweens.
 var _claim_last_targets: Vector3 = Vector3(MUSIC_STEM_MUTE_DB, 1.0, 0.0)
 ## Client-side extrapolation of a hold between sparse replicated updates.
-var _claim_ext_team: int = ClaimTensionState.NO_TEAM
-var _claim_ext_progress: float = 0.0
+var _claim_ext: ClaimProgressExtrapolator = ClaimProgressExtrapolator.new()
 
 
 func _ready() -> void:
@@ -1075,8 +1074,7 @@ func _on_claim_progress(team_id: int, progress: float) -> void:
 	var holding: bool = team_id != ClaimTensionState.NO_TEAM and progress > 0.0
 	if holding and not live:
 		return  # e.g. the END zero-time redraw must not revive the bed after a win
-	_claim_ext_team = team_id if holding else ClaimTensionState.NO_TEAM
-	_claim_ext_progress = progress if holding else 0.0
+	_claim_ext.snap(team_id, progress)
 	var now_s: float = float(Time.get_ticks_msec()) / MSEC_PER_S
 	_claim_state.update(team_id, progress, _local_claim_team(team_id), live, now_s)
 	_refresh_claim_target(false)
@@ -1103,7 +1101,7 @@ func _on_claim_match_won(_team_id: int) -> void:
 	if _claim_state == null:
 		return
 	_claim_state.mark_won()
-	_claim_ext_team = ClaimTensionState.NO_TEAM
+	_claim_ext.clear()
 	_refresh_claim_target(false)
 
 
@@ -1124,15 +1122,13 @@ func _claim_hold_seconds() -> float:
 ## here at the known hold rate while the holding team is unchanged; each real
 ## update snaps it back. Host path untouched. No new replication.
 func _claim_extrapolate(delta: float) -> void:
-	if _claim_state == null or _claim_ext_team == ClaimTensionState.NO_TEAM or not config.claim_tension_enabled:
+	if _claim_state == null or not _claim_ext.is_holding() or not config.claim_tension_enabled:
 		return
 	if not _claim_is_client() or not _claim_match_live():
 		return
-	var hold: float = _claim_hold_seconds()
-	if hold <= 0.0 or _claim_ext_progress >= 1.0:
+	if not _claim_ext.advance(delta, _claim_hold_seconds()):
 		return
-	_claim_ext_progress = minf(_claim_ext_progress + delta / hold, 1.0)
-	_claim_state.update(_claim_ext_team, _claim_ext_progress, _local_claim_team(_claim_ext_team), true)
+	_claim_state.update(_claim_ext.team(), _claim_ext.progress(), _local_claim_team(_claim_ext.team()), true)
 	_refresh_claim_target(true)
 
 
@@ -1142,8 +1138,7 @@ func reset_claim_tension() -> void:
 		return
 	_claim_state.reset()
 	_claim_flush_queued = false
-	_claim_ext_team = ClaimTensionState.NO_TEAM
-	_claim_ext_progress = 0.0
+	_claim_ext.clear()
 	_refresh_claim_target(true)
 
 
