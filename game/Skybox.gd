@@ -144,6 +144,19 @@ const SKY_SHADER: Shader = preload("res://shaders/cubemap_sky.gdshader")
 ## derived placement detail of reflection_probe_height_m right below, not an
 ## independent tunable a playtester would ever need to move on its own.
 const PROBE_GROUND_CLEARANCE_M: float = 4.0
+## Bontago-1pi.11.67: the probe is re-rendered by writing its transform, which marks the
+## engine's probe instance dirty while keeping the old atlas slot valid (no blank frame,
+## unlike a visibility toggle). RenderingServer ignores a write equal to the current
+## transform, so alternate a sub-millimetre nudge; a derived placement detail like the
+## clearance above, not a tunable.
+const PROBE_RETRIGGER_NUDGE_M: float = 0.001
+## Effective probe strategy (GraphicsPreset.ReflectionProbeMode) after configure_reflection_probe().
+var _probe_mode: int = GraphicsPreset.ReflectionProbeMode.ALWAYS
+var _probe_interval_s: float = 0.5
+var _probe_elapsed_s: float = 0.0
+var _probe_seen_revision: int = -1
+var _probe_nudged: bool = false
+var _probe_registry: BlockRegistry = null
 
 ## Bontago-xtq.28 fix round: the cloud deck's box footprint/thickness/height
 ## are per-theme now (SkyThemeDef.cloud_deck_size_m/cloud_deck_height_m), not
@@ -332,6 +345,7 @@ func _prune_overcast_sky_bases() -> void:
 
 
 func _process(delta: float) -> void:
+	_step_probe_interval(delta)
 	_step_cloud_drift(delta)
 	if _cycle_theme == null:
 		return
@@ -842,6 +856,7 @@ func _ready() -> void:
 	var field_node: Field = get_node_or_null(field_path) as Field if not field_path.is_empty() else null
 	var registry_node: BlockRegistry = get_node_or_null(registry_path) as BlockRegistry if not registry_path.is_empty() else null
 	_perching.bind_scene(field_node, registry_node)
+	_probe_registry = registry_node
 	_fireflies.bind_field(field_node)
 	var boot_preset: GraphicsPreset = Settings.current_graphics_preset()
 	_aurora_preset_on = boot_preset == null or boot_preset.aurora_enabled
@@ -896,6 +911,50 @@ func configure_ssr() -> void:
 	environment.ssr_depth_tolerance = visuals.ssr_depth_tolerance
 
 
+## Bontago-1pi.11.67: the probe strategy in force: OFF when the scene-level switch is off,
+## ALWAYS when the dev override forces it, else the graphics preset's choice (INTERVAL when
+## no preset is known). Pure, so tests can assert the mapping.
+static func effective_probe_mode(tuning: TerritoryVisuals, preset: GraphicsPreset) -> int:
+	if tuning == null or not tuning.reflection_probe_enabled:
+		return GraphicsPreset.ReflectionProbeMode.OFF
+	if tuning.reflection_probe_update_always:
+		return GraphicsPreset.ReflectionProbeMode.ALWAYS
+	if preset == null:
+		return GraphicsPreset.ReflectionProbeMode.INTERVAL
+	return preset.reflection_probe_mode
+
+
+func probe_mode() -> int:
+	return _probe_mode
+
+
+## Re-renders the (UPDATE_ONCE) probe in place; see PROBE_RETRIGGER_NUDGE_M.
+func retrigger_reflection_probe() -> void:
+	if reflection_probe_path.is_empty():
+		return
+	var probe: ReflectionProbe = get_node_or_null(reflection_probe_path) as ReflectionProbe
+	if probe == null or not probe.visible or probe.update_mode != ReflectionProbe.UPDATE_ONCE:
+		return
+	_probe_nudged = not _probe_nudged
+	probe.position.y += PROBE_RETRIGGER_NUDGE_M if _probe_nudged else -PROBE_RETRIGGER_NUDGE_M
+
+
+## INTERVAL mode: every reflection_probe_interval_s, re-render once if the block layout
+## changed (BlockRegistry.territory_revision(): placed/removed/settled/moved blocks).
+func _step_probe_interval(delta: float) -> void:
+	if _probe_mode != GraphicsPreset.ReflectionProbeMode.INTERVAL or _probe_registry == null:
+		return
+	_probe_elapsed_s += delta
+	if _probe_elapsed_s < _probe_interval_s:
+		return
+	_probe_elapsed_s = 0.0
+	var revision: int = _probe_registry.territory_revision()
+	if revision == _probe_seen_revision:
+		return
+	_probe_seen_revision = revision
+	retrigger_reflection_probe()
+
+
 ## Bontago-xtq.12: sizes and enables the ReflectionProbe wired via
 ## reflection_probe_path (Main.tscn), once at boot -- not per-match, unlike
 ## TerritoryOverlay's own configure() (see reflection_probe_margin_m's
@@ -909,11 +968,16 @@ func configure_reflection_probe() -> void:
 	var probe: ReflectionProbe = get_node_or_null(reflection_probe_path) as ReflectionProbe
 	if probe == null:
 		return
-	probe.visible = visuals.reflection_probe_enabled
+	var preset: GraphicsPreset = Settings.current_graphics_preset()
+	_probe_mode = effective_probe_mode(visuals, preset)
+	_probe_interval_s = preset.reflection_probe_interval_s if preset != null else _probe_interval_s
+	probe.visible = _probe_mode != GraphicsPreset.ReflectionProbeMode.OFF
 	probe.update_mode = (
-		ReflectionProbe.UPDATE_ALWAYS if visuals.reflection_probe_update_always
+		ReflectionProbe.UPDATE_ALWAYS if _probe_mode == GraphicsPreset.ReflectionProbeMode.ALWAYS
 		else ReflectionProbe.UPDATE_ONCE
 	)
+	_probe_nudged = false
+	_probe_elapsed_s = 0.0
 	var half_width: float = _largest_disc_radius() + visuals.reflection_probe_margin_m
 	var height: float = visuals.reflection_probe_height_m
 	probe.size = Vector3(half_width * 2.0, height, half_width * 2.0)
@@ -1320,6 +1384,7 @@ func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 	# Bontago-mp0.129: the aurora reads this cached flag, never the Settings lookup.
 	_aurora_preset_on = preset == null or preset.aurora_enabled
 	_apply_fog_volume_visibility(preset)
+	configure_reflection_probe()  # Bontago-1pi.11.67: probe mode follows the preset
 	_apply_ambient_life(preset, theme)
 	# Bontago-59o.18: the rebuild above is day-configured (puff palette, light
 	# direction, birds, perching, fireflies); put the cycle's current phase back on

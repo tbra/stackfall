@@ -72,6 +72,21 @@ func test_high_preset_keeps_msaa_and_ssr_and_volumetric_fog() -> void:
 	)
 
 
+func test_glow_follows_the_preset() -> void:
+	Settings.set_graphics_preset(&"low")
+	assert_false(_world_environment().environment.glow_enabled, "low drops the glow pass")
+	Settings.set_graphics_preset(&"high")
+	assert_true(_world_environment().environment.glow_enabled, "high keeps the glow pass")
+
+
+func test_preset_change_reconfigures_the_reflection_probe() -> void:
+	var skybox: Skybox = _main.get_node("Skybox") as Skybox
+	Settings.set_graphics_preset(&"low")
+	assert_eq(skybox.probe_mode(), GraphicsPreset.ReflectionProbeMode.OFF)
+	Settings.set_graphics_preset(&"high")
+	assert_eq(skybox.probe_mode(), GraphicsPreset.ReflectionProbeMode.INTERVAL)
+
+
 func test_low_preset_reduces_sun_shadow_cascades() -> void:
 	Settings.set_graphics_preset(&"low")
 	var low_preset: GraphicsPreset = Settings.current_graphics_preset()
