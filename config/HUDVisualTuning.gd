@@ -57,10 +57,6 @@ extends Resource
 ## height/locked/special text) and the next-shape card. Alpha < 1 keeps the
 ## sunset field readable behind it.
 @export var panel_background_color: Color = Color(0.07, 0.10, 0.14, 0.78)
-## Coral border/accent stroke around a panel (the next-shape card's outline).
-@export var panel_border_color: Color = Color(0.96, 0.45, 0.38, 0.95)
-## Light ink for HUD label text over the dark translucent panels/sky.
-@export var panel_text_color: Color = Color(0.96, 0.94, 0.88, 1.0)
 ## Corner rounding, in pixels, applied to every reskinned HUD panel's
 ## StyleBoxFlat.
 @export var panel_corner_radius_px: float = 16.0

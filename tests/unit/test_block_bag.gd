@@ -9,7 +9,6 @@ func _config() -> BlockFeedConfig:
 	config.stabilizer_ids = [&"square4", &"slab6", &"cube"]
 	config.min_stabilizers_per_bag = 2
 	config.bag_multiplier = 2.0
-	config.preview_count = 1
 	return config
 
 

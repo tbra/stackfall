@@ -4,7 +4,6 @@
 
 [resource]
 script = ExtResource("1_shake")
-impact_speed_threshold = 4.0
 max_offset_m = 0.35
 decay_seconds = 0.25
 frequency_hz = 18.0

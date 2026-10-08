@@ -26,5 +26,3 @@ extends Resource
 ## predictable draws.
 @export var bag_multiplier: float = 2.0
 
-## Spec 2.4: the HUD shows the next block, optionally the next 3.
-@export var preview_count: int = 1

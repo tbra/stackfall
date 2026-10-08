@@ -21,8 +21,7 @@ const FRAME_LIMIT: int = 2400
 const POSITION_TOLERANCE_M: float = 0.001
 const BASIS_TOLERANCE: float = 0.0001
 ## Camera shake is a reaction to block impacts (bots may drop early); it is
-## disabled for this trace so only the framing itself is compared.
-const NO_SHAKE_THRESHOLD: float = 1.0e9
+## disabled for this trace (max_offset_m = 0) so only the framing itself is compared.
 
 var _main: Variant = null
 var _trace: Array[Dictionary] = []
@@ -68,7 +67,7 @@ func _start_vs_bots_match_from_the_lobby() -> void:
 	add_child_autofree(_main)
 	var rig: CameraRig = _main._camera_rig
 	rig.shake_config = rig.shake_config.duplicate()
-	rig.shake_config.impact_speed_threshold = NO_SHAKE_THRESHOLD
+	rig.shake_config.max_offset_m = 0.0
 	Events.match_state_changed.connect(_hold_countdown_like_a_windowed_build)
 	assert_eq(Net.host_game(AgentProbe.free_udp_port(), "Hostie"), OK)
 	await get_tree().process_frame

@@ -50,3 +50,93 @@ func description_for(class_name_: String, property_name: String) -> String:
 	if descriptions.has(key):
 		return String(descriptions[key])
 	return ""
+
+## Bontago-1pi.113 (F4 panel redo). "<script class name>.<property name>" ->
+## section title: the panel shows a field under a foldable section header with
+## this title (the `## -- Title --` comment above the field in its config
+## script). Sections are ordered by first appearance in declaration order unless
+## `section_order` names them.
+@export var sections: Dictionary = {}
+
+## "<script class name>" -> Array[String] of section titles to list first, in
+## this order (unlisted sections follow in declaration order).
+@export var section_order: Dictionary = {}
+
+## "<script class name>.<section title>" -> tab name, for a section that belongs
+## on a different tab than the resource's first one (e.g. GhostTuning's visual
+## sections on "Ghost & Blocks").
+@export var section_tabs: Dictionary = {}
+
+## "<script class name>.<property name>" -> unit text ("m/s", "rad/px"...) for
+## a field whose name carries no unit suffix. A recognised suffix (_s, _m, _deg,
+## _px, _hz, _mps...) is picked up by unit_for() without an entry here.
+@export var units: Dictionary = {}
+
+## Name suffix -> unit shown after the value, and dropped from the label.
+const SUFFIX_UNITS: Dictionary = {
+	"seconds": "s", "second": "s", "s": "s", "duration": "s", "delay": "s", "hold": "s",
+	"time": "s", "m": "m", "distance": "m", "px": "px", "deg": "°", "degrees": "°",
+	"hz": "Hz", "mps": "m/s", "fps": "fps",
+}
+## Words shown upper-case in a humanized label.
+const ACRONYMS: PackedStringArray = ["hud", "ssr", "hdr", "fov", "fps", "ui", "ctf", "uv"]
+const GENERAL_SECTION: String = "General"
+
+
+## "" when the field has no section entry.
+func section_for(class_name_: String, property_name: String) -> String:
+	return String(sections.get("%s.%s" % [class_name_, property_name], ""))
+
+
+## The tab a section shows on: its `section_tabs` entry, else `default_tab`.
+func tab_for(class_name_: String, section: String, default_tab: String) -> String:
+	return String(section_tabs.get("%s.%s" % [class_name_, section], default_tab))
+
+
+## Section titles of `class_name_` in display order given the field names in
+## declaration order (`fields`).
+func ordered_sections(class_name_: String, fields: Array[String]) -> Array[String]:
+	var seen: Array[String] = []
+	for field_name: String in fields:
+		var title: String = section_for(class_name_, field_name)
+		if title.is_empty():
+			title = GENERAL_SECTION
+		if not seen.has(title):
+			seen.append(title)
+	var result: Array[String] = []
+	for listed: Variant in (section_order.get(class_name_, []) as Array):
+		if seen.has(String(listed)):
+			result.append(String(listed))
+	for title: String in seen:
+		if not result.has(title):
+			result.append(title)
+	return result
+
+
+## Unit text for a field ("" for none): an explicit `units` entry, else the name suffix.
+func unit_for(class_name_: String, property_name: String) -> String:
+	var key: String = "%s.%s" % [class_name_, property_name]
+	if units.has(key):
+		return String(units[key])
+	var suffix: String = property_name.get_slice("_", property_name.get_slice_count("_") - 1)
+	if property_name.contains("_") and SUFFIX_UNITS.has(suffix):
+		return String(SUFFIX_UNITS[suffix])
+	return ""
+
+
+## Player-facing field name: underscores to spaces, first word capitalised,
+## acronyms upper-cased, and a unit suffix token dropped (the unit shows beside
+## the value instead). "dust_lifetime_s" -> "Dust lifetime", "fov_deg" -> "FOV".
+func label_for(class_name_: String, property_name: String) -> String:
+	var words: PackedStringArray = property_name.split("_", false)
+	if words.size() > 1 and SUFFIX_UNITS.has(words[words.size() - 1]) and not units.has("%s.%s" % [class_name_, property_name]):
+		words.remove_at(words.size() - 1)
+	var out: PackedStringArray = PackedStringArray()
+	for index: int in words.size():
+		var word: String = words[index]
+		if ACRONYMS.has(word):
+			word = word.to_upper()
+		elif index == 0:
+			word = word.capitalize()
+		out.append(word)
+	return " ".join(out)

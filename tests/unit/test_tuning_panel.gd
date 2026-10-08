@@ -167,10 +167,10 @@ func test_int_field_gets_a_spinbox() -> void:
 	assert_almost_eq((control as SpinBox).value, float(_saved_max_cell_toggles), 0.0001)
 
 
-func test_bool_field_gets_a_checkbutton() -> void:
+func test_bool_field_gets_a_toggle_button() -> void:
 	var control: Control = _panel.control_for(_panel.camera_tuning, "follow_block")
-	assert_true(control is CheckButton)
-	assert_eq((control as CheckButton).button_pressed, _saved_follow_block)
+	assert_true(control is Button)
+	assert_eq((control as Button).button_pressed, _saved_follow_block)
 
 
 func test_color_field_gets_a_colorpickerbutton() -> void:
@@ -210,7 +210,7 @@ func test_spinbox_change_writes_the_resource() -> void:
 
 
 func test_checkbutton_change_writes_the_resource() -> void:
-	var check: CheckButton = _panel.control_for(_panel.camera_tuning, "follow_block") as CheckButton
+	var check: Button = _panel.control_for(_panel.camera_tuning, "follow_block") as Button
 	check.emit_signal("toggled", not _saved_follow_block)
 	assert_eq(_panel.camera_tuning.follow_block, not _saved_follow_block)
 
@@ -669,16 +669,15 @@ func test_host_shows_every_tab() -> void:
 		assert_false(_panel._tab_container.is_tab_hidden(index))
 
 
-## Bontago-xtq.36: rewritten for the 10-tab layout the M7 tabs added --
-## CLIENT_HIDDEN_TAB_FIRST moved from 2 to 7 (see that constant's own doc),
-## so every visual tab (Camera, Controls, and the five new M7 tabs) must stay
-## visible to a client, and only Physics/Territory/Feed (indices 7-9) hide.
-func test_client_hides_physics_territory_and_feed_but_not_the_visual_tabs() -> void:
+## Bontago-1pi.113: the 10-task-tab layout -- CLIENT_HIDDEN_TAB_FIRST is 6, so
+## every look/feel tab (Camera ... Sky) stays visible to a client and only the
+## host-only simulation tabs (Physics, Territory rules, Block bag, QoL) hide.
+func test_client_hides_the_simulation_tabs_but_not_the_visual_tabs() -> void:
 	_own_panel(false)
 	_panel.net_provider = FakeNet.client(0)
 	_panel.rebuild()
 	var visible_names: PackedStringArray = [
-		"Camera", "Controls", "Blocks FX", "Beacons", "Camera FX", "HUD", "Sky",
+		"Camera", "Controls", "Ghost & Blocks", "Territory look", "HUD", "Sky",
 	]
 	for index: int in range(visible_names.size()):
 		assert_false(
@@ -686,7 +685,7 @@ func test_client_hides_physics_territory_and_feed_but_not_the_visual_tabs() -> v
 			visible_names[index]
 		)
 	for index: int in range(_panel.CLIENT_HIDDEN_TAB_FIRST, _panel._tab_container.get_tab_count()):
-		assert_true(_panel._tab_container.is_tab_hidden(index), "tab %d (Physics/Territory/Feed)" % index)
+		assert_true(_panel._tab_container.is_tab_hidden(index), "tab %d (host-only simulation tab)" % index)
 
 
 # --- Bontago-xtq.36: M7 art-direction tabs (Blocks FX/Beacons/Camera FX/HUD/Sky) ---
@@ -705,11 +704,13 @@ func test_tab_roster_has_one_unique_titled_page_per_tab() -> void:
 		assert_gt(_panel.row_count_for(resource), 0, "%s is shown on some tab" % resource)
 
 
-## CameraShakeConfig (config/CameraShakeConfig.gd) is four plain floats and
-## nothing else -- like PhysicsTuning's own "one control per numeric field"
-## fixture above, no Color/bool/Vector field to complicate the count.
-func test_camera_fx_tab_builds_one_control_per_exported_float_field() -> void:
-	assert_eq(_panel.row_count_for(_panel.camera_shake_config), 4)
+## CameraShakeConfig (config/CameraShakeConfig.gd) is three plain floats and
+## nothing else (impact_speed_threshold was dead and is gone, Bontago-fca.62);
+## they sit on the Camera tab under "Screen shake".
+func test_camera_tab_builds_one_control_per_exported_shake_float_field() -> void:
+	assert_eq(_panel.row_count_for(_panel.camera_shake_config), 3)
+	assert_eq(_panel.section_titles_for(_panel.camera_shake_config), ["Screen shake"] as Array[String])
+	assert_true(_panel._tab_container.get_node("Camera").find_child("Section_Screen_shake", true, false) != null)
 
 
 ## SkyThemeDef.fog_density is a plain float (config/SkyThemeDef.gd) -- driving
@@ -971,7 +972,10 @@ func test_every_row_label_shows_its_default_value() -> void:
 		for prop_name: String in _panel.shown_fields_for(resource):
 			checked_any = true
 			var text: String = _panel.label_text_for(resource, prop_name)
-			assert_true(text.contains(prop_name), "label %s names its field %s" % [text, prop_name])
+			var human: String = _panel.hints.label_for(String((resource.get_script() as Script).get_global_name()), prop_name)
+			assert_false(human.is_empty(), "%s has a readable label" % prop_name)
+			assert_true(text.contains(human), "label %s shows the readable name %s" % [text, human])
+			assert_false(human.contains("_"), "%s label %s is not a raw property name" % [prop_name, human])
 			assert_true(text.contains("(default "), "%s.%s label %s must show its default" % [resource, prop_name, text])
 			# Exact-format check for the types whose text is unambiguous: the label's
 			# default is the value Reset restores (the shipped resource), read from disk.
@@ -979,10 +983,10 @@ func test_every_row_label_shows_its_default_value() -> void:
 				var value: Variant = shipped.get(prop_name)
 				if value is bool:
 					compared += 1
-					assert_true(text.contains("(default %s)" % ("true" if value else "false")), "%s default text" % prop_name)
+					assert_true(text.contains("(default %s)" % ("On" if value else "Off")), "%s default text" % prop_name)
 				elif value is int:
 					compared += 1
-					assert_true(text.contains("(default %d)" % value), "%s default text" % prop_name)
+					assert_true(text.contains("(default %d" % value), "%s default text" % prop_name)
 	assert_true(checked_any, "fixture: at least one row must exist to check.")
 	assert_gt(compared, 0, "fixture: at least one int/bool row compared against its shipped default")
 
@@ -1054,7 +1058,8 @@ func test_reset_restores_shipped_tres_and_default_label_and_highlight_agree() ->
 		assert_false(_panel.is_modified(resource, prop_name), "%s.%s must not be flagged modified after Reset." % [resource, prop_name])
 		var label: String = _panel.label_text_for(resource, prop_name)
 		assert_false(label.begins_with("•"), "%s must not carry the modified marker after Reset." % label)
-		assert_true(label.contains(_panel._format_default(shipped_value, type)), "%s must show the shipped value as its default." % label)
+		assert_true(label.contains(_panel.default_text_for(resource, prop_name)), "%s must carry its default column text." % label)
+		assert_true(is_equal_approx(float(_panel._row_for(resource, prop_name)["default"]), float(shipped_value)), "%s default must be the shipped value." % prop_name)
 	gut.p("fields whose .tres differs from .gd default: %d" % differing)
 
 
@@ -1098,8 +1103,6 @@ func test_m7_config_resources_have_complete_hints() -> void:
 
 			var prop_name: String = str(prop.get("name", ""))
 			var type: int = int(prop.get("type", TYPE_NIL))
-			if _panel.is_unused_field(class_label, prop_name):
-				continue
 			checked_any = true
 
 			# Every exported property must have a description.
@@ -1471,32 +1474,119 @@ func test_every_shown_control_is_read_by_live_game_code() -> void:
 	assert_gt(checked, 300, "fixture: the table covers every tab's rows")
 
 
-func test_unused_fields_get_no_row_and_no_hint() -> void:
-	for key: String in TuningPanel.UNUSED_FIELDS:
-		var parts: PackedStringArray = key.split(".")
-		assert_eq(_panel.hints.description_for(parts[0], parts[1]), "", "%s hint removed" % key)
-	assert_null(_panel.control_for(_panel.territory_visuals, "flag_pole_height"))
-	assert_null(_panel.control_for(_panel.block_feed_config, "preview_count"))
-	assert_null(_panel.control_for(_panel.hud_visual_tuning, "panel_border_color"))
+## Bontago-fca.62: the dead config fields are deleted, not just hidden.
+func test_dead_config_fields_are_gone() -> void:
+	var gone: Dictionary = {
+		"TerritoryVisuals": ["flag_pole_height", "flag_pole_radius", "flag_pole_color", "flag_emission", "goal_flag_scale", "flag_banner_size"],
+		"BlockFeedConfig": ["preview_count"],
+		"HUDVisualTuning": ["panel_border_color", "panel_text_color"],
+		"CameraShakeConfig": ["impact_speed_threshold"],
+	}
+	var live: Dictionary = {
+		"TerritoryVisuals": _panel.territory_visuals, "BlockFeedConfig": _panel.block_feed_config,
+		"HUDVisualTuning": _panel.hud_visual_tuning, "CameraShakeConfig": _panel.camera_shake_config,
+	}
+	for class_label: String in gone:
+		var names: PackedStringArray = PackedStringArray()
+		for prop: Dictionary in (live[class_label] as Resource).get_property_list():
+			names.append(str(prop.get("name", "")))
+		for prop_name: String in (gone[class_label] as Array):
+			assert_false(names.has(prop_name), "%s.%s is deleted" % [class_label, prop_name])
+			assert_eq(_panel.hints.description_for(class_label, prop_name), "", "%s.%s hint removed" % [class_label, prop_name])
+			assert_false(_panel.hints.ranges.has("%s.%s" % [class_label, prop_name]), "%s.%s range removed" % [class_label, prop_name])
 	assert_not_null(_panel.control_for(_panel.block_feed_config, "bag_multiplier"))
 
 
-func test_rows_are_grouped_under_headers_general_first_then_alphabetical() -> void:
-	var titles: Array[String] = _panel.group_titles_for(_panel.block_effects_config)
-	assert_gt(titles.size(), 2, "BlockEffectsConfig splits into several groups")
-	if titles.has(TuningPanel.GENERAL_GROUP):
-		assert_eq(titles[0], TuningPanel.GENERAL_GROUP, "General comes first")
-	var rest: Array[String] = titles.duplicate()
-	rest.erase(TuningPanel.GENERAL_GROUP)
-	var sorted_rest: Array[String] = rest.duplicate()
-	sorted_rest.sort()
-	assert_eq(rest, sorted_rest, "named groups are alphabetical")
-	assert_true(titles.has("Dust") and titles.has("Trail"))
-	var header: Node = _panel._tab_container.find_child("Group_Dust", true, false)
-	assert_not_null(header, "the group header is rendered")
+# --- Bontago-1pi.113: sections, labels, units, layout ---------------------------
+
+func test_every_shown_field_has_a_section_a_unit_free_label_and_a_known_tab() -> void:
+	var tab_names: PackedStringArray = PackedStringArray()
+	for entry: Dictionary in _panel._tab_plan():
+		tab_names.append(String(entry["name"]))
+	var checked: int = 0
+	for entry: Dictionary in _panel._tab_plan():
+		for resource: Resource in (entry["resources"] as Array):
+			var class_label: String = String((resource.get_script() as Script).get_global_name())
+			for prop_name: String in _panel.shown_fields_for(resource):
+				checked += 1
+				assert_ne(_panel.hints.section_for(class_label, prop_name), "", "%s.%s has a section" % [class_label, prop_name])
+				var human: String = _panel.hints.label_for(class_label, prop_name)
+				assert_true(human.left(1) == human.left(1).to_upper(), "%s starts upper-case" % human)
+	assert_gt(checked, 300)
+	for key: Variant in _panel.hints.section_tabs.values():
+		assert_true(tab_names.has(String(key)), "section_tabs target %s is a real tab" % key)
 
 
-func test_fields_inside_a_group_are_sorted() -> void:
-	var groups: Dictionary = _panel._group_field_names(["dust_b", "dust_a", "dust_c", "solo", "x_y"])
-	assert_eq(groups["Dust"], ["dust_a", "dust_b", "dust_c"])
-	assert_eq(groups[TuningPanel.GENERAL_GROUP], ["solo", "x_y"])
+func test_label_and_unit_helpers() -> void:
+	var hints: TuningPanelHints = _panel.hints
+	assert_eq(hints.label_for("X", "auto_drop_flash_duration"), "Auto drop flash")
+	assert_eq(hints.unit_for("X", "auto_drop_flash_duration"), "s")
+	assert_eq(hints.label_for("X", "dust_lifetime_s"), "Dust lifetime")
+	assert_eq(hints.unit_for("X", "dust_lifetime_s"), "s")
+	assert_eq(hints.label_for("X", "fov_deg"), "FOV")
+	assert_eq(hints.unit_for("X", "fov_deg"), "\u00b0")
+	assert_eq(hints.label_for("X", "ssr_enabled"), "SSR enabled")
+	assert_eq(hints.unit_for("X", "ssr_enabled"), "")
+	assert_eq(hints.unit_for("CameraTuning", "pan_speed"), "m/s")
+	assert_eq(hints.label_for("CameraTuning", "pan_speed"), "Pan speed")
+
+
+func test_float_rows_use_consistent_decimals_and_units() -> void:
+	assert_eq(_panel._decimals_for(Vector2(0.0, 1.0)), 3)
+	assert_eq(_panel._decimals_for(Vector2(0.0, 360.0)), 1)
+	assert_eq(_panel._decimals_for(Vector2(0.0, 100.0)), 1)
+	assert_eq(_panel._decimals_for(Vector2(0.0, 0.024)), 5)
+	assert_eq(_panel._format_shown(2.4, TYPE_FLOAT, "rad/s", 1), "2.4 rad/s")
+	assert_eq(_panel._format_shown(-80.0, TYPE_FLOAT, "\u00b0", 1), "-80.0\u00b0")
+	assert_eq(_panel._format_shown(true, TYPE_BOOL, "", 0), "On")
+	var text: String = _panel.default_text_for(_panel.camera_tuning, "pan_speed")
+	assert_true(text.begins_with("default ") and text.ends_with("m/s"), text)
+
+
+func test_sections_follow_declaration_order_and_tabs_split_ghost() -> void:
+	var titles: Array[String] = _panel.section_titles_for(_panel.camera_tuning)
+	assert_eq(titles[0], "Orbit", "Camera starts with its first declared block")
+	assert_true(titles.has("Zoom") and titles.has("Lens"))
+	var ghost: Array[String] = _panel.section_titles_for(_panel.ghost_tuning)
+	assert_true(ghost.has("Hover height") and ghost.has("Ghost glow"), "Ghost sections appear on both its tabs")
+	var controls: Node = _panel._tab_container.get_node("Controls")
+	var looks: Node = _panel._tab_container.get_node("Ghost & Blocks")
+	assert_not_null(controls.find_child("Section_Hover_height", true, false))
+	assert_null(controls.find_child("Section_Ghost_glow", true, false), "visual ghost sections are not on Controls")
+	assert_not_null(looks.find_child("Section_Ghost_glow", true, false))
+	var sky: Array[String] = _panel.section_titles_for(_panel.sky_theme)
+	assert_eq(sky[0], "Day/night cycle", "section_order puts the cycle first")
+	var dust: Node = _panel._tab_container.find_child("Section_Dust", true, false)
+	assert_not_null(dust, "BlockEffectsConfig's prefix sections are rendered")
+
+
+func test_section_fold_state_survives_rebuild() -> void:
+	var section: Node = _panel._tab_container.find_child("Section_Orbit", true, false)
+	var body: Control = section.get_node("Body") as Control
+	var header: Button = section.get_node("Header") as Button
+	var was_open: bool = body.visible
+	header.pressed.emit()
+	assert_ne(body.visible, was_open, "clicking the header toggles the body")
+	_panel.rebuild()
+	var rebuilt: Node = _panel._tab_container.find_child("Section_Orbit", true, false)
+	assert_ne((rebuilt.get_node("Body") as Control).visible, was_open, "the choice is remembered")
+	(rebuilt.get_node("Header") as Button).pressed.emit()
+	assert_eq((rebuilt.get_node("Body") as Control).visible, was_open)
+	assert_true(((rebuilt.get_node("Header") as Button).text).begins_with(TuningPanel.SECTION_OPEN_MARK if was_open else TuningPanel.SECTION_CLOSED_MARK))
+
+
+func test_every_row_control_sits_in_the_same_fixed_control_column() -> void:
+	var checked: int = 0
+	for row: Dictionary in _panel._rows:
+		var control: Control = row["control"] as Control
+		var holder: Control = control.get_parent() as Control
+		assert_eq(holder.custom_minimum_size.x, TuningPanel.CONTROL_COLUMN_WIDTH, "%s control column" % row["property"])
+		if control is ColorPickerButton:
+			assert_gte(control.custom_minimum_size.y, TuningPanel.SWATCH_HEIGHT, "%s swatch has height" % row["property"])
+		if control is SpinBox:
+			assert_ne(control.size_flags_horizontal, Control.SIZE_EXPAND_FILL, "%s spinbox is compact" % row["property"])
+		checked += 1
+	assert_gt(checked, 300)
+	var scene: Node = _panel._tab_container.get_node("Sky").find_child("Section_Sky_and_weather", true, false)
+	assert_not_null(scene, "the sky/weather rows are an ordinary section")
+	assert_not_null(_panel._tab_container.get_node("Physics").find_child("Section_Presets", true, false))
