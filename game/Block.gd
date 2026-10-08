@@ -48,9 +48,11 @@ const SLEPT_TAIL_FRAMES: int = 2
 
 ## assets-audio package (revised: no contact_monitor -- an earlier revision's
 ## bench_rain.gd cost ~5-7 ms/step at 300 blocks, well over budget). Impacts
-## are detected from the body's own motion instead: _physics_process below
-## compares this tick's linear_velocity against the previous tick's, and a
-## sudden drop in speed (hitting something) crosses AudioConfig.impact_speed_min.
+## are detected from the body's own motion instead: _detect_impact() below
+## (Bontago-bth.1: the old per-node _physics_process, now driven from
+## game/BlockStepBatch.gd's one batched pass) compares this tick's
+## linear_velocity against the previous tick's, and a sudden drop in speed
+## (hitting something) crosses AudioConfig.impact_speed_min.
 ## autoload/Sfx.gd sets both statics once at startup from AudioConfig so this
 ## file carries no direct dependency on the AudioConfig class.
 static var impact_speed_min: float = 1.0
@@ -93,10 +95,24 @@ var _prev_step_linear_velocity_y: float = 0.0
 ## below, consumed (and cleared) by the very next _integrate_forces() call.
 ## See kick()'s own doc comment for what this is for.
 var _script_kick_pending: bool = false
-## For tests (Bontago-1pi.11.60): how many _integrate_forces() calls ran the
-## full rebound path (awake, non-frozen body) rather than the early-out.
+## Bontago-bth.1: physics frame mark_script_kick() ran in. The old
+## _integrate_forces() consumed a kick at the body's first state sync AFTER
+## the mark; game/BlockStepBatch.gd runs after the whole sync phase, so a mark
+## made during this frame's sync phase is only due from the next frame.
+var _kick_frame: int = -1
+## For tests (Bontago-1pi.11.60): how many rebound passes (the old
+## _integrate_forces() calls, now _batch_tick()) ran the full
+## rebound path (awake, non-frozen body) rather than the early-out.
 var rebound_work_runs: int = 0
 var _release_checked: bool = false
+## Bontago-bth.1: first physics frame at which Jolt has synced this body
+## (state sync callback) since it last entered the awake set -- the frames
+## the old _integrate_forces() ran on. See _next_sync_frame().
+var _sync_from_frame: int = 0
+## Bontago-bth.1 test seam: false for a subclass that keeps its own per-node
+## physics hooks (tests/unit/test_block_step_batch.gd's reference copy of the
+## pre-batch Block); BlockStepBatch then leaves it alone.
+var step_batched: bool = true
 
 ## Fix round (Bontago-xtq.27 review MAJOR): the "contributing to territory
 ## influence" glow (BlockFactory.build()'s own DECISION: RigidBody3D.sleeping
@@ -166,7 +182,26 @@ static func clear_awake_set_for_tests() -> void:
 	_slept_frames.clear()
 
 
+## Bontago-bth.1: the first physics frame whose state sync can include a body
+## that became Jolt-active (spawned, woken or unfrozen by script) right now.
+## Jolt syncs at tick F exactly the bodies it stepped at F-1 (pre_step over the
+## active list) or woke during that step. Anything a script does during
+## physics frame F (its sync phase, _physics_process, timers, deferred calls)
+## precedes step F, so the first sync is F+1; anything between ticks (input,
+## RPCs, _process) precedes step F+1, so F+2.
+static func _next_sync_frame() -> int:
+	var frame: int = Engine.get_physics_frames()
+	return frame + 1 if Engine.is_in_physics_frame() else frame + 2
+
+
 func _enter_tree() -> void:
+	if step_batched:
+		BlockStepBatch.ensure_installed()
+		if not _release_checked:
+			# Bontago-bth.1: the release tilt runs inside Jolt's own first state
+			# sync of this body, before the C++ RigidBody3D sync, exactly where the
+			# old _integrate_forces() ran it (once per block, not per tick).
+			PhysicsServer3D.body_set_force_integration_callback(get_rid(), _on_first_integration)
 	_apply_awake(not sleeping)
 
 
@@ -177,12 +212,11 @@ func _exit_tree() -> void:
 	_slept_frames.erase(id)
 
 
-## Puts this block in (or takes it out of) the awake set and switches its
-## per-tick impact callback with it: a sleeping or statically frozen block has
-## nothing to measure (the callback only stored its velocity then), and wake
-## re-seeds the previous-speed sample exactly as that idle tick did.
-## _integrate_forces() needs no switch: Jolt already never calls it for a
-## sleeping or static body.
+## Puts this block in (or takes it out of) the awake set, which is also what
+## game/BlockStepBatch.gd's per-tick pass visits: a sleeping or statically
+## frozen block has nothing to measure, and wake re-seeds the previous-speed
+## sample exactly as the old per-node impact callback's idle tick did, and
+## marks when Jolt first syncs the body again (_next_sync_frame()).
 func _apply_awake(awake: bool) -> void:
 	# A removed-but-not-freed block must never (re)enter the set: no _exit_tree
 	# would follow to drop it again.
@@ -190,13 +224,13 @@ func _apply_awake(awake: bool) -> void:
 	if awake:
 		if not _awake.has(get_instance_id()):
 			_prev_linear_velocity = linear_velocity
+			_sync_from_frame = _next_sync_frame()
 		_awake[get_instance_id()] = self
 		_slept_blocks.erase(get_instance_id())
 		_slept_frames.erase(get_instance_id())
 	elif _awake.erase(get_instance_id()):
 		_slept_blocks[get_instance_id()] = self
 		_slept_frames[get_instance_id()] = Engine.get_physics_frames()
-	set_physics_process(awake)
 
 
 ## Script wake: `sleeping = false` raises no sleeping_state_changed (the engine
@@ -207,8 +241,94 @@ func wake() -> void:
 	_apply_awake(not is_freeze_static())
 
 
+## Raised only from inside this body's own state sync (RigidBody3D's
+## _sync_body_state()), so Jolt has synced it this very frame. Falling asleep:
+## that sync is where the old _integrate_forces() took its early-out, so it
+## runs here (same values: the node's velocity was copied before the signal).
+## Waking: the batch must treat the body as synced from this frame on.
 func _on_sleeping_state_changed() -> void:
+	if step_batched and sleeping:
+		_early_out_sync(Engine.get_physics_frames())
 	_apply_awake(not sleeping and not is_freeze_static())
+	if not sleeping:
+		_sync_from_frame = Engine.get_physics_frames()
+
+
+## Bontago-bth.1: this block's share of game/BlockStepBatch.gd's per-tick pass
+## (it calls this for every block in the awake set, once per physics frame,
+## before any node's _physics_process). Replaces the old per-node
+## _integrate_forces() (rebound pass, only on frames Jolt synced this body)
+## and _physics_process() (impact detection, every awake tick).
+##
+## `physics_active` is false while the SceneTree is paused (which deactivates
+## the physics server: no step, no state sync, so no rebound pass), and
+## can_process() is the same gate Godot applied to the old _physics_process()
+## (pause, PROCESS_MODE_DISABLED; a disabled body is also out of its space).
+func _batch_tick(frame: int, physics_active: bool) -> void:
+	if not step_batched or not can_process():
+		return
+	if sleeping:
+		# Asleep without a sleep transition this tick: Jolt did not sync it. The
+		# old _physics_process() dropped such a block here the same way.
+		_prev_linear_velocity = linear_velocity
+		_apply_awake(false)
+		return
+	var velocity: Vector3 = linear_velocity
+	var synced: bool = physics_active and _sync_from_frame <= frame
+	if freeze:
+		if synced:
+			_early_out_sync(frame)
+		_prev_linear_velocity = Vector3.ZERO
+		return
+	if synced:
+		# The old _integrate_forces() full path; `velocity` is what this tick's
+		# state sync just copied from the body.
+		rebound_work_runs += 1
+		if _script_kick_pending and _kick_frame < frame:
+			_script_kick_pending = false
+		elif tuning != null and tuning.rebound_damping != 1.0 and velocity.y > tuning.sleep_linear_threshold:
+			var damped_y: float = _damp_rebound(
+				_prev_step_linear_velocity_y, velocity.y, tuning.rebound_damping, tuning.sleep_linear_threshold
+			)
+			if damped_y != velocity.y:
+				velocity.y = damped_y
+				linear_velocity = velocity
+		_prev_step_linear_velocity_y = velocity.y
+	_detect_impact(velocity)
+
+
+## Impact detection (see the DECISION above this class's impact statics),
+## formerly _physics_process(). DECISION (game/Block.gd, Bontago-bth.1): it
+## now runs in BlockStepBatch's pass before every node's _physics_process
+## instead of at this block's own tree position; it only reads the velocity
+## and emits audio/VFX events, so physics state is unchanged, but a velocity
+## another node writes earlier in tree order the same tick is heard one tick
+## later.
+func _detect_impact(velocity: Vector3) -> void:
+	if not impacts_enabled:
+		_prev_linear_velocity = velocity
+		return
+	var decel: float = _prev_linear_velocity.length() - velocity.length()
+	_prev_linear_velocity = velocity
+	if decel < impact_speed_min:
+		return
+	var now_ms: int = Time.get_ticks_msec()
+	if now_ms - _last_impact_emit_ms < IMPACT_EMIT_INTERVAL_MS:
+		return
+	_last_impact_emit_ms = now_ms
+	Events.block_impacted.emit(decel)
+	# Bontago-xtq.29 (M7 P4 fix): additive alongside the line above -- see
+	# Events.block_impacted_at's own doc comment. autoload/Sfx.gd's listener
+	# on block_impacted is unchanged.
+	Events.block_impacted_at.emit(decel, global_position)
+
+
+## The old _integrate_forces() early-out for a body synced asleep or frozen:
+## only keep the previous-velocity sample current and consume a due kick.
+func _early_out_sync(frame: int) -> void:
+	if _script_kick_pending and _kick_frame < frame:
+		_script_kick_pending = false
+	_prev_step_linear_velocity_y = linear_velocity.y
 
 
 func _ready() -> void:
@@ -230,58 +350,31 @@ func _ready() -> void:
 		tuning = preload("res://config/physics_tuning.tres")
 
 
-## Sleeping bodies (a settled pile) skip this entirely -- Jolt stops
+## Impact detection (assets-audio package; Bontago-bth.1 moved it into
+## _detect_impact(), driven by game/BlockStepBatch.gd once per tick):
+## sleeping bodies (a settled pile) skip it entirely -- Jolt stops
 ## integrating them, so linear_velocity would otherwise read as a false,
 ## constant "impact" the instant they wake. DECISION: the deceleration
 ## magnitude (previous tick's speed minus this tick's), not a full projected
 ## dot product -- cheap, and correct for the case that matters (a fall
 ## suddenly arrested by a landing); a block that speeds up between ticks
 ## (still falling, or getting knocked) never crosses the threshold here.
-func _physics_process(_delta: float) -> void:
-	if sleeping:
-		# Reached only when a wake was assumed (see release_freeze_static()) or
-		# the sleep signal was missed: leave the awake set and stop ticking.
-		_prev_linear_velocity = linear_velocity
-		_apply_awake(false)
-		return
-	if freeze:
-		# Bontago-1pi.55: a frozen body is not simulated here -- a client's
-		# synced replica (SnapshotSync.freeze_body()) or a held/static body --
-		# so its linear_velocity is either zero or derived from script
-		# transform writes (the client's first interpolated move off the spawn
-		# teleport read as a ~588 m/s "impact"). Only real physics detects
-		# impacts; a client hears the host's via MatchNet.net_block_impacts().
-		_prev_linear_velocity = Vector3.ZERO
-		return
-	if not impacts_enabled:
-		_prev_linear_velocity = linear_velocity
-		return
-	var prev_speed: float = _prev_linear_velocity.length()
-	var now_speed: float = linear_velocity.length()
-	var decel: float = prev_speed - now_speed
-	_prev_linear_velocity = linear_velocity
-	if decel < impact_speed_min:
-		return
-	var now_ms: int = Time.get_ticks_msec()
-	if now_ms - _last_impact_emit_ms < IMPACT_EMIT_INTERVAL_MS:
-		return
-	_last_impact_emit_ms = now_ms
-	Events.block_impacted.emit(decel)
-	# Bontago-xtq.29 (M7 P4 fix): additive alongside the line above -- see
-	# Events.block_impacted_at's own doc comment. autoload/Sfx.gd's listener
-	# on block_impacted is unchanged.
-	Events.block_impacted_at.emit(decel, global_position)
+## Bontago-1pi.55: a frozen body is not simulated -- a client's synced replica
+## (SnapshotSync.freeze_body()) or a held/static body -- so only real physics
+## detects impacts; a client hears the host's via MatchNet.net_block_impacts().
 
 
-## Bontago-xtq.17: damps only a fresh bounce's straight-up (world Y) velocity,
+## Bontago-xtq.17 rebound damping (run per synced body by _batch_tick(),
+## driven by game/BlockStepBatch.gd since Bontago-bth.1; it used to be
+## this class's _integrate_forces() override, so "_integrate_forces()" below
+## means that pass): damps only a fresh bounce's straight-up (world Y) velocity,
 ## leaving horizontal and angular velocity alone so block_bounce still gives
 ## lateral/tumbling liveliness off a corner or edge hit -- see
 ## config/PhysicsTuning.gd's rebound_damping DECISION for why this can't just
-## be a lower Jolt restitution. Runs every physics step regardless of
-## contact_monitor (RigidBody3D always calls a script's _integrate_forces()
-## override once per step it isn't sleeping; no signal/contact-report setup
-## needed) -- Block._physics_process's own DECISION above is why
-## contact_monitor itself stays off. A client's synced blocks are frozen
+## be a lower Jolt restitution. Runs every physics step a body is synced
+## regardless of contact_monitor (no signal/contact-report setup needed) --
+## the impact-detection DECISION above is why contact_monitor itself stays
+## off. A client's synced blocks are frozen
 ## (RigidBody3D.FREEZE_MODE_KINEMATIC, net/SnapshotSync.gd's freeze_body()),
 ## so Jolt never integrates them and this never runs there -- host-only
 ## follows from "only the host runs physics" (CLAUDE.md) without this file
@@ -340,33 +433,23 @@ func _physics_process(_delta: float) -> void:
 ## asleep_at_s=0.52 -- identical to the ungated tower's own baseline) fixed
 ## it outright; see config/physics_presets/heavy_bouncy.tres for the shipped
 ## values this was tuned against.
-func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
-	if not _release_checked:
-		_release_checked = true
-		_apply_release_tilt(state)
-	var current_y: float = state.linear_velocity.y
-	# Bontago-1pi.11.60: a sleeping or frozen body has nothing to damp (its
-	# velocity is solver-free); only keep the previous-velocity sample current
-	# and consume a pending kick, exactly what the full path leaves behind.
-	if freeze or state.sleeping:
-		_script_kick_pending = false
-		_prev_step_linear_velocity_y = current_y
+##
+## Bontago-bth.1: the one-shot release tilt below is the only part still run
+## from an engine callback per body: Jolt's force-integration callback at the
+## body's first state sync (installed in _enter_tree(), dropped after its one
+## call), i.e. the same flush position and order the old first
+## _integrate_forces() call had. It writes the body transform before the C++
+## RigidBody3D sync copies it to the node, exactly as before.
+func _on_first_integration(state: PhysicsDirectBodyState3D) -> void:
+	if _release_checked:
 		return
-	rebound_work_runs += 1
-	if _script_kick_pending:
-		# Review fix (Bontago-xtq.17 SHOULD-FIX 1): this step's velocity was
-		# just written by a special effect (kick()/mark_script_kick()), not
-		# produced by Jolt's own contact solver -- pass it through untouched
-		# and consume the flag so only THIS step is exempt.
-		_script_kick_pending = false
-	elif tuning != null and tuning.rebound_damping != 1.0:
-		var damped_y: float = _damp_rebound(
-			_prev_step_linear_velocity_y, current_y, tuning.rebound_damping, tuning.sleep_linear_threshold
-		)
-		if damped_y != current_y:
-			current_y = damped_y
-			state.linear_velocity.y = current_y
-	_prev_step_linear_velocity_y = current_y
+	_release_checked = true
+	_apply_release_tilt(state)
+	_drop_first_integration_callback.call_deferred()
+
+
+func _drop_first_integration_callback() -> void:
+	PhysicsServer3D.body_set_force_integration_callback(get_rid(), Callable())
 
 
 ## DECISION Bontago-8bc: Jolt keeps even offset flat impacts symmetrical.
@@ -417,14 +500,16 @@ func kick(velocity: Vector3) -> void:
 	mark_script_kick()
 
 
-## Marks the very next _integrate_forces() step as a script-driven velocity
-## write, not a natural bounce -- see _integrate_forces()'s own review-fix
-## DECISION above for why a flag, not contact detection. Call this right after
+## Marks the very next _integrate_forces() step (_batch_tick() rebound pass)
+## as a script-driven velocity write, not a natural bounce -- see
+## _integrate_forces()'s own review-fix DECISION above for why a flag, not
+## contact detection. Call this right after
 ## directly assigning/adding to `linear_velocity` (or apply_impulse()) from a
 ## special effect, whenever kick() itself doesn't fit (e.g. PropellerEffect
 ## only overwrites the Y component every tick).
 func mark_script_kick() -> void:
 	_script_kick_pending = true
+	_kick_frame = Engine.get_physics_frames()
 
 
 ## Pure rebound-damping rule, static and scene-tree/physics-server-free so
@@ -542,6 +627,11 @@ func request_freeze_static(reason: StringName) -> void:
 		return
 	_freeze_reasons[reason] = true
 	if _freeze_reasons.size() == 1:
+		# Bontago-bth.1: frozen between ticks, a body Jolt stepped last tick is
+		# still queued for one more state sync, where the old _integrate_forces()
+		# took its early-out. A STATIC freeze also puts the body to sleep, so
+		# that sync raises sleeping_state_changed and _on_sleeping_state_changed()
+		# runs the same early-out there.
 		freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
 		freeze = true
 		_apply_awake(false)
@@ -573,7 +663,7 @@ func release_freeze_static(reason: StringName) -> void:
 		freeze = false
 		# Registered awake unconditionally: a script wake of a frozen body
 		# (`sleeping = false`) does not always raise sleeping_state_changed, and
-		# _physics_process() below deregisters a body that really is asleep.
+		# BlockStepBatch's per-tick pass deregisters a body that really is asleep.
 		_apply_awake(true)
 
 

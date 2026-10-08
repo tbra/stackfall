@@ -10,8 +10,12 @@ extends RefCounted
 ## the host's countdown tick and feeds it the *current* set of required peers
 ## (every connected peer that holds a human slot; bots never appear in it).
 ##
-## The gate opens once every required peer is ready -- or max_wait_s has elapsed,
-## the safety cap that keeps an AFK/frozen player from blocking everyone forever.
+## The gate opens once every required peer is ready, and only then.
+## DECISION (Bontago-1pi.125, owner: the ready screen's hidden auto-start timer is
+## "disabled and removed"): there is no wait cap that opens the gate for a laggard. A peer
+## that never loads or never answers leaves through the transport disconnect (it then drops
+## out of the required set) or its own load-failure path (ui/LoadingScreen.gd
+## readiness_timed_out -> back to the lobby); it never starts the match for everyone.
 ## Bontago-1pi.63 (owner playtest 2026-10-04): there is no minimum display time any
 ## more; the ready presses alone hold the screen.
 ## The required set is passed in on every call rather than stored, so a peer
@@ -19,30 +23,20 @@ extends RefCounted
 ## Readiness is keyed by peer id, never by anything a peer could claim about
 ## itself, and recording it is idempotent.
 
-var _max_wait_s: float = 0.0
 var _elapsed_s: float = 0.0
 var _open: bool = false
-var _timed_out: bool = false
 ## peer_id -> true for every peer that pressed ready this match.
 var _ready: Dictionary = {}
 
 
-func begin(max_wait_s: float) -> void:
-	_max_wait_s = maxf(max_wait_s, 0.0)
+func begin() -> void:
 	_elapsed_s = 0.0
 	_open = false
-	_timed_out = false
 	_ready.clear()
 
 
 func is_open() -> bool:
 	return _open
-
-
-## True when the gate opened because max_wait_s ran out, not because everyone
-## was ready.
-func opened_by_timeout() -> bool:
-	return _timed_out
 
 
 func elapsed_s() -> float:
@@ -88,9 +82,7 @@ func tick(delta: float, required: PackedInt32Array) -> bool:
 	if _open:
 		return false
 	_elapsed_s += maxf(delta, 0.0)
-	var cap_reached: bool = _elapsed_s >= _max_wait_s
-	if not all_ready(required) and not cap_reached:
+	if not all_ready(required):
 		return false
-	_timed_out = cap_reached and not all_ready(required)
 	_open = true
 	return true

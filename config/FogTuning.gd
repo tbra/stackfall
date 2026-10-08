@@ -40,9 +40,6 @@ extends WeatherTuning
 ## far_min_visibility.
 @export var clear_radius_m: float = 22.0
 @export var far_reference_distance_m: float = 100.0
-## Bontago-mp0.130: weather fog also pushes the Environment's aerial perspective
-## up by this much at full intensity (far scenery takes on the sky colour).
-@export_range(0.0, 1.0, 0.01) var aerial_perspective_add: float = 0.35
 ## Ambient (theme) exponential fog readability: from the start camera the whole
 ## disc and far rim (arena_far_rim_m away) must keep at least
 ## ambient_min_rim_keep of their colour. The tests pin every theme to it.

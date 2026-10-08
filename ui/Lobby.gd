@@ -108,6 +108,8 @@ var net_provider: Variant = null:
 ## variant/size options above stay pinned to Round/Medium); %DiscSizeSlider is the one
 ## visible map control, six steps into config/disc_size_tuning.tres (tiny 50% .. enormous 175%).
 @onready var _disc_size_slider: HSlider = %DiscSizeSlider
+## Bontago-1pi.121: the settings column; _scroll_settings_to_top() resets it when the lobby opens.
+@onready var _settings_scroll: ScrollContainer = %SettingsScroll
 @onready var _disc_size_value: Label = %DiscSizeValue
 @onready var _map_thumbnail: PanelContainer = %MapThumbnail
 var _map_thumbnail_icon: TextureRect = null
@@ -219,6 +221,7 @@ var _map_thumbnail_icon: TextureRect = null
 @onready var _header_title: Label = %HeaderTitle
 @onready var _header_eyebrow: Label = %Eyebrow
 @onready var _back_button: Button = %BackButton
+const ALL_READY_TEXT: String = "All players ready"
 ## Bontago-mp0.3.5 (review r1, item 13): mockup 11's bottom-left "Waiting for
 ## players * X of Y ready" pill, updated every time the players panel rebuilds its rows (_on_roster_rendered()).
 @onready var _waiting_status_pill: PanelContainer = %WaitingStatusPill
@@ -374,6 +377,20 @@ func _ready() -> void:
 	# into view" behavior scrolling to that control's stale/zero rect,
 	# shifting the whole card sideways in every capture.
 	_disc_size_slider.grab_focus()
+	# Bontago-1pi.121: the first focus above may have scrolled the column; open at the top.
+	_scroll_settings_to_top()
+	visibility_changed.connect(_on_lobby_visibility_changed)
+
+
+## Bontago-1pi.121 (owner playtest: menus with scrollbars don't start at the top): deferred so it
+## lands after the layout pass and any focus-follow scroll that the opening focus triggered.
+func _scroll_settings_to_top() -> void:
+	_settings_scroll.set_deferred(&"scroll_vertical", 0)
+
+
+func _on_lobby_visibility_changed() -> void:
+	if is_visible_in_tree():
+		_scroll_settings_to_top()
 
 
 func _process(_delta: float) -> void:
@@ -436,6 +453,15 @@ func _populate_options() -> void:
 	_fill_option(_map_variant_option, MAP_VARIANT_LABELS)
 	_fill_option(_map_size_option, MAP_SIZE_LABELS)
 	_configure_disc_size_slider()
+	# Bontago-1pi.119 / 1pi.123: coarse keyboard/gamepad steps for fine sliders, and the wheel
+	# over any slider scrolls the settings column instead of changing it.
+	for nav_slider: HSlider in [
+		_block_timer_slider, _gravity_slider, _special_freq_slider,
+	]:
+		SliderNav.apply(nav_slider)
+	# The disc-size and minute timer sliders are stepped by _on_timer_slider_gui_input (one step per press).
+	for stepped_slider: HSlider in [_disc_size_slider, _match_timer_slider, _round_timer_slider]:
+		SliderNav.apply(stepped_slider, false)
 	_decorate_map_picker()
 	_fill_option(_ai_difficulty_option, ["Easy", "Normal", "Hard"])
 	_fill_option(_team_mode_option, ["Off", "2 teams", "3 teams", "4 teams"])
@@ -1493,6 +1519,11 @@ func _set_bot_count(new_ai_count: int) -> void:
 ## 3 of 4 ready" pill, derived from the exact rows just drawn rather than a second
 ## net_provider query.
 func _on_roster_rendered(ready_count: int, row_count: int) -> void:
+	# DECISION (Bontago-1pi.122): the host counts as ready (see LobbyPlayersPanel._render), and once
+	# every seat is ready the pill says so instead of "Waiting for players * 2 of 2 ready".
+	if row_count > 0 and ready_count >= row_count:
+		_waiting_status_label.text = "%s %s" % [char(0x25CF), ALL_READY_TEXT]
+		return
 	_waiting_status_label.text = "%s Waiting for players %s %d of %d ready" % [
 		char(0x25CF), char(0xB7), ready_count, row_count,
 	]

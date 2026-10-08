@@ -24,10 +24,9 @@ func _meshes(ghost: GhostPreview) -> Array[MeshInstance3D]:
 func test_tuning_defaults_match_plan() -> void:
 	var tuning: HoneyCoatTuning = load(TUNING_PATH) as HoneyCoatTuning
 	assert_not_null(tuning)
-	assert_eq(tuning.color, Color(1.0, 0.6, 0.04, 0.12))
-	assert_almost_eq(tuning.thickness_m, 0.012, 0.0001)
-	assert_almost_eq(tuning.ghost_alpha, 0.14, 0.0001)
-	assert_almost_eq(tuning.drip_speed, 0.2, 0.0001)
+	assert_eq(tuning.color, Color(1.0, 0.7, 0.04, 1.0))
+	assert_almost_eq(tuning.thickness_m, 0.02, 0.0001)
+	assert_almost_eq(tuning.ghost_alpha, 0.6, 0.0001)
 	assert_almost_eq(tuning.roughness, 0.05, 0.0001)
 
 
@@ -36,12 +35,10 @@ func test_shader_loads_and_material_carries_the_tuning() -> void:
 	assert_not_null(shader)
 	assert_eq(shader.get_mode(), Shader.MODE_SPATIAL)
 	var tuning: HoneyCoatTuning = load(TUNING_PATH) as HoneyCoatTuning
-	var material: ShaderMaterial = tuning.build_material(true)
+	var material: ShaderMaterial = tuning.build_material()
 	assert_eq(material.shader, shader)
 	assert_eq(material.get_shader_parameter(&"honey_color"), tuning.color)
-	assert_almost_eq(float(material.get_shader_parameter(&"drip_speed")), tuning.drip_speed, 0.0001)
-	var frozen: ShaderMaterial = tuning.build_material(false)
-	assert_almost_eq(float(frozen.get_shader_parameter(&"drip_speed")), 0.0, 0.0001)
+	assert_almost_eq(float(material.get_shader_parameter(&"tongue_chance")), tuning.tongue_chance, 0.0001)
 
 
 func test_glue_ghost_gets_honey_overlay_and_loses_it() -> void:
@@ -59,27 +56,12 @@ func test_glue_ghost_gets_honey_overlay_and_loses_it() -> void:
 		assert_null(mesh.material_overlay, "overlay is removed at zero charges")
 
 
-func test_glue_ghost_is_a_faint_tint_without_drips() -> void:
+func test_glue_ghost_is_translucent_honey() -> void:
 	var ghost: GhostPreview = _make_ghost()
 	var mesh: MeshInstance3D = _meshes(ghost)[0]
 	ghost.set_glue_charges(1)
-	assert_null(mesh.get_node_or_null("HoneyDrips"), "the translucent ghost gets no drips (they flickered)")
 	var overlay: ShaderMaterial = mesh.material_overlay as ShaderMaterial
 	assert_true(bool(overlay.get_shader_parameter(&"ghost_mode")))
-	assert_false(bool(overlay.get_shader_parameter(&"drip_mesh")))
 	var tuning: HoneyCoatTuning = load(TUNING_PATH) as HoneyCoatTuning
-	assert_lt(tuning.ghost_alpha, 0.3, "faint enough that the validity colour reads")
-
-
-func test_placed_drips_hang_from_the_bottom_edge() -> void:
-	var tuning: HoneyCoatTuning = load(TUNING_PATH) as HoneyCoatTuning
-	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
-	var box: BoxMesh = BoxMesh.new()
-	mesh_instance.mesh = box
-	add_child_autofree(mesh_instance)
-	var count: int = tuning.attach_drips(mesh_instance, tuning.build_drip_material(false))
-	assert_gt(count, 0)
-	assert_true(count <= tuning.max_drips)
-	var lowest: float = box.get_aabb().position.y
-	for drip: Node in mesh_instance.get_node("HoneyDrips").get_children():
-		assert_almost_eq((drip as Node3D).position.y, lowest, 0.01)
+	assert_lt(tuning.ghost_alpha, 1.0, "translucent so the validity colour reads through")
+	assert_almost_eq(float(overlay.get_shader_parameter(&"patch_coverage")), tuning.patch_coverage, 0.0001)

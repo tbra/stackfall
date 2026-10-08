@@ -4,4 +4,3 @@
 
 [resource]
 script = ExtResource("1_loading")
-ready_wait_max_s = 60.0

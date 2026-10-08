@@ -471,7 +471,7 @@ func arm_loading_ready_gate() -> bool:
 	if not _gate_armed:
 		_gate_armed = true
 		_gate_open_mirror = false
-		_ready_gate.begin(_loading_tuning.ready_wait_max_s)
+		_ready_gate.begin()
 	return true
 
 
@@ -556,7 +556,7 @@ func _reset_loading_gate() -> void:
 	_published_required = PackedInt32Array()
 	_published_any = false
 	loading_ready_refused = 0
-	_ready_gate.begin(0.0)
+	_ready_gate.begin()
 
 
 ## Host. Net already checked the sender is a seated peer; this checks the phase

@@ -611,7 +611,11 @@ func _render() -> void:
 	var ready_count: int = 0
 	for entry: Dictionary in _humans:
 		var human_row: LobbySeatRow = _build_human_row(entry)
-		if human_row.is_ready:
+		# DECISION (Bontago-1pi.122): the pill read "1 of 2 ready" with the host plus one ready
+		# client because the host's row is never "ready" (its seat shows the crown and Start is
+		# its consent, Bontago-1pi.95), so the host was in the denominator but never the count.
+		# The host counts as ready; a seat is only waited on if it can still become ready.
+		if human_row.is_ready or human_row.is_host:
 			ready_count += 1
 		_add_row(human_row)
 	for ordinal: int in range(bot_total):

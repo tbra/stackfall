@@ -1,0 +1,7 @@
+[gd_resource type="Resource" script_class="SliderNavTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/SliderNavTuning.gd" id="1_slidernav"]
+
+[resource]
+script = ExtResource("1_slidernav")
+steps_per_range = 20

@@ -97,18 +97,17 @@ func _press(peer_id: int) -> void:
 
 func test_gate_opens_on_the_tick_everyone_is_ready_with_no_minimum_display() -> void:
 	var gate: LoadingReadyGate = LoadingReadyGate.new()
-	gate.begin(MAX_S)
+	gate.begin()
 	assert_false(gate.tick(0.0, PackedInt32Array([1])), "nobody pressed yet")
 	assert_true(gate.mark_ready(1, PackedInt32Array([1])))
 	assert_true(gate.tick(0.01, PackedInt32Array([1])), "opens at once: the 5 s minimum is gone (1pi.63)")
-	assert_false(gate.opened_by_timeout())
 	assert_false(gate.tick(1.0, PackedInt32Array([1])), "opens exactly once")
 
 
 func test_gate_waits_for_every_required_peer() -> void:
 	var required: PackedInt32Array = PackedInt32Array([1, 2])
 	var gate: LoadingReadyGate = LoadingReadyGate.new()
-	gate.begin(MAX_S)
+	gate.begin()
 	gate.mark_ready(1, required)
 	assert_false(gate.tick(MIN_S + 1.0, required), "peer 2 has not pressed")
 	assert_false(gate.all_ready(required))
@@ -119,24 +118,26 @@ func test_gate_waits_for_every_required_peer() -> void:
 
 func test_gate_with_nobody_to_wait_for_opens_at_once() -> void:
 	var gate: LoadingReadyGate = LoadingReadyGate.new()
-	gate.begin(MAX_S)
+	gate.begin()
 	assert_true(gate.tick(0.01, PackedInt32Array()), "all-bot match: nothing to wait for")
 
 
-func test_gate_max_wait_opens_without_the_laggard() -> void:
+## Bontago-1pi.125: the hidden auto-start timer is gone; no elapsed time opens the gate.
+func test_gate_never_opens_by_elapsed_time_without_the_laggard() -> void:
 	var required: PackedInt32Array = PackedInt32Array([1, 2])
 	var gate: LoadingReadyGate = LoadingReadyGate.new()
-	gate.begin(MAX_S)
+	gate.begin()
 	gate.mark_ready(1, required)
-	assert_false(gate.tick(MAX_S - 1.0, required))
-	assert_true(gate.tick(1.5, required), "safety cap: an AFK peer cannot block everyone forever")
-	assert_true(gate.opened_by_timeout())
+	assert_false(gate.tick(MAX_S * 10.0, required), "no cap: the old 60 s auto-start is removed")
+	assert_false(gate.is_open())
+	gate.mark_ready(2, required)
+	assert_true(gate.tick(0.01, required), "opens only once the laggard is ready")
 
 
 func test_gate_refuses_spoofed_duplicate_and_late_intents() -> void:
 	var required: PackedInt32Array = PackedInt32Array([1, 2])
 	var gate: LoadingReadyGate = LoadingReadyGate.new()
-	gate.begin(MAX_S)
+	gate.begin()
 	assert_false(gate.mark_ready(99, required), "a peer that is not required")
 	assert_false(gate.mark_ready(-1, required))
 	assert_true(gate.mark_ready(1, required))
@@ -148,7 +149,7 @@ func test_gate_refuses_spoofed_duplicate_and_late_intents() -> void:
 
 func test_gate_leaver_drops_out_of_the_required_set() -> void:
 	var gate: LoadingReadyGate = LoadingReadyGate.new()
-	gate.begin(MAX_S)
+	gate.begin()
 	gate.mark_ready(1, PackedInt32Array([1, 2]))
 	assert_false(gate.tick(MIN_S + 1.0, PackedInt32Array([1, 2])))
 	assert_true(gate.tick(0.1, PackedInt32Array([1])), "peer 2 left: only peer 1 is still waited for")
@@ -297,15 +298,18 @@ func test_disconnected_peer_drops_out_and_the_gate_opens() -> void:
 	assert_eq(_opened_count, 1)
 
 
-func test_max_wait_starts_the_match_without_an_afk_player() -> void:
+## Bontago-1pi.125: a slow peer delays the start indefinitely; the match never auto-starts.
+func test_no_auto_start_after_the_old_wait_cap_and_slow_peer_delays_start() -> void:
 	var net: FakeNet = FakeNet.host({1: 0, 2: 1}, [0] as Array[int])
 	_start_gated(net, 2, 0)
 	_press(1)
-	_step(MAX_S - 1.0)
-	assert_true(Match._lifecycle.loading_gate_blocking())
-	_step(1.5)
-	assert_false(Match._lifecycle.loading_gate_blocking(), "ready_wait_max_s elapsed")
-	assert_true(Match._lifecycle._ready_gate.opened_by_timeout())
+	_step(MAX_S * 3.0)
+	assert_true(Match._lifecycle.loading_gate_blocking(), "peer 2 never loaded: still waiting, no start")
+	assert_eq(_opened_count, 0)
+	_press(2)
+	_step(STEP_S * 2.0)
+	assert_false(Match._lifecycle.loading_gate_blocking(), "starts once the slow peer is ready")
+	assert_eq(_opened_count, 1)
 
 
 func test_spoofed_spectator_and_late_intents_are_refused() -> void:
@@ -601,13 +605,10 @@ func test_net_client_rejects_malformed_or_oversized_mirrors() -> void:
 
 # --- tuning + the LoadingScreen glue -------------------------------------------
 
-func test_tuning_ready_wait_cap_is_a_positive_safety_net_beyond_asset_timeout() -> void:
+func test_tuning_has_no_ready_wait_auto_start_cap() -> void:
 	var tuning: LoadingScreenTuning = load("res://config/loading_screen_tuning.tres") as LoadingScreenTuning
-	assert_gt(tuning.ready_timeout_s, 0.0)
-	assert_gt(tuning.ready_wait_max_s, 0.0)
-	# The AFK-player cap is measured from LOADING and covers asset loading too,
-	# so it must not be shorter than the asset-loading timeout.
-	assert_gte(tuning.ready_wait_max_s, tuning.ready_timeout_s)
+	assert_gt(tuning.ready_timeout_s, 0.0, "the asset-load failure timeout stays (it aborts, never starts)")
+	assert_false("ready_wait_max_s" in tuning, "Bontago-1pi.125: the auto-start cap is removed")
 
 
 func _screen() -> LoadingScreen:
@@ -616,7 +617,6 @@ func _screen() -> LoadingScreen:
 	screen.tuning = LoadingScreenTuning.new()
 	screen.tuning.warmup_frames = 1
 	screen.tuning.fade_out_duration_s = 0.02
-	screen.tuning.ready_wait_max_s = 5.0
 	return screen
 
 
@@ -632,7 +632,7 @@ func test_screen_ready_input_is_off_until_loading_finished_and_holds_the_overlay
 	var net: FakeNet = FakeNet.offline()
 	_start_gated(net, 1, 0)
 	Match._lifecycle._loading_tuning = LoadingScreenTuning.new()
-	Match._lifecycle._ready_gate.begin(5.0)
+	Match._lifecycle._ready_gate.begin()
 	var screen: LoadingScreen = _screen()
 	screen.show_for_match(_config(1, 0), [] as Array[PlayerSlot])
 	assert_true(screen.ready_gate_armed())
@@ -671,17 +671,15 @@ func test_screen_gamepad_a_is_the_same_ready_action() -> void:
 	await _close(screen)
 
 
-func test_screen_client_gives_up_after_the_wait_cap() -> void:
+func test_screen_client_keeps_waiting_with_no_wait_cap() -> void:
 	var net: FakeNet = FakeNet.client(1)
 	_start_gated(net, 2, 0)
 	var screen: LoadingScreen = _screen()
-	screen.tuning.ready_wait_max_s = 0.15
 	screen.show_for_match(_config(2, 0), [] as Array[PlayerSlot])
 	screen.fade_out()
-	await wait_seconds(0.1)
-	assert_true(screen.visible, "still waiting for the host")
-	await wait_seconds(0.6, "cap + warmup + fade")
-	assert_false(screen.visible, "a lost host message never freezes a client")
+	await wait_seconds(0.8, "well past warmup + fade")
+	assert_true(screen.visible, "Bontago-1pi.125: no cap; the client waits for the host's open message")
+	await _close(screen)
 
 
 func test_screen_unarmed_fade_is_unchanged() -> void:
@@ -710,7 +708,6 @@ func _match_slots() -> Array[PlayerSlot]:
 func _open_screen(net: Variant, players: int, ai: int, hot_seat: bool = false) -> LoadingScreen:
 	_start_gated(net, players, ai, hot_seat)
 	var screen: LoadingScreen = _screen()
-	screen.tuning.ready_wait_max_s = MAX_S
 	screen.show_for_match(_config(players, ai, hot_seat), _match_slots())
 	return screen
 

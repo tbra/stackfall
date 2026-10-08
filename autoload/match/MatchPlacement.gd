@@ -73,6 +73,9 @@ var _special_defs_config: MatchConfig = null
 ## drawer/roster bug without spamming it.
 var _warned_special_ids: Dictionary = {}
 
+## Bontago-1pi.134: per-slot last aim (unit camera forward), see note_aim().
+var _aim_by_slot: Dictionary = {}
+
 
 ## Bontago-1pi.85.35: in-place gift activation (see MatchGiftActivation).
 var _activation: MatchGiftActivation = MatchGiftActivation.new()
@@ -195,6 +198,10 @@ func request_place(
 	var refusal: StringName = _intent_gate(slot_id, feed_seq, gate_kind)
 	if refusal != &"":
 		return refusal
+	# Bontago-1pi.134 (owner decision 1pi.133 = A): a forced release of a held throwable gift
+	# is the manual throw along the slot's last known aim, not a drop in place.
+	if auto_drop and _try_expiry_throw(slot_id, origin, orientation_index, free_quat, feed_seq):
+		return PlacementRules.REASON_OK
 	var acting_slot: PlayerSlot = _match.slot(slot_id)
 	var shape: BlockShape = _match.held_shape(slot_id)
 	# DECISION (Bontago-mv0.10): the release lock (enforced in _intent_gate for
@@ -432,7 +439,7 @@ func request_throw(
 	var launch_velocity: Vector3 = Vector3.ZERO
 	if held_def == null or throw_mode == GiftThrow.Mode.THROW:
 		# An unresolved def (spawns as a plain block) takes the same ballistic throw (85.21).
-		launch_velocity = GiftAim.throw_velocity(aim_direction, _special_tuning)
+		launch_velocity = GiftAim.throw_velocity(aim_direction, _special_tuning, _throw_range_scale())
 		if launch_velocity == Vector3.ZERO:
 			return PlacementRules.REASON_NO_BLOCK
 	elif held_def.effect is RocketEffect:
@@ -478,7 +485,12 @@ func request_throw(
 		Events.placement_rejected.emit(slot_id, reason)
 		return reason
 
-	var clamped_velocity: Vector3 = launch_velocity.limit_length(_special_tuning.throw_max_speed)
+	# Bontago-1pi.135 (a): the map-size range scaling applies to the ballistic THROW only; an
+	# AIMED launch (Rocket/Paintball) keeps the plain throw_max_speed clamp.
+	var speed_cap: float = _special_tuning.throw_max_speed
+	if held_def == null or throw_mode == GiftThrow.Mode.THROW:
+		speed_cap *= GiftAim.speed_factor(_throw_range_scale())
+	var clamped_velocity: Vector3 = launch_velocity.limit_length(speed_cap)
 	var world_origin: Vector3 = _match._field.to_global(Vector3(disk_origin.x, local_origin.y, disk_origin.y))
 	# Bontago-1pi.14 round 3: the throw spawns at the client-sent pose too, so
 	# it gets the same host overlap validation (a manual intent: refused, the
@@ -524,6 +536,53 @@ func request_throw(
 		_match._lifecycle.begin_turn_settle_wait()
 
 	return PlacementRules.REASON_OK
+
+
+## Bontago-1pi.134: records the unit camera forward a slot last reported (the cursor packet's
+## aim on the wire, the local controller's own camera for the host seat, a bot's planned aim).
+## Host only; an unusable value forgets the slot's aim. It is never trusted: the expiry throw
+## runs it through request_throw()'s own GiftThrow.sanitize_aim() like a manual release.
+func note_aim(slot_id: int, forward: Vector3) -> void:
+	if not _match._is_host() or slot_id < 0 or slot_id >= _match.slot_count():
+		return
+	if not forward.is_finite() or forward == Vector3.ZERO:
+		_aim_by_slot.erase(slot_id)
+		return
+	_aim_by_slot[slot_id] = forward
+
+
+## Drops the aim noted for `slot_id` (a new piece was issued to it).
+func forget_aim(slot_id: int) -> void:
+	_aim_by_slot.erase(slot_id)
+
+
+## The aim last noted for `slot_id`, or Vector3.ZERO.
+func noted_aim(slot_id: int) -> Vector3:
+	return _aim_by_slot.get(slot_id, Vector3.ZERO)
+
+
+## Bontago-1pi.134: the expiry half of request_place(). True when a held, throwable gift was
+## released as a manual throw along the slot's last noted aim (same validation, arc and range:
+## it IS request_throw()). False leaves the caller's ordinary forced drop to run.
+## DECISION (Bontago-1pi.134): no usable aim, a non-throwable special, an unresolved gift, an
+## off-disk cursor or a refused throw (nothing is burned by a refused throw) fall back to the
+## ordinary auto-drop, which relocates to the nearest valid release point; non-throwable
+## specials therefore follow their manual-release path (placed where the ghost is).
+func _try_expiry_throw(slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion, feed_seq: int) -> bool:
+	if not _aim_by_slot.has(slot_id) or _match.held_special(slot_id) == &"":
+		return false
+	var held_def: SpecialDef = _resolve_deliverable_special(_match.held_special(slot_id))
+	if held_def == null or GiftThrow.mode_for(held_def) == GiftThrow.Mode.NONE:
+		return false
+	var aim: Vector3 = _aim_by_slot[slot_id]
+	if GiftThrow.sanitize_aim(aim, _special_tuning) == Vector3.ZERO:
+		return false
+	if not is_pose_well_formed(origin, orientation_index, free_quat):
+		return false
+	# An off-disk cursor would make the throw emit a refusal the forced drop then repeats.
+	if _match._field.raycast_down_disk_local(origin) == null:
+		return false
+	return request_throw(slot_id, origin, orientation_index, free_quat, aim, feed_seq) == PlacementRules.REASON_OK
 
 
 ## Bontago-1pi.85.16: hands the validated camera forward to the effect that flies along it.
@@ -1058,6 +1117,7 @@ func default_ghost_origin(slot_id: int) -> Vector3:
 
 
 func _clear_blocks() -> void:
+	_aim_by_slot.clear()
 	# Bontago-1pi.85.24 review: in-place activation anchors (Earthquake etc.) are not
 	# under _blocks_parent; free them on every reset/abort too, not only via the lifetime backstop.
 	_activation.clear()
@@ -1065,3 +1125,11 @@ func _clear_blocks() -> void:
 		return
 	for child: Node in _match._blocks_parent.get_children():
 		child.queue_free()
+
+
+## Bontago-1pi.126: this match's thrown-gift range scale (GiftAim.range_scale of the field radius);
+## 1.0 while no field exists.
+func _throw_range_scale() -> float:
+	if _match._field == null or _match._field.map_def == null:
+		return 1.0
+	return GiftAim.range_scale(_match._field.map_def.field_radius, _special_tuning)

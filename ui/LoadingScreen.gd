@@ -355,8 +355,8 @@ func fade_out() -> void:
 
 ## Bontago-1pi.32: loading is done here; hold the overlay (and accept ready
 ## presses) until the host's gate opens and the minimum display time has elapsed
-## locally. The wait is capped by tuning.ready_wait_max_s so a lost message can
-## never freeze a client; the host's own cap lives in MatchLifecycle. Returns
+## locally. There is no time cap (Bontago-1pi.125): a client is released by the host's
+## open message, the match moving past the countdown, or a disconnect. Returns
 ## immediately when no gate is armed (headless, sandbox).
 func _wait_for_ready_gate(token: int) -> void:
 	if not _ready_gate_armed:
@@ -365,14 +365,12 @@ func _wait_for_ready_gate(token: int) -> void:
 	# _refresh_ready_ui() announces the prompt once accepts_ready_input() holds (at
 	# once for a required human; a client when the host's mirror arrives).
 	_refresh_ready_ui()
-	var waited_s: float = 0.0
+	# DECISION (Bontago-1pi.125): no wait cap -- the overlay stays until the host's gate opens
+	# (everyone ready), the match leaves the pre-play window, or cancel() bumps the token.
 	while Match._lifecycle.loading_gate_blocking():
-		if waited_s >= tuning.ready_wait_max_s:
-			break
 		await get_tree().process_frame
 		if token != _fade_token:
 			return
-		waited_s += get_process_delta_time()
 	_ready_input_enabled = false
 	_refresh_ready_ui()
 
@@ -437,12 +435,12 @@ func map_icon_texture() -> Texture2D:
 	return _map_icon.texture if _map_icon.visible else null
 
 
+## Bontago-1pi.124 (owner: the ready screen's title should just be the game mode): the card
+## title is the resolved game mode's display name only; the map pictogram stays beside it.
 func _map_display_name(config: MatchConfig) -> String:
 	if config == null:
 		return ""
-	var variant_name: String = DisplayNames.map_variant(config.map_variant)
-	var size_name: String = DisplayNames.map_size(config.map_size)
-	return "%s - %s" % [variant_name, size_name]
+	return DisplayNames.mode(MatchConfig.resolve_game_mode(config.game_mode))
 
 
 ## Bontago-1pi.49: a human seat shows the name its player typed (the host's

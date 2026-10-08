@@ -163,11 +163,13 @@ func _landing_point(previous: Vector3, point: Vector3, landing_y: float) -> Vect
 ## safe to call every frame, like GhostPreview.apply_validity(). `field` is
 ## forwarded straight to sample_arc() (Bontago-1en.25); PlayerController
 ## passes Match.field(), read-only, same as its own _on_placement_relocated().
-func update_arc(origin: Vector3, velocity: Vector3, field: Field = null, gravity_scale: float = 1.0) -> void:
+func update_arc(
+	origin: Vector3, velocity: Vector3, field: Field = null, gravity_scale: float = 1.0, ring_scale: float = 1.0
+) -> void:
 	var points: PackedVector3Array = sample_arc(origin, velocity, field, gravity_scale)
 	_rebuild_mesh(points)
 	var end: Vector3 = points[points.size() - 1]
-	_update_end_ring(end, _surface_normal_at(end, field))
+	_update_end_ring(end, _surface_normal_at(end, field), ring_scale)
 	visible = true
 
 
@@ -231,7 +233,7 @@ func _rebuild_mesh(points: PackedVector3Array) -> void:
 ## annulus ArrayMesh (rebuilt only when radius/width change); each arc update just sets its
 ## transform: centred on the landing point, up axis = the landing surface normal, lifted along
 ## it. No per-frame allocation.
-func _update_end_ring(point: Vector3, normal: Vector3) -> void:
+func _update_end_ring(point: Vector3, normal: Vector3, ring_scale: float = 1.0) -> void:
 	var radius: float = ghost_tuning.throw_arc_end_marker_radius
 	if not ghost_tuning.throw_arc_end_marker_enabled or radius <= 0.0:
 		_ring_instance.visible = false
@@ -244,7 +246,7 @@ func _update_end_ring(point: Vector3, normal: Vector3) -> void:
 	var up: Vector3 = normal.normalized()
 	var ref: Vector3 = Vector3.FORWARD if absf(up.dot(Vector3.FORWARD)) < 0.99 else Vector3.RIGHT
 	var right: Vector3 = ref.cross(up).normalized()
-	var basis: Basis = Basis(right, up, right.cross(up).normalized())
+	var basis: Basis = Basis(right, up, right.cross(up).normalized()).scaled(Vector3(ring_scale, 1.0, ring_scale))
 	_ring_instance.global_transform = Transform3D(basis, point + up * ghost_tuning.throw_arc_end_marker_lift)
 	_ring_instance.visible = true
 	_ring_normal = up

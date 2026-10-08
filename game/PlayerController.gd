@@ -552,7 +552,7 @@ func _publish_cursor() -> void:
 	if membrane == null:
 		return
 	membrane.submit_cursor(
-		_acting_slot(), _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion
+		_acting_slot(), _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion, _camera_forward()
 	)
 
 
@@ -923,6 +923,11 @@ func _request_place(auto_drop: bool) -> StringName:
 	# other release is an ordinary place.
 	if not auto_drop and _held_gift_mode() != GiftThrow.Mode.NONE:
 		return _request_throw(_camera_forward())
+	# Bontago-1pi.134: at timer expiry the host throws a held throwable gift along the last
+	# aim it knows (MatchPlacement.request_place); a seat this instance controls reports its
+	# own camera first (MatchNet only ever hears remote seats' aim from their cursor packets).
+	if auto_drop and _held_gift_mode() != GiftThrow.Mode.NONE and _match.has_method(&"note_aim"):
+		_match.note_aim(_acting_slot(), _camera_forward())
 	var slot_id: int = _acting_slot()
 	var membrane: Variant = _intent_target()
 	_clear_ghost_before_release()
@@ -1032,7 +1037,11 @@ func _drive_throw_visuals() -> void:
 		_arc_preview.clear_arc()
 		return
 	_arc_preview.update_arc(
-		launch["origin"] as Vector3, launch["velocity"] as Vector3, Match.field(), float(launch["gravity_scale"])
+		launch["origin"] as Vector3,
+		launch["velocity"] as Vector3,
+		Match.field(),
+		float(launch["gravity_scale"]),
+		_throw_range_scale()
 	)
 
 
@@ -1061,7 +1070,7 @@ func gift_launch_preview() -> Dictionary:
 	if mode == GiftThrow.Mode.THROW:
 		return {
 			"origin": origin,
-			"velocity": GiftAim.throw_velocity(forward, special_tuning),
+			"velocity": GiftAim.throw_velocity(forward, special_tuning, _throw_range_scale()),
 			"gravity_scale": 1.0,
 		}
 	var direction: Vector3 = forward
@@ -1072,6 +1081,15 @@ func gift_launch_preview() -> Dictionary:
 		"velocity": GiftAim.straight_velocity(direction, special_tuning.gift_throw_speed_mps),
 		"gravity_scale": 0.0,
 	}
+
+
+## Bontago-1pi.126: the active field's thrown-gift range scale (same GiftAim rule the host
+## applies); 1.0 with no field.
+func _throw_range_scale() -> float:
+	var field: Field = Match.field() if _match == Match else null
+	if field == null or field.map_definition() == null or special_tuning == null:
+		return 1.0
+	return GiftAim.range_scale(field.map_definition().field_radius, special_tuning)
 
 
 ## World centre of the held gift model (the ghost origin when no model is shown).
@@ -1090,7 +1108,7 @@ func _held_gift_aim_direction() -> Vector3:
 	var mode: GiftThrow.Mode = _held_gift_mode()
 	var forward: Vector3 = _camera_forward()
 	if mode == GiftThrow.Mode.THROW:
-		return GiftAim.throw_velocity(forward, special_tuning).normalized()
+		return GiftAim.throw_velocity(forward, special_tuning, _throw_range_scale()).normalized()
 	if mode == GiftThrow.Mode.AIMED:
 		if _held_gift_flies_upward():
 			return RocketEffect.sanitize_launch_direction(forward)

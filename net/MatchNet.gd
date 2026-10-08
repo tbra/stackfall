@@ -544,7 +544,12 @@ func submit_throw(
 ## Callers may call this every frame: the local record is always refreshed and
 ## the send is throttled to config.cursor_hz here, so no caller has to own a
 ## rate accumulator of its own.
-func submit_cursor(slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion) -> void:
+##
+## Bontago-1pi.134: `aim` is the player's unit camera forward. It rides only the client->host
+## packet (other clients never see it); the host keeps it as the slot's expiry-throw aim.
+func submit_cursor(
+	slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion, aim: Vector3 = Vector3.ZERO
+) -> void:
 	_store_cursor(slot_id, origin, orientation_index, free_quat)
 	if not NetFanout.can_send(multiplayer, _session()):
 		return
@@ -556,7 +561,7 @@ func submit_cursor(slot_id: int, origin: Vector3, orientation_index: int, free_q
 	if _session().is_host():
 		_broadcast(&"net_cursor", [slot_id, origin, orientation_index, free_quat])
 	else:
-		rpc_id(Net.HOST_PEER_ID, &"net_update_cursor", slot_id, origin, orientation_index, free_quat)
+		rpc_id(Net.HOST_PEER_ID, &"net_update_cursor", slot_id, origin, orientation_index, free_quat, aim)
 
 
 func submit_cat_target(slot_id: int, point: Vector3) -> void:
@@ -1167,7 +1172,12 @@ func _handle_throw_intent(
 ## stored here is what spec 2.5's auto-drop fires from when the slot's timer
 ## expires (_on_feed_timer_expired), so it is an input boundary too.
 func _handle_cursor_update(
-	sender_peer_id: int, slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion
+	sender_peer_id: int,
+	slot_id: int,
+	origin: Vector3,
+	orientation_index: int,
+	free_quat: Quaternion,
+	aim: Vector3 = Vector3.ZERO
 ) -> void:
 	if not _session().is_host():
 		return
@@ -1188,6 +1198,10 @@ func _handle_cursor_update(
 		_bump(_cursors_refused, sender_slot)
 		return
 	_store_cursor(slot_id, origin, orientation_index, free_quat)
+	# Bontago-1pi.134: the aim is validated again by the throw itself (GiftThrow.sanitize_aim);
+	# a non-finite one just forgets the slot's aim (note_aim).
+	if _authority().has_method(&"note_aim"):
+		_authority().note_aim(slot_id, aim)
 	Events.remote_cursor_updated.emit(slot_id, origin, orientation_index, free_quat)
 	if NetFanout.can_send(multiplayer, _session()):
 		_broadcast(&"net_cursor", [slot_id, origin, orientation_index, free_quat])
@@ -2478,8 +2492,10 @@ func net_request_use_gift_slot(slot_id: int) -> void:
 
 
 @rpc("any_peer", "call_remote", "unreliable", CURSOR_CHANNEL)
-func net_update_cursor(slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion) -> void:
-	_handle_cursor_update(multiplayer.get_remote_sender_id(), slot_id, origin, orientation_index, free_quat)
+func net_update_cursor(
+	slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion, aim: Vector3 = Vector3.ZERO
+) -> void:
+	_handle_cursor_update(multiplayer.get_remote_sender_id(), slot_id, origin, orientation_index, free_quat, aim)
 
 
 @rpc("any_peer", "call_remote", "unreliable", CURSOR_CHANNEL)

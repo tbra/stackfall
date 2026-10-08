@@ -72,3 +72,7 @@ extends Resource
 ## focus, in px (the box is a flat colour, so the shared theme's ring would vanish
 ## into it).
 @export var seat_color_focus_border_px: int = 3
+
+## Bontago-1pi.120 (owner playtest: the host crown pill should be yellow): fill of the crown pill
+## on the host's seat row. Same yellow as the game's slot-4 player colour (MatchConfig.player_colors).
+@export var host_crown_pill_color: Color = Color(0.95, 0.80, 0.25, 1.0)
