@@ -21,6 +21,13 @@ func test_deals_every_shape_under_config_blocks() -> void:
 		assert_true(seen.has(shape.id), "%s should show up in 500 draws." % shape.id)
 
 
+## Bag copies per shape: round(weight * multiplier), at least 1 (spec 2.4).
+## The bag quantises weights, so rare shapes (e.g. cube8 0.25 -> 1 copy) land
+## above their nominal share; compare against the quantised share.
+func _copies(bag: BlockBag, shape: BlockShape, config: BlockFeedConfig) -> float:
+	return float(maxi(1, int(round(bag.weight_of(shape) * config.bag_multiplier))))
+
+
 func test_weights_hold_over_2000_draws() -> void:
 	var config: BlockFeedConfig = _config()
 	var bag: BlockBag = BlockBag.new(config, 7)
@@ -32,10 +39,10 @@ func test_weights_hold_over_2000_draws() -> void:
 
 	var total_weight: float = 0.0
 	for shape: BlockShape in bag.shapes():
-		total_weight += bag.weight_of(shape)
+		total_weight += _copies(bag, shape, config)
 
 	for shape: BlockShape in bag.shapes():
-		var expected_fraction: float = bag.weight_of(shape) / total_weight
+		var expected_fraction: float = _copies(bag, shape, config) / total_weight
 		var actual_fraction: float = float(counts.get(shape.id, 0)) / float(total_draws)
 		assert_almost_eq(
 			actual_fraction, expected_fraction, expected_fraction * 0.15 + 0.01,
