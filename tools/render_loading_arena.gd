@@ -30,6 +30,7 @@ func _ready() -> void:
 	_spawn_stacks(main)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT))
 	var sky: Skybox = main.get_node("Skybox") as Skybox
+	var sunset_image: Image = null
 	for theme: String in ["sunset", "night", "dawn"]:
 		sky.set_theme_by_id(theme)
 		for i: int in range(30):
@@ -41,25 +42,31 @@ func _ready() -> void:
 			push_error("Loading arena PNG save failed: %s" % error)
 			get_tree().quit(1)
 			return
+		if theme == "sunset":
+			sunset_image = image
 		print("LOADING ARENA CAPTURE ", theme, " ", image.get_size())
-	await _capture_loading_composition(viewport)
+	await _capture_loading_composition(viewport, sunset_image)
 	Match.abort_match()
 	for i: int in range(3):
 		await get_tree().process_frame
 		await RenderingServer.frame_post_draw
+	# DECISION: free the arena scene explicitly and let it finish teardown before its viewport goes.
+	main.queue_free()
+	for i: int in range(3):
+		await get_tree().process_frame
 	viewport.queue_free()
 	for i: int in range(10):
 		await get_tree().process_frame
 		await RenderingServer.frame_post_draw
 	get_tree().quit()
 
-func _capture_loading_composition(viewport: SubViewport) -> void:
+func _capture_loading_composition(viewport: SubViewport, sunset_image: Image) -> void:
 	viewport.size = Vector2i(1280, 720)
 	var screen: LoadingScreen = (load("res://ui/LoadingScreen.tscn") as PackedScene).instantiate() as LoadingScreen
 	viewport.add_child(screen)
 	var content: Control = screen.get_node("Layer/Content") as Control
 	var background: TextureRect = TextureRect.new()
-	background.texture = ImageTexture.create_from_image(Image.load_from_file(OUT + "arena_sunset.png"))
+	background.texture = ImageTexture.create_from_image(sunset_image)
 	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
